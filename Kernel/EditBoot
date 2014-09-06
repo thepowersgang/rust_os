@@ -1,0 +1,11 @@
+#!/bin/bash
+#./MountDisk
+#vim mnt/boot/menu.lst
+#sudo umount mnt/
+if [[ "x$DISK" == "x" ]]; then
+	DISK="-i fdd.img :"
+fi
+mcopy $DISK:/boot/menu.lst .menu.lst.tmp
+vim .menu.lst.tmp
+mcopy -D o .menu.lst.tmp $DISK:/boot/menu.lst
+rm .menu.lst.tmp
