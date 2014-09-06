@@ -3,10 +3,10 @@
 //
 #![feature(asm)]
 #![crate_type="lib"]
-//#![no_std]
+#![no_std]
+extern crate core;
 
-//extern crate core;
-//use core::raw::Slice;
+use core::str::StrSlice;
 
 pub fn puts(text: &str)
 {
