@@ -2,7 +2,7 @@
 #
 #
 ARCH = amd64
-OBJS := arch_$(ARCH)/start.o main.o libarch.rlib libcore.rlib
+OBJS := start.o kcore.o libarch.rlib libcore.rlib
 
 nop :=
 space := $(nop) $(nop)
@@ -33,29 +33,29 @@ LIBCORESRC := /home/tpg/Source/rust/rust-nightly/src/libcore/
 OBJDIR := .obj/$(ARCH)/
 OBJS := $(OBJS:%=$(OBJDIR)%)
 
-all: ../kernel-$(ARCH).bin
+all: kernel-$(ARCH).bin
 
 clean:
 	rm -r $(OBJDIR)
 
-../kernel-$(ARCH).bin: $(OBJS) link_$(ARCH).ld Makefile
+kernel-$(ARCH).bin: $(OBJS) arch/$(ARCH)/link.ld Makefile
 	@echo [LD] -o $@
-	@x86_64-elf-ld -o $@ $(OBJS) $(LIBCORE) $(LIBCOMPILERRT) -T link_$(ARCH).ld -Map $(OBJDIR)map.txt -z max-page-size=0x1000
+	@x86_64-elf-ld -o $@ $(OBJS) $(LIBCORE) $(LIBCOMPILERRT) -T arch/$(ARCH)/link.ld -Map $(OBJDIR)map.txt -z max-page-size=0x1000
 	@objcopy $@ -F elf32-i386 $@.elf32
-	@mcopy -i ../fdd.img ../kernel-amd64.bin.elf32 ::/ -D o
+	@mcopy -i fdd.img $@.elf32 ::/ -D o
 	@objdump -S $@ > $@.dsm
 
-$(OBJDIR)%.o: %.asm Makefile
+$(OBJDIR)start.o: arch/$(ARCH)/start.asm Makefile
 	@echo [AS] -o $@
 	@mkdir -p $(dir $@)
 	@nasm -o $@ $< -f elf64
 
-$(OBJDIR)main.o: main.rs $(OBJDIR)libarch.rlib $(OBJDIR)libcore.rlib Makefile
+$(OBJDIR)kcore.o: Core/main.rs $(OBJDIR)libarch.rlib $(OBJDIR)libcore.rlib Makefile
 	@echo [RUSTC] -o $@
 	@mkdir -p $(dir $@)
 	@$(ENV) rustc -O $(RUSTFLAGS) --emit obj -o $@ $< --dep-info $@.dep $(call LocalLib,core) $(call LocalLib,arch)
 
-$(OBJDIR)libarch.rlib: arch_$(ARCH)/crate.rs $(OBJDIR)libcore.rlib  Makefile
+$(OBJDIR)libarch.rlib: arch/$(ARCH)/crate.rs $(OBJDIR)libcore.rlib  Makefile
 	@echo [RUSTC] -o $@
 	mkdir -p $(dir $@)
 	@$(ENV) rustc -O $(RUSTFLAGS) --crate-name arch -o $@ $< --dep-info $@.dep $(call LocalLib,core)
