@@ -134,6 +134,50 @@ start64_higher:
 [global __morestack]
 __morestack:
 	ret
+[global _Unwind_Resume]
+_Unwind_Resume:
+[global rust_eh_personality]
+rust_eh_personality:
+abort:
+	cli
+	hlt
+	jmp abort
+
+[global memset]
+;; RDI = Address
+;; RSI = Value
+;; RDX = Count
+memset:
+	mov rax, rsi
+	mov rcx, rdx
+	rep stosb
+	ret
+[global memcpy]
+;; RDI = Destination
+;; RSI = Source
+;; RDX = Count
+memcpy:
+	mov rcx, rdx
+	rep movsb
+	ret
+[global memcmp]
+;; RDI = A
+;; RSI = B
+;; RDX = Count
+memcmp:
+	mov rcx, rdx
+	rep cmpsb
+	mov rax, 0
+	ja .pos
+	jb .neg
+	ret
+.pos:
+	dec rax
+	ret
+.neg:
+	inc rax
+	ret
+
 
 [section .padata]
 [global InitialPML4]

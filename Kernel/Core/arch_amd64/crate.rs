@@ -8,6 +8,8 @@ extern crate core;
 
 use core::str::StrSlice;
 
+pub mod float;
+
 pub fn puts(text: &str)
 {
 	for c in text.bytes()
