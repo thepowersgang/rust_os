@@ -17,8 +17,6 @@ SECTIONS {
 		*(.initdata)
 	}
 	
-	low_GDT = GDT - _kernel_base;
-	low_GDTPtr = GDTPtr - _kernel_base;
 	low_InitialPML4 = InitialPML4 - _kernel_base;
 	
 	. += _kernel_base;

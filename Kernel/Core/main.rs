@@ -1,12 +1,17 @@
+// "Tifflin" Kernel
+// - By John Hodge (thePowersGang)
 //
-//
-//
+// Core/main.rs
+// - Kernel main
 #![no_std]
 #![feature(phase)]
 #![feature(macro_rules)]
 
 #[phase(plugin, link)] extern crate core;
+extern crate common;
 extern crate arch;
+
+use core::option::{Some,None};
 
 // Evil Hack: For some reason, write! (and friends) will expand pointing to std instead of core
 mod std { pub use core::fmt; }
@@ -26,7 +31,13 @@ pub extern "C" fn kmain()
 	::memory::virt::init();
 	::memory::heap::init();
 	
+	log_log!("Command line = '{}'", ::arch::boot::get_boot_string());
 	//::devices::display::init();
+	let vidmode = ::arch::boot::get_video_mode();
+	match vidmode {
+	Some(m) => log_debug!("Video mode : {}x{}", m.width, m.height),
+	None => log_debug!("No video mode present")
+	}
 }
 
 // Evil fail when doing unwind

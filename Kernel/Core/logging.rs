@@ -88,6 +88,7 @@ macro_rules! log( ($lvl:expr, $modname:expr, $($arg:tt)*) => (
 	))
 macro_rules! log_notice( ($($arg:tt)*) => (log!(::logging::LevelLog, "TODO", $($arg)*)) )
 macro_rules! log_log( ($($arg:tt)*) => (log!(::logging::LevelNotice, "TODO", $($arg)*)) )
+macro_rules! log_debug( ($($arg:tt)*) => (log!(::logging::LevelLog, "TODO", $($arg)*)) )
 
 // vim: ft=rust
 

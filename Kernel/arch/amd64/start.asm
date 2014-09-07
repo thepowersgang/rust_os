@@ -1,85 +1,45 @@
 ;
 ;
 ;
-%define MAX_CPUS	1
-%define KSTACK_BASE	0xFFFFA00000000000
-%define INITIAL_KSTACK_SIZE	16
-%define KERNEL_BASE	0xFFFFFFFF80000000
-%macro SAVE_GPR 1
-	mov [%1-0x08], r15
-	mov [%1-0x10], r14
-	mov [%1-0x18], r13
-	mov [%1-0x20], r12
-	mov [%1-0x28], r11
-	mov [%1-0x30], r10
-	mov [%1-0x38], r9
-	mov [%1-0x40], r8
-	mov [%1-0x48], rdi
-	mov [%1-0x50], rsi
-	mov [%1-0x58], rbp
-	mov [%1-0x60], rsp
-	mov [%1-0x68], rbx
-	mov [%1-0x70], rdx
-	mov [%1-0x78], rcx
-	mov [%1-0x80], rax
-%endmacro
-
-%macro PUSH_GPR	0
-	SAVE_GPR rsp
-	sub rsp, 0x80
-%endmacro
-
-%macro RESTORE_GPR 1
-	mov r15, [%1-0x08]
-	mov r14, [%1-0x10]
-	mov r13, [%1-0x18]
-	mov r12, [%1-0x20]
-	mov r11, [%1-0x28]
-	mov r10, [%1-0x30]
-	mov r9,  [%1-0x38]
-	mov r8,  [%1-0x40]
-	mov rdi, [%1-0x48]
-	mov rsi, [%1-0x50]
-	mov rbp, [%1-0x58]
-	;mov rsp, [%1-0x60]
-	mov rbx, [%1-0x68]
-	mov rdx, [%1-0x70]
-	mov rcx, [%1-0x78]
-	mov rax, [%1-0x80]
-%endmacro
-
-%macro POP_GPR	0
-	add rsp, 0x80
-	RESTORE_GPR rsp
-%endmacro
-
-%macro EXPORT 1
-[global %1]
-%1:
-%endmacro
+%include "arch/amd64/common.inc.asm"	; WTF Nasm
 
 [extern low_InitialPML4]
-[extern low_GDTPtr]
-[extern low_GDT]
 
 [section .multiboot]
 [global mboot]
 mboot:
 	MULTIBOOT_PAGE_ALIGN	equ 1<<0
 	MULTIBOOT_MEMORY_INFO	equ 1<<1
+	MULTIBOOT_REQVIDMODE	equ 1<<2
 	MULTIBOOT_HEADER_MAGIC	equ 0x1BADB002
-	MULTIBOOT_HEADER_FLAGS	equ MULTIBOOT_PAGE_ALIGN | MULTIBOOT_MEMORY_INFO
+	MULTIBOOT_HEADER_FLAGS	equ MULTIBOOT_PAGE_ALIGN | MULTIBOOT_MEMORY_INFO | MULTIBOOT_REQVIDMODE
 	MULTIBOOT_CHECKSUM	equ -(MULTIBOOT_HEADER_MAGIC + MULTIBOOT_HEADER_FLAGS)
 	
 	; This is the GRUB Multiboot header. A boot signature
 	dd MULTIBOOT_HEADER_MAGIC
 	dd MULTIBOOT_HEADER_FLAGS
 	dd MULTIBOOT_CHECKSUM
+	dd mboot
+	; a.out kludge
+	dd 0	; load_addr
+	dd 0	; load_end_addr
+	dd 0	; bss_end_addr
+	dd 0	; entry_addr
+	; Video mode
+	dd 0	; Mode type (0: LFB)
+	dd 0	; Width (no preference)
+	dd 0	; Height (no preference)
+	dd 32	; Depth (32-bit preferred)
 
 [section .inittext]
 [BITS 32]
 [global start]
 start:
+	; 0. Save multboot state
+	mov [s_multiboot_signature - KERNEL_BASE], eax
+	or ebx, 0x80000000
+	mov [s_multiboot_pointer - KERNEL_BASE], ebx
+	
 	; 1. Ensure that CPU is compatible
 	mov eax, 0x80000000
 	cpuid
@@ -131,7 +91,7 @@ start:
 	mov eax, cr0
 	or eax, 0x80010000	; PG & WP
 	mov cr0, eax
-	lgdt [low_GDTPtr]
+	lgdt [GDTPtr - KERNEL_BASE]
 	jmp 0x08:start64
 ;;
 ;;
@@ -448,9 +408,12 @@ InitialKernelStack:
 	times 0x1000*(INITIAL_KSTACK_SIZE-1)	db 0	; 8 Pages
 
 [section .data]
-[global GDT]
-[global GDTPtr]
-GDT:
+EXPORT s_multiboot_pointer
+	dd 0
+	dd 0xFFFFFFFF
+EXPORT s_multiboot_signature
+	dd 0
+EXPORT GDT
 	dd 0, 0
 	dd 0x00000000, 0x00209A00	; 0x08: 64-bit Code
 	dd 0x00000000, 0x00009200	; 0x10: 64-bit Data
@@ -461,22 +424,19 @@ GDT:
 	times MAX_CPUS	dd	0, 0x00008900, 0, 0	; 0x38+16*n: TSS 0
 GDTPtr:
 	dw	$-GDT-1
-	dd	low_GDT
+	dd	GDT - KERNEL_BASE
 	dd	0
 GDTPtr2:
 	dw	GDTPtr-GDT-1
 	dq	GDT
-[global IDT]
-[global IDTPtr]
-IDT:
+EXPORT IDT
 	; 64-bit Interrupt Gate, CS = 0x8, IST0 (Disabled)
 	times 256	dd	0x00080000, 0x00000E00, 0, 0
 IDTPtr:
 	dw	256*16-1
 	dq	IDT
 
-[global TID0TLS]
-TID0TLS:
+EXPORT TID0TLS
 	times 0x70 db 0
 	dq KSTACK_BASE+0x1000
 

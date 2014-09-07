@@ -1,0 +1,14 @@
+#!/bin/sh
+
+IMAGE=$1
+ARGS=$2
+
+rm -rf .pxe/
+mkdir -p .pxe/pxelinux.cfg
+cp /home/tftpboot/boot/pxelinux.0 /home/tftpboot/boot/mboot.c32 .pxe/
+cp $IMAGE .pxe
+echo "default testkern" >> .pxe/pxelinux.cfg/default
+echo "label testkern" >> .pxe/pxelinux.cfg/default
+echo "	kernel mboot.c32" >> .pxe/pxelinux.cfg/default
+echo "	append $IMAGE $ARGS" >> .pxe/pxelinux.cfg/default
+qemu-system-x86_64 -net nic -net user,tftp=.pxe/,bootfile=pxelinux.0 -boot n -nographic
