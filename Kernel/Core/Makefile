@@ -6,7 +6,7 @@ RUSTFLAGS += -C target-feature=-avx
 #RUSTFLAGS += --target=x86_64-pc-elf 
 
 ARCH = amd64
-OBJS := start_$(ARCH).o main.o libarch.rlib
+OBJS := arch_$(ARCH)/start.o main.o libarch.rlib
 
 LIBDIR := /home/tpg/apps/lib/rustlib/x86_64-unknown-linux-gnu/lib/
 LIBCOMPILERRT := $(LIBDIR)libcompiler-rt.a
