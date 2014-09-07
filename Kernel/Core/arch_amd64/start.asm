@@ -53,6 +53,11 @@
 	RESTORE_GPR rsp
 %endmacro
 
+%macro EXPORT 1
+[global %1]
+%1:
+%endmacro
+
 [extern low_InitialPML4]
 [extern low_GDTPtr]
 [extern low_GDT]
@@ -178,6 +183,9 @@ start64_higher:
 	lgdt [GDTPtr2 - KERNEL_BASE]
 	; 6. Request setup of IRQ handlers
 	call idt_init
+	mov dx, 0x3F8
+	mov al, 10
+	out dx, al
 	; 7. Call rust kmain
 	call kmain
 .dead_loop:
@@ -311,6 +319,69 @@ ISR_NOERRNO	29; 29: Reserved
 ISR_NOERRNO	30; 30: Reserved
 ISR_NOERRNO	31; 31: Reserved
 
+;
+;
+;
+EXPORT log
+[global log2]
+log2:
+[global log10]
+log10:
+[global pow]
+pow:
+[global exp]
+exp:
+[global exp2]
+exp2:
+[global ceil]
+ceil:
+[global floor]
+floor:
+[global fmod]
+fmod:
+[global round]
+round:
+[global trunc]
+trunc:
+[global fdim]
+fdim:
+[global fma]
+fma:
+[global sqrt]
+sqrt:
+EXPORT logf
+EXPORT log2f
+EXPORT log10f
+EXPORT powf
+EXPORT expf
+EXPORT exp2f
+EXPORT ceilf
+EXPORT floorf
+EXPORT fmodf
+EXPORT roundf
+EXPORT truncf
+EXPORT fdimf
+EXPORT fmaf
+EXPORT sqrtf
+; Softmath conversions
+EXPORT __fixsfqi	; Single Float -> ? Int
+EXPORT __fixsfhi	; Single Float -> ? Int
+EXPORT __fixdfqi	; Double Float -> ? Int
+EXPORT __fixdfhi
+EXPORT __fixunssfqi
+EXPORT __fixunssfhi
+EXPORT __fixunsdfqi
+EXPORT __fixunsdfhi
+	jmp halt 
+
+halt:
+	cli
+	hlt
+	jmp halt
+
+;
+;
+;
 [extern error_handler]
 [global ErrorCommon]
 ErrorCommon:

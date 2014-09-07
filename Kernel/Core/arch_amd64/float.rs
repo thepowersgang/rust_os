@@ -2,6 +2,7 @@
 //
 //
 
+/*
 #[no_mangle] pub extern "C" fn log(v: f64) -> f64 { 0.0 }
 #[no_mangle] pub extern "C" fn log2(v: f64) -> f64 { 0.0 }
 #[no_mangle] pub extern "C" fn log10(v: f64) -> f64 { 0.0 }
@@ -31,6 +32,7 @@
 #[no_mangle] pub extern "C" fn truncf(v: f32) -> f32 { 0.0 }	// Remove fraction
 #[no_mangle] pub extern "C" fn fdimf(x: f32, y: f32) -> f32 { if x > y { x - y } else { 0.0 } }
 #[no_mangle] pub extern "C" fn fmaf(x: f32, y: f32, z: f32) -> f32 { x*y+z }
+*/
 
 // vim: ft=rust
 

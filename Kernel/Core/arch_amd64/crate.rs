@@ -10,6 +10,7 @@ use core::str::StrSlice;
 
 pub mod float;
 pub mod interrupts;
+pub mod memory;
 
 pub fn puts(text: &str)
 {

@@ -12,13 +12,21 @@ extern crate arch;
 mod std { pub use core::fmt; }
 
 mod logging;
+mod memory;
 mod time;
 
 #[no_mangle]
 pub extern "C" fn kmain()
 {
-	arch::puts("Hello World\n");
-	log_notice!("Tifflin Kernel starting");
+	log_notice!("Tifflin Kernel v{} build {} starting", env!("TK_VERSION"), env!("TK_BUILD"));
+	log_notice!("> Git state : {}", env!("TK_GITSPEC"));
+	log_notice!("> Built with {}", env!("RUST_VERSION"));
+	
+	::memory::phys::init();
+	::memory::virt::init();
+	::memory::heap::init();
+	
+	//::devices::display::init();
 }
 
 // Evil fail when doing unwind
