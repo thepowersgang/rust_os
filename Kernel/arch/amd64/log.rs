@@ -5,6 +5,7 @@
 // - RS232 logging output
 
 use core::str::StrSlice;
+use super::x86_io;
 
 pub fn puts(text: &str)
 {
@@ -33,10 +34,10 @@ fn putc(c: u8)
 {
 	unsafe
 	{
-		while (::x86_io::inb(0x3F8+5) & 0x20) == 0
+		while (x86_io::inb(0x3F8+5) & 0x20) == 0
 		{
 		}
-		::x86_io::outb(0x3F8, c as u8);
+		x86_io::outb(0x3F8, c as u8);
 	}
 }
 

@@ -1,6 +1,7 @@
 //
 //
 //
+use super::{puts,puth};
 
 #[repr(C)]
 struct InterruptRegs
@@ -21,10 +22,11 @@ struct InterruptRegs
 #[no_mangle]
 pub extern "C" fn error_handler(regs: &InterruptRegs)
 {
-	::puts("Error happened!\n");
-	::puts("Int  = "); ::puth(regs.intnum as uint); ::puts("\n");
-	::puts("Code = "); ::puth(regs.errorcode as uint); ::puts("\n");
-	::puts("RIP  = "); ::puth(regs.rip as uint); ::puts("\n");
+	puts("Error happened!\n");
+	puts("Int  = "); puth(regs.intnum as uint); puts("\n");
+	puts("Code = "); puth(regs.errorcode as uint); puts("\n");
+	puts("CS:RIP  = "); puth(regs.cs as uint); puts(":"); puth(regs.rip as uint); puts("\n");
+	puts("SS:RSP  = "); puth(regs.ss as uint); puts(":"); puth(regs.rip as uint); puts("\n");
 	loop {}	
 }
 

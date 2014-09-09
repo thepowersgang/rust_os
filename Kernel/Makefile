@@ -20,6 +20,7 @@ RUSTFLAGS := --crate-type lib
 RUSTFLAGS += -C soft-float
 RUSTFLAGS += -C no-redzone
 RUSTFLAGS += -C target-feature=$(subst $(space),$(comma),$(EXCLUDE_FEATURES:%=-%))
+RUSTFLAGS += --cfg arch__$(ARCH)
 #RUSTFLAGS += --target=x86_64-pc-elf 
 
 ENV := RUST_VERSION="$(shell rustc --version)"

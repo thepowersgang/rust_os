@@ -25,6 +25,15 @@ pub fn init()
 {
 }
 
+pub unsafe fn alloc<T>() -> *mut T
+{
+	match allocate(GlobalHeap, ::core::mem::size_of::<T>())
+	{
+	Some(v) => v as *mut T,
+	None => fail!("Out of memory")
+	}
+}
+
 pub unsafe fn allocate(heap: HeapId, size: uint) -> Option<*mut ()>
 {
 	None

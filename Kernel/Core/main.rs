@@ -5,20 +5,28 @@
 // - Kernel main
 #![no_std]
 #![feature(phase)]
-#![feature(macro_rules)]
+#![feature(macro_rules,asm)]
+#![feature(unsafe_destructor)]
 
 #[phase(plugin, link)] extern crate core;
-extern crate common;
-extern crate arch;
+#[phase(plugin, link)] extern crate common;
+//#[phase(plugin, link)] extern crate arch;
 
 use core::option::{Some,None};
 
-// Evil Hack: For some reason, write! (and friends) will expand pointing to std instead of core
-mod std { pub use core::fmt; }
+#[cfg(arch__amd64)]
+#[path="../arch/amd64/crate.rs"]
+mod arch;
 
+// Evil Hack: For some reason, write! (and friends) will expand pointing to std instead of core
+mod std { pub use core::{default,fmt,cmp}; }
+
+mod lib;	// Clone of libstd
 mod logging;
 mod memory;
+mod threads;
 mod time;
+mod sync;
 
 #[no_mangle]
 pub extern "C" fn kmain()
@@ -33,18 +41,27 @@ pub extern "C" fn kmain()
 	
 	log_log!("Command line = '{}'", ::arch::boot::get_boot_string());
 	//::devices::display::init();
+	
+	// Dump active video mode
 	let vidmode = ::arch::boot::get_video_mode();
 	match vidmode {
 	Some(m) => log_debug!("Video mode : {}x{}", m.width, m.height),
 	None => log_debug!("No video mode present")
 	}
+	
+	loop
+	{
+		::threads::reschedule();
+		::arch::idle();
+	}
 }
 
 // Evil fail when doing unwind
 #[no_mangle]
-pub extern "C" fn rust_begin_unwind()
+pub extern "C" fn rust_begin_unwind(msg: &::core::fmt::Arguments, file: &'static str, line: uint) -> !
 {
 	arch::puts("ERROR: rust_begin_unwind\n");
+	log_panic!("rust_begin_unwind(..., file=\"{}\", line={}", file, line);
 	loop{}
 }
 

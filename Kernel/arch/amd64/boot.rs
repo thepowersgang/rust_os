@@ -5,7 +5,8 @@
 // - Boot information
 
 use core::option::{Option,None,Some};
-use memory::addresses::{ident_start, ident_end};
+use super::memory::addresses::{ident_start, ident_end};
+use super::puts;
 
 #[repr(C)]
 struct MultibootInfo
@@ -101,11 +102,11 @@ pub fn get_boot_string() -> &'static str
 pub fn get_video_mode() -> Option<::common::archapi::VideoMode>
 {
 	if s_multiboot_signature != 0x2BADB002 {
-		::puts("arch::boot::get_video_mode - Multiboot signature not valid\n");
+		puts("arch::boot::get_video_mode - Multiboot signature not valid\n");
 		return None;
 	}
 	if (s_multiboot_pointer.flags & 1 << 11) == 0 {
-		::puts("arch::boot::get_video_mode - Video mode information not present\n");
+		puts("arch::boot::get_video_mode - Video mode information not present\n");
 		return None;
 	}
 	
