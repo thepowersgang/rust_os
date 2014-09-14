@@ -19,7 +19,6 @@ pub static MAP_PAD: MemoryMapEnt = MemoryMapEnt {
 	domain: 0
 	};
 
-#[deriving(Show)]
 pub struct MemoryMapEnt
 {
 	pub start: PAddr,
@@ -32,6 +31,13 @@ pub struct MemoryMapBuilder<'buf>
 {
 	slots: &'buf mut [MemoryMapEnt],
 	size: uint,
+}
+
+impl ::core::fmt::Show for MemoryMapEnt
+{
+	fn fmt(&self, f: &mut ::core::fmt::Formatter) -> ::core::fmt::Result {
+		write!(f, "{:#x}+{:#x} {} Domain {}", self.start, self.size, self.state, self.domain)
+	}
 }
 
 impl<'buf> MemoryMapBuilder<'buf>

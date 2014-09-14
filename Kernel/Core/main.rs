@@ -65,8 +65,8 @@ pub extern "C" fn kmain()
 }
 
 // Evil fail when doing unwind
-#[no_mangle]
-pub extern "C" fn rust_begin_unwind(msg: &::core::fmt::Arguments, file: &'static str, line: uint) -> !
+//#[lang="begin_unwind"] fn rust_begin_unwind(msg: &::core::fmt::Arguments, file: &'static str, line: uint) -> !
+#[no_mangle] pub extern "C" fn rust_begin_unwind(msg: &::core::fmt::Arguments, file: &'static str, line: uint) -> !
 {
 	arch::puts("ERROR: rust_begin_unwind\n");
 	log_panic!("rust_begin_unwind(msg=\"{}\", file=\"{}\", line={})", msg, file, line);

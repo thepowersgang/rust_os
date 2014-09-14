@@ -90,6 +90,7 @@ fn get_thread_to_run() -> Option<Rc<RefCell<Thread>>>
 		// 1. Put current thread on run queue (if needed)
 		if cur.borrow().run_state == StateRunnable
 		{
+			log_trace!("Push current");
 			handle.push(cur);
 		}
 		// 2. Pop off a new thread

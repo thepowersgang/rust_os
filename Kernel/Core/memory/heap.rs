@@ -30,7 +30,7 @@ enum HeapState
 
 struct HeapHead
 {
-	//magic: uint,
+	magic: uint,
 	size: uint,
 	state: HeapState,
 }
@@ -73,8 +73,7 @@ pub unsafe fn allocate(heap: HeapId, size: uint) -> Option<*mut ()>
 
 pub unsafe fn deallocate(pointer: *mut ())
 {
-	fail!("TODO: heap::deallocate");
-	
+	s_global_heap.lock().deallocate(pointer);
 }
 
 impl HeapDef
@@ -104,10 +103,35 @@ impl HeapDef
 			}
 			if opt_fb.is_some()
 			{
-				log_trace!("allocate - Suitable free block!");
+				let fb = &mut *opt_fb.unwrap();
+				let next = match fb.state { HeapFree(n)=> n, _ => fail!("Non-free block in free list") };
+				log_trace!("allocate - Suitable free block {}!", fb as *mut _);
 				// Split block (if needed)
-				// - Add split block to the free list
+				if fb.size > blocksize
+				{
+					let far_foot = fb.foot() as *mut _;
+					let far_size = fb.size - blocksize;
+					fb.size = blocksize;
+					*fb.foot() = HeapFoot {
+						head: fb as *mut _,
+						};
+					let far_head = fb.next();
+					log_trace!("Creating new block at {}", far_head);
+					*far_head = HeapHead {
+						magic: MAGIC,
+						size: far_size,
+						state: HeapFree(next)
+						};
+					(*far_foot).head = far_head;
+					match prev
+					{
+					Some(x) => {(*x).state = HeapFree(Some(far_head));},
+					None => {self.first_free = Some(far_head);},
+					}
+				}
 				// Return newly allocated block
+				fb.state = HeapUsed(size);
+				return Some( fb.data() );
 			}
 			// Fall: No free blocks would fit the allocation
 			log_trace!("allocate - No suitable free blocks");
@@ -126,18 +150,35 @@ impl HeapDef
 			// Create a new block header at end of block
 			let tailsize = block.size - blocksize;
 			block.size = blocksize;
-			block.foot().head = block_ptr;
+			*block.foot() = HeapFoot {
+				head: block_ptr,
+				};
 			let tailblock = &mut *block.next();
-			//tailblock.magic = MAGIC;
-			tailblock.size = tailsize;
-			tailblock.state = HeapFree(None);
+			*tailblock = HeapHead {
+				magic: MAGIC,
+				size: tailsize,
+				state: HeapFree(self.first_free),
+				};
 			tailblock.foot().head = block.next();
-			// Append to free list
+			self.first_free = Some(block.next());
 		}
 		
 		Some( block.data() )
 	}
 
+	pub fn deallocate(&mut self, ptr: *mut ())
+	{
+		log_debug!("deallocate(ptr={})", ptr);
+		unsafe
+		{
+			let headptr = (ptr as *mut HeapHead).offset(-1);
+			assert!( (*headptr).foot().head() as *mut _ == headptr );
+			
+			(*headptr).state = HeapFree(self.first_free);
+			self.first_free = Some( headptr );
+		}
+	}
+	
 	/// Expand the heap to create a block at least `min_size` bytes long at the end
 	/// \return New block, pre-allocated
 	unsafe fn expand(&mut self, min_size: uint) -> *mut HeapHead
@@ -184,6 +225,7 @@ impl HeapDef
 				
 				block
 			};
+		self.last_foot = Some(block.foot() as *mut HeapFoot);
 		log_debug!("HeapDef.expand: &block={}", block as *mut HeapHead);
 		block.state = HeapUsed(0);
 		// 3. Return final block

@@ -16,6 +16,7 @@ LocalLib = --extern $1=$(OBJDIR)lib$1.rlib
 EXCLUDE_FEATURES := 3dnow avx avx2 sse sse2 sse3 sse4.1 sse4.2 mmx
 
 RUSTFLAGS := --crate-type lib
+#RUSTFLAGS += --debuginfo 1
 #RUSTFLAGS += -C code-model=kernel
 RUSTFLAGS += -C soft-float
 RUSTFLAGS += -C no-redzone
@@ -43,7 +44,7 @@ clean:
 
 kernel-$(ARCH).bin: $(OBJS) arch/$(ARCH)/link.ld Makefile
 	@echo [LD] -o $@
-	@x86_64-elf-ld -o $@ $(OBJS) $(LIBCORE) $(LIBCOMPILERRT) -T arch/$(ARCH)/link.ld -Map $(OBJDIR)map.txt -z max-page-size=0x1000
+	@x86_64-elf-ld -o $@ $(OBJS) $(LIBCORE) $(LIBCOMPILERRT) -T arch/$(ARCH)/link.ld -Map $(OBJDIR)map.txt -z max-page-size=0x1000 -g
 	@objcopy $@ -F elf32-i386 $@.elf32
 	@mcopy -i fdd.img $@.elf32 ::/ -D o
 	@objdump -S $@ > $@.dsm
