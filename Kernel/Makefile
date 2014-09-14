@@ -2,7 +2,7 @@
 #
 #
 ARCH = amd64
-OBJS := start.o kcore.o libarch.rlib libcore.rlib
+OBJS := start.o kcore.o libcore.rlib
 
 V ?= @
 
@@ -56,12 +56,7 @@ $(OBJDIR)start.o: arch/$(ARCH)/start.asm Makefile
 $(OBJDIR)kcore.o: Core/main.rs $(OBJDIR)libarch.rlib $(OBJDIR)libcore.rlib Makefile
 	@echo [RUSTC] -o $@
 	@mkdir -p $(dir $@)
-	$V$(ENV) rustc -O $(RUSTFLAGS) --emit obj -o $@ $< --dep-info $@.dep $(call LocalLib,core) $(call LocalLib,arch) $(call LocalLib,common)
-
-$(OBJDIR)libarch.rlib: arch/$(ARCH)/crate.rs $(OBJDIR)libcommon.rlib $(OBJDIR)libcore.rlib  Makefile
-	@echo [RUSTC] -o $@
-	mkdir -p $(dir $@)
-	@$(ENV) rustc -O $(RUSTFLAGS) --crate-name arch -o $@ $< --dep-info $@.dep $(call LocalLib,core) $(call LocalLib,common)
+	$V$(ENV) rustc -O $(RUSTFLAGS) --emit obj -o $@ $< --dep-info $@.dep $(call LocalLib,core) $(call LocalLib,common)
 
 $(OBJDIR)libcommon.rlib: common/lib.rs $(OBJDIR)libcore.rlib Makefile
 	@echo [RUSTC] -o $@

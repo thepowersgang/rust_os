@@ -364,8 +364,8 @@ InitialPML4:	; Covers 256 TiB (Full 48-bit Virtual Address Space)
 	dd	InitialPDP - KERNEL_BASE + 3, 0	; Identity Map Low 4Mb
 	times 0xA0*2-1	dq	0
 	dd	StackPDP - KERNEL_BASE + 3, 0
-	times 512-4-($-InitialPML4)/8	dq	0
-	dd	InitialPML4 - KERNEL_BASE + 3, 0	; Fractal Mapping
+	times 512-4-($-InitialPML4)/8	dq	0	; < dq until hit 512-4
+	dd	InitialPML4 - KERNEL_BASE + 3, 0
 	dq	0
 	dq	0
 	dd	HighPDP - KERNEL_BASE + 3, 0	; Map Low 4Mb to kernel base
@@ -436,8 +436,10 @@ IDTPtr:
 	dw	256*16-1
 	dq	IDT
 
+[extern tbss_top]
 EXPORT TID0TLS
-	times 0x70 db 0
+	dq tbss_top
+	times 0x70-8 db 0
 	dq KSTACK_BASE+0x1000
 
 ; vim: ft=nasm

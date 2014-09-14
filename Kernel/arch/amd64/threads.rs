@@ -10,6 +10,9 @@ pub struct State
 	// TODO: SSE state 
 }
 
+#[thread_local]
+static mut t_thread_ptr: *mut () = 0 as *mut ();
+
 pub fn switch_to(state: &State)
 {
 	unsafe
@@ -29,13 +32,19 @@ pub fn switch_to(state: &State)
 	}
 }
 
-pub fn get_thread_ptr() -> *mut ()
+pub fn get_thread_ptr() -> ::threads::ThreadHandle
 {
-	0 as *mut ()
+	unsafe {
+		assert!( t_thread_ptr as uint != 0 );
+		::core::mem::transmute( t_thread_ptr )
+	}
 }
-pub fn set_thread_ptr(ptr: *mut ())
+pub fn set_thread_ptr(ptr: ::threads::ThreadHandle)
 {
-	
+	unsafe {
+		assert!( t_thread_ptr as uint == 0 );
+		t_thread_ptr = ::core::mem::transmute(ptr);
+	}
 }
 
 // vim: ft=rust

@@ -15,9 +15,6 @@ extern crate common;
 
 pub use self::log::{puts, puth};
 
-// Evil Hack: For some reason, write! (and friends) will expand pointing to std instead of core
-mod std { pub use core::{default,fmt}; }
-
 pub mod float;
 pub mod interrupts;
 pub mod memory;
@@ -27,6 +24,11 @@ pub mod sync;
 
 mod log;
 mod x86_io;
+
+extern "C"
+{
+	static v_kernel_end : ();
+}
 
 pub fn idle()
 {

@@ -3,14 +3,13 @@
 //
 // Core/threads.rs
 // - Thread management
+use _common::*;
 
 use lib::mem::Rc;
 use core::cell::RefCell;
 use lib::Queue;
-use core::ops::Deref;
-use core::cmp::PartialEq;
-use core::default::Default;
-use core::option::Option;
+
+pub type ThreadHandle = Rc<RefCell<Thread>>;
 
 #[deriving(PartialEq)]
 enum RunState
@@ -31,10 +30,17 @@ struct Thread
 	cpu_state: ::arch::threads::State,
 }
 
+pub struct WaitQueue
+{
+	first: Option<ThreadHandle>,
+	last: Option<ThreadHandle>
+}
+pub static WAITQUEUE_INIT: WaitQueue = WaitQueue {first: None, last: None};
+
 // ----------------------------------------------
 // Statics
-//static s_all_threads:	::sync::Mutex<Map<Rc<RefCell<Thread>>>> = mutex_init!("s_all_threads", Map{});
-static mut s_runnable_threads: ::sync::Spinlock<Queue<Rc<RefCell<Thread>>>> = spinlock_init!(queue_init!());
+//static s_all_threads:	::sync::Mutex<Map<ThreadHandle>> = mutex_init!("s_all_threads", Map{});
+static mut s_runnable_threads: ::sync::Spinlock<Queue<ThreadHandle>> = spinlock_init!(queue_init!());
 
 // ----------------------------------------------
 // Code
@@ -45,9 +51,7 @@ pub fn init()
 		run_state: StateRunnable,
 		..Default::default()
 		}) );
-	unsafe {
-		::arch::threads::set_thread_ptr( ::core::mem::transmute(tid0) )
-	}
+	::arch::threads::set_thread_ptr( tid0 )
 }
 
 pub fn reschedule()
@@ -72,13 +76,7 @@ pub fn reschedule()
 
 fn get_cur_thread() -> Rc<RefCell<Thread>>
 {
-	// This works because Rc<> is actually a pointer
-	unsafe {
-		let ptr = ::arch::threads::get_thread_ptr();
-		log_trace!("ptr={}", ptr as uint);
-		assert!(ptr as uint != 0);
-		::core::mem::transmute( ptr )
-	}
+	::arch::threads::get_thread_ptr()
 }
 
 fn get_thread_to_run() -> Option<Rc<RefCell<Thread>>>

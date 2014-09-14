@@ -5,66 +5,24 @@
 
 use core::option::{Option,None,Some};
 
+pub use self::queue::Queue;
+
 pub mod mem;
+pub mod queue;
 
-
-pub struct Queue<T>
+pub mod num
 {
-	pub head: ::core::option::Option<*mut QueueEnt<T>>,
-	pub tail: ::core::option::Option<*mut QueueEnt<T>>,
-}
-
-struct QueueEnt<T>
-{
-	next: ::core::option::Option<*mut QueueEnt<T>>,
-	value: T
-}
-
-impl<T> Queue<T>
-{
-	pub fn push(&mut self, value: T)
+	pub fn round_up(val: uint, target: uint) -> uint
 	{
-		unsafe
-		{
-			let qe_ptr = ::memory::heap::alloc::<QueueEnt<T>>();
-			(*qe_ptr).next = None;
-			::core::mem::overwrite( &mut (*qe_ptr).value, value );
-			
-			if self.head.is_some()	
-			{
-				assert!(self.tail.is_some());
-				assert!((*self.tail.unwrap()).next.is_none());
-				(*self.tail.unwrap()).next = Some(qe_ptr);
-			}
-			else
-			{
-				self.head = Some(qe_ptr);
-				self.tail = Some(qe_ptr);
-			}
-		}
-	}
-	pub fn pop(&mut self) -> ::core::option::Option<T>
-	{
-		if self.head.is_none() {
-			return None;
-		}
-		
-		unsafe
-		{
-			let qe_ptr = self.head.unwrap();
-			self.head = (*qe_ptr).next;
-			if self.head.is_none() {
-				self.tail = None;
-			}
-			
-			let rv = ::core::mem::replace(&mut (*qe_ptr).value, ::core::mem::zeroed());
-			::memory::heap::deallocate(qe_ptr as *mut ());
-			Some(rv)
-		}
+		return (val + target-1) / target * target;
 	}
 }
 
-macro_rules! queue_init( () => (Queue{head: ::core::option::None,tail: ::core::option::None}) )
+#[macro_export]
+macro_rules! tern(
+	($cnd:expr ? $ok:expr : $nok:expr) => (if $cnd { $ok } else { $nok })//,
+//	($cnd:expr ? $ok:expr : $($cnd2:expr ? $val2:tt :)* $false:expr ) => (if $cnd { $ok } $(else if $cnd2 { $val2 })* else { $false })
+	)
 
 // vim: ft=rust
 

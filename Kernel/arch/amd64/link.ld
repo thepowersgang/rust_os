@@ -46,6 +46,11 @@ SECTIONS {
 		gKernelSymbolsEnd = .;
 	}
 	
+	.ktls ALIGN (0x1000) : AT(ADDR(.ktls) - _kernel_base) {
+		*(.tbss)
+		tbss_top = .;
+	}
+	
 	.data ALIGN (0x1000) : AT(ADDR(.data) - _kernel_base) {
 		*(.padata)
 		*(.data)
@@ -56,5 +61,5 @@ SECTIONS {
 		*(COMMON)
 		*(.bss)
 	}
-	gKernelEnd = (. + 0xFFF)&0xFFFFFFFFFFFFF000;
+	v_kernel_end = (. + 0xFFF)&0xFFFFFFFFFFFFF000;
 }

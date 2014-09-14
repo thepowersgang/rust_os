@@ -2,3 +2,9 @@
 *.o
 .obj/
 *.bin
+*.elf32
+*.dsm
+
+Kernel/bochsout.txt
+Kernel/bochsdbg.txt
+Kernel/serial.txt

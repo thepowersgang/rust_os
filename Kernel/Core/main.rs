@@ -7,26 +7,33 @@
 #![feature(phase)]
 #![feature(macro_rules,asm)]
 #![feature(unsafe_destructor)]
+#![feature(thread_local)]
+#![feature(globs)]
 
 #[phase(plugin, link)] extern crate core;
 #[phase(plugin, link)] extern crate common;
 //#[phase(plugin, link)] extern crate arch;
 
-use core::option::{Some,None};
+use _common::*;
+
+pub use arch::memory::PAGE_SIZE;
+
+pub mod logmacros;
 
 #[cfg(arch__amd64)]
 #[path="../arch/amd64/crate.rs"]
-mod arch;
+pub mod arch;	// Needs to be pub for exports to be avaliable
 
 // Evil Hack: For some reason, write! (and friends) will expand pointing to std instead of core
 mod std { pub use core::{default,fmt,cmp}; }
+mod _common;
 
 mod lib;	// Clone of libstd
+mod sync;
 mod logging;
 mod memory;
 mod threads;
 mod time;
-mod sync;
 
 #[no_mangle]
 pub extern "C" fn kmain()
@@ -38,6 +45,7 @@ pub extern "C" fn kmain()
 	::memory::phys::init();
 	::memory::virt::init();
 	::memory::heap::init();
+	::threads::init();
 	
 	log_log!("Command line = '{}'", ::arch::boot::get_boot_string());
 	//::devices::display::init();
@@ -61,7 +69,7 @@ pub extern "C" fn kmain()
 pub extern "C" fn rust_begin_unwind(msg: &::core::fmt::Arguments, file: &'static str, line: uint) -> !
 {
 	arch::puts("ERROR: rust_begin_unwind\n");
-	log_panic!("rust_begin_unwind(..., file=\"{}\", line={}", file, line);
+	log_panic!("rust_begin_unwind(msg=\"{}\", file=\"{}\", line={})", msg, file, line);
 	loop{}
 }
 

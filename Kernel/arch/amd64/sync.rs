@@ -19,6 +19,7 @@ impl<T> Spinlock<T>
 {
 	pub fn lock<'_self>(&'_self mut self) -> HeldSpinlock<'_self,T>
 	{
+		::arch::puts("Spinlock::lock()\n");
 		unsafe {
 			asm!(
 				"cli"
@@ -30,14 +31,16 @@ impl<T> Spinlock<T>
 				: "r" (1u), "r"(&self.lock)
 				);
 		}
+		::arch::puts("Spinlock::lock() - Held\n");
 		HeldSpinlock { lock: self }
 	}
 	
 	pub fn release(&mut self)
 	{
+		::arch::puts("Spinlock::release()\n");
 		unsafe {
 			self.lock = 0;
-			asm!("sti");
+			//asm!("sti");
 		}
 	}
 }
