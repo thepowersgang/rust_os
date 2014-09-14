@@ -3,7 +3,6 @@
 //
 // arch/amd64/crate.rs
 // - AMD64/x86_64 architecture support
-#![feature(asm)]
 #![crate_type="lib"]
 #![no_std]
 #![feature(unsafe_destructor)]	// Used to allow type parametered Drop

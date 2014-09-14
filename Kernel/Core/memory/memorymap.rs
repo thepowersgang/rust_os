@@ -4,7 +4,7 @@
 use _common::*;
 use arch::memory::{PAddr};
 
-#[deriving(Show)]
+#[deriving(PartialEq,Show)]
 pub enum MemoryState
 {
 	StateReserved,
@@ -19,6 +19,7 @@ pub static MAP_PAD: MemoryMapEnt = MemoryMapEnt {
 	domain: 0
 	};
 
+#[deriving(Show)]
 pub struct MemoryMapEnt
 {
 	pub start: PAddr,
@@ -93,22 +94,58 @@ impl<'buf> MemoryMapBuilder<'buf>
 		ret
 	}
 	
-	pub fn set_range(&mut self, base: u64, size: u64, state: MemoryState, domain: u16)
+	pub fn set_range(&mut self, base_: u64, size_: u64, state: MemoryState, domain: u16) -> Result<(),()>
 	{
+		log_debug!("set_range(base={:#x}, size={:#x}, state={}, domain={})",
+			base_, size_, state, domain);
+		
+		let PAGE_MASK = ::PAGE_SIZE as u64 - 1;
+		let ofs = base_ & PAGE_MASK;
+		let base = base_ - ofs;
+		let size = (size_ + ofs + PAGE_MASK) & !PAGE_MASK;
+		
 		// 1. Locate position
-		let pos = self._find_addr(base);
+		let mut pos = self._find_addr(base);
 		
 		if pos == self.size {
 			log_debug!("set_range - {:#x} past end of map, not setting", base);
-			return ;
+			return Ok( () );
 		}
 		if self.slots[pos].start > base {
 			log_debug!("set_range - {:#x} in a memory hole, not setting", base);
-			return ;
+			return Ok( () );
 		}
-		
-		fail!("TODO: MemoryMapBuilder.set_range(base={:#x}, size={:#x}, state={}, domain={}",
-			base, size, state, domain);
+	
+		if base + size <= self.slots[pos].start + self.slots[pos].size
+		{
+			if self.slots[pos].state != state || self.slots[pos].domain != domain
+			{
+				// Split (possibly) two times to create a block corresponding to the marked range
+				if self.slots[pos].start != base
+				{
+					let leftsize = base - self.slots[pos].start;
+					try!(self._split_at(pos, leftsize));
+					pos += 1;
+				}
+				
+				if self.slots[pos].size > size
+				{
+					try!( self._split_at(pos, size) );
+				}
+				self.slots[pos].state = state;
+				self.slots[pos].domain = domain;
+				
+				//self.compact();
+			}
+			
+		}
+		else
+		{
+			fail!("TODO: Support marking range across multiple map entries: [{:#x}+{:#x}]",
+				self.slots[pos].start, self.slots[pos].size);
+		}	
+	
+		Ok( () )
 	}
 	
 	fn _find_addr(&self, addr: u64) -> uint
@@ -120,6 +157,30 @@ impl<'buf> MemoryMapBuilder<'buf>
 			}
 		}
 		return self.size
+	}
+	
+	fn _split_at(&mut self, index: uint, left_size: u64) -> Result<(),()>
+	{
+		if self.size >= self.slots.len()
+		{
+			Err( () )
+		}
+		else
+		{
+			assert!(self.slots[index].size > left_size);
+			for i in range(index+1, self.size).rev()
+			{
+				self.slots[i+1] = self.slots[i];
+			}
+			self.slots[index+1].start = self.slots[index].start + left_size;
+			self.slots[index+1].size = self.slots[index].size - left_size;
+			self.slots[index+1].state = self.slots[index].state;
+			self.slots[index+1].domain = self.slots[index].domain;
+			self.slots[index].size = left_size;
+			self.size += 1;
+			
+			Ok( () )
+		}
 	}
 }
 

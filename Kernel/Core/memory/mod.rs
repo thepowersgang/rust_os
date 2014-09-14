@@ -26,8 +26,6 @@ pub fn c_string_valid(c_str: *const i8) -> bool
 		let mut ptr = c_str;
 		while *ptr != 0
 		{
-			log_trace!("{} = {}", ptr, *ptr);
-			
 			ptr = ptr.offset(1);
 			if ptr as uint % ::PAGE_SIZE == 0
 			{

@@ -10,7 +10,7 @@ pub struct Spinlock<T>
 	pub value: T,
 }
 
-struct HeldSpinlock<'lock,T:'lock>
+pub struct HeldSpinlock<'lock,T:'lock>
 {
 	lock: &'lock mut Spinlock<T>,
 }
@@ -19,29 +19,30 @@ impl<T> Spinlock<T>
 {
 	pub fn lock<'_self>(&'_self mut self) -> HeldSpinlock<'_self,T>
 	{
-		::arch::puts("Spinlock::lock()\n");
 		unsafe {
-			asm!(
-				"cli"
-				"1:"
-				"xchgl %0, (%1)"
-				"test %0, %0"
-				"jnz 1"
-				: 
+			let mut v = 0u;
+			asm!("
+				cli
+				1:
+				xchg $0, ($1)
+				test $0, $0
+				jnz 1
+				"
+				: /* no outputs */
 				: "r" (1u), "r"(&self.lock)
+				: "$0"
+				: "volatile"
 				);
 		}
-		::arch::puts("Spinlock::lock() - Held\n");
+		//::arch::puts("Spinlock::lock() - Held\n");
 		HeldSpinlock { lock: self }
 	}
 	
 	pub fn release(&mut self)
 	{
-		::arch::puts("Spinlock::release()\n");
-		unsafe {
-			self.lock = 0;
-			//asm!("sti");
-		}
+		//::arch::puts("Spinlock::release()\n");
+		self.lock = 0;
+		//unsafe { asm!("sti" : : : : "volatile"); }
 	}
 }
 

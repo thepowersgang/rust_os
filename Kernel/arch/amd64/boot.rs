@@ -159,8 +159,9 @@ impl MultibootParsed
 		let mut ret = MultibootParsed {
 				cmdline: MultibootParsed::_cmdline(info),
 				vidmode: MultibootParsed::_vidmode(info),
-				memmap: unsafe { MultibootParsed::_memmap(info, &mut s_memmap_data) },
+				memmap: unsafe { &s_memmap_data },
 			};
+ 		ret.memmap = unsafe { ret._memmap(info, &mut s_memmap_data) };
 		ret
 	}
 	
@@ -203,7 +204,7 @@ impl MultibootParsed
 			fmt: ::common::archapi::VideoX8R8G8B8,
 			})
 	}
-	fn _memmap<'a>(info: &MultibootInfo, buf: &'a mut[::memory::MemoryMapEnt]) -> &'a [::memory::MemoryMapEnt]
+	fn _memmap<'a>(&self, info: &MultibootInfo, buf: &'a mut[::memory::MemoryMapEnt]) -> &'a [::memory::MemoryMapEnt]
 	{
 		let size = {
 			let mut mapbuilder = ::memory::MemoryMapBuilder::new(buf);
@@ -229,7 +230,9 @@ impl MultibootParsed
 			assert!( mapbuilder.validate() );
 			
 			// 2. Clobber out kernel, modules, and strings
-			mapbuilder.set_range( 0x100000, &::arch::v_kernel_end as *const() as u64 - 0x10000, ::memory::StateUsed, 0 );
+			mapbuilder.set_range( 0x100000, &::arch::v_kernel_end as *const() as u64 - ident_start as u64 - 0x10000,
+				::memory::StateUsed, 0 );
+			mapbuilder.set_range( self.cmdline.as_ptr() as u64 - ident_start as u64, self.cmdline.len() as u64, ::memory::StateUsed, 0 );
 			
 			mapbuilder.size()
 			};

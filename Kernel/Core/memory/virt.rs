@@ -7,6 +7,7 @@ use _common::*;
 
 use arch::memory::{PAddr,VAddr};
 
+#[deriving(PartialEq,Show)]
 pub enum ProtectionMode
 {	
 	ProtUnmapped,	// Inaccessible
@@ -49,7 +50,6 @@ pub fn allocate(addr: *mut (), page_count: uint)
 			::memory::phys::allocate( (pg * ::PAGE_SIZE) as *mut () );
 		}
 	}
-	fail!("TODO: ::memory::virt::allocate(addr={}, page_count={})", addr, page_count);
 }
 
 pub fn map(addr: *mut (), phys: PAddr, prot: ProtectionMode)
@@ -57,6 +57,7 @@ pub fn map(addr: *mut (), phys: PAddr, prot: ProtectionMode)
 	if ! ::arch::memory::virt::is_reserved(addr as VAddr)
 	{
 		::arch::memory::virt::map(addr, phys, prot);
+		log_trace!("map(*{} := {:#x} {})", addr, phys, prot);
 	}
 }
 

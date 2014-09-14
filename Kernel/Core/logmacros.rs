@@ -15,7 +15,7 @@ macro_rules! log_notice(  ($($arg:tt)*) => (log!(::logging::LevelNotice, module_
 macro_rules! log_log(     ($($arg:tt)*) => (log!(::logging::LevelLog, module_path!(), $($arg)*)) )
 macro_rules! log_debug(   ($($arg:tt)*) => (log!(::logging::LevelDebug, module_path!(), $($arg)*)) )
 macro_rules! log_trace( ($fmt:expr $(, $arg:expr)*) => (
-	log!(::logging::LevelTrace, module_path!(), concat!("{}:{}: ",$fmt), file!(), line!() $(, $arg)*)
+	log!(::logging::LevelTrace, module_path!(), concat!("L{}: ",$fmt), line!() $(, $arg)*)
 	) )
 
 // vim: ft=rust

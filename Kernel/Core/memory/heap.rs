@@ -138,6 +138,8 @@ impl HeapDef
 		Some( block.data() )
 	}
 
+	/// Expand the heap to create a block at least `min_size` bytes long at the end
+	/// \return New block, pre-allocated
 	unsafe fn expand(&mut self, min_size: uint) -> *mut HeapHead
 	{
 		let use_prev =
@@ -156,22 +158,36 @@ impl HeapDef
 			};
 		let last_foot = &mut *self.last_foot.unwrap();
 		let alloc_size = min_size - (if use_prev { last_foot.head().size } else { 0 });
+		
 		// 1. Allocate at least one page at the end of the heap
 		let n_pages = ::lib::num::round_up(alloc_size, ::PAGE_SIZE) / ::PAGE_SIZE;
 		log_debug!("HeapDef.expand(min_size={}), n_pages={}", min_size, n_pages);
 		assert!(n_pages > 0);
 		::memory::virt::allocate(last_foot.next_head() as *mut(), n_pages);
-		// 2. If the final block is a free block, allocate it and expand to cover the new area
-		if use_prev
-		{
-			let block = &mut *last_foot.head;
-			block.size += n_pages * ::PAGE_SIZE;
-			block.state = HeapUsed(0);
-			block.foot().head = last_foot.head;
-		}
 		
+		// 2. If the final block is a free block, allocate it and expand to cover the new area
+		let block = if use_prev
+			{
+				let block = &mut *last_foot.head;
+				log_debug!("HeapDef.expand: (prev) &block={}", block as *mut HeapHead);
+				block.size += n_pages * ::PAGE_SIZE;
+				block.foot().head = last_foot.head;
+				
+				block
+			}
+			else
+			{
+				let block = &mut *last_foot.next_head();
+				log_debug!("HeapDef.expand: (new) &block={}", block as *mut HeapHead);
+				block.size = n_pages * ::PAGE_SIZE;
+				block.foot().head = last_foot.next_head();
+				
+				block
+			};
+		log_debug!("HeapDef.expand: &block={}", block as *mut HeapHead);
+		block.state = HeapUsed(0);
 		// 3. Return final block
-		fail!("TODO: heap::expand_heap");
+		block
 	}
 }
 

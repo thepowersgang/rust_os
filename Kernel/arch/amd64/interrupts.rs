@@ -26,7 +26,7 @@ pub extern "C" fn error_handler(regs: &InterruptRegs)
 	puts("Int  = "); puth(regs.intnum as uint); puts("\n");
 	puts("Code = "); puth(regs.errorcode as uint); puts("\n");
 	puts("CS:RIP  = "); puth(regs.cs as uint); puts(":"); puth(regs.rip as uint); puts("\n");
-	puts("SS:RSP  = "); puth(regs.ss as uint); puts(":"); puth(regs.rip as uint); puts("\n");
+	puts("SS:RSP  = "); puth(regs.ss as uint); puts(":"); puth(regs.rsp as uint); puts("\n");
 	loop {}	
 }
 

@@ -23,7 +23,7 @@ struct PTE
 	data: *mut u64
 }
 
-unsafe fn get_entry(level: u8, index: uint) -> PTE
+unsafe fn get_entry(level: u8, index: uint, force_allocate: bool) -> PTE
 {
 	use arch::memory::addresses::fractal_base;
 	
@@ -46,48 +46,72 @@ unsafe fn get_entry(level: u8, index: uint) -> PTE
 		}
 	1 => {
 		assert!(index < 512*512*512)
-		PTE::new(PTEPos2M, tab_pd.offset(index as int))
+		let rv = PTE::new(PTEPos2M, tab_pd.offset(index as int));
+		if !rv.is_present() && force_allocate {
+			let ptr = tab_pt.offset(index as int * 512) as *mut ();
+			log_debug!("Allocating for {} (PDE {})", ptr, index);
+			::memory::phys::allocate( ptr );
+		}
+		rv
 		},
 	2 => {
 		assert!(index < 512*512)
-		PTE::new(PTEPos1G, tab_pdp.offset(index as int))
+		let rv = PTE::new(PTEPos1G, tab_pdp.offset(index as int));
+		if !rv.is_present() && force_allocate {
+			let ptr = tab_pd.offset(index as int * 512) as *mut ();
+			log_debug!("Allocating for {} (PDPE {})", ptr, index);
+			::memory::phys::allocate( ptr );
+		}
+		rv
 		},
 	3 => {
 		assert!(index < 512)
-		PTE::new(PTEPos512G, tab_pml4.offset(index as int))
+		let rv = PTE::new(PTEPos512G, tab_pml4.offset(index as int));
+		if !rv.is_present() && force_allocate {
+			::memory::phys::allocate( tab_pdp.offset(index as int * 512) as *mut () );
+		}
+		rv
 		},
 	_ => fail!("Passed invalid number to get_entry, {} > 3", level)
 	}
 }
 unsafe fn get_page_ent(addr: uint, from_temp: bool, allocate: bool, large_ok: bool) -> PTE
 {
-	//log_trace!("get_page_ent(addr={:#x}, from_temp={}, allocate={}", addr, from_temp, allocate);
 	let pagenum = (addr & MASK_VBITS) / ::PAGE_SIZE;
-	//log_trace!("pagenum = {:#x}", pagenum);
-	let mut ent = get_entry(3, pagenum >> (9*3));
-	//log_trace!("ent(3) = {}", ent);
+//	log_trace!("get_page_ent(addr={:#x}, from_temp={}, allocate={}), pagenum={:#x}", addr, from_temp, allocate, pagenum);
+
+	let mut ent = get_entry(3, pagenum >> (9*3), allocate);
+//	log_trace!("ent(3) = {}", ent);
 	// 1. Walk down page tables from PML4
 	if !ent.is_present() {
-		//log_trace!("Not present");
 		return PTE::null();
 	}
-	ent = get_entry(2, pagenum >> (9*2));
-	//log_trace!("ent(2) = {}", ent);
+
+	ent = get_entry(2, pagenum >> (9*2), allocate);
+//	log_trace!("ent(2) = {}", ent);
 	if !ent.is_present() {
 		return PTE::null();
 	}
 	if ent.is_large() {
 		fail!("TODO: Support large pages (1GiB)");
 	}
-	ent = get_entry(1, pagenum >> (9*1));
-	//log_trace!("ent(1) = {}", ent);
+
+	ent = get_entry(1, pagenum >> (9*1), allocate);
+//	log_trace!("ent(1) = {}", ent);
 	if !ent.is_present() {
 		return PTE::null();
 	}
-	if ent.is_large() && large_ok {
-		return ent;
+	if ent.is_large() {
+		log_debug!("Large page covering {:#x}", addr);
+		if large_ok {
+			return ent;
+		}
+		else {	
+			PTE::null();
+		}
 	}
-	return get_entry(0, pagenum)
+
+	return get_entry(0, pagenum, allocate)
 }
 
 pub fn is_reserved(addr: uint) -> bool
@@ -99,9 +123,10 @@ pub fn is_reserved(addr: uint) -> bool
 }
 pub fn map(addr: *mut (), phys: PAddr, prot: ::memory::virt::ProtectionMode)
 {
+	log_trace!("map(*{} := {:#x} {})", addr, phys, prot);
 	unsafe {
 		let pte = get_page_ent(addr as uint, false, true, false);
-		pte.set_addr( phys );
+		pte.set( phys, prot );
 	}
 }
 
@@ -123,7 +148,26 @@ impl PTE
 	pub unsafe fn is_present(&self) -> bool { !self.is_null() && *self.data & 1 != 0 }
 	pub unsafe fn is_large(&self) -> bool { *self.data & (PF_PRESENT | PF_LARGE) == PF_LARGE|PF_PRESENT }
 	
-	pub unsafe fn set_addr(&self, paddr: PAddr) { *self.data = (*self.data & 0x7FFFFFFF_FFFFF000) | paddr; }
+	pub unsafe fn addr(&self) -> PAddr { *self.data & 0x7FFFFFFF_FFFFF000 }
+	pub unsafe fn set_addr(&self, paddr: PAddr) {
+		assert!(!self.is_null());
+		*self.data = (*self.data & !0x7FFFFFFF_FFFFF000) | paddr;
+	}
+	
+	pub unsafe fn set(&self, paddr: PAddr, prot: ::memory::virt::ProtectionMode) {
+		assert!(!self.is_null());
+		let flags: u64 = match prot
+			{
+			::memory::virt::ProtUnmapped => 0,
+			::memory::virt::ProtKernelRO => (1<<63)|1,
+			::memory::virt::ProtKernelRW => (1<<63)|2|1,
+			::memory::virt::ProtKernelRX => 1,
+			::memory::virt::ProtUserRO => (1<<63)|4|1,
+			::memory::virt::ProtUserRW => (1<<63)|4|2|1,
+			::memory::virt::ProtUserRX => 4|1,
+			};
+		*self.data = (paddr & 0x7FFFFFFF_FFFFF000) | flags;
+	}
 }
 
 impl ::core::fmt::Show for PTE
