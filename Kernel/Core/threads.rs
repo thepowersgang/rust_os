@@ -49,7 +49,7 @@ pub fn init()
 	let tid0 = Rc::new( RefCell::new(Thread {
 		tid: 0,
 		run_state: StateRunnable,
-		cpu_state: ::arch::threads::TID0STATE,
+		cpu_state: ::arch::threads::init_tid0_state(),
 		..Default::default()
 		}) );
 	::arch::threads::set_thread_ptr( tid0 )
@@ -91,14 +91,25 @@ fn get_thread_to_run() -> Option<Rc<RefCell<Thread>>>
 		log_trace!("Lock acquired");
 		let cur = get_cur_thread();
 		log_trace!("Cur grabbed");
-		// 1. Put current thread on run queue (if needed)
-		if cur.borrow().run_state == StateRunnable
+		if handle.empty()
 		{
-			log_trace!("Push current");
-			handle.push(cur);
+			if cur.borrow().run_state == StateRunnable {
+				Some(cur)
+			}
+			else {
+				None
+			}
 		}
-		// 2. Pop off a new thread
-		handle.pop()
+		else
+		{
+			// 1. Put current thread on run queue (if needed)
+			if cur.borrow().run_state == StateRunnable {
+				log_trace!("Push current");
+				handle.push(cur);
+			}
+			// 2. Pop off a new thread
+			handle.pop()
+		}
 	}
 }
 

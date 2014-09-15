@@ -13,10 +13,16 @@ pub struct State
 extern "C" {
 	static low_InitialPML4: ();
 }
-//pub static TID0STATE: State = State { cr3: &low_InitialPML4 as *const _ as u64, rsp: 0 };
-pub static TID0STATE: State = State { cr3: 0x13d000, rsp: 0 };
 #[thread_local]
 static mut t_thread_ptr: *mut () = 0 as *mut ();
+
+pub fn init_tid0_state() -> State
+{
+	State {
+		cr3: &low_InitialPML4 as *const _ as u64,
+		rsp: 0,
+		}
+}
 
 pub fn switch_to(state: &State, outstate: &mut State)
 {

@@ -58,6 +58,11 @@ impl<T> Queue<T>
 			Some(rv)
 		}
 	}
+	
+	pub fn empty(&self) -> bool
+	{
+		self.head.is_none()
+	}
 }
 
 macro_rules! queue_init( () => (Queue{head: ::core::option::None,tail: ::core::option::None}) )
