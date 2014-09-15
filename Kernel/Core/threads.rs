@@ -49,6 +49,7 @@ pub fn init()
 	let tid0 = Rc::new( RefCell::new(Thread {
 		tid: 0,
 		run_state: StateRunnable,
+		cpu_state: ::arch::threads::TID0STATE,
 		..Default::default()
 		}) );
 	::arch::threads::set_thread_ptr( tid0 )
@@ -56,6 +57,7 @@ pub fn init()
 
 pub fn reschedule()
 {
+	let cur = get_cur_thread();
 	// 1. Get next thread
 	log_trace!("reschedule()");
 	let thread = get_thread_to_run();
@@ -69,7 +71,9 @@ pub fn reschedule()
 	::core::option::Some(t) => {
 		// 2. Switch to next thread
 		log_debug!("Task switch to {:u}", t.borrow().tid);
-		::arch::threads::switch_to(&t.borrow().cpu_state);
+		//if t.is_same(&cur) {
+			::arch::threads::switch_to(&t.borrow().cpu_state, &mut cur.borrow_mut().cpu_state);
+		//}
 		}
 	}
 }

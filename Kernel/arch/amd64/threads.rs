@@ -10,21 +10,26 @@ pub struct State
 	// TODO: SSE state 
 }
 
+extern "C" {
+	static InitialPML4: ();
+}
+pub static TID0STATE: State = State { cr3: &InitialPML4 as *const _ as u64 - ::arch::memory::addresses::ident_start as u64, rsp: 0 };
 #[thread_local]
 static mut t_thread_ptr: *mut () = 0 as *mut ();
 
-pub fn switch_to(state: &State)
+pub fn switch_to(state: &State, outstate: &mut State)
 {
 	unsafe
 	{
 		// TODO: Lazy save/restore SSE state
-		asm!(
-			"push 1f"	// Save a return address
-			"mov %0, %cr3"	// Switch address spaces
-			"mov %1, %rsp"	// Switch stacks
-			"ret"	// Jump to saved return address
-			"1:"	// Target for completed switch
-			:
+		asm!(concat!("push 1f\n",	// Save a return address
+			"mov %rsp, ($0)\n",	// Save RSP
+			"mov $1, %cr3\n",	// Switch address spaces
+			"mov $2, %rsp\n",	// Switch stacks
+			"ret\n",	// Jump to saved return address
+			"1:\n",	// Target for completed switch
+			"")
+			: "=m" (outstate.rsp)
 			: "r" (state.cr3), "r" (state.rsp)
 			: // TODO: List all callee save registers
 			: "volatile"
