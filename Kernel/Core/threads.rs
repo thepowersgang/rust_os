@@ -71,9 +71,9 @@ pub fn reschedule()
 	::core::option::Some(t) => {
 		// 2. Switch to next thread
 		log_debug!("Task switch to {:u}", t.borrow().tid);
-		//if t.is_same(&cur) {
+		if !t.is_same(&cur) {
 			::arch::threads::switch_to(&t.borrow().cpu_state, &mut cur.borrow_mut().cpu_state);
-		//}
+		}
 		}
 	}
 }

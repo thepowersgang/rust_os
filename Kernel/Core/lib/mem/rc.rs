@@ -24,9 +24,9 @@ impl<T> Rc<T>
 			}
 		}
 	}
-	//pub fn is_same(&self, other: &Rc<T>) -> bool {
-	//	self.inner == other.inner
-	//}
+	pub fn is_same(&self, other: &Rc<T>) -> bool {
+		self.inner == other.inner
+	}
 }
 
 //impl<T> PartialEq for Rc<T>

@@ -11,9 +11,10 @@ pub struct State
 }
 
 extern "C" {
-	static InitialPML4: ();
+	static low_InitialPML4: ();
 }
-pub static TID0STATE: State = State { cr3: &InitialPML4 as *const _ as u64 - ::arch::memory::addresses::ident_start as u64, rsp: 0 };
+//pub static TID0STATE: State = State { cr3: &low_InitialPML4 as *const _ as u64, rsp: 0 };
+pub static TID0STATE: State = State { cr3: 0x13d000, rsp: 0 };
 #[thread_local]
 static mut t_thread_ptr: *mut () = 0 as *mut ();
 
@@ -29,8 +30,8 @@ pub fn switch_to(state: &State, outstate: &mut State)
 			"ret\n",	// Jump to saved return address
 			"1:\n",	// Target for completed switch
 			"")
-			: "=m" (outstate.rsp)
-			: "r" (state.cr3), "r" (state.rsp)
+			: 
+			: "r" (&mut outstate.rsp), "r" (state.cr3), "r" (state.rsp)
 			: // TODO: List all callee save registers
 			: "volatile"
 			);
