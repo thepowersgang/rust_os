@@ -64,7 +64,7 @@ impl ::core::ops::Drop for LoggingFormatter
 	}
 }
 
-pub fn enabled(level: Level, modname: &str) -> bool
+pub fn enabled(_level: Level, _modname: &str) -> bool
 {
 	true
 }

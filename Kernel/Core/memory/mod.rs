@@ -1,7 +1,6 @@
 //
 //
 //
-use _common::*;
 use arch::memory::{VAddr};
 use core::ptr::RawPtr;
 

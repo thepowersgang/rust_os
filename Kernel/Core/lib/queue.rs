@@ -2,7 +2,7 @@
 //
 //
 #![macro_escape]
-use core::option::{Option,None,Some};
+use _common::*;
 
 pub struct Queue<T>
 {

@@ -62,7 +62,11 @@ pub unsafe fn alloc<T>() -> *mut T
 
 pub unsafe fn allocate(heap: HeapId, size: uint) -> Option<*mut ()>
 {
-	s_global_heap.lock().allocate(size)
+	match heap
+	{
+	GlobalHeap => s_global_heap.lock().allocate(size),
+	_ => fail!("TODO: Non-global heaps"),
+	}
 }
 
 //pub unsafe fn expand(pointer: *mut (), newsize: uint) -> Option<*mut ()>
@@ -84,62 +88,56 @@ impl HeapDef
 		let blocksize = ::lib::num::round_up(size + ::core::mem::size_of::<HeapHead>() + ::core::mem::size_of::<HeapFoot>(), 32);
 		log_debug!("allocate(size={}) blocksize={}", size, blocksize);
 		// 2. Locate a free location
-		if self.first_free.is_some()
+		log_trace!("allocate - Free blocks");
+		// Check all free blocks for one that would fit this allocation
+		let mut prev = None;
+		let mut opt_fb = self.first_free;
+		while opt_fb.is_some()
 		{
-			log_trace!("allocate - Free blocks");
-			// Check all free blocks for one that would fit this allocation
-			let mut prev = None;
-			let mut opt_fb = self.first_free;
-			while opt_fb.is_some()
+			let fb = &mut *opt_fb.unwrap();
+			assert!( fb.magic == MAGIC );
+			let next = match fb.state { HeapFree(n)=> n, _ => fail!("Non-free block in free list") };
+			if fb.size >= blocksize
 			{
-				let fb = &mut *opt_fb.unwrap();
-				let next = match fb.state { HeapFree(n)=> n, _ => fail!("Non-free block in free list") };
-				if fb.size >= blocksize
-				{
-					break;
-				}
-				prev = opt_fb;
-				opt_fb = next;
+				break;
 			}
-			if opt_fb.is_some()
-			{
-				let fb = &mut *opt_fb.unwrap();
-				let next = match fb.state { HeapFree(n)=> n, _ => fail!("Non-free block in free list") };
-				log_trace!("allocate - Suitable free block {}!", fb as *mut _);
-				// Split block (if needed)
-				if fb.size > blocksize
-				{
-					let far_foot = fb.foot() as *mut _;
-					let far_size = fb.size - blocksize;
-					fb.size = blocksize;
-					*fb.foot() = HeapFoot {
-						head: fb as *mut _,
-						};
-					let far_head = fb.next();
-					log_trace!("Creating new block at {}", far_head);
-					*far_head = HeapHead {
-						magic: MAGIC,
-						size: far_size,
-						state: HeapFree(next)
-						};
-					(*far_foot).head = far_head;
-					match prev
-					{
-					Some(x) => {(*x).state = HeapFree(Some(far_head));},
-					None => {self.first_free = Some(far_head);},
-					}
-				}
-				// Return newly allocated block
-				fb.state = HeapUsed(size);
-				return Some( fb.data() );
-			}
-			// Fall: No free blocks would fit the allocation
-			log_trace!("allocate - No suitable free blocks");
+			prev = opt_fb;
+			opt_fb = next;
 		}
-		else
+		if opt_fb.is_some()
 		{
-			log_trace!("allocate - No free blocks");
+			let fb = &mut *opt_fb.unwrap();
+			let next = match fb.state { HeapFree(n)=> n, _ => fail!("Non-free block in free list") };
+			log_trace!("allocate - Suitable free block {}!", fb as *mut _);
+			// Split block (if needed)
+			if fb.size > blocksize
+			{
+				let far_foot = fb.foot() as *mut _;
+				let far_size = fb.size - blocksize;
+				fb.size = blocksize;
+				*fb.foot() = HeapFoot {
+					head: fb as *mut _,
+					};
+				let far_head = fb.next();
+				log_trace!("Creating new block at {}", far_head);
+				*far_head = HeapHead {
+					magic: MAGIC,
+					size: far_size,
+					state: HeapFree(next)
+					};
+				(*far_foot).head = far_head;
+				match prev
+				{
+				Some(x) => {(*x).state = HeapFree(Some(far_head));},
+				None => {self.first_free = Some(far_head);},
+				}
+			}
+			// Return newly allocated block
+			fb.state = HeapUsed(size);
+			return Some( fb.data() );
 		}
+		// Fall: No free blocks would fit the allocation
+		log_trace!("allocate - No suitable free blocks");
 		
 		// 3. If none, allocate more space
 		let block_ptr = self.expand(blocksize);
@@ -172,6 +170,7 @@ impl HeapDef
 		unsafe
 		{
 			let headptr = (ptr as *mut HeapHead).offset(-1);
+			assert!( (*headptr).magic == MAGIC );
 			assert!( (*headptr).foot().head() as *mut _ == headptr );
 			
 			(*headptr).state = HeapFree(self.first_free);

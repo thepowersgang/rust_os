@@ -2,7 +2,7 @@
 #
 #
 ARCH = amd64
-OBJS := start.o kcore.o libcore.rlib
+OBJS := start.ao kcore.o libcore.rlib
 
 V ?= @
 
@@ -42,6 +42,9 @@ all: kernel-$(ARCH).bin
 clean:
 	rm -r $(OBJDIR)
 
+run: kernel-$(ARCH).bin
+	./RunQemuPXE $<.elf32 ""
+
 kernel-$(ARCH).bin: $(OBJS) arch/$(ARCH)/link.ld Makefile
 	@echo [LD] -o $@
 	@x86_64-elf-ld -o $@ $(OBJS) $(LIBCORE) $(LIBCOMPILERRT) -T arch/$(ARCH)/link.ld -Map $(OBJDIR)map.txt -z max-page-size=0x1000 -g
@@ -49,12 +52,12 @@ kernel-$(ARCH).bin: $(OBJS) arch/$(ARCH)/link.ld Makefile
 	@mcopy -i fdd.img $@.elf32 ::/ -D o
 	@objdump -S $@ > $@.dsm
 
-$(OBJDIR)start.o: arch/$(ARCH)/start.asm Makefile
+$(OBJDIR)%.ao: arch/$(ARCH)/%.asm Makefile
 	@echo [AS] -o $@
 	@mkdir -p $(dir $@)
 	@nasm -o $@ $< -f elf64 -MD $@.dep -MP
 
-$(OBJDIR)kcore.o: Core/main.rs $(OBJDIR)libarch.rlib $(OBJDIR)libcore.rlib Makefile
+$(OBJDIR)kcore.o: Core/main.rs $(OBJDIR)libcore.rlib Makefile
 	@echo [RUSTC] -o $@
 	@mkdir -p $(dir $@)
 	$V$(ENV) rustc -O $(RUSTFLAGS) --emit obj -o $@ $< --dep-info $@.dep $(call LocalLib,core) $(call LocalLib,common)

@@ -7,11 +7,14 @@ pub struct State
 {
 	cr3: u64,
 	rsp: u64,
+	tlsbase: u64,
 	// TODO: SSE state 
 }
 
 extern "C" {
 	static low_InitialPML4: ();
+	static TID0TLS: ();
+	fn task_switch(oldrsp: &mut u64, newrsp: u64, cr3: u64, tlsbase: u64);
 }
 #[thread_local]
 static mut t_thread_ptr: *mut () = 0 as *mut ();
@@ -21,6 +24,7 @@ pub fn init_tid0_state() -> State
 	State {
 		cr3: &low_InitialPML4 as *const _ as u64,
 		rsp: 0,
+		tlsbase: &TID0TLS as *const _ as u64,
 		}
 }
 
@@ -29,18 +33,7 @@ pub fn switch_to(state: &State, outstate: &mut State)
 	unsafe
 	{
 		// TODO: Lazy save/restore SSE state
-		asm!(concat!("push 1f\n",	// Save a return address
-			"mov %rsp, ($0)\n",	// Save RSP
-			"mov $1, %cr3\n",	// Switch address spaces
-			"mov $2, %rsp\n",	// Switch stacks
-			"ret\n",	// Jump to saved return address
-			"1:\n",	// Target for completed switch
-			"")
-			: 
-			: "r" (&mut outstate.rsp), "r" (state.cr3), "r" (state.rsp)
-			: // TODO: List all callee save registers
-			: "volatile"
-			);
+		task_switch(&mut outstate.rsp, state.rsp, state.cr3, state.tlsbase);
 	}
 }
 

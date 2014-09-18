@@ -123,7 +123,6 @@ pub fn is_reserved(addr: uint) -> bool
 }
 pub fn map(addr: *mut (), phys: PAddr, prot: ::memory::virt::ProtectionMode)
 {
-	log_trace!("map(*{} := {:#x} {})", addr, phys, prot);
 	unsafe {
 		let pte = get_page_ent(addr as uint, false, true, false);
 		pte.set( phys, prot );

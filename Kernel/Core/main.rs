@@ -9,6 +9,7 @@
 #![feature(unsafe_destructor)]
 #![feature(thread_local)]
 #![feature(globs)]
+#![feature(concat_idents)]
 
 #[phase(plugin, link)] extern crate core;
 #[phase(plugin, link)] extern crate common;
@@ -19,6 +20,7 @@ use _common::*;
 pub use arch::memory::PAGE_SIZE;
 
 pub mod logmacros;
+pub mod macros;
 
 #[cfg(arch__amd64)]
 #[path="../arch/amd64/crate.rs"]
@@ -34,6 +36,7 @@ mod logging;
 mod memory;
 mod threads;
 mod time;
+mod modules;
 
 #[no_mangle]
 pub extern "C" fn kmain()
@@ -56,6 +59,8 @@ pub extern "C" fn kmain()
 	Some(m) => log_debug!("Video mode : {}x{}", m.width, m.height),
 	None => log_debug!("No video mode present")
 	}
+	
+	::modules::init();
 	
 	loop
 	{

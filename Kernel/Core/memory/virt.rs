@@ -19,7 +19,7 @@ pub enum ProtectionMode
 	ProtUserRX,
 }
 
-#[link_section(process_local)]
+#[link_section=".process_local"]
 static mut s_userspace_lock : ::sync::Mutex<()> = mutex_init!( () );
 static mut s_kernelspace_lock : ::sync::Mutex<()> = mutex_init!( () );
 
@@ -36,7 +36,7 @@ pub fn allocate(addr: *mut (), page_count: uint)
 	{
 		let pagenum = addr as uint / ::PAGE_SIZE;
 		// 1. Lock
-		let mut l = tern!( is_global(addr as uint) ? s_kernelspace_lock.lock() : s_userspace_lock.lock() );
+		let _lh = tern!( is_global(addr as uint) ? s_kernelspace_lock.lock() : s_userspace_lock.lock() );
 		// 2. Ensure range is free
 		for pg in range(pagenum, pagenum+page_count)
 		{
@@ -54,10 +54,14 @@ pub fn allocate(addr: *mut (), page_count: uint)
 
 pub fn map(addr: *mut (), phys: PAddr, prot: ProtectionMode)
 {
-	if ! ::arch::memory::virt::is_reserved(addr as VAddr)
+	log_trace!("map(*{} := {:#x} {})", addr, phys, prot);
+	if ::arch::memory::virt::is_reserved(addr as VAddr)
+	{
+		log_notice!("Mapping {:#x} to {}, collision", phys, addr);
+	}
+	else
 	{
 		::arch::memory::virt::map(addr, phys, prot);
-		log_trace!("map(*{} := {:#x} {})", addr, phys, prot);
 	}
 }
 

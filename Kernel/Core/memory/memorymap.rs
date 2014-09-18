@@ -105,10 +105,10 @@ impl<'buf> MemoryMapBuilder<'buf>
 		log_debug!("set_range(base={:#x}, size={:#x}, state={}, domain={})",
 			base_, size_, state, domain);
 		
-		let PAGE_MASK = ::PAGE_SIZE as u64 - 1;
-		let ofs = base_ & PAGE_MASK;
+		let page_mask = ::PAGE_SIZE as u64 - 1;
+		let ofs = base_ & page_mask;
 		let base = base_ - ofs;
-		let size = (size_ + ofs + PAGE_MASK) & !PAGE_MASK;
+		let size = (size_ + ofs + page_mask) & !page_mask;
 		
 		// 1. Locate position
 		let mut pos = self._find_addr(base);

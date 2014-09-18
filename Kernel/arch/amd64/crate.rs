@@ -3,10 +3,6 @@
 //
 // arch/amd64/crate.rs
 // - AMD64/x86_64 architecture support
-#![crate_type="lib"]
-#![no_std]
-#![feature(unsafe_destructor)]	// Used to allow type parametered Drop
-#![feature(macro_rules)]
 #![macro_escape]
 
 extern crate core;
@@ -23,6 +19,8 @@ pub mod sync;
 
 mod log;
 mod x86_io;
+mod hw;
+pub mod acpi;
 
 extern "C"
 {

@@ -4,7 +4,7 @@
 // Core/memory/phys.rs
 // - Physical memory manager
 use _common::*;
-use arch::memory::addresses::{physinfo_start, physinfo_end};
+//use arch::memory::addresses::{physinfo_start, physinfo_end};
 use arch::memory::PAddr;
 
 static NOPAGE : PAddr = 1;
@@ -93,6 +93,7 @@ pub fn allocate(address: *mut ()) -> bool
 
 fn mark_used(paddr: PAddr)
 {
+	log_error!("TODO: mark_used(paddr={:#x})", paddr);
 	// TODO:
 }
 

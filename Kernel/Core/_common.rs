@@ -5,7 +5,7 @@
 // - Common global definitons
 //
 // All files have 'use _common::*' as the first line, which imports the names from this module
-pub use core::iter::{range};
+pub use core::iter::{range,range_step};
 pub use core::iter::{Iterator,DoubleEndedIterator};
 pub use core::collections::Collection;
 pub use core::slice::{Slice,ImmutableSlice,MutableSlice};

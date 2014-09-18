@@ -37,13 +37,9 @@ SECTIONS {
 		*(.rdata)
 		
 		. = ALIGN(0x10);
-		gKernelModules = .;
-		*(KMODULES)
-		gKernelModulesEnd = .;
-		. = ALIGN(0x10);
-		gKernelSymbols = .;
-		*(KEXPORT)
-		gKernelSymbolsEnd = .;
+		modules_base = .;
+		*(.MODULE_LIST)
+		modules_end = .;
 	}
 	
 	.ktls ALIGN (0x1000) : AT(ADDR(.ktls) - _kernel_base) {

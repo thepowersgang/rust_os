@@ -2,9 +2,6 @@
 //
 //
 #![macro_escape]
-
-use core::option::{Option,None,Some};
-
 pub use self::queue::Queue;
 
 pub mod mem;

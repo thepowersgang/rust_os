@@ -10,13 +10,20 @@ struct InterruptRegs
 	gs: u64,
 
 	rax: u64, rcx: u64, rdx: u64, rbx: u64,
-	kernelrsp: u64, rbp: u64, rsi: u64, rdi: u64,
+	/*no rsp*/rbp: u64, rsi: u64, rdi: u64,
 	r8: u64,  r9: u64,  r10: u64, r11: u64,
 	r12: u64, r13: u64, r14: u64, r15: u64,
 	
 	intnum: u64, errorcode: u64,
 	rip: u64, cs: u64,
 	rflags: u64, rsp: u64, ss: u64,
+}
+
+pub fn init()
+{
+	// 1. Ensure APIC is present
+	// 2. Request IOAPIC list from MP tables (or equiv)
+	// 3. Enable LAPIC timer
 }
 
 #[no_mangle]
@@ -28,6 +35,12 @@ pub extern "C" fn error_handler(regs: &InterruptRegs)
 	puts("CS:RIP  = "); puth(regs.cs as uint); puts(":"); puth(regs.rip as uint); puts("\n");
 	puts("SS:RSP  = "); puth(regs.ss as uint); puts(":"); puth(regs.rsp as uint); puts("\n");
 	loop {}	
+}
+
+#[no_mangle]
+pub extern "C" fn IRQDispatch(intnum: uint)
+{
+	log_debug!("IRQ {}", intnum);
 }
 
 // vim: ft=rust

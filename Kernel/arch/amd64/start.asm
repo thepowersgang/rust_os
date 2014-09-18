@@ -8,12 +8,12 @@
 [section .multiboot]
 [global mboot]
 mboot:
-	MULTIBOOT_PAGE_ALIGN	equ 1<<0
-	MULTIBOOT_MEMORY_INFO	equ 1<<1
-	MULTIBOOT_REQVIDMODE	equ 1<<2
-	MULTIBOOT_HEADER_MAGIC	equ 0x1BADB002
-	MULTIBOOT_HEADER_FLAGS	equ MULTIBOOT_PAGE_ALIGN | MULTIBOOT_MEMORY_INFO | MULTIBOOT_REQVIDMODE
-	MULTIBOOT_CHECKSUM	equ -(MULTIBOOT_HEADER_MAGIC + MULTIBOOT_HEADER_FLAGS)
+	%define MULTIBOOT_PAGE_ALIGN	1<<0
+	%define MULTIBOOT_MEMORY_INFO	1<<1
+	%define MULTIBOOT_REQVIDMODE	1<<2
+	%define MULTIBOOT_HEADER_MAGIC	0x1BADB002
+	%define MULTIBOOT_HEADER_FLAGS	(MULTIBOOT_PAGE_ALIGN | MULTIBOOT_MEMORY_INFO | MULTIBOOT_REQVIDMODE)
+	%define MULTIBOOT_CHECKSUM	-(MULTIBOOT_HEADER_MAGIC + MULTIBOOT_HEADER_FLAGS)
 	
 	; This is the GRUB Multiboot header. A boot signature
 	dd MULTIBOOT_HEADER_MAGIC
@@ -152,73 +152,63 @@ start64_higher:
 	cli
 	hlt
 	jmp .dead_loop
-idt_init:
-	; Save to make following instructions smaller
-	mov rdi, IDT
-	
-	; Set an IDT entry to a callback
-	%macro SETIDT 2
-	mov rax, %2
-	mov WORD [rdi + %1*16], ax
-	shr rax, 16
-	mov WORD [rdi + %1*16 + 6], ax
-	shr rax, 16
-	mov DWORD [rdi + %1*16 + 8], eax
-	; Enable
-	mov ax, WORD [rdi + %1*16 + 4]
-	or  ax, 0x8000
-	mov WORD [rdi + %1*16 + 4], ax
-	%endmacro
-	
-	; Install error handlers
-	%macro SETISR 1
-	SETIDT %1, Isr%1
-	%endmacro
-	
-	%assign i 0
-	%rep 32
-	SETISR i
-	%assign i i+1
-	%endrep
-	
-	mov rdi, IDTPtr
-	lidt [rdi]
+
+%include "arch/amd64/interrupts.inc.asm"
+
+; RDI: Save location for RSP
+; RSI: New RSP
+; RDX: New CR3
+; RCX: New FSBASE
+[section .text.asm.task_switch]
+EXPORT task_switch
+	SAVE rbp, rbx, r12, r13, r14, r15
+	mov rax, .ret
+	push rax
+	mov [rdi], rsp
+	mov rsp, rsi	; New RSP
+	mov cr3, rdx	; New CR3
+	; New FSBASE
+	mov rax, rcx	; EAX = Low
+	mov rdx, rax
+	shr rdx, 32	; EDX = High
+	mov ecx, 0xC0000100	; FS Base
+	wrmsr
+	ret	; Jump to saved address from above
+.ret:
+	RESTORE rbp, rbx, r12, r13, r14, r15
 	ret
 
-[global __morestack]
-__morestack:
-	ret
-[global _Unwind_Resume]
-_Unwind_Resume:
-[global rust_eh_personality]
-rust_eh_personality:
+[section .text]
+EXPORT __morestack
+	jmp abort
+EXPORT _Unwind_Resume
+	jmp abort
+EXPORT rust_eh_personality
+	jmp abort
 abort:
 	cli
 	hlt
 	jmp abort
 
-[global memset]
 ;; RDI = Address
 ;; RSI = Value
 ;; RDX = Count
-memset:
+EXPORT memset
 	mov rax, rsi
 	mov rcx, rdx
 	rep stosb
 	ret
-[global memcpy]
 ;; RDI = Destination
 ;; RSI = Source
 ;; RDX = Count
-memcpy:
+EXPORT memcpy
 	mov rcx, rdx
 	rep movsb
 	ret
-[global memcmp]
 ;; RDI = A
 ;; RSI = B
 ;; RDX = Count
-memcmp:
+EXPORT memcmp
 	mov rcx, rdx
 	rep cmpsb
 	mov rax, 0
@@ -232,131 +222,7 @@ memcmp:
 	inc rax
 	ret
 
-%macro ISR_NOERRNO	1
-Isr%1:
-	xchg bx, bx
-	push	QWORD 0
-	push	QWORD %1
-	jmp	ErrorCommon
-%endmacro
-%macro ISR_ERRNO	1
-Isr%1:
-	xchg bx, bx
-	push	QWORD %1
-	jmp	ErrorCommon
-%endmacro
-
-ISR_NOERRNO	0;  0: Divide By Zero Exception
-ISR_NOERRNO	1;  1: Debug Exception
-ISR_NOERRNO	2;  2: Non Maskable Interrupt Exception
-ISR_NOERRNO	3;  3: Int 3 Exception
-ISR_NOERRNO	4;  4: INTO Exception
-ISR_NOERRNO	5;  5: Out of Bounds Exception
-ISR_NOERRNO	6;  6: Invalid Opcode Exception
-ISR_NOERRNO	7;  7: Coprocessor Not Available Exception
-ISR_ERRNO	8;  8: Double Fault Exception (With Error Code!)
-ISR_NOERRNO	9;  9: Coprocessor Segment Overrun Exception
-ISR_ERRNO	10; 10: Bad TSS Exception (With Error Code!)
-ISR_ERRNO	11; 11: Segment Not Present Exception (With Error Code!)
-ISR_ERRNO	12; 12: Stack Fault Exception (With Error Code!)
-ISR_ERRNO	13; 13: General Protection Fault Exception (With Error Code!)
-ISR_ERRNO	14; 14: Page Fault Exception (With Error Code!)
-ISR_NOERRNO	15; 15: Reserved Exception
-ISR_NOERRNO	16; 16: Floating Point Exception
-ISR_NOERRNO	17; 17: Alignment Check Exception
-ISR_NOERRNO	18; 18: Machine Check Exception
-ISR_NOERRNO	19; 19: Reserved
-ISR_NOERRNO	20; 20: Reserved
-ISR_NOERRNO	21; 21: Reserved
-ISR_NOERRNO	22; 22: Reserved
-ISR_NOERRNO	23; 23: Reserved
-ISR_NOERRNO	24; 24: Reserved
-ISR_NOERRNO	25; 25: Reserved
-ISR_NOERRNO	26; 26: Reserved
-ISR_NOERRNO	27; 27: Reserved
-ISR_NOERRNO	28; 28: Reserved
-ISR_NOERRNO	29; 29: Reserved
-ISR_NOERRNO	30; 30: Reserved
-ISR_NOERRNO	31; 31: Reserved
-
-;
-;
-;
-EXPORT log
-[global log2]
-log2:
-[global log10]
-log10:
-[global pow]
-pow:
-[global exp]
-exp:
-[global exp2]
-exp2:
-[global ceil]
-ceil:
-[global floor]
-floor:
-[global fmod]
-fmod:
-[global round]
-round:
-[global trunc]
-trunc:
-[global fdim]
-fdim:
-[global fma]
-fma:
-[global sqrt]
-sqrt:
-EXPORT logf
-EXPORT log2f
-EXPORT log10f
-EXPORT powf
-EXPORT expf
-EXPORT exp2f
-EXPORT ceilf
-EXPORT floorf
-EXPORT fmodf
-EXPORT roundf
-EXPORT truncf
-EXPORT fdimf
-EXPORT fmaf
-EXPORT sqrtf
-; Softmath conversions
-EXPORT __fixsfqi	; Single Float -> ? Int
-EXPORT __fixsfhi	; Single Float -> ? Int
-EXPORT __fixdfqi	; Double Float -> ? Int
-EXPORT __fixdfhi
-EXPORT __fixunssfqi
-EXPORT __fixunssfhi
-EXPORT __fixunsdfqi
-EXPORT __fixunsdfhi
-	jmp halt 
-
-halt:
-	cli
-	hlt
-	jmp halt
-
-;
-;
-;
-[extern error_handler]
-[global ErrorCommon]
-ErrorCommon:
-	PUSH_GPR
-	push gs
-	push fs
-	
-	mov rdi, rsp
-	call error_handler
-	
-	pop fs
-	pop gs
-	POP_GPR
-	add rsp, 2*8
-	iretq
+%include "arch/amd64/stubs.inc.asm"
 
 [section .padata]
 [global InitialPML4]
@@ -406,6 +272,8 @@ KStackPT:	; Covers 2 MiB
 
 InitialKernelStack:
 	times 0x1000*(INITIAL_KSTACK_SIZE-1)	db 0	; 8 Pages
+
+[section .rodata]
 
 [section .data]
 EXPORT s_multiboot_pointer
