@@ -13,7 +13,7 @@ pub use core::str::StrSlice;
 pub use core::default::Default;
 pub use core::option::{Option,Some,None};
 pub use core::result::{Result,Ok,Err};
-pub use core::ops::{Deref,DerefMut};
+pub use core::ops::{Drop,Deref,DerefMut};
 pub use core::cmp::PartialEq;
 
 // vim: ft=rust

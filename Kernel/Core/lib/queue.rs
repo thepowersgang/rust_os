@@ -24,7 +24,7 @@ impl<T> Queue<T>
 		{
 			let qe_ptr = ::memory::heap::alloc::<QueueEnt<T>>();
 			(*qe_ptr).next = None;
-			::core::mem::overwrite( &mut (*qe_ptr).value, value );
+			::core::ptr::write( &mut (*qe_ptr).value, value );
 			
 			if self.head.is_some()	
 			{

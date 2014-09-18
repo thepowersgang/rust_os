@@ -4,8 +4,12 @@
 // Core/memory/virt.rs
 // - Virtual memory manager
 use _common::*;
+use core::ptr::RawPtr;
+use arch::memory::addresses;
 
 use arch::memory::{PAddr,VAddr};
+
+type Page = [u8, ..::PAGE_SIZE];
 
 #[deriving(PartialEq,Show)]
 pub enum ProtectionMode
@@ -17,6 +21,12 @@ pub enum ProtectionMode
 	ProtUserRO,	// User
 	ProtUserRW,
 	ProtUserRX,
+}
+
+pub struct AllocHandle
+{
+	addr: *const (),
+	count: uint,
 }
 
 #[link_section=".process_local"]
@@ -62,6 +72,106 @@ pub fn map(addr: *mut (), phys: PAddr, prot: ProtectionMode)
 	else
 	{
 		::arch::memory::virt::map(addr, phys, prot);
+	}
+}
+
+fn unmap(addr: *mut (), count: uint)
+{
+	let _lock = unsafe { s_kernelspace_lock.lock() };
+	let pos = addr as uint;
+	assert_eq!(pos & (::PAGE_SIZE - 1), 0);
+	
+	for i in range(0, count)
+	{
+		::arch::memory::virt::unmap( (pos + i*::PAGE_SIZE) as *mut () );
+	}
+}
+
+/*
+/// Map a physical page for a short period of time (typically long enough to copy data in/out)
+pub fn map_short(phys: PAddr) -> AllocHandle
+{
+	
+}
+*/
+
+/// Create a long-standing MMIO/other hardware mapping
+pub fn map_hw_ro(phys: PAddr, count: uint, module: &'static str) -> Result<AllocHandle,()> {
+	map_hw(phys, count, true, module)
+}
+pub fn map_hw_rw(phys: PAddr, count: uint, module: &'static str) -> Result<AllocHandle,()> {
+	map_hw(phys, count, false, module)
+}
+
+fn map_hw(phys: PAddr, count: uint, readonly: bool, module: &'static str) -> Result<AllocHandle,()>
+{
+	// 1. Locate an area
+	// TODO: This lock should be replaced with a finer grained lock
+	let _lock = unsafe { s_kernelspace_lock.lock() };
+	let mut pos = addresses::hardware_base;
+	loop
+	{
+		if addresses::hardware_end - pos < count * ::PAGE_SIZE 
+		{
+			return Err( () );
+		}
+		let free = count_free_in_range(pos as *const Page, count);
+		if free == count {
+			break
+		}
+		pos += (free + 1) * ::PAGE_SIZE;
+	}
+	// 2. Map
+	for i in range(0, count)
+	{
+		map(
+			(pos + i * ::PAGE_SIZE) as *mut (),
+			phys + (i * ::PAGE_SIZE) as u64,
+			tern!(readonly ? ProtKernelRO : ProtKernelRW)
+			);
+	}
+	// 3. Return a handle representing this area
+	Ok( AllocHandle {
+		addr: pos as *const _,
+		count: count
+		} )
+}
+
+fn count_free_in_range(addr: *const Page, count: uint) -> uint
+{
+	for i in range(0, count)
+	{
+		let pg = unsafe{ addr.offset(i as int) as uint };
+		if ::arch::memory::virt::is_reserved( pg ) {
+			return i;
+		}
+	}
+	return count;
+}
+
+impl AllocHandle
+{
+	pub fn as_ref<'s,T>(&'s self, ofs: uint) -> &'s T
+	{
+		assert!(ofs + ::core::mem::size_of::<T>() <= self.count * ::PAGE_SIZE);
+		unsafe{ &*((self.addr as uint + ofs) as *const T) }
+	}
+	/// Forget the allocation and return a static reference to the data
+	pub fn make_static<T>(&mut self, ofs: uint) -> &'static mut T
+	{
+		assert!(ofs + ::core::mem::size_of::<T>() <= self.count * ::PAGE_SIZE);
+		self.count = 0;
+		unsafe{ &mut *((self.addr as uint + ofs) as *mut T) }
+	}
+}
+impl Drop for AllocHandle
+{
+	fn drop(&mut self)
+	{
+		if self.count > 0
+		{
+			unmap(self.addr as *mut (), self.count);
+		}
 	}
 }
 

@@ -10,15 +10,13 @@ pub struct ModuleInfo
 }
 
 extern "C" {
-	#[allow(ctypes)]
-	static modules_base: ModuleInfo;
-	#[allow(ctypes)]
-	static modules_end: ModuleInfo;
+	static modules_base: ();
+	static modules_end: ();
 }
 
 pub fn init()
 {
-	let baseptr = &modules_base as *const _;
+	let baseptr = &modules_base as *const _ as *const ModuleInfo;
 	let size = &modules_end as *const _ as uint - baseptr as uint;
 	let count = size / ::core::mem::size_of::<ModuleInfo>();
 	let mods: &[ModuleInfo] = unsafe{ ::core::mem::transmute(::core::raw::Slice::<ModuleInfo> {

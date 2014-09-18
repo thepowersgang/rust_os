@@ -128,6 +128,13 @@ pub fn map(addr: *mut (), phys: PAddr, prot: ::memory::virt::ProtectionMode)
 		pte.set( phys, prot );
 	}
 }
+pub fn unmap(addr: *mut ())
+{
+	unsafe {
+		let pte = get_page_ent(addr as uint, false, false, false);
+		pte.set( 0, ::memory::virt::ProtUnmapped );
+	}
+}
 
 static PF_PRESENT : u64 = 0x001;
 static PF_LARGE   : u64 = 0x080;

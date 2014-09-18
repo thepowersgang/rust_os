@@ -13,8 +13,8 @@ struct ACPI<'a>
 
 enum TLSDT<'a>
 {
-	TopRSDT(&'a RSDT),
-	TopXSDT(&'a XSDT),
+	TopRSDT(&'static RSDT),
+	TopXSDT(&'static XSDT),
 }
 
 #[repr(packed)]
@@ -30,6 +30,12 @@ struct RSDP
 	xsdt_address: u64,
 	ext_checksum: u8,
 	_resvd1: [u8,..3],
+}
+
+struct SDTHandle<T:'static>
+{
+	maphandle: ::memory::virt::AllocHandle,
+	ofs: uint,
 }
 
 #[repr(C)]
@@ -60,6 +66,8 @@ struct XSDT
 	pointers: [u64, ..0],	// Lies, but rust doesn't support arbitary length arrays
 }
 
+static mut s_acpi_state : Option< ACPI<'static>> = None;
+
 pub fn init()
 {
 	let rsdp = match get_rsdp() {
@@ -74,12 +82,17 @@ pub fn init()
 	log_debug!("RSDP.rsdt_address = {:#x}", rsdp.rsdt_address);
 	
 	let tl = if rsdp.revision == 0 {
-			TopRSDT( unsafe { ::core::mem::transmute(0 as *const RSDT) } )
+			TopRSDT( SDTHandle::<RSDT>::new( rsdp.rsdt_address as u64 ).make_static() )
 		} else {
-			TopXSDT( unsafe { ::core::mem::transmute(0 as *const XSDT) } )
+			TopXSDT( SDTHandle::<XSDT>::new( rsdp.xsdt_address ).make_static() )
 		};
 	log_debug!("*SDT.signature = {}", tl.signature());
 	log_debug!("*SDT.oemid = {}", tl.oemid());
+	unsafe {
+		s_acpi_state = Some( ACPI {
+			top_sdt: tl
+			});
+	}
 }
 
 fn get_rsdp() -> Option<&'static RSDP>
@@ -115,16 +128,70 @@ impl<'a> TLSDT<'a>
 	fn signature<'self_>(&'self_ self) -> &'self_ str
 	{
 		match self {
-		&TopRSDT(sdt) => ::core::str::from_utf8(sdt.header.signature),
-		&TopXSDT(sdt) => ::core::str::from_utf8(sdt.header.signature),
+		&TopRSDT(sdt) => ::core::str::from_utf8((*sdt).header.signature),
+		&TopXSDT(sdt) => ::core::str::from_utf8((*sdt).header.signature),
 		}.unwrap()
 	}
 	fn oemid<'self_>(&'self_ self) -> &'self_ str
 	{
 		match self {
-		&TopRSDT(sdt) => ::core::str::from_utf8((*sdt).header.signature),
-		&TopXSDT(sdt) => ::core::str::from_utf8((*sdt).header.signature),
+		&TopRSDT(sdt) => ::core::str::from_utf8((*sdt).header.oemid),
+		&TopXSDT(sdt) => ::core::str::from_utf8((*sdt).header.oemid),
 		}.unwrap()
+	}
+}
+
+impl<T> SDTHandle<T>
+{
+	/// Map an SDT into memory, given a physical address
+	pub fn new(physaddr: u64) -> SDTHandle<T>
+	{
+		let ofs = (physaddr & (::PAGE_SIZE - 1) as u64) as uint;
+		
+		// Obtain length (and validate)
+		let (length,) = SDTHandle::<T>::_get_info(physaddr, ofs);
+		
+		// Map the resultant memory
+		let npages = (ofs + length + ::PAGE_SIZE - 1) / ::PAGE_SIZE;
+		let maphandle = match ::memory::virt::map_hw_ro(physaddr - ofs as u64, npages, "ACPI") {
+			Ok(x) => x,
+			Err(_) => fail!("Map fail")
+			};
+		SDTHandle {
+			maphandle: maphandle,
+			ofs: ofs
+			}
+	}
+	
+	fn _get_info(physaddr: u64, ofs: uint) -> (uint,)
+	{
+		// TODO: Support the SDT header spanning acrosss two pages
+		assert!(::PAGE_SIZE - ofs >= ::core::mem::size_of::<SDTHeader>());
+		// Map the header into memory temporarily
+		let tmp = match ::memory::virt::map_hw_ro(physaddr - ofs as u64, 1, "ACPI") {
+			Ok(v) => v,
+			Err(_) => fail!("Oops, temp mapping SDT failed"),
+			};
+		let hdr = tmp.as_ref::<SDTHeader>(ofs);
+		
+		// Validate and get the length
+		// TODO: Can this code get the type name as a string?
+		log_debug!("hdr.signature = {}", ::core::str::from_utf8(hdr.signature));
+		log_debug!("hdr.length = {:#x}", hdr.length);
+		
+		(hdr.length as uint,)
+	}
+	
+	pub fn make_static(&mut self) -> &'static T
+	{
+		self.maphandle.make_static::<T>(self.ofs)	// we already have a handle
+	}
+}
+
+impl<T> Deref<T> for SDTHandle<T>
+{
+	fn deref<'s>(&'s self) -> &'s T {
+		self.maphandle.as_ref(self.ofs)
 	}
 }
 
