@@ -6,15 +6,16 @@ use core::ptr::RawPtr;
 
 module_define!(ACPI, [], init)
 
-struct ACPI<'a>
+struct ACPI
 {
-	top_sdt: TLSDT<'a>,
+	top_sdt: TLSDT
+	//names: Vec<[u8,..4]>,
 }
 
-enum TLSDT<'a>
+enum TLSDT
 {
-	TopRSDT(&'static RSDT),
-	TopXSDT(&'static XSDT),
+	TopRSDT(&'static SDT<RSDT>),
+	TopXSDT(&'static SDT<XSDT>),
 }
 
 #[repr(packed)]
@@ -32,14 +33,15 @@ struct RSDP
 	_resvd1: [u8,..3],
 }
 
-struct SDTHandle<T:'static>
+/// A handle to a SDT
+pub struct SDTHandle<T:'static>
 {
 	maphandle: ::memory::virt::AllocHandle,
 	ofs: uint,
 }
 
 #[repr(C)]
-struct SDTHeader
+pub struct SDTHeader
 {
 	signature: [u8, ..4],
 	length: u32,
@@ -53,22 +55,28 @@ struct SDTHeader
 }
 
 #[repr(C)]
-struct RSDT
+pub struct SDT<T:'static>
 {
 	header: SDTHeader,
-	pointers: [u32, ..0],
+	data: T
+}
+
+#[repr(C)]
+struct RSDT
+{
+	pointers: u32,
 }
 
 #[repr(C)]
 struct XSDT
 {
-	header: SDTHeader,
-	pointers: [u64, ..0],	// Lies, but rust doesn't support arbitary length arrays
+	pointers: u64,	// Rust doesn't support arbitary length arrays
 }
 
-static mut s_acpi_state : Option< ACPI<'static>> = None;
+static mut s_acpi_state : Option<ACPI> = None;
 
-pub fn init()
+/// ACPI module init - Locate the [RX]SDT
+fn init()
 {
 	let rsdp = match get_rsdp() {
 		Some(x) => x,
@@ -87,12 +95,33 @@ pub fn init()
 			TopXSDT( SDTHandle::<XSDT>::new( rsdp.xsdt_address ).make_static() )
 		};
 	log_debug!("*SDT.signature = {}", tl.signature());
-	log_debug!("*SDT.oemid = {}", tl.oemid());
+	log_debug!("*SDT.oemid = '{}'", tl.oemid());
+	
+//	let names = range(0,tl.len()).map(|i| tl.get::<SDTHeader>(i).name()).collect();
+	
 	unsafe {
 		s_acpi_state = Some( ACPI {
-			top_sdt: tl
+			top_sdt: tl,
+			//names: names,
 			});
 	}
+}
+
+pub fn find<T:'static>(name: &'static str) -> Vec<SDTHandle<T>>
+{
+	assert_eq!(name.len(), 4);
+	let acpi = unsafe { &s_acpi_state.unwrap() };
+	let mut ret = Vec::new();
+	for i in range(0, acpi.top_sdt.len())
+	{
+		let r = acpi.top_sdt.get::<T>(i);
+		log_debug!("r.header.name = {}", (*r).signature());
+		if (*r).signature() == name
+		{
+			ret.push(r);
+		}
+	}
+	ret
 }
 
 fn get_rsdp() -> Option<&'static RSDP>
@@ -123,21 +152,38 @@ unsafe fn locate_rsdp(base: *const u8, size: uint) -> *const RSDP
 	RawPtr::null()
 }
 
-impl<'a> TLSDT<'a>
+impl TLSDT
 {
-	fn signature<'self_>(&'self_ self) -> &'self_ str
-	{
+	fn _header<'self_>(&'self_ self) -> &'self_ SDTHeader {
 		match self {
-		&TopRSDT(sdt) => ::core::str::from_utf8((*sdt).header.signature),
-		&TopXSDT(sdt) => ::core::str::from_utf8((*sdt).header.signature),
-		}.unwrap()
+		&TopRSDT(sdt) => &(*sdt).header,
+		&TopXSDT(sdt) => &(*sdt).header,
+		}
 	}
-	fn oemid<'self_>(&'self_ self) -> &'self_ str
-	{
+	fn _getaddr(&self, idx: uint) -> u64 {
+		unsafe {
 		match self {
-		&TopRSDT(sdt) => ::core::str::from_utf8((*sdt).header.oemid),
-		&TopXSDT(sdt) => ::core::str::from_utf8((*sdt).header.oemid),
-		}.unwrap()
+		&TopRSDT(sdt) => *((&(*sdt).data.pointers) as *const u32).offset(idx as int) as u64,
+		&TopXSDT(sdt) => *(&(*sdt).data.pointers as *const u64).offset(idx as int),
+		}
+		}
+	}
+	
+	fn len(&self) -> uint {
+		(self._header().length as uint - ::core::mem::size_of::<SDTHeader>()) / match self {
+			&TopRSDT(_) => 4,
+			&TopXSDT(_) => 8,
+			}
+	}
+	
+	fn signature<'self_>(&'self_ self) -> &'self_ str {
+		::core::str::from_utf8(self._header().signature).unwrap()
+	}
+	fn oemid<'self_>(&'self_ self) -> &'self_ str {
+		::core::str::from_utf8(self._header().oemid).unwrap()
+	}
+	fn get<T>(&self, idx: uint) -> SDTHandle<T> {
+		SDTHandle::<T>::new(self._getaddr(idx))
 	}
 }
 
@@ -182,16 +228,24 @@ impl<T> SDTHandle<T>
 		(hdr.length as uint,)
 	}
 	
-	pub fn make_static(&mut self) -> &'static T
+	pub fn make_static(&mut self) -> &'static SDT<T>
 	{
-		self.maphandle.make_static::<T>(self.ofs)	// we already have a handle
+		self.maphandle.make_static::<SDT<T>>(self.ofs)
 	}
 }
 
-impl<T> Deref<T> for SDTHandle<T>
+impl<T> Deref<SDT<T>> for SDTHandle<T>
 {
-	fn deref<'s>(&'s self) -> &'s T {
+	fn deref<'s>(&'s self) -> &'s SDT<T> {
 		self.maphandle.as_ref(self.ofs)
+	}
+}
+
+impl<T> SDT<T>
+{
+	fn signature<'s>(&'s self) -> &'s str
+	{
+		::core::str::from_utf8(self.header.signature).unwrap()
 	}
 }
 

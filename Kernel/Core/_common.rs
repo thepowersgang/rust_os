@@ -15,5 +15,10 @@ pub use core::option::{Option,Some,None};
 pub use core::result::{Result,Ok,Err};
 pub use core::ops::{Drop,Deref,DerefMut};
 pub use core::cmp::PartialEq;
+pub use core::num::Int;
+
+pub use lib::vec::Vec;
+pub use lib::clone::Clone;
+pub use lib::collections::{MutableSeq};
 
 // vim: ft=rust

@@ -22,6 +22,7 @@ RUSTFLAGS += -C soft-float
 RUSTFLAGS += -C no-redzone
 RUSTFLAGS += -C target-feature=$(subst $(space),$(comma),$(EXCLUDE_FEATURES:%=-%))
 RUSTFLAGS += --cfg arch__$(ARCH)
+#RUSTFLAGS += -Z time-passes
 #RUSTFLAGS += --target=x86_64-pc-elf 
 
 ENV := RUST_VERSION="$(shell rustc --version)"
@@ -32,7 +33,7 @@ ENV += TK_BUILD="0"
 LIBDIR := /home/tpg/apps/lib/rustlib/x86_64-unknown-linux-gnu/lib/
 LIBCOMPILERRT := $(LIBDIR)libcompiler-rt.a
 LIBCORESRC := /home/tpg/Source/rust/rust-nightly/src/libcore/
-#LIBCORE := $(LIBDIR)libcore-4e7c5e5c.rlib
+LIBGCC := $(shell x86_64-elf-gcc -print-path-libgcc)
 
 OBJDIR := .obj/$(ARCH)/
 OBJS := $(OBJS:%=$(OBJDIR)%)
@@ -47,7 +48,7 @@ run: kernel-$(ARCH).bin
 
 kernel-$(ARCH).bin: $(OBJS) arch/$(ARCH)/link.ld Makefile
 	@echo [LD] -o $@
-	@x86_64-elf-ld -o $@ $(OBJS) $(LIBCORE) $(LIBCOMPILERRT) -T arch/$(ARCH)/link.ld -Map $(OBJDIR)map.txt -z max-page-size=0x1000 -g
+	@x86_64-elf-ld -o $@ $(OBJS) $(LIBCORE) $(LIBCOMPILERRT) $(LIBGCC) -T arch/$(ARCH)/link.ld -Map $(OBJDIR)map.txt -z max-page-size=0x1000 -g
 	@objcopy $@ -F elf32-i386 $@.elf32
 	@mcopy -i fdd.img $@.elf32 ::/ -D o
 	@objdump -S $@ > $@.dsm

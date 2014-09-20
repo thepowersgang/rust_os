@@ -27,7 +27,10 @@ pub mod macros;
 pub mod arch;	// Needs to be pub for exports to be avaliable
 
 // Evil Hack: For some reason, write! (and friends) will expand pointing to std instead of core
-mod std { pub use core::{default,fmt,cmp}; }
+mod std {
+	pub use core::{default,fmt,cmp};
+	pub use lib::clone;
+}
 mod _common;
 
 mod lib;	// Clone of libstd
@@ -45,13 +48,16 @@ pub extern "C" fn kmain()
 	log_notice!("> Git state : {}", env!("TK_GITSPEC"));
 	log_notice!("> Built with {}", env!("RUST_VERSION"));
 	
+	// Initialise core services before attempting modules
 	::memory::phys::init();
 	::memory::virt::init();
 	::memory::heap::init();
 	::threads::init();
 	
 	log_log!("Command line = '{}'", ::arch::boot::get_boot_string());
-	//::devices::display::init();
+	
+	// Modules (dependency tree included)
+	::modules::init();
 	
 	// Dump active video mode
 	let vidmode = ::arch::boot::get_video_mode();
@@ -60,8 +66,7 @@ pub extern "C" fn kmain()
 	None => log_debug!("No video mode present")
 	}
 	
-	::modules::init();
-	
+	// Thread 0 idle loop
 	loop
 	{
 		::threads::reschedule();
@@ -70,12 +75,17 @@ pub extern "C" fn kmain()
 	}
 }
 
+//extern "C" {
+//	fn _Unwind_RaiseException() -> !;
+//}
+
 // Evil fail when doing unwind
 //#[lang="begin_unwind"] fn rust_begin_unwind(msg: &::core::fmt::Arguments, file: &'static str, line: uint) -> !
 #[no_mangle] pub extern "C" fn rust_begin_unwind(msg: &::core::fmt::Arguments, file: &'static str, line: uint) -> !
 {
-	arch::puts("ERROR: rust_begin_unwind\n");
+	arch::puts("\nERROR: rust_begin_unwind\n");
 	log_panic!("rust_begin_unwind(msg=\"{}\", file=\"{}\", line={})", msg, file, line);
+//	unsafe { _Unwind_RaiseException() } 
 	loop{}
 }
 

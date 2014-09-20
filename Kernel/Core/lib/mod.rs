@@ -3,15 +3,28 @@
 //
 #![macro_escape]
 pub use self::queue::Queue;
+pub use self::vec::Vec;
+
+pub mod clone;
 
 pub mod mem;
 pub mod queue;
+pub mod vec;
 
 pub mod num
 {
 	pub fn round_up(val: uint, target: uint) -> uint
 	{
 		return (val + target-1) / target * target;
+	}
+}
+
+pub mod collections
+{
+	pub trait MutableSeq<T>
+	{
+		fn push(&mut self, t: T);
+		fn pop(&mut self) -> ::core::option::Option<T>;
 	}
 }
 

@@ -60,6 +60,15 @@ pub unsafe fn alloc<T>() -> *mut T
 	}
 }
 
+pub unsafe fn alloc_array<T>(count: uint) -> *mut T
+{
+	match allocate(GlobalHeap, ::core::mem::size_of::<T>() * count)
+	{
+	Some(v) => v as *mut T,
+	None => fail!("Out of memory when allocating array of {} elements", count)
+	}
+}
+
 pub unsafe fn allocate(heap: HeapId, size: uint) -> Option<*mut ()>
 {
 	match heap
@@ -75,9 +84,9 @@ pub unsafe fn allocate(heap: HeapId, size: uint) -> Option<*mut ()>
 //	None
 //}
 
-pub unsafe fn deallocate(pointer: *mut ())
+pub unsafe fn deallocate<T>(pointer: *mut T)
 {
-	s_global_heap.lock().deallocate(pointer);
+	s_global_heap.lock().deallocate(pointer as *mut ());
 }
 
 impl HeapDef
@@ -134,6 +143,7 @@ impl HeapDef
 			}
 			// Return newly allocated block
 			fb.state = HeapUsed(size);
+			log_trace!("Returning {}", fb.data());
 			return Some( fb.data() );
 		}
 		// Fall: No free blocks would fit the allocation
@@ -170,6 +180,7 @@ impl HeapDef
 		unsafe
 		{
 			let headptr = (ptr as *mut HeapHead).offset(-1);
+			log_trace!("headptr={}", headptr);
 			assert!( (*headptr).magic == MAGIC );
 			assert!( (*headptr).foot().head() as *mut _ == headptr );
 			
@@ -219,7 +230,11 @@ impl HeapDef
 			{
 				let block = &mut *last_foot.next_head();
 				log_debug!("HeapDef.expand: (new) &block={}", block as *mut HeapHead);
-				block.size = n_pages * ::PAGE_SIZE;
+				*block = HeapHead {
+					magic: MAGIC,
+					state: HeapUsed(0),
+					size: n_pages * ::PAGE_SIZE,
+					};
 				block.foot().head = last_foot.next_head();
 				
 				block

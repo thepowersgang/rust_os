@@ -19,7 +19,7 @@ pub mod sync;
 
 mod log;
 mod x86_io;
-mod hw;
+pub mod hw;
 pub mod acpi;
 
 extern "C"
