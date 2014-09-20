@@ -58,7 +58,7 @@ fn init_module(modstates: &mut [ModuleState], mods: &[ModuleInfo], i: uint)
 		log_debug!("#{}: {}", i, module.name);
 		for name in module.deps.iter() {
 			// Locate module
-			let depid = match mods.iter().enumerate().find(|&(i,v)| {log_debug!("v.name={}", v.name); v.name==*name}) {
+			let depid = match mods.iter().enumerate().find( |&(_,v)| v.name==*name ) {
 				Some( (depid,_) ) => depid,
 				None => fail!("Dependency '{}' for module '{}' missing", *name, module.name),
 				};

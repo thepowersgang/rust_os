@@ -181,10 +181,6 @@ EXPORT task_switch
 [section .text]
 EXPORT __morestack
 	jmp abort
-EXPORT _Unwind_Resume
-	jmp abort
-EXPORT rust_eh_personality
-	jmp abort
 abort:
 	cli
 	hlt
@@ -220,6 +216,17 @@ EXPORT memcmp
 	ret
 .neg:
 	inc rax
+	ret
+;; RDI = str
+EXPORT strlen
+	mov rsi, rdi
+	mov rcx, 0
+.loop:
+	lodsb
+	test al, al
+	loopnz .loop
+	neg rcx
+	mov rax, rcx
 	ret
 
 %include "arch/amd64/stubs.inc.asm"

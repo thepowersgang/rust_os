@@ -61,7 +61,6 @@ pub fn reschedule()
 	// 1. Get next thread
 	log_trace!("reschedule()");
 	let thread = get_thread_to_run();
-	log_trace!("thread grabbed");
 	match thread
 	{
 	::core::option::None => {
@@ -86,11 +85,8 @@ fn get_cur_thread() -> Rc<RefCell<Thread>>
 fn get_thread_to_run() -> Option<Rc<RefCell<Thread>>>
 {
 	unsafe {
-		log_trace!("Acquiring lock");
 		let mut handle = s_runnable_threads.lock();
-		log_trace!("Lock acquired");
 		let cur = get_cur_thread();
-		log_trace!("Cur grabbed");
 		if handle.empty()
 		{
 			if cur.borrow().run_state == StateRunnable {

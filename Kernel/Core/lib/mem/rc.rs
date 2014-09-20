@@ -49,11 +49,10 @@ impl<T> RcInner<T>
 {
 	unsafe fn new_ptr(value: T) -> *mut RcInner<T>
 	{
-		let ptr = ::memory::heap::alloc::<RcInner<T>>();
-		let tmp = &mut *ptr;
-		tmp.count = 1;
-		tmp.val = value;
-		return ptr;
+		return ::memory::heap::alloc( RcInner {
+			count: 1,
+			val: value,
+			} );
 	}
 }
 

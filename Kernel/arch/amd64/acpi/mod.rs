@@ -1,15 +1,20 @@
+// "Tifflin" Kernel
+// - By John Hodge (thePowersGang)
 //
-//
-//
+// arch/amd64/acpi/mod.rs
+// - ACPI (Advanced Control and Power Interface) handling code
+// 
+// > Provides access to the ACPI tables
 use _common::*;
 use core::ptr::RawPtr;
+use core::str::from_utf8;
 
 module_define!(ACPI, [], init)
 
 struct ACPI
 {
-	top_sdt: TLSDT
-	//names: Vec<[u8,..4]>,
+	top_sdt: TLSDT,
+	names: Vec<[u8,..4]>,
 }
 
 enum TLSDT
@@ -18,7 +23,7 @@ enum TLSDT
 	TopXSDT(&'static SDT<XSDT>),
 }
 
-#[repr(packed)]
+#[repr(C,packed)]
 struct RSDP
 {
 	signature: [u8,..8],
@@ -26,6 +31,11 @@ struct RSDP
 	oemid: [u8,..6],
 	revision: u8,
 	rsdt_address: u32,
+}
+#[repr(C,packed)]
+struct RSDPv2
+{
+	v1: RSDP,
 	// Version 2.0
 	length: u32,
 	xsdt_address: u64,
@@ -55,6 +65,28 @@ pub struct SDTHeader
 }
 
 #[repr(C)]
+pub enum AddressSpaceID
+{
+	AsidMemory   = 0,
+	AsidIO       = 1,
+	AsidPCI      = 2,
+	AsidEmbedded = 3,
+	AsidSMBus    = 4,
+	AsidPCC      = 0xA,
+	AsidFFH      = 0x7F,
+}
+
+#[repr(C,packed)]
+pub struct GAS
+{
+	pub asid: u8,
+	pub bit_width: u8,
+	pub bit_ofs: u8,
+	pub access_size: u8,	// 0: undef, 1: byte, ..., 4: qword
+	pub address: u64,
+}
+
+#[repr(C)]
 pub struct SDT<T:'static>
 {
 	header: SDTHeader,
@@ -73,7 +105,7 @@ struct XSDT
 	pointers: u64,	// Rust doesn't support arbitary length arrays
 }
 
-static mut s_acpi_state : Option<ACPI> = None;
+static mut s_acpi_state : *const ACPI = 0 as *const _;
 
 /// ACPI module init - Locate the [RX]SDT
 fn init()
@@ -92,38 +124,48 @@ fn init()
 	let tl = if rsdp.revision == 0 {
 			TopRSDT( SDTHandle::<RSDT>::new( rsdp.rsdt_address as u64 ).make_static() )
 		} else {
-			TopXSDT( SDTHandle::<XSDT>::new( rsdp.xsdt_address ).make_static() )
+			let v2: &RSDPv2 = unsafe { ::core::mem::transmute(rsdp) };
+			if sum_struct(v2) != 0 {
+				// oh
+			}
+			TopXSDT( SDTHandle::<XSDT>::new( v2.xsdt_address ).make_static() )
 		};
 	log_debug!("*SDT.signature = {}", tl.signature());
 	log_debug!("*SDT.oemid = '{}'", tl.oemid());
 	
-//	let names = range(0,tl.len()).map(|i| tl.get::<SDTHeader>(i).name()).collect();
+	let names = range(0,tl.len()).map(|i| tl.get::<SDTHeader>(i).raw_signature()).collect();
 	
 	unsafe {
-		s_acpi_state = Some( ACPI {
+		s_acpi_state = ::memory::heap::alloc( ACPI {
 			top_sdt: tl,
-			//names: names,
-			});
+			names: names,
+			}) as *const ACPI;
 	}
 }
 
-pub fn find<T:'static>(name: &'static str) -> Vec<SDTHandle<T>>
+/// Find all SDTs with a given signature
+pub fn find<T:'static>(req_name: &'static str) -> Vec<SDTHandle<T>>
 {
-	assert_eq!(name.len(), 4);
-	let acpi = unsafe { &s_acpi_state.unwrap() };
+	assert_eq!(req_name.len(), 4);
+	let acpi = unsafe { s_acpi_state.as_ref().unwrap() };
 	let mut ret = Vec::new();
-	for i in range(0, acpi.top_sdt.len())
+	for (i,ent_name) in acpi.names.iter().enumerate()
 	{
-		let r = acpi.top_sdt.get::<T>(i);
-		log_debug!("r.header.name = {}", (*r).signature());
-		if (*r).signature() == name
-		{
-			ret.push(r);
+		log_debug!("ent {} name = {}", i, from_utf8(ent_name));
+		if from_utf8(ent_name).unwrap() != req_name {
+			continue ;
 		}
+		
+		let table = acpi.top_sdt.get::<T>(i);
+		if (*table).validate() == false {
+			log_error!("ACPI ent #{} failed checksum", i);
+		}
+		ret.push(table);
 	}
 	ret
 }
 
+/// Obtain a reference to the RSDP (will be in the identity mapping area)
 fn get_rsdp() -> Option<&'static RSDP>
 {
 	unsafe {
@@ -138,7 +180,7 @@ fn get_rsdp() -> Option<&'static RSDP>
 	}
 	return None;
 }
-
+/// Search a section of memory for the RSDP
 unsafe fn locate_rsdp(base: *const u8, size: uint) -> *const RSDP
 {
 	for ofs in range_step(0, size, 16)
@@ -146,10 +188,25 @@ unsafe fn locate_rsdp(base: *const u8, size: uint) -> *const RSDP
 		let sig = base.offset(ofs as int) as *const [u8,..8];
 		if *sig == "RSD PTR ".as_bytes()
 		{
-			return sig as *const _;
+			let ret = sig as *const RSDP;
+			if sum_struct(&*ret) == 0
+			{
+				return ret;
+			}
 		}
 	}
 	RawPtr::null()
+}
+
+/// Caclulate the byte sum of a structure
+fn sum_struct<T>(s: &T) -> u8
+{
+	let ptr = s as *const T as *const u8;
+	unsafe { ::core::slice::raw::buf_as_slice(
+		ptr,
+		::core::mem::size_of::<T>(),
+		|vals| vals.iter().fold(0, |a,&b| a+b)
+		)}
 }
 
 impl TLSDT
@@ -177,13 +234,32 @@ impl TLSDT
 	}
 	
 	fn signature<'self_>(&'self_ self) -> &'self_ str {
-		::core::str::from_utf8(self._header().signature).unwrap()
+		from_utf8(self._header().signature).unwrap()
 	}
 	fn oemid<'self_>(&'self_ self) -> &'self_ str {
-		::core::str::from_utf8(self._header().oemid).unwrap()
+		from_utf8(self._header().oemid).unwrap()
 	}
 	fn get<T>(&self, idx: uint) -> SDTHandle<T> {
 		SDTHandle::<T>::new(self._getaddr(idx))
+	}
+}
+
+impl SDTHeader
+{
+	pub fn validate_checksum(&self) -> bool
+	{
+		// TODO: This checksum is over the entire table!
+		let sum = sum_struct(self);
+		(sum & 0xFF) == 0
+	}
+	pub fn dump(&self)
+	{
+		log_debug!("SDTHeader = {{ sig:{},length='{}',rev={},checksum={},...",
+			from_utf8(self.signature), self.length, self.revision, self.checksum);
+		log_debug!(" oemid={},oem_table_id={},oem_revision={},...",
+			from_utf8(self.oemid), from_utf8(self.oem_table_id), self.oem_revision);
+		log_debug!(" creator_id={:#x}, creator_revision={}",
+			self.creator_id, self.creator_revision);
 	}
 }
 
@@ -220,11 +296,7 @@ impl<T> SDTHandle<T>
 			};
 		let hdr = tmp.as_ref::<SDTHeader>(ofs);
 		
-		// Validate and get the length
-		// TODO: Can this code get the type name as a string?
-		log_debug!("hdr.signature = {}", ::core::str::from_utf8(hdr.signature));
-		log_debug!("hdr.length = {:#x}", hdr.length);
-		
+		// Get the length
 		(hdr.length as uint,)
 	}
 	
@@ -243,9 +315,21 @@ impl<T> Deref<SDT<T>> for SDTHandle<T>
 
 impl<T> SDT<T>
 {
-	fn signature<'s>(&'s self) -> &'s str
+	fn validate(&self) -> bool
 	{
-		::core::str::from_utf8(self.header.signature).unwrap()
+		sum_struct(self) == 0
+	}
+	//fn signature<'s>(&'s self) -> &'s str
+	//{
+	//	from_utf8(self.header.signature).unwrap()
+	//}
+	fn raw_signature(&self) -> [u8,..4]
+	{
+		self.header.signature
+	}
+	pub fn data<'s>(&'s self) -> &'s T
+	{
+		&self.data
 	}
 }
 

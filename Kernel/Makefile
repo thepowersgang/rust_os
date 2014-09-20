@@ -2,6 +2,7 @@
 #
 #
 ARCH = amd64
+TRIPLE = x86_64-none-elf
 OBJS := start.ao kcore.o libcore.rlib
 
 V ?= @
@@ -33,7 +34,8 @@ ENV += TK_BUILD="0"
 LIBDIR := /home/tpg/apps/lib/rustlib/x86_64-unknown-linux-gnu/lib/
 LIBCOMPILERRT := $(LIBDIR)libcompiler-rt.a
 LIBCORESRC := /home/tpg/Source/rust/rust-nightly/src/libcore/
-LIBGCC := $(shell x86_64-elf-gcc -print-path-libgcc)
+#LIBGCC := $(shell $(TRIPLE)-gcc -print-libgcc-file-name)
+LIBGCC := /home/tpg/apps/lib/gcc/$(TRIPLE)/4.7.1/libgcc.a
 
 OBJDIR := .obj/$(ARCH)/
 OBJS := $(OBJS:%=$(OBJDIR)%)
@@ -48,7 +50,7 @@ run: kernel-$(ARCH).bin
 
 kernel-$(ARCH).bin: $(OBJS) arch/$(ARCH)/link.ld Makefile
 	@echo [LD] -o $@
-	@x86_64-elf-ld -o $@ $(OBJS) $(LIBCORE) $(LIBCOMPILERRT) $(LIBGCC) -T arch/$(ARCH)/link.ld -Map $(OBJDIR)map.txt -z max-page-size=0x1000 -g
+	@$(TRIPLE)-ld -o $@ $(OBJS) $(LIBCORE) $(LIBCOMPILERRT) $(LIBGCC) -T arch/$(ARCH)/link.ld -Map $(OBJDIR)map.txt -z max-page-size=0x1000 -g
 	@objcopy $@ -F elf32-i386 $@.elf32
 	@mcopy -i fdd.img $@.elf32 ::/ -D o
 	@objdump -S $@ > $@.dsm

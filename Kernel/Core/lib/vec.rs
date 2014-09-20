@@ -1,12 +1,16 @@
 //
 //
 //
-pub use core::iter::range;
-pub use core::option::{Option,Some,None};
-pub use core::ptr::RawPtr;
-pub use core::num::Int;
-pub use core::ops::{Drop,Index};
-pub use lib::clone::Clone;
+use core::iter::range;
+use core::iter::{FromIterator,Iterator};
+use core::slice::{Slice,ImmutableSlice,Items};
+use core::option::{Option,Some,None};
+use core::ptr::RawPtr;
+use core::num::Int;
+use core::ops::{Drop,Index};
+use lib::clone::Clone;
+use core::collections::{Collection};
+use lib::collections::{MutableSeq};
 
 pub struct Vec<T>
 {
@@ -34,9 +38,8 @@ impl<T> Vec<T>
 	pub fn from_fn(length: uint, op: |uint| -> T) -> Vec<T>
 	{
 		let mut ret = Vec::with_capacity(length);
-		ret.size = length;
 		for i in range(0, length) {
-			*ret.get_mut(i) = op(i);
+			ret.push( op(i) );
 		}
 		ret
 	}
@@ -49,6 +52,10 @@ impl<T> Vec<T>
 		}
 		unsafe { &mut *self.data.offset(index as int) }
 	}
+	pub fn iter<'s>(&'s self) -> Items<'s,T>
+	{
+		self.as_slice().iter()
+	}
 	
 	fn reserve(&mut self, size: uint)
 	{
@@ -59,7 +66,7 @@ impl<T> Vec<T>
 				let newptr = ::memory::heap::alloc_array::<T>( newcap );
 				for i in range(0, self.size as int)
 				{
-					*newptr.offset(i) = self.move_ent(i as uint);
+					::core::ptr::write(newptr.offset(i), self.move_ent(i as uint));
 				}
 				if self.capacity > 0 {
 					::memory::heap::deallocate( self.data );
@@ -97,7 +104,12 @@ impl<T> Drop for Vec<T>
 	{
 		if self.capacity > 0
 		{
-			unsafe { ::memory::heap::deallocate( self.data ); }
+			unsafe {
+				for i in range(0, self.size) {
+					*self.get_mut(i) = ::core::mem::uninitialized();
+				}
+				::memory::heap::deallocate( self.data );
+			}
 		}
 	}
 }
@@ -121,7 +133,12 @@ impl<T> ::core::slice::Slice<T> for Vec<T>
 	}
 }
 
-impl<T> ::lib::collections::MutableSeq<T> for Vec<T>
+impl<T> Collection for Vec<T>
+{
+	fn len(&self) -> uint { self.size }
+}
+
+impl<T> MutableSeq<T> for Vec<T>
 {
 	fn push(&mut self, t: T)
 	{
@@ -129,7 +146,7 @@ impl<T> ::lib::collections::MutableSeq<T> for Vec<T>
 		self.size += 1;
 		let newsize = self.size;
 		self.reserve(newsize);
-		*self.get_mut(pos) = t;
+		unsafe { ::core::ptr::write(self.get_mut(pos), t); }
 	}
 	fn pop(&mut self) -> Option<T>
 	{
@@ -143,6 +160,23 @@ impl<T> ::lib::collections::MutableSeq<T> for Vec<T>
 			let pos = self.size;
 			Some( unsafe { self.move_ent(pos) } )
 		}
+	}
+}
+
+impl<T> FromIterator<T> for Vec<T>
+{
+	fn from_iter<IT: Iterator<T>>(iterator: IT) -> Vec<T>
+	{
+		let mut it = iterator;
+		let mut ret = Vec::new();
+		loop
+		{
+			match it.next() {
+			Some(x) => ret.push(x),
+			None => break,
+			}
+		}
+		ret
 	}
 }
 

@@ -5,7 +5,15 @@
 // - x86 APIC (Advanced Programmable Interrupt Controller) driver
 use _common::*;
 
-module_define!(APIC, [], init)
+module_define!(APIC, [ACPI], init)
+
+#[repr(C,packed)]
+struct ACPI_MADT
+{
+	local_controller_addr: u32,
+	flags: u32,
+	end: (),
+}
 
 #[repr(C)]
 struct APICReg
@@ -14,13 +22,9 @@ struct APICReg
 	_rsvd: [u32,..3],
 }
 
-pub struct APIC
+struct APIC
 {
-	regs: &'static mut [APICReg, ..4096/16],
-}
-
-extern "C" {
-	static mut s_lapic_mapping: [APICReg, ..4096/16];
+	mapping: ::memory::virt::AllocHandle,
 }
 
 #[repr(C)]
@@ -35,17 +39,39 @@ enum ApicRegisters
 
 fn init()
 {
+	let handles = ::arch::acpi::find::<ACPI_MADT>("APIC");
+	if handles.len() == 0 {
+		log_warning!("No MADT ('APIC') table in ACPI");
+		return ;
+	}
+	if handles.len() > 1 {
+		log_notice!("Multiple MADTs ({})", handles.len());
+	}
+	
+	let madt = &handles[0];
+	madt.data().dump();
 }
 
 impl APIC
 {
-	pub fn init() -> Option<APIC>
+	pub fn init(paddr: u64) -> APIC
 	{
-		Some(APIC {
-			regs: unsafe { &mut s_lapic_mapping }
-			})
+		APIC {
+			mapping: ::memory::virt::map_hw_rw(paddr, 1, "APIC").unwrap(),
+			}
 	}
 	
+}
+
+impl ACPI_MADT
+{
+	fn dump(&self)
+	{
+		log_debug!("MADT = {{");
+		log_debug!("  local_controller_addr: {:#x}", self.local_controller_addr);
+		log_debug!("  flags: {:#x}", self.flags);
+		log_debug!("}}");
+	}
 }
 
 

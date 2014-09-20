@@ -22,9 +22,10 @@ impl<T> Queue<T>
 	{
 		unsafe
 		{
-			let qe_ptr = ::memory::heap::alloc::<QueueEnt<T>>();
-			(*qe_ptr).next = None;
-			::core::ptr::write( &mut (*qe_ptr).value, value );
+			let qe_ptr = ::memory::heap::alloc( QueueEnt {
+				next: None,
+				value: value,
+				} );
 			
 			if self.head.is_some()	
 			{

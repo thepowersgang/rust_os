@@ -4,7 +4,7 @@
 // arch/amd64/hw/mod.rs
 // - x86 core hardware drivers
 
-mod apic;
+pub mod apic;
 pub mod hpet;
 
 // vim: ft=rust

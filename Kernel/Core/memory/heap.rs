@@ -9,7 +9,7 @@ use core::ptr::RawPtr;
 
 // --------------------------------------------------------
 // Types
-enum HeapId
+pub enum HeapId
 {
 	LocalHeap,	// Inaccessible outside of process
 	GlobalHeap,	// Global allocations
@@ -51,13 +51,24 @@ pub fn init()
 {
 }
 
-pub unsafe fn alloc<T>() -> *mut T
+#[lang="exchange_malloc"]
+unsafe fn exchange_malloc(size: uint, _align: uint) -> *mut u8 {
+	allocate(GlobalHeap, size).unwrap() as *mut u8
+}
+#[lang="exchange_free"]
+unsafe fn exchange_free(ptr: *mut u8, _size: uint, _align: uint) {
+	deallocate(ptr)
+}
+
+pub unsafe fn alloc<T>(value: T) -> *mut T
 {
-	match allocate(GlobalHeap, ::core::mem::size_of::<T>())
-	{
-	Some(v) => v as *mut T,
-	None => fail!("Out of memory")
-	}
+	let ret = match allocate(GlobalHeap, ::core::mem::size_of::<T>())
+		{
+		Some(v) => v as *mut T,
+		None => fail!("Out of memory")
+		};
+	::core::ptr::write(ret, value);
+	ret
 }
 
 pub unsafe fn alloc_array<T>(count: uint) -> *mut T
@@ -97,7 +108,6 @@ impl HeapDef
 		let blocksize = ::lib::num::round_up(size + ::core::mem::size_of::<HeapHead>() + ::core::mem::size_of::<HeapFoot>(), 32);
 		log_debug!("allocate(size={}) blocksize={}", size, blocksize);
 		// 2. Locate a free location
-		log_trace!("allocate - Free blocks");
 		// Check all free blocks for one that would fit this allocation
 		let mut prev = None;
 		let mut opt_fb = self.first_free;
@@ -117,7 +127,7 @@ impl HeapDef
 		{
 			let fb = &mut *opt_fb.unwrap();
 			let next = match fb.state { HeapFree(n)=> n, _ => fail!("Non-free block in free list") };
-			log_trace!("allocate - Suitable free block {}!", fb as *mut _);
+			//log_trace!("allocate - Suitable free block {}!", fb as *mut _);
 			// Split block (if needed)
 			if fb.size > blocksize
 			{
@@ -128,7 +138,7 @@ impl HeapDef
 					head: fb as *mut _,
 					};
 				let far_head = fb.next();
-				log_trace!("Creating new block at {}", far_head);
+				//log_trace!("Creating new block at {}", far_head);
 				*far_head = HeapHead {
 					magic: MAGIC,
 					size: far_size,
@@ -143,11 +153,11 @@ impl HeapDef
 			}
 			// Return newly allocated block
 			fb.state = HeapUsed(size);
-			log_trace!("Returning {}", fb.data());
+			log_trace!("Returning {} (was free)", fb.data());
 			return Some( fb.data() );
 		}
 		// Fall: No free blocks would fit the allocation
-		log_trace!("allocate - No suitable free blocks");
+		//log_trace!("allocate - No suitable free blocks");
 		
 		// 3. If none, allocate more space
 		let block_ptr = self.expand(blocksize);
@@ -171,6 +181,7 @@ impl HeapDef
 			self.first_free = Some(block.next());
 		}
 		
+		log_trace!("Returning {} (new)", block.data());
 		Some( block.data() )
 	}
 
@@ -180,7 +191,6 @@ impl HeapDef
 		unsafe
 		{
 			let headptr = (ptr as *mut HeapHead).offset(-1);
-			log_trace!("headptr={}", headptr);
 			assert!( (*headptr).magic == MAGIC );
 			assert!( (*headptr).foot().head() as *mut _ == headptr );
 			

@@ -10,10 +10,10 @@
 #![feature(thread_local)]
 #![feature(globs)]
 #![feature(concat_idents)]
+#![feature(lang_items)]
 
 #[phase(plugin, link)] extern crate core;
 #[phase(plugin, link)] extern crate common;
-//#[phase(plugin, link)] extern crate arch;
 
 use _common::*;
 
@@ -39,7 +39,9 @@ mod logging;
 mod memory;
 mod threads;
 mod time;
-mod modules;
+pub mod modules;
+
+pub mod unwind;
 
 #[no_mangle]
 pub extern "C" fn kmain()
@@ -75,19 +77,13 @@ pub extern "C" fn kmain()
 	}
 }
 
-//extern "C" {
-//	fn _Unwind_RaiseException() -> !;
-//}
-
-// Evil fail when doing unwind
-//#[lang="begin_unwind"] fn rust_begin_unwind(msg: &::core::fmt::Arguments, file: &'static str, line: uint) -> !
-#[no_mangle] pub extern "C" fn rust_begin_unwind(msg: &::core::fmt::Arguments, file: &'static str, line: uint) -> !
-{
-	arch::puts("\nERROR: rust_begin_unwind\n");
-	log_panic!("rust_begin_unwind(msg=\"{}\", file=\"{}\", line={})", msg, file, line);
-//	unsafe { _Unwind_RaiseException() } 
-	loop{}
-}
+#[no_mangle] pub unsafe extern "C" fn malloc(size: uint) -> *mut () {
+	memory::heap::allocate(memory::heap::GlobalHeap, size).unwrap()
+} 
+#[no_mangle] pub unsafe extern "C" fn free(ptr: *mut ()) {
+	use core::ptr::RawPtr;
+	if !ptr.is_null() { memory::heap::deallocate(ptr) }
+} 
 
 // vim: ft=rust
 

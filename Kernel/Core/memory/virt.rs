@@ -39,6 +39,7 @@ pub fn init()
 	// 2. ???
 }
 
+/// Ensure that the provded pages are valid (i.e. backed by memory)
 pub fn allocate(addr: *mut (), page_count: uint)
 {
 	use arch::memory::addresses::is_global;
@@ -77,9 +78,16 @@ pub fn map(addr: *mut (), phys: PAddr, prot: ProtectionMode)
 
 fn unmap(addr: *mut (), count: uint)
 {
+	log_trace!("unmap(*{} {})", addr, count);
 	let _lock = unsafe { s_kernelspace_lock.lock() };
 	let pos = addr as uint;
-	assert_eq!(pos & (::PAGE_SIZE - 1), 0);
+	
+	{
+		let ofs = pos & (::PAGE_SIZE - 1);
+		if ofs != 0 {
+			fail!("Non-aligned page {} passed (unmapping {} pages)", addr, count);
+		}
+	}
 	
 	for i in range(0, count)
 	{
