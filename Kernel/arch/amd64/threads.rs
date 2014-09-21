@@ -1,6 +1,5 @@
 //
 //
-use core::default::Default;
 
 #[deriving(Default)]
 pub struct State

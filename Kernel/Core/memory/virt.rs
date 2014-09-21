@@ -159,10 +159,10 @@ fn count_free_in_range(addr: *const Page, count: uint) -> uint
 
 impl AllocHandle
 {
-	pub fn as_ref<'s,T>(&'s self, ofs: uint) -> &'s T
+	pub fn as_ref<'s,T>(&'s self, ofs: uint) -> &'s mut T
 	{
 		assert!(ofs + ::core::mem::size_of::<T>() <= self.count * ::PAGE_SIZE);
-		unsafe{ &*((self.addr as uint + ofs) as *const T) }
+		unsafe{ &mut *((self.addr as uint + ofs) as *mut T) }
 	}
 	/// Forget the allocation and return a static reference to the data
 	pub fn make_static<T>(&mut self, ofs: uint) -> &'static mut T

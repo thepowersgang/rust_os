@@ -5,7 +5,7 @@
 // - Kernel main
 #![no_std]
 #![feature(phase)]
-#![feature(macro_rules,asm)]
+#![feature(macro_rules,asm)]#![feature(trace_macros)]
 #![feature(unsafe_destructor)]
 #![feature(thread_local)]
 #![feature(globs)]
@@ -21,10 +21,7 @@ pub use arch::memory::PAGE_SIZE;
 
 pub mod logmacros;
 pub mod macros;
-
-#[cfg(arch__amd64)]
-#[path="../arch/amd64/crate.rs"]
-pub mod arch;	// Needs to be pub for exports to be avaliable
+#[cfg(arch__amd64)] #[path="../arch/amd64/macros.rs"] pub mod arch_macros;	// Needs to be pub for exports to be avaliable
 
 // Evil Hack: For some reason, write! (and friends) will expand pointing to std instead of core
 mod std {
@@ -33,15 +30,17 @@ mod std {
 }
 mod _common;
 
-mod lib;	// Clone of libstd
+pub mod lib;	// Clone of libstd
 mod sync;
 mod logging;
-mod memory;
-mod threads;
+pub mod memory;
+pub mod threads;
 mod time;
 pub mod modules;
 
 pub mod unwind;
+
+#[cfg(arch__amd64)] #[path="../arch/amd64/crate.rs"] pub mod arch;	// Needs to be pub for exports to be avaliable
 
 #[no_mangle]
 pub extern "C" fn kmain()

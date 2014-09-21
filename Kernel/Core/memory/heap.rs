@@ -17,17 +17,19 @@ pub enum HeapId
 
 struct HeapDef
 {
-	start: Option<*mut HeapHead>,
-	last_foot: Option<*mut HeapFoot>,
-	first_free: Option<*mut HeapHead>,
+	start: *mut HeapHead,
+	last_foot: *mut HeapFoot,
+	first_free: *mut HeapHead,
 }
 
+#[deriving(Show)]
 enum HeapState
 {
-	HeapFree(Option<*mut HeapHead>),
+	HeapFree(*mut HeapHead),
 	HeapUsed(uint),
 }
 
+#[deriving(Show)]
 struct HeapHead
 {
 	magic: uint,
@@ -43,7 +45,7 @@ static MAGIC: uint = 0x71ff11A1;
 // --------------------------------------------------------
 // Globals
 //#[link_section(process_local)] static s_local_heap : ::sync::Mutex<HeapDef> = mutex_init!(HeapDef{head:None});
-static mut s_global_heap : ::sync::Mutex<HeapDef> = mutex_init!(HeapDef{start:None,last_foot:None,first_free:None});
+static mut s_global_heap : ::sync::Mutex<HeapDef> = mutex_init!(HeapDef{start:0 as*mut _, last_foot:0 as*mut _, first_free:0 as*mut _});
 
 // --------------------------------------------------------
 // Code
@@ -104,32 +106,36 @@ impl HeapDef
 {
 	pub unsafe fn allocate(&mut self, size: uint) -> Option<*mut ()>
 	{
+		// This would be static, if CTFE was avalible
+		//#[allow(non_snake_case)]
+		let HEADERS_SIZE = ::core::mem::size_of::<HeapHead>() + ::core::mem::size_of::<HeapFoot>();
+		
 		// 1. Round size up to closest heap block size
-		let blocksize = ::lib::num::round_up(size + ::core::mem::size_of::<HeapHead>() + ::core::mem::size_of::<HeapFoot>(), 32);
+		let blocksize = ::lib::num::round_up(size + HEADERS_SIZE, 32);
 		log_debug!("allocate(size={}) blocksize={}", size, blocksize);
 		// 2. Locate a free location
 		// Check all free blocks for one that would fit this allocation
-		let mut prev = None;
+		let mut prev = RawPtr::null();
 		let mut opt_fb = self.first_free;
-		while opt_fb.is_some()
+		while !opt_fb.is_null()
 		{
-			let fb = &mut *opt_fb.unwrap();
+			let fb = &*opt_fb;
 			assert!( fb.magic == MAGIC );
-			let next = match fb.state { HeapFree(n)=> n, _ => fail!("Non-free block in free list") };
+			let next = match fb.state { HeapFree(n)=> n, _ => fail!("Non-free block ({}) in free list", opt_fb) };
 			if fb.size >= blocksize
 			{
 				break;
 			}
 			prev = opt_fb;
+			assert!(opt_fb != next);
 			opt_fb = next;
 		}
-		if opt_fb.is_some()
+		if !opt_fb.is_null()
 		{
-			let fb = &mut *opt_fb.unwrap();
+			let fb = &mut *opt_fb;
 			let next = match fb.state { HeapFree(n)=> n, _ => fail!("Non-free block in free list") };
-			//log_trace!("allocate - Suitable free block {}!", fb as *mut _);
 			// Split block (if needed)
-			if fb.size > blocksize
+			if fb.size > blocksize + HEADERS_SIZE
 			{
 				let far_foot = fb.foot() as *mut _;
 				let far_size = fb.size - blocksize;
@@ -137,25 +143,37 @@ impl HeapDef
 				*fb.foot() = HeapFoot {
 					head: fb as *mut _,
 					};
+				
 				let far_head = fb.next();
-				//log_trace!("Creating new block at {}", far_head);
+				assert!(far_head != prev);
 				*far_head = HeapHead {
 					magic: MAGIC,
 					size: far_size,
 					state: HeapFree(next)
 					};
 				(*far_foot).head = far_head;
-				match prev
-				{
-				Some(x) => {(*x).state = HeapFree(Some(far_head));},
-				None => {self.first_free = Some(far_head);},
+				if prev.is_null() {
+					self.first_free = far_head;
+				}
+				else {
+					(*prev).state = HeapFree(far_head);
+				}
+			}
+			else
+			{
+				let next = match fb.state { HeapFree(x) => x, _ => fail!("") };
+				if prev.is_null() {
+					self.first_free = next;
+				}
+				else {
+					(*prev).state = HeapFree(next);
 				}
 			}
 			// Return newly allocated block
 			fb.state = HeapUsed(size);
-			log_trace!("Returning {} (was free)", fb.data());
 			return Some( fb.data() );
 		}
+		assert!(opt_fb.is_null());
 		// Fall: No free blocks would fit the allocation
 		//log_trace!("allocate - No suitable free blocks");
 		
@@ -178,7 +196,7 @@ impl HeapDef
 				state: HeapFree(self.first_free),
 				};
 			tailblock.foot().head = block.next();
-			self.first_free = Some(block.next());
+			self.first_free = block.next();
 		}
 		
 		log_trace!("Returning {} (new)", block.data());
@@ -190,12 +208,34 @@ impl HeapDef
 		log_debug!("deallocate(ptr={})", ptr);
 		unsafe
 		{
+			let mut no_add = false;
 			let headptr = (ptr as *mut HeapHead).offset(-1);
-			assert!( (*headptr).magic == MAGIC );
-			assert!( (*headptr).foot().head() as *mut _ == headptr );
 			
-			(*headptr).state = HeapFree(self.first_free);
-			self.first_free = Some( headptr );
+			{
+				let headref = &mut *headptr;
+				assert!( headref.magic == MAGIC );
+				assert!( headref.foot().head() as *mut _ == headptr );
+				
+				// Merge left and right
+				// 1. Left:
+				if_let!( HeapFree(_) = (*headref.prev()).state
+				{
+					log_trace!("Merged left with {}", headref.prev());
+					// increase size of previous block to cover this block
+					(*headref.prev()).size += headref.size;
+					no_add = true;
+				})
+				
+				// 2. Right
+				//if_let!( HeapFree(_) => 
+				// TODO: Merging right requires being able to arbitarily remove items from the free list
+			}
+			
+			if !no_add
+			{
+				(*headptr).state = HeapFree(self.first_free);
+				self.first_free = headptr;
+			}
 		}
 	}
 	
@@ -204,25 +244,32 @@ impl HeapDef
 	unsafe fn expand(&mut self, min_size: uint) -> *mut HeapHead
 	{
 		let use_prev =
-			if self.start.is_none() {
+			if self.start.is_null() {
 				let base = ::arch::memory::addresses::heap_start;
-				self.start = Some( base as *mut HeapHead );
-				self.last_foot = Some( (base as *mut HeapFoot).offset(-1) );
+				self.start = base as *mut HeapHead;
+				// note: Evil hack, set last_foot to invalid memory (it's only used for .next_head())
+				self.last_foot = (base as *mut HeapFoot).offset(-1);
 				false
 			}
 			else {
-				match (*self.last_foot.unwrap()).head().state
+				assert!(!self.last_foot.is_null());
+				let lasthdr = (*self.last_foot).head();
+				match lasthdr.state
 				{
-				HeapFree(_) => true,
+				HeapFree(_) => {
+					assert!(lasthdr.size < min_size);
+					true
+					},
 				HeapUsed(_) => false
 				}
 			};
-		let last_foot = &mut *self.last_foot.unwrap();
+		assert!( !self.last_foot.is_null() );
+		let last_foot = &mut *self.last_foot;
 		let alloc_size = min_size - (if use_prev { last_foot.head().size } else { 0 });
 		
 		// 1. Allocate at least one page at the end of the heap
 		let n_pages = ::lib::num::round_up(alloc_size, ::PAGE_SIZE) / ::PAGE_SIZE;
-		log_debug!("HeapDef.expand(min_size={}), n_pages={}", min_size, n_pages);
+		log_debug!("HeapDef.expand(min_size={}), alloc_size={}, n_pages={}", min_size, alloc_size, n_pages);
 		assert!(n_pages > 0);
 		::memory::virt::allocate(last_foot.next_head() as *mut(), n_pages);
 		
@@ -249,7 +296,7 @@ impl HeapDef
 				
 				block
 			};
-		self.last_foot = Some(block.foot() as *mut HeapFoot);
+		self.last_foot = block.foot() as *mut HeapFoot;
 		log_debug!("HeapDef.expand: &block={}", block as *mut HeapHead);
 		block.state = HeapUsed(0);
 		// 3. Return final block
@@ -260,6 +307,10 @@ impl HeapDef
 impl HeapHead
 {
 	unsafe fn ptr(&self) -> *mut HeapHead { ::core::mem::transmute(self) }
+	pub unsafe fn prev(&self) -> *mut HeapHead
+	{
+		(*(self.ptr() as *mut HeapFoot).offset(-1)).head()
+	}
 	pub unsafe fn next(&self) -> *mut HeapHead
 	{
 		(self.ptr() as *mut u8).offset( self.size as int ) as *mut HeapHead

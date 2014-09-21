@@ -11,7 +11,7 @@ pub mod phys;
 pub mod virt;
 pub mod heap;
 
-mod memorymap;
+pub mod memorymap;
 
 pub fn c_string_valid(c_str: *const i8) -> bool
 {

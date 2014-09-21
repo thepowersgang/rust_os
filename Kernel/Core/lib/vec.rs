@@ -169,12 +169,9 @@ impl<T> FromIterator<T> for Vec<T>
 	{
 		let mut it = iterator;
 		let mut ret = Vec::new();
-		loop
+		for val in it
 		{
-			match it.next() {
-			Some(x) => ret.push(x),
-			None => break,
-			}
+			ret.push(val);
 		}
 		ret
 	}

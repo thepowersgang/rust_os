@@ -1,6 +1,8 @@
+// "Tifflin" Kernel
+// - By John Hodge (thePowersGang)
 //
-//
-//
+// Core/modules.rs
+// - Runtime-initialised modules (handling load order deps)
 use _common::*;
 
 #[repr(packed)]

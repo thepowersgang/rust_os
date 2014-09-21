@@ -1,9 +1,8 @@
 //
 //
 //
-
 use core::ptr::RawPtr;
-use super::{PAddr,VAddr};
+use super::{PAddr};
 
 static MASK_VBITS : uint = 0x0000FFFF_FFFFFFFF;
 
@@ -36,7 +35,6 @@ unsafe fn get_entry(level: u8, index: uint, force_allocate: bool) -> PTE
 	//	tab_pt, tab_pd, tab_pdp, tab_pml4);
 	
 	//log_trace!("get_entry(level={}, index={:#x})", level, index);
-	let fractal = fractal_base as *mut PTE;
 	// NOTE: Does no checks on presence
 	match level
 	{
@@ -77,18 +75,17 @@ unsafe fn get_entry(level: u8, index: uint, force_allocate: bool) -> PTE
 }
 unsafe fn get_page_ent(addr: uint, from_temp: bool, allocate: bool, large_ok: bool) -> PTE
 {
+	assert!( from_temp == false );
 	let pagenum = (addr & MASK_VBITS) / ::PAGE_SIZE;
 //	log_trace!("get_page_ent(addr={:#x}, from_temp={}, allocate={}), pagenum={:#x}", addr, from_temp, allocate, pagenum);
 
 	let mut ent = get_entry(3, pagenum >> (9*3), allocate);
-//	log_trace!("ent(3) = {}", ent);
 	// 1. Walk down page tables from PML4
 	if !ent.is_present() {
 		return PTE::null();
 	}
 
 	ent = get_entry(2, pagenum >> (9*2), allocate);
-//	log_trace!("ent(2) = {}", ent);
 	if !ent.is_present() {
 		return PTE::null();
 	}
@@ -97,7 +94,6 @@ unsafe fn get_page_ent(addr: uint, from_temp: bool, allocate: bool, large_ok: bo
 	}
 
 	ent = get_entry(1, pagenum >> (9*1), allocate);
-//	log_trace!("ent(1) = {}", ent);
 	if !ent.is_present() {
 		return PTE::null();
 	}

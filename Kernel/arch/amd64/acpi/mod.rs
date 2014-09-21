@@ -271,33 +271,33 @@ impl<T> SDTHandle<T>
 		let ofs = (physaddr & (::PAGE_SIZE - 1) as u64) as uint;
 		
 		// Obtain length (and validate)
-		let (length,) = SDTHandle::<T>::_get_info(physaddr, ofs);
-		
-		// Map the resultant memory
-		let npages = (ofs + length + ::PAGE_SIZE - 1) / ::PAGE_SIZE;
-		let maphandle = match ::memory::virt::map_hw_ro(physaddr - ofs as u64, npages, "ACPI") {
-			Ok(x) => x,
-			Err(_) => fail!("Map fail")
-			};
-		SDTHandle {
-			maphandle: maphandle,
-			ofs: ofs
-			}
-	}
-	
-	fn _get_info(physaddr: u64, ofs: uint) -> (uint,)
-	{
 		// TODO: Support the SDT header spanning acrosss two pages
 		assert!(::PAGE_SIZE - ofs >= ::core::mem::size_of::<SDTHeader>());
-		// Map the header into memory temporarily
-		let tmp = match ::memory::virt::map_hw_ro(physaddr - ofs as u64, 1, "ACPI") {
+		// Map the header into memory temporarily (maybe)
+		let mut handle = match ::memory::virt::map_hw_ro(physaddr - ofs as u64, 1, "ACPI") {
 			Ok(v) => v,
 			Err(_) => fail!("Oops, temp mapping SDT failed"),
 			};
-		let hdr = tmp.as_ref::<SDTHeader>(ofs);
+		let (length,) = {
+			let hdr = handle.as_ref::<SDTHeader>(ofs);
+			
+			// Get the length
+			(hdr.length as uint,)
+			};
 		
-		// Get the length
-		(hdr.length as uint,)
+		// Map the resultant memory
+		let npages = (ofs + length + ::PAGE_SIZE - 1) / ::PAGE_SIZE;
+		if npages != 1
+		{
+			handle = match ::memory::virt::map_hw_ro(physaddr - ofs as u64, npages, "ACPI") {
+				Ok(x) => x,
+				Err(_) => fail!("Map fail")
+				};
+		}
+		SDTHandle {
+			maphandle: handle,
+			ofs: ofs
+			}
 	}
 	
 	pub fn make_static(&mut self) -> &'static SDT<T>
@@ -326,6 +326,10 @@ impl<T> SDT<T>
 	fn raw_signature(&self) -> [u8,..4]
 	{
 		self.header.signature
+	}
+	pub fn data_len(&self) -> uint
+	{
+		self.header.length as uint - ::core::mem::size_of::<SDTHeader>()
 	}
 	pub fn data<'s>(&'s self) -> &'s T
 	{

@@ -70,7 +70,7 @@ fn init()
 	{
 		let regs = mapping.as_ref::<HPETRegs>(0);
 		log_debug!("Capabilities = {:#016x}", regs.caps_id);
-		log_debug!(" > Period = {}fS, Vendor = {:04x}, Legacy? = {}, Count = {}, 64-bit? = {}, Rev = {}",
+		log_debug!(" > Period = {}fS, Vendor = {:04x}, Legacy? = {}, 64-bit? = {}, Count = {}, Rev = {}",
 				regs.caps_id >> 32, (regs.caps_id >> 16) & 0xFFFF,
 				(regs.caps_id >> 15) & 1, (regs.caps_id >> 13) & 1, (regs.caps_id >> 8) & 0x1F, regs.caps_id & 0xFF
 				);
@@ -84,10 +84,42 @@ fn init()
 			regs.comparitors[1].config_caps, regs.comparitors[1].value, regs.comparitors[1].int_route);
 	}
 	
-	unsafe {
-		s_instance = ::memory::heap::alloc( HPET {
+	let inst = unsafe {
+		s_instance = ::memory::heap::alloc( HPET::new(mapping) );
+		
+		&*s_instance
+		};
+	
+	inst.oneshot(0, inst.current() + 100*1000 );
+}
+
+impl HPET
+{
+	pub fn new(mapping: ::memory::virt::AllocHandle) -> HPET
+	{
+		let rv = HPET {
 			mapping_handle: mapping
-			} );
+			};
+		rv.regs().config |= 1 << 0;
+		rv
+	}
+	
+	fn regs<'a>(&'a self) -> &'a mut HPETRegs {
+		self.mapping_handle.as_ref(0)
+	}
+	fn num_comparitors(&self) -> uint {
+		((self.regs().caps_id >> 8) & 0x1F) as uint
+	}
+	
+	fn current(&self) -> u64 {
+		self.regs().main_counter
+	}
+	fn oneshot(&self, comparitor: uint, value: u64) {
+		let regs = self.regs();
+		assert!(comparitor < self.num_comparitors());
+		let comp = &mut regs.comparitors[comparitor];
+		comp.value = value;
+		comp.config_caps |= 1<<2;	//Enable interrupts
 	}
 }
 

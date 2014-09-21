@@ -45,6 +45,9 @@ all: kernel-$(ARCH).bin
 clean:
 	rm -r $(OBJDIR)
 
+pretty:
+	$V$(ENV) rustc --pretty expanded $(RUSTFLAGS) -o kernel-$(ARCH).exp_rs Core/main.rs $(call LocalLib,core) $(call LocalLib,common)
+
 run: kernel-$(ARCH).bin
 	./RunQemuPXE $<.elf32 ""
 

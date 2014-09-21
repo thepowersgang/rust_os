@@ -4,9 +4,7 @@
 // arch/amd64/boot.rs
 // - Boot information
 use _common::*;
-use core::ptr::RawPtr;
 use super::memory::addresses::{ident_start, ident_end};
-use super::puts;
 
 #[repr(C)]
 struct MultibootInfo
@@ -185,7 +183,7 @@ impl MultibootParsed
 	fn _vidmode(info: &MultibootInfo) -> Option<::common::archapi::VideoMode>
 	{
 		if (info.flags & 1 << 11) == 0 {
-			puts("arch::boot::get_video_mode - Video mode information not present\n");
+			log_notice!("get_video_mode - Video mode information not present");
 			return None;
 		}
 		
@@ -231,20 +229,15 @@ impl MultibootParsed
 			
 			// 2. Clobber out kernel, modules, and strings
 			mapbuilder.set_range( 0x100000, &::arch::v_kernel_end as *const() as u64 - ident_start as u64 - 0x10000,
-				::memory::StateUsed, 0 );
-			mapbuilder.set_range( self.cmdline.as_ptr() as u64 - ident_start as u64, self.cmdline.len() as u64, ::memory::StateUsed, 0 );
+				::memory::StateUsed, 0 ).unwrap();
+			mapbuilder.set_range( self.cmdline.as_ptr() as u64 - ident_start as u64, self.cmdline.len() as u64,
+				::memory::StateUsed, 0 ).unwrap();
 			
 			mapbuilder.size()
 			};
 		
 		// 3. Return final result
 		buf.slice(0, size)
-	}
-	
-	fn memmap(&self) -> &'static [::memory::MemoryMapEnt]
-	{
-		// Shuts the lifetime checker up
-		unsafe { ::core::mem::transmute( self.memmap.as_slice() ) }
 	}
 }
 

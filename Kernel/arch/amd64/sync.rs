@@ -1,48 +1,56 @@
+// "Tifflin" Kernel
+// - By John Hodge (thePowersGang)
 //
-//
-//
-#![macro_escape]	// Let macros be accessible by parent
+// arch/amd64/sync.rs
+// - Lightweight spinlock
 
-
+/// Lightweight protecting spinlock
 pub struct Spinlock<T>
 {
 	pub lock: uint,
 	pub value: T,
 }
 
+/// Handle to the held spinlock
 pub struct HeldSpinlock<'lock,T:'lock>
 {
 	lock: &'lock mut Spinlock<T>,
+	if_set: bool,
 }
 
 impl<T> Spinlock<T>
 {
 	pub fn lock<'_self>(&'_self mut self) -> HeldSpinlock<'_self,T>
 	{
-		unsafe {
-			let mut v = 0u;
+		let if_set = unsafe {
+			let mut flags: uint;
 			asm!("
+				pushf
+				pop $0
 				cli
 				1:
-				xchg $0, ($1)
-				test $0, $0
+				xchg $1, ($2)
+				test $1, $1
 				jnz 1
 				"
-				: /* no outputs */
+				: "=r" (flags)
 				: "r" (1u), "r"(&self.lock)
 				: "$0"
 				: "volatile"
 				);
-		}
+			flags & 0x200 != 0
+			};
 		//::arch::puts("Spinlock::lock() - Held\n");
-		HeldSpinlock { lock: self }
+		HeldSpinlock { lock: self, if_set: if_set }
 	}
 	
-	pub fn release(&mut self)
+	pub fn release(&mut self, set_if: bool)
 	{
 		//::arch::puts("Spinlock::release()\n");
 		self.lock = 0;
-		//unsafe { asm!("sti" : : : : "volatile"); }
+		if set_if {
+			unsafe { asm!("sti" : : : : "volatile"); }
+		}
 	}
 }
 
@@ -51,7 +59,7 @@ impl<'lock,T> ::core::ops::Drop for HeldSpinlock<'lock, T>
 {
 	fn drop(&mut self)
 	{
-		self.lock.release();
+		self.lock.release(self.if_set);
 	}
 }
 
@@ -67,9 +75,6 @@ impl<'lock,T> ::core::ops::DerefMut<T> for HeldSpinlock<'lock, T>
 		&mut self.lock.value
 	}
 }
-
-#[macro_export]
-macro_rules! spinlock_init( ($val:expr) => ( ::arch::sync::Spinlock { lock: 0, value: $val}) )
 
 // vim: ft=rust
 

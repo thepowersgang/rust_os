@@ -3,6 +3,15 @@
 //
 #![macro_escape]
 
+macro_rules! while_let
+{
+	($p:pat = $e:expr $code:block) => ( loop { match $e { $p => {$code}, _ => break } } );
+}
+macro_rules! if_let
+{
+	($p:pat = $e:expr $code:block) => ( match $e { $p => $code, _ =>{}} );
+}
+
 macro_rules! _count
 {
 	() => {0};
