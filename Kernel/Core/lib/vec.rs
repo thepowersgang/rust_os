@@ -3,7 +3,7 @@
 //
 use core::iter::range;
 use core::iter::{FromIterator,Iterator};
-use core::slice::{Slice,ImmutableSlice,Items};
+use core::slice::{Slice,ImmutableSlice,MutableSlice,Items,MutItems};
 use core::option::{Option,Some,None};
 use core::ptr::RawPtr;
 use core::num::Int;
@@ -55,6 +55,10 @@ impl<T> Vec<T>
 	pub fn iter<'s>(&'s self) -> Items<'s,T>
 	{
 		self.as_slice().iter()
+	}
+	pub fn iter_mut<'s>(&'s mut self) -> MutItems<'s,T>
+	{
+		self.slice_mut().iter_mut()
 	}
 	
 	fn reserve(&mut self, size: uint)

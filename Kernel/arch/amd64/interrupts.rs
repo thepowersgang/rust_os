@@ -19,6 +19,11 @@ struct InterruptRegs
 	rflags: u64, rsp: u64, ss: u64,
 }
 
+pub struct ISRHandle
+{
+	idx: uint,
+}
+
 #[no_mangle]
 #[allow(visible_private_types)]
 pub extern "C" fn error_handler(regs: &InterruptRegs)

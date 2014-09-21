@@ -60,6 +60,13 @@ struct MADT_LAPICNMI
 	flags: u16,
 	lint_num: u8,
 }
+#[deriving(Show)]
+#[repr(C,packed)]
+struct MADT_LAPICAddr
+{
+	_rsvd: u16,
+	address: u64,
+}
 
 #[deriving(Show)]
 enum MADTDevRecord<'a>
@@ -70,6 +77,7 @@ enum MADTDevRecord<'a>
 	DevIntSrcOvr(&'a MADT_IntSrcOvr),
 	DevNMI(&'a MADT_NMI),
 	DevLAPICNMI(&'a MADT_LAPICNMI),
+	DevLAPICAddr(&'a MADT_LAPICAddr),
 }
 
 struct MADTRecords<'a>
@@ -79,11 +87,17 @@ struct MADTRecords<'a>
 	limit: uint,
 }
 
-#[repr(C)]
+#[repr(C,packed)]
 struct APICReg
 {
 	data: u32,
 	_rsvd: [u32,..3],
+}
+
+#[deriving(Default)]
+pub struct IRQHandle
+{
+	global_num: uint,
 }
 
 struct LAPIC
@@ -111,7 +125,7 @@ enum ApicRegisters
 #[link_section="processor_local"]
 static mut s_lapic_lock: ::sync::Mutex<()> = mutex_init!( () );
 static mut s_lapic: *const LAPIC = 0 as *const _;
-static mut s_ioapics: *const Vec<::sync::Mutex<IOAPIC>> = 0 as *const _;
+static mut s_ioapics: *mut Vec<IOAPIC> = 0 as *mut _;
 
 fn init()
 {
@@ -127,21 +141,72 @@ fn init()
 	let madt = &handles[0];
 	madt.data().dump(madt.data_len());
 	
+	// Handle legacy (8259) PIC
 	if (madt.data().flags & 1) != 0 {
 		log_notice!("Legacy PIC present, disabling");
-		// TODO: Disable legacy PIC
+		// Disable legacy PIC by masking all interrupts off
+		unsafe {
+			::arch::x86_io::outb(0xA1, 0xFF);	// Disable slave
+			::arch::x86_io::outb(0x21, 0xFF);	// Disable master
+		}
 	}
 	
+	// Find the LAPIC address
+	let mut lapic_addr = madt.data().local_controller_addr as u64;
+	for ent in madt.data().records(madt.data_len()).filter_map(|r|match r{DevLAPICAddr(x)=>Some(x.address),_=>None})
+	{
+		lapic_addr = ent;
+	}
+	
+	// Create instances of the IOAPIC "driver" for all present controllers
+	let ioapics: Vec<_> = madt.data().records(madt.data_len()).filter_map(
+			|r|match r {
+				DevIOAPIC(a) => Some(IOAPIC::new(a.address as u64, a.interrupt_base as uint)),
+				_ => None
+				}
+			).collect();
+	
+	// Create APIC and IOAPIC instances
 	unsafe {
-		s_lapic = ::memory::heap::alloc( LAPIC::new(0xFEC00000) ) as *const _;
-		let ioapics: Vec<_> = madt.data().records(madt.data_len()).filter_map(
-				|r|match r {
-					DevIOAPIC(a) => Some(IOAPIC::new(a.address as u64, a.interrupt_base as uint)),
-					_ => None
-					}
-				).collect();
-		s_ioapics = ::memory::heap::alloc( ioapics ) as *const _;
+		s_lapic = ::memory::heap::alloc( LAPIC::new(lapic_addr) ) as *const _;
+		s_ioapics = ::memory::heap::alloc( ioapics ) as *mut _;
+		asm!("sti");
 		};
+	
+}
+
+fn get_ioapic(interrupt: uint) -> Option<&mut IOAPIC>
+{
+	unsafe {
+		(*s_ioapics).iter_mut().find(
+			|a| { (*a).first_irq <= interrupt && interrupt < (*a).first_irq + (*a).num_lines}
+		)
+	}
+}
+
+//
+pub fn register_msi<T>(callback: fn (&T) -> bool, info: &T) -> Result<(uint,::arch::interrupts::ISRHandle),()>
+{
+	// 1. Find a spare ISR slot on a processor
+	// 2. Create ISR for this callback
+	Err( () )
+}
+
+/// Registers an interrupt
+pub fn register_irq<T>(global_num: uint, callback: fn (&T) -> bool, info: &T) -> Result<IRQHandle,()>
+{
+	// 1. Pick a low-loaded pin on a processor?
+	
+	// Locate the relevant apic
+	let ioapic = match get_ioapic(global_num) {
+		Some(x) => x,
+		None => return Err( () ),
+		};
+
+	// 2. Enable the relevant IRQ on the LAPIC and IOAPIC
+	
+	
+	Err( () )
 }
 
 impl LAPIC
@@ -152,16 +217,18 @@ impl LAPIC
 			mapping: ::memory::virt::map_hw_rw(paddr, 1, "APIC").unwrap(),
 			};
 		
-		log_debug!("ID: {:x}, Ver: {:x}", ret.read_reg(ApicReg_LAPIC_ID), ret.read_reg(ApicReg_LAPIC_Ver));
+		log_debug!("LAPIC {{ IDReg={:x}, Ver={:x} }}", ret.read_reg(ApicReg_LAPIC_ID), ret.read_reg(ApicReg_LAPIC_Ver));
 	
 		ret
 	}
 	
 	fn read_reg(&self, idx: ApicRegisters) -> u32
 	{
-		let regs = self.mapping.as_ref::<[APICReg,..2]>(0);
-		regs[0].data = idx as u32;
-		regs[1].data
+		//let regs = self.mapping.as_ref::<[APICReg,..2]>(0);
+		//regs[0].data = idx as u32;
+		//regs[1].data
+		let regs = self.mapping.as_ref::<[APICReg,..64]>(0);
+		unsafe { ::core::intrinsics::volatile_load( &regs[idx as uint].data as *const _ ) }
 	}
 }
 
@@ -175,7 +242,11 @@ impl IOAPIC
 			first_irq: base,
 			};
 		
-		ret.num_lines = (ret.read_reg(1) & 0xFF) as uint + 1;
+		let v = ret.read_reg(1);
+		log_debug!("{:x} {:x} {:x}", v, v>>16, (v >> 16) & 0xFF);
+		ret.num_lines = ((v >> 16) & 0xFF) as uint + 1;
+		log_debug!("IOAPIC: {{ {:#x} - {} + {} }}", paddr, base, ret.num_lines);
+		log_debug!("regs=[{:#x},{:#x},{:#x}]", ret.read_reg(0), ret.read_reg(1), ret.read_reg(2));
 		
 		ret
 	}
@@ -183,8 +254,10 @@ impl IOAPIC
 	fn read_reg(&self, idx: uint) -> u32
 	{
 		let regs = self.mapping.as_ref::<[APICReg,..2]>(0);
-		regs[0].data = idx as u32;
-		regs[1].data
+		unsafe {
+		::core::intrinsics::volatile_store(&mut regs[0].data as *mut _, idx as u32);
+		::core::intrinsics::volatile_load(&regs[1].data as *const _)
+		}
 	}
 }
 
@@ -217,7 +290,7 @@ impl ACPI_MADT
 		assert!(pos + ::core::mem::size_of::<MADT_DevHeader>() <= limit);
 		unsafe {
 			let ptr = (&self.end as *const u8).offset( pos as int ) as *const MADT_DevHeader;
-			log_debug!("pos={}, ptr={} (type={},len={})", pos, ptr, (*ptr).dev_type, (*ptr).rec_len);
+			//log_debug!("pos={}, ptr={} (type={},len={})", pos, ptr, (*ptr).dev_type, (*ptr).rec_len);
 			let len = (*ptr).rec_len;
 			let typeid = (*ptr).dev_type;
 			
@@ -227,6 +300,7 @@ impl ACPI_MADT
 				2 => DevIntSrcOvr( ::core::mem::transmute( ptr.offset(1) ) ),
 				3 => DevNMI(       ::core::mem::transmute( ptr.offset(1) ) ),
 				4 => DevLAPICNMI(  ::core::mem::transmute( ptr.offset(1) ) ),
+				5 => DevLAPICAddr( ::core::mem::transmute( ptr.offset(1) ) ),
 				_ => DevUnk(typeid) ,
 				};
 			

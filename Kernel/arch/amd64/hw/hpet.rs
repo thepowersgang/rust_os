@@ -10,6 +10,7 @@ module_define!(HPET, [ACPI], init)
 struct HPET
 {
 	mapping_handle: ::memory::virt::AllocHandle,
+	irq_handle: ::arch::hw::apic::IRQHandle,
 }
 
 #[repr(C,packed)]
@@ -74,23 +75,28 @@ fn init()
 				regs.caps_id >> 32, (regs.caps_id >> 16) & 0xFFFF,
 				(regs.caps_id >> 15) & 1, (regs.caps_id >> 13) & 1, (regs.caps_id >> 8) & 0x1F, regs.caps_id & 0xFF
 				);
-		log_debug!("Config = {:#x}", regs.config);
-		log_debug!("ISR = {:#x}", regs.isr);
-		log_debug!("Main Counter = {:#x}", regs.main_counter);
+		log_debug!("Config = {:#x}, ISR Reg = {:#x}, Counter = {:#x}", regs.config, regs.isr, regs.main_counter);
 		
 		log_debug!("Cmp0 = {{ {:#x} {:#x} {:#x}  }}",
 			regs.comparitors[0].config_caps, regs.comparitors[0].value, regs.comparitors[0].int_route);
 		log_debug!("Cmp1 = {{ {:#x} {:#x} {:#x}  }}",
 			regs.comparitors[1].config_caps, regs.comparitors[1].value, regs.comparitors[1].int_route);
+		log_debug!("Cmp2 = {{ {:#x} {:#x} {:#x}  }}",
+			regs.comparitors[2].config_caps, regs.comparitors[2].value, regs.comparitors[2].int_route);
 	}
 	
 	let inst = unsafe {
 		s_instance = ::memory::heap::alloc( HPET::new(mapping) );
-		
+		(*s_instance).bind_irq();
 		&*s_instance
 		};
 	
 	inst.oneshot(0, inst.current() + 100*1000 );
+	log_debug!("Count = {}", inst.current());
+	log_debug!("comp0 = {}", inst.regs().comparitors[0]);
+	log_debug!("ISR = {:x}", inst.regs().isr);
+	log_debug!("Count = {}", inst.current());
+	log_debug!("ISR = {:x}", inst.regs().isr);
 }
 
 impl HPET
@@ -98,10 +104,21 @@ impl HPET
 	pub fn new(mapping: ::memory::virt::AllocHandle) -> HPET
 	{
 		let rv = HPET {
-			mapping_handle: mapping
+			mapping_handle: mapping,
+			irq_handle: Default::default(),
 			};
+		// Enable
 		rv.regs().config |= 1 << 0;
 		rv
+	}
+	pub fn bind_irq(&mut self)
+	{
+		self.irq_handle = ::arch::hw::apic::register_irq(2, HPET::irq, self).unwrap();
+	}
+	
+	fn irq(s: &HPET) -> bool
+	{
+		s.regs().isr != 0
 	}
 	
 	fn regs<'a>(&'a self) -> &'a mut HPETRegs {
@@ -119,7 +136,17 @@ impl HPET
 		assert!(comparitor < self.num_comparitors());
 		let comp = &mut regs.comparitors[comparitor];
 		comp.value = value;
-		comp.config_caps |= 1<<2;	//Enable interrupts
+		// HACK: Wire to APIC interrupt 2
+		// IRQ2, Interrups Enabled, Level Triggered
+		comp.config_caps = (2 << 9)|(1<<2)|(1<<1);
+	}
+}
+
+impl ::core::fmt::Show for HPETComparitorRegs
+{
+	fn fmt(&self, f: &mut ::core::fmt::Formatter) -> Result<(),::core::fmt::FormatError>
+	{
+		write!(f, "Comparitor(Value={},Config={:#x})", self.value, self.config_caps)
 	}
 }
 
