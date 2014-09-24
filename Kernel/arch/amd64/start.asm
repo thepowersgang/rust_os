@@ -140,7 +140,7 @@ start64_higher:
 	mov ecx, 0xC0000101	; GS Base
 	wrmsr
 	; 5. Set true GDT base
-	lgdt [GDTPtr2 - KERNEL_BASE]
+	lgdt [DWORD GDTPtr2 - KERNEL_BASE]
 	; 6. Request setup of IRQ handlers
 	call idt_init
 	mov dx, 0x3F8
@@ -200,6 +200,26 @@ EXPORT memset
 EXPORT memcpy
 	mov rcx, rdx
 	rep movsb
+	ret
+;; RDI = Destination
+;; RSI = Source
+;; RDX = Count
+EXPORT memmove
+	cmp rdi, rsi
+	jz .ret 	; if RDI == RSI, do nothinbg
+	jb memcpy	; if RDI < RSI, it's safe to do a memcpy
+	add rsi, rdx	; RDI > RSI
+	cmp rdi, rsi
+	jae memcpy	; if RDI >= RSI + RDX, then the two regions don't overlap, and memcpy is safe
+	; Reverse copy (add count to both addresses, and set DF)
+	add rdi, rdx
+	dec rdi
+	dec rsi
+	std
+	mov rcx, rdx
+	rep movsb
+	cld
+.ret:
 	ret
 ;; RDI = A
 ;; RSI = B

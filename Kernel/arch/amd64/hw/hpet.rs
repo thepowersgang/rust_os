@@ -91,10 +91,14 @@ fn init()
 		&*s_instance
 		};
 	
+	log_debug!("ISR = {:x}", inst.regs().isr);
+	log_debug!("{}", inst.irq_handle);
 	inst.oneshot(0, inst.current() + 100*1000 );
+	log_debug!("ISR = {:x}", inst.regs().isr);
 	log_debug!("Count = {}", inst.current());
 	log_debug!("comp0 = {}", inst.regs().comparitors[0]);
 	log_debug!("ISR = {:x}", inst.regs().isr);
+	log_debug!("{}", inst.irq_handle);
 	log_debug!("Count = {}", inst.current());
 	log_debug!("ISR = {:x}", inst.regs().isr);
 }
@@ -113,12 +117,13 @@ impl HPET
 	}
 	pub fn bind_irq(&mut self)
 	{
-		self.irq_handle = ::arch::hw::apic::register_irq(2, HPET::irq, self).unwrap();
+		self.irq_handle = ::arch::hw::apic::register_irq(2, HPET::irq, self as *mut _ as *const _).unwrap();
 	}
 	
-	fn irq(s: &HPET) -> bool
+	fn irq(sp: *const ())
 	{
-		s.regs().isr != 0
+		let s = unsafe{ &*(sp as *const HPET) };
+		log_debug!("IRQ ISR={:x}", s.regs().isr);
 	}
 	
 	fn regs<'a>(&'a self) -> &'a mut HPETRegs {

@@ -1,4 +1,3 @@
-
 [section .inittext]
 idt_init:
 	; Save to make following instructions smaller
@@ -6,27 +5,48 @@ idt_init:
 	
 	; Set an IDT entry to a callback
 	%macro SETIDT 2
+	mov rsi, %1
 	mov rax, %2
-	mov WORD [rdi + %1*16], ax
-	shr rax, 16
-	mov WORD [rdi + %1*16 + 6], ax
-	shr rax, 16
-	mov DWORD [rdi + %1*16 + 8], eax
-	; Enable
-	mov ax, WORD [rdi + %1*16 + 4]
-	or  ax, 0x8000
-	mov WORD [rdi + %1*16 + 4], ax
+	call set_idt
 	%endmacro
 	
 	; Install error handlers
 	%assign i 0
+	mov rsi, 0
 	%rep 32
-	SETIDT i, Isr%[i]
+	mov rax, Isr%[i]
+	call set_idt
+	inc rsi
+	%assign i i+1
+	%endrep
+	; Install stub IRQs
+	%assign i	32
+	%rep 128-32
+	mov rax, Irq%[i]
+	call set_idt
+	inc rsi
 	%assign i i+1
 	%endrep
 	
 	mov rdi, IDTPtr
 	lidt [rdi]
+	ret
+; - Custom CC:
+; RDI = IDT
+; RSI = Index
+; RAX = Address
+set_idt:
+	shl rsi, 4
+	mov WORD [rdi + rsi], ax
+	shr rax, 16
+	mov WORD [rdi + rsi + 6], ax
+	shr rax, 16
+	mov DWORD [rdi + rsi + 8], eax
+	; Enable
+	mov ax, WORD [rdi + rsi + 4]
+	or  ax, 0x8000
+	mov WORD [rdi + rsi + 4], ax
+	shr rsi, 4
 	ret
 
 [section .text]
@@ -97,3 +117,40 @@ IsrLAPICTimer:
 	;call LAPICTimerTick
 	API_RESTORE
 	iretq
+
+
+%macro BLANKINT 1
+Irq%1:
+	xchg bx, bx
+	API_SAVE
+	; Handle
+	mov rcx, IrqHandlers
+	mov rax, [rcx+%1*32+0]
+	test rax, rax
+	jz IRQCleanup.r
+	mov rax, [rcx+%1*32+8]
+	mov rdi, [rcx+%1*32+16]
+	call rax
+	; Cleanup
+	mov rdi, %1
+	mov rsi, rax
+	mov rax, [rcx+%1*32+24]
+	jmp IRQCleanup
+%endmacro
+
+%assign i	32
+%rep 128-32
+BLANKINT i
+%assign i i+1
+%endrep
+IRQCleanup:
+	test rax, rax
+	jz .r
+	call rax
+.r:
+	API_RESTORE
+	iretq
+
+[section .data]
+EXPORT IrqHandlers
+	times 256 dq 0, 0, 0, 0
