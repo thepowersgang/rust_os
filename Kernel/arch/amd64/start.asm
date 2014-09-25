@@ -131,7 +131,16 @@ strNot64BitCapable:
 start64_higher:
 	mov al, 'H'
 	out dx, al
-	; 4. Set up FS/GS base for kernel
+	; 4. Set true GDT base
+	lgdt [DWORD GDTPtr2 - KERNEL_BASE]
+	; Load segment regs
+	mov ax, 0x10
+	mov ds, ax
+	mov ss, ax
+	mov es, ax
+	mov fs, ax
+	mov gs, ax
+	; 5. Set up FS/GS base for kernel
 	mov rax, TID0TLS
 	mov rdx, rax
 	shr rdx, 32
@@ -139,8 +148,6 @@ start64_higher:
 	wrmsr
 	mov ecx, 0xC0000101	; GS Base
 	wrmsr
-	; 5. Set true GDT base
-	lgdt [DWORD GDTPtr2 - KERNEL_BASE]
 	; 6. Request setup of IRQ handlers
 	call idt_init
 	mov dx, 0x3F8

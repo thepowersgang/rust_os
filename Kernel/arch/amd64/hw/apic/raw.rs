@@ -7,6 +7,7 @@ use _common::*;
 
 pub struct LAPIC
 {
+	paddr: u64,
 	mapping: ::memory::virt::AllocHandle,
 }
 
@@ -73,12 +74,14 @@ impl LAPIC
 	pub fn new(paddr: u64) -> LAPIC
 	{
 		let ret = LAPIC {
+			paddr: paddr,
 			mapping: ::memory::virt::map_hw_rw(paddr, 1, "APIC").unwrap(),
 			};
 		
-		log_debug!("LAPIC {{ IDReg={:x}, Ver={:x} }}",
+		log_debug!("LAPIC {{ IDReg={:x}, Ver={:x}, SIR={:#x} }}",
 			ret.read_reg(ApicReg_LAPIC_ID as uint),
-			ret.read_reg(ApicReg_LAPIC_Ver as uint)
+			ret.read_reg(ApicReg_LAPIC_Ver as uint),
+			ret.read_reg(ApicReg_SIR as uint)
 			);
 		
 		ret
@@ -86,8 +89,37 @@ impl LAPIC
 	/// Initialise the LAPIC (for this CPU)
 	pub fn init(&self)
 	{
-		// TODO: Write MSR with config
-		self.write_reg(ApicReg_SIR as uint, self.read_reg(ApicReg_SIR as uint) | (1 << 8));
+		let oldaddr = unsafe{
+			let mut a: u64;
+			let mut d: u64;
+			asm!("rdmsr" : "={eax}" (a), "={edx}" (d) : "{rcx}" (0x1Bu) : "rdx");
+			d << 32 | a
+			};
+		log_debug!("oldaddr = {:#x}", oldaddr);
+		let is_bsp = oldaddr & 0x100;
+		for i in range(0, 8) {
+			log_debug!("IRR{} = {:#x}", i, self.read_reg(ApicReg_IRR as uint + i));
+		}
+		//self.write_reg(ApicReg_SIR as uint, self.read_reg(ApicReg_SIR as uint) | (1 << 8));
+		self.write_reg(ApicReg_SIR as uint, 0x7F | (1 << 8));	// Enable LAPIC (and set Spurious to 127)
+		//self.write_reg(ApicReg_InitCount as uint, 0x100000);
+		//self.write_reg(ApicReg_LVTTimer as uint, 0x7E);	// Enable Timer, vec 0x7E
+		// EOI - Just to make sure
+		self.write_reg(ApicReg_EOI as uint, 0);
+		unsafe {
+		asm!("wrmsr\nsti"
+			: /* no out */
+			: "{ecx}" (0x1Bu), "{edx}" (self.paddr >> 32), "{eax}" (self.paddr | is_bsp | 0x800)
+			: /* no clobbers */
+			: "volatile"
+			);
+		}
+	
+		unsafe {
+			let mut ef: u64;
+			asm!("pushf\npop $0" : "=r" (ef));
+			log_debug!("EFLAGS = {:#x}", ef);
+		}
 	}
 	
 	fn read_reg(&self, idx: uint) -> u32
@@ -104,15 +136,17 @@ impl LAPIC
 		unsafe { ::core::intrinsics::volatile_store( &mut regs[idx].data as *mut _, value ) }
 	}
 	
-	pub fn get_vec_status(&self, idx: uint) -> (bool,bool)
+	pub fn get_vec_status(&self, idx: uint) -> (bool,bool,bool, u32)
 	{
 		let reg = idx / 32;
 		let bit = idx % 32;
 		let mask = 1 << bit;
 		let in_svc = self.read_reg(ApicReg_InService as uint + reg) & mask != 0;
 		let mode   = self.read_reg(ApicReg_TMR as uint + reg) & mask != 0;
+		let in_req = self.read_reg(ApicReg_IRR as uint + reg) & mask != 0;
+		let err = self.read_reg(ApicReg_ErrStatus as uint);
 		
-		(in_svc, mode)
+		(in_svc, mode, in_req, err)
 	}
 }
 

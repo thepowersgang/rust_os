@@ -101,6 +101,7 @@ fn init()
 	log_debug!("{}", inst.irq_handle);
 	log_debug!("Count = {}", inst.current());
 	log_debug!("ISR = {:x}", inst.regs().isr);
+	log_debug!("{}", inst.irq_handle);
 }
 
 impl HPET

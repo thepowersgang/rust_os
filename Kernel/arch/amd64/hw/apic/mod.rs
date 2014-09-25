@@ -73,7 +73,8 @@ fn init()
 	unsafe {
 		s_lapic = ::memory::heap::alloc( raw::LAPIC::new(lapic_addr) ) as *const _;
 		s_ioapics = ::memory::heap::alloc( ioapics ) as *mut _;
-		asm!("sti");
+		
+		(*s_lapic).init();
 		};
 	
 }
@@ -85,6 +86,13 @@ fn get_ioapic(interrupt: uint) -> Option<&'static mut raw::IOAPIC>
 	}
 }
 
+extern "C" fn cleanup_nop(_: uint, _: bool)
+{
+}
+extern "C" fn cleanup_ioapic(idx: uint, _: bool)
+{
+}
+
 //
 pub fn register_msi(callback: fn (*const()), info: *const ()) -> Result<(uint,::arch::interrupts::ISRHandle),()>
 {
@@ -92,7 +100,7 @@ pub fn register_msi(callback: fn (*const()), info: *const ()) -> Result<(uint,::
 	let lapic_id = 0;
 	let isrnum = 33u;
 	// 2. Bind
-	let h = try!(::arch::interrupts::bind_isr(lapic_id, isrnum as u8, callback, info));
+	let h = try!(::arch::interrupts::bind_isr(lapic_id, isrnum as u8, callback, info, cleanup_nop));
 	Ok( (isrnum, h) )
 }
 
@@ -109,7 +117,7 @@ pub fn register_irq(global_num: uint, callback: fn (*const()), info: *const() ) 
 	// Bind ISR
 	let isrnum = 32u;
 	let lapic_id = 0;
-	let isr_handle = try!( ::arch::interrupts::bind_isr(lapic_id, isrnum as u8, callback, info) );
+	let isr_handle = try!( ::arch::interrupts::bind_isr(lapic_id, isrnum as u8, callback, info, cleanup_ioapic) );
 
 	// Enable the relevant IRQ on the LAPIC and IOAPIC
 	let ofs = global_num - ioapic.first();
@@ -130,7 +138,8 @@ impl ::core::fmt::Show for IRQHandle
 		write!(f, "IRQHandle{{#{}, LAPIC={}, Reg={:#x}}}",
 			self.num,
 			unsafe { (*s_lapic).get_vec_status(self.isr_handle.idx()) },
-			ioapic.get_irq_reg(ofs))
+			ioapic.get_irq_reg(ofs)
+			)
 	}
 }
 

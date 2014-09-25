@@ -10,7 +10,7 @@ pub struct Queue<T>
 	pub tail: ::core::option::Option<*mut QueueEnt<T>>,
 }
 
-struct QueueEnt<T>
+pub struct QueueEnt<T>
 {
 	next: ::core::option::Option<*mut QueueEnt<T>>,
 	value: T

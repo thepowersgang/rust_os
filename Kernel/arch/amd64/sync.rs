@@ -24,21 +24,19 @@ impl<T> Spinlock<T>
 	{
 		let if_set = unsafe {
 			let mut flags: uint;
+			asm!("pushf\npop $0\ncli" : "=r" (flags));
 			asm!("
-				pushf
-				pop $0
-				cli
 				1:
-				xchg $1, ($2)
-				test $1, $1
+				xchg $0, ($1)
+				test $0, $0
 				jnz 1
 				"
-				: "=r" (flags)
+				: 
 				: "r" (1u), "r"(&self.lock)
 				: "$0"
 				: "volatile"
 				);
-			flags & 0x200 != 0
+			(flags & 0x200) != 0
 			};
 		//::arch::puts("Spinlock::lock() - Held\n");
 		HeldSpinlock { lock: self, if_set: if_set }

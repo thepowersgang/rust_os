@@ -121,21 +121,9 @@ IsrLAPICTimer:
 
 %macro BLANKINT 1
 Irq%1:
-	xchg bx, bx
-	API_SAVE
-	; Handle
-	mov rcx, IrqHandlers
-	mov rax, [rcx+%1*32+0]
-	test rax, rax
-	jz IRQCleanup.r
-	mov rax, [rcx+%1*32+8]
-	mov rdi, [rcx+%1*32+16]
-	call rax
-	; Cleanup
-	mov rdi, %1
-	mov rsi, rax
-	mov rax, [rcx+%1*32+24]
-	jmp IRQCleanup
+	push rbx
+	mov rbx, %1*32
+	jmp IRQCommon
 %endmacro
 
 %assign i	32
@@ -143,14 +131,33 @@ Irq%1:
 BLANKINT i
 %assign i i+1
 %endrep
-IRQCleanup:
+IRQCommon:
+	int3
+	API_SAVE
+	; Handle
+	mov rcx, IrqHandlers
+	mov rax, [rcx+rbx+0]
+	test rax, rax
+	jz .r
+	mov rax, [rcx+rbx+8]
+	mov rdi, [rcx+rbx+16]
+	call rax
+	; Cleanup
+	mov rsi, rax
+	mov rdi, rbx
+	shr rdi, 5	; Div 32
+	mov rcx, IrqHandlers
+	mov rax, [rcx+rbx+24]
 	test rax, rax
 	jz .r
 	call rax
 .r:
 	API_RESTORE
+	pop rbx
 	iretq
 
 [section .data]
 EXPORT IrqHandlers
 	times 256 dq 0, 0, 0, 0
+
+; vim: ft=nasm

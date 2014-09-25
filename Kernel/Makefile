@@ -63,7 +63,7 @@ $(OBJDIR)%.ao: arch/$(ARCH)/%.asm Makefile
 	@mkdir -p $(dir $@)
 	@nasm -o $@ $< -f elf64 -MD $@.dep -MP
 
-$(OBJDIR)kcore.o: Core/main.rs $(OBJDIR)libcore.rlib Makefile
+$(OBJDIR)kcore.o: Core/main.rs $(OBJDIR)libcommon.rlib $(OBJDIR)libcore.rlib Makefile
 	@echo [RUSTC] -o $@
 	@mkdir -p $(dir $@)
 	$V$(ENV) rustc -O $(RUSTFLAGS) --emit obj -o $@ $< --dep-info $@.dep $(call LocalLib,core) $(call LocalLib,common)

@@ -11,4 +11,9 @@ echo "default testkern" >> .pxe/pxelinux.cfg/default
 echo "label testkern" >> .pxe/pxelinux.cfg/default
 echo "	kernel mboot.c32" >> .pxe/pxelinux.cfg/default
 echo "	append $IMAGE $ARGS" >> .pxe/pxelinux.cfg/default
-qemu-system-x86_64 -net nic -net user,tftp=.pxe/,bootfile=pxelinux.0 -boot n -nographic
+
+echo "" > .qemu_trace
+echo "apic_deliver_irq" >> .qemu_trace
+echo "apic_local_deliver" >> .qemu_trace
+echo "apic_mem_readl" >> .qemu_trace
+qemu-system-x86_64 -net nic -net user,tftp=.pxe/,bootfile=pxelinux.0 -boot n -nographic -trace events=.qemu_trace -d int | tee QemuLog.txt

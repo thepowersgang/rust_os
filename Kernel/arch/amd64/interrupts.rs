@@ -6,7 +6,7 @@ use core::result::{Result,Ok,Err};
 use super::{puts,puth};
 
 #[repr(C)]
-struct InterruptRegs
+pub struct InterruptRegs
 {
 	fs: u64,
 	gs: u64,
@@ -27,7 +27,7 @@ struct IRQHandlersEnt
 	bound: bool,
 	handler: fn(*const()),
 	info: *const(),
-	cleanup: fn(uint, bool),
+	cleanup: extern "C" fn(uint, bool),
 }
 
 #[deriving(Default)]
@@ -47,14 +47,29 @@ extern "C"
 pub extern "C" fn error_handler(regs: &InterruptRegs)
 {
 	puts("Error happened!\n");
-	puts("Int  = "); puth(regs.intnum as uint); puts("\n");
-	puts("Code = "); puth(regs.errorcode as uint); puts("\n");
+	puts("Int  = "); puth(regs.intnum as uint); puts("  Code = "); puth(regs.errorcode as uint); puts("\n");
 	puts("CS:RIP  = "); puth(regs.cs as uint); puts(":"); puth(regs.rip as uint); puts("\n");
 	puts("SS:RSP  = "); puth(regs.ss as uint); puts(":"); puth(regs.rsp as uint); puts("\n");
-	loop {}	
+	puts("CR2 = "); puth(get_cr2() as uint); puts("\n");
+	puts("RAX "); puth(regs.rax as uint); puts("  RCX "); puth(regs.rcx as uint); puts("\n");
+	puts("RDX "); puth(regs.rdx as uint); puts("  RBX "); puth(regs.rbx as uint); puts("\n");
+	if regs.intnum != 3
+	{
+		loop {}
+	}
 }
 
-pub fn bind_isr(cpu_num: int, isr: u8, callback: fn (*const ()), info: *const()) -> Result<ISRHandle,()>
+fn get_cr2() -> u64
+{
+	unsafe {
+		let mut cr2: u64;
+		asm!("movq %cr2, $0" : "=r" (cr2));
+		cr2
+	}
+}
+
+
+pub fn bind_isr(cpu_num: int, isr: u8, callback: fn (*const ()), info: *const(), cleanup: extern "C" fn(uint,bool)) -> Result<ISRHandle,()>
 {
 	log_trace!("bind_isr(cpu_num={},isr={},callback={},info={})", cpu_num, isr, callback as *const u8, info);
 	// 1. Check that this ISR slot on this CPU isn't taken
@@ -69,6 +84,7 @@ pub fn bind_isr(cpu_num: int, isr: u8, callback: fn (*const ()), info: *const())
 	// 3. And assign that to the ISR slot
 	h.handler = callback;
 	h.info = info;
+	h.cleanup = cleanup;
 	Ok( ISRHandle {
 		idx: isr as uint,
 		} )
