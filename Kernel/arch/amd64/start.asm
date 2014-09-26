@@ -153,6 +153,9 @@ start64_higher:
 	mov dx, 0x3F8
 	mov al, 10
 	out dx, al
+	
+	mov rax, InitialPML4
+	mov QWORD [rax], 0
 	; 7. Call rust kmain
 	call kmain
 .dead_loop:
