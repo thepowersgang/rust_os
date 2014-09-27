@@ -52,10 +52,7 @@ fn init()
 	// Find the LAPIC address
 	let mut lapic_addr = madt.data().local_controller_addr as u64;
 	for ent in madt.data().records(madt.data_len()).filter_map(
-		|r| match r {
-			init::DevLAPICAddr(x) => Some(x.address),
-			_ => None
-			}
+		|r| match r { init::DevLAPICAddr(x) => Some(x.address), _ => None }
 		)
 	{
 		lapic_addr = ent;
@@ -88,9 +85,12 @@ fn get_ioapic(interrupt: uint) -> Option<&'static mut raw::IOAPIC>
 
 extern "C" fn cleanup_nop(_: uint, _: bool)
 {
+	// Cleanup function for MSIs
+	// - Does nothing
 }
 extern "C" fn cleanup_ioapic(idx: uint, _: bool)
 {
+	log_trace!("cleanup_ioapic(idx={})", idx);
 }
 
 //

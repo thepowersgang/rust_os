@@ -80,6 +80,7 @@ ErrorCommon:
 	add rsp, 2*8
 	iretq
 .spurrious:
+	int3
 	pop gs
 	POP_GPR
 	add rsp, 1*8
@@ -131,7 +132,6 @@ BLANKINT i
 %assign i i+1
 %endrep
 IRQCommon:
-	int3
 	API_SAVE
 	; Handle
 	mov rcx, IrqHandlers
@@ -140,7 +140,6 @@ IRQCommon:
 	jz .r
 	mov rax, [rcx+rbx+8]
 	mov rdi, [rcx+rbx+16]
-	int3
 	call rax
 	; Cleanup
 	mov rsi, rax
@@ -148,7 +147,6 @@ IRQCommon:
 	shr rdi, 5	; Div 32
 	mov rcx, IrqHandlers
 	mov rax, [rcx+rbx+24]
-	int3
 	test rax, rax
 	jz .r
 	call rax
