@@ -68,9 +68,9 @@ impl<T> Vec<T>
 		{
 			unsafe {
 				let newptr = ::memory::heap::alloc_array::<T>( newcap );
-				for i in range(0, self.size as int)
+				for i in range(0, self.size)
 				{
-					::core::ptr::write(newptr.offset(i), self.move_ent(i as uint));
+					::core::ptr::write(newptr.offset(i as int), self.move_ent(i as uint));
 				}
 				if self.capacity > 0 {
 					::memory::heap::deallocate( self.data );
@@ -147,10 +147,10 @@ impl<T> MutableSeq<T> for Vec<T>
 	fn push(&mut self, t: T)
 	{
 		let pos = self.size;
+		self.reserve(pos + 1);
 		self.size += 1;
-		let newsize = self.size;
-		self.reserve(newsize);
-		unsafe { ::core::ptr::write(self.get_mut(pos), t); }
+		let ptr = self.get_mut(pos);
+		unsafe { ::core::ptr::write(ptr, t); }
 	}
 	fn pop(&mut self) -> Option<T>
 	{
@@ -169,11 +169,10 @@ impl<T> MutableSeq<T> for Vec<T>
 
 impl<T> FromIterator<T> for Vec<T>
 {
-	fn from_iter<IT: Iterator<T>>(iterator: IT) -> Vec<T>
+	fn from_iter<IT: Iterator<T>>(mut iterator: IT) -> Vec<T>
 	{
-		let mut it = iterator;
 		let mut ret = Vec::new();
-		for val in it
+		for val in iterator
 		{
 			ret.push(val);
 		}
