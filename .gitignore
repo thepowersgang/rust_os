@@ -1,3 +1,4 @@
+.*
 *.sw[po]
 *.o
 .obj/
@@ -5,6 +6,10 @@
 *.elf32
 *.dsm
 
+Kernel/fdd.img
 Kernel/bochsout.txt
 Kernel/bochsdbg.txt
 Kernel/serial.txt
+Kernel/QemuLog.txt
+Kernel/gitstats
+Kernel/BuildNum.*.mk
