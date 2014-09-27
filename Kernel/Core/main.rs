@@ -13,7 +13,6 @@
 #![feature(lang_items)]
 
 #[phase(plugin, link)] extern crate core;
-#[phase(plugin, link)] extern crate common;
 
 use _common::*;
 
@@ -88,6 +87,33 @@ pub extern "C" fn kmain()
 	use core::ptr::RawPtr;
 	if !ptr.is_null() { memory::heap::deallocate(ptr) }
 } 
+
+
+// TODO: Move out
+pub mod common
+{
+pub mod archapi
+{
+
+pub enum VideoFormat
+{
+	VideoX8R8G8B8,
+	VideoB8G8R8X8,
+	VideoR8G8B8,
+	VideoB8G8R8,
+	VideoR5G6B5,
+}
+
+pub struct VideoMode
+{
+	pub width: u16,
+	pub height: u16,
+	pub fmt: VideoFormat,
+}
+
+}
+}
+
 
 // vim: ft=rust
 

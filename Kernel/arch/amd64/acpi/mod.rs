@@ -117,10 +117,10 @@ fn init()
 			return;
 			}
 		};
-	log_debug!("RSDP.oemid = {}", ::core::str::from_utf8(rsdp.oemid));
-	log_debug!("RSDP.revision = {:#x}", rsdp.revision);
-	log_debug!("RSDP.rsdt_address = {:#x}", rsdp.rsdt_address);
+	log_debug!("RSDP = {{ oemid = {}, revision = {:#x}, rsdt_address = {:#x} }}",
+		::core::str::from_utf8(rsdp.oemid), rsdp.revision, rsdp.rsdt_address);
 	
+	CHECKMARK!();
 	let tl = if rsdp.revision == 0 {
 			TopRSDT( SDTHandle::<RSDT>::new( rsdp.rsdt_address as u64 ).make_static() )
 		} else {
@@ -130,11 +130,17 @@ fn init()
 			}
 			TopXSDT( SDTHandle::<XSDT>::new( v2.xsdt_address ).make_static() )
 		};
-	log_debug!("*SDT.signature = {}", tl.signature());
-	log_debug!("*SDT.oemid = '{}'", tl.oemid());
+	log_debug!("*SDT = {{ signature = {}, oemid = '{}' }}", tl.signature(), tl.oemid());
 	
-	let names = range(0,tl.len()).map(|i| tl.get::<SDTHeader>(i).raw_signature()).collect();
+	CHECKMARK!();
+	// Obtain list of SDTs (signatures only)
+	let names = range(0, tl.len()).map(
+		|i| {
+			tl.get::<SDTHeader>(i).raw_signature()
+			}
+		).collect();
 	
+	CHECKMARK!();
 	unsafe {
 		s_acpi_state = ::memory::heap::alloc( ACPI {
 			top_sdt: tl,
@@ -218,11 +224,9 @@ impl TLSDT
 		}
 	}
 	fn _getaddr(&self, idx: uint) -> u64 {
-		unsafe {
 		match self {
-		&TopRSDT(sdt) => *((&(*sdt).data.pointers) as *const u32).offset(idx as int) as u64,
-		&TopXSDT(sdt) => *(&(*sdt).data.pointers as *const u64).offset(idx as int),
-		}
+		&TopRSDT(sdt) => (*sdt).getptr(idx),
+		&TopXSDT(sdt) => (*sdt).getptr(idx),
 		}
 	}
 	
@@ -241,6 +245,33 @@ impl TLSDT
 	}
 	fn get<T>(&self, idx: uint) -> SDTHandle<T> {
 		SDTHandle::<T>::new(self._getaddr(idx))
+	}
+}
+trait RSDTTrait
+{
+	fn getptr(&self, idx: uint) -> u64;
+}
+
+impl RSDTTrait for SDT<RSDT>
+{
+	fn getptr(&self, idx: uint) -> u64
+	{
+		let ptrs = &(self.data.pointers) as *const u32;
+		assert!( !ptrs.is_null() );
+		unsafe {
+			*ptrs.offset(idx as int) as u64
+		}
+	}
+}
+impl RSDTTrait for SDT<XSDT>
+{
+	fn getptr(&self, idx: uint) -> u64
+	{
+		let ptrs = &(self.data.pointers) as *const u64;
+		assert!( !ptrs.is_null() );
+		unsafe {
+			*ptrs.offset(idx as int)
+		}
 	}
 }
 
@@ -268,6 +299,7 @@ impl<T> SDTHandle<T>
 	/// Map an SDT into memory, given a physical address
 	pub fn new(physaddr: u64) -> SDTHandle<T>
 	{
+		log_trace!("new(physaddr={:#x})", physaddr);
 		let ofs = (physaddr & (::PAGE_SIZE - 1) as u64) as uint;
 		
 		// Obtain length (and validate)
@@ -325,6 +357,7 @@ impl<T> SDT<T>
 	//}
 	fn raw_signature(&self) -> [u8,..4]
 	{
+		CHECKMARK!();
 		self.header.signature
 	}
 	pub fn data_len(&self) -> uint

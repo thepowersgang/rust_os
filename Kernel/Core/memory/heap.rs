@@ -171,6 +171,7 @@ impl HeapDef
 			}
 			// Return newly allocated block
 			fb.state = HeapUsed(size);
+			log_debug!("Returning {} (Freelist)", fb.data());
 			return Some( fb.data() );
 		}
 		assert!(opt_fb.is_null());

@@ -66,16 +66,23 @@ Isr%1:
 ErrorCommon:
 	PUSH_GPR
 	push gs
-	push fs
+	
+	mov rax, [rsp+(1+15+1)*8]	; Grab error code
+	cmp rax, 0xffffffff80000000
+	ja .spurrious
 	
 	mov rdi, rsp
 	[extern error_handler]
 	call error_handler
 	
-	pop fs
 	pop gs
 	POP_GPR
 	add rsp, 2*8
+	iretq
+.spurrious:
+	pop gs
+	POP_GPR
+	add rsp, 1*8
 	iretq
 
 ISR_NOERRNO	0;  0: Divide By Zero Exception
@@ -111,14 +118,6 @@ ISR_NOERRNO	29; 29: Reserved
 ISR_NOERRNO	30; 30: Reserved
 ISR_NOERRNO	31; 31: Reserved
 
-[extern LAPICTimerTick]
-IsrLAPICTimer:
-	API_SAVE
-	;call LAPICTimerTick
-	API_RESTORE
-	iretq
-
-
 %macro BLANKINT 1
 Irq%1:
 	push rbx
@@ -141,6 +140,7 @@ IRQCommon:
 	jz .r
 	mov rax, [rcx+rbx+8]
 	mov rdi, [rcx+rbx+16]
+	int3
 	call rax
 	; Cleanup
 	mov rsi, rax
@@ -148,11 +148,13 @@ IRQCommon:
 	shr rdi, 5	; Div 32
 	mov rcx, IrqHandlers
 	mov rax, [rcx+rbx+24]
+	int3
 	test rax, rax
 	jz .r
 	call rax
 .r:
 	API_RESTORE
+	int3
 	pop rbx
 	iretq
 

@@ -8,7 +8,7 @@ use super::{puts,puth};
 #[repr(C)]
 pub struct InterruptRegs
 {
-	fs: u64,
+	//fs: u64,
 	gs: u64,
 
 	rax: u64, rcx: u64, rdx: u64, rbx: u64,

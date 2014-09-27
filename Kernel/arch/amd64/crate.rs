@@ -6,9 +6,11 @@
 #![macro_escape]
 
 extern crate core;
-extern crate common;
 
 pub use self::log::{puts, puth};
+
+// Emits a distinctive instruction (with no effect)
+macro_rules! CHECKMARK{ () => (unsafe { asm!("xchg %cx, %cx" : : : : "volatile");}); }
 
 pub mod float;
 pub mod interrupts;

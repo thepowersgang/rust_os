@@ -16,4 +16,13 @@ echo "" > .qemu_trace
 echo "apic_deliver_irq" >> .qemu_trace
 echo "apic_local_deliver" >> .qemu_trace
 echo "apic_mem_readl" >> .qemu_trace
-qemu-system-x86_64 -net nic -net user,tftp=.pxe/,bootfile=pxelinux.0 -boot n -nographic -trace events=.qemu_trace -d int | tee QemuLog.txt
+
+QEMU_OPTS=""
+QEMU_OPTS=$QEMU_OPTS" -net nic"
+QEMU_OPTS=$QEMU_OPTS" -net user,tftp=.pxe/,bootfile=pxelinux.0"
+QEMU_OPTS=$QEMU_OPTS" -boot n"
+QEMU_OPTS=$QEMU_OPTS" -nographic"
+#QEMU_OPTS=$QEMU_OPTS" -trace events=.qemu_trace"
+QEMU_OPTS=$QEMU_OPTS" -d int"
+QEMU_OPTS=$QEMU_OPTS" -no-reboot"
+qemu-system-x86_64 $QEMU_OPTS | tee QemuLog.txt

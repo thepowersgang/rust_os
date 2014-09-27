@@ -38,6 +38,7 @@ fn putc(c: u8)
 		{
 		}
 		x86_io::outb(0x3F8, c as u8);
+		x86_io::outb(0xe9, c as u8);
 	}
 }
 
