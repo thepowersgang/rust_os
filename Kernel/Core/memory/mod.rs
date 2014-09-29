@@ -38,5 +38,35 @@ pub fn c_string_valid(c_str: *const i8) -> bool
 	true
 }
 
+pub fn buf_valid(ptr: *const (), mut size: uint) -> bool
+{
+	let mut addr = ptr as VAddr;
+	if ! ::arch::memory::virt::is_reserved(addr) {
+		return false;
+	}
+	let rem_ofs = ::PAGE_SIZE - addr % ::PAGE_SIZE;
+	
+	if size > rem_ofs
+	{
+		addr += rem_ofs;
+		size -= rem_ofs;
+		while size != 0
+		{
+			if ! ::arch::memory::virt::is_reserved(addr) {
+				return false;
+			}
+			if size > ::PAGE_SIZE {
+				size -= ::PAGE_SIZE;
+				addr += ::PAGE_SIZE;
+			}
+			else {
+				break;
+			}
+		}
+	}
+	
+	true
+}
+
 // vim: ft=rust
 
