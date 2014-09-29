@@ -11,6 +11,7 @@ struct HPET
 {
 	mapping_handle: ::memory::virt::AllocHandle,
 	irq_handle: ::arch::hw::apic::IRQHandle,
+	period: u64,
 }
 
 #[repr(C,packed)]
@@ -25,27 +26,30 @@ struct ACPI_HPET
 	page_protection: u8,
 }
 
-#[repr(C,packed)]
-struct HPETRegs
+enum HPETReg
 {
-	caps_id: u64, _r1: u64,
-	config: u64,  _r2: u64,
-	isr: u64, _r3: u64,
-	_rsvd3: [u64, ..24],
-	main_counter: u64, _r4: u64,
-	comparitors: [HPETComparitorRegs,..32],
-}
-
-#[repr(C,packed)]
-struct HPETComparitorRegs
-{
-	config_caps: u64,
-	value: u64,
-	int_route: u64,
-	_rsvd: u64,
+	RegCapsID  = 0x0,
+	RegConfig  = 0x1,
+	RegISR     = 0x2,
+	RegMainCtr = 0xF,
+	RegTimer0  = 0x10,
 }
 
 static mut s_instance : *mut HPET = 0 as *mut _;
+
+pub fn get_timestamp() -> u64
+{
+	unsafe {
+	if s_instance != 0 as *mut _
+	{
+		(*s_instance).current() / (*s_instance).ticks_per_ms()
+	}
+	else
+	{
+		0
+	}
+	}
+}
 
 fn init()
 {
@@ -61,98 +65,90 @@ fn init()
 	let hpet = &handles[0];
 
 	let info = (*hpet).data();
-	log_debug!("-- HPET {} --", info.hpet_num);
-	log_debug!("Rev/Flags/Vendor = {}/{:#x}/{:x}", info.hw_rev_id, info.flags, info.pci_vendor);
-	log_debug!("asid:address = {}:{:#x}", info.addr.asid, info.addr.address);
-	
 	assert!(info.addr.asid == 0);
 	assert!(info.addr.address % ::PAGE_SIZE as u64 == 0);
 	let mapping = ::memory::virt::map_hw_rw(info.addr.address, 1, "HPET").unwrap();
-	{
-		let regs = mapping.as_ref::<HPETRegs>(0);
-		log_debug!("Capabilities = {:#016x}", regs.caps_id);
-		log_debug!(" > Period = {}fS, Vendor = {:04x}, Legacy? = {}, 64-bit? = {}, Count = {}, Rev = {}",
-				regs.caps_id >> 32, (regs.caps_id >> 16) & 0xFFFF,
-				(regs.caps_id >> 15) & 1, (regs.caps_id >> 13) & 1, (regs.caps_id >> 8) & 0x1F, regs.caps_id & 0xFF
-				);
-		log_debug!("Config = {:#x}, ISR Reg = {:#x}, Counter = {:#x}", regs.config, regs.isr, regs.main_counter);
-		
-		log_debug!("Cmp0 = {{ {:#x} {:#x} {:#x}  }}",
-			regs.comparitors[0].config_caps, regs.comparitors[0].value, regs.comparitors[0].int_route);
-		log_debug!("Cmp1 = {{ {:#x} {:#x} {:#x}  }}",
-			regs.comparitors[1].config_caps, regs.comparitors[1].value, regs.comparitors[1].int_route);
-		log_debug!("Cmp2 = {{ {:#x} {:#x} {:#x}  }}",
-			regs.comparitors[2].config_caps, regs.comparitors[2].value, regs.comparitors[2].int_route);
+
+	// HACK! Disable the PIT
+	// - This should really be done by the ACPI code (after it determines the PIT exists)
+	unsafe {
+		::arch::x86_io::outb(0x43, 0<<7|3<<4|0);
+		::arch::x86_io::outb(0x43, 1<<7|3<<4|0);
+		::arch::x86_io::outb(0x43, 2<<7|3<<4|0);
+		::arch::x86_io::outb(0x43, 3<<7|3<<4|0);
 	}
-	
+
 	let inst = unsafe {
 		s_instance = ::memory::heap::alloc( HPET::new(mapping) );
 		(*s_instance).bind_irq();
 		&*s_instance
 		};
 	
-	log_debug!("ISR = {:x}", inst.regs().isr);
-	log_debug!("{}", inst.irq_handle);
 	inst.oneshot(0, inst.current() + 100*1000 );
-	log_debug!("ISR = {:x}", inst.regs().isr);
-	log_debug!("Count = {}", inst.current());
-	log_debug!("comp0 = {}", inst.regs().comparitors[0]);
-	log_debug!("ISR = {:x}", inst.regs().isr);
-	log_debug!("{}", inst.irq_handle);
-	log_debug!("Count = {}", inst.current());
-	log_debug!("ISR = {:x}", inst.regs().isr);
-	log_debug!("{}", inst.irq_handle);
 }
 
 impl HPET
 {
 	pub fn new(mapping: ::memory::virt::AllocHandle) -> HPET
 	{
-		let rv = HPET {
+		let mut rv = HPET {
 			mapping_handle: mapping,
 			irq_handle: Default::default(),
+			period: 1,
 			};
 		// Enable
-		rv.regs().config |= 1 << 0;
+		rv.write_reg(RegConfig as uint, rv.read_reg(RegConfig as uint) | (1 << 0));
+		rv.period = rv.read_reg(RegCapsID as uint) >> 32;
 		rv
 	}
 	pub fn bind_irq(&mut self)
 	{
 		self.irq_handle = ::arch::hw::apic::register_irq(2, HPET::irq, self as *mut _ as *const _).unwrap();
 	}
+	pub fn ticks_per_ms(&self) -> u64
+	{
+		// period = fempto (15) seconds per tick
+		// Want ticks per ms
+		// 
+		1000*1000*1000*1000 / self.period
+	}
 	
 	fn irq(sp: *const ())
 	{
 		let s = unsafe{ &*(sp as *const HPET) };
-		log_debug!("IRQ ISR={:x}", s.regs().isr);
+		s.write_reg(RegISR as uint, s.read_reg(RegISR as uint));
+		
+		s.oneshot(0, s.current() + 100*1000 );
 	}
 	
-	fn regs<'a>(&'a self) -> &'a mut HPETRegs {
+	fn read_reg(&self, reg: uint) -> u64 {
+		unsafe {
+			::core::intrinsics::volatile_load( &self.regs()[reg*2] )
+		}
+	}
+	fn write_reg(&self, reg: uint, val: u64) {
+		unsafe {
+			::core::intrinsics::volatile_store( &mut self.regs()[reg*2], val )
+		}
+	}
+	fn regs<'a>(&'a self) -> &'a mut [u64,..0x100] {
 		self.mapping_handle.as_ref(0)
 	}
 	fn num_comparitors(&self) -> uint {
-		((self.regs().caps_id >> 8) & 0x1F) as uint
+		((self.read_reg(RegCapsID as uint) >> 8) & 0x1F) as uint
 	}
 	
 	fn current(&self) -> u64 {
-		self.regs().main_counter
+		self.read_reg(RegMainCtr as uint)
 	}
 	fn oneshot(&self, comparitor: uint, value: u64) {
-		let regs = self.regs();
 		assert!(comparitor < self.num_comparitors());
-		let comp = &mut regs.comparitors[comparitor];
-		comp.value = value;
+		let comp_reg = RegTimer0 as uint + comparitor*2;
+		// Set comparitor value
+		self.write_reg(comp_reg + 1, value);
 		// HACK: Wire to APIC interrupt 2
 		// IRQ2, Interrups Enabled, Level Triggered
-		comp.config_caps = (2 << 9)|(1<<2)|(1<<1);
-	}
-}
-
-impl ::core::fmt::Show for HPETComparitorRegs
-{
-	fn fmt(&self, f: &mut ::core::fmt::Formatter) -> Result<(),::core::fmt::FormatError>
-	{
-		write!(f, "Comparitor(Value={},Config={:#x})", self.value, self.config_caps)
+		self.write_reg(comp_reg + 0, (2 << 9)|(1<<2)|(1<<1));
 	}
 }
 

@@ -4,11 +4,15 @@
 // arch/amd64/hw/apic/raw.rs
 // - x86 APIC Raw hardware API
 use _common::*;
+use core::ptr::RawPtr;
+
+static TIMER_VEC: u8 = 0x7E;
 
 pub struct LAPIC
 {
 	paddr: u64,
 	mapping: ::memory::virt::AllocHandle,
+	timer_isr: ::arch::interrupts::ISRHandle,
 }
 
 pub struct IOAPIC
@@ -16,6 +20,7 @@ pub struct IOAPIC
 	regs: ::sync::Mutex<IOAPICRegs>,
 	num_lines: uint,
 	first_irq: uint,
+	handlers: Vec<Option<super::IRQHandler>>,
 }
 
 struct IOAPICRegs
@@ -76,6 +81,7 @@ impl LAPIC
 		let ret = LAPIC {
 			paddr: paddr,
 			mapping: ::memory::virt::map_hw_rw(paddr, 1, "APIC").unwrap(),
+			timer_isr: Default::default(),
 			};
 		
 		log_debug!("LAPIC {{ IDReg={:x}, Ver={:x}, SIR={:#x} }}",
@@ -85,6 +91,18 @@ impl LAPIC
 			);
 		
 		ret
+	}
+	/// Initialise the LAPIC structures once self is in its final location
+	pub fn global_init(&mut self)
+	{
+		self.timer_isr = match ::arch::interrupts::bind_isr(
+			//TIMER_VEC, LAPIC::local_timer, self as *mut _ as *const (), 0
+			TIMER_VEC, lapic_timer, self as *mut _ as *const (), 0
+			)
+			{
+			Ok(v) => v,
+			Err(e) => fail!("Unable to bind LAPIC timer: {}", e),
+			};
 	}
 	/// Initialise the LAPIC (for this CPU)
 	pub fn init(&self)
@@ -100,12 +118,14 @@ impl LAPIC
 		for i in range(0, 8) {
 			log_debug!("IRR{} = {:#x}", i, self.read_reg(ApicReg_IRR as uint + i));
 		}
+		
 		//self.write_reg(ApicReg_SIR as uint, self.read_reg(ApicReg_SIR as uint) | (1 << 8));
 		self.write_reg(ApicReg_SIR as uint, 0x7F | (1 << 8));	// Enable LAPIC (and set Spurious to 127)
-		//self.write_reg(ApicReg_InitCount as uint, 0x100000);
-		//self.write_reg(ApicReg_LVTTimer as uint, 0x7E);	// Enable Timer, vec 0x7E
+		self.write_reg(ApicReg_InitCount as uint, 0x100000);
+		self.write_reg(ApicReg_TmrDivide as uint, 3);	// Timer Divide = 16
+		self.write_reg(ApicReg_LVTTimer as uint, TIMER_VEC as u32);	// Enable Timer
 		// EOI - Just to make sure
-		self.write_reg(ApicReg_EOI as uint, 0);
+		self.eoi(0);
 		unsafe {
 		asm!("wrmsr\nsti"
 			: /* no out */
@@ -120,6 +140,10 @@ impl LAPIC
 			asm!("pushf\npop $0" : "=r" (ef));
 			log_debug!("EFLAGS = {:#x}", ef);
 		}
+	}
+	pub fn eoi(&self, num: uint)
+	{
+		self.write_reg(ApicReg_EOI as uint, num as u32);
 	}
 	
 	fn read_reg(&self, idx: uint) -> u32
@@ -148,42 +172,62 @@ impl LAPIC
 		
 		(in_svc, mode, in_req, err)
 	}
+	
+	fn local_timer(isr: uint, sp: *const (), _idx: uint)
+	{
+		assert!( !sp.is_null() );
+		let s: &LAPIC = unsafe { &*(sp as *const LAPIC) };
+		log_trace!("LAPIC Timer");
+		s.eoi(isr);
+	}
+}
+extern "C" fn lapic_timer(isr: uint, sp: *const (), _idx: uint)
+{
+	LAPIC::local_timer(isr, sp, _idx);	
 }
 
 impl IOAPIC
 {
 	pub fn new(paddr: u64, base: uint) -> IOAPIC
 	{
-		let mut ret = IOAPIC {
-			regs: mutex_init!( IOAPICRegs::new(paddr) ),
-			num_lines: 0,
-			first_irq: base,
-			};
+		let regs = IOAPICRegs::new(paddr);
+		let v = regs.read(1);
+		log_debug!("{:x} {:x} {:x}", v, v>>16, (v >> 16) & 0xFF);
+		let num_lines = ((v >> 16) & 0xFF) as uint + 1;
+		log_debug!("regs=[{:#x},{:#x},{:#x}]", regs.read(0), regs.read(1), regs.read(2));
 		
-		{
-			let mut rh = ret.regs.lock();
-			let v = (*rh).read(1);
-			log_debug!("{:x} {:x} {:x}", v, v>>16, (v >> 16) & 0xFF);
-			ret.num_lines = ((v >> 16) & 0xFF) as uint + 1;
-			log_debug!("IOAPIC: {{ {:#x} - {} + {} }}", paddr, base, ret.num_lines);
-			log_debug!("regs=[{:#x},{:#x},{:#x}]", (*rh).read(0), (*rh).read(1), (*rh).read(2));
-		}
-		ret
+		log_debug!("IOAPIC: {{ {:#x} - {} + {} }}", paddr, base, num_lines);
+		IOAPIC {
+			regs: mutex_init!( regs ),
+			num_lines: num_lines,
+			first_irq: base,
+			handlers: Vec::from_fn(num_lines, |_|None),
+			}
 	}
 	
-	pub fn contains(&self, idx: uint) -> bool {
-		self.first_irq <= idx && idx < self.first_irq + self.num_lines
+	pub fn contains(&self, gsi: uint) -> bool {
+		self.first_irq <= gsi && gsi < self.first_irq + self.num_lines
 	}
 	pub fn first(&self) -> uint {
 		self.first_irq
 	}
+	pub fn get_callback(&self, idx: uint) -> super::IRQHandler {
+		assert!( idx < self.num_lines );
+		self.handlers[idx].unwrap()
+	}
 	
-	pub fn set_irq(&mut self, idx: uint, vector: u8, apic: uint, mode: TriggerMode)
+	pub fn eoi(&mut self, idx: uint)
+	{
+		// TODO: EOI in IOAPIC
+	}
+	pub fn set_irq(&mut self, idx: uint, vector: u8, apic: uint, mode: TriggerMode, cb: super::IRQHandler)
 	{
 		let mut rh = self.regs.lock();
 		log_trace!("set_irq(idx={},vector={},apic={},mode={})", idx, vector, apic, mode);
 		log_debug!("Info = {:#x}", (*rh).read(0x10 + idx*2));
-		
+		assert!( idx < self.num_lines );
+
+		*self.handlers.get_mut(idx) = Some( cb );
 		let flags: u32 = match mode {
 			TriggerEdgeHi   => (0<<13)|(0<<15),
 			TriggerEdgeLow  => (1<<13)|(0<<15),

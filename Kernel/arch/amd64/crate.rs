@@ -29,6 +29,11 @@ extern "C"
 	static v_kernel_end : ();
 }
 
+pub fn cur_timestamp() -> u64
+{
+	hw::hpet::get_timestamp()
+}
+
 pub fn idle()
 {
 	unsafe { asm!("hlt"); }

@@ -12,6 +12,8 @@ module_define!(APIC, [ACPI], init)
 mod raw;
 mod init;
 
+pub type IRQHandler = fn(info: *const ());
+
 #[deriving(Default)]
 pub struct IRQHandle
 {
@@ -60,7 +62,7 @@ fn init()
 	
 	// Create instances of the IOAPIC "driver" for all present controllers
 	let ioapics: Vec<_> = madt.data().records(madt.data_len()).filter_map(
-			|r|match r {
+			|r| match r {
 				init::DevIOAPIC(a) => Some(raw::IOAPIC::new(a.address as u64, a.interrupt_base as uint)),
 				_ => None
 				}
@@ -68,47 +70,67 @@ fn init()
 	
 	// Create APIC and IOAPIC instances
 	unsafe {
-		s_lapic = ::memory::heap::alloc( raw::LAPIC::new(lapic_addr) ) as *const _;
+		let lapic_ptr = ::memory::heap::alloc( raw::LAPIC::new(lapic_addr) ) as *mut raw::LAPIC;
+		(*lapic_ptr).global_init();
+		s_lapic = lapic_ptr as *const _;
+
 		s_ioapics = ::memory::heap::alloc( ioapics ) as *mut _;
-		
 		(*s_lapic).init();
 		};
 	
 }
 
-fn get_ioapic(interrupt: uint) -> Option<&'static mut raw::IOAPIC>
+fn get_ioapic(interrupt: uint) -> Option<(&'static mut raw::IOAPIC, uint)>
 {
 	unsafe {
-		(*s_ioapics).iter_mut().find( |a| (*a).contains(interrupt) )
+		match (*s_ioapics).iter_mut().find( |a| (*a).contains(interrupt) )
+		{
+		None => None,
+		Some(x) => {
+			let ofs = interrupt - x.first();
+			Some( (x, ofs) )
+			},
+		}
 	}
 }
-
-extern "C" fn cleanup_nop(_: uint, _: bool)
+fn get_lapic() -> &'static raw::LAPIC
 {
-	// Cleanup function for MSIs
-	// - Does nothing
-}
-extern "C" fn cleanup_ioapic(idx: uint, _: bool)
-{
-	log_trace!("cleanup_ioapic(idx={})", idx);
+	unsafe { &*s_lapic }
 }
 
-//
-pub fn register_msi(callback: fn (*const()), info: *const ()) -> Result<(uint,::arch::interrupts::ISRHandle),()>
+///// Registers a message-signalled interrupt handler.
+//pub fn register_msi(callback: fn (*const()), info: *const ()) -> Result<(uint,::arch::interrupts::ISRHandle),()>
+//{
+//	// 1. Find a spare ISR slot on a processor
+//	let lapic_id = 0;
+//	let isrnum = 33u;
+//	// 2. Bind
+//	let h = try!(::arch::interrupts::bind_isr(lapic_id, isrnum as u8, callback, info, cleanup_nop));
+//	Ok( (isrnum, h) )
+//}
+
+/// Local + IO APIC interrupt handler
+extern "C" fn lapic_irq_handler(isr: uint, info: *const(), gsi: uint)
 {
-	// 1. Find a spare ISR slot on a processor
-	let lapic_id = 0;
-	let isrnum = 33u;
-	// 2. Bind
-	let h = try!(::arch::interrupts::bind_isr(lapic_id, isrnum as u8, callback, info, cleanup_nop));
-	Ok( (isrnum, h) )
+	log_trace!("lapic_irq_handler: (isr={},info={},gsi={})", isr, info, gsi);
+	let (ioapic,ofs) = match get_ioapic(gsi) {
+		Some(x) => x,
+		None => {
+			log_error!("lapic_irq_handler - GSI does not correspond to an IOAPIC ({})", gsi);
+			return ()
+			}
+		};
+	
+	(ioapic.get_callback(ofs))(info);
+	ioapic.eoi( ofs );
+	get_lapic().eoi(isr);
 }
 
 /// Registers an interrupt
-pub fn register_irq(global_num: uint, callback: fn (*const()), info: *const() ) -> Result<IRQHandle,()>
+pub fn register_irq(global_num: uint, callback: IRQHandler, info: *const() ) -> Result<IRQHandle,()>
 {
 	// Locate the relevant apic
-	let ioapic = match get_ioapic(global_num) {
+	let (ioapic,ofs) = match get_ioapic(global_num) {
 		Some(x) => x,
 		None => return Err( () ),
 		};
@@ -116,12 +138,11 @@ pub fn register_irq(global_num: uint, callback: fn (*const()), info: *const() ) 
 	// 1. Pick a low-loaded processor? 
 	// Bind ISR
 	let isrnum = 32u;
-	let lapic_id = 0;
-	let isr_handle = try!( ::arch::interrupts::bind_isr(lapic_id, isrnum as u8, callback, info, cleanup_ioapic) );
+	let lapic_id = 0u;
+	let isr_handle = try!( ::arch::interrupts::bind_isr(isrnum as u8, lapic_irq_handler, info, global_num) );
 
 	// Enable the relevant IRQ on the LAPIC and IOAPIC
-	let ofs = global_num - ioapic.first();
-	ioapic.set_irq(ofs, isrnum as u8, lapic_id as uint, raw::TriggerEdgeHi);
+	ioapic.set_irq(ofs, isrnum as u8, lapic_id, raw::TriggerEdgeHi, callback);
 	
 	Ok( IRQHandle {
 		num: global_num,
@@ -133,11 +154,10 @@ impl ::core::fmt::Show for IRQHandle
 {
 	fn fmt(&self, f: &mut ::core::fmt::Formatter) -> Result<(),::core::fmt::FormatError>
 	{
-		let ioapic = get_ioapic(self.num).unwrap();
-		let ofs = self.num - ioapic.first();
+		let (ioapic,ofs) = get_ioapic(self.num).unwrap();
 		write!(f, "IRQHandle{{#{}, LAPIC={}, Reg={:#x}}}",
 			self.num,
-			unsafe { (*s_lapic).get_vec_status(self.isr_handle.idx()) },
+			get_lapic().get_vec_status(self.isr_handle.idx()),
 			ioapic.get_irq_reg(ofs)
 			)
 	}
@@ -147,8 +167,7 @@ impl ::core::ops::Drop for IRQHandle
 {
 	fn drop(&mut self)
 	{
-		let ioapic = get_ioapic(self.num).unwrap();
-		let ofs = self.num - ioapic.first();
+		let (ioapic,ofs) = get_ioapic(self.num).unwrap();
 		ioapic.disable_irq(ofs);
 	}
 }

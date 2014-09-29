@@ -85,13 +85,6 @@ struct MADTRecords<'a>
 	limit: uint,
 }
 
-#[repr(C,packed)]
-struct APICReg
-{
-	data: u32,
-	_rsvd: [u32,..3],
-}
-
 impl ACPI_MADT
 {
 	pub fn records(&self, len: uint) -> MADTRecords

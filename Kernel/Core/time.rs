@@ -5,7 +5,7 @@
 
 pub fn ticks() -> u64
 {
-	0
+	::arch::cur_timestamp()
 }
 
 // vim: ft=rust

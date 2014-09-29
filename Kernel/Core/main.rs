@@ -70,11 +70,6 @@ pub extern "C" fn kmain()
 	loop
 	{
 		::threads::reschedule();
-		unsafe {
-			let mut ef: u64;
-			asm!("pushf\npop $0" : "=r" (ef));
-			log_debug!("EFLAGS = {:#x}", ef);
-		}
 		log_trace!("TID0 napping");
 		::arch::idle();
 	}

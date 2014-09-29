@@ -132,27 +132,21 @@ BLANKINT i
 %assign i i+1
 %endrep
 IRQCommon:
+	;int3
 	API_SAVE
 	; Handle
 	mov rcx, IrqHandlers
 	mov rax, [rcx+rbx+0]
 	test rax, rax
 	jz .r
-	mov rax, [rcx+rbx+8]
-	mov rdi, [rcx+rbx+16]
-	call rax
-	; Cleanup
-	mov rsi, rax
-	mov rdi, rbx
-	shr rdi, 5	; Div 32
-	mov rcx, IrqHandlers
-	mov rax, [rcx+rbx+24]
-	test rax, rax
-	jz .r
+	mov rax, [rcx+rbx+8]	; 'callback'
+	mov rdi, rbx	; ISR Num
+	shr rdi, 5	; Div 5
+	mov rsi, [rcx+rbx+16]	; 'info'
+	mov rdx, [rcx+rbx+24]	; 'idx'
 	call rax
 .r:
 	API_RESTORE
-	int3
 	pop rbx
 	iretq
 

@@ -1,8 +1,8 @@
 //
 //
 //
+use _common::*;
 use core::ptr::RawPtr;
-use core::result::{Result,Ok,Err};
 use super::{puts,puth};
 
 #[repr(C)]
@@ -21,13 +21,16 @@ pub struct InterruptRegs
 	rflags: u64, rsp: u64, ss: u64,
 }
 
+pub type ISRHandler = extern "C" fn(isrnum: uint,info:*const(),idx:uint);
+
 #[repr(C)]
 struct IRQHandlersEnt
 {
 	bound: bool,
-	handler: fn(*const()),
+	// 
+	handler: ISRHandler,
 	info: *const(),
-	cleanup: extern "C" fn(uint, bool),
+	idx: uint,
 }
 
 #[deriving(Default)]
@@ -55,7 +58,42 @@ pub extern "C" fn error_handler(regs: &InterruptRegs)
 	puts("RDX "); puth(regs.rdx as uint); puts("  RBX "); puth(regs.rbx as uint); puts("\n");
 	if regs.intnum != 3
 	{
+		let bp = regs.rbp;
+		while_let!( Some((newbp, ip)) = backtrace(bp)
+		{
+			puts(" > "); puth(ip as uint);
+		})
+		puts("\n");
 		loop {}
+	}
+}
+
+fn backtrace(bp: u64) -> Option<(u64,u64)>
+{
+	if bp == 0 {
+		return None;
+	}
+	if bp % 8 != 0 {
+		return None;
+	}
+	if ! ::memory::buf_valid(bp as *const (), 16) {
+		return None;
+	}
+	
+	// [rbp] = oldrbp, [rbp+8] = IP
+	unsafe
+	{
+		let ptr: *const [u64,..2] = ::core::mem::transmute(bp);
+		let newbp = (*ptr)[0];
+		let newip = (*ptr)[1];
+		// Check validity of output BP, must be > old BP (upwards on the stack)
+		// - If not, return 0 (which will cause a break next loop)
+		if newbp <= bp {
+			Some( (0, newip) )
+		}
+		else {
+			Some( (newbp, newip) )
+		}
 	}
 }
 
@@ -68,10 +106,12 @@ fn get_cr2() -> u64
 	}
 }
 
-
-pub fn bind_isr(cpu_num: int, isr: u8, callback: fn (*const ()), info: *const(), cleanup: extern "C" fn(uint,bool)) -> Result<ISRHandle,()>
+/// Bind a callback (and params) to an allocatable ISR
+pub fn bind_isr(isr: u8, callback: ISRHandler, info: *const(), idx: uint) -> Result<ISRHandle,()>
 {
-	log_trace!("bind_isr(cpu_num={},isr={},callback={},info={})", cpu_num, isr, callback as *const u8, info);
+	log_trace!("bind_isr(isr={},callback={},info={},idx={})",
+		isr, callback as *const u8, info, idx);
+	// TODO: Validate if the requested ISR slot is valid (i.e. it's one of the allocatable ones)
 	// 1. Check that this ISR slot on this CPU isn't taken
 	let _mh = unsafe { s_irq_handlers_lock.lock() };
 	let h = unsafe { &mut IrqHandlers[isr as uint] };
@@ -79,12 +119,12 @@ pub fn bind_isr(cpu_num: int, isr: u8, callback: fn (*const ()), info: *const(),
 	if h.bound {
 		return Err( () );
 	}
-	h.bound = true;
-	// 2. Create a new ISR on the heap, populated with the callback and info ptr
-	// 3. And assign that to the ISR slot
-	h.handler = callback;
-	h.info = info;
-	h.cleanup = cleanup;
+	*h = IRQHandlersEnt {
+		bound: true,
+		handler: callback,
+		info: info,
+		idx: idx,
+		};
 	Ok( ISRHandle {
 		idx: isr as uint,
 		} )
