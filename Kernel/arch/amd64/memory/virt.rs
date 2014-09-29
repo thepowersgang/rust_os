@@ -3,6 +3,7 @@
 //
 use core::ptr::RawPtr;
 use super::{PAddr};
+use PAGE_SIZE;
 
 static MASK_VBITS : uint = 0x0000FFFF_FFFFFFFF;
 
@@ -26,7 +27,7 @@ unsafe fn get_entry(level: u8, index: uint, force_allocate: bool) -> PTE
 {
 	use arch::memory::addresses::fractal_base;
 	
-	let pt_page = (fractal_base & MASK_VBITS) / ::PAGE_SIZE;
+	let pt_page = (fractal_base & MASK_VBITS) / PAGE_SIZE;
 	let tab_pt = fractal_base as *mut u64;
 	let tab_pd = tab_pt.offset( pt_page as int );
 	let tab_pdp = tab_pd.offset( (pt_page >> (9)) as int );
@@ -76,7 +77,7 @@ unsafe fn get_entry(level: u8, index: uint, force_allocate: bool) -> PTE
 unsafe fn get_page_ent(addr: uint, from_temp: bool, allocate: bool, large_ok: bool) -> PTE
 {
 	assert!( from_temp == false );
-	let pagenum = (addr & MASK_VBITS) / ::PAGE_SIZE;
+	let pagenum = (addr & MASK_VBITS) / PAGE_SIZE;
 //	log_trace!("get_page_ent(addr={:#x}, from_temp={}, allocate={}), pagenum={:#x}", addr, from_temp, allocate, pagenum);
 
 	let mut ent = get_entry(3, pagenum >> (9*3), allocate);
