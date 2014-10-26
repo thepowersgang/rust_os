@@ -7,7 +7,7 @@ use _common::*;
 //use arch::memory::addresses::{physinfo_start, physinfo_end};
 use arch::memory::PAddr;
 
-static NOPAGE : PAddr = 1;
+const NOPAGE : PAddr = 1;
 
 static mut s_mem_map : Option<&'static [::memory::MemoryMapEnt]> = None;
 static mut s_mapalloc : ::sync::Mutex<(uint,PAddr)> = mutex_init!( (0,0) );

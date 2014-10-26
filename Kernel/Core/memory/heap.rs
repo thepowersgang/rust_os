@@ -246,7 +246,7 @@ impl HeapDef
 	{
 		let use_prev =
 			if self.start.is_null() {
-				let base = ::arch::memory::addresses::heap_start;
+				let base = ::arch::memory::addresses::HEAP_START;
 				self.start = base as *mut HeapHead;
 				// note: Evil hack, set last_foot to invalid memory (it's only used for .next_head())
 				self.last_foot = (base as *mut HeapFoot).offset(-1);

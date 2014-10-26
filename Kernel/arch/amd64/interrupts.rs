@@ -2,7 +2,6 @@
 //
 //
 use _common::*;
-use core::ptr::RawPtr;
 use super::{puts,puth};
 
 #[repr(C)]
@@ -46,7 +45,6 @@ extern "C"
 }
 
 #[no_mangle]
-#[allow(visible_private_types)]
 pub extern "C" fn error_handler(regs: &InterruptRegs)
 {
 	puts("Error happened!\n");
@@ -58,11 +56,12 @@ pub extern "C" fn error_handler(regs: &InterruptRegs)
 	puts("RDX "); puth(regs.rdx as uint); puts("  RBX "); puth(regs.rbx as uint); puts("\n");
 	if regs.intnum != 3
 	{
-		let bp = regs.rbp;
-		while_let!( Some((newbp, ip)) = backtrace(bp)
+		let mut bp = regs.rbp;
+		while let Some((newbp, ip)) = backtrace(bp)
 		{
 			puts(" > "); puth(ip as uint);
-		})
+			bp = newbp;
+		}
 		puts("\n");
 		loop {}
 	}

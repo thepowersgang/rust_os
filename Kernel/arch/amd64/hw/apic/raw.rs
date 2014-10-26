@@ -28,6 +28,7 @@ struct IOAPICRegs
 	mapping: ::memory::virt::AllocHandle,
 }
 
+#[allow(dead_code)]
 #[deriving(Show)]
 pub enum TriggerMode
 {
@@ -37,6 +38,7 @@ pub enum TriggerMode
 	TriggerEdgeLow,
 }
 
+#[allow(dead_code)]
 #[repr(C)]
 enum ApicRegisters
 {
@@ -124,6 +126,11 @@ impl LAPIC
 		self.write_reg(ApicReg_InitCount as uint, 0x100000);
 		self.write_reg(ApicReg_TmrDivide as uint, 3);	// Timer Divide = 16
 		self.write_reg(ApicReg_LVTTimer as uint, TIMER_VEC as u32);	// Enable Timer
+		self.write_reg(ApicReg_LVTThermalSensor as uint, 0);	// "Disable" Thermal Sensor
+		self.write_reg(ApicReg_LVTPermCounters as uint, 0);	// "Disable" ? Counters
+		self.write_reg(ApicReg_LVT_LINT0 as uint, 0);	// "Disable" LINT0
+		self.write_reg(ApicReg_LVT_LINT1 as uint, 0);	// "Disable" LINT1
+		self.write_reg(ApicReg_LVT_Error as uint, 0);	// "Disable" Error
 		// EOI - Just to make sure
 		self.eoi(0);
 		unsafe {
@@ -216,13 +223,13 @@ impl IOAPIC
 		self.handlers[idx].unwrap()
 	}
 	
-	pub fn eoi(&mut self, idx: uint)
+	pub fn eoi(&mut self, _idx: uint)
 	{
 		// TODO: EOI in IOAPIC
 	}
 	pub fn set_irq(&mut self, idx: uint, vector: u8, apic: uint, mode: TriggerMode, cb: super::IRQHandler)
 	{
-		let mut rh = self.regs.lock();
+		let rh = self.regs.lock();
 		log_trace!("set_irq(idx={},vector={},apic={},mode={})", idx, vector, apic, mode);
 		log_debug!("Info = {:#x}", (*rh).read(0x10 + idx*2));
 		assert!( idx < self.num_lines );
@@ -239,14 +246,14 @@ impl IOAPIC
 	}
 	pub fn disable_irq(&mut self, idx: uint)
 	{
-		let mut rh = self.regs.lock();
+		let rh = self.regs.lock();
 		log_debug!("Disable {}: Info = {:#x}", idx, (*rh).read(0x10 + idx*2));
 		(*rh).write(0x10 + idx*2 + 0, 1<<16);
 	}
 
 	pub fn get_irq_reg(&mut self, idx: uint) -> u64
 	{
-		let mut rh = self.regs.lock();
+		let rh = self.regs.lock();
 		
 		((*rh).read(0x10 + idx*2 + 0) as u64) | ((*rh).read(0x10 + idx*2 + 1) as u64 << 32)
 	}

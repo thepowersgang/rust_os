@@ -12,7 +12,7 @@ pub enum MemoryState
 	StateFree,
 }
 
-pub static MAP_PAD: MemoryMapEnt = MemoryMapEnt {
+pub const MAP_PAD: MemoryMapEnt = MemoryMapEnt {
 	start: 0,
 	size: 0,
 	state: StateReserved,

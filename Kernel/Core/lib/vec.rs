@@ -3,7 +3,7 @@
 //
 use core::iter::range;
 use core::iter::{FromIterator,Iterator};
-use core::slice::{Slice,ImmutableSlice,MutableSlice,Items,MutItems};
+use core::slice::{AsSlice,ImmutableSlice,MutableSlice,Items,MutItems};
 use core::option::{Option,Some,None};
 use core::ptr::RawPtr;
 use core::num::Int;
@@ -129,7 +129,7 @@ impl<T> Index<uint, T> for Vec<T>
 	}
 }
 
-impl<T> ::core::slice::Slice<T> for Vec<T>
+impl<T> ::core::slice::AsSlice<T> for Vec<T>
 {
 	fn as_slice<'a>(&'a self) -> &'a [T]
 	{

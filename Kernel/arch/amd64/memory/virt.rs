@@ -25,10 +25,10 @@ struct PTE
 
 unsafe fn get_entry(level: u8, index: uint, force_allocate: bool) -> PTE
 {
-	use arch::memory::addresses::fractal_base;
+	use arch::memory::addresses::FRACTAL_BASE;
 	
-	let pt_page = (fractal_base & MASK_VBITS) / PAGE_SIZE;
-	let tab_pt = fractal_base as *mut u64;
+	let pt_page = (FRACTAL_BASE & MASK_VBITS) / PAGE_SIZE;
+	let tab_pt = FRACTAL_BASE as *mut u64;
 	let tab_pd = tab_pt.offset( pt_page as int );
 	let tab_pdp = tab_pd.offset( (pt_page >> (9)) as int );
 	let tab_pml4 = tab_pdp.offset( (pt_page >> (9+9)) as int );

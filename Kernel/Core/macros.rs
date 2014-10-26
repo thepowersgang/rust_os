@@ -27,10 +27,10 @@ macro_rules! module_define_int
 		pub static mut _s_module: ::modules::ModuleInfo = ::modules::ModuleInfo {
 			name: stringify!($name),
 			init: $init,
-			deps: &s_deps,
+			deps: &S_DEPS,
 			_rsvd: 0,
 		};
-		static s_deps: [&'static str, ..($count)] = $deps;
+		static S_DEPS: [&'static str, ..($count)] = $deps;
 	);
 }
 

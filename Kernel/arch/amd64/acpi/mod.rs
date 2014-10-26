@@ -175,11 +175,11 @@ pub fn find<T:'static>(req_name: &'static str) -> Vec<SDTHandle<T>>
 fn get_rsdp() -> Option<&'static RSDP>
 {
 	unsafe {
-	let ebda_ver = locate_rsdp((::arch::memory::addresses::ident_start + 0x9FC00) as *const u8, 0x400);
+	let ebda_ver = locate_rsdp((::arch::memory::addresses::IDENT_START + 0x9FC00) as *const u8, 0x400);
 	if !ebda_ver.is_null() {
 		return ebda_ver.as_ref();
 	}
-	let bios_ver = locate_rsdp((::arch::memory::addresses::ident_start + 0xE0000) as *const u8, 0x20000);
+	let bios_ver = locate_rsdp((::arch::memory::addresses::IDENT_START + 0xE0000) as *const u8, 0x20000);
 	if !bios_ver.is_null() {
 		return bios_ver.as_ref();
 	}

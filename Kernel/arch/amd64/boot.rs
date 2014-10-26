@@ -4,7 +4,7 @@
 // arch/amd64/boot.rs
 // - Boot information
 use _common::*;
-use super::memory::addresses::{ident_start, ident_end};
+use super::memory::addresses::{IDENT_START, IDENT_END};
 
 #[repr(C)]
 struct MultibootInfo
@@ -145,7 +145,7 @@ impl MultibootParsed
 {
 	pub fn new(info: &MultibootInfo) -> MultibootParsed
 	{
-		let loader_ptr = (info.boot_loader_name as uint + ident_start) as *const i8;
+		let loader_ptr = (info.boot_loader_name as uint + IDENT_START) as *const i8;
 		log_debug!("loader_ptr = {}", loader_ptr);
 		let loader_name = if (info.flags & 1 << 9) != 0 && ::memory::c_string_valid(loader_ptr) {
 				unsafe{ ::core::str::raw::c_str_to_static_slice( loader_ptr ) }
@@ -170,12 +170,12 @@ impl MultibootParsed
 		}
 		
 		let cmdline_paddr = info.cmdline as uint;
-		if cmdline_paddr + ident_start >= ident_end {
+		if cmdline_paddr + IDENT_START >= IDENT_END {
 			return "";
 		}
 		
 		unsafe {
-			let charptr = (cmdline_paddr + ident_start) as *const i8;
+			let charptr = (cmdline_paddr + IDENT_START) as *const i8;
 			::core::str::raw::c_str_to_static_slice( charptr )
 		}
 	}
@@ -187,8 +187,8 @@ impl MultibootParsed
 			return None;
 		}
 		
-		let vbeinfo_vaddr = info.vbe_mode_info as uint + ident_start;
-		if vbeinfo_vaddr + ::core::mem::size_of::<VbeModeInfo>() > ident_end {
+		let vbeinfo_vaddr = info.vbe_mode_info as uint + IDENT_START;
+		if vbeinfo_vaddr + ::core::mem::size_of::<VbeModeInfo>() > IDENT_END {
 			return None;
 		}
 		
@@ -228,9 +228,9 @@ impl MultibootParsed
 			assert!( mapbuilder.validate() );
 			
 			// 2. Clobber out kernel, modules, and strings
-			mapbuilder.set_range( 0x100000, &::arch::v_kernel_end as *const() as u64 - ident_start as u64 - 0x10000,
+			mapbuilder.set_range( 0x100000, &::arch::v_kernel_end as *const() as u64 - IDENT_START as u64 - 0x10000,
 				::memory::StateUsed, 0 ).unwrap();
-			mapbuilder.set_range( self.cmdline.as_ptr() as u64 - ident_start as u64, self.cmdline.len() as u64,
+			mapbuilder.set_range( self.cmdline.as_ptr() as u64 - IDENT_START as u64, self.cmdline.len() as u64,
 				::memory::StateUsed, 0 ).unwrap();
 			
 			mapbuilder.size()

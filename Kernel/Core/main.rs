@@ -5,12 +5,13 @@
 // - Kernel main
 #![no_std]
 #![feature(phase)]
-#![feature(macro_rules,asm)]#![feature(trace_macros)]
+#![feature(macro_rules,asm)]
 #![feature(unsafe_destructor)]
 #![feature(thread_local)]
 #![feature(globs)]
 #![feature(concat_idents)]
 #![feature(lang_items)]
+#![feature(while_let)]
 
 #[phase(plugin, link)] extern crate core;
 

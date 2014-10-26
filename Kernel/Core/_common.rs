@@ -8,7 +8,7 @@
 pub use core::iter::{range,range_step};
 pub use core::iter::{Iterator,DoubleEndedIterator};
 pub use core::collections::{Collection};
-pub use core::slice::{Slice,ImmutableSlice,MutableSlice};
+pub use core::slice::{AsSlice,ImmutableSlice,MutableSlice};
 pub use core::str::StrSlice;
 pub use core::default::Default;
 pub use core::option::{Option,Some,None};

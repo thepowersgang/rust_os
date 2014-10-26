@@ -35,7 +35,7 @@ pub struct WaitQueue
 	first: Option<ThreadHandle>,
 	last: Option<ThreadHandle>
 }
-pub static WAITQUEUE_INIT: WaitQueue = WaitQueue {first: None, last: None};
+pub const WAITQUEUE_INIT: WaitQueue = WaitQueue {first: None, last: None};
 
 // ----------------------------------------------
 // Statics

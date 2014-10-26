@@ -116,10 +116,10 @@ fn map_hw(phys: PAddr, count: uint, readonly: bool, module: &'static str) -> Res
 	// 1. Locate an area
 	// TODO: This lock should be replaced with a finer grained lock
 	let _lock = unsafe { s_kernelspace_lock.lock() };
-	let mut pos = addresses::hardware_base;
+	let mut pos = addresses::HARDWARE_BASE;
 	loop
 	{
-		if addresses::hardware_end - pos < count * ::PAGE_SIZE 
+		if addresses::HARDWARE_END - pos < count * ::PAGE_SIZE 
 		{
 			return Err( () );
 		}
