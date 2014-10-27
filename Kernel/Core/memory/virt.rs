@@ -111,7 +111,7 @@ pub fn map_hw_rw(phys: PAddr, count: uint, module: &'static str) -> Result<Alloc
 	map_hw(phys, count, false, module)
 }
 
-fn map_hw(phys: PAddr, count: uint, readonly: bool, module: &'static str) -> Result<AllocHandle,()>
+fn map_hw(phys: PAddr, count: uint, readonly: bool, _module: &'static str) -> Result<AllocHandle,()>
 {
 	// 1. Locate an area
 	// TODO: This lock should be replaced with a finer grained lock

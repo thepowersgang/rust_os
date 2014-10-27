@@ -22,7 +22,8 @@ struct HeapDef
 	first_free: *mut HeapHead,
 }
 
-#[deriving(Show)]
+#[allow(raw_pointer_deriving)]
+#[deriving(Show)]	// RawPtr Show is the address
 enum HeapState
 {
 	HeapFree(*mut HeapHead),
@@ -109,11 +110,10 @@ impl HeapDef
 	pub unsafe fn allocate(&mut self, size: uint) -> Option<*mut ()>
 	{
 		// This would be static, if CTFE was avalible
-		//#[allow(non_snake_case)]
-		let HEADERS_SIZE = ::core::mem::size_of::<HeapHead>() + ::core::mem::size_of::<HeapFoot>();
+		let headers_size = ::core::mem::size_of::<HeapHead>() + ::core::mem::size_of::<HeapFoot>();
 		
 		// 1. Round size up to closest heap block size
-		let blocksize = ::lib::num::round_up(size + HEADERS_SIZE, 32);
+		let blocksize = ::lib::num::round_up(size + headers_size, 32);
 		log_debug!("allocate(size={}) blocksize={}", size, blocksize);
 		// 2. Locate a free location
 		// Check all free blocks for one that would fit this allocation
@@ -137,7 +137,7 @@ impl HeapDef
 			let fb = &mut *opt_fb;
 			let next = match fb.state { HeapFree(n)=> n, _ => fail!("Non-free block in free list") };
 			// Split block (if needed)
-			if fb.size > blocksize + HEADERS_SIZE
+			if fb.size > blocksize + headers_size
 			{
 				let far_foot = fb.foot() as *mut _;
 				let far_size = fb.size - blocksize;

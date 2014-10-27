@@ -132,7 +132,8 @@ impl WaitQueue
 			self.first = Some(cur);
 			self.last = Some(cur);
 		}
-		cur.borrow_mut().run_state = StateListWait(self as *mut _ as *const _);	// Keep rawptr kicking around for debug purposes
+		// - Keep rawptr kicking around for debug purposes
+		cur.borrow_mut().run_state = StateListWait(self as *mut _ as *const _);
 		// Unlock handle (short spinlocks disable interrupts)
 		{ let _ = lock_handle; }
 		// 4. Reschedule, and should return with state changed to run
