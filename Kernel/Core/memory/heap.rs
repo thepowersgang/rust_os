@@ -41,7 +41,9 @@ struct HeapFoot
 	head: *mut HeapHead,
 }
 
-static MAGIC: uint = 0x71ff11A1;
+// Curse no CTFE
+//const HEADERS_SIZE: uint = ::core::mem::size_of::<HeapHead>() + ::core::mem::size_of::<HeapFoot>();
+const MAGIC: uint = 0x71ff11A1;
 // --------------------------------------------------------
 // Globals
 //#[link_section(process_local)] static s_local_heap : ::sync::Mutex<HeapDef> = mutex_init!(HeapDef{head:None});

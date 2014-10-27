@@ -3,6 +3,11 @@
 //
 #![macro_escape]
 
+macro_rules! is
+{
+	($val:expr, $p:pat) => ( match $val { $p => true, _ => false } );
+}
+
 macro_rules! while_let
 {
 	($p:pat = $e:expr $code:block) => ( loop { match $e { $p => {$code}, _ => break } } );

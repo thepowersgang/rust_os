@@ -11,10 +11,11 @@ use lib::Queue;
 
 pub type ThreadHandle = Rc<RefCell<Thread>>;
 
-#[deriving(PartialEq)]
+//#[deriving(PartialEq)]
 enum RunState
 {
 	StateRunnable,
+	StateListWait(*const WaitQueue),
 	StateEventWait(u32),
 	StateDead(u32),
 }
@@ -28,6 +29,7 @@ struct Thread
 	run_state: RunState,
 	
 	cpu_state: ::arch::threads::State,
+	next: Option<ThreadHandle>,
 }
 
 pub struct WaitQueue
@@ -89,7 +91,7 @@ fn get_thread_to_run() -> Option<Rc<RefCell<Thread>>>
 		let cur = get_cur_thread();
 		if handle.empty()
 		{
-			if cur.borrow().run_state == StateRunnable {
+			if is!(cur.borrow().run_state, StateRunnable) {
 				Some(cur)
 			}
 			else {
@@ -99,12 +101,56 @@ fn get_thread_to_run() -> Option<Rc<RefCell<Thread>>>
 		else
 		{
 			// 1. Put current thread on run queue (if needed)
-			if cur.borrow().run_state == StateRunnable {
+			if is!(cur.borrow().run_state, StateRunnable) {
 				log_trace!("Push current");
 				handle.push(cur);
 			}
 			// 2. Pop off a new thread
 			handle.pop()
+		}
+	}
+}
+
+impl WaitQueue
+{
+	pub fn wait<'a>(&mut self, lock_handle: ::arch::sync::HeldSpinlock<'a,bool>)
+	{
+		// 1. Lock global list?
+		let cur = get_cur_thread();
+		assert!(cur.borrow().next.is_none());
+		// 2. Tack thread onto end
+		if self.first.is_some()
+		{
+			assert!(self.last.is_some());
+			let mut last_ref = self.last.as_ref().unwrap().borrow_mut();
+			assert!(last_ref.next.is_none());
+			last_ref.next = Some(cur);
+		}
+		else
+		{
+			assert!(self.last.is_none());
+			self.first = Some(cur);
+			self.last = Some(cur);
+		}
+		cur.borrow_mut().run_state = StateListWait(self as *mut _ as *const _);	// Keep rawptr kicking around for debug purposes
+		// Unlock handle (short spinlocks disable interrupts)
+		{ let _ = lock_handle; }
+		// 4. Reschedule, and should return with state changed to run
+		reschedule();
+		assert!( !is!(cur.borrow().run_state, StateListWait(_)) );
+		assert!( is!(cur.borrow().run_state, StateRunnable) );
+	}
+	pub fn wake_one(&mut self)
+	{
+		match self.first.take()
+		{
+		Some(t) => {
+			self.first = t.borrow_mut().next.take();
+			if self.first.is_none() {
+				self.last = None;
+			}
+			},
+		None => {},
 		}
 	}
 }

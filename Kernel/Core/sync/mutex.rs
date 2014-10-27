@@ -32,15 +32,19 @@ impl<T> Mutex<T>
 			let mut held = self.locked_held.lock();
 			if *held != false
 			{
-				fail!("TODO: Mutex.lock wait");
+				self.queue.wait(held);
 			}
-			*held = true;
+			else
+			{
+				*held = true;
+			}
 		}
 		return HeldMutex { lock: self };
 	}
 	pub fn unlock(&mut self) {
 		let mut held = self.locked_held.lock();
 		*held = false;
+		self.queue.wake_one();
 		// TODO: Wake anything waiting
 	}
 }
