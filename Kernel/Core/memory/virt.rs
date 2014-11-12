@@ -30,7 +30,9 @@ pub struct AllocHandle
 }
 
 #[link_section=".process_local"]
+#[allow(non_upper_case_globals)]
 static s_userspace_lock : ::sync::Mutex<()> = mutex_init!( () );
+#[allow(non_upper_case_globals)]
 static s_kernelspace_lock : ::sync::Mutex<()> = mutex_init!( () );
 
 pub fn init()
@@ -79,7 +81,7 @@ pub fn map(addr: *mut (), phys: PAddr, prot: ProtectionMode)
 fn unmap(addr: *mut (), count: uint)
 {
 	log_trace!("unmap(*{} {})", addr, count);
-	let _lock = unsafe { s_kernelspace_lock.lock() };
+	let _lock = s_kernelspace_lock.lock();
 	let pos = addr as uint;
 	
 	{
@@ -115,7 +117,7 @@ fn map_hw(phys: PAddr, count: uint, readonly: bool, _module: &'static str) -> Re
 {
 	// 1. Locate an area
 	// TODO: This lock should be replaced with a finer grained lock
-	let _lock = unsafe { s_kernelspace_lock.lock() };
+	let _lock = s_kernelspace_lock.lock();
 	let mut pos = addresses::HARDWARE_BASE;
 	loop
 	{

@@ -48,6 +48,7 @@ const MAGIC: uint = 0x71ff11A1;
 // --------------------------------------------------------
 // Globals
 //#[link_section(process_local)] static s_local_heap : ::sync::Mutex<HeapDef> = mutex_init!(HeapDef{head:None});
+#[allow(non_upper_case_globals)]
 static s_global_heap : ::sync::Mutex<HeapDef> = mutex_init!(HeapDef{start:0 as*mut _, last_foot:0 as*mut _, first_free:0 as*mut _});
 
 // --------------------------------------------------------

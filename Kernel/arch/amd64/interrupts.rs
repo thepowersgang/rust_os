@@ -38,6 +38,7 @@ pub struct ISRHandle
 	idx: uint,
 }
 
+#[allow(non_upper_case_globals)]
 static s_irq_handlers_lock: ::sync::Mutex<()> = mutex_init!( () );
 extern "C"
 {
@@ -112,7 +113,7 @@ pub fn bind_isr(isr: u8, callback: ISRHandler, info: *const(), idx: uint) -> Res
 		isr, callback as *const u8, info, idx);
 	// TODO: Validate if the requested ISR slot is valid (i.e. it's one of the allocatable ones)
 	// 1. Check that this ISR slot on this CPU isn't taken
-	let _mh = unsafe { s_irq_handlers_lock.lock() };
+	let _mh = s_irq_handlers_lock.lock();
 	let h = unsafe { &mut IrqHandlers[isr as uint] };
 	log_trace!("&h = {}", h as *mut _);
 	if h.bound {
@@ -138,7 +139,7 @@ impl ::core::ops::Drop for ISRHandle
 {
 	fn drop(&mut self)
 	{
-		let _mh = unsafe { s_irq_handlers_lock.lock() };
+		let _mh = s_irq_handlers_lock.lock();
 		let h = unsafe { &mut IrqHandlers[self.idx] };
 		h.bound = false;
 	}

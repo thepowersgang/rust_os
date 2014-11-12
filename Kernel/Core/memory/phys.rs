@@ -10,8 +10,10 @@ use arch::memory::PAddr;
 const NOPAGE : PAddr = 1;
 
 static mut s_mem_map : Option<&'static [::memory::MemoryMapEnt]> = None;
+#[allow(non_upper_case_globals)]
 static s_mapalloc : ::sync::Mutex<(uint,PAddr)> = mutex_init!( (0,0) );
 // TODO: Multiple stacks based on page colouring
+#[allow(non_upper_case_globals)]
 static s_free_stack : ::sync::Mutex<PAddr> = mutex_init!( NOPAGE );
 
 pub fn init()

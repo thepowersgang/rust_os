@@ -5,10 +5,6 @@
 // - Thread management
 use _common::*;
 
-use lib::mem::Rc;
-use core::cell::RefCell;
-use lib::Queue;
-
 pub type ThreadHandle = Box<Thread>;
 
 //#[deriving(PartialEq)]
@@ -21,7 +17,6 @@ enum RunState
 }
 impl Default for RunState { fn default() -> RunState { StateRunnable } }
 
-#[deriving(Default)]
 pub struct Thread
 {
 	//name: String,
@@ -39,31 +34,34 @@ pub struct WaitQueue
 struct ThreadList
 {
 	first: Option<Box<Thread>>,
-	last: Option<*const Thread>
+	last: Option<*mut Thread>
 }
-pub const WAITQUEUE_INIT: WaitQueue = WaitQueue { list: ThreadList {first: None, last: None} };
+const THREADLIST_INIT: ThreadList = ThreadList {first: None, last: None};
+pub const WAITQUEUE_INIT: WaitQueue = WaitQueue { list: THREADLIST_INIT };
 
 // ----------------------------------------------
 // Statics
 //static s_all_threads:	::sync::Mutex<Map<uint,*const Thread>> = mutex_init!("s_all_threads", Map{});
-static s_runnable_threads: ::sync::Spinlock<Queue<Box<Thread>>> = spinlock_init!(queue_init!());
+#[allow(non_upper_case_globals)]
+static s_runnable_threads: ::sync::Spinlock<ThreadList> = spinlock_init!(THREADLIST_INIT);
 
 // ----------------------------------------------
 // Code
 pub fn init()
 {
-	let tid0 = newthread(Thread {
-		tid: 0,
-		run_state: StateRunnable,
-		cpu_state: ::arch::threads::init_tid0_state(),
-		..Default::default()
-		});
+	let mut tid0 = newthread();
+	tid0.cpu_state = ::arch::threads::init_tid0_state();
 	::arch::threads::set_thread_ptr( tid0 )
 }
 
-pub fn newthread(t: Thread) -> Box<Thread>
+pub fn newthread() -> Box<Thread>
 {
-	let rv = box t;
+	let rv = box Thread {
+		tid: 0,
+		run_state: StateRunnable,
+		cpu_state: Default::default(),
+		next: None,
+		};
 	
 	// TODO: Add to global list of threads (removed on destroy)
 	
@@ -119,6 +117,18 @@ fn get_thread_to_run() -> Option<Box<Thread>>
 	}
 }
 
+//impl Thread
+//{
+//}
+
+//impl ::core::ops::Drop for Thread
+//{
+//	fn drop(&mut self)
+//	{
+//		// TODO: Remove self from the global thread map
+//	}
+//}
+
 impl ThreadList
 {
 	pub fn empty(&self) -> bool
@@ -129,7 +139,7 @@ impl ThreadList
 	{
 		match self.first.take()
 		{
-		Some(t) => {
+		Some(mut t) => {
 			self.first = t.next.take();
 			if self.first.is_none() {
 				self.last = None;
@@ -141,12 +151,15 @@ impl ThreadList
 	}
 	pub fn push(&mut self, t: Box<Thread>)
 	{
-		let ptr: *const Thread = unsafe { &*t };
+		assert!(t.next.is_none());
+		// Save a pointer to the allocation
+		let ptr = &*t as *const Thread as *mut Thread;
 		// 2. Tack thread onto end
 		if self.first.is_some()
 		{
 			assert!(self.last.is_some());
-			// Using unsafe and rawptr deref here is safe, because WaitQueue should be locked
+			// Using unsafe and rawptr deref here is safe, because WaitQueue should be
+			// locked (and nobody has any of the list items borrowed)
 			unsafe {
 				let last_ref = &mut *self.last.unwrap();
 				assert!(last_ref.next.is_none());
@@ -167,8 +180,7 @@ impl WaitQueue
 	pub fn wait<'a>(&mut self, lock_handle: ::arch::sync::HeldSpinlock<'a,bool>)
 	{
 		// 1. Lock global list?
-		let cur = get_cur_thread();
-		assert!(cur.next.is_none());
+		let mut cur = get_cur_thread();
 		// - Keep rawptr kicking around for debug purposes
 		cur.run_state = StateListWait(self as *mut _ as *const _);
 		self.list.push(cur);
@@ -186,7 +198,7 @@ impl WaitQueue
 	{
 		match self.list.pop()
 		{
-		Some(t) => {
+		Some(mut t) => {
 			t.run_state = StateRunnable;
 			s_runnable_threads.lock().push(t);
 			},

@@ -39,10 +39,10 @@ pub fn switch_to(newthread: Box<::threads::Thread>)
 		let outstate = &mut (*t_thread_ptr).cpu_state;
 		let state = &newthread.cpu_state;
 		task_switch(&mut outstate.rsp, state.rsp, state.cr3, state.tlsbase);
-		t_thread_ptr_sent = false;
 	}
 	unsafe
 	{
+		t_thread_ptr_sent = false;
 		::core::mem::forget(newthread);
 	}
 }
@@ -56,11 +56,18 @@ pub fn get_thread_ptr() -> Option<Box<::threads::Thread>>
 		::core::mem::transmute( t_thread_ptr )
 	}
 }
-pub fn set_thread_ptr(ptr: ::threads::ThreadHandle)
+pub fn set_thread_ptr(ptr: Box<::threads::Thread>)
 {
 	unsafe {
-		assert!( t_thread_ptr as uint == 0 );
-		t_thread_ptr = ::core::mem::transmute(ptr);
+		if t_thread_ptr as *const _ == &*ptr as *const _ {
+			assert!( !t_thread_ptr_sent );
+			t_thread_ptr_sent = false;
+		}
+		else {
+			assert!( t_thread_ptr as uint == 0 );
+			t_thread_ptr = ::core::mem::transmute(ptr);
+			t_thread_ptr_sent = false;
+		}
 	}
 }
 
