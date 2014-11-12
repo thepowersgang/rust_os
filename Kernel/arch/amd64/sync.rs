@@ -5,37 +5,34 @@
 // - Lightweight spinlock
 
 /// Lightweight protecting spinlock
-pub struct Spinlock<T>
+pub struct Spinlock<T: ::core::kinds::Sync>
 {
-	pub lock: uint,
-	pub value: T,
+	pub lock: ::core::atomic::AtomicBool,
+	pub value: ::core::cell::UnsafeCell<T>,
 }
 
 /// Handle to the held spinlock
-pub struct HeldSpinlock<'lock,T:'lock>
+pub struct HeldSpinlock<'lock,T:'lock+::core::kinds::Sync>
 {
 	lock: &'lock mut Spinlock<T>,
 	if_set: bool,
 }
 
-impl<T> Spinlock<T>
+impl<T: ::core::kinds::Sync> Spinlock<T>
 {
-	pub fn lock<'_self>(&'_self mut self) -> HeldSpinlock<'_self,T>
+	pub fn lock<'_self>(&'_self self) -> HeldSpinlock<'_self,T> {
+		unsafe {
+			(*(self as *const _ as *mut Spinlock<T>)).lock_impl()
+		}
+	}
+	fn lock_impl<'_self>(&'_self mut self) -> HeldSpinlock<'_self,T>
 	{
 		let if_set = unsafe {
 			let mut flags: uint;
 			asm!("pushf\npop $0\ncli" : "=r" (flags));
-			asm!("
-				1:
-				xchg $0, ($1)
-				test $0, $0
-				jnz 1
-				"
-				: 
-				: "r" (1u), "r"(&self.lock)
-				: "$0"
-				: "volatile"
-				);
+			while self.lock.compare_and_swap(false, true, ::core::atomic::Relaxed) == true
+			{
+			}
 			(flags & 0x200) != 0
 			};
 		//::arch::puts("Spinlock::lock() - Held\n");
@@ -45,7 +42,7 @@ impl<T> Spinlock<T>
 	pub fn release(&mut self, set_if: bool)
 	{
 		//::arch::puts("Spinlock::release()\n");
-		self.lock = 0;
+		self.lock.store(false, ::core::atomic::Relaxed);
 		if set_if {
 			unsafe { asm!("sti" : : : : "volatile"); }
 		}
@@ -53,7 +50,7 @@ impl<T> Spinlock<T>
 }
 
 #[unsafe_destructor]
-impl<'lock,T> ::core::ops::Drop for HeldSpinlock<'lock, T>
+impl<'lock,T: ::core::kinds::Sync> ::core::ops::Drop for HeldSpinlock<'lock, T>
 {
 	fn drop(&mut self)
 	{
@@ -61,16 +58,16 @@ impl<'lock,T> ::core::ops::Drop for HeldSpinlock<'lock, T>
 	}
 }
 
-impl<'lock,T> ::core::ops::Deref<T> for HeldSpinlock<'lock, T>
+impl<'lock,T: ::core::kinds::Sync> ::core::ops::Deref<T> for HeldSpinlock<'lock, T>
 {
 	fn deref<'a>(&'a self) -> &'a T {
-		&self.lock.value
+		unsafe { &*self.lock.value.get() }
 	}
 }
-impl<'lock,T> ::core::ops::DerefMut<T> for HeldSpinlock<'lock, T>
+impl<'lock,T: ::core::kinds::Sync> ::core::ops::DerefMut<T> for HeldSpinlock<'lock, T>
 {
 	fn deref_mut<'a>(&'a mut self) -> &'a mut T {
-		&mut self.lock.value
+		unsafe { &mut *self.lock.value.get() }
 	}
 }
 

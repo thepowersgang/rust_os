@@ -30,8 +30,8 @@ pub struct AllocHandle
 }
 
 #[link_section=".process_local"]
-static mut s_userspace_lock : ::sync::Mutex<()> = mutex_init!( () );
-static mut s_kernelspace_lock : ::sync::Mutex<()> = mutex_init!( () );
+static s_userspace_lock : ::sync::Mutex<()> = mutex_init!( () );
+static s_kernelspace_lock : ::sync::Mutex<()> = mutex_init!( () );
 
 pub fn init()
 {

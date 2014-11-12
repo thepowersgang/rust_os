@@ -1,5 +1,7 @@
 //
 //
+use core::option::Option;
+use lib::mem::Box;
 
 #[deriving(Default)]
 pub struct State
@@ -16,7 +18,9 @@ extern "C" {
 	fn task_switch(oldrsp: &mut u64, newrsp: u64, cr3: u64, tlsbase: u64);
 }
 #[thread_local]
-static mut t_thread_ptr: *mut () = 0 as *mut ();
+static mut t_thread_ptr: *mut ::threads::Thread = 0 as *mut _;
+#[thread_local]
+static mut t_thread_ptr_sent: bool = false;
 
 pub fn init_tid0_state() -> State
 {
@@ -27,19 +31,28 @@ pub fn init_tid0_state() -> State
 		}
 }
 
-pub fn switch_to(state: &State, outstate: &mut State)
+pub fn switch_to(newthread: Box<::threads::Thread>)
 {
 	unsafe
 	{
 		// TODO: Lazy save/restore SSE state
+		let outstate = &mut (*t_thread_ptr).cpu_state;
+		let state = &newthread.cpu_state;
 		task_switch(&mut outstate.rsp, state.rsp, state.cr3, state.tlsbase);
+		t_thread_ptr_sent = false;
+	}
+	unsafe
+	{
+		::core::mem::forget(newthread);
 	}
 }
 
-pub fn get_thread_ptr() -> ::threads::ThreadHandle
+pub fn get_thread_ptr() -> Option<Box<::threads::Thread>>
 {
 	unsafe {
 		assert!( t_thread_ptr as uint != 0 );
+		assert!( !t_thread_ptr_sent );
+		t_thread_ptr_sent = true;
 		::core::mem::transmute( t_thread_ptr )
 	}
 }

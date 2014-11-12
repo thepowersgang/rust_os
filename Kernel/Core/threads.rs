@@ -9,7 +9,7 @@ use lib::mem::Rc;
 use core::cell::RefCell;
 use lib::Queue;
 
-pub type ThreadHandle = Rc<RefCell<Thread>>;
+pub type ThreadHandle = Box<Thread>;
 
 //#[deriving(PartialEq)]
 enum RunState
@@ -22,44 +22,62 @@ enum RunState
 impl Default for RunState { fn default() -> RunState { StateRunnable } }
 
 #[deriving(Default)]
-struct Thread
+pub struct Thread
 {
 	//name: String,
 	tid: uint,
 	run_state: RunState,
 	
-	cpu_state: ::arch::threads::State,
-	next: Option<ThreadHandle>,
+	pub cpu_state: ::arch::threads::State,
+	next: Option<Box<Thread>>,
 }
 
 pub struct WaitQueue
 {
-	first: Option<ThreadHandle>,
-	last: Option<ThreadHandle>
+	list: ThreadList,
 }
-pub const WAITQUEUE_INIT: WaitQueue = WaitQueue {first: None, last: None};
+struct ThreadList
+{
+	first: Option<Box<Thread>>,
+	last: Option<*const Thread>
+}
+pub const WAITQUEUE_INIT: WaitQueue = WaitQueue { list: ThreadList {first: None, last: None} };
 
 // ----------------------------------------------
 // Statics
-//static s_all_threads:	::sync::Mutex<Map<ThreadHandle>> = mutex_init!("s_all_threads", Map{});
-static mut s_runnable_threads: ::sync::Spinlock<Queue<ThreadHandle>> = spinlock_init!(queue_init!());
+//static s_all_threads:	::sync::Mutex<Map<uint,*const Thread>> = mutex_init!("s_all_threads", Map{});
+static s_runnable_threads: ::sync::Spinlock<Queue<Box<Thread>>> = spinlock_init!(queue_init!());
 
 // ----------------------------------------------
 // Code
 pub fn init()
 {
-	let tid0 = Rc::new( RefCell::new(Thread {
+	let tid0 = newthread(Thread {
 		tid: 0,
 		run_state: StateRunnable,
 		cpu_state: ::arch::threads::init_tid0_state(),
 		..Default::default()
-		}) );
+		});
 	::arch::threads::set_thread_ptr( tid0 )
 }
 
-pub fn reschedule()
+pub fn newthread(t: Thread) -> Box<Thread>
 {
-	let cur = get_cur_thread();
+	let rv = box t;
+	
+	// TODO: Add to global list of threads (removed on destroy)
+	
+	rv
+}
+
+pub fn yield_time()
+{
+	s_runnable_threads.lock().push( get_cur_thread() );
+	reschedule();
+}
+
+fn reschedule()
+{
 	// 1. Get next thread
 	log_trace!("reschedule()");
 	let thread = get_thread_to_run();
@@ -67,47 +85,80 @@ pub fn reschedule()
 	{
 	::core::option::None => {
 		// Wait? How is there nothing to run?
-		log_debug!("it's none");
+		log_warning!("BUGCHECK: No runnable threads");
 		},
 	::core::option::Some(t) => {
 		// 2. Switch to next thread
-		log_debug!("Task switch to {:u}", t.borrow().tid);
-		if !t.is_same(&cur) {
-			::arch::threads::switch_to(&t.borrow().cpu_state, &mut cur.borrow_mut().cpu_state);
-		}
+		log_debug!("Task switch to {:u}", t.tid);
+		::arch::threads::switch_to(t);
 		}
 	}
 }
 
-fn get_cur_thread() -> Rc<RefCell<Thread>>
+fn get_cur_thread() -> Box<Thread>
 {
-	::arch::threads::get_thread_ptr()
+	::arch::threads::get_thread_ptr().unwrap()
+}
+fn rel_cur_thread(t: Box<Thread>)
+{
+	::arch::threads::set_thread_ptr(t)
 }
 
-fn get_thread_to_run() -> Option<Rc<RefCell<Thread>>>
+fn get_thread_to_run() -> Option<Box<Thread>>
 {
-	unsafe {
-		let mut handle = s_runnable_threads.lock();
-		let cur = get_cur_thread();
-		if handle.empty()
+	let mut handle = s_runnable_threads.lock();
+	if handle.empty()
+	{
+		// WTF? At least an idle thread should be ready
+		None
+	}
+	else
+	{
+		// 2. Pop off a new thread
+		handle.pop()
+	}
+}
+
+impl ThreadList
+{
+	pub fn empty(&self) -> bool
+	{
+		self.first.is_none()
+	}
+	pub fn pop(&mut self) -> Option<Box<Thread>>
+	{
+		match self.first.take()
 		{
-			if is!(cur.borrow().run_state, StateRunnable) {
-				Some(cur)
+		Some(t) => {
+			self.first = t.next.take();
+			if self.first.is_none() {
+				self.last = None;
 			}
-			else {
-				None
+			Some(t)
+			},
+		None => None
+		}
+	}
+	pub fn push(&mut self, t: Box<Thread>)
+	{
+		let ptr: *const Thread = unsafe { &*t };
+		// 2. Tack thread onto end
+		if self.first.is_some()
+		{
+			assert!(self.last.is_some());
+			// Using unsafe and rawptr deref here is safe, because WaitQueue should be locked
+			unsafe {
+				let last_ref = &mut *self.last.unwrap();
+				assert!(last_ref.next.is_none());
+				last_ref.next = Some(t);
 			}
 		}
 		else
 		{
-			// 1. Put current thread on run queue (if needed)
-			if is!(cur.borrow().run_state, StateRunnable) {
-				log_trace!("Push current");
-				handle.push(cur);
-			}
-			// 2. Pop off a new thread
-			handle.pop()
+			assert!(self.last.is_none());
+			self.first = Some(t);
 		}
+		self.last = Some(ptr);
 	}
 }
 
@@ -117,41 +168,29 @@ impl WaitQueue
 	{
 		// 1. Lock global list?
 		let cur = get_cur_thread();
-		assert!(cur.borrow().next.is_none());
-		// 2. Tack thread onto end
-		if self.first.is_some()
-		{
-			assert!(self.last.is_some());
-			let mut last_ref = self.last.as_ref().unwrap().borrow_mut();
-			assert!(last_ref.next.is_none());
-			last_ref.next = Some(cur);
-		}
-		else
-		{
-			assert!(self.last.is_none());
-			self.first = Some(cur);
-			self.last = Some(cur);
-		}
+		assert!(cur.next.is_none());
 		// - Keep rawptr kicking around for debug purposes
-		cur.borrow_mut().run_state = StateListWait(self as *mut _ as *const _);
+		cur.run_state = StateListWait(self as *mut _ as *const _);
+		self.list.push(cur);
 		// Unlock handle (short spinlocks disable interrupts)
 		{ let _ = lock_handle; }
 		// 4. Reschedule, and should return with state changed to run
 		reschedule();
-		assert!( !is!(cur.borrow().run_state, StateListWait(_)) );
-		assert!( is!(cur.borrow().run_state, StateRunnable) );
+		
+		let cur = get_cur_thread();
+		assert!( !is!(cur.run_state, StateListWait(_)) );
+		assert!( is!(cur.run_state, StateRunnable) );
+		rel_cur_thread(cur);
 	}
 	pub fn wake_one(&mut self)
 	{
-		match self.first.take()
+		match self.list.pop()
 		{
 		Some(t) => {
-			self.first = t.borrow_mut().next.take();
-			if self.first.is_none() {
-				self.last = None;
-			}
+			t.run_state = StateRunnable;
+			s_runnable_threads.lock().push(t);
 			},
-		None => {},
+		None => {}
 		}
 	}
 }

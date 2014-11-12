@@ -70,7 +70,7 @@ pub extern "C" fn kmain()
 	// Thread 0 idle loop
 	loop
 	{
-		::threads::reschedule();
+		::threads::yield_time();
 		log_trace!("TID0 napping");
 		::arch::idle();
 	}

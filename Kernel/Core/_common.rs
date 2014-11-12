@@ -17,6 +17,7 @@ pub use core::ops::{Drop,Deref,DerefMut};
 pub use core::cmp::PartialEq;
 pub use core::num::Int;
 
+pub use lib::mem::Box;
 pub use lib::vec::Vec;
 pub use lib::clone::Clone;
 pub use lib::collections::{MutableSeq};

@@ -38,7 +38,7 @@ pub struct ISRHandle
 	idx: uint,
 }
 
-static mut s_irq_handlers_lock: ::sync::Mutex<()> = mutex_init!( () );
+static s_irq_handlers_lock: ::sync::Mutex<()> = mutex_init!( () );
 extern "C"
 {
 	static mut IrqHandlers: [IRQHandlersEnt,..256];

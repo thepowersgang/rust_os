@@ -6,13 +6,13 @@
 pub struct Mutex<T>
 {
 	pub locked_held: ::sync::Spinlock<bool>,
-	pub queue: ::threads::WaitQueue,
-	pub val: T,
+	pub queue: ::core::cell::UnsafeCell<::threads::WaitQueue>,
+	pub val: ::core::cell::UnsafeCell<T>,
 }
 
 struct HeldMutex<'lock,T:'lock>
 {
-	lock: &'lock mut Mutex<T>
+	lock: &'lock Mutex<T>
 }
 
 impl<T> Mutex<T>
@@ -27,12 +27,12 @@ impl<T> Mutex<T>
 	}
 	*/
 	
-	pub fn lock(&mut self) -> HeldMutex<T> {
+	pub fn lock(&self) -> HeldMutex<T> {
 		{
 			let mut held = self.locked_held.lock();
 			if *held != false
 			{
-				self.queue.wait(held);
+				unsafe { (*self.queue.get()).wait(held) };
 			}
 			else
 			{
@@ -41,10 +41,10 @@ impl<T> Mutex<T>
 		}
 		return HeldMutex { lock: self };
 	}
-	pub fn unlock(&mut self) {
+	pub fn unlock(&self) {
 		let mut held = self.locked_held.lock();
 		*held = false;
-		self.queue.wake_one();
+		unsafe { (*self.queue.get()).wake_one() };
 		// TODO: Wake anything waiting
 	}
 }
@@ -59,21 +59,21 @@ impl<'lock,T> ::core::ops::Drop for HeldMutex<'lock,T>
 impl<'lock,T> ::core::ops::Deref<T> for HeldMutex<'lock,T>
 {
 	fn deref<'a>(&'a self) -> &'a T {
-		&self.lock.val
+		unsafe { &*self.lock.val.get() }
 	}
 }
 impl<'lock,T> ::core::ops::DerefMut<T> for HeldMutex<'lock,T>
 {
 	fn deref_mut<'a>(&'a mut self) -> &'a mut T {
-		&mut self.lock.val
+		unsafe { &mut *self.lock.val.get() }
 	}
 }
 
 #[macro_export]
 macro_rules! mutex_init( ($val:expr) => (::sync::mutex::Mutex{
 	locked_held: spinlock_init!(false),
-	queue: ::threads::WAITQUEUE_INIT,
-	val: $val,
+	queue: ::core::cell::UnsafeCell { value: ::threads::WAITQUEUE_INIT },
+	val: ::core::cell::UnsafeCell{ value: $val },
 	}) )
 
 // vim: ft=rust
