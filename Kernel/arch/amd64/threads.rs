@@ -66,8 +66,11 @@ pub fn set_thread_ptr(ptr: Box<::threads::Thread>)
 		else {
 			assert!( t_thread_ptr as uint == 0 );
 			t_thread_ptr = ::core::mem::transmute(ptr);
+			log_debug!("set_thread_ptr: t_thread_ptr = {}", t_thread_ptr);
 			t_thread_ptr_sent = false;
 		}
+		
+		log_debug!("set_thread_ptr: t_thread_ptr = {}, t_thread_ptr_sent = {}", t_thread_ptr, t_thread_ptr_sent);
 	}
 }
 

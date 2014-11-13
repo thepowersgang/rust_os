@@ -41,7 +41,7 @@ pub const WAITQUEUE_INIT: WaitQueue = WaitQueue { list: THREADLIST_INIT };
 
 // ----------------------------------------------
 // Statics
-//static s_all_threads:	::sync::Mutex<Map<uint,*const Thread>> = mutex_init!("s_all_threads", Map{});
+//static s_all_threads:	::sync::Mutex<Map<uint,*const Thread>> = mutex_init!(Map{});
 #[allow(non_upper_case_globals)]
 static s_runnable_threads: ::sync::Spinlock<ThreadList> = spinlock_init!(THREADLIST_INIT);
 
@@ -49,23 +49,9 @@ static s_runnable_threads: ::sync::Spinlock<ThreadList> = spinlock_init!(THREADL
 // Code
 pub fn init()
 {
-	let mut tid0 = newthread();
+	let mut tid0 = Thread::new_boxed();
 	tid0.cpu_state = ::arch::threads::init_tid0_state();
 	::arch::threads::set_thread_ptr( tid0 )
-}
-
-pub fn newthread() -> Box<Thread>
-{
-	let rv = box Thread {
-		tid: 0,
-		run_state: StateRunnable,
-		cpu_state: Default::default(),
-		next: None,
-		};
-	
-	// TODO: Add to global list of threads (removed on destroy)
-	
-	rv
 }
 
 pub fn yield_time()
@@ -87,7 +73,7 @@ fn reschedule()
 		},
 	::core::option::Some(t) => {
 		// 2. Switch to next thread
-		log_debug!("Task switch to {:u}", t.tid);
+		log_debug!("Task switch to {} {:u}", &*t as *const _, t.tid);
 		::arch::threads::switch_to(t);
 		}
 	}
@@ -117,17 +103,32 @@ fn get_thread_to_run() -> Option<Box<Thread>>
 	}
 }
 
-//impl Thread
-//{
-//}
+impl Thread
+{
+	pub fn new_boxed() -> Box<Thread>
+	{
+		let rv = box Thread {
+			tid: 0,
+			run_state: StateRunnable,
+			cpu_state: Default::default(),
+			next: None,
+			};
+		
+		// TODO: Add to global list of threads (removed on destroy)
+		log_debug!("Creating thread {} {:u}", &*rv as *const _, rv.tid);
+		
+		rv
+	}
+}
 
-//impl ::core::ops::Drop for Thread
-//{
-//	fn drop(&mut self)
-//	{
-//		// TODO: Remove self from the global thread map
-//	}
-//}
+impl ::core::ops::Drop for Thread
+{
+	fn drop(&mut self)
+	{
+		// TODO: Remove self from the global thread map
+		log_debug!("Destroying thread {:u}", self.tid);
+	}
+}
 
 impl ThreadList
 {
@@ -154,6 +155,7 @@ impl ThreadList
 		assert!(t.next.is_none());
 		// Save a pointer to the allocation
 		let ptr = &*t as *const Thread as *mut Thread;
+		log_debug!("Pushing thread {} {:u}", ptr, t.tid);
 		// 2. Tack thread onto end
 		if self.first.is_some()
 		{
@@ -183,9 +185,10 @@ impl WaitQueue
 		let mut cur = get_cur_thread();
 		// - Keep rawptr kicking around for debug purposes
 		cur.run_state = StateListWait(self as *mut _ as *const _);
+		// 2. Push current thread into waiting list
 		self.list.push(cur);
-		// Unlock handle (short spinlocks disable interrupts)
-		{ let _ = lock_handle; }
+		// 3. Unlock handle (short spinlocks disable interrupts)
+		::core::mem::drop(lock_handle);
 		// 4. Reschedule, and should return with state changed to run
 		reschedule();
 		

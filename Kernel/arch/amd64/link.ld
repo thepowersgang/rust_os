@@ -23,6 +23,7 @@ SECTIONS {
 	
 	.text ALIGN(0x1000): AT(ADDR(.text) - _kernel_base) {
 		*(.text)
+		*(.text.*)
 	}
 	
 	.usertext ALIGN(0x1000): AT(ADDR(.usertext) - _kernel_base) {
@@ -33,8 +34,10 @@ SECTIONS {
 	
 	.rodata ALIGN(0x1000): AT(ADDR(.rodata) - _kernel_base) {
 		*(.initpd)
-		*(.rodata .rodata.*)
+		*(.rodata)
+		*(.rodata.*)
 		*(.rdata)
+		*(.rdata.*)
 		
 		. = ALIGN(0x10);
 		modules_base = .;
@@ -44,18 +47,21 @@ SECTIONS {
 	
 	.ktls ALIGN (0x1000) : AT(ADDR(.ktls) - _kernel_base) {
 		*(.tbss)
+		*(.tbss.*)
 		tbss_top = .;
 	}
 	
 	.data ALIGN (0x1000) : AT(ADDR(.data) - _kernel_base) {
 		*(.padata)
 		*(.data)
+		*(.data.*)
 	}
 
 	__bss_start = .;
 	.bss : AT(ADDR(.bss) - _kernel_base) {
 		*(COMMON)
 		*(.bss)
+		*(.bss.*)
 	}
 	v_kernel_end = (. + 0xFFF)&0xFFFFFFFFFFFFF000;
 }
