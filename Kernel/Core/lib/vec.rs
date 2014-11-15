@@ -3,13 +3,12 @@
 //
 use core::iter::range;
 use core::iter::{FromIterator,Iterator};
-use core::slice::{AsSlice,ImmutableSlice,MutableSlice,Items,MutItems};
+use core::slice::{SlicePrelude,AsSlice,Items,MutItems};
 use core::option::{Option,Some,None};
 use core::ptr::RawPtr;
 use core::num::Int;
 use core::ops::{Drop,Index};
 use lib::clone::Clone;
-use core::collections::{Collection};
 use lib::collections::{MutableSeq};
 
 pub struct Vec<T>
@@ -23,17 +22,15 @@ impl<T> Vec<T>
 {
 	pub fn new() -> Vec<T>
 	{
-		Vec {
-			data: RawPtr::null(),
-			size: 0,
-			capacity: 0,
-		}
+		Vec::with_capacity(0)
 	}
 	pub fn with_capacity(size: uint) -> Vec<T>
 	{
-		let mut ret = Vec::new();
-		ret.reserve(size);
-		ret
+		Vec {
+			data: unsafe { ::memory::heap::alloc_array::<T>( size ) },
+			size: 0,
+			capacity: size,
+		}
 	}
 	pub fn from_fn(length: uint, op: |uint| -> T) -> Vec<T>
 	{
@@ -44,11 +41,15 @@ impl<T> Vec<T>
 		ret
 	}
 
+	pub fn len(&self) -> uint
+	{
+		self.size
+	}
 	
 	pub fn get_mut<'s>(&'s mut self, index: uint) -> &'s mut T
 	{
 		if index >= self.size {
-			fail!("Index out of range, {} >= {}", index, self.size);
+			panic!("Index out of range, {} >= {}", index, self.size);
 		}
 		unsafe { &mut *self.data.offset(index as int) }
 	}
@@ -99,6 +100,15 @@ impl<T:Clone> Vec<T>
 	{
 		Vec::from_fn( size, |_| elem.clone() )
 	}
+	
+	pub fn push_all(&mut self, other: &[T])
+	{
+		let newlen = self.size + other.len();
+		self.reserve(newlen);
+		for v in other.iter() {
+			self.push(v.clone());
+		}
+	}
 }
 
 #[unsafe_destructor]
@@ -123,7 +133,7 @@ impl<T> Index<uint, T> for Vec<T>
 	fn index<'a>(&'a self, index: &uint) -> &'a T
 	{
 		if *index >= self.size {
-			fail!("Index out of range, {} >= {}", index, self.size);
+			panic!("Index out of range, {} >= {}", index, self.size);
 		}
 		unsafe { &*self.data.offset(*index as int) }
 	}
@@ -133,13 +143,9 @@ impl<T> ::core::slice::AsSlice<T> for Vec<T>
 {
 	fn as_slice<'a>(&'a self) -> &'a [T]
 	{
-		unsafe { ::core::mem::transmute( ::core::raw::Slice { data: self.data as *const T, len: self.size } ) }
+		let rawslice = ::core::raw::Slice { data: self.data as *const T, len: self.size };
+		unsafe { ::core::mem::transmute( rawslice ) }
 	}
-}
-
-impl<T> Collection for Vec<T>
-{
-	fn len(&self) -> uint { self.size }
 }
 
 impl<T> MutableSeq<T> for Vec<T>

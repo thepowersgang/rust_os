@@ -34,6 +34,22 @@ pub fn cur_timestamp() -> u64
 	hw::hpet::get_timestamp()
 }
 
+pub fn print_backtrace()
+{
+	let cur_bp: u64;
+	unsafe{ asm!("mov %rbp, $0" : "=r" (cur_bp)); }
+	puts("Backtrace: ");
+	puth(cur_bp as uint);
+	
+	let mut bp = cur_bp;
+	while let ::core::option::Some((newbp, ip)) = interrupts::backtrace(bp)
+	{
+		puts(" > "); puth(ip as uint);
+		bp = newbp;
+	}
+	puts("\n");
+}
+
 pub fn idle()
 {
 	unsafe { asm!("hlt"); }

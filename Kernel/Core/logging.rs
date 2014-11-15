@@ -16,10 +16,13 @@ pub enum Level
 	LevelTrace,	// Where
 }
 
-struct LoggingFormatter;
-//{
-//	lock_handle: ::kstd::sync::MutexHandle,
-//}
+struct LoggingFormatter
+{
+	lock_handle: ::arch::sync::HeldSpinlock<'static,()>,
+}
+
+// NOTE: Has to be a spinlock, stops interrupts while held
+static s_logging_lock: ::arch::sync::Spinlock<()> = spinlock_init!( () );
 
 impl ::core::fmt::Char for Level
 {
@@ -44,7 +47,9 @@ impl LoggingFormatter
 {
 	pub fn new() -> LoggingFormatter
 	{
-		LoggingFormatter	// {}
+		LoggingFormatter {
+			lock_handle: s_logging_lock.lock()
+		}
 	}
 }
 
@@ -52,7 +57,14 @@ impl ::core::fmt::FormatWriter for LoggingFormatter
 {
 	fn write(&mut self, bytes: &[u8]) -> ::core::fmt::Result
 	{
-		::arch::puts(::core::str::from_utf8(bytes).unwrap());
+		match ::core::str::from_utf8(bytes)
+		{
+		::core::option::Some(s) => ::arch::puts(s),
+		::core::option::None => {
+			let rs = unsafe { ::core::mem::transmute::<_,::core::raw::Slice<u8>>(bytes) };
+			panic!("LoggingFormatter.write bytes={}+{}", rs.data, rs.len);
+			}
+		}
 		::core::result::Ok( () )
 	}
 }

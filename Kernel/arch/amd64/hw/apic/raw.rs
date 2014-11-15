@@ -103,7 +103,7 @@ impl LAPIC
 			)
 			{
 			Ok(v) => v,
-			Err(e) => fail!("Unable to bind LAPIC timer: {}", e),
+			Err(e) => panic!("Unable to bind LAPIC timer: {}", e),
 			};
 	}
 	/// Initialise the LAPIC (for this CPU)

@@ -192,7 +192,7 @@ unsafe fn locate_rsdp(base: *const u8, size: uint) -> *const RSDP
 	for ofs in range_step(0, size, 16)
 	{
 		let sig = base.offset(ofs as int) as *const [u8,..8];
-		if *sig == "RSD PTR ".as_bytes()
+		if (*sig).as_slice() == "RSD PTR ".as_bytes()
 		{
 			let ret = sig as *const RSDP;
 			if sum_struct(&*ret) == 0
@@ -308,7 +308,7 @@ impl<T> SDTHandle<T>
 		// Map the header into memory temporarily (maybe)
 		let mut handle = match ::memory::virt::map_hw_ro(physaddr - ofs as u64, 1, "ACPI") {
 			Ok(v) => v,
-			Err(_) => fail!("Oops, temp mapping SDT failed"),
+			Err(_) => panic!("Oops, temp mapping SDT failed"),
 			};
 		let (length,) = {
 			let hdr = handle.as_ref::<SDTHeader>(ofs);
@@ -323,7 +323,7 @@ impl<T> SDTHandle<T>
 		{
 			handle = match ::memory::virt::map_hw_ro(physaddr - ofs as u64, npages, "ACPI") {
 				Ok(x) => x,
-				Err(_) => fail!("Map fail")
+				Err(_) => panic!("Map fail")
 				};
 		}
 		SDTHandle {

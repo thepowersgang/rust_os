@@ -62,11 +62,11 @@ fn init_module(modstates: &mut [ModuleState], mods: &[ModuleInfo], i: uint)
 			// Locate module
 			let depid = match mods.iter().enumerate().find( |&(_,v)| v.name==*name ) {
 				Some( (depid,_) ) => depid,
-				None => fail!("Dependency '{}' for module '{}' missing", *name, module.name),
+				None => panic!("Dependency '{}' for module '{}' missing", *name, module.name),
 				};
 			// Check if not being initialised
 			if modstates[depid] == ModResolving {
-				fail!("Circular dependency '{}' requires '{}' which is already being resolved", module.name, *name);
+				panic!("Circular dependency '{}' requires '{}' which is already being resolved", module.name, *name);
 			}
 			// Initialise
 			init_module(modstates, mods, depid);

@@ -10,6 +10,7 @@ use arch::memory::PAddr;
 const NOPAGE : PAddr = 1;
 
 static mut s_mem_map : Option<&'static [::memory::MemoryMapEnt]> = None;
+// s_mapalloc - Tracks the allocation point in s_mem_map : (Entry Index, Address)
 #[allow(non_upper_case_globals)]
 static s_mapalloc : ::sync::Mutex<(uint,PAddr)> = mutex_init!( (0,0) );
 // TODO: Multiple stacks based on page colouring
@@ -32,7 +33,7 @@ pub fn init()
 pub fn allocate_range(count: uint) -> PAddr
 {
 	if !(count == 1) {
-		fail!("TODO: Large range allocations (count={})", count);
+		panic!("TODO: Large range allocations (count={})", count);
 	}
 
 	unsafe

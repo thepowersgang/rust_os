@@ -87,7 +87,7 @@ fn unmap(addr: *mut (), count: uint)
 	{
 		let ofs = pos & (::PAGE_SIZE - 1);
 		if ofs != 0 {
-			fail!("Non-aligned page {} passed (unmapping {} pages)", addr, count);
+			panic!("Non-aligned page {} passed (unmapping {} pages)", addr, count);
 		}
 	}
 	

@@ -71,7 +71,7 @@ pub unsafe fn alloc<T>(value: T) -> *mut T
 	let ret = match allocate(GlobalHeap, ::core::mem::size_of::<T>())
 		{
 		Some(v) => v as *mut T,
-		None => fail!("Out of memory")
+		None => panic!("Out of memory")
 		};
 	::core::ptr::write(ret, value);
 	ret
@@ -82,7 +82,7 @@ pub unsafe fn alloc_array<T>(count: uint) -> *mut T
 	match allocate(GlobalHeap, ::core::mem::size_of::<T>() * count)
 	{
 	Some(v) => v as *mut T,
-	None => fail!("Out of memory when allocating array of {} elements", count)
+	None => panic!("Out of memory when allocating array of {} elements", count)
 	}
 }
 
@@ -91,13 +91,13 @@ pub unsafe fn allocate(heap: HeapId, size: uint) -> Option<*mut ()>
 	match heap
 	{
 	GlobalHeap => s_global_heap.lock().allocate(size),
-	_ => fail!("TODO: Non-global heaps"),
+	_ => panic!("TODO: Non-global heaps"),
 	}
 }
 
 //pub unsafe fn expand(pointer: *mut (), newsize: uint) -> Option<*mut ()>
 //{
-//	fail!("TODO: heap::expand");
+//	panic!("TODO: heap::expand");
 //	None
 //}
 
@@ -110,6 +110,11 @@ impl HeapDef
 {
 	pub unsafe fn allocate(&mut self, size: uint) -> Option<*mut ()>
 	{
+		// SHORT CCT: Zero size allocation
+		if size == 0 {
+			return Some(1 as *mut ());
+		}
+		
 		// This would be static, if CTFE was avalible
 		let headers_size = ::core::mem::size_of::<HeapHead>() + ::core::mem::size_of::<HeapFoot>();
 		
@@ -124,7 +129,7 @@ impl HeapDef
 		{
 			let fb = &*opt_fb;
 			assert!( fb.magic == MAGIC );
-			let next = match fb.state { HeapFree(n)=> n, _ => fail!("Non-free block ({}) in free list", opt_fb) };
+			let next = match fb.state { HeapFree(n)=> n, _ => panic!("Non-free block ({}) in free list", opt_fb) };
 			if fb.size >= blocksize
 			{
 				break;
@@ -136,7 +141,7 @@ impl HeapDef
 		if !opt_fb.is_null()
 		{
 			let fb = &mut *opt_fb;
-			let next = match fb.state { HeapFree(n)=> n, _ => fail!("Non-free block in free list") };
+			let next = match fb.state { HeapFree(n)=> n, _ => panic!("Non-free block in free list") };
 			// Split block (if needed)
 			if fb.size > blocksize + headers_size
 			{
@@ -164,7 +169,7 @@ impl HeapDef
 			}
 			else
 			{
-				let next = match fb.state { HeapFree(x) => x, _ => fail!("") };
+				let next = match fb.state { HeapFree(x) => x, _ => panic!("") };
 				if prev.is_null() {
 					self.first_free = next;
 				}
@@ -210,6 +215,10 @@ impl HeapDef
 	pub fn deallocate(&mut self, ptr: *mut ())
 	{
 		log_debug!("deallocate(ptr={})", ptr);
+		if ptr == 1 as *mut () {
+			log_trace!("Free zero alloc");
+			return ;
+		}
 		unsafe
 		{
 			let mut no_add = false;

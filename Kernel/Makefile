@@ -19,17 +19,17 @@ comma := ,
 LocalLib = --extern $1=$(OBJDIR)lib$1.rlib
 
 EXCLUDE_FEATURES := 3dnow avx avx2 sse sse2 sse3 sse4.1 sse4.2 mmx
+TARGET_FILE := arch/$(ARCH)/target.json
 
 RUSTFLAGS := --crate-type lib
 RUSTFLAGS += -O
 #RUSTFLAGS += --debuginfo 1
 #RUSTFLAGS += -C code-model=kernel
 RUSTFLAGS += -C soft-float
-RUSTFLAGS += -C no-redzone
 RUSTFLAGS += -C target-feature=$(subst $(space),$(comma),$(EXCLUDE_FEATURES:%=-%))
 RUSTFLAGS += --cfg arch__$(ARCH)
 #RUSTFLAGS += -Z time-passes
-#RUSTFLAGS += --target=x86_64-none-elf 
+RUSTFLAGS += --target=$(TARGET_FILE)
 
 ENV := RUST_VERSION="$(shell rustc --version)"
 ENV += TK_GITSPEC="$(shell git log -n 1 | head -n 1 | awk '{print $$2}')"
@@ -72,13 +72,13 @@ $(OBJDIR)%.ao: arch/$(ARCH)/%.asm Makefile
 	@mkdir -p $(dir $@)
 	@nasm -o $@ $< -f elf64 -MD $@.dep -MP
 
-$(OBJDIR)kcore.o: Core/main.rs $(OBJDIR)libcore.rlib Makefile
+$(OBJDIR)kcore.o: Core/main.rs $(OBJDIR)libcore.rlib Makefile $(TARGET_FILE)
 	@echo [RUSTC] -o $@
 	@mkdir -p $(dir $@)
 	$V$(ENV) rustc $(RUSTFLAGS) --emit obj -o $@ $< --dep-info $@.dep $(call LocalLib,core)
 
 # - Locally compiled libcore, needs to not use SSE
-$(OBJDIR)libcore.rlib: $(LIBCORESRC)lib.rs
+$(OBJDIR)libcore.rlib: $(LIBCORESRC)lib.rs $(TARGET_FILE)
 	@echo [RUSTC] -o $@
 	@mkdir -p $(dir $@)
 	$V$(ENV) rustc $(RUSTFLAGS) --crate-name core -o $@ $< --dep-info $@.dep

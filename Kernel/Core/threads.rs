@@ -19,7 +19,7 @@ impl Default for RunState { fn default() -> RunState { StateRunnable } }
 
 pub struct Thread
 {
-	//name: String,
+	name: String,
 	tid: uint,
 	run_state: RunState,
 	
@@ -50,6 +50,7 @@ static s_runnable_threads: ::sync::Spinlock<ThreadList> = spinlock_init!(THREADL
 pub fn init()
 {
 	let mut tid0 = Thread::new_boxed();
+	tid0.name = String::from_str("ThreadZero");
 	tid0.cpu_state = ::arch::threads::init_tid0_state();
 	::arch::threads::set_thread_ptr( tid0 )
 }
@@ -73,7 +74,7 @@ fn reschedule()
 		},
 	::core::option::Some(t) => {
 		// 2. Switch to next thread
-		log_debug!("Task switch to {} {:u}", &*t as *const _, t.tid);
+		log_debug!("Task switch to {}", t);
 		::arch::threads::switch_to(t);
 		}
 	}
@@ -109,15 +110,24 @@ impl Thread
 	{
 		let rv = box Thread {
 			tid: 0,
+			name: String::new(),
 			run_state: StateRunnable,
 			cpu_state: Default::default(),
 			next: None,
 			};
 		
 		// TODO: Add to global list of threads (removed on destroy)
-		log_debug!("Creating thread {} {:u}", &*rv as *const _, rv.tid);
+		log_debug!("Creating thread {}", rv);
 		
 		rv
+	}
+}
+
+impl ::core::fmt::Show for Thread
+{
+	fn fmt(&self, f: &mut ::core::fmt::Formatter) -> Result<(),::core::fmt::FormatError>
+	{
+		write!(f, "{}({:u} {})", self as *const _, self.tid, self.name)
 	}
 }
 
@@ -155,7 +165,7 @@ impl ThreadList
 		assert!(t.next.is_none());
 		// Save a pointer to the allocation
 		let ptr = &*t as *const Thread as *mut Thread;
-		log_debug!("Pushing thread {} {:u}", ptr, t.tid);
+		log_debug!("Pushing thread {}", t);
 		// 2. Tack thread onto end
 		if self.first.is_some()
 		{

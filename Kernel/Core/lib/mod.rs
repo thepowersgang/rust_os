@@ -4,12 +4,14 @@
 #![macro_escape]
 pub use self::queue::Queue;
 pub use self::vec::Vec;
+pub use self::string::String;
 
 pub mod clone;
 
 pub mod mem;
 pub mod queue;
 pub mod vec;
+pub mod string;
 
 pub mod num
 {

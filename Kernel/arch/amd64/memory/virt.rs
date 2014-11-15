@@ -71,7 +71,7 @@ unsafe fn get_entry(level: u8, index: uint, force_allocate: bool) -> PTE
 		}
 		rv
 		},
-	_ => fail!("Passed invalid number to get_entry, {} > 3", level)
+	_ => panic!("Passed invalid number to get_entry, {} > 3", level)
 	}
 }
 unsafe fn get_page_ent(addr: uint, from_temp: bool, allocate: bool, large_ok: bool) -> PTE
@@ -91,7 +91,7 @@ unsafe fn get_page_ent(addr: uint, from_temp: bool, allocate: bool, large_ok: bo
 		return PTE::null();
 	}
 	if ent.is_large() {
-		fail!("TODO: Support large pages (1GiB)");
+		panic!("TODO: Support large pages (1GiB)");
 	}
 
 	ent = get_entry(1, pagenum >> (9*1), allocate);

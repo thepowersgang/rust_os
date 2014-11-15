@@ -12,6 +12,7 @@
 #![feature(concat_idents)]
 #![feature(lang_items)]
 #![feature(while_let)]
+#![feature(tuple_indexing)]
 
 #[phase(plugin, link)] extern crate core;
 

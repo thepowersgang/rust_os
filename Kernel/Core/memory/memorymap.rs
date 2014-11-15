@@ -147,7 +147,7 @@ impl<'buf> MemoryMapBuilder<'buf>
 		}
 		else
 		{
-			fail!("TODO: Support marking range across multiple map entries: [{:#x}+{:#x}]",
+			panic!("TODO: Support marking range across multiple map entries: [{:#x}+{:#x}]",
 				self.slots[pos].start, self.slots[pos].size);
 		}	
 	

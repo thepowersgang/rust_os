@@ -68,7 +68,7 @@ pub extern "C" fn error_handler(regs: &InterruptRegs)
 	}
 }
 
-fn backtrace(bp: u64) -> Option<(u64,u64)>
+pub fn backtrace(bp: u64) -> Option<(u64,u64)>
 {
 	if bp == 0 {
 		return None;

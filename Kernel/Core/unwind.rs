@@ -47,13 +47,14 @@ extern "C" {
 }
 
 static EXCEPTION_CLASS : u64 = 0x544B3120_52757374;	// TK1 Rust (big endian)
-*/
+// */
 
 // Evil fail when doing unwind
 #[no_mangle] 
 pub extern "C" fn rust_begin_unwind(msg: &::core::fmt::Arguments, file: &'static str, line: uint) -> !
 {
 	::arch::puts("\nERROR: rust_begin_unwind\n");
+	::arch::print_backtrace();
 	log_panic!("rust_begin_unwind(msg=\"{}\", file=\"{}\", line={})", msg, file, line);
 	/*
 	unsafe {
@@ -72,7 +73,7 @@ pub extern "C" fn rust_begin_unwind(msg: &::core::fmt::Arguments, file: &'static
 	
 	fn cleanup(urc: _Unwind_Reason_Code, exception: *const _Unwind_Exception) {
 	}
-	*/
+	// */
 	loop{}
 }
 #[lang="eh_personality"]
@@ -81,6 +82,8 @@ fn rust_eh_personality(
 	_exception_object: &_Unwind_Exception, _context: &_Unwind_Context
 	) -> _Unwind_Reason_Code
 {
+	log_debug!("rust_eh_personality(version={},_actions={},_exception_class={:#x})",
+		version, _actions, _exception_class);
 	if version != 1 {
 		log_error!("version({}) != 1", version);
 		return _URC_FATAL_PHASE1_ERROR;
@@ -91,6 +94,7 @@ fn rust_eh_personality(
 #[no_mangle] pub extern "C" fn abort() -> !
 {
 	::arch::puts("\nABORT ABORT ABORT\n");
+	::arch::print_backtrace();
 	loop {}
 }
 

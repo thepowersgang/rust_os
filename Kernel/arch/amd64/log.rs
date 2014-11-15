@@ -3,8 +3,8 @@
 //
 // arch/amd64/log.rs
 // - RS232 logging output
+use _common::*;
 
-use core::str::StrSlice;
 use super::x86_io;
 
 pub fn puts(text: &str)

@@ -153,7 +153,7 @@ impl MultibootParsed
 			else {
 				"-UNKNOWN-"
 			};
-		log_notice!("Loading multiboot from loader '{:s}'", loader_name);
+		log_notice!("Loading multiboot from loader '{:s}' (flags = {:#x})", loader_name, info.flags);
 		let mut ret = MultibootParsed {
 				cmdline: MultibootParsed::_cmdline(info),
 				vidmode: MultibootParsed::_vidmode(info),
@@ -209,7 +209,7 @@ impl MultibootParsed
 			// 1. Get raw map
 			if false && (info.flags & 1 << 6) != 0 {
 				// Full memory map
-				fail!("TODO: Full memory map");
+				panic!("TODO: Full memory map");
 			}
 			else if (info.flags & 1 << 0) != 0 {
 				// Dumb memory map
@@ -221,7 +221,7 @@ impl MultibootParsed
 			}
 			else {
 				// No memory map
-				fail!("TODO: Assumption memory map");
+				panic!("TODO: Assumption memory map");
 			}
 			mapbuilder.sort();
 			// TODO: Fix if not valid
