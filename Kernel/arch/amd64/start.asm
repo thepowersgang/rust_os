@@ -166,7 +166,7 @@ start64_higher:
 %include "arch/amd64/interrupts.inc.asm"
 
 ; RDI: Save location for RSP
-; RSI: New RSP
+; RSI: New RSP (pointer)
 ; RDX: New CR3
 ; RCX: New FSBASE
 [section .text.asm.task_switch]
@@ -175,7 +175,7 @@ EXPORT task_switch
 	mov rax, .ret
 	push rax
 	mov [rdi], rsp
-	mov rsp, rsi	; New RSP
+	mov rsp, [rsi]	; New RSP
 	mov cr3, rdx	; New CR3
 	; New FSBASE
 	mov rax, rcx	; EAX = Low

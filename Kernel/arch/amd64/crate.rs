@@ -23,6 +23,7 @@ mod log;
 mod x86_io;
 pub mod hw;
 pub mod acpi;
+pub mod pci;
 
 extern "C"
 {

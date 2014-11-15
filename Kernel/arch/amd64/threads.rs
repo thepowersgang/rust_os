@@ -15,7 +15,7 @@ pub struct State
 extern "C" {
 	static low_InitialPML4: ();
 	static TID0TLS: ();
-	fn task_switch(oldrsp: &mut u64, newrsp: u64, cr3: u64, tlsbase: u64);
+	fn task_switch(oldrsp: &mut u64, newrsp: &u64, cr3: u64, tlsbase: u64);
 }
 #[thread_local]
 static mut t_thread_ptr: *mut ::threads::Thread = 0 as *mut _;
@@ -38,7 +38,10 @@ pub fn switch_to(newthread: Box<::threads::Thread>)
 		// TODO: Lazy save/restore SSE state
 		let outstate = &mut (*t_thread_ptr).cpu_state;
 		let state = &newthread.cpu_state;
-		task_switch(&mut outstate.rsp, state.rsp, state.cr3, state.tlsbase);
+		//assert!(state.rsp != 0);
+		assert!(state.cr3 != 0);
+		assert!(state.tlsbase != 0);
+		task_switch(&mut outstate.rsp, &state.rsp, state.cr3, state.tlsbase);
 	}
 	unsafe
 	{

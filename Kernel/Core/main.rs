@@ -12,6 +12,7 @@
 #![feature(concat_idents)]
 #![feature(lang_items)]
 #![feature(while_let)]
+#![feature(if_let)]
 #![feature(tuple_indexing)]
 
 #[phase(plugin, link)] extern crate core;
@@ -38,6 +39,9 @@ pub mod memory;
 pub mod threads;
 mod time;
 pub mod modules;
+
+pub mod hw;
+pub mod device_manager;
 
 pub mod unwind;
 

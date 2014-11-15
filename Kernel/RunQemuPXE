@@ -23,6 +23,6 @@ QEMU_OPTS=$QEMU_OPTS" -net user,tftp=.pxe/,bootfile=pxelinux.0"
 QEMU_OPTS=$QEMU_OPTS" -boot n"
 QEMU_OPTS=$QEMU_OPTS" -nographic"
 #QEMU_OPTS=$QEMU_OPTS" -trace events=.qemu_trace"
-QEMU_OPTS=$QEMU_OPTS" -d int"
+QEMU_OPTS=$QEMU_OPTS" -d int -D qemu_int_log.txt"
 QEMU_OPTS=$QEMU_OPTS" -no-reboot"
 qemu-system-x86_64 $QEMU_OPTS | tee QemuLog.txt

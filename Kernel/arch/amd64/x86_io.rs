@@ -13,5 +13,14 @@ pub unsafe fn outb(port: u16, val: u8) {
 	asm!("outb %al, %dx" : : "{dx}"(port), "{al}"(val));
 }
 
+pub unsafe fn inl(port: u16) -> u32 {
+	let ret : u32;
+	asm!("inl %dx, %eax" : "={eax}"(ret) : "{dx}"(port));
+	return ret;
+}
+pub unsafe fn outl(port: u16, val: u32) {
+	asm!("outl %eax, %dx" : : "{dx}"(port), "{eax}"(val));
+}
+
 // vim: ft=rust
 
