@@ -1,0 +1,24 @@
+
+
+Role: Manages loaded/known drivers, spins up instances when required
+
+
+Modules / Tasks:
+> Device tree (Tree of busses with devices on them)
+> Device->Driver mapping
+> Driver loading/unloading
+
+
+
+== Device Tree ==
+Devices added on a bus by the bus driver
+Include a set of identifying values
+> How should these be stored/represented?
+ - UDI model - String key with integer/string values
+ - Indexed set of slots, containing integers/strings
+ - Call back to driver to ask for information?
+
+==Device-Driver Mapping ==
+> Matching:
+ - List of Key+Value+Mask?
+ - No mask? (Must be exact match) - Does increase the number of device properties
