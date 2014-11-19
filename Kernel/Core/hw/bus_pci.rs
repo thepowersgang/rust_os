@@ -5,6 +5,11 @@
 // - PCI Bus Handling
 use _common::*;
 
+const MAX_FUNC: u8 = 8;	// Address restriction
+const MAX_DEV: u8 = 32;	// Address restriction
+const CONFIG_WORD_IDENT: u8 = 0;
+const CONFIG_WORD_CLASS: u8 = 2;
+
 struct PCIDev
 {
 	addr: u16,	// Bus,Slot,Fcn
@@ -30,7 +35,7 @@ fn scan_bus(bus_id: u8) -> Vec<PCIDev>
 {
 	log_trace!("PCI scan_bus({})", bus_id);
 	let mut ret = Vec::new();
-	for devidx in range(0, 32)
+	for devidx in range(0, MAX_DEV)
 	{
 		match get_device(bus_id, devidx, 0)
 		{
@@ -38,10 +43,10 @@ fn scan_bus(bus_id: u8) -> Vec<PCIDev>
 			let is_multifunc = (devinfo.config[3] & 0x0080_0000) != 0;
 			// Increase device count
 			ret.push(devinfo);
-			// Handle multi-function devices
+			// Handle multi-function devices (iterate from 1 onwards)
 			if is_multifunc
 			{
-				for fcnidx in range(1, 8)
+				for fcnidx in range(1, MAX_FUNC)
 				{
 					if let Some(devinfo) = get_device(bus_id, devidx, fcnidx)
 					{
@@ -61,7 +66,7 @@ fn scan_bus(bus_id: u8) -> Vec<PCIDev>
 fn get_device(bus_id: u8, devidx: u8, function: u8) -> Option<PCIDev>
 {
 	let addr = get_pci_addr(bus_id, devidx, function);
-	let idword = read_word(addr, 0);
+	let idword = read_word(addr, CONFIG_WORD_IDENT);
 	
 	if idword & 0xFFFF == 0xFFFF {
 		None
@@ -72,7 +77,7 @@ fn get_device(bus_id: u8, devidx: u8, function: u8) -> Option<PCIDev>
 			addr: addr,
 			vendor: (idword & 0xFFFF) as u16,
 			device: (idword >> 16) as u16,
-			class: read_word(addr, 2),
+			class: read_word(addr, CONFIG_WORD_CLASS),
 			config: [
 				idword            , read_word(addr, 1),
 				read_word(addr, 2), read_word(addr, 3),
@@ -89,6 +94,8 @@ fn get_device(bus_id: u8, devidx: u8, function: u8) -> Option<PCIDev>
 
 fn get_pci_addr(bus_id: u8, dev: u8, fcn: u8) -> u16
 {
+	assert!(dev < MAX_DEV);
+	assert!(fcn < MAX_FUNC);
 	(bus_id as u16 << 8) | (dev as u16 << 3) | fcn as u16
 }
 
