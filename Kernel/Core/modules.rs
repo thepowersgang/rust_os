@@ -18,9 +18,9 @@ pub struct ModuleInfo
 #[deriving(PartialEq)]
 enum ModuleState
 {
-	ModUninitialised,
-	ModResolving,
-	ModInitialised,
+	Uninitialised,
+	Resolving,
+	Initialised,
 }
 
 extern "C" {
@@ -41,7 +41,7 @@ pub fn init()
 fn init_modules(mods: &[ModuleInfo])
 {
 	log_debug!("s_modules={},{:#x}", mods.as_ptr(), mods.len());
-	let mut modstates = Vec::from_elem(mods.len(), ModUninitialised);
+	let mut modstates = Vec::from_elem(mods.len(), ModuleState::Uninitialised);
 	for m in mods.iter() {
 		log_debug!("mod = {} {} '{}'", &m.name as *const _, m.name.as_ptr(), m.name);
 	}
@@ -54,9 +54,9 @@ fn init_modules(mods: &[ModuleInfo])
 fn init_module(modstates: &mut [ModuleState], mods: &[ModuleInfo], i: uint)
 {
 	let module = &mods[i];
-	if modstates[i] == ModUninitialised
+	if modstates[i] == ModuleState::Uninitialised
 	{
-		modstates[i] = ModResolving;
+		modstates[i] = ModuleState::Resolving;
 		log_debug!("#{}: {}", i, module.name);
 		for name in module.deps.iter() {
 			// Locate module
@@ -65,14 +65,14 @@ fn init_module(modstates: &mut [ModuleState], mods: &[ModuleInfo], i: uint)
 				None => panic!("Dependency '{}' for module '{}' missing", *name, module.name),
 				};
 			// Check if not being initialised
-			if modstates[depid] == ModResolving {
+			if modstates[depid] == ModuleState::Resolving {
 				panic!("Circular dependency '{}' requires '{}' which is already being resolved", module.name, *name);
 			}
 			// Initialise
 			init_module(modstates, mods, depid);
 		}
 		(module.init)();
-		modstates[i] = ModInitialised;
+		modstates[i] = ModuleState::Initialised;
 	}
 }
 

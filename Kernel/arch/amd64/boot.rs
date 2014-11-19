@@ -75,9 +75,9 @@ struct MultibootParsed
 
 enum BootInfo
 {
-	BootUninit,
-	BootInvalid,
-	BootMultiboot(MultibootParsed),
+	Uninit,
+	Invalid,
+	Multiboot(MultibootParsed),
 }
 
 
@@ -87,7 +87,7 @@ extern "C"
 	static s_multiboot_pointer : &'static MultibootInfo;
 }
 static mut s_memmap_data: [::memory::MemoryMapEnt, ..16] = [::memory::MAP_PAD, ..16];
-static mut s_bootinfo : BootInfo = BootUninit;
+static mut s_bootinfo : BootInfo = BootInfo::Uninit;
 
 fn get_bootinfo() -> &'static BootInfo
 {
@@ -95,11 +95,11 @@ fn get_bootinfo() -> &'static BootInfo
 	{
 		match s_bootinfo
 		{
-		BootUninit => {
+		BootInfo::Uninit => {
 			s_bootinfo = match s_multiboot_signature
 				{
-				0x2BADB002 => BootMultiboot( MultibootParsed::new(s_multiboot_pointer) ),
-				_ => BootInvalid,
+				0x2BADB002 => BootInfo::Multiboot( MultibootParsed::new(s_multiboot_pointer) ),
+				_ => BootInfo::Invalid,
 				};
 			},
 		_ => {}
@@ -115,9 +115,9 @@ impl BootInfo
 	{
 		match *self
 		{
-		BootUninit => "",
-		BootInvalid => "",
-		BootMultiboot(ref mb) => mb.cmdline
+		BootInfo::Uninit => "",
+		BootInfo::Invalid => "",
+		BootInfo::Multiboot(ref mb) => mb.cmdline
 		}
 	}
 	
@@ -125,18 +125,18 @@ impl BootInfo
 	{
 		match *self
 		{
-		BootUninit => None,
-		BootInvalid => None,
-		BootMultiboot(ref mb) => mb.vidmode
+		BootInfo::Uninit => None,
+		BootInfo::Invalid => None,
+		BootInfo::Multiboot(ref mb) => mb.vidmode
 		}
 	}
 	pub fn memmap(&self) -> &'static[::memory::MemoryMapEnt]
 	{
 		match *self
 		{
-		BootUninit => [].as_slice(),
-		BootInvalid => [].as_slice(),
-		BootMultiboot(ref mb) => mb.memmap
+		BootInfo::Uninit => [].as_slice(),
+		BootInfo::Invalid => [].as_slice(),
+		BootInfo::Multiboot(ref mb) => mb.memmap
 		}
 	}
 }
@@ -199,7 +199,7 @@ impl MultibootParsed
 		Some( ::common::archapi::VideoMode {
 			width: info.x_res,
 			height: info.y_res,
-			fmt: ::common::archapi::VideoX8R8G8B8,
+			fmt: ::common::archapi::VideoFormat::X8R8G8B8,
 			})
 	}
 	fn _memmap<'a>(&self, info: &MultibootInfo, buf: &'a mut[::memory::MemoryMapEnt]) -> &'a [::memory::MemoryMapEnt]
@@ -215,9 +215,9 @@ impl MultibootParsed
 				// Dumb memory map
 				log_debug!("info = {{..., .lomem={}, .himem={} }}", info.lomem, info.himem);
 				// - Low memory (before VGA BIOS)
-				mapbuilder.append( 0, info.lomem as u64 * 1024, ::memory::StateFree, 0 );
+				mapbuilder.append( 0, info.lomem as u64 * 1024, ::memory::MemoryState::Free, 0 );
 				// - High memory (above 1MiB)
-				mapbuilder.append( 0x100000, info.himem as u64 * 1024, ::memory::StateFree, 0 );
+				mapbuilder.append( 0x100000, info.himem as u64 * 1024, ::memory::MemoryState::Free, 0 );
 			}
 			else {
 				// No memory map
@@ -229,9 +229,9 @@ impl MultibootParsed
 			
 			// 2. Clobber out kernel, modules, and strings
 			mapbuilder.set_range( 0x100000, &::arch::v_kernel_end as *const() as u64 - IDENT_START as u64 - 0x10000,
-				::memory::StateUsed, 0 ).unwrap();
+				::memory::MemoryState::Used, 0 ).unwrap();
 			mapbuilder.set_range( self.cmdline.as_ptr() as u64 - IDENT_START as u64, self.cmdline.len() as u64,
-				::memory::StateUsed, 0 ).unwrap();
+				::memory::MemoryState::Used, 0 ).unwrap();
 			
 			mapbuilder.size()
 			};

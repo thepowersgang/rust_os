@@ -5,7 +5,7 @@ use arch::memory::{VAddr};
 use core::ptr::RawPtr;
 
 pub use self::memorymap::{MAP_PAD, MemoryMapEnt, MemoryMapBuilder};
-pub use self::memorymap::{StateReserved,StateUsed,StateFree};
+pub use self::memorymap::MemoryState;
 
 pub mod phys;
 pub mod virt;

@@ -3,6 +3,8 @@
 //
 //use _common::*;
 
+use self::_Unwind_Reason_Code::*;
+
 #[allow(non_camel_case_types)]
 #[repr(C)]
 enum _Unwind_Reason_Code

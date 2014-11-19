@@ -28,11 +28,11 @@ struct ACPI_HPET
 
 enum HPETReg
 {
-	RegCapsID  = 0x0,
-	RegConfig  = 0x1,
-	RegISR     = 0x2,
-	RegMainCtr = 0xF,
-	RegTimer0  = 0x10,
+	CapsID  = 0x0,
+	Config  = 0x1,
+	ISR     = 0x2,
+	MainCtr = 0xF,
+	Timer0  = 0x10,
 }
 
 static mut s_instance : *mut HPET = 0 as *mut _;
@@ -97,8 +97,8 @@ impl HPET
 			period: 1,
 			};
 		// Enable
-		rv.write_reg(RegConfig as uint, rv.read_reg(RegConfig as uint) | (1 << 0));
-		rv.period = rv.read_reg(RegCapsID as uint) >> 32;
+		rv.write_reg(HPETReg::Config as uint, rv.read_reg(HPETReg::Config as uint) | (1 << 0));
+		rv.period = rv.read_reg(HPETReg::CapsID as uint) >> 32;
 		rv
 	}
 	pub fn bind_irq(&mut self)
@@ -116,7 +116,7 @@ impl HPET
 	fn irq(sp: *const ())
 	{
 		let s = unsafe{ &*(sp as *const HPET) };
-		s.write_reg(RegISR as uint, s.read_reg(RegISR as uint));
+		s.write_reg(HPETReg::ISR as uint, s.read_reg(HPETReg::ISR as uint));
 		
 		s.oneshot(0, s.current() + 100*1000 );
 	}
@@ -135,15 +135,15 @@ impl HPET
 		self.mapping_handle.as_ref(0)
 	}
 	fn num_comparitors(&self) -> uint {
-		((self.read_reg(RegCapsID as uint) >> 8) & 0x1F) as uint
+		((self.read_reg(HPETReg::CapsID as uint) >> 8) & 0x1F) as uint
 	}
 	
 	fn current(&self) -> u64 {
-		self.read_reg(RegMainCtr as uint)
+		self.read_reg(HPETReg::MainCtr as uint)
 	}
 	fn oneshot(&self, comparitor: uint, value: u64) {
 		assert!(comparitor < self.num_comparitors());
-		let comp_reg = RegTimer0 as uint + comparitor*2;
+		let comp_reg = HPETReg::Timer0 as uint + comparitor*2;
 		// Set comparitor value
 		self.write_reg(comp_reg + 1, value);
 		// HACK: Wire to APIC interrupt 2

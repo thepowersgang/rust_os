@@ -49,7 +49,7 @@ pub fn allocate_range(count: uint) -> PAddr
 		if addr >= map[i].start + map[i].size
 		{
 			i += 1;
-			while i != map.len() && map[i].state != ::memory::memorymap::StateFree {
+			while i != map.len() && map[i].state != ::memory::memorymap::MemoryState::Free {
 				i += 1;
 			}
 			if i == map.len() {
@@ -75,7 +75,7 @@ pub fn allocate(address: *mut ()) -> bool
 		let paddr = *h;
 		if paddr != NOPAGE
 		{
-			::memory::virt::map(address, paddr, super::virt::ProtKernelRO);
+			::memory::virt::map(address, paddr, super::virt::ProtectionMode::KernelRO);
 			*h = *(address as *const PAddr);
 			*(address as *mut [u8,..::PAGE_SIZE]) = ::core::mem::zeroed();
 			mark_used(paddr);
@@ -86,7 +86,7 @@ pub fn allocate(address: *mut ()) -> bool
 	let paddr = allocate_range(1);
 	if paddr != NOPAGE
 	{
-		::memory::virt::map(address, paddr, super::virt::ProtKernelRW);
+		::memory::virt::map(address, paddr, super::virt::ProtectionMode::KernelRW);
 		unsafe { *(address as *mut [u8,..::PAGE_SIZE]) = ::core::mem::zeroed(); }
 		return true
 	}

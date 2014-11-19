@@ -10,12 +10,12 @@ pub type ThreadHandle = Box<Thread>;
 //#[deriving(PartialEq)]
 enum RunState
 {
-	StateRunnable,
-	StateListWait(*const WaitQueue),
-	StateEventWait(u32),
-	StateDead(u32),
+	Runnable,
+	ListWait(*const WaitQueue),
+	EventWait(u32),
+	Dead(u32),
 }
-impl Default for RunState { fn default() -> RunState { StateRunnable } }
+impl Default for RunState { fn default() -> RunState { RunState::Runnable } }
 
 pub struct Thread
 {
@@ -111,7 +111,7 @@ impl Thread
 		let rv = box Thread {
 			tid: 0,
 			name: String::new(),
-			run_state: StateRunnable,
+			run_state: RunState::Runnable,
 			cpu_state: Default::default(),
 			next: None,
 			};
@@ -194,7 +194,7 @@ impl WaitQueue
 		// 1. Lock global list?
 		let mut cur = get_cur_thread();
 		// - Keep rawptr kicking around for debug purposes
-		cur.run_state = StateListWait(self as *mut _ as *const _);
+		cur.run_state = RunState::ListWait(self as *mut _ as *const _);
 		// 2. Push current thread into waiting list
 		self.list.push(cur);
 		// 3. Unlock handle (short spinlocks disable interrupts)
@@ -203,8 +203,8 @@ impl WaitQueue
 		reschedule();
 		
 		let cur = get_cur_thread();
-		assert!( !is!(cur.run_state, StateListWait(_)) );
-		assert!( is!(cur.run_state, StateRunnable) );
+		assert!( !is!(cur.run_state, RunState::ListWait(_)) );
+		assert!( is!(cur.run_state, RunState::Runnable) );
 		rel_cur_thread(cur);
 	}
 	pub fn wake_one(&mut self)
@@ -212,7 +212,7 @@ impl WaitQueue
 		match self.list.pop()
 		{
 		Some(mut t) => {
-			t.run_state = StateRunnable;
+			t.run_state = RunState::Runnable;
 			s_runnable_threads.lock().push(t);
 			},
 		None => {}

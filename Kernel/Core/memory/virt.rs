@@ -14,13 +14,13 @@ type Page = [u8, ..::PAGE_SIZE];
 #[deriving(PartialEq,Show)]
 pub enum ProtectionMode
 {	
-	ProtUnmapped,	// Inaccessible
-	ProtKernelRO,	// Kernel readonly
-	ProtKernelRW,	// Kernel read-write
-	ProtKernelRX,	// Kernel read-execute
-	ProtUserRO,	// User
-	ProtUserRW,
-	ProtUserRX,
+	Unmapped,	// Inaccessible
+	KernelRO,	// Kernel readonly
+	KernelRW,	// Kernel read-write
+	KernelRX,	// Kernel read-execute
+	UserRO,	// User
+	UserRW,
+	UserRX,
 }
 
 pub struct AllocHandle
@@ -137,7 +137,7 @@ fn map_hw(phys: PAddr, count: uint, readonly: bool, _module: &'static str) -> Re
 		map(
 			(pos + i * ::PAGE_SIZE) as *mut (),
 			phys + (i * ::PAGE_SIZE) as u64,
-			tern!(readonly ? ProtKernelRO : ProtKernelRW)
+			tern!(readonly ? ProtectionMode::KernelRO : ProtectionMode::KernelRW)
 			);
 	}
 	// 3. Return a handle representing this area

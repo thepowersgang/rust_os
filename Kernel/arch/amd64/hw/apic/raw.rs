@@ -32,41 +32,41 @@ struct IOAPICRegs
 #[deriving(Show)]
 pub enum TriggerMode
 {
-	TriggerLevelHi,
-	TriggerLevelLow,
-	TriggerEdgeHi,
-	TriggerEdgeLow,
+	LevelHi,
+	LevelLow,
+	EdgeHi,
+	EdgeLow,
 }
 
 #[allow(dead_code)]
 #[repr(C)]
-enum ApicRegisters
+enum ApicReg
 {
-	ApicReg_LAPIC_ID  = 0x2,
-	ApicReg_LAPIC_Ver = 0x3,
-	ApicReg_TPR       = 0x8,	// Task Priority
-	ApicReg_APR       = 0x9,	// Arbitration Priority
-	ApicReg_PPR       = 0xA,	// Processor Priority
-	ApicReg_EOI       = 0xB,
-	ApicReg_RRD       = 0xC,	// Remote Read
-	ApicReg_LocalDest = 0xD,	// Local Destination
-	ApicReg_DestFmt   = 0xE,	// Destination Format
-	ApicReg_SIR       = 0xF,	// Spurious Interrupt Vector
-	ApicReg_InService = 0x10,	// In-Service Register (First of 8)
-	ApicReg_TMR       = 0x18,	// Trigger Mode (1/8)
-	ApicReg_IRR       = 0x20,	// Interrupt Request Register (1/8)
-	ApicReg_ErrStatus = 0x28,	// Error Status
-	ApicReg_LVTCMCI   = 0x2F,	// LVT CMCI Registers (?)
-	ApicReg_ICR       = 0x30,	// Interrupt Command Register (1/2)
-	ApicReg_LVTTimer  = 0x32,
-	ApicReg_LVTThermalSensor = 0x33,
-	ApicReg_LVTPermCounters  = 0x34,
-	ApicReg_LVT_LINT0 = 0x35,
-	ApicReg_LVT_LINT1 = 0x36,
-	ApicReg_LVT_Error = 0x37,
-	ApicReg_InitCount = 0x38,
-	ApicReg_CurCount  = 0x39,
-	ApicReg_TmrDivide = 0x3E,
+	LAPIC_ID  = 0x2,
+	LAPIC_Ver = 0x3,
+	TPR       = 0x8,	// Task Priority
+	APR       = 0x9,	// Arbitration Priority
+	PPR       = 0xA,	// Processor Priority
+	EOI       = 0xB,
+	RRD       = 0xC,	// Remote Read
+	LocalDest = 0xD,	// Local Destination
+	DestFmt   = 0xE,	// Destination Format
+	SIR       = 0xF,	// Spurious Interrupt Vector
+	InService = 0x10,	// In-Service Register (First of 8)
+	TMR       = 0x18,	// Trigger Mode (1/8)
+	IRR       = 0x20,	// Interrupt Request Register (1/8)
+	ErrStatus = 0x28,	// Error Status
+	LVTCMCI   = 0x2F,	// LVT CMCI Registers (?)
+	ICR       = 0x30,	// Interrupt Command Register (1/2)
+	LVTTimer  = 0x32,
+	LVTThermalSensor = 0x33,
+	LVTPermCounters  = 0x34,
+	LVT_LINT0 = 0x35,
+	LVT_LINT1 = 0x36,
+	LVT_Error = 0x37,
+	InitCount = 0x38,
+	CurCount  = 0x39,
+	TmrDivide = 0x3E,
 }
 
 #[repr(C,packed)]
@@ -87,9 +87,9 @@ impl LAPIC
 			};
 		
 		log_debug!("LAPIC {{ IDReg={:x}, Ver={:x}, SIR={:#x} }}",
-			ret.read_reg(ApicReg_LAPIC_ID as uint),
-			ret.read_reg(ApicReg_LAPIC_Ver as uint),
-			ret.read_reg(ApicReg_SIR as uint)
+			ret.read_reg(ApicReg::LAPIC_ID as uint),
+			ret.read_reg(ApicReg::LAPIC_Ver as uint),
+			ret.read_reg(ApicReg::SIR as uint)
 			);
 		
 		ret
@@ -118,19 +118,19 @@ impl LAPIC
 		log_debug!("oldaddr = {:#x}", oldaddr);
 		let is_bsp = oldaddr & 0x100;
 		for i in range(0, 8) {
-			log_debug!("IRR{} = {:#x}", i, self.read_reg(ApicReg_IRR as uint + i));
+			log_debug!("IRR{} = {:#x}", i, self.read_reg(ApicReg::IRR as uint + i));
 		}
 		
-		//self.write_reg(ApicReg_SIR as uint, self.read_reg(ApicReg_SIR as uint) | (1 << 8));
-		self.write_reg(ApicReg_SIR as uint, 0x7F | (1 << 8));	// Enable LAPIC (and set Spurious to 127)
-		self.write_reg(ApicReg_InitCount as uint, 0x100000);
-		self.write_reg(ApicReg_TmrDivide as uint, 3);	// Timer Divide = 16
-		self.write_reg(ApicReg_LVTTimer as uint, TIMER_VEC as u32);	// Enable Timer
-		self.write_reg(ApicReg_LVTThermalSensor as uint, 0);	// "Disable" Thermal Sensor
-		self.write_reg(ApicReg_LVTPermCounters as uint, 0);	// "Disable" ? Counters
-		self.write_reg(ApicReg_LVT_LINT0 as uint, 0);	// "Disable" LINT0
-		self.write_reg(ApicReg_LVT_LINT1 as uint, 0);	// "Disable" LINT1
-		self.write_reg(ApicReg_LVT_Error as uint, 0);	// "Disable" Error
+		//self.write_reg(ApicReg::SIR as uint, self.read_reg(ApicReg_SIR as uint) | (1 << 8));
+		self.write_reg(ApicReg::SIR as uint, 0x7F | (1 << 8));	// Enable LAPIC (and set Spurious to 127)
+		self.write_reg(ApicReg::InitCount as uint, 0x100000);
+		self.write_reg(ApicReg::TmrDivide as uint, 3);	// Timer Divide = 16
+		self.write_reg(ApicReg::LVTTimer as uint, TIMER_VEC as u32);	// Enable Timer
+		self.write_reg(ApicReg::LVTThermalSensor as uint, 0);	// "Disable" Thermal Sensor
+		self.write_reg(ApicReg::LVTPermCounters as uint, 0);	// "Disable" ? Counters
+		self.write_reg(ApicReg::LVT_LINT0 as uint, 0);	// "Disable" LINT0
+		self.write_reg(ApicReg::LVT_LINT1 as uint, 0);	// "Disable" LINT1
+		self.write_reg(ApicReg::LVT_Error as uint, 0);	// "Disable" Error
 		// EOI - Just to make sure
 		self.eoi(0);
 		unsafe {
@@ -150,7 +150,7 @@ impl LAPIC
 	}
 	pub fn eoi(&self, num: uint)
 	{
-		self.write_reg(ApicReg_EOI as uint, num as u32);
+		self.write_reg(ApicReg::EOI as uint, num as u32);
 	}
 	
 	fn read_reg(&self, idx: uint) -> u32
@@ -172,10 +172,10 @@ impl LAPIC
 		let reg = idx / 32;
 		let bit = idx % 32;
 		let mask = 1 << bit;
-		let in_svc = self.read_reg(ApicReg_InService as uint + reg) & mask != 0;
-		let mode   = self.read_reg(ApicReg_TMR as uint + reg) & mask != 0;
-		let in_req = self.read_reg(ApicReg_IRR as uint + reg) & mask != 0;
-		let err = self.read_reg(ApicReg_ErrStatus as uint);
+		let in_svc = self.read_reg(ApicReg::InService as uint + reg) & mask != 0;
+		let mode   = self.read_reg(ApicReg::TMR as uint + reg) & mask != 0;
+		let in_req = self.read_reg(ApicReg::IRR as uint + reg) & mask != 0;
+		let err = self.read_reg(ApicReg::ErrStatus as uint);
 		
 		(in_svc, mode, in_req, err)
 	}
@@ -236,10 +236,10 @@ impl IOAPIC
 
 		*self.handlers.get_mut(idx) = Some( cb );
 		let flags: u32 = match mode {
-			TriggerEdgeHi   => (0<<13)|(0<<15),
-			TriggerEdgeLow  => (1<<13)|(0<<15),
-			TriggerLevelHi  => (0<<13)|(1<<15),
-			TriggerLevelLow => (1<<13)|(1<<15),
+			TriggerMode::EdgeHi   => (0<<13)|(0<<15),
+			TriggerMode::EdgeLow  => (1<<13)|(0<<15),
+			TriggerMode::LevelHi  => (0<<13)|(1<<15),
+			TriggerMode::LevelLow => (1<<13)|(1<<15),
 			};
 		(*rh).write(0x10 + idx*2 + 1, (apic as u32 << 56-32) );
 		(*rh).write(0x10 + idx*2 + 0, flags | (vector as u32) );

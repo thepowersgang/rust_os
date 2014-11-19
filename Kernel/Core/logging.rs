@@ -30,14 +30,14 @@ impl ::core::fmt::Char for Level
 		write!(f, "{:c}",
 			match *self
 			{
-			LevelPanic   => 'k',
-			LevelError   => 'e',
-			LevelWarning => 'w',
-			LevelNotice  => 'n',
-			LevelInfo    => 'i',
-			LevelLog     => 'l',
-			LevelDebug   => 'd',
-			LevelTrace   => 't',
+			Level::LevelPanic   => 'k',
+			Level::LevelError   => 'e',
+			Level::LevelWarning => 'w',
+			Level::LevelNotice  => 'n',
+			Level::LevelInfo    => 'i',
+			Level::LevelLog     => 'l',
+			Level::LevelDebug   => 'd',
+			Level::LevelTrace   => 't',
 			}
 			)
 	}

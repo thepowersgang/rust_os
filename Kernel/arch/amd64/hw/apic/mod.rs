@@ -55,7 +55,7 @@ fn init()
 	// Find the LAPIC address
 	let mut lapic_addr = madt.data().local_controller_addr as u64;
 	for ent in madt.data().records(madt.data_len()).filter_map(
-		|r| match r { init::DevLAPICAddr(x) => Some(x.address), _ => None }
+		|r| match r { init::MADTDevRecord::DevLAPICAddr(x) => Some(x.address), _ => None }
 		)
 	{
 		lapic_addr = ent;
@@ -64,7 +64,7 @@ fn init()
 	// Create instances of the IOAPIC "driver" for all present controllers
 	let ioapics: Vec<_> = madt.data().records(madt.data_len()).filter_map(
 			|r| match r {
-				init::DevIOAPIC(a) => Some(raw::IOAPIC::new(a.address as u64, a.interrupt_base as uint)),
+				init::MADTDevRecord::DevIOAPIC(a) => Some(raw::IOAPIC::new(a.address as u64, a.interrupt_base as uint)),
 				_ => None
 				}
 			).collect();
@@ -143,7 +143,7 @@ pub fn register_irq(global_num: uint, callback: IRQHandler, info: *const() ) -> 
 	let isr_handle = try!( ::arch::interrupts::bind_isr(isrnum as u8, lapic_irq_handler, info, global_num) );
 
 	// Enable the relevant IRQ on the LAPIC and IOAPIC
-	ioapic.set_irq(ofs, isrnum as u8, lapic_id, raw::TriggerEdgeHi, callback);
+	ioapic.set_irq(ofs, isrnum as u8, lapic_id, raw::TriggerMode::EdgeHi, callback);
 	
 	Ok( IRQHandle {
 		num: global_num,

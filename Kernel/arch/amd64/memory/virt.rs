@@ -10,11 +10,11 @@ static MASK_VBITS : uint = 0x0000FFFF_FFFFFFFF;
 #[deriving(PartialEq,Show)]
 enum PTEPos
 {
-	PTEPosAbsent,
-	PTEPos512G,
-	PTEPos1G,
-	PTEPos2M,
-	PTEPos4K,
+	Absent,
+	Page512G,
+	Page1G,
+	Page2M,
+	Page4K,
 }
 
 struct PTE
@@ -41,11 +41,11 @@ unsafe fn get_entry(level: u8, index: uint, force_allocate: bool) -> PTE
 	{
 	0 => {
 		assert!(index < 512*512*512*512)
-		PTE::new(PTEPos4K, tab_pt.offset(index as int))
+		PTE::new(PTEPos::Page4K, tab_pt.offset(index as int))
 		}
 	1 => {
 		assert!(index < 512*512*512)
-		let rv = PTE::new(PTEPos2M, tab_pd.offset(index as int));
+		let rv = PTE::new(PTEPos::Page2M, tab_pd.offset(index as int));
 		if !rv.is_present() && force_allocate {
 			let ptr = tab_pt.offset(index as int * 512) as *mut ();
 			log_debug!("Allocating for {} (PDE {})", ptr, index);
@@ -55,7 +55,7 @@ unsafe fn get_entry(level: u8, index: uint, force_allocate: bool) -> PTE
 		},
 	2 => {
 		assert!(index < 512*512)
-		let rv = PTE::new(PTEPos1G, tab_pdp.offset(index as int));
+		let rv = PTE::new(PTEPos::Page1G, tab_pdp.offset(index as int));
 		if !rv.is_present() && force_allocate {
 			let ptr = tab_pd.offset(index as int * 512) as *mut ();
 			log_debug!("Allocating for {} (PDPE {})", ptr, index);
@@ -65,7 +65,7 @@ unsafe fn get_entry(level: u8, index: uint, force_allocate: bool) -> PTE
 		},
 	3 => {
 		assert!(index < 512)
-		let rv = PTE::new(PTEPos512G, tab_pml4.offset(index as int));
+		let rv = PTE::new(PTEPos::Page512G, tab_pml4.offset(index as int));
 		if !rv.is_present() && force_allocate {
 			::memory::phys::allocate( tab_pdp.offset(index as int * 512) as *mut () );
 		}
@@ -129,7 +129,7 @@ pub fn unmap(addr: *mut ())
 {
 	unsafe {
 		let pte = get_page_ent(addr as uint, false, false, false);
-		pte.set( 0, ::memory::virt::ProtUnmapped );
+		pte.set( 0, ::memory::virt::ProtectionMode::Unmapped );
 	}
 }
 
@@ -143,10 +143,10 @@ impl PTE
 		PTE { pos: pos, data: ptr }
 	}
 	pub fn null() -> PTE {
-		PTE { pos: PTEPosAbsent, data: RawPtr::null() }
+		PTE { pos: PTEPos::Absent, data: RawPtr::null() }
 	}
 
-	pub fn is_null(&self) -> bool { self.pos == PTEPosAbsent }
+	pub fn is_null(&self) -> bool { self.pos == PTEPos::Absent }
 	pub unsafe fn is_reserved(&self) -> bool { !self.is_null() && *self.data != 0 }
 	pub unsafe fn is_present(&self) -> bool { !self.is_null() && *self.data & 1 != 0 }
 	pub unsafe fn is_large(&self) -> bool { *self.data & (PF_PRESENT | PF_LARGE) == PF_LARGE|PF_PRESENT }
@@ -161,13 +161,13 @@ impl PTE
 		assert!(!self.is_null());
 		let flags: u64 = match prot
 			{
-			::memory::virt::ProtUnmapped => 0,
-			::memory::virt::ProtKernelRO => (1<<63)|1,
-			::memory::virt::ProtKernelRW => (1<<63)|2|1,
-			::memory::virt::ProtKernelRX => 1,
-			::memory::virt::ProtUserRO => (1<<63)|4|1,
-			::memory::virt::ProtUserRW => (1<<63)|4|2|1,
-			::memory::virt::ProtUserRX => 4|1,
+			::memory::virt::ProtectionMode::Unmapped => 0,
+			::memory::virt::ProtectionMode::KernelRO => (1<<63)|1,
+			::memory::virt::ProtectionMode::KernelRW => (1<<63)|2|1,
+			::memory::virt::ProtectionMode::KernelRX => 1,
+			::memory::virt::ProtectionMode::UserRO => (1<<63)|4|1,
+			::memory::virt::ProtectionMode::UserRW => (1<<63)|4|2|1,
+			::memory::virt::ProtectionMode::UserRX => 4|1,
 			};
 		*self.data = (paddr & 0x7FFFFFFF_FFFFF000) | flags;
 	}

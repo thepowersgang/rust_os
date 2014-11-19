@@ -7,15 +7,15 @@ use arch::memory::{PAddr};
 #[deriving(PartialEq,Show)]
 pub enum MemoryState
 {
-	StateReserved,
-	StateUsed,
-	StateFree,
+	Reserved,
+	Used,
+	Free,
 }
 
 pub const MAP_PAD: MemoryMapEnt = MemoryMapEnt {
 	start: 0,
 	size: 0,
-	state: StateReserved,
+	state: MemoryState::Reserved,
 	domain: 0
 	};
 

@@ -9,6 +9,8 @@ use _common::*;
 use core::ptr::RawPtr;
 use core::str::from_utf8;
 
+use self::TLSDT::{TopRSDT,TopXSDT};
+
 module_define!(ACPI, [], init)
 
 struct ACPI

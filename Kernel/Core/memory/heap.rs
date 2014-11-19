@@ -11,8 +11,8 @@ use core::ptr::RawPtr;
 // Types
 pub enum HeapId
 {
-	LocalHeap,	// Inaccessible outside of process
-	GlobalHeap,	// Global allocations
+	Local,	// Inaccessible outside of process
+	Global,	// Global allocations
 }
 
 struct HeapDef
@@ -26,8 +26,8 @@ struct HeapDef
 #[deriving(Show)]	// RawPtr Show is the address
 enum HeapState
 {
-	HeapFree(*mut HeapHead),
-	HeapUsed(uint),
+	Free(*mut HeapHead),
+	Used(uint),
 }
 
 #[deriving(Show)]
@@ -59,7 +59,7 @@ pub fn init()
 
 #[lang="exchange_malloc"]
 unsafe fn exchange_malloc(size: uint, _align: uint) -> *mut u8 {
-	allocate(GlobalHeap, size).unwrap() as *mut u8
+	allocate(HeapId::Global, size).unwrap() as *mut u8
 }
 #[lang="exchange_free"]
 unsafe fn exchange_free(ptr: *mut u8, _size: uint, _align: uint) {
@@ -68,7 +68,7 @@ unsafe fn exchange_free(ptr: *mut u8, _size: uint, _align: uint) {
 
 pub unsafe fn alloc<T>(value: T) -> *mut T
 {
-	let ret = match allocate(GlobalHeap, ::core::mem::size_of::<T>())
+	let ret = match allocate(HeapId::Global, ::core::mem::size_of::<T>())
 		{
 		Some(v) => v as *mut T,
 		None => panic!("Out of memory")
@@ -79,7 +79,7 @@ pub unsafe fn alloc<T>(value: T) -> *mut T
 
 pub unsafe fn alloc_array<T>(count: uint) -> *mut T
 {
-	match allocate(GlobalHeap, ::core::mem::size_of::<T>() * count)
+	match allocate(HeapId::Global, ::core::mem::size_of::<T>() * count)
 	{
 	Some(v) => v as *mut T,
 	None => panic!("Out of memory when allocating array of {} elements", count)
@@ -90,7 +90,7 @@ pub unsafe fn allocate(heap: HeapId, size: uint) -> Option<*mut ()>
 {
 	match heap
 	{
-	GlobalHeap => s_global_heap.lock().allocate(size),
+	HeapId::Global => s_global_heap.lock().allocate(size),
 	_ => panic!("TODO: Non-global heaps"),
 	}
 }
@@ -129,7 +129,7 @@ impl HeapDef
 		{
 			let fb = &*opt_fb;
 			assert!( fb.magic == MAGIC );
-			let next = match fb.state { HeapFree(n)=> n, _ => panic!("Non-free block ({}) in free list", opt_fb) };
+			let next = match fb.state { HeapState::Free(n)=> n, _ => panic!("Non-free block ({}) in free list", opt_fb) };
 			if fb.size >= blocksize
 			{
 				break;
@@ -141,7 +141,7 @@ impl HeapDef
 		if !opt_fb.is_null()
 		{
 			let fb = &mut *opt_fb;
-			let next = match fb.state { HeapFree(n)=> n, _ => panic!("Non-free block in free list") };
+			let next = match fb.state { HeapState::Free(n)=> n, _ => panic!("Non-free block in free list") };
 			// Split block (if needed)
 			if fb.size > blocksize + headers_size
 			{
@@ -157,28 +157,28 @@ impl HeapDef
 				*far_head = HeapHead {
 					magic: MAGIC,
 					size: far_size,
-					state: HeapFree(next)
+					state: HeapState::Free(next)
 					};
 				(*far_foot).head = far_head;
 				if prev.is_null() {
 					self.first_free = far_head;
 				}
 				else {
-					(*prev).state = HeapFree(far_head);
+					(*prev).state = HeapState::Free(far_head);
 				}
 			}
 			else
 			{
-				let next = match fb.state { HeapFree(x) => x, _ => panic!("") };
+				let next = match fb.state { HeapState::Free(x) => x, _ => panic!("") };
 				if prev.is_null() {
 					self.first_free = next;
 				}
 				else {
-					(*prev).state = HeapFree(next);
+					(*prev).state = HeapState::Free(next);
 				}
 			}
 			// Return newly allocated block
-			fb.state = HeapUsed(size);
+			fb.state = HeapState::Used(size);
 			log_debug!("Returning {} (Freelist)", fb.data());
 			return Some( fb.data() );
 		}
@@ -202,7 +202,7 @@ impl HeapDef
 			*tailblock = HeapHead {
 				magic: MAGIC,
 				size: tailsize,
-				state: HeapFree(self.first_free),
+				state: HeapState::Free(self.first_free),
 				};
 			tailblock.foot().head = block.next();
 			self.first_free = block.next();
@@ -231,7 +231,7 @@ impl HeapDef
 				
 				// Merge left and right
 				// 1. Left:
-				if_let!( HeapFree(_) = (*headref.prev()).state
+				if_let!( HeapState::Free(_) = (*headref.prev()).state
 				{
 					log_trace!("Merged left with {}", headref.prev());
 					// increase size of previous block to cover this block
@@ -240,13 +240,13 @@ impl HeapDef
 				})
 				
 				// 2. Right
-				//if_let!( HeapFree(_) => 
+				//if_let!( HeapState::Free(_) => 
 				// TODO: Merging right requires being able to arbitarily remove items from the free list
 			}
 			
 			if !no_add
 			{
-				(*headptr).state = HeapFree(self.first_free);
+				(*headptr).state = HeapState::Free(self.first_free);
 				self.first_free = headptr;
 			}
 		}
@@ -269,11 +269,11 @@ impl HeapDef
 				let lasthdr = (*self.last_foot).head();
 				match lasthdr.state
 				{
-				HeapFree(_) => {
+				HeapState::Free(_) => {
 					assert!(lasthdr.size < min_size);
 					true
 					},
-				HeapUsed(_) => false
+				HeapState::Used(_) => false
 				}
 			};
 		assert!( !self.last_foot.is_null() );
@@ -302,7 +302,7 @@ impl HeapDef
 				log_debug!("HeapDef.expand: (new) &block={}", block as *mut HeapHead);
 				*block = HeapHead {
 					magic: MAGIC,
-					state: HeapUsed(0),
+					state: HeapState::Used(0),
 					size: n_pages * ::PAGE_SIZE,
 					};
 				block.foot().head = last_foot.next_head();
@@ -311,7 +311,7 @@ impl HeapDef
 			};
 		self.last_foot = block.foot() as *mut HeapFoot;
 		log_debug!("HeapDef.expand: &block={}", block as *mut HeapHead);
-		block.state = HeapUsed(0);
+		block.state = HeapState::Used(0);
 		// 3. Return final block
 		block
 	}

@@ -82,7 +82,7 @@ pub extern "C" fn kmain()
 }
 
 #[no_mangle] pub unsafe extern "C" fn malloc(size: uint) -> *mut () {
-	memory::heap::allocate(memory::heap::GlobalHeap, size).unwrap()
+	memory::heap::allocate(memory::heap::HeapId::Global, size).unwrap()
 } 
 #[no_mangle] pub unsafe extern "C" fn free(ptr: *mut ()) {
 	use core::ptr::RawPtr;
@@ -98,11 +98,11 @@ pub mod archapi
 
 pub enum VideoFormat
 {
-	VideoX8R8G8B8,
-	VideoB8G8R8X8,
-	VideoR8G8B8,
-	VideoB8G8R8,
-	VideoR5G6B5,
+	X8R8G8B8,
+	B8G8R8X8,
+	R8G8B8,
+	B8G8R8,
+	R5G6B5,
 }
 
 pub struct VideoMode
