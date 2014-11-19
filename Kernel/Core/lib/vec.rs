@@ -18,6 +18,13 @@ pub struct Vec<T>
 	capacity: uint,
 }
 
+pub struct MoveItems<T>
+{
+	data: *mut T,
+	count: uint,
+	ofs: uint,
+}
+
 impl<T> Vec<T>
 {
 	pub fn new() -> Vec<T>
@@ -60,6 +67,14 @@ impl<T> Vec<T>
 	pub fn iter_mut<'s>(&'s mut self) -> MutItems<'s,T>
 	{
 		self.slice_mut().iter_mut()
+	}
+	pub fn into_iter(self) -> MoveItems<T>
+	{
+		MoveItems {
+			data: self.data,
+			ofs: 0,
+			count: self.size,
+		}
 	}
 	
 	fn reserve(&mut self, size: uint)
@@ -116,14 +131,11 @@ impl<T> Drop for Vec<T>
 {
 	fn drop(&mut self)
 	{
-		if self.capacity > 0
-		{
-			unsafe {
-				for i in range(0, self.size) {
-					*self.get_mut(i) = ::core::mem::uninitialized();
-				}
-				::memory::heap::deallocate( self.data );
+		unsafe {
+			for i in range(0, self.size) {
+				*self.get_mut(i) = ::core::mem::uninitialized();
 			}
+			::memory::heap::deallocate( self.data );
 		}
 	}
 }
@@ -148,9 +160,7 @@ impl<T> ::core::slice::AsSlice<T> for Vec<T>
 	}
 }
 
-impl<T> ::core::fmt::Show for Vec<T>
-where
-	T: ::core::fmt::Show
+impl<T: ::core::fmt::Show> ::core::fmt::Show for Vec<T>
 {
 	fn fmt(&self, f: &mut ::core::fmt::Formatter) -> ::core::result::Result<(),::core::fmt::FormatError>
 	{
@@ -193,6 +203,46 @@ impl<T> FromIterator<T> for Vec<T>
 			ret.push(val);
 		}
 		ret
+	}
+}
+
+impl<T> MoveItems<T>
+{
+	fn pop_item(&mut self) -> T
+	{
+		assert!(self.ofs < self.count);
+		let v = unsafe { ::core::ptr::replace(self.data.offset(self.ofs as int), ::core::mem::uninitialized()) };
+		self.ofs += 1;
+		v
+	}
+}
+
+impl<T> Iterator<T> for MoveItems<T>
+{
+	fn next(&mut self) -> Option<T>
+	{
+		if self.ofs == self.count
+		{
+			None
+		}
+		else
+		{
+			Some( self.pop_item() )
+		}
+	}
+}
+
+#[unsafe_destructor]
+impl<T> Drop for MoveItems<T>
+{
+	fn drop(&mut self)
+	{
+		for i in range(self.ofs, self.count) {
+			self.pop_item();
+		}
+		unsafe {
+			::memory::heap::deallocate( self.data );
+		}
 	}
 }
 
