@@ -18,19 +18,20 @@ pub enum IOBinding
 
 pub trait BusManager
 {
-	fn get_attr_names() -> &[&str];
+	fn get_attr_names(&self) -> &[&str];
 }
 
 pub trait BusDevice
 {
-	fn get_attr(name: &str) -> u32;
-	fn set_power(state: bool);	// TODO: Power state enum for Off,Standby,Low,On
-	fn bind_io(block_id: uint) -> IOBinding;
+	fn get_attr(&self, name: &str) -> u32;
+	fn set_power(&mut self, state: bool);	// TODO: Power state enum for Off,Standby,Low,On
+	fn bind_io(&mut self, block_id: uint) -> IOBinding;
 }
 
 pub trait Driver
 {
-	
+	fn handles(&self, bus_dev: &BusDevice) -> bool;
+	fn bind(&self, bus_dev: &BusDevice) -> Box<DriverInstance+'static>;
 }
 
 pub trait DriverInstance
@@ -67,8 +68,8 @@ pub fn register_bus(manager: &'static BusManager+'static, devices: Vec<Box<BusDe
 		manager: manager,
 		devices: devices.into_iter().map(|d| Device {
 			driver: find_driver(&*d),
-			bus_dev: d,
 			attribs: Vec::new(),
+			bus_dev: d,
 			}).collect(),
 		};
 	s_root_busses.lock().push(bus);
