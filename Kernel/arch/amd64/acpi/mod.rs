@@ -299,7 +299,7 @@ impl<T> SDTHandle<T>
 	/// Map an SDT into memory, given a physical address
 	pub fn new(physaddr: u64) -> SDTHandle<T>
 	{
-		log_trace!("new(physaddr={:#x})", physaddr);
+		//log_trace!("new(physaddr={:#x})", physaddr);
 		let ofs = (physaddr & (::PAGE_SIZE - 1) as u64) as uint;
 		
 		// Obtain length (and validate)

@@ -2,6 +2,7 @@
 //
 //
 
+#[allow(non_upper_case_globals)]
 static s_pci_lock: ::sync::Spinlock<()> = spinlock_init!(());
 
 pub fn read(addr: u32) -> u32
