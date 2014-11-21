@@ -10,6 +10,7 @@ use core::num::Int;
 use core::ops::{Drop,Index};
 use lib::clone::Clone;
 use lib::collections::{MutableSeq};
+use logging::HexDump;
 
 pub struct Vec<T>
 {
@@ -68,12 +69,15 @@ impl<T> Vec<T>
 	{
 		self.slice_mut().iter_mut()
 	}
-	pub fn into_iter(mut self) -> MoveItems<T>
+	pub fn into_iter(self) -> MoveItems<T>
 	{
+		let dataptr = self.data;
+		let count = self.size;
+		unsafe { ::core::mem::forget(self) };
 		MoveItems {
-			data: ::core::mem::replace(&mut self.data, ::memory::heap::ZERO_ALLOC as *mut _),
+			data: dataptr,
 			ofs: 0,
-			count: ::core::mem::replace(&mut self.size, 0),
+			count: count,
 		}
 	}
 	
@@ -86,8 +90,9 @@ impl<T> Vec<T>
 			unsafe {
 				let newptr = ::memory::heap::alloc_array::<T>( newcap );
 				for i in range(0, self.size) {
-					::core::ptr::write(newptr.offset(i as int), self.move_ent(i as uint));
-					log_trace!("Vec::reserve - Moved ent {}", i);
+					let val = self.move_ent(i as uint);
+					log_trace!("Vec::reserve - Moving ent {} ({})", i, HexDump(&val));
+					::core::ptr::write(newptr.offset(i as int), val);
 				}
 				if self.capacity > 0 {
 					::memory::heap::deallocate( self.data );
@@ -178,6 +183,7 @@ impl<T> MutableSeq<T> for Vec<T>
 		self.reserve(pos + 1);
 		self.size += 1;
 		let ptr = self.get_mut(pos);
+		log_debug!("Vec.push {}", HexDump(&t));
 		unsafe { ::core::ptr::write(ptr, t); }
 	}
 	fn pop(&mut self) -> Option<T>
@@ -212,8 +218,14 @@ impl<T> MoveItems<T>
 {
 	fn pop_item(&mut self) -> T
 	{
+		log_debug!("MoveItems.pop_item() ofs={}, count={}, data={}", self.ofs, self.count, self.data);
 		assert!(self.ofs < self.count);
-		let v = unsafe { ::core::ptr::replace(self.data.offset(self.ofs as int), ::core::mem::uninitialized()) };
+		let v: T = unsafe {
+			let ptr = self.data.offset(self.ofs as int);
+			//::core::ptr::replace(ptr, ::core::mem::uninitialized())
+			::core::ptr::replace(ptr, ::core::mem::zeroed())
+			};
+		log_debug!("MoveItems.pop_item() v = {}", HexDump(&v));
 		self.ofs += 1;
 		v
 	}

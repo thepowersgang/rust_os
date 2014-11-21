@@ -23,4 +23,6 @@ pub use lib::clone::Clone;
 pub use lib::collections::{MutableSeq};
 pub use lib::{OptPtr,OptMutPtr};
 
+pub use logging::HexDump;
+
 // vim: ft=rust

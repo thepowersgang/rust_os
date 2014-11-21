@@ -2,6 +2,8 @@
 //
 //
 use core::fmt::FormatWriter;
+use core::result::{Ok,Err};
+use core::slice::{SlicePrelude};
 
 #[deriving(PartialEq,PartialOrd)]
 pub enum Level
@@ -20,6 +22,8 @@ struct LoggingFormatter
 {
 	lock_handle: ::arch::sync::HeldSpinlock<'static,()>,
 }
+
+pub struct HexDump<'a,T:'a>(pub &'a T);
 
 // NOTE: Has to be a spinlock, stops interrupts while held
 static s_logging_lock: ::arch::sync::Spinlock<()> = spinlock_init!( () );
@@ -73,6 +77,32 @@ impl ::core::ops::Drop for LoggingFormatter
 	fn drop(&mut self)
 	{
 		::arch::puts("\n");
+	}
+}
+
+impl<'a,T:'a> HexDump<'a,T>
+{
+	fn byteslice(&self) -> &[u8]
+	{
+		let size = ::core::mem::size_of::<T>();
+		unsafe {
+			::core::mem::transmute(::core::raw::Slice {
+				data: self.0 as *const T as *const u8,
+				len: size,
+			})
+		}
+	}
+}
+
+impl<'a,T:'a> ::core::fmt::Show for HexDump<'a,T>
+{
+	fn fmt(&self, f: &mut ::core::fmt::Formatter) -> ::core::fmt::Result
+	{
+		for i in self.byteslice().iter()
+		{
+			try!(write!(f, "{:02x} ", *i));
+		}
+		Ok( () )
 	}
 }
 
