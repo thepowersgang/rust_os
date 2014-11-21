@@ -27,6 +27,7 @@ pub mod macros;
 
 // Evil Hack: For some reason, write! (and friends) will expand pointing to std instead of core
 mod std {
+	pub use core::option;
 	pub use core::{default,fmt,cmp};
 	pub use lib::clone;
 }

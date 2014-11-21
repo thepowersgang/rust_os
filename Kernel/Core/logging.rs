@@ -1,19 +1,19 @@
 // Module: ::logging
 //
 //
-
 use core::fmt::FormatWriter;
 
+#[deriving(PartialEq,PartialOrd)]
 pub enum Level
 {
-	LevelPanic,	// Everything broke
-	LevelError,	// Something broke
+	LevelPanic,  	// Everything broke
+	LevelError,  	// Something broke
 	LevelWarning,	// Recoverable
-	LevelNotice,	// Odd
-	LevelInfo,	// Interesting
-	LevelLog,	// General
-	LevelDebug,	// What
-	LevelTrace,	// Where
+	LevelNotice, 	// Odd
+	LevelInfo,   	// Interesting
+	LevelLog,    	// General
+	LevelDebug,   	// What
+	LevelTrace,  	// Where
 }
 
 struct LoggingFormatter
@@ -78,6 +78,9 @@ impl ::core::ops::Drop for LoggingFormatter
 
 pub fn enabled(_level: Level, _modname: &str) -> bool
 {
+	//if _modname == "main::::memory::heap" && _level == Level::LevelDebug {
+	//	return false;
+	//}
 	true
 }
 

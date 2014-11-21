@@ -21,5 +21,6 @@ pub use lib::vec::Vec;
 pub use lib::string::String;
 pub use lib::clone::Clone;
 pub use lib::collections::{MutableSeq};
+pub use lib::{OptPtr,OptMutPtr};
 
 // vim: ft=rust

@@ -1,4 +1,6 @@
 
+use core::kinds::Sized;
+
 pub use self::rc::Rc;
 
 mod rc;
@@ -6,7 +8,7 @@ mod rc;
 #[lang = "owned_box"]
 pub struct Box<T>(*mut T);
 
-impl<T> ::core::fmt::Show for Box<T>
+impl<Sized? T> ::core::fmt::Show for Box<T>
 where
 	T: ::core::fmt::Show
 {

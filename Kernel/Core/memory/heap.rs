@@ -45,6 +45,7 @@ struct HeapFoot
 // Curse no CTFE
 //const HEADERS_SIZE: uint = ::core::mem::size_of::<HeapHead>() + ::core::mem::size_of::<HeapFoot>();
 const MAGIC: uint = 0x71ff11A1;
+pub const ZERO_ALLOC: *mut () = 1 as *mut _;
 // --------------------------------------------------------
 // Globals
 //#[link_section(process_local)] static s_local_heap : ::sync::Mutex<HeapDef> = mutex_init!(HeapDef{head:None});
@@ -112,7 +113,7 @@ impl HeapDef
 	{
 		// SHORT CCT: Zero size allocation
 		if size == 0 {
-			return Some(1 as *mut ());
+			return Some(ZERO_ALLOC);
 		}
 		
 		// This would be static, if CTFE was avalible
@@ -215,7 +216,7 @@ impl HeapDef
 	pub fn deallocate(&mut self, ptr: *mut ())
 	{
 		log_debug!("deallocate(ptr={})", ptr);
-		if ptr == 1 as *mut () {
+		if ptr == ZERO_ALLOC {
 			log_trace!("Free zero alloc");
 			return ;
 		}

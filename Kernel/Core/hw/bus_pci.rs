@@ -5,6 +5,8 @@
 // - PCI Bus Handling
 use _common::*;
 
+use device_manager::BusDevice;
+
 const MAX_FUNC: u8 = 8;	// Address restriction
 const MAX_DEV: u8 = 32;	// Address restriction
 const CONFIG_WORD_IDENT: u8 = 0;
@@ -21,17 +23,81 @@ struct PCIDev
 	config: [u32,..16]
 }
 
+struct PCIBusManager;
+struct PCIChildBusDriver;
+
+static s_pci_bus_manager: PCIBusManager = PCIBusManager;
+static s_pci_child_bus_driver: PCIChildBusDriver = PCIChildBusDriver;
+static S_ATTR_NAMES: [&'static str, ..3] = ["vendor", "device", "class"];
+
 module_define!(PCI, [DeviceManager], init)
 
 fn init()
 {
+	::device_manager::register_driver(&s_pci_child_bus_driver);
+	
 	// 1. Enumerate PCI bus(es)
 	let devs = scan_bus(0);
-	log_debug!("devs = {}", devs);
+	//log_debug!("devs = {}", devs);
+	::device_manager::register_bus(&s_pci_bus_manager, devs);
 	// - All drivers that have PCI bindings should be waiting on this to load
 }
 
-fn scan_bus(bus_id: u8) -> Vec<PCIDev>
+impl ::device_manager::BusManager for PCIBusManager
+{
+	fn bus_type(&self) -> &str { "pci" }
+	fn get_attr_names(&self) -> &[&str]
+	{
+		&S_ATTR_NAMES
+	}
+}
+
+impl ::device_manager::Driver for PCIChildBusDriver
+{
+	fn bus_type(&self) -> &str {
+		"pci"
+	}
+	fn handles(&self, bus_dev: &::device_manager::BusDevice) -> bool
+	{
+		let addr = bus_dev.addr() as u16;
+		let bridge_type = (read_word(addr, 3) >> 16) & 0x7F;
+		// 0x00 == Normal device, 0x01 = PCI-PCI Bridge
+		bridge_type == 0x01
+	}
+	fn bind(&self, bus_dev: &::device_manager::BusDevice) -> Box<::device_manager::DriverInstance+'static>
+	{
+		let addr = bus_dev.addr() as u16;
+		let bridge_type = (read_word(addr, 3) >> 16) & 0x7F;
+		assert!(bridge_type == 0x01)
+		// Get sub-bus number
+		let sec_bus_id = (read_word(addr, 6) >> 8) & 0xFF;
+		log_debug!("PCI Bridge Bind: sec_bus_id = {:#02x}", sec_bus_id);
+		panic!("TODO");
+	}
+}
+
+impl ::device_manager::BusDevice for PCIDev
+{
+	fn addr(&self) -> u32 {
+		self.addr as u32
+	}
+	fn get_attr(&self, name: &str) -> u32 {
+		match name
+		{
+		_ => 0,
+		}
+	}
+	fn set_power(&mut self, state: bool)
+	{
+		// Nope
+	}
+	fn bind_io(&mut self, block_id: uint) -> ::device_manager::IOBinding
+	{
+		panic!("TODO: PCIDev::bind_io");
+	}
+}
+
+fn scan_bus(bus_id: u8) -> Vec<Box<BusDevice+'static>>
 {
 	log_trace!("PCI scan_bus({})", bus_id);
 	let mut ret = Vec::new();
@@ -41,8 +107,9 @@ fn scan_bus(bus_id: u8) -> Vec<PCIDev>
 		{
 		Some(devinfo) => {
 			let is_multifunc = (devinfo.config[3] & 0x0080_0000) != 0;
+			log_debug!("{}", devinfo);
 			// Increase device count
-			ret.push(devinfo);
+			ret.push(box devinfo as Box<BusDevice>);
 			// Handle multi-function devices (iterate from 1 onwards)
 			if is_multifunc
 			{
@@ -50,7 +117,8 @@ fn scan_bus(bus_id: u8) -> Vec<PCIDev>
 				{
 					if let Some(devinfo) = get_device(bus_id, devidx, fcnidx)
 					{
-						ret.push(devinfo);
+						log_debug!("{}", devinfo);
+						ret.push(box devinfo);
 					}
 				}
 			}

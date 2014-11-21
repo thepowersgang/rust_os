@@ -2,6 +2,9 @@
 //
 //
 #![macro_escape]
+use core::option::{Option,Some,None};
+use core::ptr::RawPtr;
+
 pub use self::queue::Queue;
 pub use self::vec::Vec;
 pub use self::string::String;
@@ -27,6 +30,53 @@ pub mod collections
 	{
 		fn push(&mut self, t: T);
 		fn pop(&mut self) -> ::core::option::Option<T>;
+	}
+}
+
+pub struct OptPtr<T>(pub *const T);
+pub struct OptMutPtr<T>(pub *mut T);
+
+impl<T> OptPtr<T>
+{
+	fn is_none(&self) -> bool {
+		self.0.is_null()
+	}
+	fn is_some(&self) -> bool {
+		!self.0.is_null()
+	}
+	fn unwrap(&self) -> *const T {
+		assert!( !self.0.is_null() );
+		self.0
+	}
+	unsafe fn as_ref(&self) -> Option<&T> {
+		if (self.0).is_null() {
+			None
+		}
+		else {
+			Some(&*self.0)
+		}
+	}
+}
+
+impl<T> OptMutPtr<T>
+{
+	fn is_none(&self) -> bool {
+		self.0.is_null()
+	}
+	fn is_some(&self) -> bool {
+		!self.0.is_null()
+	}
+	fn unwrap(&self) -> *mut T {
+		assert!( !self.0.is_null() );
+		self.0
+	}
+	unsafe fn as_ref(&self) -> Option<&mut T> {
+		if (self.0).is_null() {
+			None
+		}
+		else {
+			Some(&mut *self.0)
+		}
 	}
 }
 

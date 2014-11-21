@@ -6,14 +6,19 @@ use _common::*;
 
 pub struct Queue<T>
 {
-	pub head: ::core::option::Option<*mut QueueEnt<T>>,
-	pub tail: ::core::option::Option<*mut QueueEnt<T>>,
+	pub head: OptPtr<QueueEnt<T>>,
+	pub tail: OptMutPtr<QueueEnt<T>>,
 }
 
 pub struct QueueEnt<T>
 {
-	next: ::core::option::Option<*mut QueueEnt<T>>,
+	next: OptPtr<QueueEnt<T>>,
 	value: T
+}
+
+pub struct Items<'s, T: 's>
+{
+	cur_item: Option<&'s QueueEnt<T>>,
 }
 
 impl<T> Queue<T>
@@ -23,21 +28,22 @@ impl<T> Queue<T>
 		unsafe
 		{
 			let qe_ptr = ::memory::heap::alloc( QueueEnt {
-				next: None,
+				next: OptPtr(0 as *const _),
 				value: value,
 				} );
 			
-			if self.head.is_some()	
+			if self.head.is_some()
 			{
-				assert!(self.tail.is_some());
-				assert!((*self.tail.unwrap()).next.is_none());
-				(*self.tail.unwrap()).next = Some(qe_ptr);
+				assert!( self.tail.is_some() );
+				let r = self.tail.as_ref().unwrap();
+				assert!( r.next.is_none() );
+				r.next = OptPtr(qe_ptr as *const _);
 			}
 			else
 			{
-				self.head = Some(qe_ptr);
-				self.tail = Some(qe_ptr);
+				self.head = OptPtr(qe_ptr as *const _);
 			}
+			self.tail = OptMutPtr(qe_ptr);
 		}
 	}
 	pub fn pop(&mut self) -> ::core::option::Option<T>
@@ -51,10 +57,11 @@ impl<T> Queue<T>
 			let qe_ptr = self.head.unwrap();
 			self.head = (*qe_ptr).next;
 			if self.head.is_none() {
-				self.tail = None;
+				self.tail = OptMutPtr(0 as *mut _);
 			}
 			
-			let rv = ::core::mem::replace(&mut (*qe_ptr).value, ::core::mem::zeroed());
+			let mut_qe_ptr = qe_ptr as *mut QueueEnt<T>;
+			let rv = ::core::mem::replace(&mut (*mut_qe_ptr).value, ::core::mem::zeroed());
 			::memory::heap::deallocate(qe_ptr as *mut ());
 			Some(rv)
 		}
@@ -64,9 +71,31 @@ impl<T> Queue<T>
 	{
 		self.head.is_none()
 	}
+	
+	pub fn items<'s>(&'s self) -> Items<'s,T>
+	{
+		Items {
+			cur_item: unsafe { self.head.as_ref() },
+		}
+	}
 }
 
-macro_rules! queue_init( () => (Queue{head: ::core::option::None,tail: ::core::option::None}) )
+impl<'s, T> Iterator<&'s T> for Items<'s,T>
+{
+	fn next(&mut self) -> Option<&'s T>
+	{
+		match self.cur_item
+		{
+		Some(ptr) => {
+			self.cur_item = unsafe { ptr.next.as_ref() };
+			Some(&ptr.value)
+			},
+		None => None
+		}
+	}
+}
+
+macro_rules! queue_init( () => (Queue{head: OptPtr(0 as *const _),tail: OptMutPtr(0 as *mut _)}) )
 
 // vim: ft=rust
 

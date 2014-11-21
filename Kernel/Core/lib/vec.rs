@@ -68,12 +68,12 @@ impl<T> Vec<T>
 	{
 		self.slice_mut().iter_mut()
 	}
-	pub fn into_iter(self) -> MoveItems<T>
+	pub fn into_iter(mut self) -> MoveItems<T>
 	{
 		MoveItems {
-			data: self.data,
+			data: ::core::mem::replace(&mut self.data, ::memory::heap::ZERO_ALLOC as *mut _),
 			ofs: 0,
-			count: self.size,
+			count: ::core::mem::replace(&mut self.size, 0),
 		}
 	}
 	
@@ -82,11 +82,12 @@ impl<T> Vec<T>
 		let newcap = ::lib::num::round_up(size, 1 << (64-size.leading_zeros()));
 		if newcap > self.capacity
 		{
+			log_debug!("Vec::reserve - Expanding to {} from {}", newcap, self.capacity);
 			unsafe {
 				let newptr = ::memory::heap::alloc_array::<T>( newcap );
-				for i in range(0, self.size)
-				{
+				for i in range(0, self.size) {
 					::core::ptr::write(newptr.offset(i as int), self.move_ent(i as uint));
+					log_trace!("Vec::reserve - Moved ent {}", i);
 				}
 				if self.capacity > 0 {
 					::memory::heap::deallocate( self.data );
@@ -131,6 +132,7 @@ impl<T> Drop for Vec<T>
 {
 	fn drop(&mut self)
 	{
+		log_debug!("Vec::drop() - Dropping vector at {} w/ {} ents", self.data, self.size);
 		unsafe {
 			for i in range(0, self.size) {
 				*self.get_mut(i) = ::core::mem::uninitialized();
