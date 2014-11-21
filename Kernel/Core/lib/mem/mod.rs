@@ -10,7 +10,7 @@ impl<T> ::core::fmt::Show for Box<T>
 where
 	T: ::core::fmt::Show
 {
-	fn fmt(&self, f: &mut ::core::fmt::Formatter) -> ::core::result::Result<(),::core::fmt::FormatError>
+	fn fmt(&self, f: &mut ::core::fmt::Formatter) -> ::core::result::Result<(),::core::fmt::Error>
 	{
 		(**self).fmt(f)
 	}

@@ -153,7 +153,7 @@ pub fn register_irq(global_num: uint, callback: IRQHandler, info: *const() ) -> 
 
 impl ::core::fmt::Show for IRQHandle
 {
-	fn fmt(&self, f: &mut ::core::fmt::Formatter) -> Result<(),::core::fmt::FormatError>
+	fn fmt(&self, f: &mut ::core::fmt::Formatter) -> Result<(),::core::fmt::Error>
 	{
 		let (ioapic,ofs) = get_ioapic(self.num).unwrap();
 		write!(f, "IRQHandle{{#{}, LAPIC={}, Reg={:#x}}}",

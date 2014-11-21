@@ -152,14 +152,14 @@ impl<'a> Iterator<MADTDevRecord<'a>> for MADTRecords<'a>
 
 impl ::core::fmt::Show for MADT_LAPIC
 {
-	fn fmt(&self, f: &mut ::core::fmt::Formatter) -> Result<(),::core::fmt::FormatError>
+	fn fmt(&self, f: &mut ::core::fmt::Formatter) -> Result<(),::core::fmt::Error>
 	{
 		write!(f, "{{Proc:{},APIC:{},Flags:{:#x}}}", self.processor, self.apic_id, self.flags)
 	}
 }
 impl ::core::fmt::Show for MADT_IOAPIC
 {
-	fn fmt(&self, f: &mut ::core::fmt::Formatter) -> Result<(),::core::fmt::FormatError>
+	fn fmt(&self, f: &mut ::core::fmt::Formatter) -> Result<(),::core::fmt::Error>
 	{
 		write!(f, "{{ID:{},Addr:{:#x},BaseIRQ:{}}}", self.ioapic_id, self.address, self.interrupt_base)
 	}

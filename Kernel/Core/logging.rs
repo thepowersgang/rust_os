@@ -24,10 +24,10 @@ struct LoggingFormatter
 // NOTE: Has to be a spinlock, stops interrupts while held
 static s_logging_lock: ::arch::sync::Spinlock<()> = spinlock_init!( () );
 
-impl ::core::fmt::Char for Level
+impl ::core::fmt::Show for Level
 {
 	fn fmt(&self, f: &mut ::core::fmt::Formatter) -> ::core::fmt::Result {
-		write!(f, "{:c}",
+		write!(f, "{}",
 			match *self
 			{
 			Level::LevelPanic   => 'k',
@@ -85,7 +85,7 @@ pub fn getstream(level: Level, modname: &str) -> LoggingFormatter
 {
 	assert!( enabled(level, modname) );
 	let mut rv = LoggingFormatter::new();
-	let _ = write!(&mut rv, "{:8u}{:c} [{:6s}] - ", ::time::ticks(), level, modname);
+	let _ = write!(&mut rv, "{:8}{} [{:6}] - ", ::time::ticks(), level, modname);
 	rv
 }
 

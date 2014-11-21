@@ -162,7 +162,7 @@ impl<T> ::core::slice::AsSlice<T> for Vec<T>
 
 impl<T: ::core::fmt::Show> ::core::fmt::Show for Vec<T>
 {
-	fn fmt(&self, f: &mut ::core::fmt::Formatter) -> ::core::result::Result<(),::core::fmt::FormatError>
+	fn fmt(&self, f: &mut ::core::fmt::Formatter) -> ::core::result::Result<(),::core::fmt::Error>
 	{
 		write!(f, "{}", self.as_slice())
 	}

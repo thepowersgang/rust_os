@@ -125,9 +125,9 @@ impl Thread
 
 impl ::core::fmt::Show for Thread
 {
-	fn fmt(&self, f: &mut ::core::fmt::Formatter) -> Result<(),::core::fmt::FormatError>
+	fn fmt(&self, f: &mut ::core::fmt::Formatter) -> Result<(),::core::fmt::Error>
 	{
-		write!(f, "{}({:u} {})", self as *const _, self.tid, self.name)
+		write!(f, "{}({} {})", self as *const _, self.tid, self.name)
 	}
 }
 
@@ -136,7 +136,7 @@ impl ::core::ops::Drop for Thread
 	fn drop(&mut self)
 	{
 		// TODO: Remove self from the global thread map
-		log_debug!("Destroying thread {:u}", self.tid);
+		log_debug!("Destroying thread {}", self);
 	}
 }
 

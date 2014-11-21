@@ -120,7 +120,7 @@ fn init()
 			}
 		};
 	log_debug!("RSDP = {{ oemid = {}, revision = {:#x}, rsdt_address = {:#x} }}",
-		::core::str::from_utf8(rsdp.oemid), rsdp.revision, rsdp.rsdt_address);
+		::core::str::from_utf8(&rsdp.oemid), rsdp.revision, rsdp.rsdt_address);
 	
 	CHECKMARK!();
 	let tl = if rsdp.revision == 0 {
@@ -240,10 +240,10 @@ impl TLSDT
 	}
 	
 	fn signature<'self_>(&'self_ self) -> &'self_ str {
-		from_utf8(self._header().signature).unwrap()
+		from_utf8(&self._header().signature).unwrap()
 	}
 	fn oemid<'self_>(&'self_ self) -> &'self_ str {
-		from_utf8(self._header().oemid).unwrap()
+		from_utf8(&self._header().oemid).unwrap()
 	}
 	fn get<T>(&self, idx: uint) -> SDTHandle<T> {
 		SDTHandle::<T>::new(self._getaddr(idx))
@@ -288,9 +288,9 @@ impl SDTHeader
 	pub fn dump(&self)
 	{
 		log_debug!("SDTHeader = {{ sig:{},length='{}',rev={},checksum={},...",
-			from_utf8(self.signature), self.length, self.revision, self.checksum);
+			from_utf8(&self.signature), self.length, self.revision, self.checksum);
 		log_debug!(" oemid={},oem_table_id={},oem_revision={},...",
-			from_utf8(self.oemid), from_utf8(self.oem_table_id), self.oem_revision);
+			from_utf8(&self.oemid), from_utf8(&self.oem_table_id), self.oem_revision);
 		log_debug!(" creator_id={:#x}, creator_revision={}",
 			self.creator_id, self.creator_revision);
 	}

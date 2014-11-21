@@ -153,7 +153,7 @@ impl MultibootParsed
 			else {
 				"-UNKNOWN-"
 			};
-		log_notice!("Loading multiboot from loader '{:s}' (flags = {:#x})", loader_name, info.flags);
+		log_notice!("Loading multiboot from loader '{}' (flags = {:#x})", loader_name, info.flags);
 		let mut ret = MultibootParsed {
 				cmdline: MultibootParsed::_cmdline(info),
 				vidmode: MultibootParsed::_vidmode(info),

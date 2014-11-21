@@ -28,7 +28,7 @@ impl String
 
 impl ::core::fmt::Show for String
 {
-	fn fmt(&self, f: &mut ::core::fmt::Formatter) -> Result<(),::core::fmt::FormatError>
+	fn fmt(&self, f: &mut ::core::fmt::Formatter) -> Result<(),::core::fmt::Error>
 	{
 		self.as_slice().fmt(f)
 	}

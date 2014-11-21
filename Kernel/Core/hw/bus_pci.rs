@@ -109,7 +109,7 @@ fn read_word(bus_addr: u16, wordidx: u8) -> u32
 
 impl ::core::fmt::Show for PCIDev
 {
-	fn fmt(&self, f: &mut ::core::fmt::Formatter) -> ::core::result::Result<(),::core::fmt::FormatError>
+	fn fmt(&self, f: &mut ::core::fmt::Formatter) -> ::core::result::Result<(),::core::fmt::Error>
 	{
 		write!(f, "{:#04x} V{:04x} D{:04x} {:06x}", self.addr, self.vendor, self.device, self.class)
 	}
