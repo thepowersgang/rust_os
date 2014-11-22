@@ -13,3 +13,4 @@ Kernel/serial.txt
 Kernel/QemuLog.txt
 Kernel/gitstats
 Kernel/BuildNum.*.mk
+Kernel/qemu_trace

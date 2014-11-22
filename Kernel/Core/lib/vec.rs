@@ -86,12 +86,10 @@ impl<T> Vec<T>
 		let newcap = ::lib::num::round_up(size, 1 << (64-size.leading_zeros()));
 		if newcap > self.capacity
 		{
-			log_debug!("Vec::reserve - Expanding to {} from {}", newcap, self.capacity);
 			unsafe {
 				let newptr = ::memory::heap::alloc_array::<T>( newcap );
 				for i in range(0, self.size) {
 					let val = self.move_ent(i as uint);
-					log_trace!("Vec::reserve - Moving ent {} ({})", i, HexDump(&val));
 					::core::ptr::write(newptr.offset(i as int), val);
 				}
 				if self.capacity > 0 {
@@ -111,7 +109,7 @@ impl<T> Vec<T>
 	/// Move out of a slot in the vector, leaving unitialise memory in its place
 	unsafe fn move_ent(&mut self, pos: uint) -> T
 	{
-		::core::ptr::replace(self.data.offset(pos as int), ::core::mem::uninitialized())
+		::core::ptr::read(self.data.offset(pos as int) as *const _)
 	}
 }
 
@@ -183,7 +181,7 @@ impl<T> MutableSeq<T> for Vec<T>
 		self.reserve(pos + 1);
 		self.size += 1;
 		let ptr = self.get_mut(pos);
-		log_debug!("Vec.push {}", HexDump(&t));
+		//log_debug!("Vec.push {}", HexDump(&t));
 		unsafe { ::core::ptr::write(ptr, t); }
 	}
 	fn pop(&mut self) -> Option<T>
@@ -218,14 +216,13 @@ impl<T> MoveItems<T>
 {
 	fn pop_item(&mut self) -> T
 	{
-		log_debug!("MoveItems.pop_item() ofs={}, count={}, data={}", self.ofs, self.count, self.data);
+		//log_debug!("MoveItems.pop_item() ofs={}, count={}, data={}", self.ofs, self.count, self.data);
 		assert!(self.ofs < self.count);
 		let v: T = unsafe {
 			let ptr = self.data.offset(self.ofs as int);
-			//::core::ptr::replace(ptr, ::core::mem::uninitialized())
-			::core::ptr::replace(ptr, ::core::mem::zeroed())
+			::core::ptr::read(ptr as *const _)
 			};
-		log_debug!("MoveItems.pop_item() v = {}", HexDump(&v));
+		//log_debug!("MoveItems.pop_item() v = {}", HexDump(&v));
 		self.ofs += 1;
 		v
 	}
