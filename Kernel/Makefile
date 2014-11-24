@@ -25,11 +25,15 @@ RUSTFLAGS := --crate-type lib
 RUSTFLAGS += -O
 #RUSTFLAGS += --debuginfo 1
 #RUSTFLAGS += -C code-model=kernel
-RUSTFLAGS += -C soft-float
+#RUSTFLAGS += -C soft-float
 RUSTFLAGS += -C target-feature=$(subst $(space),$(comma),$(EXCLUDE_FEATURES:%=-%))
 RUSTFLAGS += --cfg arch__$(ARCH)
 #RUSTFLAGS += -Z time-passes
 RUSTFLAGS += --target=$(TARGET_FILE)
+
+LINKFLAGS := -z max-page-size=0x1000 -g
+LINKFLAGS += -T arch/$(ARCH)/link.ld -Map $(OBJDIR)map.txt
+#LINKFLAGS += --gc-sections
 
 ENV := RUST_VERSION="$(shell rustc --version)"
 ENV += TK_GITSPEC="$(shell git log -n 1 | head -n 1 | awk '{print $$2}')"
@@ -61,9 +65,9 @@ run: kernel-$(ARCH).bin
 
 kernel-$(ARCH).bin: $(OBJS) arch/$(ARCH)/link.ld Makefile
 	@echo [LD] -o $@
-	@$(TRIPLE)-ld -o $@ $(OBJS) $(LIBCORE) $(LIBCOMPILERRT) $(LIBGCC) -T arch/$(ARCH)/link.ld -Map $(OBJDIR)map.txt -z max-page-size=0x1000 -g
+	@$(TRIPLE)-ld -o $@ $(OBJS) $(LIBCORE) $(LIBCOMPILERRT) $(LIBGCC) $(LINKFLAGS)
 	@objcopy $@ -F elf32-i386 $@.elf32
-	@mcopy -i fdd.img $@.elf32 ::/ -D o
+	#@mcopy -i fdd.img $@.elf32 ::/ -D o
 	@objdump -S $@ > $@.dsm
 	@echo "BUILDNUM := $$(( $(BUILDNUM) + 1 ))" > BuildNum.$(ARCH).mk
 

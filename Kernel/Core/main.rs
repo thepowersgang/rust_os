@@ -3,6 +3,7 @@
 //
 // Core/main.rs
 // - Kernel main
+#![crate_name="kernel"]
 #![no_std]
 #![feature(phase)]
 #![feature(macro_rules,asm)]

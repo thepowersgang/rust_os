@@ -122,7 +122,6 @@ fn init()
 	log_debug!("RSDP = {{ oemid = {}, revision = {:#x}, rsdt_address = {:#x} }}",
 		::core::str::from_utf8(&rsdp.oemid), rsdp.revision, rsdp.rsdt_address);
 	
-	CHECKMARK!();
 	let tl = if rsdp.revision == 0 {
 			TopRSDT( SDTHandle::<RSDT>::new( rsdp.rsdt_address as u64 ).make_static() )
 		} else {
@@ -134,7 +133,6 @@ fn init()
 		};
 	log_debug!("*SDT = {{ signature = {}, oemid = '{}' }}", tl.signature(), tl.oemid());
 	
-	CHECKMARK!();
 	// Obtain list of SDTs (signatures only)
 	let names = range(0, tl.len()).map(
 		|i| {
@@ -142,7 +140,6 @@ fn init()
 			}
 		).collect();
 	
-	CHECKMARK!();
 	unsafe {
 		s_acpi_state = ::memory::heap::alloc( ACPI {
 			top_sdt: tl,
