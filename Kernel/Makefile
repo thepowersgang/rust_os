@@ -33,7 +33,7 @@ RUSTFLAGS += --target=$(TARGET_FILE)
 
 LINKFLAGS := -z max-page-size=0x1000 -g
 LINKFLAGS += -T arch/$(ARCH)/link.ld -Map $(OBJDIR)map.txt
-#LINKFLAGS += --gc-sections
+LINKFLAGS += --gc-sections	# Prevents complaining about floating point methods
 
 ENV := RUST_VERSION="$(shell rustc --version)"
 ENV += TK_GITSPEC="$(shell git log -n 1 | head -n 1 | awk '{print $$2}')"
@@ -41,7 +41,6 @@ ENV += TK_VERSION="0.1"
 ENV += TK_BUILD="$(shell hostname --fqdn):$(BUILDNUM)"
 
 LIBDIR := /home/tpg/apps/lib/rustlib/x86_64-unknown-linux-gnu/lib/
-LIBCOMPILERRT := $(LIBDIR)libcompiler-rt.a
 PREFIX := $(shell pwd)/.prefix/$(OBJDIR)/
 RUSTSRC := /home/tpg/Source/rust/rust-nightly/
 LIBCORESRC := $(RUSTSRC)src/libcore/
@@ -65,7 +64,7 @@ run: kernel-$(ARCH).bin
 
 kernel-$(ARCH).bin: $(OBJS) arch/$(ARCH)/link.ld Makefile
 	@echo [LD] -o $@
-	@$(TRIPLE)-ld -o $@ $(OBJS) $(LIBCORE) $(LIBCOMPILERRT) $(LIBGCC) $(LINKFLAGS)
+	@$(TRIPLE)-ld -o $@ $(OBJS) $(LIBCORE) $(LIBGCC) $(LINKFLAGS)
 	@objcopy $@ -F elf32-i386 $@.elf32
 	#@mcopy -i fdd.img $@.elf32 ::/ -D o
 	@objdump -S $@ > $@.dsm
