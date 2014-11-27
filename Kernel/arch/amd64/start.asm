@@ -1,6 +1,8 @@
+; "Tifflin" Kernel
+; - By John Hodge (thePowersGang)
 ;
-;
-;
+; arch/amd64/start.asm
+; - AMD64/IA-32e boot shim
 %include "arch/amd64/common.inc.asm"	; WTF Nasm
 
 [extern low_InitialPML4]
@@ -20,7 +22,7 @@ mboot:
 	dd MULTIBOOT_HEADER_FLAGS
 	dd MULTIBOOT_CHECKSUM
 	dd mboot
-	; a.out kludge
+	; a.out kludge (not used)
 	dd 0	; load_addr
 	dd 0	; load_end_addr
 	dd 0	; bss_end_addr

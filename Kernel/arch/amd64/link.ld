@@ -1,4 +1,10 @@
-
+/*
+ * "Tifflin" Kernel
+ * - By John Hodge (thePowersGang)
+ *
+ * arch/amd64/link.ld
+ * - AMD64/IA-32e linker script 
+ */
 _kernel_base = 0xFFFFFFFF80000000;
 
 OUTPUT_FORMAT(elf64-x86-64)
@@ -9,10 +15,10 @@ SECTIONS {
 	gKernelBase = .;
 	. += SIZEOF_HEADERS;
 	__load_addr = .;
-	.multiboot : AT(ADDR(.multiboot)) {
-		*(.multiboot)
-	}
+	
+	/* Boot data */
 	.init : AT(ADDR(.init)) {
+		*(.multiboot)
 		*(.inittext)
 		*(.initdata)
 	}

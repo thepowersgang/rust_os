@@ -1,6 +1,12 @@
+# "Tifflin" Kernel
+# - By John Hodge (thePowersGang)
 #
+# Makefile
+# - Kernel core makefile
 #
-#
+# TODO:
+# - Module support
+# - Multiple architecture configurations
 ARCH = amd64
 TRIPLE = x86_64-none-elf
 OBJS := start.ao kcore.o libcore.rlib
