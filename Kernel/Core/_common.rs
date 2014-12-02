@@ -15,6 +15,8 @@ pub use core::result::{Result,Ok,Err};
 pub use core::ops::{Drop,Deref,DerefMut,Slice};
 pub use core::cmp::PartialEq;
 pub use core::num::Int;
+pub use core::kinds::{Send};
+pub use core::any::Any;
 
 pub use lib::mem::Box;
 pub use lib::vec::Vec;
