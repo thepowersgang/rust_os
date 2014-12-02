@@ -42,6 +42,7 @@ pub mod threads;
 mod time;
 pub mod modules;
 
+mod metadevs;
 pub mod hw;
 pub mod device_manager;
 
