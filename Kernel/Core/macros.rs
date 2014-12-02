@@ -21,7 +21,7 @@ macro_rules! _count
 {
 	() => {0};
 	($a:ident) => {1};
-	($a:ident, $($b:ident)+) => {1+_count!($b)};
+	($a:ident, $($b:ident)+) => {1+_count!($($b),+)};
 }
 
 macro_rules! module_define_int
