@@ -57,12 +57,13 @@ impl ::device_manager::Driver for PCIChildBusDriver
 	fn bus_type(&self) -> &str {
 		"pci"
 	}
-	fn handles(&self, bus_dev: &::device_manager::BusDevice) -> bool
+	fn handles(&self, bus_dev: &::device_manager::BusDevice) -> uint
 	{
 		let addr = bus_dev.addr() as u16;
 		let bridge_type = (read_word(addr, 3) >> 16) & 0x7F;
 		// 0x00 == Normal device, 0x01 = PCI-PCI Bridge
-		bridge_type == 0x01
+		// -> There should only be one PCI bridge handler, but bind low just in case
+		if bridge_type == 0x01 { 1 } else {0 }
 	}
 	fn bind(&self, bus_dev: &::device_manager::BusDevice) -> Box<::device_manager::DriverInstance+'static>
 	{

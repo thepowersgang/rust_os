@@ -12,8 +12,8 @@ module_define!(DeviceManager, [], init)
 
 pub enum IOBinding
 {
-	IOBindMemory(::memory::virt::AllocHandle),
-	IOBindIO(u16,u16),
+	Memory(::memory::virt::AllocHandle),
+	IO(u16,u16),
 }
 
 pub trait BusManager
@@ -33,7 +33,7 @@ pub trait BusDevice// : ::core::fmt::Show
 pub trait Driver
 {
 	fn bus_type(&self) -> &str;
-	fn handles(&self, bus_dev: &BusDevice) -> bool;
+	fn handles(&self, bus_dev: &BusDevice) -> uint;
 	fn bind(&self, bus_dev: &BusDevice) -> Box<DriverInstance+'static>;
 }
 
@@ -82,18 +82,45 @@ pub fn register_driver(driver: &'static Driver+'static)
 {
 	s_driver_list.lock().push(driver);
 	// TODO: Iterate known devices and spin up instances if needed
+	// - Will require knowing the rank of the bound driver on each device, and destroying existing instance
 }
 
+/**
+ * Locate the best registered driver for this device and instanciate it
+ */
 fn find_driver(bus: &BusManager, bus_dev: &BusDevice) -> Option<Box<DriverInstance+'static>>
 {
 	log_debug!("Finding driver for {}:{:x}", bus.bus_type(), bus_dev.addr());
+	let mut best_ranking = 0;
+	let mut best_driver = None;
 	for driver in s_driver_list.lock().items()
 	{
-		if bus.bus_type() == driver.bus_type() && driver.handles(bus_dev) {
-			return Some( driver.bind(bus_dev) );
+		if bus.bus_type() == driver.bus_type()
+		{
+			let ranking = driver.handles(bus_dev);
+			if ranking == 0
+			{
+				// Doesn't handle this device
+			}
+			else if ranking > best_ranking
+			{
+				// Best so far
+				best_driver = Some( *driver );
+				best_ranking = ranking;
+			}
+			else if ranking == best_ranking
+			{
+				// A tie, this is not very good
+				//log_warning!("Tie for device {}:{:x} between {} and {}",
+				//	bus.bus_type(), bus_dev.addr(), driver, best_driver.unwrap());
+			}
+			else
+			{
+				// Not as good as current, move along
+			}
 		}
 	}
-	None
+	best_driver.map(|d| d.bind(bus_dev))
 }
 
 //impl<'a> ::core::fmt::Show for BusDevice+'a
