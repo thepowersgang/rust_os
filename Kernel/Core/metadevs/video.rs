@@ -70,4 +70,12 @@ impl Rect
 	}
 }
 
+impl ::core::fmt::Show for Rect
+{
+	fn fmt(&self, f: &mut ::core::fmt::Formatter) -> Result<(),::core::fmt::Error>
+	{
+		write!(f, "")
+	}
+}
+
 // vim: ft=rust

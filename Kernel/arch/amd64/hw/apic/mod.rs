@@ -22,9 +22,9 @@ pub struct IRQHandle
 }
 
 
-#[link_section="processor_local"]
-#[allow(non_upper_case_globals)]
-static s_lapic_lock: ::sync::Mutex<()> = mutex_init!( () );
+//#[link_section="processor_local"]
+//#[allow(non_upper_case_globals)]
+//static s_lapic_lock: ::sync::Mutex<()> = mutex_init!( () );
 static mut s_lapic: *const raw::LAPIC = 0 as *const _;
 static mut s_ioapics: *mut Vec<raw::IOAPIC> = 0 as *mut _;
 
