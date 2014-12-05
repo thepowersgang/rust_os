@@ -148,7 +148,7 @@ impl MultibootParsed
 		let loader_ptr = (info.boot_loader_name as uint + IDENT_START) as *const i8;
 		log_debug!("loader_ptr = {}", loader_ptr);
 		let loader_name = if (info.flags & 1 << 9) != 0 && ::memory::c_string_valid(loader_ptr) {
-				unsafe{ ::core::str::raw::c_str_to_static_slice( loader_ptr ) }
+				unsafe{ ::core::str::from_c_str( loader_ptr ) }
 			}
 			else {
 				"-UNKNOWN-"
@@ -176,7 +176,7 @@ impl MultibootParsed
 		
 		unsafe {
 			let charptr = (cmdline_paddr + IDENT_START) as *const i8;
-			::core::str::raw::c_str_to_static_slice( charptr )
+			::core::str::from_c_str( charptr )
 		}
 	}
 	

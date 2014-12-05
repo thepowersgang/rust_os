@@ -31,7 +31,7 @@ RUSTFLAGS := --crate-type lib
 RUSTFLAGS += -O
 #RUSTFLAGS += --debuginfo 1
 #RUSTFLAGS += -C code-model=kernel
-#RUSTFLAGS += -C soft-float
+RUSTFLAGS += -C soft-float
 RUSTFLAGS += -C target-feature=$(subst $(space),$(comma),$(EXCLUDE_FEATURES:%=-%))
 RUSTFLAGS += --cfg arch__$(ARCH)
 #RUSTFLAGS += -Z time-passes

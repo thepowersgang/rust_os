@@ -206,12 +206,11 @@ unsafe fn locate_rsdp(base: *const u8, size: uint) -> *const RSDP
 /// Caclulate the byte sum of a structure
 fn sum_struct<T>(s: &T) -> u8
 {
-	let ptr = s as *const T as *const u8;
-	unsafe { ::core::slice::raw::buf_as_slice(
-		ptr,
-		::core::mem::size_of::<T>(),
-		|vals| vals.iter().fold(0, |a,&b| a+b)
-		)}
+	unsafe {
+		let ptr = s as *const T as *const u8;
+		let vals = ::core::slice::from_raw_buf(&ptr, ::core::mem::size_of::<T>());
+		vals.iter().fold(0, |a,&b| a+b)
+	}
 }
 
 impl TLSDT

@@ -44,13 +44,13 @@ pub trait DriverInstance
 struct Device
 {
 	bus_dev: Box<BusDevice+'static>,
-	driver: Option<Box<DriverInstance+'static>>,
+	driver: Option<(Box<DriverInstance+'static>, uint)>,
 	attribs: Vec<u32>,
 }
 
 struct Bus
 {
-	manager: &'static BusManager+'static,
+	manager: &'static (BusManager+'static),
 	devices: Vec<Device>,
 }
 
@@ -58,14 +58,14 @@ struct Bus
 static s_root_busses: Mutex<Queue<Bus>> = mutex_init!(queue_init!());
 
 #[allow(non_upper_case_globals)]
-static s_driver_list: Mutex<Queue<&'static Driver+'static>> = mutex_init!( queue_init!() );
+static s_driver_list: Mutex<Queue<&'static (Driver+'static)>> = mutex_init!( queue_init!() );
 
 fn init()
 {
 	// Do nothing!
 }
 
-pub fn register_bus(manager: &'static BusManager+'static, devices: Vec<Box<BusDevice+'static>>)
+pub fn register_bus(manager: &'static (BusManager+'static), devices: Vec<Box<BusDevice+'static>>)
 {
 	let bus = Bus {
 		manager: manager,
@@ -78,17 +78,50 @@ pub fn register_bus(manager: &'static BusManager+'static, devices: Vec<Box<BusDe
 	s_root_busses.lock().push(bus);
 }
 
-pub fn register_driver(driver: &'static Driver+'static)
+pub fn register_driver(driver: &'static (Driver+'static))
 {
 	s_driver_list.lock().push(driver);
-	// TODO: Iterate known devices and spin up instances if needed
-	// - Will require knowing the rank of the bound driver on each device, and destroying existing instance
+	// Iterate known devices and spin up instances if needed
+	for bus in s_root_busses.lock().items_mut()
+	{
+		for dev in bus.devices.iter_mut()
+		{
+			let rank = driver.handles(&*dev.bus_dev);
+			if rank == 0
+			{
+				// SKIP!
+			}
+			else if dev.driver.is_some()
+			{
+				let bind = dev.driver.as_ref().unwrap();
+				let cur_rank = bind.1;
+				if cur_rank > rank
+				{
+					// Existing driver is better
+				}
+				else if cur_rank == rank
+				{
+					// Fight!
+				}
+				else
+				{
+					// New driver is better
+					panic!("TODO: Unbind driver and bind in new one");
+				}
+			}
+			else
+			{
+				// Bind new driver
+				dev.driver = Some( (driver.bind(&*dev.bus_dev), rank) );
+			}
+		}
+	}
 }
 
 /**
  * Locate the best registered driver for this device and instanciate it
  */
-fn find_driver(bus: &BusManager, bus_dev: &BusDevice) -> Option<Box<DriverInstance+'static>>
+fn find_driver(bus: &BusManager, bus_dev: &BusDevice) -> Option<(Box<DriverInstance+'static>,uint)>
 {
 	log_debug!("Finding driver for {}:{:x}", bus.bus_type(), bus_dev.addr());
 	let mut best_ranking = 0;
@@ -120,7 +153,7 @@ fn find_driver(bus: &BusManager, bus_dev: &BusDevice) -> Option<Box<DriverInstan
 			}
 		}
 	}
-	best_driver.map(|d| d.bind(bus_dev))
+	best_driver.map(|d| (d.bind(bus_dev), best_ranking))
 }
 
 //impl<'a> ::core::fmt::Show for BusDevice+'a

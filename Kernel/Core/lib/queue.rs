@@ -20,6 +20,10 @@ pub struct Items<'s, T: 's>
 {
 	cur_item: Option<&'s QueueEnt<T>>,
 }
+pub struct ItemsMut<'s, T: 's>
+{
+	cur_item: OptMutPtr<QueueEnt<T>>,
+}
 
 impl<T> Queue<T>
 {
@@ -78,6 +82,13 @@ impl<T> Queue<T>
 			cur_item: unsafe { self.head.as_ref() },
 		}
 	}
+	
+	pub fn items_mut<'s>(&'s mut self) -> ItemsMut<'s,T>
+	{
+		ItemsMut {
+			cur_item: unsafe { ::core::mem::transmute::<_,OptMutPtr<_>>(self.head) },
+		}
+	}
 }
 
 impl<'s, T> Iterator<&'s T> for Items<'s,T>
@@ -91,6 +102,24 @@ impl<'s, T> Iterator<&'s T> for Items<'s,T>
 			Some(&ptr.value)
 			},
 		None => None
+		}
+	}
+}
+
+// TODO !!! - Validate the safety of this function, it's an evil mess of transmutes
+impl<'s, T> Iterator<&'s mut T> for ItemsMut<'s,T>
+{
+	fn next(&mut self) -> Option<&'s mut T>
+	{
+		let ptr = self.cur_item.unwrap();
+		if ptr == 0 as *mut _ {
+			None
+		}
+		else {
+			unsafe {
+				self.cur_item = ::core::mem::transmute::<_,OptMutPtr<_>>( (*ptr).next );
+				Some(&mut (*ptr).value)
+			}
 		}
 	}
 }

@@ -84,8 +84,8 @@ impl VgaFramebuffer
 impl ::metadevs::video::Framebuffer for VgaFramebuffer
 {
 	fn get_size(&self) -> Rect {
-		// Uses mode X hackery
-		Rect::new( 0,0, 640,480 )
+		// 320x200x 255
+		Rect::new( 0,0, 320,200 )
 	}
 	fn set_size(&self, newsize: Rect) -> bool {
 		// Can't change
