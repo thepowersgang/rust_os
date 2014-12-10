@@ -30,6 +30,8 @@ pub trait BusDevice// : ::core::fmt::Show
 	fn bind_io(&mut self, block_id: uint) -> IOBinding;
 }
 
+// TODO: Change this to instead be a structure with a bound Fn reference
+// - Structure defines bus type and a set of attribute names/values/masks
 pub trait Driver
 {
 	fn bus_type(&self) -> &str;
@@ -45,7 +47,7 @@ struct Device
 {
 	bus_dev: Box<BusDevice+'static>,
 	driver: Option<(Box<DriverInstance+'static>, uint)>,
-	attribs: Vec<u32>,
+	//attribs: Vec<u32>,
 }
 
 struct Bus
@@ -71,7 +73,7 @@ pub fn register_bus(manager: &'static (BusManager+'static), devices: Vec<Box<Bus
 		manager: manager,
 		devices: devices.into_iter().map(|d| Device {
 			driver: find_driver(manager, &*d),
-			attribs: Vec::new(),
+			//attribs: Vec::new(),
 			bus_dev: d,
 			}).collect(),
 		};

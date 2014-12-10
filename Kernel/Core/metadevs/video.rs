@@ -48,6 +48,9 @@ pub trait Framebuffer: Any
 	fn fill(&self, dst: Rect, colour: u32);
 }
 
+// Workaround for AnyRefExt not being implemented on &Framebuffer by default
+any_for_trait!( Framebuffer )
+
 //static s_display_surfaces: Mutex<Vec<Box<Framebuffer+'static>>> = mutex_init!( empty_vec!() );
 
 fn init()

@@ -80,6 +80,19 @@ impl<T> OptMutPtr<T>
 	}
 }
 
+pub trait UintBits
+{
+	fn bit(&self, idx: uint) -> Self;
+	fn bits(&self, idx: uint, idx2: uint) -> Self;
+}
+
+impl UintBits for u16 {
+	fn bit(&self, idx: uint) -> u16 { (*self >> idx) & 1 }
+	fn bits(&self, idx: uint, idx2: uint) -> u16 {
+		(*self >> idx) & ((1 << (idx2 - idx))-1)
+	}
+}
+
 #[macro_export]
 macro_rules! tern(
 	($cnd:expr ? $ok:expr : $nok:expr) => (if $cnd { $ok } else { $nok })//,

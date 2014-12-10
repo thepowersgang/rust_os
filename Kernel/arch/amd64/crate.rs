@@ -20,7 +20,7 @@ pub mod boot;
 pub mod sync;
 
 mod log;
-mod x86_io;
+pub mod x86_io;
 pub mod hw;
 pub mod acpi;
 pub mod pci;
