@@ -234,7 +234,8 @@ impl IOAPIC
 		log_debug!("Info = {:#x}", (*rh).read(0x10 + idx*2));
 		assert!( idx < self.num_lines );
 
-		*self.handlers.get_mut(idx) = Some( cb );
+		//*self.handlers.get_mut(idx).unwrap() = Some( cb );
+		self.handlers[idx] = Some( cb );
 		let flags: u32 = match mode {
 			TriggerMode::EdgeHi   => (0<<13)|(0<<15),
 			TriggerMode::EdgeLow  => (1<<13)|(0<<15),

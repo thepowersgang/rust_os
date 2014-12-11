@@ -7,7 +7,7 @@ use core::slice::{SlicePrelude,AsSlice,Items,MutItems};
 use core::option::{Option,Some,None};
 use core::ptr::RawPtr;
 use core::num::Int;
-use core::ops::{Drop,Index};
+use core::ops::{Drop,Index,IndexMut,Deref,DerefMut};
 use lib::clone::Clone;
 use lib::collections::{MutableSeq};
 use logging::HexDump;
@@ -54,20 +54,12 @@ impl<T> Vec<T>
 		self.size
 	}
 	
-	pub fn get_mut<'s>(&'s mut self, index: uint) -> &'s mut T
+	pub fn get_mut_ptr(&mut self, index: uint) -> *mut T
 	{
 		if index >= self.size {
 			panic!("Index out of range, {} >= {}", index, self.size);
 		}
-		unsafe { &mut *self.data.offset(index as int) }
-	}
-	pub fn iter<'s>(&'s self) -> Items<'s,T>
-	{
-		self.as_slice().iter()
-	}
-	pub fn iter_mut<'s>(&'s mut self) -> MutItems<'s,T>
-	{
-		self.slice_mut().iter_mut()
+		unsafe { self.data.offset(index as int) }
 	}
 	pub fn into_iter(self) -> MoveItems<T>
 	{
@@ -113,6 +105,19 @@ impl<T> Vec<T>
 	}
 }
 
+impl<T> Deref<[T]> for Vec<T>
+{
+	fn deref(&self) -> &[T] {
+		self.as_slice()
+	}
+}
+impl<T> DerefMut<[T]> for Vec<T>
+{
+	fn deref_mut(&mut self) -> &mut [T] {
+		self.as_mut_slice()
+	}
+}
+
 impl<T:Clone> Vec<T>
 {
 	pub fn from_elem(size: uint, elem: T) -> Vec<T>
@@ -138,7 +143,7 @@ impl<T> Drop for Vec<T>
 		log_debug!("Vec::drop() - Dropping vector at {} w/ {} ents", self.data, self.size);
 		unsafe {
 			for i in range(0, self.size) {
-				*self.get_mut(i) = ::core::mem::uninitialized();
+				::core::mem::drop( ::core::ptr::read(self.get_mut_ptr(i) as *const T) );
 			}
 			::memory::heap::deallocate( self.data );
 		}
@@ -153,6 +158,16 @@ impl<T> Index<uint, T> for Vec<T>
 			panic!("Index out of range, {} >= {}", index, self.size);
 		}
 		unsafe { &*self.data.offset(*index as int) }
+	}
+}
+impl<T> IndexMut<uint, T> for Vec<T>
+{
+	fn index_mut<'a>(&'a mut self, index: &uint) -> &'a mut T
+	{
+		if *index >= self.size {
+			panic!("Index out of range, {} >= {}", index, self.size);
+		}
+		unsafe { &mut *self.data.offset(*index as int) }
 	}
 }
 
@@ -180,7 +195,7 @@ impl<T> MutableSeq<T> for Vec<T>
 		let pos = self.size;
 		self.reserve(pos + 1);
 		self.size += 1;
-		let ptr = self.get_mut(pos);
+		let ptr = self.get_mut_ptr(pos);
 		//log_debug!("Vec.push {}", HexDump(&t));
 		unsafe { ::core::ptr::write(ptr, t); }
 	}
