@@ -5,6 +5,7 @@ use _common::*;
 use super::{puts,puth};
 
 #[repr(C)]
+#[deriving(Copy)]
 pub struct InterruptRegs
 {
 	//fs: u64,
@@ -20,6 +21,7 @@ pub struct InterruptRegs
 	rflags: u64, rsp: u64, ss: u64,
 }
 
+#[repr(C)]
 pub type ISRHandler = extern "C" fn(isrnum: uint,info:*const(),idx:uint);
 
 #[repr(C)]

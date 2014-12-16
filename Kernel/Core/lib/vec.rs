@@ -3,8 +3,8 @@
 //
 use core::iter::range;
 use core::iter::{FromIterator,Iterator};
-use core::slice::{SlicePrelude,AsSlice,Items,MutItems};
-use core::option::{Option,Some,None};
+use core::slice::{SlicePrelude,AsSlice};
+use core::option::Option::{mod,Some,None};
 use core::ptr::RawPtr;
 use core::num::Int;
 use core::ops::{Drop,Index,IndexMut,Deref,DerefMut};

@@ -2,10 +2,11 @@
 //
 //
 use core::fmt::FormatWriter;
-use core::result::{Ok,Err};
+use core::option::Option::{mod,Some,None};
+use core::result::Result::{Ok,Err};
 use core::slice::{SlicePrelude};
 
-#[deriving(PartialEq,PartialOrd)]
+#[deriving(PartialEq,PartialOrd,Copy)]
 pub enum Level
 {
 	LevelPanic,  	// Everything broke
@@ -63,13 +64,13 @@ impl ::core::fmt::FormatWriter for LoggingFormatter
 	{
 		match ::core::str::from_utf8(bytes)
 		{
-		::core::option::Some(s) => ::arch::puts(s),
-		::core::option::None => {
+		Some(s) => ::arch::puts(s),
+		None => {
 			let rs = unsafe { ::core::mem::transmute::<_,::core::raw::Slice<u8>>(bytes) };
 			panic!("LoggingFormatter.write bytes={}+{}", rs.data, rs.len);
 			}
 		}
-		::core::result::Ok( () )
+		Ok( () )
 	}
 }
 impl ::core::ops::Drop for LoggingFormatter

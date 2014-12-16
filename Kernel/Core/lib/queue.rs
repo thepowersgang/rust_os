@@ -58,14 +58,13 @@ impl<T> Queue<T>
 		
 		unsafe
 		{
-			let qe_ptr = self.head.unwrap();
-			self.head = (*qe_ptr).next;
+			let qe_ptr = self.head.unwrap() as *mut QueueEnt<T>;
+			self.head = ::core::ptr::read( &(*qe_ptr).next );
 			if self.head.is_none() {
 				self.tail = OptMutPtr(0 as *mut _);
 			}
 			
-			let mut_qe_ptr = qe_ptr as *mut QueueEnt<T>;
-			let rv = ::core::mem::replace(&mut (*mut_qe_ptr).value, ::core::mem::zeroed());
+			let rv = ::core::ptr::read( &(*qe_ptr).value );
 			::memory::heap::deallocate(qe_ptr as *mut ());
 			Some(rv)
 		}
@@ -86,7 +85,7 @@ impl<T> Queue<T>
 	pub fn items_mut<'s>(&'s mut self) -> ItemsMut<'s,T>
 	{
 		ItemsMut {
-			cur_item: unsafe { ::core::mem::transmute::<_,OptMutPtr<_>>(self.head) },
+			cur_item: unsafe { self.head.as_mut() },
 		}
 	}
 }
@@ -117,7 +116,7 @@ impl<'s, T> Iterator<&'s mut T> for ItemsMut<'s,T>
 		}
 		else {
 			unsafe {
-				self.cur_item = ::core::mem::transmute::<_,OptMutPtr<_>>( (*ptr).next );
+				self.cur_item = (*ptr).next.as_mut();
 				Some(&mut (*ptr).value)
 			}
 		}

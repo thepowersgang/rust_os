@@ -10,12 +10,12 @@ pub use core::iter::{Iterator,IteratorExt,DoubleEndedIterator,DoubleEndedIterato
 pub use core::slice::{SlicePrelude,AsSlice};
 pub use core::str::StrPrelude;
 pub use core::default::Default;
-pub use core::option::{Option,Some,None};
-pub use core::result::{Result,Ok,Err};
+pub use core::option::Option::{mod,Some,None};
+pub use core::result::Result::{mod,Ok,Err};
 pub use core::ops::{Drop,Deref,DerefMut,Slice};
 pub use core::cmp::PartialEq;
 pub use core::num::Int;
-pub use core::kinds::{Send};
+pub use core::kinds::{Send,Copy};
 pub use core::any::{Any,AnyRefExt,AnyMutRefExt};
 
 pub use lib::mem::Box;

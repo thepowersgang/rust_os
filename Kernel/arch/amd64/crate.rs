@@ -6,6 +6,7 @@
 #![macro_escape]
 
 extern crate core;
+use core::option::Option;
 
 pub use self::log::{puts, puth};
 
@@ -43,7 +44,7 @@ pub fn print_backtrace()
 	puth(cur_bp as uint);
 	
 	let mut bp = cur_bp;
-	while let ::core::option::Some((newbp, ip)) = interrupts::backtrace(bp)
+	while let Option::Some((newbp, ip)) = interrupts::backtrace(bp)
 	{
 		puts(" > "); puth(ip as uint);
 		bp = newbp;

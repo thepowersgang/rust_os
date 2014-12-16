@@ -31,6 +31,7 @@ mod std {
 	pub use core::option;
 	pub use core::{default,fmt,cmp};
 	pub use lib::clone;
+	pub use core::kinds;	// needed for deriving(Copy)
 }
 mod _common;
 
@@ -99,6 +100,7 @@ pub mod common
 pub mod archapi
 {
 
+#[deriving(Copy)]
 pub enum VideoFormat
 {
 	X8R8G8B8,
@@ -108,6 +110,7 @@ pub enum VideoFormat
 	R5G6B5,
 }
 
+#[deriving(Copy)]
 pub struct VideoMode
 {
 	pub width: u16,

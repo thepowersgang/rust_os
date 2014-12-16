@@ -4,7 +4,7 @@
 // Core/memory/heap.rs
 // - Dynamic memory manager
 
-use core::option::{Option,None,Some};
+use core::option::Option::{mod,None,Some};
 use core::ptr::RawPtr;
 
 // --------------------------------------------------------

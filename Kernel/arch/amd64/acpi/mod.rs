@@ -53,6 +53,7 @@ pub struct SDTHandle<T:'static>
 }
 
 #[repr(C)]
+#[deriving(Copy)]
 pub struct SDTHeader
 {
 	signature: [u8, ..4],
@@ -67,6 +68,7 @@ pub struct SDTHeader
 }
 
 #[repr(C)]
+#[deriving(Copy)]
 pub enum AddressSpaceID
 {
 	AsidMemory   = 0,
@@ -79,6 +81,7 @@ pub enum AddressSpaceID
 }
 
 #[repr(C,packed)]
+#[deriving(Copy)]
 pub struct GAS
 {
 	pub asid: u8,

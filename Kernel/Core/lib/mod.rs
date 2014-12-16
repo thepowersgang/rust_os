@@ -2,7 +2,7 @@
 //
 //
 #![macro_escape]
-use core::option::{Option,Some,None};
+use _common::{Option,Some,None};
 use core::ptr::RawPtr;
 
 pub use self::queue::Queue;
@@ -55,6 +55,9 @@ impl<T> OptPtr<T>
 		else {
 			Some(&*self.0)
 		}
+	}
+	unsafe fn as_mut(&self) -> OptMutPtr<T> {
+		::core::mem::transmute(self)
 	}
 }
 

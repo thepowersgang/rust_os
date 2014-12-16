@@ -68,11 +68,11 @@ fn reschedule()
 	let thread = get_thread_to_run();
 	match thread
 	{
-	::core::option::None => {
+	None => {
 		// Wait? How is there nothing to run?
 		log_warning!("BUGCHECK: No runnable threads");
 		},
-	::core::option::Some(t) => {
+	Some(t) => {
 		// 2. Switch to next thread
 		log_debug!("Task switch to {}", t);
 		::arch::threads::switch_to(t);
