@@ -9,6 +9,7 @@ use core::ptr::RawPtr;
 
 // --------------------------------------------------------
 // Types
+#[deriving(Copy)]
 pub enum HeapId
 {
 	Local,	// Inaccessible outside of process

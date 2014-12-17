@@ -4,6 +4,7 @@
 #![macro_escape]
 use _common::{Option,Some,None};
 use core::ptr::RawPtr;
+use lib::mem::Box;
 
 pub use self::queue::Queue;
 pub use self::vec::Vec;
@@ -33,22 +34,45 @@ pub mod collections
 	}
 }
 
+pub struct LazyStatic<T>(pub Option<Box<T>>);
+
+impl<T> LazyStatic<T>
+{
+	pub fn prep(&mut self, fcn: | | -> T) {
+		if self.0.is_none() {
+			self.0 = Some(box fcn());
+		}
+	}
+}
+impl<T> ::core::ops::Deref<T> for LazyStatic<T>
+{
+	fn deref(&self) -> &T {
+		&**self.0.as_ref().unwrap()
+	}
+}
+impl<T> ::core::ops::DerefMut<T> for LazyStatic<T>
+{
+	fn deref_mut(&mut self) -> &mut T {
+		&mut **self.0.as_mut().unwrap()
+	}
+}
+
 pub struct OptPtr<T>(pub *const T);
 pub struct OptMutPtr<T>(pub *mut T);
 
 impl<T> OptPtr<T>
 {
-	fn is_none(&self) -> bool {
+	pub fn is_none(&self) -> bool {
 		self.0.is_null()
 	}
-	fn is_some(&self) -> bool {
+	pub fn is_some(&self) -> bool {
 		!self.0.is_null()
 	}
-	fn unwrap(&self) -> *const T {
+	pub fn unwrap(&self) -> *const T {
 		assert!( !self.0.is_null() );
 		self.0
 	}
-	unsafe fn as_ref(&self) -> Option<&T> {
+	pub unsafe fn as_ref(&self) -> Option<&T> {
 		if (self.0).is_null() {
 			None
 		}
@@ -56,24 +80,24 @@ impl<T> OptPtr<T>
 			Some(&*self.0)
 		}
 	}
-	unsafe fn as_mut(&self) -> OptMutPtr<T> {
+	pub unsafe fn as_mut(&self) -> OptMutPtr<T> {
 		::core::mem::transmute(self)
 	}
 }
 
 impl<T> OptMutPtr<T>
 {
-	fn is_none(&self) -> bool {
+	pub fn is_none(&self) -> bool {
 		self.0.is_null()
 	}
-	fn is_some(&self) -> bool {
+	pub fn is_some(&self) -> bool {
 		!self.0.is_null()
 	}
-	fn unwrap(&self) -> *mut T {
+	pub fn unwrap(&self) -> *mut T {
 		assert!( !self.0.is_null() );
 		self.0
 	}
-	unsafe fn as_ref(&self) -> Option<&mut T> {
+	pub unsafe fn as_ref(&self) -> Option<&mut T> {
 		if (self.0).is_null() {
 			None
 		}

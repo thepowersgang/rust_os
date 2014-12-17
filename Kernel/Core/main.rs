@@ -12,9 +12,6 @@
 #![feature(globs)]
 #![feature(concat_idents)]
 #![feature(lang_items)]
-#![feature(while_let)]
-#![feature(if_let)]
-#![feature(tuple_indexing)]
 
 #[phase(plugin, link)] extern crate core;
 
@@ -43,7 +40,7 @@ pub mod threads;
 mod time;
 pub mod modules;
 
-mod metadevs;
+pub mod metadevs;	// FUCKING SCOPING!
 pub mod hw;
 pub mod device_manager;
 
@@ -77,6 +74,7 @@ pub extern "C" fn kmain()
 	}
 	
 	// Thread 0 idle loop
+	log_info!("Entering idle");
 	loop
 	{
 		::threads::yield_time();

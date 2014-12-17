@@ -11,7 +11,7 @@ use arch::memory::{PAddr,VAddr};
 
 type Page = [u8, ..::PAGE_SIZE];
 
-#[deriving(PartialEq,Show)]
+#[deriving(PartialEq,Show,Copy)]
 pub enum ProtectionMode
 {	
 	Unmapped,	// Inaccessible
@@ -27,6 +27,7 @@ pub struct AllocHandle
 {
 	addr: *const (),
 	count: uint,
+	mode: ProtectionMode,
 }
 
 #[link_section=".process_local"]
@@ -45,23 +46,21 @@ pub fn init()
 pub fn allocate(addr: *mut (), page_count: uint)
 {
 	use arch::memory::addresses::is_global;
-	unsafe
+
+	let pagenum = addr as uint / ::PAGE_SIZE;
+	// 1. Lock
+	let _lh = tern!( is_global(addr as uint) ? s_kernelspace_lock.lock() : s_userspace_lock.lock() );
+	// 2. Ensure range is free
+	for pg in range(pagenum, pagenum+page_count)
 	{
-		let pagenum = addr as uint / ::PAGE_SIZE;
-		// 1. Lock
-		let _lh = tern!( is_global(addr as uint) ? s_kernelspace_lock.lock() : s_userspace_lock.lock() );
-		// 2. Ensure range is free
-		for pg in range(pagenum, pagenum+page_count)
-		{
-			if ::arch::memory::virt::is_reserved(pg * ::PAGE_SIZE) {
-				// nope.avi
-			}
+		if ::arch::memory::virt::is_reserved(pg * ::PAGE_SIZE) {
+			// nope.avi
 		}
-		// 3. do `page_count` single arbitary allocations
-		for pg in range(pagenum, pagenum+page_count)
-		{
-			::memory::phys::allocate( (pg * ::PAGE_SIZE) as *mut () );
-		}
+	}
+	// 3. do `page_count` single arbitary allocations
+	for pg in range(pagenum, pagenum+page_count)
+	{
+		::memory::phys::allocate( (pg * ::PAGE_SIZE) as *mut () );
 	}
 }
 
@@ -115,6 +114,7 @@ pub fn map_hw_rw(phys: PAddr, count: uint, module: &'static str) -> Result<Alloc
 
 fn map_hw(phys: PAddr, count: uint, readonly: bool, _module: &'static str) -> Result<AllocHandle,()>
 {
+	let mode = tern!(readonly ? ProtectionMode::KernelRO : ProtectionMode::KernelRW);
 	// 1. Locate an area
 	// TODO: This lock should be replaced with a finer grained lock
 	let _lock = s_kernelspace_lock.lock();
@@ -137,13 +137,14 @@ fn map_hw(phys: PAddr, count: uint, readonly: bool, _module: &'static str) -> Re
 		map(
 			(pos + i * ::PAGE_SIZE) as *mut (),
 			phys + (i * ::PAGE_SIZE) as u64,
-			tern!(readonly ? ProtectionMode::KernelRO : ProtectionMode::KernelRW)
+			mode
 			);
 	}
 	// 3. Return a handle representing this area
 	Ok( AllocHandle {
 		addr: pos as *const _,
-		count: count
+		count: count,
+		mode: mode,
 		} )
 }
 
@@ -172,6 +173,28 @@ impl AllocHandle
 		assert!(ofs + ::core::mem::size_of::<T>() <= self.count * ::PAGE_SIZE);
 		self.count = 0;
 		unsafe{ &mut *((self.addr as uint + ofs) as *mut T) }
+	}
+
+	pub fn as_slice<T>(&self, ofs: uint, count: uint) -> &[T]
+	{
+		assert!( ofs % ::core::mem::align_of::<T>() == 0 );	// Align check
+		assert!( ofs <= self.count * ::PAGE_SIZE );
+		assert!( count * ::core::mem::size_of::<T>() <= self.count * ::PAGE_SIZE );
+		assert!( ofs + count * ::core::mem::size_of::<T>() <= self.count * ::PAGE_SIZE );
+		unsafe {
+			::core::mem::transmute( ::core::raw::Slice {
+				data: (self.addr as uint + ofs) as *const T,
+				len: count,
+			} )
+		}
+	}
+	pub fn as_mut_slice<T>(&mut self, ofs: uint, count: uint) -> &mut [T]
+	{
+		assert!( self.mode == ProtectionMode::KernelRW );
+		unsafe {
+			// Very evil, transmute the immutable slice into a mutable
+			::core::mem::transmute( self.as_slice::<T>(ofs, count) )
+		}
 	}
 }
 impl Drop for AllocHandle

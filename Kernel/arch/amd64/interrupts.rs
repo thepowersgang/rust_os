@@ -40,11 +40,16 @@ pub struct ISRHandle
 	idx: uint,
 }
 
+#[repr(C)] struct IRQHandlers([IRQHandlersEnt, ..256]);
+
 #[allow(non_upper_case_globals)]
 static s_irq_handlers_lock: ::sync::Mutex<()> = mutex_init!( () );
 extern "C"
 {
-	static mut IrqHandlers: [IRQHandlersEnt,..256];
+	// rustc seems to complain despite IRQHandlersEnt being marked as repr(C)
+	//#[allow(improper_ctypes)]
+	//static mut IrqHandlers: [IRQHandlersEnt,..256];
+	static mut IrqHandlers: IRQHandlers;
 }
 
 #[no_mangle]
@@ -116,7 +121,7 @@ pub fn bind_isr(isr: u8, callback: ISRHandler, info: *const(), idx: uint) -> Res
 	// TODO: Validate if the requested ISR slot is valid (i.e. it's one of the allocatable ones)
 	// 1. Check that this ISR slot on this CPU isn't taken
 	let _mh = s_irq_handlers_lock.lock();
-	let h = unsafe { &mut IrqHandlers[isr as uint] };
+	let h = unsafe { &mut IrqHandlers.0[isr as uint] };
 	log_trace!("&h = {}", h as *mut _);
 	if h.bound {
 		return Err( () );
@@ -142,7 +147,7 @@ impl ::core::ops::Drop for ISRHandle
 	fn drop(&mut self)
 	{
 		let _mh = s_irq_handlers_lock.lock();
-		let h = unsafe { &mut IrqHandlers[self.idx] };
+		let h = unsafe { &mut IrqHandlers.0[self.idx] };
 		h.bound = false;
 	}
 }

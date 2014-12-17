@@ -6,6 +6,7 @@
 use _common::*;
 
 #[repr(packed)]
+#[allow(missing_copy_implementations)]
 pub struct ModuleInfo
 {
 	pub name: &'static str,
@@ -33,8 +34,10 @@ pub fn init()
 	let baseptr = &modules_base as *const _ as *const ModuleInfo;
 	let size = &modules_end as *const _ as uint - baseptr as uint;
 	let count = size / ::core::mem::size_of::<ModuleInfo>();
+	
 	unsafe {
-		::core::slice::raw::buf_as_slice(baseptr, count, init_modules);
+		let mods = ::core::slice::from_raw_buf(&baseptr, count);
+		init_modules(mods);
 	}
 }
 

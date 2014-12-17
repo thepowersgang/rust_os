@@ -26,7 +26,9 @@ struct PCIDev
 struct PCIBusManager;
 struct PCIChildBusDriver;
 
+#[allow(non_upper_case_globals)]
 static s_pci_bus_manager: PCIBusManager = PCIBusManager;
+#[allow(non_upper_case_globals)]
 static s_pci_child_bus_driver: PCIChildBusDriver = PCIChildBusDriver;
 static S_ATTR_NAMES: [&'static str, ..3] = ["vendor", "device", "class"];
 
@@ -91,10 +93,11 @@ impl ::device_manager::BusDevice for PCIDev
 	fn set_power(&mut self, state: bool)
 	{
 		// Nope
+		panic!("TODO: Set power state of PCI devices (state={})", state);
 	}
 	fn bind_io(&mut self, block_id: uint) -> ::device_manager::IOBinding
 	{
-		panic!("TODO: PCIDev::bind_io");
+		panic!("TODO: PCIDev::bind_io(block_id={})", block_id);
 	}
 }
 

@@ -2,7 +2,7 @@
 //
 //
 use core::fmt::FormatWriter;
-use core::option::Option::{mod,Some,None};
+use core::option::Option::{Some,None};
 use core::result::Result::{Ok,Err};
 use core::slice::{SlicePrelude};
 
@@ -21,12 +21,13 @@ pub enum Level
 
 struct LoggingFormatter
 {
-	lock_handle: ::arch::sync::HeldSpinlock<'static,()>,
+	_lock_handle: ::arch::sync::HeldSpinlock<'static,()>,
 }
 
 pub struct HexDump<'a,T:'a>(pub &'a T);
 
 // NOTE: Has to be a spinlock, stops interrupts while held
+#[allow(non_upper_case_globals)]
 static s_logging_lock: ::arch::sync::Spinlock<()> = spinlock_init!( () );
 
 impl ::core::fmt::Show for Level
@@ -53,7 +54,7 @@ impl LoggingFormatter
 	pub fn new() -> LoggingFormatter
 	{
 		LoggingFormatter {
-			lock_handle: s_logging_lock.lock()
+			_lock_handle: s_logging_lock.lock()
 		}
 	}
 }

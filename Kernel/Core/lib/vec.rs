@@ -10,7 +10,6 @@ use core::num::Int;
 use core::ops::{Drop,Index,IndexMut,Deref,DerefMut};
 use lib::clone::Clone;
 use lib::collections::{MutableSeq};
-use logging::HexDump;
 
 pub struct Vec<T>
 {
@@ -263,7 +262,7 @@ impl<T> Drop for MoveItems<T>
 {
 	fn drop(&mut self)
 	{
-		for i in range(self.ofs, self.count) {
+		for _ in range(self.ofs, self.count) {
 			self.pop_item();
 		}
 		unsafe {

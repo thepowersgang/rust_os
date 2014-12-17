@@ -12,8 +12,8 @@ enum RunState
 {
 	Runnable,
 	ListWait(*const WaitQueue),
-	EventWait(u32),
-	Dead(u32),
+	//EventWait(u32),
+	//Dead(u32),
 }
 impl Default for RunState { fn default() -> RunState { RunState::Runnable } }
 

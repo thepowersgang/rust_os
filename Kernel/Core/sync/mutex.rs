@@ -2,6 +2,7 @@
 //
 //
 #![macro_escape]
+use lib::LazyStatic;
 
 pub struct Mutex<T>
 {
@@ -14,6 +15,8 @@ struct HeldMutex<'lock,T:'lock>
 {
 	lock: &'lock Mutex<T>
 }
+
+pub struct LazyMutex<T>(pub Mutex<LazyStatic<T>>);
 
 impl<T> Mutex<T>
 {
@@ -49,6 +52,16 @@ impl<T> Mutex<T>
 	}
 }
 
+impl<T> LazyMutex<T>
+{
+	pub fn lock(&self, init_fcn: | | -> T) -> HeldMutex<LazyStatic<T>>
+	{
+		let mut lh = self.0.lock();
+		lh.prep(init_fcn);
+		lh
+	}
+}
+
 #[unsafe_destructor]
 impl<'lock,T> ::core::ops::Drop for HeldMutex<'lock,T>
 {
@@ -75,6 +88,9 @@ macro_rules! mutex_init( ($val:expr) => (::sync::mutex::Mutex{
 	queue: ::core::cell::UnsafeCell { value: ::threads::WAITQUEUE_INIT },
 	val: ::core::cell::UnsafeCell{ value: $val },
 	}) )
+macro_rules! lazymutex_init{
+	() => {::sync::mutex::LazyMutex(mutex_init!( ::lib::LazyStatic(None) ))}
+}
 
 // vim: ft=rust
 

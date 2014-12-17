@@ -10,25 +10,26 @@ use _common::*;
 
 module_define!(Video, [], init)
 
-/**
- * "Client"-side display surface handle
- * Represents a (possibly) visible framebuffer
- */
-pub struct Display
-{
-	backing_id: uint,
-}
+///**
+// * "Client"-side display surface handle
+// * Represents a (possibly) visible framebuffer
+// */
+//pub struct Display
+//{
+//	backing_id: uint,
+//}
 pub struct FramebufferRegistration
 {
 	reg_id: uint,
 }
 
+#[deriving(Copy,PartialEq)]
 pub struct Rect
 {
-	x: u16,
-	y: u16,
-	w: u16,
-	h: u16,
+	pub x: u16,
+	pub y: u16,
+	pub w: u16,
+	pub h: u16,
 }
 
 /**
@@ -40,27 +41,47 @@ pub struct Rect
 pub trait Framebuffer: Any
 {
 	fn get_size(&self) -> Rect;
-	fn set_size(&self, newsize: Rect) -> bool;
+	fn set_size(&mut self, newsize: Rect) -> bool;
 	
-	fn blit_inner(&self, dst: Rect, src: Rect);
-	fn blit_ext(&self, dst: Rect, src: Rect, srf: &Framebuffer) -> bool;
-	fn blit_buf(&self, dst: Rect, buf: &[u32]);
-	fn fill(&self, dst: Rect, colour: u32);
+	fn blit_inner(&mut self, dst: Rect, src: Rect);
+	fn blit_ext(&mut self, dst: Rect, src: Rect, srf: &Framebuffer) -> bool;
+	fn blit_buf(&mut self, dst: Rect, buf: &[u32]);
+	fn fill(&mut self, dst: Rect, colour: u32);
 }
 
 // Workaround for AnyRefExt not being implemented on &Framebuffer by default
 any_for_trait!( Framebuffer )
 
-//static s_display_surfaces: Mutex<Vec<Box<Framebuffer+'static>>> = mutex_init!( empty_vec!() );
+#[allow(non_upper_case_globals)]
+static s_display_surfaces: ::sync::mutex::LazyMutex<Vec<Option<Box<Framebuffer+Send>>>> = lazymutex_init!( );
 
 fn init()
 {
 	// TODO: What init would the display processor need?
 }
 
+//impl ::core::ops::Drop for Display
+//{
+//	fn drop(&mut self)
+//	{
+//	}
+//}
+
 pub fn add_output(output: Box<Framebuffer+Send>) -> FramebufferRegistration
 {
-	panic!("TODO: video::add_output");
+	let mut lh = s_display_surfaces.lock( | | Vec::new() );
+	lh.push(Some(output));
+	FramebufferRegistration {
+		reg_id: lh.len()
+	}
+}
+
+impl ::core::ops::Drop for FramebufferRegistration
+{
+	fn drop(&mut self)
+	{
+		s_display_surfaces.lock( | | Vec::new() )[self.reg_id] = None;
+	}
 }
 
 impl Rect
@@ -70,6 +91,12 @@ impl Rect
 			x: x, y: y,
 			w: w, h: h,
 		}
+	}
+	
+	pub fn within(&self, w: u16, h: u16) -> bool {
+		self.x < w && self.y < h
+		&& self.w <= w && self.h <= h
+		&& self.x + self.w <= w && self.y + self.h <= h
 	}
 }
 

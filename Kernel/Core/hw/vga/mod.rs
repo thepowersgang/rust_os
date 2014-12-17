@@ -16,7 +16,8 @@ struct VgaPciDriver;
 //struct VgaStaticDriver;
 struct VgaDevice
 {
-	video_handle: ::metadevs::video::FramebufferRegistration,
+	/// Handle to video metadev registration
+	_video_handle: ::metadevs::video::FramebufferRegistration,
 }
 /**
  * Real device instance (registered with the video manager)
@@ -26,6 +27,8 @@ struct VgaFramebuffer
 	io_base: u16,
 	window: ::memory::virt::AllocHandle,
 	crtc: crtc::CrtcRegs,
+	w: uint,
+	h: uint,
 }
 struct CrtcAttrs
 {
@@ -83,7 +86,7 @@ impl VgaDevice
 	fn new(iobase: u16) -> VgaDevice
 	{
 		VgaDevice {
-			video_handle: ::metadevs::video::add_output(box VgaFramebuffer::new(iobase)),
+			_video_handle: ::metadevs::video::add_output(box VgaFramebuffer::new(iobase)),
 		}
 	}
 }
@@ -101,6 +104,8 @@ impl VgaFramebuffer
 			io_base: base,
 			window: ::memory::virt::map_hw_rw(0xA0000, (0xC0-0xA0), module_path!()).unwrap(),
 			crtc: crtc::CrtcRegs::load(base + 0x24),	// Colour CRTC regs
+			w: 320,
+			h: 240,
 			};
 		
 		// 320x240 @60Hz
@@ -144,6 +149,21 @@ impl VgaFramebuffer
 		self.crtc.set_v_sync_end(v_sync_end);
 		
 		self.crtc.commit(self.io_base + 0x24);
+		
+		panic!("TODO: Set/check firequency {}Hz", attrs.frequency);
+	}
+	
+	fn col32_to_u8(&self, colour: u32) -> u8
+	{
+		// 8:8:8 RGB -> 2:3:3 RGB
+		let r8 = (colour >> 16) as u8;
+		let g8 = (colour >>  8) as u8;
+		let b8 = (colour >>  0) as u8;
+		
+		let r2 = (r8 + 0x3F) >> (8-2);
+		let g3 = (g8 + 0x1F) >> (8-3);
+		let b3 = (b8 + 0x1F) >> (8-3);
+		return (r2 << 6) | (g3 << 3) | (b3 << 0);
 	}
 }
 
@@ -158,29 +178,37 @@ impl CrtcAttrs
 impl ::metadevs::video::Framebuffer for VgaFramebuffer
 {
 	fn get_size(&self) -> Rect {
-		// 320x200x 255
-		Rect::new( 0,0, 320,200 )
+		// 320x200x 8bpp
+		Rect::new( 0,0, self.w as u16, self.h as u16 )
 	}
-	fn set_size(&self, _newsize: Rect) -> bool {
+	fn set_size(&mut self, _newsize: Rect) -> bool {
 		// Can't change
 		false
 	}
 	
-	fn blit_inner(&self, dst: Rect, src: Rect) {
+	fn blit_inner(&mut self, dst: Rect, src: Rect) {
 		panic!("TODO: VGA blit_inner {} to {}", src, dst);
 	}
-	fn blit_ext(&self, dst: Rect, src: Rect, srf: &Framebuffer) -> bool {
+	fn blit_ext(&mut self, dst: Rect, src: Rect, srf: &Framebuffer) -> bool {
 		match srf.downcast_ref::<VgaFramebuffer>()
 		{
 		Some(_) => panic!("TODO: VGA blit_ext {} to  {}", src, dst),
 		None => false,
 		}
 	}
-	fn blit_buf(&self, dst: Rect, buf: &[u32]) {
+	fn blit_buf(&mut self, dst: Rect, buf: &[u32]) {
 		panic!("TODO: VGA blit_buf {} pixels to {}", buf.len(), dst);
 	}
-	fn fill(&self, dst: Rect, colour: u32) {
-		panic!("TODO: VGA fill {} with {:06x}", dst, colour);
+	fn fill(&mut self, dst: Rect, colour: u32) {
+		assert!( dst.within(self.w as u16, self.h as u16) );
+		let colour_val = self.col32_to_u8(colour);
+		for row in range(dst.y, dst.y + dst.h)
+		{
+			let scanline = self.window.as_mut_slice::<u8>(row as uint * self.w, dst.w as uint);
+			for col in range(dst.x, dst.x + dst.w) {
+				scanline[col as uint] = colour_val;
+			}
+		}
 	}
 }
 
