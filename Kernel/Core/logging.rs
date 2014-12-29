@@ -4,7 +4,7 @@
 use core::fmt::FormatWriter;
 use core::option::Option::{Some,None};
 use core::result::Result::{Ok,Err};
-use core::slice::{SlicePrelude};
+use core::slice::{SliceExt};
 
 #[deriving(PartialEq,PartialOrd,Copy)]
 pub enum Level
@@ -65,8 +65,8 @@ impl ::core::fmt::FormatWriter for LoggingFormatter
 	{
 		match ::core::str::from_utf8(bytes)
 		{
-		Some(s) => ::arch::puts(s),
-		None => {
+		Ok(s) => ::arch::puts(s),
+		Err(_) => {
 			let rs = unsafe { ::core::mem::transmute::<_,::core::raw::Slice<u8>>(bytes) };
 			panic!("LoggingFormatter.write bytes={}+{}", rs.data, rs.len);
 			}

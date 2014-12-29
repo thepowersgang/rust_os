@@ -32,7 +32,7 @@ static s_pci_bus_manager: PCIBusManager = PCIBusManager;
 static s_pci_child_bus_driver: PCIChildBusDriver = PCIChildBusDriver;
 static S_ATTR_NAMES: [&'static str, ..3] = ["vendor", "device", "class"];
 
-module_define!(PCI, [DeviceManager], init)
+module_define!{PCI, [DeviceManager], init}
 
 fn init()
 {
@@ -71,7 +71,7 @@ impl ::device_manager::Driver for PCIChildBusDriver
 	{
 		let addr = bus_dev.addr() as u16;
 		let bridge_type = (read_word(addr, 3) >> 16) & 0x7F;
-		assert!(bridge_type == 0x01)
+		assert!(bridge_type == 0x01);
 		// Get sub-bus number
 		let sec_bus_id = (read_word(addr, 6) >> 8) & 0xFF;
 		log_debug!("PCI Bridge Bind: sec_bus_id = {:#02x}", sec_bus_id);

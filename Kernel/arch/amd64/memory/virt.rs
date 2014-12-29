@@ -40,11 +40,11 @@ unsafe fn get_entry(level: u8, index: uint, force_allocate: bool) -> PTE
 	match level
 	{
 	0 => {
-		assert!(index < 512*512*512*512)
+		assert!(index < 512*512*512*512);
 		PTE::new(PTEPos::Page4K, tab_pt.offset(index as int))
 		}
 	1 => {
-		assert!(index < 512*512*512)
+		assert!(index < 512*512*512);
 		let rv = PTE::new(PTEPos::Page2M, tab_pd.offset(index as int));
 		if !rv.is_present() && force_allocate {
 			let ptr = tab_pt.offset(index as int * 512) as *mut ();
@@ -54,7 +54,7 @@ unsafe fn get_entry(level: u8, index: uint, force_allocate: bool) -> PTE
 		rv
 		},
 	2 => {
-		assert!(index < 512*512)
+		assert!(index < 512*512);
 		let rv = PTE::new(PTEPos::Page1G, tab_pdp.offset(index as int));
 		if !rv.is_present() && force_allocate {
 			let ptr = tab_pd.offset(index as int * 512) as *mut ();
@@ -64,7 +64,7 @@ unsafe fn get_entry(level: u8, index: uint, force_allocate: bool) -> PTE
 		rv
 		},
 	3 => {
-		assert!(index < 512)
+		assert!(index < 512);
 		let rv = PTE::new(PTEPos::Page512G, tab_pml4.offset(index as int));
 		if !rv.is_present() && force_allocate {
 			::memory::phys::allocate( tab_pdp.offset(index as int * 512) as *mut () );

@@ -43,7 +43,7 @@ pub fn allocate_range(count: uint) -> PAddr
 		// 1. Locate the next unused address in the map, start from *h
 		let (mut i,mut addr) = *h;
 		if i == map.len() {
-			log_error!("Out of physical memory")
+			log_error!("Out of physical memory");
 			return NOPAGE;
 		}
 		if addr >= map[i].start + map[i].size
@@ -53,7 +53,7 @@ pub fn allocate_range(count: uint) -> PAddr
 				i += 1;
 			}
 			if i == map.len() {
-				log_error!("Out of physical memory")
+				log_error!("Out of physical memory");
 				return NOPAGE;
 			}
 			addr = map[i].start;

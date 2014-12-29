@@ -3,7 +3,7 @@
 //
 use core::iter::range;
 use core::iter::{FromIterator,Iterator};
-use core::slice::{SlicePrelude,AsSlice};
+use core::slice::{SliceExt,AsSlice};
 use core::option::Option::{mod,Some,None};
 use core::ptr::RawPtr;
 use core::num::Int;

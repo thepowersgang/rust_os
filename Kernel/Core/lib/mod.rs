@@ -121,10 +121,9 @@ impl UintBits for u16 {
 }
 
 #[macro_export]
-macro_rules! tern(
-	($cnd:expr ? $ok:expr : $nok:expr) => (if $cnd { $ok } else { $nok })//,
-//	($cnd:expr ? $ok:expr : $($cnd2:expr ? $val2:tt :)* $false:expr ) => (if $cnd { $ok } $(else if $cnd2 { $val2 })* else { $false })
-	)
+macro_rules! tern{
+	($cnd:expr ? $ok:expr : $nok:expr) => (if $cnd { $ok } else { $nok });
+	}
 
 // vim: ft=rust
 

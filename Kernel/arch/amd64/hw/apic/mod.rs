@@ -7,7 +7,7 @@
 // mod.rs -- Core API / init
 use _common::*;
 
-module_define!(APIC, [ACPI], init)
+module_define!{APIC, [ACPI], init}
 
 mod raw;
 mod init;

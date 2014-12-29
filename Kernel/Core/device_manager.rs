@@ -8,7 +8,7 @@ use _common::*;
 use sync::Mutex;
 use lib::Queue;
 
-module_define!(DeviceManager, [], init)
+module_define!{DeviceManager, [], init}
 
 pub enum IOBinding
 {

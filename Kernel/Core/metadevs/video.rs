@@ -8,7 +8,7 @@ use _common::*;
 // DESIGN
 // - Manages a set of video "heads"
 
-module_define!(Video, [], init)
+module_define!{Video, [], init}
 
 ///**
 // * "Client"-side display surface handle
@@ -50,7 +50,7 @@ pub trait Framebuffer: Any
 }
 
 // Workaround for AnyRefExt not being implemented on &Framebuffer by default
-any_for_trait!( Framebuffer )
+any_for_trait!{ Framebuffer }
 
 #[allow(non_upper_case_globals)]
 static s_display_surfaces: ::sync::mutex::LazyMutex<Vec<Option<Box<Framebuffer+Send>>>> = lazymutex_init!( );

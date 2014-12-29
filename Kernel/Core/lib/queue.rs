@@ -123,7 +123,7 @@ impl<'s, T> Iterator<&'s mut T> for ItemsMut<'s,T>
 	}
 }
 
-macro_rules! queue_init( () => (Queue{head: OptPtr(0 as *const _),tail: OptMutPtr(0 as *mut _)}) )
+macro_rules! queue_init{ () => (Queue{head: OptPtr(0 as *const _),tail: OptMutPtr(0 as *mut _)}) }
 
 // vim: ft=rust
 

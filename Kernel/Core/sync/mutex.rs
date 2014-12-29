@@ -83,11 +83,11 @@ impl<'lock,T> ::core::ops::DerefMut<T> for HeldMutex<'lock,T>
 }
 
 #[macro_export]
-macro_rules! mutex_init( ($val:expr) => (::sync::mutex::Mutex{
+macro_rules! mutex_init{ ($val:expr) => (::sync::mutex::Mutex{
 	locked_held: spinlock_init!(false),
 	queue: ::core::cell::UnsafeCell { value: ::threads::WAITQUEUE_INIT },
 	val: ::core::cell::UnsafeCell{ value: $val },
-	}) )
+	}) }
 macro_rules! lazymutex_init{
 	() => {::sync::mutex::LazyMutex(mutex_init!( ::lib::LazyStatic(None) ))}
 }

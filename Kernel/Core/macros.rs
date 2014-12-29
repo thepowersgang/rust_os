@@ -41,8 +41,8 @@ macro_rules! module_define_int
 
 macro_rules! module_define
 {
-	($name:ident, [], $init:path) => (module_define_int!($name, 0, [], $init));
-	($name:ident, [$($deps:ident),+], $init:path) => (module_define_int!($name, _count!($($deps),+), [$(stringify!($deps)),+], $init));
+	($name:ident, [], $init:path) => (module_define_int!{$name, 0, [], $init});
+	($name:ident, [$($deps:ident),+], $init:path) => (module_define_int!{$name, _count!($($deps),+), [$(stringify!($deps)),+], $init});
 }
 
 // Workaround for Any not working with trait inheritance

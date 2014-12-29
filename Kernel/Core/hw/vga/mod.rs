@@ -8,7 +8,7 @@
 use _common::*;
 use metadevs::video::{Framebuffer,Rect};
 
-module_define!(VGA, [DeviceManager, Video], init)
+module_define!{VGA, [DeviceManager, Video], init}
 
 mod crtc;
 
