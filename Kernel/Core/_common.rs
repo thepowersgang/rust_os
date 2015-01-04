@@ -17,6 +17,7 @@ pub use core::cmp::PartialEq;
 pub use core::num::Int;
 pub use core::kinds::{Send,Copy};
 pub use core::any::{Any,AnyRefExt,AnyMutRefExt};
+pub use core::ptr::PtrExt;
 
 pub use lib::mem::Box;
 pub use lib::vec::Vec;

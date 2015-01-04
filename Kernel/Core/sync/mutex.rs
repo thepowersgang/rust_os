@@ -3,22 +3,27 @@
 //
 #![macro_escape]
 use lib::LazyStatic;
+use core::kinds::{Send, Sync};
 
-pub struct Mutex<T>
+pub struct Mutex<T: Send>
 {
 	pub locked_held: ::sync::Spinlock<bool>,
 	pub queue: ::core::cell::UnsafeCell<::threads::WaitQueue>,
 	pub val: ::core::cell::UnsafeCell<T>,
 }
 
-struct HeldMutex<'lock,T:'lock>
+struct HeldMutex<'lock,T:'lock+Send>
 {
 	lock: &'lock Mutex<T>
 }
 
-pub struct LazyMutex<T>(pub Mutex<LazyStatic<T>>);
+pub struct LazyMutex<T: Send>(pub Mutex<LazyStatic<T>>);
 
-impl<T> Mutex<T>
+unsafe impl<T> Sync for Mutex<T>
+{
+}
+
+impl<T: Send> Mutex<T>
 {
 	/*
 	pub fn new(val: T) -> Mutex<T> {
@@ -52,7 +57,7 @@ impl<T> Mutex<T>
 	}
 }
 
-impl<T> LazyMutex<T>
+impl<T: Send> LazyMutex<T>
 {
 	pub fn lock(&self, init_fcn: | | -> T) -> HeldMutex<LazyStatic<T>>
 	{
@@ -63,19 +68,19 @@ impl<T> LazyMutex<T>
 }
 
 #[unsafe_destructor]
-impl<'lock,T> ::core::ops::Drop for HeldMutex<'lock,T>
+impl<'lock,T:Send> ::core::ops::Drop for HeldMutex<'lock,T>
 {
 	fn drop(&mut self) {
 		self.lock.unlock();
 	}
 }
-impl<'lock,T> ::core::ops::Deref<T> for HeldMutex<'lock,T>
+impl<'lock,T:Send> ::core::ops::Deref<T> for HeldMutex<'lock,T>
 {
 	fn deref<'a>(&'a self) -> &'a T {
 		unsafe { &*self.lock.val.get() }
 	}
 }
-impl<'lock,T> ::core::ops::DerefMut<T> for HeldMutex<'lock,T>
+impl<'lock,T:Send> ::core::ops::DerefMut<T> for HeldMutex<'lock,T>
 {
 	fn deref_mut<'a>(&'a mut self) -> &'a mut T {
 		unsafe { &mut *self.lock.val.get() }

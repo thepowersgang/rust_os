@@ -4,7 +4,6 @@
 // arch/amd64/hw/apic/raw.rs
 // - x86 APIC Raw hardware API
 use _common::*;
-use core::ptr::RawPtr;
 
 static TIMER_VEC: u8 = 0x7E;
 

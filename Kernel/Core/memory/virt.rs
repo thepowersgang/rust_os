@@ -4,7 +4,6 @@
 // Core/memory/virt.rs
 // - Virtual memory manager
 use _common::*;
-use core::ptr::RawPtr;
 use arch::memory::addresses;
 
 use arch::memory::{PAddr,VAddr};
@@ -29,6 +28,7 @@ pub struct AllocHandle
 	count: uint,
 	mode: ProtectionMode,
 }
+unsafe impl Send for AllocHandle {}
 
 #[link_section=".process_local"]
 #[allow(non_upper_case_globals)]

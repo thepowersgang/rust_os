@@ -3,22 +3,25 @@
 //
 // arch/amd64/sync.rs
 // - Lightweight spinlock
+use core::kinds::{Send,Sync};
 
 /// Lightweight protecting spinlock
-pub struct Spinlock<T: ::core::kinds::Sync>
+pub struct Spinlock<T: Send>
 {
 	pub lock: ::core::atomic::AtomicBool,
 	pub value: ::core::cell::UnsafeCell<T>,
 }
 
 /// Handle to the held spinlock
-pub struct HeldSpinlock<'lock,T:'lock+::core::kinds::Sync>
+pub struct HeldSpinlock<'lock,T:'lock+Send>
 {
 	lock: &'lock mut Spinlock<T>,
 	if_set: bool,
 }
 
-impl<T: ::core::kinds::Sync> Spinlock<T>
+unsafe impl<T: Send> Sync for Spinlock<T> {}
+
+impl<T: Send> Spinlock<T>
 {
 	pub fn lock<'_self>(&'_self self) -> HeldSpinlock<'_self,T> {
 		unsafe {
@@ -50,7 +53,7 @@ impl<T: ::core::kinds::Sync> Spinlock<T>
 }
 
 #[unsafe_destructor]
-impl<'lock,T: ::core::kinds::Sync> ::core::ops::Drop for HeldSpinlock<'lock, T>
+impl<'lock,T: Send> ::core::ops::Drop for HeldSpinlock<'lock, T>
 {
 	fn drop(&mut self)
 	{
@@ -58,13 +61,13 @@ impl<'lock,T: ::core::kinds::Sync> ::core::ops::Drop for HeldSpinlock<'lock, T>
 	}
 }
 
-impl<'lock,T: ::core::kinds::Sync> ::core::ops::Deref<T> for HeldSpinlock<'lock, T>
+impl<'lock,T: Send> ::core::ops::Deref<T> for HeldSpinlock<'lock, T>
 {
 	fn deref<'a>(&'a self) -> &'a T {
 		unsafe { &*self.lock.value.get() }
 	}
 }
-impl<'lock,T: ::core::kinds::Sync> ::core::ops::DerefMut<T> for HeldSpinlock<'lock, T>
+impl<'lock,T: Send> ::core::ops::DerefMut<T> for HeldSpinlock<'lock, T>
 {
 	fn deref_mut<'a>(&'a mut self) -> &'a mut T {
 		unsafe { &mut *self.lock.value.get() }

@@ -87,7 +87,7 @@ pub extern "C" fn kmain()
 	memory::heap::allocate(memory::heap::HeapId::Global, size).unwrap()
 } 
 #[no_mangle] pub unsafe extern "C" fn free(ptr: *mut ()) {
-	use core::ptr::RawPtr;
+	use core::ptr::PtrExt;
 	if !ptr.is_null() { memory::heap::deallocate(ptr) }
 } 
 

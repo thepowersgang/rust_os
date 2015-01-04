@@ -2,7 +2,7 @@
 //
 //
 use arch::memory::{VAddr};
-use core::ptr::RawPtr;
+use core::ptr::PtrExt;
 
 pub use self::memorymap::{MAP_PAD, MemoryMapEnt, MemoryMapBuilder};
 pub use self::memorymap::MemoryState;

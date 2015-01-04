@@ -3,7 +3,8 @@
 //
 #![macro_escape]
 use _common::{Option,Some,None};
-use core::ptr::RawPtr;
+use core::ptr::PtrExt;
+use core::kinds::Send;
 use lib::mem::Box;
 
 pub use self::queue::Queue;
@@ -58,7 +59,9 @@ impl<T> ::core::ops::DerefMut<T> for LazyStatic<T>
 }
 
 pub struct OptPtr<T>(pub *const T);
+unsafe impl<T: Send> Send for OptPtr<T> {}
 pub struct OptMutPtr<T>(pub *mut T);
+unsafe impl<T: Send> Send for OptMutPtr<T> {}
 
 impl<T> OptPtr<T>
 {

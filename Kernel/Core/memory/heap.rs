@@ -5,7 +5,7 @@
 // - Dynamic memory manager
 
 use core::option::Option::{mod,None,Some};
-use core::ptr::RawPtr;
+use core::ptr::PtrExt;
 
 // --------------------------------------------------------
 // Types
@@ -22,6 +22,7 @@ struct HeapDef
 	last_foot: *mut HeapFoot,
 	first_free: *mut HeapHead,
 }
+unsafe impl ::core::kinds::Send for HeapDef {}
 
 #[allow(raw_pointer_deriving)]
 #[deriving(Show)]	// RawPtr Show is the address
@@ -125,7 +126,7 @@ impl HeapDef
 		log_debug!("allocate(size={}) blocksize={}", size, blocksize);
 		// 2. Locate a free location
 		// Check all free blocks for one that would fit this allocation
-		let mut prev = RawPtr::null();
+		let mut prev = PtrExt::null();
 		let mut opt_fb = self.first_free;
 		while !opt_fb.is_null()
 		{

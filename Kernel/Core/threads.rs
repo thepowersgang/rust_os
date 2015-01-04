@@ -36,6 +36,7 @@ struct ThreadList
 	first: Option<Box<Thread>>,
 	last: Option<*mut Thread>
 }
+unsafe impl Send for ThreadList {}
 const THREADLIST_INIT: ThreadList = ThreadList {first: None, last: None};
 pub const WAITQUEUE_INIT: WaitQueue = WaitQueue { list: THREADLIST_INIT };
 

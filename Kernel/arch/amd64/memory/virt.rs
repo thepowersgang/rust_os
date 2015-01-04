@@ -1,7 +1,7 @@
 //
 //
 //
-use core::ptr::RawPtr;
+use core::ptr::PtrExt;
 use super::{PAddr};
 use PAGE_SIZE;
 
@@ -143,7 +143,7 @@ impl PTE
 		PTE { pos: pos, data: ptr }
 	}
 	pub fn null() -> PTE {
-		PTE { pos: PTEPos::Absent, data: RawPtr::null() }
+		PTE { pos: PTEPos::Absent, data: PtrExt::null() }
 	}
 
 	pub fn is_null(&self) -> bool { self.pos == PTEPos::Absent }

@@ -6,7 +6,6 @@
 // 
 // > Provides access to the ACPI tables
 use _common::*;
-use core::ptr::RawPtr;
 use core::str::from_utf8;
 
 use self::TLSDT::{TopRSDT,TopXSDT};
@@ -203,7 +202,7 @@ unsafe fn locate_rsdp(base: *const u8, size: uint) -> *const RSDP
 			}
 		}
 	}
-	RawPtr::null()
+	PtrExt::null()
 }
 
 /// Caclulate the byte sum of a structure

@@ -16,13 +16,15 @@ pub enum IOBinding
 	IO(u16,u16),
 }
 
-pub trait BusManager
+pub trait BusManager:
+	Send
 {
 	fn bus_type(&self) -> &str;
 	fn get_attr_names(&self) -> &[&str];
 }
 
-pub trait BusDevice// : ::core::fmt::Show
+pub trait BusDevice:
+	Send
 {
 	fn addr(&self) -> u32;
 	fn get_attr(&self, name: &str) -> u32;
@@ -32,27 +34,29 @@ pub trait BusDevice// : ::core::fmt::Show
 
 // TODO: Change this to instead be a structure with a bound Fn reference
 // - Structure defines bus type and a set of attribute names/values/masks
-pub trait Driver
+pub trait Driver:
+	Send
 {
 	fn bus_type(&self) -> &str;
 	fn handles(&self, bus_dev: &BusDevice) -> uint;
-	fn bind(&self, bus_dev: &BusDevice) -> Box<DriverInstance+'static>;
+	fn bind(&self, bus_dev: &BusDevice) -> Box<DriverInstance>;
 }
 
-pub trait DriverInstance
+pub trait DriverInstance:
+	Send
 {
 }
 
 struct Device
 {
-	bus_dev: Box<BusDevice+'static>,
-	driver: Option<(Box<DriverInstance+'static>, uint)>,
+	bus_dev: Box<BusDevice>,
+	driver: Option<(Box<DriverInstance>, uint)>,
 	//attribs: Vec<u32>,
 }
 
 struct Bus
 {
-	manager: &'static (BusManager+'static),
+	manager: &'static BusManager,
 	devices: Vec<Device>,
 }
 
@@ -60,14 +64,14 @@ struct Bus
 static s_root_busses: Mutex<Queue<Bus>> = mutex_init!(queue_init!());
 
 #[allow(non_upper_case_globals)]
-static s_driver_list: Mutex<Queue<&'static (Driver+'static)>> = mutex_init!( queue_init!() );
+static s_driver_list: Mutex<Queue<&'static Driver>> = mutex_init!( queue_init!() );
 
 fn init()
 {
 	// Do nothing!
 }
 
-pub fn register_bus(manager: &'static (BusManager+'static), devices: Vec<Box<BusDevice+'static>>)
+pub fn register_bus(manager: &'static BusManager, devices: Vec<Box<BusDevice>>)
 {
 	let bus = Bus {
 		manager: manager,
@@ -80,7 +84,7 @@ pub fn register_bus(manager: &'static (BusManager+'static), devices: Vec<Box<Bus
 	s_root_busses.lock().push(bus);
 }
 
-pub fn register_driver(driver: &'static (Driver+'static))
+pub fn register_driver(driver: &'static (Driver+Send))
 {
 	s_driver_list.lock().push(driver);
 	// Iterate known devices and spin up instances if needed

@@ -1,5 +1,5 @@
 
-use core::kinds::Sized;
+use core::kinds::{Sized,Send};
 
 pub use self::rc::Rc;
 
@@ -7,6 +7,10 @@ mod rc;
 
 #[lang = "owned_box"]
 pub struct Box<T>(*mut T);
+
+unsafe impl<Sized? T: Send> Send for Box<T>
+{
+}
 
 impl<Sized? T> ::core::fmt::Show for Box<T>
 where

@@ -5,9 +5,10 @@ use core::iter::range;
 use core::iter::{FromIterator,Iterator};
 use core::slice::{SliceExt,AsSlice};
 use core::option::Option::{mod,Some,None};
-use core::ptr::RawPtr;
+use core::ptr::PtrExt;
 use core::num::Int;
 use core::ops::{Drop,Index,IndexMut,Deref,DerefMut};
+use core::kinds::Send;
 use lib::clone::Clone;
 use lib::collections::{MutableSeq};
 
@@ -17,6 +18,7 @@ pub struct Vec<T>
 	size: uint,
 	capacity: uint,
 }
+unsafe impl<T: Send> Send for Vec<T> {}
 
 pub struct MoveItems<T>
 {
