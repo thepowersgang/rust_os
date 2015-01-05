@@ -10,7 +10,7 @@ pub struct ACPI_MADT
 {
 	pub local_controller_addr: u32,
 	pub flags: u32,
-	end: [u8,..0],
+	end: [u8; 0],
 }
 #[repr(C,packed)]
 struct MADT_DevHeader
@@ -33,7 +33,7 @@ pub struct MADT_IOAPIC
 	pub address: u32,
 	pub interrupt_base: u32,
 }
-#[deriving(Show)]
+#[derive(Show)]
 #[repr(C,packed)]
 pub struct MADT_IntSrcOvr
 {
@@ -42,14 +42,14 @@ pub struct MADT_IntSrcOvr
 	gsi: u32,
 	flags: u16,
 }
-#[deriving(Show)]
+#[derive(Show)]
 #[repr(C,packed)]
 pub struct MADT_NMI
 {
 	flags: u16,
 	gsi: u32,
 }
-#[deriving(Show)]
+#[derive(Show)]
 #[repr(C,packed)]
 pub struct MADT_LAPICNMI
 {
@@ -57,7 +57,7 @@ pub struct MADT_LAPICNMI
 	flags: u16,
 	lint_num: u8,
 }
-#[deriving(Show)]
+#[derive(Show)]
 #[repr(C,packed)]
 pub struct MADT_LAPICAddr
 {
@@ -65,7 +65,7 @@ pub struct MADT_LAPICAddr
 	pub address: u64,
 }
 
-#[deriving(Show)]
+#[derive(Show)]
 pub enum MADTDevRecord<'a>
 {
 	DevUnk(u8),
@@ -132,8 +132,9 @@ impl ACPI_MADT
 	}
 }
 
-impl<'a> Iterator<MADTDevRecord<'a>> for MADTRecords<'a>
+impl<'a> Iterator for MADTRecords<'a>
 {
+	type Item = MADTDevRecord<'a>;
 	fn next(&mut self) -> Option<MADTDevRecord<'a>>
 	{
 		if self.pos >= self.limit

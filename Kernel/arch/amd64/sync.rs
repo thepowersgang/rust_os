@@ -33,7 +33,7 @@ impl<T: Send> Spinlock<T>
 		let if_set = unsafe {
 			let mut flags: uint;
 			asm!("pushf\npop $0\ncli" : "=r" (flags));
-			while self.lock.compare_and_swap(false, true, ::core::atomic::Relaxed) == true
+			while self.lock.compare_and_swap(false, true, ::core::atomic::Ordering::Relaxed) == true
 			{
 			}
 			(flags & 0x200) != 0
@@ -45,7 +45,7 @@ impl<T: Send> Spinlock<T>
 	pub fn release(&mut self, set_if: bool)
 	{
 		//::arch::puts("Spinlock::release()\n");
-		self.lock.store(false, ::core::atomic::Relaxed);
+		self.lock.store(false, ::core::atomic::Ordering::Relaxed);
 		if set_if {
 			unsafe { asm!("sti" : : : : "volatile"); }
 		}
@@ -61,13 +61,14 @@ impl<'lock,T: Send> ::core::ops::Drop for HeldSpinlock<'lock, T>
 	}
 }
 
-impl<'lock,T: Send> ::core::ops::Deref<T> for HeldSpinlock<'lock, T>
+impl<'lock,T: Send> ::core::ops::Deref for HeldSpinlock<'lock, T>
 {
+	type Target = T;
 	fn deref<'a>(&'a self) -> &'a T {
 		unsafe { &*self.lock.value.get() }
 	}
 }
-impl<'lock,T: Send> ::core::ops::DerefMut<T> for HeldSpinlock<'lock, T>
+impl<'lock,T: Send> ::core::ops::DerefMut for HeldSpinlock<'lock, T>
 {
 	fn deref_mut<'a>(&'a mut self) -> &'a mut T {
 		unsafe { &mut *self.lock.value.get() }

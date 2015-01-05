@@ -8,9 +8,9 @@ use arch::memory::addresses;
 
 use arch::memory::{PAddr,VAddr};
 
-type Page = [u8, ..::PAGE_SIZE];
+type Page = [u8; ::PAGE_SIZE];
 
-#[deriving(PartialEq,Show,Copy)]
+#[derive(PartialEq,Show,Copy)]
 pub enum ProtectionMode
 {	
 	Unmapped,	// Inaccessible

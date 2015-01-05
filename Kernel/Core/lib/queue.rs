@@ -90,8 +90,9 @@ impl<T> Queue<T>
 	}
 }
 
-impl<'s, T> Iterator<&'s T> for Items<'s,T>
+impl<'s, T> Iterator for Items<'s,T>
 {
+	type Item = &'s T;
 	fn next(&mut self) -> Option<&'s T>
 	{
 		match self.cur_item
@@ -106,8 +107,9 @@ impl<'s, T> Iterator<&'s T> for Items<'s,T>
 }
 
 // TODO !!! - Validate the safety of this function, it's an evil mess of transmutes
-impl<'s, T> Iterator<&'s mut T> for ItemsMut<'s,T>
+impl<'s, T> Iterator for ItemsMut<'s,T>
 {
+	type Item = &'s mut T;
 	fn next(&mut self) -> Option<&'s mut T>
 	{
 		let ptr = self.cur_item.unwrap();

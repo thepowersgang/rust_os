@@ -35,7 +35,7 @@ macro_rules! module_define_int
 			deps: &S_DEPS,
 			_rsvd: 0,
 		};
-		static S_DEPS: [&'static str, ..($count)] = $deps;
+		static S_DEPS: [&'static str; ($count)] = $deps;
 	);
 }
 

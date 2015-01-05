@@ -15,8 +15,7 @@ pub struct ModuleInfo
 	pub _rsvd: uint,
 }
 
-#[deriving(Clone)]
-#[deriving(PartialEq)]
+#[derive(Clone,PartialEq)]
 enum ModuleState
 {
 	Uninitialised,

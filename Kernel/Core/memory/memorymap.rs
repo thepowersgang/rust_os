@@ -4,7 +4,7 @@
 use _common::*;
 use arch::memory::{PAddr};
 
-#[deriving(PartialEq,Show,Copy)]
+#[derive(PartialEq,Show,Copy)]
 pub enum MemoryState
 {
 	Reserved,
@@ -19,7 +19,7 @@ pub const MAP_PAD: MemoryMapEnt = MemoryMapEnt {
 	domain: 0
 	};
 
-#[deriving(Copy)]
+#[derive(Copy)]
 pub struct MemoryMapEnt
 {
 	pub start: PAddr,

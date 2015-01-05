@@ -48,7 +48,11 @@ ENV += TK_BUILD="$(shell hostname --fqdn):$(BUILDNUM)"
 
 LIBDIR := /home/tpg/apps/lib/rustlib/x86_64-unknown-linux-gnu/lib/
 PREFIX := $(shell pwd)/.prefix/$(OBJDIR)/
+ifneq ($(USE_RUST_MASTER),)
+RUSTSRC := /home/tpg/Source/rust/rust-master/
+else
 RUSTSRC := /home/tpg/Source/rust/rust-nightly/
+endif
 LIBCORESRC := $(RUSTSRC)src/libcore/
 LIBGCC := /home/tpg/apps/lib/gcc/$(TRIPLE)/4.7.1/libgcc.a
 

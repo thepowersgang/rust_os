@@ -47,7 +47,7 @@ struct CrtcAttrs
 #[allow(non_upper_case_globals)]
 static s_vga_pci_driver: VgaPciDriver = VgaPciDriver;
 #[allow(non_upper_case_globals)]
-static s_legacy_bound: ::core::atomic::AtomicBool = ::core::atomic::INIT_ATOMIC_BOOL;
+static s_legacy_bound: ::core::atomic::AtomicBool = ::core::atomic::ATOMIC_BOOL_INIT;
 
 fn init()
 {

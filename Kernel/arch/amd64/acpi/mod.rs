@@ -15,7 +15,7 @@ module_define!{ACPI, [], init}
 struct ACPI
 {
 	top_sdt: TLSDT,
-	names: Vec<[u8,..4]>,
+	names: Vec<[u8; 4]>,
 }
 
 enum TLSDT
@@ -27,9 +27,9 @@ enum TLSDT
 #[repr(C,packed)]
 struct RSDP
 {
-	signature: [u8,..8],
+	signature: [u8; 8],
 	checksum: u8,
-	oemid: [u8,..6],
+	oemid: [u8; 6],
 	revision: u8,
 	rsdt_address: u32,
 }
@@ -41,7 +41,7 @@ struct RSDPv2
 	length: u32,
 	xsdt_address: u64,
 	ext_checksum: u8,
-	_resvd1: [u8,..3],
+	_resvd1: [u8; 3],
 }
 
 /// A handle to a SDT
@@ -52,22 +52,22 @@ pub struct SDTHandle<T:'static>
 }
 
 #[repr(C)]
-#[deriving(Copy)]
+#[derive(Copy)]
 pub struct SDTHeader
 {
-	signature: [u8, ..4],
+	signature: [u8; 4],
 	length: u32,
 	revision: u8,
 	checksum: u8,
-	oemid: [u8, ..6],
-	oem_table_id: [u8, ..8],
+	oemid: [u8; 6],
+	oem_table_id: [u8; 8],
 	oem_revision: u32,
 	creator_id: u32,
 	creator_revision: u32,
 }
 
 #[repr(C)]
-#[deriving(Copy)]
+#[derive(Copy)]
 pub enum AddressSpaceID
 {
 	AsidMemory   = 0,
@@ -80,13 +80,13 @@ pub enum AddressSpaceID
 }
 
 #[repr(C,packed)]
-#[deriving(Copy)]
+#[derive(Copy)]
 pub struct GAS
 {
 	pub asid: u8,
 	pub bit_width: u8,
 	pub bit_ofs: u8,
-	pub access_size: u8,	// 0: undef, 1: byte, ..., 4: qword
+	pub access_size: u8,	// 0: undef, 1: byte; ., 4: qword
 	pub address: u64,
 }
 
@@ -192,7 +192,7 @@ unsafe fn locate_rsdp(base: *const u8, size: uint) -> *const RSDP
 {
 	for ofs in range_step(0, size, 16)
 	{
-		let sig = base.offset(ofs as int) as *const [u8,..8];
+		let sig = base.offset(ofs as int) as *const [u8; 8];
 		if (*sig).as_slice() == "RSD PTR ".as_bytes()
 		{
 			let ret = sig as *const RSDP;
@@ -202,7 +202,7 @@ unsafe fn locate_rsdp(base: *const u8, size: uint) -> *const RSDP
 			}
 		}
 	}
-	PtrExt::null()
+	::core::ptr::null()
 }
 
 /// Caclulate the byte sum of a structure
@@ -285,9 +285,9 @@ impl SDTHeader
 	}
 	pub fn dump(&self)
 	{
-		log_debug!("SDTHeader = {{ sig:{},length='{}',rev={},checksum={},...",
+		log_debug!("SDTHeader = {{ sig:{},length='{}',rev={},checksum={}; .",
 			from_utf8(&self.signature), self.length, self.revision, self.checksum);
-		log_debug!(" oemid={},oem_table_id={},oem_revision={},...",
+		log_debug!(" oemid={},oem_table_id={},oem_revision={}; .",
 			from_utf8(&self.oemid), from_utf8(&self.oem_table_id), self.oem_revision);
 		log_debug!(" creator_id={:#x}, creator_revision={}",
 			self.creator_id, self.creator_revision);
@@ -338,8 +338,9 @@ impl<T> SDTHandle<T>
 	}
 }
 
-impl<T> Deref<SDT<T>> for SDTHandle<T>
+impl<T> Deref for SDTHandle<T>
 {
+	type Target = SDT<T>;
 	fn deref<'s>(&'s self) -> &'s SDT<T> {
 		self.maphandle.as_ref(self.ofs)
 	}
@@ -355,7 +356,7 @@ impl<T> SDT<T>
 	//{
 	//	from_utf8(self.header.signature).unwrap()
 	//}
-	fn raw_signature(&self) -> [u8,..4]
+	fn raw_signature(&self) -> [u8; 4]
 	{
 		CHECKMARK!();
 		self.header.signature

@@ -33,7 +33,7 @@ struct _Unwind_Exception
 {
 	exception_class: u64,
 	exception_cleanup: fn(_Unwind_Reason_Code,*const _Unwind_Exception),
-	private: [u64, ..2],
+	private: [u64; 2],
 }
 
 /*

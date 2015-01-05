@@ -22,7 +22,7 @@ struct ACPI_HPET
 	pci_vendor: u16,
 	addr: ::arch::acpi::GAS,
 	hpet_num: u8,
-	mintick: [u8,..2],	// 16-bit word
+	mintick: [u8; 2],	// 16-bit word
 	page_protection: u8,
 }
 
@@ -131,7 +131,7 @@ impl HPET
 			::core::intrinsics::volatile_store( &mut self.regs()[reg*2], val )
 		}
 	}
-	fn regs<'a>(&'a self) -> &'a mut [u64,..0x100] {
+	fn regs<'a>(&'a self) -> &'a mut [u64; 0x100] {
 		self.mapping_handle.as_ref(0)
 	}
 	fn num_comparitors(&self) -> uint {

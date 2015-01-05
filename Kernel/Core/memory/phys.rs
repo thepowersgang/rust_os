@@ -77,7 +77,7 @@ pub fn allocate(address: *mut ()) -> bool
 		{
 			::memory::virt::map(address, paddr, super::virt::ProtectionMode::KernelRO);
 			*h = *(address as *const PAddr);
-			*(address as *mut [u8,..::PAGE_SIZE]) = ::core::mem::zeroed();
+			*(address as *mut [u8; ::PAGE_SIZE]) = ::core::mem::zeroed();
 			mark_used(paddr);
 			return true;
 		}
@@ -87,7 +87,7 @@ pub fn allocate(address: *mut ()) -> bool
 	if paddr != NOPAGE
 	{
 		::memory::virt::map(address, paddr, super::virt::ProtectionMode::KernelRW);
-		unsafe { *(address as *mut [u8,..::PAGE_SIZE]) = ::core::mem::zeroed(); }
+		unsafe { *(address as *mut [u8; ::PAGE_SIZE]) = ::core::mem::zeroed(); }
 		return true
 	}
 	// 3. Fail

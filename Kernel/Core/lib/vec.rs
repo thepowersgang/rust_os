@@ -4,7 +4,7 @@
 use core::iter::range;
 use core::iter::{FromIterator,Iterator};
 use core::slice::{SliceExt,AsSlice};
-use core::option::Option::{mod,Some,None};
+use core::option::Option::{self,Some,None};
 use core::ptr::PtrExt;
 use core::num::Int;
 use core::ops::{Drop,Index,IndexMut,Deref,DerefMut};
@@ -106,13 +106,14 @@ impl<T> Vec<T>
 	}
 }
 
-impl<T> Deref<[T]> for Vec<T>
+impl<T> Deref for Vec<T>
 {
+	type Target = [T];
 	fn deref(&self) -> &[T] {
 		self.as_slice()
 	}
 }
-impl<T> DerefMut<[T]> for Vec<T>
+impl<T> DerefMut for Vec<T>
 {
 	fn deref_mut(&mut self) -> &mut [T] {
 		self.as_mut_slice()
@@ -151,8 +152,9 @@ impl<T> Drop for Vec<T>
 	}
 }
 
-impl<T> Index<uint, T> for Vec<T>
+impl<T> Index<uint> for Vec<T>
 {
+	type Output = T;
 	fn index<'a>(&'a self, index: &uint) -> &'a T
 	{
 		if *index >= self.size {
@@ -161,8 +163,9 @@ impl<T> Index<uint, T> for Vec<T>
 		unsafe { &*self.data.offset(*index as int) }
 	}
 }
-impl<T> IndexMut<uint, T> for Vec<T>
+impl<T> IndexMut<uint> for Vec<T>
 {
+	type Output = T;	//< Shouldn't be needed, but ICEs without it
 	fn index_mut<'a>(&'a mut self, index: &uint) -> &'a mut T
 	{
 		if *index >= self.size {
@@ -217,7 +220,7 @@ impl<T> MutableSeq<T> for Vec<T>
 
 impl<T> FromIterator<T> for Vec<T>
 {
-	fn from_iter<IT: Iterator<T>>(mut iterator: IT) -> Vec<T>
+	fn from_iter<IT: Iterator<Item=T>>(mut iterator: IT) -> Vec<T>
 	{
 		let mut ret = Vec::new();
 		for val in iterator
@@ -244,8 +247,9 @@ impl<T> MoveItems<T>
 	}
 }
 
-impl<T> Iterator<T> for MoveItems<T>
+impl<T> Iterator for MoveItems<T>
 {
+	type Item = T;
 	fn next(&mut self) -> Option<T>
 	{
 		if self.ofs == self.count

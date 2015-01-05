@@ -4,12 +4,12 @@
 // Core/memory/heap.rs
 // - Dynamic memory manager
 
-use core::option::Option::{mod,None,Some};
+use core::option::Option::{self,None,Some};
 use core::ptr::PtrExt;
 
 // --------------------------------------------------------
 // Types
-#[deriving(Copy)]
+#[derive(Copy)]
 pub enum HeapId
 {
 	Local,	// Inaccessible outside of process
@@ -25,14 +25,14 @@ struct HeapDef
 unsafe impl ::core::kinds::Send for HeapDef {}
 
 #[allow(raw_pointer_deriving)]
-#[deriving(Show)]	// RawPtr Show is the address
+#[derive(Show)]	// RawPtr Show is the address
 enum HeapState
 {
 	Free(*mut HeapHead),
 	Used(uint),
 }
 
-#[deriving(Show)]
+#[derive(Show)]
 struct HeapHead
 {
 	magic: uint,
@@ -126,7 +126,7 @@ impl HeapDef
 		log_debug!("allocate(size={}) blocksize={}", size, blocksize);
 		// 2. Locate a free location
 		// Check all free blocks for one that would fit this allocation
-		let mut prev = PtrExt::null();
+		let mut prev = ::core::ptr::null_mut();
 		let mut opt_fb = self.first_free;
 		while !opt_fb.is_null()
 		{

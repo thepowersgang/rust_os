@@ -45,13 +45,14 @@ impl<T> LazyStatic<T>
 		}
 	}
 }
-impl<T> ::core::ops::Deref<T> for LazyStatic<T>
+impl<T> ::core::ops::Deref for LazyStatic<T>
 {
+	type Target = T;
 	fn deref(&self) -> &T {
 		&**self.0.as_ref().unwrap()
 	}
 }
-impl<T> ::core::ops::DerefMut<T> for LazyStatic<T>
+impl<T> ::core::ops::DerefMut for LazyStatic<T>
 {
 	fn deref_mut(&mut self) -> &mut T {
 		&mut **self.0.as_mut().unwrap()

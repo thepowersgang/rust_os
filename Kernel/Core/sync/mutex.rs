@@ -74,13 +74,14 @@ impl<'lock,T:Send> ::core::ops::Drop for HeldMutex<'lock,T>
 		self.lock.unlock();
 	}
 }
-impl<'lock,T:Send> ::core::ops::Deref<T> for HeldMutex<'lock,T>
+impl<'lock,T:Send> ::core::ops::Deref for HeldMutex<'lock,T>
 {
+	type Target = T;
 	fn deref<'a>(&'a self) -> &'a T {
 		unsafe { &*self.lock.val.get() }
 	}
 }
-impl<'lock,T:Send> ::core::ops::DerefMut<T> for HeldMutex<'lock,T>
+impl<'lock,T:Send> ::core::ops::DerefMut for HeldMutex<'lock,T>
 {
 	fn deref_mut<'a>(&'a mut self) -> &'a mut T {
 		unsafe { &mut *self.lock.val.get() }

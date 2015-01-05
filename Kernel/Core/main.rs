@@ -12,6 +12,7 @@
 #![feature(globs)]
 #![feature(concat_idents)]
 #![feature(lang_items)]
+#![feature(associated_types)]	// need for ops and iterators
 
 #[phase(plugin, link)] extern crate core;
 
@@ -28,7 +29,7 @@ mod std {
 	pub use core::option;
 	pub use core::{default,fmt,cmp};
 	pub use lib::clone;
-	pub use core::kinds;	// needed for deriving(Copy)
+	pub use core::kinds;	// needed for derive(Copy)
 }
 mod _common;
 
@@ -98,7 +99,7 @@ pub mod common
 pub mod archapi
 {
 
-#[deriving(Copy)]
+#[derive(Copy)]
 pub enum VideoFormat
 {
 	X8R8G8B8,
@@ -108,7 +109,7 @@ pub enum VideoFormat
 	R5G6B5,
 }
 
-#[deriving(Copy)]
+#[derive(Copy)]
 pub struct VideoMode
 {
 	pub width: u16,

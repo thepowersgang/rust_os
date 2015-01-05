@@ -19,7 +19,7 @@ struct MultibootInfo
 	// flags[3]
 	module_count: u32, module_first: u32,
 	// flags[4] or flags[5]
-	syminfo: [u32,..4],
+	syminfo: [u32; 4],
 	// flags[6]
 	memmap_len: u32,
 	memmap_ptr: u32,
@@ -45,11 +45,11 @@ struct MultibootInfo
 struct VbeModeInfo
 {
 	attributes: u16,
-	window_attrs: [u8,..2],
+	window_attrs: [u8; 2],
 	granuality: u16,
 	window_size: u16,
-	window_segments: [u16, ..2],
-	win_pos_fcn_fptr: [u16, ..2],	// Pointer to INT 10h, AX=4F05h
+	window_segments: [u16; 2],
+	win_pos_fcn_fptr: [u16; 2],	// Pointer to INT 10h, AX=4F05h
 	
 	pitch: u16,
 	x_res: u16, y_res: u16,
@@ -86,7 +86,7 @@ extern "C"
 	static s_multiboot_signature : u32;
 	static s_multiboot_pointer : &'static MultibootInfo;
 }
-static mut s_memmap_data: [::memory::MemoryMapEnt, ..16] = [::memory::MAP_PAD, ..16];
+static mut s_memmap_data: [::memory::MemoryMapEnt; 16] = [::memory::MAP_PAD; 16];
 static mut s_bootinfo : BootInfo = BootInfo::Uninit;
 
 fn get_bootinfo() -> &'static BootInfo

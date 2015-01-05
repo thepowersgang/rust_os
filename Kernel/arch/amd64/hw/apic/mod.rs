@@ -14,7 +14,7 @@ mod init;
 
 pub type IRQHandler = fn(info: *const ());
 
-#[deriving(Default)]
+#[derive(Default)]
 pub struct IRQHandle
 {
 	num: uint,

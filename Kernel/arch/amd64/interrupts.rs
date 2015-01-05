@@ -5,7 +5,7 @@ use _common::*;
 use super::{puts,puth};
 
 #[repr(C)]
-#[deriving(Copy)]
+#[derive(Copy)]
 pub struct InterruptRegs
 {
 	//fs: u64,
@@ -34,13 +34,13 @@ struct IRQHandlersEnt
 	idx: uint,
 }
 
-#[deriving(Default)]
+#[derive(Default)]
 pub struct ISRHandle
 {
 	idx: uint,
 }
 
-#[repr(C)] struct IRQHandlers([IRQHandlersEnt, ..256]);
+#[repr(C)] struct IRQHandlers([IRQHandlersEnt; 256]);
 
 #[allow(non_upper_case_globals)]
 static s_irq_handlers_lock: ::sync::Mutex<()> = mutex_init!( () );
@@ -48,7 +48,7 @@ extern "C"
 {
 	// rustc seems to complain despite IRQHandlersEnt being marked as repr(C)
 	//#[allow(improper_ctypes)]
-	//static mut IrqHandlers: [IRQHandlersEnt,..256];
+	//static mut IrqHandlers: [IRQHandlersEnt; 256];
 	static mut IrqHandlers: IRQHandlers;
 }
 
@@ -90,7 +90,7 @@ pub fn backtrace(bp: u64) -> Option<(u64,u64)>
 	// [rbp] = oldrbp, [rbp+8] = IP
 	unsafe
 	{
-		let ptr: *const [u64,..2] = ::core::mem::transmute(bp);
+		let ptr: *const [u64; 2] = ::core::mem::transmute(bp);
 		let newbp = (*ptr)[0];
 		let newip = (*ptr)[1];
 		// Check validity of output BP, must be > old BP (upwards on the stack)

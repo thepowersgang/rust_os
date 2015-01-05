@@ -48,8 +48,9 @@ impl<T> Clone for Rc<T>
 	}
 }
 
-impl<T> ::core::ops::Deref<T> for Rc<T>
+impl<T> ::core::ops::Deref for Rc<T>
 {
+	type Target = T;
 	fn deref<'s>(&'s self) -> &'s T
 	{
 		unsafe { &(*self.inner).val }

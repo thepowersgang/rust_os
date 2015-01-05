@@ -23,7 +23,7 @@ pub struct FramebufferRegistration
 	reg_id: uint,
 }
 
-#[deriving(Copy,PartialEq)]
+#[derive(Copy,PartialEq)]
 pub struct Rect
 {
 	pub x: u16,

@@ -20,7 +20,7 @@ struct PCIDev
 	class: u32,
 
 	// TODO: Include bound status, and BAR mappings
-	config: [u32,..16]
+	config: [u32; 16]
 }
 
 struct PCIBusManager;
@@ -30,7 +30,7 @@ struct PCIChildBusDriver;
 static s_pci_bus_manager: PCIBusManager = PCIBusManager;
 #[allow(non_upper_case_globals)]
 static s_pci_child_bus_driver: PCIChildBusDriver = PCIChildBusDriver;
-static S_ATTR_NAMES: [&'static str, ..3] = ["vendor", "device", "class"];
+static S_ATTR_NAMES: [&'static str; 3] = ["vendor", "device", "class"];
 
 module_define!{PCI, [DeviceManager], init}
 
@@ -168,12 +168,12 @@ fn get_pci_addr(bus_id: u8, dev: u8, fcn: u8) -> u16
 {
 	assert!(dev < MAX_DEV);
 	assert!(fcn < MAX_FUNC);
-	(bus_id as u16 << 8) | (dev as u16 << 3) | fcn as u16
+	((bus_id as u16) << 8) | ((dev as u16) << 3) | (fcn as u16)
 }
 
 fn read_word(bus_addr: u16, wordidx: u8) -> u32
 {
-	let addr = (bus_addr as u32 << 8) | (wordidx as u32 << 2);
+	let addr = ((bus_addr as u32) << 8) | ((wordidx as u32) << 2);
 	//log_trace!("read_word(bus_addr={:x},idx={}) addr={:#x}", bus_addr, wordidx, addr);
 	::arch::pci::read(addr)
 }

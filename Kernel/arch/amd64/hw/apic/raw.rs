@@ -28,7 +28,7 @@ struct IOAPICRegs
 }
 
 #[allow(dead_code)]
-#[deriving(Show)]
+#[derive(Show)]
 pub enum TriggerMode
 {
 	LevelHi,
@@ -72,7 +72,7 @@ enum ApicReg
 struct APICReg
 {
 	data: u32,
-	_rsvd: [u32,..3],
+	_rsvd: [u32; 3],
 }
 
 impl LAPIC
@@ -154,15 +154,15 @@ impl LAPIC
 	
 	fn read_reg(&self, idx: uint) -> u32
 	{
-		//let regs = self.mapping.as_ref::<[APICReg,..2]>(0);
+		//let regs = self.mapping.as_ref::<[APICReg; 2]>(0);
 		//regs[0].data = idx as u32;
 		//regs[1].data
-		let regs = self.mapping.as_ref::<[APICReg,..64]>(0);
+		let regs = self.mapping.as_ref::<[APICReg; 64]>(0);
 		unsafe { ::core::intrinsics::volatile_load( &regs[idx].data as *const _ ) }
 	}
 	fn write_reg(&self, idx: uint, value: u32)
 	{
-		let regs = self.mapping.as_ref::<[APICReg,..64]>(0);
+		let regs = self.mapping.as_ref::<[APICReg; 64]>(0);
 		unsafe { ::core::intrinsics::volatile_store( &mut regs[idx].data as *mut _, value ) }
 	}
 	
@@ -241,7 +241,7 @@ impl IOAPIC
 			TriggerMode::LevelHi  => (0<<13)|(1<<15),
 			TriggerMode::LevelLow => (1<<13)|(1<<15),
 			};
-		(*rh).write(0x10 + idx*2 + 1, (apic as u32 << 56-32) );
+		(*rh).write(0x10 + idx*2 + 1, (apic as u32) << 56-32 );
 		(*rh).write(0x10 + idx*2 + 0, flags | (vector as u32) );
 	}
 	pub fn disable_irq(&mut self, idx: uint)
@@ -255,7 +255,7 @@ impl IOAPIC
 	{
 		let rh = self.regs.lock();
 		
-		((*rh).read(0x10 + idx*2 + 0) as u64) | ((*rh).read(0x10 + idx*2 + 1) as u64 << 32)
+		((*rh).read(0x10 + idx*2 + 0) as u64) | ((*rh).read(0x10 + idx*2 + 1) as u64) << 32
 	}
 }
 
@@ -270,7 +270,7 @@ impl IOAPICRegs
 	}
 	fn read(&self, idx: uint) -> u32
 	{
-		let regs = self.mapping.as_ref::<[APICReg,..2]>(0);
+		let regs = self.mapping.as_ref::<[APICReg; 2]>(0);
 		unsafe {
 		::core::intrinsics::volatile_store(&mut regs[0].data as *mut _, idx as u32);
 		::core::intrinsics::volatile_load(&regs[1].data as *const _)
@@ -278,7 +278,7 @@ impl IOAPICRegs
 	}
 	fn write(&self, idx: uint, data: u32)
 	{
-		let regs = self.mapping.as_ref::<[APICReg,..2]>(0);
+		let regs = self.mapping.as_ref::<[APICReg; 2]>(0);
 		unsafe {
 		::core::intrinsics::volatile_store(&mut regs[0].data as *mut _, idx as u32);
 		::core::intrinsics::volatile_store(&mut regs[1].data as *mut _, data)

@@ -3,7 +3,7 @@
 use core::option::Option;
 use lib::mem::Box;
 
-#[deriving(Default,Copy)]
+#[derive(Default,Copy)]
 pub struct State
 {
 	cr3: u64,

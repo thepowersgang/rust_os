@@ -7,7 +7,7 @@ use PAGE_SIZE;
 
 static MASK_VBITS : uint = 0x0000FFFF_FFFFFFFF;
 
-#[deriving(PartialEq,Show)]
+#[derive(PartialEq,Show)]
 enum PTEPos
 {
 	Absent,
@@ -143,7 +143,7 @@ impl PTE
 		PTE { pos: pos, data: ptr }
 	}
 	pub fn null() -> PTE {
-		PTE { pos: PTEPos::Absent, data: PtrExt::null() }
+		PTE { pos: PTEPos::Absent, data: ::core::ptr::null_mut() }
 	}
 
 	pub fn is_null(&self) -> bool { self.pos == PTEPos::Absent }
