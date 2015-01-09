@@ -14,6 +14,7 @@ pub mod heap;
 
 pub mod memorymap;
 
+/// Validate that a C string points to valid memory, and return a 'static slice to it
 pub fn c_string_as_byte_slice(c_str: *const i8) -> Option<&'static [u8]>
 {
 	// 1. Check first page
@@ -39,14 +40,16 @@ pub fn c_string_as_byte_slice(c_str: *const i8) -> Option<&'static [u8]>
 			data: c_str,
 			len: ptr as uint - c_str as uint,
 			}) )
-	}
-	
+	}	
 }
+/// Validate a C string (legacy)
+#[deprecated="Use ::memory::c_string_as_byte_slice instead"]
 pub fn c_string_valid(c_str: *const i8) -> bool
 {
 	c_string_as_byte_slice(c_str).is_some()
 }
 
+/// Validates that a buffer points to accessible memory
 pub fn buf_valid(ptr: *const (), mut size: uint) -> bool
 {
 	let mut addr = ptr as VAddr;

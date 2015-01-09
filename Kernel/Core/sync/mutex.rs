@@ -5,23 +5,24 @@ use lib::LazyStatic;
 use core::kinds::{Send, Sync};
 use core::ops::Fn;
 
+/// A standard mutex
 pub struct Mutex<T: Send>
 {
 	pub locked_held: ::sync::Spinlock<bool>,
 	pub queue: ::core::cell::UnsafeCell<::threads::WaitQueue>,
 	pub val: ::core::cell::UnsafeCell<T>,
 }
+// Mutexes are inherently sync
+unsafe impl<T: Send> Sync for Mutex<T> { }
 
+/// Lock handle on a mutex
 struct HeldMutex<'lock,T:'lock+Send>
 {
 	lock: &'lock Mutex<T>
 }
 
+/// A lazily populated mutex (contained type is allocated on the heap upon first lock)
 pub struct LazyMutex<T: Send>(pub Mutex<LazyStatic<T>>);
-
-unsafe impl<T> Sync for Mutex<T>
-{
-}
 
 impl<T: Send> Mutex<T>
 {
@@ -35,11 +36,16 @@ impl<T: Send> Mutex<T>
 	}
 	*/
 	
+	/// Lock the mutex
 	pub fn lock(&self) -> HeldMutex<T> {
 		{
+			// Check the held status of the mutex
+			// - Spinlock protected variable
 			let mut held = self.locked_held.lock();
 			if *held != false
 			{
+				// If mutex is locked, then wait for it to be unlocked
+				// - ThreadList::wait will release the passed spinlock
 				unsafe { (*self.queue.get()).wait(held) };
 			}
 			else
@@ -49,7 +55,8 @@ impl<T: Send> Mutex<T>
 		}
 		return HeldMutex { lock: self };
 	}
-	pub fn unlock(&self) {
+	/// Release the mutex
+	fn unlock(&self) {
 		let mut held = self.locked_held.lock();
 		*held = false;
 		unsafe { (*self.queue.get()).wake_one() };
@@ -59,6 +66,7 @@ impl<T: Send> Mutex<T>
 
 impl<T: Send> LazyMutex<T>
 {
+	/// Lock and (if required) initialise using init_fcn
 	pub fn lock<Fcn: Fn()->T>(&self, init_fcn: Fcn) -> HeldMutex<LazyStatic<T>>
 	{
 		let mut lh = self.0.lock();
@@ -70,6 +78,7 @@ impl<T: Send> LazyMutex<T>
 #[unsafe_destructor]
 impl<'lock,T:Send> ::core::ops::Drop for HeldMutex<'lock,T>
 {
+	/// Unlock on drop of HeldMutex
 	fn drop(&mut self) {
 		self.lock.unlock();
 	}

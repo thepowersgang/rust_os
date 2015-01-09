@@ -12,14 +12,17 @@ use core::kinds::Send;
 use lib::clone::Clone;
 use lib::collections::{MutableSeq};
 
+/// Growable array of items
 pub struct Vec<T>
 {
 	data: *mut T,
 	size: uint,
 	capacity: uint,
 }
+// Sendable if the innards are sendable
 unsafe impl<T: Send> Send for Vec<T> {}
 
+/// Owning iterator
 pub struct MoveItems<T>
 {
 	data: *mut T,
@@ -29,10 +32,12 @@ pub struct MoveItems<T>
 
 impl<T> Vec<T>
 {
+	/// Create a new, empty vector
 	pub fn new() -> Vec<T>
 	{
 		Vec::with_capacity(0)
 	}
+	/// Create a vector with an initialised capacity
 	pub fn with_capacity(size: uint) -> Vec<T>
 	{
 		Vec {
@@ -41,6 +46,7 @@ impl<T> Vec<T>
 			capacity: size,
 		}
 	}
+	/// Populate vector using a provided callback
 	pub fn from_fn<Fcn>(length: uint, op: Fcn) -> Vec<T>
 	where
 		Fcn: Fn(uint) -> T
@@ -52,18 +58,16 @@ impl<T> Vec<T>
 		ret
 	}
 
-	pub fn len(&self) -> uint
-	{
-		self.size
-	}
-	
-	pub fn get_mut_ptr(&mut self, index: uint) -> *mut T
+	/// Obtain a mutable pointer to an item within the vector
+	fn get_mut_ptr(&mut self, index: uint) -> *mut T
 	{
 		if index >= self.size {
 			panic!("Index out of range, {} >= {}", index, self.size);
 		}
 		unsafe { self.data.offset(index as int) }
 	}
+	
+	/// Move contents into an iterator (consuming self)
 	pub fn into_iter(self) -> MoveItems<T>
 	{
 		let dataptr = self.data;
@@ -235,6 +239,7 @@ impl<T> FromIterator<T> for Vec<T>
 
 impl<T> MoveItems<T>
 {
+	/// Pop an item from the iterator
 	fn pop_item(&mut self) -> T
 	{
 		//log_debug!("MoveItems.pop_item() ofs={}, count={}, data={}", self.ofs, self.count, self.data);
