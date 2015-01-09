@@ -1,7 +1,6 @@
 //
 //
 //
-#![macro_escape]
 use _common::*;
 
 pub struct Queue<T>

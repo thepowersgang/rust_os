@@ -141,14 +141,24 @@ impl BootInfo
 	}
 }
 
+fn valid_c_str_to_slice(ptr: *const i8) -> Option<&'static str>
+{
+	if let Some(s) = ::memory::c_string_as_byte_slice(ptr) {
+		::core::str::from_utf8(s).ok()
+	}
+	else {
+		None
+	}
+}
+
 impl MultibootParsed
 {
 	pub fn new(info: &MultibootInfo) -> MultibootParsed
 	{
 		let loader_ptr = (info.boot_loader_name as uint + IDENT_START) as *const i8;
 		log_debug!("loader_ptr = {}", loader_ptr);
-		let loader_name = if (info.flags & 1 << 9) != 0 && ::memory::c_string_valid(loader_ptr) {
-				unsafe{ ::core::str::from_c_str( loader_ptr ) }
+		let loader_name = if (info.flags & 1 << 9) != 0 {
+				valid_c_str_to_slice(loader_ptr).unwrap_or("-INVALID-")
 			}
 			else {
 				"-UNKNOWN-"
@@ -174,10 +184,8 @@ impl MultibootParsed
 			return "";
 		}
 		
-		unsafe {
-			let charptr = (cmdline_paddr + IDENT_START) as *const i8;
-			::core::str::from_c_str( charptr )
-		}
+		let charptr = (cmdline_paddr + IDENT_START) as *const i8;
+		valid_c_str_to_slice(charptr).unwrap_or("-INVALID-")
 	}
 	
 	fn _vidmode(info: &MultibootInfo) -> Option<::common::archapi::VideoMode>

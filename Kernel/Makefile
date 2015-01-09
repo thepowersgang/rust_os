@@ -29,6 +29,7 @@ TARGET_FILE := arch/$(ARCH)/target.json
 
 RUSTFLAGS := --crate-type lib
 RUSTFLAGS += -O
+#RUSTFLAGS += -g
 #RUSTFLAGS += --debuginfo 1
 #RUSTFLAGS += -C code-model=kernel
 RUSTFLAGS += -C soft-float

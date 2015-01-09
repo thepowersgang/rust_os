@@ -5,24 +5,21 @@
 // - Kernel main
 #![crate_name="kernel"]
 #![no_std]
-#![feature(phase)]
-#![feature(macro_rules,asm)]
+#![feature(asm)]
 #![feature(unsafe_destructor)]
 #![feature(thread_local)]
-#![feature(globs)]
 #![feature(concat_idents)]
 #![feature(lang_items)]
-#![feature(associated_types)]	// need for ops and iterators
 
-#[phase(plugin, link)] extern crate core;
+#[macro_use] extern crate core;
 
 use _common::*;
 
 pub use arch::memory::PAGE_SIZE;
 
-pub mod logmacros;
-pub mod macros;
-#[cfg(arch__amd64)] #[path="../arch/amd64/macros.rs"] pub mod arch_macros;	// Needs to be pub for exports to be avaliable
+#[macro_use] pub mod logmacros;
+#[macro_use] pub mod macros;
+#[macro_use] #[cfg(arch__amd64)] #[path="../arch/amd64/macros.rs"] pub mod arch_macros;	// Needs to be pub for exports to be avaliable
 
 // Evil Hack: For some reason, write! (and friends) will expand pointing to std instead of core
 mod std {
@@ -33,8 +30,8 @@ mod std {
 }
 mod _common;
 
-pub mod lib;	// Clone of libstd
-mod sync;
+#[macro_use] pub mod lib;	// Clone of libstd
+#[macro_use] mod sync;
 mod logging;
 pub mod memory;
 pub mod threads;
@@ -47,6 +44,7 @@ pub mod device_manager;
 
 pub mod unwind;
 
+#[macro_use]
 #[cfg(arch__amd64)] #[path="../arch/amd64/crate.rs"] pub mod arch;	// Needs to be pub for exports to be avaliable
 
 #[no_mangle]

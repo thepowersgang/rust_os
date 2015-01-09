@@ -49,9 +49,6 @@ pub trait Framebuffer: Any
 	fn fill(&mut self, dst: Rect, colour: u32);
 }
 
-// Workaround for AnyRefExt not being implemented on &Framebuffer by default
-any_for_trait!{ Framebuffer }
-
 #[allow(non_upper_case_globals)]
 static s_display_surfaces: ::sync::mutex::LazyMutex<Vec<Option<Box<Framebuffer+Send>>>> = lazymutex_init!( );
 

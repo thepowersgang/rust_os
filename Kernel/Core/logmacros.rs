@@ -1,6 +1,4 @@
 
-#![macro_escape]	// Let macros be accessible by parent
-
 macro_rules! log{ ($lvl:expr, $modname:expr, $($arg:tt)*) => (
 	if ::logging::enabled($lvl, $modname)
 	{

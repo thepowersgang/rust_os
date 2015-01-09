@@ -1,10 +1,10 @@
 //
 //
 //
-#![macro_escape]
 use _common::{Option,Some,None};
 use core::ptr::PtrExt;
 use core::kinds::Send;
+use core::ops::Fn;
 use lib::mem::Box;
 
 pub use self::queue::Queue;
@@ -14,6 +14,7 @@ pub use self::string::String;
 pub mod clone;
 
 pub mod mem;
+#[macro_use]
 pub mod queue;
 pub mod vec;
 pub mod string;
@@ -39,7 +40,7 @@ pub struct LazyStatic<T>(pub Option<Box<T>>);
 
 impl<T> LazyStatic<T>
 {
-	pub fn prep(&mut self, fcn: | | -> T) {
+	pub fn prep<Fcn: Fn()->T>(&mut self, fcn: Fcn) {
 		if self.0.is_none() {
 			self.0 = Some(box fcn());
 		}

@@ -7,7 +7,7 @@ use core::slice::{SliceExt,AsSlice};
 use core::option::Option::{self,Some,None};
 use core::ptr::PtrExt;
 use core::num::Int;
-use core::ops::{Drop,Index,IndexMut,Deref,DerefMut};
+use core::ops::{Drop,Index,IndexMut,Deref,DerefMut,Fn};
 use core::kinds::Send;
 use lib::clone::Clone;
 use lib::collections::{MutableSeq};
@@ -41,7 +41,9 @@ impl<T> Vec<T>
 			capacity: size,
 		}
 	}
-	pub fn from_fn(length: uint, op: |uint| -> T) -> Vec<T>
+	pub fn from_fn<Fcn>(length: uint, op: Fcn) -> Vec<T>
+	where
+		Fcn: Fn(uint) -> T
 	{
 		let mut ret = Vec::with_capacity(length);
 		for i in range(0, length) {

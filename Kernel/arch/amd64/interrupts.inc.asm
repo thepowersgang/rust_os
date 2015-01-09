@@ -133,6 +133,8 @@ BLANKINT i
 %endrep
 IRQCommon:
 	;int3
+	; NOTE: This code is a little evil to reduce interrupt latency
+	; ... I might have gone a little overboard
 	API_SAVE
 	; Handle
 	mov rcx, IrqHandlers

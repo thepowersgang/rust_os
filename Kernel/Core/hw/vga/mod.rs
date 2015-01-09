@@ -190,11 +190,12 @@ impl ::metadevs::video::Framebuffer for VgaFramebuffer
 		panic!("TODO: VGA blit_inner {} to {}", src, dst);
 	}
 	fn blit_ext(&mut self, dst: Rect, src: Rect, srf: &Framebuffer) -> bool {
-		match srf.downcast_ref::<VgaFramebuffer>()
-		{
-		Some(_) => panic!("TODO: VGA blit_ext {} to  {}", src, dst),
-		None => false,
-		}
+		//match srf.downcast_ref::<VgaFramebuffer>()
+		//{
+		//Some(_) => panic!("TODO: VGA blit_ext {} to  {}", src, dst),
+		//None => false,
+		//}
+		false
 	}
 	fn blit_buf(&mut self, dst: Rect, buf: &[u32]) {
 		panic!("TODO: VGA blit_buf {} pixels to {}", buf.len(), dst);

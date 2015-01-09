@@ -1,9 +1,9 @@
 //
 //
 //
-#![macro_escape]
 use lib::LazyStatic;
 use core::kinds::{Send, Sync};
+use core::ops::Fn;
 
 pub struct Mutex<T: Send>
 {
@@ -59,7 +59,7 @@ impl<T: Send> Mutex<T>
 
 impl<T: Send> LazyMutex<T>
 {
-	pub fn lock(&self, init_fcn: | | -> T) -> HeldMutex<LazyStatic<T>>
+	pub fn lock<Fcn: Fn()->T>(&self, init_fcn: Fcn) -> HeldMutex<LazyStatic<T>>
 	{
 		let mut lh = self.0.lock();
 		lh.prep(init_fcn);

@@ -2,7 +2,7 @@
 //
 //
 use core::fmt::Writer;
-use core::result::Result::{Ok,Err};
+use core::result::Result::Ok;
 use core::slice::{SliceExt};
 
 #[derive(PartialEq,PartialOrd,Copy)]

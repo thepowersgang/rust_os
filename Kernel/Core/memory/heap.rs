@@ -24,7 +24,7 @@ struct HeapDef
 }
 unsafe impl ::core::kinds::Send for HeapDef {}
 
-#[allow(raw_pointer_deriving)]
+#[allow(raw_pointer_derive)]
 #[derive(Show)]	// RawPtr Show is the address
 enum HeapState
 {
