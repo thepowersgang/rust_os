@@ -12,10 +12,10 @@ pub use core::str::{Str,StrExt};
 pub use core::default::Default;
 pub use core::option::Option::{self,Some,None};
 pub use core::result::Result::{self,Ok,Err};
-pub use core::ops::{Drop,Deref,DerefMut,Slice,Fn};
+pub use core::ops::{Drop,Deref,DerefMut,Fn};
 pub use core::cmp::PartialEq;
 pub use core::num::Int;
-pub use core::kinds::{Send,Copy};
+pub use core::marker::{Send,Copy};
 pub use core::any::Any;
 pub use core::ptr::PtrExt;
 

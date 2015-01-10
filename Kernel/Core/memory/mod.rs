@@ -18,7 +18,7 @@ pub mod memorymap;
 pub fn c_string_as_byte_slice(c_str: *const i8) -> Option<&'static [u8]>
 {
 	// 1. Check first page
-	if ! ::arch::memory::virt::is_reserved(c_str as VAddr) {
+	if ! ::arch::memory::virt::is_reserved(c_str) {
 		return None;
 	}
 	
@@ -30,7 +30,7 @@ pub fn c_string_as_byte_slice(c_str: *const i8) -> Option<&'static [u8]>
 			ptr = ptr.offset(1);
 			if ptr as uint % ::PAGE_SIZE == 0
 			{
-				if ! ::arch::memory::virt::is_reserved(ptr as VAddr) {
+				if ! ::arch::memory::virt::is_reserved(ptr) {
 					return None;
 				}
 			}
@@ -53,7 +53,7 @@ pub fn c_string_valid(c_str: *const i8) -> bool
 pub fn buf_valid(ptr: *const (), mut size: uint) -> bool
 {
 	let mut addr = ptr as VAddr;
-	if ! ::arch::memory::virt::is_reserved(addr) {
+	if ! ::arch::memory::virt::is_reserved(ptr) {
 		return false;
 	}
 	let rem_ofs = ::PAGE_SIZE - addr % ::PAGE_SIZE;
@@ -64,7 +64,7 @@ pub fn buf_valid(ptr: *const (), mut size: uint) -> bool
 		size -= rem_ofs;
 		while size != 0
 		{
-			if ! ::arch::memory::virt::is_reserved(addr) {
+			if ! ::arch::memory::virt::is_reserved(addr as *const ()) {
 				return false;
 			}
 			if size > ::PAGE_SIZE {

@@ -14,11 +14,11 @@ pub fn puts(text: &str)
 		putc(c);
 	}
 }
-pub fn puth(val: uint)
+pub fn puth(val: u64)
 {
 	puts("0");
 	let nibbles = {
-		let mut v = 1u;
+		let mut v = 1u64;
 		while (val >> v*4) > 0 && v < 64/4 { v += 1 }
 		v
 		};

@@ -26,7 +26,7 @@ impl String
 	}
 }
 
-impl ::core::fmt::Show for String
+impl ::core::fmt::String for String
 {
 	fn fmt(&self, f: &mut ::core::fmt::Formatter) -> Result<(),::core::fmt::Error>
 	{

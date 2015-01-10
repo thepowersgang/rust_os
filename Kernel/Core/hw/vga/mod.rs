@@ -27,8 +27,8 @@ struct VgaFramebuffer
 	io_base: u16,
 	window: ::memory::virt::AllocHandle,
 	crtc: crtc::CrtcRegs,
-	w: uint,
-	h: uint,
+	w: u16,
+	h: u16,
 }
 struct CrtcAttrs
 {
@@ -60,7 +60,7 @@ impl ::device_manager::Driver for VgaPciDriver
 	fn bus_type(&self) -> &str {
 		"pci"
 	}
-	fn handles(&self, bus_dev: &::device_manager::BusDevice) -> uint
+	fn handles(&self, bus_dev: &::device_manager::BusDevice) -> u32
 	{
 		let classcode = bus_dev.get_attr("class");
 		if classcode & 0xFFFFFF00 == 0x030000 {
@@ -205,9 +205,9 @@ impl ::metadevs::video::Framebuffer for VgaFramebuffer
 		let colour_val = self.col32_to_u8(colour);
 		for row in range(dst.y, dst.y + dst.h)
 		{
-			let scanline = self.window.as_mut_slice::<u8>(row as uint * self.w, dst.w as uint);
+			let scanline = self.window.as_mut_slice::<u8>( (row * self.w) as usize, dst.w as usize);
 			for col in range(dst.x, dst.x + dst.w) {
-				scanline[col as uint] = colour_val;
+				scanline[col as usize] = colour_val;
 			}
 		}
 	}

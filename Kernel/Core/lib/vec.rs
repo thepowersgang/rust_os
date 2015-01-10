@@ -8,7 +8,7 @@ use core::option::Option::{self,Some,None};
 use core::ptr::PtrExt;
 use core::num::Int;
 use core::ops::{Drop,Index,IndexMut,Deref,DerefMut,Fn};
-use core::kinds::Send;
+use core::marker::Send;
 use lib::clone::Clone;
 use lib::collections::{MutableSeq};
 
@@ -148,7 +148,7 @@ impl<T> Drop for Vec<T>
 {
 	fn drop(&mut self)
 	{
-		log_debug!("Vec::drop() - Dropping vector at {} w/ {} ents", self.data, self.size);
+		log_debug!("Vec::drop() - Dropping vector at {:p} w/ {} ents", self.data, self.size);
 		unsafe {
 			for i in range(0, self.size) {
 				::core::mem::drop( ::core::ptr::read(self.get_mut_ptr(i) as *const T) );
@@ -190,13 +190,13 @@ impl<T> ::core::slice::AsSlice<T> for Vec<T>
 	}
 }
 
-impl<T: ::core::fmt::Show> ::core::fmt::Show for Vec<T>
-{
-	fn fmt(&self, f: &mut ::core::fmt::Formatter) -> ::core::result::Result<(),::core::fmt::Error>
-	{
-		write!(f, "{}", self.as_slice())
-	}
-}
+//impl<T: ::core::fmt::Show> ::core::fmt::Show for Vec<T>
+//{
+//	fn fmt(&self, f: &mut ::core::fmt::Formatter) -> ::core::result::Result<(),::core::fmt::Error>
+//	{
+//		write!(f, "{}", self.as_slice())
+//	}
+//}
 
 impl<T> MutableSeq<T> for Vec<T>
 {

@@ -39,12 +39,12 @@ pub fn print_backtrace()
 	let cur_bp: u64;
 	unsafe{ asm!("mov %rbp, $0" : "=r" (cur_bp)); }
 	puts("Backtrace: ");
-	puth(cur_bp as uint);
+	puth(cur_bp);
 	
 	let mut bp = cur_bp;
 	while let Option::Some((newbp, ip)) = interrupts::backtrace(bp)
 	{
-		puts(" > "); puth(ip as uint);
+		puts(" > "); puth(ip);
 		bp = newbp;
 	}
 	puts("\n");

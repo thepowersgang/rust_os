@@ -5,7 +5,7 @@ use core::ptr::PtrExt;
 use super::{PAddr};
 use PAGE_SIZE;
 
-static MASK_VBITS : uint = 0x0000FFFF_FFFFFFFF;
+static MASK_VBITS : usize = 0x0000FFFF_FFFFFFFF;
 
 #[derive(PartialEq,Show)]
 enum PTEPos
@@ -23,15 +23,16 @@ struct PTE
 	data: *mut u64
 }
 
-unsafe fn get_entry(level: u8, index: uint, force_allocate: bool) -> PTE
+unsafe fn get_entry(level: u8, index: usize, force_allocate: bool) -> PTE
 {
 	use arch::memory::addresses::FRACTAL_BASE;
+	let index = if index < (1<<(4*9)) { index as isize } else { panic!("{} index OOR {}", module_path!(), index) };
 	
 	let pt_page = (FRACTAL_BASE & MASK_VBITS) / PAGE_SIZE;
 	let tab_pt = FRACTAL_BASE as *mut u64;
-	let tab_pd = tab_pt.offset( pt_page as int );
-	let tab_pdp = tab_pd.offset( (pt_page >> (9)) as int );
-	let tab_pml4 = tab_pdp.offset( (pt_page >> (9+9)) as int );
+	let tab_pd = tab_pt.offset( pt_page as isize );
+	let tab_pdp = tab_pd.offset( (pt_page >> (9)) as isize );
+	let tab_pml4 = tab_pdp.offset( (pt_page >> (9+9)) as isize );
 	//log_debug!("tab_pt = {}, tab_pd = {}, tab_pdp = {}, tab_pml4 = {}",
 	//	tab_pt, tab_pd, tab_pdp, tab_pml4);
 	
@@ -41,40 +42,40 @@ unsafe fn get_entry(level: u8, index: uint, force_allocate: bool) -> PTE
 	{
 	0 => {
 		assert!(index < 512*512*512*512);
-		PTE::new(PTEPos::Page4K, tab_pt.offset(index as int))
+		PTE::new(PTEPos::Page4K, tab_pt.offset(index))
 		}
 	1 => {
 		assert!(index < 512*512*512);
-		let rv = PTE::new(PTEPos::Page2M, tab_pd.offset(index as int));
+		let rv = PTE::new(PTEPos::Page2M, tab_pd.offset(index));
 		if !rv.is_present() && force_allocate {
-			let ptr = tab_pt.offset(index as int * 512) as *mut ();
-			log_debug!("Allocating for {} (PDE {})", ptr, index);
+			let ptr = tab_pt.offset(index * 512) as *mut ();
+			log_debug!("Allocating for {:?} (PDE {})", ptr, index);
 			::memory::phys::allocate( ptr );
 		}
 		rv
 		},
 	2 => {
 		assert!(index < 512*512);
-		let rv = PTE::new(PTEPos::Page1G, tab_pdp.offset(index as int));
+		let rv = PTE::new(PTEPos::Page1G, tab_pdp.offset(index));
 		if !rv.is_present() && force_allocate {
-			let ptr = tab_pd.offset(index as int * 512) as *mut ();
-			log_debug!("Allocating for {} (PDPE {})", ptr, index);
+			let ptr = tab_pd.offset(index * 512) as *mut ();
+			log_debug!("Allocating for {:?} (PDPE {})", ptr, index);
 			::memory::phys::allocate( ptr );
 		}
 		rv
 		},
 	3 => {
 		assert!(index < 512);
-		let rv = PTE::new(PTEPos::Page512G, tab_pml4.offset(index as int));
+		let rv = PTE::new(PTEPos::Page512G, tab_pml4.offset(index));
 		if !rv.is_present() && force_allocate {
-			::memory::phys::allocate( tab_pdp.offset(index as int * 512) as *mut () );
+			::memory::phys::allocate( tab_pdp.offset(index * 512) as *mut () );
 		}
 		rv
 		},
 	_ => panic!("Passed invalid number to get_entry, {} > 3", level)
 	}
 }
-unsafe fn get_page_ent(addr: uint, from_temp: bool, allocate: bool, large_ok: bool) -> PTE
+unsafe fn get_page_ent(addr: usize, from_temp: bool, allocate: bool, large_ok: bool) -> PTE
 {
 	assert!( from_temp == false );
 	let pagenum = (addr & MASK_VBITS) / PAGE_SIZE;
@@ -111,24 +112,24 @@ unsafe fn get_page_ent(addr: uint, from_temp: bool, allocate: bool, large_ok: bo
 	return get_entry(0, pagenum, allocate)
 }
 
-pub fn is_reserved(addr: uint) -> bool
+pub fn is_reserved<T>(addr: *const T) -> bool
 {
 	unsafe {
-		let pte = get_page_ent(addr, false, false, true);
+		let pte = get_page_ent(addr as usize, false, false, true);
 		return !pte.is_null() && pte.is_reserved();
 	}
 }
 pub fn map(addr: *mut (), phys: PAddr, prot: ::memory::virt::ProtectionMode)
 {
 	unsafe {
-		let pte = get_page_ent(addr as uint, false, true, false);
+		let pte = get_page_ent(addr as usize, false, true, false);
 		pte.set( phys, prot );
 	}
 }
 pub fn unmap(addr: *mut ())
 {
 	unsafe {
-		let pte = get_page_ent(addr as uint, false, false, false);
+		let pte = get_page_ent(addr as usize, false, false, false);
 		pte.set( 0, ::memory::virt::ProtectionMode::Unmapped );
 	}
 }
@@ -176,7 +177,7 @@ impl PTE
 impl ::core::fmt::Show for PTE
 {
 	fn fmt(&self, f: &mut ::core::fmt::Formatter) -> ::core::fmt::Result {
-		unsafe { write!(f, "PTE({}, *{}={:#x})", self.pos, self.data, *self.data) }
+		unsafe { write!(f, "PTE({:?}, *{:?}={:#x})", self.pos, self.data, *self.data) }
 	}
 }
 

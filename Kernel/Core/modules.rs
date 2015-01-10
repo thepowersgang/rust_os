@@ -42,10 +42,10 @@ pub fn init()
 
 fn init_modules(mods: &[ModuleInfo])
 {
-	log_debug!("s_modules={},{:#x}", mods.as_ptr(), mods.len());
+	log_debug!("s_modules={:?},{:#x}", mods.as_ptr(), mods.len());
 	let mut modstates = Vec::from_elem(mods.len(), ModuleState::Uninitialised);
 	for m in mods.iter() {
-		log_debug!("mod = {} {} '{}'", &m.name as *const _, m.name.as_ptr(), m.name);
+		log_debug!("mod = {:p} {:?} '{}'", &m.name, m.name.as_ptr(), m.name);
 	}
 	for i in range(0, mods.len())
 	{

@@ -2,7 +2,7 @@
 //
 //
 use lib::LazyStatic;
-use core::kinds::{Send, Sync};
+use core::marker::{Send, Sync};
 use core::ops::Fn;
 
 /// A standard mutex

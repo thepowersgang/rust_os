@@ -3,7 +3,7 @@
 //
 use _common::{Option,Some,None};
 use core::ptr::PtrExt;
-use core::kinds::Send;
+use _common::Send;
 use core::ops::Fn;
 use lib::mem::Box;
 
@@ -124,11 +124,6 @@ impl UintBits for u16 {
 		(*self >> idx) & ((1 << (idx2 - idx))-1)
 	}
 }
-
-#[macro_export]
-macro_rules! tern{
-	($cnd:expr ? $ok:expr : $nok:expr) => (if $cnd { $ok } else { $nok });
-	}
 
 // vim: ft=rust
 

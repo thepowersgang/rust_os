@@ -1,5 +1,5 @@
 
-use core::kinds::{Sized,Send};
+use core::marker::{Sized,Send};
 
 pub use self::rc::Rc;
 

@@ -1,6 +1,7 @@
 //
 //
 use core::option::Option;
+use core::ptr::PtrExt;
 use lib::mem::Box;
 
 #[derive(Default,Copy)]
@@ -53,7 +54,7 @@ pub fn switch_to(newthread: Box<::threads::Thread>)
 pub fn get_thread_ptr() -> Option<Box<::threads::Thread>>
 {
 	unsafe {
-		assert!( t_thread_ptr as uint != 0 );
+		assert!( !t_thread_ptr.is_null() );
 		assert!( !t_thread_ptr_sent );
 		t_thread_ptr_sent = true;
 		::core::mem::transmute( t_thread_ptr )
@@ -67,7 +68,7 @@ pub fn set_thread_ptr(ptr: Box<::threads::Thread>)
 			t_thread_ptr_sent = false;
 		}
 		else {
-			assert!( t_thread_ptr as uint == 0 );
+			assert!( !t_thread_ptr.is_null() );
 			t_thread_ptr = ::core::mem::transmute(ptr);
 			t_thread_ptr_sent = false;
 		}

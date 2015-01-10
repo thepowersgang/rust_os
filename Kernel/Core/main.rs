@@ -6,9 +6,9 @@
 #![crate_name="kernel"]
 #![no_std]
 #![feature(asm)]
+#![feature(box_syntax)]
 #![feature(unsafe_destructor)]
 #![feature(thread_local)]
-#![feature(concat_idents)]
 #![feature(lang_items)]
 
 #[macro_use] extern crate core;
@@ -26,7 +26,7 @@ mod std {
 	pub use core::option;
 	pub use core::{default,fmt,cmp};
 	pub use lib::clone;
-	pub use core::kinds;	// needed for derive(Copy)
+	pub use core::marker;	// needed for derive(Copy)
 }
 mod _common;
 
@@ -82,7 +82,7 @@ pub extern "C" fn kmain()
 	}
 }
 
-#[no_mangle] pub unsafe extern "C" fn malloc(size: uint) -> *mut () {
+#[no_mangle] pub unsafe extern "C" fn malloc(size: usize) -> *mut () {
 	memory::heap::allocate(memory::heap::HeapId::Global, size).unwrap()
 } 
 #[no_mangle] pub unsafe extern "C" fn free(ptr: *mut ()) {

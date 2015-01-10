@@ -10,6 +10,8 @@ use lib::Queue;
 
 module_define!{DeviceManager, [], init}
 
+pub type DriverHandleLevel = u32;
+
 pub enum IOBinding
 {
 	Memory(::memory::virt::AllocHandle),
@@ -29,7 +31,7 @@ pub trait BusDevice:
 	fn addr(&self) -> u32;
 	fn get_attr(&self, name: &str) -> u32;
 	fn set_power(&mut self, state: bool);	// TODO: Power state enum for Off,Standby,Low,On
-	fn bind_io(&mut self, block_id: uint) -> IOBinding;
+	fn bind_io(&mut self, block_id: usize) -> IOBinding;
 }
 
 // TODO: Change this to instead be a structure with a bound Fn reference
@@ -38,7 +40,7 @@ pub trait Driver:
 	Send
 {
 	fn bus_type(&self) -> &str;
-	fn handles(&self, bus_dev: &BusDevice) -> uint;
+	fn handles(&self, bus_dev: &BusDevice) -> DriverHandleLevel;
 	fn bind(&self, bus_dev: &BusDevice) -> Box<DriverInstance>;
 }
 
@@ -50,7 +52,7 @@ pub trait DriverInstance:
 struct Device
 {
 	bus_dev: Box<BusDevice>,
-	driver: Option<(Box<DriverInstance>, uint)>,
+	driver: Option<(Box<DriverInstance>, DriverHandleLevel)>,
 	//attribs: Vec<u32>,
 }
 
@@ -127,7 +129,7 @@ pub fn register_driver(driver: &'static (Driver+Send))
 /**
  * Locate the best registered driver for this device and instanciate it
  */
-fn find_driver(bus: &BusManager, bus_dev: &BusDevice) -> Option<(Box<DriverInstance+'static>,uint)>
+fn find_driver(bus: &BusManager, bus_dev: &BusDevice) -> Option<(Box<DriverInstance>,DriverHandleLevel)>
 {
 	log_debug!("Finding driver for {}:{:x}", bus.bus_type(), bus_dev.addr());
 	let mut best_ranking = 0;

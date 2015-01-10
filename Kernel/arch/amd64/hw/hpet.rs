@@ -97,8 +97,8 @@ impl HPET
 			period: 1,
 			};
 		// Enable
-		rv.write_reg(HPETReg::Config as uint, rv.read_reg(HPETReg::Config as uint) | (1 << 0));
-		rv.period = rv.read_reg(HPETReg::CapsID as uint) >> 32;
+		rv.write_reg(HPETReg::Config as usize, rv.read_reg(HPETReg::Config as usize) | (1 << 0));
+		rv.period = rv.read_reg(HPETReg::CapsID as usize) >> 32;
 		rv
 	}
 	pub fn bind_irq(&mut self)
@@ -116,17 +116,17 @@ impl HPET
 	fn irq(sp: *const ())
 	{
 		let s = unsafe{ &*(sp as *const HPET) };
-		s.write_reg(HPETReg::ISR as uint, s.read_reg(HPETReg::ISR as uint));
+		s.write_reg(HPETReg::ISR as usize, s.read_reg(HPETReg::ISR as usize));
 		
 		s.oneshot(0, s.current() + 100*1000 );
 	}
 	
-	fn read_reg(&self, reg: uint) -> u64 {
+	fn read_reg(&self, reg: usize) -> u64 {
 		unsafe {
 			::core::intrinsics::volatile_load( &self.regs()[reg*2] )
 		}
 	}
-	fn write_reg(&self, reg: uint, val: u64) {
+	fn write_reg(&self, reg: usize, val: u64) {
 		unsafe {
 			::core::intrinsics::volatile_store( &mut self.regs()[reg*2], val )
 		}
@@ -134,16 +134,16 @@ impl HPET
 	fn regs<'a>(&'a self) -> &'a mut [u64; 0x100] {
 		self.mapping_handle.as_ref(0)
 	}
-	fn num_comparitors(&self) -> uint {
-		((self.read_reg(HPETReg::CapsID as uint) >> 8) & 0x1F) as uint
+	fn num_comparitors(&self) -> usize {
+		((self.read_reg(HPETReg::CapsID as usize) >> 8) & 0x1F) as usize
 	}
 	
 	fn current(&self) -> u64 {
-		self.read_reg(HPETReg::MainCtr as uint)
+		self.read_reg(HPETReg::MainCtr as usize)
 	}
-	fn oneshot(&self, comparitor: uint, value: u64) {
+	fn oneshot(&self, comparitor: usize, value: u64) {
 		assert!(comparitor < self.num_comparitors());
-		let comp_reg = HPETReg::Timer0 as uint + comparitor*2;
+		let comp_reg = HPETReg::Timer0 as usize + comparitor*2;
 		// Set comparitor value
 		self.write_reg(comp_reg + 1, value);
 		// HACK: Wire to APIC interrupt 2

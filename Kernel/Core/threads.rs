@@ -75,7 +75,7 @@ fn reschedule()
 		},
 	Some(t) => {
 		// 2. Switch to next thread
-		log_debug!("Task switch to {}", t);
+		log_debug!("Task switch to {:?}", t);
 		::arch::threads::switch_to(t);
 		}
 	}
@@ -118,7 +118,7 @@ impl Thread
 			};
 		
 		// TODO: Add to global list of threads (removed on destroy)
-		log_debug!("Creating thread {}", rv);
+		log_debug!("Creating thread {:?}", rv);
 		
 		rv
 	}
@@ -128,7 +128,7 @@ impl ::core::fmt::Show for Thread
 {
 	fn fmt(&self, f: &mut ::core::fmt::Formatter) -> Result<(),::core::fmt::Error>
 	{
-		write!(f, "{}({} {})", self as *const _, self.tid, self.name)
+		write!(f, "{:p}({} {})", self as *const _, self.tid, self.name)
 	}
 }
 
@@ -137,7 +137,7 @@ impl ::core::ops::Drop for Thread
 	fn drop(&mut self)
 	{
 		// TODO: Remove self from the global thread map
-		log_debug!("Destroying thread {}", self);
+		log_debug!("Destroying thread {:?}", self);
 	}
 }
 
@@ -166,7 +166,7 @@ impl ThreadList
 		assert!(t.next.is_none());
 		// Save a pointer to the allocation
 		let ptr = &*t as *const Thread as *mut Thread;
-		log_debug!("Pushing thread {}", t);
+		log_debug!("Pushing thread {:?}", t);
 		// 2. Tack thread onto end
 		if self.first.is_some()
 		{

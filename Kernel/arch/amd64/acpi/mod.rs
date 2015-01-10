@@ -48,7 +48,7 @@ struct RSDPv2
 pub struct SDTHandle<T:'static>
 {
 	maphandle: ::memory::virt::AllocHandle,
-	ofs: uint,
+	ofs: usize,
 }
 
 #[repr(C)]
@@ -121,7 +121,7 @@ fn init()
 			return;
 			}
 		};
-	log_debug!("RSDP = {{ oemid = {}, revision = {:#x}, rsdt_address = {:#x} }}",
+	log_debug!("RSDP = {{ oemid = {:?}, revision = {:#x}, rsdt_address = {:#x} }}",
 		::core::str::from_utf8(&rsdp.oemid), rsdp.revision, rsdp.rsdt_address);
 	
 	let tl = if rsdp.revision == 0 {
@@ -158,7 +158,7 @@ pub fn find<T:'static>(req_name: &'static str) -> Vec<SDTHandle<T>>
 	let mut ret = Vec::new();
 	for (i,ent_name) in acpi.names.iter().enumerate()
 	{
-		log_debug!("ent {} name = {}", i, from_utf8(ent_name));
+		log_debug!("ent {} name = {:?}", i, from_utf8(ent_name));
 		if from_utf8(ent_name).unwrap() != req_name {
 			continue ;
 		}
@@ -188,11 +188,11 @@ fn get_rsdp() -> Option<&'static RSDP>
 	return None;
 }
 /// Search a section of memory for the RSDP
-unsafe fn locate_rsdp(base: *const u8, size: uint) -> *const RSDP
+unsafe fn locate_rsdp(base: *const u8, size: usize) -> *const RSDP
 {
 	for ofs in range_step(0, size, 16)
 	{
-		let sig = base.offset(ofs as int) as *const [u8; 8];
+		let sig = base.offset(ofs as isize) as *const [u8; 8];
 		if (*sig).as_slice() == "RSD PTR ".as_bytes()
 		{
 			let ret = sig as *const RSDP;
@@ -223,15 +223,15 @@ impl TLSDT
 		&TopXSDT(sdt) => &(*sdt).header,
 		}
 	}
-	fn _getaddr(&self, idx: uint) -> u64 {
+	fn _getaddr(&self, idx: usize) -> u64 {
 		match self {
 		&TopRSDT(sdt) => (*sdt).getptr(idx),
 		&TopXSDT(sdt) => (*sdt).getptr(idx),
 		}
 	}
 	
-	fn len(&self) -> uint {
-		(self._header().length as uint - ::core::mem::size_of::<SDTHeader>()) / match self {
+	fn len(&self) -> usize {
+		(self._header().length as usize - ::core::mem::size_of::<SDTHeader>()) / match self {
 			&TopRSDT(_) => 4,
 			&TopXSDT(_) => 8,
 			}
@@ -243,34 +243,34 @@ impl TLSDT
 	fn oemid<'self_>(&'self_ self) -> &'self_ str {
 		from_utf8(&self._header().oemid).unwrap()
 	}
-	fn get<T>(&self, idx: uint) -> SDTHandle<T> {
+	fn get<T>(&self, idx: usize) -> SDTHandle<T> {
 		SDTHandle::<T>::new(self._getaddr(idx))
 	}
 }
 trait RSDTTrait
 {
-	fn getptr(&self, idx: uint) -> u64;
+	fn getptr(&self, idx: usize) -> u64;
 }
 
 impl RSDTTrait for SDT<RSDT>
 {
-	fn getptr(&self, idx: uint) -> u64
+	fn getptr(&self, idx: usize) -> u64
 	{
 		let ptrs = &(self.data.pointers) as *const u32;
 		assert!( !ptrs.is_null() );
 		unsafe {
-			*ptrs.offset(idx as int) as u64
+			*ptrs.offset(idx as isize) as u64
 		}
 	}
 }
 impl RSDTTrait for SDT<XSDT>
 {
-	fn getptr(&self, idx: uint) -> u64
+	fn getptr(&self, idx: usize) -> u64
 	{
 		let ptrs = &(self.data.pointers) as *const u64;
 		assert!( !ptrs.is_null() );
 		unsafe {
-			*ptrs.offset(idx as int)
+			*ptrs.offset(idx as isize)
 		}
 	}
 }
@@ -285,9 +285,9 @@ impl SDTHeader
 	}
 	pub fn dump(&self)
 	{
-		log_debug!("SDTHeader = {{ sig:{},length='{}',rev={},checksum={}; .",
+		log_debug!("SDTHeader = {{ sig:{:?},length='{}',rev={},checksum={}; .",
 			from_utf8(&self.signature), self.length, self.revision, self.checksum);
-		log_debug!(" oemid={},oem_table_id={},oem_revision={}; .",
+		log_debug!(" oemid={:?},oem_table_id={:?},oem_revision={}; .",
 			from_utf8(&self.oemid), from_utf8(&self.oem_table_id), self.oem_revision);
 		log_debug!(" creator_id={:#x}, creator_revision={}",
 			self.creator_id, self.creator_revision);
@@ -300,7 +300,7 @@ impl<T> SDTHandle<T>
 	pub fn new(physaddr: u64) -> SDTHandle<T>
 	{
 		//log_trace!("new(physaddr={:#x})", physaddr);
-		let ofs = (physaddr & (::PAGE_SIZE - 1) as u64) as uint;
+		let ofs = (physaddr & (::PAGE_SIZE - 1) as u64) as usize;
 		
 		// Obtain length (and validate)
 		// TODO: Support the SDT header spanning acrosss two pages
@@ -314,7 +314,7 @@ impl<T> SDTHandle<T>
 			let hdr = handle.as_ref::<SDTHeader>(ofs);
 			
 			// Get the length
-			(hdr.length as uint,)
+			(hdr.length as usize,)
 			};
 		
 		// Map the resultant memory
@@ -361,9 +361,9 @@ impl<T> SDT<T>
 		CHECKMARK!();
 		self.header.signature
 	}
-	pub fn data_len(&self) -> uint
+	pub fn data_len(&self) -> usize
 	{
-		self.header.length as uint - ::core::mem::size_of::<SDTHeader>()
+		self.header.length as usize - ::core::mem::size_of::<SDTHeader>()
 	}
 	pub fn data<'s>(&'s self) -> &'s T
 	{

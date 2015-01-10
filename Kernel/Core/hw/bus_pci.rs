@@ -59,7 +59,7 @@ impl ::device_manager::Driver for PCIChildBusDriver
 	fn bus_type(&self) -> &str {
 		"pci"
 	}
-	fn handles(&self, bus_dev: &::device_manager::BusDevice) -> uint
+	fn handles(&self, bus_dev: &::device_manager::BusDevice) -> u32
 	{
 		let addr = bus_dev.addr() as u16;
 		let bridge_type = (read_word(addr, 3) >> 16) & 0x7F;
@@ -111,7 +111,7 @@ fn scan_bus(bus_id: u8) -> Vec<Box<BusDevice+'static>>
 		{
 		Some(devinfo) => {
 			let is_multifunc = (devinfo.config[3] & 0x0080_0000) != 0;
-			log_debug!("{}", devinfo);
+			log_debug!("{:?}", devinfo);
 			// Increase device count
 			ret.push(box devinfo as Box<BusDevice>);
 			// Handle multi-function devices (iterate from 1 onwards)
@@ -121,7 +121,7 @@ fn scan_bus(bus_id: u8) -> Vec<Box<BusDevice+'static>>
 				{
 					if let Some(devinfo) = get_device(bus_id, devidx, fcnidx)
 					{
-						log_debug!("{}", devinfo);
+						log_debug!("{:?}", devinfo);
 						ret.push(box devinfo);
 					}
 				}

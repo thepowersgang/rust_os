@@ -3,7 +3,7 @@
 //
 // arch/amd64/sync.rs
 // - Lightweight spinlock
-use core::kinds::{Send,Sync};
+use core::marker::{Send,Sync};
 
 /// Lightweight protecting spinlock
 pub struct Spinlock<T: Send>
@@ -31,7 +31,7 @@ impl<T: Send> Spinlock<T>
 	fn lock_impl<'_self>(&'_self mut self) -> HeldSpinlock<'_self,T>
 	{
 		let if_set = unsafe {
-			let mut flags: uint;
+			let mut flags: u64;
 			asm!("pushf\npop $0\ncli" : "=r" (flags));
 			while self.lock.compare_and_swap(false, true, ::core::atomic::Ordering::Relaxed) == true
 			{

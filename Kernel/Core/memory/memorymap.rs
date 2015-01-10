@@ -37,7 +37,7 @@ pub struct MemoryMapBuilder<'buf>
 impl ::core::fmt::Show for MemoryMapEnt
 {
 	fn fmt(&self, f: &mut ::core::fmt::Formatter) -> ::core::fmt::Result {
-		write!(f, "{:#x}+{:#x} {} Domain {}", self.start, self.size, self.state, self.domain)
+		write!(f, "{:#x}+{:#x} {:?} Domain {}", self.start, self.size, self.state, self.domain)
 	}
 }
 
@@ -103,7 +103,7 @@ impl<'buf> MemoryMapBuilder<'buf>
 	
 	pub fn set_range(&mut self, base_: u64, size_: u64, state: MemoryState, domain: u16) -> Result<(),()>
 	{
-		log_debug!("set_range(base={:#x}, size={:#x}, state={}, domain={})",
+		log_debug!("set_range(base={:#x}, size={:#x}, state={:?}, domain={})",
 			base_, size_, state, domain);
 		
 		let page_mask = ::PAGE_SIZE as u64 - 1;

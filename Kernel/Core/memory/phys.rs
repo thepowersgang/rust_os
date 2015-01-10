@@ -26,7 +26,7 @@ pub fn init()
 	
 	for (i,ent) in unsafe{s_mem_map.unwrap()}.iter().enumerate()
 	{
-		log_log!("#{} : {}", i, ent);
+		log_log!("#{} : {:?}", i, ent);
 	}
 }
 
@@ -67,7 +67,7 @@ pub fn allocate_range(count: uint) -> PAddr
 
 pub fn allocate(address: *mut ()) -> bool
 {
-	log_trace!("allocate(address={})", address);
+	log_trace!("allocate(address={:p})", address);
 	// 1. Pop a page from the free stack
 	unsafe
 	{

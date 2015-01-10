@@ -97,11 +97,11 @@ impl Rect
 	}
 }
 
-impl ::core::fmt::Show for Rect
+impl ::core::fmt::String for Rect
 {
 	fn fmt(&self, f: &mut ::core::fmt::Formatter) -> Result<(),::core::fmt::Error>
 	{
-		write!(f, "")
+		write!(f, "({},{} + {}x{})", self.x, self.y, self.w, self.h)
 	}
 }
 

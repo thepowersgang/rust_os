@@ -24,8 +24,8 @@ enum _Unwind_Reason_Code
 struct _Unwind_Context;
 
 #[allow(non_camel_case_types)]
-type _Unwind_Action = uint;
-static _UA_SEARCH_PHASE: uint = 1;
+type _Unwind_Action = u32;
+static _UA_SEARCH_PHASE: _Unwind_Action = 1;
 
 #[allow(non_camel_case_types)]
 #[repr(C)]
@@ -53,7 +53,7 @@ static EXCEPTION_CLASS : u64 = 0x544B3120_52757374;	// TK1 Rust (big endian)
 
 // Evil fail when doing unwind
 #[no_mangle] 
-pub extern "C" fn rust_begin_unwind(msg: &::core::fmt::Arguments, file: &'static str, line: uint) -> !
+pub extern "C" fn rust_begin_unwind(msg: &::core::fmt::Arguments, file: &'static str, line: usize) -> !
 {
 	::arch::puts("\nERROR: rust_begin_unwind\n");
 	::arch::print_backtrace();
@@ -80,7 +80,7 @@ pub extern "C" fn rust_begin_unwind(msg: &::core::fmt::Arguments, file: &'static
 }
 #[lang="eh_personality"]
 fn rust_eh_personality(
-	version: int, _actions: _Unwind_Action, _exception_class: u64,
+	version: isize, _actions: _Unwind_Action, _exception_class: u64,
 	_exception_object: &_Unwind_Exception, _context: &_Unwind_Context
 	) -> _Unwind_Reason_Code
 {

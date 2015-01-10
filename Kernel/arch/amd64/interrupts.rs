@@ -22,52 +22,56 @@ pub struct InterruptRegs
 }
 
 #[repr(C)]
-pub type ISRHandler = extern "C" fn(isrnum: uint,info:*const(),idx:uint);
+pub type ISRHandler = extern "C" fn(isrnum: usize,info:*const(),idx:usize);
 
-#[repr(C)]
+#[derive(Copy)]
 struct IRQHandlersEnt
 {
-	bound: bool,
-	// 
-	handler: ISRHandler,
+	handler: Option<ISRHandler>,
 	info: *const(),
-	idx: uint,
+	idx: usize,
 }
+unsafe impl Send for IRQHandlersEnt {}
 
 #[derive(Default)]
 pub struct ISRHandle
 {
-	idx: uint,
+	idx: usize,
 }
 
-#[repr(C)] struct IRQHandlers([IRQHandlersEnt; 256]);
-
 #[allow(non_upper_case_globals)]
-static s_irq_handlers_lock: ::sync::Mutex<()> = mutex_init!( () );
-extern "C"
+static s_irq_handlers_lock: ::sync::Mutex<[IRQHandlersEnt; 256]> = mutex_init!( [IRQHandlersEnt{
+	handler: None,
+	info: 0 as *const _,
+	idx: 0
+	}; 256] );
+
+#[no_mangle]
+pub extern "C" fn irq_handler(index: usize)
 {
-	// rustc seems to complain despite IRQHandlersEnt being marked as repr(C)
-	//#[allow(improper_ctypes)]
-	//static mut IrqHandlers: [IRQHandlersEnt; 256];
-	static mut IrqHandlers: IRQHandlers;
+	let lh = s_irq_handlers_lock.lock();
+	let ent = (*lh)[index];
+	if let Some(h) = ent.handler {
+		(h)(index, ent.info, ent.idx);
+	}
 }
 
 #[no_mangle]
 pub extern "C" fn error_handler(regs: &InterruptRegs)
 {
 	puts("Error happened!\n");
-	puts("Int  = "); puth(regs.intnum as uint); puts("  Code = "); puth(regs.errorcode as uint); puts("\n");
-	puts("CS:RIP  = "); puth(regs.cs as uint); puts(":"); puth(regs.rip as uint); puts("\n");
-	puts("SS:RSP  = "); puth(regs.ss as uint); puts(":"); puth(regs.rsp as uint); puts("\n");
-	puts("CR2 = "); puth(get_cr2() as uint); puts("\n");
-	puts("RAX "); puth(regs.rax as uint); puts("  RCX "); puth(regs.rcx as uint); puts("\n");
-	puts("RDX "); puth(regs.rdx as uint); puts("  RBX "); puth(regs.rbx as uint); puts("\n");
+	puts("Int  = "); puth(regs.intnum); puts("  Code = "); puth(regs.errorcode); puts("\n");
+	puts("CS:RIP  = "); puth(regs.cs); puts(":"); puth(regs.rip); puts("\n");
+	puts("SS:RSP  = "); puth(regs.ss); puts(":"); puth(regs.rsp); puts("\n");
+	puts("CR2 = "); puth(get_cr2()); puts("\n");
+	puts("RAX "); puth(regs.rax); puts("  RCX "); puth(regs.rcx); puts("\n");
+	puts("RDX "); puth(regs.rdx); puts("  RBX "); puth(regs.rbx); puts("\n");
 	if regs.intnum != 3
 	{
 		let mut bp = regs.rbp;
 		while let Some((newbp, ip)) = backtrace(bp)
 		{
-			puts(" > "); puth(ip as uint);
+			puts(" > "); puth(ip);
 			bp = newbp;
 		}
 		puts("\n");
@@ -114,41 +118,40 @@ fn get_cr2() -> u64
 }
 
 /// Bind a callback (and params) to an allocatable ISR
-pub fn bind_isr(isr: u8, callback: ISRHandler, info: *const(), idx: uint) -> Result<ISRHandle,()>
+pub fn bind_isr(isr: u8, callback: ISRHandler, info: *const(), idx: usize) -> Result<ISRHandle,()>
 {
-	log_trace!("bind_isr(isr={},callback={},info={},idx={})",
+	log_trace!("bind_isr(isr={},callback={:?},info={:?},idx={})",
 		isr, callback as *const u8, info, idx);
 	// TODO: Validate if the requested ISR slot is valid (i.e. it's one of the allocatable ones)
 	// 1. Check that this ISR slot on this CPU isn't taken
-	let _mh = s_irq_handlers_lock.lock();
-	let h = unsafe { &mut IrqHandlers.0[isr as uint] };
-	log_trace!("&h = {}", h as *mut _);
-	if h.bound {
+	let mut _mh = s_irq_handlers_lock.lock();
+	let h = &mut _mh[isr as usize];
+	log_trace!("&h = {:?}", h as *mut _);
+	if h.handler.is_some() {
 		return Err( () );
 	}
 	*h = IRQHandlersEnt {
-		bound: true,
-		handler: callback,
+		handler: Some(callback),
 		info: info,
 		idx: idx,
 		};
 	Ok( ISRHandle {
-		idx: isr as uint,
+		idx: isr as usize,
 		} )
 }
 
 impl ISRHandle
 {
-	pub fn idx(&self) -> uint { self.idx }
+	pub fn idx(&self) -> usize { self.idx }
 }
 
 impl ::core::ops::Drop for ISRHandle
 {
 	fn drop(&mut self)
 	{
-		let _mh = s_irq_handlers_lock.lock();
-		let h = unsafe { &mut IrqHandlers.0[self.idx] };
-		h.bound = false;
+		let mut mh = s_irq_handlers_lock.lock();
+		let h = &mut mh[self.idx];
+		h.handler = None;
 	}
 }
 

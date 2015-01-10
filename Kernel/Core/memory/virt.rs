@@ -49,12 +49,14 @@ pub fn allocate(addr: *mut (), page_count: uint)
 
 	let pagenum = addr as uint / ::PAGE_SIZE;
 	// 1. Lock
-	let _lh = tern!( is_global(addr as uint) ? s_kernelspace_lock.lock() : s_userspace_lock.lock() );
+	let _lh = if is_global(addr as uint) { s_kernelspace_lock.lock() } else { s_userspace_lock.lock() };
 	// 2. Ensure range is free
 	for pg in range(pagenum, pagenum+page_count)
 	{
-		if ::arch::memory::virt::is_reserved(pg * ::PAGE_SIZE) {
+		let pgptr = (pg * ::PAGE_SIZE) as *const ();
+		if ::arch::memory::virt::is_reserved( pgptr ) {
 			// nope.avi
+			panic!("TODO: Already reserved memory in range passed to allocate({:p},{}) ({:p})", addr, page_count, pgptr);
 		}
 	}
 	// 3. do `page_count` single arbitary allocations
@@ -66,10 +68,10 @@ pub fn allocate(addr: *mut (), page_count: uint)
 
 pub fn map(addr: *mut (), phys: PAddr, prot: ProtectionMode)
 {
-	log_trace!("map(*{} := {:#x} {})", addr, phys, prot);
-	if ::arch::memory::virt::is_reserved(addr as VAddr)
+	log_trace!("map(*{:p} := {:#x} {:?})", addr, phys, prot);
+	if ::arch::memory::virt::is_reserved(addr)
 	{
-		log_notice!("Mapping {:#x} to {}, collision", phys, addr);
+		log_notice!("Mapping {:#x} to {:p}, collision", phys, addr);
 	}
 	else
 	{
@@ -79,15 +81,13 @@ pub fn map(addr: *mut (), phys: PAddr, prot: ProtectionMode)
 
 fn unmap(addr: *mut (), count: uint)
 {
-	log_trace!("unmap(*{} {})", addr, count);
+	log_trace!("unmap(*{:p} {})", addr, count);
 	let _lock = s_kernelspace_lock.lock();
 	let pos = addr as uint;
 	
-	{
-		let ofs = pos & (::PAGE_SIZE - 1);
-		if ofs != 0 {
-			panic!("Non-aligned page {} passed (unmapping {} pages)", addr, count);
-		}
+	let ofs = pos & (::PAGE_SIZE - 1);
+	if ofs != 0 {
+		panic!("Non-aligned page {:p} passed (unmapping {} pages)", addr, count);
 	}
 	
 	for i in range(0, count)
@@ -114,7 +114,7 @@ pub fn map_hw_rw(phys: PAddr, count: uint, module: &'static str) -> Result<Alloc
 
 fn map_hw(phys: PAddr, count: uint, readonly: bool, _module: &'static str) -> Result<AllocHandle,()>
 {
-	let mode = tern!(readonly ? ProtectionMode::KernelRO : ProtectionMode::KernelRW);
+	let mode = if readonly { ProtectionMode::KernelRO } else { ProtectionMode::KernelRW };
 	// 1. Locate an area
 	// TODO: This lock should be replaced with a finer grained lock
 	let _lock = s_kernelspace_lock.lock();
@@ -152,7 +152,7 @@ fn count_free_in_range(addr: *const Page, count: uint) -> uint
 {
 	for i in range(0, count)
 	{
-		let pg = unsafe{ addr.offset(i as int) as uint };
+		let pg = unsafe { addr.offset(i as int) };
 		if ::arch::memory::virt::is_reserved( pg ) {
 			return i;
 		}

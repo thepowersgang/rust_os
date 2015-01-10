@@ -80,13 +80,13 @@ pub enum MADTDevRecord<'a>
 struct MADTRecords<'a>
 {
 	madt: &'a ACPI_MADT,
-	pos: uint,
-	limit: uint,
+	pos: usize,
+	limit: usize,
 }
 
 impl ACPI_MADT
 {
-	pub fn records(&self, len: uint) -> MADTRecords
+	pub fn records(&self, len: usize) -> MADTRecords
 	{
 		MADTRecords {
 			madt: self,
@@ -94,7 +94,7 @@ impl ACPI_MADT
 			limit: len - ::core::mem::size_of::<ACPI_MADT>()
 			}
 	}
-	pub fn dump(&self, len: uint)
+	pub fn dump(&self, len: usize)
 	{
 		log_debug!("MADT = {{");
 		log_debug!("  local_controller_addr: {:#x}", self.local_controller_addr);
@@ -103,16 +103,16 @@ impl ACPI_MADT
 		
 		for (i,rec) in self.records(len).enumerate()
 		{
-			log_debug!("@{}: {}", i, rec);
+			log_debug!("@{}: {:?}", i, rec);
 		}
 	}
 	
-	fn get_record<'s>(&'s self, limit: uint, pos: uint) -> (uint,MADTDevRecord)
+	fn get_record<'s>(&'s self, limit: usize, pos: usize) -> (usize, MADTDevRecord)
 	{
 		assert!(pos < limit);
 		assert!(pos + ::core::mem::size_of::<MADT_DevHeader>() <= limit);
 		unsafe {
-			let ptr = (&self.end as *const u8).offset( pos as int ) as *const MADT_DevHeader;
+			let ptr = (&self.end as *const u8).offset( pos as isize ) as *const MADT_DevHeader;
 			//log_debug!("pos={}, ptr={} (type={},len={})", pos, ptr, (*ptr).dev_type, (*ptr).rec_len);
 			let len = (*ptr).rec_len;
 			let typeid = (*ptr).dev_type;
@@ -127,7 +127,7 @@ impl ACPI_MADT
 				_ => MADTDevRecord::DevUnk(typeid) ,
 				};
 			
-			(pos + len as uint, ret_ref)
+			(pos + len as usize, ret_ref)
 		}
 	}
 }

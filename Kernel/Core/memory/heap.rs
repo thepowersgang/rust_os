@@ -22,7 +22,7 @@ struct HeapDef
 	last_foot: *mut HeapFoot,
 	first_free: *mut HeapHead,
 }
-unsafe impl ::core::kinds::Send for HeapDef {}
+unsafe impl ::core::marker::Send for HeapDef {}
 
 #[allow(raw_pointer_derive)]
 #[derive(Show)]	// RawPtr Show is the address
@@ -132,7 +132,7 @@ impl HeapDef
 		{
 			let fb = &*opt_fb;
 			assert!( fb.magic == MAGIC );
-			let next = match fb.state { HeapState::Free(n)=> n, _ => panic!("Non-free block ({}) in free list", opt_fb) };
+			let next = match fb.state { HeapState::Free(n)=> n, _ => panic!("Non-free block ({:p}) in free list", opt_fb) };
 			if fb.size >= blocksize
 			{
 				break;
@@ -182,7 +182,7 @@ impl HeapDef
 			}
 			// Return newly allocated block
 			fb.state = HeapState::Used(size);
-			log_debug!("Returning {} (Freelist)", fb.data());
+			log_debug!("Returning {:p} (Freelist)", fb.data());
 			return Some( fb.data() );
 		}
 		assert!(opt_fb.is_null());
@@ -211,13 +211,13 @@ impl HeapDef
 			self.first_free = block.next();
 		}
 		
-		log_trace!("Returning {} (new)", block.data());
+		log_trace!("Returning {:p} (new)", block.data());
 		Some( block.data() )
 	}
 
 	pub fn deallocate(&mut self, ptr: *mut ())
 	{
-		log_debug!("deallocate(ptr={})", ptr);
+		log_debug!("deallocate(ptr={:p})", ptr);
 		if ptr == ZERO_ALLOC {
 			log_trace!("Free zero alloc");
 			return ;
@@ -234,13 +234,13 @@ impl HeapDef
 				
 				// Merge left and right
 				// 1. Left:
-				if_let!( HeapState::Free(_) = (*headref.prev()).state
+				if let HeapState::Free(_) = (*headref.prev()).state
 				{
-					log_trace!("Merged left with {}", headref.prev());
+					log_trace!("Merged left with {:p}", headref.prev());
 					// increase size of previous block to cover this block
 					(*headref.prev()).size += headref.size;
 					no_add = true;
-				})
+				}
 				
 				// 2. Right
 				//if_let!( HeapState::Free(_) => 
@@ -293,7 +293,7 @@ impl HeapDef
 		let block = if use_prev
 			{
 				let block = &mut *last_foot.head;
-				log_debug!("HeapDef.expand: (prev) &block={}", block as *mut HeapHead);
+				log_debug!("HeapDef.expand: (prev) &block={:p}", block);
 				block.size += n_pages * ::PAGE_SIZE;
 				block.foot().head = last_foot.head;
 				
@@ -302,7 +302,7 @@ impl HeapDef
 			else
 			{
 				let block = &mut *last_foot.next_head();
-				log_debug!("HeapDef.expand: (new) &block={}", block as *mut HeapHead);
+				log_debug!("HeapDef.expand: (new) &block={:p}", block);
 				*block = HeapHead {
 					magic: MAGIC,
 					state: HeapState::Used(0),
@@ -313,7 +313,7 @@ impl HeapDef
 				block
 			};
 		self.last_foot = block.foot() as *mut HeapFoot;
-		log_debug!("HeapDef.expand: &block={}", block as *mut HeapHead);
+		log_debug!("HeapDef.expand: &block={:p}", block);
 		block.state = HeapState::Used(0);
 		// 3. Return final block
 		block

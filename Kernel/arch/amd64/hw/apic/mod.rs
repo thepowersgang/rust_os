@@ -17,7 +17,7 @@ pub type IRQHandler = fn(info: *const ());
 #[derive(Default)]
 pub struct IRQHandle
 {
-	num: uint,
+	num: usize,
 	isr_handle: ::arch::interrupts::ISRHandle,
 }
 
@@ -64,7 +64,7 @@ fn init()
 	// Create instances of the IOAPIC "driver" for all present controllers
 	let ioapics: Vec<_> = madt.data().records(madt.data_len()).filter_map(
 			|r| match r {
-				init::MADTDevRecord::DevIOAPIC(a) => Some(raw::IOAPIC::new(a.address as u64, a.interrupt_base as uint)),
+				init::MADTDevRecord::DevIOAPIC(a) => Some(raw::IOAPIC::new(a.address as u64, a.interrupt_base as usize)),
 				_ => None
 				}
 			).collect();
@@ -81,7 +81,7 @@ fn init()
 	
 }
 
-fn get_ioapic(interrupt: uint) -> Option<(&'static mut raw::IOAPIC, uint)>
+fn get_ioapic(interrupt: usize) -> Option<(&'static mut raw::IOAPIC, usize)>
 {
 	unsafe {
 		match (*s_ioapics).iter_mut().find( |a| (*a).contains(interrupt) )
@@ -111,9 +111,9 @@ fn get_lapic() -> &'static raw::LAPIC
 //}
 
 /// Local + IO APIC interrupt handler
-extern "C" fn lapic_irq_handler(isr: uint, info: *const(), gsi: uint)
+extern "C" fn lapic_irq_handler(isr: usize, info: *const(), gsi: usize)
 {
-	log_trace!("lapic_irq_handler: (isr={},info={},gsi={})", isr, info, gsi);
+	log_trace!("lapic_irq_handler: (isr={},info={:?},gsi={})", isr, info, gsi);
 	let (ioapic,ofs) = match get_ioapic(gsi) {
 		Some(x) => x,
 		None => {
@@ -128,7 +128,7 @@ extern "C" fn lapic_irq_handler(isr: uint, info: *const(), gsi: uint)
 }
 
 /// Registers an interrupt
-pub fn register_irq(global_num: uint, callback: IRQHandler, info: *const() ) -> Result<IRQHandle,()>
+pub fn register_irq(global_num: usize, callback: IRQHandler, info: *const() ) -> Result<IRQHandle,()>
 {
 	// Locate the relevant apic
 	let (ioapic,ofs) = match get_ioapic(global_num) {
@@ -138,12 +138,12 @@ pub fn register_irq(global_num: uint, callback: IRQHandler, info: *const() ) -> 
 	
 	// 1. Pick a low-loaded processor? 
 	// Bind ISR
-	let isrnum = 32u;
-	let lapic_id = 0u;
-	let isr_handle = try!( ::arch::interrupts::bind_isr(isrnum as u8, lapic_irq_handler, info, global_num) );
+	let isrnum = 32u8;
+	let lapic_id = 0u32;
+	let isr_handle = try!( ::arch::interrupts::bind_isr(isrnum, lapic_irq_handler, info, global_num) );
 
 	// Enable the relevant IRQ on the LAPIC and IOAPIC
-	ioapic.set_irq(ofs, isrnum as u8, lapic_id, raw::TriggerMode::EdgeHi, callback);
+	ioapic.set_irq(ofs, isrnum, lapic_id, raw::TriggerMode::EdgeHi, callback);
 	
 	Ok( IRQHandle {
 		num: global_num,
@@ -156,9 +156,9 @@ impl ::core::fmt::Show for IRQHandle
 	fn fmt(&self, f: &mut ::core::fmt::Formatter) -> Result<(),::core::fmt::Error>
 	{
 		let (ioapic,ofs) = get_ioapic(self.num).unwrap();
-		write!(f, "IRQHandle{{#{}, LAPIC={}, Reg={:#x}}}",
+		write!(f, "IRQHandle{{#{}, LAPIC={:?}, Reg={:#x}}}",
 			self.num,
-			get_lapic().get_vec_status(self.isr_handle.idx()),
+			get_lapic().get_vec_status(self.isr_handle.idx() as u8),
 			ioapic.get_irq_reg(ofs)
 			)
 	}

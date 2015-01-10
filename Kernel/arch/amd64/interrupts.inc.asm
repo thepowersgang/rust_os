@@ -122,7 +122,7 @@ ISR_NOERRNO	31; 31: Reserved
 %macro BLANKINT 1
 Irq%1:
 	push rbx
-	mov rbx, %1*32
+	mov rbx, %1
 	jmp IRQCommon
 %endmacro
 
@@ -131,29 +131,13 @@ Irq%1:
 BLANKINT i
 %assign i i+1
 %endrep
+[extern irq_handler]
 IRQCommon:
-	;int3
-	; NOTE: This code is a little evil to reduce interrupt latency
-	; ... I might have gone a little overboard
 	API_SAVE
-	; Handle
-	mov rcx, IrqHandlers
-	mov rax, [rcx+rbx+0]
-	test rax, rax
-	jz .r
-	mov rax, [rcx+rbx+8]	; 'callback'
-	mov rdi, rbx	; ISR Num
-	shr rdi, 5	; Div 5
-	mov rsi, [rcx+rbx+16]	; 'info'
-	mov rdx, [rcx+rbx+24]	; 'idx'
-	call rax
-.r:
+	mov rdi, rbx
+	call irq_handler
 	API_RESTORE
 	pop rbx
 	iretq
-
-[section .data]
-EXPORT IrqHandlers
-	times 256 dq 0, 0, 0, 0
 
 ; vim: ft=nasm

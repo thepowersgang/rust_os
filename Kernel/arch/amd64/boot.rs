@@ -155,8 +155,8 @@ impl MultibootParsed
 {
 	pub fn new(info: &MultibootInfo) -> MultibootParsed
 	{
-		let loader_ptr = (info.boot_loader_name as uint + IDENT_START) as *const i8;
-		log_debug!("loader_ptr = {}", loader_ptr);
+		let loader_ptr = (info.boot_loader_name as usize + IDENT_START) as *const i8;
+		log_debug!("loader_ptr = {:?}", loader_ptr);
 		let loader_name = if (info.flags & 1 << 9) != 0 {
 				valid_c_str_to_slice(loader_ptr).unwrap_or("-INVALID-")
 			}
@@ -179,7 +179,7 @@ impl MultibootParsed
 			return "";
 		}
 		
-		let cmdline_paddr = info.cmdline as uint;
+		let cmdline_paddr = info.cmdline as usize;
 		if cmdline_paddr + IDENT_START >= IDENT_END {
 			return "";
 		}
@@ -195,7 +195,7 @@ impl MultibootParsed
 			return None;
 		}
 		
-		let vbeinfo_vaddr = info.vbe_mode_info as uint + IDENT_START;
+		let vbeinfo_vaddr = info.vbe_mode_info as usize + IDENT_START;
 		if vbeinfo_vaddr + ::core::mem::size_of::<VbeModeInfo>() > IDENT_END {
 			return None;
 		}
