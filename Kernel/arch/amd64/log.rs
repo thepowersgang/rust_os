@@ -7,6 +7,7 @@ use _common::*;
 
 use super::x86_io;
 
+#[inline(never)]
 pub fn puts(text: &str)
 {
 	for c in text.bytes()

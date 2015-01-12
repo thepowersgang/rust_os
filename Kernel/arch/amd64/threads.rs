@@ -63,13 +63,14 @@ pub fn get_thread_ptr() -> Option<Box<::threads::Thread>>
 pub fn set_thread_ptr(ptr: Box<::threads::Thread>)
 {
 	unsafe {
-		if t_thread_ptr as *const _ == &*ptr as *const _ {
+		let ptr: *mut _ = ::core::mem::transmute(ptr);
+		if t_thread_ptr == ptr {
 			assert!( !t_thread_ptr_sent );
 			t_thread_ptr_sent = false;
 		}
 		else {
-			assert!( !t_thread_ptr.is_null() );
-			t_thread_ptr = ::core::mem::transmute(ptr);
+			assert!( t_thread_ptr.is_null() );
+			t_thread_ptr = ptr;
 			t_thread_ptr_sent = false;
 		}
 	}

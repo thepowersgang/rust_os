@@ -3,6 +3,7 @@ macro_rules! log{ ($lvl:expr, $modname:expr, $($arg:tt)*) => (
 	if ::logging::enabled($lvl, $modname)
 	{
 		use core::fmt::Writer;
+		
 		let _ = write!(&mut ::logging::getstream($lvl, $modname), $($arg)*);
 	}
 	)}
