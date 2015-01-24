@@ -31,7 +31,7 @@ pub struct MemoryMapEnt
 pub struct MemoryMapBuilder<'buf>
 {
 	slots: &'buf mut [MemoryMapEnt],
-	size: uint,
+	size: usize,
 }
 
 impl ::core::fmt::Show for MemoryMapEnt
@@ -50,7 +50,7 @@ impl<'buf> MemoryMapBuilder<'buf>
 			size: 0,
 		}
 	}
-	pub fn size(&self) -> uint
+	pub fn size(&self) -> usize
 	{
 		self.size
 	}
@@ -155,9 +155,9 @@ impl<'buf> MemoryMapBuilder<'buf>
 		Ok( () )
 	}
 	
-	fn _find_addr(&self, addr: u64) -> uint
+	fn _find_addr(&self, addr: u64) -> usize
 	{
-		for (i,slot) in self.slots.slice(0,self.size).iter().enumerate()
+		for (i,slot) in self.slots[0 .. self.size].iter().enumerate()
 		{
 			if slot.start + slot.size > addr {
 				return i;
@@ -166,7 +166,7 @@ impl<'buf> MemoryMapBuilder<'buf>
 		return self.size
 	}
 	
-	fn _split_at(&mut self, index: uint, left_size: u64) -> Result<(),()>
+	fn _split_at(&mut self, index: usize, left_size: u64) -> Result<(),()>
 	{
 		if self.size >= self.slots.len()
 		{

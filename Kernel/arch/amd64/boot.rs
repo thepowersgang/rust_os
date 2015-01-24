@@ -237,15 +237,15 @@ impl MultibootParsed
 			
 			// 2. Clobber out kernel, modules, and strings
 			mapbuilder.set_range( 0x100000, &::arch::v_kernel_end as *const() as u64 - IDENT_START as u64 - 0x10000,
-				::memory::MemoryState::Used, 0 ).unwrap();
+				::memory::MemoryState::Used, 0 ).ok().unwrap();
 			mapbuilder.set_range( self.cmdline.as_ptr() as u64 - IDENT_START as u64, self.cmdline.len() as u64,
-				::memory::MemoryState::Used, 0 ).unwrap();
+				::memory::MemoryState::Used, 0 ).ok().unwrap();
 			
 			mapbuilder.size()
 			};
 		
 		// 3. Return final result
-		buf.slice(0, size)
+		&buf[0 .. size]
 	}
 }
 

@@ -12,7 +12,7 @@ const NOPAGE : PAddr = 1;
 static mut s_mem_map : Option<&'static [::memory::MemoryMapEnt]> = None;
 // s_mapalloc - Tracks the allocation point in s_mem_map : (Entry Index, Address)
 #[allow(non_upper_case_globals)]
-static s_mapalloc : ::sync::Mutex<(uint,PAddr)> = mutex_init!( (0,0) );
+static s_mapalloc : ::sync::Mutex<(usize,PAddr)> = mutex_init!( (0,0) );
 // TODO: Multiple stacks based on page colouring
 #[allow(non_upper_case_globals)]
 static s_free_stack : ::sync::Mutex<PAddr> = mutex_init!( NOPAGE );
@@ -30,7 +30,7 @@ pub fn init()
 	}
 }
 
-pub fn allocate_range(count: uint) -> PAddr
+pub fn allocate_range(count: usize) -> PAddr
 {
 	if !(count == 1) {
 		panic!("TODO: Large range allocations (count={})", count);

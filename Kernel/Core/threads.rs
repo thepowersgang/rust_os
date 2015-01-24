@@ -7,6 +7,8 @@ use _common::*;
 
 pub type ThreadHandle = Box<Thread>;
 
+type ThreadID = u32;
+
 //#[deriving(PartialEq)]
 enum RunState
 {
@@ -20,7 +22,7 @@ impl Default for RunState { fn default() -> RunState { RunState::Runnable } }
 pub struct Thread
 {
 	name: String,
-	tid: uint,
+	tid: ThreadID,
 	run_state: RunState,
 	
 	pub cpu_state: ::arch::threads::State,

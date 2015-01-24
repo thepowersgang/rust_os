@@ -29,14 +29,14 @@ unsafe impl ::core::marker::Send for HeapDef {}
 enum HeapState
 {
 	Free(*mut HeapHead),
-	Used(uint),
+	Used(usize),
 }
 
 #[derive(Show)]
 struct HeapHead
 {
-	magic: uint,
-	size: uint,
+	magic: u32,
+	size: usize,
 	state: HeapState,
 }
 struct HeapFoot
@@ -45,8 +45,8 @@ struct HeapFoot
 }
 
 // Curse no CTFE
-//const HEADERS_SIZE: uint = ::core::mem::size_of::<HeapHead>() + ::core::mem::size_of::<HeapFoot>();
-const MAGIC: uint = 0x71ff11A1;
+//const HEADERS_SIZE: usize = ::core::mem::size_of::<HeapHead>() + ::core::mem::size_of::<HeapFoot>();
+const MAGIC: u32 = 0x71ff11A1;
 pub const ZERO_ALLOC: *mut () = 1 as *mut _;
 // --------------------------------------------------------
 // Globals
@@ -61,11 +61,11 @@ pub fn init()
 }
 
 #[lang="exchange_malloc"]
-unsafe fn exchange_malloc(size: uint, _align: uint) -> *mut u8 {
+unsafe fn exchange_malloc(size: usize, _align: usize) -> *mut u8 {
 	allocate(HeapId::Global, size).unwrap() as *mut u8
 }
 #[lang="exchange_free"]
-unsafe fn exchange_free(ptr: *mut u8, _size: uint, _align: uint) {
+unsafe fn exchange_free(ptr: *mut u8, _size: usize, _align: usize) {
 	deallocate(ptr)
 }
 
@@ -80,7 +80,7 @@ pub unsafe fn alloc<T>(value: T) -> *mut T
 	ret
 }
 
-pub unsafe fn alloc_array<T>(count: uint) -> *mut T
+pub unsafe fn alloc_array<T>(count: usize) -> *mut T
 {
 	match allocate(HeapId::Global, ::core::mem::size_of::<T>() * count)
 	{
@@ -89,7 +89,7 @@ pub unsafe fn alloc_array<T>(count: uint) -> *mut T
 	}
 }
 
-pub unsafe fn allocate(heap: HeapId, size: uint) -> Option<*mut ()>
+pub unsafe fn allocate(heap: HeapId, size: usize) -> Option<*mut ()>
 {
 	match heap
 	{
@@ -98,7 +98,7 @@ pub unsafe fn allocate(heap: HeapId, size: uint) -> Option<*mut ()>
 	}
 }
 
-//pub unsafe fn expand(pointer: *mut (), newsize: uint) -> Option<*mut ()>
+//pub unsafe fn expand(pointer: *mut (), newsize: usize) -> Option<*mut ()>
 //{
 //	panic!("TODO: heap::expand");
 //	None
@@ -111,7 +111,7 @@ pub unsafe fn deallocate<T>(pointer: *mut T)
 
 impl HeapDef
 {
-	pub unsafe fn allocate(&mut self, size: uint) -> Option<*mut ()>
+	pub unsafe fn allocate(&mut self, size: usize) -> Option<*mut ()>
 	{
 		// SHORT CCT: Zero size allocation
 		if size == 0 {
@@ -257,7 +257,7 @@ impl HeapDef
 	
 	/// Expand the heap to create a block at least `min_size` bytes long at the end
 	/// \return New block, pre-allocated
-	unsafe fn expand(&mut self, min_size: uint) -> *mut HeapHead
+	unsafe fn expand(&mut self, min_size: usize) -> *mut HeapHead
 	{
 		let use_prev =
 			if self.start.is_null() {
@@ -329,7 +329,7 @@ impl HeapHead
 	}
 	pub unsafe fn next(&self) -> *mut HeapHead
 	{
-		(self.ptr() as *mut u8).offset( self.size as int ) as *mut HeapHead
+		(self.ptr() as *mut u8).offset( self.size as isize ) as *mut HeapHead
 	}
 	pub unsafe fn data(&mut self) -> *mut ()
 	{

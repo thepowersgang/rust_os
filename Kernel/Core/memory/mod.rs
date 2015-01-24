@@ -28,7 +28,7 @@ pub fn c_string_as_byte_slice(c_str: *const i8) -> Option<&'static [u8]>
 		while *ptr != 0
 		{
 			ptr = ptr.offset(1);
-			if ptr as uint % ::PAGE_SIZE == 0
+			if ptr as usize % ::PAGE_SIZE == 0
 			{
 				if ! ::arch::memory::virt::is_reserved(ptr) {
 					return None;
@@ -38,7 +38,7 @@ pub fn c_string_as_byte_slice(c_str: *const i8) -> Option<&'static [u8]>
 		
 		Some( ::core::mem::transmute( ::core::raw::Slice {
 			data: c_str,
-			len: ptr as uint - c_str as uint,
+			len: ptr as usize - c_str as usize,
 			}) )
 	}	
 }
@@ -50,7 +50,7 @@ pub fn c_string_valid(c_str: *const i8) -> bool
 }
 
 /// Validates that a buffer points to accessible memory
-pub fn buf_valid(ptr: *const (), mut size: uint) -> bool
+pub fn buf_valid(ptr: *const (), mut size: usize) -> bool
 {
 	let mut addr = ptr as VAddr;
 	if ! ::arch::memory::virt::is_reserved(ptr) {

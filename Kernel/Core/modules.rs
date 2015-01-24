@@ -12,7 +12,7 @@ pub struct ModuleInfo
 	pub name: &'static str,
 	pub init: fn(),
 	pub deps: &'static [&'static str],
-	pub _rsvd: uint,
+	pub _rsvd: usize,
 }
 
 #[derive(Clone,PartialEq)]
@@ -31,7 +31,7 @@ extern "C" {
 pub fn init()
 {
 	let baseptr = &modules_base as *const _ as *const ModuleInfo;
-	let size = &modules_end as *const _ as uint - baseptr as uint;
+	let size = &modules_end as *const _ as usize - baseptr as usize;
 	let count = size / ::core::mem::size_of::<ModuleInfo>();
 	
 	unsafe {
@@ -53,7 +53,7 @@ fn init_modules(mods: &[ModuleInfo])
 	}
 }
 
-fn init_module(modstates: &mut [ModuleState], mods: &[ModuleInfo], i: uint)
+fn init_module(modstates: &mut [ModuleState], mods: &[ModuleInfo], i: usize)
 {
 	let module = &mods[i];
 	if modstates[i] == ModuleState::Uninitialised

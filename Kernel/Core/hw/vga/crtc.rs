@@ -12,7 +12,7 @@ pub struct CrtcRegs
 	regs: [u8; 0x20],
 }
 
-pub const PIX_PER_CHAR: uint = 16u;
+pub const PIX_PER_CHAR: u16 = 16;
 
 impl CrtcRegs
 {

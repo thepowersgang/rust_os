@@ -21,9 +21,10 @@ pub mod string;
 
 pub mod num
 {
-	pub fn round_up(val: uint, target: uint) -> uint
+	use core::num::Int;
+	pub fn round_up<T: Int>(val: T, target: T) -> T
 	{
-		return (val + target-1) / target * target;
+		return (val + target - Int::one()) / target * target;
 	}
 }
 
@@ -114,14 +115,14 @@ impl<T> OptMutPtr<T>
 
 pub trait UintBits
 {
-	fn bit(&self, idx: uint) -> Self;
-	fn bits(&self, idx: uint, idx2: uint) -> Self;
+	fn bit(&self, idx: u8) -> Self;
+	fn bits(&self, idx: u8, idx2: u8) -> Self;
 }
 
 impl UintBits for u16 {
-	fn bit(&self, idx: uint) -> u16 { (*self >> idx) & 1 }
-	fn bits(&self, idx: uint, idx2: uint) -> u16 {
-		(*self >> idx) & ((1 << (idx2 - idx))-1)
+	fn bit(&self, idx: u8) -> u16 { (*self >> idx as usize) & 1 }
+	fn bits(&self, idx: u8, idx2: u8) -> u16 {
+		(*self >> idx as usize) & ((1 << (idx2 - idx) as usize)-1)
 	}
 }
 

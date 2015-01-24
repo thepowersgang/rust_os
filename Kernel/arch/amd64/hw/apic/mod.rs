@@ -21,6 +21,11 @@ pub struct IRQHandle
 	isr_handle: ::arch::interrupts::ISRHandle,
 }
 
+pub enum IrqError
+{
+	BadIndex,
+	BindFail,
+}
 
 //#[link_section="processor_local"]
 //#[allow(non_upper_case_globals)]
@@ -128,19 +133,23 @@ extern "C" fn lapic_irq_handler(isr: usize, info: *const(), gsi: usize)
 }
 
 /// Registers an interrupt
-pub fn register_irq(global_num: usize, callback: IRQHandler, info: *const() ) -> Result<IRQHandle,()>
+pub fn register_irq(global_num: usize, callback: IRQHandler, info: *const() ) -> Result<IRQHandle,IrqError>
 {
 	// Locate the relevant apic
 	let (ioapic,ofs) = match get_ioapic(global_num) {
 		Some(x) => x,
-		None => return Err( () ),
+		None => return Err( IrqError::BadIndex ),
 		};
 	
 	// 1. Pick a low-loaded processor? 
 	// Bind ISR
 	let isrnum = 32u8;
 	let lapic_id = 0u32;
-	let isr_handle = try!( ::arch::interrupts::bind_isr(isrnum, lapic_irq_handler, info, global_num) );
+	let isr_handle = match ::arch::interrupts::bind_isr(isrnum, lapic_irq_handler, info, global_num)
+		{
+		Ok(v) => v,
+		Err(e) => return Err(IrqError::BindFail),
+		};
 
 	// Enable the relevant IRQ on the LAPIC and IOAPIC
 	ioapic.set_irq(ofs, isrnum, lapic_id, raw::TriggerMode::EdgeHi, callback);
@@ -149,6 +158,18 @@ pub fn register_irq(global_num: usize, callback: IRQHandler, info: *const() ) ->
 		num: global_num,
 		isr_handle: isr_handle,
 		} )
+}
+
+impl ::core::fmt::Display for IrqError
+{
+	fn fmt(&self, f: &mut ::core::fmt::Formatter) -> ::core::fmt::Result
+	{
+		match *self
+		{
+		IrqError::BadIndex => write!(f, "Bad IRQ Number"),
+		IrqError::BindFail => write!(f, "Failed to bind"),
+		}
+	}
 }
 
 impl ::core::fmt::Show for IRQHandle

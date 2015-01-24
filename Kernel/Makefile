@@ -89,13 +89,15 @@ $(OBJDIR)%.ao: arch/$(ARCH)/%.asm Makefile
 $(OBJDIR)kcore.o: Core/main.rs $(OBJDIR)libcore.rlib Makefile $(TARGET_FILE)
 	@echo [RUSTC] -o $@
 	@mkdir -p $(dir $@)
-	$V$(ENV) rustc $(RUSTFLAGS) --emit obj -o $@ $< --dep-info $@.dep $(call LocalLib,core)
+	$V$(ENV) rustc $(RUSTFLAGS) --emit obj -o $@ $< $(call LocalLib,core)
+	$V$(ENV) rustc $(RUSTFLAGS) --emit dep-info -o $@.dep $< $(call LocalLib,core)
 
 # - Locally compiled libcore, needs to not use SSE
 $(OBJDIR)libcore.rlib: $(LIBCORESRC)lib.rs $(TARGET_FILE)
 	@echo [RUSTC] -o $@
 	@mkdir -p $(dir $@)
-	$V$(ENV) rustc $(RUSTFLAGS) --crate-name core -o $@ $< --dep-info $@.dep
+	$V$(ENV) rustc $(RUSTFLAGS) --crate-name core -o $@ $<
+	$V$(ENV) rustc $(RUSTFLAGS) --crate-name core -o $@.dep $< --emit dep-info
 
 -include $(OBJS:%=%.dep)
 

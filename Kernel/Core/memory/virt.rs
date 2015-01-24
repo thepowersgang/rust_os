@@ -4,6 +4,7 @@
 // Core/memory/virt.rs
 // - Virtual memory manager
 use _common::*;
+use core::fmt;
 use arch::memory::addresses;
 
 use arch::memory::{PAddr,VAddr};
@@ -22,10 +23,15 @@ pub enum ProtectionMode
 	UserRX,
 }
 
+pub enum MapError
+{
+	RangeInUse,
+}
+
 pub struct AllocHandle
 {
 	addr: *const (),
-	count: uint,
+	count: usize,
 	mode: ProtectionMode,
 }
 unsafe impl Send for AllocHandle {}
@@ -43,13 +49,13 @@ pub fn init()
 }
 
 /// Ensure that the provded pages are valid (i.e. backed by memory)
-pub fn allocate(addr: *mut (), page_count: uint)
+pub fn allocate(addr: *mut (), page_count: usize)
 {
 	use arch::memory::addresses::is_global;
 
-	let pagenum = addr as uint / ::PAGE_SIZE;
+	let pagenum = addr as usize / ::PAGE_SIZE;
 	// 1. Lock
-	let _lh = if is_global(addr as uint) { s_kernelspace_lock.lock() } else { s_userspace_lock.lock() };
+	let _lh = if is_global(addr as usize) { s_kernelspace_lock.lock() } else { s_userspace_lock.lock() };
 	// 2. Ensure range is free
 	for pg in range(pagenum, pagenum+page_count)
 	{
@@ -79,11 +85,11 @@ pub fn map(addr: *mut (), phys: PAddr, prot: ProtectionMode)
 	}
 }
 
-fn unmap(addr: *mut (), count: uint)
+fn unmap(addr: *mut (), count: usize)
 {
 	log_trace!("unmap(*{:p} {})", addr, count);
 	let _lock = s_kernelspace_lock.lock();
-	let pos = addr as uint;
+	let pos = addr as usize;
 	
 	let ofs = pos & (::PAGE_SIZE - 1);
 	if ofs != 0 {
@@ -105,14 +111,14 @@ pub fn map_short(phys: PAddr) -> AllocHandle
 */
 
 /// Create a long-standing MMIO/other hardware mapping
-pub fn map_hw_ro(phys: PAddr, count: uint, module: &'static str) -> Result<AllocHandle,()> {
+pub fn map_hw_ro(phys: PAddr, count: usize, module: &'static str) -> Result<AllocHandle,MapError> {
 	map_hw(phys, count, true, module)
 }
-pub fn map_hw_rw(phys: PAddr, count: uint, module: &'static str) -> Result<AllocHandle,()> {
+pub fn map_hw_rw(phys: PAddr, count: usize, module: &'static str) -> Result<AllocHandle,MapError> {
 	map_hw(phys, count, false, module)
 }
 
-fn map_hw(phys: PAddr, count: uint, readonly: bool, _module: &'static str) -> Result<AllocHandle,()>
+fn map_hw(phys: PAddr, count: usize, readonly: bool, _module: &'static str) -> Result<AllocHandle,MapError>
 {
 	let mode = if readonly { ProtectionMode::KernelRO } else { ProtectionMode::KernelRW };
 	// 1. Locate an area
@@ -123,7 +129,7 @@ fn map_hw(phys: PAddr, count: uint, readonly: bool, _module: &'static str) -> Re
 	{
 		if addresses::HARDWARE_END - pos < count * ::PAGE_SIZE 
 		{
-			return Err( () );
+			return Err( MapError::RangeInUse );
 		}
 		let free = count_free_in_range(pos as *const Page, count);
 		if free == count {
@@ -148,11 +154,11 @@ fn map_hw(phys: PAddr, count: uint, readonly: bool, _module: &'static str) -> Re
 		} )
 }
 
-fn count_free_in_range(addr: *const Page, count: uint) -> uint
+fn count_free_in_range(addr: *const Page, count: usize) -> usize
 {
 	for i in range(0, count)
 	{
-		let pg = unsafe { addr.offset(i as int) };
+		let pg = unsafe { addr.offset(i as isize) };
 		if ::arch::memory::virt::is_reserved( pg ) {
 			return i;
 		}
@@ -160,22 +166,35 @@ fn count_free_in_range(addr: *const Page, count: uint) -> uint
 	return count;
 }
 
+impl fmt::Display for MapError
+{
+	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result
+	{
+		match *self
+		{
+		MapError::RangeInUse => write!(f, "Requested range is in use"),
+		}
+	}
+}
+
 impl AllocHandle
 {
-	pub fn as_ref<'s,T>(&'s self, ofs: uint) -> &'s mut T
+	pub fn as_ref<'s,T>(&'s self, ofs: usize) -> &'s mut T
 	{
+		assert!(ofs % ::core::mem::align_of::<T>() == 0);
 		assert!(ofs + ::core::mem::size_of::<T>() <= self.count * ::PAGE_SIZE);
-		unsafe{ &mut *((self.addr as uint + ofs) as *mut T) }
+		unsafe{ &mut *((self.addr as usize + ofs) as *mut T) }
 	}
 	/// Forget the allocation and return a static reference to the data
-	pub fn make_static<T>(&mut self, ofs: uint) -> &'static mut T
+	pub fn make_static<T>(mut self, ofs: usize) -> &'static mut T
 	{
+		assert!(ofs % ::core::mem::align_of::<T>() == 0);
 		assert!(ofs + ::core::mem::size_of::<T>() <= self.count * ::PAGE_SIZE);
 		self.count = 0;
-		unsafe{ &mut *((self.addr as uint + ofs) as *mut T) }
+		unsafe{ &mut *((self.addr as usize + ofs) as *mut T) }
 	}
 
-	pub fn as_slice<T>(&self, ofs: uint, count: uint) -> &[T]
+	pub fn as_slice<T>(&self, ofs: usize, count: usize) -> &[T]
 	{
 		assert!( ofs % ::core::mem::align_of::<T>() == 0 );	// Align check
 		assert!( ofs <= self.count * ::PAGE_SIZE );
@@ -183,12 +202,12 @@ impl AllocHandle
 		assert!( ofs + count * ::core::mem::size_of::<T>() <= self.count * ::PAGE_SIZE );
 		unsafe {
 			::core::mem::transmute( ::core::raw::Slice {
-				data: (self.addr as uint + ofs) as *const T,
+				data: (self.addr as usize + ofs) as *const T,
 				len: count,
 			} )
 		}
 	}
-	pub fn as_mut_slice<T>(&mut self, ofs: uint, count: uint) -> &mut [T]
+	pub fn as_mut_slice<T>(&mut self, ofs: usize, count: usize) -> &mut [T]
 	{
 		assert!( self.mode == ProtectionMode::KernelRW );
 		unsafe {

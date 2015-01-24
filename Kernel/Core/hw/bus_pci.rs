@@ -95,7 +95,7 @@ impl ::device_manager::BusDevice for PCIDev
 		// Nope
 		panic!("TODO: Set power state of PCI devices (state={})", state);
 	}
-	fn bind_io(&mut self, block_id: uint) -> ::device_manager::IOBinding
+	fn bind_io(&mut self, block_id: usize) -> ::device_manager::IOBinding
 	{
 		panic!("TODO: PCIDev::bind_io(block_id={})", block_id);
 	}

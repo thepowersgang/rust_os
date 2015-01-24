@@ -72,7 +72,6 @@ pub extern "C" fn kmain()
 	None => log_debug!("No video mode present")
 	}
 	
-	panic!("Testing!");
 	// Thread 0 idle loop
 	log_info!("Entering idle");
 	loop

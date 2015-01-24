@@ -332,7 +332,7 @@ impl<T> SDTHandle<T>
 			}
 	}
 	
-	pub fn make_static(&mut self) -> &'static SDT<T>
+	pub fn make_static(self) -> &'static SDT<T>
 	{
 		self.maphandle.make_static::<SDT<T>>(self.ofs)
 	}

@@ -10,7 +10,7 @@ pub struct Rc<T>
 
 struct RcInner<T>
 {
-	count: uint,
+	count: usize,
 	val: T,
 }
 

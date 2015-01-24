@@ -11,7 +11,7 @@ impl String
 	pub fn new() -> String {
 		String(Vec::new())
 	}
-	pub fn with_capacity(cap: uint) -> String {
+	pub fn with_capacity(cap: usize) -> String {
 		String(Vec::with_capacity(cap))
 	}
 	pub fn from_str(string: &str) -> String {
@@ -26,11 +26,21 @@ impl String
 	}
 }
 
+impl ::core::ops::Deref for String
+{
+	type Target = str;
+	fn deref(&self) -> &str
+	{
+		let &String(ref v) = self;
+		unsafe { ::core::mem::transmute( v.as_slice() ) }
+	}
+}
+
 impl ::core::fmt::String for String
 {
 	fn fmt(&self, f: &mut ::core::fmt::Formatter) -> Result<(),::core::fmt::Error>
 	{
-		self.as_slice().fmt(f)
+		::core::fmt::Display::fmt(self.as_slice(), f)
 	}
 }
 

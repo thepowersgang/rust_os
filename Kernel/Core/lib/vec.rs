@@ -16,8 +16,8 @@ use lib::collections::{MutableSeq};
 pub struct Vec<T>
 {
 	data: *mut T,
-	size: uint,
-	capacity: uint,
+	size: usize,
+	capacity: usize,
 }
 // Sendable if the innards are sendable
 unsafe impl<T: Send> Send for Vec<T> {}
@@ -26,8 +26,8 @@ unsafe impl<T: Send> Send for Vec<T> {}
 pub struct MoveItems<T>
 {
 	data: *mut T,
-	count: uint,
-	ofs: uint,
+	count: usize,
+	ofs: usize,
 }
 
 impl<T> Vec<T>
@@ -38,7 +38,7 @@ impl<T> Vec<T>
 		Vec::with_capacity(0)
 	}
 	/// Create a vector with an initialised capacity
-	pub fn with_capacity(size: uint) -> Vec<T>
+	pub fn with_capacity(size: usize) -> Vec<T>
 	{
 		Vec {
 			data: unsafe { ::memory::heap::alloc_array::<T>( size ) },
@@ -47,9 +47,9 @@ impl<T> Vec<T>
 		}
 	}
 	/// Populate vector using a provided callback
-	pub fn from_fn<Fcn>(length: uint, op: Fcn) -> Vec<T>
+	pub fn from_fn<Fcn>(length: usize, op: Fcn) -> Vec<T>
 	where
-		Fcn: Fn(uint) -> T
+		Fcn: Fn(usize) -> T
 	{
 		let mut ret = Vec::with_capacity(length);
 		for i in range(0, length) {
@@ -59,12 +59,12 @@ impl<T> Vec<T>
 	}
 
 	/// Obtain a mutable pointer to an item within the vector
-	fn get_mut_ptr(&mut self, index: uint) -> *mut T
+	fn get_mut_ptr(&mut self, index: usize) -> *mut T
 	{
 		if index >= self.size {
 			panic!("Index out of range, {} >= {}", index, self.size);
 		}
-		unsafe { self.data.offset(index as int) }
+		unsafe { self.data.offset(index as isize) }
 	}
 	
 	/// Move contents into an iterator (consuming self)
@@ -80,7 +80,7 @@ impl<T> Vec<T>
 		}
 	}
 	
-	fn reserve(&mut self, size: uint)
+	fn reserve(&mut self, size: usize)
 	{
 		let newcap = ::lib::num::round_up(size, 1 << (64-size.leading_zeros()));
 		if newcap > self.capacity
@@ -88,8 +88,8 @@ impl<T> Vec<T>
 			unsafe {
 				let newptr = ::memory::heap::alloc_array::<T>( newcap );
 				for i in range(0, self.size) {
-					let val = self.move_ent(i as uint);
-					::core::ptr::write(newptr.offset(i as int), val);
+					let val = self.move_ent(i as usize);
+					::core::ptr::write(newptr.offset(i as isize), val);
 				}
 				if self.capacity > 0 {
 					::memory::heap::deallocate( self.data );
@@ -106,9 +106,9 @@ impl<T> Vec<T>
 	}
 	
 	/// Move out of a slot in the vector, leaving unitialise memory in its place
-	unsafe fn move_ent(&mut self, pos: uint) -> T
+	unsafe fn move_ent(&mut self, pos: usize) -> T
 	{
-		::core::ptr::read(self.data.offset(pos as int) as *const _)
+		::core::ptr::read(self.data.offset(pos as isize) as *const _)
 	}
 }
 
@@ -128,7 +128,7 @@ impl<T> DerefMut for Vec<T>
 
 impl<T:Clone> Vec<T>
 {
-	pub fn from_elem(size: uint, elem: T) -> Vec<T>
+	pub fn from_elem(size: usize, elem: T) -> Vec<T>
 	{
 		Vec::from_fn( size, |_| elem.clone() )
 	}
@@ -158,26 +158,26 @@ impl<T> Drop for Vec<T>
 	}
 }
 
-impl<T> Index<uint> for Vec<T>
+impl<T> Index<usize> for Vec<T>
 {
 	type Output = T;
-	fn index<'a>(&'a self, index: &uint) -> &'a T
+	fn index<'a>(&'a self, index: &usize) -> &'a T
 	{
 		if *index >= self.size {
 			panic!("Index out of range, {} >= {}", index, self.size);
 		}
-		unsafe { &*self.data.offset(*index as int) }
+		unsafe { &*self.data.offset(*index as isize) }
 	}
 }
-impl<T> IndexMut<uint> for Vec<T>
+impl<T> IndexMut<usize> for Vec<T>
 {
-	type Output = T;	//< Shouldn't be needed, but ICEs without it
-	fn index_mut<'a>(&'a mut self, index: &uint) -> &'a mut T
+	type Output = T;
+	fn index_mut<'a>(&'a mut self, index: &usize) -> &'a mut T
 	{
 		if *index >= self.size {
 			panic!("Index out of range, {} >= {}", index, self.size);
 		}
-		unsafe { &mut *self.data.offset(*index as int) }
+		unsafe { &mut *self.data.offset(*index as isize) }
 	}
 }
 
@@ -245,7 +245,7 @@ impl<T> MoveItems<T>
 		//log_debug!("MoveItems.pop_item() ofs={}, count={}, data={}", self.ofs, self.count, self.data);
 		assert!(self.ofs < self.count);
 		let v: T = unsafe {
-			let ptr = self.data.offset(self.ofs as int);
+			let ptr = self.data.offset(self.ofs as isize);
 			::core::ptr::read(ptr as *const _)
 			};
 		//log_debug!("MoveItems.pop_item() v = {}", HexDump(&v));

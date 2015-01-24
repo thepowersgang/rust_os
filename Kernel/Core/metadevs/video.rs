@@ -20,7 +20,7 @@ module_define!{Video, [], init}
 //}
 pub struct FramebufferRegistration
 {
-	reg_id: uint,
+	reg_id: usize,
 }
 
 #[derive(Copy,PartialEq)]
