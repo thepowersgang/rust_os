@@ -126,7 +126,7 @@ impl Thread
 	}
 }
 
-impl ::core::fmt::Show for Thread
+impl ::core::fmt::Debug for Thread
 {
 	fn fmt(&self, f: &mut ::core::fmt::Formatter) -> Result<(),::core::fmt::Error>
 	{

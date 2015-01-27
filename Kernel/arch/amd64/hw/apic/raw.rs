@@ -40,6 +40,7 @@ pub enum TriggerMode
 #[allow(dead_code)]
 #[repr(u8)]
 #[derive(Copy)]
+#[allow(non_camel_case_types)]
 enum ApicReg
 {
 	LAPIC_ID  = 0x2,

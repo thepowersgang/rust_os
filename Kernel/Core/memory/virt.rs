@@ -6,12 +6,11 @@
 use _common::*;
 use core::fmt;
 use arch::memory::addresses;
-
-use arch::memory::{PAddr,VAddr};
+use arch::memory::PAddr;
 
 type Page = [u8; ::PAGE_SIZE];
 
-#[derive(PartialEq,Show,Copy)]
+#[derive(PartialEq,Debug,Copy)]
 pub enum ProtectionMode
 {	
 	Unmapped,	// Inaccessible
@@ -23,6 +22,7 @@ pub enum ProtectionMode
 	UserRX,
 }
 
+#[derive(Copy,Debug)]
 pub enum MapError
 {
 	RangeInUse,

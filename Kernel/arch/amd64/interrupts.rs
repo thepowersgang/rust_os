@@ -24,13 +24,13 @@ pub struct InterruptRegs
 #[repr(C)]
 pub type ISRHandler = extern "C" fn(isrnum: usize,info:*const(),idx:usize);
 
-#[derive(Copy)]
 struct IRQHandlersEnt
 {
 	handler: Option<ISRHandler>,
 	info: *const(),
 	idx: usize,
 }
+impl Copy for IRQHandlersEnt {}
 unsafe impl Send for IRQHandlersEnt {}
 
 #[derive(Default)]
@@ -117,8 +117,14 @@ fn get_cr2() -> u64
 	}
 }
 
+#[derive(Debug,Copy)]
+pub enum BindISRError
+{
+	Used,
+}
+
 /// Bind a callback (and params) to an allocatable ISR
-pub fn bind_isr(isr: u8, callback: ISRHandler, info: *const(), idx: usize) -> Result<ISRHandle,()>
+pub fn bind_isr(isr: u8, callback: ISRHandler, info: *const(), idx: usize) -> Result<ISRHandle,BindISRError>
 {
 	log_trace!("bind_isr(isr={},callback={:?},info={:?},idx={})",
 		isr, callback as *const u8, info, idx);
@@ -128,7 +134,7 @@ pub fn bind_isr(isr: u8, callback: ISRHandler, info: *const(), idx: usize) -> Re
 	let h = &mut _mh[isr as usize];
 	log_trace!("&h = {:?}", h as *mut _);
 	if h.handler.is_some() {
-		return Err( () );
+		return Err( BindISRError::Used );
 	}
 	*h = IRQHandlersEnt {
 		handler: Some(callback),

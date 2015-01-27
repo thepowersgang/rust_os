@@ -179,7 +179,7 @@ fn read_word(bus_addr: u16, wordidx: u8) -> u32
 }
 
 
-impl ::core::fmt::Show for PCIDev
+impl ::core::fmt::Debug for PCIDev
 {
 	fn fmt(&self, f: &mut ::core::fmt::Formatter) -> ::core::result::Result<(),::core::fmt::Error>
 	{

@@ -177,6 +177,9 @@ impl CrtcAttrs
 
 impl ::metadevs::video::Framebuffer for VgaFramebuffer
 {
+	fn as_any(&self) -> &Any {
+		self as &Any
+	}
 	fn get_size(&self) -> Rect {
 		// 320x200x 8bpp
 		Rect::new( 0,0, self.w as u16, self.h as u16 )
@@ -190,12 +193,11 @@ impl ::metadevs::video::Framebuffer for VgaFramebuffer
 		panic!("TODO: VGA blit_inner {} to {}", src, dst);
 	}
 	fn blit_ext(&mut self, dst: Rect, src: Rect, srf: &Framebuffer) -> bool {
-		//match srf.downcast_ref::<VgaFramebuffer>()
-		//{
-		//Some(_) => panic!("TODO: VGA blit_ext {} to  {}", src, dst),
-		//None => false,
-		//}
-		false
+		match srf.as_any().downcast_ref::<VgaFramebuffer>()
+		{
+		Some(_) => panic!("TODO: VGA blit_ext {} to  {}", src, dst),
+		None => false,
+		}
 	}
 	fn blit_buf(&mut self, dst: Rect, buf: &[u32]) {
 		panic!("TODO: VGA blit_buf {} pixels to {}", buf.len(), dst);

@@ -14,7 +14,6 @@ OBJS := start.ao kcore.o libcore.rlib
 -include BuildNum.$(ARCH).mk
 BUILDNUM ?= 1
 
-
 V ?= @
 
 nop :=
@@ -27,19 +26,21 @@ LocalLib = --extern $1=$(OBJDIR)lib$1.rlib
 EXCLUDE_FEATURES := 3dnow avx avx2 sse sse2 sse3 sse4.1 sse4.2 mmx
 TARGET_FILE := arch/$(ARCH)/target.json
 
+OBJDIR := .obj/$(ARCH)/
+
 RUSTFLAGS := --crate-type lib
 RUSTFLAGS += -O
 #RUSTFLAGS += -g
 #RUSTFLAGS += --debuginfo 1
 #RUSTFLAGS += -C code-model=kernel
-RUSTFLAGS += -C soft-float
+RUSTFLAGS += -C soft-float	# Disables requiring SSE etc
 RUSTFLAGS += -C target-feature=$(subst $(space),$(comma),$(EXCLUDE_FEATURES:%=-%))
 RUSTFLAGS += --cfg arch__$(ARCH)
-#RUSTFLAGS += -Z time-passes
 RUSTFLAGS += --target=$(TARGET_FILE)
+#RUSTFLAGS += -Z time-passes
 
-LINKFLAGS := -z max-page-size=0x1000 -g
-LINKFLAGS += -T arch/$(ARCH)/link.ld -Map $(OBJDIR)map.txt
+LINKFLAGS := -T arch/$(ARCH)/link.ld -Map $(OBJDIR)map.txt -g
+LINKFLAGS += -z max-page-size=0x1000	# Reduces binary size
 LINKFLAGS += --gc-sections	# Prevents complaining about floating point methods
 
 ENV := RUST_VERSION="$(shell rustc --version)"
@@ -52,14 +53,13 @@ PREFIX := $(shell pwd)/.prefix/$(OBJDIR)/
 ifneq ($(USE_RUST_MASTER),)
 RUSTSRC := /home/tpg/Source/rust/rust-master/
 else
-RUSTSRC := /home/tpg/Source/rust/rust-nightly/
+RUSTSRC := /home/tpg/Source/rust/rustc-nightly/
 endif
 LIBCORESRC := $(RUSTSRC)src/libcore/
 LIBGCC := /home/tpg/apps/lib/gcc/$(TRIPLE)/4.7.1/libgcc.a
 
 RUSTC := $(PREFIX)bin/rustc
 
-OBJDIR := .obj/$(ARCH)/
 OBJS := $(OBJS:%=$(OBJDIR)%)
 
 all: kernel-$(ARCH).bin
@@ -75,7 +75,7 @@ run: kernel-$(ARCH).bin
 
 kernel-$(ARCH).bin: $(OBJS) arch/$(ARCH)/link.ld Makefile
 	@echo [LD] -o $@
-	@$(TRIPLE)-ld -o $@ $(OBJS) $(LIBCORE) $(LIBGCC) $(LINKFLAGS)
+	@$(TRIPLE)-ld -o $@ $(OBJS) $(LIBGCC) $(LINKFLAGS)
 	@objcopy $@ -F elf32-i386 $@.elf32
 	#@mcopy -i fdd.img $@.elf32 ::/ -D o
 	@objdump -S $@ > $@.dsm
@@ -84,20 +84,21 @@ kernel-$(ARCH).bin: $(OBJS) arch/$(ARCH)/link.ld Makefile
 $(OBJDIR)%.ao: arch/$(ARCH)/%.asm Makefile
 	@echo [AS] -o $@
 	@mkdir -p $(dir $@)
-	@nasm -o $@ $< -f elf64 -MD $@.dep -MP
+	@nasm -o $@ $< -f elf64 -MD $@.d -MP
 
 $(OBJDIR)kcore.o: Core/main.rs $(OBJDIR)libcore.rlib Makefile $(TARGET_FILE)
 	@echo [RUSTC] -o $@
 	@mkdir -p $(dir $@)
-	$V$(ENV) rustc $(RUSTFLAGS) --emit obj -o $@ $< $(call LocalLib,core)
-	$V$(ENV) rustc $(RUSTFLAGS) --emit dep-info -o $@.dep $< $(call LocalLib,core)
+	$V$(ENV) rustc $(RUSTFLAGS) --emit obj,dep-info -o $@ $< $(call LocalLib,core)
 
 # - Locally compiled libcore, needs to not use SSE
 $(OBJDIR)libcore.rlib: $(LIBCORESRC)lib.rs $(TARGET_FILE)
 	@echo [RUSTC] -o $@
 	@mkdir -p $(dir $@)
-	$V$(ENV) rustc $(RUSTFLAGS) --crate-name core -o $@ $<
-	$V$(ENV) rustc $(RUSTFLAGS) --crate-name core -o $@.dep $< --emit dep-info
+	$V$(ENV) rustc $(RUSTFLAGS) --emit=link,dep-info --crate-name core -o $@ $<
 
--include $(OBJS:%=%.dep)
+-include $(OBJDIR)kcore.d
+-include $(OBJDIR)libcore.d
+#-include $(OBJS:%.ao=%.ao.d)
+
 

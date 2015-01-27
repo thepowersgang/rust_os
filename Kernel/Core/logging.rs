@@ -29,7 +29,7 @@ pub struct HexDump<'a,T:'a>(pub &'a T);
 #[allow(non_upper_case_globals)]
 static s_logging_lock: ::arch::sync::Spinlock<()> = spinlock_init!( () );
 
-impl ::core::fmt::String for Level
+impl ::core::fmt::Display for Level
 {
 	fn fmt(&self, f: &mut ::core::fmt::Formatter) -> ::core::fmt::Result {
 		write!(f, "{}",
@@ -88,7 +88,7 @@ impl<'a,T:'a> HexDump<'a,T>
 	}
 }
 
-impl<'a,T:'a> ::core::fmt::Show for HexDump<'a,T>
+impl<'a,T:'a> ::core::fmt::Debug for HexDump<'a,T>
 {
 	fn fmt(&self, f: &mut ::core::fmt::Formatter) -> ::core::fmt::Result
 	{

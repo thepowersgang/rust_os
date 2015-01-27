@@ -38,8 +38,10 @@ pub struct Rect
  * A single framebuffer can be bound to multiple outputs (as a mirror).
  * Multiple separate outputs are handled with multiple framebuffers
  */
-pub trait Framebuffer: Any
+pub trait Framebuffer:
 {
+	fn as_any(&self) -> &Any;
+	
 	fn get_size(&self) -> Rect;
 	fn set_size(&mut self, newsize: Rect) -> bool;
 	
@@ -97,7 +99,7 @@ impl Rect
 	}
 }
 
-impl ::core::fmt::String for Rect
+impl ::core::fmt::Display for Rect
 {
 	fn fmt(&self, f: &mut ::core::fmt::Formatter) -> Result<(),::core::fmt::Error>
 	{

@@ -36,9 +36,9 @@ impl ::core::ops::Deref for String
 	}
 }
 
-impl ::core::fmt::String for String
+impl ::core::fmt::Display for String
 {
-	fn fmt(&self, f: &mut ::core::fmt::Formatter) -> Result<(),::core::fmt::Error>
+	fn fmt(&self, f: &mut ::core::fmt::Formatter) -> ::core::fmt::Result
 	{
 		::core::fmt::Display::fmt(self.as_slice(), f)
 	}

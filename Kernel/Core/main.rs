@@ -10,6 +10,7 @@
 #![feature(unsafe_destructor)]
 #![feature(thread_local)]
 #![feature(lang_items)]
+#![allow(unstable)]	// stfu rustc
 
 #[macro_use] extern crate core;
 

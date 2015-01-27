@@ -12,9 +12,9 @@ unsafe impl<T: ?Sized+Send> Send for Box<T>
 {
 }
 
-impl<T: ?Sized> ::core::fmt::Show for Box<T>
+impl<T: ?Sized> ::core::fmt::Debug for Box<T>
 where
-	T: ::core::fmt::Show
+	T: ::core::fmt::Debug
 {
 	fn fmt(&self, f: &mut ::core::fmt::Formatter) -> ::core::result::Result<(),::core::fmt::Error>
 	{

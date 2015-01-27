@@ -4,7 +4,7 @@
 use _common::*;
 use arch::memory::{PAddr};
 
-#[derive(PartialEq,Show,Copy)]
+#[derive(PartialEq,Debug,Copy)]
 pub enum MemoryState
 {
 	Reserved,
@@ -34,7 +34,7 @@ pub struct MemoryMapBuilder<'buf>
 	size: usize,
 }
 
-impl ::core::fmt::Show for MemoryMapEnt
+impl ::core::fmt::Debug for MemoryMapEnt
 {
 	fn fmt(&self, f: &mut ::core::fmt::Formatter) -> ::core::fmt::Result {
 		write!(f, "{:#x}+{:#x} {:?} Domain {}", self.start, self.size, self.state, self.domain)

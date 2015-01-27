@@ -7,7 +7,7 @@ use PAGE_SIZE;
 
 static MASK_VBITS : usize = 0x0000FFFF_FFFFFFFF;
 
-#[derive(PartialEq,Show)]
+#[derive(PartialEq,Debug)]
 enum PTEPos
 {
 	Absent,
@@ -174,7 +174,7 @@ impl PTE
 	}
 }
 
-impl ::core::fmt::Show for PTE
+impl ::core::fmt::Debug for PTE
 {
 	fn fmt(&self, f: &mut ::core::fmt::Formatter) -> ::core::fmt::Result {
 		unsafe { write!(f, "PTE({:?}, *{:?}={:#x})", self.pos, self.data, *self.data) }

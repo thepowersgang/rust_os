@@ -21,10 +21,11 @@ pub struct IRQHandle
 	isr_handle: ::arch::interrupts::ISRHandle,
 }
 
+#[derive(Debug,Copy)]
 pub enum IrqError
 {
 	BadIndex,
-	BindFail,
+	BindFail(::arch::interrupts::BindISRError),
 }
 
 //#[link_section="processor_local"]
@@ -148,7 +149,7 @@ pub fn register_irq(global_num: usize, callback: IRQHandler, info: *const() ) ->
 	let isr_handle = match ::arch::interrupts::bind_isr(isrnum, lapic_irq_handler, info, global_num)
 		{
 		Ok(v) => v,
-		Err(e) => return Err(IrqError::BindFail),
+		Err(e) => return Err(IrqError::BindFail(e)),
 		};
 
 	// Enable the relevant IRQ on the LAPIC and IOAPIC
@@ -160,19 +161,19 @@ pub fn register_irq(global_num: usize, callback: IRQHandler, info: *const() ) ->
 		} )
 }
 
-impl ::core::fmt::Display for IrqError
-{
-	fn fmt(&self, f: &mut ::core::fmt::Formatter) -> ::core::fmt::Result
-	{
-		match *self
-		{
-		IrqError::BadIndex => write!(f, "Bad IRQ Number"),
-		IrqError::BindFail => write!(f, "Failed to bind"),
-		}
-	}
-}
+//impl ::core::fmt::Display for IrqError
+//{
+//	fn fmt(&self, f: &mut ::core::fmt::Formatter) -> ::core::fmt::Result
+//	{
+//		match *self
+//		{
+//		IrqError::BadIndex => write!(f, "Bad IRQ Number"),
+//		IrqError::BindFail(e) => write!(f, "Failed to bind: {}", e),
+//		}
+//	}
+//}
 
-impl ::core::fmt::Show for IRQHandle
+impl ::core::fmt::Debug for IRQHandle
 {
 	fn fmt(&self, f: &mut ::core::fmt::Formatter) -> Result<(),::core::fmt::Error>
 	{
