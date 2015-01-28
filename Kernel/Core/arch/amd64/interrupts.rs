@@ -66,7 +66,7 @@ pub extern "C" fn error_handler(regs: &InterruptRegs)
 	puts("CR2 = "); puth(get_cr2()); puts("\n");
 	puts("RAX "); puth(regs.rax); puts("  RCX "); puth(regs.rcx); puts("\n");
 	puts("RDX "); puth(regs.rdx); puts("  RBX "); puth(regs.rbx); puts("\n");
-	if regs.intnum != 3
+	if regs.intnum != 3 && regs.intnum != 2
 	{
 		let mut bp = regs.rbp;
 		while let Some((newbp, ip)) = backtrace(bp)

@@ -39,6 +39,7 @@ pub trait BusDevice:
 pub trait Driver:
 	Send
 {
+	fn name(&self) -> &str;
 	fn bus_type(&self) -> &str;
 	fn handles(&self, bus_dev: &BusDevice) -> DriverHandleLevel;
 	fn bind(&self, bus_dev: &BusDevice) -> Box<DriverInstance>;
@@ -89,12 +90,15 @@ pub fn register_bus(manager: &'static BusManager, devices: Vec<Box<BusDevice>>)
 pub fn register_driver(driver: &'static (Driver+Send))
 {
 	s_driver_list.lock().push(driver);
+	log_debug!("Registering driver {}", driver.name());
 	// Iterate known devices and spin up instances if needed
-	for bus in s_root_busses.lock().items_mut()
+	for bus in s_root_busses.lock().iter_mut()
 	{
+		log_trace!("bus type {}", bus.manager.bus_type());
 		for dev in bus.devices.iter_mut()
 		{
 			let rank = driver.handles(&*dev.bus_dev);
+			log_debug!("rank = {:?}", rank);
 			if rank == 0
 			{
 				// SKIP!
@@ -134,7 +138,7 @@ fn find_driver(bus: &BusManager, bus_dev: &BusDevice) -> Option<(Box<DriverInsta
 	log_debug!("Finding driver for {}:{:x}", bus.bus_type(), bus_dev.addr());
 	let mut best_ranking = 0;
 	let mut best_driver = None;
-	for driver in s_driver_list.lock().items()
+	for driver in s_driver_list.lock().iter()
 	{
 		if bus.bus_type() == driver.bus_type()
 		{

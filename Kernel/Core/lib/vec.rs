@@ -122,7 +122,7 @@ impl<T> Deref for Vec<T>
 impl<T> DerefMut for Vec<T>
 {
 	fn deref_mut(&mut self) -> &mut [T] {
-		self.as_mut_slice()
+		self.slice_mut()
 	}
 }
 

@@ -61,8 +61,10 @@ impl<T> ::core::ops::DerefMut for LazyStatic<T>
 	}
 }
 
+/// An equivalemnt of Option<*const T> which cannot be NULL
 pub struct OptPtr<T>(pub *const T);
 unsafe impl<T: Send> Send for OptPtr<T> {}
+/// An equivalemnt of Option<*mut T> which cannot be NULL
 pub struct OptMutPtr<T>(pub *mut T);
 unsafe impl<T: Send> Send for OptMutPtr<T> {}
 
@@ -88,6 +90,10 @@ impl<T> OptPtr<T>
 	}
 	pub unsafe fn as_mut(&self) -> OptMutPtr<T> {
 		::core::mem::transmute(self)
+	}
+	/// This is HIGHLY unsafe
+	pub unsafe fn as_mut_ref(&self) -> Option<&mut T> {
+		::core::mem::transmute(self.as_ref())
 	}
 }
 

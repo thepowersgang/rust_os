@@ -4,8 +4,9 @@
 // Core/hw/vga/crtc.rs
 // - VGA CRTC Handler
 //
-use _common::*;
-use lib::UintBits;
+use kernel::_common::*;
+use kernel::lib::UintBits;
+use kernel::arch::x86_io;
 
 pub struct CrtcRegs
 {
@@ -156,8 +157,8 @@ impl CrtcRegs
 		for (idx,val) in self.regs.iter_mut().enumerate()
 		{
 			unsafe {
-				::arch::x86_io::outb(base + 0, idx as u8);
-				*val = ::arch::x86_io::inb(base + 1);
+				x86_io::outb(base + 0, idx as u8);
+				*val = x86_io::inb(base + 1);
 			}
 		}
 	}
@@ -167,8 +168,8 @@ impl CrtcRegs
 		for (idx,val) in self.regs.iter().enumerate()
 		{
 			unsafe {
-				::arch::x86_io::outb(base + 0, idx as u8);
-				::arch::x86_io::outb(base + 1, *val);
+				x86_io::outb(base + 0, idx as u8);
+				x86_io::outb(base + 1, *val);
 			}
 		}
 	}

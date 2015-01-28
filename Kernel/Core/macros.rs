@@ -1,11 +1,13 @@
 //
 //
 //
+#[macro_export]
 macro_rules! is
 {
 	($val:expr, $p:pat) => ( match $val { $p => true, _ => false } );
 }
 
+#[macro_export]
 macro_rules! _count
 {
 	() => {0};
@@ -13,25 +15,20 @@ macro_rules! _count
 	($a:ident, $($b:ident)+) => {1+_count!($($b),+)};
 }
 
-macro_rules! module_define_int
+#[macro_export]
+macro_rules! module_define
 {
-	($name:ident, $count:expr, $deps:expr, $init:path) => (
+	($name:ident, [$($deps:ident),*], $init:path) => (
 		//#[assume_reachable]
 		#[link_section = ".MODULE_LIST"]
-		pub static mut _s_module: ::modules::ModuleInfo = ::modules::ModuleInfo {
+		pub static mut _s_module: $crate::modules::ModuleInfo = $crate::modules::ModuleInfo {
 			name: stringify!($name),
 			init: $init,
 			deps: &S_DEPS,
 			_rsvd: 0,
 		};
-		static S_DEPS: [&'static str; ($count)] = $deps;
+		static S_DEPS: [&'static str; _count!($($deps),*)] = [$(stringify!($deps)),*];
 	);
-}
-
-macro_rules! module_define
-{
-	($name:ident, [], $init:path) => (module_define_int!{$name, 0, [], $init});
-	($name:ident, [$($deps:ident),+], $init:path) => (module_define_int!{$name, _count!($($deps),+), [$(stringify!($deps)),+], $init});
 }
 
 // vim: ft=rust

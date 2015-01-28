@@ -4,6 +4,7 @@
 // Core/main.rs
 // - Kernel main
 #![crate_name="kernel"]
+#![crate_type="lib"]
 #![no_std]
 #![feature(asm)]
 #![feature(box_syntax)]
@@ -12,6 +13,7 @@
 #![feature(lang_items)]
 #![allow(unstable)]	// stfu rustc
 
+#[macro_reexport(assert,panic,write)]
 #[macro_use] extern crate core;
 
 use _common::*;
@@ -20,7 +22,7 @@ pub use arch::memory::PAGE_SIZE;
 
 #[macro_use] pub mod logmacros;
 #[macro_use] pub mod macros;
-#[macro_use] #[cfg(arch__amd64)] #[path="../arch/amd64/macros.rs"] pub mod arch_macros;	// Needs to be pub for exports to be avaliable
+#[macro_use] #[cfg(arch__amd64)] #[path="arch/amd64/macros.rs"] pub mod arch_macros;	// Needs to be pub for exports to be avaliable
 
 // Evil Hack: For some reason, write! (and friends) will expand pointing to std instead of core
 mod std {
@@ -29,10 +31,13 @@ mod std {
 	pub use lib::clone;
 	pub use core::marker;	// needed for derive(Copy)
 }
-mod _common;
+pub mod _common;
 
-#[macro_use] pub mod lib;	// Clone of libstd
-#[macro_use] mod sync;
+#[macro_use]
+pub mod lib;	// Clone of libstd
+#[macro_use]
+mod sync;
+
 mod logging;
 pub mod memory;
 pub mod threads;
@@ -46,7 +51,7 @@ pub mod device_manager;
 pub mod unwind;
 
 #[macro_use]
-#[cfg(arch__amd64)] #[path="../arch/amd64/crate.rs"] pub mod arch;	// Needs to be pub for exports to be avaliable
+#[cfg(arch__amd64)] #[path="arch/amd64/crate.rs"] pub mod arch;	// Needs to be pub for exports to be avaliable
 
 #[no_mangle]
 pub extern "C" fn kmain()

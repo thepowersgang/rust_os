@@ -3,7 +3,7 @@
 ;
 ; arch/amd64/start.asm
 ; - AMD64/IA-32e boot shim
-%include "arch/amd64/common.inc.asm"	; WTF Nasm
+%include "Core/arch/amd64/common.inc.asm"	; WTF Nasm
 
 [extern low_InitialPML4]
 
@@ -165,7 +165,7 @@ start64_higher:
 	hlt
 	jmp .dead_loop
 
-%include "arch/amd64/interrupts.inc.asm"
+%include "Core/arch/amd64/interrupts.inc.asm"
 
 ; RDI: Save location for RSP
 ; RSI: New RSP (pointer)
@@ -261,7 +261,7 @@ EXPORT strlen
 	mov rax, rcx
 	ret
 
-%include "arch/amd64/stubs.inc.asm"
+%include "Core/arch/amd64/stubs.inc.asm"
 
 [section .padata]
 [global InitialPML4]

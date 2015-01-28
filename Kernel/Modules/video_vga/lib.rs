@@ -5,8 +5,20 @@
 // - VGA (and derivative) device driver
 //
 // TODO: Move this to an external link-time included module
-use _common::*;
-use metadevs::video::{Framebuffer,Rect};
+#![no_std]
+#![feature(box_syntax)]
+use kernel::_common::*;
+use kernel::metadevs::video::{Framebuffer,Rect};
+use kernel::device_manager;
+use kernel::metadevs::video;
+
+#[macro_use]
+extern crate kernel;
+#[macro_use]
+extern crate core;
+mod std {
+	pub use core::fmt;
+}
 
 module_define!{VGA, [DeviceManager, Video], init}
 
@@ -17,7 +29,7 @@ struct VgaPciDriver;
 struct VgaDevice
 {
 	/// Handle to video metadev registration
-	_video_handle: ::metadevs::video::FramebufferRegistration,
+	_video_handle: video::FramebufferRegistration,
 }
 /**
  * Real device instance (registered with the video manager)
@@ -25,7 +37,7 @@ struct VgaDevice
 struct VgaFramebuffer
 {
 	io_base: u16,
-	window: ::memory::virt::AllocHandle,
+	window: ::kernel::memory::virt::AllocHandle,
 	crtc: crtc::CrtcRegs,
 	w: u16,
 	h: u16,
@@ -52,15 +64,18 @@ static s_legacy_bound: ::core::atomic::AtomicBool = ::core::atomic::ATOMIC_BOOL_
 fn init()
 {
 	// 1. Register Driver
-	::device_manager::register_driver(&s_vga_pci_driver);
+	device_manager::register_driver(&s_vga_pci_driver);
 }
 
-impl ::device_manager::Driver for VgaPciDriver
+impl device_manager::Driver for VgaPciDriver
 {
+	fn name(&self) -> &str {
+		"vga"
+	}
 	fn bus_type(&self) -> &str {
 		"pci"
 	}
-	fn handles(&self, bus_dev: &::device_manager::BusDevice) -> u32
+	fn handles(&self, bus_dev: &device_manager::BusDevice) -> u32
 	{
 		let classcode = bus_dev.get_attr("class");
 		if classcode & 0xFFFFFF00 == 0x030000 {
@@ -70,7 +85,7 @@ impl ::device_manager::Driver for VgaPciDriver
 			0
 		}
 	}
-	fn bind(&self, _bus_dev: &::device_manager::BusDevice) -> Box<::device_manager::DriverInstance+'static>
+	fn bind(&self, _bus_dev: &device_manager::BusDevice) -> Box<device_manager::DriverInstance+'static>
 	{
 		if s_legacy_bound.swap(true, ::core::atomic::Ordering::AcqRel)
 		{
@@ -86,12 +101,12 @@ impl VgaDevice
 	fn new(iobase: u16) -> VgaDevice
 	{
 		VgaDevice {
-			_video_handle: ::metadevs::video::add_output(box VgaFramebuffer::new(iobase)),
+			_video_handle: video::add_output(box VgaFramebuffer::new(iobase) ),
 		}
 	}
 }
 
-impl ::device_manager::DriverInstance for VgaDevice
+impl device_manager::DriverInstance for VgaDevice
 {
 }
 
@@ -102,7 +117,7 @@ impl VgaFramebuffer
 		// TODO: Modeset VGA into desired mode
 		let mut rv = VgaFramebuffer {
 			io_base: base,
-			window: ::memory::virt::map_hw_rw(0xA0000, (0xC0-0xA0), module_path!()).unwrap(),
+			window: ::kernel::memory::virt::map_hw_rw(0xA0000, (0xC0-0xA0), module_path!()).unwrap(),
 			crtc: crtc::CrtcRegs::load(base + 0x24),	// Colour CRTC regs
 			w: 320,
 			h: 240,
@@ -175,7 +190,7 @@ impl CrtcAttrs
 	}
 }
 
-impl ::metadevs::video::Framebuffer for VgaFramebuffer
+impl video::Framebuffer for VgaFramebuffer
 {
 	fn as_any(&self) -> &Any {
 		self as &Any
@@ -205,10 +220,11 @@ impl ::metadevs::video::Framebuffer for VgaFramebuffer
 	fn fill(&mut self, dst: Rect, colour: u32) {
 		assert!( dst.within(self.w as u16, self.h as u16) );
 		let colour_val = self.col32_to_u8(colour);
-		for row in range(dst.y, dst.y + dst.h)
+		for row in dst.y .. dst.y + dst.h
 		{
 			let scanline = self.window.as_mut_slice::<u8>( (row * self.w) as usize, dst.w as usize);
-			for col in range(dst.x, dst.x + dst.w) {
+			for col in dst.x .. dst.x + dst.w
+			{
 				scanline[col as usize] = colour_val;
 			}
 		}

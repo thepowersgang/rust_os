@@ -18,7 +18,7 @@ SECTIONS {
 	
 	/* Boot data */
 	.init : AT(ADDR(.init)) {
-		*(.multiboot)
+		KEEP( *(.multiboot) )
 		*(.inittext)
 		*(.initdata)
 	}
@@ -47,7 +47,7 @@ SECTIONS {
 		
 		. = ALIGN(0x10);
 		modules_base = .;
-		*(.MODULE_LIST)
+		KEEP( *(.MODULE_LIST) )
 		modules_end = .;
 	}
 	

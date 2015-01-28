@@ -3,29 +3,34 @@
 //
 use _common::*;
 
+/// A basic linked-list queue
 pub struct Queue<T>
 {
 	pub head: OptPtr<QueueEnt<T>>,
 	pub tail: OptMutPtr<QueueEnt<T>>,
 }
 
+// Queue entry
 pub struct QueueEnt<T>
 {
 	next: OptPtr<QueueEnt<T>>,
 	value: T
 }
 
+/// Immutable iterator
 pub struct Items<'s, T: 's>
 {
 	cur_item: Option<&'s QueueEnt<T>>,
 }
+/// Mutable iterator
 pub struct ItemsMut<'s, T: 's>
 {
-	cur_item: OptMutPtr<QueueEnt<T>>,
+	cur_item: Option<&'s mut QueueEnt<T>>,
 }
 
 impl<T> Queue<T>
 {
+	/// Add an item to the end of the queue
 	pub fn push(&mut self, value: T)
 	{
 		unsafe
@@ -34,6 +39,7 @@ impl<T> Queue<T>
 				next: OptPtr(0 as *const _),
 				value: value,
 				} );
+			log_trace!("Pushing {:?}", qe_ptr);
 			
 			if self.head.is_some()
 			{
@@ -49,6 +55,7 @@ impl<T> Queue<T>
 			self.tail = OptMutPtr(qe_ptr);
 		}
 	}
+	/// Remove an item from the front
 	pub fn pop(&mut self) -> ::core::option::Option<T>
 	{
 		if self.head.is_none() {
@@ -74,17 +81,17 @@ impl<T> Queue<T>
 		self.head.is_none()
 	}
 	
-	pub fn items<'s>(&'s self) -> Items<'s,T>
+	pub fn iter<'s>(&'s self) -> Items<'s,T>
 	{
 		Items {
 			cur_item: unsafe { self.head.as_ref() },
 		}
 	}
 	
-	pub fn items_mut<'s>(&'s mut self) -> ItemsMut<'s,T>
+	pub fn iter_mut<'s>(&'s mut self) -> ItemsMut<'s,T>
 	{
 		ItemsMut {
-			cur_item: unsafe { self.head.as_mut() },
+			cur_item: unsafe { self.head.as_mut_ref() },
 		}
 	}
 }
@@ -105,20 +112,17 @@ impl<'s, T> Iterator for Items<'s,T>
 	}
 }
 
-// TODO !!! - Validate the safety of this function, it's an evil mess of transmutes
 impl<'s, T> Iterator for ItemsMut<'s,T>
 {
 	type Item = &'s mut T;
 	fn next(&mut self) -> Option<&'s mut T>
 	{
-		let ptr = self.cur_item.unwrap();
-		if ptr == 0 as *mut _ {
-			None
-		}
-		else {
-			unsafe {
-				self.cur_item = (*ptr).next.as_mut();
-				Some(&mut (*ptr).value)
+		match self.cur_item.take()
+		{
+		None => None,
+		Some(ptr) => {
+			self.cur_item = unsafe { ptr.next.as_mut_ref() };
+			Some(&mut ptr.value)
 			}
 		}
 	}

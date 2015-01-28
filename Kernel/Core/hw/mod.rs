@@ -6,7 +6,5 @@
 
 pub mod bus_pci;
 
-pub mod vga;
-
 // vim: ft=rust
 

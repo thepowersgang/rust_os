@@ -56,6 +56,9 @@ impl ::device_manager::BusManager for PCIBusManager
 
 impl ::device_manager::Driver for PCIChildBusDriver
 {
+	fn name(&self) -> &str {
+		"bus-pci"
+	}
 	fn bus_type(&self) -> &str {
 		"pci"
 	}
