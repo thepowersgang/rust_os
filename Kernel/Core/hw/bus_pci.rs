@@ -90,7 +90,13 @@ impl ::device_manager::BusDevice for PCIDev
 	fn get_attr(&self, name: &str) -> u32 {
 		match name
 		{
-		_ => 0,
+		"vendor" => self.vendor as u32,
+		"device" => self.device as u32,
+		"class" => self.class,
+		_ => {
+			log_warning!("Request for non-existant attr '{}' on device 0x{:05x}", name, self.addr);
+			0
+			},
 		}
 	}
 	fn set_power(&mut self, state: bool)

@@ -99,7 +99,7 @@ $(OBJDIR)libcore.rlib: $(LIBCORESRC)lib.rs $(TARGET_FILE)
 $(OBJDIR)mod_%.o: Modules/%/lib.rs $(OBJDIR)libcore.rlib $(OBJDIR)libkernel.rlib
 	@echo [RUSTC] -o $@
 	@mkdir -p $(dir $@)
-	$V$(ENV) rustc $(RUSTFLAGS) --emit=obj,dep-info --crate-type=lib -o $@ $< $(call LocalLib,core) $(call LocalLib,kernel)
+	$V$(ENV) rustc $(RUSTFLAGS) --emit=obj,dep-info --crate-name=$* --crate-type=lib -o $@ $< $(call LocalLib,core) $(call LocalLib,kernel)
 
 -include $(OBJDIR)libkernel.d
 -include $(OBJDIR)libcore.d

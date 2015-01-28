@@ -1,31 +1,29 @@
 // "Tifflin" Kernel
 // - By John Hodge (thePowersGang)
 //
-// Core/hw/vga.rs
+// Modules/video_vgs/mod.rs
 // - VGA (and derivative) device driver
 //
-// TODO: Move this to an external link-time included module
 #![no_std]
 #![feature(box_syntax)]
 use kernel::_common::*;
-use kernel::metadevs::video::{Framebuffer,Rect};
-use kernel::device_manager;
-use kernel::metadevs::video;
-
-#[macro_use]
-extern crate kernel;
-#[macro_use]
-extern crate core;
+#[macro_use] extern crate kernel;
+#[macro_use] extern crate core;
 mod std {
 	pub use core::fmt;
 }
+
+use kernel::metadevs::video::{Framebuffer,Rect};
+use kernel::device_manager;
+use kernel::metadevs::video;
 
 module_define!{VGA, [DeviceManager, Video], init}
 
 mod crtc;
 
+/// Driver object for the PCI
 struct VgaPciDriver;
-//struct VgaStaticDriver;
+
 struct VgaDevice
 {
 	/// Handle to video metadev registration
@@ -78,7 +76,8 @@ impl device_manager::Driver for VgaPciDriver
 	fn handles(&self, bus_dev: &device_manager::BusDevice) -> u32
 	{
 		let classcode = bus_dev.get_attr("class");
-		if classcode & 0xFFFFFF00 == 0x030000 {
+		// [class] [subclass] [IF] [ver]
+		if classcode & 0xFFFFFF00 == 0x03000000 {
 			1	// Handle as weakly as possible (vendor-provided drivers bind higher)
 		}
 		else {
@@ -114,7 +113,7 @@ impl VgaFramebuffer
 {
 	fn new(base: u16) -> VgaFramebuffer
 	{
-		// TODO: Modeset VGA into desired mode
+		log_debug!("Creating VGA driver at base {:#3x}", base);
 		let mut rv = VgaFramebuffer {
 			io_base: base,
 			window: ::kernel::memory::virt::map_hw_rw(0xA0000, (0xC0-0xA0), module_path!()).unwrap(),
@@ -123,8 +122,9 @@ impl VgaFramebuffer
 			h: 240,
 			};
 		
+		// Don't modeset yet, wait until video manager tells us to initialise
 		// 320x240 @60Hz
-		rv.set_crtc(CrtcAttrs::from_res(320, 240, 60));
+		//rv.set_crtc(CrtcAttrs::from_res(320, 240, 60));
 		
 		rv
 	}

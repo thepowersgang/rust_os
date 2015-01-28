@@ -18,7 +18,7 @@ pub enum Level
 	LevelTrace,  	// Where
 }
 
-struct LoggingFormatter
+pub struct LoggingFormatter
 {
 	_lock_handle: ::arch::sync::HeldSpinlock<'static,()>,
 }

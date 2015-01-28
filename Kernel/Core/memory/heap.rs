@@ -4,6 +4,8 @@
 // Core/memory/heap.rs
 // - Dynamic memory manager
 
+// TODO: Rewrite this to correctly use the size information avaliable
+
 use core::option::Option::{self,None,Some};
 use core::ptr::PtrExt;
 

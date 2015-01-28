@@ -38,7 +38,7 @@ pub mod lib;	// Clone of libstd
 #[macro_use]
 mod sync;
 
-mod logging;
+pub mod logging;
 pub mod memory;
 pub mod threads;
 mod time;

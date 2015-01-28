@@ -67,7 +67,6 @@ pub fn yield_time()
 fn reschedule()
 {
 	// 1. Get next thread
-	log_trace!("reschedule()");
 	let thread = get_thread_to_run();
 	match thread
 	{
@@ -168,7 +167,7 @@ impl ThreadList
 		assert!(t.next.is_none());
 		// Save a pointer to the allocation
 		let ptr = &*t as *const Thread as *mut Thread;
-		log_debug!("Pushing thread {:?}", t);
+		//log_debug!("Pushing thread {:?}", t);
 		// 2. Tack thread onto end
 		if self.first.is_some()
 		{
