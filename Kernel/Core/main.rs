@@ -11,7 +11,6 @@
 #![feature(unsafe_destructor)]
 #![feature(thread_local)]
 #![feature(lang_items)]
-#![allow(unstable)]	// stfu rustc
 
 #[macro_use]
 #[macro_reexport(assert,panic,write)]
@@ -37,15 +36,15 @@ pub mod _common;
 #[macro_use]
 pub mod lib;	// Clone of libstd
 #[macro_use]
-mod sync;
+pub mod sync;
 
 pub mod logging;
 pub mod memory;
 pub mod threads;
-mod time;
+pub mod time;
 pub mod modules;
 
-pub mod metadevs;	// FUCKING SCOPING!
+pub mod metadevs;
 pub mod hw;
 pub mod device_manager;
 
@@ -76,7 +75,7 @@ pub extern "C" fn kmain()
 	let vidmode = ::arch::boot::get_video_mode();
 	match vidmode {
 	Some(m) => {
-		log_debug!("Video mode : {}x{}", m.width, m.height)
+		log_debug!("Video mode : {}x{} @ {:#x}", m.width, m.height, m.base)
 		// TODO: Create a binding for metadevs::video to handle this mode
 		},
 	None => log_debug!("No video mode present")

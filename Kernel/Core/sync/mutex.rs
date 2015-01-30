@@ -16,7 +16,7 @@ pub struct Mutex<T: Send>
 unsafe impl<T: Send> Sync for Mutex<T> { }
 
 /// Lock handle on a mutex
-struct HeldMutex<'lock,T:'lock+Send>
+pub struct HeldMutex<'lock,T:'lock+Send>
 {
 	lock: &'lock Mutex<T>
 }
