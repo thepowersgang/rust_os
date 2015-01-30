@@ -63,7 +63,21 @@ struct VbeModeInfo
 	_resvd: u8,	// reserved
 	
 	// VBE 1.2+
+	red_mask: u8,	red_position: u8,
+	green_mask: u8, green_position: u8,
+	blue_mask: u8,  blue_position: u8,
+	rsv_mask: u8,   rsv_position: u8,
+	directcolor_attributes: u8,
+
+	// VBE v2.0+
+	physbase: u32,
+	offscreen_ptr: u32,	// Start of offscreen memory
+	offscreen_size_kb: u16,	// Size of offscreen memory
 	
+	// -- VBE v3.0
+	lfb_pitch: u16,
+	image_count_banked: u8,
+	image_count_lfb: u8,
 }
 
 struct MultibootParsed
@@ -208,6 +222,8 @@ impl MultibootParsed
 			width: info.x_res,
 			height: info.y_res,
 			fmt: ::common::archapi::VideoFormat::X8R8G8B8,
+			pitch: info.pitch as usize,
+			base: info.physbase as ::arch::memory::PAddr,
 			})
 	}
 	fn _memmap<'a>(&self, info: &MultibootInfo, buf: &'a mut[::memory::MemoryMapEnt]) -> &'a [::memory::MemoryMapEnt]

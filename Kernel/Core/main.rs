@@ -13,8 +13,9 @@
 #![feature(lang_items)]
 #![allow(unstable)]	// stfu rustc
 
+#[macro_use]
 #[macro_reexport(assert,panic,write)]
-#[macro_use] extern crate core;
+extern crate core;
 
 use _common::*;
 
@@ -74,7 +75,10 @@ pub extern "C" fn kmain()
 	// Dump active video mode
 	let vidmode = ::arch::boot::get_video_mode();
 	match vidmode {
-	Some(m) => log_debug!("Video mode : {}x{}", m.width, m.height),
+	Some(m) => {
+		log_debug!("Video mode : {}x{}", m.width, m.height)
+		// TODO: Create a binding for metadevs::video to handle this mode
+		},
 	None => log_debug!("No video mode present")
 	}
 	
@@ -119,6 +123,8 @@ pub struct VideoMode
 	pub width: u16,
 	pub height: u16,
 	pub fmt: VideoFormat,
+	pub pitch: usize,
+	pub base: ::arch::memory::PAddr,
 }
 
 }

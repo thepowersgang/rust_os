@@ -49,6 +49,8 @@ pub trait Framebuffer:
 	fn blit_ext(&mut self, dst: Rect, src: Rect, srf: &Framebuffer) -> bool;
 	fn blit_buf(&mut self, dst: Rect, buf: &[u32]);
 	fn fill(&mut self, dst: Rect, colour: u32);
+	
+	// TODO: Handle 3D units
 }
 
 #[allow(non_upper_case_globals)]
