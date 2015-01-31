@@ -71,7 +71,7 @@ impl<T> Queue<T>
 			}
 			
 			let rv = ::core::ptr::read( &(*qe_ptr).value );
-			::memory::heap::deallocate(qe_ptr as *mut ());
+			::memory::heap::dealloc(qe_ptr);
 			Some(rv)
 		}
 	}

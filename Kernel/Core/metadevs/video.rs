@@ -41,6 +41,7 @@ pub struct Rect
 pub trait Framebuffer:
 {
 	fn as_any(&self) -> &Any;
+	fn activate(&mut self);
 	
 	fn get_size(&self) -> Rect;
 	fn set_size(&mut self, newsize: Rect) -> bool;

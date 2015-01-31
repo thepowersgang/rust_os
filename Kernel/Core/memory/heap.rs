@@ -8,6 +8,7 @@
 
 use core::option::Option::{self,None,Some};
 use core::ptr::PtrExt;
+use core::nonzero::NonZero;
 
 // --------------------------------------------------------
 // Types
@@ -62,18 +63,37 @@ pub fn init()
 {
 }
 
+// Used by Box<T>
 #[lang="exchange_malloc"]
-unsafe fn exchange_malloc(size: usize, _align: usize) -> *mut u8 {
-	allocate(HeapId::Global, size).unwrap() as *mut u8
+unsafe fn exchange_malloc(size: usize, align: usize) -> *mut u8
+{
+	match allocate(HeapId::Global, size, align)
+	{
+	Some(x) => x as *mut u8,
+	None => panic!("exchange_malloc({}, {}) out of memory", size, align),
+	}
 }
 #[lang="exchange_free"]
-unsafe fn exchange_free(ptr: *mut u8, _size: usize, _align: usize) {
-	deallocate(ptr)
+unsafe fn exchange_free(ptr: *mut u8, size: usize, align: usize)
+{
+	s_global_heap.lock().deallocate(ptr as *mut (), size, align)
 }
 
+// Used by libgcc
+#[no_mangle] pub unsafe extern "C" fn malloc(size: usize) -> *mut () {
+	allocate(HeapId::Global, size, 16).unwrap()
+} 
+#[no_mangle] pub unsafe extern "C" fn free(ptr: *mut ()) {
+	use core::ptr::PtrExt;
+	if !ptr.is_null() {
+		deallocate(ptr, 0, 16)
+	}
+} 
+
+// Used by kernel internals
 pub unsafe fn alloc<T>(value: T) -> *mut T
 {
-	let ret = match allocate(HeapId::Global, ::core::mem::size_of::<T>())
+	let ret = match allocate(HeapId::Global, ::core::mem::size_of::<T>(), ::core::mem::align_of::<T>())
 		{
 		Some(v) => v as *mut T,
 		None => panic!("Out of memory")
@@ -81,21 +101,35 @@ pub unsafe fn alloc<T>(value: T) -> *mut T
 	::core::ptr::write(ret, value);
 	ret
 }
+pub unsafe fn dealloc<T>(value: *mut T)
+{
+	deallocate(value as *mut (), ::core::mem::size_of::<T>(), ::core::mem::align_of::<T>());
+}
 
 pub unsafe fn alloc_array<T>(count: usize) -> *mut T
 {
-	match allocate(HeapId::Global, ::core::mem::size_of::<T>() * count)
+	match allocate(HeapId::Global, ::core::mem::size_of::<T>() * count, ::core::mem::align_of::<T>())
 	{
 	Some(v) => v as *mut T,
 	None => panic!("Out of memory when allocating array of {} elements", count)
 	}
 }
+pub unsafe fn expand_array<T>(first: *mut T, old_count: usize, new_count: usize) -> Option<NonZero<*mut T>>
+{
+	panic!("TODO: Support expanding array allocations (first={:?}, old_count={:?} new_count={:?}",
+		first, old_count, new_count);
+}
+pub unsafe fn dealloc_array<T>(first: *mut T, count: usize)
+{
+	deallocate(first as *mut (), ::core::mem::size_of::<T>() * count, ::core::mem::align_of::<T>());
+}
 
-pub unsafe fn allocate(heap: HeapId, size: usize) -> Option<*mut ()>
+// Main entrypoints
+unsafe fn allocate(heap: HeapId, size: usize, align: usize) -> Option<*mut ()>
 {
 	match heap
 	{
-	HeapId::Global => s_global_heap.lock().allocate(size),
+	HeapId::Global => s_global_heap.lock().allocate(size, align),
 	_ => panic!("TODO: Non-global heaps"),
 	}
 }
@@ -106,15 +140,17 @@ pub unsafe fn allocate(heap: HeapId, size: usize) -> Option<*mut ()>
 //	None
 //}
 
-pub unsafe fn deallocate<T>(pointer: *mut T)
+unsafe fn deallocate(pointer: *mut (), size: usize, align: usize)
 {
-	s_global_heap.lock().deallocate(pointer as *mut ());
+	s_global_heap.lock().deallocate(pointer as *mut (), size, align);
 }
 
 impl HeapDef
 {
-	pub unsafe fn allocate(&mut self, size: usize) -> Option<*mut ()>
+	pub unsafe fn allocate(&mut self, size: usize, align: usize) -> Option<*mut ()>
 	{
+		// Have different pools for different alignments
+		
 		// SHORT CCT: Zero size allocation
 		if size == 0 {
 			return Some(ZERO_ALLOC);
@@ -125,7 +161,7 @@ impl HeapDef
 		
 		// 1. Round size up to closest heap block size
 		let blocksize = ::lib::num::round_up(size + headers_size, 32);
-		log_debug!("allocate(size={}) blocksize={}", size, blocksize);
+		log_debug!("allocate(size={},align={}) blocksize={}", size, align, blocksize);
 		// 2. Locate a free location
 		// Check all free blocks for one that would fit this allocation
 		let mut prev = ::core::ptr::null_mut();
@@ -217,7 +253,7 @@ impl HeapDef
 		Some( block.data() )
 	}
 
-	pub fn deallocate(&mut self, ptr: *mut ())
+	pub fn deallocate(&mut self, ptr: *mut (), size: usize, align: usize)
 	{
 		log_debug!("deallocate(ptr={:p})", ptr);
 		if ptr == ZERO_ALLOC {

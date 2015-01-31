@@ -122,10 +122,6 @@ impl VgaFramebuffer
 			h: 240,
 			};
 		
-		// Don't modeset yet, wait until video manager tells us to initialise
-		// 320x240 @60Hz
-		//rv.set_crtc(CrtcAttrs::from_res(320, 240, 60));
-		
 		rv
 	}
 	
@@ -138,8 +134,9 @@ impl VgaFramebuffer
 		
 		self.crtc.set_offset(attrs.h_active * 1);	// Aka pitch (TODO: Need the BPP setting)
 		
-		let htotal = (attrs.h_front_porch + attrs.h_active + attrs.h_back_porch) / PIX_PER_CHAR as u16;
-		self.crtc.set_h_total(htotal);
+		// Horizontal
+		let h_total = (attrs.h_front_porch + attrs.h_active + attrs.h_back_porch) / PIX_PER_CHAR as u16;
+		self.crtc.set_h_total(h_total);
 		let h_disp_end = attrs.h_active / PIX_PER_CHAR as u16;
 		self.crtc.set_h_disp_end(h_disp_end);
 		self.crtc.set_h_blank_start(h_disp_end+1);	// Must be larger than h_disp_end
@@ -162,6 +159,9 @@ impl VgaFramebuffer
 		self.crtc.set_v_sync_start(v_sync_start);
 		let v_sync_end = (v_sync_start + attrs.v_sync_len) & 31;
 		self.crtc.set_v_sync_end(v_sync_end);
+		
+		// Frequency
+		// - Just leave as 25MHz (Clock Select = 0)
 		
 		self.crtc.commit(self.io_base + 0x24);
 		
@@ -186,7 +186,23 @@ impl CrtcAttrs
 {
 	pub fn from_res(w: u16, h: u16, freq: u16) -> CrtcAttrs
 	{
-		panic!("TODO: Obtain CRTC attributes from resolution {}x{} at {}Hz", w, h, freq);
+		match (w,h,freq)
+		{
+		(640,480,60) => CrtcAttrs {
+			frequency: 60,
+			h_active: 640,
+			h_front_porch: 16+96,	// sync overlaps with front porch
+			h_sync_len: 96,
+			h_back_porch: 48,
+			v_active: 480,
+			v_front_porch: 10+2,
+			v_sync_len: 2,
+			v_back_porch: 33,
+			},
+		_ => {
+			panic!("TODO: Obtain CRTC attributes from resolution {}x{} at {}Hz", w, h, freq);
+			}
+		}
 	}
 }
 
@@ -195,6 +211,12 @@ impl video::Framebuffer for VgaFramebuffer
 	fn as_any(&self) -> &Any {
 		self as &Any
 	}
+	fn activate(&mut self) {
+		// Don't modeset yet, wait until video manager tells us to initialise
+		// 320x240 @ 60Hz
+		self.set_crtc(CrtcAttrs::from_res(320, 240, 60));
+	}
+	
 	fn get_size(&self) -> Rect {
 		// 320x200x 8bpp
 		Rect::new( 0,0, self.w as u16, self.h as u16 )

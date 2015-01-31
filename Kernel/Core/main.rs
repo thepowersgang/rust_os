@@ -6,11 +6,12 @@
 #![crate_name="kernel"]
 #![crate_type="lib"]
 #![no_std]
-#![feature(asm)]
-#![feature(box_syntax)]
-#![feature(unsafe_destructor)]
-#![feature(thread_local)]
-#![feature(lang_items)]
+#![feature(asm)]	// Enables the asm! syntax extension
+#![feature(box_syntax)]	// Enables 'box' syntax
+#![feature(unsafe_destructor)]	// Used for Vec's destructor
+#![feature(thread_local)]	// Allows use of thread_local
+#![feature(lang_items)]	// Allow definition of lang_items
+#![feature(core)]	// silences warnings about write!
 
 #[macro_use]
 #[macro_reexport(assert,panic,write)]
@@ -90,14 +91,6 @@ pub extern "C" fn kmain()
 		::arch::idle();
 	}
 }
-
-#[no_mangle] pub unsafe extern "C" fn malloc(size: usize) -> *mut () {
-	memory::heap::allocate(memory::heap::HeapId::Global, size).unwrap()
-} 
-#[no_mangle] pub unsafe extern "C" fn free(ptr: *mut ()) {
-	use core::ptr::PtrExt;
-	if !ptr.is_null() { memory::heap::deallocate(ptr) }
-} 
 
 
 // TODO: Move out

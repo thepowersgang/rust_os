@@ -92,7 +92,7 @@ impl<T> Vec<T>
 					::core::ptr::write(newptr.offset(i as isize), val);
 				}
 				if self.capacity > 0 {
-					::memory::heap::deallocate( self.data );
+					::memory::heap::dealloc_array( self.data, self.capacity );
 				}
 				self.data = newptr;
 				self.capacity = newcap;
@@ -153,7 +153,7 @@ impl<T> Drop for Vec<T>
 			for i in range(0, self.size) {
 				::core::mem::drop( ::core::ptr::read(self.get_mut_ptr(i) as *const T) );
 			}
-			::memory::heap::deallocate( self.data );
+			::memory::heap::dealloc_array( self.data, self.capacity );
 		}
 	}
 }
@@ -279,7 +279,7 @@ impl<T> Drop for MoveItems<T>
 			self.pop_item();
 		}
 		unsafe {
-			::memory::heap::deallocate( self.data );
+			::memory::heap::dealloc_array( self.data, self.count );
 		}
 	}
 }

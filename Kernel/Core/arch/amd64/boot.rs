@@ -7,6 +7,7 @@ use _common::*;
 use super::memory::addresses::{IDENT_START, IDENT_END};
 
 #[repr(C)]
+#[allow(unused)]
 struct MultibootInfo
 {
 	flags: u32,
@@ -42,6 +43,7 @@ struct MultibootInfo
 }
 
 #[repr(C)]
+#[allow(unused)]
 struct VbeModeInfo
 {
 	attributes: u16,
