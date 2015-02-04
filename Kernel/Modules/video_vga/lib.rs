@@ -5,12 +5,15 @@
 // - VGA (and derivative) device driver
 //
 #![no_std]
+#![feature(core)]
 #![feature(box_syntax)]
 use kernel::_common::*;
 #[macro_use] extern crate kernel;
 #[macro_use] extern crate core;
 mod std {
-	pub use core::fmt;
+	pub use core::fmt;	// write!
+	pub use core::option;	// for loops
+	pub use core::iter;	// for loops
 }
 
 use kernel::metadevs::video::{Framebuffer,Rect};
@@ -40,6 +43,7 @@ struct VgaFramebuffer
 	w: u16,
 	h: u16,
 }
+/// CRT Controller attributes (signal format)
 struct CrtcAttrs
 {
 	frequency: u16,

@@ -14,46 +14,69 @@
 #![feature(core)]	// silences warnings about write!
 
 #[macro_use]
-#[macro_reexport(assert,panic,write)]
 extern crate core;
 
 use _common::*;
 
 pub use arch::memory::PAGE_SIZE;
 
+#[doc(hidden)]
 #[macro_use] pub mod logmacros;
+#[doc(hidden)]
 #[macro_use] pub mod macros;
-#[macro_use] #[cfg(arch__amd64)] #[path="arch/amd64/macros.rs"] pub mod arch_macros;	// Needs to be pub for exports to be avaliable
+#[doc(hidden)]
+#[macro_use] #[cfg(arch__amd64)] #[path="arch/amd64/macros.rs"] pub mod arch_macros;
 
 // Evil Hack: For some reason, write! (and friends) will expand pointing to std instead of core
+#[doc(hidden)]
 mod std {
 	pub use core::option;
 	pub use core::{default,fmt,cmp};
 	pub use lib::clone;
 	pub use core::marker;	// needed for derive(Copy)
+	pub use core::iter;	// needed for 'for'
 }
+
+/// Kernel's version of 'std::prelude'
 pub mod _common;
 
+/// Library datatypes (Vec, Queue, ...)
 #[macro_use]
 pub mod lib;	// Clone of libstd
+
+/// Heavy synchronisation primitives (Mutex, Semaphore, RWLock, ...)
 #[macro_use]
 pub mod sync;
 
+/// Logging framework
 pub mod logging;
+/// Memory management (physical, virtual, heap)
 pub mod memory;
+/// Thread management
 pub mod threads;
+/// Timekeeping (timers and wall time)
 pub mod time;
+/// Module management (loading and initialisation of kernel modules)
 pub mod modules;
 
+/// Meta devices (the Hardware Abstraction Layer)
 pub mod metadevs;
-pub mod hw;
+/// Device to driver mapping manager
+///
+/// Starts driver instances for the devices it sees
 pub mod device_manager;
 
+/// Stack unwinding (panic) handling
 pub mod unwind;
 
+/// Built-in device drivers
+pub mod hw;
+
+/// Achitecture-specific code - AMD64 (aka x86-64)
 #[macro_use]
 #[cfg(arch__amd64)] #[path="arch/amd64/crate.rs"] pub mod arch;	// Needs to be pub for exports to be avaliable
 
+/// Kernel entrypoint
 #[no_mangle]
 pub extern "C" fn kmain()
 {
@@ -91,37 +114,6 @@ pub extern "C" fn kmain()
 		::arch::idle();
 	}
 }
-
-
-// TODO: Move out
-pub mod common
-{
-pub mod archapi
-{
-
-#[derive(Copy)]
-pub enum VideoFormat
-{
-	X8R8G8B8,
-	B8G8R8X8,
-	R8G8B8,
-	B8G8R8,
-	R5G6B5,
-}
-
-#[derive(Copy)]
-pub struct VideoMode
-{
-	pub width: u16,
-	pub height: u16,
-	pub fmt: VideoFormat,
-	pub pitch: usize,
-	pub base: ::arch::memory::PAddr,
-}
-
-}
-}
-
 
 // vim: ft=rust
 

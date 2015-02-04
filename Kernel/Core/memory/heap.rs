@@ -28,14 +28,14 @@ struct HeapDef
 unsafe impl ::core::marker::Send for HeapDef {}
 
 #[allow(raw_pointer_derive)]
-#[derive(Show)]	// RawPtr Show is the address
+#[derive(Debug)]	// RawPtr Debug is the address
 enum HeapState
 {
 	Free(*mut HeapHead),
 	Used(usize),
 }
 
-#[derive(Show)]
+#[derive(Debug)]
 struct HeapHead
 {
 	magic: u32,

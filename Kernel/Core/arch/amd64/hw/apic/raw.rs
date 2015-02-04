@@ -28,7 +28,7 @@ struct IOAPICRegs
 }
 
 #[allow(dead_code)]
-#[derive(Show)]
+#[derive(Debug)]
 pub enum TriggerMode
 {
 	LevelHi,

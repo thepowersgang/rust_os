@@ -226,7 +226,7 @@ impl<T> MutableSeq<T> for Vec<T>
 
 impl<T> FromIterator<T> for Vec<T>
 {
-	fn from_iter<IT: Iterator<Item=T>>(mut iterator: IT) -> Vec<T>
+	fn from_iter<IT: Iterator<Item=T>>(iterator: IT) -> Vec<T>
 	{
 		let mut ret = Vec::new();
 		for val in iterator

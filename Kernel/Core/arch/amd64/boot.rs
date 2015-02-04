@@ -5,6 +5,7 @@
 // - Boot information
 use _common::*;
 use super::memory::addresses::{IDENT_START, IDENT_END};
+use hw::bootvideo::{VideoMode,VideoFormat};
 
 #[repr(C)]
 #[allow(unused)]
@@ -85,7 +86,7 @@ struct VbeModeInfo
 struct MultibootParsed
 {
 	cmdline: &'static str,
-	vidmode: Option<::common::archapi::VideoMode>,
+	vidmode: Option<VideoMode>,
 	memmap: &'static [::memory::MemoryMapEnt],
 }
 
@@ -137,7 +138,7 @@ impl BootInfo
 		}
 	}
 	
-	pub fn vidmode(&self) -> Option<::common::archapi::VideoMode>
+	pub fn vidmode(&self) -> Option<VideoMode>
 	{
 		match *self
 		{
@@ -204,7 +205,7 @@ impl MultibootParsed
 		valid_c_str_to_slice(charptr).unwrap_or("-INVALID-")
 	}
 	
-	fn _vidmode(info: &MultibootInfo) -> Option<::common::archapi::VideoMode>
+	fn _vidmode(info: &MultibootInfo) -> Option<VideoMode>
 	{
 		if (info.flags & 1 << 11) == 0 {
 			log_notice!("get_video_mode - Video mode information not present");
@@ -220,10 +221,10 @@ impl MultibootParsed
 			::core::mem::transmute(vbeinfo_vaddr as *const VbeModeInfo)
 			};
 		
-		Some( ::common::archapi::VideoMode {
+		Some( VideoMode {
 			width: info.x_res,
 			height: info.y_res,
-			fmt: ::common::archapi::VideoFormat::X8R8G8B8,
+			fmt: VideoFormat::X8R8G8B8,
 			pitch: info.pitch as usize,
 			base: info.physbase as ::arch::memory::PAddr,
 			})
@@ -273,7 +274,7 @@ pub fn get_boot_string() -> &'static str
 	get_bootinfo().cmdline()
 }
 
-pub fn get_video_mode() -> Option<::common::archapi::VideoMode>
+pub fn get_video_mode() -> Option<VideoMode>
 {
 	get_bootinfo().vidmode()
 }

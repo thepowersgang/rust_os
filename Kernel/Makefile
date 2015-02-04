@@ -68,6 +68,9 @@ clean:
 pretty:
 	$V$(ENV) rustc --pretty expanded $(RUSTFLAGS) -o kernel-$(ARCH).exp_rs Core/main.rs $(call LocalLib,core)
 
+docs:
+	@mkdir -p doc/Kernel
+	$V$(ENV) rustdoc -o doc/Kernel Core/main.rs --cfg arch__amd64
 run: kernel-$(ARCH).bin
 	./RunQemuPXE $<.elf32 ""
 
