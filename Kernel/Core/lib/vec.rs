@@ -229,6 +229,10 @@ impl<T> FromIterator<T> for Vec<T>
 	fn from_iter<IT: Iterator<Item=T>>(iterator: IT) -> Vec<T>
 	{
 		let mut ret = Vec::new();
+		if let (_, Some(size)) = iterator.size_hint()
+		{
+			ret.reserve(size);
+		}
 		for val in iterator
 		{
 			ret.push(val);
