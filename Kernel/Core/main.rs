@@ -5,13 +5,14 @@
 // - Kernel main
 #![crate_name="kernel"]
 #![crate_type="lib"]
-#![no_std]
+#![feature(no_std)]
 #![feature(asm)]	// Enables the asm! syntax extension
 #![feature(box_syntax)]	// Enables 'box' syntax
 #![feature(unsafe_destructor)]	// Used for Vec's destructor
 #![feature(thread_local)]	// Allows use of thread_local
 #![feature(lang_items)]	// Allow definition of lang_items
 #![feature(core)]	// silences warnings about write!
+#![no_std]
 
 #[macro_use]
 extern crate core;
@@ -32,7 +33,6 @@ pub use arch::memory::PAGE_SIZE;
 mod std {
 	pub use core::option;
 	pub use core::{default,fmt,cmp};
-	pub use lib::clone;
 	pub use core::marker;	// needed for derive(Copy)
 	pub use core::iter;	// needed for 'for'
 }

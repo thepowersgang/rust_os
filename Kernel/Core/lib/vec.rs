@@ -1,15 +1,10 @@
 //
 //
 //
-use core::iter::range;
-use core::iter::{FromIterator,Iterator};
-use core::slice::{SliceExt,AsSlice};
-use core::option::Option::{self,Some,None};
-use core::ptr::PtrExt;
-use core::num::Int;
-use core::ops::{Drop,Index,IndexMut,Deref,DerefMut,Fn};
-use core::marker::Send;
-use lib::clone::Clone;
+use core::prelude::*;
+use core::num::Int;	// for leading_zeros()
+use core::iter::FromIterator;
+use core::ops::{Index,IndexMut,Deref,DerefMut};
 use lib::collections::{MutableSeq};
 
 /// Growable array of items
@@ -171,7 +166,6 @@ impl<T> Index<usize> for Vec<T>
 }
 impl<T> IndexMut<usize> for Vec<T>
 {
-	type Output = T;
 	fn index_mut<'a>(&'a mut self, index: &usize) -> &'a mut T
 	{
 		if *index >= self.size {

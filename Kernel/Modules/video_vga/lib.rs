@@ -4,9 +4,9 @@
 // Modules/video_vgs/mod.rs
 // - VGA (and derivative) device driver
 //
-#![no_std]
-#![feature(core)]
+#![feature(no_std,core)]
 #![feature(box_syntax)]
+#![no_std]
 use kernel::_common::*;
 #[macro_use] extern crate kernel;
 #[macro_use] extern crate core;

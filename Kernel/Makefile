@@ -66,7 +66,7 @@ clean:
 	rm -r $(OBJDIR)
 
 pretty:
-	$V$(ENV) rustc --pretty expanded $(RUSTFLAGS) -o kernel-$(ARCH).exp_rs Core/main.rs $(call LocalLib,core)
+	$V$(ENV) rustc -Z unstable-options --pretty expanded $(RUSTFLAGS) -o kernel-$(ARCH).exp_rs Core/main.rs $(call LocalLib,core)
 
 docs:
 	@mkdir -p doc/Kernel

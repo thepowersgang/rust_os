@@ -338,7 +338,7 @@ impl<T> SDTHandle<T>
 	}
 }
 
-impl<T> Deref for SDTHandle<T>
+impl<T> ::core::ops::Deref for SDTHandle<T>
 {
 	type Target = SDT<T>;
 	fn deref<'s>(&'s self) -> &'s SDT<T> {

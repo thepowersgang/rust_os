@@ -12,13 +12,29 @@ pub struct VolumeHandle
 }
 
 /// Physical volume instance provided by driver
+///
+/// Provides the low-level methods to manipulate the underlying storage
 pub trait PhysicalVolume
 {
+	/// Returns the volume name (must be unique to the system)
 	fn name(&self) -> &str;	// Local lifetime string
-	fn blocksize(&self) -> uint;	// Must return a power of two
+	/// Returns the size of a filesystem block, must be a power of two >512
+	fn blocksize(&self) -> uint;
+	/// Returns the number of blocks in this volume (i.e. the capacity)
 	fn capacity(&self) -> u64;
-	fn read(&self, prio: uint, blockidx: u64, count: uint, dst: &mut [u8]) -> bool;
-	fn write(&mut self, prio: uint, blockidx: u64, count: uint, src: &[u8]) -> bool;
+	
+	/// Reads a number of blocks from the volume into the provided buffer
+	///
+	/// Reads `count` blocks starting with `blockidx` into the buffer `dst` (which will/should
+	/// be the size of `count` blocks). The read is performed with the provided priority, where
+	/// 0 is higest, and 255 is lowest.
+	fn read(&self, prio: u8, blockidx: u64, count: uint, dst: &mut [u8]) -> Result<&[u8], ()>;
+	/// Writer a number of blocks to the volume
+	fn write(&mut self, prio: u8, blockidx: u64, count: uint, src: &[u8]) -> Result<(),()>;
+	/// Erases a number of blocks from the volume
+	///
+	/// Erases (requests the underlying storage forget about) `count` blocks starting at `blockidx`.
+	/// This is functionally equivalent to the SSD "TRIM" command.
 	fn wipe(&mut self, blockidx: u64, count: uint);
 }
 

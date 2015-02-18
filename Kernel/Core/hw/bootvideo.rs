@@ -25,10 +25,15 @@ pub struct VideoMode
 	pub base: ::arch::memory::PAddr,
 }
 
+
+
 fn init()
 {
 }
 
-
+pub fn register(mode: VideoMode)
+{
+	
+}
 
 
