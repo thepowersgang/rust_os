@@ -48,6 +48,9 @@ pub mod lib;	// Clone of libstd
 #[macro_use]
 pub mod sync;
 
+/// Asynchrnous wait support
+pub mod async;
+
 /// Logging framework
 pub mod logging;
 /// Memory management (physical, virtual, heap)

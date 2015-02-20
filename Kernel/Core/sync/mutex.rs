@@ -14,6 +14,7 @@ pub struct Mutex<T: Send>
 }
 // Mutexes are inherently sync
 unsafe impl<T: Send> Sync for Mutex<T> { }
+unsafe impl<T: Send> Send for Mutex<T> { }
 
 /// Lock handle on a mutex
 pub struct HeldMutex<'lock,T:'lock+Send>
@@ -67,11 +68,21 @@ impl<T: Send> Mutex<T>
 impl<T: Send> LazyMutex<T>
 {
 	/// Lock and (if required) initialise using init_fcn
-	pub fn lock<Fcn: Fn()->T>(&self, init_fcn: Fcn) -> HeldMutex<LazyStatic<T>>
+	pub fn lock_init<Fcn: Fn()->T>(&self, init_fcn: Fcn) -> HeldMutex<LazyStatic<T>>
 	{
 		let mut lh = self.0.lock();
 		lh.prep(init_fcn);
 		lh
+	}
+	
+	pub fn init<Fcn: Fn()->T>(&self, init_fcn: Fcn)
+	{
+		let mut lh = self.0.lock();
+		lh.prep(init_fcn);
+	}
+	pub fn lock(&self) -> HeldMutex<LazyStatic<T>>
+	{
+		self.0.lock()
 	}
 }
 

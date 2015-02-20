@@ -60,6 +60,7 @@ static s_display_surfaces: ::sync::mutex::LazyMutex<Vec<Option<Box<Framebuffer+S
 fn init()
 {
 	// TODO: What init would the display processor need?
+	s_display_surfaces.init( || Vec::new() );
 }
 
 //impl ::core::ops::Drop for Display
@@ -71,7 +72,7 @@ fn init()
 
 pub fn add_output(output: Box<Framebuffer+Send>) -> FramebufferRegistration
 {
-	let mut lh = s_display_surfaces.lock( | | Vec::new() );
+	let mut lh = s_display_surfaces.lock();
 	lh.push(Some(output));
 	FramebufferRegistration {
 		reg_id: lh.len()
@@ -82,7 +83,7 @@ impl ::core::ops::Drop for FramebufferRegistration
 {
 	fn drop(&mut self)
 	{
-		s_display_surfaces.lock( | | Vec::new() )[self.reg_id] = None;
+		s_display_surfaces.lock()[self.reg_id] = None;
 	}
 }
 

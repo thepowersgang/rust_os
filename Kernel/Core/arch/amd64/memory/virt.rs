@@ -119,6 +119,13 @@ pub fn is_reserved<T>(addr: *const T) -> bool
 		return !pte.is_null() && pte.is_reserved();
 	}
 }
+pub fn get_phys<T>(addr: *const T) -> PAddr
+{
+	unsafe {
+		let pte = get_page_ent(addr as usize, false, false, true);
+		pte.addr()
+	}
+}
 pub fn map(addr: *mut (), phys: PAddr, prot: ::memory::virt::ProtectionMode)
 {
 	unsafe {
@@ -152,7 +159,7 @@ impl PTE
 	pub unsafe fn is_present(&self) -> bool { !self.is_null() && *self.data & 1 != 0 }
 	pub unsafe fn is_large(&self) -> bool { *self.data & (PF_PRESENT | PF_LARGE) == PF_LARGE|PF_PRESENT }
 	
-	//pub unsafe fn addr(&self) -> PAddr { *self.data & 0x7FFFFFFF_FFFFF000 }
+	pub unsafe fn addr(&self) -> PAddr { *self.data & 0x7FFFFFFF_FFFFF000 }
 	//pub unsafe fn set_addr(&self, paddr: PAddr) {
 	//	assert!(!self.is_null());
 	//	*self.data = (*self.data & !0x7FFFFFFF_FFFFF000) | paddr;

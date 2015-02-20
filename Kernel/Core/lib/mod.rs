@@ -11,13 +11,17 @@ pub use self::queue::Queue;
 pub use self::vec::Vec;
 pub use self::string::String;
 
-pub mod clone;
+pub mod thunk;
+
+//pub mod clone;
 
 pub mod mem;
 #[macro_use]
 pub mod queue;
 pub mod vec;
 pub mod string;
+
+pub mod hash_map;
 
 pub mod num
 {
@@ -37,13 +41,15 @@ pub mod collections
 	}
 }
 
-pub struct LazyStatic<T>(pub Option<Box<T>>);
+//pub struct LazyStatic<T>(pub Option<Box<T>>);
+pub struct LazyStatic<T>(pub Option<T>);
 
 impl<T> LazyStatic<T>
 {
 	pub fn prep<Fcn: Fn()->T>(&mut self, fcn: Fcn) {
 		if self.0.is_none() {
-			self.0 = Some(box fcn());
+			//self.0 = Some(box fcn());
+			self.0 = Some(fcn());
 		}
 	}
 }
@@ -51,13 +57,13 @@ impl<T> ::core::ops::Deref for LazyStatic<T>
 {
 	type Target = T;
 	fn deref(&self) -> &T {
-		&**self.0.as_ref().unwrap()
+		&*self.0.as_ref().expect("Dereferencing LazyStatic without initialising")
 	}
 }
 impl<T> ::core::ops::DerefMut for LazyStatic<T>
 {
 	fn deref_mut(&mut self) -> &mut T {
-		&mut **self.0.as_mut().unwrap()
+		&mut *self.0.as_mut().expect("Dereferencing LazyStatic without initialising")
 	}
 }
 

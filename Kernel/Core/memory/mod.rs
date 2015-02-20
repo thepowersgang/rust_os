@@ -12,6 +12,8 @@ pub mod phys;
 pub mod virt;
 pub mod heap;
 
+pub mod helpers;
+
 pub mod memorymap;
 
 /// Validate that a C string points to valid memory, and return a 'static slice to it
@@ -79,6 +81,7 @@ pub fn buf_valid(ptr: *const (), mut size: usize) -> bool
 	
 	true
 }
+
 
 // vim: ft=rust
 

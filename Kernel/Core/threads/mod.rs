@@ -5,29 +5,18 @@
 // - Thread management
 use _common::*;
 
-pub type ThreadHandle = Box<Thread>;
+mod thread;
+mod sleep_object;
 
-type ThreadID = u32;
+pub use self::thread::Thread;
+use self::thread::RunState;
 
-//#[deriving(PartialEq)]
-enum RunState
-{
-	Runnable,
-	ListWait(*const WaitQueue),
-	//EventWait(u32),
-	//Dead(u32),
-}
-impl Default for RunState { fn default() -> RunState { RunState::Runnable } }
+pub use self::sleep_object::{SleepObject,SleepObjectRef};
 
-pub struct Thread
-{
-	name: String,
-	tid: ThreadID,
-	run_state: RunState,
-	
-	pub cpu_state: ::arch::threads::State,
-	next: Option<Box<Thread>>,
-}
+pub type EventMask = u32;
+
+/// A borrowed Box<Thread>, released when borrow expires
+struct BorrowedThread(Option<Box<Thread>>);
 
 pub struct WaitQueue
 {
@@ -53,7 +42,7 @@ static s_runnable_threads: ::sync::Spinlock<ThreadList> = spinlock_init!(THREADL
 pub fn init()
 {
 	let mut tid0 = Thread::new_boxed();
-	tid0.name = String::from_str("ThreadZero");
+	tid0.set_name( String::from_str("ThreadZero") );
 	tid0.cpu_state = ::arch::threads::init_tid0_state();
 	::arch::threads::set_thread_ptr( tid0 )
 }
@@ -90,6 +79,10 @@ fn rel_cur_thread(t: Box<Thread>)
 {
 	::arch::threads::set_thread_ptr(t)
 }
+fn borrow_cur_thread() -> BorrowedThread
+{
+	BorrowedThread( Some(get_cur_thread()) )
+}
 
 fn get_thread_to_run() -> Option<Box<Thread>>
 {
@@ -103,42 +96,6 @@ fn get_thread_to_run() -> Option<Box<Thread>>
 	{
 		// 2. Pop off a new thread
 		handle.pop()
-	}
-}
-
-impl Thread
-{
-	pub fn new_boxed() -> Box<Thread>
-	{
-		let rv = box Thread {
-			tid: 0,
-			name: String::new(),
-			run_state: RunState::Runnable,
-			cpu_state: Default::default(),
-			next: None,
-			};
-		
-		// TODO: Add to global list of threads (removed on destroy)
-		log_debug!("Creating thread {:?}", rv);
-		
-		rv
-	}
-}
-
-impl ::core::fmt::Debug for Thread
-{
-	fn fmt(&self, f: &mut ::core::fmt::Formatter) -> Result<(),::core::fmt::Error>
-	{
-		write!(f, "{:p}({} {})", self as *const _, self.tid, self.name)
-	}
-}
-
-impl ::core::ops::Drop for Thread
-{
-	fn drop(&mut self)
-	{
-		// TODO: Remove self from the global thread map
-		log_debug!("Destroying thread {:?}", self);
 	}
 }
 
@@ -189,6 +146,18 @@ impl ThreadList
 	}
 }
 
+impl Drop for BorrowedThread
+{
+	fn drop(&mut self) {
+		rel_cur_thread(self.0.take().unwrap())
+	}
+}
+impl ::core::ops::Deref for BorrowedThread
+{
+	type Target = Thread;
+	fn deref(&self) -> &Thread { &**self.0.as_ref().unwrap() }
+}
+
 impl WaitQueue
 {
 	pub fn wait<'a>(&mut self, lock_handle: ::arch::sync::HeldSpinlock<'a,bool>)
@@ -196,7 +165,7 @@ impl WaitQueue
 		// 1. Lock global list?
 		let mut cur = get_cur_thread();
 		// - Keep rawptr kicking around for debug purposes
-		cur.run_state = RunState::ListWait(self as *mut _ as *const _);
+		cur.set_state( RunState::ListWait(self as *mut _ as *const _) );
 		// 2. Push current thread into waiting list
 		self.list.push(cur);
 		// 3. Unlock handle (short spinlocks disable interrupts)
@@ -205,8 +174,7 @@ impl WaitQueue
 		reschedule();
 		
 		let cur = get_cur_thread();
-		assert!( !is!(cur.run_state, RunState::ListWait(_)) );
-		assert!( is!(cur.run_state, RunState::Runnable) );
+		cur.assert_active();
 		rel_cur_thread(cur);
 	}
 	pub fn wake_one(&mut self)
@@ -214,7 +182,7 @@ impl WaitQueue
 		match self.list.pop()
 		{
 		Some(mut t) => {
-			t.run_state = RunState::Runnable;
+			t.set_state( RunState::Runnable );
 			s_runnable_threads.lock().push(t);
 			},
 		None => {}

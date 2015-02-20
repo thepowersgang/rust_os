@@ -48,6 +48,8 @@ pub fn init()
 	// 2. ???
 }
 
+pub use arch::memory::virt::get_phys;
+
 /// Ensure that the provded pages are valid (i.e. backed by memory)
 pub fn allocate(addr: *mut (), page_count: usize)
 {

@@ -9,7 +9,7 @@
 # - Multiple architecture configurations
 ARCH = amd64
 TRIPLE = x86_64-none-elf
-MODS := video_vga
+MODS := video_vga storage_ata
 
 OBJS := start.ao $(MODS:%=mod_%.o) libkernel.rlib libcore.rlib
 
