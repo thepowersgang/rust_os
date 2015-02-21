@@ -86,6 +86,7 @@ fn borrow_cur_thread() -> BorrowedThread
 
 fn get_thread_to_run() -> Option<Box<Thread>>
 {
+        let _irq_lock = ::arch::sync::hold_interrupts();
 	let mut handle = s_runnable_threads.lock();
 	if handle.empty()
 	{
@@ -162,14 +163,18 @@ impl WaitQueue
 {
 	pub fn wait<'a>(&mut self, lock_handle: ::arch::sync::HeldSpinlock<'a,bool>)
 	{
+		// - Prevent interrupts from firing while we mess with the thread
+		let _irq_lock = ::arch::sync::hold_interrupts();
+		
 		// 1. Lock global list?
 		let mut cur = get_cur_thread();
 		// - Keep rawptr kicking around for debug purposes
 		cur.set_state( RunState::ListWait(self as *mut _ as *const _) );
 		// 2. Push current thread into waiting list
 		self.list.push(cur);
-		// 3. Unlock handle (short spinlocks disable interrupts)
+		// 3. Unlock protector, and allow IRQs once more
 		::core::mem::drop(lock_handle);
+		::core::mem::drop(_irq_lock);
 		// 4. Reschedule, and should return with state changed to run
 		reschedule();
 		
@@ -177,12 +182,17 @@ impl WaitQueue
 		cur.assert_active();
 		rel_cur_thread(cur);
 	}
+        pub fn has_waiter(&self) -> bool
+        {
+                ! self.list.empty()
+        }
 	pub fn wake_one(&mut self)
 	{
 		match self.list.pop()
 		{
 		Some(mut t) => {
 			t.set_state( RunState::Runnable );
+                        let _irq_lock = ::arch::sync::hold_interrupts();
 			s_runnable_threads.lock().push(t);
 			},
 		None => {}

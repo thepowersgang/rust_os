@@ -37,6 +37,11 @@ impl<T: Send> Mutex<T>
 	}
 	*/
 	
+	fn queue(&self) -> &mut ::threads::WaitQueue
+	{
+		unsafe { &mut *self.queue.get() }
+	}
+	
 	/// Lock the mutex
 	#[inline(never)]
 	pub fn lock(&self) -> HeldMutex<T> {
@@ -48,7 +53,7 @@ impl<T: Send> Mutex<T>
 			{
 				// If mutex is locked, then wait for it to be unlocked
 				// - ThreadList::wait will release the passed spinlock
-				unsafe { (*self.queue.get()).wait(held) };
+				self.queue().wait(held);
 			}
 			else
 			{
@@ -62,9 +67,15 @@ impl<T: Send> Mutex<T>
 	fn unlock(&self) {
 		::core::atomic::fence(::core::atomic::Ordering::Release);
 		let mut held = self.locked_held.lock();
-		*held = false;
-		unsafe { (*self.queue.get()).wake_one() };
-		// TODO: Wake anything waiting
+		if self.queue().has_waiter()
+		{
+			self.queue().wake_one();
+			// *held is still true, as the newly woken thread now owns the mutex
+		}
+		else
+		{
+			*held = false;
+		}
 	}
 }
 

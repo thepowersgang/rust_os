@@ -11,46 +11,33 @@ pub struct Spinlock<T: Send>
 	pub lock: ::core::atomic::AtomicBool,
 	pub value: ::core::cell::UnsafeCell<T>,
 }
+unsafe impl<T: Send> Sync for Spinlock<T> {}
 
 /// Handle to the held spinlock
 pub struct HeldSpinlock<'lock,T:'lock+Send>
 {
-	lock: &'lock mut Spinlock<T>,
-	if_set: bool,
+	lock: &'lock Spinlock<T>,
 }
 
-unsafe impl<T: Send> Sync for Spinlock<T> {}
+/// A handle for frozen interrupts
+pub struct HeldInterrupts;
 
 impl<T: Send> Spinlock<T>
 {
-	pub fn lock<'_self>(&'_self self) -> HeldSpinlock<'_self,T> {
-		unsafe {
-			(*(self as *const _ as *mut Spinlock<T>)).lock_impl()
-		}
-	}
-	fn lock_impl<'_self>(&'_self mut self) -> HeldSpinlock<'_self,T>
+	pub fn lock(&self) -> HeldSpinlock<T>
 	{
-		let if_set = unsafe {
-			let mut flags: u64;
-			asm!("pushf\npop $0\ncli" : "=r" (flags) : : "memory" : "volatile");
-			while self.lock.compare_and_swap(false, true, ::core::atomic::Ordering::Acquire) == true
-			{
-			}
-			(flags & 0x200) != 0
-			};
-		//::arch::puts("Spinlock::lock() - Held\n");
+		while self.lock.compare_and_swap(false, true, ::core::atomic::Ordering::Acquire) == true
+		{
+		}
 		::core::atomic::fence(::core::atomic::Ordering::Acquire);
-		HeldSpinlock { lock: self, if_set: if_set }
+		HeldSpinlock { lock: self }
 	}
 	
-	pub fn release(&mut self, set_if: bool)
+	fn release(&self)
 	{
 		//::arch::puts("Spinlock::release()\n");
 		::core::atomic::fence(::core::atomic::Ordering::Release);
 		self.lock.store(false, ::core::atomic::Ordering::Release);
-		if set_if {
-			unsafe { asm!("sti" : : : "memory" : "volatile"); }
-		}
 	}
 }
 
@@ -59,7 +46,7 @@ impl<'lock,T: Send> ::core::ops::Drop for HeldSpinlock<'lock, T>
 {
 	fn drop(&mut self)
 	{
-		self.lock.release(self.if_set);
+		self.lock.release();
 	}
 }
 
@@ -74,6 +61,30 @@ impl<'lock,T: Send> ::core::ops::DerefMut for HeldSpinlock<'lock, T>
 {
 	fn deref_mut<'a>(&'a mut self) -> &'a mut T {
 		unsafe { &mut *self.lock.value.get() }
+	}
+}
+
+/// Prevent interrupts from firing until return value is dropped
+pub fn hold_interrupts() -> HeldInterrupts
+{
+	let if_set = unsafe {
+		let mut flags: u64;
+		asm!("pushf; pop $0; cli" : "=r" (flags) : : "memory" : "volatile");
+		(flags & 0x200) != 0
+		};
+	
+	assert!(if_set, "Interupts clear when hold_interrupts called");
+	
+	HeldInterrupts
+}
+
+impl ::core::ops::Drop for HeldInterrupts
+{
+	fn drop(&mut self)
+	{
+		unsafe {
+			asm!("sti" : : : "memory" : "volatile");
+		}
 	}
 }
 
