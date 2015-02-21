@@ -295,8 +295,10 @@ impl HeapDef
 	
 	/// Expand the heap to create a block at least `min_size` bytes long at the end
 	/// \return New block, pre-allocated
+	#[inline(never)]
 	unsafe fn expand(&mut self, min_size: usize) -> *mut HeapHead
 	{
+		log_debug!("self.{{start = {:p}, last_foot = {:?}}}", self.start, self.last_foot);
 		let use_prev =
 			if self.start.is_null() {
 				let base = ::arch::memory::addresses::HEAP_START;
@@ -317,6 +319,7 @@ impl HeapDef
 				HeapState::Used(_) => false
 				}
 			};
+		log_debug!("(2) self.{{start = {:p}, last_foot = {:?}}}, use_prev={}", self.start, self.last_foot, use_prev);
 		assert!( !self.last_foot.is_null() );
 		let last_foot = &mut *self.last_foot;
 		let alloc_size = min_size - (if use_prev { last_foot.head().size } else { 0 });
@@ -352,7 +355,7 @@ impl HeapDef
 				block
 			};
 		self.last_foot = block.foot() as *mut HeapFoot;
-		log_debug!("HeapDef.expand: &block={:p}", block);
+		log_debug!("HeapDef.expand: &block={:p}, self.last_foot={:p}", block, self.last_foot);
 		block.state = HeapState::Used(0);
 		// 3. Return final block
 		block

@@ -32,22 +32,24 @@ impl<T: Send> Spinlock<T>
 	{
 		let if_set = unsafe {
 			let mut flags: u64;
-			asm!("pushf\npop $0\ncli" : "=r" (flags));
-			while self.lock.compare_and_swap(false, true, ::core::atomic::Ordering::Relaxed) == true
+			asm!("pushf\npop $0\ncli" : "=r" (flags) : : "memory" : "volatile");
+			while self.lock.compare_and_swap(false, true, ::core::atomic::Ordering::Acquire) == true
 			{
 			}
 			(flags & 0x200) != 0
 			};
 		//::arch::puts("Spinlock::lock() - Held\n");
+		::core::atomic::fence(::core::atomic::Ordering::Acquire);
 		HeldSpinlock { lock: self, if_set: if_set }
 	}
 	
 	pub fn release(&mut self, set_if: bool)
 	{
 		//::arch::puts("Spinlock::release()\n");
-		self.lock.store(false, ::core::atomic::Ordering::Relaxed);
+		::core::atomic::fence(::core::atomic::Ordering::Release);
+		self.lock.store(false, ::core::atomic::Ordering::Release);
 		if set_if {
-			unsafe { asm!("sti" : : : : "volatile"); }
+			unsafe { asm!("sti" : : : "memory" : "volatile"); }
 		}
 	}
 }

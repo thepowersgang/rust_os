@@ -38,6 +38,7 @@ impl<T: Send> Mutex<T>
 	*/
 	
 	/// Lock the mutex
+	#[inline(never)]
 	pub fn lock(&self) -> HeldMutex<T> {
 		{
 			// Check the held status of the mutex
@@ -54,10 +55,12 @@ impl<T: Send> Mutex<T>
 				*held = true;
 			}
 		}
+		::core::atomic::fence(::core::atomic::Ordering::Acquire);
 		return HeldMutex { lock: self };
 	}
 	/// Release the mutex
 	fn unlock(&self) {
+		::core::atomic::fence(::core::atomic::Ordering::Release);
 		let mut held = self.locked_held.lock();
 		*held = false;
 		unsafe { (*self.queue.get()).wake_one() };

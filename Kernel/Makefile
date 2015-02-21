@@ -79,13 +79,16 @@ kernel-$(ARCH).bin: $(OBJS) Core/arch/$(ARCH)/link.ld Makefile
 	@$(TRIPLE)-ld -o $@ $(OBJS) $(LIBGCC) $(LINKFLAGS)
 	@objcopy $@ -F elf32-i386 $@.elf32
 	#@mcopy -i fdd.img $@.elf32 ::/ -D o
-	@objdump -S $@ > $@.dsm
+	@objdump -C -S $@ > $@.dsm
 	@echo "BUILDNUM := $$(( $(BUILDNUM) + 1 ))" > BuildNum.$(ARCH).mk
 
 $(OBJDIR)%.ao: Core/arch/$(ARCH)/%.asm Makefile
 	@echo [AS] -o $@
 	@mkdir -p $(dir $@)
 	@nasm -o $@ $< -f elf64 -MD $@.d -MP
+
+$(OBJDIR)kernel.ir: Core/main.rs $(OBJDIR)libcore.rlib $(TARGET_FILE)
+	$V$(ENV) rustc $(RUSTFLAGS) --emit=llvm-ir -o $@ $< $(call LocalLib,core)
 
 $(OBJDIR)libkernel.rlib: Core/main.rs $(OBJDIR)libcore.rlib Makefile $(TARGET_FILE)
 	@echo [RUSTC] -o $@
