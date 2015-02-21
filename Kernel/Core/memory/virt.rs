@@ -64,7 +64,7 @@ pub fn allocate(addr: *mut (), page_count: usize)
 		let pgptr = (pg * ::PAGE_SIZE) as *const ();
 		if ::arch::memory::virt::is_reserved( pgptr ) {
 			// nope.avi
-			panic!("TODO: Already reserved memory in range passed to allocate({:p},{}) ({:p})", addr, page_count, pgptr);
+			panic!("TODO: Allocated memory ({:p}) in allocate({:p},{})", pgptr, addr, page_count);
 		}
 	}
 	// 3. do `page_count` single arbitary allocations

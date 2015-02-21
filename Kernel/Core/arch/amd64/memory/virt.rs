@@ -49,7 +49,7 @@ unsafe fn get_entry(level: u8, index: usize, force_allocate: bool) -> PTE
 		let rv = PTE::new(PTEPos::Page2M, tab_pd.offset(index));
 		if !rv.is_present() && force_allocate {
 			let ptr = tab_pt.offset(index * 512) as *mut ();
-			log_debug!("Allocating for {:?} (PDE {})", ptr, index);
+			log_debug!("Allocating for {:?} (PD Ent {})", ptr, index);
 			::memory::phys::allocate( ptr );
 		}
 		rv
@@ -59,7 +59,7 @@ unsafe fn get_entry(level: u8, index: usize, force_allocate: bool) -> PTE
 		let rv = PTE::new(PTEPos::Page1G, tab_pdp.offset(index));
 		if !rv.is_present() && force_allocate {
 			let ptr = tab_pd.offset(index * 512) as *mut ();
-			log_debug!("Allocating for {:?} (PDPE {})", ptr, index);
+			log_debug!("Allocating for {:?} (PDPT Ent {})", ptr, index);
 			::memory::phys::allocate( ptr );
 		}
 		rv
@@ -68,7 +68,9 @@ unsafe fn get_entry(level: u8, index: usize, force_allocate: bool) -> PTE
 		assert!(index < 512);
 		let rv = PTE::new(PTEPos::Page512G, tab_pml4.offset(index));
 		if !rv.is_present() && force_allocate {
-			::memory::phys::allocate( tab_pdp.offset(index * 512) as *mut () );
+			let ptr = tab_pdp.offset(index * 512) as *mut ();
+			log_debug!("Allocating for {:?} (PML4 Ent {})", ptr, index);
+			::memory::phys::allocate( ptr );
 		}
 		rv
 		},
@@ -79,24 +81,27 @@ unsafe fn get_page_ent(addr: usize, from_temp: bool, allocate: bool, large_ok: b
 {
 	assert!( from_temp == false );
 	let pagenum = (addr & MASK_VBITS) / PAGE_SIZE;
-//	log_trace!("get_page_ent(addr={:#x}, from_temp={}, allocate={}), pagenum={:#x}", addr, from_temp, allocate, pagenum);
+	//log_trace!("get_page_ent(addr={:#x}, from_temp={}, allocate={}), pagenum={:#x}", addr, from_temp, allocate, pagenum);
 
-	let mut ent = get_entry(3, pagenum >> (9*3), allocate);
+	let ent = get_entry(3, pagenum >> (9*3), allocate);
 	// 1. Walk down page tables from PML4
 	if !ent.is_present() {
+		log_trace!("get_page_ent(addr={:#x}, ...) PML4 Ent {} absent", addr, pagenum >> (9*3));
 		return PTE::null();
 	}
 
-	ent = get_entry(2, pagenum >> (9*2), allocate);
+	let ent = get_entry(2, pagenum >> (9*2), allocate);
 	if !ent.is_present() {
+		log_trace!("get_page_ent(addr={:#x}, ...) PDPT Ent {} absent", addr, pagenum >> (9*2));
 		return PTE::null();
 	}
 	if ent.is_large() {
 		panic!("TODO: Support large pages (1GiB)");
 	}
 
-	ent = get_entry(1, pagenum >> (9*1), allocate);
+	let ent = get_entry(1, pagenum >> (9*1), allocate);
 	if !ent.is_present() {
+		log_trace!("get_page_ent(addr={:#x}, ...) PD Ent {} absent", addr, pagenum >> (9*1));
 		return PTE::null();
 	}
 	if ent.is_large() {
@@ -130,7 +135,9 @@ pub fn map(addr: *mut (), phys: PAddr, prot: ::memory::virt::ProtectionMode)
 {
 	unsafe {
 		let pte = get_page_ent(addr as usize, false, true, false);
+		assert!( !pte.is_null(), "Failed to obtain ent for {:p}", addr );
 		pte.set( phys, prot );
+		asm!("invlpg $0" : : "m" (addr) : "memory");
 	}
 }
 pub fn unmap(addr: *mut ())
@@ -138,6 +145,8 @@ pub fn unmap(addr: *mut ())
 	unsafe {
 		let pte = get_page_ent(addr as usize, false, false, false);
 		pte.set( 0, ::memory::virt::ProtectionMode::Unmapped );
+		
+		asm!("invlpg $0" : : "m" (addr) : "memory");
 	}
 }
 

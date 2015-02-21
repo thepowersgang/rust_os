@@ -32,7 +32,7 @@ OBJDIR := .obj/$(ARCH)/
 
 RUSTFLAGS := -L $(OBJDIR)
 RUSTFLAGS += -O
-#RUSTFLAGS += -g
+RUSTFLAGS += -g
 #RUSTFLAGS += --debuginfo 1
 #RUSTFLAGS += -C code-model=kernel
 RUSTFLAGS += -C soft-float	# Disables requiring SSE etc

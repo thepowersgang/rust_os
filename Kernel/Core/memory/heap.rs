@@ -324,6 +324,7 @@ impl HeapDef
 		// 1. Allocate at least one page at the end of the heap
 		let n_pages = ::lib::num::round_up(alloc_size, ::PAGE_SIZE) / ::PAGE_SIZE;
 		log_debug!("HeapDef.expand(min_size={}), alloc_size={}, n_pages={}", min_size, alloc_size, n_pages);
+		log_trace!("last_foot = {:p}", self.last_foot);
 		assert!(n_pages > 0);
 		::memory::virt::allocate(last_foot.next_head() as *mut(), n_pages);
 		

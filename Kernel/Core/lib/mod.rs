@@ -4,7 +4,7 @@
 use _common::{Option,Some,None};
 use core::ptr::PtrExt;
 use _common::Send;
-use core::ops::Fn;
+use core::ops::FnOnce;
 use lib::mem::Box;
 
 pub use self::queue::Queue;
@@ -46,11 +46,18 @@ pub struct LazyStatic<T>(pub Option<T>);
 
 impl<T> LazyStatic<T>
 {
-	pub fn prep<Fcn: Fn()->T>(&mut self, fcn: Fcn) {
+	pub fn prep<Fcn: FnOnce()->T>(&mut self, fcn: Fcn) {
 		if self.0.is_none() {
-			//self.0 = Some(box fcn());
 			self.0 = Some(fcn());
 		}
+	}
+	
+	/// A fully unsafe prep function that is only valid to call when you _know_ that no races will occur
+	pub unsafe fn prep_unsafe<Fcn: FnOnce()->T>(&self, fcn: Fcn) {
+		assert!( self.0.is_none() );
+		let mut_self: &mut LazyStatic<T> = ::core::mem::transmute(self);
+		log_debug!("prep_unsafe {:p}", mut_self);
+		mut_self.prep(fcn)
 	}
 }
 impl<T> ::core::ops::Deref for LazyStatic<T>

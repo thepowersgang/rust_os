@@ -6,6 +6,7 @@
 use _common::*;
 //use arch::memory::addresses::{physinfo_start, physinfo_end};
 use arch::memory::PAddr;
+use lib::LazyStatic;
 
 const NOPAGE : PAddr = 1;
 
@@ -21,12 +22,20 @@ pub fn init()
 {
 	// 1. Acquire a memory map from the architecture code and save for use later
 	unsafe {
-		s_mem_map = Some(::arch::boot::get_memory_map());
+		s_mem_map = Some( ::arch::boot::get_memory_map() );
 	}
 	
-	for (i,ent) in unsafe{s_mem_map.unwrap()}.iter().enumerate()
+	log_log!("Memory Map:");
+	for (i,ent) in get_memory_map().iter().enumerate()
 	{
 		log_log!("#{} : {:?}", i, ent);
+	}
+}
+
+fn get_memory_map() -> &'static [::memory::MemoryMapEnt]
+{
+	unsafe {
+		s_mem_map.unwrap()
 	}
 }
 
@@ -36,33 +45,34 @@ pub fn allocate_range(count: usize) -> PAddr
 		panic!("TODO: Large range allocations (count={})", count);
 	}
 
-	unsafe
+	let mut h = s_mapalloc.lock();
+	//log_trace!("allocate_range: *h = {:?} (init)", *h);
+	let (mut i,mut addr) = *h;
+	
+	let map = get_memory_map();
+	if i == map.len() {
+		log_error!("Out of physical memory");
+		return NOPAGE;
+	}
+	if addr >= map[i].start + map[i].size
 	{
-		let mut h = s_mapalloc.lock();
-		let map = s_mem_map.unwrap();
-		// 1. Locate the next unused address in the map, start from *h
-		let (mut i,mut addr) = *h;
+		i += 1;
+		while i != map.len() && map[i].state != ::memory::memorymap::MemoryState::Free {
+			i += 1;
+		}
 		if i == map.len() {
 			log_error!("Out of physical memory");
+			*h = (i, 0);
 			return NOPAGE;
 		}
-		if addr >= map[i].start + map[i].size
-		{
-			i += 1;
-			while i != map.len() && map[i].state != ::memory::memorymap::MemoryState::Free {
-				i += 1;
-			}
-			if i == map.len() {
-				log_error!("Out of physical memory");
-				return NOPAGE;
-			}
-			addr = map[i].start;
-		}
-		let rv = addr;
-		addr += ::PAGE_SIZE as u64;
-		*h = (i, addr);
-		return rv;
+		addr = map[i].start;
 	}
+	let rv = addr;
+	addr += ::PAGE_SIZE as u64;
+	//log_trace!("allocate_range: rv={:#x}, i={}, addr={:#x}", rv, i, addr);
+	*h = (i, addr);
+	//log_trace!("allocate_range: *h = {:?}", *h);
+	return rv;
 }
 
 pub fn allocate(address: *mut ()) -> bool
@@ -79,6 +89,7 @@ pub fn allocate(address: *mut ()) -> bool
 			*h = *(address as *const PAddr);
 			*(address as *mut [u8; ::PAGE_SIZE]) = ::core::mem::zeroed();
 			mark_used(paddr);
+			log_trace!("- {:p} (stack) paddr = {:#x}", address, paddr);
 			return true;
 		}
 	}
@@ -88,9 +99,11 @@ pub fn allocate(address: *mut ()) -> bool
 	{
 		::memory::virt::map(address, paddr, super::virt::ProtectionMode::KernelRW);
 		unsafe { *(address as *mut [u8; ::PAGE_SIZE]) = ::core::mem::zeroed(); }
+		log_trace!("- {:p} (range) paddr = {:#x}", address, paddr);
 		return true
 	}
 	// 3. Fail
+	log_trace!("- (none)");
 	false
 }
 
