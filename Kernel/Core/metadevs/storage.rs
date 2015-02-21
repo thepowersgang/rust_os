@@ -50,7 +50,7 @@ pub trait PhysicalVolume
 }
 
 /// Registration for a physical volume handling driver
-trait Mapper
+trait Mapper: Send + Sync
 {
 	fn name(&self) -> &str;
 	fn handles_pv(&self, pv: &PhysicalVolume) -> usize;
@@ -74,7 +74,7 @@ struct PhysicalRegion
 static s_next_pv_idx: AtomicUint = ATOMIC_UINT_INIT;
 static s_physical_volumes: LazyMutex<HashMap<usize,Box<PhysicalVolume+Send>>> = lazymutex_init!();
 static s_logical_volumes: LazyMutex<HashMap<usize,LogicalVolume>> = lazymutex_init!();
-static s_mappers: LazyMutex<Vec<&'static (Mapper+Send)>> = lazymutex_init!();
+static s_mappers: LazyMutex<Vec<&'static Mapper>> = lazymutex_init!();
 
 // TODO: Maintain a set of registered volumes. Mappers can bind onto a volume and register new LVs
 // TODO: Maintain set of active mappings (set of PVs -> set of LVs)

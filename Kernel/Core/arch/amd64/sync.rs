@@ -20,7 +20,7 @@ pub struct HeldSpinlock<'lock,T:'lock+Send>
 }
 
 /// A handle for frozen interrupts
-pub struct HeldInterrupts;
+pub struct HeldInterrupts(bool);
 
 impl<T: Send> Spinlock<T>
 {
@@ -73,17 +73,17 @@ pub fn hold_interrupts() -> HeldInterrupts
 		(flags & 0x200) != 0
 		};
 	
-	assert!(if_set, "Interupts clear when hold_interrupts called");
-	
-	HeldInterrupts
+	HeldInterrupts(if_set)
 }
 
 impl ::core::ops::Drop for HeldInterrupts
 {
 	fn drop(&mut self)
 	{
-		unsafe {
-			asm!("sti" : : : "memory" : "volatile");
+		if self.0 {
+			unsafe {
+				asm!("sti" : : : "memory" : "volatile");
+			}
 		}
 	}
 }

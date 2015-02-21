@@ -49,6 +49,7 @@ pub struct SDTHandle<T:'static>
 {
 	maphandle: ::memory::virt::AllocHandle,
 	ofs: usize,
+	_type: ::core::marker::PhantomData<T>,
 }
 
 #[repr(C)]
@@ -328,7 +329,8 @@ impl<T> SDTHandle<T>
 		}
 		SDTHandle {
 			maphandle: handle,
-			ofs: ofs
+			ofs: ofs,
+			_type: ::core::marker::PhantomData,
 			}
 	}
 	

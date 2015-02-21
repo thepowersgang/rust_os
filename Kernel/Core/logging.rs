@@ -1,7 +1,7 @@
 // Module: ::logging
 //
 //
-use core::fmt::Writer;
+use core::fmt::Write;
 use core::result::Result::Ok;
 use core::slice::{SliceExt};
 
@@ -20,6 +20,7 @@ pub enum Level
 
 pub struct LoggingFormatter
 {
+	_irq_handle: ::arch::sync::HeldInterrupts,
 	_lock_handle: ::arch::sync::HeldSpinlock<'static,()>,
 }
 
@@ -53,12 +54,13 @@ impl LoggingFormatter
 	pub fn new() -> LoggingFormatter
 	{
 		LoggingFormatter {
+			_irq_handle: ::arch::sync::hold_interrupts(),
 			_lock_handle: s_logging_lock.lock()
 		}
 	}
 }
 
-impl ::core::fmt::Writer for LoggingFormatter
+impl ::core::fmt::Write for LoggingFormatter
 {
 	fn write_str(&mut self, s: &str) -> ::core::fmt::Result
 	{

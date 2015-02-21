@@ -220,8 +220,11 @@ impl<T> MutableSeq<T> for Vec<T>
 
 impl<T> FromIterator<T> for Vec<T>
 {
-	fn from_iter<IT: Iterator<Item=T>>(iterator: IT) -> Vec<T>
+	fn from_iter<IT>(src: IT) -> Vec<T>
+	where
+		IT: ::core::iter::IntoIterator<Item=T>
 	{
+		let iterator = src.into_iter();
 		let mut ret = Vec::new();
 		if let (_, Some(size)) = iterator.size_hint()
 		{

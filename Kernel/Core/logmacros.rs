@@ -4,7 +4,7 @@
 macro_rules! log{ ($lvl:expr, $modname:expr, $($arg:tt)*) => (
 	if $crate::logging::enabled($lvl, $modname)
 	{
-		use core::fmt::Writer;
+		use core::fmt::Write;
 		
 		let _ = write!(&mut $crate::logging::getstream($lvl, $modname), $($arg)*);
 	}

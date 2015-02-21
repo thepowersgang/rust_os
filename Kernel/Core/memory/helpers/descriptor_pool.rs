@@ -8,6 +8,7 @@ pub struct DescriptorPool<T>
 {
 	items_handle: AllocHandle,
 	used_state: Vec<bool>,
+	_type: ::core::marker::PhantomData<T>,
 }
 
 pub struct LentDescriptor<T>

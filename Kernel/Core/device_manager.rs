@@ -25,7 +25,7 @@ pub enum IOBinding
 
 /// Interface a bus manager instance
 pub trait BusManager:
-	Send
+	Send + Sync
 {
 	/// Returns the textual name of the bus type (e.g. "pci")
 	fn bus_type(&self) -> &str;
@@ -51,7 +51,7 @@ pub trait BusDevice:
 // - Structure defines bus type and a set of attribute names/values/masks
 /// Abstract driver for a device (creates instances when passed a device)
 pub trait Driver:
-	Send
+	Send + Sync
 {
 	/// Driver's name
 	fn name(&self) -> &str;
@@ -114,7 +114,7 @@ pub fn register_bus(manager: &'static BusManager, devices: Vec<Box<BusDevice>>)
 }
 
 /// Registers a driver with the device manger
-pub fn register_driver(driver: &'static (Driver+Send))
+pub fn register_driver(driver: &'static Driver)
 {
 	s_driver_list.lock().push(driver);
 	log_debug!("Registering driver {}", driver.name());

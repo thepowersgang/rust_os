@@ -10,6 +10,9 @@ pub struct Queue<T>
 	pub tail: OptMutPtr<QueueEnt<T>>,
 }
 
+unsafe impl<T: Sync> ::core::marker::Sync for Queue<T> {}
+unsafe impl<T: Send> ::core::marker::Send for Queue<T> {}
+
 // Queue entry
 pub struct QueueEnt<T>
 {
