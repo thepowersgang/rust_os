@@ -2,14 +2,20 @@
 use core::marker::{Sized,Send};
 
 pub use self::rc::Rc;
+pub use self::rc::Arc;
 
 mod rc;
 
 #[lang = "owned_box"]
 pub struct Box<T>(*mut T);
 
-unsafe impl<T: ?Sized+Send> Send for Box<T>
+unsafe impl<T: ?Sized+Send> Send for Box<T> { }
+
+impl<T> Box<T>
 {
+	pub fn new(v: T) -> Box<T> {
+		box v
+	}
 }
 
 impl<T: ?Sized> ::core::fmt::Debug for Box<T>

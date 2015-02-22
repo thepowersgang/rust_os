@@ -20,7 +20,14 @@ struct PCIDev
 	class: u32,
 
 	// TODO: Include bound status, and BAR mappings
-	config: [u32; 16]
+	config: [u32; 16],
+}
+
+enum BAR
+{
+	None,
+	IO(u16, u16),	// base, size
+	Mem(u64,u32,bool),	// Base, size, prefetchable
 }
 
 struct PCIBusManager;
@@ -70,7 +77,7 @@ impl ::device_manager::Driver for PCIChildBusDriver
 		// -> There should only be one PCI bridge handler, but bind low just in case
 		if bridge_type == 0x01 { 1 } else {0 }
 	}
-	fn bind(&self, bus_dev: &::device_manager::BusDevice) -> Box<::device_manager::DriverInstance+'static>
+	fn bind(&self, bus_dev: &mut ::device_manager::BusDevice) -> Box<::device_manager::DriverInstance+'static>
 	{
 		let addr = bus_dev.addr() as u16;
 		let bridge_type = (read_word(addr, 3) >> 16) & 0x7F;
@@ -106,7 +113,34 @@ impl ::device_manager::BusDevice for PCIDev
 	}
 	fn bind_io(&mut self, block_id: usize) -> ::device_manager::IOBinding
 	{
-		panic!("TODO: PCIDev::bind_io(block_id={})", block_id);
+		if block_id > 6 {
+			panic!("PCI bind_io - block_id out of range (max 5, got {})", block_id);
+		}
+		if block_id % 1 == 1 {
+			if self.config[4+block_id-1] & 7 == 4 {
+				// Accessing the second word of a 64-bit BAR, this is an error.
+				panic!("PCI bind_io - Requesting second word of a 64-bit BAR");
+			}
+		}
+		match parse_bar(self.addr, 4+block_id as u8)
+		{
+		BAR::None => ::device_manager::IOBinding::IO(0,0),
+		BAR::IO(b,s) => ::device_manager::IOBinding::IO(b,s),
+		BAR::Mem(base, size, pf) => {
+			::device_manager::IOBinding::Memory( ::memory::virt::map_hw_rw(base, size as usize / ::PAGE_SIZE, "pci").unwrap() )
+			}
+		}
+	}
+	fn get_irq(&mut self, idx: usize) -> u32
+	{
+		if idx == 0
+		{
+			self.config[0x3C/4] & 0xFF
+		}
+		else
+		{
+			panic!("TODO: PCI get_irq {} > 0", idx);
+		}
 	}
 }
 
@@ -173,6 +207,50 @@ fn get_device(bus_id: u8, devidx: u8, function: u8) -> Option<PCIDev>
 	}
 }
 
+fn parse_bar(addr: u16, word: u8) -> BAR
+{
+	let value = read_word(addr, word);
+	if value == 0
+	{
+		BAR::None
+	}
+	else if value & 1 == 0
+	{
+		write_word(addr, word, 0xFFFFFFFF);
+		let size = !read_word(addr, word) & 0xFFFF_FFF0 + 1;
+		write_word(addr, word, value);
+		// memory BAR
+		let pf = (value >> 3) & 1;
+		let ty = (value >> 1) & 3;
+		match ty
+		{
+		0 => BAR::Mem(value as u64 & !0xF, size, pf == 1),	// 32-bit
+		1 => BAR::None,	// reserved
+		2 => {	// 64-bit
+			assert!(word % 2 == 0);
+			let value2 = read_word(addr, word+1);
+			write_word(addr, word+1, !0);
+			let size2 = !read_word(addr, word+1) + 1;
+			write_word(addr, word+1, value2);
+			assert_eq!(size2, 0);
+			
+			BAR::Mem( (value2 as u64) << 32 | (value as u64 & !0xF), size, pf == 1 )
+			},
+		3 => BAR::None,	// reserved
+		_ => unreachable!()
+		}
+	}
+	else
+	{
+		// IO BAR
+		write_word(addr, word, 0xFFFF);
+		let one_value = read_word(addr, word);
+		let size = (!one_value) & 0xFFFC + 1;
+		write_word(addr, word, value);
+		BAR::IO( (value & 0xFFFC) as u16, size as u16 )
+	}
+}
+
 fn get_pci_addr(bus_id: u8, dev: u8, fcn: u8) -> u16
 {
 	assert!(dev < MAX_DEV);
@@ -185,6 +263,12 @@ fn read_word(bus_addr: u16, wordidx: u8) -> u32
 	let addr = ((bus_addr as u32) << 8) | ((wordidx as u32) << 2);
 	//log_trace!("read_word(bus_addr={:x},idx={}) addr={:#x}", bus_addr, wordidx, addr);
 	::arch::pci::read(addr)
+}
+fn write_word(bus_addr: u16, wordidx: u8, value: u32)
+{
+	let addr = ((bus_addr as u32) << 8) | ((wordidx as u32) << 2);
+	//log_trace!("read_word(bus_addr={:x},idx={}) addr={:#x}", bus_addr, wordidx, addr);
+	::arch::pci::write(addr, value)
 }
 
 

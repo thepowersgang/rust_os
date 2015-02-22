@@ -45,6 +45,8 @@ pub trait BusDevice:
 	fn set_power(&mut self, state: bool);	// TODO: Power state enum for Off,Standby,Low,On
 	/// Bind to the specified IO block (meaning of `block_id` depends on the bus)
 	fn bind_io(&mut self, block_id: usize) -> IOBinding;
+	/// Obtain the specified interrupt vector
+	fn get_irq(&mut self, idx: usize) -> u32;
 }
 
 // TODO: Change this to instead be a structure with a bound Fn reference
@@ -60,7 +62,7 @@ pub trait Driver:
 	/// Return the handling level of this driver for the specified device
 	fn handles(&self, bus_dev: &BusDevice) -> DriverHandleLevel;
 	/// Requests that the driver bind itself to the specified device
-	fn bind(&self, bus_dev: &BusDevice) -> Box<DriverInstance>;
+	fn bind(&self, bus_dev: &mut BusDevice) -> Box<DriverInstance>;
 }
 
 /// Driver instance (maps directly to a device)
@@ -104,8 +106,8 @@ pub fn register_bus(manager: &'static BusManager, devices: Vec<Box<BusDevice>>)
 	let bus = Bus {
 		manager: manager,
 		// For each device, locate a driver
-		devices: devices.into_iter().map(|d| Device {
-			driver: find_driver(manager, &*d),
+		devices: devices.into_iter().map(|mut d| Device {
+			driver: find_driver(manager, &mut *d),
 			//attribs: Vec::new(),
 			bus_dev: d,
 			}).collect(),
@@ -151,7 +153,7 @@ pub fn register_driver(driver: &'static Driver)
 			else
 			{
 				// Bind new driver
-				dev.driver = Some( (driver.bind(&*dev.bus_dev), rank) );
+				dev.driver = Some( (driver.bind(&mut *dev.bus_dev), rank) );
 			}
 		}
 	}
@@ -160,7 +162,7 @@ pub fn register_driver(driver: &'static Driver)
 /**
  * Locate the best registered driver for this device and instanciate it
  */
-fn find_driver(bus: &BusManager, bus_dev: &BusDevice) -> Option<(Box<DriverInstance>,DriverHandleLevel)>
+fn find_driver(bus: &BusManager, bus_dev: &mut BusDevice) -> Option<(Box<DriverInstance>,DriverHandleLevel)>
 {
 	log_debug!("Finding driver for {}:{:x}", bus.bus_type(), bus_dev.addr());
 	let mut best_ranking = 0;
@@ -193,6 +195,54 @@ fn find_driver(bus: &BusManager, bus_dev: &BusDevice) -> Option<(Box<DriverInsta
 		}
 	}
 	best_driver.map(|d| (d.bind(bus_dev), best_ranking))
+}
+
+impl IOBinding
+{
+	pub fn io_base(&self) -> u16 {
+		match *self
+		{
+		IOBinding::IO(base, _size) => base,
+		IOBinding::Memory(_) => panic!("Called IOBinding::io_base on IOBinding::Memory"),
+		}
+	}
+	pub unsafe fn write_8(&self, ofs: usize, val: u8)
+	{
+		match *self
+		{
+		IOBinding::IO(base, s) => {
+			assert!( ofs < s as usize );
+			::arch::x86_io::outb(base + ofs as u16, val);
+			},
+		IOBinding::Memory(ref h) => {
+			*h.as_ref::<u8>(ofs) = val;
+			},
+		}
+	}
+	pub unsafe fn write_32(&self, ofs: usize, val: u32)
+	{
+		match *self
+		{
+		IOBinding::IO(base, s) => {
+			assert!( ofs < s as usize );
+			::arch::x86_io::outl(base + ofs as u16, val);
+			},
+		IOBinding::Memory(ref h) => {
+			*h.as_ref::<u32>(ofs) = val;
+			},
+		}
+	}
+}
+
+impl ::core::fmt::Debug for IOBinding
+{
+	fn fmt(&self, f: &mut ::core::fmt::Formatter) -> ::core::fmt::Result {
+		match *self
+		{
+		IOBinding::IO(b, s) => write!(f, "IO({:#x}+{:#x})", b, s),
+		IOBinding::Memory(ref h) => write!(f, "Memory({:?})", h),
+		}
+	}
 }
 
 //impl<'a> ::core::fmt::Show for BusDevice+'a

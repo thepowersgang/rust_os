@@ -27,15 +27,13 @@ pub struct LazyMutex<T: Send>(pub Mutex<LazyStatic<T>>);
 
 impl<T: Send> Mutex<T>
 {
-	/*
 	pub fn new(val: T) -> Mutex<T> {
 		Mutex {
 			locked_held: spinlock_init!(false),
-			queue: ::threads::WAITQUEUE_INIT,
-			val: val,
+			queue: ::core::cell::UnsafeCell { value: ::threads::WAITQUEUE_INIT },
+			val: ::core::cell::UnsafeCell { value: val },
 		}
 	}
-	*/
 	
 	fn queue(&self) -> &mut ::threads::WaitQueue
 	{

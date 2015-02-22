@@ -4,31 +4,34 @@
 // Core/async/mod.rs
 ///! Asynchronous IO and waiting support
 use _common::*;
-use core::atomic::AtomicBool;
-use sync::mutex::Mutex;
+use core::atomic::{AtomicBool,ATOMIC_BOOL_INIT};
 
+pub use self::mutex::Mutex;
+
+pub mod mutex;
 
 pub mod events
 {
 	pub type EventMask = u32;
 }
 
-struct EventSource
+/// A general-purpose wait event (when flag is set, waiters will be informed)
+pub struct EventSource
 {
 	flag: AtomicBool,
-	waiter: Mutex<Option<::threads::SleepObjectRef>>
+	waiter: ::sync::mutex::Mutex<Option<::threads::SleepObjectRef>>
 }
 
 pub struct EventWait<'a>
 {
 	source: &'a EventSource,
-	callback: Option<Box<for<'r> ::lib::thunk::Invoke<(&'r mut EventWait<'a>),()> + Send + 'static>>,
+	callback: Option<Box<for<'r> ::lib::thunk::Invoke<(&'r mut EventWait<'a>),()> + Send + 'a>>,
 }
 
 /// A handle returned by a read operation (re-borrows the target buffer)
 pub struct ReadHandle<'buf,'src>
 {
-	buffer: &'buf mut [u8],
+	buffer: &'buf [u8],
 	waiter: EventWait<'src>,
 }
 
@@ -46,6 +49,20 @@ pub enum WaitError
 
 impl EventSource
 {
+	pub fn new() -> EventSource
+	{
+		EventSource {
+			flag: ATOMIC_BOOL_INIT,
+			waiter: ::sync::mutex::Mutex::new(None),
+		}
+	}
+	pub fn wait_on<'a, F: FnOnce(&mut EventWait) + Send + 'a>(&'a self, f: F) -> EventWait<'a>
+	{
+		EventWait {
+			source: self,
+			callback: Some(box f),
+		}
+	}
 	pub fn trigger(&self)
 	{
 		self.flag.store(true, ::core::atomic::Ordering::Relaxed);
@@ -78,7 +95,7 @@ impl<'a> EventWait<'a>
 
 impl<'o_b,'o_e> ReadHandle<'o_b, 'o_e>
 {
-	pub fn new<'b,'e>(dst: &'b mut[u8], w: EventWait<'e>) -> ReadHandle<'b,'e>
+	pub fn new<'b,'e>(dst: &'b [u8], w: EventWait<'e>) -> ReadHandle<'b,'e>
 	{
 		ReadHandle {
 			buffer: dst,

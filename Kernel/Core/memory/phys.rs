@@ -8,7 +8,7 @@ use _common::*;
 use arch::memory::PAddr;
 use lib::LazyStatic;
 
-const NOPAGE : PAddr = 1;
+pub const NOPAGE : PAddr = 1;
 
 static mut s_mem_map : Option<&'static [::memory::MemoryMapEnt]> = None;
 // s_mapalloc - Tracks the allocation point in s_mem_map : (Entry Index, Address)
@@ -37,6 +37,11 @@ fn get_memory_map() -> &'static [::memory::MemoryMapEnt]
 	unsafe {
 		s_mem_map.unwrap()
 	}
+}
+
+pub fn allocate_range_bits(bits: u8, count: usize) -> PAddr
+{
+	panic!("TODO: allocate_range(bits={}, count={})", bits, count);
 }
 
 pub fn allocate_range(count: usize) -> PAddr

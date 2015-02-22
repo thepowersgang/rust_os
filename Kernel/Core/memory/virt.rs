@@ -25,9 +25,11 @@ pub enum ProtectionMode
 #[derive(Copy,Debug)]
 pub enum MapError
 {
+	OutOfMemory,
 	RangeInUse,
 }
 
+/// A handle to an owned memory allocation
 pub struct AllocHandle
 {
 	addr: *const (),
@@ -35,6 +37,13 @@ pub struct AllocHandle
 	mode: ProtectionMode,
 }
 unsafe impl Send for AllocHandle {}
+
+/// A wrapper around AllocHandle that acts like an array
+pub struct ArrayHandle<T>
+{
+	alloc: AllocHandle,
+	_ty: ::core::marker::PhantomData<T>,
+}
 
 #[link_section=".process_local"]
 #[allow(non_upper_case_globals)]
@@ -48,6 +57,7 @@ pub fn init()
 	// 2. ???
 }
 
+// Alias the arch's get_phys method into this namespace
 pub use arch::memory::virt::get_phys;
 
 /// Ensure that the provded pages are valid (i.e. backed by memory)
@@ -156,6 +166,17 @@ fn map_hw(phys: PAddr, count: usize, readonly: bool, _module: &'static str) -> R
 		} )
 }
 
+pub fn alloc_dma(bits: u8, count: usize, module: &'static str) -> Result<AllocHandle,MapError>
+{
+	// 1. Allocate enough pages within the specified range
+	let phys = ::memory::phys::allocate_range_bits(bits, count);
+	if phys == ::memory::phys::NOPAGE {
+		return Err( MapError::OutOfMemory );
+	}
+	// 2. Map that
+	map_hw(phys, count, false, module)
+}
+
 fn count_free_in_range(addr: *const Page, count: usize) -> usize
 {
 	for i in range(0, count)
@@ -175,6 +196,7 @@ impl fmt::Display for MapError
 		match *self
 		{
 		MapError::RangeInUse => write!(f, "Requested range is in use"),
+		MapError::OutOfMemory => write!(f, "Out of memory"),
 		}
 	}
 }
@@ -217,6 +239,20 @@ impl AllocHandle
 			::core::mem::transmute( self.as_slice::<T>(ofs, count) )
 		}
 	}
+	pub fn into_array<T>(self) -> ArrayHandle<T>
+	{
+		ArrayHandle {
+			alloc: self,
+			_ty: ::core::marker::PhantomData,
+		}
+	}
+}
+impl ::core::fmt::Debug for AllocHandle
+{
+	fn fmt(&self, f: &mut ::core::fmt::Formatter) -> ::core::fmt::Result
+	{
+		write!(f, "{:p}+{}pg", self.addr, self.count)
+	}
 }
 impl Drop for AllocHandle
 {
@@ -226,6 +262,28 @@ impl Drop for AllocHandle
 		{
 			unmap(self.addr as *mut (), self.count);
 		}
+	}
+}
+
+impl<T> ArrayHandle<T>
+{
+	pub fn len(&self) -> usize {
+		self.alloc.count * ::PAGE_SIZE / ::core::mem::size_of::<T>()
+	}
+}
+
+impl<T> ::core::ops::Index<usize> for ArrayHandle<T>
+{
+	type Output = T;
+	fn index<'a>(&'a self, index: &usize) -> &'a T {
+		self.alloc.as_ref( *index * ::core::mem::size_of::<T>() )
+	}
+}
+
+impl<T> ::core::ops::IndexMut<usize> for ArrayHandle<T>
+{
+	fn index_mut<'a>(&'a mut self, index: &usize) -> &'a mut T {
+		self.alloc.as_ref( *index * ::core::mem::size_of::<T>() )
 	}
 }
 

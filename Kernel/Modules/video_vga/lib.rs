@@ -88,7 +88,7 @@ impl device_manager::Driver for VgaPciDriver
 			0
 		}
 	}
-	fn bind(&self, _bus_dev: &device_manager::BusDevice) -> Box<device_manager::DriverInstance+'static>
+	fn bind(&self, _bus_dev: &mut device_manager::BusDevice) -> Box<device_manager::DriverInstance+'static>
 	{
 		if s_legacy_bound.swap(true, ::core::atomic::Ordering::AcqRel)
 		{

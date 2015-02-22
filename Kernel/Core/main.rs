@@ -12,6 +12,7 @@
 #![feature(thread_local)]	// Allows use of thread_local
 #![feature(lang_items)]	// Allow definition of lang_items
 #![feature(core)]	// silences warnings about write!
+#![feature(optin_builtin_traits)]	// Negative impls
 #![no_std]
 
 #[macro_use]
