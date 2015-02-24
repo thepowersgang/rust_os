@@ -211,12 +211,8 @@ impl ControllerRoot
 {
 	fn new(ata_pri: u16, sts_pri: u16, irq_pri: u32,  ata_sec: u16, sts_sec: u16, irq_sec: u32,  bm: device_manager::IOBinding) -> ControllerRoot
 	{
-		// TODO: IRQs
-		// - Requires binding IRQ to frozen memory location, and allowing the event to be lent down
-		//  > Would be best if the controller owned the interrupt. BUT that makes do_dma interesting
-		log_warning!("TODO: ControllerRoot::new - Handle IRQs ({} and {})", irq_pri, irq_sec);
-		let ctrlr_pri = AtaController::new(ata_pri, sts_pri);
-		let ctrlr_sec = AtaController::new(ata_sec, sts_sec);
+		let ctrlr_pri = AtaController::new(ata_pri, sts_pri, irq_pri);
+		let ctrlr_sec = AtaController::new(ata_sec, sts_sec, irq_sec);
 		
 		// Send IDENTIFY to all disks
 		/*
@@ -249,10 +245,6 @@ impl ControllerRoot
 			ata_controllers: [
 				::kernel::async::Mutex::new(ctrlr_pri),
 				::kernel::async::Mutex::new(ctrlr_sec),
-				],
-			interrupts: [
-				::kernel::async::EventSource::new(),
-				::kernel::async::EventSource::new(),
 				],
 			dma_base: bm,
 			});
@@ -327,11 +319,15 @@ impl<'a> DmaRegBorrow<'a>
 
 impl AtaController
 {
-	fn new(ata_base: u16, sts_port: u16) -> AtaController
+	fn new(ata_base: u16, sts_port: u16, irq: u32) -> AtaController
 	{
 		AtaController {
 			ata_base: ata_base, sts_base: sts_port,
 			prdts: ::kernel::memory::virt::alloc_dma(32, 1, module_path!()).unwrap().into_array(),
+			interrupt: AtaInterrupt {
+				handle: ::kernel::irqs::bind_interrupt_event(irq),
+				event: ::kernel::async::EventSource::new(),
+				},
 			}
 	}
 	
@@ -345,7 +341,7 @@ impl AtaController
 		self.interrupt.event.wait_on(f)
 	}
 	
-	fn start_dma<'a>(&mut self, disk: u8, blockidx: u64, buf: &'a [u8], is_write: bool, bm: DmaRegBorrow) -> DMABuffer<'a>
+	fn start_dma<'a>(&'a mut self, disk: u8, blockidx: u64, buf: &'a [u8], is_write: bool, bm: DmaRegBorrow) -> EventWait<'a>
 	{
 		let dma_buffer = DMABuffer::new_contig( unsafe { ::core::mem::transmute(buf) }, 32 );
 		
@@ -390,7 +386,7 @@ impl AtaController
 			// Start IO
 			bm.out_8(0, if is_write { 0 } else { 8 } | 1);
 		}
-		Ok( self.wait_handle(|_| { drop(dma_buffer); } ) )
+		self.wait_handle(|_| { drop(dma_buffer); } )
 	}
 }
 

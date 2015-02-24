@@ -73,6 +73,8 @@ pub mod device_manager;
 /// Stack unwinding (panic) handling
 pub mod unwind;
 
+pub mod irqs;
+
 /// Built-in device drivers
 pub mod hw;
 

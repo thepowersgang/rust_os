@@ -23,5 +23,22 @@ pub fn write(addr: u32, val: u32)
 	}
 }
 
+pub fn get_isr_for_pin(pin: u8) -> u32
+{
+	match pin
+	{
+	0 => 8,
+	1 => 9,
+	2 => 10,
+	3 => 11,
+	_ => panic!("Unknown PCI interrupt pin {}", pin),
+	}
+}
+
+pub fn enable_interrupt_pin(pin: u8)
+{
+	// Poke the IOAPIC and LAPIC to allow that interrupt through
+}
+
 // vim: ft=rust
 
