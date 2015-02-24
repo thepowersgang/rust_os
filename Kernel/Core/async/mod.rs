@@ -91,6 +91,17 @@ impl<'a> EventWait<'a>
 		let callback = self.callback.take().expect("EventWait::run_completion with callback None");
 		callback.invoke(self);
 	}
+	
+	/// Call the provided function after the original callback
+	pub fn chain<F: FnOnce(&mut EventWait) + Send + 'a>(mut self, f: F) -> EventWait<'a>
+	{
+		let cb = self.callback.take().unwrap();
+		let newcb = box move |e: &mut EventWait<'a>| { cb.invoke(e); f(e); };
+		EventWait {
+			callback: Some(newcb),
+			source: self.source,
+		}
+	}
 }
 
 impl<'o_b,'o_e> ReadHandle<'o_b, 'o_e>
