@@ -7,8 +7,10 @@ use _common::*;
 use core::atomic::{AtomicBool,ATOMIC_BOOL_INIT};
 
 pub use self::mutex::Mutex;
+pub use self::timer::Timer;
 
 pub mod mutex;
+pub mod timer;
 
 pub mod events
 {

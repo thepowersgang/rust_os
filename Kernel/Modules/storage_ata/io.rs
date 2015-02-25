@@ -197,6 +197,11 @@ impl AtaController
 			*/
 		}
 	}
+	
+	pub fn ata_identify<'a>(&'a self, disk: u8, data: &mut ::AtaIdentifyData) -> EventWait<'a>
+	{
+		unimplemented!();
+	}
 }
 
 

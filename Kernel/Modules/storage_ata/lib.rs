@@ -59,6 +59,9 @@ struct AtaIdentifyData
 	sector_count_48: u64,
 	_unused7: [u16; 256-104],
 }
+impl Default for AtaIdentifyData {
+	fn default() -> AtaIdentifyData { unsafe { ::core::mem::zeroed() } }
+}
 
 fn init()
 {
@@ -104,21 +107,21 @@ impl ControllerRoot
 		let ctrlr_sec = io::AtaController::new(ata_sec, sts_sec, irq_sec);
 		
 		// Send IDENTIFY to all disks
-		/*
 		for i in (0 .. 1)
 		{
-			let mut identify_pri: AtaIdentifyData;
-			let mut identify_sec: AtaIdentifyData;
+			let mut identify_pri: AtaIdentifyData = Default::default();
+			let mut identify_sec: AtaIdentifyData = Default::default();
 			
-			let wh_pri = ctrlr_pri.ata_identify(i, &mut identify_pri);
-			let wh_sec = ctrlr_sec.ata_identify(i, &mut identify_sec);
-			let wh_timer = ::kernel::async::Timer::new(2*1000);
+			let mut wh_pri = ctrlr_pri.ata_identify(i, &mut identify_pri);
+			let mut wh_sec = ctrlr_sec.ata_identify(i, &mut identify_sec);
+			//let mut wh_timer = ::kernel::async::Timer::new(2*1000);
 			
 			// Wait for both complete, and obtain results
 			// - Loop while the timer hasn't fired, and at least one of the waiters is still waiting
-			while wh_timer.is_valid() && (wh_pri.is_valid() || wh_sec.is_valid())
+			while /*wh_timer.is_valid() && */ (wh_pri.is_valid() || wh_sec.is_valid())
 			{
-				::kernel::async::wait_on_list(&mut [&mut wh1, &mut wh2, &mut wh_timer]);
+				//::kernel::async::wait_on_list(&mut [&mut wh_pri, &mut wh_sec, &mut wh_timer]);
+				::kernel::async::wait_on_list(&mut [&mut wh_pri, &mut wh_sec]);
 			}
 			if wh_pri.is_valid() {
 				// Log
@@ -128,7 +131,6 @@ impl ControllerRoot
 			}
 			
 		}
-		*/
 		
 		let dma_controller = Arc::new(io::DmaController {
 			ata_controllers: [ ctrlr_pri, ctrlr_sec ],

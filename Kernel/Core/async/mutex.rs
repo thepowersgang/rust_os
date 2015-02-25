@@ -1,4 +1,8 @@
-
+// "Tifflin" Kernel
+// - By John Hodge (thePowersGang)
+//
+// Core/async/mutex.rs
+///! Asynchronous Mutex
 use _common::*;
 use super::EventWait;
 use arch::sync::Spinlock;
