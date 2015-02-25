@@ -52,7 +52,7 @@ struct ControllerRoot
 
 struct DmaController
 {
-	ata_controllers: [::kernel::async::Mutex<AtaController>; 2],
+	ata_controllers: [AtaController; 2],
 	dma_base: IOBinding,
 }
 struct DmaRegBorrow<'a>
@@ -62,10 +62,14 @@ struct DmaRegBorrow<'a>
 }
 struct AtaController
 {
+	regs: ::kernel::async::Mutex<AtaRegs>,
+	interrupt: AtaInterrupt,
+}
+struct AtaRegs
+{
 	ata_base: u16,
 	sts_base: u16,
 	prdts: ::kernel::memory::virt::ArrayHandle<PRDTEnt>,
-	interrupt: AtaInterrupt,
 }
 struct AtaInterrupt
 {
@@ -242,10 +246,7 @@ impl ControllerRoot
 		*/
 		
 		let dma_controller = Arc::new(DmaController {
-			ata_controllers: [
-				::kernel::async::Mutex::new(ctrlr_pri),
-				::kernel::async::Mutex::new(ctrlr_sec),
-				],
+			ata_controllers: [ ctrlr_pri, ctrlr_sec ],
 			dma_base: bm,
 			});
 		
@@ -273,22 +274,7 @@ impl DmaController
 		let disk = disk & 1;
 		
 		// Try to obtain a DMA context
-		let ctrlr = &self.ata_controllers[bus as usize];
-		if let Some(mut buslock) = ctrlr.try_lock()
-		{
-			let dma_buffer = DMABuffer::new_contig( unsafe { ::core::mem::transmute(dst) }, 32 );
-			buslock.start_dma( disk, blockidx, &dma_buffer, is_write, DmaRegBorrow::new(self, bus == 1) );
-			
-			let wh = buslock.wait_handle( |_| { drop(dma_buffer); drop(buslock) } );
-			Ok( wh )
-		}
-		else
-		{
-			// If obtaining a context failed, put the request on the queue and return a wait handle for it
-			//Ok( ctrlr.async_lock(|mut buslock| buslock.start_dma(disk, blockidx, dst, is_write, DmaRegBorrow::new(self, bus == 1)).chain(|_| drop(buslock)) ) )
-			unimplemented!();
-		}
-		
+		Ok( self.ata_controllers[bus as usize].do_dma(blockidx, dst, disk, is_write, DmaRegBorrow::new(self, bus == 1) ) )
 	}
 }
 
@@ -316,18 +302,14 @@ impl<'a> DmaRegBorrow<'a>
 	
 }
 
-impl AtaController
+impl AtaRegs
 {
-	fn new(ata_base: u16, sts_port: u16, irq: u32) -> AtaController
+	fn new(ata_base: u16, sts_port: u16) -> AtaRegs
 	{
-		AtaController {
+		AtaRegs {
 			ata_base: ata_base, sts_base: sts_port,
 			prdts: ::kernel::memory::virt::alloc_dma(32, 1, module_path!()).unwrap().into_array(),
-			interrupt: AtaInterrupt {
-				handle: ::kernel::irqs::bind_interrupt_event(irq),
-				event: ::kernel::async::EventSource::new(),
-				},
-			}
+		}
 	}
 	
 	unsafe fn out_8(&self, ofs: u16, val: u8)
@@ -335,12 +317,7 @@ impl AtaController
 		::kernel::arch::x86_io::outb( self.ata_base + ofs, val);
 	}
 	
-	fn wait_handle<'a, F: FnOnce(&mut EventWait) + Send + 'a> (&'a self, f: F) -> EventWait<'a>
-	{
-		self.interrupt.event.wait_on(f)
-	}
-	
-	fn start_dma<'a>(&'a mut self, disk: u8, blockidx: u64, dma_buffer: &DMABuffer, is_write: bool, bm: DmaRegBorrow)
+	fn start_dma(&mut self, disk: u8, blockidx: u64, dma_buffer: &DMABuffer, is_write: bool, bm: DmaRegBorrow)
 	{
 		let count = dma_buffer.len() / SECTOR_SIZE;
 		// Fill PRDT
@@ -382,6 +359,49 @@ impl AtaController
 			
 			// Start IO
 			bm.out_8(0, if is_write { 0 } else { 8 } | 1);
+		}
+	}
+}
+
+impl AtaController
+{
+	fn new(ata_base: u16, sts_port: u16, irq: u32) -> AtaController
+	{
+		AtaController {
+			regs: ::kernel::async::Mutex::new( AtaRegs::new(ata_base, sts_port) ),
+			interrupt: AtaInterrupt {
+				handle: ::kernel::irqs::bind_interrupt_event(irq),
+				event: ::kernel::async::EventSource::new(),
+				},
+			}
+	}
+	
+	fn wait_handle<'a, F: FnOnce(&mut EventWait) + Send + 'a> (&'a self, f: F) -> EventWait<'a>
+	{
+		self.interrupt.event.wait_on(f)
+	}
+	
+	fn do_dma<'a>(&'a self, blockidx: u64, dst: &'a [u8], disk: u8, is_write: bool, dma_regs: DmaRegBorrow) -> EventWait<'a>
+	{
+		if let Some(mut buslock) = self.regs.try_lock()
+		{
+			let dma_buffer = DMABuffer::new_contig( unsafe { ::core::mem::transmute(dst) }, 32 );
+			buslock.start_dma( disk, blockidx, &dma_buffer, is_write, dma_regs );
+			
+			self.wait_handle( |_| { drop(dma_buffer); drop(buslock) } )
+		}
+		else
+		{
+			// If obtaining a context failed, put the request on the queue and return a wait handle for it
+			/*
+			Ok( self.regs.async_lock(|mut buslock| {
+				let dma_buffer = DMABuffer::new_contig( unsafe { ::core::mem::transmute(dst) }, 32 );
+				buslock.start_dma(disk, blockidx, &dma_buffer, is_write, dma_regs);
+				self.wait_handle( |_| { drop(dma_buffer); drop(buslock) })
+				})
+				)
+			*/
+			unimplemented!();
 		}
 	}
 }
