@@ -37,6 +37,10 @@ impl<'a> DMABuffer<'a>
 		}
 	}
 	
+	pub fn len(&self) -> usize {
+		self.source_slice.len()
+	}	
+
 	pub fn phys(&self) -> ::arch::memory::PAddr
 	{
 		self.phys

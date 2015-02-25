@@ -276,12 +276,11 @@ impl DmaController
 		let ctrlr = &self.ata_controllers[bus as usize];
 		if let Some(mut buslock) = ctrlr.try_lock()
 		{
-			let wh = buslock.start_dma(
-				disk, blockidx,
-				dst, is_write,
-				DmaRegBorrow::new(self, bus == 1)
-				);
-			Ok( wh.chain( |_| drop(buslock) ) )
+			let dma_buffer = DMABuffer::new_contig( unsafe { ::core::mem::transmute(dst) }, 32 );
+			buslock.start_dma( disk, blockidx, &dma_buffer, is_write, DmaRegBorrow::new(self, bus == 1) );
+			
+			let wh = buslock.wait_handle( |_| { drop(dma_buffer); drop(buslock) } );
+			Ok( wh )
 		}
 		else
 		{
@@ -341,14 +340,12 @@ impl AtaController
 		self.interrupt.event.wait_on(f)
 	}
 	
-	fn start_dma<'a>(&'a mut self, disk: u8, blockidx: u64, buf: &'a [u8], is_write: bool, bm: DmaRegBorrow) -> EventWait<'a>
+	fn start_dma<'a>(&'a mut self, disk: u8, blockidx: u64, dma_buffer: &DMABuffer, is_write: bool, bm: DmaRegBorrow)
 	{
-		let dma_buffer = DMABuffer::new_contig( unsafe { ::core::mem::transmute(buf) }, 32 );
-		
-		let count = buf.len() / SECTOR_SIZE;
+		let count = dma_buffer.len() / SECTOR_SIZE;
 		// Fill PRDT
 		// TODO: Use a chain of PRDTs to support 32-bit scatter-gather
-		self.prdts[0].bytes = buf.len() as u16;
+		self.prdts[0].bytes = dma_buffer.len() as u16;
 		self.prdts[0].addr = dma_buffer.phys() as u32;
 		
 		// Commence the IO and return a wait handle for the operation
@@ -386,7 +383,6 @@ impl AtaController
 			// Start IO
 			bm.out_8(0, if is_write { 0 } else { 8 } | 1);
 		}
-		self.wait_handle(|_| { drop(dma_buffer); } )
 	}
 }
 
