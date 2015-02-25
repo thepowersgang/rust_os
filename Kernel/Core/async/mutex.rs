@@ -31,7 +31,7 @@ impl<T: Send> Mutex<T>
 	}
 	
 	/// Asynchronously lock the mutex
-	pub fn async_lock<F: FnOnce(&mut EventWait)>(&self, f: F) -> EventWait
+	pub fn async_lock<F: FnOnce(&mut EventWait, HeldMutex<T>)>(&self, f: F) -> EventWait
 	{
 		unimplemented!()
 	}
