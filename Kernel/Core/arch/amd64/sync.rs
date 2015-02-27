@@ -3,7 +3,8 @@
 //
 // arch/amd64/sync.rs
 // - Lightweight spinlock
-use core::marker::{Send,Sync};
+use core::prelude::*;
+use core::atomic::{AtomicBool,ATOMIC_BOOL_INIT,Ordering};
 
 /// Lightweight protecting spinlock
 pub struct Spinlock<T: Send>
@@ -24,20 +25,40 @@ pub struct HeldInterrupts(bool);
 
 impl<T: Send> Spinlock<T>
 {
+	pub fn new(val: T) -> Spinlock<T> {
+		Spinlock {
+			lock: AtomicBool::new(false),
+			value: ::core::cell::UnsafeCell::new(val),
+		}
+	}
+	
 	pub fn lock(&self) -> HeldSpinlock<T>
 	{
-		while self.lock.compare_and_swap(false, true, ::core::atomic::Ordering::Acquire) == true
+		//while self.lock.compare_and_swap(0, cpu_num()+1, Ordering::Acquire) != 0
+		while self.lock.compare_and_swap(false, true, Ordering::Acquire) == true
 		{
 		}
-		::core::atomic::fence(::core::atomic::Ordering::Acquire);
+		::core::atomic::fence(Ordering::Acquire);
 		HeldSpinlock { lock: self }
+	}
+	pub fn try_lock_cpu(&self) -> Option<HeldSpinlock<T>>
+	{
+		//if self.lock.compare_and_swap(0, cpu_num()+1, Ordering::Acquire) == 0
+		if self.lock.compare_and_swap(false, true, Ordering::Acquire) == false
+		{
+			Some( HeldSpinlock { lock: self } )
+		}
+		else
+		{
+			None
+		}
 	}
 	
 	fn release(&self)
 	{
 		//::arch::puts("Spinlock::release()\n");
-		::core::atomic::fence(::core::atomic::Ordering::Release);
-		self.lock.store(false, ::core::atomic::Ordering::Release);
+		::core::atomic::fence(Ordering::Release);
+		self.lock.store(false, Ordering::Release);
 	}
 }
 

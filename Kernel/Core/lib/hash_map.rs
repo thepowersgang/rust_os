@@ -11,6 +11,11 @@ impl Hash for usize {
 		*self as u64
 	}
 }
+impl Hash for u32 {
+	fn hash(&self) -> u64 {
+		*self as u64
+	}
+}
 
 pub struct HashMap<K: Hash,V>
 {
@@ -20,6 +25,22 @@ pub struct Iter<'a, K: 'a, V: 'a>
 {
 	pos: usize,
 	ents: &'a [Option<(K,V)>],
+}
+
+pub enum Entry<'a, K: 'a + Hash, V: 'a>
+{
+	Occupied(OccupiedEntry<'a, K, V>),
+	Vacant(VacantEntry<'a, K, V>),
+}
+pub struct OccupiedEntry<'a, K: 'a + Hash, V: 'a>
+{
+	map: &'a mut HashMap<K,V>,
+	slot: usize,
+}
+pub struct VacantEntry<'a, K: 'a + Hash, V: 'a>
+{
+	map: &'a mut HashMap<K,V>,
+	slot: usize,
 }
 
 impl<K: Hash, V> HashMap<K,V>
@@ -33,6 +54,10 @@ impl<K: Hash, V> HashMap<K,V>
 	/// Returns the previous item (replaced), if any
 	pub fn insert(&mut self, key: K, value: V) -> Option<V> {
 		unimplemented!();
+	}
+	
+	pub fn entry(&mut self, key: K) -> Entry<K, V> {
+		unimplemented!()
 	}
 	
 	pub fn iter(&self) -> Iter<K,V> {
@@ -59,6 +84,25 @@ impl<'a, K, V> ::core::iter::Iterator for Iter<'a, K, V>
 			}
 		}
 		None
+	}
+}
+
+impl<'a,K: Hash,V> OccupiedEntry<'a, K, V>
+{
+	pub fn get_mut(&mut self) -> &mut V
+	{
+		&mut self.map.ents[self.slot].as_mut().unwrap().1
+	}
+	pub fn into_mut(self) -> &'a mut V
+	{
+		&mut self.map.ents[self.slot].as_mut().unwrap().1
+	}
+}
+
+impl<'a,K: Hash,V> VacantEntry<'a, K, V>
+{
+	pub fn insert(&mut self, value: V) -> &'a mut V {
+		unimplemented!()
 	}
 }
 

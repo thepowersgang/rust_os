@@ -5,12 +5,12 @@
 ///! Asynchronous Mutex
 use _common::*;
 use super::EventWait;
-use arch::sync::Spinlock;
 use core::cell::UnsafeCell;
+use core::atomic::{AtomicBool,Ordering};
 
 pub struct Mutex<T: Send>
 {
-	locked: Spinlock<bool>,
+	locked: AtomicBool,
 	event: super::EventSource,
 	data: UnsafeCell<T>,
 }
@@ -26,12 +26,23 @@ impl<T: Send> Mutex<T>
 {
 	pub fn new(data: T) -> Mutex<T>
 	{
-		unimplemented!()
+		Mutex {
+			locked: AtomicBool::new(false),
+			event: super::EventSource::new(),
+			data: UnsafeCell::new(data),
+		}
 	}
 	
 	pub fn try_lock(&self) -> Option<HeldMutex<T>>
 	{
-		unimplemented!()
+		if self.locked.swap(true, Ordering::Acquire)
+		{
+			Some(HeldMutex { __lock: self })
+		}
+		else
+		{	
+			None
+		}
 	}
 	
 	/// Asynchronously lock the mutex
@@ -46,6 +57,7 @@ impl<'a,T: Send + 'a> ::core::ops::Drop for HeldMutex<'a, T>
 {
 	fn drop(&mut self)
 	{
+		
 	}
 }
 

@@ -8,6 +8,7 @@ use core::ops::FnOnce;
 use lib::mem::Box;
 
 pub use self::queue::Queue;
+pub use self::hash_map::HashMap;
 pub use self::vec::Vec;
 pub use self::string::String;
 

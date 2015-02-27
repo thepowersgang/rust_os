@@ -3,7 +3,7 @@
 //
 use core::prelude::*;
 use core::num::Int;	// for leading_zeros()
-use core::iter::FromIterator;
+use core::iter::{FromIterator,IntoIterator};
 use core::ops::{Index,IndexMut,Deref,DerefMut};
 use lib::collections::{MutableSeq};
 
@@ -235,6 +235,16 @@ impl<T> FromIterator<T> for Vec<T>
 			ret.push(val);
 		}
 		ret
+	}
+}
+
+impl<'a, T> IntoIterator for &'a Vec<T>
+{
+	type IntoIter = ::core::slice::Iter<'a,T>;
+	type Item = &'a T;
+	
+	fn into_iter(self) -> ::core::slice::Iter<'a, T> {
+		self.iter()
 	}
 }
 

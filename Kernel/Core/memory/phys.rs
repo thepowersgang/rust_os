@@ -41,6 +41,16 @@ fn get_memory_map() -> &'static [::memory::MemoryMapEnt]
 
 pub fn allocate_range_bits(bits: u8, count: usize) -> PAddr
 {
+	// XXX: HACK! Falls back to the simple code if possible
+	if count == 1 && get_memory_map().last().unwrap().start >> bits == 0
+	{
+		return allocate_range(1);
+	}
+	// 1. Locate the last block of a suitable bitness
+	// - Take care to correctly handle blocks that straddle bitness boundaries
+	// NOTE: Memory map constructor _can_ break blocks up at common bitness boundaries (16, 24, 32 bits) to make this more efficient
+	// 2. Obtain `count` pages from either the end (if possible) or the start of this block
+	// TODO: If the block is not large enough, return an error (NOPAGE)
 	panic!("TODO: allocate_range(bits={}, count={})", bits, count);
 }
 

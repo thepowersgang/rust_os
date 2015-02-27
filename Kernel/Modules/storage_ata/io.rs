@@ -44,7 +44,7 @@ struct AtaRegs
 }
 struct AtaInterrupt
 {
-	handle: ::kernel::irqs::Handle,
+	handle: ::kernel::irqs::EventHandle,
 	event: ::kernel::async::EventSource,
 }
 

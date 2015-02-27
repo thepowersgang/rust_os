@@ -2,6 +2,7 @@
 //
 //
 use _common::*;
+use core::iter::IntoIterator;
 
 /// A basic linked-list queue
 pub struct Queue<T>
@@ -12,6 +13,8 @@ pub struct Queue<T>
 
 unsafe impl<T: Sync> ::core::marker::Sync for Queue<T> {}
 unsafe impl<T: Send> ::core::marker::Send for Queue<T> {}
+
+macro_rules! queue_init{ () => (Queue{head: OptPtr(0 as *const _),tail: OptMutPtr(0 as *mut _)}) }
 
 // Queue entry
 pub struct QueueEnt<T>
@@ -33,6 +36,9 @@ pub struct ItemsMut<'s, T: 's>
 
 impl<T> Queue<T>
 {
+	pub fn new() -> Queue<T> {
+		queue_init!()	// I'm lazy
+	}
 	/// Add an item to the end of the queue
 	pub fn push(&mut self, value: T)
 	{
@@ -99,6 +105,15 @@ impl<T> Queue<T>
 	}
 }
 
+impl<'s, T> IntoIterator for &'s Queue<T>
+{
+	type Item = &'s T;
+	type IntoIter = Items<'s, T>;
+	fn into_iter(self) -> Items<'s, T> {
+		self.iter()
+	}
+}
+
 impl<'s, T> Iterator for Items<'s,T>
 {
 	type Item = &'s T;
@@ -130,8 +145,6 @@ impl<'s, T> Iterator for ItemsMut<'s,T>
 		}
 	}
 }
-
-macro_rules! queue_init{ () => (Queue{head: OptPtr(0 as *const _),tail: OptMutPtr(0 as *mut _)}) }
 
 // vim: ft=rust
 

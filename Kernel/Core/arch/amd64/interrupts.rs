@@ -148,6 +148,11 @@ pub fn bind_isr(isr: u8, callback: ISRHandler, info: *const(), idx: usize) -> Re
 
 impl ISRHandle
 {
+	pub fn unbound() -> ISRHandle {
+		ISRHandle {
+			idx: ::core::num::Int::max_value()
+		}
+	}
 	pub fn idx(&self) -> usize { self.idx }
 }
 
@@ -155,9 +160,12 @@ impl ::core::ops::Drop for ISRHandle
 {
 	fn drop(&mut self)
 	{
-		let mut mh = s_irq_handlers_lock.lock();
-		let h = &mut mh[self.idx];
-		h.handler = None;
+		if self.idx < 256
+		{
+			let mut mh = s_irq_handlers_lock.lock();
+			let h = &mut mh[self.idx];
+			h.handler = None;
+		}
 	}
 }
 
