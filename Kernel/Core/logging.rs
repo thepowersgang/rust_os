@@ -20,8 +20,9 @@ pub enum Level
 
 pub struct LoggingFormatter
 {
-	_irq_handle: ::arch::sync::HeldInterrupts,
 	_lock_handle: ::arch::sync::HeldSpinlock<'static,()>,
+	// NOTE: Must be second, forcing interrupts to be reenabled after the lock is released
+	_irq_handle: ::arch::sync::HeldInterrupts,
 }
 
 pub struct HexDump<'a,T:'a>(pub &'a T);

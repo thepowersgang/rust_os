@@ -238,47 +238,48 @@ impl AtaController
 				log_debug!("Disk {} on {:#x} not present", disk, buslock.ata_base);
 				// Drive does not exist, zero data and return a null wait
 				*data = unsafe { ::core::mem::zeroed() };
-				Waiter::none()
+				Waiter::new_none()
 			}
 			else
 			{
 				// Block until BSY clears
 				// TODO: Timeout?
-				let (f4, f5) =  unsafe {
-					while buslock.in_sts() & 0x80 != 0 { }
-					(buslock.in_8(4), buslock.in_8(5))
-					};
-				log_debug!("ata_identify: {:#x}, {:#x}", f4, f5);
-				if f4 == 0x14 && f5 == HDD_IDENTIFY {
-					// Device is ATAPI
-					Waiter::none()
-				}
-				else {
-					Waiter::poll(move |e| match e
-						{
-						Some(e) => {
-							if buslock.in_sts() & 1 == 1 {
-								// Error, clear and return
-								*data = unsafe { ::core::mem::zeroed() };
+				while buslock.in_sts() & 0x80 != 0 { }
+				
+				// Return a poller
+				Waiter::new_poll(move |e| match e
+					{
+					Some(e) => {
+						if buslock.in_sts() & 1 == 1 {
+							let (f4, f5) = unsafe { (buslock.in_8(4), buslock.in_8(5)) };
+							// Error, clear and return
+							*data = unsafe { ::core::mem::zeroed() };
+							if f4 == 0x14 && f5 == 0xEB {
+								// Device is ATAPI
+								log_debug!("ata_identify: Disk {:#x}/{} is ATAPI", buslock.ata_base, disk);
 							}
 							else {
-								// Success, perform IO
-								unsafe {
-									for w in data.iter_mut() {
-										*w = buslock.in_16(0);
-									}
+								log_debug!("ata_identify: Disk {:#x}/{} errored (f4,f5 = {:#02x},{:#02x})", buslock.ata_base, disk, f4, f5);
+							}
+						}
+						else {
+							// Success, perform IO
+							unsafe {
+								for w in data.iter_mut() {
+									*w = buslock.in_16(0);
 								}
 							}
+							log_debug!("ata_identify: Disk {:#x}/{} IDENTIFY complete", buslock.ata_base, disk);
+						}
+						true
+						},
+					None => if buslock.in_sts() & 9 != 0 {
+							// Done.
 							true
-							},
-						None => if buslock.in_sts() & 9 != 0 {
-								// Done.
-								true
-							} else {
-								false
-							}
-						} )
-				}
+						} else {
+							false
+						}
+					} )
 			}
 		}
 		else

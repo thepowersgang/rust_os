@@ -85,6 +85,8 @@ fn init()
 		(*s_lapic).init();
 		};
 	
+	// Enable interupts
+	unsafe { asm!("sti"); }
 }
 
 fn get_ioapic(interrupt: usize) -> Option<(&'static mut raw::IOAPIC, usize)>

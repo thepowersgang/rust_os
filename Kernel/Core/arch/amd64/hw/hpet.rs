@@ -5,7 +5,7 @@
 // - x86 High Precision Event Timer
 use _common::*;
 
-module_define!{HPET, [ACPI], init}
+module_define!{HPET, [APIC, ACPI], init}
 
 struct HPET
 {

@@ -85,6 +85,7 @@ fn borrow_cur_thread() -> BorrowedThread
 
 fn get_thread_to_run() -> Option<Box<Thread>>
 {
+	log_trace!("get_thread_to_run()");
         let _irq_lock = ::arch::sync::hold_interrupts();
 	let mut handle = s_runnable_threads.lock();
 	if handle.empty()
@@ -162,6 +163,7 @@ impl WaitQueue
 {
 	pub fn wait<'a>(&mut self, lock_handle: ::arch::sync::HeldSpinlock<'a,bool>)
 	{
+		log_trace!("WaitQueue::wait(...)");
 		// - Prevent interrupts from firing while we mess with the thread
 		let _irq_lock = ::arch::sync::hold_interrupts();
 		
@@ -187,6 +189,7 @@ impl WaitQueue
         }
 	pub fn wake_one(&mut self)
 	{
+		log_trace!("WaitQueue::wake_one()");
 		match self.list.pop()
 		{
 		Some(mut t) => {

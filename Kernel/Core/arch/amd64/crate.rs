@@ -11,6 +11,8 @@ pub use self::log::{puts, puth};
 // Emits a distinctive instruction (with no effect)
 macro_rules! CHECKMARK{ () => (unsafe { asm!("xchg %cx, %cx" : : : : "volatile");}); }
 
+module_define!{arch, [APIC, HPET], init}
+
 pub mod float;
 pub mod interrupts;
 pub mod memory;
@@ -27,6 +29,11 @@ pub mod pci;
 extern "C"
 {
 	static v_kernel_end : ();
+}
+
+fn init()
+{
+	// None needed, just dependencies
 }
 
 pub fn cur_timestamp() -> u64

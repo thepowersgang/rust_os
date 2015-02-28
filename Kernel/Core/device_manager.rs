@@ -8,7 +8,7 @@ use _common::*;
 use sync::Mutex;
 use lib::Queue;
 
-module_define!{DeviceManager, [], init}
+module_define!{DeviceManager, [arch], init}
 
 /// A semi-arbitatry integer denoting how well a driver handles a specific device
 pub type DriverHandleLevel = u32;

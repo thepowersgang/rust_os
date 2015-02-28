@@ -107,7 +107,7 @@ impl ControllerRoot
 		let ctrlr_sec = io::AtaController::new(ata_sec, sts_sec, irq_sec);
 		
 		// Send IDENTIFY to all disks
-		for i in (0 .. 1)
+		for i in (0 .. 2)
 		{
 			let mut identify_pri: AtaIdentifyData = Default::default();
 			let mut identify_sec: AtaIdentifyData = Default::default();
@@ -118,7 +118,7 @@ impl ControllerRoot
 			
 			// Wait for both complete, and obtain results
 			// - Loop while the timer hasn't fired, and at least one of the waiters is still waiting
-			while /*wh_timer.is_valid() && */ (wh_pri.is_valid() || wh_sec.is_valid())
+			while /* !wh_timer.is_ready() && */ !(wh_pri.is_ready() && wh_sec.is_ready())
 			{
 				//::kernel::async::wait_on_list(&mut [&mut wh_pri, &mut wh_sec, &mut wh_timer]);
 				::kernel::async::wait_on_list(&mut [&mut wh_pri, &mut wh_sec]);

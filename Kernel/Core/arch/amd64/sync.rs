@@ -23,6 +23,13 @@ pub struct HeldSpinlock<'lock,T:'lock+Send>
 /// A handle for frozen interrupts
 pub struct HeldInterrupts(bool);
 
+///// Handle for a held spinlock that holds interrupts too
+//pub struct HeldSpinlockInt<'lock,T:'lock+Send>
+//{
+//	lock: &'lock Spinlock<T>,
+//	irqs: HeldInterrupts,
+//}
+
 impl<T: Send> Spinlock<T>
 {
 	pub fn new(val: T) -> Spinlock<T> {
@@ -94,6 +101,9 @@ pub fn hold_interrupts() -> HeldInterrupts
 		(flags & 0x200) != 0
 		};
 	
+	if ! if_set {
+		::arch::puts("hold_interrupts() - if_set = false\n");
+	}
 	HeldInterrupts(if_set)
 }
 

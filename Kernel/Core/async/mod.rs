@@ -75,7 +75,7 @@ impl EventSource
 	}
 	pub fn wait_on<'a, F: FnOnce(&mut Waiter) + Send + 'a>(&'a self, f: F) -> Waiter<'a>
 	{
-		Waiter::event(self, f)
+		Waiter::new_event(self, f)
 	}
 	pub fn trigger(&self)
 	{
@@ -86,18 +86,18 @@ impl EventSource
 
 impl<'a> Waiter<'a>
 {
-	pub fn none() -> Waiter<'a>
+	pub fn new_none() -> Waiter<'a>
 	{
 		Waiter::None
 	}
-	pub fn event<'b, F: for<'r> FnOnce(&'r mut Waiter<'b>) + Send + 'b>(src: &'b EventSource, f: F) -> Waiter<'b>
+	pub fn new_event<'b, F: for<'r> FnOnce(&'r mut Waiter<'b>) + Send + 'b>(src: &'b EventSource, f: F) -> Waiter<'b>
 	{
 		Waiter::Event( EventWait {
 			source: Some(src),
 			callback: Some(box f as EventCb),
 			} )
 	}
-	pub fn poll<F: FnMut(Option<&mut Waiter<'a>>)->bool + Send + 'a>(f: F) -> Waiter<'a>
+	pub fn new_poll<F: FnMut(Option<&mut Waiter<'a>>)->bool + Send + 'a>(f: F) -> Waiter<'a>
 	{
 		Waiter::Poll( Some(RefCell::new(box f)) )
 	}
@@ -111,7 +111,21 @@ impl<'a> Waiter<'a>
 		Waiter::Poll(ref c) => c.is_some(),
 		}
 	}
-	pub fn is_ready(&self) -> bool
+	
+	pub fn is_ready(&mut self) -> bool
+	{
+		if self.poll()
+		{
+			self.run_completion();
+			true
+		}
+		else
+		{
+			false
+		}
+	}
+	
+	fn poll(&self) -> bool
 	{
 		match *self
 		{
@@ -134,7 +148,7 @@ impl<'a> Waiter<'a>
 	}
 	
 	/// Returns false if binding was impossible
-	pub fn bind_signal(&mut self, sleeper: &mut ::threads::SleepObject) -> bool
+	fn bind_signal(&mut self, sleeper: &mut ::threads::SleepObject) -> bool
 	{
 		match *self
 		{
@@ -151,7 +165,7 @@ impl<'a> Waiter<'a>
 		}
 	}
 	
-	pub fn run_completion(&mut self)
+	fn run_completion(&mut self)
 	{
 		match ::core::mem::replace(self, Waiter::None)
 		{
@@ -251,7 +265,7 @@ pub fn wait_on_list(waiters: &mut [&mut Waiter])
 			{
 				for ent in waiters.iter()
 				{
-					if ent.is_ready() { break 'outer; }
+					if ent.poll() { break 'outer; }
 				}
 				n_passes += 1;
 				// TODO: Take a short nap
@@ -266,11 +280,12 @@ pub fn wait_on_list(waiters: &mut [&mut Waiter])
 		}
 		
 		// - When woken, run completion handlers on all completed waiters
+		let mut n_complete = 0;
 		for ent in waiters.iter_mut()
 		{
 			if ent.is_ready()
 			{
-				ent.run_completion();
+				n_complete += 1;
 			}
 		}
 	}
