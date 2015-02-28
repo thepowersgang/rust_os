@@ -7,7 +7,7 @@ use _common::*;
 use core::atomic::AtomicBool;
 use arch::sync::Spinlock;
 use arch::interrupts;
-use lib::{Queue,HashMap};
+use lib::{Queue,VecMap};
 use lib::mem::Arc;
 
 /// A handle for an IRQ binding that pokes an async event when the IRQ fires
@@ -39,7 +39,7 @@ struct IRQBinding
 
 struct Bindings
 {
-	mapping: HashMap<u32, Box<IRQBinding>>,
+	mapping: VecMap<u32, Box<IRQBinding>>,
 	next_index: usize,
 }
 
@@ -55,13 +55,13 @@ static s_irq_bindings: ::sync::mutex::LazyMutex<Bindings> = lazymutex_init!();
 pub fn bind_interrupt_event(num: u32) -> EventHandle
 {
 	// 1. (if not already) bind a handler on the architecture's handlers
-	let mut map_lh = s_irq_bindings.lock_init(|| Bindings { mapping: HashMap::new(), next_index: 0 });
+	let mut map_lh = s_irq_bindings.lock_init(|| Bindings { mapping: VecMap::new(), next_index: 0 });
 	let index = map_lh.next_index;
 	map_lh.next_index += 1;
 	let binding = match map_lh.mapping.entry(num)
 		{
-		::lib::hash_map::Entry::Occupied(e) => e.into_mut(),
-		::lib::hash_map::Entry::Vacant(mut e) => e.insert( IRQBinding::new_boxed(num) ),
+		::lib::vec_map::Entry::Occupied(e) => e.into_mut(),
+		::lib::vec_map::Entry::Vacant(mut e) => e.insert( IRQBinding::new_boxed(num) ),
 		};
 	// 2. Add this handler to the meta-handler
 	let rv = EventHandle {

@@ -13,8 +13,8 @@ const MAX_DMA_SECTORS: usize = 0x10000 / SECTOR_SIZE;	// Limited by byte count, 
 //const HDD_PIO_W28: u8 = 0x30,
 //const HDD_PIO_R28: u8 = 0x20;
 //const HDD_PIO_W48: u8 = 0x34;
-//const HDD_PIO_R48: u8 = 0x24,
-//const HDD_IDENTIFY: u8 = 0xEC
+//const HDD_PIO_R48: u8 = 0x24;
+const HDD_IDENTIFY: u8 = 0xEC;
 
 const HDD_DMA_R28: u8 = 0xC8;
 const HDD_DMA_W28: u8 = 0xCA;
@@ -106,9 +106,26 @@ impl AtaRegs
 		}
 	}
 	
-	unsafe fn out_8(&self, ofs: u16, val: u8)
+	unsafe fn out_8(&mut self, ofs: u16, val: u8)
 	{
+		assert!(ofs < 8);
 		::kernel::arch::x86_io::outb( self.ata_base + ofs, val);
+	}
+	
+	unsafe fn in_8(&mut self, ofs: u16) -> u8
+	{
+		assert!(ofs < 8);
+		::kernel::arch::x86_io::inb( self.ata_base + ofs )
+	}
+	unsafe fn in_16(&mut self, ofs: u16) -> u16
+	{
+		assert!(ofs < 8);
+		::kernel::arch::x86_io::inw( self.ata_base + ofs )
+	}
+	// Safe - This port is a status port that does not affect the state
+	fn in_sts(&self) -> u8
+	{
+		unsafe { ::kernel::arch::x86_io::inb( self.sts_base ) }
 	}
 	
 	fn start_dma(&mut self, disk: u8, blockidx: u64, dma_buffer: &DMABuffer, is_write: bool, bm: DmaRegBorrow)
@@ -200,7 +217,70 @@ impl AtaController
 	
 	pub fn ata_identify<'a>(&'a self, disk: u8, data: &mut ::AtaIdentifyData) -> EventWait<'a>
 	{
-		unimplemented!();
+		if let Some(mut buslock) = self.regs.try_lock()
+		{
+			log_debug!("ata_identify: (disk={}), base={:#x}", disk, buslock.ata_base);
+			let status = unsafe {
+				buslock.out_8(6, 0xA0 | (disk << 4) );
+				buslock.out_8(2, 0);
+				buslock.out_8(3, 0);
+				buslock.out_8(4, 0);
+				buslock.out_8(5, 0);
+				buslock.out_8(7, HDD_IDENTIFY);
+				buslock.in_8(7)
+				};
+			
+			log_debug!("ata_identify: status = {:#02x}", status);
+			if status == 0
+			{
+				log_debug!("Disk {} on {:#x} not present", disk, buslock.ata_base);
+				// Drive does not exist, zero data and return a null wait
+				*data = unsafe { ::core::mem::zeroed() };
+				EventWait::<'a>::none()
+			}
+			else
+			{
+				// Block until BSY clears
+				// TODO: Timeout?
+				let (f4, f5) =  unsafe {
+					while buslock.in_sts() & 0x80 != 0 { }
+					(buslock.in_8(4), buslock.in_8(5))
+					};
+				log_debug!("ata_identify: {:#x}, {:#x}", f4, f5);
+				if f4 == 0x14 && f5 == HDD_IDENTIFY {
+					// Device is ATAPI
+					EventWait::<'a>::none()
+				}
+				else {
+					PollWait::new(|e| {
+						if buslock.in_sts() & 9 != 0 {
+							// Done.
+							if buslock.in_sts() & 1 == 1 {
+								// Error, clear and return
+								*data = unsafe { ::core::mem::zeroed() };
+							}
+							else {
+								// Success, perform IO
+								let data_u16: &mut [u16] = unsafe { ::core::mem::transmute(data) };
+								assert_eq!(data_u16.len(), 256);
+								for w in data_u16 {
+									*w = buslock.in_16(0);
+								}
+							}
+							true
+						}
+						else {
+							false
+						}
+						} )
+				}
+				unimplemented!();
+			}
+		}
+		else
+		{
+			panic!("Sending ATA identify while controller is in use");
+		}
 	}
 }
 

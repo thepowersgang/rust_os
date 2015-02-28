@@ -105,6 +105,26 @@ impl<T> Vec<T>
 	{
 		::core::ptr::read(self.data.offset(pos as isize) as *const _)
 	}
+	
+	pub fn insert(&mut self, pos: usize, value: T)
+	{
+		// Expand by one element
+		let ns = self.size + 1;
+		self.reserve(ns);
+		self.size = ns;
+		unsafe
+		{
+			// Move elements (pos .. len) to (pos+1 .. len+1)
+			for i in (pos .. self.size).rev()
+			{
+				let src = self.data.offset( (i) as isize);
+				let dst = self.data.offset( (i+1) as isize);
+				::core::ptr::write(dst, ::core::ptr::read(src));
+			}
+			// Store new element
+			::core::ptr::write( self.data.offset(pos as isize), value );
+		}
+	}
 }
 
 impl<T> Deref for Vec<T>

@@ -24,11 +24,22 @@ pub struct EventSource
 	waiter: ::sync::mutex::Mutex<Option<::threads::SleepObjectRef>>
 }
 
-pub struct EventWait<'a>
+pub enum Waiter<'a>
 {
-	source: &'a EventSource,
-	callback: Option<Box<for<'r> ::lib::thunk::Invoke<(&'r mut EventWait<'a>),()> + Send + 'a>>,
+	None,
+	Event(EventWait<'a>),
+	Poll(Option< PollCb<'a> >),
 }
+
+type PollCb<'a> = Box<for<'r> FnMut(Option<&'r mut Waiter<'a>>) -> bool + Send + 'a>;
+
+type EventCb<'a> = Box<for<'r> ::lib::thunk::Invoke<(&'r mut Waiter<'a>),()> + Send + 'a>;
+struct EventWait<'a>
+{
+	source: Option<&'a EventSource>,
+	callback: Option<EventCb<'a>>,
+}
+
 
 /// A handle returned by a read operation (re-borrows the target buffer)
 pub struct ReadHandle<'buf,'src>
@@ -49,6 +60,8 @@ pub enum WaitError
 	Timeout,
 }
 
+static s_event_none: EventSource = EventSource { flag: ATOMIC_BOOL_INIT, waiter: mutex_init!(None) };
+
 impl EventSource
 {
 	pub fn new() -> EventSource
@@ -58,12 +71,9 @@ impl EventSource
 			waiter: ::sync::mutex::Mutex::new(None),
 		}
 	}
-	pub fn wait_on<'a, F: FnOnce(&mut EventWait) + Send + 'a>(&'a self, f: F) -> EventWait<'a>
+	pub fn wait_on<'a, F: FnOnce(&mut EventWait) + Send + 'a>(&'a self, f: F) -> Waiter<'a>
 	{
-		EventWait {
-			source: self,
-			callback: Some(box f),
-		}
+		Waiter::event(self, f)
 	}
 	pub fn trigger(&self)
 	{
@@ -72,38 +82,94 @@ impl EventSource
 	}
 }
 
-impl<'a> EventWait<'a>
+impl<'a> Waiter<'a>
 {
+	pub fn none() -> Waiter<'a>
+	{
+		Waiter::None
+	}
+	pub fn event<'b, F: FnOnce(&mut EventWait) + Send + 'b>(src: &'b EventSource, f: F) -> Waiter<'b>
+	{
+		Waiter::Event( EventWait {
+			source: Some(src),
+			callback: Some(box f as EventCb),
+			} )
+	}
+	pub fn poll<F: FnMut(Option<&mut Waiter<'a>>)->bool + Send + 'a>(f: F) -> Waiter<'a>
+	{
+		Waiter::Poll( Some(box f) )
+	}
+
 	pub fn is_valid(&self) -> bool
 	{
-		self.callback.is_some()
+		match *self
+		{
+		Waiter::None => true,
+		Waiter::Event(ref i) => i.callback.is_some(),
+		Waiter::Poll(ref c) => c.is_some(),
+		}
 	}
 	pub fn is_ready(&self) -> bool
 	{
-		self.is_valid() && self.source.flag.load(::core::atomic::Ordering::Relaxed)
+		match *self
+		{
+		Waiter::None => true,
+		Waiter::Event(ref i) => match i.source
+			{
+			Some(r) => r.flag.load(::core::atomic::Ordering::Relaxed),
+			None => true
+			},
+		Waiter::Poll(ref c) => match *c
+			{
+			Some(ref cb) => cb(None),
+			None => true,
+			},
+		}
 	}
 	
-	pub fn bind_signal(&mut self, sleeper: &mut ::threads::SleepObject)
+	/// Returns false if binding was impossible
+	pub fn bind_signal(&mut self, sleeper: &mut ::threads::SleepObject) -> bool
 	{
-		*self.source.waiter.lock() = Some(sleeper.get_ref());
+		match *self
+		{
+		Waiter::None => true,
+		Waiter::Event(ref i) => {
+			match i.source
+			{
+			Some(r) => { *r.waiter.lock() = Some(sleeper.get_ref()) },
+			None => {},
+			}
+			true
+			},
+		Waiter::Poll(ref c) => false,
+		}
 	}
 	
 	pub fn run_completion(&mut self)
 	{
-		let callback = self.callback.take().expect("EventWait::run_completion with callback None");
-		callback.invoke(self);
-	}
-	
-	/// Call the provided function after the original callback
-	pub fn chain<F: FnOnce(&mut EventWait) + Send + 'a>(mut self, f: F) -> EventWait<'a>
-	{
-		let cb = self.callback.take().unwrap();
-		let newcb = box move |e: &mut EventWait<'a>| { cb.invoke(e); f(e); };
-		EventWait {
-			callback: Some(newcb),
-			source: self.source,
+		match *self
+		{
+		Waiter::None => {
+			},
+		Waiter::Event(ref i) => {
+			i.callback.take().expect("EventWait::run_completion with callback None").invoke(self);
+			},
+		Waiter::Poll(ref callback) => {
+			callback.take().expect("Wait::run_completion with Poll callback None")(Some(self));
+			}
 		}
 	}
+	
+	//// Call the provided function after the original callback
+	//pub fn chain<F: FnOnce(&mut EventWait) + Send + 'a>(mut self, f: F) -> EventWait<'a>
+	//{
+	//	let cb = self.callback.take().unwrap();
+	//	let newcb = box move |e: &mut EventWait<'a>| { cb.invoke(e); f(e); };
+	//	EventWait {
+	//		callback: Some(newcb),
+	//		source: self.source,
+	//	}
+	//}
 }
 
 impl<'o_b,'o_e> ReadHandle<'o_b, 'o_e>
@@ -129,7 +195,7 @@ impl<'o_b,'o_e> WriteHandle<'o_b, 'o_e>
 }
 
 // Note - List itself isn't modified, but needs to be &mut to get &mut to inners
-pub fn wait_on_list(waiters: &mut [&mut EventWait])
+pub fn wait_on_list(waiters: &mut [&mut Waiter])
 {
 	if waiters.len() == 0
 	{

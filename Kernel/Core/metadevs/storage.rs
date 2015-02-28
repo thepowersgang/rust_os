@@ -7,7 +7,7 @@ use _common::*;
 use core::atomic::{AtomicUint,ATOMIC_UINT_INIT};
 use sync::mutex::LazyMutex;
 use async::{ReadHandle,WriteHandle};
-use lib::hash_map::HashMap;
+use lib::VecMap;
 
 module_define!{Storage, [], init}
 
@@ -72,8 +72,8 @@ struct PhysicalRegion
 }
 
 static s_next_pv_idx: AtomicUint = ATOMIC_UINT_INIT;
-static s_physical_volumes: LazyMutex<HashMap<usize,Box<PhysicalVolume+Send>>> = lazymutex_init!();
-static s_logical_volumes: LazyMutex<HashMap<usize,LogicalVolume>> = lazymutex_init!();
+static s_physical_volumes: LazyMutex<VecMap<usize,Box<PhysicalVolume+Send>>> = lazymutex_init!();
+static s_logical_volumes: LazyMutex<VecMap<usize,LogicalVolume>> = lazymutex_init!();
 static s_mappers: LazyMutex<Vec<&'static Mapper>> = lazymutex_init!();
 
 // TODO: Maintain a set of registered volumes. Mappers can bind onto a volume and register new LVs
@@ -82,7 +82,7 @@ static s_mappers: LazyMutex<Vec<&'static Mapper>> = lazymutex_init!();
 
 fn init()
 {
-	s_physical_volumes.init( || HashMap::new() );
+	s_physical_volumes.init( || VecMap::new() );
 }
 
 pub fn register_pv(pv: Box<PhysicalVolume+Send>) -> PhysicalVolumeReg

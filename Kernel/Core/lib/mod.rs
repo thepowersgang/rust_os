@@ -8,7 +8,7 @@ use core::ops::FnOnce;
 use lib::mem::Box;
 
 pub use self::queue::Queue;
-pub use self::hash_map::HashMap;
+pub use self::vec_map::VecMap;
 pub use self::vec::Vec;
 pub use self::string::String;
 
@@ -22,7 +22,7 @@ pub mod queue;
 pub mod vec;
 pub mod string;
 
-pub mod hash_map;
+pub mod vec_map;
 
 pub mod num
 {

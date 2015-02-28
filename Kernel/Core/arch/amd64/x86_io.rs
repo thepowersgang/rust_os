@@ -13,6 +13,15 @@ pub unsafe fn outb(port: u16, val: u8) {
 	asm!("outb %al, %dx" : : "{dx}"(port), "{al}"(val));
 }
 
+pub unsafe fn inw(port: u16) -> u16 {
+	let ret : u16;
+	asm!("inw %dx, %ax" : "={ax}"(ret) : "{dx}"(port));
+	return ret;
+}
+pub unsafe fn outw(port: u16, val: u16) {
+	asm!("outw %ax, %dx" : : "{dx}"(port), "{ax}"(val));
+}
+
 pub unsafe fn inl(port: u16) -> u32 {
 	let ret : u32;
 	asm!("inl %dx, %eax" : "={eax}"(ret) : "{dx}"(port));

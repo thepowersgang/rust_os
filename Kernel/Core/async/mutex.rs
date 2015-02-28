@@ -35,7 +35,7 @@ impl<T: Send> Mutex<T>
 	
 	pub fn try_lock(&self) -> Option<HeldMutex<T>>
 	{
-		if self.locked.swap(true, Ordering::Acquire)
+		if self.locked.swap(true, Ordering::Acquire) == false
 		{
 			Some(HeldMutex { __lock: self })
 		}

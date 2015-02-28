@@ -109,7 +109,7 @@ $(OBJDIR)mod_%.o: Modules/%/lib.rs $(OBJDIR)libcore.rlib $(OBJDIR)libkernel.rlib
 
 -include $(OBJDIR)libkernel.d
 -include $(OBJDIR)libcore.d
--include $(patsubst %,%.d,$(OBJS))
+-include $(filter %.d, $(patsubst %.o,%.d,$(OBJS)))
 
 
 
