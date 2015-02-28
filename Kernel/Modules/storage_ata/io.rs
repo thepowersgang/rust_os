@@ -194,9 +194,10 @@ impl AtaController
 	
 	fn do_dma<'a>(&'a self, blockidx: u64, dst: &'a [u8], disk: u8, is_write: bool, dma_regs: DmaRegBorrow) -> Waiter<'a>
 	{
+		let dma_buffer = DMABuffer::new_contig( unsafe { ::core::mem::transmute(dst) }, 32 );
+		
 		if let Some(mut buslock) = self.regs.try_lock()
 		{
-			let dma_buffer = DMABuffer::new_contig( unsafe { ::core::mem::transmute(dst) }, 32 );
 			buslock.start_dma( disk, blockidx, &dma_buffer, is_write, dma_regs );
 			
 			self.wait_handle( |_| { drop(dma_buffer); drop(buslock) } )
@@ -204,14 +205,14 @@ impl AtaController
 		else
 		{
 			unimplemented!();
-			// If obtaining a context failed, put the request on the queue and return a wait handle for it
-			/*
-			self.regs.async_lock(|event_ref, mut buslock| {
-				let dma_buffer = DMABuffer::new_contig( unsafe { ::core::mem::transmute(dst) }, 32 );
-				buslock.start_dma(disk, blockidx, &dma_buffer, is_write, dma_regs);
-				*event_ref = self.wait_handle( |_| { drop(dma_buffer); drop(buslock) });
-				})
-			*/
+			// TODO: This following block of code has lifetime errors
+			//// If obtaining a context failed, continue operation in a callback
+			//self.regs.async_lock(|event_ref: &mut Waiter, mut buslock| {
+			//	buslock.start_dma(disk, blockidx, &dma_buffer, is_write, dma_regs);
+			//	*event_ref = self.wait_handle( |_| {
+			//		drop(dma_buffer); drop(buslock)
+			//		});
+			//	})
 		}
 	}
 	
@@ -249,6 +250,7 @@ impl AtaController
 				// Return a poller
 				Waiter::new_poll(move |e| match e
 					{
+					// Being called as a completion function
 					Some(e) => {
 						if buslock.in_sts() & 1 == 1 {
 							let (f4, f5) = unsafe { (buslock.in_8(4), buslock.in_8(5)) };
@@ -273,6 +275,7 @@ impl AtaController
 						}
 						true
 						},
+					// Being called as a poll
 					None => if buslock.in_sts() & 9 != 0 {
 							// Done.
 							true

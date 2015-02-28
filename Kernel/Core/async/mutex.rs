@@ -46,7 +46,7 @@ impl<T: Send> Mutex<T>
 	}
 	
 	/// Asynchronously lock the mutex
-	pub fn async_lock<F: FnOnce(&mut Waiter, HeldMutex<T>)>(&self, f: F) -> Waiter
+	pub fn async_lock<'s, F: FnOnce(&mut Waiter, HeldMutex<'s,T>)>(&'s self, f: F) -> Waiter<'s>
 	{
 		unimplemented!()
 	}

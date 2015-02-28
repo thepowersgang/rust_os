@@ -86,7 +86,7 @@ pub fn allocate(addr: *mut (), page_count: usize)
 
 pub fn map(addr: *mut (), phys: PAddr, prot: ProtectionMode)
 {
-	log_trace!("map(*{:p} := {:#x} {:?})", addr, phys, prot);
+	//log_trace!("map(*{:p} := {:#x} {:?})", addr, phys, prot);
 	if ::arch::memory::virt::is_reserved(addr)
 	{
 		log_notice!("Mapping {:#x} to {:p}, collision", phys, addr);
