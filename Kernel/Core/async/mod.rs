@@ -6,6 +6,7 @@
 use _common::*;
 use core::cell::RefCell;
 use core::atomic::{AtomicBool,ATOMIC_BOOL_INIT};
+use lib::Queue;
 
 pub use self::mutex::Mutex;
 pub use self::timer::Timer;
@@ -23,6 +24,12 @@ pub struct EventSource
 {
 	flag: AtomicBool,
 	waiter: ::sync::mutex::Mutex<Option<::threads::SleepObjectRef>>
+}
+
+/// A wait queue
+pub struct QueueSource
+{
+	waiters: ::sync::mutex::Mutex<Queue<::threads::SleepObjectRef>>,
 }
 
 pub enum Waiter<'a>
@@ -81,6 +88,29 @@ impl EventSource
 	{
 		self.flag.store(true, ::core::atomic::Ordering::Relaxed);
 		self.waiter.lock().as_mut().map(|r| r.signal());
+	}
+}
+
+impl QueueSource
+{
+	pub fn new() -> QueueSource
+	{
+		QueueSource {
+			waiters: ::sync::mutex::Mutex::new(Queue::new()),
+		}
+	}
+	pub fn wake_one(&self) -> bool
+	{
+		let mut lh = self.waiters.lock();
+		if let Some(waiter) = lh.pop()
+		{
+			waiter.signal();
+			true
+		}
+		else
+		{
+			false
+		}
 	}
 }
 

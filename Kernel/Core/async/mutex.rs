@@ -11,7 +11,7 @@ use core::atomic::{AtomicBool,Ordering};
 pub struct Mutex<T: Send>
 {
 	locked: AtomicBool,
-	event: super::EventSource,
+	waiters: super::QueueSource,
 	data: UnsafeCell<T>,
 }
 unsafe impl<T: Send> Sync for Mutex<T> {}
@@ -28,7 +28,7 @@ impl<T: Send> Mutex<T>
 	{
 		Mutex {
 			locked: AtomicBool::new(false),
-			event: super::EventSource::new(),
+			waiters: super::QueueSource::new(),
 			data: UnsafeCell::new(data),
 		}
 	}
@@ -57,7 +57,14 @@ impl<'a,T: Send + 'a> ::core::ops::Drop for HeldMutex<'a, T>
 {
 	fn drop(&mut self)
 	{
-		
+		if self.__lock.waiters.wake_one()
+		{
+			// If a thread was woken, they now own this lock
+		}
+		else
+		{
+			self.__lock.locked.store(false, Ordering::Release);
+		}
 	}
 }
 

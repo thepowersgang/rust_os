@@ -112,22 +112,29 @@ impl ControllerRoot
 			let mut identify_pri: AtaIdentifyData = Default::default();
 			let mut identify_sec: AtaIdentifyData = Default::default();
 			
-			let mut wh_pri = ctrlr_pri.ata_identify(i, &mut identify_pri);
-			let mut wh_sec = ctrlr_sec.ata_identify(i, &mut identify_sec);
-			//let mut wh_timer = ::kernel::async::Timer::new(2*1000);
-			
-			// Wait for both complete, and obtain results
-			// - Loop while the timer hasn't fired, and at least one of the waiters is still waiting
-			while /* !wh_timer.is_ready() && */ !(wh_pri.is_ready() && wh_sec.is_ready())
-			{
-				//::kernel::async::wait_on_list(&mut [&mut wh_pri, &mut wh_sec, &mut wh_timer]);
-				::kernel::async::wait_on_list(&mut [&mut wh_pri, &mut wh_sec]);
-			}
-			if wh_pri.is_valid() {
+			let (pri_valid, sec_valid) = {
+				let mut wh_pri = ctrlr_pri.ata_identify(i, &mut identify_pri);
+				let mut wh_sec = ctrlr_sec.ata_identify(i, &mut identify_sec);
+				//let mut wh_timer = ::kernel::async::Timer::new(2*1000);
+				
+				// Wait for both complete, and obtain results
+				// - Loop while the timer hasn't fired, and at least one of the waiters is still waiting
+				while /* !wh_timer.is_ready() && */ !(wh_pri.is_ready() && wh_sec.is_ready())
+				{
+					//::kernel::async::wait_on_list(&mut [&mut wh_pri, &mut wh_sec, &mut wh_timer]);
+					::kernel::async::wait_on_list(&mut [&mut wh_pri, &mut wh_sec]);
+				}
+				
+				(wh_pri.is_ready(), wh_sec.is_ready())
+				};
+			log_debug!("valid = {}, {}", pri_valid, sec_valid);
+			if pri_valid {
 				// Log
+				log_log!("ATA{}: Size [LBA28 = {}, LBA48 = {}]", i*2, identify_pri.sector_count_28, identify_pri.sector_count_48);
 			}
-			if wh_sec.is_valid() {
+			if sec_valid {
 				// Log
+				log_log!("ATA{}: Size [LBA28 = {}, LBA48 = {}]", i*2+1, identify_sec.sector_count_28, identify_sec.sector_count_48);
 			}
 			
 		}
