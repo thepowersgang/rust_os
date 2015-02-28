@@ -12,7 +12,7 @@ pub struct Timer
 impl Timer
 {
 	//pub fn new(duration_ms: u64) -> Timer
-	pub fn new(duration_ms: u64) -> super::EventWait<'static>
+	pub fn new(duration_ms: u64) -> super::Waiter<'static>
 	{
 		unimplemented!()
 	}

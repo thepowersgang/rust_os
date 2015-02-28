@@ -56,18 +56,17 @@ pub fn yield_time()
 fn reschedule()
 {
 	// 1. Get next thread
-	let thread = get_thread_to_run();
-	match thread
+	loop
 	{
-	None => {
-		// Wait? How is there nothing to run?
-		log_warning!("BUGCHECK: No runnable threads");
-		},
-	Some(t) => {
-		// 2. Switch to next thread
-		log_debug!("Task switch to {:?}", t);
-		::arch::threads::switch_to(t);
+		if let Some(thread) = get_thread_to_run()
+		{
+			log_debug!("Task switch to {:?}", thread);
+			::arch::threads::switch_to(thread);
+			return ;
 		}
+		
+		log_trace!("reschedule() - Idling");
+		::arch::threads::idle();
 	}
 }
 

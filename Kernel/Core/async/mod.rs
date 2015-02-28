@@ -4,6 +4,7 @@
 // Core/async/mod.rs
 ///! Asynchronous IO and waiting support
 use _common::*;
+use core::cell::RefCell;
 use core::atomic::{AtomicBool,ATOMIC_BOOL_INIT};
 
 pub use self::mutex::Mutex;
@@ -31,10 +32,11 @@ pub enum Waiter<'a>
 	Poll(Option< PollCb<'a> >),
 }
 
-type PollCb<'a> = Box<for<'r> FnMut(Option<&'r mut Waiter<'a>>) -> bool + Send + 'a>;
+pub type PollCb<'a> = RefCell<Box<for<'r> FnMut(Option<&'r mut Waiter<'a>>) -> bool + Send + 'a>>;
 
 type EventCb<'a> = Box<for<'r> ::lib::thunk::Invoke<(&'r mut Waiter<'a>),()> + Send + 'a>;
-struct EventWait<'a>
+
+pub struct EventWait<'a>
 {
 	source: Option<&'a EventSource>,
 	callback: Option<EventCb<'a>>,
@@ -45,14 +47,14 @@ struct EventWait<'a>
 pub struct ReadHandle<'buf,'src>
 {
 	buffer: &'buf [u8],
-	waiter: EventWait<'src>,
+	waiter: Waiter<'src>,
 }
 
 /// A handle returned by a read operation (re-borrows the target buffer)
 pub struct WriteHandle<'buf,'src>
 {
 	buffer: &'buf [u8],
-	waiter: EventWait<'src>,
+	waiter: Waiter<'src>,
 }
 
 pub enum WaitError
@@ -71,7 +73,7 @@ impl EventSource
 			waiter: ::sync::mutex::Mutex::new(None),
 		}
 	}
-	pub fn wait_on<'a, F: FnOnce(&mut EventWait) + Send + 'a>(&'a self, f: F) -> Waiter<'a>
+	pub fn wait_on<'a, F: FnOnce(&mut Waiter) + Send + 'a>(&'a self, f: F) -> Waiter<'a>
 	{
 		Waiter::event(self, f)
 	}
@@ -88,7 +90,7 @@ impl<'a> Waiter<'a>
 	{
 		Waiter::None
 	}
-	pub fn event<'b, F: FnOnce(&mut EventWait) + Send + 'b>(src: &'b EventSource, f: F) -> Waiter<'b>
+	pub fn event<'b, F: for<'r> FnOnce(&'r mut Waiter<'b>) + Send + 'b>(src: &'b EventSource, f: F) -> Waiter<'b>
 	{
 		Waiter::Event( EventWait {
 			source: Some(src),
@@ -97,7 +99,7 @@ impl<'a> Waiter<'a>
 	}
 	pub fn poll<F: FnMut(Option<&mut Waiter<'a>>)->bool + Send + 'a>(f: F) -> Waiter<'a>
 	{
-		Waiter::Poll( Some(box f) )
+		Waiter::Poll( Some(RefCell::new(box f)) )
 	}
 
 	pub fn is_valid(&self) -> bool
@@ -121,7 +123,11 @@ impl<'a> Waiter<'a>
 			},
 		Waiter::Poll(ref c) => match *c
 			{
-			Some(ref cb) => cb(None),
+			Some(ref cb) => {
+				let mut b = cb.borrow_mut();
+				let rb = &mut **b;
+				rb(None)
+				},
 			None => true,
 			},
 		}
@@ -147,15 +153,17 @@ impl<'a> Waiter<'a>
 	
 	pub fn run_completion(&mut self)
 	{
-		match *self
+		match ::core::mem::replace(self, Waiter::None)
 		{
 		Waiter::None => {
 			},
-		Waiter::Event(ref i) => {
-			i.callback.take().expect("EventWait::run_completion with callback None").invoke(self);
+		Waiter::Event(mut i) => {
+			let cb = i.callback.take().expect("EventWait::run_completion with callback None");
+			cb.invoke(self);
 			},
-		Waiter::Poll(ref callback) => {
-			callback.take().expect("Wait::run_completion with Poll callback None")(Some(self));
+		Waiter::Poll(mut callback) => {
+			let mut cb = callback.take().expect("Wait::run_completion with Poll callback None");
+			cb.into_inner()(Some(self));
 			}
 		}
 	}
@@ -172,9 +180,26 @@ impl<'a> Waiter<'a>
 	//}
 }
 
+impl<'a> ::core::fmt::Debug for Waiter<'a>
+{
+	fn fmt(&self, f: &mut ::core::fmt::Formatter) -> ::core::fmt::Result
+	{
+		match self
+		{
+		&Waiter::None => write!(f, "Waiter::None"),
+		&Waiter::Event(ref e) => match e.source
+			{
+			Some(ref s) => write!(f, "Waiter::Event({:p}))", s),
+			None => write!(f, "Waiter::Event(None)"),
+			},
+		&Waiter::Poll(_) => write!(f, "Waiter::Poll(..)"),
+		}
+	}
+}
+
 impl<'o_b,'o_e> ReadHandle<'o_b, 'o_e>
 {
-	pub fn new<'b,'e>(dst: &'b [u8], w: EventWait<'e>) -> ReadHandle<'b,'e>
+	pub fn new<'b,'e>(dst: &'b [u8], w: Waiter<'e>) -> ReadHandle<'b,'e>
 	{
 		ReadHandle {
 			buffer: dst,
@@ -185,7 +210,7 @@ impl<'o_b,'o_e> ReadHandle<'o_b, 'o_e>
 
 impl<'o_b,'o_e> WriteHandle<'o_b, 'o_e>
 {
-	pub fn new<'b,'e>(dst: &'b [u8], w: EventWait<'e>) -> WriteHandle<'b,'e>
+	pub fn new<'b,'e>(dst: &'b [u8], w: Waiter<'e>) -> WriteHandle<'b,'e>
 	{
 		WriteHandle {
 			buffer: dst,
@@ -197,6 +222,7 @@ impl<'o_b,'o_e> WriteHandle<'o_b, 'o_e>
 // Note - List itself isn't modified, but needs to be &mut to get &mut to inners
 pub fn wait_on_list(waiters: &mut [&mut Waiter])
 {
+	log_trace!("wait_on_list(waiters = {:?})", waiters);
 	if waiters.len() == 0
 	{
 		panic!("wait_on_list - Nothing to wait on");
@@ -211,13 +237,33 @@ pub fn wait_on_list(waiters: &mut [&mut Waiter])
 		// Multiple waiters
 		// - Create an object for them to signal
 		let mut obj = ::threads::SleepObject::new("wait_on_list");
+		let mut force_poll = false;
 		for ent in waiters.iter_mut()
 		{
-			ent.bind_signal( &mut obj );
+			force_poll |= !ent.bind_signal( &mut obj );
 		}
 		
-		// - Wait the current thread on that object
-		obj.wait();
+		if force_poll
+		{
+			log_trace!("- Polling");
+			let mut n_passes = 0;
+			'outer: loop
+			{
+				for ent in waiters.iter()
+				{
+					if ent.is_ready() { break 'outer; }
+				}
+				n_passes += 1;
+				// TODO: Take a short nap
+			}
+			log_trace!("- Fire ({} passes)", n_passes);
+		}
+		else
+		{
+			// - Wait the current thread on that object
+			log_trace!(" Sleeping");
+			obj.wait();
+		}
 		
 		// - When woken, run completion handlers on all completed waiters
 		for ent in waiters.iter_mut()

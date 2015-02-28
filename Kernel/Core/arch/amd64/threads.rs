@@ -32,6 +32,16 @@ pub fn init_tid0_state() -> State
 		}
 }
 
+/// Idle for a short period, called when the CPU has nothing else to do
+pub fn idle()
+{
+	if true {
+		let flags = unsafe { let v: u64; asm!("pushf; pop $0" : "=r" (v)); v };
+		assert!(flags & 0x200 != 0, "idle() with IF clear, RFLAGS = {:#x}", flags);
+	}
+	unsafe { asm!("hlt" : : : : "volatile"); }
+}
+
 pub fn switch_to(newthread: Box<::threads::Thread>)
 {
 	unsafe

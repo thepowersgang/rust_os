@@ -4,7 +4,7 @@
 //! ATA IO code, handling device multiplexing and IO operations
 use kernel::_common::*;
 use kernel::memory::helpers::{DMABuffer};
-use kernel::async::EventWait;
+use kernel::async::Waiter;
 use kernel::device_manager::IOBinding;
 
 pub const SECTOR_SIZE: usize = 512;
@@ -58,7 +58,7 @@ struct PRDTEnt
 
 impl DmaController
 {
-	pub fn do_dma<'s>(&'s self, blockidx: u64, count: usize, dst: &'s [u8], disk: u8, is_write: bool) -> Result<EventWait<'s>,()>
+	pub fn do_dma<'s>(&'s self, blockidx: u64, count: usize, dst: &'s [u8], disk: u8, is_write: bool) -> Result<Waiter<'s>,()>
 	{
 		assert!(disk < 4);
 		assert!(count < MAX_DMA_SECTORS);
@@ -187,12 +187,12 @@ impl AtaController
 			}
 	}
 	
-	fn wait_handle<'a, F: FnOnce(&mut EventWait) + Send + 'a> (&'a self, f: F) -> EventWait<'a>
+	fn wait_handle<'a, F: FnOnce(&mut Waiter) + Send + 'a> (&'a self, f: F) -> Waiter<'a>
 	{
 		self.interrupt.event.wait_on(f)
 	}
 	
-	fn do_dma<'a>(&'a self, blockidx: u64, dst: &'a [u8], disk: u8, is_write: bool, dma_regs: DmaRegBorrow) -> EventWait<'a>
+	fn do_dma<'a>(&'a self, blockidx: u64, dst: &'a [u8], disk: u8, is_write: bool, dma_regs: DmaRegBorrow) -> Waiter<'a>
 	{
 		if let Some(mut buslock) = self.regs.try_lock()
 		{
@@ -215,8 +215,10 @@ impl AtaController
 		}
 	}
 	
-	pub fn ata_identify<'a>(&'a self, disk: u8, data: &mut ::AtaIdentifyData) -> EventWait<'a>
+	pub fn ata_identify<'a>(&'a self, disk: u8, data: &'a mut ::AtaIdentifyData) -> Waiter<'a>
 	{
+		// - Cast 'data' to a u16 slice
+		let data: &mut [u16; 256] = unsafe { ::core::mem::transmute(data) };
 		if let Some(mut buslock) = self.regs.try_lock()
 		{
 			log_debug!("ata_identify: (disk={}), base={:#x}", disk, buslock.ata_base);
@@ -236,7 +238,7 @@ impl AtaController
 				log_debug!("Disk {} on {:#x} not present", disk, buslock.ata_base);
 				// Drive does not exist, zero data and return a null wait
 				*data = unsafe { ::core::mem::zeroed() };
-				EventWait::<'a>::none()
+				Waiter::none()
 			}
 			else
 			{
@@ -249,32 +251,34 @@ impl AtaController
 				log_debug!("ata_identify: {:#x}, {:#x}", f4, f5);
 				if f4 == 0x14 && f5 == HDD_IDENTIFY {
 					// Device is ATAPI
-					EventWait::<'a>::none()
+					Waiter::none()
 				}
 				else {
-					PollWait::new(|e| {
-						if buslock.in_sts() & 9 != 0 {
-							// Done.
+					Waiter::poll(move |e| match e
+						{
+						Some(e) => {
 							if buslock.in_sts() & 1 == 1 {
 								// Error, clear and return
 								*data = unsafe { ::core::mem::zeroed() };
 							}
 							else {
 								// Success, perform IO
-								let data_u16: &mut [u16] = unsafe { ::core::mem::transmute(data) };
-								assert_eq!(data_u16.len(), 256);
-								for w in data_u16 {
-									*w = buslock.in_16(0);
+								unsafe {
+									for w in data.iter_mut() {
+										*w = buslock.in_16(0);
+									}
 								}
 							}
 							true
-						}
-						else {
-							false
-						}
+							},
+						None => if buslock.in_sts() & 9 != 0 {
+								// Done.
+								true
+							} else {
+								false
+							}
 						} )
 				}
-				unimplemented!();
 			}
 		}
 		else

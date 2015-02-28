@@ -4,7 +4,7 @@
 // Core/async/mutex.rs
 ///! Asynchronous Mutex
 use _common::*;
-use super::EventWait;
+use super::Waiter;
 use core::cell::UnsafeCell;
 use core::atomic::{AtomicBool,Ordering};
 
@@ -46,7 +46,7 @@ impl<T: Send> Mutex<T>
 	}
 	
 	/// Asynchronously lock the mutex
-	pub fn async_lock<F: FnOnce(&mut EventWait, HeldMutex<T>)>(&self, f: F) -> EventWait
+	pub fn async_lock<F: FnOnce(&mut Waiter, HeldMutex<T>)>(&self, f: F) -> Waiter
 	{
 		unimplemented!()
 	}
