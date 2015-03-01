@@ -31,7 +31,7 @@ struct AtaVolume
 struct ControllerRoot
 {
 	_controller: Arc<io::DmaController>,
-	volumes: Vec<storage::PhysicalVolumeReg>,
+	_volumes: Vec<storage::PhysicalVolumeReg>,
 }
 
 enum AtaClass
@@ -162,9 +162,12 @@ impl ControllerRoot
 			let ctrlr_pri = &dma_controller.ata_controllers[0];
 			let ctrlr_sec = &dma_controller.ata_controllers[1];
 			
+			// Create output data (defaulted, but should be written by the output function)
 			let (mut identify_pri, mut type_pri) = Default::default();
 			let (mut identify_sec, mut type_sec) = Default::default();
 			
+			// Perform IDENTIFY requests, both controllers in pararllel
+			// TODO: Include a timeout to prevent a misbehaving controller from halting the system.
 			let (pri_valid, sec_valid) = {
 				let mut wh_pri = ctrlr_pri.ata_identify(i, &mut identify_pri, &mut type_pri);
 				let mut wh_sec = ctrlr_sec.ata_identify(i, &mut identify_sec, &mut type_sec);
@@ -180,7 +183,8 @@ impl ControllerRoot
 				
 				(wh_pri.is_ready(), wh_sec.is_ready())
 				};
-			log_debug!("valid = {}, {}", pri_valid, sec_valid);
+			
+			// (ugly) Handle the relevant disk types, creating devices
 			for &(disk, ref class, ref ident) in [(i*2, type_pri, identify_pri), (i*2+1, type_sec, identify_sec)].iter()
 			{
 				match *class
@@ -195,6 +199,7 @@ impl ControllerRoot
 					},
 				AtaClass::ATAPI => {
 					log_log!("ATA{}: ATAPI", disk);
+					// TODO: Support ATAPI devices with a different class
 					},
 				AtaClass::Unknown(r4, r5) => {
 					log_warning!("ATA{}: Unknown type response ({:#x}, {:#x})", disk, r4, r5);
@@ -203,7 +208,8 @@ impl ControllerRoot
 			}
 		}
 		
-		ControllerRoot { _controller: dma_controller, volumes: volumes, }
+		// Return a controller handle, holding on to all handles
+		ControllerRoot { _controller: dma_controller, _volumes: volumes, }
 	}
 	
 	//fn handle_volume(volumes: &mut Vec<storage::PhysicalVolumeReg>, dma_controller: &Arc<DmaController>, disk: u8, class: AtaClass, ident: AtaIdentifyData)
