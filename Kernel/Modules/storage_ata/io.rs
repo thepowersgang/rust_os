@@ -23,6 +23,7 @@ const HDD_DMA_W48: u8 = 0x35;
 
 pub struct DmaController
 {
+	pub name: String,
 	pub ata_controllers: [AtaController; 2],
 	pub dma_base: IOBinding,
 }
@@ -216,7 +217,8 @@ impl AtaController
 		}
 	}
 	
-	pub fn ata_identify<'a>(&'a self, disk: u8, data: &'a mut ::AtaIdentifyData) -> Waiter<'a>
+	/// Request an ATA IDENTIFY packet from the device
+	pub fn ata_identify<'a>(&'a self, disk: u8, data: &'a mut ::AtaIdentifyData, class: &'a mut ::AtaClass) -> Waiter<'a>
 	{
 		// - Cast 'data' to a u16 slice
 		let data: &mut [u16; 256] = unsafe { ::core::mem::transmute(data) };
@@ -238,6 +240,7 @@ impl AtaController
 			{
 				log_debug!("Disk {} on {:#x} not present", disk, buslock.ata_base);
 				// Drive does not exist, zero data and return a null wait
+				*class = ::AtaClass::None;
 				*data = unsafe { ::core::mem::zeroed() };
 				Waiter::new_none()
 			}
@@ -251,7 +254,7 @@ impl AtaController
 				Waiter::new_poll(move |e| match e
 					{
 					// Being called as a completion function
-					Some(e) => {
+					Some(_event_ptr) => {
 						if buslock.in_sts() & 1 == 1 {
 							let (f4, f5) = unsafe { (buslock.in_8(4), buslock.in_8(5)) };
 							// Error, clear and return
@@ -259,9 +262,11 @@ impl AtaController
 							if f4 == 0x14 && f5 == 0xEB {
 								// Device is ATAPI
 								log_debug!("ata_identify: Disk {:#x}/{} is ATAPI", buslock.ata_base, disk);
+								*class = ::AtaClass::ATAPI;
 							}
 							else {
 								log_debug!("ata_identify: Disk {:#x}/{} errored (f4,f5 = {:#02x},{:#02x})", buslock.ata_base, disk, f4, f5);
+								*class = ::AtaClass::Unknown(f4, f5);
 							}
 						}
 						else {
@@ -272,6 +277,7 @@ impl AtaController
 								}
 							}
 							log_debug!("ata_identify: Disk {:#x}/{} IDENTIFY complete", buslock.ata_base, disk);
+							*class = ::AtaClass::Native;
 						}
 						true
 						},

@@ -10,7 +10,8 @@ use kernel::_common::*;
 use kernel::lib::mem::Arc;
 
 use kernel::device_manager;
-use kernel::async::{ReadHandle,WriteHandle,EventWait};
+use kernel::metadevs::storage;
+use kernel::async::{ReadHandle,WriteHandle};
 
 module_define!{ATA, [DeviceManager, Storage], init}
 
@@ -30,16 +31,26 @@ struct AtaVolume
 struct ControllerRoot
 {
 	_controller: Arc<io::DmaController>,
-	volumes: Vec<AtaVolume>,
+	volumes: Vec<storage::PhysicalVolumeReg>,
 }
+
+enum AtaClass
+{
+	None,	// No disk
+	Unknown(u8,u8),	// Unknown type, values are regs 4 and 5
+	Native,	// A standard ATA disk
+	ATAPI,
+}
+impl Default for AtaClass { fn default() -> AtaClass { AtaClass::None } }
 
 /// ATA "IDENTIFY" packet data
 #[repr(C,packed)]
+//#[derive(Debug)]
 struct AtaIdentifyData
 {
 	flags: u16,
 	_unused1: [u16; 9],
-	serial_numer: [u8; 20],
+	serial_number: [u8; 20],
 	_unused2: [u16; 3],
 	firmware_ver: [u8; 8],
 	model_number: [u8; 40],
@@ -62,10 +73,41 @@ struct AtaIdentifyData
 impl Default for AtaIdentifyData {
 	fn default() -> AtaIdentifyData { unsafe { ::core::mem::zeroed() } }
 }
+impl ::core::fmt::Debug for AtaIdentifyData {
+	fn fmt(&self, f: &mut ::core::fmt::Formatter) -> ::core::fmt::Result
+	{
+		try!(write!(f, "AtaIdentifyData {{"));
+		try!(write!(f, " flags: {:#x}", self.flags));
+		try!(write!(f, " serial_number: {:?}", ::kernel::lib::RawString(&self.serial_number)));
+		try!(write!(f, " firmware_ver: {:?}", ::kernel::lib::RawString(&self.firmware_ver)));
+		try!(write!(f, " model_number: {:?}", ::kernel::lib::RawString(&self.model_number)));
+		try!(write!(f, " sect_per_int: {}", self.sect_per_int));
+		try!(write!(f, " capabilities: [{:#x},{:#x}]", self.capabilities[0], self.capabilities[1]));
+		try!(write!(f, " valid_ext_data: {}", self.valid_ext_data));
+		try!(write!(f, " size_of_rw_multiple: {}", self.size_of_rw_multiple));
+		try!(write!(f, " sector_count_28: {:#x}", self.sector_count_28));
+		try!(write!(f, " sector_count_48: {:#x}", self.sector_count_48));
+		try!(write!(f, "}}"));
+		Ok( () )
+	}
+}
 
 fn init()
 {
 	drivers::register();
+}
+
+impl AtaVolume
+{
+	fn new_boxed(dma_controller: Arc<io::DmaController>, disk: u8, sectors: u64) -> Box<AtaVolume>
+	{
+		Box::new( AtaVolume {
+			name: format!("{}-{}", dma_controller.name, disk),
+			disk: disk,
+			controller: dma_controller,
+			size: sectors,
+			} )
+	}
 }
 
 impl ::kernel::metadevs::storage::PhysicalVolume for AtaVolume
@@ -103,18 +145,29 @@ impl ControllerRoot
 {
 	fn new(ata_pri: u16, sts_pri: u16, irq_pri: u32,  ata_sec: u16, sts_sec: u16, irq_sec: u32,  bm: device_manager::IOBinding) -> ControllerRoot
 	{
-		let ctrlr_pri = io::AtaController::new(ata_pri, sts_pri, irq_pri);
-		let ctrlr_sec = io::AtaController::new(ata_sec, sts_sec, irq_sec);
+		
+		let dma_controller = Arc::new(io::DmaController {
+			name: format!("ATA[{:#x},{:#x}]", ata_pri, ata_sec),
+			ata_controllers: [
+				io::AtaController::new(ata_pri, sts_pri, irq_pri),
+				io::AtaController::new(ata_sec, sts_sec, irq_sec),
+				],
+			dma_base: bm,
+			});
+		let mut volumes = Vec::new();
 		
 		// Send IDENTIFY to all disks
 		for i in (0 .. 2)
 		{
-			let mut identify_pri: AtaIdentifyData = Default::default();
-			let mut identify_sec: AtaIdentifyData = Default::default();
+			let ctrlr_pri = &dma_controller.ata_controllers[0];
+			let ctrlr_sec = &dma_controller.ata_controllers[1];
+			
+			let (mut identify_pri, mut type_pri) = Default::default();
+			let (mut identify_sec, mut type_sec) = Default::default();
 			
 			let (pri_valid, sec_valid) = {
-				let mut wh_pri = ctrlr_pri.ata_identify(i, &mut identify_pri);
-				let mut wh_sec = ctrlr_sec.ata_identify(i, &mut identify_sec);
+				let mut wh_pri = ctrlr_pri.ata_identify(i, &mut identify_pri, &mut type_pri);
+				let mut wh_sec = ctrlr_sec.ata_identify(i, &mut identify_sec, &mut type_sec);
 				//let mut wh_timer = ::kernel::async::Timer::new(2*1000);
 				
 				// Wait for both complete, and obtain results
@@ -128,27 +181,32 @@ impl ControllerRoot
 				(wh_pri.is_ready(), wh_sec.is_ready())
 				};
 			log_debug!("valid = {}, {}", pri_valid, sec_valid);
-			if pri_valid {
-				// Log
-				log_log!("ATA{}: Size [LBA28 = {}, LBA48 = {}]", i*2, identify_pri.sector_count_28, identify_pri.sector_count_48);
+			for &(disk, ref class, ref ident) in [(i*2, type_pri, identify_pri), (i*2+1, type_sec, identify_sec)].iter()
+			{
+				match *class
+				{
+				AtaClass::None => {
+					log_log!("ATA{}: No disk", disk);
+					},
+				AtaClass::Native => {
+					let sectors = if ident.sector_count_48 == 0 { ident.sector_count_28 as u64 } else { ident.sector_count_48 };
+					log_log!("ATA{}: Hard Disk, {} sectors, {}", disk, sectors, storage::SizePrinter(sectors * io::SECTOR_SIZE as u64));
+					volumes.push( storage::register_pv( AtaVolume::new_boxed(dma_controller.clone(), disk, sectors) ) );
+					},
+				AtaClass::ATAPI => {
+					log_log!("ATA{}: ATAPI", disk);
+					},
+				AtaClass::Unknown(r4, r5) => {
+					log_warning!("ATA{}: Unknown type response ({:#x}, {:#x})", disk, r4, r5);
+					},
+				}
 			}
-			if sec_valid {
-				// Log
-				log_log!("ATA{}: Size [LBA28 = {}, LBA48 = {}]", i*2+1, identify_sec.sector_count_28, identify_sec.sector_count_48);
-			}
-			
 		}
 		
-		let dma_controller = Arc::new(io::DmaController {
-			ata_controllers: [ ctrlr_pri, ctrlr_sec ],
-			dma_base: bm,
-			});
-		
-		ControllerRoot {
-			_controller: dma_controller,
-			volumes: Vec::new(),
-			}
+		ControllerRoot { _controller: dma_controller, volumes: volumes, }
 	}
+	
+	//fn handle_volume(volumes: &mut Vec<storage::PhysicalVolumeReg>, dma_controller: &Arc<DmaController>, disk: u8, class: AtaClass, ident: AtaIdentifyData)
 }
 
 impl device_manager::DriverInstance for ControllerRoot
