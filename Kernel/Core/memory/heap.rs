@@ -298,7 +298,8 @@ impl HeapDef
 	#[inline(never)]
 	unsafe fn expand(&mut self, min_size: usize) -> *mut HeapHead
 	{
-		log_debug!("self.{{start = {:p}, last_foot = {:?}}}", self.start, self.last_foot);
+		log_trace!("HeapDef::expand(min_size={})", min_size);
+		//log_debug!("self.{{start = {:p}, last_foot = {:?}}}", self.start, self.last_foot);
 		let use_prev =
 			if self.start.is_null() {
 				let base = ::arch::memory::addresses::HEAP_START;
@@ -319,15 +320,15 @@ impl HeapDef
 				HeapState::Used(_) => false
 				}
 			};
-		log_debug!("(2) self.{{start = {:p}, last_foot = {:?}}}, use_prev={}", self.start, self.last_foot, use_prev);
+		//log_debug!("(2) self.{{start = {:#x}, last_foot = {:?}}}, use_prev={}", self.start as usize, self.last_foot, use_prev);
 		assert!( !self.last_foot.is_null() );
 		let last_foot = &mut *self.last_foot;
 		let alloc_size = min_size - (if use_prev { last_foot.head().size } else { 0 });
 		
 		// 1. Allocate at least one page at the end of the heap
 		let n_pages = ::lib::num::round_up(alloc_size, ::PAGE_SIZE) / ::PAGE_SIZE;
-		log_debug!("HeapDef.expand(min_size={}), alloc_size={}, n_pages={}", min_size, alloc_size, n_pages);
-		log_trace!("last_foot = {:p}", self.last_foot);
+		//log_debug!("HeapDef.expand(min_size={}), alloc_size={}, n_pages={}", min_size, alloc_size, n_pages);
+		//log_trace!("last_foot = {:p}", self.last_foot);
 		assert!(n_pages > 0);
 		::memory::virt::allocate(last_foot.next_head() as *mut(), n_pages);
 		
@@ -335,7 +336,7 @@ impl HeapDef
 		let block = if use_prev
 			{
 				let block = &mut *last_foot.head;
-				log_debug!("HeapDef.expand: (prev) &block={:p}", block);
+				//log_debug!("HeapDef.expand: (prev) &block={:p}", block);
 				block.size += n_pages * ::PAGE_SIZE;
 				block.foot().head = last_foot.head;
 				
@@ -344,7 +345,7 @@ impl HeapDef
 			else
 			{
 				let block = &mut *last_foot.next_head();
-				log_debug!("HeapDef.expand: (new) &block={:p}", block);
+				//log_debug!("HeapDef.expand: (new) &block={:p}", block);
 				*block = HeapHead {
 					magic: MAGIC,
 					state: HeapState::Used(0),
@@ -355,7 +356,7 @@ impl HeapDef
 				block
 			};
 		self.last_foot = block.foot() as *mut HeapFoot;
-		log_debug!("HeapDef.expand: &block={:p}, self.last_foot={:p}", block, self.last_foot);
+		//log_debug!("HeapDef.expand: &block={:p}, self.last_foot={:p}", block, self.last_foot);
 		block.state = HeapState::Used(0);
 		// 3. Return final block
 		block

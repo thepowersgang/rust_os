@@ -101,9 +101,9 @@ pub fn hold_interrupts() -> HeldInterrupts
 		(flags & 0x200) != 0
 		};
 	
-	if ! if_set {
-		::arch::puts("hold_interrupts() - if_set = false\n");
-	}
+	//if ! if_set {
+	//	::arch::puts("hold_interrupts() - if_set = false\n");
+	//}
 	HeldInterrupts(if_set)
 }
 

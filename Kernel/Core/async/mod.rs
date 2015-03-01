@@ -127,6 +127,12 @@ impl<'a> Waiter<'a>
 			callback: Some(box f as EventCb),
 			} )
 	}
+	/// Create a new polling waiter
+	///
+	/// The passed closure is called in two different modes.
+	/// 1. If the argument is `None`, it should return true iff the wait should terminate
+	/// 1. If the argument is `Some(e)`, the wait was terminated and completion handlers should fire (optionally assigning a new
+	///    waiter to the passed handle).
 	pub fn new_poll<F: FnMut(Option<&mut Waiter<'a>>)->bool + Send + 'a>(f: F) -> Waiter<'a>
 	{
 		Waiter::Poll( Some(RefCell::new(box f)) )
