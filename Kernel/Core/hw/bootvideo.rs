@@ -5,7 +5,7 @@
 // - Bootloader-provided video handling (simple framebuffer)
 module_define!(BootVideo, [Video], init);
 
-#[derive(Copy)]
+#[derive(Copy,Debug)]
 pub enum VideoFormat
 {
 	X8R8G8B8,
@@ -15,7 +15,7 @@ pub enum VideoFormat
 	R5G6B5,
 }
 
-#[derive(Copy)]
+#[derive(Copy,Debug)]
 pub struct VideoMode
 {
 	pub width: u16,
@@ -33,7 +33,7 @@ fn init()
 
 pub fn register(mode: VideoMode)
 {
-	
+	log_error!("TODO: register(mode={:?})", mode);
 }
 
 

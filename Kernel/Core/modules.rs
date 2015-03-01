@@ -35,7 +35,7 @@ pub fn init()
 	let count = size / ::core::mem::size_of::<ModuleInfo>();
 	
 	unsafe {
-		let mods = ::core::slice::from_raw_buf(&baseptr, count);
+		let mods = ::core::slice::from_raw_parts(baseptr, count);
 		init_modules(mods);
 	}
 }

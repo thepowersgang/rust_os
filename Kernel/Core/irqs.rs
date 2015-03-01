@@ -47,14 +47,14 @@ struct Bindings
 // - Hand out 'Handle' structures containing a pointer to the handler on that queue?
 // - Per IRQ queue of
 /// Map of IRQ numbers to core's dispatcher bindings. Bindings are boxed so the address is known in the constructor
-static s_irq_bindings: ::sync::mutex::LazyMutex<Bindings> = lazymutex_init!();
+static S_IRQ_BINDINGS: ::sync::mutex::LazyMutex<Bindings> = lazymutex_init!();
 
 
 /// Bind an event waiter to an interrupt
 pub fn bind_interrupt_event(num: u32) -> EventHandle
 {
 	// 1. (if not already) bind a handler on the architecture's handlers
-	let mut map_lh = s_irq_bindings.lock_init(|| Bindings { mapping: VecMap::new(), next_index: 0 });
+	let mut map_lh = S_IRQ_BINDINGS.lock_init(|| Bindings { mapping: VecMap::new(), next_index: 0 });
 	let index = map_lh.next_index;
 	map_lh.next_index += 1;
 	let binding = match map_lh.mapping.entry(num)

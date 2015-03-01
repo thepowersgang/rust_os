@@ -4,7 +4,7 @@
 // Core/metadevs/storage.rs
 // - Storage (block device) subsystem
 use _common::*;
-use core::atomic::{AtomicUint,ATOMIC_UINT_INIT};
+use core::atomic::{AtomicUsize,ATOMIC_USIZE_INIT};
 use sync::mutex::LazyMutex;
 use async::{ReadHandle,WriteHandle};
 use lib::VecMap;
@@ -74,10 +74,10 @@ struct PhysicalRegion
 	first_block: u64,
 }
 
-static s_next_pv_idx: AtomicUint = ATOMIC_UINT_INIT;
-static s_physical_volumes: LazyMutex<VecMap<usize,Box<PhysicalVolume+Send>>> = lazymutex_init!();
-static s_logical_volumes: LazyMutex<VecMap<usize,LogicalVolume>> = lazymutex_init!();
-static s_mappers: LazyMutex<Vec<&'static Mapper>> = lazymutex_init!();
+static S_NEXT_PV_IDX: AtomicUsize = ATOMIC_USIZE_INIT;
+static S_PHYSICAL_VOLUMES: LazyMutex<VecMap<usize,Box<PhysicalVolume+Send>>> = lazymutex_init!();
+static S_LOGICAL_VOLUMES: LazyMutex<VecMap<usize,LogicalVolume>> = lazymutex_init!();
+static S_MAPPERS: LazyMutex<Vec<&'static Mapper>> = lazymutex_init!();
 
 // TODO: Maintain a set of registered volumes. Mappers can bind onto a volume and register new LVs
 // TODO: Maintain set of active mappings (set of PVs -> set of LVs)
@@ -85,20 +85,20 @@ static s_mappers: LazyMutex<Vec<&'static Mapper>> = lazymutex_init!();
 
 fn init()
 {
-	s_physical_volumes.init( || VecMap::new() );
-	s_logical_volumes.init( || VecMap::new() );
-	s_mappers.init( || Vec::new() );
+	S_PHYSICAL_VOLUMES.init( || VecMap::new() );
+	S_LOGICAL_VOLUMES.init( || VecMap::new() );
+	S_MAPPERS.init( || Vec::new() );
 }
 
 pub fn register_pv(pv: Box<PhysicalVolume+Send>) -> PhysicalVolumeReg
 {
 	log_trace!("register_pv(pv = \"{}\")", pv.name());
-	let pv_id = s_next_pv_idx.fetch_add(1, ::core::atomic::Ordering::Relaxed);
+	let pv_id = S_NEXT_PV_IDX.fetch_add(1, ::core::atomic::Ordering::Relaxed);
 
 	// Now that a new PV has been inserted, handlers should be informed
 	let mut best_mapper: Option<&Mapper> = None;
 	let mut best_mapper_level = 0;
-	let mappers = s_mappers.lock();
+	let mappers = S_MAPPERS.lock();
 	for &mapper in mappers.iter()
 	{
 		let level = mapper.handles_pv(&*pv);
@@ -125,18 +125,35 @@ pub fn register_pv(pv: Box<PhysicalVolume+Send>) -> PhysicalVolumeReg
 	if let Some(mapper) = best_mapper
 	{
 		// Poke mapper
+		log_error!("TODO: Invoke mapper {} on volume {}", mapper.name(), pv.name());
 		unimplemented!();
 	}
 	
 	// Wait until after checking for a handler before we add the PV to the list
-	s_physical_volumes.lock().insert(pv_id, pv);
+	S_PHYSICAL_VOLUMES.lock().insert(pv_id, pv);
 	
 	PhysicalVolumeReg { idx: pv_id }
 }
 
+/// Register a mapper with the storage subsystem
+// TODO: How will it be unregistered?
 pub fn register_mapper(mapper: &'static Mapper)
 {
+	S_MAPPERS.lock().push(mapper);
 	
+	// Check unbound PVs
+	for (_id,pv) in S_PHYSICAL_VOLUMES.lock().iter()
+	{
+		let level = mapper.handles_pv(&**pv);
+		if level == 0
+		{
+			// Ignore
+		}
+		else
+		{
+			log_error!("TODO: Mapper {} wants to handle volume {}", mapper.name(), pv.name());
+		}
+	}
 }
 
 /// Function called when a new volume is registered (physical or logical)
@@ -146,7 +163,7 @@ fn new_volume(volidx: usize)
 
 pub fn enum_pvs() -> Vec<(usize,String)>
 {
-	s_physical_volumes.lock().iter().map(|(k,v)| (*k, String::from_str(v.name())) ).collect()
+	S_PHYSICAL_VOLUMES.lock().iter().map(|(k,v)| (*k, String::from_str(v.name())) ).collect()
 }
 
 impl ::core::fmt::Display for SizePrinter
