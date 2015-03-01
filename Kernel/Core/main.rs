@@ -27,7 +27,7 @@ pub use arch::memory::PAGE_SIZE;
 #[doc(hidden)]
 #[macro_use] pub mod macros;
 #[doc(hidden)]
-#[macro_use] #[cfg(arch__amd64)] #[path="arch/amd64/macros.rs"] pub mod arch_macros;
+#[macro_use] #[cfg(arch__amd64)] #[path="arch/amd64/mod-macros.rs"] pub mod arch_macros;
 
 // Evil Hack: For some reason, write! (and friends) will expand pointing to std instead of core
 #[doc(hidden)]
@@ -80,7 +80,7 @@ pub mod hw;
 
 /// Achitecture-specific code - AMD64 (aka x86-64)
 #[macro_use]
-#[cfg(arch__amd64)] #[path="arch/amd64/crate.rs"] pub mod arch;	// Needs to be pub for exports to be avaliable
+#[cfg(arch__amd64)] #[path="arch/amd64/mod.rs"] pub mod arch;	// Needs to be pub for exports to be avaliable
 
 /// Kernel entrypoint
 #[no_mangle]
