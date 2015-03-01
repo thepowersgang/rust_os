@@ -13,7 +13,6 @@ macro_rules! CHECKMARK{ () => (unsafe { asm!("xchg %cx, %cx" : : : : "volatile")
 
 module_define!{arch, [APIC, HPET], init}
 
-pub mod float;
 pub mod interrupts;
 pub mod memory;
 pub mod threads;
@@ -36,11 +35,13 @@ fn init()
 	// None needed, just dependencies
 }
 
+/// Return the system timestamp (miliseconds since an arbitary point)
 pub fn cur_timestamp() -> u64
 {
 	hw::hpet::get_timestamp()
 }
 
+/// Print a backtrace, starting at the current location.
 pub fn print_backtrace()
 {
 	let cur_bp: u64;
@@ -55,11 +56,6 @@ pub fn print_backtrace()
 		bp = newbp;
 	}
 	puts("\n");
-}
-
-pub fn idle()
-{
-	unsafe { asm!("hlt"); }
 }
 
 // vim: ft=rust

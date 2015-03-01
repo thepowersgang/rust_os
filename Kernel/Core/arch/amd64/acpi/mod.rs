@@ -2,9 +2,9 @@
 // - By John Hodge (thePowersGang)
 //
 // arch/amd64/acpi/mod.rs
-// - ACPI (Advanced Control and Power Interface) handling code
-// 
-// > Provides access to the ACPI tables
+//! ACPI (Advanced Control and Power Interface) handling code
+//!
+//! Provides access to the ACPI tables
 use _common::*;
 use core::str::from_utf8;
 
@@ -54,7 +54,7 @@ pub struct SDTHandle<T:'static>
 
 #[repr(C)]
 #[derive(Copy)]
-pub struct SDTHeader
+struct SDTHeader
 {
 	signature: [u8; 4],
 	length: u32,
@@ -67,24 +67,29 @@ pub struct SDTHeader
 	creator_revision: u32,
 }
 
-#[repr(C)]
-#[derive(Copy)]
+#[repr(C,u8)]
+#[derive(Copy,PartialEq)]
+/// Address space identifier
 pub enum AddressSpaceID
 {
-	AsidMemory   = 0,
-	AsidIO       = 1,
-	AsidPCI      = 2,
-	AsidEmbedded = 3,
-	AsidSMBus    = 4,
-	AsidPCC      = 0xA,
-	AsidFFH      = 0x7F,
+	/// Memory-mapped IO
+	Memory   = 0,
+	/// x86 IO bus
+	IO       = 1,
+	/// PCI configuration space
+	PCI      = 2,
+	Embedded = 3,
+	SMBus    = 4,
+	PCC      = 0xA,
+	FFH      = 0x7F,
 }
 
 #[repr(C,packed)]
 #[derive(Copy)]
+/// Generic address descriptor (TODO: check name)
 pub struct GAS
 {
-	pub asid: u8,
+	pub asid: AddressSpaceID,	///! Address space ID
 	pub bit_width: u8,
 	pub bit_ofs: u8,
 	pub access_size: u8,	// 0: undef, 1: byte; ., 4: qword
@@ -92,6 +97,7 @@ pub struct GAS
 }
 
 #[repr(C)]
+/// A generic descriptor table
 pub struct SDT<T:'static>
 {
 	header: SDTHeader,
@@ -125,12 +131,14 @@ fn init()
 	log_debug!("RSDP = {{ oemid = {:?}, revision = {:#x}, rsdt_address = {:#x} }}",
 		::core::str::from_utf8(&rsdp.oemid), rsdp.revision, rsdp.rsdt_address);
 	
+	// Determine the top-level SDT type
 	let tl = if rsdp.revision == 0 {
 			TopRSDT( SDTHandle::<RSDT>::new( rsdp.rsdt_address as u64 ).make_static() )
 		} else {
 			let v2: &RSDPv2 = unsafe { ::core::mem::transmute(rsdp) };
 			if sum_struct(v2) != 0 {
 				// oh
+				panic!("RSDPv2 checksum failed");
 			}
 			TopXSDT( SDTHandle::<XSDT>::new( v2.xsdt_address ).make_static() )
 		};
@@ -276,22 +284,14 @@ impl RSDTTrait for SDT<XSDT>
 	}
 }
 
-impl SDTHeader
+impl ::core::fmt::Debug for SDTHeader
 {
-	pub fn validate_checksum(&self) -> bool
+	fn fmt(&self, f: &mut ::core::fmt::Formatter) -> ::core::fmt::Result
 	{
-		// TODO: This checksum is over the entire table!
-		let sum = sum_struct(self);
-		(sum & 0xFF) == 0
-	}
-	pub fn dump(&self)
-	{
-		log_debug!("SDTHeader = {{ sig:{:?},length='{}',rev={},checksum={}; .",
-			from_utf8(&self.signature), self.length, self.revision, self.checksum);
-		log_debug!(" oemid={:?},oem_table_id={:?},oem_revision={}; .",
-			from_utf8(&self.oemid), from_utf8(&self.oem_table_id), self.oem_revision);
-		log_debug!(" creator_id={:#x}, creator_revision={}",
-			self.creator_id, self.creator_revision);
+		write!(f, "SDTHeader = {{ sig:{:?},length='{}',rev={},checksum={},  oemid={:?},oem_table_id={:?},oem_revision={}, creator_id={:#x}, creator_revision={} }}",
+			from_utf8(&self.signature), self.length, self.revision, self.checksum,
+			from_utf8(&self.oemid), from_utf8(&self.oem_table_id), self.oem_revision,
+			self.creator_id, self.creator_revision)
 	}
 }
 

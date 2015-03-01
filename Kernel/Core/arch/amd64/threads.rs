@@ -1,10 +1,14 @@
+// "Tifflin" Kernel
+// - By John Hodge (thePowersGang)
 //
-//
+// Core/arch/amd64/threads.rs
+//! Architecture-level thread handling (helpers for ::threads).
 use core::option::Option;
 use core::ptr::PtrExt;
 use lib::mem::Box;
 
 #[derive(Default,Copy)]
+/// Low-level thread state
 pub struct State
 {
 	cr3: u64,
@@ -18,11 +22,13 @@ extern "C" {
 	static TID0TLS: ();
 	fn task_switch(oldrsp: &mut u64, newrsp: &u64, cr3: u64, tlsbase: u64);
 }
+
 #[thread_local]
 static mut t_thread_ptr: *mut ::threads::Thread = 0 as *mut _;
 #[thread_local]
 static mut t_thread_ptr_sent: bool = false;
 
+/// Returns the thread state for TID0 (aka the kernel's core thread)
 pub fn init_tid0_state() -> State
 {
 	State {
@@ -42,6 +48,7 @@ pub fn idle()
 	unsafe { asm!("hlt" : : : : "volatile"); }
 }
 
+/// Switch to the passed thread (suspending the current thread until it is rescheduled)
 pub fn switch_to(newthread: Box<::threads::Thread>)
 {
 	unsafe
@@ -61,6 +68,7 @@ pub fn switch_to(newthread: Box<::threads::Thread>)
 	}
 }
 
+/// Obtain the current thread's pointer (as a owned box, thread is destroyed when box is dropped)
 pub fn get_thread_ptr() -> Option<Box<::threads::Thread>>
 {
 	unsafe {
@@ -70,6 +78,7 @@ pub fn get_thread_ptr() -> Option<Box<::threads::Thread>>
 		::core::mem::transmute( t_thread_ptr )
 	}
 }
+/// Release or set the current thread pointer
 pub fn set_thread_ptr(ptr: Box<::threads::Thread>)
 {
 	unsafe {

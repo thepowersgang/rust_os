@@ -2,7 +2,9 @@
 // - By John Hodge (thePowersGang)
 //
 // arch/amd64/boot.rs
-// - Boot information
+//! Boot information.
+//!
+//! Parsing and exposure of the bootloader-provided data
 use _common::*;
 use super::memory::addresses::{IDENT_START, IDENT_END};
 use hw::bootvideo::{VideoMode,VideoFormat};
@@ -268,17 +270,19 @@ impl MultibootParsed
 	}
 }
 
-// Retreive the multiboot "command line" string
+/// Retreive the multiboot "command line" string
 pub fn get_boot_string() -> &'static str
 {
 	get_bootinfo().cmdline()
 }
 
+/// Obtain the boot video mode
 pub fn get_video_mode() -> Option<VideoMode>
 {
 	get_bootinfo().vidmode()
 }
 
+/// Obtain the memory map
 pub fn get_memory_map() -> &'static[::memory::MemoryMapEnt]
 {
 	get_bootinfo().memmap()

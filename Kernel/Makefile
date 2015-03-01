@@ -73,6 +73,8 @@ pretty:
 docs:
 	@mkdir -p doc/Kernel
 	$V$(ENV) rustdoc -o doc/Kernel Core/main.rs --cfg arch__amd64
+	@chmod +rX doc/ -R 
+
 run: kernel-$(ARCH).bin
 	./RunQemuPXE $<.elf32 ""
 

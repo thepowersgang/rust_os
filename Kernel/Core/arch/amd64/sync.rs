@@ -2,14 +2,16 @@
 // - By John Hodge (thePowersGang)
 //
 // arch/amd64/sync.rs
-// - Lightweight spinlock
+//! Low-level synchronisaion primitives
 use core::prelude::*;
-use core::atomic::{AtomicBool,ATOMIC_BOOL_INIT,Ordering};
+use core::atomic::{AtomicBool,Ordering};
 
 /// Lightweight protecting spinlock
 pub struct Spinlock<T: Send>
 {
+	#[doc(hidden)]
 	pub lock: ::core::atomic::AtomicBool,
+	#[doc(hidden)]
 	pub value: ::core::cell::UnsafeCell<T>,
 }
 unsafe impl<T: Send> Sync for Spinlock<T> {}
@@ -32,6 +34,7 @@ pub struct HeldInterrupts(bool);
 
 impl<T: Send> Spinlock<T>
 {
+	/// Create a new spinning lock
 	pub fn new(val: T) -> Spinlock<T> {
 		Spinlock {
 			lock: AtomicBool::new(false),
@@ -39,6 +42,7 @@ impl<T: Send> Spinlock<T>
 		}
 	}
 	
+	/// Lock this spinning lock
 	pub fn lock(&self) -> HeldSpinlock<T>
 	{
 		//while self.lock.compare_and_swap(0, cpu_num()+1, Ordering::Acquire) != 0
@@ -48,6 +52,7 @@ impl<T: Send> Spinlock<T>
 		::core::atomic::fence(Ordering::Acquire);
 		HeldSpinlock { lock: self }
 	}
+	/// Attempt to acquire the lock, returning None if it is already held by this CPU
 	pub fn try_lock_cpu(&self) -> Option<HeldSpinlock<T>>
 	{
 		//if self.lock.compare_and_swap(0, cpu_num()+1, Ordering::Acquire) == 0

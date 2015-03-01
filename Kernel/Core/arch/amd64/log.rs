@@ -2,12 +2,13 @@
 // - By John Hodge (thePowersGang)
 //
 // arch/amd64/log.rs
-// - RS232 logging output
+//! RS232 logging output
 use _common::*;
 
 use super::x86_io;
 
 #[inline(never)]
+/// Print a string to the logging output
 pub fn puts(text: &str)
 {
 	for c in text.bytes()
@@ -15,6 +16,7 @@ pub fn puts(text: &str)
 		putc(c);
 	}
 }
+/// Print a hexadecimal value to the logging output
 pub fn puth(val: u64)
 {
 	puts("0");
@@ -31,6 +33,7 @@ pub fn puth(val: u64)
 		putc( if nibble <= 9 { '0' as u8 + nibble } else { 'a' as u8 + nibble-10 } );
 	}
 }
+/// Print a single character to the logging output
 fn putc(c: u8)
 {
 	unsafe

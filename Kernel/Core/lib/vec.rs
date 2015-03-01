@@ -1,26 +1,27 @@
+// "Tifflin" Kernel
+// - By John Hodge (thePowersGang)
 //
-//
-//
+// Core/lib/vec.rs
+//! Dynamically growable vector type
 use core::prelude::*;
 use core::num::Int;	// for leading_zeros()
 use core::iter::{FromIterator,IntoIterator};
 use core::ops::{Index,IndexMut,Deref,DerefMut};
 use lib::collections::{MutableSeq};
+use core::ptr::Unique;
 
 /// Growable array of items
 pub struct Vec<T>
 {
-	data: *mut T,
+	data: Unique<T>,
 	size: usize,
 	capacity: usize,
 }
-// Sendable if the innards are sendable
-unsafe impl<T: Send> Send for Vec<T> {}
 
 /// Owning iterator
 pub struct MoveItems<T>
 {
-	data: *mut T,
+	data: Unique<T>,
 	count: usize,
 	ofs: usize,
 }
@@ -36,7 +37,7 @@ impl<T> Vec<T>
 	pub fn with_capacity(size: usize) -> Vec<T>
 	{
 		Vec {
-			data: unsafe { ::memory::heap::alloc_array::<T>( size ) },
+			data: unsafe { Unique::new( ::memory::heap::alloc_array::<T>( size ) ) },
 			size: 0,
 			capacity: size,
 		}
@@ -63,9 +64,9 @@ impl<T> Vec<T>
 	}
 	
 	/// Move contents into an iterator (consuming self)
-	pub fn into_iter(self) -> MoveItems<T>
+	pub fn into_iter(mut self) -> MoveItems<T>
 	{
-		let dataptr = self.data;
+		let dataptr = ::core::mem::replace(&mut self.data, unsafe { Unique::new(0 as *mut _) } );
 		let count = self.size;
 		unsafe { ::core::mem::forget(self) };
 		MoveItems {
@@ -87,9 +88,9 @@ impl<T> Vec<T>
 					::core::ptr::write(newptr.offset(i as isize), val);
 				}
 				if self.capacity > 0 {
-					::memory::heap::dealloc_array( self.data, self.capacity );
+					::memory::heap::dealloc_array( *self.data, self.capacity );
 				}
-				self.data = newptr;
+				self.data = Unique::new(newptr);
 				self.capacity = newcap;
 			}
 		}
@@ -97,7 +98,7 @@ impl<T> Vec<T>
 	
 	pub fn slice_mut<'a>(&'a mut self) -> &'a mut [T]
 	{
-		unsafe { ::core::mem::transmute( ::core::raw::Slice { data: self.data as *const T, len: self.size } ) }
+		unsafe { ::core::mem::transmute( ::core::raw::Slice { data: *self.data as *const T, len: self.size } ) }
 	}
 	
 	/// Move out of a slot in the vector, leaving unitialise memory in its place
@@ -105,7 +106,8 @@ impl<T> Vec<T>
 	{
 		::core::ptr::read(self.data.offset(pos as isize) as *const _)
 	}
-	
+
+	/// Insert an item at the specified index (moving subsequent items up)	
 	pub fn insert(&mut self, pos: usize, value: T)
 	{
 		// Expand by one element
@@ -163,12 +165,12 @@ impl<T> Drop for Vec<T>
 {
 	fn drop(&mut self)
 	{
-		log_debug!("Vec::drop() - Dropping vector at {:p} w/ {} ents", self.data, self.size);
+		log_debug!("Vec::drop() - Dropping vector at {:p} w/ {} ents", *self.data, self.size);
 		unsafe {
 			for i in range(0, self.size) {
 				::core::mem::drop( ::core::ptr::read(self.get_mut_ptr(i) as *const T) );
 			}
-			::memory::heap::dealloc_array( self.data, self.capacity );
+			::memory::heap::dealloc_array( *self.data, self.capacity );
 		}
 	}
 }
@@ -199,7 +201,7 @@ impl<T> ::core::slice::AsSlice<T> for Vec<T>
 {
 	fn as_slice<'a>(&'a self) -> &'a [T]
 	{
-		let rawslice = ::core::raw::Slice { data: self.data as *const T, len: self.size };
+		let rawslice = ::core::raw::Slice { data: *self.data as *const T, len: self.size };
 		unsafe { ::core::mem::transmute( rawslice ) }
 	}
 }
@@ -310,7 +312,7 @@ impl<T> Drop for MoveItems<T>
 			self.pop_item();
 		}
 		unsafe {
-			::memory::heap::dealloc_array( self.data, self.count );
+			::memory::heap::dealloc_array( *self.data, self.count );
 		}
 	}
 }

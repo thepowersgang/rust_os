@@ -13,6 +13,7 @@
 #![feature(lang_items)]	// Allow definition of lang_items
 #![feature(core)]	// silences warnings about write!
 #![feature(optin_builtin_traits)]	// Negative impls
+#![feature(unique)]	// Unique
 #![no_std]
 
 #[macro_use]
@@ -115,9 +116,8 @@ pub extern "C" fn kmain()
 	log_info!("Entering idle");
 	loop
 	{
-		::threads::yield_time();
 		log_trace!("TID0 napping");
-		::arch::idle();
+		::threads::yield_time();
 	}
 }
 

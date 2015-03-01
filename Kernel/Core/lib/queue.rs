@@ -1,22 +1,29 @@
+// "Tifflin" Kernel
+// - By John Hodge (thePowersGang)
 //
-//
-//
+// Core/lib/queue.rs
+//! A FIFO queue type
+//!
+//! Current implementation is a linked list, but could be backed to Vec if required.
 use _common::*;
 use core::iter::IntoIterator;
 
 /// A basic linked-list queue
 pub struct Queue<T>
 {
+	#[doc(hidden)]
 	pub head: OptPtr<QueueEnt<T>>,
+	#[doc(hidden)]
 	pub tail: OptMutPtr<QueueEnt<T>>,
 }
 
 unsafe impl<T: Sync> ::core::marker::Sync for Queue<T> {}
 unsafe impl<T: Send> ::core::marker::Send for Queue<T> {}
 
+/// Initialise a queue within a `static`
 macro_rules! queue_init{ () => (Queue{head: OptPtr(0 as *const _),tail: OptMutPtr(0 as *mut _)}) }
 
-// Queue entry
+#[doc(hidden)]
 pub struct QueueEnt<T>
 {
 	next: OptPtr<QueueEnt<T>>,
@@ -36,6 +43,7 @@ pub struct ItemsMut<'s, T: 's>
 
 impl<T> Queue<T>
 {
+	/// Construct a new empty queue
 	pub fn new() -> Queue<T> {
 		queue_init!()	// I'm lazy
 	}
@@ -85,11 +93,13 @@ impl<T> Queue<T>
 		}
 	}
 	
+	/// Returns true if the queue is empty
 	pub fn empty(&self) -> bool
 	{
 		self.head.is_none()
 	}
 	
+	/// Obtain an immutable iterator to the queue's items
 	pub fn iter<'s>(&'s self) -> Items<'s,T>
 	{
 		Items {
@@ -97,6 +107,7 @@ impl<T> Queue<T>
 		}
 	}
 	
+	/// Obtain a mutable iterator to the queue's items
 	pub fn iter_mut<'s>(&'s mut self) -> ItemsMut<'s,T>
 	{
 		ItemsMut {

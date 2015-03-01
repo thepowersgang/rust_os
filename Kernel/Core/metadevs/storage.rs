@@ -134,6 +134,11 @@ pub fn register_pv(pv: Box<PhysicalVolume+Send>) -> PhysicalVolumeReg
 	PhysicalVolumeReg { idx: pv_id }
 }
 
+pub fn register_mapper(mapper: &'static Mapper)
+{
+	
+}
+
 /// Function called when a new volume is registered (physical or logical)
 fn new_volume(volidx: usize)
 {

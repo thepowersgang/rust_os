@@ -1,15 +1,21 @@
+// "Tifflin" Kernel
+// - By John Hodge (thePowersGang)
 //
-//
-//
+// Core/lib/mem/rc.rs
+//! Reference-counted shared allocations
 use _common::*;
+use core::nonzero::NonZero;
 use core::atomic::{AtomicUsize,Ordering};
 
+/// Non-atomic reference counted type
 pub struct Rc<T>
 {
-	inner: *mut RcInner<T>,
+	inner: NonZero<*mut RcInner<T>>,
 }
 
+// Rc is not Send
 impl<T> !Send for Rc<T> {}
+// Rc is Sync (if the internals are Sync)
 unsafe impl<T: Sync> Sync for Rc<T> {}
 
 struct RcInner<T>
@@ -18,11 +24,14 @@ struct RcInner<T>
 	val: T,
 }
 
+/// Atomic reference-counted type
 pub struct Arc<T>
 {
-	inner: *const ArcInner<T>,
+	inner: NonZero<*const ArcInner<T>>,
 }
+// Send if internals are Send
 unsafe impl<T: Send> Send for Arc<T> {}
+// Sync if internals are Sync
 unsafe impl<T: Sync> Sync for Arc<T> {}
 
 struct ArcInner<T>
@@ -33,16 +42,18 @@ struct ArcInner<T>
 
 impl<T> Rc<T>
 {
+	/// Create a new Rc
 	pub fn new(value: T) -> Rc<T>
 	{
 		unsafe {
 			Rc {
-				inner: RcInner::new_ptr(value)
+				inner: NonZero::new( RcInner::new_ptr(value) )
 			}
 		}
 	}
+	/// Compares this Rc with another, checking if they point to the same object
 	pub fn is_same(&self, other: &Rc<T>) -> bool {
-		self.inner == other.inner
+		*self.inner == *other.inner
 	}
 }
 
@@ -50,7 +61,7 @@ impl<T> Clone for Rc<T>
 {
 	fn clone(&self) -> Rc<T>
 	{
-		unsafe { (*self.inner).count += 1; }
+		unsafe { (**self.inner).count += 1; }
 		Rc {
 			inner: self.inner
 		}
@@ -62,7 +73,7 @@ impl<T> ::core::ops::Deref for Rc<T>
 	type Target = T;
 	fn deref<'s>(&'s self) -> &'s T
 	{
-		unsafe { &(*self.inner).val }
+		unsafe { &(**self.inner).val }
 	}
 }
 
@@ -73,13 +84,13 @@ impl<T> ::core::ops::Drop for Rc<T>
 	{
 		unsafe
 		{
-			(*self.inner).count -= 1;
-			if (*self.inner).count == 0
+			(**self.inner).count -= 1;
+			if (**self.inner).count == 0
 			{
-				drop( ::core::ptr::read( &(*self.inner).val ) );
-				::memory::heap::dealloc(self.inner);
+				drop( ::core::ptr::read( &(**self.inner).val ) );
+				::memory::heap::dealloc(*self.inner);
 			}
-			self.inner = 0 as *mut _;
+			//self.inner = 0 as *mut _;
 		}
 	}
 }
@@ -97,13 +108,14 @@ impl<T> RcInner<T>
 
 impl<T> Arc<T>
 {
+	/// Create a new atomic reference counted object
 	pub fn new(value: T) -> Arc<T>
 	{
 		Arc {
-			inner: unsafe { ::memory::heap::alloc( ArcInner {
+			inner: unsafe { NonZero::new( ::memory::heap::alloc( ArcInner {
 				count: AtomicUsize::new(1),
 				val: value
-				} ) },
+				} ) ) },
 		}
 	}
 }
@@ -112,7 +124,7 @@ impl<T> Clone for Arc<T>
 	fn clone(&self) -> Arc<T>
 	{
 		unsafe {
-			(*self.inner).count.fetch_add(1, Ordering::Acquire);
+			(**self.inner).count.fetch_add(1, Ordering::Acquire);
 		}
 		Arc {
 			inner: self.inner
@@ -126,14 +138,14 @@ impl<T> ::core::ops::Drop for Arc<T>
 	{
 		unsafe
 		{
-			let oldcount = (*self.inner).count.fetch_sub(1, Ordering::Release);
+			let oldcount = (**self.inner).count.fetch_sub(1, Ordering::Release);
 			if oldcount == 1
 			{
-				drop( ::core::ptr::read( &(*self.inner).val ) );
-				::memory::heap::dealloc(self.inner as *mut ArcInner<T>);
+				drop( ::core::ptr::read( &(**self.inner).val ) );
+				::memory::heap::dealloc(*self.inner as *mut ArcInner<T>);
 			}
 		}
-		self.inner = 0 as *const _;
+		//self.inner = 0 as *const _;
 	}
 }
 
@@ -142,7 +154,7 @@ impl<T> ::core::ops::Deref for Arc<T>
 	type Target = T;
 	fn deref<'s>(&'s self) -> &'s T
 	{
-		unsafe { &(*self.inner).val }
+		unsafe { &(**self.inner).val }
 	}
 }
 

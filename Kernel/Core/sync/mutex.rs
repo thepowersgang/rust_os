@@ -1,15 +1,20 @@
+// "Tifflin" Kernel
+// - By John Hodge (thePowersGang)
 //
-//
-//
+// Core/sync/mutex.rs
+//! Thread blocking Mutex type
 use lib::LazyStatic;
 use core::marker::{Send, Sync};
 use core::ops::Fn;
 
-/// A standard mutex
+/// A standard mutex (blocks the current thread when contended)
 pub struct Mutex<T: Send>
 {
+	#[doc(hidden)]
 	pub locked_held: ::sync::Spinlock<bool>,
+	#[doc(hidden)]
 	pub queue: ::core::cell::UnsafeCell<::threads::WaitQueue>,
+	#[doc(hidden)]
 	pub val: ::core::cell::UnsafeCell<T>,
 }
 // Mutexes are inherently sync
@@ -27,6 +32,7 @@ pub struct LazyMutex<T: Send>(pub Mutex<LazyStatic<T>>);
 
 impl<T: Send> Mutex<T>
 {
+	/// Construct a new mutex-protected value
 	pub fn new(val: T) -> Mutex<T> {
 		Mutex {
 			locked_held: spinlock_init!(false),
@@ -40,7 +46,7 @@ impl<T: Send> Mutex<T>
 		unsafe { &mut *self.queue.get() }
 	}
 	
-	/// Lock the mutex
+	/// Lock the mutex, blocking the current thread
 	#[inline(never)]
 	pub fn lock(&self) -> HeldMutex<T> {
 		{
@@ -87,11 +93,13 @@ impl<T: Send> LazyMutex<T>
 		lh
 	}
 	
+	/// Initialise the lazy mutex
 	pub fn init<Fcn: Fn()->T>(&self, init_fcn: Fcn)
 	{
 		let mut lh = self.0.lock();
 		lh.prep(init_fcn);
 	}
+	/// Lock the lazy mutex
 	pub fn lock(&self) -> HeldMutex<LazyStatic<T>>
 	{
 		self.0.lock()
@@ -120,12 +128,15 @@ impl<'lock,T:Send> ::core::ops::DerefMut for HeldMutex<'lock,T>
 	}
 }
 
+/// Initialise a static Mutex
 #[macro_export]
 macro_rules! mutex_init{ ($val:expr) => (::sync::mutex::Mutex{
 	locked_held: spinlock_init!(false),
 	queue: ::core::cell::UnsafeCell { value: ::threads::WAITQUEUE_INIT },
 	val: ::core::cell::UnsafeCell{ value: $val },
 	}) }
+/// Initialise a static LazyMutex
+#[macro_export]
 macro_rules! lazymutex_init{
 	() => {::sync::mutex::LazyMutex(mutex_init!( ::lib::LazyStatic(None) ))}
 }

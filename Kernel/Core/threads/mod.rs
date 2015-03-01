@@ -2,7 +2,7 @@
 // - By John Hodge (thePowersGang)
 //
 // Core/threads.rs
-// - Thread management
+//! Thread management
 use _common::*;
 
 mod thread;
@@ -13,22 +13,28 @@ use self::thread::RunState;
 
 pub use self::sleep_object::{SleepObject,SleepObjectRef};
 
+/// A bitset of wait events
 pub type EventMask = u32;
 
 /// A borrowed Box<Thread>, released when borrow expires
 struct BorrowedThread(Option<Box<Thread>>);
 
+/// A list of waiting threads, can be woken one at a time, or all at once
 pub struct WaitQueue
 {
 	list: ThreadList,
 }
+
+/// Intrusive linked list of threads
 struct ThreadList
 {
 	first: Option<Box<Thread>>,
 	last: Option<*mut Thread>
 }
 unsafe impl Send for ThreadList {}
+
 const THREADLIST_INIT: ThreadList = ThreadList {first: None, last: None};
+#[doc(hidden)]
 pub const WAITQUEUE_INIT: WaitQueue = WaitQueue { list: THREADLIST_INIT };
 
 // ----------------------------------------------
@@ -39,6 +45,7 @@ static s_runnable_threads: ::sync::Spinlock<ThreadList> = spinlock_init!(THREADL
 
 // ----------------------------------------------
 // Code
+/// Initialise the threading subsystem
 pub fn init()
 {
 	let mut tid0 = Thread::new_boxed();
@@ -47,12 +54,15 @@ pub fn init()
 	::arch::threads::set_thread_ptr( tid0 )
 }
 
+/// Yield control of the CPU for a short period (while polling or main thread halted)
 pub fn yield_time()
 {
 	s_runnable_threads.lock().push( get_cur_thread() );
 	reschedule();
+	::arch::threads::idle();
 }
 
+/// Pick a new thread to run and run it
 fn reschedule()
 {
 	// 1. Get next thread
@@ -161,6 +171,7 @@ impl ::core::ops::Deref for BorrowedThread
 
 impl WaitQueue
 {
+	/// Wait the current thread on this queue, releasng the passed lock before actually sleeping
 	pub fn wait<'a>(&mut self, lock_handle: ::arch::sync::HeldSpinlock<'a,bool>)
 	{
 		log_trace!("WaitQueue::wait(...)");
@@ -183,10 +194,12 @@ impl WaitQueue
 		cur.assert_active();
 		rel_cur_thread(cur);
 	}
+	/// Returns true if there is a thread waiting on the list
         pub fn has_waiter(&self) -> bool
         {
                 ! self.list.empty()
         }
+	/// Wake a single thread waiting on this queue
 	pub fn wake_one(&mut self)
 	{
 		log_trace!("WaitQueue::wake_one()");

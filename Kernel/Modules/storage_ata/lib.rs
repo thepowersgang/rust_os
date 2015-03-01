@@ -36,12 +36,13 @@ struct ControllerRoot
 
 enum AtaClass
 {
+	Invalid,	// No valid response (timeout)
 	None,	// No disk
 	Unknown(u8,u8),	// Unknown type, values are regs 4 and 5
 	Native,	// A standard ATA disk
 	ATAPI,
 }
-impl Default for AtaClass { fn default() -> AtaClass { AtaClass::None } }
+impl Default for AtaClass { fn default() -> AtaClass { AtaClass::Invalid } }
 
 /// ATA "IDENTIFY" packet data
 #[repr(C,packed)]
@@ -168,7 +169,7 @@ impl ControllerRoot
 			
 			// Perform IDENTIFY requests, both controllers in pararllel
 			// TODO: Include a timeout to prevent a misbehaving controller from halting the system.
-			let (pri_valid, sec_valid) = {
+			{
 				let mut wh_pri = ctrlr_pri.ata_identify(i, &mut identify_pri, &mut type_pri);
 				let mut wh_sec = ctrlr_sec.ata_identify(i, &mut identify_sec, &mut type_sec);
 				//let mut wh_timer = ::kernel::async::Timer::new(2*1000);
@@ -178,17 +179,18 @@ impl ControllerRoot
 				while /* !wh_timer.is_ready() && */ !(wh_pri.is_ready() && wh_sec.is_ready())
 				{
 					//::kernel::async::wait_on_list(&mut [&mut wh_pri, &mut wh_sec, &mut wh_timer]);
-					::kernel::async::wait_on_list(&mut [&mut wh_pri, &mut wh_sec]);
+					::kernel::async::wait_on_list(&mut [&mut wh_pri, &mut wh_sec], None);
 				}
-				
-				(wh_pri.is_ready(), wh_sec.is_ready())
-				};
+			}
 			
 			// (ugly) Handle the relevant disk types, creating devices
 			for &(disk, ref class, ref ident) in [(i*2, type_pri, identify_pri), (i*2+1, type_sec, identify_sec)].iter()
 			{
 				match *class
 				{
+				AtaClass::Invalid => {
+					log_log!("ATA{}: Timeout", disk);
+					},
 				AtaClass::None => {
 					log_log!("ATA{}: No disk", disk);
 					},

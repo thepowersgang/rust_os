@@ -2,7 +2,10 @@
 // - By John Hodge (thePowersGang)
 //
 // Core/async/mutex.rs
-///! Asynchronous Mutex
+/*! Asynchronous Mutex.
+
+Provides an asynchonous mutex type, for use with the async IO framework
+*/
 use _common::*;
 use super::Waiter;
 use core::cell::UnsafeCell;

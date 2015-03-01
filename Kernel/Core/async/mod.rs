@@ -2,7 +2,11 @@
 // - By John Hodge (thePowersGang)
 //
 // Core/async/mod.rs
-///! Asynchronous IO and waiting support
+/*! Asynchronous IO and waiting support.
+
+ The Tifflin asynch IO model is based around waiter handlers that contain sufficient information
+ to either sleep the thread, or poll for a condition.
+*/
 use _common::*;
 use core::cell::RefCell;
 use core::atomic::{AtomicBool,ATOMIC_BOOL_INIT};
@@ -14,12 +18,11 @@ pub use self::timer::Timer;
 pub mod mutex;
 pub mod timer;
 
-pub mod events
-{
-	pub type EventMask = u32;
-}
-
 /// A general-purpose wait event (when flag is set, waiters will be informed)
+///
+/// Only a single object can wait on this event at one time
+///
+/// TODO: Determine the set/reset conditions on the wait flag.
 pub struct EventSource
 {
 	flag: AtomicBool,
@@ -27,25 +30,36 @@ pub struct EventSource
 }
 
 /// A wait queue
+///
+/// Allows a list of threads to wait on a single object (e.g. a Mutex)
 pub struct QueueSource
 {
 	waiters: ::sync::mutex::Mutex<Queue<::threads::SleepObjectRef>>,
 }
 
-pub enum Waiter<'a>
+/// A wait handle for any type of possible wait
+pub struct Waiter<'a>(WaiterInt<'a>);
+
+/// Internal waiter enum
+enum WaiterInt<'a>
 {
 	None,
 	Event(EventWait<'a>),
 	Poll(Option< PollCb<'a> >),
 }
 
-pub type PollCb<'a> = RefCell<Box<for<'r> FnMut(Option<&'r mut Waiter<'a>>) -> bool + Send + 'a>>;
+/// Callback for a poll waiter
+type PollCb<'a> = RefCell<Box<for<'r> FnMut(Option<&'r mut Waiter<'a>>) -> bool + Send + 'a>>;
 
+/// Callback for an event waiter
 type EventCb<'a> = Box<for<'r> ::lib::thunk::Invoke<(&'r mut Waiter<'a>),()> + Send + 'a>;
 
-pub struct EventWait<'a>
+/// Event waiter
+struct EventWait<'a>
 {
+	/// Event source
 	source: Option<&'a EventSource>,
+	/// Callback to call once the event becomes true
 	callback: Option<EventCb<'a>>,
 }
 
@@ -64,6 +78,7 @@ pub struct WriteHandle<'buf,'src>
 	waiter: Waiter<'src>,
 }
 
+/// Error type from wait_on_list
 pub enum WaitError
 {
 	Timeout,
@@ -73,6 +88,7 @@ static s_event_none: EventSource = EventSource { flag: ATOMIC_BOOL_INIT, waiter:
 
 impl EventSource
 {
+	/// Create a new event source
 	pub fn new() -> EventSource
 	{
 		EventSource {
@@ -80,10 +96,15 @@ impl EventSource
 			waiter: ::sync::mutex::Mutex::new(None),
 		}
 	}
+	/// Return a wait handle for this event source
 	pub fn wait_on<'a, F: FnOnce(&mut Waiter) + Send + 'a>(&'a self, f: F) -> Waiter<'a>
 	{
-		Waiter::new_event(self, f)
+		Waiter(WaiterInt::Event( EventWait {
+			source: Some(self),
+			callback: Some(box f as EventCb),
+			} ))
 	}
+	/// Raise the event (waking any attached waiter)
 	pub fn trigger(&self)
 	{
 		self.flag.store(true, ::core::atomic::Ordering::Relaxed);
@@ -93,12 +114,23 @@ impl EventSource
 
 impl QueueSource
 {
+	/// Create a new queue source
 	pub fn new() -> QueueSource
 	{
 		QueueSource {
 			waiters: ::sync::mutex::Mutex::new(Queue::new()),
 		}
 	}
+	/// Create a waiter for this queue
+	///
+	/// The passed handler is called with None to poll the state.
+	// TODO: Race conditions between 'QueueSource::wait_on' and 'wait_on_list'.
+	pub fn wait_on<'a, F: FnMut(Option<&mut Waiter>) + Send + 'a>(&'a self, f: F) -> Waiter<'a>
+	{
+		// TODO: Requires a queue wait variant
+		unimplemented!();
+	}
+	/// Wake a single waiting thread
 	pub fn wake_one(&self) -> bool
 	{
 		let mut lh = self.waiters.lock();
@@ -116,38 +148,27 @@ impl QueueSource
 
 impl<'a> Waiter<'a>
 {
+	/// Create a new null waiter (that is always ready)
 	pub fn new_none() -> Waiter<'a>
 	{
-		Waiter::None
+		Waiter(WaiterInt::None)
 	}
-	pub fn new_event<'b, F: for<'r> FnOnce(&'r mut Waiter<'b>) + Send + 'b>(src: &'b EventSource, f: F) -> Waiter<'b>
-	{
-		Waiter::Event( EventWait {
-			source: Some(src),
-			callback: Some(box f as EventCb),
-			} )
-	}
-	/// Create a new polling waiter
+	/// Create a new polling waiter. (DISCOURAGED)
+ 	///
+	/// This waiter is provided ONLY for low-level hardware which does not provide sufficient IRQ support, and needs to be polled.
 	///
 	/// The passed closure is called in two different modes.
 	/// 1. If the argument is `None`, it should return true iff the wait should terminate
 	/// 1. If the argument is `Some(e)`, the wait was terminated and completion handlers should fire (optionally assigning a new
 	///    waiter to the passed handle).
-	pub fn new_poll<F: FnMut(Option<&mut Waiter<'a>>)->bool + Send + 'a>(f: F) -> Waiter<'a>
+	pub fn new_poll<F>(f: F) -> Waiter<'a>
+	where
+		F: FnMut(Option<&mut Waiter<'a>>)->bool + Send + 'a
 	{
-		Waiter::Poll( Some(RefCell::new(box f)) )
-	}
-
-	pub fn is_valid(&self) -> bool
-	{
-		match *self
-		{
-		Waiter::None => true,
-		Waiter::Event(ref i) => i.callback.is_some(),
-		Waiter::Poll(ref c) => c.is_some(),
-		}
+		Waiter( WaiterInt::Poll( Some(RefCell::new(box f)) ) )
 	}
 	
+	/// Returns the ready status of the waiter, running the completion handle if ready
 	pub fn is_ready(&mut self) -> bool
 	{
 		if self.poll()
@@ -161,21 +182,23 @@ impl<'a> Waiter<'a>
 		}
 	}
 	
+	/// Returns the ready status (doing no other processing)
 	fn poll(&self) -> bool
 	{
-		match *self
+		match self.0
 		{
-		Waiter::None => true,
-		Waiter::Event(ref i) => match i.source
+		WaiterInt::None => true,
+		WaiterInt::Event(ref i) => match i.source
 			{
 			Some(r) => r.flag.load(::core::atomic::Ordering::Relaxed),
 			None => true
 			},
-		Waiter::Poll(ref c) => match *c
+		WaiterInt::Poll(ref c) => match *c
 			{
 			Some(ref cb) => {
 				let mut b = cb.borrow_mut();
 				let rb = &mut **b;
+				// Call poll hander with 'None' to ask it to poll
 				rb(None)
 				},
 			None => true,
@@ -183,13 +206,39 @@ impl<'a> Waiter<'a>
 		}
 	}
 	
+	/// Run completion handler, replacing the waiter with a null waiter
+	///
+	/// "self: &mut Self" is passed to the handler, allowing it to create a new event.
+	fn run_completion(&mut self)
+	{
+		match ::core::mem::replace(&mut self.0, WaiterInt::None)
+		{
+		WaiterInt::None => {
+			// Do nothing
+			},
+		WaiterInt::Event(mut i) => {
+			let cb = i.callback.take().expect("EventWait::run_completion with callback None");
+			cb.invoke(self);
+			},
+		WaiterInt::Poll(mut callback) => {
+			let mut cb = callback.take().expect("Wait::run_completion with Poll callback None");
+			// Pass 'Some(self)' to indicate completion 
+			cb.into_inner()(Some(self));
+			}
+		}
+	}
+	
+	/// Bind the waiter's source to the passed sleeper
+	///
 	/// Returns false if binding was impossible
+	///
+	/// TODO: Safety issues, what happens when an event doesn't fire and the sleeper is destroyed. No unbind as yet
 	fn bind_signal(&mut self, sleeper: &mut ::threads::SleepObject) -> bool
 	{
-		match *self
+		match self.0
 		{
-		Waiter::None => true,
-		Waiter::Event(ref i) => {
+		WaiterInt::None => true,
+		WaiterInt::Event(ref i) => {
 			match i.source
 			{
 			Some(r) => { *r.waiter.lock() = Some(sleeper.get_ref()) },
@@ -197,24 +246,7 @@ impl<'a> Waiter<'a>
 			}
 			true
 			},
-		Waiter::Poll(ref c) => false,
-		}
-	}
-	
-	fn run_completion(&mut self)
-	{
-		match ::core::mem::replace(self, Waiter::None)
-		{
-		Waiter::None => {
-			},
-		Waiter::Event(mut i) => {
-			let cb = i.callback.take().expect("EventWait::run_completion with callback None");
-			cb.invoke(self);
-			},
-		Waiter::Poll(mut callback) => {
-			let mut cb = callback.take().expect("Wait::run_completion with Poll callback None");
-			cb.into_inner()(Some(self));
-			}
+		WaiterInt::Poll(ref c) => false,
 		}
 	}
 	
@@ -234,15 +266,15 @@ impl<'a> ::core::fmt::Debug for Waiter<'a>
 {
 	fn fmt(&self, f: &mut ::core::fmt::Formatter) -> ::core::fmt::Result
 	{
-		match self
+		match self.0
 		{
-		&Waiter::None => write!(f, "Waiter::None"),
-		&Waiter::Event(ref e) => match e.source
+		WaiterInt::None => write!(f, "WaiterInt::None"),
+		WaiterInt::Event(ref e) => match e.source
 			{
-			Some(ref s) => write!(f, "Waiter::Event({:p}))", s),
-			None => write!(f, "Waiter::Event(None)"),
+			Some(ref s) => write!(f, "WaiterInt::Event({:p}))", s),
+			None => write!(f, "WaiterInt::Event(None)"),
 			},
-		&Waiter::Poll(_) => write!(f, "Waiter::Poll(..)"),
+		WaiterInt::Poll(_) => write!(f, "WaiterInt::Poll(..)"),
 		}
 	}
 }
@@ -270,9 +302,15 @@ impl<'o_b,'o_e> WriteHandle<'o_b, 'o_e>
 }
 
 // Note - List itself isn't modified, but needs to be &mut to get &mut to inners
-pub fn wait_on_list(waiters: &mut [&mut Waiter])
+/**
+ * Wait on a set of Waiter objects. Returns when at least one of the waiters completes, or the timeout elapses
+ *
+ * If the timeout is None, this function can wait forever. If the timeout is Some(0), no wait occurs (but completion
+ * handlers may fire).
+ */
+pub fn wait_on_list(waiters: &mut [&mut Waiter], timeout: Option<u64>)
 {
-	log_trace!("wait_on_list(waiters = {:?})", waiters);
+	log_trace!("wait_on_list(waiters = {:?}, timeout = {:?})", waiters, timeout);
 	if waiters.len() == 0
 	{
 		panic!("wait_on_list - Nothing to wait on");

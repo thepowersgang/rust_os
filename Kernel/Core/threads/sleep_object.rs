@@ -1,4 +1,8 @@
-
+// "Tifflin" Kernel
+// - By John Hodge (thePowersGang)
+//
+// Core/threads/sleep_object.rs
+//! Sleep object
 use _common::*;
 use super::thread::{Thread, RunState};
 
@@ -9,6 +13,7 @@ pub struct SleepObject
 	thread: Option<Box<Thread>>,
 }
 
+/// Referece to an active sleep object
 pub struct SleepObjectRef
 {
 	obj: *const SleepObject,
@@ -16,6 +21,7 @@ pub struct SleepObjectRef
 
 impl SleepObject
 {
+	/// Create a new sleep object
 	pub fn new(name: &'static str) -> SleepObject
 	{
 		SleepObject {
@@ -24,6 +30,7 @@ impl SleepObject
 		}
 	}
 	
+	/// Wait the current thread on this object
 	pub fn wait(&mut self)
 	{
 		let mut cur = super::get_cur_thread();
@@ -37,11 +44,13 @@ impl SleepObject
 		super::rel_cur_thread(cur);
 	}
 	
+	/// Signal this sleep object (waking threads)
 	pub fn signal(&self)
 	{
-		
+		unimplemented!();
 	}
 	
+	/// Obtain a reference to the sleep object
 	pub fn get_ref(&self) -> SleepObjectRef {
 		SleepObjectRef {
 			obj: self as *const _,

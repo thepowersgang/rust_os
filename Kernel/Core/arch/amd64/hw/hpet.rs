@@ -4,6 +4,7 @@
 // arch/amd64/hw/hpet.rs
 // - x86 High Precision Event Timer
 use _common::*;
+use arch::acpi::AddressSpaceID;
 
 module_define!{HPET, [APIC, ACPI], init}
 
@@ -37,6 +38,7 @@ enum HPETReg
 
 static mut s_instance : *mut HPET = 0 as *mut _;
 
+/// Reutrns the current system timestamp, in miliseconds since an arbitary point (usually power-on)
 pub fn get_timestamp() -> u64
 {
 	unsafe {
@@ -65,7 +67,7 @@ fn init()
 	let hpet = &handles[0];
 
 	let info = (*hpet).data();
-	assert!(info.addr.asid == 0);
+	assert!(info.addr.asid == AddressSpaceID::Memory);
 	assert!(info.addr.address % ::PAGE_SIZE as u64 == 0);
 	let mapping = ::memory::virt::map_hw_rw(info.addr.address, 1, "HPET").unwrap();
 

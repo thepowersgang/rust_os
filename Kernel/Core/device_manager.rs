@@ -18,8 +18,7 @@ pub enum IOBinding
 {
 	/// Memory-mapped IO space
 	Memory(::memory::virt::AllocHandle),
-	/// x86 IO bus
-	/// Base and offset
+	/// x86 IO bus (Base and offset)
 	IO(u16,u16),
 }
 
@@ -79,6 +78,7 @@ struct Device
 	//attribs: Vec<u32>,
 }
 
+/// Internal representation of a bus
 struct Bus
 {
 	manager: &'static BusManager,
@@ -199,6 +199,7 @@ fn find_driver(bus: &BusManager, bus_dev: &mut BusDevice) -> Option<(Box<DriverI
 
 impl IOBinding
 {
+	/// Returns the x86 IO space base
 	pub fn io_base(&self) -> u16 {
 		match *self
 		{
@@ -206,6 +207,7 @@ impl IOBinding
 		IOBinding::Memory(_) => panic!("Called IOBinding::io_base on IOBinding::Memory"),
 		}
 	}
+	/// Writes a single u8 to the binding
 	pub unsafe fn write_8(&self, ofs: usize, val: u8)
 	{
 		match *self
@@ -219,6 +221,7 @@ impl IOBinding
 			},
 		}
 	}
+	/// Write a single u32 to the binding
 	pub unsafe fn write_32(&self, ofs: usize, val: u32)
 	{
 		match *self
@@ -244,12 +247,5 @@ impl ::core::fmt::Debug for IOBinding
 		}
 	}
 }
-
-//impl<'a> ::core::fmt::Show for BusDevice+'a
-//{
-//	fn fmt(&self, f: &mut ::core::fmt::Formatter) -> Result<(),::core::fmt::Error> {
-//		write!(f, "Dev {}:{:x}", "TODO", self.addr())
-//	}
-//}
 
 // vim: ft=rust

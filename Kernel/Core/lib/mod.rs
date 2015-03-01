@@ -1,10 +1,12 @@
+// "Tifflin" Kernel
+// - By John Hodge (thePowersGang)
 //
-//
-//
-use _common::{Option,Some,None};
-use core::ptr::PtrExt;
-use _common::Send;
-use core::ops::FnOnce;
+// Core/lib/mod.rs
+//! General runtime support module.
+//!
+//! Contains helper types that either clone types in the rust standard library, or provide useful
+//! features for operation in kernel-land.
+use core::prelude::*;
 use lib::mem::Box;
 
 pub use self::queue::Queue;
@@ -13,8 +15,6 @@ pub use self::vec::Vec;
 pub use self::string::String;
 
 pub mod thunk;
-
-//pub mod clone;
 
 pub mod mem;
 #[macro_use]
@@ -27,7 +27,10 @@ pub mod vec_map;
 
 pub mod num
 {
+	//! General numeric helpers
 	use core::num::Int;
+	
+	/// Round the passed value up to a multiple of the target value
 	pub fn round_up<T: Int>(val: T, target: T) -> T
 	{
 		return (val + target - Int::one()) / target * target;
@@ -36,6 +39,9 @@ pub mod num
 
 pub mod collections
 {
+	//! Collection traits
+	
+	/// A mutable sequence
 	pub trait MutableSeq<T>
 	{
 		fn push(&mut self, t: T);
@@ -43,23 +49,16 @@ pub mod collections
 	}
 }
 
-//pub struct LazyStatic<T>(pub Option<Box<T>>);
+/// A lazily initialised value (for `static`s)
 pub struct LazyStatic<T>(pub Option<T>);
 
 impl<T> LazyStatic<T>
 {
+	/// Prepare the value using the passed function
 	pub fn prep<Fcn: FnOnce()->T>(&mut self, fcn: Fcn) {
 		if self.0.is_none() {
 			self.0 = Some(fcn());
 		}
-	}
-	
-	/// A fully unsafe prep function that is only valid to call when you _know_ that no races will occur
-	pub unsafe fn prep_unsafe<Fcn: FnOnce()->T>(&self, fcn: Fcn) {
-		assert!( self.0.is_none() );
-		let mut_self: &mut LazyStatic<T> = ::core::mem::transmute(self);
-		log_debug!("prep_unsafe {:p}", mut_self);
-		mut_self.prep(fcn)
 	}
 }
 impl<T> ::core::ops::Deref for LazyStatic<T>
@@ -134,14 +133,19 @@ impl<T> OptMutPtr<T>
 	}
 }
 
+/// Unsiged integer bit-level access
 pub trait UintBits
 {
+	/// Returns the value of a single bit
 	fn bit(&self, idx: u8) -> Self;
+	/// Returns a range of bits (idx .. idx2)
 	fn bits(&self, idx: u8, idx2: u8) -> Self;
 }
 
 impl UintBits for u16 {
-	fn bit(&self, idx: u8) -> u16 { (*self >> idx as usize) & 1 }
+	fn bit(&self, idx: u8) -> u16 {
+		(*self >> idx as usize) & 1
+	}
 	fn bits(&self, idx: u8, idx2: u8) -> u16 {
 		(*self >> idx as usize) & ((1 << (idx2 - idx) as usize)-1)
 	}

@@ -1,11 +1,14 @@
+// "Tifflin" Kernel
+// - By John Hodge (thePowersGang)
 //
-//
-//
+// Core/main.rs
+//! Low-level interrupt handling and CPU error handling
 use _common::*;
 use super::{puts,puth};
 
 #[repr(C)]
 #[derive(Copy)]
+/// Register state as saved by the error ISR handler
 pub struct InterruptRegs
 {
 	//fs: u64,
@@ -22,6 +25,7 @@ pub struct InterruptRegs
 }
 
 #[repr(C)]
+/// A handler for an ISR
 pub type ISRHandler = extern "C" fn(isrnum: usize,info:*const(),idx:usize);
 
 struct IRQHandlersEnt
@@ -34,6 +38,7 @@ impl Copy for IRQHandlersEnt {}
 unsafe impl Send for IRQHandlersEnt {}
 
 #[derive(Default)]
+/// A handle for a bound ISR, unbound on drop
 pub struct ISRHandle
 {
 	idx: usize,
@@ -47,6 +52,8 @@ static s_irq_handlers_lock: ::sync::Mutex<[IRQHandlersEnt; 256]> = mutex_init!( 
 	}; 256] );
 
 #[no_mangle]
+#[doc(hidden)]
+/// ISR handler called by assembly
 pub extern "C" fn irq_handler(index: usize)
 {
 	let lh = s_irq_handlers_lock.lock();
@@ -57,6 +64,8 @@ pub extern "C" fn irq_handler(index: usize)
 }
 
 #[no_mangle]
+#[doc(hidden)]
+/// Error handler called by assembly
 pub extern "C" fn error_handler(regs: &InterruptRegs)
 {
 	puts("Error happened!\n");
@@ -66,6 +75,8 @@ pub extern "C" fn error_handler(regs: &InterruptRegs)
 	puts("CR2 = "); puth(get_cr2()); puts("\n");
 	puts("RAX "); puth(regs.rax); puts("  RCX "); puth(regs.rcx); puts("\n");
 	puts("RDX "); puth(regs.rdx); puts("  RBX "); puth(regs.rbx); puts("\n");
+	// For interrupts 2 and 3, don't backtrace and error.
+	// - 3 = breakpoint, 2 = ? (NMI?)
 	if regs.intnum != 3 && regs.intnum != 2
 	{
 		let mut bp = regs.rbp;
@@ -79,6 +90,7 @@ pub extern "C" fn error_handler(regs: &InterruptRegs)
 	}
 }
 
+/// Obtain the old RBP value and return address from a provided RBP value
 pub fn backtrace(bp: u64) -> Option<(u64,u64)>
 {
 	if bp == 0 {
@@ -118,6 +130,7 @@ fn get_cr2() -> u64
 }
 
 #[derive(Debug,Copy)]
+/// Error code for bind_isr
 pub enum BindISRError
 {
 	Used,
@@ -148,11 +161,13 @@ pub fn bind_isr(isr: u8, callback: ISRHandler, info: *const(), idx: usize) -> Re
 
 impl ISRHandle
 {
+	/// Returns an unbound ISR handle (null)
 	pub fn unbound() -> ISRHandle {
 		ISRHandle {
 			idx: ::core::num::Int::max_value()
 		}
 	}
+	/// Returns the bound ISR index
 	pub fn idx(&self) -> usize { self.idx }
 }
 

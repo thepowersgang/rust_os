@@ -5,19 +5,29 @@ use core::fmt::Write;
 use core::result::Result::Ok;
 use core::slice::{SliceExt};
 
+/// Log level, ranging from a kernel panic down to tracing
 #[derive(PartialEq,PartialOrd,Copy)]
 pub enum Level
 {
-	LevelPanic,  	// Everything broke
-	LevelError,  	// Something broke
-	LevelWarning,	// Recoverable
-	LevelNotice, 	// Odd
-	LevelInfo,   	// Interesting
-	LevelLog,    	// General
-	LevelDebug,   	// What
-	LevelTrace,  	// Where
+	/// Everything broke
+	LevelPanic,
+	/// Something broke
+	LevelError,
+	/// Recoverable
+	LevelWarning,
+ 	/// Odd
+	LevelNotice,
+   	/// Interesting (least important for the user)
+	LevelInfo,
+    	/// General (highest developer-only level)
+	LevelLog,
+   	/// What
+	LevelDebug,
+  	/// Where
+	LevelTrace,
 }
 
+#[doc(hidden)]
 pub struct LoggingFormatter
 {
 	_lock_handle: ::arch::sync::HeldSpinlock<'static,()>,
@@ -25,9 +35,9 @@ pub struct LoggingFormatter
 	_irq_handle: ::arch::sync::HeldInterrupts,
 }
 
+/// Wrapper around a &-ptr that prints a hexdump of the passed data.
 pub struct HexDump<'a,T:'a>(pub &'a T);
 
-// NOTE: Has to be a spinlock, stops interrupts while held
 #[allow(non_upper_case_globals)]
 static s_logging_lock: ::arch::sync::Spinlock<()> = spinlock_init!( () );
 
@@ -52,6 +62,7 @@ impl ::core::fmt::Display for Level
 
 impl LoggingFormatter
 {
+	/// Create a new logging formatter
 	pub fn new() -> LoggingFormatter
 	{
 		LoggingFormatter {
@@ -79,6 +90,7 @@ impl ::core::ops::Drop for LoggingFormatter
 
 impl<'a,T:'a> HexDump<'a,T>
 {
+	/// Return the wrapped type as a &[u8]
 	fn byteslice(&self) -> &[u8]
 	{
 		let size = ::core::mem::size_of::<T>();
@@ -103,14 +115,19 @@ impl<'a,T:'a> ::core::fmt::Debug for HexDump<'a,T>
 	}
 }
 
-pub fn enabled(_level: Level, _modname: &str) -> bool
+#[doc(hidden)]
+/// Returns true if the passed combination of module and level is enabled
+pub fn enabled(level: Level, modname: &str) -> bool
 {
-	//if _modname == "main::::memory::heap" && _level == Level::LevelDebug {
-	//	return false;
-	//}
-	true
+	match modname
+	{
+	"kernel::memory::heap" => (level < Level::LevelDebug),	// Heap only prints higher than debug
+	_ => true,
+	}
 }
 
+#[doc(hidden)]
+/// Returns a logging formatter
 pub fn getstream(level: Level, modname: &str) -> LoggingFormatter
 {
 	assert!( enabled(level, modname) );

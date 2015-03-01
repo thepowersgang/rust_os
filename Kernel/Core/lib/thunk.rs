@@ -2,11 +2,13 @@
 // - By John Hodge (thePowersGang)
 //
 // Core/lib/thunk.rs
-///! Box<FnOnce> support, similar to std::thunk
+//! Box<FnOnce> support, similar to std::thunk
 use _common::*;
 
+/// Trait that provides a consuming invoke function for boxed closures
 pub trait Invoke<A=(), R=()>
 {
+	/// Call the wrapped closure
 	fn invoke(self: Box<Self>, arg: A) -> R;
 }
 

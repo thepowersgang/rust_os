@@ -1,6 +1,8 @@
+// "Tifflin" Kernel
+// - By John Hodge (thePowersGang)
 //
-//
-//
+// arch/amd64/memory/virt.rs
+//! Virtual address space management
 use core::ptr::PtrExt;
 use super::{PAddr};
 use PAGE_SIZE;
@@ -117,6 +119,7 @@ unsafe fn get_page_ent(addr: usize, from_temp: bool, allocate: bool, large_ok: b
 	return get_entry(0, pagenum, allocate)
 }
 
+/// Returns true if the passed address is "valid" (allocated, or delay allocateD)
 pub fn is_reserved<T>(addr: *const T) -> bool
 {
 	unsafe {
@@ -124,6 +127,7 @@ pub fn is_reserved<T>(addr: *const T) -> bool
 		return !pte.is_null() && pte.is_reserved();
 	}
 }
+/// Returns the physical address for the provided pointer
 pub fn get_phys<T>(addr: *const T) -> PAddr
 {
 	unsafe {
@@ -131,6 +135,7 @@ pub fn get_phys<T>(addr: *const T) -> PAddr
 		pte.addr()
 	}
 }
+/// Maps a physical frame to a page, with the provided protection mode
 pub fn map(addr: *mut (), phys: PAddr, prot: ::memory::virt::ProtectionMode)
 {
 	unsafe {
@@ -140,6 +145,7 @@ pub fn map(addr: *mut (), phys: PAddr, prot: ::memory::virt::ProtectionMode)
 		asm!("invlpg $0" : : "m" (addr) : "memory");
 	}
 }
+/// Removes a mapping
 pub fn unmap(addr: *mut ())
 {
 	unsafe {

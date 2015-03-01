@@ -2,7 +2,11 @@
 // - By John Hodge (thePowersGang)
 //
 // Core/async/timer.rs
-///! Asynchronous Timer
+//! Asynchronous Timer.
+//! 
+//! An async timer type, firing after the specified duration has elapsed
+//!
+//! TODO: Fix to actually be usable
 
 pub struct Timer
 {

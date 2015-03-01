@@ -1,26 +1,35 @@
-
+// "Tifflin" Kernel
+// - By John Hodge (thePowersGang)
+//
+// Core/lib/vec_map.rs
+//! Sorted vector backed Key-Value map.
 use _common::*;
 
+/// Primitive key-value map backed by a sorted vector
 pub struct VecMap<K: Ord,V>
 {
 	ents: Vec<(K,V)>,
 }
+/// Immutable iterator for VecMap
 pub struct Iter<'a, K: 'a, V: 'a>
 {
 	pos: usize,
 	ents: &'a [(K,V)],
 }
 
+/// An entry in a VecMap
 pub enum Entry<'a, K: 'a + Ord, V: 'a>
 {
 	Occupied(OccupiedEntry<'a, K, V>),
 	Vacant(VacantEntry<'a, K, V>),
 }
+/// An occupied entry in a VecMap
 pub struct OccupiedEntry<'a, K: 'a + Ord, V: 'a>
 {
 	map: &'a mut VecMap<K,V>,
 	slot: usize,
 }
+/// An unoccupied entyr in a VecMap
 pub struct VacantEntry<'a, K: 'a + Ord, V: 'a>
 {
 	map: &'a mut VecMap<K,V>,
@@ -30,6 +39,7 @@ pub struct VacantEntry<'a, K: 'a + Ord, V: 'a>
 
 impl<K: Ord, V> VecMap<K,V>
 {
+	/// Create a new (empty) VecMap
 	pub fn new() -> VecMap<K,V> {
 		VecMap {
 			ents: Vec::new(),
@@ -61,6 +71,7 @@ impl<K: Ord, V> VecMap<K,V>
 		}
 	}
 	
+	/// Return a read-only iterator
 	pub fn iter(&self) -> Iter<K,V> {
 		Iter {
 			pos: 0,
@@ -90,10 +101,12 @@ impl<'a, K, V> ::core::iter::Iterator for Iter<'a, K, V>
 
 impl<'a,K: Ord,V> OccupiedEntry<'a, K, V>
 {
+	/// Return a limited-lifetime pointer to the item
 	pub fn get_mut(&mut self) -> &mut V
 	{
 		&mut self.map.ents[self.slot].1
 	}
+	/// Consume the Entry and return a pointer to the item
 	pub fn into_mut(self) -> &'a mut V
 	{
 		&mut self.map.ents[self.slot].1
@@ -102,6 +115,7 @@ impl<'a,K: Ord,V> OccupiedEntry<'a, K, V>
 
 impl<'a,K: Ord,V> VacantEntry<'a, K, V>
 {
+	/// Insert a value at this position and return a pointer to it
 	pub fn insert(self, value: V) -> &'a mut V {
 		self.map.ents.insert(self.slot, (self.key, value));
 		&mut self.map.ents[self.slot].1
