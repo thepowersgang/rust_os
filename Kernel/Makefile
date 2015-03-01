@@ -24,6 +24,8 @@ comma := ,
 
 # Function: Reference a locally-compile crate
 LocalLib = --extern $1=$(OBJDIR)lib$1.rlib
+# Function: Fix the specified dependency file (from http://scottmcpeak.com/autodepend/autodepend.html)
+FixDep = cp -f $1 $1.tmp && sed -e 's/.*://' -e 's/\\$$//' < $1.tmp | head -n 1 | fmt -1 | sed -e 's/^ *//' -e 's/$$/:/' >> $1 && rm -f $1.tmp
 
 EXCLUDE_FEATURES := 3dnow avx avx2 sse sse2 sse3 sse4.1 sse4.2 mmx
 TARGET_FILE := Core/arch/$(ARCH)/target.json
@@ -94,18 +96,21 @@ $(OBJDIR)libkernel.rlib: Core/main.rs $(OBJDIR)libcore.rlib Makefile $(TARGET_FI
 	@echo [RUSTC] -o $@
 	@mkdir -p $(dir $@)
 	$V$(ENV) rustc $(RUSTFLAGS) --emit=link,dep-info -o $@ $< $(call LocalLib,core)
+	@$(call FixDep, $(@:%.rlib=%.d))
 
 # - Locally compiled libcore, needs to not use SSE
 $(OBJDIR)libcore.rlib: $(LIBCORESRC)lib.rs $(TARGET_FILE)
 	@echo [RUSTC] -o $@
 	@mkdir -p $(dir $@)
-	$V$(ENV) rustc $(RUSTFLAGS) --emit=link,dep-info --crate-name core -o $@ $<
+	$V$(ENV) rustc $(RUSTFLAGS) --emit=link,dep-info -o $@ --crate-name core $<
+	@$(call FixDep, $(@:%.rlib=%.d))
 
 # - Modules
 $(OBJDIR)mod_%.o: Modules/%/lib.rs $(OBJDIR)libcore.rlib $(OBJDIR)libkernel.rlib
 	@echo [RUSTC] -o $@
 	@mkdir -p $(dir $@)
-	$V$(ENV) rustc $(RUSTFLAGS) --emit=obj,dep-info --crate-name=$* --crate-type=lib -o $@ $< $(call LocalLib,core) $(call LocalLib,kernel)
+	$V$(ENV) rustc $(RUSTFLAGS) --emit=obj,dep-info -o $@ --crate-name=$* --crate-type=lib $< $(call LocalLib,core) $(call LocalLib,kernel)
+	@$(call FixDep, $(@:%.o=%.d))
 
 -include $(OBJDIR)libkernel.d
 -include $(OBJDIR)libcore.d
