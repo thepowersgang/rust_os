@@ -22,6 +22,9 @@ pub struct PhysicalVolumeReg
 	idx: usize,
 }
 
+/// Helper to print out the size of a volume/size as a pretty SI base 2 number
+pub struct SizePrinter(pub u64);
+
 /// Physical volume instance provided by driver
 ///
 /// Provides the low-level methods to manipulate the underlying storage
@@ -50,7 +53,7 @@ pub trait PhysicalVolume
 }
 
 /// Registration for a physical volume handling driver
-trait Mapper: Send + Sync
+pub trait Mapper: Send + Sync
 {
 	fn name(&self) -> &str;
 	fn handles_pv(&self, pv: &PhysicalVolume) -> usize;
@@ -83,10 +86,13 @@ static s_mappers: LazyMutex<Vec<&'static Mapper>> = lazymutex_init!();
 fn init()
 {
 	s_physical_volumes.init( || VecMap::new() );
+	s_logical_volumes.init( || VecMap::new() );
+	s_mappers.init( || Vec::new() );
 }
 
 pub fn register_pv(pv: Box<PhysicalVolume+Send>) -> PhysicalVolumeReg
 {
+	log_trace!("register_pv(pv = \"{}\")", pv.name());
 	let pv_id = s_next_pv_idx.fetch_add(1, ::core::atomic::Ordering::Relaxed);
 
 	// Now that a new PV has been inserted, handlers should be informed
@@ -136,6 +142,29 @@ fn new_volume(volidx: usize)
 pub fn enum_pvs() -> Vec<(usize,String)>
 {
 	s_physical_volumes.lock().iter().map(|(k,v)| (*k, String::from_str(v.name())) ).collect()
+}
+
+impl ::core::fmt::Display for SizePrinter
+{
+	fn fmt(&self, f: &mut ::core::fmt::Formatter) -> ::core::fmt::Result
+	{
+		if self.0 < 4096
+		{
+			write!(f, "{}B", self.0)
+		}
+		else if self.0 < 4096 * 1024
+		{
+			write!(f, "{}KiB", self.0/1024)
+		}
+		else if self.0 < 4096 * 1024 * 1024
+		{
+			write!(f, "{}MiB", self.0/(1024*1024))
+		}
+		else //if self.0 < 4096 * 1024 * 1024
+		{
+			write!(f, "{}GiB", self.0/(1024*1024*1024))
+		}
+	}
 }
 
 // vim: ft=rust
