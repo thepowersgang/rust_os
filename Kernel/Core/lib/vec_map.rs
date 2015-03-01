@@ -38,10 +38,21 @@ impl<K: Ord, V> VecMap<K,V>
 	
 	/// Returns the previous item (replaced), if any
 	pub fn insert(&mut self, key: K, value: V) -> Option<V> {
-		unimplemented!();
+		match self.entry(key)
+		{
+		Entry::Occupied(e) => {
+			Some( ::core::mem::replace(e.into_mut(), value) )
+			},
+		Entry::Vacant(e) => {
+			e.insert(value);
+			None
+			},
+		}
 	}
 	
-	pub fn entry(&mut self, key: K) -> Entry<K, V> {
+	/// Return an 'entry' in the map, allowing cheap handling of insertion/lookup
+	pub fn entry(&mut self, key: K) -> Entry<K, V>
+	{
 		// Binary search for the specified key
 		match self.ents.binary_search_by(|e| e.0.cmp(&key))
 		{
