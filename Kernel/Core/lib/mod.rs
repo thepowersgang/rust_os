@@ -20,6 +20,7 @@ pub mod mem;
 #[macro_use]
 pub mod queue;
 pub mod vec;
+#[macro_use]
 pub mod string;
 
 pub mod vec_map;
