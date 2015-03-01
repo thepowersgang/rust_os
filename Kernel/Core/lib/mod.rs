@@ -146,5 +146,32 @@ impl UintBits for u16 {
 	}
 }
 
+/// Printing helper for raw strings
+pub struct RawString<'a>(pub &'a [u8]);
+
+impl<'a> ::core::fmt::Debug for RawString<'a>
+{
+	fn fmt(&self, f: &mut ::core::fmt::Formatter) -> ::core::fmt::Result
+	{
+		try!(write!(f, "b\""));
+		for &b in self.0
+		{
+			match b
+			{
+			b'\\' => try!(write!(f, "\\\\")),
+			b'\n' => try!(write!(f, "\\n")),
+			b'\r' => try!(write!(f, "\\r")),
+			b'"' => try!(write!(f, "\\\"")),
+			b'\0' => try!(write!(f, "\\0")),
+			// ASCII printable characters
+			32...127 => try!(write!(f, "{}", b as char)),
+			_ => try!(write!(f, "\\x{:02x}", b)),
+			}
+		}
+		try!(write!(f, "\""));
+		::core::result::Result::Ok( () )
+	}
+}
+
 // vim: ft=rust
 
