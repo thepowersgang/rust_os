@@ -7,7 +7,7 @@ use _common::*;
 use core::atomic::AtomicBool;
 use arch::sync::Spinlock;
 use arch::interrupts;
-use lib::{Queue,VecMap};
+use lib::{VecMap};
 use lib::mem::Arc;
 
 /// A handle for an IRQ binding that pokes an async event when the IRQ fires
@@ -15,7 +15,6 @@ pub struct EventHandle
 {
 	num: u32,
 	index: usize,
-	// TODO: Have a Rc'd (or boxed) async event source
 	event: Arc<::async::EventSource>,
 }
 
@@ -61,7 +60,7 @@ pub fn bind_interrupt_event(num: u32) -> EventHandle
 	let binding = match map_lh.mapping.entry(num)
 		{
 		::lib::vec_map::Entry::Occupied(e) => e.into_mut(),
-		::lib::vec_map::Entry::Vacant(mut e) => e.insert( IRQBinding::new_boxed(num) ),
+		::lib::vec_map::Entry::Vacant(e) => e.insert( IRQBinding::new_boxed(num) ),
 		};
 	// 2. Add this handler to the meta-handler
 	let rv = EventHandle {
@@ -91,7 +90,7 @@ impl IRQBinding
 		rv
 	}
 	
-	extern "C" fn handler_raw(isr: usize, info: *const (), num: usize)
+	extern "C" fn handler_raw(_isr: usize, info: *const (), _num: usize)
 	{
 		unsafe {
 			let binding_ref = &*(info as *const IRQBinding);
@@ -101,15 +100,15 @@ impl IRQBinding
 	fn handle(&self)
 	{
 		// If the current CPU owns the queue lock, don't do processing here
-		if let Some(lh) = self.handlers.try_lock_cpu()
+		if let Some(mut lh) = self.handlers.try_lock_cpu()
 		{
 			// Otherwise, lock the handlers list and run them
 			// - Should not cause a race condition, as the current CPU shouldn't be doing funny stuff
 			// - POSSIBLE : Reach here, other IRQ which causes changes to this IRQ's data?
-			let lh = self.handlers.lock();
-			for handler in &*lh
+			for handler in &mut *lh
 			{
 				// TODO: Call handlers
+				handler.handle();
 			}
 		}
 		// Instead, mark the interrupt as having fired and let it call handlers later
@@ -143,7 +142,10 @@ impl ::core::ops::Drop for EventHandle
 {
 	fn drop(&mut self)
 	{
-		// TODO: Delete from the list
+		panic!("TODO: EventHandle::drop() num={}, idx={}", self.num, self.index);
+		// - Locate interrupt handler block
+		// - Locate this index within that list
+		// - Remove from list
 	}
 }
 

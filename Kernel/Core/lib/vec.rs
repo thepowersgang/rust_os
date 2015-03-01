@@ -270,6 +270,16 @@ impl<'a, T> IntoIterator for &'a Vec<T>
 	}
 }
 
+impl<'a, T> IntoIterator for &'a mut Vec<T>
+{
+	type IntoIter = ::core::slice::IterMut<'a,T>;
+	type Item = &'a mut T;
+	
+	fn into_iter(self) -> ::core::slice::IterMut<'a, T> {
+		self.iter_mut()
+	}
+}
+
 impl<T> MoveItems<T>
 {
 	/// Pop an item from the iterator
