@@ -67,8 +67,8 @@ fn init()
 	let hpet = &handles[0];
 
 	let info = (*hpet).data();
-	assert!(info.addr.asid == AddressSpaceID::Memory);
-	assert!(info.addr.address % ::PAGE_SIZE as u64 == 0);
+	assert!(info.addr.asid == AddressSpaceID::Memory as u8);
+	assert!(info.addr.address % ::PAGE_SIZE as u64 == 0, "Address {:#x} not page aligned", info.addr.address);
 	let mapping = ::memory::virt::map_hw_rw(info.addr.address, 1, "HPET").unwrap();
 
 	// HACK! Disable the PIT

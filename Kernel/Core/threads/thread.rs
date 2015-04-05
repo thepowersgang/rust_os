@@ -80,7 +80,7 @@ impl ::core::fmt::Debug for Thread
 {
 	fn fmt(&self, f: &mut ::core::fmt::Formatter) -> Result<(),::core::fmt::Error>
 	{
-		write!(f, "{:p}({} {})", self as *const _, self.tid, self.name)
+		write!(f, "{:p}({} {})", self, self.tid, self.name)
 	}
 }
 

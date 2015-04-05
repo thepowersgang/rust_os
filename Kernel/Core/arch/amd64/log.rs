@@ -27,7 +27,7 @@ pub fn puth(val: u64)
 		};
 	//let nibbles = 16u;
 	puts("x");
-	for i in ::core::iter::range(0, nibbles)
+	for i in (0 .. nibbles)
 	{
 		let nibble : u8 = ((val >> (nibbles-i-1)*4) & 15) as u8;
 		putc( if nibble <= 9 { '0' as u8 + nibble } else { 'a' as u8 + nibble-10 } );
@@ -36,8 +36,7 @@ pub fn puth(val: u64)
 /// Print a single character to the logging output
 fn putc(c: u8)
 {
-	unsafe
-	{
+	unsafe {
 		while (x86_io::inb(0x3F8+5) & 0x20) == 0
 		{
 		}

@@ -292,7 +292,7 @@ HighPDP:	; Covers 512 GiB
 [global InitialPD]
 InitialPD:	; Covers 1 GiB
 	dd	0x000000 + 0x183,0	; Global, 2MiB
-	dd	0x200000 + 0x183,0
+	dd	0x200000 + 0x183,0	; Global, 2MiB
 	times 510	dq	0
 
 StackPD:

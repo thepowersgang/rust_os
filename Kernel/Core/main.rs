@@ -14,6 +14,7 @@
 #![feature(core)]	// silences warnings about write!
 #![feature(optin_builtin_traits)]	// Negative impls
 #![feature(unique)]	// Unique
+#![feature(slice_patterns)]	// Slice (array) destructuring patterns, used by multiboot code
 #![no_std]
 
 #[macro_use]
@@ -61,6 +62,9 @@ pub mod memory;
 pub mod threads;
 /// Timekeeping (timers and wall time)
 pub mod time;
+
+// Module/Executable loading (and symbol lookup)
+pub mod loading;
 /// Module management (loading and initialisation of kernel modules)
 pub mod modules;
 
@@ -70,6 +74,9 @@ pub mod metadevs;
 ///
 /// Starts driver instances for the devices it sees
 pub mod device_manager;
+
+/// User output, via a kernel-provided compositing "WM"
+pub mod gui;
 
 /// Stack unwinding (panic) handling
 pub mod unwind;

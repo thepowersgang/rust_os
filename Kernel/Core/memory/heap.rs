@@ -7,12 +7,11 @@
 // TODO: Rewrite this to correctly use the size information avaliable
 
 use core::option::Option::{self,None,Some};
-use core::ptr::PtrExt;
 use core::nonzero::NonZero;
 
 // --------------------------------------------------------
 // Types
-#[derive(Copy)]
+#[derive(Copy,Clone)]
 pub enum HeapId
 {
 	Local,	// Inaccessible outside of process
@@ -84,7 +83,6 @@ unsafe fn exchange_free(ptr: *mut u8, size: usize, align: usize)
 	allocate(HeapId::Global, size, 16).unwrap()
 } 
 #[no_mangle] pub unsafe extern "C" fn free(ptr: *mut ()) {
-	use core::ptr::PtrExt;
 	if !ptr.is_null() {
 		deallocate(ptr, 0, 16)
 	}
@@ -186,7 +184,7 @@ impl HeapDef
 			// Split block (if needed)
 			if fb.size > blocksize + headers_size
 			{
-				let far_foot = fb.foot() as *mut _;
+				let far_foot = fb.foot() as *mut HeapFoot;
 				let far_size = fb.size - blocksize;
 				fb.size = blocksize;
 				*fb.foot() = HeapFoot {

@@ -47,7 +47,7 @@ fn init_modules(mods: &[ModuleInfo])
 	for m in mods.iter() {
 		log_debug!("mod = {:p} {:?} '{}'", &m.name, m.name.as_ptr(), m.name);
 	}
-	for i in range(0, mods.len())
+	for i in (0 .. mods.len())
 	{
 		init_module(modstates.slice_mut(), mods, i);
 	}

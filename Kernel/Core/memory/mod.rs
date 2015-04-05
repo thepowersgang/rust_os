@@ -2,12 +2,12 @@
 //
 //
 use arch::memory::{VAddr};
-use core::ptr::PtrExt;
 use core::option::Option::{self,None,Some};
 
 pub use self::memorymap::{MAP_PAD, MemoryMapEnt, MemoryMapBuilder};
 pub use self::memorymap::MemoryState;
 
+pub use arch::memory::PAddr;
 pub mod phys;
 pub mod virt;
 pub mod heap;

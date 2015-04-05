@@ -3,8 +3,8 @@
 //
 // arch/amd64/memory/virt.rs
 //! Virtual address space management
-use core::ptr::PtrExt;
-use super::{PAddr};
+use core::prelude::*;
+use super::{PAddr,VAddr};
 use PAGE_SIZE;
 
 static MASK_VBITS : usize = 0x0000FFFF_FFFFFFFF;
@@ -119,7 +119,21 @@ unsafe fn get_page_ent(addr: usize, from_temp: bool, allocate: bool, large_ok: b
 	return get_entry(0, pagenum, allocate)
 }
 
-/// Returns true if the passed address is "valid" (allocated, or delay allocateD)
+/// Returns Some(addr) if the passed physical address is in a fixed allocation range (i.e. kernel's identity range)
+pub fn fixed_alloc(addr: PAddr, page_count: usize) -> Option<VAddr>
+{
+	const fourmeg: PAddr = (::arch::memory::addresses::IDENT_END - ::arch::memory::addresses::IDENT_START) as PAddr;
+	if addr < fourmeg && (fourmeg - addr >> 10) as usize > page_count
+	{
+		Some( ::arch::memory::addresses::IDENT_START + addr as usize )
+	}
+	else
+	{
+		None
+	}
+}
+
+/// Returns true if the passed address is "valid" (allocated, or delay allocated)
 pub fn is_reserved<T>(addr: *const T) -> bool
 {
 	unsafe {

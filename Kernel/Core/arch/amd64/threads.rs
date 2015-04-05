@@ -4,10 +4,9 @@
 // Core/arch/amd64/threads.rs
 //! Architecture-level thread handling (helpers for ::threads).
 use core::option::Option;
-use core::ptr::PtrExt;
 use lib::mem::Box;
 
-#[derive(Default,Copy)]
+#[derive(Default)]//,Copy,Clone)]
 /// Low-level thread state
 pub struct State
 {

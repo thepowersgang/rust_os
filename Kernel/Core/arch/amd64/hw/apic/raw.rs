@@ -39,7 +39,7 @@ pub enum TriggerMode
 
 #[allow(dead_code)]
 #[repr(u8)]
-#[derive(Copy)]
+#[derive(Copy,Clone)]
 #[allow(non_camel_case_types)]
 enum ApicReg
 {
@@ -118,7 +118,7 @@ impl LAPIC
 			};
 		log_debug!("oldaddr = {:#x}", oldaddr);
 		let is_bsp = oldaddr & 0x100;
-		for i in range(0, 8) {
+		for i in (0 .. 8) {
 			log_debug!("IRR{} = {:#x}", i, self.read_reg(ApicReg::irr(i)));
 		}
 		
@@ -135,18 +135,15 @@ impl LAPIC
 		// EOI - Just to make sure
 		self.eoi(0);
 		unsafe {
-		asm!("wrmsr\nsti"
-			: /* no out */
-			: "{ecx}" (0x1Bu32), "{edx}" (self.paddr >> 32), "{eax}" (self.paddr | is_bsp | 0x800)
-			: /* no clobbers */
-			: "volatile"
-			);
-		}
-	
-		unsafe {
-			let mut ef: u64;
-			asm!("pushf\npop $0" : "=r" (ef));
-			log_debug!("EFLAGS = {:#x}", ef);
+			asm!("wrmsr\nsti"
+				: /* no out */
+				: "{ecx}" (0x1Bu32), "{edx}" (self.paddr >> 32), "{eax}" (self.paddr | is_bsp | 0x800)
+				: /* no clobbers */
+				: "volatile"
+				);
+			
+			// Quick debug
+			let mut ef: u64; asm!("pushf\npop $0" : "=r" (ef)); log_debug!("EFLAGS = {:#x}", ef);
 		}
 	}
 	pub fn eoi(&self, num: usize)

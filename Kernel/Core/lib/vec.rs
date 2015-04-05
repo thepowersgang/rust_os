@@ -28,6 +28,8 @@ pub struct MoveItems<T>
 
 impl<T> Vec<T>
 {
+	//pub static EMPTY: Vec<T> = Vec { data: Unique(::memory::heap::ZERO_ALLOC), size: 0, capacity: 0 };
+	
 	/// Create a new, empty vector
 	pub fn new() -> Vec<T>
 	{
@@ -48,7 +50,7 @@ impl<T> Vec<T>
 		Fcn: Fn(usize) -> T
 	{
 		let mut ret = Vec::with_capacity(length);
-		for i in range(0, length) {
+		for i in (0 .. length) {
 			ret.push( op(i) );
 		}
 		ret
@@ -83,7 +85,7 @@ impl<T> Vec<T>
 		{
 			unsafe {
 				let newptr = ::memory::heap::alloc_array::<T>( newcap );
-				for i in range(0, self.size) {
+				for i in (0 .. self.size) {
 					let val = self.move_ent(i as usize);
 					::core::ptr::write(newptr.offset(i as isize), val);
 				}
@@ -147,7 +149,12 @@ impl<T:Clone> Vec<T>
 {
 	pub fn from_elem(size: usize, elem: T) -> Vec<T>
 	{
-		Vec::from_fn( size, |_| elem.clone() )
+		let mut ret = Vec::with_capacity(size);
+		for _ in 0 .. size-1 {
+			ret.push(elem.clone());
+		}
+		ret.push(elem);
+		ret
 	}
 	
 	pub fn push_all(&mut self, other: &[T])
@@ -167,7 +174,7 @@ impl<T> Drop for Vec<T>
 	{
 		log_debug!("Vec::drop() - Dropping vector at {:p} w/ {} ents", *self.data, self.size);
 		unsafe {
-			for i in range(0, self.size) {
+			for i in (0 .. self.size) {
 				::core::mem::drop( ::core::ptr::read(self.get_mut_ptr(i) as *const T) );
 			}
 			::memory::heap::dealloc_array( *self.data, self.capacity );
@@ -178,22 +185,16 @@ impl<T> Drop for Vec<T>
 impl<T> Index<usize> for Vec<T>
 {
 	type Output = T;
-	fn index<'a>(&'a self, index: &usize) -> &'a T
+	fn index<'a>(&'a self, index: usize) -> &'a T
 	{
-		if *index >= self.size {
-			panic!("Index out of range, {} >= {}", index, self.size);
-		}
-		unsafe { &*self.data.offset(*index as isize) }
+		&self.as_slice()[index]
 	}
 }
 impl<T> IndexMut<usize> for Vec<T>
 {
-	fn index_mut<'a>(&'a mut self, index: &usize) -> &'a mut T
+	fn index_mut<'a>(&'a mut self, index: usize) -> &'a mut T
 	{
-		if *index >= self.size {
-			panic!("Index out of range, {} >= {}", index, self.size);
-		}
-		unsafe { &mut *self.data.offset(*index as isize) }
+		&mut self.slice_mut()[index]
 	}
 }
 
@@ -318,7 +319,7 @@ impl<T> Drop for MoveItems<T>
 {
 	fn drop(&mut self)
 	{
-		for _ in range(self.ofs, self.count) {
+		for _ in (self.ofs .. self.count) {
 			self.pop_item();
 		}
 		unsafe {

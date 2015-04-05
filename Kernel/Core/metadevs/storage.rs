@@ -90,6 +90,7 @@ fn init()
 	S_MAPPERS.init( || Vec::new() );
 }
 
+/// Register a physical volume
 pub fn register_pv(pv: Box<PhysicalVolume+Send>) -> PhysicalVolumeReg
 {
 	log_trace!("register_pv(pv = \"{}\")", pv.name());

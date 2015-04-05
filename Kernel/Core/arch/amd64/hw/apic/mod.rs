@@ -20,7 +20,7 @@ pub struct IRQHandle
 	isr_handle: ::arch::interrupts::ISRHandle,
 }
 
-#[derive(Debug,Copy)]
+#[derive(Debug,Copy,Clone)]
 pub enum IrqError
 {
 	BadIndex,

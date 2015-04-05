@@ -7,7 +7,7 @@ use _common::*;
 use super::{puts,puth};
 
 #[repr(C)]
-#[derive(Copy)]
+//#[derive(Copy,Clone)]
 /// Register state as saved by the error ISR handler
 pub struct InterruptRegs
 {
@@ -35,6 +35,7 @@ struct IRQHandlersEnt
 	idx: usize,
 }
 impl Copy for IRQHandlersEnt {}
+impl Clone for IRQHandlersEnt { fn clone(&self)->Self { *self } }
 unsafe impl Send for IRQHandlersEnt {}
 
 #[derive(Default)]
@@ -129,7 +130,7 @@ fn get_cr2() -> u64
 	}
 }
 
-#[derive(Debug,Copy)]
+#[derive(Debug,Copy,Clone)]
 /// Error code for bind_isr
 pub enum BindISRError
 {
@@ -145,7 +146,7 @@ pub fn bind_isr(isr: u8, callback: ISRHandler, info: *const(), idx: usize) -> Re
 	// 1. Check that this ISR slot on this CPU isn't taken
 	let mut _mh = s_irq_handlers_lock.lock();
 	let h = &mut _mh[isr as usize];
-	log_trace!("&h = {:?}", h as *mut _);
+	log_trace!("&h = {:p}", h);
 	if h.handler.is_some() {
 		return Err( BindISRError::Used );
 	}

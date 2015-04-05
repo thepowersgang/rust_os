@@ -6,7 +6,7 @@ use core::result::Result::Ok;
 use core::slice::{SliceExt};
 
 /// Log level, ranging from a kernel panic down to tracing
-#[derive(PartialEq,PartialOrd,Copy)]
+#[derive(PartialEq,PartialOrd,Copy,Clone)]
 pub enum Level
 {
 	/// Everything broke

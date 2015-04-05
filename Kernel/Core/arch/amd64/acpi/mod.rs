@@ -53,7 +53,7 @@ pub struct SDTHandle<T:'static>
 }
 
 #[repr(C)]
-#[derive(Copy)]
+#[derive(Copy,Clone)]
 struct SDTHeader
 {
 	signature: [u8; 4],
@@ -68,7 +68,7 @@ struct SDTHeader
 }
 
 #[repr(C,u8)]
-#[derive(Copy,PartialEq)]
+#[derive(Copy,Clone,PartialEq)]
 /// Address space identifier
 pub enum AddressSpaceID
 {
@@ -85,11 +85,11 @@ pub enum AddressSpaceID
 }
 
 #[repr(C,packed)]
-#[derive(Copy)]
+#[derive(Copy,Clone)]
 /// Generic address descriptor (TODO: check name)
 pub struct GAS
 {
-	pub asid: AddressSpaceID,	///! Address space ID
+	pub asid: u8,	///! Address space ID
 	pub bit_width: u8,
 	pub bit_ofs: u8,
 	pub access_size: u8,	// 0: undef, 1: byte; ., 4: qword
@@ -145,7 +145,7 @@ fn init()
 	log_debug!("*SDT = {{ signature = {}, oemid = '{}' }}", tl.signature(), tl.oemid());
 	
 	// Obtain list of SDTs (signatures only)
-	let names = range(0, tl.len()).map(
+	let names = (0 .. tl.len()).map(
 		|i| {
 			tl.get::<SDTHeader>(i).raw_signature()
 			}
@@ -199,10 +199,10 @@ fn get_rsdp() -> Option<&'static RSDP>
 /// Search a section of memory for the RSDP
 unsafe fn locate_rsdp(base: *const u8, size: usize) -> *const RSDP
 {
-	for ofs in range_step(0, size, 16)
+	for ofs in (0 .. size).step_by(16)
 	{
 		let sig = base.offset(ofs as isize) as *const [u8; 8];
-		if (*sig).as_slice() == "RSD PTR ".as_bytes()
+		if &*sig == b"RSD PTR "
 		{
 			let ret = sig as *const RSDP;
 			if sum_struct(&*ret) == 0

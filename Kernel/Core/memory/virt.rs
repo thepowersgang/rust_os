@@ -10,7 +10,7 @@ use arch::memory::PAddr;
 
 type Page = [u8; ::PAGE_SIZE];
 
-#[derive(PartialEq,Debug,Copy)]
+#[derive(PartialEq,Debug,Copy,Clone)]
 pub enum ProtectionMode
 {	
 	Unmapped,	// Inaccessible
@@ -22,7 +22,7 @@ pub enum ProtectionMode
 	UserRX,
 }
 
-#[derive(Copy,Debug)]
+#[derive(Copy,Clone,Debug)]
 pub enum MapError
 {
 	OutOfMemory,
@@ -42,6 +42,15 @@ unsafe impl Send for AllocHandle {}
 pub struct ArrayHandle<T>
 {
 	alloc: AllocHandle,
+	_ty: ::core::marker::PhantomData<T>,
+}
+
+/// A wrapper around AllocHandle that acts like an array
+pub struct SliceAllocHandle<T>
+{
+	alloc: AllocHandle,
+	ofs: usize,
+	count: usize,
 	_ty: ::core::marker::PhantomData<T>,
 }
 
@@ -69,7 +78,7 @@ pub fn allocate(addr: *mut (), page_count: usize)
 	// 1. Lock
 	let _lh = if is_global(addr as usize) { s_kernelspace_lock.lock() } else { s_userspace_lock.lock() };
 	// 2. Ensure range is free
-	for pg in range(pagenum, pagenum+page_count)
+	for pg in pagenum .. pagenum+page_count
 	{
 		let pgptr = (pg * ::PAGE_SIZE) as *const ();
 		if ::arch::memory::virt::is_reserved( pgptr ) {
@@ -78,7 +87,7 @@ pub fn allocate(addr: *mut (), page_count: usize)
 		}
 	}
 	// 3. do `page_count` single arbitary allocations
-	for pg in range(pagenum, pagenum+page_count)
+	for pg in pagenum .. pagenum+page_count
 	{
 		::memory::phys::allocate( (pg * ::PAGE_SIZE) as *mut () );
 	}
@@ -108,7 +117,7 @@ fn unmap(addr: *mut (), count: usize)
 		panic!("Non-aligned page {:p} passed (unmapping {} pages)", addr, count);
 	}
 	
-	for i in range(0, count)
+	for i in (0 .. count)
 	{
 		::arch::memory::virt::unmap( (pos + i*::PAGE_SIZE) as *mut () );
 	}
@@ -130,8 +139,33 @@ pub fn map_hw_rw(phys: PAddr, count: usize, module: &'static str) -> Result<Allo
 	map_hw(phys, count, false, module)
 }
 
+/// Return a slice from physical memory
+pub fn map_hw_slice<T>(phys: PAddr, num: usize) -> Result<SliceAllocHandle<T>,MapError>
+{
+	let ofs = phys & (::PAGE_SIZE - 1) as PAddr;
+	let pa = phys - ofs;
+	let count = ( (num * ::core::mem::size_of::<T>() + ofs as usize) + (::PAGE_SIZE - 1) ) / ::PAGE_SIZE;
+	log_debug!("phys = {:#x}, {:#x}+{:#x}, count = {}", phys, pa, ofs, count);
+	Ok (SliceAllocHandle {
+		alloc: try!(map_hw_ro(pa, count, "")),
+		ofs: ofs as usize,
+		count: num,
+		_ty: ::core::marker::PhantomData::<T>,
+		} )	
+}
+
 fn map_hw(phys: PAddr, count: usize, readonly: bool, _module: &'static str) -> Result<AllocHandle,MapError>
 {
+	if let Some(v) = ::arch::memory::virt::fixed_alloc(phys, count)
+	{
+		log_debug!("phys = {:#x}, v = {:#x}", phys, v);
+		return Ok( AllocHandle {
+			addr: v as *const _,
+			count: count,
+			mode: ProtectionMode::Unmapped,
+			} );
+	}
+
 	let mode = if readonly { ProtectionMode::KernelRO } else { ProtectionMode::KernelRW };
 	// 1. Locate an area
 	// TODO: This lock should be replaced with a finer grained lock
@@ -150,7 +184,7 @@ fn map_hw(phys: PAddr, count: usize, readonly: bool, _module: &'static str) -> R
 		pos += (free + 1) * ::PAGE_SIZE;
 	}
 	// 2. Map
-	for i in range(0, count)
+	for i in (0 .. count)
 	{
 		map(
 			(pos + i * ::PAGE_SIZE) as *mut (),
@@ -179,7 +213,7 @@ pub fn alloc_dma(bits: u8, count: usize, module: &'static str) -> Result<AllocHa
 
 fn count_free_in_range(addr: *const Page, count: usize) -> usize
 {
-	for i in range(0, count)
+	for i in (0 .. count)
 	{
 		let pg = unsafe { addr.offset(i as isize) };
 		if ::arch::memory::virt::is_reserved( pg ) {
@@ -205,9 +239,7 @@ impl AllocHandle
 {
 	pub fn as_ref<'s,T>(&'s self, ofs: usize) -> &'s mut T
 	{
-		assert!(ofs % ::core::mem::align_of::<T>() == 0);
-		assert!(ofs + ::core::mem::size_of::<T>() <= self.count * ::PAGE_SIZE);
-		unsafe{ &mut *((self.addr as usize + ofs) as *mut T) }
+		&mut self.as_mut_slice(ofs, 1)[0]
 	}
 	/// Forget the allocation and return a static reference to the data
 	pub fn make_static<T>(mut self, ofs: usize) -> &'static mut T
@@ -220,7 +252,7 @@ impl AllocHandle
 
 	pub fn as_slice<T>(&self, ofs: usize, count: usize) -> &[T]
 	{
-		assert!( ofs % ::core::mem::align_of::<T>() == 0 );	// Align check
+		assert!( ofs % ::core::mem::align_of::<T>() == 0, "Offset {:#x} not aligned to {} bytes", ofs, ::core::mem::align_of::<T>());	// Align check
 		assert!( ofs <= self.count * ::PAGE_SIZE );
 		assert!( count * ::core::mem::size_of::<T>() <= self.count * ::PAGE_SIZE );
 		assert!( ofs + count * ::core::mem::size_of::<T>() <= self.count * ::PAGE_SIZE );
@@ -231,7 +263,7 @@ impl AllocHandle
 			} )
 		}
 	}
-	pub fn as_mut_slice<T>(&mut self, ofs: usize, count: usize) -> &mut [T]
+	pub fn as_mut_slice<T>(&self, ofs: usize, count: usize) -> &mut [T]
 	{
 		assert!( self.mode == ProtectionMode::KernelRW );
 		unsafe {
@@ -265,6 +297,19 @@ impl Drop for AllocHandle
 	}
 }
 
+impl<T> SliceAllocHandle<T>
+{
+}
+
+impl<T> ::core::ops::Deref for SliceAllocHandle<T>
+{
+	type Target = [T];
+	fn deref(&self) -> &[T]
+	{
+		self.alloc.as_slice(self.ofs, self.count)
+	}
+}
+
 impl<T> ArrayHandle<T>
 {
 	pub fn len(&self) -> usize {
@@ -275,15 +320,15 @@ impl<T> ArrayHandle<T>
 impl<T> ::core::ops::Index<usize> for ArrayHandle<T>
 {
 	type Output = T;
-	fn index<'a>(&'a self, index: &usize) -> &'a T {
-		self.alloc.as_ref( *index * ::core::mem::size_of::<T>() )
+	fn index<'a>(&'a self, index: usize) -> &'a T {
+		self.alloc.as_ref( index * ::core::mem::size_of::<T>() )
 	}
 }
 
 impl<T> ::core::ops::IndexMut<usize> for ArrayHandle<T>
 {
-	fn index_mut<'a>(&'a mut self, index: &usize) -> &'a mut T {
-		self.alloc.as_ref( *index * ::core::mem::size_of::<T>() )
+	fn index_mut<'a>(&'a mut self, index: usize) -> &'a mut T {
+		self.alloc.as_ref( index * ::core::mem::size_of::<T>() )
 	}
 }
 

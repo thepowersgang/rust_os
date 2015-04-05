@@ -10,7 +10,7 @@ use _common::*;
 
 module_define!{Video, [], init}
 
-///**
+// /**
 // * "Client"-side display surface handle
 // * Represents a (possibly) visible framebuffer
 // */
@@ -18,12 +18,14 @@ module_define!{Video, [], init}
 //{
 //	backing_id: uint,
 //}
+
+/// Handle held by framebuffer drivers
 pub struct FramebufferRegistration
 {
 	reg_id: usize,
 }
 
-#[derive(Copy,PartialEq)]
+#[derive(Copy,Clone,PartialEq,Debug)]
 pub struct Rect
 {
 	pub x: u16,
@@ -38,7 +40,7 @@ pub struct Rect
  * A single framebuffer can be bound to multiple outputs (as a mirror).
  * Multiple separate outputs are handled with multiple framebuffers
  */
-pub trait Framebuffer:
+pub trait Framebuffer: 'static + Send
 {
 	fn as_any(&self) -> &Any;
 	fn activate(&mut self);
@@ -54,13 +56,13 @@ pub trait Framebuffer:
 	// TODO: Handle 3D units
 }
 
-#[allow(non_upper_case_globals)]
-static s_display_surfaces: ::sync::mutex::LazyMutex<Vec<Option<Box<Framebuffer+Send>>>> = lazymutex_init!( );
+/// Sparse list of registered display devices
+static S_DISPLAY_SURFACES: ::sync::mutex::LazyMutex<Vec<Option<Box<Framebuffer>>>> = lazymutex_init!( );
 
 fn init()
 {
 	// TODO: What init would the display processor need?
-	s_display_surfaces.init( || Vec::new() );
+	S_DISPLAY_SURFACES.init( || Vec::new() );
 }
 
 //impl ::core::ops::Drop for Display
@@ -70,10 +72,11 @@ fn init()
 //	}
 //}
 
-pub fn add_output(output: Box<Framebuffer+Send>) -> FramebufferRegistration
+pub fn add_output(output: Box<Framebuffer>) -> FramebufferRegistration
 {
-	let mut lh = s_display_surfaces.lock();
+	let mut lh = S_DISPLAY_SURFACES.lock();
 	lh.push(Some(output));
+	log_debug!("Registering framebuffer #{}", lh.len());
 	FramebufferRegistration {
 		reg_id: lh.len()
 	}
@@ -83,7 +86,7 @@ impl ::core::ops::Drop for FramebufferRegistration
 {
 	fn drop(&mut self)
 	{
-		s_display_surfaces.lock()[self.reg_id] = None;
+		S_DISPLAY_SURFACES.lock()[self.reg_id] = None;
 	}
 }
 
