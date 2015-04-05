@@ -23,18 +23,15 @@ fn init()
 	// - Enumerate display devices
 	//::metadevs::video::register_enumerate( enum_displays );
 	// - Create kernel logging screen+window
-	//let klog_session = windows::WindowGroup::alloc("Kernel");
-	//s_kernel_log_window = text_window::TextWindow::new( klog_session.create_window() );
-	// - Populate kernel logging window with accumulated logs
-	// - Register to recieve logs
+	kernel_log::init();
 }
 
 /// Abstracts the possibility of multiple output devices
 mod multidisplay;
 /// General window handling code
 mod windows;
-/// Handling for "text" windows
-mod text_window;
+/// Kernel log display
+mod kernel_log;
 
 /// Dimensions : Width/Height
 struct Dims(u32,u32);	// W, H

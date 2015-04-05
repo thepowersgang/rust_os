@@ -5,7 +5,7 @@
 //! Thread blocking Mutex type
 use lib::LazyStatic;
 use core::marker::{Send, Sync};
-use core::ops::Fn;
+use core::ops::FnOnce;
 
 /// A standard mutex (blocks the current thread when contended)
 pub struct Mutex<T: Send>
@@ -86,7 +86,7 @@ impl<T: Send> Mutex<T>
 impl<T: Send> LazyMutex<T>
 {
 	/// Lock and (if required) initialise using init_fcn
-	pub fn lock_init<Fcn: Fn()->T>(&self, init_fcn: Fcn) -> HeldMutex<LazyStatic<T>>
+	pub fn lock_init<Fcn: FnOnce()->T>(&self, init_fcn: Fcn) -> HeldMutex<LazyStatic<T>>
 	{
 		let mut lh = self.0.lock();
 		lh.prep(init_fcn);
@@ -94,7 +94,7 @@ impl<T: Send> LazyMutex<T>
 	}
 	
 	/// Initialise the lazy mutex
-	pub fn init<Fcn: Fn()->T>(&self, init_fcn: Fcn)
+	pub fn init<Fcn: FnOnce()->T>(&self, init_fcn: Fcn)
 	{
 		let mut lh = self.0.lock();
 		lh.prep(init_fcn);

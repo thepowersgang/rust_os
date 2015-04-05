@@ -122,8 +122,8 @@ unsafe fn get_page_ent(addr: usize, from_temp: bool, allocate: bool, large_ok: b
 /// Returns Some(addr) if the passed physical address is in a fixed allocation range (i.e. kernel's identity range)
 pub fn fixed_alloc(addr: PAddr, page_count: usize) -> Option<VAddr>
 {
-	const fourmeg: PAddr = (::arch::memory::addresses::IDENT_END - ::arch::memory::addresses::IDENT_START) as PAddr;
-	if addr < fourmeg && (fourmeg - addr >> 10) as usize > page_count
+	const FOURMEG: PAddr = (::arch::memory::addresses::IDENT_END - ::arch::memory::addresses::IDENT_START) as PAddr;
+	if addr < FOURMEG && (FOURMEG - addr >> 10) as usize > page_count
 	{
 		Some( ::arch::memory::addresses::IDENT_START + addr as usize )
 	}

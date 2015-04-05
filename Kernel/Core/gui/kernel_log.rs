@@ -16,10 +16,19 @@ struct KernelLog
 	cur_line: u32,
 }
 
-static S_KERNEL_LOG: LazyMutex<KernelLog> = lazymutex_init!();
+static S_KERNEL_LOG: ::sync::mutex::LazyMutex<KernelLog> = lazymutex_init!();
 
 pub fn init()
 {
-	
+	// Create window (and structure)
+	let mut wgh = WindowGroupHandle::alloc("Kernel");
+	let wh = wgh.create_window();
+	S_KERNEL_LOG.init(|| KernelLog {
+		wgh: wgh,
+		wh: wh,
+		cur_line: 0
+		});
+	// Populate kernel logging window with accumulated logs
+	// Register to recieve logs
 }
 

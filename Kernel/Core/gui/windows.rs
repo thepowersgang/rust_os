@@ -41,7 +41,7 @@ static S_WINDOW_GROUPS: LazyMutex<Vec<Option<WindowGroup>>> = lazymutex_init!();
 
 impl WindowGroupHandle
 {
-	fn alloc(name: &str) -> WindowGroupHandle {
+	pub fn alloc(name: &str) -> WindowGroupHandle {
 		// Locate unused slot
 		// - Return new in unused slot
 		// if none, check against system session limit
@@ -50,7 +50,7 @@ impl WindowGroupHandle
 		unimplemented!();
 	}
 	
-	fn create_window(&mut self) -> WindowHandle {
+	pub fn create_window(&mut self) -> WindowHandle {
 		// Allocate a new window from the list
 		unimplemented!();
 	}
@@ -63,8 +63,15 @@ impl ::core::ops::Drop for WindowGroupHandle
 	}
 }
 
-
 impl WindowHandle
 {
+}
+
+impl ::core::ops::Drop for WindowHandle
+{
+	fn drop(&mut self)
+	{
+		unimplemented!();
+	}
 }
 

@@ -195,7 +195,7 @@ impl MultibootParsed
 			// Elf section header table
 			let [num, size, addr, shndx] = info.syminfo;
 			log_debug!("Symbols ELF - num={}, size={}, addr={:#x}, shndx={}", num, size, addr, shndx);
-			let byte_ofs = addr as usize & (::PAGE_SIZE - 1);
+			//let byte_ofs = addr as usize & (::PAGE_SIZE - 1);
 			//let alloc = ::memory::virt::map_hw_ro(addr as ::memory::PAddr - byte_ofs as ::memory::PAddr, (byte_ofs as u32 + num*size) as usize, module_path!()).unwrap();
 			//let buf = alloc.as_slice::<u8>(byte_ofs, (num*size) as usize);
 			let buf: &'static [u8] = unsafe { ::core::mem::transmute( ::core::raw::Slice {

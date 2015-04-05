@@ -4,7 +4,6 @@
 // Core/lib/vec.rs
 //! Dynamically growable vector type
 use core::prelude::*;
-use core::num::Int;	// for leading_zeros()
 use core::iter::{FromIterator,IntoIterator};
 use core::ops::{Index,IndexMut,Deref,DerefMut};
 use lib::collections::{MutableSeq};

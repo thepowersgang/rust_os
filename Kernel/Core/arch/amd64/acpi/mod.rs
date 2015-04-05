@@ -199,8 +199,10 @@ fn get_rsdp() -> Option<&'static RSDP>
 /// Search a section of memory for the RSDP
 unsafe fn locate_rsdp(base: *const u8, size: usize) -> *const RSDP
 {
-	for ofs in (0 .. size).step_by(16)
+	//for ofs in (0 .. size).step_by(16)
+	for i in (0 .. size)
 	{
+		let ofs = i * 16;
 		let sig = base.offset(ofs as isize) as *const [u8; 8];
 		if &*sig == b"RSD PTR "
 		{
