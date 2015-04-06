@@ -57,7 +57,8 @@ RUSTSRC := /home/tpg/Source/rust/rust-master/
 else
 RUSTSRC := /home/tpg/Source/rust/rustc-nightly/
 endif
-LIBCORESRC := $(RUSTSRC)src/libcore/
+#LIBCORESRC := $(RUSTSRC)src/libcore/
+LIBCORESRC := ../libcore/
 LIBGCC := /home/tpg/apps/lib/gcc/$(TRIPLE)/4.7.1/libgcc.a
 
 OBJS := $(OBJS:%=$(OBJDIR)%)

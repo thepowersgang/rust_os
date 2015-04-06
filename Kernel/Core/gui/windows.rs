@@ -1,5 +1,5 @@
 use _common::*;
-use super::{Dims,Pos};
+use super::{Dims,Pos,Rect,Colour};
 use sync::mutex::LazyMutex;
 
 /// Window groups combine windows into "sessions", that can be switched with magic key combinations
@@ -65,6 +65,25 @@ impl ::core::ops::Drop for WindowGroupHandle
 
 impl WindowHandle
 {
+	/// Redraw the window (mark for re-blitting)
+	pub fn redraw(&mut self)
+	{
+		unimplemented!();
+	}
+	
+	/// Fill an area of the window with a specific colour
+	pub fn fill_rect(&mut self, area: Rect, colour: Colour)
+	{
+		log_trace!("(area={:?},colour={:?})", area, colour);
+		unimplemented!();
+	}
+	
+	/// Set single pixel (VERY inefficient, don't use unless you need to)
+	pub fn pset(&mut self, pos: Pos, colour: Colour)
+	{
+		log_trace!("(pos={:?},colour={:?})", pos, colour);
+		//self.scanline(pos.row())[pos.col()] = colour;
+	}
 }
 
 impl ::core::ops::Drop for WindowHandle
