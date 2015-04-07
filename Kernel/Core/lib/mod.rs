@@ -22,6 +22,8 @@ pub mod mem;
 #[macro_use]
 pub mod queue;
 pub mod vec;
+pub mod sparse_vec;
+
 #[macro_use]
 pub mod string;
 

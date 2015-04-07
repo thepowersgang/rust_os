@@ -74,6 +74,13 @@ impl ::core::fmt::Display for String
 	}
 }
 
+impl<'a> From<&'a str> for String
+{
+	fn from(v: &str) -> String {
+		String::from_str(v)
+	}
+}
+
 /// Construct a `String` using a format string and arguments
 #[macro_export]
 macro_rules! format {

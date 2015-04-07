@@ -2,7 +2,7 @@
 // - By John Hodge (thePowersGang)
 //
 // Core/metadevs/video.rs
-// - Video (Display) output arbitration
+// - Video (Display) management
 use _common::*;
 
 // DESIGN
@@ -10,14 +10,11 @@ use _common::*;
 
 module_define!{Video, [], init}
 
-// /**
-// * "Client"-side display surface handle
-// * Represents a (possibly) visible framebuffer
-// */
-//pub struct Display
-//{
-//	backing_id: uint,
-//}
+/// A handle held by users of framebuffers
+pub struct FramebufferRef
+{
+	backing_id: usize,
+}
 
 /// Handle held by framebuffer drivers
 pub struct FramebufferRegistration
@@ -65,13 +62,6 @@ fn init()
 	S_DISPLAY_SURFACES.init( || Vec::new() );
 }
 
-//impl ::core::ops::Drop for Display
-//{
-//	fn drop(&mut self)
-//	{
-//	}
-//}
-
 pub fn add_output(output: Box<Framebuffer>) -> FramebufferRegistration
 {
 	let mut lh = S_DISPLAY_SURFACES.lock();
@@ -81,6 +71,20 @@ pub fn add_output(output: Box<Framebuffer>) -> FramebufferRegistration
 		reg_id: lh.len()
 	}
 }
+
+impl FramebufferRef
+{
+	pub fn fill(&mut self, dst: Rect, colour: u32) {
+		S_DISPLAY_SURFACES.lock()[self.backing_id].as_mut().unwrap().fill(dst, colour);
+	}
+}
+
+//impl ::core::ops::Drop for FramebufferRef
+//{
+//	fn drop(&mut self)
+//	{
+//	}
+//}
 
 impl ::core::ops::Drop for FramebufferRegistration
 {

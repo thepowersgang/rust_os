@@ -5,7 +5,7 @@
 //! Dynamically growable vector type
 use core::prelude::*;
 use core::iter::{FromIterator,IntoIterator};
-use core::ops::{Index,IndexMut,Deref,DerefMut};
+use core::ops;
 use lib::collections::{MutableSeq};
 use core::ptr::Unique;
 
@@ -76,6 +76,11 @@ impl<T> Vec<T>
 			count: count,
 		}
 	}
+
+	pub fn clear(&mut self)
+	{
+		
+	}
 	
 	fn reserve(&mut self, size: usize)
 	{
@@ -128,16 +133,30 @@ impl<T> Vec<T>
 			::core::ptr::write( self.data.offset(pos as isize), value );
 		}
 	}
+	
+	pub fn truncate(&mut self, newsize: usize)
+	{
+		if newsize >= self.size
+		{
+			unsafe
+			{
+				for i in (newsize .. self.size) {
+					::core::mem::drop( ::core::ptr::read(self.get_mut_ptr(i) as *const T) );
+				}
+				self.size = newsize;
+			}
+		}
+	}
 }
 
-impl<T> Deref for Vec<T>
+impl<T> ops::Deref for Vec<T>
 {
 	type Target = [T];
 	fn deref(&self) -> &[T] {
 		self.as_slice()
 	}
 }
-impl<T> DerefMut for Vec<T>
+impl<T> ops::DerefMut for Vec<T>
 {
 	fn deref_mut(&mut self) -> &mut [T] {
 		self.slice_mut()
@@ -166,8 +185,7 @@ impl<T:Clone> Vec<T>
 	}
 }
 
-#[unsafe_destructor]
-impl<T> Drop for Vec<T>
+impl<T> ops::Drop for Vec<T>
 {
 	fn drop(&mut self)
 	{
@@ -181,21 +199,27 @@ impl<T> Drop for Vec<T>
 	}
 }
 
-impl<T> Index<usize> for Vec<T>
-{
-	type Output = T;
-	fn index<'a>(&'a self, index: usize) -> &'a T
-	{
-		&self.as_slice()[index]
+macro_rules! vec_index {
+	($T:ident -> $rv:ty : $($idx:ty)*) => { $(
+		impl<$T> ops::Index<$idx> for Vec<$T>
+		{
+			type Output = $rv;
+			fn index<'a>(&'a self, index: $idx) -> &'a $rv
+			{
+				&self.as_slice()[index]
+			}
+		}
+		impl<$T> ops::IndexMut<$idx> for Vec<$T>
+		{
+			fn index_mut<'a>(&'a mut self, index: $idx) -> &'a mut $rv
+			{
+				&mut self.slice_mut()[index]
+			}
+		}
+		)* }
 	}
-}
-impl<T> IndexMut<usize> for Vec<T>
-{
-	fn index_mut<'a>(&'a mut self, index: usize) -> &'a mut T
-	{
-		&mut self.slice_mut()[index]
-	}
-}
+vec_index!{ T -> T : usize }
+vec_index!{ T -> [T] : ops::Range<usize> ops::RangeTo<usize> ops::RangeFrom<usize> ops::RangeFull }
 
 impl<T> ::core::slice::AsSlice<T> for Vec<T>
 {
@@ -313,8 +337,7 @@ impl<T> Iterator for MoveItems<T>
 	}
 }
 
-#[unsafe_destructor]
-impl<T> Drop for MoveItems<T>
+impl<T> ops::Drop for MoveItems<T>
 {
 	fn drop(&mut self)
 	{
