@@ -9,9 +9,11 @@ mod thread;
 mod thread_list;
 mod wait_queue;
 
+mod worker_thread;
+
 mod sleep_object;
 
-pub use self::thread::Thread;
+pub use self::thread::{Thread,ThreadHandle};
 use self::thread::RunState;
 
 pub use self::thread_list::{ThreadList,THREADLIST_INIT};
@@ -35,8 +37,7 @@ static s_runnable_threads: ::sync::Spinlock<ThreadList> = spinlock_init!(THREADL
 /// Initialise the threading subsystem
 pub fn init()
 {
-	let mut tid0 = Thread::new_boxed();
-	tid0.set_name( String::from_str("ThreadZero") );
+	let mut tid0 = Thread::new_boxed(0, "ThreadZero");
 	tid0.cpu_state = ::arch::threads::init_tid0_state();
 	::arch::threads::set_thread_ptr( tid0 )
 }

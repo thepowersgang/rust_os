@@ -6,6 +6,7 @@
 use _common::*;
 use core::nonzero::NonZero;
 use core::atomic::{AtomicUsize,Ordering};
+use core::{ops,fmt};
 
 /// Non-atomic reference counted type
 pub struct Rc<T>
@@ -131,6 +132,18 @@ impl<T> Clone for Arc<T>
 		}
 	}
 }
+
+impl<T: fmt::Display> fmt::Display for Arc<T> {
+	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+		<T as fmt::Display>::fmt(&**self, f)
+	}
+}
+impl<T: fmt::Debug> fmt::Debug for Arc<T> {
+	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+		<T as fmt::Debug>::fmt(&**self, f)
+	}
+}
+
 #[unsafe_destructor]
 impl<T> ::core::ops::Drop for Arc<T>
 {

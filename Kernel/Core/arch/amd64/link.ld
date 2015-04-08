@@ -52,10 +52,13 @@ SECTIONS {
 	}
 	
 	.ktls ALIGN (0x1000) : AT(ADDR(.ktls) - _kernel_base) {
+		tbss_start = .;
 		*(.tbss)
 		*(.tbss.*)
-		tbss_top = .;
+		tbss_end = .;
 	}
+	v_ktls_size = tbss_end - tbss_start;
+	v_t_thread_ptr_ofs = t_thread_ptr - tbss_start;
 	
 	.data ALIGN (0x1000) : AT(ADDR(.data) - _kernel_base) {
 		*(.padata)

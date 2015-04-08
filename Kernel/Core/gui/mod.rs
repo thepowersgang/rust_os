@@ -23,6 +23,7 @@ fn init()
 	// - Enumerate display devices
 	//::metadevs::video::register_enumerate( enum_displays );
 	// - Create kernel logging screen+window
+	windows::init();
 	kernel_log::init();
 }
 

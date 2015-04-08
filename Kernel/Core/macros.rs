@@ -45,4 +45,11 @@ macro_rules! assert_trait
 	($t:ty : $tr:ident) => { #[allow(warnings)] fn assert_trait<T: $tr>() { assert_trait::<$t>() } }
 }
 
+/// A safe wrapper around the `type_name` intrinsic
+#[macro_export]
+macro_rules! type_name
+{
+	($t:ty) => ( unsafe { ::core::intrinsics::type_name::<$t>() } )
+}
+
 // vim: ft=rust

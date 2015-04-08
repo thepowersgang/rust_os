@@ -116,12 +116,12 @@ not64bitCapable:
 	jmp .hlt
 
 [BITS 64]
+[extern prep_tls]
 start64:
 	mov dx, 0x3F8
 	mov al, '6'
 	out dx, al
 	
-	mov rsp, KSTACK_BASE+INITIAL_KSTACK_SIZE*0x1000
 	mov rax, start64_higher
 	jmp rax
 [section .initdata]
@@ -142,8 +142,23 @@ start64_higher:
 	mov es, ax
 	mov fs, ax
 	mov gs, ax
+	
+	; 5. Initialise TLS for TID0
+	; - Use a temp stack for the following function
+	mov rsp, KSTACK_BASE+0x1000+128
+	; - Pass the stack top, bottom, and TID0 pointer (null)
+	mov rdi, KSTACK_BASE+INITIAL_KSTACK_SIZE*0x1000
+	mov rsi, KSTACK_BASE+0x1000
+	mov rdx, 0
+	; - Prepare the TLS region
+	call prep_tls
+	; Switch to the real stack
+	mov rcx, s_tid0_tls_base
+	mov [rcx], rax
+	mov rsp, rax
+	
 	; 5. Set up FS/GS base for kernel
-	mov rax, TID0TLS
+	mov rax, rsp
 	mov rdx, rax
 	shr rdx, 32
 	mov ecx, 0xC0000100	; FS Base
@@ -189,6 +204,10 @@ EXPORT task_switch
 .ret:
 	RESTORE rbp, rbx, r12, r13, r14, r15
 	ret
+EXPORT thread_trampoline
+	pop rax	; 1. Pop thread root method off stack
+	mov rdi, rsp	; 2. Set RDI to the object to call
+	jmp rax	; 3. Jump to the thread root method, which should never return
 
 [section .text]
 EXPORT __morestack
@@ -342,11 +361,7 @@ EXPORT IDT
 IDTPtr:
 	dw	256*16-1
 	dq	IDT
-
-[extern tbss_top]
-EXPORT TID0TLS
-	dq tbss_top
-	times 0x70-8 db 0
-	dq KSTACK_BASE+0x1000
+EXPORT s_tid0_tls_base
+	dq	0
 
 ; vim: ft=nasm

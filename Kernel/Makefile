@@ -83,7 +83,8 @@ kernel-$(ARCH).bin: $(OBJS) Core/arch/$(ARCH)/link.ld Makefile
 	@echo [LD] -o $@
 	@$(TRIPLE)-ld -o $@ $(OBJS) $(LIBGCC) $(LINKFLAGS)
 	@objcopy $@ -F elf32-i386 $@.elf32
-	#@mcopy -i fdd.img $@.elf32 ::/ -D o
+#	@mcopy -i fdd.img $@.elf32 ::/ -D o
+	@echo "[OBJDUMP] >" $@.dsm
 	@objdump -C -S $@ > $@.dsm
 	@echo "BUILDNUM := $$(( $(BUILDNUM) + 1 ))" > BuildNum.$(ARCH).mk
 

@@ -217,7 +217,7 @@ impl IOBinding
 			::arch::x86_io::outb(base + ofs as u16, val);
 			},
 		IOBinding::Memory(ref h) => {
-			*h.as_ref::<u8>(ofs) = val;
+			*h.as_mut::<u8>(ofs) = val;
 			},
 		}
 	}
@@ -231,7 +231,7 @@ impl IOBinding
 			::arch::x86_io::outl(base + ofs as u16, val);
 			},
 		IOBinding::Memory(ref h) => {
-			*h.as_ref::<u32>(ofs) = val;
+			*h.as_mut::<u32>(ofs) = val;
 			},
 		}
 	}

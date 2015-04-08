@@ -50,21 +50,31 @@ struct Window
 }
 
 pub struct WindowGroupHandle(usize);
-pub struct WindowHandle(usize,usize);
+pub struct WindowHandle
+{
+	grp: usize,
+	win: usize,
+}
 
 // - 13 sessions, #0 is fixed to be the kernel's log 1-12 are bound to F1-F12
 const C_MAX_SESSIONS: usize = 13;
 // TODO: When associated statics are implemented, replace this with a non-lazy mutex.
 static S_WINDOW_GROUPS: LazyMutex<SparseVec< Arc<Mutex<WindowGroup>> >> = lazymutex_init!();
 static S_CURRENT_GROUP: ::core::atomic::AtomicUsize = ::core::atomic::ATOMIC_USIZE_INIT;
-static S_CONTROLLER: ::sync::EventChannel = ::sync::EVENTCHANNEL_INIT;
+static S_RENDER_REQUEST: ::sync::EventChannel = ::sync::EVENTCHANNEL_INIT;
+static S_RENDER_THREAD: LazyMutex<::threads::ThreadHandle> = lazymutex_init!();
+
+pub fn init()
+{
+	S_RENDER_THREAD.init( || ::threads::ThreadHandle::new("GUI Compositor", render_thread) );
+}
 
 fn render_thread()
 {
 	loop
 	{
 		// Wait for a signal to start a render
-		S_CONTROLLER.sleep();
+		S_RENDER_REQUEST.sleep();
 		
 		// render the active window group
 		let grp_idx = S_CURRENT_GROUP.load( ::core::atomic::Ordering::Relaxed );
@@ -127,16 +137,6 @@ impl WindowGroupHandle
 		// Allocate a new window from the list
 		unimplemented!();
 	}
-	
-	/// Redraw the group, if `full` is set, all windows are rebilitted, otherwise only changed windows are rendered
-	fn redraw(&self, full: bool)
-	{
-		if self.0 != S_CURRENT_GROUP.load(::core::atomic::Ordering::Relaxed) {
-			return ;
-		}
-		let h = S_WINDOW_GROUPS.lock()[self.0].clone();
-		h.lock().redraw(full);
-	}
 }
 impl ::core::ops::Drop for WindowGroupHandle
 {
@@ -157,8 +157,12 @@ impl WindowHandle
 	pub fn redraw(&mut self)
 	{
 		// if shown, mark self as requiring reblit and poke group
+		if self.grp != S_CURRENT_GROUP.load(::core::atomic::Ordering::Relaxed) {
+			return ;
+		}
 		
-		unimplemented!();
+		S_RENDER_REQUEST.post();
+		panic!("TODO: Mark window as ready for reblit");
 	}
 	
 	/// Fill an area of the window with a specific colour

@@ -34,5 +34,11 @@ where
 	}
 }
 
+extern "C" {
+	#[no_mangle]
+	/// C's `memset` function, VERY UNSAFE
+	pub fn memset(dst: *mut u8, val: u8, count: usize);
+}
+
 // vim: ft=rust
 

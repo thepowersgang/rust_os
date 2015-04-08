@@ -223,6 +223,31 @@ fn count_free_in_range(addr: *const Page, count: usize) -> usize
 	return count;
 }
 
+pub fn alloc_stack() -> AllocHandle
+{
+	let _lock = s_kernelspace_lock.lock();
+	let mut pos = addresses::STACKS_BASE;
+	while pos <= addresses::STACKS_END
+	{
+		if ! ::arch::memory::virt::is_reserved( pos as *const () )
+		{
+			let count = addresses::STACK_SIZE / ::PAGE_SIZE;
+			for ofs in (0 .. count).map(|x| x * ::PAGE_SIZE)
+			{
+				::memory::phys::allocate( (pos + ofs) as *mut () );
+			}
+			// 3. Return a handle representing this area
+			return AllocHandle {
+				addr: pos as *const _,
+				count: count,
+				mode: ProtectionMode::KernelRW,
+				};
+		}
+		pos += addresses::STACK_SIZE;
+	}
+	panic!("ERROR: Out of stacks");
+}
+
 impl fmt::Display for MapError
 {
 	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result
@@ -237,7 +262,11 @@ impl fmt::Display for MapError
 
 impl AllocHandle
 {
-	pub fn as_ref<'s,T>(&'s self, ofs: usize) -> &'s mut T
+	pub fn as_ref<'s,T>(&'s self, ofs: usize) -> &'s T
+	{
+		&self.as_slice(ofs, 1)[0]
+	}
+	pub fn as_mut<'s,T>(&'s self, ofs: usize) -> &'s mut T
 	{
 		&mut self.as_mut_slice(ofs, 1)[0]
 	}
@@ -265,7 +294,7 @@ impl AllocHandle
 	}
 	pub fn as_mut_slice<T>(&self, ofs: usize, count: usize) -> &mut [T]
 	{
-		assert!( self.mode == ProtectionMode::KernelRW );
+		assert!( self.mode == ProtectionMode::KernelRW, "Calling as_mut_slice on non-writable memory ({:?})", self.mode );
 		unsafe {
 			// Very evil, transmute the immutable slice into a mutable
 			::core::mem::transmute( self.as_slice::<T>(ofs, count) )
@@ -328,7 +357,7 @@ impl<T> ::core::ops::Index<usize> for ArrayHandle<T>
 impl<T> ::core::ops::IndexMut<usize> for ArrayHandle<T>
 {
 	fn index_mut<'a>(&'a mut self, index: usize) -> &'a mut T {
-		self.alloc.as_ref( index * ::core::mem::size_of::<T>() )
+		self.alloc.as_mut( index * ::core::mem::size_of::<T>() )
 	}
 }
 
