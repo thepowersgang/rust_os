@@ -171,8 +171,13 @@ impl ::core::ops::Deref for BorrowedThread
 
 impl WaitQueue
 {
+	pub fn new() -> WaitQueue {
+		WAITQUEUE_INIT
+	}
+	
 	/// Wait the current thread on this queue, releasng the passed lock before actually sleeping
-	pub fn wait<'a>(&mut self, lock_handle: ::arch::sync::HeldSpinlock<'a,bool>)
+	// TODO: Rewrite such that HeldSpinlock<WaitQueue> can be passed in?
+	pub fn wait<'a,T:Send>(&mut self, lock_handle: ::arch::sync::HeldSpinlock<'a,T>)
 	{
 		log_trace!("WaitQueue::wait(...)");
 		// - Prevent interrupts from firing while we mess with the thread

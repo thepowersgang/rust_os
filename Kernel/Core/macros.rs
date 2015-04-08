@@ -36,4 +36,13 @@ macro_rules! module_define
 	);
 }
 
+/// Ensure that a type implments the provided trait
+///
+/// Useful for "Send" and "Sync"
+#[macro_export]
+macro_rules! assert_trait
+{
+	($t:ty : $tr:ident) => { #[allow(warnings)] fn assert_trait<T: $tr>() { assert_trait::<$t>() } }
+}
+
 // vim: ft=rust

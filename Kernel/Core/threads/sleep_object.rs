@@ -19,6 +19,8 @@ pub struct SleepObjectRef
 	obj: *const SleepObject,
 }
 
+pub const SLEEPOBJECT_INIT: SleepObject = SleepObject { name: "", thread: None };
+
 impl SleepObject
 {
 	/// Create a new sleep object

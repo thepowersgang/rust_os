@@ -24,6 +24,8 @@ pub enum RunState
 	///// Dead, waiting to be reaped
 	//Dead(u32),
 }
+// Sendable, the objects it points to must be either boxed or 'static
+unsafe impl Send for RunState { }
 impl Default for RunState { fn default() -> RunState { RunState::Runnable } }
 
 /// Thread information
@@ -39,6 +41,7 @@ pub struct Thread
 	/// Next thread in intrusive list
 	pub next: Option<Box<Thread>>,
 }
+assert_trait!{Thread : Send}
 
 
 impl Thread

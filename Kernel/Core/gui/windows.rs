@@ -57,13 +57,14 @@ const C_MAX_SESSIONS: usize = 13;
 // TODO: When associated statics are implemented, replace this with a non-lazy mutex.
 static S_WINDOW_GROUPS: LazyMutex<SparseVec< Arc<Mutex<WindowGroup>> >> = lazymutex_init!();
 static S_CURRENT_GROUP: ::core::atomic::AtomicUsize = ::core::atomic::ATOMIC_USIZE_INIT;
+static S_CONTROLLER: ::sync::EventChannel = ::sync::EVENTCHANNEL_INIT;
 
 fn render_thread()
 {
 	loop
 	{
 		// Wait for a signal to start a render
-		//S_CONTROLLER.sleep();
+		S_CONTROLLER.sleep();
 		
 		// render the active window group
 		let grp_idx = S_CURRENT_GROUP.load( ::core::atomic::Ordering::Relaxed );

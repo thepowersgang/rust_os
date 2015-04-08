@@ -6,9 +6,12 @@
 pub use arch::sync::Spinlock;
 
 pub use sync::mutex::Mutex;
+pub use sync::event_channel::{EventChannel,EVENTCHANNEL_INIT};
 
 #[macro_use]
 pub mod mutex;
+
+pub mod event_channel;
 
 // vim: ft=rust
 
