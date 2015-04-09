@@ -85,11 +85,15 @@ impl ThreadHandle
 {
 	pub fn new<F: FnOnce()+Send>(name: &str, fcn: F) -> ThreadHandle
 	{
-		let thread = Thread::new_boxed(allocate_tid(), name);
+		let mut thread = Thread::new_boxed(allocate_tid(), name);
 		let handle = ThreadHandle {
 			block: thread.block.clone(),
 			};
-		::arch::threads::start_thread(thread, fcn);
+		::arch::threads::start_thread(&mut thread, fcn);
+		
+		// Yield to this thread
+		super::yield_to(thread);
+		
 		handle
 	}
 }

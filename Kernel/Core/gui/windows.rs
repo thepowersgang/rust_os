@@ -66,9 +66,13 @@ static S_RENDER_THREAD: LazyMutex<::threads::ThreadHandle> = lazymutex_init!();
 
 pub fn init()
 {
+	S_WINDOW_GROUPS.init( || SparseVec::new() );
+	
+	// Create render thread
 	S_RENDER_THREAD.init( || ::threads::ThreadHandle::new("GUI Compositor", render_thread) );
 }
 
+// Thread that controls compiositing windows to the screen
 fn render_thread()
 {
 	log_debug!("GUI Render Thread started");
@@ -136,7 +140,7 @@ impl WindowGroupHandle
 	
 	pub fn create_window(&mut self) -> WindowHandle {
 		// Allocate a new window from the list
-		unimplemented!();
+		panic!("TODO: WindowGroupHandle::create_window()");
 	}
 }
 impl ::core::ops::Drop for WindowGroupHandle

@@ -12,6 +12,8 @@ pub struct State
 	cr3: u64,
 	rsp: u64,
 	tlsbase: u64,
+	// Not strictly part of the CPU state, but it prevents this thread's stack from disappearing
+	stack_handle: Option< ::memory::virt::ArrayHandle<u8> >,
 	// TODO: SSE state 
 }
 
@@ -38,6 +40,7 @@ pub fn init_tid0_state() -> State
 		cr3: &InitialPML4 as *const _ as u64 - super::memory::addresses::IDENT_START as u64,
 		rsp: 0,
 		tlsbase: s_tid0_tls_base,
+		stack_handle: None,
 		}
 }
 
@@ -95,7 +98,7 @@ pub extern "C" fn prep_tls(top: usize, bottom: usize, thread_ptr: *mut ::threads
 /// Start a new thread using the provided TCB
 ///
 /// Allocates a new stack within the current address space
-pub fn start_thread<F: FnOnce()+Send>(mut thread: Box<::threads::Thread>, code: F)
+pub fn start_thread<F: FnOnce()+Send>(thread: &mut ::threads::Thread, code: F)
 {
 	let stack = ::memory::virt::alloc_stack().into_array::<u8>();;
 	
@@ -105,7 +108,7 @@ pub fn start_thread<F: FnOnce()+Send>(mut thread: Box<::threads::Thread>, code: 
 	
 	// 1. Allocate TLS block at the top of the stack
 	log_trace!("prep_tls({:#x},{:#x},{:p})", stack_top, stack_bottom, &*thread);
-	let tls_base = prep_tls(stack_top, stack_bottom, &mut *thread as *mut _);
+	let tls_base = prep_tls(stack_top, stack_bottom, thread as *mut _);
 	stack_top = tls_base;
 	
 	// 2. Populate stack with `code`
@@ -129,10 +132,10 @@ pub fn start_thread<F: FnOnce()+Send>(mut thread: Box<::threads::Thread>, code: 
 	thread.cpu_state.rsp = stack_top as u64;
 	thread.cpu_state.tlsbase = tls_base as u64;
 	thread.cpu_state.cr3 = unsafe { (*t_thread_ptr).cpu_state.cr3 };
-	
-	// 5. Switch to new thread
-	switch_to(thread);
+	thread.cpu_state.stack_handle = Some(stack);
 
+	// END: Parent function will run this thread for us
+	
 	extern "C" {
 		/// Pops the root function, and sets RDI=RSP
 		fn thread_trampoline();
@@ -167,6 +170,7 @@ pub fn switch_to(newthread: Box<::threads::Thread>)
 			//assert!(state.rsp != 0);
 			assert!(state.cr3 != 0);
 			assert!(state.tlsbase != 0);
+			log_trace!("Switching to RSP={:#x},CR3={:#x}", state.rsp, state.cr3);
 			task_switch(&mut outstate.rsp, &state.rsp, state.cr3, state.tlsbase);
 		}
 		unsafe

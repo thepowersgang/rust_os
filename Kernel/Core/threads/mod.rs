@@ -50,6 +50,13 @@ pub fn yield_time()
 	::arch::threads::idle();
 }
 
+pub fn yield_to(thread: Box<Thread>)
+{
+	log_debug!("Yielding CPU to {:?}", thread);
+	s_runnable_threads.lock().push( get_cur_thread() );
+	::arch::threads::switch_to( thread );
+}
+
 /// Pick a new thread to run and run it
 fn reschedule()
 {

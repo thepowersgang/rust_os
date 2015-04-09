@@ -50,9 +50,9 @@ pub fn init()
 		use core::fmt::Write;
 		let mut lh = S_KERNEL_LOG.lock();
 		let mut w = LogWriter::new(&mut lh);
-		write!(&mut w, "???l [] ");
+		write!(&mut w, "???l [] ").unwrap( );
 		w.set_colour(Colour::def_yellow());
-		write!(&mut w, "Hello World!");
+		write!(&mut w, "Hello World!").unwrap();
 	}
 	
 	// Populate kernel logging window with accumulated logs

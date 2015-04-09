@@ -80,13 +80,19 @@ impl<T> ::core::ops::Deref for LazyStatic<T>
 {
 	type Target = T;
 	fn deref(&self) -> &T {
-		&*self.0.as_ref().expect("Dereferencing LazyStatic without initialising")
+		match self.0 {
+		Some(ref v) => v,
+		None => panic!("Dereferencing LazyStatic<{}> without initialising", type_name!(T))
+		}
 	}
 }
 impl<T> ::core::ops::DerefMut for LazyStatic<T>
 {
 	fn deref_mut(&mut self) -> &mut T {
-		&mut *self.0.as_mut().expect("Dereferencing LazyStatic without initialising")
+		match self.0 {
+		Some(ref mut v) => v,
+		None => panic!("Dereferencing (mut) LazyStatic<{}> without initialising", type_name!(T))
+		}
 	}
 }
 
