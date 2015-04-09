@@ -52,14 +52,8 @@ ENV += TK_GITSPEC="$(shell git log -n 1 | head -n 1 | awk '{print $$2}')"
 ENV += TK_VERSION="0.1"
 ENV += TK_BUILD="$(shell hostname --fqdn):$(BUILDNUM)"
 
-ifneq ($(USE_RUST_MASTER),)
-RUSTSRC := /home/tpg/Source/rust/rust-master/
-else
-RUSTSRC := /home/tpg/Source/rust/rustc-nightly/
-endif
-#LIBCORESRC := $(RUSTSRC)src/libcore/
 LIBCORESRC := ../libcore/
-LIBGCC := /home/tpg/apps/lib/gcc/$(TRIPLE)/4.7.1/libgcc.a
+LIBGCC := $(shell $(TRIPLE)-gcc -print-libgcc-file-name)
 
 OBJS := $(OBJS:%=$(OBJDIR)%)
 

@@ -4,6 +4,7 @@
 use core::fmt::Write;
 use core::result::Result::Ok;
 use core::slice::{SliceExt};
+use core::iter::Iterator;
 
 /// Log level, ranging from a kernel panic down to tracing
 #[derive(PartialEq,PartialOrd,Copy,Clone)]
@@ -107,13 +108,36 @@ impl<'a,T:'a> ::core::fmt::Debug for HexDump<'a,T>
 {
 	fn fmt(&self, f: &mut ::core::fmt::Formatter) -> ::core::fmt::Result
 	{
-		for i in self.byteslice().iter()
+		for (idx,v) in self.byteslice().iter().enumerate()
 		{
-			try!(write!(f, "{:02x} ", *i));
+			try!(write!(f, "{:02x} ", *v));
+			if idx % 16 == 15 {
+				try!(write!(f, "| "));
+			}
 		}
 		Ok( () )
 	}
 }
+
+//pub fn hex_dump_block(label: &str, data: &[u8])
+//{
+//	let mut pos = 0;
+//	while pos + 16 <= data.len()
+//	{
+//		log_debug!("{} {:p}: {:?}  {:?}", label, &data[pos], HexDump(&data[pos .. pos+8]), HexDump(&data[pos+8 .. pos+16]));
+//	}
+//	if pos == data.len()
+//	{
+//	}
+//	else if pos + 8 >= data.len()
+//	{
+//		//log_debug!("{} {:p}: {:?}", label, &data[pos], HexDump(&data[pos ..]));
+//	}
+//	else
+//	{
+//		//log_debug!("{} {:p}: {:?}  {:?}", label, &data[pos], HexDump(&data[pos .. pos+8]), HexDump(&data[pos+8 ..]));
+//	}
+//}
 
 #[doc(hidden)]
 /// Returns true if the passed combination of module and level is enabled

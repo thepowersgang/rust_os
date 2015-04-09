@@ -71,6 +71,7 @@ pub fn init()
 
 fn render_thread()
 {
+	log_debug!("GUI Render Thread started");
 	loop
 	{
 		// Wait for a signal to start a render

@@ -20,18 +20,18 @@ pub mod addresses
 	pub const HEAP_START:     usize = 0xFFFF8000_00000000;
 	/// End of the kernel heap
 	pub const HEAP_END:       usize = 0xFFFF9000_00000000;
+	/// Start of the kernel module load area
+	pub const MODULES_BASE:   usize = HEAP_END;
+	/// End of the kernel module load area
+	pub const MODULES_END:    usize = 0xFFFFA000_00000000;
 	/// Start of the stacks region
-	pub const STACKS_BASE:    usize = HEAP_END;
+	pub const STACKS_BASE:    usize = MODULES_END;
 	/// End of the stacks region
-	pub const STACKS_END:     usize = 0xFFFFA000_00000000;
+	pub const STACKS_END:     usize = 0xFFFFB000_00000000;
 	/// Start of the hardware mapping region
 	pub const HARDWARE_BASE:  usize = STACKS_END;
 	/// End of the hardware mapping region
-	pub const HARDWARE_END:   usize = 0xFFFFB000_00000000;
-	/// Start of the kernel module load area
-	pub const MODULES_BASE:   usize = HARDWARE_END;
-	/// End of the kernel module load area
-	pub const MODULES_END:    usize = 0xFFFFC000_00000000;
+	pub const HARDWARE_END:   usize = 0xFFFFC000_00000000;
 	
 	pub const STACK_SIZE: usize = 0x4000;
 	

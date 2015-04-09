@@ -227,9 +227,9 @@ pub fn alloc_stack() -> AllocHandle
 {
 	let _lock = s_kernelspace_lock.lock();
 	let mut pos = addresses::STACKS_BASE;
-	while pos <= addresses::STACKS_END
+	while pos < addresses::STACKS_END
 	{
-		if ! ::arch::memory::virt::is_reserved( pos as *const () )
+		if ! ::arch::memory::virt::is_reserved( (pos + addresses::STACK_SIZE - ::PAGE_SIZE) as *const () )
 		{
 			let count = addresses::STACK_SIZE / ::PAGE_SIZE;
 			for ofs in (0 .. count).map(|x| x * ::PAGE_SIZE)

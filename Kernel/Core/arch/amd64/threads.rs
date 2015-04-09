@@ -89,12 +89,15 @@ pub extern "C" fn prep_tls(top: usize, bottom: usize, thread_ptr: *mut ::threads
 	tls_base
 }
 
-/// Start a thread given the 
+/// Start a new thread using the provided TCB
+///
+/// Allocates a new stack within the current address space
 pub fn start_thread<F: FnOnce()+Send>(mut thread: Box<::threads::Thread>, code: F)
 {
 	let stack = ::memory::virt::alloc_stack().into_array::<u8>();;
 	
-	let mut stack_top = &stack[stack.len()-1] as *const _ as usize + 1;
+	let stack_rgn_top = &stack[stack.len()-1] as *const _ as usize + 1;
+	let mut stack_top = stack_rgn_top;
 	let stack_bottom = &stack[0] as *const _ as usize;
 	
 	// 1. Allocate TLS block at the top of the stack
@@ -111,11 +114,17 @@ pub fn start_thread<F: FnOnce()+Send>(mut thread: Box<::threads::Thread>, code: 
 	}
 
 	extern "C" {
+		/// Pops the root function, and sets RDI=RSP
 		fn thread_trampoline();
 	}
-	fn thread_root<F: FnOnce()+Send>(code: F) -> ! {
-		panic!("TODO: Implement start_thread::thread_root ({})", type_name!(F));
-		unimplemented!();
+	fn thread_root<F: FnOnce()+Send>(code_ptr: *const F) -> ! {
+		// Copy the closure locally
+		// - TODO: Find a way that avoids needing to make this unnessesary copy. By-value FnOnce is kinda undefined, sadly
+		let code = unsafe { ::core::ptr::read(code_ptr) };
+		// 1. Run closure
+		code();
+		// 2. terminate thread
+		panic!("TODO: Terminate thread at end of thread_root");
 	}
 	
 	// 3. Populate stack with trampoline state
@@ -127,9 +136,17 @@ pub fn start_thread<F: FnOnce()+Send>(mut thread: Box<::threads::Thread>, code: 
 		::core::ptr::write(stack_top as *mut u64, thread_trampoline as usize as u64);
 	}
 	
+	unsafe {
+		//::logging::hex_dump( ::core::slice::from_raw_parts(stack_top as *const u8, stack_rgn_top - stack_top) );
+		log_debug!("- stack_top = {:#x}, size = {}", stack_top, stack_rgn_top - stack_top);
+		log_debug!("- stack = {:?}", ::logging::HexDump(&*(stack_top as *const [u8; 160])));
+		log_debug!("- stack = [{:x}]", &(*(stack_top as *const [u64; 160/8]))[..]);
+	}
+	
 	// 4. Apply newly updated state
 	thread.cpu_state.rsp = stack_top as u64;
 	thread.cpu_state.tlsbase = tls_base as u64;
+	thread.cpu_state.cr3 = unsafe { (*t_thread_ptr).cpu_state.cr3 };
 	
 	// 5. Switch to new thread
 	switch_to(thread);
