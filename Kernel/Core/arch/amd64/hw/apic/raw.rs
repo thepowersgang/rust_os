@@ -118,9 +118,16 @@ impl LAPIC
 			};
 		log_debug!("oldaddr = {:#x}", oldaddr);
 		let is_bsp = oldaddr & 0x100;
-		for i in (0 .. 8) {
-			log_debug!("IRR{} = {:#x}", i, self.read_reg(ApicReg::irr(i)));
-		}
+		log_debug!("IRR[0..8] = [{:#x}, {:#x}, {:#x}, {:#x},  {:#x}, {:#x}, {:#x}, {:#x}]",
+			self.read_reg(ApicReg::irr(0)),
+			self.read_reg(ApicReg::irr(1)),
+			self.read_reg(ApicReg::irr(2)),
+			self.read_reg(ApicReg::irr(3)),
+			self.read_reg(ApicReg::irr(4)),
+			self.read_reg(ApicReg::irr(5)),
+			self.read_reg(ApicReg::irr(6)),
+			self.read_reg(ApicReg::irr(7))
+			);
 		
 		//self.write_reg(ApicReg::SIR as usize, self.read_reg(ApicReg_SIR as usize) | (1 << 8));
 		self.write_reg(ApicReg::SIR, 0x7F | (1 << 8));	// Enable LAPIC (and set Spurious to 127)
