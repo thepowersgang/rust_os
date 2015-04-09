@@ -16,7 +16,7 @@ pub struct State
 }
 
 extern "C" {
-	static low_InitialPML4: ();
+	static InitialPML4: ();
 	static v_ktls_size: ();
 	static v_t_thread_ptr_ofs: ();
 	static s_tid0_tls_base: u64;
@@ -35,7 +35,7 @@ static mut t_thread_ptr_sent: bool = false;
 pub fn init_tid0_state() -> State
 {
 	State {
-		cr3: &low_InitialPML4 as *const _ as u64,
+		cr3: &InitialPML4 as *const _ as u64 - super::memory::addresses::IDENT_START as u64,
 		rsp: 0,
 		tlsbase: s_tid0_tls_base,
 		}
