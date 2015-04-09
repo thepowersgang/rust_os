@@ -57,23 +57,24 @@ LIBGCC := $(shell $(TRIPLE)-gcc -print-libgcc-file-name)
 
 OBJS := $(OBJS:%=$(OBJDIR)%)
 
-all: kernel-$(ARCH).bin
+all: bin/kernel-$(ARCH).bin
 
 clean:
 	rm -r $(OBJDIR)
 
 pretty:
-	$V$(ENV) rustc -Z unstable-options --pretty expanded $(RUSTFLAGS) -o kernel-$(ARCH).exp_rs Core/main.rs $(call LocalLib,core)
+	$V$(ENV) rustc -Z unstable-options --pretty expanded $(RUSTFLAGS) -o bin/kernel-$(ARCH).exp_rs Core/main.rs $(call LocalLib,core)
 
 docs:
 	@mkdir -p doc/Kernel
 	$V$(ENV) rustdoc -o doc/Kernel Core/main.rs --cfg arch__amd64
 	@chmod +rX doc/ -R 
 
-run: kernel-$(ARCH).bin
-	./RunQemuPXE $<.elf32 ""
+run: bin/kernel-$(ARCH).bin
+	cd rundir && ./RunQemuPXE ../$<.elf32 ""
 
-kernel-$(ARCH).bin: $(OBJS) Core/arch/$(ARCH)/link.ld Makefile
+bin/kernel-$(ARCH).bin: $(OBJS) Core/arch/$(ARCH)/link.ld Makefile
+	@mkdir -p bin/
 	@echo [LD] -o $@
 	@$(TRIPLE)-ld -o $@ $(OBJS) $(LIBGCC) $(LINKFLAGS)
 	@objcopy $@ -F elf32-i386 $@.elf32

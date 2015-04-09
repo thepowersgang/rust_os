@@ -7,13 +7,15 @@
 *.dsm
 
 Kernel/*.exp_rs
-Kernel/doc
 Kernel/fdd.img
-Kernel/bochsout.txt
-Kernel/bochsdbg.txt
-Kernel/serial.txt
-Kernel/QemuLog.txt
-Kernel/gitstats
 Kernel/BuildNum.*.mk
-Kernel/qemu_trace
-Kernel/qemu_int_log.txt
+Kernel/doc
+Kernel/bin
+Kernel/gitstats
+
+Kernel/rundir/bochsout.txt
+Kernel/rundir/bochsdbg.txt
+Kernel/rundir/serial.txt
+Kernel/rundir/QemuLog.txt
+Kernel/rundir/qemu_trace
+Kernel/rundir/qemu_int_log.txt

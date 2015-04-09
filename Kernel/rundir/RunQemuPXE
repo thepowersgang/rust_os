@@ -10,7 +10,7 @@ cp $IMAGE .pxe
 echo "default testkern" >> .pxe/pxelinux.cfg/default
 echo "label testkern" >> .pxe/pxelinux.cfg/default
 echo "	kernel mboot.c32" >> .pxe/pxelinux.cfg/default
-echo "	append $IMAGE $ARGS" >> .pxe/pxelinux.cfg/default
+echo "	append ${IMAGE##*/} $ARGS" >> .pxe/pxelinux.cfg/default
 
 echo "" > .qemu_trace
 echo "apic_deliver_irq" >> .qemu_trace
