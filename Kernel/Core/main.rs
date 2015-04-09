@@ -113,8 +113,9 @@ pub extern "C" fn kmain()
 	let vidmode = ::arch::boot::get_video_mode();
 	match vidmode {
 	Some(m) => {
-		log_debug!("Video mode : {}x{} @ {:#x}", m.width, m.height, m.base)
+		log_debug!("Video mode : {}x{} @ {:#x}", m.width, m.height, m.base);
 		// TODO: Create a binding for metadevs::video to handle this mode
+		::hw::bootvideo::register(m);
 		},
 	None => log_debug!("No video mode present")
 	}

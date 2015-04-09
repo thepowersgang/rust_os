@@ -15,7 +15,7 @@ pub enum VideoFormat
 	R5G6B5,
 }
 
-#[derive(Copy,Clone,Debug)]
+#[derive(Copy,Clone)]
 pub struct VideoMode
 {
 	pub width: u16,
@@ -24,7 +24,7 @@ pub struct VideoMode
 	pub pitch: usize,
 	pub base: ::arch::memory::PAddr,
 }
-
+impl_fmt!{ Debug(self,f) for VideoMode { write!(f, "VideoMode {{ {}x{} {:?} {}b @ {:#x} }}", self.width, self.height, self.fmt, self.pitch, self.base) } }
 
 
 fn init()
