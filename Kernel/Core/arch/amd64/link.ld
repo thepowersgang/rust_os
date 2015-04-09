@@ -55,6 +55,7 @@ SECTIONS {
 		tbss_start = .;
 		*(.tbss)
 		*(.tbss.*)
+		. = ALIGN(16);
 		tbss_end = .;
 	}
 	v_ktls_size = tbss_end - tbss_start;

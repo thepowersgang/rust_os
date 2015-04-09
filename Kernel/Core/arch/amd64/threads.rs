@@ -52,7 +52,6 @@ pub fn idle()
 }
 
 /// Prepares the TLS block at the stop of a kernel stack
-#[no_stack_check]
 #[no_mangle]
 pub extern "C" fn prep_tls(top: usize, bottom: usize, thread_ptr: *mut ::threads::Thread) -> usize
 {
@@ -61,15 +60,19 @@ pub extern "C" fn prep_tls(top: usize, bottom: usize, thread_ptr: *mut ::threads
 	
 	let mut pos = top;
 	
+	// 1. Create the TLS data block
 	let tlsblock_top = pos;
 	pos -= tls_size;
 	let tlsblock = pos;
 	// - Populate the TLS data area from the template
+	//  > Also set the thread pointer
 	unsafe {
+		assert!( t_thread_ptr_ofs + 8 < tls_size );
 		::lib::mem::memset(tlsblock as *mut u8, 0, tls_size);
 		::core::ptr::write( (tlsblock + t_thread_ptr_ofs) as *mut *mut ::threads::Thread, thread_ptr );
 	}
 	
+	// 2. Create the TLS pointer region (i.e. the stuff right behind %fs:0)
 	#[repr(C)]
 	struct TlsPtrArea
 	{
@@ -112,6 +115,23 @@ pub fn start_thread<F: FnOnce()+Send>(mut thread: Box<::threads::Thread>, code: 
 	unsafe {
 		::core::ptr::write(code_ptr as *mut F, code);
 	}
+	
+	// 3. Populate stack with trampoline state
+	// - All that is needed is to push the trampoline address (it handles calling the rust code)
+	unsafe {
+		stack_top -= 8;
+		::core::ptr::write(stack_top as *mut u64, thread_root::<F> as usize as u64);
+		stack_top -= 8;
+		::core::ptr::write(stack_top as *mut u64, thread_trampoline as usize as u64);
+	}
+	
+	// 4. Apply newly updated state
+	thread.cpu_state.rsp = stack_top as u64;
+	thread.cpu_state.tlsbase = tls_base as u64;
+	thread.cpu_state.cr3 = unsafe { (*t_thread_ptr).cpu_state.cr3 };
+	
+	// 5. Switch to new thread
+	switch_to(thread);
 
 	extern "C" {
 		/// Pops the root function, and sets RDI=RSP
@@ -126,30 +146,6 @@ pub fn start_thread<F: FnOnce()+Send>(mut thread: Box<::threads::Thread>, code: 
 		// 2. terminate thread
 		panic!("TODO: Terminate thread at end of thread_root");
 	}
-	
-	// 3. Populate stack with trampoline state
-	// - All that is needed is to push the trampoline address (it handles calling the rust code)
-	unsafe {
-		stack_top -= 8;
-		::core::ptr::write(stack_top as *mut u64, thread_root::<F> as usize as u64);
-		stack_top -= 8;
-		::core::ptr::write(stack_top as *mut u64, thread_trampoline as usize as u64);
-	}
-	
-	unsafe {
-		//::logging::hex_dump( ::core::slice::from_raw_parts(stack_top as *const u8, stack_rgn_top - stack_top) );
-		log_debug!("- stack_top = {:#x}, size = {}", stack_top, stack_rgn_top - stack_top);
-		log_debug!("- stack = {:?}", ::logging::HexDump(&*(stack_top as *const [u8; 160])));
-		log_debug!("- stack = [{:x}]", &(*(stack_top as *const [u64; 160/8]))[..]);
-	}
-	
-	// 4. Apply newly updated state
-	thread.cpu_state.rsp = stack_top as u64;
-	thread.cpu_state.tlsbase = tls_base as u64;
-	thread.cpu_state.cr3 = unsafe { (*t_thread_ptr).cpu_state.cr3 };
-	
-	// 5. Switch to new thread
-	switch_to(thread);
 }
 
 /// Switch to the passed thread (suspending the current thread until it is rescheduled)

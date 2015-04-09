@@ -145,7 +145,17 @@ start64_higher:
 	
 	; 5. Initialise TLS for TID0
 	; - Use a temp stack for the following function
-	mov rsp, KSTACK_BASE+0x1000+128
+	mov rsp, KSTACK_BASE+0x1000+1024
+	mov rax, KSTACK_BASE+0x1000
+	mov [rsp+14*8], rax
+	; - And a temp TLS
+	mov rax, rsp
+	mov rdx, rax
+	shr rdx, 32
+	mov ecx, 0xC0000100	; FS Base
+	wrmsr
+	mov ecx, 0xC0000101	; GS Base
+	wrmsr
 	; - Pass the stack top, bottom, and TID0 pointer (null)
 	mov rdi, KSTACK_BASE+INITIAL_KSTACK_SIZE*0x1000
 	mov rsi, KSTACK_BASE+0x1000
