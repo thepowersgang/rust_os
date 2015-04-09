@@ -194,7 +194,7 @@ impl<T> ops::Drop for Vec<T>
 {
 	fn drop(&mut self)
 	{
-		log_debug!("Vec::drop() - Dropping vector at {:p} w/ {} ents", *self.data, self.size);
+		log_debug!("Vec::<{}>::drop() - {:p} w/ {} ents", type_name!(T), *self.data, self.size);
 		unsafe {
 			for i in (0 .. self.size) {
 				::core::mem::drop( ::core::ptr::read(self.get_mut_ptr(i) as *const T) );
