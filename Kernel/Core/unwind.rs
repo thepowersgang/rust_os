@@ -61,7 +61,8 @@ pub extern "C" fn rust_begin_unwind(msg: ::core::fmt::Arguments, file: &'static 
 	::arch::puts("\nERROR: rust_begin_unwind\n");
 	::arch::print_backtrace();
 	//log_debug!("msg={:?} file={:?} line={}", ::logging::HexDump(&msg), ::logging::HexDump(&file), line);
-	log_panic!("rust_begin_unwind(file=\"{}\", line={}, msg=\"{:?}\")", file, line, msg);
+	//log_panic!("rust_begin_unwind(file=\"{}\", line={}, msg=\"{:?}\")", file, line, msg);
+	log_panic!("{}:{}: Panicked \"{:?}\")", file, line, msg);
 	/*
 	unsafe {
 		let ex = box Exception {

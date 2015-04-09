@@ -28,6 +28,16 @@ pub enum Level
 	LevelTrace,
 }
 
+pub enum Colour
+{
+	Default,
+	Red,
+	Yellow,
+	Green,
+	Blue,
+	Purple,
+}
+
 #[doc(hidden)]
 pub struct LoggingFormatter
 {
@@ -71,6 +81,18 @@ impl LoggingFormatter
 			_lock_handle: s_logging_lock.lock()
 		}
 	}
+	
+	pub fn set_colour(&self, colour: Colour) {
+		match colour
+		{
+		Colour::Default => ::arch::puts("\x1b[0m"),
+		Colour::Red     => ::arch::puts("\x1b[31m"),
+		Colour::Green   => ::arch::puts("\x1b[32m"),
+		Colour::Yellow  => ::arch::puts("\x1b[33m"),
+		Colour::Blue    => ::arch::puts("\x1b[34m"),
+		Colour::Purple  => ::arch::puts("\x1b[35m"),
+		}
+	}
 }
 
 impl ::core::fmt::Write for LoggingFormatter
@@ -85,7 +107,7 @@ impl ::core::ops::Drop for LoggingFormatter
 {
 	fn drop(&mut self)
 	{
-		::arch::puts("\n");
+		::arch::puts("\x1b[0m\n");
 	}
 }
 
@@ -156,6 +178,13 @@ pub fn getstream(level: Level, modname: &str) -> LoggingFormatter
 {
 	assert!( enabled(level, modname) );
 	let mut rv = LoggingFormatter::new();
+	rv.set_colour(match level {
+		Level::LevelPanic   => Colour::Purple,
+		Level::LevelError   => Colour::Red,
+		Level::LevelWarning => Colour::Yellow,
+		Level::LevelNotice  => Colour::Green,
+		_ => Colour::Default,
+		});
 	let _ = write!(&mut rv, "{:8}{} [{:6}] - ", ::time::ticks(), level, modname);
 	rv
 }
