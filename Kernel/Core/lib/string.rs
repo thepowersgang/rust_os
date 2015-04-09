@@ -47,6 +47,11 @@ impl String
 	}
 }
 
+impl ::core::default::Default for String
+{
+	fn default() -> String { String::new() }
+}
+
 impl ::core::fmt::Write for String
 {
 	fn write_str(&mut self, s: &str) -> ::core::fmt::Result

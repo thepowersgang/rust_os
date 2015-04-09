@@ -186,7 +186,7 @@ pub fn get_thread_ptr() -> Option<Box<::threads::Thread>>
 {
 	unsafe {
 		assert!( !t_thread_ptr.is_null() );
-		assert!( !t_thread_ptr_sent );
+		assert!( !t_thread_ptr_sent, "Thread {:?} already has its pointer lent", *t_thread_ptr );
 		t_thread_ptr_sent = true;
 		::core::mem::transmute( t_thread_ptr )
 	}
@@ -197,7 +197,7 @@ pub fn set_thread_ptr(ptr: Box<::threads::Thread>)
 	unsafe {
 		let ptr: *mut _ = ::core::mem::transmute(ptr);
 		if t_thread_ptr == ptr {
-			assert!( !t_thread_ptr_sent );
+			assert!( t_thread_ptr_sent, "Thread {:?}'s pointer received, but not lent", *t_thread_ptr );
 			t_thread_ptr_sent = false;
 		}
 		else {

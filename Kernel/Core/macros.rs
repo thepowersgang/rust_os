@@ -52,4 +52,18 @@ macro_rules! type_name
 	($t:ty) => ( unsafe { ::core::intrinsics::type_name::<$t>() } )
 }
 
+
+/// Provides a less boiler-plate way to implement fmt traits for simple types
+macro_rules! impl_fmt
+{
+	( $( $tr:ident ($s:ident, $f:ident) for $ty:ty { $code:expr } )+ ) => { $(
+		impl ::core::fmt::$tr for $ty {
+			fn fmt(&$s, $f: &mut ::core::fmt::Formatter) -> ::core::fmt::Result {
+				$code
+			}
+		}
+		)+
+		}
+}
+
 // vim: ft=rust

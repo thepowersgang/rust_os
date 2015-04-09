@@ -11,6 +11,8 @@ pub use sync::event_channel::{EventChannel,EVENTCHANNEL_INIT};
 #[macro_use]
 pub mod mutex;
 
+pub mod rwlock;
+
 pub mod event_channel;
 
 // vim: ft=rust

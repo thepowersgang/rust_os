@@ -149,6 +149,11 @@ impl<T> Vec<T>
 	}
 }
 
+impl<T> ::core::default::Default for Vec<T>
+{
+	fn default() -> Vec<T> { Vec::new() }
+}
+
 impl<T> ops::Deref for Vec<T>
 {
 	type Target = [T];

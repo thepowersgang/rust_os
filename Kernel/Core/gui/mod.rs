@@ -45,17 +45,23 @@ mod windows;
 mod kernel_log;
 
 /// Dimensions : Width/Height
-#[derive(Copy,Clone,Debug)]
+#[derive(Copy,Clone,Debug,Default)]
 struct Dims(u32,u32);	// W, H
 /// Position : X/Y
-#[derive(Copy,Clone,Debug)]
+#[derive(Copy,Clone,Debug,Default)]
 struct Pos(i32,i32);
 /// A generic rectangle
 #[derive(Copy,Clone,Debug)]
 struct Rect(Pos,Dims);
 /// Pixel colour
-#[derive(Copy,Clone,Debug)]
+#[derive(Copy,Clone)]
 struct Colour(u32);
+
+impl Dims
+{
+	pub fn width (&self) -> u32 { self.0 }
+	pub fn height(&self) -> u32 { self.1 }
+}
 
 impl Rect
 {
@@ -66,6 +72,11 @@ impl Rect
 		Pos( self.pos().0 + self.dim().0 as i32, self.pos().1 + self.dim().1 as i32 )
 	}
 	pub fn dim(&self) -> Dims { self.1 }
+	
+	pub fn top(&self) -> i32 { self.0 .1 }
+	pub fn left(&self) -> i32 { self.0 .0 }
+	pub fn right(&self) -> i32 { self.0 .0 + self.dim().width() as i32 }
+	pub fn bottom(&self) -> i32 { self.0 .1 + self.dim().height() as i32 }
 	
 	pub fn intersect(&self, other: &Rect) -> Option<Rect> {
 		// Intersection:
@@ -126,11 +137,16 @@ impl<'a> Iterator for RectListIntersect<'a>
 	}
 }
 
+impl_fmt!{
+	Debug(self, f) for Colour { write!(f, "Colour({:06x})", self.0) }
+}
 impl Colour
 {
 	pub fn def_black() -> Colour { Colour(0x00_00_00) }
 	pub fn def_white() -> Colour { Colour(0xFF_FF_FF) }
 	
 	pub fn def_yellow() -> Colour { Colour(0xFF_FF_00) }
+	
+	pub fn as_argb32(&self) -> u32 { self.0 }
 }
 
