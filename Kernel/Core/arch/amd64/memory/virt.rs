@@ -88,13 +88,13 @@ unsafe fn get_page_ent(addr: usize, from_temp: bool, allocate: bool, large_ok: b
 	let ent = get_entry(3, pagenum >> (9*3), allocate);
 	// 1. Walk down page tables from PML4
 	if !ent.is_present() {
-		log_trace!("get_page_ent(addr={:#x}, ...) PML4 Ent {} absent", addr, pagenum >> (9*3));
+		//log_trace!("get_page_ent(addr={:#x}, ...) PML4 Ent {} absent", addr, pagenum >> (9*3));
 		return PTE::null();
 	}
 
 	let ent = get_entry(2, pagenum >> (9*2), allocate);
 	if !ent.is_present() {
-		log_trace!("get_page_ent(addr={:#x}, ...) PDPT Ent {} absent", addr, pagenum >> (9*2));
+		//log_trace!("get_page_ent(addr={:#x}, ...) PDPT Ent {} absent", addr, pagenum >> (9*2));
 		return PTE::null();
 	}
 	if ent.is_large() {
@@ -103,7 +103,7 @@ unsafe fn get_page_ent(addr: usize, from_temp: bool, allocate: bool, large_ok: b
 
 	let ent = get_entry(1, pagenum >> (9*1), allocate);
 	if !ent.is_present() {
-		log_trace!("get_page_ent(addr={:#x}, ...) PD Ent {} absent", addr, pagenum >> (9*1));
+		//log_trace!("get_page_ent(addr={:#x}, ...) PD Ent {} absent", addr, pagenum >> (9*1));
 		return PTE::null();
 	}
 	if ent.is_large() {

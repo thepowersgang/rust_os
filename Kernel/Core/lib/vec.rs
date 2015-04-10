@@ -79,10 +79,10 @@ impl<T> Vec<T>
 
 	pub fn clear(&mut self)
 	{
-		
+		unimplemented!();
 	}
 	
-	fn reserve(&mut self, size: usize)
+	fn reserve_cap(&mut self, size: usize)
 	{
 		let newcap = ::lib::num::round_up(size, 1 << (64-size.leading_zeros()));
 		if newcap > self.capacity
@@ -96,10 +96,15 @@ impl<T> Vec<T>
 				if self.capacity > 0 {
 					::memory::heap::dealloc_array( *self.data, self.capacity );
 				}
+				log_debug!("Vec<{}>::reserve_cap({}): newcap={},newptr={:p}", type_name!(T), size, newcap, newptr);
 				self.data = Unique::new(newptr);
 				self.capacity = newcap;
 			}
 		}
+	}
+	pub fn reserve(&mut self, extras: usize) {
+		let newcap = self.size + extras;
+		self.reserve_cap(newcap);
 	}
 	
 	pub fn slice_mut<'a>(&'a mut self) -> &'a mut [T]
@@ -118,7 +123,7 @@ impl<T> Vec<T>
 	{
 		// Expand by one element
 		let ns = self.size + 1;
-		self.reserve(ns);
+		self.reserve_cap(ns);
 		self.size = ns;
 		unsafe
 		{
@@ -144,6 +149,33 @@ impl<T> Vec<T>
 					::core::mem::drop( ::core::ptr::read(self.get_mut_ptr(i) as *const T) );
 				}
 				self.size = newsize;
+			}
+		}
+	}
+}
+
+#[macro_export]
+macro_rules! vec
+{
+	($( $v:expr ),*) => ({
+		let mut v = $crate::lib::Vec::new();
+		v.reserve( _count!( $($v),* ) );
+		$( v.push($v); )*
+		v
+		});
+}
+
+impl<T: Clone> Vec<T>
+{
+	pub fn resize(&mut self, new_len: usize, value: T)
+	{
+		if self.len() > new_len {
+			self.truncate(new_len);
+		}
+		else {
+			self.reserve_cap(new_len);
+			for _ in self.size .. new_len {
+				self.push(value.clone());
 			}
 		}
 	}
@@ -182,8 +214,7 @@ impl<T:Clone> Vec<T>
 	
 	pub fn push_all(&mut self, other: &[T])
 	{
-		let newlen = self.size + other.len();
-		self.reserve(newlen);
+		self.reserve(other.len());
 		for v in other.iter() {
 			self.push(v.clone());
 		}
@@ -248,7 +279,7 @@ impl<T> MutableSeq<T> for Vec<T>
 	fn push(&mut self, t: T)
 	{
 		let pos = self.size;
-		self.reserve(pos + 1);
+		self.reserve(1);
 		self.size += 1;
 		let ptr = self.get_mut_ptr(pos);
 		//log_debug!("Vec.push {}", HexDump(&t));
@@ -279,7 +310,7 @@ impl<T> FromIterator<T> for Vec<T>
 		let mut ret = Vec::new();
 		if let (_, Some(size)) = iterator.size_hint()
 		{
-			ret.reserve(size);
+			ret.reserve_cap(size);
 		}
 		for val in iterator
 		{

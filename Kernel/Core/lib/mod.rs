@@ -21,6 +21,7 @@ pub mod borrow;
 pub mod mem;
 #[macro_use]
 pub mod queue;
+#[macro_use]
 pub mod vec;
 pub mod sparse_vec;
 

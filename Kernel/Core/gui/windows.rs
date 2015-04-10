@@ -115,7 +115,7 @@ impl WindowGroup
 			// 1. Is the window dirty, or are we doing a full redraw
 			if full || win.is_dirty()
 			{
-				static FULL_RECT: [Rect; 1] = [Rect(Pos(0,0),Dims(!0,!0))];
+				static FULL_RECT: [Rect; 1] = [Rect { pos: Pos {x:0,y:0},dims: Dims{w:!0,h:!0}}];
 				
 				// 2. Obtain the visible sections of this window that have changed
 				// - Switch the dirty rect out with an empty Vec
@@ -131,18 +131,65 @@ impl WindowGroup
 			}
 		}
 	}
-	
-	// Called by Window::show, adds to render order and calculates visibility
-	// TODO: Support visibility layers (normal, top, bottom)
-	fn show_window(&mut self, idx: usize)
-	{
-		unimplemented!();
+
+	fn get_render_idx(&self, winidx: usize) -> Option<usize> {
+		self.render_order.iter().map(|x| x.0).enumerate().find(|&(_, idx)| idx == winidx).map(|(p,_)| p)
 	}
-	
+		
 	/// Recalculate the cached visibility regions caused by 'changed_idx' updating
 	fn recalc_vis(&mut self, changed_idx: usize)
 	{
-		unimplemented!();
+		// Changed visibility only affects this window and lower windows.
+		if let Some(idx) = self.get_render_idx(changed_idx)
+		{
+			self.recalc_vis_int(idx);
+		}
+	}
+	fn recalc_vis_int(&mut self, vis_idx: usize)
+	{
+		// For each window this one and below
+		for i in (0 .. vis_idx+1).rev()
+		{
+			// Iterate all higher windows and obtain visible rects
+			// - NOTE This visibility vector could get large...
+			for &(win,_) in &self.render_order[ i+1 .. ]
+			{
+				todo!("WindowGroup::recalc_vis_int(vis_idx={})", vis_idx);
+			}
+		}
+	}
+	
+	fn show_window(&mut self, idx: usize) {
+		if self.get_render_idx(idx).is_some() {
+			return ;
+		}
+		let rect = Rect { pos: self.windows[idx].0, dims: self.windows[idx].1.buf.read().dims };
+		self.render_order.push( (idx, vec![rect]) );
+		let vis_idx = self.render_order.len() - 1;
+		self.recalc_vis_int(vis_idx);
+	}
+	fn hide_window(&mut self, idx: usize) {
+		if let Some(pos) = self.get_render_idx(idx)
+		{
+			todo!("WindowGroup::hide_window({}) - pos={}", idx, pos);
+		}
+	}
+	
+	fn maximise_window(&mut self, idx: usize) {
+		{
+			let &mut(ref mut pos, ref win_rc) = &mut self.windows[idx];
+			let rect = match ::metadevs::video::get_display_for_pos(*pos)
+				{
+				Some(x) => x,
+				None => todo!("Handle window being off-screen"),
+				};
+			// - Move window to new position
+			*pos = rect.pos();
+			// - Resize window
+			win_rc.resize(rect.dims());
+		}
+		// Recalculate visible regions
+		self.recalc_vis(idx);
 	}
 }
 
@@ -190,13 +237,17 @@ impl WinBuf
 {
 	fn resize(&mut self, newsize: Dims)
 	{
-		unimplemented!();
+		log_trace!("WinBuf::resize({:?})", newsize);
+		let px_count = newsize.width() as usize * newsize.height() as usize;
+		log_trace!("- px_count = {}", px_count);
+		self.dims = newsize;
+		self.data.resize(px_count, 0);
 	}
 	
 	fn scanline_rgn(&self, line: usize, ofs: usize, len: usize) -> &[u32]
 	{
 		assert!(ofs < self.dims.width() as usize);
-		assert!(line < self.dims.1 as usize, "Requested scanline is out of range");
+		assert!(line < self.dims.h as usize, "Requested scanline is out of range");
 		
 		let pitch_32 = self.dims.width() as usize;
 		let len = ::core::cmp::max(len, pitch_32 - ofs);
@@ -214,7 +265,7 @@ impl WinBuf
 				winpos,
 				row as usize,
 				rgn.left() as usize,
-				rgn.dim().width() as usize
+				rgn.dims().width() as usize
 				);
 		}
 	}
@@ -223,9 +274,9 @@ impl WinBuf
 	{
 		// TODO: Assert that current thread is from/controlled-by the compositor
 		unsafe {
-			let pos = ::metadevs::video::Pos::new(
-				winpos.x() as u16 + ofs as u16,
-				winpos.y() as u16 + line as u16
+			let pos = Pos::new(
+				winpos.x + ofs as u32,
+				winpos.y + line as u32
 				);
 			::metadevs::video::write_line(pos, self.scanline_rgn(line, ofs, len));
 		}
@@ -234,12 +285,13 @@ impl WinBuf
 	fn scanline_rgn_mut(&mut self, line: usize, ofs: usize, len: usize) -> &mut [u32]
 	{
 		assert!(ofs < self.dims.width() as usize);
-		assert!(line < self.dims.1 as usize, "Requested scanline is out of range");
+		assert!(line < self.dims.h as usize, "Requested scanline is out of range");
 		
 		let pitch_32 = self.dims.width() as usize;
 		let len = ::core::cmp::max(len, pitch_32 - ofs);
 		
 		let l_ofs = line * pitch_32;
+		log_debug!("scanline_rgn_mut: self.data = {:p}", &self.data[0]);
 		&mut self.data[ l_ofs + ofs .. l_ofs + ofs + len ] 
 	}
 	
@@ -249,6 +301,7 @@ impl WinBuf
 			return ;
 		}
 		let rgn = self.scanline_rgn_mut(line, ofs, len);
+		log_debug!("fill_scanline: rgn = {:p}", &rgn[0]);
 		for v in rgn.iter_mut()
 		{
 			*v = value.as_argb32();
@@ -273,16 +326,7 @@ impl Window
 	fn is_dirty(&self) -> bool { self.is_dirty }
 
 	pub fn resize(&self, dim: Dims) {
-		todo!("Window::resize - {:?}", dim);
-	}
-	pub fn maximise(&self) {
-		todo!("Window::maximise");
-	}
-	pub fn show(&self) {
-		todo!("Window::show");
-	}
-	pub fn hide(&self) {
-		todo!("Window::hide");
+		self.buf.write().resize(dim);
 	}
 	
 	pub fn fill_rect(&self, area: Rect, colour: Colour)
@@ -293,7 +337,7 @@ impl Window
 			buf_h.fill_scanline(
 				row as usize,
 				area.left() as usize,
-				area.dim().width() as usize,
+				area.dims().w as usize,
 				colour
 				);
 		}
@@ -301,7 +345,7 @@ impl Window
 	
 	pub fn pset(&self, pos: Pos, colour: Colour)
 	{
-		self.buf.write().fill_scanline(pos.1 as usize, pos.0 as usize, 1, colour);
+		self.buf.write().fill_scanline(pos.y as usize, pos.x as usize, 1, colour);
 	}
 }
 
@@ -314,6 +358,12 @@ impl WindowHandle
 		let wg = self.get_wg();
 		let win_arc: &Arc<Window> = &wg.lock().windows[self.win].1;
 		win_arc.clone()
+	}
+	fn get_win_w_pos(&self) -> (Pos, Arc<Window>) {
+		let wg = self.get_wg();
+		let wgl = wg.lock();
+		let win = &wgl.windows[self.win];
+		(win.0, win.1.clone())
 	}
 	
 	/// Poke the window group and tell it that it needs to recalculate visibilities
@@ -333,21 +383,27 @@ impl WindowHandle
 		S_RENDER_REQUEST.post();
 	}
 	
+	/// Resize the window
 	pub fn resize(&mut self, dim: Dims) {
 		self.get_win().resize(dim);
 		self.trigger_recalc_vis();
 	}
+	/// Maximise this window (fill all space on the current monitor)
 	pub fn maximise(&mut self) {
-		self.get_win().maximise();
-		self.trigger_recalc_vis();
+		let wg = self.get_wg();
+		wg.lock().maximise_window( self.win );
+		// TODO: Set maximised flag so that the window gets updated on screen changes
+		// No need to call trigger_recalc_vis, maximise_window does that
 	}
+	/// Show the window
 	pub fn show(&mut self) {
-		self.get_win().show();
-		self.trigger_recalc_vis();
+		let wg = self.get_wg();
+		wg.lock().show_window( self.win );
 	}
+	/// Hide the window
 	pub fn hide(&mut self) {
-		self.get_win().hide();
-		self.trigger_recalc_vis();
+		let wg = self.get_wg();
+		wg.lock().hide_window( self.win );
 	}
 	
 	/// Fill an area of the window with a specific colour

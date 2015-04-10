@@ -92,11 +92,12 @@ fn init_module(modstates: &mut [ModuleState], mods: &[ModuleInfo], i: usize)
 	if modstates[i] == ModuleState::Uninitialised
 	{
 		modstates[i] = ModuleState::Resolving;
-		log_debug!("#{}: {}", i, module.name);
+		log_debug!("#{}: {} Deps", i, module.name);
 		for name in module.deps.iter() {
 			init_module_by_name(modstates, mods, module.name, *name);
 		}
 		// TODO: Do module initialisation in worker threads, and handle waiting for deps before calling init
+		log_debug!("#{}: {} Init", i, module.name);
 		(module.init)();
 		modstates[i] = ModuleState::Initialised;
 	}

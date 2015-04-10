@@ -223,7 +223,7 @@ impl video::Framebuffer for VgaFramebuffer
 	
 	fn get_size(&self) -> Dims {
 		// 320x200x 8bpp
-		Dims::new( self.w as u16, self.h as u16 )
+		Dims::new( self.w as u32, self.h as u32 )
 	}
 	fn set_size(&mut self, _newsize: Dims) -> bool {
 		// Can't change
@@ -244,11 +244,11 @@ impl video::Framebuffer for VgaFramebuffer
 		panic!("TODO: VGA blit_buf {} pixels to {}", buf.len(), dst);
 	}
 	fn fill(&mut self, dst: Rect, colour: u32) {
-		assert!( dst.within(self.w as u16, self.h as u16) );
+		assert!( dst.within(self.w as u32, self.h as u32) );
 		let colour_val = self.col32_to_u8(colour);
 		for row in dst.top() .. dst.bottom()
 		{
-			let scanline = self.window.as_mut_slice::<u8>( (row * self.w) as usize, dst.w() as usize);
+			let scanline = self.window.as_mut_slice::<u8>( (row * self.w as u32) as usize, dst.w() as usize);
 			for col in dst.left() .. dst.right()
 			{
 				scanline[col as usize] = colour_val;

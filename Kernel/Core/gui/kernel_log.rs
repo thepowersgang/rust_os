@@ -37,7 +37,7 @@ trait UnicodeCombining
 	fn is_combining(&self) -> bool;
 }
 
-const C_CELL_DIMS: Dims = Dims(8,16);
+const C_CELL_DIMS: Dims = Dims { w: 8, h: 16 };
 static S_KERNEL_LOG: ::sync::mutex::LazyMutex<KernelLog> = lazymutex_init!();
 
 pub fn init()
@@ -123,7 +123,7 @@ impl KernelLog
 	/// Clear a character cell
 	fn clear_cell(&mut self, pos: CharPos)
 	{
-		self.wh.fill_rect( Rect(pos.to_pixels(),C_CELL_DIMS), Colour::def_black());
+		self.wh.fill_rect( Rect{ pos : pos.to_pixels(), dims: C_CELL_DIMS }, Colour::def_black());
 	}
 	/// Actually does the rendering
 	fn render_char(&mut self, pos: CharPos, colour: Colour, cp: char)
@@ -137,14 +137,14 @@ impl KernelLog
 		let bitmap = &S_FONTDATA[idx as usize];
 		
 		// Actual render!
-		let Pos(bx, by) = pos.to_pixels();
+		let Pos { x: bx, y: by } = pos.to_pixels();
 		for row in (0 .. 16)
 		{
 			let byte = &bitmap[row as usize];
 			for col in (0 .. 8)
 			{
 				if byte & (1 << col as usize) != 0 {
-					self.wh.pset(Pos(bx+col,by+row), colour);
+					self.wh.pset(Pos::new(bx+col,by+row), colour);
 				}
 			}
 		}
@@ -157,7 +157,7 @@ impl CharPos
 	fn next(self) -> CharPos { CharPos(self.0, self.1+1) }
 	fn prev(self) -> CharPos { CharPos(self.0, self.1-1) }
 	fn to_pixels(self) -> Pos {
-		Pos( (self.0 * C_CELL_DIMS.0) as i32, (self.1 * C_CELL_DIMS.1) as i32 )
+		Pos::new( (self.0 * C_CELL_DIMS.w) as u32, (self.1 * C_CELL_DIMS.h) as u32 )
 	}
 }
 

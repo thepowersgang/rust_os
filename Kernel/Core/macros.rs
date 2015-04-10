@@ -13,8 +13,8 @@ macro_rules! is
 macro_rules! _count
 {
 	() => {0};
-	($a:ident) => {1};
-	($a:ident, $($b:ident)+) => {1+_count!($($b),+)};
+	($a:expr) => {1};
+	($a:expr, $($b:expr)+) => {1+_count!($($b),+)};
 }
 
 /// Define a kernel module (creates the module header, containg the name and dependency strings)
