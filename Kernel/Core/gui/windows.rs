@@ -108,7 +108,7 @@ impl WindowGroup
 				for rgn in Rect::list_intersect(vis, dirty)
 				{
 					// Blit data from the window to the screen
-					win.buf.read().blit(rgn);
+					win.buf.read().blit(win.position, rgn);
 				}
 			}
 			win.dirty_rects.clear();
@@ -175,12 +175,13 @@ impl WinBuf
 		&self.data[ l_ofs + ofs .. l_ofs + ofs + len ] 
 	}
 
-	fn blit(&self, rgn: Rect)
+	fn blit(&self, winpos: Pos, rgn: Rect)
 	{
 		// TODO: Call a block blit instead?
 		for row in rgn.top() .. rgn.bottom()
 		{
 			self.blit_scanline(
+				winpos,
 				row as usize,
 				rgn.left() as usize,
 				rgn.dim().width() as usize
@@ -188,10 +189,16 @@ impl WinBuf
 		}
 	}
 	
-	fn blit_scanline(&self, line: usize, ofs: usize, len: usize)
+	fn blit_scanline(&self, winpos: Pos, line: usize, ofs: usize, len: usize)
 	{
-		// NOTE: This does the actual display write, and should ONLY be called from the compoistor
-		unimplemented!();
+		// TODO: Assert that current thread is from/controlled-by the compositor
+		unsafe {
+			let pos = ::metadevs::video::Pos::new(
+				winpos.x() as u16 + ofs as u16,
+				winpos.y() as u16 + line as u16
+				);
+			::metadevs::video::write_line(pos, self.scanline_rgn(line, ofs, len));
+		}
 	}
 	
 	fn scanline_rgn_mut(&mut self, line: usize, ofs: usize, len: usize) -> &mut [u32]

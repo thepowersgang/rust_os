@@ -10,9 +10,23 @@ use core::ops;
 ///
 /// A wrapper around Vec<Option<T>> for use as a resource pool
 // Trailing usize is the number of populated elements
-pub struct SparseVec<T>(Vec<Option<T>>,usize);
+pub struct SparseVec<T>
+{
+	data: Vec<Option<T>>,
+	count: usize,
+}
 
 pub struct Element<'a,T: 'a>
+{
+	vec: &'a mut SparseVec<T>,
+	idx: usize,
+}
+pub struct Iter<'a,T: 'a>
+{
+	vec: &'a SparseVec<T>,
+	idx: usize,
+}
+pub struct IterMut<'a,T: 'a>
 {
 	vec: &'a mut SparseVec<T>,
 	idx: usize,
@@ -21,46 +35,56 @@ pub struct Element<'a,T: 'a>
 impl<T> SparseVec<T>
 {
 	pub fn new() -> SparseVec<T> {
-		SparseVec(Vec::new(), 0)
+		SparseVec { data: Vec::new(), count: 0 }
 	}
 
 	pub fn insert(&mut self, data: T) -> usize {
-		for (i,e) in (self.0).iter_mut().enumerate()
+		for (i,e) in self.data.iter_mut().enumerate()
 		{
 			if e.is_none() {
 				*e = Some(data);
-				self.1 += 1;
+				self.count += 1;
 				return i;
 			}
 		}
-		self.0.push( Some(data) );
-		self.1 += 1;
-		self.0.len() - 1
+		self.data.push( Some(data) );
+		self.count += 1;
+		self.data.len() - 1
+	}
+	pub fn remove(&mut self, idx: usize) {
+		self.data[idx] = None;
 	}
 	pub fn find_free<'a>(&'a mut self) -> Option<Element<'a,T>> {
 		None
 	}
 	pub fn push<'a>(&'a mut self, data: T) -> Element<'a,T> {
-		self.0.push( Some(data) );
-		self.1 += 1;
-		Element { idx: self.0.len() - 1, vec: self, }
+		self.data.push( Some(data) );
+		self.count += 1;
+		Element { idx: self.data.len() - 1, vec: self, }
 	}
 	
-	pub fn len(&self) -> usize { self.0.len() }
-	pub fn count(&self) -> usize { self.1 }
+	pub fn len(&self) -> usize { self.data.len() }
+	pub fn count(&self) -> usize { self.count }
+	
+	pub fn iter<'a>(&'a self) -> Iter<'a, T> {
+		Iter { vec: self, idx: 0 }
+	}
+	pub fn iter_mut<'a>(&'a mut self) -> IterMut<'a, T> {
+		IterMut { vec: self, idx: 0 }
+	}
 }
 
 impl<T> ops::Index<usize> for SparseVec<T>
 {
 	type Output = T;
 	fn index(&self, idx: usize) -> &T {
-		self.0[idx].as_ref().unwrap()
+		self.data[idx].as_ref().unwrap()
 	}
 }
 impl<T> ops::IndexMut<usize> for SparseVec<T>
 {
 	fn index_mut(&mut self, idx: usize) -> &mut T {
-		self.0[idx].as_mut().unwrap()
+		self.data[idx].as_mut().unwrap()
 	}
 }
 
@@ -69,13 +93,50 @@ impl<'a, T: 'a> Element<'a, T>
 	pub fn get_index(&self) -> usize { self.idx }
 	
 	pub fn set(&mut self, v: T) {
-		assert!( self.vec.0[self.idx].is_none() );
-		self.vec.0[self.idx] = Some(v);
-		self.vec.1 += 1;
+		assert!( self.vec.data[self.idx].is_none() );
+		self.vec.data[self.idx] = Some(v);
+		self.vec.count += 1;
 	}
 	pub fn clear(&mut self) {
-		assert!( self.vec.0[self.idx].is_some() );
-		self.vec.0[self.idx] = None;
-		self.vec.1 -= 1;
+		assert!( self.vec.data[self.idx].is_some() );
+		self.vec.data[self.idx] = None;
+		self.vec.count -= 1;
 	}
 }
+
+impl<'a, T: 'a> Iterator for Iter<'a, T>
+{
+	type Item = &'a T;
+	
+	fn next(&mut self) -> Option<&'a T> {
+		while self.idx < self.vec.len()
+		{
+			self.idx += 1;
+			match self.vec.data[self.idx-1]
+			{
+			Some(ref v) => return Some(v),
+			None => {},
+			}
+		}
+		None
+	}
+}
+
+impl<'a, T: 'a> Iterator for IterMut<'a, T>
+{
+	type Item = &'a mut T;
+	
+	fn next(&mut self) -> Option<&'a mut T> {
+		while self.idx < self.vec.len()
+		{
+			self.idx += 1;
+			match self.vec.data[self.idx-1].as_mut()
+			{
+			Some(v) => return unsafe { Some( ::core::mem::transmute(v) ) },
+			None => {},
+			}
+		}
+		None
+	}
+}
+

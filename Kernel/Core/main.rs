@@ -106,19 +106,19 @@ pub extern "C" fn kmain()
 	
 	log_log!("Command line = '{}'", ::arch::boot::get_boot_string());
 	
-	// Modules (dependency tree included)
-	::modules::init();
-	
 	// Dump active video mode
 	let vidmode = ::arch::boot::get_video_mode();
 	match vidmode {
 	Some(m) => {
 		log_debug!("Video mode : {}x{} @ {:#x}", m.width, m.height, m.base);
-		// TODO: Create a binding for metadevs::video to handle this mode
-		::hw::bootvideo::register(m);
+		::metadevs::video::set_boot_mode(m);
 		},
 	None => log_debug!("No video mode present")
 	}
+	
+	// Modules (dependency tree included)
+	// - Requests that the GUI be started as soon as possible
+	::modules::init(&["GUI"]);
 	
 	// Thread 0 idle loop
 	log_info!("Entering idle");

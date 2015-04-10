@@ -16,7 +16,7 @@ mod std {
 	pub use core::iter;	// for loops
 }
 
-use kernel::metadevs::video::{Framebuffer,Rect};
+use kernel::metadevs::video::{Framebuffer,Rect,Dims};
 use kernel::device_manager;
 use kernel::metadevs::video;
 
@@ -221,11 +221,11 @@ impl video::Framebuffer for VgaFramebuffer
 		self.set_crtc(CrtcAttrs::from_res(320, 240, 60));
 	}
 	
-	fn get_size(&self) -> Rect {
+	fn get_size(&self) -> Dims {
 		// 320x200x 8bpp
-		Rect::new( 0,0, self.w as u16, self.h as u16 )
+		Dims::new( self.w as u16, self.h as u16 )
 	}
-	fn set_size(&mut self, _newsize: Rect) -> bool {
+	fn set_size(&mut self, _newsize: Dims) -> bool {
 		// Can't change
 		false
 	}
@@ -246,10 +246,10 @@ impl video::Framebuffer for VgaFramebuffer
 	fn fill(&mut self, dst: Rect, colour: u32) {
 		assert!( dst.within(self.w as u16, self.h as u16) );
 		let colour_val = self.col32_to_u8(colour);
-		for row in dst.y .. dst.y + dst.h
+		for row in dst.top() .. dst.bottom()
 		{
-			let scanline = self.window.as_mut_slice::<u8>( (row * self.w) as usize, dst.w as usize);
-			for col in dst.x .. dst.x + dst.w
+			let scanline = self.window.as_mut_slice::<u8>( (row * self.w) as usize, dst.w() as usize);
+			for col in dst.left() .. dst.right()
 			{
 				scanline[col as usize] = colour_val;
 			}

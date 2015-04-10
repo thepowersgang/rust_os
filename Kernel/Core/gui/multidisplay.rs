@@ -19,7 +19,6 @@ struct VDSurface
 {
 	/// Position relative to the top-left
 	position: Pos,
-	//backing: ::metadevs::video::Display,
 }
 
 

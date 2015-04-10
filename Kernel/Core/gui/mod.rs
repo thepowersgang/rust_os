@@ -37,8 +37,6 @@ fn enum_displays(was_added: bool, index: ::metadevs::video::FramebufferRef)
 	}
 }
 
-/// Abstracts the possibility of multiple output devices
-mod multidisplay;
 /// General window handling code
 mod windows;
 /// Kernel log display
@@ -57,6 +55,11 @@ struct Rect(Pos,Dims);
 #[derive(Copy,Clone)]
 struct Colour(u32);
 
+impl Pos
+{
+	pub fn x(&self) -> i32 { self.0 }
+	pub fn y(&self) -> i32 { self.1 }
+}
 impl Dims
 {
 	pub fn width (&self) -> u32 { self.0 }

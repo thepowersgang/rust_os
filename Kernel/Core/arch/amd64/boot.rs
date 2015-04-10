@@ -7,7 +7,7 @@
 //! Parsing and exposure of the bootloader-provided data
 use _common::*;
 use super::memory::addresses::{IDENT_START, IDENT_END};
-use hw::bootvideo::{VideoMode,VideoFormat};
+use metadevs::video::bootvideo::{VideoMode,VideoFormat};
 
 #[repr(C)]
 #[allow(unused)]
