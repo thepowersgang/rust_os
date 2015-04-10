@@ -50,12 +50,13 @@ pub fn init()
 		use core::fmt::Write;
 		let mut lh = S_KERNEL_LOG.lock();
 		let mut w = LogWriter::new(&mut lh);
-		write!(&mut w, "???l [] ").unwrap( );
+		write!(&mut w, "???l [] ").unwrap();
 		w.set_colour(Colour::def_yellow());
 		write!(&mut w, "Hello World!").unwrap();
 	}
 	
 	// Populate kernel logging window with accumulated logs
+	// TODO: 
 	// Register to recieve logs
 }
 
@@ -64,7 +65,9 @@ impl KernelLog
 	fn new() -> KernelLog
 	{
 		let mut wgh = WindowGroupHandle::alloc("Kernel");
-		let wh = wgh.create_window();
+		let mut wh = wgh.create_window();
+		wh.maximise();
+		wh.show();
 		KernelLog {
 			wgh: wgh,
 			wh: wh,

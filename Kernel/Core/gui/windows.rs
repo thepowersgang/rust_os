@@ -17,7 +17,10 @@ struct WindowGroup
 	/// Window group name, may be shown to the user if requested
 	name: String,
 	/// Canonical list of windows (sparse, for reallocation of IDs)
-	windows: SparseVec<Window>,
+	///
+	/// Contains both the window position and shared ownership of the window data.
+	/// Position is here because the window itself doesn't need control (or knowledge) of its position
+	windows: SparseVec< (Pos, Arc<Window>) >,
 	/// Render order (indexes into `windows`, and visibilities)
 	render_order: Vec< (usize, Vec<Rect>) >,
 }
@@ -35,9 +38,6 @@ struct WinBuf
 #[derive(Default)]
 struct Window
 {
-	/// Position relative to the top-left of the display
-	position: Pos,
-	
 	/// Actual window data
 	/// 
 	/// Write lock is for structure manipulations, slicing is sharable
@@ -47,7 +47,12 @@ struct Window
 	title: String,
 	
 	/// List of invalidated regions within the window
-	dirty_rects: Vec<Rect>,
+	dirty_rects: Mutex<Vec<Rect>>,
+	is_dirty: bool,
+	
+	
+	/// If true, the window is maximised, and should be resized with the screen
+	is_maximised: bool,
 }
 
 pub struct WindowGroupHandle(usize);
@@ -73,6 +78,14 @@ pub fn init()
 	S_RENDER_THREAD.init( || ::threads::ThreadHandle::new("GUI Compositor", render_thread) );
 }
 
+pub fn update_dims()
+{
+	// Iterate all "maximised" windows
+	//{
+	//	let dims = ::metadevs::video::get_dims_at(win.position);
+	//}
+}
+
 // Thread that controls compiositing windows to the screen
 fn render_thread()
 {
@@ -92,27 +105,44 @@ fn render_thread()
 
 impl WindowGroup
 {
+	/// Re-draw this window group
 	fn redraw(&mut self, full: bool)
 	{
 		for &(winidx,ref vis) in &self.render_order
 		{
 			let vis = &vis[..];
-			let win = &mut self.windows[winidx];
+			let (ref pos, ref win) = self.windows[winidx];
 			// 1. Is the window dirty, or are we doing a full redraw
 			if full || win.is_dirty()
 			{
 				static FULL_RECT: [Rect; 1] = [Rect(Pos(0,0),Dims(!0,!0))];
 				
 				// 2. Obtain the visible sections of this window that have changed
-				let dirty = if full { &FULL_RECT[..] } else { &win.dirty_rects[..] };
+				// - Switch the dirty rect out with an empty Vec
+				let dirty_vec = ::core::mem::replace(&mut *win.dirty_rects.lock(), Vec::new());
+				// - Get a slice of it (OR, if doing a full re-render, get a wildcard region)
+				let dirty = if full { &FULL_RECT[..] } else { &dirty_vec[..] };
+				// - Iterate all visible dirty regions and re-draw
 				for rgn in Rect::list_intersect(vis, dirty)
 				{
 					// Blit data from the window to the screen
-					win.buf.read().blit(win.position, rgn);
+					win.buf.read().blit(*pos, rgn);
 				}
 			}
-			win.dirty_rects.clear();
 		}
+	}
+	
+	// Called by Window::show, adds to render order and calculates visibility
+	// TODO: Support visibility layers (normal, top, bottom)
+	fn show_window(&mut self, idx: usize)
+	{
+		unimplemented!();
+	}
+	
+	/// Recalculate the cached visibility regions caused by 'changed_idx' updating
+	fn recalc_vis(&mut self, changed_idx: usize)
+	{
+		unimplemented!();
 	}
 }
 
@@ -144,7 +174,7 @@ impl WindowGroupHandle
 		// - Get handle to this window group (ok to lock it)
 		let wgh_rc = S_WINDOW_GROUPS.lock()[self.0].clone();
 		
-		let idx = wgh_rc.lock().windows.insert(Window::default());
+		let idx = wgh_rc.lock().windows.insert( (Pos::new(0,0), Arc::new(Window::default())) );
 		WindowHandle { grp: self.0, win: idx }
 	}
 }
@@ -240,7 +270,20 @@ impl WinBuf
 
 impl Window
 {
-	fn is_dirty(&self) -> bool { self.dirty_rects.len() > 0 }
+	fn is_dirty(&self) -> bool { self.is_dirty }
+
+	pub fn resize(&self, dim: Dims) {
+		todo!("Window::resize - {:?}", dim);
+	}
+	pub fn maximise(&self) {
+		todo!("Window::maximise");
+	}
+	pub fn show(&self) {
+		todo!("Window::show");
+	}
+	pub fn hide(&self) {
+		todo!("Window::hide");
+	}
 	
 	pub fn fill_rect(&self, area: Rect, colour: Colour)
 	{
@@ -264,6 +307,21 @@ impl Window
 
 impl WindowHandle
 {
+	fn get_wg(&self) -> Arc<Mutex<WindowGroup>> {
+		S_WINDOW_GROUPS.lock()[self.grp].clone()
+	}
+	fn get_win(&self) -> Arc<Window> {
+		let wg = self.get_wg();
+		let win_arc: &Arc<Window> = &wg.lock().windows[self.win].1;
+		win_arc.clone()
+	}
+	
+	/// Poke the window group and tell it that it needs to recalculate visibilities
+	fn trigger_recalc_vis(&self) {
+		let wg = self.get_wg();
+		wg.lock().recalc_vis(self.win);
+	}
+	
 	/// Redraw the window (mark for re-blitting)
 	pub fn redraw(&mut self)
 	{
@@ -275,24 +333,35 @@ impl WindowHandle
 		S_RENDER_REQUEST.post();
 	}
 	
+	pub fn resize(&mut self, dim: Dims) {
+		self.get_win().resize(dim);
+		self.trigger_recalc_vis();
+	}
+	pub fn maximise(&mut self) {
+		self.get_win().maximise();
+		self.trigger_recalc_vis();
+	}
+	pub fn show(&mut self) {
+		self.get_win().show();
+		self.trigger_recalc_vis();
+	}
+	pub fn hide(&mut self) {
+		self.get_win().hide();
+		self.trigger_recalc_vis();
+	}
+	
 	/// Fill an area of the window with a specific colour
 	pub fn fill_rect(&mut self, area: Rect, colour: Colour)
 	{
 		log_trace!("(area={:?},colour={:?})", area, colour);
-		// TODO: Avoid having to lock the global list here
-		let wgh = S_WINDOW_GROUPS.lock()[self.grp].clone();
-		// TODO: DEFINITELY avoid locking the WG
-		wgh.lock().windows[self.win].fill_rect(area, colour);
+		self.get_win().fill_rect(area, colour);
 	}
 	
 	/// Set single pixel (VERY inefficient, don't use unless you need to)
 	pub fn pset(&mut self, pos: Pos, colour: Colour)
 	{
 		//log_trace!("(pos={:?},colour={:?})", pos, colour);
-		// TODO: Avoid having to lock the global list here
-		let wgh = S_WINDOW_GROUPS.lock()[self.grp].clone();
-		// TODO: DEFINITELY avoid locking the WG
-		wgh.lock().windows[self.win].pset(pos, colour);
+		self.get_win().pset(pos, colour);
 	}
 }
 

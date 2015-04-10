@@ -53,6 +53,12 @@ macro_rules! type_name
 }
 
 
+macro_rules! todo
+{
+	( $s:expr ) => ( panic!( concat!("TODO: ",$s) ) );
+	( $s:expr, $($v:tt)* ) => ( panic!( concat!("TODO: ",$s), $($v)* ) );
+}
+
 /// Provides a less boiler-plate way to implement fmt traits for simple types
 macro_rules! impl_fmt
 {

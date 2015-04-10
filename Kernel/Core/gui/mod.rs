@@ -27,14 +27,17 @@ fn init()
 	kernel_log::init();
 }
 
-fn enum_displays(was_added: bool, index: ::metadevs::video::FramebufferRef)
+fn display_geom_update(was_insertion: bool, rgn: ::metadevs::video::Rect, new_total: ::metadevs::video::Rect)
 {
-	if !was_added {
+	if !was_insertion {
 		unimplemented!();
 	}
 	else {
-		// Add this output to the multidisplay grid
+		// Update 
+		unimplemented!();
 	}
+	
+	windows::update_dims();
 }
 
 /// General window handling code
@@ -57,6 +60,7 @@ struct Colour(u32);
 
 impl Pos
 {
+	pub fn new(x: i32, y: i32) -> Pos { Pos(x, y) }
 	pub fn x(&self) -> i32 { self.0 }
 	pub fn y(&self) -> i32 { self.1 }
 }

@@ -6,6 +6,7 @@
 use lib::LazyStatic;
 use core::marker::{Send, Sync};
 use core::ops::FnOnce;
+use core::default::Default;
 
 /// A standard mutex (blocks the current thread when contended)
 pub struct Mutex<T: Send>
@@ -80,6 +81,12 @@ impl<T: Send> Mutex<T>
 		{
 			*held = false;
 		}
+	}
+}
+
+impl<T: Send+Default> Default for Mutex<T> {
+	fn default() -> Mutex<T> {
+		Mutex::new(<T as Default>::default())
 	}
 }
 

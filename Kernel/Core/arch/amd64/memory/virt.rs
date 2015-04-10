@@ -51,7 +51,7 @@ unsafe fn get_entry(level: u8, index: usize, force_allocate: bool) -> PTE
 		let rv = PTE::new(PTEPos::Page2M, tab_pd.offset(index));
 		if !rv.is_present() && force_allocate {
 			let ptr = tab_pt.offset(index * 512) as *mut ();
-			log_debug!("Allocating for {:?} (PD Ent {})", ptr, index);
+			//log_debug!("Allocating for {:?} (PD Ent {})", ptr, index);
 			::memory::phys::allocate( ptr );
 		}
 		rv
@@ -61,7 +61,7 @@ unsafe fn get_entry(level: u8, index: usize, force_allocate: bool) -> PTE
 		let rv = PTE::new(PTEPos::Page1G, tab_pdp.offset(index));
 		if !rv.is_present() && force_allocate {
 			let ptr = tab_pd.offset(index * 512) as *mut ();
-			log_debug!("Allocating for {:?} (PDPT Ent {})", ptr, index);
+			//log_debug!("Allocating for {:?} (PDPT Ent {})", ptr, index);
 			::memory::phys::allocate( ptr );
 		}
 		rv
@@ -71,7 +71,7 @@ unsafe fn get_entry(level: u8, index: usize, force_allocate: bool) -> PTE
 		let rv = PTE::new(PTEPos::Page512G, tab_pml4.offset(index));
 		if !rv.is_present() && force_allocate {
 			let ptr = tab_pdp.offset(index * 512) as *mut ();
-			log_debug!("Allocating for {:?} (PML4 Ent {})", ptr, index);
+			//log_debug!("Allocating for {:?} (PML4 Ent {})", ptr, index);
 			::memory::phys::allocate( ptr );
 		}
 		rv
