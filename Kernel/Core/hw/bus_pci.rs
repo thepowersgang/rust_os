@@ -187,7 +187,6 @@ fn get_device(bus_id: u8, devidx: u8, function: u8) -> Option<PCIDev>
 		None
 	}
 	else {
-		log_debug!("Device {:#x} = Dev/Ven {:08x}", addr, idword);
 		Some(PCIDev {
 			addr: addr,
 			vendor: (idword & 0xFFFF) as u16,
@@ -276,7 +275,7 @@ impl ::core::fmt::Debug for PCIDev
 {
 	fn fmt(&self, f: &mut ::core::fmt::Formatter) -> ::core::result::Result<(),::core::fmt::Error>
 	{
-		write!(f, "{:#04x} V{:04x} D{:04x} {:06x}", self.addr, self.vendor, self.device, self.class)
+		write!(f, "{:#04x} Ven:{:04x} Dev:{:04x} Class {:08x}", self.addr, self.vendor, self.device, self.class)
 	}
 }
 

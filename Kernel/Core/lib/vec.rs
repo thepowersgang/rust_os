@@ -100,7 +100,7 @@ impl<T> Vec<T>
 						::core::ptr::write(newdata.get_ptr_mut(i), val);
 					}
 				}
-				log_debug!("Vec<{}>::reserve_cap({}): newdata={:?}", type_name!(T), size, newdata);
+				//log_debug!("Vec<{}>::reserve_cap({}): newdata={:?}", type_name!(T), size, newdata);
 				self.data = newdata;
 			}
 		}

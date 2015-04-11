@@ -1,7 +1,9 @@
-// Module: ::logging
+// "Tifflin" Kernel
+// - By John Hodge (thePowersGang)
 //
-//
-use core::fmt::Write;
+// arch/amd64/boot.rs
+/// Kernel logging framework
+use core::fmt::{self,Write};
 use core::result::Result::Ok;
 use core::slice::{SliceExt};
 use core::iter::Iterator;
@@ -28,6 +30,7 @@ pub enum Level
 	LevelTrace,
 }
 
+#[doc(hidden)]
 pub enum Colour
 {
 	Default,
@@ -84,9 +87,9 @@ impl Level
 	}
 }
 
-impl ::core::fmt::Display for Level
+impl fmt::Display for Level
 {
-	fn fmt(&self, f: &mut ::core::fmt::Formatter) -> ::core::fmt::Result {
+	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
 		write!(f, "{}", self.to_flag())
 	}
 }
@@ -102,6 +105,7 @@ impl LoggingFormatter
 		}
 	}
 	
+	/// Set the output colour of the formatter
 	pub fn set_colour(&self, colour: Colour) {
 		match colour
 		{
@@ -116,9 +120,9 @@ impl LoggingFormatter
 	}
 }
 
-impl ::core::fmt::Write for LoggingFormatter
+impl fmt::Write for LoggingFormatter
 {
-	fn write_str(&mut self, s: &str) -> ::core::fmt::Result
+	fn write_str(&mut self, s: &str) -> fmt::Result
 	{
 		::arch::puts(s);
 		Ok( () )
@@ -147,9 +151,9 @@ impl<'a,T:'a> HexDump<'a,T>
 	}
 }
 
-impl<'a,T:'a> ::core::fmt::Debug for HexDump<'a,T>
+impl<'a,T:'a> fmt::Debug for HexDump<'a,T>
 {
-	fn fmt(&self, f: &mut ::core::fmt::Formatter) -> ::core::fmt::Result
+	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result
 	{
 		for (idx,v) in self.byteslice().iter().enumerate()
 		{

@@ -209,7 +209,7 @@ pub mod bootvideo
 			false
 		}
 		fn blit_buf(&mut self, dst: Rect, buf: &[u32]) {
-			log_trace!("Framebuffer::blit_buf(dst={})", dst);
+			//log_trace!("Framebuffer::blit_buf(dst={})", dst);
 			let output_fmt = self.mode.fmt;
 			let src_pitch = dst.w() as usize;
 			
@@ -464,7 +464,7 @@ impl Rect
 		let min_x2 = ::core::cmp::min( self.right() , other.right() );
 		let min_y2 = ::core::cmp::min( self.bottom(), other.bottom() );
 		
-		log_trace!("Rect::intersect({} with {}) = ({},{}) ({},{})", self, other, max_x1, max_y1, min_x2, min_y2);
+		//log_trace!("Rect::intersect({} with {}) = ({},{}) ({},{})", self, other, max_x1, max_y1, min_x2, min_y2);
 		
 		if max_x1 < min_x2 && max_y1 < min_y2 {
 			Some( Rect {

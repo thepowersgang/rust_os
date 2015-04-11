@@ -90,7 +90,6 @@ fn borrow_cur_thread() -> BorrowedThread
 
 fn get_thread_to_run() -> Option<Box<Thread>>
 {
-	log_trace!("get_thread_to_run()");
         let _irq_lock = ::arch::sync::hold_interrupts();
 	let mut handle = s_runnable_threads.lock();
 	if handle.empty()

@@ -180,7 +180,7 @@ impl WindowGroup
 		let mut vis = vec![ Rect { pos: Pos::new(0,0), dims: dims } ];
 		for &(win,_) in &self.render_order[ vis_idx+1 .. ]
 		{
-			todo!("WindowGroup::recalc_vis_int(vis_idx={})", vis_idx);
+			todo!("WindowGroup::recalc_vis_int(vis_idx={}) win={}", vis_idx, win);
 		}
 		vis
 	}
@@ -461,12 +461,6 @@ impl WindowHandle
 		(win.0, win.1.clone())
 	}
 	
-	/// Poke the window group and tell it that it needs to recalculate visibilities
-	fn trigger_recalc_vis(&self) {
-		let wg = self.get_wg();
-		wg.lock().recalc_vis(self.win);
-	}
-	
 	/// Redraw the window (mark for re-blitting)
 	pub fn redraw(&mut self)
 	{
@@ -482,7 +476,8 @@ impl WindowHandle
 	/// Resize the window
 	pub fn resize(&mut self, dim: Dims) {
 		self.get_win().resize(dim);
-		self.trigger_recalc_vis();
+		let wg = self.get_wg();
+		wg.lock().recalc_vis(self.win);
 	}
 	/// Maximise this window (fill all space on the current monitor)
 	pub fn maximise(&mut self) {
@@ -505,14 +500,12 @@ impl WindowHandle
 	/// Fill an area of the window with a specific colour
 	pub fn fill_rect(&mut self, area: Rect, colour: Colour)
 	{
-		log_trace!("(area={:?},colour={:?})", area, colour);
 		self.get_win().fill_rect(area, colour);
 	}
 	
 	/// Set single pixel (VERY inefficient, don't use unless you need to)
 	pub fn pset(&mut self, pos: Pos, colour: Colour)
 	{
-		//log_trace!("(pos={:?},colour={:?})", pos, colour);
 		self.get_win().pset(pos, colour);
 	}
 }
