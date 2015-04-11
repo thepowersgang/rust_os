@@ -9,7 +9,6 @@ use core::ops;
 /// Sparse vector type
 ///
 /// A wrapper around Vec<Option<T>> for use as a resource pool
-// Trailing usize is the number of populated elements
 pub struct SparseVec<T>
 {
 	data: Vec<Option<T>>,
@@ -38,6 +37,7 @@ impl<T> SparseVec<T>
 		SparseVec { data: Vec::new(), count: 0 }
 	}
 
+	/// Insert an element anywhere within the vec and return the location
 	pub fn insert(&mut self, data: T) -> usize {
 		for (i,e) in self.data.iter_mut().enumerate()
 		{
@@ -51,6 +51,7 @@ impl<T> SparseVec<T>
 		self.count += 1;
 		self.data.len() - 1
 	}
+	/// Remove the item at the specified location
 	pub fn remove(&mut self, idx: usize) {
 		if self.data[idx].is_some()
 		{
@@ -58,9 +59,10 @@ impl<T> SparseVec<T>
 			self.count -= 1;
 		}
 	}
-	pub fn find_free<'a>(&'a mut self) -> Option<Element<'a,T>> {
-		None
-	}
+	//pub fn find_free<'a>(&'a mut self) -> Option<Element<'a,T>> {
+	//	None
+	//}
+	/// Pushes an element onto the end of the list
 	pub fn push<'a>(&'a mut self, data: T) -> Element<'a,T> {
 		self.data.push( Some(data) );
 		self.count += 1;

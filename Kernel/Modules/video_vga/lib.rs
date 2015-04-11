@@ -66,7 +66,7 @@ static s_legacy_bound: ::core::atomic::AtomicBool = ::core::atomic::ATOMIC_BOOL_
 fn init()
 {
 	// 1. Register Driver
-	device_manager::register_driver(&s_vga_pci_driver);
+	//device_manager::register_driver(&s_vga_pci_driver);
 }
 
 impl device_manager::Driver for VgaPciDriver
