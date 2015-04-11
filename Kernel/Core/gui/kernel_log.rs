@@ -15,9 +15,9 @@ include!("font_cp437_8x16.rs");
 
 struct KernelLog
 {
-	wgh: WindowGroupHandle,
+	_wgh: WindowGroupHandle,
 	wh: WindowHandle,
-	logo_wh: WindowHandle,
+	_logo_wh: WindowHandle,
 	cur_line: u32,
 }
 
@@ -74,9 +74,9 @@ impl KernelLog
 		logo_wh.set_pos(Pos::new(1024-64, 0));
 		//logo_wh.show();
 		KernelLog {
-			wgh: wgh,
+			_wgh: wgh,
 			wh: wh,
-			logo_wh: logo_wh,
+			_logo_wh: logo_wh,
 			cur_line: 0
 		}
 	}

@@ -54,9 +54,17 @@ struct Window
 	dirty_rects: Mutex<Vec<Rect>>,
 	is_dirty: atomic::AtomicBool,
 	
-	
+	flags: Mutex<WindowFlags>,
+}
+
+#[derive(Default)]
+struct WindowFlags
+{
 	/// If true, the window is maximised, and should be resized with the screen
-	is_maximised: bool,
+	maximised: bool,
+	
+	///// If true, the group's decorator should skip this window
+	//undecorated: bool,
 }
 
 pub struct WindowGroupHandle(usize);
@@ -82,12 +90,34 @@ pub fn init()
 	S_RENDER_THREAD.init( || ::threads::ThreadHandle::new("GUI Compositor", render_thread) );
 }
 
+/// Update window dimensions and positions after the display organsisation changes
 pub fn update_dims()
 {
-	// Iterate all "maximised" windows
-	//{
-	//	let dims = ::metadevs::video::get_dims_at(win.position);
-	//}
+	// Iterate all windows
+	for grp in S_WINDOW_GROUPS.lock().iter()
+	{
+		let mut lh = grp.lock();
+		for &mut (ref mut pos, ref win) in lh.windows.iter_mut()
+		{
+			// Locate screen for the upper-left corner
+			let screen = match ::metadevs::video::get_display_for_pos(*pos)
+				{
+				Some(x) => x,
+				// TODO: If now off-screen, warp to a visible position (with ~20px leeway)
+				None => todo!("update_dims: Handle window moving off display area"),
+				};
+			// if window is maximised, keep it that way
+			if win.flags.lock().maximised
+			{
+				// Re-maximise
+				*pos = screen.pos();
+				win.resize(screen.dims());
+			}
+		}
+		// Recalculate all visibilities
+		let count = lh.render_order.len();
+		lh.recalc_vis_int(count-1);
+	}
 }
 
 // Thread that controls compiositing windows to the screen
@@ -354,7 +384,7 @@ impl Window
 			title: Default::default(),
 			dirty_rects: Default::default(),
 			is_dirty: atomic::ATOMIC_BOOL_INIT,
-			is_maximised: false,
+			flags: Default::default(),
 		}
 	}
 	
@@ -462,12 +492,13 @@ impl WindowHandle
 		let win_arc: &Arc<Window> = &wg.lock().windows[self.win].1;
 		win_arc.clone()
 	}
-	fn get_win_w_pos(&self) -> (Pos, Arc<Window>) {
-		let wg = self.get_wg();
-		let wgl = wg.lock();
-		let win = &wgl.windows[self.win];
-		(win.0, win.1.clone())
-	}
+	
+	//fn get_win_w_pos(&self) -> (Pos, Arc<Window>) {
+	//	let wg = self.get_wg();
+	//	let wgl = wg.lock();
+	//	let win = &wgl.windows[self.win];
+	//	(win.0, win.1.clone())
+	//}
 	
 	/// Redraw the window (mark for re-blitting)
 	pub fn redraw(&mut self)
@@ -494,9 +525,10 @@ impl WindowHandle
 	
 	/// Maximise this window (fill all space on the current monitor)
 	pub fn maximise(&mut self) {
+		let win = self.get_win();
+		win.flags.lock().maximised = true;
 		let wg = self.get_wg();
 		wg.lock().maximise_window( self.win );
-		// TODO: Set maximised flag so that the window gets updated on screen changes
 		// No need to call trigger_recalc_vis, maximise_window does that
 	}
 	/// Show the window

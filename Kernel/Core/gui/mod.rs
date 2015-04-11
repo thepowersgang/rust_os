@@ -21,21 +21,22 @@ module_define!{GUI, [Video], init}
 fn init()
 {
 	// - Enumerate display devices
-	//::metadevs::video::register_enumerate( enum_displays );
+	::metadevs::video::register_geom_update(display_geom_update);
 	// - Create kernel logging screen+window
 	windows::init();
 	kernel_log::init();
 }
 
-fn display_geom_update(was_insertion: bool, rgn: ::metadevs::video::Rect, new_total: ::metadevs::video::Rect)
+fn display_geom_update(new_total: ::metadevs::video::Rect)
 {
-	if !was_insertion {
-		unimplemented!();
-	}
-	else {
-		// Update 
-		unimplemented!();
-	}
+	log_trace!("display_geom_update(new_total={})", new_total);
+	//if !was_insertion {
+	//	unimplemented!();
+	//}
+	//else {
+	//	// Update 
+	//	unimplemented!();
+	//}
 	
 	windows::update_dims();
 }

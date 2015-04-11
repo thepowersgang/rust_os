@@ -4,6 +4,7 @@
 // Core/metadevs/video.rs
 // - Video (Display) management
 use _common::*;
+use sync::mutex::{Mutex,LazyMutex};
 use lib::sparse_vec::SparseVec;
 
 // DESIGN
@@ -256,9 +257,10 @@ pub mod bootvideo
 }
 
 /// Sparse list of registered display devices
-static S_DISPLAY_SURFACES: ::sync::mutex::LazyMutex<SparseVec<DisplaySurface>> = lazymutex_init!( );
+static S_DISPLAY_SURFACES: LazyMutex<SparseVec<DisplaySurface>> = lazymutex_init!( );
 /// Boot video mode
 static mut S_BOOT_MODE: Option<bootvideo::VideoMode> = None;
+static S_GEOM_UPDATE_SIGNAL: Mutex<Option<fn(new_total: Rect)>> = mutex_init!(None);
 
 fn init()
 {
@@ -291,6 +293,13 @@ pub fn set_boot_mode(mode: bootvideo::VideoMode)
 	}
 }
 
+pub fn register_geom_update(fcn: fn(new_total: Rect))
+{
+	let mut lh = S_GEOM_UPDATE_SIGNAL.lock();
+	assert!(lh.is_some(), "register_geom_update called multiple times");
+	*lh = Some(fcn);
+}
+
 /// Add an output to the display manager
 pub fn add_output(output: Box<Framebuffer>) -> FramebufferRegistration
 {
@@ -317,7 +326,16 @@ pub fn add_output(output: Box<Framebuffer>) -> FramebufferRegistration
 		fb: output
 		} );
 	
-	todo!("add_output: Inform GUI of changed dimensions");
+	// API Requirements
+	// - New surface added (with location)
+	// - Old surface removed
+	// - Surface relocated (as part of removal/sorting/editing)
+	// > Could just have a generic "things changed" call and let the GUI/user poll request the new state
+	if let Some(fcn) = *S_GEOM_UPDATE_SIGNAL.lock()
+	{
+		let total_area = lh.iter().map(|x| x.region).fold(Rect::new(0,0,0,0), |a,b| a.union(&b));
+		fcn( total_area );
+	}
 	
 	log_debug!("Registering framebuffer #{}", idx);
 	FramebufferRegistration {
@@ -455,6 +473,22 @@ impl Rect
 		}
 		else {
 			None
+		}
+	}
+	/// Returns the loose union of two rects (i.e. the smallest rect that contains both)
+	pub fn union(&self, other: &Rect) -> Rect
+	{
+		let new_tl = Pos {
+			x: ::core::cmp::min(self.left(), other.left()), 
+			y: ::core::cmp::min(self.top(),  other.top() )
+			};
+		let new_br = Pos {
+			x: ::core::cmp::max(self.right(),  other.right() ), 
+			y: ::core::cmp::max(self.bottom(), other.bottom())
+			};
+		Rect {
+			pos: new_tl,
+			dims: Dims::new( new_br.x - new_tl.x, new_br.y - new_tl.y ),
 		}
 	}
 	
