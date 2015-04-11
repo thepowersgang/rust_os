@@ -62,6 +62,15 @@ macro_rules! todo
 /// Provides a less boiler-plate way to implement fmt traits for simple types
 macro_rules! impl_fmt
 {
+	( $( <$($g:ident),+> $tr:ident ($s:ident, $f:ident) for $ty:ty { $code:expr } )+ ) => { $(
+		impl<$($g),+> ::core::fmt::$tr for $ty {
+			fn fmt(&$s, $f: &mut ::core::fmt::Formatter) -> ::core::fmt::Result {
+				$code
+			}
+		}
+		)+
+		};
+	
 	( $( $tr:ident ($s:ident, $f:ident) for $ty:ty { $code:expr } )+ ) => { $(
 		impl ::core::fmt::$tr for $ty {
 			fn fmt(&$s, $f: &mut ::core::fmt::Formatter) -> ::core::fmt::Result {
@@ -69,7 +78,7 @@ macro_rules! impl_fmt
 			}
 		}
 		)+
-		}
+		};
 }
 
 // vim: ft=rust

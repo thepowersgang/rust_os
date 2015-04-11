@@ -8,6 +8,8 @@
 
 use core::option::Option::{self,None,Some};
 use core::nonzero::NonZero;
+use core::ptr::Unique;
+use core::ops;
 
 // --------------------------------------------------------
 // Types
@@ -44,6 +46,20 @@ struct HeapHead
 struct HeapFoot
 {
 	head: *mut HeapHead,
+}
+
+//pub struct AnyAlloc
+//{
+//	ptr: Unique<()>,
+//}
+//pub struct TypedAlloc<T>
+//{
+//	ptr: Unique<T>,
+//}
+pub struct ArrayAlloc<T>
+{
+	ptr: Unique<T>,
+	count: usize,
 }
 
 // Curse no CTFE
@@ -104,22 +120,68 @@ pub unsafe fn dealloc<T>(value: *mut T)
 	deallocate(value as *mut (), ::core::mem::size_of::<T>(), ::core::mem::align_of::<T>());
 }
 
-pub unsafe fn alloc_array<T>(count: usize) -> *mut T
+impl<T> ArrayAlloc<T>
 {
-	match allocate(HeapId::Global, ::core::mem::size_of::<T>() * count, ::core::mem::align_of::<T>())
+	pub fn new(count: usize) -> ArrayAlloc<T>
 	{
-	Some(v) => v as *mut T,
-	None => panic!("Out of memory when allocating array of {} elements", count)
+		unsafe {
+			if ::core::mem::size_of::<T>() == 0 {
+				ArrayAlloc { ptr: Unique::new(ZERO_ALLOC as *mut T), count: !0 }
+			}
+			else if count == 0 {
+				ArrayAlloc { ptr: Unique::new(ZERO_ALLOC as *mut T), count: 0 }
+			}
+			else
+			{
+				let ptr = match allocate(HeapId::Global, ::core::mem::size_of::<T>() * count, ::core::mem::align_of::<T>())
+					{
+					Some(v) => v as *mut T,
+					None => panic!("Out of memory when allocating array of {} elements", count)
+					};
+				assert!(!ptr.is_null());
+				ArrayAlloc { ptr: Unique::new(ptr), count: count }
+			}
+		}
+	}
+	
+	pub fn count(&self) -> usize { self.count }
+	
+	pub fn get_base(&self) -> *const T { *self.ptr }
+	pub fn get_base_mut(&mut self) -> *mut T { *self.ptr }
+	
+	pub fn get_ptr_mut(&mut self, idx: usize) -> *mut T {
+		unsafe {
+			assert!(idx < self.count, "ArrayAlloc<{}>::get_mut({}) OOB {}", type_name!(T), idx, self.count);
+			self.ptr.offset(idx as isize)
+		}
+	}
+	pub fn get_ptr(&self, idx: usize) -> *const T {
+		unsafe {
+			assert!(idx < self.count, "ArrayAlloc<{}>::get_ptr({}) OOB {}", type_name!(T), idx, self.count);
+			self.ptr.offset(idx as isize)
+		}
+	}
+	
+	pub fn expand(&mut self, new_count: usize) -> bool
+	{
+		log_notice!("TODO: ArrayAlloc<{}>::expand({}): Support expanding array allocations",
+			type_name!(T), new_count);
+		false
 	}
 }
-pub unsafe fn expand_array<T>(first: *mut T, old_count: usize, new_count: usize) -> Option<NonZero<*mut T>>
-{
-	panic!("TODO: Support expanding array allocations (first={:?}, old_count={:?} new_count={:?}",
-		first, old_count, new_count);
+impl_fmt!{
+	<T> Debug(self,f) for ArrayAlloc<T> {
+		write!(f, "ArrayAlloc {{ {:p} + {} }}", *self.ptr, self.count)
+	}
 }
-pub unsafe fn dealloc_array<T>(first: *mut T, count: usize)
+impl<T> ops::Drop for ArrayAlloc<T>
 {
-	deallocate(first as *mut (), ::core::mem::size_of::<T>() * count, ::core::mem::align_of::<T>());
+	fn drop(&mut self)
+	{
+		if self.count > 0 {
+			unsafe { deallocate(*self.ptr as *mut (), ::core::mem::size_of::<T>() * self.count, ::core::mem::align_of::<T>()) };
+		}
+	}
 }
 
 // Main entrypoints

@@ -8,19 +8,22 @@ use core::iter::{FromIterator,IntoIterator};
 use core::ops;
 use lib::collections::{MutableSeq};
 use core::ptr::Unique;
+use memory::heap::ArrayAlloc;
+
+// TODO: Replace allocation with a boxed slice (or some other managed allocation)
+// - Maybe a heap-provided "Array" type that is safe to alloc/free, but unsafe to access
 
 /// Growable array of items
 pub struct Vec<T>
 {
-	data: Unique<T>,
+	data: ArrayAlloc<T>,
 	size: usize,
-	capacity: usize,
 }
 
 /// Owning iterator
 pub struct MoveItems<T>
 {
-	data: Unique<T>,
+	data: ArrayAlloc<T>,
 	count: usize,
 	ofs: usize,
 }
@@ -38,9 +41,8 @@ impl<T> Vec<T>
 	pub fn with_capacity(size: usize) -> Vec<T>
 	{
 		Vec {
-			data: unsafe { Unique::new( ::memory::heap::alloc_array::<T>( size ) ) },
+			data: ArrayAlloc::new(size),
 			size: 0,
-			capacity: size,
 		}
 	}
 	/// Populate vector using a provided callback
@@ -58,16 +60,14 @@ impl<T> Vec<T>
 	/// Obtain a mutable pointer to an item within the vector
 	fn get_mut_ptr(&mut self, index: usize) -> *mut T
 	{
-		if index >= self.size {
-			panic!("Index out of range, {} >= {}", index, self.size);
-		}
-		unsafe { self.data.offset(index as isize) }
+		assert!(index < self.size, "Vec<{}>::get_mut_ptr(): Index out of range, {} >= {}", type_name!(T), index, self.size);
+		self.data.get_ptr_mut(index)
 	}
 	
 	/// Move contents into an iterator (consuming self)
 	pub fn into_iter(mut self) -> MoveItems<T>
 	{
-		let dataptr = ::core::mem::replace(&mut self.data, unsafe { Unique::new(0 as *mut _) } );
+		let dataptr = ::core::mem::replace(&mut self.data, ArrayAlloc::new(0));
 		let count = self.size;
 		unsafe { ::core::mem::forget(self) };
 		MoveItems {
@@ -85,20 +85,23 @@ impl<T> Vec<T>
 	fn reserve_cap(&mut self, size: usize)
 	{
 		let newcap = ::lib::num::round_up(size, 1 << (64-size.leading_zeros()));
-		if newcap > self.capacity
+		if newcap > self.data.count()
 		{
-			unsafe {
-				let newptr = ::memory::heap::alloc_array::<T>( newcap );
-				for i in (0 .. self.size) {
-					let val = self.move_ent(i as usize);
-					::core::ptr::write(newptr.offset(i as isize), val);
+			if self.data.expand(newcap)
+			{
+				// All good
+			}
+			else
+			{
+				let mut newdata = ArrayAlloc::new(newcap);
+				unsafe {
+					for i in (0 .. self.size) {
+						let val = self.move_ent(i as usize);
+						::core::ptr::write(newdata.get_ptr_mut(i), val);
+					}
 				}
-				if self.capacity > 0 {
-					::memory::heap::dealloc_array( *self.data, self.capacity );
-				}
-				log_debug!("Vec<{}>::reserve_cap({}): newcap={},newptr={:p}", type_name!(T), size, newcap, newptr);
-				self.data = Unique::new(newptr);
-				self.capacity = newcap;
+				log_debug!("Vec<{}>::reserve_cap({}): newdata={:?}", type_name!(T), size, newdata);
+				self.data = newdata;
 			}
 		}
 	}
@@ -109,13 +112,13 @@ impl<T> Vec<T>
 	
 	pub fn slice_mut<'a>(&'a mut self) -> &'a mut [T]
 	{
-		unsafe { ::core::mem::transmute( ::core::raw::Slice { data: *self.data as *const T, len: self.size } ) }
+		unsafe { ::core::mem::transmute( ::core::raw::Slice { data: self.data.get_base_mut(), len: self.size } ) }
 	}
 	
 	/// Move out of a slot in the vector, leaving unitialise memory in its place
 	unsafe fn move_ent(&mut self, pos: usize) -> T
 	{
-		::core::ptr::read(self.data.offset(pos as isize) as *const _)
+		::core::ptr::read(self.data.get_ptr(pos))
 	}
 
 	/// Insert an item at the specified index (moving subsequent items up)	
@@ -130,12 +133,12 @@ impl<T> Vec<T>
 			// Move elements (pos .. len) to (pos+1 .. len+1)
 			for i in (pos .. self.size).rev()
 			{
-				let src = self.data.offset( (i) as isize);
-				let dst = self.data.offset( (i+1) as isize);
+				let src = self.data.get_ptr( i );
+				let dst = self.data.get_ptr_mut( i+1 );
 				::core::ptr::write(dst, ::core::ptr::read(src));
 			}
 			// Store new element
-			::core::ptr::write( self.data.offset(pos as isize), value );
+			::core::ptr::write( self.data.get_ptr_mut(pos), value );
 		}
 	}
 	
@@ -225,12 +228,14 @@ impl<T> ops::Drop for Vec<T>
 {
 	fn drop(&mut self)
 	{
-		log_debug!("Vec::<{}>::drop() - {:p} w/ {} ents", type_name!(T), *self.data, self.size);
+		log_debug!("Vec::<{}>::drop() - {:?} w/ {} ents", type_name!(T), self.data, self.size);
 		unsafe {
-			for i in (0 .. self.size) {
-				::core::mem::drop( ::core::ptr::read(self.get_mut_ptr(i) as *const T) );
+			while self.size > 0 {
+				self.size -= 1;
+				let idx = self.size;
+				let ptr = self.data.get_ptr(idx) as *const T;
+				::core::mem::drop( ::core::ptr::read(ptr) );
 			}
-			::memory::heap::dealloc_array( *self.data, self.capacity );
 		}
 	}
 }
@@ -261,7 +266,7 @@ impl<T> ::core::slice::AsSlice<T> for Vec<T>
 {
 	fn as_slice<'a>(&'a self) -> &'a [T]
 	{
-		let rawslice = ::core::raw::Slice { data: *self.data as *const T, len: self.size };
+		let rawslice = ::core::raw::Slice { data: self.data.get_base() as *const T, len: self.size };
 		unsafe { ::core::mem::transmute( rawslice ) }
 	}
 }
@@ -348,7 +353,7 @@ impl<T> MoveItems<T>
 		//log_debug!("MoveItems.pop_item() ofs={}, count={}, data={}", self.ofs, self.count, self.data);
 		assert!(self.ofs < self.count);
 		let v: T = unsafe {
-			let ptr = self.data.offset(self.ofs as isize);
+			let ptr = self.data.get_ptr(self.ofs);
 			::core::ptr::read(ptr as *const _)
 			};
 		//log_debug!("MoveItems.pop_item() v = {}", HexDump(&v));
@@ -379,9 +384,6 @@ impl<T> ops::Drop for MoveItems<T>
 	{
 		for _ in (self.ofs .. self.count) {
 			self.pop_item();
-		}
-		unsafe {
-			::memory::heap::dealloc_array( *self.data, self.count );
 		}
 	}
 }
