@@ -220,20 +220,28 @@ pub fn set_boot_mode(mode: bootvideo::VideoMode)
 pub fn add_output(output: Box<Framebuffer>) -> FramebufferRegistration
 {
 	let dims = output.get_size();
-	// TODO: Detect if the boot mode is still present, and clear if it is
+	// Detect if the boot mode is still present, and clear if it is
 	unsafe {
 		if S_BOOT_MODE.take().is_some()
 		{
 			// - Create a registration for #0, aka the boot mode, and then drop it
-			::core::mem::drop( FramebufferRegistration { reg_id: 0 } )
+			::core::mem::drop( FramebufferRegistration { reg_id: 0 } );
+			log_notice!("Alternative display driver loaded, dropping boot video");
 		}
 	}
 	
 	let mut lh = S_DISPLAY_SURFACES.lock();
+	let pos = if lh.count() == 0 {
+			Pos::new(0, 0)
+		} else {
+			todo!("add_output: Pick a suitable location for the new surface");
+		};
 	let idx = lh.insert( DisplaySurface {
-		region: Rect::new(0,0,dims.w,dims.h),
+		region: Rect::new(pos.x,pos.y,dims.w,dims.h),
 		fb: output
 		} );
+	
+	todo!("add_output: Inform GUI of changed dimensions");
 	
 	log_debug!("Registering framebuffer #{}", idx);
 	FramebufferRegistration {

@@ -60,6 +60,20 @@ macro_rules! todo
 }
 
 /// Provides a less boiler-plate way to implement fmt traits for simple types
+///
+/// Only supports non-generic types and unbounded types (due to challenges in matching generic definitions)
+///
+/// ```
+/// impl_fmt! {
+///     Debug(self, f) for Type {
+///         write!(f, "Hello world!")
+///     }
+///     <T> Display(self, f) for Container {
+///         write!(f, "Hello world!")
+///     }
+/// }
+/// ```
+#[macro_export]
 macro_rules! impl_fmt
 {
 	( $( <$($g:ident),+> $tr:ident ($s:ident, $f:ident) for $ty:ty { $code:expr } )+ ) => { $(

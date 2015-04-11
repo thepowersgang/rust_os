@@ -52,7 +52,11 @@ impl<T> SparseVec<T>
 		self.data.len() - 1
 	}
 	pub fn remove(&mut self, idx: usize) {
-		self.data[idx] = None;
+		if self.data[idx].is_some()
+		{
+			self.data[idx] = None;
+			self.count -= 1;
+		}
 	}
 	pub fn find_free<'a>(&'a mut self) -> Option<Element<'a,T>> {
 		None

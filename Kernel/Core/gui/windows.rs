@@ -132,8 +132,10 @@ impl WindowGroup
 		}
 	}
 
+	/// Obtains the render position of the specified window
 	fn get_render_idx(&self, winidx: usize) -> Option<usize> {
-		self.render_order.iter().map(|x| x.0).enumerate().find(|&(_, idx)| idx == winidx).map(|(p,_)| p)
+		//self.render_order.iter().map(|x| x.0).enumerate().find(|&(_, idx)| idx == winidx).map(|(p,_)| p)
+		self.render_order.iter().position( |&(idx,_)| idx == winidx )
 	}
 		
 	/// Recalculate the cached visibility regions caused by 'changed_idx' updating
@@ -145,18 +147,27 @@ impl WindowGroup
 			self.recalc_vis_int(idx);
 		}
 	}
+	/// Recalculate visibility information for all windows below (and including) the specified render position
 	fn recalc_vis_int(&mut self, vis_idx: usize)
 	{
 		// For each window this one and below
 		for i in (0 .. vis_idx+1).rev()
 		{
 			// Iterate all higher windows and obtain visible rects
-			// - NOTE This visibility vector could get large...
-			for &(win,_) in &self.render_order[ i+1 .. ]
-			{
-				todo!("WindowGroup::recalc_vis_int(vis_idx={})", vis_idx);
-			}
+			self.render_order[i].1 = self.recalc_vis_for(i);
 		}
+	}
+	/// Recalculate the visibility vector for a specific window in the render order
+	fn recalc_vis_for(&mut self, vis_idx: usize) -> Vec<Rect>
+	{
+		let win_idx = self.render_order[vis_idx].0;
+		let dims = self.windows[win_idx].1.buf.read().dims;
+		let mut vis = vec![ Rect { pos: Pos::new(0,0), dims: dims } ];
+		for &(win,_) in &self.render_order[ vis_idx+1 .. ]
+		{
+			todo!("WindowGroup::recalc_vis_int(vis_idx={})", vis_idx);
+		}
+		vis
 	}
 	
 	fn show_window(&mut self, idx: usize) {
@@ -291,7 +302,7 @@ impl WinBuf
 		let len = ::core::cmp::max(len, pitch_32 - ofs);
 		
 		let l_ofs = line * pitch_32;
-		log_debug!("scanline_rgn_mut: self.data = {:p}", &self.data[0]);
+		//log_debug!("scanline_rgn_mut: self.data = {:p}", &self.data[0]);
 		&mut self.data[ l_ofs + ofs .. l_ofs + ofs + len ] 
 	}
 	
@@ -301,7 +312,7 @@ impl WinBuf
 			return ;
 		}
 		let rgn = self.scanline_rgn_mut(line, ofs, len);
-		log_debug!("fill_scanline: rgn = {:p}", &rgn[0]);
+		//log_debug!("fill_scanline: rgn = {:p}", &rgn[0]);
 		for v in rgn.iter_mut()
 		{
 			*v = value.as_argb32();
