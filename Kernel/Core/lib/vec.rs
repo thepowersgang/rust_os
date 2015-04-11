@@ -5,7 +5,7 @@
 //! Dynamically growable vector type
 use core::prelude::*;
 use core::iter::{FromIterator,IntoIterator};
-use core::ops;
+use core::{ops,fmt};
 use lib::collections::{MutableSeq};
 use core::ptr::Unique;
 use memory::heap::ArrayAlloc;
@@ -181,6 +181,12 @@ impl<T: Clone> Vec<T>
 				self.push(value.clone());
 			}
 		}
+	}
+}
+
+impl<T: fmt::Debug> fmt::Debug for Vec<T> {
+	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+		fmt::Debug::fmt(self.as_slice(), f)
 	}
 }
 

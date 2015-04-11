@@ -328,6 +328,9 @@ impl Rect
 			dims: Dims::new(w,h),
 		}
 	}
+	pub fn new_pd(pos: Pos, dims: Dims) -> Rect {
+		Rect { pos: pos, dims: dims }
+	}
 	
 	pub fn within(&self, w: u32, h: u32) -> bool {
 		self.x() < w && self.y() < h

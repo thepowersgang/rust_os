@@ -8,6 +8,7 @@ use super::{Dims,Pos,Rect,Colour};
 use sync::mutex::{LazyMutex,Mutex};
 use sync::rwlock::RwLock;
 use lib::mem::Arc;
+use core::atomic;
 
 use lib::sparse_vec::SparseVec;
 
@@ -35,7 +36,7 @@ struct WinBuf
 }
 
 /// A single window, an arbitarily movable on-screen region
-#[derive(Default)]
+//#[derive(Default)]
 struct Window
 {
 	/// Actual window data
@@ -48,11 +49,23 @@ struct Window
 	
 	/// List of invalidated regions within the window
 	dirty_rects: Mutex<Vec<Rect>>,
-	is_dirty: bool,
+	is_dirty: atomic::AtomicBool,
 	
 	
 	/// If true, the window is maximised, and should be resized with the screen
 	is_maximised: bool,
+}
+impl ::core::default::Default for Window {
+	fn default() -> Window {
+		use core::default::Default;
+		Window {
+			buf: Default::default(),
+			title: Default::default(),
+			dirty_rects: Default::default(),
+			is_dirty: atomic::ATOMIC_BOOL_INIT,
+			is_maximised: false,
+		}
+	}
 }
 
 pub struct WindowGroupHandle(usize);
@@ -99,6 +112,7 @@ fn render_thread()
 		let grp_idx = S_CURRENT_GROUP.load( ::core::atomic::Ordering::Relaxed );
 		let grp_ref = S_WINDOW_GROUPS.lock()[grp_idx].clone();
 		
+		log_debug!("render_thread: Rendering WG {}", grp_idx);
 		grp_ref.lock().redraw(false);
 	}
 }
@@ -108,12 +122,13 @@ impl WindowGroup
 	/// Re-draw this window group
 	fn redraw(&mut self, full: bool)
 	{
+		log_trace!("WindowGroup::redraw: render_order={:?}", self.render_order);
 		for &(winidx,ref vis) in &self.render_order
 		{
 			let vis = &vis[..];
 			let (ref pos, ref win) = self.windows[winidx];
 			// 1. Is the window dirty, or are we doing a full redraw
-			if full || win.is_dirty()
+			if win.take_is_dirty() || full
 			{
 				static FULL_RECT: [Rect; 1] = [Rect { pos: Pos {x:0,y:0},dims: Dims{w:!0,h:!0}}];
 				
@@ -122,6 +137,7 @@ impl WindowGroup
 				let dirty_vec = ::core::mem::replace(&mut *win.dirty_rects.lock(), Vec::new());
 				// - Get a slice of it (OR, if doing a full re-render, get a wildcard region)
 				let dirty = if full { &FULL_RECT[..] } else { &dirty_vec[..] };
+				log_trace!("WindowGroup::redraw: dirty={:?}, vis={:?}", dirty, vis);
 				// - Iterate all visible dirty regions and re-draw
 				for rgn in Rect::list_intersect(vis, dirty)
 				{
@@ -333,10 +349,16 @@ impl WinBuf
 
 impl Window
 {
-	fn is_dirty(&self) -> bool { self.is_dirty }
-
+	fn take_is_dirty(&self) -> bool { self.is_dirty.swap(false, atomic::Ordering::Relaxed) }
+	fn mark_dirty(&self) { self.is_dirty.store(true, atomic::Ordering::Relaxed); }
+	
 	pub fn resize(&self, dim: Dims) {
 		self.buf.write().resize(dim);
+	}
+	
+	fn add_dirty(&self, area: Rect)
+	{
+		todo!("Window::add_dirty({:?})", area);
 	}
 	
 	pub fn fill_rect(&self, area: Rect, colour: Colour)
@@ -351,11 +373,13 @@ impl Window
 				colour
 				);
 		}
+		self.add_dirty(area);
 	}
 	
 	pub fn pset(&self, pos: Pos, colour: Colour)
 	{
 		self.buf.write().fill_scanline(pos.y as usize, pos.x as usize, 1, colour);
+		self.add_dirty( Rect::new_pd(pos, Dims::new(1,1)) );
 	}
 }
 
@@ -390,6 +414,7 @@ impl WindowHandle
 			return ;
 		}
 		
+		self.get_win().mark_dirty();
 		S_RENDER_REQUEST.post();
 	}
 	

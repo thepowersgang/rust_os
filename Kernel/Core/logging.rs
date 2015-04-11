@@ -189,6 +189,7 @@ pub fn enabled(level: Level, modname: &str) -> bool
 	match modname
 	{
 	"kernel::memory::heap" => (level < Level::LevelDebug),	// Heap only prints higher than debug
+	"kernel::memory::phys" => (level < Level::LevelTrace),	// PMM only prints >Trace
 	_ => true,
 	}
 }
