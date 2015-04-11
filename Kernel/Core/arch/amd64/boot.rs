@@ -47,6 +47,7 @@ struct MultibootInfo
 
 #[repr(C)]
 #[allow(unused)]
+#[derive(Debug)]
 struct VbeModeInfo
 {
 	attributes: u16,
@@ -258,10 +259,28 @@ impl MultibootParsed
 			::core::mem::transmute(vbeinfo_vaddr as *const VbeModeInfo)
 			};
 		
+		log_trace!("MultibootInfo::_vidmode: info = {:?}", info);
+		let pos_tuple = (info.red_position,info.green_position,info.blue_position);
+		let size_tuple = (info.red_mask, info.green_mask, info.blue_mask);
+		let fmt = match info.bpp
+			{
+			32 => todo!("MultibootInfo::_vidmode: 32bpp"),
+			24 => todo!("MultibootInfo::_vidmode: 24bpp"),
+			16 => match (pos_tuple, size_tuple)
+				{
+				((11,5,0), (5,6,5)) => VideoFormat::R5G6B5,	// 5:6:5 16BPP
+				//((10,5,0), (5,5,5)) => VideoFormat::X1R5G5B5,	// 5:5:5 15BPP
+				_ => todo!("MultibootInfo::_vidmode: pos={:?},size={:?}", pos_tuple, size_tuple),
+				},
+			_ => {
+				return None;
+				},
+			};
+		
 		Some( VideoMode {
 			width: info.x_res,
 			height: info.y_res,
-			fmt: VideoFormat::X8R8G8B8,
+			fmt: fmt,
 			pitch: info.pitch as usize,
 			base: info.physbase as ::arch::memory::PAddr,
 			})

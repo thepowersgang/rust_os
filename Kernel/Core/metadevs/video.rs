@@ -23,19 +23,19 @@ pub struct FramebufferRegistration
 	reg_id: usize,
 }
 
-#[derive(Copy,Clone,PartialEq,Debug,Default)]
+#[derive(Copy,Clone,PartialEq,Default)]
 pub struct Pos
 {
 	pub x: u32,
 	pub y: u32,
 }
-#[derive(Copy,Clone,PartialEq,Debug,Default)]
+#[derive(Copy,Clone,PartialEq,Default)]
 pub struct Dims
 {
 	pub w: u32,
 	pub h: u32,
 }
-#[derive(Copy,Clone,PartialEq,Debug,Default)]
+#[derive(Copy,Clone,PartialEq,Default)]
 pub struct Rect
 {
 	pub pos: Pos,
@@ -80,15 +80,41 @@ pub mod bootvideo
 	use _common::*;
 	use super::{Dims, Rect};
 	
-	/// Bit format of the linear framebuffer
+	/// Bit format of the linear framebuffer, if interpreted as a n-bit little-endian number
 	#[derive(Copy,Clone,Debug)]
 	pub enum VideoFormat
 	{
+		/// ARGB (B, G, R, x)
 		X8R8G8B8,
+		/// BGRX (x, R, G, B)
 		B8G8R8X8,
+		/// 24-bit RGB (B, G, R)
 		R8G8B8,
 		B8G8R8,
+		/// 16-bit RGB (B g, g R)
 		R5G6B5,
+	}
+
+	fn round_from_8(val: u32, bits: usize) -> u32 {
+		let rv = val >> (8 - bits);
+		if rv != (0xFF >> (8-bits)) && (val >> (8 - bits - 1)) & 1 == 1 {
+			rv + 1
+		}
+		else {
+			rv
+		}
+	}
+	impl VideoFormat
+	{
+		pub fn col_from_xrgb(&self, src: u32) -> u32 {
+			let (r,g,b) = ( (src >> 16) & 0xFF, (src >> 8) & 0xFF, src & 0xFF );
+			match *self
+			{
+			VideoFormat::X8R8G8B8 => src & 0xFFFFFF,
+			VideoFormat::R5G6B5 => (round_from_8(r, 5) << 11) | (round_from_8(g, 6) << 5) | (round_from_8(b, 5) << 0),
+			_ => todo!("col_from_xrgb"),
+			}
+		}
 	}
 
 	/// Representation of the video mode
@@ -118,7 +144,18 @@ pub mod bootvideo
 	impl Framebuffer
 	{
 		/// Create a new `Framebuffer`
-		pub fn new(mode: VideoMode) -> Framebuffer {
+		pub fn new(mode: VideoMode) -> Framebuffer
+		{
+			// 1. Some quick sanity checks
+			let exp_pitch = match mode.fmt
+				{
+				VideoFormat::X8R8G8B8 => mode.width as usize * 4,
+				VideoFormat::R8G8B8 => mode.width as usize * 3, // 24 bpp
+				VideoFormat::R5G6B5 => mode.width as usize * 2,	// 16 bpp
+				_ => todo!("Framebuffer::new: Handle format {:?}", mode.fmt),
+				};
+			assert!(mode.pitch >= exp_pitch, "Framebuffer::new: Pitch {:#x} is not sane, exp >= {:#x}", mode.pitch, exp_pitch);
+			
 			let fb_size = (mode.base as usize % ::PAGE_SIZE) + mode.pitch * mode.height as usize;
 			let n_pages = (fb_size + ::PAGE_SIZE - 1) / ::PAGE_SIZE;
 			let alloc = match ::memory::virt::map_hw_rw( mode.base, n_pages, module_path!() )
@@ -166,16 +203,60 @@ pub mod bootvideo
 		}
 		
 		fn blit_inner(&mut self, dst: Rect, src: Rect) {
-			unimplemented!();
+			todo!("Framebuffer::blit_inner");
 		}
 		fn blit_ext(&mut self, dst: Rect, src: Rect, srf: &super::Framebuffer) -> bool {
 			false
 		}
 		fn blit_buf(&mut self, dst: Rect, buf: &[u32]) {
-			unimplemented!();
+			log_trace!("Framebuffer::blit_buf(dst={})", dst);
+			let output_fmt = self.mode.fmt;
+			let src_pitch = dst.w() as usize;
+			
+			assert!(dst.left()  <  self.mode.width as u32);
+			assert!(dst.right() <= self.mode.width as u32);
+			assert!(dst.top()    <  self.mode.height as u32);
+			assert!(dst.bottom() <= self.mode.height as u32);
+			
+			assert!(buf.len() >= src_pitch);
+			assert!(buf.len() % src_pitch == 0);
+			// Iterate across destination row nums and source rows
+			for (row,src) in (dst.top() .. dst.bottom()).zip( buf.chunks(src_pitch) )
+			{
+				let sl = self.scanline(row as usize);
+				match output_fmt
+				{
+				VideoFormat::X8R8G8B8 => {
+					let bpp = 4;
+					let left_byte  = dst.left()  as usize * bpp;
+					let right_byte = dst.right() as usize * bpp;
+					let seg = &mut sl[left_byte .. right_byte];
+					for (px,col) in seg.chunks_mut(bpp).zip( src.iter().cloned() )
+					{
+						px[0] = ((col >>  0) & 0xFF) as u8;
+						px[1] = ((col >>  8) & 0xFF) as u8;
+						px[2] = ((col >> 16) & 0xFF) as u8;
+						//px[3] = ((col >> 32) & 0xFF) as u8;
+					}
+					},
+				VideoFormat::R5G6B5 => {
+					let bpp = 2;
+					let left_byte  = dst.left()  as usize * bpp;
+					let right_byte = dst.right() as usize * bpp;
+					let seg = &mut sl[left_byte .. right_byte];
+					for (px,col) in seg.chunks_mut(bpp).zip( src.iter().cloned() )
+					{
+						let col16 = output_fmt.col_from_xrgb(col);
+						px[0] = ((col16 >>  0) & 0xFF) as u8;
+						px[1] = ((col16 >>  8) & 0xFF) as u8;
+					}
+					},
+				fmt @ _ => todo!("Framebuffer::blit_buf - {:?}", fmt),
+				}
+			}
 		}
 		fn fill(&mut self, dst: Rect, colour: u32) {
-			unimplemented!();
+			todo!("Framebuffer::fill");
 		}
 	}
 }
@@ -351,9 +432,28 @@ impl Rect
 	pub fn right(&self) -> u32 { self.x() + self.w() }
 	pub fn bottom(&self) -> u32 { self.y() + self.h() }
 	
+	pub fn tl(&self) -> Pos { self.pos }
+	pub fn br(&self) -> Pos { Pos::new( self.x() + self.w(), self.y() + self.h() ) }
+	pub fn br_inner(&self) -> Pos { Pos::new( self.x() + self.w() - 1, self.y() + self.h() - 1 ) }
+	
 	pub fn contains(&self, pt: &Pos) -> bool {
-		log_trace!("Rect::contains - self={:?}, pt={:?}", self, pt);
+		//log_trace!("Rect::contains - self={:?}, pt={:?}", self, pt);
 		(self.left() <= pt.x && pt.x < self.right()) && (self.top() <= pt.y && pt.y < self.bottom())
+	}
+	pub fn contains_rect(&self, r: &Rect) -> bool {
+		//log_trace!("Rect::contains - self={:?}, pt={:?}", self, pt);
+		if ! self.contains( &r.tl() ) {
+			false
+		}
+		else if r.w() == 0 || r.h() == 0 {
+			true
+		}
+		else if self.contains( &r.br_inner() ) {
+			true
+		}
+		else {
+			false
+		}
 	}
 	
 	pub fn intersect(&self, other: &Rect) -> Option<Rect> {
@@ -363,6 +463,8 @@ impl Rect
 		let max_y1 = ::core::cmp::max( self.top() , other.top() );
 		let min_x2 = ::core::cmp::min( self.right() , other.right() );
 		let min_y2 = ::core::cmp::min( self.bottom(), other.bottom() );
+		
+		log_trace!("Rect::intersect({} with {}) = ({},{}) ({},{})", self, other, max_x1, max_y1, min_x2, min_y2);
 		
 		if max_x1 < min_x2 && max_y1 < min_y2 {
 			Some( Rect {
@@ -401,11 +503,15 @@ impl<'a> Iterator for RectListIntersect<'a>
 		while self.idx1 < self.list1.len()
 		{
 			if self.idx2 == self.list2.len() {
-				self.idx2 = 0;
 				self.idx1 += 1;
+				self.idx2 = self.idx1;
+				if self.idx2 >= self.list2.len() {
+					return None;
+				}
 			}
 			else {
 				let rv = self.list1[self.idx1].intersect( &self.list2[self.idx2] );
+				self.idx2 += 1;
 				if rv.is_some() {
 					return rv;
 				}
@@ -416,6 +522,9 @@ impl<'a> Iterator for RectListIntersect<'a>
 }
 
 impl_fmt! {
+	Debug(self, f) for Pos { write!(f, "({},{})", self.x, self.y) }
+	Debug(self, f) for Dims { write!(f, "{}x{}", self.w, self.h) }
+	Debug(self, f) for Rect { write!(f, "({},{} + {}x{})", self.x(), self.y(), self.w(), self.h()) }
 	Display(self, f) for Rect { write!(f, "({},{} + {}x{})", self.x(), self.y(), self.w(), self.h()) }
 }
 
