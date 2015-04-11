@@ -134,7 +134,6 @@ impl WindowGroup
 
 	/// Obtains the render position of the specified window
 	fn get_render_idx(&self, winidx: usize) -> Option<usize> {
-		//self.render_order.iter().map(|x| x.0).enumerate().find(|&(_, idx)| idx == winidx).map(|(p,_)| p)
 		self.render_order.iter().position( |&(idx,_)| idx == winidx )
 	}
 		

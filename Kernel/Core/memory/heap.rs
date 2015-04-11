@@ -161,12 +161,28 @@ impl<T> ArrayAlloc<T>
 			self.ptr.offset(idx as isize)
 		}
 	}
-	
+
+	/// Attempt to expand this array without reallocating	
 	pub fn expand(&mut self, new_count: usize) -> bool
 	{
-		log_notice!("TODO: ArrayAlloc<{}>::expand({}): Support expanding array allocations",
-			type_name!(T), new_count);
-		false
+		if new_count > self.count
+		{
+			let newsize = ::core::mem::size_of::<T>() * new_count;
+			if unsafe { expand( *self.ptr as *mut(), newsize ) }
+			{
+				self.count = new_count;
+				true
+			}
+			else
+			{
+				false
+			}
+		}
+		else
+		{
+			log_warning!("ArrayAlloc<{}>::expand: Called with <= count", type_name!(T));
+			true
+		}
 	}
 }
 impl_fmt!{
@@ -194,11 +210,11 @@ unsafe fn allocate(heap: HeapId, size: usize, align: usize) -> Option<*mut ()>
 	}
 }
 
-//pub unsafe fn expand(pointer: *mut (), newsize: usize) -> Option<*mut ()>
-//{
-//	panic!("TODO: heap::expand");
-//	None
-//}
+/// Attempt to expand in-place
+unsafe fn expand(pointer: *mut (), newsize: usize) -> bool
+{
+	s_global_heap.lock().expand_alloc(pointer, newsize)
+}
 
 unsafe fn deallocate(pointer: *mut (), size: usize, align: usize)
 {
@@ -320,6 +336,30 @@ impl HeapDef
 		Some( block.data() )
 	}
 
+	/// Attempt to expand the specified block without reallocating
+	pub fn expand_alloc(&mut self, ptr: *mut (), size: usize) -> bool
+	{
+		let headers_size = ::core::mem::size_of::<HeapHead>() + ::core::mem::size_of::<HeapFoot>();
+		
+		// Quick check: Zero allocation can't grow
+		if ptr == ZERO_ALLOC {
+			return false;
+		}
+		
+		let headptr = unsafe { &mut *(ptr as *mut HeapHead).offset(-1) };
+	
+		// If the new size fits within the old block, update the cached size and return true
+		if size + headers_size <= headptr.size
+		{
+			headptr.state = HeapState::Used(size);
+			true
+		}
+		else
+		{
+			false
+		}
+	}
+	
 	pub fn deallocate(&mut self, ptr: *mut (), size: usize, align: usize)
 	{
 		log_debug!("deallocate(ptr={:p})", ptr);
