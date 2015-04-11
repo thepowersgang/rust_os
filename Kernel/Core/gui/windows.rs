@@ -39,6 +39,9 @@ struct WinBuf
 //#[derive(Default)]
 struct Window
 {
+	/// Window name (set once, never changes after)
+	name: String,
+	
 	/// Actual window data
 	/// 
 	/// Write lock is for structure manipulations, slicing is sharable
@@ -54,18 +57,6 @@ struct Window
 	
 	/// If true, the window is maximised, and should be resized with the screen
 	is_maximised: bool,
-}
-impl ::core::default::Default for Window {
-	fn default() -> Window {
-		use core::default::Default;
-		Window {
-			buf: Default::default(),
-			title: Default::default(),
-			dirty_rects: Default::default(),
-			is_dirty: atomic::ATOMIC_BOOL_INIT,
-			is_maximised: false,
-		}
-	}
 }
 
 pub struct WindowGroupHandle(usize);
@@ -112,7 +103,7 @@ fn render_thread()
 		let grp_idx = S_CURRENT_GROUP.load( ::core::atomic::Ordering::Relaxed );
 		let grp_ref = S_WINDOW_GROUPS.lock()[grp_idx].clone();
 		
-		log_debug!("render_thread: Rendering WG {}", grp_idx);
+		log_debug!("render_thread: Rendering WG {} '{}'", grp_idx, grp_ref.lock().name);
 		grp_ref.lock().redraw(false);
 	}
 }
@@ -201,6 +192,11 @@ impl WindowGroup
 		}
 	}
 	
+	fn move_window(&mut self, idx: usize, pos: Pos) {
+		self.windows[idx].0 = pos;
+		self.recalc_vis(idx);
+	}
+	
 	fn maximise_window(&mut self, idx: usize) {
 		{
 			let &mut(ref mut pos, ref win_rc) = &mut self.windows[idx];
@@ -221,9 +217,9 @@ impl WindowGroup
 
 impl WindowGroupHandle
 {
-	pub fn alloc(name: &str) -> WindowGroupHandle {
+	pub fn alloc<T: Into<String>>(name: T) -> WindowGroupHandle {
 		let new_group = Arc::new( Mutex::new( WindowGroup {
-			name: From::from(name),
+			name: T::into(name),
 			windows: SparseVec::new(),
 			render_order: Vec::new(),
 			} ) );
@@ -242,12 +238,12 @@ impl WindowGroupHandle
 		WindowGroupHandle(idx)
 	}
 	
-	pub fn create_window(&mut self) -> WindowHandle {
+	pub fn create_window<T: Into<String>>(&mut self, name: T) -> WindowHandle {
 		// Allocate a new window from the list
 		// - Get handle to this window group (ok to lock it)
 		let wgh_rc = S_WINDOW_GROUPS.lock()[self.0].clone();
 		
-		let idx = wgh_rc.lock().windows.insert( (Pos::new(0,0), Arc::new(Window::default())) );
+		let idx = wgh_rc.lock().windows.insert( (Pos::new(0,0), Arc::new(Window::new(name.into()))) );
 		WindowHandle { grp: self.0, win: idx }
 	}
 }
@@ -350,6 +346,18 @@ impl WinBuf
 
 impl Window
 {
+	fn new(name: String) -> Window {
+		use core::default::Default;
+		Window {
+			name: name,
+			buf: Default::default(),
+			title: Default::default(),
+			dirty_rects: Default::default(),
+			is_dirty: atomic::ATOMIC_BOOL_INIT,
+			is_maximised: false,
+		}
+	}
+	
 	fn take_is_dirty(&self) -> bool { self.is_dirty.swap(false, atomic::Ordering::Relaxed) }
 	fn mark_dirty(&self) { self.is_dirty.store(true, atomic::Ordering::Relaxed); }
 	
@@ -479,6 +487,11 @@ impl WindowHandle
 		let wg = self.get_wg();
 		wg.lock().recalc_vis(self.win);
 	}
+	pub fn set_pos(&mut self, pos: Pos) {
+		let wg = self.get_wg();
+		wg.lock().move_window(self.win, pos);
+	}
+	
 	/// Maximise this window (fill all space on the current monitor)
 	pub fn maximise(&mut self) {
 		let wg = self.get_wg();

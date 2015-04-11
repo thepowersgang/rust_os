@@ -11,12 +11,6 @@ use lib::sparse_vec::SparseVec;
 
 module_define!{Video, [], init}
 
-/// A handle held by users of framebuffers
-pub struct FramebufferRef
-{
-	backing_id: usize,
-}
-
 /// Handle held by framebuffer drivers
 pub struct FramebufferRegistration
 {
@@ -310,7 +304,8 @@ pub fn add_output(output: Box<Framebuffer>) -> FramebufferRegistration
 			log_notice!("Alternative display driver loaded, dropping boot video");
 		}
 	}
-	
+
+	// Add new output to the global list	
 	let mut lh = S_DISPLAY_SURFACES.lock();
 	let pos = if lh.count() == 0 {
 			Pos::new(0, 0)
@@ -361,20 +356,6 @@ pub unsafe fn write_line(pos: Pos, data: &[u32])
 		}
 	}
 }
-
-impl FramebufferRef
-{
-	pub fn fill(&mut self, dst: Rect, colour: u32) {
-		S_DISPLAY_SURFACES.lock()[self.backing_id].fb.fill(dst, colour);
-	}
-}
-
-//impl ::core::ops::Drop for FramebufferRef
-//{
-//	fn drop(&mut self)
-//	{
-//	}
-//}
 
 impl ::core::ops::Drop for FramebufferRegistration
 {

@@ -17,6 +17,7 @@ struct KernelLog
 {
 	wgh: WindowGroupHandle,
 	wh: WindowHandle,
+	logo_wh: WindowHandle,
 	cur_line: u32,
 }
 
@@ -65,12 +66,17 @@ impl KernelLog
 	fn new() -> KernelLog
 	{
 		let mut wgh = WindowGroupHandle::alloc("Kernel");
-		let mut wh = wgh.create_window();
+		let mut wh = wgh.create_window("Kernel Log");
 		wh.maximise();
 		wh.show();
+		let mut logo_wh = wgh.create_window("Logo");
+		logo_wh.resize(Dims::new(64, 64));
+		logo_wh.set_pos(Pos::new(1024-64, 0));
+		//logo_wh.show();
 		KernelLog {
 			wgh: wgh,
 			wh: wh,
+			logo_wh: logo_wh,
 			cur_line: 0
 		}
 	}
