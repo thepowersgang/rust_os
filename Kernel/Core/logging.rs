@@ -36,6 +36,7 @@ pub enum Colour
 	Green,
 	Blue,
 	Purple,
+	Grey,
 }
 
 #[doc(hidden)]
@@ -52,22 +53,41 @@ pub struct HexDump<'a,T:'a>(pub &'a T);
 #[allow(non_upper_case_globals)]
 static s_logging_lock: ::arch::sync::Spinlock<()> = spinlock_init!( () );
 
+impl Level
+{
+	fn to_flag(&self) -> char
+	{
+		match *self
+		{
+		Level::LevelPanic   => 'k',
+		Level::LevelError   => 'e',
+		Level::LevelWarning => 'w',
+		Level::LevelNotice  => 'n',
+		Level::LevelInfo    => 'i',
+		Level::LevelLog     => 'l',
+		Level::LevelDebug   => 'd',
+		Level::LevelTrace   => 't',
+		}
+	}
+	fn to_colour(&self) -> Colour
+	{
+		match *self
+		{
+		Level::LevelPanic   => Colour::Purple,
+		Level::LevelError   => Colour::Red,
+		Level::LevelWarning => Colour::Yellow,
+		Level::LevelNotice  => Colour::Green,
+		Level::LevelLog     => Colour::Blue,
+		Level::LevelTrace   => Colour::Grey,
+		_ => Colour::Default,
+		}
+	}
+}
+
 impl ::core::fmt::Display for Level
 {
 	fn fmt(&self, f: &mut ::core::fmt::Formatter) -> ::core::fmt::Result {
-		write!(f, "{}",
-			match *self
-			{
-			Level::LevelPanic   => 'k',
-			Level::LevelError   => 'e',
-			Level::LevelWarning => 'w',
-			Level::LevelNotice  => 'n',
-			Level::LevelInfo    => 'i',
-			Level::LevelLog     => 'l',
-			Level::LevelDebug   => 'd',
-			Level::LevelTrace   => 't',
-			}
-			)
+		write!(f, "{}", self.to_flag())
 	}
 }
 
@@ -91,6 +111,7 @@ impl LoggingFormatter
 		Colour::Yellow  => ::arch::puts("\x1b[33m"),
 		Colour::Blue    => ::arch::puts("\x1b[34m"),
 		Colour::Purple  => ::arch::puts("\x1b[35m"),
+		Colour::Grey    => ::arch::puts("\x1b[1;30m"),
 		}
 	}
 }
@@ -178,13 +199,7 @@ pub fn getstream(level: Level, modname: &str) -> LoggingFormatter
 {
 	assert!( enabled(level, modname) );
 	let mut rv = LoggingFormatter::new();
-	rv.set_colour(match level {
-		Level::LevelPanic   => Colour::Purple,
-		Level::LevelError   => Colour::Red,
-		Level::LevelWarning => Colour::Yellow,
-		Level::LevelNotice  => Colour::Green,
-		_ => Colour::Default,
-		});
+	rv.set_colour(level.to_colour());
 	let _ = write!(&mut rv, "{:8}{} [{:6}] - ", ::time::ticks(), level, modname);
 	rv
 }
