@@ -57,7 +57,7 @@ LIBGCC := $(shell $(TRIPLE)-gcc -print-libgcc-file-name)
 
 OBJS := $(OBJS:%=$(OBJDIR)%)
 
-all: bin/kernel-$(ARCH).bin
+all: bin/kernel-$(ARCH).bin bin/kernel-$(ARCH).dsm
 
 clean:
 	rm -r $(OBJDIR)
@@ -79,9 +79,10 @@ bin/kernel-$(ARCH).bin: $(OBJS) Core/arch/$(ARCH)/link.ld Makefile
 	@$(TRIPLE)-ld -o $@ $(OBJS) $(LIBGCC) $(LINKFLAGS)
 	@objcopy $@ -F elf32-i386 $@.elf32
 #	@mcopy -i fdd.img $@.elf32 ::/ -D o
-	@echo "[OBJDUMP] >" $@.dsm
-	@objdump -C -S $@ > $@.dsm
 	@echo "BUILDNUM := $$(( $(BUILDNUM) + 1 ))" > BuildNum.$(ARCH).mk
+%.dsm: %
+	@echo "[OBJDUMP] >" $*.dsm
+	@objdump -C -S $* > $*.dsm
 
 $(OBJDIR)%.ao: Core/arch/$(ARCH)/%.asm Makefile
 	@echo [AS] -o $@

@@ -230,7 +230,10 @@ impl HeapDef
 		{
 			let fb = &*opt_fb;
 			assert!( fb.magic == MAGIC );
-			let next = match fb.state { HeapState::Free(n)=> n, _ => panic!("Non-free block ({:p}) in free list", opt_fb) };
+			let next = match fb.state {
+				HeapState::Free(n)=> n,
+				_ => { self.dump(); panic!("Non-free block ({:p}) in free list", opt_fb); }
+				};
 			if fb.size >= blocksize
 			{
 				break;
@@ -242,7 +245,7 @@ impl HeapDef
 		if !opt_fb.is_null()
 		{
 			let fb = &mut *opt_fb;
-			let next = match fb.state { HeapState::Free(n)=> n, _ => panic!("Non-free block in free list") };
+			let next = match fb.state { HeapState::Free(n)=> n, _ => {self.dump(); panic!("Non-free block in free list"); } };
 			// Split block (if needed)
 			if fb.size > blocksize + headers_size
 			{
@@ -261,26 +264,28 @@ impl HeapDef
 					state: HeapState::Free(next)
 					};
 				(*far_foot).head = far_head;
+				log_debug!("Split block, new block {:?}", *far_head);
 				if prev.is_null() {
 					self.first_free = far_head;
 				}
 				else {
 					(*prev).state = HeapState::Free(far_head);
+					log_debug!("Chained atop {:p} {:?}", prev, *prev);
 				}
+			}
+			else if prev.is_null()
+			{
+				self.first_free = next;
+				log_debug!("Set first free to {:p}", next);
 			}
 			else
 			{
-				let next = match fb.state { HeapState::Free(x) => x, _ => panic!("") };
-				if prev.is_null() {
-					self.first_free = next;
-				}
-				else {
-					(*prev).state = HeapState::Free(next);
-				}
+				(*prev).state = HeapState::Free(next);
+				log_debug!("Chain with next with {:p} {:?}", prev, *prev);
 			}
 			// Return newly allocated block
 			fb.state = HeapState::Used(size);
-			log_debug!("Returning {:p} (Freelist)", fb.data());
+			log_debug!("Returning block {:p} (Freelist)", fb);
 			return Some( fb.data() );
 		}
 		assert!(opt_fb.is_null());
@@ -309,7 +314,9 @@ impl HeapDef
 			self.first_free = block.next();
 		}
 		
-		log_trace!("Returning {:p} (new)", block.data());
+		block.state = HeapState::Used(size);	
+	
+		log_trace!("Returning block {:p} (new)", block);
 		Some( block.data() )
 	}
 
@@ -358,7 +365,7 @@ impl HeapDef
 	#[inline(never)]
 	unsafe fn expand(&mut self, min_size: usize) -> *mut HeapHead
 	{
-		log_trace!("HeapDef::expand(min_size={})", min_size);
+		log_trace!("HeapDef::expand(min_size={:#x})", min_size);
 		//log_debug!("self.{{start = {:p}, last_foot = {:?}}}", self.start, self.last_foot);
 		let use_prev =
 			if self.start.is_null() {
@@ -369,16 +376,19 @@ impl HeapDef
 				false
 			}
 			else {
-				assert!(!self.last_foot.is_null());
-				let lasthdr = (*self.last_foot).head();
-				match lasthdr.state
-				{
-				HeapState::Free(_) => {
-					assert!(lasthdr.size < min_size);
-					true
-					},
-				HeapState::Used(_) => false
-				}
+				false
+				// DISABLED: To use the final block, the previous block on the freelist must be edited
+				// - Not easy to do
+				//assert!(!self.last_foot.is_null());
+				//let lasthdr = (*self.last_foot).head();
+				//match lasthdr.state
+				//{
+				//HeapState::Free(_) => {
+				//	assert!(lasthdr.size < min_size);
+				//	true
+				//	},
+				//HeapState::Used(_) => false
+				//}
 			};
 		//log_debug!("(2) self.{{start = {:#x}, last_foot = {:?}}}, use_prev={}", self.start as usize, self.last_foot, use_prev);
 		assert!( !self.last_foot.is_null() );
@@ -396,7 +406,7 @@ impl HeapDef
 		let block = if use_prev
 			{
 				let block = &mut *last_foot.head;
-				//log_debug!("HeapDef.expand: (prev) &block={:p}", block);
+				log_debug!("HeapDef.expand: (prev) &block={:p}", block);
 				block.size += n_pages * ::PAGE_SIZE;
 				block.foot().head = last_foot.head;
 				
@@ -405,7 +415,7 @@ impl HeapDef
 			else
 			{
 				let block = &mut *last_foot.next_head();
-				//log_debug!("HeapDef.expand: (new) &block={:p}", block);
+				log_debug!("HeapDef.expand: (new) &block={:p}", block);
 				*block = HeapHead {
 					magic: MAGIC,
 					state: HeapState::Used(0),
@@ -420,6 +430,23 @@ impl HeapDef
 		block.state = HeapState::Used(0);
 		// 3. Return final block
 		block
+	}
+	
+	fn dump(&self)
+	{
+		log_log!("Dumping Heap");
+		unsafe {
+			let mut block_head = self.start;
+			loop
+			{
+				let head_ref = &*block_head;
+				log_log!("{:p} {:?}", block_head, head_ref);
+				if head_ref.foot() as *const HeapFoot == self.last_foot {
+					break;
+				}
+				block_head = head_ref.next();
+			}
+		}
 	}
 }
 
