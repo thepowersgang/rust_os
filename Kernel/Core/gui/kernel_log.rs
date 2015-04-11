@@ -133,6 +133,7 @@ impl KernelLog
 			32 ... 0x7E => cp as u8,
 			_ => b'?',
 			};
+		log_trace!("KernelLog::render_char({:?}, {:?}, '{}') idx={}", pos, colour, cp, idx);
 		
 		let bitmap = &S_FONTDATA[idx as usize];
 		
@@ -141,10 +142,10 @@ impl KernelLog
 		for row in (0 .. 16)
 		{
 			let byte = &bitmap[row as usize];
-			for col in (0 .. 8)
+			for col in (0usize .. 8)
 			{
-				if byte & (1 << col as usize) != 0 {
-					self.wh.pset(Pos::new(bx+col,by+row), colour);
+				if (byte >> 7-col) & 1 != 0 {
+					self.wh.pset(Pos::new(bx+col as u32,by+row), colour);
 				}
 			}
 		}
@@ -157,7 +158,7 @@ impl CharPos
 	fn next(self) -> CharPos { CharPos(self.0, self.1+1) }
 	fn prev(self) -> CharPos { CharPos(self.0, self.1-1) }
 	fn to_pixels(self) -> Pos {
-		Pos::new( (self.0 * C_CELL_DIMS.w) as u32, (self.1 * C_CELL_DIMS.h) as u32 )
+		Pos::new( (self.1 * C_CELL_DIMS.w) as u32, (self.0 * C_CELL_DIMS.h) as u32 )
 	}
 }
 

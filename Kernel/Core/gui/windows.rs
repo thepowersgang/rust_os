@@ -315,7 +315,7 @@ impl WinBuf
 		assert!(line < self.dims.h as usize, "Requested scanline is out of range");
 		
 		let pitch_32 = self.dims.width() as usize;
-		let len = ::core::cmp::max(len, pitch_32 - ofs);
+		let len = ::core::cmp::min(len, pitch_32 - ofs);
 		
 		let l_ofs = line * pitch_32;
 		//log_debug!("scanline_rgn_mut: self.data = {:p}", &self.data[0]);
@@ -360,64 +360,66 @@ impl Window
 	fn add_dirty(&self, area: Rect)
 	{
 		let mut lh = self.dirty_rects.lock();
-		if lh.len() == 0
+		
+		// 1. Search for overlap with existing regions
+		for rgn in &*lh
 		{
-			lh.push(area);
+			// Completely contained within other region
+			if rgn.contains_rect(&area) {
+				return ;
+			}
 		}
-		else
+		// 2. Merge with regions that share a side
+		// TODO: Abstract this and run until no merges happen?
+		for rgn in &mut **lh
 		{
-			// 1. Search for overlap with existing regions
-			for rgn in &*lh
-			{
-				// Completely contained within other region
-				if rgn.contains_rect(&area) {
+			// Same height and vertical position
+			if rgn.top() == area.top() && rgn.bottom() == area.bottom() {
+				// - Area's righthand edge within region
+				if rgn.left() < area.left() && area.left() <= rgn.right() {
+					// Expand region rightwards
+					assert!(area.right() > rgn.right());
+					let delta = area.right() - rgn.right();
+					log_trace!("{} + {} exp right {}px", rgn, area, delta);
+					rgn.dims.w += delta;
+					return ;
+				}
+				// - Area's lefthand edge within region
+				else if rgn.left() < area.right() && area.right() <= rgn.right() {
+					// Expand region leftwards
+					assert!(area.left() > rgn.left());
+					let delta = area.left() - rgn.left();
+					log_trace!("{} + {} exp left {}px", rgn, area, delta);
+					rgn.pos.x -= delta;
+					rgn.dims.w += delta;
 					return ;
 				}
 			}
-			// TODO: Avoid making duplicate regions
-			// - Merge with regions that share a side
-			for rgn in &mut **lh
-			{
-				if rgn.top() == area.top() && rgn.bottom() == area.bottom() {
-					// Same line vertically, check for horizontal adjacency
-					if rgn.right() < area.right() && area.right() <= rgn.left() {
-						// Expand region rightwards
-						let delta = area.left() - rgn.left();
-						log_trace!("{} + {} exp right {}px", rgn, area, delta);
-						rgn.dims.w += delta;
-						return ;
-					}
-					else if area.right() < rgn.right() && rgn.right() <= area.left() {
-						// Expand region leftwards
-						let delta = area.right() - rgn.right();
-						log_trace!("{} + {} exp left {}px", rgn, area, delta);
-						rgn.pos.x -= delta;
-						rgn.dims.w += delta;
-						return ;
-					}
+			
+			// Same width and horizontal position
+			if rgn.left() == area.left() && rgn.right() == area.right() {
+				// - Area's top edge within region
+				if rgn.top() < area.top() && area.top() <= rgn.bottom() {
+					// Expand region downwards
+					assert!(area.bottom() > rgn.bottom());
+					let delta = area.bottom() - rgn.bottom();
+					log_trace!("{} + {} exp down {}px", rgn, area, delta);
+					rgn.dims.h += delta;
+					return ;
 				}
-				
-				if rgn.left() == area.left() && rgn.right() == area.right() {
-					// Same line horizontally, check for vertical adjacency
-					if rgn.top() < area.top() && area.top() <= rgn.bottom() {
-						// Expand region downwards
-						let delta = area.bottom() - rgn.bottom();
-						log_trace!("{} + {} exp down {}px", rgn, area, delta);
-						rgn.dims.h += delta;
-						return ;
-					}
-					else if area.top() < rgn.top() && rgn.top() <= area.bottom() {
-						// Expand region upwards
-						let delta = area.top() - rgn.top();
-						log_trace!("{} + {} exp up {} px", rgn, area, delta);
-						rgn.pos.y -= delta; 
-						rgn.dims.h += delta;
-						return ;
-					}
+				// - Area's bottom edge within region
+				else if rgn.top() < area.bottom() && area.bottom() <= rgn.bottom() {
+					// Expand region upwards
+					assert!(area.top() > rgn.top());
+					let delta = area.top() - rgn.top();
+					log_trace!("{} + {} exp up {} px", rgn, area, delta);
+					rgn.pos.y -= delta; 
+					rgn.dims.h += delta;
+					return ;
 				}
 			}
-			lh.push(area);
 		}
+		lh.push(area);
 	}
 	
 	pub fn fill_rect(&self, area: Rect, colour: Colour)

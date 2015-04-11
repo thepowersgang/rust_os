@@ -1,4 +1,6 @@
-#!/bin/sh
+#!/bin/bash
+
+#ENABLE_VIDEO=0
 
 IMAGE=$1
 ARGS=$2
@@ -21,7 +23,11 @@ QEMU_OPTS=""
 QEMU_OPTS=$QEMU_OPTS" -net nic"
 QEMU_OPTS=$QEMU_OPTS" -net user,tftp=.pxe/,bootfile=pxelinux.0"
 QEMU_OPTS=$QEMU_OPTS" -boot n"
-QEMU_OPTS=$QEMU_OPTS" -nographic"
+if [[ $ENABLE_VIDEO -ne 0 ]]; then
+	QEMU_OPTS=$QEMU_OPTS" -serial stdio"
+else
+	QEMU_OPTS=$QEMU_OPTS" -nographic"
+fi
 QEMU_OPTS=$QEMU_OPTS" -hda DiskImages/hda.img"
 #QEMU_OPTS=$QEMU_OPTS" -trace events=.qemu_trace"
 QEMU_OPTS=$QEMU_OPTS" -trace file=qemu_trace"
