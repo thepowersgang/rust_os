@@ -53,6 +53,7 @@ impl Colour
 	pub fn def_white() -> Colour { Colour(0xFF_FF_FF) }
 	
 	pub fn def_yellow() -> Colour { Colour(0xFF_FF_00) }
+	pub fn def_green() -> Colour { Colour(0x00_FF_00) }
 	
 	pub fn as_argb32(&self) -> u32 { self.0 }
 }

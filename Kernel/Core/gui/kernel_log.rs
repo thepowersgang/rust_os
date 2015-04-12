@@ -27,9 +27,9 @@ struct KernelLog
 #[derive(Copy,Clone,Debug)]
 struct CharPos(u32,u32);
 
-struct LogWriter<'a>
+struct LogWriter
 {
-	log: &'a mut KernelLog,
+	log: ::sync::mutex::HeldLazyMutex<'static,KernelLog>,
 	pos: CharPos,
 	colour: Colour,
 }
@@ -49,11 +49,25 @@ pub fn init()
 	// Create window (and structure)
 	S_KERNEL_LOG.init(|| KernelLog::new());
 	
+	{
+		use core::fmt::Write;
+		{
+			let mut w = LogWriter::new();
+			w.set_colour(Colour::def_green());
+			write!(&mut w, "Tifflin Kernel v{} build {}", env!("TK_VERSION"), env!("TK_BUILD")).unwrap();
+		}
+		{
+			let mut w = LogWriter::new();
+			w.set_colour(Colour::def_green());
+			write!(&mut w, "> Git state : {}", env!("TK_GITSPEC")).unwrap();
+			write!(&mut w, ", Built with {}", env!("RUST_VERSION")).unwrap();
+		}
+	}
+	
 	// DEBUG: Print something
 	{
 		use core::fmt::Write;
-		let mut lh = S_KERNEL_LOG.lock();
-		let mut w = LogWriter::new(&mut lh);
+		let mut w = LogWriter::new();
 		write!(&mut w, "???l [] ").unwrap();
 		w.set_colour(Colour::def_yellow());
 		write!(&mut w, "Hello World!").unwrap();
@@ -69,11 +83,13 @@ impl KernelLog
 	fn new() -> KernelLog
 	{
 		let mut wgh = WindowGroupHandle::alloc("Kernel");
+		
 		let mut wh = wgh.create_window("Kernel Log");
 		wh.maximise();
 		wh.show();
 		
 		let mut logo_wh = wgh.create_window("Logo");
+		// TODO: Get this limit from the video layer, and update it when required
 		let limit_x = 1280;
 		let dims = Dims::new(S_LOGO_DIMS.0,S_LOGO_DIMS.1);
 		logo_wh.resize(dims);
@@ -176,13 +192,14 @@ impl CharPos
 	}
 }
 
-impl<'a> LogWriter<'a>
+impl LogWriter
 {
-	pub fn new(log: &mut KernelLog) -> LogWriter
+	pub fn new() -> LogWriter
 	{
+		let mut log = S_KERNEL_LOG.lock();
 		log.scroll_up();
 		LogWriter {
-			pos: CharPos(log.cur_line,0),
+			pos: CharPos(log.cur_line-1,0),
 			colour: Colour::def_white(),
 			log: log,
 		}
@@ -193,7 +210,7 @@ impl<'a> LogWriter<'a>
 		self.colour = colour;
 	}
 }
-impl<'a> fmt::Write for LogWriter<'a>
+impl fmt::Write for LogWriter
 {
 	fn write_str(&mut self, s: &str) -> fmt::Result
 	{
@@ -201,7 +218,7 @@ impl<'a> fmt::Write for LogWriter<'a>
 		Ok( () )
 	}
 }
-impl<'a> ::core::ops::Drop for LogWriter<'a>
+impl ::core::ops::Drop for LogWriter
 {
 	fn drop(&mut self)
 	{

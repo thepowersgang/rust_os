@@ -41,6 +41,8 @@ pub struct HeldMutex<'lock,T:'lock+Send>
 /// A lazily populated mutex (must be initialised on/before first lock)
 pub struct LazyMutex<T: Send>(pub Mutex<LazyStatic<T>>);
 
+pub type HeldLazyMutex<'a, T/*: Send*/> = HeldMutex<'a, LazyStatic<T>>;
+
 impl<T: Send> Mutex<T>
 {
 	/// Construct a new mutex-protected value

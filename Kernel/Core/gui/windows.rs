@@ -599,6 +599,7 @@ impl WindowHandle
 		self.get_win().pset(pos, colour);
 	}
 	
+	/// Fill a region of the window with provided data
 	pub fn blit_rect(&mut self, rect: Rect, data: &[u32])
 	{
 		self.get_win().blit_rect(rect, data);
