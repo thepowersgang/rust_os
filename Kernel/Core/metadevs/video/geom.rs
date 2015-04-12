@@ -246,10 +246,7 @@ impl<'a> Iterator for RectListIntersect<'a>
 		{
 			if self.idx2 == self.list2.len() {
 				self.idx1 += 1;
-				self.idx2 = self.idx1;
-				if self.idx2 >= self.list2.len() {
-					return None;
-				}
+				self.idx2 = 0;
 			}
 			else {
 				let rv = self.list1[self.idx1].intersect( &self.list2[self.idx2] );

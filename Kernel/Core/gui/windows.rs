@@ -316,7 +316,7 @@ impl WinBuf
 		let px_count = newsize.width() as usize * newsize.height() as usize;
 		log_trace!("- px_count = {}", px_count);
 		self.dims = newsize;
-		self.data.resize(px_count, 0);
+		self.data.resize(px_count, 0x11EEA0);
 	}
 	
 	fn scanline_rgn(&self, line: usize, ofs: usize, len: usize) -> &[u32]
