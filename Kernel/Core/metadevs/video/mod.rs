@@ -97,7 +97,7 @@ pub fn set_boot_mode(mode: bootvideo::VideoMode)
 pub fn register_geom_update(fcn: fn(new_total: Rect))
 {
 	let mut lh = S_GEOM_UPDATE_SIGNAL.lock();
-	assert!(lh.is_some(), "register_geom_update called multiple times");
+	assert!(lh.is_none(), "register_geom_update called multiple times (prev {:p}, new {:p})", lh.as_ref().unwrap(), &fcn);
 	*lh = Some(fcn);
 }
 
