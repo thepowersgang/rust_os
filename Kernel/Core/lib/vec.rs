@@ -342,6 +342,30 @@ impl<T> FromIterator<T> for Vec<T>
 	}
 }
 
+impl<T> ::core::iter::Extend<T> for Vec<T>
+{
+	fn extend<I: IntoIterator<Item=T>>(&mut self, src: I)
+	{
+		let iter = src.into_iter();
+		
+		if let (_, Some(size)) = iter.size_hint()
+		{
+			self.reserve(size);
+		}
+		for val in iter {
+			self.push(val);
+		}
+	}
+}
+
+impl<T> IntoIterator for Vec<T>
+{
+	type IntoIter = MoveItems<T>;
+	type Item = T;
+	fn into_iter(self) -> MoveItems<T> {
+		self.into_iter()
+	}
+}
 impl<'a, T> IntoIterator for &'a Vec<T>
 {
 	type IntoIter = ::core::slice::Iter<'a,T>;

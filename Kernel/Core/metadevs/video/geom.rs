@@ -129,6 +129,16 @@ impl Rect
 			None
 		}
 	}
+	
+	/// Iterates areas in `self` that don't intersect with `other`
+	pub fn not_intersect<'a>(&'a self, other: &'a Rect) -> NotIntersect<'a> {
+		NotIntersect {
+			left: self,
+			right: self.intersect(other).unwrap_or(Rect::new(0,0,0,0)),
+			idx: 0,
+		}
+	}
+	
 	/// Returns the loose union of two rects (i.e. the smallest rect that contains both)
 	pub fn union(&self, other: &Rect) -> Rect
 	{
@@ -156,6 +166,68 @@ impl Rect
 		}
 	}
 }
+
+/// Iterator over the negative intersection of two `Rect`s, yields up to 4 rects
+pub struct NotIntersect<'a>
+{
+	left: &'a Rect,
+	right: Rect,
+	idx: usize,
+}
+impl<'a> Iterator for NotIntersect<'a>
+{
+	type Item = Rect;
+	fn next(&mut self) -> Option<Rect>
+	{
+		if self.right.w() == 0 {
+			return None;
+		}
+		// Max of four possible rects can be generated.
+		// NOTE: The following algos assume that `self.right` is a strict subset of `self.left`
+		while self.idx < 4
+		{
+			let cur = self.idx;
+			self.idx += 1;
+			match cur
+			{
+			// - Area above the intersection (long)
+			0 => if self.left.top() < self.right.top() {
+					// Same TL and W as left, H = delta top
+					return Some( Rect::new_pd(
+						self.left.pos(),
+						Dims::new(self.left.w(), self.right.top()-self.left.top())
+						) );
+				},
+			// - Left of the intersection (short)
+			1 => if self.left.left() < self.right.left() {
+					// (Left Left, Right Top) W = delta left, H = right height
+					return Some( Rect::new(
+						self.left.x(), self.right.y(),
+						self.right.left() - self.left.left(), self.right.h()
+						) );
+				},
+			// - Right of the intersection (short)
+			2 => if self.left.right() > self.right.right() {
+					// (Right Left, Right Top) W = delta left, H = right height
+					return Some( Rect::new(
+						self.right.right(), self.right.top(),
+						self.left.right() - self.right.right(), self.right.h()
+						) );
+				},
+			// - Area below the intersection (long)
+			3 => if self.left.bottom() > self.right.bottom() {
+					return Some( Rect::new(
+						self.left.left(), self.right.bottom(),
+						self.left.w(), self.left.bottom() - self.right.bottom()
+						) );
+				},
+			_ => unreachable!(),
+			}
+		}
+		None
+	}
+}
+
 /// Iterator over the intersections of two `Rect` slices
 pub struct RectListIntersect<'a>
 {

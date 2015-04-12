@@ -73,7 +73,7 @@ impl KernelLog
 		let mut logo_wh = wgh.create_window("Logo");
 		logo_wh.resize(Dims::new(64, 64));
 		logo_wh.set_pos(Pos::new(1024-64, 0));
-		//logo_wh.show();
+		logo_wh.show();
 		KernelLog {
 			_wgh: wgh,
 			wh: wh,

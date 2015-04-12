@@ -194,14 +194,37 @@ impl WindowGroup
 		}
 	}
 	/// Recalculate the visibility vector for a specific window in the render order
+	// TODO: This is quite expensive (causes reallocations on each intersecting window), need to look into
+	//       making it cheaper somehow.
+	// Maybe have it optionally disabled, and do global dirty instead?
 	fn recalc_vis_for(&mut self, vis_idx: usize) -> Vec<Rect>
 	{
 		let win_idx = self.render_order[vis_idx].0;
-		let dims = self.windows[win_idx].1.buf.read().dims;
-		let mut vis = vec![ Rect { pos: Pos::new(0,0), dims: dims } ];
+		let (ref cur_pos, ref cur_win) = self.windows[win_idx];
+		let dims = cur_win.buf.read().dims;
+		let win_rect = Rect::new_pd(*cur_pos, dims);
+		let mut vis = vec![ Rect::new_pd(Pos::new(0,0), dims) ];
 		for &(win,_) in &self.render_order[ vis_idx+1 .. ]
 		{
-			todo!("WindowGroup::recalc_vis_int(vis_idx={}) win={}", vis_idx, win);
+			let (ref pos, ref win) = self.windows[win];
+			if let Some(mut rect) = Rect::new_pd( *pos, win.buf.read().dims ).intersect(&win_rect)
+			{
+				rect.pos.x -= cur_pos.x;
+				rect.pos.y -= cur_pos.y;
+				
+				// Quick check - Is there actually an intersection with the visible regions
+				if vis.iter().find(|x| x.intersect(&rect).is_some()).is_some()
+				{
+					// This window falls within the bounds of the current window
+					// - For all visible regions, calculate the relative complement of this rect wrt the visible
+					let mut new_vis = Vec::new();
+					for vis_rect in &vis
+					{
+						new_vis.extend( vis_rect.not_intersect(&rect) );
+					}
+					vis = new_vis;
+				}
+			}
 		}
 		vis
 	}
@@ -393,6 +416,7 @@ impl Window
 	
 	pub fn resize(&self, dim: Dims) {
 		self.buf.write().resize(dim);
+		*self.dirty_rects.lock() = vec![ Rect::new(0,0, dim.w, dim.h) ];
 	}
 	
 	fn add_dirty(&self, area: Rect)
@@ -535,11 +559,13 @@ impl WindowHandle
 	pub fn show(&mut self) {
 		let wg = self.get_wg();
 		wg.lock().show_window( self.win );
+		self.redraw();
 	}
 	/// Hide the window
 	pub fn hide(&mut self) {
 		let wg = self.get_wg();
 		wg.lock().hide_window( self.win );
+		self.redraw();
 	}
 	
 	/// Fill an area of the window with a specific colour
