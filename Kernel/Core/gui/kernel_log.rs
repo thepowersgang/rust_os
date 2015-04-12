@@ -13,6 +13,8 @@ use core::fmt;
 // Bitmap font used by this module is in another file
 include!("font_cp437_8x16.rs");
 
+include!("../../../Graphics/logo.rs");
+
 struct KernelLog
 {
 	_wgh: WindowGroupHandle,
@@ -70,10 +72,15 @@ impl KernelLog
 		let mut wh = wgh.create_window("Kernel Log");
 		wh.maximise();
 		wh.show();
+		
 		let mut logo_wh = wgh.create_window("Logo");
-		logo_wh.resize(Dims::new(64, 64));
-		logo_wh.set_pos(Pos::new(1024-64, 0));
+		let limit_x = 1280;
+		let dims = Dims::new(S_LOGO_DIMS.0,S_LOGO_DIMS.1);
+		logo_wh.resize(dims);
+		logo_wh.set_pos(Pos::new(limit_x-dims.w, 0));
+		logo_wh.blit_rect( Rect::new_pd(Pos::new(0,0),dims), &S_LOGO_DATA );
 		logo_wh.show();
+		
 		KernelLog {
 			_wgh: wgh,
 			wh: wh,

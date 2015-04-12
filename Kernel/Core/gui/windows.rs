@@ -316,7 +316,10 @@ impl WinBuf
 		let px_count = newsize.width() as usize * newsize.height() as usize;
 		log_trace!("- px_count = {}", px_count);
 		self.dims = newsize;
-		self.data.resize(px_count, 0x11EEA0);
+		
+		//let val = (self as *const _ as usize & 0xFFFF) as u32 * (256+9);
+		let val = 0;
+		self.data.resize(px_count, val);
 	}
 	
 	fn scanline_rgn(&self, line: usize, ofs: usize, len: usize) -> &[u32]
@@ -504,6 +507,22 @@ impl Window
 		self.buf.write().fill_scanline(pos.y as usize, pos.x as usize, 1, colour);
 		self.add_dirty( Rect::new_pd(pos, Dims::new(1,1)) );
 	}
+	
+	pub fn blit_rect(&self, rect: Rect, data: &[u32])
+	{
+		log_trace!("Window::blit_rect({}, data={}px)", rect, data.len());
+		let mut buf_h = self.buf.write();
+		for (row,src) in (rect.top() .. rect.bottom()).zip( data.chunks(rect.w() as usize) )
+		{
+			buf_h.set_scanline(
+				row as usize,
+				rect.left() as usize,
+				src.len(),
+				src
+				);
+		}
+		self.add_dirty( rect );
+	}
 }
 
 impl WindowHandle
@@ -578,6 +597,11 @@ impl WindowHandle
 	pub fn pset(&mut self, pos: Pos, colour: Colour)
 	{
 		self.get_win().pset(pos, colour);
+	}
+	
+	pub fn blit_rect(&mut self, rect: Rect, data: &[u32])
+	{
+		self.get_win().blit_rect(rect, data);
 	}
 }
 
