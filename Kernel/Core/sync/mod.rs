@@ -2,7 +2,7 @@
 // - By John Hodge (thePowersGang)
 //
 // Core/sync/mod.rs
-//! Common blocking synchronisation primitives
+// - Blocking synchronisation primitives
 pub use arch::sync::Spinlock;
 
 pub use sync::mutex::Mutex;

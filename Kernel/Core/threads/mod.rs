@@ -58,7 +58,10 @@ pub fn yield_to(thread: Box<Thread>)
 }
 
 /// Pick a new thread to run and run it
-fn reschedule()
+///
+/// NOTE: This can lead to the current thread being forgotten
+#[doc(hidden)]
+pub fn reschedule()
 {
 	// 1. Get next thread
 	loop
@@ -104,10 +107,20 @@ fn get_thread_to_run() -> Option<Box<Thread>>
 	}
 }
 
+impl BorrowedThread
+{
+	fn take(mut self) -> Box<Thread> {
+		self.0.take().unwrap()
+	}
+}
 impl Drop for BorrowedThread
 {
 	fn drop(&mut self) {
-		rel_cur_thread(self.0.take().unwrap())
+		match self.0.take()
+		{
+		Some(v) => rel_cur_thread(v),
+		None => {},
+		}
 	}
 }
 impl ::core::ops::Deref for BorrowedThread

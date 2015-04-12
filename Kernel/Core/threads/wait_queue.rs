@@ -26,13 +26,13 @@ impl WaitQueue
 		WAITQUEUE_INIT
 	}
 	
-	/// Wait the current thread on this queue, releasng the passed lock before actually sleeping
-	// TODO: Rewrite such that HeldSpinlock<WaitQueue> can be passed in?
-	pub fn wait<'a,T:Send>(&mut self, lock_handle: ::arch::sync::HeldSpinlock<'a,T>)
+	#[doc(hidden)]
+	pub fn wait_int(&mut self) -> ::arch::sync::HeldInterrupts
 	{
 		log_trace!("WaitQueue::wait(...)");
+		
 		// - Prevent interrupts from firing while we mess with the thread
-		let _irq_lock = ::arch::sync::hold_interrupts();
+		let irq_lock = ::arch::sync::hold_interrupts();
 		
 		// 1. Lock global list?
 		let mut cur = get_cur_thread();
@@ -40,12 +40,23 @@ impl WaitQueue
 		cur.set_state( RunState::ListWait(self as *mut _ as *const _) );
 		// 2. Push current thread into waiting list
 		self.list.push(cur);
+		
+		irq_lock
+	}
+	
+	/// Wait the current thread on this queue, releasng the passed lock before actually sleeping
+	// TODO: Rewrite such that HeldSpinlock<WaitQueue> can be passed in?
+	pub fn wait<'a,T:Send>(&mut self, lock_handle: ::arch::sync::HeldSpinlock<'a,T>)
+	{
+		let irq_lock = self.wait_int();
 		// 3. Unlock protector, and allow IRQs once more
 		::core::mem::drop(lock_handle);
-		::core::mem::drop(_irq_lock);
+		::core::mem::drop(irq_lock);
+			
 		// 4. Reschedule, and should return with state changed to run
 		reschedule();
 		
+		// DEBUG check
 		let cur = get_cur_thread();
 		cur.assert_active();
 		rel_cur_thread(cur);

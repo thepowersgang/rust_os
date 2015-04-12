@@ -2,7 +2,7 @@
 // - By John Hodge (thePowersGang)
 //
 // Core/gui/kernel_log.rs
-// - Kernel log output (and debug)
+/// Kernel log output (and debug terminal)
 
 use _common::*;
 
@@ -41,6 +41,7 @@ trait UnicodeCombining
 const C_CELL_DIMS: Dims = Dims { w: 8, h: 16 };
 static S_KERNEL_LOG: ::sync::mutex::LazyMutex<KernelLog> = lazymutex_init!();
 
+#[doc(hidden)]
 pub fn init()
 {
 	// Create window (and structure)

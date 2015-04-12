@@ -2,7 +2,8 @@
 // - By John Hodge (thePowersGang)
 //
 // Core/lib/sparse_vec.rs
-// - Sparse vector type
+//! Sparse vector type
+//!
 use _common::*;
 use core::ops;
 

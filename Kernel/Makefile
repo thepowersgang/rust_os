@@ -66,7 +66,7 @@ pretty:
 
 docs:
 	@mkdir -p doc/Kernel
-	$V$(ENV) rustdoc -o doc/Kernel Core/main.rs --cfg arch__amd64
+	$V$(ENV) rustdoc -o doc/Kernel Core/main.rs --cfg arch__amd64 
 	@chmod +rX doc/ -R 
 
 run: bin/kernel-$(ARCH).bin

@@ -9,15 +9,23 @@ use core::ops::FnOnce;
 use core::default::Default;
 
 /// A standard mutex (blocks the current thread when contended)
+#[stable]
 pub struct Mutex<T: Send>
 {
 	#[doc(hidden)]
-	pub locked_held: ::sync::Spinlock<bool>,
-	#[doc(hidden)]
-	pub queue: ::core::cell::UnsafeCell<::threads::WaitQueue>,
+	pub inner: ::sync::Spinlock<MutexInner>,
 	#[doc(hidden)]
 	pub val: ::core::cell::UnsafeCell<T>,
 }
+
+#[doc(hidden)]
+pub struct MutexInner
+{
+	held: bool,
+	queue: ::threads::WaitQueue,
+}
+#[doc(hidden)]
+pub const MUTEX_INNER_INIT: MutexInner = MutexInner { held: false, queue: ::threads::WAITQUEUE_INIT };
 // Mutexes are inherently sync
 unsafe impl<T: Send> Sync for Mutex<T> { }
 unsafe impl<T: Send> Send for Mutex<T> { }
@@ -28,23 +36,18 @@ pub struct HeldMutex<'lock,T:'lock+Send>
 	lock: &'lock Mutex<T>
 }
 
-/// A lazily populated mutex (contained type is allocated on the heap upon first lock)
+/// A lazily populated mutex (must be initialised on/before first lock)
 pub struct LazyMutex<T: Send>(pub Mutex<LazyStatic<T>>);
 
 impl<T: Send> Mutex<T>
 {
 	/// Construct a new mutex-protected value
+	#[stable]
 	pub fn new(val: T) -> Mutex<T> {
 		Mutex {
-			locked_held: spinlock_init!(false),
-			queue: ::core::cell::UnsafeCell { value: ::threads::WAITQUEUE_INIT },
+			inner: spinlock_init!(MUTEX_INNER_INIT),
 			val: ::core::cell::UnsafeCell { value: val },
 		}
-	}
-	
-	fn queue(&self) -> &mut ::threads::WaitQueue
-	{
-		unsafe { &mut *self.queue.get() }
 	}
 	
 	/// Lock the mutex, blocking the current thread
@@ -53,16 +56,20 @@ impl<T: Send> Mutex<T>
 		{
 			// Check the held status of the mutex
 			// - Spinlock protected variable
-			let mut held = self.locked_held.lock();
-			if *held != false
+			let mut lh = self.inner.lock();
+			if lh.held != false
 			{
 				// If mutex is locked, then wait for it to be unlocked
 				// - ThreadList::wait will release the passed spinlock
-				self.queue().wait(held);
+				
+				// XXX: Uses an undocumented method to avoid unsafe quirks
+				{ let irql = lh.queue.wait_int(); ::core::mem::drop(lh); ::core::mem::drop(irql); ::threads::reschedule();}
+				// waitqueue_wait_ext(lh, queue);	// << Evaluation order quirks
+				// lh.queue.wait(lh);	// << Trips borrowck
 			}
 			else
 			{
-				*held = true;
+				lh.held = true;
 			}
 		}
 		::core::atomic::fence(::core::atomic::Ordering::Acquire);
@@ -71,15 +78,15 @@ impl<T: Send> Mutex<T>
 	/// Release the mutex
 	fn unlock(&self) {
 		::core::atomic::fence(::core::atomic::Ordering::Release);
-		let mut held = self.locked_held.lock();
-		if self.queue().has_waiter()
+		let mut lh = self.inner.lock();
+		if lh.queue.has_waiter()
 		{
-			self.queue().wake_one();
+			lh.queue.wake_one();
 			// *held is still true, as the newly woken thread now owns the mutex
 		}
 		else
 		{
-			*held = false;
+			lh.held = false;
 		}
 	}
 }
@@ -137,15 +144,14 @@ impl<'lock,T:Send> ::core::ops::DerefMut for HeldMutex<'lock,T>
 
 /// Initialise a static Mutex
 #[macro_export]
-macro_rules! mutex_init{ ($val:expr) => (::sync::mutex::Mutex{
-	locked_held: spinlock_init!(false),
-	queue: ::core::cell::UnsafeCell { value: ::threads::WAITQUEUE_INIT },
+macro_rules! mutex_init{ ($val:expr) => ($crate::sync::mutex::Mutex{
+	inner: spinlock_init!($crate::sync::mutex::MUTEX_INNER_INIT),
 	val: ::core::cell::UnsafeCell{ value: $val },
 	}) }
 /// Initialise a static LazyMutex
 #[macro_export]
 macro_rules! lazymutex_init{
-	() => {::sync::mutex::LazyMutex(mutex_init!( ::lib::LazyStatic(None) ))}
+	() => {$crate::sync::mutex::LazyMutex(mutex_init!( $crate::lib::LazyStatic(None) ))}
 }
 
 // vim: ft=rust

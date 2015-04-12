@@ -2,7 +2,10 @@
 // - By John Hodge (thePowersGang)
 //
 // arch/amd64/boot.rs
-/// Kernel logging framework
+///! Kernel logging framework
+///!
+///! All kernel logging goes through this module, using the `log_*` macros, each corresponding
+///! to a one of the logging levels in `Levels`.
 use core::fmt::{self,Write};
 use core::result::Result::Ok;
 use core::slice::{SliceExt};

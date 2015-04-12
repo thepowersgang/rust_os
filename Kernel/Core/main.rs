@@ -59,6 +59,7 @@ pub mod logging;
 /// Memory management (physical, virtual, heap)
 pub mod memory;
 /// Thread management
+#[macro_use]
 pub mod threads;
 /// Timekeeping (timers and wall time)
 pub mod time;

@@ -2,18 +2,17 @@
 // - By John Hodge (thePowersGang)
 //
 // Core/gui/mod.rs
-// - Kernel compositor core
 //! Kernel-mode side of the GUI
+//!
 //! Provides input routing and window management (i.e. exposing buffers to userland)
-/*!
-Design Notes
-===
-- Group windows into "screens" based on the owning session
-- When a screen is hidden, a signalling message is sent to the controlling program (similar to the session leader in POSIX)
- - This allows the leader to switch to a lock screen
-- All windows are backed by a framebuffer in this code
- - Kernel log is provided by a builtin text renderer
-*/
+//!
+//! Design Notes
+//! ===
+//! - Group windows into "screens" based on the owning session
+//! - When a screen is hidden, a signalling message is sent to the controlling program (similar to the session leader in POSIX)
+//!  - This allows the leader to switch to a lock screen
+//! - All windows are backed by a framebuffer in this code
+//!  - Kernel log is provided by a builtin text renderer
 use _common::*;
 module_define!{GUI, [Video], init}
 
@@ -30,13 +29,6 @@ fn init()
 fn display_geom_update(new_total: ::metadevs::video::Rect)
 {
 	log_trace!("display_geom_update(new_total={})", new_total);
-	//if !was_insertion {
-	//	unimplemented!();
-	//}
-	//else {
-	//	// Update 
-	//	unimplemented!();
-	//}
 	
 	windows::update_dims();
 }

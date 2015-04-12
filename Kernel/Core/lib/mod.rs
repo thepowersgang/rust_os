@@ -2,7 +2,6 @@
 // - By John Hodge (thePowersGang)
 //
 // Core/lib/mod.rs
-//! General runtime support module.
 //!
 //! Contains helper types that either clone types in the rust standard library, or provide useful
 //! features for operation in kernel-land.
@@ -54,6 +53,9 @@ pub mod collections
 	}
 }
 
+/// Unsafely cast a byte slice into the destination type (performing checks for alignment and size)
+///
+/// Unsafe because it can't check the validity of the byte representation
 pub unsafe fn unsafe_cast_slice<DstType>(src: &[u8]) -> &[DstType]
 {
 	assert_eq!(src.len() % ::core::mem::size_of::<DstType>(), 0);

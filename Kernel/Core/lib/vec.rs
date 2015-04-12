@@ -77,8 +77,10 @@ impl<T> Vec<T>
 		}
 	}
 
+	/// Clear the vector
 	pub fn clear(&mut self)
 	{
+		self.truncate(0);
 		unimplemented!();
 	}
 	
@@ -105,11 +107,14 @@ impl<T> Vec<T>
 			}
 		}
 	}
+	
+	/// Reserve space in the vector for `extras` new elements
 	pub fn reserve(&mut self, extras: usize) {
 		let newcap = self.size + extras;
 		self.reserve_cap(newcap);
 	}
 	
+	/// Obtain a mutable slice to the content
 	pub fn slice_mut<'a>(&'a mut self) -> &'a mut [T]
 	{
 		unsafe { ::core::mem::transmute( ::core::raw::Slice { data: self.data.get_base_mut(), len: self.size } ) }
@@ -142,6 +147,7 @@ impl<T> Vec<T>
 		}
 	}
 	
+	/// Truncate a vector to the given size
 	pub fn truncate(&mut self, newsize: usize)
 	{
 		if newsize >= self.size
@@ -158,6 +164,11 @@ impl<T> Vec<T>
 }
 
 #[macro_export]
+/// Create a new vector in a manner similar array literals
+///
+/// ```
+/// vec![1u32, 2, 3, 4]
+/// ```
 macro_rules! vec
 {
 	($( $v:expr ),*) => ({
