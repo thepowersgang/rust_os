@@ -45,7 +45,11 @@ impl WaitQueue
 	}
 	
 	/// Wait the current thread on this queue, releasng the passed lock before actually sleeping
-	// TODO: Rewrite such that HeldSpinlock<WaitQueue> can be passed in?
+	///
+	/// If this queue is accessed via `lock_handle`, use the `waitqueue_wait_ext` macro instead. E.g.
+	/// ```
+	/// waitqueue_wait_ext!(lock_handle, queue);
+	/// ```
 	pub fn wait<'a,T:Send>(&mut self, lock_handle: ::arch::sync::HeldSpinlock<'a,T>)
 	{
 		let irq_lock = self.wait_int();

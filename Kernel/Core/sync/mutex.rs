@@ -24,8 +24,10 @@ pub struct MutexInner
 	held: bool,
 	queue: ::threads::WaitQueue,
 }
+
 #[doc(hidden)]
 pub const MUTEX_INNER_INIT: MutexInner = MutexInner { held: false, queue: ::threads::WAITQUEUE_INIT };
+
 // Mutexes are inherently sync
 unsafe impl<T: Send> Sync for Mutex<T> { }
 unsafe impl<T: Send> Send for Mutex<T> { }
@@ -61,10 +63,7 @@ impl<T: Send> Mutex<T>
 			{
 				// If mutex is locked, then wait for it to be unlocked
 				// - ThreadList::wait will release the passed spinlock
-				
-				// XXX: Uses an undocumented method to avoid unsafe quirks
-				{ let irql = lh.queue.wait_int(); ::core::mem::drop(lh); ::core::mem::drop(irql); ::threads::reschedule();}
-				// waitqueue_wait_ext(lh, queue);	// << Evaluation order quirks
+				waitqueue_wait_ext!(lh, queue);
 				// lh.queue.wait(lh);	// << Trips borrowck
 			}
 			else

@@ -13,7 +13,6 @@
 //!  - This allows the leader to switch to a lock screen
 //! - All windows are backed by a framebuffer in this code
 //!  - Kernel log is provided by a builtin text renderer
-use _common::*;
 module_define!{GUI, [Video], init}
 
 /// Initialise the GUI

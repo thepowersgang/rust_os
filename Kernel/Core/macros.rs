@@ -53,6 +53,8 @@ macro_rules! type_name
 }
 
 
+/// Provides a short and noticable "TODO: " message
+#[macro_export]
 macro_rules! todo
 {
 	( $s:expr ) => ( panic!( concat!("TODO: ",$s) ) );
@@ -93,6 +95,20 @@ macro_rules! impl_fmt
 		}
 		)+
 		};
+}
+
+// NOTE: This should really be in ::threads::wait_queue, but it also needs to be early in parse
+/// Wait on a wait queue contained within a spinlock
+///
+/// Due to lifetime issues, the more erganomical `lock.queue.wait(lock)` does not pass borrow checking.
+macro_rules! waitqueue_wait_ext {
+	($lock:expr, $field:ident) => ({
+		let mut lock: $crate::arch::sync::HeldSpinlock<_> = $lock;
+		let irql = lock.$field.wait_int();
+		::core::mem::drop(lock);
+		::core::mem::drop(irql);
+		$crate::threads::reschedule();
+		});
 }
 
 // vim: ft=rust

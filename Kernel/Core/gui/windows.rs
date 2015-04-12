@@ -158,7 +158,7 @@ impl WindowGroup
 				let dirty_vec = ::core::mem::replace(&mut *win.dirty_rects.lock(), Vec::new());
 				// - Get a slice of it (OR, if doing a full re-render, get a wildcard region)
 				let dirty = if full { &FULL_RECT[..] } else { &dirty_vec[..] };
-				log_trace!("WindowGroup::redraw: dirty={:?}, vis={:?}", dirty, vis);
+				log_trace!("WindowGroup::redraw: {} '{}' dirty={:?}, vis={:?}", winidx, win.name, dirty, vis);
 				// - Iterate all visible dirty regions and re-draw
 				for rgn in Rect::list_intersect(vis, dirty)
 				{
