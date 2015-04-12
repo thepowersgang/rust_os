@@ -35,8 +35,7 @@ OBJDIR := .obj/$(ARCH)/
 RUSTFLAGS := -L $(OBJDIR)
 RUSTFLAGS += -O
 RUSTFLAGS += -g
-#RUSTFLAGS += --debuginfo 1
-#RUSTFLAGS += -C code-model=kernel
+RUSTFLAGS += -C code-model=kernel
 RUSTFLAGS += -C soft-float	# Disables requiring SSE etc
 RUSTFLAGS += -C target-feature=$(subst $(space),$(comma),$(EXCLUDE_FEATURES:%=-%))
 RUSTFLAGS += --cfg arch__$(ARCH)
@@ -57,7 +56,7 @@ LIBGCC := $(shell $(TRIPLE)-gcc -print-libgcc-file-name)
 
 OBJS := $(OBJS:%=$(OBJDIR)%)
 
-all: bin/kernel-$(ARCH).bin bin/kernel-$(ARCH).dsm
+all: bin/kernel-$(ARCH).bin bin/kernel-$(ARCH).bin.dsm
 
 clean:
 	rm -r $(OBJDIR)
