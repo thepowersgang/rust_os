@@ -27,6 +27,7 @@ pub struct Rect
 
 impl Pos
 {
+	/// Construct a new `Pos`
 	pub fn new(x: u32, y: u32) -> Pos {
 		Pos { x: x, y: y }
 	}
@@ -34,26 +35,33 @@ impl Pos
 
 impl Dims
 {
+	/// Construct a new `Dims` struct
 	pub fn new(w: u32, h: u32) -> Dims {
 		Dims { w: w, h: h }
 	}
 
+	/// Return the height
 	pub fn height(&self) -> u32 { self.h }
+	/// Return the width
 	pub fn width(&self) -> u32 { self.w }
 }
 
 impl Rect
 {
+	/// Construct a new `Rect`
 	pub fn new(x: u32, y: u32, w: u32, h: u32) -> Rect {
 		Rect {
 			pos: Pos { x: x, y: y },
 			dims: Dims::new(w,h),
 		}
 	}
+	/// Construct a new rect from a position and dimensions
 	pub fn new_pd(pos: Pos, dims: Dims) -> Rect {
 		Rect { pos: pos, dims: dims }
 	}
 	
+	/// Returns true if this rect fits within the provided area
+	#[deprecated]
 	pub fn within(&self, w: u32, h: u32) -> bool {
 		self.x() < w && self.y() < h
 		&& self.w() <= w && self.h() <= h
@@ -73,16 +81,19 @@ impl Rect
 	pub fn right(&self) -> u32 { self.x() + self.w() }
 	pub fn bottom(&self) -> u32 { self.y() + self.h() }
 	
+	/// Returns the top-left point
 	pub fn tl(&self) -> Pos { self.pos }
+	/// Returns the bottom-right point
 	pub fn br(&self) -> Pos { Pos::new( self.x() + self.w(), self.y() + self.h() ) }
+	/// Returns the "inner" bottom-right point (pointing to within the rect)
 	pub fn br_inner(&self) -> Pos { Pos::new( self.x() + self.w() - 1, self.y() + self.h() - 1 ) }
 	
+	/// Returns true if this rect contains the provided point
 	pub fn contains(&self, pt: &Pos) -> bool {
-		//log_trace!("Rect::contains - self={:?}, pt={:?}", self, pt);
 		(self.left() <= pt.x && pt.x < self.right()) && (self.top() <= pt.y && pt.y < self.bottom())
 	}
+	/// Returns true if this rect wholly contains the passed rect
 	pub fn contains_rect(&self, r: &Rect) -> bool {
-		//log_trace!("Rect::contains - self={:?}, pt={:?}", self, pt);
 		if ! self.contains( &r.tl() ) {
 			false
 		}
@@ -97,6 +108,7 @@ impl Rect
 		}
 	}
 	
+	/// Returns the intersection of this rect and another (or None if no overlap)
 	pub fn intersect(&self, other: &Rect) -> Option<Rect> {
 		// Intersection:
 		//  MAX(X1) MAX(Y1)  MIN(X2) MIN(Y2)
@@ -144,6 +156,7 @@ impl Rect
 		}
 	}
 }
+/// Iterator over the intersections of two `Rect` slices
 pub struct RectListIntersect<'a>
 {
 	list1: &'a [Rect],

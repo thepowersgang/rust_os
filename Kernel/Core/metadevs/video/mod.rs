@@ -47,7 +47,7 @@ pub trait Framebuffer: 'static + Send
 	// TODO: Handle 3D units
 }
 
-pub struct DisplaySurface
+struct DisplaySurface
 {
 	region: Rect,
 	fb: Box<Framebuffer>,
@@ -61,6 +61,7 @@ pub struct DisplaySurface
 static S_DISPLAY_SURFACES: LazyMutex<SparseVec<DisplaySurface>> = lazymutex_init!( );
 /// Boot video mode
 static mut S_BOOT_MODE: Option<bootvideo::VideoMode> = None;
+/// Function called when display geometry changes
 static S_GEOM_UPDATE_SIGNAL: Mutex<Option<fn(new_total: Rect)>> = mutex_init!(None);
 
 fn init()
@@ -94,11 +95,26 @@ pub fn set_boot_mode(mode: bootvideo::VideoMode)
 	}
 }
 
+/// Register a function to be called when the display dimensions change
 pub fn register_geom_update(fcn: fn(new_total: Rect))
 {
 	let mut lh = S_GEOM_UPDATE_SIGNAL.lock();
 	assert!(lh.is_none(), "register_geom_update called multiple times (prev {:p}, new {:p})", lh.as_ref().unwrap(), &fcn);
 	*lh = Some(fcn);
+}
+
+fn signal_geom_update(surfs: &SparseVec<DisplaySurface>)
+{
+	// API Requirements
+	// - New surface added (with location)
+	// - Old surface removed
+	// - Surface relocated (as part of removal/sorting/editing)
+	// > Could just have a generic "things changed" call and let the GUI/user poll request the new state
+	if let Some(fcn) = *S_GEOM_UPDATE_SIGNAL.lock()
+	{
+		let total_area = surfs.iter().map(|x| x.region).fold(Rect::new(0,0,0,0), |a,b| a.union(&b));
+		fcn( total_area );
+	}
 }
 
 /// Add an output to the display manager
@@ -109,8 +125,8 @@ pub fn add_output(output: Box<Framebuffer>) -> FramebufferRegistration
 	unsafe {
 		if S_BOOT_MODE.take().is_some()
 		{
-			// - Create a registration for #0, aka the boot mode, and then drop it
-			::core::mem::drop( FramebufferRegistration { reg_id: 0 } );
+			// - Remove boot video framebuffer
+			S_DISPLAY_SURFACES.lock().remove(0);
 			log_notice!("Alternative display driver loaded, dropping boot video");
 		}
 	}
@@ -127,16 +143,7 @@ pub fn add_output(output: Box<Framebuffer>) -> FramebufferRegistration
 		fb: output
 		} );
 	
-	// API Requirements
-	// - New surface added (with location)
-	// - Old surface removed
-	// - Surface relocated (as part of removal/sorting/editing)
-	// > Could just have a generic "things changed" call and let the GUI/user poll request the new state
-	if let Some(fcn) = *S_GEOM_UPDATE_SIGNAL.lock()
-	{
-		let total_area = lh.iter().map(|x| x.region).fold(Rect::new(0,0,0,0), |a,b| a.union(&b));
-		fcn( total_area );
-	}
+	signal_geom_update(&lh);
 	
 	log_debug!("Registering framebuffer #{}", idx);
 	FramebufferRegistration {
@@ -180,7 +187,9 @@ impl ::core::ops::Drop for FramebufferRegistration
 {
 	fn drop(&mut self)
 	{
-		S_DISPLAY_SURFACES.lock().remove(self.reg_id);
+		let mut lh = S_DISPLAY_SURFACES.lock();
+		lh.remove(self.reg_id);
+		signal_geom_update(&lh);
 	}
 }
 
