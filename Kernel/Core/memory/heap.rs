@@ -250,7 +250,7 @@ impl HeapDef
 				HeapState::Free(n)=> n,
 				_ => { self.dump(); panic!("Non-free block ({:p}) in free list", opt_fb); }
 				};
-			if fb.size >= blocksize
+			if fb.size() >= blocksize
 			{
 				break;
 			}
@@ -263,14 +263,11 @@ impl HeapDef
 			let fb = &mut *opt_fb;
 			let next = match fb.state { HeapState::Free(n)=> n, _ => {self.dump(); panic!("Non-free block in free list"); } };
 			// Split block (if needed)
-			if fb.size > blocksize + headers_size
+			if fb.size() > blocksize + headers_size
 			{
 				let far_foot = fb.foot() as *mut HeapFoot;
-				let far_size = fb.size - blocksize;
-				fb.size = blocksize;
-				*fb.foot() = HeapFoot {
-					head: fb as *mut _,
-					};
+				let far_size = fb.size() - blocksize;
+				fb.resize(blocksize);
 				
 				let far_head = fb.next();
 				assert!(far_head != prev);
@@ -312,14 +309,11 @@ impl HeapDef
 		let block_ptr = self.expand(blocksize);
 		let block = &mut *block_ptr;
 		// > Split returned block into a block of required size and a free block
-		if block.size > blocksize
+		if block.size() > blocksize
 		{
 			// Create a new block header at end of block
-			let tailsize = block.size - blocksize;
-			block.size = blocksize;
-			*block.foot() = HeapFoot {
-				head: block_ptr,
-				};
+			let tailsize = block.size() - blocksize;
+			block.resize(blocksize);
 			let tailblock = &mut *block.next();
 			*tailblock = HeapHead {
 				magic: MAGIC,
@@ -349,7 +343,7 @@ impl HeapDef
 		let headptr = unsafe { &mut *(ptr as *mut HeapHead).offset(-1) };
 	
 		// If the new size fits within the old block, update the cached size and return true
-		if size + headers_size <= headptr.size
+		if size + headers_size <= headptr.size()
 		{
 			headptr.state = HeapState::Used(size);
 			true
@@ -374,8 +368,10 @@ impl HeapDef
 			
 			{
 				let headref = &mut *headptr;
-				assert!( headref.magic == MAGIC );
-				assert!( headref.foot().head() as *mut _ == headptr );
+				assert!( headref.magic == MAGIC, "Header {:p} magic invalid {:#x} instead of {:#x}",
+					headref, headref.magic, MAGIC );
+				assert!( headref.foot().head() as *mut _ == headptr, "Header {:p} foot backlink invalid, {:p} points to {:p}",
+					headref, headref.foot(), headref.foot().head() );
 				
 				// Merge left and right
 				// 1. Left:
@@ -383,7 +379,9 @@ impl HeapDef
 				{
 					log_trace!("Merged left with {:p}", headref.prev());
 					// increase size of previous block to cover this block
-					(*headref.prev()).size += headref.size;
+					let prev_block = &mut *headref.prev();
+					let new_size = prev_block.size() + headref.size();
+					prev_block.resize( new_size );
 					no_add = true;
 				}
 				
@@ -433,7 +431,7 @@ impl HeapDef
 		//log_debug!("(2) self.{{start = {:#x}, last_foot = {:?}}}, use_prev={}", self.start as usize, self.last_foot, use_prev);
 		assert!( !self.last_foot.is_null() );
 		let last_foot = &mut *self.last_foot;
-		let alloc_size = min_size - (if use_prev { last_foot.head().size } else { 0 });
+		let alloc_size = min_size - (if use_prev { last_foot.head().size() } else { 0 });
 		
 		// 1. Allocate at least one page at the end of the heap
 		let n_pages = ::lib::num::round_up(alloc_size, ::PAGE_SIZE) / ::PAGE_SIZE;
@@ -447,8 +445,8 @@ impl HeapDef
 			{
 				let block = &mut *last_foot.head;
 				log_debug!("HeapDef.expand: (prev) &block={:p}", block);
-				block.size += n_pages * ::PAGE_SIZE;
-				block.foot().head = last_foot.head;
+				let newsize = block.size() + n_pages * ::PAGE_SIZE;
+				block.resize(newsize);
 				
 				block
 			}
@@ -458,7 +456,7 @@ impl HeapDef
 				log_debug!("HeapDef.expand: (new) &block={:p}", block);
 				*block = HeapHead {
 					magic: MAGIC,
-					state: HeapState::Used(0),
+					state: HeapState::Free(0 as *mut _),
 					size: n_pages * ::PAGE_SIZE,
 					};
 				block.foot().head = last_foot.next_head();
@@ -467,7 +465,7 @@ impl HeapDef
 			};
 		self.last_foot = block.foot() as *mut HeapFoot;
 		//log_debug!("HeapDef.expand: &block={:p}, self.last_foot={:p}", block, self.last_foot);
-		block.state = HeapState::Used(0);
+		//block.state = HeapState::Used(0);
 		// 3. Return final block
 		block
 	}
@@ -492,6 +490,8 @@ impl HeapDef
 
 impl HeapHead
 {
+	fn size(&self) -> usize { self.size }
+	
 	unsafe fn ptr(&self) -> *mut HeapHead { ::core::mem::transmute(self) }
 	pub unsafe fn prev(&self) -> *mut HeapHead
 	{
@@ -508,6 +508,15 @@ impl HeapHead
 	pub unsafe fn foot<'a>(&'a self) -> &'a mut HeapFoot
 	{
 		::core::mem::transmute( (self.next() as *mut HeapFoot).offset( -1 ) )
+	}
+	
+	pub unsafe fn resize(&mut self, new_size: usize)
+	{
+		assert!( is!(self.state, HeapState::Free(_)) );
+		self.size = new_size;
+		*self.foot() = HeapFoot {
+				head: self as *mut _,
+				};
 	}
 }
 
