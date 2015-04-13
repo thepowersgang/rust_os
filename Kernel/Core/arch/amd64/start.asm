@@ -199,8 +199,6 @@ start64_higher:
 [section .text.asm.task_switch]
 EXPORT task_switch
 	SAVE rbp, rbx, r12, r13, r14, r15
-	mov rax, .ret
-	push rax
 	mov [rdi], rsp
 	mov rsp, [rsi]	; New RSP
 	mov cr3, rdx	; New CR3
@@ -210,8 +208,6 @@ EXPORT task_switch
 	shr rdx, 32	; EDX = High
 	mov ecx, 0xC0000100	; FS Base
 	wrmsr
-	ret	; Jump to saved address from above
-.ret:
 	RESTORE rbp, rbx, r12, r13, r14, r15
 	ret
 EXPORT thread_trampoline

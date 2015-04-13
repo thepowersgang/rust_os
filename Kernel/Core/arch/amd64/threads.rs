@@ -122,10 +122,16 @@ pub fn start_thread<F: FnOnce()+Send>(thread: &mut ::threads::Thread, code: F)
 	// 3. Populate stack with trampoline state
 	// - All that is needed is to push the trampoline address (it handles calling the rust code)
 	unsafe {
-		stack_top -= 8;
-		::core::ptr::write(stack_top as *mut u64, thread_root::<F> as usize as u64);
-		stack_top -= 8;
-		::core::ptr::write(stack_top as *mut u64, thread_trampoline as usize as u64);
+		stack_top -= 8; ::core::ptr::write(stack_top as *mut u64, thread_root::<F> as usize as u64);
+		// Trampoline that sets RDI to the address of 'code'
+		stack_top -= 8; ::core::ptr::write(stack_top as *mut u64, thread_trampoline as usize as u64);
+		// Six callee-save GPRs saved by task_switch
+		stack_top -= 8; ::core::ptr::write(stack_top as *mut u64, 0xB4);
+		stack_top -= 8; ::core::ptr::write(stack_top as *mut u64, 0xBB);
+		stack_top -= 8; ::core::ptr::write(stack_top as *mut u64, 0x12);
+		stack_top -= 8; ::core::ptr::write(stack_top as *mut u64, 0x13);
+		stack_top -= 8; ::core::ptr::write(stack_top as *mut u64, 0x14);
+		stack_top -= 8; ::core::ptr::write(stack_top as *mut u64, 0x15);
 	}
 	
 	// 4. Apply newly updated state
