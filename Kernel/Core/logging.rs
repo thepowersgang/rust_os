@@ -6,6 +6,10 @@
 ///!
 ///! All kernel logging goes through this module, using the `log_*` macros, each corresponding
 ///! to a one of the logging levels in `Levels`.
+// TODO: Support registerable log sinks, where all >Debug logs go (why not all?)
+// > Cache/buffer sink
+// > Display sink
+// > Serial sink
 use core::fmt::{self,Write};
 use core::result::Result::Ok;
 use core::slice::{SliceExt};
