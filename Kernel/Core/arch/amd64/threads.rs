@@ -22,7 +22,7 @@ extern "C" {
 	static v_ktls_size: ();
 	static v_t_thread_ptr_ofs: ();
 	static s_tid0_tls_base: u64;
-	fn task_switch(oldrsp: &mut u64, newrsp: &u64, cr3: u64, tlsbase: u64);
+	fn task_switch(oldrsp: &mut u64, newrsp: &u64, tlsbase: u64, cr3: u64);
 }
 
 #[thread_local]
@@ -177,7 +177,7 @@ pub fn switch_to(newthread: Box<::threads::Thread>)
 			assert!(state.cr3 != 0);
 			assert!(state.tlsbase != 0);
 			log_trace!("Switching to RSP={:#x},CR3={:#x}", state.rsp, state.cr3);
-			task_switch(&mut outstate.rsp, &state.rsp, state.cr3, state.tlsbase);
+			task_switch(&mut outstate.rsp, &state.rsp, state.tlsbase, state.cr3);
 		}
 		unsafe
 		{

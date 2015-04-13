@@ -194,17 +194,16 @@ start64_higher:
 
 ; RDI: Save location for RSP
 ; RSI: New RSP (pointer)
-; RDX: New CR3
-; RCX: New FSBASE
+; RDX: New FSBASE
+; RCX: New CR3
 [section .text.asm.task_switch]
 EXPORT task_switch
 	SAVE rbp, rbx, r12, r13, r14, r15
 	mov [rdi], rsp
 	mov rsp, [rsi]	; New RSP
-	mov cr3, rdx	; New CR3
+	mov cr3, rcx	; New CR3
 	; New FSBASE
-	mov rax, rcx	; EAX = Low
-	mov rdx, rax
+	mov rax, rdx
 	shr rdx, 32	; EDX = High
 	mov ecx, 0xC0000100	; FS Base
 	wrmsr
