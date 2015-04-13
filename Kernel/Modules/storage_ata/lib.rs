@@ -1,6 +1,7 @@
+// "Tifflin" Kernel - ATA Driver
+// - By John Hodge (thePowersGang)
 //
-//
-//
+// Modules/storage_ata/lib.rs
 //! x86 ATA driver
 #![feature(no_std,core)]
 #![no_std]
@@ -46,7 +47,6 @@ impl Default for AtaClass { fn default() -> AtaClass { AtaClass::Invalid } }
 
 /// ATA "IDENTIFY" packet data
 #[repr(C,packed)]
-//#[derive(Debug)]
 struct AtaIdentifyData
 {
 	flags: u16,
