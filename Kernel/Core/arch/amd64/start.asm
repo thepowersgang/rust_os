@@ -285,6 +285,8 @@ EXPORT strlen
 	mov rax, rcx
 	ret
 
+EXPORT _Unwind_Resume
+	jmp $
 %include "Core/arch/amd64/stubs.inc.asm"
 
 [section .padata]

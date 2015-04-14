@@ -173,7 +173,7 @@ pub fn switch_to(newthread: Box<::threads::Thread>)
 			// TODO: Lazy save/restore SSE state
 			let outstate = &mut (*t_thread_ptr).cpu_state;
 			let state = &newthread.cpu_state;
-			//assert!(state.rsp != 0);
+			// Don't assert RSP, could be switching to self
 			assert!(state.cr3 != 0);
 			assert!(state.tlsbase != 0);
 			log_trace!("Switching to RSP={:#x},CR3={:#x}", state.rsp, state.cr3);

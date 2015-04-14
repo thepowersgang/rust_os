@@ -52,8 +52,7 @@ ENV += TK_VERSION="0.1"
 ENV += TK_BUILD="$(shell hostname --fqdn):$(BUILDNUM)"
 
 LIBCORESRC := ../libcore/
-LIBGCC := $(shell $(TRIPLE)-gcc -print-libgcc-file-name)
-#LIBGCC := 
+LIBGCC := 
 
 OBJS := $(OBJS:%=$(OBJDIR)%)
 
