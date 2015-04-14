@@ -6,6 +6,9 @@
 *.elf32
 *.dsm
 
+libcore/
+*.tar.gz
+
 Kernel/*.exp_rs
 Kernel/fdd.img
 Kernel/BuildNum.*.mk
