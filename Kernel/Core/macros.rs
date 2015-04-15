@@ -25,7 +25,7 @@ macro_rules! module_define
 		//#[assume_reachable]
 		#[doc(hidden)]
 		#[link_section = ".MODULE_LIST"]
-		pub static mut _s_module: $crate::modules::ModuleInfo = $crate::modules::ModuleInfo {
+		pub static _S_MODULE: $crate::modules::ModuleInfo = $crate::modules::ModuleInfo {
 			name: stringify!($name),
 			init: $init,
 			deps: &S_DEPS,

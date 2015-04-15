@@ -4,8 +4,9 @@
 // Core/sync/mutex.rs
 //! Thread blocking Mutex type
 use lib::LazyStatic;
+use core::option::Option::{self,Some,None};
 use core::marker::{Send, Sync};
-use core::ops::FnOnce;
+use core::ops::{self,FnOnce};
 use core::default::Default;
 
 /// A standard mutex (blocks the current thread when contended)
@@ -39,9 +40,9 @@ pub struct HeldMutex<'lock,T:'lock+Send>
 }
 
 /// A lazily populated mutex (must be initialised on/before first lock)
-pub struct LazyMutex<T: Send>(pub Mutex<LazyStatic<T>>);
+pub struct LazyMutex<T: Send>(pub Mutex<Option<T>>);
 
-pub type HeldLazyMutex<'a, T/*: Send*/> = HeldMutex<'a, LazyStatic<T>>;
+pub struct HeldLazyMutex<'a, T: Send+'a>( HeldMutex<'a, Option<T>> );
 
 impl<T: Send> Mutex<T>
 {
@@ -101,45 +102,62 @@ impl<T: Send+Default> Default for Mutex<T> {
 impl<T: Send> LazyMutex<T>
 {
 	/// Lock and (if required) initialise using init_fcn
-	pub fn lock_init<Fcn: FnOnce()->T>(&self, init_fcn: Fcn) -> HeldMutex<LazyStatic<T>>
+	pub fn lock_init<Fcn: FnOnce()->T>(&self, init_fcn: Fcn) -> HeldLazyMutex<T>
 	{
 		let mut lh = self.0.lock();
-		lh.prep(init_fcn);
-		lh
+		if lh.is_none() {
+			*lh = Some( init_fcn() );
+		}
+		HeldLazyMutex( lh )
 	}
 	
 	/// Initialise the lazy mutex
 	pub fn init<Fcn: FnOnce()->T>(&self, init_fcn: Fcn)
 	{
 		let mut lh = self.0.lock();
-		lh.prep(init_fcn);
+		if lh.is_none() {
+			*lh = Some( init_fcn() );
+		}
 	}
 	/// Lock the lazy mutex
-	pub fn lock(&self) -> HeldMutex<LazyStatic<T>>
+	pub fn lock(&self) -> HeldLazyMutex<T>
 	{
-		self.0.lock()
+		HeldLazyMutex( self.0.lock() )
 	}
 }
 
-#[unsafe_destructor]
-impl<'lock,T:Send> ::core::ops::Drop for HeldMutex<'lock,T>
+impl<'lock,T:Send> ops::Drop for HeldMutex<'lock,T>
 {
 	/// Unlock on drop of HeldMutex
 	fn drop(&mut self) {
 		self.lock.unlock();
 	}
 }
-impl<'lock,T:Send> ::core::ops::Deref for HeldMutex<'lock,T>
+impl<'lock,T:Send> ops::Deref for HeldMutex<'lock,T>
 {
 	type Target = T;
 	fn deref<'a>(&'a self) -> &'a T {
 		unsafe { &*self.lock.val.get() }
 	}
 }
-impl<'lock,T:Send> ::core::ops::DerefMut for HeldMutex<'lock,T>
+impl<'lock,T:Send> ops::DerefMut for HeldMutex<'lock,T>
 {
 	fn deref_mut<'a>(&'a mut self) -> &'a mut T {
 		unsafe { &mut *self.lock.val.get() }
+	}
+}
+
+impl<'l,T:Send> ops::Deref for HeldLazyMutex<'l,T>
+{
+	type Target = T;
+	fn deref(&self) -> &T {
+		self.0.as_ref().unwrap()
+	}
+}
+impl<'l,T:Send> ops::DerefMut for HeldLazyMutex<'l,T>
+{
+	fn deref_mut(&mut self) -> &mut T {
+		self.0.as_mut().unwrap()
 	}
 }
 
@@ -152,7 +170,7 @@ macro_rules! mutex_init{ ($val:expr) => ($crate::sync::mutex::Mutex{
 /// Initialise a static LazyMutex
 #[macro_export]
 macro_rules! lazymutex_init{
-	() => {$crate::sync::mutex::LazyMutex(mutex_init!( $crate::lib::LazyStatic(None) ))}
+	() => {$crate::sync::mutex::LazyMutex(mutex_init!( None ))}
 }
 
 // vim: ft=rust

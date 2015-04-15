@@ -68,33 +68,34 @@ pub unsafe fn unsafe_cast_slice<DstType>(src: &[u8]) -> &[DstType]
 }
 
 /// A lazily initialised value (for `static`s)
-pub struct LazyStatic<T>(pub Option<T>);
+pub struct LazyStatic<T: Send+Sync>(pub ::core::cell::UnsafeCell<Option<T>>);
+unsafe impl<T: Send+Sync> Sync for LazyStatic<T> {}	// Barring the unsafe "prep" call, is Sync
+unsafe impl<T: Send+Sync> Send for LazyStatic<T> {}	// Sendable because inner is sendable
 
-impl<T> LazyStatic<T>
+macro_rules! lazystatic_init {
+	() => ($crate::lib::LazyStatic($crate::core::cell::UnsafeCell { value: $crate::core::option::Option::None }));
+}
+
+impl<T: Send+Sync> LazyStatic<T>
 {
-	/// Prepare the value using the passed function
-	pub fn prep<Fcn: FnOnce()->T>(&mut self, fcn: Fcn) {
-		if self.0.is_none() {
-			self.0 = Some(fcn());
+	/// (unsafe) Prepare the value using the passed function
+	///
+	/// Unsafe because it must NOT be called where a race is possible
+	pub unsafe fn prep<Fcn: FnOnce()->T>(&self, fcn: Fcn) {
+		let r = &mut *self.0.get();
+		assert!(r.is_none(), "LazyStatic<{}> initialised multiple times", type_name!(T));
+		if r.is_none() {
+			*r = Some(fcn());
 		}
 	}
 }
-impl<T> ::core::ops::Deref for LazyStatic<T>
+impl<T: Send+Sync> ::core::ops::Deref for LazyStatic<T>
 {
 	type Target = T;
 	fn deref(&self) -> &T {
-		match self.0 {
-		Some(ref v) => v,
+		match unsafe { (&*self.0.get()).as_ref() } {
+		Some(v) => v,
 		None => panic!("Dereferencing LazyStatic<{}> without initialising", type_name!(T))
-		}
-	}
-}
-impl<T> ::core::ops::DerefMut for LazyStatic<T>
-{
-	fn deref_mut(&mut self) -> &mut T {
-		match self.0 {
-		Some(ref mut v) => v,
-		None => panic!("Dereferencing (mut) LazyStatic<{}> without initialising", type_name!(T))
 		}
 	}
 }

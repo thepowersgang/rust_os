@@ -10,19 +10,17 @@ use lib::LazyStatic;
 
 pub const NOPAGE : PAddr = 1;
 
-static mut s_mem_map : Option<&'static [::memory::MemoryMapEnt]> = None;
-// s_mapalloc - Tracks the allocation point in s_mem_map : (Entry Index, Address)
-#[allow(non_upper_case_globals)]
-static s_mapalloc : ::sync::Mutex<(usize,PAddr)> = mutex_init!( (0,0) );
+static S_MEM_MAP: ::lib::LazyStatic<&'static [::memory::MemoryMapEnt]> = lazystatic_init!();
+// S_MAPALLOC - Tracks the allocation point in S_MEM_MAP : (Entry Index, Address)
+static S_MAPALLOC : ::sync::Mutex<(usize,PAddr)> = mutex_init!( (0,0) );
 // TODO: Multiple stacks based on page colouring
-#[allow(non_upper_case_globals)]
-static s_free_stack : ::sync::Mutex<PAddr> = mutex_init!( NOPAGE );
+static S_FREE_STACK : ::sync::Mutex<PAddr> = mutex_init!( NOPAGE );
 
 pub fn init()
 {
 	// 1. Acquire a memory map from the architecture code and save for use later
 	unsafe {
-		s_mem_map = Some( ::arch::boot::get_memory_map() );
+		S_MEM_MAP.prep(|| ::arch::boot::get_memory_map());
 	}
 	
 	log_log!("Memory Map:");
@@ -34,9 +32,7 @@ pub fn init()
 
 fn get_memory_map() -> &'static [::memory::MemoryMapEnt]
 {
-	unsafe {
-		s_mem_map.unwrap()
-	}
+	&*S_MEM_MAP
 }
 
 pub fn allocate_range_bits(bits: u8, count: usize) -> PAddr
@@ -60,7 +56,7 @@ pub fn allocate_range(count: usize) -> PAddr
 		panic!("TODO: Large range allocations (count={})", count);
 	}
 
-	let mut h = s_mapalloc.lock();
+	let mut h = S_MAPALLOC.lock();
 	//log_trace!("allocate_range: *h = {:?} (init)", *h);
 	let (mut i,mut addr) = *h;
 	
@@ -96,7 +92,7 @@ pub fn allocate(address: *mut ()) -> bool
 	// 1. Pop a page from the free stack
 	unsafe
 	{
-		let mut h = s_free_stack.lock();
+		let mut h = S_FREE_STACK.lock();
 		let paddr = *h;
 		if paddr != NOPAGE
 		{

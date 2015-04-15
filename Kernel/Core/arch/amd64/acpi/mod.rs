@@ -116,7 +116,7 @@ struct XSDT
 	pointers: u64,	// Rust doesn't support arbitary length arrays
 }
 
-static mut s_acpi_state : *const ACPI = 0 as *const _;
+static S_ACPI_STATE: ::lib::LazyStatic<ACPI> = lazystatic_init!();
 
 /// ACPI module init - Locate the [RX]SDT
 fn init()
@@ -152,10 +152,7 @@ fn init()
 		).collect();
 	
 	unsafe {
-		s_acpi_state = ::memory::heap::alloc( ACPI {
-			top_sdt: tl,
-			names: names,
-			}) as *const ACPI;
+		S_ACPI_STATE.prep(|| ACPI { top_sdt: tl, names: names, });
 	}
 }
 
@@ -163,16 +160,15 @@ fn init()
 pub fn find<T:'static>(req_name: &'static str) -> Vec<SDTHandle<T>>
 {
 	assert_eq!(req_name.len(), 4);
-	let acpi = unsafe { s_acpi_state.as_ref().unwrap() };
 	let mut ret = Vec::new();
-	for (i,ent_name) in acpi.names.iter().enumerate()
+	for (i,ent_name) in S_ACPI_STATE.names.iter().enumerate()
 	{
 		log_debug!("ent {} name = {:?}", i, from_utf8(ent_name));
 		if from_utf8(ent_name).unwrap() != req_name {
 			continue ;
 		}
 		
-		let table = acpi.top_sdt.get::<T>(i);
+		let table = S_ACPI_STATE.top_sdt.get::<T>(i);
 		if (*table).validate() == false {
 			log_error!("ACPI ent #{} failed checksum", i);
 		}
