@@ -10,10 +10,9 @@
 // > Cache/buffer sink
 // > Display sink
 // > Serial sink
+use _common::*;
 use core::fmt::{self,Write};
-use core::result::Result::Ok;
-use core::slice::{SliceExt};
-use core::iter::Iterator;
+use arch::sync::Spinlock;
 
 /// Log level, ranging from a kernel panic down to tracing
 #[derive(PartialEq,PartialOrd,Copy,Clone)]
@@ -50,9 +49,12 @@ pub enum Colour
 }
 
 #[doc(hidden)]
-pub struct LoggingFormatter
+pub struct LoggingFormatter<'a>
 {
-	_lock_handle: ::arch::sync::HeldSpinlock<'static,()>,
+	_lock_handle: ::arch::sync::HeldSpinlock<'a,()>,
+	
+	//_lock_handle: ::arch::sync::HeldSpinlock<'a,Sinks>,
+	
 	// NOTE: Must be second, forcing interrupts to be reenabled after the lock is released
 	_irq_handle: ::arch::sync::HeldInterrupts,
 }
@@ -62,6 +64,123 @@ pub struct HexDump<'a,T:'a>(pub &'a T);
 
 #[allow(non_upper_case_globals)]
 static s_logging_lock: ::arch::sync::Spinlock<()> = spinlock_init!( () );
+
+trait Sink
+{
+	fn start(&mut self, level: Level, timestamp: i64, source: &'static str);
+	fn write(&mut self, data: &str);
+	fn end(&mut self);
+}
+struct Sinks
+{
+	serial: serial::Sink,
+	memory: Option<memory::Sink>,
+	video: Option<video::Sink>,
+}
+static S_LOGGING_SINKS: Spinlock<Sinks> = spinlock_init!( Sinks { serial: serial::Sink, memory: None, video: None } );
+
+mod serial
+{
+	use _common::*;
+	use super::{Level,Colour};
+	use core::{fmt,ops};
+	use core::marker::PhantomData;
+	
+	pub struct Sink;
+	impl super::Sink for Sink
+	{
+		fn start(&mut self, level: Level, timestamp: i64, source: &'static str) {
+			use core::fmt::Write;
+			self.set_colour(level.to_colour());
+			write!(self, "{:8}{} [{:6}] - ", timestamp, level, source).unwrap();
+		}
+		fn write(&mut self, s: &str) {
+			::arch::puts(s);
+		}
+		fn end(&mut self) {
+			::arch::puts("\x1b[0m\n");
+		}
+	}
+	impl fmt::Write for Sink
+	{
+		fn write_str(&mut self, s: &str) -> fmt::Result {
+			::arch::puts(s);
+			Ok( () )
+		}
+	}
+	impl Sink
+	{
+		/// Set the output colour of the formatter
+		pub fn set_colour(&self, colour: Colour) {
+			match colour
+			{
+			Colour::Default => ::arch::puts("\x1b[0m"),
+			Colour::Red     => ::arch::puts("\x1b[31m"),
+			Colour::Green   => ::arch::puts("\x1b[32m"),
+			Colour::Yellow  => ::arch::puts("\x1b[33m"),
+			Colour::Blue    => ::arch::puts("\x1b[34m"),
+			Colour::Purple  => ::arch::puts("\x1b[35m"),
+			Colour::Grey    => ::arch::puts("\x1b[1;30m"),
+			}
+		}
+	}
+}
+
+mod memory
+{
+	use _common::*;
+	use super::Level;
+	use core::{fmt,ops};
+	
+	pub struct Sink
+	{
+		lines: ::lib::ring_buffer::RingBuf<LogMessage>,
+	}
+	struct LogMessage
+	{
+		time: i64,
+		level: Level,
+		source: &'static str,
+		data: String,
+	}
+	impl super::Sink for Sink
+	{
+		fn start(&mut self, level: Level, timestamp: i64, source: &'static str) {
+			todo!("MemorySink");
+		}
+		fn write(&mut self, s: &str) {
+			self.lines.back_mut().unwrap().data.push_str(s);
+		}
+		fn end(&mut self) {
+			unimplemented!();
+		}
+	}
+}
+
+mod video
+{
+	use _common::*;
+	use super::Level;
+	use core::{fmt,ops};
+	use core::marker::PhantomData;
+	
+	pub struct Sink;
+	
+	pub struct Writer<'a>(PhantomData<&'a mut Sink>);
+	
+	impl super::Sink for Sink
+	{
+		fn start(&mut self, level: Level, timestamp: i64, source: &'static str) {
+			todo!("VideoSink");
+		}
+		fn write(&mut self, s: &str) {
+			unimplemented!();
+		}
+		fn end(&mut self) {
+			unimplemented!();
+		}
+	}
+}
 
 impl Level
 {
@@ -101,15 +220,20 @@ impl fmt::Display for Level
 	}
 }
 
-impl LoggingFormatter
+impl<'a> LoggingFormatter<'a>
 {
 	/// Create a new logging formatter
-	pub fn new() -> LoggingFormatter
+	pub fn new(_level: Level, _modname: &str) -> LoggingFormatter<'static>
 	{
-		LoggingFormatter {
-			_irq_handle: ::arch::sync::hold_interrupts(),
-			_lock_handle: s_logging_lock.lock()
-		}
+		let rv = LoggingFormatter {
+				_irq_handle: ::arch::sync::hold_interrupts(),
+				_lock_handle: s_logging_lock.lock()
+			};
+		//let ts = ::time::ticks();
+		//rv.lock_handle.serial.start(ts, level, modname);
+		//rv.lock_handle.memory.map(|x| x.start(ts, level, modname) );
+		//rv.lock_handle.video.map(|x| x.start(ts, level, modname) );
+		rv
 	}
 	
 	/// Set the output colour of the formatter
@@ -127,7 +251,7 @@ impl LoggingFormatter
 	}
 }
 
-impl fmt::Write for LoggingFormatter
+impl<'a> fmt::Write for LoggingFormatter<'a>
 {
 	fn write_str(&mut self, s: &str) -> fmt::Result
 	{
@@ -135,7 +259,7 @@ impl fmt::Write for LoggingFormatter
 		Ok( () )
 	}
 }
-impl ::core::ops::Drop for LoggingFormatter
+impl<'a> ::core::ops::Drop for LoggingFormatter<'a>
 {
 	fn drop(&mut self)
 	{
@@ -210,7 +334,7 @@ pub fn enabled(level: Level, modname: &str) -> bool
 pub fn getstream(level: Level, modname: &str) -> LoggingFormatter
 {
 	assert!( enabled(level, modname) );
-	let mut rv = LoggingFormatter::new();
+	let mut rv = LoggingFormatter::new(level, modname);
 	rv.set_colour(level.to_colour());
 	let _ = write!(&mut rv, "{:8}{} [{:6}] - ", ::time::ticks(), level, modname);
 	rv

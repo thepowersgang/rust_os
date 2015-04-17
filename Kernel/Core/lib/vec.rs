@@ -161,6 +161,12 @@ impl<T> Vec<T>
 			}
 		}
 	}
+	
+	fn as_slice(&self) -> &[T]
+	{
+		let rawslice = ::core::raw::Slice { data: self.data.get_base() as *const T, len: self.size };
+		unsafe { ::core::mem::transmute( rawslice ) }
+	}
 }
 
 #[macro_export]
@@ -197,7 +203,7 @@ impl<T: Clone> Vec<T>
 
 impl<T: fmt::Debug> fmt::Debug for Vec<T> {
 	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-		fmt::Debug::fmt(self.as_slice(), f)
+		fmt::Debug::fmt(&**self, f)
 	}
 }
 
@@ -278,23 +284,6 @@ macro_rules! vec_index {
 	}
 vec_index!{ T -> T : usize }
 vec_index!{ T -> [T] : ops::Range<usize> ops::RangeTo<usize> ops::RangeFrom<usize> ops::RangeFull }
-
-impl<T> ::core::slice::AsSlice<T> for Vec<T>
-{
-	fn as_slice<'a>(&'a self) -> &'a [T]
-	{
-		let rawslice = ::core::raw::Slice { data: self.data.get_base() as *const T, len: self.size };
-		unsafe { ::core::mem::transmute( rawslice ) }
-	}
-}
-
-//impl<T: ::core::fmt::Show> ::core::fmt::Show for Vec<T>
-//{
-//	fn fmt(&self, f: &mut ::core::fmt::Formatter) -> ::core::result::Result<(),::core::fmt::Error>
-//	{
-//		write!(f, "{}", self.as_slice())
-//	}
-//}
 
 impl<T> MutableSeq<T> for Vec<T>
 {

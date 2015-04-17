@@ -29,6 +29,8 @@ pub mod string;
 
 pub mod vec_map;
 
+pub mod ring_buffer;
+
 pub mod num
 {
 	//! General numeric helpers

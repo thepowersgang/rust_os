@@ -35,15 +35,15 @@ impl String
 	}
 	
 	/// Append `s` to the string
-	pub fn push(&mut self, s: &str)
+	pub fn push_str(&mut self, s: &str)
 	{
 		self.0.push_all(s.as_bytes());
 	}
 	
 	/// Return the string as a &str
-	pub fn as_slice(&self) -> &str {
+	fn as_slice(&self) -> &str {
 		let &String(ref v) = self;
-		unsafe { ::core::mem::transmute( v.as_slice() ) }
+		unsafe { ::core::mem::transmute( &**v ) }
 	}
 }
 
@@ -56,7 +56,7 @@ impl ::core::fmt::Write for String
 {
 	fn write_str(&mut self, s: &str) -> ::core::fmt::Result
 	{
-		self.push(s);
+		self.push_str(s);
 		Ok( () )
 	}
 }
@@ -66,8 +66,7 @@ impl ::core::ops::Deref for String
 	type Target = str;
 	fn deref(&self) -> &str
 	{
-		let &String(ref v) = self;
-		unsafe { ::core::mem::transmute( v.as_slice() ) }
+		self.as_slice()
 	}
 }
 
