@@ -13,6 +13,7 @@ use core::fmt;
 // Bitmap font used by this module is in another file
 include!("font_cp437_8x16.rs");
 
+// Raw bitmap logo (already encoded with dims and as a rust array)
 include!("../../../Graphics/logo.rs");
 
 struct KernelLog
