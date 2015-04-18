@@ -226,10 +226,15 @@ impl<'a> LoggingFormatter<'a>
 				lock_handle: S_LOGGING_LOCK.lock()
 			};
 		let ts = ::time::ticks();
-		rv.lock_handle.serial.start(ts, level, modname);
-		rv.lock_handle.memory.as_mut().map(|x| x.start(ts, level, modname) );
-		rv.lock_handle.video.as_mut().map(|x| x.start(ts, level, modname) );
+		rv.foreach(|x| x.start(ts, level, modname));
 		rv
+	}
+	
+	fn foreach<Fcn: FnMut(&mut Sink)>(&mut self, mut f: Fcn)
+	{
+		f(&mut self.lock_handle.serial);
+		self.lock_handle.memory.as_mut().map(|x| f(x));
+		self.lock_handle.video .as_mut().map(|x| f(x));
 	}
 }
 
@@ -237,9 +242,7 @@ impl<'a> fmt::Write for LoggingFormatter<'a>
 {
 	fn write_str(&mut self, s: &str) -> fmt::Result
 	{
-		self.lock_handle.serial.write(s);
-		self.lock_handle.memory.as_mut().map(|x| x.write(s));
-		self.lock_handle.video.as_mut().map(|x| x.write(s));
+		self.foreach(|x| x.write(s));
 		Ok( () )
 	}
 }
@@ -247,9 +250,7 @@ impl<'a> ::core::ops::Drop for LoggingFormatter<'a>
 {
 	fn drop(&mut self)
 	{
-		self.lock_handle.serial.end();
-		self.lock_handle.memory.as_mut().map(|x| x.end());
-		self.lock_handle.video.as_mut().map(|x| x.end());
+		self.foreach(|x| x.end());
 	}
 }
 
