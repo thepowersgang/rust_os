@@ -51,9 +51,7 @@ pub enum Colour
 #[doc(hidden)]
 pub struct LoggingFormatter<'a>
 {
-	_lock_handle: ::arch::sync::HeldSpinlock<'a,()>,
-	
-	//_lock_handle: ::arch::sync::HeldSpinlock<'a,Sinks>,
+	lock_handle: ::arch::sync::HeldSpinlock<'a,Sinks>,
 	
 	// NOTE: Must be second, forcing interrupts to be reenabled after the lock is released
 	_irq_handle: ::arch::sync::HeldInterrupts,
@@ -62,12 +60,11 @@ pub struct LoggingFormatter<'a>
 /// Wrapper around a &-ptr that prints a hexdump of the passed data.
 pub struct HexDump<'a,T:'a>(pub &'a T);
 
-#[allow(non_upper_case_globals)]
-static s_logging_lock: ::arch::sync::Spinlock<()> = spinlock_init!( () );
+static S_LOGGING_LOCK: Spinlock<Sinks> = spinlock_init!( Sinks { serial: serial::Sink, memory: None, video: None } );
 
 trait Sink
 {
-	fn start(&mut self, level: Level, timestamp: i64, source: &'static str);
+	fn start(&mut self, timestamp: ::time::TickCount, level: Level, source: &'static str);
 	fn write(&mut self, data: &str);
 	fn end(&mut self);
 }
@@ -77,7 +74,6 @@ struct Sinks
 	memory: Option<memory::Sink>,
 	video: Option<video::Sink>,
 }
-static S_LOGGING_SINKS: Spinlock<Sinks> = spinlock_init!( Sinks { serial: serial::Sink, memory: None, video: None } );
 
 mod serial
 {
@@ -89,7 +85,7 @@ mod serial
 	pub struct Sink;
 	impl super::Sink for Sink
 	{
-		fn start(&mut self, level: Level, timestamp: i64, source: &'static str) {
+		fn start(&mut self, timestamp: ::time::TickCount, level: Level, source: &'static str) {
 			use core::fmt::Write;
 			self.set_colour(level.to_colour());
 			write!(self, "{:8}{} [{:6}] - ", timestamp, level, source).unwrap();
@@ -138,14 +134,14 @@ mod memory
 	}
 	struct LogMessage
 	{
-		time: i64,
+		time: ::time::TickCount,
 		level: Level,
 		source: &'static str,
 		data: String,
 	}
 	impl super::Sink for Sink
 	{
-		fn start(&mut self, level: Level, timestamp: i64, source: &'static str) {
+		fn start(&mut self, timestamp: ::time::TickCount, level: Level, source: &'static str) {
 			todo!("MemorySink");
 		}
 		fn write(&mut self, s: &str) {
@@ -170,7 +166,7 @@ mod video
 	
 	impl super::Sink for Sink
 	{
-		fn start(&mut self, level: Level, timestamp: i64, source: &'static str) {
+		fn start(&mut self, timestamp: ::time::TickCount, level: Level, source: &'static str) {
 			todo!("VideoSink");
 		}
 		fn write(&mut self, s: &str) {
@@ -223,31 +219,17 @@ impl fmt::Display for Level
 impl<'a> LoggingFormatter<'a>
 {
 	/// Create a new logging formatter
-	pub fn new(_level: Level, _modname: &str) -> LoggingFormatter<'static>
+	pub fn new(level: Level, modname: &'static str) -> LoggingFormatter<'static>
 	{
-		let rv = LoggingFormatter {
+		let mut rv = LoggingFormatter {
 				_irq_handle: ::arch::sync::hold_interrupts(),
-				_lock_handle: s_logging_lock.lock()
+				lock_handle: S_LOGGING_LOCK.lock()
 			};
-		//let ts = ::time::ticks();
-		//rv.lock_handle.serial.start(ts, level, modname);
-		//rv.lock_handle.memory.map(|x| x.start(ts, level, modname) );
-		//rv.lock_handle.video.map(|x| x.start(ts, level, modname) );
+		let ts = ::time::ticks();
+		rv.lock_handle.serial.start(ts, level, modname);
+		rv.lock_handle.memory.as_mut().map(|x| x.start(ts, level, modname) );
+		rv.lock_handle.video.as_mut().map(|x| x.start(ts, level, modname) );
 		rv
-	}
-	
-	/// Set the output colour of the formatter
-	pub fn set_colour(&self, colour: Colour) {
-		match colour
-		{
-		Colour::Default => ::arch::puts("\x1b[0m"),
-		Colour::Red     => ::arch::puts("\x1b[31m"),
-		Colour::Green   => ::arch::puts("\x1b[32m"),
-		Colour::Yellow  => ::arch::puts("\x1b[33m"),
-		Colour::Blue    => ::arch::puts("\x1b[34m"),
-		Colour::Purple  => ::arch::puts("\x1b[35m"),
-		Colour::Grey    => ::arch::puts("\x1b[1;30m"),
-		}
 	}
 }
 
@@ -255,7 +237,9 @@ impl<'a> fmt::Write for LoggingFormatter<'a>
 {
 	fn write_str(&mut self, s: &str) -> fmt::Result
 	{
-		::arch::puts(s);
+		self.lock_handle.serial.write(s);
+		self.lock_handle.memory.as_mut().map(|x| x.write(s));
+		self.lock_handle.video.as_mut().map(|x| x.write(s));
 		Ok( () )
 	}
 }
@@ -263,7 +247,9 @@ impl<'a> ::core::ops::Drop for LoggingFormatter<'a>
 {
 	fn drop(&mut self)
 	{
-		::arch::puts("\x1b[0m\n");
+		self.lock_handle.serial.end();
+		self.lock_handle.memory.as_mut().map(|x| x.end());
+		self.lock_handle.video.as_mut().map(|x| x.end());
 	}
 }
 
@@ -331,13 +317,10 @@ pub fn enabled(level: Level, modname: &str) -> bool
 
 #[doc(hidden)]
 /// Returns a logging formatter
-pub fn getstream(level: Level, modname: &str) -> LoggingFormatter
+pub fn getstream(level: Level, modname: &'static str) -> LoggingFormatter
 {
 	assert!( enabled(level, modname) );
-	let mut rv = LoggingFormatter::new(level, modname);
-	rv.set_colour(level.to_colour());
-	let _ = write!(&mut rv, "{:8}{} [{:6}] - ", ::time::ticks(), level, modname);
-	rv
+	LoggingFormatter::new(level, modname)
 }
 
 
