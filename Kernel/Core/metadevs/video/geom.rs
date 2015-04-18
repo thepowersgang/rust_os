@@ -61,7 +61,6 @@ impl Rect
 	}
 	
 	/// Returns true if this rect fits within the provided area
-	#[deprecated]
 	pub fn within(&self, w: u32, h: u32) -> bool {
 		self.x() < w && self.y() < h
 		&& self.w() <= w && self.h() <= h

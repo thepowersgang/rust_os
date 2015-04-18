@@ -10,7 +10,6 @@ use core::ops::{self,FnOnce};
 use core::default::Default;
 
 /// A standard mutex (blocks the current thread when contended)
-#[stable]
 pub struct Mutex<T: Send>
 {
 	#[doc(hidden)]
@@ -47,7 +46,6 @@ pub struct HeldLazyMutex<'a, T: Send+'a>( HeldMutex<'a, Option<T>> );
 impl<T: Send> Mutex<T>
 {
 	/// Construct a new mutex-protected value
-	#[stable]
 	pub fn new(val: T) -> Mutex<T> {
 		Mutex {
 			inner: spinlock_init!(MUTEX_INNER_INIT),

@@ -45,7 +45,7 @@ pub fn c_string_as_byte_slice(c_str: *const i8) -> Option<&'static [u8]>
 	}	
 }
 /// Validate a C string (legacy)
-#[deprecated="Use ::memory::c_string_as_byte_slice instead"]
+//#[deprecated="Use ::memory::c_string_as_byte_slice instead"]
 pub fn c_string_valid(c_str: *const i8) -> bool
 {
 	c_string_as_byte_slice(c_str).is_some()
