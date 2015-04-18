@@ -88,7 +88,7 @@ UPDATE_rustc:
 	@mkdir -p ../.prefix
 	curl -s https://static.rust-lang.org/rustup.sh | sh -s -- --channel=nightly --prefix=../.prefix
 UPDATE_libcore_src:
-	cd .. && wget https://static.rust-lang.org/dist/rustc-nightly-src.tar.gz -Nq
+	cd .. && wget https://static.rust-lang.org/dist/rustc-nightly-src.tar.gz -N -nv
 
 ../.prefix/bin/rustc: UPDATE_rustc
 	@#
