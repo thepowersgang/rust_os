@@ -92,8 +92,9 @@ UPDATE_libcore_src:
 
 ../.prefix/bin/rustc: UPDATE_rustc
 	@#
-../rustc-nightly-src.tar.gz: UPDATE_libcore_src
-	@#
+../rustc-nightly-src.tar.gz:
+	@echo -- nightly source required, run "make UPDATE"
+	@false
 ../libcore/lib.rs: ../rustc-nightly-src.tar.gz
 	tar -xmf ../rustc-nightly-src.tar.gz -C ../ rustc-nightly/src/libcore --transform 's~^rustc-nightly/src/~~'
 
