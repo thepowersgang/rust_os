@@ -6,9 +6,17 @@
 //!
 //! Acts every similarly to the rust std's String type.
 use _common::*;
+use core::ops;
 
 /// String type
 pub struct String(Vec<u8>);
+
+/// String backed to a statically-allocated buffer
+pub struct FixedString<Buf: AsMut<[u8]>+AsRef<[u8]>>
+{
+	data: Buf,
+	len: usize,
+}
 
 impl String
 {
@@ -42,8 +50,8 @@ impl String
 	
 	/// Return the string as a &str
 	fn as_slice(&self) -> &str {
-		let &String(ref v) = self;
-		unsafe { ::core::mem::transmute( &**v ) }
+		let bytes: &[u8] = self.0.as_ref();
+		unsafe { ::core::mem::transmute( bytes ) }
 	}
 }
 
@@ -82,6 +90,49 @@ impl<'a> From<&'a str> for String
 {
 	fn from(v: &str) -> String {
 		String::from_str(v)
+	}
+}
+
+
+impl<B: AsMut<[u8]>+AsRef<[u8]>> FixedString<B>
+{
+	/// Create a new fixed-capacity string using the provided buffer
+	pub fn new(backing: B) -> FixedString<B> {
+		assert!(backing.as_ref().len() > 0);
+		FixedString {
+			data: backing,
+			len: 0,
+		}
+	}
+	fn push_char(&mut self, c: char) {
+		match c.encode_utf8(&mut self.data.as_mut()[self.len..])
+		{
+		Some(l) => self.len += l,
+		None => todo!("Freeze string once allocation exceeded"),
+		}
+	}
+	/// Append a slice
+	pub fn push_str(&mut self, s: &str) {
+		self.extend( s.chars() );
+	}
+}
+impl<B: AsMut<[u8]>+AsRef<[u8]>> ::core::iter::Extend<char> for FixedString<B>
+{
+	fn extend<T>(&mut self, iterable: T)
+	where
+		T: ::core::iter::IntoIterator<Item=char>
+	{
+		for c in iterable {
+			self.push_char(c);
+		}
+	}
+}
+impl<B: AsMut<[u8]>+AsRef<[u8]>> ops::Deref for FixedString<B>
+{
+	type Target = str;
+	fn deref(&self) -> &str {
+		let bytes = &self.data.as_ref()[..self.len];
+		unsafe { ::core::mem::transmute(bytes) }
 	}
 }
 

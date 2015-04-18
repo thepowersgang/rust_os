@@ -88,7 +88,7 @@ mod serial
 		fn start(&mut self, timestamp: ::time::TickCount, level: Level, source: &'static str) {
 			use core::fmt::Write;
 			self.set_colour(level.to_colour());
-			write!(self, "{:8}{} [{:6}] - ", timestamp, level, source).unwrap();
+			write!(self, "{:6}{} [{}] - ", timestamp, level, source).unwrap();
 		}
 		fn write(&mut self, s: &str) {
 			::arch::puts(s);
@@ -132,23 +132,37 @@ mod memory
 	{
 		lines: ::lib::ring_buffer::RingBuf<LogMessage>,
 	}
+	// Temp hack until type-level ints are avaliable
+	struct LogDataBuf([u8;160]);
+	impl LogDataBuf {
+		fn new() -> LogDataBuf { LogDataBuf([0; 160]) }
+	}
+	impl ::core::convert::AsRef<[u8]> for LogDataBuf {
+		fn as_ref(&self) -> &[u8] { &self.0 }
+	}
+	impl ::core::convert::AsMut<[u8]> for LogDataBuf {
+		fn as_mut(&mut self) -> &mut [u8] { &mut self.0 }
+	}
 	struct LogMessage
 	{
 		time: ::time::TickCount,
 		level: Level,
 		source: &'static str,
-		data: String,
+		data: ::lib::string::FixedString<LogDataBuf>,
 	}
 	impl super::Sink for Sink
 	{
 		fn start(&mut self, timestamp: ::time::TickCount, level: Level, source: &'static str) {
-			todo!("MemorySink");
+			self.lines.push_back( LogMessage {
+				time: timestamp, level: level, source: source,
+				data: ::lib::string::FixedString::new(LogDataBuf::new())
+				} );
 		}
 		fn write(&mut self, s: &str) {
 			self.lines.back_mut().unwrap().data.push_str(s);
 		}
 		fn end(&mut self) {
-			unimplemented!();
+			// No action required
 		}
 	}
 }
@@ -167,12 +181,17 @@ mod video
 	impl super::Sink for Sink
 	{
 		fn start(&mut self, timestamp: ::time::TickCount, level: Level, source: &'static str) {
+			// Acquire a writer from the GUI
+			// - TODO: requires acquiring the lock on the kernel log, which is a Mutex, and may already be held.
+			// Write header
 			todo!("VideoSink");
 		}
 		fn write(&mut self, s: &str) {
+			// Pass through
 			unimplemented!();
 		}
 		fn end(&mut self) {
+			// Drop writer (replace with None)
 			unimplemented!();
 		}
 	}
@@ -216,6 +235,16 @@ impl fmt::Display for Level
 	}
 }
 
+impl Sinks
+{
+	pub fn foreach_mut<Fcn: FnMut(&mut Sink)>(&mut self, mut f: Fcn)
+	{
+		f(&mut self.serial);
+		self.memory.as_mut().map(|x| f(x));
+		self.video .as_mut().map(|x| f(x));
+	}
+}
+
 impl<'a> LoggingFormatter<'a>
 {
 	/// Create a new logging formatter
@@ -226,15 +255,8 @@ impl<'a> LoggingFormatter<'a>
 				lock_handle: S_LOGGING_LOCK.lock()
 			};
 		let ts = ::time::ticks();
-		rv.foreach(|x| x.start(ts, level, modname));
+		rv.lock_handle.foreach_mut(|x| x.start(ts, level, modname));
 		rv
-	}
-	
-	fn foreach<Fcn: FnMut(&mut Sink)>(&mut self, mut f: Fcn)
-	{
-		f(&mut self.lock_handle.serial);
-		self.lock_handle.memory.as_mut().map(|x| f(x));
-		self.lock_handle.video .as_mut().map(|x| f(x));
 	}
 }
 
@@ -242,7 +264,7 @@ impl<'a> fmt::Write for LoggingFormatter<'a>
 {
 	fn write_str(&mut self, s: &str) -> fmt::Result
 	{
-		self.foreach(|x| x.write(s));
+		self.lock_handle.foreach_mut(|x| x.write(s));
 		Ok( () )
 	}
 }
@@ -250,7 +272,7 @@ impl<'a> ::core::ops::Drop for LoggingFormatter<'a>
 {
 	fn drop(&mut self)
 	{
-		self.foreach(|x| x.end());
+		self.lock_handle.foreach_mut(|x| x.end());
 	}
 }
 
