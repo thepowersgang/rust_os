@@ -113,20 +113,44 @@ impl<T> Arc<T>
 	pub fn new(value: T) -> Arc<T>
 	{
 		Arc {
-			inner: unsafe { NonZero::new( ::memory::heap::alloc( ArcInner {
-				count: AtomicUsize::new(1),
-				val: value
-				} ) ) },
+			inner: unsafe { NonZero::new( ArcInner::new_ptr(value) ) },
 		}
+	}
+	
+	fn inner(&self) -> &ArcInner<T> {
+		unsafe { &**self.inner }
+	}
+}
+impl<T: Clone> Arc<T>
+{
+	/// Ensure that this instance is the only instance (cloning if needed)
+	// &mut self ensures that if the ref count is 1, we can do whatever we want
+	pub fn make_unique(&mut self) -> &mut T
+	{
+		if self.inner().count.fetch_sub(1, Ordering::Relaxed) == 1
+		{
+			// We're the only reference!
+			// > Increment the count again
+			assert!( self.inner().count.fetch_add(1, Ordering::Relaxed) == 0 );
+		}
+		else
+		{
+			// Time to make a new one
+			self.inner = unsafe { NonZero::new( ArcInner::new_ptr( self.inner().val.clone() ) ) };
+			todo!("Create a new Arc inner");
+		}
+		
+		assert!(self.inner().count.load(Ordering::Relaxed) == 1);
+		// Obtain a mutable pointer to the interior
+		let mut_ptr = *self.inner as *mut ArcInner<T>;
+		unsafe { &mut (*mut_ptr).val }
 	}
 }
 impl<T> Clone for Arc<T>
 {
 	fn clone(&self) -> Arc<T>
 	{
-		unsafe {
-			(**self.inner).count.fetch_add(1, Ordering::Acquire);
-		}
+		self.inner().count.fetch_add(1, Ordering::Acquire);
 		Arc {
 			inner: self.inner
 		}
@@ -168,6 +192,17 @@ impl<T> ::core::ops::Deref for Arc<T>
 	fn deref<'s>(&'s self) -> &'s T
 	{
 		unsafe { &(**self.inner).val }
+	}
+}
+
+impl<T> ArcInner<T>
+{
+	unsafe fn new_ptr(value: T) -> *mut ArcInner<T>
+	{
+		return ::memory::heap::alloc( ArcInner {
+			count: AtomicUsize::new(1),
+			val: value
+			} );
 	}
 }
 

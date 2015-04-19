@@ -22,6 +22,8 @@ struct KernelLog
 	wh: WindowHandle,
 	_logo_wh: WindowHandle,
 	cur_line: u32,
+	
+	//buffer_handle: super::windows::BufHandle,
 }
 
 /// Character position

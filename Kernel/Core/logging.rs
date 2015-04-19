@@ -132,6 +132,7 @@ mod memory
 	{
 		lines: ::lib::ring_buffer::RingBuf<LogMessage>,
 	}
+	// Buffer for log data
 	// Temp hack until type-level ints are avaliable
 	struct LogDataBuf([u8;160]);
 	impl LogDataBuf {
@@ -150,13 +151,28 @@ mod memory
 		source: &'static str,
 		data: ::lib::string::FixedString<LogDataBuf>,
 	}
+	impl Sink
+	{
+		pub fn new() -> Sink {
+			Sink {
+				lines: ::lib::ring_buffer::RingBuf::new(256),	// 256 log of scrollback
+			}
+		}
+	}
 	impl super::Sink for Sink
 	{
 		fn start(&mut self, timestamp: ::time::TickCount, level: Level, source: &'static str) {
-			self.lines.push_back( LogMessage {
+			let new_line = LogMessage {
 				time: timestamp, level: level, source: source,
 				data: ::lib::string::FixedString::new(LogDataBuf::new())
-				} );
+				};
+			match self.lines.push_back( new_line )
+			{
+			Ok(_) => {},
+			Err(new_line) => {
+				todo!("Handle rollover of kernel log");
+				},
+			}
 		}
 		fn write(&mut self, s: &str) {
 			self.lines.back_mut().unwrap().data.push_str(s);
