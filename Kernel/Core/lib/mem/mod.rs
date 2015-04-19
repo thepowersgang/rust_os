@@ -6,9 +6,10 @@
 use core::marker::{Sized,Send};
 
 pub use self::rc::Rc;
-pub use self::rc::Arc;
+pub use self::arc::Arc;
 
 mod rc;
+mod arc;
 
 /// Owned dynamic allocation (box)
 #[lang = "owned_box"]

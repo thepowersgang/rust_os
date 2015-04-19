@@ -64,8 +64,11 @@ static S_LOGGING_LOCK: Spinlock<Sinks> = spinlock_init!( Sinks { serial: serial:
 
 trait Sink
 {
+	/// Start a new log entry
 	fn start(&mut self, timestamp: ::time::TickCount, level: Level, source: &'static str);
+	/// Append data to the current log entry
 	fn write(&mut self, data: &str);
+	/// End a log entry
 	fn end(&mut self);
 }
 struct Sinks

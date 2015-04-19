@@ -201,6 +201,13 @@ impl<T: Clone> Vec<T>
 	}
 }
 
+impl<T: Clone> Clone for Vec<T>
+{
+	fn clone(&self) -> Vec<T> {
+		self.iter().cloned().collect()
+	}
+}
+
 impl<T: fmt::Debug> fmt::Debug for Vec<T> {
 	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
 		fmt::Debug::fmt(&**self, f)

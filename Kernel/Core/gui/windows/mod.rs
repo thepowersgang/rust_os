@@ -1,7 +1,7 @@
 // "Tifflin" Kernel
 // - By John Hodge (thePowersGang)
 //
-// Core/gui/windows.rs
+// Core/gui/windows/mod.rs
 // - GUI Window management
 use _common::*;
 use super::{Dims,Pos,Rect,Colour};
@@ -11,6 +11,10 @@ use lib::mem::Arc;
 use core::atomic;
 
 use lib::sparse_vec::SparseVec;
+
+
+pub use self::winbuf::WinBuf;
+mod winbuf;
 
 /// Window groups combine windows into "sessions", that can be switched with magic key combinations
 struct WindowGroup
@@ -26,14 +30,6 @@ struct WindowGroup
 	render_order: Vec< (usize, Vec<Rect>) >,
 }
 
-#[derive(Default)]
-struct WinBuf
-{
-	/// Window dimensions
-	dims: Dims,
-	/// Window backing buffer
-	data: Vec<u32>,
-}
 
 /// A single window, an arbitarily movable on-screen region
 //#[derive(Default)]
@@ -44,8 +40,9 @@ struct Window
 	
 	/// Actual window data
 	/// 
-	/// Write lock is for structure manipulations, slicing is sharable
-	buf: RwLock<WinBuf>,
+	/// Write lock is for structure manipulations, slicing is sharable.
+	/// Arc allows the "user" to hold a copy of the framebuffer
+	buf: RwLock<Arc<WinBuf>>,
 	
 	/// Window title (queried by the decorator)
 	title: String,
@@ -118,6 +115,8 @@ pub fn update_dims()
 		let count = lh.render_order.len();
 		lh.recalc_vis_int(count-1);
 	}
+	
+	// TODO: Poke registered callbacks and tell them that the dimensions have changed
 }
 
 // Thread that controls compiositing windows to the screen
@@ -201,13 +200,13 @@ impl WindowGroup
 	{
 		let win_idx = self.render_order[vis_idx].0;
 		let (ref cur_pos, ref cur_win) = self.windows[win_idx];
-		let dims = cur_win.buf.read().dims;
+		let dims = cur_win.buf.read().dims();
 		let win_rect = Rect::new_pd(*cur_pos, dims);
 		let mut vis = vec![ Rect::new_pd(Pos::new(0,0), dims) ];
 		for &(win,_) in &self.render_order[ vis_idx+1 .. ]
 		{
 			let (ref pos, ref win) = self.windows[win];
-			if let Some(mut rect) = Rect::new_pd( *pos, win.buf.read().dims ).intersect(&win_rect)
+			if let Some(mut rect) = Rect::new_pd( *pos, win.buf.read().dims() ).intersect(&win_rect)
 			{
 				rect.pos.x -= cur_pos.x;
 				rect.pos.y -= cur_pos.y;
@@ -233,7 +232,7 @@ impl WindowGroup
 		if self.get_render_idx(idx).is_some() {
 			return ;
 		}
-		let rect = Rect { pos: self.windows[idx].0, dims: self.windows[idx].1.buf.read().dims };
+		let rect = Rect { pos: self.windows[idx].0, dims: self.windows[idx].1.buf.read().dims() };
 		self.render_order.push( (idx, vec![rect]) );
 		let vis_idx = self.render_order.len() - 1;
 		self.recalc_vis_int(vis_idx);
@@ -308,98 +307,6 @@ impl ::core::ops::Drop for WindowGroupHandle
 	}
 }
 
-impl WinBuf
-{
-	fn resize(&mut self, newsize: Dims)
-	{
-		log_trace!("WinBuf::resize({:?})", newsize);
-		let px_count = newsize.width() as usize * newsize.height() as usize;
-		log_trace!("- px_count = {}", px_count);
-		self.dims = newsize;
-		
-		//let val = (self as *const _ as usize & 0xFFFF) as u32 * (256+9);
-		let val = 0;
-		self.data.resize(px_count, val);
-	}
-	
-	fn scanline_rgn(&self, line: usize, ofs: usize, len: usize) -> &[u32]
-	{
-		assert!(ofs < self.dims.width() as usize);
-		assert!(line < self.dims.h as usize, "Requested scanline is out of range");
-		
-		let pitch_32 = self.dims.width() as usize;
-		let len = ::core::cmp::max(len, pitch_32 - ofs);
-		
-		let l_ofs = line * pitch_32;
-		&self.data[ l_ofs + ofs .. l_ofs + ofs + len ] 
-	}
-
-	fn blit(&self, winpos: Pos, rgn: Rect)
-	{
-		log_trace!("WinBuf::blit(winpos={:?},rgn={:?})", winpos, rgn);
-		// TODO: Call a block blit instead?
-		for row in rgn.top() .. rgn.bottom()
-		{
-			self.blit_scanline(
-				winpos,
-				row as usize,
-				rgn.left() as usize,
-				rgn.dims().width() as usize
-				);
-		}
-	}
-	
-	fn blit_scanline(&self, winpos: Pos, line: usize, ofs: usize, len: usize)
-	{
-		// TODO: Assert that current thread is from/controlled-by the compositor
-		unsafe {
-			let pos = Pos::new(
-				winpos.x + ofs as u32,
-				winpos.y + line as u32
-				);
-			::metadevs::video::write_line(pos, self.scanline_rgn(line, ofs, len));
-		}
-	}
-	
-	fn scanline_rgn_mut(&mut self, line: usize, ofs: usize, len: usize) -> &mut [u32]
-	{
-		assert!(ofs < self.dims.width() as usize);
-		assert!(line < self.dims.h as usize, "Requested scanline is out of range");
-		
-		let pitch_32 = self.dims.width() as usize;
-		let len = ::core::cmp::min(len, pitch_32 - ofs);
-		
-		let l_ofs = line * pitch_32;
-		//log_debug!("scanline_rgn_mut: self.data = {:p}", &self.data[0]);
-		&mut self.data[ l_ofs + ofs .. l_ofs + ofs + len ] 
-	}
-	
-	fn fill_scanline(&mut self, line: usize, ofs: usize, len: usize, value: Colour)
-	{
-		if line >= self.dims.height() as usize || ofs >= self.dims.width() as usize {
-			return ;
-		}
-		let rgn = self.scanline_rgn_mut(line, ofs, len);
-		//log_debug!("fill_scanline: rgn = {:p}", &rgn[0]);
-		for v in rgn.iter_mut()
-		{
-			*v = value.as_argb32();
-		}
-	}
-	fn set_scanline(&mut self, line: usize, ofs: usize, len: usize, data: &[u32])
-	{
-		if line >= self.dims.height() as usize || ofs >= self.dims.width() as usize {
-			return ;
-		}
-		let rgn = self.scanline_rgn_mut(line, ofs, len);
-		
-		for (d,s) in rgn.iter_mut().zip( data.iter() )
-		{
-			*d = *s;
-		}
-	}
-}
-
 impl Window
 {
 	fn new(name: String) -> Window {
@@ -417,11 +324,14 @@ impl Window
 	fn take_is_dirty(&self) -> bool { self.is_dirty.swap(false, atomic::Ordering::Relaxed) }
 	fn mark_dirty(&self) { self.is_dirty.store(true, atomic::Ordering::Relaxed); }
 	
+	/// Resize the window
 	pub fn resize(&self, dim: Dims) {
-		self.buf.write().resize(dim);
+		// TODO: use something like "try_make_unique" and emit a notice if it needs to clone
+		self.buf.write().make_unique().resize(dim);
 		*self.dirty_rects.lock() = vec![ Rect::new(0,0, dim.w, dim.h) ];
 	}
 	
+	/// Add an area to the dirty rectangle list
 	fn add_dirty(&self, area: Rect)
 	{
 		let mut lh = self.dirty_rects.lock();
@@ -487,6 +397,7 @@ impl Window
 		lh.push(area);
 	}
 	
+	/// Fill an area of the window
 	pub fn fill_rect(&self, area: Rect, colour: Colour)
 	{
 		let mut buf_h = self.buf.write();
@@ -502,12 +413,14 @@ impl Window
 		self.add_dirty(area);
 	}
 	
+	/// Set a pixel
 	pub fn pset(&self, pos: Pos, colour: Colour)
 	{
 		self.buf.write().fill_scanline(pos.y as usize, pos.x as usize, 1, colour);
 		self.add_dirty( Rect::new_pd(pos, Dims::new(1,1)) );
 	}
 	
+	/// Blit from an external data source
 	pub fn blit_rect(&self, rect: Rect, data: &[u32])
 	{
 		log_trace!("Window::blit_rect({}, data={}px)", rect, data.len());
