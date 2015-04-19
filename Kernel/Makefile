@@ -13,7 +13,8 @@
 # - It also downloads+extracts libcore from the nightly tarball
 ARCH = amd64
 TRIPLE = x86_64-none-elf
-MODS := video_vga storage_ata
+MODS := storage_ata
+#MODS += video_vga
 
 OBJS := start.ao $(MODS:%=mod_%.o) libkernel.rlib libcore.rlib
 

@@ -3,7 +3,6 @@
 //
 // Core/gui/windows/winbuf.rs
 // - Backing buffer for a window
-
 use _common::*;
 use super::super::{Dims,Pos,Rect,Colour};
 use core::cell::UnsafeCell;
@@ -12,6 +11,8 @@ use core::cell::UnsafeCell;
 ///
 /// Interior mutable to allow rendering without holding a spinlock (safe, can at worst
 /// cause partial updates to be rendered)
+///
+/// Usecase: Rendering from the logging thread.
 pub struct WinBuf
 {
 	/// Window dimensions
@@ -19,8 +20,11 @@ pub struct WinBuf
 	/// Window backing buffer
 	data: UnsafeCell< Vec<u32> >,
 }
+// SAFE: Multiple &-ptrs are valid (and quite possible)
 unsafe impl Sync for WinBuf {}
+// SEND: Maintains no external references (Vec is Send)
 unsafe impl Send for WinBuf {}
+assert_trait!(Vec<u32> : Send);
 
 impl Clone for WinBuf
 {
@@ -48,9 +52,8 @@ impl WinBuf
 	
 	pub fn resize(&mut self, newsize: Dims)
 	{
-		log_trace!("WinBuf::resize({:?})", newsize);
 		let px_count = newsize.width() as usize * newsize.height() as usize;
-		log_trace!("- px_count = {}", px_count);
+		log_trace!("WinBuf::resize({:?}) px_count = {}", newsize, px_count);
 		self.dims = newsize;
 		
 		//let val = (self as *const _ as usize & 0xFFFF) as u32 * (256+9);
@@ -71,7 +74,8 @@ impl WinBuf
 		unsafe { &mut (*self.data.get())[..] }
 	}
 	
-	fn scanline_rgn(&self, line: usize, ofs: usize, len: usize) -> &[u32]
+	/// Obtain a Range<usize> given a scanline reference
+	fn scanline_range(&self, line: usize, ofs: usize, len: usize) -> ::core::ops::Range<usize>
 	{
 		assert!(ofs < self.dims.width() as usize);
 		assert!(line < self.dims.h as usize, "Requested scanline is out of range");
@@ -80,8 +84,17 @@ impl WinBuf
 		let len = ::core::cmp::max(len, pitch_32 - ofs);
 		
 		let l_ofs = line * pitch_32;
-
-		&self.slice()[ l_ofs + ofs .. l_ofs + ofs + len ] 
+		
+		l_ofs + ofs .. l_ofs + ofs + len
+	}
+	
+	fn scanline_rgn(&self, line: usize, ofs: usize, len: usize) -> &[u32]
+	{
+		&self.slice()[ self.scanline_range(line, ofs, len) ]
+	}
+	fn scanline_rgn_mut(&self, line: usize, ofs: usize, len: usize) -> &mut [u32]
+	{
+		&mut self.slice_mut()[ self.scanline_range(line, ofs, len) ]
 	}
 
 	/// Render this window buffer at the provided position
@@ -99,10 +112,11 @@ impl WinBuf
 				);
 		}
 	}
-	
 	fn blit_scanline(&self, winpos: Pos, line: usize, ofs: usize, len: usize)
 	{
 		// TODO: Assert that current thread is from/controlled-by the compositor
+		// TODO: Should this be an unsafe operation? It isn't memory unsafe, but
+		//       care should be taken to not call this outside the compositor thread.
 		unsafe {
 			let pos = Pos::new(
 				winpos.x + ofs as u32,
@@ -110,19 +124,6 @@ impl WinBuf
 				);
 			::metadevs::video::write_line(pos, self.scanline_rgn(line, ofs, len));
 		}
-	}
-	
-	fn scanline_rgn_mut(&self, line: usize, ofs: usize, len: usize) -> &mut [u32]
-	{
-		assert!(ofs < self.dims.width() as usize);
-		assert!(line < self.dims.h as usize, "Requested scanline is out of range");
-		
-		let pitch_32 = self.dims.width() as usize;
-		let len = ::core::cmp::min(len, pitch_32 - ofs);
-		
-		let l_ofs = line * pitch_32;
-		//log_debug!("scanline_rgn_mut: self.data = {:p}", &self.data[0]);
-		&mut self.slice_mut()[ l_ofs + ofs .. l_ofs + ofs + len ]
 	}
 	
 	pub fn fill_scanline(&self, line: usize, ofs: usize, len: usize, value: Colour)
@@ -137,6 +138,7 @@ impl WinBuf
 			*v = value.as_argb32();
 		}
 	}
+	
 	pub fn set_scanline(&self, line: usize, ofs: usize, len: usize, data: &[u32])
 	{
 		if line >= self.dims.height() as usize || ofs >= self.dims.width() as usize {

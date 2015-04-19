@@ -3,6 +3,12 @@
 //
 // Core/gui/kernel_log.rs
 /// Kernel log output (and debug terminal)
+//
+// Manages a set of windows giving a view into the kernel
+// - Kernel log (current) : Contains the most recent kernel log messages
+// - Logo
+// - TODO: Kernel log (history) : A searchable/filterable/scrollable kernel log
+// - TODO: Console 
 
 use _common::*;
 
@@ -23,7 +29,7 @@ struct KernelLog
 	_logo_wh: WindowHandle,
 	cur_line: u32,
 	
-	//buffer_handle: super::windows::BufHandle,
+	buffer_handle: super::windows::BufHandle,
 }
 
 /// Character position
@@ -52,6 +58,9 @@ pub fn init()
 	// Create window (and structure)
 	S_KERNEL_LOG.init(|| KernelLog::new());
 	
+	//super::register_dims_update(|| S_KERNEL_LOG.lock().update_dims());
+	//S_KERNEL_LOG.lock().register_input();
+
 	{
 		use core::fmt::Write;
 		{
@@ -61,19 +70,9 @@ pub fn init()
 		}
 		{
 			let mut w = LogWriter::new();
-			w.set_colour(Colour::def_green());
-			write!(&mut w, "> Git state : {}", env!("TK_GITSPEC")).unwrap();
-			write!(&mut w, ", Built with {}", env!("RUST_VERSION")).unwrap();
+			w.set_colour(Colour::def_yellow());
+			write!(&mut w, "> Git state : {}, Built with {}", env!("TK_GITSPEC"), env!("RUST_VERSION")).unwrap();
 		}
-	}
-	
-	// DEBUG: Print something
-	{
-		use core::fmt::Write;
-		let mut w = LogWriter::new();
-		write!(&mut w, "???l [] ").unwrap();
-		w.set_colour(Colour::def_yellow());
-		write!(&mut w, "Hello World!").unwrap();
 	}
 	
 	// Populate kernel logging window with accumulated logs
@@ -85,26 +84,38 @@ impl KernelLog
 {
 	fn new() -> KernelLog
 	{
+		// TODO: Get this limit from the video layer, and update it when required
+		//let max_dims = super::get_display_dims( Pos::new(0,0) );
+		let max_dims = Dims::new(1280, 1024);
+	
+		// Kernel's window group	
 		let mut wgh = WindowGroupHandle::alloc("Kernel");
 		
+		// - Log Window
 		let mut wh = wgh.create_window("Kernel Log");
+		//wh.set_pos(Pos::new(0,0));
+		//wh.resize(max_dims);
 		wh.maximise();
-		wh.show();
+		let log_buf_handle = wh.get_buffer();
 		
-		let mut logo_wh = wgh.create_window("Logo");
-		// TODO: Get this limit from the video layer, and update it when required
-		let limit_x = 1280;
+		// - Fancy logo window
 		let dims = Dims::new(S_LOGO_DIMS.0,S_LOGO_DIMS.1);
+		let mut logo_wh = wgh.create_window("Logo");
+		logo_wh.set_pos(Pos::new(max_dims.w-dims.w, 0));
 		logo_wh.resize(dims);
-		logo_wh.set_pos(Pos::new(limit_x-dims.w, 0));
 		logo_wh.blit_rect( Rect::new_pd(Pos::new(0,0),dims), &S_LOGO_DATA );
+		
+		// > Show windows in reverse render order
+		wh.show();
 		logo_wh.show();
 		
+		// Return struct populated with above handles	
 		KernelLog {
 			_wgh: wgh,
 			wh: wh,
 			_logo_wh: logo_wh,
-			cur_line: 0
+			cur_line: 0,
+			buffer_handle: log_buf_handle,
 		}
 	}
 	
@@ -138,8 +149,8 @@ impl KernelLog
 	/// Returns true if the character caused a cell change (i.e. it wasn't a combining character)
 	fn putc(&mut self, pos: CharPos, colour: Colour, c: char) -> bool
 	{
-		// If the character was a combining AND
-		//  it's not at the start of a line, render atop the previous cell
+		// If the character was a combining AND it's not at the start of a line,
+		// render atop the previous cell
 		if c.is_combining() && pos.col() > 0 {
 			self.render_char(pos.prev(), colour, c);
 			false

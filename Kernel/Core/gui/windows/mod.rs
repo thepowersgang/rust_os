@@ -12,8 +12,11 @@ use core::atomic;
 
 use lib::sparse_vec::SparseVec;
 
-
 pub use self::winbuf::WinBuf;
+
+/// Handle to the backing buffer of a window
+pub type BufHandle = Arc<WinBuf>;
+
 mod winbuf;
 
 /// Window groups combine windows into "sessions", that can be switched with magic key combinations
@@ -51,6 +54,7 @@ struct Window
 	dirty_rects: Mutex<Vec<Rect>>,
 	is_dirty: atomic::AtomicBool,
 	
+	/// Flags on the window
 	flags: Mutex<WindowFlags>,
 }
 
@@ -64,7 +68,10 @@ struct WindowFlags
 	//undecorated: bool,
 }
 
+/// Handle on a window group (owning, when dropped the group is destroyed)
 pub struct WindowGroupHandle(usize);
+
+/// Window handle (when dropped, the window is destroyed)
 pub struct WindowHandle
 {
 	grp: usize,
@@ -198,10 +205,13 @@ impl WindowGroup
 	// Maybe have it optionally disabled, and do global dirty instead?
 	fn recalc_vis_for(&mut self, vis_idx: usize) -> Vec<Rect>
 	{
+		// Get the area of the screen used by this window
 		let win_idx = self.render_order[vis_idx].0;
 		let (ref cur_pos, ref cur_win) = self.windows[win_idx];
 		let dims = cur_win.buf.read().dims();
 		let win_rect = Rect::new_pd(*cur_pos, dims);
+		
+		// Iterate all windows above to obtain the visibility rect
 		let mut vis = vec![ Rect::new_pd(Pos::new(0,0), dims) ];
 		for &(win,_) in &self.render_order[ vis_idx+1 .. ]
 		{
@@ -215,7 +225,9 @@ impl WindowGroup
 				if vis.iter().find(|x| x.intersect(&rect).is_some()).is_some()
 				{
 					// This window falls within the bounds of the current window
-					// - For all visible regions, calculate the relative complement of this rect wrt the visible
+					// - For all visible regions, calculate the relative complement
+					//   of this rect with respect to the visible regions
+					// - I.e. The areas of the visible region which are not obscured by this win
 					let mut new_vis = Vec::new();
 					for vis_rect in &vis
 					{
@@ -400,7 +412,7 @@ impl Window
 	/// Fill an area of the window
 	pub fn fill_rect(&self, area: Rect, colour: Colour)
 	{
-		let mut buf_h = self.buf.write();
+		let buf_h = self.buf.read();
 		for row in area.top() .. area.bottom()
 		{
 			buf_h.fill_scanline(
@@ -416,7 +428,7 @@ impl Window
 	/// Set a pixel
 	pub fn pset(&self, pos: Pos, colour: Colour)
 	{
-		self.buf.write().fill_scanline(pos.y as usize, pos.x as usize, 1, colour);
+		self.buf.read().fill_scanline(pos.y as usize, pos.x as usize, 1, colour);
 		self.add_dirty( Rect::new_pd(pos, Dims::new(1,1)) );
 	}
 	
@@ -424,7 +436,7 @@ impl Window
 	pub fn blit_rect(&self, rect: Rect, data: &[u32])
 	{
 		log_trace!("Window::blit_rect({}, data={}px)", rect, data.len());
-		let mut buf_h = self.buf.write();
+		let buf_h = self.buf.read();
 		for (row,src) in (rect.top() .. rect.bottom()).zip( data.chunks(rect.w() as usize) )
 		{
 			buf_h.set_scanline(
@@ -455,6 +467,16 @@ impl WindowHandle
 	//	let win = &wgl.windows[self.win];
 	//	(win.0, win.1.clone())
 	//}
+	
+	/// Obtain a reference to the window's backing buffer
+	///
+	/// This is invalidated (no longer backs the window) if the window is
+	/// resized.
+	pub fn get_buffer(&self) -> Arc<WinBuf> {
+		let win = self.get_win();
+		let lh = win.buf.read();
+		lh.clone()
+	}
 	
 	/// Redraw the window (mark for re-blitting)
 	pub fn redraw(&mut self)
@@ -494,6 +516,7 @@ impl WindowHandle
 		self.redraw();
 	}
 	/// Hide the window
+	#[allow(dead_code)]
 	pub fn hide(&mut self) {
 		let wg = self.get_wg();
 		wg.lock().hide_window( self.win );
