@@ -4,6 +4,7 @@
 // Core/lib/vec_map.rs
 //! Sorted vector backed Key-Value map.
 use _common::*;
+use lib::borrow::Borrow;
 
 /// Primitive key-value map backed by a sorted vector
 pub struct VecMap<K: Ord,V>
@@ -70,7 +71,19 @@ impl<K: Ord, V> VecMap<K,V>
 		Err(idx) => Entry::Vacant(   VacantEntry { map: self, slot: idx, key: key } ),
 		}
 	}
-	
+
+	pub fn get<Q: ?Sized>(&self, key: &Q) -> Option<&V>
+	where
+		Q: Ord,
+		K: Borrow<Q>
+	{
+		match self.ents.binary_search_by(|e| e.0.borrow().cmp(key))
+		{
+		Ok(idx) => Some( &self.ents[idx].1 ),
+		Err(_) => None,
+		}
+	}
+		
 	/// Return a read-only iterator
 	pub fn iter(&self) -> Iter<K,V> {
 		Iter {

@@ -169,7 +169,7 @@ impl LAPIC
 	}
 	fn write_reg(&self, idx: ApicReg, value: u32)
 	{
-		let regs = self.mapping.as_mut::<[APICReg; 64]>(0);
+		let regs = unsafe { self.mapping.as_int_mut::<[APICReg; 64]>(0) };
 		assert!( (idx as usize) < 64 );
 		unsafe { ::core::intrinsics::volatile_store( &mut regs[idx as usize].data as *mut _, value ) }
 	}
@@ -223,7 +223,7 @@ impl IOAPIC
 {
 	pub fn new(paddr: u64, base: usize) -> IOAPIC
 	{
-		let regs = IOAPICRegs::new(paddr);
+		let mut regs = IOAPICRegs::new(paddr);
 		let v = regs.read(1);
 		log_debug!("{:x} {:x} {:x}", v, v>>16, (v >> 16) & 0xFF);
 		let num_lines = ((v >> 16) & 0xFF) as usize + 1;
@@ -255,9 +255,7 @@ impl IOAPIC
 	}
 	pub fn set_irq(&mut self, idx: usize, vector: u8, apic: u32, mode: TriggerMode, cb: super::IRQHandler)
 	{
-		let rh = self.regs.lock();
 		log_trace!("set_irq(idx={},vector={},apic={},mode={:?})", idx, vector, apic, mode);
-		log_debug!("Info = {:#x}", (*rh).read(0x10 + idx*2));
 		assert!( idx < self.num_lines );
 
 		//*self.handlers.get_mut(idx).unwrap() = Some( cb );
@@ -268,21 +266,24 @@ impl IOAPIC
 			TriggerMode::LevelHi  => (0<<13)|(1<<15),
 			TriggerMode::LevelLow => (1<<13)|(1<<15),
 			};
-		(*rh).write(0x10 + idx*2 + 1, (apic as u32) << 56-32 );
-		(*rh).write(0x10 + idx*2 + 0, flags | (vector as u32) );
+		
+		let mut rh = self.regs.lock();
+		log_debug!("Info = {:#x}", rh.read(0x10 + idx*2));
+		rh.write(0x10 + idx*2 + 1, (apic as u32) << 56-32 );
+		rh.write(0x10 + idx*2 + 0, flags | (vector as u32) );
 	}
 	pub fn disable_irq(&mut self, idx: usize)
 	{
-		let rh = self.regs.lock();
-		log_debug!("Disable {}: Info = {:#x}", idx, (*rh).read(0x10 + idx*2));
-		(*rh).write(0x10 + idx*2 + 0, 1<<16);
+		let mut rh = self.regs.lock();
+		log_debug!("Disable {}: Info = {:#x}", idx, rh.read(0x10 + idx*2));
+		rh.write(0x10 + idx*2 + 0, 1<<16);
 	}
 
 	pub fn get_irq_reg(&mut self, idx: usize) -> u64
 	{
-		let rh = self.regs.lock();
+		let mut rh = self.regs.lock();
 		
-		((*rh).read(0x10 + idx*2 + 0) as u64) | ((*rh).read(0x10 + idx*2 + 1) as u64) << 32
+		(rh.read(0x10 + idx*2 + 0) as u64) | (rh.read(0x10 + idx*2 + 1) as u64) << 32
 	}
 }
 
@@ -295,20 +296,22 @@ impl IOAPICRegs
 			mapping: mapping
 		}
 	}
-	fn read(&self, idx: usize) -> u32
+	fn read(&mut self, idx: usize) -> u32
 	{
-		let regs = self.mapping.as_mut::<[APICReg; 2]>(0);
+		// SAFE: Requires a unique pointer
 		unsafe {
-		::core::intrinsics::volatile_store(&mut regs[0].data as *mut _, idx as u32);
-		::core::intrinsics::volatile_load(&regs[1].data as *const _)
+			let regs = self.mapping.as_int_mut::<[APICReg; 2]>(0);
+			::core::intrinsics::volatile_store(&mut regs[0].data as *mut _, idx as u32);
+			::core::intrinsics::volatile_load(&regs[1].data as *const _)
 		}
 	}
-	fn write(&self, idx: usize, data: u32)
+	fn write(&mut self, idx: usize, data: u32)
 	{
-		let regs = self.mapping.as_mut::<[APICReg; 2]>(0);
+		// SAFE: Requires a unique pointer
 		unsafe {
-		::core::intrinsics::volatile_store(&mut regs[0].data as *mut _, idx as u32);
-		::core::intrinsics::volatile_store(&mut regs[1].data as *mut _, data)
+			let regs = self.mapping.as_int_mut::<[APICReg; 2]>(0);
+			::core::intrinsics::volatile_store(&mut regs[0].data as *mut _, idx as u32);
+			::core::intrinsics::volatile_store(&mut regs[1].data as *mut _, data)
 		}
 	}
 	

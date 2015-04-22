@@ -288,6 +288,10 @@ impl<'o_b,'o_e> ReadHandle<'o_b, 'o_e>
 			waiter: w,
 		}
 	}
+	
+	pub fn wait(&mut self) {
+		wait_on_list(&mut [&mut self.waiter], None)
+	}
 }
 
 impl<'o_b,'o_e> WriteHandle<'o_b, 'o_e>

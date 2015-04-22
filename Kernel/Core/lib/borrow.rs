@@ -45,12 +45,9 @@ pub trait Borrow<B: ?Sized>
 	fn borrow(&self) -> &B;
 }
 
-impl<T, B> Borrow<B> for T
-where
-	T: ::core::ops::Deref<Target=B>
-{
-	fn borrow(&self) -> &B { &**self }
-}
+impl<T: ?Sized> Borrow<T> for T { fn borrow(&self) -> &T { self } }
+impl<'a, T: ?Sized> Borrow<T> for &'a T { fn borrow(&self) -> &T { *self } }
+impl<'a, T: ?Sized> Borrow<T> for &'a mut T { fn borrow(&self) -> &T { *self } }
 
 impl<'a, B: 'a + ?Sized + ToOwned> ::core::ops::Deref for Cow<'a, B>
 {

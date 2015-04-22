@@ -9,6 +9,7 @@ use _common::*;
 use core::ops;
 
 /// String type
+#[derive(Clone)]
 pub struct String(Vec<u8>);
 
 /// String backed to a statically-allocated buffer

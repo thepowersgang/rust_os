@@ -134,7 +134,8 @@ impl HPET
 		}
 	}
 	fn regs<'a>(&'a self) -> &'a mut [u64; 0x100] {
-		self.mapping_handle.as_mut(0)
+		// TODO: Validate safety
+		unsafe { self.mapping_handle.as_int_mut(0) }
 	}
 	fn num_comparitors(&self) -> usize {
 		((self.read_reg(HPETReg::CapsID as usize) >> 8) & 0x1F) as usize

@@ -87,7 +87,6 @@ impl<'a> DmaRegBorrow<'a>
 	{
 		assert!(ofs < 8);
 		self.dma_base.write_32( if self.is_sec { 8 } else { 0 } + ofs as usize, val );
-		unimplemented!();
 	}
 	unsafe fn out_8(&self, ofs: u16, val: u8)
 	{

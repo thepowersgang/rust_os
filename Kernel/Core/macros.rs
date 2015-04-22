@@ -42,7 +42,7 @@ macro_rules! module_define
 #[macro_export]
 macro_rules! assert_trait
 {
-	($t:ty : $tr:ident) => { #[allow(warnings)] fn assert_trait<T: $tr>() { assert_trait::<$t>() } }
+	($t:ty : $tr:ident) => { #[allow(warnings)] fn assert_trait<T: $tr>() { } #[allow(dead_code)] fn call_assert_trait() { assert_trait::<$t>() } }
 }
 
 /// A safe wrapper around the `type_name` intrinsic

@@ -15,6 +15,7 @@
 #![feature(optin_builtin_traits)]	// Negative impls
 #![feature(unique)]	// Unique
 #![feature(slice_patterns)]	// Slice (array) destructuring patterns, used by multiboot code
+#![feature(step_by)]	// Range::step_by
 #![no_std]
 
 #[macro_use]

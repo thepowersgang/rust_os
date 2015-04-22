@@ -294,6 +294,7 @@ EXPORT _Unwind_Resume
 InitialPML4:	; Covers 256 TiB (Full 48-bit Virtual Address Space)
 	dd	InitialPDP - KERNEL_BASE + 3, 0	; Identity Map Low 4Mb
 	times 0xA0*2-1	dq	0
+	; Stacks at 0xFFFFA...
 	dd	StackPDP - KERNEL_BASE + 3, 0
 	times 512-4-($-InitialPML4)/8	dq	0	; < dq until hit 512-4
 	dd	InitialPML4 - KERNEL_BASE + 3, 0

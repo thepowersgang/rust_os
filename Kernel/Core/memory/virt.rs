@@ -37,6 +37,12 @@ pub struct AllocHandle
 	mode: ProtectionMode,
 }
 unsafe impl Send for AllocHandle {}
+/// A single page from an AllocHandle
+pub struct PageHandle<'a>
+{
+	alloc: &'a mut AllocHandle,
+	idx: usize,
+}
 
 /// A wrapper around AllocHandle that acts like an array
 pub struct ArrayHandle<T>
@@ -260,15 +266,30 @@ impl fmt::Display for MapError
 	}
 }
 
+//pub struct PagesIterator<'a> {
+//	alloc: &'a mut AllocHandle,
+//	idx: usize,
+//}
 impl AllocHandle
 {
-	pub fn as_ref<'s,T>(&'s self, ofs: usize) -> &'s T
+	pub fn count(&self) -> usize {
+		self.count
+	}
+	
+	/// Borrow as T
+	pub fn as_ref<T>(&self, ofs: usize) -> &T
 	{
 		&self.as_slice(ofs, 1)[0]
 	}
-	pub fn as_mut<'s,T>(&'s self, ofs: usize) -> &'s mut T
+	/// Mutably borrow as a T
+	pub fn as_mut<T>(&mut self, ofs: usize) -> &mut T
 	{
 		&mut self.as_mut_slice(ofs, 1)[0]
+	}
+	/// Return a mutable borrow of the content (interior mutable)
+	pub unsafe fn as_int_mut<T>(&self, ofs: usize) -> &mut T
+	{
+		&mut self.as_int_mut_slice(ofs, 1)[0]
 	}
 	/// Forget the allocation and return a static reference to the data
 	pub fn make_static<T>(mut self, ofs: usize) -> &'static mut T
@@ -292,7 +313,15 @@ impl AllocHandle
 			} )
 		}
 	}
-	pub fn as_mut_slice<T>(&self, ofs: usize, count: usize) -> &mut [T]
+	pub unsafe fn as_int_mut_slice<T>(&self, ofs: usize, count: usize) -> &mut [T]
+	{
+		assert!( self.mode == ProtectionMode::KernelRW, "Calling as_mut_slice on non-writable memory ({:?})", self.mode );
+		unsafe {
+			// Very evil, transmute the immutable slice into a mutable
+			::core::mem::transmute( self.as_slice::<T>(ofs, count) )
+		}
+	}
+	pub fn as_mut_slice<T>(&mut self, ofs: usize, count: usize) -> &mut [T]
 	{
 		assert!( self.mode == ProtectionMode::KernelRW, "Calling as_mut_slice on non-writable memory ({:?})", self.mode );
 		unsafe {
@@ -307,6 +336,13 @@ impl AllocHandle
 			_ty: ::core::marker::PhantomData,
 		}
 	}
+	
+	//pub fn pages(&mut self) -> PagesIterator {
+	//	PagesIterator {
+	//		alloc: self,
+	//		idx: 0,
+	//	}
+	//}
 }
 impl ::core::fmt::Debug for AllocHandle
 {
@@ -325,6 +361,42 @@ impl Drop for AllocHandle
 		}
 	}
 }
+
+//impl<'a> ::core::iter::Iterator for PagesIterator<'a>
+//{
+//	type Item = PageHandle<'a>;
+//	fn next(&mut self) -> Option<PageHandle<'a>> {
+//		if self.idx < self.alloc.count {
+//			self.idx += 1;
+//			Some(PageHandle {
+//				// Erase the lifetime
+//				// SAFE: PageHandle doesn't expose the alloc handle (and we don't give out duplicates)
+//				alloc: &mut unsafe { *(self.alloc as *mut _) },
+//				idx: self.idx - 1,
+//			})
+//		}
+//		else {
+//			None
+//		}
+//	}
+//}
+//impl<'a> PageHandle<'a>
+//{
+//	pub unsafe fn map(&mut self, paddr: PAddr) -> Result<(),()> {
+//		unimplemented!();
+//	}
+//	pub unsafe fn map_cow(&mut self, paddr: PAddr) -> Result<(),()> {
+//		unimplemented!();
+//	}
+//}
+//impl<'a> ::core::convert::AsRef<[u8]> for PageHandle<'a>
+//{
+//	fn as_ref(&self) -> &[u8] { self.alloc.as_slice(self.idx * 0x1000, 0x1000) }
+//}
+//impl<'a> ::core::convert::AsMut<[u8]> for PageHandle<'a>
+//{
+//	fn as_mut(&mut self) -> &mut [u8] { self.alloc.as_mut_slice(self.idx * 0x1000, 0x1000) }
+//}
 
 impl<T> SliceAllocHandle<T>
 {
