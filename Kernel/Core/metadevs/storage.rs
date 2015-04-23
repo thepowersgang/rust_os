@@ -6,7 +6,6 @@
 use _common::*;
 use core::atomic::{AtomicUsize,ATOMIC_USIZE_INIT};
 use sync::mutex::LazyMutex;
-use async::{ReadHandle,WriteHandle};
 use lib::{VecMap,BTreeMap};
 
 module_define!{Storage, [], init}
@@ -42,9 +41,9 @@ pub trait PhysicalVolume: Send + 'static
 	/// Reads `count` blocks starting with `blockidx` into the buffer `dst` (which will/should
 	/// be the size of `count` blocks). The read is performed with the provided priority, where
 	/// 0 is higest, and 255 is lowest.
-	fn read<'a>(&'a self, prio: u8, blockidx: u64, count: usize, dst: &'a mut [u8]) -> Result<ReadHandle<'a,'a>, ()>;
+	fn read<'a>(&'a self, prio: u8, blockidx: u64, count: usize, dst: &'a mut [u8]) -> Result<Box<::async::Waiter+'a>, ()>;
 	/// Writer a number of blocks to the volume
-	fn write<'a>(&'a self, prio: u8, blockidx: u64, count: usize, src: &'a [u8]) -> Result<WriteHandle<'a,'a>,()>;
+	fn write<'a>(&'a self, prio: u8, blockidx: u64, count: usize, src: &'a [u8]) -> Result<Box<::async::Waiter+'a>,()>;
 	/// Erases a number of blocks from the volume
 	///
 	/// Erases (requests the underlying storage forget about) `count` blocks starting at `blockidx`.

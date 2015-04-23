@@ -20,17 +20,18 @@ Model 2: Boxed state objects
 A new model which will hopefully not suffer from lifetime issues, and won't churn allocations on transitions.
 
 Each IO device creates a structure that implements 'async::WaiterState' to handle state transitions used for asynchronious IO.
-Reading from a storage device (for example) will return a boxed one of these structures, which can be handed to the async wait method.
+Reading from a storage device (for example) will return a boxed trait object, allowing the user of the code to wait on the object.
 
 Async's wait method will handle asking each "channel" to wait, and sleep on the returned primitive waiter reference.
 
+Example: Within the ATA driver.
 ```rust
 use kernel::async;
 
 enum WaitState<'dev>
 {
-	Acquire(async::Waiter),
-	IoActive(async::HeldMutex<'dev,AtaRegs>, async::Waiter),
+	Acquire(async::mutex::Waiter),
+	IoActive(async::mutex::HeldMutex<'dev,AtaRegs>, async::event::Waiter),
 }
 struct AtaWaiter<'dev>
 {
@@ -60,14 +61,16 @@ impl<'a> async::WaiterState for AtaWaiter<'a>
 	}
 	
 	// 'wait_complete' - Called when the waiter returned from wait is complete
+	// - Returns true if this waiter has completed its wait
 	fn wait_complete(&mut self) -> bool
 	{
-		self.state = {
-			match self.state
+		// Update state if the match returns
+		self.state = match self.state
 			{
+			// If the Acquire wait completed, switch to IoActive state
 			WaitState::Acquire(ref mut waiter) => WaitState::IoActive(waiter.take_lock(), async::Waiter::new_none()),
+			// And if IoActive completes, we're complete
 			WaitState::IoActive(ref _lh, ref _waiter) => return true,
-			}
 			};
 		return false;
 	}

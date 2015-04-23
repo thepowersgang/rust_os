@@ -4,7 +4,7 @@
 //! ATA IO code, handling device multiplexing and IO operations
 use kernel::_common::*;
 use kernel::memory::helpers::{DMABuffer};
-use kernel::async::Waiter;
+use kernel::async;
 use kernel::device_manager::IOBinding;
 
 pub const SECTOR_SIZE: usize = 512;
@@ -46,7 +46,7 @@ struct AtaRegs
 struct AtaInterrupt
 {
 	handle: ::kernel::irqs::EventHandle,
-	event: ::kernel::async::EventSource,
+	event: async::event::Source,
 }
 
 #[repr(C)]
@@ -59,7 +59,7 @@ struct PRDTEnt
 
 impl DmaController
 {
-	pub fn do_dma<'s>(&'s self, blockidx: u64, count: usize, dst: &'s [u8], disk: u8, is_write: bool) -> Result<Waiter<'s>,()>
+	pub fn do_dma<'s>(&'s self, blockidx: u64, count: usize, dst: &'s [u8], disk: u8, is_write: bool) -> Result<Box<async::Waiter+'s>,()>
 	{
 		assert!(disk < 4);
 		assert!(count < MAX_DMA_SECTORS);
@@ -69,7 +69,7 @@ impl DmaController
 		let disk = disk & 1;
 		
 		// Try to obtain a DMA context
-		Ok( self.ata_controllers[bus as usize].do_dma(blockidx, dst, disk, is_write, DmaRegBorrow::new(self, bus == 1) ) )
+		Ok( Box::new(self.ata_controllers[bus as usize].do_dma(blockidx, dst, disk, is_write, DmaRegBorrow::new(self, bus == 1) )) )
 	}
 }
 
@@ -174,50 +174,99 @@ impl AtaRegs
 	}
 }
 
+enum WaitState<'dev>
+{
+	Acquire(async::mutex::Waiter<'dev,AtaRegs>),
+	IoActive(async::mutex::HeldMutex<'dev,AtaRegs>, async::event::Waiter<'dev>),
+	Done,
+}
+struct AtaWaiter<'dev,'buf>
+{
+	dev: &'dev AtaController,
+	disk: u8,
+	blockidx: u64,
+	is_write: bool,
+	dma_regs: DmaRegBorrow<'dev>,
+	dma_buffer: DMABuffer<'buf>,
+	state: WaitState<'dev>,
+}
+
+impl<'a,'b> async::Waiter for AtaWaiter<'a,'b>
+{
+	fn is_complete(&self) -> bool {
+		if let WaitState::Done = self.state { true } else { false }
+	}
+	
+	// 'wait' - Should return a waiter reference, and often does the required work to start the wait
+	fn wait(&mut self) -> &mut async::PrimitiveWaiter
+	{
+		match self.state
+		{
+		// Initial state: Acquire the register lock
+		WaitState::Acquire(ref mut waiter) => waiter,
+		// Final state: Start IO and wait for it to complete
+		WaitState::IoActive(_, ref mut waiter) => waiter,
+		//
+		WaitState::Done => unreachable!(),
+		}
+	}
+	
+	// 'wait_complete' - Called when the waiter returned from wait is complete
+	// - Returns true if this waiter has completed its wait
+	fn complete(&mut self) -> bool
+	{
+		// Update state if the match returns
+		self.state = match self.state
+			{
+			// If the Acquire wait completed, switch to IoActive state
+			WaitState::Acquire(ref mut waiter) => {
+				let mut lh = waiter.take_lock();
+				lh.start_dma( self.disk, self.blockidx, &self.dma_buffer, self.is_write, self.dma_regs );
+				WaitState::IoActive(lh, self.dev.interrupt.event.wait())
+				},
+			// And if IoActive completes, we're complete
+			WaitState::IoActive(ref _lh, ref _waiter) => WaitState::Done,
+			//
+			WaitState::Done => unreachable!(),
+			};
+		
+		self.is_complete()
+	}
+}
+impl<'a,'b> ::core::fmt::Debug for AtaWaiter<'a,'b> {
+	fn fmt(&self, f: &mut ::core::fmt::Formatter) -> ::core::fmt::Result {
+		write!(f, "AtaWaiter")
+	}
+}
+
 impl AtaController
 {
 	pub fn new(ata_base: u16, sts_port: u16, irq: u32) -> AtaController
 	{
 		AtaController {
-			regs: ::kernel::async::Mutex::new( AtaRegs::new(ata_base, sts_port) ),
+			regs: async::Mutex::new( AtaRegs::new(ata_base, sts_port) ),
 			interrupt: AtaInterrupt {
 				handle: ::kernel::irqs::bind_interrupt_event(irq),
-				event: ::kernel::async::EventSource::new(),
+				event: async::event::Source::new(),
 				},
 			}
 	}
 	
-	fn wait_handle<'a, F: FnOnce(&mut Waiter) + Send + 'a> (&'a self, f: F) -> Waiter<'a>
+	fn do_dma<'a,'b>(&'a self, blockidx: u64, dst: &'b [u8], disk: u8, is_write: bool, dma_regs: DmaRegBorrow<'a>) -> AtaWaiter<'a,'b>
 	{
-		self.interrupt.event.wait_on(f)
-	}
-	
-	fn do_dma<'a>(&'a self, blockidx: u64, dst: &'a [u8], disk: u8, is_write: bool, dma_regs: DmaRegBorrow) -> Waiter<'a>
-	{
-		let dma_buffer = DMABuffer::new_contig( unsafe { ::core::mem::transmute(dst) }, 32 );
-		
-		if let Some(mut buslock) = self.regs.try_lock()
-		{
-			buslock.start_dma( disk, blockidx, &dma_buffer, is_write, dma_regs );
-			
-			self.wait_handle( |_| { drop(dma_buffer); drop(buslock) } )
-		}
-		else
-		{
-			unimplemented!();
-			// TODO: This following block of code has lifetime errors
-			//// If obtaining a context failed, continue operation in a callback
-			//self.regs.async_lock(|event_ref: &mut Waiter, mut buslock| {
-			//	buslock.start_dma(disk, blockidx, &dma_buffer, is_write, dma_regs);
-			//	*event_ref = self.wait_handle( |_| {
-			//		drop(dma_buffer); drop(buslock)
-			//		});
-			//	})
+		AtaWaiter {
+			dev: self,
+			disk: disk,
+			blockidx: blockidx,
+			is_write: is_write,
+			dma_regs: dma_regs,
+			dma_buffer: DMABuffer::new_contig( unsafe { ::core::mem::transmute(dst) }, 32 ),
+			state: WaitState::Acquire( self.regs.async_lock() ),
 		}
 	}
 	
 	/// Request an ATA IDENTIFY packet from the device
-	pub fn ata_identify<'a>(&'a self, disk: u8, data: &'a mut ::AtaIdentifyData, class: &'a mut ::AtaClass) -> Waiter<'a>
+	pub fn ata_identify<'a>(&'a self, disk: u8, data: &'a mut ::AtaIdentifyData, class: &'a mut ::AtaClass) -> async::poll::Waiter<'a>
 	{
 		// - Cast 'data' to a u16 slice
 		let data: &mut [u16; 256] = unsafe { ::core::mem::transmute(data) };
@@ -241,7 +290,7 @@ impl AtaController
 				// Drive does not exist, zero data and return a null wait
 				*class = ::AtaClass::None;
 				*data = unsafe { ::core::mem::zeroed() };
-				Waiter::new_none()
+				async::poll::Waiter::null()
 			}
 			else
 			{
@@ -250,7 +299,7 @@ impl AtaController
 				while buslock.in_sts() & 0x80 != 0 { }
 				
 				// Return a poller
-				Waiter::new_poll(move |e| match e
+				async::poll::Waiter::new(move |e| match e
 					{
 					// Being called as a completion function
 					Some(_event_ptr) => {

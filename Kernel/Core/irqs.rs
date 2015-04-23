@@ -15,13 +15,13 @@ pub struct EventHandle
 {
 	num: u32,
 	index: usize,
-	event: Arc<::async::EventSource>,
+	event: Arc<::async::event::Source>,
 }
 
 struct HandlerEvent
 {
 	index: usize,
-	event: Arc<::async::EventSource>
+	event: Arc<::async::event::Source>
 }
 trait Handler: Send + 'static
 {
@@ -66,7 +66,7 @@ pub fn bind_interrupt_event(num: u32) -> EventHandle
 	let rv = EventHandle {
 		num: num,
 		index: index,
-		event: Arc::new( ::async::EventSource::new() ),
+		event: Arc::new( ::async::event::Source::new() ),
 		};
 	binding.handlers.lock().push( Box::new(HandlerEvent { index: index, event: rv.event.clone() }) as Box<Handler> );
 	// 3. Enable this vector on the architecture
@@ -132,7 +132,7 @@ impl Handler for HandlerEvent
 
 impl EventHandle
 {
-	pub fn get_event(&self) -> &::async::EventSource
+	pub fn get_event(&self) -> &::async::event::Source
 	{
 		&*self.event
 	}

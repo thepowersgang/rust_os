@@ -12,7 +12,7 @@ use kernel::lib::mem::Arc;
 
 use kernel::device_manager;
 use kernel::metadevs::storage;
-use kernel::async::{ReadHandle,WriteHandle};
+use kernel::async;
 
 module_define!{ATA, [DeviceManager, Storage], init}
 
@@ -117,22 +117,17 @@ impl ::kernel::metadevs::storage::PhysicalVolume for AtaVolume
 	fn blocksize(&self) -> usize { io::SECTOR_SIZE }
 	fn capacity(&self) -> u64 { self.size }
 	
-	fn read<'s>(&'s self, _prio: u8, idx: u64, num: usize, dst: &'s mut [u8]) -> Result<ReadHandle<'s, 's>, ()>
+	fn read<'s>(&'s self, _prio: u8, idx: u64, num: usize, dst: &'s mut [u8]) -> Result<Box<async::Waiter+'s>, ()>
 	{
 		assert_eq!( dst.len(), num * io::SECTOR_SIZE );
-		let wh = try!( self.controller.do_dma(idx, num, dst, self.disk, false));
-		Ok( ReadHandle::new(dst, wh) )
+		Ok( try!( self.controller.do_dma(idx, num, dst, self.disk, false)) )
 	}
-	fn write<'s>(&'s self, _prio: u8, idx: u64, num: usize, src: &'s [u8]) -> Result<WriteHandle<'s, 's>, ()>
+	fn write<'s>(&'s self, _prio: u8, idx: u64, num: usize, src: &'s [u8]) -> Result<Box<async::Waiter+'s>, ()>
 	{
 		assert_eq!( src.len(), num * io::SECTOR_SIZE );
 		let ctrlr = &self.controller;
 		// Safe cast, as controller should not modify the buffer when write=true
-		match ctrlr.do_dma(idx, num, src, self.disk, true)
-		{
-		Err(e) => Err(e),
-		Ok(v) => Ok( WriteHandle::new(src, v) )
-		}
+		Ok( try!(ctrlr.do_dma(idx, num, src, self.disk, true)) )
 	}
 	
 	fn wipe(&mut self, _blockidx: u64, _count: usize)
@@ -170,13 +165,15 @@ impl ControllerRoot
 			// Perform IDENTIFY requests, both controllers in pararllel
 			// TODO: Include a timeout to prevent a misbehaving controller from halting the system.
 			{
+				use kernel::async::Waiter;
+				
 				let mut wh_pri = ctrlr_pri.ata_identify(i, &mut identify_pri, &mut type_pri);
 				let mut wh_sec = ctrlr_sec.ata_identify(i, &mut identify_sec, &mut type_sec);
 				//let mut wh_timer = ::kernel::async::Timer::new(2*1000);
 				
 				// Wait for both complete, and obtain results
 				// - Loop while the timer hasn't fired, and at least one of the waiters is still waiting
-				while /* !wh_timer.is_ready() && */ !(wh_pri.is_ready() && wh_sec.is_ready())
+				while /* !wh_timer.is_complete() && */ !(wh_pri.is_complete() && wh_sec.is_complete())
 				{
 					//::kernel::async::wait_on_list(&mut [&mut wh_pri, &mut wh_sec, &mut wh_timer]);
 					::kernel::async::wait_on_list(&mut [&mut wh_pri, &mut wh_sec], None);

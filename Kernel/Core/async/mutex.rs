@@ -2,24 +2,33 @@
 // - By John Hodge (thePowersGang)
 //
 // Core/async/mutex.rs
-/*! Asynchronous Mutex.
-
-Provides an asynchonous mutex type, for use with the async IO framework
-*/
+//! Asynchronous Mutex.
+//!
+//! Provides an asynchonous mutex type, for use with the async IO framework
 use _common::*;
-use super::Waiter;
 use core::cell::UnsafeCell;
 use core::atomic::{AtomicBool,Ordering};
+use core::fmt;
+use async::PrimitiveWaiter;
 
+/// Asynchronous mutex type
 pub struct Mutex<T: Send>
 {
 	locked: AtomicBool,
-	waiters: super::QueueSource,
+	waiters: super::queue::Source,
 	data: UnsafeCell<T>,
 }
 unsafe impl<T: Send> Sync for Mutex<T> {}
 unsafe impl<T: Send> Send for Mutex<T> {}
 
+/// Wait object for the async mutex
+pub struct Waiter<'a,T: Send+'a>
+{
+	lock: &'a Mutex<T>,
+	queue_wait: super::queue::Waiter<'a>,
+}
+
+/// Lock handle
 pub struct HeldMutex<'a, T: Send + 'a>
 {
 	__lock: &'a Mutex<T>,
@@ -27,15 +36,17 @@ pub struct HeldMutex<'a, T: Send + 'a>
 
 impl<T: Send> Mutex<T>
 {
+	/// Construct a new unsafe mutex
 	pub fn new(data: T) -> Mutex<T>
 	{
 		Mutex {
 			locked: AtomicBool::new(false),
-			waiters: super::QueueSource::new(),
+			waiters: super::queue::Source::new(),
 			data: UnsafeCell::new(data),
 		}
 	}
 	
+	/// Attempt to lock the mutex (returning None on failure)
 	pub fn try_lock(&self) -> Option<HeldMutex<T>>
 	{
 		if self.locked.swap(true, Ordering::Acquire) == false
@@ -49,10 +60,39 @@ impl<T: Send> Mutex<T>
 	}
 	
 	/// Asynchronously lock the mutex
-	pub fn async_lock<'s, F: FnOnce(&mut Waiter, HeldMutex<'s,T>)>(&'s self, f: F) -> Waiter<'s>
+	pub fn async_lock(&self) -> Waiter<T>
 	{
 		unimplemented!()
 	}
+}
+
+impl<'a, T: Send> Waiter<'a,T>
+{
+	pub fn take_lock(&mut self) -> HeldMutex<'a, T> {
+		unimplemented!()
+	}
+}
+
+impl<'a, T: Send> fmt::Debug for Waiter<'a,T>
+{
+	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+		write!(f, "Mutex<{}>::Waiter", type_name!(T))
+	}
+}
+
+impl<'a, T: Send> super::PrimitiveWaiter for Waiter<'a,T>
+{
+	fn poll(&self) -> bool {
+		self.queue_wait.poll()
+	}
+	fn run_completion(&mut self) {
+		self.queue_wait.run_completion();
+		todo!("Mutex acquired... what do I do?");
+	}
+	fn bind_signal(&mut self, sleeper: &mut ::threads::SleepObject) -> bool {
+		self.queue_wait.bind_signal(sleeper)
+	}
+
 }
 
 #[unsafe_destructor]
