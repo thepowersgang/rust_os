@@ -252,6 +252,7 @@ impl PhysicalVolumeInfo
 			let prio = 0;
 			let blocks = dst.len() / block_size;
 			
+			// TODO: Async! (maybe return a composite read handle?)
 			try!(self.dev.read(prio, blk, blocks, dst)).wait();
 		}
 		todo!("PhysicalVolumeInfo::read(first={},{} bytes)", first, dst.len());
