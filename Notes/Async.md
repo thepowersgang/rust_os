@@ -25,6 +25,8 @@ Reading from a storage device (for example) will return a boxed one of these str
 Async's wait method will handle asking each "channel" to wait, and sleep on the returned primitive waiter reference.
 
 ```rust
+use kernel::async;
+
 enum WaitState<'dev>
 {
 	Acquire(async::Waiter),
@@ -36,10 +38,10 @@ struct AtaWaiter<'dev>
 	state: WaitState<'dev>,
 }
 
-impl<'a> WaiterState for AtaWaiter<'a>
+impl<'a> async::WaiterState for AtaWaiter<'a>
 {
 	// 'wait' - Should return a waiter reference, and often does the required work to start the wait
-	fn wait(&mut self) -> &mut Waiter
+	fn wait(&mut self) -> &mut async::Waiter
 	{
 		match self.state
 		{
