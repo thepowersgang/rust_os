@@ -1,0 +1,7 @@
+- Discussion on #osdev about physical memory bookkeeping
+ > Reference count (n-bits), 32 will suffice, 16 could work too... but might be squeezy
+ > Backing store ID (32 bits, in Tifflin, this will be a block device... probably)
+ > Backing store offset (64-bits, page number in backing)
+  - 64 for forward compat
+
+

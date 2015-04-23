@@ -1,0 +1,4 @@
+Statically linked modules
+Dynamically loaded modules
+
+Support a smart pointer type that either invalidates itself when the source module unloads, or prevents unloading when still held
