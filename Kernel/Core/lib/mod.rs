@@ -36,10 +36,28 @@ pub mod ring_buffer;
 pub mod num
 {
 	//! General numeric helpers
-	use core::num::Int;
+	
+	use _common::*;
+	use core::ops;
+	
+	pub trait Int
+	where
+		Self: ops::Add<Output=Self>,
+		Self: ops::Sub<Output=Self>,
+		Self: ops::Mul<Output=Self>,
+		Self: ops::Div<Output=Self>
+	{
+		fn one() -> Self;
+	}
+	impl Int for u64 {
+		fn one() -> Self { 1 }
+	}
+	impl Int for usize {
+		fn one() -> Self { 1 }
+	}
 	
 	/// Round the passed value up to a multiple of the target value
-	pub fn round_up<T: Int>(val: T, target: T) -> T
+	pub fn round_up<T: Int+Copy>(val: T, target: T) -> T
 	{
 		return (val + target - Int::one()) / target * target;
 	}

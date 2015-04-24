@@ -8,7 +8,6 @@
 pub use core::prelude::*;
 
 // - Not in core::prelude, but I like them
-pub use core::default::Default;
 pub use core::any::Any;
 
 pub use lib::mem::Box;

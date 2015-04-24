@@ -130,7 +130,7 @@ $(OBJDIR)%.ao: Core/arch/$(ARCH)/%.asm Makefile
 	@nasm -o $@ $< -f elf64 -MD $@.d -MP
 
 # - Kernel Core
-$(OBJDIR)libkernel.rlib: Core/main.rs $(OBJDIR)libcore.rlib Makefile $(TARGET_FILE)
+$(OBJDIR)libkernel.rlib: Core/main.rs $(OBJDIR)libcore.rlib Makefile $(TARGET_FILE) ../Graphics/logo.rs
 	@echo [RUSTC] -o $@
 	@mkdir -p $(dir $@)
 	$V$(ENV) $(RUSTC) $(RUSTFLAGS) --emit=link,dep-info -o $@ $< $(call LocalLib,core)
@@ -150,6 +150,9 @@ $(OBJDIR)mod_%.o: Modules/%/lib.rs $(OBJDIR)libcore.rlib $(OBJDIR)libkernel.rlib
 	@mkdir -p $(dir $@)
 	$V$(ENV) $(RUSTC) $(RUSTFLAGS) --emit=obj,dep-info -o $@ --crate-name=$* --crate-type=lib $< $(call LocalLib,core) $(call LocalLib,kernel)
 	@$(call FixDep, $(@:%.o=%.d))
+
+../Graphics/logo.rs: ../Graphics/TifflinLogoV1-128.png ../Graphics/ConvertTo32bppRS
+	cd ../Graphics && ./ConvertTo32bppRS TifflinLogoV1-128.png logo.rs S_LOGO
 
 -include $(OBJDIR)libkernel.d
 -include $(OBJDIR)libcore.d

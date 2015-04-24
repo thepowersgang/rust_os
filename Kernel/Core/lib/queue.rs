@@ -6,7 +6,6 @@
 //!
 //! Current implementation is a linked list, but could be backed to Vec if required.
 use _common::*;
-use core::iter::IntoIterator;
 
 /// A basic linked-list queue
 pub struct Queue<T>

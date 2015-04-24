@@ -4,7 +4,7 @@
 // Core/lib/vec.rs
 //! Dynamically growable vector type
 use core::prelude::*;
-use core::iter::{FromIterator,IntoIterator};
+use core::iter::{FromIterator};
 use core::{ops,fmt};
 use lib::collections::{MutableSeq};
 use core::ptr::Unique;

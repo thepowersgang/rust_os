@@ -165,7 +165,7 @@ impl ISRHandle
 	/// Returns an unbound ISR handle (null)
 	pub fn unbound() -> ISRHandle {
 		ISRHandle {
-			idx: ::core::num::Int::max_value()
+			idx: !0,
 		}
 	}
 	/// Returns the bound ISR index
