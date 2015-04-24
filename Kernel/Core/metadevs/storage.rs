@@ -41,7 +41,7 @@ pub trait PhysicalVolume: Send + 'static
 	/// Reads `count` blocks starting with `blockidx` into the buffer `dst` (which will/should
 	/// be the size of `count` blocks). The read is performed with the provided priority, where
 	/// 0 is higest, and 255 is lowest.
-	fn read<'a>(&'a self, prio: u8, blockidx: u64, count: usize, dst: &'a mut [u8]) -> Result<Box<::async::Waiter+'a>, ()>;
+	fn read(&self, prio: u8, blockidx: u64, count: usize, dst: &mut [u8]) -> Result<Box<::async::Waiter>, ()>;
 	/// Writer a number of blocks to the volume
 	fn write<'a>(&'a self, prio: u8, blockidx: u64, count: usize, src: &'a [u8]) -> Result<Box<::async::Waiter+'a>,()>;
 	/// Erases a number of blocks from the volume

@@ -46,7 +46,7 @@ pub trait Waiter:
 	fn is_complete(&self) -> bool;
 	
 	/// Request a primitive wait object
-	fn wait(&mut self) -> &mut PrimitiveWaiter;
+	fn get_waiter(&mut self) -> &mut PrimitiveWaiter;
 	/// Called when the wait returns
 	///
 	/// Return true to indicate that this waiter is complete
@@ -58,7 +58,7 @@ impl<T: PrimitiveWaiter> Waiter for T {
 	fn is_complete(&self) -> bool {
 		self.poll()
 	}
-	fn wait(&mut self) -> &mut PrimitiveWaiter {
+	fn get_waiter(&mut self) -> &mut PrimitiveWaiter {
 		self
 	}
 	fn complete(&mut self) -> bool {
@@ -67,6 +67,29 @@ impl<T: PrimitiveWaiter> Waiter for T {
 }
 
 
+impl Waiter
+{
+	pub fn wait(&mut self)
+	{
+		while !self.is_complete()
+		{
+			let completed = {
+				let prim = self.get_waiter();
+				let mut obj = ::threads::SleepObject::new("wait_on_list");
+				if prim.bind_signal( &mut obj ) {
+					obj.wait();
+				}
+				else {
+					todo!("Poll in Waiter::wait()");
+				}
+				prim.is_ready()
+				};
+			if completed {
+				self.complete();
+			}
+		}
+	}
+}
 
 /// Error type from wait_on_list
 pub enum WaitError
@@ -88,8 +111,8 @@ pub fn wait_on_list(waiters: &mut [&mut Waiter], timeout: Option<u64>) -> Option
 		// 
 		let mut prim_waiters: Vec<_> = waiters.iter_mut()
 			.enumerate()	// Tag with index
-			.filter(|&(_,ref x)| !x.is_complete())	// Eliminate complete
-			.map(|(i,x)| (i,x.wait()))	// Obtain waiter
+			.filter( |&(_,ref x)| !x.is_complete() )	// Eliminate complete
+			.map( |(i,x)| (i, x.get_waiter()) )	// Obtain waiter
 			.collect();
 		
 		// - If there are no incomplete waiters, return None

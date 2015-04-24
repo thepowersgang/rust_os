@@ -117,7 +117,7 @@ impl ::kernel::metadevs::storage::PhysicalVolume for AtaVolume
 	fn blocksize(&self) -> usize { io::SECTOR_SIZE }
 	fn capacity(&self) -> u64 { self.size }
 	
-	fn read<'s>(&'s self, _prio: u8, idx: u64, num: usize, dst: &'s mut [u8]) -> Result<Box<async::Waiter+'s>, ()>
+	fn read(&self, _prio: u8, idx: u64, num: usize, dst: &mut [u8]) -> Result<Box<async::Waiter>, ()>
 	{
 		assert_eq!( dst.len(), num * io::SECTOR_SIZE );
 		Ok( try!( self.controller.do_dma(idx, num, dst, self.disk, false)) )

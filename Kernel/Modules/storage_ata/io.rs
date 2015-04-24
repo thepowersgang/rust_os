@@ -59,7 +59,7 @@ struct PRDTEnt
 
 impl DmaController
 {
-	pub fn do_dma<'s>(&'s self, blockidx: u64, count: usize, dst: &'s [u8], disk: u8, is_write: bool) -> Result<Box<async::Waiter+'s>,()>
+	pub fn do_dma(&self, blockidx: u64, count: usize, dst: &[u8], disk: u8, is_write: bool) -> Result<Box<async::Waiter>,()>
 	{
 		assert!(disk < 4);
 		assert!(count < MAX_DMA_SECTORS);
@@ -69,20 +69,20 @@ impl DmaController
 		let disk = disk & 1;
 		
 		// Try to obtain a DMA context
-		Ok( Box::new(self.ata_controllers[bus as usize].do_dma(blockidx, dst, disk, is_write, DmaRegBorrow::new(self, bus == 1) )) )
+		let ctrlr = &self.ata_controllers[bus as usize];
+		let bm_regs = self.borrow_regs(bus == 1);
+		Ok( Box::new(ctrlr.do_dma(blockidx, dst, disk, is_write, bm_regs)) )
+	}
+	fn borrow_regs(&self, is_secondary: bool) -> DmaRegBorrow {
+		DmaRegBorrow {
+			dma_base: &self.dma_base,
+			is_sec: is_secondary,
+		}
 	}
 }
 
 impl<'a> DmaRegBorrow<'a>
 {
-	fn new(dm: &DmaController, is_secondary: bool) -> DmaRegBorrow
-	{
-		DmaRegBorrow {
-			dma_base: &dm.dma_base,
-			is_sec: is_secondary,
-		}
-	}
-	
 	unsafe fn out_32(&self, ofs: u16, val: u32)
 	{
 		assert!(ofs < 8);
@@ -128,7 +128,7 @@ impl AtaRegs
 		unsafe { ::kernel::arch::x86_io::inb( self.sts_base ) }
 	}
 	
-	fn start_dma(&mut self, disk: u8, blockidx: u64, dma_buffer: &DMABuffer, is_write: bool, bm: DmaRegBorrow)
+	fn start_dma(&mut self, disk: u8, blockidx: u64, dma_buffer: &DMABuffer, is_write: bool, bm: &DmaRegBorrow)
 	{
 		let count = dma_buffer.len() / SECTOR_SIZE;
 		// Fill PRDT
@@ -197,8 +197,7 @@ impl<'a,'b> async::Waiter for AtaWaiter<'a,'b>
 		if let WaitState::Done = self.state { true } else { false }
 	}
 	
-	// 'wait' - Should return a waiter reference, and often does the required work to start the wait
-	fn wait(&mut self) -> &mut async::PrimitiveWaiter
+	fn get_waiter(&mut self) -> &mut async::PrimitiveWaiter
 	{
 		match self.state
 		{
@@ -211,8 +210,6 @@ impl<'a,'b> async::Waiter for AtaWaiter<'a,'b>
 		}
 	}
 	
-	// 'wait_complete' - Called when the waiter returned from wait is complete
-	// - Returns true if this waiter has completed its wait
 	fn complete(&mut self) -> bool
 	{
 		// Update state if the match returns
@@ -221,7 +218,7 @@ impl<'a,'b> async::Waiter for AtaWaiter<'a,'b>
 			// If the Acquire wait completed, switch to IoActive state
 			WaitState::Acquire(ref mut waiter) => {
 				let mut lh = waiter.take_lock();
-				lh.start_dma( self.disk, self.blockidx, &self.dma_buffer, self.is_write, self.dma_regs );
+				lh.start_dma( self.disk, self.blockidx, &self.dma_buffer, self.is_write, &self.dma_regs );
 				WaitState::IoActive(lh, self.dev.interrupt.event.wait())
 				},
 			// And if IoActive completes, we're complete
