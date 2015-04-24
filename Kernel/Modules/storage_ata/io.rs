@@ -59,7 +59,7 @@ struct PRDTEnt
 
 impl DmaController
 {
-	pub fn do_dma<'a>(&'a self, blockidx: u64, count: usize, dst: &'a [u8], disk: u8, is_write: bool) -> Result<Box<async::Waiter+'a>,()>
+	pub fn do_dma(&self, blockidx: u64, count: usize, dst: &[u8], disk: u8, is_write: bool) -> Result<Box<async::Waiter>,()>
 	{
 		assert!(disk < 4);
 		assert!(count < MAX_DMA_SECTORS);
@@ -71,7 +71,10 @@ impl DmaController
 		// Try to obtain a DMA context
 		let ctrlr = &self.ata_controllers[bus as usize];
 		let bm_regs = self.borrow_regs(bus == 1);
-		Ok( Box::new(ctrlr.do_dma(blockidx, dst, disk, is_write, bm_regs)) )
+		
+		let ub = ctrlr.do_dma(blockidx, dst, disk, is_write, bm_regs);
+		let b = Box::new(ub);
+		Ok( b )
 	}
 	fn borrow_regs(&self, is_secondary: bool) -> DmaRegBorrow {
 		DmaRegBorrow {
