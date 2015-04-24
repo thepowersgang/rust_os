@@ -59,7 +59,7 @@ struct PRDTEnt
 
 impl DmaController
 {
-	pub fn do_dma(&self, blockidx: u64, count: usize, dst: &[u8], disk: u8, is_write: bool) -> Result<Box<async::Waiter>,()>
+	pub fn do_dma<'a>(&'a self, blockidx: u64, count: usize, dst: &'a [u8], disk: u8, is_write: bool) -> Result<Box<async::Waiter+'a>,()>
 	{
 		assert!(disk < 4);
 		assert!(count < MAX_DMA_SECTORS);

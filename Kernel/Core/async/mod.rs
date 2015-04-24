@@ -67,8 +67,9 @@ impl<T: PrimitiveWaiter> Waiter for T {
 }
 
 
-impl Waiter
+impl<'a> Waiter+'a
 {
+	/// Wait on a single wait object
 	pub fn wait(&mut self)
 	{
 		while !self.is_complete()

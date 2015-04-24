@@ -41,7 +41,7 @@ pub trait PhysicalVolume: Send + 'static
 	/// Reads `count` blocks starting with `blockidx` into the buffer `dst` (which will/should
 	/// be the size of `count` blocks). The read is performed with the provided priority, where
 	/// 0 is higest, and 255 is lowest.
-	fn read(&self, prio: u8, blockidx: u64, count: usize, dst: &mut [u8]) -> Result<Box<::async::Waiter>, ()>;
+	fn read<'a>(&'a self, prio: u8, blockidx: u64, count: usize, dst: &'a mut [u8]) -> Result<Box<::async::Waiter+'a>, ()>;
 	/// Writer a number of blocks to the volume
 	fn write<'a>(&'a self, prio: u8, blockidx: u64, count: usize, src: &'a [u8]) -> Result<Box<::async::Waiter+'a>,()>;
 	/// Erases a number of blocks from the volume
@@ -246,13 +246,17 @@ impl PhysicalVolumeInfo
 		let block_step = self.max_blocks_per_read();
 		let block_size = self.dev.blocksize();
 		// Read up to 'block_step' blocks in each read call
-		for (blk,dst) in (first .. ).step_by(block_step as u64).zip( dst.chunks_mut( block_step * block_size ) )
 		{
-			let prio = 0;
-			let blocks = dst.len() / block_size;
-			
-			// TODO: Async! (maybe return a composite read handle?)
-			try!(self.dev.read(prio, blk, blocks, dst)).wait();
+			let iter_ids  = (first .. ).step_by(block_step as u64);
+			let iter_bufs = dst.chunks_mut( block_step * block_size );
+			for (blk_id,buf) in iter_ids.zip( iter_bufs )
+			{
+				let prio = 0;
+				let blocks = buf.len() / block_size;
+				
+				// TODO: Async! (maybe return a composite read handle?)
+				try!(self.dev.read(prio, blk_id, blocks, buf)).wait();
+			}
 		}
 		todo!("PhysicalVolumeInfo::read(first={},{} bytes)", first, dst.len());
 	}

@@ -104,7 +104,7 @@ UPDATE_libcore_src:
 # ---
 .PHONY: pretty
 pretty:
-	$V$(ENV) $(RUSTC) -Z unstable-options --pretty expanded $(RUSTFLAGS) -o bin/kernel-$(ARCH).exp_rs Core/main.rs $(call LocalLib,core)
+	$V$(ENV) $(RUSTC) -Z unstable-options --pretty typed $(RUSTFLAGS) -o bin/kernel-$(ARCH).exp_rs Core/main.rs $(call LocalLib,core)
 $(OBJDIR)kernel.ir: Core/main.rs $(OBJDIR)libcore.rlib $(TARGET_FILE)
 	$V$(ENV) $(RUSTC) $(RUSTFLAGS) --emit=llvm-ir -o $@ $< $(call LocalLib,core)
 
