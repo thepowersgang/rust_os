@@ -200,14 +200,14 @@ impl<'a,'b> async::Waiter for AtaWaiter<'a,'b>
 		if let WaitState::Done = self.state { true } else { false }
 	}
 	
-	fn get_waiter(&mut self) -> &mut async::PrimitiveWaiter
+	fn get_waiter(&self) -> &async::PrimitiveWaiter
 	{
 		match self.state
 		{
 		// Initial state: Acquire the register lock
-		WaitState::Acquire(ref mut waiter) => waiter,
+		WaitState::Acquire(ref waiter) => waiter,
 		// Final state: Start IO and wait for it to complete
-		WaitState::IoActive(_, ref mut waiter) => waiter,
+		WaitState::IoActive(_, ref waiter) => waiter,
 		//
 		WaitState::Done => unreachable!(),
 		}

@@ -54,7 +54,12 @@ pub trait Waiter:
 	fn is_complete(&self) -> bool;
 	
 	/// Request a primitive wait object
-	fn get_waiter(&mut self) -> &mut PrimitiveWaiter;
+	fn get_waiter_mut(&mut self) -> &mut PrimitiveWaiter {
+		// SAFE: This is &mut, so single-reference is maintained
+		unsafe { ::core::mem::transmute(self.get_waiter()) }
+	}
+	/// Request a primitive wait object
+	fn get_waiter(&self) -> &PrimitiveWaiter;
 	/// Called when the wait returns
 	///
 	/// Return true to indicate that this waiter is complete
@@ -66,7 +71,7 @@ impl<T: PrimitiveWaiter> Waiter for T {
 	fn is_complete(&self) -> bool {
 		self.is_complete()
 	}
-	fn get_waiter(&mut self) -> &mut PrimitiveWaiter {
+	fn get_waiter(&self) -> &PrimitiveWaiter {
 		self
 	}
 	fn complete(&mut self) -> bool {
@@ -83,7 +88,7 @@ impl<'a> Waiter+'a
 		while !self.is_complete()
 		{
 			let completed = {
-				let prim = self.get_waiter();
+				let prim = self.get_waiter_mut();
 				let mut obj = ::threads::SleepObject::new("wait_on_list");
 				if prim.bind_signal( &mut obj ) {
 					obj.wait();
@@ -116,54 +121,45 @@ pub fn wait_on_list(waiters: &mut [&mut Waiter], timeout: Option<u64>) -> Option
 	}
 	
 	// Wait on primitives from the waiters, returning the indexes of those that need a state advance
-	let new_completions: Vec<usize> = {
-		// TODO: Avoid this allocation by using cloned iterators
-		let mut prim_waiters: Vec<_> = waiters.iter_mut()
-			.enumerate()	// Tag with index
-			.filter( |&(_,ref x)| !x.is_complete() )	// Eliminate complete
-			.map( |(i,x)| (i, x.get_waiter()) )	// Obtain waiter
-			.collect();
-		
-		// - If there are no incomplete waiters, return None
-		if prim_waiters.len() == 0 {
-			return None;
-		}
-		
-		// - Create an object for them to signal
-		let mut obj = ::threads::SleepObject::new("wait_on_list");
-		let mut force_poll = false;
-		for &mut (_,ref mut ent) in prim_waiters.iter_mut()
-		{
-			force_poll |= !ent.bind_signal( &mut obj );
-		}
-		
-		if force_poll
-		{
-			log_trace!("- Polling");
-			let mut n_passes = 0;
-			'outer: loop
-			{
-				for &(_, ref ent) in prim_waiters.iter()
-				{
-					if ent.poll() { break 'outer; }
-				}
-				n_passes += 1;
-				// TODO: Take a short nap
-			}
-			log_trace!("- Fire ({} passes)", n_passes);
-		}
-		else
-		{
-			// - Wait the current thread on that object
-			log_trace!(" Sleeping");
-			obj.wait();
-		}
-		
-		// - When woken, run completion handlers on all completed waiters
-		prim_waiters.into_iter().filter_map( |(i,x)| if x.is_ready() { Some(i) } else { None }).collect()
-		};
 	
-	let n_complete = new_completions.iter().filter( |&&i| waiters[i].complete() ).count();
+	// - If there are no incomplete waiters, return None
+	if waiters.iter().filter(|x| !x.is_complete()).count() == 0 {
+		return None;
+	}
+	
+	// - Create an object for them to signal
+	let mut obj = ::threads::SleepObject::new("wait_on_list");
+	let force_poll = waiters.iter_mut()
+		.filter( |x| !x.is_complete() )
+		.fold(false, |v,x| v | !x.get_waiter_mut().bind_signal( &mut obj) );
+	
+	if force_poll
+	{
+		log_trace!("- Polling");
+		let mut n_passes = 0;
+		while waiters.iter().filter(|x| !x.is_complete()).filter(|e| e.get_waiter().poll()).count() == 0
+		{
+			n_passes += 1;
+			// TODO: Take a short nap
+		}
+		log_trace!("- Fire ({} passes)", n_passes);
+	}
+	else
+	{
+		// - Wait the current thread on that object
+		log_trace!(" Sleeping");
+		obj.wait();
+	}
+	
+	// Run completion handlers (via .is_ready and .complete), counting the number of changed waiters
+	let mut n_complete = 0;
+	for ent in waiters.iter_mut().filter(|x| !x.is_complete())
+	{
+		if ent.get_waiter_mut().is_ready() && ent.complete()
+		{
+			n_complete += 1;
+		}
+	}
 	Some( n_complete )
 }
 
