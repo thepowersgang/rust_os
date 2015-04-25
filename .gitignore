@@ -9,6 +9,8 @@
 libcore/
 *.tar.gz
 
+Graphics/*.rs
+
 Kernel/*.exp_rs
 Kernel/fdd.img
 Kernel/BuildNum.*.mk
