@@ -8,19 +8,40 @@
 //!
 //! TODO: Fix to actually be usable
 
-pub struct Timer
+pub struct Waiter
 {
 	expiry_ticks: u64,
 }
 
-pub struct Waiter;
-
-impl Timer
+impl Waiter
 {
-	//pub fn new(duration_ms: u64) -> Timer
 	pub fn new(duration_ms: u64) -> Waiter
 	{
-		unimplemented!()
+		Waiter {
+			expiry_ticks: ::time::ticks() + duration_ms,
+		}
+	}
+}
+
+impl super::PrimitiveWaiter for Waiter {
+	fn is_complete(&self) -> bool {
+		::time::ticks() >= self.expiry_ticks
+	}
+	
+	fn poll(&self) -> bool {
+		self.is_complete()
+	}
+	fn run_completion(&mut self) {
+		// no action
+	}
+	fn bind_signal(&mut self, _sleeper: &mut ::threads::SleepObject) -> bool {
+		todo!("timer::Waiter::bind_signal()")
+	}
+}
+
+impl ::core::fmt::Debug for Waiter {
+	fn fmt(&self, f: &mut ::core::fmt::Formatter) -> ::core::fmt::Result {
+		write!(f, "timer::Waiter({})", self.expiry_ticks)
 	}
 }
 

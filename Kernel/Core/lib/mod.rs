@@ -6,7 +6,6 @@
 //! Contains helper types that either clone types in the rust standard library, or provide useful
 //! features for operation in kernel-land.
 use core::prelude::*;
-use lib::mem::Box;
 
 pub use self::queue::Queue;
 pub use self::vec_map::VecMap;

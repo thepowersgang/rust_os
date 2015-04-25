@@ -7,7 +7,6 @@ use core::prelude::*;
 use core::iter::{FromIterator};
 use core::{ops,fmt};
 use lib::collections::{MutableSeq};
-use core::ptr::Unique;
 use memory::heap::ArrayAlloc;
 
 // TODO: Replace allocation with a boxed slice (or some other managed allocation)

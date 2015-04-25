@@ -87,7 +87,7 @@ impl<T: fmt::Debug> fmt::Debug for Arc<T> {
 }
 
 #[unsafe_destructor]
-impl<T> ::core::ops::Drop for Arc<T>
+impl<T> ops::Drop for Arc<T>
 {
 	fn drop(&mut self)
 	{
@@ -105,7 +105,7 @@ impl<T> ::core::ops::Drop for Arc<T>
 	}
 }
 
-impl<T> ::core::ops::Deref for Arc<T>
+impl<T> ops::Deref for Arc<T>
 {
 	type Target = T;
 	fn deref<'s>(&'s self) -> &'s T

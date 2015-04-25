@@ -82,8 +82,7 @@ mod serial
 {
 	use _common::*;
 	use super::{Level,Colour};
-	use core::{fmt,ops};
-	use core::marker::PhantomData;
+	use core::fmt;
 	
 	pub struct Sink;
 	impl super::Sink for Sink
@@ -129,7 +128,6 @@ mod memory
 {
 	use _common::*;
 	use super::Level;
-	use core::{fmt,ops};
 	
 	pub struct Sink
 	{
@@ -139,7 +137,7 @@ mod memory
 	// Temp hack until type-level ints are avaliable
 	struct LogDataBuf([u8;160]);
 	impl LogDataBuf {
-		fn new() -> LogDataBuf { LogDataBuf([0; 160]) }
+		fn new() -> LogDataBuf { LogDataBuf(unsafe{::core::mem::zeroed()}) }
 	}
 	impl ::core::convert::AsRef<[u8]> for LogDataBuf {
 		fn as_ref(&self) -> &[u8] { &self.0 }
@@ -147,6 +145,7 @@ mod memory
 	impl ::core::convert::AsMut<[u8]> for LogDataBuf {
 		fn as_mut(&mut self) -> &mut [u8] { &mut self.0 }
 	}
+	#[allow(dead_code)]	// Allow unread fields
 	struct LogMessage
 	{
 		time: ::time::TickCount,
@@ -172,7 +171,7 @@ mod memory
 			match self.lines.push_back( new_line )
 			{
 			Ok(_) => {},
-			Err(new_line) => {
+			Err(_new_line) => {
 				todo!("Handle rollover of kernel log");
 				},
 			}
@@ -188,14 +187,10 @@ mod memory
 
 mod video
 {
-	use _common::*;
+	//use _common::*;
 	use super::Level;
-	use core::{fmt,ops};
-	use core::marker::PhantomData;
 	
 	pub struct Sink;
-	
-	pub struct Writer<'a>(PhantomData<&'a mut Sink>);
 	
 	impl super::Sink for Sink
 	{
@@ -203,11 +198,11 @@ mod video
 			// Acquire a writer from the GUI
 			// - TODO: requires acquiring the lock on the kernel log, which is a Mutex, and may already be held.
 			// Write header
-			todo!("VideoSink");
+			todo!("VideoSink - {} {} {}", timestamp, level, source);
 		}
 		fn write(&mut self, s: &str) {
 			// Pass through
-			unimplemented!();
+			todo!("video::Sink::write - '{}'", s);
 		}
 		fn end(&mut self) {
 			// Drop writer (replace with None)
@@ -344,6 +339,18 @@ impl<'a,T:'a> fmt::Debug for HexDump<'a,T>
 //		//log_debug!("{} {:p}: {:?}  {:?}", label, &data[pos], HexDump(&data[pos .. pos+8]), HexDump(&data[pos+8 ..]));
 //	}
 //}
+
+pub fn start_memory_sink() {
+	let sink = memory::Sink::new();
+	
+	let _irq = ::arch::sync::hold_interrupts();
+	let mut lh = S_LOGGING_LOCK.lock();
+	
+	if lh.memory.is_none()
+	{
+		lh.memory = Some( sink );
+	}
+}
 
 #[doc(hidden)]
 /// Returns true if the passed combination of module and level is enabled

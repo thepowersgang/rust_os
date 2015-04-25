@@ -3,11 +3,8 @@
 //
 // Core/sync/mutex.rs
 //! Thread blocking Mutex type
-use lib::LazyStatic;
-use core::option::Option::{self,Some,None};
-use core::marker::{Send, Sync};
-use core::ops::{self,FnOnce};
-use core::default::Default;
+use _common::*;
+use core::ops;
 
 /// A standard mutex (blocks the current thread when contended)
 pub struct Mutex<T: Send>

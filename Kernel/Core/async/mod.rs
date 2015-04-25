@@ -8,10 +8,8 @@
  to either sleep the thread, or poll for a condition.
 */
 use _common::*;
-use lib::Queue;
 
 pub use self::mutex::Mutex;
-pub use self::timer::Timer;
 
 pub mod mutex;
 pub mod timer;

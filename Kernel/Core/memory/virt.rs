@@ -37,12 +37,12 @@ pub struct AllocHandle
 	mode: ProtectionMode,
 }
 unsafe impl Send for AllocHandle {}
-/// A single page from an AllocHandle
-pub struct PageHandle<'a>
-{
-	alloc: &'a mut AllocHandle,
-	idx: usize,
-}
+///// A single page from an AllocHandle
+//pub struct PageHandle<'a>
+//{
+//	alloc: &'a mut AllocHandle,
+//	idx: usize,
+//}
 
 /// A wrapper around AllocHandle that acts like an array
 pub struct ArrayHandle<T>
@@ -316,10 +316,8 @@ impl AllocHandle
 	pub unsafe fn as_int_mut_slice<T>(&self, ofs: usize, count: usize) -> &mut [T]
 	{
 		assert!( self.mode == ProtectionMode::KernelRW, "Calling as_mut_slice on non-writable memory ({:?})", self.mode );
-		unsafe {
-			// Very evil, transmute the immutable slice into a mutable
-			::core::mem::transmute( self.as_slice::<T>(ofs, count) )
-		}
+		// Very evil, transmute the immutable slice into a mutable
+		::core::mem::transmute( self.as_slice::<T>(ofs, count) )
 	}
 	pub fn as_mut_slice<T>(&mut self, ofs: usize, count: usize) -> &mut [T]
 	{

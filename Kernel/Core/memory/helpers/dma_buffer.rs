@@ -4,7 +4,6 @@
 
 use core::slice::SliceExt;
 use arch::memory::PAddr;
-use PAGE_SIZE;
 
 /**
  * A buffer garunteed to be in a certain area of physical memory

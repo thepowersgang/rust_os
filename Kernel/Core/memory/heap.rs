@@ -7,7 +7,6 @@
 // TODO: Rewrite this to correctly use the size information avaliable
 
 use core::option::Option::{self,None,Some};
-use core::nonzero::NonZero;
 use core::ptr::Unique;
 use core::ops;
 
@@ -354,7 +353,7 @@ impl HeapDef
 		}
 	}
 	
-	pub fn deallocate(&mut self, ptr: *mut (), size: usize, align: usize)
+	pub fn deallocate(&mut self, ptr: *mut (), _size: usize, _align: usize)
 	{
 		log_debug!("deallocate(ptr={:p})", ptr);
 		if ptr == ZERO_ALLOC {

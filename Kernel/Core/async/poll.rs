@@ -57,11 +57,11 @@ impl<'a> super::PrimitiveWaiter for Waiter<'a>
 		match self.0.take()
 		{
 		// Pass 'Some(self)' to indicate completion 
-		Some(mut cb) => { log_debug!("run_completion - caling"); cb.into_inner()( Some(self) ); },
+		Some(cb) => { log_debug!("run_completion - caling"); cb.into_inner()( Some(self) ); },
 		None => { log_debug!("run_completion - complete"); },
 		}
 	}
-	fn bind_signal(&mut self, sleeper: &mut ::threads::SleepObject) -> bool {
+	fn bind_signal(&mut self, _sleeper: &mut ::threads::SleepObject) -> bool {
 		false
 	}
 }

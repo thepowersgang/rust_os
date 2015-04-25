@@ -5,7 +5,6 @@
 //! Reference-counted shared allocation
 use _common::*;
 use core::nonzero::NonZero;
-use core::atomic::{AtomicUsize,Ordering};
 use core::{ops,fmt};
 
 /// Non-atomic reference counted type
@@ -53,7 +52,24 @@ impl<T> Clone for Rc<T>
 	}
 }
 
-impl<T> ::core::ops::Deref for Rc<T>
+impl<T: Default> Default for Rc<T> {
+	fn default() -> Rc<T> {
+		Rc::new( T::default() )
+	}
+}
+
+impl<T: fmt::Display> fmt::Display for Rc<T> {
+	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+		<T as fmt::Display>::fmt(&**self, f)
+	}
+}
+impl<T: fmt::Debug> fmt::Debug for Rc<T> {
+	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+		<T as fmt::Debug>::fmt(&**self, f)
+	}
+}
+
+impl<T> ops::Deref for Rc<T>
 {
 	type Target = T;
 	fn deref<'s>(&'s self) -> &'s T
@@ -63,7 +79,7 @@ impl<T> ::core::ops::Deref for Rc<T>
 }
 
 #[unsafe_destructor]
-impl<T> ::core::ops::Drop for Rc<T>
+impl<T> ops::Drop for Rc<T>
 {
 	fn drop(&mut self)
 	{

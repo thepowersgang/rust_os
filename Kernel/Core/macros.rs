@@ -45,13 +45,27 @@ macro_rules! assert_trait
 	($t:ty : $tr:ident) => { #[allow(warnings)] fn assert_trait<T: $tr>() { } #[allow(dead_code)] fn call_assert_trait() { assert_trait::<$t>() } }
 }
 
+#[doc(hidden)]
+pub fn type_name<T: ?::core::marker::Sized>() -> &'static str { unsafe { ::core::intrinsics::type_name::<T>() } }
 /// A safe wrapper around the `type_name` intrinsic
 #[macro_export]
 macro_rules! type_name
 {
-	($t:ty) => ( unsafe { ::core::intrinsics::type_name::<$t>() } )
+	($t:ty) => ( $crate::macros::type_name::<$t>() );
 }
 
+
+
+/// Iterator helper, desugars to a.zip(b)
+macro_rules! zip
+{
+	($a:expr, $b:expr) => ( $a.zip($b) );
+}
+/// Iterator helper, desugars to a.chain(b).chain(b2)
+macro_rules! chain
+{
+	($b:expr, $($b:expr),+) => ( $a$(.chain($b))+ );
+}
 
 /// Provides a short and noticable "TODO: " message
 #[macro_export]

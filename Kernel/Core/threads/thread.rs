@@ -97,6 +97,13 @@ impl ThreadHandle
 		handle
 	}
 }
+impl ::core::fmt::Debug for ThreadHandle
+{
+	fn fmt(&self, f: &mut ::core::fmt::Formatter) -> Result<(),::core::fmt::Error>
+	{
+		write!(f, "ThreadHandle({})", self.block)
+	}
+}
 impl ::core::ops::Drop for ThreadHandle
 {
 	fn drop(&mut self) {

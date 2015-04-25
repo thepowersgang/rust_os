@@ -124,9 +124,12 @@ impl super::Framebuffer for Framebuffer
 	}
 	
 	fn blit_inner(&mut self, dst: Rect, src: Rect) {
+		if dst.dims() != src.dims() {
+			return ;
+		}
 		todo!("Framebuffer::blit_inner");
 	}
-	fn blit_ext(&mut self, dst: Rect, src: Rect, srf: &super::Framebuffer) -> bool {
+	fn blit_ext(&mut self, _dst: Rect, _src: Rect, _srf: &super::Framebuffer) -> bool {
 		false
 	}
 	fn blit_buf(&mut self, dst: Rect, buf: &[u32]) {
@@ -177,7 +180,45 @@ impl super::Framebuffer for Framebuffer
 		}
 	}
 	fn fill(&mut self, dst: Rect, colour: u32) {
-		todo!("Framebuffer::fill");
+		let output_fmt = self.mode.fmt;
+		assert!(dst.left()  <  self.mode.width as u32);
+		assert!(dst.right() <= self.mode.width as u32);
+		assert!(dst.top()    <  self.mode.height as u32);
+		assert!(dst.bottom() <= self.mode.height as u32);
+		
+		for row in (dst.top() .. dst.bottom())
+		{
+			let sl = self.scanline(row as usize);
+			match output_fmt
+			{
+			VideoFormat::X8R8G8B8 => {
+				let bpp = 4;
+				let left_byte  = dst.left()  as usize * bpp;
+				let right_byte = dst.right() as usize * bpp;
+				let seg = &mut sl[left_byte .. right_byte];
+				for px in seg.chunks_mut(bpp)
+				{
+					px[0] = ((colour >>  0) & 0xFF) as u8;
+					px[1] = ((colour >>  8) & 0xFF) as u8;
+					px[2] = ((colour >> 16) & 0xFF) as u8;
+					//px[3] = ((col >> 32) & 0xFF) as u8;
+				}
+				},
+			VideoFormat::R5G6B5 => {
+				let bpp = 2;
+				let left_byte  = dst.left()  as usize * bpp;
+				let right_byte = dst.right() as usize * bpp;
+				let seg = &mut sl[left_byte .. right_byte];
+				for px in seg.chunks_mut(bpp)
+				{
+					let col16 = output_fmt.col_from_xrgb(colour);
+					px[0] = ((col16 >>  0) & 0xFF) as u8;
+					px[1] = ((col16 >>  8) & 0xFF) as u8;
+				}
+				},
+			fmt @ _ => todo!("Framebuffer::blit_buf - {:?}", fmt),
+			}
+		}
 	}
 }
 

@@ -25,7 +25,7 @@ pub struct Waiter<'a>
 	source: Option<&'a Source>,
 }
 
-static s_event_none: Source = Source { flag: ATOMIC_BOOL_INIT, waiter: mutex_init!(None) };
+//static S_EVENT_NONE: Source = Source { flag: ATOMIC_BOOL_INIT, waiter: mutex_init!(None) };
 
 impl Source
 {

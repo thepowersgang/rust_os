@@ -19,7 +19,7 @@ pub struct SleepObjectRef
 	obj: *const SleepObject,
 }
 
-pub const SLEEPOBJECT_INIT: SleepObject = SleepObject { name: "", thread: None };
+//pub const SLEEPOBJECT_INIT: SleepObject = SleepObject { name: "", thread: None };
 
 impl SleepObject
 {
@@ -35,6 +35,7 @@ impl SleepObject
 	/// Wait the current thread on this object
 	pub fn wait(&mut self)
 	{
+		log_trace!("SleepObject::wait '{}'", self.name);
 		let mut cur = super::get_cur_thread();
 		cur.run_state = RunState::Sleep(self as *mut _ as *const _);
 		self.thread = Some(cur);
@@ -49,7 +50,7 @@ impl SleepObject
 	/// Signal this sleep object (waking threads)
 	pub fn signal(&self)
 	{
-		unimplemented!();
+		todo!("SleepObject::signal '{}'", self.name);
 	}
 	
 	/// Obtain a reference to the sleep object

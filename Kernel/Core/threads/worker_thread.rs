@@ -10,9 +10,11 @@ pub struct WorkerThread(super::thread::ThreadHandle);
 
 impl WorkerThread
 {
-	pub fn new<F: FnOnce()+Send>(fcn: F) -> WorkerThread
+	#[allow(dead_code)]
+	/// Construct a new worker thread
+	pub fn new<F: FnOnce()+Send>(name: &str, fcn: F) -> WorkerThread
 	{
-		let handle = super::thread::ThreadHandle::new("worker", fcn);
+		let handle = super::thread::ThreadHandle::new(name, fcn);
 		WorkerThread(handle)
 	}
 }

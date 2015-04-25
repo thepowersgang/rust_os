@@ -6,7 +6,6 @@
 use _common::*;
 //use arch::memory::addresses::{physinfo_start, physinfo_end};
 use arch::memory::PAddr;
-use lib::LazyStatic;
 
 pub const NOPAGE : PAddr = 1;
 

@@ -6,7 +6,7 @@
 use _common::*;
 use core::atomic::{AtomicUsize,ATOMIC_USIZE_INIT};
 use sync::mutex::LazyMutex;
-use lib::{VecMap,BTreeMap};
+use lib::{VecMap};
 
 module_define!{Storage, [], init}
 

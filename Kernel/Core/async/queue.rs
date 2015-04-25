@@ -70,7 +70,7 @@ impl<'a> super::PrimitiveWaiter for Waiter<'a>
 	fn run_completion(&mut self) {
 		unimplemented!();
 	}
-	fn bind_signal(&mut self, sleeper: &mut ::threads::SleepObject) -> bool {
+	fn bind_signal(&mut self, _sleeper: &mut ::threads::SleepObject) -> bool {
 		unimplemented!();
 	}
 }

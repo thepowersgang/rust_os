@@ -46,7 +46,6 @@ struct AtaRegs
 struct AtaInterrupt
 {
 	handle: ::kernel::irqs::EventHandle,
-	event: async::event::Source,
 }
 
 #[repr(C)]
@@ -223,7 +222,7 @@ impl<'a,'b> async::Waiter for AtaWaiter<'a,'b>
 			WaitState::Acquire(ref mut waiter) => {
 				let mut lh = waiter.take_lock();
 				lh.start_dma( self.disk, self.blockidx, &self.dma_buffer, self.is_write, &self.dma_regs );
-				WaitState::IoActive(lh, self.dev.interrupt.event.wait())
+				WaitState::IoActive(lh, self.dev.interrupt.handle.get_event().wait())
 				},
 			// And if IoActive completes, we're complete
 			WaitState::IoActive(ref _lh, ref _waiter) => WaitState::Done,
@@ -254,7 +253,6 @@ impl AtaController
 			regs: async::Mutex::new( AtaRegs::new(ata_base, sts_port) ),
 			interrupt: AtaInterrupt {
 				handle: ::kernel::irqs::bind_interrupt_event(irq),
-				event: async::event::Source::new(),
 				},
 			}
 	}

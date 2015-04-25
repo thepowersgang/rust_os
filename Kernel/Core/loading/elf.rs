@@ -39,7 +39,7 @@ struct Elf32_Sym
 pub struct SectionHeader<'a>
 {
 	data: Cow<'a, [Elf32_Shent]>,
-	string_table_idx: usize,
+	_string_table_idx: usize,
 }
 
 pub struct StringTable<'a>
@@ -62,7 +62,7 @@ impl<'a> SectionHeader<'a>
 		let buf = unsafe { ::lib::unsafe_cast_slice::<Elf32_Shent>(buffer) };
 		let rv = SectionHeader {
 			data: Cow::Borrowed(buf),
-			string_table_idx: shstridx,
+			_string_table_idx: shstridx,
 			};
 		rv.data[shstridx].dump();
 		rv
@@ -110,12 +110,25 @@ impl<'a> SectionHeader<'a>
 		let symtab = self.symbol_table().unwrap();
 		for (i,sym) in symtab.data.iter().enumerate()
 		{
-			//log_debug!("sym [{}] {:?}", i, sym);
+			log_debug!("sym [{}] {:?}", i, sym);
+			log_debug!(" - {}", symtab.string_table.get(sym.st_name as usize));
 		}
 		
 		None
 	}
 	
+}
+
+impl<'a> StringTable<'a>
+{
+	fn get(&self, ofs: usize) -> &str {
+		let bytes = match self.data[ofs..].iter().position(|&x| x == 0)
+			{
+			Some(len) => &self.data[ofs .. ofs+len],
+			None => &self.data[ofs..],
+			};
+		::core::str::from_utf8(bytes).unwrap()
+	}
 }
 
 impl Elf32_Shent
