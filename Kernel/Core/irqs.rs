@@ -60,6 +60,7 @@ pub fn bind_interrupt_event(num: u32) -> EventHandle
 	let binding = match map_lh.mapping.entry(num)
 		{
 		::lib::vec_map::Entry::Occupied(e) => e.into_mut(),
+		// - Vacant, create new binding (pokes arch IRQ clode)
 		::lib::vec_map::Entry::Vacant(e) => e.insert( IRQBinding::new_boxed(num) ),
 		};
 	// 2. Add this handler to the meta-handler
@@ -84,6 +85,9 @@ impl IRQBinding
 			handlers: Spinlock::new( Vec::new() ),
 			} );
 		assert!(num < 256, "{} < 256 failed", num);
+		// TODO: Use a better function, needs to handle IRQ routing etc.
+		// - In theory, the IRQ num shouldn't be a u32, instead be an opaque IRQ index
+		//   that the arch code understands (e.g. value for PciLineA that gets translated into an IOAPIC line)
 		rv.arch_handle = interrupts::bind_isr(
 			num as u8, IRQBinding::handler_raw, &*rv as *const IRQBinding as *const (), 0
 			).unwrap();
