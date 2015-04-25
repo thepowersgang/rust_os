@@ -53,14 +53,6 @@ impl Source
 	}
 }
 
-impl<'a> Waiter<'a>
-{
-	pub fn null() -> Waiter<'a> {
-		Waiter(None)
-	}
-}
-
-
 impl<'a> fmt::Debug for Waiter<'a>
 {
 	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -69,6 +61,9 @@ impl<'a> fmt::Debug for Waiter<'a>
 }
 impl<'a> super::PrimitiveWaiter for Waiter<'a>
 {
+	fn is_complete(&self) -> bool {
+		self.0.is_none()
+	}
 	fn poll(&self) -> bool {
 		unimplemented!();
 	}

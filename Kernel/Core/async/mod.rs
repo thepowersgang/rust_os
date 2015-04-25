@@ -25,6 +25,17 @@ pub mod poll;
 pub trait PrimitiveWaiter:
 	::core::fmt::Debug
 {
+	/// Return true if the waiter is already complete (and signalled)
+	fn is_complete(&self) -> bool;
+	
+	/// Polls the waiter, returning true if the event has triggered
+	fn poll(&self) -> bool;
+	/// Runs the completion handler
+	fn run_completion(&mut self);
+	/// Binds this waiter to signal the provided sleep object
+	fn bind_signal(&mut self, sleeper: &mut ::threads::SleepObject) -> bool;
+	
+	/// 
 	fn is_ready(&mut self) -> bool {
 		if self.poll() {
 			self.run_completion();
@@ -34,9 +45,6 @@ pub trait PrimitiveWaiter:
 			false
 		}
 	}
-	fn poll(&self) -> bool;
-	fn run_completion(&mut self);
-	fn bind_signal(&mut self, sleeper: &mut ::threads::SleepObject) -> bool;
 }
 
 /// A more generic waiter object, that can handle state transitions
@@ -56,7 +64,7 @@ pub trait Waiter:
 
 impl<T: PrimitiveWaiter> Waiter for T {
 	fn is_complete(&self) -> bool {
-		self.poll()
+		self.is_complete()
 	}
 	fn get_waiter(&mut self) -> &mut PrimitiveWaiter {
 		self
@@ -109,7 +117,7 @@ pub fn wait_on_list(waiters: &mut [&mut Waiter], timeout: Option<u64>) -> Option
 	
 	// Wait on primitives from the waiters, returning the indexes of those that need a state advance
 	let new_completions: Vec<usize> = {
-		// 
+		// TODO: Avoid this allocation by using cloned iterators
 		let mut prim_waiters: Vec<_> = waiters.iter_mut()
 			.enumerate()	// Tag with index
 			.filter( |&(_,ref x)| !x.is_complete() )	// Eliminate complete
@@ -158,69 +166,4 @@ pub fn wait_on_list(waiters: &mut [&mut Waiter], timeout: Option<u64>) -> Option
 	let n_complete = new_completions.iter().filter( |&&i| waiters[i].complete() ).count();
 	Some( n_complete )
 }
-
-// Note - List itself isn't modified, but needs to be &mut to get &mut to inners
-/**
- * Wait on a set of Waiter objects. Returns when at least one of the waiters completes, or the timeout elapses
- *
- * If the timeout is None, this function can wait forever. If the timeout is Some(0), no wait occurs (but completion
- * handlers may fire).
- */
-pub fn wait_on_primitives(waiters: &mut [&mut PrimitiveWaiter], timeout: Option<u64>)
-{
-	log_trace!("wait_on_list(waiters = {:?}, timeout = {:?})", waiters, timeout);
-	if waiters.len() == 0
-	{
-		panic!("wait_on_list - Nothing to wait on");
-	}
-	//else if waiters.len() == 1
-	//{
-	//	// Only one item to wait on, explicitly wait
-	//	waiters[0].wait()
-	//}
-	else
-	{
-		// Multiple waiters
-		// - Create an object for them to signal
-		let mut obj = ::threads::SleepObject::new("wait_on_list");
-		let mut force_poll = false;
-		for ent in waiters.iter_mut()
-		{
-			force_poll |= !ent.bind_signal( &mut obj );
-		}
-		
-		if force_poll
-		{
-			log_trace!("- Polling");
-			let mut n_passes = 0;
-			'outer: loop
-			{
-				for ent in waiters.iter()
-				{
-					if ent.poll() { break 'outer; }
-				}
-				n_passes += 1;
-				// TODO: Take a short nap
-			}
-			log_trace!("- Fire ({} passes)", n_passes);
-		}
-		else
-		{
-			// - Wait the current thread on that object
-			log_trace!(" Sleeping");
-			obj.wait();
-		}
-		
-		// - When woken, run completion handlers on all completed waiters
-		let mut n_complete = 0;
-		for ent in waiters.iter_mut()
-		{
-			if ent.is_ready()
-			{
-				n_complete += 1;
-			}
-		}
-	}
-}
-
 

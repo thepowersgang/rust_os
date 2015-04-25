@@ -54,12 +54,15 @@ impl Source
 
 impl<'a> fmt::Debug for Waiter<'a> {
 	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-		write!(f, "Waiter")
+		write!(f, "event::Waiter")
 	}
 }
 
 impl<'a> super::PrimitiveWaiter for Waiter<'a>
 {
+	fn is_complete(&self) -> bool {
+		self.source.is_none()
+	}
 	fn poll(&self) -> bool {
 		match self.source {
 		Some(r) => r.flag.load(::core::atomic::Ordering::Relaxed),
@@ -68,6 +71,7 @@ impl<'a> super::PrimitiveWaiter for Waiter<'a>
 	}
 	fn run_completion(&mut self) {
 		// Do nothing
+		self.source = None;
 	}
 	fn bind_signal(&mut self, sleeper: &mut ::threads::SleepObject) -> bool {
 		match self.source

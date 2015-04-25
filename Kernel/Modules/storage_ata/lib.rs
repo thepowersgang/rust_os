@@ -171,8 +171,7 @@ impl ControllerRoot
 				let mut wh_sec = ctrlr_sec.ata_identify(i, &mut identify_sec, &mut type_sec);
 				//let mut wh_timer = ::kernel::async::Timer::new(2*1000);
 				
-				// Wait for both complete, and obtain results
-				// - Loop while the timer hasn't fired, and at least one of the waiters is still waiting
+				// Loop until timer fires, or both disks have read
 				while /* !wh_timer.is_complete() && */ !(wh_pri.is_complete() && wh_sec.is_complete())
 				{
 					//::kernel::async::wait_on_list(&mut [&mut wh_pri, &mut wh_sec, &mut wh_timer]);

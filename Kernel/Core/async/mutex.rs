@@ -82,6 +82,9 @@ impl<'a, T: Send> fmt::Debug for Waiter<'a,T>
 
 impl<'a, T: Send> super::PrimitiveWaiter for Waiter<'a,T>
 {
+	fn is_complete(&self) -> bool {
+		self.queue_wait.is_complete()
+	}
 	fn poll(&self) -> bool {
 		self.queue_wait.poll()
 	}

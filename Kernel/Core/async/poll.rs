@@ -34,6 +34,13 @@ impl<'a> fmt::Debug for Waiter<'a> {
 
 impl<'a> super::PrimitiveWaiter for Waiter<'a>
 {
+	fn is_complete(&self) -> bool {
+		match self.0
+		{
+		Some(_) => false,
+		None => true,
+		}
+	}
 	fn poll(&self) -> bool {
 		match self.0
 		{
@@ -47,10 +54,12 @@ impl<'a> super::PrimitiveWaiter for Waiter<'a>
 		}
 	}
 	fn run_completion(&mut self) {
-		// Do nothing
-		let mut cb = self.0.take().expect("Wait::run_completion with Poll callback None");
+		match self.0.take()
+		{
 		// Pass 'Some(self)' to indicate completion 
-		cb.into_inner()( Some(self) );
+		Some(mut cb) => { log_debug!("run_completion - caling"); cb.into_inner()( Some(self) ); },
+		None => { log_debug!("run_completion - complete"); },
+		}
 	}
 	fn bind_signal(&mut self, sleeper: &mut ::threads::SleepObject) -> bool {
 		false
