@@ -6,5 +6,7 @@
 
 pub mod bus_pci;
 
+pub mod mapper_mbr;
+
 // vim: ft=rust
 

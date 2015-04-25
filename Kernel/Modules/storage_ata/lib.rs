@@ -180,7 +180,11 @@ impl ControllerRoot
 			}
 			
 			// (ugly) Handle the relevant disk types, creating devices
-			for &(disk, ref class, ref ident) in [(i*2, type_pri, identify_pri), (i*2+1, type_sec, identify_sec)].iter()
+			let devs = [
+				(i*2, type_pri, identify_pri),
+				(i*2+1, type_sec, identify_sec)
+				];
+			for &(disk, ref class, ref ident) in devs.iter()
 			{
 				match *class
 				{
@@ -209,8 +213,6 @@ impl ControllerRoot
 		// Return a controller handle, holding on to all handles
 		ControllerRoot { _controller: dma_controller, _volumes: volumes, }
 	}
-	
-	//fn handle_volume(volumes: &mut Vec<storage::PhysicalVolumeReg>, dma_controller: &Arc<DmaController>, disk: u8, class: AtaClass, ident: AtaIdentifyData)
 }
 
 impl device_manager::DriverInstance for ControllerRoot

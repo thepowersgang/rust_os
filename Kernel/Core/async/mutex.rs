@@ -25,7 +25,14 @@ unsafe impl<T: Send> Send for Mutex<T> {}
 pub struct Waiter<'a,T: Send+'a>
 {
 	lock: &'a Mutex<T>,
-	queue_wait: super::queue::Waiter<'a>,
+	state: WaitState<'a>,
+}
+#[derive(Debug)]
+enum WaitState<'a>
+{
+	Sleep(super::queue::Waiter<'a>),
+	Complete,
+	Consumed
 }
 
 /// Lock handle
@@ -62,38 +69,86 @@ impl<T: Send> Mutex<T>
 	/// Asynchronously lock the mutex
 	pub fn async_lock(&self) -> Waiter<T>
 	{
-		unimplemented!()
+		if self.locked.swap(true, Ordering::Acquire) == false
+		{
+			Waiter::new_complete(self)
+		}
+		else
+		{
+			Waiter::new_sleep(self, &self.waiters)
+		}
 	}
 }
 
 impl<'a, T: Send> Waiter<'a,T>
 {
+	fn new_sleep<'b>(lock: &'b Mutex<T>, queue: &'b super::queue::Source) -> Waiter<'b, T> {
+		Waiter { lock: lock, state: WaitState::Sleep(queue.wait_on()) }
+	}
+	fn new_complete(lock: &Mutex<T>) -> Waiter<T> {
+		Waiter { lock: lock, state: WaitState::Complete }
+	}
+	
 	pub fn take_lock(&mut self) -> HeldMutex<'a, T> {
-		unimplemented!()
+		match self.state
+		{
+		WaitState::Sleep(_) => panic!("Waiter<{}>::take_lock - Still sleeping", type_name!(T)),
+		WaitState::Complete => {
+			self.state = WaitState::Consumed;
+			HeldMutex { __lock: self.lock }
+			},
+		WaitState::Consumed => panic!("Waiter<{}>::take_lock - Already consumed", type_name!(T)),
+		}
 	}
 }
 
 impl<'a, T: Send> fmt::Debug for Waiter<'a,T>
 {
 	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-		write!(f, "Mutex<{}>::Waiter", type_name!(T))
+		write!(f, "Mutex<{}>::Waiter(state={:?})", type_name!(T), self.state)
 	}
 }
 
 impl<'a, T: Send> super::PrimitiveWaiter for Waiter<'a,T>
 {
 	fn is_complete(&self) -> bool {
-		self.queue_wait.is_complete()
+		log_debug!("Waiter<{}>::is_complete - self.state={:?}", type_name!(T), self.state);
+		match self.state
+		{
+		WaitState::Sleep(ref obj) => obj.is_complete(),
+		WaitState::Complete => true,
+		WaitState::Consumed => true,
+		}
 	}
 	fn poll(&self) -> bool {
-		self.queue_wait.poll()
+		match self.state
+		{
+		WaitState::Sleep(ref obj) => obj.poll(),
+		WaitState::Complete => true,
+		WaitState::Consumed => false,
+		}
 	}
 	fn run_completion(&mut self) {
-		self.queue_wait.run_completion();
-		todo!("Mutex acquired... what do I do?");
+		self.state = match self.state
+			{
+			WaitState::Sleep(ref mut obj) => {
+				obj.run_completion();
+				WaitState::Complete
+				},
+			_ => return,
+			};
 	}
 	fn bind_signal(&mut self, sleeper: &mut ::threads::SleepObject) -> bool {
-		self.queue_wait.bind_signal(sleeper)
+		// If not in Sleep state, force a poll (which will complete instantly)
+		match self.state
+		{
+		WaitState::Sleep(ref mut obj) => obj.bind_signal(sleeper),
+		WaitState::Complete => false,
+		WaitState::Consumed => {
+			log_warning!("Waiter<{}>::bind_signal called on consumed", type_name!(T));
+			true
+			},
+		}
 	}
 
 }

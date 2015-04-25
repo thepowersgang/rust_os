@@ -51,15 +51,11 @@ pub trait PrimitiveWaiter:
 pub trait Waiter:
 	::core::fmt::Debug
 {
+	/// Returns true if the waiter is completed (i.e. waiting will do nothing)
 	fn is_complete(&self) -> bool;
 	
 	/// Request a primitive wait object
-	fn get_waiter_mut(&mut self) -> &mut PrimitiveWaiter {
-		// SAFE: This is &mut, so single-reference is maintained
-		unsafe { ::core::mem::transmute(self.get_waiter()) }
-	}
-	/// Request a primitive wait object
-	fn get_waiter(&self) -> &PrimitiveWaiter;
+	fn get_waiter(&mut self) -> &mut PrimitiveWaiter;
 	/// Called when the wait returns
 	///
 	/// Return true to indicate that this waiter is complete
@@ -71,7 +67,7 @@ impl<T: PrimitiveWaiter> Waiter for T {
 	fn is_complete(&self) -> bool {
 		self.is_complete()
 	}
-	fn get_waiter(&self) -> &PrimitiveWaiter {
+	fn get_waiter(&mut self) -> &mut PrimitiveWaiter {
 		self
 	}
 	fn complete(&mut self) -> bool {
@@ -87,17 +83,23 @@ impl<'a> Waiter+'a
 	{
 		while !self.is_complete()
 		{
+			log_trace!("Waiting on {:?}", self);
 			let completed = {
-				let prim = self.get_waiter_mut();
+				let prim = self.get_waiter();
 				let mut obj = ::threads::SleepObject::new("wait_on_list");
+				log_trace!("- bind");
 				if prim.bind_signal( &mut obj ) {
 					obj.wait();
 				}
 				else {
-					todo!("Poll in Waiter::wait()");
+					while !prim.poll() {
+						// TODO: Take a nap
+					}
 				}
+				log_trace!("- sleep over");
 				prim.is_ready()
 				};
+			log_trace!("completed = {}", completed);
 			if completed {
 				self.complete();
 			}
@@ -111,13 +113,18 @@ pub enum WaitError
 	Timeout,
 }
 
-
+/// Wait on the provided list of Waiter trait objects
+///
 pub fn wait_on_list(waiters: &mut [&mut Waiter], timeout: Option<u64>) -> Option<usize>
 {
 	log_trace!("wait_on_list(waiters = {:?}, timeout = {:?})", waiters, timeout);
 	if waiters.len() == 0
 	{
 		panic!("wait_on_list - Nothing to wait on");
+	}
+	
+	if timeout.is_some() {
+		todo!("Support timeouts in wait_on_list");
 	}
 	
 	// Wait on primitives from the waiters, returning the indexes of those that need a state advance
@@ -131,13 +138,15 @@ pub fn wait_on_list(waiters: &mut [&mut Waiter], timeout: Option<u64>) -> Option
 	let mut obj = ::threads::SleepObject::new("wait_on_list");
 	let force_poll = waiters.iter_mut()
 		.filter( |x| !x.is_complete() )
-		.fold(false, |v,x| v | !x.get_waiter_mut().bind_signal( &mut obj) );
+		.fold(false, |v,x| v | !x.get_waiter().bind_signal( &mut obj) )
+		;
 	
 	if force_poll
 	{
 		log_trace!("- Polling");
 		let mut n_passes = 0;
-		while waiters.iter().filter(|x| !x.is_complete()).filter(|e| e.get_waiter().poll()).count() == 0
+		// While none of the active waiters returns true from poll()
+		while !waiters.iter_mut().filter(|x| !x.is_complete()).fold(false, |r,e| r || e.get_waiter().poll())
 		{
 			n_passes += 1;
 			// TODO: Take a short nap
@@ -155,7 +164,7 @@ pub fn wait_on_list(waiters: &mut [&mut Waiter], timeout: Option<u64>) -> Option
 	let mut n_complete = 0;
 	for ent in waiters.iter_mut().filter(|x| !x.is_complete())
 	{
-		if ent.get_waiter_mut().is_ready() && ent.complete()
+		if ent.get_waiter().is_ready() && ent.complete()
 		{
 			n_complete += 1;
 		}

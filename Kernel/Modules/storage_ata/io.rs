@@ -133,6 +133,7 @@ impl AtaRegs
 	
 	fn start_dma(&mut self, disk: u8, blockidx: u64, dma_buffer: &DMABuffer, is_write: bool, bm: &DmaRegBorrow)
 	{
+		log_debug!("start_dma(disk={},blockidx={},is_write={})", disk, blockidx, is_write);
 		let count = dma_buffer.len() / SECTOR_SIZE;
 		// Fill PRDT
 		// TODO: Use a chain of PRDTs to support 32-bit scatter-gather
@@ -200,14 +201,14 @@ impl<'a,'b> async::Waiter for AtaWaiter<'a,'b>
 		if let WaitState::Done = self.state { true } else { false }
 	}
 	
-	fn get_waiter(&self) -> &async::PrimitiveWaiter
+	fn get_waiter(&mut self) -> &mut async::PrimitiveWaiter
 	{
 		match self.state
 		{
 		// Initial state: Acquire the register lock
-		WaitState::Acquire(ref waiter) => waiter,
+		WaitState::Acquire(ref mut waiter) => waiter,
 		// Final state: Start IO and wait for it to complete
-		WaitState::IoActive(_, ref waiter) => waiter,
+		WaitState::IoActive(_, ref mut waiter) => waiter,
 		//
 		WaitState::Done => unreachable!(),
 		}
@@ -235,7 +236,13 @@ impl<'a,'b> async::Waiter for AtaWaiter<'a,'b>
 }
 impl<'a,'b> ::core::fmt::Debug for AtaWaiter<'a,'b> {
 	fn fmt(&self, f: &mut ::core::fmt::Formatter) -> ::core::fmt::Result {
-		write!(f, "AtaWaiter")
+		try!( write!(f, "AtaWaiter") );
+		match self.state
+		{
+		WaitState::Acquire(..) => write!(f, "(Acquire)"),
+		WaitState::IoActive(..) => write!(f, "(IoActive)"),
+		WaitState::Done => write!(f, "(Done)"),
+		}
 	}
 }
 

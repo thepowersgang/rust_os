@@ -33,6 +33,9 @@ pub mod btree_map;
 
 pub mod ring_buffer;
 
+//pub mod byteorder;
+
+
 pub mod num
 {
 	//! General numeric helpers

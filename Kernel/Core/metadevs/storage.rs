@@ -16,6 +16,10 @@ pub struct VolumeHandle
 	handle: ::lib::mem::Arc<LogicalVolume>,
 }
 
+/// Physical volume registration (PV will be deregistered when this handle is dropped)
+/// 
+// TODO: What is the behavior when this PV still has LVs (open LVs too?). Just waiting will not
+// be the correct behavior.
 pub struct PhysicalVolumeReg
 {
 	idx: usize,
@@ -54,7 +58,12 @@ pub trait PhysicalVolume: Send + 'static
 /// Registration for a physical volume handling driver
 pub trait Mapper: Send + Sync
 {
+	/// Return the "name" of this mapper (e.g. mbr, gpt)
 	fn name(&self) -> &str;
+	/// Returns the binding strength of this mapper.
+	///
+	/// Lower values are weaker handles, 0 means unhandled.
+	/// Typical values are: 1=MBR, 2=GPT, 3=LVM etc
 	fn handles_pv(&self, pv: &PhysicalVolume) -> usize;
 }
 
@@ -151,7 +160,10 @@ pub fn register_pv(dev: Box<PhysicalVolume>) -> PhysicalVolumeReg
 }
 
 /// Register a mapper with the storage subsystem
-// TODO: How will it be unregistered?
+// TODO: How will it be unregistered. Requires a mapper handle that ensures that the mapper is unregistered when the relevant
+// module is unloaded.
+// TODO: In the current model, mappers can be unloaded without needing the volumes to be unmounted, but a possible
+// extension is to allow the mapper to handle logical->physical itself.
 pub fn register_mapper(mapper: &'static Mapper)
 {
 	S_MAPPERS.lock().push(mapper);
@@ -171,17 +183,20 @@ pub fn register_mapper(mapper: &'static Mapper)
 	}
 }
 
+/// Enumerate present physical volumes (returning both the identifier and name)
 pub fn enum_pvs() -> Vec<(usize,String)>
 {
 	S_PHYSICAL_VOLUMES.lock().iter().map(|(k,v)| (*k, String::from_str(v.dev.name())) ).collect()
 }
 
 
+/// Enumerate present logical volumes (returning both the identifier and name)
 pub fn enum_lvs() -> Vec<(usize,String)>
 {
 	S_LOGICAL_VOLUMES.lock().iter().map( |(k,v)| (*k, v.name.clone()) ).collect()
 }
 
+/// Acquire an unique handle to a logical volume
 pub fn open_lv(idx: usize) -> Result<VolumeHandle,()>
 {
 	match S_LOGICAL_VOLUMES.lock().get(&idx)
@@ -219,6 +234,9 @@ impl VolumeHandle
 	}
 	
 	#[allow(dead_code)]
+	/// Read a series of blocks from the volume into the provided buffer.
+	/// 
+	/// The buffer must be a multiple of the logical block size
 	pub fn read_blocks(&self, idx: u64, dst: &mut [u8]) -> Result<(),()> {
 		assert!(dst.len() % self.block_size() == 0);
 		
