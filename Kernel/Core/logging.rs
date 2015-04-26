@@ -320,25 +320,47 @@ impl<'a,T:'a> fmt::Debug for HexDump<'a,T>
 	}
 }
 
-//pub fn hex_dump_block(label: &str, data: &[u8])
-//{
-//	let mut pos = 0;
-//	while pos + 16 <= data.len()
-//	{
-//		log_debug!("{} {:p}: {:?}  {:?}", label, &data[pos], HexDump(&data[pos .. pos+8]), HexDump(&data[pos+8 .. pos+16]));
-//	}
-//	if pos == data.len()
-//	{
-//	}
-//	else if pos + 8 >= data.len()
-//	{
-//		//log_debug!("{} {:p}: {:?}", label, &data[pos], HexDump(&data[pos ..]));
-//	}
-//	else
-//	{
-//		//log_debug!("{} {:p}: {:?}  {:?}", label, &data[pos], HexDump(&data[pos .. pos+8]), HexDump(&data[pos+8 ..]));
-//	}
-//}
+struct HexDumpBlk<'a>(&'a [u8]);
+impl<'a> fmt::Display for HexDumpBlk<'a>
+{
+	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result
+	{
+		assert!(self.0.len() <= 16);
+		for i in (0 .. 16)
+		{
+			if i == 8 {
+				try!(write!(f, " "));
+			}
+			if i < self.0.len() {
+				try!(write!(f, "{:02x} ", self.0[i]));
+			}
+			else {
+				try!(write!(f, "   "));
+			}
+			
+		}
+		try!(write!(f, "| "));
+		for i in (0 .. 16)
+		{
+			if i < self.0.len() {
+				try!(write!(f, "{}",
+					match self.0[i]
+					{
+					v @ 32 ... 0x7E => v as char,
+					_ => '.',
+					}));
+			}
+		}
+		Ok( () )
+	}
+}
+pub fn hex_dump(label: &str, data: &[u8])
+{
+	for block in data.chunks(16)
+	{
+		log_debug!("{} {:p}: {}", label, &block[0], HexDumpBlk(block));
+	}
+}
 
 pub fn start_memory_sink() {
 	let sink = memory::Sink::new();

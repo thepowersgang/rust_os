@@ -177,7 +177,7 @@ impl KernelLog
 			32 ... 0x7E => cp as u8,
 			_ => b'?',
 			};
-		log_trace!("KernelLog::render_char({:?}, {:?}, '{}') idx={}", pos, colour, cp, idx);
+		//log_trace!("KernelLog::render_char({:?}, {:?}, '{}') idx={}", pos, colour, cp, idx);
 		
 		let bitmap = &S_FONTDATA[idx as usize];
 		

@@ -302,10 +302,15 @@ impl AllocHandle
 
 	pub fn as_slice<T>(&self, ofs: usize, count: usize) -> &[T]
 	{
-		assert!( ofs % ::core::mem::align_of::<T>() == 0, "Offset {:#x} not aligned to {} bytes", ofs, ::core::mem::align_of::<T>());	// Align check
-		assert!( ofs <= self.count * ::PAGE_SIZE );
-		assert!( count * ::core::mem::size_of::<T>() <= self.count * ::PAGE_SIZE );
-		assert!( ofs + count * ::core::mem::size_of::<T>() <= self.count * ::PAGE_SIZE );
+		use core::mem::{align_of,size_of};
+		assert!( ofs % align_of::<T>() == 0,
+			"Offset {:#x} not aligned to {} bytes", ofs, align_of::<T>());
+		assert!( ofs <= self.count * ::PAGE_SIZE,
+			"Slice offset {} outside alloc of {} bytes", ofs, self.count*::PAGE_SIZE );
+		assert!( count * size_of::<T>() <= self.count * ::PAGE_SIZE,
+			"Entry count exceeds allocation ({} > {})", count * size_of::<T>(), self.count*::PAGE_SIZE);
+		assert!( ofs + count * size_of::<T>() <= self.count * ::PAGE_SIZE,
+			"Sliced region exceeds bounds {}+{} > {}", ofs, count * size_of::<T>(), self.count*::PAGE_SIZE);
 		unsafe {
 			::core::mem::transmute( ::core::raw::Slice {
 				data: (self.addr as usize + ofs) as *const T,

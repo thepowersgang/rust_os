@@ -56,17 +56,16 @@ pub fn get_timestamp() -> u64
 fn init()
 {
 	log_trace!("init()");
-	let handles = ::arch::acpi::find::<ACPI_HPET>("HPET");
-	if handles.len() == 0 {
-		log_error!("No HPET, in ACPI, no timing avaliable");
-		return ;
-	}
-	if handles.len() != 1 {
-		log_warning!("Multiple HPETs not yet supported, using first only");
-	}
-	let hpet = &handles[0];
+	let hpet = match ::arch::acpi::find::<ACPI_HPET>("HPET", 0)
+		{
+		None => {
+			log_error!("No HPET, in ACPI, no timing avaliable");
+			return ;
+			},
+		Some(v) => v,
+		};
 
-	let info = (*hpet).data();
+	let info = hpet.data();
 	assert!(info.addr.asid == AddressSpaceID::Memory as u8);
 	assert!(info.addr.address % ::PAGE_SIZE as u64 == 0, "Address {:#x} not page aligned", info.addr.address);
 	let mapping = ::memory::virt::map_hw_rw(info.addr.address, 1, "HPET").unwrap();

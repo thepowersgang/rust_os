@@ -35,16 +35,15 @@ static mut s_ioapics: *mut Vec<raw::IOAPIC> = 0 as *mut _;
 
 fn init()
 {
-	let handles = ::arch::acpi::find::<init::ACPI_MADT>("APIC");
-	if handles.len() == 0 {
-		log_warning!("No MADT ('APIC') table in ACPI");
-		return ;
-	}
-	if handles.len() > 1 {
-		log_notice!("Multiple MADTs ({})", handles.len());
-	}
+	let madt = match ::arch::acpi::find::<init::ACPI_MADT>("APIC", 0)
+		{
+		None => {
+			log_warning!("No MADT ('APIC') table in ACPI");
+			return ;
+			},
+		Some(v) => v,
+		};
 	
-	let madt = &handles[0];
 	madt.data().dump(madt.data_len());
 	
 	// Handle legacy (8259) PIC
