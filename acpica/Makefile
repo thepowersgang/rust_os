@@ -15,7 +15,7 @@ PATCHED := $(SRCDIR)include/platform/acenv.h $(SRCDIR)include/platform/acrust.h
 all: acpica-$(TRIPLE).a
 
 $(TARBALL): Makefile
-	wget $(TARBALL_URL) -N --no-check-certificate
+	wget $(TARBALL_URL) --no-check-certificate -O $@
 
 $(SRCDIR)../Makefile: $(TARBALL)
 	tar -xf $(TARBALL)

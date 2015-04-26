@@ -1,0 +1,69 @@
+// "Tifflin" Kernel
+// - By John Hodge (thePowersGang)
+//
+// arch/amd64/acpi/mod_acpica.rs
+//! ACPI Component Architecture binding
+use _common::*;
+use core::ops;
+use self::shim_ext::*;
+
+// Shim - Functions called by rust
+mod shim_ext;
+// Shim - Functions called by ACPICA
+mod shim_out;
+
+pub struct SDTHandle<T: 'static>(&'static super::SDT<T>);
+
+macro_rules! acpi_try {
+	($fcn:ident ($($v:expr),*)) => (match $fcn($($v),*) {
+		AE_OK => {},
+		ec => { log_error!("ACPICA Init - {} returned {}", stringify!($fcn), ec); return; },
+		});
+}
+
+pub fn init()
+{
+	unsafe {
+		acpi_try!(AcpiInitializeSubsystem());
+		acpi_try!(AcpiInitializeTables(0 as *mut _, 16, false));
+		acpi_try!(AcpiLoadTables());
+		acpi_try!(AcpiEnableSubsystem(ACPI_FULL_INITIALIZATION));
+	}
+}
+
+pub fn find_table<T:'static>(req_name: &str, idx: usize) -> Option<SDTHandle<T>>
+{
+	// SAFE:
+	// 1. It's assumed (TODO) that the pointer returned is practically 'static
+	// 2. TODO check thread-safety of ACPICA
+	unsafe
+	{
+		let mut out_ptr: *const ACPI_TABLE_HEADER = 0 as *const _;
+		
+		// HACK: It's implied that the signature param is a C string, but stated that it's
+		//   "A pointer to the 4-character ACPI signature for the requeste table", which implies
+		//   that taking a pointer to a non NUL-terminated string is valid.
+		match AcpiGetTable(req_name.as_bytes().as_ptr(), idx as u32 + 1, &mut out_ptr)
+		{
+		shim_ext::AE_OK => Some( SDTHandle(&*(out_ptr as *const super::SDT<T>)) ),
+		shim_ext::AE_NOT_FOUND => None,
+
+		shim_ext::AE_BAD_PARAMETER => panic!("BUGCHECK: AcpiGetTable returned AE_BAD_PARAMETER"),
+		ec @ _ => {
+			log_notice!("AcpiGetTable in find_table({},{}) returned {}", req_name, idx, ec);
+			None
+			},
+		}
+	}
+}
+pub fn count_tables(req_name: &str) -> usize {
+	unimplemented!()
+}
+
+impl<T: 'static> ops::Deref for SDTHandle<T> {
+	type Target = super::SDT<T>;
+	fn deref(&self) -> &super::SDT<T> {
+		self.0
+	}
+}
+

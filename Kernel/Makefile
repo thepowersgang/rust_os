@@ -16,7 +16,12 @@ TRIPLE = x86_64-none-elf
 MODS := storage_ata
 #MODS += video_vga
 
+USE_ACPICA ?= 1
+
 OBJS := start.ao $(MODS:%=mod_%.o) libkernel.rlib libcore.rlib
+ifeq ($(USE_ACPICA),1)
+	OBJS += acpica.a
+endif
 
 PREFIX := ../.prefix/
 RUSTC := LD_LIBRARY_PATH=$(PREFIX)lib/ $(PREFIX)bin/rustc
@@ -48,6 +53,9 @@ RUSTFLAGS += -C code-model=kernel
 RUSTFLAGS += -C soft-float	# Disables requiring SSE etc
 RUSTFLAGS += -C target-feature=$(subst $(space),$(comma),$(EXCLUDE_FEATURES:%=-%))
 RUSTFLAGS += --cfg arch__$(ARCH)
+ifeq ($(USE_ACPICA),1)
+	RUSTFLAGS += --cfg use_acpica
+endif
 RUSTFLAGS += --target=$(TARGET_FILE)
 #RUSTFLAGS += -Z time-passes
 
@@ -143,6 +151,10 @@ $(OBJDIR)libcore.rlib: $(LIBCORESRC)lib.rs $(TARGET_FILE)
 	@mkdir -p $(dir $@)
 	$V$(ENV) $(RUSTC) $(RUSTFLAGS) --emit=link,dep-info -o $@ --crate-name core $<
 	@$(call FixDep, $(@:%.rlib=%.d))
+
+$(OBJDIR)acpica.a: ../acpica/Makefile
+	TRIPLE=$(TRIPLE) make -C ../acpica
+	cp ../acpica/acpica-$(TRIPLE).a $@
 
 # - Modules
 $(OBJDIR)mod_%.o: Modules/%/lib.rs $(OBJDIR)libcore.rlib $(OBJDIR)libkernel.rlib

@@ -10,9 +10,9 @@ use _common::*;
 module_define!{ACPI, [], init}
 
 #[cfg(use_acpica)]
-#[path="mod_acpica.rs"] mod internal;
+#[path="acpica/mod.rs"] mod internal;
 #[cfg(not(use_acpica))]
-#[path="mod_mine.rs"] mod internal;
+#[path="mine/mod.rs"] mod internal;
 
 #[repr(C,u8)]
 #[derive(Copy,Clone,PartialEq)]
@@ -82,4 +82,39 @@ pub fn find<T>(name: &str, idx: usize) -> Option<SDTHandle<T>>
 pub fn count(name: &str) -> usize {
 	internal::count_tables(name)
 }
+
+impl<T> SDT<T>
+{
+	#[allow(dead_code)]
+	fn validate(&self) -> bool
+	{
+		if ::core::mem::size_of::<Self>() != self.header.length as usize {
+			log_notice!("SDT size mismatch {} != sizeof({}) {}",
+				self.header.length, type_name!(SDT<T>), ::core::mem::size_of::<Self>());
+		}
+		unsafe {
+			let bytes = ::core::slice::from_raw_parts(self as *const _ as *const u8, self.header.length as usize);
+			bytes.iter().fold(0, |a,&b| a+b) == 0
+		}
+	}
+	#[allow(dead_code)]
+	fn raw_signature(&self) -> [u8; 4]
+	{
+		CHECKMARK!();
+		self.header.signature
+	}
+	pub fn data_len(&self) -> usize
+	{
+		self.header.length as usize - ::core::mem::size_of::<SDTHeader>()
+	}
+	pub fn data<'s>(&'s self) -> &'s T
+	{
+		&self.data
+	}
+	
+	pub unsafe fn data_byte_slice(&self) -> &[u8] {
+		::core::slice::from_raw_parts(&self.data as *const _ as *const u8, self.data_len())
+	}
+}
+
 

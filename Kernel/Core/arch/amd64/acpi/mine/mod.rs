@@ -308,40 +308,4 @@ impl<T> ::core::ops::Deref for SDTHandle<T>
 	}
 }
 
-impl<T> SDT<T>
-{
-	fn validate(&self) -> bool
-	{
-		if ::core::mem::size_of::<Self>() != self.header.length as usize {
-			log_notice!("SDT size mismatch {} != sizeof({}) {}",
-				self.header.length, type_name!(SDT<T>), ::core::mem::size_of::<Self>());
-		}
-		unsafe {
-			let bytes = ::core::slice::from_raw_parts(self as *const _ as *const u8, self.header.length as usize);
-			bytes.iter().fold(0, |a,&b| a+b) == 0
-		}
-	}
-	//fn signature<'s>(&'s self) -> &'s str
-	//{
-	//	from_utf8(self.header.signature).unwrap()
-	//}
-	fn raw_signature(&self) -> [u8; 4]
-	{
-		CHECKMARK!();
-		self.header.signature
-	}
-	pub fn data_len(&self) -> usize
-	{
-		self.header.length as usize - ::core::mem::size_of::<SDTHeader>()
-	}
-	pub fn data<'s>(&'s self) -> &'s T
-	{
-		&self.data
-	}
-	
-	pub unsafe fn data_byte_slice(&self) -> &[u8] {
-		::core::slice::from_raw_parts(&self.data as *const _ as *const u8, self.data_len())
-	}
-}
-
 // vim: ft=rust

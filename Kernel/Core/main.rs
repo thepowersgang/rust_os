@@ -16,6 +16,7 @@
 #![feature(unique)]	// Unique
 #![feature(slice_patterns)]	// Slice (array) destructuring patterns, used by multiboot code
 #![feature(step_by)]	// Range::step_by
+#![feature(linkage)]	// allows using #[linkage="external"]
 #![no_std]
 
 #[macro_use]
