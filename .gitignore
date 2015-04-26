@@ -5,9 +5,11 @@
 *.bin
 *.elf32
 *.dsm
+*.tar.gz
 
 libcore/
-*.tar.gz
+acpica/*.a
+acpica/acpica-*/
 
 Graphics/*.rs
 
