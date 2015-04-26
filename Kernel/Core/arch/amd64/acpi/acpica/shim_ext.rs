@@ -29,6 +29,16 @@ pub enum ACPI_EXECUTE_TYPE
 	OSL_EC_BURST_HANDLER
 }
 pub type ACPI_OSD_EXEC_CALLBACK = extern "C" fn(*const ());
+pub type ACPI_OSD_HANDLER = extern "C" fn (*const ())->u32;
+
+#[repr(C)]
+pub struct ACPI_PREDEFINED_NAMES
+{
+	Name: *const u8,
+	Type: i8,
+	Val: *const u8,
+}
+pub type ACPI_STRING = *mut u8;
 
 pub type ACPI_THREAD_ID = u64;
 

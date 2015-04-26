@@ -9,14 +9,28 @@
 use super::shim_ext::*;
 
 #[no_mangle] #[linkage="external"]
-extern "C" fn AcpiOsInitialize() -> ACPI_STATUS
-{
+extern "C" fn AcpiOsInitialize() -> ACPI_STATUS {
 	AE_OK
 }
 #[no_mangle] #[linkage="external"]
-extern "C" fn AcpiOsTerminate() -> ACPI_STATUS
-{
+extern "C" fn AcpiOsTerminate() -> ACPI_STATUS {
 	AE_OK
+}
+#[no_mangle] #[linkage="external"]
+extern "C" fn AcpiOsGetRootPointer() -> ACPI_PHYSICAL_ADDRESS {
+	unimplemented!()
+}
+#[no_mangle] #[linkage="external"]
+extern "C" fn AcpiOsPredefinedOverride(PredefinedObject: *const ACPI_PREDEFINED_NAMES, NewValue: *mut ACPI_STRING) -> ACPI_STATUS {
+	unimplemented!()
+}
+#[no_mangle] #[linkage="external"]
+extern "C" fn AcpiOsTableOverride(ExisitingTable: *mut ACPI_TABLE_HEADER, NewTable: *mut *const ACPI_TABLE_HEADER) -> ACPI_STATUS {
+	unimplemented!()
+}
+#[no_mangle] #[linkage="external"]
+extern "C" fn AcpiOsPhysicalTableOverride(ExisitingTable: *mut ACPI_TABLE_HEADER, NewAddress: *mut ACPI_PHYSICAL_ADDRESS, NewTableLength: *mut u32) -> ACPI_STATUS {
+	unimplemented!()
 }
 
 // -- Memory Management ---
@@ -36,11 +50,13 @@ extern "C" fn AcpiOsGetPhysicalAddress(LogicalAddress: *const (), PhysicalAddres
 
 #[no_mangle] #[linkage="external"]
 extern "C" fn AcpiOsAllocate(Size: ACPI_SIZE) -> *mut () {
-	unimplemented!();
+	// SAFE: (called from external, trust it)
+	unsafe { ::memory::heap::malloc(Size) }
 }
 #[no_mangle] #[linkage="external"]
 extern "C" fn AcpiOsFree(Memory: *mut ()) {
-	unimplemented!();
+	// SAFE: (called from external, trust it)
+	unsafe { ::memory::heap::free(Memory) }
 }
 
 #[no_mangle] #[linkage="external"]
@@ -96,23 +112,19 @@ extern "C" fn AcpiOsReleaseMutex(Handle: ACPI_MUTEX) {
 	unimplemented!();
 }
 
-#[no_mangle]
-#[linkage="external"]
+#[no_mangle] #[linkage="external"]
 extern "C" fn AcpiOsCreateSemaphore(MaxUnits: u32, InitialUnits: u32, OutHandle: *mut ACPI_SEMAPHORE) -> ACPI_STATUS {
 	unimplemented!();
 }
-#[no_mangle]
-#[linkage="external"]
+#[no_mangle] #[linkage="external"]
 extern "C" fn AcpiOsDeleteSemaphore(Handle: ACPI_SEMAPHORE) -> ACPI_STATUS {
 	unimplemented!();
 }
-#[no_mangle]
-#[linkage="external"]
+#[no_mangle] #[linkage="external"]
 extern "C" fn AcpiOsWaitSemaphore(Handle: ACPI_SEMAPHORE, Units: u32, Timeout: u16) -> ACPI_STATUS {
 	unimplemented!();
 }
-#[no_mangle]
-#[linkage="external"]
+#[no_mangle] #[linkage="external"]
 extern "C" fn AcpiOsSignalSemaphore(Handle: ACPI_SEMAPHORE, Units: u32) -> ACPI_STATUS {
 	unimplemented!();
 }
@@ -136,6 +148,14 @@ extern "C" fn AcpiOsReleaseLock(Handle: ACPI_SPINLOCK, Flags: ACPI_CPU_FLAGS) {
 
 // -- Interrupt handling --
 // ------------------------
+#[no_mangle] #[linkage="external"]
+extern "C" fn AcpiOsInstallInterruptHandler(InterruptLevel: u32, Handler: ACPI_OSD_HANDLER, Context: *const ()) -> ACPI_STATUS {
+	unimplemented!()
+}
+#[no_mangle] #[linkage="external"]
+extern "C" fn AcpiOsRemoveInterruptHandler(InterruptLevel: u32, Handler: ACPI_OSD_HANDLER) -> ACPI_STATUS {
+	unimplemented!()
+}
 
 // -- Memory Access --
 // -------------------
