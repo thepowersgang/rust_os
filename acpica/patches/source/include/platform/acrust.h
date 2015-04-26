@@ -3,7 +3,6 @@
 
 /* Building for rust bindings uses GCC */
 
-#include "acgcc.h"
 #include <stdint.h>
 #include <stdarg.h>
 
@@ -17,8 +16,12 @@
 
 #define ACPI_USE_DO_WHILE_0
 #define ACPI_USE_LOCAL_CACHE
-#define ACPI_USE_NATIVE_DIVIDE
-#define ACPI_USE_SYSTEM_CLIBRARY
+
+#undef ACPI_USE_SYSTEM_CLIBRARY
+#undef ACPI_USE_STANDARD_HEADERS
+//#undef ACPI_USE_NATIVE_DIVIDE
+
+#include "acgcc.h"
 
 #endif
 

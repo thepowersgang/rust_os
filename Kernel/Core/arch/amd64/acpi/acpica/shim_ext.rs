@@ -1,6 +1,37 @@
+// "Tifflin" Kernel
+// - By John Hodge (thePowersGang)
+//
+// arch/amd64/acpi/acpica/shim_ext.rs
+//! ACPICA outbound bindings
+#![allow(non_camel_case_types)]
+#![allow(non_snake_case)]
 use core::fmt;
 
-#[allow(non_camel_case_types)]
+pub type ACPI_SIZE = usize;
+pub type ACPI_PHYSICAL_ADDRESS = ::memory::PAddr;
+pub type ACPI_IO_ADDRESS = u16;
+
+pub type ACPI_PCI_ID = u32;
+
+pub type ACPI_CPU_FLAGS = u32;
+pub type ACPI_SPINLOCK = *const ::sync::Spinlock<()>;
+pub type ACPI_MUTEX = *const ::sync::Mutex<()>;
+pub type ACPI_SEMAPHORE = *const ();
+
+#[repr(C)]
+pub enum ACPI_EXECUTE_TYPE
+{
+	OSL_GLOBAL_LOCK_HANDLER,
+	OSL_NOTIFY_HANDLER,
+	OSL_GPE_HANDLER,
+	OSL_DEBUGGER_THREAD,
+	OSL_EC_POLL_HANDLER,
+	OSL_EC_BURST_HANDLER
+}
+pub type ACPI_OSD_EXEC_CALLBACK = extern "C" fn(*const ());
+
+pub type ACPI_THREAD_ID = u64;
+
 pub struct ACPI_STATUS(i32);
 
 const AE_CODE_ENVIRONMENTAL: i32 = 0x0000;
@@ -29,7 +60,6 @@ pub const ACPI_NO_DEVICE_INIT       : u32 = 0x20;
 pub const ACPI_NO_OBJECT_INIT       : u32 = 0x40;
 
 #[no_mangle]
-#[allow(non_snake_case)]
 extern "C" {
 	pub fn AcpiInitializeSubsystem() -> ACPI_STATUS;
 	

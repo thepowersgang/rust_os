@@ -1,4 +1,8 @@
 
+ifeq ($(TRIPLE),)
+ $(error Please specify a target with TRIPLE)
+endif
+
 TARBALL_URL := https://acpica.org/sites/acpica/files/acpica-unix2-20150410.tar.gz
 TARBALL := $(notdir $(TARBALL_URL))
 TARBALL_DIR := $(TARBALL:%.tar.gz=%)/
@@ -14,10 +18,13 @@ PATCHED := $(SRCDIR)include/platform/acenv.h $(SRCDIR)include/platform/acrust.h
 
 all: acpica-$(TRIPLE).a
 
-$(TARBALL): Makefile
-	wget $(TARBALL_URL) --no-check-certificate -O $@
+clean:
+	rm -rf acpica-$(TRIPLE).a $(OBJDIR)
 
-$(SRCDIR)../Makefile: $(TARBALL)
+$(TARBALL):
+	if [[ ! -e $(TARBALL) ]]; then wget $(TARBALL_URL) --no-check-certificate -O $@; fi
+
+$(SRCDIR):
 	tar -xf $(TARBALL)
 
 $(TARBALL_DIR)%: patches/%.patch $(TARBALL)
@@ -26,10 +33,12 @@ $(TARBALL_DIR)%: patches/%.patch $(TARBALL)
 $(TARBALL_DIR)%: patches/%
 	cp $< $@
 
-acpica-$(TRIPLE).a: $(SRCDIR)../Makefile $(PATCHED) $(OBJS)
-	ar rcu $@ $(OBJS)
+acpica-$(TRIPLE).a: $(SRCDIR) $(PATCHED) $(OBJS)
+	@echo [AR] $@
+	@ar rcu $@ $(OBJS)
 	
 $(OBJDIR)%.o: $(COMPONENT_DIR)%.c
-	mkdir -p $(dir $@)
-	$(TRIPLE)-gcc -o $@ -c $< -ffreestanding -I $(SRCDIR)include/ -D RUST
+	@mkdir -p $(dir $@)
+	@echo [GCC] -o $@
+	@$(TRIPLE)-gcc -o $@ -c $< -ffreestanding -I $(SRCDIR)include/ -D RUST -D ACPI_LIBRARY
 

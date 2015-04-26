@@ -152,8 +152,8 @@ $(OBJDIR)libcore.rlib: $(LIBCORESRC)lib.rs $(TARGET_FILE)
 	$V$(ENV) $(RUSTC) $(RUSTFLAGS) --emit=link,dep-info -o $@ --crate-name core $<
 	@$(call FixDep, $(@:%.rlib=%.d))
 
-$(OBJDIR)acpica.a: ../acpica/Makefile
-	TRIPLE=$(TRIPLE) make -C ../acpica
+$(OBJDIR)acpica.a: ../acpica/Makefile $(wildcard ../acpica/patches/source/include/platform/*)
+	make -C ../acpica TRIPLE=$(TRIPLE)
 	cp ../acpica/acpica-$(TRIPLE).a $@
 
 # - Modules

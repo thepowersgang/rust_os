@@ -1,12 +1,7 @@
 --- acenv.h
 +++ acenv.h
-@@ -216,7 +216,9 @@
-+#elif defined(RUST)
+@@ -172,2 +172,2 @@
+-#if defined(_LINUX) || defined(__linux__)
+-#include "aclinux.h"
++#if defined(RUST)
 +#include "acrust.h"
- 
- #else
- 
- /* Unknown environment */
- 
- #error Unknown target environment
- #endif
