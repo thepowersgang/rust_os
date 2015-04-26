@@ -1,11 +1,15 @@
 
 TARBALL_URL := https://acpica.org/sites/acpica/files/acpica-unix2-20150410.tar.gz
 TARBALL := $(notdir $(TARBALL_URL))
-SRCDIR := $(TARBALL:%.tar.gz=%)/source/components/
+SRCDIR := $(TARBALL:%.tar.gz=%)/
+COMPONENT_DIR: $(SRCDIR)source/components/
 OBJDIR := .obj/$(TRIPLE)/
 
-SRCS := $(wildcard $(SRCDIR)*/*.c) $(SRCDIR)hardware/hwacpi.c
+SRCS := $(wildcard $(COMPONENT_DIR)*/*.c) $(COMPONENT_DIR)hardware/hwacpi.c
 OBJS := $(SRCS:$(SRCDIR)%.c=$(OBJDIR)%.o)
+
+PATCHED: $(SRCDIR)include/source/include/platform/acenv.h $(SRCDIR)source/include/platform/acrust.h
+
 
 all: acpica-$(TRIPLE).a
 
@@ -15,9 +19,15 @@ $(TARBALL): Makefile
 $(SRCDIR)%.c: $(TARBALL)
 	tar -xf $(TARBALL)
 
-acpica-$(TRIPLE).a: $(OBJS)
+$(SRCDIR)%: patches/%.patch
+	tar -xf $(TARBALL) $@
+	patch $@ $<
+$(SRCDIR)%: patches/%
+	cp $< $@
+
+acpica-$(TRIPLE).a: $(PATCHED) $(OBJS)
 	ar rcu $@ $(OBJS)
 	
-$(OBJDIR)%.o: $(SRCDIR)%.c
-	$(TRIPLE)-gcc -o $@ -c $< -ffreestanding -I $(SRCDIR)/../include/
+$(OBJDIR)%.o: $(COMPONENT_DIR)%.c
+	$(TRIPLE)-gcc -o $@ -c $< -ffreestanding -I $(SRCDIR)include/
 

@@ -1,0 +1,12 @@
+--- acenv.h
++++ acenv.h
+@@ -216,7 +216,9 @@
++#elif defined(RUST)
++#include "acrust.h"
+ 
+ #else
+ 
+ /* Unknown environment */
+ 
+ #error Unknown target environment
+ #endif
