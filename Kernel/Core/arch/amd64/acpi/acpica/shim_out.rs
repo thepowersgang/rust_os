@@ -299,8 +299,6 @@ extern "C" fn AcpiOsWritePciConfiguration(PciId: ACPI_PCI_ID, Register: u32, Val
 #[linkage="external"]
 extern "C" fn AcpiOsVprintf(Format: *const i8, Args: va_list)
 {
-	use core::fmt::Write;
-
 	struct Buf([u8; 256]);
 	impl Buf { fn new() -> Self { unsafe { ::core::mem::zeroed() } } }
 	impl AsMut<[u8]> for Buf { fn as_mut(&mut self) -> &mut [u8] { &mut self.0 } }
@@ -312,15 +310,21 @@ extern "C" fn AcpiOsVprintf(Format: *const i8, Args: va_list)
 	let mut lh = TEMP_BUFFER.lock_init(|| ::lib::string::FixedString::new(Buf::new()));
 	
 	// Expand format string
+	let mut it = fmt.chars();
+	while let Some(c) = it.next()
 	{
-		write!(&mut *lh, "{}", fmt).unwrap();
-	}
-	
-	// Handle newline (in a hacky way)
-	if let Some('\n') = fmt.chars().rev().next() {
-		// Flush
-		log_debug!("{}", &(&**lh)[ .. lh.len()-1]);
-		lh.clear();
+		if c == '\n' {
+			// Flush
+			log_debug!("{}", *lh);
+			lh.clear();
+		}
+		else if c != '%' {
+			lh.push_char(c);
+		}
+		else {
+			// TODO: Format string
+			lh.push_char(c);
+		}
 	}
 }
 

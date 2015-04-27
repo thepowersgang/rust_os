@@ -105,7 +105,7 @@ impl<B: AsMut<[u8]>+AsRef<[u8]>> FixedString<B>
 			len: 0,
 		}
 	}
-	fn push_char(&mut self, c: char) {
+	pub fn push_char(&mut self, c: char) {
 		match c.encode_utf8(&mut self.data.as_mut()[self.len..])
 		{
 		Some(l) => self.len += l,

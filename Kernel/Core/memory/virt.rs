@@ -173,7 +173,7 @@ fn map_hw(phys: PAddr, count: usize, readonly: bool, _module: &'static str) -> R
 	
 	if let Some(v) = ::arch::memory::virt::fixed_alloc(phys, count)
 	{
-		log_debug!("Fixed allocation region Phys {:#x} => Virt {:#x}", phys, v);
+		log_trace!("map_hw: Fixed allocation {:#x} => {:p}", phys, v as *const ());
 		return Ok( AllocHandle {
 			addr: v as *const _,
 			count: count,
@@ -207,7 +207,7 @@ fn map_hw(phys: PAddr, count: usize, readonly: bool, _module: &'static str) -> R
 				mode
 				);
 		}
-		log_debug!("map_hw: Dynamic allocation {:#x} => {:p}", phys, pos as *const ());
+		log_trace!("map_hw: Dynamic allocation {:#x} => {:p}", phys, pos as *const ());
 		// 3. Return a handle representing this area
 		Ok( AllocHandle {
 			addr: pos as *const _,
