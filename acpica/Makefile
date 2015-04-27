@@ -37,7 +37,7 @@ acpica-$(TRIPLE).a: $(SRCDIR) $(PATCHED) $(OBJS)
 	@echo [AR] $@
 	@ar rcu $@ $(OBJS)
 	
-$(OBJDIR)%.o: $(COMPONENT_DIR)%.c Makefile
+$(OBJDIR)%.o: $(COMPONENT_DIR)%.c $(PATCHED) Makefile
 	@mkdir -p $(dir $@)
 	@echo [GCC] -o $@
 	@$(TRIPLE)-gcc -o $@ -c $< -ffreestanding -I $(SRCDIR)include/ -D RUST -D ACPI_LIBRARY -mcmodel=kernel

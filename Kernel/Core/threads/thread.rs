@@ -129,6 +129,8 @@ impl Thread
 		rv
 	}
 	
+	pub fn get_tid(&self) -> ThreadID { self.block.tid }
+	
 	/// Set the execution state of this thread
 	pub fn set_state(&mut self, state: RunState) {
 		self.run_state = state;

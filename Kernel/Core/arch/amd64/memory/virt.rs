@@ -133,6 +133,21 @@ pub fn fixed_alloc(addr: PAddr, page_count: usize) -> Option<VAddr>
 	}
 }
 
+pub fn is_fixed_alloc(addr: *const (), page_count: usize) -> bool
+{
+	use arch::memory::addresses::{IDENT_START,IDENT_END};
+	
+	let vaddr = addr as usize;
+	if IDENT_START <= vaddr && vaddr < IDENT_END {
+		let space = IDENT_END - vaddr;
+		assert!(space >> 12 >= page_count);
+		true
+	}
+	else {
+		false
+	}
+}
+
 /// Returns true if the passed address is "valid" (allocated, or delay allocated)
 pub fn is_reserved<T>(addr: *const T) -> bool
 {

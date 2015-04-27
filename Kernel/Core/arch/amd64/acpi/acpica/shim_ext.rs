@@ -16,7 +16,7 @@ pub type ACPI_PCI_ID = u32;
 pub type ACPI_CPU_FLAGS = u32;
 pub type ACPI_SPINLOCK = *const ::sync::Spinlock<()>;
 pub type ACPI_MUTEX = *const ::sync::Mutex<()>;
-pub type ACPI_SEMAPHORE = *const ();
+pub type ACPI_SEMAPHORE = *const ::sync::Semaphore;
 
 #[repr(C)]
 pub enum ACPI_EXECUTE_TYPE
@@ -57,8 +57,7 @@ pub const AE_BAD_PARAMETER: ACPI_STATUS = ACPI_STATUS(AE_CODE_PROGRAMMER|1);
 #[repr(C)]
 pub struct ACPI_TABLE_DESC;
 
-#[repr(C)]
-pub struct ACPI_TABLE_HEADER;
+pub type ACPI_TABLE_HEADER = super::super::SDTHeader;
 
 pub const ACPI_FULL_INITIALIZATION  : u32 = 0x00;
 pub const ACPI_NO_ADDRESS_SPACE_INIT: u32 = 0x01;
@@ -74,6 +73,7 @@ extern "C" {
 	pub fn AcpiInitializeSubsystem() -> ACPI_STATUS;
 	
 	pub fn AcpiInitializeTables(InitialStorage: *mut ACPI_TABLE_DESC, InitialTableCount: u32, AllowResize: bool) -> ACPI_STATUS;
+	pub fn AcpiFindRootPointer(TableAddress: *mut ACPI_SIZE) -> ACPI_STATUS;
 	pub fn AcpiLoadTables() -> ACPI_STATUS;
 	pub fn AcpiGetTable(signature: *const u8, instance: u32, table: *mut *const ACPI_TABLE_HEADER) -> ACPI_STATUS;
 	

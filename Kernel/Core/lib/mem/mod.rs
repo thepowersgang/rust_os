@@ -23,6 +23,10 @@ impl<T> Box<T>
 	pub fn new(v: T) -> Box<T> {
 		box v
 	}
+	
+	pub unsafe fn into_ptr(self) -> *mut T {
+		::core::mem::transmute(self)
+	}
 }
 
 impl<T: ?Sized> ::core::fmt::Debug for Box<T>

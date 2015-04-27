@@ -45,11 +45,7 @@ impl<T: Send> Spinlock<T>
 	/// Lock this spinning lock
 	pub fn lock(&self) -> HeldSpinlock<T>
 	{
-		//while self.lock.compare_and_swap(0, cpu_num()+1, Ordering::Acquire) != 0
-		while self.lock.compare_and_swap(false, true, Ordering::Acquire) == true
-		{
-		}
-		::core::atomic::fence(Ordering::Acquire);
+		self.inner_lock();
 		HeldSpinlock { lock: self }
 	}
 	/// Attempt to acquire the lock, returning None if it is already held by this CPU
@@ -66,11 +62,27 @@ impl<T: Send> Spinlock<T>
 		}
 	}
 	
-	fn release(&self)
-	{
+	fn inner_lock(&self) {
+		//while self.lock.compare_and_swap(0, cpu_num()+1, Ordering::Acquire) != 0
+		while self.lock.compare_and_swap(false, true, Ordering::Acquire) == true
+		{
+		}
+		::core::atomic::fence(Ordering::Acquire);
+	}
+	fn inner_release(&self) {
 		//::arch::puts("Spinlock::release()\n");
 		::core::atomic::fence(Ordering::Release);
 		self.lock.store(false, Ordering::Release);
+	}
+}
+// Some special functions on non-wrapping spinlocks
+impl Spinlock<()>
+{
+	pub unsafe fn unguarded_lock(&self) {
+		self.inner_lock()
+	}
+	pub unsafe fn unguarded_release(&self) {
+		self.inner_release()
 	}
 }
 
@@ -79,7 +91,7 @@ impl<'lock,T: Send> ::core::ops::Drop for HeldSpinlock<'lock, T>
 {
 	fn drop(&mut self)
 	{
-		self.lock.release();
+		self.lock.inner_release();
 	}
 }
 

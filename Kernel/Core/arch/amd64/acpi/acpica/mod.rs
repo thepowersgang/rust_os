@@ -24,9 +24,13 @@ macro_rules! acpi_try {
 pub fn init()
 {
 	unsafe {
+		log_trace!("AcpiInitializeSubsystem");
 		acpi_try!(AcpiInitializeSubsystem());
+		log_trace!("AcpiInitializeTables");
 		acpi_try!(AcpiInitializeTables(0 as *mut _, 16, false));
+		log_trace!("AcpiLoadTables");
 		acpi_try!(AcpiLoadTables());
+		log_trace!("AcpiEnableSubsystem");
 		acpi_try!(AcpiEnableSubsystem(ACPI_FULL_INITIALIZATION));
 	}
 }
@@ -45,7 +49,22 @@ pub fn find_table<T:'static>(req_name: &str, idx: usize) -> Option<SDTHandle<T>>
 		//   that taking a pointer to a non NUL-terminated string is valid.
 		match AcpiGetTable(req_name.as_bytes().as_ptr(), idx as u32 + 1, &mut out_ptr)
 		{
-		shim_ext::AE_OK => Some( SDTHandle(&*(out_ptr as *const super::SDT<T>)) ),
+		shim_ext::AE_OK => {
+			log_debug!("AcpiGetTable: out_ptr = {:p}", out_ptr);
+			::logging::hex_dump_t("AcpiGetTable", &*out_ptr);
+			let handle = SDTHandle(&*(out_ptr as *const super::SDT<T>));
+			if handle.raw_signature() != req_name.as_bytes() {
+				log_warning!("AcpiGetTable: Signature mismatch {:?} != exp {:?}", handle.raw_signature(), req_name.as_bytes());
+				None
+			}
+			else if ! handle.validate() {
+				log_warning!("AcpiGetTable: Failed validation");
+				None
+			}
+			else {
+				Some( handle )
+			}
+			},
 		shim_ext::AE_NOT_FOUND => None,
 
 		shim_ext::AE_BAD_PARAMETER => panic!("BUGCHECK: AcpiGetTable returned AE_BAD_PARAMETER"),

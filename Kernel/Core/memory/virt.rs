@@ -112,20 +112,27 @@ pub fn map(addr: *mut (), phys: PAddr, prot: ProtectionMode)
 	}
 }
 
-fn unmap(addr: *mut (), count: usize)
+pub unsafe fn unmap(addr: *mut (), count: usize)
 {
-	log_trace!("unmap(*{:p} {})", addr, count);
-	let _lock = s_kernelspace_lock.lock();
-	let pos = addr as usize;
-	
-	let ofs = pos & (::PAGE_SIZE - 1);
-	if ofs != 0 {
-		panic!("Non-aligned page {:p} passed (unmapping {} pages)", addr, count);
-	}
-	
-	for i in (0 .. count)
+	if ::arch::memory::virt::is_fixed_alloc(addr, count)
 	{
-		::arch::memory::virt::unmap( (pos + i*::PAGE_SIZE) as *mut () );
+		// Do nothing
+		log_trace!("unmap(*{:p} {}) - Fixed alloc", addr, count);
+	}
+	else
+	{	
+		log_trace!("unmap(*{:p} {}) - Dynamic alloc", addr, count);
+		let _lock = s_kernelspace_lock.lock();
+		let pos = addr as usize;
+		
+		let ofs = pos & (::PAGE_SIZE - 1);
+		if ofs != 0 {
+			panic!("Non-aligned page {:p} passed (unmapping {} pages)", addr, count);
+		}
+		
+		for i in (0 .. count) {
+			::arch::memory::virt::unmap( (pos + i*::PAGE_SIZE) as *mut () );
+		}
 	}
 }
 
@@ -162,48 +169,52 @@ pub fn map_hw_slice<T>(phys: PAddr, num: usize) -> Result<SliceAllocHandle<T>,Ma
 
 fn map_hw(phys: PAddr, count: usize, readonly: bool, _module: &'static str) -> Result<AllocHandle,MapError>
 {
+	let mode = if readonly { ProtectionMode::KernelRO } else { ProtectionMode::KernelRW };
+	
 	if let Some(v) = ::arch::memory::virt::fixed_alloc(phys, count)
 	{
-		log_debug!("phys = {:#x}, v = {:#x}", phys, v);
+		log_debug!("Fixed allocation region Phys {:#x} => Virt {:#x}", phys, v);
 		return Ok( AllocHandle {
 			addr: v as *const _,
 			count: count,
-			mode: ProtectionMode::Unmapped,
+			mode: mode,
 			} );
 	}
-
-	let mode = if readonly { ProtectionMode::KernelRO } else { ProtectionMode::KernelRW };
-	// 1. Locate an area
-	// TODO: This lock should be replaced with a finer grained lock
-	let _lock = s_kernelspace_lock.lock();
-	let mut pos = addresses::HARDWARE_BASE;
-	loop
+	else
 	{
-		if addresses::HARDWARE_END - pos < count * ::PAGE_SIZE 
+		// 1. Locate an area
+		// TODO: This lock should be replaced with a finer grained lock
+		let _lock = s_kernelspace_lock.lock();
+		let mut pos = addresses::HARDWARE_BASE;
+		loop
 		{
-			return Err( MapError::RangeInUse );
+			if addresses::HARDWARE_END - pos < count * ::PAGE_SIZE 
+			{
+				return Err( MapError::RangeInUse );
+			}
+			let free = count_free_in_range(pos as *const Page, count);
+			if free == count {
+				break
+			}
+			pos += (free + 1) * ::PAGE_SIZE;
 		}
-		let free = count_free_in_range(pos as *const Page, count);
-		if free == count {
-			break
+		// 2. Map
+		for i in (0 .. count)
+		{
+			map(
+				(pos + i * ::PAGE_SIZE) as *mut (),
+				phys + (i * ::PAGE_SIZE) as u64,
+				mode
+				);
 		}
-		pos += (free + 1) * ::PAGE_SIZE;
+		log_debug!("map_hw: Dynamic allocation {:#x} => {:p}", phys, pos as *const ());
+		// 3. Return a handle representing this area
+		Ok( AllocHandle {
+			addr: pos as *const _,
+			count: count,
+			mode: mode,
+			} )
 	}
-	// 2. Map
-	for i in (0 .. count)
-	{
-		map(
-			(pos + i * ::PAGE_SIZE) as *mut (),
-			phys + (i * ::PAGE_SIZE) as u64,
-			mode
-			);
-	}
-	// 3. Return a handle representing this area
-	Ok( AllocHandle {
-		addr: pos as *const _,
-		count: count,
-		mode: mode,
-		} )
 }
 
 pub fn alloc_dma(bits: u8, count: usize, module: &'static str) -> Result<AllocHandle,MapError>
@@ -304,7 +315,7 @@ impl AllocHandle
 	{
 		use core::mem::{align_of,size_of};
 		assert!( ofs % align_of::<T>() == 0,
-			"Offset {:#x} not aligned to {} bytes", ofs, align_of::<T>());
+			"Offset {:#x} not aligned to {} bytes (T={})", ofs, align_of::<T>(), type_name!(T));
 		assert!( ofs <= self.count * ::PAGE_SIZE,
 			"Slice offset {} outside alloc of {} bytes", ofs, self.count*::PAGE_SIZE );
 		assert!( count * size_of::<T>() <= self.count * ::PAGE_SIZE,
@@ -320,13 +331,17 @@ impl AllocHandle
 	}
 	pub unsafe fn as_int_mut_slice<T>(&self, ofs: usize, count: usize) -> &mut [T]
 	{
-		assert!( self.mode == ProtectionMode::KernelRW, "Calling as_mut_slice on non-writable memory ({:?})", self.mode );
+		if self.mode != ProtectionMode::Unmapped {
+			assert!( self.mode == ProtectionMode::KernelRW, "Calling as_mut_slice on non-writable memory ({:?})", self.mode );
+		}
 		// Very evil, transmute the immutable slice into a mutable
 		::core::mem::transmute( self.as_slice::<T>(ofs, count) )
 	}
 	pub fn as_mut_slice<T>(&mut self, ofs: usize, count: usize) -> &mut [T]
 	{
-		assert!( self.mode == ProtectionMode::KernelRW, "Calling as_mut_slice on non-writable memory ({:?})", self.mode );
+		if self.mode != ProtectionMode::Unmapped {
+			assert!( self.mode == ProtectionMode::KernelRW, "Calling as_mut_slice on non-writable memory ({:?})", self.mode );
+		}
 		unsafe {
 			// Very evil, transmute the immutable slice into a mutable
 			::core::mem::transmute( self.as_slice::<T>(ofs, count) )
@@ -351,7 +366,7 @@ impl ::core::fmt::Debug for AllocHandle
 {
 	fn fmt(&self, f: &mut ::core::fmt::Formatter) -> ::core::fmt::Result
 	{
-		write!(f, "{:p}+{}pg", self.addr, self.count)
+		write!(f, "{:p}+{}pg ({:?})", self.addr, self.count, self.mode)
 	}
 }
 impl Drop for AllocHandle
@@ -360,7 +375,9 @@ impl Drop for AllocHandle
 	{
 		if self.count > 0
 		{
-			unmap(self.addr as *mut (), self.count);
+			// SAFE: Dropping an allocation controlled by this object
+			unsafe { unmap(self.addr as *mut (), self.count); }
+			self.count = 0;
 		}
 	}
 }

@@ -309,7 +309,9 @@ impl<'a,T:'a> fmt::Debug for HexDump<'a,T>
 {
 	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result
 	{
-		for (idx,v) in self.byteslice().iter().enumerate()
+		let slice = self.byteslice();
+		try!(write!(f, "{} bytes: ", slice.len()));
+		for (idx,v) in slice.iter().enumerate()
 		{
 			try!(write!(f, "{:02x} ", *v));
 			if idx % 16 == 15 {
@@ -353,6 +355,16 @@ impl<'a> fmt::Display for HexDumpBlk<'a>
 		}
 		Ok( () )
 	}
+}
+pub fn hex_dump_t<T>(label: &str, data: &T) {
+	let slice = unsafe {
+			let size = ::core::mem::size_of::<T>();
+			::core::mem::transmute(::core::raw::Slice {
+				data: data as *const T as *const u8,
+				len: size,
+			})
+		};
+	hex_dump(label, slice);
 }
 pub fn hex_dump(label: &str, data: &[u8])
 {

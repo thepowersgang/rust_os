@@ -23,5 +23,14 @@
 
 #include "acgcc.h"
 
+// Make AcpiOsPrintf call AcpiOsVprintf, which rust can then handle
+extern void AcpiOsVprintf(const char *fmt, va_list args);
+static inline void AcpiOsPrintf(const char *fmt, ...) {
+	va_list	args;
+	va_start(args, fmt);
+	AcpiOsVprintf(fmt, args);
+	va_end(args);
+}
+
 #endif
 
