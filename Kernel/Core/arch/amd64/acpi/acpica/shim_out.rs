@@ -9,7 +9,15 @@
 use _common::*;
 use super::shim_ext::*;
 
-struct va_list(*const ());
+#[repr(C)]
+struct VaListInner
+{
+	gp_offset: usize,
+	fp_offset: usize,
+	overflow_reg_area: *const (),
+	reg_save_area: *const (),
+}
+struct va_list(*const VaListInner);
 
 #[no_mangle] #[linkage="external"]
 extern "C" fn AcpiOsInitialize() -> ACPI_STATUS {
@@ -291,8 +299,29 @@ extern "C" fn AcpiOsWritePciConfiguration(PciId: ACPI_PCI_ID, Register: u32, Val
 #[linkage="external"]
 extern "C" fn AcpiOsVprintf(Format: *const i8, Args: va_list)
 {
+	use core::fmt::Write;
+
+	struct Buf([u8; 256]);
+	impl Buf { fn new() -> Self { unsafe { ::core::mem::zeroed() } } }
+	impl AsMut<[u8]> for Buf { fn as_mut(&mut self) -> &mut [u8] { &mut self.0 } }
+	impl AsRef<[u8]> for Buf { fn as_ref(&self) -> &[u8] { &self.0 } }
+	static TEMP_BUFFER: ::sync::mutex::LazyMutex<::lib::string::FixedString<Buf>> = lazymutex_init!();
+
+	// Acquire input and lock	
 	let fmt = ::core::str::from_utf8( ::memory::c_string_as_byte_slice(Format).unwrap_or(b"INVALID") ).unwrap_or("UTF-8");
-	log_trace!("AcpiOsVprintf: Format='{}'", fmt);
+	let mut lh = TEMP_BUFFER.lock_init(|| ::lib::string::FixedString::new(Buf::new()));
+	
+	// Expand format string
+	{
+		write!(&mut *lh, "{}", fmt).unwrap();
+	}
+	
+	// Handle newline (in a hacky way)
+	if let Some('\n') = fmt.chars().rev().next() {
+		// Flush
+		log_debug!("{}", &(&**lh)[ .. lh.len()-1]);
+		lh.clear();
+	}
 }
 
 #[no_mangle]

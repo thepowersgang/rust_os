@@ -107,7 +107,7 @@ unsafe fn get_page_ent(addr: usize, from_temp: bool, allocate: bool, large_ok: b
 		return PTE::null();
 	}
 	if ent.is_large() {
-		log_debug!("Large page covering {:#x}", addr);
+		//log_trace!("Large page covering {:#x}", addr);
 		if large_ok {
 			return ent;
 		}

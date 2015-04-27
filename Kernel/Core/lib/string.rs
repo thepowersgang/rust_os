@@ -116,6 +116,10 @@ impl<B: AsMut<[u8]>+AsRef<[u8]>> FixedString<B>
 	pub fn push_str(&mut self, s: &str) {
 		self.extend( s.chars() );
 	}
+	
+	pub fn clear(&mut self) {
+		self.len = 0;
+	}
 }
 impl<B: AsMut<[u8]>+AsRef<[u8]>> ::core::iter::Extend<char> for FixedString<B>
 {
@@ -134,6 +138,17 @@ impl<B: AsMut<[u8]>+AsRef<[u8]>> ops::Deref for FixedString<B>
 	fn deref(&self) -> &str {
 		let bytes = &self.data.as_ref()[..self.len];
 		unsafe { ::core::mem::transmute(bytes) }
+	}
+}
+impl<B: AsMut<[u8]>+AsRef<[u8]>> ::core::fmt::Display for FixedString<B> {
+	fn fmt(&self, f: &mut ::core::fmt::Formatter) -> ::core::fmt::Result {
+		::core::fmt::Display::fmt(&**self, f)
+	}
+}
+impl<B: AsMut<[u8]>+AsRef<[u8]>> ::core::fmt::Write for FixedString<B> {
+	fn write_str(&mut self, s: &str) -> ::core::fmt::Result {
+		self.push_str(s);
+		Ok( () )
 	}
 }
 
