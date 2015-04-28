@@ -32,6 +32,53 @@ pub type ACPI_OSD_EXEC_CALLBACK = extern "C" fn(*const ());
 pub type ACPI_OSD_HANDLER = extern "C" fn (*const ())->u32;
 
 #[repr(C)]
+pub struct ACPI_BUFFER
+{
+	Length: u32, 
+	Pointer: *const (),
+}
+
+#[repr(C,u32)]
+pub enum ACPI_OBJECT
+{
+	Integer(u64),
+	String(u32, *const i8),
+	Buffer(u32, *const u8),
+	Package(u32, *const ACPI_OBJECT),
+	Reference(ACPI_OBJECT_TYPE, ACPI_HANDLE),
+	Processor(u32, ACPI_IO_ADDRESS, u32),
+	PowerResource(u32, u32),
+}
+#[repr(C)]
+pub struct ACPI_HANDLE(*mut ());
+pub struct ACPI_OBJECT_LIST
+{
+	Count: u32,
+	Pointer: *const ACPI_OBJECT,
+}
+#[repr(u32,C)]
+pub enum ACPI_OBJECT_TYPE
+{
+	ACPI_TYPE_ANY,
+	ACPI_TYPE_INTEGER,
+	ACPI_TYPE_STRING,
+	ACPI_TYPE_BUFFER,
+	ACPI_TYPE_PACKAGE,
+	ACPI_TYPE_FIELD_UNIT,
+	ACPI_TYPE_DEVICE,
+	ACPI_TYPE_EVENT,
+	ACPI_TYPE_METHOD,
+	ACPI_TYPE_MUTEX,
+	ACPI_TYPE_REGION,
+	ACPI_TYPE_POWER,
+	ACPI_TYPE_PROCESSOR,
+	ACPI_TYPE_THERMAL,
+	ACPI_TYPE_BUFFER_FIELD,
+	ACPI_TYPE_DDB_HANDLE,
+	ACPI_TYPE_DEBUG_OBJECT,
+}
+
+#[repr(C)]
 pub struct ACPI_PREDEFINED_NAMES
 {
 	Name: *const u8,
@@ -60,6 +107,9 @@ pub struct ACPI_TABLE_DESC;
 
 pub type ACPI_TABLE_HEADER = super::super::SDTHeader;
 
+// AcpiInstallInitializationHandler
+pub type ACPI_INIT_HANDLER = extern "C" fn(Object: ACPI_HANDLE, Function: u32) -> ACPI_STATUS;
+// AcpiEnableSubsystem, AcpiInitializeObjects
 pub const ACPI_FULL_INITIALIZATION  : u32 = 0x00;
 pub const ACPI_NO_ADDRESS_SPACE_INIT: u32 = 0x01;
 pub const ACPI_NO_HARDWARE_INIT     : u32 = 0x02;
@@ -68,19 +118,158 @@ pub const ACPI_NO_HANDLER_INIT      : u32 = 0x08;
 pub const ACPI_NO_ACPI_ENABLE       : u32 = 0x10;
 pub const ACPI_NO_DEVICE_INIT       : u32 = 0x20;
 pub const ACPI_NO_OBJECT_INIT       : u32 = 0x40;
+// AcpiUpdateInterfaces (TODO)
+//pub const ACPI_DISABLE_ALL_VENDOR_STRINGS : u8 = 0x01;
+// AcpiInstallInterfaceHandler
+pub type ACPI_INTERFACE_HANDLER = extern "C" fn(InterfaceName: ACPI_STRING, Supported: u32) -> u32;
+// AcpiInstallTableHandler
+pub type ACPI_TABLE_HANDLER = extern "C" fn (Event: u32, Table: *const (), Context: *const ()) -> ACPI_STATUS;
+// AcpiGetObjectInfo
+pub struct ACPI_DEVICE_INFO
+{
+	InfoSize: u32,
+	Name: u32,
+	Type: ACPI_OBJECT_TYPE,
+	ParamCount: u8,
+	Valid: u8,
+	Flags: u8,
+	HighestDstates: [u8; 4],
+	LowestDstates: [u8; 5],
+	CurrentStatus: u32,
+	Address: u64,
+	HardwareId: ACPI_PNP_DEVICE_ID,
+	UniqueId: ACPI_PNP_DEVICE_ID,
+	SubsystemId: ACPI_PNP_DEVICE_ID,
+	CompatibleIdList: ACPI_PNP_DEVICE_ID_LIST,
+}
+pub struct ACPI_PNP_DEVICE_ID
+{
+	Length: u32,
+	String: *const i8,
+}
+pub struct ACPI_PNP_DEVICE_ID_LIST
+{
+	Count: u32,
+	ListSize: u32,
+	Ids: [ACPI_PNP_DEVICE_ID],
+}
+// AcpiAttachData, etc
+pub type ACPI_OBJECT_HANDLER = extern "C" fn (Object: ACPI_HANDLE, Data: *const ());
+// AcpiWalkNamespace
+/// Interface to the user function that is invoked from AcpiWalkNamespace.
+pub type ACPI_WALK_CALLBACK = extern "C" fn (Object: ACPI_HANDLE, NestingLevel: u32, Context: *const(), ReturnValue: *mut *const());
 
 #[no_mangle]
 extern "C" {
-	pub static mut AcpiDbgLevel: u32;
-	
+	// 8.1 ACPICA Subsystem Initialization and Control
+	/// Initialize all ACPICA globals and sub-components.
 	pub fn AcpiInitializeSubsystem() -> ACPI_STATUS;
-	
-	pub fn AcpiInitializeTables(InitialStorage: *mut ACPI_TABLE_DESC, InitialTableCount: u32, AllowResize: bool) -> ACPI_STATUS;
-	pub fn AcpiFindRootPointer(TableAddress: *mut ACPI_SIZE) -> ACPI_STATUS;
-	pub fn AcpiLoadTables() -> ACPI_STATUS;
-	pub fn AcpiGetTable(signature: *const u8, instance: u32, table: *mut *const ACPI_TABLE_HEADER) -> ACPI_STATUS;
-	
+	pub fn AcpiInstallInitializationHandler(Handler: ACPI_INIT_HANDLER, Function: u32) -> ACPI_STATUS;
 	pub fn AcpiEnableSubsystem(flags: u32) -> ACPI_STATUS;
+	pub fn AcpiInitializeObjects(flags: u32) -> ACPI_STATUS;
+	pub fn AcpiSubsystemStatus() -> ACPI_STATUS;
+	pub fn AcpiTerminate() -> ACPI_STATUS;
+	/// Install an interface into the list of interfaces recognized by the _OSI predefined method.
+	pub fn AcpiInstallInterface(InterfaceName: ACPI_STRING) -> ACPI_STATUS;
+	/// Update _OSI interface strings. Used for debugging
+	pub fn AcpiUpdateInterfaces(Action: u8) -> ACPI_STATUS;
+	/// Remove an interface from the list of interfaces recognized by the _OSI predefined method.
+	pub fn AcpiRemoveInterface(InterfaceName: ACPI_STRING) -> ACPI_STATUS;
+	/// Install or remove a handler for _OSI invocations.
+	pub fn AcpiInstallInterfaceHandler(Handler: ACPI_INTERFACE_HANDLER) -> ACPI_STATUS;
+
+	// 8.2 ACPI Table Management
+	/// Initialize the ACPICA table manager.
+	pub fn AcpiInitializeTables(InitialStorage: *mut ACPI_TABLE_DESC, InitialTableCount: u32, AllowResize: bool) -> ACPI_STATUS;
+	/// Copy the root ACPI information table into dynamic memory.
+	pub fn AcpiReallocateRootTable() -> ACPI_STATUS;
+	/// Locate the RSDP via memory scan (IA-32).
+	pub fn AcpiFindRootPointer(TableAddress: *mut ACPI_SIZE) -> ACPI_STATUS;
+	/// Early installation of a single host-provided ACPI table.
+	pub fn AcpiInstallTable(Address: ACPI_PHYSICAL_ADDRESS, Physical: bool) -> ACPI_STATUS;
+	/// Load the BIOS-provided ACPI tables and build an internal ACPI namespace.
+	pub fn AcpiLoadTables() -> ACPI_STATUS;
+	/// Load a single host-provided ACPI table.
+	pub fn AcpiLoadTable(Table: *mut ACPI_TABLE_HEADER) -> ACPI_STATUS;
+	/// Unloads an ACPI table via a namespace object that is owned by the table.
+	pub fn AcpiUnloadParentTable(Object: ACPI_HANDLE) -> ACPI_STATUS;
+	/// Get the header portion of a specific installed ACPI table.
+	pub fn AcpiGetTableHeader(Signature: *const u8, Instance: u32, OutTableHeader: *mut ACPI_TABLE_HEADER) -> ACPI_STATUS;
+	/// Obtain a specific installed ACPI table.
+	pub fn AcpiGetTable(signature: *const u8, instance: u32, table: *mut *const ACPI_TABLE_HEADER) -> ACPI_STATUS;
+	/// Obtain an installed ACPI table via an index into the Root Table
+	pub fn AcpiGetTableByIndex(TableIndex: u32, OutTable: *mut *const ACPI_TABLE_HEADER) -> ACPI_STATUS;
+	/// Install a global handler for ACPI table load and unload events.
+	pub fn AcpiInstallTableHandler(Handler: ACPI_TABLE_HANDLER, Context: *const ()) -> ACPI_STATUS;
+	/// Remove a handler for ACPI table events.
+	pub fn AcpiRemoveTableHandler(Handler: ACPI_TABLE_HANDLER) -> ACPI_STATUS;
+	
+	// 8.3 ACPI Namespace Management
+	/// Evaluate an ACPI namespace object and return the result.
+	pub fn AcpiEvaluateObject(Object: ACPI_HANDLE, Pathname: ACPI_STRING, MethodParams: *const ACPI_OBJECT_LIST, ReturnBuffer: *mut ACPI_BUFFER) -> ACPI_STATUS;
+	/// Evaluate an ACPI namespace object and return the type-validated result.
+	pub fn AcpiEvaluateObjectTyped(Object: ACPI_HANDLE, Pathname: ACPI_STRING, MethodParams: *const ACPI_OBJECT_LIST, ReturnBuffer: *mut ACPI_BUFFER, ReturnType: ACPI_OBJECT_TYPE) -> ACPI_STATUS;
+	/// Get information about an ACPI namespace object.
+	pub fn AcpiGetObjectInfo(Object: ACPI_HANDLE, OutBuffer: *mut *const ACPI_DEVICE_INFO) -> ACPI_STATUS;
+	/// Get a handle to the next child ACPI object of a parent object.
+	pub fn AcpiGetNextObject(Type: ACPI_OBJECT_TYPE, Parent: ACPI_HANDLE, Child: ACPI_HANDLE, OutHandle: *mut ACPI_HANDLE) -> ACPI_STATUS;
+	/// Get a handle to the parent object of an ACPI object.
+	pub fn AcpiGetParent(Child: ACPI_HANDLE, OutParent: *mut ACPI_HANDLE) -> ACPI_STATUS;
+	/// Get the type of an ACPI object.
+	pub fn AcpiGetType(Object: ACPI_HANDLE, OutType: *mut ACPI_OBJECT_TYPE) -> ACPI_STATUS;
+	/// Get the object handle associated with an ACPI name.
+	pub fn AcpiGetHandle(Parent: ACPI_HANDLE, Pathname: ACPI_STRING, OutHandle: *mut ACPI_HANDLE) -> ACPI_STATUS;
+	/// Walk the ACPI namespace to find all objects of type Device.
+	pub fn AcpiGetDevices(HID: *const u8, UserFunction: ACPI_WALK_CALLBACK, UserContext: *const (), ReturnValue: *mut *const ()) -> ACPI_STATUS;
+	/// Attach user data to an ACPI namespace object.
+	pub fn AcpiAttachData(Object: ACPI_HANDLE, Handler: ACPI_OBJECT_HANDLER, Data: *const ()) -> ACPI_STATUS;
+	/// Remove a data attachment to a namespace object.
+	pub fn AcpiDetachData(Object: ACPI_HANDLE, Handler: ACPI_OBJECT_HANDLER) -> ACPI_STATUS;
+	/// Retrieve data that was associated with a namespace object.
+	pub fn AcpiGetData(Object: ACPI_HANDLE, Handler: ACPI_OBJECT_HANDLER, Data: *mut *const ()) -> ACPI_STATUS;
+	/// Install a single control method into the namespace.
+	pub fn AcpiInstallMethod(TableBuffer: *const u8) -> ACPI_STATUS;
+	/// Traverse a portion of the ACPI namespace to find objects of a given type.
+	pub fn AcpiWalkNamespace(Type: ACPI_OBJECT_TYPE, StartObject: ACPI_HANDLE, MaxDepth: u32, DescendingCallback: ACPI_WALK_CALLBACK, AscendingCallback: ACPI_WALK_CALLBACK, UserContext: *const (), ReturnValue: *mut *const ()) -> ACPI_STATUS;
+	/// Acquire an AML Mutex object.
+	pub fn AcpiAcquireMutex(Parent: ACPI_HANDLE, Pathname: ACPI_STRING, Timeout: u16) -> ACPI_STATUS;
+	/// Release an AML Mutex object.
+	pub fn AcpiReleaseMutex(Parent: ACPI_HANDLE, Pathname: ACPI_STRING) -> ACPI_STATUS;
+	
+	// 8.4 ACPI Hardware Management
+	/// Put the system into ACPI mode.
+	pub fn AcpiEnable() -> ACPI_STATUS;
+	/// Take the system out of ACPI mode.
+	pub fn AcpiDisable() -> ACPI_STATUS;
+	// ...	
+
+	// 8.5 ACPI Sleep/Wake Support
+	// 8.6 ACPI Fixed Event Management
+	// 8.7 ACPI General Purpose Event (GPE) Management
+	// 8.8 Miscellaneous Handler Support
+	// /// Install a handler for ACPI System Control Interrupts (SCIs).
+	// /// Remove an ACPI SCI handler.
+	// /// Install a global handler for all ACPI General Purpose and Fixed Events.
+	// /// Install a handler for notification events on an ACPI object.
+	// /// Remove a handler for ACPI notification events.
+	// /// Install handlers for ACPI Operation Region events.
+	// /// Remove an ACPI Operation Region handler.
+	// /// Install a handler for ACPI interpreter run-time exceptions.
+	// 8.9 ACPI Resource Management
+	// 8.10 Memory Management
+	// 8.11 Formatted Output
+	// 8.12 Miscellaneous Utilities
+	// 8.13 Global Variables
+	/// Bit field that enables/disables the various debug output levels.
+	pub static mut AcpiDbgLevel: u32;
+	/// Bit field that enables/disables debug output from entire subcomponents within the ACPICA subsystem.
+	pub static mut AcpiDbgLayer: u32;
+	/// This is a local copy of the system FADT, converted to a common internal format.
+	pub static AcpiGbl_FADT: ACPI_TABLE_HEADER;
+	/// The current number of active (available) system GPEs.
+	pub static AcpiCurrentGpeCount: u32;
+	/// This boolean is set to FALSE just before the system sleeps. It is then set to TRUE as the system wakes.
+	pub static AcpiGbl_SystemAwakeAndRunning: bool;
 }
 
 impl fmt::Display for ACPI_STATUS {
