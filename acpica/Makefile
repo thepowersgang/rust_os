@@ -21,7 +21,9 @@ PATCHED := $(SRCDIR)include/platform/acenv.h $(SRCDIR)include/platform/acrust.h
 CPPFLAGS := -I $(SRCDIR)include/ -D RUST -D ACPI_LIBRARY
 CPPFLAGS += -D ACPI_DEBUG_OUTPUT=1
 # -D ACPI_DISASSEMBLER=1
-CFLAGS := -ffreestanding -mcmodel=kernel
+CFLAGS := -ffreestanding -mcmodel=kernel -mno-red-zone
+#CFLAGS += -mno-sse
+#CFLAGS += -O2
 
 all: acpica-$(TRIPLE).a
 
