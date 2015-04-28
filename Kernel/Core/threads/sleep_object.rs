@@ -5,11 +5,18 @@
 //! Sleep object
 use _common::*;
 use super::thread::{Thread, RunState};
+use super::s_runnable_threads;
 
 /// An object on which a thread can sleep, woken by various event sources
 pub struct SleepObject
 {
 	name: &'static str,
+	inner: ::sync::Spinlock< SleepObjectInner >,
+}
+#[derive(Default)]
+struct SleepObjectInner
+{
+	flag: bool,
 	thread: Option<Box<Thread>>,
 }
 
@@ -19,8 +26,6 @@ pub struct SleepObjectRef
 	obj: *const SleepObject,
 }
 
-//pub const SLEEPOBJECT_INIT: SleepObject = SleepObject { name: "", thread: None };
-
 impl SleepObject
 {
 	/// Create a new sleep object
@@ -28,29 +33,56 @@ impl SleepObject
 	{
 		SleepObject {
 			name: name,
-			thread: None,
+			inner: Default::default(),
 		}
 	}
 	
 	/// Wait the current thread on this object
-	pub fn wait(&mut self)
+	pub fn wait(&self)
 	{
 		log_trace!("SleepObject::wait '{}'", self.name);
-		let mut cur = super::get_cur_thread();
-		cur.run_state = RunState::Sleep(self as *mut _ as *const _);
-		self.thread = Some(cur);
-		super::reschedule();
 		
-		let cur = self.thread.take().unwrap();
-		assert!( !is!(cur.run_state, RunState::Sleep(_)) );
-		assert!( is!(cur.run_state, RunState::Runnable) );
-		super::rel_cur_thread(cur);
+		let irql = ::sync::hold_interrupts();
+		let mut lh = self.inner.lock();
+		assert!( lh.thread.is_none(), "A thread is already sleeping on object {:p} '{}'", self, self.name );
+		
+		if lh.flag == false
+		{
+			let mut cur = super::get_cur_thread();
+			cur.run_state = RunState::Sleep(self as *const _);
+			lh.thread = Some(cur);
+			
+			::core::mem::drop(lh);
+			::core::mem::drop(irql);
+			
+			super::reschedule();
+			
+			let cur = super::get_cur_thread();
+			assert!( !is!(cur.run_state, RunState::Sleep(_)) );
+			assert!( is!(cur.run_state, RunState::Runnable) );
+			super::rel_cur_thread(cur);
+		}
+		else
+		{
+			lh.flag = false;
+		}
 	}
 	
 	/// Signal this sleep object (waking threads)
 	pub fn signal(&self)
 	{
-		todo!("SleepObject::signal '{}'", self.name);
+		let mut lh = self.inner.lock();
+		// 1. Check for a waiter
+		if let Some(mut t) = lh.thread.take()
+		{
+			t.set_state( RunState::Runnable );
+                        let _irq_lock = ::sync::hold_interrupts();
+			s_runnable_threads.lock().push(t);
+		}
+		else
+		{
+			lh.flag = true;
+		}
 	}
 	
 	/// Obtain a reference to the sleep object
