@@ -171,7 +171,7 @@ pub fn map(addr: *mut (), phys: PAddr, prot: ::memory::virt::ProtectionMode)
 		let pte = get_page_ent(addr as usize, false, true, false);
 		assert!( !pte.is_null(), "Failed to obtain ent for {:p}", addr );
 		pte.set( phys, prot );
-		asm!("invlpg $0" : : "m" (addr) : "memory");
+		asm!("invlpg ($0)" : : "r" (addr) : "memory" : "volatile");
 	}
 }
 /// Removes a mapping
@@ -181,7 +181,7 @@ pub fn unmap(addr: *mut ())
 		let pte = get_page_ent(addr as usize, false, false, false);
 		pte.set( 0, ::memory::virt::ProtectionMode::Unmapped );
 		
-		asm!("invlpg $0" : : "m" (addr) : "memory");
+		asm!("invlpg ($0)" : : "r" (addr) : "memory" : "volatile");
 	}
 }
 
