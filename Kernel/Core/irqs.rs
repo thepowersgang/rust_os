@@ -29,9 +29,10 @@ trait Handler: Send + 'static
 	fn handle(&mut self) -> bool;
 }
 
+#[derive(Default)]
 struct IRQBinding
 {
-	arch_handle: interrupts::ISRHandle,
+	arch_handle: interrupts::IRQHandle,
 	has_fired: AtomicBool,	// Set to true if the IRQ fires while the lock is held by this CPU
 	handlers: Spinlock<Vec<Box<Handler>>>,	// TODO: When DST functions are avaliable, change to Queue<Handler>
 }
@@ -79,22 +80,18 @@ impl IRQBinding
 {
 	fn new_boxed(num: u32) -> Box<IRQBinding>
 	{
-		let mut rv = Box::new( IRQBinding {
-			arch_handle: interrupts::ISRHandle::unbound(),
-			has_fired: AtomicBool::new(false),
-			handlers: Spinlock::new( Vec::new() ),
-			} );
+		let mut rv = Box::new( IRQBinding::default());
 		assert!(num < 256, "{} < 256 failed", num);
 		// TODO: Use a better function, needs to handle IRQ routing etc.
 		// - In theory, the IRQ num shouldn't be a u32, instead be an opaque IRQ index
 		//   that the arch code understands (e.g. value for PciLineA that gets translated into an IOAPIC line)
-		rv.arch_handle = interrupts::bind_isr(
-			num as u8, IRQBinding::handler_raw, &*rv as *const IRQBinding as *const (), 0
+		rv.arch_handle = interrupts::bind_gsi(
+			num as usize, IRQBinding::handler_raw, &*rv as *const IRQBinding as *const ()
 			).unwrap();
 		rv
 	}
 	
-	extern "C" fn handler_raw(_isr: usize, info: *const (), _num: usize)
+	fn handler_raw(info: *const ())
 	{
 		unsafe {
 			let binding_ref = &*(info as *const IRQBinding);

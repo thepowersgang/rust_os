@@ -144,18 +144,17 @@ pub fn register_irq(global_num: usize, callback: IRQHandler, info: *const() ) ->
 		None => return Err( IrqError::BadIndex ),
 		};
 	
-	// 1. Pick a low-loaded processor? 
 	// Bind ISR
-	let isrnum = 32u8;
+	// TODO: Pick a suitable processor, and maybe have separate IDTs (and hence separate ISR lists)
 	let lapic_id = 0u32;
-	let isr_handle = match ::arch::interrupts::bind_isr(isrnum, lapic_irq_handler, info, global_num)
+	let isr_handle = match ::arch::interrupts::bind_free_isr(lapic_irq_handler, info, global_num)
 		{
 		Ok(v) => v,
 		Err(e) => return Err(IrqError::BindFail(e)),
 		};
 
 	// Enable the relevant IRQ on the LAPIC and IOAPIC
-	ioapic.set_irq(ofs, isrnum, lapic_id, raw::TriggerMode::EdgeHi, callback);
+	ioapic.set_irq(ofs, isr_handle.idx() as u8, lapic_id, raw::TriggerMode::EdgeHi, callback);
 	
 	Ok( IRQHandle {
 		num: global_num,

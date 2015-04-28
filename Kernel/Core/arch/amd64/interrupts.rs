@@ -137,6 +137,9 @@ pub enum BindISRError
 	Used,
 }
 
+pub use super::hw::apic::IRQHandle;
+pub use super::hw::apic::register_irq as bind_gsi;
+
 /// Bind a callback (and params) to an allocatable ISR
 pub fn bind_isr(isr: u8, callback: ISRHandler, info: *const(), idx: usize) -> Result<ISRHandle,BindISRError>
 {
@@ -147,17 +150,45 @@ pub fn bind_isr(isr: u8, callback: ISRHandler, info: *const(), idx: usize) -> Re
 	let mut _mh = s_irq_handlers_lock.lock();
 	let h = &mut _mh[isr as usize];
 	log_trace!("&h = {:p}", h);
-	if h.handler.is_some() {
-		return Err( BindISRError::Used );
+	if h.handler.is_some()
+	{
+		Err( BindISRError::Used )
 	}
-	*h = IRQHandlersEnt {
-		handler: Some(callback),
-		info: info,
-		idx: idx,
-		};
-	Ok( ISRHandle {
-		idx: isr as usize,
-		} )
+	else
+	{
+		// 2. Assign
+		*h = IRQHandlersEnt {
+			handler: Some(callback),
+			info: info,
+			idx: idx,
+			};
+		Ok( ISRHandle {
+			idx: isr as usize,
+			} )
+	}
+}
+
+pub fn bind_free_isr(callback: ISRHandler, info: *const(), idx: usize) -> Result<ISRHandle,BindISRError>
+{
+	log_trace!("bind_free_isr(callback={:?},info={:?},idx={})", callback as *const u8, info, idx);
+	
+	let mut lh = s_irq_handlers_lock.lock();
+	for i in 32 .. lh.len()
+	{
+		if lh[i].handler.is_none() {
+			log_trace!("- Using ISR {}", i);
+			lh[i] = IRQHandlersEnt {
+				handler: Some(callback),
+				info: info,
+				idx: idx,
+				};
+			return Ok( ISRHandle {
+				idx: i,
+				} )
+		}
+	}
+	
+	Err( BindISRError::Used )
 }
 
 impl ISRHandle
