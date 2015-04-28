@@ -341,7 +341,7 @@ impl<'a> fmt::Display for HexDumpBlk<'a>
 			}
 			
 		}
-		try!(write!(f, "| "));
+		try!(write!(f, "|"));
 		for i in (0 .. 16)
 		{
 			if i < self.0.len() {
@@ -352,7 +352,11 @@ impl<'a> fmt::Display for HexDumpBlk<'a>
 					_ => '.',
 					}));
 			}
+			else {
+				try!(write!(f, " "));
+			}
 		}
+		try!(write!(f, "|"));
 		Ok( () )
 	}
 }

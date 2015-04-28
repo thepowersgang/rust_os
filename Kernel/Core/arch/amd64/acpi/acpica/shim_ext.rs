@@ -70,6 +70,8 @@ pub const ACPI_NO_OBJECT_INIT       : u32 = 0x40;
 
 #[no_mangle]
 extern "C" {
+	pub static mut AcpiDbgLevel: u32;
+	
 	pub fn AcpiInitializeSubsystem() -> ACPI_STATUS;
 	
 	pub fn AcpiInitializeTables(InitialStorage: *mut ACPI_TABLE_DESC, InitialTableCount: u32, AllowResize: bool) -> ACPI_STATUS;

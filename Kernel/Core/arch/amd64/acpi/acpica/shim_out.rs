@@ -8,16 +8,7 @@
 #![allow(dead_code)]
 use _common::*;
 use super::shim_ext::*;
-
-#[repr(C)]
-struct VaListInner
-{
-	gp_offset: usize,
-	fp_offset: usize,
-	overflow_reg_area: *const (),
-	reg_save_area: *const (),
-}
-struct va_list(*const VaListInner);
+use super::va_list::va_list;
 
 #[no_mangle] #[linkage="external"]
 extern "C" fn AcpiOsInitialize() -> ACPI_STATUS {
@@ -65,6 +56,7 @@ extern "C" fn AcpiOsPhysicalTableOverride(_ExisitingTable: *mut ACPI_TABLE_HEADE
 // ------------------------
 #[no_mangle] #[linkage="external"]
 extern "C" fn AcpiOsMapMemory(PhysicalAddress: ACPI_PHYSICAL_ADDRESS, Length: ACPI_SIZE) -> *mut () {
+	log_trace!("AcpiOsMapMemory({:#x}, {})", PhysicalAddress, Length);
 	let phys_page = PhysicalAddress & !0xFFF;
 	let ofs = (PhysicalAddress & 0xFFF) as usize;
 	let npages = (ofs + Length + 0xFFF) / 0x1000;
@@ -78,6 +70,9 @@ extern "C" fn AcpiOsMapMemory(PhysicalAddress: ACPI_PHYSICAL_ADDRESS, Length: AC
 			};
 		
 		let rv: *mut () = handle.as_mut::<u8>(ofs) as *mut u8 as *mut ();
+		if Length < 4096 {
+			::logging::hex_dump( "AcpiOsMapMemory", ::core::slice::from_raw_parts(rv as *const u8, Length) );
+		}
 		::core::mem::forget(handle);
 		rv
 	}
@@ -292,12 +287,35 @@ extern "C" fn AcpiOsWritePciConfiguration(PciId: ACPI_PCI_ID, Register: u32, Val
 	unimplemented!();
 }
 
+fn c_string_to_str<'a>(c_str: *const i8) -> &'a str {
+	::core::str::from_utf8( ::memory::c_string_as_byte_slice(c_str).unwrap_or(b"INVALID") ).unwrap_or("UTF-8")
+}
+fn get_uint(mut Args: va_list, size: usize) -> u64 {
+	match size
+	{
+	0 => unsafe { Args.get::<u32>() as u64 },
+	1 => unsafe { Args.get::<u32>() as u64 },
+	2 => unsafe { Args.get::<u64>() },
+	_ => unreachable!(),
+	}
+}
+fn get_int(mut Args: va_list, size: usize) -> i64 {
+	match size
+	{
+	0 => unsafe { Args.get::<i32>() as i64 },
+	1 => unsafe { Args.get::<i32>() as i64 },
+	2 => unsafe { Args.get::<i64>() },
+	_ => unreachable!(),
+	}
+}
+
 // -- Formatted Output --
 // ----------------------
 // NOTE: AcpiOsPrintf is handled by the acrust.h header
 #[no_mangle]
 #[linkage="external"]
-extern "C" fn AcpiOsVprintf(Format: *const i8, Args: va_list)
+#[allow(dead_code)]
+extern "C" fn AcpiOsVprintf(Format: *const i8, mut Args: va_list)
 {
 	struct Buf([u8; 256]);
 	impl Buf { fn new() -> Self { unsafe { ::core::mem::zeroed() } } }
@@ -306,12 +324,12 @@ extern "C" fn AcpiOsVprintf(Format: *const i8, Args: va_list)
 	static TEMP_BUFFER: ::sync::mutex::LazyMutex<::lib::string::FixedString<Buf>> = lazymutex_init!();
 
 	// Acquire input and lock	
-	let fmt = ::core::str::from_utf8( ::memory::c_string_as_byte_slice(Format).unwrap_or(b"INVALID") ).unwrap_or("UTF-8");
+	let fmt = c_string_to_str(Format);
 	let mut lh = TEMP_BUFFER.lock_init(|| ::lib::string::FixedString::new(Buf::new()));
 	
 	// Expand format string
 	let mut it = fmt.chars();
-	while let Some(c) = it.next()
+	while let Some(mut c) = it.next()
 	{
 		if c == '\n' {
 			// Flush
@@ -322,8 +340,85 @@ extern "C" fn AcpiOsVprintf(Format: *const i8, Args: va_list)
 			lh.push_char(c);
 		}
 		else {
-			// TODO: Format string
-			lh.push_char(c);
+			use core::fmt::Write;
+			
+			c = match it.next() { Some(v)=>v,_=>return };
+			
+			let mut align_left = false;
+			if c == '-' {
+				align_left = true;
+				c = match it.next() { Some(v)=>v,_=>return };
+			}
+			
+			let mut width = 0;
+			while let Some(d) = c.to_digit(10) {
+				width = width * 10 + d;
+				c = match it.next() { Some(v)=>v,_=>return };
+			}
+			
+			let mut precision = !0;
+			if c == '.' {
+				precision = 0;
+				c = match it.next() { Some(v)=>v,_=>return };
+				while let Some(d) = c.to_digit(10) {
+					precision = precision * 10 + d;
+					c = match it.next() { Some(v)=>v,_=>return };
+				}
+			}
+			
+			let size = if c == 'l' {
+					c = match it.next() { Some(v)=>v,_=>return };
+					if c == 'l' {
+						c = match it.next() { Some(v)=>v,_=>return };
+						2
+					}
+					else {
+						1
+					}
+				}
+				else {
+					0
+				};
+			
+			match c
+			{
+			'x' => {
+				let _ = write!(&mut *lh, "{:x}", get_uint(Args, size));
+				},
+			'X' => {
+				let val = get_uint(Args, size);
+				let _ = write!(&mut *lh, "{:X}", val);
+				},
+			'd' => {
+				let val = get_int(Args, size);
+				let _ = write!(&mut *lh, "{}", val);
+				},
+			'u' => {
+				let val = get_uint(Args, size);
+				let _ = write!(&mut *lh, "{}", val);
+				},
+			'p' => {
+				let _ = write!(&mut *lh, "{:p}", unsafe { Args.get::<*const u8>() });
+				},
+			'c' => {
+				let _ = write!(&mut *lh, "{}", unsafe { Args.get::<u8>() as char });
+				},
+			's' => {
+				let slice = unsafe {
+					let ptr = Args.get::<*const u8>();
+					if precision < !0 {
+						::core::str::from_utf8(::core::slice::from_raw_parts(ptr, precision as usize)).unwrap_or("")
+					}
+					else {
+						c_string_to_str(ptr as *const i8)
+					}
+					};
+				let _ = write!(&mut *lh, "{}", slice);
+				},
+			_ => {
+				log_error!("AcpiOsVprintf - Unknown format code {}", c);
+				},
+			}
 		}
 	}
 }

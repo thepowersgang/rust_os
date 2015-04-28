@@ -36,7 +36,8 @@ pub struct AllocHandle
 	count: usize,
 	mode: ProtectionMode,
 }
-unsafe impl Send for AllocHandle {}
+unsafe impl Send for AllocHandle {}	// AllocHandle is sendable
+unsafe impl Sync for AllocHandle {}	// &AllocHandle is safe
 ///// A single page from an AllocHandle
 //pub struct PageHandle<'a>
 //{
@@ -305,6 +306,7 @@ impl AllocHandle
 	/// Forget the allocation and return a static reference to the data
 	pub fn make_static<T>(mut self, ofs: usize) -> &'static mut T
 	{
+		assert!(super::buf_valid(self.addr, self.count*0x1000));
 		assert!(ofs % ::core::mem::align_of::<T>() == 0);
 		assert!(ofs + ::core::mem::size_of::<T>() <= self.count * ::PAGE_SIZE);
 		self.count = 0;
@@ -314,6 +316,7 @@ impl AllocHandle
 	pub fn as_slice<T>(&self, ofs: usize, count: usize) -> &[T]
 	{
 		use core::mem::{align_of,size_of};
+		assert!(super::buf_valid(self.addr, self.count*0x1000));
 		assert!( ofs % align_of::<T>() == 0,
 			"Offset {:#x} not aligned to {} bytes (T={})", ofs, align_of::<T>(), type_name!(T));
 		assert!( ofs <= self.count * ::PAGE_SIZE,
@@ -331,17 +334,15 @@ impl AllocHandle
 	}
 	pub unsafe fn as_int_mut_slice<T>(&self, ofs: usize, count: usize) -> &mut [T]
 	{
-		if self.mode != ProtectionMode::Unmapped {
-			assert!( self.mode == ProtectionMode::KernelRW, "Calling as_mut_slice on non-writable memory ({:?})", self.mode );
-		}
+		assert!( self.mode == ProtectionMode::KernelRW,
+			"Calling as_int_mut_slice<{}> on non-writable memory ({:?})", type_name!(T), self.mode );
 		// Very evil, transmute the immutable slice into a mutable
 		::core::mem::transmute( self.as_slice::<T>(ofs, count) )
 	}
 	pub fn as_mut_slice<T>(&mut self, ofs: usize, count: usize) -> &mut [T]
 	{
-		if self.mode != ProtectionMode::Unmapped {
-			assert!( self.mode == ProtectionMode::KernelRW, "Calling as_mut_slice on non-writable memory ({:?})", self.mode );
-		}
+		assert!( self.mode == ProtectionMode::KernelRW,
+			"Calling as_mut_slice<{}> on non-writable memory ({:?})", type_name!(T), self.mode );
 		unsafe {
 			// Very evil, transmute the immutable slice into a mutable
 			::core::mem::transmute( self.as_slice::<T>(ofs, count) )

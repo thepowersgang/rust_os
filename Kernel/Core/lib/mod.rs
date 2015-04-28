@@ -112,6 +112,13 @@ impl<T: Send+Sync> LazyStatic<T>
 			*r = Some(fcn());
 		}
 	}
+	pub unsafe fn ls_unsafe_mut(&self) -> &mut T {
+		match *self.0.get()
+		{
+		Some(ref mut v) => v,
+		None => panic!("Dereferencing LazyStatic<{}> without initialising", type_name!(T))
+		}
+	}
 }
 impl<T: Send+Sync> ::core::ops::Deref for LazyStatic<T>
 {

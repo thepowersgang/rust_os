@@ -85,6 +85,12 @@ impl Spinlock<()>
 		self.inner_release()
 	}
 }
+impl<T: Send+Default> Default for Spinlock<T>
+{
+	fn default() -> Self {
+		Spinlock::new(Default::default())
+	}
+}
 
 #[unsafe_destructor]
 impl<'lock,T: Send> ::core::ops::Drop for HeldSpinlock<'lock, T>

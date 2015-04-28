@@ -19,7 +19,7 @@ pub struct IOAPIC
 	regs: ::sync::Mutex<IOAPICRegs>,
 	num_lines: usize,
 	first_irq: usize,
-	handlers: Vec<Option<super::IRQHandler>>,
+	handlers: ::sync::Spinlock< Vec< Option<super::IRQHandler> > >,
 }
 
 struct IOAPICRegs
@@ -98,10 +98,7 @@ impl LAPIC
 	/// Initialise the LAPIC structures once self is in its final location
 	pub fn global_init(&mut self)
 	{
-		self.timer_isr = match ::arch::interrupts::bind_isr(
-			//TIMER_VEC, LAPIC::local_timer, self as *mut _ as *const (), 0
-			TIMER_VEC, lapic_timer, self as *mut _ as *const (), 0
-			)
+		self.timer_isr = match ::arch::interrupts::bind_isr(TIMER_VEC, lapic_timer, self as *mut _ as *const (), 0)
 			{
 			Ok(v) => v,
 			Err(e) => panic!("Unable to bind LAPIC timer: {:?}", e),
@@ -169,6 +166,7 @@ impl LAPIC
 	}
 	fn write_reg(&self, idx: ApicReg, value: u32)
 	{
+		log_debug!("self.mapping = {:?}", self.mapping);
 		let regs = unsafe { self.mapping.as_int_mut::<[APICReg; 64]>(0) };
 		assert!( (idx as usize) < 64 );
 		unsafe { ::core::intrinsics::volatile_store( &mut regs[idx as usize].data as *mut _, value ) }
@@ -231,10 +229,10 @@ impl IOAPIC
 		
 		log_debug!("IOAPIC: {{ {:#x} - {} + {} }}", paddr, base, num_lines);
 		IOAPIC {
-			regs: mutex_init!( regs ),
+			regs: ::sync::Mutex::new( regs ),
 			num_lines: num_lines,
 			first_irq: base,
-			handlers: Vec::from_fn(num_lines, |_|None),
+			handlers: ::sync::Spinlock::new( Vec::from_fn(num_lines, |_| None) ),
 			}
 	}
 	
@@ -244,22 +242,25 @@ impl IOAPIC
 	pub fn first(&self) -> usize {
 		self.first_irq
 	}
-	pub fn get_callback(&self, idx: usize) -> super::IRQHandler {
+	pub fn get_callback(&self, idx: usize) -> Option<super::IRQHandler> {
 		assert!( idx < self.num_lines );
-		self.handlers[idx].unwrap()
+		self.handlers.lock()[idx]
 	}
 	
-	pub fn eoi(&mut self, _idx: usize)
+	pub fn eoi(&self, _idx: usize)
 	{
 		// TODO: EOI in IOAPIC
 	}
-	pub fn set_irq(&mut self, idx: usize, vector: u8, apic: u32, mode: TriggerMode, cb: super::IRQHandler)
+	pub fn set_irq(&self, idx: usize, vector: u8, apic: u32, mode: TriggerMode, cb: super::IRQHandler)
 	{
 		log_trace!("set_irq(idx={},vector={},apic={},mode={:?})", idx, vector, apic, mode);
 		assert!( idx < self.num_lines );
 
-		//*self.handlers.get_mut(idx).unwrap() = Some( cb );
-		self.handlers[idx] = Some( cb );
+		// Unsynchronised write. Need to use Spinlock (with IRQ hold)?
+		{
+			let _irql = ::sync::hold_interrupts();
+			self.handlers.lock()[idx] = Some( cb );
+		}
 		let flags: u32 = match mode {
 			TriggerMode::EdgeHi   => (0<<13)|(0<<15),
 			TriggerMode::EdgeLow  => (1<<13)|(0<<15),
@@ -272,14 +273,14 @@ impl IOAPIC
 		rh.write(0x10 + idx*2 + 1, (apic as u32) << 56-32 );
 		rh.write(0x10 + idx*2 + 0, flags | (vector as u32) );
 	}
-	pub fn disable_irq(&mut self, idx: usize)
+	pub fn disable_irq(&self, idx: usize)
 	{
 		let mut rh = self.regs.lock();
 		log_debug!("Disable {}: Info = {:#x}", idx, rh.read(0x10 + idx*2));
 		rh.write(0x10 + idx*2 + 0, 1<<16);
 	}
 
-	pub fn get_irq_reg(&mut self, idx: usize) -> u64
+	pub fn get_irq_reg(&self, idx: usize) -> u64
 	{
 		let mut rh = self.regs.lock();
 		

@@ -4,6 +4,7 @@
 // Core/sync/mod.rs
 // - Blocking synchronisation primitives
 pub use arch::sync::Spinlock;
+pub use arch::sync::hold_interrupts;
 
 pub use sync::mutex::Mutex;
 pub use sync::semaphore::Semaphore;

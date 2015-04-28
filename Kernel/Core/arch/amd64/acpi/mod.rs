@@ -92,9 +92,15 @@ impl<T> SDT<T>
 			log_notice!("SDT size mismatch {} != sizeof({}) {}",
 				self.header.length, type_name!(SDT<T>), ::core::mem::size_of::<Self>());
 		}
-		unsafe {
-			let bytes = ::core::slice::from_raw_parts(self as *const _ as *const u8, self.header.length as usize);
-			bytes.iter().fold(0, |a,&b| a+b) == 0
+		if ! ::memory::buf_valid(self as *const _ as *const (), self.header.length as usize) {
+			log_warning!("SDT<{}> ({} bytes reported) not all in valid memory", type_name!(T), self.header.length);
+			false
+		}
+		else {
+			unsafe {
+				let bytes = ::core::slice::from_raw_parts(self as *const _ as *const u8, self.header.length as usize);
+				bytes.iter().fold(0, |a,&b| a+b) == 0
+			}
 		}
 	}
 	#[allow(dead_code)]

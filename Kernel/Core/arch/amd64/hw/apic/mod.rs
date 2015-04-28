@@ -28,10 +28,9 @@ pub enum IrqError
 }
 
 //#[link_section="processor_local"]
-//#[allow(non_upper_case_globals)]
 //static s_lapic_lock: ::sync::Mutex<()> = mutex_init!( () );
-static mut s_lapic: *const raw::LAPIC = 0 as *const _;
-static mut s_ioapics: *mut Vec<raw::IOAPIC> = 0 as *mut _;
+static s_lapic: ::lib::LazyStatic<raw::LAPIC> = lazystatic_init!();
+static s_ioapics: ::lib::LazyStatic<Vec<raw::IOAPIC>> = lazystatic_init!();
 
 fn init()
 {
@@ -75,22 +74,21 @@ fn init()
 	
 	// Create APIC and IOAPIC instances
 	unsafe {
-		let lapic_ptr = ::memory::heap::alloc( raw::LAPIC::new(lapic_addr) ) as *mut raw::LAPIC;
-		(*lapic_ptr).global_init();
-		s_lapic = lapic_ptr as *const _;
+		s_lapic.prep(|| raw::LAPIC::new(lapic_addr));
+		s_lapic.ls_unsafe_mut().global_init();
 
-		s_ioapics = ::memory::heap::alloc( ioapics ) as *mut _;
-		(*s_lapic).init();
+		s_ioapics.prep(|| ioapics);
 		};
+	s_lapic.init();
 	
 	// Enable interupts
 	unsafe { asm!("sti"); }
 }
 
-fn get_ioapic(interrupt: usize) -> Option<(&'static mut raw::IOAPIC, usize)>
+fn get_ioapic(interrupt: usize) -> Option<(&'static raw::IOAPIC, usize)>
 {
 	unsafe {
-		match (*s_ioapics).iter_mut().find( |a| (*a).contains(interrupt) )
+		match s_ioapics.iter().find( |a| a.contains(interrupt) )
 		{
 		None => None,
 		Some(x) => {
@@ -128,7 +126,11 @@ extern "C" fn lapic_irq_handler(isr: usize, info: *const(), gsi: usize)
 			}
 		};
 	
-	(ioapic.get_callback(ofs))(info);
+	match ioapic.get_callback(ofs)
+	{
+	Some(cb) => cb(info),
+	None => {},
+	}
 	ioapic.eoi( ofs );
 	get_lapic().eoi(isr);
 }

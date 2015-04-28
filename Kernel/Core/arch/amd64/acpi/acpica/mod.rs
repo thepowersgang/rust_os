@@ -12,6 +12,8 @@ mod shim_ext;
 // Shim - Functions called by ACPICA
 mod shim_out;
 
+mod va_list;
+
 pub struct SDTHandle<T: 'static>(&'static super::SDT<T>);
 
 macro_rules! acpi_try {
@@ -24,6 +26,8 @@ macro_rules! acpi_try {
 pub fn init()
 {
 	unsafe {
+		AcpiDbgLevel = !0;
+		
 		log_trace!("AcpiInitializeSubsystem");
 		acpi_try!(AcpiInitializeSubsystem());
 		log_trace!("AcpiInitializeTables");

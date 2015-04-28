@@ -298,7 +298,8 @@ impl MultibootParsed
 				// Dumb memory map
 				log_debug!("info = {{..., .lomem={}, .himem={} }}", info.lomem, info.himem);
 				// - Low memory (before VGA BIOS)
-				mapbuilder.append( 0, info.lomem as u64 * 1024, ::memory::MemoryState::Free, 0 );
+				assert_eq!(info.lomem, 625);
+				mapbuilder.append( 0x1000, 0x9F000 - 0x1000, ::memory::MemoryState::Free, 0 );
 				// - High memory (above 1MiB)
 				mapbuilder.append( 0x100000, info.himem as u64 * 1024, ::memory::MemoryState::Free, 0 );
 			}
