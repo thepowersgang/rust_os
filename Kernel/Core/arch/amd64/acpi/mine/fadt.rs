@@ -91,11 +91,15 @@ pub fn parse_fadt()
 	let dsdt_paddr = fadt.data().dsdt_addr as ::memory::PAddr;
 	
 	let dsdt = super::SDTHandle::<()>::new( dsdt_paddr );
-	if !dsdt.validate() {
+	::logging::hex_dump_t( "DSDT ", &*dsdt );
+	if &dsdt.raw_signature()[..] != b"DSDT" || !dsdt.validate() {
 		log_warning!("DSDT is invalid");
 	}
 	let dsdt_bytes = unsafe { dsdt.data_byte_slice() };
+
 	
-	super::aml::dump_aml(dsdt_bytes);
+	if false {
+		super::aml::dump_aml(dsdt_bytes);
+	}
 }
 

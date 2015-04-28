@@ -26,7 +26,7 @@ macro_rules! acpi_try {
 pub fn init()
 {
 	unsafe {
-		AcpiDbgLevel = !0;
+		//AcpiDbgLevel = !0;
 		
 		log_trace!("AcpiInitializeSubsystem");
 		acpi_try!(AcpiInitializeSubsystem());

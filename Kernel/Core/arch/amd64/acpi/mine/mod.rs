@@ -103,9 +103,7 @@ pub fn init()
 	
 	
 	// Poke sub-enumerators
-	if false {
-		fadt::parse_fadt();
-	}
+	fadt::parse_fadt();
 }
 
 /// Find all SDTs with a given signature
