@@ -70,9 +70,9 @@ extern "C" fn AcpiOsMapMemory(PhysicalAddress: ACPI_PHYSICAL_ADDRESS, Length: AC
 			};
 		
 		let rv: *mut () = handle.as_mut::<u8>(ofs) as *mut u8 as *mut ();
-		if Length < 4096 {
-			::logging::hex_dump( "AcpiOsMapMemory", ::core::slice::from_raw_parts(rv as *const u8, Length) );
-		}
+		//if Length < 1024 {
+		//	::logging::hex_dump( "AcpiOsMapMemory", ::core::slice::from_raw_parts(rv as *const u8, Length) );
+		//}
 		::core::mem::forget(handle);
 		rv
 	}
@@ -116,7 +116,9 @@ extern "C" fn AcpiOsWritable(Memory: *const (), Length: ACPI_SIZE) -> bool {
 // ----------------------
 #[no_mangle] #[linkage="external"]
 extern "C" fn AcpiOsGetThreadId() -> ACPI_THREAD_ID {
-	::threads::get_thread_id() as ACPI_THREAD_ID
+	// 0 is special to ACPICA, so offset by one
+	// - This is just used by ACPICA, so offsetting by one is safe
+	(::threads::get_thread_id() + 1) as ACPI_THREAD_ID
 }
 #[no_mangle] #[linkage="external"]
 extern "C" fn AcpiOsExecute(Type: ACPI_EXECUTE_TYPE, Function: ACPI_OSD_EXEC_CALLBACK, Context: *const ()) -> ACPI_STATUS {
@@ -232,7 +234,10 @@ extern "C" fn AcpiOsReleaseLock(Handle: ACPI_SPINLOCK, Flags: ACPI_CPU_FLAGS) {
 // ------------------------
 #[no_mangle] #[linkage="external"]
 extern "C" fn AcpiOsInstallInterruptHandler(InterruptLevel: u32, Handler: ACPI_OSD_HANDLER, Context: *const ()) -> ACPI_STATUS {
-	unimplemented!()
+	log_warning!("TODO: AcpiOsInstallInterruptHandler(InterruptLevel={}, Handler={:p}, Context={:p}",
+		InterruptLevel, Handler as *const (), Context);
+	// Doesn't do anything... yet. I don't have any idea what this interrupt actually is
+	AE_OK
 }
 #[no_mangle] #[linkage="external"]
 extern "C" fn AcpiOsRemoveInterruptHandler(InterruptLevel: u32, Handler: ACPI_OSD_HANDLER) -> ACPI_STATUS {
@@ -241,14 +246,12 @@ extern "C" fn AcpiOsRemoveInterruptHandler(InterruptLevel: u32, Handler: ACPI_OS
 
 // -- Memory Access --
 // -------------------
-#[no_mangle]
-#[linkage="external"]
+#[no_mangle] #[linkage="external"]
 extern "C" fn AcpiOsReadMemory(Address: ACPI_PHYSICAL_ADDRESS, Value: *mut u64, Width: u32) -> ACPI_STATUS
 {
 	unimplemented!()
 }
-#[no_mangle]
-#[linkage="external"]
+#[no_mangle] #[linkage="external"]
 extern "C" fn AcpiOsWriteMemory(Address: ACPI_PHYSICAL_ADDRESS, Value: u64, Width: u32) -> ACPI_STATUS
 {
 	unimplemented!()
@@ -256,18 +259,57 @@ extern "C" fn AcpiOsWriteMemory(Address: ACPI_PHYSICAL_ADDRESS, Value: u64, Widt
 
 // -- Port Input / Output --
 // -------------------------
-#[no_mangle]
-#[linkage="external"]
-extern "C" fn AcpiOsReadPort(Address: ACPI_IO_ADDRESS, Value: *mut u32, Width: u32) -> ACPI_STATUS
+#[no_mangle] #[linkage="external"]
+extern "C" fn AcpiOsReadPort(Address: ACPI_IO_ADDRESS, Value: &mut u32, Width: u32) -> ACPI_STATUS
 {
-	unimplemented!()
+	assert!(Value as *mut u32 != 0 as *mut u32);
+	// ACPI_IO_ADDRESS is u16
+	//assert!(Address < (1<<16), "AcpiOsReadPort: Address out of range - {:#x} >= {:#x}", Address, (1<<16));
+	// SAFE: We're trusting ACPICA here
+	unsafe {
+		match Width
+		{
+		 8 => {
+			*Value = ::arch::x86_io::inb(Address as u16) as u32;
+			},
+		16 => {
+			assert!(Address % 2 == 0);
+			*Value = ::arch::x86_io::inw(Address as u16) as u32;
+			},
+		32 => {
+			assert!(Address % 4 == 0);
+			*Value = ::arch::x86_io::inl(Address as u16);
+			},
+		_ => return AE_NOT_IMPLEMENTED,
+		}
+	};
+	log_trace!("AcpiOsReadPort({:#x}, Width={}) = {:#x}", Address, Width, Value);
+	AE_OK
 }
 
-#[no_mangle]
-#[linkage="external"]
+#[no_mangle] #[linkage="external"]
 extern "C" fn AcpiOsWritePort(Address: ACPI_IO_ADDRESS, Value: u32, Width: u32) -> ACPI_STATUS
 {
-	unimplemented!()
+	log_trace!("AcpiOsWritePort({:#x}, Value={:#x}, Width={})", Address, Value, Width);
+	// SAFE: We're trusting ACPICA here
+	unsafe {
+		match Width
+		{
+		 8 => {
+			::arch::x86_io::outb(Address as u16, Value as u8);
+			},
+		16 => {
+			assert!(Address % 2 == 0);
+			::arch::x86_io::outw(Address as u16, Value as u16);
+			},
+		32 => {
+			assert!(Address % 4 == 0);
+			::arch::x86_io::outl(Address as u16, Value as u32);
+			},
+		_ => return AE_NOT_IMPLEMENTED,
+		}
+	}
+	AE_OK
 }
 
 
