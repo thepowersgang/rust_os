@@ -42,6 +42,7 @@ impl device_manager::Driver for PciLegacyDriver
 	fn bind(&self, bus_dev: &mut device_manager::BusDevice) -> Box<device_manager::DriverInstance+'static>
 	{
 		let bm_io = bus_dev.bind_io(4);
+		//bus_dev.set_flag(bus_pci::Flag::BusMastering);
 		Box::new( ::ControllerRoot::new(0x1F0, 0x3F6, 14,  0x170, 0x376, 15,  bm_io) )
 	}
 }

@@ -55,6 +55,11 @@ struct PRDTEnt
 	bytes: u16,
 	flags: u16,
 }
+impl_fmt!{
+	Debug(self,f) for PRDTEnt {
+		write!(f, "PRDTEnt {{ {:#X}+{}b, {:#x} }}", self.addr, self.bytes, self.flags)
+	}
+}
 
 impl DmaController
 {
@@ -94,6 +99,11 @@ impl<'a> DmaRegBorrow<'a>
 	{
 		assert!(ofs < 8);
 		self.dma_base.write_8( if self.is_sec { 8 } else { 0 } + ofs as usize, val );
+	}
+	unsafe fn in_8(&self, ofs: u16) -> u8
+	{
+		assert!(ofs < 8);
+		self.dma_base.read_8( if self.is_sec { 8 } else { 0 } + ofs as usize )
 	}
 	
 }
@@ -138,6 +148,8 @@ impl AtaRegs
 		// TODO: Use a chain of PRDTs to support 32-bit scatter-gather
 		self.prdts[0].bytes = dma_buffer.len() as u16;
 		self.prdts[0].addr = dma_buffer.phys() as u32;
+		self.prdts[0].flags = 0x8000;
+		log_debug!("- self.prdts[0] = {:?}", self.prdts[0]);
 		
 		// Commence the IO and return a wait handle for the operation
 		unsafe
@@ -225,7 +237,15 @@ impl<'a,'b> async::Waiter for AtaWaiter<'a,'b>
 				WaitState::IoActive(lh, self.dev.interrupt.handle.get_event().wait())
 				},
 			// And if IoActive completes, we're complete
-			WaitState::IoActive(ref _lh, ref _waiter) => WaitState::Done,
+			WaitState::IoActive(ref mut lh, ref _waiter) => {
+				// SAFE: Holding the register lock
+				unsafe {
+					self.dma_regs.out_8(0, 0);	// Stop transfer
+					let ata_status = lh.in_8(7);
+					log_trace!("BM Status = {:02x}, ATA Status = {:02x}", self.dma_regs.in_8(2), ata_status);
+				}
+				WaitState::Done
+				},
 			//
 			WaitState::Done => unreachable!(),
 			};
