@@ -38,8 +38,10 @@ pub trait BusDevice:
 {
 	/// Returns the device's address on the parent bus
 	fn addr(&self) -> u32;
-	/// Retrurns the specified attribute (or 0, if invalid)
+	/// Returns the specified attribute (or 0, if invalid)
 	fn get_attr(&self, name: &str) -> u32;
+	/// Set the specified attribute
+	fn set_attr(&mut self, name: &str, value: u32);
 	/// Set the power state of this device
 	fn set_power(&mut self, state: bool);	// TODO: Power state enum for Off,Standby,Low,On
 	/// Bind to the specified IO block (meaning of `block_id` depends on the bus)

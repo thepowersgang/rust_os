@@ -149,7 +149,6 @@ impl AtaRegs
 		self.prdts[0].bytes = dma_buffer.len() as u16;
 		self.prdts[0].addr = dma_buffer.phys() as u32;
 		self.prdts[0].flags = 0x8000;
-		log_debug!("- self.prdts[0] = {:?}", self.prdts[0]);
 		
 		// Commence the IO and return a wait handle for the operation
 		unsafe

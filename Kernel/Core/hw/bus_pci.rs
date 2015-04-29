@@ -100,9 +100,33 @@ impl ::device_manager::BusDevice for PCIDev
 		"vendor" => self.vendor as u32,
 		"device" => self.device as u32,
 		"class" => self.class,
+		"bus_master" => if self.config[1] & 4 == 0 { 0 } else { 1 },
 		_ => {
 			log_warning!("Request for non-existant attr '{}' on device 0x{:05x}", name, self.addr);
 			0
+			},
+		}
+	}
+	fn set_attr(&mut self, name: &str, value: u32) {
+		match name
+		{
+		"vendor"|
+		"device"|
+		"class" => {
+			log_warning!("Attempting to set read-only attr '{}' on device {:#05x}", name, self.addr);
+			},
+		// Enable/Disable PCI bus-mastering support
+		"bus_master" => {
+			if value != 0 {
+				self.config[1] |= 4;
+			}
+			else {
+				self.config[1] &= !4;
+			}
+			write_word(self.addr, 1, self.config[1]);
+			},
+		_ => {
+			log_warning!("Attempting to set non-existant attr '{}' on device 0x{:05x}", name, self.addr);
 			},
 		}
 	}
