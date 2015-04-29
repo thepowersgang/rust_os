@@ -15,9 +15,15 @@ echo "	kernel mboot.c32" >> .pxe/pxelinux.cfg/default
 echo "	append ${IMAGE##*/} $ARGS" >> .pxe/pxelinux.cfg/default
 
 echo "" > .qemu_trace
-echo "apic_deliver_irq" >> .qemu_trace
-echo "apic_local_deliver" >> .qemu_trace
-echo "apic_mem_readl" >> .qemu_trace
+#echo "apic_deliver_irq" >> .qemu_trace
+#echo "apic_local_deliver" >> .qemu_trace
+#echo "apic_mem_readl" >> .qemu_trace
+echo "dma_bdrv_io" >> .qemu_trace
+echo "dma_bdrv_cb" >> .qemu_trace
+echo "bdrv_aio_readv" >> .qemu_trace
+echo "bdrv_aio_writev" >> .qemu_trace
+echo "bdrv_co_readv" >> .qemu_trace
+echo "bdrv_co_do_copy_on_readv" >> .qemu_trace
 
 QEMU_OPTS=""
 QEMU_OPTS=$QEMU_OPTS" -net nic"
@@ -29,8 +35,8 @@ else
 	QEMU_OPTS=$QEMU_OPTS" -nographic"
 fi
 QEMU_OPTS=$QEMU_OPTS" -hda DiskImages/hda.img"
-#QEMU_OPTS=$QEMU_OPTS" -trace events=.qemu_trace"
 QEMU_OPTS=$QEMU_OPTS" -trace file=qemu_trace"
+#QEMU_OPTS=$QEMU_OPTS" -trace events=.qemu_trace,file=qemu_trace"
 QEMU_OPTS=$QEMU_OPTS" -d int -D qemu_int_log.txt"
 QEMU_OPTS=$QEMU_OPTS" -no-reboot"
 qemu-system-x86_64 $QEMU_OPTS | tee QemuLog.txt
