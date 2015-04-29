@@ -197,6 +197,11 @@ pub fn get_thread_ptr() -> Option<Box<::threads::Thread>>
 		::core::mem::transmute( t_thread_ptr )
 	}
 }
+pub fn borrow_thread() -> *const ::threads::Thread {
+	unsafe {
+		t_thread_ptr
+	}
+}
 /// Release or set the current thread pointer
 pub fn set_thread_ptr(ptr: Box<::threads::Thread>)
 {

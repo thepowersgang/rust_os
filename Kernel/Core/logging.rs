@@ -90,7 +90,7 @@ mod serial
 		fn start(&mut self, timestamp: ::time::TickCount, level: Level, source: &'static str) {
 			use core::fmt::Write;
 			self.set_colour(level.to_colour());
-			write!(self, "{:6}{} [{}] - ", timestamp, level, source).unwrap();
+			write!(self, "{:6}{} {}[{}] - ", timestamp, level, ::threads::get_thread_id(), source).unwrap();
 		}
 		fn write(&mut self, s: &str) {
 			::arch::puts(s);
