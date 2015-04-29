@@ -207,6 +207,20 @@ impl IOBinding
 		IOBinding::Memory(_) => panic!("Called IOBinding::io_base on IOBinding::Memory"),
 		}
 	}
+	/// Read a single u8 from the binding
+	pub unsafe fn read_8(&self, ofs: usize) -> u8
+	{
+		match *self
+		{
+		IOBinding::IO(base, s) => {
+			assert!( ofs < s as usize );
+			::arch::x86_io::inb(base + ofs as u16)
+			},
+		IOBinding::Memory(ref h) => {
+			::core::intrinsics::volatile_load( h.as_int_mut::<u8>(ofs) )
+			},
+		}
+	}
 	/// Writes a single u8 to the binding
 	pub unsafe fn write_8(&self, ofs: usize, val: u8)
 	{
