@@ -161,7 +161,7 @@ pub fn get_phys<T>(addr: *const T) -> PAddr
 {
 	unsafe {
 		let pte = get_page_ent(addr as usize, false, false, true);
-		pte.addr()
+		pte.addr() + ((addr as usize) & 0xFFF) as u64
 	}
 }
 /// Maps a physical frame to a page, with the provided protection mode
