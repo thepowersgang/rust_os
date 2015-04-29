@@ -157,16 +157,12 @@ impl LAPIC
 	
 	fn read_reg(&self, reg: ApicReg) -> u32
 	{
-		//let regs = self.mapping.as_ref::<[APICReg; 2]>(0);
-		//regs[0].data = idx as u32;
-		//regs[1].data
 		let regs = self.mapping.as_ref::<[APICReg; 64]>(0);
 		assert!( (reg as usize) < 64 );
 		unsafe { ::core::intrinsics::volatile_load( &regs[reg as usize].data as *const _ ) }
 	}
 	fn write_reg(&self, idx: ApicReg, value: u32)
 	{
-		log_debug!("self.mapping = {:?}", self.mapping);
 		let regs = unsafe { self.mapping.as_int_mut::<[APICReg; 64]>(0) };
 		assert!( (idx as usize) < 64 );
 		unsafe { ::core::intrinsics::volatile_store( &mut regs[idx as usize].data as *mut _, value ) }

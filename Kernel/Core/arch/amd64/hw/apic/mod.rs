@@ -129,7 +129,7 @@ extern "C" fn lapic_irq_handler(isr: usize, info: *const(), gsi: usize)
 	match ioapic.get_callback(ofs)
 	{
 	Some(cb) => cb(info),
-	None => {},
+	None => log_notice!("No bound callback for GSI{}", gsi),
 	}
 	ioapic.eoi( ofs );
 	get_lapic().eoi(isr);
