@@ -25,6 +25,7 @@ pub struct SleepObjectRef
 {
 	obj: *const SleepObject,
 }
+unsafe impl ::core::marker::Send for SleepObjectRef {}
 
 impl SleepObject
 {
@@ -40,7 +41,7 @@ impl SleepObject
 	/// Wait the current thread on this object
 	pub fn wait(&self)
 	{
-		log_trace!("SleepObject::wait '{}'", self.name);
+		log_trace!("SleepObject::wait {:p} '{}'", self, self.name);
 		
 		let irql = ::sync::hold_interrupts();
 		let mut lh = self.inner.lock();
@@ -71,6 +72,8 @@ impl SleepObject
 	/// Signal this sleep object (waking threads)
 	pub fn signal(&self)
 	{
+		log_trace!("SleepObject::signal {:p} '{}'", self, self.name);
+		
 		let mut lh = self.inner.lock();
 		// 1. Check for a waiter
 		if let Some(mut t) = lh.thread.take()
@@ -92,8 +95,6 @@ impl SleepObject
 		}
 	}
 }
-
-unsafe impl ::core::marker::Send for SleepObjectRef {}
 
 impl ::core::ops::Deref for SleepObjectRef
 {

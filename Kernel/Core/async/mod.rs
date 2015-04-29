@@ -81,7 +81,7 @@ impl<'a> Waiter+'a
 	{
 		while !self.is_complete()
 		{
-			log_trace!("Waiting on {:?}", self);
+			log_debug!("Waiting on {:?}", self);
 			let completed = {
 				let prim = self.get_waiter();
 				let mut obj = ::threads::SleepObject::new("wait_on_list");

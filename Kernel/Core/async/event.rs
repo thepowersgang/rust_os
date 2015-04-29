@@ -47,6 +47,7 @@ impl Source
 	/// Raise the event (waking any attached waiter)
 	pub fn trigger(&self)
 	{
+		//log_debug!("Trigger");
 		self.flag.store(true, ::core::atomic::Ordering::Relaxed);
 		self.waiter.lock().as_mut().map(|r| r.signal());
 	}
@@ -78,6 +79,9 @@ impl<'a> super::PrimitiveWaiter for Waiter<'a>
 		{
 		Some(r) => {
 			*r.waiter.lock() = Some(sleeper.get_ref());
+			if r.flag.load(::core::atomic::Ordering::Relaxed) {
+				return false;
+			}
 			},
 		None => {
 			},

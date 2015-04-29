@@ -58,7 +58,13 @@ pub fn yield_to(thread: Box<Thread>)
 
 pub fn get_thread_id() -> thread::ThreadID
 {
-	borrow_cur_thread().get_tid()
+	let p = ::arch::threads::borrow_thread();
+	if p == 0 as *const _ {
+		0
+	}
+	else {
+		unsafe { (*p).get_tid() }
+	}
 }
 
 /// Pick a new thread to run and run it
