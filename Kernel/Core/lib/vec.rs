@@ -257,7 +257,6 @@ impl<T> ops::Drop for Vec<T>
 {
 	fn drop(&mut self)
 	{
-		log_debug!("Vec::<{}>::drop() - {:?} w/ {} ents", type_name!(T), self.data, self.size);
 		unsafe {
 			while self.size > 0 {
 				self.size -= 1;
@@ -299,7 +298,6 @@ impl<T> MutableSeq<T> for Vec<T>
 		self.reserve(1);
 		self.size += 1;
 		let ptr = self.get_mut_ptr(pos);
-		//log_debug!("Vec.push {}", HexDump(&t));
 		unsafe { ::core::ptr::write(ptr, t); }
 	}
 	fn pop(&mut self) -> Option<T>
@@ -386,13 +384,11 @@ impl<T> MoveItems<T>
 	/// Pop an item from the iterator
 	fn pop_item(&mut self) -> T
 	{
-		//log_debug!("MoveItems.pop_item() ofs={}, count={}, data={}", self.ofs, self.count, self.data);
 		assert!(self.ofs < self.count);
 		let v: T = unsafe {
 			let ptr = self.data.get_ptr(self.ofs);
 			::core::ptr::read(ptr as *const _)
 			};
-		//log_debug!("MoveItems.pop_item() v = {}", HexDump(&v));
 		self.ofs += 1;
 		v
 	}
