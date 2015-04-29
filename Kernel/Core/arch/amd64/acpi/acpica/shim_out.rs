@@ -422,6 +422,16 @@ extern "C" fn AcpiOsVprintf(Format: *const i8, mut Args: va_list)
 					0
 				};
 			
+			// TODO: Use undocumented (but public) APIs in ::core::fmt
+			// to create an Arguments structure from this information
+			//let spec = ::core::fmt::rt::v1::FormatSpec {
+			//	fill: ' ',
+			//	align: ::core::fmt::rt::v1::Alignment::Unknown,
+			//	flags: 0,
+			//	precision: ::core::fmt::rt::v1::Count::Is(precision),
+			//	width: ::core::fmt::rt::v1::Count::Is(width),
+			//	};
+			
 			match c
 			{
 			'x' => {
