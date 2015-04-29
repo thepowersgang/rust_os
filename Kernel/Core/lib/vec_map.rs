@@ -99,7 +99,7 @@ impl<'a, K, V> ::core::iter::Iterator for Iter<'a, K, V>
 	
 	fn next(&mut self) -> Option<(&'a K, &'a V)>
 	{
-		if self.pos <= self.ents.len()
+		if self.pos < self.ents.len()
 		{
 			let e = &self.ents[self.pos];
 			self.pos += 1;
