@@ -4,10 +4,13 @@
 // Core/threads/sleep_object.rs
 //! Sleep object
 use _common::*;
+use core::ops;
 use super::thread::{Thread, RunState};
 use super::s_runnable_threads;
 
 /// An object on which a thread can sleep, woken by various event sources
+///
+/// This object should not be moved while references are active
 pub struct SleepObject
 {
 	name: &'static str,
@@ -17,6 +20,7 @@ pub struct SleepObject
 struct SleepObjectInner
 {
 	flag: bool,
+	reference_count: usize,
 	thread: Option<Box<Thread>>,
 }
 
@@ -89,19 +93,44 @@ impl SleepObject
 	}
 	
 	/// Obtain a reference to the sleep object
+	///
+	/// NOTE: After this is called, self must not move
 	pub fn get_ref(&self) -> SleepObjectRef {
+		self.inner.lock().reference_count += 1;
 		SleepObjectRef {
 			obj: self as *const _,
 		}
 	}
 }
 
-impl ::core::ops::Deref for SleepObjectRef
+impl ops::Drop for SleepObject
+{
+	fn drop(&mut self)
+	{
+		let lh = self.inner.lock();
+		assert!(lh.reference_count == 0, "Sleep object being dropped while references are active");
+	}
+}
+
+impl ops::Deref for SleepObjectRef
 {
 	type Target = SleepObject;
 	
 	fn deref(&self) -> &SleepObject {
+		// SAFE: Reference counting ensures that this pointer is valid.
+		// ASSUMPTION: The SleepObject doesn't move after it's borrowed
 		unsafe { &*self.obj }
+	}
+}
+
+impl ops::Drop for SleepObjectRef
+{
+	fn drop(&mut self)
+	{
+		// SAFE: Should still be valid
+		let mut lh = unsafe { (*self.obj).inner.lock() };
+		assert!(lh.reference_count > 0, "Sleep object's reference count is zero when dropping a reference");
+		lh.reference_count -= 1;
 	}
 }
 

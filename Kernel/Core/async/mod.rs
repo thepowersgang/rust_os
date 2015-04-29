@@ -31,7 +31,12 @@ pub trait PrimitiveWaiter:
 	/// Runs the completion handler
 	fn run_completion(&mut self);
 	/// Binds this waiter to signal the provided sleep object
+	/// 
+	/// Called before the completion handler
 	fn bind_signal(&mut self, sleeper: &mut ::threads::SleepObject) -> bool;
+	
+	/// Unbind waiters from this sleep object
+	fn unbind_signal(&mut self);
 	
 	/// 
 	fn is_ready(&mut self) -> bool {
@@ -94,6 +99,7 @@ impl<'a> Waiter+'a
 						// TODO: Take a nap
 					}
 				}
+				prim.unbind_signal();
 				log_trace!("- sleep over");
 				prim.is_ready()
 				};
@@ -157,6 +163,11 @@ pub fn wait_on_list(waiters: &mut [&mut Waiter], timeout: Option<u64>) -> Option
 		log_trace!(" Sleeping");
 		obj.wait();
 	}
+	
+	for ent in waiters.iter_mut().filter(|x| !x.is_complete()) {
+		ent.get_waiter().unbind_signal();
+	}
+	::core::mem::drop(obj);
 	
 	// Run completion handlers (via .is_ready and .complete), counting the number of changed waiters
 	let mut n_complete = 0;

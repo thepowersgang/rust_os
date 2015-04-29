@@ -37,6 +37,9 @@ impl super::PrimitiveWaiter for Waiter {
 	fn bind_signal(&mut self, _sleeper: &mut ::threads::SleepObject) -> bool {
 		todo!("timer::Waiter::bind_signal()")
 	}
+	fn unbind_signal(&mut self) {
+		todo!("timer::Waiter::unbind_signal()")
+	}
 }
 
 impl ::core::fmt::Debug for Waiter {

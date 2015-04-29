@@ -150,6 +150,13 @@ impl<'a, T: Send> super::PrimitiveWaiter for Waiter<'a,T>
 			},
 		}
 	}
+	fn unbind_signal(&mut self) {
+		match self.state
+		{
+		WaitState::Sleep(ref mut obj) => obj.unbind_signal(),
+		_ => {},
+		}
+	}
 
 }
 

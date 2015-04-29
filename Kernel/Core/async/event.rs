@@ -71,22 +71,27 @@ impl<'a> super::PrimitiveWaiter for Waiter<'a>
 		}
 	}
 	fn run_completion(&mut self) {
-		// Do nothing
+		// Clear the source to mark this waiter as completed
 		self.source = None;
 	}
 	fn bind_signal(&mut self, sleeper: &mut ::threads::SleepObject) -> bool {
-		match self.source
+		if let Some(r) = self.source
 		{
-		Some(r) => {
-			*r.waiter.lock() = Some(sleeper.get_ref());
-			if r.flag.load(::core::atomic::Ordering::Relaxed) {
-				return false;
-			}
-			},
-		None => {
-			},
+			// Store the sleep object reference
+			*r.waiter.lock() = Some( sleeper.get_ref() );
+			
+			// If the waiter's flag is already set, return 'false' to force polling
+			! r.flag.load(::core::atomic::Ordering::Relaxed)
 		}
-		
-		true
+		else
+		{
+			// Completed, don't impede sleeping
+			true
+		}
+	}
+	fn unbind_signal(&mut self) {
+		if let Some(r) = self.source {
+			*r.waiter.lock() = None;
+		}
 	}
 }
