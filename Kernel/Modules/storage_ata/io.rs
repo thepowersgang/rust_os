@@ -271,7 +271,7 @@ impl AtaController
 		AtaController {
 			regs: async::Mutex::new( AtaRegs::new(ata_base, sts_port) ),
 			interrupt: AtaInterrupt {
-				handle: ::kernel::irqs::bind_interrupt_event(irq),
+				handle: ::kernel::irqs::bind_event(irq),
 				},
 			}
 	}

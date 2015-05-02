@@ -14,6 +14,7 @@
 ARCH = amd64
 TRIPLE = x86_64-none-elf
 MODS := storage_ata
+MODS += input_ps2
 #MODS += video_vga
 
 USE_ACPICA ?= 1

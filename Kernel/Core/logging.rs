@@ -60,6 +60,9 @@ pub struct LoggingFormatter<'a>
 /// Wrapper around a &-ptr that prints a hexdump of the passed data.
 pub struct HexDump<'a,T:'a>(pub &'a T);
 
+/// Wrapper around a `&[u8]` to print it as an escaped byte string
+pub struct RawString<'a>(pub &'a [u8]);
+
 static S_LOGGING_LOCK: Spinlock<Sinks> = spinlock_init!( Sinks { serial: serial::Sink, memory: None, video: None } );
 
 trait Sink
@@ -318,6 +321,26 @@ impl<'a,T:'a> fmt::Debug for HexDump<'a,T>
 				try!(write!(f, "| "));
 			}
 		}
+		Ok( () )
+	}
+}
+
+impl<'a> fmt::Debug for RawString<'a>
+{
+	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+		try!(write!(f, "b\""));
+		for &b in self.0 {
+			match b
+			{
+			b'\t' => try!(write!(f, "\\t")),
+			b'\n' => try!(write!(f, "\\n")),
+			b'\\' => try!(write!(f, "\\\\")),
+			b'"' => try!(write!(f, "\\\"")),
+			32 ... 0x7E => try!(write!(f, "{}", b as char)),
+			_ => try!(write!(f, "\\x{:02x}", b)),
+			}
+		}
+		try!(write!(f, "\""));
 		Ok( () )
 	}
 }

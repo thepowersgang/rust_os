@@ -143,7 +143,11 @@ impl ControllerRoot
 	{
 		
 		let dma_controller = Arc::new(io::DmaController {
-			name: format!("ATA[{:#x},{:#x}]", ata_pri, ata_sec),
+			name: if ata_pri == 0x1F0 {
+					String::from("ATA")
+				} else {
+					format!("ATA{:x}", ata_pri)
+				},
 			ata_controllers: [
 				io::AtaController::new(ata_pri, sts_pri, irq_pri),
 				io::AtaController::new(ata_sec, sts_sec, irq_sec),

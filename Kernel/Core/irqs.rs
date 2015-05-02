@@ -17,15 +17,21 @@ pub struct EventHandle
 	index: usize,
 	event: Arc<::async::event::Source>,
 }
+pub struct ObjectHandle<T: Handler>
+{
+	num: u32,
+	index: usize,
+	_pd: ::core::marker::PhantomData<T>,
+}
 
 struct HandlerEvent
 {
-	index: usize,
+	//index: usize,
 	event: Arc<::async::event::Source>
 }
-trait Handler: Send + 'static
+pub trait Handler: Send + 'static
 {
-	fn get_idx(&self) -> usize;
+	//fn get_idx(&self) -> usize;
 	fn handle(&mut self) -> bool;
 }
 
@@ -50,9 +56,7 @@ struct Bindings
 /// Map of IRQ numbers to core's dispatcher bindings. Bindings are boxed so the address is known in the constructor
 static S_IRQ_BINDINGS: ::sync::mutex::LazyMutex<Bindings> = lazymutex_init!();
 
-
-/// Bind an event waiter to an interrupt
-pub fn bind_interrupt_event(num: u32) -> EventHandle
+fn bind(num: u32, obj: Box<Handler>) -> usize
 {
 	// 1. (if not already) bind a handler on the architecture's handlers
 	let mut map_lh = S_IRQ_BINDINGS.lock_init(|| Bindings { mapping: VecMap::new(), next_index: 0 });
@@ -65,15 +69,25 @@ pub fn bind_interrupt_event(num: u32) -> EventHandle
 		::lib::vec_map::Entry::Vacant(e) => e.insert( IRQBinding::new_boxed(num) ),
 		};
 	// 2. Add this handler to the meta-handler
-	let rv = EventHandle {
+	binding.handlers.lock().push( obj );
+	
+	index
+}
+
+/// Bind an event waiter to an interrupt
+pub fn bind_event(num: u32) -> EventHandle
+{
+	let ev = Arc::new( ::async::event::Source::new() );
+	EventHandle {
 		num: num,
-		index: index,
-		event: Arc::new( ::async::event::Source::new() ),
-		};
-	binding.handlers.lock().push( Box::new(HandlerEvent { index: index, event: rv.event.clone() }) as Box<Handler> );
-	// 3. Enable this vector on the architecture
-	// XXX: This should already be done as part of binding
-	rv
+		index: bind(num, Box::new(HandlerEvent { event: ev.clone() }) as Box<Handler>),
+		event: ev,
+		}
+}
+
+pub fn bind_object<T: Handler>(num: u32, obj: Box<T>) -> ObjectHandle<T>
+{
+	todo!("");
 }
 
 impl IRQBinding
@@ -126,7 +140,7 @@ impl IRQBinding
 
 impl Handler for HandlerEvent
 {
-	fn get_idx(&self) -> usize { self.index }
+	//fn get_idx(&self) -> usize { self.index }
 	fn handle(&mut self) -> bool {
 		self.event.trigger();
 		true

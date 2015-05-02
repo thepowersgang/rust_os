@@ -7,6 +7,7 @@ use _common::*;
 use core::atomic::{AtomicUsize,ATOMIC_USIZE_INIT};
 use sync::mutex::LazyMutex;
 use lib::{VecMap};
+use lib::mem::Arc;
 
 module_define!{Storage, [], init}
 
@@ -65,6 +66,9 @@ pub trait Mapper: Send + Sync
 	/// Lower values are weaker handles, 0 means unhandled.
 	/// Typical values are: 1=MBR, 2=GPT, 3=LVM etc
 	fn handles_pv(&self, pv: &PhysicalVolume) -> usize;
+	
+	/// Enumerate volumes
+	fn enum_volumes(&self, pv: &PhysicalVolume, f: &mut FnMut(String, u64, u64));
 }
 
 
@@ -72,6 +76,7 @@ pub trait Mapper: Send + Sync
 struct PhysicalVolumeInfo
 {
 	dev: Box<PhysicalVolume>,
+	mapper: Option<(usize,&'static Mapper)>,
 }
 /// A single logical volume, composed of 1 or more physical blocks
 struct LogicalVolume
@@ -97,7 +102,8 @@ struct PhysicalRegion
 
 static S_NEXT_PV_IDX: AtomicUsize = ATOMIC_USIZE_INIT;
 static S_PHYSICAL_VOLUMES: LazyMutex<VecMap<usize,PhysicalVolumeInfo>> = lazymutex_init!();
-static S_LOGICAL_VOLUMES: LazyMutex<VecMap<usize,LogicalVolume>> = lazymutex_init!();
+static S_NEXT_LV_IDX: AtomicUsize = ATOMIC_USIZE_INIT;
+static S_LOGICAL_VOLUMES: LazyMutex<VecMap<usize,Arc<LogicalVolume>>> = lazymutex_init!();
 static S_MAPPERS: LazyMutex<Vec<&'static Mapper>> = lazymutex_init!();
 
 // NOTE: Should unbinding of LVs be allowed? (Yes, for volume removal)
@@ -145,16 +151,17 @@ pub fn register_pv(dev: Box<PhysicalVolume>) -> PhysicalVolumeReg
 			best_mapper_level = level;
 		}
 	}
-	if let Some(mapper) = best_mapper
-	{
-		// Poke mapper
-		todo!("Invoke mapper {} on volume {}", mapper.name(), dev.name());
-	}
 	
 	// Wait until after checking for a handler before we add the PV to the list
 	S_PHYSICAL_VOLUMES.lock().insert(pv_id, PhysicalVolumeInfo {
 		dev: dev,
+		mapper: None,
 		});
+	
+	if let Some(mapper) = best_mapper
+	{
+		apply_mapper_to_pv(mapper, best_mapper_level, pv_id, S_PHYSICAL_VOLUMES.lock().get(&pv_id).unwrap())
+	}
 	
 	PhysicalVolumeReg { idx: pv_id }
 }
@@ -169,7 +176,7 @@ pub fn register_mapper(mapper: &'static Mapper)
 	S_MAPPERS.lock().push(mapper);
 	
 	// Check unbound PVs
-	for (_id,pv) in S_PHYSICAL_VOLUMES.lock().iter()
+	for (&id,pv) in S_PHYSICAL_VOLUMES.lock().iter()
 	{
 		let level = mapper.handles_pv(&*pv.dev);
 		if level == 0
@@ -178,9 +185,68 @@ pub fn register_mapper(mapper: &'static Mapper)
 		}
 		else
 		{
-			log_error!("TODO: Mapper {} wants to handle volume {}", mapper.name(), pv.dev.name());
+			if let Some( (lvl, other) ) = pv.mapper
+			{
+				if lvl == level {
+					// fight
+				}
+				else if lvl > level {
+					// Already better
+				}
+				else {
+					// Replace
+					apply_mapper_to_pv(mapper, level, id, &pv);
+				}
+			}
+			else
+			{
+				apply_mapper_to_pv(mapper, level, id, &pv);
+			}
 		}
 	}
+}
+
+/// Apply the passed mapper to the provided physical volume
+fn apply_mapper_to_pv(mapper: &'static Mapper, level: usize, pv_id: usize, pvi: &PhysicalVolumeInfo)
+{
+	assert!(level > 0);
+	// TODO: LOCK THE PVI
+	// 1. Determine if a previous mapper was controlling this volume
+	if let Some(..) = pvi.mapper
+	{
+		//  - Attempt to remove these mappings if possible
+		//pvi.mapper = None;
+	}
+	// 2. Bind this new mapper to the volume
+	// - Save the mapper
+	//pvi.mapper = Some( (level, mapper) );
+	// - Enumerate volumes
+	//  TODO: Support more complex volume types
+	mapper.enum_volumes(&*pvi.dev, &mut |name, base, len| {
+		new_simple_lv(name, pv_id, pvi.dev.blocksize(), base, len);
+		});
+}
+fn new_simple_lv(name: String, pv_id: usize, block_size: usize, base: u64, size: u64)
+{
+	let lvidx = S_NEXT_LV_IDX.fetch_add(1, ::core::atomic::Ordering::Relaxed);
+	
+	assert!(size <= !0usize as u64);
+	let lv = Arc::new( LogicalVolume {
+		name: name,
+		is_opened: false,
+		block_size: block_size,
+		chunk_size: None,
+		regions: vec![ PhysicalRegion{ volume: pv_id, block_count: size as usize, first_block: size } ],
+		} );
+	
+	log_log!("Logical Volume: {} {}", lv.name, SizePrinter(size*block_size as u64));
+	
+	// Add to global list
+	{
+		let mut lh = S_LOGICAL_VOLUMES.lock();
+		lh.insert(pv_id, lv);
+	}
+	// TODO: Inform something of the new LV
 }
 
 /// Enumerate present physical volumes (returning both the identifier and name)
