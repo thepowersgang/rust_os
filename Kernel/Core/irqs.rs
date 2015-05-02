@@ -87,7 +87,7 @@ pub fn bind_event(num: u32) -> EventHandle
 
 pub fn bind_object<T: Handler>(num: u32, obj: Box<T>) -> ObjectHandle<T>
 {
-	todo!("");
+	todo!("bind_object<{}>(num={})", type_name!(T), num);
 }
 
 impl IRQBinding

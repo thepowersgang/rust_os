@@ -22,15 +22,18 @@ pub fn init()
 {
 	// 1. Check with ACPI is this machine has a PS2 controller
 	let enabled = if let Some(fadt) = acpi::find::<acpi::Fadt>("FACP", 0) {
-			use ::kernel::lib::byteorder::{ReadBytesExt,LittleEndian};
-			unsafe { ::kernel::logging::hex_dump("FADT", fadt.data_byte_slice()) };
-			//let boot_architecture_flags = fadt.data().boot_architecture_flags;
-			assert_eq!( ::core::mem::size_of::<acpi::Fadt>(), 116-36);
-			let boot_architecture_flags = unsafe { (&fadt.data_byte_slice()[109-36..]).read_u16::<LittleEndian>().unwrap() };
-			log_trace!("FADT boot_architecture_flags = {:#x}", boot_architecture_flags);
-			boot_architecture_flags & 2 != 0
+			let boot_architecture_flags = fadt.data().boot_architecture_flags;
+			if fadt.header().revision > 1 {
+				log_trace!("FADT boot_architecture_flags = {:#x}", boot_architecture_flags);
+				boot_architecture_flags & 2 != 0
+			}
+			else {
+				log_trace!("FADT revision 1, assuming 8042 present");
+				true
+			}
 		}
 		else {
+			log_trace!("No FADT, assuming 8042 present");
 			true
 		};
 	
@@ -153,7 +156,7 @@ impl Ctrlr8042
 	}
 	/// true if read is possible
 	unsafe fn poll_in(&mut self) -> bool {
-		x86_io::inb(0x64) & 2 != 0
+		x86_io::inb(0x64) & 1 != 0
 	}
 	
 	unsafe fn wait_out(&mut self) -> Result<(),()> {
@@ -168,7 +171,7 @@ impl Ctrlr8042
 		Ok( () )
 	}
 	unsafe fn wait_in(&mut self) -> Result<(),()> {
-		const MAX_SPINS: usize = 1000;
+		const MAX_SPINS: usize = 100*1000;
 		let mut spin_count = 0;
 		while !self.poll_in() {
 			spin_count += 1;

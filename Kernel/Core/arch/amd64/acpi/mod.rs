@@ -45,17 +45,17 @@ pub struct GAS
 
 #[repr(C)]
 #[derive(Copy,Clone)]
-struct SDTHeader
+pub struct SDTHeader
 {
-	signature: [u8; 4],
-	length: u32,
-	revision: u8,
-	checksum: u8,
-	oemid: [u8; 6],
-	oem_table_id: [u8; 8],
-	oem_revision: u32,
-	creator_id: u32,
-	creator_revision: u32,
+	pub signature: [u8; 4],
+	pub length: u32,
+	pub revision: u8,
+	pub checksum: u8,
+	pub oemid: [u8; 6],
+	pub oem_table_id: [u8; 8],
+	pub oem_revision: u32,
+	pub creator_id: u32,
+	pub creator_revision: u32,
 }
 
 #[repr(C,packed)]
@@ -165,8 +165,10 @@ impl<T> SDT<T>
 	{
 		self.header.length as usize - ::core::mem::size_of::<SDTHeader>()
 	}
-	pub fn data<'s>(&'s self) -> &'s T
-	{
+	pub fn header(&self) -> &SDTHeader {
+		&self.header
+	}
+	pub fn data<'s>(&'s self) -> &'s T {
 		&self.data
 	}
 	
