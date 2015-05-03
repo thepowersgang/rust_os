@@ -60,6 +60,14 @@ impl<T> SparseVec<T>
 			self.count -= 1;
 		}
 	}
+	
+	pub fn get(&self, idx: usize) -> Option<&T> {
+		match self.data.get(idx) {
+		Some(r) => r.as_ref(),
+		None => None,
+		}
+	}
+	
 	//pub fn find_free<'a>(&'a mut self) -> Option<Element<'a,T>> {
 	//	None
 	//}

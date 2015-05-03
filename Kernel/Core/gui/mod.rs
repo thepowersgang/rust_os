@@ -37,6 +37,8 @@ mod windows;
 /// Kernel log display
 mod kernel_log;
 
+pub mod input;
+
 // Import geometry types from video layer
 pub use metadevs::video::{Dims, Pos, Rect};
 

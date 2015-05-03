@@ -17,6 +17,13 @@ pub struct RingBuf<T>
 	len: usize,
 }
 
+/*
+Atomic ringbuf notes:
+- Use semi atomicity (try_lock_cpu)
+- four indexes
+- write: try_lock, inc far len, write close len, set close=far, ELSE, inc far len, write old far
+*/
+
 impl<T> RingBuf<T>
 {
 	/// Create a new (empty) ring buffer

@@ -94,6 +94,7 @@ pub fn init()
 	S_RENDER_THREAD.init( || ::threads::ThreadHandle::new("GUI Compositor", render_thread) );
 }
 
+
 /// Update window dimensions and positions after the display organsisation changes
 pub fn update_dims()
 {
@@ -126,6 +127,29 @@ pub fn update_dims()
 	// TODO: Poke registered callbacks and tell them that the dimensions have changed
 }
 
+/// Handle an input event
+pub fn handle_input(event: super::input::Event)
+{
+	// TODO: This function runs in interrupt context, and hence needs to not acquire any spinlocks
+	// - To do so, it needs to only use atomic operations to mutate state (i.e. pushing the event to a fixed-length queue)
+	log_warning!("TODO: Handle input event {:?}", event);
+	// Ideally:
+	// - Push event to a FIFO queue (fixed-size)
+	//S_EVENT_QUEUE.try_push(event);
+	// - Prod a worker (e.g. the render thread) in an atomic way
+	//S_RENDER_REQUEST.post();
+}
+/// Switch the currently active window group
+//#[tag_safe(irq)]
+pub fn switch_active(new: usize)
+{
+	// TODO: I would like to check the validity of this value BEFORE attempting a re-render, but that
+	//  would require locking the S_WINDOW_GROUPS vector.
+	log_log!("Switching to group {}", new);
+	S_CURRENT_GROUP.store(new, ::core::atomic::Ordering::Relaxed);
+	S_RENDER_REQUEST.post();
+}
+
 // Thread that controls compiositing windows to the screen
 fn render_thread()
 {
@@ -136,8 +160,19 @@ fn render_thread()
 		S_RENDER_REQUEST.sleep();
 		
 		// render the active window group
-		let grp_idx = S_CURRENT_GROUP.load( ::core::atomic::Ordering::Relaxed );
-		let grp_ref = S_WINDOW_GROUPS.lock()[grp_idx].clone();
+		let (grp_idx, grp_ref) = {
+			let grp_idx = S_CURRENT_GROUP.load( ::core::atomic::Ordering::Relaxed );
+			let wglh = S_WINDOW_GROUPS.lock();
+			match wglh.get(grp_idx)
+			{
+			Some(r) => (grp_idx, r.clone()),
+			None => {
+				log_log!("Selected group {} invalid, falling back to 0", grp_idx);
+				S_CURRENT_GROUP.store(0, ::core::atomic::Ordering::Relaxed);
+				(0, wglh[0].clone())
+				},
+			}
+			};
 		
 		log_debug!("render_thread: Rendering WG {} '{}'", grp_idx, grp_ref.lock().name);
 		grp_ref.lock().redraw(false);

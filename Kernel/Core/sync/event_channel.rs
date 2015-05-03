@@ -7,19 +7,22 @@ use prelude::*;
 use sync::Spinlock;
 use threads::WaitQueue;
 use core::cell::UnsafeCell;
+use core::atomic::Ordering;
 
 /// EventChannel controlling object
 pub struct EventChannel
 {
 	lock: Spinlock<bool>,
 	queue: UnsafeCell< WaitQueue >,
+	pending_wakes: ::core::atomic::AtomicUsize,
 }
 unsafe impl Sync for EventChannel {}
 
 /// Static initialiser for EventChannel
 pub const EVENTCHANNEL_INIT: EventChannel = EventChannel {
 	lock: spinlock_init!( false ),
-	queue: UnsafeCell{value: ::threads::WAITQUEUE_INIT}
+	queue: UnsafeCell{value: ::threads::WAITQUEUE_INIT},
+	pending_wakes: ::core::atomic::ATOMIC_USIZE_INIT,
 	};
 
 impl EventChannel
@@ -44,18 +47,41 @@ impl EventChannel
 	}
 	
 	/// Post the event
+	//#[tag_safe(irq)]	// SAFE: Handles case of lock being held by CPU
 	pub fn post(&self) {
-		unsafe {
-			let mut lh = self.lock.lock();
-			let q = &mut *self.queue.get();
-			
-			// Wake a sleeper, or set a flag preventing next sleep
-			if q.has_waiter() {
-				q.wake_one();
+		// Attempt to lock (failing if the CPU already holds the lock)
+		if let Some(mut lh) = self.lock.try_lock_cpu() {
+			let mut count = 1;
+			loop
+			{
+				// SAFE: Only called when lcok is held
+				unsafe {
+					let q = &mut *self.queue.get();
+					
+					// Wake a sleeper, or set a flag preventing next sleep
+					while count > 0 && q.has_waiter() {
+						q.wake_one();
+						count -= 1;
+					}
+					if count > 0 {
+						*lh = true;
+					}
+				}
+				
+				// Release the lock, and check any pending wake requests
+				// - Should not be racy, as it's a single-CPU action
+				// - IRQ here will inc count
+				drop(lh);
+				// - IRQ here will lock successfully
+				count = self.pending_wakes.swap(0, Ordering::Release);
+				if count == 0 {
+					break;
+				}
+				lh = self.lock.lock();
 			}
-			else {
-				*lh = true;
-			}
+		} else {
+			// Set a flag
+			self.pending_wakes.fetch_add(1, Ordering::Acquire);
 		}
 	}
 }
