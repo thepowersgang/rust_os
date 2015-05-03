@@ -8,8 +8,11 @@ use kernel::_common::*;
 use kernel::arch::{acpi,x86_io};
 use kernel::irqs;
 
-#[derive(Default)]
-struct Port(super::PS2Dev);
+struct Port
+{
+	is_second: bool,
+	dev: super::PS2Dev,
+}
 
 #[derive(Default)]
 struct Ctrlr8042
@@ -47,17 +50,39 @@ pub fn init()
 	}
 }
 
+impl Port
+{
+	fn new(is_second: bool) -> Port {
+		Port {
+			is_second: is_second,
+			dev: Default::default(),
+		}
+	}
+	unsafe fn send_byte(&mut self, b: u8) {
+		// EVIL: Obtains a new instance of the controller to use its methods
+		// - Should be safe to do, as long as we don't get two IRQs running at the same time
+		let mut c = Ctrlr8042::default();
+		if self.is_second {
+			c.write_cmd(0xD4);
+		}
+		c.write_data(b);
+	}
+}
+
 impl irqs::Handler for Port
 {
 	fn handle(&mut self) -> bool {
+		// (questionably) SAFE: The hardware itself is racy, as there's two IRQs
 		unsafe {
-			if x86_io::inb(0x64) & 2 != 0 {
-				let b = x86_io::inb(0x60);
-				log_trace!("PS2 Byte {:#x}", b);
-				true
+			if x86_io::inb(0x64) & 1 == 0 {
+				false
 			}
 			else {
-				false
+				let b = x86_io::inb(0x60);
+				if let Some(ob) = self.dev.recv_byte(b) {
+					self.send_byte(ob);
+				}
+				true
 			}
 		}
 	}
@@ -78,7 +103,7 @@ impl Ctrlr8042
 		// Read, Modify, Write the controller's config
 		ctrlr.write_cmd(0x20);
 		let mut config = ctrlr.read_data().ok().expect("Timeout reading PS/2 config");
-		config &= (1<<0)|(1<<1)|(1<<6);
+		config &= !( (1<<0)|(1<<1)|(1<<6) );
 		let can_have_second_port = (config & (1<<5) != 0);
 		ctrlr.write_cmd(0x60);
 		ctrlr.write_data(config);
@@ -134,17 +159,22 @@ impl Ctrlr8042
 		if port2_works {
 			config |= 1 << 1;	// Enable interrupt
 		}
-		log_trace!("config = {:#x}", config);
+		log_debug!("Controller config = 0b{:08b}", config);
 		ctrlr.write_cmd(0x60);
 		ctrlr.write_data(config);
 		// - Enable ports second
 		if port1_works {
-			ctrlr.port1 = Some( ::kernel::irqs::bind_object(1, Box::new(Port::default())) );
+			log_debug!("Enabling port 1");
+			ctrlr.port1 = Some( ::kernel::irqs::bind_object(1, Box::new(Port::new(false))) );
 			ctrlr.write_cmd(0xAE);
+			ctrlr.write_data(0xFF);
 		}
 		if port2_works {
-			ctrlr.port2 = Some( ::kernel::irqs::bind_object(12, Box::new(Port::default())) );
+			log_debug!("Enabling port 2");
+			ctrlr.port2 = Some( ::kernel::irqs::bind_object(12, Box::new(Port::new(true))) );
 			ctrlr.write_cmd(0xA8);
+			ctrlr.write_cmd(0xD4);
+			ctrlr.write_data(0xFF);
 		}
 		
 		Ok( ctrlr )

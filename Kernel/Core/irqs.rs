@@ -87,7 +87,11 @@ pub fn bind_event(num: u32) -> EventHandle
 
 pub fn bind_object<T: Handler>(num: u32, obj: Box<T>) -> ObjectHandle<T>
 {
-	todo!("bind_object<{}>(num={})", type_name!(T), num);
+	ObjectHandle {
+		num: num,
+		index: bind(num, obj),
+		_pd: ::core::marker::PhantomData,
+		}
 }
 
 impl IRQBinding
@@ -117,7 +121,7 @@ impl IRQBinding
 		// If the current CPU owns the queue lock, don't do processing here
 		if let Some(mut lh) = self.handlers.try_lock_cpu()
 		{
-			log_debug!("Firing IRQ handlers");
+			log_trace!("Firing IRQ handlers (TODO: IRQ#)");
 			// Otherwise, lock the handlers list and run them
 			// - Should not cause a race condition, as the current CPU shouldn't be doing funny stuff
 			// - POSSIBLE : Reach here, other IRQ which causes changes to this IRQ's data?
@@ -130,7 +134,7 @@ impl IRQBinding
 		// Instead, mark the interrupt as having fired and let it call handlers later
 		else
 		{
-			log_debug!("Deferring IRQ handler fire");
+			log_trace!("Deferring IRQ handler fire");
 			// The CPU owns the lock, so we don't care about ordering
 			self.has_fired.store(true, ::core::atomic::Ordering::Relaxed);
 		}
