@@ -3,7 +3,7 @@
 //
 // Core/hw/mapper_mbr.rs
 /// Master Boot Record logical volume mapper
-use _common::*;
+use prelude::*;
 use lib::byteorder::{ReadBytesExt,LittleEndian};
 
 module_define!{MapperMBR, [Storage], init}

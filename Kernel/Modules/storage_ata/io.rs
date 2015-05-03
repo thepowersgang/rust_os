@@ -2,7 +2,7 @@
 //
 //
 //! ATA IO code, handling device multiplexing and IO operations
-use kernel::_common::*;
+use kernel::prelude::*;
 use kernel::memory::helpers::{DMABuffer};
 use kernel::async;
 use kernel::device_manager::IOBinding;

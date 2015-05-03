@@ -3,7 +3,7 @@
 //
 // Core/modules.rs
 // - Runtime-initialised modules (handling load order deps)
-use _common::*;
+use prelude::*;
 
 #[repr(packed)]
 #[allow(missing_copy_implementations)]

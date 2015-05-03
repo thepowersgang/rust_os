@@ -6,7 +6,7 @@
 //!
 //! B-Trees are a more memory/cache efficient version of binary trees, storing up to `b` items
 //! per node
-use _common::*;
+use prelude::*;
 
 pub struct BTreeMap<K: Ord,V>
 {

@@ -5,7 +5,8 @@
 //! A FIFO queue type
 //!
 //! Current implementation is a linked list, but could be backed to Vec if required.
-use _common::*;
+use prelude::*;
+use lib::{OptPtr,OptMutPtr};
 
 /// A basic linked-list queue
 pub struct Queue<T>
@@ -20,7 +21,7 @@ unsafe impl<T: Sync> ::core::marker::Sync for Queue<T> {}
 unsafe impl<T: Send> ::core::marker::Send for Queue<T> {}
 
 /// Initialise a queue within a `static`
-macro_rules! queue_init{ () => (Queue{head: OptPtr(0 as *const _),tail: OptMutPtr(0 as *mut _)}) }
+macro_rules! queue_init{ () => ($crate::lib::queue::Queue{head: $crate::lib::OptPtr(0 as *const _),tail: $crate::lib::OptMutPtr(0 as *mut _)}) }
 
 #[doc(hidden)]
 pub struct QueueEnt<T>

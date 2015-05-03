@@ -2,7 +2,7 @@
 //
 //
 //! Device manager "drivers"
-use kernel::_common::*;
+use kernel::prelude::*;
 use kernel::device_manager;
 
 

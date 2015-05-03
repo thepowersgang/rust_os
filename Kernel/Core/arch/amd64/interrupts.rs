@@ -3,7 +3,7 @@
 //
 // Core/main.rs
 //! Low-level interrupt handling and CPU error handling
-use _common::*;
+use prelude::*;
 use super::{puts,puth};
 
 #[repr(C)]

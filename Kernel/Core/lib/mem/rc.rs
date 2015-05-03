@@ -3,7 +3,7 @@
 //
 // Core/lib/mem/rc.rs
 //! Reference-counted shared allocation
-use _common::*;
+use prelude::*;
 use core::nonzero::NonZero;
 use core::{ops,fmt};
 

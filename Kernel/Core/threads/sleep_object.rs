@@ -3,7 +3,7 @@
 //
 // Core/threads/sleep_object.rs
 //! Sleep object
-use _common::*;
+use prelude::*;
 use core::ops;
 use super::thread::{Thread, RunState};
 use super::s_runnable_threads;

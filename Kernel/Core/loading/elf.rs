@@ -3,7 +3,7 @@
 //
 // Core/loading/elf.rs
 //! Executable and Linking Format (ELF) support
-use _common::*;
+use prelude::*;
 use lib::borrow::Cow;
 use memory::virt::SliceAllocHandle;
 use memory::PAddr;

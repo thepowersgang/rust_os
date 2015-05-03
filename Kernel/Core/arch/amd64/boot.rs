@@ -5,7 +5,7 @@
 //! Boot information.
 //!
 //! Parsing and exposure of the bootloader-provided data
-use _common::*;
+use prelude::*;
 use super::memory::addresses::{IDENT_START, IDENT_END};
 use metadevs::video::bootvideo::{VideoMode,VideoFormat};
 

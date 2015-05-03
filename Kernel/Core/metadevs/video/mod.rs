@@ -3,7 +3,7 @@
 //
 // Core/metadevs/video/mod.rs
 ///! Video (Display) management
-use _common::*;
+use prelude::*;
 use sync::mutex::{Mutex,LazyMutex};
 use lib::sparse_vec::SparseVec;
 

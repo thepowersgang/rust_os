@@ -18,11 +18,10 @@
 #![feature(step_by)]	// Range::step_by
 #![feature(linkage)]	// allows using #[linkage="external"]
 #![no_std]
+use prelude::*;
 
 #[macro_use]
 extern crate core;
-
-use _common::*;
 
 pub use arch::memory::PAGE_SIZE;
 
@@ -43,7 +42,7 @@ mod std {
 }
 
 /// Kernel's version of 'std::prelude'
-pub mod _common;
+pub mod prelude;
 
 /// Library datatypes (Vec, Queue, ...)
 #[macro_use]

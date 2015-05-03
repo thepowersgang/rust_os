@@ -3,7 +3,7 @@
 //
 // Core/lib/io.rs
 /// A clone of ::std::io
-use _common::*;
+use prelude::*;
 
 /// Shorthand result type
 pub type Result<T> = ::core::result::Result<T,Error>;

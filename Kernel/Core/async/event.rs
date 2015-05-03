@@ -3,7 +3,7 @@
 //
 // Core/async/event.rs
 //! Asynchronous event waiter
-use _common::*;
+use prelude::*;
 use core::atomic::{AtomicBool,ATOMIC_BOOL_INIT};
 use core::fmt;
 

@@ -42,7 +42,7 @@ pub mod num
 {
 	//! General numeric helpers
 	
-	use _common::*;
+	use prelude::*;
 	use core::ops;
 	
 	pub trait Int

@@ -3,7 +3,7 @@
 //
 // arch/amd64/log.rs
 //! RS232 logging output
-use _common::*;
+use prelude::*;
 
 use super::x86_io;
 

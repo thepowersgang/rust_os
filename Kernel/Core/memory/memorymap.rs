@@ -1,7 +1,7 @@
 // "Tifflin" Kernel
 //
 //
-use _common::*;
+use prelude::*;
 use arch::memory::{PAddr};
 
 #[derive(PartialEq,Debug,Copy,Clone)]

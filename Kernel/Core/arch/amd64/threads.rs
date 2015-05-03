@@ -3,7 +3,7 @@
 //
 // Core/arch/amd64/threads.rs
 //! Architecture-level thread handling (helpers for ::threads).
-use _common::*;
+use prelude::*;
 
 #[derive(Default)]//,Copy,Clone)]
 /// Low-level thread state

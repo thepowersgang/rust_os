@@ -4,7 +4,7 @@
 // Core/device_manager.rs
 // - Core device manager
 
-use _common::*;
+use prelude::*;
 use sync::Mutex;
 use lib::Queue;
 

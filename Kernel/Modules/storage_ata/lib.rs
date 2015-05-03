@@ -7,7 +7,7 @@
 #![no_std]
 #[macro_use] extern crate core;
 #[macro_use] extern crate kernel;
-use kernel::_common::*;
+use kernel::prelude::*;
 use kernel::lib::mem::Arc;
 
 use kernel::device_manager;

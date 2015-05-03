@@ -4,7 +4,7 @@
 // Core/hw/vga/crtc.rs
 // - VGA CRTC Handler
 //
-use kernel::_common::*;
+use kernel::prelude::*;
 use kernel::lib::UintBits;
 use kernel::arch::x86_io;
 

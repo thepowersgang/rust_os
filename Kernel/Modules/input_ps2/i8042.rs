@@ -3,7 +3,7 @@
 //
 // Modules/input_ps2/i8042.rs
 //! x86 PS/2 controller (intel 8042)
-use kernel::_common::*;
+use kernel::prelude::*;
 
 use kernel::arch::{acpi,x86_io};
 use kernel::irqs;

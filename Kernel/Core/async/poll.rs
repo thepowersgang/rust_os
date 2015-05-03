@@ -3,7 +3,7 @@
 //
 // Core/async/poll.rs
 //! Polling async waiter
-use _common::*;
+use prelude::*;
 use core::cell::RefCell;
 use core::fmt;
 

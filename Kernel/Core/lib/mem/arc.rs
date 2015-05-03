@@ -3,7 +3,7 @@
 //
 // Core/lib/mem/arc.rs
 //! Atomic reference-counted shared allocation
-use _common::*;
+use prelude::*;
 use core::nonzero::NonZero;
 use core::atomic::{AtomicUsize,Ordering};
 use core::{ops,fmt};

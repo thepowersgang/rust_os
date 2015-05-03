@@ -3,7 +3,7 @@
 //
 // Core/metadevs/storage.rs
 // - Storage (block device) subsystem
-use _common::*;
+use prelude::*;
 use core::atomic::{AtomicUsize,ATOMIC_USIZE_INIT};
 use sync::mutex::LazyMutex;
 use lib::{VecMap};

@@ -3,7 +3,7 @@
 //
 // Core/lib/vec_map.rs
 //! Sorted vector backed Key-Value map.
-use _common::*;
+use prelude::*;
 use lib::borrow::Borrow;
 
 /// Primitive key-value map backed by a sorted vector

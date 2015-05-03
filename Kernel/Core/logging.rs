@@ -10,7 +10,7 @@
 // > Cache/buffer sink
 // > Display sink
 // > Serial sink
-use _common::*;
+use prelude::*;
 use core::fmt::{self,Write};
 use arch::sync::Spinlock;
 
@@ -83,7 +83,7 @@ struct Sinks
 
 mod serial
 {
-	use _common::*;
+	use prelude::*;
 	use super::{Level,Colour};
 	use core::fmt;
 	
@@ -129,7 +129,7 @@ mod serial
 
 mod memory
 {
-	use _common::*;
+	use prelude::*;
 	use super::Level;
 	
 	pub struct Sink
@@ -190,7 +190,7 @@ mod memory
 
 mod video
 {
-	//use _common::*;
+	//use prelude::*;
 	use super::Level;
 	
 	pub struct Sink;

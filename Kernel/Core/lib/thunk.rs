@@ -3,7 +3,7 @@
 //
 // Core/lib/thunk.rs
 //! Box<FnOnce> support, similar to std::thunk
-use _common::*;
+use prelude::*;
 
 /// Trait that provides a consuming invoke function for boxed closures
 pub trait Invoke<A=(), R=()>

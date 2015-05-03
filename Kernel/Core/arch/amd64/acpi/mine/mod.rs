@@ -3,7 +3,7 @@
 //
 // arch/amd64/acpi/mod_mine.rs
 //! ACPI Component Architecture binding
-use _common::*;
+use prelude::*;
 use core::fmt;
 use core::str::from_utf8;
 

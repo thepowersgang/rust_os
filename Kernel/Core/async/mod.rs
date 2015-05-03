@@ -7,7 +7,7 @@
  The Tifflin asynch IO model is based around waiter handlers that contain sufficient information
  to either sleep the thread, or poll for a condition.
 */
-use _common::*;
+use prelude::*;
 
 pub use self::mutex::Mutex;
 

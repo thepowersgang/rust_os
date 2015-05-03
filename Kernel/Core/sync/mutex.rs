@@ -3,7 +3,7 @@
 //
 // Core/sync/mutex.rs
 //! Thread blocking Mutex type
-use _common::*;
+use prelude::*;
 use core::ops;
 
 /// A standard mutex (blocks the current thread when contended)

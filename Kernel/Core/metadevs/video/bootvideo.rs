@@ -1,4 +1,4 @@
-use _common::*;
+use prelude::*;
 use super::{Dims, Rect};
 
 /// Bit format of the linear framebuffer, if interpreted as a n-bit little-endian number

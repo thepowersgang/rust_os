@@ -7,7 +7,7 @@
 #![no_std]
 #[macro_use] extern crate core;
 #[macro_use] extern crate kernel;
-use kernel::_common::*;
+use kernel::prelude::*;
 
 // HACK: Requires USB to be active to ensure that emulation is off
 module_define!{PS2, [DeviceManager, ACPI, GUI/*, USB*/], init}

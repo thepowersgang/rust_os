@@ -3,7 +3,7 @@
 //
 // Core/metadevs/video/mod.rs
 /// Geometry types
-use _common::*;
+use prelude::*;
 
 #[derive(Copy,Clone,PartialEq,Default)]
 pub struct Pos

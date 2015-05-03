@@ -3,7 +3,7 @@
 //
 // Core/threads/threadlist.rs
 //! Owned list of threads
-use _common::*;
+use prelude::*;
 
 use super::Thread;
 

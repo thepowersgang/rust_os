@@ -11,7 +11,7 @@
  * however, it points to a shared block that contains information needed by both the 
  * thread itself, and the "owner" of the thread (e.g process, or controlling driver).
  */
-use _common::*;
+use prelude::*;
 use lib::mem::Arc;
 
 /// Thread identifier (unique)

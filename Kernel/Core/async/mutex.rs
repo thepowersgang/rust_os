@@ -5,7 +5,7 @@
 //! Asynchronous Mutex.
 //!
 //! Provides an asynchonous mutex type, for use with the async IO framework
-use _common::*;
+use prelude::*;
 use core::cell::UnsafeCell;
 use core::atomic::{AtomicBool,Ordering};
 use core::fmt;

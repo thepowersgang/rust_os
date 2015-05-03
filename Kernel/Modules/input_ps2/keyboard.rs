@@ -3,7 +3,7 @@
 //
 // Modules/input_ps2/keyboard.rs
 //! PS2 Keyboard driver
-use kernel::_common::*;
+use kernel::prelude::*;
 
 #[derive(Debug)]
 pub enum Type

@@ -3,7 +3,7 @@
 //
 // Core/sync/event_channel.rs
 //! Sleeping primitive for that wakes a thread when signalled
-use _common::*;
+use prelude::*;
 use sync::Spinlock;
 use threads::WaitQueue;
 use core::cell::UnsafeCell;

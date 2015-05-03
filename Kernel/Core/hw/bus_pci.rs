@@ -3,7 +3,7 @@
 //
 // Core/pci.rs
 // - PCI Bus Handling
-use _common::*;
+use prelude::*;
 
 use device_manager::BusDevice;
 

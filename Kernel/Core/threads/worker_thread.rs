@@ -3,7 +3,7 @@
 //
 // Core/threads/worker_thread.rs
 //! Management of kernel worker threads (short or long)
-use _common::*;
+use prelude::*;
 
 
 pub struct WorkerThread(super::thread::ThreadHandle);

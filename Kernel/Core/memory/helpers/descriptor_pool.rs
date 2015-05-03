@@ -1,7 +1,7 @@
 /*
  */
 ///! A pool of descriptors in DMA-able memory
-use _common::*;
+use prelude::*;
 use memory::virt::AllocHandle;
 
 pub struct DescriptorPool<T>

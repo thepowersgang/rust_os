@@ -3,7 +3,7 @@
 //
 // Core/memory/phys.rs
 // - Physical memory manager
-use _common::*;
+use prelude::*;
 //use arch::memory::addresses::{physinfo_start, physinfo_end};
 use arch::memory::PAddr;
 

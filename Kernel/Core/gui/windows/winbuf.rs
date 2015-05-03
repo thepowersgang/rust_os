@@ -3,7 +3,7 @@
 //
 // Core/gui/windows/winbuf.rs
 // - Backing buffer for a window
-use _common::*;
+use prelude::*;
 use super::super::{Dims,Pos,Rect,Colour};
 use core::cell::UnsafeCell;
 

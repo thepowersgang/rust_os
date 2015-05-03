@@ -7,7 +7,7 @@
 #![feature(no_std,core)]
 #![feature(box_syntax)]
 #![no_std]
-use kernel::_common::*;
+use kernel::prelude::*;
 #[macro_use] extern crate kernel;
 #[macro_use] extern crate core;
 mod std {

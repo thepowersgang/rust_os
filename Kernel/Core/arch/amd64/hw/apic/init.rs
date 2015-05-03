@@ -3,7 +3,7 @@
 //
 // arch/amd64/hw/apic/init.rs
 // - x86 APIC Initialisation (ACPI parsing)
-use _common::*;
+use prelude::*;
 
 #[repr(C,packed)]
 pub struct ACPI_MADT

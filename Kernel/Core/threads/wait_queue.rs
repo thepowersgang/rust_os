@@ -3,7 +3,7 @@
 //
 // Core/threads/wait_queue.rs
 //! Thread wait queue
-use _common::*;
+use prelude::*;
 
 use super::thread::RunState;
 use super::ThreadList;

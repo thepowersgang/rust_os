@@ -3,7 +3,7 @@
 //
 // arch/amd64/hw/hpet.rs
 // - x86 High Precision Event Timer
-use _common::*;
+use prelude::*;
 use arch::acpi::AddressSpaceID;
 
 module_define!{HPET, [APIC, ACPI], init}

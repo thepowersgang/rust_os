@@ -5,7 +5,7 @@
 //! ACPI (Advanced Control and Power Interface) handling code
 //!
 //! Provides access to the ACPI tables
-use _common::*;
+use prelude::*;
 
 module_define!{ACPI, [], init}
 

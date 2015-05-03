@@ -3,7 +3,7 @@
 //
 // arch/amd64/acpi/aml.rs
 //! ACPI Machine Language parser (VM)
-use _common::*;
+use prelude::*;
 
 struct Error;
 struct AmlStream<'a>(&'a [u8],usize);

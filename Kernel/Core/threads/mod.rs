@@ -3,7 +3,7 @@
 //
 // Core/threads/mod.rs
 //! Thread management
-use _common::*;
+use prelude::*;
 
 mod thread;
 mod thread_list;

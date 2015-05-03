@@ -3,7 +3,7 @@
 //
 // Core/lib/borrow.rs
 //! Borrowed value manipulations (copy of ::std::borrow).
-use _common::*;
+use prelude::*;
 
 /// A copy-on-write value
 pub enum Cow<'a, B: ?Sized>

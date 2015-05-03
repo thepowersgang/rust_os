@@ -6,7 +6,7 @@
 #![allow(non_snake_case)]
 #![allow(private_no_mangle_fns)]
 #![allow(dead_code)]
-use _common::*;
+use prelude::*;
 use super::shim_ext::*;
 use super::va_list::va_list;
 

@@ -5,7 +5,7 @@
 //! Dynamically-allocated string type
 //!
 //! Acts every similarly to the rust std's String type.
-use _common::*;
+use prelude::*;
 use core::ops;
 
 /// String type

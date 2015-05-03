@@ -10,7 +10,7 @@
 // - TODO: Kernel log (history) : A searchable/filterable/scrollable kernel log
 // - TODO: Console 
 
-use _common::*;
+use prelude::*;
 
 use super::windows::{WindowGroupHandle,WindowHandle};
 use super::{Colour,Dims,Pos,Rect};

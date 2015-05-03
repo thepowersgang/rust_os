@@ -4,7 +4,7 @@
 // arch/amd64/hw/apic/mod.rs
 //! x86 APIC (Advanced Programmable Interrupt Controller) Driver.
 // mod.rs -- Core API / init
-use _common::*;
+use prelude::*;
 
 module_define!{APIC, [ACPI], init}
 

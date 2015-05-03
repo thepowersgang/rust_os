@@ -2,7 +2,7 @@
 //
 //
 ///
-use _common::*;
+use prelude::*;
 use super::{Dims,Pos};
 
 /// State of the "virtual display"

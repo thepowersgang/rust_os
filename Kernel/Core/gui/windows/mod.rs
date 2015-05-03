@@ -3,7 +3,7 @@
 //
 // Core/gui/windows/mod.rs
 // - GUI Window management
-use _common::*;
+use prelude::*;
 use super::{Dims,Pos,Rect,Colour};
 use sync::mutex::{LazyMutex,Mutex};
 use sync::rwlock::RwLock;

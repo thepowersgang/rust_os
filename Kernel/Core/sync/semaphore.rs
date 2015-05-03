@@ -3,7 +3,7 @@
 //
 // Core/sync/semaphore.rs
 //! Thread blocking semaphore type
-use _common::*;
+use prelude::*;
 use sync::Spinlock;
 
 /// Semaphore

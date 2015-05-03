@@ -3,7 +3,7 @@
 //
 // arch/amd64/acpi/mod_acpica.rs
 //! ACPI Component Architecture binding
-use _common::*;
+use prelude::*;
 use core::ops;
 use self::shim_ext::*;
 

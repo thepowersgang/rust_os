@@ -3,7 +3,7 @@
 //
 // Modules/input_ps2/mouse.rs
 //! PS2 Mouse driver
-use kernel::_common::*;
+use kernel::prelude::*;
 
 pub enum Type
 {

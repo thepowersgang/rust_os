@@ -3,7 +3,7 @@
 //
 // Core/irqs.rs
 //! Core IRQ Abstraction
-use _common::*;
+use prelude::*;
 use core::atomic::AtomicBool;
 use arch::sync::Spinlock;
 use arch::interrupts;
