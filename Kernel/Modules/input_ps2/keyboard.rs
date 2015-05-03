@@ -48,11 +48,15 @@ impl Dev
 		
 		match ty
 		{
+		Type::AT => {
+			log_warning!("Unexpected AT keyboard");
+			return (None, Dev { ty: ty, state: State::Init(Init::Disabled) });
+			},
 		Type::MF2Emul => {
 			log_warning!("Unexpected emulation enabled MF2");
 			return (None, Dev { ty: ty, state: State::Init(Init::Disabled) });
 			},
-		_ => {},
+		Type::MF2 => {},
 		}
 		
 		// 1. Request scancode set
