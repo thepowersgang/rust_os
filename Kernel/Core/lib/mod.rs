@@ -12,10 +12,16 @@ pub use self::vec_map::VecMap;
 pub use self::btree_map::BTreeMap;
 pub use self::vec::Vec;
 pub use self::string::String;
+pub use self::lazy_static::LazyStatic;
+pub use self::opt_ptr::{OptPtr,OptMutPtr};
 
 pub mod thunk;
-
 pub mod borrow;
+
+pub mod opt_ptr;
+
+#[macro_use]
+pub mod lazy_static;
 
 pub mod mem;
 #[macro_use]
@@ -94,104 +100,6 @@ pub unsafe fn unsafe_cast_slice<DstType>(src: &[u8]) -> &[DstType]
 		})
 }
 
-/// A lazily initialised value (for `static`s)
-pub struct LazyStatic<T: Send+Sync>(pub ::core::cell::UnsafeCell<Option<T>>);
-unsafe impl<T: Send+Sync> Sync for LazyStatic<T> {}	// Barring the unsafe "prep" call, is Sync
-unsafe impl<T: Send+Sync> Send for LazyStatic<T> {}	// Sendable because inner is sendable
-
-#[macro_export]
-macro_rules! lazystatic_init {
-	() => ($crate::lib::LazyStatic(::core::cell::UnsafeCell { value: ::core::option::Option::None }));
-}
-
-impl<T: Send+Sync> LazyStatic<T>
-{
-	/// (unsafe) Prepare the value using the passed function
-	///
-	/// Unsafe because it must NOT be called where a race is possible
-	pub unsafe fn prep<Fcn: FnOnce()->T>(&self, fcn: Fcn) {
-		let r = &mut *self.0.get();
-		assert!(r.is_none(), "LazyStatic<{}> initialised multiple times", type_name!(T));
-		if r.is_none() {
-			*r = Some(fcn());
-		}
-	}
-	pub unsafe fn ls_unsafe_mut(&self) -> &mut T {
-		match *self.0.get()
-		{
-		Some(ref mut v) => v,
-		None => panic!("Dereferencing LazyStatic<{}> without initialising", type_name!(T))
-		}
-	}
-}
-impl<T: Send+Sync> ::core::ops::Deref for LazyStatic<T>
-{
-	type Target = T;
-	fn deref(&self) -> &T {
-		match unsafe { (&*self.0.get()).as_ref() } {
-		Some(v) => v,
-		None => panic!("Dereferencing LazyStatic<{}> without initialising", type_name!(T))
-		}
-	}
-}
-
-/// An equivalemnt of Option<*const T> which cannot be NULL
-pub struct OptPtr<T>(pub *const T);
-unsafe impl<T: Send> Send for OptPtr<T> {}
-/// An equivalemnt of Option<*mut T> which cannot be NULL
-pub struct OptMutPtr<T>(pub *mut T);
-unsafe impl<T: Send> Send for OptMutPtr<T> {}
-
-impl<T> OptPtr<T>
-{
-	pub fn is_none(&self) -> bool {
-		self.0.is_null()
-	}
-	pub fn is_some(&self) -> bool {
-		!self.0.is_null()
-	}
-	pub fn unwrap(&self) -> *const T {
-		assert!( !self.0.is_null() );
-		self.0
-	}
-	pub unsafe fn as_ref(&self) -> Option<&T> {
-		if (self.0).is_null() {
-			None
-		}
-		else {
-			Some(&*self.0)
-		}
-	}
-	pub unsafe fn as_mut(&self) -> OptMutPtr<T> {
-		::core::mem::transmute(self)
-	}
-	/// This is HIGHLY unsafe
-	pub unsafe fn as_mut_ref(&self) -> Option<&mut T> {
-		::core::mem::transmute(self.as_ref())
-	}
-}
-
-impl<T> OptMutPtr<T>
-{
-	pub fn is_none(&self) -> bool {
-		self.0.is_null()
-	}
-	pub fn is_some(&self) -> bool {
-		!self.0.is_null()
-	}
-	pub fn unwrap(&self) -> *mut T {
-		assert!( !self.0.is_null() );
-		self.0
-	}
-	pub unsafe fn as_ref(&self) -> Option<&mut T> {
-		if (self.0).is_null() {
-			None
-		}
-		else {
-			Some(&mut *self.0)
-		}
-	}
-}
 
 /// Unsiged integer bit-level access
 pub trait UintBits
