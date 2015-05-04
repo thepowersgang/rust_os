@@ -29,7 +29,9 @@ pub enum IrqError
 
 //#[link_section="processor_local"]
 //static s_lapic_lock: ::sync::Mutex<()> = mutex_init!( () );
+#[allow(non_upper_case_globals)]
 static s_lapic: ::lib::LazyStatic<raw::LAPIC> = lazystatic_init!();
+#[allow(non_upper_case_globals)]
 static s_ioapics: ::lib::LazyStatic<Vec<raw::IOAPIC>> = lazystatic_init!();
 
 fn init()
@@ -87,20 +89,18 @@ fn init()
 
 fn get_ioapic(interrupt: usize) -> Option<(&'static raw::IOAPIC, usize)>
 {
-	unsafe {
-		match s_ioapics.iter().find( |a| a.contains(interrupt) )
-		{
-		None => None,
-		Some(x) => {
-			let ofs = interrupt - x.first();
-			Some( (x, ofs) )
-			},
-		}
+	match s_ioapics.iter().find( |a| a.contains(interrupt) )
+	{
+	None => None,
+	Some(x) => {
+		let ofs = interrupt - x.first();
+		Some( (x, ofs) )
+		},
 	}
 }
 fn get_lapic() -> &'static raw::LAPIC
 {
-	unsafe { &*s_lapic }
+	&*s_lapic
 }
 
 ///// Registers a message-signalled interrupt handler.

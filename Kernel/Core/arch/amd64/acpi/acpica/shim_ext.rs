@@ -3,8 +3,8 @@
 //
 // arch/amd64/acpi/acpica/shim_ext.rs
 //! ACPICA outbound bindings
-#![allow(non_camel_case_types)]
-#![allow(non_snake_case)]
+#![allow(non_camel_case_types,non_snake_case)]	// follows C naming conventions
+#![allow(dead_code)]	// API, may not be used
 use core::fmt;
 
 pub type ACPI_SIZE = usize;
@@ -39,44 +39,47 @@ pub struct ACPI_BUFFER
 }
 
 #[repr(C,u32)]
-pub enum ACPI_OBJECT
+pub struct ACPI_OBJECT
 {
-	Integer(u64),
-	String(u32, *const i8),
-	Buffer(u32, *const u8),
-	Package(u32, *const ACPI_OBJECT),
-	Reference(ACPI_OBJECT_TYPE, ACPI_HANDLE),
-	Processor(u32, ACPI_IO_ADDRESS, u32),
-	PowerResource(u32, u32),
+	Type: ACPI_OBJECT_TYPE,
+	
+	int_data: [u64; 2],
+	//Any,
+	//Integer(u64),
+	//String(u32, *const i8),
+	//Buffer(u32, *const u8),
+	//Package(u32, *const ACPI_OBJECT),
+	//Reference(ACPI_OBJECT_TYPE, ACPI_HANDLE),
+	//Processor(u32, ACPI_IO_ADDRESS, u32),
+	//PowerResource(u32, u32),
 }
 #[repr(C)]
 pub struct ACPI_HANDLE(*mut ());
+#[repr(C)]
 pub struct ACPI_OBJECT_LIST
 {
 	Count: u32,
 	Pointer: *const ACPI_OBJECT,
 }
-#[repr(u32,C)]
-pub enum ACPI_OBJECT_TYPE
-{
-	ACPI_TYPE_ANY,
-	ACPI_TYPE_INTEGER,
-	ACPI_TYPE_STRING,
-	ACPI_TYPE_BUFFER,
-	ACPI_TYPE_PACKAGE,
-	ACPI_TYPE_FIELD_UNIT,
-	ACPI_TYPE_DEVICE,
-	ACPI_TYPE_EVENT,
-	ACPI_TYPE_METHOD,
-	ACPI_TYPE_MUTEX,
-	ACPI_TYPE_REGION,
-	ACPI_TYPE_POWER,
-	ACPI_TYPE_PROCESSOR,
-	ACPI_TYPE_THERMAL,
-	ACPI_TYPE_BUFFER_FIELD,
-	ACPI_TYPE_DDB_HANDLE,
-	ACPI_TYPE_DEBUG_OBJECT,
-}
+pub type ACPI_OBJECT_TYPE = u32;
+pub const ACPI_TYPE_ANY         : ACPI_OBJECT_TYPE = 0;
+pub const ACPI_TYPE_INTEGER     : ACPI_OBJECT_TYPE = 1;
+pub const ACPI_TYPE_STRING      : ACPI_OBJECT_TYPE = 2;
+pub const ACPI_TYPE_BUFFER      : ACPI_OBJECT_TYPE = 3;
+pub const ACPI_TYPE_PACKAGE     : ACPI_OBJECT_TYPE = 4;
+pub const ACPI_TYPE_FIELD_UNIT  : ACPI_OBJECT_TYPE = 5;
+pub const ACPI_TYPE_DEVICE      : ACPI_OBJECT_TYPE = 6;
+pub const ACPI_TYPE_EVENT       : ACPI_OBJECT_TYPE = 7;
+pub const ACPI_TYPE_METHOD      : ACPI_OBJECT_TYPE = 8;
+pub const ACPI_TYPE_MUTEX       : ACPI_OBJECT_TYPE = 9;
+pub const ACPI_TYPE_REGION      : ACPI_OBJECT_TYPE = 10;
+pub const ACPI_TYPE_POWER       : ACPI_OBJECT_TYPE = 11;
+pub const ACPI_TYPE_PROCESSOR   : ACPI_OBJECT_TYPE = 12;
+pub const ACPI_TYPE_THERMAL     : ACPI_OBJECT_TYPE = 13;
+pub const ACPI_TYPE_BUFFER_FIELD: ACPI_OBJECT_TYPE = 14;
+pub const ACPI_TYPE_DDB_HANDLE  : ACPI_OBJECT_TYPE = 15;
+pub const ACPI_TYPE_DEBUG_OBJECT: ACPI_OBJECT_TYPE = 16;
+
 
 #[repr(C)]
 pub struct ACPI_PREDEFINED_NAMES
@@ -89,6 +92,7 @@ pub type ACPI_STRING = *mut u8;
 
 pub type ACPI_THREAD_ID = u64;
 
+#[repr(C)]
 pub struct ACPI_STATUS(i32);
 
 const AE_CODE_ENVIRONMENTAL: i32 = 0x0000;
@@ -125,6 +129,7 @@ pub type ACPI_INTERFACE_HANDLER = extern "C" fn(InterfaceName: ACPI_STRING, Supp
 // AcpiInstallTableHandler
 pub type ACPI_TABLE_HANDLER = extern "C" fn (Event: u32, Table: *const (), Context: *const ()) -> ACPI_STATUS;
 // AcpiGetObjectInfo
+#[repr(C)]
 pub struct ACPI_DEVICE_INFO
 {
 	InfoSize: u32,
@@ -142,11 +147,13 @@ pub struct ACPI_DEVICE_INFO
 	SubsystemId: ACPI_PNP_DEVICE_ID,
 	CompatibleIdList: ACPI_PNP_DEVICE_ID_LIST,
 }
+#[repr(C)]
 pub struct ACPI_PNP_DEVICE_ID
 {
 	Length: u32,
 	String: *const i8,
 }
+#[repr(C)]
 pub struct ACPI_PNP_DEVICE_ID_LIST
 {
 	Count: u32,

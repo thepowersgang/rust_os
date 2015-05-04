@@ -119,7 +119,7 @@ impl Dev
 				},
 			},
 		// Idle and ready to process keystrokes
-		State::Idle(layer,mut release) =>
+		State::Idle(layer,release) =>
 			match byte
 			{
 			// Error/Buffer Overrun

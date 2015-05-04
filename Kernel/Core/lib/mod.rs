@@ -99,8 +99,9 @@ pub struct LazyStatic<T: Send+Sync>(pub ::core::cell::UnsafeCell<Option<T>>);
 unsafe impl<T: Send+Sync> Sync for LazyStatic<T> {}	// Barring the unsafe "prep" call, is Sync
 unsafe impl<T: Send+Sync> Send for LazyStatic<T> {}	// Sendable because inner is sendable
 
+#[macro_export]
 macro_rules! lazystatic_init {
-	() => ($crate::lib::LazyStatic($crate::core::cell::UnsafeCell { value: $crate::core::option::Option::None }));
+	() => ($crate::lib::LazyStatic(::core::cell::UnsafeCell { value: ::core::option::Option::None }));
 }
 
 impl<T: Send+Sync> LazyStatic<T>

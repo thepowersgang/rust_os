@@ -21,6 +21,8 @@ struct Ctrlr8042
 	port2: Option< irqs::ObjectHandle<Port> >,
 }
 
+static S_8042_CTRLR: ::kernel::lib::LazyStatic<Ctrlr8042> = lazystatic_init!();
+
 pub fn init()
 {
 	// 1. Check with ACPI is this machine has a PS2 controller
@@ -42,7 +44,7 @@ pub fn init()
 	
 	if enabled {
 		unsafe {
-			let c = Ctrlr8042::new().unwrap();
+			S_8042_CTRLR.prep(|| Ctrlr8042::new().unwrap());
 		}
 	}
 	else {
@@ -96,9 +98,7 @@ impl Ctrlr8042
 		ctrlr.write_cmd(0xAD);	// Disable primary channel
 		ctrlr.write_cmd(0xA7);	// Disable secondary channel (ignored if none)
 		// - Flush the input FIFO
-		while ctrlr.poll_in() {
-			ctrlr.read_data();
-		}
+		ctrlr.flush();
 		
 		// Read, Modify, Write the controller's config
 		ctrlr.write_cmd(0x20);
@@ -129,9 +129,7 @@ impl Ctrlr8042
 		
 		// - Flush the input FIFO (again)
 		//  > Just in case data arrived while twiddling with ports
-		while ctrlr.poll_in() {
-			ctrlr.read_data();
-		}
+		ctrlr.flush();
 		
 		let port1_works = {
 			ctrlr.write_cmd(0xAB);
@@ -227,6 +225,11 @@ impl Ctrlr8042
 	unsafe fn read_data(&mut self) -> Result<u8,()> {
 		try!( self.wait_in() );
 		Ok( x86_io::inb(0x60) )
+	}
+	unsafe fn flush(&mut self) {
+		while self.poll_in() {
+			x86_io::inb(0x60);
+		}
 	}
 }
 

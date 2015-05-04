@@ -5,7 +5,7 @@
 //! ACPICA inbound bindings
 #![allow(non_snake_case)]
 #![allow(private_no_mangle_fns)]
-#![allow(dead_code)]
+#![allow(dead_code,unused_variables)]
 use prelude::*;
 use super::shim_ext::*;
 use super::va_list::va_list;
