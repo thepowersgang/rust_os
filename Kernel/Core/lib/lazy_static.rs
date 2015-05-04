@@ -27,6 +27,7 @@ impl<T: Send+Sync> LazyStatic<T>
 			*r = Some(fcn());
 		}
 	}
+	/// (unsafe) Obtain a mutable reference to the interior
 	pub unsafe fn ls_unsafe_mut(&self) -> &mut T {
 		match *self.0.get()
 		{
