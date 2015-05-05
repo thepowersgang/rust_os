@@ -8,6 +8,7 @@ use super::{Dims,Pos,Rect,Colour};
 use sync::mutex::{LazyMutex,Mutex};
 use sync::rwlock::RwLock;
 use lib::mem::Arc;
+use lib::LazyStatic;
 use core::atomic;
 
 use lib::sparse_vec::SparseVec;
@@ -83,7 +84,9 @@ const C_MAX_SESSIONS: usize = 13;
 // TODO: When associated statics are implemented, replace this with a non-lazy mutex.
 static S_WINDOW_GROUPS: LazyMutex<SparseVec< Arc<Mutex<WindowGroup>> >> = lazymutex_init!();
 static S_CURRENT_GROUP: ::core::atomic::AtomicUsize = ::core::atomic::ATOMIC_USIZE_INIT;
+
 static S_RENDER_REQUEST: ::sync::EventChannel = ::sync::EVENTCHANNEL_INIT;
+static S_EVENT_QUEUE: LazyStatic<::lib::ring_buffer::AtomicRingBuf<super::input::Event>> = lazystatic_init!();
 static S_RENDER_THREAD: LazyMutex<::threads::ThreadHandle> = lazymutex_init!();
 
 pub fn init()
@@ -91,6 +94,7 @@ pub fn init()
 	S_WINDOW_GROUPS.init( || SparseVec::new() );
 	
 	// Create render thread
+	unsafe { S_EVENT_QUEUE.prep(|| ::lib::ring_buffer::AtomicRingBuf::new(32)); }
 	S_RENDER_THREAD.init( || ::threads::ThreadHandle::new("GUI Compositor", render_thread) );
 }
 
@@ -130,14 +134,11 @@ pub fn update_dims()
 /// Handle an input event
 pub fn handle_input(event: super::input::Event)
 {
-	// TODO: This function runs in interrupt context, and hence needs to not acquire any spinlocks
-	// - To do so, it needs to only use atomic operations to mutate state (i.e. pushing the event to a fixed-length queue)
-	log_warning!("TODO: Handle input event {:?}", event);
-	// Ideally:
-	// - Push event to a FIFO queue (fixed-size)
-	//S_EVENT_QUEUE.try_push(event);
-	// - Prod a worker (e.g. the render thread) in an atomic way
-	//S_RENDER_REQUEST.post();
+	// Push event to a FIFO queue (fixed-size)
+	// > This method should be interrupt safe
+	S_EVENT_QUEUE.push(event);
+	// > Prod a worker (e.g. the render thread) in an atomic way
+	S_RENDER_REQUEST.post();
 }
 /// Switch the currently active window group
 //#[tag_safe(irq)]
@@ -145,6 +146,8 @@ pub fn switch_active(new: usize)
 {
 	// TODO: I would like to check the validity of this value BEFORE attempting a re-render, but that
 	//  would require locking the S_WINDOW_GROUPS vector.
+	// - Technically it shouldn't (reading the size is just racy, not unsafe), but representing that is nigh-on
+	//   impossible.
 	log_log!("Switching to group {}", new);
 	S_CURRENT_GROUP.store(new, ::core::atomic::Ordering::Relaxed);
 	S_RENDER_REQUEST.post();
@@ -159,7 +162,13 @@ fn render_thread()
 		// Wait for a signal to start a render
 		S_RENDER_REQUEST.sleep();
 		
-		// render the active window group
+		// Check for events
+		while let Some(ev) = S_EVENT_QUEUE.pop()
+		{
+			log_warning!("TODO: Handle input {:?}", ev);
+		}
+		
+		// Render the active window group
 		let (grp_idx, grp_ref) = {
 			let grp_idx = S_CURRENT_GROUP.load( ::core::atomic::Ordering::Relaxed );
 			let wglh = S_WINDOW_GROUPS.lock();

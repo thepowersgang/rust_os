@@ -5,9 +5,10 @@
 // - Ring buffer (fixed size)
 //!
 //! Provides a fixed-capacity ring buffer
+use prelude::*;
 use memory::heap::ArrayAlloc;
-use core::option::Option::{self,Some,None};
-use core::result::Result::{self,Ok,Err};
+use core::atomic::{AtomicUsize,Ordering};
+use sync::Spinlock;
 
 /// Fixed-size ring buffer type
 pub struct RingBuf<T>
@@ -17,12 +18,19 @@ pub struct RingBuf<T>
 	len: usize,
 }
 
-/*
-Atomic ringbuf notes:
-- Use semi atomicity (try_lock_cpu)
-- four indexes
-- write: try_lock, inc far len, write close len, set close=far, ELSE, inc far len, write old far
-*/
+/// A more expensive interior-mutable (semi)atomic ring buffer
+///
+/// This is semi-atomic in that it's IRQ-safe (handling the case where the protector
+/// is held by the current CPU).
+pub struct AtomicRingBuf<T>
+{
+	read_protector: Spinlock<()>,
+	write_protector: Spinlock<()>,
+	
+	data: ArrayAlloc<T>,
+	start: AtomicUsize,
+	end: AtomicUsize,
+}
 
 impl<T> RingBuf<T>
 {
@@ -88,6 +96,61 @@ impl<T> RingBuf<T>
 				self.len -= 1;
 				Some( ::core::ptr::read( self.data.get_ptr(idx) ) )
 			}
+		}
+	}
+}
+
+impl<T: Send> AtomicRingBuf<T>
+{
+	/// Create a new (empty) ring buffer
+	pub fn new(capacity: usize) -> AtomicRingBuf<T> {
+		AtomicRingBuf {
+			write_protector: Spinlock::new( () ),
+			read_protector: Spinlock::new( () ),
+			data: ArrayAlloc::new( capacity ),
+			start: AtomicUsize::new(0),
+			end: AtomicUsize::new(0),
+		}
+	}
+	
+	//#[tag_safe(irq)]
+	pub fn pop(&self) -> Option<T>
+	{
+		let _irql = ::sync::hold_interrupts();
+		let _lh = self.read_protector.lock();
+		
+		let idx = self.start.load(Ordering::Relaxed);
+		let next_idx = (idx + 1) % self.data.count();
+		if idx == self.end.load(Ordering::Relaxed) {
+			None
+		}
+		else {
+			unsafe {
+				let rv = ::core::ptr::read(&*self.data.get_ptr(idx));
+				self.start.store(next_idx, Ordering::Relaxed);
+				Some( rv )
+			}
+		}
+	}
+	
+	/// Push onto the end
+	//#[tag_safe(irq)]
+	pub fn push(&self, val: T) -> Result<(),T>
+	{
+		let _irql = ::sync::hold_interrupts();
+		let _lh = self.write_protector.lock();
+		
+		let pos = self.end.load(Ordering::Relaxed);
+		let next_pos = (pos + 1) % self.data.count();
+		if next_pos == self.start.load(Ordering::Relaxed) {
+			Err( val )
+		}
+		else {
+			unsafe {
+				::core::ptr::write(&mut *(self.data.get_ptr(pos) as *mut _), val);
+				self.end.store(next_pos, Ordering::Relaxed);
+			}
+			Ok( () )
 		}
 	}
 }

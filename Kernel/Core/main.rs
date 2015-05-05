@@ -18,6 +18,10 @@
 #![feature(step_by)]	// Range::step_by
 #![feature(linkage)]	// allows using #[linkage="external"]
 #![no_std]
+
+#![feature(plugin)]
+#![feature(custom_attribute)]
+#![plugin(tag_safe)]
 use prelude::*;
 
 #[macro_use]

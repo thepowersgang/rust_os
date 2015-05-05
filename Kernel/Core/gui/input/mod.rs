@@ -91,7 +91,6 @@ impl InputChannel
 	
 	fn try_change_session(&self, target: usize) -> bool {
 		if self.is_master() && self.ctrl_held.get() && self.alt_held.get() {
-			log_warning!("TODO: Change active session to {}", target);
 			super::windows::switch_active(target);
 			true
 		}
@@ -115,5 +114,6 @@ impl ModKeyPair {
 impl MouseCursor {
 	fn move_pos(&self, dx: i32, dy: i32) {
 		// TODO
+		todo!("Mouse move by {},{}", dx, dy);
 	}
 }
