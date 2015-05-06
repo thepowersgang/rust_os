@@ -73,6 +73,7 @@ LIBCORESRC := ../libcore/
 
 OBJS := $(OBJS:%=$(OBJDIR)%)
 
+.SUFFIXES:
 .PHONY: all clean docs run
 
 all: bin/kernel-$(ARCH).bin bin/kernel-$(ARCH).bin.dsm
@@ -96,7 +97,7 @@ run: bin/kernel-$(ARCH).bin
 UPDATE: UPDATE_rustc UPDATE_libcore_src
 UPDATE_rustc: 
 	@mkdir -p ../.prefix
-	curl -s https://static.rust-lang.org/rustup.sh | sh -s -- --channel=nightly --prefix=../.prefix
+	curl -s https://static.rust-lang.org/rustup.sh | sh -s -- --channel=nightly --prefix=../.prefix --disable-sudo --disable-ldconfig
 UPDATE_libcore_src:
 	cd .. && wget https://static.rust-lang.org/dist/rustc-nightly-src.tar.gz -N -nv
 
@@ -139,10 +140,10 @@ $(OBJDIR)%.ao: Core/arch/$(ARCH)/%.asm Makefile
 	@nasm -o $@ $< -f elf64 -MD $@.d -MP
 
 # - Kernel Core
-$(OBJDIR)libkernel.rlib: Core/main.rs $(OBJDIR)libcore.rlib Makefile $(TARGET_FILE) ../Graphics/logo.rs
+$(OBJDIR)libkernel.rlib: Core/main.rs $(OBJDIR)libcore.rlib Makefile $(TARGET_FILE) ../Graphics/logo.rs bin/plugins/libtag_safe.so
 	@echo [RUSTC] -o $@
 	@mkdir -p $(dir $@)
-	$V$(ENV) $(RUSTC) $(RUSTFLAGS) --emit=link,dep-info -o $@ $< $(call LocalLib,core)
+	$V$(ENV) $(RUSTC) $(RUSTFLAGS) --emit=link,dep-info -o $@ $< $(call LocalLib,core) -L bin/plugins/
 	@$(call FixDep, $(@:%.rlib=%.d))
 
 
@@ -163,6 +164,11 @@ $(OBJDIR)mod_%.o: Modules/%/lib.rs $(OBJDIR)libcore.rlib $(OBJDIR)libkernel.rlib
 	@mkdir -p $(dir $@)
 	$V$(ENV) $(RUSTC) $(RUSTFLAGS) --emit=obj,dep-info -o $@ --crate-name=$* --crate-type=lib $< $(call LocalLib,core) $(call LocalLib,kernel)
 	@$(call FixDep, $(@:%.o=%.d))
+
+# - Plugins
+bin/plugins/lib%.so: SynExts/%/src/lib.rs
+	mkdir -p $(dir $@)
+	$(RUSTC) -o $@ $<
 
 ../Graphics/logo.rs: ../Graphics/TifflinLogoV1-128.png ../Graphics/ConvertTo32bppRS
 	cd ../Graphics && ./ConvertTo32bppRS TifflinLogoV1-128.png logo.rs S_LOGO

@@ -113,7 +113,7 @@ impl<T: Send> AtomicRingBuf<T>
 		}
 	}
 	
-	//#[tag_safe(irq)]
+	#[tag_safe(irq)]
 	pub fn pop(&self) -> Option<T>
 	{
 		let _irql = ::sync::hold_interrupts();
