@@ -136,7 +136,11 @@ pub fn handle_input(event: super::input::Event)
 {
 	// Push event to a FIFO queue (fixed-size)
 	// > This method should be interrupt safe
-	S_EVENT_QUEUE.push(event);
+	match S_EVENT_QUEUE.push(event)
+	{
+	Ok(_) => {},
+	Err(event) => log_notice!("Dropping event {:?}, queue full", event),
+	}
 	// > Prod a worker (e.g. the render thread) in an atomic way
 	S_RENDER_REQUEST.post();
 }
