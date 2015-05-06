@@ -169,6 +169,8 @@ $(OBJDIR)mod_%.o: Modules/%/lib.rs $(OBJDIR)libcore.rlib $(OBJDIR)libkernel.rlib
 bin/plugins/lib%.so: SynExts/%/src/lib.rs
 	mkdir -p $(dir $@)
 	$(RUSTC) -o $@ $<
+SynExts/tag_safe/src/lib.rs:
+	cd SynExts && git clone https://github.com/thepowersgang/tag_safe
 
 ../Graphics/logo.rs: ../Graphics/TifflinLogoV1-128.png ../Graphics/ConvertTo32bppRS
 	cd ../Graphics && ./ConvertTo32bppRS TifflinLogoV1-128.png logo.rs S_LOGO
