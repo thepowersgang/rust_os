@@ -1,4 +1,4 @@
-// "Tifflin" Kernel - ATA Driver
+// "Tifflin" Kernel
 // - By John Hodge (thePowersGang)
 //
 // Modules/input_ps2/lib.rs

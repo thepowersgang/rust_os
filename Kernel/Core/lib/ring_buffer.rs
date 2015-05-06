@@ -114,6 +114,8 @@ impl<T: Send> AtomicRingBuf<T>
 	}
 	
 	#[tag_safe(irq)]
+	#[allow(not_tagged_safe)]	// Handles IRQ safety
+	/// Pop an item from the ring buffer
 	pub fn pop(&self) -> Option<T>
 	{
 		let _irql = ::sync::hold_interrupts();
@@ -133,8 +135,9 @@ impl<T: Send> AtomicRingBuf<T>
 		}
 	}
 	
-	/// Push onto the end
-	//#[tag_safe(irq)]
+	#[tag_safe(irq)]
+	#[allow(not_tagged_safe)]	// Handles IRQ safety
+	/// Push onto the end, returning Err(val) if full
 	pub fn push(&self, val: T) -> Result<(),T>
 	{
 		let _irql = ::sync::hold_interrupts();

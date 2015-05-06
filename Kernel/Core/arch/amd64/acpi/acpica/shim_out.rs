@@ -431,6 +431,7 @@ extern "C" fn AcpiOsVprintf(Format: *const i8, mut Args: va_list)
 			//	precision: ::core::fmt::rt::v1::Count::Is(precision),
 			//	width: ::core::fmt::rt::v1::Count::Is(width),
 			//	};
+			let _ = align_left;
 			
 			match c
 			{

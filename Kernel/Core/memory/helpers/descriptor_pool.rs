@@ -2,13 +2,12 @@
  */
 ///! A pool of descriptors in DMA-able memory
 use prelude::*;
-use memory::virt::AllocHandle;
+use memory::virt::ArrayHandle;
 
 pub struct DescriptorPool<T>
 {
-	items_handle: AllocHandle,
+	items_handle: ArrayHandle<T>,
 	used_state: Vec<bool>,
-	_type: ::core::marker::PhantomData<T>,
 }
 
 pub struct LentDescriptor<T>
@@ -19,9 +18,19 @@ pub struct LentDescriptor<T>
 
 impl<T> DescriptorPool<T>
 {
-	pub fn try_pop(&self) -> Option<LentDescriptor<T>>
+	pub fn try_pop(&mut self) -> Option<LentDescriptor<T>>
 	{
-		unimplemented!();
+		if let Some(i) = self.used_state.iter().position(|&a| a == false)
+		{
+			self.used_state[i] = true;
+			Some(LentDescriptor {
+					pool: self,
+					ptr: &mut self.items_handle[i],
+				})
+		}
+		else {
+			None
+		}
 	}
 }
 
@@ -29,6 +38,14 @@ impl<T> LentDescriptor<T>
 {
 	pub fn phys(&self) -> ::arch::memory::PAddr {
 		::memory::virt::get_phys( &*self )
+	}
+}
+
+impl<T> ::core::ops::Drop for LentDescriptor<T>
+{
+	fn drop(&mut self)
+	{
+		todo!("LentDescriptor::drop")
 	}
 }
 

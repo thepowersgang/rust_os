@@ -160,7 +160,6 @@ impl<'a, T: Send> super::PrimitiveWaiter for Waiter<'a,T>
 
 }
 
-#[unsafe_destructor]
 impl<'a,T: Send + 'a> ::core::ops::Drop for HeldMutex<'a, T>
 {
 	fn drop(&mut self)

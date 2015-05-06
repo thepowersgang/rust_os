@@ -17,8 +17,9 @@ struct VaListInner
 	reg_save_area: *const (),
 }
 #[allow(non_camel_case_types)]
-#[derive(Copy,Clone)]
 pub struct va_list(*mut VaListInner);
+impl ::core::marker::Copy for va_list {}
+impl ::core::clone::Clone for va_list { fn clone(&self) -> Self { *self } }
 
 trait VaPrimitive
 {

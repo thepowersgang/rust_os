@@ -55,7 +55,7 @@ impl ::metadevs::storage::Mapper for Mapper
 		assert!(block[510] == 0x55 && block[511] == 0xAA);
 		
 		// the "unique ID" (according to the osdev.org wiki) might just be the tail of the MBR code
-		let uid = &block[0x1b4 .. 0x1be];
+		//let uid = &block[0x1b4 .. 0x1be];
 		
 		for i in (0 .. 4) {
 			let ofs = 0x1BE + i*16;

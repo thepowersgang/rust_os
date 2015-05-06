@@ -23,7 +23,7 @@ pub use self::wait_queue::{WaitQueue,WAITQUEUE_INIT};
 pub type EventMask = u32;
 
 ///// A borrowed Box<Thread>, released when borrow expires
-struct BorrowedThread(Option<Box<Thread>>);
+//struct BorrowedThread(Option<Box<Thread>>);
 
 // ----------------------------------------------
 // Statics
@@ -96,10 +96,10 @@ fn rel_cur_thread(t: Box<Thread>)
 {
 	::arch::threads::set_thread_ptr(t)
 }
-fn borrow_cur_thread() -> BorrowedThread
-{
-	BorrowedThread( Some(get_cur_thread()) )
-}
+//fn borrow_cur_thread() -> BorrowedThread
+//{
+//	BorrowedThread( Some(get_cur_thread()) )
+//}
 
 fn get_thread_to_run() -> Option<Box<Thread>>
 {
@@ -117,27 +117,27 @@ fn get_thread_to_run() -> Option<Box<Thread>>
 	}
 }
 
-impl BorrowedThread
-{
-	fn take(mut self) -> Box<Thread> {
-		self.0.take().unwrap()
-	}
-}
-impl Drop for BorrowedThread
-{
-	fn drop(&mut self) {
-		match self.0.take()
-		{
-		Some(v) => rel_cur_thread(v),
-		None => {},
-		}
-	}
-}
-impl ::core::ops::Deref for BorrowedThread
-{
-	type Target = Thread;
-	fn deref(&self) -> &Thread { &**self.0.as_ref().unwrap() }
-}
+//impl BorrowedThread
+//{
+//	fn take(mut self) -> Box<Thread> {
+//		self.0.take().unwrap()
+//	}
+//}
+//impl Drop for BorrowedThread
+//{
+//	fn drop(&mut self) {
+//		match self.0.take()
+//		{
+//		Some(v) => rel_cur_thread(v),
+//		None => {},
+//		}
+//	}
+//}
+//impl ::core::ops::Deref for BorrowedThread
+//{
+//	type Target = Thread;
+//	fn deref(&self) -> &Thread { &**self.0.as_ref().unwrap() }
+//}
 
 // vim: ft=rust
 

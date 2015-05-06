@@ -80,7 +80,7 @@ pub fn find_table<T:'static>(req_name: &str, idx: usize) -> Option<SDTHandle<T>>
 	}
 }
 pub fn count_tables(req_name: &str) -> usize {
-	unimplemented!()
+	todo!("count_tables({})", req_name);
 }
 
 impl<T: 'static> ops::Deref for SDTHandle<T> {

@@ -170,3 +170,11 @@ impl ::core::ops::Drop for EventHandle
 	}
 }
 
+impl<T: Handler> ::core::ops::Drop for ObjectHandle<T>
+{
+	fn drop(&mut self)
+	{
+		panic!("TODO: ObjectHandle::drop() num={},idx={}", self.num, self.index);
+	}
+}
+

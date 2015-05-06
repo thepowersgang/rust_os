@@ -40,7 +40,6 @@ impl<'a> DMABuffer<'a>
 		else
 		{
 			todo!("Handle non-contig source buffer ({:#x}+{} != {:#x})", phys, bytes-1, end_phys);
-			unimplemented!();
 		}
 	}
 	

@@ -75,7 +75,7 @@ impl<'a> SectionHeader<'a>
 		}
 	}
 	
-	pub fn string_table(&self, idx: usize) -> Result<StringTable<'static>,()>
+	pub fn string_table<'b>(&'b self, idx: usize) -> Result<StringTable<'b>,()>
 	{
 		let strtab = &self.data[idx];
 		let alloc = match ::memory::virt::map_hw_slice::<u8>(strtab.sh_address as PAddr, strtab.sh_size as usize)
@@ -89,7 +89,7 @@ impl<'a> SectionHeader<'a>
 			} )
 	}
 	
-	pub fn symbol_table(&self) -> Result<SymbolTable<'static>,()>
+	pub fn symbol_table<'b>(&'b self) -> Result<SymbolTable<'b>,()>
 	{
 		let symtab = match self.data.iter().find(|e| e.sh_type == 2)
 			{
@@ -112,6 +112,10 @@ impl<'a> SectionHeader<'a>
 		{
 			log_debug!("sym [{}] {:?}", i, sym);
 			log_debug!(" - {}", symtab.string_table.get(sym.st_name as usize));
+			if sym.st_value as usize <= address && address < sym.st_value as usize + sym.st_size as usize {
+				//let ofs = address - sym.st_value as usize;
+				//return Some( (symtab.string_table.get(sym.st_name as usize), ofs) );
+			}
 		}
 		
 		None

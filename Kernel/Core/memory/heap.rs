@@ -148,12 +148,14 @@ impl<T> ArrayAlloc<T>
 	pub fn get_base(&self) -> *const T { *self.ptr }
 	pub fn get_base_mut(&mut self) -> *mut T { *self.ptr }
 	
+	#[tag_safe(irq)]
 	pub fn get_ptr_mut(&mut self, idx: usize) -> *mut T {
 		unsafe {
 			assert!(idx < self.count, "ArrayAlloc<{}>::get_mut({}) OOB {}", type_name!(T), idx, self.count);
 			self.ptr.offset(idx as isize)
 		}
 	}
+	#[tag_safe(irq)]
 	pub fn get_ptr(&self, idx: usize) -> *const T {
 		unsafe {
 			assert!(idx < self.count, "ArrayAlloc<{}>::get_ptr({}) OOB {}", type_name!(T), idx, self.count);

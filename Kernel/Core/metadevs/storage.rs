@@ -185,7 +185,7 @@ pub fn register_mapper(mapper: &'static Mapper)
 		}
 		else
 		{
-			if let Some( (lvl, other) ) = pv.mapper
+			if let Some( (lvl, _other) ) = pv.mapper
 			{
 				if lvl == level {
 					// fight
@@ -236,7 +236,7 @@ fn new_simple_lv(name: String, pv_id: usize, block_size: usize, base: u64, size:
 		is_opened: false,
 		block_size: block_size,
 		chunk_size: None,
-		regions: vec![ PhysicalRegion{ volume: pv_id, block_count: size as usize, first_block: size } ],
+		regions: vec![ PhysicalRegion{ volume: pv_id, block_count: size as usize, first_block: base } ],
 		} );
 	
 	log_log!("Logical Volume: {} {}", lv.name, SizePrinter(size*block_size as u64));
@@ -244,7 +244,7 @@ fn new_simple_lv(name: String, pv_id: usize, block_size: usize, base: u64, size:
 	// Add to global list
 	{
 		let mut lh = S_LOGICAL_VOLUMES.lock();
-		lh.insert(pv_id, lv);
+		lh.insert(lvidx, lv);
 	}
 	// TODO: Inform something of the new LV
 }
@@ -343,6 +343,14 @@ impl PhysicalVolumeInfo
 			}
 		}
 		todo!("PhysicalVolumeInfo::read(first={},{} bytes)", first, dst.len());
+	}
+}
+
+impl ::core::ops::Drop for PhysicalVolumeReg
+{
+	fn drop(&mut self)
+	{
+		todo!("PhysicalVolumeReg::drop idx={}", self.idx);
 	}
 }
 

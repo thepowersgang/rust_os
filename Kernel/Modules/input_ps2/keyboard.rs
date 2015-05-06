@@ -10,7 +10,7 @@ use kernel::gui::input::keyboard::KeyCode;
 #[derive(Debug)]
 pub enum Type
 {
-	AT,
+	//AT,
 	MF2,
 	MF2Emul,
 }
@@ -53,10 +53,10 @@ impl Dev
 	pub fn new(ty: Type) -> (Option<u8>,Dev) {
 		match ty
 		{
-		Type::AT => {
-			log_warning!("Unexpected AT keyboard");
-			return (None, Dev { ty: ty, state: State::Init(Init::Disabled), guidev: Default::default() });
-			},
+		//Type::AT => {
+		//	log_warning!("Unexpected AT keyboard");
+		//	return (None, Dev { ty: ty, state: State::Init(Init::Disabled), guidev: Default::default() });
+		//	},
 		Type::MF2Emul => {
 			log_warning!("Unexpected emulation enabled MF2");
 			return (None, Dev { ty: ty, state: State::Init(Init::Disabled), guidev: Default::default() });

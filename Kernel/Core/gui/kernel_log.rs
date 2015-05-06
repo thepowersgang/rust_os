@@ -29,6 +29,7 @@ struct KernelLog
 	_logo_wh: WindowHandle,
 	cur_line: u32,
 	
+	#[allow(dead_code)]
 	buffer_handle: super::windows::BufHandle,
 }
 
