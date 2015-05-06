@@ -86,7 +86,6 @@ impl<T: fmt::Debug> fmt::Debug for Arc<T> {
 	}
 }
 
-#[unsafe_destructor]
 impl<T> ops::Drop for Arc<T>
 {
 	fn drop(&mut self)

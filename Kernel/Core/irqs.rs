@@ -116,6 +116,7 @@ impl IRQBinding
 			binding_ref.handle();
 		}
 	}
+	#[tag_safe(irq)]
 	fn handle(&self)
 	{
 		// If the current CPU owns the queue lock, don't do processing here

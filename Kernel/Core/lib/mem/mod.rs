@@ -39,6 +39,7 @@ where
 	}
 }
 
+#[allow(improper_ctypes)]
 extern "C" {
 	#[no_mangle]
 	/// C's `memset` function, VERY UNSAFE

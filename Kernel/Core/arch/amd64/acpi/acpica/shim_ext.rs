@@ -190,8 +190,15 @@ extern "C" {
 	pub fn AcpiInitializeTables(InitialStorage: *mut ACPI_TABLE_DESC, InitialTableCount: u32, AllowResize: bool) -> ACPI_STATUS;
 	/// Copy the root ACPI information table into dynamic memory.
 	pub fn AcpiReallocateRootTable() -> ACPI_STATUS;
+}
+#[no_mangle]
+#[allow(improper_ctypes)]
+extern "C" {
 	/// Locate the RSDP via memory scan (IA-32).
 	pub fn AcpiFindRootPointer(TableAddress: *mut ACPI_SIZE) -> ACPI_STATUS;
+}
+#[no_mangle]
+extern "C" {
 	/// Early installation of a single host-provided ACPI table.
 	pub fn AcpiInstallTable(Address: ACPI_PHYSICAL_ADDRESS, Physical: bool) -> ACPI_STATUS;
 	/// Load the BIOS-provided ACPI tables and build an internal ACPI namespace.

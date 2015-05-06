@@ -8,7 +8,6 @@
 #![feature(no_std)]
 #![feature(asm)]	// Enables the asm! syntax extension
 #![feature(box_syntax)]	// Enables 'box' syntax
-#![feature(unsafe_destructor)]	// Used for Vec's destructor
 #![feature(thread_local)]	// Allows use of thread_local
 #![feature(lang_items)]	// Allow definition of lang_items
 #![feature(core)]	// silences warnings about write!

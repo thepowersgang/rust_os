@@ -78,7 +78,6 @@ impl<T> ops::Deref for Rc<T>
 	}
 }
 
-#[unsafe_destructor]
 impl<T> ops::Drop for Rc<T>
 {
 	fn drop(&mut self)
