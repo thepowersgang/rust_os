@@ -5,3 +5,29 @@
   - 64 for forward compat
 
 
+VFS Itself
+===
+
+Node Types
+---
+* Normal File (with alternate streams)
+ * File data cache.
+* Directory
+ * With cache?
+* Symbolic Link
+* UNIX Device (or other special)
+
+
+Mountpoints
+---
+
+Prefix map of string (or pre-broken path?) to boxed filesystem roots
+
+TODO: Would a sorted list work well for this? Or use another DS.
+
+
+Access API
+---
+
+* Generic open method
+ * Takes argument on what type to expect (Any, File, Dir, Link, Other)
