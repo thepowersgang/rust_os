@@ -81,7 +81,7 @@ impl WinBuf
 		assert!(line < self.dims.h as usize, "Requested scanline is out of range");
 		
 		let pitch_32 = self.dims.width() as usize;
-		let len = ::core::cmp::max(len, pitch_32 - ofs);
+		let len = ::core::cmp::min(len, pitch_32 - ofs);
 		
 		let l_ofs = line * pitch_32;
 		
