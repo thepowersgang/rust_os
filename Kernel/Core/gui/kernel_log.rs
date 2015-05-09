@@ -187,10 +187,11 @@ impl KernelLog
 		for row in (0 .. 16)
 		{
 			let byte = &bitmap[row as usize];
+			let r = self.buffer_handle.scanline_rgn_mut(by as usize + row, bx as usize, 8); 
 			for col in (0usize .. 8)
 			{
 				if (byte >> 7-col) & 1 != 0 {
-					self.wh.pset(Pos::new(bx+col as u32,by+row), colour);
+					r[col] = colour.as_argb32();
 				}
 			}
 		}

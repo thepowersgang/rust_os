@@ -473,13 +473,6 @@ impl Window
 		self.add_dirty(area);
 	}
 	
-	/// Set a pixel
-	pub fn pset(&self, pos: Pos, colour: Colour)
-	{
-		self.buf.read().fill_scanline(pos.y as usize, pos.x as usize, 1, colour);
-		self.add_dirty( Rect::new_pd(pos, Dims::new(1,1)) );
-	}
-	
 	/// Blit from an external data source
 	pub fn blit_rect(&self, rect: Rect, data: &[u32])
 	{
@@ -575,12 +568,6 @@ impl WindowHandle
 	pub fn fill_rect(&mut self, area: Rect, colour: Colour)
 	{
 		self.get_win().fill_rect(area, colour);
-	}
-	
-	/// Set single pixel (VERY inefficient, don't use unless you need to)
-	pub fn pset(&mut self, pos: Pos, colour: Colour)
-	{
-		self.get_win().pset(pos, colour);
 	}
 	
 	/// Fill a region of the window with provided data

@@ -88,11 +88,11 @@ impl WinBuf
 		l_ofs + ofs .. l_ofs + ofs + len
 	}
 	
-	fn scanline_rgn(&self, line: usize, ofs: usize, len: usize) -> &[u32]
+	pub fn scanline_rgn(&self, line: usize, ofs: usize, len: usize) -> &[u32]
 	{
 		&self.slice()[ self.scanline_range(line, ofs, len) ]
 	}
-	fn scanline_rgn_mut(&self, line: usize, ofs: usize, len: usize) -> &mut [u32]
+	pub fn scanline_rgn_mut(&self, line: usize, ofs: usize, len: usize) -> &mut [u32]
 	{
 		&mut self.slice_mut()[ self.scanline_range(line, ofs, len) ]
 	}
