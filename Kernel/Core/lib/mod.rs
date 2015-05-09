@@ -11,6 +11,7 @@ pub use self::queue::Queue;
 pub use self::vec_map::VecMap;
 pub use self::btree_map::BTreeMap;
 pub use self::vec::Vec;
+pub use self::sparse_vec::SparseVec;
 pub use self::string::String;
 pub use self::lazy_static::LazyStatic;
 pub use self::opt_ptr::{OptPtr,OptMutPtr};

@@ -88,6 +88,11 @@ impl<T> SparseVec<T>
 		IterMut { vec: self, idx: 0 }
 	}
 }
+impl<T> Default for SparseVec<T> {
+	fn default() -> SparseVec<T> {
+		SparseVec::new()
+	}
+}
 
 impl<T> ops::Index<usize> for SparseVec<T>
 {

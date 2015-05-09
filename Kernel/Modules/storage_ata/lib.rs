@@ -3,7 +3,7 @@
 //
 // Modules/storage_ata/lib.rs
 //! x86 ATA driver
-#![feature(no_std,core)]
+#![feature(no_std,core,linkage)]
 #![no_std]
 #[macro_use] extern crate core;
 #[macro_use] extern crate kernel;
@@ -120,14 +120,13 @@ impl ::kernel::metadevs::storage::PhysicalVolume for AtaVolume
 	fn read<'a>(&'a self, _prio: u8, idx: u64, num: usize, dst: &'a mut [u8]) -> Result<Box<async::Waiter+'a>, ()>
 	{
 		assert_eq!( dst.len(), num * io::SECTOR_SIZE );
-		self.controller.do_dma(idx, num, dst, self.disk, false)
+		self.controller.do_dma_rd(idx, num, dst, self.disk)
 	}
 	fn write<'s>(&'s self, _prio: u8, idx: u64, num: usize, src: &'s [u8]) -> Result<Box<async::Waiter+'s>, ()>
 	{
 		assert_eq!( src.len(), num * io::SECTOR_SIZE );
 		let ctrlr = &self.controller;
-		// Safe cast, as controller should not modify the buffer when write=true
-		Ok( try!(ctrlr.do_dma(idx, num, src, self.disk, true)) )
+		ctrlr.do_dma_wr(idx, num, src, self.disk)
 	}
 	
 	fn wipe(&mut self, _blockidx: u64, _count: usize)

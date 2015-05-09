@@ -63,7 +63,13 @@ impl_fmt!{
 
 impl DmaController
 {
-	pub fn do_dma<'a>(&'a self, blockidx: u64, count: usize, dst: &'a [u8], disk: u8, is_write: bool) -> Result<Box<async::Waiter+'a>,()>
+	pub fn do_dma_rd<'a>(&'a self, blockidx: u64, count: usize, dst: &'a mut [u8], disk: u8) -> Result<Box<async::Waiter+'a>,()> {
+		self.do_dma(blockidx, count, DMABuffer::new_contig_mut(dst, 32), disk, false)
+	}
+	pub fn do_dma_wr<'a>(&'a self, blockidx: u64, count: usize, dst: &'a [u8], disk: u8) -> Result<Box<async::Waiter+'a>,()> {
+		self.do_dma(blockidx, count, DMABuffer::new_contig(dst, 32), disk, true)
+	}
+	fn do_dma<'a>(&'a self, blockidx: u64, count: usize, dst: DMABuffer<'a>, disk: u8, is_write: bool) -> Result<Box<async::Waiter+'a>,()>
 	{
 		assert!(disk < 4);
 		assert!(count < MAX_DMA_SECTORS);
@@ -276,7 +282,7 @@ impl AtaController
 			}
 	}
 	
-	fn do_dma<'a,'b>(&'a self, blockidx: u64, dst: &'b [u8], disk: u8, is_write: bool, dma_regs: DmaRegBorrow<'a>) -> AtaWaiter<'a,'b>
+	fn do_dma<'a,'b>(&'a self, blockidx: u64, dst: DMABuffer<'b>, disk: u8, is_write: bool, dma_regs: DmaRegBorrow<'a>) -> AtaWaiter<'a,'b>
 	{
 		AtaWaiter {
 			dev: self,
@@ -284,7 +290,7 @@ impl AtaController
 			blockidx: blockidx,
 			is_write: is_write,
 			dma_regs: dma_regs,
-			dma_buffer: DMABuffer::new_contig( unsafe { ::core::mem::transmute(dst) }, 32 ),
+			dma_buffer: dst,
 			state: WaitState::Acquire( self.regs.async_lock() ),
 		}
 	}

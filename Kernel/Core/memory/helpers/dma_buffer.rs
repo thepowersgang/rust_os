@@ -1,23 +1,28 @@
 /*
  */
 ///! Helper type for DMA accesses
-
-use core::slice::SliceExt;
+use prelude::*;
 use arch::memory::PAddr;
+use core::marker::PhantomData;
 
 /**
  * A buffer garunteed to be in a certain area of physical memory
  */
 pub struct DMABuffer<'a>
 {
-	source_slice: &'a mut [u8],
+	_marker: PhantomData<&'a mut [u8]>,
+	source_ptr: *mut u8,
+	buffer_len: usize,
 	phys: PAddr,
 }
 
 impl<'a> DMABuffer<'a>
 {
 	/// Creates a new DMABuffer contigious in the specified region
-	pub fn new_contig(src: &mut [u8], bits: u8) -> DMABuffer
+	pub fn new_contig_mut(src: &mut [u8], bits: u8) -> DMABuffer {
+		DMABuffer::new_contig(src, bits)
+	}
+	pub fn new_contig(src: &[u8], bits: u8) -> DMABuffer
 	{
 		use arch::memory::PAddr;
 		let bytes = src.len() as PAddr;
@@ -33,7 +38,9 @@ impl<'a> DMABuffer<'a>
 		{
 			log_debug!("phys = {:#x}, source_slice={:p}", phys, &src[0]);
 			DMABuffer {
-				source_slice: src,
+				_marker: PhantomData,
+				source_ptr: src.as_ptr() as *mut _,
+				buffer_len: bytes as usize,
 				phys: phys,
 			}
 		}
@@ -44,16 +51,15 @@ impl<'a> DMABuffer<'a>
 	}
 	
 	pub fn len(&self) -> usize {
-		self.source_slice.len()
+		self.buffer_len
 	}	
 
-	pub fn phys(&self) -> ::arch::memory::PAddr
-	{
+	pub fn phys(&self) -> ::arch::memory::PAddr {
 		self.phys
 	}
 	
 	pub fn update_source(&mut self) {
-		if self.phys != ::memory::virt::get_phys( &self.source_slice[0] ) {
+		if self.phys != ::memory::virt::get_phys(self.source_ptr) {
 			unimplemented!();
 		}
 	}

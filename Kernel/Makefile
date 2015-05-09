@@ -54,6 +54,7 @@ RUSTFLAGS += -C code-model=kernel
 RUSTFLAGS += -C soft-float	# Disables requiring SSE etc
 RUSTFLAGS += -C target-feature=$(subst $(space),$(comma),$(EXCLUDE_FEATURES:%=-%))
 RUSTFLAGS += --cfg arch__$(ARCH)
+RUSTFLAGS += -L bin/plugins/
 ifeq ($(USE_ACPICA),1)
 	RUSTFLAGS += --cfg use_acpica
 endif
@@ -83,7 +84,7 @@ clean:
 
 docs:
 	@mkdir -p doc/Kernel
-	$V$(ENV) $(RUSTDOC) -o doc/Kernel Core/main.rs --cfg arch__amd64 
+	$V$(ENV) $(RUSTDOC) -o doc/Kernel Core/main.rs --cfg arch__amd64 -L bin/plugins
 	@chmod +rX doc/ -R 
 
 run: bin/kernel-$(ARCH).bin
@@ -143,7 +144,7 @@ $(OBJDIR)%.ao: Core/arch/$(ARCH)/%.asm Makefile
 $(OBJDIR)libkernel.rlib: Core/main.rs $(OBJDIR)libcore.rlib Makefile $(TARGET_FILE) ../Graphics/logo.rs bin/plugins/libtag_safe.so
 	@echo [RUSTC] -o $@
 	@mkdir -p $(dir $@)
-	$V$(ENV) $(RUSTC) $(RUSTFLAGS) --emit=link,dep-info -o $@ $< $(call LocalLib,core) -L bin/plugins/
+	$V$(ENV) $(RUSTC) $(RUSTFLAGS) --emit=link,dep-info -o $@ $< $(call LocalLib,core)
 	@$(call FixDep, $(@:%.rlib=%.d))
 
 

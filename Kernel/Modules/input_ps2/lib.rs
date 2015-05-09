@@ -3,7 +3,7 @@
 //
 // Modules/input_ps2/lib.rs
 //! PS2 Keyboard/Mouse controller
-#![feature(no_std,core)]
+#![feature(no_std,core,linkage)]
 #![no_std]
 #[macro_use] extern crate core;
 #[macro_use] extern crate kernel;

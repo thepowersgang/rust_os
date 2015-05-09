@@ -313,7 +313,7 @@ impl AllocHandle
 		unsafe{ &mut *((self.addr as usize + ofs) as *mut T) }
 	}
 
-	pub fn as_slice<T>(&self, ofs: usize, count: usize) -> &[T]
+	fn as_raw_ptr_slice<T>(&self, ofs: usize, count: usize) -> *mut [T]
 	{
 		use core::mem::{align_of,size_of};
 		assert!(super::buf_valid(self.addr, self.count*0x1000));
@@ -332,20 +332,24 @@ impl AllocHandle
 			} )
 		}
 	}
+	pub fn as_slice<T>(&self, ofs: usize, count: usize) -> &[T]
+	{
+		unsafe {
+			& (*self.as_raw_ptr_slice(ofs, count))[..]
+		}
+	}
 	pub unsafe fn as_int_mut_slice<T>(&self, ofs: usize, count: usize) -> &mut [T]
 	{
 		assert!( self.mode == ProtectionMode::KernelRW,
 			"Calling as_int_mut_slice<{}> on non-writable memory ({:?})", type_name!(T), self.mode );
-		// Very evil, transmute the immutable slice into a mutable
-		::core::mem::transmute( self.as_slice::<T>(ofs, count) )
+		&mut (*self.as_raw_ptr_slice(ofs, count))[..]
 	}
 	pub fn as_mut_slice<T>(&mut self, ofs: usize, count: usize) -> &mut [T]
 	{
 		assert!( self.mode == ProtectionMode::KernelRW,
 			"Calling as_mut_slice<{}> on non-writable memory ({:?})", type_name!(T), self.mode );
 		unsafe {
-			// Very evil, transmute the immutable slice into a mutable
-			::core::mem::transmute( self.as_slice::<T>(ofs, count) )
+			self.as_int_mut_slice(ofs, count)
 		}
 	}
 	pub fn into_array<T>(self) -> ArrayHandle<T>
