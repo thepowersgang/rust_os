@@ -79,6 +79,7 @@ struct PhysicalVolumeInfo
 	mapper: Option<(usize,&'static Mapper)>,
 }
 /// A single logical volume, composed of 1 or more physical blocks
+#[derive(Default)]
 struct LogicalVolume
 {
 	/// Logical volume name (should be unique)
@@ -273,6 +274,12 @@ pub fn open_lv(idx: usize) -> Result<VolumeHandle,()>
 }
 impl VolumeHandle
 {
+	pub fn ramdisk(_count: usize) -> VolumeHandle {
+		VolumeHandle {
+			handle: Arc::new(LogicalVolume::default())
+		}
+	}
+	
 	pub fn block_size(&self) -> usize {
 		self.handle.block_size
 	}

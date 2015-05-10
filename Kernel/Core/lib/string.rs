@@ -9,7 +9,7 @@ use prelude::*;
 use core::ops;
 
 /// String type
-#[derive(Clone)]
+#[derive(Clone,PartialOrd,Ord,PartialEq,Eq)]
 pub struct String(Vec<u8>);
 
 /// String backed to a statically-allocated buffer
@@ -56,8 +56,7 @@ impl String
 	}
 }
 
-impl ::core::default::Default for String
-{
+impl Default for String {
 	fn default() -> String { String::new() }
 }
 
@@ -73,8 +72,7 @@ impl ::core::fmt::Write for String
 impl ::core::ops::Deref for String
 {
 	type Target = str;
-	fn deref(&self) -> &str
-	{
+	fn deref(&self) -> &str {
 		self.as_slice()
 	}
 }

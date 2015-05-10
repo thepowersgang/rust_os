@@ -92,6 +92,11 @@ impl<K: Ord, V> VecMap<K,V>
 		}
 	}
 }
+impl<K: Ord,V> Default for VecMap<K, V> {
+	fn default() -> Self {
+		VecMap::new()
+	}
+}
 
 impl<'a, K, V> ::core::iter::Iterator for Iter<'a, K, V>
 {

@@ -33,6 +33,7 @@ pub mod sparse_vec;
 
 #[macro_use]
 pub mod string;
+pub mod byte_str;
 
 pub mod vec_map;
 pub mod btree_map;

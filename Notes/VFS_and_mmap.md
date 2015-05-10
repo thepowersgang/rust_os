@@ -30,6 +30,27 @@ Node Types
 * Symbolic Link
 * UNIX Device (or other special)
 
+```
+trait NodeBase { ... }
+trait File: NodeBase { ...  }
+trait Dir: NodeBase { ... }
+trait Symlink: NodeBase { ... }
+trait Special: NodeBase { ... }
+
+enum Node
+{
+	File(Box<File>),
+	Dir(Box<Dir>),
+	Symlink(Box<Symlink>),
+	Special(Box<Special>),
+}
+static S_NODECACHE: Map<GlobalNodeId,Node>;
+```
+
+Filesystem Drivers
+---
+Driver itself provides a detect and mount method. Returns a mountpoint structure (special case of directory node)
+
 
 Mountpoints
 ---
@@ -43,7 +64,7 @@ TODO: Would a sorted list work well for this? Or use another DS.
 Symbolic Links
 ---
 Naive model is to restart parsing when a symlink is encountered, absolutising the new path (CUR + LINK).
-*Not sure if this is the correct model to be using, possible problems with expected POSIX model?*
+*Not sure if this is the correct model to be using, possible problems with expected POSIX model? That said, pick the most sensible model*
 
 Access API
 ---

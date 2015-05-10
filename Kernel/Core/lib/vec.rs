@@ -198,42 +198,7 @@ impl<T: Clone> Vec<T>
 			}
 		}
 	}
-}
-
-impl<T: Clone> Clone for Vec<T>
-{
-	fn clone(&self) -> Vec<T> {
-		self.iter().cloned().collect()
-	}
-}
-
-impl<T: fmt::Debug> fmt::Debug for Vec<T> {
-	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-		fmt::Debug::fmt(&**self, f)
-	}
-}
-
-impl<T> ::core::default::Default for Vec<T>
-{
-	fn default() -> Vec<T> { Vec::new() }
-}
-
-impl<T> ops::Deref for Vec<T>
-{
-	type Target = [T];
-	fn deref(&self) -> &[T] {
-		self.as_slice()
-	}
-}
-impl<T> ops::DerefMut for Vec<T>
-{
-	fn deref_mut(&mut self) -> &mut [T] {
-		self.slice_mut()
-	}
-}
-
-impl<T:Clone> Vec<T>
-{
+	
 	pub fn from_elem(size: usize, elem: T) -> Vec<T>
 	{
 		let mut ret = Vec::with_capacity(size);
@@ -253,6 +218,28 @@ impl<T:Clone> Vec<T>
 	}
 }
 
+impl<T> ops::Deref for Vec<T> {
+	type Target = [T];
+	fn deref(&self) -> &[T] {
+		self.as_slice()
+	}
+}
+impl<T> AsRef<[T]> for Vec<T> {
+	fn as_ref(&self) -> &[T] {
+		self.as_slice()
+	}
+}
+impl<T> ops::DerefMut for Vec<T>
+{
+	fn deref_mut(&mut self) -> &mut [T] {
+		self.slice_mut()
+	}
+}
+impl<T> AsMut<[T]> for Vec<T> {
+	fn as_mut(&mut self) -> &mut [T] {
+		self.slice_mut()
+	}
+}
 impl<T> ops::Drop for Vec<T>
 {
 	fn drop(&mut self)
@@ -268,6 +255,52 @@ impl<T> ops::Drop for Vec<T>
 	}
 }
 
+impl<T: Clone> Clone for Vec<T> {
+	fn clone(&self) -> Vec<T> {
+		self.iter().cloned().collect()
+	}
+}
+impl<'a, T: Clone> From<&'a [T]> for Vec<T> {
+	fn from(v: &[T]) -> Vec<T> {
+		v.iter().cloned().collect()
+	}
+}
+
+impl<T> ::core::default::Default for Vec<T>
+{
+	fn default() -> Vec<T> { Vec::new() }
+}
+
+// ---
+// Delegating implementations
+// ---
+impl<T: PartialEq> PartialEq for Vec<T> {
+	fn eq(&self, other: &Self) -> bool {
+		PartialEq::eq(self.as_slice(), other.as_slice())
+	}
+}
+impl<T: Eq> Eq for Vec<T> {
+}
+impl<T: PartialOrd> PartialOrd for Vec<T> {
+	fn partial_cmp(&self, other: &Self) -> Option<::core::cmp::Ordering> {
+		PartialOrd::partial_cmp(self.as_slice(), other.as_slice())
+	}
+}
+impl<T: Ord> Ord for Vec<T> {
+	fn cmp(&self, other: &Self) -> ::core::cmp::Ordering {
+		Ord::cmp(self.as_slice(), other.as_slice())
+	}
+}
+
+impl<T: fmt::Debug> fmt::Debug for Vec<T> {
+	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+		fmt::Debug::fmt(&**self, f)
+	}
+}
+
+// ---
+// Indexing implementations
+// ---
 macro_rules! vec_index {
 	($T:ident -> $rv:ty : $($idx:ty)*) => { $(
 		impl<$T> ops::Index<$idx> for Vec<$T>

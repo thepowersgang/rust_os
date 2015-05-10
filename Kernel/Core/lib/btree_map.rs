@@ -14,13 +14,28 @@ pub struct BTreeMap<K: Ord,V>
 	max_node_size: usize,	// aka 'b'
 }
 
-struct Node<K:Ord, V>
+struct Node<K, V>
+{
+	values: Vec< Item<K,V> >,
+	children: Vec< Node<K,V> >,
+}
+struct Item<K, V>
 {
 	key: K,
 	val: V,
-	
-	children: Vec< Box<Node<K,V>> >,
-	next: Option< Box<Node<K,V>> >,
+}
+
+pub enum Entry<'a, K: 'a, V: 'a>
+{
+	Vacant(VacantEntry<'a,K,V>),
+	Occupied(OccupiedEntry<'a,K,V>),
+}
+pub struct VacantEntry<'a, K:'a,V:'a> {
+	root: &'a mut Node<K,V>,
+	key: K,
+}
+pub struct OccupiedEntry<'a, K:'a,V:'a> {
+	node: &'a mut Item<K,V>
 }
 
 impl<K: Ord,V> BTreeMap<K,V>
@@ -36,21 +51,23 @@ impl<K: Ord,V> BTreeMap<K,V>
 		}
 	}
 	
+	fn rebalance(&mut self)
+	{
+	}
+	
 	fn get_ptr<Q: ?Sized>(&self, key: &Q) -> Option<*mut V>
 	where
 		Q: Ord,
 		K: ::lib::borrow::Borrow<Q>
 	{
-		let mut node = match self.root_node { Some(ref v) => v, None => return None };
+		let mut node = match self.root_node { Some(ref v) => &**v, None => return None };
 		loop
 		{
-			match node.children.binary_search_by(|v| v.key.borrow().cmp(key))
+			match node.values.binary_search_by(|v| v.key.borrow().cmp(key))
 			{
-			Ok(idx) => return Some(&node.children[idx].val as *const _ as *mut _),
+			Ok(idx) => return Some(&node.values[idx].val as *const _ as *mut _),
 			Err(idx) => if idx <= node.children.len() {
 					node = &node.children[idx];
-				} else if let Some(ref n) = node.next {
-					node = n;
 				}
 				else {
 					return None;
@@ -59,6 +76,9 @@ impl<K: Ord,V> BTreeMap<K,V>
 		}
 	}
 
+	pub fn entry(&mut self, key: K) -> Entry<K,V> {
+		unimplemented!()
+	}
 	
 	pub fn get<Q: ?Sized>(&self, key: &Q) -> Option<&V>
 	where
@@ -82,4 +102,19 @@ impl<K: Ord, V> Default for BTreeMap<K,V>
 		BTreeMap::new()
 	}
 }
+
+impl<'a,K,V> VacantEntry<'a,K,V> {
+	pub fn insert(self, value: V) -> &'a mut V {
+		unimplemented!()
+	}
+} 
+
+impl<'a,K,V> OccupiedEntry<'a,K,V> {
+	pub fn get_mut(&mut self) -> &mut V {
+		&mut self.node.val
+	}
+	pub fn into_mut(self) -> &'a mut V {
+		&mut self.node.val
+	}
+} 
 
