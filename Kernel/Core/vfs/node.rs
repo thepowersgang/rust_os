@@ -11,6 +11,26 @@ use core::atomic::{self,AtomicUsize};
 
 pub type InodeId = u64;
 
+pub enum IoError {
+	NoSpace,
+	NoNodes,
+	ReadFail,
+	ReadOnly,
+	Timeout,
+	Transient,
+	NotFound,
+	Corruption,
+	Unknown(&'static str),
+}
+pub type Result<T> = ::core::result::Result<T,IoError>;
+
+/// Node type used by `Dir::create`
+pub enum NodeType {
+	File,
+	Dir,
+	Symlink,
+}
+
 /// Base trait for a VFS node, defines common operation on nodes
 pub trait NodeBase: Send {
 	/// Return the volume's inode number
@@ -20,11 +40,33 @@ pub trait NodeBase: Send {
 pub trait File: NodeBase {
 	/// Returns the size (in bytes) of this file
 	fn size(&self) -> u64;
+	/// Update the size of the file (zero padding or truncating)
+	fn truncate(&self, newsize: u64) -> Result<u64>;
+	/// Clear the specified range of the file (replace with zeroes)
+	fn clear(&self, ofs: u64, size: u64) -> Result<()>;
+	/// Read data from the file
+	fn read(&self, ofs: u64, buf: &mut [u8]) -> Result<usize>;
+	/// Write data to the file, can only grow the file if ofs==size
+	fn write(&self, ofs: u64, buf: &mut [u8]) -> Result<usize>;
 }
 /// Trait for "Directory" nodes, containers for files.
 pub trait Dir: NodeBase {
 	/// Acquire a node given the name
-	fn lookup(&self, name: &ByteStr) -> Result<InodeId,()>;
+	fn lookup(&self, name: &ByteStr) -> Result<InodeId>;
+	
+	/// Read Entry
+	/// 
+	/// Returns:
+	/// - Ok( (Next Offset, Number read) )
+	/// - Err(e) : Any error
+	fn read(&self, ofs: usize, items: &mut [(InodeId,ByteString)]) -> Result<(usize,usize)>;
+	
+	/// Create a new file in this directory
+	fn create(&self, name: &ByteStr, nodetype: NodeType) -> Result<InodeId>;
+	/// Create a new name for the provided inode
+	fn link(&self, name: &ByteStr, inode: InodeId) -> Result<()>;
+	/// Remove the specified name
+	fn unlink(&self, name: &ByteStr) -> Result<()>;
 }
 /// Trait for symbolic link nodes.
 pub trait Symlink: NodeBase {

@@ -5,6 +5,7 @@
 //! Virtual File System
 use prelude::*;
 use super::{mount, node};
+use super::node::Result as IoResult;
 use super::node::{Node,InodeId};
 use metadevs::storage::VolumeHandle;
 use lib::{BTreeMap,SparseVec};
@@ -82,7 +83,21 @@ impl node::NodeBase for FileRef {
 	}
 }
 impl node::Dir for FileRef {
-	fn lookup(&self, name: &ByteStr) -> Result<InodeId,()> {
+	fn lookup(&self, name: &ByteStr) -> IoResult<InodeId> {
+		unimplemented!()
+	}
+	
+	fn read(&self, ofs: usize, items: &mut [(InodeId,ByteString)]) -> IoResult<(usize,usize)> {
+		unimplemented!()
+	}
+	
+	fn create(&self, name: &ByteStr, nodetype: node::NodeType) -> IoResult<InodeId> {
+		unimplemented!()
+	}
+	fn link(&self, name: &ByteStr, inode: InodeId) -> IoResult<()> {
+		unimplemented!()
+	}
+	fn unlink(&self, name: &ByteStr) -> IoResult<()> {
 		unimplemented!()
 	}
 }
