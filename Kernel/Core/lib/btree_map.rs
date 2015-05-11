@@ -105,6 +105,7 @@ impl<K: Ord, V> Default for BTreeMap<K,V>
 
 impl<'a,K,V> VacantEntry<'a,K,V> {
 	pub fn insert(self, value: V) -> &'a mut V {
+		// 1. Allocate a slot (which may require splitting a node and hence rebalancing the tree)
 		unimplemented!()
 	}
 } 
