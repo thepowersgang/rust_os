@@ -26,3 +26,5 @@ Kernel/rundir/serial.txt
 Kernel/rundir/QemuLog.txt
 Kernel/rundir/qemu_trace
 Kernel/rundir/qemu_int_log.txt
+Kernel/rundir/*.ppm
+Kernel/rundir/*.dmp
