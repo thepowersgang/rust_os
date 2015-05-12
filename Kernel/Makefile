@@ -98,12 +98,12 @@ run: bin/kernel-$(ARCH).bin
 UPDATE: UPDATE_rustc UPDATE_libcore_src
 UPDATE_rustc: 
 	@mkdir -p ../.prefix
-	curl -s https://static.rust-lang.org/rustup.sh | sh -s -- --channel=nightly --prefix=../.prefix --disable-sudo --disable-ldconfig
+	curl -s https://static.rust-lang.org/rustup.sh | sh -s -- --channel=nightly --prefix=../.prefix --disable-sudo --disable-ldconfig --yes
 UPDATE_libcore_src:
 	cd .. && wget https://static.rust-lang.org/dist/rustc-nightly-src.tar.gz -N -nv
 
-../.prefix/bin/rustc: UPDATE_rustc
-	@#
+#../.prefix/bin/rustc: UPDATE_rustc
+#	@#
 ../rustc-nightly-src.tar.gz:
 	@echo -- nightly source required, run "make UPDATE"
 	@false
@@ -167,7 +167,7 @@ $(OBJDIR)mod_%.o: Modules/%/lib.rs $(OBJDIR)libcore.rlib $(OBJDIR)libkernel.rlib
 	@$(call FixDep, $(@:%.o=%.d))
 
 # - Plugins
-bin/plugins/lib%.so: SynExts/%/src/lib.rs
+bin/plugins/lib%.so: SynExts/%/src/lib.rs $(PREFIX)bin/rustc
 	mkdir -p $(dir $@)
 	$(RUSTC) -o $@ $<
 SynExts/tag_safe/src/lib.rs:
