@@ -1,6 +1,10 @@
+// "Tifflin" Kernel
+// - By John Hodge (thePowersGang)
 //
+// Core/vfs/handle.rs
+//! Opened file interface
 use prelude::*;
-use super::node::CacheHandle;
+use super::node::{CacheHandle,NodeType};
 use super::Path;
 
 #[derive(Debug)]
@@ -9,6 +13,7 @@ pub struct Handle
 	node: CacheHandle,
 }
 
+#[derive(Debug)]
 pub enum OpenMode
 {
 	/// Open without caring what the file type is (e.g. enumeration)
@@ -22,6 +27,7 @@ pub enum OpenMode
 	/// Special file (?API exposed)
 	Special,
 }
+#[derive(Debug)]
 pub enum FileOpenMode
 {
 	/// Shared read-only, multiple readers but no writers visible
@@ -50,8 +56,39 @@ impl Handle
 {
 	pub fn open(path: &Path, mode: OpenMode) -> super::Result<Handle> {
 		let node = try!(CacheHandle::from_path(path));
-		todo!("Handle::open()");
+		match mode
+		{
+		OpenMode::Any => {},
+		OpenMode::File(fm) => {
+			todo!("Handle::open - mode=File({:?})", fm);
+			},
+		OpenMode::Dir =>
+			if !node.is_dir() {
+				return Err( super::Error::TypeMismatch )
+			},
+		OpenMode::Symlink => {
+			todo!("Handle::open - mode=Symlink");
+			},
+		OpenMode::Special => {
+			todo!("Handle::open - mode=Special");
+			},
+		}
+		Ok(Handle { node: node })
+	}
+	
+	// Directory methods
+	pub fn mkdir(&self, name: &str) -> super::Result<Handle> {
+		let node = try!(self.node.create(name.as_ref(), NodeType::Dir));
+		assert!(node.is_dir());
+		Ok( Handle { node: node } )
 	}
 }
 
+impl ::core::ops::Drop for Handle
+{
+	fn drop(&mut self)
+	{
+		todo!("Handle::drop()");
+	}
+}
 

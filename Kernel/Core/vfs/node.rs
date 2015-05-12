@@ -10,7 +10,6 @@ use lib::byte_str::{ByteStr,ByteString};
 use core::atomic::{self,AtomicUsize};
 
 pub type InodeId = u64;
-
 pub enum IoError {
 	NoSpace,
 	NoNodes,
@@ -19,16 +18,44 @@ pub enum IoError {
 	Timeout,
 	Transient,
 	NotFound,
+	AlreadyExists,
 	Corruption,
 	Unknown(&'static str),
+}
+impl IoError {
+	fn as_str(&self) -> &'static str {
+		match self
+		{
+		&IoError::NoSpace => "NoSpace",
+		&IoError::NoNodes => "NoNodes",
+		&IoError::ReadFail => "ReadFail",
+		&IoError::ReadOnly => "ReadOnly",
+		&IoError::Timeout => "Timeout",
+		&IoError::Transient => "Transient",
+		&IoError::NotFound => "NotFound",
+		&IoError::AlreadyExists => "AlreadyExists",
+		&IoError::Corruption => "Corruption",
+		&IoError::Unknown(_) => "Unknown",
+		}
+	}
+}
+impl From<IoError> for super::Error {
+	fn from(v: IoError) -> super::Error {
+		match v
+		{
+		IoError::NotFound => super::Error::NotFound,
+		IoError::Unknown(s) => super::Error::Unknown(s),
+		_ => super::Error::Unknown(v.as_str()),
+		}
+	}
 }
 pub type Result<T> = ::core::result::Result<T,IoError>;
 
 /// Node type used by `Dir::create`
+#[derive(Debug,PartialEq)]
 pub enum NodeType {
 	File,
 	Dir,
-	Symlink,
 }
 
 /// Base trait for a VFS node, defines common operation on nodes
@@ -62,6 +89,8 @@ pub trait Dir: NodeBase {
 	fn read(&self, ofs: usize, items: &mut [(InodeId,ByteString)]) -> Result<(usize,usize)>;
 	
 	/// Create a new file in this directory
+	/// 
+	/// Returns the newly created node
 	fn create(&self, name: &ByteStr, nodetype: NodeType) -> Result<InodeId>;
 	/// Create a new name for the provided inode
 	fn link(&self, name: &ByteStr, inode: InodeId) -> Result<()>;
@@ -140,6 +169,7 @@ impl CacheHandle
 	/// Obtain a node handle using a path
 	pub fn from_path(path: &Path) -> super::Result<CacheHandle>
 	{
+		log_trace!("CacheHandle::from_path({:?})", path);
 		// TODO: Support path caching?
 		
 		// Locate mountpoint for the path
@@ -168,6 +198,25 @@ impl CacheHandle
 		}
 		Ok( node_h )
 	}
+	
+	pub fn is_dir(&self) -> bool {
+		match self.as_ref()
+		{
+		&Node::Dir(_) => true,
+		_ => false
+		}
+	}
+	
+	pub fn create(&self, name: &ByteStr, ty: NodeType) -> super::Result<CacheHandle> {
+		match self.as_ref()
+		{
+		&Node::Dir(ref r) => {
+			let inode = try!(r.create(name, ty));
+			Ok( try!(CacheHandle::from_ids(self.mountpt, inode)) )
+			},
+		_ => Err( super::Error::Unknown("Calling create on non-directory") ),
+		}
+	}
 }
 
 impl ::core::convert::AsRef<Node> for CacheHandle
@@ -182,4 +231,16 @@ impl ::core::convert::AsRef<Node> for CacheHandle
 		}
 	}
 }
+//impl ::core::convert::AsMut<Node> for CacheHandle
+//{
+//	fn as_ref(&mut self) -> &mut Node {
+//		let lh = S_NODE_CACHE.lock();
+//		// SAFE: While this handle is active, the box will be present
+//		unsafe {
+//			let box_r = lh.get( &(self.mountpt, self.inode) ).expect("Cached node with open handle absent");
+//			let cn_ref: &CachedNode = &**box_r;
+//			::core::mem::transmute(&cn_ref.node)
+//		}
+//	}
+//}
 

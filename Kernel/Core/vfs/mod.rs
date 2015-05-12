@@ -45,9 +45,16 @@ fn init()
 	ramfs::init();
 	// 2. Start the root/builtin filesystems
 	mount::mount("/".as_ref(), VolumeHandle::ramdisk(0), "ramfs", &[]).unwrap();//"Unable to mount /");
-	//let root = handle::Handle::open( Path::new("/"), handle::OpenMode::Dir );
-	//root.mkdir("System");
+	// 3. Initialise filesystem
+	let root = match handle::Handle::open( Path::new("/"), handle::OpenMode::Dir )
+		{
+		Ok(v) => v,
+		Err(e) => panic!("BUG - Opening / failed: {:?}", e),
+		};
+	root.mkdir("system");
+	root.mkdir("volumes");
+	root.mkdir("temp");
 	
-	let h = handle::Handle::open( Path::new("/System"), handle::OpenMode::Any );
+	let h = handle::Handle::open( Path::new("/system"), handle::OpenMode::Any );
 	log_debug!("VFS open test = {:?}", h);
 }

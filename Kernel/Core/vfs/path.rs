@@ -8,18 +8,13 @@ use lib::byte_str::{ByteStr,ByteString};
 use lib::borrow::ToOwned;
 use core::cmp;
 
-//#[derive(Eq,PartialEq,PartialOrd,Ord)]
+#[derive(Eq,PartialEq,PartialOrd,Ord)]
 pub struct Path(ByteStr);
-impl cmp::PartialOrd for Path {
-	fn partial_cmp(&self, v: &Path) -> Option<cmp::Ordering> { cmp::PartialOrd::partial_cmp(&self.0, &v.0) }
+impl_fmt! {
+	Debug(self,f) for Path {
+		write!(f, "Path({:?})", &self.0)
+	}
 }
-impl cmp::Ord for Path {
-	fn cmp(&self, v: &Path) -> cmp::Ordering { cmp::Ord::cmp(&self.0, &v.0) }
-}
-impl cmp::PartialEq for Path {
-	fn eq(&self, v: &Path) -> bool { cmp::PartialEq::eq(&self.0, &v.0) }
-}
-impl cmp::Eq for Path { }
 
 #[derive(Eq,PartialEq,PartialOrd,Ord)]
 pub struct PathBuf(ByteString);

@@ -138,6 +138,13 @@ impl DriverRegistration
 impl Handle
 {
 	pub fn for_path(path: &Path) -> Result<(Handle,&Path),super::Error> {
+		log_trace!("Handle::for_path({:?})", path);
+		if !path.is_absolute() {
+			return Err(super::Error::Unknown("Path not absolute"));
+		}
+		if !path.is_normalised() {
+			return Err(super::Error::Unknown("Path not normalised"));
+		}
 		let lh = S_MOUNTS.read();
 		// Work backwards until a prefix match is found
 		// - The mount list is sorted, which means that longer items are later in the list
