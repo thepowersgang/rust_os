@@ -8,7 +8,7 @@
 // Recreate std::prelude
 pub use core::prelude::*;
 
-pub use lib::mem::Box;
+pub use lib::mem::boxed::Box;
 //pub use lib::borrow::ToOwned;
 pub use lib::vec::Vec;
 pub use lib::string::String;
