@@ -21,6 +21,32 @@ impl ByteStr
 	pub fn len(&self) -> usize { self.0.len() }
 	pub fn as_bytes(&self) -> &[u8] { &self.0 }
 }
+impl AsRef<ByteStr> for str {
+	fn as_ref(&self) -> &ByteStr {
+		ByteStr::new(self)
+	}
+}
+impl_fmt! {
+	Debug(self,f) for ByteStr {{
+		try!(write!(f, "b\""));
+		for &b in &self.0
+		{
+			match b
+			{
+			b'\\' => try!(write!(f, "\\\\")),
+			b'\n' => try!(write!(f, "\\n")),
+			b'\r' => try!(write!(f, "\\r")),
+			b'"' => try!(write!(f, "\\\"")),
+			b'\0' => try!(write!(f, "\\0")),
+			// ASCII printable characters
+			32...127 => try!(write!(f, "{}", b as char)),
+			_ => try!(write!(f, "\\x{:02x}", b)),
+			}
+		}
+		try!(write!(f, "\""));
+		Ok( () )
+	}}
+}
 
  /*
 impl ops::Deref for ByteStr {
@@ -30,9 +56,7 @@ impl ops::Deref for ByteStr {
 // */
 impl AsRef<[u8]> for ByteStr {
 	fn as_ref(&self) -> &[u8] {
-		//unimplemented!(); /*
 		&self.0
-		// */
 	}
 }
 impl cmp::PartialOrd<str> for ByteStr {
@@ -60,9 +84,7 @@ impl ByteString
 }
 impl<'a> From<&'a ByteStr> for ByteString {
 	fn from(v: &'a ByteStr) -> ByteString {
-		//unimplemented!(); /*
 		ByteString(Vec::from(v.as_bytes()))
-		// */
 	}
 }
 impl ops::Deref for ByteString {
@@ -73,16 +95,12 @@ impl ops::Deref for ByteString {
 }
 impl AsRef<[u8]> for ByteString {
 	fn as_ref(&self) -> &[u8] {
-		//unimplemented!(); /*
 		&self.0
-		// */
 	}
 }
 impl ::lib::borrow::Borrow<ByteStr> for ByteString {
 	fn borrow(&self) -> &ByteStr {
-		//unimplemented!(); /*
 		&**self
-		// */
 	}
 }
 
