@@ -3,6 +3,12 @@
 //
 // Core/lib/mem/aref.rs
 //! Atomic reference type (Arc but with weak pointers only)
+//!
+//! Provides runtime lifetime checking (similar to how RefCell provides runtime borrow checking)
+//!
+//! This type is designed to be used where there is a definitive owner of a peice of memory (e.g. a box)
+//! but you also want to lend pointers to that memory out (where the pointers should never outlive the 
+//! original memory).
 use prelude::*;
 use core::atomic::{AtomicUsize,Ordering};
 use core::nonzero::NonZero;
@@ -57,7 +63,7 @@ impl<T: Sync> ArefInner<T>
 	///
 	/// You MUST ensure that the inner is not moved out of its memory location while any borrows are active
 	pub unsafe fn new(val: T) -> ArefInner<T> {
-		ArefInner {
+		&ArefInner {
 			count: AtomicUsize::new(0),
 			data: val,
 			}
