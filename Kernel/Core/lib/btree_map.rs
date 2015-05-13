@@ -10,15 +10,17 @@ use prelude::*;
 
 pub struct BTreeMap<K: Ord,V>
 {
-	root_node: Option< Box< Node<K,V> > >,
+	root_node: Node<K,V>,
 	max_node_size: usize,	// aka 'b'
 }
 
+// Contains the children for a node
 struct Node<K, V>
 {
 	values: Vec< Item<K,V> >,
 	children: Vec< Node<K,V> >,
 }
+// Contains an item, and any children before it
 struct Item<K, V>
 {
 	key: K,
@@ -31,11 +33,12 @@ pub enum Entry<'a, K: 'a, V: 'a>
 	Occupied(OccupiedEntry<'a,K,V>),
 }
 pub struct VacantEntry<'a, K:'a,V:'a> {
-	root: &'a mut Node<K,V>,
+	node: &'a mut Node<K,V>,
+	idx: usize,
 	key: K,
 }
 pub struct OccupiedEntry<'a, K:'a,V:'a> {
-	node: &'a mut Item<K,V>
+	item: &'a mut Item<K,V>
 }
 
 impl<K: Ord,V> BTreeMap<K,V>
@@ -46,7 +49,7 @@ impl<K: Ord,V> BTreeMap<K,V>
 	
 	pub fn with_b(b: usize) -> Self {
 		BTreeMap {
-			root_node: None,
+			root_node: Default::default(),
 			max_node_size: b,
 		}
 	}
@@ -60,7 +63,7 @@ impl<K: Ord,V> BTreeMap<K,V>
 		Q: Ord,
 		K: ::lib::borrow::Borrow<Q>
 	{
-		let mut node = match self.root_node { Some(ref v) => &**v, None => return None };
+		let mut node = &self.root_node;
 		loop
 		{
 			match node.values.binary_search_by(|v| v.key.borrow().cmp(key))
@@ -77,7 +80,11 @@ impl<K: Ord,V> BTreeMap<K,V>
 	}
 
 	pub fn entry(&mut self, key: K) -> Entry<K,V> {
-		unimplemented!()
+		match self.root_node.find(&key)
+		{
+		Ok(it) => Entry::Occupied( OccupiedEntry { item: it } ),
+		Err((nr,idx)) => Entry::Vacant( VacantEntry { node: nr, idx: idx, key: key } )
+		}
 	}
 	
 	pub fn get<Q: ?Sized>(&self, key: &Q) -> Option<&V>
@@ -103,6 +110,29 @@ impl<K: Ord, V> Default for BTreeMap<K,V>
 	}
 }
 
+impl<K: Ord, V> Node<K,V> {
+	fn find(&mut self, key: &K) -> Result<&mut Item<K,V>, (&mut Node<K,V>, usize)> {
+		match self.values.binary_search_by(|v| v.key.cmp(&key))
+		{
+		Ok(idx) => Ok( &mut self.values[idx] ),
+		Err(idx) => if idx < self.children.len() {
+				self.children[idx].find(key)
+			}
+			else {
+				Err( (self, idx) )
+			},
+		}
+	}
+}
+impl<K,V> Default for Node<K,V> {
+	fn default() -> Node<K,V> {
+		Node {
+			values: Default::default(),
+			children: Default::default(),
+		}
+	}
+}
+
 impl<'a,K,V> VacantEntry<'a,K,V> {
 	pub fn insert(self, value: V) -> &'a mut V {
 		// 1. Allocate a slot (which may require splitting a node and hence rebalancing the tree)
@@ -112,10 +142,10 @@ impl<'a,K,V> VacantEntry<'a,K,V> {
 
 impl<'a,K,V> OccupiedEntry<'a,K,V> {
 	pub fn get_mut(&mut self) -> &mut V {
-		&mut self.node.val
+		&mut self.item.val
 	}
 	pub fn into_mut(self) -> &'a mut V {
-		&mut self.node.val
+		&mut self.item.val
 	}
 } 
 

@@ -31,10 +31,10 @@ pub enum Error
 
 pub use self::path::Path;
 
-mod node;
+pub mod node;
+pub mod mount;
 mod handle;
 mod path;
-mod mount;
 mod ramfs;
 
 fn init()
@@ -45,15 +45,15 @@ fn init()
 	ramfs::init();
 	// 2. Start the root/builtin filesystems
 	mount::mount("/".as_ref(), VolumeHandle::ramdisk(0), "ramfs", &[]).unwrap();//"Unable to mount /");
-	// 3. Initialise filesystem
+	// 3. Initialise root filesystem layout
 	let root = match handle::Handle::open( Path::new("/"), handle::OpenMode::Dir )
 		{
 		Ok(v) => v,
-		Err(e) => panic!("BUG - Opening / failed: {:?}", e),
+		Err(e) => panic!("BUG - Opening '/' failed: {:?}", e),
 		};
-	root.mkdir("system");
-	root.mkdir("volumes");
-	root.mkdir("temp");
+	root.mkdir("system").unwrap();
+	root.mkdir("volumes").unwrap();
+	root.mkdir("temp").unwrap();
 	
 	let h = handle::Handle::open( Path::new("/system"), handle::OpenMode::Any );
 	log_debug!("VFS open test = {:?}", h);

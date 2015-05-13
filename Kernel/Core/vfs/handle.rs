@@ -88,7 +88,8 @@ impl ::core::ops::Drop for Handle
 {
 	fn drop(&mut self)
 	{
-		todo!("Handle::drop()");
+		//todo!("Handle::drop()");
+		// TODO: For files, we need to release the lock
 	}
 }
 

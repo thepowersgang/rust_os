@@ -8,9 +8,9 @@ use super::{mount, node};
 use super::node::Result as IoResult;
 use super::node::{Node,InodeId,IoError};
 use metadevs::storage::VolumeHandle;
-use lib::{BTreeMap,SparseVec};
+use lib::{VecMap,SparseVec};
 use lib::byte_str::{ByteStr,ByteString};
-use lib::mem::Arc;
+use lib::mem::aref::{Aref,ArefInner,ArefBorrow};
 
 struct Driver;
 
@@ -22,19 +22,24 @@ enum RamFile
 #[derive(Default)]
 struct RamFileDir
 {
-	ents: ::sync::RwLock<BTreeMap<ByteString,usize>>,
+	ents: ::sync::RwLock<VecMap<ByteString,usize>>,
 }
 struct RamFileSymlink
 {
 	target: String,
 }
-struct FileRef(*const RamFS,Arc<RamFile>);
+struct FileRef(ArefBorrow<RamFSInner>,ArefBorrow<RamFile>);
 
 struct RamFS
 {
+	inner: ArefInner<RamFSInner>,
+}
+struct RamFSInner
+{
 	_vh: VolumeHandle,
 	// TODO: Store as much data (and metadata) as possible on the volume
-	nodes: ::sync::Mutex< SparseVec<Arc<RamFile>> >,
+	// - Possibly by using an allocation pool backed onto the volume
+	nodes: ::sync::Mutex< SparseVec<Aref<RamFile>> >,
 }
 
 static S_DRIVER: Driver = Driver;
@@ -53,10 +58,13 @@ impl mount::Driver for Driver
 	}
 	fn mount(&self, vol: VolumeHandle) -> Result<Box<mount::Filesystem>, ()> {
 		let mut rv = Box::new(RamFS {
-			_vh: vol,
-			nodes: Default::default(),
+			// SAFE: ArefInner must not change addresses, you can't move out of a boxed trait, so we're good
+			inner: unsafe { ArefInner::new( RamFSInner {
+				_vh: vol,
+				nodes: Default::default(),
+				}) },
 			});
-		let root_inode = rv.nodes.lock().insert( Arc::new(RamFile::Dir(Default::default())) );
+		let root_inode = rv.inner.nodes.lock().insert( Aref::new(RamFile::Dir(Default::default())) );
 		assert_eq!(root_inode, 0);
 		Ok(rv)
 	}
@@ -69,13 +77,17 @@ impl mount::Filesystem for RamFS
 	}
 	fn get_node_by_inode(&self, id: InodeId) -> Option<Node> {
 		log_trace!("RamFS::get_node_by_inode({})", id);
-		if id >= self.nodes.len() as InodeId {
+		let nodes = self.inner.nodes.lock();
+		if id >= nodes.len() as InodeId {
 			log_log!("RamFile::get_node_by_inode - Inode {} out of range", id);
 			None
 		}
 		else {
-			let fr = Box::new(FileRef(self.nodes[id as usize].clone()));
-			match *self.nodes[id as usize]
+			let fr = Box::new(FileRef(
+				self.inner.borrow(),
+				nodes[id as usize].borrow()
+				));
+			match *nodes[id as usize]
 			{
 			RamFile::Dir(_) => Some(Node::Dir(fr)),
 			RamFile::Symlink(_) => Some(Node::Symlink(fr)),
@@ -86,7 +98,7 @@ impl mount::Filesystem for RamFS
 
 impl FileRef {
 	fn dir(&self) -> &RamFileDir {
-		match &*self.0
+		match &*self.1
 		{
 		&RamFile::Dir(ref e) => e,
 		_ => panic!("Called FileRef::dir() on non-dir"),
@@ -108,20 +120,22 @@ impl node::Dir for FileRef {
 	}
 	
 	fn create(&self, name: &ByteStr, nodetype: node::NodeType) -> IoResult<InodeId> {
-		use lib::btree_map::Entry;
+		use lib::vec_map::Entry;
 		let mut lh = self.dir().ents.write();
 		match lh.entry(From::from(name))
 		{
 		Entry::Occupied(_) => Err(IoError::AlreadyExists),
 		Entry::Vacant(e) => {
-			unimplemented!(); /*
-			let inode = self.vol
-			match nodetype
-			{
-			node::NodeType::Dir  => e.insert(RamFile::Dir (Default::default())),
-			node::NodeType::File => e.insert(RamFile::File(Default::default())),
-			}
+			//unimplemented!(); /*
+			let nn = match nodetype
+				{
+				node::NodeType::Dir  => RamFile::Dir (Default::default()),
+				node::NodeType::File => unimplemented!(),	//RamFile::File(Default::default()),
+				};
+			let inode = self.0.nodes.lock().insert( Aref::new(nn) );
+			e.insert(inode);
 			// */
+			Ok(inode as InodeId)
 			},
 		}
 	}

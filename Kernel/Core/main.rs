@@ -83,7 +83,8 @@ pub mod device_manager;
 /// User output, via a kernel-provided compositing "WM"
 pub mod gui;
 
-mod vfs;
+// Public for driver modules
+pub mod vfs;
 
 /// Stack unwinding (panic) handling
 pub mod unwind;

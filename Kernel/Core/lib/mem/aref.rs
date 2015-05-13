@@ -63,10 +63,10 @@ impl<T: Sync> ArefInner<T>
 	///
 	/// You MUST ensure that the inner is not moved out of its memory location while any borrows are active
 	pub unsafe fn new(val: T) -> ArefInner<T> {
-		&ArefInner {
+		ArefInner {
 			count: AtomicUsize::new(0),
 			data: val,
-			}
+		}
 	}
 	/// Borrow the inner
 	pub fn borrow(&self) -> ArefBorrow<T> {
