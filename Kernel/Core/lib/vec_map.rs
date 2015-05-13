@@ -17,6 +17,12 @@ pub struct Iter<'a, K: 'a, V: 'a>
 	pos: usize,
 	ents: &'a [(K,V)],
 }
+/// Mutable iterator for VecMap
+pub struct IterMut<'a, K: 'a, V: 'a>
+{
+	pos: usize,
+	ents: &'a mut [(K,V)],
+}
 
 /// An entry in a VecMap
 pub enum Entry<'a, K: 'a + Ord, V: 'a>
@@ -83,12 +89,31 @@ impl<K: Ord, V> VecMap<K,V>
 		Err(_) => None,
 		}
 	}
+	
+	pub fn get_mut<Q: ?Sized>(&mut self, key: &Q) -> Option<&mut V>
+	where
+		Q: Ord,
+		K: Borrow<Q>
+	{
+		match self.ents.binary_search_by(|e| e.0.borrow().cmp(key))
+		{
+		Ok(idx) => Some( &mut self.ents[idx].1 ),
+		Err(_) => None,
+		}
+	}
 		
 	/// Return a read-only iterator
 	pub fn iter(&self) -> Iter<K,V> {
 		Iter {
 			pos: 0,
 			ents: &*self.ents,
+		}
+	}
+	/// Return a read-only iterator
+	pub fn iter_mut(&mut self) -> IterMut<K,V> {
+		IterMut {
+			pos: 0,
+			ents: &mut *self.ents,
 		}
 	}
 }
@@ -109,6 +134,25 @@ impl<'a, K, V> ::core::iter::Iterator for Iter<'a, K, V>
 			let e = &self.ents[self.pos];
 			self.pos += 1;
 			Some( (&e.0, &e.1) )
+		}
+		else
+		{
+			None
+		}
+	}
+}
+
+impl<'a, K, V> ::core::iter::Iterator for IterMut<'a, K, V>
+{
+	type Item = (&'a K, &'a mut V);
+	
+	fn next(&mut self) -> Option<(&'a K, &'a mut V)>
+	{
+		if self.pos < self.ents.len()
+		{
+			let e: *mut _ = &mut self.ents[self.pos];
+			self.pos += 1;
+			unsafe { Some( (&(*e).0, &mut (*e).1) ) }
 		}
 		else
 		{

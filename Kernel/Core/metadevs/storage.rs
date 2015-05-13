@@ -161,7 +161,10 @@ pub fn register_pv(dev: Box<PhysicalVolume>) -> PhysicalVolumeReg
 	
 	if let Some(mapper) = best_mapper
 	{
-		apply_mapper_to_pv(mapper, best_mapper_level, pv_id, S_PHYSICAL_VOLUMES.lock().get(&pv_id).unwrap())
+		apply_mapper_to_pv(mapper, best_mapper_level, pv_id, S_PHYSICAL_VOLUMES.lock().get_mut(&pv_id).unwrap())
+	}
+	else {
+		// TODO: Apply the fallback (full volume) mapper
 	}
 	
 	PhysicalVolumeReg { idx: pv_id }
@@ -177,7 +180,7 @@ pub fn register_mapper(mapper: &'static Mapper)
 	S_MAPPERS.lock().push(mapper);
 	
 	// Check unbound PVs
-	for (&id,pv) in S_PHYSICAL_VOLUMES.lock().iter()
+	for (&id,pv) in S_PHYSICAL_VOLUMES.lock().iter_mut()
 	{
 		let level = mapper.handles_pv(&*pv.dev);
 		if level == 0
@@ -196,19 +199,19 @@ pub fn register_mapper(mapper: &'static Mapper)
 				}
 				else {
 					// Replace
-					apply_mapper_to_pv(mapper, level, id, &pv);
+					apply_mapper_to_pv(mapper, level, id, pv);
 				}
 			}
 			else
 			{
-				apply_mapper_to_pv(mapper, level, id, &pv);
+				apply_mapper_to_pv(mapper, level, id, pv);
 			}
 		}
 	}
 }
 
 /// Apply the passed mapper to the provided physical volume
-fn apply_mapper_to_pv(mapper: &'static Mapper, level: usize, pv_id: usize, pvi: &PhysicalVolumeInfo)
+fn apply_mapper_to_pv(mapper: &'static Mapper, level: usize, pv_id: usize, pvi: &mut PhysicalVolumeInfo)
 {
 	assert!(level > 0);
 	// TODO: LOCK THE PVI
@@ -217,10 +220,11 @@ fn apply_mapper_to_pv(mapper: &'static Mapper, level: usize, pv_id: usize, pvi: 
 	{
 		//  - Attempt to remove these mappings if possible
 		//pvi.mapper = None;
+		todo!("Remove existing mapping");
 	}
 	// 2. Bind this new mapper to the volume
 	// - Save the mapper
-	//pvi.mapper = Some( (level, mapper) );
+	pvi.mapper = Some( (level, mapper) );
 	// - Enumerate volumes
 	//  TODO: Support more complex volume types
 	mapper.enum_volumes(&*pvi.dev, &mut |name, base, len| {

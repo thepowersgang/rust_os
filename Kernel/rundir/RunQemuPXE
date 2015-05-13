@@ -35,6 +35,7 @@ else
 	QEMU_OPTS=$QEMU_OPTS" -nographic"
 fi
 QEMU_OPTS=$QEMU_OPTS" -hda DiskImages/hda.img"
+QEMU_OPTS=$QEMU_OPTS" -hdb DiskImages/hdb.img"
 QEMU_OPTS=$QEMU_OPTS" -trace file=qemu_trace"
 #QEMU_OPTS=$QEMU_OPTS" -trace events=.qemu_trace,file=qemu_trace"
 QEMU_OPTS=$QEMU_OPTS" -d int -D qemu_int_log.txt"
