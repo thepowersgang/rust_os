@@ -215,7 +215,7 @@ impl IOBinding
 		match *self
 		{
 		IOBinding::IO(base, s) => {
-			assert!( ofs < s as usize );
+			assert!( ofs < s as usize, "read_u8(IO addr {:#x} >= {:#x})", ofs, s );
 			::arch::x86_io::inb(base + ofs as u16)
 			},
 		IOBinding::Memory(ref h) => {
@@ -229,12 +229,11 @@ impl IOBinding
 		match *self
 		{
 		IOBinding::IO(base, s) => {
-			assert!( ofs < s as usize );
+			assert!( ofs < s as usize, "write_8(IO addr {:#x} >= {:#x})", ofs, s );
 			::arch::x86_io::outb(base + ofs as u16, val);
 			},
 		IOBinding::Memory(ref h) => {
 			::core::intrinsics::volatile_store( h.as_int_mut::<u8>(ofs), val );
-			//*h.as_mut::<u8>(ofs) = val;
 			},
 		}
 	}
@@ -244,12 +243,11 @@ impl IOBinding
 		match *self
 		{
 		IOBinding::IO(base, s) => {
-			assert!( ofs < s as usize );
+			assert!(ofs < s as usize, "write_32(IO addr {:#x} >= {:#x})", ofs, s);
 			::arch::x86_io::outl(base + ofs as u16, val);
 			},
 		IOBinding::Memory(ref h) => {
 			::core::intrinsics::volatile_store( h.as_int_mut::<u32>(ofs), val );
-			//*h.as_mut::<u32>(ofs) = val;
 			},
 		}
 	}
