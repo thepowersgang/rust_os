@@ -32,6 +32,7 @@ struct DmaRegBorrow<'a>
 	dma_base: &'a IOBinding,
 	is_sec: bool,
 }
+struct DmaStatusVal(u8);
 pub struct AtaController
 {
 	regs: ::kernel::async::Mutex<AtaRegs>,
@@ -43,6 +44,7 @@ struct AtaRegs
 	sts_base: u16,
 	prdts: ::kernel::memory::virt::ArrayHandle<PRDTEnt>,
 }
+struct AtaStatusVal(u8);
 struct AtaInterrupt
 {
 	handle: ::kernel::irqs::EventHandle,
@@ -247,7 +249,9 @@ impl<'a,'b> async::Waiter for AtaWaiter<'a,'b>
 				unsafe {
 					self.dma_regs.out_8(0, 0);	// Stop transfer
 					let ata_status = lh.in_8(7);
-					log_trace!("BM Status = {:02x}, ATA Status = {:02x}", self.dma_regs.in_8(2), ata_status);
+					log_trace!("BM Status = {:?}, ATA Status = {:?}",
+						DmaStatusVal(self.dma_regs.in_8(2)), AtaStatusVal(ata_status)
+						);
 				}
 				WaitState::Done
 				},
@@ -376,4 +380,26 @@ impl AtaController
 	}
 }
 
+impl_fmt! {
+	Debug(self,f) for DmaStatusVal {{
+		try!(write!(f, "({:#x}", self.0));
+		if self.0 & (1<<0) != 0 { try!(write!(f, " DMAing")); }
+		if self.0 & (1<<1) != 0 { try!(write!(f, " Fail")); }
+		if self.0 & (1<<2) != 0 { try!(write!(f, " IRQ")); }
+		if self.0 & (1<<5) != 0 { try!(write!(f, " MasterS")); }
+		if self.0 & (1<<6) != 0 { try!(write!(f, " SlaveS")); }
+		if self.0 & (1<<7) != 0 { try!(write!(f, " SO")); }
+		write!(f, ")")
+	}}
+	Debug(self,f) for AtaStatusVal {{
+		try!(write!(f, "({:#x}", self.0));
+		if self.0 & (1<<0) != 0 { try!(write!(f, " ERR")); }
+		if self.0 & (1<<3) != 0 { try!(write!(f, " DRQ")); }
+		if self.0 & (1<<4) != 0 { try!(write!(f, " SRV")); }
+		if self.0 & (1<<5) != 0 { try!(write!(f, " DF" )); }
+		if self.0 & (1<<6) != 0 { try!(write!(f, " RDY")); }
+		if self.0 & (1<<7) != 0 { try!(write!(f, " BSY")); }
+		write!(f, ")")
+	}}
+}
 

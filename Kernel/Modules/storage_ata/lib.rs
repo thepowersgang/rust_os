@@ -140,7 +140,11 @@ impl ControllerRoot
 {
 	fn new(ata_pri: u16, sts_pri: u16, irq_pri: u32,  ata_sec: u16, sts_sec: u16, irq_sec: u32,  bm: device_manager::IOBinding) -> ControllerRoot
 	{
-		
+		log_debug!("ControllerRoot::new( {:#x}, {:#x}, {},  {:#x}, {:#x}, {},  {:?}",
+			ata_pri, sts_pri, irq_pri,
+			ata_sec, sts_sec, irq_sec,
+			bm
+			);
 		let dma_controller = Arc::new(io::DmaController {
 			name: if ata_pri == 0x1F0 {
 					String::from("ATA")
@@ -184,8 +188,8 @@ impl ControllerRoot
 			
 			// (ugly) Handle the relevant disk types, creating devices
 			let devs = [
-				(i*2, type_pri, identify_pri),
-				(i*2+1, type_sec, identify_sec)
+				(i, type_pri, identify_pri),
+				(2+i, type_sec, identify_sec)
 				];
 			for &(disk, ref class, ref ident) in devs.iter()
 			{
