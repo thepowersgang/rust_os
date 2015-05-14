@@ -55,6 +55,8 @@ fn init()
 	root.mkdir("volumes").unwrap();
 	root.mkdir("temp").unwrap();
 	
+	// TODO: mount as directed by command line params SYSDISK and SYSROOT
+	
 	let h = handle::Handle::open( Path::new("/system"), handle::OpenMode::Any );
 	log_debug!("VFS open test = {:?}", h);
 }

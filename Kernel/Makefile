@@ -89,7 +89,7 @@ docs:
 	@chmod +rX doc/ -R 
 
 run: bin/kernel-$(ARCH).bin
-	cd rundir && ./RunQemuPXE ../$<.elf32 ""
+	cd rundir && ./RunQemuPXE ../$<.elf32 "SYSDISK=ATA-0p0 SYSROOT=Tifflin/"
 
 # ===
 # Toolchain maintainence
