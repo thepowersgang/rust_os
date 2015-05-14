@@ -8,9 +8,6 @@ use core::option::Option;
 
 pub use self::log::{puts, puth};
 
-// Emits a distinctive instruction (with no effect)
-macro_rules! CHECKMARK{ () => (unsafe { asm!("xchg %cx, %cx" : : : : "volatile");}); }
-
 module_define!{arch, [APIC, HPET], init}
 
 pub mod interrupts;
