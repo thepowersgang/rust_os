@@ -264,7 +264,11 @@ impl MultibootParsed
 		let size_tuple = (info.red_mask, info.green_mask, info.blue_mask);
 		let fmt = match info.bpp
 			{
-			32 => todo!("MultibootInfo::_vidmode: 32bpp"),
+			32 => match (pos_tuple, size_tuple)
+				{
+				((16,8,0), (8,8,8)) => VideoFormat::X8R8G8B8,	// 8:8:8:8 32BPP
+				_ => todo!("MultibootInfo::_vidmode 32 pos={:?},size={:?}", pos_tuple, size_tuple),
+				},
 			24 => todo!("MultibootInfo::_vidmode: 24bpp"),
 			16 => match (pos_tuple, size_tuple)
 				{
