@@ -6,7 +6,10 @@ macro_rules! log{ ($lvl:expr, $modname:expr, $($arg:tt)*) => (
 	{
 		use core::fmt::Write;
 		
-		let _ = write!(&mut $crate::logging::getstream($lvl, $modname), $($arg)*);
+		let _ = match format_args!( $($arg)* )
+		{
+		a => write!(&mut $crate::logging::getstream($lvl, $modname), "{}", a),
+		};
 	}
 	)}
 /// Log a panic-level message (kernel intents to halt immediately after printing)
