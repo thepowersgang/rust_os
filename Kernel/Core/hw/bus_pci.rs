@@ -240,7 +240,8 @@ fn parse_bar(addr: u16, word: u8) -> BAR
 	else if value & 1 == 0
 	{
 		write_word(addr, word, 0xFFFFFFFF);
-		let size = (!read_word(addr, word) & 0xFFFF_FFF0) + 1;
+		let one_value = read_word(addr, word);
+		let size = !(one_value & 0xFFFF_FFF0) + 1;
 		write_word(addr, word, value);
 		// memory BAR
 		let pf = (value >> 3) & 1;
@@ -268,8 +269,8 @@ fn parse_bar(addr: u16, word: u8) -> BAR
 		// IO BAR
 		write_word(addr, word, 0xFFFF);
 		let one_value = read_word(addr, word);
-		let size = (!one_value & 0xFFFC) + 1;
-		//log_debug!("one_value = {:#x}, size={:#x}", one_value, size);
+		let size = ( !(one_value & 0xFFFC) + 1 ) & 0xFFFF;
+		log_debug!("one_value = {:#x}, size={:#x}, value={:#x}", one_value, size, value);
 		write_word(addr, word, value);
 		BAR::IO( (value & 0xFFFC) as u16, size as u16 )
 	}
