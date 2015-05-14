@@ -212,10 +212,11 @@ impl IOBinding
 	/// Read a single u8 from the binding
 	pub unsafe fn read_8(&self, ofs: usize) -> u8
 	{
+		log_trace!("read_8({:?}, {:#x})", self, ofs);
 		match *self
 		{
 		IOBinding::IO(base, s) => {
-			assert!( ofs < s as usize, "read_u8(IO addr {:#x} >= {:#x})", ofs, s );
+			assert!( ofs+1 <= s as usize, "read_u8(IO addr {:#x}+1 > {:#x})", ofs, s );
 			::arch::x86_io::inb(base + ofs as u16)
 			},
 		IOBinding::Memory(ref h) => {
@@ -226,10 +227,11 @@ impl IOBinding
 	/// Writes a single u8 to the binding
 	pub unsafe fn write_8(&self, ofs: usize, val: u8)
 	{
+		log_trace!("write_8({:?}, {:#x}, {:#02x})", self, ofs, val);
 		match *self
 		{
 		IOBinding::IO(base, s) => {
-			assert!( ofs < s as usize, "write_8(IO addr {:#x} >= {:#x})", ofs, s );
+			assert!( ofs+1 <= s as usize, "write_8(IO addr {:#x}+1 > {:#x})", ofs, s );
 			::arch::x86_io::outb(base + ofs as u16, val);
 			},
 		IOBinding::Memory(ref h) => {
@@ -243,7 +245,7 @@ impl IOBinding
 		match *self
 		{
 		IOBinding::IO(base, s) => {
-			assert!(ofs < s as usize, "write_32(IO addr {:#x} >= {:#x})", ofs, s);
+			assert!(ofs+4 <= s as usize, "write_32(IO addr {:#x}+4 > {:#x})", ofs, s);
 			::arch::x86_io::outl(base + ofs as u16, val);
 			},
 		IOBinding::Memory(ref h) => {
