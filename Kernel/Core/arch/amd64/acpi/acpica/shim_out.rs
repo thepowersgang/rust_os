@@ -8,7 +8,7 @@
 #![allow(dead_code,unused_variables)]
 use prelude::*;
 use super::shim_ext::*;
-use super::va_list::va_list;
+use super::va_list::VaList;
 
 #[no_mangle] #[linkage="external"]
 extern "C" fn AcpiOsInitialize() -> ACPI_STATUS {
@@ -332,7 +332,7 @@ extern "C" fn AcpiOsWritePciConfiguration(PciId: ACPI_PCI_ID, Register: u32, Val
 fn c_string_to_str<'a>(c_str: *const i8) -> &'a str {
 	::core::str::from_utf8( ::memory::c_string_as_byte_slice(c_str).unwrap_or(b"INVALID") ).unwrap_or("UTF-8")
 }
-fn get_uint(mut Args: va_list, size: usize) -> u64 {
+fn get_uint(Args: &mut VaList, size: usize) -> u64 {
 	match size
 	{
 	0 => unsafe { Args.get::<u32>() as u64 },
@@ -341,7 +341,7 @@ fn get_uint(mut Args: va_list, size: usize) -> u64 {
 	_ => unreachable!(),
 	}
 }
-fn get_int(mut Args: va_list, size: usize) -> i64 {
+fn get_int(Args: &mut VaList, size: usize) -> i64 {
 	match size
 	{
 	0 => unsafe { Args.get::<i32>() as i64 },
@@ -357,7 +357,7 @@ fn get_int(mut Args: va_list, size: usize) -> i64 {
 #[no_mangle]
 #[linkage="external"]
 #[allow(dead_code)]
-extern "C" fn AcpiOsVprintf(Format: *const i8, mut Args: va_list)
+extern "C" fn AcpiOsVprintf(Format: *const i8, mut Args: VaList)
 {
 	struct Buf([u8; 256]);
 	impl Buf { fn new() -> Self { unsafe { ::core::mem::zeroed() } } }
@@ -436,25 +436,25 @@ extern "C" fn AcpiOsVprintf(Format: *const i8, mut Args: va_list)
 			match c
 			{
 			'x' => {
-				let _ = write!(&mut *lh, "{:x}", get_uint(Args, size));
+				let _ = write!(&mut *lh, "{:x}", get_uint(&mut Args, size));
 				},
 			'X' => {
-				let val = get_uint(Args, size);
+				let val = get_uint(&mut Args, size);
 				let _ = write!(&mut *lh, "{:X}", val);
 				},
 			'd' => {
-				let val = get_int(Args, size);
+				let val = get_int(&mut Args, size);
 				let _ = write!(&mut *lh, "{}", val);
 				},
 			'u' => {
-				let val = get_uint(Args, size);
+				let val = get_uint(&mut Args, size);
 				let _ = write!(&mut *lh, "{}", val);
 				},
 			'p' => {
 				let _ = write!(&mut *lh, "{:p}", unsafe { Args.get::<*const u8>() });
 				},
 			'c' => {
-				let _ = write!(&mut *lh, "{}", unsafe { Args.get::<u8>() as char });
+				let _ = write!(&mut *lh, "{}", unsafe { Args.get::<u32>() as u8 as char });
 				},
 			's' => {
 				let slice = unsafe {

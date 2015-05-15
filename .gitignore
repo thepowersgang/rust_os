@@ -10,6 +10,7 @@
 libcore/
 acpica/*.a
 acpica/acpica-*/
+externals/
 
 Graphics/*.rs
 
@@ -19,6 +20,7 @@ Kernel/BuildNum.*.mk
 Kernel/doc
 Kernel/bin
 Kernel/gitstats
+Kernel/SynExts
 
 Kernel/rundir/bochsout.txt
 Kernel/rundir/bochsdbg.txt

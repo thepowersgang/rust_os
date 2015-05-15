@@ -56,6 +56,18 @@ fn init()
 	root.mkdir("temp").unwrap();
 	
 	// TODO: mount as directed by command line params SYSDISK and SYSROOT
+	/*
+	let sysdisk = ::config::get("SYSDISK");
+	match VolumeHandle::open(sysdisk)
+	{
+	Ok(vh) => match mount::mount("/system".as_ref(), vh, "", &[])
+		{
+		Ok(_) => {},
+		Err(e) => panic!("Unable to mount /system from {}: {}", sysdisk, e),
+		},
+	Err(e) => panic!("Unable to open /system volume {}: {}", sysdisk, e),
+	}
+	*/
 	
 	let h = handle::Handle::open( Path::new("/system"), handle::OpenMode::Any );
 	log_debug!("VFS open test = {:?}", h);

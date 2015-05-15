@@ -56,6 +56,7 @@ RUSTFLAGS += -C soft-float	# Disables requiring SSE etc
 RUSTFLAGS += -C target-feature=$(subst $(space),$(comma),$(EXCLUDE_FEATURES:%=-%))
 RUSTFLAGS += --cfg arch__$(ARCH)
 RUSTFLAGS += -L bin/plugins/
+RUSTFLAGS += --cfg nightly
 ifeq ($(USE_ACPICA),1)
 	RUSTFLAGS += --cfg use_acpica
 endif
@@ -74,6 +75,7 @@ ENV += TK_BUILD="$(shell hostname --fqdn):$(BUILDNUM)"
 LIBCORESRC := ../libcore/
 
 OBJS := $(OBJS:%=$(OBJDIR)%)
+LIBS := $(OBJDIR)libva_list.rlib
 
 .SUFFIXES:
 .PHONY: all clean docs run
@@ -127,7 +129,7 @@ $(OBJDIR)kernel.ir: Core/main.rs $(OBJDIR)libcore.rlib $(TARGET_FILE)
 bin/kernel-$(ARCH).bin: $(OBJS) Core/arch/$(ARCH)/link.ld Makefile
 	@mkdir -p bin/
 	@echo [LD] -o $@
-	@$(TRIPLE)-ld -o $@ $(OBJS) $(LINKFLAGS)
+	@$(TRIPLE)-ld -o $@ $(OBJS) $(LIBS) $(LINKFLAGS)
 	@objcopy $@ -F elf32-i386 $@.elf32
 	@echo "BUILDNUM := $$(( $(BUILDNUM) + 1 ))" > BuildNum.$(ARCH).mk
 
@@ -142,10 +144,10 @@ $(OBJDIR)%.ao: Core/arch/$(ARCH)/%.asm Makefile
 	@nasm -o $@ $< -f elf64 -MD $@.d -MP
 
 # - Kernel Core
-$(OBJDIR)libkernel.rlib: Core/main.rs $(OBJDIR)libcore.rlib Makefile $(TARGET_FILE) ../Graphics/logo.rs bin/plugins/libtag_safe.so
+$(OBJDIR)libkernel.rlib: Core/main.rs $(OBJDIR)libcore.rlib Makefile $(TARGET_FILE) ../Graphics/logo.rs bin/plugins/libtag_safe.so $(LIBS)
 	@echo [RUSTC] -o $@
 	@mkdir -p $(dir $@)
-	$V$(ENV) $(RUSTC) $(RUSTFLAGS) --emit=link,dep-info -o $@ $< $(call LocalLib,core)
+	$V$(ENV) $(RUSTC) $(RUSTFLAGS) --emit=link,dep-info -o $@ $<
 	@$(call FixDep, $(@:%.rlib=%.d))
 
 
@@ -167,11 +169,22 @@ $(OBJDIR)mod_%.o: Modules/%/lib.rs $(OBJDIR)libcore.rlib $(OBJDIR)libkernel.rlib
 	$V$(ENV) $(RUSTC) $(RUSTFLAGS) --emit=obj,dep-info -o $@ --crate-name=$* --crate-type=lib $< $(call LocalLib,core) $(call LocalLib,kernel)
 	@$(call FixDep, $(@:%.o=%.d))
 
+# - External libs
+$(OBJDIR)lib%.rlib: ../externals/crates.io/%/src/lib.rs
+	@echo [RUSTC] -o $@ $<
+	$V$(ENV) $(RUSTC) $(RUSTFLAGS) -o $@ $<
+
+../externals/crates.io/va_list/src/lib.rs:
+	$(eval D=$(dir $(dir $(dir $@))))
+	@mkdir -p $(D)
+	cd $(D) && git clone https://github.com/thepowersgang/va_list-rs
+
 # - Plugins
 bin/plugins/lib%.so: SynExts/%/src/lib.rs $(PREFIX)bin/rustc
 	mkdir -p $(dir $@)
 	$(RUSTC) -o $@ $<
 SynExts/tag_safe/src/lib.rs:
+	@mkdir -p SynExts
 	cd SynExts && git clone https://github.com/thepowersgang/tag_safe
 
 ../Graphics/logo.rs: ../Graphics/TifflinLogoV1-128.png ../Graphics/ConvertTo32bppRS

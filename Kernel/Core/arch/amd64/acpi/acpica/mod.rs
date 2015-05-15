@@ -12,7 +12,7 @@ mod shim_ext;
 // Shim - Functions called by ACPICA
 mod shim_out;
 
-mod va_list;
+extern crate va_list;
 
 pub struct SDTHandle<T: 'static>(&'static super::SDT<T>);
 
