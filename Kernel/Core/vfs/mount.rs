@@ -32,8 +32,8 @@ pub trait Filesystem:
 pub trait Driver:
 	Send + Sync
 {
-	fn detect(&self, vol: &VolumeHandle) -> usize;
-	fn mount(&self, vol: VolumeHandle) -> Result<Box<Filesystem>, ()>;
+	fn detect(&self, vol: &VolumeHandle) -> super::Result<usize>;
+	fn mount(&self, vol: VolumeHandle) -> super::Result<Box<Filesystem>>;
 }
 
 pub struct DriverRegistration(&'static str);
@@ -62,7 +62,7 @@ pub fn mount(location: &Path, vol: VolumeHandle, fs: &str, options: &[&str]) -> 
 	// 1. (maybe) detect filesystem
 	let driver = if fs == "" {
 			match drivers.iter()
-				.map(|(n,fs)| (fs.detect(&vol), n, fs))
+				.filter_map(|(n,fs)| fs.detect(&vol).ok().map(|r| (r, n, fs)))
 				.max_by(|&(l,_,_)| l)
 			{
 			Some((0,_,_)) => return Err(MountError::NoHandler),

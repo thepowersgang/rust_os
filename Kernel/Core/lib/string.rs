@@ -6,7 +6,7 @@
 //!
 //! Acts every similarly to the rust std's String type.
 use prelude::*;
-use core::ops;
+use core::{ops,cmp,fmt};
 
 /// String type
 #[derive(Clone,PartialOrd,Ord,PartialEq,Eq)]
@@ -36,7 +36,7 @@ impl String
 		String(v)
 	}
 	/// Create a string from a `fmt::Arguments` instance (used by `format!`)
-	pub fn from_args(args: ::core::fmt::Arguments) -> String {
+	pub fn from_args(args: fmt::Arguments) -> String {
 		use core::fmt::Write;
 		let mut ret = String::new();
 		let _ = write!(&mut ret, "{}", args);
@@ -60,7 +60,7 @@ impl Default for String {
 	fn default() -> String { String::new() }
 }
 
-impl ::core::fmt::Write for String
+impl fmt::Write for String
 {
 	fn write_str(&mut self, s: &str) -> ::core::fmt::Result
 	{
@@ -69,7 +69,7 @@ impl ::core::fmt::Write for String
 	}
 }
 
-impl ::core::ops::Deref for String
+impl ops::Deref for String
 {
 	type Target = str;
 	fn deref(&self) -> &str {
@@ -77,11 +77,10 @@ impl ::core::ops::Deref for String
 	}
 }
 
-impl ::core::fmt::Display for String
+impl fmt::Display for String
 {
-	fn fmt(&self, f: &mut ::core::fmt::Formatter) -> ::core::fmt::Result
-	{
-		::core::fmt::Display::fmt(self.as_slice(), f)
+	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+		<str as fmt::Display>::fmt(&self, f)
 	}
 }
 
@@ -89,6 +88,32 @@ impl<'a> From<&'a str> for String
 {
 	fn from(v: &str) -> String {
 		String::from_str(v)
+	}
+}
+//impl<T: ::lib::error::Error> From<T> for String {
+//	fn from(v: T) -> String {
+//		format!("{}", v)
+//	}
+//}
+
+impl PartialEq<str> for String {
+	fn eq(&self, v: &str) -> bool {
+		<str as PartialEq>::eq(&self, v)
+	}
+}
+impl PartialOrd<str> for String {
+	fn partial_cmp(&self, v: &str) -> Option<cmp::Ordering> {
+		<str as PartialOrd>::partial_cmp(&self, v)
+	}
+}
+impl<'a> PartialEq<&'a str> for String {
+	fn eq(&self, v: & &'a str) -> bool {
+		<str as PartialEq>::eq(&self, *v)
+	}
+}
+impl<'a> PartialOrd<&'a str> for String {
+	fn partial_cmp(&self, v: & &'a str) -> Option<cmp::Ordering> {
+		<str as PartialOrd>::partial_cmp(&self, *v)
 	}
 }
 

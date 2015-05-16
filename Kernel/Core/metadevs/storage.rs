@@ -29,6 +29,16 @@ pub struct PhysicalVolumeReg
 /// Helper to print out the size of a volume/size as a pretty SI base 2 number
 pub struct SizePrinter(pub u64);
 
+/// Block-level input-output error
+#[derive(Debug)]
+pub enum IoError
+{
+	BadAddr,
+	Timeout,
+	BadBlock,
+	ReadOnly,
+}
+
 /// Physical volume instance provided by driver
 ///
 /// Provides the low-level methods to manipulate the underlying storage
@@ -46,14 +56,14 @@ pub trait PhysicalVolume: Send + 'static
 	/// Reads `count` blocks starting with `blockidx` into the buffer `dst` (which will/should
 	/// be the size of `count` blocks). The read is performed with the provided priority, where
 	/// 0 is higest, and 255 is lowest.
-	fn read<'a>(&'a self, prio: u8, blockidx: u64, count: usize, dst: &'a mut [u8]) -> Result<Box<::async::Waiter+'a>, ()>;
+	fn read<'a>(&'a self, prio: u8, blockidx: u64, count: usize, dst: &'a mut [u8]) -> Result<Box<::async::Waiter+'a>, IoError>;
 	/// Writer a number of blocks to the volume
-	fn write<'a>(&'a self, prio: u8, blockidx: u64, count: usize, src: &'a [u8]) -> Result<Box<::async::Waiter+'a>,()>;
+	fn write<'a>(&'a self, prio: u8, blockidx: u64, count: usize, src: &'a [u8]) -> Result<Box<::async::Waiter+'a>, IoError>;
 	/// Erases a number of blocks from the volume
 	///
 	/// Erases (requests the underlying storage forget about) `count` blocks starting at `blockidx`.
 	/// This is functionally equivalent to the SSD "TRIM" command.
-	fn wipe(&mut self, blockidx: u64, count: usize);
+	fn wipe(&mut self, blockidx: u64, count: usize) -> Result<(),IoError>;
 }
 
 /// Registration for a physical volume handling driver
@@ -267,20 +277,51 @@ pub fn enum_lvs() -> Vec<(usize,String)>
 	S_LOGICAL_VOLUMES.lock().iter().map( |(k,v)| (*k, v.name.clone()) ).collect()
 }
 
-/// Acquire an unique handle to a logical volume
-pub fn open_lv(idx: usize) -> Result<VolumeHandle,()>
+#[derive(Debug)]
+pub enum VolOpenError
 {
-	match S_LOGICAL_VOLUMES.lock().get(&idx)
-	{
-	Some(v) => todo!("open_lv '{}'", v.name),
-	None => Err( () ),
+	NotFound,
+	Locked,
+}
+impl_fmt!{
+	Display(self,f) for VolOpenError {
+		write!(f, "{}",
+			match self
+			{
+			&VolOpenError::NotFound => "No such logical volume",
+			&VolOpenError::Locked => "Logical volume already open",
+			})
 	}
 }
+
 impl VolumeHandle
 {
-	pub fn ramdisk(_count: usize) -> VolumeHandle {
+	pub fn new_ramdisk(_count: usize) -> VolumeHandle {
 		VolumeHandle {
 			handle: Arc::new(LogicalVolume::default())
+		}
+	}
+	/// Acquire an unique handle to a logical volume
+	pub fn open_idx(idx: usize) -> Result<VolumeHandle,VolOpenError>
+	{
+		match S_LOGICAL_VOLUMES.lock().get(&idx)
+		{
+		Some(v) => todo!("open_lv '{}'", v.name),
+		None => Err( VolOpenError::NotFound ),
+		}
+	}
+	pub fn open_named(name: &str) -> Result<VolumeHandle,VolOpenError> {
+		match S_LOGICAL_VOLUMES.lock().iter_mut().find(|&(_, ref v)| v.name == name)
+		{
+		Some((_,v)) => {
+			if ::lib::mem::arc::get_mut(v).is_some() {
+				Ok( VolumeHandle { handle: v.clone() } )
+			}
+			else {
+				Err( VolOpenError::Locked )
+			}
+			},
+		None => Err( VolOpenError::NotFound ),
 		}
 	}
 	
@@ -314,18 +355,18 @@ impl VolumeHandle
 	/// Read a series of blocks from the volume into the provided buffer.
 	/// 
 	/// The buffer must be a multiple of the logical block size
-	pub fn read_blocks(&self, idx: u64, dst: &mut [u8]) -> Result<(),()> {
+	pub fn read_blocks(&self, idx: u64, dst: &mut [u8]) -> Result<(),IoError> {
 		assert!(dst.len() % self.block_size() == 0);
 		
 		for (block,dst) in (idx .. ).zip( dst.chunks_mut(self.block_size()) )
 		{
 			let (pv,ofs) = match self.get_phys_block(block) {
 				Some(v) => v,
-				None => return Err( () ),
+				None => return Err( IoError::BadAddr ),
 				};
 			try!( S_PHYSICAL_VOLUMES.lock().get(&pv).unwrap().read(ofs, dst) );
 		}
-		unimplemented!();
+		Ok( () )
 	}
 }
 
@@ -336,8 +377,9 @@ impl PhysicalVolumeInfo
 	}
 	
 	/// Read blocks from the device
-	pub fn read(&self, first: u64, dst: &mut [u8]) -> Result<usize,()>
+	pub fn read(&self, first: u64, dst: &mut [u8]) -> Result<usize,IoError>
 	{
+		log_trace!("PhysicalVolumeInfo::read(first={},{} bytes)", first, dst.len());
 		let block_step = self.max_blocks_per_read();
 		let block_size = self.dev.blocksize();
 		// Read up to 'block_step' blocks in each read call
@@ -353,7 +395,7 @@ impl PhysicalVolumeInfo
 				try!(self.dev.read(prio, blk_id, blocks, buf)).wait();
 			}
 		}
-		todo!("PhysicalVolumeInfo::read(first={},{} bytes)", first, dst.len());
+		Ok(dst.len()/block_size)
 	}
 }
 

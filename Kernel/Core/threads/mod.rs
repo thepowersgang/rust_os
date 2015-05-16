@@ -46,7 +46,6 @@ pub fn yield_time()
 {
 	s_runnable_threads.lock().push( get_cur_thread() );
 	reschedule();
-	::arch::threads::idle();
 }
 
 pub fn yield_to(thread: Box<Thread>)
@@ -73,17 +72,26 @@ pub fn get_thread_id() -> thread::ThreadID
 #[doc(hidden)]
 pub fn reschedule()
 {
-	// 1. Get next thread
 	loop
 	{
 		if let Some(thread) = get_thread_to_run()
 		{
-			log_debug!("Task switch to {:?}", thread);
-			::arch::threads::switch_to(thread);
+			if &*thread as *const _ == ::arch::threads::borrow_thread() as *const _
+			{
+				log_debug!("Task switch to self, idle");
+				::arch::threads::switch_to(thread);
+				::arch::threads::idle();
+			}
+			else
+			{
+				log_debug!("Task switch to {:?}", thread);
+				::arch::threads::switch_to(thread);
+				log_debug!("Awoke");
+			}
 			return ;
 		}
 		
-		log_trace!("reschedule() - Idling");
+		log_trace!("reschedule() - No active threads, idling");
 		::arch::threads::idle();
 	}
 }

@@ -123,3 +123,15 @@ impl<T> ArcInner<T>
 			} );
 	}
 }
+
+/// Returns Some(mut_ref) when this Arc only has one reference
+pub fn get_mut<T>(arc: &mut Arc<T>) -> Option<&mut T>
+{
+	if arc.inner().count.load(Ordering::SeqCst) == 1 {
+		Some( unsafe { &mut (*(*arc.inner as *mut ArcInner<T>)).val } ) 
+	}
+	else {
+		None
+	}
+}
+

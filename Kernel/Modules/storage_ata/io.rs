@@ -5,6 +5,7 @@
 use kernel::prelude::*;
 use kernel::memory::helpers::{DMABuffer};
 use kernel::async;
+use kernel::metadevs::storage;
 use kernel::device_manager::IOBinding;
 
 pub const SECTOR_SIZE: usize = 512;
@@ -65,13 +66,13 @@ impl_fmt!{
 
 impl DmaController
 {
-	pub fn do_dma_rd<'a>(&'a self, blockidx: u64, count: usize, dst: &'a mut [u8], disk: u8) -> Result<Box<async::Waiter+'a>,()> {
+	pub fn do_dma_rd<'a>(&'a self, blockidx: u64, count: usize, dst: &'a mut [u8], disk: u8) -> Result<Box<async::Waiter+'a>,storage::IoError> {
 		self.do_dma(blockidx, count, DMABuffer::new_contig_mut(dst, 32), disk, false)
 	}
-	pub fn do_dma_wr<'a>(&'a self, blockidx: u64, count: usize, dst: &'a [u8], disk: u8) -> Result<Box<async::Waiter+'a>,()> {
+	pub fn do_dma_wr<'a>(&'a self, blockidx: u64, count: usize, dst: &'a [u8], disk: u8) -> Result<Box<async::Waiter+'a>,storage::IoError> {
 		self.do_dma(blockidx, count, DMABuffer::new_contig(dst, 32), disk, true)
 	}
-	fn do_dma<'a>(&'a self, blockidx: u64, count: usize, dst: DMABuffer<'a>, disk: u8, is_write: bool) -> Result<Box<async::Waiter+'a>,()>
+	fn do_dma<'a>(&'a self, blockidx: u64, count: usize, dst: DMABuffer<'a>, disk: u8, is_write: bool) -> Result<Box<async::Waiter+'a>,storage::IoError>
 	{
 		assert!(disk < 4);
 		assert!(count < MAX_DMA_SECTORS);

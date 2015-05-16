@@ -117,21 +117,22 @@ impl ::kernel::metadevs::storage::PhysicalVolume for AtaVolume
 	fn blocksize(&self) -> usize { io::SECTOR_SIZE }
 	fn capacity(&self) -> u64 { self.size }
 	
-	fn read<'a>(&'a self, _prio: u8, idx: u64, num: usize, dst: &'a mut [u8]) -> Result<Box<async::Waiter+'a>, ()>
+	fn read<'a>(&'a self, _prio: u8, idx: u64, num: usize, dst: &'a mut [u8]) -> Result<Box<async::Waiter+'a>, storage::IoError>
 	{
 		assert_eq!( dst.len(), num * io::SECTOR_SIZE );
 		self.controller.do_dma_rd(idx, num, dst, self.disk)
 	}
-	fn write<'s>(&'s self, _prio: u8, idx: u64, num: usize, src: &'s [u8]) -> Result<Box<async::Waiter+'s>, ()>
+	fn write<'s>(&'s self, _prio: u8, idx: u64, num: usize, src: &'s [u8]) -> Result<Box<async::Waiter+'s>, storage::IoError>
 	{
 		assert_eq!( src.len(), num * io::SECTOR_SIZE );
 		let ctrlr = &self.controller;
 		ctrlr.do_dma_wr(idx, num, src, self.disk)
 	}
 	
-	fn wipe(&mut self, _blockidx: u64, _count: usize)
+	fn wipe(&mut self, _blockidx: u64, _count: usize) -> Result<(),storage::IoError>
 	{
 		// Do nothing, no support for TRIM
+		Ok( () )
 	}
 	
 }

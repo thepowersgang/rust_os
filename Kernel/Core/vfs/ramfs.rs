@@ -7,7 +7,7 @@ use prelude::*;
 use super::{mount, node};
 use super::node::Result as IoResult;
 use super::node::{Node,InodeId,IoError};
-use metadevs::storage::VolumeHandle;
+use metadevs::storage::{self,VolumeHandle};
 use lib::{VecMap,SparseVec};
 use lib::byte_str::{ByteStr,ByteString};
 use lib::mem::aref::{Aref,ArefInner,ArefBorrow};
@@ -52,11 +52,11 @@ pub fn init()
 
 impl mount::Driver for Driver
 {
-	fn detect(&self, _vol: &VolumeHandle) -> usize {
+	fn detect(&self, _vol: &VolumeHandle) -> super::Result<usize> {
 		// RAMFS should never bind to an arbitary volume
-		0
+		Ok(0)
 	}
-	fn mount(&self, vol: VolumeHandle) -> Result<Box<mount::Filesystem>, ()> {
+	fn mount(&self, vol: VolumeHandle) -> super::Result<Box<mount::Filesystem>> {
 		let mut rv = Box::new(RamFS {
 			// SAFE: ArefInner must not change addresses, you can't move out of a boxed trait, so we're good
 			inner: unsafe { ArefInner::new( RamFSInner {

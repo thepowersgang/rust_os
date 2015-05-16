@@ -86,13 +86,15 @@ pub mod gui;
 // Public for driver modules
 pub mod vfs;
 
+mod config;
+
 /// Stack unwinding (panic) handling
 pub mod unwind;
 
 pub mod irqs;
 
 /// Built-in device drivers
-pub mod hw;
+mod hw;
 
 /// Achitecture-specific code - AMD64 (aka x86-64)
 #[macro_use]
@@ -129,6 +131,12 @@ pub extern "C" fn kmain()
 	// - Requests that the GUI be started as soon as possible
 	::modules::init(&["GUI"]);
 	
+	// Yield to allow init threads to run
+	::threads::yield_time();
+	
+	// Run system init
+	sysinit();
+	
 	// Thread 0 idle loop
 	log_info!("Entering idle");
 	loop
@@ -136,6 +144,39 @@ pub extern "C" fn kmain()
 		log_trace!("TID0 napping");
 		::threads::yield_time();
 	}
+}
+
+fn sysinit()
+{
+	use metadevs::storage::VolumeHandle;
+	use vfs::mount;
+	use vfs::{Path,Handle,OpenMode};
+	
+	// 1. Mount /system to the specified volume
+	let sysdisk = ::config::get_string(::config::Value::SysDisk);
+	match VolumeHandle::open_named(sysdisk)
+	{
+	Err(e) => {
+		log_error!("Unable to open /system volume {}: {}", sysdisk, e);
+		return ;
+		},
+	Ok(vh) => match mount::mount("/system".as_ref(), vh, "", &[])
+		{
+		Ok(_) => {},
+		Err(e) => {
+			log_error!("Unable to mount /system from {}: {:?}", sysdisk, e);
+			return ;
+			},
+		},
+	}
+	
+	
+	// 2. Symbolic link /sysroot to the specified folder
+	//let sysroot = ::config::get_string(::config::Value::SysRoot);
+	
+	
+	let h = Handle::open( Path::new("/system"), OpenMode::Any );
+	log_debug!("VFS open test = {:?}", h);
 }
 
 // vim: ft=rust

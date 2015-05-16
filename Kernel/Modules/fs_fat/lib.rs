@@ -9,8 +9,8 @@
 #[macro_use] extern crate kernel;
 use kernel::prelude::*;
 
-use kernel::vfs::{mount, node};
-use kernel::metadevs::storage::VolumeHandle;
+use kernel::vfs::{self, mount, node};
+use kernel::metadevs::storage::{self,VolumeHandle};
 
 module_define!{FS_FAT, [VFS], init}
 
@@ -26,10 +26,25 @@ fn init()
 
 impl mount::Driver for Driver
 {
-	fn detect(&self, _vol: &VolumeHandle) -> usize {
-		todo!("detect()")
+	fn detect(&self, vol: &VolumeHandle) -> vfs::Result<usize> {
+		use kernel::lib::byteorder::{ReadBytesExt,LittleEndian};
+		
+		let mut bs = [0u8; 512];
+		try!( vol.read_blocks(0, &mut bs) );
+		
+		let bps = (&bs[0x0b..]).read_u16::<LittleEndian>().unwrap();
+		let spc = (&bs[0x0d..]).read_u8().unwrap();
+		let media_desc = (&bs[0x15..]).read_u8().unwrap();
+		
+		
+		if bps == 0 || spc == 0 || media_desc < 0xf0 {
+			Ok(0)
+		}
+		else {
+			Ok(1)
+		}
 	}
-	fn mount(&self, vol: VolumeHandle) -> Result<Box<mount::Filesystem>, ()> {
+	fn mount(&self, vol: VolumeHandle) -> vfs::Result<Box<mount::Filesystem>> {
 		todo!("mount()")
 	}
 }

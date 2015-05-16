@@ -25,11 +25,19 @@ pub enum Error
 	NonDirComponent,
 	/// Symbolic link recursion limit reached
 	RecursionDepthExceeded,
+	/// Block-level IO Error
+	BlockIoError(::metadevs::storage::IoError),
 	/// Unknown (misc) error
 	Unknown(&'static str),
 }
+impl From<::metadevs::storage::IoError> for Error {
+	fn from(v: ::metadevs::storage::IoError) -> Error {
+		Error::BlockIoError(v)
+	}
+}
 
 pub use self::path::Path;
+pub use self::handle::{Handle,OpenMode};
 
 pub mod node;
 pub mod mount;
@@ -44,7 +52,7 @@ fn init()
 	node::init();
 	ramfs::init();
 	// 2. Start the root/builtin filesystems
-	mount::mount("/".as_ref(), VolumeHandle::ramdisk(0), "ramfs", &[]).unwrap();//"Unable to mount /");
+	mount::mount("/".as_ref(), VolumeHandle::new_ramdisk(0), "ramfs", &[]).unwrap();//"Unable to mount /");
 	// 3. Initialise root filesystem layout
 	let root = match handle::Handle::open( Path::new("/"), handle::OpenMode::Dir )
 		{
@@ -54,21 +62,4 @@ fn init()
 	root.mkdir("system").unwrap();
 	root.mkdir("volumes").unwrap();
 	root.mkdir("temp").unwrap();
-	
-	// TODO: mount as directed by command line params SYSDISK and SYSROOT
-	/*
-	let sysdisk = ::config::get("SYSDISK");
-	match VolumeHandle::open(sysdisk)
-	{
-	Ok(vh) => match mount::mount("/system".as_ref(), vh, "", &[])
-		{
-		Ok(_) => {},
-		Err(e) => panic!("Unable to mount /system from {}: {}", sysdisk, e),
-		},
-	Err(e) => panic!("Unable to open /system volume {}: {}", sysdisk, e),
-	}
-	*/
-	
-	let h = handle::Handle::open( Path::new("/system"), handle::OpenMode::Any );
-	log_debug!("VFS open test = {:?}", h);
 }

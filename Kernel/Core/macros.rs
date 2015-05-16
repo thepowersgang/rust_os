@@ -129,10 +129,10 @@ macro_rules! waitqueue_wait_ext {
 }
 
 /// Override libcore's `try!` macro with one that backs onto `From`
+#[macro_export]
 macro_rules! try {
 	($e:expr) => (
-		match $e
-		{
+		match $e {
 		Ok(v) => v,
 		Err(e) => return Err(From::from(e)),
 		}
