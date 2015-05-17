@@ -7,6 +7,8 @@ use kernel::lib::mem::aref::ArefBorrow;
 use kernel::vfs::{self,node};
 use kernel::lib::byte_str::{ByteStr,ByteString};
 
+pub type Filesystem = super::Filesystem;
+
 pub struct DirNode
 {
 	fs: ArefBorrow<super::FilesystemInner>,
@@ -52,7 +54,7 @@ struct DirEntLong {
 }
 
 impl DirNode {
-	pub fn new(fs: &super::Filesystem, start_cluster: u32) -> DirNode {
+	pub fn new(fs: &Filesystem, start_cluster: u32) -> DirNode {
 		DirNode {
 			fs: fs.inner.borrow(),
 			start_cluster: start_cluster,
@@ -60,7 +62,7 @@ impl DirNode {
 	}
 }
 impl RootDirNode {
-	pub fn new(fs: &super::Filesystem) -> RootDirNode {
+	pub fn new(fs: &Filesystem) -> RootDirNode {
 		RootDirNode {
 			fs: fs.inner.borrow(),
 		}
