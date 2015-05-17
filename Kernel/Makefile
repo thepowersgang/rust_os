@@ -170,7 +170,7 @@ $(OBJDIR)mod_%.o: Modules/%/lib.rs $(OBJDIR)libcore.rlib $(OBJDIR)libkernel.rlib
 	@$(call FixDep, $(@:%.o=%.d))
 
 # - External libs
-$(OBJDIR)lib%.rlib: ../externals/crates.io/%/src/lib.rs
+$(OBJDIR)lib%.rlib: ../externals/crates.io/%/src/lib.rs $(OBJDIR)libcore.rlib
 	@echo [RUSTC] -o $@ $<
 	$V$(ENV) $(RUSTC) $(RUSTFLAGS) -o $@ $<
 
