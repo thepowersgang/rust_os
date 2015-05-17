@@ -1,19 +1,24 @@
 #!/bin/bash
+set -e
 
 #ENABLE_VIDEO=0
 
 IMAGE=$1
 ARGS=$2
 
+PXELINUX_DIR=/home/tftpboot/boot/
+
+# Create PXE boot dir
 rm -rf .pxe/
 mkdir -p .pxe/pxelinux.cfg
-cp /home/tftpboot/boot/pxelinux.0 /home/tftpboot/boot/mboot.c32 .pxe/
+cp ${PXELINUX_DIR}pxelinux.0 ${PXELINUX_DIR}mboot.c32 .pxe/
 cp $IMAGE .pxe
 echo "default testkern" >> .pxe/pxelinux.cfg/default
 echo "label testkern" >> .pxe/pxelinux.cfg/default
 echo "	kernel mboot.c32" >> .pxe/pxelinux.cfg/default
 echo "	append ${IMAGE##*/} $ARGS" >> .pxe/pxelinux.cfg/default
 
+# Set qemu trace options
 echo "" > .qemu_trace
 #echo "apic_deliver_irq" >> .qemu_trace
 #echo "apic_local_deliver" >> .qemu_trace
@@ -23,6 +28,22 @@ echo "bdrv_aio_writev" >> .qemu_trace
 echo "bdrv_co_readv" >> .qemu_trace
 echo "bdrv_co_do_copy_on_readv" >> .qemu_trace
 
+# Initialise a hard-disk
+dd if=/dev/zero of=DiskImages/hda_0.img bs=1M count=1
+# - 32MB FAT? partition on disk 0
+dd if=/dev/zero of=DiskImages/hda_1.img bs=1M count=32
+/sbin/mkfs.vfat DiskImages/hda_1.img
+# - a 16MB ext2 partition on disk 0
+dd if=/dev/zero of=DiskImages/hda_2.img bs=1M count=16
+/sbin/mkfs.ext2 -q -F DiskImages/hda_2.img
+# - Commit
+cat DiskImages/hda_0.img DiskImages/hda_1.img DiskImages/hda_2.img > DiskImages/hda.img
+/sbin/sfdisk --no-reread DiskImages/hda.img -C $((1+32+16)) -H 4 -S 256 -u S -f -q <<EOF
+$((1*1024*2)),$((32*1024*2)),0x83
+$((33*1024*2)),+,0x7
+EOF
+
+# Run qemu with various options
 QEMU_OPTS=""
 QEMU_OPTS=$QEMU_OPTS" -net nic"
 QEMU_OPTS=$QEMU_OPTS" -net user,tftp=.pxe/,bootfile=pxelinux.0"
@@ -38,4 +59,5 @@ QEMU_OPTS=$QEMU_OPTS" -drive if=ide,index=1,file=DiskImages/hdb.img,format=raw"
 QEMU_OPTS=$QEMU_OPTS" -trace events=.qemu_trace,file=qemu_trace"
 QEMU_OPTS=$QEMU_OPTS" -d int -D qemu_int_log.txt"
 QEMU_OPTS=$QEMU_OPTS" -no-reboot"
+echo "--- Starting qemu"
 qemu-system-x86_64 $QEMU_OPTS | tee QemuLog.txt
