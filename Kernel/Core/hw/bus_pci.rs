@@ -171,7 +171,7 @@ impl ::device_manager::BusDevice for PCIDev
 fn scan_bus(bus_id: u8) -> Vec<Box<BusDevice+'static>>
 {
 	log_trace!("PCI scan_bus({})", bus_id);
-	let mut ret = Vec::new();
+	let mut ret: Vec<Box<BusDevice>> = Vec::new();
 	for devidx in (0 .. MAX_DEV)
 	{
 		match get_device(bus_id, devidx, 0)
@@ -180,7 +180,7 @@ fn scan_bus(bus_id: u8) -> Vec<Box<BusDevice+'static>>
 			let is_multifunc = (devinfo.config[3] & 0x0080_0000) != 0;
 			log_debug!("{:?}", devinfo);
 			// Increase device count
-			ret.push(box devinfo as Box<BusDevice>);
+			ret.push(box devinfo);
 			// Handle multi-function devices (iterate from 1 onwards)
 			if is_multifunc
 			{

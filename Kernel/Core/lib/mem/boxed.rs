@@ -22,6 +22,9 @@ impl<T> Box<T>
 	}
 }
 
+impl<T: ?Sized + ::core::marker::Unsize<U>, U: ?Sized> ::core::ops::CoerceUnsized<Box<U>> for Box<T> {
+}
+
 impl<T: ?Sized> ::core::fmt::Debug for Box<T>
 where
 	T: ::core::fmt::Debug
