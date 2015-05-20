@@ -94,6 +94,9 @@ impl<T: Sync> ops::Drop for ArefInner<T>
 
 impl<T: Sync> ArefBorrow<T>
 {
+	pub fn reborrow(&self) -> ArefBorrow<T> {
+		self.__inner().borrow()
+	}
 	fn __inner(&self) -> &ArefInner<T> {
 		unsafe { &**self.__ptr }
 	}

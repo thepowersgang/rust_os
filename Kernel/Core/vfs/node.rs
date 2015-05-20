@@ -13,7 +13,7 @@ pub type InodeId = u64;
 pub enum IoError {
 	NoSpace,
 	NoNodes,
-	ReadFail,
+	ReadFail(::metadevs::storage::IoError),
 	ReadOnly,
 	Timeout,
 	Transient,
@@ -28,7 +28,7 @@ impl IoError {
 		{
 		&IoError::NoSpace => "NoSpace",
 		&IoError::NoNodes => "NoNodes",
-		&IoError::ReadFail => "ReadFail",
+		&IoError::ReadFail(_) => "ReadFail",
 		&IoError::ReadOnly => "ReadOnly",
 		&IoError::Timeout => "Timeout",
 		&IoError::Transient => "Transient",
@@ -47,6 +47,11 @@ impl From<IoError> for super::Error {
 		IoError::Unknown(s) => super::Error::Unknown(s),
 		_ => super::Error::Unknown(v.as_str()),
 		}
+	}
+}
+impl From<::metadevs::storage::IoError> for IoError {
+	fn from(v: ::metadevs::storage::IoError) -> IoError {
+		IoError::ReadFail(v)
 	}
 }
 pub type Result<T> = ::core::result::Result<T,IoError>;
@@ -177,9 +182,11 @@ impl CacheHandle
 		let (mph,tail) = try!(super::mount::Handle::for_path(path));
 		// Acquire the mountpoint's root node
 		let mut node_h = try!(CacheHandle::from_ids( mph.id(), mph.root_inode() ));
+		log_debug!("- tail={:?}", tail);
 		// Iterate components of the path that were not consumed by the mountpoint
 		for seg in tail
 		{
+			log_debug!("- seg={:?}", seg);
 			node_h = match *node_h.as_ref()
 				{
 				Node::Dir(ref dir) => {

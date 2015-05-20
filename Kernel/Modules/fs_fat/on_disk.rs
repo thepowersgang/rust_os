@@ -1,5 +1,13 @@
 use kernel::prelude::*;
 
+pub const ATTR_READONLY : u8 = 0x01;	// Read-only file
+pub const ATTR_HIDDEN   : u8 = 0x02;	// Hidden File
+pub const ATTR_SYSTEM   : u8 = 0x04;	// System File
+pub const ATTR_VOLUMEID : u8 = 0x08;	// Volume ID (Deprecated)
+pub const ATTR_DIRECTORY: u8 = 0x10;	// Directory
+pub const ATTR_ARCHIVE  : u8 = 0x20;	// Flag set by user
+pub const ATTR_LFN: u8 = (ATTR_READONLY | ATTR_HIDDEN | ATTR_SYSTEM | ATTR_VOLUMEID);
+
 fn read_u8(s: &mut &[u8]) -> u8 {
 	use kernel::lib::byteorder::ReadBytesExt;
 	s.read_u8().unwrap()
@@ -176,21 +184,21 @@ impl BootSect32Info {
 
 pub struct DirEnt
 {
-	name: [u8; 11],
-	attribs: u8,
-	nt_resvd: u8,
-	creation_ds: u8,	// 10ths of a second
-	creation_time: u16,
-	creation_date: u16,
-	accessed_date: u16,
-	cluster_hi: u16,
-	modified_time: u16,
-	modified_date: u16,
-	cluster: u16,
-	size: u32,
+	pub name: [u8; 11],
+	pub attribs: u8,
+	pub nt_resvd: u8,
+	pub creation_ds: u8,	// 10ths of a second
+	pub creation_time: u16,
+	pub creation_date: u16,
+	pub accessed_date: u16,
+	pub cluster_hi: u16,
+	pub modified_time: u16,
+	pub modified_date: u16,
+	pub cluster: u16,
+	pub size: u32,
 }
 impl DirEnt {
-	fn read(src: &mut &[u8]) -> DirEnt {
+	pub fn read(src: &mut &[u8]) -> DirEnt {
 		DirEnt {
 			name: read_arr(src),
 			attribs: read_u8(src),
@@ -209,17 +217,17 @@ impl DirEnt {
 }
 pub struct DirEntLong
 {
-	id: u8,
-        name1: [u16; 5],
-	attrib: u8,	// Must be ATTR_LFN
-	ty: u8,	// Dunno?
-	checksum: u8,
-	name2: [u16; 6],
-	first_cluster: u16,
-	name3: [u16; 2],
+	pub id: u8,
+        pub name1: [u16; 5],
+	pub attrib: u8,	// Must be ATTR_LFN
+	pub ty: u8,	// Dunno?
+	pub checksum: u8,
+	pub name2: [u16; 6],
+	pub first_cluster: u16,
+	pub name3: [u16; 2],
 }
 impl DirEntLong {
-	fn read(src: &mut &[u8]) -> DirEntLong {
+	pub fn read(src: &mut &[u8]) -> DirEntLong {
 		DirEntLong {
 			id: read_u8(src),
 			name1: read_arr16(src),

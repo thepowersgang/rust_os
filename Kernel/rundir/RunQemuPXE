@@ -29,10 +29,12 @@ echo "bdrv_co_readv" >> .qemu_trace
 echo "bdrv_co_do_copy_on_readv" >> .qemu_trace
 
 # Initialise a hard-disk
+# - 1MB of blank space 
 dd if=/dev/zero of=DiskImages/hda_0.img bs=1M count=1
 # - 32MB FAT? partition on disk 0
 dd if=/dev/zero of=DiskImages/hda_1.img bs=1M count=32
 /sbin/mkfs.vfat DiskImages/hda_1.img
+echo "Test content" | mcopy -i DiskImages/hda_1.img - ::/1.txt
 # - a 16MB ext2 partition on disk 0
 dd if=/dev/zero of=DiskImages/hda_2.img bs=1M count=16
 /sbin/mkfs.ext2 -q -F DiskImages/hda_2.img

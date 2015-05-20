@@ -18,6 +18,9 @@ module_define!{FS_FAT, [VFS], init}
 const FAT16_MIN_CLUSTERS: usize = 4085;
 const FAT32_MIN_CLUSTERS: usize = 65525;
 
+/// FAT Legacy (pre 32) root cluster base. Just has to be above the max cluster num for FAT16
+const FATL_ROOT_CLUSTER: u32 = 0x00FF0000;
+
 const FAT12_EOC: u16 = 0x0FFF;
 const FAT16_EOC: u16 = 0xFFFF;
 const FAT32_EOC: u32 = 0x00FFFFFF;
@@ -26,6 +29,8 @@ const FAT32_EOC: u32 = 0x00FFFFFF;
 mod on_disk;
 /// Directory IO
 mod dir;
+/// File IO
+mod file;
 
 #[derive(Copy,Clone,Debug)]
 enum Size
@@ -35,6 +40,7 @@ enum Size
 	Fat32,
 }
 
+/// Driver strucutre
 struct Driver;
 
 struct Filesystem
@@ -55,6 +61,7 @@ struct FilesystemInner
 	first_data_sector: usize,
 	
 	root_first_cluster: u32,
+	root_sector_count: u32,
 }
 
 /// Inodes IDs destrucure into two 28-bit cluster IDs, and a 16-bit dir offset
@@ -104,6 +111,9 @@ impl mount::Driver for Driver
 		if bs_c.bps != 512 {
 			return Err(vfs::Error::Unknown("TODO: non 512-byte sector FAT"))
 		}
+		if bs_c.fat_count == 0 {
+			return Err(vfs::Error::Unknown("FAT Count is 0"));
+		}
 		
 		let bps = bs_c.bps as usize;
 		let spc = bs_c.spc as usize;
@@ -122,12 +132,14 @@ impl mount::Driver for Driver
 				bs_c.total_sectors_32 as usize
 			};
 		
-		let fat_sectors = bs_c.fat_count as usize * fat_size;
-		let non_data_sectors = bs_c.reserved_sect_count as usize
-			+ fat_sectors
+		// Calcualte some quantities
+		let spare_fat_sectors = (bs_c.fat_count as usize - 1) * fat_size;
+		let first_data_sector = bs_c.reserved_sect_count as usize
+			+ fat_size + spare_fat_sectors
 			+ root_dir_sectors;
-		let cluster_count = (total_sectors - non_data_sectors) / spc;
+		let cluster_count = (total_sectors - first_data_sector - spare_fat_sectors) / spc;
 		
+		// Determine the FAT type
 		let fat_type = if cluster_count < FAT16_MIN_CLUSTERS {
 				Size::Fat12
 			}
@@ -143,20 +155,48 @@ impl mount::Driver for Driver
 		Ok(Box::new(Filesystem {
 			// SAFE: Saving to a Box, so won't move
 			inner: unsafe { ArefInner::new(FilesystemInner {
-				vh: vol,
 				ty: fat_type,
 				spc: spc,
 				cluster_count: cluster_count,
-				first_data_sector: non_data_sectors,
+				first_data_sector: first_data_sector,
 				root_first_cluster: match fat_type {
 					Size::Fat32 => bs.info32().unwrap().root_cluster,
-					_ => (fat_sectors / spc) as u32,
+					_ => FATL_ROOT_CLUSTER as u32,
 					},
+				root_sector_count: root_dir_sectors as u32,
+
+				vh: vol,
 				}) },
 			}))
 	}
 }
 
+type Cluster = Vec<u8>;
+
+impl FilesystemInner
+{
+	/// Load a cluster from disk
+	// TODO: V V V
+	// - Should this function lock the cluster somehow to prevent accidental overlap?
+	// - Could also cache somehow (with a refcount) along with the 'writing' flag
+	fn load_cluster(&self, cluster: u32) -> Result<Cluster, storage::IoError> {
+		log_trace!("Filesystem::load_cluster({:#x})", cluster);
+		// For now, just read the bytes, screw caching
+		let mut buf: Vec<u8> = ::core::iter::repeat(0).take(self.spc * self.vh.block_size()).collect();
+		let sector = if !is!(self.ty, Size::Fat32) && cluster >= FATL_ROOT_CLUSTER {
+				let rc = cluster - FATL_ROOT_CLUSTER;
+				assert!( (rc as u64 * self.spc as u64) < self.root_sector_count as u64);
+				(self.first_data_sector - self.root_sector_count as usize) as u64 + (rc * self.spc as u32) as u64
+			}
+			else {
+				self.first_data_sector as u64 + (cluster as u64 - 2) * self.spc as u64
+			};
+		log_debug!("cluster = {:#x}, sector = 0x{:x}", cluster, sector);
+		try!(self.vh.read_blocks(sector, &mut buf));
+		//::kernel::logging::hex_dump("FAT Cluster", &buf);
+		Ok( buf )
+	}
+}
 
 impl mount::Filesystem for Filesystem
 {
@@ -170,24 +210,29 @@ impl mount::Filesystem for Filesystem
 	fn get_node_by_inode(&self, id: node::InodeId) -> Option<node::Node> {
 		let r = InodeRef::from(id);
 		if r.first_cluster == self.root_first_cluster {
-			if let Size::Fat32 = self.ty {
-				Some(node::Node::Dir(Box::new(dir::DirNode::new(self, r.first_cluster))))
-			}
-			else {
-				Some(node::Node::Dir(Box::new(dir::RootDirNode::new(self))))
-			}
+			Some(node::Node::Dir(dir::DirNode::new_boxed(self.inner.borrow(), r.first_cluster)))
 		}
 		else {
 			// Reading from the directory starting at r.dir_first_cluster
 			// locate the file with cluster equal to r.first_cluster.
 			// And use that to create the node
-			todo!("get_node_by_inode - r = {:?}", r);
+			let dn = dir::DirNode::new(self.inner.borrow(), r.dir_first_cluster);
+			dn.find_node(r.first_cluster)
 		}
 	}
 }
 
 impl InodeRef
 {
+	fn new(c: u32, dir_c: u32) -> InodeRef {
+		assert!(c     <= 0x00FF_FFFF);
+		assert!(dir_c <= 0x00FF_FFFF);
+		InodeRef {
+			first_cluster: c,
+			dir_first_cluster: dir_c,
+			dir_offset: 0,
+		}
+	}
 	fn to_id(&self) -> node::InodeId {
 		assert!(self.first_cluster <= 0x00FF_FFFF);
 		assert!(self.dir_first_cluster <= 0x00FF_FFFF);

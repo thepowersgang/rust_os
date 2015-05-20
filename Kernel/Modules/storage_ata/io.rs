@@ -151,7 +151,8 @@ impl AtaRegs
 	
 	fn start_dma(&mut self, disk: u8, blockidx: u64, dma_buffer: &DMABuffer, is_write: bool, bm: &DmaRegBorrow)
 	{
-		log_debug!("start_dma(disk={},blockidx={},is_write={})", disk, blockidx, is_write);
+		log_debug!("start_dma(disk={},blockidx={},is_write={},dma_buffer={{len={}}})",
+			disk, blockidx, is_write, dma_buffer.len());
 		let count = dma_buffer.len() / SECTOR_SIZE;
 		// Fill PRDT
 		// TODO: Use a chain of PRDTs to support 32-bit scatter-gather

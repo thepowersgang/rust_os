@@ -330,7 +330,8 @@ impl VolumeHandle
 	}
 	
 	// TODO: Return a more complex type that can be incremented
-	fn get_phys_block(&self, idx: u64) -> Option<(usize,u64)> {
+	// Returns: VolIdx, Block, Count
+	fn get_phys_block(&self, idx: u64, count: usize) -> Option<(usize,u64,usize)> {
 		if let Some(size) = self.handle.chunk_size
 		{
 			todo!("Non JBOD logocal volumes ({} block stripe)", size);
@@ -341,7 +342,8 @@ impl VolumeHandle
 			for v in self.handle.regions.iter()
 			{
 				if idx_rem < v.block_count as u64 {
-					return Some( (v.volume, v.first_block + idx_rem) );
+					let ret_count = ::core::cmp::min(v.block_count as u64 - idx_rem, count as u64) as usize;
+					return Some( (v.volume, v.first_block + idx_rem, ret_count) );
 				}
 				else {
 					idx_rem -= v.block_count as u64;
@@ -356,15 +358,24 @@ impl VolumeHandle
 	/// 
 	/// The buffer must be a multiple of the logical block size
 	pub fn read_blocks(&self, idx: u64, dst: &mut [u8]) -> Result<(),IoError> {
+		log_trace!("VolumeHandle::read_blocks(idx={}, dst={{len={}}})", idx, dst.len());
 		assert!(dst.len() % self.block_size() == 0);
 		
-		for (block,dst) in (idx .. ).zip( dst.chunks_mut(self.block_size()) )
+		let mut rem = dst.len() / self.block_size();
+		let mut blk = 0;
+		while rem > 0
 		{
-			let (pv,ofs) = match self.get_phys_block(block) {
+			let (pv, ofs, count) = match self.get_phys_block(idx + blk as u64, rem) {
 				Some(v) => v,
 				None => return Err( IoError::BadAddr ),
 				};
+			log_trace!("- PV{} {} + {}", pv, ofs, count);
+			assert!(count <= rem);
+			let bofs = blk as usize * self.block_size();
+			let dst = &mut dst[bofs .. bofs + count * self.block_size()];
 			try!( S_PHYSICAL_VOLUMES.lock().get(&pv).unwrap().read(ofs, dst) );
+			blk += count;
+			rem -= count;
 		}
 		Ok( () )
 	}

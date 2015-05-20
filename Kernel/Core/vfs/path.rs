@@ -50,11 +50,14 @@ impl Path
 			None
 		}
 		else {
-			let mut i = self.0.as_bytes().splitn(1, |&c| c == b'/');
+			let mut i = self.0.as_bytes().splitn(2, |&c| c == b'/');
 			let first = i.next().unwrap();
 			match i.next()
 			{
-			Some(rest) => Some( (ByteStr::new(first), Path::new(rest)) ),
+			Some(rest) => {
+				assert!(i.next().is_none());
+				Some( (ByteStr::new(first), Path::new(rest)) )
+				},
 			None => Some( (ByteStr::new(first), Path::new("")) ),
 			}
 		}
@@ -71,11 +74,13 @@ impl Path
 			let mut oi = other.iter();
 			while let Some( (comp,t) ) = tail.split_off_first()	
 			{
-				tail = t;
+				//log_trace!("tail={:?}, comp={:?}, t={:?}", tail, comp, t);
 				if let Some(ocomp) = oi.next() {
+					//log_trace!("ocomp={:?}, comp={:?}", ocomp, comp);
 					if comp != ocomp {
 						return None;
 					}
+					tail = t;
 				}
 				else {
 					return Some(tail);
@@ -130,7 +135,14 @@ impl<'a> ::core::iter::Iterator for Components<'a>
 	type Item = &'a ByteStr;
 	
 	fn next(&mut self) -> Option<Self::Item> {
-		None
+		match self.0.split_off_first()
+		{
+		Some( (v,t) ) => {
+			self.0 = t;
+			Some(v)
+			},
+		None => None,
+		}
 	}
 }
 

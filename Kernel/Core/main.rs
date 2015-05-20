@@ -174,9 +174,12 @@ fn sysinit()
 	// 2. Symbolic link /sysroot to the specified folder
 	//let sysroot = ::config::get_string(::config::Value::SysRoot);
 	
+	{
+		let h = Handle::open( Path::new("/system/1.TXT"), OpenMode::Any );
+		log_debug!("VFS open test = {:?}", h);
+		
+	}
 	
-	let h = Handle::open( Path::new("/system"), OpenMode::Any );
-	log_debug!("VFS open test = {:?}", h);
 }
 
 // vim: ft=rust
