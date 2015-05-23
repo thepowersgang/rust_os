@@ -60,6 +60,7 @@ struct FilesystemInner
 	cluster_size: usize,
 	/// Total number of data clusters
 	cluster_count: usize,
+	first_fat_sector: usize,
 	first_data_sector: usize,
 	
 	root_first_cluster: u32,
@@ -171,6 +172,7 @@ impl mount::Driver for Driver
 				spc: spc,
 				cluster_size: spc * vol.block_size(),
 				cluster_count: cluster_count,
+				first_fat_sector: bs_c.reserved_sect_count as usize,
 				first_data_sector: first_data_sector,
 				root_first_cluster: match fat_type {
 					Size::Fat32 => bs.info32().unwrap().root_cluster,
@@ -222,7 +224,51 @@ impl FilesystemInner
 	
 	/// Obtain the next cluster in a chain
 	fn get_next_cluster(&self, cluster: u32) -> Option<u32> {
-		todo!("get_next_cluster({})", cluster);
+		use kernel::lib::byteorder::{ReadBytesExt,LittleEndian};
+		// - Determine what sector contains the requested FAT entry
+		let bs = self.vh.block_size();
+		let (fat_sector,ofs) = match self.ty
+			{
+			Size::Fat12 => {
+				let cps = bs / 3 * 2;	// 2 per 3 bytes
+				(cluster as usize / cps, (cluster as usize % cps) / 2 * 3 )
+				},
+			Size::Fat16 => {
+				let cps = bs / 2;
+				(cluster as usize / cps, (cluster as usize % cps) * 2)
+				},
+			Size::Fat32 => {
+				let cps = bs / 4;
+				(cluster as usize / cps, (cluster as usize % cps) * 2)
+				},
+			};
+		// - Read a single sector from the FAT
+		let mut sector_data = Vec::from_fn(bs, |_|0u8);
+		match self.vh.read_blocks( (self.first_fat_sector + fat_sector) as u64, &mut sector_data )
+		{
+		Ok(_) => {},
+		Err(_) => return None,
+		}
+		// - Extract the entry
+		match self.ty
+		{
+		Size::Fat12 => {
+			// FAT12 has special handling because it packs 2 entries into 24 bytes
+			let val = {
+				let v24 = (&sector_data[ofs..]).read_uint::<LittleEndian>(3).unwrap();
+				if cluster % 2 == 0 { v24 & 0xFFF } else { v24 >> 12 }
+				} as u16;
+			if val == FAT12_EOC { None } else { Some(val as u32) }
+			},
+		Size::Fat16 => {
+			let val = (&sector_data[ofs..]).read_u16::<LittleEndian>().unwrap();
+			if val == FAT16_EOC { None } else { Some(val as u32) }
+			},
+		Size::Fat32 => {
+			let val = (&sector_data[ofs..]).read_u32::<LittleEndian>().unwrap();
+			if val == FAT32_EOC { None } else { Some(val as u32) }
+			},
+		}
 	}
 }
 
