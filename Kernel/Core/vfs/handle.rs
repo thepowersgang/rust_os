@@ -82,6 +82,11 @@ impl Handle
 		assert!(node.is_dir());
 		Ok( Handle { node: node } )
 	}
+	
+	// File methods
+	pub fn read(&self, ofs: u64, dst: &mut [u8]) -> super::Result<usize> {
+		self.node.read(ofs, dst)
+	}
 }
 
 impl ::core::ops::Drop for Handle

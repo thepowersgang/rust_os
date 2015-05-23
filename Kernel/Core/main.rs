@@ -175,9 +175,16 @@ fn sysinit()
 	//let sysroot = ::config::get_string(::config::Value::SysRoot);
 	
 	{
-		let h = Handle::open( Path::new("/system/1.TXT"), OpenMode::Any );
-		log_debug!("VFS open test = {:?}", h);
-		
+		match Handle::open( Path::new("/system/1.TXT"), OpenMode::Any )
+		{
+		Err(e) => log_warning!("VFS test file can't be opened: {:?}", e),
+		Ok(h) => {
+			log_debug!("VFS open test = {:?}", h);
+			let mut buf = [0; 16];
+			let sz = h.read(0, &mut buf).unwrap();
+			log_debug!("- Contents: {:?}", ::lib::RawString(&buf[..sz]));
+			},
+		}
 	}
 	
 }

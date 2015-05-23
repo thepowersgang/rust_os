@@ -215,7 +215,10 @@ impl CacheHandle
 		_ => false
 		}
 	}
-	
+}
+/// Directory methods
+impl CacheHandle
+{
 	pub fn create(&self, name: &ByteStr, ty: NodeType) -> super::Result<CacheHandle> {
 		match self.as_ref()
 		{
@@ -224,6 +227,17 @@ impl CacheHandle
 			Ok( try!(CacheHandle::from_ids(self.mountpt, inode)) )
 			},
 		_ => Err( super::Error::Unknown("Calling create on non-directory") ),
+		}
+	}
+}
+/// Normal file methods
+impl CacheHandle
+{
+	pub fn read(&self, ofs: u64, dst: &mut [u8]) -> super::Result<usize> {
+		match self.as_ref()
+		{
+		&Node::File(ref f) => Ok( try!(f.read(ofs, dst)) ),
+		_ => Err( super::Error::Unknown("Calling read on non-file") ),
 		}
 	}
 }
