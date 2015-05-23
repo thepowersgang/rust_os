@@ -60,6 +60,7 @@ macro_rules! type_name
 
 
 /// Iterator helper, desugars to a.zip(b)
+#[macro_export]
 macro_rules! zip
 {
 	($a:expr, $b:expr) => ( $a.zip($b) );

@@ -5,8 +5,9 @@ pub const ATTR_HIDDEN   : u8 = 0x02;	// Hidden File
 pub const ATTR_SYSTEM   : u8 = 0x04;	// System File
 pub const ATTR_VOLUMEID : u8 = 0x08;	// Volume ID (Deprecated)
 pub const ATTR_DIRECTORY: u8 = 0x10;	// Directory
-pub const ATTR_ARCHIVE  : u8 = 0x20;	// Flag set by user
 pub const ATTR_LFN: u8 = (ATTR_READONLY | ATTR_HIDDEN | ATTR_SYSTEM | ATTR_VOLUMEID);
+#[allow(dead_code)]
+pub const ATTR_ARCHIVE  : u8 = 0x20;	// Flag set by user
 
 fn read_u8(s: &mut &[u8]) -> u8 {
 	use kernel::lib::byteorder::ReadBytesExt;
@@ -27,7 +28,6 @@ fn read_arr<T: AsMut<[u8]>>(s: &mut &[u8]) -> T {
 	v
 }
 fn read_arr16<T: AsMut<[u16]>>(s: &mut &[u8]) -> T {
-	use kernel::lib::io::Read;
 	let mut v: T = unsafe { ::core::mem::zeroed() };
 	for p in v.as_mut() {
 		*p = read_u16(s);
@@ -182,6 +182,7 @@ impl BootSect32Info {
 	}
 }
 
+#[derive(Debug)]
 pub struct DirEnt
 {
 	pub name: [u8; 11],
@@ -215,6 +216,7 @@ impl DirEnt {
 		}
 	}
 }
+#[derive(Debug)]
 pub struct DirEntLong
 {
 	pub id: u8,

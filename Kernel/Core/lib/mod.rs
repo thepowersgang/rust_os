@@ -148,5 +148,15 @@ impl<'a> ::core::fmt::Debug for RawString<'a>
 	}
 }
 
+
+pub struct SlicePtr<'a,T:'a>(pub &'a [T]);
+impl<'a,T> ::core::fmt::Pointer for SlicePtr<'a,T> {
+	fn fmt(&self, f: &mut ::core::fmt::Formatter) -> ::core::fmt::Result {
+		let p = self.0.as_ptr();
+		let s = self.0.len();
+		write!(f, "({:p}+{})", p, s)
+	}
+}
+
 // vim: ft=rust
 

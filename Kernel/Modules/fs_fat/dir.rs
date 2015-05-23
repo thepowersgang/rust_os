@@ -4,10 +4,11 @@
 // Modules/fs_fat/dir.rs
 use kernel::prelude::*;
 use kernel::lib::mem::aref::ArefBorrow;
-use kernel::vfs::{self,node};
+use kernel::vfs::node;
 use kernel::lib::byte_str::{ByteStr,ByteString};
 use super::on_disk;
 use super::file::FileNode;
+use super::ClusterList;
 
 pub type FilesystemInner = super::FilesystemInner;
 
@@ -17,12 +18,6 @@ pub struct DirNode
 	start_cluster: u32,
 	// - Uses the cluster chain
 }
-
-struct DirCluster<'a>
-{
-	buf: &'a mut [u8],
-}
-
 
 impl DirNode {
 	pub fn new(fs: ArefBorrow<FilesystemInner>, start_cluster: u32) -> DirNode {
@@ -39,30 +34,6 @@ impl DirNode {
 impl node::NodeBase for DirNode {
 	fn get_id(&self) -> node::InodeId {
 		todo!("")
-	}
-}
-
-enum ClusterList {
-	Range(::core::ops::Range<u32>),
-	Chained(ArefBorrow<super::FilesystemInner>, u32),
-}
-impl ::core::iter::Iterator for ClusterList {
-	type Item = u32;
-	fn next(&mut self) -> Option<u32> {
-		match *self
-		{
-		ClusterList::Range(ref mut r) => r.next(),
-		ClusterList::Chained(ref fs, ref mut next) =>
-			if *next == 0 {
-				None
-			}
-			else {
-				//let rv = *next;
-				//*next = fs.get_next_cluster(*next);
-				//Some( rv )
-				todo!("Cluster chaining");
-			},
-		}
 	}
 }
 
@@ -182,7 +153,18 @@ impl<'a> ::core::iter::Iterator for DirEnts<'a> {
 			else if ent.attribs == on_disk::ATTR_LFN {
 				// Long filename entry
 				let lfn = on_disk::DirEntLong::read(&mut &slice[..]);
-				todo!("LFN");
+				let outname = {
+					let mut outname = [0u16; 13];
+					outname[0..5].clone_from_slice(&lfn.name1);
+					outname[5..11].clone_from_slice(&lfn.name2);
+					outname[11..13].clone_from_slice(&lfn.name3);
+					outname
+					};
+				Some(DirEnt::Long( DirEntLong{
+					id: lfn.id,
+					_type: lfn.ty,
+					chars: outname,
+					} ))
 			}
 			else {
 				// Short entry
@@ -243,16 +225,16 @@ impl node::Dir for DirNode {
 		Err(node::IoError::NotFound)
 	}
 	fn read(&self, ofs: usize, items: &mut [(node::InodeId,ByteString)]) -> node::Result<(usize,usize)> {
-		todo!("DirNode::read");
+		todo!("DirNode::read({}, items={:p}+{}", ofs, items.as_ptr(), items.len());
 	}
 	fn create(&self, name: &ByteStr, nodetype: node::NodeType) -> node::Result<node::InodeId> {
-		todo!("DirNode::create");
+		todo!("DirNode::create('{:?}', {:?})", name, nodetype);
 	}
 	fn link(&self, name: &ByteStr, inode: node::InodeId) -> node::Result<()> {
-		todo!("DirNode::link");
+		todo!("DirNode::link('{:?}', {:#x})", name, inode);
 	}
 	fn unlink(&self, name: &ByteStr) -> node::Result<()> {
-		todo!("DirNode::unlink");
+		todo!("DirNode::unlink('{:?}')", name);
 	}
 }
 

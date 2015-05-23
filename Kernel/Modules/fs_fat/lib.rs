@@ -57,6 +57,8 @@ struct FilesystemInner
 	ty: Size,
 	
 	spc: usize,
+	cluster_size: usize,
+	/// Total number of data clusters
 	cluster_count: usize,
 	first_data_sector: usize,
 	
@@ -73,12 +75,20 @@ struct InodeRef
 	first_cluster: u32,
 }
 
+/// Iterable cluster list
+enum ClusterList {
+	Range(::core::ops::Range<u32>),
+	Chained(ArefBorrow<FilesystemInner>, u32),
+}
+
+
 static S_DRIVER: Driver = Driver;
 
 fn init()
 {
 	let h = mount::DriverRegistration::new("fat", &S_DRIVER);
-	unsafe { ::core::mem::forget(h); }
+	// TODO: Remember the registration for unloading
+	::core::mem::forget(h);
 }
 
 impl mount::Driver for Driver
@@ -114,6 +124,8 @@ impl mount::Driver for Driver
 		if bs_c.fat_count == 0 {
 			return Err(vfs::Error::Unknown("FAT Count is 0"));
 		}
+		
+		log_debug!("Label: {:?}", ::kernel::lib::RawString(&bs.tail_common().label));
 		
 		let bps = bs_c.bps as usize;
 		let spc = bs_c.spc as usize;
@@ -157,6 +169,7 @@ impl mount::Driver for Driver
 			inner: unsafe { ArefInner::new(FilesystemInner {
 				ty: fat_type,
 				spc: spc,
+				cluster_size: spc * vol.block_size(),
 				cluster_count: cluster_count,
 				first_data_sector: first_data_sector,
 				root_first_cluster: match fat_type {
@@ -179,22 +192,37 @@ impl FilesystemInner
 	// TODO: V V V
 	// - Should this function lock the cluster somehow to prevent accidental overlap?
 	// - Could also cache somehow (with a refcount) along with the 'writing' flag
-	fn load_cluster(&self, cluster: u32) -> Result<Cluster, storage::IoError> {
-		log_trace!("Filesystem::load_cluster({:#x})", cluster);
+	fn read_cluster(&self, cluster: u32, dst: &mut [u8]) -> Result<(), storage::IoError> {
+		log_trace!("Filesystem::read_cluster({:#x})", cluster);
+		assert_eq!(dst.len(), self.cluster_size);
 		// For now, just read the bytes, screw caching
-		let mut buf: Vec<u8> = ::core::iter::repeat(0).take(self.spc * self.vh.block_size()).collect();
 		let sector = if !is!(self.ty, Size::Fat32) && cluster >= FATL_ROOT_CLUSTER {
+				// Root directory (for FAT12/16, where it was not a normal file)
 				let rc = cluster - FATL_ROOT_CLUSTER;
 				assert!( (rc as u64 * self.spc as u64) < self.root_sector_count as u64);
-				(self.first_data_sector - self.root_sector_count as usize) as u64 + (rc * self.spc as u32) as u64
+				(self.first_data_sector - self.root_sector_count as usize) as u64
+				+ (rc * self.spc as u32) as u64
 			}
 			else {
+				// Anything else
+				assert!(cluster >= 2);
+				assert!(cluster - 2 < self.cluster_count as u32);
 				self.first_data_sector as u64 + (cluster as u64 - 2) * self.spc as u64
 			};
 		log_debug!("cluster = {:#x}, sector = 0x{:x}", cluster, sector);
-		try!(self.vh.read_blocks(sector, &mut buf));
+		try!(self.vh.read_blocks(sector, dst));
 		//::kernel::logging::hex_dump("FAT Cluster", &buf);
+		Ok( () )
+	}
+	fn load_cluster(&self, cluster: u32) -> Result<Cluster, storage::IoError> {
+		let mut buf: Vec<u8> = ::core::iter::repeat(0).take(self.spc * self.vh.block_size()).collect();
+		try!(self.read_cluster(cluster, &mut buf));
 		Ok( buf )
+	}
+	
+	/// Obtain the next cluster in a chain
+	fn get_next_cluster(&self, cluster: u32) -> Option<u32> {
+		todo!("get_next_cluster({})", cluster);
 	}
 }
 
@@ -249,6 +277,30 @@ impl From<node::InodeId> for InodeRef {
 			first_cluster: (v & 0x00FF_FFFF) as u32,
 			dir_first_cluster: ((v >> 24) & 0x00FF_FFFF) as u32,
 			dir_offset: (v >> 48) as u16,
+		}
+	}
+}
+
+impl ClusterList {
+	pub fn chained(fs: ArefBorrow<FilesystemInner>, start: u32) -> ClusterList {
+		ClusterList::Chained(fs, start)
+	}
+}
+impl ::core::iter::Iterator for ClusterList {
+	type Item = u32;
+	fn next(&mut self) -> Option<u32> {
+		match *self
+		{
+		ClusterList::Range(ref mut r) => r.next(),
+		ClusterList::Chained(ref fs, ref mut next) =>
+			if *next == 0 {
+				None
+			}
+			else {
+				let rv = *next;
+				*next = fs.get_next_cluster(*next).unwrap_or(0);
+				Some( rv )
+			},
 		}
 	}
 }
