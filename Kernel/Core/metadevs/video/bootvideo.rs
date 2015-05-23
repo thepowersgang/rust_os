@@ -79,7 +79,8 @@ impl Framebuffer
 		
 		let fb_size = (mode.base as usize % ::PAGE_SIZE) + mode.pitch * mode.height as usize;
 		let n_pages = (fb_size + ::PAGE_SIZE - 1) / ::PAGE_SIZE;
-		let alloc = match ::memory::virt::map_hw_rw( mode.base, n_pages, module_path!() )
+		// Assuming SAFE: The framebuffer shouldn't be multiple mapped
+		let alloc = match unsafe { ::memory::virt::map_hw_rw( mode.base, n_pages, module_path!() ) }
 			{
 			Ok(v) => v,
 			Err(e) => panic!("Failed to map boot framebuffer {:#x} {}pg - {}",

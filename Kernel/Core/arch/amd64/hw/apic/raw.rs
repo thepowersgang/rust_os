@@ -83,7 +83,8 @@ impl LAPIC
 	{
 		let ret = LAPIC {
 			paddr: paddr,
-			mapping: ::memory::virt::map_hw_rw(paddr, 1, "APIC").unwrap(),
+			// Assume SAFE: Shouldn't be aliasing
+			mapping: unsafe { ::memory::virt::map_hw_rw(paddr, 1, "APIC").unwrap() },
 			timer_isr: Default::default(),
 			};
 		
@@ -288,25 +289,26 @@ impl IOAPICRegs
 {
 	fn new( paddr: u64 ) -> IOAPICRegs
 	{
-		let mapping = ::memory::virt::map_hw_rw(paddr, 1, "IOAPIC").unwrap();
+		// Assume SAFE: Should not end up with aliasing
+		let mapping = unsafe { ::memory::virt::map_hw_rw(paddr, 1, "IOAPIC").unwrap() };
 		IOAPICRegs {
 			mapping: mapping
 		}
 	}
 	fn read(&mut self, idx: usize) -> u32
 	{
-		// SAFE: Requires a unique pointer
+		// Assume SAFE: Hardware accesses
 		unsafe {
-			let regs = self.mapping.as_int_mut::<[APICReg; 2]>(0);
+			let regs = self.mapping.as_mut::<[APICReg; 2]>(0);
 			::core::intrinsics::volatile_store(&mut regs[0].data as *mut _, idx as u32);
 			::core::intrinsics::volatile_load(&regs[1].data as *const _)
 		}
 	}
 	fn write(&mut self, idx: usize, data: u32)
 	{
-		// SAFE: Requires a unique pointer
+		// Assume SAFE: Hardware accesses
 		unsafe {
-			let regs = self.mapping.as_int_mut::<[APICReg; 2]>(0);
+			let regs = self.mapping.as_mut::<[APICReg; 2]>(0);
 			::core::intrinsics::volatile_store(&mut regs[0].data as *mut _, idx as u32);
 			::core::intrinsics::volatile_store(&mut regs[1].data as *mut _, data)
 		}

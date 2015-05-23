@@ -100,7 +100,7 @@ pub fn allocate(addr: *mut (), page_count: usize)
 	}
 }
 
-pub fn map(addr: *mut (), phys: PAddr, prot: ProtectionMode)
+pub unsafe fn map(addr: *mut (), phys: PAddr, prot: ProtectionMode)
 {
 	//log_trace!("map(*{:p} := {:#x} {:?})", addr, phys, prot);
 	if ::arch::memory::virt::is_reserved(addr)
@@ -146,15 +146,15 @@ pub fn map_short(phys: PAddr) -> AllocHandle
 */
 
 /// Create a long-standing MMIO/other hardware mapping
-pub fn map_hw_ro(phys: PAddr, count: usize, module: &'static str) -> Result<AllocHandle,MapError> {
+pub unsafe fn map_hw_ro(phys: PAddr, count: usize, module: &'static str) -> Result<AllocHandle,MapError> {
 	map_hw(phys, count, true, module)
 }
-pub fn map_hw_rw(phys: PAddr, count: usize, module: &'static str) -> Result<AllocHandle,MapError> {
+pub unsafe fn map_hw_rw(phys: PAddr, count: usize, module: &'static str) -> Result<AllocHandle,MapError> {
 	map_hw(phys, count, false, module)
 }
 
 /// Return a slice from physical memory
-pub fn map_hw_slice<T>(phys: PAddr, num: usize) -> Result<SliceAllocHandle<T>,MapError>
+pub unsafe fn map_hw_slice<T>(phys: PAddr, num: usize) -> Result<SliceAllocHandle<T>,MapError>
 {
 	let ofs = phys & (::PAGE_SIZE - 1) as PAddr;
 	let pa = phys - ofs;
@@ -168,7 +168,8 @@ pub fn map_hw_slice<T>(phys: PAddr, num: usize) -> Result<SliceAllocHandle<T>,Ma
 		} )	
 }
 
-fn map_hw(phys: PAddr, count: usize, readonly: bool, _module: &'static str) -> Result<AllocHandle,MapError>
+/// UNSAFE: Can be used to introduce aliasing on `phys`
+unsafe fn map_hw(phys: PAddr, count: usize, readonly: bool, _module: &'static str) -> Result<AllocHandle,MapError>
 {
 	let mode = if readonly { ProtectionMode::KernelRO } else { ProtectionMode::KernelRW };
 	
@@ -226,7 +227,10 @@ pub fn alloc_dma(bits: u8, count: usize, module: &'static str) -> Result<AllocHa
 		return Err( MapError::OutOfMemory );
 	}
 	// 2. Map that
-	map_hw(phys, count, false, module)
+	// SAFE: Physical address has just been allocated
+	unsafe {
+		map_hw(phys, count, false, module)
+	}
 }
 
 fn count_free_in_range(addr: *const Page, count: usize) -> usize

@@ -78,7 +78,11 @@ impl<'a> SectionHeader<'a>
 	pub fn string_table<'b>(&'b self, idx: usize) -> Result<StringTable<'b>,()>
 	{
 		let strtab = &self.data[idx];
-		let alloc = match ::memory::virt::map_hw_slice::<u8>(strtab.sh_address as PAddr, strtab.sh_size as usize)
+		// SAFE: Assuming that sh_address is not currently mapped RW
+		let alloc = match unsafe { ::memory::virt::map_hw_slice::<u8>(
+				strtab.sh_address as PAddr,
+				strtab.sh_size as usize
+				) }
 			{
 			Ok(a) => a,
 			Err(_) => return Err( () ),
@@ -98,7 +102,11 @@ impl<'a> SectionHeader<'a>
 			};
 		
 		let count = symtab.sh_size as usize / ::core::mem::size_of::<Elf32_Sym>();
-		let alloc = ::memory::virt::map_hw_slice::<Elf32_Sym>(symtab.sh_address as u64, count).unwrap();
+		let alloc = match unsafe { ::memory::virt::map_hw_slice::<Elf32_Sym>(symtab.sh_address as u64, count) }
+			{
+			Ok(v) => v,
+			Err(e) => panic!("symbol table address invalid: {}", e),
+			};
 		Ok( SymbolTable {
 			data: alloc,
 			string_table: try!( self.string_table(symtab.sh_link as usize) ),

@@ -27,6 +27,13 @@ impl<T: Send+Sync> LazyStatic<T>
 			*r = Some(fcn());
 		}
 	}
+	/// Returns true if the static has been initialised
+	pub fn ls_is_valid(&self) -> bool {
+		// QUESTIONABLE: Can race with `prep` (I guess that's `prep`'s job, but still)
+		unsafe {
+			(*self.0.get()).is_some()
+		}
+	}
 	/// (unsafe) Obtain a mutable reference to the interior
 	pub unsafe fn ls_unsafe_mut(&self) -> &mut T {
 		match *self.0.get()

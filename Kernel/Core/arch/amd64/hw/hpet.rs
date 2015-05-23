@@ -36,20 +36,16 @@ enum HPETReg
 	Timer0  = 0x10,
 }
 
-static mut s_instance : *mut HPET = 0 as *mut _;
+static S_INSTANCE: ::lib::LazyStatic<HPET> = lazystatic_init!();
 
 /// Reutrns the current system timestamp, in miliseconds since an arbitary point (usually power-on)
 pub fn get_timestamp() -> u64
 {
-	unsafe {
-	if s_instance != 0 as *mut _
-	{
-		(*s_instance).current() / (*s_instance).ticks_per_ms()
+	if S_INSTANCE.ls_is_valid() {
+		S_INSTANCE.current() / S_INSTANCE.ticks_per_ms()
 	}
-	else
-	{
+	else {
 		0
-	}
 	}
 }
 
@@ -68,7 +64,8 @@ fn init()
 	let info = hpet.data();
 	assert!(info.addr.asid == AddressSpaceID::Memory as u8);
 	assert!(info.addr.address % ::PAGE_SIZE as u64 == 0, "Address {:#x} not page aligned", info.addr.address);
-	let mapping = ::memory::virt::map_hw_rw(info.addr.address, 1, "HPET").unwrap();
+	// Assume SAFE: Shouldn't be sharing paddrs
+	let mapping = unsafe { ::memory::virt::map_hw_rw(info.addr.address, 1, "HPET").unwrap() };
 
 	// HACK! Disable the PIT
 	// - This should really be done by the ACPI code (after it determines the PIT exists)
@@ -80,9 +77,9 @@ fn init()
 	}
 
 	let inst = unsafe {
-		s_instance = ::memory::heap::alloc( HPET::new(mapping) );
-		(*s_instance).bind_irq();
-		&*s_instance
+		S_INSTANCE.prep(|| HPET::new(mapping));
+		S_INSTANCE.ls_unsafe_mut().bind_irq();
+		&*S_INSTANCE
 		};
 	
 	inst.oneshot(0, inst.current() + 100*1000 );

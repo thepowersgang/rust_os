@@ -107,8 +107,11 @@ pub fn allocate(address: *mut ()) -> bool
 	let paddr = allocate_range(1);
 	if paddr != NOPAGE
 	{
-		::memory::virt::map(address, paddr, super::virt::ProtectionMode::KernelRW);
-		unsafe { *(address as *mut [u8; ::PAGE_SIZE]) = ::core::mem::zeroed(); }
+		// SAFE: Physical address just allocated
+		unsafe {
+			::memory::virt::map(address, paddr, super::virt::ProtectionMode::KernelRW);
+			*(address as *mut [u8; ::PAGE_SIZE]) = ::core::mem::zeroed();
+		}
 		log_trace!("- {:p} (range) paddr = {:#x}", address, paddr);
 		return true
 	}
