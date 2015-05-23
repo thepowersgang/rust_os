@@ -209,11 +209,10 @@ impl CacheHandle
 	}
 	
 	pub fn is_dir(&self) -> bool {
-		match self.as_ref()
-		{
-		&Node::Dir(_) => true,
-		_ => false
-		}
+		is!( self.as_ref(), &Node::Dir(_) )
+	}
+	pub fn is_file(&self) -> bool {
+		is!( self.as_ref(), &Node::File(_) )
 	}
 }
 /// Directory methods

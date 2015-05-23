@@ -37,11 +37,10 @@ impl From<::metadevs::storage::IoError> for Error {
 }
 
 pub use self::path::Path;
-pub use self::handle::{Handle,OpenMode};
 
 pub mod node;
 pub mod mount;
-mod handle;
+pub mod handle;
 mod path;
 mod ramfs;
 
@@ -54,7 +53,7 @@ fn init()
 	// 2. Start the root/builtin filesystems
 	mount::mount("/".as_ref(), VolumeHandle::new_ramdisk(0), "ramfs", &[]).unwrap();//"Unable to mount /");
 	// 3. Initialise root filesystem layout
-	let root = match handle::Handle::open( Path::new("/"), handle::OpenMode::Dir )
+	let root = match handle::Dir::open( Path::new("/") )
 		{
 		Ok(v) => v,
 		Err(e) => panic!("BUG - Opening '/' failed: {:?}", e),

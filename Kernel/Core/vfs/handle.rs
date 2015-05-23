@@ -8,25 +8,32 @@ use super::node::{CacheHandle,NodeType};
 use super::Path;
 
 #[derive(Debug)]
-pub struct Handle
-{
+/// Open without caring what the file type is (e.g. enumeration)
+pub struct Any {
+	node: CacheHandle,
+}
+#[derive(Debug)]
+/// Normal file
+pub struct File {
+	node: CacheHandle,
+	mode: FileOpenMode,
+}
+#[derive(Debug)]
+/// Directory (for enumeration)
+pub struct Dir {
+	node: CacheHandle,
+}
+#[derive(Debug)]
+/// Symbolic link (allows reading the link contents)
+pub struct Symlink {
+	node: CacheHandle,
+}
+#[derive(Debug)]
+/// Special file (?API exposed)
+pub struct Special {
 	node: CacheHandle,
 }
 
-#[derive(Debug)]
-pub enum OpenMode
-{
-	/// Open without caring what the file type is (e.g. enumeration)
-	Any,
-	/// Normal file
-	File(FileOpenMode),
-	/// Directory (for enumeration)
-	Dir,
-	/// Symbolic link (allows reading the link contents)
-	Symlink,
-	/// Special file (?API exposed)
-	Special,
-}
 #[derive(Debug)]
 pub enum FileOpenMode
 {
@@ -52,49 +59,77 @@ pub enum FileOpenMode
 	Unsynch,
 }
 
-impl Handle
+impl Any
 {
-	pub fn open(path: &Path, mode: OpenMode) -> super::Result<Handle> {
+	/// Open the specified path (not caring what the actual type is)
+	pub fn open(path: &Path) -> super::Result<Any> {
 		let node = try!(CacheHandle::from_path(path));
-		match mode
-		{
-		OpenMode::Any => {},
-		OpenMode::File(fm) => {
-			todo!("Handle::open - mode=File({:?})", fm);
-			},
-		OpenMode::Dir =>
-			if !node.is_dir() {
-				return Err( super::Error::TypeMismatch )
-			},
-		OpenMode::Symlink => {
-			todo!("Handle::open - mode=Symlink");
-			},
-		OpenMode::Special => {
-			todo!("Handle::open - mode=Special");
-			},
+		Ok(Any { node: node })
+	}
+	
+	/// Upgrade the handle to a directory handle
+	pub fn to_dir(self) -> super::Result<Dir> {
+		if self.node.is_dir() {
+			Ok(Dir { node: self.node })
 		}
-		Ok(Handle { node: node })
-	}
-	
-	// Directory methods
-	pub fn mkdir(&self, name: &str) -> super::Result<Handle> {
-		let node = try!(self.node.create(name.as_ref(), NodeType::Dir));
-		assert!(node.is_dir());
-		Ok( Handle { node: node } )
-	}
-	
-	// File methods
-	pub fn read(&self, ofs: u64, dst: &mut [u8]) -> super::Result<usize> {
-		self.node.read(ofs, dst)
+		else {
+			Err(super::Error::TypeMismatch)
+		}
 	}
 }
 
-impl ::core::ops::Drop for Handle
+impl File
 {
-	fn drop(&mut self)
-	{
-		//todo!("Handle::drop()");
+	/// Open the specified path as a file
+	pub fn open(path: &Path, mode: FileOpenMode) -> super::Result<File> {
+		let node = try!(CacheHandle::from_path(path));
+		if !node.is_file() {
+			return Err(super::Error::TypeMismatch);
+		}
+		match mode
+		{
+		FileOpenMode::SharedRO => {},
+		_ => todo!("Acquire lock depending on mode({:?})", mode),
+		}
+		Ok(File { node: node, mode: mode })
+	}
+	
+	/// Read data from the file at the specified offset
+	///
+	/// Returns the number of read bytes (which might be less than the size of the input
+	/// slice).
+	pub fn read(&self, ofs: u64, dst: &mut [u8]) -> super::Result<usize> {
+		assert!(self.node.is_file());
+		self.node.read(ofs, dst)
+	}
+}
+impl ::core::ops::Drop for File
+{
+	fn drop(&mut self) {
+		match self.mode
+		{
+		FileOpenMode::SharedRO => {},
+		_ => todo!("File::drop() - mode={:?}", self.mode),
+		}
 		// TODO: For files, we need to release the lock
+	}
+}
+
+impl Dir
+{
+	/// Open a provided path as a directory
+	pub fn open(path: &Path) -> super::Result<Dir> {
+		try!(Any::open(path)).to_dir()
+	}
+	/// Create a new directory
+	pub fn mkdir(&self, name: &str) -> super::Result<Dir> {
+		let node = try!(self.node.create(name.as_ref(), NodeType::Dir));
+		assert!(node.is_dir());
+		Ok( Dir { node: node } )
+	}
+	/// Create a new symbolic link
+	pub fn symlink(&self, name: &str) -> super::Result<()> {
+		todo!("Dir::symlink");
 	}
 }
 

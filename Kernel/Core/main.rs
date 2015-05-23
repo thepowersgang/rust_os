@@ -146,11 +146,12 @@ pub extern "C" fn kmain()
 	}
 }
 
+// Initialise the system once drivers are up
 fn sysinit()
 {
 	use metadevs::storage::VolumeHandle;
-	use vfs::mount;
-	use vfs::{Path,Handle,OpenMode};
+	use vfs::{mount,handle};
+	use vfs::Path;
 	
 	// 1. Mount /system to the specified volume
 	let sysdisk = ::config::get_string(::config::Value::SysDisk);
@@ -175,7 +176,7 @@ fn sysinit()
 	//let sysroot = ::config::get_string(::config::Value::SysRoot);
 	
 	{
-		match Handle::open( Path::new("/system/1.TXT"), OpenMode::Any )
+		match handle::File::open( Path::new("/system/1.TXT"), handle::FileOpenMode::SharedRO )
 		{
 		Err(e) => log_warning!("VFS test file can't be opened: {:?}", e),
 		Ok(h) => {
