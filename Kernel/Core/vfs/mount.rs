@@ -151,6 +151,7 @@ impl Handle
 		for ent in lh.iter().rev()
 		{
 			if let Some(tail) = path.starts_with( &ent.path ) {
+				log_debug!("Return {}'{:?}', tail={:?}", ent.volume_id, ent.path, tail);
 				return Ok( (Handle(ent.volume_id), tail) );
 			}
 		}

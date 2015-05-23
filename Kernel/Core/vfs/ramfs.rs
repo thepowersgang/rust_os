@@ -16,6 +16,7 @@ struct Driver;
 
 enum RamFile
 {
+	File(RamFileFile),
 	Dir(RamFileDir),
 	Symlink(RamFileSymlink),
 }
@@ -24,9 +25,16 @@ struct RamFileDir
 {
 	ents: ::sync::RwLock<VecMap<ByteString,usize>>,
 }
+#[derive(Default)]
 struct RamFileSymlink
 {
-	target: String,
+	target: super::PathBuf,
+}
+#[derive(Default)]
+struct RamFileFile
+{
+	ofs: usize,
+	size: usize,
 }
 struct FileRef(ArefBorrow<RamFSInner>,ArefBorrow<RamFile>);
 
@@ -47,7 +55,7 @@ static S_DRIVER: Driver = Driver;
 pub fn init()
 {
 	let h = mount::DriverRegistration::new("ramfs", &S_DRIVER);
-	unsafe { ::core::mem::forget(h); }
+	::core::mem::forget(h);
 }
 
 impl mount::Driver for Driver
@@ -57,8 +65,9 @@ impl mount::Driver for Driver
 		Ok(0)
 	}
 	fn mount(&self, vol: VolumeHandle) -> super::Result<Box<mount::Filesystem>> {
-		let mut rv = Box::new(RamFS {
-			// SAFE: ArefInner must not change addresses, you can't move out of a boxed trait, so we're good
+		let rv = Box::new(RamFS {
+			// SAFE: ArefInner must not change addresses, but because you can't move out
+			// of a boxed trait, we're good
 			inner: unsafe { ArefInner::new( RamFSInner {
 				_vh: vol,
 				nodes: Default::default(),
@@ -91,6 +100,7 @@ impl mount::Filesystem for RamFS
 			{
 			RamFile::Dir(_) => Some(Node::Dir(fr)),
 			RamFile::Symlink(_) => Some(Node::Symlink(fr)),
+			RamFile::File(_) => todo!("normal files"),
 			}
 		}
 	}
@@ -102,6 +112,13 @@ impl FileRef {
 		{
 		&RamFile::Dir(ref e) => e,
 		_ => panic!("Called FileRef::dir() on non-dir"),
+		}
+	}
+	fn symlink(&self) -> &RamFileSymlink {
+		match &*self.1
+		{
+		&RamFile::Symlink(ref e) => e,
+		_ => panic!("Called FileRef::symlink() on non-symlink"),
 		}
 	}
 }
@@ -126,15 +143,15 @@ impl node::Dir for FileRef {
 		{
 		Entry::Occupied(_) => Err(IoError::AlreadyExists),
 		Entry::Vacant(e) => {
-			//unimplemented!(); /*
 			let nn = match nodetype
 				{
 				node::NodeType::Dir  => RamFile::Dir (Default::default()),
-				node::NodeType::File => unimplemented!(),	//RamFile::File(Default::default()),
+				node::NodeType::File => RamFile::File(Default::default()),
+				node::NodeType::Symlink(v) =>
+					RamFile::Symlink(RamFileSymlink{target: From::from(v)}),
 				};
 			let inode = self.0.nodes.lock().insert( Aref::new(nn) );
 			e.insert(inode);
-			// */
 			Ok(inode as InodeId)
 			},
 		}
@@ -148,7 +165,7 @@ impl node::Dir for FileRef {
 }
 impl node::Symlink for FileRef {
 	fn read(&self) -> ByteString {
-		unimplemented!()
+		ByteString::from( ByteStr::new(&*self.symlink().target) )
 	}
 }
 

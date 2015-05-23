@@ -10,14 +10,18 @@ use core::cmp;
 
 #[derive(Eq,PartialEq,PartialOrd,Ord)]
 pub struct Path(ByteStr);
+
+#[derive(Eq,PartialEq,PartialOrd,Ord,Default)]
+pub struct PathBuf(ByteString);
+
 impl_fmt! {
 	Debug(self,f) for Path {
 		write!(f, "Path({:?})", &self.0)
 	}
+	Debug(self,f) for PathBuf {
+		write!(f, "PathBuf({:?})", &*self.0)
+	}
 }
-
-#[derive(Eq,PartialEq,PartialOrd,Ord)]
-pub struct PathBuf(ByteString);
 
 pub struct Components<'a>(&'a Path);
 
@@ -66,6 +70,7 @@ impl Path
 	/// Returns Some(remainder) if this path starts with another path
 	pub fn starts_with<P: AsRef<Path>>(&self, other: P) -> Option<&Path> {
 		let other: &Path = other.as_ref();
+		log_trace!("Path::starts_with(self={:?}, other={:?})", self, other);
 		if self.is_absolute() != other.is_absolute() {
 			None
 		}
@@ -74,9 +79,9 @@ impl Path
 			let mut oi = other.iter();
 			while let Some( (comp,t) ) = tail.split_off_first()	
 			{
-				//log_trace!("tail={:?}, comp={:?}, t={:?}", tail, comp, t);
+				log_trace!("tail={:?} :: comp={:?}, t={:?}", tail, comp, t);
 				if let Some(ocomp) = oi.next() {
-					//log_trace!("ocomp={:?}, comp={:?}", ocomp, comp);
+					log_trace!("ocomp={:?}, comp={:?}", ocomp, comp);
 					if comp != ocomp {
 						return None;
 					}
@@ -86,7 +91,12 @@ impl Path
 					return Some(tail);
 				}
 			}
-			Some( Path::new("") )
+			if oi.next().is_some() {
+				None
+			}
+			else {
+				Some(Path::new(""))
+			}
 		}
 	}
 }

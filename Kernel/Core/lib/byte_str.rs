@@ -8,7 +8,7 @@ use core::{cmp,ops,fmt};
 
 #[derive(PartialOrd,Ord,PartialEq,Eq)]
 pub struct ByteStr([u8]);
-#[derive(PartialOrd,Ord,PartialEq,Eq)]
+#[derive(PartialOrd,Ord,PartialEq,Eq,Default)]
 pub struct ByteString(Vec<u8>);
 
 impl ByteStr

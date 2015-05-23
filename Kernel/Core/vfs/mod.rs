@@ -36,7 +36,7 @@ impl From<::metadevs::storage::IoError> for Error {
 	}
 }
 
-pub use self::path::Path;
+pub use self::path::{Path,PathBuf};
 
 pub mod node;
 pub mod mount;

@@ -128,8 +128,9 @@ impl Dir
 		Ok( Dir { node: node } )
 	}
 	/// Create a new symbolic link
-	pub fn symlink(&self, name: &str) -> super::Result<()> {
-		todo!("Dir::symlink");
+	pub fn symlink(&self, name: &str, target: &Path) -> super::Result<()> {
+		try!(self.node.create(name.as_ref(), NodeType::Symlink(target)));
+		Ok( () )
 	}
 }
 

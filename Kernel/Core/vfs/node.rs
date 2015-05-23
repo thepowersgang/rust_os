@@ -60,9 +60,10 @@ pub type Result<T> = ::core::result::Result<T,IoError>;
 
 /// Node type used by `Dir::create`
 #[derive(Debug,PartialEq)]
-pub enum NodeType {
+pub enum NodeType<'a> {
 	File,
 	Dir,
+	Symlink(&'a super::Path),
 }
 
 /// Base trait for a VFS node, defines common operation on nodes

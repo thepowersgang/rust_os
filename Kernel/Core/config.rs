@@ -18,7 +18,7 @@ pub fn get_string(val: Value) -> &'static str
 	match val
 	{
 	Value::SysDisk => "ATA-0p0",
-	Value::SysRoot => "/Tifflin/",
+	Value::SysRoot => "/system/Tifflin",
 	}
 }
 
