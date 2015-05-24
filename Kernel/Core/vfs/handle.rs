@@ -5,6 +5,7 @@
 //! Opened file interface
 use prelude::*;
 use super::node::{CacheHandle,NodeType};
+use lib::byte_str::ByteString;
 use super::Path;
 
 #[derive(Debug)]
@@ -121,6 +122,20 @@ impl Dir
 	pub fn open(path: &Path) -> super::Result<Dir> {
 		try!(Any::open(path)).to_dir()
 	}
+	
+	pub fn iter(&self) -> DirIter {
+		DirIter {
+			handle: self,
+			ents: [
+				Default::default(), Default::default(),
+				Default::default(), Default::default(),
+				],
+			pos: 0,
+			ofs: 0,
+			count: 0,
+		}
+	}
+	
 	/// Create a new directory
 	pub fn mkdir(&self, name: &str) -> super::Result<Dir> {
 		let node = try!(self.node.create(name.as_ref(), NodeType::Dir));
@@ -131,6 +146,37 @@ impl Dir
 	pub fn symlink(&self, name: &str, target: &Path) -> super::Result<()> {
 		try!(self.node.create(name.as_ref(), NodeType::Symlink(target)));
 		Ok( () )
+	}
+}
+
+pub struct DirIter<'a> {
+	handle: &'a Dir,
+	count: usize,
+	ofs: usize,
+	pos: usize,
+	ents: [(super::node::InodeId,ByteString); 4],
+}
+impl<'a> ::core::iter::Iterator for DirIter<'a> {
+	type Item = ByteString;
+	fn next(&mut self) -> Option<ByteString> {
+		if self.ofs == self.count {
+			match self.handle.node.read_dir(self.pos, &mut self.ents)
+			{
+			Err(e) => return None,
+			Ok((next,count)) => {
+				self.pos = next;
+				self.count = count;
+				},
+			}
+			if self.count == 0 {
+				return None;
+			}
+			self.ofs = 1;
+		}
+		else {
+			self.ofs += 1;
+		}
+		Some( ::core::mem::replace(&mut self.ents[self.ofs-1].1, ByteString::new()) )
 	}
 }
 

@@ -8,7 +8,7 @@ use core::{cmp,ops,fmt};
 
 #[derive(PartialOrd,Ord,PartialEq,Eq)]
 pub struct ByteStr([u8]);
-#[derive(PartialOrd,Ord,PartialEq,Eq,Default)]
+#[derive(PartialOrd,Ord,PartialEq,Eq,Default,Clone)]
 pub struct ByteString(Vec<u8>);
 
 impl ByteStr
@@ -46,6 +46,9 @@ impl_fmt! {
 		try!(write!(f, "\""));
 		Ok( () )
 	}}
+	Debug(self,f) for ByteString {
+		write!(f, "{:?}", &**self)
+	}
 }
 
  /*

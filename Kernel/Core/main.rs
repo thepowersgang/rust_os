@@ -173,8 +173,7 @@ fn sysinit()
 	
 	// 2. Symbolic link /sysroot to the specified folder
 	let sysroot = ::config::get_string(::config::Value::SysRoot);
-	let h = handle::Dir::open(Path::new("/")).unwrap();
-	h.symlink("sysroot", Path::new(sysroot));
+	handle::Dir::open(Path::new("/")).unwrap().symlink("sysroot", Path::new(sysroot));
 
 	// *. Testing: open a file known to exist on the testing disk	
 	{
@@ -186,6 +185,16 @@ fn sysinit()
 			let mut buf = [0; 16];
 			let sz = h.read(0, &mut buf).unwrap();
 			log_debug!("- Contents: {:?}", ::lib::RawString(&buf[..sz]));
+			},
+		}
+		
+		match handle::Dir::open( Path::new("/") )
+		{
+		Err(e) => log_warning!("VFS root cannot be opened"),
+		Ok(h) =>
+			for name in h.iter()
+			{
+				log_log!("{}: {:?}", 0, name);
 			},
 		}
 	}

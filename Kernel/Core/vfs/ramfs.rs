@@ -129,11 +129,21 @@ impl node::NodeBase for FileRef {
 }
 impl node::Dir for FileRef {
 	fn lookup(&self, name: &ByteStr) -> IoResult<InodeId> {
+		let lh = self.dir().ents.read();
 		unimplemented!()
 	}
 	
 	fn read(&self, ofs: usize, items: &mut [(InodeId,ByteString)]) -> IoResult<(usize,usize)> {
-		unimplemented!()
+		let lh = self.dir().ents.read();
+		let mut count = 0;
+		// NOTE: This will skip/repeat entries if `create` is called
+		for (d,(name,&inode)) in zip!( items.iter_mut(), lh.iter().skip(ofs) )
+		{
+			d.0 = inode as InodeId;
+			d.1 = name.clone();
+			count += 1;
+		}
+		Ok( (ofs + count, count) )
 	}
 	
 	fn create(&self, name: &ByteStr, nodetype: node::NodeType) -> IoResult<InodeId> {

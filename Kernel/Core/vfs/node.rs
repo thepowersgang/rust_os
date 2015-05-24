@@ -229,6 +229,13 @@ impl CacheHandle
 		_ => Err( super::Error::Unknown("Calling create on non-directory") ),
 		}
 	}
+	pub fn read_dir(&self, ofs: usize, items: &mut [(InodeId,ByteString)]) -> super::Result<(usize,usize)> {
+		match self.as_ref()
+		{
+		&Node::Dir(ref r) => Ok( try!(r.read(ofs, items)) ),
+		_ => Err( super::Error::Unknown("Calling read_dir on non-directory") ),
+		}
+	}
 }
 /// Normal file methods
 impl CacheHandle
