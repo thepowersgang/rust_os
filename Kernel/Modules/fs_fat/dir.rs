@@ -206,6 +206,9 @@ impl DirEntShort {
 	fn name(&self) -> &ByteStr {
 		ByteStr::new( (&self.name).split(|&e|e==0).next().unwrap() )
 	}
+	fn inode(&self, parent_dir: u32) -> node::InodeId {
+		super::InodeRef::new(self.cluster, parent_dir).to_id()
+	}
 }
 
 impl node::Dir for DirNode {
@@ -220,7 +223,7 @@ impl node::Dir for DirNode {
 				DirEnt::End => return Err(node::IoError::NotFound),
 				DirEnt::Short(e) =>
 					if e.name() == name {
-						return Ok( super::InodeRef::new(e.cluster, self.start_cluster).to_id() );
+						return Ok( e.inode(self.start_cluster) );
 					},
 				DirEnt::Long(_) => log_log!("TODO: LFN"),
 				DirEnt::Empty => {},
@@ -232,11 +235,9 @@ impl node::Dir for DirNode {
 	fn read(&self, ofs: usize, items: &mut [(node::InodeId,ByteString)]) -> node::Result<(usize,usize)> {
 		
 		let ents_per_cluster = self.fs.cluster_size / 32;
-		let cluster_idx = ofs / ents_per_cluster;
-		let c_ofs = ofs % ents_per_cluster;
+		let (cluster_idx, c_ofs) = (ofs / ents_per_cluster, ofs % ents_per_cluster);
+		
 		let mut count = 0;
-		// next_ofs is the return value, and is updated when a short entry is seen.
-		let mut next_ofs = ofs+1;
 		let mut cur_ofs = ofs;
 		'outer: for c in self.clusters().skip(cluster_idx)
 		{
@@ -245,18 +246,14 @@ impl node::Dir for DirNode {
 				cur_ofs += 1;
 				match ent {
 				DirEnt::End => {
-					// On next call, we want to hit this first shot
-					next_ofs = cur_ofs-1;
-					break 'outer;
+					// On next call, we want to hit this entry (so we can return count=0)
+					return Ok( (cur_ofs-1, count) );
 					},
 				DirEnt::Short(e) => {
-					let i = super::InodeRef::new(e.cluster, self.start_cluster).to_id();
-					items[count] = (i, ByteString::from(e.name()));
+					items[count] = (e.inode(self.start_cluster), ByteString::from(e.name()));
 					count += 1;
-					// Update return offset to be the next entry
-					next_ofs = cur_ofs;
 					if count == items.len() {
-						break 'outer;
+						return Ok( (cur_ofs, count) );
 					}
 					},
 				DirEnt::Long(_) => log_log!("TODO: LFN"),
@@ -265,7 +262,7 @@ impl node::Dir for DirNode {
 			}
 		}
 		
-		Ok( (next_ofs, count) )
+		Ok( (cur_ofs, count) )
 	}
 	fn create(&self, name: &ByteStr, nodetype: node::NodeType) -> node::Result<node::InodeId> {
 		todo!("DirNode::create('{:?}', {:?})", name, nodetype);
