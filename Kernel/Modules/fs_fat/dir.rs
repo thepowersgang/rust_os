@@ -238,7 +238,7 @@ impl node::Dir for DirNode {
 		// next_ofs is the return value, and is updated when a short entry is seen.
 		let mut next_ofs = ofs+1;
 		let mut cur_ofs = ofs;
-		for c in self.clusters().skip(cluster_idx)
+		'outer: for c in self.clusters().skip(cluster_idx)
 		{
 			let cluster = try!(self.fs.load_cluster(c));
 			for ent in DirEnts::new(&cluster).skip(c_ofs) {
@@ -247,7 +247,7 @@ impl node::Dir for DirNode {
 				DirEnt::End => {
 					// On next call, we want to hit this first shot
 					next_ofs = cur_ofs-1;
-					break;
+					break 'outer;
 					},
 				DirEnt::Short(e) => {
 					let i = super::InodeRef::new(e.cluster, self.start_cluster).to_id();
@@ -256,7 +256,7 @@ impl node::Dir for DirNode {
 					// Update return offset to be the next entry
 					next_ofs = cur_ofs;
 					if count == items.len() {
-						break;
+						break 'outer;
 					}
 					},
 				DirEnt::Long(_) => log_log!("TODO: LFN"),
