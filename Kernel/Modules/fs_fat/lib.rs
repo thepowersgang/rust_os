@@ -51,6 +51,7 @@ impl ::core::ops::Deref for Filesystem {
 	type Target = FilesystemInner;
 	fn deref(&self) -> &FilesystemInner { &self.inner }
 }
+const FAT_CACHE_BLOCK_SIZE: usize = 512;
 struct FilesystemInner
 {
 	vh: VolumeHandle,
@@ -65,6 +66,8 @@ struct FilesystemInner
 	
 	root_first_cluster: u32,
 	root_sector_count: u32,
+	
+	//fat_cache: vfs::Cache<[u32; FAT_CACHE_BLOCK_SIZE]>,
 }
 
 /// Inodes IDs destrucure into two 28-bit cluster IDs, and a 16-bit dir offset
