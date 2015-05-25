@@ -140,4 +140,12 @@ macro_rules! try {
 		);
 }
 
+
+/// Initialise a static Mutex
+#[macro_export]
+macro_rules! mutex_init{ ($val:expr) => ($crate::sync::mutex::Mutex::new($val)) }
+/// Initialise a static LazyMutex
+#[macro_export]
+macro_rules! lazymutex_init{ () => ($crate::sync::mutex::LazyMutex::new())}
+
 // vim: ft=rust

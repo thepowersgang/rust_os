@@ -10,7 +10,7 @@ use core::atomic::{AtomicBool,Ordering};
 pub struct Spinlock<T: Send>
 {
 	#[doc(hidden)]
-	pub lock: ::core::atomic::AtomicBool,
+	pub lock: AtomicBool,
 	#[doc(hidden)]
 	pub value: ::core::cell::UnsafeCell<T>,
 }
@@ -35,10 +35,10 @@ pub struct HeldInterrupts(bool);
 impl<T: Send> Spinlock<T>
 {
 	/// Create a new spinning lock
-	pub fn new(val: T) -> Spinlock<T> {
+	pub const fn new(val: T) -> Spinlock<T> {
 		Spinlock {
-			lock: AtomicBool::new(false),
-			value: ::core::cell::UnsafeCell::new(val),
+			lock: ::core::atomic::ATOMIC_BOOL_INIT, //AtomicBool::new(false),
+			value: ::core::cell::UnsafeCell { value: val },	// ::new(val),
 		}
 	}
 	

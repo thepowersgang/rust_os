@@ -359,11 +359,12 @@ fn get_int(Args: &mut VaList, size: usize) -> i64 {
 #[allow(dead_code)]
 extern "C" fn AcpiOsVprintf(Format: *const i8, mut Args: VaList)
 {
+	use sync::mutex::LazyMutex;
 	struct Buf([u8; 256]);
 	impl Buf { fn new() -> Self { unsafe { ::core::mem::zeroed() } } }
 	impl AsMut<[u8]> for Buf { fn as_mut(&mut self) -> &mut [u8] { &mut self.0 } }
 	impl AsRef<[u8]> for Buf { fn as_ref(&self) -> &[u8] { &self.0 } }
-	static TEMP_BUFFER: ::sync::mutex::LazyMutex<::lib::string::FixedString<Buf>> = lazymutex_init!();
+	static TEMP_BUFFER: LazyMutex<::lib::string::FixedString<Buf>> = LazyMutex::new();
 
 	// Acquire input and lock	
 	let fmt = c_string_to_str(Format);

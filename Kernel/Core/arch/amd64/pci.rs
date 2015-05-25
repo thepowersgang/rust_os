@@ -4,13 +4,12 @@
 // arch/amd64/pci.rs
 //! PCI bus access
 
-#[allow(non_upper_case_globals)]
-static s_pci_lock: ::sync::Spinlock<()> = spinlock_init!(());
+static S_PCI_LOCK: ::sync::Spinlock<()> = ::sync::Spinlock::new( () );
 
 /// Read a word from a pre-calculated PCI address
 pub fn read(addr: u32) -> u32
 {
-	let _lh = s_pci_lock.lock();
+	let _lh = S_PCI_LOCK.lock();
 	unsafe {
 		::arch::x86_io::outl(0xCF8, 0x80000000 | addr);
 		::arch::x86_io::inl(0xCFC)
@@ -20,7 +19,7 @@ pub fn read(addr: u32) -> u32
 /// Write a word to a pre-calculated PCI address
 pub fn write(addr: u32, val: u32)
 {
-	let _lh = s_pci_lock.lock();
+	let _lh = S_PCI_LOCK.lock();
 	unsafe {
 		::arch::x86_io::outl(0xCF8, 0x80000000 | addr);
 		::arch::x86_io::outl(0xCFC, val)

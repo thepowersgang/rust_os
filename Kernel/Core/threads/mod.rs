@@ -29,7 +29,7 @@ pub type EventMask = u32;
 // Statics
 //static s_all_threads:	::sync::Mutex<Map<uint,*const Thread>> = mutex_init!(Map{});
 #[allow(non_upper_case_globals)]
-static s_runnable_threads: ::sync::Spinlock<ThreadList> = spinlock_init!(THREADLIST_INIT);
+static s_runnable_threads: ::sync::Spinlock<ThreadList> = ::sync::Spinlock::new(THREADLIST_INIT);
 
 // ----------------------------------------------
 // Code

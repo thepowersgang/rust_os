@@ -20,7 +20,7 @@ unsafe impl Sync for EventChannel {}
 
 /// Static initialiser for EventChannel
 pub const EVENTCHANNEL_INIT: EventChannel = EventChannel {
-	lock: spinlock_init!( false ),
+	lock: Spinlock::new( false ),
 	queue: UnsafeCell{value: ::threads::WAITQUEUE_INIT},
 	pending_wakes: ::core::atomic::ATOMIC_USIZE_INIT,
 	};

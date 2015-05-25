@@ -63,7 +63,7 @@ pub struct HexDump<'a,T:'a>(pub &'a T);
 /// Wrapper around a `&[u8]` to print it as an escaped byte string
 pub struct RawString<'a>(pub &'a [u8]);
 
-static S_LOGGING_LOCK: Spinlock<Sinks> = spinlock_init!( Sinks { serial: serial::Sink, memory: None, video: None } );
+static S_LOGGING_LOCK: Spinlock<Sinks> = Spinlock::new( Sinks { serial: serial::Sink, memory: None, video: None } );
 
 trait Sink
 {

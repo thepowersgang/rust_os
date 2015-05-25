@@ -46,7 +46,7 @@ pub struct ISRHandle
 }
 
 #[allow(non_upper_case_globals)]
-static s_irq_handlers_lock: ::sync::Mutex<[IRQHandlersEnt; 256]> = mutex_init!( [IRQHandlersEnt{
+static s_irq_handlers_lock: ::sync::Mutex<[IRQHandlersEnt; 256]> = ::sync::Mutex::new( [IRQHandlersEnt{
 	handler: None,
 	info: 0 as *const _,
 	idx: 0

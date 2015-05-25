@@ -9,10 +9,8 @@ use core::ops;
 /// A standard mutex (blocks the current thread when contended)
 pub struct Mutex<T: Send>
 {
-	#[doc(hidden)]
-	pub inner: ::sync::Spinlock<MutexInner>,
-	#[doc(hidden)]
-	pub val: ::core::cell::UnsafeCell<T>,
+	inner: ::sync::Spinlock<MutexInner>,
+	val: ::core::cell::UnsafeCell<T>,
 }
 
 #[doc(hidden)]
@@ -36,7 +34,7 @@ pub struct HeldMutex<'lock,T:'lock+Send>
 }
 
 /// A lazily populated mutex (must be initialised on/before first lock)
-pub struct LazyMutex<T: Send>(pub Mutex<Option<T>>);
+pub struct LazyMutex<T: Send>(Mutex<Option<T>>);
 
 pub struct HeldLazyMutex<'a, T: Send+'a>( HeldMutex<'a, Option<T>> );
 
@@ -45,7 +43,7 @@ impl<T: Send> Mutex<T>
 	/// Construct a new mutex-protected value
 	pub const fn new(val: T) -> Mutex<T> {
 		Mutex {
-			inner: spinlock_init!(MUTEX_INNER_INIT),
+			inner: ::sync::Spinlock::new(MUTEX_INNER_INIT),
 			val: ::core::cell::UnsafeCell { value: val },
 		}
 	}
@@ -96,6 +94,10 @@ impl<T: Send+Default> Default for Mutex<T> {
 
 impl<T: Send> LazyMutex<T>
 {
+	pub const fn new() -> LazyMutex<T> {
+		LazyMutex( Mutex::new(None) )
+	}
+	
 	/// Lock and (if required) initialise using init_fcn
 	pub fn lock_init<Fcn: FnOnce()->T>(&self, init_fcn: Fcn) -> HeldLazyMutex<T>
 	{
@@ -154,18 +156,6 @@ impl<'l,T:Send> ops::DerefMut for HeldLazyMutex<'l,T>
 	fn deref_mut(&mut self) -> &mut T {
 		self.0.as_mut().unwrap()
 	}
-}
-
-/// Initialise a static Mutex
-#[macro_export]
-macro_rules! mutex_init{ ($val:expr) => ($crate::sync::mutex::Mutex{
-	inner: spinlock_init!($crate::sync::mutex::MUTEX_INNER_INIT),
-	val: ::core::cell::UnsafeCell{ value: $val },
-	}) }
-/// Initialise a static LazyMutex
-#[macro_export]
-macro_rules! lazymutex_init{
-	() => {$crate::sync::mutex::LazyMutex(mutex_init!( None ))}
 }
 
 // vim: ft=rust
