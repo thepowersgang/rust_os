@@ -130,7 +130,11 @@ impl node::NodeBase for FileRef {
 impl node::Dir for FileRef {
 	fn lookup(&self, name: &ByteStr) -> IoResult<InodeId> {
 		let lh = self.dir().ents.read();
-		unimplemented!()
+		match lh.get(name)
+		{
+		Some(v) => Ok(*v as InodeId),
+		None => Err(IoError::NotFound),
+		}
 	}
 	
 	fn read(&self, ofs: usize, items: &mut [(InodeId,ByteString)]) -> IoResult<(usize,usize)> {

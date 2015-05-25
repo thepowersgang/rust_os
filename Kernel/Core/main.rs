@@ -191,7 +191,7 @@ fn sysinit()
 		// - Iterate root dir
 		match handle::Dir::open( Path::new("/") )
 		{
-		Err(e) => log_warning!("VFS root cannot be opened"),
+		Err(e) => log_warning!("VFS root cannot be opened: {:?}", e),
 		Ok(h) =>
 			for name in h.iter() {
 				log_log!("{}: {:?}", 0, name);
@@ -200,7 +200,7 @@ fn sysinit()
 		// - Iterate /system
 		match handle::Dir::open( Path::new("/system") )
 		{
-		Err(e) => log_warning!("System volume cannot be opened"),
+		Err(e) => log_warning!("System volume cannot be opened: {:?}", e),
 		Ok(h) =>
 			for name in h.iter() {
 				log_log!("{:?}", name);

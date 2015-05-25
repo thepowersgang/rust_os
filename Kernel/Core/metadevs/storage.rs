@@ -342,7 +342,10 @@ impl VolumeHandle
 			for v in self.handle.regions.iter()
 			{
 				if idx_rem < v.block_count as u64 {
-					let ret_count = ::core::cmp::min(v.block_count as u64 - idx_rem, count as u64) as usize;
+					let ret_count = ::core::cmp::min(
+						v.block_count as u64 - idx_rem,
+						count as u64
+						) as usize;
 					return Some( (v.volume, v.first_block + idx_rem, ret_count) );
 				}
 				else {
