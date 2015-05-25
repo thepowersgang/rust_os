@@ -43,7 +43,7 @@ pub struct HeldLazyMutex<'a, T: Send+'a>( HeldMutex<'a, Option<T>> );
 impl<T: Send> Mutex<T>
 {
 	/// Construct a new mutex-protected value
-	pub fn new(val: T) -> Mutex<T> {
+	pub const fn new(val: T) -> Mutex<T> {
 		Mutex {
 			inner: spinlock_init!(MUTEX_INNER_INIT),
 			val: ::core::cell::UnsafeCell { value: val },

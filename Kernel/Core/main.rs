@@ -16,6 +16,7 @@
 #![feature(slice_patterns)]	// Slice (array) destructuring patterns, used by multiboot code
 #![feature(step_by)]	// Range::step_by
 #![feature(linkage)]	// allows using #[linkage="external"]
+#![feature(const_fn)]	// Allows defining `const fn`
 #![no_std]
 
 #![feature(plugin)]
