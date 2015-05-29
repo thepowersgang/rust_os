@@ -20,7 +20,7 @@ MODS += fs_fat
 
 USE_ACPICA ?= 1
 
-OBJS := start.ao $(MODS:%=mod_%.o) libkernel.rlib libcore.rlib
+OBJS := start.ao $(MODS:%=%.o) libkernel.rlib libcore.rlib
 ifeq ($(USE_ACPICA),1)
 	OBJS += acpica.a
 endif
@@ -147,27 +147,36 @@ $(OBJDIR)%.ao: Core/arch/$(ARCH)/%.asm Makefile
 $(OBJDIR)libkernel.rlib: Core/main.rs $(OBJDIR)libcore.rlib Makefile $(TARGET_FILE) ../Graphics/logo.rs bin/plugins/libtag_safe.so $(LIBS)
 	@echo [RUSTC] -o $@
 	@mkdir -p $(dir $@)
-	$V$(ENV) $(RUSTC) $(RUSTFLAGS) --emit=link,dep-info -o $@ $<
-	@$(call FixDep, $(@:%.rlib=%.d))
+	$V$(ENV) $(RUSTC) $(RUSTFLAGS) --emit=link,dep-info --out-dir $(dir $@) $<
+	@$(call FixDep, $(@:lib%.rlib=%.d))
+	@cp $(OBJDIR)kernel.d $(OBJDIR)libkernel.d
 
 
 # - Locally compiled libcore, needs to not use SSE
 $(OBJDIR)libcore.rlib: $(LIBCORESRC)lib.rs $(TARGET_FILE)
 	@echo [RUSTC] -o $@
 	@mkdir -p $(dir $@)
-	$V$(ENV) $(RUSTC) $(RUSTFLAGS) --emit=link,dep-info -o $@ --crate-name core $<
-	@$(call FixDep, $(@:%.rlib=%.d))
+	$V$(ENV) $(RUSTC) $(RUSTFLAGS) --emit=link,dep-info --out-dir $(dir $@) --crate-name core $<
+	@$(call FixDep, $(@:lib%.rlib=%.d))
+	@cp $(OBJDIR)core.d $(OBJDIR)libcore.d
 
 $(OBJDIR)acpica.a: ../acpica/Makefile $(wildcard ../acpica/patches/source/include/platform/*)
 	make -C ../acpica TRIPLE=$(TRIPLE)
 	cp ../acpica/acpica-$(TRIPLE).a $@
 
 # - Modules
-$(OBJDIR)mod_%.o: Modules/%/lib.rs $(OBJDIR)libcore.rlib $(OBJDIR)libkernel.rlib
+$(OBJDIR)lib%.rlib: Modules/%/lib.rs $(OBJDIR)libcore.rlib $(OBJDIR)libkernel.rlib
 	@echo [RUSTC] -o $@
 	@mkdir -p $(dir $@)
-	$V$(ENV) $(RUSTC) $(RUSTFLAGS) --emit=obj,dep-info -o $@ --crate-name=$* --crate-type=lib $< $(call LocalLib,core) $(call LocalLib,kernel)
+	$V$(ENV) $(RUSTC) $(RUSTFLAGS) --emit=obj,link,dep-info --out-dir $(dir $@) --crate-name=$* --crate-type=lib $< $(call LocalLib,core) $(call LocalLib,kernel)
 	@$(call FixDep, $(@:%.o=%.d))
+
+$(OBJDIR)%.o: Modules/%/lib.rs $(OBJDIR)lib%.rlib
+	#
+
+fn_modline = $(OBJDIR)lib$1.rlib: $(patsubst %,$(OBJDIR)lib%.rlib,$(shell cat Modules/$1/lib.rs | sed -nr 's/.*extern crate ([a-zA-Z_]+);/\1/p' | tr '\n' ' '))
+$(foreach m,$(MODS), $(eval $(call fn_modline,$m) ) )
+$(foreach m,$(MODS), $(warning $(call fn_modline,$m) ) )
 
 # - External libs
 $(OBJDIR)lib%.rlib: ../externals/crates.io/%/src/lib.rs $(OBJDIR)libcore.rlib
