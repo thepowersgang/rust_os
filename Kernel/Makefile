@@ -20,10 +20,15 @@ MODS += fs_fat
 
 USE_ACPICA ?= 1
 
+fn_moddeps = $(filter-out core kernel,$(shell cat Modules/$1/lib.rs | sed -nr 's/.*extern crate ([a-zA-Z_]+);/\1/p' | tr '\n' ' '))
+
 OBJS := start.ao $(MODS:%=%.o) libkernel.rlib libcore.rlib
 ifeq ($(USE_ACPICA),1)
 	OBJS += acpica.a
 endif
+EOBJS := $(foreach m,$(MODS), $(addsuffix .o,$(call fn_moddeps,$m)) )
+$(warning $(EOBJS))
+OBJS += $(EOBJS)
 
 PREFIX := ../.prefix/
 RUSTC := LD_LIBRARY_PATH=$(PREFIX)lib/ $(PREFIX)bin/rustc
@@ -129,19 +134,19 @@ $(OBJDIR)kernel.ir: Core/main.rs $(OBJDIR)libcore.rlib $(TARGET_FILE)
 bin/kernel-$(ARCH).bin: $(OBJS) Core/arch/$(ARCH)/link.ld Makefile
 	@mkdir -p bin/
 	@echo [LD] -o $@
-	@$(TRIPLE)-ld -o $@ $(OBJS) $(LIBS) $(LINKFLAGS)
+	$V$(TRIPLE)-ld -o $@ $(OBJS) $(LIBS) $(LINKFLAGS)
 	@objcopy $@ -F elf32-i386 $@.elf32
 	@echo "BUILDNUM := $$(( $(BUILDNUM) + 1 ))" > BuildNum.$(ARCH).mk
 
 %.dsm: %
 	@echo "[OBJDUMP] >" $*.dsm
-	@objdump -C -S $* > $*.dsm
+	$Vobjdump -C -S $* > $*.dsm
 
 # Assembly
 $(OBJDIR)%.ao: Core/arch/$(ARCH)/%.asm Makefile
 	@echo [AS] -o $@
 	@mkdir -p $(dir $@)
-	@nasm -o $@ $< -f elf64 -MD $@.d -MP
+	$Vnasm -o $@ $< -f elf64 -MD $@.d -MP
 
 # - Kernel Core
 $(OBJDIR)libkernel.rlib: Core/main.rs $(OBJDIR)libcore.rlib Makefile $(TARGET_FILE) ../Graphics/logo.rs bin/plugins/libtag_safe.so $(LIBS)
@@ -172,11 +177,10 @@ $(OBJDIR)lib%.rlib: Modules/%/lib.rs $(OBJDIR)libcore.rlib $(OBJDIR)libkernel.rl
 	@$(call FixDep, $(@:%.o=%.d))
 
 $(OBJDIR)%.o: Modules/%/lib.rs $(OBJDIR)lib%.rlib
-	#
+	@#
 
-fn_modline = $(OBJDIR)lib$1.rlib: $(patsubst %,$(OBJDIR)lib%.rlib,$(shell cat Modules/$1/lib.rs | sed -nr 's/.*extern crate ([a-zA-Z_]+);/\1/p' | tr '\n' ' '))
+fn_modline = $(OBJDIR)lib$1.rlib: $(patsubst %,$(OBJDIR)lib%.rlib,$(call fn_moddeps,$1))
 $(foreach m,$(MODS), $(eval $(call fn_modline,$m) ) )
-$(foreach m,$(MODS), $(warning $(call fn_modline,$m) ) )
 
 # - External libs
 $(OBJDIR)lib%.rlib: ../externals/crates.io/%/src/lib.rs $(OBJDIR)libcore.rlib
