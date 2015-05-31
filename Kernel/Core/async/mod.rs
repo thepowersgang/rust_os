@@ -143,6 +143,7 @@ pub fn wait_on_list(waiters: &mut [&mut Waiter], timeout: Option<u64>) -> Option
 	let force_poll = waiters.iter_mut()
 		.filter( |x| !x.is_complete() )
 		.fold(false, |v,x| v | !x.get_waiter().bind_signal( &mut obj) )
+		// ^ doesn't use .any() becuase of unbind_signal below
 		;
 	
 	if force_poll

@@ -36,6 +36,7 @@ impl super::PrimitiveWaiter for Waiter {
 	}
 	fn bind_signal(&mut self, _sleeper: &mut ::threads::SleepObject) -> bool {
 		todo!("timer::Waiter::bind_signal()")
+		//::time::bind_signal(_sleeper, self.expiry_ticks)
 	}
 	fn unbind_signal(&mut self) {
 		todo!("timer::Waiter::unbind_signal()")
