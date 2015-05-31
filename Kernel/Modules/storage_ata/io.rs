@@ -46,6 +46,8 @@ struct AtaRegs
 	prdts: ::kernel::memory::virt::ArrayHandle<PRDTEnt>,
 }
 struct AtaStatusVal(u8);
+struct AtaErrorVal(u8);
+struct AtapiErrorVal(u8);
 struct AtaInterrupt
 {
 	handle: ::kernel::irqs::EventHandle,
@@ -66,9 +68,18 @@ impl_fmt!{
 
 impl DmaController
 {
+	fn borrow_regs(&self, is_secondary: bool) -> DmaRegBorrow {
+		DmaRegBorrow {
+			dma_base: &self.dma_base,
+			is_sec: is_secondary,
+		}
+	}
+
+	/// Read ATA DMA
 	pub fn do_dma_rd<'a>(&'a self, blockidx: u64, count: usize, dst: &'a mut [u8], disk: u8) -> Result<Box<async::Waiter+'a>,storage::IoError> {
 		self.do_dma(blockidx, count, DMABuffer::new_contig_mut(dst, 32), disk, false)
 	}
+	/// Write ATA DMA
 	pub fn do_dma_wr<'a>(&'a self, blockidx: u64, count: usize, dst: &'a [u8], disk: u8) -> Result<Box<async::Waiter+'a>,storage::IoError> {
 		self.do_dma(blockidx, count, DMABuffer::new_contig(dst, 32), disk, true)
 	}
@@ -89,11 +100,26 @@ impl DmaController
 		let b = Box::new(ub);
 		Ok( b )
 	}
-	fn borrow_regs(&self, is_secondary: bool) -> DmaRegBorrow {
-		DmaRegBorrow {
-			dma_base: &self.dma_base,
-			is_sec: is_secondary,
-		}
+	
+	pub fn do_atapi_rd<'a>(&'a self, disk: u8, cmd: &'a [u8], dst: &'a mut [u8]) -> async::AsyncResult<'a,usize,storage::IoError> {
+		self.do_atapi(disk, cmd, DMABuffer::new_contig_mut(dst, 32), false)
+	}
+	pub fn do_atapi_wr<'a>(&'a self, disk: u8, cmd: &'a [u8], dst: &'a [u8]) -> async::AsyncResult<'a,usize,storage::IoError> {
+		self.do_atapi(disk, cmd, DMABuffer::new_contig(dst, 32), true)
+	}
+	fn do_atapi<'a>(&'a self, disk: u8, cmd: &'a [u8], dst: DMABuffer<'a>, is_write: bool) -> async::AsyncResult<'a,usize,storage::IoError>
+	{
+		assert!(disk < 4);
+		
+		let bus = (disk >> 1) & 1;
+		let disk = disk & 1;
+		
+		// Try to obtain a DMA context
+		let ctrlr = &self.ata_controllers[bus as usize];
+		let bm_regs = self.borrow_regs(bus == 1);
+		
+		let ub = ctrlr.do_atapi(disk, bm_regs, cmd, dst, is_write);
+		Box::new(ub)
 	}
 }
 
@@ -127,10 +153,28 @@ impl AtaRegs
 		}
 	}
 	
+	unsafe fn dump(&mut self) {
+		log_trace!("[0:1] {:#02x} {:#02x}", self.in_8(0), self.in_8(1));
+		log_trace!("[2:3] {:#02x} {:#02x}", self.in_8(2), self.in_8(3));
+		log_trace!("[4:5] {:#02x} {:#02x}", self.in_8(4), self.in_8(5));
+		log_trace!("[6:7] {:#02x} {:#02x}", self.in_8(6), self.in_8(7));
+		for e in &*self.prdts {
+			log_trace!("{:#x}+{:#x} {:#x}", e.addr, e.bytes, e.flags);
+			if e.flags & 0x8000 != 0 {
+				break;
+			}
+		}
+	}
+	
 	unsafe fn out_8(&mut self, ofs: u16, val: u8)
 	{
 		assert!(ofs < 8);
 		::kernel::arch::x86_io::outb( self.ata_base + ofs, val);
+	}
+	unsafe fn out_16(&mut self, ofs: u16, val: u16)
+	{
+		assert!(ofs < 8);
+		::kernel::arch::x86_io::outw( self.ata_base + ofs, val);
 	}
 	
 	unsafe fn in_8(&mut self, ofs: u16) -> u8
@@ -149,16 +193,53 @@ impl AtaRegs
 		unsafe { ::kernel::arch::x86_io::inb( self.sts_base ) }
 	}
 	
-	fn start_dma(&mut self, disk: u8, blockidx: u64, dma_buffer: &DMABuffer, is_write: bool, bm: &DmaRegBorrow)
+	fn last_result(&mut self, is_atapi: bool) -> Result<(),storage::IoError> {
+		let sts = self.in_sts();
+		if sts & AtaStatusVal::ERR != 0 {
+			// SAFE: Locked
+			let err = unsafe { self.in_8(1) };
+			Err(if is_atapi
+				{
+					log_trace!("err = {:?}", AtapiErrorVal(err));
+					match AtapiErrorVal(err).sense_key()
+					{
+					AtapiErrorVal::NOT_READY => storage::IoError::NoMedium,
+					_ => storage::IoError::Unknown("atapi"),
+					}
+				}
+				else
+				{
+					log_trace!("err = {:?}", AtaErrorVal(err));
+					storage::IoError::Unknown("ata")
+				})
+		}
+		else if sts & AtaStatusVal::DF != 0 {
+			Err(storage::IoError::Unknown("Drive fault"))
+		}
+		else if sts & AtaStatusVal::RDY == 0 {
+			Err(storage::IoError::Timeout)
+		}
+		else {
+			Ok( () )
+		}
+	}
+	
+	fn fill_prdt(&mut self, dma_buffer: &DMABuffer)
 	{
-		log_debug!("start_dma(disk={},blockidx={},is_write={},dma_buffer={{len={}}})",
-			disk, blockidx, is_write, dma_buffer.len());
-		let count = dma_buffer.len() / SECTOR_SIZE;
 		// Fill PRDT
 		// TODO: Use a chain of PRDTs to support 32-bit scatter-gather
 		self.prdts[0].bytes = dma_buffer.len() as u16;
 		self.prdts[0].addr = dma_buffer.phys() as u32;
 		self.prdts[0].flags = 0x8000;
+	}
+	
+	fn start_dma(&mut self, disk: u8, blockidx: u64, dma_buffer: &DMABuffer, is_write: bool, bm: &DmaRegBorrow)
+	{
+		log_debug!("start_dma(disk={},blockidx={},is_write={},dma_buffer={{len={}}})",
+			disk, blockidx, is_write, dma_buffer.len());
+		let count = dma_buffer.len() / SECTOR_SIZE;
+		
+		self.fill_prdt(dma_buffer);
 		
 		// Commence the IO and return a wait handle for the operation
 		unsafe
@@ -196,13 +277,61 @@ impl AtaRegs
 			bm.out_8(0, if is_write { 0 } else { 8 } | 1);
 		}
 	}
+	
+	fn start_atapi(&mut self, bm: &DmaRegBorrow, disk: u8, is_write: bool, cmd: &[u8], dma_buffer: &DMABuffer)
+	{
+		log_debug!("start_atapi(...,disk={},is_write,is_write={},cmd={{len={}}},dma_buffer={{len={}}})",
+			disk, is_write, cmd.len(), dma_buffer.len());
+		
+		self.fill_prdt(dma_buffer);
+		
+		// Commence the IO and return a wait handle for the operation
+		unsafe
+		{
+			// - Set PRDT
+			bm.out_32(4, ::kernel::memory::virt::get_phys(&self.prdts[0]) as u32);
+			bm.out_8(0, 0x04);	// Reset IRQ
+			// Start IO
+			bm.out_8(0, if is_write { 0 } else { 8 } | 1);
+			
+			// Select channel
+			self.out_8(6, (disk << 4));
+			// Set DMA enable
+			self.out_8(1, 0x01);
+			// Max byte count
+			self.out_8(4, (dma_buffer.len() >> 0) as u8);
+			self.out_8(5, (dma_buffer.len() >> 8) as u8);
+			// ATAPI PACKET
+			self.out_8(7, 0xA0);
+			// - Send command once IRQ is fired?
+			// XXX: Polling
+			while self.in_sts() & 0x80 != 0 { }
+			assert!(self.in_sts() & (1<<3) != 0);
+			
+			// Send command
+			for i in 0 .. 6
+			{
+				// Read zero-padded little endian words from stream
+				let w = if i*2+1 < cmd.len() {
+						cmd[i*2] as u16 | ((cmd[i*2+1] as u16) << 8)
+					}
+					else if i*2+1 == cmd.len() {
+						cmd[cmd.len()-1] as u16
+					}
+					else {
+						0
+					};
+				self.out_16(0, w);
+			}
+		}
+	}
 }
 
 enum WaitState<'dev>
 {
 	Acquire(async::mutex::Waiter<'dev,AtaRegs>),
 	IoActive(async::mutex::HeldMutex<'dev,AtaRegs>, async::event::Waiter<'dev>),
-	Done,
+	Done(Result<(),storage::IoError>),
 }
 struct AtaWaiter<'dev,'buf>
 {
@@ -218,7 +347,7 @@ struct AtaWaiter<'dev,'buf>
 impl<'a,'b> async::Waiter for AtaWaiter<'a,'b>
 {
 	fn is_complete(&self) -> bool {
-		if let WaitState::Done = self.state { true } else { false }
+		if let WaitState::Done(..) = self.state { true } else { false }
 	}
 	
 	fn get_waiter(&mut self) -> &mut async::PrimitiveWaiter
@@ -230,7 +359,7 @@ impl<'a,'b> async::Waiter for AtaWaiter<'a,'b>
 		// Final state: Start IO and wait for it to complete
 		WaitState::IoActive(_, ref mut waiter) => waiter,
 		//
-		WaitState::Done => unreachable!(),
+		WaitState::Done(..) => unreachable!(),
 		}
 	}
 	
@@ -246,19 +375,19 @@ impl<'a,'b> async::Waiter for AtaWaiter<'a,'b>
 				WaitState::IoActive(lh, self.dev.interrupt.handle.get_event().wait())
 				},
 			// And if IoActive completes, we're complete
-			WaitState::IoActive(ref mut lh, ref _waiter) => {
+			WaitState::IoActive(ref mut lh, ref _waiter) => WaitState::Done(
 				// SAFE: Holding the register lock
 				unsafe {
 					self.dma_regs.out_8(0, 0);	// Stop transfer
-					let ata_status = lh.in_8(7);
+					let ata_status = AtaStatusVal(lh.in_8(7));
 					log_trace!("BM Status = {:?}, ATA Status = {:?}",
-						DmaStatusVal(self.dma_regs.in_8(2)), AtaStatusVal(ata_status)
+						DmaStatusVal(self.dma_regs.in_8(2)), ata_status
 						);
+					lh.last_result(false)	// not ATAPI
 				}
-				WaitState::Done
-				},
+				),
 			//
-			WaitState::Done => unreachable!(),
+			WaitState::Done(..) => unreachable!(),
 			};
 		
 		self.is_complete()
@@ -271,7 +400,92 @@ impl<'a,'b> ::core::fmt::Debug for AtaWaiter<'a,'b> {
 		{
 		WaitState::Acquire(..) => write!(f, "(Acquire)"),
 		WaitState::IoActive(..) => write!(f, "(IoActive)"),
-		WaitState::Done => write!(f, "(Done)"),
+		WaitState::Done(..) => write!(f, "(Done)"),
+		}
+	}
+}
+struct AtapiWaiter<'dev,'buf>
+{
+	dev: &'dev AtaController,
+	disk: u8,
+	is_write: bool,
+	dma_regs: DmaRegBorrow<'dev>,
+	cmd_buffer: &'buf [u8],
+	dma_buffer: DMABuffer<'buf>,
+	state: WaitState<'dev>,
+}
+impl<'a,'b> async::ResultWaiter for AtapiWaiter<'a,'b>
+{
+	type Result = Result<usize, storage::IoError>;
+	
+	fn get_result(&mut self) -> Option<Self::Result> {
+		match self.state
+		{
+		WaitState::Done(r) => Some(r.map( |_| self.dma_buffer.len() )),
+		_ => None,
+		}
+	}
+	
+	fn as_waiter(&mut self) -> &mut async::Waiter { self }
+}
+
+impl<'a,'b> async::Waiter for AtapiWaiter<'a,'b>
+{
+	fn is_complete(&self) -> bool {
+		if let WaitState::Done(..) = self.state { true } else { false }
+	}
+	
+	fn get_waiter(&mut self) -> &mut async::PrimitiveWaiter
+	{
+		match self.state
+		{
+		// Initial state: Acquire the register lock
+		WaitState::Acquire(ref mut waiter) => waiter,
+		// Final state: Start IO and wait for it to complete
+		WaitState::IoActive(_, ref mut waiter) => waiter,
+		//
+		WaitState::Done(..) => unreachable!(),
+		}
+	}
+	
+	fn complete(&mut self) -> bool
+	{
+		// Update state if the match returns
+		self.state = match self.state
+			{
+			// If the Acquire wait completed, switch to IoActive state
+			WaitState::Acquire(ref mut waiter) => {
+				let mut lh = waiter.take_lock();
+				lh.start_atapi( &self.dma_regs, self.disk, self.is_write, self.cmd_buffer, &self.dma_buffer );
+				WaitState::IoActive(lh, self.dev.interrupt.handle.get_event().wait())
+				},
+			// And if IoActive completes, we're complete
+			WaitState::IoActive(ref mut lh, ref _waiter) => WaitState::Done(
+				// SAFE: Holding the register lock
+				unsafe {
+					self.dma_regs.out_8(0, 0);	// Stop transfer
+					let ata_status = AtaStatusVal( lh.in_8(7) );
+					log_trace!("BM Status = {:?}, ATA Status = {:?}",
+						DmaStatusVal(self.dma_regs.in_8(2)), ata_status
+						);
+					lh.last_result(true)
+				}
+				),
+			//
+			WaitState::Done(..) => unreachable!(),
+			};
+		
+		self.is_complete()
+	}
+}
+impl<'a,'b> ::core::fmt::Debug for AtapiWaiter<'a,'b> {
+	fn fmt(&self, f: &mut ::core::fmt::Formatter) -> ::core::fmt::Result {
+		try!( write!(f, "AtapiWaiter") );
+		match self.state
+		{
+		WaitState::Acquire(..) => write!(f, "(Acquire)"),
+		WaitState::IoActive(..) => write!(f, "(IoActive)"),
+		WaitState::Done(..) => write!(f, "(Done)"),
 		}
 	}
 }
@@ -296,6 +510,18 @@ impl AtaController
 			blockidx: blockidx,
 			is_write: is_write,
 			dma_regs: dma_regs,
+			dma_buffer: dst,
+			state: WaitState::Acquire( self.regs.async_lock() ),
+		}
+	}
+	fn do_atapi<'a,'b>(&'a self, disk: u8, dma_regs: DmaRegBorrow<'a>, cmd: &'b [u8], dst: DMABuffer<'b>, is_write: bool) -> AtapiWaiter<'a,'b>
+	{
+		AtapiWaiter {
+			dev: self,
+			disk: disk,
+			dma_regs: dma_regs,
+			is_write: is_write,
+			cmd_buffer: cmd,
 			dma_buffer: dst,
 			state: WaitState::Acquire( self.regs.async_lock() ),
 		}
@@ -393,14 +619,67 @@ impl_fmt! {
 		if self.0 & (1<<7) != 0 { try!(write!(f, " SO")); }
 		write!(f, ")")
 	}}
+}
+impl AtaStatusVal
+{
+	const ERR: u8 = (1<<0);	// Set on error
+	const DRQ: u8 = (1<<3);	// Expecting PIO
+	const SRV: u8 = (1<<4);	// Overlapped service request
+	const DF:  u8 = (1<<5);	// Drive fault
+	const RDY: u8 = (1<<6);	// Set when the drive is ready
+	const BSY: u8 = (1<<6);	// Drive is busy prepping for IO
+}
+impl_fmt! {
 	Debug(self,f) for AtaStatusVal {{
 		try!(write!(f, "({:#x}", self.0));
-		if self.0 & (1<<0) != 0 { try!(write!(f, " ERR")); }
+		if self.0 & Self::ERR != 0 { try!(write!(f, " ERR")); }
 		if self.0 & (1<<3) != 0 { try!(write!(f, " DRQ")); }
 		if self.0 & (1<<4) != 0 { try!(write!(f, " SRV")); }
 		if self.0 & (1<<5) != 0 { try!(write!(f, " DF" )); }
-		if self.0 & (1<<6) != 0 { try!(write!(f, " RDY")); }
+		if self.0 & Self::RDY != 0 { try!(write!(f, " RDY")); }
 		if self.0 & (1<<7) != 0 { try!(write!(f, " BSY")); }
+		write!(f, ")")
+	}}
+}
+impl AtaErrorVal
+{
+	const MARK: u8 = (1<<0);	// Bad address mark
+	const EOM:  u8 = (1<<1);	// End of media (ATAPI)
+	const ABRT: u8 = (1<<2);	// Operation aborted (command not supported)
+	const MRC:  u8 = (1<<4);	// Media change request
+}
+impl_fmt! {
+	Debug(self,f) for AtaErrorVal {{
+		try!(write!(f, "({:#x}", self.0));
+		write!(f, ")")
+	}}
+}
+impl AtapiErrorVal
+{
+	const MARK: u8 = (1<<0);	// Bad address mark
+	const EOM:  u8 = (1<<1);	// End of media (ATAPI)
+	const ABRT: u8 = (1<<2);	// Operation aborted (command not supported)
+	const MRC:  u8 = (1<<4);	// Media change request
+	
+	const NO_SENSE:        u8 = 0;
+	const RECOVERED_ERROR: u8 = 1;
+	const NOT_READY:       u8 = 2;
+	const MEDIUM_ERROR:    u8 = 3;
+	const HARDWARE_ERROR:  u8 = 4;
+	
+	fn sense_key(&self) -> u8 { self.0 >> 4 }
+}
+impl_fmt! {
+	Debug(self,f) for AtapiErrorVal {{
+		try!(write!(f, "({:#x}", self.0));
+		try!(write!(f, " {}", match self.sense_key() {
+			Self::NO_SENSE        => "NO_SENSE",
+			Self::RECOVERED_ERROR => "RECOVERED_ERROR",
+			Self::NOT_READY       => "NOT_READY",
+			Self::MEDIUM_ERROR    => "MEDIUM_ERROR",
+			Self::HARDWARE_ERROR  => "HARDWARE_ERROR",
+			v @ _ => "unk",	//format!("unk({})",v),
+			}));
 		write!(f, ")")
 	}}
 }

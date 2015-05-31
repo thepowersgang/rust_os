@@ -66,6 +66,22 @@ pub trait Waiter:
 }
 
 
+/// A boxed ResultWaiter that resturns a Result
+pub type AsyncResult<'a,T,E> = Box<ResultWaiter<Result=Result<T,E>>+'a>;
+/// A waiter that exposes access to a value upon completion
+pub trait ResultWaiter:
+	Waiter
+{
+	/// Return value once complete
+	type Result;
+	
+	///
+	fn get_result(&mut self) -> Option<Self::Result>;
+	
+	fn as_waiter(&mut self) -> &mut Waiter;// { self }
+}
+
+
 impl<T: PrimitiveWaiter> Waiter for T {
 	fn is_complete(&self) -> bool {
 		self.is_complete()
@@ -77,7 +93,6 @@ impl<T: PrimitiveWaiter> Waiter for T {
 		true
 	}
 }
-
 
 impl<'a> Waiter+'a
 {

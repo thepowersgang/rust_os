@@ -79,7 +79,6 @@ pub trait ByteOrder
 }
 
 pub struct LittleEndian;
-
 impl ByteOrder for LittleEndian
 {
 	fn read_u16(buf: &[u8]) -> u16 {
@@ -111,6 +110,41 @@ impl ByteOrder for LittleEndian
 	fn write_u64(buf: &mut [u8], n: u64) {
 		Self::write_u32(&mut buf[0..4], ((n >>  0) & 0xFFFFFFFF) as u32);
 		Self::write_u32(&mut buf[4..8], ((n >> 32) & 0xFFFFFFFF) as u32);
+	}
+}
+
+pub struct BigEndian;
+impl ByteOrder for BigEndian
+{
+	fn read_u16(buf: &[u8]) -> u16 {
+		(buf[0] as u16) << 8 | (buf[1] as u16) << 0
+	}
+	fn read_u32(buf: &[u8]) -> u32 {
+		(buf[0] as u32) << 24 | (buf[1] as u32) << 16 | (buf[2] as u32) << 8 | (buf[3] as u32) << 0
+	}
+	fn read_u64(buf: &[u8]) -> u64 {
+		(Self::read_u32(&buf[0..4]) as u64) << 32 | (Self::read_u32(&buf[4..8]) as u64)
+	}
+	fn read_uint(buf: &[u8], nbytes: usize) -> u64 {
+		let mut rv = 0;
+		for i in (0 .. nbytes) {
+			rv |= (buf[i] as u64) << (8*(nbytes - 1 - i));
+		}
+		rv
+	}
+	fn write_u16(buf: &mut [u8], n: u16) {
+		buf[0] = ((n >> 8) & 0xFF) as u8;
+		buf[1] = ((n >> 0) & 0xFF) as u8;
+	}
+	fn write_u32(buf: &mut [u8], n: u32) {
+		buf[0] = ((n >> 24) & 0xFF) as u8;
+		buf[1] = ((n >> 16) & 0xFF) as u8;
+		buf[2] = ((n >>  8) & 0xFF) as u8;
+		buf[3] = ((n >>  0) & 0xFF) as u8;
+	}
+	fn write_u64(buf: &mut [u8], n: u64) {
+		Self::write_u32(&mut buf[0..4], ((n >> 32) & 0xFFFFFFFF) as u32);
+		Self::write_u32(&mut buf[4..8], ((n >>  0) & 0xFFFFFFFF) as u32);
 	}
 }
 

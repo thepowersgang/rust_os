@@ -30,13 +30,15 @@ pub struct PhysicalVolumeReg
 pub struct SizePrinter(pub u64);
 
 /// Block-level input-output error
-#[derive(Debug)]
+#[derive(Debug,Copy,Clone)]
 pub enum IoError
 {
 	BadAddr,
 	Timeout,
 	BadBlock,
 	ReadOnly,
+	NoMedium,
+	Unknown(&'static str),
 }
 
 /// Physical volume instance provided by driver
@@ -49,7 +51,7 @@ pub trait PhysicalVolume: Send + 'static
 	/// Returns the size of a filesystem block, must be a power of two >512
 	fn blocksize(&self) -> usize;
 	/// Returns the number of blocks in this volume (i.e. the capacity)
-	fn capacity(&self) -> u64;
+	fn capacity(&self) -> Option<u64>;
 	
 	/// Reads a number of blocks from the volume into the provided buffer
 	///
@@ -138,28 +140,32 @@ pub fn register_pv(dev: Box<PhysicalVolume>) -> PhysicalVolumeReg
 	// Now that a new PV has been inserted, handlers should be informed
 	let mut best_mapper: Option<&Mapper> = None;
 	let mut best_mapper_level = 0;
-	let mappers = S_MAPPERS.lock();
-	for &mapper in mappers.iter()
+	// - Only try to resolve a mapper if there's media in the drive
+	if dev.capacity().is_some()
 	{
-		let level = mapper.handles_pv(&*dev);
-		if level == 0
+		let mappers = S_MAPPERS.lock();
+		for &mapper in mappers.iter()
 		{
-			// Ignore (doesn't handle)
-		}
-		else if level < best_mapper_level
-		{
-			// Ignore (weaker handle)
-		}
-		else if level == best_mapper_level
-		{
-			// Fight!
-			log_warning!("LV Mappers {} and {} are fighting over {}",
-				mapper.name(), best_mapper.unwrap().name(), dev.name());
-		}
-		else
-		{
-			best_mapper = Some(mapper);
-			best_mapper_level = level;
+			let level = mapper.handles_pv(&*dev);
+			if level == 0
+			{
+				// Ignore (doesn't handle)
+			}
+			else if level < best_mapper_level
+			{
+				// Ignore (weaker handle)
+			}
+			else if level == best_mapper_level
+			{
+				// Fight!
+				log_warning!("LV Mappers {} and {} are fighting over {}",
+					mapper.name(), best_mapper.unwrap().name(), dev.name());
+			}
+			else
+			{
+				best_mapper = Some(mapper);
+				best_mapper_level = level;
+			}
 		}
 	}
 	
@@ -192,6 +198,10 @@ pub fn register_mapper(mapper: &'static Mapper)
 	// Check unbound PVs
 	for (&id,pv) in S_PHYSICAL_VOLUMES.lock().iter_mut()
 	{
+		if pv.dev.capacity().is_none() {
+			// No media, skip
+			continue ;
+		}
 		let level = mapper.handles_pv(&*pv.dev);
 		if level == 0
 		{

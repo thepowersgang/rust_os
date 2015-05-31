@@ -57,6 +57,7 @@ else
 fi
 QEMU_OPTS=$QEMU_OPTS" -drive if=ide,index=0,file=DiskImages/hda.img,format=raw"
 QEMU_OPTS=$QEMU_OPTS" -drive if=ide,index=1,file=DiskImages/hdb.img,format=raw"
+#QEMU_OPTS=$QEMU_OPTS" -cdrom /ruto/Downloads/ubuntu-12.04-desktop-amd64.iso"
 #QEMU_OPTS=$QEMU_OPTS" -trace file=qemu_trace"
 QEMU_OPTS=$QEMU_OPTS" -trace events=.qemu_trace,file=qemu_trace"
 QEMU_OPTS=$QEMU_OPTS" -d int -D qemu_int_log.txt"

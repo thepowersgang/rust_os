@@ -5,8 +5,12 @@
 //! x86 ATA driver
 #![feature(no_std,core,linkage)]
 #![no_std]
+#![feature(associated_consts)]
+
 #[macro_use] extern crate core;
 #[macro_use] extern crate kernel;
+extern crate storage_scsi;
+
 use kernel::prelude::*;
 use kernel::lib::mem::Arc;
 
@@ -26,6 +30,13 @@ struct AtaVolume
 	controller: Arc<io::DmaController>,
 	
 	size: u64,
+}
+
+struct AtapiVolume
+{
+	name: String,
+	disk: u8,
+	controller: Arc<io::DmaController>,
 }
 
 /// Initial controller handle, owns all volumes and the first controller handle
@@ -55,12 +66,12 @@ struct AtaIdentifyData
 	_unused2: [u16; 3],
 	firmware_ver: [u8; 8],
 	model_number: [u8; 40],
-	/// NFI, TODO look up
+	/// Maximum number of blocks per transfer
 	sect_per_int: u16,
 	_unused3: u16,
 	capabilities: [u16; 2],
 	_unused4: [u16; 2],
-	/// No idea
+	/// Bitset of translation fields (next five shorts)
 	valid_ext_data: u16,
 	_unused5: [u16; 5],
 	size_of_rw_multiple: u16,
@@ -115,7 +126,7 @@ impl ::kernel::metadevs::storage::PhysicalVolume for AtaVolume
 {
 	fn name(&self) -> &str { &*self.name }
 	fn blocksize(&self) -> usize { io::SECTOR_SIZE }
-	fn capacity(&self) -> u64 { self.size }
+	fn capacity(&self) -> Option<u64> { Some(self.size) }
 	
 	fn read<'a>(&'a self, _prio: u8, idx: u64, num: usize, dst: &'a mut [u8]) -> Result<Box<async::Waiter+'a>, storage::IoError>
 	{
@@ -135,6 +146,29 @@ impl ::kernel::metadevs::storage::PhysicalVolume for AtaVolume
 		Ok( () )
 	}
 	
+}
+
+impl AtapiVolume
+{
+	fn new(dma_controller: Arc<io::DmaController>, disk: u8) -> Self {
+		AtapiVolume {
+			name: format!("{}-{}", dma_controller.name, disk),
+			controller: dma_controller,
+			disk: disk,
+		}
+	}
+}
+impl storage_scsi::ScsiInterface for AtapiVolume
+{
+	fn name(&self) -> &str {
+		&self.name
+	}
+	fn send<'a>(&'a self, command: &'a [u8], data: &'a [u8]) -> async::AsyncResult<'a,usize,storage::IoError> {
+		self.controller.do_atapi_wr(self.disk, command, data)
+	}
+	fn recv<'a>(&'a self, command: &'a [u8], data: &'a mut [u8]) -> async::AsyncResult<'a,usize,storage::IoError> {
+		self.controller.do_atapi_rd(self.disk, command, data)
+	}
 }
 
 impl ControllerRoot
@@ -177,13 +211,12 @@ impl ControllerRoot
 				
 				let mut wh_pri = ctrlr_pri.ata_identify(i, &mut identify_pri, &mut type_pri);
 				let mut wh_sec = ctrlr_sec.ata_identify(i, &mut identify_sec, &mut type_sec);
-				//let mut wh_timer = ::kernel::async::Timer::new(2*1000);
+				//let mut wh_timer = ::kernel::async::timer::Waiter::new(2*1000);
 				
 				// Loop until timer fires, or both disks have read
-				while /* !wh_timer.is_complete() && */ !(wh_pri.is_complete() && wh_sec.is_complete())
+				while /* !wh_timer.is_complete() &&*/ !(wh_pri.is_complete() && wh_sec.is_complete())
 				{
-					//::kernel::async::wait_on_list(&mut [&mut wh_pri, &mut wh_sec, &mut wh_timer]);
-					::kernel::async::wait_on_list(&mut [&mut wh_pri, &mut wh_sec], None);
+					::kernel::async::wait_on_list(&mut [&mut wh_pri, &mut wh_sec/*, &mut wh_timer*/], None);
 				}
 			}
 			
@@ -209,7 +242,11 @@ impl ControllerRoot
 					},
 				AtaClass::ATAPI => {
 					log_log!("ATA{}: ATAPI", disk);
-					// TODO: Support ATAPI devices with a different class
+					match storage_scsi::Volume::new_boxed( AtapiVolume::new(dma_controller.clone(), disk) )
+					{
+					Ok(scsi_vol) => volumes.push( storage::register_pv( scsi_vol ) ),
+					Err(e) => log_error!("ATA{}: Error while creating SCSI device: {:?}", disk, e),
+					}
 					},
 				AtaClass::Unknown(r4, r5) => {
 					log_warning!("ATA{}: Unknown type response ({:#x}, {:#x})", disk, r4, r5);

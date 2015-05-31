@@ -446,6 +446,13 @@ impl<T> ArrayHandle<T>
 		self.alloc.count * ::PAGE_SIZE / ::core::mem::size_of::<T>()
 	}
 }
+impl<T> ::core::ops::Deref for ArrayHandle<T>
+{
+	type Target = [T];
+	fn deref(&self) -> &[T] {
+		self.alloc.as_slice(0, self.len())
+	}
+}
 
 impl<T> ::core::ops::Index<usize> for ArrayHandle<T>
 {
