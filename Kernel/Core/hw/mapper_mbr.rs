@@ -32,7 +32,8 @@ impl ::metadevs::storage::Mapper for Mapper
 
 	fn handles_pv(&self, pv: &::metadevs::storage::PhysicalVolume) -> usize {
 		if pv.blocksize() != 512 {
-			todo!("Support non 512 byte sectors in MBR mapper (got {})", pv.blocksize());
+			log_log!("Support non 512 byte sectors in MBR mapper (got {})", pv.blocksize());
+			return 0;
 		}
 		
 		let mut block: [u8; 512] = unsafe { ::core::mem::zeroed() };
