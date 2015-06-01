@@ -209,6 +209,28 @@ fn sysinit()
 		}
 	}
 	
+	// *. TEST Automount
+	// - Probably shouldn't be included in the final version, but works for testing filesystem and storage drivers
+	handle::Dir::open( Path::new("/") ).and_then(|h| h.mkdir("mount")).unwrap();
+	for (_,v) in ::metadevs::storage::enum_lvs()
+	{
+		let vh = match VolumeHandle::open_named(&v)
+			{
+			Err(e) => {
+				log_log!("Unable to open '{}': {}", v, e);
+				continue;
+				},
+			Ok(v) => v,
+			};
+		handle::Dir::open( Path::new("/mount") ).and_then(|h| h.mkdir(&v)).unwrap();
+		let mountpt = format!("/mount/{}",v);
+		match mount::mount( mountpt.as_ref(), vh, "", &[] )
+		{
+		Ok(_) => log_log!("Auto-mounted to {}", mountpt),
+		Err(e) => log_notice!("Unable to automount '{}': {:?}", v, e),
+		}
+		
+	}
 }
 
 // vim: ft=rust
