@@ -212,7 +212,7 @@ fn sysinit()
 	
 	// *. TEST Automount
 	// - Probably shouldn't be included in the final version, but works for testing filesystem and storage drivers
-	handle::Dir::open( Path::new("/") ).and_then(|h| h.mkdir("mount")).unwrap();
+	let mountdir = handle::Dir::open( Path::new("/") ).and_then(|h| h.mkdir("mount")).unwrap();
 	for (_,v) in ::metadevs::storage::enum_lvs()
 	{
 		let vh = match VolumeHandle::open_named(&v)
@@ -223,7 +223,7 @@ fn sysinit()
 				},
 			Ok(v) => v,
 			};
-		handle::Dir::open( Path::new("/mount") ).and_then(|h| h.mkdir(&v)).unwrap();
+		mountdir.mkdir(&v).unwrap();
 		let mountpt = format!("/mount/{}",v);
 		match mount::mount( mountpt.as_ref(), vh, "", &[] )
 		{
