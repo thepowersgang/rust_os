@@ -131,9 +131,9 @@ impl<'a> Waiter+'a
 	/// Wait on a single wait object
 	pub fn wait(&mut self)
 	{
+		log_debug!("Waiting on {:?}", self);
 		while !self.is_complete()
 		{
-			log_debug!("Waiting on {:?}", self);
 			let completed = {
 				let prim = self.get_waiter();
 				let mut obj = ::threads::SleepObject::new("wait_on_list");
@@ -150,7 +150,7 @@ impl<'a> Waiter+'a
 				log_trace!("- sleep over");
 				prim.is_ready()
 				};
-			log_trace!("completed = {}", completed);
+			// completed = This cycle is done, not everything?
 			if completed {
 				self.complete();
 			}

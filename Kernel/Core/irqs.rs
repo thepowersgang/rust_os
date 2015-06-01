@@ -122,7 +122,7 @@ impl IRQBinding
 		// If the current CPU owns the queue lock, don't do processing here
 		if let Some(mut lh) = self.handlers.try_lock_cpu()
 		{
-			log_trace!("Firing IRQ handlers (TODO: IRQ#)");
+			//log_trace!("Firing IRQ handlers (TODO: IRQ#)");
 			// Otherwise, lock the handlers list and run them
 			// - Should not cause a race condition, as the current CPU shouldn't be doing funny stuff
 			// - POSSIBLE : Reach here, other IRQ which causes changes to this IRQ's data?

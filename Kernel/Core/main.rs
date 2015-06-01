@@ -176,6 +176,19 @@ fn sysinit()
 	let sysroot = ::config::get_string(::config::Value::SysRoot);
 	handle::Dir::open(Path::new("/")).unwrap()
 		.symlink("sysroot", Path::new(sysroot)).unwrap();
+	
+	
+	fn ls(p: &Path) {
+		// - Iterate root dir
+		match handle::Dir::open(p)
+		{
+		Err(e) => log_warning!("'{:?}' cannot be opened: {:?}", p, e),
+		Ok(h) =>
+			for name in h.iter() {
+				log_log!("{:?}", name);
+			},
+		}
+	}
 
 	// *. Testing: open a file known to exist on the testing disk	
 	{
@@ -190,24 +203,8 @@ fn sysinit()
 			},
 		}
 		
-		// - Iterate root dir
-		match handle::Dir::open( Path::new("/") )
-		{
-		Err(e) => log_warning!("VFS root cannot be opened: {:?}", e),
-		Ok(h) =>
-			for name in h.iter() {
-				log_log!("{}: {:?}", 0, name);
-			},
-		}
-		// - Iterate /system
-		match handle::Dir::open( Path::new("/system") )
-		{
-		Err(e) => log_warning!("System volume cannot be opened: {:?}", e),
-		Ok(h) =>
-			for name in h.iter() {
-				log_log!("{:?}", name);
-			},
-		}
+		ls(Path::new("/"));
+		ls(Path::new("/system"));
 	}
 	
 	// *. TEST Automount
@@ -230,8 +227,8 @@ fn sysinit()
 		Ok(_) => log_log!("Auto-mounted to {}", mountpt),
 		Err(e) => log_notice!("Unable to automount '{}': {:?}", v, e),
 		}
-		
 	}
+	ls(Path::new("/mount/ATA-2w"));
 }
 
 // vim: ft=rust

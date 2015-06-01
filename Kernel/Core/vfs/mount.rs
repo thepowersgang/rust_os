@@ -113,7 +113,7 @@ impl_fmt! {
 		write!(f, "{}", match self
 			{
 			&MountError::UnknownFilesystem => "Filesystem driver not found",
-			&MountError::NoHandler => "No registerd filesystem driver handles this volume",
+			&MountError::NoHandler => "No registered filesystem driver handles this volume",
 			&MountError::MountpointUsed => "The specified mountpoint was already used",
 			&MountError::CallFailed => "Driver's mount call failed",
 			})

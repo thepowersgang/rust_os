@@ -85,6 +85,11 @@ impl ByteString
 		ByteString(Vec::new())
 	}
 }
+impl<'a> From<&'a [u8]> for ByteString {
+	fn from(v: &'a [u8]) -> ByteString {
+		ByteString(Vec::from(v))
+	}
+}
 impl<'a> From<&'a ByteStr> for ByteString {
 	fn from(v: &'a ByteStr) -> ByteString {
 		ByteString(Vec::from(v.as_bytes()))

@@ -665,23 +665,30 @@ impl_fmt! {
 impl AtaErrorVal
 {
 	const MARK: u8 = (1<<0);	// Bad address mark
-	const EOM:  u8 = (1<<1);	// End of media (ATAPI)
+	const TRK0: u8 = (1<<1);	// Cannot find track 0
 	const ABRT: u8 = (1<<2);	// Operation aborted (command not supported)
-	const MRC:  u8 = (1<<4);	// Media change request
+	const MCR:  u8 = (1<<3);	// Media change request
+	const ID:   u8 = (1<<4);	// ID field not found
+	const MC:   u8 = (1<<5);	// Media changed
+	const ECC:  u8 = (1<<6);	// Uncorrectable ECC
+	const ICRC: u8 = (1<<7);	// CRC error (or bad block, pre-EIDE)
 }
 impl_fmt! {
 	Debug(self,f) for AtaErrorVal {{
 		try!(write!(f, "({:#x}", self.0));
+		if self.0 & Self::MARK != 0 { try!(write!(f, " MARK")); }
+		if self.0 & Self::TRK0 != 0 { try!(write!(f, " TRK0")); }
+		if self.0 & Self::ABRT != 0 { try!(write!(f, " ABRT")); }
+		if self.0 & Self::MCR  != 0 { try!(write!(f, " MCR" )); }
+		if self.0 & Self::ID   != 0 { try!(write!(f, " ID"  )); }
+		if self.0 & Self::MC   != 0 { try!(write!(f, " MC"  )); }
+		if self.0 & Self::ECC  != 0 { try!(write!(f, " ECC" )); }
+		if self.0 & Self::ICRC != 0 { try!(write!(f, " ICRC")); }
 		write!(f, ")")
 	}}
 }
 impl AtapiErrorVal
 {
-	const MARK: u8 = (1<<0);	// Bad address mark
-	const EOM:  u8 = (1<<1);	// End of media (ATAPI)
-	const ABRT: u8 = (1<<2);	// Operation aborted (command not supported)
-	const MRC:  u8 = (1<<4);	// Media change request
-	
 	const NO_SENSE:        u8 = 0;
 	const RECOVERED_ERROR: u8 = 1;
 	const NOT_READY:       u8 = 2;

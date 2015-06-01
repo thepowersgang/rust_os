@@ -212,7 +212,7 @@ impl IOBinding
 	/// Read a single u8 from the binding
 	pub unsafe fn read_8(&self, ofs: usize) -> u8
 	{
-		log_trace!("read_8({:?}, {:#x})", self, ofs);
+		//log_trace!("read_8({:?}, {:#x})", self, ofs);
 		match *self
 		{
 		IOBinding::IO(base, s) => {
@@ -227,7 +227,7 @@ impl IOBinding
 	/// Writes a single u8 to the binding
 	pub unsafe fn write_8(&self, ofs: usize, val: u8)
 	{
-		log_trace!("write_8({:?}, {:#x}, {:#02x})", self, ofs, val);
+		//log_trace!("write_8({:?}, {:#x}, {:#02x})", self, ofs, val);
 		match *self
 		{
 		IOBinding::IO(base, s) => {
