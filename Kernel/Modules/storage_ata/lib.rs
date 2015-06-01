@@ -128,22 +128,22 @@ impl ::kernel::metadevs::storage::PhysicalVolume for AtaVolume
 	fn blocksize(&self) -> usize { io::SECTOR_SIZE }
 	fn capacity(&self) -> Option<u64> { Some(self.size) }
 	
-	fn read<'a>(&'a self, _prio: u8, idx: u64, num: usize, dst: &'a mut [u8]) -> Result<Box<async::Waiter+'a>, storage::IoError>
+	fn read<'a>(&'a self, _prio: u8, idx: u64, num: usize, dst: &'a mut [u8]) -> storage::AsyncIoResult<'a,()>
 	{
 		assert_eq!( dst.len(), num * io::SECTOR_SIZE );
 		self.controller.do_dma_rd(idx, num, dst, self.disk)
 	}
-	fn write<'s>(&'s self, _prio: u8, idx: u64, num: usize, src: &'s [u8]) -> Result<Box<async::Waiter+'s>, storage::IoError>
+	fn write<'a>(&'a self, _prio: u8, idx: u64, num: usize, src: &'a [u8]) -> storage::AsyncIoResult<'a,()>
 	{
 		assert_eq!( src.len(), num * io::SECTOR_SIZE );
 		let ctrlr = &self.controller;
 		ctrlr.do_dma_wr(idx, num, src, self.disk)
 	}
 	
-	fn wipe(&mut self, _blockidx: u64, _count: usize) -> Result<(),storage::IoError>
+	fn wipe<'a>(&'a self, _blockidx: u64, _count: usize) -> storage::AsyncIoResult<'a,()>
 	{
 		// Do nothing, no support for TRIM
-		Ok( () )
+		Box::new(async::NullResultWaiter::new( || Ok( () ) ))
 	}
 	
 }
@@ -163,10 +163,10 @@ impl storage_scsi::ScsiInterface for AtapiVolume
 	fn name(&self) -> &str {
 		&self.name
 	}
-	fn send<'a>(&'a self, command: &'a [u8], data: &'a [u8]) -> async::AsyncResult<'a,usize,storage::IoError> {
+	fn send<'a>(&'a self, command: &'a [u8], data: &'a [u8]) -> storage::AsyncIoResult<'a,usize> {
 		self.controller.do_atapi_wr(self.disk, command, data)
 	}
-	fn recv<'a>(&'a self, command: &'a [u8], data: &'a mut [u8]) -> async::AsyncResult<'a,usize,storage::IoError> {
+	fn recv<'a>(&'a self, command: &'a [u8], data: &'a mut [u8]) -> storage::AsyncIoResult<'a,usize>  {
 		self.controller.do_atapi_rd(self.disk, command, data)
 	}
 }

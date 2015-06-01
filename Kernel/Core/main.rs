@@ -174,7 +174,8 @@ fn sysinit()
 	
 	// 2. Symbolic link /sysroot to the specified folder
 	let sysroot = ::config::get_string(::config::Value::SysRoot);
-	handle::Dir::open(Path::new("/")).unwrap().symlink("sysroot", Path::new(sysroot));
+	handle::Dir::open(Path::new("/")).unwrap()
+		.symlink("sysroot", Path::new(sysroot)).unwrap();
 
 	// *. Testing: open a file known to exist on the testing disk	
 	{

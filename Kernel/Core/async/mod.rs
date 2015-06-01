@@ -17,6 +17,9 @@ pub mod event;
 pub mod queue;
 pub mod poll;
 
+/// A boxed ResultWaiter that resturns a Result
+pub type BoxAsyncResult<'a,T,E> = Box<ResultWaiter<Result=Result<T,E>>+'a>;
+
 /// Trait for primitive waiters
 ///
 /// Primitive waiters are the lowest level async objects, mostly provided by this module
@@ -50,6 +53,16 @@ pub trait PrimitiveWaiter:
 	}
 }
 
+#[derive(Debug)]
+pub struct NullWaiter;
+impl PrimitiveWaiter for NullWaiter {
+	fn is_complete(&self) -> bool { true }
+	fn poll(&self) -> bool { true }
+	fn run_completion(&mut self) { }
+	fn bind_signal(&mut self, _: &mut ::threads::SleepObject) -> bool { panic!("NullWaiter::bind_signal") }
+	fn unbind_signal(&mut self) { panic!("NullWaiter::unbind_signal") }
+}
+
 /// A more generic waiter object, that can handle state transitions
 pub trait Waiter:
 	::core::fmt::Debug
@@ -65,9 +78,6 @@ pub trait Waiter:
 	fn complete(&mut self) -> bool;
 }
 
-
-/// A boxed ResultWaiter that resturns a Result
-pub type AsyncResult<'a,T,E> = Box<ResultWaiter<Result=Result<T,E>>+'a>;
 /// A waiter that exposes access to a value upon completion
 pub trait ResultWaiter:
 	Waiter
@@ -81,6 +91,28 @@ pub trait ResultWaiter:
 	fn as_waiter(&mut self) -> &mut Waiter;// { self }
 }
 
+/// A null result waiter, which returns the result of a simple closure when asked
+pub struct NullResultWaiter<T, F: Fn()->T>(F,NullWaiter);
+impl<T, F: Fn()->T> NullResultWaiter<T,F> {
+	pub fn new(f: F) -> Self {
+		NullResultWaiter(f, NullWaiter)
+	}
+}
+impl<T, F: Fn()->T> ::core::fmt::Debug for NullResultWaiter<T,F> {
+	fn fmt(&self, f: &mut ::core::fmt::Formatter) -> ::core::fmt::Result {
+		write!(f, "NullResultWaiter")
+	}
+}
+impl<T, F: Fn()->T> Waiter for NullResultWaiter<T,F> {
+	fn is_complete(&self) -> bool { true }
+	fn get_waiter(&mut self) -> &mut PrimitiveWaiter { &mut self.1 }
+	fn complete(&mut self) -> bool { true }
+}
+impl<T, F: Fn()->T> ResultWaiter for NullResultWaiter<T,F> {
+	type Result = F::Output;
+	fn get_result(&mut self) -> Option<Self::Result> { Some( self.0() ) }
+	fn as_waiter(&mut self) -> &mut Waiter { self }
+}
 
 impl<T: PrimitiveWaiter> Waiter for T {
 	fn is_complete(&self) -> bool {
@@ -123,6 +155,16 @@ impl<'a> Waiter+'a
 				self.complete();
 			}
 		}
+	}
+}
+
+impl<'a,T> ResultWaiter<Result=T>+'a
+{
+	/// Wait for the waiter to complete, then return the result
+	pub fn wait(&mut self) -> T
+	{
+		Waiter::wait(self.as_waiter());
+		self.get_result().expect("Waiter complete, but no result")
 	}
 }
 

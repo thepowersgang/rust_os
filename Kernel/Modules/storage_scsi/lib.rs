@@ -10,15 +10,15 @@
 use kernel::prelude::*;
 
 use kernel::metadevs::storage;
-use kernel::async::{self, AsyncResult};
+use kernel::async;
 
 pub mod proto;
 
 pub trait ScsiInterface: Sync + Send + 'static
 {
 	fn name(&self) -> &str;
-	fn send<'a>(&'a self, command: &'a [u8], data: &'a [u8]) -> AsyncResult<'a,usize,storage::IoError>;
-	fn recv<'a>(&'a self, command: &'a [u8], data: &'a mut [u8]) -> AsyncResult<'a,usize,storage::IoError>;
+	fn send<'a>(&'a self, command: &'a [u8], data: &'a [u8]) -> storage::AsyncIoResult<'a,usize>;
+	fn recv<'a>(&'a self, command: &'a [u8], data: &'a mut [u8]) -> storage::AsyncIoResult<'a,usize>;
 }
 
 #[derive(Debug)]
@@ -106,16 +106,15 @@ impl<I: ScsiInterface> storage::PhysicalVolume for Volume<I>
 	fn blocksize(&self) -> usize { self.size.expect("Calling blocksize on no-media volume").0 }
 	fn capacity(&self) -> Option<u64> { self.size.map(|x| x.1) }
 	
-	fn read<'a>(&'a self, _prio: u8, idx: u64, num: usize, dst: &'a mut [u8]) -> Result<Box<async::Waiter+'a>, storage::IoError>
+	fn read<'a>(&'a self, _prio: u8, idx: u64, num: usize, dst: &'a mut [u8]) -> storage::AsyncIoResult<'a,()>
 	{
 		todo!("Volume::read");
 	}
-	fn write<'s>(&'s self, _prio: u8, idx: u64, num: usize, src: &'s [u8]) -> Result<Box<async::Waiter+'s>, storage::IoError>
-	{
+	fn write<'s>(&'s self, _prio: u8, idx: u64, num: usize, src: &'s [u8]) -> storage::AsyncIoResult<'s,()> {
 		todo!("Volume::write");
 	}
 	
-	fn wipe(&mut self, _blockidx: u64, _count: usize) -> Result<(),storage::IoError>
+	fn wipe<'a>(&'a self, _blockidx: u64, _count: usize) -> storage::AsyncIoResult<'a,()>
 	{
 		todo!("Volume::wipe");
 	}

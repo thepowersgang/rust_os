@@ -11,6 +11,8 @@ use lib::mem::Arc;
 
 module_define!{Storage, [], init}
 
+pub type AsyncIoResult<'a, T> = ::async::BoxAsyncResult<'a, T, IoError>;
+
 /// A unique handle to a storage volume (logical)
 pub struct VolumeHandle
 {
@@ -59,14 +61,14 @@ pub trait PhysicalVolume: Send + 'static
 	/// Reads `count` blocks starting with `blockidx` into the buffer `dst` (which will/should
 	/// be the size of `count` blocks). The read is performed with the provided priority, where
 	/// 0 is higest, and 255 is lowest.
-	fn read<'a>(&'a self, prio: u8, blockidx: u64, count: usize, dst: &'a mut [u8]) -> Result<Box<::async::Waiter+'a>, IoError>;
+	fn read<'a>(&'a self, prio: u8, blockidx: u64, count: usize, dst: &'a mut [u8]) -> AsyncIoResult<'a,()>;
 	/// Writer a number of blocks to the volume
-	fn write<'a>(&'a self, prio: u8, blockidx: u64, count: usize, src: &'a [u8]) -> Result<Box<::async::Waiter+'a>, IoError>;
+	fn write<'a>(&'a self, prio: u8, blockidx: u64, count: usize, src: &'a [u8]) -> AsyncIoResult<'a,()>;
 	/// Erases a number of blocks from the volume
 	///
 	/// Erases (requests the underlying storage forget about) `count` blocks starting at `blockidx`.
 	/// This is functionally equivalent to the SSD "TRIM" command.
-	fn wipe(&mut self, blockidx: u64, count: usize) -> Result<(),IoError>;
+	fn wipe<'a>(&'a self, blockidx: u64, count: usize) -> AsyncIoResult<'a,()>;
 }
 
 /// Registration for a physical volume handling driver
@@ -444,7 +446,7 @@ impl PhysicalVolumeInfo
 				let blocks = buf.len() / block_size;
 				
 				// TODO: Async! (maybe return a composite read handle?)
-				try!(self.dev.read(prio, blk_id, blocks, buf)).wait();
+				self.dev.read(prio, blk_id, blocks, buf).wait().unwrap()
 			}
 		}
 		Ok(dst.len()/block_size)

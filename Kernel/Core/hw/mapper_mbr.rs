@@ -37,7 +37,7 @@ impl ::metadevs::storage::Mapper for Mapper
 		}
 		
 		let mut block: [u8; 512] = unsafe { ::core::mem::zeroed() };
-		pv.read(0, 0, 1, &mut block).unwrap().wait();
+		pv.read(0, 0, 1, &mut block).wait().unwrap();
 		
 		log_debug!("PV '{}' boot sig {:02x} {:02x}", pv.name(), block[0x1FE], block[0x1FF]);
 		if block[0x1FE] == 0x55 && block[0x1FE+1] == 0xAA {
@@ -52,7 +52,7 @@ impl ::metadevs::storage::Mapper for Mapper
 		assert!(pv.blocksize() == 512);
 		
 		let mut block: [u8; 512] = unsafe { ::core::mem::zeroed() };
-		pv.read(0, 0, 1, &mut block).unwrap().wait();
+		pv.read(0, 0, 1, &mut block).wait().unwrap();
 		assert!(block[510] == 0x55 && block[511] == 0xAA);
 		
 		// the "unique ID" (according to the osdev.org wiki) might just be the tail of the MBR code

@@ -76,14 +76,14 @@ impl DmaController
 	}
 
 	/// Read ATA DMA
-	pub fn do_dma_rd<'a>(&'a self, blockidx: u64, count: usize, dst: &'a mut [u8], disk: u8) -> Result<Box<async::Waiter+'a>,storage::IoError> {
+	pub fn do_dma_rd<'a>(&'a self, blockidx: u64, count: usize, dst: &'a mut [u8], disk: u8) -> storage::AsyncIoResult<'a,()> {
 		self.do_dma(blockidx, count, DMABuffer::new_contig_mut(dst, 32), disk, false)
 	}
 	/// Write ATA DMA
-	pub fn do_dma_wr<'a>(&'a self, blockidx: u64, count: usize, dst: &'a [u8], disk: u8) -> Result<Box<async::Waiter+'a>,storage::IoError> {
+	pub fn do_dma_wr<'a>(&'a self, blockidx: u64, count: usize, dst: &'a [u8], disk: u8) -> storage::AsyncIoResult<'a,()> {
 		self.do_dma(blockidx, count, DMABuffer::new_contig(dst, 32), disk, true)
 	}
-	fn do_dma<'a>(&'a self, blockidx: u64, count: usize, dst: DMABuffer<'a>, disk: u8, is_write: bool) -> Result<Box<async::Waiter+'a>,storage::IoError>
+	fn do_dma<'a>(&'a self, blockidx: u64, count: usize, dst: DMABuffer<'a>, disk: u8, is_write: bool) -> storage::AsyncIoResult<'a,()>
 	{
 		assert!(disk < 4);
 		assert!(count < MAX_DMA_SECTORS);
@@ -97,17 +97,16 @@ impl DmaController
 		let bm_regs = self.borrow_regs(bus == 1);
 		
 		let ub = ctrlr.do_dma(blockidx, dst, disk, is_write, bm_regs);
-		let b = Box::new(ub);
-		Ok( b )
+		Box::new(ub)
 	}
 	
-	pub fn do_atapi_rd<'a>(&'a self, disk: u8, cmd: &'a [u8], dst: &'a mut [u8]) -> async::AsyncResult<'a,usize,storage::IoError> {
+	pub fn do_atapi_rd<'a>(&'a self, disk: u8, cmd: &'a [u8], dst: &'a mut [u8]) -> storage::AsyncIoResult<'a,usize> {
 		self.do_atapi(disk, cmd, DMABuffer::new_contig_mut(dst, 32), false)
 	}
-	pub fn do_atapi_wr<'a>(&'a self, disk: u8, cmd: &'a [u8], dst: &'a [u8]) -> async::AsyncResult<'a,usize,storage::IoError> {
+	pub fn do_atapi_wr<'a>(&'a self, disk: u8, cmd: &'a [u8], dst: &'a [u8]) -> storage::AsyncIoResult<'a,usize> {
 		self.do_atapi(disk, cmd, DMABuffer::new_contig(dst, 32), true)
 	}
-	fn do_atapi<'a>(&'a self, disk: u8, cmd: &'a [u8], dst: DMABuffer<'a>, is_write: bool) -> async::AsyncResult<'a,usize,storage::IoError>
+	fn do_atapi<'a>(&'a self, disk: u8, cmd: &'a [u8], dst: DMABuffer<'a>, is_write: bool) -> storage::AsyncIoResult<'a,usize>
 	{
 		assert!(disk < 4);
 		
@@ -342,6 +341,20 @@ struct AtaWaiter<'dev,'buf>
 	dma_regs: DmaRegBorrow<'dev>,
 	dma_buffer: DMABuffer<'buf>,
 	state: WaitState<'dev>,
+}
+impl<'a,'b> async::ResultWaiter for AtaWaiter<'a,'b>
+{
+	type Result = Result<(), storage::IoError>;
+	
+	fn get_result(&mut self) -> Option<Self::Result> {
+		match self.state
+		{
+		WaitState::Done(r) => Some(r),
+		_ => None,
+		}
+	}
+	
+	fn as_waiter(&mut self) -> &mut async::Waiter { self }
 }
 
 impl<'a,'b> async::Waiter for AtaWaiter<'a,'b>
