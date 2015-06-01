@@ -163,10 +163,10 @@ impl storage_scsi::ScsiInterface for AtapiVolume
 	fn name(&self) -> &str {
 		&self.name
 	}
-	fn send<'a>(&'a self, command: &'a [u8], data: &'a [u8]) -> storage::AsyncIoResult<'a,usize> {
+	fn send<'a>(&'a self, command: &[u8], data: &'a [u8]) -> storage::AsyncIoResult<'a,()> {
 		self.controller.do_atapi_wr(self.disk, command, data)
 	}
-	fn recv<'a>(&'a self, command: &'a [u8], data: &'a mut [u8]) -> storage::AsyncIoResult<'a,usize>  {
+	fn recv<'a>(&'a self, command: &[u8], data: &'a mut [u8]) -> storage::AsyncIoResult<'a,()>  {
 		self.controller.do_atapi_rd(self.disk, command, data)
 	}
 }

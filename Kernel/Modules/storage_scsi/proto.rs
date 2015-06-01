@@ -27,6 +27,7 @@ macro_rules! def_rsp {
 }
 
 pub struct Read6([u8; 6]);
+impl AsRef<[u8]> for Read6 { fn as_ref(&self) -> &[u8] { &self.0 } }
 impl Read6
 {
 	const CMD: u8 = 0x08;
@@ -62,6 +63,27 @@ impl Read10
 {
 	pub fn set_control(&mut self, control: u8) {
 		self.0[9] = control;
+	}
+}
+
+def_cmd!{ Read12[12] 0xA8,
+	(lba: u32, count: u32) => [
+		0,	// 1: flags
+		((lba >> 24) & 0xFF) as u8,
+		((lba >> 16) & 0xFF) as u8,
+		((lba >>  8) & 0xFF) as u8,
+		((lba >>  0) & 0xFF) as u8,
+		((count >> 24) & 0xFF) as u8,
+		((count >> 16) & 0xFF) as u8,
+		((count >>  8) & 0xFF) as u8,
+		((count >>  0) & 0xFF) as u8,
+		0,	// 10: group number
+		0	// 11: control
+	] }
+impl Read12
+{
+	pub fn set_control(&mut self, control: u8) {
+		self.0[11] = control;
 	}
 }
 

@@ -17,8 +17,8 @@ pub mod proto;
 pub trait ScsiInterface: Sync + Send + 'static
 {
 	fn name(&self) -> &str;
-	fn send<'a>(&'a self, command: &'a [u8], data: &'a [u8]) -> storage::AsyncIoResult<'a,usize>;
-	fn recv<'a>(&'a self, command: &'a [u8], data: &'a mut [u8]) -> storage::AsyncIoResult<'a,usize>;
+	fn send<'a>(&'a self, command: &[u8], data: &'a [u8]) -> storage::AsyncIoResult<'a,()>;
+	fn recv<'a>(&'a self, command: &[u8], data: &'a mut [u8]) -> storage::AsyncIoResult<'a,()>;
 }
 
 #[derive(Debug)]
@@ -108,7 +108,26 @@ impl<I: ScsiInterface> storage::PhysicalVolume for Volume<I>
 	
 	fn read<'a>(&'a self, _prio: u8, idx: u64, num: usize, dst: &'a mut [u8]) -> storage::AsyncIoResult<'a,()>
 	{
-		todo!("Volume::read");
+		// NOTE: Read6 commented out, as qemu's CD code doesn't support it
+		let rv = /*if idx < (1<<24) && num < (1 << 8) {
+				log_trace!("SCSI Read6");
+				self.int.recv(proto::Read6::new(idx as u32, num as u8).as_ref(), dst)
+			}
+			else*/ if idx < (1<<32) && num < (1 << 16) {
+				log_trace!("SCSI Read10");
+				self.int.recv(proto::Read10::new(idx as u32, num as u16).as_ref(), dst)
+			}
+			else if /*idx < (1 << 64) &&*/ num < (1 << 32) {
+				log_trace!("SCSI Read16");
+				self.int.recv(proto::Read16::new(idx, num as u32).as_ref(), dst)
+			}
+			else {
+				todo!("SCSI read out of range");
+			};
+		
+		// TODO: use when recv API is changed back to return the read byte count
+		//Box::new( rv.map(|x| x.map(|_| ())) )
+		rv
 	}
 	fn write<'s>(&'s self, _prio: u8, idx: u64, num: usize, src: &'s [u8]) -> storage::AsyncIoResult<'s,()> {
 		todo!("Volume::write");

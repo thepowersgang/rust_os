@@ -100,13 +100,13 @@ impl DmaController
 		Box::new(ub)
 	}
 	
-	pub fn do_atapi_rd<'a>(&'a self, disk: u8, cmd: &'a [u8], dst: &'a mut [u8]) -> storage::AsyncIoResult<'a,usize> {
+	pub fn do_atapi_rd<'a>(&'a self, disk: u8, cmd: &[u8], dst: &'a mut [u8]) -> storage::AsyncIoResult<'a,()> {
 		self.do_atapi(disk, cmd, DMABuffer::new_contig_mut(dst, 32), false)
 	}
-	pub fn do_atapi_wr<'a>(&'a self, disk: u8, cmd: &'a [u8], dst: &'a [u8]) -> storage::AsyncIoResult<'a,usize> {
+	pub fn do_atapi_wr<'a>(&'a self, disk: u8, cmd: &[u8], dst: &'a [u8]) -> storage::AsyncIoResult<'a,()> {
 		self.do_atapi(disk, cmd, DMABuffer::new_contig(dst, 32), true)
 	}
-	fn do_atapi<'a>(&'a self, disk: u8, cmd: &'a [u8], dst: DMABuffer<'a>, is_write: bool) -> storage::AsyncIoResult<'a,usize>
+	fn do_atapi<'a>(&'a self, disk: u8, cmd: &[u8], dst: DMABuffer<'a>, is_write: bool) -> storage::AsyncIoResult<'a,()>
 	{
 		assert!(disk < 4);
 		
@@ -203,7 +203,8 @@ impl AtaRegs
 					match AtapiErrorVal(err).sense_key()
 					{
 					AtapiErrorVal::NOT_READY => storage::IoError::NoMedium,
-					_ => storage::IoError::Unknown("atapi"),
+					AtapiErrorVal::ILLEGAL_REQUEST => storage::IoError::InvalidParameter,
+					_ => storage::IoError::Unknown("ATAPI Error code"),
 					}
 				}
 				else
@@ -277,7 +278,7 @@ impl AtaRegs
 		}
 	}
 	
-	fn start_atapi(&mut self, bm: &DmaRegBorrow, disk: u8, is_write: bool, cmd: &[u8], dma_buffer: &DMABuffer)
+	fn start_atapi(&mut self, bm: &DmaRegBorrow, disk: u8, is_write: bool, cmd: &[u16], dma_buffer: &DMABuffer)
 	{
 		log_debug!("start_atapi(...,disk={},is_write,is_write={},cmd={{len={}}},dma_buffer={{len={}}})",
 			disk, is_write, cmd.len(), dma_buffer.len());
@@ -308,19 +309,8 @@ impl AtaRegs
 			assert!(self.in_sts() & (1<<3) != 0);
 			
 			// Send command
-			for i in 0 .. 6
-			{
-				// Read zero-padded little endian words from stream
-				let w = if i*2+1 < cmd.len() {
-						cmd[i*2] as u16 | ((cmd[i*2+1] as u16) << 8)
-					}
-					else if i*2+1 == cmd.len() {
-						cmd[cmd.len()-1] as u16
-					}
-					else {
-						0
-					};
-				self.out_16(0, w);
+			for i in 0 .. 6 {
+				self.out_16(0, cmd[i]);
 			}
 		}
 	}
@@ -423,18 +413,19 @@ struct AtapiWaiter<'dev,'buf>
 	disk: u8,
 	is_write: bool,
 	dma_regs: DmaRegBorrow<'dev>,
-	cmd_buffer: &'buf [u8],
+	cmd_buffer: [u16; 6],
 	dma_buffer: DMABuffer<'buf>,
 	state: WaitState<'dev>,
 }
 impl<'a,'b> async::ResultWaiter for AtapiWaiter<'a,'b>
 {
-	type Result = Result<usize, storage::IoError>;
+	type Result = Result<(), storage::IoError>;
 	
 	fn get_result(&mut self) -> Option<Self::Result> {
 		match self.state
 		{
-		WaitState::Done(r) => Some(r.map( |_| self.dma_buffer.len() )),
+		//WaitState::Done(r) => Some(r.map( |_| self.dma_buffer.len() )),
+		WaitState::Done(r) => Some(r),
 		_ => None,
 		}
 	}
@@ -469,7 +460,7 @@ impl<'a,'b> async::Waiter for AtapiWaiter<'a,'b>
 			// If the Acquire wait completed, switch to IoActive state
 			WaitState::Acquire(ref mut waiter) => {
 				let mut lh = waiter.take_lock();
-				lh.start_atapi( &self.dma_regs, self.disk, self.is_write, self.cmd_buffer, &self.dma_buffer );
+				lh.start_atapi( &self.dma_regs, self.disk, self.is_write, &self.cmd_buffer, &self.dma_buffer );
 				WaitState::IoActive(lh, self.dev.interrupt.handle.get_event().wait())
 				},
 			// And if IoActive completes, we're complete
@@ -527,14 +518,31 @@ impl AtaController
 			state: WaitState::Acquire( self.regs.async_lock() ),
 		}
 	}
-	fn do_atapi<'a,'b>(&'a self, disk: u8, dma_regs: DmaRegBorrow<'a>, cmd: &'b [u8], dst: DMABuffer<'b>, is_write: bool) -> AtapiWaiter<'a,'b>
+	fn do_atapi<'a,'b>(&'a self, disk: u8, dma_regs: DmaRegBorrow<'a>, cmd: &[u8], dst: DMABuffer<'b>, is_write: bool) -> AtapiWaiter<'a,'b>
 	{
+		let cmdbuf = {
+			let mut buf = [0u16; 6];
+			for i in 0 .. 6 {
+				// Read zero-padded little endian words from stream
+				let w = if i*2+1 < cmd.len() {
+						cmd[i*2] as u16 | ((cmd[i*2+1] as u16) << 8)
+					}
+					else if i*2+1 == cmd.len() {
+						cmd[cmd.len()-1] as u16
+					}
+					else {
+						0
+					};
+				buf[i] = w;
+			}
+			buf
+			};
 		AtapiWaiter {
 			dev: self,
 			disk: disk,
 			dma_regs: dma_regs,
 			is_write: is_write,
-			cmd_buffer: cmd,
+			cmd_buffer: cmdbuf,
 			dma_buffer: dst,
 			state: WaitState::Acquire( self.regs.async_lock() ),
 		}
@@ -679,6 +687,16 @@ impl AtapiErrorVal
 	const NOT_READY:       u8 = 2;
 	const MEDIUM_ERROR:    u8 = 3;
 	const HARDWARE_ERROR:  u8 = 4;
+	const ILLEGAL_REQUEST: u8 = 5;
+	const UNIT_ATTENTION:  u8 = 6; 
+	const DATA_PROTECT:    u8 = 7;
+	const BLANK_CHECK:     u8 = 8;
+	//                          9
+	const COPY_ABORTED:    u8 = 10;
+	const ABORTED_COMMAND: u8 = 11;
+	//                          12
+	const VOLUME_OVERFLOW: u8 = 13;
+	const MISCOMPARE:      u8 = 14;
 	
 	fn sense_key(&self) -> u8 { self.0 >> 4 }
 }
@@ -691,7 +709,18 @@ impl_fmt! {
 			Self::NOT_READY       => "NOT_READY",
 			Self::MEDIUM_ERROR    => "MEDIUM_ERROR",
 			Self::HARDWARE_ERROR  => "HARDWARE_ERROR",
-			v @ _ => "unk",	//format!("unk({})",v),
+			Self::ILLEGAL_REQUEST => "ILLEGAL_REQUEST",
+			Self::UNIT_ATTENTION  => "UNIT_ATTENTION",
+			Self::DATA_PROTECT    => "DATA_PROTECT",
+			Self::BLANK_CHECK     => "BLANK_CHECK",
+			9 => "unk9",
+			Self::COPY_ABORTED    => "COPY_ABORTED",
+			Self::ABORTED_COMMAND => "ABORTED_COMMAND",
+			12 => "unk12",
+			Self::VOLUME_OVERFLOW => "VOLUME_OVERFLOW",
+			Self::MISCOMPARE      => "MISCOMPARE",
+			15 => "unk15",
+			_ => "invalid",
 			}));
 		write!(f, ")")
 	}}
