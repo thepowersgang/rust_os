@@ -145,6 +145,22 @@ impl<T> Vec<T>
 			::core::ptr::write( self.data.get_ptr_mut(pos), value );
 		}
 	}
+	pub fn remove(&mut self, pos: usize) -> T {
+		assert!(pos < self.size);
+		unsafe
+		{
+			let rv = ::core::ptr::read( self.data.get_ptr_mut(pos) );
+			// Move elements (pos+1 .. len) to (pos .. len-1)
+			for i in (pos+1 .. self.size)
+			{
+				let src = self.data.get_ptr( i );
+				let dst = self.data.get_ptr_mut( i-1 );
+				::core::ptr::write(dst, ::core::ptr::read(src));
+			}
+			self.size -= 1;
+			rv
+		}
+	}
 	
 	/// Truncate a vector to the given size
 	pub fn truncate(&mut self, newsize: usize)

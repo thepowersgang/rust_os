@@ -34,6 +34,7 @@ pub struct SizePrinter(pub u64);
 pub enum IoError
 {
 	BadAddr,
+	InvalidParameter,
 	Timeout,
 	BadBlock,
 	ReadOnly,
@@ -175,12 +176,12 @@ pub fn register_pv(dev: Box<PhysicalVolume>) -> PhysicalVolumeReg
 		mapper: None,
 		});
 	
-	if let Some(mapper) = best_mapper
-	{
+	if let Some(mapper) = best_mapper {
 		apply_mapper_to_pv(mapper, best_mapper_level, pv_id, S_PHYSICAL_VOLUMES.lock().get_mut(&pv_id).unwrap())
 	}
 	else {
-		// TODO: Apply the fallback (full volume) mapper
+		// Apply the fallback (full volume) mapper
+		apply_mapper_to_pv(&default_mapper::S_MAPPER, 0, pv_id, S_PHYSICAL_VOLUMES.lock().get_mut(&pv_id).unwrap())
 	}
 	
 	PhysicalVolumeReg { idx: pv_id }
@@ -233,14 +234,38 @@ pub fn register_mapper(mapper: &'static Mapper)
 /// Apply the passed mapper to the provided physical volume
 fn apply_mapper_to_pv(mapper: &'static Mapper, level: usize, pv_id: usize, pvi: &mut PhysicalVolumeInfo)
 {
-	assert!(level > 0);
+	// - Can't compare fat raw pointers (ICE, #23888)
+	//assert!(level > 0 || mapper as *const _ == &default_mapper::S_MAPPER as *const _);
+	
 	// TODO: LOCK THE PVI
 	// 1. Determine if a previous mapper was controlling this volume
 	if let Some(..) = pvi.mapper
 	{
-		//  - Attempt to remove these mappings if possible
-		//pvi.mapper = None;
-		todo!("Remove existing mapping");
+		// Attempt to remove these mappings if possible
+		// > This means iterating the LV list (locked) and first checking if all
+		//   from this PV are not mounted, then removing them.
+		let mut lh = S_LOGICAL_VOLUMES.lock();
+		let keys: Vec<usize> = {
+			// - Count how many LVs using this PV are mounted
+			let num_mounted = lh.iter()
+				.filter( |&(_,lv)| lv.regions.iter().any(|r| r.volume == pv_id) )
+				.filter(|&(_,lv)| lv.is_opened)
+				.count();
+			if num_mounted > 0 {
+				log_notice!("{}LVs using PV #{} {} are mounted, not updating mapping", num_mounted, pv_id, pvi.dev.name() );
+				return ;
+			}
+			// > If none are mounted, then remove the mappings
+			lh.iter()
+				.filter( |&(_,lv)| lv.regions.iter().any(|r| r.volume == pv_id) )
+				.map(|(&i,_)| i)
+				.collect()
+			};
+		log_debug!("Removing {} LVs", keys.len());
+		for k in keys {
+			lh.remove(&k);
+		}
+		pvi.mapper = None;
 	}
 	// 2. Bind this new mapper to the volume
 	// - Save the mapper
@@ -372,7 +397,10 @@ impl VolumeHandle
 	/// The buffer must be a multiple of the logical block size
 	pub fn read_blocks(&self, idx: u64, dst: &mut [u8]) -> Result<(),IoError> {
 		log_trace!("VolumeHandle::read_blocks(idx={}, dst={{len={}}})", idx, dst.len());
-		assert!(dst.len() % self.block_size() == 0);
+		if dst.len() % self.block_size() != 0 {
+			log_warning!("Read size {} not a multiple of {} bytes", dst.len(), self.block_size());
+			return Err( IoError::InvalidParameter );
+		}
 		
 		let mut rem = dst.len() / self.block_size();
 		let mut blk = 0;
@@ -455,6 +483,27 @@ impl ::core::fmt::Display for SizePrinter
 		else //if self.0 < THRESHOLD << 40
 		{
 			write!(f, "{}TiB", self.0>>40)
+		}
+	}
+}
+
+mod default_mapper
+{
+	use prelude::*;
+	
+	pub struct Mapper;
+	
+	pub static S_MAPPER: Mapper = Mapper;
+	
+	impl ::metadevs::storage::Mapper for Mapper {
+		fn name(&self) -> &str { "fallback" }
+		fn handles_pv(&self, pv: &::metadevs::storage::PhysicalVolume) -> usize {
+			0
+		}
+		fn enum_volumes(&self, pv: &::metadevs::storage::PhysicalVolume, new_volume_cb: &mut FnMut(String, u64, u64)) {
+			if let Some(cap) = pv.capacity() {
+				new_volume_cb(format!("{}w", pv.name()), 0, cap );
+			}
 		}
 	}
 }

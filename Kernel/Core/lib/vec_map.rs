@@ -66,6 +66,14 @@ impl<K: Ord, V> VecMap<K,V>
 			},
 		}
 	}
+	/// Remove an item from the map
+	pub fn remove(&mut self, k: &K) -> Option<V> {
+		match self.ents.binary_search_by(|e| e.0.cmp(k))
+		{
+		Ok(idx) => Some( self.ents.remove(idx).1 ),
+		Err(_) => None,
+		}
+	}
 	
 	/// Return an 'entry' in the map, allowing cheap handling of insertion/lookup
 	pub fn entry(&mut self, key: K) -> Entry<K, V>
@@ -139,6 +147,12 @@ impl<'a, K, V> ::core::iter::Iterator for Iter<'a, K, V>
 		{
 			None
 		}
+	}
+}
+impl<'a, K, V> Copy for Iter<'a, K, V> { }
+impl<'a, K, V> Clone for Iter<'a, K, V> {
+	fn clone(&self) -> Self {
+		*self
 	}
 }
 
