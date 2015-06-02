@@ -31,7 +31,7 @@ impl FileNode
 }
 impl node::NodeBase for FileNode {
 	fn get_id(&self) -> node::InodeId {
-		todo!("")
+		todo!("FileNode::get_id")
 	}
 }
 impl node::File for FileNode {
@@ -78,7 +78,6 @@ impl node::File for FileNode {
 			};
 		
 		// The rest of the clusters
-		// - TODO: maybe read directly into the buffer if possible?
 		for dst in chunks
 		{
 			let cluster = match clusters.next()

@@ -85,7 +85,8 @@ impl ::device_manager::Driver for PCIChildBusDriver
 		// Get sub-bus number
 		let sec_bus_id = (read_word(addr, 6) >> 8) & 0xFF;
 		log_debug!("PCI Bridge Bind: sec_bus_id = {:#02x}", sec_bus_id);
-		panic!("TODO");
+		
+		todo!("PCIChildBusDriver::bind");
 	}
 }
 
@@ -133,7 +134,7 @@ impl ::device_manager::BusDevice for PCIDev
 	fn set_power(&mut self, state: bool)
 	{
 		// Nope
-		panic!("TODO: Set power state of PCI devices (state={})", state);
+		todo!("Set power state of PCI devices (state={})", state);
 	}
 	fn bind_io(&mut self, block_id: usize) -> ::device_manager::IOBinding
 	{
@@ -166,7 +167,7 @@ impl ::device_manager::BusDevice for PCIDev
 		}
 		else
 		{
-			panic!("TODO: PCI get_irq {} > 0", idx);
+			todo!("PCI get_irq {} > 0", idx);
 		}
 	}
 }

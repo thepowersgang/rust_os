@@ -139,7 +139,7 @@ impl mount::Driver for Driver
 				bs_c.fat_size_16 as usize
 			}
 			else {
-				todo!("FAT32 FAT size field");
+				bs.info32().expect("Zero FAT size, and no 32 info").fat_size_32 as usize
 			};
 		let total_sectors = if bs_c.total_sectors_16 > 0 {
 				bs_c.total_sectors_16 as usize
@@ -194,9 +194,6 @@ type Cluster = Vec<u8>;
 impl FilesystemInner
 {
 	/// Load a cluster from disk
-	// TODO: V V V
-	// - Should this function lock the cluster somehow to prevent accidental overlap?
-	// - Could also cache somehow (with a refcount) along with the 'writing' flag
 	fn read_cluster(&self, cluster: u32, dst: &mut [u8]) -> Result<(), storage::IoError> {
 		log_trace!("Filesystem::read_cluster({:#x})", cluster);
 		assert_eq!(dst.len(), self.cluster_size);
@@ -219,6 +216,10 @@ impl FilesystemInner
 		//::kernel::logging::hex_dump("FAT Cluster", &buf);
 		Ok( () )
 	}
+
+	// TODO: Locking/Cache
+	// - Should this function lock the cluster somehow to prevent accidental overlap?
+	// - Could also cache somehow (with a refcount) along with the 'writing' flag
 	fn load_cluster(&self, cluster: u32) -> Result<Cluster, storage::IoError> {
 		let mut buf: Vec<u8> = ::core::iter::repeat(0).take(self.spc * self.vh.block_size()).collect();
 		try!(self.read_cluster(cluster, &mut buf));

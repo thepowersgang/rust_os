@@ -9,9 +9,6 @@ use core::{ops,fmt};
 use lib::collections::{MutableSeq};
 use memory::heap::ArrayAlloc;
 
-// TODO: Replace allocation with a boxed slice (or some other managed allocation)
-// - Maybe a heap-provided "Array" type that is safe to alloc/free, but unsafe to access
-
 /// Growable array of items
 pub struct Vec<T>
 {

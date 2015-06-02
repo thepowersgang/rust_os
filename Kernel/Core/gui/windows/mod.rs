@@ -81,12 +81,12 @@ pub struct WindowHandle
 
 // - 13 sessions, #0 is fixed to be the kernel's log 1-12 are bound to F1-F12
 const C_MAX_SESSIONS: usize = 13;
-// TODO: When associated statics are implemented, replace this with a non-lazy mutex.
 static S_WINDOW_GROUPS: LazyMutex<SparseVec< Arc<Mutex<WindowGroup>> >> = lazymutex_init!();
 static S_CURRENT_GROUP: ::core::atomic::AtomicUsize = ::core::atomic::ATOMIC_USIZE_INIT;
 
 static S_RENDER_REQUEST: ::sync::EventChannel = ::sync::EVENTCHANNEL_INIT;
 static S_EVENT_QUEUE: LazyStatic<::lib::ring_buffer::AtomicRingBuf<super::input::Event>> = lazystatic_init!();
+// Keep this lazy, as it's runtime initialised
 static S_RENDER_THREAD: LazyMutex<::threads::ThreadHandle> = lazymutex_init!();
 
 pub fn init()

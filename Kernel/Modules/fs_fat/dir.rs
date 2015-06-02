@@ -33,7 +33,7 @@ impl DirNode {
 
 impl node::NodeBase for DirNode {
 	fn get_id(&self) -> node::InodeId {
-		todo!("")
+		todo!("DirNode::get_id")
 	}
 }
 

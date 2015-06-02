@@ -87,7 +87,7 @@ impl<I: ScsiInterface> Volume<I>
 				log_debug!("No medium");
 				None
 				},
-			Err(e) => todo!("handle error while initialising SCSI volume: {:?}", e),
+			Err(e) => return Err(From::from(e)),
 			}
 			};
 		log_debug!("SCSI Volume {:?} size={:?}", class, size);
