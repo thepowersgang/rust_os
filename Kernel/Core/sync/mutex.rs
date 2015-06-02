@@ -44,7 +44,7 @@ impl<T: Send> Mutex<T>
 	pub const fn new(val: T) -> Mutex<T> {
 		Mutex {
 			inner: ::sync::Spinlock::new(MUTEX_INNER_INIT),
-			val: ::core::cell::UnsafeCell { value: val },
+			val: ::core::cell::UnsafeCell::new(val),
 		}
 	}
 	

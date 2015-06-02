@@ -61,7 +61,7 @@ RUSTFLAGS += -C soft-float	# Disables requiring SSE etc
 RUSTFLAGS += -C target-feature=$(subst $(space),$(comma),$(EXCLUDE_FEATURES:%=-%))
 RUSTFLAGS += --cfg arch__$(ARCH)
 RUSTFLAGS += -L bin/plugins/
-RUSTFLAGS += --cfg nightly
+RUSTFLAGS += --cfg nightly --cfg no_std
 ifeq ($(USE_ACPICA),1)
 	RUSTFLAGS += --cfg use_acpica
 endif
@@ -81,6 +81,7 @@ LIBCORESRC := ../libcore/
 
 OBJS := $(OBJS:%=$(OBJDIR)%)
 LIBS := $(OBJDIR)libva_list.rlib
+LIBS += $(OBJDIR)libstack_dst.rlib
 
 .SUFFIXES:
 .PHONY: all clean docs run
@@ -191,6 +192,11 @@ $(OBJDIR)lib%.rlib: ../externals/crates.io/%/src/lib.rs $(OBJDIR)libcore.rlib
 	$(eval D=$(dir $(dir $(dir $@))))
 	@mkdir -p $(D)
 	cd $(D) && git clone https://github.com/thepowersgang/va_list-rs
+
+../externals/crates.io/stack_dst/src/lib.rs:
+	$(eval D=$(dir $(dir $(dir $@))))
+	@mkdir -p $(D)
+	cd $(D) && git clone https://github.com/thepowersgang/stack_dst-rs
 
 # - Plugins
 bin/plugins/lib%.so: SynExts/%/src/lib.rs $(PREFIX)bin/rustc

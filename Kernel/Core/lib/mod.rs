@@ -40,7 +40,7 @@ pub mod btree_map;
 
 pub mod ring_buffer;
 
-//pub mod stack_dsts;
+pub extern crate stack_dst;
 
 pub mod io;
 pub mod byteorder;
