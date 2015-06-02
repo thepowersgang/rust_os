@@ -169,7 +169,7 @@ impl VgaFramebuffer
 		
 		self.crtc.commit(self.io_base + 0x24);
 		
-		panic!("TODO: Set/check firequency {}Hz", attrs.frequency);
+		todo!("Set/check firequency {}Hz", attrs.frequency);
 	}
 	
 	fn col32_to_u8(&self, colour: u32) -> u8
@@ -204,7 +204,7 @@ impl CrtcAttrs
 			v_back_porch: 33,
 			},
 		_ => {
-			panic!("TODO: Obtain CRTC attributes from resolution {}x{} at {}Hz", w, h, freq);
+			todo!("Obtain CRTC attributes from resolution {}x{} at {}Hz", w, h, freq);
 			}
 		}
 	}
@@ -231,17 +231,17 @@ impl video::Framebuffer for VgaFramebuffer
 	}
 	
 	fn blit_inner(&mut self, dst: Rect, src: Rect) {
-		panic!("TODO: VGA blit_inner {} to {}", src, dst);
+		todo!("VGA blit_inner {} to {}", src, dst);
 	}
 	fn blit_ext(&mut self, dst: Rect, src: Rect, srf: &Framebuffer) -> bool {
 		match srf.as_any().downcast_ref::<VgaFramebuffer>()
 		{
-		Some(_) => panic!("TODO: VGA blit_ext {} to  {}", src, dst),
+		Some(_) => todo!("VGA blit_ext {} to  {}", src, dst),
 		None => false,
 		}
 	}
 	fn blit_buf(&mut self, dst: Rect, buf: &[u32]) {
-		panic!("TODO: VGA blit_buf {} pixels to {}", buf.len(), dst);
+		todo!("VGA blit_buf {} pixels to {}", buf.len(), dst);
 	}
 	fn fill(&mut self, dst: Rect, colour: u32) {
 		assert!( dst.within(self.w as u32, self.h as u32) );
