@@ -5,8 +5,8 @@
 // - Dynamic memory manager
 
 // TODO: Rewrite this to correctly use the size information avaliable
+use core::prelude::*;
 
-use core::option::Option::{self,None,Some};
 use core::ptr::Unique;
 use core::ops;
 
@@ -114,9 +114,19 @@ pub unsafe fn alloc<T>(value: T) -> *mut T
 	::core::ptr::write(ret, value);
 	ret
 }
+pub unsafe fn alloc_raw(size: usize, align: usize) -> *mut () {
+	match allocate(HeapId::Global, size, align)
+	{
+	Some(v) => v,
+	None => panic!("Out of memory")
+	}
+}
 pub unsafe fn dealloc<T>(value: *mut T)
 {
 	deallocate(value as *mut (), ::core::mem::size_of::<T>(), ::core::mem::align_of::<T>());
+}
+pub unsafe fn dealloc_raw(ptr: *mut (), size: usize, align: usize) {
+	deallocate(ptr, size, align);
 }
 
 impl<T> ArrayAlloc<T>
