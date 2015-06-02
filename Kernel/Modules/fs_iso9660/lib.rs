@@ -68,11 +68,14 @@ impl mount::Driver for Driver
 		}
 	}
 	fn mount(&self, vol: VolumeHandle) -> vfs::Result<Box<mount::Filesystem>> {
+		// For this to work properly, the block size must evenly divide 2048
 		if 2048 % vol.block_size() != 0 {
 			return Err( vfs::Error::Unknown("Can't mount ISO9660 with sector size not a factor of 2048"/*, vol.block_size()*/) );
 		}
 		let scale = 2048 / vol.block_size();
 		
+		// Search the start of the disk for the primary volume descriptor
+		// - TODO: Limit the number of sectors searched.
 		let mut block: Vec<u8> = (0 .. 2048).map(|_|0).collect();
 		for sector in (16 .. )
 		{
@@ -91,7 +94,7 @@ impl mount::Driver for Driver
 				// Try the next one
 			}
 		}
-		::kernel::logging::hex_dump("ISO966 PVD", &block);
+		//::kernel::logging::hex_dump("ISO966 PVD", &block);
 		
 		// Obtain the logical block size (different from medium sector size)
 		let lb_size = LittleEndian::read_u16(&block[128..]);
@@ -135,27 +138,35 @@ impl mount::Filesystem for Instance
 }
 impl InstanceInner
 {
+	/// Read a sector from the disk into the provided buffer
 	fn read_sector(&self, sector: u32, buf: &mut [u8]) -> Result<(), storage::IoError> {
-		try!( self.vh.read_blocks( (sector as usize * self.lb_size / self.vh.block_size()) as u64, buf) );
+		assert_eq!(buf.len(), self.lb_size);
+		// - Will be round, Driver::mount() ensures this
+		let hwsects_per_lb = self.lb_size / self.vh.block_size();
+		let hwsector = sector as usize * hwsects_per_lb;
+		try!( self.vh.read_blocks( hwsector as u64, buf) );
 		Ok( () )
 		
 	}
+	/// Read a metadata sector via a cache
 	fn get_sector(&self, sector: u32) -> Result<Arc<[u8]>, storage::IoError> {
 		assert!(sector > 0);
-		// TODO: Cache sector data
-		// - I would like to keep Rc<[u8]> in a VecMap or similar, keep four or so around as a LRU cache.
+		
 		let mut lh = self.lru_blocks.lock();
 		let (mut oldest_i, mut oldest_ts) = (0,!0);
-		for (i,e) in lh.iter().enumerate()
+		// Search cache for the sector (and look for a suitable location)
+		for (i,e) in lh.iter_mut().enumerate()
 		{
 			match *e
 			{
-			Some(ref e) => {
+			Some(ref mut e) => {
 				if e.time < oldest_ts {
 					oldest_i = i;
 					oldest_ts = e.time;
 				}
+				// If the LBA matches, update the timestamp and return a handle
 				if e.lba == sector {
+					e.time = ::kernel::time::ticks();
 					return Ok(e.data.clone());
 				}
 				},
@@ -166,6 +177,7 @@ impl InstanceInner
 			}
 		}
 		
+		// If the block wasn't in the cache, read and cache it
 		let mut data: Arc<[u8]> = Arc::from_iter( (0 .. self.lb_size).map(|_| 0u8) );
 		try!(self.read_sector(sector, ::kernel::lib::mem::arc::get_mut(&mut data).unwrap()));
 		
@@ -174,6 +186,7 @@ impl InstanceInner
 			lba: sector,
 			data: data.clone(),
 			});
+		
 		Ok( data )
 	}
 }
@@ -203,19 +216,26 @@ impl node::Dir for Dir
 	fn lookup(&self, name: &ByteStr) -> node::Result<node::InodeId> {
 		todo!("Dir::lookup({:?})", name)
 	}
-	fn read(&self, ofs: usize, items: &mut [(node::InodeId,ByteString)]) -> node::Result<(usize,usize)> {
+	fn read(&self, ofs: usize, items: &mut [(node::InodeId,ByteString)]) -> node::Result<(usize,usize)>
+	{
 		let (end_sect,end_ofs) = (self.size as usize / self.fs.lb_size, self.size as usize % self.fs.lb_size);
-		let mut sector = ofs / self.fs.lb_size;
-		let mut ofs = ofs % self.fs.lb_size;
+		let (mut sector, mut ofs) = (ofs / self.fs.lb_size, ofs % self.fs.lb_size);
 		
 		let mut count = 0;
 		
 		let mut data = try!(self.fs.get_sector(self.first_lba + sector as u32));
+		// While not at the end of the allocation
 		while !(sector == end_sect && ofs >= end_ofs)
 		{
 			let len = data[ofs] as usize;
+			// Skip zero-length entries (i.e. padding)
 			if len == 0 {
 				ofs += 1;
+			}
+			else if len < 33 {
+				log_warning!("Consistency error in filesystem, halting Dir::read (entry length {} < 33)", len);
+				// Returns currently read entries, next read will hit this and return no entries
+				break ;
 			}
 			else {
 				let ent = &data[ofs .. ofs + len];
@@ -228,6 +248,7 @@ impl node::Dir for Dir
 				items[count] = (start as node::InodeId, ByteString::from(name));
 				count += 1;
 				if count == items.len() {
+					// Filled the array, return and continue
 					break;
 				}
 			}
@@ -242,12 +263,15 @@ impl node::Dir for Dir
 	}
 	
 	fn create(&self, _name: &ByteStr, _nodetype: node::NodeType) -> node::Result<node::InodeId> {
+		// ISO9660 is readonly
 		Err( node::IoError::ReadOnly )
 	}
 	fn link(&self, _name: &ByteStr, _inode: node::InodeId) -> node::Result<()> {
+		// ISO9660 is readonly
 		Err( node::IoError::ReadOnly )
 	}
 	fn unlink(&self, _name: &ByteStr) -> node::Result<()> {
+		// ISO9660 is readonly
 		Err( node::IoError::ReadOnly )
 	}
 }
