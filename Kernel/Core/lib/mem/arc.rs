@@ -4,8 +4,7 @@
 // Core/lib/mem/arc.rs
 //! Atomic reference-counted shared allocation
 use prelude::*;
-use core::nonzero::NonZero;
-use core::atomic::{AtomicUsize,Ordering};
+use core::atomic::AtomicUsize;
 use core::{ops,fmt};
 
 use super::grc::Grc;

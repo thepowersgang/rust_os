@@ -9,8 +9,8 @@
 #[macro_use] extern crate kernel;
 use kernel::prelude::*;
 
-use kernel::metadevs::storage;
 use kernel::async;
+use kernel::metadevs::storage;
 
 pub mod proto;
 
@@ -77,7 +77,7 @@ impl<I: ScsiInterface> Volume<I>
 			let mut data = proto::ReadCapacity10Rsp::new();
 			match Self::recv_cmd(&int, proto::ReadCapacity10::new().as_ref(), data.as_mut())
 			{
-			Ok(d) => {
+			Ok(_) => {
 				::kernel::logging::hex_dump("SCSI Volume size", data.as_ref());
 				let blksz = data.block_length();
 				let max = data.maxlba();
@@ -130,7 +130,14 @@ impl<I: ScsiInterface> storage::PhysicalVolume for Volume<I>
 		rv
 	}
 	fn write<'s>(&'s self, _prio: u8, idx: u64, num: usize, src: &'s [u8]) -> storage::AsyncIoResult<'s,()> {
-		todo!("Volume::write");
+		match self.class
+		{
+		VolumeClass::CdDvd => Box::new(async::NullResultWaiter::new( || Err(storage::IoError::ReadOnly) )),
+		VolumeClass::DirectAccessBlock => {
+			todo!("Volume::write(idx={},num={},len={})", idx, num, src.len());
+			},
+		_ => Box::new(async::NullResultWaiter::new( || Err(storage::IoError::Unknown("TODO: Write support")) )),
+		}
 	}
 	
 	fn wipe<'a>(&'a self, _blockidx: u64, _count: usize) -> storage::AsyncIoResult<'a,()>

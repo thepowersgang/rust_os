@@ -9,7 +9,7 @@
 use kernel::prelude::*;
 
 use kernel::vfs::{self, mount, node};
-use kernel::metadevs::storage::{self,VolumeHandle,SizePrinter};
+use kernel::metadevs::storage::{self,VolumeHandle};
 use kernel::lib::mem::aref::{ArefInner,ArefBorrow};
 use kernel::lib::byteorder::{ByteOrder,LittleEndian};
 use kernel::lib::byte_str::{ByteStr,ByteString};

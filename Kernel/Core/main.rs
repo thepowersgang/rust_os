@@ -116,7 +116,7 @@ pub extern "C" fn kmain()
 	::threads::init();
 	
 	log_log!("Command line = '{}'", ::arch::boot::get_boot_string());
-	// TODO: Parse command line into config
+	::config::init( ::arch::boot::get_boot_string() );
 	
 	// Dump active video mode
 	let vidmode = ::arch::boot::get_video_mode();

@@ -162,7 +162,10 @@ impl<'a> ::core::iter::Iterator for DirIter<'a> {
 		if self.ofs == self.count {
 			match self.handle.node.read_dir(self.pos, &mut self.ents)
 			{
-			Err(e) => return None,
+			Err(e) => {
+				log_warning!("Error while iterating dir: {:?}", e);
+				return None;
+				},
 			Ok((next,count)) => {
 				self.pos = next;
 				self.count = count;

@@ -65,7 +65,7 @@ impl<T> Vec<T>
 	{
 		let dataptr = ::core::mem::replace(&mut self.data, ArrayAlloc::new(0));
 		let count = self.size;
-		unsafe { ::core::mem::forget(self) };
+		::core::mem::forget(self);
 		MoveItems {
 			data: dataptr,
 			ofs: 0,

@@ -51,7 +51,8 @@ impl ::core::ops::Deref for Filesystem {
 	type Target = FilesystemInner;
 	fn deref(&self) -> &FilesystemInner { &self.inner }
 }
-const FAT_CACHE_BLOCK_SIZE: usize = 512;
+
+//const FAT_CACHE_BLOCK_SIZE: usize = 512;
 struct FilesystemInner
 {
 	vh: VolumeHandle,

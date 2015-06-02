@@ -499,7 +499,8 @@ mod default_mapper
 	
 	impl ::metadevs::storage::Mapper for Mapper {
 		fn name(&self) -> &str { "fallback" }
-		fn handles_pv(&self, pv: &::metadevs::storage::PhysicalVolume) -> usize {
+		fn handles_pv(&self, _pv: &::metadevs::storage::PhysicalVolume) -> usize {
+			// The fallback mapper never explicitly handles
 			0
 		}
 		fn enum_volumes(&self, pv: &::metadevs::storage::PhysicalVolume, new_volume_cb: &mut FnMut(String, u64, u64)) {

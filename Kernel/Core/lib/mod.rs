@@ -9,7 +9,7 @@ use core::prelude::*;
 
 pub use self::queue::Queue;
 pub use self::vec_map::VecMap;
-pub use self::btree_map::BTreeMap;
+//pub use self::btree_map::BTreeMap;
 pub use self::vec::Vec;
 pub use self::sparse_vec::SparseVec;
 pub use self::string::String;
@@ -36,7 +36,7 @@ pub mod string;
 pub mod byte_str;
 
 pub mod vec_map;
-pub mod btree_map;
+//pub mod btree_map;
 
 pub mod ring_buffer;
 

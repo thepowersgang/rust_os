@@ -4,7 +4,7 @@
 // Modules/fs_fat/dir.rs
 use kernel::prelude::*;
 use kernel::lib::mem::aref::ArefBorrow;
-use kernel::vfs::{self,node};
+use kernel::vfs::node;
 
 const ERROR_SHORTCHAIN: node::IoError = node::IoError::Unknown("Cluster chain terminated early");
 
@@ -13,17 +13,17 @@ pub type FilesystemInner = super::FilesystemInner;
 pub struct FileNode
 {
 	fs: ArefBorrow<FilesystemInner>,
-	parent_dir: u32,
+	//parent_dir: u32,
 	first_cluster: u32,
 	size: u32,
 }
 
 impl FileNode
 {
-	pub fn new_boxed(fs: ArefBorrow<FilesystemInner>, parent: u32, first_cluster: u32, size: u32) -> Box<FileNode> {	
+	pub fn new_boxed(fs: ArefBorrow<FilesystemInner>, _parent: u32, first_cluster: u32, size: u32) -> Box<FileNode> {	
 		Box::new(FileNode {
 			fs: fs,
-			parent_dir: parent,
+			//parent_dir: parent,
 			first_cluster: first_cluster,
 			size: size,
 			})

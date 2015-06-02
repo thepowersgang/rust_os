@@ -133,6 +133,7 @@ struct CachedNode
 	refcount: AtomicUsize,
 }
 
+#[allow(raw_pointer_derive)]
 #[derive(Debug)]
 pub struct CacheHandle
 {

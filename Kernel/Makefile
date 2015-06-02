@@ -27,7 +27,6 @@ ifeq ($(USE_ACPICA),1)
 	OBJS += acpica.a
 endif
 EOBJS := $(foreach m,$(MODS), $(addsuffix .o,$(call fn_moddeps,$m)) )
-$(warning $(EOBJS))
 OBJS += $(EOBJS)
 
 PREFIX := ../.prefix/

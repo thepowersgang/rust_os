@@ -4,7 +4,7 @@
 // Core/lib/byte_str.rs
 //! Byte strings (used for the VFS, and other places where UTF-8 can't be enforced)
 use prelude::*;
-use core::{cmp,ops,fmt};
+use core::{cmp,ops};
 
 #[derive(PartialOrd,Ord,PartialEq,Eq)]
 pub struct ByteStr([u8]);

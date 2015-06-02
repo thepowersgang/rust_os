@@ -40,6 +40,17 @@ impl<T: ?Sized> Clone for Rc<T> {
 	}
 }
 
+impl<T: ?Sized + fmt::Display> fmt::Display for Rc<T> {
+	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+		<T as fmt::Display>::fmt(&**self, f)
+	}
+}
+impl<T: ?Sized + fmt::Debug> fmt::Debug for Rc<T> {
+	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+		<T as fmt::Debug>::fmt(&**self, f)
+	}
+}
+
 impl<T: ?Sized> ops::Deref for Rc<T> {
 	type Target = T;
 	fn deref(&self) -> &T {

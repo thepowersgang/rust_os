@@ -13,12 +13,43 @@ pub enum Value
 	SysRoot,
 }
 
+static mut S_SYSDISK: Option<&'static str> = None;
+static mut S_SYSROOT: Option<&'static str> = None;
+
+pub fn init(cmdline: &'static str)
+{
+	for ent in cmdline.split(' ')
+	{
+		let mut it = ent.splitn(2, '=');
+		let tag = it.next().unwrap();
+		let value = it.next();
+		match tag
+		{
+		"SYSDISK" =>
+			match value
+			{
+			Some(v) => unsafe { S_SYSDISK = Some(v); },
+			None => log_warning!("SYSDISK requires a value"),
+			},
+		"SYSROOT" =>
+			match value
+			{
+			Some(v) => unsafe { S_SYSROOT = Some(v); },
+			None => log_warning!("SYSDISK requires a value"),
+			},
+		v @ _ => log_warning!("Unknown option '{}", v),
+		}
+	}
+}
+
 pub fn get_string(val: Value) -> &'static str
 {
-	match val
-	{
-	Value::SysDisk => "ATA-0p0",
-	Value::SysRoot => "/system/Tifflin",
+	unsafe {
+		match val
+		{
+		Value::SysDisk => S_SYSDISK.unwrap_or("ATA-0p0"),
+		Value::SysRoot => S_SYSROOT.unwrap_or("/system/Tifflin"),
+		}
 	}
 }
 

@@ -7,7 +7,7 @@ use prelude::*;
 use super::{mount, node};
 use super::node::Result as IoResult;
 use super::node::{Node,InodeId,IoError};
-use metadevs::storage::{self,VolumeHandle};
+use metadevs::storage::VolumeHandle;
 use lib::{VecMap,SparseVec};
 use lib::byte_str::{ByteStr,ByteString};
 use lib::mem::aref::{Aref,ArefInner,ArefBorrow};
@@ -16,7 +16,7 @@ struct Driver;
 
 enum RamFile
 {
-	File(RamFileFile),
+	//File(RamFileFile),
 	Dir(RamFileDir),
 	Symlink(RamFileSymlink),
 }
@@ -30,12 +30,12 @@ struct RamFileSymlink
 {
 	target: super::PathBuf,
 }
-#[derive(Default)]
-struct RamFileFile
-{
-	ofs: usize,
-	size: usize,
-}
+//#[derive(Default)]
+//struct RamFileFile
+//{
+//	ofs: usize,
+//	size: usize,
+//}
 struct FileRef(ArefBorrow<RamFSInner>,ArefBorrow<RamFile>);
 
 struct RamFS
@@ -100,7 +100,7 @@ impl mount::Filesystem for RamFS
 			{
 			RamFile::Dir(_) => Some(Node::Dir(fr)),
 			RamFile::Symlink(_) => Some(Node::Symlink(fr)),
-			RamFile::File(_) => todo!("normal files"),
+			//RamFile::File(_) => todo!("normal files"),
 			}
 		}
 	}
@@ -160,7 +160,8 @@ impl node::Dir for FileRef {
 			let nn = match nodetype
 				{
 				node::NodeType::Dir  => RamFile::Dir (Default::default()),
-				node::NodeType::File => RamFile::File(Default::default()),
+				//node::NodeType::File => RamFile::File(Default::default()),
+				node::NodeType::File => return Err(node::IoError::Unknown("TODO: Files")),
 				node::NodeType::Symlink(v) =>
 					RamFile::Symlink(RamFileSymlink{target: From::from(v)}),
 				};
@@ -171,10 +172,10 @@ impl node::Dir for FileRef {
 		}
 	}
 	fn link(&self, name: &ByteStr, inode: InodeId) -> IoResult<()> {
-		unimplemented!()
+		todo!("<FileRef as Dir>::link({:?}, inode={})", name, inode)
 	}
 	fn unlink(&self, name: &ByteStr) -> IoResult<()> {
-		unimplemented!()
+		todo!("<FileRef as Dir>::unlink({:?})", name)
 	}
 }
 impl node::Symlink for FileRef {

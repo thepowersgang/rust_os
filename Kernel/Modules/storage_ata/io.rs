@@ -152,6 +152,7 @@ impl AtaRegs
 		}
 	}
 	
+	#[allow(dead_code)]
 	unsafe fn dump(&mut self) {
 		log_trace!("[0:1] {:#02x} {:#02x}", self.in_8(0), self.in_8(1));
 		log_trace!("[2:3] {:#02x} {:#02x}", self.in_8(2), self.in_8(3));
@@ -654,11 +655,11 @@ impl_fmt! {
 	Debug(self,f) for AtaStatusVal {{
 		try!(write!(f, "({:#x}", self.0));
 		if self.0 & Self::ERR != 0 { try!(write!(f, " ERR")); }
-		if self.0 & (1<<3) != 0 { try!(write!(f, " DRQ")); }
-		if self.0 & (1<<4) != 0 { try!(write!(f, " SRV")); }
-		if self.0 & (1<<5) != 0 { try!(write!(f, " DF" )); }
+		if self.0 & Self::DRQ != 0 { try!(write!(f, " DRQ")); }
+		if self.0 & Self::SRV != 0 { try!(write!(f, " SRV")); }
+		if self.0 & Self::DF  != 0 { try!(write!(f, " DF" )); }
 		if self.0 & Self::RDY != 0 { try!(write!(f, " RDY")); }
-		if self.0 & (1<<7) != 0 { try!(write!(f, " BSY")); }
+		if self.0 & Self::BSY != 0 { try!(write!(f, " BSY")); }
 		write!(f, ")")
 	}}
 }

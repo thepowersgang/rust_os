@@ -6,7 +6,6 @@
 use prelude::*;
 use lib::byte_str::{ByteStr,ByteString};
 use lib::borrow::ToOwned;
-use core::cmp;
 
 #[derive(Eq,PartialEq,PartialOrd,Ord)]
 pub struct Path(ByteStr);
