@@ -29,6 +29,7 @@ echo "bdrv_co_readv" >> .qemu_trace
 echo "bdrv_co_do_copy_on_readv" >> .qemu_trace
 
 # Initialise a hard-disk
+mkdir -p DiskImages
 # - 1MB of blank space 
 dd if=/dev/zero of=DiskImages/hda_0.img bs=1M count=1
 # - 32MB FAT? partition on disk 0
@@ -57,7 +58,7 @@ else
 fi
 QEMU_OPTS=$QEMU_OPTS" -drive if=ide,index=0,file=DiskImages/hda.img,format=raw"
 QEMU_OPTS=$QEMU_OPTS" -drive if=ide,index=1,file=DiskImages/hdb.img,format=raw"
-#QEMU_OPTS=$QEMU_OPTS" -cdrom /ruto/Downloads/ubuntu-12.04-desktop-amd64.iso"
+QEMU_OPTS=$QEMU_OPTS" -cdrom /ruto/Downloads/ubuntu-12.04-desktop-amd64.iso"
 #QEMU_OPTS=$QEMU_OPTS" -trace file=qemu_trace"
 QEMU_OPTS=$QEMU_OPTS" -trace events=.qemu_trace,file=qemu_trace"
 QEMU_OPTS=$QEMU_OPTS" -d int -D qemu_int_log.txt"
