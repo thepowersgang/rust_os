@@ -8,12 +8,12 @@ use core::nonzero::NonZero;
 use core::atomic::{AtomicUsize,Ordering};
 use core::{ops,fmt};
 
-use super::rc::Grc;
+use super::grc::Grc;
 
 /// Atomic reference-counted type
 pub struct Arc<T: ?Sized>
 {
-	_inner: Grc<T, AtomicUsize>,
+	_inner: Grc<AtomicUsize, T>,
 }
 // Send if internals are Send+Sync
 unsafe impl<T: ?Sized + Send+Sync> Send for Arc<T> {}
@@ -28,6 +28,11 @@ impl<T> Arc<T>
 		Arc { _inner: Grc::new(value) }
 	}
 }
+impl<T: Default> Default for Arc<T> {
+	fn default() -> Arc<T> {
+		Arc::new( T::default() )
+	}
+}
 impl<T: Clone> Arc<T>
 {
 	/// Ensure that this instance is the only instance (cloning if needed)
@@ -35,15 +40,26 @@ impl<T: Clone> Arc<T>
 		self._inner.make_unique()
 	}
 }
+impl<U> Arc<[U]> {
+	/// Construct an Rc'd slice from an iterator
+	pub fn from_iter<I>(iterator: I) -> Self
+	where
+		I: IntoIterator<Item=U>,
+		I::IntoIter: ExactSizeIterator,
+	{
+		Arc { _inner: Grc::from_iter(iterator) }
+	}
+}
+//impl<U> Default for Arc<[U]> {
+//	fn default() -> Self {
+//		Arc { _inner: Grc::default() }
+//	}
+//}
+
 impl<T: ?Sized> Clone for Arc<T>
 {
 	fn clone(&self) -> Arc<T> {
 		Arc { _inner: self._inner.clone() }
-	}
-}
-impl<T: Default> Default for Arc<T> {
-	fn default() -> Arc<T> {
-		Arc::new( T::default() )
 	}
 }
 
