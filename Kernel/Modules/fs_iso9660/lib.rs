@@ -13,6 +13,7 @@ use kernel::metadevs::storage::{self,VolumeHandle,SizePrinter};
 use kernel::lib::mem::aref::{ArefInner,ArefBorrow};
 use kernel::lib::byteorder::{ByteOrder,LittleEndian};
 use kernel::lib::byte_str::{ByteStr,ByteString};
+use kernel::lib::mem::Arc;
 
 module_define!{FS_ISO9660, [VFS], init}
 
@@ -33,6 +34,14 @@ struct InstanceInner
 	lb_size: usize,
 	root_lba: u32,
 	root_size: u32,
+	
+	lru_blocks: ::kernel::sync::Mutex< [Option<CachedBlock>; 6] >,
+}
+
+struct CachedBlock {
+	lba: u32,
+	time: ::kernel::time::TickCount,
+	data: Arc<[u8]>,
 }
 
 fn init()
@@ -99,6 +108,11 @@ impl mount::Driver for Driver
 				lb_size: lb_size as usize,
 				root_lba: root_lba,
 				root_size: root_size,
+				lru_blocks: ::kernel::sync::Mutex::new([
+					None, None,
+					None, None,
+					None, None,
+					]),
 				} ) }
 			) ) )
 	}
@@ -121,12 +135,46 @@ impl mount::Filesystem for Instance
 }
 impl InstanceInner
 {
-	fn read_sector(&self, sector: u32) -> Result<Vec<u8>, storage::IoError> {
+	fn read_sector(&self, sector: u32, buf: &mut [u8]) -> Result<(), storage::IoError> {
+		try!( self.vh.read_blocks( (sector as usize * self.lb_size / self.vh.block_size()) as u64, buf) );
+		Ok( () )
+		
+	}
+	fn get_sector(&self, sector: u32) -> Result<Arc<[u8]>, storage::IoError> {
+		assert!(sector > 0);
 		// TODO: Cache sector data
 		// - I would like to keep Rc<[u8]> in a VecMap or similar, keep four or so around as a LRU cache.
-		let mut ret: Vec<u8> = ::core::iter::repeat(0).take(self.lb_size).collect();
-		try!( self.vh.read_blocks( (sector as usize * self.lb_size / self.vh.block_size()) as u64, &mut ret) );
-		Ok( ret )
+		let mut lh = self.lru_blocks.lock();
+		let (mut oldest_i, mut oldest_ts) = (0,!0);
+		for (i,e) in lh.iter().enumerate()
+		{
+			match *e
+			{
+			Some(ref e) => {
+				if e.time < oldest_ts {
+					oldest_i = i;
+					oldest_ts = e.time;
+				}
+				if e.lba == sector {
+					return Ok(e.data.clone());
+				}
+				},
+			None => {
+				oldest_i = i;
+				oldest_ts = 0;
+				},
+			}
+		}
+		
+		let mut data: Arc<[u8]> = Arc::from_iter( (0 .. self.lb_size).map(|_| 0u8) );
+		try!(self.read_sector(sector, ::kernel::lib::mem::arc::get_mut(&mut data).unwrap()));
+		
+		lh[oldest_i] = Some(CachedBlock {
+			time: ::kernel::time::ticks(),
+			lba: sector,
+			data: data.clone(),
+			});
+		Ok( data )
 	}
 }
 
@@ -162,7 +210,7 @@ impl node::Dir for Dir
 		
 		let mut count = 0;
 		
-		let mut data = try!(self.fs.read_sector(self.first_lba + sector as u32));
+		let mut data = try!(self.fs.get_sector(self.first_lba + sector as u32));
 		while !(sector == end_sect && ofs >= end_ofs)
 		{
 			let len = data[ofs] as usize;
@@ -186,20 +234,20 @@ impl node::Dir for Dir
 			if ofs >= self.fs.lb_size {
 				sector += 1;
 				ofs = 0;
-				data = try!(self.fs.read_sector(self.first_lba + sector as u32));
+				data = try!(self.fs.get_sector(self.first_lba + sector as u32));
 			}
 		}
 		
 		Ok( (sector*self.fs.lb_size + ofs, count) )
 	}
 	
-	fn create(&self, name: &ByteStr, nodetype: node::NodeType) -> node::Result<node::InodeId> {
+	fn create(&self, _name: &ByteStr, _nodetype: node::NodeType) -> node::Result<node::InodeId> {
 		Err( node::IoError::ReadOnly )
 	}
-	fn link(&self, name: &ByteStr, inode: node::InodeId) -> node::Result<()> {
+	fn link(&self, _name: &ByteStr, _inode: node::InodeId) -> node::Result<()> {
 		Err( node::IoError::ReadOnly )
 	}
-	fn unlink(&self, name: &ByteStr) -> node::Result<()> {
+	fn unlink(&self, _name: &ByteStr) -> node::Result<()> {
 		Err( node::IoError::ReadOnly )
 	}
 }
