@@ -5,6 +5,7 @@
 /// Master Boot Record logical volume mapper
 use prelude::*;
 use lib::byteorder::{ReadBytesExt,LittleEndian};
+use metadevs::storage;
 
 module_define!{MapperMBR, [Storage], init}
 
@@ -12,7 +13,7 @@ static S_MAPPER: Mapper = Mapper;
 
 fn init()
 {
-	::metadevs::storage::register_mapper(&S_MAPPER);
+	storage::register_mapper(&S_MAPPER);
 }
 
 struct Mapper;
@@ -26,34 +27,38 @@ struct Entry
 	lba_count: u64,
 }
 
-impl ::metadevs::storage::Mapper for Mapper
+impl storage::Mapper for Mapper
 {
 	fn name(&self) -> &str { "mbr" }
 
-	fn handles_pv(&self, pv: &::metadevs::storage::PhysicalVolume) -> usize {
+	fn handles_pv(&self, pv: &storage::PhysicalVolume) -> Result<usize,storage::IoError> {
 		if pv.blocksize() != 512 {
 			log_log!("Support non 512 byte sectors in MBR mapper (got {})", pv.blocksize());
-			return 0;
+			return Ok(0);
 		}
 		
 		let mut block: [u8; 512] = unsafe { ::core::mem::zeroed() };
-		pv.read(0, 0, 1, &mut block).wait().unwrap();
+		try!(pv.read(0, 0, 1, &mut block).wait());
 		
 		log_debug!("PV '{}' boot sig {:02x} {:02x}", pv.name(), block[0x1FE], block[0x1FF]);
 		if block[0x1FE] == 0x55 && block[0x1FE+1] == 0xAA {
-			1
+			Ok(1)
 		}
 		else {
-			0
+			Ok(0)
 		}
 	}
 	
-	fn enum_volumes(&self, pv: &::metadevs::storage::PhysicalVolume, new_volume_cb: &mut FnMut(String, u64, u64)) {
-		assert!(pv.blocksize() == 512);
+	fn enum_volumes(&self, pv: &::metadevs::storage::PhysicalVolume, new_volume_cb: &mut FnMut(String, u64, u64)) -> Result<(),storage::IoError> {
+		if !(pv.blocksize() == 512) {
+			return Err( storage::IoError::InvalidParameter );
+		}
 		
 		let mut block: [u8; 512] = unsafe { ::core::mem::zeroed() };
-		pv.read(0, 0, 1, &mut block).wait().unwrap();
-		assert!(block[510] == 0x55 && block[511] == 0xAA);
+		try!( pv.read(0, 0, 1, &mut block).wait() );
+		if !(block[510] == 0x55 && block[511] == 0xAA) {
+			return Err( storage::IoError::InvalidParameter );
+		}
 		
 		// the "unique ID" (according to the osdev.org wiki) might just be the tail of the MBR code
 		//let uid = &block[0x1b4 .. 0x1be];
@@ -72,6 +77,8 @@ impl ::metadevs::storage::Mapper for Mapper
 				}
 			}
 		}
+		
+		Ok( () )
 	}
 }
 

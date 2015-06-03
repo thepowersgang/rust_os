@@ -80,10 +80,10 @@ pub trait Mapper: Send + Sync
 	///
 	/// Lower values are weaker handles, 0 means unhandled.
 	/// Typical values are: 1=MBR, 2=GPT, 3=LVM etc
-	fn handles_pv(&self, pv: &PhysicalVolume) -> usize;
+	fn handles_pv(&self, pv: &PhysicalVolume) -> Result<usize,IoError>;
 	
 	/// Enumerate volumes
-	fn enum_volumes(&self, pv: &PhysicalVolume, f: &mut FnMut(String, u64, u64));
+	fn enum_volumes(&self, pv: &PhysicalVolume, f: &mut FnMut(String, u64, u64)) -> Result<(),IoError>;
 }
 
 
@@ -149,25 +149,26 @@ pub fn register_pv(dev: Box<PhysicalVolume>) -> PhysicalVolumeReg
 		let mappers = S_MAPPERS.lock();
 		for &mapper in mappers.iter()
 		{
-			let level = mapper.handles_pv(&*dev);
-			if level == 0
+			match mapper.handles_pv(&*dev)
 			{
-				// Ignore (doesn't handle)
-			}
-			else if level < best_mapper_level
-			{
-				// Ignore (weaker handle)
-			}
-			else if level == best_mapper_level
-			{
-				// Fight!
-				log_warning!("LV Mappers {} and {} are fighting over {}",
-					mapper.name(), best_mapper.unwrap().name(), dev.name());
-			}
-			else
-			{
-				best_mapper = Some(mapper);
-				best_mapper_level = level;
+			Err(e) => log_error!("IO Error in mapper detection: {:?}", e),
+			Ok(0) => {},	// Ignore (doesn't handle)
+			Ok(level) =>
+				if level < best_mapper_level
+				{
+					// Ignore (weaker handle)
+				}
+				else if level == best_mapper_level
+				{
+					// Fight!
+					log_warning!("LV Mappers {} and {} are fighting over {}",
+						mapper.name(), best_mapper.unwrap().name(), dev.name());
+				}
+				else
+				{
+					best_mapper = Some(mapper);
+					best_mapper_level = level;
+				},
 			}
 		}
 	}
@@ -205,13 +206,11 @@ pub fn register_mapper(mapper: &'static Mapper)
 			// No media, skip
 			continue ;
 		}
-		let level = mapper.handles_pv(&*pv.dev);
-		if level == 0
+		match mapper.handles_pv(&*pv.dev)
 		{
-			// Ignore
-		}
-		else
-		{
+		Err(e) => log_error!("Error checking PV{}: {:?}", pv.dev.name(), e),
+		Ok(0) => {},	// Ignore
+		Ok(level) => 
 			if let Some( (lvl, _other) ) = pv.mapper
 			{
 				if lvl == level {
@@ -228,7 +227,7 @@ pub fn register_mapper(mapper: &'static Mapper)
 			else
 			{
 				apply_mapper_to_pv(mapper, level, id, pv);
-			}
+			},
 		}
 	}
 }
@@ -274,9 +273,13 @@ fn apply_mapper_to_pv(mapper: &'static Mapper, level: usize, pv_id: usize, pvi: 
 	pvi.mapper = Some( (level, mapper) );
 	// - Enumerate volumes
 	//  TODO: Support more complex volume types
-	mapper.enum_volumes(&*pvi.dev, &mut |name, base, len| {
+	match mapper.enum_volumes(&*pvi.dev, &mut |name, base, len| {
 		new_simple_lv(name, pv_id, pvi.dev.blocksize(), base, len);
-		});
+		})
+	{
+	Err(e) => log_error!("IO Error while enumerating {}: {:?}", pvi.dev.name(), e),
+	Ok(_) => {},
+	}
 }
 fn new_simple_lv(name: String, pv_id: usize, block_size: usize, base: u64, size: u64)
 {
@@ -499,14 +502,15 @@ mod default_mapper
 	
 	impl ::metadevs::storage::Mapper for Mapper {
 		fn name(&self) -> &str { "fallback" }
-		fn handles_pv(&self, _pv: &::metadevs::storage::PhysicalVolume) -> usize {
+		fn handles_pv(&self, _pv: &::metadevs::storage::PhysicalVolume) -> Result<usize,super::IoError> {
 			// The fallback mapper never explicitly handles
-			0
+			Ok(0)
 		}
-		fn enum_volumes(&self, pv: &::metadevs::storage::PhysicalVolume, new_volume_cb: &mut FnMut(String, u64, u64)) {
+		fn enum_volumes(&self, pv: &::metadevs::storage::PhysicalVolume, new_volume_cb: &mut FnMut(String, u64, u64)) -> Result<(),super::IoError> {
 			if let Some(cap) = pv.capacity() {
 				new_volume_cb(format!("{}w", pv.name()), 0, cap );
 			}
+			Ok( () )
 		}
 	}
 }
