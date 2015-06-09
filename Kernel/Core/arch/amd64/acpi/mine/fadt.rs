@@ -38,7 +38,8 @@ pub fn parse_fadt()
 	
 	let dsdt_paddr = fadt.data().dsdt_addr as ::memory::PAddr;
 	
-	let dsdt = super::SDTHandle::<()>::new( dsdt_paddr );
+	// SAFE: Trusting the DSDT address to be correct
+	let dsdt = unsafe { super::SDTHandle::<()>::new( dsdt_paddr ) };
 	::logging::hex_dump_t( "DSDT ", &*dsdt );
 	if &dsdt.raw_signature()[..] != b"DSDT" || !dsdt.validate() {
 		log_warning!("DSDT is invalid");

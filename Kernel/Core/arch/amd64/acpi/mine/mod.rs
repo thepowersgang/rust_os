@@ -78,21 +78,29 @@ pub fn init()
 			return;
 			}
 		};
-	log_debug!("RSDP = {{ oemid = {:?}, revision = {:#x}, rsdt_address = {:#x} }}",
+	log_debug!("RSDP = {:p} {{ oemid = {:?}, revision = {:#x}, rsdt_address = {:#x} }}",
+		rsdp,
 		::core::str::from_utf8(&rsdp.oemid), rsdp.revision, rsdp.rsdt_address);
 	
 	// Determine the top-level SDT type
-	let tl = if rsdp.revision == 0 {
-			TopRSDT( SDTHandle::<RSDT>::new( rsdp.rsdt_address as u64 ).make_static() )
-		} else {
-			let v2: &RSDPv2 = unsafe { ::core::mem::transmute(rsdp) };
-			if sum_struct(v2) != 0 {
-				// oh
-				panic!("RSDPv2 checksum failed");
+	// SAFE: The addresses are valid (well, they should be, the checksums passed)
+	let tl = unsafe {
+			if rsdp.revision == 0 {
+				TopRSDT( SDTHandle::<RSDT>::new( rsdp.rsdt_address as u64 ).make_static() )
+			} else {
+				let v2: &RSDPv2 = unsafe { ::core::mem::transmute(rsdp) };
+				if sum_struct(v2) != 0 {
+					// oh
+					panic!("RSDPv2 checksum failed");
+				}
+				TopXSDT( SDTHandle::<XSDT>::new( v2.xsdt_address ).make_static() )
 			}
-			TopXSDT( SDTHandle::<XSDT>::new( v2.xsdt_address ).make_static() )
 		};
 	log_debug!("*SDT = {{ signature = {}, oemid = '{}' }}", tl.signature(), tl.oemid());
+	if !tl.validate() {
+		log_error!("Root SDT failed validation");
+		return ;
+	}
 	
 	// Obtain list of SDTs (signatures only)
 	let names = (0 .. tl.len()).map( |i| tl.get::<SDTHeader>(i).raw_signature() ).collect();
@@ -195,6 +203,12 @@ impl TLSDT
 		&TopXSDT(sdt) => (*sdt).getptr(idx),
 		}
 	}
+	fn validate(&self) -> bool {
+		match self {
+		&TopRSDT(sdt) => sdt.validate(),
+		&TopXSDT(sdt) => sdt.validate(),
+		}
+	}
 	
 	fn len(&self) -> usize {
 		(self._header().length as usize - ::core::mem::size_of::<SDTHeader>()) / match self {
@@ -210,7 +224,10 @@ impl TLSDT
 		from_utf8(&self._header().oemid).unwrap()
 	}
 	fn get<T>(&self, idx: usize) -> SDTHandle<T> {
-		SDTHandle::<T>::new(self._getaddr(idx))
+		// SAFE: Immutable access, and address is as validated as can be
+		unsafe {
+			SDTHandle::<T>::new(self._getaddr(idx))
+		}
 	}
 }
 trait RSDTTrait
@@ -255,7 +272,7 @@ impl ::core::fmt::Debug for SDTHeader
 impl<T> SDTHandle<T>
 {
 	/// Map an SDT into memory, given a physical address
-	pub fn new(physaddr: u64) -> SDTHandle<T>
+	pub unsafe fn new(physaddr: u64) -> SDTHandle<T>
 	{
 		//log_trace!("new(physaddr={:#x})", physaddr);
 		let ofs = (physaddr & (::PAGE_SIZE - 1) as u64) as usize;
