@@ -32,6 +32,7 @@ impl device_manager::Driver for PciLegacyDriver
 	{
 		let classcode = bus_dev.get_attr("class");
 		// [class] [subclass] [IF] [ver]
+		// - The 5 masks in two bits representing the channel modes
 		if classcode & 0xFFFF0500 == 0x01010000 {
 			1	// Handle as weakly as possible (vendor-provided drivers bind higher)
 		}
