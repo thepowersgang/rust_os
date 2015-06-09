@@ -20,7 +20,8 @@ MODS += fs_fat fs_iso9660
 
 USE_ACPICA ?= 1
 
-fn_moddeps = $(filter-out core kernel,$(shell cat Modules/$1/lib.rs | sed -nr 's/.*extern crate ([a-zA-Z_]+);/\1/p' | tr '\n' ' '))
+fn_getdeps = $(shell cat $1 | sed -nr 's/.*extern crate ([a-zA-Z_]+);/\1/p' | tr '\n' ' ')
+fn_moddeps = $(filter-out core kernel,$(call fn_getdeps,Modules/$1/lib.rs))
 
 OBJS := start.ao $(MODS:%=%.o) libkernel.rlib libcore.rlib
 ifeq ($(USE_ACPICA),1)
@@ -30,8 +31,10 @@ EOBJS := $(foreach m,$(MODS), $(addsuffix .o,$(call fn_moddeps,$m)) )
 OBJS += $(EOBJS)
 
 PREFIX := ../.prefix/
-RUSTC := LD_LIBRARY_PATH=$(PREFIX)lib/ $(PREFIX)bin/rustc
-RUSTDOC := LD_LIBRARY_PATH=$(PREFIX)lib/ $(PREFIX)bin/rustdoc
+rustcmd = LD_LIBRARY_PATH=$(PREFIX)lib/ $(PREFIX)bin/$1
+RUSTC := $(call rustcmd,rustc)
+RUSTDOC := $(call rustcmd,rustdoc)
+RUSTDOC := $(call rustcmd,cargo)
 
 -include BuildNum.$(ARCH).mk
 BUILDNUM ?= 1
