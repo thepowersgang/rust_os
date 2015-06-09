@@ -50,8 +50,6 @@ pub trait BusDevice:
 	fn get_irq(&mut self, idx: usize) -> u32;
 }
 
-// TODO: Change this to instead be a structure with a bound Fn reference
-// - Structure defines bus type and a set of attribute names/values/masks
 /// Abstract driver for a device (creates instances when passed a device)
 pub trait Driver:
 	Send + Sync
