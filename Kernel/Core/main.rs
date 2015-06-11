@@ -94,6 +94,8 @@ pub mod unwind;
 
 pub mod irqs;
 
+pub mod syscalls;
+
 /// Built-in device drivers
 mod hw;
 
@@ -178,6 +180,14 @@ fn sysinit()
 		.symlink("sysroot", Path::new(sysroot)).unwrap();
 	
 	
+	// 3. Start 'init' (parent process)
+	// - 1. Memory-map the loader binary to a per-architecture location
+	//  > E.g. for x86 it'd be 0xBFFF0000 - Limiting it to 64KiB
+	//  > For amd64: 1<<48-64KB
+	//  > PANIC if the binary (or its memory size) is too large
+	// - 2. Allocate the loaders's BSS
+	// - 3. Write loader arguments
+
 	fn ls(p: &Path) {
 		// - Iterate root dir
 		match handle::Dir::open(p)

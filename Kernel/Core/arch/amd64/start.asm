@@ -89,6 +89,7 @@ start:
 	mov al, 'e'
 	out dx, al
 
+	
 	; 3. Enable paging and enter long mode
 	mov eax, cr0
 	or eax, 0x80010000	; PG & WP
@@ -181,6 +182,24 @@ start64_higher:
 	mov al, 10
 	out dx, al
 	
+	; Bind the 'SYSCALL' handler (and set flags for it)
+	; LSTAR = 0xC000_0082
+	mov rax, syscall_handler
+	mov rdx, rax
+	shr rdx, 32
+	mov ecx, 0xC0000082
+	wrmsr
+	; STAR = 0xC000_0081
+	mov eax, 0
+	mov edx, 0x08
+	mov ecx, 0xC0000081
+	wrmsr
+	; FMASK = 0xC000_0084
+	mov eax, 0x200	; - Clear IF on SYSCALL
+	mov edx, 0
+	mov ecx, 0xC0000084
+	wrmsr
+	
 	mov rax, InitialPML4
 	mov QWORD [rax], 0
 	; 7. Call rust kmain
@@ -214,6 +233,62 @@ EXPORT thread_trampoline
 	mov rdi, rsp	; 2. Set RDI to the object to call
 	jmp rax	; 3. Jump to the thread root method, which should never return
 
+; -------------------------------------------------
+; System Calls
+; -------------------------------------------------
+[section .text.asm.syscall_handler]
+; RAX, RSI, RDI, RDX, [RCX/R10], R8, R9
+EXPORT syscall_handler
+	; RCX = RIP, R11 = EFLAGS
+	; NOTE: We're FUCKED if an interrupt happens before the new stack is up
+	; - Thankfully, only an NMI can cause that
+	; - Also, the NMI should use a separate stack (thanks to the IST)
+	
+	; >>> Switch to kernel stack
+	swapgs
+	mov rsp, [gs:0x8]	; SEE arch/amd64/threads.rs prep_tls for this
+	; >>> Save user state
+	push rcx	; RCX = userland IP
+	push r11	; R11 = userland EFLAGS
+	; >>> Push args (ready to be passed as slice)
+	; - Last first
+	push r9
+	push r8
+	push r10
+	push rdx
+	push rdi
+	push rsi
+	; >>> Set FS base
+	; - TODO: Do this? or not?
+	;push rax
+	;mov rax, [gs:GS_fsbase]
+	;mov rdx, rax
+	;shr rdx, 32	; EDX = High
+	;mov ecx, 0xC0000100	; FS Base
+	;wrmsr
+	sti
+	
+	mov rsi, rax
+	mov rdi, rsp
+	mov rdx, 6
+	[extern syscalls_handler]
+	call syscalls_handler
+	
+	; All done
+	; >>> Restore the user's copy of FS
+	; - TODO: Definitely needs doing, based on the current thread's TCB
+	; >>> Restore GS
+	swapgs
+	pop r11
+	pop rcx
+	; sysretq (no opcode for it in nasm)
+	; - Returns to 64-bit mode, let's ignore compat mode
+	db 0x48
+	sysret
+
+; -------------------------------------------------
+; Helpers
+; -------------------------------------------------
 [section .text]
 EXPORT __morestack
 	jmp abort

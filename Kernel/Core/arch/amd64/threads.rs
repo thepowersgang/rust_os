@@ -70,8 +70,10 @@ pub extern "C" fn prep_tls(top: usize, bottom: usize, thread_ptr: *mut ::threads
 	// - Populate the TLS data area from the template
 	//  > Also set the thread pointer
 	unsafe {
-		assert!( t_thread_ptr_ofs + 8 < tls_size );
+		// Nuke the region
 		::lib::mem::memset(tlsblock as *mut u8, 0, tls_size);
+		// - Store the thread pointer in t_thread_ptr
+		assert!( t_thread_ptr_ofs + 8 < tls_size );
 		::core::ptr::write( (tlsblock + t_thread_ptr_ofs) as *mut *mut ::threads::Thread, thread_ptr );
 	}
 	
@@ -80,7 +82,10 @@ pub extern "C" fn prep_tls(top: usize, bottom: usize, thread_ptr: *mut ::threads
 	struct TlsPtrArea
 	{
 		data_ptr: usize,
-		_unk: [u64; 13],
+		//_unk: [u64; 13],
+		// - Ninja a word from this area for the stack top (used by syscall)
+		stack_top: usize,
+		_unk: [u64; 12],
 		stack_limit: usize, 
 	}
 	pos -= ::core::mem::size_of::<TlsPtrArea>();
@@ -88,7 +93,8 @@ pub extern "C" fn prep_tls(top: usize, bottom: usize, thread_ptr: *mut ::threads
 	let tls_base = pos;
 	unsafe {
 		let tls_base = &mut *(tls_base as *mut TlsPtrArea);
-		tls_base.data_ptr = tlsblock_top;
+		tls_base.data_ptr = tlsblock_top;	// grows down
+		tls_base.stack_top = tls_base as *const _ as usize;
 		tls_base.stack_limit = bottom;
 	}
 	

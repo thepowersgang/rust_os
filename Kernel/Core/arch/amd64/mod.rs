@@ -55,5 +55,11 @@ pub fn print_backtrace()
 	puts("\n");
 }
 
+#[no_mangle]
+pub extern "C" fn syscalls_handler(id: u32, first_arg: *const usize, count: u32) -> u64
+{
+	::syscalls::invoke(id, unsafe { ::core::slice::from_raw_parts(first_arg, count as usize) })
+}
+
 // vim: ft=rust
 

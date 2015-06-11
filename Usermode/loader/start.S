@@ -1,3 +1,9 @@
+#define HEADER_MAGIC	0x71FF1013
+#define ARCH_x86	1
+#define ARCH_amd64	2
+#define ARCH_arm32	3
+#define ARCH_arm64	4
+
 #ifdef ARCH_amd64
 /*
 =======================================================================
@@ -13,26 +19,38 @@
 .extern imagesize
 .globl image_header
 image_header:
-	.long 0x71FF1A33	# "TIFF" "IA33" (IA-32e)
-	.byte 64, 0, 0, 0
-	.quad BASE
-	.quad start
+	.long HEADER_MAGIC
+	.byte (3*4+2*8) , ARCH_amd64 , 0 , 0	/* Header size, bit-ness, pad, pad */
 	.long codesize
 	.long imagesize
+	.quad start
 	.quad init_path
 
 .section .text
 .globl start
 .extern loader_main
 start:
+	/* 0. ASSERT that the loader was loaded to the correct location */
+	mov $BASE, %rax
+	lea 0(%rip), %rcx
+	sub %rax, %rcx
+	cmp $0x1000, %rcx
+	jge 1f
 	/* 1. Initialise the stack */
-	mov $init_stack-RED_ZONE, %rsp
+	mov $init_stack - RED_ZONE, %rsp
 	/* 2. Set up the TLS area for stack checks*/
 	/* - Wait, they're disabled. Good*/
 	/* 3. Call into rust */
 	mov $init_path, %rsi
 	mov %rax, %rdi
 	jmp loader_main
+1f:
+	// Incorrect location, bail hard
+	mov $-2, %rdi
+	mov $2, %rax
+	syscall
+2b:
+	jmp 2b
 
 // RDI = Address
 // RSI = Value
