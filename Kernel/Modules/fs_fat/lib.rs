@@ -12,8 +12,10 @@ use kernel::prelude::*;
 use kernel::vfs::{self, mount, node};
 use kernel::metadevs::storage::{self,VolumeHandle,SizePrinter};
 use kernel::lib::mem::aref::{ArefInner,ArefBorrow};
+use kernel::lib::mem::{Arc,arc};
 
 extern crate utf16;
+extern crate blockcache;
 
 module_define!{FS_FAT, [VFS], init}
 
@@ -71,6 +73,7 @@ struct FilesystemInner
 	root_sector_count: u32,
 	
 	//fat_cache: vfs::Cache<[u32; FAT_CACHE_BLOCK_SIZE]>,
+	metadata_block_cache: ::blockcache::BlockCache,
 }
 
 /// Inodes IDs destrucure into two 28-bit cluster IDs, and a 16-bit dir offset
@@ -185,6 +188,8 @@ impl mount::Driver for Driver
 					_ => FATL_ROOT_CLUSTER as u32,
 					},
 				root_sector_count: root_dir_sectors as u32,
+				
+				metadata_block_cache: ::blockcache::BlockCache::new(),
 
 				vh: vol,
 				}) },
@@ -192,7 +197,7 @@ impl mount::Driver for Driver
 	}
 }
 
-type Cluster = Vec<u8>;
+type Cluster = Arc<[u8]>;
 
 impl FilesystemInner
 {
@@ -223,10 +228,13 @@ impl FilesystemInner
 	// TODO: Locking/Cache
 	// - Should this function lock the cluster somehow to prevent accidental overlap?
 	// - Could also cache somehow (with a refcount) along with the 'writing' flag
-	fn load_cluster(&self, cluster: u32) -> Result<Cluster, storage::IoError> {
-		let mut buf: Vec<u8> = ::core::iter::repeat(0).take(self.spc * self.vh.block_size()).collect();
-		try!(self.read_cluster(cluster, &mut buf));
-		Ok( buf )
+	fn load_cluster(&self, cluster: u32) -> Result<Cluster, storage::IoError>
+	{	
+		self.metadata_block_cache.get(cluster, || {
+			let mut buf: Cluster = Arc::from_iter( (0..self.spc * self.vh.block_size()).map(|_| 0) );
+			try!(self.read_cluster( cluster, arc::get_mut(&mut buf).unwrap() ));
+			Ok( buf )
+			})
 	}
 	
 	/// Obtain the next cluster in a chain

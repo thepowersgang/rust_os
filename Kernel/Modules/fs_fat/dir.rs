@@ -211,6 +211,8 @@ impl DirEntShort {
 	}
 }
 
+/// Decoded long file name
+/// (next id, data)
 struct LFN(u8, [u16; 256]);
 impl LFN {
 	fn new() -> Self {
@@ -221,14 +223,14 @@ impl LFN {
 	}
 	fn add(&mut self, ent: &DirEntLong) {
 		let idx = (ent.id & 0x3F) as usize;
-		if ent.id & 0x40 != 0 {
-			self.0 = idx as u8;
-			self.1 = [0; 256];
-		}
 		if idx == 0 {
 			self.0 = 0;
 			self.1[0] = 0;
 			return ;
+		}
+		if ent.id & 0x40 != 0 {
+			self.0 = (idx-1) as u8;
+			self.1 = [0; 256];
 		}
 		let ofs = (idx-1) * 13;
 		self.1[ofs..].clone_from_slice( &ent.chars );
@@ -285,6 +287,7 @@ impl node::Dir for DirNode {
 					return Ok( (cur_ofs-1, count) );
 					},
 				DirEnt::Short(e) => {
+					// TODO: Handle long filename entries. Can they span clusters?
 					items[count] = (e.inode(self.start_cluster), ByteString::from(e.name()));
 					count += 1;
 					if count == items.len() {
