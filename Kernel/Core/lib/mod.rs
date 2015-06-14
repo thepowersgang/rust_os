@@ -19,6 +19,8 @@ pub use self::opt_ptr::{OptPtr,OptMutPtr};
 pub mod thunk;
 pub mod borrow;
 
+pub mod ascii;
+
 pub mod opt_ptr;
 
 #[macro_use]

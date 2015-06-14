@@ -9,6 +9,9 @@ pub const ATTR_LFN: u8 = (ATTR_READONLY | ATTR_HIDDEN | ATTR_SYSTEM | ATTR_VOLUM
 #[allow(dead_code)]
 pub const ATTR_ARCHIVE  : u8 = 0x20;	// Flag set by user
 
+pub const CASE_LOWER_BASE: u8 = 0x08;	// Linux (maybe NT) flag
+pub const CASE_LOWER_EXT : u8 = 0x10;	// Linux (maybe NT) flag
+
 fn read_u8(s: &mut &[u8]) -> u8 {
 	use kernel::lib::byteorder::ReadBytesExt;
 	s.read_u8().unwrap()
@@ -187,7 +190,7 @@ pub struct DirEnt
 {
 	pub name: [u8; 11],
 	pub attribs: u8,
-	pub nt_resvd: u8,
+	pub lcase: u8,
 	pub creation_ds: u8,	// 10ths of a second
 	pub creation_time: u16,
 	pub creation_date: u16,
@@ -203,7 +206,7 @@ impl DirEnt {
 		DirEnt {
 			name: read_arr(src),
 			attribs: read_u8(src),
-			nt_resvd: read_u8(src),
+			lcase: read_u8(src),
 			creation_ds: read_u8(src),
 			creation_time: read_u16(src),
 			creation_date: read_u16(src),

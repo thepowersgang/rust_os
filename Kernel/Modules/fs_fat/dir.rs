@@ -6,6 +6,7 @@ use kernel::prelude::*;
 use kernel::lib::mem::aref::ArefBorrow;
 use kernel::vfs::node;
 use kernel::lib::byte_str::{ByteStr,ByteString};
+use kernel::lib::ascii::AsciiExt;
 use super::on_disk;
 use super::file::FileNode;
 use super::ClusterList;
@@ -186,12 +187,17 @@ impl<'a> ::core::iter::Iterator for DirEnts<'a> {
 			}
 			else {
 				// Short entry
+				let lower_base = (ent.lcase & on_disk::CASE_LOWER_BASE) != 0;
+				let lower_ext  = (ent.lcase & on_disk::CASE_LOWER_EXT ) != 0;
 				// 1. Decode name into a NUL-padded string
 				let (outname, _) = {
 					let (mut outname, mut oidx) =  ([0u8; 8+1+3], 0);
 					for iidx in (0 .. 8) {
 						if ent.name[iidx] != b' ' {
 							outname[oidx] = ent.name[iidx];
+							if lower_base {
+								outname[oidx] = outname[oidx].to_ascii_lowercase();
+							}
 							oidx += 1;
 						}
 					}
@@ -200,6 +206,9 @@ impl<'a> ::core::iter::Iterator for DirEnts<'a> {
 					for iidx in (8 .. 11) {
 						if ent.name[iidx] != b' ' {
 							outname[oidx] = ent.name[iidx];
+							if lower_ext {
+								outname[oidx] = outname[oidx].to_ascii_lowercase();
+							}
 							oidx += 1;
 						}
 					}
@@ -209,7 +218,9 @@ impl<'a> ::core::iter::Iterator for DirEnts<'a> {
 					}
 					(outname, oidx)
 					};
-				// 2. Cluster, Size, Attribs
+				// 2. Convert the 8.3 name into the "canonical" case for it (lower)
+				log_debug!("name = {:?}, lcase = {:#x}", ByteStr::new(&outname), ent.lcase);
+				// 3. Cluster, Size, Attribs
 				Some( DirEnt::Short(DirEntShort{
 					name: outname,
 					cluster: (ent.cluster as u32) | (ent.cluster_hi as u32) << 16,
