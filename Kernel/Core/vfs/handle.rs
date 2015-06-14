@@ -42,6 +42,10 @@ pub enum FileOpenMode
 	///
 	/// When opened in this manner, the file contents cannot change, but it might extend
 	SharedRO,
+	/// Open for execution (multiple readers)
+	///
+	/// No file changes visible to handles, must be an executable file
+	Execute,
 	/// Eclusive read-write, denies any other opens while held (except Append)
 	///
 	/// No changes to the file will be visible to the user (as the file is locked)
@@ -58,6 +62,15 @@ pub enum FileOpenMode
 	///
 	/// No synchronisation at all, fails if any other open type is active.
 	Unsynch,
+}
+
+#[derive(Debug)]
+pub enum MemoryMapMode
+{
+	/// Read-only mapping of a file
+	ReadOnly,
+	/// Executable mapping of a file
+	Execute,
 }
 
 impl Any
@@ -79,6 +92,13 @@ impl Any
 	}
 }
 
+pub struct MemoryMapHandle<'a>
+{
+	handle: &'a File,
+	base: usize,
+	len: usize,
+}
+
 impl File
 {
 	/// Open the specified path as a file
@@ -95,6 +115,10 @@ impl File
 		Ok(File { node: node, mode: mode })
 	}
 	
+	pub fn size(&self) -> u64 {
+		self.node.get_valid_size()
+	}
+
 	/// Read data from the file at the specified offset
 	///
 	/// Returns the number of read bytes (which might be less than the size of the input
@@ -102,6 +126,12 @@ impl File
 	pub fn read(&self, ofs: u64, dst: &mut [u8]) -> super::Result<usize> {
 		assert!(self.node.is_file());
 		self.node.read(ofs, dst)
+	}
+
+	
+	/// Map a file into the address space
+	pub fn memory_map(&self, address: usize, ofs: u64, size: usize, mode: MemoryMapMode) -> super::Result<MemoryMapHandle> {
+		todo!("File::memory_map");
 	}
 }
 impl ::core::ops::Drop for File

@@ -185,6 +185,28 @@ fn sysinit()
 	//  > E.g. for x86 it'd be 0xBFFF0000 - Limiting it to 64KiB
 	//  > For amd64: 1<<48-64KB
 	//  > PANIC if the binary (or its memory size) is too large
+	// XXX: hard-code the sysroot path here to avoid having to handle symlinks yet
+	let loader_path = "/system/Tifflin/bin/loader";
+	//let loader_path = "/sysroot/bin/loader";
+	let loader = match handle::File::open(Path::new(loader_path), handle::FileOpenMode::Execute)
+		{
+		Ok(v) => v,
+		Err(e) => {
+			log_error!("Unable to open initial userland loader '{}': {:?}", loader_path, e);
+			return ;
+			},
+		};
+	let max_size: usize = 64*1024;
+	let load_base: usize = (1usize<<48) - max_size;
+	{
+		if loader.size() > max_size as u64 {
+			log_error!("Loader is too large to fit in reserved region ({}, max {})", loader.size(), max_size);
+			return ;
+		}
+		let maphandle = loader.memory_map(load_base,  0, max_size,  handle::MemoryMapMode::Execute);
+		::core::mem::forget(maphandle);
+	}
+	::core::mem::forget(loader);
 	// - 2. Allocate the loaders's BSS
 	// - 3. Write loader arguments
 

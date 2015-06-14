@@ -203,6 +203,14 @@ impl CacheHandle
 					},
 				Node::Symlink(_) => {
 					todo!("Symbolic links")
+					//TODO: To make this work (or any path-relative symlink), the current position in
+					//      `path` needs to be known.
+					//let segs = [ &path[..pos], &link ];
+					//let p = PathChain::new(&segs);
+					//try!( CacheHandle::from_path(p) )
+					// Recurse with a special chained path type
+					// (that iterates but can't be sliced).
+					// - Should symlinks be handled in this function? Or should the passed path be without symlinks?
 					},
 				_ => return Err(super::Error::NonDirComponent),
 				};
@@ -241,6 +249,14 @@ impl CacheHandle
 /// Normal file methods
 impl CacheHandle
 {
+	/// Valid size = maximum offset in the file
+	pub fn get_valid_size(&self) -> u64 {
+		match self.as_ref()
+		{
+		&Node::File(ref r) => r.size(),
+		_ => 0,
+		}
+	}
 	pub fn read(&self, ofs: u64, dst: &mut [u8]) -> super::Result<usize> {
 		match self.as_ref()
 		{
