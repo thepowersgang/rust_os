@@ -37,17 +37,38 @@ impl Str16
 	}
 }
 
-/// Compare 
-impl cmp::PartialOrd<ByteStr> for Str16 {
-	fn partial_cmp(&self, v: &ByteStr) -> Option<::core::cmp::Ordering> {
-		for (a,b) in zip!( self.wtf8(), v.as_bytes().iter() ) {
-			match cmp::Ord::cmp(&a,&b)
+impl_fmt! {
+	Debug(self,f) for Str16 {{
+		try!(write!(f, "w\""));
+		for c in self.chars()
+		{
+			match c
 			{
-			cmp::Ordering::Equal => {},
-			v @ _ => return Some(v),
+			'\\' => try!(write!(f, "\\\\")),
+			'\n' => try!(write!(f, "\\n")),
+			'\r' => try!(write!(f, "\\r")),
+			'"' => try!(write!(f, "\\\"")),
+			'\0' => try!(write!(f, "\\0")),
+			// ASCII printable characters
+			' '...'\u{127}' => try!(write!(f, "{}", c)),
+			_ => try!(write!(f, "\\u{{{:x}}}", c as u32)),
 			}
 		}
-		Some( cmp::Ordering::Equal )
+		try!(write!(f, "\""));
+		Ok( () )
+	}}
+	Display(self,f) for Str16 {{
+		for c in self.chars()
+		{
+			try!(write!(f, "{}", c));
+		}
+		Ok( () )
+	}}
+}
+
+impl cmp::PartialOrd<ByteStr> for Str16 {
+	fn partial_cmp(&self, v: &ByteStr) -> Option<::core::cmp::Ordering> {
+		::core::iter::order::partial_cmp( self.wtf8(), v.as_bytes().iter().cloned() )
 	}
 }
 impl cmp::PartialEq<ByteStr> for Str16
@@ -62,14 +83,7 @@ impl cmp::PartialEq<ByteStr> for Str16
 }
 impl cmp::PartialOrd<str> for Str16 {
 	fn partial_cmp(&self, v: &str) -> Option<::core::cmp::Ordering> {
-		for (a,b) in zip!( self.chars(), v.chars() ) {
-			match cmp::Ord::cmp(&a,&b)
-			{
-			cmp::Ordering::Equal => {},
-			v @ _ => return Some(v),
-			}
-		}
-		Some( cmp::Ordering::Equal )
+		::core::iter::order::partial_cmp( self.chars(), v.chars() )
 	}
 }
 impl cmp::PartialEq<str> for Str16

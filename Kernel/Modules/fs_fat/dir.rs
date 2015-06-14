@@ -9,6 +9,7 @@ use kernel::lib::byte_str::{ByteStr,ByteString};
 use super::on_disk;
 use super::file::FileNode;
 use super::ClusterList;
+use utf16::Str16;
 
 pub type FilesystemInner = super::FilesystemInner;
 
@@ -106,7 +107,6 @@ enum DirEnt {
 	Short(DirEntShort),
 	Long(DirEntLong),
 }
-#[derive(Debug)]
 struct DirEntShort {
 	/// NUL-padded string with extention joined
 	name: [u8; 11+1],
@@ -117,11 +117,25 @@ struct DirEntShort {
 	//modified_time: ::kernel::time::Timestamp,
 	//accessed_time: ::kernel::time::Timestamp,
 }
-#[derive(Debug)]
+impl_fmt! {
+	Debug(self,f) for DirEntShort {
+		write!(f, "DirEntShort {{ attributes: {:#x}, name: {:?}, cluster: {:#x}, size: {:#x} }}",
+			self.attributes, ByteStr::new(&self.name.split(|x|*x==0).next().unwrap()),
+			self.cluster, self.size
+			)
+	}
+}
 struct DirEntLong {
 	id: u8,
 	_type: u8,
 	chars: [u16; 13],
+}
+impl_fmt! {
+	Debug(self,f) for DirEntLong {
+		write!(f, "DirentLong {{ id: {:#x}, _type: {:#x}, chars: {:?} }}",
+			self.id, self._type, Str16::new(self.chars.split(|x|*x==0).next().unwrap())
+			)
+	}
 }
 impl<'a> DirEnts<'a>
 {
@@ -165,6 +179,10 @@ impl<'a> ::core::iter::Iterator for DirEnts<'a> {
 					_type: lfn.ty,
 					chars: outname,
 					} ))
+			}
+			else if ent.attribs & on_disk::ATTR_VOLUMEID != 0 {
+				// TODO: I need a better value than Empty for reserved entries
+				Some(DirEnt::Empty)
 			}
 			else {
 				// Short entry
@@ -238,8 +256,8 @@ impl LFN {
 	fn as_slice(&self) -> &[u16] {
 		self.1.split(|&x| x == 0).next().unwrap()
 	}
-	fn name(&self) -> &::utf16::Str16 {
-		::utf16::Str16::new(self.as_slice()).unwrap_or( ::utf16::Str16::new(&[]).unwrap() )
+	fn name(&self) -> &Str16 {
+		Str16::new(self.as_slice()).unwrap_or( Str16::new(&[]).unwrap() )
 	}
 }
 
@@ -251,10 +269,11 @@ impl node::Dir for DirNode {
 		{
 			let cluster = try!(self.fs.load_cluster(c));
 			for ent in DirEnts::new(&cluster) {
-				log_debug!("ent = {:?}", ent);
+				log_debug!("lookup(): ent = {:?}", ent);
 				match ent {
 				DirEnt::End => return Err(node::IoError::NotFound),
 				DirEnt::Short(e) => {
+					log_debug!("- names: {:?} {:?}", e.name(), lfn.name());
 					if e.name() == name || lfn.name() == name {
 						return Ok( e.inode(self.start_cluster) );
 					}
