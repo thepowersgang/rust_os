@@ -20,13 +20,14 @@ MODS += fs_fat fs_iso9660
 
 USE_ACPICA ?= 1
 
-fn_getdeps = $(shell cat $1 | sed -nr 's/.*extern crate ([a-zA-Z_]+);/\1/p' | tr '\n' ' ')
+fn_getdeps = $(shell cat $1 | sed -nr 's/.*extern crate ([a-zA-Z_0-9]+);/\1/p' | tr '\n' ' ')
 fn_moddeps = $(filter-out core kernel,$(call fn_getdeps,Modules/$1/lib.rs))
 
 OBJS := start.ao $(MODS:%=%.o) libkernel.rlib libcore.rlib
 ifeq ($(USE_ACPICA),1)
 	OBJS += acpica.a
 endif
+$(warning $(foreach m,$(MODS), $(addsuffix .o,$(call fn_moddeps,$m)) ))
 EOBJS := $(foreach m,$(MODS), $(addsuffix .o,$(call fn_moddeps,$m)) )
 OBJS += $(EOBJS)
 

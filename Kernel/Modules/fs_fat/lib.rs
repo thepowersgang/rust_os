@@ -13,6 +13,8 @@ use kernel::vfs::{self, mount, node};
 use kernel::metadevs::storage::{self,VolumeHandle,SizePrinter};
 use kernel::lib::mem::aref::{ArefInner,ArefBorrow};
 
+extern crate utf16;
+
 module_define!{FS_FAT, [VFS], init}
 
 const FAT16_MIN_CLUSTERS: usize = 4085;

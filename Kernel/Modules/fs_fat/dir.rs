@@ -211,9 +211,40 @@ impl DirEntShort {
 	}
 }
 
+struct LFN(u8, [u16; 256]);
+impl LFN {
+	fn new() -> Self {
+		LFN(0, [0; 256])
+	}
+	fn clear(&mut self) {
+		self.0 = 0;
+	}
+	fn add(&mut self, ent: &DirEntLong) {
+		let idx = (ent.id & 0x3F) as usize;
+		if ent.id & 0x40 != 0 {
+			self.0 = idx as u8;
+			self.1 = [0; 256];
+		}
+		if idx == 0 {
+			self.0 = 0;
+			self.1[0] = 0;
+			return ;
+		}
+		let ofs = (idx-1) * 13;
+		self.1[ofs..].clone_from_slice( &ent.chars );
+	}
+	fn as_slice(&self) -> &[u16] {
+		self.1.split(|&x| x == 0).next().unwrap()
+	}
+	fn name(&self) -> &::utf16::Str16 {
+		::utf16::Str16::new(self.as_slice()).unwrap_or( ::utf16::Str16::new(&[]).unwrap() )
+	}
+}
+
 impl node::Dir for DirNode {
 	fn lookup(&self, name: &ByteStr) -> node::Result<node::InodeId> {
 		// For each cluster in the directory, iterate
+		let mut lfn = LFN::new();
 		for c in self.clusters()
 		{
 			let cluster = try!(self.fs.load_cluster(c));
@@ -221,12 +252,16 @@ impl node::Dir for DirNode {
 				log_debug!("ent = {:?}", ent);
 				match ent {
 				DirEnt::End => return Err(node::IoError::NotFound),
-				DirEnt::Short(e) =>
-					if e.name() == name {
+				DirEnt::Short(e) => {
+					if e.name() == name || lfn.name() == name {
 						return Ok( e.inode(self.start_cluster) );
+					}
+					lfn.clear();
 					},
-				DirEnt::Long(_) => log_log!("TODO: LFN"),
-				DirEnt::Empty => {},
+				DirEnt::Long(e) => lfn.add(&e),
+				DirEnt::Empty => {
+					lfn.clear();
+					},
 				}
 			}
 		}
