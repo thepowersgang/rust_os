@@ -7,6 +7,7 @@ use prelude::*;
 use core::fmt;
 use arch::memory::addresses;
 use arch::memory::PAddr;
+use memory::phys::FrameHandle;
 
 type Page = [u8; ::PAGE_SIZE];
 
@@ -97,6 +98,45 @@ pub fn allocate(addr: *mut (), page_count: usize)
 	for pg in pagenum .. pagenum+page_count
 	{
 		::memory::phys::allocate( (pg * ::PAGE_SIZE) as *mut () );
+	}
+}
+
+/// Atomically reserves a region of address space
+pub fn reserve(addr: *mut (), page_count: usize) -> Result<Reservation, ()>
+{
+	use arch::memory::addresses::is_global;
+	let addr = addr as usize;
+	
+	if is_global(addr) != is_global(addr + page_count * ::PAGE_SIZE - 1) {
+		todo!("Error out when straddling user-supervisor region")
+	}
+	
+	assert_eq!(addr % ::PAGE_SIZE, 0);
+	let pagenum = addr / ::PAGE_SIZE;
+	
+	// 1. Lock
+	let _lh = if is_global(addr as usize) { s_kernelspace_lock.lock() } else { s_userspace_lock.lock() };
+	// 2. Ensure range is free
+	for pg in pagenum .. pagenum+page_count
+	{
+		let pgptr = (pg * ::PAGE_SIZE) as *const ();
+		if ::arch::memory::virt::is_reserved( pgptr ) {
+			return Err( () );
+		}
+	}
+	// 3. do `page_count` single arbitary allocations
+	for pg in pagenum .. pagenum+page_count
+	{
+		::memory::phys::allocate( (pg * ::PAGE_SIZE) as *mut () );
+	}
+	
+	Ok( Reservation(addr, page_count) )
+}
+pub struct Reservation(usize, usize);
+impl Reservation
+{
+	pub fn map_at(&mut self, idx: usize, frame: FrameHandle) -> Result<(),FrameHandle> {
+		todo!("Reservation::map_at");
 	}
 }
 

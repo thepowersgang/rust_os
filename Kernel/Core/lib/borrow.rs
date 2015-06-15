@@ -49,6 +49,16 @@ impl<T: ?Sized> Borrow<T> for T { fn borrow(&self) -> &T { self } }
 impl<'a, T: ?Sized> Borrow<T> for &'a T { fn borrow(&self) -> &T { *self } }
 impl<'a, T: ?Sized> Borrow<T> for &'a mut T { fn borrow(&self) -> &T { *self } }
 
+//impl<T, U, V> Borrow<T> for V
+//where
+//	V: Borrow<U>,
+//	U: Borrow<T>
+//{
+//	fn borrow(&self) -> &T {
+//		<V as Borrow<U>>::borrow(self).borrow()
+//	}
+//}
+
 impl<'a, B: 'a + ?Sized + ToOwned> ::core::ops::Deref for Cow<'a, B>
 {
 	type Target = B;

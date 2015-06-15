@@ -15,6 +15,9 @@ static S_MAPALLOC : ::sync::Mutex<(usize,PAddr)> = mutex_init!( (0,0) );
 // TODO: Multiple stacks based on page colouring
 static S_FREE_STACK : ::sync::Mutex<PAddr> = mutex_init!( NOPAGE );
 
+/// A handle to a physical page (maintaining a reference to it, even when not mapped)
+pub struct FrameHandle(PAddr);
+
 pub fn init()
 {
 	// 1. Acquire a memory map from the architecture code and save for use later

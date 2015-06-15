@@ -71,6 +71,10 @@ pub enum MemoryMapMode
 	ReadOnly,
 	/// Executable mapping of a file
 	Execute,
+	/// Copy-on-write (used for executable files)
+	COW,
+	/// Allows writing to the backing file
+	WriteBack,
 }
 
 impl Any
@@ -109,7 +113,12 @@ impl File
 		}
 		match mode
 		{
+		// TODO: Mark file as shared
+		// TODO: Check permissions (must be readable in current context)
 		FileOpenMode::SharedRO => {},
+		// TODO: Mark file as shared
+		// TODO: Check permissions (must be executable in current context)
+		FileOpenMode::Execute => {},
 		_ => todo!("Acquire lock depending on mode({:?})", mode),
 		}
 		Ok(File { node: node, mode: mode })
@@ -131,7 +140,67 @@ impl File
 	
 	/// Map a file into the address space
 	pub fn memory_map(&self, address: usize, ofs: u64, size: usize, mode: MemoryMapMode) -> super::Result<MemoryMapHandle> {
-		todo!("File::memory_map");
+		// - Check that this file is opened in a sufficent mode to allow this form of mapping
+		match mode
+		{
+		// Read only - Pretty much anything
+		MemoryMapMode::ReadOnly => match self.mode
+			{
+			FileOpenMode::Execute => {},
+			FileOpenMode::SharedRO => {},
+			//FileOpenMode::ExclRW => /* NOTE: Needs extra checks to ensure that aliasing does not occur */
+			//FileOpenMode::UniqueRW => /* NOTE: Needs extra checks to ensure that aliasing does not occur */
+			_ => return Err(super::Error::PermissionDenied),
+			},
+		// Executable - Execute mode only
+		MemoryMapMode::Execute => match self.mode
+			{
+			FileOpenMode::Execute => {},
+			_ => return Err(super::Error::PermissionDenied),
+			},
+		// COW - Execute mode only
+		// - TODO: Could allow COW of readonly files? (as soon as it's written, the page is detached from the file)
+		MemoryMapMode::COW => match self.mode
+			{
+			FileOpenMode::Execute => {},
+			//FileOpenMode::SharedRO => {},
+			_ => return Err(super::Error::PermissionDenied),
+			},
+		// Writeback - Requires exclusive access to the file (or a copy)
+		MemoryMapMode::WriteBack => match self.mode
+			{
+			//FileOpenMode::ExclRW => /* NOTE: Needs extra checks to ensure that aliasing does not occur */
+			//FileOpenMode::UniqueRW => /* NOTE: Needs extra checks to ensure that aliasing does not occur */
+			_ => return Err(super::Error::PermissionDenied),
+			},
+		}
+		
+		// NOTES:
+		// - Check for existing cached pages for this particular node
+		//  > 
+		assert!(address % ::PAGE_SIZE == 0, "TODO: Unaligned memory_map");
+		if address % ::PAGE_SIZE != (ofs % ::PAGE_SIZE as u64) as usize {
+			return Err( super::Error::Unknown("memory_map alignment mismatch") );
+		}
+		// - Limit checking (ofs + size must be within size of the file)
+		// - Reserve the region to be mapped (reserve sticks a zero page in)
+		let page_count = size / ::PAGE_SIZE;
+		let mut resv = match ::memory::virt::reserve(address as *mut (), page_count)
+			{
+			Ok(v) => v,
+			Err(e) => return Err( super::Error::Locked ),
+			};
+		// - Obtain handles to each cached page, and map into the reservation
+		for i in 0 .. page_count {
+			let page = ofs / ::PAGE_SIZE as u64 + i as u64;
+			resv.map_at(i, self.get_page(page));
+		}
+		todo!("File::memory_map - {:#x} => {:#x}+{:#x}", address, ofs, size);
+	}
+
+	
+	fn get_page(&self, idx: u64) -> ::memory::phys::FrameHandle {
+		todo!("File::get_page({})", idx);
 	}
 }
 impl ::core::ops::Drop for File

@@ -16,8 +16,8 @@ pub struct Arc<T: ?Sized>
 }
 // Send if internals are Send+Sync
 unsafe impl<T: ?Sized + Send+Sync> Send for Arc<T> {}
-// Sync if internals are Sync
-unsafe impl<T: ?Sized +  Sync> Sync for Arc<T> {}
+// Sync if internals are Send+Sync (Sync allows &Arc which allows cloning)
+unsafe impl<T: ?Sized + Send+Sync> Sync for Arc<T> {}
 
 impl<T> Arc<T>
 {

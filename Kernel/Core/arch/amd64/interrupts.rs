@@ -69,13 +69,18 @@ pub extern "C" fn irq_handler(index: usize)
 /// Error handler called by assembly
 pub extern "C" fn error_handler(regs: &InterruptRegs)
 {
-	puts("Error happened!\n");
-	puts("Int  = "); puth(regs.intnum); puts("  Code = "); puth(regs.errorcode); puts("\n");
+	match regs.intnum
+	{
+	13 => { puts("GPF ("); puth(regs.errorcode); puts(")\n"); },
+	_ => { puts("ERROR "); puth(regs.intnum); puts(" (code "); puth(regs.errorcode); puts(")\n"); },
+	}
 	puts("CS:RIP  = "); puth(regs.cs); puts(":"); puth(regs.rip); puts("\n");
 	puts("SS:RSP  = "); puth(regs.ss); puts(":"); puth(regs.rsp); puts("\n");
 	puts("CR2 = "); puth(get_cr2()); puts("\n");
 	puts("RAX "); puth(regs.rax); puts("  RCX "); puth(regs.rcx); puts("\n");
 	puts("RDX "); puth(regs.rdx); puts("  RBX "); puth(regs.rbx); puts("\n");
+	puts("RSI "); puth(regs.rsi); puts("  RDI "); puth(regs.rdi); puts("\n");
+	puts("RSP "); puth(regs.rsp); puts("  RBP "); puth(regs.rbp); puts("\n");
 	// For interrupts 2 and 3, don't backtrace and error.
 	// - 3 = breakpoint, 2 = ? (NMI?)
 	if regs.intnum != 3 && regs.intnum != 2

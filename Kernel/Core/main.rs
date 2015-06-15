@@ -181,34 +181,8 @@ fn sysinit()
 	
 	
 	// 3. Start 'init' (parent process)
-	// - 1. Memory-map the loader binary to a per-architecture location
-	//  > E.g. for x86 it'd be 0xBFFF0000 - Limiting it to 64KiB
-	//  > For amd64: 1<<48-64KB
-	//  > PANIC if the binary (or its memory size) is too large
 	// XXX: hard-code the sysroot path here to avoid having to handle symlinks yet
-	let loader_path = "/system/Tifflin/bin/loader";
-	//let loader_path = "/sysroot/bin/loader";
-	let loader = match handle::File::open(Path::new(loader_path), handle::FileOpenMode::Execute)
-		{
-		Ok(v) => v,
-		Err(e) => {
-			log_error!("Unable to open initial userland loader '{}': {:?}", loader_path, e);
-			return ;
-			},
-		};
-	let max_size: usize = 64*1024;
-	let load_base: usize = (1usize<<48) - max_size;
-	{
-		if loader.size() > max_size as u64 {
-			log_error!("Loader is too large to fit in reserved region ({}, max {})", loader.size(), max_size);
-			return ;
-		}
-		let maphandle = loader.memory_map(load_base,  0, max_size,  handle::MemoryMapMode::Execute);
-		::core::mem::forget(maphandle);
-	}
-	::core::mem::forget(loader);
-	// - 2. Allocate the loaders's BSS
-	// - 3. Write loader arguments
+	spawn_init("/system/Tifflin/bin/loader", "/sysroot/Tifflin/bin/init");
 
 	fn ls(p: &Path) {
 		// - Iterate root dir
@@ -261,6 +235,67 @@ fn sysinit()
 		}
 	}
 	ls(Path::new("/mount/ATA-2w"));
+}
+
+fn spawn_init(loader_path: &str, init_cmdline: &str)
+{
+	use vfs::handle;
+	use vfs::Path;
+	
+	#[repr(C)]
+	struct LoaderHeader
+	{
+		magic: u32,
+		info: u32,
+		codesize: u32,
+		memsize: u32,
+		entrypoint: usize,
+		init_path: usize,
+	}
+	const MAGIC: u32 = 0x71FF1013;
+	#[cfg(arch__amd64)]
+	const INFO: u32 = (3*4+2*8) | (2 << 8);
+	#[cfg(arch__amd64)]
+	const LOAD_MAX: usize = 1 << 47;
+	
+	// - 1. Memory-map the loader binary to a per-architecture location
+	//  > E.g. for x86 it'd be 0xBFFF0000 - Limiting it to 64KiB
+	//  > For amd64: 1<<48-64KB
+	//  > PANIC if the binary (or its memory size) is too large
+	let loader = match handle::File::open(Path::new(loader_path), handle::FileOpenMode::Execute)
+		{
+		Ok(v) => v,
+		Err(e) => {
+			log_error!("Unable to open initial userland loader '{}': {:?}", loader_path, e);
+			return ;
+			},
+		};
+	let max_size: usize = 64*1024;
+	let load_base: usize = LOAD_MAX - max_size;
+	let ondisk_size = loader.size();
+	{
+		if ondisk_size > max_size as u64 {
+			log_error!("Loader is too large to fit in reserved region ({}, max {})",
+				ondisk_size, max_size);
+			return ;
+		}
+		let maphandle = loader.memory_map(load_base,  0, ::PAGE_SIZE,  handle::MemoryMapMode::Execute);
+		::core::mem::forget(maphandle);
+	}
+	// TODO: Instead hand this handle over to the syscall layer, as the first user file
+	::core::mem::forget(loader);
+	// - 2. Parse the header
+	
+	let header_ptr = unsafe { &*(load_base as *const LoaderHeader) };
+	if header_ptr.magic != 0x71FF1013 || header_ptr.info != INFO {
+		log_error!("Loader header is invalid: magic {:#x} != {:#x} or info {:#x} != {:#x}",
+			header_ptr.magic, MAGIC, header_ptr.info, INFO);
+		return ;
+	}
+	// - 3. Map the remainder of the image into memory (with correct permissions)
+	// - 4. Allocate the loaders's BSS
+	// - 5. Write loader arguments
+	// - 6. Enter userland
 }
 
 // vim: ft=rust
