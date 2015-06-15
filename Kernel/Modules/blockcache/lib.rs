@@ -39,7 +39,7 @@ impl BlockCache
 	}
 	
 	/// Obtain a block via the cache, calling the provided closure if the block is not present
-	pub fn get<E, F: FnOnce()->Result<Arc<[u8]>,E>>(&self, lba: u32, populate: F) -> Result<Arc<[u8]>,E>
+	pub fn get<E, F: FnOnce(u32)->Result<Arc<[u8]>,E>>(&self, lba: u32, populate: F) -> Result<Arc<[u8]>,E>
 	{
 		let mut lh = self.lru_blocks.lock();
 		let (mut oldest_i, mut oldest_ts) = (0,!0);
@@ -55,6 +55,7 @@ impl BlockCache
 				}
 				// If the LBA matches, update the timestamp and return a handle
 				if e.lba == lba {
+					log_trace!("Hit: {}", lba);
 					e.time = ::kernel::time::ticks();
 					return Ok(e.data.clone());
 				}
@@ -67,7 +68,8 @@ impl BlockCache
 		}
 		
 		// If the block wasn't in the cache, read and cache it
-		let data = try!( (populate)() );
+		log_trace!("Miss: {}", lba);
+		let data = try!( populate(lba) );
 		
 		lh[oldest_i] = Some(CachedBlock {
 			time: ::kernel::time::ticks(),

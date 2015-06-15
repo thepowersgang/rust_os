@@ -20,6 +20,11 @@ pub struct DirNode
 	start_cluster: u32,
 	// - Uses the cluster chain
 }
+impl_fmt! {
+	Debug(self, f) for DirNode {
+		write!(f, "{{cluster={:#x}}}", self.start_cluster)
+	}
+}
 
 impl DirNode {
 	pub fn new(fs: ArefBorrow<FilesystemInner>, start_cluster: u32) -> DirNode {
@@ -75,6 +80,7 @@ impl DirNode {
 	}
 	
 	fn find_ent_by_cluster(&self, ent_cluster: u32) -> Option<DirEntShort> {
+		log_trace!("find_ent_by_cluster(self={:?}, ent_cluster={})", self, ent_cluster);
 		for c in self.clusters()
 		{
 			let cluster = match self.fs.load_cluster(c) {
@@ -120,7 +126,7 @@ struct DirEntShort {
 }
 impl_fmt! {
 	Debug(self,f) for DirEntShort {
-		write!(f, "DirEntShort {{ attributes: {:#x}, name: {:?}, cluster: {:#x}, size: {:#x} }}",
+		write!(f, "{{ attributes: {:#x}, name: {:?}, cluster: {:#x}, size: {:#x} }}",
 			self.attributes, ByteStr::new(&self.name.split(|x|*x==0).next().unwrap()),
 			self.cluster, self.size
 			)
@@ -133,7 +139,7 @@ struct DirEntLong {
 }
 impl_fmt! {
 	Debug(self,f) for DirEntLong {
-		write!(f, "DirentLong {{ id: {:#x}, _type: {:#x}, chars: {:?} }}",
+		write!(f, "{{ id: {:#x}, _type: {:#x}, chars: {:?} }}",
 			self.id, self._type, Str16::new(self.chars.split(|x|*x==0).next().unwrap())
 			)
 	}
@@ -218,8 +224,6 @@ impl<'a> ::core::iter::Iterator for DirEnts<'a> {
 					}
 					(outname, oidx)
 					};
-				// 2. Convert the 8.3 name into the "canonical" case for it (lower)
-				log_debug!("name = {:?}, lcase = {:#x}", ByteStr::new(&outname), ent.lcase);
 				// 3. Cluster, Size, Attribs
 				Some( DirEnt::Short(DirEntShort{
 					name: outname,
@@ -279,12 +283,12 @@ impl node::Dir for DirNode {
 		for c in self.clusters()
 		{
 			let cluster = try!(self.fs.load_cluster(c));
-			for ent in DirEnts::new(&cluster) {
+			for ent in DirEnts::new(&cluster)
+			{
 				log_debug!("lookup(): ent = {:?}", ent);
 				match ent {
 				DirEnt::End => return Err(node::IoError::NotFound),
 				DirEnt::Short(e) => {
-					log_debug!("- names: {:?} {:?}", e.name(), lfn.name());
 					if e.name() == name || lfn.name() == name {
 						return Ok( e.inode(self.start_cluster) );
 					}

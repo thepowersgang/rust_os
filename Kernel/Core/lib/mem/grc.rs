@@ -191,15 +191,11 @@ impl<C: Counter, U> Grc<C, [U]>
 		}
 	}
 	
-	/// Construct an unsized allocation using an exactly-sized iterator
-	pub fn from_iter<T>(iterator: T) -> Self
+	/// Construct an unsized allocation from a size and populating method
+	pub fn from_fn<F>(len: usize, mut fcn: F) -> Self
 	where
-		T: IntoIterator<Item=U>,
-		T::IntoIter: ExactSizeIterator,
+		F: FnMut(usize)->U
 	{
-		let it = iterator.into_iter();
-		let len = it.len();
-		
 		let align = Self::rcinner_align();
 		let size = Self::rcinner_size(len);
 		
@@ -208,12 +204,24 @@ impl<C: Counter, U> Grc<C, [U]>
 			let inner = Self::rcinner_ptr(len, ptr);
 			::core::ptr::write( &mut (*inner).strong, C::one() );
 			//::core::ptr::write( &mut (*inner).weak, C::zero() );
-			for (i,v) in it.enumerate() {
-				::core::ptr::write( (*inner).val.as_mut_ptr().offset(i as isize), v );
+			for i in (0 .. len) {
+				::core::ptr::write( (*inner).val.as_mut_ptr().offset(i as isize), fcn(i) );
 			}
 			
 			Grc { ptr: NonZero::new(inner) }
 		}
+	}
+	
+	/// Construct an unsized allocation using an exactly-sized iterator
+	pub fn from_iter<T>(iterator: T) -> Self
+	where
+		T: IntoIterator<Item=U>,
+		T::IntoIter: ExactSizeIterator,
+	{
+		let mut it = iterator.into_iter();
+		let len = it.len();
+		
+		Self::from_fn(len, |_| it.next().expect("ExactSizeIterator violated in Grc::from_iter"))
 	}
 }
 

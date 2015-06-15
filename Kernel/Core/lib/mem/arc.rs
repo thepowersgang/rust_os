@@ -40,6 +40,12 @@ impl<T: Clone> Arc<T>
 	}
 }
 impl<U> Arc<[U]> {
+	pub fn from_fn<F>(count: usize, fcn: F) -> Arc<[U]>//Self
+	where
+		F: FnMut(usize)->U
+	{
+		Arc { _inner: Grc::from_fn(count, fcn) }
+	}
 	/// Construct an Rc'd slice from an iterator
 	pub fn from_iter<I>(iterator: I) -> Self
 	where

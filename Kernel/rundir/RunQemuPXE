@@ -38,6 +38,7 @@ dd if=/dev/zero of=DiskImages/hda_1.img bs=1M count=32
 mcopy -s -D o -i DiskImages/hda_1.img ../../Usermode/.output/amd64 ::/Tifflin
 echo "Test content" | mcopy -i DiskImages/hda_1.img - ::/1.txt
 # - a 16MB ext2 partition on disk 0
+#genext2fs -d ../../Usermode/.output/amd64 -b $((16*1024)) DiskImages/hda_2.img 
 dd if=/dev/zero of=DiskImages/hda_2.img bs=1M count=16
 /sbin/mkfs.ext2 -q -F DiskImages/hda_2.img
 # - Commit

@@ -73,6 +73,10 @@ struct FilesystemInner
 	root_sector_count: u32,
 	
 	//fat_cache: vfs::Cache<[u32; FAT_CACHE_BLOCK_SIZE]>,
+	// XXX: Should really use the above line for this, but BlockCache exists
+	/// A cache of sectors used for the FAT
+	fat_block_cache: ::blockcache::BlockCache,
+	/// A cache of metadata clusters (i.e. directories)
 	metadata_block_cache: ::blockcache::BlockCache,
 }
 
@@ -190,6 +194,7 @@ impl mount::Driver for Driver
 				root_sector_count: root_dir_sectors as u32,
 				
 				metadata_block_cache: ::blockcache::BlockCache::new(),
+				fat_block_cache: ::blockcache::BlockCache::new(),
 
 				vh: vol,
 				}) },
@@ -230,15 +235,18 @@ impl FilesystemInner
 	// - Could also cache somehow (with a refcount) along with the 'writing' flag
 	fn load_cluster(&self, cluster: u32) -> Result<Cluster, storage::IoError>
 	{	
-		self.metadata_block_cache.get(cluster, || {
-			let mut buf: Cluster = Arc::from_iter( (0..self.spc * self.vh.block_size()).map(|_| 0) );
-			try!(self.read_cluster( cluster, arc::get_mut(&mut buf).unwrap() ));
-			Ok( buf )
+		self.metadata_block_cache.get(
+			cluster,
+			|_| {
+				log_debug!("load_cluster: miss {}", cluster);
+				let mut buf: Cluster = Arc::from_iter( (0..self.spc * self.vh.block_size()).map(|_| 0) );
+				try!(self.read_cluster( cluster, arc::get_mut(&mut buf).unwrap() ));
+				Ok( buf )
 			})
 	}
 	
 	/// Obtain the next cluster in a chain
-	fn get_next_cluster(&self, cluster: u32) -> Option<u32> {
+	fn get_next_cluster(&self, cluster: u32) -> Result< Option<u32>, storage::IoError > {
 		use kernel::lib::byteorder::{ReadBytesExt,LittleEndian};
 		// - Determine what sector contains the requested FAT entry
 		let bs = self.vh.block_size();
@@ -258,14 +266,15 @@ impl FilesystemInner
 				},
 			};
 		// - Read a single sector from the FAT
-		let mut sector_data = Vec::from_fn(bs, |_|0u8);
-		match self.vh.read_blocks( (self.first_fat_sector + fat_sector) as u64, &mut sector_data )
-		{
-		Ok(_) => {},
-		Err(_) => return None,
-		}
+		let sector_data: Arc<[u8]> = try!(self.fat_block_cache.get(
+			(self.first_fat_sector + fat_sector) as u32,
+			|sector| {
+				let mut sector_data = Arc/*::<[u8]>*/::from_fn(bs, |_|0);
+				try!(self.vh.read_blocks(sector as u64, arc::get_mut(&mut sector_data).unwrap()));
+				Ok(sector_data)
+			}));
 		// - Extract the entry
-		match self.ty
+		Ok(match self.ty
 		{
 		Size::Fat12 => {
 			// FAT12 has special handling because it packs 2 entries into 24 bytes
@@ -283,7 +292,7 @@ impl FilesystemInner
 			let val = (&sector_data[ofs..]).read_u32::<LittleEndian>().unwrap();
 			if val == FAT32_EOC { None } else { Some(val as u32) }
 			},
-		}
+		})
 	}
 }
 
@@ -359,7 +368,11 @@ impl ::core::iter::Iterator for ClusterList {
 			}
 			else {
 				let rv = *next;
-				*next = fs.get_next_cluster(*next).unwrap_or(0);
+				*next = match fs.get_next_cluster(*next)
+					{
+					Ok(Some(v)) => v,
+					_ => 0,
+					};
 				Some( rv )
 			},
 		}
