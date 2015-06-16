@@ -23,9 +23,9 @@ struct Inner
 
 impl Semaphore
 {
-	pub fn new(init_val: isize, max_val: isize) -> Semaphore {
-		assert!(max_val > 0, "Maximum semaphore value must be >0 ({})", max_val);
-		assert!(init_val <= max_val, "Initial value must be <= max ({} > {})", init_val, max_val);
+	pub const fn new(init_val: isize, max_val: isize) -> Semaphore {
+		//assert!(max_val > 0, "Maximum semaphore value must be >0 ({})", max_val);
+		//assert!(init_val <= max_val, "Initial value must be <= max ({} > {})", init_val, max_val);
 		Semaphore {
 			max_value: max_val,
 			internals: Spinlock::new( Inner {
@@ -39,6 +39,7 @@ impl Semaphore
 	pub fn acquire(&self) {
 		let mut lh = self.internals.lock();
 		if lh.value < 1 {
+			log_trace!("acquire: value={} < 1, sleeping", lh.value);
 			waitqueue_wait_ext!(lh, wait_queue);
 		}
 		else {

@@ -22,7 +22,7 @@ pub struct WaitQueue
 
 impl WaitQueue
 {
-	pub fn new() -> WaitQueue {
+	pub const fn new() -> WaitQueue {
 		WAITQUEUE_INIT
 	}
 	
