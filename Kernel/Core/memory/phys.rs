@@ -32,6 +32,18 @@ pub fn init()
 	}
 }
 
+impl FrameHandle
+{
+	/// UNSAFE due to using a raw physical address
+	pub unsafe fn from_addr(addr: PAddr) -> FrameHandle {
+		mark_used(addr);
+		FrameHandle(addr)
+	}
+	pub fn into_addr(self) -> PAddr {
+		self.0
+	}
+}
+
 fn get_memory_map() -> &'static [::memory::MemoryMapEnt]
 {
 	&*S_MEM_MAP

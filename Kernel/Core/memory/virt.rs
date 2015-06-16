@@ -5,6 +5,7 @@
 // - Virtual memory manager
 use prelude::*;
 use core::fmt;
+use core::ops;
 use arch::memory::addresses;
 use arch::memory::PAddr;
 use memory::phys::FrameHandle;
@@ -62,16 +63,36 @@ pub struct SliceAllocHandle<T>
 	_ty: ::core::marker::PhantomData<T>,
 }
 
+const NUM_TEMP_SLOTS: usize = (addresses::TEMP_END - addresses::TEMP_BASE) / ::PAGE_SIZE;
+
 #[link_section=".process_local"]
 #[allow(non_upper_case_globals)]
 static s_userspace_lock : ::sync::Mutex<()> = mutex_init!( () );
 #[allow(non_upper_case_globals)]
 static s_kernelspace_lock : ::sync::Mutex<()> = mutex_init!( () );
 
+static S_TEMP_FREE: ::sync::Semaphore = ::sync::Semaphore::new(NUM_TEMP_SLOTS as isize, NUM_TEMP_SLOTS as isize);
+
 pub fn init()
 {
 	// 1. Tell the architecture-specific VMM that it can clean up init state
 	// 2. ???
+}
+
+struct Pages(*mut (), usize);
+impl ::core::iter::Iterator for Pages {
+	type Item = *mut ();
+	fn next(&mut self) -> Option<*mut ()> {
+		if self.1 == 0 {
+			None
+		}
+		else {
+			let rv = self.0;
+			self.0 = (rv as usize + ::PAGE_SIZE) as *mut ();
+			self.1 -= 1;
+			Some(rv)
+		}
+	}
 }
 
 // Alias the arch's get_phys method into this namespace
@@ -86,18 +107,17 @@ pub fn allocate(addr: *mut (), page_count: usize)
 	// 1. Lock
 	let _lh = if is_global(addr as usize) { s_kernelspace_lock.lock() } else { s_userspace_lock.lock() };
 	// 2. Ensure range is free
-	for pg in pagenum .. pagenum+page_count
+	for pgptr in Pages(addr, page_count)
 	{
-		let pgptr = (pg * ::PAGE_SIZE) as *const ();
 		if ::arch::memory::virt::is_reserved( pgptr ) {
 			// nope.avi
 			panic!("TODO: Allocated memory ({:p}) in allocate({:p},{})", pgptr, addr, page_count);
 		}
 	}
 	// 3. do `page_count` single arbitary allocations
-	for pg in pagenum .. pagenum+page_count
+	for pgptr in Pages(addr, page_count)
 	{
-		::memory::phys::allocate( (pg * ::PAGE_SIZE) as *mut () );
+		::memory::phys::allocate( pgptr );
 	}
 }
 
@@ -105,38 +125,55 @@ pub fn allocate(addr: *mut (), page_count: usize)
 pub fn reserve(addr: *mut (), page_count: usize) -> Result<Reservation, ()>
 {
 	use arch::memory::addresses::is_global;
-	let addr = addr as usize;
 	
-	if is_global(addr) != is_global(addr + page_count * ::PAGE_SIZE - 1) {
+	if is_global(addr as usize) != is_global(addr as usize + page_count * ::PAGE_SIZE - 1) {
 		todo!("Error out when straddling user-supervisor region")
 	}
 	
-	assert_eq!(addr % ::PAGE_SIZE, 0);
-	let pagenum = addr / ::PAGE_SIZE;
+	assert_eq!(addr as usize % ::PAGE_SIZE, 0);
 	
 	// 1. Lock
 	let _lh = if is_global(addr as usize) { s_kernelspace_lock.lock() } else { s_userspace_lock.lock() };
 	// 2. Ensure range is free
-	for pg in pagenum .. pagenum+page_count
+	for pgptr in Pages(addr, page_count)
 	{
-		let pgptr = (pg * ::PAGE_SIZE) as *const ();
 		if ::arch::memory::virt::is_reserved( pgptr ) {
 			return Err( () );
 		}
 	}
 	// 3. do `page_count` single arbitary allocations
-	for pg in pagenum .. pagenum+page_count
+	for pgptr in Pages(addr, page_count)
 	{
-		::memory::phys::allocate( (pg * ::PAGE_SIZE) as *mut () );
+		// TODO: Instead map in COW zero pages
+		::memory::phys::allocate( pgptr );
 	}
 	
 	Ok( Reservation(addr, page_count) )
 }
-pub struct Reservation(usize, usize);
+pub struct Reservation(*mut (), usize);
 impl Reservation
 {
-	pub fn map_at(&mut self, idx: usize, frame: FrameHandle) -> Result<(),FrameHandle> {
-		todo!("Reservation::map_at");
+	pub fn get_mut_page(&mut self, idx: usize) -> &mut [u8] {
+		assert!(idx < self.1);
+		// Unique, and owned
+		unsafe { ::core::slice::from_raw_parts_mut( (self.0 as usize + idx * ::PAGE_SIZE) as *mut u8, ::PAGE_SIZE) }
+	}
+	//pub fn map_at(&mut self, idx: usize, frame: FrameHandle) -> Result<(),FrameHandle> {
+	//	assert!(idx < self.1);
+	//	let addr = (self.0 as usize + idx * ::PAGE_SIZE) as *mut ();
+	//	::arch::memory::virt::unmap(addr);
+	//	::arch::memory::virt::map(addr, frame.into_addr(), ProtectionMode::KernelRW);
+	//	Ok( () )
+	//}
+	pub fn finalise(self, final_mode: ProtectionMode) -> Result<(),()> {
+		for addr in Pages(self.0, self.1) {
+			// SAFE: Just changing flags, and 'self' owns this region of memory.
+			unsafe {
+				let pa = ::arch::memory::virt::get_phys(addr);
+				::arch::memory::virt::map(addr, pa, final_mode);
+			}
+		}
+		Ok( () )
 	}
 }
 
@@ -256,6 +293,53 @@ unsafe fn map_hw(phys: PAddr, count: usize, readonly: bool, _module: &'static st
 			count: count,
 			mode: mode,
 			} )
+	}
+}
+
+/// Allocate a new page mapped in a temporary region, ready for use with memory-mapped files
+// TODO: What else would use this? Should I just have it be "alloc file page" and take the file ID/offset?
+pub fn alloc_free() -> Result<FreePage,MapError>
+{
+	log_trace!("alloc_free()");
+	// 1. Lock the temp region (using a semaphore to ensure there will be a free slot)
+	let _sh = S_TEMP_FREE.acquire();
+	//let _sh = try!( S_TEMP_FREE.acquire_timed(1000) );
+	let _lh = s_kernelspace_lock.lock();
+	// 2. Locate a slot
+	for i in 0 .. NUM_TEMP_SLOTS {
+		let addr = (addresses::TEMP_BASE + i * ::PAGE_SIZE) as *mut ();
+		if ! ::arch::memory::virt::is_reserved(addr) {
+			::memory::phys::allocate( addr );
+			return Ok( FreePage(addr as *mut u8) );
+		}
+	}
+	panic!("alloc_free: Semaphore reported free slots, but none found");
+}
+pub struct FreePage(*mut u8);
+impl FreePage
+{
+	pub fn into_frame(self) -> ::memory::phys::FrameHandle {
+		let addr = ::arch::memory::virt::get_phys(self.0);
+		// unmap happens on drop, just return the new handle
+		unsafe { ::memory::phys::FrameHandle::from_addr(addr) }
+	}
+}
+impl ops::Drop for FreePage {
+	fn drop(&mut self) {
+		unsafe { unmap(self.0 as *mut (), 1); }
+	}
+}
+impl ops::Deref for FreePage {
+	type Target = [u8];
+	fn deref(&self) -> &[u8] {
+		// SAFE: Page is uniquely owned by this object
+		unsafe { ::core::slice::from_raw_parts(self.0, ::PAGE_SIZE) }
+	}
+}
+impl ops::DerefMut for FreePage {
+	fn deref_mut(&mut self) -> &mut [u8] {
+		// SAFE: Page is uniquely owned by this object
+		unsafe { ::core::slice::from_raw_parts_mut(self.0, ::PAGE_SIZE) }
 	}
 }
 
@@ -491,6 +575,13 @@ impl<T> ::core::ops::Deref for ArrayHandle<T>
 	type Target = [T];
 	fn deref(&self) -> &[T] {
 		self.alloc.as_slice(0, self.len())
+	}
+}
+impl<T> ::core::ops::DerefMut for ArrayHandle<T>
+{
+	fn deref_mut(&mut self) -> &mut [T] {
+		let len = self.len();
+		self.alloc.as_mut_slice(0, len)
 	}
 }
 
