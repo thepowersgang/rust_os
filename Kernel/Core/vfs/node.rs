@@ -131,6 +131,9 @@ struct CachedNode
 {
 	node: Node,
 	refcount: AtomicUsize,
+	
+	// File memory map data
+	//mapped_pages: HashMap<u64,FrameHandle>,
 }
 
 #[allow(raw_pointer_derive)]
