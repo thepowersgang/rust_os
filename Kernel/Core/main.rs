@@ -282,10 +282,7 @@ fn spawn_init(loader_path: &str, init_cmdline: &str)
 		let maphandle = loader.memory_map(load_base,  0, ::PAGE_SIZE,  handle::MemoryMapMode::Execute);
 		::core::mem::forget(maphandle);
 	}
-	// TODO: Instead hand this handle over to the syscall layer, as the first user file
-	::core::mem::forget(loader);
 	// - 2. Parse the header
-	
 	let header_ptr = unsafe { &*(load_base as *const LoaderHeader) };
 	if header_ptr.magic != 0x71FF1013 || header_ptr.info != INFO {
 		log_error!("Loader header is invalid: magic {:#x} != {:#x} or info {:#x} != {:#x}",
@@ -293,9 +290,21 @@ fn spawn_init(loader_path: &str, init_cmdline: &str)
 		return ;
 	}
 	// - 3. Map the remainder of the image into memory (with correct permissions)
+	let codesize = header_ptr.codesize as usize;
+	let datasize = ondisk_size as usize - codesize;
+	let bss_size = header_ptr.memsize as usize - ondisk_size as usize;
+	log_debug!("Executable size: {}, rw data size: {}", codesize, datasize);
+	::core::mem::forget( loader.memory_map(load_base + ::PAGE_SIZE, ::PAGE_SIZE as u64, codesize - ::PAGE_SIZE,  handle::MemoryMapMode::Execute) );
+	assert!(codesize % ::PAGE_SIZE == 0, "Loader code doesn't end on a page boundary - {:#x}", codesize);
+	::core::mem::forget( loader.memory_map(load_base + codesize, codesize as u64, datasize,  handle::MemoryMapMode::COW) );
 	// - 4. Allocate the loaders's BSS
+	assert!(ondisk_size as usize % ::PAGE_SIZE == 0, "Loader file size is not aligned to a page - {:#x}", ondisk_size);
+	::core::mem::forget( ::memory::virt::allocate( (load_base + ondisk_size as usize) as *mut (), bss_size/*, ::memory::virt::ProtectionMode::UserRW*/) );
 	// - 5. Write loader arguments
 	// - 6. Enter userland
+	// TODO: Instead hand this handle over to the syscall layer, as the first user file
+	::core::mem::forget(loader);
+	todo!("Drop to userland");
 }
 
 // vim: ft=rust
