@@ -165,24 +165,20 @@ pub fn get_phys<T>(addr: *const T) -> PAddr
 	}
 }
 /// Maps a physical frame to a page, with the provided protection mode
-pub fn map(addr: *mut (), phys: PAddr, prot: ::memory::virt::ProtectionMode)
+pub unsafe fn map(addr: *mut (), phys: PAddr, prot: ::memory::virt::ProtectionMode)
 {
-	unsafe {
-		let pte = get_page_ent(addr as usize, false, true, false);
-		assert!( !pte.is_null(), "Failed to obtain ent for {:p}", addr );
-		pte.set( phys, prot );
-		asm!("invlpg ($0)" : : "r" (addr) : "memory" : "volatile");
-	}
+	let pte = get_page_ent(addr as usize, false, true, false);
+	assert!( !pte.is_null(), "Failed to obtain ent for {:p}", addr );
+	pte.set( phys, prot );
+	asm!("invlpg ($0)" : : "r" (addr) : "memory" : "volatile");
 }
 /// Removes a mapping
-pub fn unmap(addr: *mut ())
+pub unsafe fn unmap(addr: *mut ())
 {
-	unsafe {
-		let pte = get_page_ent(addr as usize, false, false, false);
-		pte.set( 0, ::memory::virt::ProtectionMode::Unmapped );
-		
-		asm!("invlpg ($0)" : : "r" (addr) : "memory" : "volatile");
-	}
+	let pte = get_page_ent(addr as usize, false, false, false);
+	pte.set( 0, ::memory::virt::ProtectionMode::Unmapped );
+	
+	asm!("invlpg ($0)" : : "r" (addr) : "memory" : "volatile");
 }
 
 static PF_PRESENT : u64 = 0x001;
