@@ -1,8 +1,8 @@
 #define HEADER_MAGIC	0x71FF1013
-#define ARCH_x86	1
-#define ARCH_amd64	2
-#define ARCH_arm32	3
-#define ARCH_arm64	4
+#define HDR_ARCH_x86	1
+#define HDR_ARCH_amd64	2
+#define HDR_ARCH_arm32	3
+#define HDR_ARCH_arm64	4
 
 #ifdef ARCH_amd64
 /*
@@ -20,7 +20,7 @@
 .globl image_header
 image_header:
 	.long HEADER_MAGIC
-	.byte (3*4+2*8) , ARCH_amd64 , 0 , 0	/* Header size, bit-ness, pad, pad */
+	.byte (3*4+2*8) , HDR_ARCH_amd64 , 0 , 0	/* Header size, bit-ness, pad, pad */
 	.long codesize
 	.long imagesize
 	.quad start
@@ -35,7 +35,7 @@ start:
 	lea 0(%rip), %rcx
 	sub %rax, %rcx
 	cmp $0x1000, %rcx
-	jge 1f
+	jge .bad_location
 	/* 1. Initialise the stack */
 	mov $init_stack - RED_ZONE, %rsp
 	/* 2. Set up the TLS area for stack checks*/
@@ -44,13 +44,13 @@ start:
 	mov $init_path, %rsi
 	mov %rax, %rdi
 	jmp loader_main
-1f:
+.bad_location:
 	// Incorrect location, bail hard
 	mov $-2, %rdi
 	mov $2, %rax
 	syscall
-2b:
-	jmp 2b
+.loop:
+	jmp .loop
 
 // RDI = Address
 // RSI = Value
