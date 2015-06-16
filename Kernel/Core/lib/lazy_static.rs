@@ -12,11 +12,15 @@ unsafe impl<T: Send+Sync> Send for LazyStatic<T> {}	// Sendable because inner is
 
 #[macro_export]
 macro_rules! lazystatic_init {
-	() => ($crate::lib::LazyStatic(::core::cell::UnsafeCell { value: ::core::option::Option::None }));
+	() => ( $crate::lib::LazyStatic::new() );
 }
 
 impl<T: Send+Sync> LazyStatic<T>
 {
+	pub const fn new() -> Self {
+		LazyStatic ( ::core::cell::UnsafeCell::new(None) )
+	}
+	
 	/// (unsafe) Prepare the value using the passed function
 	///
 	/// Unsafe because it must NOT be called where a race is possible
