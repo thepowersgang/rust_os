@@ -6,6 +6,8 @@
 use core::prelude::*;
 use core::atomic::{AtomicBool,Ordering};
 
+const TRACE_IF: bool = false;
+
 /// Lightweight protecting spinlock
 pub struct Spinlock<T: Send>
 {
@@ -38,7 +40,7 @@ impl<T: Send> Spinlock<T>
 	pub const fn new(val: T) -> Spinlock<T> {
 		Spinlock {
 			lock: ::core::atomic::ATOMIC_BOOL_INIT, //AtomicBool::new(false),
-			value: ::core::cell::UnsafeCell { value: val },	// ::new(val),
+			value: ::core::cell::UnsafeCell::new(val),
 		}
 	}
 	
@@ -125,9 +127,14 @@ pub fn hold_interrupts() -> HeldInterrupts
 		(flags & 0x200) != 0
 		};
 	
-	//if ! if_set {
-	//	::arch::puts("hold_interrupts() - if_set = false\n");
-	//}
+	if TRACE_IF {
+		if if_set {
+			::arch::puts("hold_interrupts() - IF cleared\n");
+		}
+		else {
+			::arch::puts("hold_interrupts() - IF maintained\n");
+		}
+	}
 	HeldInterrupts(if_set)
 }
 
@@ -135,10 +142,18 @@ impl ::core::ops::Drop for HeldInterrupts
 {
 	fn drop(&mut self)
 	{
-		if self.0 {
-			unsafe {
-				asm!("sti" : : : "memory" : "volatile");
+		if TRACE_IF {
+			if self.0 {
+				::arch::puts("HeldInterrupts::drop() - IF set\n");
 			}
+			else {
+				::arch::puts("HeldInterrupts::drop() - IF maintained\n");
+			}
+		}
+		
+		if self.0 {
+			// SAFE: Just re-enables interrupts
+			unsafe { asm!("sti" : : : "memory" : "volatile"); }
 		}
 	}
 }
