@@ -18,7 +18,7 @@ OBJDIR := .objs/$(ARCH)/
 
 # Rust compilation flags
 RUSTFLAGS := --target=target-$(ARCH).json --cfg arch__$(ARCH)
-RUSTFLAGS += -O
+RUSTFLAGS += -O -g
 RUSTFLAGS += -L $(LIBDIR)
 
 # - List non-file targets
@@ -45,6 +45,9 @@ $(BINDIR)loader: loader/link.ld $(OBJDIR)loader/start.ao $(OBJDIR)loader/src/mai
 	@echo [LD] $@
 	@$(LD) -r --gc-sections --undefined image_header --entry start -o $(OBJDIR)loader.o $(OBJDIR)loader/start.ao $(OBJDIR)loader/src/main.o $(LIBDIR)libstd.rlib $(LIBDIR)libcore.rlib $(LIBDIR)libtifflin_syscalls.rlib
 	@$(LD) -o $@ -T loader/link.ld $(OBJDIR)loader.o -Map $(OBJDIR)loader_map.txt
+	@$(LD) -o $(OBJDIR)loader.elf -T loader/link.ld --oformat=elf64-x86-64 $(OBJDIR)loader.o -Map $(OBJDIR)loader_map.txt
+
+$(OBJDIR)loader/src/main.o: $(LIBDIR)libstd.rlib
 
 # libcore: Same code as used by the kernel, but different build
 $(LIBDIR)libcore.rlib: ../libcore/lib.rs
@@ -61,7 +64,7 @@ $(LIBDIR)lib%.rlib: lib%/src/lib.rs
 	@echo [RUSTC] $@
 	@$(RUSTC) $(RUSTFLAGS) -o $@ $< --crate-type=rlib --crate-name=$*
 
-$(OBJDIR)%.o: %.rs $(LIBDIR)libstd.rlib
+$(OBJDIR)%.o: %.rs
 	@mkdir -p $(dir $@)
 	@echo [RUSTC] $@
 	@$(RUSTC) $(RUSTFLAGS) -o $@ $< --emit=obj
@@ -73,7 +76,10 @@ $(OBJDIR)%.ao: %.S
 
 # Generate dependencies for EVERY crate
 fn_getstd = $(shell grep -F "![no_std]" $1 >/dev/null || echo "std")
-fn_mmdep = $1: $(patsubst %,$(LIBDIR)lib%.rlib,$(call fn_getdeps,$1) $(call fn_getstd,$1))
+fn_mmdep = $2: $(patsubst %,$(LIBDIR)lib%.rlib,$(call fn_getdeps,$1) $(call fn_getstd,$1))
 #$(foreach m, $(wildcard */src/lib.rs */src/main.rs), $(warning $(call fn_mmdep,$m)))
-$(foreach m, $(wildcard */src/lib.rs */src/main.rs), $(eval $(call fn_mmdep,$m)))
+#$(foreach m, $(wildcard */src/lib.rs */src/main.rs), $(eval $(call fn_mmdep,$m)))
+# - Assumes that if there's a main.rs file, a binary is generated, and for lib.rs a rlib is generated
+$(foreach m, $(wildcard */src/lib.rs), $(eval $(call fn_mmdep,$m,$(m:%/src/lib.rs=$(LIBDIR)%.rlib))))
+$(foreach m, $(wildcard */src/main.rs), $(eval $(call fn_mmdep,$m,$(m:%/src/main.rs=$(BINDIR)%))))
 
