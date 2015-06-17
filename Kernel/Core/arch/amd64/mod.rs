@@ -34,6 +34,7 @@ fn init()
 	// None needed, just dependencies
 }
 
+#[allow(improper_ctypes)]
 extern "C" {
 	pub fn drop_to_user(entry: usize) -> !;
 }

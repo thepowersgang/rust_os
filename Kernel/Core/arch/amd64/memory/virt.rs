@@ -187,18 +187,14 @@ pub fn is_fixed_alloc(addr: *const (), page_count: usize) -> bool
 /// Returns true if the passed address is "valid" (allocated, or delay allocated)
 pub fn is_reserved<T>(addr: *const T) -> bool
 {
-	unsafe {
-		let pte = get_page_ent(addr as usize, false, false, LargeOk::Yes);
-		return !pte.is_null() && pte.is_reserved();
-	}
+	let pte = get_page_ent(addr as usize, false, false, LargeOk::Yes);
+	return !pte.is_null() && pte.is_reserved();
 }
 /// Returns the physical address for the provided pointer
 pub fn get_phys<T>(addr: *const T) -> PAddr
 {
-	unsafe {
-		let pte = get_page_ent(addr as usize, false, false, LargeOk::Yes);
-		pte.addr() + ((addr as usize) & 0xFFF) as u64
-	}
+	let pte = get_page_ent(addr as usize, false, false, LargeOk::Yes);
+	pte.addr() + ((addr as usize) & 0xFFF) as u64
 }
 /// Maps a physical frame to a page, with the provided protection mode
 pub unsafe fn map(addr: *mut (), phys: PAddr, prot: ::memory::virt::ProtectionMode)
@@ -312,7 +308,7 @@ pub fn handle_page_fault(accessed_address: usize, error_code: u32) -> bool
 	
 	// - Global rules
 	//  > Copy-on-write pages
-	if error_code & (FAULT_WRITE|FAULT_LOCKED) == (FAULT_WRITE|FAULT_WRITE) {
+	if error_code & (FAULT_WRITE|FAULT_LOCKED) == (FAULT_WRITE|FAULT_LOCKED) {
 		todo!("COW");
 	}
 	//  > Paged-out pages
@@ -323,7 +319,12 @@ pub fn handle_page_fault(accessed_address: usize, error_code: u32) -> bool
 	
 	// Check if the user is buggy
 	if error_code & FAULT_USER != 0 {
-		todo!("User fault");
+		log_log!("User {} {} memory{}",
+			if error_code & FAULT_WRITE  != 0 { "write to"  } else { "read from" },
+			if error_code & FAULT_LOCKED != 0 { "protected" } else { "non-present" },
+			if error_code & FAULT_FETCH != 0 { " (instruction fetch)" } else { "" }
+			);
+		todo!("User fault ({:#02x}", error_code);
 	}
 	else {
 		log_panic!("Kernel {} {} memory{}",

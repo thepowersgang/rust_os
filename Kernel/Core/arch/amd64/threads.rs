@@ -20,8 +20,6 @@ pub struct State
 
 extern "C" {
 	static InitialPML4: ();
-	static v_ktls_size: ();
-	static v_t_thread_ptr_ofs: ();
 	static s_tid0_tls_base: u64;
 	fn task_switch(oldrsp: &mut u64, newrsp: &u64, tlsbase: u64, cr3: u64);
 }
@@ -62,12 +60,11 @@ pub fn idle()
 
 /// Prepares the TLS block at the stop of a kernel stack
 #[no_mangle]
-pub extern "C" fn prep_tls(top: usize, bottom: usize, thread_ptr: *mut ::threads::Thread) -> usize
+pub extern "C" fn prep_tls(top: usize, _bottom: usize, thread_ptr: *mut ::threads::Thread) -> usize
 {
 	let mut pos = top;
 	
 	// 1. Create the TLS data block
-	let tlsblock_top = pos;
 	pos -= ::core::mem::size_of::<TLSData>();
 	let tlsblock = pos;
 	
@@ -179,8 +176,9 @@ pub fn switch_to(newthread: Box<::threads::Thread>)
 	}
 }
 
-unsafe fn get_tls_ptr() -> *mut TLSData {
+fn get_tls_ptr() -> *mut TLSData {
 	let ret;
+	// SAFE: Just obtains the pointer from %gs
 	unsafe { asm!("mov %gs:(0), $0" : "=r" (ret) ) }
 	ret
 }
