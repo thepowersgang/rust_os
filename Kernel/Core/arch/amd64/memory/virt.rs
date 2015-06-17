@@ -7,7 +7,14 @@ use core::prelude::*;
 use super::{PAddr,VAddr};
 use PAGE_SIZE;
 
-static MASK_VBITS : usize = 0x0000FFFF_FFFFFFFF;
+const MASK_VBITS : usize = 0x0000FFFF_FFFFFFFF;
+
+const FLAG_P:   u64 = 1;
+const FLAG_W:   u64 = 2;
+const FLAG_U:   u64 = 4;
+const FLAG_G:   u64 = 0x100;
+const FLAG_COW: u64 = 0x200;	// free bit, overloaded as COW
+const FLAG_NX:  u64 = (1<<63);
 
 #[derive(PartialEq,Debug)]
 enum PTEPos
@@ -180,6 +187,16 @@ pub unsafe fn unmap(addr: *mut ())
 	
 	asm!("invlpg ($0)" : : "r" (addr) : "memory" : "volatile");
 }
+/// Change protections mode
+pub unsafe fn reprotect(addr: *mut (), prot: ::memory::virt::ProtectionMode)
+{
+	assert!( !is!(prot, ::memory::virt::ProtectionMode::Unmapped) );
+	let pte = get_page_ent(addr as usize, false, true, false);
+	assert!( !pte.is_null(), "Failed to obtain ent for {:p}", addr );
+	assert!( pte.is_present(), "Reprotecting unmapped page {:p}", addr );
+	let phys = pte.addr();
+	pte.set( phys, prot );
+}
 
 static PF_PRESENT : u64 = 0x001;
 static PF_LARGE   : u64 = 0x080;
@@ -210,12 +227,13 @@ impl PTE
 		let flags: u64 = match prot
 			{
 			::memory::virt::ProtectionMode::Unmapped => 0,
-			::memory::virt::ProtectionMode::KernelRO => (1<<63)|1,
-			::memory::virt::ProtectionMode::KernelRW => (1<<63)|2|1,
-			::memory::virt::ProtectionMode::KernelRX => 1,
-			::memory::virt::ProtectionMode::UserRO => (1<<63)|4|1,
-			::memory::virt::ProtectionMode::UserRW => (1<<63)|4|2|1,
-			::memory::virt::ProtectionMode::UserRX => 4|1,
+			::memory::virt::ProtectionMode::KernelRO => FLAG_P|FLAG_NX,
+			::memory::virt::ProtectionMode::KernelRW => FLAG_P|FLAG_NX|FLAG_W,
+			::memory::virt::ProtectionMode::KernelRX => FLAG_P,
+			::memory::virt::ProtectionMode::UserRO => FLAG_P|FLAG_U|FLAG_NX,
+			::memory::virt::ProtectionMode::UserRW => FLAG_P|FLAG_U|FLAG_NX|FLAG_W,
+			::memory::virt::ProtectionMode::UserCOW=> FLAG_P|FLAG_U|FLAG_NX|FLAG_COW,
+			::memory::virt::ProtectionMode::UserRX => FLAG_P|FLAG_U,
 			};
 		*self.data = (paddr & 0x7FFFFFFF_FFFFF000) | flags;
 	}

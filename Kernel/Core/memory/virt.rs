@@ -22,6 +22,7 @@ pub enum ProtectionMode
 	UserRO,	// User
 	UserRW,
 	UserRX,
+	UserCOW,	// User Copy-on-write (becomes UserRW on write)
 }
 
 #[derive(Copy,Clone,Debug)]
