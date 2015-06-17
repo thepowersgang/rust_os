@@ -6,6 +6,7 @@
 use core::prelude::*;
 use super::{PAddr,VAddr};
 use PAGE_SIZE;
+use memory::virt::ProtectionMode;
 
 const MASK_VBITS : usize = 0x0000FFFF_FFFFFFFF;
 
@@ -32,6 +33,7 @@ struct PTE
 	data: *mut u64
 }
 
+/// Get a page entry given the desired level and index
 unsafe fn get_entry(level: u8, index: usize, force_allocate: bool) -> PTE
 {
 	use arch::memory::addresses::FRACTAL_BASE;
@@ -54,32 +56,45 @@ unsafe fn get_entry(level: u8, index: usize, force_allocate: bool) -> PTE
 		PTE::new(PTEPos::Page4K, tab_pt.offset(index))
 		}
 	1 => {
-		assert!(index < 512*512*512);
+		const MAX_IDX: isize = 512*512*512;
+		assert!(index < MAX_IDX);
 		let rv = PTE::new(PTEPos::Page2M, tab_pd.offset(index));
 		if !rv.is_present() && force_allocate {
 			let ptr = tab_pt.offset(index * 512) as *mut ();
 			//log_debug!("Allocating for {:?} (PD Ent {})", ptr, index);
 			::memory::phys::allocate( ptr );
+			// - If manipulating the user's half of the address space, allow them access (full permissions)
+			if index < MAX_IDX/2 {
+				reprotect(ptr, ProtectionMode::UserRWX);
+			}
 		}
 		rv
 		},
 	2 => {
-		assert!(index < 512*512);
+		const MAX_IDX: isize = 512*512;
+		assert!(index < MAX_IDX);
 		let rv = PTE::new(PTEPos::Page1G, tab_pdp.offset(index));
 		if !rv.is_present() && force_allocate {
 			let ptr = tab_pd.offset(index * 512) as *mut ();
 			//log_debug!("Allocating for {:?} (PDPT Ent {})", ptr, index);
 			::memory::phys::allocate( ptr );
+			if index < MAX_IDX/2 {
+				reprotect(ptr, ProtectionMode::UserRWX);
+			}
 		}
 		rv
 		},
 	3 => {
-		assert!(index < 512);
+		const MAX_IDX: isize = 512;
+		assert!(index < MAX_IDX);
 		let rv = PTE::new(PTEPos::Page512G, tab_pml4.offset(index));
 		if !rv.is_present() && force_allocate {
 			let ptr = tab_pdp.offset(index * 512) as *mut ();
 			//log_debug!("Allocating for {:?} (PML4 Ent {})", ptr, index);
 			::memory::phys::allocate( ptr );
+			if index < MAX_IDX/2 {
+				reprotect(ptr, ProtectionMode::UserRWX);
+			}
 		}
 		rv
 		},
@@ -140,6 +155,7 @@ pub fn fixed_alloc(addr: PAddr, page_count: usize) -> Option<VAddr>
 	}
 }
 
+/// Returns true if the passed virtual address is within the fixed allocation region
 pub fn is_fixed_alloc(addr: *const (), page_count: usize) -> bool
 {
 	use arch::memory::addresses::{IDENT_START,IDENT_END};
@@ -226,14 +242,15 @@ impl PTE
 		assert!(!self.is_null());
 		let flags: u64 = match prot
 			{
-			::memory::virt::ProtectionMode::Unmapped => 0,
-			::memory::virt::ProtectionMode::KernelRO => FLAG_P|FLAG_NX,
-			::memory::virt::ProtectionMode::KernelRW => FLAG_P|FLAG_NX|FLAG_W,
-			::memory::virt::ProtectionMode::KernelRX => FLAG_P,
-			::memory::virt::ProtectionMode::UserRO => FLAG_P|FLAG_U|FLAG_NX,
-			::memory::virt::ProtectionMode::UserRW => FLAG_P|FLAG_U|FLAG_NX|FLAG_W,
-			::memory::virt::ProtectionMode::UserCOW=> FLAG_P|FLAG_U|FLAG_NX|FLAG_COW,
-			::memory::virt::ProtectionMode::UserRX => FLAG_P|FLAG_U,
+			ProtectionMode::Unmapped => 0,
+			ProtectionMode::KernelRO => FLAG_P|FLAG_NX,
+			ProtectionMode::KernelRW => FLAG_P|FLAG_NX|FLAG_W,
+			ProtectionMode::KernelRX => FLAG_P,
+			ProtectionMode::UserRO => FLAG_P|FLAG_U|FLAG_NX,
+			ProtectionMode::UserRW => FLAG_P|FLAG_U|FLAG_NX|FLAG_W,
+			ProtectionMode::UserCOW=> FLAG_P|FLAG_U|FLAG_NX|FLAG_COW,
+			ProtectionMode::UserRX => FLAG_P|FLAG_U,
+			ProtectionMode::UserRWX => FLAG_P|FLAG_U|FLAG_W,
 			};
 		*self.data = (paddr & 0x7FFFFFFF_FFFFF000) | flags;
 	}

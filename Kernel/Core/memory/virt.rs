@@ -23,6 +23,7 @@ pub enum ProtectionMode
 	UserRW,
 	UserRX,
 	UserCOW,	// User Copy-on-write (becomes UserRW on write)
+	UserRWX,	// AVOID - Read-Write-Execute
 }
 
 #[derive(Copy,Clone,Debug)]
