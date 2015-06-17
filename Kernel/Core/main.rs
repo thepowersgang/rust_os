@@ -241,6 +241,7 @@ fn spawn_init(loader_path: &str, init_cmdline: &str)
 {
 	use vfs::handle;
 	use vfs::Path;
+	use core::mem::forget;
 	
 	#[repr(C)]
 	struct LoaderHeader
@@ -273,15 +274,14 @@ fn spawn_init(loader_path: &str, init_cmdline: &str)
 	let max_size: usize = 64*1024;
 	let load_base: usize = LOAD_MAX - max_size;
 	let ondisk_size = loader.size();
-	{
+	let mh_firstpage = {
 		if ondisk_size > max_size as u64 {
 			log_error!("Loader is too large to fit in reserved region ({}, max {})",
 				ondisk_size, max_size);
 			return ;
 		}
-		let maphandle = loader.memory_map(load_base,  0, ::PAGE_SIZE,  handle::MemoryMapMode::Execute);
-		::core::mem::forget(maphandle);
-	}
+		loader.memory_map(load_base,  0, ::PAGE_SIZE,  handle::MemoryMapMode::Execute)
+		};
 	// - 2. Parse the header
 	let header_ptr = unsafe { &*(load_base as *const LoaderHeader) };
 	if header_ptr.magic != 0x71FF1013 || header_ptr.info != INFO {
@@ -294,26 +294,40 @@ fn spawn_init(loader_path: &str, init_cmdline: &str)
 	let datasize = ondisk_size as usize - codesize;
 	let bss_size = header_ptr.memsize as usize - ondisk_size as usize;
 	log_debug!("Executable size: {}, rw data size: {}", codesize, datasize);
-	::core::mem::forget( loader.memory_map(load_base + ::PAGE_SIZE, ::PAGE_SIZE as u64, codesize - ::PAGE_SIZE,  handle::MemoryMapMode::Execute) );
+	let mh_code = loader.memory_map(load_base + ::PAGE_SIZE, ::PAGE_SIZE as u64, codesize - ::PAGE_SIZE,  handle::MemoryMapMode::Execute);
 	assert!(codesize % ::PAGE_SIZE == 0, "Loader code doesn't end on a page boundary - {:#x}", codesize);
-	::core::mem::forget( loader.memory_map(load_base + codesize, codesize as u64, datasize,  handle::MemoryMapMode::COW) );
+	let mh_data = loader.memory_map(load_base + codesize, codesize as u64, datasize,  handle::MemoryMapMode::COW);
+	
 	// - 4. Allocate the loaders's BSS
 	assert!(ondisk_size as usize % ::PAGE_SIZE == 0, "Loader file size is not aligned to a page - {:#x}", ondisk_size);
 	let pages = (bss_size + ::PAGE_SIZE) / ::PAGE_SIZE;
 	let bss_start = (load_base + ondisk_size as usize) as *mut ();
-	::core::mem::forget( ::memory::virt::allocate(bss_start, pages/*, ::memory::virt::ProtectionMode::UserRW*/) );
+	let ah_bss = ::memory::virt::allocate(bss_start, pages/*, ::memory::virt::ProtectionMode::UserRW*/);
+	
 	// - 5. Write loader arguments
 	if header_ptr.init_path < load_base+codesize || header_ptr.init_path + init_cmdline.len() >= load_base + LOAD_MAX {
 		log_error!("Userland init string location out of range: {:#x}", header_ptr.init_path);
 		return ;
 	}
+	// TODO: Write loader arguments into the provided location
+	// TODO: Should the argument string length be passed down to the user? In memory, or via a register?
+	
 	// - 6. Enter userland
 	if header_ptr.entrypoint < load_base || header_ptr.entrypoint >= load_base + LOAD_MAX {
 		log_error!("Userland entrypoint out of range: {:#x}", header_ptr.entrypoint);
 		return ;
 	}
+	
+	// > Forget about all maps and allocations
+	//  ... Is this strictly nessesary? This function never resumes after drop_to_user.
+	//  May be needed if the loader gets moved
+	forget(mh_firstpage);
+	forget(mh_code);
+	forget(mh_data);
+	forget(ah_bss);
+	// > Forget the loader handle too
 	// TODO: Instead hand this handle over to the syscall layer, as the first user file
-	::core::mem::forget(loader);
+	//forget(loader);
 	// SAFE: This pointer is as validated as it can be...
 	unsafe {
 		::arch::drop_to_user(header_ptr.entrypoint);
