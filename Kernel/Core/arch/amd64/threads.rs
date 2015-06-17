@@ -15,6 +15,7 @@ pub struct State
 	// Not strictly part of the CPU state, but it prevents this thread's stack from disappearing
 	stack_handle: Option< ::memory::virt::ArrayHandle<u8> >,
 	// TODO: SSE state 
+	// TODO: Usermode TLS bsae
 }
 
 extern "C" {

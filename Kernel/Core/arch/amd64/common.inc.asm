@@ -47,4 +47,17 @@
 %1:
 %endmacro
 
+struc tss
+	resd 1
+	.rsp0: resq 1
+	.rsp1: resq 1
+	.rsp2: resq 1
+	resd 2
+	.ists: resq 7
+	resd 2
+	resw 1
+	.io_map_base_ofs: resw 1
+	.SIZE:
+endstruc
+
 ; vim: ft=nasm

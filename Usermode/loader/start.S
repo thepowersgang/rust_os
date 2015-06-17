@@ -11,7 +11,7 @@
 =======================================================================
 */
 .globl BASE
-.set BASE, 0x200000
+.set BASE, 0x00007fffFFFF0000
 #define RED_ZONE	128	/* the ABI defines a "red zone" above the stack for functions to dick with */
 
 .section HEADER
@@ -37,11 +37,11 @@ start:
 	cmp $0x1000, %rcx
 	jge .bad_location
 	/* 1. Initialise the stack */
-	mov $init_stack - RED_ZONE, %rsp
+	lea (init_stack-RED_ZONE)(%rip), %rsp
 	/* 2. Set up the TLS area for stack checks*/
 	/* - Wait, they're disabled. Good*/
 	/* 3. Call into rust */
-	mov $init_path, %rsi
+	lea init_path(%rip), %rsi
 	mov %rax, %rdi
 	jmp loader_main
 .bad_location:

@@ -16,6 +16,8 @@ pub mod threads;
 pub mod boot;
 pub mod sync;
 
+mod tss;
+
 mod log;
 pub mod x86_io;
 pub mod hw;
@@ -30,6 +32,10 @@ extern "C"
 fn init()
 {
 	// None needed, just dependencies
+}
+
+extern "C" {
+	pub fn drop_to_user(entry: usize) -> !;
 }
 
 /// Return the system timestamp (miliseconds since an arbitary point)

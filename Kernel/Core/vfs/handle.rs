@@ -213,7 +213,7 @@ impl File
 			{
 			MemoryMapMode::ReadOnly  => ::memory::virt::ProtectionMode::UserRO,
 			MemoryMapMode::Execute   => ::memory::virt::ProtectionMode::UserRX,
-			MemoryMapMode::COW       => todo!("Copy-on-write VMM mode"),
+			MemoryMapMode::COW       => ::memory::virt::ProtectionMode::UserCOW,
 			MemoryMapMode::WriteBack => ::memory::virt::ProtectionMode::UserRW,
 			});
 		Ok(MemoryMapHandle {

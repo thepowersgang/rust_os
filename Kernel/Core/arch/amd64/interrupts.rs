@@ -72,6 +72,16 @@ pub extern "C" fn error_handler(regs: &InterruptRegs)
 	match regs.intnum
 	{
 	13 => { puts("GPF ("); puth(regs.errorcode); puts(")\n"); },
+	14 => {
+		puts("Page Fault: ("); puth(regs.errorcode); puts(") = ");
+		puts(if regs.errorcode & 4 != 0 { "User " } else { "Kernel " });
+		puts(if regs.errorcode & 2 != 0 { "write to " } else { "read from " });
+		puts(if regs.errorcode & 1 != 0 { "locked " } else { "non-present " });
+		puts("memory");
+		if regs.errorcode & 0x10 != 0 { puts(" (Instruction fetch)"); }
+		if regs.errorcode & 0x08 != 0 { puts(" (reserved trashed)"); }
+		puts("\n");
+		},
 	_ => { puts("ERROR "); puth(regs.intnum); puts(" (code "); puth(regs.errorcode); puts(")\n"); },
 	}
 	puts("CS:RIP  = "); puth(regs.cs); puts(":"); puth(regs.rip); puts("\n");

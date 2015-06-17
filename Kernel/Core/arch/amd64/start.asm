@@ -191,7 +191,7 @@ start64_higher:
 	wrmsr
 	; STAR = 0xC000_0081
 	mov eax, 0
-	mov edx, 0x08
+	mov edx, 0x00180000
 	mov ecx, 0xC0000081
 	wrmsr
 	; FMASK = 0xC000_0084
@@ -228,10 +228,24 @@ EXPORT task_switch
 	wrmsr
 	RESTORE rbp, rbx, r12, r13, r14, r15
 	ret
+[section .text]
 EXPORT thread_trampoline
 	pop rax	; 1. Pop thread root method off stack
 	mov rdi, rsp	; 2. Set RDI to the object to call
 	jmp rax	; 3. Jump to the thread root method, which should never return
+
+EXPORT drop_to_user
+	mov rcx, rdi
+	pushf
+	cli
+	pop r11
+	mov ax, 0x20
+	mov ds, ax
+	mov es, ax
+	mov fs, ax
+	mov gs, ax
+	db 0x48
+	sysret
 
 ; -------------------------------------------------
 ; System Calls
@@ -430,6 +444,7 @@ EXPORT GDT
 	dd 0x00000000, 0x0040F200	; 0x20: User Data
 	dd 0x00000000, 0x0020FA00	; 0x28: 64-bit User Code
 	dd 0x00000000, 0x0000F200	; 0x30: User Data (64 version)
+.first_tss:
 	times MAX_CPUS	dd	0, 0x00008900, 0, 0	; 0x38+16*n: TSS 0
 GDTPtr:
 	dw	$-GDT-1
@@ -446,5 +461,9 @@ IDTPtr:
 	dq	IDT
 EXPORT s_tid0_tls_base
 	dq	0
+
+[section .bss]
+EXPORT TSSes
+	times MAX_CPUS resb tss.SIZE
 
 ; vim: ft=nasm

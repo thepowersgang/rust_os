@@ -299,12 +299,24 @@ fn spawn_init(loader_path: &str, init_cmdline: &str)
 	::core::mem::forget( loader.memory_map(load_base + codesize, codesize as u64, datasize,  handle::MemoryMapMode::COW) );
 	// - 4. Allocate the loaders's BSS
 	assert!(ondisk_size as usize % ::PAGE_SIZE == 0, "Loader file size is not aligned to a page - {:#x}", ondisk_size);
-	::core::mem::forget( ::memory::virt::allocate( (load_base + ondisk_size as usize) as *mut (), bss_size/*, ::memory::virt::ProtectionMode::UserRW*/) );
+	let pages = (bss_size + ::PAGE_SIZE) / ::PAGE_SIZE;
+	::core::mem::forget( ::memory::virt::allocate( (load_base + ondisk_size as usize) as *mut (), pages/*, ::memory::virt::ProtectionMode::UserRW*/) );
 	// - 5. Write loader arguments
+	if header_ptr.init_path < load_base+codesize || header_ptr.init_path + init_cmdline.len() >= load_base + LOAD_MAX {
+		log_error!("Userland init string location out of range: {:#x}", header_ptr.init_path);
+		return ;
+	}
 	// - 6. Enter userland
+	if header_ptr.entrypoint < load_base || header_ptr.entrypoint >= load_base + LOAD_MAX {
+		log_error!("Userland entrypoint out of range: {:#x}", header_ptr.entrypoint);
+		return ;
+	}
 	// TODO: Instead hand this handle over to the syscall layer, as the first user file
 	::core::mem::forget(loader);
-	todo!("Drop to userland");
+	// SAFE: This pointer is as validated as it can be...
+	unsafe {
+		::arch::drop_to_user(header_ptr.entrypoint);
+	}
 }
 
 // vim: ft=rust
