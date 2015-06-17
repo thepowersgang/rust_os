@@ -259,6 +259,8 @@ fn spawn_init(loader_path: &str, init_cmdline: &str)
 	#[cfg(arch__amd64)]
 	const LOAD_MAX: usize = 1 << 47;
 	
+	log_log!("Loading userland '{}' args '{}'", loader_path, init_cmdline);
+	
 	// - 1. Memory-map the loader binary to a per-architecture location
 	//  > E.g. for x86 it'd be 0xBFFF0000 - Limiting it to 64KiB
 	//  > For amd64: 1<<48-64KB
@@ -329,6 +331,7 @@ fn spawn_init(loader_path: &str, init_cmdline: &str)
 	// TODO: Instead hand this handle over to the syscall layer, as the first user file
 	//forget(loader);
 	// SAFE: This pointer is as validated as it can be...
+	log_debug!("Entering userland at {:#x}", header_ptr.entrypoint);
 	unsafe {
 		::arch::drop_to_user(header_ptr.entrypoint);
 	}

@@ -58,7 +58,6 @@ impl GDTEnt
 		// TODO: Support the IOPB?
 		let limit = ::core::mem::size_of::<TSS>() - 1;
 		let base = ptr as usize;
-		let base_m = (base >> 16) & 0xFF;
 		
 		let low_dword = limit | (base & 0xFFFF) << 16;
 		let high_dword = ((base >> 16) & 0xFFFF) | 0x00008900 | (base & 0xFF000000);

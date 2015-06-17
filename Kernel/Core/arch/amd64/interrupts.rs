@@ -73,14 +73,13 @@ pub extern "C" fn error_handler(regs: &InterruptRegs)
 	{
 	13 => { puts("GPF ("); puth(regs.errorcode); puts(")\n"); },
 	14 => {
-		puts("Page Fault: ("); puth(regs.errorcode); puts(") = ");
-		puts(if regs.errorcode & 4 != 0 { "User " } else { "Kernel " });
-		puts(if regs.errorcode & 2 != 0 { "write to " } else { "read from " });
-		puts(if regs.errorcode & 1 != 0 { "locked " } else { "non-present " });
-		puts("memory");
-		if regs.errorcode & 0x10 != 0 { puts(" (Instruction fetch)"); }
-		if regs.errorcode & 0x08 != 0 { puts(" (reserved trashed)"); }
-		puts("\n");
+		let cr2;
+		// SAFE: Just reads CR2
+		unsafe { asm!("mov %cr2, $0" : "=r" (cr2)) };
+		puts("PF ("); puth(regs.errorcode); puts(") at "); puth(cr2 as u64); puts(" by "); puth(regs.rip); puts("\n");
+		if ::arch::memory::virt::handle_page_fault(cr2, regs.errorcode as u32) {
+			return ;
+		}
 		},
 	_ => { puts("ERROR "); puth(regs.intnum); puts(" (code "); puth(regs.errorcode); puts(")\n"); },
 	}

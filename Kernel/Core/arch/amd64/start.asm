@@ -135,7 +135,7 @@ start64_higher:
 	mov al, 'H'
 	out dx, al
 	; 4. Set true GDT base
-	lgdt [DWORD GDTPtr2 - KERNEL_BASE]
+	lgdt [a32 DWORD GDTPtr2 - KERNEL_BASE]
 	; Load segment regs
 	mov ax, 0x10
 	mov ds, ax
@@ -149,14 +149,6 @@ start64_higher:
 	mov rsp, KSTACK_BASE+0x1000+1024
 	mov rax, KSTACK_BASE+0x1000
 	mov [rsp+14*8], rax
-	; - And a temp TLS
-	mov rax, rsp
-	mov rdx, rax
-	shr rdx, 32
-	mov ecx, 0xC0000100	; FS Base
-	wrmsr
-	mov ecx, 0xC0000101	; GS Base
-	wrmsr
 	; - Pass the stack top, bottom, and TID0 pointer (null)
 	mov rdi, KSTACK_BASE+INITIAL_KSTACK_SIZE*0x1000
 	mov rsi, KSTACK_BASE+0x1000
@@ -164,8 +156,7 @@ start64_higher:
 	; - Prepare the TLS region
 	call prep_tls
 	; Switch to the real stack
-	mov rcx, s_tid0_tls_base
-	mov [rcx], rax
+	mov [rel s_tid0_tls_base], rax
 	mov rsp, rax
 	
 	; 5. Set up FS/GS base for kernel
@@ -221,10 +212,10 @@ EXPORT task_switch
 	mov [rdi], rsp
 	mov rsp, [rsi]	; New RSP
 	mov cr3, rcx	; New CR3
-	; New FSBASE
+	; New GSBASE
 	mov rax, rdx
 	shr rdx, 32	; EDX = High
-	mov ecx, 0xC0000100	; FS Base
+	mov ecx, 0xC0000101	; GS Base
 	wrmsr
 	RESTORE rbp, rbx, r12, r13, r14, r15
 	ret
@@ -239,6 +230,7 @@ EXPORT drop_to_user
 	pushf
 	cli
 	pop r11
+	swapgs
 	mov ax, 0x20
 	mov ds, ax
 	mov es, ax

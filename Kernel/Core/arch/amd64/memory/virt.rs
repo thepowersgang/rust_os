@@ -17,6 +17,12 @@ const FLAG_G:   u64 = 0x100;
 const FLAG_COW: u64 = 0x200;	// free bit, overloaded as COW
 const FLAG_NX:  u64 = (1<<63);
 
+const FAULT_LOCKED: u32 = 1;
+const FAULT_WRITE:  u32 = 2;
+const FAULT_USER:   u32 = 4;
+const FAULT_RESVD:  u32 = 8;
+const FAULT_FETCH:  u32 = 16;
+
 #[derive(PartialEq,Debug)]
 enum PTEPos
 {
@@ -32,6 +38,9 @@ struct PTE
 	pos: PTEPos,
 	data: *mut u64
 }
+
+enum LargeOk { Yes, No }
+impl LargeOk { fn yes(&self) -> bool { match self { &LargeOk::Yes => true, _ => false } } }
 
 /// Get a page entry given the desired level and index
 unsafe fn get_entry(level: u8, index: usize, force_allocate: bool) -> PTE
@@ -101,44 +110,48 @@ unsafe fn get_entry(level: u8, index: usize, force_allocate: bool) -> PTE
 	_ => panic!("Passed invalid number to get_entry, {} > 3", level)
 	}
 }
-unsafe fn get_page_ent(addr: usize, from_temp: bool, allocate: bool, large_ok: bool) -> PTE
+
+fn get_page_ent(addr: usize, from_temp: bool, allocate: bool, large_ok: LargeOk) -> PTE
 {
 	assert!( from_temp == false );
 	let pagenum = (addr & MASK_VBITS) / PAGE_SIZE;
 	//log_trace!("get_page_ent(addr={:#x}, from_temp={}, allocate={}), pagenum={:#x}", addr, from_temp, allocate, pagenum);
 
-	let ent = get_entry(3, pagenum >> (9*3), allocate);
-	// 1. Walk down page tables from PML4
-	if !ent.is_present() {
-		//log_trace!("get_page_ent(addr={:#x}, ...) PML4 Ent {} absent", addr, pagenum >> (9*3));
-		return PTE::null();
-	}
-
-	let ent = get_entry(2, pagenum >> (9*2), allocate);
-	if !ent.is_present() {
-		//log_trace!("get_page_ent(addr={:#x}, ...) PDPT Ent {} absent", addr, pagenum >> (9*2));
-		return PTE::null();
-	}
-	if ent.is_large() {
-		panic!("TODO: Support large pages (1GiB)");
-	}
-
-	let ent = get_entry(1, pagenum >> (9*1), allocate);
-	if !ent.is_present() {
-		//log_trace!("get_page_ent(addr={:#x}, ...) PD Ent {} absent", addr, pagenum >> (9*1));
-		return PTE::null();
-	}
-	if ent.is_large() {
-		//log_trace!("Large page covering {:#x}", addr);
-		if large_ok {
-			return ent;
+	// SAFE: Calls 'get_entry' down the tree to ensure validity
+	unsafe {
+		let ent = get_entry(3, pagenum >> (9*3), allocate);
+		// 1. Walk down page tables from PML4
+		if !ent.is_present() {
+			//log_trace!("get_page_ent(addr={:#x}, ...) PML4 Ent {} absent", addr, pagenum >> (9*3));
+			return PTE::null();
 		}
-		else {	
-			PTE::null();
-		}
-	}
 
-	return get_entry(0, pagenum, allocate)
+		let ent = get_entry(2, pagenum >> (9*2), allocate);
+		if !ent.is_present() {
+			//log_trace!("get_page_ent(addr={:#x}, ...) PDPT Ent {} absent", addr, pagenum >> (9*2));
+			return PTE::null();
+		}
+		if ent.is_large() {
+			panic!("TODO: Support large pages (1GiB)");
+		}
+
+		let ent = get_entry(1, pagenum >> (9*1), allocate);
+		if !ent.is_present() {
+			//log_trace!("get_page_ent(addr={:#x}, ...) PD Ent {} absent", addr, pagenum >> (9*1));
+			return PTE::null();
+		}
+		if ent.is_large() {
+			//log_trace!("Large page covering {:#x}", addr);
+			if large_ok.yes() {
+				return ent;
+			}
+			else {	
+				return PTE::null();
+			}
+		}
+
+		get_entry(0, pagenum, allocate)
+	}
 }
 
 /// Returns Some(addr) if the passed physical address is in a fixed allocation range (i.e. kernel's identity range)
@@ -175,7 +188,7 @@ pub fn is_fixed_alloc(addr: *const (), page_count: usize) -> bool
 pub fn is_reserved<T>(addr: *const T) -> bool
 {
 	unsafe {
-		let pte = get_page_ent(addr as usize, false, false, true);
+		let pte = get_page_ent(addr as usize, false, false, LargeOk::Yes);
 		return !pte.is_null() && pte.is_reserved();
 	}
 }
@@ -183,14 +196,14 @@ pub fn is_reserved<T>(addr: *const T) -> bool
 pub fn get_phys<T>(addr: *const T) -> PAddr
 {
 	unsafe {
-		let pte = get_page_ent(addr as usize, false, false, true);
+		let pte = get_page_ent(addr as usize, false, false, LargeOk::Yes);
 		pte.addr() + ((addr as usize) & 0xFFF) as u64
 	}
 }
 /// Maps a physical frame to a page, with the provided protection mode
 pub unsafe fn map(addr: *mut (), phys: PAddr, prot: ::memory::virt::ProtectionMode)
 {
-	let pte = get_page_ent(addr as usize, false, true, false);
+	let mut pte = get_page_ent(addr as usize, false, true, LargeOk::No);
 	assert!( !pte.is_null(), "Failed to obtain ent for {:p}", addr );
 	pte.set( phys, prot );
 	asm!("invlpg ($0)" : : "r" (addr) : "memory" : "volatile");
@@ -198,7 +211,7 @@ pub unsafe fn map(addr: *mut (), phys: PAddr, prot: ::memory::virt::ProtectionMo
 /// Removes a mapping
 pub unsafe fn unmap(addr: *mut ())
 {
-	let pte = get_page_ent(addr as usize, false, false, false);
+	let mut pte = get_page_ent(addr as usize, false, false, LargeOk::No);
 	pte.set( 0, ::memory::virt::ProtectionMode::Unmapped );
 	
 	asm!("invlpg ($0)" : : "r" (addr) : "memory" : "volatile");
@@ -207,7 +220,7 @@ pub unsafe fn unmap(addr: *mut ())
 pub unsafe fn reprotect(addr: *mut (), prot: ::memory::virt::ProtectionMode)
 {
 	assert!( !is!(prot, ::memory::virt::ProtectionMode::Unmapped) );
-	let pte = get_page_ent(addr as usize, false, true, false);
+	let mut pte = get_page_ent(addr as usize, false, true, LargeOk::No);
 	assert!( !pte.is_null(), "Failed to obtain ent for {:p}", addr );
 	assert!( pte.is_present(), "Reprotecting unmapped page {:p}", addr );
 	let phys = pte.addr();
@@ -219,26 +232,49 @@ static PF_LARGE   : u64 = 0x080;
 
 impl PTE
 {
-	pub fn new(pos: PTEPos, ptr: *mut u64) -> PTE
-	{
+	// UNSAFE: Ensure that this pointer is unique and valid.
+	pub unsafe fn new(pos: PTEPos, ptr: *mut u64) -> PTE {
 		PTE { pos: pos, data: ptr }
 	}
 	pub fn null() -> PTE {
 		PTE { pos: PTEPos::Absent, data: ::core::ptr::null_mut() }
 	}
 
-	pub fn is_null(&self) -> bool { self.pos == PTEPos::Absent }
-	pub unsafe fn is_reserved(&self) -> bool { !self.is_null() && *self.data != 0 }
-	pub unsafe fn is_present(&self) -> bool { !self.is_null() && *self.data & 1 != 0 }
-	pub unsafe fn is_large(&self) -> bool { *self.data & (PF_PRESENT | PF_LARGE) == PF_LARGE|PF_PRESENT }
+	pub fn is_null(&self) -> bool {
+		self.pos == PTEPos::Absent
+	}
+	pub fn is_reserved(&self) -> bool {
+		// SAFE: Construction should ensure this pointer is valid
+		unsafe {
+			!self.is_null() && *self.data != 0
+		}
+	}
+	pub fn is_present(&self) -> bool {
+		// SAFE: Construction should ensure this pointer is valid
+		unsafe {
+			!self.is_null() && *self.data & 1 != 0
+		}
+	}
+	pub fn is_large(&self) -> bool {
+		// SAFE: Construction should ensure this pointer is valid
+		unsafe {
+			self.is_present() && *self.data & (PF_PRESENT | PF_LARGE) == PF_LARGE|PF_PRESENT
+		}
+	}
 	
-	pub unsafe fn addr(&self) -> PAddr { *self.data & 0x7FFFFFFF_FFFFF000 }
+	pub fn addr(&self) -> PAddr {
+		// SAFE: Construction should ensure this pointer is valid
+		unsafe {
+			*self.data & 0x7FFFFFFF_FFFFF000
+		}
+	}
 	//pub unsafe fn set_addr(&self, paddr: PAddr) {
 	//	assert!(!self.is_null());
 	//	*self.data = (*self.data & !0x7FFFFFFF_FFFFF000) | paddr;
 	//}
 	
-	pub unsafe fn set(&self, paddr: PAddr, prot: ::memory::virt::ProtectionMode) {
+	// UNSAFE: Can invaidate virtual addresses and cause aliasing
+	pub unsafe fn set(&mut self, paddr: PAddr, prot: ::memory::virt::ProtectionMode) {
 		assert!(!self.is_null());
 		let flags: u64 = match prot
 			{
@@ -260,6 +296,42 @@ impl ::core::fmt::Debug for PTE
 {
 	fn fmt(&self, f: &mut ::core::fmt::Formatter) -> ::core::fmt::Result {
 		unsafe { write!(f, "PTE({:?}, *{:?}={:#x})", self.pos, self.data, *self.data) }
+	}
+}
+
+/// Handle a page fault in whatever way is suitable
+pub fn handle_page_fault(accessed_address: usize, error_code: u32) -> bool
+{
+	// Check clobbered bits first
+	if error_code & FAULT_RESVD != 0 {
+		// Reserved bits of the page directory were clobbered, this is a kernel panic
+		panic!("Reserved bits clobbered {:#x}", accessed_address);
+	}
+	
+	let pte = get_page_ent(accessed_address, false, false, LargeOk::Yes);
+	
+	// - Global rules
+	//  > Copy-on-write pages
+	if error_code & (FAULT_WRITE|FAULT_LOCKED) == (FAULT_WRITE|FAULT_WRITE) {
+		todo!("COW");
+	}
+	//  > Paged-out pages
+	if error_code & FAULT_LOCKED == 0 && !pte.is_null() {
+		todo!("Paged");
+	}
+	
+	
+	// Check if the user is buggy
+	if error_code & FAULT_USER != 0 {
+		todo!("User fault");
+	}
+	else {
+		log_panic!("Kernel {} {} memory{}",
+			if error_code & FAULT_WRITE  != 0 { "write to"  } else { "read from" },
+			if error_code & FAULT_LOCKED != 0 { "protected" } else { "non-present" },
+			if error_code & FAULT_FETCH != 0 { " (instruction fetch)" } else { "" }
+			);
+		todo!("kernel #PF");
 	}
 }
 

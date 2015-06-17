@@ -26,13 +26,18 @@ extern "C" {
 	fn task_switch(oldrsp: &mut u64, newrsp: &u64, tlsbase: u64, cr3: u64);
 }
 
-#[thread_local]
-#[no_mangle]
-pub static mut t_thread_ptr: *mut ::threads::Thread = 0 as *mut _;
-#[thread_local]
-static mut t_thread_ptr_sent: bool = false;
-//#[attribute(address_space(256))]
-//static cpu_switch_disable: AtomicUsize = ATOMIC_USIZE_INIT;
+#[repr(C)]
+struct TLSData {
+	// MUST be first (assumption in get_tls_ptr)
+	self_ptr: *const TLSData,
+	// MUST be second (assumption in SYSCALL handler)
+	stack_top: *const (),
+	
+	// Free to reorder these
+	thread_ptr: *mut ::threads::Thread,
+	thread_ptr_lent: bool,
+}
+
 
 /// Returns the thread state for TID0 (aka the kernel's core thread)
 pub fn init_tid0_state() -> State
@@ -59,47 +64,27 @@ pub fn idle()
 #[no_mangle]
 pub extern "C" fn prep_tls(top: usize, bottom: usize, thread_ptr: *mut ::threads::Thread) -> usize
 {
-	/*const*/ let tls_size = &v_ktls_size as *const () as usize;
-	/*const*/ let t_thread_ptr_ofs = &v_t_thread_ptr_ofs as *const () as usize;
-	
 	let mut pos = top;
 	
 	// 1. Create the TLS data block
 	let tlsblock_top = pos;
-	pos -= tls_size;
+	pos -= ::core::mem::size_of::<TLSData>();
 	let tlsblock = pos;
+	
 	// - Populate the TLS data area from the template
 	//  > Also set the thread pointer
 	unsafe {
-		// Nuke the region
-		::lib::mem::memset(tlsblock as *mut u8, 0, tls_size);
-		// - Store the thread pointer in t_thread_ptr
-		assert!( t_thread_ptr_ofs + 8 < tls_size );
-		::core::ptr::write( (tlsblock + t_thread_ptr_ofs) as *mut *mut ::threads::Thread, thread_ptr );
+		let data_ptr = tlsblock as *mut TLSData;
+		::core::ptr::write(data_ptr, TLSData {
+			self_ptr: data_ptr,
+			stack_top: tlsblock as *const (),
+			
+			thread_ptr: thread_ptr,
+			thread_ptr_lent: false,
+			});
 	}
 	
-	// 2. Create the TLS pointer region (i.e. the stuff right behind %fs:0)
-	#[repr(C)]
-	struct TlsPtrArea
-	{
-		data_ptr: usize,
-		//_unk: [u64; 13],
-		// - Ninja a word from this area for the stack top (used by syscall)
-		stack_top: usize,
-		_unk: [u64; 12],
-		stack_limit: usize, 
-	}
-	pos -= ::core::mem::size_of::<TlsPtrArea>();
-	pos -= pos % ::core::mem::min_align_of::<TlsPtrArea>();
-	let tls_base = pos;
-	unsafe {
-		let tls_base = &mut *(tls_base as *mut TlsPtrArea);
-		tls_base.data_ptr = tlsblock_top;	// grows down
-		tls_base.stack_top = tls_base as *const _ as usize;
-		tls_base.stack_limit = bottom;
-	}
-	
-	tls_base
+	tlsblock
 }
 
 /// Start a new thread using the provided TCB
@@ -144,7 +129,7 @@ pub fn start_thread<F: FnOnce()+Send>(thread: &mut ::threads::Thread, code: F)
 	// 4. Apply newly updated state
 	thread.cpu_state.rsp = stack_top as u64;
 	thread.cpu_state.tlsbase = tls_base as u64;
-	thread.cpu_state.cr3 = unsafe { (*t_thread_ptr).cpu_state.cr3 };
+	thread.cpu_state.cr3 = unsafe { (*borrow_thread()).cpu_state.cr3 };
 	thread.cpu_state.stack_handle = Some(stack);
 
 	// END: Parent function will run this thread for us
@@ -178,7 +163,7 @@ pub fn switch_to(newthread: Box<::threads::Thread>)
 		unsafe
 		{
 			// TODO: Lazy save/restore SSE state
-			let outstate = &mut (*t_thread_ptr).cpu_state;
+			let outstate = &mut (*(*get_tls_ptr()).thread_ptr).cpu_state;
 			let state = &newthread.cpu_state;
 			// Don't assert RSP, could be switching to self
 			assert!(state.cr3 != 0);
@@ -188,25 +173,33 @@ pub fn switch_to(newthread: Box<::threads::Thread>)
 		}
 		unsafe
 		{
-			t_thread_ptr_sent = false;
+			(*get_tls_ptr()).thread_ptr_lent = false;
 			::core::mem::forget(newthread);
 		}
 	}
+}
+
+unsafe fn get_tls_ptr() -> *mut TLSData {
+	let ret;
+	unsafe { asm!("mov %gs:(0), $0" : "=r" (ret) ) }
+	ret
 }
 
 /// Obtain the current thread's pointer (as a owned box, thread is destroyed when box is dropped)
 pub fn get_thread_ptr() -> Option<Box<::threads::Thread>>
 {
 	unsafe {
-		assert!( !t_thread_ptr.is_null() );
-		assert!( !t_thread_ptr_sent, "Thread {:?} already has its pointer lent", *t_thread_ptr );
-		t_thread_ptr_sent = true;
-		::core::mem::transmute( t_thread_ptr )
+		let info = &mut *get_tls_ptr();
+		assert!( !info.thread_ptr.is_null() );
+		assert!( !info.thread_ptr_lent, "Thread {:?} already has its pointer lent", *info.thread_ptr );
+		info.thread_ptr_lent = true;
+		log_debug!("Lend");
+		::core::mem::transmute( info.thread_ptr )
 	}
 }
 pub fn borrow_thread() -> *const ::threads::Thread {
 	unsafe {
-		t_thread_ptr
+		(*get_tls_ptr()).thread_ptr
 	}
 }
 /// Release or set the current thread pointer
@@ -214,15 +207,19 @@ pub fn set_thread_ptr(ptr: Box<::threads::Thread>)
 {
 	unsafe {
 		let ptr: *mut _ = ::core::mem::transmute(ptr);
-		if t_thread_ptr == ptr {
-			assert!( t_thread_ptr_sent, "Thread {:?}'s pointer received, but not lent", *t_thread_ptr );
-			t_thread_ptr_sent = false;
+		let info = &mut *get_tls_ptr();
+		if info.thread_ptr == ptr {
+			assert!( info.thread_ptr_lent, "Thread {:?}'s pointer received, but not lent", *info.thread_ptr );
 		}
 		else {
-			assert!( t_thread_ptr.is_null(), "t_thread_ptr is not null when set_thread_ptr is called, instead {:p}", t_thread_ptr );
-			t_thread_ptr = ptr;
-			t_thread_ptr_sent = false;
+			assert!( info.thread_ptr.is_null(),
+				"t_thread_ptr is not null when set_thread_ptr is called, instead {:p}",
+				info.thread_ptr
+				);
+			info.thread_ptr = ptr;
 		}
+		log_debug!("Receive");
+		info.thread_ptr_lent = false;
 	}
 }
 

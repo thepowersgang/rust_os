@@ -51,16 +51,6 @@ SECTIONS {
 		modules_end = .;
 	}
 	
-	.ktls ALIGN (0x1000) : AT(ADDR(.ktls) - _kernel_base) {
-		tbss_start = .;
-		*(.tbss)
-		*(.tbss.*)
-		. = ALIGN(16);
-		tbss_end = .;
-	}
-	v_ktls_size = tbss_end - tbss_start;
-	v_t_thread_ptr_ofs = t_thread_ptr - tbss_start;
-	
 	.data ALIGN (0x1000) : AT(ADDR(.data) - _kernel_base) {
 		*(.padata)
 		*(.data)
@@ -74,4 +64,6 @@ SECTIONS {
 		*(.bss.*)
 	}
 	v_kernel_end = (. + 0xFFF)&0xFFFFFFFFFFFFF000;
+	
+	/DISCARD/ : { *(.tbss) }
 }
