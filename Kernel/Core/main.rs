@@ -300,7 +300,8 @@ fn spawn_init(loader_path: &str, init_cmdline: &str)
 	// - 4. Allocate the loaders's BSS
 	assert!(ondisk_size as usize % ::PAGE_SIZE == 0, "Loader file size is not aligned to a page - {:#x}", ondisk_size);
 	let pages = (bss_size + ::PAGE_SIZE) / ::PAGE_SIZE;
-	::core::mem::forget( ::memory::virt::allocate( (load_base + ondisk_size as usize) as *mut (), pages/*, ::memory::virt::ProtectionMode::UserRW*/) );
+	let bss_start = (load_base + ondisk_size as usize) as *mut ();
+	::core::mem::forget( ::memory::virt::allocate(bss_start, pages/*, ::memory::virt::ProtectionMode::UserRW*/) );
 	// - 5. Write loader arguments
 	if header_ptr.init_path < load_base+codesize || header_ptr.init_path + init_cmdline.len() >= load_base + LOAD_MAX {
 		log_error!("Userland init string location out of range: {:#x}", header_ptr.init_path);
