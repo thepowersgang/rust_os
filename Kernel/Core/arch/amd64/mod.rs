@@ -65,6 +65,7 @@ pub fn print_backtrace()
 #[no_mangle]
 pub extern "C" fn syscalls_handler(id: u32, first_arg: *const usize, count: u32) -> u64
 {
+	log_debug!("syscalls_handler({}, {:p}+{}", id, first_arg, count);
 	::syscalls::invoke(id, unsafe { ::core::slice::from_raw_parts(first_arg, count as usize) })
 }
 

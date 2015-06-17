@@ -257,6 +257,11 @@ impl PTE
 			self.is_present() && *self.data & (PF_PRESENT | PF_LARGE) == PF_LARGE|PF_PRESENT
 		}
 	}
+	pub fn is_cow(&self) -> bool {
+		unsafe {
+			self.is_present() && (*self.data & FLAG_COW != 0)
+		}
+	}
 	
 	pub fn addr(&self) -> PAddr {
 		// SAFE: Construction should ensure this pointer is valid
@@ -291,7 +296,18 @@ impl PTE
 impl ::core::fmt::Debug for PTE
 {
 	fn fmt(&self, f: &mut ::core::fmt::Formatter) -> ::core::fmt::Result {
-		unsafe { write!(f, "PTE({:?}, *{:?}={:#x})", self.pos, self.data, *self.data) }
+		let val = unsafe { if self.is_null() { 0 } else { *self.data } };
+		
+		let addr = val & !(FLAG_NX|0xFFF);
+		write!(f,
+			"PTE({:?}, *{:?} = {:#x} [{}{}{}{}{}])",
+			self.pos, self.data, addr,
+			if val & FLAG_G != 0   { "g" } else { "" },
+			if val & FLAG_U != 0   { "u" } else { "" },
+			if val & FLAG_W != 0   { "w" } else { "" },
+			if val & FLAG_NX != 0  { "" } else { "x" },
+			if val & FLAG_COW != 0 { "C" } else { "" },
+			)
 	}
 }
 
@@ -308,8 +324,8 @@ pub fn handle_page_fault(accessed_address: usize, error_code: u32) -> bool
 	
 	// - Global rules
 	//  > Copy-on-write pages
-	if error_code & (FAULT_WRITE|FAULT_LOCKED) == (FAULT_WRITE|FAULT_LOCKED) {
-		todo!("COW");
+	if error_code & (FAULT_WRITE|FAULT_LOCKED) == (FAULT_WRITE|FAULT_LOCKED) && pte.is_cow() {
+		todo!("COW - pte = {:?}", pte);
 	}
 	//  > Paged-out pages
 	if error_code & FAULT_LOCKED == 0 && !pte.is_null() {
@@ -319,12 +335,13 @@ pub fn handle_page_fault(accessed_address: usize, error_code: u32) -> bool
 	
 	// Check if the user is buggy
 	if error_code & FAULT_USER != 0 {
-		log_log!("User {} {} memory{}",
+		log_log!("User {} {} memory{} : {:#x}",
 			if error_code & FAULT_WRITE  != 0 { "write to"  } else { "read from" },
 			if error_code & FAULT_LOCKED != 0 { "protected" } else { "non-present" },
-			if error_code & FAULT_FETCH != 0 { " (instruction fetch)" } else { "" }
+			if error_code & FAULT_FETCH != 0 { " (instruction fetch)" } else { "" },
+			accessed_address
 			);
-		todo!("User fault ({:#02x}", error_code);
+		todo!("User fault - PTE = {:?}", pte);
 	}
 	else {
 		log_panic!("Kernel {} {} memory{}",

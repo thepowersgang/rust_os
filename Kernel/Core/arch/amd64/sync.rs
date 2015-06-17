@@ -6,7 +6,7 @@
 use core::prelude::*;
 use core::atomic::{AtomicBool,Ordering};
 
-const TRACE_IF: bool = false;
+const TRACE_IF: bool = true;
 
 /// Lightweight protecting spinlock
 pub struct Spinlock<T: Send>

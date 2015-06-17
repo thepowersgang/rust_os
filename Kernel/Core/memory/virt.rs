@@ -100,7 +100,14 @@ impl ::core::iter::Iterator for Pages {
 pub use arch::memory::virt::get_phys;
 
 /// Ensure that the provded pages are valid (i.e. backed by memory)
-pub fn allocate(addr: *mut (), page_count: usize)
+pub fn allocate(addr: *mut (), page_count: usize) {
+	allocate_int(addr, page_count, false)
+}
+pub fn allocate_user(addr: *mut (), page_count: usize) {
+	allocate_int(addr, page_count, true)
+}
+
+fn allocate_int(addr: *mut (), page_count: usize, is_user: bool)
 {
 	use arch::memory::addresses::is_global;
 
@@ -115,9 +122,16 @@ pub fn allocate(addr: *mut (), page_count: usize)
 		}
 	}
 	// 3. do `page_count` single arbitary allocations
-	for pgptr in Pages(addr, page_count)
-	{
+	for pgptr in Pages(addr, page_count) {
 		::memory::phys::allocate( pgptr );
+	}
+	if is_user {
+		for pgptr in Pages(addr, page_count) {
+			// SAFE: This region has just been allocated, and is KernelRW, upgrading to allow user access
+			unsafe {
+				::arch::memory::virt::reprotect(pgptr, ProtectionMode::UserRW);
+			}
+		}
 	}
 }
 

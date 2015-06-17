@@ -134,11 +134,13 @@ fn syscall_core_log(msg: &str) {
 	todo!("syscall_core_log(msg={})", msg);
 }
 fn syscall_core_logend() {
+	todo!("syscall_core_logend()");
 }
 fn syscall_core_exit(status: u32) {
 	todo!("syscall_core_exit(status={})", status);
 }
 fn syscall_core_terminate() {
+	todo!("syscall_core_terminate()");
 }
 fn syscall_core_newthread(sp: usize, ip: usize) -> ObjectHandle {
 	todo!("syscall_core_newthread(sp={:#x},ip={:#x})", sp, ip);
