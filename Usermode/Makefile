@@ -44,7 +44,7 @@ $(BINDIR)loader: loader/link.ld $(OBJDIR)loader/start.ao $(OBJDIR)loader/src/mai
 	@mkdir -p $(dir $@)
 	@echo [LD] $@
 	@$(LD) -r --gc-sections --undefined image_header --entry start -o $(OBJDIR)loader.o $(OBJDIR)loader/start.ao $(OBJDIR)loader/src/main.o $(LIBDIR)libstd.rlib $(LIBDIR)libcore.rlib $(LIBDIR)libtifflin_syscalls.rlib
-	@$(LD) -o $@ -T loader/link.ld $(OBJDIR)loader.o -Map map.txt
+	@$(LD) -o $@ -T loader/link.ld $(OBJDIR)loader.o -Map $(OBJDIR)loader_map.txt
 
 # libcore: Same code as used by the kernel, but different build
 $(LIBDIR)libcore.rlib: ../libcore/lib.rs
