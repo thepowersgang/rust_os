@@ -188,7 +188,7 @@ impl File
 		let mut resv = match ::memory::virt::reserve(address as *mut (), page_count)
 			{
 			Ok(v) => v,
-			Err(e) => return Err( super::Error::Locked ),
+			Err(_) => return Err( super::Error::Locked ),
 			};
 		// - Obtain handles to each cached page, and map into the reservation
 		for i in 0 .. page_count {
@@ -198,7 +198,7 @@ impl File
 			//  - If found, map over region
 			// 2. Drop lock, read data from file, and try again
 			//drop(lh)
-			self.node.read(page * ::PAGE_SIZE as u64, resv.get_mut_page(i));
+			try!( self.node.read(page * ::PAGE_SIZE as u64, resv.get_mut_page(i)) );
 			// 3. Acquire write on lock, and attempt to insert a handle to this page
 			//let lh = self.page_cache.write();
 			//match lh.try_insert(pag, self.get_page_handle(i))
@@ -215,14 +215,14 @@ impl File
 			MemoryMapMode::Execute   => ::memory::virt::ProtectionMode::UserRX,
 			MemoryMapMode::COW       => ::memory::virt::ProtectionMode::UserCOW,
 			MemoryMapMode::WriteBack => ::memory::virt::ProtectionMode::UserRW,
-			});
+			})
+			.unwrap();
 		Ok(MemoryMapHandle {
 			handle: self,
 			base: address as *mut (),
 			len: page_count * ::PAGE_SIZE,
 			})
 	}
-
 }
 impl ::core::ops::Drop for File
 {
@@ -233,6 +233,14 @@ impl ::core::ops::Drop for File
 		_ => todo!("File::drop() - mode={:?}", self.mode),
 		}
 		// TODO: For files, we need to release the lock
+	}
+}
+
+impl<'a> Drop for MemoryMapHandle<'a>
+{
+	fn drop(&mut self)
+	{
+		todo!("MemoryMapHandle::drop");
 	}
 }
 

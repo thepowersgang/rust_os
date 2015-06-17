@@ -16,8 +16,8 @@ pub mod helpers;
 
 pub mod memorymap;
 
-/// Validate that a C string points to valid memory, and return a 'static slice to it
-pub fn c_string_as_byte_slice(c_str: *const i8) -> Option<&'static [u8]>
+/// Validate that a C string points to valid memory, and return a 'a slice to it
+pub fn c_string_as_byte_slice<'a>(c_str: *const i8) -> Option<&'a [u8]>
 {
 	// 1. Check first page
 	if ! ::arch::memory::virt::is_reserved(c_str) {
@@ -38,10 +38,7 @@ pub fn c_string_as_byte_slice(c_str: *const i8) -> Option<&'static [u8]>
 			}
 		}
 		
-		Some( ::core::mem::transmute( ::core::raw::Slice {
-			data: c_str,
-			len: ptr as usize - c_str as usize,
-			}) )
+		Some( ::core::slice::from_raw_parts(c_str as *const u8, ptr as usize - c_str as usize) )
 	}	
 }
 /// Validate a C string (legacy)
@@ -49,6 +46,20 @@ pub fn c_string_as_byte_slice(c_str: *const i8) -> Option<&'static [u8]>
 pub fn c_string_valid(c_str: *const i8) -> bool
 {
 	c_string_as_byte_slice(c_str).is_some()
+}
+
+// UNSAFE: Lifetime is inferred, everything else is checked
+pub unsafe fn buf_to_slice<'a, T>(ptr: *const T, size: usize) -> Option<&'a [T]> {
+	
+	if ptr as usize % ::core::mem::min_align_of::<T>() != 0 {
+		None
+	}
+	else if ! buf_valid(ptr as *const (), size) {
+		None
+	}
+	else {
+		Some( ::core::slice::from_raw_parts(ptr, size) )
+	}
 }
 
 /// Validates that a buffer points to accessible memory

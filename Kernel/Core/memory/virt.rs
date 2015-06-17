@@ -8,7 +8,6 @@ use core::fmt;
 use core::ops;
 use arch::memory::addresses;
 use arch::memory::PAddr;
-use memory::phys::FrameHandle;
 
 type Page = [u8; ::PAGE_SIZE];
 
@@ -105,7 +104,6 @@ pub fn allocate(addr: *mut (), page_count: usize)
 {
 	use arch::memory::addresses::is_global;
 
-	let pagenum = addr as usize / ::PAGE_SIZE;
 	// 1. Lock
 	let _lh = if is_global(addr as usize) { s_kernelspace_lock.lock() } else { s_userspace_lock.lock() };
 	// 2. Ensure range is free
