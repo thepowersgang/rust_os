@@ -5,11 +5,30 @@
 /// Userland system-call interface
 use prelude::*;
 
+#[allow(raw_pointer_derive)]
+#[derive(Debug)]
+enum Error
+{
+	TooManyArgs,
+	InvalidBuffer(*const (), usize),
+	InvalidUnicode(::core::str::Utf8Error),
+}
+impl From<::core::str::Utf8Error> for Error {
+	fn from(v: ::core::str::Utf8Error) -> Self { Error::InvalidUnicode(v) }
+}
+
 /// Entrypoint invoked by the architecture-specific syscall handler
 pub fn invoke(call_id: u32, args: &[usize]) -> u64 {
-	invoke_int(call_id, args).unwrap_or(!0)
+	match invoke_int(call_id, args)
+	{
+	Ok(v) => v,
+	Err(e) => {
+		log_log!("Syscall formatting error in call {:#x} - {:?}", call_id, e);
+		!0
+		},
+	}
 }
-fn invoke_int(call_id: u32, mut args: &[usize]) -> Result<u64,()>
+fn invoke_int(call_id: u32, mut args: &[usize]) -> Result<u64,Error>
 {
 	Ok( if call_id & 1 << 31 == 0
 	{
@@ -23,27 +42,23 @@ fn invoke_int(call_id: u32, mut args: &[usize]) -> Result<u64,()>
 			let msg = try!( <&str>::get_arg(&mut args) );
 			syscall_core_log(msg); 0
 			},
-		// - 0/1: Commit userland log
+		// - 0/1: Exit process
 		0x0_0001 => {
-			syscall_core_logend(); 0
-			},
-		// - 0/2: Exit process
-		0x0_0002 => {
 			let status = try!( <u32>::get_arg(&mut args) );
 			syscall_core_exit(status); 0
 			},
-		// - 0/3: Terminate current thread
-		0x0_0003 => {
+		// - 0/2: Terminate current thread
+		0x0_0002 => {
 			syscall_core_terminate(); 0
 			},
-		// - 0/4: Start thread
-		0x0_0004 => {
+		// - 0/3: Start thread
+		0x0_0003 => {
 			let sp = try!( <usize>::get_arg(&mut args) );
 			let ip = try!( <usize>::get_arg(&mut args) );
 			syscall_core_newthread(sp, ip)
 			},
-		// - 0/5: Start process
-		0x0_0005 => {
+		// - 0/4: Start process
+		0x0_0004 => {
 			todo!("Start process syscall");
 			},
 		// === 1: Window Manager / GUI
@@ -82,13 +97,13 @@ fn invoke_int(call_id: u32, mut args: &[usize]) -> Result<u64,()>
 type ObjectHandle = u64;
 
 trait SyscallArg {
-	fn get_arg(args: &mut &[usize]) -> Result<Self,()>;
+	fn get_arg(args: &mut &[usize]) -> Result<Self,Error>;
 }
 
 impl<'a> SyscallArg for &'a str {
-	fn get_arg(args: &mut &[usize]) -> Result<Self,()> {
+	fn get_arg(args: &mut &[usize]) -> Result<Self,Error> {
 		if args.len() < 2 {
-			return Err( () );
+			return Err( Error::TooManyArgs );
 		}
 		let ptr = args[0] as *const u8;
 		let len = args[1];
@@ -100,19 +115,15 @@ impl<'a> SyscallArg for &'a str {
 				v
 			}
 			else {
-				return Err( () );
+				return Err( Error::InvalidBuffer(ptr as *const (), len) );
 			} };
-		match ::core::str::from_utf8(bs)
-		{
-		Ok(v) => Ok(v),
-		Err(_) => return Err( () ),
-		}
+		Ok(try!( ::core::str::from_utf8(bs) ))
 	}
 }
 impl SyscallArg for usize {
-	fn get_arg(args: &mut &[usize]) -> Result<Self,()> {
+	fn get_arg(args: &mut &[usize]) -> Result<Self,Error> {
 		if args.len() < 1 {
-			return Err( () );
+			return Err( Error::TooManyArgs );
 		}
 		let rv = args[0];
 		*args = &args[1..];
@@ -120,9 +131,9 @@ impl SyscallArg for usize {
 	}
 }
 impl SyscallArg for u32 {
-	fn get_arg(args: &mut &[usize]) -> Result<Self,()> {
+	fn get_arg(args: &mut &[usize]) -> Result<Self,Error> {
 		if args.len() < 1 {
-			return Err( () );
+			return Err( Error::TooManyArgs );
 		}
 		let rv = args[0] as u32;
 		*args = &args[1..];
@@ -131,10 +142,7 @@ impl SyscallArg for u32 {
 }
 
 fn syscall_core_log(msg: &str) {
-	todo!("syscall_core_log(msg={})", msg);
-}
-fn syscall_core_logend() {
-	todo!("syscall_core_logend()");
+	log_debug!("syscall_core_log - {}", msg);
 }
 fn syscall_core_exit(status: u32) {
 	todo!("syscall_core_exit(status={})", status);

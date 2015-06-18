@@ -17,8 +17,11 @@ LIBDIR := $(OUTDIR)libs/
 OBJDIR := .objs/$(ARCH)/
 
 # Rust compilation flags
-RUSTFLAGS := --target=target-$(ARCH).json --cfg arch__$(ARCH)
-RUSTFLAGS += -O -g
+TARGET_SPEC := target-$(ARCH).json
+RUSTFLAGS := --target=$(TARGET_SPEC) --cfg arch__$(ARCH)
+RUSTFLAGS += -O
+RUSTFLAGS += -g
+RUSTFLAGS += -C soft-float	# STOPGAP until SSE is supported
 RUSTFLAGS += -L $(LIBDIR)
 
 # - List non-file targets
@@ -50,26 +53,27 @@ $(BINDIR)loader: loader/link.ld $(OBJDIR)loader/start.ao $(OBJDIR)loader/src/mai
 $(OBJDIR)loader/src/main.o: $(LIBDIR)libstd.rlib
 
 # libcore: Same code as used by the kernel, but different build
-$(LIBDIR)libcore.rlib: ../libcore/lib.rs
+$(LIBDIR)libcore.rlib: ../libcore/lib.rs $(TARGET_SPEC) Makefile
 	@mkdir -p $(dir $@)
 	@echo [RUSTC] $@
 	@$(RUSTC) $(RUSTFLAGS) -o $@ $<
 
-$(BINDIR)%: %/src/main.rs
+$(BINDIR)%: %/src/main.rs $(TARGET_SPEC) Makefile
 	@mkdir -p $(dir $@)
 	@echo [RUSTC] $@
 	@$(RUSTC) $(RUSTFLAGS) -o $@ $< --crate-type=bin --crate-name=$*
-$(LIBDIR)lib%.rlib: lib%/src/lib.rs
+
+$(LIBDIR)lib%.rlib: lib%/src/lib.rs $(TARGET_SPEC) Makefile
 	@mkdir -p $(dir $@)
 	@echo [RUSTC] $@
 	@$(RUSTC) $(RUSTFLAGS) -o $@ $< --crate-type=rlib --crate-name=$*
 
-$(OBJDIR)%.o: %.rs
+$(OBJDIR)%.o: %.rs $(TARGET_SPEC) Makefile
 	@mkdir -p $(dir $@)
 	@echo [RUSTC] $@
 	@$(RUSTC) $(RUSTFLAGS) -o $@ $< --emit=obj
 
-$(OBJDIR)%.ao: %.S
+$(OBJDIR)%.ao: %.S Makefile
 	@mkdir -p $(dir $@)
 	@echo [AS] $@
 	@$(CC) -o $@ -c $< -D ARCH_$(ARCH)

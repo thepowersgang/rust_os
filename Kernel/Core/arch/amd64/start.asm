@@ -243,7 +243,7 @@ EXPORT drop_to_user
 ; System Calls
 ; -------------------------------------------------
 [section .text.asm.syscall_handler]
-; RAX, RSI, RDI, RDX, [RCX/R10], R8, R9
+; RAX, RDI, RSI, RDX, [RCX/R11], R8, R9
 EXPORT syscall_handler
 	; RCX = RIP, R11 = EFLAGS
 	; NOTE: We're FUCKED if an interrupt happens before the new stack is up
@@ -251,42 +251,35 @@ EXPORT syscall_handler
 	; - Also, the NMI should use a separate stack (thanks to the IST)
 	
 	; >>> Switch to kernel stack
+	; - The format of 'gs' is specified in arch/amd64/threads.rs (TLSData)
 	swapgs
-	mov rsp, [gs:0x8]	; SEE arch/amd64/threads.rs prep_tls for this
+	mov [gs:0x10], rsp	; Save user's RSP
+	mov rsp, [gs:0x8]	; and load kernels
 	; >>> Save user state
 	push rcx	; RCX = userland IP
 	push r11	; R11 = userland EFLAGS
 	; >>> Push args (ready to be passed as slice)
-	; - Last first
-	push r9
-	push r8
-	push r10
-	push rdx
-	push rdi
-	push rsi
-	; >>> Set FS base
-	; - TODO: Do this? or not?
-	;push rax
-	;mov rax, [gs:GS_fsbase]
-	;mov rdx, rax
-	;shr rdx, 32	; EDX = High
-	;mov ecx, 0xC0000100	; FS Base
-	;wrmsr
+	SAVE rdi, rsi, rdx, r10, r8, r9
 	sti
 	
-	mov rsi, rax
-	mov rdi, rsp
+	mov rdi, rax
+	mov rsi, rsp
 	mov rdx, 6
 	[extern syscalls_handler]
 	call syscalls_handler
 	
+	; "pop" the arguments
+	RESTORE rdi, rsi, rdx, r10, r8, r9
+	
 	; All done
-	; >>> Restore the user's copy of FS
-	; - TODO: Definitely needs doing, based on the current thread's TCB
-	; >>> Restore GS
-	swapgs
+	; >>> Restore RCX/R11 for sysret
 	pop r11
 	pop rcx
+	; >>> Restore user's SP
+	mov rsp, [gs:0x10]
+	; >>> TODO: Restore user's FS
+	; >>> Restore GS
+	swapgs
 	; sysretq (no opcode for it in nasm)
 	; - Returns to 64-bit mode, let's ignore compat mode
 	db 0x48

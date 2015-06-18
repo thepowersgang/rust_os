@@ -27,9 +27,13 @@ extern "C" {
 #[repr(C)]
 struct TLSData {
 	// MUST be first (assumption in get_tls_ptr)
+	// - TODO: Is this the same value as stack_top?
+	// > Yes it is, but meh
 	self_ptr: *const TLSData,
 	// MUST be second (assumption in SYSCALL handler)
 	stack_top: *const (),
+	// MUST be third (same as above)
+	user_stack: u64,
 	
 	// Free to reorder these
 	thread_ptr: *mut ::threads::Thread,
@@ -75,6 +79,7 @@ pub extern "C" fn prep_tls(top: usize, _bottom: usize, thread_ptr: *mut ::thread
 		::core::ptr::write(data_ptr, TLSData {
 			self_ptr: data_ptr,
 			stack_top: tlsblock as *const (),
+			user_stack: 0,
 			
 			thread_ptr: thread_ptr,
 			thread_ptr_lent: false,

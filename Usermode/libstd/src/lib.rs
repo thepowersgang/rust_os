@@ -15,6 +15,8 @@ use core::prelude::*;
 
 // Raw re-exports from core
 pub use core::fmt;
+pub use core::slice;
+pub use core::str;
 
 /// Prelude
 pub mod prelude {
