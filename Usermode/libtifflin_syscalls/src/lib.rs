@@ -4,6 +4,7 @@
 #![no_std]
 
 use core::prelude::*;
+#[macro_use]
 extern crate core;
 
 #[repr(u32,C)]
@@ -39,6 +40,7 @@ impl FixedBuf {
 	fn push_back(&mut self, data: &[u8]) {
 		let len = self.data[self.len..].clone_from_slice( data );
 		self.len += len;
+		assert!(self.len <= 128);
 	}
 }
 impl ::core::ops::Deref for FixedBuf {
@@ -55,7 +57,6 @@ static mut T_LOG_BUFFER: FixedBuf = FixedBuf::new();
 pub struct ThreadLogWriter;
 impl ::core::fmt::Write for ThreadLogWriter {
 	fn write_str(&mut self, s: &str) -> ::core::fmt::Result {
-		::log_write(s);
 		// SAFE: Thread-local
 		unsafe {
 			T_LOG_BUFFER.push_back(s.as_bytes());
@@ -89,7 +90,7 @@ macro_rules! kernel_log {
 #[inline]
 pub fn log_write(msg: &str) {
 	unsafe {
-		syscall!(LogWrite, msg.len(), msg.as_ptr() as usize);
+		syscall!(LogWrite, msg.as_ptr() as usize, msg.len());
 	}
 }
 #[inline]
@@ -103,20 +104,26 @@ pub fn exit(code: u32) -> ! {
 #[cfg(arch__amd64)]
 mod arch
 {
+	macro_rules! syscall_a {
+		($id:expr, $( $reg:tt = $val:expr),*) => {{
+			let rv;
+			asm!("syscall"
+				: "={rax}" (rv)
+				: "{rax}" ($id) $(, $reg ($val))*
+				: "rcx", "r11"
+				: "volatile"
+				);
+			rv
+		}};
+	}
 	pub unsafe fn syscall_0(id: u32) -> u64 {
-		let rv;
-		asm!("syscall" : "={rax}" (rv) : "{rax}" (id) : : "volatile");
-		rv
+		syscall_a!(id, )
 	}
 	pub unsafe fn syscall_1(id: u32, a1: usize) -> u64 {
-		let rv;
-		asm!("syscall" : "={rax}" (rv) : "{rax}" (id), "{rsi}" (a1) : : "volatile");
-		rv
+		syscall_a!(id, "{rdi}"=a1)
 	}
 	pub unsafe fn syscall_2(id: u32, a1: usize, a2: usize) -> u64 {
-		let rv;
-		asm!("syscall" : "={rax}" (rv) : "{rax}" (id), "{rsi}" (a1), "{rdi}" (a2) : : "volatile");
-		rv
+		syscall_a!(id, "{rdi}"=a1, "{rsi}"=a2)
 	}
 }
 

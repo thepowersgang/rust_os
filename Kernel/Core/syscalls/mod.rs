@@ -117,6 +117,7 @@ impl<'a> SyscallArg for &'a str {
 			else {
 				return Err( Error::InvalidBuffer(ptr as *const (), len) );
 			} };
+		
 		Ok(try!( ::core::str::from_utf8(bs) ))
 	}
 }

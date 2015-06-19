@@ -219,6 +219,7 @@ EXPORT task_switch
 	wrmsr
 	RESTORE rbp, rbx, r12, r13, r14, r15
 	ret
+
 [section .text]
 EXPORT thread_trampoline
 	pop rax	; 1. Pop thread root method off stack
@@ -236,6 +237,7 @@ EXPORT drop_to_user
 	mov es, ax
 	mov fs, ax
 	mov gs, ax
+	mov rax, rsi
 	db 0x48
 	sysret
 
@@ -243,7 +245,7 @@ EXPORT drop_to_user
 ; System Calls
 ; -------------------------------------------------
 [section .text.asm.syscall_handler]
-; RAX, RDI, RSI, RDX, [RCX/R11], R8, R9
+; RAX, RDI, RSI, RDX, [RCX/R10], R8, R9
 EXPORT syscall_handler
 	; RCX = RIP, R11 = EFLAGS
 	; NOTE: We're FUCKED if an interrupt happens before the new stack is up
@@ -256,8 +258,7 @@ EXPORT syscall_handler
 	mov [gs:0x10], rsp	; Save user's RSP
 	mov rsp, [gs:0x8]	; and load kernels
 	; >>> Save user state
-	push rcx	; RCX = userland IP
-	push r11	; R11 = userland EFLAGS
+	SAVE rcx, r11	; RCX = userland IP, R11 = userland EFLAGS
 	; >>> Push args (ready to be passed as slice)
 	SAVE rdi, rsi, rdx, r10, r8, r9
 	sti
@@ -273,8 +274,7 @@ EXPORT syscall_handler
 	
 	; All done
 	; >>> Restore RCX/R11 for sysret
-	pop r11
-	pop rcx
+	RESTORE rcx, r11
 	; >>> Restore user's SP
 	mov rsp, [gs:0x10]
 	; >>> TODO: Restore user's FS

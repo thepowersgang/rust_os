@@ -1,5 +1,4 @@
 ENTRY(start)
-OUTPUT_FORMAT(binary)
 
 SECTIONS {
 	. = BASE;
@@ -18,10 +17,12 @@ SECTIONS {
 		*(.data .data.*)
 		. = ALIGN(0x1000);
 	}
-	.bss : {
+	.bss ALIGN(0x1000) : {
 		bss_start = .;
 		*(.bss .bss.*)
 		bss_end = .;
 	}
 	imagesize = . - BASE;
+	
+	ASSERT(. < LIMIT, "Image is too large to fit in reservation")
 }

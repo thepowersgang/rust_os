@@ -19,7 +19,7 @@ OBJDIR := .objs/$(ARCH)/
 # Rust compilation flags
 TARGET_SPEC := target-$(ARCH).json
 RUSTFLAGS := --target=$(TARGET_SPEC) --cfg arch__$(ARCH)
-RUSTFLAGS += -O
+#RUSTFLAGS += -O
 RUSTFLAGS += -g
 RUSTFLAGS += -C soft-float	# STOPGAP until SSE is supported
 RUSTFLAGS += -L $(LIBDIR)
@@ -47,8 +47,9 @@ $(BINDIR)loader: loader/link.ld $(OBJDIR)loader/start.ao $(OBJDIR)loader/src/mai
 	@mkdir -p $(dir $@)
 	@echo [LD] $@
 	@$(LD) -r --gc-sections --undefined image_header --entry start -o $(OBJDIR)loader.o $(OBJDIR)loader/start.ao $(OBJDIR)loader/src/main.o $(LIBDIR)libstd.rlib $(LIBDIR)libcore.rlib $(LIBDIR)libtifflin_syscalls.rlib
-	@$(LD) -o $@ -T loader/link.ld $(OBJDIR)loader.o -Map $(OBJDIR)loader_map.txt
-	@$(LD) -o $(OBJDIR)loader.elf -T loader/link.ld --oformat=elf64-x86-64 $(OBJDIR)loader.o -Map $(OBJDIR)loader_map.txt
+	@$(LD) -o $(OBJDIR)loader.elf -T loader/link.ld $(OBJDIR)loader.o -Map $(OBJDIR)loader_map.txt
+	@objcopy $(OBJDIR)loader.elf -O binary $@
+	@objdump -CS $(OBJDIR)loader.elf > $(OBJDIR)loader.dsm
 
 $(OBJDIR)loader/src/main.o: $(LIBDIR)libstd.rlib
 

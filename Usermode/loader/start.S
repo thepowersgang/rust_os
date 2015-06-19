@@ -11,7 +11,9 @@
 =======================================================================
 */
 .globl BASE
-.set BASE, 0x00007fffFFFF0000
+.globl LIMIT
+.set BASE,  0x00007fffFFFE0000
+.set LIMIT, 0x0000800000000000
 #define RED_ZONE	128	/* the ABI defines a "red zone" above the stack for functions to dick with */
 
 .section HEADER
@@ -23,13 +25,16 @@ image_header:
 	.byte (3*4+2*8) , HDR_ARCH_amd64 , 0 , 0	/* Header size, bit-ness, pad, pad */
 	.long codesize
 	.long imagesize
+	.long init_path - BASE
+	.long init_path_end - init_path
 	.quad start
-	.quad init_path
 
 .section .text
 .globl start
 .extern loader_main
+/* RAX = Argument length */
 start:
+	mov %rax, %rsi	/* Save arg length in ARG2 */
 	/* 0. ASSERT that the loader was loaded to the correct location */
 	mov $BASE, %rax
 	lea 0(%rip), %rcx
@@ -37,12 +42,13 @@ start:
 	cmp $0x1000, %rcx
 	jge .bad_location
 	/* 1. Initialise the stack */
-	lea (init_stack-RED_ZONE)(%rip), %rsp
+	lea init_stack_end(%rip), %rsp
+	sub $RED_ZONE, %rsp
 	/* 2. Set up the TLS area for stack checks*/
 	/* - Wait, they're disabled. Good*/
 	/* 3. Call into rust */
-	lea init_path(%rip), %rsi
-	mov %rax, %rdi
+	lea init_path(%rip), %rdi
+	/* RSI = Initial RAX */
 	jmp loader_main
 .bad_location:
 	// Incorrect location, bail hard
@@ -59,7 +65,9 @@ start:
 memset:
 	mov %rsi, %rax
 	mov %rdx, %rcx
+	mov %rdi, %rdx // Save RDI
 	rep stosb
+	mov %rdx, %rax // because it's the return value
 	ret
 // RDI = Destination
 // RSI = Source
@@ -67,6 +75,7 @@ memset:
 .globl memcpy
 memcpy:
 	mov %rdx, %rcx
+	mov %rdi, %rax // Prepare to return RDI
 	rep movsb
 	ret
 ;; RDI = A
@@ -90,60 +99,14 @@ memcmp:
 _Unwind_Resume:
 	jmp .
 
-// HUGE STUBBING!
-// - This should be replaced with a libm
-#define EXPORT(s)	.globl s ; s:
-/*
-EXPORT( log    )
-EXPORT( log2   )
-EXPORT( log10  )
-EXPORT( pow    )
-EXPORT( exp    )
-EXPORT( exp2   )
-EXPORT( ceil   )
-EXPORT( floor  )
-EXPORT( fmod   )
-EXPORT( round  )
-EXPORT( trunc  )
-EXPORT( fdim   )
-EXPORT( fma    )
-EXPORT( sqrt   )
-EXPORT( logf   )
-EXPORT( log2f  )
-EXPORT( log10f )
-EXPORT( powf   )
-EXPORT( expf   )
-EXPORT( exp2f  )
-EXPORT( ceilf  )
-EXPORT( floorf )
-EXPORT( fmodf  )
-EXPORT( roundf )
-EXPORT( truncf )
-EXPORT( fdimf  )
-EXPORT( fmaf   )
-EXPORT( sqrtf  )
-// Softmath conversions
-EXPORT(__fixsfqi)	// Single Float -> ? Int
-EXPORT(__fixsfhi)	// Single Float -> ? Int
-EXPORT(__fixdfqi)	// Double Float -> ? Int
-EXPORT(__fixdfhi)
-EXPORT(__fixunssfqi)
-EXPORT(__fixunssfhi)
-EXPORT(__fixunsdfqi)
-EXPORT(__fixunsdfhi)
-	jmp .halt 
-
-.halt:
-	hlt
-	jmp .halt
-*/
-
 .section .bss
-	.space 8196
-init_stack:
+init_stack_base:
+	.space 0x2000
+init_stack_end:
 
 init_path:
 	.space 64
+init_path_end:
 
 
 #else

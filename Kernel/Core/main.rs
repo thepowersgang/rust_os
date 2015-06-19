@@ -250,8 +250,9 @@ fn spawn_init(loader_path: &str, init_cmdline: &str)
 		info: u32,
 		codesize: u32,
 		memsize: u32,
+		init_path_ofs: u32,
+		init_path_len: u32,
 		entrypoint: usize,
-		init_path: usize,
 	}
 	const MAGIC: u32 = 0x71FF1013;
 	#[cfg(arch__amd64)]
@@ -273,7 +274,7 @@ fn spawn_init(loader_path: &str, init_cmdline: &str)
 			return ;
 			},
 		};
-	let max_size: usize = 64*1024;
+	let max_size: usize = 2*64*1024;
 	let load_base: usize = LOAD_MAX - max_size;
 	let ondisk_size = loader.size();
 	let mh_firstpage = {
@@ -293,8 +294,9 @@ fn spawn_init(loader_path: &str, init_cmdline: &str)
 	}
 	// - 3. Map the remainder of the image into memory (with correct permissions)
 	let codesize = header_ptr.codesize as usize;
+	let memsize = header_ptr.memsize as usize;
 	let datasize = ondisk_size as usize - codesize;
-	let bss_size = header_ptr.memsize as usize - ondisk_size as usize;
+	let bss_size = memsize - ondisk_size as usize;
 	log_debug!("Executable size: {}, rw data size: {}", codesize, datasize);
 	let mh_code = loader.memory_map(load_base + ::PAGE_SIZE, ::PAGE_SIZE as u64, codesize - ::PAGE_SIZE,  handle::MemoryMapMode::Execute);
 	assert!(codesize % ::PAGE_SIZE == 0, "Loader code doesn't end on a page boundary - {:#x}", codesize);
@@ -307,12 +309,19 @@ fn spawn_init(loader_path: &str, init_cmdline: &str)
 	let ah_bss = ::memory::virt::allocate_user(bss_start, pages);
 	
 	// - 5. Write loader arguments
-	if header_ptr.init_path < load_base+codesize || header_ptr.init_path + init_cmdline.len() >= load_base + LOAD_MAX {
-		log_error!("Userland init string location out of range: {:#x}", header_ptr.init_path);
+	if (header_ptr.init_path_ofs as usize) < codesize || (header_ptr.init_path_ofs as usize + header_ptr.init_path_len as usize) >= memsize {
+		log_error!("Userland init string location out of range: {:#x}", header_ptr.init_path_ofs);
 		return ;
 	}
 	// TODO: Write loader arguments into the provided location
 	// TODO: Should the argument string length be passed down to the user? In memory, or via a register?
+	let argslen = unsafe {
+		::core::slice::from_raw_parts_mut(
+				(load_base + header_ptr.init_path_ofs as usize) as *mut u8,
+				header_ptr.init_path_len as usize
+				)
+			.clone_from_slice(init_cmdline.as_bytes())
+		};
 	
 	// - 6. Enter userland
 	if header_ptr.entrypoint < load_base || header_ptr.entrypoint >= load_base + LOAD_MAX {
@@ -333,7 +342,7 @@ fn spawn_init(loader_path: &str, init_cmdline: &str)
 	// SAFE: This pointer is as validated as it can be...
 	log_debug!("Entering userland at {:#x}", header_ptr.entrypoint);
 	unsafe {
-		::arch::drop_to_user(header_ptr.entrypoint);
+		::arch::drop_to_user(header_ptr.entrypoint, argslen);
 	}
 }
 

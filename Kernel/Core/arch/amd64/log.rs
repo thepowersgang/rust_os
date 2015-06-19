@@ -17,16 +17,19 @@ pub fn puts(text: &str)
 	}
 }
 /// Print a hexadecimal value to the logging output
-pub fn puth(val: u64)
-{
-	puts("0");
+pub fn puth(val: u64) {
 	let nibbles = {
-		let mut v = 1u64;
+		let mut v = 1;
 		while (val >> v*4) > 0 && v < 64/4 { v += 1 }
 		v
 		};
-	//let nibbles = 16u;
-	puts("x");
+	puts("0x");
+	puth_digits(val, nibbles);
+}
+pub fn puth64(val: u64) {
+	puth_digits(val, 64/4)
+}
+pub fn puth_digits(val: u64, nibbles: usize) {
 	for i in (0 .. nibbles)
 	{
 		let nibble : u8 = ((val >> (nibbles-i-1)*4) & 15) as u8;
