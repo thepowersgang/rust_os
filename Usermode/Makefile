@@ -18,8 +18,8 @@ OBJDIR := .objs/$(ARCH)/
 
 # Rust compilation flags
 TARGET_SPEC := target-$(ARCH).json
-RUSTFLAGS := --target=$(TARGET_SPEC) --cfg arch__$(ARCH)
-#RUSTFLAGS += -O
+RUSTFLAGS := --target=$(TARGET_SPEC) --cfg arch__$(ARCH) --cfg nightly
+RUSTFLAGS += -O
 RUSTFLAGS += -g
 RUSTFLAGS += -C soft-float	# STOPGAP until SSE is supported
 RUSTFLAGS += -L $(LIBDIR)
@@ -46,33 +46,53 @@ clean:
 $(BINDIR)loader: loader/link.ld $(OBJDIR)loader/start.ao $(OBJDIR)loader/src/main.o
 	@mkdir -p $(dir $@)
 	@echo [LD] $@
-	@$(LD) -r --gc-sections --undefined image_header --entry start -o $(OBJDIR)loader.o $(OBJDIR)loader/start.ao $(OBJDIR)loader/src/main.o $(LIBDIR)libstd.rlib $(LIBDIR)libcore.rlib $(LIBDIR)libtifflin_syscalls.rlib
+	@$(LD) -r --gc-sections --undefined image_header --entry start -o $(OBJDIR)loader.o $(OBJDIR)loader/start.ao $(OBJDIR)loader/src/main.o $(patsubst %,$(LIBDIR)lib%.rlib, std core tifflin_syscalls cmdline_words_parser)
 	@$(LD) -o $(OBJDIR)loader.elf -T loader/link.ld $(OBJDIR)loader.o -Map $(OBJDIR)loader_map.txt
 	@objcopy $(OBJDIR)loader.elf -O binary $@
 	@objdump -CS $(OBJDIR)loader.elf > $(OBJDIR)loader.dsm
 
-$(OBJDIR)loader/src/main.o: $(LIBDIR)libstd.rlib
+$(OBJDIR)loader/src/main.o: $(LIBDIR)libstd.rlib $(LIBDIR)libcmdline_words_parser.rlib
 
 # libcore: Same code as used by the kernel, but different build
 $(LIBDIR)libcore.rlib: ../libcore/lib.rs $(TARGET_SPEC) Makefile
 	@mkdir -p $(dir $@)
 	@echo [RUSTC] $@
-	@$(RUSTC) $(RUSTFLAGS) -o $@ $<
+	@$(RUSTC) $(RUSTFLAGS) --emit=link,dep-info --out-dir $(OBJDIR) $<
+	@$(RUSTC) $(RUSTFLAGS) -Z parse-only --emit=dep-info -o $(OBJDIR)libcore.d $<
+	@mv $(OBJDIR)libcore.rlib $@
+	@mv $(OBJDIR)core.d $(OBJDIR)libcore.d
 
 $(BINDIR)%: %/src/main.rs $(TARGET_SPEC) Makefile
 	@mkdir -p $(dir $@)
 	@echo [RUSTC] $@
 	@$(RUSTC) $(RUSTFLAGS) -o $@ $< --crate-type=bin --crate-name=$*
+	@$(RUSTC) $(RUSTFLAGS) -Z parse-only --emit=dep-info -o $(OBJDIR)$*.d $<
 
+# - local library crates
 $(LIBDIR)lib%.rlib: lib%/src/lib.rs $(TARGET_SPEC) Makefile
 	@mkdir -p $(dir $@)
 	@echo [RUSTC] $@
+	@$(RUSTC) $(RUSTFLAGS) --emit=link,dep-info --out-dir $(OBJDIR) $< --crate-type=rlib --crate-name=$*
+	@mv $(OBJDIR)lib$*.rlib $@
+	@mv $(OBJDIR)$*.d $(OBJDIR)lib$*.d
+
+# - crates.io crates
+$(LIBDIR)lib%.rlib: ../externals/crates.io/%/src/lib.rs $(TARGET_SPEC) Makefile
+	@mkdir -p $(dir $@)
+	@echo [RUSTC] $@
 	@$(RUSTC) $(RUSTFLAGS) -o $@ $< --crate-type=rlib --crate-name=$*
+	@$(RUSTC) $(RUSTFLAGS) -Z parse-only --emit=dep-info -o $(OBJDIR)lib$*.d $<
+
+../externals/crates.io/%/src/lib.rs: ../externals/crates.io/%.repo
+	@mkdir -p ../externals/crates.io/$*
+	test -e $@ || git clone `cat ../externals/crates.io/$*.repo` ../externals/crates.io/$*
+
 
 $(OBJDIR)%.o: %.rs $(TARGET_SPEC) Makefile
 	@mkdir -p $(dir $@)
 	@echo [RUSTC] $@
 	@$(RUSTC) $(RUSTFLAGS) -o $@ $< --emit=obj
+	@$(RUSTC) $(RUSTFLAGS) -Z parse-only --emit=dep-info -o $(OBJDIR)$*.o.d $<
 
 $(OBJDIR)%.ao: %.S Makefile
 	@mkdir -p $(dir $@)
@@ -87,4 +107,13 @@ fn_mmdep = $2: $(patsubst %,$(LIBDIR)lib%.rlib,$(call fn_getdeps,$1) $(call fn_g
 # - Assumes that if there's a main.rs file, a binary is generated, and for lib.rs a rlib is generated
 $(foreach m, $(wildcard */src/lib.rs), $(eval $(call fn_mmdep,$m,$(m:%/src/lib.rs=$(LIBDIR)%.rlib))))
 $(foreach m, $(wildcard */src/main.rs), $(eval $(call fn_mmdep,$m,$(m:%/src/main.rs=$(BINDIR)%))))
+
+ALL_USED_LIBS := std $(sort $(foreach m, $(wildcard */src/lib.rs) $(wildcard */src/main.rs), $(call fn_getdeps,$m)))
+ALL_PRESENT_BINS := $(patsubst %/src/main.rs,%, $(wildcard */src/main.rs))
+
+DEPFILES := $(patsubst %,$(OBJDIR)lib%.d, $(ALL_USED_LIBS))
+DEPFILES += $(patsubst %,$(OBJDIR)%.d, $(ALL_PRESENT_BINS))
+$(warning $(DEPFILES))
+-include $(DEPFILES)
+
 
