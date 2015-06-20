@@ -1,8 +1,18 @@
 
 use core::prelude::*;
 
-pub fn begin_unwind<M: ::core::any::Any+Send>(msg: M, file_line: &(&'static str, u32)) -> ! {
-	rust_begin_unwind(format_args!("TODO"), file_line.0, file_line.1 as usize)
+pub fn begin_unwind<M: ::core::any::Any+Send+'static>(msg: M, file_line: &(&'static str, u32)) -> ! {
+	let file = file_line.0;
+	let line = file_line.1 as usize;
+	if let Some(m) = ::core::any::Any::downcast_ref::<::core::fmt::Arguments>(&msg) {
+		rust_begin_unwind(format_args!("{}", m), file, line)
+	}
+	else if let Some(m) = ::core::any::Any::downcast_ref::<&str>(&msg) {
+		rust_begin_unwind(format_args!("{}", m), file, line)
+	}
+	else {
+		rust_begin_unwind(format_args!("begin_unwind<{}>", unsafe { ::core::intrinsics::type_name::<M>() }), file, line)
+	}
 }
 
 #[lang = "panic_fmt"]

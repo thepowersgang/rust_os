@@ -69,11 +69,12 @@ $(BINDIR)%: %/src/main.rs $(TARGET_SPEC) Makefile
 	@$(RUSTC) $(RUSTFLAGS) -Z parse-only --emit=dep-info -o $(OBJDIR)$*.d $<
 
 # - local library crates
-$(LIBDIR)lib%.rlib: lib%/src/lib.rs $(TARGET_SPEC) Makefile
+$(LIBDIR)lib%.rlib: $(OBJDIR)lib%.rlib
+	@mv $(OBJDIR)lib$*.rlib $@
+$(OBJDIR)lib%.rlib: lib%/src/lib.rs $(TARGET_SPEC) Makefile
 	@mkdir -p $(dir $@)
 	@echo [RUSTC] $@
 	@$(RUSTC) $(RUSTFLAGS) --emit=link,dep-info --out-dir $(OBJDIR) $< --crate-type=rlib --crate-name=$*
-	@mv $(OBJDIR)lib$*.rlib $@
 	@mv $(OBJDIR)$*.d $(OBJDIR)lib$*.d
 
 # - crates.io crates
