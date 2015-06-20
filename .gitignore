@@ -10,7 +10,7 @@
 libcore/
 acpica/*.a
 acpica/acpica-*/
-externals/
+externals/crates.io/*/
 
 Graphics/*.rs
 
