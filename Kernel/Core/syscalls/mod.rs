@@ -28,6 +28,11 @@ pub fn invoke(call_id: u32, args: &[usize]) -> u64 {
 		},
 	}
 }
+
+use self::values::*;
+#[path="../../../syscalls.inc.rs"]
+mod values;
+
 fn invoke_int(call_id: u32, mut args: &[usize]) -> Result<u64,Error>
 {
 	Ok( if call_id & 1 << 31 == 0
@@ -38,37 +43,37 @@ fn invoke_int(call_id: u32, mut args: &[usize]) -> Result<u64,Error>
 		{
 		// === 0: Threads and core
 		// - 0/0: Userland log
-		0x0_0000 => {
+		CORE_LOGWRITE => {
 			let msg = try!( <&str>::get_arg(&mut args) );
 			syscall_core_log(msg); 0
 			},
 		// - 0/1: Exit process
-		0x0_0001 => {
+		CORE_EXITPROCESS => {
 			let status = try!( <u32>::get_arg(&mut args) );
 			syscall_core_exit(status); 0
 			},
 		// - 0/2: Terminate current thread
-		0x0_0002 => {
+		CORE_EXITTHREAD => {
 			syscall_core_terminate(); 0
 			},
 		// - 0/3: Start thread
-		0x0_0003 => {
+		CORE_STARTTHREAD => {
 			let sp = try!( <usize>::get_arg(&mut args) );
 			let ip = try!( <usize>::get_arg(&mut args) );
 			syscall_core_newthread(sp, ip)
 			},
 		// - 0/4: Start process
-		0x0_0004 => {
+		CORE_STARTPROCESS => {
 			todo!("Start process syscall");
 			},
 		// === 1: Window Manager / GUI
 		// - 1/0: New group (requires permission, has other restrictions)
-		0x1_0000 => {
+		GUI_NEWGROUP => {
 			let name = try!( <&str>::get_arg(&mut args) );
 			syscall_gui_newgroup(name)
 			},
 		// - 1/1: New window
-		0x1_0001 => {
+		GUI_NEWWINDOW => {
 			let name = try!( <&str>::get_arg(&mut args) );
 			syscall_gui_newwindow(name)
 			},
