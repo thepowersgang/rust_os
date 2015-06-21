@@ -28,3 +28,7 @@ def_grp!( 1: GROUP_GUI = {
 	0: GUI_NEWGROUP,
 	1: GUI_NEWWINDOW,
 });
+
+def_grp!(2: GROUP_VFS = {
+	0: VFS_OPEN,
+});

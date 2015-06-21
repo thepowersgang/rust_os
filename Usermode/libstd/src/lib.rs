@@ -21,6 +21,7 @@ pub use core::{option, result};
 pub use core::{slice, str};
 pub use core::{fmt, iter};
 pub use core::{mem};
+pub use core::convert;
 
 mod std {
 	pub use core::fmt;

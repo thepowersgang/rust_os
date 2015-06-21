@@ -78,11 +78,11 @@ $(OBJDIR)lib%.rlib: lib%/src/lib.rs $(TARGET_SPEC) Makefile
 	@mv $(OBJDIR)$*.d $(OBJDIR)lib$*.d
 
 # - crates.io crates
-$(LIBDIR)lib%.rlib: ../externals/crates.io/%/src/lib.rs $(TARGET_SPEC) Makefile
+$(OBJDIR)lib%.rlib: ../externals/crates.io/%/src/lib.rs $(TARGET_SPEC) Makefile $(LIBDIR)libstd.rlib
 	@mkdir -p $(dir $@)
 	@echo [RUSTC] $@
-	@$(RUSTC) $(RUSTFLAGS) -o $@ $< --crate-type=rlib --crate-name=$*
-	@$(RUSTC) $(RUSTFLAGS) -Z parse-only --emit=dep-info -o $(OBJDIR)lib$*.d $<
+	@$(RUSTC) $(RUSTFLAGS) --emit=link,dep-info --out-dir $(OBJDIR) $< --crate-type=rlib --crate-name=$*
+	@mv $(OBJDIR)$*.d $(OBJDIR)lib$*.d
 
 ../externals/crates.io/%/src/lib.rs: ../externals/crates.io/%.repo
 	@mkdir -p ../externals/crates.io/$*

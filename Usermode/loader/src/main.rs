@@ -28,7 +28,14 @@ pub extern "C" fn loader_main(cmdline: *mut u8, cmdline_len: usize) -> !
 	let init_path = arg_iter.next().expect("Init path is empty");
 	// 3. Spin up init
 	// - Open the init path passed in `cmdline`
-	let handle = ::elf::load_executable(init_path);
+	let handle = match ::elf::load_executable(init_path)
+		{
+		Ok(v) => v,
+		Err(e) => {
+			kernel_log!("ERROR: Init binary '{}' cannot be loaded: {:?}", init_path, e);
+			::tifflin_syscalls::exit(0);
+			},
+		};
 	
 	// Populate arguments
 	// SAFE: We will be writing to this before reading from it
