@@ -3,6 +3,8 @@
 #
 -include ../common.mk
 
+V ?= @
+
 # List of root-level applications to build
 APPS := loader
 
@@ -21,7 +23,9 @@ TARGET_SPEC := target-$(ARCH).json
 RUSTFLAGS := --target=$(TARGET_SPEC) --cfg arch__$(ARCH) --cfg nightly
 RUSTFLAGS += -O
 RUSTFLAGS += -g
-RUSTFLAGS += -C soft-float	# STOPGAP until SSE is supported
+#RUSTFLAGS += -C soft-float	# STOPGAP until SSE is supported
+#RUSTFLAGS += -C no-vectorize-loops
+#RUSTFLAGS += -C no-vectorize-slp
 RUSTFLAGS += -L $(LIBDIR)
 
 # - List non-file targets
@@ -46,42 +50,42 @@ clean:
 $(BINDIR)loader: loader/link.ld $(OBJDIR)loader/start.ao $(OBJDIR)loader/src/main.o
 	@mkdir -p $(dir $@)
 	@echo [LD] $@
-	@$(LD) -r --gc-sections --undefined image_header --entry start -o $(OBJDIR)loader.o $(OBJDIR)loader/start.ao $(OBJDIR)loader/src/main.o $(patsubst %,$(LIBDIR)lib%.rlib, std core tifflin_syscalls cmdline_words_parser)
-	@$(LD) -o $(OBJDIR)loader.elf -T loader/link.ld $(OBJDIR)loader.o -Map $(OBJDIR)loader_map.txt
+	$V$(LD) -r --gc-sections --undefined image_header --entry start -o $(OBJDIR)loader.o $(OBJDIR)loader/start.ao $(OBJDIR)loader/src/main.o $(patsubst %,$(LIBDIR)lib%.rlib, std core tifflin_syscalls cmdline_words_parser)
+	$V$(LD) -o $(OBJDIR)loader.elf -T loader/link.ld $(OBJDIR)loader.o -Map $(OBJDIR)loader_map.txt
 	@objcopy $(OBJDIR)loader.elf -O binary $@
 	@objdump -CS $(OBJDIR)loader.elf > $(OBJDIR)loader.dsm
 
 $(OBJDIR)loader/src/main.o: $(LIBDIR)libstd.rlib $(LIBDIR)libcmdline_words_parser.rlib
 
+# Libraries are compiled into OBJDIR to get dependencies, but are actually stored in LIBDIR
+$(LIBDIR)lib%.rlib: $(OBJDIR)lib%.rlib
+	@mkdir -p $(dir $@)
+	@mv $(OBJDIR)lib$*.rlib $@
 # libcore: Same code as used by the kernel, but different build
-$(LIBDIR)libcore.rlib: ../libcore/lib.rs $(TARGET_SPEC) Makefile
+$(OBJDIR)libcore.rlib: ../libcore/lib.rs $(TARGET_SPEC) Makefile
 	@mkdir -p $(dir $@)
 	@echo [RUSTC] $@
-	@$(RUSTC) $(RUSTFLAGS) --emit=link,dep-info --out-dir $(OBJDIR) $<
-	@$(RUSTC) $(RUSTFLAGS) -Z parse-only --emit=dep-info -o $(OBJDIR)libcore.d $<
-	@mv $(OBJDIR)libcore.rlib $@
+	$V$(RUSTC) $(RUSTFLAGS) --emit=link,dep-info --out-dir $(OBJDIR) $<
 	@mv $(OBJDIR)core.d $(OBJDIR)libcore.d
 
 $(BINDIR)%: %/src/main.rs $(TARGET_SPEC) Makefile
 	@mkdir -p $(dir $@)
 	@echo [RUSTC] $@
-	@$(RUSTC) $(RUSTFLAGS) -o $@ $< --crate-type=bin --crate-name=$*
-	@$(RUSTC) $(RUSTFLAGS) -Z parse-only --emit=dep-info -o $(OBJDIR)$*.d $<
+	$V$(RUSTC) $(RUSTFLAGS) -o $@ $< --crate-type=bin --crate-name=$*
+	$V$(RUSTC) $(RUSTFLAGS) -Z parse-only --emit=dep-info -o $(OBJDIR)$*.d $<
 
 # - local library crates
-$(LIBDIR)lib%.rlib: $(OBJDIR)lib%.rlib
-	@mv $(OBJDIR)lib$*.rlib $@
 $(OBJDIR)lib%.rlib: lib%/src/lib.rs $(TARGET_SPEC) Makefile
 	@mkdir -p $(dir $@)
 	@echo [RUSTC] $@
-	@$(RUSTC) $(RUSTFLAGS) --emit=link,dep-info --out-dir $(OBJDIR) $< --crate-type=rlib --crate-name=$*
+	$V$(RUSTC) $(RUSTFLAGS) --emit=link,dep-info --out-dir $(OBJDIR) $< --crate-type=rlib --crate-name=$*
 	@mv $(OBJDIR)$*.d $(OBJDIR)lib$*.d
 
 # - crates.io crates
 $(OBJDIR)lib%.rlib: ../externals/crates.io/%/src/lib.rs $(TARGET_SPEC) Makefile $(LIBDIR)libstd.rlib
 	@mkdir -p $(dir $@)
 	@echo [RUSTC] $@
-	@$(RUSTC) $(RUSTFLAGS) --emit=link,dep-info --out-dir $(OBJDIR) $< --crate-type=rlib --crate-name=$*
+	$V$(RUSTC) $(RUSTFLAGS) --emit=link,dep-info --out-dir $(OBJDIR) $< --crate-type=rlib --crate-name=$*
 	@mv $(OBJDIR)$*.d $(OBJDIR)lib$*.d
 
 ../externals/crates.io/%/src/lib.rs: ../externals/crates.io/%.repo
@@ -92,13 +96,13 @@ $(OBJDIR)lib%.rlib: ../externals/crates.io/%/src/lib.rs $(TARGET_SPEC) Makefile 
 $(OBJDIR)%.o: %.rs $(TARGET_SPEC) Makefile
 	@mkdir -p $(dir $@)
 	@echo [RUSTC] $@
-	@$(RUSTC) $(RUSTFLAGS) -o $@ $< --emit=obj
+	$V$(RUSTC) $(RUSTFLAGS) -o $@ $< --emit=obj
 	@$(RUSTC) $(RUSTFLAGS) -Z parse-only --emit=dep-info -o $(OBJDIR)$*.o.d $<
 
 $(OBJDIR)%.ao: %.S Makefile
 	@mkdir -p $(dir $@)
 	@echo [AS] $@
-	@$(CC) -o $@ -c $< -D ARCH_$(ARCH)
+	$V$(CC) -o $@ -c $< -D ARCH_$(ARCH)
 
 # Generate dependencies for EVERY crate
 fn_getstd = $(shell grep -F "![no_std]" $1 >/dev/null || echo "std")
@@ -106,8 +110,10 @@ fn_mmdep = $2: $(patsubst %,$(LIBDIR)lib%.rlib,$(call fn_getdeps,$1) $(call fn_g
 #$(foreach m, $(wildcard */src/lib.rs */src/main.rs), $(warning $(call fn_mmdep,$m)))
 #$(foreach m, $(wildcard */src/lib.rs */src/main.rs), $(eval $(call fn_mmdep,$m)))
 # - Assumes that if there's a main.rs file, a binary is generated, and for lib.rs a rlib is generated
-$(foreach m, $(wildcard */src/lib.rs), $(eval $(call fn_mmdep,$m,$(m:%/src/lib.rs=$(LIBDIR)%.rlib))))
+$(foreach m, $(wildcard */src/lib.rs), $(eval $(call fn_mmdep,$m,$(m:%/src/lib.rs=$(OBJDIR)%.rlib))))
+$(foreach m, $(wildcard */src/lib.rs), $(warning $(call fn_mmdep,$m,$(m:%/src/lib.rs=$(OBJDIR)%.rlib))))
 $(foreach m, $(wildcard */src/main.rs), $(eval $(call fn_mmdep,$m,$(m:%/src/main.rs=$(BINDIR)%))))
+$(foreach m, $(wildcard */src/main.rs), $(warning $(call fn_mmdep,$m,$(m:%/src/main.rs=$(BINDIR)%))))
 
 ALL_USED_LIBS := std $(sort $(foreach m, $(wildcard */src/lib.rs) $(wildcard */src/main.rs), $(call fn_getdeps,$m)))
 ALL_PRESENT_BINS := $(patsubst %/src/main.rs,%, $(wildcard */src/main.rs))

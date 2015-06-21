@@ -10,6 +10,6 @@
 		"no-compiler-rt": true,
 		"disable-redzone": true,
 		"eliminate-frame-pointer": false,
-		"features": "-3dnow,-avx,-avx2,-sse,-sse2,-sse3,-sse4.1,-sse4.2,-mmx",
+		"__features": "-3dnow,-avx,-avx2,-sse,-sse2,-sse3,-sse4.1,-sse4.2,-mmx",
 	"morestack": false
 }

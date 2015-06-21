@@ -1,4 +1,5 @@
-#![feature(no_std,core)]
+#![feature(no_std,core,core_prelude,core_str_ext,core_slice_ext)]
+#![feature(core_intrinsics)]
 #![feature(asm)]
 #![feature(thread_local,const_fn)]
 #![no_std]
