@@ -98,10 +98,7 @@ pub unsafe fn unsafe_cast_slice<DstType>(src: &[u8]) -> &[DstType]
 	assert_eq!(src.len() % ::core::mem::size_of::<DstType>(), 0);
 	assert_eq!(src.as_ptr() as usize % ::core::mem::align_of::<DstType>(), 0);
 	let newlen = src.len() / ::core::mem::size_of::<DstType>();
-	::core::mem::transmute(::core::raw::Slice {
-		data: src.as_ptr() as *const DstType,
-		len: newlen,
-		})
+	::core::slice::from_raw_parts(src.as_ptr() as *const DstType, newlen)
 }
 
 

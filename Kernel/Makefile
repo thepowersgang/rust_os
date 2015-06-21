@@ -51,7 +51,8 @@ LocalLib = --extern $1=$(OBJDIR)lib$1.rlib
 # Function: Fix the specified dependency file (from http://scottmcpeak.com/autodepend/autodepend.html)
 FixDep = cp -f $1 $1.tmp && sed -e 's/.*://' -e 's/\\$$//' < $1.tmp | head -n 1 | fmt -1 | sed -e 's/^ *//' -e 's/$$/:/' >> $1 && rm -f $1.tmp
 
-EXCLUDE_FEATURES := 3dnow avx avx2 sse sse2 sse3 sse4.1 sse4.2 mmx
+EXCLUDE_FEATURES := 
+#3dnow avx avx2 sse sse2 sse3 sse4.1 sse4.2 mmx
 TARGET_FILE := Core/arch/$(ARCH)/target.json
 
 OBJDIR := .obj/$(ARCH)/
@@ -60,8 +61,10 @@ RUSTFLAGS := -L $(OBJDIR)
 RUSTFLAGS += -O
 RUSTFLAGS += -g
 RUSTFLAGS += -C code-model=kernel
-RUSTFLAGS += -C soft-float	# Disables requiring SSE etc
-RUSTFLAGS += -C target-feature=$(subst $(space),$(comma),$(EXCLUDE_FEATURES:%=-%))
+#RUSTFLAGS += -C soft-float	# Disables requiring SSE etc
+#RUSTFLAGS += -C target-feature=$(subst $(space),$(comma),$(EXCLUDE_FEATURES:%=-%))
+RUSTFLAGS += -C no-vectorize-loops
+RUSTFLAGS += -C no-vectorize-slp
 RUSTFLAGS += --cfg arch__$(ARCH)
 RUSTFLAGS += -L bin/plugins/
 RUSTFLAGS += --cfg nightly --cfg no_std
@@ -191,15 +194,10 @@ $(OBJDIR)lib%.rlib: ../externals/crates.io/%/src/lib.rs $(OBJDIR)libcore.rlib
 	@echo [RUSTC] -o $@ $<
 	$V$(ENV) $(RUSTC) $(RUSTFLAGS) -o $@ $<
 
-../externals/crates.io/va_list/src/lib.rs:
-	$(eval D=$(dir $(dir $(dir $@))))
-	@mkdir -p $(D)
-	cd $(D) && git clone https://github.com/thepowersgang/va_list-rs
-
-../externals/crates.io/stack_dst/src/lib.rs:
-	$(eval D=$(dir $(dir $(dir $@))))
-	@mkdir -p $(D)
-	cd $(D) && git clone https://github.com/thepowersgang/stack_dst-rs
+.PRECIOUS: %.rs
+../externals/crates.io/%/src/lib.rs: ../externals/crates.io/%.repo
+	$(eval D=../externals/crates.io/$*)
+	git clone `cat $<` $(D)
 
 # - Plugins
 bin/plugins/lib%.so: SynExts/%/src/lib.rs $(PREFIX)bin/rustc

@@ -467,11 +467,9 @@ impl AllocHandle
 			"Entry count exceeds allocation ({} > {})", count * size_of::<T>(), self.count*::PAGE_SIZE);
 		assert!( ofs + count * size_of::<T>() <= self.count * ::PAGE_SIZE,
 			"Sliced region exceeds bounds {}+{} > {}", ofs, count * size_of::<T>(), self.count*::PAGE_SIZE);
+		// SAFE: Doesn't ensure lack of aliasing, but the address is valid. Immediately casted to a raw pointer, so aliasing is OK
 		unsafe {
-			::core::mem::transmute( ::core::raw::Slice {
-				data: (self.addr as usize + ofs) as *const T,
-				len: count,
-			} )
+			::core::slice::from_raw_parts_mut( (self.addr as usize + ofs) as *mut T, count )
 		}
 	}
 	pub fn as_slice<T>(&self, ofs: usize, count: usize) -> &[T]

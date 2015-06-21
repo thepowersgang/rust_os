@@ -6,17 +6,21 @@
 #![crate_name="kernel"]
 #![crate_type="lib"]
 #![feature(no_std)]
+#![feature(core,core_prelude,core_slice_ext,core_str_ext,core_char_ext)]	// Needed to use libcore and provided prelude
+#![feature(unsize,coerce_unsized)]	// For DST smart pointers
+#![feature(core_intrinsics)]	// Intrinsics
 #![feature(asm)]	// Enables the asm! syntax extension
 #![feature(box_syntax)]	// Enables 'box' syntax
 #![feature(thread_local)]	// Allows use of thread_local
 #![feature(lang_items)]	// Allow definition of lang_items
-#![feature(core)]	// silences warnings about write!
 #![feature(optin_builtin_traits)]	// Negative impls
-#![feature(unique)]	// Unique
+#![feature(unique,nonzero)]	// Unique/NonZero for smart pointers
 #![feature(slice_patterns)]	// Slice (array) destructuring patterns, used by multiboot code
 #![feature(step_by)]	// Range::step_by
 #![feature(linkage)]	// allows using #[linkage="external"]
 #![feature(const_fn)]	// Allows defining `const fn`
+#![feature(raw)]	// Needed for raw::Slice in Grc
+#![feature(iter_cmp)]	// for max_by
 #![no_std]
 
 #![feature(plugin)]

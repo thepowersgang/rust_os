@@ -147,7 +147,9 @@ impl Elf32_Shent
 {
 	fn dump(&self)
 	{
-		let buf: &[u8] = unsafe { ::core::mem::transmute( ::core::raw::Slice { data: (0xFFFFFFFF_80000000 + self.sh_address as usize) as *const u8, len: self.sh_size as usize } ) };
+		// HACK: Assumes 64-bit kernel, and that kernel is loaded to -2GB
+		// UNSAFE: (ish) References loaded kernel, should really check correctness.
+		let buf: &[u8] = unsafe { ::core::slice::from_raw_parts( (0xFFFFFFFF_80000000 + self.sh_address as usize) as *const u8, self.sh_size as usize) };
 		log_debug!("Elf32_Shent {:?}", ::lib::RawString(buf));
 	}
 }

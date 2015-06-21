@@ -113,7 +113,13 @@ impl<T> Vec<T>
 	/// Obtain a mutable slice to the content
 	pub fn slice_mut<'a>(&'a mut self) -> &'a mut [T]
 	{
-		unsafe { ::core::mem::transmute( ::core::raw::Slice { data: self.data.get_base_mut(), len: self.size } ) }
+		// SAFE: self.data is valid up to self.size
+		unsafe { ::core::slice::from_raw_parts_mut(self.data.get_base_mut(), self.size) }
+	}
+	fn as_slice(&self) -> &[T]
+	{
+		// SAFE: self.data is valid up to self.size
+		unsafe { ::core::slice::from_raw_parts( self.data.get_base() as *const T, self.size ) }
 	}
 	
 	/// Move out of a slot in the vector, leaving unitialise memory in its place
@@ -172,12 +178,6 @@ impl<T> Vec<T>
 				self.size = newsize;
 			}
 		}
-	}
-	
-	fn as_slice(&self) -> &[T]
-	{
-		let rawslice = ::core::raw::Slice { data: self.data.get_base() as *const T, len: self.size };
-		unsafe { ::core::mem::transmute( rawslice ) }
 	}
 }
 

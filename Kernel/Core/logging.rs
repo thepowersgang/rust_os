@@ -299,12 +299,8 @@ impl<'a,T:'a> HexDump<'a,T>
 	fn byteslice(&self) -> &[u8]
 	{
 		let size = ::core::mem::size_of::<T>();
-		unsafe {
-			::core::mem::transmute(::core::raw::Slice {
-				data: self.0 as *const T as *const u8,
-				len: size,
-			})
-		}
+		// SAFE: Memory is valid, and cast is allowed
+		unsafe { ::core::slice::from_raw_parts( self.0 as *const T as *const u8, size ) }
 	}
 }
 
@@ -384,13 +380,8 @@ impl<'a> fmt::Display for HexDumpBlk<'a>
 	}
 }
 pub fn hex_dump_t<T>(label: &str, data: &T) {
-	let slice = unsafe {
-			let size = ::core::mem::size_of::<T>();
-			::core::mem::transmute(::core::raw::Slice {
-				data: data as *const T as *const u8,
-				len: size,
-			})
-		};
+	// SAFE: Casting to an immutable byte representation is valid
+	let slice = unsafe { ::core::slice::from_raw_parts(data as *const T as *const u8, ::core::mem::size_of::<T>()) };
 	hex_dump(label, slice);
 }
 pub fn hex_dump(label: &str, data: &[u8])
