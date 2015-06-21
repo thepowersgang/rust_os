@@ -2,7 +2,7 @@
 ARCH ?= amd64
 
 ifeq ($(ARCH),amd64)
-  TRIPLE := x86_64-none-elf
+  TRIPLE ?= x86_64-none-elf
 else
   $(error Unknown architecture $(ARCH) in common.mk)
 endif
