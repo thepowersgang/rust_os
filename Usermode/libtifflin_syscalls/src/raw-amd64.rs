@@ -4,7 +4,7 @@
 			let rv;
 			asm!("syscall"
 				: "={rax}" (rv)
-				: "{rax}" ($id) $(, $reg ($val))*
+				: "{rax}" ($id as usize) $(, $reg ($val as usize))*
 				: "rcx", "r11"
 				: "volatile"
 				);
