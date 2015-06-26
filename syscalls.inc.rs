@@ -30,5 +30,7 @@ def_grp!( 1: GROUP_GUI = {
 });
 
 def_grp!(2: GROUP_VFS = {
-	0: VFS_OPEN,
+	0: VFS_OPENNODE,
+	1: VFS_OPENFILE,
+	2: VFS_OPENDIR,
 });

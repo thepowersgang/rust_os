@@ -66,6 +66,13 @@ pub fn get_thread_id() -> thread::ThreadID
 	}
 }
 
+// TODO: Use a wrapper instead of &T
+// TODO: Prevent this pointer from being sent (which will prevent accessing of freed memory)
+pub fn get_process_local<T: Send+Sync>() -> &'static T
+{
+	todo!("get_process_local<{}>()", type_name!(T));
+}
+
 /// Pick a new thread to run and run it
 ///
 /// NOTE: This can lead to the current thread being forgotten
