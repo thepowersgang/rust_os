@@ -3,8 +3,9 @@
 //
 #![crate_type="rlib"]
 #![crate_name="std"]
-#![feature(no_std,core)]
+#![feature(no_std,core,core_prelude)]
 #![feature(lang_items)]	// Allow definition of lang_items
+#![feature(core_intrinsics)]
 //#![staged_api]
 //#![feature(staged_api)]
 #![no_std]
