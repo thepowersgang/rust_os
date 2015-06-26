@@ -144,6 +144,8 @@ pub struct CacheHandle
 	inode: InodeId,
 	ptr: *const CachedNode,
 }
+unsafe impl Sync for CacheHandle {}
+unsafe impl Send for CacheHandle {}
 
 static S_NODE_CACHE: LazyMutex<::lib::VecMap<(usize,InodeId),Box<CachedNode>>> = lazymutex_init!();
 

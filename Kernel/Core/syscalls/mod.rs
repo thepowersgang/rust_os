@@ -5,6 +5,8 @@
 /// Userland system-call interface
 use prelude::*;
 
+mod objects;
+
 #[allow(raw_pointer_derive)]
 #[derive(Debug)]
 enum Error
@@ -60,7 +62,7 @@ fn invoke_int(call_id: u32, mut args: &[usize]) -> Result<u64,Error>
 		CORE_STARTTHREAD => {
 			let sp = try!( <usize>::get_arg(&mut args) );
 			let ip = try!( <usize>::get_arg(&mut args) );
-			syscall_core_newthread(sp, ip)
+			syscall_core_newthread(sp, ip) as u64
 			},
 		// - 0/4: Start process
 		CORE_STARTPROCESS => {
@@ -70,13 +72,33 @@ fn invoke_int(call_id: u32, mut args: &[usize]) -> Result<u64,Error>
 		// - 1/0: New group (requires permission, has other restrictions)
 		GUI_NEWGROUP => {
 			let name = try!( <&str>::get_arg(&mut args) );
-			syscall_gui_newgroup(name)
+			syscall_gui_newgroup(name) as u64
 			},
 		// - 1/1: New window
 		GUI_NEWWINDOW => {
 			let name = try!( <&str>::get_arg(&mut args) );
-			syscall_gui_newwindow(name)
+			syscall_gui_newwindow(name) as u64
 			},
+		// === 2: VFS
+		// - 2/0: Open node (for stat)
+		VFS_OPENNODE => {
+			todo!("VFS_OPEN");
+			},
+		// - 2/1: Open file
+		VFS_OPENFILE => {
+			let name = try!( <&[u8]>::get_arg(&mut args) );
+			let mode = try!( <u32>::get_arg(&mut args) );
+			(match syscall_vfs_openfile(name, mode)
+			{
+			Ok(v) => v,
+			Err(v) => (1<<31)|v,
+			} as u64)
+			},
+		// - 2/2: Open directory
+		VFS_OPENDIR => {
+			todo!("VFS_OPENDIR");
+			},
+		// === *: Default
 		_ => {
 			log_error!("Unknown syscall {:05x}", call_id);
 			0
@@ -85,21 +107,24 @@ fn invoke_int(call_id: u32, mut args: &[usize]) -> Result<u64,Error>
 	}
 	else
 	{
-		let handle_id = (call_id >> 16) & 0x7FFF;
-		let call_id = call_id & 0xFFFF;
+		let handle_id = (call_id >> 12) & 0x7FFFF;
+		let call_id = call_id & 0xFFF;
 		// Method call
 		// - Look up the object (first argument) and dispatch using registered methods
-		if call_id == 0xFFFF {
+		
+		// - Call method
+		if call_id == 0xFFF {
 			// Destroy object
+			objects::drop_object(handle_id); 0
 		}
 		else {
 			// Call a method defined for the object class?
+			objects::call_object(handle_id, call_id as u16, args)
 		}
-		todo!("");
 	})
 }
 
-type ObjectHandle = u64;
+type ObjectHandle = u32;
 
 trait SyscallArg {
 	fn get_arg(args: &mut &[usize]) -> Result<Self,Error>;
@@ -124,6 +149,26 @@ impl<'a> SyscallArg for &'a str {
 			} };
 		
 		Ok(try!( ::core::str::from_utf8(bs) ))
+	}
+}
+impl<'a> SyscallArg for &'a [u8] {
+	fn get_arg(args: &mut &[usize]) -> Result<Self,Error> {
+		if args.len() < 2 {
+			return Err( Error::TooManyArgs );
+		}
+		let ptr = args[0] as *const u8;
+		let len = args[1];
+		*args = &args[2..];
+		// TODO: Freeze the page to prevent the user from messing with it
+		// SAFE: (uncheckable) lifetime of result should really be 'args, but can't enforce that
+		unsafe {
+			if let Some(v) = ::memory::buf_to_slice(ptr, len) {	
+				Ok(v)
+			}
+			else {
+				Err( Error::InvalidBuffer(ptr as *const (), len) )
+			}
+		}
 	}
 }
 impl SyscallArg for usize {
@@ -166,3 +211,26 @@ fn syscall_gui_newgroup(name: &str) -> ObjectHandle {
 fn syscall_gui_newwindow(name: &str) -> ObjectHandle {
 	todo!("syscall_gui_newwindow(name={})", name);
 }
+
+fn syscall_vfs_openfile(path: &[u8], mode: u32) -> Result<ObjectHandle,u32> {
+	struct File(::vfs::handle::File);
+
+	impl objects::Object for File {
+		fn handle_syscall(&self, call: u16, args: &[usize]) -> u64 {
+			todo!("File::handle_syscall({}, ...)", call);
+		}
+	}
+	
+	let mode = match mode
+		{
+		1 => ::vfs::handle::FileOpenMode::SharedRO,
+		2 => ::vfs::handle::FileOpenMode::Execute,
+		_ => todo!("Unkown mode {:x}", mode),
+		};
+	match ::vfs::handle::File::open(::vfs::Path::new(path), mode)
+	{
+	Ok(h) => Ok( objects::new_object( File(h) ) ),
+	Err(e) => todo!("syscall_vfs_openfile - e={:?}", e),
+	}
+}
+

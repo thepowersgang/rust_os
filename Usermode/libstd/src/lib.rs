@@ -36,8 +36,25 @@ pub mod prelude {
 		pub use core::prelude::*;
 		//pub use core::option::Option::{self,Some,None};
 		//pub use core::result::Result::{self,Ok,Err};
+		pub use string::String;
 	}
 }
 
+fn type_name<T: ?::core::marker::Sized>() -> &'static str { unsafe { ::core::intrinsics::type_name::<T>() } }
+macro_rules! type_name {
+	($t:ty) => ( $crate::type_name::<$t>() );
+}
+macro_rules! todo
+{
+	( $s:expr ) => ( panic!( concat!("TODO: ",$s) ) );
+	( $s:expr, $($v:tt)* ) => ( panic!( concat!("TODO: ",$s), $($v)* ) );
+}
+
+
 pub mod rt;
+
+mod heap;
+
+pub mod vec;
+pub mod string;
 

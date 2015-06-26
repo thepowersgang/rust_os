@@ -22,7 +22,7 @@ impl File
 {
 	pub fn open<T: AsRef<[u8]>>(path: T, mode: FileOpenMode) -> Result<File,Error> {
 		let path = path.as_ref();
-		match super::ObjectHandle::new( unsafe { syscall!(VFS_OPEN, path.as_ptr() as usize, path.len(), mode as u32 as usize) } as u32 )
+		match super::ObjectHandle::new( unsafe { syscall!(VFS_OPENFILE, path.as_ptr() as usize, path.len(), mode as u32 as usize) } as u32 )
 		{
 		Ok(rv) => Ok( File(rv) ),
 		Err(code) => {

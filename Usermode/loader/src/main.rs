@@ -26,6 +26,7 @@ pub extern "C" fn loader_main(cmdline: *mut u8, cmdline_len: usize) -> !
 	//       - Such a parser would be able to clobber the string as escaping is undone, using the assumption that esc.len >= real.len
 	let mut arg_iter = cmdline.parse_cmdline_words();
 	let init_path = arg_iter.next().expect("Init path is empty");
+	kernel_log!("- init_path={:?}", init_path);
 	// 3. Spin up init
 	// - Open the init path passed in `cmdline`
 	let handle = match ::elf::load_executable(init_path)
