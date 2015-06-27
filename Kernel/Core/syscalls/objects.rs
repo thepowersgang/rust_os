@@ -65,13 +65,14 @@ pub fn call_object(handle: u32, call: u16, args: &[usize]) -> u64
 	// Obtain reference/borrow to object (individually locked)
 	if let Some(h) = objs.get(handle)
 	{
+		log_debug!("Found handle");
 		if let Some(ref obj) = *h.read()
 		{
 			return obj.handle_syscall(call, args);
 		}
 	}
 	// Call method
-	todo!("call_object(handle={},call={},args=...)", handle, call);
+	todo!("call_object(handle={},call={},args=...) - not found", handle, call);
 }
 
 pub fn drop_object(handle: u32)
