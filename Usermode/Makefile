@@ -4,7 +4,7 @@
 -include ../common.mk
 
 # List of root-level applications to build
-APPS := loader
+APPS := loader init
 
 # Build directories
 # - Distribution output root

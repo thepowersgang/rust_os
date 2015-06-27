@@ -2,6 +2,7 @@
 // - By John Hodge (thePowersGang)
 //
 // This program is both the initial entrypoint for the userland, and the default dynamic linker.
+#![crate_type="lib"]
 #[macro_use]
 extern crate tifflin_syscalls;
 

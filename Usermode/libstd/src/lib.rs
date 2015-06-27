@@ -49,6 +49,7 @@ macro_rules! todo
 	( $s:expr, $($v:tt)* ) => ( panic!( concat!("TODO: ",$s), $($v)* ) );
 }
 
+mod start;
 
 pub mod rt;
 
