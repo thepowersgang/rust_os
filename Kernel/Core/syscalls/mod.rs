@@ -107,13 +107,14 @@ fn invoke_int(call_id: u32, mut args: &[usize]) -> Result<u64,Error>
 	}
 	else
 	{
-		let handle_id = (call_id >> 12) & 0x7FFFF;
-		let call_id = call_id & 0xFFF;
+		const CALL_MASK: u32 = 0x7FF;
+		let handle_id = (call_id >> 0) & 0xFFFFF;
+		let call_id = (call_id >> 20) & CALL_MASK;	// Call in upper part, as it's constant on user-side
 		// Method call
 		// - Look up the object (first argument) and dispatch using registered methods
 		
 		// - Call method
-		if call_id == 0xFFF {
+		if call_id == CALL_MASK {
 			// Destroy object
 			objects::drop_object(handle_id); 0
 		}
