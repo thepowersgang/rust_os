@@ -11,7 +11,7 @@ use stack_dst::StackDST;
 /// A system-call object
 pub trait Object: Send + Sync
 {
-	fn handle_syscall(&self, call: u16, args: &[usize]) -> u64;
+	fn handle_syscall(&self, call: u16, args: &[usize]) -> Result<u64,super::Error>;
 }
 
 type UserObject = RwLock<Option< StackDST<Object> >>;
@@ -59,7 +59,7 @@ pub fn new_object<T: Object+'static>(val: T) -> u32
 	!0
 }
 
-pub fn call_object(handle: u32, call: u16, args: &[usize]) -> u64
+pub fn call_object(handle: u32, call: u16, args: &[usize]) -> Result<u64,super::Error>
 {
 	let objs = ::threads::get_process_local::<ProcessObjects>();
 	// Obtain reference/borrow to object (individually locked)

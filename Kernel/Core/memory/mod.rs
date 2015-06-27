@@ -61,6 +61,18 @@ pub unsafe fn buf_to_slice<'a, T>(ptr: *const T, size: usize) -> Option<&'a [T]>
 		Some( ::core::slice::from_raw_parts(ptr, size) )
 	}
 }
+pub unsafe fn buf_to_slice_mut<'a, T>(ptr: *mut T, size: usize) -> Option<&'a mut [T]> {
+	
+	if ptr as usize % ::core::mem::min_align_of::<T>() != 0 {
+		None
+	}
+	else if ! buf_valid(ptr as *const (), size) {
+		None
+	}
+	else {
+		Some( ::core::slice::from_raw_parts_mut(ptr, size) )
+	}
+}
 
 /// Validates that a buffer points to accessible memory
 pub fn buf_valid(ptr: *const (), mut size: usize) -> bool

@@ -35,7 +35,7 @@ impl File
 		assert!(::core::mem::size_of::<usize>() == ::core::mem::size_of::<u64>());
 		// SAFE: Passes valid arguments to READAT
 		unsafe {
-			match ::to_result( self.0.call_3(::values::VFS_FILE_READAT, ofs as usize, data.len(), data.as_ptr() as usize) as usize )
+			match ::to_result( self.0.call_3(::values::VFS_FILE_READAT, ofs as usize, data.as_ptr() as usize, data.len()) as usize )
 			{
 			Ok(v) => Ok(v as usize),
 			Err(v) => {
