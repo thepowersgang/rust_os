@@ -185,7 +185,7 @@ fn sysinit()
 	// 3. Start 'init' (parent process)
 	// XXX: hard-code the sysroot path here to avoid having to handle symlinks yet
 	spawn_init("/system/Tifflin/bin/loader", "/system/Tifflin/bin/init");
-	spawn_init("/sysroot/bin/loader", "/sysroot/bin/init");
+	//spawn_init("/sysroot/bin/loader", "/sysroot/bin/init");
 
 	fn ls(p: &Path) {
 		// - Iterate root dir

@@ -17,25 +17,28 @@ use core::ops;
 
 /// Atomic referencable type. Panics if the type is dropped while any references are active.
 /// Internally uses a `Box` to contain an ArefInner
-pub struct Aref<T: Sync>
+pub struct Aref<T: ?Sized>
 {
 	__inner: Box<ArefInner<T>>,
 }
+impl<T: ?Sized + ::core::marker::Unsize<U>, U: ?Sized> ops::CoerceUnsized<Aref<U>> for Aref<T> {}
 /// A borrow of an Aref
-pub struct ArefBorrow<T: Sync>
+pub struct ArefBorrow<T: ?Sized>
 {
 	__ptr: NonZero<*const ArefInner<T>>,
 }
-unsafe impl<T: Sync+Send> Send for ArefBorrow<T> {}
+unsafe impl<T: ?Sized + Sync+Send> Send for ArefBorrow<T> {}
+unsafe impl<T: ?Sized + Sync+Send> Sync for ArefBorrow<T> {}
+impl<T: ?Sized + ::core::marker::Unsize<U>, U: ?Sized> ops::CoerceUnsized<ArefBorrow<U>> for ArefBorrow<T> {}
 
 /// Interior of an Aref. Requires that is is not relocated while any borrows are active
-pub struct ArefInner<T: Sync>
+pub struct ArefInner<T: ?Sized>
 {
 	count: AtomicUsize,
 	data: T,
 }
 
-impl<T: Sync> Aref<T>
+impl<T> Aref<T>
 {
 	/// Construct a new Aref
 	pub fn new(val: T) -> Aref<T> {
@@ -43,13 +46,16 @@ impl<T: Sync> Aref<T>
 			__inner: Box::new(unsafe{ ArefInner::new(val) }),
 		}
 	}
+}
 	
+impl<T: ?Sized> Aref<T>
+{
 	/// Borrow the `Aref`
 	pub fn borrow(&self) -> ArefBorrow<T> {
 		self.__inner.borrow()
 	}
 }
-impl<T: Sync> ops::Deref for Aref<T>
+impl<T: ?Sized> ops::Deref for Aref<T>
 {
 	type Target = T;
 	fn deref(&self) -> &T {
@@ -57,7 +63,9 @@ impl<T: Sync> ops::Deref for Aref<T>
 	}
 }
 
-impl<T: Sync> ArefInner<T>
+//impl ArefBorrow<Any>
+
+impl<T> ArefInner<T>
 {
 	/// Unsafely create a new interior
 	///
@@ -68,6 +76,9 @@ impl<T: Sync> ArefInner<T>
 			data: val,
 		}
 	}
+}
+impl<T: ?Sized> ArefInner<T>
+{
 	/// Borrow the inner
 	pub fn borrow(&self) -> ArefBorrow<T> {
 		self.count.fetch_add(1, Ordering::Relaxed);
@@ -77,14 +88,14 @@ impl<T: Sync> ArefInner<T>
 			}
 	}
 }
-impl<T: Sync> ops::Deref for ArefInner<T>
+impl<T: ?Sized> ops::Deref for ArefInner<T>
 {
 	type Target = T;
 	fn deref(&self) -> &T {
 		&self.data
 	}
 }
-impl<T: Sync> ops::Drop for ArefInner<T>
+impl<T: ?Sized> ops::Drop for ArefInner<T>
 {
 	fn drop(&mut self) {
 		assert_eq!(self.count.load(Ordering::Relaxed), 0);
@@ -92,7 +103,7 @@ impl<T: Sync> ops::Drop for ArefInner<T>
 }
 
 
-impl<T: Sync> ArefBorrow<T>
+impl<T: ?Sized> ArefBorrow<T>
 {
 	pub fn reborrow(&self) -> ArefBorrow<T> {
 		self.__inner().borrow()
@@ -101,14 +112,29 @@ impl<T: Sync> ArefBorrow<T>
 		unsafe { &**self.__ptr }
 	}
 }
-impl<T: Sync> ops::Deref for ArefBorrow<T>
+impl<T: ?Sized + Any> ArefBorrow<T> {
+	pub fn downcast<U: Any>(self) -> Result<ArefBorrow<U>,Self> {
+		// SAFE: Transmute validity is checked by checking that the type IDs match
+		unsafe { 
+			if (*self).get_type_id() == ::core::any::TypeId::of::<U>() {
+				let ptr = *self.__ptr as *const ArefInner<U>;
+				::core::mem::forget(self);
+				Ok(ArefBorrow { __ptr: NonZero::new(ptr) })
+			}
+			else {
+				Err(self)
+			}
+		}
+	}
+}
+impl<T: ?Sized> ops::Deref for ArefBorrow<T>
 {
 	type Target = T;
 	fn deref(&self) -> &T {
 		&self.__inner().data
 	}
 }
-impl<T: Sync> ops::Drop for ArefBorrow<T>
+impl<T: ?Sized> ops::Drop for ArefBorrow<T>
 {
 	fn drop(&mut self) {
 		self.__inner().count.fetch_sub(1, Ordering::Relaxed);

@@ -12,9 +12,9 @@ impl WorkerThread
 {
 	#[allow(dead_code)]
 	/// Construct a new worker thread
-	pub fn new<F: FnOnce()+Send>(name: &str, fcn: F) -> WorkerThread
+	pub fn new<F: FnOnce()+Send+'static>(name: &str, fcn: F) -> WorkerThread
 	{
-		let handle = super::thread::ThreadHandle::new(name, fcn);
+		let handle = super::thread::ThreadHandle::new(name, fcn, super::S_PID0.clone());
 		WorkerThread(handle)
 	}
 }

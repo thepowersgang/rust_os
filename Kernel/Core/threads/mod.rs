@@ -15,9 +15,13 @@ mod sleep_object;
 
 pub use self::thread::{Thread,ThreadHandle};
 
+pub use self::worker_thread::WorkerThread;
+
 pub use self::thread_list::{ThreadList,THREADLIST_INIT};
 pub use self::sleep_object::{SleepObject,SleepObjectRef};
 pub use self::wait_queue::{WaitQueue,WAITQUEUE_INIT};
+
+use lib::mem::aref::{Aref,ArefBorrow};
 
 /// A bitset of wait events
 pub type EventMask = u32;
@@ -30,13 +34,18 @@ pub type EventMask = u32;
 //static s_all_threads:	::sync::Mutex<Map<uint,*const Thread>> = mutex_init!(Map{});
 #[allow(non_upper_case_globals)]
 static s_runnable_threads: ::sync::Spinlock<ThreadList> = ::sync::Spinlock::new(THREADLIST_INIT);
+static S_PID0: ::lib::LazyStatic<::lib::mem::Arc<thread::Process>> = ::lib::LazyStatic::new();
 
 // ----------------------------------------------
 // Code
 /// Initialise the threading subsystem
 pub fn init()
 {
-	let mut tid0 = Thread::new_boxed(0, "ThreadZero");
+	// SAFE: Runs before any form of multi-threading starts
+	unsafe {
+		S_PID0.prep( || thread::Process::new("PID0") )
+	}
+	let mut tid0 = Thread::new_boxed(0, "ThreadZero", S_PID0.clone());
 	tid0.cpu_state = ::arch::threads::init_tid0_state();
 	::arch::threads::set_thread_ptr( tid0 )
 }
@@ -58,19 +67,49 @@ pub fn yield_to(thread: Box<Thread>)
 pub fn get_thread_id() -> thread::ThreadID
 {
 	let p = ::arch::threads::borrow_thread();
-	if p == 0 as *const _ {
-		0
-	}
-	else {
-		unsafe { (*p).get_tid() }
+	// SAFE: Checks for NULL, and the thread should be vaild while executing
+	unsafe {
+		if p == 0 as *const _ {
+			0
+		}
+		else {
+			(*p).get_tid()
+		}
 	}
 }
 
-// TODO: Use a wrapper instead of &T
 // TODO: Prevent this pointer from being sent (which will prevent accessing of freed memory)
-pub fn get_process_local<T: Send+Sync>() -> &'static T
+pub fn get_process_local<T: Send+Sync+::core::marker::Reflect+Default+'static>() -> ArefBorrow<T>
 {
-	todo!("get_process_local<{}>()", type_name!(T));
+	// SAFE: Checks for NULL, and the thread should be vaild while executing
+	let t = unsafe {
+		let tp = ::arch::threads::borrow_thread();
+		assert!( !tp.is_null() );
+		&*tp
+		};
+	
+	let pld = &t.get_process_info().proc_local_data;
+	// 1. Try without write-locking
+	for s in pld.read().iter()
+	{
+		if (*s).get_type_id() == ::core::any::TypeId::of::<T>() {
+			return s.borrow().downcast::<T>().ok().unwrap();
+		}
+	}
+	
+	// 2. Try _with_ write locking
+	let mut lh = pld.write();
+	for s in lh.iter() {
+		if (*s).get_type_id() == ::core::any::TypeId::of::<T>() {
+			return s.borrow().downcast::<T>().ok().unwrap();
+		}
+	}
+	// 3. Create an instance
+	log_debug!("Creating instance of {} for {}", type_name!(T), t.get_process_info());
+	let buf = Aref::new(T::default());
+	let ret = buf.borrow();
+	lh.push( buf );
+	ret
 }
 
 /// Pick a new thread to run and run it
