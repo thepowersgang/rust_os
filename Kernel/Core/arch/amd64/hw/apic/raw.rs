@@ -109,10 +109,10 @@ impl LAPIC
 	pub fn init(&self)
 	{
 		let oldaddr = unsafe{
-			let mut a: u64;
-			let mut d: u64;
-			asm!("rdmsr" : "={eax}" (a), "={edx}" (d) : "{rcx}" (0x1Bu32) : "rdx");
-			d << 32 | a
+			let mut a: u32;
+			let mut d: u32;
+			asm!("rdmsr" : "={eax}" (a), "={edx}" (d) : "{ecx}" (0x1Bu32) : "rdx");
+			(d as u64) << 32 | a as u64
 			};
 		log_debug!("oldaddr = {:#x}", oldaddr);
 		let is_bsp = oldaddr & 0x100;
