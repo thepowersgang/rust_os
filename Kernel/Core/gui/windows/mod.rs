@@ -87,7 +87,7 @@ static S_CURRENT_GROUP: ::core::atomic::AtomicUsize = ::core::atomic::ATOMIC_USI
 static S_RENDER_REQUEST: ::sync::EventChannel = ::sync::EVENTCHANNEL_INIT;
 static S_EVENT_QUEUE: LazyStatic<::lib::ring_buffer::AtomicRingBuf<super::input::Event>> = lazystatic_init!();
 // Keep this lazy, as it's runtime initialised
-static S_RENDER_THREAD: LazyMutex<::threads::ThreadHandle> = lazymutex_init!();
+static S_RENDER_THREAD: LazyMutex<::threads::WorkerThread> = lazymutex_init!();
 
 pub fn init()
 {
@@ -95,7 +95,7 @@ pub fn init()
 	
 	// Create render thread
 	unsafe { S_EVENT_QUEUE.prep(|| ::lib::ring_buffer::AtomicRingBuf::new(32)); }
-	S_RENDER_THREAD.init( || ::threads::ThreadHandle::new("GUI Compositor", render_thread) );
+	S_RENDER_THREAD.init( || ::threads::WorkerThread::new("GUI Compositor", render_thread) );
 }
 
 

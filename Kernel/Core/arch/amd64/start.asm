@@ -181,8 +181,8 @@ start64_higher:
 	mov ecx, 0xC0000082
 	wrmsr
 	; STAR = 0xC000_0081
-	mov eax, 0
-	mov edx, 0x00180000
+	mov eax, 0x00000000
+	mov edx, 0x00180008	; [63:48] User CS, [47:32] Kernel CS
 	mov ecx, 0xC0000081
 	wrmsr
 	; FMASK = 0xC000_0084

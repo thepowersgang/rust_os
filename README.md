@@ -7,3 +7,8 @@ Not a lot of real API design work has been done, but it will be written to be ar
 
 
 I have a vauge idea of making this OS not POSIX-like, but instead working on either an object-based API, or have something completely different :)
+
+
+
+## Build Dependencies
+`nasm` `imagemagick`

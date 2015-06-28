@@ -2,10 +2,25 @@
 // - By John Hodge (thePowersGang)
 //
 // This program is both the initial entrypoint for the userland, and the default dynamic linker.
+#![crate_type="lib"]
 #[macro_use]
 extern crate tifflin_syscalls;
 
+extern crate byteorder;
 extern crate cmdline_words_parser;
+
+
+macro_rules! impl_from {
+	($(From<$src:ty>($v:ident) for $t:ty { $($code:stmt)*} )+) => {
+		$(
+			impl ::std::convert::From<$src> for $t {
+				fn from($v: $src) -> $t {
+					$($code)*
+				}
+			}
+		)+
+	}
+}
 
 use cmdline_words_parser::StrExt;
 
@@ -37,6 +52,10 @@ pub extern "C" fn loader_main(cmdline: *mut u8, cmdline_len: usize) -> !
 			::tifflin_syscalls::exit(0);
 			},
 		};
+	for segment in handle.load_segments()
+	{
+		kernel_log!("segment = {:?}", segment);
+	}
 	
 	// Populate arguments
 	// SAFE: We will be writing to this before reading from it

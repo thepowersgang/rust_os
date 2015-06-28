@@ -6,7 +6,7 @@
 V ?= @
 
 # List of root-level applications to build
-APPS := loader
+APPS := loader init
 
 # Build directories
 # - Distribution output root
@@ -43,6 +43,7 @@ all: $(APPS:%=$(BINDIR)%)
 clean:
 	$(RM) -rf $(OUTDIR) $(OBJDIR)
 
+LOADER_DEPS := $(patsubst %,$(LIBDIR)lib%.rlib,$(call fn_getdeps,loader/src/main.rs) std core)
 
 # Most binary targets have simple templates, but loader and libcore are special
 # loader: Requires an assembly stub
@@ -50,12 +51,12 @@ clean:
 $(BINDIR)loader: loader/link.ld $(OBJDIR)loader/start.ao $(OBJDIR)loader/src/main.o
 	@mkdir -p $(dir $@)
 	@echo [LD] $@
-	$V$(LD) -r --gc-sections --undefined image_header --entry start -o $(OBJDIR)loader.o $(OBJDIR)loader/start.ao $(OBJDIR)loader/src/main.o $(patsubst %,$(LIBDIR)lib%.rlib, std core tifflin_syscalls cmdline_words_parser)
-	$V$(LD) -o $(OBJDIR)loader.elf -T loader/link.ld $(OBJDIR)loader.o -Map $(OBJDIR)loader_map.txt
+	@$(LD) -r --gc-sections --undefined image_header --entry start -o $(OBJDIR)loader.o $(OBJDIR)loader/start.ao $(OBJDIR)loader/src/main.o $(LOADER_DEPS)
+	@$(LD) -o $(OBJDIR)loader.elf -T loader/link.ld $(OBJDIR)loader.o -Map $(OBJDIR)loader_map.txt
 	@objcopy $(OBJDIR)loader.elf -O binary $@
 	@objdump -CS $(OBJDIR)loader.elf > $(OBJDIR)loader.dsm
 
-$(OBJDIR)loader/src/main.o: $(LIBDIR)libstd.rlib $(LIBDIR)libcmdline_words_parser.rlib
+$(OBJDIR)loader/src/main.o: $(LOADER_DEPS)
 
 # Libraries are compiled into OBJDIR to get dependencies, but are actually stored in LIBDIR
 $(LIBDIR)lib%.rlib: $(OBJDIR)lib%.rlib
@@ -96,8 +97,8 @@ $(OBJDIR)lib%.rlib: ../externals/crates.io/%/src/lib.rs $(TARGET_SPEC) Makefile 
 $(OBJDIR)%.o: %.rs $(TARGET_SPEC) Makefile
 	@mkdir -p $(dir $@)
 	@echo [RUSTC] $@
-	$V$(RUSTC) $(RUSTFLAGS) -o $@ $< --emit=obj
-	@$(RUSTC) $(RUSTFLAGS) -Z parse-only --emit=dep-info -o $(OBJDIR)$*.o.d $<
+	@$(RUSTC) $(RUSTFLAGS) -o $@ $< --emit=obj,dep-info
+-include $(OBJDIR)loader/src/main.d
 
 $(OBJDIR)%.ao: %.S Makefile
 	@mkdir -p $(dir $@)

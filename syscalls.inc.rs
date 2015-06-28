@@ -15,6 +15,11 @@ macro_rules! def_grp {
 		$( pub const $n: u32 = ($name << GRP_OFS) | expand_expr!($v); )*
 	}
 }
+macro_rules! def_class {
+	({ $( $v:tt: $n:ident, )* }) => {
+		$( pub const $n: u16 = expand_expr!($v); )*
+	}
+}
 
 def_grp!( 0: GROUP_CORE = {
 	0: CORE_LOGWRITE,
@@ -33,4 +38,9 @@ def_grp!(2: GROUP_VFS = {
 	0: VFS_OPENNODE,
 	1: VFS_OPENFILE,
 	2: VFS_OPENDIR,
+});
+
+def_class!({
+	0: VFS_FILE_READAT,
+	1: VFS_FILE_WRITEAT,
 });

@@ -14,6 +14,9 @@ pub fn begin_unwind<M: ::core::any::Any+Send+'static>(msg: M, file_line: &(&'sta
 		rust_begin_unwind(format_args!("begin_unwind<{}>", unsafe { ::core::intrinsics::type_name::<M>() }), file, line)
 	}
 }
+pub fn begin_unwind_fmt(msg: ::core::fmt::Arguments, file_line: &(&'static str, u32)) -> ! {
+	rust_begin_unwind(msg, file_line.0, file_line.1 as usize)
+}
 
 #[lang = "panic_fmt"]
 pub extern "C" fn rust_begin_unwind(msg: ::core::fmt::Arguments, file: &'static str, line: usize) -> ! {

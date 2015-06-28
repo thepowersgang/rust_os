@@ -9,7 +9,7 @@ mod objects;
 
 #[allow(raw_pointer_derive)]
 #[derive(Debug)]
-enum Error
+pub enum Error
 {
 	TooManyArgs,
 	InvalidBuffer(*const (), usize),
@@ -37,11 +37,11 @@ mod values;
 
 fn invoke_int(call_id: u32, mut args: &[usize]) -> Result<u64,Error>
 {
-	Ok( if call_id & 1 << 31 == 0
+	if call_id & 1 << 31 == 0
 	{
 		// Unbound system call
 		// - Split using 15/16 into subsystems
-		match call_id
+		Ok(match call_id
 		{
 		// === 0: Threads and core
 		// - 0/0: Userland log
@@ -103,25 +103,27 @@ fn invoke_int(call_id: u32, mut args: &[usize]) -> Result<u64,Error>
 			log_error!("Unknown syscall {:05x}", call_id);
 			0
 			},
-		}
+		})
 	}
 	else
 	{
-		let handle_id = (call_id >> 12) & 0x7FFFF;
-		let call_id = call_id & 0xFFF;
+		const CALL_MASK: u32 = 0x7FF;
+		let handle_id = (call_id >> 0) & 0xFFFFF;
+		let call_id = (call_id >> 20) & CALL_MASK;	// Call in upper part, as it's constant on user-side
 		// Method call
 		// - Look up the object (first argument) and dispatch using registered methods
 		
 		// - Call method
-		if call_id == 0xFFF {
+		if call_id == CALL_MASK {
 			// Destroy object
-			objects::drop_object(handle_id); 0
+			objects::drop_object(handle_id);
+			Ok(0)
 		}
 		else {
 			// Call a method defined for the object class?
 			objects::call_object(handle_id, call_id as u16, args)
 		}
-	})
+	}
 }
 
 type ObjectHandle = u32;
@@ -171,12 +173,43 @@ impl<'a> SyscallArg for &'a [u8] {
 		}
 	}
 }
+impl<'a> SyscallArg for &'a mut [u8] {
+	fn get_arg(args: &mut &[usize]) -> Result<Self,Error> {
+		if args.len() < 2 {
+			return Err( Error::TooManyArgs );
+		}
+		let ptr = args[0] as *mut u8;
+		let len = args[1];
+		*args = &args[2..];
+		// TODO: Freeze the page to prevent the user from messing with it
+		// SAFE: (uncheckable) lifetime of result should really be 'args, but can't enforce that
+		unsafe {
+			if let Some(v) = ::memory::buf_to_slice_mut(ptr, len) {
+				Ok(v)
+			}
+			else {
+				Err( Error::InvalidBuffer(ptr as *const (), len) )
+			}
+		}
+	}
+}
 impl SyscallArg for usize {
 	fn get_arg(args: &mut &[usize]) -> Result<Self,Error> {
 		if args.len() < 1 {
 			return Err( Error::TooManyArgs );
 		}
 		let rv = args[0];
+		*args = &args[1..];
+		Ok( rv )
+	}
+}
+#[cfg(target_pointer_width="64")]
+impl SyscallArg for u64 {
+	fn get_arg(args: &mut &[usize]) -> Result<Self,Error> {
+		if args.len() < 1 {
+			return Err( Error::TooManyArgs );
+		}
+		let rv = args[0] as u64;
 		*args = &args[1..];
 		Ok( rv )
 	}
@@ -196,7 +229,7 @@ fn syscall_core_log(msg: &str) {
 	log_debug!("syscall_core_log - {}", msg);
 }
 fn syscall_core_exit(status: u32) {
-	todo!("syscall_core_exit(status={})", status);
+	todo!("syscall_core_exit(status={:x})", status);
 }
 fn syscall_core_terminate() {
 	todo!("syscall_core_terminate()");
@@ -216,8 +249,24 @@ fn syscall_vfs_openfile(path: &[u8], mode: u32) -> Result<ObjectHandle,u32> {
 	struct File(::vfs::handle::File);
 
 	impl objects::Object for File {
-		fn handle_syscall(&self, call: u16, args: &[usize]) -> u64 {
-			todo!("File::handle_syscall({}, ...)", call);
+		fn handle_syscall(&self, call: u16, mut args: &[usize]) -> Result<u64,Error> {
+			match call
+			{
+			values::VFS_FILE_READAT => {
+				let ofs = try!( <u64>::get_arg(&mut args) );
+				let dest = try!( <&mut [u8]>::get_arg(&mut args) );
+				log_debug!("File::readat({}, {} bytes)", ofs, dest.len());
+				match self.0.read(ofs, dest)
+				{
+				Ok(count) => Ok(count as u64),
+				Err(e) => todo!("File::handle_syscall READAT Error {:?}", e),
+				}
+				},
+			values::VFS_FILE_WRITEAT => {
+				todo!("File::handle_syscall WRITEAT");
+				},
+			_ => todo!("File::handle_syscall({}, ...)", call),
+			}
 		}
 	}
 	

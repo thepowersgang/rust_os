@@ -19,14 +19,17 @@ use core::prelude::*;
 
 // Raw re-exports from core
 pub use core::{option, result};
-pub use core::{slice, str};
+pub use core::{slice, str, ptr};
 pub use core::{fmt, iter};
-pub use core::{mem};
+pub use core::{mem, cmp, ops};
 pub use core::convert;
+pub use core::intrinsics;
 
 mod std {
+	pub use core::{option, result};
 	pub use core::fmt;
 	pub use core::iter;
+	pub use core::{mem, cmp, ops};
 }
 
 /// Prelude
@@ -50,10 +53,14 @@ macro_rules! todo
 	( $s:expr, $($v:tt)* ) => ( panic!( concat!("TODO: ",$s), $($v)* ) );
 }
 
+mod start;
 
 pub mod rt;
 
 mod heap;
+
+pub mod io;
+pub mod error;
 
 pub mod vec;
 pub mod string;

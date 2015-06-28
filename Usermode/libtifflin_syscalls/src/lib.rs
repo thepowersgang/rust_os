@@ -41,8 +41,37 @@ pub mod vfs;
 pub struct ObjectHandle(u32);
 impl ObjectHandle
 {
-	fn new(rv: u32) -> Result<ObjectHandle,u32> {
-		unimplemented!();
+	fn new(rv: usize) -> Result<ObjectHandle,u32> {
+		to_result(rv).map( |v| ObjectHandle(v) )
+	}
+	unsafe fn call_0(&self, call: u16) -> u64 {
+		::raw::syscall_0( (1 << 31 | self.0 | (call as u32) << 20) )
+	}
+	unsafe fn call_1(&self, call: u16, arg1: usize) -> u64 {
+		::raw::syscall_1( (1 << 31 | (call as u32) << 20 | self.0), arg1)
+	}
+	unsafe fn call_2(&self, call: u16, arg1: usize, arg2: usize) -> u64 {
+		::raw::syscall_2( (1 << 31 | (call as u32) << 20 | self.0), arg1, arg2 )
+	}
+	unsafe fn call_3(&self, call: u16, arg1: usize, arg2: usize, arg3: usize) -> u64 {
+		::raw::syscall_3( (1 << 31 | (call as u32) << 20 | self.0), arg1, arg2, arg3 )
+	}
+}
+impl Drop for ObjectHandle {
+	fn drop(&mut self) {
+		// SAFE: Valid call
+		unsafe {
+			::raw::syscall_0( (1 << 31 | (0x7FF << 20) | self.0) );
+		}
+	}
+}
+
+fn to_result(val: usize) -> Result<u32,u32> {
+	if val < usize::max_value()/2 {
+		Ok(val as u32)
+	}
+	else {
+		Err( (val - usize::max_value()/2) as u32 )
 	}
 }
 

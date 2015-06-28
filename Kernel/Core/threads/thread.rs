@@ -34,10 +34,18 @@ pub enum RunState
 unsafe impl Send for RunState { }
 impl Default for RunState { fn default() -> RunState { RunState::Runnable } }
 
+pub struct Process
+{
+	name: String,
+	pid: u32,
+	pub proc_local_data: ::sync::RwLock<Vec< ::lib::mem::aref::Aref<::core::any::Any+Sync+Send> >>,
+}
+
 struct SharedBlock
 {
 	name: String,
 	tid: ThreadID,
+	process: Arc<Process>,
 }
 
 /// An owning thread handle
@@ -81,11 +89,23 @@ fn allocate_tid() -> ThreadID
 	(rv + 1) as ThreadID
 }
 
+impl Process
+{
+	pub fn new<S: Into<String>>(name: S) -> Arc<Process>
+	{
+		Arc::new(Process {
+			name: name.into(),
+			pid: 0,
+			proc_local_data: ::sync::RwLock::new( Vec::new() ),
+		})
+	}
+}
+
 impl ThreadHandle
 {
-	pub fn new<F: FnOnce()+Send>(name: &str, fcn: F) -> ThreadHandle
+	pub fn new<F: FnOnce()+Send+'static>(name: &str, fcn: F, process: Arc<Process>) -> ThreadHandle
 	{
-		let mut thread = Thread::new_boxed(allocate_tid(), name);
+		let mut thread = Thread::new_boxed(allocate_tid(), name, process);
 		let handle = ThreadHandle {
 			block: thread.block.clone(),
 			};
@@ -114,10 +134,10 @@ impl ::core::ops::Drop for ThreadHandle
 impl Thread
 {
 	/// Create a new thread
-	pub fn new_boxed(tid: ThreadID, name: &str) -> Box<Thread>
+	pub fn new_boxed(tid: ThreadID, name: &str, process: Arc<Process>) -> Box<Thread>
 	{
 		let rv = box Thread {
-			block: Arc::new( SharedBlock { tid: tid, name: From::from(name) } ),
+			block: Arc::new( SharedBlock { tid: tid, name: From::from(name), process: process } ),
 			run_state: RunState::Runnable,
 			cpu_state: Default::default(),
 			next: None,
@@ -144,6 +164,10 @@ impl Thread
 		assert!( !is!(self.run_state, RunState::ListWait(_)) );
 		assert!( is!(self.run_state, RunState::Runnable) );
 	}
+	
+	pub fn get_process_info(&self) -> &Process {
+		&*self.block.process
+	}
 }
 
 impl ::core::fmt::Display for SharedBlock
@@ -159,6 +183,12 @@ impl ::core::fmt::Debug for Thread
 	fn fmt(&self, f: &mut ::core::fmt::Formatter) -> Result<(),::core::fmt::Error>
 	{
 		write!(f, "{:p}({})", self, self.block)
+	}
+}
+
+impl_fmt! {
+	Display(self, f) for Process {
+		write!(f, "PID{}:'{}'", self.pid, self.name)
 	}
 }
 
