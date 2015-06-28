@@ -229,7 +229,7 @@ fn syscall_core_log(msg: &str) {
 	log_debug!("syscall_core_log - {}", msg);
 }
 fn syscall_core_exit(status: u32) {
-	todo!("syscall_core_exit(status={})", status);
+	todo!("syscall_core_exit(status={:x})", status);
 }
 fn syscall_core_terminate() {
 	todo!("syscall_core_terminate()");

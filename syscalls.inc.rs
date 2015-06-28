@@ -41,6 +41,6 @@ def_grp!(2: GROUP_VFS = {
 });
 
 def_class!({
-	 0: VFS_FILE_READAT,
-	 1: VFS_FILE_WRITEAT,
+	0: VFS_FILE_READAT,
+	1: VFS_FILE_WRITEAT,
 });
