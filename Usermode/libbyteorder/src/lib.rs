@@ -2,7 +2,7 @@
 // - By John Hodge (thePowersGang)
 //
 // Core/lib/byteorder.rs
-#![cfg_attr(nightly,feature(core))]
+#![cfg_attr(nightly,feature(core_slice_ext))]
 //! A local version of the byteorder crates.io crate.
 
 pub type Result<T> = ::std::result::Result<T,Error>;

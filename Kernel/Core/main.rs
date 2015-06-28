@@ -21,6 +21,7 @@
 #![feature(const_fn)]	// Allows defining `const fn`
 #![feature(raw)]	// Needed for raw::Slice in Grc
 #![feature(iter_cmp)]	// for max_by
+#![feature(get_type_id,reflect_marker)] // used by process_local's "AnyMap" hackery
 #![no_std]
 
 #![feature(plugin)]
