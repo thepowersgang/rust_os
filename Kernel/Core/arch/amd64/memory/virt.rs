@@ -205,12 +205,21 @@ pub unsafe fn map(addr: *mut (), phys: PAddr, prot: ::memory::virt::ProtectionMo
 	asm!("invlpg ($0)" : : "r" (addr) : "memory" : "volatile");
 }
 /// Removes a mapping
-pub unsafe fn unmap(addr: *mut ())
+pub unsafe fn unmap(addr: *mut ()) -> Option<PAddr>
 {
 	let mut pte = get_page_ent(addr as usize, false, false, LargeOk::No);
+	assert!( !pte.is_null(), "Failed to obtain ent for {:p}", addr );
+	let rv = if pte.is_present() {
+			Some(pte.addr())
+		}
+		else {
+			None
+		};
 	pte.set( 0, ::memory::virt::ProtectionMode::Unmapped );
 	
 	asm!("invlpg ($0)" : : "r" (addr) : "memory" : "volatile");
+	
+	rv
 }
 /// Change protections mode
 pub unsafe fn reprotect(addr: *mut (), prot: ::memory::virt::ProtectionMode)
@@ -320,11 +329,21 @@ pub fn handle_page_fault(accessed_address: usize, error_code: u32) -> bool
 		panic!("Reserved bits clobbered {:#x}", accessed_address);
 	}
 	
-	let pte = get_page_ent(accessed_address, false, false, LargeOk::Yes);
+	let mut pte = get_page_ent(accessed_address, false, false, LargeOk::Yes);
 	
 	// - Global rules
 	//  > Copy-on-write pages
 	if error_code & (FAULT_WRITE|FAULT_LOCKED) == (FAULT_WRITE|FAULT_LOCKED) && pte.is_cow() {
+		// Poke the main VMM layer
+		//::memory::virt::cow_write(accessed_address);
+		// 1. Lock (relevant) address space
+		::memory::virt::with_lock(accessed_address, || unsafe {
+			let frame = pte.addr();
+			// 2. Get the PMM to provide us with a unique copy of that frame (can return the same addr)
+			let newframe = ::memory::phys::make_unique(frame);
+			// 3. Remap to this page as UserRW (because COW is user-only atm)
+			pte.set(newframe, ProtectionMode::UserRW);
+			});
 		todo!("COW - pte = {:?}", pte);
 	}
 	//  > Paged-out pages

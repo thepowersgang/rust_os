@@ -62,5 +62,6 @@ pub mod addresses
 }
 
 pub mod virt;
+pub mod phys;
 
 // vim: ft=rust

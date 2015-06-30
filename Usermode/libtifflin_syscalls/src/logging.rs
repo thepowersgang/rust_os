@@ -4,11 +4,11 @@ use core::prelude::*;
 struct FixedBuf
 {
 	len: usize,
-	data: [u8; 128],
+	data: [u8; 256],
 }
 impl FixedBuf {
 	const fn new() -> Self {
-		FixedBuf { len: 0, data: [0; 128] }
+		FixedBuf { len: 0, data: [0; 256] }
 	}
 	fn clear(&mut self) {
 		self.len = 0;
