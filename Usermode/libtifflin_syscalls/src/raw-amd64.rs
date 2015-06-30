@@ -27,3 +27,9 @@
 	pub unsafe fn syscall_4(id: u32, a1: usize, a2: usize, a3: usize, a4: usize) -> u64 {
 		syscall_a!(id, "{rdi}"=a1, "{rsi}"=a2, "{rdx}"=a3, "{r10}"=a4)
 	}
+	pub unsafe fn syscall_5(id: u32, a1: usize, a2: usize, a3: usize, a4: usize, a5: usize) -> u64 {
+		syscall_a!(id, "{rdi}"=a1, "{rsi}"=a2, "{rdx}"=a3, "{r10}"=a4, "{r8}"=a5)
+	}
+	pub unsafe fn syscall_6(id: u32, a1: usize, a2: usize, a3: usize, a4: usize, a5: usize, a6: usize) -> u64 {
+		syscall_a!(id, "{rdi}"=a1, "{rsi}"=a2, "{rdx}"=a3, "{r10}"=a4, "{r8}"=a5, "{r9}"=a6)
+	}

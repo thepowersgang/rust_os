@@ -151,7 +151,7 @@ pub fn reserve(addr: *mut (), page_count: usize) -> Result<Reservation, ()>
 	use arch::memory::addresses::is_global;
 	
 	if is_global(addr as usize) != is_global(addr as usize + page_count * ::PAGE_SIZE - 1) {
-		todo!("Error out when straddling user-supervisor region")
+		todo!("Error out when straddling user-supervisor region {:p}+{:#x}", addr, page_count*::PAGE_SIZE)
 	}
 	
 	assert_eq!(addr as usize % ::PAGE_SIZE, 0);

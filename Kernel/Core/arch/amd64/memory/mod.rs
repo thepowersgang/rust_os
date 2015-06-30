@@ -53,11 +53,16 @@ pub mod addresses
 	/// returns true if the provided address is valid within all address spaces
 	pub fn is_global(addr: usize) -> bool
 	{
-		if addr < HEAP_START {
-			return false;
+		if addr < 0x00008000_00000000 {
+			false
+		}
+		else if addr < HEAP_START {
+			panic!("Calling is_global on non-canonical address {:#x}", addr)
 		}
 		// TODO: Kernel-side per-process data
-		return true;
+		else {
+			true
+		}
 	}
 }
 

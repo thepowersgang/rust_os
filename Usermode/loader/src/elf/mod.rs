@@ -1,7 +1,7 @@
 use tifflin_syscalls::vfs::{File,FileOpenMode};
 use tifflin_syscalls::vfs::Error as VfsError;
 
-use std::io::{Read,Seek};
+use std::io::{Read,Seek,SeekFrom};
 
 #[derive(Debug)]
 pub enum Error
@@ -15,6 +15,9 @@ impl_from! {
 		Error::Vfs(e)
 	}
 	From<::byteorder::Error>(e) for Error {
+		panic!("")
+	}
+	From<::std::io::Error>(e) for Error {
 		panic!("")
 	}
 }
@@ -40,26 +43,88 @@ pub fn load_executable(path: &str) -> Result<ElfModuleHandle<File>,Error>
 		return Err( Error::NotElf );
 	}
 	
+	// 2. Read header
 	let hdr = try!( Header::parse_partial(&elf_ident, &mut fh) );
 	kernel_log!("hdr = {:?}", hdr);
-	// 2. Read header
-	unimplemented!();
+	Ok(ElfModuleHandle{
+		file: fh,
+		header: hdr,
+		})
 }
 
 impl<R: Read+Seek> ElfModuleHandle<R>
 {
 	pub fn get_entrypoint(&self) -> fn(&[&str])->! {
-		unimplemented!();
+		unsafe { ::std::mem::transmute(self.header.e_entry) }
 	}
-	pub fn load_segments(&self) -> LoadSegments<R> {
-		unimplemented!();
+	pub fn load_segments(&mut self) -> LoadSegments<R> {
+		self.file.seek(SeekFrom::Start(self.header.e_phoff) );
+		LoadSegments {
+			file: &mut self.file,
+			remaining_ents: self.header.e_phnum,
+			entry_size: self.header.e_phentsize,
+			}
 	}
 }
-pub struct LoadSegments<'a, R: 'a + Read+Seek>(&'a mut R, u32);
-impl<'a, R: 'a+Read+Seek> ::std::iter::Iterator for LoadSegments<'a, R> {
-	type Item = ();
+pub struct LoadSegments<'a, R: 'a + Read>
+{
+	file: &'a mut R,	// File is pre-seeked to the start of the PHENT list
+	remaining_ents: u16,
+	entry_size: u16,
+}
+#[derive(Debug)]
+pub struct Segment {
+	pub load_addr: usize,
+	pub file_addr: u64,
+	pub file_size: usize,
+	pub mem_size: usize,
+	pub protection: SegmentProt,
+}
+#[derive(Debug)]
+pub enum SegmentProt {
+	Execute,
+	ReadOnly,
+	ReadWrite,
+}
+impl<'a, R: 'a+Read>  LoadSegments<'a, R> {
+	pub fn get_file(&self) -> &R { self.file }
+	fn read_entry(&mut self) -> Result<PHEnt, Error> {
+		let mut data = [0; 64];
+		assert!(self.entry_size as usize <= data.len(), "Allocation {} insufficent for {}", data.len(), self.entry_size);
+		let data = &mut data[.. self.entry_size as usize];
+		if try!(self.file.read(data)) != self.entry_size as usize {
+			panic!("TODO");
+		}
+		else {
+			PHEnt::parse(&mut &*data)
+		}
+	}
+}
+impl<'a, R: 'a+Read> ::std::iter::Iterator for LoadSegments<'a, R> {
+	type Item = Segment;
 	fn next(&mut self) -> Option<Self::Item> {
-		unimplemented!()
+		while self.remaining_ents > 0
+		{
+			self.remaining_ents -= 1;
+			let e = self.read_entry().expect("Error reading ELF PHEnt");
+			if e.p_type == 1
+			{
+				return Some(Segment {
+					load_addr: e.p_paddr,
+					file_addr: e.p_offset,
+					file_size: e.p_filesz,
+					mem_size: e.p_memsz,
+					protection: match e.p_flags & 7
+						{
+						0x4 => SegmentProt::ReadOnly,
+						0x5 => SegmentProt::Execute,
+						0x6 => SegmentProt::ReadWrite,
+						v @ _ => panic!("TODO: Unknown ELF` flags {}", v),
+						},
+					})
+			}
+		}
+		None
 	}
 }
 
@@ -154,6 +219,36 @@ impl Header
 				})
 			},
 		}
+	}
+}
+
+struct PHEnt
+{
+	p_type: u32,
+	p_flags: u32,
+	p_offset: u64,
+	p_vaddr: usize,
+	p_paddr: usize,	// aka load
+	p_filesz: usize,
+	p_memsz: usize,
+	p_align: usize,	
+}
+impl PHEnt
+{
+	fn parse<R: Read>(file: &mut R) -> Result<PHEnt,Error>
+	{
+		use byteorder::{ReadBytesExt,LittleEndian};
+		// TODO: Handle Elf32
+		Ok(PHEnt {
+			p_type:  try!(file.read_u32::<LittleEndian>()),
+			p_flags: try!(file.read_u32::<LittleEndian>()),
+			p_offset: try!(file.read_u64::<LittleEndian>()),
+			p_vaddr: try!(file.read_u64::<LittleEndian>()) as usize,
+			p_paddr: try!(file.read_u64::<LittleEndian>()) as usize,
+			p_filesz: try!(file.read_u64::<LittleEndian>()) as usize,
+			p_memsz: try!(file.read_u64::<LittleEndian>()) as usize,
+			p_align: try!(file.read_u64::<LittleEndian>()) as usize,
+			})
 	}
 }
 

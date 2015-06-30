@@ -12,6 +12,7 @@ mod objects;
 pub enum Error
 {
 	TooManyArgs,
+	BadValue,
 	InvalidBuffer(*const (), usize),
 	InvalidUnicode(::core::str::Utf8Error),
 }
@@ -224,6 +225,16 @@ impl SyscallArg for u32 {
 		Ok( rv )
 	}
 }
+impl SyscallArg for u8 {
+	fn get_arg(args: &mut &[usize]) -> Result<Self,Error> {
+		if args.len() < 1 {
+			return Err( Error::TooManyArgs );
+		}
+		let rv = args[0] as u8;
+		*args = &args[1..];
+		Ok( rv )
+	}
+}
 
 fn syscall_core_log(msg: &str) {
 	log_debug!("syscall_core_log - {}", msg);
@@ -264,6 +275,26 @@ fn syscall_vfs_openfile(path: &[u8], mode: u32) -> Result<ObjectHandle,u32> {
 				},
 			values::VFS_FILE_WRITEAT => {
 				todo!("File::handle_syscall WRITEAT");
+				},
+			values::VFS_FILE_MEMMAP => {
+				let ofs = try!( <u64>::get_arg(&mut args) );
+				let size = try!( <usize>::get_arg(&mut args) );
+				let addr = try!( <usize>::get_arg(&mut args) );
+				let mode = match try!( <u8>::get_arg(&mut args) )
+					{
+					0 => ::vfs::handle::MemoryMapMode::ReadOnly,
+					1 => ::vfs::handle::MemoryMapMode::Execute,
+					2 => ::vfs::handle::MemoryMapMode::COW,
+					3 => ::vfs::handle::MemoryMapMode::WriteBack,
+					v @ _ => return Err( Error::BadValue ),
+					};
+				
+				match self.0.memory_map(addr, ofs, size, mode)
+				{
+				Ok(_) => {},
+				Err(e) => todo!("File::handle_syscall MEMMAP Error {:?}", e),
+				}
+				Ok(0)
 				},
 			_ => todo!("File::handle_syscall({}, ...)", call),
 			}

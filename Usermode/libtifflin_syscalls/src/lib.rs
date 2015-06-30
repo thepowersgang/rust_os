@@ -24,6 +24,9 @@ macro_rules! syscall {
 	($id:ident, $arg1:expr, $arg2:expr, $arg3:expr) => {
 		::raw::syscall_3(::values::$id, $arg1, $arg2, $arg3)
 		};
+	($id:ident, $arg1:expr, $arg2:expr, $arg3:expr, $arg4:expr) => {
+		::raw::syscall_4(::values::$id, $arg1, $arg2, $arg3, $arg4)
+		};
 }
 
 // File in the root of the repo
@@ -36,6 +39,7 @@ mod raw;
 pub mod logging;
 
 pub mod vfs;
+pub mod memory;
 
 pub struct ObjectHandle(u32);
 impl ObjectHandle
@@ -54,6 +58,12 @@ impl ObjectHandle
 	}
 	unsafe fn call_3(&self, call: u16, arg1: usize, arg2: usize, arg3: usize) -> u64 {
 		::raw::syscall_3( (1 << 31 | (call as u32) << 20 | self.0), arg1, arg2, arg3 )
+	}
+	unsafe fn call_4(&self, call: u16, arg1: usize, arg2: usize, arg3: usize, arg4: usize) -> u64 {
+		::raw::syscall_4( (1 << 31 | (call as u32) << 20 | self.0), arg1, arg2, arg3, arg4 )
+	}
+	unsafe fn call_5(&self, call: u16, arg1: usize, arg2: usize, arg3: usize, arg4: usize, arg5: usize) -> u64 {
+		::raw::syscall_5( (1 << 31 | (call as u32) << 20 | self.0), arg1, arg2, arg3, arg4, arg5 )
 	}
 }
 impl Drop for ObjectHandle {
@@ -87,4 +97,5 @@ pub fn exit(code: u32) -> ! {
 		::core::intrinsics::unreachable();
 	}
 }
+
 

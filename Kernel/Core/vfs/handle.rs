@@ -175,14 +175,17 @@ impl File
 			},
 		}
 		
-		// NOTES:
-		// - Check for existing cached pages for this particular node
-		//  > 
-		assert!(address % ::PAGE_SIZE == 0, "TODO: Unaligned memory_map");
+		// TODO: Handle unaligned mappings somehow
+		// - Depends on several qirks:
+		//  > Unaligned address could write to an existing page (converting it to a private) - But how would that interact with existing mappings?
+		//  > Unaligned sizes would usually cause a new anon mapping, but if its unaligned becuase of EOF, it should just be COW as usual
+		assert!(address % ::PAGE_SIZE == 0, "TODO: Unaligned memory_map (address={})", address);
+		assert!(size % ::PAGE_SIZE == 0, "TODO: Unaligned memory_map (size={})", size);
 		if address % ::PAGE_SIZE != (ofs % ::PAGE_SIZE as u64) as usize {
 			return Err( super::Error::Unknown("memory_map alignment mismatch") );
 		}
 		// - Limit checking (ofs + size must be within size of the file)
+		// TODO: Limit checking
 		// - Reserve the region to be mapped (reserve sticks a zero page in)
 		let page_count = size / ::PAGE_SIZE;
 		let mut resv = match ::memory::virt::reserve(address as *mut (), page_count)
