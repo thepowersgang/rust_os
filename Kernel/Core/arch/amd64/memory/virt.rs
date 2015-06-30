@@ -344,7 +344,7 @@ pub fn handle_page_fault(accessed_address: usize, error_code: u32) -> bool
 			// 3. Remap to this page as UserRW (because COW is user-only atm)
 			pte.set(newframe, ProtectionMode::UserRW);
 			});
-		todo!("COW - pte = {:?}", pte);
+		return true;
 	}
 	//  > Paged-out pages
 	if error_code & FAULT_LOCKED == 0 && !pte.is_null() {

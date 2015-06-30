@@ -16,8 +16,9 @@ pub fn ref_frame(frame_idx: u64) {
 pub fn deref_frame(frame_idx: u64) -> u32 {
 	todo!("deref_frame");
 }
-pub fn get_ref_count(frame_idx: u64) -> u32 {
-	todo!("get_ref_count");
+pub fn get_multiref_count(frame_idx: u64) -> u32 {
+	log_warning!("TODO: get_multiref_count");
+	0
 }
 
 pub fn mark_free(frame_idx: u64) -> bool {

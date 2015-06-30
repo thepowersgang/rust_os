@@ -69,7 +69,15 @@ fn is_ram(phys: PAddr) -> bool
 
 pub fn make_unique(page: PAddr) -> PAddr
 {
-	todo!("make_unique");
+	if !is_ram(page) {
+		panic!("Calling 'make_unique' on non-RAM page");
+	}
+	else if ::arch::memory::phys::get_multiref_count(page) == 0 {
+		page
+	}
+	else {
+		todo!("make_unique");
+	}
 }
 
 pub fn allocate_range_bits(bits: u8, count: usize) -> PAddr
