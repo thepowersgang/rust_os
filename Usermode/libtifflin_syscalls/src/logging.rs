@@ -1,14 +1,16 @@
 
 use core::prelude::*;
 
+const LOG_BUF_SIZE: usize = 256;
+
 struct FixedBuf
 {
 	len: usize,
-	data: [u8; 256],
+	data: [u8; LOG_BUF_SIZE],
 }
 impl FixedBuf {
 	const fn new() -> Self {
-		FixedBuf { len: 0, data: [0; 256] }
+		FixedBuf { len: 0, data: [0; LOG_BUF_SIZE] }
 	}
 	fn clear(&mut self) {
 		self.len = 0;
@@ -16,7 +18,10 @@ impl FixedBuf {
 	fn push_back(&mut self, data: &[u8]) {
 		let len = self.data[self.len..].clone_from_slice( data );
 		self.len += len;
-		assert!(self.len <= 128);
+		if len > LOG_BUF_SIZE {
+			self.len = 0;
+			assert!(self.len <= 128);
+		}
 	}
 }
 impl ::core::ops::Deref for FixedBuf {
