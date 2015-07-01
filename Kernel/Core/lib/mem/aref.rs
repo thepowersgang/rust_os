@@ -62,8 +62,12 @@ impl<T: ?Sized> ops::Deref for Aref<T>
 		&self.__inner.data
 	}
 }
-
-//impl ArefBorrow<Any>
+impl<T: ?Sized> ops::Drop for Aref<T>
+{
+	fn drop(&mut self) {
+		assert_eq!(self.__inner.count.load(Ordering::Relaxed), 0);
+	}
+}
 
 impl<T> ArefInner<T>
 {
@@ -93,12 +97,6 @@ impl<T: ?Sized> ops::Deref for ArefInner<T>
 	type Target = T;
 	fn deref(&self) -> &T {
 		&self.data
-	}
-}
-impl<T: ?Sized> ops::Drop for ArefInner<T>
-{
-	fn drop(&mut self) {
-		assert_eq!(self.count.load(Ordering::Relaxed), 0);
 	}
 }
 

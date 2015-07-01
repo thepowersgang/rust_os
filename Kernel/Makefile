@@ -31,7 +31,7 @@ $(warning $(foreach m,$(MODS), $(addsuffix .o,$(call fn_moddeps,$m)) ))
 EOBJS := $(foreach m,$(MODS), $(addsuffix .o,$(call fn_moddeps,$m)) )
 OBJS += $(EOBJS)
 
-PREFIX := ../.prefix/
+PREFIX ?= ../.prefix/
 rustcmd = LD_LIBRARY_PATH=$(PREFIX)lib/ $(PREFIX)bin/$1
 RUSTC := $(call rustcmd,rustc)
 RUSTDOC := $(call rustcmd,rustdoc)
@@ -68,6 +68,7 @@ RUSTFLAGS += -C no-vectorize-slp
 RUSTFLAGS += --cfg arch__$(ARCH)
 RUSTFLAGS += -L bin/plugins/
 RUSTFLAGS += --cfg nightly --cfg no_std
+#RUSTFLAGS += -C save-temps
 ifeq ($(USE_ACPICA),1)
 	RUSTFLAGS += --cfg use_acpica
 endif
