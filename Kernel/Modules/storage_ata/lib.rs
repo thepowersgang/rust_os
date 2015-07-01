@@ -5,6 +5,7 @@
 //! x86 ATA driver
 #![feature(no_std,core,linkage)]
 #![no_std]
+#![feature(core_slice_ext)]
 #![feature(associated_consts)]
 
 #[macro_use] extern crate core;

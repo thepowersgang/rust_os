@@ -3,6 +3,7 @@
 //
 // Modules/storage_scsi/lib.rs
 #![feature(no_std,core,linkage)]
+#![feature(core_slice_ext)]
 #![feature(associated_consts)]
 #![no_std]
 #[macro_use] extern crate core;

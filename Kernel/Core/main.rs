@@ -22,6 +22,7 @@
 #![feature(raw)]	// Needed for raw::Slice in Grc
 #![feature(iter_cmp)]	// for max_by
 #![feature(get_type_id,reflect_marker)] // used by process_local's "AnyMap" hackery
+#![feature(ptr_as_ref)]	// used by ACPI code
 #![no_std]
 
 #![feature(plugin)]
