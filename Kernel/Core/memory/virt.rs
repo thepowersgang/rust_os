@@ -626,19 +626,38 @@ impl<T> ::core::ops::DerefMut for ArrayHandle<T>
 	}
 }
 
-impl<T> ::core::ops::Index<usize> for ArrayHandle<T>
+macro_rules! impl_index_arrayhandle
 {
+	( $($t:ty),* ) => {$(
+	impl<T> ::core::ops::Index<$t> for ArrayHandle<T>
+	{
+		type Output = [T];
+		fn index<'a>(&'a self, index: $t) -> &'a [T] {
+			&(**self)[index]
+		}
+	}
+
+	impl<T> ::core::ops::IndexMut<$t> for ArrayHandle<T>
+	{
+		fn index_mut<'a>(&'a mut self, index: $t) -> &'a mut [T] {
+			&mut (**self)[index]
+		}
+	})*
+	};
+}
+impl<T> ::core::ops::Index<usize> for ArrayHandle<T> {
 	type Output = T;
 	fn index<'a>(&'a self, index: usize) -> &'a T {
-		self.alloc.as_ref( index * ::core::mem::size_of::<T>() )
+		&(**self)[index]
 	}
 }
 
-impl<T> ::core::ops::IndexMut<usize> for ArrayHandle<T>
-{
+impl<T> ::core::ops::IndexMut<usize> for ArrayHandle<T> {
 	fn index_mut<'a>(&'a mut self, index: usize) -> &'a mut T {
-		self.alloc.as_mut( index * ::core::mem::size_of::<T>() )
+		&mut (**self)[index]
 	}
 }
+
+impl_index_arrayhandle! { ::core::ops::Range<usize>, ::core::ops::RangeFull, ::core::ops::RangeFrom<usize>, ::core::ops::RangeTo<usize> }
 
 // vim: ft=rust

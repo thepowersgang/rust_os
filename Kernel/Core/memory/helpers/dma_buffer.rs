@@ -15,9 +15,49 @@ pub struct DMABuffer<'a>
 	buffer_len: usize,
 	phys: PAddr,
 }
+impl<'a> !Send for DMABuffer<'a> {}
+impl<'a> !Sync for DMABuffer<'a> {}
 
 impl<'a> DMABuffer<'a>
 {
+	fn check_bits(src: &[u8], bits: u8) -> bool {
+		let vaddr = src.as_ptr() as usize;
+		let ofs = vaddr % ::PAGE_SIZE;
+		
+		if ::memory::virt::get_phys(src.as_ptr()) >> (bits as usize) != 0 {
+			return false;
+		}
+		
+		if ::PAGE_SIZE - ofs < src.len()
+		{
+			for page in src[::PAGE_SIZE - ofs..].chunks(::PAGE_SIZE)
+			{
+				let phys = ::memory::virt::get_phys(page.as_ptr());
+				if phys >> (bits as usize) != 0 {
+					return false;
+				}
+			}
+		}
+		true
+	}
+	
+	pub fn new_mut(src: &mut [u8], bits: u8) -> DMABuffer {
+		DMABuffer::new(src, bits)
+	}
+	pub fn new(src: &[u8], bits: u8) -> DMABuffer {
+		if Self::check_bits(src, bits) == false {
+			todo!("new - Bounce because not within bit range");	
+		}
+		else {
+			DMABuffer {
+				_marker: PhantomData,
+				source_ptr: src.as_ptr() as *mut _,
+				buffer_len: src.len(),
+				phys: ::memory::virt::get_phys(src.as_ptr()),
+			}
+		}
+	}
+	
 	/// Creates a new DMABuffer contigious in the specified region
 	pub fn new_contig_mut(src: &mut [u8], bits: u8) -> DMABuffer {
 		DMABuffer::new_contig(src, bits)
@@ -29,7 +69,7 @@ impl<'a> DMABuffer<'a>
 		let phys = ::memory::virt::get_phys( &src[0] );
 		let end_phys = ::memory::virt::get_phys( &src[src.len()-1] );
 		// Check if the buffer is within the required bits
-		if phys >> (bits as usize) != 0
+		if Self::check_bits(src, bits) == false
 		{
 			todo!("new_contig - Bounce because not within bit range");	
 		}
@@ -50,17 +90,47 @@ impl<'a> DMABuffer<'a>
 		}
 	}
 	
+	/// Returns an iterator over contigious physical ranges
+	pub fn phys_ranges(&self) -> Ranges {
+		if self.phys != ::memory::virt::get_phys(self.source_ptr) {
+			unimplemented!();
+		}
+		else {
+			// TODO: Would there be a problem with different address spaces? No, not Send
+			Ranges( unsafe { ::core::slice::from_raw_parts(self.source_ptr, self.buffer_len) } )
+		}
+	}
+	
 	pub fn len(&self) -> usize {
 		self.buffer_len
 	}	
 
-	pub fn phys(&self) -> ::arch::memory::PAddr {
-		self.phys
-	}
+	//#[deprecated]
+	//pub fn phys(&self) -> ::arch::memory::PAddr {
+	//	self.phys
+	//}
 	
 	pub fn update_source(&mut self) {
 		if self.phys != ::memory::virt::get_phys(self.source_ptr) {
 			unimplemented!();
+		}
+	}
+}
+
+pub struct Ranges<'a>(&'a [u8]);
+impl<'a> Iterator for Ranges<'a>
+{
+	type Item = (PAddr,usize);
+	fn next(&mut self) -> Option<Self::Item> {
+		if self.0.len() == 0 {
+			None
+		}
+		else {
+			let rem = ::PAGE_SIZE - (self.0.as_ptr() as usize) % ::PAGE_SIZE;
+			let len = ::core::cmp::min(rem, self.0.len());
+			let paddr = ::memory::virt::get_phys(self.0.as_ptr());
+			self.0 = &self.0[len..];
+			Some( (paddr, len) )
 		}
 	}
 }
