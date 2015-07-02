@@ -23,6 +23,7 @@ TARGET_SPEC := target-$(ARCH).json
 RUSTFLAGS := --target=$(TARGET_SPEC) --cfg arch__$(ARCH) --cfg nightly
 RUSTFLAGS += -O
 RUSTFLAGS += -g
+RUSTFLAGS += --cfg disable_float
 #RUSTFLAGS += -C soft-float	# STOPGAP until SSE is supported
 #RUSTFLAGS += -C no-vectorize-loops
 #RUSTFLAGS += -C no-vectorize-slp
