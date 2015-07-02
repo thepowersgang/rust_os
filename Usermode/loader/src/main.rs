@@ -55,6 +55,9 @@ pub extern "C" fn loader_main(cmdline: *mut u8, cmdline_len: usize) -> !
 			},
 		};
 	
+	let entrypoint = handle.get_entrypoint();
+	
+	let mut found_segment_for_entry = false;
 	// I would love to use a for loop here, but getting access the file is hard using that
 	{
 		let mut segments_it = handle.load_segments();
@@ -64,6 +67,10 @@ pub extern "C" fn loader_main(cmdline: *mut u8, cmdline_len: usize) -> !
 			use tifflin_syscalls::memory::ProtectionMode;
 			const PAGE_SIZE: usize = 0x1000;
 			kernel_log!("segment = {:?}", segment);
+			
+			if segment.load_addr <= entrypoint && entrypoint < segment.load_addr + segment.mem_size {
+				found_segment_for_entry = true;
+			}
 			
 			assert!(segment.file_size <= segment.mem_size);
 			// Split the segment into three regions: (reverse)
@@ -108,6 +115,10 @@ pub extern "C" fn loader_main(cmdline: *mut u8, cmdline_len: usize) -> !
 		}
 	}
 	
+	if !found_segment_for_entry {
+		panic!("Entrypoint {:#x} is not located in a loaded segment", entrypoint);
+	}
+	
 	// Populate arguments
 	// SAFE: We will be writing to this before reading from it
 	let mut args_buf: [&str; 16] = unsafe { ::std::mem::uninitialized() };
@@ -120,7 +131,7 @@ pub extern "C" fn loader_main(cmdline: *mut u8, cmdline_len: usize) -> !
 	kernel_log!("args = {:?}", args);
 	
 	// TODO: Switch stacks into a larger dynamically-allocated stack
-	let ep: fn(&[&str]) -> ! = handle.get_entrypoint();
+	let ep: fn(&[&str]) -> ! = unsafe { ::std::mem::transmute(entrypoint) };
 	kernel_log!("Calling entry {:p}", ep as *const ());
 	ep(args);
 	

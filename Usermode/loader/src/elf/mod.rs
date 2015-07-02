@@ -54,8 +54,8 @@ pub fn load_executable(path: &str) -> Result<ElfModuleHandle<File>,Error>
 
 impl<R: Read+Seek> ElfModuleHandle<R>
 {
-	pub fn get_entrypoint(&self) -> fn(&[&str])->! {
-		unsafe { ::std::mem::transmute(self.header.e_entry) }
+	pub fn get_entrypoint(&self) -> usize {
+		self.header.e_entry
 	}
 	pub fn load_segments(&mut self) -> LoadSegments<R> {
 		self.file.seek(SeekFrom::Start(self.header.e_phoff) );
