@@ -36,6 +36,10 @@ use self::values::*;
 #[path="../../../syscalls.inc.rs"]
 mod values;
 
+fn error_code(value: u32) -> usize {
+	value as usize + usize::max_value() / 2
+}
+
 fn invoke_int(call_id: u32, mut args: &[usize]) -> Result<u64,Error>
 {
 	if call_id & 1 << 31 == 0
@@ -115,7 +119,21 @@ fn invoke_int(call_id: u32, mut args: &[usize]) -> Result<u64,Error>
 		MEM_REPROTECT => {
 			let addr = try!(<usize>::get_arg(&mut args));
 			let mode = try!(<u8>::get_arg(&mut args));
-			todo!("MEM_REPROTECT({:#x},{})", addr, mode)
+			log_debug!("MEM_REPROTECT({:#x},{})", addr, mode);
+			let mode = match mode
+				{
+				0 => ::memory::virt::ProtectionMode::UserRO,
+				1 => ::memory::virt::ProtectionMode::UserRW,
+				2 => ::memory::virt::ProtectionMode::UserRX,
+				3 => ::memory::virt::ProtectionMode::UserRWX,	// TODO: Should this be disallowed?
+				_ => return Err( Error::BadValue ),
+				};
+			// SAFE: This internally does checks, but is marked as unsafe as a signal
+			match unsafe { ::memory::virt::reprotect_user(addr as *mut (), mode) }
+			{
+			Ok( () ) => 0,
+			Err( () ) => error_code(0) as u64,
+			}
 			},
 		MEM_DEALLOCATE => {
 			let addr = try!(<usize>::get_arg(&mut args));

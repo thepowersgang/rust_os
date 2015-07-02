@@ -2,14 +2,13 @@
 use core::prelude::*;
 
 #[repr(C,u8)]
+#[derive(Debug,PartialEq)]
 pub enum ProtectionMode
 {
-	ReadOnly,
-	ReadWrite,
-	Executable,
-	ReadWriteExecute,
-	CopyOnWrite,
-	CopyOnWriteExec,
+	ReadOnly   = 0,
+	ReadWrite  = 1,
+	Executable = 2,
+	ReadWriteExecute = 3,
 }
 
 #[derive(Debug)]

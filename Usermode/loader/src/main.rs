@@ -79,10 +79,10 @@ pub extern "C" fn loader_main(cmdline: *mut u8, cmdline_len: usize) -> !
 				elf::SegmentProt::ReadWrite => MemoryMapMode::COW,
 				elf::SegmentProt::ReadOnly  => MemoryMapMode::ReadOnly,
 				};
-			let prot_mode = match segment.protection
+			let alloc_mode = match segment.protection
 				{
 				elf::SegmentProt::Execute   => ProtectionMode::Executable,
-				elf::SegmentProt::ReadWrite => ProtectionMode::CopyOnWrite,
+				elf::SegmentProt::ReadWrite => ProtectionMode::ReadWrite,	// Allocates as read-write
 				elf::SegmentProt::ReadOnly  => ProtectionMode::ReadOnly,
 				};
 			let fp = segments_it.get_file();
@@ -92,9 +92,14 @@ pub extern "C" fn loader_main(cmdline: *mut u8, cmdline_len: usize) -> !
 			if tail > 0 {
 				unsafe {
 					let destslice = ::std::slice::from_raw_parts_mut((segment.load_addr + aligned) as *mut u8, tail);
+					// - Allocate space
 					::tifflin_syscalls::memory::allocate(destslice.as_ptr() as usize, ProtectionMode::ReadWrite);
-					fp.read_at(segment.file_addr + aligned as u64, destslice).expect("TODO");
-					::tifflin_syscalls::memory::reprotect(destslice.as_ptr() as usize, prot_mode);
+					// - Read data
+					fp.read_at(segment.file_addr + aligned as u64, destslice).expect("Failure reading file data for end of .segment");
+					// - Reprotect to the real mode, not bothering if the desired is Read-Write
+					if alloc_mode != ProtectionMode::ReadWrite {
+						::tifflin_syscalls::memory::reprotect(destslice.as_ptr() as usize, alloc_mode);
+					}
 				}
 			}
 			if extra > PAGE_SIZE - tail {
