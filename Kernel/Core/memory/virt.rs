@@ -13,16 +13,18 @@ type Page = [u8; ::PAGE_SIZE];
 
 #[derive(PartialEq,Debug,Copy,Clone)]
 pub enum ProtectionMode
-{	
-	Unmapped,	// Inaccessible
-	KernelRO,	// Kernel readonly
+{
+	/// Inaccessible
+	Unmapped,
+	/// Kernel readonly
+	KernelRO,
 	KernelRW,	// Kernel read-write
 	KernelRX,	// Kernel read-execute
 	UserRO,	// User
 	UserRW,
 	UserRX,
 	UserCOW,	// User Copy-on-write (becomes UserRW on write)
-	UserRWX,	// AVOID - Read-Write-Execute
+	UserRWX,	// AVOID - Read-Write-Execute (exists for internal reasons)
 }
 
 #[derive(Copy,Clone,Debug)]
@@ -99,6 +101,14 @@ impl ::core::iter::Iterator for Pages {
 // Alias the arch's get_phys method into this namespace
 pub use arch::memory::virt::get_phys;
 
+pub fn with_lock<F>(addr: usize, fcn: F)
+where
+	F: FnOnce()
+{
+	// TODO: Lock
+	fcn();
+}
+
 /// Ensure that the provded pages are valid (i.e. backed by memory)
 pub fn allocate(addr: *mut (), page_count: usize) {
 	allocate_int(addr, page_count, false)
@@ -141,7 +151,7 @@ pub fn reserve(addr: *mut (), page_count: usize) -> Result<Reservation, ()>
 	use arch::memory::addresses::is_global;
 	
 	if is_global(addr as usize) != is_global(addr as usize + page_count * ::PAGE_SIZE - 1) {
-		todo!("Error out when straddling user-supervisor region")
+		todo!("Error out when straddling user-supervisor region {:p}+{:#x}", addr, page_count*::PAGE_SIZE)
 	}
 	
 	assert_eq!(addr as usize % ::PAGE_SIZE, 0);
@@ -191,6 +201,7 @@ impl Reservation
 	}
 }
 
+/// UNSAFE: Does no checks on validity of the physical address. When deallocated, the mapped address will be dereferenced
 pub unsafe fn map(addr: *mut (), phys: PAddr, prot: ProtectionMode)
 {
 	//log_trace!("map(*{:p} := {:#x} {:?})", addr, phys, prot);
@@ -201,6 +212,22 @@ pub unsafe fn map(addr: *mut (), phys: PAddr, prot: ProtectionMode)
 	else
 	{
 		::arch::memory::virt::map(addr, phys, prot);
+	}
+}
+
+/// UNSAFE: (Very) Can change the protection mode of a page to anything
+pub unsafe fn reprotect_user(addr: *mut (), prot: ProtectionMode) -> Result<(),()>
+{
+	assert_eq!(prot, ProtectionMode::UserRX);
+	if ::arch::memory::addresses::is_global(addr as usize) {
+		Err( () )
+	}
+	else if ! ::arch::memory::virt::is_reserved(addr) {
+		Err( () )
+	}
+	else {
+		::arch::memory::virt::reprotect(addr, prot);
+		Ok( () )
 	}
 }
 
@@ -222,8 +249,11 @@ pub unsafe fn unmap(addr: *mut (), count: usize)
 			panic!("Non-aligned page {:p} passed (unmapping {} pages)", addr, count);
 		}
 		
+		// TODO: Dereference the frames returned
 		for i in (0 .. count) {
-			::arch::memory::virt::unmap( (pos + i*::PAGE_SIZE) as *mut () );
+			if let Some(addr) = ::arch::memory::virt::unmap( (pos + i*::PAGE_SIZE) as *mut () ) {
+				::memory::phys::deref_frame(addr);
+			}
 		}
 	}
 }
@@ -236,30 +266,41 @@ pub fn map_short(phys: PAddr) -> AllocHandle
 }
 */
 
+// TODO: Update these two methods to ENSURE that the memory passed isn't allocatable RAM (or has been invalidated in the PMM)
 /// Create a long-standing MMIO/other hardware mapping
 pub unsafe fn map_hw_ro(phys: PAddr, count: usize, module: &'static str) -> Result<AllocHandle,MapError> {
 	map_hw(phys, count, true, module)
 }
+/// Create a long-standing MMIO/other hardware mapping (writable)
 pub unsafe fn map_hw_rw(phys: PAddr, count: usize, module: &'static str) -> Result<AllocHandle,MapError> {
 	map_hw(phys, count, false, module)
 }
 
 /// Return a slice from physical memory
+///
+/// UNSAFE: Can cause aliasing (but does handle referencing the memory)
 pub unsafe fn map_hw_slice<T>(phys: PAddr, num: usize) -> Result<SliceAllocHandle<T>,MapError>
 {
 	let ofs = phys & (::PAGE_SIZE - 1) as PAddr;
 	let pa = phys - ofs;
 	let count = ( (num * ::core::mem::size_of::<T>() + ofs as usize) + (::PAGE_SIZE - 1) ) / ::PAGE_SIZE;
 	log_debug!("phys = {:#x}, {:#x}+{:#x}, count = {}", phys, pa, ofs, count);
+	
+	// - Reference all pages in the region
+	for i in 0 .. count {
+		::memory::phys::ref_frame(pa + (i * ::PAGE_SIZE) as u64);
+	}
+	
+	// Map memory (using the raw map_hw call)
 	Ok (SliceAllocHandle {
-		alloc: try!(map_hw_ro(pa, count, "")),
+		alloc: try!(map_hw(pa, count, true, "map_hw_slice")),
 		ofs: ofs as usize,
 		count: num,
 		_ty: ::core::marker::PhantomData::<T>,
 		} )	
 }
 
-/// UNSAFE: Can be used to introduce aliasing on `phys`
+/// UNSAFE: Can be used to introduce aliasing on `phys` (and does not protect against double-deref caused by incorrectly mapping RAM)
 unsafe fn map_hw(phys: PAddr, count: usize, readonly: bool, _module: &'static str) -> Result<AllocHandle,MapError>
 {
 	let mode = if readonly { ProtectionMode::KernelRO } else { ProtectionMode::KernelRW };
@@ -329,6 +370,7 @@ pub fn alloc_free() -> Result<FreePage,MapError>
 	}
 	panic!("alloc_free: Semaphore reported free slots, but none found");
 }
+
 pub struct FreePage(*mut u8);
 impl FreePage
 {
@@ -383,6 +425,7 @@ fn count_free_in_range(addr: *const Page, count: usize) -> usize
 	return count;
 }
 
+/// Allocate a new kernel stack
 pub fn alloc_stack() -> AllocHandle
 {
 	let _lock = s_kernelspace_lock.lock();
@@ -597,19 +640,38 @@ impl<T> ::core::ops::DerefMut for ArrayHandle<T>
 	}
 }
 
-impl<T> ::core::ops::Index<usize> for ArrayHandle<T>
+macro_rules! impl_index_arrayhandle
 {
+	( $($t:ty),* ) => {$(
+	impl<T> ::core::ops::Index<$t> for ArrayHandle<T>
+	{
+		type Output = [T];
+		fn index<'a>(&'a self, index: $t) -> &'a [T] {
+			&(**self)[index]
+		}
+	}
+
+	impl<T> ::core::ops::IndexMut<$t> for ArrayHandle<T>
+	{
+		fn index_mut<'a>(&'a mut self, index: $t) -> &'a mut [T] {
+			&mut (**self)[index]
+		}
+	})*
+	};
+}
+impl<T> ::core::ops::Index<usize> for ArrayHandle<T> {
 	type Output = T;
 	fn index<'a>(&'a self, index: usize) -> &'a T {
-		self.alloc.as_ref( index * ::core::mem::size_of::<T>() )
+		&(**self)[index]
 	}
 }
 
-impl<T> ::core::ops::IndexMut<usize> for ArrayHandle<T>
-{
+impl<T> ::core::ops::IndexMut<usize> for ArrayHandle<T> {
 	fn index_mut<'a>(&'a mut self, index: usize) -> &'a mut T {
-		self.alloc.as_mut( index * ::core::mem::size_of::<T>() )
+		&mut (**self)[index]
 	}
 }
+
+impl_index_arrayhandle! { ::core::ops::Range<usize>, ::core::ops::RangeFull, ::core::ops::RangeFrom<usize>, ::core::ops::RangeTo<usize> }
 
 // vim: ft=rust

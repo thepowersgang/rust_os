@@ -77,11 +77,11 @@ impl DmaController
 
 	/// Read ATA DMA
 	pub fn do_dma_rd<'a>(&'a self, blockidx: u64, count: usize, dst: &'a mut [u8], disk: u8) -> storage::AsyncIoResult<'a,()> {
-		self.do_dma(blockidx, count, DMABuffer::new_contig_mut(dst, 32), disk, false)
+		self.do_dma(blockidx, count, DMABuffer::new_mut(dst, 32), disk, false)
 	}
 	/// Write ATA DMA
 	pub fn do_dma_wr<'a>(&'a self, blockidx: u64, count: usize, dst: &'a [u8], disk: u8) -> storage::AsyncIoResult<'a,()> {
-		self.do_dma(blockidx, count, DMABuffer::new_contig(dst, 32), disk, true)
+		self.do_dma(blockidx, count, DMABuffer::new(dst, 32), disk, true)
 	}
 	fn do_dma<'a>(&'a self, blockidx: u64, count: usize, dst: DMABuffer<'a>, disk: u8, is_write: bool) -> storage::AsyncIoResult<'a,()>
 	{
@@ -229,9 +229,19 @@ impl AtaRegs
 	{
 		// Fill PRDT
 		// TODO: Use a chain of PRDTs to support 32-bit scatter-gather
-		self.prdts[0].bytes = dma_buffer.len() as u16;
-		self.prdts[0].addr = dma_buffer.phys() as u32;
-		self.prdts[0].flags = 0x8000;
+		//  Is that possible?
+		let mut count = 0;
+		for (prdt, region) in zip!( self.prdts.iter_mut(), dma_buffer.phys_ranges() )
+		{
+			// Wait, this may not need to be here, as the max transfer size is < 2^16
+			assert!(region.1 < (1<<16), "TODO: Split buffers over PRDTs");
+			prdt.bytes = region.1 as u16;
+			prdt.addr = region.0 as u32;
+			prdt.flags = 0;
+			count += 1;
+		}
+		assert!(count > 0);
+		self.prdts[count-1].flags = 0x8000;
 	}
 	
 	fn start_dma(&mut self, disk: u8, blockidx: u64, dma_buffer: &DMABuffer, is_write: bool, bm: &DmaRegBorrow)

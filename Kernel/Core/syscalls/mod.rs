@@ -12,6 +12,7 @@ mod objects;
 pub enum Error
 {
 	TooManyArgs,
+	BadValue,
 	InvalidBuffer(*const (), usize),
 	InvalidUnicode(::core::str::Utf8Error),
 }
@@ -34,6 +35,10 @@ pub fn invoke(call_id: u32, args: &[usize]) -> u64 {
 use self::values::*;
 #[path="../../../syscalls.inc.rs"]
 mod values;
+
+fn error_code(value: u32) -> usize {
+	value as usize + usize::max_value() / 2
+}
 
 fn invoke_int(call_id: u32, mut args: &[usize]) -> Result<u64,Error>
 {
@@ -97,6 +102,42 @@ fn invoke_int(call_id: u32, mut args: &[usize]) -> Result<u64,Error>
 		// - 2/2: Open directory
 		VFS_OPENDIR => {
 			todo!("VFS_OPENDIR");
+			},
+		// === 3: Memory Mangement
+		MEM_ALLOCATE => {
+			let addr = try!(<usize>::get_arg(&mut args));
+			let mode = try!(<u8>::get_arg(&mut args));
+			// Wait? Why do I have a 'mode' here?
+			log_debug!("MEM_ALLOCATE({:#x},{})", addr, mode);
+			::memory::virt::allocate_user(addr as *mut (), 1); 0
+			//match ::memory::virt::allocate_user(addr as *mut (), 1)
+			//{
+			//Ok(_) => 0,
+			//Err(e) => todo!("MEM_ALLOCATE - error {:?}", e),
+			//}
+			},
+		MEM_REPROTECT => {
+			let addr = try!(<usize>::get_arg(&mut args));
+			let mode = try!(<u8>::get_arg(&mut args));
+			log_debug!("MEM_REPROTECT({:#x},{})", addr, mode);
+			let mode = match mode
+				{
+				0 => ::memory::virt::ProtectionMode::UserRO,
+				1 => ::memory::virt::ProtectionMode::UserRW,
+				2 => ::memory::virt::ProtectionMode::UserRX,
+				3 => ::memory::virt::ProtectionMode::UserRWX,	// TODO: Should this be disallowed?
+				_ => return Err( Error::BadValue ),
+				};
+			// SAFE: This internally does checks, but is marked as unsafe as a signal
+			match unsafe { ::memory::virt::reprotect_user(addr as *mut (), mode) }
+			{
+			Ok( () ) => 0,
+			Err( () ) => error_code(0) as u64,
+			}
+			},
+		MEM_DEALLOCATE => {
+			let addr = try!(<usize>::get_arg(&mut args));
+			todo!("MEM_DEALLOCATE({:#x})", addr)
 			},
 		// === *: Default
 		_ => {
@@ -224,6 +265,16 @@ impl SyscallArg for u32 {
 		Ok( rv )
 	}
 }
+impl SyscallArg for u8 {
+	fn get_arg(args: &mut &[usize]) -> Result<Self,Error> {
+		if args.len() < 1 {
+			return Err( Error::TooManyArgs );
+		}
+		let rv = args[0] as u8;
+		*args = &args[1..];
+		Ok( rv )
+	}
+}
 
 fn syscall_core_log(msg: &str) {
 	log_debug!("syscall_core_log - {}", msg);
@@ -255,7 +306,7 @@ fn syscall_vfs_openfile(path: &[u8], mode: u32) -> Result<ObjectHandle,u32> {
 			values::VFS_FILE_READAT => {
 				let ofs = try!( <u64>::get_arg(&mut args) );
 				let dest = try!( <&mut [u8]>::get_arg(&mut args) );
-				log_debug!("File::readat({}, {} bytes)", ofs, dest.len());
+				log_debug!("File::readat({}, {:p}+{} bytes)", ofs, dest.as_ptr(), dest.len());
 				match self.0.read(ofs, dest)
 				{
 				Ok(count) => Ok(count as u64),
@@ -264,6 +315,26 @@ fn syscall_vfs_openfile(path: &[u8], mode: u32) -> Result<ObjectHandle,u32> {
 				},
 			values::VFS_FILE_WRITEAT => {
 				todo!("File::handle_syscall WRITEAT");
+				},
+			values::VFS_FILE_MEMMAP => {
+				let ofs = try!( <u64>::get_arg(&mut args) );
+				let size = try!( <usize>::get_arg(&mut args) );
+				let addr = try!( <usize>::get_arg(&mut args) );
+				let mode = match try!( <u8>::get_arg(&mut args) )
+					{
+					0 => ::vfs::handle::MemoryMapMode::ReadOnly,
+					1 => ::vfs::handle::MemoryMapMode::Execute,
+					2 => ::vfs::handle::MemoryMapMode::COW,
+					3 => ::vfs::handle::MemoryMapMode::WriteBack,
+					v @ _ => return Err( Error::BadValue ),
+					};
+				
+				match self.0.memory_map(addr, ofs, size, mode)
+				{
+				Ok(_) => {},
+				Err(e) => todo!("File::handle_syscall MEMMAP Error {:?}", e),
+				}
+				Ok(0)
 				},
 			_ => todo!("File::handle_syscall({}, ...)", call),
 			}

@@ -14,6 +14,7 @@ static S_MEM_MAP: ::lib::LazyStatic<&'static [::memory::MemoryMapEnt]> = lazysta
 static S_MAPALLOC : ::sync::Mutex<(usize,PAddr)> = mutex_init!( (0,0) );
 // TODO: Multiple stacks based on page colouring
 static S_FREE_STACK : ::sync::Mutex<PAddr> = mutex_init!( NOPAGE );
+// TODO: Reference counts (maybe require arch to expose that)
 
 /// A handle to a physical page (maintaining a reference to it, even when not mapped)
 pub struct FrameHandle(PAddr);
@@ -47,6 +48,36 @@ impl FrameHandle
 fn get_memory_map() -> &'static [::memory::MemoryMapEnt]
 {
 	&*S_MEM_MAP
+}
+
+fn is_ram(phys: PAddr) -> bool
+{
+	for e in S_MEM_MAP.iter()
+	{
+		if e.start <= phys && phys < e.start + e.size
+		{
+			return match e.state
+				{
+				::memory::memorymap::MemoryState::Free => true,
+				::memory::memorymap::MemoryState::Used => true,
+				_ => false,
+				};
+		}
+	}
+	false
+}
+
+pub fn make_unique(page: PAddr) -> PAddr
+{
+	if !is_ram(page) {
+		panic!("Calling 'make_unique' on non-RAM page");
+	}
+	else if ::arch::memory::phys::get_multiref_count(page) == 0 {
+		page
+	}
+	else {
+		todo!("make_unique");
+	}
 }
 
 pub fn allocate_range_bits(bits: u8, count: usize) -> PAddr
@@ -133,6 +164,34 @@ pub fn allocate(address: *mut ()) -> bool
 	// 3. Fail
 	log_trace!("- (none)");
 	false
+}
+
+pub fn ref_frame(paddr: PAddr)
+{
+	if ! is_ram(paddr) {
+		
+	}
+	else {
+		::arch::memory::phys::ref_frame(paddr / ::PAGE_SIZE as u64);
+	}
+}
+pub fn deref_frame(paddr: PAddr)
+{
+	if ! is_ram(paddr) {
+		log_log!("Calling deref_frame on non-RAM {:#x}", paddr);
+	}
+	// Dereference page (returns prevous value, zero meaning page was not multi-referenced)
+	else if ::arch::memory::phys::deref_frame(paddr / ::PAGE_SIZE as u64) == 0 {
+		// - This page is the only reference.
+		if ::arch::memory::phys::mark_free(paddr / ::PAGE_SIZE as u64) == true {
+			// Release frame back into the pool
+			todo!("deref_frame({:#x}) Release", paddr);
+		}
+		else {
+			// Page was either not allocated (oops) or is not managed
+			// - Either way, ignore
+		}
+	}
 }
 
 fn mark_used(paddr: PAddr)

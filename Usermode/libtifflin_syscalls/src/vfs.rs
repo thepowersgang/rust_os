@@ -17,6 +17,18 @@ pub enum FileOpenMode
 	Execute  = 2,
 	// TODO: Write modes
 }
+#[repr(C,u8)]
+pub enum MemoryMapMode
+{
+	/// Read-only mapping of a file
+	ReadOnly = 0,
+	/// Executable mapping of a file
+	Execute = 1,
+	/// Copy-on-write (used for executable files)
+	COW = 2,
+	/// Allows writing to the backing file
+	WriteBack = 3,
+}
 
 impl File
 {
@@ -47,6 +59,21 @@ impl File
 			match ::to_result( self.0.call_3(::values::VFS_FILE_READAT, ofs as usize, data.as_ptr() as usize, data.len()) as usize )
 			{
 			Ok(v) => Ok(v as usize),
+			Err(v) => {
+				panic!("TODO: Error code {}", v);
+				}
+			}
+		}
+	}
+	
+	// Actualy safe, as it uses the aliasing restrictions from the file, and checks memory ownership
+	pub fn memory_map(&self, ofs: u64, read_size: usize, mem_addr: usize, mode: MemoryMapMode) -> Result<(),Error> {
+		assert!(::core::mem::size_of::<usize>() == ::core::mem::size_of::<u64>());
+		// SAFE: Passes valid arguments to MEMMAP
+		unsafe {
+			match ::to_result( self.0.call_4(::values::VFS_FILE_MEMMAP, ofs as usize, read_size, mem_addr, mode as u8 as usize) as usize )
+			{
+			Ok(_) => Ok( () ),
 			Err(v) => {
 				panic!("TODO: Error code {}", v);
 				}

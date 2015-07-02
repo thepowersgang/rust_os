@@ -56,7 +56,7 @@ impl BlockCache
 				}
 				// If the LBA matches, update the timestamp and return a handle
 				if e.lba == lba {
-					log_trace!("Hit: {}", lba);
+					//log_trace!("Hit: {}", lba);
 					e.time = ::kernel::time::ticks();
 					return Ok(e.data.clone());
 				}
