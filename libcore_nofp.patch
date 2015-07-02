@@ -1,0 +1,212 @@
+diff -ru libcore/clone.rs libcore_patched/clone.rs
+--- libcore/clone.rs	2015-07-02 13:02:27.891621659 +0800
++++ libcore_patched/clone.rs	2015-07-02 13:02:04.780163524 +0800
+@@ -80,7 +80,9 @@
+ clone_impl! { u32 }
+ clone_impl! { u64 }
+ 
++#[cfg(not(disable_float))]
+ clone_impl! { f32 }
++#[cfg(not(disable_float))]
+ clone_impl! { f64 }
+ 
+ clone_impl! { () }
+diff -ru libcore/default.rs libcore_patched/default.rs
+--- libcore/default.rs	2015-07-02 13:02:27.887621753 +0800
++++ libcore_patched/default.rs	2015-07-02 13:02:04.784163432 +0800
+@@ -153,5 +153,7 @@
+ default_impl! { i32, 0 }
+ default_impl! { i64, 0 }
+ 
++#[cfg(not(disable_float))]
+ default_impl! { f32, 0.0f32 }
++#[cfg(not(disable_float))]
+ default_impl! { f64, 0.0f64 }
+diff -ru libcore/fmt/mod.rs libcore_patched/fmt/mod.rs
+--- libcore/fmt/mod.rs	2015-07-02 13:02:27.895621566 +0800
++++ libcore_patched/fmt/mod.rs	2015-07-02 13:02:04.784163432 +0800
+@@ -1124,7 +1124,9 @@
+         }
+     }
+ } }
++#[cfg(not(disable_float))]
+ floating! { f32 }
++#[cfg(not(disable_float))]
+ floating! { f64 }
+ 
+ // Implementation of Display/Debug for various core types
+diff -ru libcore/intrinsics.rs libcore_patched/intrinsics.rs
+--- libcore/intrinsics.rs	2015-07-02 13:02:27.891621659 +0800
++++ libcore_patched/intrinsics.rs	2015-07-02 13:02:04.780163524 +0800
+@@ -392,7 +392,10 @@
+     pub fn volatile_load<T>(src: *const T) -> T;
+     /// Perform a volatile store to the `dst` pointer.
+     pub fn volatile_store<T>(dst: *mut T, val: T);
++}
+ 
++#[cfg(not(disable_float))]
++extern "rust-intrinsic" {
+     /// Returns the square root of an `f32`
+     pub fn sqrtf32(x: f32) -> f32;
+     /// Returns the square root of an `f64`
+@@ -489,7 +492,9 @@
+     pub fn roundf32(x: f32) -> f32;
+     /// Returns the nearest integer to an `f64`. Rounds half-way cases away from zero.
+     pub fn roundf64(x: f64) -> f64;
++}
+ 
++extern "rust-intrinsic" {
+     /// Returns the number of bits set in a `u8`.
+     pub fn ctpop8(x: u8) -> u8;
+     /// Returns the number of bits set in a `u16`.
+diff -ru libcore/lib.rs libcore_patched/lib.rs
+--- libcore/lib.rs	2015-07-02 13:02:27.899621472 +0800
++++ libcore_patched/lib.rs	2015-07-02 13:02:04.780163524 +0800
+@@ -110,7 +110,9 @@
+ #[path = "num/u32.rs"]  pub mod u32;
+ #[path = "num/u64.rs"]  pub mod u64;
+ 
++#[cfg(not(disable_float))]
+ #[path = "num/f32.rs"]   pub mod f32;
++#[cfg(not(disable_float))]
+ #[path = "num/f64.rs"]   pub mod f64;
+ 
+ #[macro_use]
+@@ -148,6 +150,7 @@
+ pub mod option;
+ pub mod raw;
+ pub mod result;
++#[cfg(not(disable_float))]
+ pub mod simd;
+ pub mod slice;
+ pub mod str;
+diff -ru libcore/num/flt2dec/decoder.rs libcore_patched/num/flt2dec/decoder.rs
+--- libcore/num/flt2dec/decoder.rs	2015-07-02 13:02:27.903621378 +0800
++++ libcore_patched/num/flt2dec/decoder.rs	2015-07-02 13:02:04.784163432 +0800
+@@ -12,6 +12,7 @@
+ 
+ use prelude::*;
+ 
++#[cfg(not(disable_float))]
+ use {f32, f64};
+ use num::{Float, FpCategory};
+ 
+@@ -60,11 +61,13 @@
+     fn min_pos_norm_value() -> Self;
+ }
+ 
++#[cfg(not(disable_float))]
+ impl DecodableFloat for f32 {
+     fn ldexpi(f: i64, exp: isize) -> Self { f as Self * (exp as Self).exp2() }
+     fn min_pos_norm_value() -> Self { f32::MIN_POSITIVE }
+ }
+ 
++#[cfg(not(disable_float))]
+ impl DecodableFloat for f64 {
+     fn ldexpi(f: i64, exp: isize) -> Self { f as Self * (exp as Self).exp2() }
+     fn min_pos_norm_value() -> Self { f64::MIN_POSITIVE }
+diff -ru libcore/num/mod.rs libcore_patched/num/mod.rs
+--- libcore/num/mod.rs	2015-07-02 13:02:27.903621378 +0800
++++ libcore_patched/num/mod.rs	2015-07-02 13:02:04.784163432 +0800
+@@ -92,6 +92,7 @@
+         }
+     )*)
+ }
++#[cfg(not(disable_float))]
+ zero_one_impl_float! { f32 f64 }
+ 
+ macro_rules! checked_op {
+@@ -1399,7 +1400,9 @@
+         }
+     }
+ }
++#[cfg(not(disable_float))]
+ from_str_float_impl!(f32);
++#[cfg(not(disable_float))]
+ from_str_float_impl!(f64);
+ 
+ macro_rules! from_str_radix_int_impl {
+diff -ru libcore/ops.rs libcore_patched/ops.rs
+--- libcore/ops.rs	2015-07-02 13:02:27.899621472 +0800
++++ libcore_patched/ops.rs	2015-07-02 13:02:04.780163524 +0800
+@@ -203,7 +203,9 @@
+     )*)
+ }
+ 
+-add_impl! { usize u8 u16 u32 u64 isize i8 i16 i32 i64 f32 f64 }
++add_impl! { usize u8 u16 u32 u64 isize i8 i16 i32 i64 }
++#[cfg(not(disable_float))]
++add_impl! { f32 f64 }
+ 
+ /// The `Sub` trait is used to specify the functionality of `-`.
+ ///
+@@ -257,7 +259,9 @@
+     )*)
+ }
+ 
+-sub_impl! { usize u8 u16 u32 u64 isize i8 i16 i32 i64 f32 f64 }
++sub_impl! { usize u8 u16 u32 u64 isize i8 i16 i32 i64 }
++#[cfg(not(disable_float))]
++sub_impl! { f32 f64 }
+ 
+ /// The `Mul` trait is used to specify the functionality of `*`.
+ ///
+@@ -311,7 +315,9 @@
+     )*)
+ }
+ 
+-mul_impl! { usize u8 u16 u32 u64 isize i8 i16 i32 i64 f32 f64 }
++mul_impl! { usize u8 u16 u32 u64 isize i8 i16 i32 i64 }
++#[cfg(not(disable_float))]
++mul_impl! { f32 f64 }
+ 
+ /// The `Div` trait is used to specify the functionality of `/`.
+ ///
+@@ -365,7 +371,9 @@
+     )*)
+ }
+ 
+-div_impl! { usize u8 u16 u32 u64 isize i8 i16 i32 i64 f32 f64 }
++div_impl! { usize u8 u16 u32 u64 isize i8 i16 i32 i64 }
++#[cfg(not(disable_float))]
++div_impl! { f32 f64 }
+ 
+ /// The `Rem` trait is used to specify the functionality of `%`.
+ ///
+@@ -421,6 +429,7 @@
+ 
+ rem_impl! { usize u8 u16 u32 u64 isize i8 i16 i32 i64 }
+ 
++#[cfg(not(disable_float))]
+ #[stable(feature = "rust1", since = "1.0.0")]
+ impl Rem for f32 {
+     type Output = f32;
+@@ -440,6 +449,7 @@
+     }
+ }
+ 
++#[cfg(not(disable_float))]
+ #[stable(feature = "rust1", since = "1.0.0")]
+ impl Rem for f64 {
+     type Output = f64;
+@@ -451,7 +461,9 @@
+     }
+ }
+ 
++#[cfg(not(disable_float))]
+ forward_ref_binop! { impl Rem, rem for f64, f64 }
++#[cfg(not(disable_float))]
+ forward_ref_binop! { impl Rem, rem for f32, f32 }
+ 
+ /// The `Neg` trait is used to specify the functionality of unary `-`.
+@@ -523,7 +535,9 @@
+ }
+ 
+ // neg_impl_unsigned! { usize u8 u16 u32 u64 }
+-neg_impl_numeric! { isize i8 i16 i32 i64 f32 f64 }
++neg_impl_numeric! { isize i8 i16 i32 i64 }
++#[cfg(not(disable_float))]
++neg_impl_numeric! { f32 f64 }
+ 
+ /// The `Not` trait is used to specify the functionality of unary `!`.
+ ///

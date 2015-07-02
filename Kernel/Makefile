@@ -51,8 +51,8 @@ LocalLib = --extern $1=$(OBJDIR)lib$1.rlib
 # Function: Fix the specified dependency file (from http://scottmcpeak.com/autodepend/autodepend.html)
 FixDep = cp -f $1 $1.tmp && sed -e 's/.*://' -e 's/\\$$//' < $1.tmp | head -n 1 | fmt -1 | sed -e 's/^ *//' -e 's/$$/:/' >> $1 && rm -f $1.tmp
 
-EXCLUDE_FEATURES := 
-#3dnow avx avx2 sse sse2 sse3 sse4.1 sse4.2 mmx
+EXCLUDE_FEATURES := 3dnow avx avx2 sse sse2 sse3 sse4.1 sse4.2 mmx
+#EXCLUDE_FEATURES := 3dnow avx avx2 sse3 sse4.1 sse4.2
 TARGET_FILE := Core/arch/$(ARCH)/target.json
 
 OBJDIR := .obj/$(ARCH)/
@@ -61,13 +61,14 @@ RUSTFLAGS := -L $(OBJDIR)
 RUSTFLAGS += -O
 RUSTFLAGS += -g
 RUSTFLAGS += -C code-model=kernel
-#RUSTFLAGS += -C soft-float	# Disables requiring SSE etc
-#RUSTFLAGS += -C target-feature=$(subst $(space),$(comma),$(EXCLUDE_FEATURES:%=-%))
+RUSTFLAGS += -C soft-float	# Disables requiring SSE etc
+RUSTFLAGS += -C target-feature=$(subst $(space),$(comma),$(EXCLUDE_FEATURES:%=-%))
 RUSTFLAGS += -C no-vectorize-loops
 RUSTFLAGS += -C no-vectorize-slp
 RUSTFLAGS += --cfg arch__$(ARCH)
 RUSTFLAGS += -L bin/plugins/
 RUSTFLAGS += --cfg nightly --cfg no_std
+RUSTFLAGS += --cfg disable_float
 #RUSTFLAGS += -C save-temps
 ifeq ($(USE_ACPICA),1)
 	RUSTFLAGS += --cfg use_acpica
@@ -123,8 +124,9 @@ UPDATE_libcore_src:
 ../rustc-nightly-src.tar.gz:
 	@echo -- nightly source required, run "make UPDATE"
 	@false
-../libcore/lib.rs: ../rustc-nightly-src.tar.gz
+../libcore/lib.rs: ../rustc-nightly-src.tar.gz ../libcore_nofp.patch
 	tar -xmf ../rustc-nightly-src.tar.gz -C ../ rustc-nightly/src/libcore --transform 's~^rustc-nightly/src/~~'
+	cd .. && patch -p0 < libcore_nofp.patch
 
 # ---
 # Debug
