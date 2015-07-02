@@ -25,6 +25,8 @@ CFLAGS := -ffreestanding -mcmodel=kernel -mno-red-zone
 #CFLAGS += -mno-sse
 #CFLAGS += -O2
 
+.PHONY: all clean
+
 all: acpica-$(TRIPLE).a
 
 clean:
@@ -44,7 +46,7 @@ $(TARBALL_DIR)%: patches/%
 
 acpica-$(TRIPLE).a: $(SRCDIR) $(PATCHED) $(OBJS)
 	@echo [AR] $@
-	@rm $@ && ar rc $@ $(OBJS)
+	@rm -f $@ && ar rc $@ $(OBJS)
 	
 $(OBJDIR)%.o: $(SRCDIR)%.c $(PATCHED) Makefile
 	@mkdir -p $(dir $@)
