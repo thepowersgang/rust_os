@@ -3,7 +3,7 @@
 //
 // This program is both the initial entrypoint for the userland, and the default dynamic linker.
 #![feature(result_expect)]	// my feature, i'm using it
-#![feature(core)]	// needed for core's SliceExt
+#![feature(core,core_slice_ext)]	// needed for core's SliceExt
 #![crate_type="lib"]
 #[macro_use]
 extern crate tifflin_syscalls;
