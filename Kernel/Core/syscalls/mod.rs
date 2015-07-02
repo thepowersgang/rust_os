@@ -99,6 +99,28 @@ fn invoke_int(call_id: u32, mut args: &[usize]) -> Result<u64,Error>
 		VFS_OPENDIR => {
 			todo!("VFS_OPENDIR");
 			},
+		// === 3: Memory Mangement
+		MEM_ALLOCATE => {
+			let addr = try!(<usize>::get_arg(&mut args));
+			let mode = try!(<u8>::get_arg(&mut args));
+			// Wait? Why do I have a 'mode' here?
+			log_debug!("MEM_ALLOCATE({:#x},{})", addr, mode);
+			::memory::virt::allocate_user(addr as *mut (), 1); 0
+			//match ::memory::virt::allocate_user(addr as *mut (), 1)
+			//{
+			//Ok(_) => 0,
+			//Err(e) => todo!("MEM_ALLOCATE - error {:?}", e),
+			//}
+			},
+		MEM_REPROTECT => {
+			let addr = try!(<usize>::get_arg(&mut args));
+			let mode = try!(<u8>::get_arg(&mut args));
+			todo!("MEM_REPROTECT({:#x},{})", addr, mode)
+			},
+		MEM_DEALLOCATE => {
+			let addr = try!(<usize>::get_arg(&mut args));
+			todo!("MEM_DEALLOCATE({:#x})", addr)
+			},
 		// === *: Default
 		_ => {
 			log_error!("Unknown syscall {:05x}", call_id);
@@ -266,7 +288,7 @@ fn syscall_vfs_openfile(path: &[u8], mode: u32) -> Result<ObjectHandle,u32> {
 			values::VFS_FILE_READAT => {
 				let ofs = try!( <u64>::get_arg(&mut args) );
 				let dest = try!( <&mut [u8]>::get_arg(&mut args) );
-				log_debug!("File::readat({}, {} bytes)", ofs, dest.len());
+				log_debug!("File::readat({}, {:p}+{} bytes)", ofs, dest.as_ptr(), dest.len());
 				match self.0.read(ofs, dest)
 				{
 				Ok(count) => Ok(count as u64),

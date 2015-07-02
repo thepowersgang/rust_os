@@ -63,7 +63,7 @@ $(LIBDIR)libcore.rlib: ../libcore/lib.rs $(TARGET_SPEC) Makefile
 	@mv $(OBJDIR)libcore.rlib $@
 	@mv $(OBJDIR)core.d $(OBJDIR)libcore.d
 
-$(BINDIR)%: %/src/main.rs $(TARGET_SPEC) Makefile
+$(BINDIR)%: %/src/main.rs $(TARGET_SPEC) Makefile link-$(ARCH).ld
 	@mkdir -p $(dir $@)
 	@echo [RUSTC] $@
 	@$(RUSTC) $(RUSTFLAGS) -o $@ $< --crate-type=bin --crate-name=$*

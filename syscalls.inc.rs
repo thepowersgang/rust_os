@@ -40,6 +40,12 @@ def_grp!(2: GROUP_VFS = {
 	2: VFS_OPENDIR,
 });
 
+def_grp!(3: GROUP_MEM = {
+	0: MEM_ALLOCATE,
+	1: MEM_REPROTECT,
+	2: MEM_DEALLOCATE,
+});
+
 def_class!({
 	0: VFS_FILE_READAT,
 	1: VFS_FILE_WRITEAT,

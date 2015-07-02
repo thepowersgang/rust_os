@@ -17,14 +17,20 @@ pub struct Error;
 
 #[inline]
 pub unsafe fn allocate(addr: usize, protection: ProtectionMode) -> Result<(), Error> {
-	panic!("TODO: allocate");
+	super::to_result( syscall!(MEM_ALLOCATE, addr, protection as u8 as usize) as usize )
+		.map(|_| ())
+		.map_err(|_| Error)
 }
 #[inline]
 pub unsafe fn reprotect(addr: usize, protection: ProtectionMode) -> Result<(), Error> {
-	panic!("TODO: reprotect");
+	super::to_result( syscall!(MEM_REPROTECT, addr, protection as u8 as usize) as usize )
+		.map(|_| ())
+		.map_err(|_| Error)
 }
 #[inline]
 pub unsafe fn deallocate(addr: usize) -> Result<(), Error> {
-	panic!("TODO: deallocate");
+	super::to_result( syscall!(MEM_DEALLOCATE, addr) as usize )
+		.map(|_| ())
+		.map_err(|_| Error)
 }
 

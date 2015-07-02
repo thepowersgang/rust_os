@@ -94,7 +94,7 @@ pub extern "C" fn prep_tls(top: usize, _bottom: usize, thread_ptr: *mut ::thread
 /// Allocates a new stack within the current address space
 pub fn start_thread<F: FnOnce()+Send>(thread: &mut ::threads::Thread, code: F)
 {
-	let stack = ::memory::virt::alloc_stack().into_array::<u8>();;
+	let stack = ::memory::virt::alloc_stack().into_array::<u8>();
 	
 	let stack_rgn_top = &stack[stack.len()-1] as *const _ as usize + 1;
 	let mut stack_top = stack_rgn_top;
