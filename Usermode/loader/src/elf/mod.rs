@@ -72,13 +72,21 @@ pub struct LoadSegments<'a, R: 'a + Read>
 	remaining_ents: u16,
 	entry_size: u16,
 }
-#[derive(Debug)]
 pub struct Segment {
 	pub load_addr: usize,
 	pub file_addr: u64,
 	pub file_size: usize,
 	pub mem_size: usize,
 	pub protection: SegmentProt,
+}
+impl_fmt! {
+	Debug(self, f) for Segment {
+		write!(f, "Segment {{ {:#x}+{:#x} <= {:#x}+{:#x} {:?} }}",
+			self.load_addr, self.mem_size,
+			self.file_size, self.file_size,
+			self.protection
+			)
+	}
 }
 #[derive(Debug)]
 pub enum SegmentProt {
@@ -119,7 +127,7 @@ impl<'a, R: 'a+Read> ::std::iter::Iterator for LoadSegments<'a, R> {
 						0x4 => SegmentProt::ReadOnly,
 						0x5 => SegmentProt::Execute,
 						0x6 => SegmentProt::ReadWrite,
-						v @ _ => panic!("TODO: Unknown ELF` flags {}", v),
+						v @ _ => panic!("TODO: Unknown ELF segment flags {}", v),
 						},
 					})
 			}

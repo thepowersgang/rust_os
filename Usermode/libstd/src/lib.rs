@@ -5,6 +5,7 @@
 #![crate_name="std"]
 #![feature(no_std,core,core_prelude)]
 #![feature(lang_items)]	// Allow definition of lang_items
+#![feature(linkage)]	// Used for low-level runtime
 #![feature(core_intrinsics)]
 #![feature(core_char_ext,core_str_ext,core_slice_ext)]
 //#![staged_api]

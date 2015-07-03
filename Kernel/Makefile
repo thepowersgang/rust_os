@@ -144,7 +144,7 @@ $(OBJDIR)kernel.ir: Core/main.rs $(OBJDIR)libcore.rlib $(TARGET_FILE)
 bin/kernel-$(ARCH).bin: $(OBJS) Core/arch/$(ARCH)/link.ld Makefile
 	@mkdir -p bin/
 	@echo [LD] -o $@
-	$V$(TRIPLE)-ld -o $@ $(OBJS) $(LIBS) $(LINKFLAGS)
+	$V$(TRIPLE)-ld -o $@ $(OBJS) $(LIBS) $(LINKFLAGS) --print-gc-sections
 	@objcopy $@ -F elf32-i386 $@.elf32
 	@echo "BUILDNUM := $$(( $(BUILDNUM) + 1 ))" > BuildNum.$(ARCH).mk
 

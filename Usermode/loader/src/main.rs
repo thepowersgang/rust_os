@@ -11,18 +11,8 @@ extern crate tifflin_syscalls;
 extern crate byteorder;
 extern crate cmdline_words_parser;
 
-
-macro_rules! impl_from {
-	($(From<$src:ty>($v:ident) for $t:ty { $($code:stmt)*} )+) => {
-		$(
-			impl ::std::convert::From<$src> for $t {
-				fn from($v: $src) -> $t {
-					$($code)*
-				}
-			}
-		)+
-	}
-}
+#[macro_use(impl_from, impl_fmt)]
+extern crate macros;
 
 use cmdline_words_parser::StrExt;
 
@@ -94,7 +84,8 @@ pub extern "C" fn loader_main(cmdline: *mut u8, cmdline_len: usize) -> !
 				};
 			let fp = segments_it.get_file();
 			if aligned > 0 {
-				fp.memory_map(segment.file_addr, aligned, segment.load_addr, map_mode);
+				let mm = fp.memory_map(segment.file_addr, aligned, segment.load_addr, map_mode);
+				::std::mem::forget(mm);
 			}
 			if tail > 0 {
 				unsafe {

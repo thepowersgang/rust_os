@@ -328,13 +328,17 @@ fn syscall_vfs_openfile(path: &[u8], mode: u32) -> Result<ObjectHandle,u32> {
 					3 => ::vfs::handle::MemoryMapMode::WriteBack,
 					v @ _ => return Err( Error::BadValue ),
 					};
+				log_debug!("VFS_FILE_MEMMAP({:#x}, {:#x}+{}, {:?}", ofs, addr, size, mode);
 				
 				match self.0.memory_map(addr, ofs, size, mode)
 				{
-				Ok(_) => {},
+				Ok(h) => {
+					log_warning!("TODO: register memory map handle with object table");
+					::core::mem::forget(h);
+					Ok(0)
+					},
 				Err(e) => todo!("File::handle_syscall MEMMAP Error {:?}", e),
 				}
-				Ok(0)
 				},
 			_ => todo!("File::handle_syscall({}, ...)", call),
 			}

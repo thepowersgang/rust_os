@@ -70,11 +70,11 @@ $(OBJDIR)libcore.rlib: ../libcore/lib.rs $(TARGET_SPEC) Makefile
 	$V$(RUSTC) $(RUSTFLAGS) --emit=link,dep-info --out-dir $(OBJDIR) $<
 	@mv $(OBJDIR)core.d $(OBJDIR)libcore.d
 
-$(BINDIR)%: %/src/main.rs $(TARGET_SPEC) Makefile link-$(ARCH).ld
+$(BINDIR)%: %/src/main.rs $(TARGET_SPEC) Makefile link-$(ARCH).ld $(OBJDIR)rustrt0.o
 	@mkdir -p $(dir $@)
 	@echo [RUSTC] $@
-	$V$(RUSTC) $(RUSTFLAGS) -o $@ $< --crate-type=bin --crate-name=$*
-	$V$(RUSTC) $(RUSTFLAGS) -Z parse-only --emit=dep-info -o $(OBJDIR)$*.d $<
+	$V$(RUSTC) $(RUSTFLAGS) --emit=link,dep-info --out-dir $(OBJDIR) $< --crate-type=bin --crate-name=$* --verbose
+	@mv $(OBJDIR)$* $@
 
 # - local library crates
 $(OBJDIR)lib%.rlib: lib%/src/lib.rs $(TARGET_SPEC) Makefile
@@ -102,6 +102,10 @@ $(OBJDIR)%.o: %.rs $(TARGET_SPEC) Makefile
 -include $(OBJDIR)loader/src/main.d
 
 $(OBJDIR)%.ao: %.S Makefile
+	@mkdir -p $(dir $@)
+	@echo [AS] $@
+	$V$(CC) -o $@ -c $< -D ARCH_$(ARCH)
+$(OBJDIR)rustrt0.o: rustrt0/$(ARCH).S Makefile
 	@mkdir -p $(dir $@)
 	@echo [AS] $@
 	$V$(CC) -o $@ -c $< -D ARCH_$(ARCH)
