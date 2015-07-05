@@ -5,6 +5,7 @@
 #![feature(result_expect)]	// my feature, i'm using it
 #![feature(core,core_slice_ext)]	// needed for core's SliceExt
 #![crate_type="lib"]
+
 #[macro_use]
 extern crate tifflin_syscalls;
 
@@ -20,6 +21,7 @@ mod elf;
 
 // Main: This is the initial boot entrypoint
 #[no_mangle]
+#[cfg(not(building_loader_lib))]
 pub extern "C" fn loader_main(cmdline: *mut u8, cmdline_len: usize) -> !
 {
 	kernel_log!("loader_main({:p}, {})", cmdline, cmdline_len);
@@ -132,6 +134,4 @@ pub extern "C" fn loader_main(cmdline: *mut u8, cmdline_len: usize) -> !
 	let ep: fn(&[&str]) -> ! = unsafe { ::std::mem::transmute(entrypoint) };
 	kernel_log!("Calling entry {:p}", ep as *const ());
 	ep(args);
-	
-	::tifflin_syscalls::exit(0);
 }

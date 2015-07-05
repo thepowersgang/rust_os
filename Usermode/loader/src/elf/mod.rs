@@ -9,16 +9,18 @@ pub enum Error
 	NotElf,
 	Unsupported,
 	Vfs(VfsError),
+	Byteorder(::byteorder::Error),
+	Io(::std::io::Error),
 }
 impl_from! {
 	From<VfsError>(e) for Error {
 		Error::Vfs(e)
 	}
 	From<::byteorder::Error>(e) for Error {
-		panic!("")
+		Error::Byteorder(e)
 	}
 	From<::std::io::Error>(e) for Error {
-		panic!("")
+		Error::Io(e)
 	}
 }
 
@@ -58,7 +60,7 @@ impl<R: Read+Seek> ElfModuleHandle<R>
 		self.header.e_entry
 	}
 	pub fn load_segments(&mut self) -> LoadSegments<R> {
-		self.file.seek(SeekFrom::Start(self.header.e_phoff) );
+		self.file.seek(SeekFrom::Start(self.header.e_phoff) ).expect("Unable to seek to phoff");
 		LoadSegments {
 			file: &mut self.file,
 			remaining_ents: self.header.e_phnum,

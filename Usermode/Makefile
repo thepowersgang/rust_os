@@ -57,6 +57,12 @@ $(BINDIR)loader: loader/link.ld $(OBJDIR)loader/start.ao $(OBJDIR)loader/src/mai
 	@objcopy $(OBJDIR)loader.elf -O binary $@
 	@objdump -CS $(OBJDIR)loader.elf > $(OBJDIR)loader.dsm
 
+$(LIBDIR)libloader.so: loader/src/main.rs $(LOADER_DEPS)
+	@echo [RUSTC] $@
+	$V$(RUSTC) $(RUSTFLAGS) --crate-type=dylib $< -o $@ --cfg building_loader_lib
+	@mv $(OBJDIR)libloader.so $@
+	
+
 $(OBJDIR)loader/src/main.o: $(LOADER_DEPS)
 
 # Libraries are compiled into OBJDIR to get dependencies, but are actually stored in LIBDIR

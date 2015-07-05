@@ -12,5 +12,6 @@
 		"eliminate-frame-pointer": false,
 		"features": "-3dnow,-avx,-avx2,-sse,-sse2,-sse3,-sse4.1,-sse4.2,-mmx",
 		"executables": true,
+		"dynamic-linking": true,
 	"morestack": false
 }
