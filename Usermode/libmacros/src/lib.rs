@@ -1,20 +1,23 @@
+#![feature(core,no_std,core_intrinsics)]
+#![no_std]
+extern crate core;
 
 #[macro_export]
 macro_rules! impl_fmt
 {
-	( $( <$($g:ident),+> $tr:ident ($s:ident, $f:ident) for $ty:ty { $code:expr } )+ ) => { $(
+	( $( <$($g:ident),+> $tr:ident ($s:ident, $f:ident) for $ty:ty { $($code:stmt)* } )+ ) => { $(
 		impl<$($g),+> ::std::fmt::$tr for $ty {
 			fn fmt(&$s, $f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
-				$code
+				$( $code )*
 			}
 		}
 		)+
 		};
 	
-	( $( $tr:ident ($s:ident, $f:ident) for $ty:ty { $code:expr } )+ ) => { $(
+	( $( $tr:ident ($s:ident, $f:ident) for $ty:ty { $($code:stmt)* } )+ ) => { $(
 		impl ::std::fmt::$tr for $ty {
 			fn fmt(&$s, $f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
-				$code
+				$( $code )*
 			}
 		}
 		)+
@@ -32,4 +35,17 @@ macro_rules! impl_from {
 			}
 		)+
 	}
+}
+
+pub fn type_name<T: ?::core::marker::Sized>() -> &'static str { unsafe { ::core::intrinsics::type_name::<T>() } }
+#[macro_export]
+macro_rules! type_name {
+	($t:ty) => ( $crate::type_name::<$t>() );
+}
+
+#[macro_export]
+macro_rules! todo
+{
+	( $s:expr ) => ( panic!( concat!("TODO: ",$s) ) );
+	( $s:expr, $($v:tt)* ) => ( panic!( concat!("TODO: ",$s), $($v)* ) );
 }

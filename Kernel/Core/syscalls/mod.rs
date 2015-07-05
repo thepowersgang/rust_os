@@ -106,11 +106,11 @@ fn invoke_int(call_id: u32, mut args: &[usize]) -> Result<u64,Error>
 		// === 3: Memory Mangement
 		MEM_ALLOCATE => {
 			let addr = try!(<usize>::get_arg(&mut args));
-			let mode = try!(<u8>::get_arg(&mut args));
+			let count = try!(<usize>::get_arg(&mut args));
 			// Wait? Why do I have a 'mode' here?
-			log_debug!("MEM_ALLOCATE({:#x},{})", addr, mode);
-			::memory::virt::allocate_user(addr as *mut (), 1); 0
-			//match ::memory::virt::allocate_user(addr as *mut (), 1)
+			log_debug!("MEM_ALLOCATE({:#x},{})", addr, count);
+			::memory::virt::allocate_user(addr as *mut (), count); 0
+			//match ::memory::virt::allocate_user(addr as *mut (), count)
 			//{
 			//Ok(_) => 0,
 			//Err(e) => todo!("MEM_ALLOCATE - error {:?}", e),

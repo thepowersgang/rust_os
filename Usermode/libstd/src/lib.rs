@@ -16,6 +16,8 @@
 extern crate core;
 #[macro_use]
 extern crate tifflin_syscalls;
+#[macro_use]
+extern crate macros;
 
 use core::prelude::*;
 
@@ -56,6 +58,8 @@ macro_rules! todo
 }
 
 mod start;
+
+pub mod ffi;
 
 pub mod rt;
 

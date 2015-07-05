@@ -91,17 +91,21 @@ pub extern "C" fn loader_main(cmdline: *mut u8, cmdline_len: usize) -> !
 				unsafe {
 					let destslice = ::std::slice::from_raw_parts_mut((segment.load_addr + aligned) as *mut u8, tail);
 					// - Allocate space
-					::tifflin_syscalls::memory::allocate(destslice.as_ptr() as usize, ProtectionMode::ReadWrite);
+					::tifflin_syscalls::memory::allocate(destslice.as_ptr() as usize, 1).expect("tail alloc");
 					// - Read data
 					fp.read_at(segment.file_addr + aligned as u64, destslice).expect("Failure reading file data for end of .segment");
 					// - Reprotect to the real mode, not bothering if the desired is Read-Write
 					if alloc_mode != ProtectionMode::ReadWrite {
-						::tifflin_syscalls::memory::reprotect(destslice.as_ptr() as usize, alloc_mode);
+						::tifflin_syscalls::memory::reprotect(destslice.as_ptr() as usize, alloc_mode).expect("reprotect");
 					}
 				}
 			}
 			if extra > PAGE_SIZE - tail {
-				panic!("TODO: Allocate extra pages for BSS");
+				let addr = segment.load_addr + aligned + PAGE_SIZE;
+				let pages = (extra - (PAGE_SIZE - tail) + PAGE_SIZE-1) / PAGE_SIZE;
+				unsafe {
+					::tifflin_syscalls::memory::allocate(addr, pages).expect("extra alloc");
+				}
 			}
 		}
 	}
@@ -114,6 +118,8 @@ pub extern "C" fn loader_main(cmdline: *mut u8, cmdline_len: usize) -> !
 	// SAFE: We will be writing to this before reading from it
 	let mut args_buf: [&str; 16] = unsafe { ::std::mem::uninitialized() };
 	let mut argc = 0;
+	args_buf[argc] = init_path;
+	argc += 1;
 	for arg in arg_iter {
 		args_buf[argc] = arg;
 		argc += 1;

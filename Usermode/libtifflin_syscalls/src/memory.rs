@@ -15,8 +15,8 @@ pub enum ProtectionMode
 pub struct Error;
 
 #[inline]
-pub unsafe fn allocate(addr: usize, protection: ProtectionMode) -> Result<(), Error> {
-	super::to_result( syscall!(MEM_ALLOCATE, addr, protection as u8 as usize) as usize )
+pub unsafe fn allocate(addr: usize, count: usize) -> Result<(), Error> {
+	super::to_result( syscall!(MEM_ALLOCATE, addr, count) as usize )
 		.map(|_| ())
 		.map_err(|_| Error)
 }
