@@ -1,10 +1,21 @@
 
 .section .text
-.extern rust_start
+
+.extern main
+.extern register_arguments
 
 .globl start
 start:
-	jmp rust_start
+	call register_arguments
+	mov $0, %rdi
+	mov $0, %rsi
+	call main
+	
+	// Save return value for EXITPROCESS call
+	mov %rax, %rdi
+	mov $1, %rax
+	syscall
+	ud2
 
 // RDI = Address
 // RSI = Value

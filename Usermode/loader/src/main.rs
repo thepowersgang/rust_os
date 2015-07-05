@@ -29,11 +29,12 @@ pub extern "C" fn loader_main(cmdline: *mut u8, cmdline_len: usize) -> !
 	kernel_log!("- cmdline={:?}", cmdline);
 	
 	// 2. Parse 'cmdline' into the init path and arguments.
-	// TODO: Parse path as an escaped string. Should be able to use a parser that takes &mut str and returns reborrows
-	//       - Such a parser would be able to clobber the string as escaping is undone, using the assumption that esc.len >= real.len
 	let mut arg_iter = cmdline.parse_cmdline_words();
 	let init_path = arg_iter.next().expect("Init path is empty");
 	kernel_log!("- init_path={:?}", init_path);
+	
+	// TODO: Split loading logic out for execve
+	
 	// 3. Spin up init
 	// - Open the init path passed in `cmdline`
 	let mut handle = match ::elf::load_executable(init_path)

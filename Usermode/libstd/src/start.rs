@@ -2,14 +2,20 @@
 use ffi::OsStr;
 
 #[lang="start"]
-fn start(_main: *const u8, _argc: isize, _argv: *const *const u8) -> isize {
-	loop {} 
+fn lang_start(main: *const u8, argc: isize, argv: *const *const u8) -> isize {
+	kernel_log!("lang_start(main={:p}, argc={}, argv={:p})", main, argc, argv);
+	
+	// SAFE: We're trusting that the pointer provied is the main function, and that it has the correct signature
+	unsafe {
+		let mainfcn: fn() = ::core::mem::transmute(main);
+		mainfcn();
+	}
+	0
 }
 
 #[no_mangle]
 #[linkage="external"]
-extern "C" fn rust_start(args: &[&OsStr]) -> ! {
-	kernel_log!("rust_start(args={:?})", args);
-	loop {}
+extern "C" fn register_arguments(args: &[&OsStr]) {
+	kernel_log!("register_arguments(args={:?})", args);
 }
 
