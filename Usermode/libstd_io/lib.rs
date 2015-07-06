@@ -1,4 +1,5 @@
-
+#![feature(no_std)]
+#![feature(core,core_slice_ext)]
 #![no_std]
 
 #[macro_use]
@@ -34,7 +35,7 @@ pub trait Seek
 impl<'a> Read for &'a [u8]
 {
 	fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
-		let ret = ::std::cmp::min( self.len(), buf.len() );
+		let ret = ::core::cmp::min( self.len(), buf.len() );
 		
 		for (d,s) in buf.iter_mut().zip( self.iter() ) {
 			*d = *s;

@@ -3,8 +3,10 @@
 //
 // This program is both the initial entrypoint for the userland, and the default dynamic linker.
 #![feature(result_expect)]	// my feature, i'm using it
-#![feature(core,core_slice_ext)]	// needed for core's SliceExt
+#![feature(core,core_prelude,core_slice_ext)]	// needed for core's SliceExt
 #![crate_type="lib"]
+
+use cmdline_words_parser::StrExt as CmdlineStrExt;
 
 #[macro_use]
 extern crate tifflin_syscalls;
@@ -12,10 +14,8 @@ extern crate tifflin_syscalls;
 extern crate byteorder;
 extern crate cmdline_words_parser;
 
-#[macro_use(impl_from, impl_fmt)]
+#[macro_use(impl_from, impl_fmt, try)]
 extern crate macros;
-
-use cmdline_words_parser::StrExt;
 
 mod elf;
 
@@ -135,3 +135,15 @@ pub extern "C" fn loader_main(cmdline: *mut u8, cmdline_len: usize) -> !
 	kernel_log!("Calling entry {:p}", ep as *const ());
 	ep(args);
 }
+
+//// Only applies for the loader, libstd defines a larger version
+////#[lang = "panic_fmt"]
+//#[no_mangle]
+//pub extern "C" fn rust_begin_unwind(msg: ::core::fmt::Arguments, file: &'static str, line: usize) -> ! {
+//	kernel_log!("PANIC: {}:{}: {}", file, line, msg);
+//	::tifflin_syscalls::exit(0xFFFF_FFFF);
+//}
+//#[no_mangle]
+//pub fn rust_eh_personality() -> ! {
+//	::tifflin_syscalls::exit(0xFFFF_FFFE);
+//}

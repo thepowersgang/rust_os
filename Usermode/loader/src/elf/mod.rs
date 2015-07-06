@@ -1,3 +1,9 @@
+// Tifflin OS - Userland loader
+// - By John Hodge (thePowersGang)
+//
+// elf/mod.rs
+// - ELF Parser
+
 use tifflin_syscalls::vfs::{File,FileOpenMode};
 use tifflin_syscalls::vfs::Error as VfsError;
 

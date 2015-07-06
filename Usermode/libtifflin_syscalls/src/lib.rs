@@ -1,3 +1,7 @@
+// Tifflin OS - System Calls
+// - By John Hodge (thePowersGang)
+//
+// Provides wrappers around most system calls
 #![feature(no_std,core,core_prelude,core_str_ext,core_slice_ext)]
 #![feature(core_intrinsics)]
 #![feature(asm)]
@@ -7,6 +11,8 @@
 use core::prelude::*;
 #[macro_use]
 extern crate core;
+
+extern crate std_io;
 
 mod std {
 	pub use core::convert;

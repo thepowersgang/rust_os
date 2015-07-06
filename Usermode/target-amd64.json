@@ -6,7 +6,7 @@
 	"target-word-size": "64",
 	"os": "tifflin",
 	"arch": "x86_64",
-		"pre-link-args": ["-m64", "-Wl,-T,link-amd64.ld", "-Wl,-z,max-page-size=4096", ".objs/amd64/rustrt0.o"],
+		"pre-link-args": ["-ffreestanding", "-m64", "-Wl,-T,link-amd64.ld", "-Wl,-z,max-page-size=4096", ".objs/amd64/rustrt0.o"],
 		"no-compiler-rt": true,
 		"disable-redzone": true,
 		"eliminate-frame-pointer": false,

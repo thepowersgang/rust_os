@@ -1,22 +1,25 @@
 
-.section .text
+.section .text.start
 
 .extern main
 .extern register_arguments
 
 .globl start
 start:
-	call register_arguments
+	call *start_ra(%rip)
 	mov $0, %rdi
 	mov $0, %rsi
-	call main
+	call *start_mn(%rip)
 	
 	// Save return value for EXITPROCESS call
 	mov %rax, %rdi
 	mov $1, %rax
 	syscall
 	ud2
+start_ra: .quad register_arguments
+start_mn: .quad main
 
+.section .text.memfcns
 // RDI = Address
 // RSI = Value
 // RDX = Count

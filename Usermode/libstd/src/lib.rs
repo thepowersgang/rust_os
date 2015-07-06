@@ -1,6 +1,7 @@
+// Tifflin OS - Standard Library (clone)
+// - By John Hodge (thePowersGang)
 //
-//
-//
+// A clone of rust's libstd customised to work correctly on Tifflin
 #![crate_type="rlib"]
 #![crate_name="std"]
 #![feature(no_std,core,core_prelude)]
@@ -18,6 +19,8 @@ extern crate core;
 extern crate tifflin_syscalls;
 #[macro_use]
 extern crate macros;
+
+//extern crate loader;
 
 use core::prelude::*;
 
@@ -61,11 +64,17 @@ mod start;
 
 pub mod ffi;
 
-pub mod rt;
-
 mod heap;
 
-pub mod io;
+//pub extern crate std_io as io;
+extern crate std_io;
+pub use std_io as io;
+
+//pub extern crate std_rt as rt;
+extern crate std_rt;
+pub use std_rt as rt;
+//pub mod rt;
+
 pub mod error;
 
 pub mod vec;

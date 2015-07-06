@@ -82,3 +82,41 @@ impl File
 	}
 }
 
+
+impl ::std_io::Read for File {
+	fn read(&mut self, buf: &mut [u8]) -> ::std_io::Result<usize> {
+		match self.read(buf)
+		{
+		Ok(v) => Ok(v),
+		Err(v) => {
+			panic!("VFS File read err: {:?}", v);
+			},
+		}
+	}
+}
+impl ::std_io::Seek for File {
+	fn seek(&mut self, pos: ::std_io::SeekFrom) -> ::std_io::Result<u64> {
+		use std_io::SeekFrom;
+		match pos
+		{
+		SeekFrom::Start(pos) => self.set_cursor(pos),
+		SeekFrom::End(ofs) => {
+			let pos = if ofs < 0 {
+				self.get_size() - (-ofs) as u64
+				} else {
+				self.get_size() + ofs as u64
+				};
+			self.set_cursor(pos);
+			},
+		SeekFrom::Current(ofs) => {
+			let pos = if ofs < 0 {
+				self.get_cursor() - (-ofs) as u64
+				} else {
+				self.get_cursor() + ofs as u64
+				};
+			self.set_cursor(pos);
+			},
+		}
+		Ok(self.get_cursor())
+	}
+}

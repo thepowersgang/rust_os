@@ -49,3 +49,14 @@ macro_rules! todo
 	( $s:expr ) => ( panic!( concat!("TODO: ",$s) ) );
 	( $s:expr, $($v:tt)* ) => ( panic!( concat!("TODO: ",$s), $($v)* ) );
 }
+
+/// Override libcore's `try!` macro with one that backs onto `From`
+#[macro_export]
+macro_rules! try {
+	($e:expr) => (
+		match $e {
+		Ok(v) => v,
+		Err(e) => return Err(From::from(e)),
+		}
+		);
+}
