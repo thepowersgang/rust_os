@@ -53,7 +53,7 @@ impl ::core::ops::Drop for ThreadLogWriter {
 			match ::core::str::from_utf8(b)
 			{
 			Ok(v) => ::log_write(v),
-			Err(e) => {}
+			Err(_) => {}
 			}
 			T_LOG_BUFFER.clear();
 		}

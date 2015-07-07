@@ -57,13 +57,12 @@ $(BINDIR)loader: loader/link.ld $(OBJDIR)loader/start.ao $(OBJDIR)loader/src/mai
 	@objcopy $(OBJDIR)loader.elf -O binary $@
 	@objdump -CS $(OBJDIR)loader.elf > $(OBJDIR)loader.dsm
 
-$(LIBDIR)libloader.so: loader/lib.rs $(patsubst %,$(LIBDIR)lib%.rlib, std_rt core tifflin_syscalls) $(OBJDIR)rustrt0.o 
-	@echo [RUSTC] $@
-	$V$(RUSTC) $(RUSTFLAGS) --crate-type=dylib $< -o $@ --cfg building_loader_lib -C link-args=-Wl,--no-undefined
-	
-
 $(OBJDIR)loader/src/main.o: $(LOADER_DEPS)
-$(LIBDIR)libloader.rlib: $(LIBDIR)libloader.so
+
+$(LIBDIR)libloader_dyn.so: loader/lib.S Makefile
+	@echo [CC] $@
+	$V$(CC) -o $@.o -c $< -fPIC
+	$V$(LD) -o $@ $@.o -shared -soname=libloader_dyn.so
 
 # Libraries are compiled into OBJDIR to get dependencies, but are actually stored in LIBDIR
 $(LIBDIR)lib%.rlib: $(OBJDIR)lib%.rlib
@@ -76,7 +75,7 @@ $(OBJDIR)libcore.rlib: ../libcore/lib.rs $(TARGET_SPEC) Makefile
 	$V$(RUSTC) $(RUSTFLAGS) --emit=link,dep-info --out-dir $(OBJDIR) $<
 	@mv $(OBJDIR)core.d $(OBJDIR)libcore.d
 
-$(BINDIR)%: %/src/main.rs $(TARGET_SPEC) Makefile link-$(ARCH).ld $(OBJDIR)rustrt0.o $(LIBDIR)libloader.so
+$(BINDIR)%: %/src/main.rs $(TARGET_SPEC) Makefile link-$(ARCH).ld $(OBJDIR)rustrt0.o $(LIBDIR)libloader_dyn.so
 	@mkdir -p $(dir $@)
 	@echo [RUSTC] $@
 	$V$(RUSTC) $(RUSTFLAGS) --emit=link,dep-info --out-dir $(OBJDIR) $< --crate-type=bin --crate-name=$* --verbose
@@ -94,6 +93,12 @@ $(OBJDIR)lib%.rlib: lib%/lib.rs $(TARGET_SPEC) Makefile
 	$V$(RUSTC) $(RUSTFLAGS) --emit=link,dep-info --out-dir $(OBJDIR) $< --crate-type=rlib --crate-name=$*
 	@mv $(OBJDIR)$*.d $(OBJDIR)lib$*.d
 
+$(OBJDIR)libloader.rlib: loader/lib.rs $(TARGET_SPEC) Makefile $(patsubst %,$(LIBDIR)lib%.rlib,$(call fn_getdeps,loader/lib.rs))
+	@mkdir -p $(dir $@)
+	@echo [RUSTC] $@
+	$V$(RUSTC) $(RUSTFLAGS) --emit=link,dep-info --out-dir $(OBJDIR) $< --crate-type=rlib
+	@mv $(OBJDIR)loader.d $(OBJDIR)liblib.d
+
 # - crates.io crates
 $(OBJDIR)lib%.rlib: ../externals/crates.io/%/src/lib.rs $(TARGET_SPEC) Makefile $(LIBDIR)libstd.rlib
 	@mkdir -p $(dir $@)
@@ -109,7 +114,7 @@ $(OBJDIR)lib%.rlib: ../externals/crates.io/%/src/lib.rs $(TARGET_SPEC) Makefile 
 $(OBJDIR)%.o: %.rs $(TARGET_SPEC) Makefile
 	@mkdir -p $(dir $@)
 	@echo [RUSTC] $@
-	@$(RUSTC) $(RUSTFLAGS) -o $@ $< --emit=obj,dep-info
+	@$(RUSTC) $(RUSTFLAGS) $< --out-dir=$(dir $@) --emit=obj,dep-info
 -include $(OBJDIR)loader/src/main.d
 
 $(OBJDIR)%.ao: %.S Makefile
@@ -127,17 +132,15 @@ fn_mmdep = $2: $(patsubst %,$(LIBDIR)lib%.rlib,$(call fn_getdeps,$1) $(call fn_g
 #$(foreach m, $(wildcard */src/lib.rs */src/main.rs), $(warning $(call fn_mmdep,$m)))
 #$(foreach m, $(wildcard */src/lib.rs */src/main.rs), $(eval $(call fn_mmdep,$m)))
 # - Assumes that if there's a main.rs file, a binary is generated, and for lib.rs a rlib is generated
+$(foreach m, $(wildcard */lib.rs), $(eval $(call fn_mmdep,$m,$(m:%/lib.rs=$(OBJDIR)%.rlib))))
 $(foreach m, $(wildcard */src/lib.rs), $(eval $(call fn_mmdep,$m,$(m:%/src/lib.rs=$(OBJDIR)%.rlib))))
-#$(foreach m, $(wildcard */src/lib.rs), $(warning $(call fn_mmdep,$m,$(m:%/src/lib.rs=$(OBJDIR)%.rlib))))
 $(foreach m, $(wildcard */src/main.rs), $(eval $(call fn_mmdep,$m,$(m:%/src/main.rs=$(BINDIR)%))))
-#$(foreach m, $(wildcard */src/main.rs), $(warning $(call fn_mmdep,$m,$(m:%/src/main.rs=$(BINDIR)%))))
 
 ALL_USED_LIBS := std $(sort $(foreach m, $(wildcard */src/lib.rs) $(wildcard */src/main.rs), $(call fn_getdeps,$m)))
 ALL_PRESENT_BINS := $(patsubst %/src/main.rs,%, $(wildcard */src/main.rs))
 
 DEPFILES := $(patsubst %,$(OBJDIR)lib%.d, $(ALL_USED_LIBS))
 DEPFILES += $(patsubst %,$(OBJDIR)%.d, $(ALL_PRESENT_BINS))
-$(warning $(DEPFILES))
 -include $(DEPFILES)
 
 

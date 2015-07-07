@@ -8,11 +8,11 @@ pub struct ArrayAlloc<T>
 impl<T> ArrayAlloc<T>
 {
 	pub fn new(size: usize) -> ArrayAlloc<T> {
-		todo!("");
+		todo!("ArrayAlloc::new({})", size);
 	}
 	
 	pub fn expand(&mut self, newsize: usize) -> bool {
-		todo!("");
+		todo!("ArrayAlloc::expand({})", newsize);
 	}
 
 	pub fn count(&self) -> usize {

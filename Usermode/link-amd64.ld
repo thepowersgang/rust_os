@@ -3,6 +3,7 @@ ENTRY(start)
 PHDRS {
 	SegRX PT_LOAD;
 	SegRW PT_LOAD;
+	SegDYN PT_DYNAMIC;
 }
 
 SECTIONS {

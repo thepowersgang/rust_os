@@ -176,10 +176,10 @@ impl<T> Vec<T>
 	
 	fn as_slice(&self) -> &[T]
 	{
-        unsafe { ::core::slice::from_raw_parts(self.data.get_base() as *const T, self.size) }
+		unsafe { ::core::slice::from_raw_parts(self.data.get_base() as *const T, self.size) }
 	}
 	
-	fn push(&mut self, t: T)
+	pub fn push(&mut self, t: T)
 	{
 		let pos = self.size;
 		self.reserve(1);
@@ -187,7 +187,7 @@ impl<T> Vec<T>
 		let ptr = self.get_mut_ptr(pos);
 		unsafe { ::core::ptr::write(ptr, t); }
 	}
-	fn pop(&mut self) -> Option<T>
+	pub fn pop(&mut self) -> Option<T>
 	{
 		if self.size == 0
 		{

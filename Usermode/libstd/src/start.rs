@@ -15,6 +15,8 @@ fn lang_start(main: *const u8, argc: isize, argv: *const *const u8) -> isize {
 
 #[no_mangle]
 #[linkage="external"]
+#[allow(private_no_mangle_fns)]
+#[allow(dead_code)]
 extern "C" fn register_arguments(args: &[&OsStr]) {
 	kernel_log!("register_arguments(args={:?})", args);
 }

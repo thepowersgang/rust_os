@@ -151,7 +151,7 @@ enum Endian { Little, Big }
 #[derive(Debug)]
 enum ObjectType { None, Reloc, Exec, Dyn, Core, Unk(u16) }
 #[derive(Debug)]
-enum Machine { None, I386, X86_64, Unk(u16) }
+enum Machine { None, I386, X8664, Unk(u16) }
 impl_from! {
 	From<u16>(v) for ObjectType {
 		match v
@@ -169,7 +169,7 @@ impl_from! {
 		{
 		0 => Machine::None,
 		3 => Machine::I386,
-		62 => Machine::X86_64,
+		62 => Machine::X8664,
 		_ => Machine::Unk(v),
 		}
 	}
@@ -213,6 +213,10 @@ impl Header
 			let objtype = ObjectType::from( try!(file.read_u16::<LittleEndian>()) );
 			let machine = Machine::from( try!(file.read_u16::<LittleEndian>()) );
 			let version = try!(file.read_u32::<LittleEndian>());
+			if version != 1 {
+				kernel_log!("Unknown elf version: {}", version);
+				return Err(Error::Unsupported);
+			}
 			let e_entry = try!(file.read_u64::<LittleEndian>());
 			let e_phoff = try!(file.read_u64::<LittleEndian>());
 			let _e_shoff = try!(file.read_u64::<LittleEndian>());
@@ -238,6 +242,7 @@ impl Header
 	}
 }
 
+#[allow(dead_code)]
 struct PHEnt
 {
 	p_type: u32,

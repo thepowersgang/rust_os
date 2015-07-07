@@ -66,6 +66,23 @@ impl File
 		}
 	}
 	
+	pub fn write_at(&self, ofs: u64, data: &[u8]) -> Result<usize,Error> {
+		assert!(::core::mem::size_of::<usize>() == ::core::mem::size_of::<u64>());
+		// SAFE: All validated
+		unsafe {
+			match ::to_result( self.0.call_3(
+				::values::VFS_FILE_WRITEAT,
+				ofs as usize, data.as_ptr() as usize, data.len()
+				) as usize )
+			{
+			Ok(v) => Ok(v as usize),
+			Err(v) => {
+				panic!("TODO: Error code {}", v);
+				}
+			}
+		}
+	}
+	
 	// Actualy safe, as it uses the aliasing restrictions from the file, and checks memory ownership
 	pub fn memory_map(&self, ofs: u64, read_size: usize, mem_addr: usize, mode: MemoryMapMode) -> Result<(),Error> {
 		assert!(::core::mem::size_of::<usize>() == ::core::mem::size_of::<u64>());

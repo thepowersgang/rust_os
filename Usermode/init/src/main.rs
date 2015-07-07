@@ -7,6 +7,8 @@
 #[macro_use]
 extern crate tifflin_syscalls;
 
+extern crate tifflin_process;
+
 fn main()
 {
 	kernel_log!("Hello userland!");
@@ -14,6 +16,6 @@ fn main()
 	//let daemons = Vec::new();
 	//let shells = Vec::new();
 
-	//::std::process::spawn("/Tifflin/bin/login");
+	tifflin_process::Process::spawn("/Tifflin/bin/login");
 }
 

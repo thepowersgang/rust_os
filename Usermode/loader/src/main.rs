@@ -3,7 +3,7 @@
 //
 // This program is both the initial entrypoint for the userland, and the default dynamic linker.
 #![feature(result_expect)]	// my feature, i'm using it
-#![feature(core,core_prelude,core_slice_ext)]	// needed for core's SliceExt
+#![feature(core_slice_ext)]	// needed for core's SliceExt
 #![crate_type="lib"]
 
 use cmdline_words_parser::StrExt as CmdlineStrExt;

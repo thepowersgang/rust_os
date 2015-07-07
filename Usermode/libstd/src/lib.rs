@@ -22,7 +22,7 @@ extern crate macros;
 
 //extern crate loader;
 
-use core::prelude::*;
+//use core::prelude::*;
 
 // Raw re-exports from core
 pub use core::{option, result};
@@ -42,7 +42,6 @@ mod std {
 /// Prelude
 pub mod prelude {
 	pub mod v1 {
-		//#![stable(feature="rust1", since="1.0.0")]
 		pub use core::prelude::*;
 		//pub use core::option::Option::{self,Some,None};
 		//pub use core::result::Result::{self,Ok,Err};

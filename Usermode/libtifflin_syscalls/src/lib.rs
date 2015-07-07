@@ -46,6 +46,7 @@ mod raw;
 pub mod logging;
 
 pub mod vfs;
+pub mod gui;
 pub mod memory;
 
 pub struct ObjectHandle(u32);
@@ -54,23 +55,36 @@ impl ObjectHandle
 	fn new(rv: usize) -> Result<ObjectHandle,u32> {
 		to_result(rv).map( |v| ObjectHandle(v) )
 	}
+	fn call_value(&self, call: u16) -> u32 {
+		(1 << 31 | self.0 | (call as u32) << 20)
+	}
+	#[allow(dead_code)]
 	unsafe fn call_0(&self, call: u16) -> u64 {
-		::raw::syscall_0( (1 << 31 | self.0 | (call as u32) << 20) )
+		::raw::syscall_0( self.call_value(call) )
 	}
-	unsafe fn call_1(&self, call: u16, arg1: usize) -> u64 {
-		::raw::syscall_1( (1 << 31 | (call as u32) << 20 | self.0), arg1)
+	#[allow(dead_code)]
+	unsafe fn call_1(&self, call: u16, a1: usize) -> u64 {
+		::raw::syscall_1( self.call_value(call), a1)
 	}
-	unsafe fn call_2(&self, call: u16, arg1: usize, arg2: usize) -> u64 {
-		::raw::syscall_2( (1 << 31 | (call as u32) << 20 | self.0), arg1, arg2 )
+	#[allow(dead_code)]
+	unsafe fn call_2(&self, call: u16, a1: usize, a2: usize) -> u64 {
+		::raw::syscall_2( self.call_value(call), a1, a2 )
 	}
-	unsafe fn call_3(&self, call: u16, arg1: usize, arg2: usize, arg3: usize) -> u64 {
-		::raw::syscall_3( (1 << 31 | (call as u32) << 20 | self.0), arg1, arg2, arg3 )
+	#[allow(dead_code)]
+	unsafe fn call_3(&self, call: u16, a1: usize, a2: usize, a3: usize) -> u64 {
+		::raw::syscall_3( self.call_value(call), a1, a2, a3 )
 	}
-	unsafe fn call_4(&self, call: u16, arg1: usize, arg2: usize, arg3: usize, arg4: usize) -> u64 {
-		::raw::syscall_4( (1 << 31 | (call as u32) << 20 | self.0), arg1, arg2, arg3, arg4 )
+	#[allow(dead_code)]
+	unsafe fn call_4(&self, call: u16, a1: usize, a2: usize, a3: usize, a4: usize) -> u64 {
+		::raw::syscall_4( self.call_value(call), a1, a2, a3, a4 )
 	}
-	unsafe fn call_5(&self, call: u16, arg1: usize, arg2: usize, arg3: usize, arg4: usize, arg5: usize) -> u64 {
-		::raw::syscall_5( (1 << 31 | (call as u32) << 20 | self.0), arg1, arg2, arg3, arg4, arg5 )
+	#[allow(dead_code)]
+	unsafe fn call_5(&self, call: u16, a1: usize, a2: usize, a3: usize, a4: usize, a5: usize) -> u64 {
+		::raw::syscall_5( self.call_value(call), a1, a2, a3, a4, a5 )
+	}
+	#[allow(dead_code)]
+	unsafe fn call_6(&self, call: u16, a1: usize, a2: usize, a3: usize, a4: usize, a5: usize, a6: usize) -> u64 {
+		::raw::syscall_6( self.call_value(call), a1, a2, a3, a4, a5, a6 )
 	}
 }
 impl Drop for ObjectHandle {
@@ -88,6 +102,17 @@ fn to_result(val: usize) -> Result<u32,u32> {
 	}
 	else {
 		Err( (val - usize::max_value()/2) as u32 )
+	}
+}
+
+#[inline]
+pub unsafe fn start_thread(ip: usize, sp: usize, tlsbase: usize) -> Result<u32, u32> {
+	::to_result( syscall!(CORE_STARTTHREAD, ip, sp, tlsbase) as usize )
+}
+pub fn exit_thread() -> ! {
+	unsafe {
+		syscall!(CORE_EXITTHREAD);
+		::core::intrinsics::unreachable();
 	}
 }
 
