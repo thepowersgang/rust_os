@@ -56,9 +56,10 @@ $(BINDIR)loader: loader/link.ld $(OBJDIR)loader/start.ao $(OBJDIR)loader/src/mai
 	@$(LD) -o $(OBJDIR)loader.elf -T loader/link.ld $(OBJDIR)loader.o -Map $(OBJDIR)loader_map.txt
 	@objcopy $(OBJDIR)loader.elf -O binary $@
 	@objdump -CS $(OBJDIR)loader.elf > $(OBJDIR)loader.dsm
-
 $(OBJDIR)loader/src/main.o: $(LOADER_DEPS)
 
+# Low-level loader dummy dynamic library
+# - Used to tell ld that `loader`'s exported symbols actually exist
 $(LIBDIR)libloader_dyn.so: loader/lib.S Makefile
 	@echo [CC] $@
 	$V$(CC) -o $@.o -c $< -fPIC
@@ -75,24 +76,27 @@ $(OBJDIR)libcore.rlib: ../libcore/lib.rs $(TARGET_SPEC) Makefile
 	$V$(RUSTC) $(RUSTFLAGS) --emit=link,dep-info --out-dir $(OBJDIR) $<
 	@mv $(OBJDIR)core.d $(OBJDIR)libcore.d
 
+# - Executables
 $(BINDIR)%: %/src/main.rs $(TARGET_SPEC) Makefile link-$(ARCH).ld $(OBJDIR)rustrt0.o $(LIBDIR)libloader_dyn.so
 	@mkdir -p $(dir $@)
 	@echo [RUSTC] $@
 	$V$(RUSTC) $(RUSTFLAGS) --emit=link,dep-info --out-dir $(OBJDIR) $< --crate-type=bin --crate-name=$* --verbose
 	@mv $(OBJDIR)$* $@
 
-# - local library crates
+# - Local libraries (with src dir)
 $(OBJDIR)lib%.rlib: lib%/src/lib.rs $(TARGET_SPEC) Makefile
 	@mkdir -p $(dir $@)
 	@echo [RUSTC] $@
 	$V$(RUSTC) $(RUSTFLAGS) --emit=link,dep-info --out-dir $(OBJDIR) $< --crate-type=rlib --crate-name=$*
 	@mv $(OBJDIR)$*.d $(OBJDIR)lib$*.d
+# - Local libraries (with no src dir)
 $(OBJDIR)lib%.rlib: lib%/lib.rs $(TARGET_SPEC) Makefile
 	@mkdir -p $(dir $@)
 	@echo [RUSTC] $@
 	$V$(RUSTC) $(RUSTFLAGS) --emit=link,dep-info --out-dir $(OBJDIR) $< --crate-type=rlib --crate-name=$*
 	@mv $(OBJDIR)$*.d $(OBJDIR)lib$*.d
 
+# - Loader's interface library, lives in the loader directory
 $(OBJDIR)libloader.rlib: loader/lib.rs $(TARGET_SPEC) Makefile $(patsubst %,$(LIBDIR)lib%.rlib,$(call fn_getdeps,loader/lib.rs))
 	@mkdir -p $(dir $@)
 	@echo [RUSTC] $@
@@ -105,22 +109,25 @@ $(OBJDIR)lib%.rlib: ../externals/crates.io/%/src/lib.rs $(TARGET_SPEC) Makefile 
 	@echo [RUSTC] $@
 	$V$(RUSTC) $(RUSTFLAGS) --emit=link,dep-info --out-dir $(OBJDIR) $< --crate-type=rlib --crate-name=$*
 	@mv $(OBJDIR)$*.d $(OBJDIR)lib$*.d
+#  > Handle clone/update of the external repo when missing or rustc is updated
+../externals/crates.io/%/src/lib.rs: ../externals/crates.io/%.repo $(RUSTC)
+	$(eval DIR=../externals/crates.io/$*)
+	@mkdir -p $(DIR)
+	test -e $@ || git clone `cat ../externals/crates.io/$*.repo` $(DIR) && (cd $(DIR) && git pull)
 
-../externals/crates.io/%/src/lib.rs: ../externals/crates.io/%.repo
-	@mkdir -p ../externals/crates.io/$*
-	test -e $@ || git clone `cat ../externals/crates.io/$*.repo` ../externals/crates.io/$*
-
-
+# - General object files (mainly loader)
 $(OBJDIR)%.o: %.rs $(TARGET_SPEC) Makefile
 	@mkdir -p $(dir $@)
 	@echo [RUSTC] $@
 	@$(RUSTC) $(RUSTFLAGS) $< --out-dir=$(dir $@) --emit=obj,dep-info
 -include $(OBJDIR)loader/src/main.d
 
+# - Assembly objects (loader)
 $(OBJDIR)%.ao: %.S Makefile
 	@mkdir -p $(dir $@)
 	@echo [AS] $@
 	$V$(CC) -o $@ -c $< -D ARCH_$(ARCH)
+# - Base runtime
 $(OBJDIR)rustrt0.o: rustrt0/$(ARCH).S Makefile
 	@mkdir -p $(dir $@)
 	@echo [AS] $@
@@ -129,8 +136,6 @@ $(OBJDIR)rustrt0.o: rustrt0/$(ARCH).S Makefile
 # Generate dependencies for EVERY crate
 fn_getstd = $(shell grep -F "![no_std]" $1 >/dev/null || echo "std")
 fn_mmdep = $2: $(patsubst %,$(LIBDIR)lib%.rlib,$(call fn_getdeps,$1) $(call fn_getstd,$1))
-#$(foreach m, $(wildcard */src/lib.rs */src/main.rs), $(warning $(call fn_mmdep,$m)))
-#$(foreach m, $(wildcard */src/lib.rs */src/main.rs), $(eval $(call fn_mmdep,$m)))
 # - Assumes that if there's a main.rs file, a binary is generated, and for lib.rs a rlib is generated
 $(foreach m, $(wildcard */lib.rs), $(eval $(call fn_mmdep,$m,$(m:%/lib.rs=$(OBJDIR)%.rlib))))
 $(foreach m, $(wildcard */src/lib.rs), $(eval $(call fn_mmdep,$m,$(m:%/src/lib.rs=$(OBJDIR)%.rlib))))
