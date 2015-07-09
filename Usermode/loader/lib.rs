@@ -9,10 +9,9 @@
 
 extern crate core;
 extern crate std_rt;
+extern crate tifflin_syscalls;
 
 use core::result::Result;
-
-pub struct ProcessHandle(u32);
 
 pub enum Error
 {
@@ -34,11 +33,11 @@ mod int {
 		//  > Arguments
 		//  > ? Environment (could this be transferred using IPC during init?)
 		//  > ? Handles (same thing really, send them over an IPC channel)
-		pub fn new_process(binary: &[u8], args: &[&[u8]]) -> Result<super::ProcessHandle,super::Error>;
+		pub fn new_process(binary: &[u8], args: &[&[u8]]) -> Result<::tifflin_syscalls::Process,super::Error>;
 	}
 }
 
-pub fn new_process(binary: &[u8], args: &[&[u8]]) -> Result<ProcessHandle,Error> {
+pub fn new_process(binary: &[u8], args: &[&[u8]]) -> Result<::tifflin_syscalls::Process,Error> {
 	// SAFE: Call is actually to rust
 	unsafe { int::new_process(binary, args) }
 }

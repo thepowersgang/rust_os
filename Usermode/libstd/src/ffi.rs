@@ -6,6 +6,15 @@ use core::prelude::*;
 
 pub struct OsStr([u8]);
 
+impl OsStr
+{
+	pub fn new<'a, S: AsRef<[u8]>+'a>(s: S) -> &'a OsStr {
+		unsafe {
+			::core::mem::transmute(s.as_ref())
+		}
+	}
+}
+
 impl_fmt!{
 	Debug(self,f) for OsStr {{
 		try!(write!(f, "b\""));

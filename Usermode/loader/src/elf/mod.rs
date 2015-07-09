@@ -36,7 +36,7 @@ pub struct ElfModuleHandle<R: Read+Seek>
 	header: Header,
 }
 
-pub fn load_executable(path: &str) -> Result<ElfModuleHandle<File>,Error>
+pub fn load_executable(path: &[u8]) -> Result<ElfModuleHandle<File>,Error>
 {
 	// 1. Open file
 	let mut fh = try!(File::open(path, FileOpenMode::Execute));
@@ -72,6 +72,10 @@ impl<R: Read+Seek> ElfModuleHandle<R>
 			remaining_ents: self.header.e_phnum,
 			entry_size: self.header.e_phentsize,
 			}
+	}
+	
+	pub fn do_relocation(&mut self) -> Result<(),()> {
+		panic!("TODO: do_relocation");
 	}
 }
 pub struct LoadSegments<'a, R: 'a + Read>

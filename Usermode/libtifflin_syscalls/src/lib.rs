@@ -122,6 +122,15 @@ pub fn log_write(msg: &str) {
 		syscall!(CORE_LOGWRITE, msg.as_ptr() as usize, msg.len());
 	}
 }
+
+
+pub type ProcessSegment = (u32, u64,usize, usize,usize);
+pub struct Process;
+#[inline]
+pub fn start_process(entry: usize, stack: usize, segments: &[ProcessSegment]) -> Result<Process,()> {
+	panic!("TODO: start_process");
+}
+
 #[inline]
 pub fn exit(code: u32) -> ! {
 	unsafe {

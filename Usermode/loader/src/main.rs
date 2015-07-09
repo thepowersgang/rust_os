@@ -18,6 +18,8 @@ extern crate cmdline_words_parser;
 extern crate macros;
 
 mod elf;
+pub mod interface;
+mod load;
 
 // Main: This is the initial boot entrypoint
 #[no_mangle]
@@ -35,15 +37,37 @@ pub extern "C" fn loader_main(cmdline: *mut u8, cmdline_len: usize) -> !
 	let init_path = arg_iter.next().expect("Init path is empty");
 	kernel_log!("- init_path={:?}", init_path);
 	
-	// TODO: Split loading logic out for execve
-	
 	// 3. Spin up init
+	let entrypoint = load_binary(init_path.as_ref());
+	
+	// Populate arguments
+	// SAFE: We will be writing to this before reading from it
+	let mut args_buf: [&str; 16] = unsafe { ::std::mem::uninitialized() };
+	let mut argc = 0;
+	args_buf[argc] = init_path;
+	argc += 1;
+	for arg in arg_iter {
+		args_buf[argc] = arg;
+		argc += 1;
+	}
+	let args = &args_buf[..argc];
+	kernel_log!("args = {:?}", args);
+	
+	// TODO: Switch stacks into a larger dynamically-allocated stack
+	let ep: fn(&[&str]) -> ! = unsafe { ::std::mem::transmute(entrypoint) };
+	kernel_log!("Calling entry {:p}", ep as *const ());
+	ep(args);
+}
+
+/// Panics if it fails to load, returns the entrypoint
+fn load_binary(path: &[u8]) -> usize
+{
 	// - Open the init path passed in `cmdline`
-	let mut handle = match ::elf::load_executable(init_path)
+	let mut handle = match ::elf::load_executable(path)
 		{
 		Ok(v) => v,
 		Err(e) => {
-			kernel_log!("ERROR: Init binary '{}' cannot be loaded: {:?}", init_path, e);
+			kernel_log!("ERROR: Binary '{:?}' cannot be loaded: {:?}", ::std::ffi::OsStr::new(path), e);
 			::tifflin_syscalls::exit(0);
 			},
 		};
@@ -117,33 +141,8 @@ pub extern "C" fn loader_main(cmdline: *mut u8, cmdline_len: usize) -> !
 		panic!("Entrypoint {:#x} is not located in a loaded segment", entrypoint);
 	}
 	
-	// Populate arguments
-	// SAFE: We will be writing to this before reading from it
-	let mut args_buf: [&str; 16] = unsafe { ::std::mem::uninitialized() };
-	let mut argc = 0;
-	args_buf[argc] = init_path;
-	argc += 1;
-	for arg in arg_iter {
-		args_buf[argc] = arg;
-		argc += 1;
-	}
-	let args = &args_buf[..argc];
-	kernel_log!("args = {:?}", args);
+	handle.do_relocation();
 	
-	// TODO: Switch stacks into a larger dynamically-allocated stack
-	let ep: fn(&[&str]) -> ! = unsafe { ::std::mem::transmute(entrypoint) };
-	kernel_log!("Calling entry {:p}", ep as *const ());
-	ep(args);
+	entrypoint
 }
 
-//// Only applies for the loader, libstd defines a larger version
-////#[lang = "panic_fmt"]
-//#[no_mangle]
-//pub extern "C" fn rust_begin_unwind(msg: ::core::fmt::Arguments, file: &'static str, line: usize) -> ! {
-//	kernel_log!("PANIC: {}:{}: {}", file, line, msg);
-//	::tifflin_syscalls::exit(0xFFFF_FFFF);
-//}
-//#[no_mangle]
-//pub fn rust_eh_personality() -> ! {
-//	::tifflin_syscalls::exit(0xFFFF_FFFE);
-//}
