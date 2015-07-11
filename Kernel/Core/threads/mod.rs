@@ -13,7 +13,7 @@ mod worker_thread;
 
 mod sleep_object;
 
-pub use self::thread::{Thread,ThreadHandle};
+pub use self::thread::{Thread,ThreadHandle,ProcessHandle};
 
 pub use self::worker_thread::WorkerThread;
 
@@ -43,7 +43,7 @@ pub fn init()
 {
 	// SAFE: Runs before any form of multi-threading starts
 	unsafe {
-		S_PID0.prep( || thread::Process::new("PID0") )
+		S_PID0.prep( || thread::Process::new_pid0() )
 	}
 	let mut tid0 = Thread::new_boxed(0, "ThreadZero", S_PID0.clone());
 	tid0.cpu_state = ::arch::threads::init_tid0_state();
@@ -62,6 +62,10 @@ pub fn yield_to(thread: Box<Thread>)
 	log_debug!("Yielding CPU to {:?}", thread);
 	s_runnable_threads.lock().push( get_cur_thread() );
 	::arch::threads::switch_to( thread );
+}
+
+pub fn new_user_process(name: &str) -> ProcessHandle {
+	ProcessHandle::new(name)
 }
 
 pub fn get_thread_id() -> thread::ThreadID

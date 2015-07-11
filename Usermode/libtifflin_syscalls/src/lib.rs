@@ -124,11 +124,18 @@ pub fn log_write(msg: &str) {
 }
 
 
-pub type ProcessSegment = (u32, u64,usize, usize,usize);
+// TODO: This should be in the common syscalls file, not here
+pub use values::ProcessSegment;
+
 pub struct Process;
 #[inline]
 pub fn start_process(entry: usize, stack: usize, segments: &[ProcessSegment]) -> Result<Process,()> {
-	panic!("TODO: start_process");
+	let rv = unsafe { syscall!(CORE_STARTPROCESS, entry, stack, segments.as_ptr() as usize, segments.len()) };
+	match ::to_result(rv as usize)
+	{
+	Ok(_v) => Ok( Process ),
+	Err(_e) => Err( () ),
+	}
 }
 
 #[inline]

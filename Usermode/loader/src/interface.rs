@@ -17,21 +17,22 @@ pub extern "C" fn new_process(binary: &[u8], args: &[&[u8]]) -> Result<::tifflin
 	}
 	kernel_log!("new_process('{:?}', ...)", ::std::ffi::OsStr::new(binary));
 	let segments: [::tifflin_syscalls::ProcessSegment; 1] = [
-		// 1. Clone loader region (a copy from handle 0)
-		(0, 0,0, BASE.as_ptr() as usize, LIMIT.as_ptr() as usize - BASE.as_ptr() as usize),
+		// 1. Clone loader region
+		::tifflin_syscalls::ProcessSegment::copy(BASE.as_ptr() as usize, LIMIT.as_ptr() as usize - BASE.as_ptr() as usize),
 		];
 	// Lock loader until after 'start_process', allowing global memory to be used as buffer for binary and arguments
 	//let lh = S_BUFFER_LOCK.lock();
 	match ::tifflin_syscalls::start_process(new_process_entry as usize, init_stack_end.as_ptr() as usize, &segments[..])
 	{
 	Ok(v) => Ok( v ),
-	Err(e) => panic!("TODO: Error '{:?}'", e),
+	Err(e) => panic!("TODO: new_process - Error '{:?}'", e),
 	}
 }
 
-/// Entrypoint for new processes, runs with a clean stack and 
+/// Entrypoint for new processes, runs with a clean stack
 fn new_process_entry() -> !
 {
+	kernel_log!("new_process_entry");
 	loop {}
 }
 

@@ -102,6 +102,7 @@ _Unwind_Resume:
 .section .bss
 init_stack_base:
 	.space 0x2000
+.globl init_stack_end
 init_stack_end:
 
 init_path:

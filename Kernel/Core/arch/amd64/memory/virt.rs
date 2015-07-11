@@ -372,5 +372,20 @@ pub fn handle_page_fault(accessed_address: usize, error_code: u32) -> bool
 	}
 }
 
+/// Virtual address space
+pub struct AddressSpace(u64);
+impl AddressSpace
+{
+	pub fn new() -> AddressSpace {
+		todo!("AddressSpace::new()");
+	}
+	pub fn pid0() -> AddressSpace {
+		extern "C" {
+			static InitialPML4: [u64; 512];
+		}
+		AddressSpace( get_phys(&InitialPML4) )
+	}
+}
+
 // vim: ft=rust
 

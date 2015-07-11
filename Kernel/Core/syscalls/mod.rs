@@ -65,13 +65,16 @@ fn invoke_int(call_id: u32, mut args: &[usize]) -> Result<u64,Error>
 			},
 		// - 0/3: Start thread
 		CORE_STARTTHREAD => {
-			let sp = try!( <usize>::get_arg(&mut args) );
 			let ip = try!( <usize>::get_arg(&mut args) );
+			let sp = try!( <usize>::get_arg(&mut args) );
 			syscall_core_newthread(sp, ip) as u64
 			},
 		// - 0/4: Start process
 		CORE_STARTPROCESS => {
-			todo!("Start process syscall");
+			let ip = try!( <usize>::get_arg(&mut args) );
+			let sp = try!( <usize>::get_arg(&mut args) );
+			let segs = try!( <&[values::ProcessSegment]>::get_arg(&mut args) );
+			syscall_core_newprocess(ip, sp, segs) as u64
 			},
 		// === 1: Window Manager / GUI
 		// - 1/0: New group (requires permission, has other restrictions)
@@ -87,7 +90,7 @@ fn invoke_int(call_id: u32, mut args: &[usize]) -> Result<u64,Error>
 		// === 2: VFS
 		// - 2/0: Open node (for stat)
 		VFS_OPENNODE => {
-			todo!("VFS_OPEN");
+			todo!("VFS_OPENNODE");
 			},
 		// - 2/1: Open file
 		VFS_OPENFILE => {
@@ -194,26 +197,33 @@ impl<'a> SyscallArg for &'a str {
 		Ok(try!( ::core::str::from_utf8(bs) ))
 	}
 }
-impl<'a> SyscallArg for &'a [u8] {
-	fn get_arg(args: &mut &[usize]) -> Result<Self,Error> {
-		if args.len() < 2 {
-			return Err( Error::TooManyArgs );
-		}
-		let ptr = args[0] as *const u8;
-		let len = args[1];
-		*args = &args[2..];
-		// TODO: Freeze the page to prevent the user from messing with it
-		// SAFE: (uncheckable) lifetime of result should really be 'args, but can't enforce that
-		unsafe {
-			if let Some(v) = ::memory::buf_to_slice(ptr, len) {	
-				Ok(v)
+macro_rules! def_slice_get_arg {
+	($t:ty) => {
+		impl<'a> SyscallArg for &'a [$t] {
+			fn get_arg(args: &mut &[usize]) -> Result<Self,Error> {
+				if args.len() < 2 {
+					return Err( Error::TooManyArgs );
+				}
+				let ptr = args[0] as *const $t;
+				let len = args[1];
+				*args = &args[2..];
+				// TODO: Freeze the page to prevent the user from messing with it
+				// SAFE: (uncheckable) lifetime of result should really be 'args, but can't enforce that
+				unsafe {
+					if let Some(v) = ::memory::buf_to_slice(ptr, len) {	
+						Ok(v)
+					}
+					else {
+						Err( Error::InvalidBuffer(ptr as *const (), len) )
+					}
+				}
 			}
-			else {
-				Err( Error::InvalidBuffer(ptr as *const (), len) )
-			}
 		}
-	}
+	};
 }
+def_slice_get_arg!{u8}
+def_slice_get_arg!{values::ProcessSegment}
+
 impl<'a> SyscallArg for &'a mut [u8] {
 	fn get_arg(args: &mut &[usize]) -> Result<Self,Error> {
 		if args.len() < 2 {
@@ -287,6 +297,41 @@ fn syscall_core_terminate() {
 }
 fn syscall_core_newthread(sp: usize, ip: usize) -> ObjectHandle {
 	todo!("syscall_core_newthread(sp={:#x},ip={:#x})", sp, ip);
+}
+fn syscall_core_newprocess(ip: usize, sp: usize, segs: &[values::ProcessSegment]) -> ObjectHandle {
+	// 1. Create a new process image (virtual address space)
+	let mut process = ::threads::new_user_process("TODO");
+	// 2. Apply the specified layout to it
+	for seg in segs {
+		if seg.handle() == 0 {
+			let (addr, len) = seg.dest();
+			let (src, slen) = seg.src();
+			if slen != len || addr != src as usize {
+				todo!("syscall_core_newprocess - Handle pre-allocs and non-unity copies");
+			}
+			else {
+				// Can only clone, RW-sharing of pages is done separately
+				process.clone_from_cur(addr, src as usize, len);
+			}
+		}
+		else {
+			todo!("syscall_core_newprocess - Memory map");
+		}
+	}
+	// 3. Create a new thread using that process image with the specified ip/sp
+	process.start_root_thread(ip, sp);
+	
+	struct Process(::threads::ProcessHandle);
+	impl objects::Object for Process {
+		fn handle_syscall(&self, call: u16, _args: &[usize]) -> Result<u64,Error> {
+			match call
+			{
+			_ => todo!("Process::handle_syscall({}, ...)", call),
+			}
+		}
+	}
+
+	objects::new_object( Process(process) )
 }
 
 fn syscall_gui_newgroup(name: &str) -> ObjectHandle {

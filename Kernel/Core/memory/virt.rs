@@ -43,12 +43,6 @@ pub struct AllocHandle
 }
 unsafe impl Send for AllocHandle {}	// AllocHandle is sendable
 unsafe impl Sync for AllocHandle {}	// &AllocHandle is safe
-///// A single page from an AllocHandle
-//pub struct PageHandle<'a>
-//{
-//	alloc: &'a mut AllocHandle,
-//	idx: usize,
-//}
 
 /// A wrapper around AllocHandle that acts like an array
 pub struct ArrayHandle<T>
@@ -673,5 +667,21 @@ impl<T> ::core::ops::IndexMut<usize> for ArrayHandle<T> {
 }
 
 impl_index_arrayhandle! { ::core::ops::Range<usize>, ::core::ops::RangeFull, ::core::ops::RangeFrom<usize>, ::core::ops::RangeTo<usize> }
+
+
+/// Handle for an entire address space
+pub struct AddressSpace(::arch::memory::virt::AddressSpace);
+impl AddressSpace
+{
+	pub fn new() -> AddressSpace {
+		AddressSpace( ::arch::memory::virt::AddressSpace::new() )
+	}
+	pub fn pid0() -> AddressSpace {
+		AddressSpace( ::arch::memory::virt::AddressSpace::pid0() )
+	}
+	pub fn clone_from_cur(&mut self, dest: usize, src: usize, bytes: usize) {
+		todo!("AddressSpace::clone_from_cur");
+	}
+}
 
 // vim: ft=rust

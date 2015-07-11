@@ -38,8 +38,11 @@ pub struct Process
 {
 	name: String,
 	pid: u32,
+	address_space: ::memory::virt::AddressSpace,
 	pub proc_local_data: ::sync::RwLock<Vec< ::lib::mem::aref::Aref<::core::any::Any+Sync+Send> >>,
 }
+/// Handle to a process, used for spawning and communicating
+pub struct ProcessHandle(Arc<Process>);
 
 struct SharedBlock
 {
@@ -82,7 +85,7 @@ fn allocate_tid() -> ThreadID
 	}
 	let rv = S_LAST_TID.fetch_add(1, ::core::atomic::Ordering::Relaxed);
 	// Handle rollover after (in case of heavy contention)
-	if rv == C_MAX_TID {
+	if rv >= C_MAX_TID {
 		panic!("TODO: Handle TID exhaustion by searching for free (raced)");
 	}
 	
@@ -91,13 +94,42 @@ fn allocate_tid() -> ThreadID
 
 impl Process
 {
-	pub fn new<S: Into<String>>(name: S) -> Arc<Process>
-	{
+	pub fn new_pid0() -> Arc<Process> {
 		Arc::new(Process {
-			name: name.into(),
+			name: String::from("PID0"),
 			pid: 0,
+			address_space: ::memory::virt::AddressSpace::pid0(),
 			proc_local_data: ::sync::RwLock::new( Vec::new() ),
 		})
+	}
+	pub fn new<S: Into<String>+::core::fmt::Debug>(name: S) -> Arc<Process>
+	{
+		Arc::new(Process {
+			pid: todo!("Process::new(name={:?}) - allocate a PID", name),
+			name: name.into(),
+			address_space: ::memory::virt::AddressSpace::new(),
+			proc_local_data: ::sync::RwLock::new( Vec::new() ),
+		})
+	}
+}
+impl ProcessHandle
+{
+	pub fn new<S: Into<String>+::core::fmt::Debug>(name: S) -> ProcessHandle {
+		ProcessHandle( Process::new(name) )
+	}
+	
+	/// Clone (COW) a portion of the current process's address space into this new process
+	pub fn clone_from_cur(&mut self, dst_addr: usize, src_addr: usize, bytes: usize) {
+		if let Some(p) = ::lib::mem::arc::get_mut(&mut self.0) {
+			p.address_space.clone_from_cur(dst_addr, src_addr, bytes)
+		}
+		else {
+			panic!("Calling 'ProcessHandle::clone_from_cur' after first thread spawned");
+		}
+	}
+	pub fn start_root_thread(&mut self, ip: usize, sp: usize) {
+		assert!( ::lib::mem::arc::get_mut(&mut self.0).is_some() );
+		todo!("ProcessHandle::start_root_thread");
 	}
 }
 
