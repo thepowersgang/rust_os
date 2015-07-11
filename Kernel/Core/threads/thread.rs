@@ -75,7 +75,9 @@ assert_trait!{Thread : Send}
 
 /// Last allocated TID (because TID0 is allocated differently)
 static S_LAST_TID: ::core::atomic::AtomicUsize = ::core::atomic::ATOMIC_USIZE_INIT;
-const C_MAX_TID: usize = 0x7FFFFF_FFFFF0;	// Leave 16 TIDs spare at end of 31 bit number
+const C_MAX_TID: usize = 0x7FFF_FFF0;	// Leave 16 TIDs spare at end of 31 bit number
+static S_LAST_PID: ::core::atomic::AtomicUsize = ::core::atomic::ATOMIC_USIZE_INIT;
+const C_MAX_PID: usize = 0x007F_FFF0;	// Leave 16 TIDs spare at end of 23 bit number
 
 fn allocate_tid() -> ThreadID
 {
@@ -92,6 +94,21 @@ fn allocate_tid() -> ThreadID
 	(rv + 1) as ThreadID
 }
 
+fn allocate_pid() -> u32
+{
+	// Preemptively prevent rollover
+	if S_LAST_PID.load(::core::atomic::Ordering::Relaxed) == C_MAX_PID - 1 {
+		panic!("TODO: Handle PID exhaustion by searching for free");
+	}
+	let rv = S_LAST_PID.fetch_add(1, ::core::atomic::Ordering::Relaxed);
+	// Handle rollover after (in case of heavy contention)
+	if rv >= C_MAX_PID {
+		panic!("TODO: Handle PID exhaustion by searching for free (raced)");
+	}
+	
+	(rv + 1) as u32
+}
+
 impl Process
 {
 	pub fn new_pid0() -> Arc<Process> {
@@ -105,7 +122,7 @@ impl Process
 	pub fn new<S: Into<String>+::core::fmt::Debug>(name: S) -> Arc<Process>
 	{
 		Arc::new(Process {
-			pid: todo!("Process::new(name={:?}) - allocate a PID", name),
+			pid: allocate_pid(),
 			name: name.into(),
 			address_space: ::memory::virt::AddressSpace::new(),
 			proc_local_data: ::sync::RwLock::new( Vec::new() ),
@@ -120,6 +137,7 @@ impl ProcessHandle
 	
 	/// Clone (COW) a portion of the current process's address space into this new process
 	pub fn clone_from_cur(&mut self, dst_addr: usize, src_addr: usize, bytes: usize) {
+		log_trace!("clone_from_cur( {:#x}, {:#x}+{:#x}", dst_addr, src_addr, bytes);
 		if let Some(p) = ::lib::mem::arc::get_mut(&mut self.0) {
 			p.address_space.clone_from_cur(dst_addr, src_addr, bytes)
 		}

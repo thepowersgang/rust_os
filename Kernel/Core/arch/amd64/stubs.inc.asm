@@ -41,6 +41,7 @@ EXPORT __fixunsdfhi
 	jmp halt 
 
 halt:
+	ud2
 	cli
 	hlt
 	jmp halt

@@ -40,6 +40,10 @@ impl FrameHandle
 		mark_used(addr);
 		FrameHandle(addr)
 	}
+	/// UNSAFE due to using a raw physical address, and can cause a leak
+	pub unsafe fn from_addr_noref(addr: PAddr) -> FrameHandle {
+		FrameHandle(addr)
+	}
 	pub fn into_addr(self) -> PAddr {
 		self.0
 	}

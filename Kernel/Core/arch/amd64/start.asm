@@ -292,6 +292,7 @@ EXPORT syscall_handler
 EXPORT __morestack
 	jmp abort
 abort:
+	ud2
 	cli
 	hlt
 	jmp abort

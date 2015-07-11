@@ -23,6 +23,10 @@ const FAULT_USER:   u32 = 4;
 const FAULT_RESVD:  u32 = 8;
 const FAULT_FETCH:  u32 = 16;
 
+extern "C" {
+	static InitialPML4: [u64; 512];
+}
+
 #[derive(PartialEq,Debug)]
 enum PTEPos
 {
@@ -377,13 +381,35 @@ pub struct AddressSpace(u64);
 impl AddressSpace
 {
 	pub fn new() -> AddressSpace {
-		todo!("AddressSpace::new()");
+		// - Allocate a new root level
+		let mut root = ::memory::virt::alloc_free().unwrap();
+		{
+			use arch::memory::addresses::FRACTAL_BASE;
+			const FRACTAL_IDX: usize = (FRACTAL_BASE & MASK_VBITS) >> 12;
+			let ents = unsafe { ::core::slice::from_raw_parts_mut(&mut (*root)[0] as *mut u8 as *mut u64, 512) };
+			// - Alias in kernel shared pages (pretty much all of them really)
+			for i in 256 .. 512 {
+				if i == FRACTAL_IDX >> (9*3) {
+					ents[i] = get_phys(&ents[0]);
+				}
+				else {
+					ents[i] = InitialPML4[i];
+				}
+			}
+			// - Set up fractal
+			log_debug!("ents = {:#x}", ::logging::print_iter(ents.iter()));
+		}
+		AddressSpace( root.into_frame().into_addr() )
 	}
 	pub fn pid0() -> AddressSpace {
-		extern "C" {
-			static InitialPML4: [u64; 512];
-		}
 		AddressSpace( get_phys(&InitialPML4) )
+	}
+	
+	pub fn map(&mut self, vaddr: usize, phys: PAddr) {
+		// Do a temp map of this AS
+		// Reference frame
+		// Insert as RO/COW depening on flag
+		todo!("AddressSpace::map({:#x}, {:#x})", vaddr, phys);
 	}
 }
 

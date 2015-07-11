@@ -347,6 +347,7 @@ unsafe fn map_hw(phys: PAddr, count: usize, readonly: bool, _module: &'static st
 
 /// Allocate a new page mapped in a temporary region, ready for use with memory-mapped files
 // TODO: What else would use this? Should I just have it be "alloc file page" and take the file ID/offset?
+// - May also be used by new process code
 pub fn alloc_free() -> Result<FreePage,MapError>
 {
 	log_trace!("alloc_free()");
@@ -369,9 +370,17 @@ pub struct FreePage(*mut u8);
 impl FreePage
 {
 	pub fn into_frame(self) -> ::memory::phys::FrameHandle {
-		let addr = ::arch::memory::virt::get_phys(self.0);
 		// unmap happens on drop, just return the new handle
-		unsafe { ::memory::phys::FrameHandle::from_addr(addr) }
+		unsafe {
+			let vaddr = self.0;
+			::core::mem::forget(self);
+			if let Some(addr) = ::arch::memory::virt::unmap(vaddr as *mut ()) {
+				::memory::phys::FrameHandle::from_addr_noref(addr)
+			}
+			else {
+				panic!("");
+			}
+		}
 	}
 }
 impl ops::Drop for FreePage {
@@ -680,6 +689,11 @@ impl AddressSpace
 		AddressSpace( ::arch::memory::virt::AddressSpace::pid0() )
 	}
 	pub fn clone_from_cur(&mut self, dest: usize, src: usize, bytes: usize) {
+		for ofs in (0 .. bytes).step_by(::PAGE_SIZE)
+		{
+			let addr = ::memory::virt::get_phys( (src + ofs) as *const () );
+			self.0.map( dest + ofs, addr );
+		}
 		todo!("AddressSpace::clone_from_cur");
 	}
 }

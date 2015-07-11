@@ -392,6 +392,33 @@ pub fn hex_dump(label: &str, data: &[u8])
 	}
 }
 
+pub fn print_iter<I: Iterator>(i: I) -> PrintIter<I> { PrintIter(::core::cell::RefCell::new(Some(i))) }
+pub struct PrintIter<I: Iterator>(::core::cell::RefCell<Option<I>>);
+macro_rules! print_iter_def {
+	($($t:ident),+) => {$(
+		impl<I: Iterator> ::core::fmt::$t for PrintIter<I>
+		where
+			<I as Iterator>::Item: ::core::fmt::$t
+		{
+			fn fmt(&self, f: &mut ::core::fmt::Formatter) -> ::core::fmt::Result {
+				let mut i = self.0.borrow_mut().take().unwrap();
+				try!(write!(f, "["));
+				if let Some(v) = i.next()
+				{
+					try!(v.fmt(f));
+					for v in i {
+						try!(write!(f, ","));
+						try!(v.fmt(f));
+					}
+				}
+				try!(write!(f, "]"));
+				Ok( () )
+			}
+		})*
+	};
+}
+print_iter_def! { LowerHex }
+
 pub fn start_memory_sink() {
 	let sink = memory::Sink::new();
 	
