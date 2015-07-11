@@ -40,7 +40,7 @@ pub struct ElfModuleHandle<R: Read+Seek>
 	header: Header,
 }
 
-pub fn load_executable(path: &[u8]) -> Result<ElfModuleHandle<File>,Error>
+pub fn load_executable(path: &::std::ffi::OsStr) -> Result<ElfModuleHandle<File>,Error>
 {
 	// 1. Open file
 	let mut fh = try!(File::open(path, FileOpenMode::Execute));

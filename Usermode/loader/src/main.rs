@@ -29,8 +29,9 @@ mod load;
 pub extern "C" fn loader_main(cmdline: *mut u8, cmdline_len: usize) -> !
 {
 	kernel_log!("loader_main({:p}, {})", cmdline, cmdline_len);
-	// (maybe) SAFE: Need to actually check UTF-8 ness?
-	let cmdline: &mut str = unsafe { ::std::mem::transmute( ::std::slice::from_raw_parts_mut(cmdline, cmdline_len) ) };
+	// SAFE: (barring bugs in caller) Transmute just keeps 'mut' on the OsStr
+	let cmdline: &mut ::std::ffi::OsStr = unsafe { ::std::mem::transmute( ::std::slice::from_raw_parts_mut(cmdline, cmdline_len) ) };
+	
 	// 1. Print the INIT parameter from the kernel
 	kernel_log!("- cmdline={:?}", cmdline);
 	
@@ -40,11 +41,12 @@ pub extern "C" fn loader_main(cmdline: *mut u8, cmdline_len: usize) -> !
 	kernel_log!("- init_path={:?}", init_path);
 	
 	// 3. Spin up init
-	let entrypoint = load_binary(init_path.as_ref());
+	let entrypoint = load_binary(init_path);
 	
 	// Populate arguments
+	// TODO: Replace this mess with a FixedVec of some form
 	// SAFE: We will be writing to this before reading from it
-	let mut args_buf: [&str; 16] = unsafe { ::std::mem::uninitialized() };
+	let mut args_buf: [&::std::ffi::OsStr; 16] = unsafe { ::std::mem::uninitialized() };
 	let mut argc = 0;
 	args_buf[argc] = init_path;
 	argc += 1;
@@ -56,13 +58,13 @@ pub extern "C" fn loader_main(cmdline: *mut u8, cmdline_len: usize) -> !
 	kernel_log!("args = {:?}", args);
 	
 	// TODO: Switch stacks into a larger dynamically-allocated stack
-	let ep: fn(&[&str]) -> ! = unsafe { ::std::mem::transmute(entrypoint) };
+	let ep: fn(&[&::std::ffi::OsStr]) -> ! = unsafe { ::std::mem::transmute(entrypoint) };
 	kernel_log!("Calling entry {:p}", ep as *const ());
 	ep(args);
 }
 
 /// Panics if it fails to load, returns the entrypoint
-fn load_binary(path: &[u8]) -> usize
+fn load_binary(path: &::std::ffi::OsStr) -> usize
 {
 	// - Open the init path passed in `cmdline`
 	let mut handle = match ::elf::load_executable(path)
