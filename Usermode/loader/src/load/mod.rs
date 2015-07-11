@@ -19,15 +19,15 @@ pub enum SegmentProt {
 	ReadWrite,
 }
 
-pub trait Executable<F: Read+Seek>
-{
-	type LoadSegments: SegmentIterator<F>;
-	fn get_entrypoint(&self) -> usize;
-	fn load_segments(&mut self) -> Self::LoadSegments;
-	fn do_relocation(&mut self) -> Result<(),()>;
-}
+//pub trait Executable<F: Read+Seek>
+//{
+//	type LoadSegments: SegmentIterator<F>;
+//	fn get_entrypoint(&self) -> usize;
+//	fn load_segments(&mut self) -> Self::LoadSegments;
+//	fn do_relocation(&mut self) -> Result<(),()>;
+//}
 
-pub trait SegmentIterator<F: Read+Seek>:
+pub trait SegmentIterator<F: Read>:
 	::std::iter::Iterator<Item=Segment>
 {
 	fn get_file(&self) -> &F;
@@ -42,3 +42,16 @@ impl_fmt! {
 			)
 	}
 }
+
+
+/// Look up a symbol in the global symbol namespace
+///
+/// TODO: Needs support for weak symbols, and multiple namespaces (or preferential namespaces)
+pub fn lookup_symbol(name: &::std::ffi::OsStr) -> Option<(usize, usize)> {
+	match name.as_ref()
+	{
+	b"new_process" => Some( (::interface::new_process as usize, 0) ),
+	_ => todo!("lookup_symbol({:?})", name),
+	}
+}
+

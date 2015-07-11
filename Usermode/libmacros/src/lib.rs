@@ -34,7 +34,7 @@ macro_rules! impl_from {
 				}
 			}
 		)+
-	}
+	};
 }
 
 pub fn type_name<T: ?::core::marker::Sized>() -> &'static str { unsafe { ::core::intrinsics::type_name::<T>() } }

@@ -14,6 +14,11 @@ impl OsStr
 		}
 	}
 }
+impl AsRef<[u8]> for OsStr {
+	fn as_ref(&self) -> &[u8] {
+		&self.0
+	}
+}
 
 impl_fmt!{
 	Debug(self,f) for OsStr {{

@@ -15,6 +15,7 @@ pub extern "C" fn new_process(binary: &[u8], args: &[&[u8]]) -> Result<::tifflin
 		static LIMIT: [u8; 0];
 		static init_stack_end: [u8; 0];
 	}
+	kernel_log!("new_process('{:?}', ...)", ::std::ffi::OsStr::new(binary));
 	let segments: [::tifflin_syscalls::ProcessSegment; 1] = [
 		// 1. Clone loader region (a copy from handle 0)
 		(0, 0,0, BASE.as_ptr() as usize, LIMIT.as_ptr() as usize - BASE.as_ptr() as usize),

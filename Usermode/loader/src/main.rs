@@ -8,13 +8,15 @@
 
 use cmdline_words_parser::StrExt as CmdlineStrExt;
 
+use load::SegmentIterator;
+
 #[macro_use]
 extern crate tifflin_syscalls;
 
 extern crate byteorder;
 extern crate cmdline_words_parser;
 
-#[macro_use(impl_from, impl_fmt, try)]
+#[macro_use(impl_from, impl_fmt, try, todo)]
 extern crate macros;
 
 mod elf;
@@ -99,15 +101,15 @@ fn load_binary(path: &[u8]) -> usize
 			let aligned = segment.file_size - tail;
 			let map_mode = match segment.protection
 				{
-				elf::SegmentProt::Execute   => MemoryMapMode::Execute,
-				elf::SegmentProt::ReadWrite => MemoryMapMode::COW,
-				elf::SegmentProt::ReadOnly  => MemoryMapMode::ReadOnly,
+				::load::SegmentProt::Execute   => MemoryMapMode::Execute,
+				::load::SegmentProt::ReadWrite => MemoryMapMode::COW,
+				::load::SegmentProt::ReadOnly  => MemoryMapMode::ReadOnly,
 				};
 			let alloc_mode = match segment.protection
 				{
-				elf::SegmentProt::Execute   => ProtectionMode::Executable,
-				elf::SegmentProt::ReadWrite => ProtectionMode::ReadWrite,	// Allocates as read-write
-				elf::SegmentProt::ReadOnly  => ProtectionMode::ReadOnly,
+				::load::SegmentProt::Execute   => ProtectionMode::Executable,
+				::load::SegmentProt::ReadWrite => ProtectionMode::ReadWrite,	// Allocates as read-write
+				::load::SegmentProt::ReadOnly  => ProtectionMode::ReadOnly,
 				};
 			let fp = segments_it.get_file();
 			if aligned > 0 {
@@ -141,8 +143,18 @@ fn load_binary(path: &[u8]) -> usize
 		panic!("Entrypoint {:#x} is not located in a loaded segment", entrypoint);
 	}
 	
-	handle.do_relocation();
-	
+	match handle.do_relocation()
+	{
+	Ok(_) => {},
+	Err(e) => {
+		panic!("Error relocating executable: {:?}", e);
+		},
+	}
+
+	// TODO: Have a cleaner way of handling this, than just forgetting the handle
+	// - Probably unwrap the handle into a raw file handle - THEN forget that (or even store it)
+	::std::mem::forget(handle);
+		
 	entrypoint
 }
 

@@ -27,10 +27,11 @@ extern crate macros;
 // Raw re-exports from core
 pub use core::{option, result};
 pub use core::{slice, str, ptr};
-pub use core::{fmt, iter};
+pub use core::{fmt, iter, clone};
 pub use core::{mem, cmp, ops};
 pub use core::convert;
 pub use core::intrinsics;
+pub use core::marker;
 
 mod std {
 	pub use core::{option, result};
