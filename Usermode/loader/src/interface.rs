@@ -7,8 +7,10 @@
 // Import the interface crate
 extern crate loader;
 
+//static S_BUFFER_LOCK: ::tifflin_syscalls::core::Futex = ::tifflin_syscalls::core::Futex::new();
+
 #[no_mangle]
-pub extern "C" fn new_process(binary: &[u8], args: &[&[u8]]) -> Result<::tifflin_syscalls::Process,loader::Error>
+pub extern "C" fn new_process(binary: &[u8], args: &[&[u8]]) -> Result<::tifflin_syscalls::threads::Process,loader::Error>
 {
 	extern "C" {
 		static BASE: [u8; 0];
@@ -18,7 +20,7 @@ pub extern "C" fn new_process(binary: &[u8], args: &[&[u8]]) -> Result<::tifflin
 	kernel_log!("new_process('{:?}', ...)", ::std::ffi::OsStr::new(binary));
 	// Lock loader until after 'start_process', allowing global memory to be used as buffer for binary and arguments
 	//let lh = S_BUFFER_LOCK.lock();
-	match ::tifflin_syscalls::start_process(new_process_entry as usize, init_stack_end.as_ptr() as usize, BASE.as_ptr() as usize, LIMIT.as_ptr() as usize)
+	match ::tifflin_syscalls::threads::start_process(new_process_entry as usize, init_stack_end.as_ptr() as usize, BASE.as_ptr() as usize, LIMIT.as_ptr() as usize)
 	{
 	Ok(v) => Ok( v ),
 	Err(e) => panic!("TODO: new_process - Error '{:?}'", e),
@@ -29,6 +31,8 @@ pub extern "C" fn new_process(binary: &[u8], args: &[&[u8]]) -> Result<::tifflin
 fn new_process_entry() -> !
 {
 	kernel_log!("new_process_entry");
+	//S_BUFFER_LOCK.release();
+	panic!("TODO: new_process_entry");
 	loop {}
 }
 

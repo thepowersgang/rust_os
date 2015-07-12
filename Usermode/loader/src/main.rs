@@ -71,8 +71,7 @@ fn load_binary(path: &::std::ffi::OsStr) -> usize
 		{
 		Ok(v) => v,
 		Err(e) => {
-			kernel_log!("ERROR: Binary '{:?}' cannot be loaded: {:?}", ::std::ffi::OsStr::new(path), e);
-			::tifflin_syscalls::exit(0);
+			panic!("ERROR: Binary '{:?}' cannot be loaded: {:?}", ::std::ffi::OsStr::new(path), e);
 			},
 		};
 	

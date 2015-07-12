@@ -40,7 +40,7 @@ pub extern "C" fn rust_begin_unwind(msg: ::core::fmt::Arguments, file: &'static 
 	// Spit out that log
 	kernel_log!("PANIC: {}:{}: {}", file, line, msg);
 	// Exit the process with a special error code
-	::tifflin_syscalls::exit(0xFFFF_FFFF);
+	::tifflin_syscalls::threads::exit(0xFFFF_FFFF);
 }
 #[lang="eh_personality"]
 fn rust_eh_personality(

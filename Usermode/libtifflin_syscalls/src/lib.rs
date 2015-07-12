@@ -48,6 +48,7 @@ pub mod logging;
 pub mod vfs;
 pub mod gui;
 pub mod memory;
+pub mod threads;
 
 pub struct ObjectHandle(u32);
 impl ObjectHandle
@@ -106,40 +107,11 @@ fn to_result(val: usize) -> Result<u32,u32> {
 }
 
 #[inline]
-pub unsafe fn start_thread(ip: usize, sp: usize, tlsbase: usize) -> Result<u32, u32> {
-	::to_result( syscall!(CORE_STARTTHREAD, ip, sp, tlsbase) as usize )
-}
-pub fn exit_thread() -> ! {
-	unsafe {
-		syscall!(CORE_EXITTHREAD);
-		::core::intrinsics::unreachable();
-	}
-}
-
-#[inline]
 pub fn log_write(msg: &str) {
 	unsafe {
 		syscall!(CORE_LOGWRITE, msg.as_ptr() as usize, msg.len());
 	}
 }
 
-pub struct Process;
-#[inline]
-pub fn start_process(entry: usize, stack: usize,  clone_start: usize, clone_end: usize) -> Result<Process,()> {
-	let rv = unsafe { syscall!(CORE_STARTPROCESS, entry, stack, clone_start, clone_end) };
-	match ::to_result(rv as usize)
-	{
-	Ok(_v) => Ok( Process ),
-	Err(_e) => Err( () ),
-	}
-}
-
-#[inline]
-pub fn exit(code: u32) -> ! {
-	unsafe {
-		syscall!(CORE_EXITPROCESS, code as usize);
-		::core::intrinsics::unreachable();
-	}
-}
 
 
