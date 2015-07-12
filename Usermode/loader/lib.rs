@@ -19,6 +19,7 @@ pub enum Error
 	NotExecutable,
 	BadFormat,
 	CorruptExecutable,
+	BadArguments,
 }
 
 mod int {

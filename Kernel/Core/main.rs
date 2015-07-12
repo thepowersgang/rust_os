@@ -313,12 +313,13 @@ fn spawn_init(loader_path: &str, init_cmdline: &str)
 	let datasize = ondisk_size as usize - codesize;
 	let bss_size = memsize - ondisk_size as usize;
 	log_debug!("Executable size: {}, rw data size: {}", codesize, datasize);
-	let mh_code = loader.memory_map(load_base + ::PAGE_SIZE, ::PAGE_SIZE as u64, codesize - ::PAGE_SIZE,  handle::MemoryMapMode::Execute);
 	assert!(codesize % ::PAGE_SIZE == 0, "Loader code doesn't end on a page boundary - {:#x}", codesize);
+	assert!(ondisk_size as usize % ::PAGE_SIZE == 0, "Loader file size is not aligned to a page - {:#x}", ondisk_size);
+	assert!(datasize % ::PAGE_SIZE == 0, "Loader is not an integeral number of pages long - datasize={:#x}", datasize);
+	let mh_code = loader.memory_map(load_base + ::PAGE_SIZE, ::PAGE_SIZE as u64, codesize - ::PAGE_SIZE,  handle::MemoryMapMode::Execute);
 	let mh_data = loader.memory_map(load_base + codesize, codesize as u64, datasize,  handle::MemoryMapMode::COW);
 	
 	// - 4. Allocate the loaders's BSS
-	assert!(ondisk_size as usize % ::PAGE_SIZE == 0, "Loader file size is not aligned to a page - {:#x}", ondisk_size);
 	let pages = (bss_size + ::PAGE_SIZE) / ::PAGE_SIZE;
 	let bss_start = (load_base + ondisk_size as usize) as *mut ();
 	let ah_bss = ::memory::virt::allocate_user(bss_start, pages);

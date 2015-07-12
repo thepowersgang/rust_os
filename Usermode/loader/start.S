@@ -105,8 +105,11 @@ init_stack_base:
 .globl init_stack_end
 init_stack_end:
 
-init_path:
-	.space 64
+.globl arg_count
+.globl init_path
+.globl init_path_end
+arg_count:	.space 4
+init_path:	.space 1024
 init_path_end:
 
 
@@ -118,3 +121,6 @@ init_path_end:
 */
 # error "Unknown architecture, set ARCH_<archname>"
 #endif
+
+/* vim: ft=gas
+ */
