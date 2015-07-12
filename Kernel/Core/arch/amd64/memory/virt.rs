@@ -466,8 +466,9 @@ impl AddressSpace
 		// Function called when an entry is found to have a table
 		fn opt_clone_page(idx: usize) -> Result<u64, ::memory::virt::MapError>
 		{
-			log_trace!("opt_clone_page(idx={:#x})", idx);
-			// TODO: Why is this safe?
+			//log_trace!("opt_clone_page(idx={:#x})", idx);
+			
+			// SAFE: Only called when parent table is present
 			let ent = unsafe { get_entry(0, idx, false) };
 			if ! ent.is_reserved()
 			{
@@ -507,8 +508,9 @@ impl AddressSpace
 		}
 		fn opt_clone_segment(level: u8, idx: usize, clone_start_pidx: usize, clone_end_pidx: usize) -> Result<u64,::memory::virt::MapError>
 		{
-			log_trace!("opt_clone_segment(level={}, idx={}, ...)", level, idx);
-			// TODO: Why is this safe?
+			//log_trace!("opt_clone_segment(level={}, idx={}, ...)", level, idx);
+			
+			// SAFE: Only called when parent table is present
 			let ent = unsafe { get_entry(level, idx, false) };
 			if ! ent.is_reserved()
 			{
@@ -525,9 +527,9 @@ impl AddressSpace
 				let base = idx << 9;
 				for i in 0 .. 512
 				{
-					let this_idx = (base + i);
+					let this_idx = base + i;
 					let level_bits = 9 * (level as usize - 1);
-					log_trace!("{:#x} <= {:#x} && {:#x} < {:#x}", clone_start_pidx >> level_bits, this_idx, this_idx << level_bits, clone_end_pidx);
+					//log_trace!("{:#x} <= {:#x} && {:#x} < {:#x}", clone_start_pidx >> level_bits, this_idx, this_idx << level_bits, clone_end_pidx);
 					if clone_start_pidx >> level_bits <= this_idx && this_idx << level_bits < clone_end_pidx
 					{
 						ents[i] = if level == 1 {
@@ -555,7 +557,7 @@ impl AddressSpace
 		for i in 0 .. 256 {
 			const PML4_BITS: usize = 9*3;
 			let pdp_base = i << PML4_BITS;
-			log_trace!("{:#x} <= {:#x} && {:#x} < {:#x}", clone_start>>PML4_BITS, i, pdp_base, clone_end);
+			//log_trace!("{:#x} <= {:#x} && {:#x} < {:#x}", clone_start>>PML4_BITS, i, pdp_base, clone_end);
 			if clone_start >> PML4_BITS <= i && pdp_base < clone_end {
 				ents[i] = try!(opt_clone_segment(3, i, clone_start,clone_end));
 			}
@@ -570,9 +572,8 @@ impl AddressSpace
 				ents[i] = InitialPML4[i];
 			}
 		}
-		// - Set up fractal
-		log_debug!("ents[..256] = {:#x}", ::logging::print_iter(ents[..256].iter()));
-		log_debug!("ents[256..] = {:#x}", ::logging::print_iter(ents[256..].iter()));
+		//log_debug!("ents[..256] = {:#x}", ::logging::print_iter(ents[..256].iter()));
+		//log_debug!("ents[256..] = {:#x}", ::logging::print_iter(ents[256..].iter()));
 		Ok( AddressSpace( ents.into_addr() ) )
 	}
 	pub fn pid0() -> AddressSpace {

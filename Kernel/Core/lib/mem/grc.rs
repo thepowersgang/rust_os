@@ -150,12 +150,12 @@ impl<C: Counter, T: ?Sized> ops::Drop for Grc<C, T>
 		unsafe
 		{
 			use core::intrinsics::drop_in_place;
-			use core::mem::{size_of_val,min_align_of_val};
+			use core::mem::{size_of_val,align_of_val};
 			let ptr = *self.ptr;
 			if (*ptr).strong.dec()
 			{
 				drop_in_place( &mut (*ptr).val );
-				::memory::heap::dealloc_raw(ptr as *mut (), size_of_val(&*ptr), min_align_of_val(&*ptr));
+				::memory::heap::dealloc_raw(ptr as *mut (), size_of_val(&*ptr), align_of_val(&*ptr));
 			}
 		}
 	}

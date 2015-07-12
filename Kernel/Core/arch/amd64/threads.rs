@@ -107,7 +107,7 @@ pub fn start_thread<F: FnOnce()+Send>(thread: &mut ::threads::Thread, code: F)
 	
 	// 2. Populate stack with `code`
 	stack_top -= ::core::mem::size_of::<F>();
-	stack_top -= stack_top % ::core::mem::min_align_of::<F>();
+	stack_top -= stack_top % ::core::mem::align_of::<F>();
 	let code_ptr = stack_top;
 	unsafe {
 		::core::ptr::write(code_ptr as *mut F, code);

@@ -29,19 +29,6 @@ def_grp!( 0: GROUP_CORE = {
 	4: CORE_STARTTHREAD,
 });
 
-#[repr(C)]
-#[derive(Debug)]
-pub struct ProcessSegment(u32, u64,usize, usize,usize);
-impl ProcessSegment {
-	pub fn copy(addr: usize, size: usize) -> ProcessSegment {
-		ProcessSegment(0, addr as u64,size, addr,size)
-	}
-	
-	pub fn handle(&self) -> u32 { self.0 }
-	pub fn src(&self) -> (u64,usize) { (self.1, self.2) }
-	pub fn dest(&self) -> (usize,usize) { (self.3, self.4) }
-}
-
 def_grp!( 1: GROUP_GUI = {
 	0: GUI_NEWGROUP,
 	1: GUI_NEWWINDOW,

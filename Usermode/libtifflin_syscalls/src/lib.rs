@@ -123,10 +123,6 @@ pub fn log_write(msg: &str) {
 	}
 }
 
-
-// TODO: This should be in the common syscalls file, not here
-pub use values::ProcessSegment;
-
 pub struct Process;
 #[inline]
 pub fn start_process(entry: usize, stack: usize,  clone_start: usize, clone_end: usize) -> Result<Process,()> {

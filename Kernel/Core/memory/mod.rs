@@ -51,7 +51,7 @@ pub fn c_string_valid(c_str: *const i8) -> bool
 // UNSAFE: Lifetime is inferred, everything else is checked
 pub unsafe fn buf_to_slice<'a, T>(ptr: *const T, size: usize) -> Option<&'a [T]> {
 	
-	if ptr as usize % ::core::mem::min_align_of::<T>() != 0 {
+	if ptr as usize % ::core::mem::align_of::<T>() != 0 {
 		None
 	}
 	else if ! buf_valid(ptr as *const (), size) {
@@ -63,7 +63,7 @@ pub unsafe fn buf_to_slice<'a, T>(ptr: *const T, size: usize) -> Option<&'a [T]>
 }
 pub unsafe fn buf_to_slice_mut<'a, T>(ptr: *mut T, size: usize) -> Option<&'a mut [T]> {
 	
-	if ptr as usize % ::core::mem::min_align_of::<T>() != 0 {
+	if ptr as usize % ::core::mem::align_of::<T>() != 0 {
 		None
 	}
 	else if ! buf_valid(ptr as *const (), size) {

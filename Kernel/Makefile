@@ -76,6 +76,7 @@ RUSTFLAGS += --target=$(TARGET_FILE)
 LINKFLAGS := -T Core/arch/$(ARCH)/link.ld -Map $(OBJDIR)map.txt -g
 LINKFLAGS += -z max-page-size=0x1000	# Reduces binary size
 LINKFLAGS += --gc-sections	# Prevents complaining about floating point methods
+#LINKFLAGS += --print-gc-sections
 
 ENV := RUST_VERSION="$(shell $(RUSTC) --version)"
 ENV += TK_GITSPEC="$(shell git log -n 1 | head -n 1 | awk '{print $$2}')"
@@ -144,7 +145,7 @@ $(OBJDIR)kernel.ir: Core/main.rs $(OBJDIR)libcore.rlib $(TARGET_FILE)
 bin/kernel-$(ARCH).bin: $(OBJS) Core/arch/$(ARCH)/link.ld Makefile
 	@mkdir -p bin/
 	@echo [LD] -o $@
-	$V$(TRIPLE)-ld -o $@ $(OBJS) $(LIBS) $(LINKFLAGS) --print-gc-sections
+	$V$(TRIPLE)-ld -o $@ $(OBJS) $(LIBS) $(LINKFLAGS)
 	@objcopy $@ -F elf32-i386 $@.elf32
 	@echo "BUILDNUM := $$(( $(BUILDNUM) + 1 ))" > BuildNum.$(ARCH).mk
 

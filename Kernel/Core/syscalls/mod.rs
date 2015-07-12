@@ -226,7 +226,6 @@ macro_rules! def_slice_get_arg {
 	};
 }
 def_slice_get_arg!{u8}
-def_slice_get_arg!{values::ProcessSegment}
 
 impl<'a> SyscallArg for &'a mut [u8] {
 	fn get_arg(args: &mut &[usize]) -> Result<Self,Error> {
