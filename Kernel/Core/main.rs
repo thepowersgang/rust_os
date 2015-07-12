@@ -357,7 +357,7 @@ fn spawn_init(loader_path: &str, init_cmdline: &str)
 	// SAFE: This pointer is as validated as it can be...
 	log_notice!("Entering userland at {:#x} '{}' '{}'", header_ptr.entrypoint, loader_path, init_cmdline);
 	unsafe {
-		::arch::drop_to_user(header_ptr.entrypoint, argslen);
+		::arch::drop_to_user(header_ptr.entrypoint, 0, argslen);
 	}
 }
 

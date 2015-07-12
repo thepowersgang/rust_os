@@ -226,18 +226,22 @@ EXPORT thread_trampoline
 	mov rdi, rsp	; 2. Set RDI to the object to call
 	jmp rax	; 3. Jump to the thread root method, which should never return
 
+; RDI: IP
+; RDI: SP
+; RDX: Arg
 EXPORT drop_to_user
-	mov rcx, rdi
+	mov rcx, rdi	; Set IP for SYSRET
 	pushf
 	cli
-	pop r11
+	pop r11	; Set RFLAGS for SYSRET
 	swapgs
 	mov ax, 0x20
 	mov ds, ax
 	mov es, ax
 	mov fs, ax
 	mov gs, ax
-	mov rax, rsi
+	mov rsp, rsi	; User's stack
+	mov rax, rdx	; Argument passed in RAX
 	db 0x48
 	sysret
 

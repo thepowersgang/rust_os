@@ -137,13 +137,16 @@ impl ProcessHandle
 	
 	pub fn start_root_thread(&mut self, ip: usize, sp: usize) {
 		assert!( ::lib::mem::arc::get_mut(&mut self.0).is_some() );
-		todo!("ProcessHandle::start_root_thread");
+		
+		let mut thread = Thread::new_boxed(allocate_tid(), format!("{}#1", self.0.name), self.0.clone());
+		::arch::threads::start_thread( &mut thread, || unsafe { ::arch::drop_to_user(ip, sp, 0) } );
+		super::yield_to(thread);
 	}
 }
 
 impl ThreadHandle
 {
-	pub fn new<F: FnOnce()+Send+'static>(name: &str, fcn: F, process: Arc<Process>) -> ThreadHandle
+	pub fn new<F: FnOnce()+Send+'static, S: Into<String>>(name: S, fcn: F, process: Arc<Process>) -> ThreadHandle
 	{
 		let mut thread = Thread::new_boxed(allocate_tid(), name, process);
 		let handle = ThreadHandle {
@@ -174,10 +177,10 @@ impl ::core::ops::Drop for ThreadHandle
 impl Thread
 {
 	/// Create a new thread
-	pub fn new_boxed(tid: ThreadID, name: &str, process: Arc<Process>) -> Box<Thread>
+	pub fn new_boxed<S: Into<String>>(tid: ThreadID, name: S, process: Arc<Process>) -> Box<Thread>
 	{
 		let rv = box Thread {
-			block: Arc::new( SharedBlock { tid: tid, name: From::from(name), process: process } ),
+			block: Arc::new( SharedBlock { tid: tid, name: name.into(), process: process } ),
 			run_state: RunState::Runnable,
 			cpu_state: Default::default(),
 			next: None,
