@@ -71,17 +71,42 @@ fn new_process_entry() -> !
 	// Parse command line stored in data area (including image path)
 	let mut arg_iter = NullStringList(arg_slice).map(::std::ffi::OsStr::new);
 	let binary = arg_iter.next().expect("No binary was passed");
+	let arg_iter = (0 .. arg_count-1).zip(arg_iter);
 	kernel_log!("Binary = {:?}", binary);
-	for (i,arg) in (0 .. arg_count-1).zip( arg_iter )
-	{
+	for (i,arg) in arg_iter {
 		kernel_log!("Arg {}: {:?}", i, arg);
 	}
+
+	let arg_iter = NullStringList(arg_slice).map(::std::ffi::OsStr::new);
+	let arg_iter = (0 .. arg_count-1).zip(arg_iter);
 	
-	panic!("TODO: new_process_entry");
-	loop {}
+	
+	
+	
+	let entrypoint = ::load_binary(binary);
+	
+	// Populate arguments
+	// TODO: Replace this mess with a FixedVec of some form
+	// SAFE: We will be writing to this before reading from it
+	let mut args_buf: [&::std::ffi::OsStr; 16] = unsafe { ::std::mem::uninitialized() };
+	let mut argc = 0;
+	//args_buf[argc] = binary;
+	//argc += 1;
+	for (_,arg) in arg_iter {
+		args_buf[argc] = arg;
+		argc += 1;
+	}
+	let args = &args_buf[..argc];
+	kernel_log!("args = {:?}", args);
+	
+	// TODO: Switch stacks into a larger dynamically-allocated stack
+	let ep: fn(&[&::std::ffi::OsStr]) -> ! = unsafe { ::std::mem::transmute(entrypoint) };
+	kernel_log!("Calling entry {:p}", ep as *const ());
+	ep(args);
 }
 
 
+#[derive(Clone)]
 struct NullStringList<'a>(&'a [u8]);
 impl<'a> Iterator for NullStringList<'a>
 {
