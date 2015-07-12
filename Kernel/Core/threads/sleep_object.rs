@@ -74,16 +74,18 @@ impl SleepObject
 	}
 	
 	/// Signal this sleep object (waking threads)
+	#[tag_safe(irq)]
+	#[allow(not_tagged_safe)]	// Holds an IRQ lock
 	pub fn signal(&self)
 	{
 		log_trace!("SleepObject::signal {:p} '{}'", self, self.name);
 		
+		let _irq_lock = ::sync::hold_interrupts();
 		let mut lh = self.inner.lock();
 		// 1. Check for a waiter
 		if let Some(mut t) = lh.thread.take()
 		{
 			t.set_state( RunState::Runnable );
-                        let _irq_lock = ::sync::hold_interrupts();
 			s_runnable_threads.lock().push(t);
 		}
 		else

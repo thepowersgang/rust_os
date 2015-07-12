@@ -141,6 +141,9 @@ pub extern "C" fn kmain()
 	None => log_debug!("No video mode present")
 	}
 	
+	// Intialise the IRQ worker
+	::irqs::init();
+	
 	// Modules (dependency tree included)
 	// - Requests that the GUI be started as soon as possible
 	::modules::init(&["GUI"]);

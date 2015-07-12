@@ -56,6 +56,16 @@ struct Bindings
 /// Map of IRQ numbers to core's dispatcher bindings. Bindings are boxed so the address is known in the constructor
 static S_IRQ_BINDINGS: ::sync::mutex::LazyMutex<Bindings> = lazymutex_init!();
 
+static S_IRQ_WORKER_SIGNAL: ::lib::LazyStatic<::threads::SleepObject> = lazystatic_init!();
+static S_IRQ_WORKER: ::lib::LazyStatic<::threads::WorkerThread> = lazystatic_init!();
+
+pub fn init() {
+	unsafe {
+		S_IRQ_WORKER_SIGNAL.prep(|| ::threads::SleepObject::new("IRQ Worker"));
+		S_IRQ_WORKER.prep(|| ::threads::WorkerThread::new("IRQ Worker", irq_worker));
+	}
+}
+
 fn bind(num: u32, obj: Box<Handler>) -> usize
 {
 	// 1. (if not already) bind a handler on the architecture's handlers
@@ -72,6 +82,24 @@ fn bind(num: u32, obj: Box<Handler>) -> usize
 	binding.handlers.lock().push( obj );
 	
 	index
+}
+
+fn irq_worker()
+{
+	loop {
+		S_IRQ_WORKER_SIGNAL.wait();
+		for (_,b) in S_IRQ_BINDINGS.lock().mapping.iter()
+		{
+			if b.has_fired.swap(false, ::core::atomic::Ordering::Relaxed)
+			{
+				if let Some(mut lh) = b.handlers.try_lock_cpu() {
+					for handler in &mut *lh {
+						handler.handle();
+					}
+				}
+			}
+		}
+	}
 }
 
 /// Bind an event waiter to an interrupt
@@ -119,27 +147,10 @@ impl IRQBinding
 	#[tag_safe(irq)]
 	fn handle(&self)
 	{
-		// If the current CPU owns the queue lock, don't do processing here
-		if let Some(mut lh) = self.handlers.try_lock_cpu()
-		{
-			//log_trace!("Firing IRQ handlers (TODO: IRQ#)");
-			// Otherwise, lock the handlers list and run them
-			// - Should not cause a race condition, as the current CPU shouldn't be doing funny stuff
-			// - POSSIBLE : Reach here, other IRQ which causes changes to this IRQ's data?
-			for handler in &mut *lh
-			{
-				// TODO: Call handlers
-				handler.handle();
-			}
-		}
-		// Instead, mark the interrupt as having fired and let it call handlers later
-		else
-		{
-			log_trace!("Deferring IRQ handler fire");
-			// The CPU owns the lock, so we don't care about ordering
-			self.has_fired.store(true, ::core::atomic::Ordering::Relaxed);
-		}
-			
+		// The CPU owns the lock, so we don't care about ordering
+		self.has_fired.store(true, ::core::atomic::Ordering::Relaxed);
+		
+		S_IRQ_WORKER_SIGNAL.signal();
 	}
 }
 
