@@ -11,10 +11,10 @@ use prelude::*;
 // 2. Bitmap (maybe?) maintained 
 
 pub fn ref_frame(frame_idx: u64) {
-	todo!("ref_frame");
+	log_error!("TODO: ref_frame #{:#x}", frame_idx);
 }
 pub fn deref_frame(frame_idx: u64) -> u32 {
-	todo!("deref_frame");
+	todo!("deref_frame #{:#x}", frame_idx);
 }
 pub fn get_multiref_count(frame_idx: u64) -> u32 {
 	log_warning!("TODO: get_multiref_count");

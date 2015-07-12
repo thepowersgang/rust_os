@@ -94,6 +94,7 @@ impl ::core::iter::Iterator for Pages {
 
 // Alias the arch's get_phys method into this namespace
 pub use arch::memory::virt::get_phys;
+pub use arch::memory::virt::get_info;
 
 pub fn with_lock<F>(addr: usize, fcn: F)
 where
@@ -382,6 +383,10 @@ impl FreePage
 			}
 		}
 	}
+	/// UNSAFE: User must ensure that T is valid for all bit patterns
+	pub unsafe fn as_slice_mut<T: 'static>(&mut self) -> &mut [T] {
+		::core::slice::from_raw_parts_mut( self.0 as *mut _, ::PAGE_SIZE / ::core::mem::size_of::<T>() )
+	}
 }
 impl ops::Drop for FreePage {
 	fn drop(&mut self) {
@@ -643,58 +648,15 @@ impl<T> ::core::ops::DerefMut for ArrayHandle<T>
 	}
 }
 
-macro_rules! impl_index_arrayhandle
-{
-	( $($t:ty),* ) => {$(
-	impl<T> ::core::ops::Index<$t> for ArrayHandle<T>
-	{
-		type Output = [T];
-		fn index<'a>(&'a self, index: $t) -> &'a [T] {
-			&(**self)[index]
-		}
-	}
-
-	impl<T> ::core::ops::IndexMut<$t> for ArrayHandle<T>
-	{
-		fn index_mut<'a>(&'a mut self, index: $t) -> &'a mut [T] {
-			&mut (**self)[index]
-		}
-	})*
-	};
-}
-impl<T> ::core::ops::Index<usize> for ArrayHandle<T> {
-	type Output = T;
-	fn index<'a>(&'a self, index: usize) -> &'a T {
-		&(**self)[index]
-	}
-}
-
-impl<T> ::core::ops::IndexMut<usize> for ArrayHandle<T> {
-	fn index_mut<'a>(&'a mut self, index: usize) -> &'a mut T {
-		&mut (**self)[index]
-	}
-}
-
-impl_index_arrayhandle! { ::core::ops::Range<usize>, ::core::ops::RangeFull, ::core::ops::RangeFrom<usize>, ::core::ops::RangeTo<usize> }
-
-
 /// Handle for an entire address space
 pub struct AddressSpace(::arch::memory::virt::AddressSpace);
 impl AddressSpace
 {
-	pub fn new() -> AddressSpace {
-		AddressSpace( ::arch::memory::virt::AddressSpace::new() )
+	pub fn new(clone_start: usize, clone_end: usize) -> AddressSpace {
+		AddressSpace( ::arch::memory::virt::AddressSpace::new(clone_start, clone_end).unwrap() )
 	}
 	pub fn pid0() -> AddressSpace {
 		AddressSpace( ::arch::memory::virt::AddressSpace::pid0() )
-	}
-	pub fn clone_from_cur(&mut self, dest: usize, src: usize, bytes: usize) {
-		for ofs in (0 .. bytes).step_by(::PAGE_SIZE)
-		{
-			let addr = ::memory::virt::get_phys( (src + ofs) as *const () );
-			self.0.map( dest + ofs, addr );
-		}
-		todo!("AddressSpace::clone_from_cur");
 	}
 }
 

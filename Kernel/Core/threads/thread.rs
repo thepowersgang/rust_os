@@ -119,32 +119,22 @@ impl Process
 			proc_local_data: ::sync::RwLock::new( Vec::new() ),
 		})
 	}
-	pub fn new<S: Into<String>+::core::fmt::Debug>(name: S) -> Arc<Process>
+	pub fn new<S: Into<String>+::core::fmt::Debug>(name: S, addr_space: ::memory::virt::AddressSpace) -> Arc<Process>
 	{
 		Arc::new(Process {
 			pid: allocate_pid(),
 			name: name.into(),
-			address_space: ::memory::virt::AddressSpace::new(),
+			address_space: addr_space,
 			proc_local_data: ::sync::RwLock::new( Vec::new() ),
 		})
 	}
 }
 impl ProcessHandle
 {
-	pub fn new<S: Into<String>+::core::fmt::Debug>(name: S) -> ProcessHandle {
-		ProcessHandle( Process::new(name) )
+	pub fn new<S: Into<String>+::core::fmt::Debug>(name: S, clone_start: usize, clone_end: usize) -> ProcessHandle {
+		ProcessHandle( Process::new(name, ::memory::virt::AddressSpace::new(clone_start, clone_end)) )
 	}
 	
-	/// Clone (COW) a portion of the current process's address space into this new process
-	pub fn clone_from_cur(&mut self, dst_addr: usize, src_addr: usize, bytes: usize) {
-		log_trace!("clone_from_cur( {:#x}, {:#x}+{:#x}", dst_addr, src_addr, bytes);
-		if let Some(p) = ::lib::mem::arc::get_mut(&mut self.0) {
-			p.address_space.clone_from_cur(dst_addr, src_addr, bytes)
-		}
-		else {
-			panic!("Calling 'ProcessHandle::clone_from_cur' after first thread spawned");
-		}
-	}
 	pub fn start_root_thread(&mut self, ip: usize, sp: usize) {
 		assert!( ::lib::mem::arc::get_mut(&mut self.0).is_some() );
 		todo!("ProcessHandle::start_root_thread");

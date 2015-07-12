@@ -146,6 +146,8 @@ impl IRQBinding
 impl Handler for HandlerEvent
 {
 	//fn get_idx(&self) -> usize { self.index }
+	
+	//#[tag_safe(irq)]
 	fn handle(&mut self) -> bool {
 		self.event.trigger();
 		true

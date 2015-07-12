@@ -16,6 +16,8 @@ pub mod addresses
 {
 	//! Fixed addresses
 	
+	pub const USER_END:       usize = 0x00008000_00000000;
+	
 	/// Start of the kernel heap
 	pub const HEAP_START:     usize = 0xFFFF8000_00000000;
 	/// End of the kernel heap
@@ -44,16 +46,16 @@ pub mod addresses
 	
 	#[doc(hiddden)]
 	/// Start of the fractal mapping
-	pub const FRACTAL_BASE:   usize = 0xFFFFFE00_00000000;	// PML4[508]
+	pub const FRACTAL_BASE:    usize = 0xFFFFFE00_00000000;	// PML4[508]
 	#[doc(hiddden)]
-	pub const IDENT_START:    usize = 0xFFFFFFFF_80000000;
+	pub const IDENT_START:    usize = 0xFFFFFFFF_80000000;	// PML4[511] (plus some)
 	#[doc(hiddden)]
 	pub const IDENT_END:      usize = IDENT_START + 0x200000;	// 2MiB
 	
 	/// returns true if the provided address is valid within all address spaces
 	pub fn is_global(addr: usize) -> bool
 	{
-		if addr < 0x00008000_00000000 {
+		if addr < USER_END {
 			false
 		}
 		else if addr < HEAP_START {

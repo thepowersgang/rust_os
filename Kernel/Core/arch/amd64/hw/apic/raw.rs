@@ -151,6 +151,8 @@ impl LAPIC
 			let mut ef: u64; asm!("pushf\npop $0" : "=r" (ef)); log_debug!("EFLAGS = {:#x}", ef);
 		}
 	}
+	#[tag_safe(irq)]
+	#[allow(not_tagged_safe)]
 	pub fn eoi(&self, num: usize)
 	{
 		self.write_reg(ApicReg::EOI, num as u32);
@@ -239,8 +241,11 @@ impl IOAPIC
 	pub fn first(&self) -> usize {
 		self.first_irq
 	}
+	#[tag_safe(irq)]
+	#[allow(not_tagged_safe)]
 	pub fn get_callback(&self, idx: usize) -> Option<super::IRQHandler> {
 		assert!( idx < self.num_lines );
+		let _irql = ::sync::hold_interrupts();
 		self.handlers.lock()[idx]
 	}
 	

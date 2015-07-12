@@ -73,8 +73,12 @@ fn invoke_int(call_id: u32, mut args: &[usize]) -> Result<u64,Error>
 		CORE_STARTPROCESS => {
 			let ip = try!( <usize>::get_arg(&mut args) );
 			let sp = try!( <usize>::get_arg(&mut args) );
-			let segs = try!( <&[values::ProcessSegment]>::get_arg(&mut args) );
-			syscall_core_newprocess(ip, sp, segs) as u64
+			let start = try!( <usize>::get_arg(&mut args) );
+			let end   = try!( <usize>::get_arg(&mut args) );
+			if start > end || end > ::arch::memory::addresses::USER_END {
+				return Err( Error::BadValue );
+			}
+			syscall_core_newprocess(ip, sp, start, end) as u64
 			},
 		// === 1: Window Manager / GUI
 		// - 1/0: New group (requires permission, has other restrictions)
@@ -298,26 +302,9 @@ fn syscall_core_terminate() {
 fn syscall_core_newthread(sp: usize, ip: usize) -> ObjectHandle {
 	todo!("syscall_core_newthread(sp={:#x},ip={:#x})", sp, ip);
 }
-fn syscall_core_newprocess(ip: usize, sp: usize, segs: &[values::ProcessSegment]) -> ObjectHandle {
+fn syscall_core_newprocess(ip: usize, sp: usize, clone_start: usize, clone_end: usize) -> ObjectHandle {
 	// 1. Create a new process image (virtual address space)
-	let mut process = ::threads::new_user_process("TODO");
-	// 2. Apply the specified layout to it
-	for seg in segs {
-		if seg.handle() == 0 {
-			let (addr, len) = seg.dest();
-			let (src, slen) = seg.src();
-			if slen != len || addr != src as usize {
-				todo!("syscall_core_newprocess - Handle pre-allocs and non-unity copies");
-			}
-			else {
-				// Can only clone, RW-sharing of pages is done separately
-				process.clone_from_cur(addr, src as usize, len);
-			}
-		}
-		else {
-			todo!("syscall_core_newprocess - Memory map");
-		}
-	}
+	let mut process = ::threads::ProcessHandle::new("TODO", clone_start, clone_end);
 	// 3. Create a new thread using that process image with the specified ip/sp
 	process.start_root_thread(ip, sp);
 	

@@ -129,8 +129,8 @@ pub use values::ProcessSegment;
 
 pub struct Process;
 #[inline]
-pub fn start_process(entry: usize, stack: usize, segments: &[ProcessSegment]) -> Result<Process,()> {
-	let rv = unsafe { syscall!(CORE_STARTPROCESS, entry, stack, segments.as_ptr() as usize, segments.len()) };
+pub fn start_process(entry: usize, stack: usize,  clone_start: usize, clone_end: usize) -> Result<Process,()> {
+	let rv = unsafe { syscall!(CORE_STARTPROCESS, entry, stack, clone_start, clone_end) };
 	match ::to_result(rv as usize)
 	{
 	Ok(_v) => Ok( Process ),

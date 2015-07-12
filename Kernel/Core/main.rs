@@ -23,7 +23,10 @@
 #![feature(iter_cmp)]	// for max_by
 #![feature(get_type_id,reflect_marker)] // used by process_local's "AnyMap" hackery
 #![feature(ptr_as_ref)]	// used by ACPI code
+#![feature(slice_bytes)]	// Gives bytes::copy_memory, used in VMM
 #![no_std]
+
+#![deny(not_tagged_safe)]
 
 #![feature(plugin)]
 #![feature(custom_attribute)]

@@ -64,10 +64,6 @@ pub fn yield_to(thread: Box<Thread>)
 	::arch::threads::switch_to( thread );
 }
 
-pub fn new_user_process(name: &str) -> ProcessHandle {
-	ProcessHandle::new(name)
-}
-
 pub fn get_thread_id() -> thread::ThreadID
 {
 	let p = ::arch::threads::borrow_thread();
