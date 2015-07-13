@@ -88,21 +88,17 @@ fn new_process_entry() -> !
 	// Populate arguments
 	// TODO: Replace this mess with a FixedVec of some form
 	// SAFE: We will be writing to this before reading from it
-	let mut args_buf: [&::std::ffi::OsStr; 16] = unsafe { ::std::mem::uninitialized() };
-	let mut argc = 0;
-	//args_buf[argc] = binary;
-	//argc += 1;
+	let mut args = super::FixedVec::new();
+	//args.push(binary).unwrap();
 	for (_,arg) in arg_iter {
-		args_buf[argc] = arg;
-		argc += 1;
+		args.push(arg).unwrap();
 	}
-	let args = &args_buf[..argc];
-	kernel_log!("args = {:?}", args);
+	kernel_log!("args = {:?}", &*args);
 	
 	// TODO: Switch stacks into a larger dynamically-allocated stack
 	let ep: fn(&[&::std::ffi::OsStr]) -> ! = unsafe { ::std::mem::transmute(entrypoint) };
 	kernel_log!("Calling entry {:p}", ep as *const ());
-	ep(args);
+	ep(&args);
 }
 
 

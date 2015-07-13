@@ -46,21 +46,48 @@ pub extern "C" fn loader_main(cmdline: *mut u8, cmdline_len: usize) -> !
 	// Populate arguments
 	// TODO: Replace this mess with a FixedVec of some form
 	// SAFE: We will be writing to this before reading from it
-	let mut args_buf: [&::std::ffi::OsStr; 16] = unsafe { ::std::mem::uninitialized() };
-	let mut argc = 0;
-	args_buf[argc] = init_path;
-	argc += 1;
+	let mut args = FixedVec::new();
+	args.push(init_path).unwrap();
 	for arg in arg_iter {
-		args_buf[argc] = arg;
-		argc += 1;
+		args.push(arg).unwrap();
 	}
-	let args = &args_buf[..argc];
-	kernel_log!("args = {:?}", args);
+	kernel_log!("args = {:?}", &*args);
 	
 	// TODO: Switch stacks into a larger dynamically-allocated stack
 	let ep: fn(&[&::std::ffi::OsStr]) -> ! = unsafe { ::std::mem::transmute(entrypoint) };
 	kernel_log!("Calling entry {:p}", ep as *const ());
-	ep(args);
+	ep(&args);
+}
+
+struct FixedVec<T> {
+	size: usize,
+	data: [T; 16],
+}
+impl<T> FixedVec<T> {
+	fn new() -> FixedVec<T> {
+		FixedVec { size: 0, data: unsafe { ::std::mem::uninitialized() } }
+	}
+	fn push(&mut self, v: T) -> Result<(),T> {
+		if self.size == 16 {
+			Err(v)
+		}
+		else {
+			unsafe { ::std::ptr::write( &mut self.data[self.size], v ) };
+			self.size += 1;
+			Ok( () )
+		}
+	}
+}
+impl<T> ::std::ops::Deref for FixedVec<T> {
+	type Target = [T];
+	fn deref(&self) -> &[T] {
+		&self.data[..self.size]
+	}
+}
+impl<T> ::std::ops::DerefMut for FixedVec<T> {
+	fn deref_mut(&mut self) -> &mut [T] {
+		&mut self.data[..self.size]
+	}
 }
 
 /// Panics if it fails to load, returns the entrypoint
