@@ -6,7 +6,7 @@
 V ?= @
 
 # List of root-level applications to build
-APPS := loader init
+APPS := loader init login
 
 # Build directories
 # - Distribution output root

@@ -157,6 +157,7 @@ pub fn reserve(addr: *mut (), page_count: usize) -> Result<Reservation, ()>
 	for pgptr in Pages(addr, page_count)
 	{
 		if ::arch::memory::virt::is_reserved( pgptr ) {
+			log_trace!("Address {:?} in range {:p}+{}pg reserved", pgptr, addr, page_count);
 			return Err( () );
 		}
 	}
@@ -649,6 +650,7 @@ impl<T> ::core::ops::DerefMut for ArrayHandle<T>
 }
 
 /// Handle for an entire address space
+#[derive(Debug)]
 pub struct AddressSpace(::arch::memory::virt::AddressSpace);
 impl AddressSpace
 {
@@ -657,6 +659,9 @@ impl AddressSpace
 	}
 	pub fn pid0() -> AddressSpace {
 		AddressSpace( ::arch::memory::virt::AddressSpace::pid0() )
+	}
+	pub fn inner(&self) -> &::arch::memory::virt::AddressSpace {
+		&self.0
 	}
 }
 

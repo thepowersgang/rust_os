@@ -191,7 +191,10 @@ impl File
 		let mut resv = match ::memory::virt::reserve(address as *mut (), page_count)
 			{
 			Ok(v) => v,
-			Err(_) => return Err( super::Error::Locked ),
+			Err(e) => {
+				log_notice!("mmap reserve error {:?}", e);
+				return Err( super::Error::Locked );
+				},
 			};
 		// - Obtain handles to each cached page, and map into the reservation
 		for i in 0 .. page_count {

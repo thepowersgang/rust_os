@@ -190,8 +190,9 @@ fn sysinit()
 	
 	// 2. Symbolic link /sysroot to the specified folder
 	let sysroot = ::config::get_string(::config::Value::SysRoot);
+	log_debug!("sysroot = \"{}\"", sysroot);
 	handle::Dir::open(Path::new("/")).unwrap()
-		.symlink("sysroot", Path::new(sysroot)).unwrap();
+		.symlink("sysroot", Path::new(&format!("/system/{}",sysroot)[..])).unwrap();
 	
 	
 	// 3. Start 'init' (parent process)

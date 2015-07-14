@@ -44,12 +44,25 @@ struct TLSData {
 /// Returns the thread state for TID0 (aka the kernel's core thread)
 pub fn init_tid0_state() -> State
 {
+	let cr3 = &InitialPML4 as *const _ as u64 - super::memory::addresses::IDENT_START as u64;
+	log_debug!("init_tid0_state - cr3 = {:#x}", cr3);
 	State {
-		cr3: &InitialPML4 as *const _ as u64 - super::memory::addresses::IDENT_START as u64,
+		cr3: cr3,
 		rsp: 0,
 		tlsbase: s_tid0_tls_base,
 		stack_handle: None,
 		}
+}
+
+impl State
+{
+	/// Construct a new empty CPU state using the provided address space
+	pub fn new(address_space: &::memory::virt::AddressSpace) -> State {
+		log_trace!("State::new({:?})", address_space);
+		let mut rv = State::default();
+		rv.cr3 = address_space.inner().get_cr3();
+		rv
+	}
 }
 
 /// Idle for a short period, called when the CPU has nothing else to do
@@ -131,7 +144,7 @@ pub fn start_thread<F: FnOnce()+Send>(thread: &mut ::threads::Thread, code: F)
 	// 4. Apply newly updated state
 	thread.cpu_state.rsp = stack_top as u64;
 	thread.cpu_state.tlsbase = tls_base as u64;
-	thread.cpu_state.cr3 = unsafe { (*borrow_thread()).cpu_state.cr3 };
+	//thread.cpu_state.cr3 = unsafe { (*borrow_thread()).cpu_state.cr3 };
 	thread.cpu_state.stack_handle = Some(stack);
 
 	// END: Parent function will run this thread for us

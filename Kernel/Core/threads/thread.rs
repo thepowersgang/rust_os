@@ -128,6 +128,10 @@ impl Process
 			proc_local_data: ::sync::RwLock::new( Vec::new() ),
 		})
 	}
+	
+	fn empty_cpu_state(&self) -> ::arch::threads::State {
+		::arch::threads::State::new( &self.address_space )
+	}
 }
 impl ProcessHandle
 {
@@ -180,9 +184,9 @@ impl Thread
 	pub fn new_boxed<S: Into<String>>(tid: ThreadID, name: S, process: Arc<Process>) -> Box<Thread>
 	{
 		let rv = box Thread {
+			cpu_state: process.empty_cpu_state(),
 			block: Arc::new( SharedBlock { tid: tid, name: name.into(), process: process } ),
 			run_state: RunState::Runnable,
-			cpu_state: Default::default(),
 			next: None,
 			};
 		

@@ -33,6 +33,9 @@ macro_rules! log_log{     ($($arg:tt)*) => (log!($crate::logging::Level::LevelLo
 /// Debug - Low level debugging information (values mostly)
 #[macro_export]
 macro_rules! log_debug{   ($($arg:tt)*) => (log!($crate::logging::Level::LevelDebug,   module_path!(), $($arg)*))} 
+/// Trace calls to a function
+#[macro_export]
+macro_rules! log_function{($($arg:tt)*) => (log!($crate::logging::Level::LevelTrace, module_path!(), $($arg)*))} 
 /// Trace - Very low level debugging information (action-by-action updates)
 #[macro_export]
 macro_rules! log_trace{

@@ -106,7 +106,7 @@ docs:
 	@chmod +rX doc/ -R 
 
 run: bin/kernel-$(ARCH).bin
-	cd rundir && ./RunQemuPXE ../$<.elf32 "SYSDISK=ATA-0p0 SYSROOT=Tifflin/"
+	cd rundir && ./RunQemuPXE ../$<.elf32 "SYSDISK=ATA-0p0 SYSROOT=Tifflin"
 
 # ===
 # Toolchain maintainence
@@ -147,6 +147,7 @@ bin/kernel-$(ARCH).bin: $(OBJS) Core/arch/$(ARCH)/link.ld Makefile
 	@echo [LD] -o $@
 	$V$(TRIPLE)-ld -o $@ $(OBJS) $(LIBS) $(LINKFLAGS)
 	@objcopy $@ -F elf32-i386 $@.elf32
+	@strip $@.elf32
 	@echo "BUILDNUM := $$(( $(BUILDNUM) + 1 ))" > BuildNum.$(ARCH).mk
 
 %.dsm: %

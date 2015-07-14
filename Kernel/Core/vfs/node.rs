@@ -136,8 +136,6 @@ struct CachedNode
 	//mapped_pages: HashMap<u64,FrameHandle>,
 }
 
-#[allow(raw_pointer_derive)]
-#[derive(Debug)]
 pub struct CacheHandle
 {
 	mountpt: usize,
@@ -152,6 +150,12 @@ static S_NODE_CACHE: LazyMutex<::lib::VecMap<(usize,InodeId),Box<CachedNode>>> =
 pub fn init()
 {
 	S_NODE_CACHE.init(|| Default::default());
+}
+
+impl_fmt! {
+	Debug(self, f) for CacheHandle {
+		write!(f, "CacheHandle {{ {}:{:#x} {:p} }}", self.mountpt, self.inode, self.ptr)
+	}
 }
 
 impl CacheHandle
@@ -183,7 +187,7 @@ impl CacheHandle
 	/// Obtain a node handle using a path
 	pub fn from_path(path: &Path) -> super::Result<CacheHandle>
 	{
-		log_trace!("CacheHandle::from_path({:?})", path);
+		log_function!("CacheHandle::from_path({:?})", path);
 		// TODO: Support path caching?
 		
 		// Locate mountpoint for the path
@@ -195,31 +199,45 @@ impl CacheHandle
 		// Iterate components of the path that were not consumed by the mountpoint
 		for seg in tail
 		{
-			log_debug!("- seg={:?}", seg);
+			loop {
+				node_h = if let Node::Symlink(ref link) = *node_h.as_ref() {
+					let name = link.read();
+					log_debug!("- seg={:?} : SYMLINK {:?}", seg, name);
+					let linkpath = Path::new(&name);
+					if linkpath.is_absolute() {
+						try!(CacheHandle::from_path(linkpath))
+					}
+					else {
+						//TODO: To make this work (or any path-relative symlink), the current position in
+						//      `path` needs to be known.
+						//let segs = [ &path[..pos], &link ];
+						//let p = PathChain::new(&segs);
+						//try!( CacheHandle::from_path(p) )
+						// Recurse with a special chained path type
+						// (that iterates but can't be sliced).
+						// - Should symlinks be handled in this function? Or should the passed path be without symlinks?
+						todo!("Symbolic links {:?}", name)
+					}
+				}
+				else {
+					break;
+				};
+			}
 			node_h = match *node_h.as_ref()
 				{
 				Node::Dir(ref dir) => {
+					log_debug!("- seg={:?} : DIR", seg);
 					let next_id = match dir.lookup(seg)
 						{
 						Ok(v) => v,
 						Err(_) => return Err(super::Error::NotFound),
 						};
-					try!(CacheHandle::from_ids( mph.id(), next_id ))
-					},
-				Node::Symlink(_) => {
-					todo!("Symbolic links")
-					//TODO: To make this work (or any path-relative symlink), the current position in
-					//      `path` needs to be known.
-					//let segs = [ &path[..pos], &link ];
-					//let p = PathChain::new(&segs);
-					//try!( CacheHandle::from_path(p) )
-					// Recurse with a special chained path type
-					// (that iterates but can't be sliced).
-					// - Should symlinks be handled in this function? Or should the passed path be without symlinks?
+					try!(CacheHandle::from_ids( node_h.mountpt, next_id ))
 					},
 				_ => return Err(super::Error::NonDirComponent),
 				};
 		}
+		log_debug!("return {:?}", node_h);
 		Ok( node_h )
 	}
 	

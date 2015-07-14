@@ -209,7 +209,12 @@ pub fn is_reserved<T>(addr: *const T) -> bool
 pub fn get_phys<T>(addr: *const T) -> PAddr
 {
 	let pte = get_page_ent(addr as usize, false, LargeOk::Yes);
-	pte.addr() + ((addr as usize) & 0xFFF) as u64
+	if pte.is_large() {
+		pte.addr() + ((addr as usize) & 0x1FFFFF) as u64
+	}
+	else {
+		pte.addr() + ((addr as usize) & 0xFFF) as u64
+	}
 }
 pub fn get_info<T>(addr: *const T) -> Option<(PAddr,ProtectionMode)>
 {
@@ -457,6 +462,9 @@ impl ::core::ops::DerefMut for NewTable {
 
 /// Virtual address space
 pub struct AddressSpace(u64);
+impl_fmt! {
+	Debug(self,f) for AddressSpace { write!(f, "AddressSpace({:#x})", self.0) }
+}
 impl AddressSpace
 {
 	pub fn new(clone_start: usize, clone_end: usize) -> Result<AddressSpace,::memory::virt::MapError>
@@ -566,7 +574,8 @@ impl AddressSpace
 		for i in 256 .. 512 {
 			const FRACTAL_IDX: usize = (FRACTAL_BASE & MASK_VBITS) >> 12;
 			if i == FRACTAL_IDX >> (9*3) {
-				ents[i] = get_phys(&ents[0]);
+				log_debug!("fractal at {}", i);
+				ents[i] = get_phys(&ents[0]) | 3;
 			}
 			else {
 				ents[i] = InitialPML4[i];
@@ -578,6 +587,10 @@ impl AddressSpace
 	}
 	pub fn pid0() -> AddressSpace {
 		AddressSpace( get_phys(&InitialPML4) )
+	}
+	
+	pub fn get_cr3(&self) -> u64 {
+		self.0
 	}
 }
 
