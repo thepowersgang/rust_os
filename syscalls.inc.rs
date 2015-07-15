@@ -51,3 +51,8 @@ def_class!({
 	1: VFS_FILE_WRITEAT,
 	2: VFS_FILE_MEMMAP,
 });
+def_class!( {
+	0: GUI_WIN_SHOWHIDE,
+	1: GUI_WIN_REDRAW,
+	1: GUI_WIN_BLITRECT,
+});

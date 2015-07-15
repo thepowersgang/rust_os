@@ -6,6 +6,10 @@
 use prelude::*;
 
 mod objects;
+mod gui;
+mod vfs;
+
+pub type ObjectHandle = u32;
 
 #[allow(raw_pointer_derive)]
 #[derive(Debug)]
@@ -32,13 +36,31 @@ pub fn invoke(call_id: u32, args: &[usize]) -> u64 {
 	}
 }
 
-use self::values::*;
-#[path="../../../syscalls.inc.rs"]
-mod values;
-
 fn error_code(value: u32) -> usize {
 	value as usize + usize::max_value() / 2
 }
+
+/// Pack a result into a u32
+/// Both `O` and `E` must be < 2^31
+fn from_result<O: Into<u32>, E: Into<u32>>(r: Result<O,E>) -> u64 {
+	match r
+	{
+	Ok(v) => {
+		let v: u32 = v.into();
+		assert!(v < 1<<31);
+		v as u64
+		}
+	Err(e) => {
+		let v: u32 = e.into();
+		assert!(v < 1<<31);
+		(1 << 31) | (v as u64)
+		},
+	}
+}
+
+use self::values::*;
+#[path="../../../syscalls.inc.rs"]
+mod values;
 
 fn invoke_int(call_id: u32, mut args: &[usize]) -> Result<u64,Error>
 {
@@ -84,12 +106,12 @@ fn invoke_int(call_id: u32, mut args: &[usize]) -> Result<u64,Error>
 		// - 1/0: New group (requires permission, has other restrictions)
 		GUI_NEWGROUP => {
 			let name = try!( <&str>::get_arg(&mut args) );
-			syscall_gui_newgroup(name) as u64
+			from_result(gui::newgroup(name))
 			},
 		// - 1/1: New window
 		GUI_NEWWINDOW => {
 			let name = try!( <&str>::get_arg(&mut args) );
-			syscall_gui_newwindow(name) as u64
+			from_result(gui::newwindow(name))
 			},
 		// === 2: VFS
 		// - 2/0: Open node (for stat)
@@ -100,11 +122,7 @@ fn invoke_int(call_id: u32, mut args: &[usize]) -> Result<u64,Error>
 		VFS_OPENFILE => {
 			let name = try!( <&[u8]>::get_arg(&mut args) );
 			let mode = try!( <u32>::get_arg(&mut args) );
-			(match syscall_vfs_openfile(name, mode)
-			{
-			Ok(v) => v,
-			Err(v) => (1<<31)|v,
-			} as u64)
+			from_result( vfs::openfile(name, mode) )
 			},
 		// - 2/2: Open directory
 		VFS_OPENDIR => {
@@ -173,8 +191,6 @@ fn invoke_int(call_id: u32, mut args: &[usize]) -> Result<u64,Error>
 		}
 	}
 }
-
-type ObjectHandle = u32;
 
 trait SyscallArg {
 	fn get_arg(args: &mut &[usize]) -> Result<Self,Error>;
@@ -320,72 +336,4 @@ fn syscall_core_newprocess(ip: usize, sp: usize, clone_start: usize, clone_end: 
 	objects::new_object( Process(process) )
 }
 
-fn syscall_gui_newgroup(name: &str) -> ObjectHandle {
-	todo!("syscall_gui_newgroup(name={})", name);
-}
-fn syscall_gui_newwindow(name: &str) -> ObjectHandle {
-	todo!("syscall_gui_newwindow(name={})", name);
-}
-
-fn syscall_vfs_openfile(path: &[u8], mode: u32) -> Result<ObjectHandle,u32> {
-	struct File(::vfs::handle::File);
-
-	impl objects::Object for File {
-		fn handle_syscall(&self, call: u16, mut args: &[usize]) -> Result<u64,Error> {
-			match call
-			{
-			values::VFS_FILE_READAT => {
-				let ofs = try!( <u64>::get_arg(&mut args) );
-				let dest = try!( <&mut [u8]>::get_arg(&mut args) );
-				log_debug!("File::readat({}, {:p}+{} bytes)", ofs, dest.as_ptr(), dest.len());
-				match self.0.read(ofs, dest)
-				{
-				Ok(count) => Ok(count as u64),
-				Err(e) => todo!("File::handle_syscall READAT Error {:?}", e),
-				}
-				},
-			values::VFS_FILE_WRITEAT => {
-				todo!("File::handle_syscall WRITEAT");
-				},
-			values::VFS_FILE_MEMMAP => {
-				let ofs = try!( <u64>::get_arg(&mut args) );
-				let size = try!( <usize>::get_arg(&mut args) );
-				let addr = try!( <usize>::get_arg(&mut args) );
-				let mode = match try!( <u8>::get_arg(&mut args) )
-					{
-					0 => ::vfs::handle::MemoryMapMode::ReadOnly,
-					1 => ::vfs::handle::MemoryMapMode::Execute,
-					2 => ::vfs::handle::MemoryMapMode::COW,
-					3 => ::vfs::handle::MemoryMapMode::WriteBack,
-					v @ _ => return Err( Error::BadValue ),
-					};
-				log_debug!("VFS_FILE_MEMMAP({:#x}, {:#x}+{}, {:?}", ofs, addr, size, mode);
-				
-				match self.0.memory_map(addr, ofs, size, mode)
-				{
-				Ok(h) => {
-					log_warning!("TODO: register memory map handle with object table");
-					::core::mem::forget(h);
-					Ok(0)
-					},
-				Err(e) => todo!("File::handle_syscall MEMMAP Error {:?}", e),
-				}
-				},
-			_ => todo!("File::handle_syscall({}, ...)", call),
-			}
-		}
-	}
-	
-	let mode = match mode
-		{
-		1 => ::vfs::handle::FileOpenMode::SharedRO,
-		2 => ::vfs::handle::FileOpenMode::Execute,
-		_ => todo!("Unkown mode {:x}", mode),
-		};
-	match ::vfs::handle::File::open(::vfs::Path::new(path), mode)
-	{
-	Ok(h) => Ok( objects::new_object( File(h) ) ),
-	Err(e) => todo!("syscall_vfs_openfile - e={:?}", e),
-	}
-}
 
