@@ -42,9 +42,11 @@ pub mod input;
 // Import geometry types from video layer
 pub use metadevs::video::{Dims, Pos, Rect};
 
+pub use self::windows::WindowHandle;
+
 /// Pixel colour
 #[derive(Copy,Clone)]
-struct Colour(u32);
+pub struct Colour(u32);
 
 impl_fmt!{
 	Debug(self, f) for Colour { write!(f, "Colour({:06x})", self.0) }

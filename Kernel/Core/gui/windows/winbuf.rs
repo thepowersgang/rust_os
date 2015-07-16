@@ -71,6 +71,7 @@ impl WinBuf
 	}
 	fn slice_mut(&self) -> &mut [u32] {
 		// SAFE: Buffer will not resize, and multiple writers is allowed
+		// TODO: Find some way of ENSURING that LLVM doesn't do something dumb here (like store a pointer in the buffer, and expect it not to change)
 		unsafe { &mut (*self.data.get())[..] }
 	}
 	
