@@ -35,6 +35,7 @@ macro_rules! syscall {
 		::raw::syscall_4(::values::$id, $arg1, $arg2, $arg3, $arg4)
 		};
 }
+macro_rules! slice_arg { ($slice:ident) => { $slice.as_ptr(), $slice.len() } }
 
 // File in the root of the repo
 #[path="../../../syscalls.inc.rs"]

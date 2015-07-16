@@ -85,13 +85,7 @@ fn invoke_int(call_id: u32, mut args: &[usize]) -> Result<u64,Error>
 		CORE_EXITTHREAD => {
 			syscall_core_terminate(); 0
 			},
-		// - 0/3: Start thread
-		CORE_STARTTHREAD => {
-			let ip = try!( <usize>::get_arg(&mut args) );
-			let sp = try!( <usize>::get_arg(&mut args) );
-			syscall_core_newthread(sp, ip) as u64
-			},
-		// - 0/4: Start process
+		// - 0/3: Start process
 		CORE_STARTPROCESS => {
 			let ip = try!( <usize>::get_arg(&mut args) );
 			let sp = try!( <usize>::get_arg(&mut args) );
@@ -101,6 +95,18 @@ fn invoke_int(call_id: u32, mut args: &[usize]) -> Result<u64,Error>
 				return Err( Error::BadValue );
 			}
 			syscall_core_newprocess(ip, sp, start, end) as u64
+			},
+		// - 0/4: Start thread
+		CORE_STARTTHREAD => {
+			let ip = try!( <usize>::get_arg(&mut args) );
+			let sp = try!( <usize>::get_arg(&mut args) );
+			syscall_core_newthread(sp, ip) as u64
+			},
+		// - 0/5: Wait for event
+		CORE_WAIT => {
+			let events = try!( <&[WaitItem]>::get_arg(&mut args) );
+			let timeout = try!( <u64>::get_arg(&mut args) );
+			syscall_core_wait(events, timeout) as u64
 			},
 		// === 1: Window Manager / GUI
 		// - 1/0: New group (requires permission, has other restrictions)
@@ -242,6 +248,8 @@ macro_rules! def_slice_get_arg {
 	};
 }
 def_slice_get_arg!{u8}
+def_slice_get_arg!{u32}
+def_slice_get_arg!{WaitItem}
 
 impl<'a> SyscallArg for &'a mut [u8] {
 	fn get_arg(args: &mut &[usize]) -> Result<Self,Error> {
@@ -336,4 +344,7 @@ fn syscall_core_newprocess(ip: usize, sp: usize, clone_start: usize, clone_end: 
 	objects::new_object( Process(process) )
 }
 
+fn syscall_core_wait(events: &[WaitItem], wake_time_mono: u64) -> u64 {
+	todo!("syscall_core_wait(events={:?}, wake_time_mono={})", events, wake_time_mono);
+}
 

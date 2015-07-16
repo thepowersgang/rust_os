@@ -27,7 +27,15 @@ def_grp!( 0: GROUP_CORE = {
 	2: CORE_EXITTHREAD,
 	3: CORE_STARTPROCESS,
 	4: CORE_STARTTHREAD,
+	5: CORE_WAIT,
 });
+
+#[repr(C)]
+#[derive(Debug)]
+pub struct WaitItem {
+	object: u32,
+	flags: u32,
+}
 
 def_grp!( 1: GROUP_GUI = {
 	0: GUI_NEWGROUP,
