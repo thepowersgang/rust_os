@@ -227,7 +227,7 @@ impl<'a> RelocationState<'a>
 				::load::lookup_symbol(name)
 			}
 			else {
-				Some( (sym.st_value, sym.st_size) )
+				Some( (self.base + sym.st_value, sym.st_size) )
 			}
 		}
 		else {
@@ -265,6 +265,9 @@ impl<'a> RelocationState<'a>
 			let (addr,_size) = try!( self.get_symbol_r(r.sym as usize) );
 			self.relocate_32(r.addr, |val| (addr + r.addend.unwrap_or(val as usize) - r.addr) as u32);
 			},
+		R_X86_64_GOT32 => todo!("apply_reloc_x86_64 - GOT32"),
+		R_X86_64_PLT32 => todo!("apply_reloc_x86_64 - PLT32"),
+		R_X86_64_COPY => todo!("apply_reloc_x86_64 - COPY"),
 		R_X86_64_GLOB_DAT => {
 			let (addr,_size) = try!( self.get_symbol_r(r.sym as usize) );
 			self.relocate_64(r.addr, |_val| addr as u64);
@@ -274,7 +277,7 @@ impl<'a> RelocationState<'a>
 			self.relocate_64(r.addr, |_val| addr as u64);
 			},
 		R_X86_64_RELATIVE => {
-			self.relocate_64(r.addr, |val| (r.addr + r.addend.unwrap_or(val as usize)) as u64);
+			self.relocate_64(r.addr, |val| (self.base + r.addend.unwrap_or(val as usize)) as u64);
 			},
 		v @ _ => todo!("apply_reloc_x86_64 - ty={}", v),
 		}
