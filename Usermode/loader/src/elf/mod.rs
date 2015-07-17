@@ -135,14 +135,15 @@ impl<R: Read+Seek> ElfModuleHandle<R>
 				_ => return Err(Error::Malformed),
 				},
 			DtEnt::PltRelSz(size) => plt_sz = Some(size),
-			v @ _ => {},//kernel_log!("- ?{:?}", v),
+			//v @ _ => kernel_log!("- ?{:?}", v),
+			_ => {},
 			}
 		}
 		kernel_log!("symtab_ofs = {:?}, strtab_ofs = {:?}", symtab_addr, strtab_addr);
 		// SAFE: (well, as can be) These addresses should be pointing to within the program's image
 		let strtab = unsafe { try!(StringTable::new(strtab_addr,strtab_len)) };
 		// TODO: Check assumption that symtab_addr < strtab_addr
-		let symtab = unsafe { try!(SymbolTable::new(self.header.get_format(), symtab_addr, strtab_addr.map(|x| x - symtab_addr.unwrap_or(x)))) };
+		let symtab = unsafe { try!(SymbolTable::new(self.header.get_format(), symtab_addr, strtab_addr.map(|x| x - symtab_addr.unwrap_or(x)), symtab_esz)) };
 		let rel  = unsafe { try!(RelocTable::new(self.header.get_format(), rel_addr, rel_sz, rel_esz, RelocType::Rel)) };
 		let rela = unsafe { try!(RelocTable::new(self.header.get_format(), rela_addr, rela_sz, rela_esz, RelocType::RelA)) };
 		let plt  = unsafe { try!(RelocTable::new(self.header.get_format(), plt_addr, plt_sz, None, plt_type)) };
@@ -208,7 +209,7 @@ impl<'a> RelocationState<'a>
 		match self.machine
 		{
 		Machine::X8664 => for r in iter { try!(self.apply_reloc_x86_64(r)); },
-		_ => todo!(""),
+		_ => todo!("Machine {:?}", self.machine),
 		}
 		Ok( () )
 	}
@@ -256,9 +257,24 @@ impl<'a> RelocationState<'a>
 		match r.ty
 		{
 		R_X86_64_NONE => {},
+		R_X86_64_64 => {
+			let (addr,_size) = try!( self.get_symbol_r(r.sym as usize) );
+			self.relocate_64(r.addr, |val| (addr + r.addend.unwrap_or(val as usize)) as u64);
+			},
+		R_X86_64_PC32 => {
+			let (addr,_size) = try!( self.get_symbol_r(r.sym as usize) );
+			self.relocate_32(r.addr, |val| (addr + r.addend.unwrap_or(val as usize) - r.addr) as u32);
+			},
+		R_X86_64_GLOB_DAT => {
+			let (addr,_size) = try!( self.get_symbol_r(r.sym as usize) );
+			self.relocate_64(r.addr, |_val| addr as u64);
+			},
 		R_X86_64_JUMP_SLOT => {
 			let (addr,_size) = try!( self.get_symbol_r(r.sym as usize) );
 			self.relocate_64(r.addr, |_val| addr as u64);
+			},
+		R_X86_64_RELATIVE => {
+			self.relocate_64(r.addr, |val| (r.addr + r.addend.unwrap_or(val as usize)) as u64);
 			},
 		v @ _ => todo!("apply_reloc_x86_64 - ty={}", v),
 		}
@@ -273,6 +289,14 @@ impl<'a> RelocationState<'a>
 			*ptr = fcn(*ptr);
 		}
 	}
+	fn relocate_32<F: FnOnce(u32)->u32>(&self, addr: usize, fcn: F) {
+		// TODO: Enforce/check safety
+		unsafe {
+			let ptr = addr as *mut u32;
+			// TODO: Ensure that endianness is native endian
+			*ptr = fcn(*ptr);
+		}
+	}
 }
 
 struct StringTable<'a>(&'a [u8]);
@@ -280,7 +304,7 @@ impl<'a> StringTable<'a>
 {
 	unsafe fn new<'b>(addr: Option<usize>, len: Option<usize>) -> Result<StringTable<'b>,Error> {
 		let strtab = match (addr,len) {
-			(Some(a), Some(l)) => unsafe { ::std::slice::from_raw_parts(a as *const u8, l) },
+			(Some(a), Some(l)) => ::std::slice::from_raw_parts(a as *const u8, l),
 			(None, None) => &[][..],
 			_ => return Err(Error::Malformed),
 			};
@@ -503,9 +527,14 @@ struct Symbol
 struct SymbolTable<'a>(&'a [u8], Format);
 impl<'a> SymbolTable<'a>
 {
-	unsafe fn new<'b>(fmt: Format, addr: Option<usize>, len: Option<usize>) -> Result<SymbolTable<'b>,Error> {
+	unsafe fn new<'b>(fmt: Format, addr: Option<usize>, len: Option<usize>, esz: Option<usize>) -> Result<SymbolTable<'b>,Error> {
 		let bytes = match (addr,len) {
 			(Some(a), Some(l)) => {
+				if let Some(esz) = esz {
+					if esz != Self::ent_size_st(fmt.size) {
+						return Err(Error::Malformed);
+					}
+				}
 				kernel_log!("SymbolTable::new(addr={:#x}, len={})", a, l);
 				if l % Self::ent_size_st(fmt.size) != 0 {
 					return Err(Error::Malformed);
@@ -559,7 +588,7 @@ impl<'a> SymbolTable<'a>
 			})
 	}
 	fn get(&self, idx: usize) -> Option<Symbol> {
-		if idx*self.ent_size() >= self.0.len() {
+		if idx >= self.len() {
 			None
 		}
 		else {
@@ -629,6 +658,11 @@ impl<'a> RelocTable<'a> {
 		match (addr, size)
 		{
 		(Some(addr), Some(size)) => {
+			if let Some(esz) = entsz {
+				if esz != Self::ent_sz(format.size, ty) {
+					return Err(Error::Malformed);
+				}
+			}
 			let slice = ::std::slice::from_raw_parts(addr as *const u8, size);
 			Ok(RelocTable {
 				data: slice,
@@ -640,14 +674,17 @@ impl<'a> RelocTable<'a> {
 		(_, _) => Err(Error::Malformed),
 		}
 	}
-	fn get_ent_sz(&self) -> usize {
-		match (self.format.size, self.ty)
+	fn ent_sz(size: Size, ty: RelocType) -> usize {
+		match (size, ty)
 		{
 		(Size::Elf32, RelocType::Rel ) => 2*4,
 		(Size::Elf32, RelocType::RelA) => 3*4,
 		(Size::Elf64, RelocType::Rel ) => 2*8,
 		(Size::Elf64, RelocType::RelA) => 3*8,
 		}
+	}
+	fn get_ent_sz(&self) -> usize {
+		Self::ent_sz(self.format.size, self.ty)
 	}
 	fn read_rel64(&self, idx: usize) -> Option<Reloc> {
 		assert_eq!(self.format.size, Size::Elf64);
@@ -681,10 +718,10 @@ impl<'a> RelocTable<'a> {
 		}
 	}
 	fn read_rel32(&self, idx: usize) -> Option<Reloc> {
-		todo!("");
+		todo!("read_rel32({})", idx);
 	}
 	fn read_rela32(&self, idx: usize) -> Option<Reloc> {
-		todo!("");
+		todo!("read_rela32({})", idx);
 	}
 	
 	fn read(&self, idx: usize) -> Option<Reloc> {

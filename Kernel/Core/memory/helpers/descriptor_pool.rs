@@ -45,7 +45,7 @@ impl<T> ::core::ops::Drop for LentDescriptor<T>
 {
 	fn drop(&mut self)
 	{
-		todo!("LentDescriptor::drop")
+		todo!("LentDescriptor::drop - pool={:p}", self.pool)
 	}
 }
 

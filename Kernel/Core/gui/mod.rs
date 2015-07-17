@@ -43,6 +43,7 @@ pub mod input;
 pub use metadevs::video::{Dims, Pos, Rect};
 
 pub use self::windows::WindowHandle;
+pub use self::windows::WindowGroupHandle;
 
 /// Pixel colour
 #[derive(Copy,Clone)]

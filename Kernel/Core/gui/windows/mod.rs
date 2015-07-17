@@ -49,6 +49,7 @@ struct Window
 	buf: RwLock<Arc<WinBuf>>,
 	
 	/// Window title (queried by the decorator)
+	#[allow(dead_code)]
 	title: String,
 	
 	/// List of invalidated regions within the window

@@ -62,5 +62,5 @@ def_class!({
 def_class!( {
 	0: GUI_WIN_SHOWHIDE,
 	1: GUI_WIN_REDRAW,
-	1: GUI_WIN_BLITRECT,
+	2: GUI_WIN_BLITRECT,
 });

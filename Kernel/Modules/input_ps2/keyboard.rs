@@ -29,6 +29,7 @@ enum Layer
 	E1,
 }
 #[derive(Copy,Clone,Debug)]
+#[allow(dead_code)]	// SetLeds is unused... at the moment
 enum Init
 {
 	Disabled,

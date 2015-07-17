@@ -3,7 +3,7 @@
 //
 // load/mod.rs
 // - Executable loading module
-use std::io::{Read,Seek,SeekFrom};
+use std::io::{Read};
 
 pub struct Segment {
 	pub load_addr: usize,

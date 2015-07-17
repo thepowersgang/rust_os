@@ -101,6 +101,7 @@ where
 	F: FnOnce()
 {
 	// TODO: Lock
+	log_notice!("TODO: with_lock(addr={:#x})", addr);
 	fcn();
 }
 

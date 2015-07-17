@@ -16,7 +16,7 @@ extern "C" {
 //static S_BUFFER_LOCK: ::tifflin_syscalls::core::Futex = ::tifflin_syscalls::core::Futex::new();
 
 impl_from! {
-	From<NullStringBuilderError>(v) for loader::Error {
+	From<NullStringBuilderError>(_v) for loader::Error {
 		loader::Error::BadArguments
 	}
 }
@@ -45,7 +45,7 @@ pub extern "C" fn new_process(binary: &[u8], args: &[&[u8]]) -> Result<::tifflin
 		let mut builder = NullStringBuilder( ::std::slice::from_raw_parts_mut(init_path.as_ptr() as *mut u8, len) );
 		try!( builder.push(binary) );
 		for arg in args {
-			builder.push(arg);
+			try!( builder.push(arg) );
 		}
 	}
 	

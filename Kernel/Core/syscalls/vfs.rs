@@ -13,7 +13,7 @@ use super::SyscallArg;
 pub fn openfile(path: &[u8], mode: u32) -> Result<ObjectHandle,u32> {
 	struct File(::vfs::handle::File);
 
-	impl super::objects::Object for File {
+	impl objects::Object for File {
 		fn handle_syscall(&self, call: u16, mut args: &[usize]) -> Result<u64,Error> {
 			match call
 			{
@@ -40,7 +40,7 @@ pub fn openfile(path: &[u8], mode: u32) -> Result<ObjectHandle,u32> {
 					1 => ::vfs::handle::MemoryMapMode::Execute,
 					2 => ::vfs::handle::MemoryMapMode::COW,
 					3 => ::vfs::handle::MemoryMapMode::WriteBack,
-					v @ _ => return Err( Error::BadValue ),
+					_ => return Err( Error::BadValue ),
 					};
 				log_debug!("VFS_FILE_MEMMAP({:#x}, {:#x}+{}, {:?}", ofs, addr, size, mode);
 				
@@ -67,7 +67,7 @@ pub fn openfile(path: &[u8], mode: u32) -> Result<ObjectHandle,u32> {
 		};
 	match ::vfs::handle::File::open(::vfs::Path::new(path), mode)
 	{
-	Ok(h) => Ok( super::objects::new_object( File(h) ) ),
+	Ok(h) => Ok( objects::new_object( File(h) ) ),
 	Err(e) => todo!("syscall_vfs_openfile - e={:?}", e),
 	}
 }

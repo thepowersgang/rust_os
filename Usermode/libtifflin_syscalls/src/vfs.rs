@@ -1,6 +1,8 @@
 use core::prelude::*;
 
 pub struct File(super::ObjectHandle, u64);
+pub struct Node(super::ObjectHandle);
+pub struct Dir(super::ObjectHandle);
 
 #[derive(Debug)]
 pub enum Error
@@ -28,6 +30,20 @@ pub enum MemoryMapMode
 	COW = 2,
 	/// Allows writing to the backing file
 	WriteBack = 3,
+}
+
+impl Node
+{
+	pub fn open<T: AsRef<[u8]>>(path: T) -> Result<Node, Error> {
+		let path = path.as_ref();
+		match super::ObjectHandle::new( unsafe { syscall!(VFS_OPENNODE, path.as_ptr() as usize, path.len()) } as usize )
+		{
+		Ok(rv) => Ok( Node(rv) ),
+		Err(code) => {
+			panic!("TODO: Error code {}", code);
+			},
+		}
+	}
 }
 
 impl File
@@ -135,5 +151,19 @@ impl ::std_io::Seek for File {
 			},
 		}
 		Ok(self.get_cursor())
+	}
+}
+
+impl Dir
+{
+	pub fn open<T: AsRef<[u8]>>(path: T) -> Result<Dir, Error> {
+		let path = path.as_ref();
+		match super::ObjectHandle::new( unsafe { syscall!(VFS_OPENDIR, path.as_ptr() as usize, path.len()) } as usize )
+		{
+		Ok(rv) => Ok( Dir(rv) ),
+		Err(code) => {
+			panic!("TODO: Error code {}", code);
+			},
+		}
 	}
 }

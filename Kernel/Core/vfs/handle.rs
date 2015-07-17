@@ -246,7 +246,7 @@ impl<'a> Drop for MemoryMapHandle<'a>
 {
 	fn drop(&mut self)
 	{
-		todo!("MemoryMapHandle::drop");
+		todo!("MemoryMapHandle::drop {{ handle={:?}, base={:p}+{}}}", self.handle, self.base, self.len);
 	}
 }
 

@@ -56,7 +56,8 @@ pub fn init()
 }
 
 /// Mount a volume at the provided location
-pub fn mount(location: &Path, vol: VolumeHandle, fs: &str, options: &[&str]) -> Result<(),MountError>
+// TODO: Parse options
+pub fn mount(location: &Path, vol: VolumeHandle, fs: &str, _options: &[&str]) -> Result<(),MountError>
 {
 	let drivers = S_DRIVERS.read();
 	// 1. (maybe) detect filesystem

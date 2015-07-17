@@ -21,6 +21,8 @@ impl objects::Object for Window
 	{
 		match call
 		{
+		values::GUI_WIN_SHOWHIDE => todo!("GUI_WIN_SHOWHIDE"),
+		values::GUI_WIN_REDRAW => todo!("GUI_WIN_REDRAW"),
 		values::GUI_WIN_BLITRECT => {
 			let x = try!( <u32>::get_arg(&mut args) );
 			let y = try!( <u32>::get_arg(&mut args) );
@@ -35,7 +37,22 @@ impl objects::Object for Window
 	}
 }
 
+#[derive(Default)]
+struct PLWindowGroup( Option<::sync::Mutex< ::gui::WindowGroupHandle >> );
+impl PLWindowGroup {
+	fn with<O, F: FnOnce(&mut ::gui::WindowGroupHandle)->O>(&self, f: F) -> Result<O,u32> {
+		match self.0
+		{
+		Some(ref v) => Ok( f(&mut v.lock()) ),
+		None => Err(0),
+		}
+	}
+}
+
 pub fn newwindow(name: &str) -> Result<ObjectHandle,u32> {
-	todo!("syscall_gui_newwindow(name={})", name);
+	log_trace!("syscall_gui_newwindow(name={})", name);
+	// Get window group for this process
+	let wgh = ::threads::get_process_local::<PLWindowGroup>();
+	wgh.with( |wgh| objects::new_object( Window(::sync::Mutex::new(wgh.create_window(name))) ) )
 }
 
