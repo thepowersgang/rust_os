@@ -202,18 +202,17 @@ diff -ru libcore/ops.rs libcore_patched/ops.rs
  
  /// The `Div` trait is used to specify the functionality of `/`.
  ///
-@@ -365,7 +371,9 @@
+@@ -365,7 +371,8 @@
      )*)
  }
  
--div_impl! { usize u8 u16 u32 u64 isize i8 i16 i32 i64 f32 f64 }
-+div_impl! { usize u8 u16 u32 u64 isize i8 i16 i32 i64 }
+-div_impl_float! { f32 f64 }
 +#[cfg(not(disable_float))]
-+div_impl! { f32 f64 }
++div_impl_float! { f32 f64 }
  
  /// The `Rem` trait is used to specify the functionality of `%`.
  ///
-@@ -421,6 +429,7 @@
+@@ -421,6 +428,7 @@
  
  rem_impl! { usize u8 u16 u32 u64 isize i8 i16 i32 i64 }
  
@@ -221,7 +220,7 @@ diff -ru libcore/ops.rs libcore_patched/ops.rs
  #[stable(feature = "rust1", since = "1.0.0")]
  impl Rem for f32 {
      type Output = f32;
-@@ -440,6 +449,7 @@
+@@ -440,6 +448,7 @@
      }
  }
  
@@ -229,7 +228,7 @@ diff -ru libcore/ops.rs libcore_patched/ops.rs
  #[stable(feature = "rust1", since = "1.0.0")]
  impl Rem for f64 {
      type Output = f64;
-@@ -451,7 +461,9 @@
+@@ -451,7 +460,9 @@
      }
  }
  
@@ -239,7 +238,7 @@ diff -ru libcore/ops.rs libcore_patched/ops.rs
  forward_ref_binop! { impl Rem, rem for f32, f32 }
  
  /// The `Neg` trait is used to specify the functionality of unary `-`.
-@@ -523,7 +535,9 @@
+@@ -523,7 +534,9 @@
  }
  
  // neg_impl_unsigned! { usize u8 u16 u32 u64 }
