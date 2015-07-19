@@ -85,9 +85,9 @@ impl KernelLog
 {
 	fn new() -> KernelLog
 	{
-		// TODO: Get this limit from the video layer, and update it when required
-		//let max_dims = super::get_display_dims( Pos::new(0,0) );
-		let max_dims = Dims::new(1280, 1024);
+		// TODO: Register to somehow be informed when dimensions change
+        // - Is this particular call bad for bypassing the GUI? Or is this acceptable
+		let max_dims = ::metadevs::video::get_display_for_pos( Pos::new(0,0) ).expect("No display at (0,0)").dims();
 	
 		// Kernel's window group	
 		let mut wgh = WindowGroupHandle::alloc("Kernel");
