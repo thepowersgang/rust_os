@@ -109,8 +109,8 @@ impl LAPIC
 	pub fn init(&self)
 	{
 		let oldaddr = unsafe{
-			let mut a: u32;
-			let mut d: u32;
+			let a: u32;
+			let d: u32;
 			asm!("rdmsr" : "={eax}" (a), "={edx}" (d) : "{ecx}" (0x1Bu32) : "rdx");
 			(d as u64) << 32 | a as u64
 			};
@@ -148,7 +148,7 @@ impl LAPIC
 				);
 			
 			// Quick debug
-			let mut ef: u64; asm!("pushf\npop $0" : "=r" (ef)); log_debug!("EFLAGS = {:#x}", ef);
+			//let ef: u64; asm!("pushf\npop $0" : "=r" (ef)); log_debug!("EFLAGS = {:#x}", ef);
 		}
 	}
 	#[tag_safe(irq)]

@@ -123,7 +123,7 @@ impl<'lock,T: Send> ::core::ops::DerefMut for HeldSpinlock<'lock, T>
 pub fn hold_interrupts() -> HeldInterrupts
 {
 	let if_set = unsafe {
-		let mut flags: u64;
+		let flags: u64;
 		asm!("pushf; pop $0; cli" : "=r" (flags) : : "memory" : "volatile");
 		(flags & 0x200) != 0
 		};

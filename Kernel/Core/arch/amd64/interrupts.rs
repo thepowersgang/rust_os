@@ -143,7 +143,7 @@ pub fn backtrace(bp: u64) -> Option<(u64,u64)>
 fn get_cr2() -> u64
 {
 	unsafe {
-		let mut cr2: u64;
+		let cr2: u64;
 		asm!("movq %cr2, $0" : "=r" (cr2));
 		cr2
 	}
