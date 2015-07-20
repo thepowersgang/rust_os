@@ -11,7 +11,10 @@ PXELINUX_DIR=/home/tftpboot/boot/
 # Create PXE boot dir
 rm -rf .pxe/
 mkdir -p .pxe/pxelinux.cfg
-cp ${PXELINUX_DIR}pxelinux.0 ${PXELINUX_DIR}mboot.c32 .pxe/
+#cp ${PXELINUX_DIR}pxelinux.0 ${PXELINUX_DIR}mboot.c32 .pxe/
+cp /usr/lib/PXELINUX/pxelinux.0 .pxe/
+cp /usr/lib/syslinux/modules/bios/mboot.c32 .pxe/
+cp /usr/lib/syslinux/modules/bios/{ldlinux.c32,libcom32.c32} .pxe/
 cp $IMAGE .pxe
 echo "default testkern" >> .pxe/pxelinux.cfg/default
 echo "label testkern" >> .pxe/pxelinux.cfg/default
@@ -59,10 +62,10 @@ else
 	QEMU_OPTS=$QEMU_OPTS" -nographic"
 fi
 QEMU_OPTS=$QEMU_OPTS" -drive if=ide,index=0,file=DiskImages/hda.img,format=raw"
-QEMU_OPTS=$QEMU_OPTS" -drive if=ide,index=1,file=DiskImages/hdb.img,format=raw"
-QEMU_OPTS=$QEMU_OPTS" -cdrom /ruto/Downloads/ubuntu-12.04-desktop-amd64.iso"
+#QEMU_OPTS=$QEMU_OPTS" -drive if=ide,index=1,file=DiskImages/hdb.img,format=raw"
+#QEMU_OPTS=$QEMU_OPTS" -cdrom /ruto/Downloads/ubuntu-12.04-desktop-amd64.iso"
 #QEMU_OPTS=$QEMU_OPTS" -trace file=qemu_trace"
-QEMU_OPTS=$QEMU_OPTS" -trace events=.qemu_trace,file=qemu_trace"
+#QEMU_OPTS=$QEMU_OPTS" -trace events=.qemu_trace,file=qemu_trace"
 #QEMU_OPTS=$QEMU_OPTS" -d int -D qemu_int_log.txt"
 QEMU_OPTS=$QEMU_OPTS" -d int,pcall -D qemu_int_log.txt"
 QEMU_OPTS=$QEMU_OPTS" -no-reboot"
