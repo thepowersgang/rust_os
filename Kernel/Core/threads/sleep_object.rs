@@ -16,6 +16,12 @@ pub struct SleepObject
 	name: &'static str,
 	inner: ::sync::Spinlock< SleepObjectInner >,
 }
+impl_fmt! {
+    Debug(self,f) for SleepObject {{
+        let lh = self.inner.lock();
+        write!(f, "SleepObject(\"{}\" {} refs, flag={})", self.name, lh.reference_count, lh.flag)
+    }}
+}
 #[derive(Default)]
 struct SleepObjectInner
 {

@@ -35,8 +35,12 @@ impl objects::Object for Window
 		_ => todo!("Window::handle_syscall({}, ...)", call),
 		}
 	}
-    fn bind_wait(&self, flags: u32, obj: &mut ::threads::SleepObject) -> u32 { 0 }
-    fn clear_wait(&self, flags: u32, obj: &mut ::threads::SleepObject) -> u32 { 0 }
+    fn bind_wait(&self, flags: u32, obj: &mut ::threads::SleepObject) -> u32 {
+        todo!("Window::bind_wait(flags={}, obj={:?}", flags, obj);
+    }
+    fn clear_wait(&self, flags: u32, obj: &mut ::threads::SleepObject) -> u32 {
+        todo!("Window::clear_wait(flags={}, obj={:?}", flags, obj);
+    }
 }
 
 #[derive(Default)]

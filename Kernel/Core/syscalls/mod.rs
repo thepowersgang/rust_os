@@ -340,8 +340,8 @@ fn syscall_core_newprocess(ip: usize, sp: usize, clone_start: usize, clone_end: 
 			_ => todo!("Process::handle_syscall({}, ...)", call),
 			}
 		}
-        fn bind_wait(&self, flags: u32, obj: &mut ::threads::SleepObject) -> u32 { 0 }
-        fn clear_wait(&self, flags: u32, obj: &mut ::threads::SleepObject) -> u32 { 0 }
+        fn bind_wait(&self, _flags: u32, _obj: &mut ::threads::SleepObject) -> u32 { 0 }
+        fn clear_wait(&self, _flags: u32, _obj: &mut ::threads::SleepObject) -> u32 { 0 }
 	}
 
 	objects::new_object( Process(process) )
