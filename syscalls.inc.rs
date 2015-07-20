@@ -16,8 +16,9 @@ macro_rules! def_grp {
 	}
 }
 macro_rules! def_class {
-	({ $( $v:tt: $n:ident, )* }) => {
+	($val:tt: $name:ident = { $( $v:tt: $n:ident, )* }, { $( $ev:tt: $en:ident, )* }) => {
 		$( pub const $n: u16 = expand_expr!($v); )*
+		$( pub const $en: u32 = 1 << expand_expr!($ev); )*
 	}
 }
 
@@ -54,13 +55,16 @@ def_grp!(3: GROUP_MEM = {
 	2: MEM_DEALLOCATE,
 });
 
-def_class!({
+def_class!(0: CLAS_VFS_FILE = {
 	0: VFS_FILE_READAT,
 	1: VFS_FILE_WRITEAT,
 	2: VFS_FILE_MEMMAP,
+    },{
 });
-def_class!( {
+def_class!(1: CLASS_GUI_WIN = {
 	0: GUI_WIN_SHOWHIDE,
 	1: GUI_WIN_REDRAW,
 	2: GUI_WIN_BLITRECT,
+    },{
+    0: EV_GUI_WIN_INPUT,
 });

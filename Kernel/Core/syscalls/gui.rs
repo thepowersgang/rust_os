@@ -36,10 +36,13 @@ impl objects::Object for Window
 		}
 	}
     fn bind_wait(&self, flags: u32, obj: &mut ::threads::SleepObject) -> u32 {
-        todo!("Window::bind_wait(flags={}, obj={:?}", flags, obj);
+        if flags & values::EV_GUI_WIN_INPUT != 0 {
+            todo!("Window::bind_wait - input on obj={:?}", obj);
+        }
+        0
     }
     fn clear_wait(&self, flags: u32, obj: &mut ::threads::SleepObject) -> u32 {
-        todo!("Window::clear_wait(flags={}, obj={:?}", flags, obj);
+        todo!("Window::clear_wait(flags={}, obj={:?})", flags, obj);
     }
 }
 
