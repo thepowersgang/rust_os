@@ -17,6 +17,7 @@ pub enum Error
 {
 	TooManyArgs,
 	BadValue,
+    NoSuchObject,
 	InvalidBuffer(*const (), usize),
 	InvalidUnicode(::core::str::Utf8Error),
 }
@@ -106,7 +107,7 @@ fn invoke_int(call_id: u32, mut args: &[usize]) -> Result<u64,Error>
 		CORE_WAIT => {
 			let events = try!( <&[WaitItem]>::get_arg(&mut args) );
 			let timeout = try!( <u64>::get_arg(&mut args) );
-			syscall_core_wait(events, timeout) as u64
+			try!(syscall_core_wait(events, timeout)) as u64
 			},
 		// === 1: Window Manager / GUI
 		// - 1/0: New group (requires permission, has other restrictions)
@@ -339,12 +340,37 @@ fn syscall_core_newprocess(ip: usize, sp: usize, clone_start: usize, clone_end: 
 			_ => todo!("Process::handle_syscall({}, ...)", call),
 			}
 		}
+        fn bind_wait(&self, flags: u32, obj: &mut ::threads::SleepObject) -> u32 { 0 }
+        fn clear_wait(&self, flags: u32, obj: &mut ::threads::SleepObject) -> u32 { 0 }
 	}
 
 	objects::new_object( Process(process) )
 }
 
-fn syscall_core_wait(events: &[WaitItem], wake_time_mono: u64) -> u64 {
-	todo!("syscall_core_wait(events={:?}, wake_time_mono={})", events, wake_time_mono);
+// ret: number of events triggered
+fn syscall_core_wait(events: &[WaitItem], wake_time_mono: u64) -> Result<u32,Error>
+{
+    let mut waiter = ::threads::SleepObject::new("syscall_core_wait");
+    let mut num_bound = 0;
+    for ev in events {
+        num_bound += try!(objects::wait_on_object(ev.object, ev.flags, &mut waiter));
+    }
+
+    if num_bound == 0 && wake_time_mono == !0 {
+        // Attempting to sleep on no events with an infinite timeout! Would sleep forever
+        todo!("What to do when a thread tries to sleep forever");
+    }
+
+    // A wake time of 0 means to not sleep at all, just check the status of the events
+    // TODO: There should be a more efficient way of doing this, than binding only to unbind again
+    if wake_time_mono != 0 {
+        // !0 indicates an unbounded wait (no need to set a wakeup time)
+        if wake_time_mono != !0 {
+            todo!("Set a wakeup timer at {}", wake_time_mono);
+        }
+        waiter.wait();
+    }
+
+    Ok( events.iter().fold(0, |total,ev| total + objects::clear_wait(ev.object, ev.flags, &mut waiter).unwrap()) )
 }
 

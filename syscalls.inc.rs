@@ -33,8 +33,8 @@ def_grp!( 0: GROUP_CORE = {
 #[repr(C)]
 #[derive(Debug)]
 pub struct WaitItem {
-	object: u32,
-	flags: u32,
+	pub object: u32,
+	pub flags: u32,
 }
 
 def_grp!( 1: GROUP_GUI = {

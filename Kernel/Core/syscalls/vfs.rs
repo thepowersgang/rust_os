@@ -57,6 +57,8 @@ pub fn openfile(path: &[u8], mode: u32) -> Result<ObjectHandle,u32> {
 			_ => todo!("File::handle_syscall({}, ...)", call),
 			}
 		}
+        fn bind_wait(&self, flags: u32, obj: &mut ::threads::SleepObject) -> u32 { 0 }
+        fn clear_wait(&self, flags: u32, obj: &mut ::threads::SleepObject) -> u32 { 0 }
 	}
 	
 	let mode = match mode

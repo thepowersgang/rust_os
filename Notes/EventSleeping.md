@@ -16,4 +16,10 @@ Need an API to allow userland threads to sleep until an event occurs. Since all 
 - Blocking only
  - Simplest of the lot, but far harder to audit/debug (and no async support)
 
+# Chosen Option
+An event list model (listing objects and wait flags) seems the easiest one (and matches the existing async code)
+
+- Place an extra method on syscalls::Object trait that takes an event mask and a wait object, and registers waits
+
+
 <!--- vim: set ft=markdown: -->
