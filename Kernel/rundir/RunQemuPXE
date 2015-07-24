@@ -6,15 +6,18 @@ set -e
 IMAGE=$1
 ARGS=$2
 
-PXELINUX_DIR=/home/tftpboot/boot/
+PXELINUX_DIR=/usr/lib/syslinux/
 
 # Create PXE boot dir
 rm -rf .pxe/
 mkdir -p .pxe/pxelinux.cfg
-#cp ${PXELINUX_DIR}pxelinux.0 ${PXELINUX_DIR}mboot.c32 .pxe/
-cp /usr/lib/PXELINUX/pxelinux.0 .pxe/
-cp /usr/lib/syslinux/modules/bios/mboot.c32 .pxe/
-cp /usr/lib/syslinux/modules/bios/{ldlinux.c32,libcom32.c32} .pxe/
+if [ -e ${PXELINUX_DIR}pxelinux.0 ]; then
+	cp ${PXELINUX_DIR}pxelinux.0 ${PXELINUX_DIR}mboot.c32 .pxe/
+else
+	cp /usr/lib/PXELINUX/pxelinux.0 .pxe/
+	cp /usr/lib/syslinux/modules/bios/mboot.c32 .pxe/
+	cp /usr/lib/syslinux/modules/bios/{ldlinux.c32,libcom32.c32} .pxe/
+fi
 cp $IMAGE .pxe
 echo "default testkern" >> .pxe/pxelinux.cfg/default
 echo "label testkern" >> .pxe/pxelinux.cfg/default
