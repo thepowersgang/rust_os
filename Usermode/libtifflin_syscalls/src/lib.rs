@@ -60,6 +60,14 @@ impl ObjectHandle
 	fn call_value(&self, call: u16) -> u32 {
 		(1 << 31 | self.0 | (call as u32) << 20)
 	}
+	
+	fn get_wait(&self, mask: u32) -> ::values::WaitItem {
+		::values::WaitItem {
+			object: self.0,
+			flags: mask,
+		}
+	}
+	
 	#[allow(dead_code)]
 	unsafe fn call_0(&self, call: u16) -> u64 {
 		::raw::syscall_0( self.call_value(call) )

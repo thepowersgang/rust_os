@@ -41,7 +41,7 @@ pub use values::WaitItem;
 ///  reached. (passing !0 will disable timer wakeup, passing 0 disables blocking)
 ///
 /// Returns the number of events that caused the wakeup (zero for timeout)
-pub fn wait(items: &[WaitItem], wake_time_mono: u64) -> u32 {
+pub fn wait(items: &mut [WaitItem], wake_time_mono: u64) -> u32 {
 	unsafe {
 		syscall!(CORE_WAIT, items.as_ptr() as usize, items.len(), wake_time_mono as usize) as u32
 	}

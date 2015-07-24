@@ -7,6 +7,7 @@ V ?= @
 
 # List of root-level applications to build
 APPS := loader init login
+APPS += simple_console
 
 # Build directories
 # - Distribution output root

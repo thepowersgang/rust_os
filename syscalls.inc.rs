@@ -65,6 +65,7 @@ def_class!(1: CLASS_GUI_WIN = {
 	0: GUI_WIN_SHOWHIDE,
 	1: GUI_WIN_REDRAW,
 	2: GUI_WIN_BLITRECT,
+	2: GUI_WIN_FILLRECT,
     },{
     0: EV_GUI_WIN_INPUT,
 });
