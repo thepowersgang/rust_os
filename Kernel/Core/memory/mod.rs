@@ -12,6 +12,8 @@ pub mod phys;
 pub mod virt;
 pub mod heap;
 
+pub mod freeze;
+
 pub mod helpers;
 
 pub mod memorymap;

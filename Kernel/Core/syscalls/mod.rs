@@ -5,6 +5,8 @@
 /// Userland system-call interface
 use prelude::*;
 
+use memory::freeze::{Freeze,FreezeMut,FreezeError};
+
 mod objects;
 mod gui;
 mod vfs;
@@ -17,12 +19,16 @@ pub enum Error
 {
 	TooManyArgs,
 	BadValue,
-    NoSuchObject,
+	NoSuchObject,
 	InvalidBuffer(*const (), usize),
+	BorrowFailure,
 	InvalidUnicode(::core::str::Utf8Error),
 }
 impl From<::core::str::Utf8Error> for Error {
 	fn from(v: ::core::str::Utf8Error) -> Self { Error::InvalidUnicode(v) }
+}
+impl From<FreezeError> for Error {
+	fn from(v: FreezeError) -> Self { Error::BorrowFailure }
 }
 
 /// Entrypoint invoked by the architecture-specific syscall handler
@@ -74,8 +80,8 @@ fn invoke_int(call_id: u32, mut args: &[usize]) -> Result<u64,Error>
 		// === 0: Threads and core
 		// - 0/0: Userland log
 		CORE_LOGWRITE => {
-			let msg = try!( <&str>::get_arg(&mut args) );
-			syscall_core_log(msg); 0
+			let msg = try!( <Freeze<str>>::get_arg(&mut args) );
+			syscall_core_log(&msg); 0
 			},
 		// - 0/1: Exit process
 		CORE_EXITPROCESS => {
@@ -105,20 +111,20 @@ fn invoke_int(call_id: u32, mut args: &[usize]) -> Result<u64,Error>
 			},
 		// - 0/5: Wait for event
 		CORE_WAIT => {
-			let events = try!( <&[WaitItem]>::get_arg(&mut args) );
+			let mut events = try!( <FreezeMut<[WaitItem]>>::get_arg(&mut args) );
 			let timeout = try!( <u64>::get_arg(&mut args) );
-			try!(syscall_core_wait(events, timeout)) as u64
+			try!(syscall_core_wait(&mut events, timeout)) as u64
 			},
 		// === 1: Window Manager / GUI
 		// - 1/0: New group (requires permission, has other restrictions)
 		GUI_NEWGROUP => {
-			let name = try!( <&str>::get_arg(&mut args) );
-			from_result(gui::newgroup(name))
+			let name = try!( <Freeze<str>>::get_arg(&mut args) );
+			from_result(gui::newgroup(&name))
 			},
 		// - 1/1: New window
 		GUI_NEWWINDOW => {
-			let name = try!( <&str>::get_arg(&mut args) );
-			from_result(gui::newwindow(name))
+			let name = try!( <Freeze<str>>::get_arg(&mut args) );
+			from_result(gui::newwindow(&name))
 			},
 		// === 2: VFS
 		// - 2/0: Open node (for stat)
@@ -127,9 +133,9 @@ fn invoke_int(call_id: u32, mut args: &[usize]) -> Result<u64,Error>
 			},
 		// - 2/1: Open file
 		VFS_OPENFILE => {
-			let name = try!( <&[u8]>::get_arg(&mut args) );
+			let name = try!( <Freeze<[u8]>>::get_arg(&mut args) );
 			let mode = try!( <u32>::get_arg(&mut args) );
-			from_result( vfs::openfile(name, mode) )
+			from_result( vfs::openfile(&name, mode) )
 			},
 		// - 2/2: Open directory
 		VFS_OPENDIR => {
@@ -203,75 +209,73 @@ trait SyscallArg {
 	fn get_arg(args: &mut &[usize]) -> Result<Self,Error>;
 }
 
-impl<'a> SyscallArg for &'a str {
-	fn get_arg(args: &mut &[usize]) -> Result<Self,Error> {
-		if args.len() < 2 {
-			return Err( Error::TooManyArgs );
-		}
-		let ptr = args[0] as *const u8;
-		let len = args[1];
-		*args = &args[2..];
-		// TODO: Freeze the page to prevent the user from messing with it
-		// SAFE: (uncheckable) lifetime of result should really be 'args, but can't enforce that
-		let bs = unsafe {
-			if let Some(v) = ::memory::buf_to_slice(ptr, len) {	
-				v
-			}
-			else {
-				return Err( Error::InvalidBuffer(ptr as *const (), len) );
-			} };
-		
-		Ok(try!( ::core::str::from_utf8(bs) ))
-	}
-}
-macro_rules! def_slice_get_arg {
-	($t:ty) => {
-		impl<'a> SyscallArg for &'a [$t] {
-			fn get_arg(args: &mut &[usize]) -> Result<Self,Error> {
-				if args.len() < 2 {
-					return Err( Error::TooManyArgs );
-				}
-				let ptr = args[0] as *const $t;
-				let len = args[1];
-				*args = &args[2..];
-				// TODO: Freeze the page to prevent the user from messing with it
-				// SAFE: (uncheckable) lifetime of result should really be 'args, but can't enforce that
-				unsafe {
-					if let Some(v) = ::memory::buf_to_slice(ptr, len) {	
-						Ok(v)
-					}
-					else {
-						Err( Error::InvalidBuffer(ptr as *const (), len) )
-					}
-				}
-			}
-		}
-	};
-}
-def_slice_get_arg!{u8}
-def_slice_get_arg!{u32}
-def_slice_get_arg!{WaitItem}
+// POD - Plain Old Data
+pub trait Pod { }
+impl Pod for u8 {}
+impl Pod for u32 {}
+impl Pod for values::WaitItem {}
 
-impl<'a> SyscallArg for &'a mut [u8] {
+impl<T: Pod> SyscallArg for Freeze<[T]>
+{
 	fn get_arg(args: &mut &[usize]) -> Result<Self,Error> {
 		if args.len() < 2 {
 			return Err( Error::TooManyArgs );
 		}
-		let ptr = args[0] as *mut u8;
+		let ptr = args[0] as *const T;
 		let len = args[1];
 		*args = &args[2..];
-		// TODO: Freeze the page to prevent the user from messing with it
-		// SAFE: (uncheckable) lifetime of result should really be 'args, but can't enforce that
+		// SAFE: Performs data validation, and only accepts user pointers (which are checkable)
 		unsafe {
-			if let Some(v) = ::memory::buf_to_slice_mut(ptr, len) {
-				Ok(v)
-			}
-			else {
-				Err( Error::InvalidBuffer(ptr as *const (), len) )
-			}
+			// 1. Check if the pointer is into user memory
+			// TODO: ^^^
+			// 2. Ensure that the pointed slice is valid (overlaps checks by Freeze, but gives a better error)
+			// TODO: Replace this check with mapping FreezeError
+			let bs = if let Some(v) = ::memory::buf_to_slice(ptr, len) {
+					v
+				} else {
+					return Err( Error::InvalidBuffer(ptr as *const (), len) );
+				};
+			// 3. Create a freeze on that memory (ensuring that it's not unmapped until the Freeze object drops)
+			Ok( try!(Freeze::new(bs)) )
 		}
 	}
 }
+impl SyscallArg for Freeze<str> {
+	fn get_arg(args: &mut &[usize]) -> Result<Self,Error> {
+		let ret = try!(Freeze::<[u8]>::get_arg(args));
+		// SAFE: Transmuting [u8] to str is valid if the str is valid UTF-8
+		unsafe { 
+			try!( ::core::str::from_utf8(&ret) );
+			Ok(::core::mem::transmute(ret))
+		}
+	}
+}
+impl<T: Pod> SyscallArg for FreezeMut<[T]>
+{
+	fn get_arg(args: &mut &[usize]) -> Result<Self,Error> {
+		if args.len() < 2 {
+			return Err( Error::TooManyArgs );
+		}
+		let ptr = args[0] as *mut T;
+		let len = args[1];
+		*args = &args[2..];
+		// SAFE: Performs data validation, and only accepts user pointers (which are checkable)
+		unsafe { 
+			// 1. Check if the pointer is into user memory
+			// TODO: ^^^
+			// 2. Ensure that the pointed slice is valid (overlaps checks by Freeze, but gives a better error)
+			// TODO: Replace this check with mapping FreezeError
+			let bs =  if let Some(v) = ::memory::buf_to_slice_mut(ptr, len) {	
+					v
+				} else {
+					return Err( Error::InvalidBuffer(ptr as *const (), len) );
+				};
+			// 3. Create a freeze on that memory (ensuring that it's not unmapped until the Freeze object drops)
+			Ok( try!(FreezeMut::new(bs)) )
+		}
+	}
+}
+
 impl SyscallArg for usize {
 	fn get_arg(args: &mut &[usize]) -> Result<Self,Error> {
 		if args.len() < 1 {
@@ -348,29 +352,32 @@ fn syscall_core_newprocess(ip: usize, sp: usize, clone_start: usize, clone_end: 
 }
 
 // ret: number of events triggered
-fn syscall_core_wait(events: &[WaitItem], wake_time_mono: u64) -> Result<u32,Error>
+fn syscall_core_wait(events: &mut [WaitItem], wake_time_mono: u64) -> Result<u32,Error>
 {
-    let mut waiter = ::threads::SleepObject::new("syscall_core_wait");
-    let mut num_bound = 0;
-    for ev in events {
-        num_bound += try!(objects::wait_on_object(ev.object, ev.flags, &mut waiter));
-    }
+	let mut waiter = ::threads::SleepObject::new("syscall_core_wait");
+	let mut num_bound = 0;
+	for ev in events.iter() {
+		num_bound += try!(objects::wait_on_object(ev.object, ev.flags, &mut waiter));
+	}
 
-    if num_bound == 0 && wake_time_mono == !0 {
-        // Attempting to sleep on no events with an infinite timeout! Would sleep forever
-        todo!("What to do when a thread tries to sleep forever");
-    }
+	if num_bound == 0 && wake_time_mono == !0 {
+		// Attempting to sleep on no events with an infinite timeout! Would sleep forever
+		todo!("What to do when a thread tries to sleep forever");
+	}
 
-    // A wake time of 0 means to not sleep at all, just check the status of the events
-    // TODO: There should be a more efficient way of doing this, than binding only to unbind again
-    if wake_time_mono != 0 {
-        // !0 indicates an unbounded wait (no need to set a wakeup time)
-        if wake_time_mono != !0 {
-            todo!("Set a wakeup timer at {}", wake_time_mono);
-        }
-        waiter.wait();
-    }
+	// A wake time of 0 means to not sleep at all, just check the status of the events
+	// TODO: There should be a more efficient way of doing this, than binding only to unbind again
+	if wake_time_mono != 0 {
+		// !0 indicates an unbounded wait (no need to set a wakeup time)
+		if wake_time_mono != !0 {
+			todo!("Set a wakeup timer at {}", wake_time_mono);
+			//waiter.wait_until(wake_time_mono);
+		}
+		else {
+			waiter.wait();
+		}
+	}
 
-    Ok( events.iter().fold(0, |total,ev| total + objects::clear_wait(ev.object, ev.flags, &mut waiter).unwrap()) )
+	Ok( events.iter_mut().fold(0, |total,ev| total + objects::clear_wait(ev.object, ev.flags, &mut waiter).unwrap()) )
 }
 

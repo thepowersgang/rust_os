@@ -5,6 +5,7 @@
 /// Virtual Filesystem interface
 use prelude::*;
 
+use memory::freeze::{Freeze,FreezeMut};
 use super::{objects,ObjectHandle};
 use super::values;
 use super::Error;
@@ -19,9 +20,9 @@ pub fn openfile(path: &[u8], mode: u32) -> Result<ObjectHandle,u32> {
 			{
 			values::VFS_FILE_READAT => {
 				let ofs = try!( <u64>::get_arg(&mut args) );
-				let dest = try!( <&mut [u8]>::get_arg(&mut args) );
+				let mut dest = try!( <FreezeMut<[u8]>>::get_arg(&mut args) );
 				log_debug!("File::readat({}, {:p}+{} bytes)", ofs, dest.as_ptr(), dest.len());
-				match self.0.read(ofs, dest)
+				match self.0.read(ofs, &mut dest)
 				{
 				Ok(count) => Ok(count as u64),
 				Err(e) => todo!("File::handle_syscall READAT Error {:?}", e),
