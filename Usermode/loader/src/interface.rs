@@ -85,6 +85,9 @@ fn new_process_entry() -> !
 	
 	let entrypoint = ::load_binary(binary);
 	
+	// TODO: Coordinate with the parent process and receive an initial set of objects (e.g. WM root)?
+	// - Could possibly leave this up to user code, or at least std
+	
 	// Populate arguments
 	// TODO: Replace this mess with a FixedVec of some form
 	// SAFE: We will be writing to this before reading from it

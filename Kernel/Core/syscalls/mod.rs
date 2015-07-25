@@ -28,7 +28,7 @@ impl From<::core::str::Utf8Error> for Error {
 	fn from(v: ::core::str::Utf8Error) -> Self { Error::InvalidUnicode(v) }
 }
 impl From<FreezeError> for Error {
-	fn from(v: FreezeError) -> Self { Error::BorrowFailure }
+	fn from(_v: FreezeError) -> Self { Error::BorrowFailure }
 }
 
 /// Entrypoint invoked by the architecture-specific syscall handler
@@ -118,6 +118,10 @@ fn invoke_int(call_id: u32, mut args: &[usize]) -> Result<u64,Error>
 			let timeout = try!( <u64>::get_arg(&mut args) );
 			try!(syscall_core_wait(&mut events, timeout)) as u64
 			},
+		// - 0/6: 
+		CORE_RECVOBJ => {
+			todo!("CORE_RECVOBJ");
+			},
 		// === 1: Window Manager / GUI
 		// - 1/0: New group (requires permission, has other restrictions)
 		GUI_NEWGROUP => {
@@ -128,6 +132,9 @@ fn invoke_int(call_id: u32, mut args: &[usize]) -> Result<u64,Error>
 		GUI_NEWWINDOW => {
 			let name = try!( <Freeze<str>>::get_arg(&mut args) );
 			from_result(gui::newwindow(&name))
+			},
+		GUI_BINDGROUP => {
+			todo!("GUI_BINDGROUP");
 			},
 		// === 2: VFS
 		// - 2/0: Open node (for stat)
@@ -341,14 +348,23 @@ fn syscall_core_newprocess(ip: usize, sp: usize, clone_start: usize, clone_end: 
 	
 	struct Process(::threads::ProcessHandle);
 	impl objects::Object for Process {
+		const CLASS: u16 = values::CLASS_PROCESS;
 		fn handle_syscall(&self, call: u16, _args: &[usize]) -> Result<u64,Error> {
 			match call
 			{
+			CORE_PROCESS_KILL => todo!("CORE_PROCESS_KILL"),
+			CORE_PROCESS_SENDOBJ => todo!("CORE_PROCESS_SENDOBJ"),
+			CORE_PROCESS_SENDMSG => todo!("CORE_PROCESS_SENDMSG"),
 			_ => todo!("Process::handle_syscall({}, ...)", call),
 			}
 		}
-        fn bind_wait(&self, _flags: u32, _obj: &mut ::threads::SleepObject) -> u32 { 0 }
-        fn clear_wait(&self, _flags: u32, _obj: &mut ::threads::SleepObject) -> u32 { 0 }
+		fn bind_wait(&self, flags: u32, _obj: &mut ::threads::SleepObject) -> u32 {
+			if flags & EV_PROCESS_TERMINATED != 0 {
+				todo!("EV_PROCESS_TERMINATED");
+			}
+			0
+		}
+		fn clear_wait(&self, _flags: u32, _obj: &mut ::threads::SleepObject) -> u32 { 0 }
 	}
 
 	objects::new_object( Process(process) )

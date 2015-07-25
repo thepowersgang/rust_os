@@ -15,9 +15,34 @@ pub fn newgroup(name: &str) -> Result<ObjectHandle,u32> {
 	todo!("syscall_gui_newgroup(name={})", name);
 }
 
+struct Group(::gui::WindowGroupHandle);
+impl objects::Object for Group
+{
+	const CLASS: u16 = values::CLASS_GUI_GROUP;
+	fn handle_syscall(&self, call: u16, mut args: &[usize]) -> Result<u64,Error>
+	{
+		match call
+		{
+		values::GUI_GRP_FORCEACTIVE => todo!("GUI_GRP_FORCEACTIVE"),
+		_ => todo!("Group::handle_syscall({}, ...)", call),
+		}
+	}
+	fn bind_wait(&self, flags: u32, obj: &mut ::threads::SleepObject) -> u32 {
+		if flags & values::EV_GUI_GRP_SHOWHIDE != 0 {
+			todo!("Group::bind_wait - showhide on obj={:?}", obj);
+		}
+		0
+	}
+	fn clear_wait(&self, flags: u32, obj: &mut ::threads::SleepObject) -> u32 {
+		todo!("Group::clear_wait(flags={}, obj={:?})", flags, obj);
+	}
+}
+
+
 struct Window(::sync::Mutex<::gui::WindowHandle>);
 impl objects::Object for Window
 {
+	const CLASS: u16 = values::CLASS_GUI_WIN;
 	fn handle_syscall(&self, call: u16, mut args: &[usize]) -> Result<u64,Error>
 	{
 		match call
@@ -33,6 +58,7 @@ impl objects::Object for Window
 			self.0.lock().blit_rect(Rect::new(x,y,w,h), &data);
 			Ok(0)
 			},
+		values::GUI_WIN_FILLRECT => todo!("GUI_WIN_FILLRECT"),
 		_ => todo!("Window::handle_syscall({}, ...)", call),
 		}
 	}

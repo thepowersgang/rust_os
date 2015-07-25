@@ -21,6 +21,22 @@ impl Group
 		}
 	}
 }
+impl ::Object for Group
+{
+	const CLASS: u16 = ::values::CLASS_GUI_GROUP;
+	fn from_handle(handle: super::ObjectHandle) -> Self {
+		Group(handle)
+	}
+	fn get_wait(&self) -> ::values::WaitItem {
+		self.0.get_wait( ::values::EV_GUI_GRP_SHOWHIDE )
+	}
+	fn check_wait(&self, wi: &::values::WaitItem) {
+		assert_eq!(wi.object, self.0 .0);
+		if wi.flags & ::values::EV_GUI_GRP_SHOWHIDE != 0 {
+			// TODO
+		}
+	}
+}
 
 impl Window
 {
@@ -56,11 +72,18 @@ impl Window
 	pub fn fill_rect(&self, x: u32, y: u32, w: u32, h: u32, colour: u32) {
 		unsafe { self.0.call_5(::values::GUI_WIN_FILLRECT, x as usize, y as usize, w as usize, h as usize, colour as usize); }
 	}
+}
+impl ::Object for Window
+{
+	const CLASS: u16 = ::values::CLASS_GUI_WIN;
+	fn from_handle(handle: super::ObjectHandle) -> Self {
+		Window(handle)
+	}
 	
-	pub fn get_wait(&self) -> ::values::WaitItem {
+	fn get_wait(&self) -> ::values::WaitItem {
 		self.0.get_wait( ::values::EV_GUI_WIN_INPUT )
 	}
-	pub fn check_wait(&self, wi: &::values::WaitItem) {
+	fn check_wait(&self, wi: &::values::WaitItem) {
 		assert_eq!(wi.object, self.0 .0);
 		if wi.flags & ::values::EV_GUI_WIN_INPUT != 0 {
 			// TODO

@@ -15,6 +15,18 @@ pub fn exit_thread() -> ! {
 }
 
 pub struct Process;
+impl ::Object for Process {
+	const CLASS: u16 = ::values::CLASS_PROCESS;
+	fn from_handle(handle: ::ObjectHandle) -> Self {
+		panic!("TODO - Process:from_handle");
+	}
+	fn get_wait(&self) -> ::values::WaitItem {
+		panic!("TODO - Process::get_wait");
+	}
+	fn check_wait(&self, _wi: &::values::WaitItem) {
+	}
+}
+
 #[inline]
 pub fn start_process(entry: usize, stack: usize,  clone_start: usize, clone_end: usize) -> Result<Process,()> {
 	let rv = unsafe { syscall!(CORE_STARTPROCESS, entry, stack, clone_start, clone_end) };

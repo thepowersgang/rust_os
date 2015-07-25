@@ -24,6 +24,7 @@
 #![feature(get_type_id,reflect_marker)] // used by process_local's "AnyMap" hackery
 #![cfg_attr(not(use_acpica),feature(ptr_as_ref))]	// used by ACPI code (custom impl, not ACPICA)
 #![feature(slice_bytes)]	// Gives bytes::copy_memory, used in VMM
+#![feature(associated_consts)]
 #![no_std]
 
 #![deny(not_tagged_safe)]

@@ -11,6 +11,7 @@ use stack_dst::StackDST;
 /// A system-call object
 pub trait Object: Send + Sync
 {
+	const CLASS: u16;
 	fn type_name(&self) -> &str { type_name!(Self) }
 	fn handle_syscall(&self, call: u16, args: &[usize]) -> Result<u64,super::Error>;
 	/// Return: Number of wakeup events bound

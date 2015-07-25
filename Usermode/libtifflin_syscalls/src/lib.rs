@@ -6,6 +6,7 @@
 #![feature(core_intrinsics)]
 #![feature(asm)]
 #![feature(thread_local,const_fn)]
+#![feature(associated_consts)]
 #![no_std]
 
 use core::prelude::*;
@@ -104,6 +105,14 @@ impl Drop for ObjectHandle {
 			::raw::syscall_0( (1 << 31 | (0x7FF << 20) | self.0) );
 		}
 	}
+}
+
+pub trait Object
+{
+	const CLASS: u16;
+	fn from_handle(handle: ObjectHandle) -> Self;
+	fn get_wait(&self) -> ::values::WaitItem;
+	fn check_wait(&self, wi: &::values::WaitItem);
 }
 
 fn to_result(val: usize) -> Result<u32,u32> {
