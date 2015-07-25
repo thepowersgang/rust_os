@@ -439,6 +439,7 @@ pub fn enabled(level: Level, modname: &str) -> bool
 	{
 	"kernel::memory::heap" => (level < Level::LevelDebug),	// Heap only prints higher than debug
 	"kernel::memory::phys" => (level < Level::LevelTrace),	// PMM only prints >Trace
+	"kernel::metadevs::storage" => (level < Level::LevelTrace),
 	"storage_ata::io" => (level < Level::LevelDebug),
 	"kernel::async" => (level < Level::LevelDebug),
 	_ => true,
