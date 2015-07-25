@@ -11,11 +11,12 @@ use stack_dst::StackDST;
 /// A system-call object
 pub trait Object: Send + Sync
 {
+	fn type_name(&self) -> &str { type_name!(Self) }
 	fn handle_syscall(&self, call: u16, args: &[usize]) -> Result<u64,super::Error>;
-    /// Return: Number of wakeup events bound
-    fn bind_wait(&self, flags: u32, obj: &mut ::threads::SleepObject) -> u32;
-    /// Return: Number of wakeup events fired
-    fn clear_wait(&self, flags: u32, obj: &mut ::threads::SleepObject) -> u32;
+	/// Return: Number of wakeup events bound
+	fn bind_wait(&self, flags: u32, obj: &mut ::threads::SleepObject) -> u32;
+	/// Return: Number of wakeup events fired
+	fn clear_wait(&self, flags: u32, obj: &mut ::threads::SleepObject) -> u32;
 }
 
 type UserObject = RwLock<Option< StackDST<Object> >>;
@@ -43,22 +44,22 @@ impl ProcessObjects {
 		self.objs.iter()
 	}
 
-    fn with_object<O, F: FnOnce(&Object)->Result<O,super::Error>>(&self, handle: u32, fcn: F) -> Result< O, super::Error >
-    {
-        if let Some(h) = self.get(handle)
-        {
-            // Call method
-            if let Some(ref obj) = *h.read() {
-                fcn(&**obj)
-            }
-            else {
-                Err( super::Error::NoSuchObject )
-            }
-        }
-        else {
-            Err( super::Error::NoSuchObject )
-        }
-    }
+	fn with_object<O, F: FnOnce(&Object)->Result<O,super::Error>>(&self, handle: u32, fcn: F) -> Result< O, super::Error >
+	{
+		if let Some(h) = self.get(handle)
+		{
+			// Call method
+			if let Some(ref obj) = *h.read() {
+				fcn(&**obj)
+			}
+			else {
+				Err( super::Error::NoSuchObject(handle) )
+			}
+		}
+		else {
+			Err( super::Error::NoSuchObject(handle) )
+		}
+	}
 }
 
 pub fn new_object<T: Object+'static>(val: T) -> u32
@@ -73,28 +74,33 @@ pub fn new_object<T: Object+'static>(val: T) -> u32
 			let mut wh = ent.write();
 			if wh.is_none() {
 				*wh = Some(StackDST::new(val).expect("Object did not fit"));
+				log_debug!("Object {}: {}", i, wh.as_ref().unwrap().type_name());
 				return i as u32;
 			}
 		}
 	}
+	log_debug!("No space");
 	!0
 }
 
 pub fn call_object(handle: u32, call: u16, args: &[usize]) -> Result<u64,super::Error>
 {
 	// Obtain reference/borrow to object (individually locked), and call the syscall on it
-    ::threads::get_process_local::<ProcessObjects>().with_object(handle, |obj| obj.handle_syscall(call, args))
+	::threads::get_process_local::<ProcessObjects>().with_object(handle, |obj| {
+		log_trace!("#{} {} Call {}", handle, obj.type_name(), call);
+		obj.handle_syscall(call, args)
+		})
 }
 
 pub fn wait_on_object(handle: u32, mask: u32, sleeper: &mut ::threads::SleepObject) -> Result<u32,super::Error> {
-    ::threads::get_process_local::<ProcessObjects>().with_object(handle, |obj| {
-        Ok( obj.bind_wait(mask, sleeper) )
-        })
+	::threads::get_process_local::<ProcessObjects>().with_object(handle, |obj| {
+		Ok( obj.bind_wait(mask, sleeper) )
+		})
 }
 pub fn clear_wait(handle: u32, mask: u32, sleeper: &mut ::threads::SleepObject) -> Result<u32,super::Error> {
-    ::threads::get_process_local::<ProcessObjects>().with_object(handle, |obj| {
-        Ok( obj.clear_wait(mask, sleeper) )
-        })
+	::threads::get_process_local::<ProcessObjects>().with_object(handle, |obj| {
+		Ok( obj.clear_wait(mask, sleeper) )
+		})
 }
 
 pub fn drop_object(handle: u32)

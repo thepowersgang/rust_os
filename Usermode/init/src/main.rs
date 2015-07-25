@@ -16,6 +16,7 @@ fn main()
 	//let daemons = Vec::new();
 	//let shells = Vec::new();
 
-	tifflin_process::Process::spawn("/sysroot/bin/login");
+	//tifflin_process::Process::spawn("/sysroot/bin/login");
+	tifflin_process::Process::spawn("/sysroot/bin/simple_console");
 }
 

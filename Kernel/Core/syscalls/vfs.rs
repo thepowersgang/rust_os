@@ -29,7 +29,14 @@ pub fn openfile(path: &[u8], mode: u32) -> Result<ObjectHandle,u32> {
 				}
 				},
 			values::VFS_FILE_WRITEAT => {
-				todo!("File::handle_syscall WRITEAT");
+				let ofs = try!( <u64>::get_arg(&mut args) );
+				let src = try!( <Freeze<[u8]>>::get_arg(&mut args) );
+				log_debug!("File::writeat({}, {:p}+{} bytes)", ofs, src.as_ptr(), src.len());
+				match self.0.write(ofs, &src)
+				{
+				Ok(count) => Ok(count as u64),
+				Err(e) => todo!("File::handle_syscall WRITEAT Error {:?}", e),
+				}
 				},
 			values::VFS_FILE_MEMMAP => {
 				let ofs = try!( <u64>::get_arg(&mut args) );
@@ -41,7 +48,10 @@ pub fn openfile(path: &[u8], mode: u32) -> Result<ObjectHandle,u32> {
 					1 => ::vfs::handle::MemoryMapMode::Execute,
 					2 => ::vfs::handle::MemoryMapMode::COW,
 					3 => ::vfs::handle::MemoryMapMode::WriteBack,
-					_ => return Err( Error::BadValue ),
+					v @ _ => {
+						log_log!("VFS_FILE_MEMMAP - Bad protection mode {}", v);
+						return Err( Error::BadValue );
+						},
 					};
 				log_debug!("VFS_FILE_MEMMAP({:#x}, {:#x}+{}, {:?}", ofs, addr, size, mode);
 				

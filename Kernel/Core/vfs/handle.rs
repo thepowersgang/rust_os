@@ -136,6 +136,9 @@ impl File
 		assert!(self.node.is_file());
 		self.node.read(ofs, dst)
 	}
+	pub fn write(&self, ofs: u64, src: &[u8]) -> super::Result<usize> {
+		todo!("Handle::write({:#x}, {:p}+{}", ofs, src.as_ptr(), src.len());
+	}
 
 	
 	/// Map a file into the address space

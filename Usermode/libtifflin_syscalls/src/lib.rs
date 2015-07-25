@@ -107,11 +107,12 @@ impl Drop for ObjectHandle {
 }
 
 fn to_result(val: usize) -> Result<u32,u32> {
-	if val < usize::max_value()/2 {
+	const SIGNAL_VAL: usize = (1 << 31);
+	if val < SIGNAL_VAL {
 		Ok(val as u32)
 	}
 	else {
-		Err( (val - usize::max_value()/2) as u32 )
+		Err( (val - SIGNAL_VAL) as u32 )
 	}
 }
 

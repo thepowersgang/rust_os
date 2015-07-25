@@ -19,7 +19,7 @@ pub enum Error
 {
 	TooManyArgs,
 	BadValue,
-	NoSuchObject,
+	NoSuchObject(u32),
 	InvalidBuffer(*const (), usize),
 	BorrowFailure,
 	InvalidUnicode(::core::str::Utf8Error),
@@ -38,6 +38,7 @@ pub fn invoke(call_id: u32, args: &[usize]) -> u64 {
 	Ok(v) => v,
 	Err(e) => {
 		log_log!("Syscall formatting error in call {:#x} - {:?}", call_id, e);
+		panic!("");
 		!0
 		},
 	}
@@ -59,6 +60,7 @@ fn from_result<O: Into<u32>, E: Into<u32>>(r: Result<O,E>) -> u64 {
 		}
 	Err(e) => {
 		let v: u32 = e.into();
+		log_debug!("Error code {}", v);
 		assert!(v < 1<<31);
 		(1 << 31) | (v as u64)
 		},
@@ -99,6 +101,7 @@ fn invoke_int(call_id: u32, mut args: &[usize]) -> Result<u64,Error>
 			let start = try!( <usize>::get_arg(&mut args) );
 			let end   = try!( <usize>::get_arg(&mut args) );
 			if start > end || end > ::arch::memory::addresses::USER_END {
+				log_log!("CORE_STARTPROCESS - {:#x}--{:#x} invalid", start, end);
 				return Err( Error::BadValue );
 			}
 			syscall_core_newprocess(ip, sp, start, end) as u64
