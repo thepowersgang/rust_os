@@ -10,7 +10,7 @@ use tifflin_syscalls::Object;
 fn main() {
 	use tifflin_syscalls::gui::{Group,Window};
 	
-	//::tifflin_syscalls::gui::set_group( ::tifflin_syscalls::receive_object::<Group>(0) );
+	::tifflin_syscalls::gui::set_group( ::tifflin_syscalls::threads::receive_object::<Group>(0).unwrap() );
 	
 	let window = Window::new("Console").unwrap();
 	window.maximise();

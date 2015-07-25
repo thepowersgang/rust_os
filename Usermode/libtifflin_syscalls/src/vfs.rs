@@ -116,9 +116,11 @@ impl File
 }
 impl ::Object for File {
 	const CLASS: u16 = ::values::CLASS_VFS_FILE;
+	fn class() -> u16 { Self::CLASS }
 	fn from_handle(handle: ::ObjectHandle) -> Self {
 		File(handle, 0)
 	}
+	fn into_handle(self) -> ::ObjectHandle { self.0 }
 	fn get_wait(&self) -> ::values::WaitItem {
 		self.0.get_wait(0)
 	}

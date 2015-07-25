@@ -77,7 +77,7 @@ macro_rules! def_classes {
 		enum Classes { $($cname = expand_expr!($cval)),* }
 		mod calls { $(
 			//#[repr(u16)]
-			#[allow(non_camel_case_types)]
+			#[allow(non_camel_case_types,dead_code)]
 			pub enum $cname { $($n = expand_expr!($v)),* }
 		)* }
 		mod masks { $(

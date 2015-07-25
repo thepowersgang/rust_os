@@ -14,25 +14,50 @@ pub fn exit_thread() -> ! {
 	}
 }
 
-pub struct Process;
+#[inline]
+pub fn receive_object<T: ::Object>(idx: usize) -> Result<T, ()> {
+	match super::ObjectHandle::new( unsafe { syscall!(CORE_RECVOBJ, idx, T::class() as usize) } as usize )
+	{
+	Ok(v) => Ok(T::from_handle(v)),
+	Err(e) => panic!("receive_object error {}", e),
+	}
+}
+
+pub struct Process(::ObjectHandle);
+impl Process {
+	pub fn terminate(&self) {
+		unsafe { self.0.call_0(::values::CORE_PROCESS_KILL); }
+	}
+	pub fn send_obj<O: ::Object>(&self, obj: O) {
+		let oh = obj.into_handle().into_raw();
+		unsafe { self.0.call_1(::values::CORE_PROCESS_SENDOBJ, oh as usize); }
+	}
+	pub fn send_msg(&self, id: u32, data: &[u8]) {
+		unsafe { self.0.call_3(::values::CORE_PROCESS_SENDMSG, id as usize, data.as_ptr() as usize, data.len()); }
+	}
+}
 impl ::Object for Process {
 	const CLASS: u16 = ::values::CLASS_PROCESS;
+	fn class() -> u16 { Self::CLASS }
 	fn from_handle(handle: ::ObjectHandle) -> Self {
-		panic!("TODO - Process:from_handle");
+		Process(handle)
 	}
+	fn into_handle(self) -> ::ObjectHandle { self.0 }
 	fn get_wait(&self) -> ::values::WaitItem {
 		panic!("TODO - Process::get_wait");
 	}
-	fn check_wait(&self, _wi: &::values::WaitItem) {
+	fn check_wait(&self, wi: &::values::WaitItem) {
+		if wi.flags & ::values::EV_PROCESS_TERMINATED != 0 {
+		}
 	}
 }
 
 #[inline]
 pub fn start_process(entry: usize, stack: usize,  clone_start: usize, clone_end: usize) -> Result<Process,()> {
 	let rv = unsafe { syscall!(CORE_STARTPROCESS, entry, stack, clone_start, clone_end) };
-	match ::to_result(rv as usize)
+	match ::ObjectHandle::new(rv as usize)
 	{
-	Ok(_v) => Ok( Process ),
+	Ok(v) => Ok( Process(v) ),
 	Err(_e) => Err( () ),
 	}
 }

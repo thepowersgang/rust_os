@@ -19,7 +19,7 @@ struct Group(::gui::WindowGroupHandle);
 impl objects::Object for Group
 {
 	const CLASS: u16 = values::CLASS_GUI_GROUP;
-	fn handle_syscall(&self, call: u16, mut args: &[usize]) -> Result<u64,Error>
+	fn handle_syscall(&self, call: u16, _args: &[usize]) -> Result<u64,Error>
 	{
 		match call
 		{

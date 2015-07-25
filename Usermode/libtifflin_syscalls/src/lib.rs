@@ -58,6 +58,11 @@ impl ObjectHandle
 	fn new(rv: usize) -> Result<ObjectHandle,u32> {
 		to_result(rv).map( |v| ObjectHandle(v) )
 	}
+	fn into_raw(self) -> u32 {
+		let rv = self.0;
+		::core::mem::forget(self);
+		rv
+	}
 	fn call_value(&self, call: u16) -> u32 {
 		(1 << 31 | self.0 | (call as u32) << 20)
 	}
@@ -110,7 +115,9 @@ impl Drop for ObjectHandle {
 pub trait Object
 {
 	const CLASS: u16;
+	fn class() -> u16;
 	fn from_handle(handle: ObjectHandle) -> Self;
+	fn into_handle(self) -> ::ObjectHandle;
 	fn get_wait(&self) -> ::values::WaitItem;
 	fn check_wait(&self, wi: &::values::WaitItem);
 }

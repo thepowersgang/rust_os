@@ -20,13 +20,23 @@ impl Group
 			},
 		}
 	}
+	
+	pub fn force_active(&self) -> Result<(),()> {
+		match super::to_result( unsafe { self.0.call_0(::values::GUI_GRP_FORCEACTIVE) } as usize )
+		{
+		Ok(_) => Ok( () ),
+		Err(_) => Err( () ),
+		}
+	}
 }
 impl ::Object for Group
 {
 	const CLASS: u16 = ::values::CLASS_GUI_GROUP;
+	fn class() -> u16 { Self::CLASS }
 	fn from_handle(handle: super::ObjectHandle) -> Self {
 		Group(handle)
 	}
+	fn into_handle(self) -> ::ObjectHandle { self.0 }
 	fn get_wait(&self) -> ::values::WaitItem {
 		self.0.get_wait( ::values::EV_GUI_GRP_SHOWHIDE )
 	}
@@ -36,6 +46,12 @@ impl ::Object for Group
 			// TODO
 		}
 	}
+}
+
+pub fn set_group(grp: Group)
+{
+	use Object;
+	unsafe { syscall!(GUI_BINDGROUP, grp.into_handle().into_raw() as usize); }
 }
 
 impl Window
@@ -76,9 +92,11 @@ impl Window
 impl ::Object for Window
 {
 	const CLASS: u16 = ::values::CLASS_GUI_WIN;
+	fn class() -> u16 { Self::CLASS }
 	fn from_handle(handle: super::ObjectHandle) -> Self {
 		Window(handle)
 	}
+	fn into_handle(self) -> ::ObjectHandle { self.0 }
 	
 	fn get_wait(&self) -> ::values::WaitItem {
 		self.0.get_wait( ::values::EV_GUI_WIN_INPUT )

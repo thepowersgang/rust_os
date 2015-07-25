@@ -38,7 +38,6 @@ pub fn invoke(call_id: u32, args: &[usize]) -> u64 {
 	Ok(v) => v,
 	Err(e) => {
 		log_log!("Syscall formatting error in call {:#x} - {:?}", call_id, e);
-		panic!("");
 		!0
 		},
 	}
