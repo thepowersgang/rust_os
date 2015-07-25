@@ -146,6 +146,7 @@ bin/kernel-$(ARCH).bin: $(OBJS) Core/arch/$(ARCH)/link.ld Makefile
 	@mkdir -p bin/
 	@echo [LD] -o $@
 	$V$(TRIPLE)-ld -o $@ $(OBJS) $(LIBS) $(LINKFLAGS)
+	@objcopy $@ --only-keep-debug $@.debug
 	@objcopy $@ -F elf32-i386 $@.elf32
 	@strip $@.elf32
 	@echo "BUILDNUM := $$(( $(BUILDNUM) + 1 ))" > BuildNum.$(ARCH).mk
