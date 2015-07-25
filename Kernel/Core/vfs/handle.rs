@@ -137,6 +137,7 @@ impl File
 		self.node.read(ofs, dst)
 	}
 	pub fn write(&self, ofs: u64, src: &[u8]) -> super::Result<usize> {
+		assert!(self.node.is_file());
 		todo!("Handle::write({:#x}, {:p}+{}", ofs, src.as_ptr(), src.len());
 	}
 
