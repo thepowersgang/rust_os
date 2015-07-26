@@ -13,7 +13,8 @@
 # - It also downloads+extracts libcore from the nightly tarball
 ARCH = amd64
 TRIPLE = x86_64-none-elf
-MODS := storage_ata
+MODS := syscalls
+MODS += storage_ata
 MODS += input_ps2
 MODS += fs_fat fs_iso9660
 #MODS += video_vga
@@ -85,9 +86,13 @@ ENV += TK_BUILD="$(shell hostname --fqdn):$(BUILDNUM)"
 
 LIBCORESRC := ../libcore/
 
+# - External crates
+EXT_CRATES := va_list stack_dst
+
+# - Exclude non-module crates from the object list
+OBJS := $(filter-out $(EXT_CRATES:%=%.o), $(OBJS))
 OBJS := $(OBJS:%=$(OBJDIR)%)
-LIBS := $(OBJDIR)libva_list.rlib
-LIBS += $(OBJDIR)libstack_dst.rlib
+LIBS := $(EXT_CRATES:%=$(OBJDIR)lib%.rlib)
 ifeq ($(USE_ACPICA),1)
 	LIBS += $(OBJDIR)acpica.a
 endif

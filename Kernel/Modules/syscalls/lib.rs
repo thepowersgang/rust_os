@@ -2,10 +2,22 @@
 // - By John Hodge (thePowersGang)
 //
 // Core/syscalls/mod.rs
-/// Userland system-call interface
-use prelude::*;
+//! Userland system-call interface
+#![feature(no_std,core)]
+#![no_std]
+#![feature(associated_consts)]
+#![feature(core_slice_ext)]
 
-use memory::freeze::{Freeze,FreezeMut,FreezeError};
+#[macro_use]
+extern crate core;
+#[macro_use]
+extern crate kernel;
+
+extern crate stack_dst;
+
+use kernel::prelude::*;
+
+use kernel::memory::freeze::{Freeze,FreezeMut,FreezeError};
 
 mod objects;
 mod gui;
@@ -31,8 +43,15 @@ impl From<FreezeError> for Error {
 	fn from(_v: FreezeError) -> Self { Error::BorrowFailure }
 }
 
+#[no_mangle]
+pub extern "C" fn syscalls_handler(id: u32, first_arg: *const usize, count: u32) -> u64
+{
+	//log_debug!("syscalls_handler({}, {:p}+{})", id, first_arg, count);
+	invoke(id, unsafe { ::core::slice::from_raw_parts(first_arg, count as usize) })
+}
+
 /// Entrypoint invoked by the architecture-specific syscall handler
-pub fn invoke(call_id: u32, args: &[usize]) -> u64 {
+fn invoke(call_id: u32, args: &[usize]) -> u64 {
 	match invoke_int(call_id, args)
 	{
 	Ok(v) => v,
@@ -99,7 +118,7 @@ fn invoke_int(call_id: u32, mut args: &[usize]) -> Result<u64,Error>
 			let sp = try!( <usize>::get_arg(&mut args) );
 			let start = try!( <usize>::get_arg(&mut args) );
 			let end   = try!( <usize>::get_arg(&mut args) );
-			if start > end || end > ::arch::memory::addresses::USER_END {
+			if start > end || end > ::kernel::arch::memory::addresses::USER_END {
 				log_log!("CORE_STARTPROCESS - {:#x}--{:#x} invalid", start, end);
 				return Err( Error::BadValue );
 			}
@@ -123,6 +142,9 @@ fn invoke_int(call_id: u32, mut args: &[usize]) -> Result<u64,Error>
 			let idx = try!( <usize>::get_arg(&mut args) );
 			todo!("CORE_RECVOBJ(class={},idx={})", class, idx);
 			},
+		//CORE_RECVMSG => {
+		//	todo!("CORE_RECVMSG");
+		//	},
 		// === 1: Window Manager / GUI
 		// - 1/0: New group (requires permission, has other restrictions)
 		GUI_NEWGROUP => {
@@ -158,8 +180,8 @@ fn invoke_int(call_id: u32, mut args: &[usize]) -> Result<u64,Error>
 			let count = try!(<usize>::get_arg(&mut args));
 			// Wait? Why do I have a 'mode' here?
 			log_debug!("MEM_ALLOCATE({:#x},{})", addr, count);
-			::memory::virt::allocate_user(addr as *mut (), count); 0
-			//match ::memory::virt::allocate_user(addr as *mut (), count)
+			::kernel::memory::virt::allocate_user(addr as *mut (), count); 0
+			//match ::kernel::memory::virt::allocate_user(addr as *mut (), count)
 			//{
 			//Ok(_) => 0,
 			//Err(e) => todo!("MEM_ALLOCATE - error {:?}", e),
@@ -171,14 +193,14 @@ fn invoke_int(call_id: u32, mut args: &[usize]) -> Result<u64,Error>
 			log_debug!("MEM_REPROTECT({:#x},{})", addr, mode);
 			let mode = match mode
 				{
-				0 => ::memory::virt::ProtectionMode::UserRO,
-				1 => ::memory::virt::ProtectionMode::UserRW,
-				2 => ::memory::virt::ProtectionMode::UserRX,
-				3 => ::memory::virt::ProtectionMode::UserRWX,	// TODO: Should this be disallowed?
+				0 => ::kernel::memory::virt::ProtectionMode::UserRO,
+				1 => ::kernel::memory::virt::ProtectionMode::UserRW,
+				2 => ::kernel::memory::virt::ProtectionMode::UserRX,
+				3 => ::kernel::memory::virt::ProtectionMode::UserRWX,	// TODO: Should this be disallowed?
 				_ => return Err( Error::BadValue ),
 				};
 			// SAFE: This internally does checks, but is marked as unsafe as a signal
-			match unsafe { ::memory::virt::reprotect_user(addr as *mut (), mode) }
+			match unsafe { ::kernel::memory::virt::reprotect_user(addr as *mut (), mode) }
 			{
 			Ok( () ) => 0,
 			Err( () ) => error_code(0) as u64,
@@ -241,7 +263,7 @@ impl<T: Pod> SyscallArg for Freeze<[T]>
 			// TODO: ^^^
 			// 2. Ensure that the pointed slice is valid (overlaps checks by Freeze, but gives a better error)
 			// TODO: Replace this check with mapping FreezeError
-			let bs = if let Some(v) = ::memory::buf_to_slice(ptr, len) {
+			let bs = if let Some(v) = ::kernel::memory::buf_to_slice(ptr, len) {
 					v
 				} else {
 					return Err( Error::InvalidBuffer(ptr as *const (), len) );
@@ -276,7 +298,7 @@ impl<T: Pod> SyscallArg for FreezeMut<[T]>
 			// TODO: ^^^
 			// 2. Ensure that the pointed slice is valid (overlaps checks by Freeze, but gives a better error)
 			// TODO: Replace this check with mapping FreezeError
-			let bs =  if let Some(v) = ::memory::buf_to_slice_mut(ptr, len) {	
+			let bs =  if let Some(v) = ::kernel::memory::buf_to_slice_mut(ptr, len) {	
 					v
 				} else {
 					return Err( Error::InvalidBuffer(ptr as *const (), len) );
@@ -343,11 +365,11 @@ fn syscall_core_newthread(sp: usize, ip: usize) -> ObjectHandle {
 }
 fn syscall_core_newprocess(ip: usize, sp: usize, clone_start: usize, clone_end: usize) -> ObjectHandle {
 	// 1. Create a new process image (virtual address space)
-	let mut process = ::threads::ProcessHandle::new("TODO", clone_start, clone_end);
+	let mut process = ::kernel::threads::ProcessHandle::new("TODO", clone_start, clone_end);
 	// 3. Create a new thread using that process image with the specified ip/sp
 	process.start_root_thread(ip, sp);
 	
-	struct Process(::threads::ProcessHandle);
+	struct Process(::kernel::threads::ProcessHandle);
 	impl objects::Object for Process {
 		const CLASS: u16 = values::CLASS_PROCESS;
 		fn handle_syscall(&self, call: u16, _args: &[usize]) -> Result<u64,Error> {
@@ -359,13 +381,13 @@ fn syscall_core_newprocess(ip: usize, sp: usize, clone_start: usize, clone_end: 
 			_ => todo!("Process::handle_syscall({}, ...)", call),
 			}
 		}
-		fn bind_wait(&self, flags: u32, _obj: &mut ::threads::SleepObject) -> u32 {
+		fn bind_wait(&self, flags: u32, _obj: &mut ::kernel::threads::SleepObject) -> u32 {
 			if flags & EV_PROCESS_TERMINATED != 0 {
 				todo!("EV_PROCESS_TERMINATED");
 			}
 			0
 		}
-		fn clear_wait(&self, _flags: u32, _obj: &mut ::threads::SleepObject) -> u32 { 0 }
+		fn clear_wait(&self, _flags: u32, _obj: &mut ::kernel::threads::SleepObject) -> u32 { 0 }
 	}
 
 	objects::new_object( Process(process) )
@@ -374,7 +396,7 @@ fn syscall_core_newprocess(ip: usize, sp: usize, clone_start: usize, clone_end: 
 // ret: number of events triggered
 fn syscall_core_wait(events: &mut [WaitItem], wake_time_mono: u64) -> Result<u32,Error>
 {
-	let mut waiter = ::threads::SleepObject::new("syscall_core_wait");
+	let mut waiter = ::kernel::threads::SleepObject::new("syscall_core_wait");
 	let mut num_bound = 0;
 	for ev in events.iter() {
 		num_bound += try!(objects::wait_on_object(ev.object, ev.flags, &mut waiter));

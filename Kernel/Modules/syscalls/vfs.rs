@@ -3,16 +3,16 @@
 //
 // Core/syscalls/vfs.rs
 /// Virtual Filesystem interface
-use prelude::*;
+use kernel::prelude::*;
 
-use memory::freeze::{Freeze,FreezeMut};
+use kernel::memory::freeze::{Freeze,FreezeMut};
 use super::{objects,ObjectHandle};
 use super::values;
 use super::Error;
 use super::SyscallArg;
 
 pub fn openfile(path: &[u8], mode: u32) -> Result<ObjectHandle,u32> {
-	struct File(::vfs::handle::File);
+	struct File(::kernel::vfs::handle::File);
 
 	impl objects::Object for File {
 		const CLASS: u16 = values::CLASS_VFS_FILE;
@@ -45,10 +45,10 @@ pub fn openfile(path: &[u8], mode: u32) -> Result<ObjectHandle,u32> {
 				let addr = try!( <usize>::get_arg(&mut args) );
 				let mode = match try!( <u8>::get_arg(&mut args) )
 					{
-					0 => ::vfs::handle::MemoryMapMode::ReadOnly,
-					1 => ::vfs::handle::MemoryMapMode::Execute,
-					2 => ::vfs::handle::MemoryMapMode::COW,
-					3 => ::vfs::handle::MemoryMapMode::WriteBack,
+					0 => ::kernel::vfs::handle::MemoryMapMode::ReadOnly,
+					1 => ::kernel::vfs::handle::MemoryMapMode::Execute,
+					2 => ::kernel::vfs::handle::MemoryMapMode::COW,
+					3 => ::kernel::vfs::handle::MemoryMapMode::WriteBack,
 					v @ _ => {
 						log_log!("VFS_FILE_MEMMAP - Bad protection mode {}", v);
 						return Err( Error::BadValue );
@@ -69,17 +69,17 @@ pub fn openfile(path: &[u8], mode: u32) -> Result<ObjectHandle,u32> {
 			_ => todo!("File::handle_syscall({}, ...)", call),
 			}
 		}
-        fn bind_wait(&self, _flags: u32, _obj: &mut ::threads::SleepObject) -> u32 { 0 }
-        fn clear_wait(&self, _flags: u32, _obj: &mut ::threads::SleepObject) -> u32 { 0 }
+        fn bind_wait(&self, _flags: u32, _obj: &mut ::kernel::threads::SleepObject) -> u32 { 0 }
+        fn clear_wait(&self, _flags: u32, _obj: &mut ::kernel::threads::SleepObject) -> u32 { 0 }
 	}
 	
 	let mode = match mode
 		{
-		1 => ::vfs::handle::FileOpenMode::SharedRO,
-		2 => ::vfs::handle::FileOpenMode::Execute,
+		1 => ::kernel::vfs::handle::FileOpenMode::SharedRO,
+		2 => ::kernel::vfs::handle::FileOpenMode::Execute,
 		_ => todo!("Unkown mode {:x}", mode),
 		};
-	match ::vfs::handle::File::open(::vfs::Path::new(path), mode)
+	match ::kernel::vfs::handle::File::open(::kernel::vfs::Path::new(path), mode)
 	{
 	Ok(h) => Ok( objects::new_object( File(h) ) ),
 	Err(e) => todo!("syscall_vfs_openfile - e={:?}", e),

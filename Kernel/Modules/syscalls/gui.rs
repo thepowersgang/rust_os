@@ -3,19 +3,21 @@
 //
 // Core/syscalls/gui.rs
 /// GUI syscall interface
-use prelude::*;
+use kernel::prelude::*;
 
-use memory::freeze::Freeze;
+use kernel::memory::freeze::Freeze;
+use kernel::gui::{Rect};
+use kernel::sync::Mutex;
+
 use super::{values,objects};
 use super::{Error,ObjectHandle};
 use super::SyscallArg;
-use gui::{Rect};
 
 pub fn newgroup(name: &str) -> Result<ObjectHandle,u32> {
 	todo!("syscall_gui_newgroup(name={})", name);
 }
 
-struct Group(::gui::WindowGroupHandle);
+struct Group(::kernel::gui::WindowGroupHandle);
 impl objects::Object for Group
 {
 	const CLASS: u16 = values::CLASS_GUI_GROUP;
@@ -27,19 +29,19 @@ impl objects::Object for Group
 		_ => todo!("Group::handle_syscall({}, ...)", call),
 		}
 	}
-	fn bind_wait(&self, flags: u32, obj: &mut ::threads::SleepObject) -> u32 {
+	fn bind_wait(&self, flags: u32, obj: &mut ::kernel::threads::SleepObject) -> u32 {
 		if flags & values::EV_GUI_GRP_SHOWHIDE != 0 {
 			todo!("Group::bind_wait - showhide on obj={:?}", obj);
 		}
 		0
 	}
-	fn clear_wait(&self, flags: u32, obj: &mut ::threads::SleepObject) -> u32 {
+	fn clear_wait(&self, flags: u32, obj: &mut ::kernel::threads::SleepObject) -> u32 {
 		todo!("Group::clear_wait(flags={}, obj={:?})", flags, obj);
 	}
 }
 
 
-struct Window(::sync::Mutex<::gui::WindowHandle>);
+struct Window(Mutex<::kernel::gui::WindowHandle>);
 impl objects::Object for Window
 {
 	const CLASS: u16 = values::CLASS_GUI_WIN;
@@ -62,21 +64,21 @@ impl objects::Object for Window
 		_ => todo!("Window::handle_syscall({}, ...)", call),
 		}
 	}
-	fn bind_wait(&self, flags: u32, obj: &mut ::threads::SleepObject) -> u32 {
+	fn bind_wait(&self, flags: u32, obj: &mut ::kernel::threads::SleepObject) -> u32 {
 		if flags & values::EV_GUI_WIN_INPUT != 0 {
 			todo!("Window::bind_wait - input on obj={:?}", obj);
 		}
 		0
 	}
-	fn clear_wait(&self, flags: u32, obj: &mut ::threads::SleepObject) -> u32 {
+	fn clear_wait(&self, flags: u32, obj: &mut ::kernel::threads::SleepObject) -> u32 {
 		todo!("Window::clear_wait(flags={}, obj={:?})", flags, obj);
 	}
 }
 
 #[derive(Default)]
-struct PLWindowGroup( Option<::sync::Mutex< ::gui::WindowGroupHandle >> );
+struct PLWindowGroup( Option<Mutex< ::kernel::gui::WindowGroupHandle >> );
 impl PLWindowGroup {
-	fn with<O, F: FnOnce(&mut ::gui::WindowGroupHandle)->O>(&self, f: F) -> Result<O,u32> {
+	fn with<O, F: FnOnce(&mut ::kernel::gui::WindowGroupHandle)->O>(&self, f: F) -> Result<O,u32> {
 		match self.0
 		{
 		Some(ref v) => Ok( f(&mut v.lock()) ),
@@ -88,7 +90,7 @@ impl PLWindowGroup {
 pub fn newwindow(name: &str) -> Result<ObjectHandle,u32> {
 	log_trace!("syscall_gui_newwindow(name={})", name);
 	// Get window group for this process
-	let wgh = ::threads::get_process_local::<PLWindowGroup>();
-	wgh.with( |wgh| objects::new_object( Window(::sync::Mutex::new(wgh.create_window(name))) ) )
+	let wgh = ::kernel::threads::get_process_local::<PLWindowGroup>();
+	wgh.with( |wgh| objects::new_object( Window(Mutex::new(wgh.create_window(name))) ) )
 }
 

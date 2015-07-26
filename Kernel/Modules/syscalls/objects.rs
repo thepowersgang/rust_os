@@ -3,10 +3,12 @@
 //
 // Core/syscalls/objects.rs
 /// Userland "owned" objects
-use prelude::*;
+use kernel::prelude::*;
 
-use sync::RwLock;
+use kernel::sync::RwLock;
 use stack_dst::StackDST;
+
+use kernel::threads::get_process_local;
 
 /// A system-call object
 pub trait Object: Send + Sync
@@ -15,9 +17,9 @@ pub trait Object: Send + Sync
 	fn type_name(&self) -> &str { type_name!(Self) }
 	fn handle_syscall(&self, call: u16, args: &[usize]) -> Result<u64,super::Error>;
 	/// Return: Number of wakeup events bound
-	fn bind_wait(&self, flags: u32, obj: &mut ::threads::SleepObject) -> u32;
+	fn bind_wait(&self, flags: u32, obj: &mut ::kernel::threads::SleepObject) -> u32;
 	/// Return: Number of wakeup events fired
-	fn clear_wait(&self, flags: u32, obj: &mut ::threads::SleepObject) -> u32;
+	fn clear_wait(&self, flags: u32, obj: &mut ::kernel::threads::SleepObject) -> u32;
 }
 
 type UserObject = RwLock<Option< StackDST<Object> >>;
@@ -65,7 +67,7 @@ impl ProcessObjects {
 
 pub fn new_object<T: Object+'static>(val: T) -> u32
 {
-	let objs = ::threads::get_process_local::<ProcessObjects>();
+	let objs = get_process_local::<ProcessObjects>();
 	// Search unsynchronised through the list of objects
 	for (i,ent) in objs.iter().enumerate()
 	{
@@ -87,19 +89,19 @@ pub fn new_object<T: Object+'static>(val: T) -> u32
 pub fn call_object(handle: u32, call: u16, args: &[usize]) -> Result<u64,super::Error>
 {
 	// Obtain reference/borrow to object (individually locked), and call the syscall on it
-	::threads::get_process_local::<ProcessObjects>().with_object(handle, |obj| {
+	get_process_local::<ProcessObjects>().with_object(handle, |obj| {
 		log_trace!("#{} {} Call {}", handle, obj.type_name(), call);
 		obj.handle_syscall(call, args)
 		})
 }
 
-pub fn wait_on_object(handle: u32, mask: u32, sleeper: &mut ::threads::SleepObject) -> Result<u32,super::Error> {
-	::threads::get_process_local::<ProcessObjects>().with_object(handle, |obj| {
+pub fn wait_on_object(handle: u32, mask: u32, sleeper: &mut ::kernel::threads::SleepObject) -> Result<u32,super::Error> {
+	get_process_local::<ProcessObjects>().with_object(handle, |obj| {
 		Ok( obj.bind_wait(mask, sleeper) )
 		})
 }
-pub fn clear_wait(handle: u32, mask: u32, sleeper: &mut ::threads::SleepObject) -> Result<u32,super::Error> {
-	::threads::get_process_local::<ProcessObjects>().with_object(handle, |obj| {
+pub fn clear_wait(handle: u32, mask: u32, sleeper: &mut ::kernel::threads::SleepObject) -> Result<u32,super::Error> {
+	get_process_local::<ProcessObjects>().with_object(handle, |obj| {
 		Ok( obj.clear_wait(mask, sleeper) )
 		})
 }
