@@ -119,7 +119,9 @@ fn invoke_int(call_id: u32, mut args: &[usize]) -> Result<u64,Error>
 			},
 		// - 0/6: 
 		CORE_RECVOBJ => {
-			todo!("CORE_RECVOBJ");
+			let class = try!( <u32>::get_arg(&mut args) );
+			let idx = try!( <usize>::get_arg(&mut args) );
+			todo!("CORE_RECVOBJ(class={},idx={})", class, idx);
 			},
 		// === 1: Window Manager / GUI
 		// - 1/0: New group (requires permission, has other restrictions)

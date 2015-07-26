@@ -16,7 +16,7 @@ pub fn exit_thread() -> ! {
 
 #[inline]
 pub fn receive_object<T: ::Object>(idx: usize) -> Result<T, ()> {
-	match super::ObjectHandle::new( unsafe { syscall!(CORE_RECVOBJ, idx, T::class() as usize) } as usize )
+	match super::ObjectHandle::new( unsafe { syscall!(CORE_RECVOBJ, T::class() as usize, idx) } as usize )
 	{
 	Ok(v) => Ok(T::from_handle(v)),
 	Err(e) => panic!("receive_object error {}", e),
