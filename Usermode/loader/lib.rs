@@ -9,7 +9,7 @@
 
 extern crate core;
 extern crate std_rt;
-extern crate tifflin_syscalls;
+extern crate syscalls;
 
 use core::result::Result;
 
@@ -34,11 +34,11 @@ mod int {
 		//  > Arguments
 		//  > ? Environment (could this be transferred using IPC during init?)
 		//  > ? Handles (same thing really, send them over an IPC channel)
-		pub fn new_process(binary: &[u8], args: &[&[u8]]) -> Result<::tifflin_syscalls::threads::Process,super::Error>;
+		pub fn new_process(binary: &[u8], args: &[&[u8]]) -> Result<::syscalls::threads::Process,super::Error>;
 	}
 }
 
-pub fn new_process(binary: &[u8], args: &[&[u8]]) -> Result<::tifflin_syscalls::threads::Process,Error> {
+pub fn new_process(binary: &[u8], args: &[&[u8]]) -> Result<::syscalls::threads::Process,Error> {
 	// SAFE: Call is actually to rust
 	unsafe { int::new_process(binary, args) }
 }

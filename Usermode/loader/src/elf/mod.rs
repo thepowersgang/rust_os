@@ -4,8 +4,8 @@
 // elf/mod.rs
 // - ELF Parser
 
-use tifflin_syscalls::vfs::{File,FileOpenMode};
-use tifflin_syscalls::vfs::Error as VfsError;
+use syscalls::vfs::{File,FileOpenMode};
+use syscalls::vfs::Error as VfsError;
 
 use std::io::{Read,Seek,SeekFrom};
 

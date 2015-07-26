@@ -3,14 +3,14 @@
 //
 // Simplistic console, used as a quick test case (fullscreen window)
 
-extern crate tifflin_syscalls;
+extern crate syscalls;
 
-use tifflin_syscalls::Object;
+use syscalls::Object;
 
 fn main() {
-	use tifflin_syscalls::gui::{Group,Window};
+	use syscalls::gui::{Group,Window};
 	
-	::tifflin_syscalls::gui::set_group( ::tifflin_syscalls::threads::receive_object::<Group>(0).unwrap() );
+	::syscalls::gui::set_group( ::syscalls::threads::receive_object::<Group>(0).unwrap() );
 	
 	let window = Window::new("Console").unwrap();
 	window.maximise();
@@ -21,7 +21,7 @@ fn main() {
 		// Bind to receive events relating to the window
 		let mut events = [window.get_wait()];
 		
-		::tifflin_syscalls::threads::wait(&mut events, !0);
+		::syscalls::threads::wait(&mut events, !0);
 		
 		window.check_wait(&events[0]);
 	}

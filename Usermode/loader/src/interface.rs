@@ -13,7 +13,7 @@ extern "C" {
 	static arg_count: u32;
 }
 
-//static S_BUFFER_LOCK: ::tifflin_syscalls::core::Futex = ::tifflin_syscalls::core::Futex::new();
+//static S_BUFFER_LOCK: ::syscalls::core::Futex = ::tifflin_syscalls::core::Futex::new();
 
 impl_from! {
 	From<NullStringBuilderError>(_v) for loader::Error {
@@ -22,7 +22,7 @@ impl_from! {
 }
 
 #[no_mangle]
-pub extern "C" fn new_process(binary: &[u8], args: &[&[u8]]) -> Result<::tifflin_syscalls::threads::Process,loader::Error>
+pub extern "C" fn new_process(binary: &[u8], args: &[&[u8]]) -> Result<::syscalls::threads::Process,loader::Error>
 {
 	extern "C" {
 		static BASE: [u8; 0];
@@ -50,7 +50,7 @@ pub extern "C" fn new_process(binary: &[u8], args: &[&[u8]]) -> Result<::tifflin
 	}
 	
 	// Spawn new process
-	match ::tifflin_syscalls::threads::start_process(new_process_entry as usize, init_stack_end.as_ptr() as usize, BASE.as_ptr() as usize, LIMIT.as_ptr() as usize)
+	match ::syscalls::threads::start_process(new_process_entry as usize, init_stack_end.as_ptr() as usize, BASE.as_ptr() as usize, LIMIT.as_ptr() as usize)
 	{
 	Ok(v) => Ok( v ),
 	Err(e) => panic!("TODO: new_process - Error '{:?}'", e),

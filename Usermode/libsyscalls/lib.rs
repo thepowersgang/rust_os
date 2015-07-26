@@ -39,7 +39,7 @@ macro_rules! syscall {
 macro_rules! slice_arg { ($slice:ident) => { $slice.as_ptr(), $slice.len() } }
 
 // File in the root of the repo
-#[path="../../../syscalls.inc.rs"]
+#[path="../../syscalls.inc.rs"]
 mod values;
 #[cfg(arch__amd64)] #[path="raw-amd64.rs"]
 mod raw;

@@ -16,7 +16,7 @@
 #[macro_use]
 extern crate core;
 #[macro_use]
-extern crate tifflin_syscalls;
+extern crate syscalls;
 #[macro_use]
 extern crate macros;
 

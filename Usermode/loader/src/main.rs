@@ -11,7 +11,7 @@ use cmdline_words_parser::StrExt as CmdlineStrExt;
 use load::SegmentIterator;
 
 #[macro_use]
-extern crate tifflin_syscalls;
+extern crate syscalls;
 
 extern crate byteorder;
 extern crate cmdline_words_parser;
@@ -110,8 +110,8 @@ fn load_binary(path: &::std::ffi::OsStr) -> usize
 		let mut segments_it = handle.load_segments();
 		while let Some(segment) = segments_it.next()
 		{
-			use tifflin_syscalls::vfs::MemoryMapMode;
-			use tifflin_syscalls::memory::ProtectionMode;
+			use syscalls::vfs::MemoryMapMode;
+			use syscalls::memory::ProtectionMode;
 			const PAGE_SIZE: usize = 0x1000;
 			kernel_log!("segment = {:?}", segment);
 			
@@ -148,12 +148,12 @@ fn load_binary(path: &::std::ffi::OsStr) -> usize
 				unsafe {
 					let destslice = ::std::slice::from_raw_parts_mut((segment.load_addr + aligned) as *mut u8, tail);
 					// - Allocate space
-					::tifflin_syscalls::memory::allocate(destslice.as_ptr() as usize, 1).expect("tail alloc");
+					::syscalls::memory::allocate(destslice.as_ptr() as usize, 1).expect("tail alloc");
 					// - Read data
 					fp.read_at(segment.file_addr + aligned as u64, destslice).expect("Failure reading file data for end of .segment");
 					// - Reprotect to the real mode, not bothering if the desired is Read-Write
 					if alloc_mode != ProtectionMode::ReadWrite {
-						::tifflin_syscalls::memory::reprotect(destslice.as_ptr() as usize, alloc_mode).expect("reprotect");
+						::syscalls::memory::reprotect(destslice.as_ptr() as usize, alloc_mode).expect("reprotect");
 					}
 				}
 			}
@@ -161,7 +161,7 @@ fn load_binary(path: &::std::ffi::OsStr) -> usize
 				let addr = segment.load_addr + aligned + PAGE_SIZE;
 				let pages = (extra - (PAGE_SIZE - tail) + PAGE_SIZE-1) / PAGE_SIZE;
 				unsafe {
-					::tifflin_syscalls::memory::allocate(addr, pages).expect("extra alloc");
+					::syscalls::memory::allocate(addr, pages).expect("extra alloc");
 				}
 			}
 		}

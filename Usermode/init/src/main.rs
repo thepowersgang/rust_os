@@ -5,7 +5,7 @@
 // - Maintains daemons and manages group masters
 
 #[macro_use]
-extern crate tifflin_syscalls;
+extern crate syscalls;
 
 extern crate tifflin_process;
 
