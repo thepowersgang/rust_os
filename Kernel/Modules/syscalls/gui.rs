@@ -21,6 +21,7 @@ struct Group(::kernel::gui::WindowGroupHandle);
 impl objects::Object for Group
 {
 	const CLASS: u16 = values::CLASS_GUI_GROUP;
+	fn class(&self) -> u16 { Self::CLASS }
 	fn handle_syscall(&self, call: u16, _args: &[usize]) -> Result<u64,Error>
 	{
 		match call
@@ -45,6 +46,7 @@ struct Window(Mutex<::kernel::gui::WindowHandle>);
 impl objects::Object for Window
 {
 	const CLASS: u16 = values::CLASS_GUI_WIN;
+	fn class(&self) -> u16 { Self::CLASS }
 	fn handle_syscall(&self, call: u16, mut args: &[usize]) -> Result<u64,Error>
 	{
 		match call

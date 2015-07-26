@@ -2,7 +2,7 @@
 // - By John Hodge (thePowersGang)
 //
 // Core/syscalls/objects.rs
-/// Userland "owned" objects
+//! Userland "owned" objects
 use kernel::prelude::*;
 
 use kernel::sync::RwLock;
@@ -13,8 +13,11 @@ use kernel::threads::get_process_local;
 /// A system-call object
 pub trait Object: Send + Sync
 {
+	/// Object class code (values::CLASS_*)
 	const CLASS: u16;
 	fn type_name(&self) -> &str { type_name!(Self) }
+	fn class(&self) -> u16;
+	/// Return: Return value or argument error
 	fn handle_syscall(&self, call: u16, args: &[usize]) -> Result<u64,super::Error>;
 	/// Return: Number of wakeup events bound
 	fn bind_wait(&self, flags: u32, obj: &mut ::kernel::threads::SleepObject) -> u32;
@@ -22,13 +25,28 @@ pub trait Object: Send + Sync
 	fn clear_wait(&self, flags: u32, obj: &mut ::kernel::threads::SleepObject) -> u32;
 }
 
-type UserObject = RwLock<Option< StackDST<Object> >>;
+struct UserObject
+{
+	unclaimed: bool,
+	data: StackDST<Object>,
+}
+
+impl UserObject {
+	fn new<T: Object+'static>(v: T) -> Self {
+		UserObject {
+			unclaimed: false,
+			data: StackDST::new(v).expect("Object did not fit"),
+		}
+	}
+}
+
+type ObjectSlot = RwLock<Option< UserObject >>;
 
 /// Structure used as process-local list of objects
 struct ProcessObjects
 {
 	// TODO: Use a FAR better collection for this, allowing cheap expansion of the list
-	objs: Vec< UserObject >,
+	objs: Vec< ObjectSlot >,
 }
 
 impl Default for ProcessObjects {
@@ -40,10 +58,10 @@ impl Default for ProcessObjects {
 	}
 }
 impl ProcessObjects {
-	fn get(&self, idx: u32) -> Option<&UserObject> {
+	fn get(&self, idx: u32) -> Option<&ObjectSlot> {
 		self.objs.get(idx as usize)
 	}
-	fn iter(&self) -> ::core::slice::Iter<UserObject> {
+	fn iter(&self) -> ::core::slice::Iter<ObjectSlot> {
 		self.objs.iter()
 	}
 
@@ -53,7 +71,7 @@ impl ProcessObjects {
 		{
 			// Call method
 			if let Some(ref obj) = *h.read() {
-				fcn(&**obj)
+				fcn(&*obj.data)
 			}
 			else {
 				Err( super::Error::NoSuchObject(handle) )
@@ -76,14 +94,36 @@ pub fn new_object<T: Object+'static>(val: T) -> u32
 			// lock for writing then ensure that it is free
 			let mut wh = ent.write();
 			if wh.is_none() {
-				*wh = Some(StackDST::new(val).expect("Object did not fit"));
-				log_debug!("Object {}: {}", i, wh.as_ref().unwrap().type_name());
+				*wh = Some(UserObject::new(val));
+				log_debug!("Object {}: {}", i, wh.as_ref().unwrap().data.type_name());
 				return i as u32;
 			}
 		}
 	}
 	log_debug!("No space");
 	!0
+}
+
+/// Grab the 'n'th unclaimed object of the specified class
+pub fn get_unclaimed(class: u16, idx: usize) -> u64
+{
+	let objs = get_process_local::<ProcessObjects>();
+
+	let mut cur_idx = 0;
+	for (i, ent) in objs.iter().enumerate()
+	{
+		if let Some(ref mut v) = *ent.write()
+		{
+			if v.data.class() == class && v.unclaimed {
+				if cur_idx == idx {
+					v.unclaimed = false;
+					return super::from_result::<u32,u32>( Ok(i as u32) );
+				}
+				cur_idx += 1;
+			}
+		}
+	}
+	super::from_result::<u32,u32>( Err(0) )
 }
 
 pub fn call_object(handle: u32, call: u16, args: &[usize]) -> Result<u64,super::Error>

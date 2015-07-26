@@ -20,6 +20,8 @@ use kernel::prelude::*;
 use kernel::memory::freeze::{Freeze,FreezeMut,FreezeError};
 
 mod objects;
+
+mod threads;
 mod gui;
 mod vfs;
 
@@ -78,7 +80,6 @@ fn from_result<O: Into<u32>, E: Into<u32>>(r: Result<O,E>) -> u64 {
 		}
 	Err(e) => {
 		let v: u32 = e.into();
-		log_debug!("Error code {}", v);
 		assert!(v < 1<<31);
 		(1 << 31) | (v as u64)
 		},
@@ -106,11 +107,11 @@ fn invoke_int(call_id: u32, mut args: &[usize]) -> Result<u64,Error>
 		// - 0/1: Exit process
 		CORE_EXITPROCESS => {
 			let status = try!( <u32>::get_arg(&mut args) );
-			syscall_core_exit(status); 0
+			threads::exit(status); 0
 			},
 		// - 0/2: Terminate current thread
 		CORE_EXITTHREAD => {
-			syscall_core_terminate(); 0
+			threads::terminate(); 0
 			},
 		// - 0/3: Start process
 		CORE_STARTPROCESS => {
@@ -122,25 +123,26 @@ fn invoke_int(call_id: u32, mut args: &[usize]) -> Result<u64,Error>
 				log_log!("CORE_STARTPROCESS - {:#x}--{:#x} invalid", start, end);
 				return Err( Error::BadValue );
 			}
-			syscall_core_newprocess(ip, sp, start, end) as u64
+			threads::newprocess("TODO", ip, sp, start, end) as u64
 			},
 		// - 0/4: Start thread
 		CORE_STARTTHREAD => {
 			let ip = try!( <usize>::get_arg(&mut args) );
 			let sp = try!( <usize>::get_arg(&mut args) );
-			syscall_core_newthread(sp, ip) as u64
+			threads::newthread(sp, ip) as u64
 			},
 		// - 0/5: Wait for event
 		CORE_WAIT => {
 			let mut events = try!( <FreezeMut<[WaitItem]>>::get_arg(&mut args) );
 			let timeout = try!( <u64>::get_arg(&mut args) );
-			try!(syscall_core_wait(&mut events, timeout)) as u64
+			try!(threads::wait(&mut events, timeout)) as u64
 			},
 		// - 0/6: 
+		// TODO: Put this on a "This Process" object
 		CORE_RECVOBJ => {
-			let class = try!( <u32>::get_arg(&mut args) );
+			let class = try!( <u16>::get_arg(&mut args) );
 			let idx = try!( <usize>::get_arg(&mut args) );
-			todo!("CORE_RECVOBJ(class={},idx={})", class, idx);
+			objects::get_unclaimed(class, idx)
 			},
 		//CORE_RECVMSG => {
 		//	todo!("CORE_RECVMSG");
@@ -340,6 +342,16 @@ impl SyscallArg for u32 {
 		Ok( rv )
 	}
 }
+impl SyscallArg for u16 {
+	fn get_arg(args: &mut &[usize]) -> Result<Self,Error> {
+		if args.len() < 1 {
+			return Err( Error::TooManyArgs );
+		}
+		let rv = args[0] as u16;
+		*args = &args[1..];
+		Ok( rv )
+	}
+}
 impl SyscallArg for u8 {
 	fn get_arg(args: &mut &[usize]) -> Result<Self,Error> {
 		if args.len() < 1 {
@@ -351,75 +363,8 @@ impl SyscallArg for u8 {
 	}
 }
 
+// TODO: Support a better user logging framework
 fn syscall_core_log(msg: &str) {
-	log_debug!("syscall_core_log - {}", msg);
-}
-fn syscall_core_exit(status: u32) {
-	todo!("syscall_core_exit(status={:x})", status);
-}
-fn syscall_core_terminate() {
-	todo!("syscall_core_terminate()");
-}
-fn syscall_core_newthread(sp: usize, ip: usize) -> ObjectHandle {
-	todo!("syscall_core_newthread(sp={:#x},ip={:#x})", sp, ip);
-}
-fn syscall_core_newprocess(ip: usize, sp: usize, clone_start: usize, clone_end: usize) -> ObjectHandle {
-	// 1. Create a new process image (virtual address space)
-	let mut process = ::kernel::threads::ProcessHandle::new("TODO", clone_start, clone_end);
-	// 3. Create a new thread using that process image with the specified ip/sp
-	process.start_root_thread(ip, sp);
-	
-	struct Process(::kernel::threads::ProcessHandle);
-	impl objects::Object for Process {
-		const CLASS: u16 = values::CLASS_PROCESS;
-		fn handle_syscall(&self, call: u16, _args: &[usize]) -> Result<u64,Error> {
-			match call
-			{
-			CORE_PROCESS_KILL => todo!("CORE_PROCESS_KILL"),
-			CORE_PROCESS_SENDOBJ => todo!("CORE_PROCESS_SENDOBJ"),
-			CORE_PROCESS_SENDMSG => todo!("CORE_PROCESS_SENDMSG"),
-			_ => todo!("Process::handle_syscall({}, ...)", call),
-			}
-		}
-		fn bind_wait(&self, flags: u32, _obj: &mut ::kernel::threads::SleepObject) -> u32 {
-			if flags & EV_PROCESS_TERMINATED != 0 {
-				todo!("EV_PROCESS_TERMINATED");
-			}
-			0
-		}
-		fn clear_wait(&self, _flags: u32, _obj: &mut ::kernel::threads::SleepObject) -> u32 { 0 }
-	}
-
-	objects::new_object( Process(process) )
-}
-
-// ret: number of events triggered
-fn syscall_core_wait(events: &mut [WaitItem], wake_time_mono: u64) -> Result<u32,Error>
-{
-	let mut waiter = ::kernel::threads::SleepObject::new("syscall_core_wait");
-	let mut num_bound = 0;
-	for ev in events.iter() {
-		num_bound += try!(objects::wait_on_object(ev.object, ev.flags, &mut waiter));
-	}
-
-	if num_bound == 0 && wake_time_mono == !0 {
-		// Attempting to sleep on no events with an infinite timeout! Would sleep forever
-		todo!("What to do when a thread tries to sleep forever");
-	}
-
-	// A wake time of 0 means to not sleep at all, just check the status of the events
-	// TODO: There should be a more efficient way of doing this, than binding only to unbind again
-	if wake_time_mono != 0 {
-		// !0 indicates an unbounded wait (no need to set a wakeup time)
-		if wake_time_mono != !0 {
-			todo!("Set a wakeup timer at {}", wake_time_mono);
-			//waiter.wait_until(wake_time_mono);
-		}
-		else {
-			waiter.wait();
-		}
-	}
-
-	Ok( events.iter_mut().fold(0, |total,ev| total + objects::clear_wait(ev.object, ev.flags, &mut waiter).unwrap()) )
+	log_debug!("USER> {}", msg);
 }
 
