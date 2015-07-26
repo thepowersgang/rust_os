@@ -118,7 +118,7 @@ fn get_lapic() -> &'static raw::LAPIC
 #[tag_safe(irq)]
 extern "C" fn lapic_irq_handler(isr: usize, info: *const(), gsi: usize)
 {
-	log_trace!("lapic_irq_handler: (isr={},info={:?},gsi={})", isr, info, gsi);
+	//log_trace!("lapic_irq_handler: (isr={},info={:?},gsi={})", isr, info, gsi);
 	let (ioapic,ofs) = match get_ioapic(gsi) {
 		Some(x) => x,
 		None => {

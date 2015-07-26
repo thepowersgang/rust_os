@@ -442,6 +442,7 @@ pub fn enabled(level: Level, modname: &str) -> bool
 	"kernel::metadevs::storage" => (level < Level::LevelTrace),
 	"storage_ata::io" => (level < Level::LevelDebug),
 	"kernel::async" => (level < Level::LevelDebug),
+	"fs_fat" => (level < Level::LevelDebug),
 	_ => true,
 	}
 }
