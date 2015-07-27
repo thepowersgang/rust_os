@@ -77,6 +77,14 @@ pub fn get_thread_id() -> thread::ThreadID
 		}
 	}
 }
+pub fn get_process_id() -> thread::ProcessID {
+	let p = unsafe {
+		let p = ::arch::threads::borrow_thread();
+		assert!(p != 0 as *const _);
+		&*p
+		};
+	p.get_process_info().get_pid()
+}
 
 // TODO: Prevent this pointer from being sent (which will prevent accessing of freed memory)
 pub fn get_process_local<T: Send+Sync+::core::marker::Reflect+Default+'static>() -> ArefBorrow<T>
@@ -161,7 +169,7 @@ fn rel_cur_thread(t: Box<Thread>)
 
 fn get_thread_to_run() -> Option<Box<Thread>>
 {
-        let _irq_lock = ::arch::sync::hold_interrupts();
+	let _irq_lock = ::arch::sync::hold_interrupts();
 	let mut handle = s_runnable_threads.lock();
 	if handle.empty()
 	{

@@ -36,6 +36,9 @@ impl ::objects::Object for CurProcess {
         if flags & values::EV_THISPROCESS_RECVOBJ != 0 {
             todo!("EV_THISPROCESS_RECVOBJ");
         }
+        if flags & values::EV_THISPROCESS_RECVMSG != 0 {
+            todo!("EV_THISPROCESS_RECVOBJ");
+        }
         0
     }
     fn clear_wait(&self, _flags: u32, _obj: &mut ::kernel::threads::SleepObject) -> u32 {

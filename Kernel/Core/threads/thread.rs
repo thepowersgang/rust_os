@@ -16,6 +16,7 @@ use lib::mem::Arc;
 
 /// Thread identifier (unique)
 pub type ThreadID = u32;
+pub type ProcessID = u32;
 
 //#[deriving(PartialEq)]
 /// Thread run state
@@ -37,7 +38,7 @@ impl Default for RunState { fn default() -> RunState { RunState::Runnable } }
 pub struct Process
 {
 	name: String,
-	pid: u32,
+	pid: ProcessID,
 	address_space: ::memory::virt::AddressSpace,
 	pub proc_local_data: ::sync::RwLock<Vec< ::lib::mem::aref::Aref<::core::any::Any+Sync+Send> >>,
 }
@@ -132,6 +133,8 @@ impl Process
 	fn empty_cpu_state(&self) -> ::arch::threads::State {
 		::arch::threads::State::new( &self.address_space )
 	}
+
+	pub fn get_pid(&self) -> ProcessID { self.pid }
 }
 impl ProcessHandle
 {

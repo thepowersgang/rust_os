@@ -9,8 +9,10 @@ use syscalls::Object;
 
 fn main() {
 	use syscalls::gui::{Group,Window};
-	
-	::syscalls::gui::set_group( ::syscalls::threads::S_THIS_PROCESS.receive_object::<Group>(0).unwrap() );
+	use syscalls::threads::S_THIS_PROCESS;
+    
+    ::syscalls::threads::wait(&mut [S_THIS_PROCESS.get_wait()], !0);
+	::syscalls::gui::set_group( S_THIS_PROCESS.receive_object::<Group>(0).unwrap() );
 	
 	let window = Window::new("Console").unwrap();
 	window.maximise();

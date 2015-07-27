@@ -14,7 +14,14 @@ use super::{Error,ObjectHandle};
 use super::SyscallArg;
 
 pub fn newgroup(name: &str) -> Result<ObjectHandle,u32> {
-	todo!("syscall_gui_newgroup(name={})", name);
+	// Only init can create new sessions
+	// TODO: Use a capability system instead of hardcoding to only PID0
+	if ::kernel::threads::get_process_id() == 0 {
+		Ok(objects::new_object(Group(::kernel::gui::WindowGroupHandle::alloc(name))))
+	}
+	else {
+		todo!("syscall_gui_newgroup(name={}) - PID != 0", name);
+	}
 }
 
 struct Group(::kernel::gui::WindowGroupHandle);
