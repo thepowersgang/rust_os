@@ -23,9 +23,8 @@ impl Process
 		Err(_) => panic!(""),
 		}
 	}
-    
-    pub fn send_obj<T: ::syscalls::Object>(&self, obj: T) {
-        self.0.send_obj(obj)
-    }
 }
-
+impl ::core::ops::Deref for Process {
+    type Target = ::syscalls::threads::Process;
+    fn deref(&self) -> &Self::Target { &self.0 }
+}

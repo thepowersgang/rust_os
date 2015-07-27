@@ -24,11 +24,25 @@ pub fn newgroup(name: &str) -> Result<ObjectHandle,u32> {
 	}
 }
 
+pub fn bind_group(object_handle: u32) -> Result<bool,Error> {
+	let wgh = ::kernel::threads::get_process_local::<PLWindowGroup>();
+    let mut h = wgh.0.lock();
+    if h.is_none() {
+        let group: Group = try!(::objects::take_object(object_handle));
+        *h = Some(group.0);
+        Ok(true)
+    }
+    else {
+        Ok(false)
+    }
+}
+
 struct Group(::kernel::gui::WindowGroupHandle);
 impl objects::Object for Group
 {
 	const CLASS: u16 = values::CLASS_GUI_GROUP;
 	fn class(&self) -> u16 { Self::CLASS }
+	fn as_any(&self) -> &Any { self }
 	fn handle_syscall(&self, call: u16, _args: &[usize]) -> Result<u64,Error>
 	{
 		match call
@@ -54,6 +68,7 @@ impl objects::Object for Window
 {
 	const CLASS: u16 = values::CLASS_GUI_WIN;
 	fn class(&self) -> u16 { Self::CLASS }
+	fn as_any(&self) -> &Any { self }
 	fn handle_syscall(&self, call: u16, mut args: &[usize]) -> Result<u64,Error>
 	{
 		match call
@@ -85,12 +100,12 @@ impl objects::Object for Window
 }
 
 #[derive(Default)]
-struct PLWindowGroup( Option<Mutex< ::kernel::gui::WindowGroupHandle >> );
+struct PLWindowGroup( Mutex<Option< ::kernel::gui::WindowGroupHandle >> );
 impl PLWindowGroup {
 	fn with<O, F: FnOnce(&mut ::kernel::gui::WindowGroupHandle)->O>(&self, f: F) -> Result<O,u32> {
-		match self.0
+		match *self.0.lock()
 		{
-		Some(ref v) => Ok( f(&mut v.lock()) ),
+		Some(ref mut v) => Ok( f(v) ),
 		None => Err(0),
 		}
 	}

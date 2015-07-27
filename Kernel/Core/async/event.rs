@@ -4,7 +4,7 @@
 // Core/async/event.rs
 //! Asynchronous event waiter
 use prelude::*;
-use core::atomic::{AtomicBool,ATOMIC_BOOL_INIT};
+use core::atomic::{AtomicBool,ATOMIC_BOOL_INIT,Ordering};
 use core::fmt;
 
 /// A general-purpose wait event (when flag is set, waiters will be informed)
@@ -12,6 +12,7 @@ use core::fmt;
 /// Only a single object can wait on this event at one time
 ///
 /// TODO: Determine the set/reset conditions on the wait flag.
+#[derive(Default)]
 pub struct Source
 {
 	flag: AtomicBool,
@@ -48,9 +49,20 @@ impl Source
 	pub fn trigger(&self)
 	{
 		//log_debug!("Trigger");
-		self.flag.store(true, ::core::atomic::Ordering::Relaxed);
+		self.flag.store(true, Ordering::SeqCst);    // prevents reodering around this
 		self.waiter.lock().as_mut().map(|r| r.signal());
 	}
+
+
+    /// Register to wake the specified sleep object
+    pub fn wait_upon(&self, waiter: &mut ::threads::SleepObject) -> bool {
+        *self.waiter.lock() = Some(waiter.get_ref());
+        self.flag.load(Ordering::SeqCst)    // Release - Don't reorder anything to after this
+    }
+    pub fn clear_wait(&self, _waiter: &mut ::threads::SleepObject) {
+        let mut lh = self.waiter.lock();
+        *lh = None;
+    }
 }
 
 impl<'a> fmt::Debug for Waiter<'a> {
@@ -66,7 +78,7 @@ impl<'a> super::PrimitiveWaiter for Waiter<'a>
 	}
 	fn poll(&self) -> bool {
 		match self.source {
-		Some(r) => r.flag.load(::core::atomic::Ordering::Relaxed),
+		Some(r) => r.flag.load(Ordering::Relaxed),
 		None => true,
 		}
 	}

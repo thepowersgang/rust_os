@@ -7,6 +7,7 @@
 #![no_std]
 #![feature(associated_consts)]
 #![feature(core_slice_ext)]
+#![feature(reflect_marker)]
 
 #[macro_use]
 extern crate core;
@@ -34,6 +35,7 @@ pub enum Error
 	TooManyArgs,
 	BadValue,
 	NoSuchObject(u32),
+    TooManyObjects,
 	InvalidBuffer(*const (), usize),
 	BorrowFailure,
 	InvalidUnicode(::core::str::Utf8Error),
@@ -149,7 +151,13 @@ fn invoke_int(call_id: u32, mut args: &[usize]) -> Result<u64,Error>
 			from_result(gui::newwindow(&name))
 			},
 		GUI_BINDGROUP => {
-			todo!("GUI_BINDGROUP");
+            let obj = try!( <u32>::get_arg(&mut args) );
+            if try!(gui::bind_group(obj)) {
+                1
+            }
+            else {
+                0
+            }
 			},
 		// === 2: VFS
 		// - 2/0: Open node (for stat)

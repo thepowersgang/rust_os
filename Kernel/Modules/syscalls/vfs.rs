@@ -17,6 +17,7 @@ pub fn openfile(path: &[u8], mode: u32) -> Result<ObjectHandle,u32> {
 	impl objects::Object for File {
 		const CLASS: u16 = values::CLASS_VFS_FILE;
 		fn class(&self) -> u16 { Self::CLASS }
+	    fn as_any(&self) -> &Any { self }
 		fn handle_syscall(&self, call: u16, mut args: &[usize]) -> Result<u64,Error> {
 			match call
 			{

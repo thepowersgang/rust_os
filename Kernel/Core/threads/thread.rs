@@ -149,6 +149,19 @@ impl ProcessHandle
 		::arch::threads::start_thread( &mut thread, || unsafe { ::arch::drop_to_user(ip, sp, 0) } );
 		super::yield_to(thread);
 	}
+
+    pub fn get_process_local<T: Send+Sync+::core::marker::Reflect+Default+'static>(&self) -> Option<::lib::mem::aref::ArefBorrow<T>> {
+        let pld = &self.0.proc_local_data;
+        // 1. Try without write-locking
+        for s in pld.read().iter()
+        {
+            let item_ref: &::core::any::Any = &**s;
+            if item_ref.get_type_id() == ::core::any::TypeId::of::<T>() {
+                return Some( s.borrow().downcast::<T>().ok().unwrap() );
+            }
+        }
+        None
+    }
 }
 
 impl ThreadHandle

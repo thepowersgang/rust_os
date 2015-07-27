@@ -18,7 +18,11 @@ fn main()
 
 	//tifflin_process::Process::spawn("/sysroot/bin/login");
 	let console = tifflin_process::Process::spawn("/sysroot/bin/simple_console");
+
     let wingrp = syscalls::gui::Group::new("Session 1").unwrap();
     console.send_obj(wingrp);
+    loop {
+        ::syscalls::threads::wait(&mut [console.wait_terminate()], !0);
+    }
 }
 

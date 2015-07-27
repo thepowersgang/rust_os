@@ -71,6 +71,11 @@ impl Process {
 	pub fn send_msg(&self, id: u32, data: &[u8]) {
 		unsafe { self.0.call_3(::values::CORE_PROCESS_SENDMSG, id as usize, data.as_ptr() as usize, data.len()); }
 	}
+
+    #[inline]
+    pub fn wait_terminate(&self) -> ::values::WaitItem {
+        self.0.get_wait(::values::EV_PROCESS_TERMINATED)
+    }
 }
 impl ::Object for Process {
 	const CLASS: u16 = ::values::CLASS_CORE_PROCESS;
