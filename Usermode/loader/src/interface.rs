@@ -100,7 +100,7 @@ fn new_process_entry() -> !
 	
 	// TODO: Switch stacks into a larger dynamically-allocated stack
 	let ep: fn(&[&::std::ffi::OsStr]) -> ! = unsafe { ::std::mem::transmute(entrypoint) };
-	kernel_log!("Calling entry {:p}", ep as *const ());
+	kernel_log!("Calling entry {:p} for {:?}", ep as *const (), binary);
 	ep(&args);
 }
 

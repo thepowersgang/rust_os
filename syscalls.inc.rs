@@ -33,8 +33,6 @@ def_grp!( 0: GROUP_CORE = {
 	=4: CORE_STARTTHREAD,
 	/// Wait for any of a set of events
 	=5: CORE_WAIT,
-	/// Fetch a handle to the 'n'th object of the specified class that hasn't been claimed
-	=6: CORE_RECVOBJ,
 });
 
 #[repr(C)]
@@ -92,7 +90,7 @@ macro_rules! def_classes {
 
 def_classes! {
 	/// Handle to a spawned process, used to communicate with it
-	=0: CLASS_PROCESS = {
+	=0: CLASS_CORE_PROCESS = {
 		/// Request that the process be terminated
 		=0: CORE_PROCESS_KILL,
 		/// Give the process one of this process's objects
@@ -102,8 +100,16 @@ def_classes! {
 	}|{
 		=0: EV_PROCESS_TERMINATED,
 	},
+    =1: CLASS_CORE_THISPROCESS = {
+    	/// Fetch a handle to the 'n'th object of the specified class that hasn't been claimed
+	    =0: CORE_THISPROCESS_RECVOBJ,
+	    =1: CORE_THISPROCESS_RECVMSG,
+    }|{
+        =0: EV_THISPROCESS_RECVOBJ,
+        =1: EV_THISPROCESS_RECVMSG,
+    },
 	/// Opened file
-	=1: CLASS_VFS_FILE = {
+	=2: CLASS_VFS_FILE = {
 		/// Read data from the specified position in the file
 		=0: VFS_FILE_READAT,
 		/// Write to the specified position in the file
@@ -113,7 +119,7 @@ def_classes! {
 	}|{
 	},
 	/// GUI Group/Session
-	=2: CLASS_GUI_GROUP = {
+	=3: CLASS_GUI_GROUP = {
 		/// Force this group to be the active one (requires permission)
 		=0: GUI_GRP_FORCEACTIVE,
 	}|{
@@ -121,7 +127,7 @@ def_classes! {
 		=0: EV_GUI_GRP_SHOWHIDE,
 	},
 	/// Window
-	=3: CLASS_GUI_WIN = {
+	=4: CLASS_GUI_WIN = {
 		/// Set the show/hide state of the window
 		=0: GUI_WIN_SHOWHIDE,
 		/// Trigger a redraw of the window

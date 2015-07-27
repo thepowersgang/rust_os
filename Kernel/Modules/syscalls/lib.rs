@@ -137,16 +137,6 @@ fn invoke_int(call_id: u32, mut args: &[usize]) -> Result<u64,Error>
 			let timeout = try!( <u64>::get_arg(&mut args) );
 			try!(threads::wait(&mut events, timeout)) as u64
 			},
-		// - 0/6: 
-		// TODO: Put this on a "This Process" object
-		CORE_RECVOBJ => {
-			let class = try!( <u16>::get_arg(&mut args) );
-			let idx = try!( <usize>::get_arg(&mut args) );
-			objects::get_unclaimed(class, idx)
-			},
-		//CORE_RECVMSG => {
-		//	todo!("CORE_RECVMSG");
-		//	},
 		// === 1: Window Manager / GUI
 		// - 1/0: New group (requires permission, has other restrictions)
 		GUI_NEWGROUP => {

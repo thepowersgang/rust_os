@@ -49,12 +49,17 @@ struct ProcessObjects
 	objs: Vec< ObjectSlot >,
 }
 
+
+/// Construct the initial ProcessObjects list
 impl Default for ProcessObjects {
 	fn default() -> ProcessObjects {
 		const MAX_OBJECTS_PER_PROC: usize = 64;
-		ProcessObjects {
-			objs: Vec::from_fn(MAX_OBJECTS_PER_PROC, |_| RwLock::new(None)),
-		}
+		let mut ret = ProcessObjects {
+                objs: Vec::from_fn(MAX_OBJECTS_PER_PROC, |_| RwLock::new(None)),
+            };
+        // Object 0 is fixed to be "this process" (and is not droppable)
+        *ret.objs[0].write() = Some(UserObject::new(::threads::CurProcess));
+        ret
 	}
 }
 impl ProcessObjects {
@@ -112,16 +117,35 @@ pub fn get_unclaimed(class: u16, idx: usize) -> u64
 	let mut cur_idx = 0;
 	for (i, ent) in objs.iter().enumerate()
 	{
-		if let Some(ref mut v) = *ent.write()
-		{
-			if v.data.class() == class && v.unclaimed {
-				if cur_idx == idx {
-					v.unclaimed = false;
-					return super::from_result::<u32,u32>( Ok(i as u32) );
-				}
-				cur_idx += 1;
-			}
-		}
+        let found = if let Some(ref v) = *ent.read()
+            {
+                if v.data.class() == class && v.unclaimed {
+                    if cur_idx == idx {
+                        true
+                    }
+                    else {
+                        cur_idx += 1;
+                        false
+                    }
+                }
+                else {
+                    false
+                }
+            }
+            else {
+                false
+            };
+        if found
+        {
+            if let Some(ref mut v) = *ent.write()
+            {
+                if v.data.class() == class && v.unclaimed {
+                    v.unclaimed = false;
+                    return super::from_result::<u32,u32>( Ok(i as u32) );
+                }
+            }
+            break;
+        }
 	}
 	super::from_result::<u32,u32>( Err(0) )
 }

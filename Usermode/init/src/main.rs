@@ -17,6 +17,8 @@ fn main()
 	//let shells = Vec::new();
 
 	//tifflin_process::Process::spawn("/sysroot/bin/login");
-	tifflin_process::Process::spawn("/sysroot/bin/simple_console");
+	let console = tifflin_process::Process::spawn("/sysroot/bin/simple_console");
+    let wingrp = syscalls::gui::Group::new("Session 1").unwrap();
+    console.send_obj(wingrp);
 }
 

@@ -10,17 +10,22 @@ use core::prelude::*;
 #[macro_use]
 extern crate core;
 extern crate loader;
+extern crate syscalls;
 
-pub struct Process;
+pub struct Process(::syscalls::threads::Process);
 
 impl Process
 {
 	pub fn spawn<S: AsRef<[u8]>>(path: S) -> Process {
 		match loader::new_process(path.as_ref(), &[])
 		{
-		Ok(_v) => Process,
+		Ok(v) => Process(v),
 		Err(_) => panic!(""),
 		}
 	}
+    
+    pub fn send_obj<T: ::syscalls::Object>(&self, obj: T) {
+        self.0.send_obj(obj)
+    }
 }
 

@@ -9,6 +9,39 @@ use kernel::prelude::*;
 use ObjectHandle;
 use Error;
 use values;
+use SyscallArg;
+use kernel::memory::freeze::FreezeMut;
+
+/// Current process type (provides an object handle for IPC)
+pub struct CurProcess;
+impl ::objects::Object for CurProcess {
+	const CLASS: u16 = values::CLASS_CORE_THISPROCESS;
+	fn class(&self) -> u16 { Self::CLASS }
+	fn handle_syscall(&self, call: u16, mut args: &[usize]) -> Result<u64, Error> {
+		match call
+		{
+		values::CORE_THISPROCESS_RECVOBJ => {
+			let class = try!( <u16>::get_arg(&mut args) );
+			let idx = try!( <usize>::get_arg(&mut args) );
+			Ok( ::objects::get_unclaimed(class, idx) )
+			},
+		values::CORE_THISPROCESS_RECVMSG => {
+			let dest = try!( <FreezeMut<[u8]>>::get_arg(&mut args) );
+			todo!("CORE_THISPROCESS_RECVMSG - {:p}+{}", dest.as_ptr(), dest.len());
+			},
+		_ => todo!("CurProcess::handle_syscall({}, ...)", call),
+		}
+	}
+    fn bind_wait(&self, flags: u32, _obj: &mut ::kernel::threads::SleepObject) -> u32 {
+        if flags & values::EV_THISPROCESS_RECVOBJ != 0 {
+            todo!("EV_THISPROCESS_RECVOBJ");
+        }
+        0
+    }
+    fn clear_wait(&self, _flags: u32, _obj: &mut ::kernel::threads::SleepObject) -> u32 {
+        unimplemented!();
+    }
+}
 
 pub fn exit(status: u32) {
 	todo!("exit(status={:x})", status);
@@ -28,7 +61,7 @@ pub fn newprocess(name: &str, ip: usize, sp: usize, clone_start: usize, clone_en
 	
 	struct Process(::kernel::threads::ProcessHandle);
 	impl ::objects::Object for Process {
-		const CLASS: u16 = values::CLASS_PROCESS;
+		const CLASS: u16 = values::CLASS_CORE_PROCESS;
 		fn class(&self) -> u16 { Self::CLASS }
 		fn handle_syscall(&self, call: u16, _args: &[usize]) -> Result<u64,Error> {
 			match call
