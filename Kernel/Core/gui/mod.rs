@@ -61,5 +61,6 @@ impl Colour
 	pub fn def_green() -> Colour { Colour(0x00_FF_00) }
 	
 	pub fn as_argb32(&self) -> u32 { self.0 }
+	pub fn from_argb32(v: u32) -> Self { Colour(v) }
 }
 

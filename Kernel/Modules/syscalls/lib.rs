@@ -360,6 +360,16 @@ impl SyscallArg for u8 {
 		Ok( rv )
 	}
 }
+impl SyscallArg for bool {
+	fn get_arg(args: &mut &[usize]) -> Result<Self,Error> {
+		if args.len() < 1 {
+			return Err( Error::TooManyArgs );
+		}
+		let rv = (args[0] as u8) != 0;
+		*args = &args[1..];
+		Ok( rv )
+	}
+}
 
 // TODO: Support a better user logging framework
 fn syscall_core_log(msg: &str) {

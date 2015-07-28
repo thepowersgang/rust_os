@@ -461,17 +461,22 @@ impl Window
 	/// Fill an area of the window
 	pub fn fill_rect(&self, area: Rect, colour: Colour)
 	{
-		let buf_h = self.buf.read();
-		for row in area.top() .. area.bottom()
+		let dims = self.buf.read().dims();
+		let winrect = Rect::new_pd(Pos::new(0,0), dims);
+		if let Some(area) = area.intersect(&winrect)
 		{
-			buf_h.fill_scanline(
-				row as usize,
-				area.left() as usize,
-				area.dims().w as usize,
-				colour
-				);
+			let buf_h = self.buf.read();
+			for row in area.top() .. area.bottom()
+			{
+				buf_h.fill_scanline(
+					row as usize,
+					area.left() as usize,
+					area.dims().w as usize,
+					colour
+					);
+			}
+			self.add_dirty(area);
 		}
-		self.add_dirty(area);
 	}
 	
 	/// Blit from an external data source

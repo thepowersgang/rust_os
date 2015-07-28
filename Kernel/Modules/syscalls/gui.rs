@@ -26,17 +26,18 @@ pub fn newgroup(name: &str) -> Result<ObjectHandle,u32> {
 
 pub fn bind_group(object_handle: u32) -> Result<bool,Error> {
 	let wgh = ::kernel::threads::get_process_local::<PLWindowGroup>();
-    let mut h = wgh.0.lock();
-    if h.is_none() {
-        let group: Group = try!(::objects::take_object(object_handle));
-        *h = Some(group.0);
-        Ok(true)
-    }
-    else {
-        Ok(false)
-    }
+	let mut h = wgh.0.lock();
+	if h.is_none() {
+		let group: Group = try!(::objects::take_object(object_handle));
+		*h = Some(group.0);
+		Ok(true)
+	}
+	else {
+		Ok(false)
+	}
 }
 
+/// Window group, aka Session
 struct Group(::kernel::gui::WindowGroupHandle);
 impl objects::Object for Group
 {
@@ -62,7 +63,7 @@ impl objects::Object for Group
 	}
 }
 
-
+/// Window
 struct Window(Mutex<::kernel::gui::WindowHandle>);
 impl objects::Object for Window
 {
@@ -73,8 +74,20 @@ impl objects::Object for Window
 	{
 		match call
 		{
-		values::GUI_WIN_SHOWHIDE => todo!("GUI_WIN_SHOWHIDE"),
-		values::GUI_WIN_REDRAW => todo!("GUI_WIN_REDRAW"),
+		values::GUI_WIN_SHOWHIDE => {
+            let show = try!( <bool>::get_arg(&mut args) );
+            if show {
+                self.0.lock().show()
+            }
+            else {
+                self.0.lock().hide()
+            }
+            Ok(0)
+            },
+		values::GUI_WIN_REDRAW => {
+            self.0.lock().redraw();
+            Ok(0)
+            },
 		values::GUI_WIN_BLITRECT => {
 			let x = try!( <u32>::get_arg(&mut args) );
 			let y = try!( <u32>::get_arg(&mut args) );
@@ -84,7 +97,15 @@ impl objects::Object for Window
 			self.0.lock().blit_rect(Rect::new(x,y,w,h), &data);
 			Ok(0)
 			},
-		values::GUI_WIN_FILLRECT => todo!("GUI_WIN_FILLRECT"),
+		values::GUI_WIN_FILLRECT => {
+			let x = try!( <u32>::get_arg(&mut args) );
+			let y = try!( <u32>::get_arg(&mut args) );
+			let w = try!( <u32>::get_arg(&mut args) );
+			let h = try!( <u32>::get_arg(&mut args) );
+			let colour = try!( <u32>::get_arg(&mut args) );
+			self.0.lock().fill_rect(Rect::new(x,y,w,h), ::kernel::gui::Colour::from_argb32(colour));
+			Ok(0)
+			},
 		_ => todo!("Window::handle_syscall({}, ...)", call),
 		}
 	}
