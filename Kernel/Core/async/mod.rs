@@ -6,6 +6,8 @@
 
  The Tifflin asynch IO model is based around waiter handlers that contain sufficient information
  to either sleep the thread, or poll for a condition.
+
+ The `wait_on_list` function is the kernel's core implementation of multiple waiters. Userland uses syscalls/threads::wait
 */
 use prelude::*;
 

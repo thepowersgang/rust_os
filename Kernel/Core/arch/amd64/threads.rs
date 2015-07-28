@@ -183,8 +183,11 @@ pub fn switch_to(newthread: Box<::threads::Thread>)
 			// Don't assert RSP, could be switching to self
 			assert!(state.cr3 != 0);
 			assert!(state.tlsbase != 0);
-			log_trace!("Switching to RSP={:#x},CR3={:#x}", state.rsp, state.cr3);
+			log_trace!("Switching to RSP={:#x},CR3={:#x},TLS={:#x}", state.rsp, state.cr3, state.tlsbase);
+            assert!( unsafe { *(outstate.tlsbase as *const usize) } != 0, "outstate TLS Base clobbered before switch" );
+            assert!( unsafe { *(state.tlsbase as *const usize) } != 0, "TLS Base clobbered before switch" );
 			task_switch(&mut outstate.rsp, &state.rsp, state.tlsbase, state.cr3);
+            assert!( unsafe { *(state.tlsbase as *const usize) } != 0, "TLS Base clobbered while out" );
 		}
 		unsafe
 		{
@@ -198,6 +201,7 @@ fn get_tls_ptr() -> *mut TLSData {
 	let ret;
 	// SAFE: Just obtains the pointer from %gs
 	unsafe { asm!("mov %gs:(0), $0" : "=r" (ret) ) }
+	assert!(ret != 0 as *mut _);
 	ret
 }
 

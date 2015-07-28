@@ -212,6 +212,7 @@ EXPORT task_switch
 	mov [rdi], rsp
 	mov rsp, [rsi]	; New RSP
 	mov cr3, rcx	; New CR3
+	invlpg [rsp]
 	; New GSBASE
 	mov rax, rdx
 	shr rdx, 32	; EDX = High

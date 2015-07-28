@@ -11,6 +11,7 @@
 #![feature(core_intrinsics)]	// Intrinsics
 #![feature(asm)]	// Enables the asm! syntax extension
 #![feature(box_syntax)]	// Enables 'box' syntax
+#![feature(box_patterns)]	// Used in boxed::unwrap
 #![feature(thread_local)]	// Allows use of thread_local
 #![feature(lang_items)]	// Allow definition of lang_items
 #![feature(optin_builtin_traits)]	// Negative impls

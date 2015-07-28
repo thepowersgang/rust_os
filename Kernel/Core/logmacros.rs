@@ -1,15 +1,26 @@
 
+#[inline(never)]
+pub fn write<'a, F: ::core::ops::FnOnce()->::core::fmt::Arguments<'a> + 'a>(lvl: ::logging::Level, modname: &'static str, fcn: F) {
+	use core::fmt::Write;
+	
+	let _ = match fcn()
+	{
+	a => write!(&mut ::logging::getstream(lvl, modname), "{}", a),
+	};
+}
+
 #[doc(hidden)]
 #[macro_export]
 macro_rules! log{ ($lvl:expr, $modname:expr, $($arg:tt)*) => (
 	if $crate::logging::enabled($lvl, $modname)
 	{
+		//$crate::logmacros::write($lvl, $modname, || format_args!( $($arg)* ));
+		// /*
 		use core::fmt::Write;
-		
-		let _ = match format_args!( $($arg)* )
-		{
-		a => write!(&mut $crate::logging::getstream($lvl, $modname), "{}", a),
-		};
+		let _ = match format_args!( $($arg)* ) {
+			a => write!(&mut $crate::logging::getstream($lvl, $modname), "{}", a),
+			};
+		//*/
 	}
 	)}
 /// Log a panic-level message (kernel intents to halt immediately after printing)
@@ -26,10 +37,10 @@ macro_rules! log_warning{ ($($arg:tt)*) => (log!($crate::logging::Level::LevelWa
 macro_rules! log_notice{  ($($arg:tt)*) => (log!($crate::logging::Level::LevelNotice,  module_path!(), $($arg)*))} 
 /// Information - Needs to be logged, but nothing to worry about
 #[macro_export]
-macro_rules! log_info{    ($($arg:tt)*) => (log!($crate::logging::Level::LevelInfo,    module_path!(), $($arg)*))} 
+macro_rules! log_info{	($($arg:tt)*) => (log!($crate::logging::Level::LevelInfo,	module_path!(), $($arg)*))} 
 /// Log - High-level debugging information
 #[macro_export]
-macro_rules! log_log{     ($($arg:tt)*) => (log!($crate::logging::Level::LevelLog,     module_path!(), $($arg)*))} 
+macro_rules! log_log{	 ($($arg:tt)*) => (log!($crate::logging::Level::LevelLog,	 module_path!(), $($arg)*))} 
 /// Debug - Low level debugging information (values mostly)
 #[macro_export]
 macro_rules! log_debug{   ($($arg:tt)*) => (log!($crate::logging::Level::LevelDebug,   module_path!(), $($arg)*))} 

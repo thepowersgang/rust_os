@@ -17,10 +17,10 @@ pub struct SleepObject
 	inner: ::sync::Spinlock< SleepObjectInner >,
 }
 impl_fmt! {
-    Debug(self,f) for SleepObject {{
-        let lh = self.inner.lock();
-        write!(f, "SleepObject(\"{}\" {} refs, flag={})", self.name, lh.reference_count, lh.flag)
-    }}
+	Debug(self,f) for SleepObject {{
+		let lh = self.inner.lock();
+		write!(f, "SleepObject(\"{}\" {} refs, flag={})", self.name, lh.reference_count, lh.flag)
+	}}
 }
 #[derive(Default)]
 struct SleepObjectInner
@@ -120,6 +120,13 @@ impl ops::Drop for SleepObject
 	}
 }
 
+impl SleepObjectRef
+{
+	/// Checks if this reference points to the passed object
+	pub fn is_from(&self, obj: &SleepObject) -> bool {
+		self.obj == obj as *const _
+	}
+}
 impl ops::Deref for SleepObjectRef
 {
 	type Target = SleepObject;

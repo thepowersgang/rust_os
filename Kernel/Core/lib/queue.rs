@@ -6,95 +6,92 @@
 //!
 //! Current implementation is a linked list, but could be backed to Vec if required.
 use prelude::*;
-use lib::{OptPtr,OptMutPtr};
 
 /// A basic linked-list queue
 pub struct Queue<T>
 {
-	#[doc(hidden)]
-	pub head: OptPtr<QueueEnt<T>>,
-	#[doc(hidden)]
-	pub tail: OptMutPtr<QueueEnt<T>>,
+	head: Option<QueueEntPtr<T>>,
+	tail: Option<QueueTailPtr<T>>,
 }
 
 unsafe impl<T: Sync> ::core::marker::Sync for Queue<T> {}
 unsafe impl<T: Send> ::core::marker::Send for Queue<T> {}
 
 /// Initialise a queue within a `static`
-macro_rules! queue_init{ () => ($crate::lib::queue::Queue{head: $crate::lib::OptPtr(0 as *const _),tail: $crate::lib::OptMutPtr(0 as *mut _)}) }
+macro_rules! queue_init{ () => ($crate::lib::queue::Queue::new()) }
 
-#[doc(hidden)]
-pub struct QueueEnt<T>
-{
-	next: OptPtr<QueueEnt<T>>,
-	value: T
-}
+struct QueueEntPtr<T>(Box<QueueEnt<T>>);
+struct QueueTailPtr<T>(::core::nonzero::NonZero<*mut QueueEnt<T>>);
 
-/// Immutable iterator
-pub struct Items<'s, T: 's>
+struct QueueEnt<T>
 {
-	cur_item: Option<&'s QueueEnt<T>>,
-}
-/// Mutable iterator
-pub struct ItemsMut<'s, T: 's>
-{
-	cur_item: Option<&'s mut QueueEnt<T>>,
+	next: Option<QueueEntPtr<T>>,
+	value: T,
 }
 
 impl<T> Queue<T>
 {
 	/// Construct a new empty queue
-	pub fn new() -> Queue<T> {
-		queue_init!()	// I'm lazy
+	pub const fn new() -> Queue<T> {
+		Queue{
+			head: None,
+			tail: None,
+		}
 	}
+}
+impl<T> Default for Queue<T>
+{
+	fn default() -> Self { Self::new() }
+}
+impl<T> Queue<T>
+{
 	/// Add an item to the end of the queue
 	pub fn push(&mut self, value: T)
 	{
+		// SAFE: New QueueTailPtr should not outlive the object, tail does not alias
 		unsafe
 		{
-			let qe_ptr = ::memory::heap::alloc( QueueEnt {
-				next: OptPtr(0 as *const _),
-				value: value,
-				} );
-			log_trace!("Pushing {:?}", qe_ptr);
+			let mut qe_ptr = QueueEntPtr::new(value);
+			let tail_ptr = qe_ptr.tail_ptr();
 			
 			if self.head.is_some()
 			{
-				assert!( self.tail.is_some() );
-				let r = self.tail.as_ref().unwrap();
-				assert!( r.next.is_none() );
-				r.next = OptPtr(qe_ptr as *const _);
+				// If the queue was non-empty, then push to tail
+				match self.tail
+				{
+				Some(ref mut t) => t.get_mut().next = Some(qe_ptr),
+				None => panic!("Tail pointer was None when head != None"),
+				}
 			}
 			else
 			{
-				self.head = OptPtr(qe_ptr as *const _);
+				self.head = Some(qe_ptr);
 			}
-			self.tail = OptMutPtr(qe_ptr);
+			self.tail = Some(tail_ptr);
 		}
 	}
 	/// Remove an item from the front
 	pub fn pop(&mut self) -> ::core::option::Option<T>
 	{
-		if self.head.is_none() {
-			return None;
-		}
-		
-		unsafe
+		// Take head (will be updated if Some)
+		match self.head.take()
 		{
-			let qe_ptr = self.head.unwrap() as *mut QueueEnt<T>;
-			self.head = ::core::ptr::read( &(*qe_ptr).next );
+		Some(old_head) => {
+			// Unwrap and destructure allocation
+			let QueueEnt { next, value } = old_head.into_inner();
+			self.head = next;
+			// Update tail if head became None
 			if self.head.is_none() {
-				self.tail = OptMutPtr(0 as *mut _);
+				self.tail = None;
 			}
-			
-			let rv = ::core::ptr::read( &(*qe_ptr).value );
-			::memory::heap::dealloc(qe_ptr);
-			Some(rv)
+			Some( value )
+			},
+		None => None,
 		}
 	}
 	
 	/// Returns true if the queue is empty
-	pub fn empty(&self) -> bool
+	pub fn is_empty(&self) -> bool
 	{
 		self.head.is_none()
 	}
@@ -103,7 +100,7 @@ impl<T> Queue<T>
 	pub fn iter<'s>(&'s self) -> Items<'s,T>
 	{
 		Items {
-			cur_item: unsafe { self.head.as_ref() },
+			cur_item: self.head.as_ref().map(|x| &**x),
 		}
 	}
 	
@@ -111,8 +108,55 @@ impl<T> Queue<T>
 	pub fn iter_mut<'s>(&'s mut self) -> ItemsMut<'s,T>
 	{
 		ItemsMut {
-			cur_item: unsafe { self.head.as_mut_ref() },
+			cur_item: self.head.as_mut().map(|x| &mut **x),
 		}
+	}
+
+	/// Removes items that satisfy the filter function
+	pub fn filter_out<F: Fn(&T)->bool>(&mut self, filter_fcn: F) {
+		// 1. Check the head
+		while match self.head {
+			Some(ref r) => filter_fcn(&r.value),
+			None => false,
+			}
+		{
+			let oldhead: QueueEntPtr<T> = self.head.take().unwrap();
+			self.head = oldhead.into_inner().next;
+		}
+		// 2. Now that the head is not being changed, filter the rest
+		let newtail = match self.head
+			{
+			Some(ref mut head) => {
+				let mut prev = unsafe { head.tail_ptr() };
+				// Breakout happens when next is None
+				loop {
+					let next = {
+						let prev_next_ref = unsafe { &mut prev.get_mut().next };
+						// While the next item fails the filter
+						while match *prev_next_ref {
+							Some(ref r) => filter_fcn(&r.value),
+							None => false,
+							}
+						{
+							// Drop it
+							let oldnext = prev_next_ref.take().unwrap();
+							*prev_next_ref = oldnext.into_inner().next;
+						}
+
+						// Get a tail ref to the next item, and continue
+						// SAFE: This returned pointer will be either dropped, or saved as the next tail
+						prev_next_ref.as_mut().map(|x| unsafe { x.tail_ptr() })
+						};
+					match next {
+					Some(n) => prev = n,
+					None => break,
+					}
+				}
+				Some(prev)
+				},
+			None => None,
+			};
+		self.tail = newtail;
 	}
 }
 
@@ -125,6 +169,42 @@ impl<'s, T> IntoIterator for &'s Queue<T>
 	}
 }
 
+impl<T> QueueEntPtr<T>
+{
+	fn new(val: T) -> QueueEntPtr<T> {
+		QueueEntPtr(Box::new(QueueEnt { next: None, value: val }))
+	}
+
+	fn into_inner(self) -> QueueEnt<T> {
+		::lib::mem::boxed::into_inner(self.0)
+	}
+
+	/// UNSAFE: Requires that the tail pointer not outlive this object
+	unsafe fn tail_ptr(&mut self) -> QueueTailPtr<T> {
+		QueueTailPtr(::core::nonzero::NonZero::new(&mut *self.0))
+	}
+}
+impl<T> ::core::ops::Deref for QueueEntPtr<T> {
+	type Target = QueueEnt<T>;
+	fn deref(&self) -> &QueueEnt<T> { &self.0 }
+}
+impl<T> ::core::ops::DerefMut for QueueEntPtr<T> {
+	fn deref_mut(&mut self) -> &mut QueueEnt<T> { &mut self.0 }
+}
+impl<T> QueueTailPtr<T>
+{
+	/// UNSAFE: Can cause aliasing if called while &mut-s to the last object are active
+	unsafe fn get_mut(&mut self) -> &mut QueueEnt<T> {
+		&mut **self.0
+	}
+}
+
+/// Immutable iterator
+pub struct Items<'s, T: 's>
+{
+	cur_item: Option<&'s QueueEnt<T>>,
+}
+
 impl<'s, T> Iterator for Items<'s,T>
 {
 	type Item = &'s T;
@@ -133,7 +213,7 @@ impl<'s, T> Iterator for Items<'s,T>
 		match self.cur_item
 		{
 		Some(ptr) => {
-			self.cur_item = unsafe { ptr.next.as_ref() };
+			self.cur_item = ptr.next.as_ref().map(|x| &**x);
 			Some(&ptr.value)
 			},
 		None => None
@@ -141,6 +221,11 @@ impl<'s, T> Iterator for Items<'s,T>
 	}
 }
 
+/// Mutable iterator
+pub struct ItemsMut<'s, T: 's>
+{
+	cur_item: Option<&'s mut QueueEnt<T>>,
+}
 impl<'s, T> Iterator for ItemsMut<'s,T>
 {
 	type Item = &'s mut T;
@@ -150,7 +235,7 @@ impl<'s, T> Iterator for ItemsMut<'s,T>
 		{
 		None => None,
 		Some(ptr) => {
-			self.cur_item = unsafe { ptr.next.as_mut_ref() };
+			self.cur_item = ptr.next.as_mut().map(|x| &mut **x);
 			Some(&mut ptr.value)
 			}
 		}

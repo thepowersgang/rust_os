@@ -11,8 +11,10 @@ pub struct Waiter<'a>(Option<&'a Source>);
 /// A wait queue
 ///
 /// Allows a list of threads to wait on a single object (e.g. a Mutex)
+#[derive(Default)]
 pub struct Source
 {
+	// TODO: Have a local SleepObjectRef to avoid malloc on single-wait case
 	waiters: ::sync::mutex::Mutex< ::lib::Queue<::threads::SleepObjectRef> >,
 }
 
@@ -20,7 +22,7 @@ pub struct Source
 impl Source
 {
 	/// Create a new queue source
-	pub fn new() -> Source
+	pub const fn new() -> Source
 	{
 		Source {
 			waiters: ::sync::mutex::Mutex::new(::lib::Queue::new()),
@@ -35,6 +37,14 @@ impl Source
 	{
 		// TODO: Requires a queue wait variant
 		unimplemented!();
+	}
+
+	pub fn wait_upon(&self, waiter: &mut ::threads::SleepObject) {
+		let mut wh = self.waiters.lock();
+		wh.push( waiter.get_ref() );
+	}
+	pub fn clear_wait(&self, waiter: &mut ::threads::SleepObject) {
+		self.waiters.lock().filter_out(|ent| ent.is_from(waiter));
 	}
 	
 	/// Wake a single waiting thread

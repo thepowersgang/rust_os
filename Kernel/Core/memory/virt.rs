@@ -445,14 +445,14 @@ pub fn alloc_stack() -> AllocHandle
 		if ! ::arch::memory::virt::is_reserved( (pos + addresses::STACK_SIZE - ::PAGE_SIZE) as *const () )
 		{
 			let count = addresses::STACK_SIZE / ::PAGE_SIZE;
-			for ofs in (0 .. count).map(|x| x * ::PAGE_SIZE)
+			for ofs in (1 .. count).map(|x| x * ::PAGE_SIZE)
 			{
 				::memory::phys::allocate( (pos + ofs) as *mut () );
 			}
 			// 3. Return a handle representing this area
 			return AllocHandle {
-				addr: pos as *const _,
-				count: count,
+				addr: (pos + ::PAGE_SIZE) as *const _,
+				count: count-1,
 				mode: ProtectionMode::KernelRW,
 				};
 		}

@@ -88,6 +88,16 @@ impl Window
 	pub fn fill_rect(&self, x: u32, y: u32, w: u32, h: u32, colour: u32) {
 		unsafe { self.0.call_5(::values::GUI_WIN_FILLRECT, x as usize, y as usize, w as usize, h as usize, colour as usize); }
 	}
+
+	pub fn pop_event(&self) -> Option<u64> {
+		let v = unsafe { self.0.call_0(::values::GUI_WIN_GETEVENT) };
+		if v == !0 {
+			None
+		}
+		else {
+			Some(v as u64)
+		}
+	}
 }
 impl ::Object for Window
 {

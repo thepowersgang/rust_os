@@ -10,8 +10,8 @@ use syscalls::Object;
 fn main() {
 	use syscalls::gui::{Group,Window};
 	use syscalls::threads::S_THIS_PROCESS;
-    
-    ::syscalls::threads::wait(&mut [S_THIS_PROCESS.get_wait()], !0);
+	
+	::syscalls::threads::wait(&mut [S_THIS_PROCESS.get_wait()], !0);
 	::syscalls::gui::set_group( S_THIS_PROCESS.receive_object::<Group>(0).unwrap() );
 	
 	let window = Window::new("Console").unwrap();
@@ -24,6 +24,11 @@ fn main() {
 		let mut events = [window.get_wait()];
 		
 		::syscalls::threads::wait(&mut events, !0);
+	
+		while let Some(ev) = window.pop_event()
+		{
+
+		}
 		
 		window.check_wait(&events[0]);
 	}

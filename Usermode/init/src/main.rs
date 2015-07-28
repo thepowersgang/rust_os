@@ -20,6 +20,7 @@ fn main()
 	let console = tifflin_process::Process::spawn("/sysroot/bin/simple_console");
 
     let wingrp = syscalls::gui::Group::new("Session 1").unwrap();
+    wingrp.force_active();
     console.send_obj(wingrp);
     loop {
         ::syscalls::threads::wait(&mut [console.wait_terminate()], !0);

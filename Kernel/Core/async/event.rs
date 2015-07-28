@@ -19,6 +19,13 @@ pub struct Source
 	waiter: ::sync::mutex::Mutex<Option<::threads::SleepObjectRef>>
 }
 
+/// An event structure that allows multiple waiters
+pub struct ManySource
+{
+	flag: AtomicBool,
+	waiters: super::queue::Source,
+}
+
 /// Event waiter
 pub struct Waiter<'a>
 {
@@ -49,20 +56,49 @@ impl Source
 	pub fn trigger(&self)
 	{
 		//log_debug!("Trigger");
-		self.flag.store(true, Ordering::SeqCst);    // prevents reodering around this
+		self.flag.store(true, Ordering::SeqCst);	// prevents reodering around this
 		self.waiter.lock().as_mut().map(|r| r.signal());
 	}
 
 
-    /// Register to wake the specified sleep object
-    pub fn wait_upon(&self, waiter: &mut ::threads::SleepObject) -> bool {
-        *self.waiter.lock() = Some(waiter.get_ref());
-        self.flag.load(Ordering::SeqCst)    // Release - Don't reorder anything to after this
-    }
-    pub fn clear_wait(&self, _waiter: &mut ::threads::SleepObject) {
-        let mut lh = self.waiter.lock();
-        *lh = None;
-    }
+	/// Register to wake the specified sleep object
+	pub fn wait_upon(&self, waiter: &mut ::threads::SleepObject) -> bool {
+		{
+			let mut lh = self.waiter.lock();
+			assert!(lh.is_none());
+			*lh = Some(waiter.get_ref());
+		}
+		self.flag.load(Ordering::SeqCst)	// Release - Don't reorder anything to after this
+	}
+	pub fn clear_wait(&self, _waiter: &mut ::threads::SleepObject) {
+		let mut lh = self.waiter.lock();
+		*lh = None;
+	}
+}
+
+impl ManySource
+{
+	pub const fn new() -> ManySource {
+		ManySource {
+			flag: AtomicBool::new(false),
+			waiters: super::queue::Source::new(),
+		}
+	}
+
+	/// Register to wake the specified sleep object
+	pub fn wait_upon(&self, waiter: &mut ::threads::SleepObject) -> bool {
+		self.waiters.wait_upon(waiter);
+		if self.flag.load(Ordering::SeqCst) {	// Release - Don't reorder anything to after this
+			waiter.signal();
+			true
+		}
+		else {
+			false
+		}
+	}
+	pub fn clear_wait(&self, waiter: &mut ::threads::SleepObject) {
+		self.waiters.clear_wait(waiter)
+	}
 }
 
 impl<'a> fmt::Debug for Waiter<'a> {

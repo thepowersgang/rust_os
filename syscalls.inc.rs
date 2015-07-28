@@ -136,6 +136,8 @@ def_classes! {
 		=2: GUI_WIN_BLITRECT,
 		/// Fill a region of the window with the specified colour
 		=3: GUI_WIN_FILLRECT,
+		/// Read an event from the queue. 64-bit return value, !0 = none, otherwise 16/48 tag and data
+		=4: GUI_WIN_GETEVENT,
 	}|{
 		/// Fires when the input queue is non-empty
 		=0: EV_GUI_WIN_INPUT,

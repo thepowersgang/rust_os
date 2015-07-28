@@ -42,7 +42,7 @@ pub mod addresses
 	pub const TEMP_BASE: usize = HARDWARE_END;
 	pub const TEMP_END:  usize = 0xFFFFD000_00000000;
 	
-	pub const STACK_SIZE: usize = 0x4000;
+	pub const STACK_SIZE: usize = 0x8000;   // 4pg allocation was overflowed, 8 works
 	
 	#[doc(hiddden)]
 	/// Start of the fractal mapping

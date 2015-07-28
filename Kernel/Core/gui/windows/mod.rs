@@ -10,6 +10,7 @@ use sync::rwlock::RwLock;
 use lib::mem::Arc;
 use lib::LazyStatic;
 use core::atomic;
+use lib::ring_buffer::{RingBuf};
 
 use lib::sparse_vec::SparseVec;
 
@@ -25,6 +26,10 @@ struct WindowGroup
 {
 	/// Window group name, may be shown to the user if requested
 	name: String,
+
+	/// Window that currently has focus, different to the top of the render order
+	focussed_window: usize,
+
 	/// Canonical list of windows (sparse, for reallocation of IDs)
 	///
 	/// Contains both the window position and shared ownership of the window data.
@@ -58,6 +63,13 @@ struct Window
 	
 	/// Flags on the window
 	flags: Mutex<WindowFlags>,
+
+	/// Input channel
+	input: WindowInput,
+}
+struct WindowInput {
+    queue: Mutex<RingBuf<super::input::Event>>,
+    waiters: ::async::queue::Source,
 }
 
 #[derive(Default)]
@@ -133,9 +145,11 @@ pub fn update_dims()
 }
 
 /// Handle an input event
+//#[tag_safe(irq)]
 pub fn handle_input(event: super::input::Event)
 {
 	// Push event to a FIFO queue (fixed-size)
+    // > Queue is cleared by the render thread
 	// > This method should be interrupt safe
 	match S_EVENT_QUEUE.push(event)
 	{
@@ -167,12 +181,6 @@ fn render_thread()
 		// Wait for a signal to start a render
 		S_RENDER_REQUEST.sleep();
 		
-		// Check for events
-		while let Some(ev) = S_EVENT_QUEUE.pop()
-		{
-			log_warning!("TODO: Handle input {:?}", ev);
-		}
-		
 		// Render the active window group
 		let (grp_idx, grp_ref) = {
 			let grp_idx = S_CURRENT_GROUP.load( ::core::atomic::Ordering::Relaxed );
@@ -187,6 +195,18 @@ fn render_thread()
 				},
 			}
 			};
+		
+		// Check for events
+		while let Some(ev) = S_EVENT_QUEUE.pop()
+		{
+			log_warning!("TODO: Handle input {:?}", ev);
+			// TODO: Handle input
+			// - Filter out global bindings (e.g. session switch and lock combos)
+			//  > If a session switch happens, request another render
+			// - Apply shortcuts defined by the current session
+			// - Pass events to the current window
+			grp_ref.lock().handle_input(ev);
+		}
 		
 		log_debug!("render_thread: Rendering WG {} '{}'", grp_idx, grp_ref.lock().name);
 		grp_ref.lock().redraw(false);
@@ -221,6 +241,15 @@ impl WindowGroup
 					win.buf.read().blit(*pos, rgn);
 				}
 			}
+		}
+	}
+	
+	fn handle_input(&mut self, ev: super::input::Event) {
+        log_debug!("Focuessed window {}", self.focussed_window);
+		match self.windows.get( self.focussed_window )
+		{
+		Some(w) => w.1.handle_input(ev),
+		None => log_log!("Active window #{} not present", self.focussed_window),
 		}
 	}
 
@@ -333,6 +362,7 @@ impl WindowGroupHandle
 	pub fn alloc<T: Into<String>>(name: T) -> WindowGroupHandle {
 		let new_group = Arc::new( Mutex::new( WindowGroup {
 			name: T::into(name),
+			focussed_window: 0,
 			windows: SparseVec::new(),
 			render_order: Vec::new(),
 			} ) );
@@ -359,6 +389,11 @@ impl WindowGroupHandle
 		let idx = wgh_rc.lock().windows.insert( (Pos::new(0,0), Arc::new(Window::new(name.into()))) );
 		WindowHandle { grp: self.0, win: idx }
 	}
+
+    /// Force this group to be the active group
+    pub fn force_active(&self) {
+        S_CURRENT_GROUP.store( self.0, atomic::Ordering::Relaxed )
+    }
 }
 impl ::core::ops::Drop for WindowGroupHandle
 {
@@ -379,11 +414,23 @@ impl Window
 			dirty_rects: Default::default(),
 			is_dirty: atomic::ATOMIC_BOOL_INIT,
 			flags: Default::default(),
+			input: WindowInput {
+				queue: Mutex::new(RingBuf::new(16)),
+				waiters: Default::default(),
+				},
 		}
 	}
 	
 	fn take_is_dirty(&self) -> bool { self.is_dirty.swap(false, atomic::Ordering::Relaxed) }
 	fn mark_dirty(&self) { self.is_dirty.store(true, atomic::Ordering::Relaxed); }
+
+
+	fn handle_input(&self, ev: super::input::Event) {
+        log_debug!("TODO: Filter window input events");
+        // TODO: Filter events according to a map
+		let _ = self.input.queue.lock().push_back(ev);	// sliently drop extra events?
+		self.input.waiters.wake_one();
+	}
 	
 	/// Resize the window
 	pub fn resize(&self, dim: Dims) {
@@ -563,7 +610,6 @@ impl WindowHandle
 		self.redraw();
 	}
 	/// Hide the window
-	#[allow(dead_code)]
 	pub fn hide(&mut self) {
 		let wg = self.get_wg();
 		wg.lock().hide_window( self.win );
@@ -580,6 +626,18 @@ impl WindowHandle
 	pub fn blit_rect(&mut self, rect: Rect, data: &[u32])
 	{
 		self.get_win().blit_rect(rect, data);
+	}
+
+
+	pub fn wait_input(&self, obj: &mut ::threads::SleepObject) {
+		let w = self.get_win();
+		w.input.waiters.wait_upon(obj);
+		if ! w.input.queue.lock().is_empty() {
+			obj.signal()
+		}
+	}
+	pub fn clear_wait_input(&self, obj: &mut ::threads::SleepObject) {
+		self.get_win().input.waiters.clear_wait(obj);
 	}
 }
 

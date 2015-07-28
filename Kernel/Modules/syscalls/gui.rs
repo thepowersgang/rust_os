@@ -48,7 +48,15 @@ impl objects::Object for Group
 	{
 		match call
 		{
-		values::GUI_GRP_FORCEACTIVE => todo!("GUI_GRP_FORCEACTIVE"),
+		values::GUI_GRP_FORCEACTIVE => {
+	        if ::kernel::threads::get_process_id() == 0 {
+                self.0.force_active();
+                Ok(0)
+            }
+            else {
+                Ok(1)
+            }
+            },
 		_ => todo!("Group::handle_syscall({}, ...)", call),
 		}
 	}
@@ -75,19 +83,19 @@ impl objects::Object for Window
 		match call
 		{
 		values::GUI_WIN_SHOWHIDE => {
-            let show = try!( <bool>::get_arg(&mut args) );
-            if show {
-                self.0.lock().show()
-            }
-            else {
-                self.0.lock().hide()
-            }
-            Ok(0)
-            },
+			let show = try!( <bool>::get_arg(&mut args) );
+			if show {
+				self.0.lock().show()
+			}
+			else {
+				self.0.lock().hide()
+			}
+			Ok(0)
+			},
 		values::GUI_WIN_REDRAW => {
-            self.0.lock().redraw();
-            Ok(0)
-            },
+			self.0.lock().redraw();
+			Ok(0)
+			},
 		values::GUI_WIN_BLITRECT => {
 			let x = try!( <u32>::get_arg(&mut args) );
 			let y = try!( <u32>::get_arg(&mut args) );
@@ -110,13 +118,18 @@ impl objects::Object for Window
 		}
 	}
 	fn bind_wait(&self, flags: u32, obj: &mut ::kernel::threads::SleepObject) -> u32 {
+		let mut ret = 0;
 		if flags & values::EV_GUI_WIN_INPUT != 0 {
-			todo!("Window::bind_wait - input on obj={:?}", obj);
+			self.0.lock().wait_input(obj);
+			ret |= values::EV_GUI_WIN_INPUT;
 		}
-		0
+		ret
 	}
 	fn clear_wait(&self, flags: u32, obj: &mut ::kernel::threads::SleepObject) -> u32 {
-		todo!("Window::clear_wait(flags={}, obj={:?})", flags, obj);
+		if flags & values::EV_GUI_WIN_INPUT != 0 {
+			self.0.lock().clear_wait_input(obj);
+		}
+		0
 	}
 }
 
