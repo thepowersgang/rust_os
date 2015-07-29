@@ -6,11 +6,9 @@
 use prelude::*;
 use super::{Dims,Pos,Rect,Colour};
 use sync::mutex::{LazyMutex,Mutex};
-use sync::rwlock::RwLock;
 use lib::mem::Arc;
 use lib::LazyStatic;
 use core::atomic;
-use lib::ring_buffer::{RingBuf};
 
 use lib::sparse_vec::SparseVec;
 
@@ -446,10 +444,11 @@ impl WindowHandle
 		self.get_win().blit_rect(rect, data);
 	}
 
-
+	pub fn pop_event(&self) -> Option<super::input::Event> {
+		self.get_win().input.pop_event()
+	}
 	pub fn wait_input(&self, obj: &mut ::threads::SleepObject) {
-		let w = self.get_win();
-		w.input.wait(obj);
+		self.get_win().input.wait(obj);
 	}
 	pub fn clear_wait_input(&self, obj: &mut ::threads::SleepObject) {
 		self.get_win().input.clear_wait(obj);

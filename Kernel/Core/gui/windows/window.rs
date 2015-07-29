@@ -207,6 +207,14 @@ impl Window
 
 impl WindowInput
 {
+	pub fn pop_event(&self) -> Option<input::Event> {
+		let mut lh = self.queue.lock();
+		let rv = lh.pop_front();
+		if ! lh.is_empty() {
+			self.waiters.wake_one();
+		}
+		rv
+	}
 	pub fn wait(&self, obj: &mut ::threads::SleepObject) {
 		self.waiters.wait_upon(obj);
 		if ! self.queue.lock().is_empty() {

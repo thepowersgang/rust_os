@@ -3,6 +3,7 @@
 //
 // Simplistic console, used as a quick test case (fullscreen window)
 
+#[macro_use]
 extern crate syscalls;
 
 use syscalls::Object;
@@ -27,7 +28,7 @@ fn main() {
 	
 		while let Some(ev) = window.pop_event()
 		{
-
+			kernel_log!("ev = {:#x}", ev);
 		}
 		
 		window.check_wait(&events[0]);

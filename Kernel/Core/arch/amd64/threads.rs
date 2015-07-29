@@ -184,10 +184,9 @@ pub fn switch_to(newthread: Box<::threads::Thread>)
 			assert!(state.cr3 != 0);
 			assert!(state.tlsbase != 0);
 			log_trace!("Switching to RSP={:#x},CR3={:#x},TLS={:#x}", state.rsp, state.cr3, state.tlsbase);
-            assert!( unsafe { *(outstate.tlsbase as *const usize) } != 0, "outstate TLS Base clobbered before switch" );
-            assert!( unsafe { *(state.tlsbase as *const usize) } != 0, "TLS Base clobbered before switch" );
+			assert!( *(outstate.tlsbase as *const usize) != 0, "outstate TLS Base clobbered before switch" );
+			assert!( *(state.tlsbase as *const usize) != 0, "TLS Base clobbered before switch" );
 			task_switch(&mut outstate.rsp, &state.rsp, state.tlsbase, state.cr3);
-            assert!( unsafe { *(state.tlsbase as *const usize) } != 0, "TLS Base clobbered while out" );
 		}
 		unsafe
 		{

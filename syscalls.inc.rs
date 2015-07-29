@@ -143,3 +143,36 @@ def_classes! {
 		=0: EV_GUI_WIN_INPUT,
 	}
 }
+
+
+pub enum GuiEvent
+{
+	KeyUp(u32),
+	KeyDown(u32),
+	MouseMove(i32,i32),
+	MouseUp(u8),
+	MouseDown(u8),
+}
+impl ::core::convert::From<u64> for GuiEvent {
+	fn from(v: u64) -> Self {
+		assert!(v != !0);
+		match v >> 48 {
+		0 => GuiEvent::KeyUp  ( (v & 0xFFFFFFFF) as u32 ),
+		1 => GuiEvent::KeyDown( (v & 0xFFFFFFFF) as u32 ),
+		tag @ _ => panic!("Invalid tag value passed to GuiEvent::from {:#x}", tag),
+		}
+	}
+}
+impl ::core::convert::Into<u64> for GuiEvent {
+	fn into(self) -> u64 {
+		match self
+		{
+		GuiEvent::KeyUp  (ck) => (0 << 48) | (ck as u64),
+		GuiEvent::KeyDown(ck) => (1 << 48) | (ck as u64),
+		GuiEvent::MouseMove(dx,dy) => (2 << 48) | ((dx as u64) << 24) | ((dy as u64) << 0),
+		GuiEvent::MouseUp  (btn) => (3 << 48) | (btn as u64),
+		GuiEvent::MouseDown(btn) => (4 << 48) | (btn as u64),
+		}
+	}
+}
+

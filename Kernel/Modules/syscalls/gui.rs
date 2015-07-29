@@ -13,6 +13,21 @@ use super::{values,objects};
 use super::{Error,ObjectHandle};
 use super::SyscallArg;
 
+impl ::core::convert::Into<values::GuiEvent> for ::kernel::gui::input::Event {
+	fn into(self) -> values::GuiEvent {
+		use kernel::gui::input::Event;
+		match self
+		{
+		Event::KeyUp(kc) => values::GuiEvent::KeyUp(kc as u8 as u32),
+		Event::KeyDown(kc) => values::GuiEvent::KeyDown(kc as u8 as u32),
+		Event::MouseMove(x,y) => values::GuiEvent::MouseMove(x,y),
+		Event::MouseUp(btn) => values::GuiEvent::MouseUp(btn),
+		Event::MouseDown(btn) => values::GuiEvent::MouseDown(btn),
+		}
+	}
+}
+
+
 pub fn newgroup(name: &str) -> Result<ObjectHandle,u32> {
 	// Only init can create new sessions
 	// TODO: Use a capability system instead of hardcoding to only PID0
@@ -49,14 +64,14 @@ impl objects::Object for Group
 		match call
 		{
 		values::GUI_GRP_FORCEACTIVE => {
-	        if ::kernel::threads::get_process_id() == 0 {
-                self.0.force_active();
-                Ok(0)
-            }
-            else {
-                Ok(1)
-            }
-            },
+			if ::kernel::threads::get_process_id() == 0 {
+				self.0.force_active();
+				Ok(0)
+			}
+			else {
+				Ok(1)
+			}
+			},
 		_ => todo!("Group::handle_syscall({}, ...)", call),
 		}
 	}
@@ -113,6 +128,16 @@ impl objects::Object for Window
 			let colour = try!( <u32>::get_arg(&mut args) );
 			self.0.lock().fill_rect(Rect::new(x,y,w,h), ::kernel::gui::Colour::from_argb32(colour));
 			Ok(0)
+			},
+		values::GUI_WIN_GETEVENT => {
+			match self.0.lock().pop_event()
+			{
+			Some(ev) => {
+				let syscall_ev: values::GuiEvent = ev.into();
+				Ok(syscall_ev.into())
+				},
+			None => Ok(!0),
+			}
 			},
 		_ => todo!("Window::handle_syscall({}, ...)", call),
 		}
