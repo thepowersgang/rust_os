@@ -144,7 +144,7 @@ pub fn reschedule()
 			{
 				log_debug!("Task switch to {:?}", thread);
 				::arch::threads::switch_to(thread);
-				log_debug!("Awoke");
+				//log_debug!("Awoke");
 			}
 			return ;
 		}

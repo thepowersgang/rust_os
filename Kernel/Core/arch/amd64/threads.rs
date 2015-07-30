@@ -212,7 +212,7 @@ pub fn get_thread_ptr() -> Option<Box<::threads::Thread>>
 		assert!( !info.thread_ptr.is_null() );
 		assert!( !info.thread_ptr_lent, "Thread {:?} already has its pointer lent", *info.thread_ptr );
 		info.thread_ptr_lent = true;
-		log_debug!("Lend");
+		//log_debug!("Lend");
 		::core::mem::transmute( info.thread_ptr )
 	}
 }
@@ -237,7 +237,7 @@ pub fn set_thread_ptr(ptr: Box<::threads::Thread>)
 				);
 			info.thread_ptr = ptr;
 		}
-		log_debug!("Receive");
+		//log_debug!("Receive");
 		info.thread_ptr_lent = false;
 	}
 }
