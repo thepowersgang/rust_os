@@ -129,7 +129,7 @@ def_classes! {
 	/// Window
 	=4: CLASS_GUI_WIN = {
 		/// Set the show/hide state of the window
-		=0: GUI_WIN_SHOWHIDE,
+		=0: GUI_WIN_SETFLAG,
 		/// Trigger a redraw of the window
 		=1: GUI_WIN_REDRAW,
 		/// Copy data from this process into the window
@@ -137,6 +137,7 @@ def_classes! {
 		/// Fill a region of the window with the specified colour
 		=3: GUI_WIN_FILLRECT,
 		/// Read an event from the queue. 64-bit return value, !0 = none, otherwise 16/48 tag and data
+        // TODO: Pass a &mut GuiEvent instead of deserialsiging a u64
 		=4: GUI_WIN_GETEVENT,
 	}|{
 		/// Fires when the input queue is non-empty
@@ -144,7 +145,10 @@ def_classes! {
 	}
 }
 
+pub const GUI_WIN_FLAG_VISIBLE: u8 = 0;
+pub const GUI_WIN_FLAG_MAXIMISED: u8 = 1;
 
+#[derive(Debug)]
 pub enum GuiEvent
 {
 	KeyUp(u32),

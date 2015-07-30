@@ -28,7 +28,7 @@ fn main() {
 	
 		while let Some(ev) = window.pop_event()
 		{
-			kernel_log!("ev = {:#x}", ev);
+			kernel_log!("ev = {:?}", ev);
 		}
 		
 		window.check_wait(&events[0]);

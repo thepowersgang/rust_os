@@ -68,10 +68,10 @@ impl Window
 	}
 	
 	pub fn show(&self) {
-		unsafe { self.0.call_1(::values::GUI_WIN_SHOWHIDE, 1); }
+		unsafe { self.0.call_2(::values::GUI_WIN_SETFLAG, ::values::GUI_WIN_FLAG_VISIBLE as usize, 1); }
 	}
 	pub fn hide(&self) {
-		unsafe { self.0.call_1(::values::GUI_WIN_SHOWHIDE, 0); }
+		unsafe { self.0.call_2(::values::GUI_WIN_SETFLAG, ::values::GUI_WIN_FLAG_VISIBLE as usize, 0); }
 	}
 	pub fn redraw(&self) {
 		unsafe { self.0.call_0(::values::GUI_WIN_REDRAW); }
@@ -79,7 +79,7 @@ impl Window
 
 	// TODO: Should this be controllable by the application?
 	pub fn maximise(&self) {
-		//todo!("Window::maximise");
+		unsafe { self.0.call_2(::values::GUI_WIN_SETFLAG, ::values::GUI_WIN_FLAG_MAXIMISED as usize, 1); }
 	}
 	
 	pub fn blitrect(&self, x: u32, y: u32, w: u32, h: u32, data: &[u32]) {
@@ -89,13 +89,13 @@ impl Window
 		unsafe { self.0.call_5(::values::GUI_WIN_FILLRECT, x as usize, y as usize, w as usize, h as usize, colour as usize); }
 	}
 
-	pub fn pop_event(&self) -> Option<u64> {
+	pub fn pop_event(&self) -> Option<::values::GuiEvent> {
 		let v = unsafe { self.0.call_0(::values::GUI_WIN_GETEVENT) };
 		if v == !0 {
 			None
 		}
 		else {
-			Some(v as u64)
+			Some( ::values::GuiEvent::from(v) )
 		}
 	}
 }
