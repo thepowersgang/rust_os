@@ -100,12 +100,12 @@ impl objects::Object for Window
 		values::GUI_WIN_SETFLAG => {
 			let flag  = try!( <u8>::get_arg(&mut args) );
 			let is_on = try!( <bool>::get_arg(&mut args) );
-            match flag
-            {
-            values::GUI_WIN_FLAG_VISIBLE   => if is_on { self.0.lock().show()     } else { self.0.lock().hide() },
-            values::GUI_WIN_FLAG_MAXIMISED => if is_on { self.0.lock().maximise() } else { todo!("Unmaximise window"); },
-            _ => todo!("Window::handle_syscall(GUI_WIN_SETFLAG, {} := {}) - Unknown flag", flag, is_on),
-            }
+			match flag
+			{
+			values::GUI_WIN_FLAG_VISIBLE   => if is_on { self.0.lock().show()	 } else { self.0.lock().hide() },
+			values::GUI_WIN_FLAG_MAXIMISED => if is_on { self.0.lock().maximise() } else { todo!("Unmaximise window"); },
+			_ => todo!("Window::handle_syscall(GUI_WIN_SETFLAG, {} := {}) - Unknown flag", flag, is_on),
+			}
 			Ok(0)
 			},
 		values::GUI_WIN_REDRAW => {

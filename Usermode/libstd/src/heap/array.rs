@@ -1,14 +1,23 @@
+//
+//
+//
+use core::mem::{size_of,align_of};
+use core::ptr::Unique;
+use super::alloc::{exchange_malloc,exchange_free};
 
 pub struct ArrayAlloc<T>
 {
-	base: *mut T,
+	base: Unique<T>,
 	size: usize,
 }
 
 impl<T> ArrayAlloc<T>
 {
 	pub fn new(size: usize) -> ArrayAlloc<T> {
-		todo!("ArrayAlloc::new({})", size);
+		ArrayAlloc {
+			base: unsafe { Unique::new(exchange_malloc(size * size_of::<T>(), align_of::<T>()) as *mut T) },
+			size: size,
+		}
 	}
 	
 	pub fn expand(&mut self, newsize: usize) -> bool {
@@ -19,10 +28,10 @@ impl<T> ArrayAlloc<T>
 		self.size
 	}
 	pub fn get_base(&self) -> *const T {
-		self.base
+		*self.base
 	}
 	pub fn get_base_mut(&mut self) -> *mut T {
-		self.base
+		*self.base
 	}
 	pub fn get_ptr(&self, idx: usize) -> *const T {
 		// SAFE: Bounds checked

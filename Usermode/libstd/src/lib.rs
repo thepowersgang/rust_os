@@ -9,6 +9,8 @@
 #![feature(linkage)]	// Used for low-level runtime
 #![feature(core_intrinsics)]
 #![feature(core_char_ext,core_str_ext,core_slice_ext)]
+#![feature(const_fn)]
+#![feature(unique)]
 //#![staged_api]
 //#![feature(staged_api)]
 #![no_std]
@@ -74,7 +76,10 @@ pub use std_io as io;
 //pub extern crate std_rt as rt;
 extern crate std_rt;
 pub use std_rt as rt;
-//pub mod rt;
+
+//pub extern crate std_sync as sync;
+extern crate std_sync;
+pub use std_sync as sync;
 
 pub mod error;
 
