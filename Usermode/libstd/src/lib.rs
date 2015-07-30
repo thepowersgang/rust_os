@@ -47,6 +47,7 @@ pub mod prelude {
 		//pub use core::option::Option::{self,Some,None};
 		//pub use core::result::Result::{self,Ok,Err};
 		pub use string::String;
+		pub use vec::Vec;
 	}
 }
 

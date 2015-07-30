@@ -7,6 +7,21 @@ use core::prelude::*;
 pub struct Group(super::ObjectHandle);
 pub struct Window(super::ObjectHandle);
 
+pub	struct Rect { pub p: Pos, pub d: Dims, }
+impl Rect {
+    pub fn new(x: u32, y: u32, w: u32, h: u32) -> Rect {
+        Rect { p: Pos { x:x, y:y }, d: Dims { w:w, h:h } }
+    }
+}
+pub struct Pos { pub x: u32, pub y: u32, }
+pub struct Dims { pub w: u32, pub h: u32, }
+
+pub struct Colour(u32);
+impl Colour {
+	pub fn as_argb32(&self) -> u32 { self.0 }
+    pub fn white() -> Colour { Colour(0xFFFFFF) }
+}
+
 
 impl Group
 {
@@ -82,7 +97,7 @@ impl Window
 		unsafe { self.0.call_2(::values::GUI_WIN_SETFLAG, ::values::GUI_WIN_FLAG_MAXIMISED as usize, 1); }
 	}
 	
-	pub fn blitrect(&self, x: u32, y: u32, w: u32, h: u32, data: &[u32]) {
+	pub fn blit_rect(&self, x: u32, y: u32, w: u32, h: u32, data: &[u32]) {
 		unsafe { self.0.call_6(::values::GUI_WIN_BLITRECT, x as usize, y as usize, w as usize, h as usize, data.as_ptr() as usize, data.len()); }
 	}
 	pub fn fill_rect(&self, x: u32, y: u32, w: u32, h: u32, colour: u32) {
