@@ -17,7 +17,7 @@ fn main() {
 	
 	let window = Window::new("Console").unwrap();
 	window.maximise();
-	window.fill_rect(0,0, !0,!0, 0x0);
+	window.fill_rect(0,0, !0,!0, 0x33_00_00);   // A nice rust-like red :)
 	window.show();
 	
 	loop {
