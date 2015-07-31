@@ -3,11 +3,11 @@
 //
 use core::mem::{size_of,align_of};
 use core::ptr::Unique;
-use super::alloc::{exchange_malloc,exchange_free};
+use super::alloc::Allocation;
 
 pub struct ArrayAlloc<T>
 {
-	base: Unique<T>,
+	base: Allocation<T>,
 	size: usize,
 }
 
@@ -15,13 +15,19 @@ impl<T> ArrayAlloc<T>
 {
 	pub fn new(size: usize) -> ArrayAlloc<T> {
 		ArrayAlloc {
-			base: unsafe { Unique::new(exchange_malloc(size * size_of::<T>(), align_of::<T>()) as *mut T) },
+			base: unsafe { Allocation::new(size * size_of::<T>()).expect("ArrayAlloc::new") },
 			size: size,
 		}
 	}
 	
 	pub fn expand(&mut self, newsize: usize) -> bool {
-		todo!("ArrayAlloc::expand({})", newsize);
+		if unsafe { self.base.try_resize(newsize * size_of::<T>()) } {
+			// Oh, good
+			true
+		}
+		else {
+			todo!("ArrayAlloc::expand({})", newsize);
+		}
 	}
 
 	pub fn count(&self) -> usize {

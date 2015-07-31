@@ -23,6 +23,7 @@ OBJDIR := .objs/$(ARCH)/
 TARGET_SPEC := target-$(ARCH).json
 RUSTFLAGS := --target=$(TARGET_SPEC) --cfg arch__$(ARCH) --cfg nightly
 RUSTFLAGS += -O
+#RUSTFLAGS += -C llvm-args=-Os
 RUSTFLAGS += -g
 RUSTFLAGS += --cfg disable_float
 #RUSTFLAGS += -C soft-float	# STOPGAP until SSE is supported

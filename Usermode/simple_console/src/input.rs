@@ -1,0 +1,6 @@
+
+
+struct InputStack
+{
+    buffer: String,
+}

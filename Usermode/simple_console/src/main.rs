@@ -2,7 +2,7 @@
 // - By John Hodge (thePowersGang)
 //
 // Simplistic console, used as a quick test case (fullscreen window)
-#![feature(core_slice_ext)]
+#![feature(core_slice_ext,core_str_ext)]
 
 #[macro_use]
 extern crate syscalls;
@@ -10,6 +10,9 @@ extern crate syscalls;
 use syscalls::Object;
 
 mod terminal_surface;
+mod terminal;
+
+mod input;
 
 fn main() {
 	use syscalls::gui::{Group,Window};
@@ -21,8 +24,12 @@ fn main() {
 	let window = Window::new("Console").unwrap();
 	window.maximise();
 	window.fill_rect(0,0, !0,!0, 0x33_00_00);   // A nice rust-like red :)
-	let mut term = terminal_surface::Surface::new(&window, ::syscalls::gui::Rect::new(0,0, 1920,1080));
-	term.putc(0, ::syscalls::gui::Colour::white(), 'H');
+	let mut term = terminal::Terminal::new(&window, ::syscalls::gui::Rect::new(0,0, 1920,1080));
+	{
+		use std::fmt::Write;
+		let _ = write!(&mut term, "Tifflin - Simple console\n");
+		term.flush();
+	}
 	window.show();
 	
 	loop {

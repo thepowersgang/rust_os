@@ -11,6 +11,7 @@
 #![feature(core_char_ext,core_str_ext,core_slice_ext)]
 #![feature(const_fn)]
 #![feature(unique)]
+#![feature(result_expect)]  // goddamnit rustc, I wrote that, I get to use it
 //#![staged_api]
 //#![feature(staged_api)]
 #![no_std]

@@ -28,14 +28,18 @@ trait UnicodeCombining
 impl<'a> Surface<'a>
 {
 	pub fn new(window: &Window, pos: Rect) -> Surface {
+		const FILL_COLOUR: u32 = 0x33_00_00;
 		Surface {
 			window: window,
 			cur_row: 0,
-			row_buf: ::std::iter::repeat(0).take( (pos.d.w*C_CELL_DIMS.h) as usize ).collect(),
+			row_buf: Vec::from_fn( (pos.d.w*C_CELL_DIMS.h) as usize, |_| FILL_COLOUR),
 			pos: pos,
-			fill_colour: 0x33_00_00,
+			fill_colour: FILL_COLOUR,
 		}
 	}
+
+    pub fn max_rows(&self) -> usize { (self.pos.d.h / C_CELL_DIMS.h) as usize }
+    pub fn max_cols(&self) -> usize { (self.pos.d.w / C_CELL_DIMS.w) as usize }
 	
 
 	pub fn flush(&mut self) {
@@ -44,6 +48,7 @@ impl<'a> Surface<'a>
 	pub fn set_row(&mut self, row: usize) {
 		self.flush();
 		self.cur_row = row;
+		for v in self.row_buf.iter_mut() { *v = self.fill_colour; }
 	}
 	
 	/// Writes a single codepoint to the display

@@ -16,6 +16,7 @@ impl Rect {
 pub struct Pos { pub x: u32, pub y: u32, }
 pub struct Dims { pub w: u32, pub h: u32, }
 
+#[derive(Copy,Clone)]
 pub struct Colour(u32);
 impl Colour {
 	pub fn as_argb32(&self) -> u32 { self.0 }

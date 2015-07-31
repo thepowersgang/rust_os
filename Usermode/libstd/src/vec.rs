@@ -83,7 +83,7 @@ impl<T> Vec<T>
 	{
 		//let newcap = ::lib::num::round_up(size, 1 << (64-size.leading_zeros()));
 		let newcap = size.next_power_of_two();
-		if newcap > self.data.count()
+		if size > self.data.count()
 		{
 			if self.data.expand(newcap)
 			{
