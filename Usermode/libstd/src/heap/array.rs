@@ -22,6 +22,7 @@ impl<T> ArrayAlloc<T>
 	
 	pub fn expand(&mut self, newsize: usize) -> bool {
 		if unsafe { self.base.try_resize(newsize * size_of::<T>()) } {
+			self.size = newsize;
 			// Oh, good
 			true
 		}

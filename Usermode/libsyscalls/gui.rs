@@ -4,6 +4,8 @@
 // gui.rs
 use core::prelude::*;
 
+pub use ::values::GuiEvent as Event;
+
 pub struct Group(super::ObjectHandle);
 pub struct Window(super::ObjectHandle);
 
@@ -22,6 +24,10 @@ impl Colour {
 	pub fn as_argb32(&self) -> u32 { self.0 }
     pub fn white() -> Colour { Colour(0xFFFFFF) }
 }
+
+
+
+include!("../../keycodes.inc.rs");
 
 
 impl Group

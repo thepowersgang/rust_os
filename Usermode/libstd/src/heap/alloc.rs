@@ -22,12 +22,12 @@ pub unsafe fn exchange_malloc(size: usize, align: usize) -> *mut u8
 	}
 }
 #[lang="exchange_free"]
-pub unsafe fn exchange_free(ptr: *mut u8, size: usize, align: usize)
+pub unsafe fn exchange_free(ptr: *mut u8, _size: usize, align: usize)
 {
-	S_GLOBAL_HEAP.lock().deallocate(ptr as *mut (), size, align)
+	S_GLOBAL_HEAP.lock().deallocate(ptr as *mut (), /*size,*/ align)
 }
 
-pub struct Allocation<T: ?Sized>
+pub struct Allocation<T>
 {
 	ptr: Unique<T>,
 }
@@ -56,10 +56,12 @@ impl<T> ::core::ops::Deref for Allocation<T>
 		&*self.ptr
 	}
 }
-impl<T: ?Sized> ::core::ops::Drop for Allocation<T>
+impl<T> ::core::ops::Drop for Allocation<T>
 {
 	fn drop(&mut self) {
-		todo!("");
+		unsafe {
+			S_GLOBAL_HEAP.lock().deallocate(*self.ptr as *mut (), align_of::<T>());
+		}
 	}
 }
 
@@ -76,6 +78,7 @@ struct Block
 	size: usize,
 	state: BlockState,
 }
+#[derive(PartialEq)]
 enum BlockState
 {
 	Free,
@@ -114,7 +117,8 @@ impl AllocState
 		let block = self.last_block();
 		return Ok(block.allocate(size, align));
 	}
-	pub fn try_expand(&mut self, ptr: *mut (), size: usize, align: usize) -> bool {
+	/// Returns 'true' if expanding succeeded
+	pub unsafe fn try_expand(&mut self, ptr: *mut (), size: usize, align: usize) -> bool {
 		if size == 0 {
 			// TODO: Resize down to 0?
 			true
@@ -123,14 +127,43 @@ impl AllocState
 			false
 		}
 		else {
-			todo!("AllocState::try_expand({:p}, size={}, align={})", ptr, size, align);
+			let bp = Block::ptr_from_ptr(ptr, align);
+			if (*bp).capacity(align) > size {
+				(*bp).state = BlockState::Used( size );
+				true
+			}
+			else {
+				let n = (*bp).next();
+				if n == self.past_end {
+					false
+				}
+				else if (*n).self_free().is_some() {
+					todo!("AllocState::try_expand - Next is free");
+				}
+				else {
+					false
+				}
+			}
 		}
 	}
-	pub fn deallocate(&mut self, ptr: *mut (), size: usize, align: usize) {
+	pub unsafe fn deallocate(&mut self, ptr: *mut (), align: usize) {
 		if ptr == 1 as *mut () {
 			return ;
 		}
-		todo!("AllocState::deallocate");
+		else {
+			let bp = Block::ptr_from_ptr(ptr, align);
+			(*bp).state = BlockState::Free;
+			let np = (*bp).next();
+			if np == self.past_end {
+				// Final block
+			}
+			else if let Some(next) = (*np).self_free() {
+				todo!("AllocState::deallocate - Merge with next block");
+			}
+			else {
+				// Next block isn't free, can't merge
+			}
+		}
 	}
 
 	fn last_block(&mut self) -> &mut Block {
@@ -181,7 +214,14 @@ impl<'a> ::std::iter::Iterator for FreeBlocks<'a>
 }
 
 impl Block
-{
+{ 
+	unsafe fn ptr_from_ptr(ptr: *mut (), /*size: usize,*/ align: usize) -> *mut Block {
+		let bp_us = ptr as usize - size_of::<Block>();
+		let bp = bp_us as *mut Block;
+		//assert!( (*bp).state == BlockState::Used(size) );
+		bp
+	}
+
 	unsafe fn initialise(&mut self, size: usize) {
 		::core::ptr::write(self, Block {
 			state: BlockState::Free,

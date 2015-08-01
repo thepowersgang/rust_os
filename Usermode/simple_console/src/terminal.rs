@@ -40,6 +40,7 @@ impl<'a> ::std::fmt::Write for Terminal<'a>
 	fn write_char(&mut self, c: char) -> ::std::fmt::Result {
 		if c == '\n' {
 			self.cur_row += 1;
+			self.cur_col = 0;
 			assert!(self.cur_row < self.surf.max_rows());
 			self.surf.set_row(self.cur_row);
 		}
