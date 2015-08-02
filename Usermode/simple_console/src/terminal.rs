@@ -32,6 +32,9 @@ impl<'a> Terminal<'a>
 			self.shift_line_left();
 		}
 	}
+	pub fn delete_right(&mut self) {
+		self.shift_line_left();
+	}
 
 	pub fn cursor_left(&mut self) {
 		assert!(self.cur_col != 0);

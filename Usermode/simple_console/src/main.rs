@@ -49,7 +49,7 @@ fn main() {
 			match ev
 			{
 			::syscalls::gui::Event::KeyUp(kc) => {
-				if let Some(buf) = input.handle_key(true, kc as u8, |s| if s == "\u{8}" { term.delete_left() } else { term.write_str(s).unwrap() })
+				if let Some(buf) = input.handle_key(true, kc as u8, |a| render_input(&mut term, a))
 				{
 					kernel_log!("buf = {:?}", buf);
 					term.write_str("\n").unwrap();
@@ -67,6 +67,17 @@ fn main() {
 		}
 		
 		window.check_wait(&events[0]);
+	}
+}
+
+fn render_input(term: &mut terminal::Terminal, action: input::Action)
+{
+	use input::Action;
+	match action
+	{
+	Action::Backspace => term.delete_left(),
+	Action::Delete => term.delete_right(),
+	Action::Puts(s) => term.write_str(s).unwrap(),
 	}
 }
 

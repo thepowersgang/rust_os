@@ -38,8 +38,8 @@ impl<'a> Surface<'a>
 		}
 	}
 
-    pub fn max_rows(&self) -> usize { (self.pos.d.h / C_CELL_DIMS.h) as usize }
-    pub fn max_cols(&self) -> usize { (self.pos.d.w / C_CELL_DIMS.w) as usize }
+	pub fn max_rows(&self) -> usize { (self.pos.d.h / C_CELL_DIMS.h) as usize }
+	pub fn max_cols(&self) -> usize { (self.pos.d.w / C_CELL_DIMS.w) as usize }
 	
 
 	pub fn flush(&mut self) {

@@ -2,6 +2,13 @@
 
 use syscalls::gui::KeyCode;
 
+pub enum Action<'a>
+{
+	Puts(&'a str),
+	Backspace,
+	Delete,
+}
+
 #[derive(Default)]
 pub struct InputStack
 {
@@ -23,7 +30,7 @@ impl InputStack
 	pub fn new() -> InputStack {
 		InputStack::default()
 	}
-	pub fn handle_key<F: FnOnce(&str)>(&mut self, release: bool, keycode: u8, puts: F) -> Option<String>
+	pub fn handle_key<F: FnOnce(Action)>(&mut self, release: bool, keycode: u8, puts: F) -> Option<String>
 	{
 		kernel_log!("handle_key: (release={},keycode={},...)", release, keycode);
 		if release {
@@ -34,7 +41,7 @@ impl InputStack
 			KeyCode::RightShift => { self.shift &= !2; None },
 			KeyCode::Backsp => {
 				kernel_log!("Backspace");
-				puts("\u{8}");
+				puts(Action::Backspace);
 				self.buffer.pop();	// TODO: Pop a grapheme, not just a char
 				kernel_log!("- self.buffer = {:?}", self.buffer);
 				None
@@ -43,7 +50,7 @@ impl InputStack
 				let val = self.get_string(kc);
 				kernel_log!("val={:?}", val);
 				if val != "" {
-					puts(val);
+					puts(Action::Puts(val));
 					self.buffer.push_str(val);
 				}
 				None
