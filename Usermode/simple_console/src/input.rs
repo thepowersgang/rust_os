@@ -32,6 +32,13 @@ impl InputStack
 			KeyCode::Return | KeyCode::KpEnter => Some( ::std::mem::replace(&mut self.buffer, String::new()) ),
 			KeyCode::LeftShift => { self.shift &= !1; None },
 			KeyCode::RightShift => { self.shift &= !2; None },
+			KeyCode::Backsp => {
+				kernel_log!("Backspace");
+				puts("\u{8}");
+				self.buffer.pop();	// TODO: Pop a grapheme, not just a char
+				kernel_log!("- self.buffer = {:?}", self.buffer);
+				None
+				},
 			kc @ _ => {
 				let val = self.get_string(kc);
 				kernel_log!("val={:?}", val);

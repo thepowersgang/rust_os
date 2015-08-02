@@ -162,7 +162,7 @@ impl<T> Vec<T>
 	/// Truncate a vector to the given size
 	pub fn truncate(&mut self, newsize: usize)
 	{
-		if newsize >= self.size
+		if newsize < self.size
 		{
 			unsafe
 			{

@@ -49,6 +49,16 @@ impl String
 	{
 		self.0.push_all(s.as_bytes());
 	}
+	pub fn pop(&mut self) -> Option<char> {
+		for i in (0 .. self.0.len()).rev() {
+			if self.is_char_boundary(i) {
+				let rv = self.char_at(i);
+				self.0.truncate(i);
+				return Some( rv );
+			}
+		}
+		None
+	}
 	
 	/// Unsafely obtain a borrow of the internal Vec
 	pub unsafe fn as_mut_vec(&mut self) -> &mut Vec<u8> {

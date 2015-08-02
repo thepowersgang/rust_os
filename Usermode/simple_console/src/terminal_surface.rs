@@ -50,6 +50,39 @@ impl<'a> Surface<'a>
 		self.cur_row = row;
 		for v in self.row_buf.iter_mut() { *v = self.fill_colour; }
 	}
+
+	/// Shift line's data leftwards (overwrites cell at `pos`, clearing the final cell)
+	pub fn shift_line_left(&mut self, pos: usize) {
+		let cw = C_CELL_DIMS.w as usize;
+		let px_pos = pos * cw;
+		let pen_cell = self.pos.d.w as usize - cw;
+		let fc = self.fill_colour;
+		for l in self.row_scanlines() {
+			for i in (px_pos .. pen_cell) {
+				l[i] = l[i+cw];
+			}
+			for v in l[pen_cell ..].iter_mut() {
+				*v = fc;
+			}
+		}
+	}
+	/// Shift line's data rightwards (clearning cell at `pos`)
+	pub fn shift_line_right(&mut self, pos: usize) {
+		let cw = C_CELL_DIMS.w as usize;
+		let px_pos = pos * cw;
+		let pen_cell = self.pos.d.w as usize - cw;
+		let fc = self.fill_colour;
+		for l in self.row_scanlines() {
+			for i in (px_pos .. pen_cell).rev() {
+				l[i+cw] = l[i];
+			}
+			if (pos+1)*cw <= l.len() {
+				for v in l[pos*cw .. (pos+1)*cw].iter_mut() {
+					*v = fc;
+				}
+			}
+		}
+	}
 	
 	/// Writes a single codepoint to the display
 	///

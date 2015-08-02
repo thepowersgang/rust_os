@@ -25,6 +25,26 @@ impl<'a> Terminal<'a>
 	pub fn flush(&mut self) {
 		self.surf.flush();
 	}
+
+	pub fn delete_left(&mut self) {
+		if self.cur_col > 0 {
+			self.cursor_left();
+			self.shift_line_left();
+		}
+	}
+
+	pub fn cursor_left(&mut self) {
+		assert!(self.cur_col != 0);
+		self.cur_col -= 1;
+	}
+	/// Shift line's data leftwards cursor onwards
+	pub fn shift_line_left(&mut self) {
+		self.surf.shift_line_left(self.cur_col);
+	}
+	/// Shift line's data rightwardss cursor onwards
+	pub fn shift_line_right(&mut self) {
+		self.surf.shift_line_right(self.cur_col);
+	}
 }
 
 impl<'a> ::std::fmt::Write for Terminal<'a>

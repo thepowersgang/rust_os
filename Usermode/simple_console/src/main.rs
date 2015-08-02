@@ -7,6 +7,8 @@
 #[macro_use]
 extern crate syscalls;
 
+extern crate cmdline_words_parser;
+
 use syscalls::Object;
 
 mod terminal_surface;
@@ -27,13 +29,14 @@ fn main() {
 	window.maximise();
 	window.fill_rect(0,0, !0,!0, 0x33_00_00);   // A nice rust-like red :)
 	let mut term = terminal::Terminal::new(&window, ::syscalls::gui::Rect::new(0,0, 1920,1080));
-	{
-		let _ = write!(&mut term, "Tifflin - Simple console\n");
-		term.flush();
-	}
+	let _ = write!(&mut term, "Tifflin - Simple console\n");
 	window.show();
 	let mut input = input::InputStack::new();
 	
+	
+	term.write_str("\n> ").unwrap();
+	term.flush();
+
 	loop {
 		// Bind to receive events relating to the window
 		let mut events = [window.get_wait()];
@@ -46,10 +49,12 @@ fn main() {
 			match ev
 			{
 			::syscalls::gui::Event::KeyUp(kc) => {
-				if let Some(buf) = input.handle_key(true, kc as u8, |s| term.write_str(s).unwrap())
+				if let Some(buf) = input.handle_key(true, kc as u8, |s| if s == "\u{8}" { term.delete_left() } else { term.write_str(s).unwrap() })
 				{
 					kernel_log!("buf = {:?}", buf);
 					term.write_str("\n").unwrap();
+					handle_command(&mut term, buf);
+					term.write_str("\n> ").unwrap();
 				}
 				term.flush();
 				window.redraw();
@@ -62,6 +67,22 @@ fn main() {
 		}
 		
 		window.check_wait(&events[0]);
+	}
+}
+
+fn handle_command(term: &mut terminal::Terminal, mut cmdline: String)
+{
+	use cmdline_words_parser::StrExt;
+	let mut args = cmdline.parse_cmdline_words();
+	match args.next()
+	{
+	None => {},
+	Some("ls") => {
+		let _ = write!(term, "TODO: 'ls'");
+		},
+	Some(cmd @_) => {
+		let _ = write!(term, "Unkown command '{}'", cmd);
+		},
 	}
 }
 
