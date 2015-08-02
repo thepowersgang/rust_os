@@ -187,9 +187,18 @@ impl AtaRegs
 		assert!(ofs < 8);
 		::kernel::arch::x86_io::inw( self.ata_base + ofs )
 	}
-	// Safe - This port is a status port that does not affect the state
+	fn read_sector(&mut self, data: &mut [u16])
+	{
+		// SAFE: Called with &mut, no race. Only reads data port
+		unsafe {
+			for w in data.iter_mut() {
+				*w = self.in_16(0);
+			}
+		}
+	}
 	fn in_sts(&self) -> u8
 	{
+		// SAFE: Status port has no side-effects
 		unsafe { ::kernel::arch::x86_io::inb( self.sts_base ) }
 	}
 	
@@ -563,10 +572,12 @@ impl AtaController
 	pub fn ata_identify<'a>(&'a self, disk: u8, data: &'a mut ::AtaIdentifyData, class: &'a mut ::AtaClass) -> async::poll::Waiter<'a>
 	{
 		// - Cast 'data' to a u16 slice
+		// SAFE: AtaIdentifyData should be POD
 		let data: &mut [u16; 256] = unsafe { ::core::mem::transmute(data) };
 		if let Some(mut buslock) = self.regs.try_lock()
 		{
 			log_debug!("ata_identify: (disk={}), base={:#x}", disk, buslock.ata_base);
+			// SAFE: Called holding lock, and performs correct actions
 			let status = unsafe {
 				buslock.out_8(6, 0xA0 | (disk << 4) );
 				buslock.out_8(2, 0);
@@ -583,6 +594,7 @@ impl AtaController
 				log_debug!("Disk {} on {:#x} not present", disk, buslock.ata_base);
 				// Drive does not exist, zero data and return a null wait
 				*class = ::AtaClass::None;
+				// SAFE: Plain old data
 				*data = unsafe { ::core::mem::zeroed() };
 				async::poll::Waiter::null()
 			}
@@ -598,8 +610,10 @@ impl AtaController
 					// Being called as a completion function
 					Some(_event_ptr) => {
 						if buslock.in_sts() & 1 == 1 {
+							// - Error, clear and return
+							// SAFE: Called holding the lock
 							let (f4, f5) = unsafe { (buslock.in_8(4), buslock.in_8(5)) };
-							// Error, clear and return
+							// SAFE: Plain old data
 							*data = unsafe { ::core::mem::zeroed() };
 							if f4 == 0x14 && f5 == 0xEB {
 								// Device is ATAPI
@@ -613,11 +627,7 @@ impl AtaController
 						}
 						else {
 							// Success, perform IO
-							unsafe {
-								for w in data.iter_mut() {
-									*w = buslock.in_16(0);
-								}
-							}
+							buslock.read_sector(data);
 							log_debug!("ata_identify: Disk {:#x}/{} IDENTIFY complete", buslock.ata_base, disk);
 							*class = ::AtaClass::Native;
 						}

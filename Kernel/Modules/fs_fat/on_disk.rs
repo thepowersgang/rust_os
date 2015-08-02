@@ -26,11 +26,13 @@ fn read_u32(s: &mut &[u8]) -> u32 {
 }
 fn read_arr<T: AsMut<[u8]>>(s: &mut &[u8]) -> T {
 	use kernel::lib::io::Read;
+	// (mostly) SAFE: 'T' should be POD... but can't enforce that easily
 	let mut v: T = unsafe { ::core::mem::zeroed() };
 	s.read(v.as_mut()).unwrap();
 	v
 }
 fn read_arr16<T: AsMut<[u16]>>(s: &mut &[u8]) -> T {
+	// (mostly) SAFE: 'T' should be POD... but can't enforce that easily
 	let mut v: T = unsafe { ::core::mem::zeroed() };
 	for p in v.as_mut() {
 		*p = read_u16(s);

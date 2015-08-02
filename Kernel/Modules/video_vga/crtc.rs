@@ -156,6 +156,7 @@ impl CrtcRegs
 	{
 		for (idx,val) in self.regs.iter_mut().enumerate()
 		{
+			// SAFE: Have a &mut, no race
 			unsafe {
 				x86_io::outb(base + 0, idx as u8);
 				*val = x86_io::inb(base + 1);
@@ -167,6 +168,7 @@ impl CrtcRegs
 	{
 		for (idx,val) in self.regs.iter().enumerate()
 		{
+			// SAFE: Have a &mut, no race
 			unsafe {
 				x86_io::outb(base + 0, idx as u8);
 				x86_io::outb(base + 1, *val);

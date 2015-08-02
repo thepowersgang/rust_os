@@ -38,10 +38,10 @@ impl UserObject {
 		UserObject {
 			unclaimed: false,
 			data: match StackDST::new(v)
-                {
-                Some(v) => v,
-                None => panic!("Object '{}' did not fit in StackDST {} > {}", type_name!(T), ::core::mem::size_of::<T>(), ::core::mem::size_of::<StackDST<Object>>()),
-                },
+				{
+				Some(v) => v,
+				None => panic!("Object '{}' did not fit in StackDST {} > {}", type_name!(T), ::core::mem::size_of::<T>(), ::core::mem::size_of::<StackDST<Object>>()),
+				},
 		}
 	}
 	fn sent(obj: ObjectAlloc) -> Self {
@@ -99,7 +99,7 @@ impl ProcessObjects {
 		}
 	}
 	fn take_object(&self, handle: u32) -> Result<ObjectAlloc, super::Error>
-    {
+	{
 		if let Some(h) = self.get(handle)
 		{
 			// Call method
@@ -113,25 +113,25 @@ impl ProcessObjects {
 		else {
 			Err( super::Error::NoSuchObject(handle) )
 		}
-    }
+	}
 
-    fn find_and_fill_slot<F: FnOnce()->UserObject>(&self, fcn: F) -> Result<u32, super::Error> {
-        for (i,ent) in self.iter().enumerate()
-        {
-            // If a free slot is found,
-            if ent.read().is_none() {
-                // lock for writing then ensure that it is free
-                let mut wh = ent.write();
-                if wh.is_none() {
-                    *wh = Some(fcn());
-                    log_debug!("Object {}: {}", i, wh.as_ref().unwrap().data.type_name());
-                    return Ok(i as u32);
-                }
-            }
-        }
-        log_debug!("No space");
-        Err(super::Error::TooManyObjects)
-    }
+	fn find_and_fill_slot<F: FnOnce()->UserObject>(&self, fcn: F) -> Result<u32, super::Error> {
+		for (i,ent) in self.iter().enumerate()
+		{
+			// If a free slot is found,
+			if ent.read().is_none() {
+				// lock for writing then ensure that it is free
+				let mut wh = ent.write();
+				if wh.is_none() {
+					*wh = Some(fcn());
+					log_debug!("Object {}: {}", i, wh.as_ref().unwrap().data.type_name());
+					return Ok(i as u32);
+				}
+			}
+		}
+		log_debug!("No space");
+		Err(super::Error::TooManyObjects)
+	}
 }
 
 //pub fn new_object<T: Object+'static>(val: T) -> Result<u32, super::Error>
@@ -211,15 +211,15 @@ struct ObjectQueue
 
 /// Give the target process the object specified by `handle`
 pub fn give_object(target: &::kernel::threads::ProcessHandle, handle: u32) -> Result<(),super::Error> {
-    let target_queue = target.get_process_local::<ObjectQueue>().expect("TODO: Handle no queue");
-    let target_objs = target.get_process_local::<ProcessObjects>().expect("TODO: Handle no queue");
-    if ! target_objs.iter().any(|x| x.read().is_none()) {
-        return Err(super::Error::TooManyObjects);
-    }
-    let obj = try!(get_process_local::<ProcessObjects>().take_object(handle));
+	let target_queue = target.get_process_local::<ObjectQueue>().expect("TODO: Handle no queue");
+	let target_objs = target.get_process_local::<ProcessObjects>().expect("TODO: Handle no queue");
+	if ! target_objs.iter().any(|x| x.read().is_none()) {
+		return Err(super::Error::TooManyObjects);
+	}
+	let obj = try!(get_process_local::<ProcessObjects>().take_object(handle));
 	try!( target_objs.find_and_fill_slot(|| UserObject::sent(obj)) );
-    target_queue.event.trigger();
-    Ok( () )
+	target_queue.event.trigger();
+	Ok( () )
 }
 pub fn wait_for_obj(obj: &mut ::kernel::threads::SleepObject) {
 	get_process_local::<ObjectQueue>().event.wait_upon(obj);
@@ -229,14 +229,17 @@ pub fn clear_wait_for_obj(obj: &mut ::kernel::threads::SleepObject) {
 }
 
 pub fn take_object<T: Object+'static>(handle: u32) -> Result<T,super::Error> {
-    let obj = try!(get_process_local::<ProcessObjects>().take_object(handle));
-    let rv = unsafe {
-        let r = obj.as_any().downcast_ref::<T>().expect("Object was not expected type (TODO: Proper error)");
-        //let r = obj.downcast_ref::<T>().expect("Object was not expected type (TODO: Proper error)");
-        ::core::ptr::read(r)
-        };
-    ::core::mem::forget(obj);
-    Ok(rv)
+	let obj = try!(get_process_local::<ProcessObjects>().take_object(handle));
+	// SAFE: ptr::read is called on a pointer to a value that is subsequently forgotten
+	unsafe {
+		let rv = {
+			let r = obj.as_any().downcast_ref::<T>().expect("Object was not expected type (TODO: Proper error)");
+			//let r = obj.downcast_ref::<T>().expect("Object was not expected type (TODO: Proper error)");
+			::core::ptr::read(r)
+			};
+		::core::mem::forget(obj);
+		Ok(rv)
+	}
 }
 
 pub fn drop_object(handle: u32)
@@ -245,7 +248,7 @@ pub fn drop_object(handle: u32)
 		// Ignore, it's the "this process" object
 	}
 	else {
-        ::core::mem::drop( get_process_local::<ProcessObjects>().take_object(handle) );
+		::core::mem::drop( get_process_local::<ProcessObjects>().take_object(handle) );
 	}
 }
 

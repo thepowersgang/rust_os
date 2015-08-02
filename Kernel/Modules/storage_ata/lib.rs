@@ -84,7 +84,10 @@ struct AtaIdentifyData
 	_unused7: [u16; 256-104],
 }
 impl Default for AtaIdentifyData {
-	fn default() -> AtaIdentifyData { unsafe { ::core::mem::zeroed() } }
+	fn default() -> AtaIdentifyData {
+		// SAFE: Plain old data
+		unsafe { ::core::mem::zeroed() }
+	}
 }
 impl ::core::fmt::Debug for AtaIdentifyData {
 	fn fmt(&self, f: &mut ::core::fmt::Formatter) -> ::core::fmt::Result
