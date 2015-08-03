@@ -78,6 +78,7 @@ pub fn get_thread_id() -> thread::ThreadID
 	}
 }
 pub fn get_process_id() -> thread::ProcessID {
+	// SAFE: Does NULL check. TODO: _could_ cause & alias...
 	let p = unsafe {
 		let p = ::arch::threads::borrow_thread();
 		assert!(p != 0 as *const _);

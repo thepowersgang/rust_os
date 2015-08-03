@@ -62,6 +62,7 @@ impl<C: Counter, T> Grc<C, T>
 {
 	/// Sized constructor
 	pub fn new(value: T) -> Grc<C, T> {
+		// SAFE: Pointer won't be NULL
 		unsafe {
 			Grc {
 				ptr: NonZero::new( GrcInner::new_ptr(value) )
@@ -72,6 +73,7 @@ impl<C: Counter, T> Grc<C, T>
 impl<C: Counter, T: ?Sized> Grc<C, T>
 {
 	fn grc_inner(&self) -> &GrcInner<C, T> {
+		// SAFE: Immutable alias valid since self: &Self
 		unsafe { &**self.ptr }
 	}
 	pub fn is_same(&self, other: &Self) -> bool {
@@ -79,6 +81,7 @@ impl<C: Counter, T: ?Sized> Grc<C, T>
 	}
 	pub fn get_mut(&mut self) -> Option<&mut T> {
 		if self.grc_inner().strong.is_one() {
+			// SAFE: This instance is the only reference, and we have &mut, hence safe to get &mut to inner
 			Some( unsafe { &mut (*(*self.ptr as *mut GrcInner<C,T>)).val } ) 
 		}
 		else {
@@ -119,16 +122,20 @@ impl<C: Counter, T: Clone> Grc<C,T>
 			*self = Grc::new( self.grc_inner().val.clone() );
 		}
 		
-		assert!(self.grc_inner().strong.is_one());
 		// Obtain a mutable pointer to the interior
 		let mut_ptr = *self.ptr as *mut GrcInner<C,T>;
-		unsafe { &mut (*mut_ptr).val }
+		// SAFE: Can only get &mut if this instance is the only handle
+		unsafe {
+			assert!(self.grc_inner().strong.is_one());
+			&mut (*mut_ptr).val
+			}
 	}
 }
 /// Dereferences to interior
 impl<C: Counter, T: ?Sized> ops::Deref for Grc<C, T> {
 	type Target = T;
 	fn deref(&self) -> &T {
+		// SAFE: Pointer is valid, can't get &mut so no aliasing issues
 		unsafe { &(**self.ptr).val }
 	}
 }
@@ -163,13 +170,16 @@ impl<C: Counter, T: ?Sized> ops::Drop for Grc<C, T>
 
 impl<C: Counter, T> GrcInner<C, T>
 {
-	unsafe fn new_ptr(value: T) -> *mut GrcInner<C, T>
+	fn new_ptr(value: T) -> *mut GrcInner<C, T>
 	{
-		::memory::heap::alloc( GrcInner {
-			strong: C::one(),
-			//weak: C::zero(),
-			val: value,
-			} )
+		// SAFE: Correct call to alloc (TODO: Why is alloc unsafe?)
+		unsafe {
+			::memory::heap::alloc( GrcInner {
+				strong: C::one(),
+				//weak: C::zero(),
+				val: value,
+				} )
+		}
 	}
 }
 
@@ -185,8 +195,9 @@ impl<C: Counter, U> Grc<C, [U]>
 			} )
 	}
 	fn rcinner_size(len: usize) -> usize {
+		// SAFE: (TODO: Check validity here) Should not cause a read from invalid pointer
 		unsafe {
-			let ptr = Self::rcinner_ptr(len, 0 as *mut ());
+			let ptr = Self::rcinner_ptr(len, 1 as *mut ());
 			::core::mem::size_of_val(&*ptr)
 		}
 	}
@@ -199,11 +210,11 @@ impl<C: Counter, U> Grc<C, [U]>
 		let align = Self::rcinner_align();
 		let size = Self::rcinner_size(len);
 		
+		// SAFE: No mut aliasing, no read from undefined, hopefull correct behavior
 		unsafe {
 			let ptr = ::memory::heap::alloc_raw(size, align);
 			let inner = Self::rcinner_ptr(len, ptr);
 			::core::ptr::write( &mut (*inner).strong, C::one() );
-			//::core::ptr::write( &mut (*inner).weak, C::zero() );
 			for i in (0 .. len) {
 				::core::ptr::write( (*inner).val.as_mut_ptr().offset(i as isize), fcn(i) );
 			}

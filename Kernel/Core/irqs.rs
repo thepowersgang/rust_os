@@ -60,6 +60,7 @@ static S_IRQ_WORKER_SIGNAL: ::lib::LazyStatic<::threads::SleepObject> = lazystat
 static S_IRQ_WORKER: ::lib::LazyStatic<::threads::WorkerThread> = lazystatic_init!();
 
 pub fn init() {
+	// SAFE: Called in a single-threaded context
 	unsafe {
 		S_IRQ_WORKER_SIGNAL.prep(|| ::threads::SleepObject::new("IRQ Worker"));
 		S_IRQ_WORKER.prep(|| ::threads::WorkerThread::new("IRQ Worker", irq_worker));
@@ -139,6 +140,7 @@ impl IRQBinding
 	
 	fn handler_raw(info: *const ())
 	{
+		// SAFE: 'info' pointer should be an IRQBinding instance
 		unsafe {
 			let binding_ref = &*(info as *const IRQBinding);
 			binding_ref.handle();

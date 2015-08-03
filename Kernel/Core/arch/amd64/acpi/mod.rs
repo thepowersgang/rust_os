@@ -149,6 +149,7 @@ impl<T> SDT<T>
 			false
 		}
 		else {
+			// SAFE: Self is POD
 			unsafe {
 				let bytes = ::core::slice::from_raw_parts(self as *const _ as *const u8, self.header.length as usize);
 				bytes.iter().fold(0, |a,&b| a+b) == 0
@@ -172,8 +173,11 @@ impl<T> SDT<T>
 		&self.data
 	}
 	
-	pub unsafe fn data_byte_slice(&self) -> &[u8] {
-		::core::slice::from_raw_parts(&self.data as *const _ as *const u8, self.data_len())
+	pub fn data_byte_slice(&self) -> &[u8] {
+		// SAFE: T should be POD
+		unsafe {
+			::core::slice::from_raw_parts(&self.data as *const _ as *const u8, self.data_len())
+		}
 	}
 }
 

@@ -23,7 +23,7 @@ impl<T: Send+Sync> LazyStatic<T>
 	
 	/// (unsafe) Prepare the value using the passed function
 	///
-	/// Unsafe because it must NOT be called where a race is possible
+	/// Unsafe because it must NOT be called where anything else is accessing the LazyStatic.
 	pub unsafe fn prep<Fcn: FnOnce()->T>(&self, fcn: Fcn) {
 		let r = &mut *self.0.get();
 		assert!(r.is_none(), "LazyStatic<{}> initialised multiple times", type_name!(T));
@@ -33,7 +33,7 @@ impl<T: Send+Sync> LazyStatic<T>
 	}
 	/// Returns true if the static has been initialised
 	pub fn ls_is_valid(&self) -> bool {
-		// QUESTIONABLE: Can race with `prep` (I guess that's `prep`'s job, but still)
+		// SAFE: No aliasing possible unless 'prep' is called in a racy manner
 		unsafe {
 			(*self.0.get()).is_some()
 		}
@@ -51,6 +51,7 @@ impl<T: Send+Sync> ::core::ops::Deref for LazyStatic<T>
 {
 	type Target = T;
 	fn deref(&self) -> &T {
+		// SAFE: No aliasing possible unless 'prep' is called in a racy manner
 		match unsafe { (&*self.0.get()).as_ref() } {
 		Some(v) => v,
 		None => panic!("Dereferencing LazyStatic<{}> without initialising", type_name!(T))

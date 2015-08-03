@@ -25,6 +25,7 @@ macro_rules! acpi_try {
 
 pub fn init()
 {
+	// SAFE: Validly calls ACPICA calls
 	unsafe {
 		//AcpiDbgLevel = !0;
 		

@@ -133,6 +133,7 @@ impl<T> ArrayAlloc<T>
 {
 	pub fn new(count: usize) -> ArrayAlloc<T>
 	{
+		// SAFE: Correctly constructs 'Unique' instances
 		unsafe {
 			if ::core::mem::size_of::<T>() == 0 {
 				ArrayAlloc { ptr: Unique::new(ZERO_ALLOC as *mut T), count: !0 }
@@ -160,6 +161,7 @@ impl<T> ArrayAlloc<T>
 	
 	#[tag_safe(irq)]
 	pub fn get_ptr_mut(&mut self, idx: usize) -> *mut T {
+		// SAFE: Index asserted to be valid, have &mut
 		unsafe {
 			assert!(idx < self.count, "ArrayAlloc<{}>::get_mut({}) OOB {}", type_name!(T), idx, self.count);
 			self.ptr.offset(idx as isize)
@@ -167,6 +169,7 @@ impl<T> ArrayAlloc<T>
 	}
 	#[tag_safe(irq)]
 	pub fn get_ptr(&self, idx: usize) -> *const T {
+		// SAFE: Index asserted to be valid
 		unsafe {
 			assert!(idx < self.count, "ArrayAlloc<{}>::get_ptr({}) OOB {}", type_name!(T), idx, self.count);
 			self.ptr.offset(idx as isize)
@@ -179,6 +182,7 @@ impl<T> ArrayAlloc<T>
 		if new_count > self.count
 		{
 			let newsize = ::core::mem::size_of::<T>() * new_count;
+			// SAFE: Pointer is valid
 			if unsafe { expand( *self.ptr as *mut(), newsize ) }
 			{
 				self.count = new_count;
@@ -206,6 +210,7 @@ impl<T> ops::Drop for ArrayAlloc<T>
 	fn drop(&mut self)
 	{
 		if self.count > 0 {
+			// SAFE: Pointer is valid
 			unsafe { deallocate(*self.ptr as *mut (), ::core::mem::size_of::<T>() * self.count, ::core::mem::align_of::<T>()) };
 		}
 	}
@@ -342,7 +347,7 @@ impl HeapDef
 	}
 
 	/// Attempt to expand the specified block without reallocating
-	pub fn expand_alloc(&mut self, ptr: *mut (), size: usize) -> bool
+	pub unsafe fn expand_alloc(&mut self, ptr: *mut (), size: usize) -> bool
 	{
 		let headers_size = ::core::mem::size_of::<HeapHead>() + ::core::mem::size_of::<HeapFoot>();
 		
@@ -351,8 +356,13 @@ impl HeapDef
 			return false;
 		}
 		
-		let headptr = unsafe { &mut *(ptr as *mut HeapHead).offset(-1) };
-	
+		let headptr = {
+			let hp = (ptr as *mut HeapHead).offset(-1);
+			assert!( (hp as usize) >= self.start as usize );
+			assert!( (hp as usize) < self.last_foot as usize );
+			&mut *hp
+			};
+
 		// If the new size fits within the old block, update the cached size and return true
 		if size + headers_size <= headptr.size()
 		{
@@ -365,47 +375,45 @@ impl HeapDef
 		}
 	}
 	
-	pub fn deallocate(&mut self, ptr: *mut (), _size: usize, _align: usize)
+	pub unsafe fn deallocate(&mut self, ptr: *mut (), _size: usize, _align: usize)
 	{
 		log_debug!("deallocate(ptr={:p})", ptr);
 		if ptr == ZERO_ALLOC {
 			log_trace!("Free zero alloc");
 			return ;
 		}
-		unsafe
+
+		let mut no_add = false;
+		let headptr = (ptr as *mut HeapHead).offset(-1);
+		
 		{
-			let mut no_add = false;
-			let headptr = (ptr as *mut HeapHead).offset(-1);
+			let headref = &mut *headptr;
+			assert!( headref.magic == MAGIC, "Header {:p} magic invalid {:#x} instead of {:#x}",
+				headref, headref.magic, MAGIC );
+			assert!( headref.foot().head() as *mut _ == headptr, "Header {:p} foot backlink invalid, {:p} points to {:p}",
+				headref, headref.foot(), headref.foot().head() );
 			
+			// Merge left and right
+			// 1. Left:
+			if let HeapState::Free(_) = (*headref.prev()).state
 			{
-				let headref = &mut *headptr;
-				assert!( headref.magic == MAGIC, "Header {:p} magic invalid {:#x} instead of {:#x}",
-					headref, headref.magic, MAGIC );
-				assert!( headref.foot().head() as *mut _ == headptr, "Header {:p} foot backlink invalid, {:p} points to {:p}",
-					headref, headref.foot(), headref.foot().head() );
-				
-				// Merge left and right
-				// 1. Left:
-				if let HeapState::Free(_) = (*headref.prev()).state
-				{
-					log_trace!("Merged left with {:p}", headref.prev());
-					// increase size of previous block to cover this block
-					let prev_block = &mut *headref.prev();
-					let new_size = prev_block.size() + headref.size();
-					prev_block.resize( new_size );
-					no_add = true;
-				}
-				
-				// 2. Right
-				//if_let!( HeapState::Free(_) => 
-				// TODO: Merging right requires being able to arbitarily remove items from the free list
+				log_trace!("Merged left with {:p}", headref.prev());
+				// increase size of previous block to cover this block
+				let prev_block = &mut *headref.prev();
+				let new_size = prev_block.size() + headref.size();
+				prev_block.resize( new_size );
+				no_add = true;
 			}
 			
-			if !no_add
-			{
-				(*headptr).state = HeapState::Free(self.first_free);
-				self.first_free = headptr;
-			}
+			// 2. Right
+			//if_let!( HeapState::Free(_) => 
+			// TODO: Merging right requires being able to arbitarily remove items from the free list
+		}
+		
+		if !no_add
+		{
+			(*headptr).state = HeapState::Free(self.first_free);
+			self.first_free = headptr;
 		}
 	}
 	
@@ -484,6 +492,7 @@ impl HeapDef
 	fn dump(&self)
 	{
 		log_log!("Dumping Heap");
+		// SAFE: Does an immutable heap walk
 		unsafe {
 			let mut block_head = self.start;
 			loop

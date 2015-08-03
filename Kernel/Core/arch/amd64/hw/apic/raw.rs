@@ -108,6 +108,7 @@ impl LAPIC
 	/// Initialise the LAPIC (for this CPU)
 	pub fn init(&self)
 	{
+		// SAFE: Read original LAPIC base
 		let oldaddr = unsafe{
 			let a: u32;
 			let d: u32;
@@ -139,6 +140,7 @@ impl LAPIC
 		self.write_reg(ApicReg::LVT_Error, 0);	// "Disable" Error
 		// EOI - Just to make sure
 		self.eoi(0);
+		// SAFE: Write MSR, values should be correct
 		unsafe {
 			asm!("wrmsr\nsti"
 				: /* no out */
@@ -160,15 +162,21 @@ impl LAPIC
 	
 	fn read_reg(&self, reg: ApicReg) -> u32
 	{
-		let regs = self.mapping.as_ref::<[APICReg; 64]>(0);
-		assert!( (reg as usize) < 64 );
-		unsafe { ::core::intrinsics::volatile_load( &regs[reg as usize].data as *const _ ) }
+		// SAFE: Aligned memory accesses to hardware are atomic on x86
+		unsafe {
+			let regs = self.mapping.as_ref::<[APICReg; 64]>(0);
+			assert!( (reg as usize) < 64 );
+			::core::intrinsics::volatile_load( &regs[reg as usize].data as *const _ )
+		}
 	}
 	fn write_reg(&self, idx: ApicReg, value: u32)
 	{
-		let regs = unsafe { self.mapping.as_int_mut::<[APICReg; 64]>(0) };
-		assert!( (idx as usize) < 64 );
-		unsafe { ::core::intrinsics::volatile_store( &mut regs[idx as usize].data as *mut _, value ) }
+		// SAFE: Aligned memory accesses to hardware are atomic on x86
+		unsafe {
+			let regs = self.mapping.as_int_mut::<[APICReg; 64]>(0);
+			assert!( (idx as usize) < 64 );
+			::core::intrinsics::volatile_store( &mut regs[idx as usize].data as *mut _, value )
+		}
 	}
 	
 	pub fn get_vec_status(&self, idx: u8) -> (bool,bool,bool, u32)
@@ -187,6 +195,7 @@ impl LAPIC
 	fn local_timer(isr: usize, sp: *const (), _idx: usize)
 	{
 		assert!( !sp.is_null() );
+		// SAFE: 'sp' is the bound pointer, and should be valid
 		let s: &LAPIC = unsafe { &*(sp as *const LAPIC) };
 		log_trace!("LAPIC Timer");
 		s.eoi(isr);
@@ -197,16 +206,19 @@ impl ApicReg
 	fn in_service(reg: u8) -> ApicReg
 	{
 		assert!(reg < 8);
+		// SAFE: Transmutes to a u8 repr enum with a valid value
 		unsafe { ::core::mem::transmute(ApicReg::InService as u8 + reg as u8) }
 	}
 	fn tmr(reg: u8) -> ApicReg
 	{
 		assert!(reg < 8);
+		// SAFE: Transmutes to a u8 repr enum with a valid value
 		unsafe { ::core::mem::transmute(ApicReg::TMR as u8 + reg as u8) }
 	}
 	fn irr(reg: u8) -> ApicReg
 	{
 		assert!(reg < 8);
+		// SAFE: Transmutes to a u8 repr enum with a valid value
 		unsafe { ::core::mem::transmute(ApicReg::IRR as u8 + reg as u8) }
 	}
 }

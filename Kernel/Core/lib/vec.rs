@@ -92,6 +92,7 @@ impl<T> Vec<T>
 			else
 			{
 				let mut newdata = ArrayAlloc::new(newcap);
+				// SAFE: Only reads from valid region, writes into invalid data
 				unsafe {
 					for i in (0 .. self.size) {
 						let val = self.move_ent(i as usize);
@@ -257,6 +258,7 @@ impl<T> ops::Drop for Vec<T>
 {
 	fn drop(&mut self)
 	{
+		// SAFE: Drops only values within valid region
 		unsafe {
 			while self.size > 0 {
 				self.size -= 1;
@@ -344,6 +346,7 @@ impl<T> MutableSeq<T> for Vec<T>
 		self.reserve(1);
 		self.size += 1;
 		let ptr = self.get_mut_ptr(pos);
+		// SAFE: Pointer was originally within invalid region
 		unsafe { ::core::ptr::write(ptr, t); }
 	}
 	fn pop(&mut self) -> Option<T>
@@ -356,6 +359,7 @@ impl<T> MutableSeq<T> for Vec<T>
 		{
 			self.size -= 1;
 			let pos = self.size;
+			// SAFE: Pointer within old valid region
 			Some( unsafe { self.move_ent(pos) } )
 		}
 	}
@@ -430,8 +434,9 @@ impl<T> MoveItems<T>
 	/// Pop an item from the iterator
 	fn pop_item(&mut self) -> T
 	{
-		assert!(self.ofs < self.count);
+		// SAFE: Pointer asserted to be within valid range
 		let v: T = unsafe {
+			assert!(self.ofs < self.count);
 			let ptr = self.data.get_ptr(self.ofs);
 			::core::ptr::read(ptr as *const _)
 			};

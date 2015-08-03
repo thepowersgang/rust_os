@@ -140,7 +140,10 @@ mod memory
 	// Temp hack until type-level ints are avaliable
 	struct LogDataBuf([u8;160]);
 	impl LogDataBuf {
-		fn new() -> LogDataBuf { LogDataBuf(unsafe{::core::mem::zeroed()}) }
+		fn new() -> LogDataBuf {
+			// SAFE: Plain old data
+			LogDataBuf(unsafe{::core::mem::zeroed()})
+		}
 	}
 	impl ::core::convert::AsRef<[u8]> for LogDataBuf {
 		fn as_ref(&self) -> &[u8] { &self.0 }

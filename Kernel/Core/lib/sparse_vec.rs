@@ -152,6 +152,7 @@ impl<'a, T: 'a> Iterator for IterMut<'a, T>
 			self.idx += 1;
 			match self.vec.data[self.idx-1].as_mut()
 			{
+			// SAFE: While iterator exists, only one &mut to each element is returned
 			Some(v) => return unsafe { Some( ::core::mem::transmute(v) ) },
 			None => {},
 			}

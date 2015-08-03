@@ -63,6 +63,7 @@ impl<T> RingBuf<T>
 		}
 		else
 		{
+			// SAFE: No valid data already there
 			unsafe {
 				let idx = self.int_get_idx(self.len);
 				::core::ptr::write( self.data.get_ptr_mut(idx), val );
@@ -81,6 +82,7 @@ impl<T> RingBuf<T>
 		else
 		{
 			let idx = self.int_get_idx(self.len-1);
+			// SAFE: Pointer is valid, self is &mut
 			Some( unsafe { &mut *self.data.get_ptr_mut(idx) } )
 		}
 	}
@@ -94,6 +96,7 @@ impl<T> RingBuf<T>
 		}
 		else
 		{
+			// SAFE: No data effectively forotten
 			unsafe {
 				let idx = self.start;
 				self.start = self.int_get_idx(1);
@@ -131,6 +134,7 @@ impl<T: Send> AtomicRingBuf<T>
 			None
 		}
 		else {
+			// SAFE: Content of cell is effectively forgotten after read
 			unsafe {
 				let rv = ::core::ptr::read(&*self.data.get_ptr(idx));
 				self.start.store(next_idx, Ordering::Relaxed);
@@ -153,6 +157,7 @@ impl<T: Send> AtomicRingBuf<T>
 			Err( val )
 		}
 		else {
+			// SAFE: No valid data already there
 			unsafe {
 				::core::ptr::write(&mut *(self.data.get_ptr(pos) as *mut _), val);
 				self.end.store(next_pos, Ordering::Relaxed);

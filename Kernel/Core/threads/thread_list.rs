@@ -50,8 +50,7 @@ impl ThreadList
 		if self.first.is_some()
 		{
 			assert!(self.last.is_some());
-			// Using unsafe and rawptr deref here is safe, because WaitQueue should be
-			// locked (and nobody has any of the list items borrowed)
+			// SAFE: WaitQueue should be locked (and nobody has any of the list items borrowed)
 			unsafe {
 				let last_ref = &mut *self.last.unwrap();
 				assert!(last_ref.next.is_none());

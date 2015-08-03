@@ -28,12 +28,14 @@ pub fn init(cmdline: &'static str)
 		"SYSDISK" =>
 			match value
 			{
+			// SAFE: Called in single-threaded context
 			Some(v) => unsafe { S_SYSDISK = Some(v); },
 			None => log_warning!("SYSDISK requires a value"),
 			},
 		"SYSROOT" =>
 			match value
 			{
+			// SAFE: Called in single-threaded context
 			Some(v) => unsafe { S_SYSROOT = Some(v); },
 			None => log_warning!("SYSDISK requires a value"),
 			},
@@ -44,6 +46,7 @@ pub fn init(cmdline: &'static str)
 
 pub fn get_string(val: Value) -> &'static str
 {
+	// SAFE: No mutation should happen when get_string is being called
 	unsafe {
 		match val
 		{

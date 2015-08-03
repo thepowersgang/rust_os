@@ -109,12 +109,14 @@ impl<'lock,T: Send> ::core::ops::Deref for HeldSpinlock<'lock, T>
 {
 	type Target = T;
 	fn deref<'a>(&'a self) -> &'a T {
+		// SAFE: & to handle makes & to value valid
 		unsafe { &*self.lock.value.get() }
 	}
 }
 impl<'lock,T: Send> ::core::ops::DerefMut for HeldSpinlock<'lock, T>
 {
 	fn deref_mut<'a>(&'a mut self) -> &'a mut T {
+		// SAFE: &mut to handle makes &mut to value valid
 		unsafe { &mut *self.lock.value.get() }
 	}
 }
@@ -122,6 +124,7 @@ impl<'lock,T: Send> ::core::ops::DerefMut for HeldSpinlock<'lock, T>
 /// Prevent interrupts from firing until return value is dropped
 pub fn hold_interrupts() -> HeldInterrupts
 {
+	// SAFE: Correct inline assembly
 	let if_set = unsafe {
 		let flags: u64;
 		asm!("pushf; pop $0; cli" : "=r" (flags) : : "memory" : "volatile");

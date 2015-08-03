@@ -146,22 +146,25 @@ impl ProcessHandle
 		assert!( ::lib::mem::arc::get_mut(&mut self.0).is_some() );
 		
 		let mut thread = Thread::new_boxed(allocate_tid(), format!("{}#1", self.0.name), self.0.clone());
-		::arch::threads::start_thread( &mut thread, || unsafe { ::arch::drop_to_user(ip, sp, 0) } );
+		::arch::threads::start_thread( &mut thread,
+			// SAFE: Well... trusting caller to give us sane addresses etc, but that's the user's problem
+			|| unsafe { ::arch::drop_to_user(ip, sp, 0) }
+			);
 		super::yield_to(thread);
 	}
 
-    pub fn get_process_local<T: Send+Sync+::core::marker::Reflect+Default+'static>(&self) -> Option<::lib::mem::aref::ArefBorrow<T>> {
-        let pld = &self.0.proc_local_data;
-        // 1. Try without write-locking
-        for s in pld.read().iter()
-        {
-            let item_ref: &::core::any::Any = &**s;
-            if item_ref.get_type_id() == ::core::any::TypeId::of::<T>() {
-                return Some( s.borrow().downcast::<T>().ok().unwrap() );
-            }
-        }
-        None
-    }
+	pub fn get_process_local<T: Send+Sync+::core::marker::Reflect+Default+'static>(&self) -> Option<::lib::mem::aref::ArefBorrow<T>> {
+		let pld = &self.0.proc_local_data;
+		// 1. Try without write-locking
+		for s in pld.read().iter()
+		{
+			let item_ref: &::core::any::Any = &**s;
+			if item_ref.get_type_id() == ::core::any::TypeId::of::<T>() {
+				return Some( s.borrow().downcast::<T>().ok().unwrap() );
+			}
+		}
+		None
+	}
 }
 
 impl ThreadHandle

@@ -60,7 +60,7 @@ struct DisplaySurface
 /// Sparse list of registered display devices
 static S_DISPLAY_SURFACES: LazyMutex<SparseVec<DisplaySurface>> = lazymutex_init!( );
 /// Boot video mode
-static mut S_BOOT_MODE: Option<bootvideo::VideoMode> = None;
+static S_BOOT_MODE: Mutex<Option<bootvideo::VideoMode>> = Mutex::new(None);
 /// Function called when display geometry changes
 static S_GEOM_UPDATE_SIGNAL: Mutex<Option<fn(new_total: Rect)>> = mutex_init!(None);
 
@@ -68,7 +68,7 @@ fn init()
 {
 	S_DISPLAY_SURFACES.init( || SparseVec::new() );
 	
-	if let Some(mode) = unsafe { S_BOOT_MODE.as_ref() }
+	if let Some(mode) = S_BOOT_MODE.lock().as_ref()
 	{
 		log_notice!("Using boot video mode {:?}", mode);
 		let fb = box bootvideo::Framebuffer::new(*mode) as Box<Framebuffer>;
@@ -89,10 +89,9 @@ fn init()
 /// NOTE: Must be called before this module is initialised to have any effect
 pub fn set_boot_mode(mode: bootvideo::VideoMode)
 {
-	unsafe {
-		assert!(S_BOOT_MODE.is_none(), "Boot video mode set multiple times");
-		S_BOOT_MODE = Some(mode);
-	}
+	let mut lh = S_BOOT_MODE.lock();
+	assert!(lh.is_none(), "Boot video mode set multiple times");
+	*lh = Some(mode);
 }
 
 /// Register a function to be called when the display dimensions change
@@ -122,13 +121,11 @@ pub fn add_output(output: Box<Framebuffer>) -> FramebufferRegistration
 {
 	let dims = output.get_size();
 	// Detect if the boot mode is still present, and clear if it is
-	unsafe {
-		if S_BOOT_MODE.take().is_some()
-		{
-			// - Remove boot video framebuffer
-			S_DISPLAY_SURFACES.lock().remove(0);
-			log_notice!("Alternative display driver loaded, dropping boot video");
-		}
+	if S_BOOT_MODE.lock().take().is_some()
+	{
+		// - Remove boot video framebuffer
+		S_DISPLAY_SURFACES.lock().remove(0);
+		log_notice!("Alternative display driver loaded, dropping boot video");
 	}
 
 	// Add new output to the global list	

@@ -50,7 +50,7 @@ pub fn c_string_valid(c_str: *const i8) -> bool
 	c_string_as_byte_slice(c_str).is_some()
 }
 
-// UNSAFE: Lifetime is inferred, everything else is checked
+// UNSAFE: Lifetime is inferred, and memory must point to a valid T instance
 pub unsafe fn buf_to_slice<'a, T>(ptr: *const T, size: usize) -> Option<&'a [T]> {
 	
 	if ptr as usize % ::core::mem::align_of::<T>() != 0 {

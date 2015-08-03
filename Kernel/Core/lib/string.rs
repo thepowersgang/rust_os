@@ -52,7 +52,8 @@ impl String
 	/// Return the string as a &str
 	fn as_slice(&self) -> &str {
 		let bytes: &[u8] = self.0.as_ref();
-		unsafe { ::core::mem::transmute( bytes ) }
+		// SAFE: Bytes are valid UTF-8
+		unsafe { ::core::str::from_utf8_unchecked( bytes ) }
 	}
 }
 
@@ -160,6 +161,7 @@ impl<B: AsMut<[u8]>+AsRef<[u8]>> ops::Deref for FixedString<B>
 	type Target = str;
 	fn deref(&self) -> &str {
 		let bytes = &self.data.as_ref()[..self.len];
+		// SAFE: String bytes are valid UTF-8
 		unsafe { ::core::mem::transmute(bytes) }
 	}
 }

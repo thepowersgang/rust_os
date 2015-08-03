@@ -134,12 +134,14 @@ impl<'lock,T:Send> ops::Deref for HeldMutex<'lock,T>
 {
 	type Target = T;
 	fn deref<'a>(&'a self) -> &'a T {
+		// SAFE: & to the handle, means that mutable alias is impossible
 		unsafe { &*self.lock.val.get() }
 	}
 }
 impl<'lock,T:Send> ops::DerefMut for HeldMutex<'lock,T>
 {
 	fn deref_mut<'a>(&'a mut self) -> &'a mut T {
+		// SAFE: &mut to the handle, means that &mut to inner is safe
 		unsafe { &mut *self.lock.val.get() }
 	}
 }

@@ -22,6 +22,7 @@ pub struct FrameHandle(PAddr);
 pub fn init()
 {
 	// 1. Acquire a memory map from the architecture code and save for use later
+	// SAFE: Called in a true single-threaded context
 	unsafe {
 		S_MEM_MAP.prep(|| ::arch::boot::get_memory_map());
 	}

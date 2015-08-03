@@ -301,6 +301,7 @@ fn spawn_init(loader_path: &str, init_cmdline: &str)
 		loader.memory_map(load_base,  0, ::PAGE_SIZE,  handle::MemoryMapMode::Execute)
 		};
 	// - 2. Parse the header
+	// SAFE: LoaderHeader is POD, and pointer is valid
 	let header_ptr = unsafe { &*(load_base as *const LoaderHeader) };
 	if header_ptr.magic != 0x71FF1013 || header_ptr.info != INFO {
 		log_error!("Loader header is invalid: magic {:#x} != {:#x} or info {:#x} != {:#x}",
@@ -331,7 +332,9 @@ fn spawn_init(loader_path: &str, init_cmdline: &str)
 	}
 	// TODO: Write loader arguments into the provided location
 	// TODO: Should the argument string length be passed down to the user? In memory, or via a register?
+	// SAFE: Addresses are checked
 	let argslen = unsafe {
+		assert!(header_ptr.init_path_ofs as usize + header_ptr.init_path_len as usize <= memsize);
 		::core::slice::from_raw_parts_mut(
 				(load_base + header_ptr.init_path_ofs as usize) as *mut u8,
 				header_ptr.init_path_len as usize
@@ -355,8 +358,8 @@ fn spawn_init(loader_path: &str, init_cmdline: &str)
 	// > Forget the loader handle too
 	// TODO: Instead hand this handle over to the syscall layer, as the first user file
 	//forget(loader);
-	// SAFE: This pointer is as validated as it can be...
 	log_notice!("Entering userland at {:#x} '{}' '{}'", header_ptr.entrypoint, loader_path, init_cmdline);
+	// SAFE: This pointer is as validated as it can be...
 	unsafe {
 		::arch::drop_to_user(header_ptr.entrypoint, 0, argslen);
 	}

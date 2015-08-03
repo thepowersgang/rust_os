@@ -13,6 +13,7 @@ use core::atomic::Ordering;
 pub struct EventChannel
 {
 	lock: Spinlock<bool>,
+	// Separate from the lock because WaitQueue::wait() takes a bool lock
 	queue: UnsafeCell< WaitQueue >,
 	pending_wakes: ::core::atomic::AtomicUsize,
 }
@@ -33,6 +34,7 @@ impl EventChannel
 	
 	/// Sleep until an event
 	pub fn sleep(&self) {
+		// SAFE: Queue is only accessed with the lock held
 		unsafe {
 			let mut lh = self.lock.lock();
 			// If an event has fired, clear it and don't sleep.
@@ -54,7 +56,7 @@ impl EventChannel
 			let mut count = 1;
 			loop
 			{
-				// SAFE: Only called when lcok is held
+				// SAFE: Only called when lock is held
 				unsafe {
 					let q = &mut *self.queue.get();
 					

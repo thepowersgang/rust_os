@@ -66,8 +66,7 @@ impl mount::Driver for Driver
 	}
 	fn mount(&self, vol: VolumeHandle) -> super::Result<Box<mount::Filesystem>> {
 		let rv = Box::new(RamFS {
-			// SAFE: ArefInner must not change addresses, but because you can't move out
-			// of a boxed trait, we're good
+			// SAFE: ArefInner must not change addresses, but because you can't move out of a boxed trait, we're good
 			inner: unsafe { ArefInner::new( RamFSInner {
 				_vh: vol,
 				nodes: Default::default(),

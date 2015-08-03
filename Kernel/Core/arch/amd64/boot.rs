@@ -204,6 +204,8 @@ impl MultibootParsed
 				//	(byte_ofs as u32 + num*size) as usize, module_path!()
 				//	).unwrap();
 				//let buf = alloc.as_slice::<u8>(byte_ofs, (num*size) as usize);
+				
+				// SAFE: Memory is valid for this range (TODO: Use a checked version?)
 				let buf: &'static [u8] = unsafe { ::core::slice::from_raw_parts( (addr as usize + IDENT_START) as *const u8, (num*size) as usize) };
 				let sh = ::loading::elf::SectionHeader::from_ref(buf, size as usize, shndx as usize);
 				sh.dump();
@@ -219,9 +221,10 @@ impl MultibootParsed
 		let mut ret = MultibootParsed {
 				cmdline: MultibootParsed::_cmdline(info),
 				vidmode: MultibootParsed::_vidmode(info),
-				memmap: unsafe { &s_memmap_data },
+				memmap: &[],
 			};
- 		ret.memmap = unsafe { ret._memmap(info, &mut s_memmap_data) };
+		// SAFE: Should only be called before threading is initialised, so no race
+		ret.memmap = unsafe { ret._memmap(info, &mut s_memmap_data) };
 		ret
 	}
 	
@@ -247,13 +250,13 @@ impl MultibootParsed
 			return None;
 		}
 		
-		let vbeinfo_vaddr = info.vbe_mode_info as usize + IDENT_START;
-		if vbeinfo_vaddr + ::core::mem::size_of::<VbeModeInfo>() > IDENT_END {
-			return None;
-		}
-		
-		let info: &VbeModeInfo = unsafe {
-			::core::mem::transmute(vbeinfo_vaddr as *const VbeModeInfo)
+		// SAFE: VBE info pointer should be valid for all of this call.
+		let info = unsafe {
+			let vbeinfo_vaddr = info.vbe_mode_info as usize + IDENT_START;
+			if vbeinfo_vaddr + ::core::mem::size_of::<VbeModeInfo>() > IDENT_END {
+				return None;
+			}
+			&*(vbeinfo_vaddr as *const VbeModeInfo)
 			};
 		
 		log_trace!("MultibootInfo::_vidmode: info = {:?}", info);

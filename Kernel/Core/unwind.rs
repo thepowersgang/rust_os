@@ -68,6 +68,7 @@ pub extern "C" fn rust_begin_unwind(msg: ::core::fmt::Arguments, file: &'static 
 	//log_panic!("rust_begin_unwind(file=\"{}\", line={}, msg=\"{:?}\")", file, line, msg);
 	log_panic!("{}:{}: Panicked \"{:?}\")", file, line, msg);
 	/*
+	// SAFE: Correctly calls extern function
 	unsafe {
 		let ex = box Exception {
 			cause: (),
@@ -77,7 +78,7 @@ pub extern "C" fn rust_begin_unwind(msg: ::core::fmt::Arguments, file: &'static 
 				private: [0,0],
 				}
 			};
-		let exptr: *const _Unwind_Exception = ::core::mem::transmute(ex);
+		let exptr: *const _Unwind_Exception = ::lib::mem::boxed::into_raw(ex);
 		log_trace!("exptr = {}", exptr);
 		_Unwind_RaiseException( exptr );
 	}

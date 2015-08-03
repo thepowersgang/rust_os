@@ -49,7 +49,10 @@ macro_rules! assert_trait
 
 #[doc(hidden)]
 #[tag_safe(irq)]
-pub fn type_name<T: ?::core::marker::Sized>() -> &'static str { unsafe { ::core::intrinsics::type_name::<T>() } }
+pub fn type_name<T: ?::core::marker::Sized>() -> &'static str {
+	// SAFE: All intrinsics are unsafe, no matter how safe they really are
+	unsafe { ::core::intrinsics::type_name::<T>() }
+}
 /// A safe wrapper around the `type_name` intrinsic
 #[macro_export]
 macro_rules! type_name

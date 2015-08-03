@@ -25,7 +25,6 @@ fn_getdeps = $(shell cat $1 | sed -nr 's/.*extern crate ([a-zA-Z_0-9]+);/\1/p' |
 fn_moddeps = $(filter-out core kernel,$(call fn_getdeps,Modules/$1/lib.rs))
 
 OBJS := start.ao $(MODS:%=%.o) libkernel.rlib libcore.rlib
-$(warning $(foreach m,$(MODS), $(addsuffix .o,$(call fn_moddeps,$m)) ))
 EOBJS := $(foreach m,$(MODS), $(addsuffix .o,$(call fn_moddeps,$m)) )
 OBJS += $(EOBJS)
 
@@ -98,12 +97,13 @@ ifeq ($(USE_ACPICA),1)
 endif
 
 .SUFFIXES:
-.PHONY: all clean docs run
+.PHONY: all clean docs run dsm
 
-all: bin/kernel-$(ARCH).bin bin/kernel-$(ARCH).bin.dsm
+all: bin/kernel-$(ARCH).bin
 
-clean:
-	rm -r $(OBJDIR)
+dsm: bin/kernel-$(ARCH).bin.dsm
+
+clean:	rm -r $(OBJDIR)
 
 docs:
 	@mkdir -p doc/Kernel

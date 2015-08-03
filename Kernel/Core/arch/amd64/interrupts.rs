@@ -142,6 +142,7 @@ pub fn backtrace(bp: u64) -> Option<(u64,u64)>
 
 fn get_cr2() -> u64
 {
+	// SAFE: Just reads CR2, no sideeffect
 	unsafe {
 		let cr2: u64;
 		asm!("movq %cr2, $0" : "=r" (cr2));

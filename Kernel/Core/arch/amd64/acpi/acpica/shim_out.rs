@@ -174,12 +174,14 @@ extern "C" fn AcpiOsCreateSemaphore(MaxUnits: u32, InitialUnits: u32, OutHandle:
 #[no_mangle] #[linkage="external"]
 extern "C" fn AcpiOsDeleteSemaphore(Handle: ACPI_SEMAPHORE) -> ACPI_STATUS {
 	assert!( !Handle.is_null() );
+	// SAFE: ACPICA should pass us a valid handle
 	let boxed: Box<::sync::Semaphore> = unsafe { ::core::mem::transmute(Handle) };
 	::core::mem::drop(boxed);
 	AE_OK
 }
 #[no_mangle] #[linkage="external"]
 extern "C" fn AcpiOsWaitSemaphore(Handle: ACPI_SEMAPHORE, Units: u32, Timeout: u16) -> ACPI_STATUS {
+	// SAFE: ACPICA should pass us a valid handle
 	unsafe {
 		if Units != 1 {
 			todo!("AcpiOsWaitSemaphore - Support multiple unit acquire");
@@ -192,6 +194,7 @@ extern "C" fn AcpiOsWaitSemaphore(Handle: ACPI_SEMAPHORE, Units: u32, Timeout: u
 }
 #[no_mangle] #[linkage="external"]
 extern "C" fn AcpiOsSignalSemaphore(Handle: ACPI_SEMAPHORE, Units: u32) -> ACPI_STATUS {
+	// SAFE: ACPICA should pass us a valid handle
 	unsafe {
 		if Units != 1 {
 			todo!("AcpiOsWaitSemaphore - Support multiple unit release");
@@ -218,6 +221,7 @@ extern "C" fn AcpiOsDeleteLock(Handle: ACPI_SPINLOCK) {
 }
 #[no_mangle] #[linkage="external"]
 extern "C" fn AcpiOsAcquireLock(Handle: ACPI_SPINLOCK) -> ACPI_CPU_FLAGS {
+	// SAFE: ACPICA should pass us a valid handle
 	unsafe {
 		(*Handle).unguarded_lock();
 		0
@@ -225,6 +229,7 @@ extern "C" fn AcpiOsAcquireLock(Handle: ACPI_SPINLOCK) -> ACPI_CPU_FLAGS {
 }
 #[no_mangle] #[linkage="external"]
 extern "C" fn AcpiOsReleaseLock(Handle: ACPI_SPINLOCK, Flags: ACPI_CPU_FLAGS) {
+	// SAFE: ACPICA should pass us a valid handle
 	unsafe {
 		(*Handle).unguarded_release();
 	}
@@ -333,21 +338,27 @@ fn c_string_to_str<'a>(c_str: *const i8) -> &'a str {
 	::core::str::from_utf8( ::memory::c_string_as_byte_slice(c_str).unwrap_or(b"INVALID") ).unwrap_or("UTF-8")
 }
 fn get_uint(Args: &mut VaList, size: usize) -> u64 {
-	match size
-	{
-	0 => unsafe { Args.get::<u32>() as u64 },
-	1 => unsafe { Args.get::<u32>() as u64 },
-	2 => unsafe { Args.get::<u64>() },
-	_ => unreachable!(),
+	// (uncheckable) SAFE: Could over-read from stack, returning junk
+	unsafe {
+		match size
+		{
+		0 => Args.get::<u32>() as u64,
+		1 => Args.get::<u32>() as u64,
+		2 => Args.get::<u64>(),
+		_ => unreachable!(),
+		}
 	}
 }
 fn get_int(Args: &mut VaList, size: usize) -> i64 {
-	match size
-	{
-	0 => unsafe { Args.get::<i32>() as i64 },
-	1 => unsafe { Args.get::<i32>() as i64 },
-	2 => unsafe { Args.get::<i64>() },
-	_ => unreachable!(),
+	// (uncheckable) SAFE: Could over-read from stack, returning junk
+	unsafe {
+		match size
+		{
+		0 => Args.get::<i32>() as i64,
+		1 => Args.get::<i32>() as i64,
+		2 => Args.get::<i64>(),
+		_ => unreachable!(),
+		}
 	}
 }
 
@@ -361,7 +372,12 @@ extern "C" fn AcpiOsVprintf(Format: *const i8, mut Args: VaList)
 {
 	use sync::mutex::LazyMutex;
 	struct Buf([u8; 256]);
-	impl Buf { fn new() -> Self { unsafe { ::core::mem::zeroed() } } }
+	impl Buf {
+		fn new() -> Self {
+			// SAFE: POD
+			unsafe { ::core::mem::zeroed() }
+		}
+	}
 	impl AsMut<[u8]> for Buf { fn as_mut(&mut self) -> &mut [u8] { &mut self.0 } }
 	impl AsRef<[u8]> for Buf { fn as_ref(&self) -> &[u8] { &self.0 } }
 	static TEMP_BUFFER: LazyMutex<::lib::string::FixedString<Buf>> = LazyMutex::new();
@@ -452,12 +468,15 @@ extern "C" fn AcpiOsVprintf(Format: *const i8, mut Args: VaList)
 				let _ = write!(&mut *lh, "{}", val);
 				},
 			'p' => {
+				// (uncheckable) SAFE: Could over-read from stack, returning junk
 				let _ = write!(&mut *lh, "{:p}", unsafe { Args.get::<*const u8>() });
 				},
 			'c' => {
+				// (uncheckable) SAFE: Could over-read from stack, returning junk
 				let _ = write!(&mut *lh, "{}", unsafe { Args.get::<u32>() as u8 as char });
 				},
 			's' => {
+				// SAFE: Does as much validation as possible, if ACPICA misbehaves... well, we're in trouble
 				let slice = unsafe {
 					let ptr = Args.get::<*const u8>();
 					if precision < !0 {

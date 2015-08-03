@@ -97,6 +97,7 @@ impl<'a> DMABuffer<'a>
 		}
 		else {
 			// TODO: Would there be a problem with different address spaces? No, not Send
+			// SAFE: Borrows self, and pointer is valid (casted out in construction)
 			Ranges( unsafe { ::core::slice::from_raw_parts(self.source_ptr, self.buffer_len) } )
 		}
 	}

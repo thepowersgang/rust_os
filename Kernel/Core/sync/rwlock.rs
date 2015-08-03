@@ -98,6 +98,7 @@ impl<'a, T: Send+Sync> ops::Deref for Read<'a, T>
 {
 	type Target = T;
 	fn deref(&self) -> &T {
+		// SAFE: Read is fully aliasable
 		unsafe { &*self._lock.data.get() }
 	}
 }
@@ -127,12 +128,14 @@ impl<'a, T: Send+Sync> ops::Deref for Write<'a, T>
 {
 	type Target = T;
 	fn deref(&self) -> &T {
+		// SAFE: & means that & to inner is valid
 		unsafe { &*self._lock.data.get() }
 	}
 }
 impl<'a, T: Send+Sync> ops::DerefMut for Write<'a, T>
 {
 	fn deref_mut(&mut self) -> &mut T {
+		// SAFE: &mut means that &mut to inner is valid
 		unsafe { &mut *self._lock.data.get() }
 	}
 }

@@ -92,6 +92,7 @@ impl<K: Ord,V> BTreeMap<K,V>
 		Q: Ord,
 		K: ::lib::borrow::Borrow<Q>
 	{
+		// SAFE: get_ptr returns a valid pointer, self is & so no mut possible
 		unsafe { self.get_ptr(key).map(|x| &*x) }
 	}
 	pub fn get_mut<Q: ?Sized>(&mut self, key: &Q) -> Option<&mut V>
@@ -99,6 +100,7 @@ impl<K: Ord,V> BTreeMap<K,V>
 		Q: Ord,
 		K: ::lib::borrow::Borrow<Q>
 	{
+		// SAFE: get_ptr returns a valid pointer, self is &mut so no aliasing
 		unsafe { self.get_ptr(key).map(|x| &mut *x) }
 	}
 }

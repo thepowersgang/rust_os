@@ -3,20 +3,21 @@
 ///! A pool of descriptors in DMA-able memory
 use prelude::*;
 use memory::virt::ArrayHandle;
+use lib::POD;
 
-pub struct DescriptorPool<T>
+pub struct DescriptorPool<T: POD>
 {
 	items_handle: ArrayHandle<T>,
 	used_state: Vec<bool>,
 }
 
-pub struct LentDescriptor<T>
+pub struct LentDescriptor<T: POD>
 {
 	pool: *const DescriptorPool<T>,
 	ptr: *mut T,
 }
 
-impl<T> DescriptorPool<T>
+impl<T: POD> DescriptorPool<T>
 {
 	pub fn try_pop(&mut self) -> Option<LentDescriptor<T>>
 	{
@@ -34,14 +35,14 @@ impl<T> DescriptorPool<T>
 	}
 }
 
-impl<T> LentDescriptor<T>
+impl<T: POD> LentDescriptor<T>
 {
 	pub fn phys(&self) -> ::arch::memory::PAddr {
 		::memory::virt::get_phys( &*self )
 	}
 }
 
-impl<T> ::core::ops::Drop for LentDescriptor<T>
+impl<T: POD> ::core::ops::Drop for LentDescriptor<T>
 {
 	fn drop(&mut self)
 	{
@@ -49,22 +50,22 @@ impl<T> ::core::ops::Drop for LentDescriptor<T>
 	}
 }
 
-impl<T> ::core::ops::Deref for LentDescriptor<T>
+impl<T: POD> ::core::ops::Deref for LentDescriptor<T>
 {
 	type Target = T;
 	
 	fn deref(&self) -> &T
 	{
-		// Safe, we "own" that pointer (... hardware might dick with it though?)
+		// SAFE: We "own" that pointer (... hardware might dick with it though?)
 		unsafe { &*self.ptr }
 	}
 }
 
-impl<T> ::core::ops::DerefMut for LentDescriptor<T>
+impl<T: POD> ::core::ops::DerefMut for LentDescriptor<T>
 {
 	fn deref_mut(&mut self) -> &mut T
 	{
-		// Safe, we "own" that pointer (... hardware might dick with it though?)
+		// SAFE: We "own" that pointer (... hardware might dick with it though?)
 		unsafe { &mut *self.ptr }
 	}
 }

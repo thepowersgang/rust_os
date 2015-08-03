@@ -44,7 +44,7 @@ pub fn parse_fadt()
 	if &dsdt.raw_signature()[..] != b"DSDT" || !dsdt.validate() {
 		log_warning!("DSDT is invalid");
 	}
-	let dsdt_bytes = unsafe { dsdt.data_byte_slice() };
+	let dsdt_bytes = dsdt.data_byte_slice();
 
 	
 	if false {

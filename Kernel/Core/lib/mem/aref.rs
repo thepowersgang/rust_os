@@ -43,6 +43,7 @@ impl<T> Aref<T>
 	/// Construct a new Aref
 	pub fn new(val: T) -> Aref<T> {
 		Aref {
+			// SAFE: Inner is boxed, and cannot be moved out
 			__inner: Box::new(unsafe{ ArefInner::new(val) }),
 		}
 	}
@@ -107,6 +108,7 @@ impl<T: ?Sized> ArefBorrow<T>
 		self.__inner().borrow()
 	}
 	fn __inner(&self) -> &ArefInner<T> {
+		// SAFE: Nobody gets a &mut to the inner, and pointer should be valid
 		unsafe { &**self.__ptr }
 	}
 }

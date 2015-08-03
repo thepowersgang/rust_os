@@ -127,10 +127,12 @@ impl<T> Queue<T>
 		let newtail = match self.head
 			{
 			Some(ref mut head) => {
+				// SAFE: No aliasing of this mut will happen
 				let mut prev = unsafe { head.tail_ptr() };
 				// Breakout happens when next is None
 				loop {
 					let next = {
+						// SAFE: No aliasing present if the list is correctly constructed
 						let prev_next_ref = unsafe { &mut prev.get_mut().next };
 						// While the next item fails the filter
 						while match *prev_next_ref {

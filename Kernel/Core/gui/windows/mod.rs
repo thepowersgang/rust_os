@@ -66,6 +66,7 @@ pub fn init()
 	S_WINDOW_GROUPS.init( || SparseVec::new() );
 	
 	// Create render thread
+	// SAFE: Called in single-threaded context
 	unsafe { S_EVENT_QUEUE.prep(|| ::lib::ring_buffer::AtomicRingBuf::new(32)); }
 	S_RENDER_THREAD.init( || ::threads::WorkerThread::new("GUI Compositor", render_thread) );
 }

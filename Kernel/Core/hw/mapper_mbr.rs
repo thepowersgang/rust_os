@@ -37,6 +37,7 @@ impl storage::Mapper for Mapper
 			return Ok(0);
 		}
 		
+		// SAFE: Plain old data
 		let mut block: [u8; 512] = unsafe { ::core::mem::zeroed() };
 		try!(pv.read(0, 0, 1, &mut block).wait());
 		
@@ -54,6 +55,7 @@ impl storage::Mapper for Mapper
 			return Err( storage::IoError::InvalidParameter );
 		}
 		
+		// SAFE: Plain old data
 		let mut block: [u8; 512] = unsafe { ::core::mem::zeroed() };
 		try!( pv.read(0, 0, 1, &mut block).wait() );
 		if !(block[510] == 0x55 && block[511] == 0xAA) {

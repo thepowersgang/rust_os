@@ -180,6 +180,7 @@ impl<'a,T: Send + 'a> ::core::ops::Deref for HeldMutex<'a, T>
 	type Target = T;
 	fn deref(&self) -> &T
 	{
+		// SAFE: & to handle, hence no &mut possible
 		unsafe { &*self.__lock.data.get() }
 	}
 }
@@ -188,6 +189,7 @@ impl<'a,T: Send + 'a> ::core::ops::DerefMut for HeldMutex<'a, T>
 {
 	fn deref_mut(&mut self) -> &mut T
 	{
+		// SAFE: &mut to handle, hence &mut is safe
 		unsafe { &mut *self.__lock.data.get() }
 	}
 }

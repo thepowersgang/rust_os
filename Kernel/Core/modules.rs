@@ -40,6 +40,7 @@ pub fn init(requests: &[&str])
 	let size = &modules_end as *const _ as usize - baseptr as usize;
 	let count = size / ::core::mem::size_of::<ModuleInfo>();
 	
+	// SAFE: Pointer should be valid (from linker script)
 	unsafe {
 		let mods = ::core::slice::from_raw_parts(baseptr, count);
 		init_modules(mods, requests);

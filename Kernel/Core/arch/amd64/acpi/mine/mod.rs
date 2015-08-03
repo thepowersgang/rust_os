@@ -88,6 +88,7 @@ pub fn init()
 			if rsdp.revision == 0 {
 				TopRSDT( SDTHandle::<RSDT>::new( rsdp.rsdt_address as u64 ).make_static() )
 			} else {
+				// SAFE: It's actually a v2 RDSP, so transmute is valid
 				let v2: &RSDPv2 = unsafe { ::core::mem::transmute(rsdp) };
 				if sum_struct(v2) != 0 {
 					// oh
@@ -105,6 +106,7 @@ pub fn init()
 	// Obtain list of SDTs (signatures only)
 	let names = (0 .. tl.len()).map( |i| tl.get::<SDTHeader>(i).raw_signature() ).collect();
 	
+	// SAFE: Called in a single-threaded context
 	unsafe {
 		S_ACPI_STATE.prep(|| ACPI { top_sdt: tl, names: names, });
 	}
@@ -147,15 +149,16 @@ pub fn count_tables(req_name: &str) -> usize {
 /// Obtain a reference to the RSDP (will be in the identity mapping area)
 fn get_rsdp() -> Option<&'static RSDP>
 {
+	// SAFE: Valid pointers are passed
 	unsafe {
-	let ebda_ver = locate_rsdp((::arch::memory::addresses::IDENT_START + 0x9FC00) as *const u8, 0x400);
-	if !ebda_ver.is_null() {
-		return ebda_ver.as_ref();
-	}
-	let bios_ver = locate_rsdp((::arch::memory::addresses::IDENT_START + 0xE0000) as *const u8, 0x20000);
-	if !bios_ver.is_null() {
-		return bios_ver.as_ref();
-	}
+		let ebda_ver = locate_rsdp((::arch::memory::addresses::IDENT_START + 0x9_FC00) as *const u8, 0x400);
+		if !ebda_ver.is_null() {
+			return ebda_ver.as_ref();
+		}
+		let bios_ver = locate_rsdp((::arch::memory::addresses::IDENT_START + 0xE_0000) as *const u8, 0x2_0000);
+		if !bios_ver.is_null() {
+			return bios_ver.as_ref();
+		}
 	}
 	return None;
 }
@@ -180,8 +183,9 @@ unsafe fn locate_rsdp(base: *const u8, size: usize) -> *const RSDP
 }
 
 /// Caclulate the byte sum of a structure
-fn sum_struct<T>(s: &T) -> u8
+fn sum_struct<T: ::lib::POD>(s: &T) -> u8
 {
+	// SAFE: T is POD
 	unsafe {
 		let ptr = s as *const T as *const u8;
 		let vals = ::core::slice::from_raw_parts(ptr, ::core::mem::size_of::<T>());
@@ -197,7 +201,7 @@ impl TLSDT
 		&TopXSDT(sdt) => &(*sdt).header,
 		}
 	}
-	fn _getaddr(&self, idx: usize) -> u64 {
+	unsafe fn _getaddr(&self, idx: usize) -> u64 {
 		match self {
 		&TopRSDT(sdt) => (*sdt).getptr(idx),
 		&TopXSDT(sdt) => (*sdt).getptr(idx),
@@ -226,35 +230,32 @@ impl TLSDT
 	fn get<T>(&self, idx: usize) -> SDTHandle<T> {
 		// SAFE: Immutable access, and address is as validated as can be
 		unsafe {
+			assert!(idx < self.len());
 			SDTHandle::<T>::new(self._getaddr(idx))
 		}
 	}
 }
 trait RSDTTrait
 {
-	fn getptr(&self, idx: usize) -> u64;
+	unsafe fn getptr(&self, idx: usize) -> u64;
 }
 
 impl RSDTTrait for SDT<RSDT>
 {
-	fn getptr(&self, idx: usize) -> u64
+	unsafe fn getptr(&self, idx: usize) -> u64
 	{
 		let ptrs = &(self.data.pointers) as *const u32;
 		assert!( !ptrs.is_null() );
-		unsafe {
-			*ptrs.offset(idx as isize) as u64
-		}
+		*ptrs.offset(idx as isize) as u64
 	}
 }
 impl RSDTTrait for SDT<XSDT>
 {
-	fn getptr(&self, idx: usize) -> u64
+	unsafe fn getptr(&self, idx: usize) -> u64
 	{
 		let ptrs = &(self.data.pointers) as *const u64;
 		assert!( !ptrs.is_null() );
-		unsafe {
-			*ptrs.offset(idx as isize)
-		}
+		*ptrs.offset(idx as isize)
 	}
 }
 

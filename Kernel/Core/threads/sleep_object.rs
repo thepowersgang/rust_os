@@ -133,8 +133,7 @@ impl ops::Deref for SleepObjectRef
 	
 	fn deref(&self) -> &SleepObject {
 		// SAFE: Reference counting ensures that this pointer is valid.
-		// ASSUMPTION: The SleepObject doesn't move after it's borrowed
-		unsafe { &*self.obj }
+		unsafe { &*self.obj }   // > ASSUMPTION: The SleepObject doesn't move after it's borrowed
 	}
 }
 

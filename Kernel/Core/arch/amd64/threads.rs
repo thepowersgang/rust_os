@@ -69,15 +69,17 @@ impl State
 pub fn idle()
 {
 	if true {
+		// SAFE: Just pulls rflags
 		let flags = unsafe { let v: u64; asm!("pushf; pop $0" : "=r" (v)); v };
 		assert!(flags & 0x200 != 0, "idle() with IF clear, RFLAGS = {:#x}", flags);
 	}
+	// SAFE: Safe assembly, just haldts
 	unsafe { asm!("hlt" : : : : "volatile"); }
 }
 
 /// Prepares the TLS block at the stop of a kernel stack
 #[no_mangle]
-pub extern "C" fn prep_tls(top: usize, _bottom: usize, thread_ptr: *mut ::threads::Thread) -> usize
+pub unsafe extern "C" fn prep_tls(top: usize, _bottom: usize, thread_ptr: *mut ::threads::Thread) -> usize
 {
 	let mut pos = top;
 	
@@ -87,17 +89,15 @@ pub extern "C" fn prep_tls(top: usize, _bottom: usize, thread_ptr: *mut ::thread
 	
 	// - Populate the TLS data area from the template
 	//  > Also set the thread pointer
-	unsafe {
-		let data_ptr = tlsblock as *mut TLSData;
-		::core::ptr::write(data_ptr, TLSData {
-			self_ptr: data_ptr,
-			stack_top: tlsblock as *const (),
-			user_stack: 0,
-			
-			thread_ptr: thread_ptr,
-			thread_ptr_lent: false,
-			});
-	}
+	let data_ptr = tlsblock as *mut TLSData;
+	::core::ptr::write(data_ptr, TLSData {
+		self_ptr: data_ptr,
+		stack_top: tlsblock as *const (),
+		user_stack: 0,
+		
+		thread_ptr: thread_ptr,
+		thread_ptr_lent: false,
+		});
 	
 	tlsblock
 }
@@ -115,19 +115,22 @@ pub fn start_thread<F: FnOnce()+Send>(thread: &mut ::threads::Thread, code: F)
 	
 	// 1. Allocate TLS block at the top of the stack
 	log_trace!("prep_tls({:#x},{:#x},{:p})", stack_top, stack_bottom, &*thread);
-	let tls_base = prep_tls(stack_top, stack_bottom, thread as *mut _);
+	// SAFE: Pointer is valid
+	let tls_base = unsafe { prep_tls(stack_top, stack_bottom, thread as *mut _) };
 	stack_top = tls_base;
 	
 	// 2. Populate stack with `code`
 	stack_top -= ::core::mem::size_of::<F>();
 	stack_top -= stack_top % ::core::mem::align_of::<F>();
 	let code_ptr = stack_top;
+	// SAFE: Pointer is valid
 	unsafe {
 		::core::ptr::write(code_ptr as *mut F, code);
 	}
 	
 	// 3. Populate stack with trampoline state
 	// - All that is needed is to push the trampoline address (it handles calling the rust code)
+	// SAFE: Stack is valid for at least this many words (at least a page)
 	unsafe {
 		stack_top -= 8; ::core::ptr::write(stack_top as *mut u64, thread_root::<F> as usize as u64);
 		// Trampoline that sets RDI to the address of 'code'
@@ -144,7 +147,6 @@ pub fn start_thread<F: FnOnce()+Send>(thread: &mut ::threads::Thread, code: F)
 	// 4. Apply newly updated state
 	thread.cpu_state.rsp = stack_top as u64;
 	thread.cpu_state.tlsbase = tls_base as u64;
-	//thread.cpu_state.cr3 = unsafe { (*borrow_thread()).cpu_state.cr3 };
 	thread.cpu_state.stack_handle = Some(stack);
 
 	// END: Parent function will run this thread for us
@@ -156,6 +158,7 @@ pub fn start_thread<F: FnOnce()+Send>(thread: &mut ::threads::Thread, code: F)
 	fn thread_root<F: FnOnce()+Send>(code_ptr: *const F) -> ! {
 		// Copy the closure locally
 		// - TODO: Find a way that avoids needing to make this unnessesary copy. By-value FnOnce is kinda undefined, sadly
+		// SAFE: Functionally owns that pointer
 		let code = unsafe { ::core::ptr::read(code_ptr) };
 		// 1. Run closure
 		code();
@@ -207,6 +210,7 @@ fn get_tls_ptr() -> *mut TLSData {
 /// Obtain the current thread's pointer (as a owned box, thread is destroyed when box is dropped)
 pub fn get_thread_ptr() -> Option<Box<::threads::Thread>>
 {
+	// SAFE: Safe transmutes and derefs
 	unsafe {
 		let info = &mut *get_tls_ptr();
 		assert!( !info.thread_ptr.is_null() );
@@ -217,6 +221,7 @@ pub fn get_thread_ptr() -> Option<Box<::threads::Thread>>
 	}
 }
 pub fn borrow_thread() -> *const ::threads::Thread {
+	// SAFE: Safe dereference
 	unsafe {
 		(*get_tls_ptr()).thread_ptr
 	}
@@ -224,6 +229,7 @@ pub fn borrow_thread() -> *const ::threads::Thread {
 /// Release or set the current thread pointer
 pub fn set_thread_ptr(ptr: Box<::threads::Thread>)
 {
+	// SAFE: Good transmute/derefs
 	unsafe {
 		let ptr: *mut _ = ::core::mem::transmute(ptr);
 		let info = &mut *get_tls_ptr();

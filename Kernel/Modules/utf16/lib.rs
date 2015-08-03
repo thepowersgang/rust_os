@@ -15,11 +15,44 @@ use core::cmp;
 
 pub struct Str16([u16]);
 
+const HI_SURR_START: u16 = 0xD800;
+const HI_SURR_END  : u16 = 0xDBFF;
+const LO_SURR_START: u16 = 0xDC00;
+const LO_SURR_END  : u16 = 0xDFFF;
+
 impl Str16
 {
 	pub fn new(v: &[u16]) -> Option<&Str16> {
 		// 1. Validate that the passed array is valid UTF-16
+        let mut expect_low = false;
+        for &cu in v {
+            if expect_low {
+                if LO_SURR_START <= cu && cu <= LO_SURR_END {
+                    // All good
+                    expect_low = false;
+                }
+                else {
+                    return None;
+                }
+            }
+            else {
+                if HI_SURR_START <= cu && cu < HI_SURR_END {
+                    expect_low = true;
+                }
+                else if LO_SURR_START <= cu && cu <= LO_SURR_END {
+                    // Unxpected low surrogate with no preceding high
+                    return None;
+                }
+                else {
+                    // All good
+                }
+            }
+        }
+        if expect_low {
+            return None;
+        }
 		// 2. Create return
+        // SAFE: Mostly POD, and validity is checked above (that said, no unsafe depends on validity)
 		Some( unsafe { Self::new_unchecked(v) } )
 	}
 	/// Create a new UTF-16 string without any validity checking
@@ -131,11 +164,11 @@ impl<'a> ::core::iter::Iterator for Chars<'a>
 			{
 			None => return None,
 			// High surrogate
-			Some(v @ 0xD800 ... 0xDBFF) =>
+			Some(v @ HI_SURR_START ... HI_SURR_END) =>
 				match self.0.get(1).cloned()
 				{
 				// - Surrogate pair
-				Some(low @ 0xDC00 ... 0xDFFF) => {
+				Some(low @ LO_SURR_START ... LO_SURR_END) => {
 					let high = v as u32 - 0xD800;
 					let low = low as u32 - 0xDC00;
 					let cp: u32 = 0x10000 + high << 10 + low;
@@ -145,7 +178,7 @@ impl<'a> ::core::iter::Iterator for Chars<'a>
 				_ => (v as u32, 1),
 				},
 			// - Lone low surrogate, use semi-standard behavior
-			Some(v @ 0xDC00 ... 0xDFFF) => (v as u32, 1),
+			Some(v @ LO_SURR_START ... LO_SURR_END) => (v as u32, 1),
 			// - Pure codepoint
 			Some(v) => (v as u32, 1),
 			};

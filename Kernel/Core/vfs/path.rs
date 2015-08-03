@@ -27,6 +27,7 @@ pub struct Components<'a>(&'a Path);
 impl Path
 {
 	pub fn new<T: ?Sized + AsRef<[u8]>>(v: &T) -> &Path {
+		// SAFE: Path is a wrapper around [u8]
 		unsafe { ::core::mem::transmute(v.as_ref()) }
 	}
 	

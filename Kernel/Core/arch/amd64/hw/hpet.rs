@@ -69,6 +69,7 @@ fn init()
 
 	// HACK! Disable the PIT
 	// - This should really be done by the ACPI code (after it determines the PIT exists)
+	// SAFE: Nothing else attacks the PIT
 	unsafe {
 		::arch::x86_io::outb(0x43, 0<<7|3<<4|0);
 		::arch::x86_io::outb(0x43, 1<<7|3<<4|0);
@@ -76,6 +77,7 @@ fn init()
 		::arch::x86_io::outb(0x43, 3<<7|3<<4|0);
 	}
 
+	// SAFE: 'init' is called in a single-threaded context
 	let inst = unsafe {
 		S_INSTANCE.prep(|| HPET::new(mapping));
 		S_INSTANCE.ls_unsafe_mut().bind_irq();
@@ -113,6 +115,7 @@ impl HPET
 	
 	fn irq(sp: *const ())
 	{
+		// SAFE: Pointer associated should be an instance of HPET
 		let s = unsafe{ &*(sp as *const HPET) };
 		s.write_reg(HPETReg::ISR as usize, s.read_reg(HPETReg::ISR as usize));
 		
@@ -120,17 +123,19 @@ impl HPET
 	}
 	
 	fn read_reg(&self, reg: usize) -> u64 {
+		// SAFE: Hardware access, implicitly atomic on x86
 		unsafe {
-			::core::intrinsics::volatile_load( &self.regs()[reg*2] )
+			::core::intrinsics::volatile_load( &(*self.regs())[reg*2] )
 		}
 	}
 	fn write_reg(&self, reg: usize, val: u64) {
+		// SAFE: Hardware access, implicitly atomic on x86
 		unsafe {
-			::core::intrinsics::volatile_store( &mut self.regs()[reg*2], val )
+			::core::intrinsics::volatile_store( &mut (*self.regs())[reg*2], val )
 		}
 	}
-	fn regs<'a>(&'a self) -> &'a mut [u64; 0x100] {
-		// TODO: Validate safety
+	fn regs(&self) -> *mut [u64; 0x100] {
+		// SAFE: Coerces to raw pointer instantly
 		unsafe { self.mapping_handle.as_int_mut(0) }
 	}
 	fn num_comparitors(&self) -> usize {

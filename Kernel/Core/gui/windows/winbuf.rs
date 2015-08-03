@@ -70,8 +70,8 @@ impl WinBuf
 		unsafe { &(*self.data.get())[..] }
 	}
 	fn slice_mut(&self) -> &mut [u32] {
-		// SAFE: Buffer will not resize, and multiple writers is allowed
 		// TODO: Find some way of ENSURING that LLVM doesn't do something dumb here (like store a pointer in the buffer, and expect it not to change)
+		// SAFE: Buffer will not resize, and multiple writers is allowed
 		unsafe { &mut (*self.data.get())[..] }
 	}
 	
@@ -118,6 +118,7 @@ impl WinBuf
 		// TODO: Assert that current thread is from/controlled-by the compositor
 		// TODO: Should this be an unsafe operation? It isn't memory unsafe, but
 		//       care should be taken to not call this outside the compositor thread.
+		// SAFE: (uncheckable) Can't violate memory unsafety... I think
 		unsafe {
 			let pos = Pos::new(
 				winpos.x + ofs as u32,

@@ -49,6 +49,7 @@ pub fn cur_timestamp() -> u64
 pub fn print_backtrace()
 {
 	let cur_bp: u64;
+	// SAFE: Reads from bp
 	unsafe{ asm!("mov %rbp, $0" : "=r" (cur_bp)); }
 	puts("Backtrace: ");
 	puth(cur_bp);

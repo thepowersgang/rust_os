@@ -107,28 +107,26 @@ impl ACPI_MADT
 		}
 	}
 	
-	fn get_record<'s>(&'s self, limit: usize, pos: usize) -> (usize, MADTDevRecord)
+	unsafe fn get_record<'s>(&'s self, limit: usize, pos: usize) -> (usize, MADTDevRecord)
 	{
 		assert!(pos < limit);
 		assert!(pos + ::core::mem::size_of::<MADT_DevHeader>() <= limit);
-		unsafe {
-			let ptr = (&self.end as *const u8).offset( pos as isize ) as *const MADT_DevHeader;
-			//log_debug!("pos={}, ptr={} (type={},len={})", pos, ptr, (*ptr).dev_type, (*ptr).rec_len);
-			let len = (*ptr).rec_len;
-			let typeid = (*ptr).dev_type;
-			
-			let ret_ref = match typeid {
-				0 => MADTDevRecord::DevLAPIC(     ::core::mem::transmute( ptr.offset(1) ) ),
-				1 => MADTDevRecord::DevIOAPIC(    ::core::mem::transmute( ptr.offset(1) ) ),
-				2 => MADTDevRecord::DevIntSrcOvr( ::core::mem::transmute( ptr.offset(1) ) ),
-				3 => MADTDevRecord::DevNMI(       ::core::mem::transmute( ptr.offset(1) ) ),
-				4 => MADTDevRecord::DevLAPICNMI(  ::core::mem::transmute( ptr.offset(1) ) ),
-				5 => MADTDevRecord::DevLAPICAddr( ::core::mem::transmute( ptr.offset(1) ) ),
-				_ => MADTDevRecord::DevUnk(typeid) ,
-				};
-			
-			(pos + len as usize, ret_ref)
-		}
+		let ptr = (&self.end as *const u8).offset( pos as isize ) as *const MADT_DevHeader;
+		//log_debug!("pos={}, ptr={} (type={},len={})", pos, ptr, (*ptr).dev_type, (*ptr).rec_len);
+		let len = (*ptr).rec_len;
+		let typeid = (*ptr).dev_type;
+		
+		let ret_ref = match typeid {
+			0 => MADTDevRecord::DevLAPIC(     ::core::mem::transmute( ptr.offset(1) ) ),
+			1 => MADTDevRecord::DevIOAPIC(    ::core::mem::transmute( ptr.offset(1) ) ),
+			2 => MADTDevRecord::DevIntSrcOvr( ::core::mem::transmute( ptr.offset(1) ) ),
+			3 => MADTDevRecord::DevNMI(       ::core::mem::transmute( ptr.offset(1) ) ),
+			4 => MADTDevRecord::DevLAPICNMI(  ::core::mem::transmute( ptr.offset(1) ) ),
+			5 => MADTDevRecord::DevLAPICAddr( ::core::mem::transmute( ptr.offset(1) ) ),
+			_ => MADTDevRecord::DevUnk(typeid) ,
+			};
+		
+		(pos + len as usize, ret_ref)
 	}
 }
 
@@ -143,7 +141,8 @@ impl<'a> Iterator for MADTRecords<'a>
 		}
 		else
 		{
-			let (newpos,rec) = self.madt.get_record(self.limit, self.pos);
+			// SAFE: Assuming we got sane values, this is correct
+			let (newpos,rec) = unsafe { self.madt.get_record(self.limit, self.pos) };
 			self.pos = newpos;
 			Some(rec)
 		}

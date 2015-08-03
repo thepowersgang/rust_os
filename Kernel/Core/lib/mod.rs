@@ -157,5 +157,15 @@ impl<'a,T> ::core::fmt::Pointer for SlicePtr<'a,T> {
 	}
 }
 
+
+pub unsafe trait POD { }
+unsafe impl POD for .. {}
+//impl<T: ::core::ops::Drop> !POD for T {}  // - I would love this, but it collides with every other !POD impl
+impl<T> !POD for ::core::ptr::Unique<T> {}
+impl<T> !POD for *const T {}
+impl<T> !POD for *mut T {}
+impl<'a, T> !POD for &'a T {}
+impl<'a, T> !POD for &'a mut T {}
+
 // vim: ft=rust
 

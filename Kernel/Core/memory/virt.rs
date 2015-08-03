@@ -45,14 +45,14 @@ unsafe impl Send for AllocHandle {}	// AllocHandle is sendable
 unsafe impl Sync for AllocHandle {}	// &AllocHandle is safe
 
 /// A wrapper around AllocHandle that acts like an array
-pub struct ArrayHandle<T>
+pub struct ArrayHandle<T: ::lib::POD>
 {
 	alloc: AllocHandle,
 	_ty: ::core::marker::PhantomData<T>,
 }
 
 /// A wrapper around AllocHandle that acts like an array
-pub struct SliceAllocHandle<T>
+pub struct SliceAllocHandle<T: ::lib::POD>
 {
 	alloc: AllocHandle,
 	ofs: usize,
@@ -176,7 +176,7 @@ impl Reservation
 {
 	pub fn get_mut_page(&mut self, idx: usize) -> &mut [u8] {
 		assert!(idx < self.1);
-		// Unique, and owned
+		// SAFE: Unique, and owned
 		unsafe { ::core::slice::from_raw_parts_mut( (self.0 as usize + idx * ::PAGE_SIZE) as *mut u8, ::PAGE_SIZE) }
 	}
 	//pub fn map_at(&mut self, idx: usize, frame: FrameHandle) -> Result<(),FrameHandle> {
@@ -276,7 +276,7 @@ pub unsafe fn map_hw_rw(phys: PAddr, count: usize, module: &'static str) -> Resu
 /// Return a slice from physical memory
 ///
 /// UNSAFE: Can cause aliasing (but does handle referencing the memory)
-pub unsafe fn map_hw_slice<T>(phys: PAddr, num: usize) -> Result<SliceAllocHandle<T>,MapError>
+pub unsafe fn map_hw_slice<T: ::lib::POD>(phys: PAddr, num: usize) -> Result<SliceAllocHandle<T>,MapError>
 {
 	let ofs = phys & (::PAGE_SIZE - 1) as PAddr;
 	let pa = phys - ofs;
@@ -373,7 +373,7 @@ pub struct FreePage(*mut u8);
 impl FreePage
 {
 	pub fn into_frame(self) -> ::memory::phys::FrameHandle {
-		// unmap happens on drop, just return the new handle
+		// SAFE: Unmap uses correct address
 		unsafe {
 			let vaddr = self.0;
 			::core::mem::forget(self);
@@ -381,7 +381,7 @@ impl FreePage
 				::memory::phys::FrameHandle::from_addr_noref(addr)
 			}
 			else {
-				panic!("");
+				panic!("Address was not mapped?");
 			}
 		}
 	}
@@ -392,6 +392,7 @@ impl FreePage
 }
 impl ops::Drop for FreePage {
 	fn drop(&mut self) {
+		// SAFE: Pointer is owned and valid
 		unsafe { unmap(self.0 as *mut (), 1); }
 	}
 }
@@ -427,6 +428,7 @@ fn count_free_in_range(addr: *const Page, count: usize) -> usize
 {
 	for i in (0 .. count)
 	{
+		// SAFE: Offset should be valid... (TODO: Ensure, and do bounds checking)
 		let pg = unsafe { addr.offset(i as isize) };
 		if ::arch::memory::virt::is_reserved( pg ) {
 			return i;
@@ -484,27 +486,28 @@ impl AllocHandle
 	}
 	
 	/// Borrow as T
-	pub fn as_ref<T>(&self, ofs: usize) -> &T
+	pub fn as_ref<T: ::lib::POD>(&self, ofs: usize) -> &T
 	{
 		&self.as_slice(ofs, 1)[0]
 	}
 	/// Mutably borrow as a T
-	pub fn as_mut<T>(&mut self, ofs: usize) -> &mut T
+	pub fn as_mut<T: ::lib::POD>(&mut self, ofs: usize) -> &mut T
 	{
 		&mut self.as_mut_slice(ofs, 1)[0]
 	}
 	/// Return a mutable borrow of the content (interior mutable)
-	pub unsafe fn as_int_mut<T>(&self, ofs: usize) -> &mut T
+	pub unsafe fn as_int_mut<T: ::lib::POD>(&self, ofs: usize) -> &mut T
 	{
 		&mut self.as_int_mut_slice(ofs, 1)[0]
 	}
 	/// Forget the allocation and return a static reference to the data
-	pub fn make_static<T>(mut self, ofs: usize) -> &'static mut T
+	pub fn make_static<T: ::lib::POD>(mut self, ofs: usize) -> &'static mut T
 	{
 		assert!(super::buf_valid(self.addr, self.count*0x1000));
 		assert!(ofs % ::core::mem::align_of::<T>() == 0);
 		assert!(ofs + ::core::mem::size_of::<T>() <= self.count * ::PAGE_SIZE);
 		self.count = 0;
+		// SAFE: owned and Plain-old-data (setting count above to 0 ensures no deallocation)
 		unsafe{ &mut *((self.addr as usize + ofs) as *mut T) }
 	}
 
@@ -525,27 +528,29 @@ impl AllocHandle
 			::core::slice::from_raw_parts_mut( (self.addr as usize + ofs) as *mut T, count )
 		}
 	}
-	pub fn as_slice<T>(&self, ofs: usize, count: usize) -> &[T]
+	pub fn as_slice<T: ::lib::POD>(&self, ofs: usize, count: usize) -> &[T]
 	{
+		// SAFE: & and Plain-old-data
 		unsafe {
-			& (*self.as_raw_ptr_slice(ofs, count))[..]
+			&(*self.as_raw_ptr_slice(ofs, count))[..]
 		}
 	}
-	pub unsafe fn as_int_mut_slice<T>(&self, ofs: usize, count: usize) -> &mut [T]
+	pub unsafe fn as_int_mut_slice<T: ::lib::POD>(&self, ofs: usize, count: usize) -> &mut [T]
 	{
 		assert!( self.mode == ProtectionMode::KernelRW,
 			"Calling as_int_mut_slice<{}> on non-writable memory ({:?})", type_name!(T), self.mode );
 		&mut (*self.as_raw_ptr_slice(ofs, count))[..]
 	}
-	pub fn as_mut_slice<T>(&mut self, ofs: usize, count: usize) -> &mut [T]
+	pub fn as_mut_slice<T: ::lib::POD>(&mut self, ofs: usize, count: usize) -> &mut [T]
 	{
 		assert!( self.mode == ProtectionMode::KernelRW,
 			"Calling as_mut_slice<{}> on non-writable memory ({:?})", type_name!(T), self.mode );
+		// SAFE: &mut and Plain-old-data
 		unsafe {
 			self.as_int_mut_slice(ofs, count)
 		}
 	}
-	pub fn into_array<T>(self) -> ArrayHandle<T>
+	pub fn into_array<T: ::lib::POD>(self) -> ArrayHandle<T>
 	{
 		ArrayHandle {
 			alloc: self,
@@ -616,11 +621,11 @@ impl Drop for AllocHandle
 //	fn as_mut(&mut self) -> &mut [u8] { self.alloc.as_mut_slice(self.idx * 0x1000, 0x1000) }
 //}
 
-impl<T> SliceAllocHandle<T>
+impl<T: ::lib::POD> SliceAllocHandle<T>
 {
 }
 
-impl<T> ::core::ops::Deref for SliceAllocHandle<T>
+impl<T: ::lib::POD> ::core::ops::Deref for SliceAllocHandle<T>
 {
 	type Target = [T];
 	fn deref(&self) -> &[T]
@@ -629,20 +634,20 @@ impl<T> ::core::ops::Deref for SliceAllocHandle<T>
 	}
 }
 
-impl<T> ArrayHandle<T>
+impl<T: ::lib::POD> ArrayHandle<T>
 {
 	pub fn len(&self) -> usize {
 		self.alloc.count * ::PAGE_SIZE / ::core::mem::size_of::<T>()
 	}
 }
-impl<T> ::core::ops::Deref for ArrayHandle<T>
+impl<T: ::lib::POD> ::core::ops::Deref for ArrayHandle<T>
 {
 	type Target = [T];
 	fn deref(&self) -> &[T] {
 		self.alloc.as_slice(0, self.len())
 	}
 }
-impl<T> ::core::ops::DerefMut for ArrayHandle<T>
+impl<T: ::lib::POD> ::core::ops::DerefMut for ArrayHandle<T>
 {
 	fn deref_mut(&mut self) -> &mut [T] {
 		let len = self.len();

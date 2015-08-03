@@ -297,6 +297,7 @@ impl PTE
 		}
 	}
 	pub fn is_cow(&self) -> bool {
+		// SAFE: Construction should ensure this pointer is valid
 		unsafe {
 			self.is_present() && (*self.data & FLAG_COW != 0)
 		}
@@ -361,6 +362,7 @@ impl PTE
 impl ::core::fmt::Debug for PTE
 {
 	fn fmt(&self, f: &mut ::core::fmt::Formatter) -> ::core::fmt::Result {
+		// SAFE: Pointer is either NULL or valid
 		let val = unsafe { if self.is_null() { 0 } else { *self.data } };
 		
 		let addr = val & !(FLAG_NX|0xFFF);
@@ -393,6 +395,7 @@ pub fn handle_page_fault(accessed_address: usize, error_code: u32) -> bool
 		// Poke the main VMM layer
 		//::memory::virt::cow_write(accessed_address);
 		// 1. Lock (relevant) address space
+		// SAFE: Changes to address space are transparent
 		::memory::virt::with_lock(accessed_address, || unsafe {
 			let frame = pte.addr();
 			// 2. Get the PMM to provide us with a unique copy of that frame (can return the same addr)

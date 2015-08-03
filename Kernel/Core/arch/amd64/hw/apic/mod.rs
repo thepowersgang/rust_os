@@ -51,6 +51,7 @@ fn init()
 	if (madt.data().flags & 1) != 0 {
 		log_notice!("Legacy PIC present, disabling");
 		// Disable legacy PIC by masking all interrupts off
+		// SAFE: Only code to access the PIC
 		unsafe {
 			::arch::x86_io::outb(0xA1, 0xFF);	// Disable slave
 			::arch::x86_io::outb(0x21, 0xFF);	// Disable master
@@ -75,6 +76,7 @@ fn init()
 			).collect();
 	
 	// Create APIC and IOAPIC instances
+	// SAFE: Called in a single-threaded context
 	unsafe {
 		s_lapic.prep(|| raw::LAPIC::new(lapic_addr));
 		s_lapic.ls_unsafe_mut().global_init();
@@ -84,6 +86,7 @@ fn init()
 	s_lapic.init();
 	
 	// Enable interupts
+	// SAFE: Just STI, nothing to worry about
 	unsafe { asm!("sti"); }
 }
 

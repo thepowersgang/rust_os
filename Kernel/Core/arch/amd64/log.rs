@@ -39,6 +39,7 @@ pub fn puth_digits(val: u64, nibbles: usize) {
 /// Print a single character to the logging output
 fn putc(c: u8)
 {
+	// SAFE: Racy I guess... but doesn't cause memory unsafety (and worst is lost chars)
 	unsafe {
 		while (x86_io::inb(0x3F8+5) & 0x20) == 0
 		{

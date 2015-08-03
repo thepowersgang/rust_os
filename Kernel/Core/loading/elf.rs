@@ -35,6 +35,7 @@ struct Elf32_Sym
 	st_other: u8,
 	st_shndx: u16,
 }
+unsafe impl ::lib::POD for Elf32_Sym {}
 
 pub struct SectionHeader<'a>
 {
@@ -59,6 +60,7 @@ impl<'a> SectionHeader<'a>
 	pub fn from_ref(buffer: &[u8], ent_size: usize, shstridx: usize) -> SectionHeader
 	{
 		assert_eq!(ent_size, ::core::mem::size_of::<Elf32_Shent>());
+		// SAFE: POD transmute
 		let buf = unsafe { ::lib::unsafe_cast_slice::<Elf32_Shent>(buffer) };
 		let rv = SectionHeader {
 			data: Cow::Borrowed(buf),
@@ -102,6 +104,7 @@ impl<'a> SectionHeader<'a>
 			};
 		
 		let count = symtab.sh_size as usize / ::core::mem::size_of::<Elf32_Sym>();
+		// SAFE: (uncheckable) Assumes that sh_address does point to the symbol table (in physical space)
 		let alloc = match unsafe { ::memory::virt::map_hw_slice::<Elf32_Sym>(symtab.sh_address as u64, count) }
 			{
 			Ok(v) => v,

@@ -4,26 +4,37 @@
 // arch/amd64/pci.rs
 //! PCI bus access
 
-static S_PCI_LOCK: ::sync::Spinlock<()> = ::sync::Spinlock::new( () );
+static S_PCI_LOCK: ::sync::Spinlock<PCICfgSpace> = ::sync::Spinlock::new(PCICfgSpace);
+
+struct PCICfgSpace;
+impl PCICfgSpace
+{
+	fn read(&mut self, addr: u32) -> u32 {
+		// SAFE: (from accessing the wrong place)
+		unsafe {
+			::arch::x86_io::outl(0xCF8, 0x80000000 | addr);
+			::arch::x86_io::inl(0xCFC)
+		}
+	}
+	fn write(&mut self, addr: u32, val: u32) {
+		// SAFE: (from accessing the wrong place)
+		unsafe {
+			::arch::x86_io::outl(0xCF8, 0x80000000 | addr);
+			::arch::x86_io::outl(0xCFC, val)
+		}
+	}
+}
 
 /// Read a word from a pre-calculated PCI address
 pub fn read(addr: u32) -> u32
 {
-	let _lh = S_PCI_LOCK.lock();
-	unsafe {
-		::arch::x86_io::outl(0xCF8, 0x80000000 | addr);
-		::arch::x86_io::inl(0xCFC)
-	}
+	S_PCI_LOCK.lock().read(addr)
 }
 
 /// Write a word to a pre-calculated PCI address
 pub fn write(addr: u32, val: u32)
 {
-	let _lh = S_PCI_LOCK.lock();
-	unsafe {
-		::arch::x86_io::outl(0xCF8, 0x80000000 | addr);
-		::arch::x86_io::outl(0xCFC, val)
-	}
+	S_PCI_LOCK.lock().write(addr, val);
 }
 
 /// Returns the IRQ number (suitable for the ::irq module) for the specified pin
