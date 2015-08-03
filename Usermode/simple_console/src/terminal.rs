@@ -28,6 +28,8 @@ impl<'a> Terminal<'a>
 		self.surf.clear_cursor(self.cur_col);
 	}
 
+	pub fn cur_col(&self) -> usize { self.cur_col }
+
 	pub fn delete_left(&mut self) {
 		if self.cur_col > 0 {
 			self.cursor_left();

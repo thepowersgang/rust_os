@@ -39,6 +39,10 @@ impl InputStack
 			KeyCode::Return | KeyCode::KpEnter => Some( ::std::mem::replace(&mut self.buffer, String::new()) ),
 			KeyCode::LeftShift => { self.shift &= !1; None },
 			KeyCode::RightShift => { self.shift &= !2; None },
+			KeyCode::Tab => {
+				//puts(Action::Complete(&self.buffer);
+				None
+				},
 			KeyCode::Backsp => {
 				kernel_log!("Backspace");
 				puts(Action::Backspace);

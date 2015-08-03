@@ -30,16 +30,16 @@ extern crate macros;
 // Raw re-exports from core
 pub use core::{option, result};
 pub use core::{slice, str, ptr};
-pub use core::{fmt, iter, clone};
+pub use core::{iter, clone};
 pub use core::{mem, cmp, ops};
-pub use core::{default};
+pub use core::{default, cell};
 pub use core::convert;
 pub use core::intrinsics;
 pub use core::marker;
 
 mod std {
 	pub use core::{option, result};
-	pub use core::fmt;
+	pub use fmt;
 	pub use core::iter;
 	pub use core::{mem, cmp, ops};
 }
@@ -53,6 +53,18 @@ pub mod prelude {
 		pub use string::String;
 		pub use vec::Vec;
 	}
+}
+
+pub mod fmt {
+	pub use core::fmt::*;
+
+	pub fn format(args: ::std::fmt::Arguments) -> ::string::String
+	{
+		let mut output = ::string::String::new();
+		let _ = output.write_fmt(args);
+		output
+	}
+
 }
 
 mod start;

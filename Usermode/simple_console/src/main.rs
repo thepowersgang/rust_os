@@ -3,6 +3,7 @@
 //
 // Simplistic console, used as a quick test case (fullscreen window)
 #![feature(core_slice_ext,core_str_ext)]
+#![feature(const_fn)]
 
 #[macro_use]
 extern crate syscalls;
@@ -37,6 +38,8 @@ fn main() {
 	term.write_str("\n> ").unwrap();
 	term.flush();
 
+	let mut shell = ShellState::new();
+
 	loop {
 		// Bind to receive events relating to the window
 		let mut events = [window.get_wait()];
@@ -53,8 +56,14 @@ fn main() {
 				{
 					kernel_log!("buf = {:?}", buf);
 					term.write_str("\n").unwrap();
-					handle_command(&mut term, buf);
-					term.write_str("\n> ").unwrap();
+					term.flush();
+					window.redraw();
+
+					shell.handle_command(&mut term, buf);
+					if term.cur_col() != 0 {
+						term.write_str("\n").unwrap();
+					}
+					term.write_str("> ").unwrap();
 				}
 				term.flush();
 				window.redraw();
@@ -81,19 +90,57 @@ fn render_input(term: &mut terminal::Terminal, action: input::Action)
 	}
 }
 
-fn handle_command(term: &mut terminal::Terminal, mut cmdline: String)
+#[derive(Default)]
+struct ShellState
 {
-	use cmdline_words_parser::StrExt;
-	let mut args = cmdline.parse_cmdline_words();
-	match args.next()
-	{
-	None => {},
-	Some("ls") => {
-		let _ = write!(term, "TODO: 'ls'");
-		},
-	Some(cmd @_) => {
-		let _ = write!(term, "Unkown command '{}'", cmd);
-		},
+	/// Current working directory, relative to /
+	cwd_rel: String,
+}
+
+
+macro_rules! print {
+	($term:expr, $($t:tt)*) => ({use std::fmt::Write; let _ = write!($term, $($t)*);});
+}
+
+impl ShellState
+{
+	pub fn new() -> ShellState {
+		Default::default()
 	}
+	pub fn handle_command(&mut self, term: &mut terminal::Terminal, mut cmdline: String)
+	{
+		use cmdline_words_parser::StrExt;
+		let mut args = cmdline.parse_cmdline_words();
+		match args.next()
+		{
+		None => {},
+		Some("pwd") => print!(term, "/{}", self.cwd_rel),
+		Some("cd") =>
+			if let Some(p) = args.next()
+			{
+				print!(term, "TODO: cd '{}'", p);
+			}
+			else
+			{
+				self.cwd_rel = String::new();
+			},
+		Some("ls") =>
+			if let Some(dir) = args.next()
+			{
+				print!(term, "TODO: list contents of '{}'", dir);
+			}
+			else
+			{
+				command_ls(term, &format!("/{}", self.cwd_rel));
+			},
+		Some(cmd @_) => {
+			print!(term, "Unkown command '{}'", cmd);
+			},
+		}
+	}
+}
+
+fn command_ls(term: &mut terminal::Terminal, path: &str) {
+	let handle = ::syscalls::vfs::Dir::open(path);
 }
 
