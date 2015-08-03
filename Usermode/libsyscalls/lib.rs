@@ -134,9 +134,8 @@ fn to_result(val: usize) -> Result<u32,u32> {
 
 #[inline]
 pub fn log_write(msg: &str) {
-	unsafe {
-		syscall!(CORE_LOGWRITE, msg.as_ptr() as usize, msg.len());
-	}
+	// SAFE: Syscall
+	unsafe { syscall!(CORE_LOGWRITE, msg.as_ptr() as usize, msg.len()); }
 }
 
 

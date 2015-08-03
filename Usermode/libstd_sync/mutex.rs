@@ -39,11 +39,13 @@ pub struct HeldMutex<'a, T: 'a>
 impl<'a, T: 'a> ops::Deref for HeldMutex<'a, T> {
 	type Target = T;
 	fn deref(&self) -> &T {
+		// SAFE: & to handle means that & to data is safe
 		unsafe { &*self.ptr.data.get() }
 	}
 }
 impl<'a, T: 'a> ops::DerefMut for HeldMutex<'a, T> {
 	fn deref_mut(&mut self) -> &mut T {
+		// SAFE: &mut to handle means that &mut to data is safe
 		unsafe { &mut *self.ptr.data.get() }
 	}
 }

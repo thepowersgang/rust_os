@@ -54,6 +54,7 @@ pub extern "C" fn loader_main(cmdline: *mut u8, cmdline_len: usize) -> !
 	kernel_log!("args = {:?}", &*args);
 	
 	// TODO: Switch stacks into a larger dynamically-allocated stack
+	// SAFE: Entrypoint assumed to have this format... will likely crash if it isn't
 	let ep: fn(&[&::std::ffi::OsStr]) -> ! = unsafe { ::std::mem::transmute(entrypoint) };
 	kernel_log!("Calling entry {:p}", ep as *const ());
 	ep(&args);
@@ -65,6 +66,7 @@ struct FixedVec<T> {
 }
 impl<T> FixedVec<T> {
 	fn new() -> FixedVec<T> {
+		// SAFE: Won't be read until written to
 		FixedVec { size: 0, data: unsafe { ::std::mem::uninitialized() } }
 	}
 	fn push(&mut self, v: T) -> Result<(),T> {
@@ -72,6 +74,7 @@ impl<T> FixedVec<T> {
 			Err(v)
 		}
 		else {
+			// SAFE: Writing to newly made-valid cell
 			unsafe { ::std::ptr::write( &mut self.data[self.size], v ) };
 			self.size += 1;
 			Ok( () )
@@ -145,6 +148,7 @@ fn load_binary(path: &::std::ffi::OsStr) -> usize
 				::std::mem::forget(mm);
 			}
 			if tail > 0 {
+				// SAFE: Trusing addresses to be valid
 				unsafe {
 					let destslice = ::std::slice::from_raw_parts_mut((segment.load_addr + aligned) as *mut u8, tail);
 					// - Allocate space
@@ -160,9 +164,8 @@ fn load_binary(path: &::std::ffi::OsStr) -> usize
 			if extra > PAGE_SIZE - tail {
 				let addr = segment.load_addr + aligned + PAGE_SIZE;
 				let pages = (extra - (PAGE_SIZE - tail) + PAGE_SIZE-1) / PAGE_SIZE;
-				unsafe {
-					::syscalls::memory::allocate(addr, pages).expect("extra alloc");
-				}
+				// SAFE: Just allocating at a known free place
+				unsafe { ::syscalls::memory::allocate(addr, pages).expect("extra alloc"); }
 			}
 		}
 	}

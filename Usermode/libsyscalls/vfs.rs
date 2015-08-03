@@ -36,6 +36,7 @@ impl Node
 {
 	pub fn open<T: AsRef<[u8]>>(path: T) -> Result<Node, Error> {
 		let path = path.as_ref();
+		// SAFE: Syscall
 		match super::ObjectHandle::new( unsafe { syscall!(VFS_OPENNODE, path.as_ptr() as usize, path.len()) } as usize )
 		{
 		Ok(rv) => Ok( Node(rv) ),
@@ -50,6 +51,7 @@ impl File
 {
 	pub fn open<T: AsRef<[u8]>>(path: T, mode: FileOpenMode) -> Result<File,Error> {
 		let path = path.as_ref();
+		// SAFE: Syscall
 		match super::ObjectHandle::new( unsafe { syscall!(VFS_OPENFILE, path.as_ptr() as usize, path.len(), mode as u32 as usize) } as usize )
 		{
 		Ok(rv) => Ok( File(rv, 0) ),
@@ -171,6 +173,7 @@ impl Dir
 {
 	pub fn open<T: AsRef<[u8]>>(path: T) -> Result<Dir, Error> {
 		let path = path.as_ref();
+		// SAFE: Syscall
 		match super::ObjectHandle::new( unsafe { syscall!(VFS_OPENDIR, path.as_ptr() as usize, path.len()) } as usize )
 		{
 		Ok(rv) => Ok( Dir(rv) ),

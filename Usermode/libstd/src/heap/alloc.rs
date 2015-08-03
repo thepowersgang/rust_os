@@ -59,6 +59,7 @@ impl<T> ::core::ops::Deref for Allocation<T>
 impl<T> ::core::ops::Drop for Allocation<T>
 {
 	fn drop(&mut self) {
+		// SAFE: Pointer and size are valid
 		unsafe {
 			S_GLOBAL_HEAP.lock().deallocate(*self.ptr as *mut (), align_of::<T>());
 		}
@@ -167,17 +168,20 @@ impl AllocState
 	}
 
 	fn last_block(&mut self) -> &mut Block {
+		// SAFE: Mutable borrow prevents any form of aliasing
 		unsafe { &mut *(*self.past_end).prev() }
 	}
 	fn extend_reservation(&mut self, required_space: usize) {
 		let npages = (required_space + size_of::<Block>() + size_of::<BlockTail>() + 0xFFF) >> 12;
 		assert!(npages > 0);
 		assert!(self.past_end != HEAP_LIMITS.1 as *mut Block);
+		assert!(self.past_end as usize + npages << 12 <= HEAP_LIMITS.1);	// TODO: This isn't an assert conditon, it's an OOM
 		if self.start.is_null() {
 			self.start = HEAP_LIMITS.0 as *mut Block;
 			self.past_end = HEAP_LIMITS.0 as *mut Block;
 		}
 
+		// SAFE: Allocates only in controlled region.
 		let cb = unsafe {
 			::syscalls::memory::allocate(self.past_end as usize, npages).expect("Heap allocation failure");
 			(*self.past_end).initialise(npages << 12);
@@ -198,8 +202,12 @@ struct FreeBlocks<'a>
 impl<'a> ::std::iter::Iterator for FreeBlocks<'a>
 {
 	type Item = &'a mut Block;
-	fn next(&mut self) -> Option<Self::Item> {
-		while self.cur != self.state.past_end {
+	fn next(&mut self) -> Option<Self::Item>
+	{
+		while self.cur != self.state.past_end
+		{
+			// TODO: Yields &mut to blocks, which have a method to get the next item
+			// SAFE: (maybe) Only yields each block once... (but blocks can cursor)
 			let block = unsafe {
 				let bp = self.cur;
 				self.cur = (*self.cur).next();
@@ -222,6 +230,7 @@ impl Block
 		bp
 	}
 
+	/// UNSAFE: Code should ensure that self is uninitialised
 	unsafe fn initialise(&mut self, size: usize) {
 		::core::ptr::write(self, Block {
 			state: BlockState::Free,
@@ -233,6 +242,7 @@ impl Block
 	}
 
 	fn tail(&mut self) -> &mut BlockTail {
+		// SAFE: Mutably borrows self (which is eventually mut borrow of state)
 		unsafe {
 			&mut *((self as *const Block as usize + self.size - size_of::<BlockTail>()) as *mut BlockTail)
 		}

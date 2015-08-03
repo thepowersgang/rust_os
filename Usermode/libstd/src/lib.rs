@@ -55,16 +55,6 @@ pub mod prelude {
 	}
 }
 
-fn type_name<T: ?::core::marker::Sized>() -> &'static str { unsafe { ::core::intrinsics::type_name::<T>() } }
-macro_rules! type_name {
-	($t:ty) => ( $crate::type_name::<$t>() );
-}
-macro_rules! todo
-{
-	( $s:expr ) => ( panic!( concat!("TODO: ",$s) ) );
-	( $s:expr, $($v:tt)* ) => ( panic!( concat!("TODO: ",$s), $($v)* ) );
-}
-
 mod start;
 
 pub mod ffi;

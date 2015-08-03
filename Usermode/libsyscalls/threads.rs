@@ -8,6 +8,7 @@ pub unsafe fn start_thread(ip: usize, sp: usize, tlsbase: usize) -> Result<u32, 
 }
 #[inline]
 pub fn exit_thread() -> ! {
+	// SAFE: Syscall
 	unsafe {
 		syscall!(CORE_EXITTHREAD);
 		::core::intrinsics::unreachable();
@@ -32,11 +33,12 @@ impl ThisProcess
 	/// Obtain the 'n'th unclaimed object of the specifed type
 	pub fn receive_object<T: ::Object>(&self, idx: usize) -> Result<T, ()> {
 		self.with_obj(|obj| 
-		match super::ObjectHandle::new( unsafe { obj.call_2(::values::CORE_THISPROCESS_RECVOBJ, T::class() as usize, idx) } as usize )
-		{
-		Ok(v) => Ok(T::from_handle(v)),
-		Err(e) => panic!("receive_object error {}", e),
-		}
+			// SAFE: Syscall
+			match super::ObjectHandle::new( unsafe { obj.call_2(::values::CORE_THISPROCESS_RECVOBJ, T::class() as usize, idx) } as usize )
+			{
+			Ok(v) => Ok(T::from_handle(v)),
+			Err(e) => panic!("receive_object error {}", e),
+			}
 		)
 	}
 }
@@ -60,15 +62,18 @@ pub struct Process(::ObjectHandle);
 impl Process {
 	#[inline]
 	pub fn terminate(&self) {
+		// SAFE: Syscall
 		unsafe { self.0.call_0(::values::CORE_PROCESS_KILL); }
 	}
 	#[inline]
 	pub fn send_obj<O: ::Object>(&self, obj: O) {
 		let oh = obj.into_handle().into_raw();
+		// SAFE: Syscall
 		unsafe { self.0.call_1(::values::CORE_PROCESS_SENDOBJ, oh as usize); }
 	}
 	#[inline]
 	pub fn send_msg(&self, id: u32, data: &[u8]) {
+		// SAFE: Syscall
 		unsafe { self.0.call_3(::values::CORE_PROCESS_SENDMSG, id as usize, data.as_ptr() as usize, data.len()); }
 	}
 
@@ -95,6 +100,7 @@ impl ::Object for Process {
 
 #[inline]
 pub fn start_process(entry: usize, stack: usize,  clone_start: usize, clone_end: usize) -> Result<Process,()> {
+	// SAFE: Syscall
 	let rv = unsafe { syscall!(CORE_STARTPROCESS, entry, stack, clone_start, clone_end) };
 	match ::ObjectHandle::new(rv as usize)
 	{
@@ -105,6 +111,7 @@ pub fn start_process(entry: usize, stack: usize,  clone_start: usize, clone_end:
 
 #[inline]
 pub fn exit(code: u32) -> ! {
+	// SAFE: Syscall
 	unsafe {
 		syscall!(CORE_EXITPROCESS, code as usize);
 		::core::intrinsics::unreachable();
@@ -121,6 +128,7 @@ pub use values::WaitItem;
 /// Returns the number of events that caused the wakeup (zero for timeout)
 #[inline]
 pub fn wait(items: &mut [WaitItem], wake_time_mono: u64) -> u32 {
+	// SAFE: Syscall
 	unsafe {
 		syscall!(CORE_WAIT, items.as_ptr() as usize, items.len(), wake_time_mono as usize) as u32
 	}

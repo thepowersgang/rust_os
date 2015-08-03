@@ -141,12 +141,15 @@ impl<R: Read+Seek> ElfModuleHandle<R>
 		}
 		kernel_log!("symtab_ofs = {:?}, strtab_ofs = {:?}", symtab_addr, strtab_addr);
 		// SAFE: (well, as can be) These addresses should be pointing to within the program's image
-		let strtab = unsafe { try!(StringTable::new(strtab_addr,strtab_len)) };
-		// TODO: Check assumption that symtab_addr < strtab_addr
-		let symtab = unsafe { try!(SymbolTable::new(self.header.get_format(), symtab_addr, strtab_addr.map(|x| x - symtab_addr.unwrap_or(x)), symtab_esz)) };
-		let rel  = unsafe { try!(RelocTable::new(self.header.get_format(), rel_addr, rel_sz, rel_esz, RelocType::Rel)) };
-		let rela = unsafe { try!(RelocTable::new(self.header.get_format(), rela_addr, rela_sz, rela_esz, RelocType::RelA)) };
-		let plt  = unsafe { try!(RelocTable::new(self.header.get_format(), plt_addr, plt_sz, None, plt_type)) };
+		let (strtab, symtab, rel, rela, plt) = unsafe {
+			let strtab = try!(StringTable::new(strtab_addr,strtab_len));
+			// TODO: Check assumption that symtab_addr < strtab_addr
+			let symtab = try!(SymbolTable::new(self.header.get_format(), symtab_addr, strtab_addr.map(|x| x - symtab_addr.unwrap_or(x)), symtab_esz));
+			let rel  = try!(RelocTable::new(self.header.get_format(), rel_addr, rel_sz, rel_esz, RelocType::Rel));
+			let rela = try!(RelocTable::new(self.header.get_format(), rela_addr, rela_sz, rela_esz, RelocType::RelA));
+			let plt  = try!(RelocTable::new(self.header.get_format(), plt_addr, plt_sz, None, plt_type));
+			(strtab, symtab, rel, rela, plt)
+			};
 		
 		kernel_log!("strtab = {:?}", ::std::ffi::OsStr::new(strtab.0));
 		// Have symbol table - Nice, can't relocate it due to the way it's yielded though
@@ -285,16 +288,18 @@ impl<'a> RelocationState<'a>
 	}
 	
 	fn relocate_64<F: FnOnce(u64)->u64>(&self, addr: usize, fcn: F) {
-		// TODO: Enforce/check safety
+		// SAFE: (uncheckable) Assumes that the file is valid
 		unsafe {
+			// TODO: Ensure that address is valid
 			let ptr = addr as *mut u64;
 			// TODO: Ensure that endianness is native endian
 			*ptr = fcn(*ptr);
 		}
 	}
 	fn relocate_32<F: FnOnce(u32)->u32>(&self, addr: usize, fcn: F) {
-		// TODO: Enforce/check safety
+		// SAFE: (uncheckable) Assumes that the file is valid
 		unsafe {
+			// TODO: Ensure that address is valid
 			let ptr = addr as *mut u32;
 			// TODO: Ensure that endianness is native endian
 			*ptr = fcn(*ptr);

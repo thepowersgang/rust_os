@@ -85,13 +85,14 @@ impl<T> Vec<T>
 		let newcap = size.next_power_of_two();
 		if size > self.data.count()
 		{
-			if self.data.expand(newcap)
+			if self.data.resize(newcap)
 			{
 				// All good
 			}
 			else
 			{
 				let mut newdata = ArrayAlloc::new(newcap);
+				// SAFE: Moves only items within the valid region
 				unsafe {
 					for i in (0 .. self.size) {
 						let val = self.move_ent(i as usize);
@@ -108,12 +109,6 @@ impl<T> Vec<T>
 	pub fn reserve(&mut self, extras: usize) {
 		let newcap = self.size + extras;
 		self.reserve_cap(newcap);
-	}
-	
-	/// Obtain a mutable slice to the content
-	pub fn slice_mut<'a>(&'a mut self) -> &'a mut [T]
-	{
-		unsafe { ::core::slice::from_raw_parts_mut(self.data.get_base_mut(), self.size) }
 	}
 	
 	/// Move out of a slot in the vector, leaving unitialise memory in its place
@@ -164,6 +159,7 @@ impl<T> Vec<T>
 	{
 		if newsize < self.size
 		{
+			// SAFE: Drops items from new length to old length and invalidates them
 			unsafe
 			{
 				for i in (newsize .. self.size) {
@@ -174,8 +170,14 @@ impl<T> Vec<T>
 		}
 	}
 	
+	fn slice_mut(&mut self) -> &mut [T]
+	{
+		// SAFE: Slices only valid region
+		unsafe { ::core::slice::from_raw_parts_mut(self.data.get_base_mut(), self.size) }
+	}
 	fn as_slice(&self) -> &[T]
 	{
+		// SAFE: Slices only valid region
 		unsafe { ::core::slice::from_raw_parts(self.data.get_base() as *const T, self.size) }
 	}
 	
@@ -185,6 +187,7 @@ impl<T> Vec<T>
 		self.reserve(1);
 		self.size += 1;
 		let ptr = self.get_mut_ptr(pos);
+		// SAFE: Writes to newly validated position
 		unsafe { ::core::ptr::write(ptr, t); }
 	}
 	pub fn pop(&mut self) -> Option<T>
@@ -197,6 +200,7 @@ impl<T> Vec<T>
 		{
 			self.size -= 1;
 			let pos = self.size;
+			// SAFE: Moves from newly invalidated position
 			Some( unsafe { self.move_ent(pos) } )
 		}
 	}
@@ -278,6 +282,7 @@ impl<T> ops::Drop for Vec<T>
 {
 	fn drop(&mut self)
 	{
+		// SAFE: Drops only items within the valid region
 		unsafe {
 			while self.size > 0 {
 				self.size -= 1;
@@ -427,6 +432,7 @@ impl<T> MoveItems<T>
 	fn pop_item(&mut self) -> T
 	{
 		assert!(self.ofs < self.count);
+		// SAFE: Bounds checked above
 		let v: T = unsafe {
 			let ptr = self.data.get_ptr(self.ofs);
 			::core::ptr::read(ptr as *const _)

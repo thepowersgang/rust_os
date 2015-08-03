@@ -15,12 +15,14 @@ impl<T> ArrayAlloc<T>
 {
 	pub fn new(size: usize) -> ArrayAlloc<T> {
 		ArrayAlloc {
+			// SAFE: Upper level code ensures size is correct
 			base: unsafe { Allocation::new(size * size_of::<T>()).expect("ArrayAlloc::new") },
 			size: size,
 		}
 	}
 	
-	pub fn expand(&mut self, newsize: usize) -> bool {
+	pub fn resize(&mut self, newsize: usize) -> bool {
+		// SAFE: This struct only exposes raw pointers, so any size is valid
 		if unsafe { self.base.try_resize(newsize * size_of::<T>()) } {
 			self.size = newsize;
 			// Oh, good

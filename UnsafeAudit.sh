@@ -1,4 +1,7 @@
-#!/bin/sh
+#!/bin/bash
 
-grep 'unsafe *[{$]' -nrI Kernel/Core/ Kernel/Modules/ -B 1 | awk 'BEGIN {issafe = 0;} { if(match($0, /SAFE:/) != 0) { issafe = 1 } else { if(issafe == 0) {print $0} else {}; issafe=0; } }' | uniq
+grep --include=*.rs 'unsafe *[{$]' -nrI Kernel/Core/ Kernel/Modules/ Usermode/ -B 1 \
+	| awk 'BEGIN{issafe = 0; count=0;} { if(match($0, /SAFE:/) != 0) {issafe = 1} else { if(issafe == 0) { if(match($0, /unsafe/)) {count += 1;} print $0} else {}; issafe=0; } } END{ print count; exit (count==0?0:1); }' \
+	| uniq
+exit ${PIPESTATUS[1]}
 #grep '[^(//)]*unsafe [^(fn)]' -nrI Kernel/Core/ Kernel/Modules/ -B 1 | awk 'BEGIN {issafe = 0;} { if(match($0, /SAFE:/) != 0) { issafe = 1 } else { if(issafe == 0) {print $0} else {}; issafe=0; } }' | uniq

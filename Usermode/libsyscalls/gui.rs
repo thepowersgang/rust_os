@@ -34,6 +34,7 @@ impl Group
 {
 	pub fn new(name: &str) -> Result<Group,()>
 	{
+		// SAFE: Syscall
 		match super::ObjectHandle::new( unsafe { syscall!(GUI_NEWGROUP, name.as_ptr() as usize, name.len()) } as usize )
 		{
 		Ok(rv) => Ok( Group(rv) ),
@@ -44,6 +45,7 @@ impl Group
 	}
 	
 	pub fn force_active(&self) -> Result<(),()> {
+		// SAFE: Syscall
 		match super::to_result( unsafe { self.0.call_0(::values::GUI_GRP_FORCEACTIVE) } as usize )
 		{
 		Ok(_) => Ok( () ),
@@ -73,6 +75,7 @@ impl ::Object for Group
 pub fn set_group(grp: Group)
 {
 	use Object;
+	// SAFE: Syscall
 	unsafe { syscall!(GUI_BINDGROUP, grp.into_handle().into_raw() as usize); }
 }
 
@@ -80,6 +83,7 @@ impl Window
 {
 	pub fn new(name: &str) -> Result<Window,()>
 	{
+		// SAFE: Syscall
 		match super::ObjectHandle::new( unsafe { syscall!(GUI_NEWWINDOW, name.as_ptr() as usize, name.len()) } as usize )
 		{
 		Ok(rv) => Ok( Window(rv) ),
@@ -90,28 +94,35 @@ impl Window
 	}
 	
 	pub fn show(&self) {
+		// SAFE: Syscall
 		unsafe { self.0.call_2(::values::GUI_WIN_SETFLAG, ::values::GUI_WIN_FLAG_VISIBLE as usize, 1); }
 	}
 	pub fn hide(&self) {
+		// SAFE: Syscall
 		unsafe { self.0.call_2(::values::GUI_WIN_SETFLAG, ::values::GUI_WIN_FLAG_VISIBLE as usize, 0); }
 	}
 	pub fn redraw(&self) {
+		// SAFE: Syscall
 		unsafe { self.0.call_0(::values::GUI_WIN_REDRAW); }
 	}
 
 	// TODO: Should this be controllable by the application?
 	pub fn maximise(&self) {
+		// SAFE: Syscall
 		unsafe { self.0.call_2(::values::GUI_WIN_SETFLAG, ::values::GUI_WIN_FLAG_MAXIMISED as usize, 1); }
 	}
 	
 	pub fn blit_rect(&self, x: u32, y: u32, w: u32, h: u32, data: &[u32]) {
+		// SAFE: Syscall
 		unsafe { self.0.call_6(::values::GUI_WIN_BLITRECT, x as usize, y as usize, w as usize, h as usize, data.as_ptr() as usize, data.len()); }
 	}
 	pub fn fill_rect(&self, x: u32, y: u32, w: u32, h: u32, colour: u32) {
+		// SAFE: Syscall
 		unsafe { self.0.call_5(::values::GUI_WIN_FILLRECT, x as usize, y as usize, w as usize, h as usize, colour as usize); }
 	}
 
 	pub fn pop_event(&self) -> Option<::values::GuiEvent> {
+		// SAFE: Syscall
 		let v = unsafe { self.0.call_0(::values::GUI_WIN_GETEVENT) };
 		if v == !0 {
 			None
