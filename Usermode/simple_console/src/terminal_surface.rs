@@ -84,6 +84,17 @@ impl<'a> Surface<'a>
 		}
 	}
 	
+	pub fn draw_cursor(&mut self, col: usize) {
+		assert!(col < self.max_cols());
+		let px_pos = col * C_CELL_DIMS.w as usize;
+		for l in self.row_scanlines() {
+			l[px_pos] = !l[px_pos];
+		}
+	}
+	pub fn clear_cursor(&mut self, col: usize) {
+		self.draw_cursor(col);
+	}
+
 	/// Writes a single codepoint to the display
 	///
 	/// Returns true if the character caused a cell change (i.e. it wasn't a combining character)

@@ -23,7 +23,9 @@ impl<'a> Terminal<'a>
 	}
 	
 	pub fn flush(&mut self) {
+		self.surf.draw_cursor(self.cur_col);
 		self.surf.flush();
+		self.surf.clear_cursor(self.cur_col);
 	}
 
 	pub fn delete_left(&mut self) {
