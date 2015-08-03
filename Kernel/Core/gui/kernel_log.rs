@@ -86,7 +86,7 @@ impl KernelLog
 	fn new() -> KernelLog
 	{
 		// TODO: Register to somehow be informed when dimensions change
-        // - Is this particular call bad for bypassing the GUI? Or is this acceptable
+		// - Is this particular call bad for bypassing the GUI? Or is this acceptable
 		let max_dims = ::metadevs::video::get_display_for_pos( Pos::new(0,0) ).expect("No display at (0,0)").dims();
 	
 		// Kernel's window group	

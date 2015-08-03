@@ -149,22 +149,22 @@ pub enum KeyCode
 
 impl ::core::convert::From<u8> for KeyCode
 {
-    fn from(v: u8) -> KeyCode {
-        // SAFE: Bounds checks performed internally.
-        unsafe {
-            if v <= KeyCode::Oper as u8 {
-                ::core::mem::transmute(v as u32)
-            }
-            else if v < 0xE0 {
-                panic!("KeyCode::from - Out of range");
-            }
-            else if v <= KeyCode::RightGui as u8 {
-                ::core::mem::transmute(v as u32)
-            }
-            else {
-                panic!("KeyCode::from - Out of range");
-            }
-        }
-    }
+	fn from(v: u8) -> KeyCode {
+		// SAFE: Bounds checks performed internally.
+		unsafe {
+			if v <= KeyCode::Oper as u8 {
+				::core::mem::transmute(v as u32)
+			}
+			else if v < 0xE0 {
+				panic!("KeyCode::from - Out of range");
+			}
+			else if v <= KeyCode::RightGui as u8 {
+				::core::mem::transmute(v as u32)
+			}
+			else {
+				panic!("KeyCode::from - Out of range");
+			}
+		}
+	}
 }
 

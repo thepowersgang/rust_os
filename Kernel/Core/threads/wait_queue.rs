@@ -66,10 +66,10 @@ impl WaitQueue
 		rel_cur_thread(cur);
 	}
 	/// Returns true if there is a thread waiting on the list
-        pub fn has_waiter(&self) -> bool
-        {
-                ! self.list.empty()
-        }
+		pub fn has_waiter(&self) -> bool
+		{
+				! self.list.empty()
+		}
 	/// Wake a single thread waiting on this queue
 	pub fn wake_one(&mut self)
 	{
@@ -78,7 +78,7 @@ impl WaitQueue
 		{
 		Some(mut t) => {
 			t.set_state( RunState::Runnable );
-                        let _irq_lock = ::arch::sync::hold_interrupts();
+						let _irq_lock = ::arch::sync::hold_interrupts();
 			s_runnable_threads.lock().push(t);
 			},
 		None => {}

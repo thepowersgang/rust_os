@@ -109,7 +109,7 @@ pub fn update_dims()
 pub fn handle_input(event: super::input::Event)
 {
 	// Push event to a FIFO queue (fixed-size)
-    // > Queue is cleared by the render thread
+	// > Queue is cleared by the render thread
 	// > This method should be interrupt safe
 	match S_EVENT_QUEUE.push(event)
 	{
@@ -205,7 +205,7 @@ impl WindowGroup
 	}
 	
 	fn handle_input(&mut self, ev: super::input::Event) {
-        log_debug!("Focuessed window {}", self.focussed_window);
+		log_debug!("Focuessed window {}", self.focussed_window);
 		match self.windows.get( self.focussed_window )
 		{
 		Some(w) => w.1.handle_input(ev),
@@ -239,7 +239,7 @@ impl WindowGroup
 	}
 	/// Recalculate the visibility vector for a specific window in the render order
 	// TODO: This is quite expensive (causes reallocations on each intersecting window), need to look into
-	//       making it cheaper somehow.
+	//	   making it cheaper somehow.
 	// Maybe have it optionally disabled, and do global dirty instead?
 	fn recalc_vis_for(&mut self, vis_idx: usize) -> Vec<Rect>
 	{
@@ -350,10 +350,10 @@ impl WindowGroupHandle
 		WindowHandle { grp: self.0, win: idx }
 	}
 
-    /// Force this group to be the active group
-    pub fn force_active(&self) {
-        S_CURRENT_GROUP.store( self.0, atomic::Ordering::Relaxed )
-    }
+	/// Force this group to be the active group
+	pub fn force_active(&self) {
+		S_CURRENT_GROUP.store( self.0, atomic::Ordering::Relaxed )
+	}
 }
 impl ::core::ops::Drop for WindowGroupHandle
 {

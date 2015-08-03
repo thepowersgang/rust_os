@@ -28,7 +28,7 @@ pub enum Level
 	LevelNotice,
    	/// Interesting (least important for the user)
 	LevelInfo,
-    	/// General (highest developer-only level)
+		/// General (highest developer-only level)
 	LevelLog,
    	/// What
 	LevelDebug,
@@ -116,12 +116,12 @@ mod serial
 			match colour
 			{
 			Colour::Default => ::arch::puts("\x1b[0m"),
-			Colour::Red     => ::arch::puts("\x1b[31m"),
+			Colour::Red	 => ::arch::puts("\x1b[31m"),
 			Colour::Green   => ::arch::puts("\x1b[32m"),
 			Colour::Yellow  => ::arch::puts("\x1b[33m"),
-			Colour::Blue    => ::arch::puts("\x1b[34m"),
+			Colour::Blue	=> ::arch::puts("\x1b[34m"),
 			Colour::Purple  => ::arch::puts("\x1b[35m"),
-			Colour::Grey    => ::arch::puts("\x1b[1;30m"),
+			Colour::Grey	=> ::arch::puts("\x1b[1;30m"),
 			}
 		}
 	}
@@ -227,8 +227,8 @@ impl Level
 		Level::LevelError   => 'e',
 		Level::LevelWarning => 'w',
 		Level::LevelNotice  => 'n',
-		Level::LevelInfo    => 'i',
-		Level::LevelLog     => 'l',
+		Level::LevelInfo	=> 'i',
+		Level::LevelLog	 => 'l',
 		Level::LevelDebug   => 'd',
 		Level::LevelTrace   => 't',
 		}
@@ -241,7 +241,7 @@ impl Level
 		Level::LevelError   => Colour::Red,
 		Level::LevelWarning => Colour::Yellow,
 		Level::LevelNotice  => Colour::Green,
-		Level::LevelLog     => Colour::Blue,
+		Level::LevelLog	 => Colour::Blue,
 		Level::LevelTrace   => Colour::Grey,
 		_ => Colour::Default,
 		}

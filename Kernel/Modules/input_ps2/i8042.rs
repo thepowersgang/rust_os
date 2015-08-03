@@ -43,7 +43,7 @@ pub fn init()
 		};
 	
 	if enabled {
-        // SAFE: init runs in a single-threaded context
+		// SAFE: init runs in a single-threaded context
 		unsafe {
 			S_8042_CTRLR.prep(|| Ctrlr8042::new().unwrap());
 		}

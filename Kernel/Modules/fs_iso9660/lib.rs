@@ -107,7 +107,7 @@ impl mount::Driver for Driver
 		log_debug!("lb_size = {}, root = {:#x} + {:#x} bytes", lb_size, root_lba, root_size);
 		
 		Ok( Box::new( Instance(
-            // SAFE: Stored in a box, and not moved out.
+			// SAFE: Stored in a box, and not moved out.
 			unsafe { ArefInner::new( InstanceInner {
 				vh: vol,
 				lb_size: lb_size as usize,

@@ -100,14 +100,14 @@ def_classes! {
 	}|{
 		=0: EV_PROCESS_TERMINATED,
 	},
-    =1: CLASS_CORE_THISPROCESS = {
-    	/// Fetch a handle to the 'n'th object of the specified class that hasn't been claimed
-	    =0: CORE_THISPROCESS_RECVOBJ,
-	    =1: CORE_THISPROCESS_RECVMSG,
-    }|{
-        =0: EV_THISPROCESS_RECVOBJ,
-        =1: EV_THISPROCESS_RECVMSG,
-    },
+	=1: CLASS_CORE_THISPROCESS = {
+		/// Fetch a handle to the 'n'th object of the specified class that hasn't been claimed
+		=0: CORE_THISPROCESS_RECVOBJ,
+		=1: CORE_THISPROCESS_RECVMSG,
+	}|{
+		=0: EV_THISPROCESS_RECVOBJ,
+		=1: EV_THISPROCESS_RECVMSG,
+	},
 	/// Opened file
 	=2: CLASS_VFS_FILE = {
 		/// Read data from the specified position in the file
@@ -137,7 +137,7 @@ def_classes! {
 		/// Fill a region of the window with the specified colour
 		=3: GUI_WIN_FILLRECT,
 		/// Read an event from the queue. 64-bit return value, !0 = none, otherwise 16/48 tag and data
-        // TODO: Pass a &mut GuiEvent instead of deserialsiging a u64
+		// TODO: Pass a &mut GuiEvent instead of deserialsiging a u64
 		=4: GUI_WIN_GETEVENT,
 	}|{
 		/// Fires when the input queue is non-empty

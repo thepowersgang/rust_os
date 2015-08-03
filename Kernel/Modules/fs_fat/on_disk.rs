@@ -149,9 +149,9 @@ impl BootSect16Info {
 	fn read(src: &mut &[u8]) -> BootSect16Info {
 		BootSect16Info {
 			drive_num: read_u8(src),
-			_rsvd:     read_u8(src),
+			_rsvd:	 read_u8(src),
 			boot_sig:  read_u8(src),
-			vol_id:    read_u32(src),
+			vol_id:	read_u32(src),
 			label:   read_arr(src),
 			fs_type: read_arr(src),
 		}
@@ -225,7 +225,7 @@ impl DirEnt {
 pub struct DirEntLong
 {
 	pub id: u8,
-        pub name1: [u16; 5],
+	pub name1: [u16; 5],
 	pub attrib: u8,	// Must be ATTR_LFN
 	pub ty: u8,	// Dunno?
 	pub checksum: u8,

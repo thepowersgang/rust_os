@@ -24,35 +24,35 @@ impl Str16
 {
 	pub fn new(v: &[u16]) -> Option<&Str16> {
 		// 1. Validate that the passed array is valid UTF-16
-        let mut expect_low = false;
-        for &cu in v {
-            if expect_low {
-                if LO_SURR_START <= cu && cu <= LO_SURR_END {
-                    // All good
-                    expect_low = false;
-                }
-                else {
-                    return None;
-                }
-            }
-            else {
-                if HI_SURR_START <= cu && cu < HI_SURR_END {
-                    expect_low = true;
-                }
-                else if LO_SURR_START <= cu && cu <= LO_SURR_END {
-                    // Unxpected low surrogate with no preceding high
-                    return None;
-                }
-                else {
-                    // All good
-                }
-            }
-        }
-        if expect_low {
-            return None;
-        }
+		let mut expect_low = false;
+		for &cu in v {
+			if expect_low {
+				if LO_SURR_START <= cu && cu <= LO_SURR_END {
+					// All good
+					expect_low = false;
+				}
+				else {
+					return None;
+				}
+			}
+			else {
+				if HI_SURR_START <= cu && cu < HI_SURR_END {
+					expect_low = true;
+				}
+				else if LO_SURR_START <= cu && cu <= LO_SURR_END {
+					// Unxpected low surrogate with no preceding high
+					return None;
+				}
+				else {
+					// All good
+				}
+			}
+		}
+		if expect_low {
+			return None;
+		}
 		// 2. Create return
-        // SAFE: Mostly POD, and validity is checked above (that said, no unsafe depends on validity)
+		// SAFE: Mostly POD, and validity is checked above (that said, no unsafe depends on validity)
 		Some( unsafe { Self::new_unchecked(v) } )
 	}
 	/// Create a new UTF-16 string without any validity checking

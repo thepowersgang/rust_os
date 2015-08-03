@@ -25,6 +25,6 @@ impl Process
 	}
 }
 impl ::core::ops::Deref for Process {
-    type Target = ::syscalls::threads::Process;
-    fn deref(&self) -> &Self::Target { &self.0 }
+	type Target = ::syscalls::threads::Process;
+	fn deref(&self) -> &Self::Target { &self.0 }
 }

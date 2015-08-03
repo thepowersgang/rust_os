@@ -11,9 +11,9 @@ pub struct Window(super::ObjectHandle);
 
 pub	struct Rect { pub p: Pos, pub d: Dims, }
 impl Rect {
-    pub fn new(x: u32, y: u32, w: u32, h: u32) -> Rect {
-        Rect { p: Pos { x:x, y:y }, d: Dims { w:w, h:h } }
-    }
+	pub fn new(x: u32, y: u32, w: u32, h: u32) -> Rect {
+		Rect { p: Pos { x:x, y:y }, d: Dims { w:w, h:h } }
+	}
 }
 pub struct Pos { pub x: u32, pub y: u32, }
 pub struct Dims { pub w: u32, pub h: u32, }
@@ -22,7 +22,7 @@ pub struct Dims { pub w: u32, pub h: u32, }
 pub struct Colour(u32);
 impl Colour {
 	pub fn as_argb32(&self) -> u32 { self.0 }
-    pub fn white() -> Colour { Colour(0xFFFFFF) }
+	pub fn white() -> Colour { Colour(0xFFFFFF) }
 }
 
 
