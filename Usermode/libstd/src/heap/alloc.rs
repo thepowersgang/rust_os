@@ -7,7 +7,7 @@ use core::mem::{align_of,size_of};
 use core::ptr::Unique;
 
 #[cfg(arch__amd64)]
-const HEAP_LIMITS: (usize,usize) = (0x1000_00000000, 0x7000_00000000);
+const HEAP_LIMITS: (usize,usize) = (0x1000_0000_0000, 0x7000_0000_0000);
 
 static S_GLOBAL_HEAP: Mutex<AllocState> = Mutex::new(AllocState { start: 0 as *mut _, past_end: 0 as *mut _ } );
 
@@ -175,7 +175,7 @@ impl AllocState
 		let npages = (required_space + size_of::<Block>() + size_of::<BlockTail>() + 0xFFF) >> 12;
 		assert!(npages > 0);
 		assert!(self.past_end != HEAP_LIMITS.1 as *mut Block);
-		assert!(self.past_end as usize + npages << 12 <= HEAP_LIMITS.1);	// TODO: This isn't an assert conditon, it's an OOM
+		assert!(self.past_end as usize + (npages << 12) <= HEAP_LIMITS.1);	// TODO: This isn't an assert conditon, it's an OOM
 		if self.start.is_null() {
 			self.start = HEAP_LIMITS.0 as *mut Block;
 			self.past_end = HEAP_LIMITS.0 as *mut Block;
