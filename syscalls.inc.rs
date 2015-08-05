@@ -124,8 +124,8 @@ def_classes! {
 	},
 	/// Opened directory
 	=3: CLASS_VFS_DIR = {
-		/// Read a selection of entries
-		=0: VFS_DIR_READENTS,
+		/// Read an entry
+		=0: VFS_DIR_READENT,
 	}|{
 	},
 	/// GUI Group/Session
@@ -157,6 +157,41 @@ def_classes! {
 
 pub const GUI_WIN_FLAG_VISIBLE: u8 = 0;
 pub const GUI_WIN_FLAG_MAXIMISED: u8 = 1;
+
+macro_rules! enum_to_from {
+	($enm:ident => $ty:ty : $($n:ident = $v:expr,)*) => {
+		#[derive(Debug)]
+		pub enum $enm
+		{
+			$($n,)*
+		}
+		impl ::core::convert::From<$ty> for $enm {
+			fn from(v: $ty) -> Self {
+				match v
+				{
+				$($v => $enm::$n,)*
+				_ => panic!("Unknown value for {} - {}", stringify!($enm), v),
+				}
+			}
+		}
+		impl ::core::convert::Into<$ty> for $enm {
+			fn into(self) -> $ty
+			{
+				match self
+				{
+				$($enm::$n => $v,)*
+				}
+			}
+		}
+	}
+}
+
+enum_to_from!{ VFSError => u32 :
+	FileNotFound = 0,
+	TypeError = 1,
+	PermissionDenied = 2,
+	FileLocked = 3,
+}
 
 #[derive(Debug)]
 pub enum GuiEvent

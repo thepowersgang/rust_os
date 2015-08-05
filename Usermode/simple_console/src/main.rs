@@ -28,10 +28,15 @@ fn main() {
 	::syscalls::threads::wait(&mut [S_THIS_PROCESS.get_wait()], !0);
 	::syscalls::gui::set_group( S_THIS_PROCESS.receive_object::<Group>(0).unwrap() );
 
+	// Create maximised window
 	let window = Window::new("Console").unwrap();
 	window.maximise();
 	window.fill_rect(0,0, !0,!0, 0x33_00_00);   // A nice rust-like red :)
+
+	// Create terminal
 	let mut term = terminal::Terminal::new(&window, ::syscalls::gui::Rect::new(0,0, 1920,1080));
+	let mut input = input::InputStack::new();
+	// Print header
 	{
 		let mut buf = [0; 128];
 		term.set_foreground( Colour::def_green() );
@@ -42,10 +47,9 @@ fn main() {
 		let _ = write!(&mut term, "Simple console\n");
 	}
 	window.show();
-	let mut input = input::InputStack::new();
 	
-	
-	term.write_str("\n> ").unwrap();
+	// Initial prompt
+	term.write_str("> ").unwrap();
 	term.flush();
 
 	let mut shell = ShellState::new();
@@ -70,9 +74,11 @@ fn main() {
 					window.redraw();
 
 					shell.handle_command(&mut term, buf);
+					// - If the command didn't print a newline, print one for it
 					if term.cur_col() != 0 {
 						term.write_str("\n").unwrap();
 					}
+					// New prompt
 					term.write_str("> ").unwrap();
 				}
 				term.flush();
@@ -89,6 +95,7 @@ fn main() {
 	}
 }
 
+// Render callback for input stack
 fn render_input(term: &mut terminal::Terminal, action: input::Action)
 {
 	use input::Action;
@@ -117,6 +124,7 @@ impl ShellState
 	pub fn new() -> ShellState {
 		Default::default()
 	}
+	/// Handle a command
 	pub fn handle_command(&mut self, term: &mut terminal::Terminal, mut cmdline: String)
 	{
 		use cmdline_words_parser::StrExt;
@@ -124,7 +132,9 @@ impl ShellState
 		match args.next()
 		{
 		None => {},
+		// 'pwd' - Print working directory
 		Some("pwd") => print!(term, "/{}", self.cwd_rel),
+		// 'cd' - Change directory
 		Some("cd") =>
 			if let Some(p) = args.next()
 			{
@@ -134,14 +144,27 @@ impl ShellState
 			{
 				self.cwd_rel = String::new();
 			},
+		// 'ls' - Print the contents of a directory
 		Some("ls") =>
 			if let Some(dir) = args.next()
 			{
-				print!(term, "TODO: list contents of '{}'", dir);
+				// TODO: Parse 'dir' as relative correctly
+				command_ls(term, dir);
 			}
 			else
 			{
 				command_ls(term, &format!("/{}", self.cwd_rel));
+			},
+		// 'cat' - Dump the contents of a file
+		// TODO: Implement
+		Some("cat") => print!(term, "TODO: cat"),
+		// 'echo' - Prints all arguments space-separated
+		Some("echo") =>
+			while let Some(v) = args.next() {
+				print!(term, "{} ", v);
+			},
+		Some("help") => {
+			print!(term, "Builtins: pwd, cd, ls, cat, help, echo");
 			},
 		Some(cmd @_) => {
 			print!(term, "Unkown command '{}'", cmd);
@@ -151,10 +174,30 @@ impl ShellState
 }
 
 fn command_ls(term: &mut terminal::Terminal, path: &str) {
-	let handle = ::syscalls::vfs::Dir::open(path);
+	let mut handle = match ::syscalls::vfs::Dir::open(path)
+		{
+		Ok(v) => v,
+		Err(e) => {
+			print!(term, "Unable to open '{}': {:?}", path, e);
+			return ;
+			},
+		};
 	
-	//for name in handle.entries() {
-	//	print!(term, "- {}\n", name);
-	//}
+	let mut buf = [0; 256];
+	loop
+	{
+		let name_bytes = match handle.read_ent(&mut buf)
+			{
+			Ok(v) => v,
+			Err(e) => {
+				print!(term, "Read error: {:?}", e);
+				return ;
+				},
+			};
+
+		let name = ::std::str::from_utf8(name_bytes);
+		print!(term, "- {:?}\n", name);
+		if name_bytes == b"" { break ; }
+	}
 }
 

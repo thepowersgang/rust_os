@@ -285,6 +285,12 @@ impl Dir
 		try!(self.node.create(name.as_ref(), NodeType::Symlink(target)));
 		Ok( () )
 	}
+
+
+	/// RETURN: (next position, read count)
+	pub fn read_ents(&self, pos: usize, ents: &mut [(super::node::InodeId, ByteString)]) -> super::Result<(usize, usize)> {
+		self.node.read_dir(pos, ents)
+	}
 }
 
 pub struct DirIter<'a> {

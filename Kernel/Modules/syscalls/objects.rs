@@ -25,6 +25,21 @@ pub trait Object: Send + Sync + ::core::marker::Reflect
 	/// Return: Number of wakeup events fired
 	fn clear_wait(&self, flags: u32, obj: &mut ::kernel::threads::SleepObject) -> u32;
 }
+impl<T: Object> Object for Box<T> {
+	const CLASS: u16 = 0xFFFF;
+	fn type_name(&self) -> &str { (**self).type_name() }
+	fn as_any(&self) -> &Any { (**self).as_any() }
+	fn class(&self) -> u16 { (**self).class() }
+	fn handle_syscall(&self, call: u16, args: &[usize]) -> Result<u64,super::Error> {
+		(**self).handle_syscall(call, args)
+	}
+	fn bind_wait(&self, flags: u32, obj: &mut ::kernel::threads::SleepObject) -> u32 {
+		(**self).bind_wait(flags, obj)
+	}
+	fn clear_wait(&self, flags: u32, obj: &mut ::kernel::threads::SleepObject) -> u32 {
+		(**self).clear_wait(flags, obj)
+	}
+}
 pub type ObjectAlloc = StackDST<Object>;
 
 struct UserObject
@@ -39,8 +54,11 @@ impl UserObject {
 			unclaimed: false,
 			data: match StackDST::new(v)
 				{
-				Some(v) => v,
-				None => panic!("Object '{}' did not fit in StackDST {} > {}", type_name!(T), ::core::mem::size_of::<T>(), ::core::mem::size_of::<StackDST<Object>>()),
+				Ok(v) => v,
+				Err(v) => {
+					log_warning!("Object '{}' did not fit in StackDST {} > {}", type_name!(T), ::core::mem::size_of::<T>(), ::core::mem::size_of::<StackDST<Object>>());
+					StackDST::new(Box::new(v)).ok().unwrap()
+					},
 				},
 		}
 	}

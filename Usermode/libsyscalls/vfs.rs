@@ -4,12 +4,7 @@ pub struct File(super::ObjectHandle, u64);
 pub struct Node(super::ObjectHandle);
 pub struct Dir(super::ObjectHandle);
 
-#[derive(Debug)]
-pub enum Error
-{
-	NotFound,
-	PermissionDenied,
-}
+pub use ::values::VFSError as Error;
 
 #[repr(C,u32)]
 pub enum FileOpenMode
@@ -40,9 +35,7 @@ impl Node
 		match super::ObjectHandle::new( unsafe { syscall!(VFS_OPENNODE, path.as_ptr() as usize, path.len()) } as usize )
 		{
 		Ok(rv) => Ok( Node(rv) ),
-		Err(code) => {
-			panic!("TODO: Error code {}", code);
-			},
+		Err(code) => Err( From::from(code) ),
 		}
 	}
 }
@@ -55,9 +48,7 @@ impl File
 		match super::ObjectHandle::new( unsafe { syscall!(VFS_OPENFILE, path.as_ptr() as usize, path.len(), mode as u32 as usize) } as usize )
 		{
 		Ok(rv) => Ok( File(rv, 0) ),
-		Err(code) => {
-			panic!("TODO: Error code {}", code);
-			},
+		Err(code) => Err( From::from(code) ),
 		}
 	} 
 	
@@ -177,13 +168,20 @@ impl Dir
 		match super::ObjectHandle::new( unsafe { syscall!(VFS_OPENDIR, path.as_ptr() as usize, path.len()) } as usize )
 		{
 		Ok(rv) => Ok( Dir(rv) ),
-		Err(code) => {
-			panic!("TODO: Error code {}", code);
-			},
+		Err(code) => Err( From::from(code) ),
 		}
 	}
 
-	
+	pub fn read_ent<'a>(&mut self, namebuf: &'a mut [u8]) -> Result<&'a [u8], Error> {
+		// SAFE: Syscall
+		match super::to_result(unsafe { self.0.call_2(::values::VFS_DIR_READENT, namebuf.as_ptr() as usize, namebuf.len()) } as usize)
+		{
+		Ok(v) => {
+			Ok( &namebuf[ .. v as usize] )
+			},
+		Err(e) => panic!("TODO: Error code {}", e),
+		}
+	}
 }
 impl ::Object for Dir {
 	const CLASS: u16 = ::values::CLASS_VFS_DIR;
