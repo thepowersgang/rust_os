@@ -22,7 +22,13 @@ pub struct Dims { pub w: u32, pub h: u32, }
 pub struct Colour(u32);
 impl Colour {
 	pub fn as_argb32(&self) -> u32 { self.0 }
+	/// Primary white
 	pub fn white() -> Colour { Colour(0xFFFFFF) }
+
+	/// Primary green
+	pub fn def_green() -> Colour { Colour(0x00FF00) }
+	/// Primary yellow
+	pub fn def_yellow() -> Colour { Colour(0xFFFF00) }
 }
 
 

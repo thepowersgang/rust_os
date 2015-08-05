@@ -7,6 +7,7 @@
 #![feature(asm)]
 #![feature(thread_local,const_fn)]
 #![feature(associated_consts)]
+#![feature(result_expect)]
 #![no_std]
 
 use core::prelude::*;
@@ -136,6 +137,13 @@ fn to_result(val: usize) -> Result<u32,u32> {
 pub fn log_write(msg: &str) {
 	// SAFE: Syscall
 	unsafe { syscall!(CORE_LOGWRITE, msg.as_ptr() as usize, msg.len()); }
+}
+
+#[inline]
+pub fn get_text_info(unit: u32, id: u32, buf: &mut [u8]) -> &str {
+	// SAFE: Syscall
+	let len: usize = unsafe { syscall!(CORE_TEXTINFO, unit as usize, id as usize,  buf.as_ptr() as usize, buf.len()) } as usize;
+	::core::str::from_utf8(&buf[..len]).expect("TODO: get_text_info handle error")
 }
 
 

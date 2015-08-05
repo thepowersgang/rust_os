@@ -6,7 +6,7 @@
 #![feature(no_std,core)]
 #![no_std]
 #![feature(associated_consts)]
-#![feature(core_slice_ext)]
+#![feature(core_slice_ext,core_str_ext)]
 #![feature(reflect_marker)]
 
 #[macro_use]
@@ -106,6 +106,22 @@ fn invoke_int(call_id: u32, mut args: &[usize]) -> Result<u64,Error>
 			let msg = try!( <Freeze<str>>::get_arg(&mut args) );
 			syscall_core_log(&msg); 0
 			},
+		CORE_TEXTINFO => {
+			let group = try!( <usize>::get_arg(&mut args) );
+			let id = try!( <usize>::get_arg(&mut args) );
+			let mut buf = try!( <FreezeMut<[u8]>>::get_arg(&mut args) );
+			(match group
+			{
+			::values::TEXTINFO_KERNEL =>
+				match id
+				{
+				0 => { buf.clone_from_slice( ::kernel::VERSION_STRING.as_bytes() ); ::kernel::VERSION_STRING.len() },
+				1 => { buf.clone_from_slice( ::kernel::BUILD_STRING.as_bytes() ); ::kernel::BUILD_STRING.len() },
+				_ => 0,
+				},
+			_ => 0,
+			}) as u64
+			},
 		// - 0/1: Exit process
 		CORE_EXITPROCESS => {
 			let status = try!( <u32>::get_arg(&mut args) );
@@ -172,7 +188,8 @@ fn invoke_int(call_id: u32, mut args: &[usize]) -> Result<u64,Error>
 			},
 		// - 2/2: Open directory
 		VFS_OPENDIR => {
-			todo!("VFS_OPENDIR");
+			let name = try!( <Freeze<[u8]>>::get_arg(&mut args) );
+			from_result( vfs::opendir(&name) )
 			},
 		// === 3: Memory Mangement
 		MEM_ALLOCATE => {

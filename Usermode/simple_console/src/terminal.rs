@@ -21,6 +21,10 @@ impl<'a> Terminal<'a>
 			cur_fg: Colour::white(),
 		}
 	}
+
+	pub fn set_foreground(&mut self, col: Colour) {
+		self.cur_fg = col;
+	}
 	
 	pub fn flush(&mut self) {
 		self.surf.draw_cursor(self.cur_col);

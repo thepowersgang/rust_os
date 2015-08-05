@@ -149,7 +149,7 @@ impl AllocState
 	}
 	pub unsafe fn deallocate(&mut self, ptr: *mut (), align: usize) {
 		if ptr == 1 as *mut () {
-			return ;
+			// Nothing needs to be done, as the allocation was empty
 		}
 		else {
 			let bp = Block::ptr_from_ptr(ptr, align);
@@ -159,7 +159,11 @@ impl AllocState
 				// Final block
 			}
 			else if let Some(next) = (*np).self_free() {
-				todo!("AllocState::deallocate - Merge with next block");
+				let size = next.size;
+				let foot = next.tail();
+				(*bp).size += size;
+				assert_eq!((*bp).tail() as *mut BlockTail, foot as *mut _);
+				*foot = BlockTail { head_ptr: bp, };
 			}
 			else {
 				// Next block isn't free, can't merge
@@ -206,8 +210,7 @@ impl<'a> ::std::iter::Iterator for FreeBlocks<'a>
 	{
 		while self.cur != self.state.past_end
 		{
-			// TODO: Yields &mut to blocks, which have a method to get the next item
-			// SAFE: (maybe) Only yields each block once... (but blocks can cursor)
+			// SAFE: Only yields each block once (Block::next returns a rawptr, so doesn't invalidate this)
 			let block = unsafe {
 				let bp = self.cur;
 				self.cur = (*self.cur).next();
@@ -247,6 +250,7 @@ impl Block
 			&mut *((self as *const Block as usize + self.size - size_of::<BlockTail>()) as *mut BlockTail)
 		}
 	}
+	// Safe, unlike prev, because it doesn't deref
 	fn next(&self) -> *mut Block {
 		(self as *const Block as usize + self.size) as *mut Block
 	}
@@ -256,7 +260,7 @@ impl Block
 		(*pt).head_ptr
 	}
 
-	fn self_free(&self) -> Option<&Self> {
+	fn self_free(&mut self) -> Option<&mut Self> {
 		if let BlockState::Free = self.state {
 			Some(self)
 		}

@@ -182,4 +182,19 @@ impl Dir
 			},
 		}
 	}
+
+	
+}
+impl ::Object for Dir {
+	const CLASS: u16 = ::values::CLASS_VFS_DIR;
+	fn class() -> u16 { Self::CLASS }
+	fn from_handle(handle: ::ObjectHandle) -> Self {
+		Dir(handle)
+	}
+	fn into_handle(self) -> ::ObjectHandle { self.0 }
+	fn get_wait(&self) -> ::values::WaitItem {
+		self.0.get_wait(0)
+	}
+	fn check_wait(&self, _wi: &::values::WaitItem) {
+	}
 }

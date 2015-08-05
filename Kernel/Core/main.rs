@@ -113,13 +113,17 @@ mod hw;
 #[macro_use]
 #[cfg(arch__amd64)] #[path="arch/amd64/mod.rs"] pub mod arch;	// Needs to be pub for exports to be avaliable
 
+/// Kernel version (with build number)
+pub const VERSION_STRING: &'static str = concat!("Tifflin Kernel v", env!("TK_VERSION"), " build ", env!("TK_BUILD"));
+/// Kernel build information (git hash and compiler)
+pub const BUILD_STRING: &'static str = concat!("Git state : ", env!("TK_GITSPEC"), ", Built with ", env!("RUST_VERSION"));
+
 /// Kernel entrypoint
 #[no_mangle]
 pub extern "C" fn kmain()
 {
-	log_notice!("Tifflin Kernel v{} build {} starting", env!("TK_VERSION"), env!("TK_BUILD"));
-	log_notice!("> Git state : {}", env!("TK_GITSPEC"));
-	log_notice!("> Built with {}", env!("RUST_VERSION"));
+	log_notice!("{} starting", ::VERSION_STRING);
+	log_notice!("> {}", ::BUILD_STRING);
 	
 	// Initialise core services before attempting modules
 	::memory::phys::init();

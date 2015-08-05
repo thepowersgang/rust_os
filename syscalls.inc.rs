@@ -23,17 +23,21 @@ macro_rules! def_grp {
 def_grp!( 0: GROUP_CORE = {
 	/// Write a logging message
 	=0: CORE_LOGWRITE,
+	/// Request a text string from the kernel
+	=1: CORE_TEXTINFO,
 	/// Terminate the current process
-	=1: CORE_EXITPROCESS,
+	=2: CORE_EXITPROCESS,
 	/// Terminate the current thread
-	=2: CORE_EXITTHREAD,
+	=3: CORE_EXITTHREAD,
 	/// Start a new process (loader only, use loader API instead)
-	=3: CORE_STARTPROCESS,
+	=4: CORE_STARTPROCESS,
 	/// Start a new thread in the current process
-	=4: CORE_STARTTHREAD,
+	=5: CORE_STARTTHREAD,
 	/// Wait for any of a set of events
-	=5: CORE_WAIT,
+	=6: CORE_WAIT,
 });
+
+pub const TEXTINFO_KERNEL: usize = 0;
 
 #[repr(C)]
 #[derive(Debug)]
@@ -118,8 +122,14 @@ def_classes! {
 		=2: VFS_FILE_MEMMAP,
 	}|{
 	},
+	/// Opened directory
+	=3: CLASS_VFS_DIR = {
+		/// Read a selection of entries
+		=0: VFS_DIR_READENTS,
+	}|{
+	},
 	/// GUI Group/Session
-	=3: CLASS_GUI_GROUP = {
+	=4: CLASS_GUI_GROUP = {
 		/// Force this group to be the active one (requires permission)
 		=0: GUI_GRP_FORCEACTIVE,
 	}|{
@@ -127,7 +137,7 @@ def_classes! {
 		=0: EV_GUI_GRP_SHOWHIDE,
 	},
 	/// Window
-	=4: CLASS_GUI_WIN = {
+	=5: CLASS_GUI_WIN = {
 		/// Set the show/hide state of the window
 		=0: GUI_WIN_SETFLAG,
 		/// Trigger a redraw of the window

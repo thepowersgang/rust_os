@@ -12,6 +12,8 @@ extern crate cmdline_words_parser;
 
 use syscalls::Object;
 
+use syscalls::gui::Colour;
+
 mod terminal_surface;
 mod terminal;
 
@@ -25,12 +27,20 @@ fn main() {
 	
 	::syscalls::threads::wait(&mut [S_THIS_PROCESS.get_wait()], !0);
 	::syscalls::gui::set_group( S_THIS_PROCESS.receive_object::<Group>(0).unwrap() );
-	
+
 	let window = Window::new("Console").unwrap();
 	window.maximise();
 	window.fill_rect(0,0, !0,!0, 0x33_00_00);   // A nice rust-like red :)
 	let mut term = terminal::Terminal::new(&window, ::syscalls::gui::Rect::new(0,0, 1920,1080));
-	let _ = write!(&mut term, "Tifflin - Simple console\n");
+	{
+		let mut buf = [0; 128];
+		term.set_foreground( Colour::def_green() );
+		let _ = write!(&mut term, "{}\n",  ::syscalls::get_text_info(0, 0, &mut buf));	// Kernel 0: Version line
+		term.set_foreground( Colour::def_yellow() );
+		let _ = write!(&mut term, " {}\n", ::syscalls::get_text_info(0, 1, &mut buf));	// Kernel 1: Build line
+		term.set_foreground( Colour::white() );
+		let _ = write!(&mut term, "Simple console\n");
+	}
 	window.show();
 	let mut input = input::InputStack::new();
 	
@@ -142,5 +152,9 @@ impl ShellState
 
 fn command_ls(term: &mut terminal::Terminal, path: &str) {
 	let handle = ::syscalls::vfs::Dir::open(path);
+	
+	//for name in handle.entries() {
+	//	print!(term, "- {}\n", name);
+	//}
 }
 

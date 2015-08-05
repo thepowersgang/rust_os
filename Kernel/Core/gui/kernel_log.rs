@@ -67,12 +67,12 @@ pub fn init()
 		{
 			let mut w = LogWriter::new();
 			w.set_colour(Colour::def_green());
-			write!(&mut w, "Tifflin Kernel v{} build {}", env!("TK_VERSION"), env!("TK_BUILD")).unwrap();
+			write!(&mut w, "{}", ::VERSION_STRING).unwrap();
 		}
 		{
 			let mut w = LogWriter::new();
 			w.set_colour(Colour::def_yellow());
-			write!(&mut w, "> Git state : {}, Built with {}", env!("TK_GITSPEC"), env!("RUST_VERSION")).unwrap();
+			write!(&mut w, "> {}", ::BUILD_STRING).unwrap();
 		}
 	}
 	
