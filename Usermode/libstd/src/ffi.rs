@@ -2,7 +2,6 @@
 //
 //
 //! Cross-binary interfacing
-use core::prelude::*;
 
 pub struct OsStr([u8]);
 

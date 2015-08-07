@@ -1,12 +1,9 @@
 //
 //
 //
-#![feature(no_std,core,core_prelude)]
+#![feature(no_std)]
 #![no_std]
 #![feature(const_fn)]
-
-#[macro_use]
-extern crate core;
 
 pub use mutex::Mutex;
 

@@ -3,7 +3,6 @@
 //
 // Core/lib/vec.rs
 //! Dynamically growable vector type
-use core::prelude::*;
 use core::iter::{FromIterator};
 use core::{ops,fmt};
 use heap::ArrayAlloc;

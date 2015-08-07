@@ -1,6 +1,7 @@
+//
+//
+//
 //! Thread management system calls
-
-use core::prelude::*;
 
 #[inline]
 pub unsafe fn start_thread(ip: usize, sp: usize, tlsbase: usize) -> Result<u32, u32> {
@@ -45,7 +46,7 @@ impl ThisProcess
 impl ::Object for ThisProcess {
 	const CLASS: u16 = ::values::CLASS_CORE_THISPROCESS;
 	fn class() -> u16 { panic!("Cannot send/recv 'ThisProcess'"); }
-	fn from_handle(handle: ::ObjectHandle) -> Self { panic!("ThisProcess::from_handle not needed") }
+	fn from_handle(_handle: ::ObjectHandle) -> Self { panic!("ThisProcess::from_handle not needed") }
 	fn into_handle(self) -> ::ObjectHandle { panic!("ThisProcess::into_handle not needed") }
 	fn get_wait(&self) -> ::values::WaitItem {
 		::values::WaitItem {

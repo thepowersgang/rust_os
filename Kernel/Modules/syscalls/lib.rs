@@ -10,8 +10,6 @@
 #![feature(reflect_marker)]
 
 #[macro_use]
-extern crate core;
-#[macro_use]
 extern crate kernel;
 
 extern crate stack_dst;

@@ -6,7 +6,6 @@
 #![feature(no_std,core)]
 #![no_std]
 #![feature(core_slice_ext,core_str_ext,core_char_ext,iter_order)]
-#[macro_use] extern crate core;
 #[macro_use] extern crate kernel;
 use kernel::prelude::*;
 

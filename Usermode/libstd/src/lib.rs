@@ -4,7 +4,7 @@
 // A clone of rust's libstd customised to work correctly on Tifflin
 #![crate_type="rlib"]
 #![crate_name="std"]
-#![feature(no_std,core,core_prelude)]
+#![feature(no_std,core)]
 #![feature(lang_items)]	// Allow definition of lang_items
 #![feature(linkage)]	// Used for low-level runtime
 #![feature(core_intrinsics)]
@@ -17,15 +17,11 @@
 #![no_std]
 
 #[macro_use]
-extern crate core;
-#[macro_use]
 extern crate syscalls;
 #[macro_use]
 extern crate macros;
 
 //extern crate loader;
-
-//use core::prelude::*;
 
 // Raw re-exports from core
 pub use core::{option, result};
@@ -47,11 +43,29 @@ mod std {
 /// Prelude
 pub mod prelude {
 	pub mod v1 {
-		pub use core::prelude::*;
-		//pub use core::option::Option::{self,Some,None};
-		//pub use core::result::Result::{self,Ok,Err};
-		pub use string::String;
+		pub use core::marker::{Copy,Send,Sync,Sized};
+		pub use core::ops::{Drop,Fn,FnMut,FnOnce};
+		pub use core::mem::drop;
+		//pub use heap::boxed::Box;
+		//pub use core::borrow::ToOwned;
+		pub use core::clone::Clone;
+		pub use core::cmp::{PartialEq, PartialOrd, Eq, Ord};
+		pub use core::convert::{AsRef,AsMut,Into,From};
+		pub use core::default::Default;
+		pub use core::iter::{Iterator,Extend,IntoIterator};
+		pub use core::iter::{DoubleEndedIterator, ExactSizeIterator};
+		
+		pub use core::option::Option::{self,Some,None};
+		pub use core::result::Result::{self,Ok,Err};
+
+		//pub use slice::SliceConcatExt;
+
+		pub use string::{String/*,ToString*/};
 		pub use vec::Vec;
+
+		pub use core::slice::SliceExt;
+		pub use core::char::CharExt;
+		pub use core::str::StrExt;
 	}
 }
 

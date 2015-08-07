@@ -2,14 +2,10 @@
 // - By John Hodge (thePowersGang)
 //
 // Standard Library - Runtime support (aka unwind and panic)
-#![feature(no_std,core,core_prelude,core_intrinsics)]
+#![feature(no_std)]
 #![feature(lang_items)]	// Allow definition of lang_items
 #![no_std]
 
-use core::prelude::*;
-
-#[macro_use]
-extern crate core;
 #[macro_use]
 extern crate syscalls;
 #[macro_use]

@@ -2,8 +2,6 @@
 // - By John Hodge (thePowersGang)
 //
 // gui.rs
-use core::prelude::*;
-
 pub use ::values::GuiEvent as Event;
 
 pub struct Group(super::ObjectHandle);

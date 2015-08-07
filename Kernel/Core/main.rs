@@ -32,10 +32,8 @@
 #![feature(plugin)]
 #![feature(custom_attribute)]
 #![plugin(tag_safe)]
-use prelude::*;
 
-#[macro_use]
-extern crate core;
+use prelude::*;
 
 extern crate stack_dst;
 

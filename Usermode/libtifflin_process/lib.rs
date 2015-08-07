@@ -4,11 +4,7 @@
 // Process management support (between syscalls and std)
 #![feature(no_std)]
 #![no_std]
-#![feature(core,core_prelude)]
-use core::prelude::*;
 
-#[macro_use]
-extern crate core;
 extern crate loader;
 extern crate syscalls;
 

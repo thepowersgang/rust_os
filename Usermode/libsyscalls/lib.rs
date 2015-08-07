@@ -2,7 +2,7 @@
 // - By John Hodge (thePowersGang)
 //
 // Provides wrappers around most system calls
-#![feature(no_std,core,core_prelude,core_str_ext,core_slice_ext)]
+#![feature(no_std,core_str_ext,core_slice_ext)]
 #![feature(core_intrinsics)]
 #![feature(asm)]
 #![feature(thread_local,const_fn)]
@@ -10,9 +10,9 @@
 #![feature(result_expect)]
 #![no_std]
 
-use core::prelude::*;
-#[macro_use]
-extern crate core;
+//use core::prelude::*;
+//#[macro_use]
+//extern crate core;
 
 extern crate std_io;
 

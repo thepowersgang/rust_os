@@ -5,10 +5,9 @@
 //! Small block cache for use by filesystem drivers
 //!
 //! Mostly intended to reduce churn on metadata blocks.
-#![feature(no_std,core)]
+#![feature(no_std)]
 #![no_std]
 #![feature(core_slice_ext)]
-#[macro_use] extern crate core;
 #[macro_use] extern crate kernel;
 use kernel::prelude::*;
 

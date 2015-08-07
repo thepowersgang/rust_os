@@ -7,7 +7,6 @@
 #![no_std]
 #![feature(core_slice_ext)]
 #![feature(const_fn)]	// needed for lazystatic_init
-#[macro_use] extern crate core;
 #[macro_use] extern crate kernel;
 use kernel::prelude::*;
 

@@ -8,7 +8,6 @@
 #![feature(core_slice_ext)]
 #![feature(associated_consts)]
 
-#[macro_use] extern crate core;
 #[macro_use] extern crate kernel;
 extern crate storage_scsi;
 

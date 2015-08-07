@@ -5,7 +5,6 @@
 //! Dynamically-allocated string type
 //!
 //! Acts every similarly to the rust std's String type.
-use core::prelude::*;
 use core::{ops,cmp,fmt};
 use vec::Vec;
 

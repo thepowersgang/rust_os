@@ -1,8 +1,7 @@
 //
 //
 //
-use core::mem::{size_of,align_of};
-use core::ptr::Unique;
+use core::mem::size_of;
 use super::alloc::Allocation;
 
 pub struct ArrayAlloc<T>

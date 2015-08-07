@@ -1,6 +1,4 @@
 
-use core::prelude::*;
-
 const LOG_BUF_SIZE: usize = 256;
 
 struct FixedBuf

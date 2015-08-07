@@ -1,13 +1,14 @@
+// Tifflin OS Usermode
+// - By John Hodge (thePowersGang)
+//
+// libstd_io
 #![feature(no_std)]
-#![feature(core,core_slice_ext)]
+#![feature(core_slice_ext)]
 #![no_std]
 
-#[macro_use]
-extern crate core;
-
-use core::iter::Iterator;
-use core::slice::SliceExt;
-use core::result::Result::{Ok,Err};
+//#[macro_use]
+//extern crate core;
+//use core::prelude::*;
 
 /// Shorthand result type
 pub type Result<T> = ::core::result::Result<T,Error>;

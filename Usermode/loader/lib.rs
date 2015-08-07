@@ -2,12 +2,11 @@
 // - By John Hodge (thePowersGang)
 //
 // A dummy interface library that provides dynamically-linked interfaces to the loader
-#![feature(no_std,lang_items,core)]
+#![feature(no_std,lang_items)]
 #![no_std]
 #![crate_type="dylib"]
 #![crate_name="loader"]
 
-extern crate core;
 extern crate std_rt;
 extern crate syscalls;
 

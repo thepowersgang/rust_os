@@ -1,6 +1,5 @@
-#![feature(core,no_std,core_intrinsics)]
+#![feature(no_std,core_intrinsics)]
 #![no_std]
-extern crate core;
 
 #[macro_export]
 macro_rules! impl_fmt

@@ -23,9 +23,11 @@ enum ModuleState
 	Initialised,
 }
 
+enum Void {}
+
 extern "C" {
-	static modules_base: ();
-	static modules_end: ();
+	static modules_base: Void;
+	static modules_end: Void;
 }
 
 /// Initialise statically linked modules
@@ -39,7 +41,10 @@ pub fn init(requests: &[&str])
 	let baseptr = &modules_base as *const _ as *const ModuleInfo;
 	let size = &modules_end as *const _ as usize - baseptr as usize;
 	let count = size / ::core::mem::size_of::<ModuleInfo>();
-	
+	log_debug!("baseptr={:p}, size={:#x}, count={}", baseptr, size, count);
+	assert!(count < 1024);
+	assert!(count > 0);
+
 	// SAFE: Pointer should be valid (from linker script)
 	unsafe {
 		let mods = ::core::slice::from_raw_parts(baseptr, count);
@@ -50,12 +55,12 @@ pub fn init(requests: &[&str])
 /// Initialise modules from a slice
 fn init_modules(mods: &[ModuleInfo], requests: &[&str])
 {
-	log_debug!("s_modules={:?},{:#x}", mods.as_ptr(), mods.len());
-	let mut modstates = Vec::from_elem(mods.len(), ModuleState::Uninitialised);
+	log_debug!("s_modules={:p}+{:#x}", mods.as_ptr(), mods.len());
 	for m in mods.iter() {
 		log_debug!("mod = {:p} {:?} '{}'", &m.name, m.name.as_ptr(), m.name);
 	}
-	
+
+	let mut modstates = vec![ModuleState::Uninitialised; mods.len()];
 	for req in requests
 	{
 		init_module_by_name(modstates.slice_mut(), mods, "", req);

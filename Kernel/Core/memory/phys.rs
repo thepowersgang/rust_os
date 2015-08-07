@@ -107,7 +107,7 @@ pub fn allocate_range(count: usize) -> PAddr
 	}
 
 	let mut h = S_MAPALLOC.lock();
-	//log_trace!("allocate_range: *h = {:?} (init)", *h);
+	log_trace!("allocate_range: *h = {:?} (init)", *h);
 	let (mut i,mut addr) = *h;
 	
 	let map = get_memory_map();

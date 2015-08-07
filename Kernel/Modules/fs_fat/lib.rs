@@ -3,10 +3,9 @@
 //
 // Modules/fs_fat/lib.rs
 //! FAT (12/16/32) Filesystemd river
-#![feature(no_std,core,linkage)]
+#![feature(no_std,linkage)]
 #![no_std]
 #![feature(core_slice_ext)]
-#[macro_use] extern crate core;
 #[macro_use] extern crate kernel;
 use kernel::prelude::*;
 

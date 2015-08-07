@@ -7,6 +7,9 @@
 #![allow(dead_code)]	// API, may not be used
 use core::fmt;
 
+//#[repr(C)]
+pub enum Void {}
+
 pub type ACPI_SIZE = usize;
 pub type ACPI_PHYSICAL_ADDRESS = ::memory::PAddr;
 pub type ACPI_IO_ADDRESS = u16;
@@ -28,14 +31,14 @@ pub enum ACPI_EXECUTE_TYPE
 	OSL_EC_POLL_HANDLER,
 	OSL_EC_BURST_HANDLER
 }
-pub type ACPI_OSD_EXEC_CALLBACK = extern "C" fn(*const ());
-pub type ACPI_OSD_HANDLER = extern "C" fn (*const ())->u32;
+pub type ACPI_OSD_EXEC_CALLBACK = extern "C" fn(*const Void);
+pub type ACPI_OSD_HANDLER = extern "C" fn (*const Void)->u32;
 
 #[repr(C)]
 pub struct ACPI_BUFFER
 {
 	Length: u32, 
-	Pointer: *const (),
+	Pointer: *const Void,
 }
 
 #[repr(C,u32)]
@@ -54,7 +57,7 @@ pub struct ACPI_OBJECT
 	//PowerResource(u32, u32),
 }
 #[repr(C)]
-pub struct ACPI_HANDLE(*mut ());
+pub struct ACPI_HANDLE(*mut Void);
 #[repr(C)]
 pub struct ACPI_OBJECT_LIST
 {
@@ -127,7 +130,7 @@ pub const ACPI_NO_OBJECT_INIT       : u32 = 0x40;
 // AcpiInstallInterfaceHandler
 pub type ACPI_INTERFACE_HANDLER = extern "C" fn(InterfaceName: ACPI_STRING, Supported: u32) -> u32;
 // AcpiInstallTableHandler
-pub type ACPI_TABLE_HANDLER = extern "C" fn (Event: u32, Table: *const (), Context: *const ()) -> ACPI_STATUS;
+pub type ACPI_TABLE_HANDLER = extern "C" fn (Event: u32, Table: *const Void, Context: *const Void) -> ACPI_STATUS;
 // AcpiGetObjectInfo
 #[repr(C)]
 pub struct ACPI_DEVICE_INFO
@@ -161,10 +164,10 @@ pub struct ACPI_PNP_DEVICE_ID_LIST
 	Ids: [ACPI_PNP_DEVICE_ID],
 }
 // AcpiAttachData, etc
-pub type ACPI_OBJECT_HANDLER = extern "C" fn (Object: ACPI_HANDLE, Data: *const ());
+pub type ACPI_OBJECT_HANDLER = extern "C" fn (Object: ACPI_HANDLE, Data: *const Void);
 // AcpiWalkNamespace
 /// Interface to the user function that is invoked from AcpiWalkNamespace.
-pub type ACPI_WALK_CALLBACK = extern "C" fn (Object: ACPI_HANDLE, NestingLevel: u32, Context: *const(), ReturnValue: *mut *const());
+pub type ACPI_WALK_CALLBACK = extern "C" fn (Object: ACPI_HANDLE, NestingLevel: u32, Context: *const Void, ReturnValue: *mut *const Void);
 
 #[no_mangle]
 extern "C" {
@@ -214,7 +217,7 @@ extern "C" {
 	/// Obtain an installed ACPI table via an index into the Root Table
 	pub fn AcpiGetTableByIndex(TableIndex: u32, OutTable: *mut *const ACPI_TABLE_HEADER) -> ACPI_STATUS;
 	/// Install a global handler for ACPI table load and unload events.
-	pub fn AcpiInstallTableHandler(Handler: ACPI_TABLE_HANDLER, Context: *const ()) -> ACPI_STATUS;
+	pub fn AcpiInstallTableHandler(Handler: ACPI_TABLE_HANDLER, Context: *const Void) -> ACPI_STATUS;
 	/// Remove a handler for ACPI table events.
 	pub fn AcpiRemoveTableHandler(Handler: ACPI_TABLE_HANDLER) -> ACPI_STATUS;
 	
@@ -234,17 +237,17 @@ extern "C" {
 	/// Get the object handle associated with an ACPI name.
 	pub fn AcpiGetHandle(Parent: ACPI_HANDLE, Pathname: ACPI_STRING, OutHandle: *mut ACPI_HANDLE) -> ACPI_STATUS;
 	/// Walk the ACPI namespace to find all objects of type Device.
-	pub fn AcpiGetDevices(HID: *const u8, UserFunction: ACPI_WALK_CALLBACK, UserContext: *const (), ReturnValue: *mut *const ()) -> ACPI_STATUS;
+	pub fn AcpiGetDevices(HID: *const u8, UserFunction: ACPI_WALK_CALLBACK, UserContext: *const  Void, ReturnValue: *mut *const  Void) -> ACPI_STATUS;
 	/// Attach user data to an ACPI namespace object.
-	pub fn AcpiAttachData(Object: ACPI_HANDLE, Handler: ACPI_OBJECT_HANDLER, Data: *const ()) -> ACPI_STATUS;
+	pub fn AcpiAttachData(Object: ACPI_HANDLE, Handler: ACPI_OBJECT_HANDLER, Data: *const  Void) -> ACPI_STATUS;
 	/// Remove a data attachment to a namespace object.
 	pub fn AcpiDetachData(Object: ACPI_HANDLE, Handler: ACPI_OBJECT_HANDLER) -> ACPI_STATUS;
 	/// Retrieve data that was associated with a namespace object.
-	pub fn AcpiGetData(Object: ACPI_HANDLE, Handler: ACPI_OBJECT_HANDLER, Data: *mut *const ()) -> ACPI_STATUS;
+	pub fn AcpiGetData(Object: ACPI_HANDLE, Handler: ACPI_OBJECT_HANDLER, Data: *mut *const  Void) -> ACPI_STATUS;
 	/// Install a single control method into the namespace.
 	pub fn AcpiInstallMethod(TableBuffer: *const u8) -> ACPI_STATUS;
 	/// Traverse a portion of the ACPI namespace to find objects of a given type.
-	pub fn AcpiWalkNamespace(Type: ACPI_OBJECT_TYPE, StartObject: ACPI_HANDLE, MaxDepth: u32, DescendingCallback: ACPI_WALK_CALLBACK, AscendingCallback: ACPI_WALK_CALLBACK, UserContext: *const (), ReturnValue: *mut *const ()) -> ACPI_STATUS;
+	pub fn AcpiWalkNamespace(Type: ACPI_OBJECT_TYPE, StartObject: ACPI_HANDLE, MaxDepth: u32, DescendingCallback: ACPI_WALK_CALLBACK, AscendingCallback: ACPI_WALK_CALLBACK, UserContext: *const  Void, ReturnValue: *mut *const  Void) -> ACPI_STATUS;
 	/// Acquire an AML Mutex object.
 	pub fn AcpiAcquireMutex(Parent: ACPI_HANDLE, Pathname: ACPI_STRING, Timeout: u16) -> ACPI_STATUS;
 	/// Release an AML Mutex object.
