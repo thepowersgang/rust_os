@@ -246,30 +246,47 @@ impl DirEntShort {
 
 /// Decoded long file name
 /// (next id, data)
-struct LFN(u8, [u16; 256]);
+struct LFN
+{
+	next_idx: u8,
+	data: [u16; 256]
+}
 impl LFN {
 	fn new() -> Self {
-		LFN(0, [0; 256])
+		LFN { next_idx: 0, data: [0; 256] }
 	}
 	fn clear(&mut self) {
-		self.0 = 0;
+		self.next_idx = 0;
+		self.data[0] = 0;
 	}
 	fn add(&mut self, ent: &DirEntLong) {
 		let idx = (ent.id & 0x3F) as usize;
+		// If index is zero, this entry is invalid
 		if idx == 0 {
-			self.0 = 0;
-			self.1[0] = 0;
+			self.clear();
 			return ;
 		}
+		// if 0x40 is set
 		if ent.id & 0x40 != 0 {
-			self.0 = (idx-1) as u8;
-			self.1 = [0; 256];
+			// - Reset state (first entry)
+			self.data = [0; 256];
 		}
+		else {
+			// Otherwise, check index is as expected
+			if idx as u8 != self.next_idx {
+				self.clear();
+				return ;
+			}
+		}
+		self.next_idx = (idx-1) as u8;
 		let ofs = (idx-1) * 13;
-		self.1[ofs..].clone_from_slice( &ent.chars );
+		self.data[ofs..].clone_from_slice( &ent.chars );
+	}
+	fn is_valid(&self) -> bool {
+		self.next_idx == 0 && self.data[0] != 0
 	}
 	fn as_slice(&self) -> &[u16] {
-		self.1.split(|&x| x == 0).next().unwrap()
+		self.data.split(|&x| x == 0).next().unwrap()
 	}
 	fn name(&self) -> &Str16 {
 		Str16::new(self.as_slice()).unwrap_or( Str16::new(&[]).unwrap() )
@@ -308,6 +325,7 @@ impl node::Dir for DirNode {
 		let ents_per_cluster = self.fs.cluster_size / 32;
 		let (cluster_idx, c_ofs) = (ofs / ents_per_cluster, ofs % ents_per_cluster);
 		
+		let mut lfn = LFN::new();
 		let mut count = 0;
 		let mut cur_ofs = ofs;
 		'outer: for c in self.clusters().skip(cluster_idx)
@@ -321,15 +339,23 @@ impl node::Dir for DirNode {
 					return Ok( (cur_ofs-1, count) );
 					},
 				DirEnt::Short(e) => {
-					// TODO: Handle long filename entries. Can they span clusters?
-					items[count] = (e.inode(self.start_cluster), ByteString::from(e.name()));
+					let name = if lfn.is_valid() {
+							ByteString::from( lfn.name().wtf8().collect::<Vec<_>>() )
+						}
+						else {
+							ByteString::from(e.name())
+						};
+					items[count] = (e.inode(self.start_cluster), name);
 					count += 1;
 					if count == items.len() {
 						return Ok( (cur_ofs, count) );
 					}
+					lfn.clear();
 					},
-				DirEnt::Long(_) => log_log!("TODO: LFN"),
-				DirEnt::Empty => {},
+				DirEnt::Long(e) => lfn.add(&e),
+				DirEnt::Empty => {
+					lfn.clear();
+					},
 				}
 			}
 		}

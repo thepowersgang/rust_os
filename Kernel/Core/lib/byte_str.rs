@@ -85,16 +85,19 @@ impl ByteString
 		ByteString(Vec::new())
 	}
 }
-impl<'a> From<&'a [u8]> for ByteString {
-	fn from(v: &'a [u8]) -> ByteString {
+
+impl_from! {
+	<('a)> From<&'a [u8]>(v) for ByteString {
 		ByteString(Vec::from(v))
 	}
-}
-impl<'a> From<&'a ByteStr> for ByteString {
-	fn from(v: &'a ByteStr) -> ByteString {
+	<('a)> From<&'a ByteStr>(v) for ByteString {
 		ByteString(Vec::from(v.as_bytes()))
 	}
+	From< Vec<u8> >(v) for ByteString {
+		ByteString(v)
+	}
 }
+
 impl ops::Deref for ByteString {
 	type Target = ByteStr;
 	fn deref(&self) -> &ByteStr {

@@ -118,6 +118,22 @@ macro_rules! impl_fmt
 		};
 }
 
+/// Implements the From trait for the provided type, avoiding boilerplate
+#[macro_export]
+macro_rules! impl_from {
+	(@as_item $($i:item)*) => {$($i)*};
+
+	($( $(<($($params:tt)+)>)* From<$src:ty>($v:ident) for $t:ty { $($code:stmt)*} )+) => {
+		$(impl_from!{ @as_item 
+			impl$(<$($params)+>)* ::core::convert::From<$src> for $t {
+				fn from($v: $src) -> $t {
+					$($code)*
+				}
+			}
+		})+
+	};
+}
+
 // NOTE: This should really be in ::threads::wait_queue, but it also needs to be early in parse
 /// Wait on a wait queue contained within a spinlock
 ///
