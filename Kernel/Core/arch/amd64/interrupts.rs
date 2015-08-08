@@ -77,7 +77,7 @@ pub extern "C" fn error_handler(regs: &InterruptRegs)
 		let cr2;
 		// SAFE: Just reads CR2
 		unsafe { asm!("mov %cr2, $0" : "=r" (cr2)) };
-		puts("PF ("); puth(regs.errorcode); puts(") at "); puth(cr2 as u64); puts(" by "); puth(regs.rip); puts("\n");
+		puts("PF ("); puth(regs.errorcode); puts(") at "); puth(cr2 as u64); puts(" by "); puth(regs.rip); puts(" SP="); puth(regs.rsp); puts("\n");
 		if ::arch::memory::virt::handle_page_fault(cr2, regs.errorcode as u32) {
 			return ;
 		}
