@@ -1,12 +1,8 @@
 
 #[inline(never)]
-pub fn write<'a, F: ::core::ops::FnOnce()->::core::fmt::Arguments<'a> + 'a>(lvl: ::logging::Level, modname: &'static str, fcn: F) {
-	use core::fmt::Write;
-	
-	let _ = match fcn()
-	{
-	a => write!(&mut ::logging::getstream(lvl, modname), "{}", a),
-	};
+#[doc(hidden)]
+pub fn write<F: ::core::ops::FnOnce(&mut ::logging::LoggingFormatter)->::core::fmt::Result>(lvl: ::logging::Level, modname: &'static str, fcn: F) {
+	let _ = fcn(&mut ::logging::getstream(lvl, modname));
 }
 
 #[doc(hidden)]
@@ -14,13 +10,7 @@ pub fn write<'a, F: ::core::ops::FnOnce()->::core::fmt::Arguments<'a> + 'a>(lvl:
 macro_rules! log{ ($lvl:expr, $modname:expr, $($arg:tt)*) => (
 	if $crate::logging::enabled($lvl, $modname)
 	{
-		//$crate::logmacros::write($lvl, $modname, || format_args!( $($arg)* ));
-		// /*
-		use core::fmt::Write;
-		let _ = match format_args!( $($arg)* ) {
-			a => write!(&mut $crate::logging::getstream($lvl, $modname), "{}", a),
-			};
-		//*/
+		$crate::logmacros::write($lvl, $modname, |s| { use core::fmt::Write; write!(s, $($arg)*) });
 	}
 	)}
 /// Log a panic-level message (kernel intents to halt immediately after printing)

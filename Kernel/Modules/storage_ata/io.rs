@@ -403,9 +403,8 @@ impl<'a,'b> async::Waiter for AtaWaiter<'a,'b>
 				unsafe {
 					self.dma_regs.out_8(0, 0);	// Stop transfer
 					let ata_status = AtaStatusVal(lh.in_8(7));
-					log_trace!("BM Status = {:?}, ATA Status = {:?}",
-						DmaStatusVal(self.dma_regs.in_8(2)), ata_status
-						);
+					let dma_status = DmaStatusVal(self.dma_regs.in_8(2));
+					log_trace!("BM Status = {:?}, ATA Status = {:?}", dma_status, ata_status);
 					lh.last_result(false)	// not ATAPI
 				}
 				),
@@ -489,9 +488,8 @@ impl<'a,'b> async::Waiter for AtapiWaiter<'a,'b>
 				unsafe {
 					self.dma_regs.out_8(0, 0);	// Stop transfer
 					let ata_status = AtaStatusVal( lh.in_8(7) );
-					log_trace!("BM Status = {:?}, ATA Status = {:?}",
-						DmaStatusVal(self.dma_regs.in_8(2)), ata_status
-						);
+					let dma_status = DmaStatusVal(self.dma_regs.in_8(2));
+					log_trace!("BM Status = {:?}, ATA Status = {:?}", dma_status, ata_status);
 					lh.last_result(true)
 				}
 				),
