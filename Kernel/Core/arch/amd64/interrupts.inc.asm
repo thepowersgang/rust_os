@@ -80,15 +80,14 @@ ErrorCommon:
 	mov rax, [rsp+ErrorRegs.code]	; Grab error code
 	cmp rax, 0xffffffff80000000
 	ja .spurrious
-	
+
 	mov rax, [rsp+ErrorRegs.cs]
 	cmp rax, 0x08
 	jz .inkernel
 	; Reset the GS/FS base
 	swapgs
 .inkernel:
-	
-	
+
 	mov rdi, rsp
 	[extern error_handler]
 	call error_handler
@@ -97,14 +96,19 @@ ErrorCommon:
 	mov rax, [rsp+ErrorRegs.cs]
 	cmp rax, 0x08
 	jz .inkernel2
+	cmp rax, 0x2B
+	jnz .bugcheck
 	; Reset the GS/FS base
 	swapgs
 .inkernel2:
-	
+
 	pop gs
 	POP_GPR
 	add rsp, 2*8
 	iretq
+.bugcheck:
+	int 3
+	jmp $
 .spurrious:
 	int3
 	pop gs

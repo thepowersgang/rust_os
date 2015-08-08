@@ -182,7 +182,7 @@ start64_higher:
 	wrmsr
 	; STAR = 0xC000_0081
 	mov eax, 0x00000000
-	mov edx, 0x00180008	; [63:48] User CS, [47:32] Kernel CS
+	mov edx, 0x001B0008	; [63:48] User CS, [47:32] Kernel CS
 	mov ecx, 0xC0000081
 	wrmsr
 	; FMASK = 0xC000_0084
@@ -236,7 +236,7 @@ EXPORT drop_to_user
 	cli
 	pop r11	; Set RFLAGS for SYSRET
 	swapgs
-	mov ax, 0x20
+	mov ax, 0x23
 	mov ds, ax
 	mov es, ax
 	mov fs, ax
