@@ -4,6 +4,7 @@
 // Simplistic console, used as a quick test case (fullscreen window)
 #![feature(core_slice_ext,core_str_ext)]
 #![feature(const_fn)]
+#![feature(result_expect)]
 
 #[macro_use]
 extern crate syscalls;
@@ -173,8 +174,11 @@ impl ShellState
 	}
 }
 
-fn command_ls(term: &mut terminal::Terminal, path: &str) {
-	let mut handle = match ::syscalls::vfs::Dir::open(path)
+/// List the contents of a directory
+fn command_ls(term: &mut terminal::Terminal, path: &str)
+{
+	use syscalls::vfs::{NodeType, Node, Dir, File, Symlink};
+	let mut handle = match Dir::open(path)
 		{
 		Ok(v) => v,
 		Err(e) => {
@@ -194,10 +198,35 @@ fn command_ls(term: &mut terminal::Terminal, path: &str) {
 				return ;
 				},
 			};
-
-		let name = ::std::str::from_utf8(name_bytes);
-		print!(term, "- {:?}\n", name);
 		if name_bytes == b"" { break ; }
+
+		let name = ::std::str::from_utf8(name_bytes).expect("Filename not utf-8");
+
+		print!(term, "- {}", name);
+
+		let file_node = match Node::open(&format!("{}/{}", path, name)[..])//handle.open_node(node_id)
+			{
+			Ok(v) => v,
+			Err(e) => {
+				print!(term, "(Error: {:?})\n", e);
+				continue ;
+				},
+			};
+		match file_node.class()
+		{
+		NodeType::File => {},
+		NodeType::Dir => print!(term, "/"),
+		NodeType::Symlink => {
+			let mut link_path_buf = [0; 256];
+			let dest = match file_node.into_symlink().and_then(|h| h.read_target(&mut link_path_buf))
+				{
+				Ok(v) => v,
+				Err(e) => { print!(term, "(Error: {:?})\n", e); continue ; },
+				};
+			print!(term, " => {:?}", dest);
+			},
+		}
+		print!(term, "\n");
 	}
 }
 

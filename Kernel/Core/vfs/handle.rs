@@ -81,6 +81,7 @@ impl Any
 {
 	/// Open the specified path (not caring what the actual type is)
 	pub fn open(path: &Path) -> super::Result<Any> {
+		log_trace!("Any::open({:?})", path);
 		let node = try!(CacheHandle::from_path(path));
 		Ok(Any { node: node })
 	}

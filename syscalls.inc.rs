@@ -61,6 +61,7 @@ def_grp!(2: GROUP_VFS = {
 	=0: VFS_OPENNODE,
 	=1: VFS_OPENFILE,
 	=2: VFS_OPENDIR,
+	=3: VFS_OPENLINK,
 });
 
 /// Process memory management
@@ -112,8 +113,16 @@ def_classes! {
 		=0: EV_THISPROCESS_RECVOBJ,
 		=1: EV_THISPROCESS_RECVMSG,
 	},
+	/// Opened node
+	=2: CLASS_VFS_NODE = {
+		=0: VFS_NODE_GETTYPE,
+		=1: VFS_NODE_TOFILE,
+		=2: VFS_NODE_TODIR,
+		=3: VFS_NODE_TOLINK,
+	}|{
+	},
 	/// Opened file
-	=2: CLASS_VFS_FILE = {
+	=3: CLASS_VFS_FILE = {
 		/// Read data from the specified position in the file
 		=0: VFS_FILE_READAT,
 		/// Write to the specified position in the file
@@ -123,13 +132,18 @@ def_classes! {
 	}|{
 	},
 	/// Opened directory
-	=3: CLASS_VFS_DIR = {
+	=4: CLASS_VFS_DIR = {
 		/// Read an entry
 		=0: VFS_DIR_READENT,
 	}|{
 	},
+	/// Opened symbolic link
+	=5: CLASS_VFS_LINK = {
+		=0: VFS_LINK_READ,
+	}|{
+	},
 	/// GUI Group/Session
-	=4: CLASS_GUI_GROUP = {
+	=6: CLASS_GUI_GROUP = {
 		/// Force this group to be the active one (requires permission)
 		=0: GUI_GRP_FORCEACTIVE,
 	}|{
@@ -137,7 +151,7 @@ def_classes! {
 		=0: EV_GUI_GRP_SHOWHIDE,
 	},
 	/// Window
-	=5: CLASS_GUI_WIN = {
+	=7: CLASS_GUI_WIN = {
 		/// Set the show/hide state of the window
 		=0: GUI_WIN_SETFLAG,
 		/// Trigger a redraw of the window
@@ -191,6 +205,11 @@ enum_to_from!{ VFSError => u32 :
 	TypeError = 1,
 	PermissionDenied = 2,
 	FileLocked = 3,
+}
+enum_to_from!{ VFSNodeType => u32:
+	File = 0,
+	Dir = 1,
+	Symlink = 2,
 }
 
 #[derive(Debug)]

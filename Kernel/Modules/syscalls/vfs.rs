@@ -10,6 +10,8 @@ use super::{objects,ObjectHandle};
 use super::values;
 use super::Error;
 use super::SyscallArg;
+use kernel::vfs::handle;
+use kernel::vfs::Path;
 
 impl ::core::convert::From<::kernel::vfs::Error> for ::values::VFSError {
 	fn from(v: ::kernel::vfs::Error) -> Self {
@@ -26,6 +28,33 @@ impl ::core::convert::From<::kernel::vfs::Error> for ::values::VFSError {
 	}
 }
 
+/// Convert a VFS result into an encoded syscall result
+fn to_result<T>(r: Result<T, ::kernel::vfs::Error>) -> Result<T, u32> {
+	r.map_err( |e| Into::into( <::values::VFSError as From<_>>::from(e) ) )
+}
+
+/// Open a bare file
+pub fn opennode(path: &[u8]) -> Result<ObjectHandle,u32> {
+	to_result( handle::Any::open( Path::new(path) ) )
+		.map( |h| objects::new_object(Node(h)) )
+}
+struct Node( handle::Any );
+impl objects::Object for Node
+{
+	const CLASS: u16 = values::CLASS_VFS_NODE;
+	fn class(&self) -> u16 { Self::CLASS }
+	fn as_any(&self) -> &Any { self }
+	fn handle_syscall(&self, call: u16, mut args: &[usize]) -> Result<u64,Error> {
+		match call
+		{
+		values::VFS_NODE_GETTYPE => todo!("VFS_NODE_GETTYPE"),
+		_ => todo!("Node::handle_syscall({}, ...)", call),
+		}
+	}
+	fn bind_wait(&self, _flags: u32, _obj: &mut ::kernel::threads::SleepObject) -> u32 { 0 }
+	fn clear_wait(&self, _flags: u32, _obj: &mut ::kernel::threads::SleepObject) -> u32 { 0 }
+}
+
 pub fn openfile(path: &[u8], mode: u32) -> Result<ObjectHandle,u32> {
 	
 	let mode = match mode
@@ -34,13 +63,9 @@ pub fn openfile(path: &[u8], mode: u32) -> Result<ObjectHandle,u32> {
 		2 => ::kernel::vfs::handle::FileOpenMode::Execute,
 		_ => todo!("Unkown mode {:x}", mode),
 		};
-	match ::kernel::vfs::handle::File::open(::kernel::vfs::Path::new(path), mode)
-	{
-	Ok(h) => Ok( objects::new_object( File(h) ) ),
-	Err(e) => todo!("syscall_vfs_openfile - e={:?}", e),
-	}
+	to_result( handle::File::open(Path::new(path), mode) )
+		.map( |h| objects::new_object(File(h)) )
 }
-
 struct File(::kernel::vfs::handle::File);
 impl objects::Object for File
 {
@@ -108,11 +133,8 @@ impl objects::Object for File
 
 pub fn opendir(path: &[u8]) -> Result<ObjectHandle,u32>
 {
-	match ::kernel::vfs::handle::Dir::open(::kernel::vfs::Path::new(path))
-	{
-	Ok(h) => Ok( objects::new_object(Dir::new(h)) ),
-	Err(e) => Err( Into::into( <::values::VFSError as From<_>>::from(e) ) ),
-	}
+	to_result( handle::Dir::open(::kernel::vfs::Path::new(path)) )
+		.map(|h| objects::new_object(Dir::new(h)) )
 }
 
 struct Dir {

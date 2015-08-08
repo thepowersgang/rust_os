@@ -176,7 +176,8 @@ fn invoke_int(call_id: u32, mut args: &[usize]) -> Result<u64,Error>
 		// === 2: VFS
 		// - 2/0: Open node (for stat)
 		VFS_OPENNODE => {
-			todo!("VFS_OPENNODE");
+			let name = try!( <Freeze<[u8]>>::get_arg(&mut args) );
+			from_result( vfs::opennode(&name) )
 			},
 		// - 2/1: Open file
 		VFS_OPENFILE => {

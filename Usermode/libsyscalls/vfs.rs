@@ -1,16 +1,18 @@
 //
 //
 //
-pub struct File(super::ObjectHandle, u64);
 pub struct Node(super::ObjectHandle);
+pub struct File(super::ObjectHandle, u64);
 pub struct Dir(super::ObjectHandle);
+pub struct Symlink(super::ObjectHandle);
 
 pub use ::values::VFSError as Error;
+pub use ::values::VFSNodeType as NodeType;
 
 #[repr(C,u32)]
 pub enum FileOpenMode
 {
-	None     = 0,
+	None	 = 0,
 	ReadOnly = 1,
 	Execute  = 2,
 	// TODO: Write modes
@@ -28,16 +30,54 @@ pub enum MemoryMapMode
 	WriteBack = 3,
 }
 
+fn to_obj(val: usize) -> Result<super::ObjectHandle, Error> {
+	super::ObjectHandle::new(val).map_err(|code| Error::from(code))
+}
+fn to_result(val: usize) -> Result<u32, Error> {
+	super::to_result(val).map_err(|code| Error::from(code))
+}
+
 impl Node
 {
 	pub fn open<T: AsRef<[u8]>>(path: T) -> Result<Node, Error> {
 		let path = path.as_ref();
 		// SAFE: Syscall
-		match super::ObjectHandle::new( unsafe { syscall!(VFS_OPENNODE, path.as_ptr() as usize, path.len()) } as usize )
-		{
-		Ok(rv) => Ok( Node(rv) ),
-		Err(code) => Err( From::from(code) ),
-		}
+		to_obj( unsafe { syscall!(VFS_OPENNODE, path.as_ptr() as usize, path.len()) } as usize )
+			.map(|h| Node(h))
+	}
+
+	pub fn class(&self) -> NodeType {
+		// SAFE: Syscall with no side-effects
+		NodeType::from( unsafe { self.0.call_0(::values::VFS_NODE_GETTYPE) } as u32 )
+	}
+
+	pub fn into_dir(self) -> Result<Dir,Error> {
+		// SAFE: Syscall
+		to_obj( unsafe { self.0.call_0(::values::VFS_NODE_TODIR) } as usize )
+			.map(|h| Dir(h))
+	}
+	pub fn into_file(self, mode: FileOpenMode) -> Result<File,Error> {
+		// SAFE: Syscall
+		to_obj( unsafe { self.0.call_0(::values::VFS_NODE_TOFILE) } as usize )
+			.map(|h| File(h, 0))
+	}
+	pub fn into_symlink(self) -> Result<Symlink,Error> {
+		// SAFE: Syscall
+		to_obj( unsafe { self.0.call_0(::values::VFS_NODE_TOLINK) } as usize )
+			.map(|h| Symlink(h))
+	}
+}
+impl ::Object for Node {
+	const CLASS: u16 = ::values::CLASS_VFS_NODE;
+	fn class() -> u16 { Self::CLASS }
+	fn from_handle(handle: ::ObjectHandle) -> Self {
+		Node(handle)
+	}
+	fn into_handle(self) -> ::ObjectHandle { self.0 }
+	fn get_wait(&self) -> ::values::WaitItem {
+		self.0.get_wait(0)
+	}
+	fn check_wait(&self, _wi: &::values::WaitItem) {
 	}
 }
 
@@ -46,11 +86,8 @@ impl File
 	pub fn open<T: AsRef<[u8]>>(path: T, mode: FileOpenMode) -> Result<File,Error> {
 		let path = path.as_ref();
 		// SAFE: Syscall
-		match super::ObjectHandle::new( unsafe { syscall!(VFS_OPENFILE, path.as_ptr() as usize, path.len(), mode as u32 as usize) } as usize )
-		{
-		Ok(rv) => Ok( File(rv, 0) ),
-		Err(code) => Err( From::from(code) ),
-		}
+		to_obj( unsafe { syscall!(VFS_OPENFILE, path.as_ptr() as usize, path.len(), mode as u32 as usize) } as usize )
+			.map(|h| File(h, 0))
 	} 
 	
 	pub fn get_size(&self) -> u64 { panic!("TODO: File::get_size") }
@@ -175,13 +212,8 @@ impl Dir
 
 	pub fn read_ent<'a>(&mut self, namebuf: &'a mut [u8]) -> Result<&'a [u8], Error> {
 		// SAFE: Syscall
-		match super::to_result(unsafe { self.0.call_2(::values::VFS_DIR_READENT, namebuf.as_ptr() as usize, namebuf.len()) } as usize)
-		{
-		Ok(v) => {
-			Ok( &namebuf[ .. v as usize] )
-			},
-		Err(e) => panic!("TODO: Error code {}", e),
-		}
+		let len = try!(to_result(unsafe { self.0.call_2(::values::VFS_DIR_READENT, namebuf.as_ptr() as usize, namebuf.len()) } as usize ));
+		Ok( &namebuf[ .. len as usize] )
 	}
 }
 impl ::Object for Dir {
@@ -189,6 +221,36 @@ impl ::Object for Dir {
 	fn class() -> u16 { Self::CLASS }
 	fn from_handle(handle: ::ObjectHandle) -> Self {
 		Dir(handle)
+	}
+	fn into_handle(self) -> ::ObjectHandle { self.0 }
+	fn get_wait(&self) -> ::values::WaitItem {
+		self.0.get_wait(0)
+	}
+	fn check_wait(&self, _wi: &::values::WaitItem) {
+	}
+}
+
+
+impl Symlink
+{
+	pub fn open<T: AsRef<[u8]>>(path: T) -> Result<Symlink, Error> {
+		let path = path.as_ref();
+		// SAFE: Syscall
+		to_obj( unsafe { syscall!(VFS_OPENLINK, path.as_ptr() as usize, path.len()) } as usize )
+			.map(|h| Symlink(h))
+	}
+
+	pub fn read_target<'a>(&self, buf: &'a mut [u8]) -> Result<&'a [u8], Error> {
+		// SAFE: Syscall with correct args
+		let len = try!(to_result( unsafe { self.0.call_2(::values::VFS_LINK_READ, buf.as_mut_ptr() as usize, buf.len()) } as usize ));
+		Ok( &buf[ .. len as usize] )
+	}
+}
+impl ::Object for Symlink {
+	const CLASS: u16 = ::values::CLASS_VFS_LINK;
+	fn class() -> u16 { Self::CLASS }
+	fn from_handle(handle: ::ObjectHandle) -> Self {
+		Symlink(handle)
 	}
 	fn into_handle(self) -> ::ObjectHandle { self.0 }
 	fn get_wait(&self) -> ::values::WaitItem {
