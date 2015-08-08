@@ -204,7 +204,7 @@ fn command_ls(term: &mut terminal::Terminal, path: &str)
 
 		print!(term, "- {}", name);
 
-		let file_node = match Node::open(&format!("{}/{}", path, name)[..])//handle.open_node(node_id)
+		let file_node = match Node::open(&format!("{}/{}", if path != "/" { path } else { "" }, name)[..])//handle.open_node(node_id)
 			{
 			Ok(v) => v,
 			Err(e) => {
@@ -223,8 +223,9 @@ fn command_ls(term: &mut terminal::Terminal, path: &str)
 				Ok(v) => v,
 				Err(e) => { print!(term, "(Error: {:?})\n", e); continue ; },
 				};
-			print!(term, " => {:?}", dest);
+			print!(term, " => {:?}", ::std::str::from_utf8(dest));
 			},
+		NodeType::Special => print!(term, "*"),
 		}
 		print!(term, "\n");
 	}

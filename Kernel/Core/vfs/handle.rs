@@ -8,7 +8,7 @@ use super::node::{CacheHandle,NodeType};
 use lib::byte_str::ByteString;
 use super::Path;
 
-#[derive(Debug)]
+#[derive(Debug,Clone)]
 /// Open without caring what the file type is (e.g. enumeration)
 pub struct Any {
 	node: CacheHandle,
@@ -85,11 +85,24 @@ impl Any
 		let node = try!(CacheHandle::from_path(path));
 		Ok(Any { node: node })
 	}
+
+	pub fn get_class(&self) -> super::node::NodeClass {
+		self.node.get_class()
+	}
 	
 	/// Upgrade the handle to a directory handle
 	pub fn to_dir(self) -> super::Result<Dir> {
 		if self.node.is_dir() {
 			Ok(Dir { node: self.node })
+		}
+		else {
+			Err(super::Error::TypeMismatch)
+		}
+	}
+	
+	pub fn to_symlink(self) -> super::Result<Symlink> {
+		if self.node.is_symlink() {
+			Ok(Symlink { node: self.node })
 		}
 		else {
 			Err(super::Error::TypeMismatch)
@@ -328,3 +341,13 @@ impl<'a> ::core::iter::Iterator for DirIter<'a> {
 	}
 }
 
+
+impl Symlink
+{
+	pub fn open(path: &Path) -> super::Result<Symlink> {
+		try!(Any::open(path)).to_symlink()
+	}
+	pub fn get_target(&self) -> super::Result<ByteString> {
+		self.node.get_target()
+	}
+}

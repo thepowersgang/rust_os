@@ -65,6 +65,13 @@ pub enum NodeType<'a> {
 	Dir,
 	Symlink(&'a super::Path),
 }
+#[derive(Debug,PartialEq)]
+pub enum NodeClass {
+	File,
+	Dir,
+	Symlink,
+	Special,
+}
 
 /// Base trait for a VFS node, defines common operation on nodes
 pub trait NodeBase: Send {
@@ -108,6 +115,8 @@ pub trait Dir: NodeBase {
 /// Trait for symbolic link nodes.
 pub trait Symlink: NodeBase {
 	/// Reads the contents of the symbolic link into a string
+	///
+	/// TODO: I'm not sure about this signature... as it requires an allocation
 	fn read(&self) -> ByteString;
 }
 /// Trait for special files (e.g. unix device files, named pipes)
@@ -158,6 +167,21 @@ impl_fmt! {
 	}
 }
 
+impl Clone for CacheHandle
+{
+	fn clone(&self) -> CacheHandle {
+		// SAFE: self.ptr is always valid, and operation is atomic
+		unsafe {
+			(*self.ptr).refcount.fetch_add(1, atomic::Ordering::Relaxed);
+		}
+		CacheHandle {
+			mountpt: self.mountpt,
+			inode: self.inode,
+			ptr: self.ptr,
+			}
+	}
+}
+
 impl CacheHandle
 {
 	/// Obtain a node handle using a mountpoint ID and inode number
@@ -200,6 +224,7 @@ impl CacheHandle
 		for seg in tail
 		{
 			loop {
+				// TODO: Should symlinks be handled in this function? Or should the passed path be without symlinks?
 				node_h = if let Node::Symlink(ref link) = *node_h.as_ref() {
 					let name = link.read();
 					log_debug!("- seg={:?} : SYMLINK {:?}", seg, name);
@@ -215,8 +240,7 @@ impl CacheHandle
 						//try!( CacheHandle::from_path(p) )
 						// Recurse with a special chained path type
 						// (that iterates but can't be sliced).
-						// - Should symlinks be handled in this function? Or should the passed path be without symlinks?
-						todo!("Symbolic links {:?}", name)
+						todo!("Relative symbolic links {:?}", name)
 					}
 				}
 				else {
@@ -241,11 +265,23 @@ impl CacheHandle
 		Ok( node_h )
 	}
 	
+	pub fn get_class(&self) -> NodeClass {
+		match self.as_ref()
+		{
+		&Node::Dir(_) => NodeClass::Dir,
+		&Node::File(_) => NodeClass::File,
+		&Node::Symlink(_) => NodeClass::Symlink,
+		&Node::Special(_) => NodeClass::Special,
+		}
+	}
 	pub fn is_dir(&self) -> bool {
-		is!( self.as_ref(), &Node::Dir(_) )
+		self.get_class() == NodeClass::Dir
 	}
 	pub fn is_file(&self) -> bool {
-		is!( self.as_ref(), &Node::File(_) )
+		self.get_class() == NodeClass::File
+	}
+	pub fn is_symlink(&self) -> bool {
+		self.get_class() == NodeClass::Symlink
 	}
 }
 /// Directory methods
@@ -285,6 +321,19 @@ impl CacheHandle
 		{
 		&Node::File(ref f) => Ok( try!(f.read(ofs, dst)) ),
 		_ => Err( super::Error::Unknown("Calling read on non-file") ),
+		}
+	}
+}
+
+
+/// Symbolic link methods
+impl CacheHandle
+{
+	pub fn get_target(&self) -> super::Result<ByteString> {
+		match self.as_ref()
+		{
+		&Node::Symlink(ref l) => Ok(l.read()),
+		_ => Err( super::Error::TypeMismatch ),
 		}
 	}
 }

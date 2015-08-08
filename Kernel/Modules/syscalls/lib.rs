@@ -190,6 +190,11 @@ fn invoke_int(call_id: u32, mut args: &[usize]) -> Result<u64,Error>
 			let name = try!( <Freeze<[u8]>>::get_arg(&mut args) );
 			from_result( vfs::opendir(&name) )
 			},
+		// - 2/3: Open directory
+		VFS_OPENLINK => {
+			let name = try!( <Freeze<[u8]>>::get_arg(&mut args) );
+			from_result( vfs::openlink(&name) )
+			},
 		// === 3: Memory Mangement
 		MEM_ALLOCATE => {
 			let addr = try!(<usize>::get_arg(&mut args));

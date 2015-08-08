@@ -10,11 +10,12 @@ use super::{objects,ObjectHandle};
 use super::values;
 use super::Error;
 use super::SyscallArg;
-use kernel::vfs::handle;
+use kernel::vfs::{handle,node};
 use kernel::vfs::Path;
 
-impl ::core::convert::From<::kernel::vfs::Error> for ::values::VFSError {
-	fn from(v: ::kernel::vfs::Error) -> Self {
+
+impl_from! {
+	From<::kernel::vfs::Error>(v) for ::values::VFSError {{
 		use kernel::vfs::Error;
 		use values::VFSError;
 		match v
@@ -25,6 +26,15 @@ impl ::core::convert::From<::kernel::vfs::Error> for ::values::VFSError {
 		Error::Locked => VFSError::FileLocked,
 		v @ _ => todo!("VFS Error {:?}", v),
 		}
+	}}
+	From<node::NodeClass>(v) for ::values::VFSNodeType {
+		match v
+		{
+		node::NodeClass::File => ::values::VFSNodeType::File,
+		node::NodeClass::Dir => ::values::VFSNodeType::Dir,
+		node::NodeClass::Symlink => ::values::VFSNodeType::Symlink,
+		node::NodeClass::Special => ::values::VFSNodeType::Special,
+		}
 	}
 }
 
@@ -32,6 +42,11 @@ impl ::core::convert::From<::kernel::vfs::Error> for ::values::VFSError {
 fn to_result<T>(r: Result<T, ::kernel::vfs::Error>) -> Result<T, u32> {
 	r.map_err( |e| Into::into( <::values::VFSError as From<_>>::from(e) ) )
 }
+
+
+// --------------------------------------------------------------------
+//
+// --------------------------------------------------------------------
 
 /// Open a bare file
 pub fn opennode(path: &[u8]) -> Result<ObjectHandle,u32> {
@@ -47,13 +62,31 @@ impl objects::Object for Node
 	fn handle_syscall(&self, call: u16, mut args: &[usize]) -> Result<u64,Error> {
 		match call
 		{
-		values::VFS_NODE_GETTYPE => todo!("VFS_NODE_GETTYPE"),
+		values::VFS_NODE_GETTYPE => {
+			let v32: u32 = ::values::VFSNodeType::from( self.0.get_class() ).into();
+			Ok( v32 as u64 )
+			},
+		values::VFS_NODE_TOFILE => todo!("VFS_NODE_TOFILE"),
+		values::VFS_NODE_TODIR => todo!("VFS_NODE_TODIR"),
+		values::VFS_NODE_TOLINK => {
+			// TODO: I'd like this to reuse this object handle etc... but that's not possible with
+			// the current structure.
+			// - Has to clone the Any to avoid moving out of self (cheap operation, just a refcount inc).
+			let objres = to_result(self.0.clone().to_symlink())
+				.map( |h| objects::new_object(Link(h)) );
+			Ok(super::from_result( objres ))
+			},
 		_ => todo!("Node::handle_syscall({}, ...)", call),
 		}
 	}
 	fn bind_wait(&self, _flags: u32, _obj: &mut ::kernel::threads::SleepObject) -> u32 { 0 }
 	fn clear_wait(&self, _flags: u32, _obj: &mut ::kernel::threads::SleepObject) -> u32 { 0 }
 }
+
+
+// --------------------------------------------------------------------
+//
+// --------------------------------------------------------------------
 
 pub fn openfile(path: &[u8], mode: u32) -> Result<ObjectHandle,u32> {
 	
@@ -130,6 +163,9 @@ impl objects::Object for File
 }
 
 
+// --------------------------------------------------------------------
+//
+// --------------------------------------------------------------------
 
 pub fn opendir(path: &[u8]) -> Result<ObjectHandle,u32>
 {
@@ -241,3 +277,40 @@ impl DirEntCache {
 		}
 	}
 }
+
+
+// --------------------------------------------------------------------
+//
+// --------------------------------------------------------------------
+
+pub fn openlink(path: &[u8]) -> Result<ObjectHandle,u32>
+{
+	to_result( handle::Symlink::open(::kernel::vfs::Path::new(path)) )
+		.map(|h| objects::new_object(Link(h)) )
+}
+
+struct Link(handle::Symlink);
+impl objects::Object for Link
+{
+	const CLASS: u16 = values::CLASS_VFS_LINK;
+	fn class(&self) -> u16 { Self::CLASS }
+	fn as_any(&self) -> &Any { self }
+	fn handle_syscall(&self, call: u16, mut args: &[usize]) -> Result<u64,Error> {
+		match call
+		{
+		values::VFS_LINK_READ => {
+			let mut buf = try!(<FreezeMut<[u8]>>::get_arg(&mut args));
+			let res = to_result( self.0.get_target() )
+				.map(|tgt| {
+					buf.clone_from_slice(tgt.as_bytes());
+					tgt.len() as u32
+					});
+			Ok( super::from_result(res) )
+			},
+		_ => todo!("Node::handle_syscall({}, ...)", call),
+		}
+	}
+	fn bind_wait(&self, _flags: u32, _obj: &mut ::kernel::threads::SleepObject) -> u32 { 0 }
+	fn clear_wait(&self, _flags: u32, _obj: &mut ::kernel::threads::SleepObject) -> u32 { 0 }
+}
+

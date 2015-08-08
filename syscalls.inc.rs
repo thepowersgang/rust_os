@@ -210,6 +210,7 @@ enum_to_from!{ VFSNodeType => u32:
 	File = 0,
 	Dir = 1,
 	Symlink = 2,
+	Special = 3,
 }
 
 #[derive(Debug)]
