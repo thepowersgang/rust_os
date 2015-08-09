@@ -126,7 +126,8 @@ pub fn wait(events: &mut [values::WaitItem], wake_time_mono: u64) -> Result<u32,
 
 	if num_bound == 0 && wake_time_mono == !0 {
 		// Attempting to sleep on no events with an infinite timeout! Would sleep forever
-		todo!("What to do when a thread tries to sleep forever");
+		log_error!("TODO: What to do when a thread tries to sleep forever");
+		waiter.wait();
 	}
 
 	// A wake time of 0 means to not sleep at all, just check the status of the events

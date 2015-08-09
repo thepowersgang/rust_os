@@ -140,6 +140,11 @@ impl objects::Object for Window
 			None => Ok(!0),
 			}
 			},
+		values::GUI_WIN_GETDIMS => {
+			let d = self.0.lock().get_dims();
+			let rv = (d.w as u64) << 32 | (d.h as u64);
+			Ok( rv )
+			},
 		_ => todo!("Window::handle_syscall({}, ...)", call),
 		}
 	}

@@ -262,3 +262,15 @@ pub static S_FONTDATA: [ [u8; 16]; 256 ] = [
 	[0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00],
 	];
 
+// Helper method that converts a unicode codepoint into a character in the above bitmap
+fn unicode_to_cp437(c: char) -> u8
+{
+    match c
+    {
+    ' ' ... '~' => c as u8,
+    '±' => 241,  // ±
+    '•' => 7,    // •
+    _ => b'?',
+    }
+}
+

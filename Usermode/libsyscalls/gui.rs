@@ -110,6 +110,12 @@ impl Window
 		unsafe { self.0.call_0(::values::GUI_WIN_REDRAW); }
 	}
 
+	pub fn get_dims(&self) -> Dims {
+		// SAFE: No side-effect syscall
+		let v = unsafe { self.0.call_0(::values::GUI_WIN_GETDIMS) };
+		Dims { w: (v >> 32) as u32, h: v as u32 }
+	}
+
 	// TODO: Should this be controllable by the application?
 	pub fn maximise(&self) {
 		// SAFE: Syscall

@@ -53,7 +53,7 @@ pub fn c_string_valid(c_str: *const i8) -> bool
 // UNSAFE: Lifetime is inferred, and memory must point to a valid T instance
 pub unsafe fn buf_to_slice<'a, T>(ptr: *const T, size: usize) -> Option<&'a [T]> {
 	
-	if ptr as usize % ::core::mem::align_of::<T>() != 0 {
+	if size > 0 && ptr as usize % ::core::mem::align_of::<T>() != 0 {
 		None
 	}
 	else if ! buf_valid(ptr as *const (), size) {
@@ -65,7 +65,7 @@ pub unsafe fn buf_to_slice<'a, T>(ptr: *const T, size: usize) -> Option<&'a [T]>
 }
 pub unsafe fn buf_to_slice_mut<'a, T>(ptr: *mut T, size: usize) -> Option<&'a mut [T]> {
 	
-	if ptr as usize % ::core::mem::align_of::<T>() != 0 {
+	if size > 0 && ptr as usize % ::core::mem::align_of::<T>() != 0 {
 		None
 	}
 	else if ! buf_valid(ptr as *const (), size) {
@@ -80,7 +80,17 @@ pub unsafe fn buf_to_slice_mut<'a, T>(ptr: *mut T, size: usize) -> Option<&'a mu
 pub fn buf_valid(ptr: *const (), mut size: usize) -> bool
 {
 	let mut addr = ptr as VAddr;
-	if ! ::arch::memory::virt::is_reserved(ptr) {
+	if size == 0 {
+		if addr == 0 {
+			// HACK: Strictly speaking, NULL would be valid according to this method
+			//  but checking it here makes life easier in the slice methods
+			return false;
+		}
+		else {
+			return true;
+		}
+	}
+	else if ! ::arch::memory::virt::is_reserved(ptr) {
 		return false;
 	}
 	let rem_ofs = ::PAGE_SIZE - addr % ::PAGE_SIZE;

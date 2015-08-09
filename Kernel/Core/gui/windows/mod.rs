@@ -413,6 +413,12 @@ impl WindowHandle
 		let wg = self.get_wg();
 		wg.lock().move_window(self.win, pos);
 	}
+
+	pub fn get_dims(&self) -> Dims {
+		let w = self.get_win();
+		let b = w.buf.read();
+		b.dims()
+	}
 	
 	/// Maximise this window (fill all space on the current monitor)
 	pub fn maximise(&mut self) {

@@ -16,14 +16,14 @@ fn main()
 	//let daemons = Vec::new();
 	//let shells = Vec::new();
 
-	//tifflin_process::Process::spawn("/sysroot/bin/login");
-	let console = tifflin_process::Process::spawn("/sysroot/bin/simple_console");
+	let session_root = tifflin_process::Process::spawn("/sysroot/bin/login");
+	//let session_root = tifflin_process::Process::spawn("/sysroot/bin/simple_console");
 
 	let wingrp = syscalls::gui::Group::new("Session 1").unwrap();
 	wingrp.force_active();
-	console.send_obj(wingrp);
+	session_root.send_obj(wingrp);
 	loop {
-		::syscalls::threads::wait(&mut [console.wait_terminate()], !0);
+		::syscalls::threads::wait(&mut [session_root.wait_terminate()], !0);
 	}
 }
 

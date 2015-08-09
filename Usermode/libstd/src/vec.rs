@@ -219,6 +219,12 @@ macro_rules! vec
 		$( v.push($v); )*
 		v
 		});
+	($v:expr; $c:expr) => ({
+		$crate::lib::Vec::from_elem($c, $v)
+		});
+}
+pub fn from_elem<T: Clone>(e: T, count: usize) -> Vec<T> {
+	Vec::from_elem(count, e)
 }
 
 impl<T: Clone> Vec<T>

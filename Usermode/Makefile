@@ -30,6 +30,7 @@ RUSTFLAGS += --cfg disable_float
 #RUSTFLAGS += -C no-vectorize-loops
 #RUSTFLAGS += -C no-vectorize-slp
 RUSTFLAGS += -L $(LIBDIR)
+RUSTFLAGS += -Z force-overflow-checks=yes
 
 # - List non-file targets
 .PHONY: all clean

@@ -163,6 +163,7 @@ def_classes! {
 		/// Read an event from the queue. 64-bit return value, !0 = none, otherwise 16/48 tag and data
 		// TODO: Pass a &mut GuiEvent instead of deserialsiging a u64
 		=4: GUI_WIN_GETEVENT,
+		=5: GUI_WIN_GETDIMS,
 	}|{
 		/// Fires when the input queue is non-empty
 		=0: EV_GUI_WIN_INPUT,
