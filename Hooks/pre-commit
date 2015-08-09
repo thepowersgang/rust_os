@@ -1,0 +1,17 @@
+#!/bin/sh
+set -e
+
+PATHS="Kernel/Core Kernel/Modules *.rs Usermode"
+
+# 1. Ensure that no space-indented rust files exist
+if grep -rI '^\(    \)\+' $PATHS --include=\*.rs >&2; then
+	echo "ERROR: Some files used space for indenting" >&2
+	return 1
+fi
+
+# 2. Ensure that all unsafe blocks are correctly commented
+if ! ./UnsafeAudit.sh >&2; then
+	echo "ERROR: Some files had non-annotated unsafe blocks" >&2
+	return 1
+fi
+
