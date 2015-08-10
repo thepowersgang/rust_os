@@ -3,14 +3,14 @@
 //
 // Core/gui/windows/mod.rs
 // - GUI Window management
-use prelude::*;
+use kernel::prelude::*;
 use super::{Dims,Pos,Rect,Colour};
-use sync::mutex::{LazyMutex,Mutex};
-use lib::mem::Arc;
-use lib::LazyStatic;
+use kernel::sync::mutex::{LazyMutex,Mutex};
+use kernel::lib::mem::Arc;
+use kernel::lib::LazyStatic;
 use core::atomic;
 
-use lib::sparse_vec::SparseVec;
+use kernel::lib::sparse_vec::SparseVec;
 
 pub use self::winbuf::WinBuf;
 
@@ -56,10 +56,10 @@ const C_MAX_SESSIONS: usize = 13;
 static S_WINDOW_GROUPS: LazyMutex<SparseVec< Arc<Mutex<WindowGroup>> >> = lazymutex_init!();
 static S_CURRENT_GROUP: ::core::atomic::AtomicUsize = ::core::atomic::ATOMIC_USIZE_INIT;
 
-static S_RENDER_REQUEST: ::sync::EventChannel = ::sync::EVENTCHANNEL_INIT;
-static S_EVENT_QUEUE: LazyStatic<::lib::ring_buffer::AtomicRingBuf<super::input::Event>> = lazystatic_init!();
+static S_RENDER_REQUEST: ::kernel::sync::EventChannel = ::kernel::sync::EVENTCHANNEL_INIT;
+static S_EVENT_QUEUE: LazyStatic<::kernel::lib::ring_buffer::AtomicRingBuf<super::input::Event>> = lazystatic_init!();
 // Keep this lazy, as it's runtime initialised
-static S_RENDER_THREAD: LazyMutex<::threads::WorkerThread> = lazymutex_init!();
+static S_RENDER_THREAD: LazyMutex<::kernel::threads::WorkerThread> = lazymutex_init!();
 
 pub fn init()
 {
@@ -67,8 +67,8 @@ pub fn init()
 	
 	// Create render thread
 	// SAFE: Called in single-threaded context
-	unsafe { S_EVENT_QUEUE.prep(|| ::lib::ring_buffer::AtomicRingBuf::new(32)); }
-	S_RENDER_THREAD.init( || ::threads::WorkerThread::new("GUI Compositor", render_thread) );
+	unsafe { S_EVENT_QUEUE.prep(|| ::kernel::lib::ring_buffer::AtomicRingBuf::new(32)); }
+	S_RENDER_THREAD.init( || ::kernel::threads::WorkerThread::new("GUI Compositor", render_thread) );
 }
 
 
@@ -82,7 +82,7 @@ pub fn update_dims()
 		for &mut (ref mut pos, ref win) in lh.windows.iter_mut()
 		{
 			// Locate screen for the upper-left corner
-			let screen = match ::metadevs::video::get_display_for_pos(*pos)
+			let screen = match ::kernel::metadevs::video::get_display_for_pos(*pos)
 				{
 				Some(x) => x,
 				// TODO: If now off-screen, warp to a visible position (with ~20px leeway)
@@ -302,7 +302,7 @@ impl WindowGroup
 	fn maximise_window(&mut self, idx: usize) {
 		{
 			let &mut(ref mut pos, ref win_rc) = &mut self.windows[idx];
-			let rect = match ::metadevs::video::get_display_for_pos(*pos)
+			let rect = match ::kernel::metadevs::video::get_display_for_pos(*pos)
 				{
 				Some(x) => x,
 				None => todo!("Handle window being off-screen"),
@@ -454,10 +454,10 @@ impl WindowHandle
 	pub fn pop_event(&self) -> Option<super::input::Event> {
 		self.get_win().input.pop_event()
 	}
-	pub fn wait_input(&self, obj: &mut ::threads::SleepObject) {
+	pub fn wait_input(&self, obj: &mut ::kernel::threads::SleepObject) {
 		self.get_win().input.wait(obj);
 	}
-	pub fn clear_wait_input(&self, obj: &mut ::threads::SleepObject) {
+	pub fn clear_wait_input(&self, obj: &mut ::kernel::threads::SleepObject) {
 		self.get_win().input.clear_wait(obj);
 	}
 }

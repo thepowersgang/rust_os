@@ -13,19 +13,26 @@
 //!  - This allows the leader to switch to a lock screen
 //! - All windows are backed by a framebuffer in this code
 //!  - Kernel log is provided by a builtin text renderer
+#![feature(no_std,linkage,const_fn)]
+#![feature(core_str_ext,core_slice_ext)]
+#![no_std]
+
+#[macro_use]
+extern crate kernel;
+
 module_define!{GUI, [Video], init}
 
 /// Initialise the GUI
 fn init()
 {
 	// - Enumerate display devices
-	::metadevs::video::register_geom_update(display_geom_update);
+	::kernel::metadevs::video::register_geom_update(display_geom_update);
 	// - Create kernel logging screen+window
 	windows::init();
 	kernel_log::init();
 }
 
-fn display_geom_update(new_total: ::metadevs::video::Rect)
+fn display_geom_update(new_total: ::kernel::metadevs::video::Rect)
 {
 	log_trace!("display_geom_update(new_total={})", new_total);
 	
@@ -40,7 +47,7 @@ mod kernel_log;
 pub mod input;
 
 // Import geometry types from video layer
-pub use metadevs::video::{Dims, Pos, Rect};
+pub use kernel::metadevs::video::{Dims, Pos, Rect};
 
 pub use self::windows::WindowHandle;
 pub use self::windows::WindowGroupHandle;

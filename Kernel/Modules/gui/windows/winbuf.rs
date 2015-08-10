@@ -3,7 +3,7 @@
 //
 // Core/gui/windows/winbuf.rs
 // - Backing buffer for a window
-use prelude::*;
+use kernel::prelude::*;
 use super::super::{Dims,Pos,Rect,Colour};
 use core::cell::UnsafeCell;
 
@@ -124,7 +124,7 @@ impl WinBuf
 				winpos.x + ofs as u32,
 				winpos.y + line as u32
 				);
-			::metadevs::video::write_line(pos, self.scanline_rgn(line, ofs, len));
+			::kernel::metadevs::video::write_line(pos, self.scanline_rgn(line, ofs, len));
 		}
 	}
 	

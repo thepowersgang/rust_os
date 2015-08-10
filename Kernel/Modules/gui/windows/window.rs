@@ -3,17 +3,17 @@
 //
 // Core/gui/windows/window.rs
 //! Window type and helpers
-use prelude::*;
+use kernel::prelude::*;
 
-use sync::rwlock::RwLock;
-use sync::mutex::Mutex;
-use lib::mem::Arc;
-use lib::ring_buffer::{RingBuf};
+use kernel::sync::rwlock::RwLock;
+use kernel::sync::mutex::Mutex;
+use kernel::lib::mem::Arc;
+use kernel::lib::ring_buffer::{RingBuf};
 use core::atomic;
 
 use super::winbuf::WinBuf;
-use gui::{Dims,Pos,Rect,Colour};
-use gui::input;
+use ::{Dims,Pos,Rect,Colour};
+use input;
 
 /// A single window, an arbitarily movable on-screen region
 //#[derive(Default)]
@@ -44,7 +44,7 @@ pub struct Window
 }
 pub struct WindowInput {
 	queue: Mutex<RingBuf<input::Event>>,
-	waiters: ::async::queue::Source,
+	waiters: ::kernel::async::queue::Source,
 }
 
 #[derive(Default)]
@@ -215,13 +215,13 @@ impl WindowInput
 		}
 		rv
 	}
-	pub fn wait(&self, obj: &mut ::threads::SleepObject) {
+	pub fn wait(&self, obj: &mut ::kernel::threads::SleepObject) {
 		self.waiters.wait_upon(obj);
 		if ! self.queue.lock().is_empty() {
 			obj.signal()
 		}
 	}
-	pub fn clear_wait(&self, obj: &mut ::threads::SleepObject) {
+	pub fn clear_wait(&self, obj: &mut ::kernel::threads::SleepObject) {
 		self.waiters.clear_wait(obj);
 	}
 }

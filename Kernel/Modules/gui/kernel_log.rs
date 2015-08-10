@@ -10,11 +10,12 @@
 // - TODO: Kernel log (history) : A searchable/filterable/scrollable kernel log
 // - TODO: Console 
 
-use prelude::*;
+use kernel::prelude::*;
 
 use super::windows::{WindowGroupHandle,WindowHandle};
 use super::{Colour,Dims,Pos,Rect};
 use core::fmt;
+use kernel::sync::mutex::{LazyMutex,HeldLazyMutex};
 
 // Bitmap font used by this module is in another file
 include!("../../../Graphics/font_cp437_8x16.rs");
@@ -39,7 +40,7 @@ struct CharPos(u32,u32);
 
 struct LogWriter
 {
-	log: ::sync::mutex::HeldLazyMutex<'static,KernelLog>,
+	log: HeldLazyMutex<'static,KernelLog>,
 	pos: CharPos,
 	colour: Colour,
 }
@@ -51,7 +52,7 @@ trait UnicodeCombining
 }
 
 const C_CELL_DIMS: Dims = Dims { w: 8, h: 16 };
-static S_KERNEL_LOG: ::sync::mutex::LazyMutex<KernelLog> = lazymutex_init!();
+static S_KERNEL_LOG: LazyMutex<KernelLog> = lazymutex_init!();
 
 #[doc(hidden)]
 pub fn init()
@@ -67,12 +68,12 @@ pub fn init()
 		{
 			let mut w = LogWriter::new();
 			w.set_colour(Colour::def_green());
-			write!(&mut w, "{}", ::VERSION_STRING).unwrap();
+			write!(&mut w, "{}", ::kernel::VERSION_STRING).unwrap();
 		}
 		{
 			let mut w = LogWriter::new();
 			w.set_colour(Colour::def_yellow());
-			write!(&mut w, "> {}", ::BUILD_STRING).unwrap();
+			write!(&mut w, "> {}", ::kernel::BUILD_STRING).unwrap();
 		}
 	}
 	
@@ -87,7 +88,7 @@ impl KernelLog
 	{
 		// TODO: Register to somehow be informed when dimensions change
 		// - Is this particular call bad for bypassing the GUI? Or is this acceptable
-		let max_dims = ::metadevs::video::get_display_for_pos( Pos::new(0,0) ).expect("No display at (0,0)").dims();
+		let max_dims = ::kernel::metadevs::video::get_display_for_pos( Pos::new(0,0) ).expect("No display at (0,0)").dims();
 	
 		// Kernel's window group	
 		let mut wgh = WindowGroupHandle::alloc("Kernel");

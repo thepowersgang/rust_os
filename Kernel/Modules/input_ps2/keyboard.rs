@@ -4,8 +4,8 @@
 // Modules/input_ps2/keyboard.rs
 //! PS2 Keyboard driver
 use kernel::prelude::*;
-use kernel::gui::input::keyboard as gui_keyboard;
-use kernel::gui::input::keyboard::KeyCode;
+use gui::input::keyboard as gui_keyboard;
+use gui::input::keyboard::KeyCode;
 
 #[derive(Debug)]
 pub enum Type
@@ -184,8 +184,8 @@ impl Dev
 
 
 mod keymaps {
-	use kernel::gui::input::keyboard::KeyCode;
-	use kernel::gui::input::keyboard::KeyCode::*;
+	use gui::input::keyboard::KeyCode;
+	use gui::input::keyboard::KeyCode::*;
 	pub static SC2_BASE: [KeyCode; 0x88] = [
 		None, F9,  None, F5, F3, F1 , F2, F12,
 		None, F10, F8,   F6, F4, Tab, GraveTilde, None,

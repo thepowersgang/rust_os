@@ -23,10 +23,17 @@ USE_ACPICA ?= 1
 
 fn_getdeps = $(shell cat $1 | sed -nr 's/.*extern crate ([a-zA-Z_0-9]+);/\1/p' | tr '\n' ' ')
 fn_moddeps = $(filter-out core kernel,$(call fn_getdeps,Modules/$1/lib.rs))
+define uniq =
+  $(eval seen :=)
+  $(foreach _,$1,$(if $(filter $_,${seen}),,$(eval seen += $_)))
+  ${seen}
+endef
 
 OBJS := start.ao $(MODS:%=%.o) libkernel.rlib libcore.rlib
 EOBJS := $(foreach m,$(MODS), $(addsuffix .o,$(call fn_moddeps,$m)) )
 OBJS += $(EOBJS)
+OBJS := $(shell echo $(call uniq, $(OBJS)))
+$(info $(OBJS))
 
 PREFIX ?= ../.prefix/
 rustcmd = LD_LIBRARY_PATH=$(PREFIX)lib/ $(PREFIX)bin/$1

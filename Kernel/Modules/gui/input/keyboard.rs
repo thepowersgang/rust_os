@@ -7,6 +7,18 @@
 #[derive(Default,Debug)]
 pub struct Instance(usize);
 
+struct KeyboardState
+{
+	//	caps: bool,	// Caps can DIAF
+	shift: u8,
+	ctrl: u8,
+	alt: u8,
+	altgr: bool,
+
+	ime_ofs: u8,
+	ime_val: u32,
+}
+
 impl Instance
 {
 	pub fn new() -> Instance {

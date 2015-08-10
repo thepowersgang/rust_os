@@ -6,16 +6,16 @@
 use kernel::prelude::*;
 
 use kernel::memory::freeze::Freeze;
-use kernel::gui::{Rect};
+use gui::{Rect};
 use kernel::sync::Mutex;
 
 use super::{values,objects};
 use super::{Error,ObjectHandle};
 use super::SyscallArg;
 
-impl ::core::convert::Into<values::GuiEvent> for ::kernel::gui::input::Event {
+impl ::core::convert::Into<values::GuiEvent> for ::gui::input::Event {
 	fn into(self) -> values::GuiEvent {
-		use kernel::gui::input::Event;
+		use gui::input::Event;
 		match self
 		{
 		Event::KeyUp(kc) => values::GuiEvent::KeyUp(kc as u8 as u32),
@@ -32,7 +32,7 @@ pub fn newgroup(name: &str) -> Result<ObjectHandle,u32> {
 	// Only init can create new sessions
 	// TODO: Use a capability system instead of hardcoding to only PID0
 	if ::kernel::threads::get_process_id() == 0 {
-		Ok(objects::new_object(Group(::kernel::gui::WindowGroupHandle::alloc(name))))
+		Ok(objects::new_object(Group(::gui::WindowGroupHandle::alloc(name))))
 	}
 	else {
 		todo!("syscall_gui_newgroup(name={}) - PID != 0", name);
@@ -53,7 +53,7 @@ pub fn bind_group(object_handle: u32) -> Result<bool,Error> {
 }
 
 /// Window group, aka Session
-struct Group(::kernel::gui::WindowGroupHandle);
+struct Group(::gui::WindowGroupHandle);
 impl objects::Object for Group
 {
 	const CLASS: u16 = values::CLASS_GUI_GROUP;
@@ -87,7 +87,7 @@ impl objects::Object for Group
 }
 
 /// Window
-struct Window(Mutex<::kernel::gui::WindowHandle>);
+struct Window(Mutex<::gui::WindowHandle>);
 impl objects::Object for Window
 {
 	const CLASS: u16 = values::CLASS_GUI_WIN;
@@ -127,7 +127,7 @@ impl objects::Object for Window
 			let w = try!( <u32>::get_arg(&mut args) );
 			let h = try!( <u32>::get_arg(&mut args) );
 			let colour = try!( <u32>::get_arg(&mut args) );
-			self.0.lock().fill_rect(Rect::new(x,y,w,h), ::kernel::gui::Colour::from_argb32(colour));
+			self.0.lock().fill_rect(Rect::new(x,y,w,h), ::gui::Colour::from_argb32(colour));
 			Ok(0)
 			},
 		values::GUI_WIN_GETEVENT => {
@@ -165,9 +165,9 @@ impl objects::Object for Window
 }
 
 #[derive(Default)]
-struct PLWindowGroup( Mutex<Option< ::kernel::gui::WindowGroupHandle >> );
+struct PLWindowGroup( Mutex<Option< ::gui::WindowGroupHandle >> );
 impl PLWindowGroup {
-	fn with<O, F: FnOnce(&mut ::kernel::gui::WindowGroupHandle)->O>(&self, f: F) -> Result<O,u32> {
+	fn with<O, F: FnOnce(&mut ::gui::WindowGroupHandle)->O>(&self, f: F) -> Result<O,u32> {
 		match *self.0.lock()
 		{
 		Some(ref mut v) => Ok( f(v) ),

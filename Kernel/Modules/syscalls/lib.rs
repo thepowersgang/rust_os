@@ -12,6 +12,8 @@
 #[macro_use]
 extern crate kernel;
 
+extern crate gui;
+
 extern crate stack_dst;
 
 use kernel::prelude::*;
@@ -21,7 +23,8 @@ use kernel::memory::freeze::{Freeze,FreezeMut,FreezeError};
 mod objects;
 
 mod threads;
-mod gui;
+#[path="gui.rs"]
+mod gui_calls;
 mod vfs;
 
 pub type ObjectHandle = u32;
@@ -157,16 +160,16 @@ fn invoke_int(call_id: u32, mut args: &[usize]) -> Result<u64,Error>
 		// - 1/0: New group (requires permission, has other restrictions)
 		GUI_NEWGROUP => {
 			let name = try!( <Freeze<str>>::get_arg(&mut args) );
-			from_result(gui::newgroup(&name))
+			from_result(gui_calls::newgroup(&name))
 			},
 		// - 1/1: New window
 		GUI_NEWWINDOW => {
 			let name = try!( <Freeze<str>>::get_arg(&mut args) );
-			from_result(gui::newwindow(&name))
+			from_result(gui_calls::newwindow(&name))
 			},
 		GUI_BINDGROUP => {
 			let obj = try!( <u32>::get_arg(&mut args) );
-			if try!(gui::bind_group(obj)) {
+			if try!(gui_calls::bind_group(obj)) {
 				1
 			}
 			else {

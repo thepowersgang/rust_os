@@ -91,9 +91,6 @@ pub mod metadevs;
 /// Starts driver instances for the devices it sees
 pub mod device_manager;
 
-/// User output, via a kernel-provided compositing "WM"
-pub mod gui;
-
 // Public for driver modules
 pub mod vfs;
 

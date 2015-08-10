@@ -7,7 +7,12 @@
 #![no_std]
 #![feature(core_slice_ext)]
 #![feature(const_fn)]	// needed for lazystatic_init
-#[macro_use] extern crate kernel;
+
+#[macro_use]
+extern crate kernel;
+
+extern crate gui;
+
 use kernel::prelude::*;
 
 // HACK: Requires USB to be active to ensure that emulation is off

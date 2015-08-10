@@ -3,7 +3,7 @@
 //
 // Core/gui/input/mod.rs
 //! GUI input managment
-use prelude::*;
+use kernel::prelude::*;
 use self::keyboard::KeyCode;
 use core::atomic::{AtomicUsize,ATOMIC_USIZE_INIT,Ordering};
 
