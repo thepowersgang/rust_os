@@ -174,11 +174,7 @@ impl KernelLog
 	/// Actually does the rendering
 	fn render_char(&mut self, pos: CharPos, colour: Colour, cp: char)
 	{
-		let idx = match cp as u32
-			{
-			32 ... 0x7E => cp as u8,
-			_ => b'?',
-			};
+		let idx = unicode_to_cp437(cp);
 		//log_trace!("KernelLog::render_char({:?}, {:?}, '{}') idx={}", pos, colour, cp, idx);
 		
 		let bitmap = &S_FONTDATA[idx as usize];

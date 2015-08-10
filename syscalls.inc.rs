@@ -219,6 +219,7 @@ pub enum GuiEvent
 {
 	KeyUp(u32),
 	KeyDown(u32),
+	Text([u8; 6]),
 	MouseMove(i32,i32),
 	MouseUp(u8),
 	MouseDown(u8),
@@ -229,6 +230,15 @@ impl ::core::convert::From<u64> for GuiEvent {
 		match v >> 48 {
 		0 => GuiEvent::KeyUp  ( (v & 0xFFFFFFFF) as u32 ),
 		1 => GuiEvent::KeyDown( (v & 0xFFFFFFFF) as u32 ),
+		//2 => GuiEvent::MouseMove(
+		5 => GuiEvent::Text([
+			(v >> (0*8)) as u8,
+			(v >> (1*8)) as u8,
+			(v >> (2*8)) as u8,
+			(v >> (3*8)) as u8,
+			(v >> (4*8)) as u8,
+			(v >> (5*8)) as u8,
+			]),
 		tag @ _ => panic!("Invalid tag value passed to GuiEvent::from {:#x}", tag),
 		}
 	}
@@ -242,6 +252,15 @@ impl ::core::convert::Into<u64> for GuiEvent {
 		GuiEvent::MouseMove(dx,dy) => (2 << 48) | ((dx as u64) << 24) | ((dy as u64) << 0),
 		GuiEvent::MouseUp  (btn) => (3 << 48) | (btn as u64),
 		GuiEvent::MouseDown(btn) => (4 << 48) | (btn as u64),
+		GuiEvent::Text(buf) =>
+			(5 << 48)
+			| ((buf[5] as u64) << (5*8))
+			| ((buf[4] as u64) << (4*8))
+			| ((buf[3] as u64) << (3*8))
+			| ((buf[2] as u64) << (2*8))
+			| ((buf[1] as u64) << (1*8))
+			| ((buf[0] as u64) << (0*8))
+			,
 		}
 	}
 }

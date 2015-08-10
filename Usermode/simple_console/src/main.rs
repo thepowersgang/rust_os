@@ -63,33 +63,23 @@ fn main() {
 	
 		while let Some(ev) = window.pop_event()
 		{
-			kernel_log!("ev = {:?}", ev);
-			match ev
+			if let Some(buf) = input.handle_event(ev, |a| render_input(&mut term, a))
 			{
-			::syscalls::gui::Event::KeyUp(kc) => {
-				if let Some(buf) = input.handle_key(true, kc as u8, |a| render_input(&mut term, a))
-				{
-					kernel_log!("buf = {:?}", buf);
-					term.write_str("\n").unwrap();
-					term.flush();
-					window.redraw();
-
-					shell.handle_command(&mut term, buf);
-					// - If the command didn't print a newline, print one for it
-					if term.cur_col() != 0 {
-						term.write_str("\n").unwrap();
-					}
-					// New prompt
-					term.write_str("> ").unwrap();
-				}
+				kernel_log!("buf = {:?}", buf);
+				term.write_str("\n").unwrap();
 				term.flush();
 				window.redraw();
-				},
-			::syscalls::gui::Event::KeyDown(kc) => {
-				input.handle_key(false, kc as u8, |_| ());
-				},
-			_ => {},
+
+				shell.handle_command(&mut term, buf);
+				// - If the command didn't print a newline, print one for it
+				if term.cur_col() != 0 {
+					term.write_str("\n").unwrap();
+				}
+				// New prompt
+				term.write_str("> ").unwrap();
 			}
+			term.flush();
+			window.redraw();
 		}
 		
 		window.check_wait(&events[0]);

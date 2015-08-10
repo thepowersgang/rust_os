@@ -6,6 +6,8 @@ pub struct Window<'a>
 	win: ::syscalls::gui::Window,
 	surface: ::surface::Surface,
 	root: &'a ::Element,
+
+	//input_state: KeyboardState,
 }
 
 impl<'a> Window<'a>
