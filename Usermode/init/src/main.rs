@@ -16,8 +16,8 @@ fn main()
 	//let daemons = Vec::new();
 	//let shells = Vec::new();
 
-	//let session_root = tifflin_process::Process::spawn("/sysroot/bin/login");
-	let session_root = tifflin_process::Process::spawn("/sysroot/bin/simple_console");
+	let session_root = tifflin_process::Process::spawn("/sysroot/bin/login");
+	//let session_root = tifflin_process::Process::spawn("/sysroot/bin/simple_console");
 
 	let wingrp = syscalls::gui::Group::new("Session 1").unwrap();
 	wingrp.force_active();

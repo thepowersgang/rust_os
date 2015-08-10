@@ -5,17 +5,25 @@ use geom::{Rect,Px};
 pub struct Colour(u32);
 impl Colour
 {
-	pub fn black() -> Colour { Colour(0) }
-	pub fn ltgray() -> Colour { Colour(0xDD_DD_DD) }
-	pub fn gray() -> Colour { Colour(0x55_55_55) }
-	pub fn white() -> Colour { Colour(0xFF_FF_FF) }
+	//pub fn black() -> Colour { Colour(0) }
+	//pub fn ltgray() -> Colour { Colour(0xDD_DD_DD) }
+	//pub fn gray() -> Colour { Colour(0x55_55_55) }
+	//pub fn white() -> Colour { Colour(0xFF_FF_FF) }
 	pub fn as_argb32(&self) -> u32 { self.0 }
+
+	pub fn theme_text() -> Colour { Colour(0x00_000000) }
+	pub fn theme_text_alt() -> Colour { Colour(0x00_606060) }
+	pub fn theme_border_main() -> Colour { Colour(0x00_C0C0C0) }
+	pub fn theme_border_alt() -> Colour { Colour(0x00_E0E0E0) }
+	pub fn theme_text_bg() -> Colour { Colour(0xF8FFF8) }
+	pub fn theme_body_bg() -> Colour { Colour(0x002000) }
 }
 
 #[derive(Default)]
 pub struct Surface
 {
 	width: usize,
+	dirty: ::std::cell::Cell<Rect<Px>>,
 	data: ::std::cell::RefCell<Vec<u32>>,
 }
 
@@ -30,12 +38,25 @@ impl Surface
 			(self.data.borrow().len() / self.width) as u32
 		}
 	}
-	pub fn blit_to_win(&self, win: &::syscalls::gui::Window) {
-		win.blit_rect(0, 0, self.width as u32, self.height(), &self.data.borrow());
+	pub fn blit_to_win(&self, win: &::syscalls::gui::Window)
+	{
+		let dirty: Rect<Px> = self.dirty.get();
+		self.dirty.set(Default::default());
+		let first_row = dirty.y().0 as usize;
+		let row_count = dirty.height().0 as usize;
+		
+		// TODO: Need to support "stride" for this API, allowing true partial blits.
+		win.blit_rect(
+			0, first_row as u32,
+			self.width as u32, row_count as u32,
+			&self.data.borrow()[first_row*self.width..][..row_count*self.width]
+			);
 	}
 	pub fn resize(&mut self, dims: ::syscalls::gui::Dims) {
 		self.width = dims.w as usize;
-		*self.data.borrow_mut() = vec![0x002200; (dims.w as usize * dims.h as usize)];
+		*self.data.borrow_mut() = vec![Colour::theme_body_bg().as_argb32(); (dims.w as usize * dims.h as usize)];
+		// On resize, set dirty area to full area of the surface
+		self.dirty.set( self.rect() );
 	}
 	pub fn rect(&self) -> Rect<Px> {
 		Rect::new(0, 0, self.width as u32, self.height())
@@ -47,6 +68,15 @@ impl Surface
 	}
 
 	fn foreach_scanlines<F: FnMut(usize, &mut [u32])>(&self, rect: Rect<Px>, mut f: F) {
+		// Update dirty region with this rect
+		//let mut dr = self.dirty.borrow_mut();
+		if self.dirty.get().is_empty() {
+			self.dirty.set(rect);
+		}
+		else {
+			self.dirty.set( self.dirty.get().union(&rect) ); 
+		}
+
 		//kernel_log!("foreach_scanlines(rect={:?}, F={})", rect, type_name!(F));
 		for (i, row) in self.data.borrow_mut().chunks_mut(self.width).skip(rect.y().0 as usize).take(rect.height().0 as usize).enumerate()
 		{
@@ -84,7 +114,7 @@ impl<'a> SurfaceView<'a>
 			);
 	}
 
-	pub fn draw_text<It: Iterator<Item=char>>(&self, mut rect: Rect<Px>, chars: It, colour: Colour) {
+	pub fn draw_text<It: Iterator<Item=char>>(&self, mut rect: Rect<Px>, chars: It, colour: Colour) -> usize {
 		let mut st = S_FONT.get_renderer();
 		let mut chars = chars.peekable();
 		kernel_log!("draw_text: rect = {:?}", rect);
@@ -106,6 +136,7 @@ impl<'a> SurfaceView<'a>
 				});
 			rect = rect.offset(::geom::Px(w), ::geom::Px(0));
 		}
+		rect.x().0 as usize
 	}
 }
 

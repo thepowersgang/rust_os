@@ -75,7 +75,6 @@ impl<T> Vec<T>
 	pub fn clear(&mut self)
 	{
 		self.truncate(0);
-		unimplemented!();
 	}
 	
 	fn reserve_cap(&mut self, size: usize)

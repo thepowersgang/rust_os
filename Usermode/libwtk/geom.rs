@@ -7,7 +7,7 @@ pub trait CoordType: Copy + ::std::ops::Add<Output=Self> + ::std::ops::Sub<Outpu
 
 macro_rules! impl_prim_coord {
 	($t:ident) => {
-		#[derive(Copy,Clone,PartialOrd,PartialEq,Debug)]
+		#[derive(Copy,Clone,PartialOrd,PartialEq,Debug,Default)]
 		pub struct $t(pub u32);
 		impl From<u32> for $t { fn from(v: u32) -> $t { $t(v) } }
 		impl CoordType for $t {
@@ -25,7 +25,7 @@ impl_prim_coord!{ Px }
 pub struct Unit(u32);
 pub struct Mm(u32);
 
-#[derive(Copy,Clone)]
+#[derive(Copy,Clone,Default)]
 pub struct Rect<T: CoordType>
 {
 	x: T,
@@ -71,6 +71,10 @@ impl<T: CoordType> Rect<T>
 		}
 	}
 
+	pub fn is_empty(&self) -> bool {
+		self.w == T::zero() || self.h == T::zero()
+	}
+
 	pub fn width(&self) -> T { self.w }
 	pub fn height(&self) -> T { self.h }
 
@@ -78,6 +82,14 @@ impl<T: CoordType> Rect<T>
 	pub fn y(&self) -> T { self.y }
 	pub fn x2(&self) -> T { self.x + self.w }
 	pub fn y2(&self) -> T { self.y + self.h }
+
+	pub fn union(&self, other: &Rect<T>) -> Rect<T> {
+		let x = ::std::cmp::min(self.x, other.x);
+		let y = ::std::cmp::min(self.y, other.y);
+		let x2 = ::std::cmp::max(self.x2(), other.x2());
+		let y2 = ::std::cmp::max(self.y2(), other.y2());
+		Rect::new_pts(x, y, x2, y2)
+	}
 
 	pub fn intersect(&self, other: &Rect<T>) -> Rect<T> {
 		let x = ::std::cmp::max(self.x, other.x);

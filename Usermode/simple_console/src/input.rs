@@ -54,11 +54,9 @@ impl InputStack
 			{
 			_ => None,
 			},
-		::syscalls::gui::Event::Text(buf) => {
-			let s = ::std::str::from_utf8(&buf).expect("Malformed UTF-8 from kernel");	
-			let val = s.split('\0').next().unwrap();
-			self.buffer.push_str(val);
-			puts( Action::Puts(val) );
+		::syscalls::gui::Event::Text(val) => {
+			self.buffer.push_str(&val);
+			puts( Action::Puts(&val) );
 			None
 			},
 		_ => None,

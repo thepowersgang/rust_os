@@ -21,9 +21,14 @@ mod window;
 mod layout;
 mod input;
 
+/// Re-export GUI events for users of the library
+pub use syscalls::gui::Event as InputEvent;
+
 pub trait Element
 {
+	fn focus_change(&self, _have: bool) {}
 	fn render(&self, surface: ::surface::SurfaceView);
+	fn handle_event(&self, ev: ::InputEvent) -> bool;
 }
 
 pub use window::Window;

@@ -3,6 +3,7 @@
 //
 // gui.rs
 pub use ::values::GuiEvent as Event;
+pub use ::values::KeyCode as KeyCode;
 
 pub struct Group(super::ObjectHandle);
 pub struct Window(super::ObjectHandle);
@@ -28,10 +29,6 @@ impl Colour {
 	/// Primary yellow
 	pub fn def_yellow() -> Colour { Colour(0xFFFF00) }
 }
-
-
-
-include!("../../keycodes.inc.rs");
 
 
 impl Group
@@ -140,6 +137,11 @@ impl Window
 		else {
 			Some( ::values::GuiEvent::from(v) )
 		}
+	}
+	
+	pub fn check_wait_input(&self, wi: &::values::WaitItem) -> bool {
+		assert_eq!(wi.object, self.0 .0);
+		wi.flags & ::values::EV_GUI_WIN_INPUT != 0
 	}
 }
 impl ::Object for Window

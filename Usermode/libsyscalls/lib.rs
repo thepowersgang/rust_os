@@ -53,6 +53,9 @@ pub mod gui;
 pub mod memory;
 pub mod threads;
 
+
+pub use values::WaitItem;
+
 pub struct ObjectHandle(u32);
 impl ObjectHandle
 {

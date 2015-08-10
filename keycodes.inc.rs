@@ -1,6 +1,7 @@
 
 #[derive(Copy,Clone,Debug,PartialEq)]
 #[repr(C,u8)]
+#[allow(dead_code)]
 /// Same values as the USB HID protocol
 pub enum KeyCode
 {

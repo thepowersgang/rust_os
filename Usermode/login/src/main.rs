@@ -12,6 +12,7 @@ extern crate syscalls;
 
 fn main()
 {
+	// Obtain window group from parent
 	{
 		use syscalls::Object;
 		use syscalls::threads::S_THIS_PROCESS;
@@ -21,11 +22,18 @@ fn main()
 
 	let mut username = ::wtk::TextInput::new();
 	username.set_shadow("Username");
+	//username.bind_submit(|_| win.focus(password));
+		
 	let mut password = ::wtk::TextInput::new();
 	password.set_shadow("Password");
 	password.set_obscured('\u{2022}');	// Bullet
 	password.bind_submit(|password| {
-		kernel_log!("username = \"{}\", password = \"{}\"", username.get_content(), password.get_content());
+		let uname = username.get_content();
+		let pword = password.get_content();
+		kernel_log!("username = \"{}\", password = \"{}\"", uname, pword);
+		if uname == "root" && pword == "password" {
+			// TODO: Spawn console, and wait for it to terminate
+		}
 		});
 
 	let mut fvbox = ::wtk::Box::new_vert();
@@ -50,6 +58,11 @@ fn main()
 	let mut win = ::wtk::Window::new(&vbox);
 	win.undecorate();
 	win.maximise();
+
+	win.taborder_add( &username );
+	win.taborder_add( &password );
+
+	win.focus( &username );
 
 	win.show();
 

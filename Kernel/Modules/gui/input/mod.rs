@@ -96,10 +96,11 @@ impl InputChannel
 		}
 		
 		// Handle text events
+		// - On key up, translate the keystroke into text (accounting for input state)
+		// TODO: Support repetition?
 		if let Event::KeyUp(kc) = event {
 			//if self.enable_input_translation {
 				let s = self.get_input_string(kc);
-				log_debug!("s = {:?}", s);
 				if s.len() > 0 {
 					let mut buf = [0; 6];
 					buf.clone_from_slice( s.as_bytes() );

@@ -76,6 +76,8 @@ impl<'a> super::Element for Box<'a>
 			ofs += size;
 		}
 	}
+
+	fn handle_event(&self, _ev: ::InputEvent) -> bool {false}
 }
 
 enum FrameType { Raise, Bevel }
@@ -110,10 +112,10 @@ impl<'a> ::Element for Frame<'a>
 		match self.frame_type
 		{
 		FrameType::Raise => {
-			surface.fill_rect( Rect::new(0,0,!0,1), Colour::ltgray() );
-			surface.fill_rect( Rect::new(0,0,1,!0), Colour::ltgray() );
-			surface.fill_rect( Rect::new(0,surface.height()-1,!0,1), Colour::white() );
-			surface.fill_rect( Rect::new(surface.width()-1,0,1,!0), Colour::white() );
+			surface.fill_rect( Rect::new(0,0,!0,1), Colour::theme_border_alt() );
+			surface.fill_rect( Rect::new(0,0,1,!0), Colour::theme_border_alt() );
+			surface.fill_rect( Rect::new(0,surface.height()-1,!0,1), Colour::theme_border_main() );
+			surface.fill_rect( Rect::new(surface.width()-1,0,1,!0), Colour::theme_border_main() );
 			},
 		FrameType::Bevel => {
 			},
@@ -124,4 +126,5 @@ impl<'a> ::Element for Frame<'a>
 		None => {},
 		}
 	}
+	fn handle_event(&self, _ev: ::InputEvent) -> bool {false}
 }
