@@ -118,7 +118,13 @@ fn get_bootinfo() -> &'static BootInfo
 		BootInfo::Uninit => {
 			s_bootinfo = match s_multiboot_signature
 				{
-				0x2BADB002 => BootInfo::Multiboot( MultibootParsed::new(s_multiboot_pointer) ),
+				0x2BADB002 =>
+					if let Some(mbi) = MultibootParsed::new(s_multiboot_pointer) {
+						BootInfo::Multiboot(mbi)
+					}
+					else {
+						BootInfo::Invalid
+					},
 				_ => BootInfo::Invalid,
 				};
 			},
@@ -173,11 +179,15 @@ fn valid_c_str_to_slice(ptr: *const i8) -> Option<&'static str>
 
 impl MultibootParsed
 {
-	pub fn new(info: &MultibootInfo) -> MultibootParsed
+	pub fn new(info: &MultibootInfo) -> Option<MultibootParsed>
 	{
-		let loader_ptr = (info.boot_loader_name as usize + IDENT_START) as *const i8;
-		log_debug!("loader_ptr = {:?}", loader_ptr);
+		//if info.flags & !0xFFF != 0 {
+		//	log_error!("Multiboot header malformed (reserved flag bits set {:#x})", info.flags);
+		//	return None;
+		//}
 		let loader_name = if (info.flags & 1 << 9) != 0 {
+				let loader_ptr = (info.boot_loader_name as usize + IDENT_START) as *const i8;
+				log_debug!("loader_ptr = {:?}", loader_ptr);
 				valid_c_str_to_slice(loader_ptr).unwrap_or("-INVALID-")
 			}
 			else {
@@ -185,17 +195,18 @@ impl MultibootParsed
 			};
 		
 		// Symbol information
-		if (info.flags & 1 << 4) != 0
+		match (info.flags >> 4) & 3
 		{
+		0 => {},	// No symbol information
+		1 => {
 			// a.out symbol table
 			let [tabsize, strsize, addr, _resvd] = info.syminfo;
 			log_debug!("Symbols a.out - tabsize={}, strsize={}, addr={:#x}", tabsize, strsize, addr);
-		}
-		else if (info.flags & 1 << 5) != 0
-		{
+			},
+		2 => {
+			// Elf section header table
 			if false
 			{
-				// Elf section header table
 				let [num, size, addr, shndx] = info.syminfo;
 				log_debug!("Symbols ELF - num={}, size={}, addr={:#x}, shndx={}", num, size, addr, shndx);
 				//let byte_ofs = addr as usize & (::PAGE_SIZE - 1);
@@ -211,10 +222,11 @@ impl MultibootParsed
 				sh.dump();
 				sh.address_to_symbol(0);
 			}
-		}
-		else
-		{
-			// No symbol information
+			},
+		_ => {
+			log_error!("Multiboot header malformed (both symbol table bits set)");
+			return None;
+			},
 		}
 		
 		log_notice!("Loading multiboot from loader '{}' (flags = {:#x})", loader_name, info.flags);
@@ -225,7 +237,7 @@ impl MultibootParsed
 			};
 		// SAFE: Should only be called before threading is initialised, so no race
 		ret.memmap = unsafe { ret._memmap(info, &mut s_memmap_data) };
-		ret
+		Some( ret )
 	}
 	
 	fn _cmdline(info: &MultibootInfo) -> &'static str
@@ -302,8 +314,10 @@ impl MultibootParsed
 				// Dumb memory map
 				log_debug!("info = {{..., .lomem={}, .himem={} }}", info.lomem, info.himem);
 				// - Low memory (before VGA BIOS)
-				assert_eq!(info.lomem, 625);
-				mapbuilder.append( 0x1000, 0x9F000 - 0x1000, ::memory::MemoryState::Free, 0 );
+				assert!(info.lomem >= 625);
+				assert!(info.lomem <= 640);
+				let top_lowmem = info.lomem as u64 * 1024;
+				mapbuilder.append( 0x1000, top_lowmem - 0x1000, ::memory::MemoryState::Free, 0 );
 				// - High memory (above 1MiB)
 				mapbuilder.append( 0x100000, info.himem as u64 * 1024, ::memory::MemoryState::Free, 0 );
 			}

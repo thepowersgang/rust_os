@@ -29,9 +29,9 @@ mboot:
 	dd 0	; entry_addr
 	; Video mode
 	dd 0	; Mode type (0: LFB)
-	dd 0,0	; Width, Height (no preference)
+	;dd 0,0	; Width, Height (no preference)
 	;dd 1600,900	; Width, Height ('HD+')
-	;dd 1366,768	; Width, Height ('HD+')
+	dd 1366,768	; Width, Height ('HD+')
 	;dd 1024,768	; Width, Height ('HD+')
 	dd 32	; Depth (32-bit preferred)
 
@@ -56,6 +56,8 @@ start:
 	
 	mov dx, 0x3F8	; Prepare for serial debug
 	
+	mov al, 0x10
+	out dx, al
 	mov al, 'O'
 	out dx, al
 	mov al, 'K'
