@@ -12,6 +12,7 @@ libcore/
 acpica/*.a
 acpica/acpica-*/
 externals/crates.io/*/
+Screenshots/
 
 Graphics/*.rs
 
@@ -33,3 +34,4 @@ Kernel/rundir/*.ppm
 Kernel/rundir/*.dmp
 Kernel/rundir/DiskImages
 Kernel/rundir/trace-*
+Kernel/rundir/*.iso
