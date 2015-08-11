@@ -28,7 +28,7 @@ pub trait Element
 {
 	fn focus_change(&self, _have: bool) {}
 	fn render(&self, surface: ::surface::SurfaceView);
-	fn handle_event(&self, ev: ::InputEvent) -> bool;
+	fn handle_event(&self, ev: ::InputEvent, win: &mut ::window::Window) -> bool { false }
 }
 
 pub use window::Window;

@@ -76,8 +76,6 @@ impl<'a> super::Element for Box<'a>
 			ofs += size;
 		}
 	}
-
-	fn handle_event(&self, _ev: ::InputEvent) -> bool {false}
 }
 
 enum FrameType { Raise, Bevel }
@@ -126,5 +124,4 @@ impl<'a> ::Element for Frame<'a>
 		None => {},
 		}
 	}
-	fn handle_event(&self, _ev: ::InputEvent) -> bool {false}
 }

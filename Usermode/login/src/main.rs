@@ -22,12 +22,13 @@ fn main()
 
 	let mut username = ::wtk::TextInput::new();
 	username.set_shadow("Username");
-	//username.bind_submit(|_| win.focus(password));
 		
 	let mut password = ::wtk::TextInput::new();
 	password.set_shadow("Password");
 	password.set_obscured('\u{2022}');	// Bullet
-	password.bind_submit(|password| {
+
+	username.bind_submit(|_uname, win| win.tabto(2));
+	password.bind_submit(|password, _win| {
 		let uname = username.get_content();
 		let pword = password.get_content();
 		kernel_log!("username = \"{}\", password = \"{}\"", uname, pword);
@@ -59,8 +60,8 @@ fn main()
 	win.undecorate();
 	win.maximise();
 
-	win.taborder_add( &username );
-	win.taborder_add( &password );
+	win.taborder_add( 1, &username );
+	win.taborder_add( 2, &password );
 
 	win.focus( &username );
 

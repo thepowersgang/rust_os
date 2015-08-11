@@ -1,4 +1,7 @@
-
+//
+//
+//
+//! Simple text input field
 pub use surface::Colour;
 pub use geom::Rect;
 
@@ -8,7 +11,7 @@ pub struct TextInput<'a>
 	state: ::std::cell::RefCell<State>,
 	shadow: String,
 	obscure_char: Option<char>,
-	submit_cb: Option< Box<Fn(&TextInput<'a>)+'a> >,
+	submit_cb: Option< Box<Fn(&TextInput<'a>, &mut ::window::Window)+'a> >,
 }
 
 #[derive(Default)]
@@ -36,7 +39,7 @@ impl<'a> TextInput<'a>
 		self.obscure_char = Some(replacement);
 	}
 
-	pub fn bind_submit<F: Fn(&Self)+'a>(&mut self, cb: F) {
+	pub fn bind_submit<F: Fn(&Self, &mut ::window::Window)+'a>(&mut self, cb: F) {
 		self.submit_cb = Some( Box::new(cb) );
 	}
 
@@ -80,7 +83,7 @@ impl<'a> ::Element for TextInput<'a>
 		}
 	}
 
-	fn handle_event(&self, ev: ::InputEvent) -> bool {
+	fn handle_event(&self, ev: ::InputEvent, win: &mut ::window::Window) -> bool {
 		match ev
 		{
 		::InputEvent::Text(v) => {
@@ -94,7 +97,7 @@ impl<'a> ::Element for TextInput<'a>
 		::InputEvent::KeyUp(::syscalls::gui::KeyCode::Return) =>
 			if let Some(ref cb) = self.submit_cb
 			{
-				cb(self);
+				cb(self, win);
 				true
 			}
 			else {

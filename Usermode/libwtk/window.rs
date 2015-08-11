@@ -34,8 +34,14 @@ impl<'a> Window<'a>
 		self.focus = Some(ele);
 		ele.focus_change(true);
 	}
-	pub fn taborder_add(&mut self, ele: &'a ::Element) {
+	pub fn taborder_add(&mut self, _idx: usize, ele: &'a ::Element) {
 		self.taborder.push( ele );
+	}
+	pub fn tabto(&mut self, idx: usize) {
+		if let Some(&e) = self.taborder.get(idx-1)
+		{
+			self.focus(e);
+		}
 	}
 
 	pub fn undecorate(&mut self) {
@@ -83,7 +89,7 @@ impl<'a> ::async::WaitController for Window<'a>
 					},
 				ev @ _ => 
 					if let Some(ele) = self.focus {
-						redraw |= ele.handle_event(ev);
+						redraw |= ele.handle_event(ev, self);
 					},
 				}
 			}
