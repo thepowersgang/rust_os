@@ -125,7 +125,7 @@ diff -ru libcore/num/flt2dec/decoder.rs libcore_patched/num/flt2dec/decoder.rs
 +++ libcore_patched/num/flt2dec/decoder.rs	2015-07-02 13:02:04.784163432 +0800
 @@ -12,6 +12,7 @@
  
- use prelude::*;
+ use prelude::v1::*;
  
 +#[cfg(not(disable_float))]
  use {f32, f64};
@@ -148,7 +148,10 @@ diff -ru libcore/num/flt2dec/decoder.rs libcore_patched/num/flt2dec/decoder.rs
 diff -ru libcore/num/mod.rs libcore_patched/num/mod.rs
 --- libcore/num/mod.rs	2015-07-02 13:02:27.903621378 +0800
 +++ libcore_patched/num/mod.rs	2015-07-02 13:02:04.784163432 +0800
-@@ -93,6 +92,7 @@
+@@ -47,1 +47,2 @@
++#[cfg(not(disable_float))]
+ pub mod dec2flt;
+@@ -94,6 +93,7 @@
          }
      )*)
  }
@@ -156,14 +159,14 @@ diff -ru libcore/num/mod.rs libcore_patched/num/mod.rs
  zero_one_impl_float! { f32 f64 }
  
  macro_rules! checked_op {
-@@ -1402,7 +1400,9 @@
+@@ -1400,7 +1398,9 @@
          }
      }
  }
 +#[cfg(not(disable_float))]
- from_str_float_impl!(f32);
+ from_str_float_impl!(f32, to_f32);
 +#[cfg(not(disable_float))]
- from_str_float_impl!(f64);
+ from_str_float_impl!(f64, to_f64);
  
  macro_rules! from_str_radix_int_impl {
 diff -ru libcore/ops.rs libcore_patched/ops.rs
