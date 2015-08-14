@@ -92,9 +92,9 @@ enum FrameType { Raise, Bevel }
 /// Provides a frame around an element
 pub struct Frame<E: ::Element>
 {
+	item: E,
 	frame_type: FrameType,
 	//frame_width: u32,
-	item: E,
 }
 
 
@@ -108,6 +108,9 @@ impl<E: ::Element> Frame<E>
 			item: ele,
 		}
 	}
+
+	pub fn inner(&self) -> &E { &self.item }
+	pub fn inner_mut(&mut self) -> &mut E { &mut self.item }
 }
 
 impl<E: ::Element> ::Element for Frame<E>

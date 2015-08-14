@@ -21,6 +21,8 @@ mod window;
 mod layout;
 mod input;
 
+mod image;
+
 /// Re-export GUI events for users of the library
 pub use syscalls::gui::Event as InputEvent;
 
@@ -36,8 +38,16 @@ impl<'a, T: Element> Element for &'a T
 	fn render(&self, surface: ::surface::SurfaceView) { (*self).render(surface) }
 	fn handle_event(&self, ev: ::InputEvent, win: &mut ::window::Window) -> bool { (*self).handle_event(ev, win) }
 }
+impl Element for ()
+{
+	fn focus_change(&self, have: bool) { }
+	fn render(&self, surface: ::surface::SurfaceView) { }
+	fn handle_event(&self, ev: ::InputEvent, win: &mut ::window::Window) -> bool { false }
+}
 
 pub use window::Window;
 pub use layout::{Frame,Box};
 pub use input::text_box::TextInput;
+pub use input::button::Button;
+pub use image::Image;
 
