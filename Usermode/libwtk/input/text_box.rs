@@ -6,6 +6,7 @@ pub use surface::Colour;
 pub use geom::Rect;
 
 #[derive(Default)]
+/// A single-line text input widget, supporting shadow text and optionally obscured input
 pub struct TextInput<'a>
 {
 	state: ::std::cell::RefCell<State>,
@@ -27,6 +28,7 @@ struct State
 
 impl<'a> TextInput<'a>
 {
+	/// Create a new input widget
 	pub fn new() -> TextInput<'a> {
 		Default::default()
 	}
@@ -35,32 +37,58 @@ impl<'a> TextInput<'a>
 	pub fn set_shadow<T: Into<String>>(&mut self, text: T) {
 		self.shadow = text.into();
 	}
+	/// Set the obsucuring character
 	pub fn set_obscured(&mut self, replacement: char) {
 		self.obscure_char = Some(replacement);
 	}
 
+	/// Set a function to be called when "enter" is pressed
+	/// 
+	/// Closure is passed a shared handle to this widget, and a mutable handle to the owning
+	/// window.
 	pub fn bind_submit<F: Fn(&Self, &mut ::window::Window)+'a>(&mut self, cb: F) {
 		self.submit_cb = Some( Box::new(cb) );
 	}
 
-	pub fn get_content(&self) -> String {
-		self.state.borrow().value.clone()
+	/// Returns the inner content of this text box
+	pub fn get_content(&self) -> /* impl Deref<Target=str>+Display*/ Content {
+		Content(self.state.borrow())
+	}
+}
+
+/// Borrow of a `TextInput` widget's content
+pub struct Content<'a>(::std::cell::Ref<'a, State>);
+impl<'a> ::std::ops::Deref for Content<'a> {
+	type Target = str;
+	fn deref(&self) -> &str { &self.0.value }
+}
+impl<'a> ::std::fmt::Display for Content<'a> {
+	fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
+		::std::fmt::Display::fmt( &self.0.value, f )
 	}
 }
 
 impl<'a> ::Element for TextInput<'a>
 {
+	// On focus change, update flag used to render the cursor
 	fn focus_change(&self, have: bool) {
 		self.state.borrow_mut().is_focussed = have;
 	}
+
 	fn render(&self, surface: ::surface::SurfaceView) {
-		surface.fill_rect( Rect::new(0,0,!0,1), Colour::theme_border_main() );
-		surface.fill_rect( Rect::new(0,surface.height()-1,!0,1), Colour::theme_border_main() );
-		surface.fill_rect( Rect::new(0,0,1,!0), Colour::theme_border_alt() );
-		surface.fill_rect( Rect::new(surface.width()-1,0,1,!0), Colour::theme_border_alt() );
-		let pos = Rect::new(1,1,!0,!0);
+		let (w,h) = (surface.width(), surface.height());
+		// A basic raised border (top-left illuminated)
+		// TODO: Shouldn't the border be the job of a wrapping frame? Kinda heavy, but cleaner
+		surface.fill_rect( Rect::new(0,0,w,1), Colour::theme_border_main() );
+		surface.fill_rect( Rect::new(0,0,1,h), Colour::theme_border_main() );
+		surface.fill_rect( Rect::new(0,h-1,w,1), Colour::theme_border_alt() );
+		surface.fill_rect( Rect::new(w-1,0,1,h), Colour::theme_border_alt() );
+
+		// Text positioned 1px from the corners
+		let pos = Rect::new(1,1,w-2,h-2);
 		surface.fill_rect( pos, Colour::theme_text_bg() );
 		let state = self.state.borrow();
+		// TODO: Support interior editing (and have the cursor midway)
 		let cursor_pos =
 			if state.value == ""
 			{
@@ -78,8 +106,10 @@ impl<'a> ::Element for TextInput<'a>
 				// Render plain
 				surface.draw_text( pos, state.value.chars(), Colour::theme_text() )
 			};
+		// If focused, render a cursor at the insert position.
+		// - Vertical line from 2px to -2px
 		if state.is_focussed {
-			surface.fill_rect( Rect::new(cursor_pos as u32, 2, 1, surface.height()-4), Colour::theme_text() );
+			surface.fill_rect( Rect::new(cursor_pos as u32, 2,  1, h-4), Colour::theme_text() );
 		}
 	}
 

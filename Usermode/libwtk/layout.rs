@@ -1,3 +1,7 @@
+//
+//
+//
+//! Layout widgets
 
 use surface::Colour;
 use super::Element;
@@ -11,6 +15,7 @@ impl Direction {
 
 pub struct Size(u32);
 
+/// Box containing multiple elements, handles auto-sizing of elements
 pub struct Box<'a>
 {
 	direction: Direction,
@@ -19,16 +24,20 @@ pub struct Box<'a>
 
 impl<'a> Box<'a>
 {
+	/// Create a vertically stacked box
 	pub fn new_vert() -> Box<'a> {
 		Box { direction: Direction::Vertical, items: Vec::new() }
 	}
+	/// Create a horizontally stacked box
 	pub fn new_horiz() -> Box<'a> {
 		Box { direction: Direction::Horizontal, items: Vec::new() }
 	}
 
+	/// Add an item to the box, optionally a fixed size
 	pub fn add(&mut self, item: &'a Element, size: Option<u32>) {
 		self.items.push( (Some(item), size.map(|v| Size(v))) );
 	}
+	/// Add a spacer to the box, of an optional size
 	pub fn add_fill(&mut self, size: Option<u32>) {
 		self.items.push( (None, size.map(|v| Size(v))) );
 	}
@@ -80,31 +89,28 @@ impl<'a> super::Element for Box<'a>
 
 enum FrameType { Raise, Bevel }
 
-pub struct Frame<'a>
+/// Provides a frame around an element
+pub struct Frame<E: ::Element>
 {
 	frame_type: FrameType,
-	frame_width: u32,
-	item: Option<&'a Element>,
+	//frame_width: u32,
+	item: E,
 }
 
 
-impl<'a> Frame<'a>
+impl<E: ::Element> Frame<E>
 {
-	pub fn new() -> Frame<'a> {
+	/// Construct a new framed element
+	pub fn new(ele: E) -> Frame<E> {
 		Frame {
 			frame_type: FrameType::Raise,
-			frame_width: 2, // 2 px of frame
-			item: None,
+			//frame_width: 2, // 2 px of frame
+			item: ele,
 		}
-	}
-
-	pub fn add(&mut self, item: &'a Element) {
-		assert!(self.item.is_none());
-		self.item = Some(item);
 	}
 }
 
-impl<'a> ::Element for Frame<'a>
+impl<E: ::Element> ::Element for Frame<E>
 {
 	fn render(&self, surface: ::surface::SurfaceView) {
 		match self.frame_type
@@ -118,10 +124,7 @@ impl<'a> ::Element for Frame<'a>
 		FrameType::Bevel => {
 			},
 		}
-		match self.item
-		{
-		Some(i) => i.render(surface.slice( Rect::new(2,2, surface.width()-4, surface.height()-4) )),
-		None => {},
-		}
+
+		self.item.render(surface.slice( Rect::new(2,2, surface.width()-4, surface.height()-4) ));
 	}
 }

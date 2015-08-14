@@ -12,6 +12,11 @@ extern crate syscalls;
 
 fn main()
 {
+	const MENU_BTN_WIDTH: u32 = 16;
+	const MENU_HEIGHT: u32 = 16;
+	const ENTRY_FRAME_HEIGHT: u32 = 40;
+	const TEXTBOX_HEIGHT: u32 = 16;
+
 	// Obtain window group from parent
 	{
 		use syscalls::Object;
@@ -20,9 +25,20 @@ fn main()
 		::syscalls::gui::set_group( S_THIS_PROCESS.receive_object::<::syscalls::gui::Group>(0).unwrap() );
 	}
 
+	// Menu bar
+	//let mut options_button = ::wtk::Button::new( ::wtk::Image::new("/Tifflin/shared/images/options.r32") );
+	//options_button.bind_click( |_btn,_win| () );
+	//let mut power_button = ::wtk::Button::new( ::wtk::Image::new("/Tifflin/shared/images/power.r32") );
+	//power_button.bind_click( |_btn,_win| () );
+	let mut menubar = ::wtk::Box::new_horiz();
+	//menubar.add(&options_button, Some(MENU_BTN_WIDTH));
+	//menubar.add_fill(None);
+	//menubar.add(&power_button, Some(MENU_BTN_WIDTH));
+
+	// Login box (vertially staked, centered)
 	let mut username = ::wtk::TextInput::new();
 	username.set_shadow("Username");
-		
+	
 	let mut password = ::wtk::TextInput::new();
 	password.set_shadow("Password");
 	password.set_obscured('\u{2022}');	// Bullet
@@ -32,19 +48,17 @@ fn main()
 		let uname = username.get_content();
 		let pword = password.get_content();
 		kernel_log!("username = \"{}\", password = \"{}\"", uname, pword);
-		if uname == "root" && pword == "password" {
+		if &*uname == "root" && &*pword == "password" {
 			// TODO: Spawn console, and wait for it to terminate
 		}
 		});
-
 	let mut fvbox = ::wtk::Box::new_vert();
 	fvbox.add_fill(None);
-	fvbox.add(&username, Some(16));
-	fvbox.add(&password, Some(16));
+	fvbox.add(&username, Some(TEXTBOX_HEIGHT));
+	fvbox.add(&password, Some(TEXTBOX_HEIGHT));
 	fvbox.add_fill(None);
 
-	let mut frame = ::wtk::Frame::new();
-	frame.add(&fvbox);
+	let mut frame = ::wtk::Frame::new(&fvbox);
 
 	let mut hbox = ::wtk::Box::new_horiz();
 	hbox.add_fill(None);
@@ -52,9 +66,11 @@ fn main()
 	hbox.add_fill(None);
 
 	let mut vbox = ::wtk::Box::new_vert();
+	vbox.add(&menubar, Some(MENU_HEIGHT));
 	vbox.add_fill(None);
-	vbox.add(&hbox, Some(40));
+	vbox.add(&hbox, Some(ENTRY_FRAME_HEIGHT));
 	vbox.add_fill(None);
+	vbox.add_fill(Some(MENU_HEIGHT));
 
 	let mut win = ::wtk::Window::new(&vbox);
 	win.undecorate();

@@ -3,6 +3,7 @@ use geom::Rect;
 
 use syscalls::Object;
 
+/// Toolkit window
 pub struct Window<'a>
 {
 	win: ::syscalls::gui::Window,
@@ -10,11 +11,12 @@ pub struct Window<'a>
 	root: &'a ::Element,
 
 	focus: Option<&'a ::Element>,
-	taborder: Vec<&'a ::Element>,
+	taborder: Vec<(usize, &'a ::Element)>,
 }
 
 impl<'a> Window<'a>
 {
+	/// Create a new window containing the provided element
 	pub fn new(ele: &::Element) -> Window {
 		Window {
 			win: match ::syscalls::gui::Window::new("")
@@ -29,34 +31,57 @@ impl<'a> Window<'a>
 		}
 	}
 
+	/// Set the currently focussed element to an arbitary element)
+	/// 
+	/// NOTE: Undefined things happen if this element isn't within this window's 
+	///       render tree.
 	pub fn focus(&mut self, ele: &'a ::Element) {
 		self.focus.map(|e| e.focus_change(false));
 		self.focus = Some(ele);
 		ele.focus_change(true);
 	}
-	pub fn taborder_add(&mut self, _idx: usize, ele: &'a ::Element) {
-		self.taborder.push( ele );
+	/// Clear focus
+	pub fn clear_focus(&mut self) {
+		self.focus.map(|e| e.focus_change(false));
+		self.focus = None;
 	}
-	pub fn tabto(&mut self, idx: usize) {
-		if let Some(&e) = self.taborder.get(idx-1)
+
+	/// Add the specified element to the tab order. Index uniquely identifies this element in the order
+	pub fn taborder_add(&mut self, idx: usize, ele: &'a ::Element) {
+		match self.taborder.binary_search_by(|v| ::std::cmp::Ord::cmp(&v.0, &idx))
 		{
+		Ok(i) => {},
+		Err(i) => {
+			self.taborder.insert(i, (idx, ele));
+			},
+		}
+	}
+	/// Move to the specified location in the tab order (using the index passed to `taborder_add`)
+	pub fn tabto(&mut self, idx: usize) {
+		if let Ok(i) = self.taborder.binary_search_by(|v| ::std::cmp::Ord::cmp(&v.0, &idx))
+		{
+			let e = self.taborder[i].1;
 			self.focus(e);
 		}
 	}
 
+	/// Disable window decorations on this window
 	pub fn undecorate(&mut self) {
 		//panic!("TODO: undecorate");
 	}
+	/// Maximise the window
 	pub fn maximise(&mut self) {
 		self.win.maximise();
 		self.surface.resize( self.win.get_dims() );
 	}
 
+	/// Manually request a redraw of the window
 	pub fn rerender(&self) {
 		self.root.render( self.surface.slice( Rect::new_full() ) );
 		self.surface.blit_to_win( &self.win );
 	}
 
+	/// Show the window
 	pub fn show(&mut self) {
 		self.rerender();
 		self.win.show();
@@ -83,7 +108,7 @@ impl<'a> ::async::WaitController for Window<'a>
 				// TODO: Allow the element to capture instead, maybe by passing self to it?
 				::InputEvent::KeyDown(::syscalls::gui::KeyCode::Tab) => {},
 				::InputEvent::KeyUp(::syscalls::gui::KeyCode::Tab) => {
-					let e = self.taborder[1];	// HACK! Until I cbf tracking the position in the taborder, just hard-code to #2
+					let e = self.taborder[1].1;	// HACK! Until I cbf tracking the position in the taborder, just hard-code to #2
 					self.focus(e);
 					redraw = true;
 					},

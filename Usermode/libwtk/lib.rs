@@ -30,6 +30,12 @@ pub trait Element
 	fn render(&self, surface: ::surface::SurfaceView);
 	fn handle_event(&self, ev: ::InputEvent, win: &mut ::window::Window) -> bool { false }
 }
+impl<'a, T: Element> Element for &'a T
+{
+	fn focus_change(&self, have: bool) { (*self).focus_change(have) }
+	fn render(&self, surface: ::surface::SurfaceView) { (*self).render(surface) }
+	fn handle_event(&self, ev: ::InputEvent, win: &mut ::window::Window) -> bool { (*self).handle_event(ev, win) }
+}
 
 pub use window::Window;
 pub use layout::{Frame,Box};
