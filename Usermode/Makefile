@@ -138,7 +138,7 @@ $(OBJDIR)rustrt0.o: rustrt0/$(ARCH).S Makefile
 	$V$(CC) -o $@ -c $< -D ARCH_$(ARCH) -fPIC
 
 # Generate dependencies for EVERY crate
-fn_getstd = $(shell grep -F "![no_std]" $1 >/dev/null || echo "std")
+fn_getstd = $(shell grep -F "![no_std]" $1 >/dev/null && echo "core" || echo "std")
 fn_mmdep = $2: $(patsubst %,$(LIBDIR)lib%.rlib,$(call fn_getdeps,$1) $(call fn_getstd,$1))
 # - Assumes that if there's a main.rs file, a binary is generated, and for lib.rs a rlib is generated
 $(foreach m, $(wildcard */lib.rs), $(eval $(call fn_mmdep,$m,$(m:%/lib.rs=$(OBJDIR)%.rlib))))
