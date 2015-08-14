@@ -121,7 +121,6 @@ impl<T> Vec<T>
 		// Expand by one element
 		let ns = self.size + 1;
 		self.reserve_cap(ns);
-		self.size = ns;
 		unsafe
 		{
 			// Move elements (pos .. len) to (pos+1 .. len+1)
@@ -134,6 +133,7 @@ impl<T> Vec<T>
 			// Store new element
 			::core::ptr::write( self.data.get_ptr_mut(pos), value );
 		}
+		self.size = ns;
 	}
 	pub fn remove(&mut self, pos: usize) -> T {
 		assert!(pos < self.size);
