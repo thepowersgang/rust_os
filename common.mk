@@ -10,6 +10,7 @@ endif
 CC := $(TRIPLE)-gcc
 LD := $(TRIPLE)-ld
 AS := $(TRIPLE)-as
+OBJDUMP := $(TRIPLE)-objdump
 
 ROOTDIR := $(dir $(lastword $(MAKEFILE_LIST)))
 

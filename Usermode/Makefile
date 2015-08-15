@@ -86,6 +86,7 @@ $(OBJDIR)%: %/src/main.rs $(TARGET_SPEC) Makefile link-$(ARCH).ld $(OBJDIR)rustr
 	@mkdir -p $(dir $@)
 	@echo [RUSTC] $@
 	$V$(RUSTC) $(RUSTFLAGS) --emit=link,dep-info --out-dir $(OBJDIR) $< --crate-type=bin --crate-name=$* --verbose
+	$V$(OBJDUMP) -S $@ > $@.dsm
 
 # - Local libraries (with src dir)
 $(OBJDIR)lib%.rlib: lib%/src/lib.rs $(TARGET_SPEC) Makefile
