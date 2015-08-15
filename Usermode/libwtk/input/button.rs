@@ -42,10 +42,31 @@ impl<'a, T: ::Element> ::Element for Button<'a, T>
 	}
 
 	fn handle_event(&self, ev: ::InputEvent, win: &mut ::window::Window) -> bool {
-		todo!("");
+		match ev
+		{
+		::InputEvent::MouseUp(0) => {
+			self.state.borrow_mut().is_held = false;
+			true
+			},
+		::InputEvent::MouseDown(0) => {
+			self.state.borrow_mut().is_held = true;
+			true
+			},
+		::InputEvent::KeyUp(::syscalls::gui::KeyCode::Return) =>
+			if let Some(ref cb) = self.click_cb
+			{
+				cb(self, win);
+				true
+			}
+			else {
+				false
+			},
+		_ => false,
+		}
 	}
 
 	fn render(&self, surface: ::surface::SurfaceView) {
+		self.inner.render(surface)
 	}
 }
 

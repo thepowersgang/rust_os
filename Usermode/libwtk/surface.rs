@@ -5,6 +5,11 @@ use geom::{Rect,Px};
 pub struct Colour(u32);
 impl Colour
 {
+	pub fn from_argb32(argb32: u32) -> Colour { Colour(argb32) }
+	pub fn from_rgb(r: u8, g: u8, b: u8) -> Colour {
+		let argb32 = 0 << 24 | (r as u32) << 16 | (g as u32) << 8 | (b as u32);
+		Colour( argb32 )
+	}
 	//pub fn black() -> Colour { Colour(0) }
 	//pub fn ltgray() -> Colour { Colour(0xDD_DD_DD) }
 	//pub fn gray() -> Colour { Colour(0x55_55_55) }
@@ -17,6 +22,34 @@ impl Colour
 	pub fn theme_border_alt() -> Colour { Colour(0x00_E0E0E0) }
 	pub fn theme_text_bg() -> Colour { Colour(0xF8FFF8) }
 	pub fn theme_body_bg() -> Colour { Colour(0x002000) }
+
+	/// Alpha value, 0 = opaque, 255 = transparent
+	pub fn alpha(&self) -> u8 {
+		(self.0 >> 24) as u8
+	}
+	pub fn red  (&self) -> u8 { (self.0 >> 16) as u8 }
+	pub fn green(&self) -> u8 { (self.0 >>  8) as u8 }
+	pub fn blue (&self) -> u8 { (self.0 >>  0) as u8 }
+
+	pub fn blend(lower: Colour, upper: Colour) -> Colour {
+		let alpha: u32 = upper.alpha() as u32;
+		if alpha == 0 {
+			upper
+		}
+		else if alpha == 255 {
+			lower
+		}
+		else {
+			let r = Self::blend_component( alpha, lower.red(),   upper.red() );
+			let g = Self::blend_component( alpha, lower.green(), upper.green() );
+			let b = Self::blend_component( alpha, lower.blue(),  upper.blue() );
+			Colour::from_rgb(r,g,b)
+		}
+	}
+	fn blend_component(alpha: u32, lower: u8, upper: u8) -> u8 {
+		let val_by_255 = lower as u32 * alpha + upper as u32 * (255 - alpha);
+		(val_by_255 / 255) as u8
+	}
 }
 
 #[derive(Default)]
@@ -38,6 +71,8 @@ impl Surface
 			(self.data.borrow().len() / self.width) as u32
 		}
 	}
+
+	/// Blit to the passed GUI window
 	pub fn blit_to_win(&self, win: &::syscalls::gui::Window)
 	{
 		let dirty: Rect<Px> = self.dirty.get();
@@ -52,15 +87,18 @@ impl Surface
 			&self.data.borrow()[first_row*self.width..][..row_count*self.width]
 			);
 	}
+	/// Resize the surface (clearing existing content)
 	pub fn resize(&mut self, dims: ::syscalls::gui::Dims) {
 		self.width = dims.w as usize;
 		*self.data.borrow_mut() = vec![Colour::theme_body_bg().as_argb32(); (dims.w as usize * dims.h as usize)];
 		// On resize, set dirty area to full area of the surface
 		self.dirty.set( self.rect() );
 	}
+	/// Obtain a rect covering the entire surface
 	pub fn rect(&self) -> Rect<Px> {
 		Rect::new(0, 0, self.width as u32, self.height())
 	}
+	/// Obtain a view into this surface
 	pub fn slice(&self, rect: Rect<Px>) -> SurfaceView {
 		let rect = self.rect().intersect(&rect);
 		kernel_log!("Surface::slice - rect={:?}", rect);
@@ -93,8 +131,14 @@ pub struct SurfaceView<'a>
 }
 impl<'a> SurfaceView<'a>
 {
+	/// Obtain a full rectangle of this surface
+	pub fn rect(&self) -> Rect<Px> {
+		Rect::new(0, 0, self.width(), self.height())
+	}
 	pub fn width(&self) -> u32 { self.rect.width().0 }
 	pub fn height(&self) -> u32 { self.rect.height().0 }
+
+	/// Create a sub-view of the surface
 	pub fn slice(&self, rect: Rect<Px>) -> SurfaceView {
 		SurfaceView {
 			surf: self.surf,
@@ -106,6 +150,7 @@ impl<'a> SurfaceView<'a>
 		self.surf.foreach_scanlines( self.rect.relative(&rect), f )
 	}
 
+	/// Fill a region with a solid colour
 	pub fn fill_rect(&self, rect: Rect<Px>, colour: Colour) {
 		self.foreach_scanlines(rect, |_, line|
 			for px in line.iter_mut() {
@@ -114,24 +159,17 @@ impl<'a> SurfaceView<'a>
 			);
 	}
 
+	/// Draw characters yielded from the passed iterator using the default font
 	pub fn draw_text<It: Iterator<Item=char>>(&self, mut rect: Rect<Px>, chars: It, colour: Colour) -> usize {
 		let mut st = S_FONT.get_renderer();
 		let mut chars = chars.peekable();
 		kernel_log!("draw_text: rect = {:?}", rect);
-		while let Some( (w,h) ) = st.render_grapheme(&mut chars, colour)
+		while let Some( (w,_h) ) = st.render_grapheme(&mut chars, colour)
 		{
-			//kernel_log!("rect = {:?}", rect);
 			self.foreach_scanlines(rect, |i, line| {
 				for (d,s) in line.iter_mut().zip( st.buffer(i, w as usize) )
 				{
-					// TODO: Alpha blend
-					match *s >> 24 {
-					0 => { *d = *s; },
-					255 => {},
-					_ => panic!("TODO: Alpha blending"),
-					}
-					//*d = Colour::blend( Colour::from_argb32(*d), Colour::from_argb32(*s) );
-					//*d = *s;
+					*d = Colour::blend( Colour::from_argb32(*d), Colour::from_argb32(*s) ).as_argb32();
 				}
 				});
 			rect = rect.offset(::geom::Px(w), ::geom::Px(0));
@@ -139,6 +177,10 @@ impl<'a> SurfaceView<'a>
 		rect.x().0 as usize
 	}
 }
+
+// --------------------------------------------------------------------
+// Fallback/simple monospace font (Classic VGA, aka CP437)
+// --------------------------------------------------------------------
 
 static S_FONT: MonoFont = MonoFont::new();
 struct MonoFont;

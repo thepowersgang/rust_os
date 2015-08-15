@@ -83,6 +83,7 @@ impl<T: CoordType> Rect<T>
 	pub fn x2(&self) -> T { self.x + self.w }
 	pub fn y2(&self) -> T { self.y + self.h }
 
+	/// Get the trivial union of two rectangles (i.e. the smallest rect containing both)
 	pub fn union(&self, other: &Rect<T>) -> Rect<T> {
 		let x = ::std::cmp::min(self.x, other.x);
 		let y = ::std::cmp::min(self.y, other.y);
@@ -91,6 +92,7 @@ impl<T: CoordType> Rect<T>
 		Rect::new_pts(x, y, x2, y2)
 	}
 
+	/// Get the intersection of two rectangles
 	pub fn intersect(&self, other: &Rect<T>) -> Rect<T> {
 		let x = ::std::cmp::max(self.x, other.x);
 		let y = ::std::cmp::max(self.y, other.y);
@@ -102,6 +104,7 @@ impl<T: CoordType> Rect<T>
 		rv
 	}
 
+	/// Obtain a new rect offset from this by x,y
 	pub fn offset(&self, x: T, y: T) -> Rect<T> {
 		Rect {
 			x: self.x + x,
@@ -111,11 +114,20 @@ impl<T: CoordType> Rect<T>
 		}
 	}
 
+	/// Get the absolute rect from a relative rect.
 	pub fn relative(&self, other: &Rect<T>) -> Rect<T> {
-		let x = self.x + other.x;
-		let y = self.y + other.y;
-		let ox = ::std::cmp::min(self.x2(), self.x + other.x2());
-		let oy = ::std::cmp::min(self.y2(), self.y + other.y2());
+		let (x, ox) = if other.x < self.w {
+				( self.x + other.x, ::std::cmp::min(self.x2(), self.x + other.x2()) )
+			}
+			else {
+				( self.x + self.w, T::zero() )
+			};
+		let (y, oy) = if other.y < self.w {
+				( self.y + other.y, ::std::cmp::min(self.y2(), self.y + other.y2()) )
+			}
+			else {
+				( self.y + self.w, T::zero() )
+			};
 
 		let rv = Rect::new_pts(x, y, ox, oy);
 		//kernel_log!("Rect::relative {:?} int {:?} = {:?}", self, other, rv);
