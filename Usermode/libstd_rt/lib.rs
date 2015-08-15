@@ -4,6 +4,7 @@
 // Standard Library - Runtime support (aka unwind and panic)
 #![feature(no_std)]
 #![feature(lang_items)]	// Allow definition of lang_items
+#![feature(asm)]	// Used by backtrace code
 #![no_std]
 
 #[macro_use]
@@ -14,6 +15,10 @@ extern crate macros;
 mod std {
 	pub use core::fmt;
 }
+
+#[cfg(arch__amd64)]
+#[path="arch-x86_64.rs"]
+mod arch;
 
 pub fn begin_unwind<M: ::core::any::Any+Send+'static>(msg: M, file_line: &(&'static str, u32)) -> ! {
 	let file = file_line.0;
@@ -37,6 +42,9 @@ pub extern "C" fn rust_begin_unwind(msg: ::core::fmt::Arguments, file: &'static 
 	use core::fmt::Write;
 	// Spit out that log
 	kernel_log!("PANIC: {}:{}: {}", file, line, msg);
+	// - Backtrace
+	// TODO: Backtrace
+	kernel_log!("- Backtrace: {:?}", arch::Backtrace::new());
 	// Exit the process with a special error code
 	::syscalls::threads::exit(0xFFFF_FFFF);
 }
