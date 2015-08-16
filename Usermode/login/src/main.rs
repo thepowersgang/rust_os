@@ -50,6 +50,7 @@ fn main()
 		let uname = username.get_content();
 		let pword = password.get_content();
 		kernel_log!("username = \"{}\", password = \"{}\"", uname, pword);
+		// TODO: Use a proper auth infrastructure
 		if &*uname == "root" && &*pword == "password" {
 			// TODO: Spawn console, and wait for it to terminate
 		}
