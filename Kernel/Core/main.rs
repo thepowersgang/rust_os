@@ -44,7 +44,7 @@ pub use arch::memory::PAGE_SIZE;
 #[doc(hidden)]
 #[macro_use] pub mod macros;
 #[doc(hidden)]
-#[macro_use] #[cfg(arch__amd64)] #[path="arch/amd64/mod-macros.rs"] pub mod arch_macros;
+#[macro_use] #[cfg(arch="amd64")] #[path="arch/amd64/mod-macros.rs"] pub mod arch_macros;
 
 // Evil Hack: For some reason, write! (and friends) will expand pointing to std instead of core
 #[doc(hidden)]
@@ -106,7 +106,7 @@ mod hw;
 
 /// Achitecture-specific code - AMD64 (aka x86-64)
 #[macro_use]
-#[cfg(arch__amd64)] #[path="arch/amd64/mod.rs"] pub mod arch;	// Needs to be pub for exports to be avaliable
+#[cfg(arch="amd64")] #[path="arch/amd64/mod.rs"] pub mod arch;	// Needs to be pub for exports to be avaliable
 
 /// Kernel version (with build number)
 pub const VERSION_STRING: &'static str = concat!("Tifflin Kernel v", env!("TK_VERSION"), " build ", env!("TK_BUILD"));
@@ -269,9 +269,9 @@ fn spawn_init(loader_path: &str, init_cmdline: &str)
 		entrypoint: usize,
 	}
 	const MAGIC: u32 = 0x71FF1013;
-	#[cfg(arch__amd64)]
+	#[cfg(arch="amd64")]
 	const INFO: u32 = (3*4+2*8) | (2 << 8);
-	#[cfg(arch__amd64)]
+	#[cfg(arch="amd64")]
 	const LOAD_MAX: usize = 1 << 47;
 	
 	log_log!("Loading userland '{}' args '{}'", loader_path, init_cmdline);

@@ -68,7 +68,7 @@ RUSTFLAGS += -C soft-float	# Disables requiring SSE etc
 RUSTFLAGS += -C target-feature=$(subst $(space),$(comma),$(EXCLUDE_FEATURES:%=-%))
 RUSTFLAGS += -C no-vectorize-loops
 RUSTFLAGS += -C no-vectorize-slp
-RUSTFLAGS += --cfg arch__$(ARCH)
+RUSTFLAGS += --cfg 'arch="$(ARCH)"'
 RUSTFLAGS += -L bin/plugins/
 RUSTFLAGS += --cfg nightly --cfg no_std
 RUSTFLAGS += --cfg disable_float
@@ -113,7 +113,7 @@ clean:	rm -r $(OBJDIR)
 
 docs:
 	@mkdir -p doc/Kernel
-	$V$(ENV) $(RUSTDOC) -o doc/Kernel Core/main.rs --cfg arch__amd64 -L bin/plugins
+	$V$(ENV) $(RUSTDOC) -o doc/Kernel Core/main.rs --cfg 'arch="amd64"' -L bin/plugins
 	@chmod +rX doc/ -R 
 
 run: bin/kernel-$(ARCH).bin

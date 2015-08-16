@@ -16,7 +16,7 @@ mod std {
 	pub use core::fmt;
 }
 
-#[cfg(arch__amd64)]
+#[cfg(arch="amd64")]
 #[path="arch-x86_64.rs"]
 mod arch;
 

@@ -21,7 +21,7 @@ OBJDIR := .objs/$(ARCH)/
 
 # Rust compilation flags
 TARGET_SPEC := target-$(ARCH).json
-RUSTFLAGS := --target=$(TARGET_SPEC) --cfg arch__$(ARCH) --cfg nightly
+RUSTFLAGS := --target=$(TARGET_SPEC) --cfg 'arch="$(ARCH)"' --cfg nightly
 RUSTFLAGS += -O
 #RUSTFLAGS += -C llvm-args=-Os
 RUSTFLAGS += -g
