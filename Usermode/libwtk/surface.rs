@@ -31,8 +31,8 @@ impl Colour
 	pub fn green(&self) -> u8 { (self.0 >>  8) as u8 }
 	pub fn blue (&self) -> u8 { (self.0 >>  0) as u8 }
 
-	pub fn blend(lower: Colour, upper: Colour) -> Colour {
-		let alpha: u32 = upper.alpha() as u32;
+	pub fn blend_alpha(lower: Colour, upper: Colour, alpha: u8) -> Colour {
+		let alpha: u32 = alpha as u32;
 		if alpha == 0 {
 			upper
 		}
@@ -45,6 +45,9 @@ impl Colour
 			let b = Self::blend_component( alpha, lower.blue(),  upper.blue() );
 			Colour::from_rgb(r,g,b)
 		}
+	}
+	pub fn blend(lower: Colour, upper: Colour) -> Colour {
+		Colour::blend_alpha(lower, upper, upper.alpha())
 	}
 	fn blend_component(alpha: u32, lower: u8, upper: u8) -> u8 {
 		let val_by_255 = lower as u32 * alpha + upper as u32 * (255 - alpha);
@@ -146,7 +149,8 @@ impl<'a> SurfaceView<'a>
 		}
 	}
 
-	fn foreach_scanlines<F: FnMut(usize, &mut [u32])>(&self, rect: Rect<Px>, f: F) {
+	/// Iterate over scanlines in a rect (scanlines are [u32] xRGB32)
+	pub fn foreach_scanlines<F: FnMut(usize, &mut [u32])>(&self, rect: Rect<Px>, f: F) {
 		self.surf.foreach_scanlines( self.rect.relative(&rect), f )
 	}
 

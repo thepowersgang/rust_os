@@ -28,9 +28,11 @@ fn main()
 	// Menu bar
 	// - Two buttons: Options and power
 	// TODO: At the moment, the image widget does nothing. Need to decide where images live, and what format.
-	let mut options_button = ::wtk::Button::new( ::wtk::Image::new("/Tifflin/shared/images/options.r32") );
+	let options_icon = ::wtk::Colour::theme_text_bg();	//::wtk::image::RasterMonoA::new("/Tifflin/shared/images/options.r32");
+	let power_icon   = ::wtk::Colour::theme_text_bg();	//::wtk::image::RasterMonoA::new("/Tifflin/shared/images/power.r32");
+	let mut options_button = ::wtk::Button::new( ::wtk::Image::new(options_icon) );
 	options_button.bind_click( |_btn,_win| () );
-	let mut power_button = ::wtk::Button::new( ::wtk::Image::new("/Tifflin/shared/images/power.r32") );
+	let mut power_button = ::wtk::Button::new( ::wtk::Image::new(power_icon) );
 	power_button.bind_click( |_btn,_win| () );
 	let mut menubar = ::wtk::Box::new_horiz();
 	menubar.add(&options_button, Some(MENU_BTN_WIDTH));

@@ -21,7 +21,9 @@ mod window;
 mod layout;
 mod input;
 
-mod image;
+pub mod image;
+
+pub use surface::Colour;
 
 /// Re-export GUI events for users of the library
 pub use syscalls::gui::Event as InputEvent;
