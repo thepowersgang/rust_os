@@ -41,22 +41,47 @@ impl<'a> Box<'a>
 	pub fn add_fill(&mut self, size: Option<u32>) {
 		self.items.push( (None, size.map(|v| Size(v))) );
 	}
+
+	fn with_element_at<T, F: FnOnce(&::Element, (u32,u32))->T>(&self, x: u32, y: u32, f: F) -> T {
+		let pos = if self.direction.is_vert() { y } else { x };
+		// TODO: Need to know the size of the box (which is determined by the parent)
+		panic!("Box::with_element_at");
+	}
+
+	fn get_expand_size(&self, cap: u32) -> u32 {
+		let (fixed_total, num_expand) = self.items.iter().fold( (0,0), |(total,exp), i| if let Some(Size(v)) = i.1 { (total+v, exp) } else { (total, exp+1) } );
+		if fixed_total > cap {
+			return 0;
+		}
+		if num_expand > 0 {
+			(cap - fixed_total) / num_expand
+		}
+		else {
+			0
+		}
+	}
 }
 
 impl<'a> super::Element for Box<'a>
 {
+	fn handle_event(&self, ev: ::InputEvent, /*r: Rect<Px>,*/ win: &mut ::window::Window) -> bool {
+		match ev
+		{
+		::InputEvent::MouseUp(x,y,_b) => {
+			self.with_element_at(x,y, /*rect.w().0, rect.h().0,*/ |e, ele_rect| e.handle_event(ev, /*ele_rect.offset(r.x(),r.y()), */ win))
+			},
+		::InputEvent::MouseDown(x,y,_b) => {
+			self.with_element_at(x,y, /*rect.w().0, rect.h().0,*/ |e, ele_rect| e.handle_event(ev, /*ele_rect.offset(r.x(),r.y()), */ win))
+			},
+		::InputEvent::MouseMove(x,y,_dx,_dy) => {
+			self.with_element_at(x,y, /*rect.w().0, rect.h().0,*/ |e, ele_rect| e.handle_event(ev, /*ele_rect.offset(r.x(),r.y()), */ win))
+			},
+		_ => false,
+		}
+	}
 	fn render(&self, surface: ::surface::SurfaceView) {
 		// 1. Determine sizes
-		let (fixed_total, num_expand) = self.items.iter().fold( (0,0), |(total,exp), i| if let Some(Size(v)) = i.1 { (total+v, exp) } else { (total, exp+1) } );
-		if fixed_total > surface.width() {
-			return ;
-		}
-		let expand_size = if num_expand > 0 {
-				( if self.direction.is_vert() { surface.height() } else { surface.width() } - fixed_total) / num_expand
-			}
-			else {
-				0
-			};
+		let expand_size = self.get_expand_size( if self.direction.is_vert() { surface.height() } else { surface.width() } );
 		// 2. Render sub-surfaces
 		let mut ofs = 0;
 		for item in self.items.iter()
@@ -115,6 +140,11 @@ impl<E: ::Element> Frame<E>
 
 impl<E: ::Element> ::Element for Frame<E>
 {
+	fn handle_event(&self, ev: ::InputEvent, win: &mut ::window::Window) -> bool {
+		// TODO: For mouse events, clip to display region
+		//
+		self.item.handle_event(ev, win)
+	}
 	fn render(&self, surface: ::surface::SurfaceView) {
 		match self.frame_type
 		{

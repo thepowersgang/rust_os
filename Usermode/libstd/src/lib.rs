@@ -39,6 +39,8 @@ mod std {
 	pub use fmt;
 	pub use core::iter;
 	pub use core::{mem, cmp, ops};
+	pub use core::convert;
+	pub use ffi;
 }
 
 /// Prelude
@@ -91,6 +93,8 @@ mod heap;
 //pub extern crate std_io as io;
 extern crate std_io;
 pub use std_io as io;
+
+pub mod fs;
 
 //pub extern crate std_rt as rt;
 extern crate std_rt;

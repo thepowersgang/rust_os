@@ -4,35 +4,31 @@
 #[macro_export]
 macro_rules! impl_fmt
 {
-	( $( <$($g:ident),+> $tr:ident ($s:ident, $f:ident) for $ty:ty { $($code:stmt)* } )+ ) => { $(
-		impl<$($g),+> ::std::fmt::$tr for $ty {
-			fn fmt(&$s, $f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
-				$( $code )*
+	(@as_item $($i:item)*) => {$($i)*};
+
+	($( /*$(<($($params:tt)+)>)* */ $tr:ident($s:ident, $f:ident) for $t:ty { $($code:stmt)*} )+) => {
+		$(impl_from!{ @as_item
+			impl/*$(<$($params)+>)* */ ::std::fmt::$tr for $t {
+				fn fmt(&$s, $f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
+					$( $code )*
+				}
 			}
-		}
-		)+
-		};
-	
-	( $( $tr:ident ($s:ident, $f:ident) for $ty:ty { $($code:stmt)* } )+ ) => { $(
-		impl ::std::fmt::$tr for $ty {
-			fn fmt(&$s, $f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
-				$( $code )*
-			}
-		}
-		)+
+		})+
 		};
 }
 
 #[macro_export]
 macro_rules! impl_from {
-	($(From<$src:ty>($v:ident) for $t:ty { $($code:stmt)*} )+) => {
-		$(
-			impl ::std::convert::From<$src> for $t {
+	(@as_item $($i:item)*) => {$($i)*};
+
+	($( $(<($($params:tt)+)>)* From<$src:ty>($v:ident) for $t:ty { $($code:stmt)*} )+) => {
+		$(impl_from!{ @as_item 
+			impl$(<$($params)+>)* ::std::convert::From<$src> for $t {
 				fn from($v: $src) -> $t {
 					$($code)*
 				}
 			}
-		)+
+		})+
 	};
 }
 

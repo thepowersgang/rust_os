@@ -15,9 +15,10 @@ pub enum Event
 	KeyDown(keyboard::KeyCode),
 	KeyUp(keyboard::KeyCode),
 	Text([u8; 6]),	// 6 bytes, as that can fit in a u64 with a 16-bit tag
-	MouseMove(i32,i32),
-	MouseDown(u8),
-	MouseUp(u8),
+
+	MouseMove(u32,u32,i16,i16),
+	MouseDown(u32,u32,u8),
+	MouseUp(u32,u32,u8),
 }
 
 struct ModKeyPair(AtomicUsize);
@@ -57,50 +58,46 @@ fn get_channel_by_index(_idx: usize) -> &'static InputChannel {
 
 impl InputChannel
 {
-	pub fn handle(&self, event: Event)
+	pub fn handle_key(&self, key: keyboard::KeyCode, release: bool)
 	{
-		log_debug!("handle({:?})", event);
-		match event
+		match (release, key)
 		{
 		// Maintain key states
-		Event::KeyDown(KeyCode::RightShift) => self.shift_held.set_r(),
-		Event::KeyDown(KeyCode::LeftShift)  => self.shift_held.set_l(),
-		Event::KeyDown(KeyCode::RightCtrl) => self.ctrl_held.set_r(),
-		Event::KeyDown(KeyCode::LeftCtrl)  => self.ctrl_held.set_l(),
-		Event::KeyDown(KeyCode::RightAlt) => self.alt_held.set_r(),
-		Event::KeyDown(KeyCode::LeftAlt)  => self.alt_held.set_l(),
-		Event::KeyUp(KeyCode::RightShift) => self.shift_held.clear_r(),
-		Event::KeyUp(KeyCode::LeftShift)  => self.shift_held.clear_l(),
-		Event::KeyUp(KeyCode::RightCtrl) => self.ctrl_held.clear_r(),
-		Event::KeyUp(KeyCode::LeftCtrl)  => self.ctrl_held.clear_l(),
-		Event::KeyUp(KeyCode::RightAlt) => self.alt_held.clear_r(),
-		Event::KeyUp(KeyCode::LeftAlt)  => self.alt_held.clear_l(),
+		(false, KeyCode::RightShift) => self.shift_held.set_r(),
+		(false, KeyCode::LeftShift)  => self.shift_held.set_l(),
+		(false, KeyCode::RightCtrl) => self.ctrl_held.set_r(),
+		(false, KeyCode::LeftCtrl)  => self.ctrl_held.set_l(),
+		(false, KeyCode::RightAlt) => self.alt_held.set_r(),
+		(false, KeyCode::LeftAlt)  => self.alt_held.set_l(),
+		(true, KeyCode::RightShift) => self.shift_held.clear_r(),
+		(true, KeyCode::LeftShift)  => self.shift_held.clear_l(),
+		(true, KeyCode::RightCtrl) => self.ctrl_held.clear_r(),
+		(true, KeyCode::LeftCtrl)  => self.ctrl_held.clear_l(),
+		(true, KeyCode::RightAlt) => self.alt_held.clear_r(),
+		(true, KeyCode::LeftAlt)  => self.alt_held.clear_l(),
 		// Check for session change commands, don't propagate if they fired
-		Event::KeyDown(KeyCode::Esc) => if self.try_change_session(0) { return ; },
-		Event::KeyDown(KeyCode::F1)  => if self.try_change_session(1) { return ; },
-		Event::KeyDown(KeyCode::F2)  => if self.try_change_session(2) { return ; },
-		Event::KeyDown(KeyCode::F3)  => if self.try_change_session(3) { return ; },
-		Event::KeyDown(KeyCode::F4)  => if self.try_change_session(4) { return ; },
-		Event::KeyDown(KeyCode::F5)  => if self.try_change_session(5) { return ; },
-		Event::KeyDown(KeyCode::F6)  => if self.try_change_session(6) { return ; },
-		Event::KeyDown(KeyCode::F7)  => if self.try_change_session(7) { return ; },
-		Event::KeyDown(KeyCode::F8)  => if self.try_change_session(8) { return ; },
-		Event::KeyDown(KeyCode::F9)  => if self.try_change_session(9) { return ; },
-		Event::KeyDown(KeyCode::F10) => if self.try_change_session(10) { return ; },
-		Event::KeyDown(KeyCode::F11) => if self.try_change_session(11) { return ; },
-		Event::KeyDown(KeyCode::F12) => if self.try_change_session(12) { return ; },
-		// Mouse movement, update cursor
-		Event::MouseMove(dx,dy) => self.cursor.move_pos(dx, dy),
-		
+		(false, KeyCode::Esc) => if self.try_change_session(0) { return ; },
+		(false, KeyCode::F1)  => if self.try_change_session(1) { return ; },
+		(false, KeyCode::F2)  => if self.try_change_session(2) { return ; },
+		(false, KeyCode::F3)  => if self.try_change_session(3) { return ; },
+		(false, KeyCode::F4)  => if self.try_change_session(4) { return ; },
+		(false, KeyCode::F5)  => if self.try_change_session(5) { return ; },
+		(false, KeyCode::F6)  => if self.try_change_session(6) { return ; },
+		(false, KeyCode::F7)  => if self.try_change_session(7) { return ; },
+		(false, KeyCode::F8)  => if self.try_change_session(8) { return ; },
+		(false, KeyCode::F9)  => if self.try_change_session(9) { return ; },
+		(false, KeyCode::F10) => if self.try_change_session(10) { return ; },
+		(false, KeyCode::F11) => if self.try_change_session(11) { return ; },
+		(false, KeyCode::F12) => if self.try_change_session(12) { return ; },
 		_ => {},
 		}
-		
+
 		// Handle text events
 		// - On key up, translate the keystroke into text (accounting for input state)
 		// TODO: Support repetition?
-		if let Event::KeyUp(kc) = event {
+		if release {
 			//if self.enable_input_translation {
-				let s = self.get_input_string(kc);
+				let s = self.get_input_string(key);
 				if s.len() > 0 {
 					let mut buf = [0; 6];
 					buf.clone_from_slice( s.as_bytes() );
@@ -110,7 +107,29 @@ impl InputChannel
 		}
 
 		// TODO: Send key combination to active active window
-		super::windows::handle_input(/*self, */event);
+		if release {
+			super::windows::handle_input(/*self, */Event::KeyUp(key));
+		}
+		else {
+			super::windows::handle_input(/*self, */Event::KeyDown(key));
+		}
+	}
+	
+	pub fn handle_mouse_move(&self, dx: i16, dy: i16)
+	{
+		// Mouse movement, update cursor
+		let (x,y) = self.cursor.pos();
+		super::windows::handle_input(/*self, */Event::MouseMove(x, y, dx, dy));
+	}
+	pub fn handle_mouse_btn(&self, btn: u8, release: bool)
+	{
+		let (x,y) = self.cursor.pos();
+		if release {
+			super::windows::handle_input(/*self, */Event::MouseUp(x, y, btn));
+		}
+		else {
+			super::windows::handle_input(/*self, */Event::MouseDown(x, y, btn));
+		}
 	}
 
 	fn shift(&self) -> bool {
@@ -206,5 +225,8 @@ impl MouseCursor {
 	fn move_pos(&self, dx: i32, dy: i32) {
 		// TODO
 		todo!("Mouse move by {},{}", dx, dy);
+	}
+	fn pos(&self) -> (u32,u32) {
+		todo!("Mouse get position");
 	}
 }

@@ -5,7 +5,7 @@
 /// GUI syscall interface
 use kernel::prelude::*;
 
-use kernel::memory::freeze::Freeze;
+use kernel::memory::freeze::{Freeze,FreezeMut};
 use gui::{Rect};
 use kernel::sync::Mutex;
 
@@ -18,12 +18,12 @@ impl ::core::convert::Into<values::GuiEvent> for ::gui::input::Event {
 		use gui::input::Event;
 		match self
 		{
-		Event::KeyUp(kc) => values::GuiEvent::KeyUp(From::from(kc as u8)),
-		Event::KeyDown(kc) => values::GuiEvent::KeyDown(From::from(kc as u8)),
-		Event::Text(buf) => values::GuiEvent::Text(From::from(buf)),
-		Event::MouseMove(x,y) => values::GuiEvent::MouseMove(x,y),
-		Event::MouseUp(btn) => values::GuiEvent::MouseUp(btn),
-		Event::MouseDown(btn) => values::GuiEvent::MouseDown(btn),
+		Event::KeyUp  (kc)  => values::GuiEvent::KeyUp  (From::from(kc as u8)),
+		Event::KeyDown(kc)  => values::GuiEvent::KeyDown(From::from(kc as u8)),
+		Event::Text   (buf) => values::GuiEvent::Text   (From::from(buf)),
+		Event::MouseMove(x,y, dx,dy) => values::GuiEvent::MouseMove(x,y, dx,dy),
+		Event::MouseUp(x,y,btn) => values::GuiEvent::MouseUp(y,x,btn),
+		Event::MouseDown(x,y,btn) => values::GuiEvent::MouseDown(x,y,btn),
 		}
 	}
 }
@@ -135,8 +135,9 @@ impl objects::Object for Window
 			match self.0.lock().pop_event()
 			{
 			Some(ev) => {
-				let syscall_ev: values::GuiEvent = ev.into();
-				Ok(syscall_ev.into())
+				let mut ev_ptr = try!( <FreezeMut<values::GuiEvent>>::get_arg(&mut args) );
+				*ev_ptr = ev.into();
+				Ok(0)
 				},
 			None => Ok(!0),
 			}

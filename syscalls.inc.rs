@@ -246,51 +246,12 @@ impl ::core::convert::From<[u8; 6]> for FixedStr6 {
 #[derive(Debug)]
 pub enum GuiEvent
 {
+	None,
 	KeyUp(KeyCode),
 	KeyDown(KeyCode),
 	Text(FixedStr6),
-	MouseMove(i32,i32),
-	MouseUp(u8),
-	MouseDown(u8),
-}
-impl ::core::convert::From<u64> for GuiEvent {
-	fn from(v: u64) -> Self {
-		assert!(v != !0);
-		match v >> 48 {
-		0 => GuiEvent::KeyUp  ( From::from((v & 0xFF) as u8) ),
-		1 => GuiEvent::KeyDown( From::from((v & 0xFF) as u8) ),
-		//2 => GuiEvent::MouseMove(
-		5 => GuiEvent::Text(From::from([
-			(v >> (0*8)) as u8,
-			(v >> (1*8)) as u8,
-			(v >> (2*8)) as u8,
-			(v >> (3*8)) as u8,
-			(v >> (4*8)) as u8,
-			(v >> (5*8)) as u8,
-			])),
-		tag @ _ => panic!("Invalid tag value passed to GuiEvent::from {:#x}", tag),
-		}
-	}
-}
-impl ::core::convert::Into<u64> for GuiEvent {
-	fn into(self) -> u64 {
-		match self
-		{
-		GuiEvent::KeyUp  (ck) => (0 << 48) | (ck as u64),
-		GuiEvent::KeyDown(ck) => (1 << 48) | (ck as u64),
-		GuiEvent::MouseMove(dx,dy) => (2 << 48) | ((dx as u64) << 24) | ((dy as u64) << 0),
-		GuiEvent::MouseUp  (btn) => (3 << 48) | (btn as u64),
-		GuiEvent::MouseDown(btn) => (4 << 48) | (btn as u64),
-		GuiEvent::Text(buf) =>
-			(5 << 48)
-			| ((buf.0[5] as u64) << (5*8))
-			| ((buf.0[4] as u64) << (4*8))
-			| ((buf.0[3] as u64) << (3*8))
-			| ((buf.0[2] as u64) << (2*8))
-			| ((buf.0[1] as u64) << (1*8))
-			| ((buf.0[0] as u64) << (0*8))
-			,
-		}
-	}
+	MouseMove(u32,u32, i16,i16),
+	MouseUp(u32,u32, u8),
+	MouseDown(u32,u32, u8),
 }
 

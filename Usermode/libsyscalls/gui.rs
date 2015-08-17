@@ -129,13 +129,14 @@ impl Window
 	}
 
 	pub fn pop_event(&self) -> Option<::values::GuiEvent> {
+		let mut ev = ::values::GuiEvent::None;
 		// SAFE: Syscall
-		let v = unsafe { self.0.call_0(::values::GUI_WIN_GETEVENT) };
+		let v = unsafe { self.0.call_1(::values::GUI_WIN_GETEVENT, &mut ev as *mut _ as usize) };
 		if v == !0 {
 			None
 		}
 		else {
-			Some( ::values::GuiEvent::from(v) )
+			Some( ev )
 		}
 	}
 	

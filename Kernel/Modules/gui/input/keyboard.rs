@@ -14,10 +14,10 @@ impl Instance
 	}
 	
 	pub fn press_key(&self, key: KeyCode) {
-		super::get_channel_by_index(0).handle(super::Event::KeyDown(key));
+		super::get_channel_by_index(0).handle_key(key, false);
 	}
 	pub fn release_key(&self, key: KeyCode) {
-		super::get_channel_by_index(0).handle(super::Event::KeyUp(key));
+		super::get_channel_by_index(0).handle_key(key, true);
 	}
 }
 

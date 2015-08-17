@@ -272,6 +272,7 @@ pub trait Pod { }
 impl Pod for u8 {}
 impl Pod for u32 {}
 impl Pod for values::WaitItem {}
+impl Pod for values::GuiEvent {}	// Kinda lies, but meh
 
 impl<T: Pod> SyscallArg for Freeze<[T]>
 {
@@ -305,6 +306,21 @@ impl SyscallArg for Freeze<str> {
 		unsafe { 
 			try!( ::core::str::from_utf8(&ret) );
 			Ok(::core::mem::transmute(ret))
+		}
+	}
+}
+impl<T: Pod> SyscallArg for FreezeMut<T>
+{
+	fn get_arg(args: &mut &[usize]) -> Result<Self,Error> {
+		if args.len() < 1 {
+			return Err( Error::TooManyArgs );
+		}
+		let ptr = args[0] as *mut T;
+
+		// SAFE: Performs data validation, and only accepts user pointers (which are checkable)
+		unsafe { 
+			// 3. Create a freeze on that memory (ensuring that it's not unmapped until the Freeze object drops)
+			Ok( try!(FreezeMut::new(&mut *ptr)) )
 		}
 	}
 }

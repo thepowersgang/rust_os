@@ -51,37 +51,37 @@ impl Buffer for ::surface::Colour {
 	}
 }
 
-//// Raster two-colour image with alpha
-//pub struct RasterMonoA
-//{
-//	bg: ::surface::Colour,
-//	fg: ::surface::Colour,
-//	width: usize,
-//	data: Vec<bool>,	// BitVec
-//	alpha: Vec<u8>,
-//}
-//impl RasterMonoA
-//{
-//	pub fn new<P: Into<&::std::fs::Path>>(path: P) -> RasterMonoA {
-//		let path = path.into();
-//		todo!("RasterMonoA::new() path = {:?}", path);
-//	}
-//}
-//impl Buffer for RasterMonoA {
-//	fn dims_px(&self) -> Rect<Px> {
-//		Rect::new(0,0,  self.width as u32, (self.data.len() / self.width) as u32)
-//	}
-//	fn render(&self, buf: ::surface::SurfaceView) {
-//		// - Alpha defaults to zero if the alpha vec is empty
-//		let mut buf_rows = Iterator::zip( self.data.chunks(self.width), self.alpha.chunks(self.width).chain(::std::iter::repeat(&[])) );
-//		buf.foreach_scanlines(self.dims_px(), |_row, line| {
-//			let (bitmap, alpha) = buf_rows.next().unwrap();
-//			for (d, (bm, a)) in Iterator::zip( line.iter_mut(), Iterator::zip( bitmap.iter(), alpha.iter().chain(::std::iter::repeat(0)) ) )
-//			{
-//				let c = if *bm { self.fg } else { self.bg };
-//				*d = Colour::blend_alpha( Colour::from_argb32(*d), c, *a ).as_argb32();
-//			}
-//			});
-//	}
-//}
+/// Raster two-colour image with alpha
+pub struct RasterMonoA
+{
+	bg: ::surface::Colour,
+	fg: ::surface::Colour,
+	width: usize,
+	data: Vec<bool>,	// BitVec
+	alpha: Vec<u8>,
+}
+impl RasterMonoA
+{
+	pub fn new<P: AsRef<::std::fs::Path>>(path: P) -> RasterMonoA {
+		let path = path.as_ref();
+		todo!("RasterMonoA::new() path = {:?}", path);
+	}
+}
+impl Buffer for RasterMonoA {
+	fn dims_px(&self) -> Rect<Px> {
+		Rect::new(0,0,  self.width as u32, (self.data.len() / self.width) as u32)
+	}
+	fn render(&self, buf: ::surface::SurfaceView) {
+		// - Alpha defaults to zero if the alpha vec is empty
+		let mut buf_rows = Iterator::zip( self.data.chunks(self.width), self.alpha.chunks(self.width).chain(::std::iter::repeat(&[][..])) );
+		buf.foreach_scanlines(self.dims_px(), |_row, line| {
+			let (bitmap, alpha) = buf_rows.next().unwrap();
+			for (d, (bm, a)) in Iterator::zip( line.iter_mut(), Iterator::zip( bitmap.iter(), alpha.iter().cloned().chain(::std::iter::repeat(0)) ) )
+			{
+				let c = if *bm { self.fg } else { self.bg };
+				*d = Colour::blend_alpha( Colour::from_argb32(*d), c, a ).as_argb32();
+			}
+			});
+	}
+}
 

@@ -44,11 +44,11 @@ impl<'a, T: ::Element> ::Element for Button<'a, T>
 	fn handle_event(&self, ev: ::InputEvent, win: &mut ::window::Window) -> bool {
 		match ev
 		{
-		::InputEvent::MouseUp(0) => {
+		::InputEvent::MouseUp(_x,_y,0) => {
 			self.state.borrow_mut().is_held = false;
 			true
 			},
-		::InputEvent::MouseDown(0) => {
+		::InputEvent::MouseDown(_x,_y,0) => {
 			self.state.borrow_mut().is_held = true;
 			true
 			},
