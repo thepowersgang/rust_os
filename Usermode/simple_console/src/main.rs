@@ -70,6 +70,12 @@ fn main() {
 				term.flush();
 				window.redraw();
 
+				// XXX: Lazy option really... would maybe be cleaner to either have a flag in `shell` or just explicitly
+				//      exit when the exit command is invoked
+				if buf == "exit" {
+					return ;
+				}
+
 				shell.handle_command(&mut term, buf);
 				// - If the command didn't print a newline, print one for it
 				if term.cur_col() != 0 {

@@ -52,8 +52,10 @@ def_grp!( 1: GROUP_GUI = {
 	=0: GUI_NEWGROUP,
 	/// Set the passed group object to be the controlling group for this process
 	=1: GUI_BINDGROUP,
+	/// Obtain a new handle to this window group
+	=2: GUI_GETGROUP,
 	/// Create a new window in the current group
-	=2: GUI_NEWWINDOW,
+	=3: GUI_NEWWINDOW,
 });
 
 /// VFS Access

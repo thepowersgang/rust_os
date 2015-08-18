@@ -79,6 +79,15 @@ pub fn set_group(grp: Group)
 	// SAFE: Syscall
 	unsafe { syscall!(GUI_BINDGROUP, grp.into_handle().into_raw() as usize); }
 }
+pub fn clone_group_handle() -> Group
+{
+	// SAFE: Syscall with no arguments (... I feel dirty)
+	match super::ObjectHandle::new( unsafe { syscall!(GUI_GETGROUP) } as usize )
+	{
+	Ok(rv) => Group(rv),
+	Err(_) => panic!("Attempting to clone GUI group handle when no group registered"),
+	}
+}
 
 impl Window
 {

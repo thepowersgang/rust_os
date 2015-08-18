@@ -163,11 +163,7 @@ fn invoke_int(call_id: u32, mut args: &[usize]) -> Result<u64,Error>
 			let name = try!( <Freeze<str>>::get_arg(&mut args) );
 			from_result(gui_calls::newgroup(&name))
 			},
-		// - 1/1: New window
-		GUI_NEWWINDOW => {
-			let name = try!( <Freeze<str>>::get_arg(&mut args) );
-			from_result(gui_calls::newwindow(&name))
-			},
+		// - 1/1: Bind group
 		GUI_BINDGROUP => {
 			let obj = try!( <u32>::get_arg(&mut args) );
 			if try!(gui_calls::bind_group(obj)) {
@@ -176,6 +172,15 @@ fn invoke_int(call_id: u32, mut args: &[usize]) -> Result<u64,Error>
 			else {
 				0
 			}
+			},
+		// - 1/2: Clone group handle
+		GUI_GETGROUP => {
+			from_result(gui_calls::get_group())
+			},
+		// - 1/3: New window
+		GUI_NEWWINDOW => {
+			let name = try!( <Freeze<str>>::get_arg(&mut args) );
+			from_result(gui_calls::newwindow(&name))
 			},
 		// === 2: VFS
 		// - 2/0: Open node (for stat)

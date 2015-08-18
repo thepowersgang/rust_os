@@ -53,6 +53,12 @@ pub fn bind_group(object_handle: u32) -> Result<bool,Error> {
 	}
 }
 
+pub fn get_group() -> Result<ObjectHandle,u32>
+{
+	let wgh = ::kernel::threads::get_process_local::<PLWindowGroup>();
+	wgh.with(|h| objects::new_object(Group( h.clone() )))
+}
+
 /// Window group, aka Session
 struct Group(::gui::WindowGroupHandle);
 impl objects::Object for Group

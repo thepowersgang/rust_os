@@ -355,11 +355,18 @@ impl WindowGroupHandle
 		S_CURRENT_GROUP.store( self.0, atomic::Ordering::Relaxed )
 	}
 }
+impl Clone for WindowGroupHandle
+{
+	fn clone(&self) -> WindowGroupHandle {
+		WindowGroupHandle( self.0 )
+	}
+}
 impl ::core::ops::Drop for WindowGroupHandle
 {
 	fn drop(&mut self)
 	{
-		unimplemented!();
+		// TODO: This should decrement a reference count, and if zero cause the WG to be closed
+		todo!("Drop window group handle");
 	}
 }
 

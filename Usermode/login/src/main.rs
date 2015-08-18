@@ -10,6 +10,8 @@ extern crate async;
 #[macro_use]
 extern crate syscalls;
 
+extern crate tifflin_process;
+
 fn main()
 {
 	const MENU_BTN_WIDTH: u32 = 16;
@@ -39,7 +41,7 @@ fn main()
 	menubar.add_fill(None);
 	menubar.add(&power_button, Some(MENU_BTN_WIDTH));
 
-	// Login box (vertially staked, centered)
+	// Login box (vertially stacked, centered)
 	let mut username = ::wtk::TextInput::new();
 	username.set_shadow("Username");
 	
@@ -51,10 +53,12 @@ fn main()
 	password.bind_submit(|password, _win| {
 		let uname = username.get_content();
 		let pword = password.get_content();
-		kernel_log!("username = \"{}\", password = \"{}\"", uname, pword);
-		// TODO: Use a proper auth infrastructure
-		if &*uname == "root" && &*pword == "password" {
-			// TODO: Spawn console, and wait for it to terminate
+		if let Err(reason) = try_login(&uname, &pword) {
+			// TODO: Print error to the screen, as an overlay
+			//win.show_message("Login Failed", reason);
+		}
+		else {
+			// try_login also spawns and waits for the shell
 		}
 		});
 
@@ -91,3 +95,29 @@ fn main()
 		&mut win,
 		]);
 }
+
+fn try_login(username: &str, password: &str) -> Result<(), &'static str>
+{
+	kernel_log!("username = \"{}\", password = \"{}\"", username, password);
+	// TODO: Use a proper auth infrastructure
+	if username == "root" && password == "password"
+	{
+		// TODO: Spawn console, and wait for it to terminate
+		spawn_console_and_wait("/sysroot/bin/simple_console");
+		Ok( () )
+	}
+	else
+	{
+		Err( "Invalid username or password" )
+	}
+}
+
+fn spawn_console_and_wait(path: &str)
+{
+	// TODO: I need something more elegant than this.
+	// - Needs to automatically pass the WGH
+	let console = tifflin_process::Process::spawn("/sysroot/bin/simple_console");
+	console.send_obj( ::syscalls::gui::clone_group_handle() );
+	::syscalls::threads::wait(&mut [console.wait_terminate()], !0);
+}
+
