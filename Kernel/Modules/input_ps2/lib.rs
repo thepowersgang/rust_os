@@ -62,7 +62,6 @@ impl PS2Dev
 	
 	/// Handle a recieved byte, and optionally return a byte to be sent to the device
 	pub fn recv_byte(&mut self, byte: u8) -> Option<u8> {
-		log_trace!("PS2 Byte {:#x}", byte);
 		let (rv, new_state): (Option<_>,Option<_>) = match *self
 			{
 			PS2Dev::None =>
@@ -71,6 +70,7 @@ impl PS2Dev
 					(None, None)
 				}
 				else if byte == 0xAA {
+					// Send 0xF5 "Disable Scanning" and wait for ACK
 					(Some(0xF5), Some(PS2Dev::Enumerating(EnumWaitState::DSAck)))
 				}
 				else {
@@ -81,13 +81,19 @@ impl PS2Dev
 				{
 				EnumWaitState::DSAck =>
 					if byte == 0xFA {
+						// Send 0xF2 "Identify"
 						(Some(0xF2), Some(PS2Dev::Enumerating(EnumWaitState::IdentAck)))
+					}
+					else if byte == 0x00 {
+						// XXX: Ignore spurrious NUL byte
+						(None, None)
 					}
 					else {
 						(None, Some(PS2Dev::Unknown))
 					},
 				EnumWaitState::IdentAck =>
 					if byte == 0xFA {
+						// TODO: Start a timeout if not enough bytes are sent
 						(None, Some(PS2Dev::Enumerating(EnumWaitState::IdentB1)))
 					}
 					else {
@@ -127,7 +133,7 @@ impl PS2Dev
 		
 		if let Some(ns) = new_state
 		{
-			log_debug!("State transition {:?} to {:?}", *self, ns);
+			log_debug!("Byte {:#02x} caused State transition {:?} to {:?}", byte, *self, ns);
 			*self = ns;
 		}
 		rv

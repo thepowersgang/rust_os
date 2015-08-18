@@ -8,6 +8,7 @@ use self::keyboard::KeyCode;
 use core::atomic::{AtomicUsize,ATOMIC_USIZE_INIT,Ordering};
 
 pub mod keyboard;
+pub mod mouse;
 
 #[derive(Debug)]
 pub enum Event
@@ -76,6 +77,7 @@ impl InputChannel
 		(true, KeyCode::RightAlt) => self.alt_held.clear_r(),
 		(true, KeyCode::LeftAlt)  => self.alt_held.clear_l(),
 		// Check for session change commands, don't propagate if they fired
+		// - 'try_change_session' checks modifiers and permissions
 		(false, KeyCode::Esc) => if self.try_change_session(0) { return ; },
 		(false, KeyCode::F1)  => if self.try_change_session(1) { return ; },
 		(false, KeyCode::F2)  => if self.try_change_session(2) { return ; },
@@ -118,6 +120,7 @@ impl InputChannel
 	pub fn handle_mouse_move(&self, dx: i16, dy: i16)
 	{
 		// Mouse movement, update cursor
+		self.cursor.move_pos(dx as i32, dy as i32);
 		let (x,y) = self.cursor.pos();
 		super::windows::handle_input(/*self, */Event::MouseMove(x, y, dx, dy));
 	}
