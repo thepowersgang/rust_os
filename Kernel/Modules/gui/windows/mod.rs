@@ -205,10 +205,16 @@ impl WindowGroup
 		log_debug!("Focuessed window {}", self.focussed_window);
 		// - Apply shortcuts defined by the current session (TODO)
 		// - Pass events to the current window
-		match self.windows.get( self.focussed_window )
+		if let Some(_) = self.get_render_idx( self.focussed_window )
 		{
-		Some(w) => w.1.handle_input(ev),
-		None => log_log!("Active window #{} not present", self.focussed_window),
+			match self.windows.get( self.focussed_window )
+			{
+			Some(w) => w.1.handle_input(ev),
+			None => log_log!("Active window #{} not present", self.focussed_window),
+			}
+		}
+		else {
+			self.focussed_window = 0;
 		}
 	}
 
@@ -230,10 +236,13 @@ impl WindowGroup
 	fn recalc_vis_int(&mut self, vis_idx: usize)
 	{
 		// For each window this one and below
-		for i in (0 .. vis_idx+1).rev()
+		if ! self.render_order.is_empty()
 		{
-			// Iterate all higher windows and obtain visible rects
-			self.render_order[i].1 = self.recalc_vis_for(i);
+			for i in (0 .. vis_idx+1).rev()
+			{
+				// Iterate all higher windows and obtain visible rects
+				self.render_order[i].1 = self.recalc_vis_for(i);
+			}
 		}
 	}
 	/// Recalculate the visibility vector for a specific window in the render order
@@ -285,11 +294,22 @@ impl WindowGroup
 		self.render_order.push( (idx, vec![rect]) );
 		let vis_idx = self.render_order.len() - 1;
 		self.recalc_vis_int(vis_idx);
+
+		// TODO: Have a better method than just switching focus on show
+		self.focussed_window = idx;
 	}
 	fn hide_window(&mut self, idx: usize) {
 		if let Some(pos) = self.get_render_idx(idx)
 		{
-			todo!("WindowGroup::hide_window({}) - pos={}", idx, pos);
+			let prev_pos = if pos == 0 { 0 } else { pos - 1 };
+			self.render_order.remove(pos);
+			// If this window was the focussed one, switch to the next lower down window
+			// - TODO: Have an alt-tab order and use that instead
+			if self.focussed_window == idx {
+				self.focussed_window = self.render_order.get( prev_pos ).map(|x| x.0).unwrap_or(0);
+			}
+			// Recalculate visibility for lower window
+			self.recalc_vis_int(prev_pos);
 		}
 	}
 	
@@ -313,6 +333,13 @@ impl WindowGroup
 		}
 		// Recalculate visible regions
 		self.recalc_vis(idx);
+	}
+
+
+	/// Drops (functionally destroys) a window
+	fn drop_window(&mut self, idx: usize) {
+		self.hide_window(idx);
+		self.windows.remove(idx);
 	}
 }
 
@@ -472,7 +499,9 @@ impl ::core::ops::Drop for WindowHandle
 {
 	fn drop(&mut self)
 	{
-		unimplemented!();
+		// WindowHandle uniquely owns the window, so can just drop it
+		let wg = self.get_wg();
+		wg.lock().drop_window( self.win );
 	}
 }
 
