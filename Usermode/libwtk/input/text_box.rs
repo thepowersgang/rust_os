@@ -54,6 +54,10 @@ impl<'a> TextInput<'a>
 	pub fn get_content(&self) -> /* impl Deref<Target=str>+Display*/ Content {
 		Content(self.state.borrow())
 	}
+
+	pub fn clear(&self) {
+		self.state.borrow_mut().value.clear();
+	}
 }
 
 /// Borrow of a `TextInput` widget's content

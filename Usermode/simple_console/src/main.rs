@@ -41,9 +41,9 @@ fn main() {
 	{
 		let mut buf = [0; 128];
 		term.set_foreground( Colour::def_green() );
-		let _ = write!(&mut term, "{}\n",  ::syscalls::get_text_info(0, 0, &mut buf));	// Kernel 0: Version line
+		let _ = write!(&mut term, "{}\n",  ::syscalls::get_text_info(::syscalls::TEXTINFO_KERNEL, 0, &mut buf));	// Kernel 0: Version line
 		term.set_foreground( Colour::def_yellow() );
-		let _ = write!(&mut term, " {}\n", ::syscalls::get_text_info(0, 1, &mut buf));	// Kernel 1: Build line
+		let _ = write!(&mut term, " {}\n", ::syscalls::get_text_info(::syscalls::TEXTINFO_KERNEL, 1, &mut buf));	// Kernel 1: Build line
 		term.set_foreground( Colour::white() );
 		let _ = write!(&mut term, "Simple console\n");
 	}

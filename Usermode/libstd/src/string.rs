@@ -58,6 +58,10 @@ impl String
 		}
 		None
 	}
+
+	pub fn clear(&mut self) {
+		self.0.clear()
+	}
 	
 	/// Unsafely obtain a borrow of the internal Vec
 	pub unsafe fn as_mut_vec(&mut self) -> &mut Vec<u8> {

@@ -37,7 +37,7 @@ def_grp!( 0: GROUP_CORE = {
 	=6: CORE_WAIT,
 });
 
-pub const TEXTINFO_KERNEL: usize = 0;
+pub const TEXTINFO_KERNEL: u32 = 0;
 
 #[repr(C)]
 #[derive(Debug)]

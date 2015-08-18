@@ -159,12 +159,9 @@ fn render_thread()
 		// Check for events
 		while let Some(ev) = S_EVENT_QUEUE.pop()
 		{
-			log_warning!("TODO: Handle input {:?}", ev);
-			// TODO: Handle input
-			// - Filter out global bindings (e.g. session switch and lock combos)
-			//  > If a session switch happens, request another render
-			// - Apply shortcuts defined by the current session
-			// - Pass events to the current window
+			// - TODO: Filter out global bindings (e.g. session switch and lock combos)
+			//  > NOTE: Session switch is currently handled by the input code
+			// - Just pass on to active group
 			grp_ref.lock().handle_input(ev);
 		}
 		
@@ -206,6 +203,8 @@ impl WindowGroup
 	
 	fn handle_input(&mut self, ev: super::input::Event) {
 		log_debug!("Focuessed window {}", self.focussed_window);
+		// - Apply shortcuts defined by the current session (TODO)
+		// - Pass events to the current window
 		match self.windows.get( self.focussed_window )
 		{
 		Some(w) => w.1.handle_input(ev),

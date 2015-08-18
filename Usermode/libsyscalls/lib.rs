@@ -142,6 +142,8 @@ pub fn log_write(msg: &str) {
 	unsafe { syscall!(CORE_LOGWRITE, msg.as_ptr() as usize, msg.len()); }
 }
 
+pub use values::TEXTINFO_KERNEL;
+
 #[inline]
 pub fn get_text_info(unit: u32, id: u32, buf: &mut [u8]) -> &str {
 	// SAFE: Syscall

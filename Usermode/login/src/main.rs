@@ -50,16 +50,18 @@ fn main()
 	password.set_obscured('\u{2022}');	// Bullet
 
 	username.bind_submit(|_uname, win| win.tabto(2));
-	password.bind_submit(|password, _win| {
-		let uname = username.get_content();
-		let pword = password.get_content();
-		if let Err(reason) = try_login(&uname, &pword) {
+	password.bind_submit(|password, win| {
+		if let Err(reason) = try_login(&username.get_content(), &password.get_content()) {
 			// TODO: Print error to the screen, as an overlay
 			//win.show_message("Login Failed", reason);
 		}
 		else {
 			// try_login also spawns and waits for the shell
 		}
+		// - Clear username/password and tab back to the username field
+		username.clear();
+		password.clear();
+		win.tabto(1);
 		});
 
 	let mut loginbox = ::wtk::Frame::new( ::wtk::Box::new_vert() );

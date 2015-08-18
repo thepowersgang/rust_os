@@ -58,7 +58,7 @@ impl Node
 	}
 	pub fn into_file(self, mode: FileOpenMode) -> Result<File,Error> {
 		// SAFE: Syscall
-		to_obj( unsafe { self.0.call_0(::values::VFS_NODE_TOFILE) } as usize )
+		to_obj( unsafe { self.0.call_1(::values::VFS_NODE_TOFILE, mode as u32 as usize) } as usize )
 			.map(|h| File(h, 0))
 	}
 	pub fn into_symlink(self) -> Result<Symlink,Error> {

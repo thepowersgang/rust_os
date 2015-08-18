@@ -109,7 +109,7 @@ fn invoke_int(call_id: u32, mut args: &[usize]) -> Result<u64,Error>
 			syscall_core_log(&msg); 0
 			},
 		CORE_TEXTINFO => {
-			let group = try!( <usize>::get_arg(&mut args) );
+			let group = try!( <u32>::get_arg(&mut args) );
 			let id = try!( <usize>::get_arg(&mut args) );
 			let mut buf = try!( <FreezeMut<[u8]>>::get_arg(&mut args) );
 			(match group
