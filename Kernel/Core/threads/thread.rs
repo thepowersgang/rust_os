@@ -28,8 +28,8 @@ pub enum RunState
 	ListWait(*const super::WaitQueue),
 	/// Sleeping on a SleepObject
 	Sleep(*const super::sleep_object::SleepObject),
-	///// Dead, waiting to be reaped
-	//Dead(u32),
+	/// Dead, waiting to be reaped
+	Dead(u32),
 }
 // Sendable, the objects it points to must be either boxed or 'static
 unsafe impl Send for RunState { }
@@ -40,6 +40,8 @@ pub struct Process
 	name: String,
 	pid: ProcessID,
 	address_space: ::memory::virt::AddressSpace,
+	// TODO: use of a tuple here looks a little crufty
+	exit_status: ::sync::Mutex< (Option<u32>, Option<::threads::sleep_object::SleepObjectRef>) >,
 	pub proc_local_data: ::sync::RwLock<Vec< ::lib::mem::aref::Aref<::core::any::Any+Sync+Send> >>,
 }
 /// Handle to a process, used for spawning and communicating
@@ -78,7 +80,7 @@ assert_trait!{Thread : Send}
 static S_LAST_TID: ::core::atomic::AtomicUsize = ::core::atomic::ATOMIC_USIZE_INIT;
 const C_MAX_TID: usize = 0x7FFF_FFF0;	// Leave 16 TIDs spare at end of 31 bit number
 static S_LAST_PID: ::core::atomic::AtomicUsize = ::core::atomic::ATOMIC_USIZE_INIT;
-const C_MAX_PID: usize = 0x007F_FFF0;	// Leave 16 TIDs spare at end of 23 bit number
+const C_MAX_PID: usize = 0x007F_FFF0;	// Leave 16 PIDs spare at end of 23 bit number
 
 fn allocate_tid() -> ThreadID
 {
@@ -116,6 +118,7 @@ impl Process
 		Arc::new(Process {
 			name: String::from("PID0"),
 			pid: 0,
+			exit_status: Default::default(),
 			address_space: ::memory::virt::AddressSpace::pid0(),
 			proc_local_data: ::sync::RwLock::new( Vec::new() ),
 		})
@@ -125,6 +128,7 @@ impl Process
 		Arc::new(Process {
 			pid: allocate_pid(),
 			name: name.into(),
+			exit_status: Default::default(),
 			address_space: addr_space,
 			proc_local_data: ::sync::RwLock::new( Vec::new() ),
 		})
@@ -135,6 +139,22 @@ impl Process
 	}
 
 	pub fn get_pid(&self) -> ProcessID { self.pid }
+
+	pub fn mark_exit(&self, status: u32) -> Result<(),()> {
+		let mut lh = self.exit_status.lock();
+		if lh.0.is_some() {
+			Err( () )
+		}
+		else {
+			
+			if let Some(ref sleep_ref) = lh.1 {
+				sleep_ref.signal();
+			}
+
+			lh.0 = Some(status);
+			Ok( () )
+		}
+	}
 }
 impl ProcessHandle
 {
@@ -164,6 +184,33 @@ impl ProcessHandle
 			}
 		}
 		None
+	}
+
+
+	pub fn bind_wait_terminate(&self, obj: &mut ::threads::SleepObject) {
+		let mut lh = self.0.exit_status.lock();
+		if let Some(status) = lh.0 {
+			obj.signal();
+		}
+		else if let Some(_) = lh.1 {
+			todo!("Multiple threads sleeping on this process");
+		}
+		else {
+			lh.1 = Some( obj.get_ref() );
+		}
+	}
+	pub fn clear_wait_terminate(&self, obj: &mut ::threads::SleepObject) -> bool {
+		let mut lh = self.0.exit_status.lock();
+
+		assert!(lh.1.is_some());
+		assert!(lh.1.as_ref().unwrap().is_from(obj));
+		lh.1 = None;
+		
+		lh.0.is_some()
+	}
+
+	pub fn get_exit_status(&self) -> Option<u32> {
+		self.0.exit_status.lock().0
 	}
 }
 

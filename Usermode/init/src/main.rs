@@ -22,7 +22,9 @@ fn main()
 	wingrp.force_active();
 	session_root.send_obj(wingrp);
 	loop {
-		::syscalls::threads::wait(&mut [session_root.wait_terminate()], !0);
+		let mut waits = [session_root.wait_terminate()];
+		::syscalls::threads::wait(&mut waits, !0);
+		panic!("TODO: Handle login terminating");
 	}
 }
 

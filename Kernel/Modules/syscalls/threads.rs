@@ -63,7 +63,7 @@ impl ::objects::Object for CurProcess
 }
 
 pub fn exit(status: u32) {
-	todo!("exit(status={:x})", status);
+	::kernel::threads::exit_process(status);
 }
 pub fn terminate() {
 	todo!("terminate()");
@@ -100,16 +100,25 @@ pub fn newprocess(name: &str, ip: usize, sp: usize, clone_start: usize, clone_en
 			_ => todo!("Process::handle_syscall({}, ...)", call),
 			}
 		}
-		fn bind_wait(&self, flags: u32, _obj: &mut ::kernel::threads::SleepObject) -> u32 {
+		fn bind_wait(&self, flags: u32, obj: &mut ::kernel::threads::SleepObject) -> u32 {
 			let mut ret = 0;
 			// Wait for child process to terminate
 			if flags & values::EV_PROCESS_TERMINATED != 0 {
-				log_error!("TODO: Wait on EV_PROCESS_TERMINATED");
+				self.0.bind_wait_terminate(obj);
 				ret += 1;
 			}
 			ret
 		}
-		fn clear_wait(&self, _flags: u32, _obj: &mut ::kernel::threads::SleepObject) -> u32 { 0 }
+		fn clear_wait(&self, flags: u32, obj: &mut ::kernel::threads::SleepObject) -> u32 {
+			let mut ret = 0;
+			// Wait for child process to terminate
+			if flags & values::EV_PROCESS_TERMINATED != 0 {
+				if self.0.clear_wait_terminate(obj) {
+					ret |= values::EV_PROCESS_TERMINATED;
+				}
+			}
+			ret
+		}
 	}
 
 	::objects::new_object( Process(process) )

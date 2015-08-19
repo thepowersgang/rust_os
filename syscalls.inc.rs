@@ -26,6 +26,7 @@ def_grp!( 0: GROUP_CORE = {
 	/// Request a text string from the kernel
 	=1: CORE_TEXTINFO,
 	/// Terminate the current process
+	// NOTE: '2' is hard-coded in rustrt0
 	=2: CORE_EXITPROCESS,
 	/// Terminate the current thread
 	=3: CORE_EXITTHREAD,
