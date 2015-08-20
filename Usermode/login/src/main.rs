@@ -51,6 +51,7 @@ fn main()
 
 	username.bind_submit(|_uname, win| win.tabto(2));
 	password.bind_submit(|password, win| {
+		//win.hide();
 		if let Err(reason) = try_login(&username.get_content(), &password.get_content()) {
 			// TODO: Print error to the screen, as an overlay
 			//win.show_message("Login Failed", reason);
@@ -62,6 +63,7 @@ fn main()
 		username.clear();
 		password.clear();
 		win.tabto(1);
+		//win.show();
 		});
 
 	let mut loginbox = ::wtk::Frame::new( ::wtk::Box::new_vert() );
@@ -104,7 +106,7 @@ fn try_login(username: &str, password: &str) -> Result<(), &'static str>
 	// TODO: Use a proper auth infrastructure
 	if username == "root" && password == "password"
 	{
-		// TODO: Spawn console, and wait for it to terminate
+		// Spawn console, and wait for it to terminate
 		spawn_console_and_wait("/sysroot/bin/simple_console");
 		Ok( () )
 	}

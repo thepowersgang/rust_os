@@ -93,12 +93,15 @@ impl Surface
 			self.width
 			);
 	}
+	pub fn invalidate_all(&mut self) {
+		self.dirty.set( self.rect() );
+	}
 	/// Resize the surface (clearing existing content)
 	pub fn resize(&mut self, dims: ::syscalls::gui::Dims) {
 		self.width = dims.w as usize;
 		*self.data.borrow_mut() = vec![Colour::theme_body_bg().as_argb32(); (dims.w as usize * dims.h as usize)];
 		// On resize, set dirty area to full area of the surface
-		self.dirty.set( self.rect() );
+		self.invalidate_all();
 	}
 	/// Obtain a rect covering the entire surface
 	pub fn rect(&self) -> Rect<Px> {

@@ -89,8 +89,12 @@ impl<'a> Window<'a>
 	/// Show the window
 	pub fn show(&mut self) {
 		self.needs_force_rerender = true;
+		self.surface.invalidate_all();
 		self.rerender();
 		self.win.show();
+	}
+	pub fn hide(&mut self) {
+		self.win.hide();
 	}
 }
 
