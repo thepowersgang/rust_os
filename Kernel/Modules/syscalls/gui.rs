@@ -123,10 +123,21 @@ impl objects::Object for Window
 			let x = try!( <u32>::get_arg(&mut args) );
 			let y = try!( <u32>::get_arg(&mut args) );
 			let w = try!( <u32>::get_arg(&mut args) );
-			let h = try!( <u32>::get_arg(&mut args) );
 			let data = try!( <Freeze<[u32]>>::get_arg(&mut args) );
-			self.0.lock().blit_rect(Rect::new(x,y,w,h), &data);
-			Ok(0)
+			let stride = try!( <usize>::get_arg(&mut args) );
+			if data.len() == 0 {
+				Ok(0)
+			}
+			else {
+				// data.len() should be (h-1)*stride + w long
+				let h = if data.len() >= w as usize {
+						((data.len() - w as usize) / stride) as u32 + 1
+					} else {
+						1
+					};
+				self.0.lock().blit_rect(Rect::new(x,y,w,h), &data, stride);
+				Ok(0)
+			}
 			},
 		values::GUI_WIN_FILLRECT => {
 			let x = try!( <u32>::get_arg(&mut args) );

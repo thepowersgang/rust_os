@@ -105,7 +105,7 @@ impl KernelLog
 		let mut logo_wh = wgh.create_window("Logo");
 		logo_wh.set_pos(Pos::new(max_dims.w-dims.w, 0));
 		logo_wh.resize(dims);
-		logo_wh.blit_rect( Rect::new_pd(Pos::new(0,0),dims), &S_LOGO_DATA );
+		logo_wh.blit_rect( Rect::new_pd(Pos::new(0,0),dims), &S_LOGO_DATA, dims.w as usize );
 		
 		// > Show windows in reverse render order
 		wh.show();

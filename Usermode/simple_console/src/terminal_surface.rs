@@ -43,7 +43,7 @@ impl<'a> Surface<'a>
 	
 
 	pub fn flush(&mut self) {
-		self.window.blit_rect( self.pos.p.x, self.pos.p.y + self.cur_row as u32 * C_CELL_DIMS.h, self.pos.d.w, C_CELL_DIMS.h, &self.row_buf );
+		self.window.blit_rect( self.pos.p.x, self.pos.p.y + self.cur_row as u32 * C_CELL_DIMS.h, self.pos.d.w, C_CELL_DIMS.h, &self.row_buf, self.pos.d.w as usize );
 	}
 	pub fn set_row(&mut self, row: usize) {
 		self.flush();

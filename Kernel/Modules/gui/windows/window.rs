@@ -182,11 +182,13 @@ impl Window
 	}
 	
 	/// Blit from an external data source
-	pub fn blit_rect(&self, rect: Rect, data: &[u32])
+	/// 
+	/// `stride` is the number of data entries between rows (allows inner blits)
+	pub fn blit_rect(&self, rect: Rect, data: &[u32], stride: usize)
 	{
 		log_trace!("Window::blit_rect({}, data={}px)", rect, data.len());
 		let buf_h = self.buf.read();
-		for (row,src) in (rect.top() .. rect.bottom()).zip( data.chunks(rect.w() as usize) )
+		for (row,src) in (rect.top() .. rect.bottom()).zip( data.chunks(stride) )
 		{
 			buf_h.set_scanline(
 				row as usize,

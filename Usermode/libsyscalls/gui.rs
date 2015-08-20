@@ -128,9 +128,23 @@ impl Window
 		unsafe { self.0.call_2(::values::GUI_WIN_SETFLAG, ::values::GUI_WIN_FLAG_MAXIMISED as usize, 1); }
 	}
 	
-	pub fn blit_rect(&self, x: u32, y: u32, w: u32, h: u32, data: &[u32]) {
+	pub fn blit_rect(&self, x: u32, y: u32, w: u32, h: u32, data: &[u32], stride: usize) {
+		let rgn_size = if h == 0 { 0 } else { (h - 1) as usize * stride + w as usize };
+		assert!( data.len() >= rgn_size );
+		let data = &data[..rgn_size];
+
+		{
+			assert!(data.len() > 0);
+			let h_calc = if data.len() >= w as usize {
+					((data.len() - w as usize) / stride) as u32 + 1
+				} else {
+					1
+				};
+			assert_eq!(h_calc, h);
+		}
+
 		// SAFE: Syscall
-		unsafe { self.0.call_6(::values::GUI_WIN_BLITRECT, x as usize, y as usize, w as usize, h as usize, data.as_ptr() as usize, data.len()); }
+		unsafe { self.0.call_6(::values::GUI_WIN_BLITRECT, x as usize, y as usize, w as usize, data.as_ptr() as usize, data.len(), stride); }
 	}
 	pub fn fill_rect(&self, x: u32, y: u32, w: u32, h: u32, colour: u32) {
 		// SAFE: Syscall

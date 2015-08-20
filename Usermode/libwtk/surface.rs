@@ -87,7 +87,8 @@ impl Surface
 		win.blit_rect(
 			0, first_row as u32,
 			self.width as u32, row_count as u32,
-			&self.data.borrow()[first_row*self.width..][..row_count*self.width]
+			&self.data.borrow()[first_row*self.width..][..row_count*self.width],
+			self.width
 			);
 	}
 	/// Resize the surface (clearing existing content)

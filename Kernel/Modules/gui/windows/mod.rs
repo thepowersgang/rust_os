@@ -480,8 +480,8 @@ impl WindowHandle
 	}
 	
 	/// Fill a region of the window with provided data
-	pub fn blit_rect(&mut self, rect: Rect, data: &[u32]) {
-		self.get_win().blit_rect(rect, data);
+	pub fn blit_rect(&mut self, rect: Rect, data: &[u32], stride: usize) {
+		self.get_win().blit_rect(rect, data, stride);
 	}
 
 	pub fn pop_event(&self) -> Option<super::input::Event> {
