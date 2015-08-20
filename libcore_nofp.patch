@@ -115,7 +115,7 @@ diff -ru libcore/lib.rs libcore_patched/lib.rs
 @@ -149,6 +150,7 @@
  pub mod option;
  pub mod raw;
- pub mod result;
+ #[cfg(not(stage0))]
 +#[cfg(not(disable_float))]
  pub mod simd;
  pub mod slice;
@@ -131,19 +131,17 @@ diff -ru libcore/num/flt2dec/decoder.rs libcore_patched/num/flt2dec/decoder.rs
  use {f32, f64};
  use num::{Float, FpCategory};
  
-@@ -60,11 +61,13 @@
+@@ -60,9 +61,11 @@
      fn min_pos_norm_value() -> Self;
  }
  
 +#[cfg(not(disable_float))]
  impl DecodableFloat for f32 {
-     fn ldexpi(f: i64, exp: isize) -> Self { f as Self * (exp as Self).exp2() }
      fn min_pos_norm_value() -> Self { f32::MIN_POSITIVE }
  }
  
 +#[cfg(not(disable_float))]
  impl DecodableFloat for f64 {
-     fn ldexpi(f: i64, exp: isize) -> Self { f as Self * (exp as Self).exp2() }
      fn min_pos_norm_value() -> Self { f64::MIN_POSITIVE }
 diff -ru libcore/num/mod.rs libcore_patched/num/mod.rs
 --- libcore/num/mod.rs	2015-07-02 13:02:27.903621378 +0800
