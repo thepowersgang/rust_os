@@ -52,6 +52,13 @@ impl<T: Send> Spinlock<T>
 		self.inner_lock();
 		HeldSpinlock { lock: self }
 	}
+
+	/// Lock this spinning lock (accepting risk of panick/deadlock from IRQs)
+	#[tag_safe(irq)]
+	pub fn lock_irqsafe(&self) -> HeldSpinlock<T> {
+		self.inner_lock();
+		HeldSpinlock { lock: self }
+	}
 	/// Attempt to acquire the lock, returning None if it is already held by this CPU
 	#[tag_safe(irq)]
 	pub fn try_lock_cpu(&self) -> Option<HeldSpinlock<T>>

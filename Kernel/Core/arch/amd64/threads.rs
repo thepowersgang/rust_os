@@ -24,6 +24,8 @@ extern "C" {
 	fn task_switch(oldrsp: &mut u64, newrsp: &u64, tlsbase: u64, cr3: u64);
 }
 
+pub static S_IRQS_ENABLED: ::core::atomic::AtomicBool = ::core::atomic::ATOMIC_BOOL_INIT;
+
 #[repr(C)]
 struct TLSData {
 	// MUST be first (assumption in get_tls_ptr)
@@ -178,6 +180,12 @@ pub fn switch_to(newthread: Box<::threads::Thread>)
 	}
 	else
 	{
+		if true && S_IRQS_ENABLED.load(::core::atomic::Ordering::Relaxed) {
+			// SAFE: Just pulls rflags
+			let flags = unsafe { let v: u64; asm!("pushf; pop $0" : "=r" (v)); v };
+			assert!(flags & 0x200 != 0, "switch_to() with IF clear, RFLAGS = {:#x}", flags);
+		}
+
 		unsafe
 		{
 			// TODO: Lazy save/restore SSE state
