@@ -4,8 +4,10 @@
 use geom::{Rect,Px};
 use surface::Colour;
 
+/// Static image wrapper
 pub struct Image<T: Buffer>
 {
+	has_changed: ::std::cell::Cell<bool>,
 	data: T,
 }
 
@@ -13,8 +15,13 @@ impl<T: Buffer> Image<T>
 {
 	pub fn new(i: T) -> Image<T> {
 		Image {
+			has_changed: ::std::cell::Cell::new(true),
 			data: i,
 		}
+	}
+
+	pub fn force_redraw(&self) {
+		self.has_changed.set(true); 
 	}
 }
 
@@ -29,8 +36,11 @@ impl<T: Buffer> ::Element for Image<T>
 		false
 	}
 
-	fn render(&self, surface: ::surface::SurfaceView) {
-		self.data.render(surface);
+	fn render(&self, surface: ::surface::SurfaceView, force: bool) {
+		if force || self.has_changed.get() {
+			self.data.render(surface);
+			self.has_changed.set(false);
+		}
 	}
 }
 

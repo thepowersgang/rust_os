@@ -9,6 +9,7 @@ use geom::Rect;
 
 #[derive(PartialEq,Debug)]
 enum Direction { Vertical, Horizontal }
+impl Default for Direction { fn default() -> Direction { Direction::Vertical } }
 impl Direction {
 	fn is_vert(&self) -> bool { match self { &Direction::Vertical => true, &Direction::Horizontal => false } }
 }
@@ -16,9 +17,11 @@ impl Direction {
 pub struct Size(u32);
 
 /// Box containing multiple elements, handles auto-sizing of elements
+#[derive(Default)]
 pub struct Box<'a>
 {
 	direction: Direction,
+	sizes: ::std::cell::RefCell<(u32,u32)>,
 	items: Vec< (Option<&'a Element>, Option<Size>) >,
 }
 
@@ -26,11 +29,11 @@ impl<'a> Box<'a>
 {
 	/// Create a vertically stacked box
 	pub fn new_vert() -> Box<'a> {
-		Box { direction: Direction::Vertical, items: Vec::new() }
+		Box { direction: Direction::Vertical, ..Default::default() }
 	}
 	/// Create a horizontally stacked box
 	pub fn new_horiz() -> Box<'a> {
-		Box { direction: Direction::Horizontal, items: Vec::new() }
+		Box { direction: Direction::Horizontal, ..Default::default() }
 	}
 
 	/// Add an item to the box, optionally a fixed size
@@ -42,22 +45,42 @@ impl<'a> Box<'a>
 		self.items.push( (None, size.map(|v| Size(v))) );
 	}
 
+
 	fn with_element_at<T, F: FnOnce(&::Element, (u32,u32))->T>(&self, x: u32, y: u32, f: F) -> T {
 		let pos = if self.direction.is_vert() { y } else { x };
 		// TODO: Need to know the size of the box (which is determined by the parent)
 		panic!("Box::with_element_at");
 	}
 
-	fn get_expand_size(&self, cap: u32) -> u32 {
-		let (fixed_total, num_expand) = self.items.iter().fold( (0,0), |(total,exp), i| if let Some(Size(v)) = i.1 { (total+v, exp) } else { (total, exp+1) } );
-		if fixed_total > cap {
-			return 0;
-		}
-		if num_expand > 0 {
-			(cap - fixed_total) / num_expand
+	// returns (has_changed, expand_size)
+	fn update_size(&self, cap: u32) -> (bool, u32) {
+		let mut sizes = self.sizes.borrow_mut();
+		if sizes.0 == cap {
+			(false, sizes.1)
 		}
 		else {
-			0
+			let expand = {
+				let (fixed_total, num_expand) = self.items.iter().fold( (0,0), |(total,exp), i| if let Some(Size(v)) = i.1 { (total+v, exp) } else { (total, exp+1) } );
+				if fixed_total > cap {
+					0
+				}
+				else if num_expand > 0 {
+					(cap - fixed_total) / num_expand
+				}
+				else {
+					0
+				}
+				};
+			*sizes = (cap, expand);
+			(true, expand)
+		}
+	}
+
+	fn get_rect(&self, ofs: u32, size: u32) -> Rect<::geom::Px> {
+		if self.direction.is_vert() {
+			Rect::new(0, ofs, !0, size)
+		} else {
+			Rect::new(ofs, 0, size, !0)
 		}
 	}
 }
@@ -79,9 +102,10 @@ impl<'a> super::Element for Box<'a>
 		_ => false,
 		}
 	}
-	fn render(&self, surface: ::surface::SurfaceView) {
+	fn render(&self, surface: ::surface::SurfaceView, force: bool) {
 		// 1. Determine sizes
-		let expand_size = self.get_expand_size( if self.direction.is_vert() { surface.height() } else { surface.width() } );
+		let (is_dirty, expand_size)  = self.update_size(if self.direction.is_vert() { surface.height() } else { surface.width() });
+
 		// 2. Render sub-surfaces
 		let mut ofs = 0;
 		for item in self.items.iter()
@@ -96,13 +120,9 @@ impl<'a> super::Element for Box<'a>
 			match item.0
 			{
 			Some(ele) => {
-				let rect = if self.direction.is_vert() {
-						Rect::new(0, ofs, !0, size)
-					} else {
-						Rect::new(ofs, 0, size, !0)
-					};
+				let rect = self.get_rect(ofs, size);
 				//kernel_log!("- rect = {:?}", rect);
-				ele.render(surface.slice(rect));
+				ele.render(surface.slice(rect), force || is_dirty);
 				},
 			None => {},
 			}
@@ -145,19 +165,23 @@ impl<E: ::Element> ::Element for Frame<E>
 		//
 		self.item.handle_event(ev, win)
 	}
-	fn render(&self, surface: ::surface::SurfaceView) {
-		match self.frame_type
+	fn render(&self, surface: ::surface::SurfaceView, force: bool)
+	{
+		if force
 		{
-		FrameType::Raise => {
-			surface.fill_rect( Rect::new(0,0,!0,1), Colour::theme_border_alt() );
-			surface.fill_rect( Rect::new(0,0,1,!0), Colour::theme_border_alt() );
-			surface.fill_rect( Rect::new(0,surface.height()-1,!0,1), Colour::theme_border_main() );
-			surface.fill_rect( Rect::new(surface.width()-1,0,1,!0), Colour::theme_border_main() );
-			},
-		FrameType::Bevel => {
-			},
+			match self.frame_type
+			{
+			FrameType::Raise => {
+				surface.fill_rect( Rect::new(0,0,!0,1), Colour::theme_border_alt() );
+				surface.fill_rect( Rect::new(0,0,1,!0), Colour::theme_border_alt() );
+				surface.fill_rect( Rect::new(0,surface.height()-1,!0,1), Colour::theme_border_main() );
+				surface.fill_rect( Rect::new(surface.width()-1,0,1,!0), Colour::theme_border_main() );
+				},
+			FrameType::Bevel => {
+				},
+			}
 		}
 
-		self.item.render(surface.slice( Rect::new(2,2, surface.width()-4, surface.height()-4) ));
+		self.item.render(surface.slice( Rect::new(2,2, surface.width()-4, surface.height()-4) ), force);
 	}
 }

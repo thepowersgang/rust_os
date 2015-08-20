@@ -36,21 +36,21 @@ pub trait Element
 	/// Called when an event fires. Keyboard events are controlled by focus, mouse via the render tree
 	fn handle_event(&self, _ev: ::InputEvent, _win: &mut ::window::Window) -> bool { false }
 	/// Redraw this element into the provided surface view
-	fn render(&self, surface: ::surface::SurfaceView);
+	fn render(&self, surface: ::surface::SurfaceView, force: bool);
 }
 /// Object safe
 impl<'a, T: Element> Element for &'a T
 {
 	fn focus_change(&self, have: bool) { (*self).focus_change(have) }
 	fn handle_event(&self, ev: ::InputEvent, win: &mut ::window::Window) -> bool { (*self).handle_event(ev, win) }
-	fn render(&self, surface: ::surface::SurfaceView) { (*self).render(surface) }
+	fn render(&self, surface: ::surface::SurfaceView, force: bool) { (*self).render(surface, force) }
 }
 /// Unit type is a valid element. Just does nothing.
 impl Element for ()
 {
 	fn focus_change(&self, _have: bool) { }
 	fn handle_event(&self, _ev: ::InputEvent, _win: &mut ::window::Window) -> bool { false }
-	fn render(&self, _surface: ::surface::SurfaceView) { }
+	fn render(&self, _surface: ::surface::SurfaceView, _force: bool) { }
 }
 
 pub use window::Window;

@@ -22,6 +22,7 @@ struct State
 	insert_ofs: usize,
 	view_ofs: usize,
 
+	is_dirty: bool,
 	is_focussed: bool,
 }
 
@@ -76,44 +77,50 @@ impl<'a> ::Element for TextInput<'a>
 {
 	// On focus change, update flag used to render the cursor
 	fn focus_change(&self, have: bool) {
-		self.state.borrow_mut().is_focussed = have;
+		let mut state = self.state.borrow_mut();
+		state.is_focussed = have;
+		state.is_dirty = true;
 	}
 
-	fn render(&self, surface: ::surface::SurfaceView) {
-		let (w,h) = (surface.width(), surface.height());
-		// A basic raised border (top-left illuminated)
-		// TODO: Shouldn't the border be the job of a wrapping frame? Kinda heavy, but cleaner
-		surface.fill_rect( Rect::new(0,0,w,1), Colour::theme_border_main() );
-		surface.fill_rect( Rect::new(0,0,1,h), Colour::theme_border_main() );
-		surface.fill_rect( Rect::new(0,h-1,w,1), Colour::theme_border_alt() );
-		surface.fill_rect( Rect::new(w-1,0,1,h), Colour::theme_border_alt() );
+	fn render(&self, surface: ::surface::SurfaceView, force: bool) {
+		let mut state = self.state.borrow_mut();
+		if force || state.is_dirty {
+			let (w,h) = (surface.width(), surface.height());
+			// A basic raised border (top-left illuminated)
+			// TODO: Shouldn't the border be the job of a wrapping frame? Kinda heavy, but cleaner
+			surface.fill_rect( Rect::new(0,0,w,1), Colour::theme_border_main() );
+			surface.fill_rect( Rect::new(0,0,1,h), Colour::theme_border_main() );
+			surface.fill_rect( Rect::new(0,h-1,w,1), Colour::theme_border_alt() );
+			surface.fill_rect( Rect::new(w-1,0,1,h), Colour::theme_border_alt() );
 
-		// Text positioned 1px from the corners
-		let pos = Rect::new(1,1,w-2,h-2);
-		surface.fill_rect( pos, Colour::theme_text_bg() );
-		let state = self.state.borrow();
-		// TODO: Support interior editing (and have the cursor midway)
-		let cursor_pos =
-			if state.value == ""
-			{
-				// Render shadow text in a desaturated colour
-				surface.draw_text( pos, self.shadow.chars(), Colour::theme_text_alt() );
-				0
+			// Text positioned 1px from the corners
+			let pos = Rect::new(1,1,w-2,h-2);
+			surface.fill_rect( pos, Colour::theme_text_bg() );
+			// TODO: Support interior editing (and have the cursor midway)
+			let cursor_pos =
+				if state.value == ""
+				{
+					// Render shadow text in a desaturated colour
+					surface.draw_text( pos, self.shadow.chars(), Colour::theme_text_alt() );
+					0
+				}
+				else if let Some(ch) = self.obscure_char
+				{
+					// Render obscured
+					surface.draw_text( pos, state.value.chars().map(|_| ch), Colour::theme_text() )
+				}
+				else
+				{
+					// Render plain
+					surface.draw_text( pos, state.value.chars(), Colour::theme_text() )
+				};
+			// If focused, render a cursor at the insert position.
+			// - Vertical line from 2px to -2px
+			if state.is_focussed {
+				surface.fill_rect( Rect::new(cursor_pos as u32, 2,  1, h-4), Colour::theme_text() );
 			}
-			else if let Some(ch) = self.obscure_char
-			{
-				// Render obscured
-				surface.draw_text( pos, state.value.chars().map(|_| ch), Colour::theme_text() )
-			}
-			else
-			{
-				// Render plain
-				surface.draw_text( pos, state.value.chars(), Colour::theme_text() )
-			};
-		// If focused, render a cursor at the insert position.
-		// - Vertical line from 2px to -2px
-		if state.is_focussed {
-			surface.fill_rect( Rect::new(cursor_pos as u32, 2,  1, h-4), Colour::theme_text() );
+
+			state.is_dirty = false;
 		}
 	}
 
@@ -121,11 +128,15 @@ impl<'a> ::Element for TextInput<'a>
 		match ev
 		{
 		::InputEvent::Text(v) => {
-			self.state.borrow_mut().value.push_str(&v);
+			let mut state = self.state.borrow_mut();
+			state.value.push_str(&v);
+			state.is_dirty = true;
 			true
 			},
 		::InputEvent::KeyUp(::syscalls::gui::KeyCode::Backsp) => {
-			self.state.borrow_mut().value.pop();	// TODO: Should really pop a grapheme
+			let mut state = self.state.borrow_mut();
+			state.value.pop();	// TODO: Should really pop a grapheme
+			state.is_dirty = true;
 			true
 			},
 		::InputEvent::KeyUp(::syscalls::gui::KeyCode::Return) =>

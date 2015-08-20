@@ -13,6 +13,8 @@ pub struct Button<'a, T: ::Element>
 #[derive(Default)]
 struct State
 {
+	is_dirty: bool,
+
 	is_focussed: bool,
 	is_held: bool,
 }
@@ -33,40 +35,46 @@ impl<'a, T: ::Element> Button<'a, T>
 	pub fn bind_click<F: Fn(&Self, &mut ::window::Window)+'a>(&mut self, cb: F) {
 		self.click_cb = Some( Box::new(cb) );
 	}
+
+	pub fn downstate_change(&self, state: bool) -> bool {
+		let mut st = self.state.borrow_mut();
+		if st.is_held != state {
+			st.is_held = state;
+			st.is_dirty = true;
+			true
+		}
+		else {
+			false
+		}
+	}
 }
 
 impl<'a, T: ::Element> ::Element for Button<'a, T>
 {
 	fn focus_change(&self, have: bool) {
-		self.state.borrow_mut().is_focussed = have;
+		let mut st = self.state.borrow_mut();
+		st.is_focussed = have;
+		st.is_dirty = true;
 	}
 
 	fn handle_event(&self, ev: ::InputEvent, win: &mut ::window::Window) -> bool {
 		match ev
 		{
-		::InputEvent::MouseUp(_x,_y,0) => {
-			self.state.borrow_mut().is_held = false;
-			true
-			},
-		::InputEvent::MouseDown(_x,_y,0) => {
-			self.state.borrow_mut().is_held = true;
-			true
-			},
-		::InputEvent::KeyUp(::syscalls::gui::KeyCode::Return) =>
-			if let Some(ref cb) = self.click_cb
-			{
-				cb(self, win);
-				true
-			}
-			else {
-				false
+		::InputEvent::MouseDown(_x,_y,0) => self.downstate_change(true),
+		::InputEvent::MouseUp(_x,_y,0) => self.downstate_change(false),
+		::InputEvent::KeyUp(::syscalls::gui::KeyCode::Return) => {
+			self.click_cb.as_ref().map(|cb| cb(self, win));
+			false
 			},
 		_ => false,
 		}
 	}
 
-	fn render(&self, surface: ::surface::SurfaceView) {
-		self.inner.render(surface)
+	fn render(&self, surface: ::surface::SurfaceView, force: bool) {
+		//if force || self.state.borrow().is_dirty {
+		//	// TODO: Draw a border according using is_focussed and is_held
+		//}
+		self.inner.render(surface, force)
 	}
 }
 

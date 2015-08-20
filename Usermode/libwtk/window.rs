@@ -10,6 +10,7 @@ pub struct Window<'a>
 	surface: ::surface::Surface,
 	root: &'a ::Element,
 
+	needs_force_rerender: bool,
 	focus: Option<&'a ::Element>,
 	taborder: Vec<(usize, &'a ::Element)>,
 }
@@ -26,6 +27,7 @@ impl<'a> Window<'a>
 				},
 			surface: Default::default(),
 			root: ele,
+			needs_force_rerender: false,
 			focus: None,
 			taborder: Vec::new(),
 		}
@@ -68,21 +70,25 @@ impl<'a> Window<'a>
 	/// Disable window decorations on this window
 	pub fn undecorate(&mut self) {
 		//panic!("TODO: undecorate");
+		self.needs_force_rerender = true;
 	}
 	/// Maximise the window
 	pub fn maximise(&mut self) {
+		self.needs_force_rerender = true;
 		self.win.maximise();
 		self.surface.resize( self.win.get_dims() );
 	}
 
 	/// Manually request a redraw of the window
-	pub fn rerender(&self) {
-		self.root.render( self.surface.slice( Rect::new_full() ) );
+	pub fn rerender(&mut self) {
+		self.root.render( self.surface.slice( Rect::new_full() ), self.needs_force_rerender );
 		self.surface.blit_to_win( &self.win );
+		self.needs_force_rerender = false;
 	}
 
 	/// Show the window
 	pub fn show(&mut self) {
+		self.needs_force_rerender = true;
 		self.rerender();
 		self.win.show();
 	}
