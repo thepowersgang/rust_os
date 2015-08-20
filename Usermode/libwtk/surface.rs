@@ -82,12 +82,14 @@ impl Surface
 		self.dirty.set(Default::default());
 		let first_row = dirty.y().0 as usize;
 		let row_count = dirty.height().0 as usize;
+		let first_col = dirty.x().0 as usize;
+		let col_count = dirty.width().0 as usize;
 		
-		// TODO: Need to support "stride" for this API, allowing true partial blits.
+		// Blit just the dirty region
 		win.blit_rect(
-			0, first_row as u32,
-			self.width as u32, row_count as u32,
-			&self.data.borrow()[first_row*self.width..][..row_count*self.width],
+			first_col as u32, first_row as u32,
+			col_count as u32, row_count as u32,
+			&self.data.borrow()[first_row*self.width + first_col .. ][ .. row_count*self.width],
 			self.width
 			);
 	}
