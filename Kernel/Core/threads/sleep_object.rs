@@ -51,7 +51,7 @@ impl SleepObject
 	/// Wait the current thread on this object
 	pub fn wait(&self)
 	{
-		log_trace!("SleepObject::wait {:p} '{}'", self, self.name);
+		//log_trace!("SleepObject::wait {:p} '{}'", self, self.name);
 		
 		let irql = ::sync::hold_interrupts();
 		let mut lh = self.inner.lock();
@@ -84,7 +84,7 @@ impl SleepObject
 	#[allow(not_tagged_safe)]	// Holds an IRQ lock
 	pub fn signal(&self)
 	{
-		log_trace!("SleepObject::signal {:p} '{}'", self, self.name);
+		//log_trace!("SleepObject::signal {:p} '{}'", self, self.name);
 		
 		let _irq_lock = ::sync::hold_interrupts();
 		let mut lh = self.inner.lock();
