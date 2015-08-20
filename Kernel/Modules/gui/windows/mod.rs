@@ -57,6 +57,7 @@ static S_WINDOW_GROUPS: LazyMutex<SparseVec< Arc<Mutex<WindowGroup>> >> = lazymu
 static S_CURRENT_GROUP: ::core::atomic::AtomicUsize = ::core::atomic::ATOMIC_USIZE_INIT;
 
 static S_RENDER_REQUEST: ::kernel::sync::EventChannel = ::kernel::sync::EVENTCHANNEL_INIT;
+static S_FULL_REDRAW: ::core::atomic::AtomicBool = ::core::atomic::ATOMIC_BOOL_INIT;
 static S_EVENT_QUEUE: LazyStatic<::kernel::lib::ring_buffer::AtomicRingBuf<super::input::Event>> = lazystatic_init!();
 // Keep this lazy, as it's runtime initialised
 static S_RENDER_THREAD: LazyMutex<::kernel::threads::WorkerThread> = lazymutex_init!();
@@ -166,7 +167,7 @@ fn render_thread()
 		}
 		
 		log_debug!("render_thread: Rendering WG {} '{}'", grp_idx, grp_ref.lock().name);
-		grp_ref.lock().redraw(false);
+		grp_ref.lock().redraw( S_FULL_REDRAW.swap(false, ::core::atomic::Ordering::Relaxed) );
 	}
 }
 
@@ -310,6 +311,9 @@ impl WindowGroup
 			}
 			// Recalculate visibility for lower window
 			self.recalc_vis_int(prev_pos);
+
+			// TODO: Full redraw can be expensive... would prefer to force redraw of just the revealed region
+			S_FULL_REDRAW.store(true, ::core::atomic::Ordering::Relaxed);
 		}
 	}
 	
