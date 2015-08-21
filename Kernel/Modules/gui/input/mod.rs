@@ -3,6 +3,7 @@
 //
 // Core/gui/input/mod.rs
 //! GUI input managment
+#[allow(unused_imports)]
 use kernel::prelude::*;
 use self::keyboard::KeyCode;
 use core::atomic::{AtomicUsize,ATOMIC_USIZE_INIT,Ordering};
@@ -34,7 +35,7 @@ struct InputChannel
 	shift_held: ModKeyPair,
 	ctrl_held: ModKeyPair,
 	alt_held: ModKeyPair,
-	altgr: ModKeyPair,	// AltGr is usually just one... but meh
+	//altgr: ModKeyPair,	// AltGr is usually just one... but meh
 	
 	cursor: MouseCursor,
 }
@@ -49,7 +50,7 @@ static MAIN_INPUT: InputChannel = InputChannel {
 	shift_held: MOD_KEY_PAIR_INIT,
 	ctrl_held: MOD_KEY_PAIR_INIT,
 	alt_held: MOD_KEY_PAIR_INIT,
-	altgr: MOD_KEY_PAIR_INIT,
+	//altgr: MOD_KEY_PAIR_INIT,
 	cursor: MOUSE_CURSOR_INIT,
 	};
 

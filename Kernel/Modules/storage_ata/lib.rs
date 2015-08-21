@@ -3,7 +3,7 @@
 //
 // Modules/storage_ata/lib.rs
 //! x86 ATA driver
-#![feature(no_std,core,linkage)]
+#![feature(no_std,linkage)]
 #![no_std]
 #![feature(core_slice_ext)]
 #![feature(associated_consts)]

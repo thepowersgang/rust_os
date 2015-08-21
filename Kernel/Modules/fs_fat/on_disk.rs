@@ -1,3 +1,9 @@
+// "Tifflin" Kernel - FAT Filesystem Driver
+// - By John Hodge (thePowersGang)
+//
+// Modules/fs_fat/on_disk.rs
+//! On-Disk structures and flags
+#[allow(unused_imports)]
 use kernel::prelude::*;
 
 pub const ATTR_READONLY : u8 = 0x01;	// Read-only file

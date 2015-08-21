@@ -13,6 +13,7 @@ extern crate kernel;
 
 extern crate gui;
 
+#[allow(unused_imports)]
 use kernel::prelude::*;
 
 // HACK: Requires USB to be active to ensure that emulation is off

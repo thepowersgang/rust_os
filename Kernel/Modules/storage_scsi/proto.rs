@@ -1,4 +1,9 @@
-
+// "Tifflin" Kernel
+// - By John Hodge (thePowersGang)
+//
+// Modules/storage_scsi/proto.rs
+//! SCSI Protocol definitions
+#[allow(unused_imports)]
 use kernel::prelude::*;
 use kernel::lib::byteorder::{ByteOrder,BigEndian};
 

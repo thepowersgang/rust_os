@@ -3,7 +3,6 @@
 //
 // Modules/input_ps2/keyboard.rs
 //! PS2 Keyboard driver
-use kernel::prelude::*;
 use gui::input::keyboard as gui_keyboard;
 use gui::input::keyboard::KeyCode;
 

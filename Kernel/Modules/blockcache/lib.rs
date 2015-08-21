@@ -9,6 +9,7 @@
 #![no_std]
 #![feature(core_slice_ext)]
 #[macro_use] extern crate kernel;
+#[allow(unused_imports)]
 use kernel::prelude::*;
 
 use kernel::lib::mem::Arc;

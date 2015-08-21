@@ -9,7 +9,7 @@
 // - Logo
 // - TODO: Kernel log (history) : A searchable/filterable/scrollable kernel log
 // - TODO: Console 
-
+#[allow(unused_imports)]
 use kernel::prelude::*;
 
 use super::windows::{WindowGroupHandle,WindowHandle};

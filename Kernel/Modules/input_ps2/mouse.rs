@@ -3,7 +3,6 @@
 //
 // Modules/input_ps2/mouse.rs
 //! PS2 Mouse driver
-use kernel::prelude::*;
 use gui::input::mouse as gui_mouse;
 
 #[derive(Debug)]
