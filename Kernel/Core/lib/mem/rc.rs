@@ -3,7 +3,6 @@
 //
 // Core/lib/mem/rc.rs
 //! Reference-counted shared allocation
-use core::prelude::*;
 use core::{ops,fmt};
 
 use super::grc::Grc;

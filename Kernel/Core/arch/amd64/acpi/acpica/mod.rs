@@ -3,6 +3,7 @@
 //
 // arch/amd64/acpi/mod_acpica.rs
 //! ACPI Component Architecture binding
+#[allow(unused_imports)]
 use prelude::*;
 use core::ops;
 use self::shim_ext::*;

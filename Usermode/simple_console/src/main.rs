@@ -2,7 +2,6 @@
 // - By John Hodge (thePowersGang)
 //
 // Simplistic console, used as a quick test case (fullscreen window)
-#![feature(core_slice_ext,core_str_ext)]
 #![feature(const_fn)]
 #![feature(result_expect)]
 

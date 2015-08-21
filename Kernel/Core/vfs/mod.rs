@@ -3,6 +3,7 @@
 //
 // Core/vfs/mod.rs
 //! Virtual File System
+#[allow(unused_imports)]
 use prelude::*;
 use metadevs::storage::VolumeHandle;
 

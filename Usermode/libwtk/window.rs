@@ -52,7 +52,9 @@ impl<'a> Window<'a>
 	pub fn taborder_add(&mut self, idx: usize, ele: &'a ::Element) {
 		match self.taborder.binary_search_by(|v| ::std::cmp::Ord::cmp(&v.0, &idx))
 		{
-		Ok(i) => {},
+		Ok(_i) => {
+			panic!("TODO: Handle duplicate in tab oredr");
+			},
 		Err(i) => {
 			self.taborder.insert(i, (idx, ele));
 			},

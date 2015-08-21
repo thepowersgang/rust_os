@@ -7,8 +7,7 @@
 #![allow(dead_code)]	// API, may not be used
 use core::fmt;
 
-//#[repr(C)]
-pub enum Void {}
+use Void;
 
 pub type ACPI_SIZE = usize;
 pub type ACPI_PHYSICAL_ADDRESS = ::memory::PAddr;
@@ -110,7 +109,7 @@ pub const AE_NOT_IMPLEMENTED: ACPI_STATUS = ACPI_STATUS(AE_CODE_ENVIRONMENTAL|14
 pub const AE_BAD_PARAMETER: ACPI_STATUS = ACPI_STATUS(AE_CODE_PROGRAMMER|1);
 
 #[repr(C)]
-pub struct ACPI_TABLE_DESC;
+pub struct ACPI_TABLE_DESC(::Void);
 
 pub type ACPI_TABLE_HEADER = super::super::SDTHeader;
 
@@ -161,7 +160,7 @@ pub struct ACPI_PNP_DEVICE_ID_LIST
 {
 	Count: u32,
 	ListSize: u32,
-	Ids: [ACPI_PNP_DEVICE_ID],
+	Ids: [ACPI_PNP_DEVICE_ID; 0],
 }
 // AcpiAttachData, etc
 pub type ACPI_OBJECT_HANDLER = extern "C" fn (Object: ACPI_HANDLE, Data: *const Void);

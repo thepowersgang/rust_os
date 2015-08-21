@@ -3,6 +3,7 @@
 //
 // Core/vfs/path.rs
 //! `Path` type and helpers
+#[allow(unused_imports)]
 use prelude::*;
 use lib::byte_str::{ByteStr,ByteString};
 use lib::borrow::ToOwned;

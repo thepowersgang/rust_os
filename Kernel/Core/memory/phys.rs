@@ -3,6 +3,7 @@
 //
 // Core/memory/phys.rs
 // - Physical memory manager
+#[allow(unused_imports)]
 use prelude::*;
 //use arch::memory::addresses::{physinfo_start, physinfo_end};
 use arch::memory::PAddr;

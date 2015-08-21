@@ -6,7 +6,7 @@
 #![crate_name="kernel"]
 #![crate_type="lib"]
 #![feature(no_std)]
-#![feature(core,core_prelude,core_slice_ext,core_str_ext,core_char_ext)]	// Needed to use libcore and provided prelude
+#![feature(core,core_slice_ext,core_str_ext,core_char_ext)]	// Needed to use libcore and provided prelude
 #![feature(unsize,coerce_unsized)]	// For DST smart pointers
 #![feature(core_intrinsics)]	// Intrinsics
 #![feature(asm)]	// Enables the asm! syntax extension
@@ -33,9 +33,13 @@
 #![feature(custom_attribute)]
 #![plugin(tag_safe)]
 
+#[allow(unused_imports)]
 use prelude::*;
 
 extern crate stack_dst;
+
+//#[repr(C)]
+pub enum Void {}
 
 pub use arch::memory::PAGE_SIZE;
 

@@ -3,6 +3,7 @@
 //
 // Core/modules.rs
 // - Runtime-initialised modules (handling load order deps)
+#[allow(unused_imports)]
 use prelude::*;
 
 #[repr(packed)]

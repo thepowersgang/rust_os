@@ -1,6 +1,9 @@
 // "Tifflin" Kernel
+// - By John Hodge (thePowersGang)
 //
-//
+// Core/memory/memorymap.rs
+//! Physical memory map type
+#[allow(unused_imports)]
 use prelude::*;
 use arch::memory::{PAddr};
 

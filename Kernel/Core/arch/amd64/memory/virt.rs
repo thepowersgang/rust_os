@@ -3,7 +3,6 @@
 //
 // arch/amd64/memory/virt.rs
 //! Virtual address space management
-use core::prelude::*;
 use super::{PAddr,VAddr};
 use PAGE_SIZE;
 use memory::virt::ProtectionMode;

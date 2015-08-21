@@ -3,6 +3,7 @@
 //
 // Core/sync/event_channel.rs
 //! Sleeping primitive for that wakes a thread when signalled
+#[allow(unused_imports)]
 use prelude::*;
 use sync::Spinlock;
 use threads::WaitQueue;

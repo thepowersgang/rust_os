@@ -5,6 +5,7 @@
 // - Ring buffer (fixed size)
 //!
 //! Provides a fixed-capacity ring buffer
+#[allow(unused_imports)]
 use prelude::*;
 use memory::heap::ArrayAlloc;
 use core::atomic::{AtomicUsize,Ordering};

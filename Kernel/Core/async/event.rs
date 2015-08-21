@@ -3,6 +3,7 @@
 //
 // Core/async/event.rs
 //! Asynchronous event waiter
+#[allow(unused_imports)]
 use prelude::*;
 use core::atomic::{AtomicBool,ATOMIC_BOOL_INIT,Ordering};
 use core::fmt;

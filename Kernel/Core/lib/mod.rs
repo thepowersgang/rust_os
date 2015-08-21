@@ -5,7 +5,6 @@
 //!
 //! Contains helper types that either clone types in the rust standard library, or provide useful
 //! features for operation in kernel-land.
-use core::prelude::*;
 
 pub use self::queue::Queue;
 pub use self::vec_map::VecMap;
@@ -51,8 +50,6 @@ pub mod byteorder;
 pub mod num
 {
 	//! General numeric helpers
-	
-	use prelude::*;
 	use core::ops;
 	
 	pub trait Int
@@ -60,7 +57,8 @@ pub mod num
 		Self: ops::Add<Output=Self>,
 		Self: ops::Sub<Output=Self>,
 		Self: ops::Mul<Output=Self>,
-		Self: ops::Div<Output=Self>
+		Self: ops::Div<Output=Self>,
+		Self: Sized
 	{
 		fn one() -> Self;
 	}

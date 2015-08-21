@@ -3,6 +3,7 @@
 //
 // Core/sync/mutex.rs
 //! Thread blocking Mutex type
+#[allow(unused_imports)]
 use prelude::*;
 use core::ops;
 

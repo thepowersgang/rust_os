@@ -5,7 +5,6 @@
 //! Generic reference-counted shared allocation
 //!
 //! Provides common functionality between Rc and Arc
-use core::prelude::*;
 use core::nonzero::NonZero;
 use core::atomic::{AtomicUsize,Ordering};
 use core::{ops,fmt};

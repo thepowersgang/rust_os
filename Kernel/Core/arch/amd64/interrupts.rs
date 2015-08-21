@@ -3,6 +3,7 @@
 //
 // Core/main.rs
 //! Low-level interrupt handling and CPU error handling
+#[allow(unused_imports)]
 use prelude::*;
 use super::{puts,puth};
 use super::log::puth64;

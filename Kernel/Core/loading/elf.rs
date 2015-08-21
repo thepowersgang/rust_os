@@ -3,6 +3,7 @@
 //
 // Core/loading/elf.rs
 //! Executable and Linking Format (ELF) support
+#[allow(unused_imports)]
 use prelude::*;
 use lib::borrow::Cow;
 use memory::virt::SliceAllocHandle;

@@ -3,6 +3,7 @@
 //
 // Core/vfs/handle.rs
 //! Opened file interface
+#[allow(unused_imports)]
 use prelude::*;
 use super::node::{CacheHandle,NodeType};
 use lib::byte_str::ByteString;

@@ -3,6 +3,7 @@
 //
 // arch/amd64/hw/hpet.rs
 // - x86 High Precision Event Timer
+#[allow(unused_imports)]
 use prelude::*;
 use arch::acpi::AddressSpaceID;
 

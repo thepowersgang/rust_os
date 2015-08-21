@@ -19,7 +19,7 @@ pub struct State
 }
 
 extern "C" {
-	static InitialPML4: ();
+	static InitialPML4: [u64; 512];
 	static s_tid0_tls_base: u64;
 	fn task_switch(oldrsp: &mut u64, newrsp: &u64, tlsbase: u64, cr3: u64);
 }

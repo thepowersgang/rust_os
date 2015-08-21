@@ -3,6 +3,7 @@
 //
 // Core/config.rs
 //! Boot-time configuration managment
+#[allow(unused_imports)]
 use prelude::*;
 
 pub enum Value

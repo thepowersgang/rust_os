@@ -1,6 +1,9 @@
-/*
- */
+// "Tifflin" Kernel
+// - By John Hodge (thePowersGang)
+//
+// Core/helpers/dma_buffer.rs
 ///! Helper type for DMA accesses
+#[allow(unused_imports)]
 use prelude::*;
 use arch::memory::PAddr;
 use core::marker::PhantomData;

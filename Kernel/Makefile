@@ -109,7 +109,8 @@ all: bin/kernel-$(ARCH).bin
 
 dsm: bin/kernel-$(ARCH).bin.dsm
 
-clean:	rm -r $(OBJDIR)
+clean:
+	rm -r $(OBJDIR)
 
 docs:
 	@mkdir -p doc/Kernel

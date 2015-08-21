@@ -5,6 +5,7 @@
 //! Boot information.
 //!
 //! Parsing and exposure of the bootloader-provided data
+#[allow(unused_imports)]
 use prelude::*;
 use super::memory::addresses::{IDENT_START, IDENT_END};
 use metadevs::video::bootvideo::{VideoMode,VideoFormat};
@@ -330,7 +331,7 @@ impl MultibootParsed
 			assert!( mapbuilder.validate() );
 			
 			// 2. Clobber out kernel, modules, and strings
-			mapbuilder.set_range( 0x100000, &::arch::v_kernel_end as *const() as u64 - IDENT_START as u64 - 0x10000,
+			mapbuilder.set_range( 0x100000, &::arch::v_kernel_end as *const _ as u64 - IDENT_START as u64 - 0x10000,
 				::memory::MemoryState::Used, 0 ).ok().unwrap();
 			mapbuilder.set_range( self.cmdline.as_ptr() as u64 - IDENT_START as u64, self.cmdline.len() as u64,
 				::memory::MemoryState::Used, 0 ).ok().unwrap();

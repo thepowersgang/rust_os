@@ -2,8 +2,7 @@
 // - By John Hodge (thePowersGang)
 //
 // Core/lib/opt_ptr.rs
-/// 
-use prelude::*;
+//! 
 
 /// An equivalemnt of Option<*const T> which cannot be NULL
 pub struct OptPtr<T>(pub *const T);

@@ -3,6 +3,7 @@
 //
 // Core/lib/byte_str.rs
 //! Byte strings (used for the VFS, and other places where UTF-8 can't be enforced)
+#[allow(unused_imports)]
 use prelude::*;
 use core::{cmp,ops};
 

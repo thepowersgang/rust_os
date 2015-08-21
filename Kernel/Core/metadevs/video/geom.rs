@@ -3,6 +3,7 @@
 //
 // Core/metadevs/video/mod.rs
 /// Geometry types
+#[allow(unused_imports)]
 use prelude::*;
 
 #[derive(Copy,Clone,PartialEq,Default)]

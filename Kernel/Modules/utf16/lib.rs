@@ -7,6 +7,7 @@
 #![no_std]
 #![feature(core_slice_ext,core_str_ext,core_char_ext,iter_order)]
 #[macro_use] extern crate kernel;
+#[allow(unused_imports)]
 use kernel::prelude::*;
 
 use kernel::lib::byte_str::ByteStr;

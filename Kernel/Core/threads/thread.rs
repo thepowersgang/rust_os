@@ -189,7 +189,7 @@ impl ProcessHandle
 
 	pub fn bind_wait_terminate(&self, obj: &mut ::threads::SleepObject) {
 		let mut lh = self.0.exit_status.lock();
-		if let Some(status) = lh.0 {
+		if let Some(_status) = lh.0 {
 			obj.signal();
 		}
 		else if let Some(_) = lh.1 {

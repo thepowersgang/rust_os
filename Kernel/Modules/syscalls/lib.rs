@@ -3,7 +3,7 @@
 //
 // Core/syscalls/mod.rs
 //! Userland system-call interface
-#![feature(no_std,core)]
+#![feature(no_std)]
 #![no_std]
 #![feature(associated_consts)]
 #![feature(core_slice_ext,core_str_ext)]
@@ -17,6 +17,7 @@ extern crate gui;
 
 extern crate stack_dst;
 
+#[allow(unused_imports)]
 use kernel::prelude::*;
 
 use kernel::memory::freeze::{Freeze,FreezeMut,FreezeError};
@@ -268,7 +269,7 @@ fn invoke_int(call_id: u32, mut args: &[usize]) -> Result<u64,Error>
 	}
 }
 
-trait SyscallArg {
+trait SyscallArg: Sized {
 	fn get_arg(args: &mut &[usize]) -> Result<Self,Error>;
 }
 

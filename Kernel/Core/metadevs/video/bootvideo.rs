@@ -1,3 +1,9 @@
+// "Tifflin" Kernel
+// - By John Hodge (thePowersGang)
+//
+// Core/metadevs/video/bootvideo.rs
+//! Early-boot video support (using bootloader-provided framebuffer)
+#[allow(unused_imports)]
 use prelude::*;
 use super::{Dims, Rect};
 

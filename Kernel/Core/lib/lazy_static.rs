@@ -2,8 +2,7 @@
 // - By John Hodge (thePowersGang)
 //
 // Core/lib/lazy_static.rs
-/// 
-use prelude::*;
+//! 
 
 /// A lazily initialised value (for `static`s)
 pub struct LazyStatic<T: Send+Sync>(pub ::core::cell::UnsafeCell<Option<T>>);

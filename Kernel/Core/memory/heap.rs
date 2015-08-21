@@ -5,7 +5,6 @@
 // - Dynamic memory manager
 
 // TODO: Rewrite this to correctly use the size information avaliable
-use core::prelude::*;
 
 use core::ptr::Unique;
 use core::ops;

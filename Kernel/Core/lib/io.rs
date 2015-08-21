@@ -3,6 +3,7 @@
 //
 // Core/lib/io.rs
 /// A clone of ::std::io
+#[allow(unused_imports)]
 use prelude::*;
 
 /// Shorthand result type

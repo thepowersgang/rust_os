@@ -3,6 +3,7 @@
 //
 // Core/lib/byteorder.rs
 /// A local version of the byteorder crates.io crate.
+#[allow(unused_imports)]
 use prelude::*;
 
 pub type Result<T> = ::core::result::Result<T,Error>;

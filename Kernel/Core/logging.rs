@@ -10,6 +10,7 @@
 // > Cache/buffer sink
 // > Display sink
 // > Serial sink
+#[allow(unused_imports)]
 use prelude::*;
 use core::fmt::{self,Write};
 use arch::sync::Spinlock;
@@ -83,6 +84,7 @@ struct Sinks
 
 mod serial
 {
+	#[allow(unused_imports)]
 	use prelude::*;
 	use super::{Level,Colour};
 	use core::fmt;
@@ -129,6 +131,7 @@ mod serial
 
 mod memory
 {
+	#[allow(unused_imports)]
 	use prelude::*;
 	use super::Level;
 	

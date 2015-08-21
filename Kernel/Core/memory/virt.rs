@@ -3,7 +3,6 @@
 //
 // Core/memory/virt.rs
 // - Virtual memory manager
-use prelude::*;
 use core::fmt;
 use core::ops;
 use arch::memory::addresses;
