@@ -76,5 +76,8 @@ impl<'a, T: ::Element> ::Element for Button<'a, T>
 		//}
 		self.inner.render(surface, force)
 	}
+	fn element_at_pos(&self, x: u32, y: u32) -> (&::Element, (u32,u32)) {
+		self.inner.element_at_pos(x, y)
+	}
 }
 

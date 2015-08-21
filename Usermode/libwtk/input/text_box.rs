@@ -151,5 +151,8 @@ impl<'a> ::Element for TextInput<'a>
 		_ => false,
 		}
 	}
+	fn element_at_pos(&self, _x: u32, _y: u32) -> (&::Element, (u32,u32)) {
+		(self, (0,0))
+	}
 }
 

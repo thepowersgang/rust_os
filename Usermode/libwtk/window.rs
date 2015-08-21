@@ -124,6 +124,23 @@ impl<'a> ::async::WaitController for Window<'a>
 					self.focus(e);
 					redraw = true;
 					},
+				// Mouse events need to be dispatched correctly
+				::InputEvent::MouseMove(x,y,dx,dy) => {
+					let (ele, (basex, basey)) = self.root.element_at_pos(x,y /*, self.surface.width(), self.surface.height()*/);
+					assert!(x >= basex); assert!(y >= basey);
+					// TODO: Also send an event to the source window
+					redraw |= ele.handle_event( ::InputEvent::MouseMove(x - basex, y - basey, dx, dy), self );
+					},
+				::InputEvent::MouseUp(x,y,btn) => {
+					let (ele, (basex, basey)) = self.root.element_at_pos(x,y /*, self.surface.width(), self.surface.height()*/);
+					assert!(x >= basex); assert!(y >= basey);
+					redraw |= ele.handle_event( ::InputEvent::MouseUp(x - basex, y - basey, btn), self );
+					},
+				::InputEvent::MouseDown(x,y,btn) => {
+					let (ele, (basex, basey)) = self.root.element_at_pos(x,y /*, self.surface.width(), self.surface.height()*/);
+					assert!(x >= basex); assert!(y >= basey);
+					redraw |= ele.handle_event( ::InputEvent::MouseDown(x - basex, y - basey, btn), self );
+					},
 				ev @ _ => 
 					if let Some(ele) = self.focus {
 						redraw |= ele.handle_event(ev, self);
