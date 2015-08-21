@@ -58,11 +58,17 @@ impl ::core::ops::Drop for ThreadLogWriter {
 	}
 }
 
+#[inline(never)]
+#[doc(hidden)]
+pub fn write<F: ::core::ops::FnOnce(&mut ::logging::ThreadLogWriter)->::core::fmt::Result>(fcn: F) {
+	let _ = fcn(&mut ::logging::ThreadLogWriter);
+}
+
+// NOTE: Calls the above function with a closure to prevent the caller's stack frame from balooning with the formatting junk
 #[macro_export]
 macro_rules! kernel_log {
 	($($t:tt)+) => { {
-		use std::fmt::Write;
-		let _ = write!(&mut $crate::logging::ThreadLogWriter, $($t)*);
+		$crate::logging::write(|s| { use std::fmt::Write; write!(s, $($t)*) });
 	} };
 }
 
