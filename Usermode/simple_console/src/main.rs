@@ -23,9 +23,9 @@ use std::fmt::Write;
 
 fn main() {
 	use syscalls::gui::{Group,Window};
-	use syscalls::threads::S_THIS_PROCESS;
 	
-	::syscalls::threads::wait(&mut [S_THIS_PROCESS.get_wait()], !0);
+	use syscalls::threads::{S_THIS_PROCESS,ThisProcessWaits};
+	::syscalls::threads::wait(&mut [S_THIS_PROCESS.get_wait(ThisProcessWaits::new().recv_obj())], !0);
 	::syscalls::gui::set_group( S_THIS_PROCESS.receive_object::<Group>(0).unwrap() );
 
 	// Create maximised window
@@ -56,7 +56,7 @@ fn main() {
 
 	loop {
 		// Bind to receive events relating to the window
-		let mut events = [window.get_wait()];
+		let mut events = [window.get_wait( ::syscalls::gui::WindowWaits::new().input() )];
 		
 		::syscalls::threads::wait(&mut events, !0);
 	

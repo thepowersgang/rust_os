@@ -74,11 +74,9 @@ impl ::Object for Node {
 		Node(handle)
 	}
 	fn into_handle(self) -> ::ObjectHandle { self.0 }
-	fn get_wait(&self) -> ::values::WaitItem {
-		self.0.get_wait(0)
-	}
-	fn check_wait(&self, _wi: &::values::WaitItem) {
-	}
+	fn handle(&self) -> &::ObjectHandle { &self.0 }
+
+	type Waits = ();
 }
 
 impl File
@@ -152,11 +150,9 @@ impl ::Object for File {
 		File(handle, 0)
 	}
 	fn into_handle(self) -> ::ObjectHandle { self.0 }
-	fn get_wait(&self) -> ::values::WaitItem {
-		self.0.get_wait(0)
-	}
-	fn check_wait(&self, _wi: &::values::WaitItem) {
-	}
+	fn handle(&self) -> &::ObjectHandle { &self.0 }
+
+	type Waits = ();
 }
 
 
@@ -223,11 +219,9 @@ impl ::Object for Dir {
 		Dir(handle)
 	}
 	fn into_handle(self) -> ::ObjectHandle { self.0 }
-	fn get_wait(&self) -> ::values::WaitItem {
-		self.0.get_wait(0)
-	}
-	fn check_wait(&self, _wi: &::values::WaitItem) {
-	}
+	fn handle(&self) -> &::ObjectHandle { &self.0 }
+
+	type Waits = ();
 }
 
 
@@ -253,9 +247,7 @@ impl ::Object for Symlink {
 		Symlink(handle)
 	}
 	fn into_handle(self) -> ::ObjectHandle { self.0 }
-	fn get_wait(&self) -> ::values::WaitItem {
-		self.0.get_wait(0)
-	}
-	fn check_wait(&self, _wi: &::values::WaitItem) {
-	}
+	fn handle(&self) -> &::ObjectHandle { &self.0 }
+
+	type Waits = ();
 }

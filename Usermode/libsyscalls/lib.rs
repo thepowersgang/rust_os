@@ -10,10 +10,6 @@
 #![feature(result_expect)]
 #![no_std]
 
-//use core::prelude::*;
-//#[macro_use]
-//extern crate core;
-
 extern crate std_io;
 
 mod std {
@@ -37,7 +33,26 @@ macro_rules! syscall {
 		::raw::syscall_4(::values::$id, $arg1, $arg2, $arg3, $arg4)
 		};
 }
-macro_rules! slice_arg { ($slice:ident) => { $slice.as_ptr(), $slice.len() } }
+//macro_rules! slice_arg { ($slice:ident) => { $slice.as_ptr(), $slice.len() } }
+
+macro_rules! define_waits {
+	($name:ident => ($($n:ident : $n2:ident = $val:expr,)*)) => {
+		#[derive(Default)]
+		pub struct $name(u32);
+		impl ::Waits for $name {
+			fn from_val(v: u32) -> $name { $name(v) }
+			fn into_val(self) -> u32 { self.0 }
+		}
+		impl $name
+		{
+			pub fn new() -> $name { $name(0) }
+			$(
+			pub fn $n(self) -> $name { $name( self.0 | $val ) }
+			pub fn $n2(&self) -> bool { (self.0 & $val) != 0 }
+			)*
+		}
+	};
+}
 
 // File in the root of the repo
 #[path="../../syscalls.inc.rs"]
@@ -116,14 +131,31 @@ impl Drop for ObjectHandle {
 	}
 }
 
+trait Waits: Default {
+	fn from_val(v: u32) -> Self;
+	fn into_val(self) -> u32;
+}
+impl Waits for () {
+	fn from_val(_: u32) -> () { () }
+	fn into_val(self) -> u32 { 0 }
+}
+
 pub trait Object
 {
 	const CLASS: u16;
 	fn class() -> u16;
 	fn from_handle(handle: ObjectHandle) -> Self;
 	fn into_handle(self) -> ::ObjectHandle;
-	fn get_wait(&self) -> ::values::WaitItem;
-	fn check_wait(&self, wi: &::values::WaitItem);
+	fn handle(&self) -> &::ObjectHandle;
+
+	type Waits: Waits;
+	fn get_wait(&self, w: Self::Waits) -> ::values::WaitItem {
+		self.handle().get_wait(w.into_val())
+	}
+	fn check_wait(&self, wi: &::values::WaitItem) -> Self::Waits {
+		assert_eq!(wi.object, self.handle().0);
+		Self::Waits::from_val(wi.flags)
+	}
 }
 
 fn to_result(val: usize) -> Result<u32,u32> {

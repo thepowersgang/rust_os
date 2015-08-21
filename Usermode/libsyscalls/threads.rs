@@ -20,6 +20,11 @@ pub fn exit_thread() -> ! {
 /// Current process handle
 pub static S_THIS_PROCESS: ThisProcess = ThisProcess;//( ::ObjectHandle(0) );
 
+define_waits!{ ThisProcessWaits => (
+	recv_obj:has_recv_obj = ::values::EV_THISPROCESS_RECVOBJ,
+	recv_msg:has_recv_msg = ::values::EV_THISPROCESS_RECVMSG,
+)}
+
 /// 
 pub struct ThisProcess;//(::ObjectHandle);
 impl ThisProcess
@@ -42,23 +47,39 @@ impl ThisProcess
 			}
 		)
 	}
+
+	#[inline]
+	pub fn recv_msg(&self, data: &mut [u8]) -> Option<(usize, u32)> {
+		// SAFE: Syscall
+		let rv = unsafe { self.with_obj(|obj| obj.call_2(::values::CORE_THISPROCESS_RECVMSG, data.as_ptr() as usize, data.len())) };
+		if rv == 0 {
+			None
+		}
+		else {
+			let (id, size) = ((rv >> 32) as u32, (rv & 0xFFFFFFFF) as u32);
+			Some( (size as usize, id) )
+		}
+	}
 }
 impl ::Object for ThisProcess {
 	const CLASS: u16 = ::values::CLASS_CORE_THISPROCESS;
 	fn class() -> u16 { panic!("Cannot send/recv 'ThisProcess'"); }
 	fn from_handle(_handle: ::ObjectHandle) -> Self { panic!("ThisProcess::from_handle not needed") }
 	fn into_handle(self) -> ::ObjectHandle { panic!("ThisProcess::into_handle not needed") }
-	fn get_wait(&self) -> ::values::WaitItem {
-		::values::WaitItem {
-			object: 0,
-			flags: ::values::EV_THISPROCESS_RECVOBJ,
-		}
-	}
-	fn check_wait(&self, _wi: &::values::WaitItem) {
-	}
+	fn handle(&self) -> &::ObjectHandle { panic!("ThisProcess::handle not needed") }
 
+	type Waits = ThisProcessWaits;
+	fn get_wait(&self, waits: ThisProcessWaits) -> ::values::WaitItem {
+		::values::WaitItem { object: 0, flags: waits.0 }
+	}
+	fn check_wait(&self, wi: &::values::WaitItem) -> ThisProcessWaits {
+		ThisProcessWaits(wi.flags)
+	}
 }
 
+define_waits!{ ProcessWaits => (
+	terminate:get_terminate = ::values::EV_PROCESS_TERMINATED,
+)}
 pub struct Process(::ObjectHandle);
 impl Process {
 	#[inline]
@@ -90,13 +111,9 @@ impl ::Object for Process {
 		Process(handle)
 	}
 	fn into_handle(self) -> ::ObjectHandle { self.0 }
-	fn get_wait(&self) -> ::values::WaitItem {
-		panic!("TODO - Process::get_wait");
-	}
-	fn check_wait(&self, wi: &::values::WaitItem) {
-		if wi.flags & ::values::EV_PROCESS_TERMINATED != 0 {
-		}
-	}
+	fn handle(&self) -> &::ObjectHandle { &self.0 }
+	
+	type Waits = ProcessWaits;
 }
 
 #[inline]

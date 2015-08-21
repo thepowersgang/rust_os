@@ -22,8 +22,8 @@ fn main()
 	// Obtain window group from parent
 	{
 		use syscalls::Object;
-		use syscalls::threads::S_THIS_PROCESS;
-		::syscalls::threads::wait(&mut [S_THIS_PROCESS.get_wait()], !0);
+		use syscalls::threads::{S_THIS_PROCESS,ThisProcessWaits};
+		::syscalls::threads::wait(&mut [S_THIS_PROCESS.get_wait(ThisProcessWaits::new().recv_obj())], !0);
 		::syscalls::gui::set_group( S_THIS_PROCESS.receive_object::<::syscalls::gui::Group>(0).unwrap() );
 	}
 
@@ -54,6 +54,7 @@ fn main()
 		//win.hide();
 		if let Err(reason) = try_login(&username.get_content(), &password.get_content()) {
 			// TODO: Print error to the screen, as an overlay
+			kernel_log!("Login failed - {:?}", reason);
 			//win.show_message("Login Failed", reason);
 		}
 		else {
@@ -120,7 +121,7 @@ fn spawn_console_and_wait(path: &str)
 {
 	// TODO: I need something more elegant than this.
 	// - Needs to automatically pass the WGH
-	let console = tifflin_process::Process::spawn("/sysroot/bin/simple_console");
+	let console = tifflin_process::Process::spawn(path);
 	console.send_obj( ::syscalls::gui::clone_group_handle() );
 	::syscalls::threads::wait(&mut [console.wait_terminate()], !0);
 }

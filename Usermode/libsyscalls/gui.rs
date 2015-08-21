@@ -53,6 +53,7 @@ impl Group
 		Err(_) => Err( () ),
 		}
 	}
+
 }
 impl ::Object for Group
 {
@@ -62,16 +63,13 @@ impl ::Object for Group
 		Group(handle)
 	}
 	fn into_handle(self) -> ::ObjectHandle { self.0 }
-	fn get_wait(&self) -> ::values::WaitItem {
-		self.0.get_wait( ::values::EV_GUI_GRP_SHOWHIDE )
-	}
-	fn check_wait(&self, wi: &::values::WaitItem) {
-		assert_eq!(wi.object, self.0 .0);
-		if wi.flags & ::values::EV_GUI_GRP_SHOWHIDE != 0 {
-			// TODO
-		}
-	}
+	fn handle(&self) -> &::ObjectHandle { &self.0 }
+
+	type Waits = GroupWaits;
 }
+define_waits!{ GroupWaits => (
+	showhide:has_showhide = ::values::EV_GUI_GRP_SHOWHIDE,
+)}
 
 pub fn set_group(grp: Group)
 {
@@ -162,11 +160,6 @@ impl Window
 			Some( ev )
 		}
 	}
-	
-	pub fn check_wait_input(&self, wi: &::values::WaitItem) -> bool {
-		assert_eq!(wi.object, self.0 .0);
-		wi.flags & ::values::EV_GUI_WIN_INPUT != 0
-	}
 }
 impl ::Object for Window
 {
@@ -176,15 +169,11 @@ impl ::Object for Window
 		Window(handle)
 	}
 	fn into_handle(self) -> ::ObjectHandle { self.0 }
+	fn handle(&self) -> &::ObjectHandle { &self.0 }
 	
-	fn get_wait(&self) -> ::values::WaitItem {
-		self.0.get_wait( ::values::EV_GUI_WIN_INPUT )
-	}
-	fn check_wait(&self, wi: &::values::WaitItem) {
-		assert_eq!(wi.object, self.0 .0);
-		if wi.flags & ::values::EV_GUI_WIN_INPUT != 0 {
-			// TODO
-		}
-	}
+	type Waits = WindowWaits;
 }
+define_waits!{ WindowWaits => (
+	input:has_input = ::values::EV_GUI_WIN_INPUT,
+)}
 

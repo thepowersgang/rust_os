@@ -106,11 +106,11 @@ impl<'a> ::async::WaitController for Window<'a>
 		1
 	}
 	fn populate(&self, cb: &mut FnMut(::syscalls::WaitItem)) {
-		cb( self.win.get_wait() )
+		cb( self.win.get_wait( ::syscalls::gui::WindowWaits::new().input() ) )
 	}
 	fn handle(&mut self, events: &[::syscalls::WaitItem]) {
 		let mut redraw = false;
-		if self.win.check_wait_input(&events[0])
+		if self.win.check_wait(&events[0]).has_input()
 		{
 			while let Some(ev) = self.win.pop_event()
 			{

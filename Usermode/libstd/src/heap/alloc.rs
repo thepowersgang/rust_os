@@ -1,7 +1,6 @@
 //
 //
 //
-use prelude::v1::*;
 use sync::Mutex;
 use core::mem::{align_of,size_of};
 use core::ptr::Unique;
@@ -226,7 +225,7 @@ impl<'a> ::std::iter::Iterator for FreeBlocks<'a>
 
 impl Block
 { 
-	unsafe fn ptr_from_ptr(ptr: *mut (), /*size: usize,*/ align: usize) -> *mut Block {
+	unsafe fn ptr_from_ptr(ptr: *mut (), /*size: usize,*/ _align: usize) -> *mut Block {
 		let bp_us = ptr as usize - size_of::<Block>();
 		let bp = bp_us as *mut Block;
 		//assert!( (*bp).state == BlockState::Used(size) );
