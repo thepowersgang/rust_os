@@ -115,7 +115,7 @@ $(OBJDIR)lib%.rlib: ../externals/crates.io/%/src/lib.rs $(TARGET_SPEC) Makefile 
 	$V$(RUSTC) $(RUSTFLAGS) --emit=link,dep-info --out-dir $(OBJDIR) $< --crate-type=rlib --crate-name=$*
 	@mv $(OBJDIR)$*.d $(OBJDIR)lib$*.d
 #  > Handle clone/update of the external repo when missing or rustc is updated
-../externals/crates.io/%/src/lib.rs: ../externals/crates.io/%.repo $(RUSTC)
+../externals/crates.io/%/src/lib.rs: ../externals/crates.io/%.repo
 	$(eval DIR=../externals/crates.io/$*)
 	@mkdir -p $(DIR)
 	test -e $@ || git clone `cat ../externals/crates.io/$*.repo` $(DIR) && (cd $(DIR) && git pull)
