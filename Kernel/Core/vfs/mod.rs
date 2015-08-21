@@ -28,6 +28,8 @@ pub enum Error
 	RecursionDepthExceeded,
 	/// Block-level IO Error
 	BlockIoError(::metadevs::storage::IoError),
+	/// Path was malformed (too long, not absolute, not normalised, ... depends)
+	MalformedPath,
 	/// Unknown (misc) error
 	Unknown(&'static str),
 }

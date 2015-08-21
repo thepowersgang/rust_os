@@ -102,6 +102,7 @@ pub fn mount(location: &Path, vol: VolumeHandle, fs: &str, _options: &[&str]) ->
 		});
 	Ok( () )
 }
+#[derive(Debug)]
 pub enum MountError
 {
 	UnknownFilesystem,
@@ -110,7 +111,7 @@ pub enum MountError
 	CallFailed,
 }
 impl_fmt! {
-	Debug(self,f) for MountError {
+	Display(self,f) for MountError {
 		write!(f, "{}", match self
 			{
 			&MountError::UnknownFilesystem => "Filesystem driver not found",
@@ -141,10 +142,11 @@ impl Handle
 	pub fn for_path(path: &Path) -> Result<(Handle,&Path),super::Error> {
 		log_trace!("Handle::for_path({:?})", path);
 		if !path.is_absolute() {
-			return Err(super::Error::Unknown("Path not absolute"));
+			return Err(super::Error::MalformedPath);
 		}
+		// TODO: Does the path have to be normalised? Might want to accept 
 		if !path.is_normalised() {
-			return Err(super::Error::Unknown("Path not normalised"));
+			return Err(super::Error::MalformedPath);
 		}
 		let lh = S_MOUNTS.read();
 		// Work backwards until a prefix match is found

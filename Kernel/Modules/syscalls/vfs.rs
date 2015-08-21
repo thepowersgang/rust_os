@@ -24,7 +24,12 @@ impl_from! {
 		Error::TypeMismatch => VFSError::TypeError,
 		Error::PermissionDenied => VFSError::PermissionDenied,
 		Error::Locked => VFSError::FileLocked,
-		v @ _ => todo!("VFS Error {:?}", v),
+		Error::MalformedPath => VFSError::MalformedPath,
+		Error::NonDirComponent
+		| Error::RecursionDepthExceeded
+		| Error::BlockIoError(_)
+			=> todo!("VFS Error - {:?}", v),
+		Error::Unknown(reason) => todo!("VFS Error Unknown - '{}'", reason),
 		}
 	}}
 	From<node::NodeClass>(v) for ::values::VFSNodeType {

@@ -209,6 +209,7 @@ enum_to_from!{ VFSError => u32 :
 	TypeError = 1,
 	PermissionDenied = 2,
 	FileLocked = 3,
+	MalformedPath = 4,
 }
 enum_to_from!{ VFSNodeType => u32:
 	File = 0,
