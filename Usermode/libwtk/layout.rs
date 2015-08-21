@@ -46,8 +46,31 @@ impl<'a> Box<'a>
 	}
 
 
-	fn with_element_at<T, F: FnOnce(&::Element, (u32,u32))->T>(&self, x: u32, y: u32, f: F) -> T {
-		let pos = if self.direction.is_vert() { y } else { x };
+	fn with_element_at<T, F: FnOnce(&::Element, Rect<::geom::Px>)->T>(&self, x: u32, y: u32, w: u32, h: u32, f: F) -> T {
+		let (pos, _real_cap) = if self.direction.is_vert() { (y, h) } else { (x, w) };
+		let (_cap, exp) = *self.sizes.borrow();
+
+		let mut ofs = 0;
+		for &(element, ref size) in self.items.iter()
+		{
+			let size = if let &Some(ref s) = size { s.0 } else { exp };
+			// If the cursor was before the right/bottom border of this element, it's within
+			// - Works because of ordering
+			if pos < ofs + size {
+				let ele_rect = if self.direction.is_vert() {
+						Rect::new(0, ofs, w, size)
+					} else {
+						Rect::new(ofs, 0, size, h)
+					};
+				if let Some(e) = element {
+					return f(e, ele_rect);
+				}
+				else {
+					return f(&(), ele_rect)
+				}
+			}
+			ofs += size;
+		}
 		// TODO: Need to know the size of the box (which is determined by the parent)
 		panic!("Box::with_element_at");
 	}
@@ -88,16 +111,17 @@ impl<'a> Box<'a>
 impl<'a> super::Element for Box<'a>
 {
 	fn handle_event(&self, ev: ::InputEvent, /*r: Rect<Px>,*/ win: &mut ::window::Window) -> bool {
+		let r = Rect::<::geom::Px>::new(0, 0, 512, 512);
 		match ev
 		{
 		::InputEvent::MouseUp(x,y,_b) => {
-			self.with_element_at(x,y, /*rect.w().0, rect.h().0,*/ |e, ele_rect| e.handle_event(ev, /*ele_rect.offset(r.x(),r.y()), */ win))
+			self.with_element_at(x,y, r.width().0, r.height().0, |e, _ele_rect| e.handle_event(ev, /*ele_rect.offset(r.x(),r.y()), */ win))
 			},
 		::InputEvent::MouseDown(x,y,_b) => {
-			self.with_element_at(x,y, /*rect.w().0, rect.h().0,*/ |e, ele_rect| e.handle_event(ev, /*ele_rect.offset(r.x(),r.y()), */ win))
+			self.with_element_at(x,y, r.width().0, r.height().0, |e, _ele_rect| e.handle_event(ev, /*ele_rect.offset(r.x(),r.y()), */ win))
 			},
 		::InputEvent::MouseMove(x,y,_dx,_dy) => {
-			self.with_element_at(x,y, /*rect.w().0, rect.h().0,*/ |e, ele_rect| e.handle_event(ev, /*ele_rect.offset(r.x(),r.y()), */ win))
+			self.with_element_at(x,y, r.width().0, r.height().0, |e, _ele_rect| e.handle_event(ev, /*ele_rect.offset(r.x(),r.y()), */ win))
 			},
 		_ => false,
 		}
