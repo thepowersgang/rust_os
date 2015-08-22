@@ -192,7 +192,7 @@ fn invoke_int(call_id: u32, mut args: &[usize]) -> Result<u64,Error>
 		// - 2/1: Open file
 		VFS_OPENFILE => {
 			let name = try!( <Freeze<[u8]>>::get_arg(&mut args) );
-			let mode = try!( <u32>::get_arg(&mut args) );
+			let mode = try!( <u8>::get_arg(&mut args) );
 			from_result( vfs::openfile(&name, mode) )
 			},
 		// - 2/2: Open directory

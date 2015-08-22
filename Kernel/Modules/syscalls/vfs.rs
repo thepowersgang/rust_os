@@ -14,6 +14,18 @@ use kernel::vfs::{handle,node};
 use kernel::vfs::Path;
 
 
+macro_rules! map_enums {
+	( ($a:ident, $b:ident) match ($v:expr) { $( ($l:ident $($extra:tt)*), )* } ) => {
+		match $v
+		{
+		$( $a::$l => map_enums!(@arm $b $l : $($extra)*) ),*
+		}
+		};
+	(@arm $b:ident $l:ident : => @$r:ident) => { ($b::$r)  };
+	(@arm $b:ident $l:ident : => $v:expr) => { $v };
+	(@arm $b:ident $l:ident : ) => { ($b::$l) };
+}
+
 impl_from! {
 	From<::kernel::vfs::Error>(v) for ::values::VFSError {{
 		use kernel::vfs::Error;
@@ -41,6 +53,32 @@ impl_from! {
 		node::NodeClass::Special => ::values::VFSNodeType::Special,
 		}
 	}
+
+	From<::values::VFSFileOpenMode>(v) for handle::FileOpenMode {{
+		use values::VFSFileOpenMode;
+		use kernel::vfs::handle::FileOpenMode;
+		map_enums!(
+			(VFSFileOpenMode, FileOpenMode)
+			match (v) {
+				(ReadOnly => @SharedRO),
+				(Execute),
+				(ExclRW),
+				(UniqueRW),
+				(Append),
+				(Unsynch),
+			}
+		)
+		//match v
+		//{
+		//::values::VFSFileOpenMode::None => todo!(""),
+		//::values::VFSFileOpenMode::ReadOnly => handle::FileOpenMode::SharedRO,
+		//::values::VFSFileOpenMode::Execute => handle::FileOpenMode::Execute,
+		//::values::VFSFileOpenMode::ExclRW => handle::FileOpenMode::ExclRW,
+		//::values::VFSFileOpenMode::UniqueRW => handle::FileOpenMode::UniqueRW,
+		//::values::VFSFileOpenMode::Append => handle::FileOpenMode::Append,
+		//::values::VFSFileOpenMode::Unsynch => handle::FileOpenMode::Unsynch,
+		//}
+	}}
 }
 
 /// Convert a VFS result into an encoded syscall result
@@ -71,7 +109,12 @@ impl objects::Object for Node
 			let v32: u32 = ::values::VFSNodeType::from( self.0.get_class() ).into();
 			Ok( v32 as u64 )
 			},
-		values::VFS_NODE_TOFILE => todo!("VFS_NODE_TOFILE"),
+		values::VFS_NODE_TOFILE => {
+			let mode = try!( <u8>::get_arg(&mut args) );
+
+			let mode = ::values::VFSFileOpenMode::from(mode);
+			todo!("VFS_NODE_TOFILE({:?}", mode)
+			},
 		values::VFS_NODE_TODIR => todo!("VFS_NODE_TODIR"),
 		values::VFS_NODE_TOLINK => {
 			// TODO: I'd like this to reuse this object handle etc... but that's not possible with
@@ -93,14 +136,9 @@ impl objects::Object for Node
 //
 // --------------------------------------------------------------------
 
-pub fn openfile(path: &[u8], mode: u32) -> Result<ObjectHandle,u32> {
+pub fn openfile(path: &[u8], mode: u8) -> Result<ObjectHandle,u32> {
 	
-	let mode = match mode
-		{
-		1 => ::kernel::vfs::handle::FileOpenMode::SharedRO,
-		2 => ::kernel::vfs::handle::FileOpenMode::Execute,
-		_ => todo!("Unkown mode {:x}", mode),
-		};
+	let mode: handle::FileOpenMode = ::values::VFSFileOpenMode::from(mode).into();
 	to_result( handle::File::open(Path::new(path), mode) )
 		.map( |h| objects::new_object(File(h)) )
 }
@@ -113,6 +151,9 @@ impl objects::Object for File
 	fn handle_syscall(&self, call: u16, mut args: &[usize]) -> Result<u64,Error> {
 		match call
 		{
+		values::VFS_FILE_GETSIZE => {
+			Ok( self.0.size() )
+			},
 		values::VFS_FILE_READAT => {
 			let ofs = try!( <u64>::get_arg(&mut args) );
 			let mut dest = try!( <FreezeMut<[u8]>>::get_arg(&mut args) );

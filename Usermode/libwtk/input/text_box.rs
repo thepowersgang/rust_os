@@ -19,8 +19,8 @@ pub struct TextInput<'a>
 struct State
 {
 	value: String,
-	insert_ofs: usize,
-	view_ofs: usize,
+	//insert_ofs: usize,
+	//view_ofs: usize,
 
 	is_dirty: bool,
 	is_focussed: bool,

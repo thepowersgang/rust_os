@@ -126,12 +126,14 @@ def_classes! {
 	},
 	/// Opened file
 	=3: CLASS_VFS_FILE = {
+		/// Get the size of the file (maximum addressable byte + 1)
+		=0: VFS_FILE_GETSIZE,
 		/// Read data from the specified position in the file
-		=0: VFS_FILE_READAT,
+		=1: VFS_FILE_READAT,
 		/// Write to the specified position in the file
-		=1: VFS_FILE_WRITEAT,
+		=2: VFS_FILE_WRITEAT,
 		/// Map part of the file into the current address space
-		=2: VFS_FILE_MEMMAP,
+		=3: VFS_FILE_MEMMAP,
 	}|{
 	},
 	/// Opened directory
@@ -177,11 +179,11 @@ pub const GUI_WIN_FLAG_VISIBLE: u8 = 0;
 pub const GUI_WIN_FLAG_MAXIMISED: u8 = 1;
 
 macro_rules! enum_to_from {
-	($enm:ident => $ty:ty : $($n:ident = $v:expr,)*) => {
+	($enm:ident => $ty:ty : $( $(#[$a:meta])* $n:ident = $v:expr,)*) => {
 		#[derive(Debug)]
 		pub enum $enm
 		{
-			$($n,)*
+			$( $($a)* $n,)*
 		}
 		impl ::core::convert::From<$ty> for $enm {
 			fn from(v: $ty) -> Self {
@@ -217,6 +219,25 @@ enum_to_from!{ VFSNodeType => u32:
 	Symlink = 2,
 	Special = 3,
 }
+enum_to_from!{ VFSFileOpenMode => u8:
+	ReadOnly = 1,
+	Execute  = 2,
+	ExclRW   = 3,
+	UniqueRW = 4,
+	Append   = 5,
+	Unsynch  = 6,
+}
+
+enum_to_from!{ VFSMemoryMapMode => u8:
+	// /// Read-only mapping of a file
+	ReadOnly = 0,
+	// /// Executable mapping of a file
+	Execute = 1,
+	// /// Copy-on-write (used for executable files)
+	COW = 2,
+	// /// Allows writing to the backing file
+	WriteBack = 3,
+}
 
 include!("keycodes.inc.rs");
 
@@ -250,6 +271,7 @@ impl ::core::convert::From<[u8; 6]> for FixedStr6 {
 #[derive(Debug)]
 pub enum GuiEvent
 {
+	#[allow(dead_code)]
 	None,
 	KeyUp(KeyCode),
 	KeyDown(KeyCode),
