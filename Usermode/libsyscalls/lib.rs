@@ -57,6 +57,9 @@ macro_rules! define_waits {
 // File in the root of the repo
 #[path="../../syscalls.inc.rs"]
 mod values;
+
+pub enum Void {}
+
 #[cfg(arch="amd64")] #[path="raw-amd64.rs"]
 mod raw;
 
@@ -68,9 +71,9 @@ pub mod gui;
 pub mod memory;
 pub mod threads;
 
-
 pub use values::WaitItem;
 
+#[doc(hidden)]
 pub struct ObjectHandle(u32);
 impl ObjectHandle
 {
@@ -140,6 +143,7 @@ impl Waits for () {
 	fn into_val(self) -> u32 { 0 }
 }
 
+/// Trait that provides common methods for syscall objects
 pub trait Object
 {
 	const CLASS: u16;
@@ -169,6 +173,7 @@ fn to_result(val: usize) -> Result<u32,u32> {
 }
 
 #[inline]
+/// Write a string to the kernel's log
 pub fn log_write(msg: &str) {
 	// SAFE: Syscall
 	unsafe { syscall!(CORE_LOGWRITE, msg.as_ptr() as usize, msg.len()); }
@@ -177,6 +182,9 @@ pub fn log_write(msg: &str) {
 pub use values::TEXTINFO_KERNEL;
 
 #[inline]
+/// Obtain a string from the kernel
+/// 
+/// Accepts a buffer and returns a string slice from that buffer.
 pub fn get_text_info(unit: u32, id: u32, buf: &mut [u8]) -> &str {
 	// SAFE: Syscall
 	let len: usize = unsafe { syscall!(CORE_TEXTINFO, unit as usize, id as usize,  buf.as_ptr() as usize, buf.len()) } as usize;

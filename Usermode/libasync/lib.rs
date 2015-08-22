@@ -1,7 +1,13 @@
+// Tifflin OS - Asynchronous common interface
+// - By John Hodge (thePowersGang)
+//
+//
+//! Asynchronous waiting support
 
 #[macro_use]
 extern crate syscalls;
 
+/// Trait for types that can be used for 'idle_loop'
 pub trait WaitController
 {
 	fn get_count(&self) -> usize;
@@ -9,6 +15,7 @@ pub trait WaitController
 	fn handle(&mut self, events: &[::syscalls::WaitItem]);
 }
 
+/// Idle, handling events on each WaitController passed
 pub fn idle_loop(items: &mut [&mut WaitController])
 {
 	let mut objects = Vec::new();

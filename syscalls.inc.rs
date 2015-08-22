@@ -5,8 +5,14 @@
 // - Common definition of system calls
 //
 // Included using #[path] from Kernel/Core/syscalls/mod.rs and Userland/libtifflin_syscalls/src/lib.rs
+//! System call IDs and user-kernel interface types
+//! 
+//! There are two broad types of system calls: free calls and object calls.
+//! 
+//! Free calls either construct a new object instance, or directly manipulate/query state.
 
 pub const GRP_OFS: usize = 16;
+
 
 macro_rules! expand_expr { ($e:expr) => {$e}; }
 
@@ -38,12 +44,16 @@ def_grp!( 0: GROUP_CORE = {
 	=6: CORE_WAIT,
 });
 
+/// Value for `get_text_info`'s `unit` argument, indicating kernel core
 pub const TEXTINFO_KERNEL: u32 = 0;
 
 #[repr(C)]
 #[derive(Debug)]
+/// Object reference used by the CORE_WAIT system call
 pub struct WaitItem {
+	/// Object ID
 	pub object: u32,
+	/// Class-specific wait flags
 	pub flags: u32,
 }
 
@@ -206,7 +216,7 @@ macro_rules! enum_to_from {
 	}
 }
 
-enum_to_from!{ VFSError => u32 :
+enum_to_from!{ VFSError => u32:
 	FileNotFound = 0,
 	TypeError = 1,
 	PermissionDenied = 2,
@@ -241,6 +251,7 @@ enum_to_from!{ VFSMemoryMapMode => u8:
 
 include!("keycodes.inc.rs");
 
+/// Fixed-capacity string buffer (6 bytes)
 pub struct FixedStr6([u8; 6]);
 impl ::core::fmt::Debug for FixedStr6 {
 	fn fmt(&self, f: &mut ::core::fmt::Formatter) -> ::core::fmt::Result {
@@ -269,15 +280,23 @@ impl ::core::convert::From<[u8; 6]> for FixedStr6 {
 }
 
 #[derive(Debug)]
+/// GUI Window event
 pub enum GuiEvent
 {
 	#[allow(dead_code)]
+	/// Placeholder empty event
 	None,
+	/// Key released
 	KeyUp(KeyCode),
+	/// Key pressed
 	KeyDown(KeyCode),
+	/// Translated text from a keypress
 	Text(FixedStr6),
+	/// Mouse movement event - X,Y, dX, dY
 	MouseMove(u32,u32, i16,i16),
+	/// Mouse button released - X,Y, Button
 	MouseUp(u32,u32, u8),
+	/// Mouse button pressed - X,Y, Button
 	MouseDown(u32,u32, u8),
 }
 

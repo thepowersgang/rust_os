@@ -72,6 +72,7 @@ pub mod prelude {
 	}
 }
 
+/// Formatted output
 pub mod fmt {
 	pub use core::fmt::*;
 

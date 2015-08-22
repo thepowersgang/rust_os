@@ -35,3 +35,5 @@ Kernel/rundir/*.dmp
 Kernel/rundir/DiskImages
 Kernel/rundir/trace-*
 Kernel/rundir/*.iso
+
+Usermode/doc/

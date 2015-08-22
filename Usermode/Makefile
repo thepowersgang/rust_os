@@ -21,7 +21,11 @@ OBJDIR := .objs/$(ARCH)/
 
 # Rust compilation flags
 TARGET_SPEC := target-$(ARCH).json
-RUSTFLAGS := --target=$(TARGET_SPEC) --cfg 'arch="$(ARCH)"' --cfg nightly
+
+RUST_COMMON_FLAGS := --target=$(TARGET_SPEC) --cfg 'arch="$(ARCH)"' --cfg nightly
+RUST_COMMON_FLAGS += -L $(LIBDIR)
+
+RUSTFLAGS := $(RUST_COMMON_FLAGS)
 RUSTFLAGS += -O
 #RUSTFLAGS += -C llvm-args=-Os
 RUSTFLAGS += -g
@@ -29,7 +33,6 @@ RUSTFLAGS += --cfg disable_float
 #RUSTFLAGS += -C soft-float	# STOPGAP until SSE is supported
 #RUSTFLAGS += -C no-vectorize-loops
 #RUSTFLAGS += -C no-vectorize-slp
-RUSTFLAGS += -L $(LIBDIR)
 RUSTFLAGS += -Z force-overflow-checks=yes
 
 # - List non-file targets
@@ -39,13 +42,25 @@ RUSTFLAGS += -Z force-overflow-checks=yes
 # - (debugging) Remove most default targets
 .SUFFIXES:
 
+#makefile_deps = Makefile
+makefile_deps = 
+
 
 # DEFAULT: Compile all applications
 all: $(APPS:%=$(BINDIR)%)
 
 # Delete all artifacts
 clean:
-	$(RM) -rf $(OUTDIR) $(OBJDIR)
+	$(RM) -rf $(OUTDIR) $(OBJDIR) .docs
+
+docs: $(patsubst lib%/,.docs/%/index.html,$(wildcard lib*/))
+
+.docs/%/index.html: lib%/lib.rs $(LIBDIR)lib%.rlib
+	@echo $@
+	@$(RUSTDOC) -o .docs $< --crate-name $* $(RUST_COMMON_FLAGS)
+.docs/%/index.html: lib%/src/lib.rs $(LIBDIR)lib%.rlib
+	@echo $@
+	@$(RUSTDOC) -o .docs $< --crate-name $* $(RUST_COMMON_FLAGS)
 
 LOADER_DEPS := $(patsubst %,$(LIBDIR)lib%.rlib,$(call fn_getdeps,loader/src/main.rs) std std_io std_rt core)
 
@@ -63,7 +78,7 @@ $(OBJDIR)loader/src/main.o: $(LOADER_DEPS)
 
 # Low-level loader dummy dynamic library
 # - Used to tell ld that `loader`'s exported symbols actually exist
-$(LIBDIR)libloader_dyn.so: loader/lib.S Makefile
+$(LIBDIR)libloader_dyn.so: loader/lib.S	$(makefile_deps)
 	@echo [CC] $@
 	$V$(CC) -o $@.o -c $< -fPIC
 	$V$(LD) -o $@ $@.o -shared -soname=libloader_dyn.so
@@ -73,7 +88,7 @@ $(LIBDIR)lib%.rlib: $(OBJDIR)lib%.rlib
 	@mkdir -p $(dir $@)
 	@mv $(OBJDIR)lib$*.rlib $@
 # libcore: Same code as used by the kernel, but different build
-$(OBJDIR)libcore.rlib: ../libcore/lib.rs $(TARGET_SPEC) Makefile
+$(OBJDIR)libcore.rlib: ../libcore/lib.rs $(TARGET_SPEC) $(makefile_deps)
 	@mkdir -p $(dir $@)
 	@echo [RUSTC] $@
 	$V$(RUSTC) $(RUSTFLAGS) --emit=link,dep-info --out-dir $(OBJDIR) $<
@@ -82,34 +97,34 @@ $(OBJDIR)libcore.rlib: ../libcore/lib.rs $(TARGET_SPEC) Makefile
 # - Executables
 $(BINDIR)%: $(OBJDIR)%
 	@cp $< $@
-$(OBJDIR)%: %/src/main.rs $(TARGET_SPEC) Makefile link-$(ARCH).ld $(OBJDIR)rustrt0.o $(LIBDIR)libloader_dyn.so
+$(OBJDIR)%: %/src/main.rs $(TARGET_SPEC) $(makefile_deps) link-$(ARCH).ld $(OBJDIR)rustrt0.o $(LIBDIR)libloader_dyn.so
 	@mkdir -p $(dir $@)
 	@echo [RUSTC] $@
 	$V$(RUSTC) $(RUSTFLAGS) --emit=link,dep-info --out-dir $(OBJDIR) $< --crate-type=bin --crate-name=$* --verbose
 	$V$(OBJDUMP) -S $@ > $@.dsm
 
 # - Local libraries (with src dir)
-$(OBJDIR)lib%.rlib: lib%/src/lib.rs $(TARGET_SPEC) Makefile
+$(OBJDIR)lib%.rlib: lib%/src/lib.rs $(TARGET_SPEC) $(makefile_deps)
 	@mkdir -p $(dir $@)
 	@echo [RUSTC] $@
 	$V$(RUSTC) $(RUSTFLAGS) --emit=link,dep-info --out-dir $(OBJDIR) $< --crate-type=rlib --crate-name=$*
 	@mv $(OBJDIR)$*.d $(OBJDIR)lib$*.d
 # - Local libraries (with no src dir)
-$(OBJDIR)lib%.rlib: lib%/lib.rs $(TARGET_SPEC) Makefile
+$(OBJDIR)lib%.rlib: lib%/lib.rs $(TARGET_SPEC) $(makefile_deps)
 	@mkdir -p $(dir $@)
 	@echo [RUSTC] $@
 	$V$(RUSTC) $(RUSTFLAGS) --emit=link,dep-info --out-dir $(OBJDIR) $< --crate-type=rlib --crate-name=$*
 	@mv $(OBJDIR)$*.d $(OBJDIR)lib$*.d
 
 # - Loader's interface library, lives in the loader directory
-$(OBJDIR)libloader.rlib: loader/lib.rs $(TARGET_SPEC) Makefile $(patsubst %,$(LIBDIR)lib%.rlib,$(call fn_getdeps,loader/lib.rs))
+$(OBJDIR)libloader.rlib: loader/lib.rs $(TARGET_SPEC) $(makefile_deps) $(patsubst %,$(LIBDIR)lib%.rlib,$(call fn_getdeps,loader/lib.rs))
 	@mkdir -p $(dir $@)
 	@echo [RUSTC] $@
 	$V$(RUSTC) $(RUSTFLAGS) --emit=link,dep-info --out-dir $(OBJDIR) $< --crate-type=rlib
 	@mv $(OBJDIR)loader.d $(OBJDIR)liblib.d
 
 # - crates.io crates
-$(OBJDIR)lib%.rlib: ../externals/crates.io/%/src/lib.rs $(TARGET_SPEC) Makefile $(LIBDIR)libstd.rlib
+$(OBJDIR)lib%.rlib: ../externals/crates.io/%/src/lib.rs $(TARGET_SPEC) $(makefile_deps) $(LIBDIR)libstd.rlib
 	@mkdir -p $(dir $@)
 	@echo [RUSTC] $@
 	$V$(RUSTC) $(RUSTFLAGS) --emit=link,dep-info --out-dir $(OBJDIR) $< --crate-type=rlib --crate-name=$*
@@ -121,19 +136,19 @@ $(OBJDIR)lib%.rlib: ../externals/crates.io/%/src/lib.rs $(TARGET_SPEC) Makefile 
 	test -e $@ || git clone `cat ../externals/crates.io/$*.repo` $(DIR) && (cd $(DIR) && git pull)
 
 # - General object files (mainly loader)
-$(OBJDIR)%.o: %.rs $(TARGET_SPEC) Makefile
+$(OBJDIR)%.o: %.rs $(TARGET_SPEC) $(makefile_deps)
 	@mkdir -p $(dir $@)
 	@echo [RUSTC] $@
 	@$(RUSTC) $(RUSTFLAGS) $< --out-dir=$(dir $@) --emit=obj,dep-info
 -include $(OBJDIR)loader/src/main.d
 
 # - Assembly objects (loader)
-$(OBJDIR)%.ao: %.S Makefile
+$(OBJDIR)%.ao: %.S $(makefile_deps)
 	@mkdir -p $(dir $@)
 	@echo [AS] $@
 	$V$(CC) -o $@ -c $< -D ARCH_$(ARCH)
 # - Base runtime
-$(OBJDIR)rustrt0.o: rustrt0/$(ARCH).S Makefile
+$(OBJDIR)rustrt0.o: rustrt0/$(ARCH).S $(makefile_deps)
 	@mkdir -p $(dir $@)
 	@echo [AS] $@
 	$V$(CC) -o $@ -c $< -D ARCH_$(ARCH) -fPIC
