@@ -146,7 +146,9 @@ diff -ru libcore/num/flt2dec/decoder.rs libcore_patched/num/flt2dec/decoder.rs
 diff -ru libcore/num/mod.rs libcore_patched/num/mod.rs
 --- libcore/num/mod.rs	2015-07-02 13:02:27.903621378 +0800
 +++ libcore_patched/num/mod.rs	2015-07-02 13:02:04.784163432 +0800
-@@ -47,1 +47,2 @@
+@@ -46,2 +46,4 @@
++#[cfg(not(disable_float))]
+ pub mod flt2dec;
 +#[cfg(not(disable_float))]
  pub mod dec2flt;
 @@ -94,6 +93,7 @@
@@ -157,16 +159,12 @@ diff -ru libcore/num/mod.rs libcore_patched/num/mod.rs
  zero_one_impl_float! { f32 f64 }
  
  macro_rules! checked_op {
-@@ -1400,7 +1398,9 @@
-         }
-     }
- }
+@@ -1271,1 +1271,2 @@
 +#[cfg(not(disable_float))]
- from_str_float_impl!(f32, to_f32);
+ pub trait Float: Sized {
+@@ -1473,1 +1473,2 @@
 +#[cfg(not(disable_float))]
- from_str_float_impl!(f64, to_f64);
- 
- macro_rules! from_str_radix_int_impl {
+ pub use num::dec2flt::ParseFloatError;
 diff -ru libcore/ops.rs libcore_patched/ops.rs
 --- libcore/ops.rs	2015-07-02 13:02:27.899621472 +0800
 +++ libcore_patched/ops.rs	2015-07-02 13:02:04.780163524 +0800
