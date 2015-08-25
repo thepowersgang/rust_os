@@ -8,7 +8,7 @@ use super::{Dims,Pos,Rect,Colour};
 use kernel::sync::mutex::{LazyMutex,Mutex};
 use kernel::lib::mem::Arc;
 use kernel::lib::LazyStatic;
-use core::atomic;
+use core::sync::atomic;
 
 use kernel::lib::sparse_vec::SparseVec;
 
@@ -54,10 +54,10 @@ pub struct WindowHandle
 // - 13 sessions, #0 is fixed to be the kernel's log 1-12 are bound to F1-F12
 const C_MAX_SESSIONS: usize = 13;
 static S_WINDOW_GROUPS: LazyMutex<SparseVec< Arc<Mutex<WindowGroup>> >> = lazymutex_init!();
-static S_CURRENT_GROUP: ::core::atomic::AtomicUsize = ::core::atomic::ATOMIC_USIZE_INIT;
+static S_CURRENT_GROUP: ::core::sync::atomic::AtomicUsize = ::core::sync::atomic::ATOMIC_USIZE_INIT;
 
 static S_RENDER_REQUEST: ::kernel::sync::EventChannel = ::kernel::sync::EVENTCHANNEL_INIT;
-static S_FULL_REDRAW: ::core::atomic::AtomicBool = ::core::atomic::ATOMIC_BOOL_INIT;
+static S_FULL_REDRAW: ::core::sync::atomic::AtomicBool = ::core::sync::atomic::ATOMIC_BOOL_INIT;
 static S_EVENT_QUEUE: LazyStatic<::kernel::lib::ring_buffer::AtomicRingBuf<super::input::Event>> = lazystatic_init!();
 // Keep this lazy, as it's runtime initialised
 static S_RENDER_THREAD: LazyMutex<::kernel::threads::WorkerThread> = lazymutex_init!();
@@ -129,7 +129,7 @@ pub fn switch_active(new: usize)
 	// - Technically it shouldn't (reading the size is just racy, not unsafe), but representing that is nigh-on
 	//   impossible.
 	log_log!("Switching to group {}", new);
-	S_CURRENT_GROUP.store(new, ::core::atomic::Ordering::Relaxed);
+	S_CURRENT_GROUP.store(new, ::core::sync::atomic::Ordering::Relaxed);
 	S_RENDER_REQUEST.post();
 }
 
@@ -144,14 +144,14 @@ fn render_thread()
 		
 		// Render the active window group
 		let (grp_idx, grp_ref) = {
-			let grp_idx = S_CURRENT_GROUP.load( ::core::atomic::Ordering::Relaxed );
+			let grp_idx = S_CURRENT_GROUP.load( ::core::sync::atomic::Ordering::Relaxed );
 			let wglh = S_WINDOW_GROUPS.lock();
 			match wglh.get(grp_idx)
 			{
 			Some(r) => (grp_idx, r.clone()),
 			None => {
 				log_log!("Selected group {} invalid, falling back to 0", grp_idx);
-				S_CURRENT_GROUP.store(0, ::core::atomic::Ordering::Relaxed);
+				S_CURRENT_GROUP.store(0, ::core::sync::atomic::Ordering::Relaxed);
 				(0, wglh[0].clone())
 				},
 			}
@@ -167,7 +167,7 @@ fn render_thread()
 		}
 		
 		log_debug!("render_thread: Rendering WG {} '{}'", grp_idx, grp_ref.lock().name);
-		grp_ref.lock().redraw( S_FULL_REDRAW.swap(false, ::core::atomic::Ordering::Relaxed) );
+		grp_ref.lock().redraw( S_FULL_REDRAW.swap(false, ::core::sync::atomic::Ordering::Relaxed) );
 	}
 }
 
@@ -313,7 +313,7 @@ impl WindowGroup
 			self.recalc_vis_int(prev_pos);
 
 			// TODO: Full redraw can be expensive... would prefer to force redraw of just the revealed region
-			S_FULL_REDRAW.store(true, ::core::atomic::Ordering::Relaxed);
+			S_FULL_REDRAW.store(true, ::core::sync::atomic::Ordering::Relaxed);
 		}
 	}
 	
@@ -432,7 +432,7 @@ impl WindowHandle
 	pub fn redraw(&mut self)
 	{
 		// if shown, mark self as requiring reblit and poke group
-		if self.grp != S_CURRENT_GROUP.load(::core::atomic::Ordering::Relaxed) {
+		if self.grp != S_CURRENT_GROUP.load(::core::sync::atomic::Ordering::Relaxed) {
 			return ;
 		}
 		

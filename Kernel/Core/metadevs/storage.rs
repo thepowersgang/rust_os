@@ -4,7 +4,7 @@
 // Core/metadevs/storage.rs
 // - Storage (block device) subsystem
 use prelude::*;
-use core::atomic::{AtomicUsize,ATOMIC_USIZE_INIT};
+use core::sync::atomic::{AtomicUsize,ATOMIC_USIZE_INIT};
 use sync::mutex::LazyMutex;
 use lib::{VecMap};
 use lib::mem::Arc;
@@ -138,7 +138,7 @@ fn init()
 pub fn register_pv(dev: Box<PhysicalVolume>) -> PhysicalVolumeReg
 {
 	log_trace!("register_pv(pv = \"{}\")", dev.name());
-	let pv_id = S_NEXT_PV_IDX.fetch_add(1, ::core::atomic::Ordering::Relaxed);
+	let pv_id = S_NEXT_PV_IDX.fetch_add(1, ::core::sync::atomic::Ordering::Relaxed);
 
 	// Now that a new PV has been inserted, handlers should be informed
 	let mut best_mapper: Option<&Mapper> = None;
@@ -283,7 +283,7 @@ fn apply_mapper_to_pv(mapper: &'static Mapper, level: usize, pv_id: usize, pvi: 
 }
 fn new_simple_lv(name: String, pv_id: usize, block_size: usize, base: u64, size: u64)
 {
-	let lvidx = S_NEXT_LV_IDX.fetch_add(1, ::core::atomic::Ordering::Relaxed);
+	let lvidx = S_NEXT_LV_IDX.fetch_add(1, ::core::sync::atomic::Ordering::Relaxed);
 	
 	assert!(size <= !0usize as u64);
 	let lv = Arc::new( LogicalVolume {

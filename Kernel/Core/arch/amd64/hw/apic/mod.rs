@@ -86,7 +86,7 @@ fn init()
 	s_lapic.init();
 	
 	// Enable interupts
-	::arch::threads::S_IRQS_ENABLED.store(true, ::core::atomic::Ordering::Relaxed);
+	::arch::threads::S_IRQS_ENABLED.store(true, ::core::sync::atomic::Ordering::Relaxed);
 	// SAFE: Just STI, nothing to worry about
 	unsafe { asm!("sti"); }
 }

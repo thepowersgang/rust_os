@@ -144,7 +144,7 @@ fn load_binary(path: &::std::ffi::OsStr) -> usize
 				};
 			let fp = segments_it.get_file();
 			if aligned > 0 {
-				let mm = fp.memory_map(segment.file_addr, aligned, segment.load_addr, map_mode);
+				let mm = fp.memory_map(segment.file_addr, aligned, segment.load_addr as *mut _, map_mode);
 				::std::mem::forget(mm);
 			}
 			if tail > 0 {

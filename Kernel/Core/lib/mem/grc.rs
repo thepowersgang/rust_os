@@ -6,7 +6,7 @@
 //!
 //! Provides common functionality between Rc and Arc
 use core::nonzero::NonZero;
-use core::atomic::{AtomicUsize,Ordering};
+use core::sync::atomic::{AtomicUsize,Ordering};
 use core::{ops,fmt};
 
 /// Abstraction crate for the reference counting

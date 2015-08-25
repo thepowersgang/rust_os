@@ -4,7 +4,7 @@
 // Core/irqs.rs
 //! Core IRQ Abstraction
 use prelude::*;
-use core::atomic::AtomicBool;
+use core::sync::atomic::AtomicBool;
 use arch::sync::Spinlock;
 use arch::interrupts;
 use lib::{VecMap};
@@ -91,7 +91,7 @@ fn irq_worker()
 		S_IRQ_WORKER_SIGNAL.wait();
 		for (_,b) in S_IRQ_BINDINGS.lock().mapping.iter()
 		{
-			if b.has_fired.swap(false, ::core::atomic::Ordering::Relaxed)
+			if b.has_fired.swap(false, ::core::sync::atomic::Ordering::Relaxed)
 			{
 				if let Some(mut lh) = b.handlers.try_lock_cpu() {
 					for handler in &mut *lh {
@@ -150,7 +150,7 @@ impl IRQBinding
 	fn handle(&self)
 	{
 		// The CPU owns the lock, so we don't care about ordering
-		self.has_fired.store(true, ::core::atomic::Ordering::Relaxed);
+		self.has_fired.store(true, ::core::sync::atomic::Ordering::Relaxed);
 		
 		S_IRQ_WORKER_SIGNAL.signal();
 	}

@@ -8,7 +8,7 @@ use prelude::*;
 use sync::Spinlock;
 use threads::WaitQueue;
 use core::cell::UnsafeCell;
-use core::atomic::Ordering;
+use core::sync::atomic::Ordering;
 
 /// EventChannel controlling object
 pub struct EventChannel
@@ -16,7 +16,7 @@ pub struct EventChannel
 	lock: Spinlock<bool>,
 	// Separate from the lock because WaitQueue::wait() takes a bool lock
 	queue: UnsafeCell< WaitQueue >,
-	pending_wakes: ::core::atomic::AtomicUsize,
+	pending_wakes: ::core::sync::atomic::AtomicUsize,
 }
 unsafe impl Sync for EventChannel {}
 
@@ -24,7 +24,7 @@ unsafe impl Sync for EventChannel {}
 pub const EVENTCHANNEL_INIT: EventChannel = EventChannel {
 	lock: Spinlock::new( false ),
 	queue: UnsafeCell::new( ::threads::WAITQUEUE_INIT ),
-	pending_wakes: ::core::atomic::ATOMIC_USIZE_INIT,
+	pending_wakes: ::core::sync::atomic::ATOMIC_USIZE_INIT,
 	};
 
 impl EventChannel

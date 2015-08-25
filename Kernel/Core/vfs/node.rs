@@ -7,7 +7,7 @@ use prelude::*;
 use super::Path;
 use sync::mutex::LazyMutex;
 use lib::byte_str::{ByteStr,ByteString};
-use core::atomic::{self,AtomicUsize};
+use core::sync::atomic::{self,AtomicUsize};
 
 pub type InodeId = u64;
 pub enum IoError {

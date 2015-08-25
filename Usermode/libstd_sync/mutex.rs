@@ -4,7 +4,7 @@
 ///
 use core::ops;
 use core::cell::UnsafeCell;
-use core::atomic::{AtomicBool,Ordering};
+use core::sync::atomic::{AtomicBool,Ordering};
 
 pub struct Mutex<T>
 {
@@ -18,7 +18,7 @@ impl<T> Mutex<T>
 {
 	pub const fn new(val: T) -> Mutex<T> {
 		Mutex {
-			locked: ::core::atomic::ATOMIC_BOOL_INIT,
+			locked: ::core::sync::atomic::ATOMIC_BOOL_INIT,
 			data: UnsafeCell::new(val),
 		}
 	}

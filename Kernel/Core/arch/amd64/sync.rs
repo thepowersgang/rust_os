@@ -3,7 +3,7 @@
 //
 // arch/amd64/sync.rs
 //! Low-level synchronisaion primitives
-use core::atomic::{AtomicBool,Ordering};
+use core::sync::atomic::{AtomicBool,Ordering};
 
 const TRACE_IF: bool = false;
 //const TRACE_IF: bool = true;
@@ -39,7 +39,7 @@ impl<T: Send> Spinlock<T>
 	/// Create a new spinning lock
 	pub const fn new(val: T) -> Spinlock<T> {
 		Spinlock {
-			lock: ::core::atomic::ATOMIC_BOOL_INIT, //AtomicBool::new(false),
+			lock: ::core::sync::atomic::ATOMIC_BOOL_INIT, //AtomicBool::new(false),
 			value: ::core::cell::UnsafeCell::new(val),
 		}
 	}
@@ -78,11 +78,11 @@ impl<T: Send> Spinlock<T>
 		while self.lock.compare_and_swap(false, true, Ordering::Acquire) == true
 		{
 		}
-		::core::atomic::fence(Ordering::Acquire);
+		::core::sync::atomic::fence(Ordering::Acquire);
 	}
 	fn inner_release(&self) {
 		//::arch::puts("Spinlock::release()\n");
-		::core::atomic::fence(Ordering::Release);
+		::core::sync::atomic::fence(Ordering::Release);
 		self.lock.store(false, Ordering::Release);
 	}
 }

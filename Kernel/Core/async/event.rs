@@ -5,7 +5,7 @@
 //! Asynchronous event waiter
 #[allow(unused_imports)]
 use prelude::*;
-use core::atomic::{AtomicBool,ATOMIC_BOOL_INIT,Ordering};
+use core::sync::atomic::{AtomicBool,ATOMIC_BOOL_INIT,Ordering};
 use core::fmt;
 
 /// A general-purpose wait event (when flag is set, waiters will be informed)
@@ -130,7 +130,7 @@ impl<'a> super::PrimitiveWaiter for Waiter<'a>
 			*r.waiter.lock() = Some( sleeper.get_ref() );
 			
 			// If the waiter's flag is already set, return 'false' to force polling
-			! r.flag.load(::core::atomic::Ordering::Relaxed)
+			! r.flag.load(::core::sync::atomic::Ordering::Relaxed)
 		}
 		else
 		{

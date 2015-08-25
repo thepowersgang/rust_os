@@ -8,7 +8,7 @@
 #[allow(unused_imports)]
 use prelude::*;
 use core::cell::UnsafeCell;
-use core::atomic::{AtomicBool,Ordering};
+use core::sync::atomic::{AtomicBool,Ordering};
 use core::fmt;
 use async::PrimitiveWaiter;
 

@@ -9,7 +9,7 @@ use kernel::sync::rwlock::RwLock;
 use kernel::sync::mutex::Mutex;
 use kernel::lib::mem::Arc;
 use kernel::lib::ring_buffer::{RingBuf};
-use core::atomic;
+use core::sync::atomic;
 
 use super::winbuf::WinBuf;
 use ::{Dims,Pos,Rect,Colour};

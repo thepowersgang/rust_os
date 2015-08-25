@@ -9,6 +9,6 @@ pub use mutex::Mutex;
 
 pub mod mutex;
 
-pub use core::atomic;
+pub use core::sync::atomic;
 
 

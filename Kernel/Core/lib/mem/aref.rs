@@ -10,7 +10,7 @@
 //! but you also want to lend pointers to that memory out (where the pointers should never outlive the 
 //! original memory).
 use prelude::*;
-use core::atomic::{AtomicUsize,Ordering};
+use core::sync::atomic::{AtomicUsize,Ordering};
 use core::nonzero::NonZero;
 use core::ops;
 

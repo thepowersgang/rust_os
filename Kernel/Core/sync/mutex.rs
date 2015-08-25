@@ -68,12 +68,12 @@ impl<T: Send> Mutex<T>
 				lh.held = true;
 			}
 		}
-		::core::atomic::fence(::core::atomic::Ordering::Acquire);
+		::core::sync::atomic::fence(::core::sync::atomic::Ordering::Acquire);
 		return HeldMutex { lock: self };
 	}
 	/// Release the mutex
 	fn unlock(&self) {
-		::core::atomic::fence(::core::atomic::Ordering::Release);
+		::core::sync::atomic::fence(::core::sync::atomic::Ordering::Release);
 		let mut lh = self.inner.lock();
 		if lh.queue.has_waiter()
 		{

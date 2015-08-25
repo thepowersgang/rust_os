@@ -8,7 +8,7 @@
 #[allow(unused_imports)]
 use prelude::*;
 use memory::heap::ArrayAlloc;
-use core::atomic::{AtomicUsize,Ordering};
+use core::sync::atomic::{AtomicUsize,Ordering};
 use sync::Spinlock;
 
 /// Fixed-size ring buffer type

@@ -3,7 +3,7 @@
 //
 // Core/lib/mem/arc.rs
 //! Atomic reference-counted shared allocation
-use core::atomic::AtomicUsize;
+use core::sync::atomic::AtomicUsize;
 use core::{ops,fmt};
 
 use super::grc::Grc;
