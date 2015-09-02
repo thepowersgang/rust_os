@@ -33,7 +33,7 @@ diff -ru libcore/fmt/mod.rs libcore_patched/fmt/mod.rs
  use num::flt2dec;
  use ops::Deref;
  use result;
-@@ -985,6 +654,7 @@ impl<'a> Formatter<'a> {
+@@ -991,6 +654,7 @@ impl<'a> Formatter<'a> {
      /// Takes the formatted parts and applies the padding.
      /// Assumes that the caller already has rendered the parts with required precision,
      /// so that `self.precision` can be ignored.
@@ -41,7 +41,7 @@ diff -ru libcore/fmt/mod.rs libcore_patched/fmt/mod.rs
      fn pad_formatted_parts(&mut self, formatted: &flt2dec::Formatted) -> Result {
          if let Some(mut width) = self.width {
              // for the sign-aware zero padding, we render the sign first and
-@@ -1021,6 +691,7 @@ impl<'a> Formatter<'a> {
+@@ -1027,6 +691,7 @@ impl<'a> Formatter<'a> {
          }
      }
  
@@ -49,7 +49,7 @@ diff -ru libcore/fmt/mod.rs libcore_patched/fmt/mod.rs
      fn write_formatted_parts(&mut self, formatted: &flt2dec::Formatted) -> Result {
          fn write_bytes(buf: &mut Write, s: &[u8]) -> Result {
              buf.write_str(unsafe { str::from_utf8_unchecked(s) })
-@@ -1386,6 +1057,7 @@ impl<'a, T> Pointer for &'a mut T {
+@@ -1391,6 +1057,7 @@ impl<'a, T> Pointer for &'a mut T {
      }
  }
  
@@ -57,7 +57,7 @@ diff -ru libcore/fmt/mod.rs libcore_patched/fmt/mod.rs
  // Common code of floating point Debug and Display.
  fn float_to_decimal_common<T>(fmt: &mut Formatter, num: &T, negative_zero: bool) -> Result
      where T: flt2dec::DecodableFloat
-@@ -1410,6 +1082,7 @@ fn float_to_decimal_common<T>(fmt: &mut Formatter, num: &T, negative_zero: bool)
+@@ -1415,6 +1082,7 @@ fn float_to_decimal_common<T>(fmt: &mut Formatter, num: &T, negative_zero: bool)
      fmt.pad_formatted_parts(&formatted)
  }
  
@@ -65,7 +65,7 @@ diff -ru libcore/fmt/mod.rs libcore_patched/fmt/mod.rs
  // Common code of floating point LowerExp and UpperExp.
  fn float_to_exponential_common<T>(fmt: &mut Formatter, num: &T, upper: bool) -> Result
      where T: flt2dec::DecodableFloat
-@@ -1463,7 +1136,9 @@ macro_rules! floating { ($ty:ident) => {
+@@ -1468,7 +1136,9 @@ macro_rules! floating { ($ty:ident) => {
          }
      }
  } }
@@ -78,7 +78,7 @@ diff -ru libcore/fmt/mod.rs libcore_patched/fmt/mod.rs
 diff -ru libcore/intrinsics.rs libcore_patched/intrinsics.rs
 --- libcore/intrinsics.rs	2015-07-02 13:02:27.891621659 +0800
 +++ libcore_patched/intrinsics.rs	2015-07-02 13:02:04.780163524 +0800
-@@ -392,7 +392,10 @@
+@@ -393,7 +392,10 @@
      pub fn volatile_load<T>(src: *const T) -> T;
      /// Perform a volatile store to the `dst` pointer.
      pub fn volatile_store<T>(dst: *mut T, val: T);
@@ -89,7 +89,7 @@ diff -ru libcore/intrinsics.rs libcore_patched/intrinsics.rs
      /// Returns the square root of an `f32`
      pub fn sqrtf32(x: f32) -> f32;
      /// Returns the square root of an `f64`
-@@ -489,7 +492,9 @@
+@@ -490,7 +492,9 @@
      pub fn roundf32(x: f32) -> f32;
      /// Returns the nearest integer to an `f64`. Rounds half-way cases away from zero.
      pub fn roundf64(x: f64) -> f64;
@@ -102,7 +102,7 @@ diff -ru libcore/intrinsics.rs libcore_patched/intrinsics.rs
 diff -ru libcore/lib.rs libcore_patched/lib.rs
 --- libcore/lib.rs	2015-07-02 13:02:27.899621472 +0800
 +++ libcore_patched/lib.rs	2015-07-02 13:02:04.780163524 +0800
-@@ -111,7 +110,9 @@
+@@ -114,7 +110,9 @@
  #[path = "num/u32.rs"]  pub mod u32;
  #[path = "num/u64.rs"]  pub mod u64;
  
@@ -112,14 +112,10 @@ diff -ru libcore/lib.rs libcore_patched/lib.rs
  #[path = "num/f64.rs"]   pub mod f64;
  
  #[macro_use]
-@@ -149,6 +150,7 @@
- pub mod option;
- pub mod raw;
+@@ -160,2 +150,3 @@
  #[cfg(not(stage0))]
 +#[cfg(not(disable_float))]
  pub mod simd;
- pub mod slice;
- pub mod str;
 diff -ru libcore/num/flt2dec/decoder.rs libcore_patched/num/flt2dec/decoder.rs
 --- libcore/num/flt2dec/decoder.rs	2015-07-02 13:02:27.903621378 +0800
 +++ libcore_patched/num/flt2dec/decoder.rs	2015-07-02 13:02:04.784163432 +0800
@@ -131,10 +127,7 @@ diff -ru libcore/num/flt2dec/decoder.rs libcore_patched/num/flt2dec/decoder.rs
  use {f32, f64};
  use num::{Float, FpCategory};
  
-@@ -60,9 +61,11 @@
-     fn min_pos_norm_value() -> Self;
- }
- 
+@@ -60,6 +61,8 @@
 +#[cfg(not(disable_float))]
  impl DecodableFloat for f32 {
      fn min_pos_norm_value() -> Self { f32::MIN_POSITIVE }
@@ -146,23 +139,22 @@ diff -ru libcore/num/flt2dec/decoder.rs libcore_patched/num/flt2dec/decoder.rs
 diff -ru libcore/num/mod.rs libcore_patched/num/mod.rs
 --- libcore/num/mod.rs	2015-07-02 13:02:27.903621378 +0800
 +++ libcore_patched/num/mod.rs	2015-07-02 13:02:04.784163432 +0800
+@@ -22,1 +22,1 @@
+-use marker::{Copy, Sized};
++use marker::{Copy};
 @@ -46,2 +46,4 @@
 +#[cfg(not(disable_float))]
  pub mod flt2dec;
 +#[cfg(not(disable_float))]
  pub mod dec2flt;
-@@ -94,6 +93,7 @@
-         }
-     )*)
+@@ -98,2 +93,3 @@
  }
 +#[cfg(not(disable_float))]
  zero_one_impl_float! { f32 f64 }
- 
- macro_rules! checked_op {
-@@ -1271,1 +1271,2 @@
+@@ -1269,1 +1271,2 @@
 +#[cfg(not(disable_float))]
  pub trait Float: Sized {
-@@ -1473,1 +1473,2 @@
+@@ -1472,1 +1473,2 @@
 +#[cfg(not(disable_float))]
  pub use num::dec2flt::ParseFloatError;
 diff -ru libcore/ops.rs libcore_patched/ops.rs
@@ -211,33 +203,11 @@ diff -ru libcore/ops.rs libcore_patched/ops.rs
  
  /// The `Rem` trait is used to specify the functionality of `%`.
  ///
-@@ -441,6 +428,7 @@
- 
- rem_impl! { usize u8 u16 u32 u64 isize i8 i16 i32 i64 }
- 
+@@ -459,2 +466,3 @@
+ #[cfg(not(stage0))]
 +#[cfg(not(disable_float))]
- #[stable(feature = "rust1", since = "1.0.0")]
- impl Rem for f32 {
-     type Output = f32;
-@@ -460,6 +448,7 @@
-     }
- }
- 
-+#[cfg(not(disable_float))]
- #[stable(feature = "rust1", since = "1.0.0")]
- impl Rem for f64 {
-     type Output = f64;
-@@ -471,7 +460,9 @@
-     }
- }
- 
-+#[cfg(not(disable_float))]
- forward_ref_binop! { impl Rem, rem for f64, f64 }
-+#[cfg(not(disable_float))]
- forward_ref_binop! { impl Rem, rem for f32, f32 }
- 
- /// The `Neg` trait is used to specify the functionality of unary `-`.
-@@ -542,7 +534,9 @@
+ rem_impl_float! { f32 f64 }
+@@ -566,7 +534,9 @@
  }
  
  // neg_impl_unsigned! { usize u8 u16 u32 u64 }
