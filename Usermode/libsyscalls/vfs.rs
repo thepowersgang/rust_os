@@ -76,8 +76,9 @@ impl File
 	/// Open a file with the provided mode
 	pub fn open<T: AsRef<[u8]>>(path: T, mode: FileOpenMode) -> Result<File,Error> {
 		let path = path.as_ref();
+		kernel_log!("path={:?}, mode={:?}", path, mode);
 		// SAFE: Syscall
-		to_obj( unsafe { syscall!(VFS_OPENFILE, path.as_ptr() as usize, path.len(), mode as u32 as usize) } as usize )
+		to_obj( unsafe { syscall!(VFS_OPENFILE, path.as_ptr() as usize, path.len(), Into::<u8>::into(mode) as usize) } as usize )
 			.map(|h| File(h, 0))
 	} 
 	

@@ -138,8 +138,11 @@ impl objects::Object for Node
 
 pub fn openfile(path: &[u8], mode: u8) -> Result<ObjectHandle,u32> {
 	
+	log_trace!("openfile({:?}, mode={:?})", path, mode);
 	let mode: handle::FileOpenMode = ::values::VFSFileOpenMode::from(mode).into();
-	to_result( handle::File::open(Path::new(path), mode) )
+	let path = Path::new(path);
+	log_trace!("- openfile({:?}, mode={:?})", path, mode);
+	to_result( handle::File::open(path, mode) )
 		.map( |h| objects::new_object(File(h)) )
 }
 struct File(::kernel::vfs::handle::File);

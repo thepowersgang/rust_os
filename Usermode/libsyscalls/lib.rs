@@ -14,6 +14,7 @@ extern crate std_io;
 
 mod std {
 	pub use core::convert;
+	pub use core::fmt;
 }
 
 macro_rules! syscall {
