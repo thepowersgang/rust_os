@@ -60,7 +60,7 @@ fn is_ram(phys: PAddr) -> bool
 {
 	for e in S_MEM_MAP.iter()
 	{
-		if e.start <= phys && phys < e.start + e.size
+		if e.start as PAddr <= phys && phys < (e.start + e.size) as PAddr
 		{
 			return match e.state
 				{
@@ -78,7 +78,7 @@ pub fn make_unique(page: PAddr) -> PAddr
 	if !is_ram(page) {
 		panic!("Calling 'make_unique' on non-RAM page");
 	}
-	else if ::arch::memory::phys::get_multiref_count(page) == 0 {
+	else if ::arch::memory::phys::get_multiref_count(page as u64 / ::PAGE_SIZE as u64) == 0 {
 		page
 	}
 	else {
@@ -116,7 +116,7 @@ pub fn allocate_range(count: usize) -> PAddr
 		log_error!("Out of physical memory");
 		return NOPAGE;
 	}
-	if addr >= map[i].start + map[i].size
+	if addr >= (map[i].start + map[i].size) as PAddr
 	{
 		i += 1;
 		while i != map.len() && map[i].state != ::memory::memorymap::MemoryState::Free {
@@ -127,10 +127,10 @@ pub fn allocate_range(count: usize) -> PAddr
 			*h = (i, 0);
 			return NOPAGE;
 		}
-		addr = map[i].start;
+		addr = map[i].start as PAddr;
 	}
 	let rv = addr;
-	addr += ::PAGE_SIZE as u64;
+	addr += ::PAGE_SIZE as PAddr;
 	//log_trace!("allocate_range: rv={:#x}, i={}, addr={:#x}", rv, i, addr);
 	*h = (i, addr);
 	//log_trace!("allocate_range: *h = {:?}", *h);
@@ -178,7 +178,7 @@ pub fn ref_frame(paddr: PAddr)
 		
 	}
 	else {
-		::arch::memory::phys::ref_frame(paddr / ::PAGE_SIZE as u64);
+		::arch::memory::phys::ref_frame(paddr as u64 / ::PAGE_SIZE as u64);
 	}
 }
 pub fn deref_frame(paddr: PAddr)
@@ -187,9 +187,9 @@ pub fn deref_frame(paddr: PAddr)
 		log_log!("Calling deref_frame on non-RAM {:#x}", paddr);
 	}
 	// Dereference page (returns prevous value, zero meaning page was not multi-referenced)
-	else if ::arch::memory::phys::deref_frame(paddr / ::PAGE_SIZE as u64) == 0 {
+	else if ::arch::memory::phys::deref_frame(paddr as u64 / ::PAGE_SIZE as u64) == 0 {
 		// - This page is the only reference.
-		if ::arch::memory::phys::mark_free(paddr / ::PAGE_SIZE as u64) == true {
+		if ::arch::memory::phys::mark_free(paddr as u64 / ::PAGE_SIZE as u64) == true {
 			// Release frame back into the pool
 			todo!("deref_frame({:#x}) Release", paddr);
 		}

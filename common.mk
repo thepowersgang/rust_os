@@ -3,6 +3,8 @@ ARCH ?= amd64
 
 ifeq ($(ARCH),amd64)
   TRIPLE ?= x86_64-none-elf
+else ifeq ($(ARCH),armv7)
+  TRIPLE ?= arm-elf-eabi
 else
   $(error Unknown architecture $(ARCH) in common.mk)
 endif

@@ -6,6 +6,7 @@
 #![feature(core_slice_ext)]
 #![feature(associated_consts)]
 #![no_std]
+#![feature(num_bits_bytes)]
 #[macro_use] extern crate kernel;
 #[allow(unused_imports)]
 use kernel::prelude::*;
@@ -101,6 +102,15 @@ impl<I: ScsiInterface> Volume<I>
 	}
 }
 
+fn fits_in_bits(v: usize, bits: usize) -> bool {
+	if bits >= ::core::usize::BITS {
+		true
+	}
+	else {
+		v < (1 << bits)
+	}
+}
+
 impl<I: ScsiInterface> storage::PhysicalVolume for Volume<I>
 {
 	fn name(&self) -> &str { self.int.name() }
@@ -118,7 +128,7 @@ impl<I: ScsiInterface> storage::PhysicalVolume for Volume<I>
 				log_trace!("SCSI Read10");
 				self.int.recv(proto::Read10::new(idx as u32, num as u16).as_ref(), dst)
 			}
-			else if /*idx < (1 << 64) &&*/ num < (1 << 32) {
+			else if /*idx < (1 << 64) &&*/ fits_in_bits(num, 32) {
 				log_trace!("SCSI Read16");
 				self.int.recv(proto::Read16::new(idx, num as u32).as_ref(), dst)
 			}

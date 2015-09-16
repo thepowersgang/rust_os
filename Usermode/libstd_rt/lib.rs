@@ -19,6 +19,9 @@ mod std {
 #[cfg(arch="amd64")]
 #[path="arch-x86_64.rs"]
 mod arch;
+#[cfg(arch="armv7")]
+#[path="arch-armv7.rs"]
+mod arch;
 
 pub fn begin_unwind<M: ::core::any::Any+Send+'static>(msg: M, file_line: &(&'static str, u32)) -> ! {
 	let file = file_line.0;

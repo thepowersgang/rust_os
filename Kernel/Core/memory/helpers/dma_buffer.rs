@@ -68,7 +68,7 @@ impl<'a> DMABuffer<'a>
 	pub fn new_contig(src: &[u8], bits: u8) -> DMABuffer
 	{
 		use arch::memory::PAddr;
-		let bytes = src.len() as PAddr;
+		let bytes = src.len();
 		let phys = ::memory::virt::get_phys( &src[0] );
 		let end_phys = ::memory::virt::get_phys( &src[src.len()-1] );
 		// Check if the buffer is within the required bits
@@ -77,7 +77,7 @@ impl<'a> DMABuffer<'a>
 			todo!("new_contig - Bounce because not within bit range");	
 		}
 		// - Quick: If the data is smaller than a page worth, and falls on a contigious pair of pages
-		else if bytes <= ::PAGE_SIZE as u64 && phys + bytes-1 == end_phys
+		else if bytes <= ::PAGE_SIZE && phys + (bytes as PAddr)-1 == end_phys
 		{
 			log_debug!("phys = {:#x}, source_slice={:p}", phys, &src[0]);
 			DMABuffer {

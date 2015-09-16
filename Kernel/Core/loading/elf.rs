@@ -106,7 +106,7 @@ impl<'a> SectionHeader<'a>
 		
 		let count = symtab.sh_size as usize / ::core::mem::size_of::<Elf32_Sym>();
 		// SAFE: (uncheckable) Assumes that sh_address does point to the symbol table (in physical space)
-		let alloc = match unsafe { ::memory::virt::map_hw_slice::<Elf32_Sym>(symtab.sh_address as u64, count) }
+		let alloc = match unsafe { ::memory::virt::map_hw_slice::<Elf32_Sym>(symtab.sh_address as PAddr, count) }
 			{
 			Ok(v) => v,
 			Err(e) => panic!("symbol table address invalid: {}", e),

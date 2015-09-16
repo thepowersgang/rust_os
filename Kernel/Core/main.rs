@@ -25,6 +25,8 @@
 #![feature(get_type_id,reflect_marker)] // used by process_local's "AnyMap" hackery
 #![cfg_attr(not(use_acpica),feature(ptr_as_ref))]	// used by ACPI code (custom impl, not ACPICA)
 #![feature(slice_bytes)]	// Gives bytes::copy_memory, used in VMM
+
+#![feature(num_bits_bytes)]	// Used for sysinit
 #![no_std]
 
 #![deny(not_tagged_safe)]
@@ -110,7 +112,12 @@ mod hw;
 
 /// Achitecture-specific code - AMD64 (aka x86-64)
 #[macro_use]
-#[cfg(arch="amd64")] #[path="arch/amd64/mod.rs"] pub mod arch;	// Needs to be pub for exports to be avaliable
+#[cfg(arch="amd64")] #[path="arch/amd64/mod.rs"]
+pub mod arch;	// Needs to be pub for exports to be avaliable
+
+#[macro_use]
+#[cfg(arch="armv7")] #[path="arch/armv7/mod.rs"]
+pub mod arch;
 
 /// Kernel version (with build number)
 pub const VERSION_STRING: &'static str = concat!("Tifflin Kernel v", env!("TK_VERSION"), " build ", env!("TK_BUILD"));
@@ -273,10 +280,18 @@ fn spawn_init(loader_path: &str, init_cmdline: &str)
 		entrypoint: usize,
 	}
 	const MAGIC: u32 = 0x71FF1013;
-	#[cfg(arch="amd64")]
-	const INFO: u32 = (3*4+2*8) | (2 << 8);
-	#[cfg(arch="amd64")]
-	const LOAD_MAX: usize = 1 << 47;
+	#[allow(dead_code)]
+	#[repr(C,u8)]
+	enum ArchValues {
+		X86 = 1,
+		AMD64 = 2,
+		ARMv7 = 3,
+	}
+	#[cfg(arch="amd64")]	const ARCH: ArchValues = ArchValues::AMD64;
+	#[cfg(arch="amd64")]	const LOAD_MAX: usize = 1 << 47;
+	#[cfg(arch="armv7")]	const ARCH: ArchValues = ArchValues::ARMv7;
+	#[cfg(arch="armv7")]	const LOAD_MAX: usize = 1 << 31;
+	const INFO: u32 = (5*4 + ::core::usize::BYTES as u32) | ((ARCH as u8 as u32) << 8);
 	
 	log_log!("Loading userland '{}' args '{}'", loader_path, init_cmdline);
 	

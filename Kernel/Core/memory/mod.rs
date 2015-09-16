@@ -7,7 +7,6 @@ use core::option::Option::{self,None,Some};
 pub use self::memorymap::{MAP_PAD, MemoryMapEnt, MemoryMapBuilder};
 pub use self::memorymap::MemoryState;
 
-pub use arch::memory::PAddr;
 pub mod phys;
 pub mod virt;
 pub mod heap;
@@ -18,7 +17,29 @@ pub mod helpers;
 
 pub mod memorymap;
 
+pub use arch::memory::PAddr;
+/*
+#[derive(Copy,Clone,Debug)]
+pub struct PAddr(u32);
+impl ::core::ops::Add<usize> for PAddr
+{
+	type Output = PAddr;
+	fn add(self, v: usize) -> PAddr {
+		assert!( !0 - self.0 > v as usize, "Overflow adding {} to physical address {:#x}", v, self.0 );
+		PAddr( self.0 + v as u32 )
+	}
+}
+impl ::core::ops::Sub<PAddr> for PAddr {
+	type Output = isize;
+	fn sub(self, v: PAddr) -> isize {
+		// TODO: Check that the difference doesn't overflow
+		(self.0 - v.0) as isize
+	}
+}
+*/
+
 /// Validate that a C string points to valid memory, and return a 'a slice to it
+// TODO: THIS IS UNSAFE!
 pub fn c_string_as_byte_slice<'a>(c_str: *const i8) -> Option<&'a [u8]>
 {
 	// 1. Check first page

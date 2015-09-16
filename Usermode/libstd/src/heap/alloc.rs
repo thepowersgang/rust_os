@@ -7,6 +7,8 @@ use core::ptr::Unique;
 
 #[cfg(arch="amd64")]
 const HEAP_LIMITS: (usize,usize) = (0x1000_0000_0000, 0x7000_0000_0000);
+#[cfg(arch="armv7")]
+const HEAP_LIMITS: (usize,usize) = (0x1000_0000, 0x7000_0000);
 
 static S_GLOBAL_HEAP: Mutex<AllocState> = Mutex::new(AllocState { start: 0 as *mut _, past_end: 0 as *mut _ } );
 

@@ -72,21 +72,22 @@ $(BINDIR)loader: loader/link.ld $(OBJDIR)loader/start.ao $(OBJDIR)loader/src/mai
 	@echo [LD] $@
 	@$(LD) -r --gc-sections --undefined image_header --entry start -o $(OBJDIR)loader.o $(OBJDIR)loader/start.ao $(OBJDIR)loader/src/main.o $(LOADER_DEPS)
 	@$(LD) -o $(OBJDIR)loader.elf -T loader/link.ld $(OBJDIR)loader.o -Map $(OBJDIR)loader_map.txt
-	@objcopy $(OBJDIR)loader.elf -O binary $@
-	@objdump -CS $(OBJDIR)loader.elf > $(OBJDIR)loader.dsm
+	@$(TRIPLE)-objcopy $(OBJDIR)loader.elf -O binary $@
+	@$(TRIPLE)-objdump -CS $(OBJDIR)loader.elf > $(OBJDIR)loader.dsm
 $(OBJDIR)loader/src/main.o: $(LOADER_DEPS)
 
 # Low-level loader dummy dynamic library
 # - Used to tell ld that `loader`'s exported symbols actually exist
 $(LIBDIR)libloader_dyn.so: loader/lib.S	$(makefile_deps)
 	@echo [CC] $@
-	$V$(CC) -o $@.o -c $< -fPIC
+	$V$(CC) -o $@.o -c $< -fPIC -D ARCH_$(ARCH)
 	$V$(LD) -o $@ $@.o -shared -soname=libloader_dyn.so
 
 # Libraries are compiled into OBJDIR to get dependencies, but are actually stored in LIBDIR
 $(LIBDIR)lib%.rlib: $(OBJDIR)lib%.rlib
 	@mkdir -p $(dir $@)
-	@mv $(OBJDIR)lib$*.rlib $@
+	@mv $< $@
+#	@mv $(OBJDIR)lib$*.rlib $@
 # libcore: Same code as used by the kernel, but different build
 $(OBJDIR)libcore.rlib: ../libcore/lib.rs $(TARGET_SPEC) $(makefile_deps)
 	@mkdir -p $(dir $@)
@@ -96,8 +97,9 @@ $(OBJDIR)libcore.rlib: ../libcore/lib.rs $(TARGET_SPEC) $(makefile_deps)
 
 # - Executables
 $(BINDIR)%: $(OBJDIR)%
+	@mkdir -p $(dir $@)
 	@cp $< $@
-$(OBJDIR)%: %/src/main.rs $(TARGET_SPEC) $(makefile_deps) link-$(ARCH).ld $(OBJDIR)rustrt0.o $(LIBDIR)libloader_dyn.so
+$(APPS:%=$(OBJDIR)%): $(OBJDIR)%: %/src/main.rs $(TARGET_SPEC) $(makefile_deps) link-$(ARCH).ld $(OBJDIR)rustrt0.o $(LIBDIR)libloader_dyn.so
 	@mkdir -p $(dir $@)
 	@echo [RUSTC] $@
 	$V$(RUSTC) $(RUSTFLAGS) --emit=link,dep-info --out-dir $(OBJDIR) $< --crate-type=bin --crate-name=$* --verbose

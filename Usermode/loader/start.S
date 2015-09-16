@@ -1,33 +1,26 @@
+/*
+ */
 #define HEADER_MAGIC	0x71FF1013
 #define HDR_ARCH_x86	1
 #define HDR_ARCH_amd64	2
 #define HDR_ARCH_arm32	3
 #define HDR_ARCH_arm64	4
 
+.globl BASE
+.globl LIMIT
+
 #ifdef ARCH_amd64
+# define DEFPTR 	.quad
+# define PTR_SIZE	8
+# define HDR_ARCH	HDR_ARCH_amd64
 /*
 =======================================================================
 == AMD64: Aka - x86_64, x64, ...
 =======================================================================
 */
-.globl BASE
-.globl LIMIT
 .set BASE,  0x00007fffFFFE0000
 .set LIMIT, 0x0000800000000000
 #define RED_ZONE	128	/* the ABI defines a "red zone" above the stack for functions to dick with */
-
-.section HEADER
-.extern codesize
-.extern imagesize
-.globl image_header
-image_header:
-	.long HEADER_MAGIC
-	.byte (3*4+2*8) , HDR_ARCH_amd64 , 0 , 0	/* Header size, bit-ness, pad, pad */
-	.long codesize
-	.long imagesize
-	.long init_path - BASE
-	.long init_path_end - init_path
-	.quad start
 
 .section .text
 .globl start
@@ -99,6 +92,45 @@ memcmp:
 _Unwind_Resume:
 	jmp .
 
+#elif defined(ARCH_armv7)
+
+# define DEFPTR	.long
+# define PTR_SIZE	4
+# define HDR_ARCH HDR_ARCH_arm32
+.set BASE,  0x7FFE0000
+.set LIMIT, 0x80000000
+
+.section .text
+.globl start
+.extern loader_main
+/* R0 = Argument length */
+start:
+	b .
+
+//# error "TODO: ARMv7 usermode start.S"
+
+#else
+/*
+=======================================================================
+== FALLBACK
+=======================================================================
+*/
+# error "Unknown architecture, set ARCH_<archname>"
+#endif
+
+.section HEADER
+.extern codesize
+.extern imagesize
+.globl image_header
+image_header:
+	.long HEADER_MAGIC
+	.byte (5*4+PTR_SIZE) , HDR_ARCH , 0 , 0	/* Header size, bit-ness, pad, pad */
+	.long codesize
+	.long imagesize
+	.long init_path - BASE
+	.long init_path_end - init_path
+	DEFPTR start
+
 .section .bss
 init_stack_base:
 	.space 0x2000
@@ -111,16 +143,6 @@ init_stack_end:
 arg_count:	.space 4
 init_path:	.space 1024
 init_path_end:
-
-
-#else
-/*
-=======================================================================
-== FALLBACK
-=======================================================================
-*/
-# error "Unknown architecture, set ARCH_<archname>"
-#endif
 
 /* vim: ft=gas
  */

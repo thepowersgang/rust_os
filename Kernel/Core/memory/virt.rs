@@ -284,7 +284,7 @@ pub unsafe fn map_hw_slice<T: ::lib::POD>(phys: PAddr, num: usize) -> Result<Sli
 	
 	// - Reference all pages in the region
 	for i in 0 .. count {
-		::memory::phys::ref_frame(pa + (i * ::PAGE_SIZE) as u64);
+		::memory::phys::ref_frame(pa + (i * ::PAGE_SIZE) as PAddr);
 	}
 	
 	// Map memory (using the raw map_hw call)
@@ -333,7 +333,7 @@ unsafe fn map_hw(phys: PAddr, count: usize, readonly: bool, _module: &'static st
 		{
 			map(
 				(pos + i * ::PAGE_SIZE) as *mut (),
-				phys + (i * ::PAGE_SIZE) as u64,
+				phys + (i * ::PAGE_SIZE) as PAddr,
 				mode
 				);
 		}

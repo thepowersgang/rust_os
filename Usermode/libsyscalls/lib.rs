@@ -63,6 +63,8 @@ pub enum Void {}
 
 #[cfg(arch="amd64")] #[path="raw-amd64.rs"]
 mod raw;
+#[cfg(arch="armv7")] #[path="raw-armv7.rs"]
+mod raw;
 
 #[macro_use]
 pub mod logging;

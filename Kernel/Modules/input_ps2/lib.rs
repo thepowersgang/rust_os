@@ -39,15 +39,23 @@ enum EnumWaitState
 	IdentB2(u8),
 }
 
+#[cfg(any(arch="amd64", arch="x86"))]
 mod i8042;
 
 mod keyboard;
 mod mouse;
 
+#[cfg(any(arch="amd64", arch="x86"))]
 fn init()
 {
 	// TODO: Support other controller types (e.g. the ARM PL050)
 	i8042::init();
+}
+#[cfg(any(arch="armv7"))]
+fn init()
+{
+	// TODO: Support other controller types (e.g. the ARM PL050)
+	//pl050::init();
 }
 
 impl PS2Dev

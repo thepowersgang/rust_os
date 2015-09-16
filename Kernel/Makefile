@@ -11,8 +11,8 @@
 # NOTE:
 # - This downloads its own copy of rustc (to ../.prefix)
 # - It also downloads+extracts libcore from the nightly tarball
-ARCH = amd64
-TRIPLE = x86_64-none-elf
+-include ../common.mk
+
 MODS := syscalls
 MODS += storage_ata
 MODS += input_ps2
@@ -54,8 +54,10 @@ LocalLib = --extern $1=$(OBJDIR)lib$1.rlib
 # Function: Fix the specified dependency file (from http://scottmcpeak.com/autodepend/autodepend.html)
 FixDep = cp -f $1 $1.tmp && sed -e 's/.*://' -e 's/\\$$//' < $1.tmp | head -n 1 | fmt -1 | sed -e 's/^ *//' -e 's/$$/:/' >> $1 && rm -f $1.tmp
 
+EXCLUDE_FEATURES :=
+ifeq ($(ARCH),amd64)
 EXCLUDE_FEATURES := 3dnow avx avx2 sse sse2 sse3 sse4.1 sse4.2 mmx
-#EXCLUDE_FEATURES := 3dnow avx avx2 sse3 sse4.1 sse4.2
+endif
 TARGET_FILE := Core/arch/$(ARCH)/target.json
 
 OBJDIR := .obj/$(ARCH)/
@@ -66,8 +68,9 @@ RUSTFLAGS += -g
 RUSTFLAGS += -C code-model=kernel
 RUSTFLAGS += -C soft-float	# Disables requiring SSE etc
 RUSTFLAGS += -C target-feature=$(subst $(space),$(comma),$(EXCLUDE_FEATURES:%=-%))
-RUSTFLAGS += -C no-vectorize-loops
-RUSTFLAGS += -C no-vectorize-slp
+#RUSTFLAGS += -C no-vectorize-loops
+#RUSTFLAGS += -C no-vectorize-slp
+RUSTFLAGS += -Z no-landing-pads
 RUSTFLAGS += --cfg 'arch="$(ARCH)"'
 RUSTFLAGS += -L bin/plugins/
 RUSTFLAGS += --cfg nightly --cfg no_std
@@ -158,9 +161,13 @@ bin/kernel-$(ARCH).bin: $(OBJS) Core/arch/$(ARCH)/link.ld Makefile
 	@mkdir -p bin/
 	@echo [LD] -o $@
 	$V$(TRIPLE)-ld -o $@ $(OBJS) $(LIBS) $(LINKFLAGS)
+ifeq ($(ARCH),amd64)
 	@objcopy $@ --only-keep-debug $@.debug
 	@objcopy $@ -F elf32-i386 $@.elf32
-	@strip $@.elf32
+	@$(TRIPLE)-strip $@.elf32
+else
+	@$(TRIPLE)-strip $@
+endif
 	@echo "BUILDNUM := $$(( $(BUILDNUM) + 1 ))" > BuildNum.$(ARCH).mk
 
 %.dsm: %
@@ -172,6 +179,10 @@ $(OBJDIR)%.ao: Core/arch/$(ARCH)/%.asm Makefile
 	@echo [AS] -o $@
 	@mkdir -p $(dir $@)
 	$Vnasm -o $@ $< -f elf64 -MD $@.d -MP
+$(OBJDIR)%.ao: Core/arch/$(ARCH)/%.S Makefile
+	@echo [AS] -o $@
+	@mkdir -p $(dir $@)
+	$V$(CC) -o $@ -c $<
 
 # - Kernel Core
 $(OBJDIR)libkernel.rlib: Core/main.rs $(OBJDIR)libcore.rlib Makefile $(TARGET_FILE) ../Graphics/logo.rs bin/plugins/libtag_safe.so $(LIBS)

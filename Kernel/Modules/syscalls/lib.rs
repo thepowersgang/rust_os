@@ -377,6 +377,18 @@ impl SyscallArg for u64 {
 		Ok( rv )
 	}
 }
+#[cfg(target_pointer_width="32")]
+impl SyscallArg for u64 {
+	fn get_arg(args: &mut &[usize]) -> Result<Self,Error> {
+		if args.len() < 2 {
+			return Err( Error::TooManyArgs );
+		}
+		let rv = args[0] as u64 | (args[1] as u64) << 32;
+		*args = &args[2..];
+		Ok( rv )
+	}
+}
+
 impl SyscallArg for u32 {
 	fn get_arg(args: &mut &[usize]) -> Result<Self,Error> {
 		if args.len() < 1 {

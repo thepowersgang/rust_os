@@ -25,8 +25,8 @@ pub const MAP_PAD: MemoryMapEnt = MemoryMapEnt {
 #[derive(Copy,Clone)]
 pub struct MemoryMapEnt
 {
-	pub start: PAddr,
-	pub size: PAddr,
+	pub start: u64,
+	pub size: u64,
 	pub state: MemoryState,
 	pub domain: u16,
 }
