@@ -20,6 +20,20 @@ pub struct HeldSpinlock<'a, T: 'a> {
 	_ptr: &'a Spinlock<T>
 }
 
+fn acquire(flag: &AtomicBool) {
+	//super::puts("lock()\n");
+	//super::puts("lock() flag = ");
+	//super::puth(flag.load(Ordering::Relaxed) as u64);
+	//super::puts(", flag = ");
+	//super::puth(flag as *const AtomicBool as usize as u64);
+	//super::puts("\n");
+	
+	while flag.swap(true, Ordering::Acquire) {
+		// ...
+	}
+	//super::puts("- Locked\n");
+}
+
 impl<T> Spinlock<T>
 {
 	pub const fn new(v: T) -> Spinlock<T> {
@@ -30,9 +44,7 @@ impl<T> Spinlock<T>
 	}
 
 	pub fn lock(&self) -> HeldSpinlock<T> {
-		while self.flag.swap(true, Ordering::Acquire) {
-			// ...
-		}
+		acquire(&self.flag);
 		HeldSpinlock {
 			_ptr: self
 			}

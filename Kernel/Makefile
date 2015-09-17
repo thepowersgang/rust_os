@@ -66,6 +66,7 @@ RUSTFLAGS := -L $(OBJDIR)
 RUSTFLAGS += -O
 RUSTFLAGS += -g
 RUSTFLAGS += -C code-model=kernel
+RUSTFLAGS += -C relocation-model=static
 RUSTFLAGS += -C soft-float	# Disables requiring SSE etc
 RUSTFLAGS += -C target-feature=$(subst $(space),$(comma),$(EXCLUDE_FEATURES:%=-%))
 #RUSTFLAGS += -C no-vectorize-loops
@@ -121,7 +122,11 @@ docs:
 	@chmod +rX doc/ -R 
 
 run: bin/kernel-$(ARCH).bin
+ifeq ($(ARCH),amd64)
 	cd rundir && ./RunQemuPXE ../$<.elf32 "SYSDISK=ATA-0p0 SYSROOT=Tifflin"
+else ifeq ($(ARCH),armv7)
+	cd rundir && qemu-system-arm -machine realview-pb-a8 -serial stdio -s -no-reboot -kernel ../$<	# "SYSDISK=ATA-0p0 SYSROOT=Tifflin"
+endif
 
 # ===
 # Toolchain maintainence
@@ -166,26 +171,26 @@ ifeq ($(ARCH),amd64)
 	@objcopy $@ -F elf32-i386 $@.elf32
 	@$(TRIPLE)-strip $@.elf32
 else
-	@$(TRIPLE)-strip $@
+	#@$(TRIPLE)-strip $@
 endif
 	@echo "BUILDNUM := $$(( $(BUILDNUM) + 1 ))" > BuildNum.$(ARCH).mk
 
 %.dsm: %
 	@echo "[OBJDUMP] >" $*.dsm
-	$Vobjdump -C -S $* > $*.dsm
+	$V$(TRIPLE)-objdump -s -C -S $* > $*.dsm
 
 # Assembly
-$(OBJDIR)%.ao: Core/arch/$(ARCH)/%.asm Makefile
+$(OBJDIR)%.ao: Core/arch/$(ARCH)/%.asm
 	@echo [AS] -o $@
 	@mkdir -p $(dir $@)
 	$Vnasm -o $@ $< -f elf64 -MD $@.d -MP
-$(OBJDIR)%.ao: Core/arch/$(ARCH)/%.S Makefile
+$(OBJDIR)%.ao: Core/arch/$(ARCH)/%.S
 	@echo [AS] -o $@
 	@mkdir -p $(dir $@)
 	$V$(CC) -o $@ -c $<
 
 # - Kernel Core
-$(OBJDIR)libkernel.rlib: Core/main.rs $(OBJDIR)libcore.rlib Makefile $(TARGET_FILE) ../Graphics/logo.rs bin/plugins/libtag_safe.so $(LIBS)
+$(OBJDIR)libkernel.rlib: Core/main.rs $(OBJDIR)libcore.rlib $(TARGET_FILE) ../Graphics/logo.rs bin/plugins/libtag_safe.so $(LIBS)
 	@echo [RUSTC] -o $@
 	@mkdir -p $(dir $@)
 	$V$(ENV) $(RUSTC) $(RUSTFLAGS) --emit=link,dep-info --out-dir $(dir $@) $<

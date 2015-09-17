@@ -6,6 +6,7 @@
  * - ARMv7 linker script 
  */
 _kernel_base = 0x80000000;
+_kernel_base = 0x00000000;
 
 /* OUTPUT_FORMAT(elf32) */
 ENTRY(start)
@@ -13,11 +14,12 @@ ENTRY(start)
 SECTIONS {
 	. = 0x000000;
 	gKernelBase = .;
-	. += SIZEOF_HEADERS;
+	/* . += SIZEOF_HEADERS; */
 	__load_addr = .;
 	
 	/* Boot data */
 	.init : AT(ADDR(.init)) {
+		KEEP( *(VECTORS) )
 		*(.inittext)
 		*(.initdata)
 	}
@@ -47,6 +49,16 @@ SECTIONS {
 		KEEP( *(.MODULE_LIST) )
 		modules_end = .;
 	}
+
+	/DISCARD/ : { *(.ARM.extab.init .ARM.exidx.init) }
+	.ARM.extab : AT( ADDR(.ARM.extab) - _kernel_base) {
+		*(.ARM.extab* .gnu.linkonce.armextab.*)
+	}
+	PROVIDE_HIDDEN ( __exidx_start = . );
+	.ARM.exidx : AT( ADDR(.ARM.exidx) - _kernel_base) {
+		*(.ARM.exidx* .gnu.linkonce.armexidx.*)
+	}
+	PROVIDE_HIDDEN ( __exidx_end = . );
 	
 	.data ALIGN (0x1000) : AT(ADDR(.data) - _kernel_base) {
 		*(.padata)
@@ -60,6 +72,9 @@ SECTIONS {
 		*(.bss)
 		*(.bss.*)
 	}
+	. = ALIGN(4);
+	__bss_end = .;
+	__bss_len = __bss_end - __bss_start;
 	v_kernel_end = (. + 0xFFF)&0xFFFFF000;
 	
 	/DISCARD/ : { *(.tbss) }
