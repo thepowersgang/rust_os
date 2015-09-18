@@ -5,14 +5,14 @@
 // - x86 High Precision Event Timer
 #[allow(unused_imports)]
 use prelude::*;
-use arch::acpi::AddressSpaceID;
+use arch::imp::acpi::AddressSpaceID;
 
 module_define!{HPET, [APIC, ACPI], init}
 
 struct HPET
 {
 	mapping_handle: ::memory::virt::AllocHandle,
-	irq_handle: ::arch::hw::apic::IRQHandle,
+	irq_handle: ::arch::imp::hw::apic::IRQHandle,
 	period: u64,
 }
 
@@ -22,7 +22,7 @@ struct ACPI_HPET
 	hw_rev_id: u8,
 	flags: u8,
 	pci_vendor: u16,
-	addr: ::arch::acpi::GAS,
+	addr: ::arch::imp::acpi::GAS,
 	hpet_num: u8,
 	mintick: [u8; 2],	// 16-bit word
 	page_protection: u8,
@@ -53,7 +53,7 @@ pub fn get_timestamp() -> u64
 fn init()
 {
 	log_trace!("init()");
-	let hpet = match ::arch::acpi::find::<ACPI_HPET>("HPET", 0)
+	let hpet = match ::arch::imp::acpi::find::<ACPI_HPET>("HPET", 0)
 		{
 		None => {
 			log_error!("No HPET, in ACPI, no timing avaliable");
@@ -104,7 +104,7 @@ impl HPET
 	}
 	pub fn bind_irq(&mut self)
 	{
-		self.irq_handle = ::arch::hw::apic::register_irq(2, HPET::irq, self as *mut _ as *const _).unwrap();
+		self.irq_handle = ::arch::imp::hw::apic::register_irq(2, HPET::irq, self as *mut _ as *const _).unwrap();
 	}
 	pub fn ticks_per_ms(&self) -> u64
 	{

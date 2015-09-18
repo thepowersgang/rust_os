@@ -30,7 +30,8 @@ pub fn get_phys<T>(addr: *const T) -> ::arch::memory::PAddr {
 	todo!("get_phys")
 }
 
-pub fn get_info(addr: usize) -> () {
+pub fn get_info<T>(addr: *const T) -> Option<(u32, ::memory::virt::ProtectionMode)> {
+	todo!("get_info")
 }
 
 pub unsafe fn fixed_alloc(p: PAddr, count: usize) -> Option<*mut ()> {

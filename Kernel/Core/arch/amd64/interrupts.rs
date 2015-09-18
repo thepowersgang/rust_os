@@ -79,7 +79,7 @@ pub extern "C" fn error_handler(regs: &InterruptRegs)
 		// SAFE: Just reads CR2
 		unsafe { asm!("mov %cr2, $0" : "=r" (cr2)) };
 		puts("PF ("); puth(regs.errorcode); puts(") at "); puth(cr2 as u64); puts(" by "); puth(regs.rip); puts(" SP="); puth(regs.rsp); puts("\n");
-		if ::arch::memory::virt::handle_page_fault(cr2, regs.errorcode as u32) {
+		if ::arch::imp::memory::virt::handle_page_fault(cr2, regs.errorcode as u32) {
 			return ;
 		}
 		},
@@ -159,6 +159,7 @@ pub enum BindISRError
 }
 
 pub use super::hw::apic::IRQHandle;
+pub use super::hw::apic::IrqError as BindError;
 pub use super::hw::apic::register_irq as bind_gsi;
 
 /// Bind a callback (and params) to an allocatable ISR

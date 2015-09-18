@@ -6,6 +6,7 @@
 use super::{PAddr,VAddr};
 use PAGE_SIZE;
 use memory::virt::ProtectionMode;
+use super::addresses;
 
 const MASK_VBITS : usize = 0x0000FFFF_FFFFFFFF;
 
@@ -50,10 +51,8 @@ impl LargeOk { fn yes(&self) -> bool { match self { &LargeOk::Yes => true, _ => 
 /// - Regions covered by returned pointers may not be mapped
 unsafe fn get_tables<'a>() -> (&'a mut [u64; 512<<3*9], &'a mut [u64; 512<<2*9], &'a mut [u64; 512<<9], &'a mut [u64; 512])
 {
-	use arch::memory::addresses::FRACTAL_BASE;
-	
-	let pt_page = (FRACTAL_BASE & MASK_VBITS) / PAGE_SIZE;
-	let tab_pt = FRACTAL_BASE as *mut u64;
+	let pt_page = (addresses::FRACTAL_BASE & MASK_VBITS) / PAGE_SIZE;
+	let tab_pt = addresses::FRACTAL_BASE as *mut u64;
 	let tab_pd = tab_pt.offset( pt_page as isize );
 	let tab_pdp = tab_pd.offset( (pt_page >> (9)) as isize );
 	let tab_pml4 = tab_pdp.offset( (pt_page >> (9+9)) as isize );
@@ -169,12 +168,12 @@ fn get_page_ent(addr: usize, allocate: bool, large_ok: LargeOk) -> PTE
 }
 
 /// Returns Some(addr) if the passed physical address is in a fixed allocation range (i.e. kernel's identity range)
-pub fn fixed_alloc(addr: PAddr, page_count: usize) -> Option<VAddr>
+pub fn fixed_alloc(addr: PAddr, page_count: usize) -> Option<*mut ()>
 {
-	const FOURMEG: PAddr = (::arch::memory::addresses::IDENT_END - ::arch::memory::addresses::IDENT_START) as PAddr;
+	const FOURMEG: PAddr = (addresses::IDENT_END - addresses::IDENT_START) as PAddr;
 	if addr < FOURMEG && (FOURMEG - addr >> 10) as usize > page_count
 	{
-		Some( ::arch::memory::addresses::IDENT_START + addr as usize )
+		Some( (addresses::IDENT_START + addr as usize) as *mut () )
 	}
 	else
 	{
@@ -185,7 +184,7 @@ pub fn fixed_alloc(addr: PAddr, page_count: usize) -> Option<VAddr>
 /// Returns true if the passed virtual address is within the fixed allocation region
 pub fn is_fixed_alloc(addr: *const (), page_count: usize) -> bool
 {
-	use arch::memory::addresses::{IDENT_START,IDENT_END};
+	use super::addresses::{IDENT_START,IDENT_END};
 	
 	let vaddr = addr as usize;
 	if IDENT_START <= vaddr && vaddr < IDENT_END {
@@ -471,7 +470,7 @@ impl AddressSpace
 {
 	pub fn new(clone_start: usize, clone_end: usize) -> Result<AddressSpace,::memory::virt::MapError>
 	{
-		use arch::memory::addresses::FRACTAL_BASE;
+		use super::addresses::FRACTAL_BASE;
 	
 		// Function called when an entry is found to have a table
 		fn opt_clone_page(idx: usize) -> Result<u64, ::memory::virt::MapError>

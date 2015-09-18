@@ -17,14 +17,14 @@ pub type IRQHandler = fn(info: *const ());
 pub struct IRQHandle
 {
 	num: usize,
-	isr_handle: ::arch::interrupts::ISRHandle,
+	isr_handle: ::arch::imp::interrupts::ISRHandle,
 }
 
 #[derive(Debug,Copy,Clone)]
 pub enum IrqError
 {
 	BadIndex,
-	BindFail(::arch::interrupts::BindISRError),
+	BindFail(::arch::imp::interrupts::BindISRError),
 }
 
 //#[link_section="processor_local"]
@@ -86,7 +86,8 @@ fn init()
 	s_lapic.init();
 	
 	// Enable interupts
-	::arch::threads::S_IRQS_ENABLED.store(true, ::core::sync::atomic::Ordering::Relaxed);
+	// TODO: Does S_IRQS_ENABLED ever get read?
+	::arch::imp::threads::S_IRQS_ENABLED.store(true, ::core::sync::atomic::Ordering::Relaxed);
 	// SAFE: Just STI, nothing to worry about
 	unsafe { asm!("sti"); }
 }
@@ -152,7 +153,7 @@ pub fn register_irq(global_num: usize, callback: IRQHandler, info: *const() ) ->
 	// Bind ISR
 	// TODO: Pick a suitable processor, and maybe have separate IDTs (and hence separate ISR lists)
 	let lapic_id = 0u32;
-	let isr_handle = match ::arch::interrupts::bind_free_isr(lapic_irq_handler, info, global_num)
+	let isr_handle = match ::arch::imp::interrupts::bind_free_isr(lapic_irq_handler, info, global_num)
 		{
 		Ok(v) => v,
 		Err(e) => return Err(IrqError::BindFail(e)),

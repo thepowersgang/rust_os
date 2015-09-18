@@ -11,7 +11,7 @@ pub struct LAPIC
 {
 	paddr: u64,
 	mapping: ::memory::virt::AllocHandle,
-	timer_isr: ::arch::interrupts::ISRHandle,
+	timer_isr: ::arch::imp::interrupts::ISRHandle,
 }
 
 pub struct IOAPIC
@@ -99,7 +99,7 @@ impl LAPIC
 	/// Initialise the LAPIC structures once self is in its final location
 	pub fn global_init(&mut self)
 	{
-		self.timer_isr = match ::arch::interrupts::bind_isr(TIMER_VEC, lapic_timer, self as *mut _ as *const (), 0)
+		self.timer_isr = match ::arch::imp::interrupts::bind_isr(TIMER_VEC, lapic_timer, self as *mut _ as *const (), 0)
 			{
 			Ok(v) => v,
 			Err(e) => panic!("Unable to bind LAPIC timer: {:?}", e),

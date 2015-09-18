@@ -110,13 +110,7 @@ pub mod irqs;
 /// Built-in device drivers
 mod hw;
 
-/// Achitecture-specific code - AMD64 (aka x86-64)
-#[macro_use]
-#[cfg(arch="amd64")] #[path="arch/amd64/mod.rs"]
-pub mod arch;	// Needs to be pub for exports to be avaliable
-
-#[macro_use]
-#[cfg(arch="armv7")] #[path="arch/armv7/mod.rs"]
+/// Achitecture-specific code
 pub mod arch;
 
 /// Kernel version (with build number)

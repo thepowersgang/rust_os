@@ -79,7 +79,8 @@ pub mod x86_io {
 #[repr(C)]
 pub struct ulldiv_t { quo: u64, rem: u64, }
 #[no_mangle]
-pub extern fn __aeabi_uldivmod(mut n: u64, mut d: u64) -> ulldiv_t {
+#[linkage="external"]
+extern fn __aeabi_uldivmod(mut n: u64, mut d: u64) -> ulldiv_t {
 	let mut ret = 0;
 	let mut add = 1;
 	while n / 2 >= d && add != 0 { d <<= 1; add <<= 1; }
@@ -88,14 +89,16 @@ pub extern fn __aeabi_uldivmod(mut n: u64, mut d: u64) -> ulldiv_t {
 	ulldiv_t { quo: ret, rem: n, }
 }
 #[no_mangle]
-pub extern fn __umoddi3(n: u64, d: u64) -> u64 {
+#[linkage="external"]
+extern fn __umoddi3(n: u64, d: u64) -> u64 {
 	__aeabi_uldivmod(n, d).rem
 }
 
 #[repr(C)]
 pub struct lldiv_t { quo: i64, rem: i64, }
 #[no_mangle]
-pub extern fn __aeabi_ldivmod(n: i64, d: i64) -> lldiv_t {
+#[linkage="external"]
+extern fn __aeabi_ldivmod(n: i64, d: i64) -> lldiv_t {
 	let sign = (n < 0) != (d < 0);
 	
 	let n = if n > 0 { n as u64 } else if n == -0x80000000_00000000 { 1 << 63 } else { -n as u64 };
@@ -125,6 +128,7 @@ pub struct uidiv_t {
 	rem: u32,
 }
 #[no_mangle]
+#[linkage="external"]
 pub extern fn __aeabi_uidivmod(mut n: u32, mut d: u32) -> uidiv_t {
 	let mut ret = 0;
 	let mut add = 1;
@@ -135,10 +139,12 @@ pub extern fn __aeabi_uidivmod(mut n: u32, mut d: u32) -> uidiv_t {
 }
 
 #[no_mangle]
+#[linkage="external"]
 pub extern fn __aeabi_uidiv(n: u32, d: u32) -> u32 {
 	__aeabi_uidivmod(n, d).quo
 }
 #[no_mangle]
+#[linkage="external"]
 pub extern fn __umodsi3(n: u32, d: u32) -> u32 {
 	__aeabi_uidivmod(n, d).rem
 }
@@ -149,6 +155,7 @@ pub struct idiv_t {
 	rem: i32,
 }
 #[no_mangle]
+#[linkage="external"]
 pub extern fn __aeabi_idivmod(n: i32, d: i32) -> idiv_t {
 	let sign = (n < 0) != (d < 0);
 	
@@ -169,17 +176,20 @@ pub extern fn __aeabi_idivmod(n: i32, d: i32) -> idiv_t {
 	}
 }
 #[no_mangle]
-pub extern fn __aeabi_idiv(n: i32, d: i32) -> i32 {
+#[linkage="external"]
+extern fn __aeabi_idiv(n: i32, d: i32) -> i32 {
 	__aeabi_idivmod(n, d).quo
 }
 #[no_mangle]
-pub extern fn __modsi3(n: i32, d: i32) -> i32 {
+#[linkage="external"]
+extern fn __modsi3(n: i32, d: i32) -> i32 {
 	__aeabi_idivmod(n, d).rem
 }
 
 
 #[no_mangle]
-pub extern fn __mulodi4(_a: i32, _b: i32, _of: &mut i32) -> i32 {
+#[linkage="external"]
+extern fn __mulodi4(_a: i32, _b: i32, _of: &mut i32) -> i32 {
 	panic!("");
 }
 
