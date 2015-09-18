@@ -3,7 +3,6 @@
 //
 // arch/amd64/crate.rs
 // - AMD64/x86_64 architecture support
-extern crate core;
 use core::option::Option;
 
 pub use self::log::{puts, puth};
