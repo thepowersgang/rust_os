@@ -6,7 +6,6 @@
  * - ARMv7 linker script 
  */
 _kernel_base = 0x80000000;
-_kernel_base = 0x00000000;
 
 /* OUTPUT_FORMAT(elf32) */
 ENTRY(start)
@@ -17,16 +16,10 @@ SECTIONS {
 	/* . += SIZEOF_HEADERS; */
 	__load_addr = .;
 	
-	/* Boot data */
-	.init : AT(ADDR(.init)) {
-		KEEP( *(VECTORS) )
-		*(.inittext)
-		*(.initdata)
-	}
-	
 	. += _kernel_base;
 	
 	.text ALIGN(0x1000): AT(ADDR(.text) - _kernel_base) {
+		KEEP( *(VECTORS) )
 		*(.text)
 		*(.text.*)
 	}
@@ -60,7 +53,7 @@ SECTIONS {
 	}
 	PROVIDE_HIDDEN ( __exidx_end = . );
 	
-	.data ALIGN (0x1000) : AT(ADDR(.data) - _kernel_base) {
+	.data ALIGN (0x4000) : AT(ADDR(.data) - _kernel_base) {
 		*(.padata)
 		*(.data)
 		*(.data.*)

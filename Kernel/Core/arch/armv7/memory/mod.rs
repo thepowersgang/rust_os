@@ -19,6 +19,7 @@ pub mod addresses {
 	
 	
 	pub const USER_END: usize = 0x8000_0000;
+	pub const KERNEL_BASE: usize = 0x8000_0000;
 	pub const HEAP_START: usize = 0x804_00000;
 	
 	

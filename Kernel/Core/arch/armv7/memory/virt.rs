@@ -3,14 +3,28 @@ use memory::virt::ProtectionMode;
 use arch::memory::PAddr;
 
 pub fn is_fixed_alloc<T>(addr: *const T, size: usize) -> bool {
-	false
+	const BASE : usize = super::addresses::KERNEL_BASE;
+	const LIMIT: usize = super::addresses::KERNEL_BASE + 4*1024*1024;
+	let addr = addr as usize;
+	if addr < BASE {
+		false
+	}
+	else if addr >= LIMIT {
+		false
+	}
+	else if addr + size > LIMIT {
+		false
+	}
+	else {
+		true
+	}
 }
 
 pub fn is_reserved<T>(addr: *const T) -> bool {
 	todo!("is_reserved")
 }
 pub fn get_phys<T>(addr: *const T) -> ::arch::memory::PAddr {
-	0
+	todo!("get_phys")
 }
 
 pub fn get_info(addr: usize) -> () {
