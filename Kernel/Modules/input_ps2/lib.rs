@@ -41,6 +41,7 @@ enum EnumWaitState
 
 #[cfg(any(arch="amd64", arch="x86"))]
 mod i8042;
+//#[cfg(arch="armv7")]
 
 mod keyboard;
 mod mouse;
@@ -54,8 +55,9 @@ fn init()
 #[cfg(any(arch="armv7"))]
 fn init()
 {
+	mod pl050;
 	// TODO: Support other controller types (e.g. the ARM PL050)
-	//pl050::init();
+	pl050::init();
 }
 
 impl PS2Dev

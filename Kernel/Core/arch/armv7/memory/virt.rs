@@ -46,14 +46,19 @@ pub unsafe fn unmap(a: *mut ()) -> Option<PAddr> {
 }
 
 #[derive(Debug)]
-pub struct AddressSpace;
+pub struct AddressSpace(u32);
 impl AddressSpace
 {
 	pub fn pid0() -> AddressSpace {
-		AddressSpace
+		extern "C" {
+			static kernel_table0: [u32; 4096];
+		}
+		AddressSpace( &kernel_table0 as *const _ as usize as u32 )
 	}
 	pub fn new(clone_start: usize, clone_end: usize) -> Result<AddressSpace,::memory::virt::MapError> {
-		Ok(AddressSpace)
+		todo!("AddressSpace::new({:#x} -- {:#x})", clone_start, clone_end);
 	}
+
+	pub fn get_ttbr0(&self) -> u32 { self.0 }
 }
 

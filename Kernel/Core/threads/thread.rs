@@ -168,7 +168,7 @@ impl ProcessHandle
 		let mut thread = Thread::new_boxed(allocate_tid(), format!("{}#1", self.0.name), self.0.clone());
 		::arch::threads::start_thread( &mut thread,
 			// SAFE: Well... trusting caller to give us sane addresses etc, but that's the user's problem
-			|| unsafe { ::arch::drop_to_user(ip, sp, 0) }
+			move || unsafe { ::arch::drop_to_user(ip, sp, 0) }
 			);
 		super::yield_to(thread);
 	}

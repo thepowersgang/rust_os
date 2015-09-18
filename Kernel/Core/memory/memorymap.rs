@@ -5,7 +5,6 @@
 //! Physical memory map type
 #[allow(unused_imports)]
 use prelude::*;
-use arch::memory::{PAddr};
 
 #[derive(PartialEq,Debug,Copy,Clone)]
 pub enum MemoryState

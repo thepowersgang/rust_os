@@ -199,7 +199,7 @@ pub mod threads {
 	}
 
 	#[inline]
-	pub fn start_thread<F: FnOnce()+Send>(thread: &mut ::threads::Thread, code: F) {
+	pub fn start_thread<F: FnOnce()+Send+'static>(thread: &mut ::threads::Thread, code: F) {
 		imp::start_thread(thread, code)
 	}
 }

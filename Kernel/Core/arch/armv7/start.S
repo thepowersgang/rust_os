@@ -56,6 +56,44 @@ start:
 	b .
 
 .section .text
+.globl thread_trampoline
+thread_trampoline:
+	b .
+.globl task_switch
+@ R0: Old stack save location
+@ R1: New stack
+@ R2: New TTBR0
+@ R3: New Thread pointer
+task_switch:
+	push {r4-r12,lr}
+
+	@ Save SP
+	str sp, [r0]
+
+	@ Only update TTBR0 if the task has an explicit address space
+	tst r2, r2
+	mcrne p15, 0, r1, c2, c0, 0	@ Set TTBR0 to r0
+	@mov r1, #1
+	@mcrne p15, 0, r1, c8, c7, 0	@ TLBIALL - Invalid user space
+
+	@ Set new thread pointer
+	mcr p15, 0, r4, c13,c0,4	@ TPIDRPRW
+
+	@ Set new SP
+	mov sp, r1
+
+	@ Restore state
+	pop {r4-r12,pc}
+
+.globl drop_to_user
+@ pub fn drop_to_user(entry: usize, stack: usize, cmdline_len: usize) -> !;
+@ R0: entry
+@ R1: stack
+@ R2: cmdline_len
+drop_to_user:
+	b .
+
+.section .text
 .globl __aeabi_memcpy4
 .globl __aeabi_memcpy8
 __aeabi_memcpy8:

@@ -6,7 +6,7 @@
 #![crate_name="kernel"]
 #![crate_type="lib"]
 #![feature(no_std)]
-#![feature(core,core_slice_ext,core_str_ext,core_char_ext)]	// Needed to use libcore and provided prelude
+#![feature(core_slice_ext,core_str_ext,core_char_ext)]	// Needed to use libcore and provided prelude
 #![feature(unsize,coerce_unsized)]	// For DST smart pointers
 #![feature(core_intrinsics)]	// Intrinsics
 #![feature(asm)]	// Enables the asm! syntax extension
@@ -24,7 +24,6 @@
 #![feature(iter_cmp)]	// for max_by
 #![feature(get_type_id,reflect_marker)] // used by process_local's "AnyMap" hackery
 #![cfg_attr(not(use_acpica),feature(ptr_as_ref))]	// used by ACPI code (custom impl, not ACPICA)
-#![feature(slice_bytes)]	// Gives bytes::copy_memory, used in VMM
 
 #![feature(num_bits_bytes)]	// Used for sysinit
 #![no_std]

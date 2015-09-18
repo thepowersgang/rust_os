@@ -14,7 +14,8 @@ pub mod phys;
 
 pub mod addresses {
 	pub fn is_global(addr: usize) -> bool {
-		false
+		// Kernel area is global (i.e. present in all address spaces)
+		addr >= KERNEL_BASE
 	}
 	
 	

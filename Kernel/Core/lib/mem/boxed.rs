@@ -18,15 +18,25 @@ impl<T> Box<T>
 	pub fn new(v: T) -> Box<T> {
 		box v
 	}
+}
+impl<T: ?Sized> Box<T>
+{
+	pub unsafe fn from_raw(p: *mut T) -> Box<T> {
+		::core::mem::transmute(p)
+	}
 	
-	pub unsafe fn into_ptr(self) -> *mut T {
-		into_raw(self)
+	pub fn into_ptr(self) -> *mut T {
+		self.into_raw()
+	}
+
+	pub fn into_raw(self) -> *mut T {
+		// SAFE: Leaks 'self', but that's intentional
+		unsafe {
+			::core::mem::transmute(self)
+		}
 	}
 }
 
-pub unsafe fn into_raw<T: ?Sized>(b: Box<T>) -> *mut T {
-	::core::mem::transmute(b)
-}
 pub fn into_inner<T>(b: Box<T>) -> T {
 	let box v = b;
 	v
