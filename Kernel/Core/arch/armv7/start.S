@@ -45,17 +45,13 @@ start:
 	mov r0, #0x55	@ 01010101b
 	mcr p15, 0, r0, c3, c0, 0	@ Enable access faults on domains 0 & 1
 	
+
+	@ Populate the first HWMapping address with the UART's base
+	ldr r0, =0x10009000 + 0x13
+	ldr r1, =hwmap_table_0+0
+	str r0, [r1]
+	
 	ldr sp, =init_stack
-	
-	// 2. Clear .bss
-@	mov r1, #0
-@	ldr r0, =__bss_start
-@	ldr r2, =__bss_len
-@1:
-@	str r1, [r0], #4
-@	sub r2, r2, #4
-@	bne 1b
-	
 	ldr pc, =kmain
 	b .
 
@@ -169,7 +165,7 @@ kernel_table0:
 
 .globl hwmap_table_0
 hwmap_table_0:
-	.long 0x10009000 + 0x13
+	.long 0	@ 0x10009000 + 0x13
 	.rept 1023
 		.long 0
 	.endr

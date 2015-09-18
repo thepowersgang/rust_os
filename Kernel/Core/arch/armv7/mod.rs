@@ -21,7 +21,7 @@ pub unsafe fn drop_to_user(entry: usize, stack: usize, args_len: usize) -> !
 fn putb(b: u8) {
 	// SAFE: Access should be correct, and no race is possible
 	unsafe {
-		//let uart = 0x10009000 as *mut u8;
+		// - First HWMap page is the UART
 		let uart = 0xF100_0000 as *mut u8;
 		::core::intrinsics::volatile_store( uart.offset(0), b );
 	}

@@ -1,0 +1,2 @@
+Write a wrapper module for Core/arch, and have the real arch stuff be in "::arch::imp".
+- Provides concrete docs for the arch APIs
