@@ -18,6 +18,27 @@ extern "C" {
 }
 
 
+#[no_mangle]
+pub unsafe extern fn hexdump(base: *const u8, size: usize) {
+	puts("hexdump("); puth(base as usize as u64); puts(", "); puth(size as u64); puts("): ");
+	for i in 0 .. size {
+		let v = *base.offset(i as isize);
+		put_nibble(v/16);
+		put_nibble(v%16);
+		putb(b' ');
+	}
+	putb(b'\n');
+}
+
+fn put_nibble(n: u8) {
+	if n < 10 {
+		putb( b'0' + n );
+	}
+	else {
+		putb( b'a' + n - 10 );
+	}
+}
+
 fn putb(b: u8) {
 	// SAFE: Access should be correct, and no race is possible
 	unsafe {

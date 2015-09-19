@@ -2,6 +2,8 @@
 @
 @
 #define KERNEL_BASE	0x80000000
+#define UART_BASE	0x10009000
+//#define UART_BASE	0x09000000
 
 .section VECTORS
 ivt_reset:      b rst_start	@ 0x00 Reset
@@ -23,7 +25,7 @@ rst_start:
 .extern kmain
 start:
 	// 0. Print a '\n' to the serial port
-	ldr r0, =0x10009000
+	ldr r0, =UART_BASE
 	mov r1, #10 ; str r1, [r0]
 	
 	// 1. Prepare VMSA State
@@ -47,11 +49,20 @@ start:
 	
 
 	@ Populate the first HWMapping address with the UART's base
-	ldr r0, =0x10009000 + 0x13
+	ldr r0, =UART_BASE + 0x13
 	ldr r1, =hwmap_table_0+0
 	str r0, [r1]
-	
+
 	ldr sp, =init_stack
+
+.globl hexdump
+	@mov r0, #0
+	@mov r1, #1024
+	@bl hexdump
+	@ldr r0, =0xFFFFF000
+	@mov r1, #1024
+	@bl hexdump
+	
 	ldr pc, =kmain
 	b .
 
@@ -194,7 +205,7 @@ kernel_table0:
 	.rept 0xFF8 - 0xF00 - 16 - 4
 		.long 0
 	.endr
-	@ Page fractals
+	@ Page fractals and vectored exceptions
 	.long 0, 0, 0, 0
 	.long kernel_exception_map + 0x000 - KERNEL_BASE + 1
 	.long kernel_exception_map + 0x400 - KERNEL_BASE + 1
@@ -209,13 +220,19 @@ hwmap_table_0:
 	.endr
 .globl kernel_exception_map
 kernel_exception_map:
-	@ First 1008 entries are empty
+	@ First 1008 entries are empty (for use with kernel-side page tables)
 	.rept 1024-16
 		.long 0
 	.endr
 	.long 0x00000000 + 0x212	@ Exceptions at 0xFFFF0000, re-map first page (TODO: Mangle this with load base instead)
-	.rept 16-1-2
+	.rept 8-1
 		.long 0
 	.endr
+	.long kernel_table0 + 0x0000 - KERNEL_BASE + 0x13 @ Base fractal (0xFFFF8000)
+	.long kernel_table0 + 0x1000 - KERNEL_BASE + 0x13
+	.long kernel_table0 + 0x2000 - KERNEL_BASE + 0x13
+	.long kernel_table0 + 0x3000 - KERNEL_BASE + 0x13
+	.long kernel_exception_map - KERNEL_BASE + 0x13	@ Self fractal (0xFFFF9000)
+	.long 0
 	.long 0
 	.long 0

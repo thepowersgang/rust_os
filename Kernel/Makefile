@@ -125,7 +125,7 @@ run: bin/kernel-$(ARCH).bin
 ifeq ($(ARCH),amd64)
 	cd rundir && ./RunQemuPXE ../$<.elf32 "SYSDISK=ATA-0p0 SYSROOT=Tifflin"
 else ifeq ($(ARCH),armv7)
-	cd rundir && qemu-system-arm -machine realview-pb-a8 -serial stdio -s -no-reboot -kernel ../$<	# "SYSDISK=ATA-0p0 SYSROOT=Tifflin"
+	cd rundir && qemu-system-arm -machine realview-pb-a8 -serial stdio -s -no-reboot -kernel ../$< -append "SYSDISK=ATA-0p0 SYSROOT=Tifflin"
 endif
 
 # ===
