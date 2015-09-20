@@ -1,117 +1,31 @@
 #!/bin/bash
 set -e
 
-#ENABLE_VIDEO=0
+IMAGE="$1"
+ARGS="$2"
+QEMU_OPTS="$3"
 
-MODE=pxe
+QEMU_OPTS=$QEMU_OPTS" -net user,tftp=.pxe/,bootfile=pxelinux.0"
+QEMU_OPTS=$QEMU_OPTS" -boot n"
 
-IMAGE=$1
-ARGS=$2
+PXELINUX_DIR=/usr/lib/syslinux/
 
-# Run qemu with various options
-QEMU_OPTS=""
-QEMU_OPTS=$QEMU_OPTS" -net nic"
-if [[ $ENABLE_VIDEO -ne 0 ]]; then
-	QEMU_OPTS=$QEMU_OPTS" -serial stdio"
+# Create PXE boot dir
+rm -rf .pxe/
+mkdir -p .pxe/pxelinux.cfg
+if [ -e ${PXELINUX_DIR}pxelinux.0 ]; then
+	cp ${PXELINUX_DIR}pxelinux.0 ${PXELINUX_DIR}mboot.c32 .pxe/
 else
-	QEMU_OPTS=$QEMU_OPTS" -nographic"
+	cp /usr/lib/PXELINUX/pxelinux.0 .pxe/
+	cp /usr/lib/syslinux/modules/bios/mboot.c32 .pxe/
+	cp /usr/lib/syslinux/modules/bios/{ldlinux.c32,libcom32.c32} .pxe/
 fi
-QEMU_OPTS=$QEMU_OPTS" -drive if=ide,index=0,file=DiskImages/hda.img,format=raw"
-#QEMU_OPTS=$QEMU_OPTS" -drive if=ide,index=1,file=DiskImages/hdb.img,format=raw"
-#QEMU_OPTS=$QEMU_OPTS" -trace file=qemu_trace"
-#QEMU_OPTS=$QEMU_OPTS" -trace events=.qemu_trace,file=qemu_trace"
-#QEMU_OPTS=$QEMU_OPTS" -d int -D qemu_int_log.txt"
-QEMU_OPTS=$QEMU_OPTS" -d int,pcall -D qemu_int_log.txt"
-QEMU_OPTS=$QEMU_OPTS" -no-reboot"
-QEMU_OPTS=$QEMU_OPTS" -s"
-
-case $MODE in
-pxe)
-	QEMU_OPTS=$QEMU_OPTS" -net user,tftp=.pxe/,bootfile=pxelinux.0"
-	QEMU_OPTS=$QEMU_OPTS" -boot n"
-	
-	PXELINUX_DIR=/usr/lib/syslinux/
-
-	# Create PXE boot dir
-	rm -rf .pxe/
-	mkdir -p .pxe/pxelinux.cfg
-	if [ -e ${PXELINUX_DIR}pxelinux.0 ]; then
-		cp ${PXELINUX_DIR}pxelinux.0 ${PXELINUX_DIR}mboot.c32 .pxe/
-	else
-		cp /usr/lib/PXELINUX/pxelinux.0 .pxe/
-		cp /usr/lib/syslinux/modules/bios/mboot.c32 .pxe/
-		cp /usr/lib/syslinux/modules/bios/{ldlinux.c32,libcom32.c32} .pxe/
-	fi
-	cp $IMAGE .pxe
-	cat <<EOF > .pxe/pxelinux.cfg/default
+cp $IMAGE .pxe
+cat <<EOF > .pxe/pxelinux.cfg/default
 default testkern
 label testkern
 	kernel mboot.c32
-	append ${IMAGE##*/} $ARGS
-EOF
-	;;
-grub-iso)
-	QEMU_OPTS=$QEMU_OPTS" -net user"
-	rm -rf .iso_root/
-	mkdir -p .iso_root/boot/grub
-	cat <<EOF > .iso_root/boot/grub/grub.cfg
-set default="Tifflin"
-set timeout=0
-insmod efi_gop
-insmod font
-insmod gfxterm
-
-loadfont /boot/grub/fonts/unicode.pf2
-set gfxmode=auto
-set gfxpayload=keep
-terminal_output gfxterm
-
-menuentry "Tifflin" {
-	terminal_output serial
-	set debug=all
-	multiboot /${IMAGE##*/} ${ARGS}
-}
-EOF
-	cp ${IMAGE} .iso_root/
-	grub-mkrescue -o grub.iso .iso_root/ --modules="multiboot normal efi_gop font"
-	QEMU_OPTS=$QEMU_OPTS" -bios OVMF.fd"
-	QEMU_OPTS=$QEMU_OPTS" -boot d -cdrom grub.iso"
-	;;
-*)
-	exit 1
-	;;
-esac	
-
-# Set qemu trace options
-echo "" > .qemu_trace
-#echo "apic_deliver_irq" >> .qemu_trace
-#echo "apic_local_deliver" >> .qemu_trace
-#echo "apic_mem_readl" >> .qemu_trace
-echo "bdrv_aio_readv" >> .qemu_trace
-echo "bdrv_aio_writev" >> .qemu_trace
-echo "bdrv_co_readv" >> .qemu_trace
-echo "bdrv_co_do_copy_on_readv" >> .qemu_trace
-
-# Initialise a hard-disk
-mkdir -p DiskImages
-# - 1MB of blank space 
-dd if=/dev/zero of=DiskImages/hda_0.img bs=1M count=1
-# - 32MB FAT? partition on disk 0
-dd if=/dev/zero of=DiskImages/hda_1.img bs=1M count=32
-/sbin/mkfs.vfat DiskImages/hda_1.img
-mcopy -s -D o -i DiskImages/hda_1.img ../../Usermode/.output/amd64 ::/Tifflin
-echo "Test content" | mcopy -i DiskImages/hda_1.img - ::/1.txt
-# - a 16MB ext2 partition on disk 0
-#genext2fs -d ../../Usermode/.output/amd64 -b $((16*1024)) DiskImages/hda_2.img 
-dd if=/dev/zero of=DiskImages/hda_2.img bs=1M count=16
-/sbin/mkfs.ext2 -q -F DiskImages/hda_2.img
-# - Commit
-cat DiskImages/hda_0.img DiskImages/hda_1.img DiskImages/hda_2.img > DiskImages/hda.img
-/sbin/sfdisk --no-reread DiskImages/hda.img -C $((1+32+16)) -H 4 -S 256 -u S -f -q <<EOF
-$((1*1024*2)),$((32*1024*2)),0x83
-$((33*1024*2)),+,0x7
+	append ${IMAGE##*/} ${ARGS}
 EOF
 
-echo "--- Starting qemu"
-# - `tail -n +2` skips the first line of output, which is OVMF spamming
-qemu-system-x86_64 $QEMU_OPTS | tee QemuLog.txt | tail -n +2
+qemu-system-x86_64 $QEMU_OPTS

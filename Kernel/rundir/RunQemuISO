@@ -1,0 +1,36 @@
+#!/bin/bash
+set -e
+
+IMAGE="$1"
+ARGS="$2"
+QEMU_OPTS="$3"
+
+QEMU_OPTS=$QEMU_OPTS" -net user"
+QEMU_OPTS=$QEMU_OPTS" -bios OVMF.fd"
+QEMU_OPTS=$QEMU_OPTS" -boot d -cdrom grub.iso"
+
+rm -rf .iso_root/
+mkdir -p .iso_root/boot/grub
+cat <<EOF > .iso_root/boot/grub/grub.cfg
+set default="Tifflin"
+set timeout=0
+insmod efi_gop
+insmod font
+insmod gfxterm
+
+loadfont /boot/grub/fonts/unicode.pf2
+set gfxmode=auto
+set gfxpayload=keep
+terminal_output gfxterm
+
+menuentry "Tifflin" {
+	terminal_output serial
+	set debug=all
+	multiboot /${IMAGE##*/} ${ARGS}
+}
+EOF
+cp ${IMAGE} .iso_root/
+grub-mkrescue -o grub.iso .iso_root/ --modules="multiboot normal efi_gop font"
+
+qemu-system-x86_64 $QEMU_OPTS
+

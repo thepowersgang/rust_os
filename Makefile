@@ -2,11 +2,7 @@
 -include common.mk
 
 run: all
-ifeq ($(ARCH),amd64)
-	cd Kernel/rundir && ./RunQemuPXE ../bin/kernel-amd64.elf32 "SYSDISK=ATA-0p0 SYSROOT=Tifflin"
-else ifeq ($(ARCH),armv7)
 	make -C Kernel/rundir run
-endif
 
 all:
 	@echo ">>> $@: libcore source"
