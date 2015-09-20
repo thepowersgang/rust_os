@@ -2,8 +2,8 @@
 @
 @
 #define KERNEL_BASE	0x80000000
-#define UART_BASE	0x10009000
-//#define UART_BASE	0x09000000
+//#define UART_BASE	0x10009000
+#define UART_BASE	0x09000000
 
 .section VECTORS
 ivt_reset:      b rst_start	@ 0x00 Reset
@@ -26,6 +26,13 @@ rst_start:
 start:
 	// 0. Print a '\n' to the serial port
 	ldr r0, =UART_BASE
+	mov r1, #'T' ; str r1, [r0]
+	mov r1, #'i' ; str r1, [r0]
+	mov r1, #'f' ; str r1, [r0]
+	mov r1, #'f' ; str r1, [r0]
+	mov r1, #'l' ; str r1, [r0]
+	mov r1, #'i' ; str r1, [r0]
+	mov r1, #'n' ; str r1, [r0]
 	mov r1, #10 ; str r1, [r0]
 	
 	// 1. Prepare VMSA State
@@ -56,12 +63,12 @@ start:
 	ldr sp, =init_stack
 
 .globl hexdump
-	@mov r0, #0
-	@mov r1, #1024
-	@bl hexdump
-	@ldr r0, =0xFFFFF000
-	@mov r1, #1024
-	@bl hexdump
+	mov r0, #0
+	mov r1, #1024
+	bl hexdump
+	ldr r0, =0xFFFFE000
+	mov r1, #1024
+	bl hexdump
 	
 	ldr pc, =kmain
 	b .
@@ -234,5 +241,5 @@ kernel_exception_map:
 	.long kernel_table0 + 0x3000 - KERNEL_BASE + 0x13
 	.long kernel_exception_map - KERNEL_BASE + 0x13	@ Self fractal (0xFFFF9000)
 	.long 0
-	.long 0
+	.long 0x40000000 + 0x13
 	.long 0

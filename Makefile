@@ -1,11 +1,12 @@
 
-run:
-	@echo ">>> $@: libcore source"
-	@make -C Kernel/ ../libcore/lib.rs --no-print-directory
-	@echo ">>> $@: Usermode"
-	@make -C Usermode/ --no-print-directory
-	@echo ">>> $@: Kernel"
-	@make -C Kernel/ run --no-print-directory
+-include common.mk
+
+run: all
+ifeq ($(ARCH),amd64)
+	cd Kernel/rundir && ./RunQemuPXE ../bin/kernel-amd64.elf32 "SYSDISK=ATA-0p0 SYSROOT=Tifflin"
+else ifeq ($(ARCH),armv7)
+	make -C Kernel/rundir run
+endif
 
 all:
 	@echo ">>> $@: libcore source"
