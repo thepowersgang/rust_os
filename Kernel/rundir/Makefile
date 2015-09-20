@@ -61,11 +61,11 @@ DiskImages/hda_2.img:
 	#genext2fs -d ../../Usermode/.output/amd64 -b $((16*1024)) DiskImages/hda_2.img 
 	dd if=/dev/zero of=$@ bs=1M count=16
 	/sbin/mkfs.ext2 -q -F $@
-DiskImages/hda.img: DiskImages/hda_0.img DiskImages/hda_1.img DiskImages/hda_2.img
+DiskImages/hda.img: Makefile DiskImages/hda_0.img DiskImages/hda_1.img DiskImages/hda_2.img
 	mkdir -p $(dir $@)
 	# - Commit
 	cat DiskImages/hda_0.img DiskImages/hda_1.img DiskImages/hda_2.img > DiskImages/hda.img
-	echo -e "$$((1*1024*2)),$$((32*1024*2)),0x83\n""$$((33*1024*2)),+,0x7" | /sbin/sfdisk --no-reread DiskImages/hda.img -C $$((1+32+16)) -H 4 -S 256 -u S -f -q
+	echo "$(shell echo $$((1*1024*2)),$$((32*1024*2)),0x83)\n$(shell echo $$((33*1024*2)),+,0x7)" | /sbin/sfdisk --no-reread DiskImages/hda.img -C $$((1+32+16)) -H 4 -S 256 -u S -f -q
 
 .qemu_trace: Makefile
 	echo "" 
