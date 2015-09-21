@@ -6,17 +6,17 @@ run: all
 
 all:
 	@echo ">>> $@: libcore source"
-	@make -C Kernel/ ../libcore/lib.rs --no-print-directory
+	@+make -C Kernel/ ../libcore/lib.rs --no-print-directory
 	@echo ">>> $@: Usermode"
-	@make -C Usermode/ all --no-print-directory
+	@+make -C Usermode/ all --no-print-directory
 	@echo ">>> $@: Kernel"
-	@make -C Kernel/ all --no-print-directory
+	@+make -C Kernel/ all --no-print-directory
 
 clean:
 	@echo ">>> $@: Usermode"
-	@make -C Usermode/ $@ --no-print-directory
+	@+make -C Usermode/ $@ --no-print-directory
 	@echo ">>> $@: Kernel"
-	@make -C Kernel/ $@ --no-print-directory
+	@+make -C Kernel/ $@ --no-print-directory
 
 UPDATE:
 	@echo ">>> Updating rustc and libcore"
