@@ -5,9 +5,9 @@
 
 QEMU_ARGS := -s -no-reboot
 ifeq ($(ENABLE_VIDEO),)
-	QEMU_ARGS += -serial stdio
-else
 	QEMU_ARGS += -nographic
+else
+	QEMU_ARGS += -serial stdio
 endif
 QEMU_ARGS += -d int,guest_errors -D qemu.log
 ifneq ($(QEMU_STALL),)

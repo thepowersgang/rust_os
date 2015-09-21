@@ -62,15 +62,19 @@ impl ::objects::Object for CurProcess
 	}
 }
 
+#[inline(never)]
 pub fn exit(status: u32) {
 	::kernel::threads::exit_process(status);
 }
+#[inline(never)]
 pub fn terminate() {
 	todo!("terminate()");
 }
+#[inline(never)]
 pub fn newthread(sp: usize, ip: usize) -> ObjectHandle {
 	todo!("newthread(sp={:#x},ip={:#x})", sp, ip);
 }
+#[inline(never)]
 pub fn newprocess(name: &str, ip: usize, sp: usize, clone_start: usize, clone_end: usize) -> ObjectHandle {
 	// 1. Create a new process image (virtual address space)
 	let mut process = ::kernel::threads::ProcessHandle::new(name, clone_start, clone_end);
@@ -125,6 +129,7 @@ pub fn newprocess(name: &str, ip: usize, sp: usize, clone_start: usize, clone_en
 }
 
 // ret: number of events triggered
+#[inline(never)]
 pub fn wait(events: &mut [values::WaitItem], wake_time_mono: u64) -> Result<u32,Error>
 {
 	let mut waiter = ::kernel::threads::SleepObject::new("wait");

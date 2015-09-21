@@ -95,6 +95,7 @@ use self::values::*;
 #[path="../../../syscalls.inc.rs"]
 mod values;
 
+#[inline(never)]
 fn invoke_int(call_id: u32, mut args: &[usize]) -> Result<u64,Error>
 {
 	if call_id & 1 << 31 == 0
@@ -113,17 +114,8 @@ fn invoke_int(call_id: u32, mut args: &[usize]) -> Result<u64,Error>
 			let group = try!( <u32>::get_arg(&mut args) );
 			let id = try!( <usize>::get_arg(&mut args) );
 			let mut buf = try!( <FreezeMut<[u8]>>::get_arg(&mut args) );
-			(match group
-			{
-			::values::TEXTINFO_KERNEL =>
-				match id
-				{
-				0 => { buf.clone_from_slice( ::kernel::VERSION_STRING.as_bytes() ); ::kernel::VERSION_STRING.len() },
-				1 => { buf.clone_from_slice( ::kernel::BUILD_STRING.as_bytes() ); ::kernel::BUILD_STRING.len() },
-				_ => 0,
-				},
-			_ => 0,
-			}) as u64
+			// TODO: Use a Result here
+			syscall_core_textinfo(group, id, &mut buf) as u64
 			},
 		// - 0/1: Exit process
 		CORE_EXITPROCESS => {
@@ -431,7 +423,24 @@ impl SyscallArg for bool {
 }
 
 // TODO: Support a better user logging framework
+#[inline(never)]
 fn syscall_core_log(msg: &str) {
 	log_debug!("USER> {}", msg);
+}
+
+#[inline(never)]
+fn syscall_core_textinfo(group: u32, id: usize, buf: &mut [u8]) -> usize
+{
+	match group
+	{
+	::values::TEXTINFO_KERNEL =>
+		match id
+		{
+		0 => { buf.clone_from_slice( ::kernel::VERSION_STRING.as_bytes() ); ::kernel::VERSION_STRING.len() },
+		1 => { buf.clone_from_slice( ::kernel::BUILD_STRING.as_bytes() ); ::kernel::BUILD_STRING.len() },
+		_ => 0,
+		},
+	_ => 0,
+	}
 }
 

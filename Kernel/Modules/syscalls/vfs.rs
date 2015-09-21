@@ -92,6 +92,7 @@ fn to_result<T>(r: Result<T, ::kernel::vfs::Error>) -> Result<T, u32> {
 // --------------------------------------------------------------------
 
 /// Open a bare file
+#[inline(never)]
 pub fn opennode(path: &[u8]) -> Result<ObjectHandle,u32> {
 	to_result( handle::Any::open( Path::new(path) ) )
 		.map( |h| objects::new_object(Node(h)) )
@@ -136,6 +137,7 @@ impl objects::Object for Node
 //
 // --------------------------------------------------------------------
 
+#[inline(never)]
 pub fn openfile(path: &[u8], mode: u8) -> Result<ObjectHandle,u32> {
 	
 	log_trace!("openfile({:?}, mode={:?})", path, mode);
@@ -216,6 +218,7 @@ impl objects::Object for File
 //
 // --------------------------------------------------------------------
 
+#[inline(never)]
 pub fn opendir(path: &[u8]) -> Result<ObjectHandle,u32>
 {
 	to_result( handle::Dir::open(::kernel::vfs::Path::new(path)) )
@@ -332,6 +335,7 @@ impl DirEntCache {
 //
 // --------------------------------------------------------------------
 
+#[inline(never)]
 pub fn openlink(path: &[u8]) -> Result<ObjectHandle,u32>
 {
 	to_result( handle::Symlink::open(::kernel::vfs::Path::new(path)) )

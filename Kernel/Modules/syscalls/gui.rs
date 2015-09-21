@@ -29,6 +29,7 @@ impl ::core::convert::Into<values::GuiEvent> for ::gui::input::Event {
 }
 
 
+#[inline(never)]
 pub fn newgroup(name: &str) -> Result<ObjectHandle,u32> {
 	// Only init can create new sessions
 	// TODO: Use a capability system instead of hardcoding to only PID0
@@ -40,6 +41,7 @@ pub fn newgroup(name: &str) -> Result<ObjectHandle,u32> {
 	}
 }
 
+#[inline(never)]
 pub fn bind_group(object_handle: u32) -> Result<bool,Error> {
 	let wgh = ::kernel::threads::get_process_local::<PLWindowGroup>();
 	let mut h = wgh.0.lock();
@@ -53,6 +55,7 @@ pub fn bind_group(object_handle: u32) -> Result<bool,Error> {
 	}
 }
 
+#[inline(never)]
 pub fn get_group() -> Result<ObjectHandle,u32>
 {
 	let wgh = ::kernel::threads::get_process_local::<PLWindowGroup>();
@@ -195,6 +198,7 @@ impl PLWindowGroup {
 	}
 }
 
+#[inline(never)]
 pub fn newwindow(name: &str) -> Result<ObjectHandle,u32> {
 	log_trace!("syscall_gui_newwindow(name={})", name);
 	// Get window group for this process

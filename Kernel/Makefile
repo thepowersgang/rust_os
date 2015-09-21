@@ -64,6 +64,7 @@ OBJDIR := .obj/$(ARCH)/
 
 RUSTFLAGS := -L $(OBJDIR)
 RUSTFLAGS += -O
+#RUSTFLAGS += -C opt-level=1
 RUSTFLAGS += -g
 RUSTFLAGS += -C code-model=kernel
 RUSTFLAGS += -C relocation-model=static
@@ -177,7 +178,7 @@ endif
 
 %.dsm: %
 	@echo "[OBJDUMP] >" $*.dsm
-	$V$(TRIPLE)-objdump -s -C -S $* > $*.dsm
+	$V$(TRIPLE)-objdump -s -Cg -S $* > $*.dsm
 
 # Assembly
 $(OBJDIR)%.ao: Core/arch/$(ARCH)/%.asm

@@ -155,6 +155,8 @@ impl ProcessObjects {
 //pub fn new_object<T: Object+'static>(val: T) -> Result<u32, super::Error>
 pub fn new_object<T: Object+'static>(val: T) -> u32
 {
+	log_debug!("new_object<{}>", type_name!(T));
+	::kernel::arch::print_backtrace();
 	get_process_local::<ProcessObjects>().find_and_fill_slot(|| UserObject::new(val)).unwrap_or(!0)
 }
 
@@ -199,6 +201,7 @@ pub fn get_unclaimed(class: u16, idx: usize) -> u64
 	super::from_result::<u32,u32>( Err(0) )
 }
 
+#[inline(never)]
 pub fn call_object(handle: u32, call: u16, args: &[usize]) -> Result<u64,super::Error>
 {
 	// Obtain reference/borrow to object (individually locked), and call the syscall on it
@@ -234,6 +237,7 @@ pub fn give_object(target: &::kernel::threads::ProcessHandle, handle: u32) -> Re
 	if ! target_objs.iter().any(|x| x.read().is_none()) {
 		return Err(super::Error::TooManyObjects);
 	}
+	log_debug!("give_object(target={:?}, handle={:?})", target, handle);
 	let obj = try!(get_process_local::<ProcessObjects>().take_object(handle));
 	try!( target_objs.find_and_fill_slot(|| UserObject::sent(obj)) );
 	target_queue.event.trigger();
@@ -260,6 +264,7 @@ pub fn take_object<T: Object+'static>(handle: u32) -> Result<T,super::Error> {
 	}
 }
 
+#[inline(never)]
 pub fn drop_object(handle: u32)
 {
 	if handle == 0 {
