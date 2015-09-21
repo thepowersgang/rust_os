@@ -26,7 +26,7 @@
 %endmacro
 
 %macro PUSH_GPR	0
-	SAVE rax, rcx, rdx, rbx,  rbp, rsi, rdi, r8, r9, r10, r11, r12, r13, r14, r15
+	SAVE    rax, rcx, rdx, rbx,  rbp, rsi, rdi, r8, r9, r10, r11, r12, r13, r14, r15
 %endmacro
 %macro POP_GPR	0
 	RESTORE rax, rcx, rdx, rbx,  rbp, rsi, rdi, r8, r9, r10, r11, r12, r13, r14, r15

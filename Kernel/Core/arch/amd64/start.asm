@@ -65,11 +65,14 @@ start:
 	
 	;; 2. Switch into IA-32e mode
 	; Enable:
-	;   PGE (Page Global Enable)
-	; + PAE (Physical Address Extension)
-	; + PSE (Page Size Extensions)
+	;   [4] PGE (Page Global Enable)
+	; + [5] PAE (Physical Address Extension)
+	; + [7] PSE (Page Size Extensions)
+	; + [ 9] OSFXSR (Operating System Support for FXSAVE and FXRSTOR instructions)
+	; + [10] OSXMMEXCPT (Operating System Support for Unmasked SIMD Floating-Point Exceptions)
 	mov eax, cr4
 	or eax, 0x80|0x20|0x10
+        or ax, (1 << 9)|(1 << 10)
 	mov cr4, eax
 	
 	mov al, '4'
@@ -94,9 +97,15 @@ start:
 	out dx, al
 
 	
-	; 3. Enable paging and enter long mode
+	; 3. Enable paging and enter long mode (enable SSE too)
+	; Set [31] PG (Paging enabled)
+	; Set [16] WP (Kernel write-protect)
+	; Set [3]TS (Enables #NM on all FPU instructions)
+	; Set [1]MP (with TS, Enables #NM when FWAIT is used)
+	; Clear [2]EM (Disables emulation of the FPU)
 	mov eax, cr0
-	or eax, 0x80010000	; PG & WP
+	or eax, 0x80010000|(1 << 3)|(1 << 1)	; PG & WP
+	and ax, ~(1 << 2)
 	mov cr0, eax
 	lgdt [GDTPtr - KERNEL_BASE]
 	jmp 0x08:start64
@@ -212,17 +221,31 @@ start64_higher:
 ; RCX: New CR3
 [section .text.asm.task_switch]
 EXPORT task_switch
-	SAVE rbp, rbx, r12, r13, r14, r15
-	mov [rdi], rsp
+	push rbp
+	mov rbp, rsp
+	SAVE rbx, r12, r13, r14, r15
+	
+	; Perfom context save/restore
+	mov [rdi], rsp	; Save RSP
 	mov rsp, [rsi]	; New RSP
 	mov cr3, rcx	; New CR3
 	invlpg [rsp]
-	; New GSBASE
+	
+	; Update stack top (RSP0) and TLS base (GS)
+	; TLS base and stack top are the same address.
+	; TODO: This assumes uniprocessor
+	mov [rel TSSes+tss.rsp0], rdx
 	mov rax, rdx
 	shr rdx, 32	; EDX = High
 	mov ecx, 0xC0000101	; GS Base
 	wrmsr
-	RESTORE rbp, rbx, r12, r13, r14, r15
+	
+	; Restore saved registers and return
+	RESTORE rbx, r12, r13, r14, r15
+	; - For debugging, reset RBP and trigger a tracepoint
+	;mov rbp, rsp
+	;int3
+	pop rbp
 	ret
 
 [section .text]

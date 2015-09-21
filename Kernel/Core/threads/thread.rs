@@ -46,6 +46,11 @@ pub struct Process
 }
 /// Handle to a process, used for spawning and communicating
 pub struct ProcessHandle(Arc<Process>);
+impl_fmt! {
+	Debug(self, f) for ProcessHandle {
+		write!(f, "P({} {})", self.0.pid, self.0.name)
+	}
+}
 
 struct SharedBlock
 {
@@ -168,7 +173,10 @@ impl ProcessHandle
 		let mut thread = Thread::new_boxed(allocate_tid(), format!("{}#1", self.0.name), self.0.clone());
 		::arch::threads::start_thread( &mut thread,
 			// SAFE: Well... trusting caller to give us sane addresses etc, but that's the user's problem
-			move || unsafe { ::arch::drop_to_user(ip, sp, 0) }
+			move || unsafe {
+					log_debug!("Dropping to {:#x} SP={:#x}", ip, sp);
+					::arch::drop_to_user(ip, sp, 0)
+				}
 			);
 		super::yield_to(thread);
 	}

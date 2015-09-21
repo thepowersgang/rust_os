@@ -420,12 +420,12 @@ pub fn handle_page_fault(accessed_address: usize, error_code: u32) -> bool
 		todo!("User fault - PTE = {:?}", pte);
 	}
 	else {
-		log_panic!("Kernel {} {} memory{}",
+		log_error!("Kernel {} {} memory{}",
 			if error_code & FAULT_WRITE  != 0 { "write to"  } else { "read from" },
 			if error_code & FAULT_LOCKED != 0 { "protected" } else { "non-present" },
 			if error_code & FAULT_FETCH != 0 { " (instruction fetch)" } else { "" }
 			);
-		todo!("kernel #PF");
+		return false;
 	}
 }
 

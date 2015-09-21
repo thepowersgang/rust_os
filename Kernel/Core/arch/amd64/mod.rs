@@ -10,6 +10,8 @@ pub use self::log::{puts, puth};
 module_define!{arch, [APIC, HPET], init}
 
 pub mod interrupts;
+#[doc(hidden)]
+pub mod cpu_faults;
 pub mod memory;
 pub mod threads;
 pub mod boot;
@@ -54,7 +56,7 @@ pub fn print_backtrace()
 	puth(cur_bp);
 	
 	let mut bp = cur_bp;
-	while let Option::Some((newbp, ip)) = interrupts::backtrace(bp)
+	while let Option::Some((newbp, ip)) = cpu_faults::backtrace(bp)
 	{
 		puts(" > "); puth(ip);
 		bp = newbp;

@@ -18,6 +18,12 @@ pub struct State
 	// TODO: Usermode TLS bsae
 }
 
+// TODO: This needs to be 16 byte aligned
+struct SSERegisters([u64; 512/8]);
+impl Default for SSERegisters {
+	fn default() -> Self { SSERegisters([0; 512/8]) }
+}
+
 extern "C" {
 	static InitialPML4: [u64; 512];
 	static s_tid0_tls_base: u64;
@@ -27,6 +33,7 @@ extern "C" {
 pub static S_IRQS_ENABLED: ::core::sync::atomic::AtomicBool = ::core::sync::atomic::ATOMIC_BOOL_INIT;
 
 #[repr(C)]
+/// Thread-local-storage block
 struct TLSData {
 	// MUST be first (assumption in get_tls_ptr)
 	// - TODO: Is this the same value as stack_top?
@@ -40,6 +47,8 @@ struct TLSData {
 	// Free to reorder these
 	thread_ptr: *mut ::threads::Thread,
 	thread_ptr_lent: bool,
+	
+	sse_registers: Option<Box<SSERegisters>>,
 }
 
 
@@ -99,6 +108,7 @@ pub unsafe extern "C" fn prep_tls(top: usize, _bottom: usize, thread_ptr: *mut :
 		
 		thread_ptr: thread_ptr,
 		thread_ptr_lent: false,
+		sse_registers: None,
 		});
 	
 	tlsblock
@@ -186,12 +196,14 @@ pub fn switch_to(newthread: Box<::threads::Thread>)
 			assert!(flags & 0x200 != 0, "switch_to() with IF clear, RFLAGS = {:#x}", flags);
 		}
 
+		disable_sse();
+		
 		unsafe
 		{
-			// TODO: Lazy save/restore SSE state
 			let outstate = &mut (*(*get_tls_ptr()).thread_ptr).cpu_state;
 			let state = &newthread.cpu_state;
 			// Don't assert RSP, could be switching to self
+			// - Wait, wouldn't that break the aliasing rules?
 			assert!(state.cr3 != 0);
 			assert!(state.tlsbase != 0);
 			log_trace!("Switching to RSP={:#x},CR3={:#x},TLS={:#x}", state.rsp, state.cr3, state.tlsbase);
@@ -199,6 +211,8 @@ pub fn switch_to(newthread: Box<::threads::Thread>)
 			assert!( *(state.tlsbase as *const usize) != 0, "TLS Base clobbered before switch" );
 			task_switch(&mut outstate.rsp, &state.rsp, state.tlsbase, state.cr3);
 		}
+		
+		//set_thread_ptr(newthread);
 		unsafe
 		{
 			(*get_tls_ptr()).thread_ptr_lent = false;
@@ -246,8 +260,8 @@ pub fn set_thread_ptr(ptr: Box<::threads::Thread>)
 		}
 		else {
 			assert!( info.thread_ptr.is_null(),
-				"t_thread_ptr is not null when set_thread_ptr is called, instead {:p}",
-				info.thread_ptr
+				"t_thread_ptr is not null when set_thread_ptr is called, instead {:p} != {:p}",
+				info.thread_ptr, ptr
 				);
 			info.thread_ptr = ptr;
 		}
@@ -271,6 +285,68 @@ pub fn is_task_switching_disabled() -> bool
 	// Return (s_cpu_local.
 	false
 }
+
+
+/// Enable SSE for this thread
+/// 
+/// Returns `true` enable succeeded, `false` if already active
+pub fn enable_sse() -> bool
+{
+	// SAFE: Correctly clears TR and returns original state
+	let was_enabled = unsafe {
+		let ts_state: usize;
+		asm!("mov %cr0, $0; btc $$3, $0; mov $0, %cr0; sbb $0, $0" : "=r" (ts_state) : : "rflags");
+		// If TS was clear, return true
+		ts_state == 0
+		};
+	
+	if !was_enabled
+	{
+		log_debug!("SSE enabled");
+
+		// SAFE: Limited lifetime, thread-local
+		let regs_opt = unsafe { &mut (*get_tls_ptr()).sse_registers };
+		
+		// TODO: Need to ensure that no preemption happens during this operation
+		if regs_opt.is_none() {
+			*regs_opt = Some( box SSERegisters::default() );
+		}
+
+		// SAFE: Buffer should be sane, and CR0 manipulation has been checked
+		unsafe {
+			let ptr: &SSERegisters = regs_opt.as_ref().unwrap();
+			log_debug!("sse_registers = {:p}", ptr);
+			asm!("fxrstor ($0)" : : "r" (ptr) : : "volatile");
+		}
+		true
+	}
+	else {
+		// Error: SSE was already enabled
+		false
+	}
+}
+pub fn disable_sse()
+{
+	// SAFE: Just queries CR0
+	let is_enabled = unsafe {
+		let cr0: usize;
+		asm!("mov %cr0, $0" : "=r" (cr0));
+		// If TS was clear, return true
+		cr0 & 8 == 0
+		};
+
+	if is_enabled
+	{
+		log_debug!("SSE disabled");
+		// SAFE: Buffer should be sane, and CR0 manipulation has been checked
+		unsafe {
+			let ptr: &mut SSERegisters = (*get_tls_ptr()).sse_registers.as_mut().expect("SSE enabled, but no save location");
+			log_debug!("sse_registers = {:p}", ptr);
+			asm!("fxsave ($0) ; mov %cr0, %rax ; or $$8, %rax ; mov %rax, %cr0" : : "r" (ptr) : "%rax" : "volatile");
+		}
+	}
+}
+
 
 // vim: ft=rust
 

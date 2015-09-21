@@ -65,7 +65,7 @@ Isr%1:
 %endmacro
 
 struc ErrorRegs
-	.gs: resq 1
+	;.gs: resq 1
 	.gprs: resq 15	; SP not saved
 	.num: resq 1
 	.code: resq 1
@@ -75,7 +75,6 @@ endstruc
 
 ErrorCommon:
 	PUSH_GPR
-	push gs
 	
 	mov rax, [rsp+ErrorRegs.code]	; Grab error code
 	cmp rax, 0xffffffff80000000
@@ -84,10 +83,13 @@ ErrorCommon:
 	mov rax, [rsp+ErrorRegs.cs]
 	cmp rax, 0x08
 	jz .inkernel
+	cmp rax, 0x2B
+	jnz .bugcheck
 	; Reset the GS/FS base
 	swapgs
 .inkernel:
 
+.callhandler:
 	mov rdi, rsp
 	[extern error_handler]
 	call error_handler
@@ -102,7 +104,7 @@ ErrorCommon:
 	swapgs
 .inkernel2:
 
-	pop gs
+.popstate:
 	POP_GPR
 	add rsp, 2*8
 	iretq
