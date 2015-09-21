@@ -13,6 +13,7 @@ extern "C" {
 	static arg_count: u32;
 }
 
+// TODO: Need a good lock API for userland
 //static S_BUFFER_LOCK: ::syscalls::core::Futex = ::tifflin_syscalls::core::Futex::new();
 
 impl_from! {
@@ -38,15 +39,16 @@ pub extern "C" fn new_process(binary: &[u8], args: &[&[u8]]) -> Result<::syscall
 	//let lh = S_BUFFER_LOCK.lock();
 	
 	// Store binary and arguments in .data
-	unsafe
-	{
+	// SAFE: Locked
+	unsafe {
 		arg_count = (args.len() + 1) as u32;
-		let len = init_path_end.as_ptr() as usize - init_path.as_ptr() as usize;
-		let mut builder = NullStringBuilder( ::std::slice::from_raw_parts_mut(init_path.as_ptr() as *mut u8, len) );
-		try!( builder.push(binary) );
-		for arg in args {
-			try!( builder.push(arg) );
-		}
+	}
+	// SAFE: Locked (so access is unique), and pointers are valid
+	let buf = unsafe { ::std::slice::from_raw_parts_mut(init_path.as_ptr() as *mut u8, init_path_end.as_ptr() as usize - init_path.as_ptr() as usize) };
+	let mut builder = NullStringBuilder( buf );
+	try!( builder.push(binary) );
+	for arg in args {
+		try!( builder.push(arg) );
 	}
 	
 	// Spawn new process

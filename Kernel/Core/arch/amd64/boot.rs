@@ -112,6 +112,7 @@ static mut s_bootinfo : BootInfo = BootInfo::Uninit;
 
 fn get_bootinfo() -> &'static BootInfo
 {
+	// SAFE: Assumes all bootloader-provided pointers are valid, `static mut` write valid
 	unsafe
 	{
 		match s_bootinfo
@@ -168,7 +169,7 @@ impl BootInfo
 	}
 }
 
-fn valid_c_str_to_slice(ptr: *const i8) -> Option<&'static str>
+unsafe fn valid_c_str_to_slice(ptr: *const i8) -> Option<&'static str>
 {
 	if let Some(s) = ::memory::c_string_as_byte_slice(ptr) {
 		::core::str::from_utf8(s).ok()
@@ -189,7 +190,8 @@ impl MultibootParsed
 		let loader_name = if (info.flags & 1 << 9) != 0 {
 				let loader_ptr = (info.boot_loader_name as usize + IDENT_START) as *const i8;
 				log_debug!("loader_ptr = {:?}", loader_ptr);
-				valid_c_str_to_slice(loader_ptr).unwrap_or("-INVALID-")
+				// SAFE: Loader string is valid for 'static
+				unsafe { valid_c_str_to_slice(loader_ptr).unwrap_or("-INVALID-") }
 			}
 			else {
 				"-UNKNOWN-"
@@ -253,7 +255,8 @@ impl MultibootParsed
 		}
 		
 		let charptr = (cmdline_paddr + IDENT_START) as *const i8;
-		valid_c_str_to_slice(charptr).unwrap_or("-INVALID-")
+		// SAFE: Boot string is valid for 'static
+		unsafe { valid_c_str_to_slice(charptr).unwrap_or("-INVALID-") }
 	}
 	
 	fn _vidmode(info: &MultibootInfo) -> Option<VideoMode>

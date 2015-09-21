@@ -198,6 +198,7 @@ pub fn switch_to(newthread: Box<::threads::Thread>)
 
 		disable_sse();
 		
+		// SAFE: Valid pointer accesses, task_switch trusted
 		unsafe
 		{
 			let outstate = &mut (*(*get_tls_ptr()).thread_ptr).cpu_state;
@@ -212,7 +213,7 @@ pub fn switch_to(newthread: Box<::threads::Thread>)
 			task_switch(&mut outstate.rsp, &state.rsp, state.tlsbase, state.cr3);
 		}
 		
-		//set_thread_ptr(newthread);
+		// SAFE: Valid pointer access
 		unsafe
 		{
 			(*get_tls_ptr()).thread_ptr_lent = false;

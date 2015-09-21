@@ -262,6 +262,7 @@ impl AtaRegs
 		self.fill_prdt(dma_buffer);
 		
 		// Commence the IO and return a wait handle for the operation
+		// SAFE: Unique access and valid IO accesses
 		unsafe
 		{
 			// - Only use LBA48 if needed
@@ -306,6 +307,7 @@ impl AtaRegs
 		self.fill_prdt(dma_buffer);
 		
 		// Commence the IO and return a wait handle for the operation
+		// SAFE: Locked (unique self) and checked access
 		unsafe
 		{
 			// - Set PRDT
@@ -324,7 +326,7 @@ impl AtaRegs
 			// ATAPI PACKET
 			self.out_8(7, 0xA0);
 			// - Send command once IRQ is fired?
-			// XXX: Polling
+			// TODO: Find a way of avoiding this poll
 			while self.in_sts() & 0x80 != 0 { }
 			assert!(self.in_sts() & (1<<3) != 0);
 			

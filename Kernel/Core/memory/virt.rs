@@ -204,9 +204,11 @@ pub unsafe fn map(addr: *mut (), phys: PAddr, prot: ProtectionMode)
 	if ::arch::memory::virt::is_reserved(addr)
 	{
 		log_notice!("Mapping {:#x} to {:p}, collision", phys, addr);
+		// TODO: This needs to return an error!
 	}
 	else
 	{
+		// XXX: TODO: This can race, and do what?
 		::arch::memory::virt::map(addr, phys, prot);
 	}
 }

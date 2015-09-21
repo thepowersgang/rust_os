@@ -65,6 +65,7 @@ pub fn switch_to(thread: Box<Thread>) {
 	extern "C" {
 		fn task_switch(old_sp: &mut usize, new_sp: usize, ttbr0: u32, thread_ptr: *mut Thread);
 	}
+	// SAFE: Pointer access is valid, task_switch should be too
 	unsafe
 	{
 		let outstate = &mut (*borrow_thread_mut()).cpu_state;

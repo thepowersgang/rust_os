@@ -39,36 +39,34 @@ impl ::core::ops::Sub<PAddr> for PAddr {
 */
 
 /// Validate that a C string points to valid memory, and return a 'a slice to it
-// TODO: THIS IS UNSAFE!
-pub fn c_string_as_byte_slice<'a>(c_str: *const i8) -> Option<&'a [u8]>
+/// UNSAFE: Lifetime is inferred
+pub unsafe fn c_string_as_byte_slice<'a>(c_str: *const i8) -> Option<&'a [u8]>
 {
 	// 1. Check first page
 	if ! ::arch::memory::virt::is_reserved(c_str) {
 		return None;
 	}
 	
-	unsafe
+	let mut ptr = c_str;
+	while *ptr != 0
 	{
-		let mut ptr = c_str;
-		while *ptr != 0
+		ptr = ptr.offset(1);
+		if ptr as usize % ::PAGE_SIZE == 0
 		{
-			ptr = ptr.offset(1);
-			if ptr as usize % ::PAGE_SIZE == 0
-			{
-				if ! ::arch::memory::virt::is_reserved(ptr) {
-					return None;
-				}
+			if ! ::arch::memory::virt::is_reserved(ptr) {
+				return None;
 			}
 		}
-		
-		Some( ::core::slice::from_raw_parts(c_str as *const u8, ptr as usize - c_str as usize) )
-	}	
+	}
+	
+	Some( ::core::slice::from_raw_parts(c_str as *const u8, ptr as usize - c_str as usize) )
 }
 /// Validate a C string (legacy)
 //#[deprecated="Use ::memory::c_string_as_byte_slice instead"]
 pub fn c_string_valid(c_str: *const i8) -> bool
 {
-	c_string_as_byte_slice(c_str).is_some()
+	// SAFE: Pointer is valid for lifetime of input pointer (barring odd input behavior)
+	unsafe { c_string_as_byte_slice(c_str).is_some() }
 }
 
 // UNSAFE: Lifetime is inferred, and memory must point to a valid T instance

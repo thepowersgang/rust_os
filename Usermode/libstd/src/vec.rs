@@ -121,8 +121,9 @@ impl<T> Vec<T>
 		// Expand by one element
 		let ns = self.size + 1;
 		self.reserve_cap(ns);
-		unsafe
-		{
+		
+		// SAFE: Correct pointer accesses
+		unsafe {
 			// Move elements (pos .. len) to (pos+1 .. len+1)
 			for i in (pos .. self.size).rev()
 			{
@@ -136,9 +137,12 @@ impl<T> Vec<T>
 		self.size = ns;
 	}
 	pub fn remove(&mut self, pos: usize) -> T {
-		assert!(pos < self.size);
-		unsafe
-		{
+		if pos >= self.size {
+			panic!("Vec<{}>::remove - pos {} >= size {}", type_name!(T), pos, self.size);
+		}
+
+		// SAFE: Correct pointer accesses
+		unsafe {
 			let rv = ::core::ptr::read( self.data.get_ptr_mut(pos) );
 			// Move elements (pos+1 .. len) to (pos .. len-1)
 			for i in (pos+1 .. self.size)

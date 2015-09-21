@@ -334,7 +334,7 @@ extern "C" fn AcpiOsWritePciConfiguration(PciId: ACPI_PCI_ID, Register: u32, Val
 	unimplemented!();
 }
 
-fn c_string_to_str<'a>(c_str: *const i8) -> &'a str {
+unsafe fn c_string_to_str<'a>(c_str: *const i8) -> &'a str {
 	::core::str::from_utf8( ::memory::c_string_as_byte_slice(c_str).unwrap_or(b"INVALID") ).unwrap_or("UTF-8")
 }
 fn get_uint(Args: &mut VaList, size: usize) -> u64 {
@@ -383,7 +383,8 @@ extern "C" fn AcpiOsVprintf(Format: *const i8, mut Args: VaList)
 	static TEMP_BUFFER: LazyMutex<::lib::string::FixedString<Buf>> = LazyMutex::new();
 
 	// Acquire input and lock	
-	let fmt = c_string_to_str(Format);
+	// SAFE: Format string is valid for function
+	let fmt = unsafe { c_string_to_str(Format) };
 	let mut lh = TEMP_BUFFER.lock_init(|| ::lib::string::FixedString::new(Buf::new()));
 	
 	// Expand format string

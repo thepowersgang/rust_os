@@ -141,6 +141,7 @@ pub fn allocate(address: *mut ()) -> bool
 {
 	log_trace!("allocate(address={:p})", address);
 	// 1. Pop a page from the free stack
+	// SAFE: Frames on the free are not aliased, alloc is safe
 	unsafe
 	{
 		let mut h = S_FREE_STACK.lock();

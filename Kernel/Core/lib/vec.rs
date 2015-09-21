@@ -134,10 +134,10 @@ impl<T> Vec<T>
 		// Expand by one element
 		let ns = self.size + 1;
 		self.reserve_cap(ns);
-		self.size = ns;
+		// SAFE: Checked accesses
 		unsafe
 		{
-			// Move elements (pos .. len) to (pos+1 .. len+1)
+			// Move elements (pos .. len) to (pos+1 .. len+1) [backwards]
 			for i in (pos .. self.size).rev()
 			{
 				let src = self.data.get_ptr( i );
@@ -146,18 +146,20 @@ impl<T> Vec<T>
 			}
 			// Store new element
 			::core::ptr::write( self.data.get_ptr_mut(pos), value );
+			self.size += 1;
 		}
 	}
 	pub fn remove(&mut self, pos: usize) -> T {
 		assert!(pos < self.size);
+		// SAFE: Correct pointer accesses
 		unsafe
 		{
 			let rv = ::core::ptr::read( self.data.get_ptr_mut(pos) );
 			// Move elements (pos+1 .. len) to (pos .. len-1)
-			for i in (pos+1 .. self.size)
+			for i in (pos .. self.size-1)
 			{
-				let src = self.data.get_ptr( i );
-				let dst = self.data.get_ptr_mut( i-1 );
+				let dst = self.data.get_ptr_mut( i );
+				let src = self.data.get_ptr( i+1 );
 				::core::ptr::write(dst, ::core::ptr::read(src));
 			}
 			self.size -= 1;
@@ -168,8 +170,9 @@ impl<T> Vec<T>
 	/// Truncate a vector to the given size
 	pub fn truncate(&mut self, newsize: usize)
 	{
-		if newsize >= self.size
+		if newsize < self.size
 		{
+			// SAFE: Correct pointer accesses
 			unsafe
 			{
 				for i in (newsize .. self.size) {

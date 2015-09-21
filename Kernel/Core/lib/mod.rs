@@ -13,14 +13,11 @@ pub use self::vec::Vec;
 pub use self::sparse_vec::SparseVec;
 pub use self::string::String;
 pub use self::lazy_static::LazyStatic;
-pub use self::opt_ptr::{OptPtr,OptMutPtr};
 
 pub mod thunk;
 pub mod borrow;
 
 pub mod ascii;
-
-pub mod opt_ptr;
 
 #[macro_use]
 pub mod lazy_static;

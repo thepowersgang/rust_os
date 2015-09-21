@@ -46,6 +46,7 @@ pub fn find_table<T:'static>(req_name: &str, idx: usize) -> Option<SDTHandle<T>>
 	// SAFE:
 	// 1. It's assumed (TODO) that the pointer returned is practically 'static
 	// 2. TODO check thread-safety of ACPICA
+	// SAFE: See above
 	unsafe
 	{
 		let mut out_ptr: *const ACPI_TABLE_HEADER = 0 as *const _;

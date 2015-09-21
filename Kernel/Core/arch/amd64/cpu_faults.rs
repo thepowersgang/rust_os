@@ -115,18 +115,24 @@ pub fn backtrace(bp: u64) -> Option<(u64,u64)>
 	}
 	
 	// [rbp] = oldrbp, [rbp+8] = IP
+	// SAFE: Pointer access checked, any alias is benign
 	unsafe
 	{
 		let ptr: *const [u64; 2] = ::core::mem::transmute(bp);
-		let newbp = (*ptr)[0];
-		let newip = (*ptr)[1];
-		// Check validity of output BP, must be > old BP (upwards on the stack)
-		// - If not, return 0 (which will cause a break next loop)
-		if newbp <= bp {
-			Some( (0, newip) )
+		if ! ::arch::memory::virt::is_reserved(ptr) {
+			None
 		}
 		else {
-			Some( (newbp, newip) )
+			let newbp = (*ptr)[0];
+			let newip = (*ptr)[1];
+			// Check validity of output BP, must be > old BP (upwards on the stack)
+			// - If not, return 0 (which will cause a break next loop)
+			if newbp <= bp {
+				Some( (0, newip) )
+			}
+			else {
+				Some( (newbp, newip) )
+			}
 		}
 	}
 }

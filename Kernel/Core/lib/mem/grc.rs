@@ -153,12 +153,13 @@ impl<C: Counter, T: ?Sized> ops::Drop for Grc<C, T>
 {
 	fn drop(&mut self)
 	{
+		// SAFE: Correct pointer accesses, only deallocs if this was last reference
 		unsafe
 		{
 			use core::intrinsics::drop_in_place;
 			use core::mem::{size_of_val,align_of_val};
 			let ptr = *self.ptr;
-			if (*ptr).strong.dec()
+			if (*ptr).strong.dec() // && (*ptr).weak.is_zero()
 			{
 				drop_in_place( &mut (*ptr).val );
 				::memory::heap::dealloc_raw(ptr as *mut (), size_of_val(&*ptr), align_of_val(&*ptr));
