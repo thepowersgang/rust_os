@@ -79,6 +79,7 @@ $(OBJDIR)loader/src/main.o: $(LOADER_DEPS)
 # Low-level loader dummy dynamic library
 # - Used to tell ld that `loader`'s exported symbols actually exist
 $(LIBDIR)libloader_dyn.so: loader/lib.S	$(makefile_deps)
+	@mkdir -p $(dir $@)
 	@echo [CC] $@
 	$V$(CC) -o $@.o -c $< -fPIC -D ARCH_$(ARCH)
 	$V$(LD) -o $@ $@.o -shared -soname=libloader_dyn.so
