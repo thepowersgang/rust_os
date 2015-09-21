@@ -102,7 +102,7 @@ impl_fmt! {
 
 impl cmp::PartialOrd<ByteStr> for Str16 {
 	fn partial_cmp(&self, v: &ByteStr) -> Option<::core::cmp::Ordering> {
-		::core::iter::order::partial_cmp( self.wtf8(), v.as_bytes().iter().cloned() )
+		Iterator::partial_cmp( self.wtf8(), v.as_bytes().iter().cloned() )
 	}
 }
 impl cmp::PartialEq<ByteStr> for Str16
@@ -117,7 +117,7 @@ impl cmp::PartialEq<ByteStr> for Str16
 }
 impl cmp::PartialOrd<str> for Str16 {
 	fn partial_cmp(&self, v: &str) -> Option<::core::cmp::Ordering> {
-		::core::iter::order::partial_cmp( self.chars(), v.chars() )
+		Iterator::partial_cmp( self.chars(), v.chars() )
 	}
 }
 impl cmp::PartialEq<str> for Str16

@@ -3,7 +3,6 @@
 //
 // Simplistic console, used as a quick test case (fullscreen window)
 #![feature(const_fn)]
-#![feature(result_expect)]
 
 #[macro_use]
 extern crate syscalls;

@@ -7,7 +7,6 @@
 #![feature(asm)]
 #![feature(thread_local,const_fn)]
 #![feature(associated_consts)]
-#![feature(result_expect)]
 #![no_std]
 
 extern crate std_io;

@@ -8,7 +8,6 @@
 #![feature(associated_consts)]
 #![feature(core_slice_ext,core_str_ext)]
 #![feature(reflect_marker)]
-#![feature(result_expect)]
 
 #[macro_use]
 extern crate kernel;

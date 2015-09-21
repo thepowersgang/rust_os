@@ -2,8 +2,8 @@
 // - By John Hodge (thePowersGang)
 //
 // arch/amd64/cpu_faults.rs
-// - Fault handlers
-use prelude::*;
+//! Fault handlers
+//use prelude::*;
 use super::{puts,puth};
 use super::log::puth64;
 
