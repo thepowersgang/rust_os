@@ -72,6 +72,7 @@ pub mod vfs;
 pub mod gui;
 pub mod memory;
 pub mod threads;
+pub mod sync;
 
 pub use values::WaitItem;
 

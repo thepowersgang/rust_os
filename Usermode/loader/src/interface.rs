@@ -13,8 +13,7 @@ extern "C" {
 	static arg_count: u32;
 }
 
-// TODO: Need a good lock API for userland
-//static S_BUFFER_LOCK: ::syscalls::core::Futex = ::tifflin_syscalls::core::Futex::new();
+static S_BUFFER_LOCK: ::syscalls::sync::Mutex<()> = ::syscalls::sync::Mutex::new( () );
 
 impl_from! {
 	From<NullStringBuilderError>(_v) for loader::Error {
@@ -36,7 +35,8 @@ pub extern "C" fn new_process(binary: &[u8], args: &[&[u8]]) -> Result<::syscall
 	kernel_log!("new_process('{:?}', ...)", ::std::ffi::OsStr::new(binary));
 	
 	// Lock loader until after 'start_process', allowing global memory to be used as buffer for binary and arguments
-	//let lh = S_BUFFER_LOCK.lock();
+	// - After start_process, we can safely release and reuse the memory (becuase this space is cloned into the new process)
+	let _lh = S_BUFFER_LOCK.lock();
 	
 	// Store binary and arguments in .data
 	// SAFE: Locked
@@ -92,8 +92,6 @@ fn new_process_entry() -> !
 	// - Could possibly leave this up to user code, or at least std
 	
 	// Populate arguments
-	// TODO: Replace this mess with a FixedVec of some form
-	// SAFE: We will be writing to this before reading from it
 	let mut args = super::FixedVec::new();
 	//args.push(binary).unwrap();
 	for (_,arg) in arg_iter {

@@ -3,6 +3,7 @@
 //
 // This program is both the initial entrypoint for the userland, and the default dynamic linker.
 #![feature(core_slice_ext)]	// needed for core's SliceExt
+#![feature(const_fn)]
 #![crate_type="lib"]
 
 use cmdline_words_parser::StrExt as CmdlineStrExt;
@@ -43,8 +44,6 @@ pub extern "C" fn loader_main(cmdline: *mut u8, cmdline_len: usize) -> !
 	let entrypoint = load_binary(init_path);
 	
 	// Populate arguments
-	// TODO: Replace this mess with a FixedVec of some form
-	// SAFE: We will be writing to this before reading from it
 	let mut args = FixedVec::new();
 	args.push(init_path).unwrap();
 	for arg in arg_iter {
