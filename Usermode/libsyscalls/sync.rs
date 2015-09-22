@@ -17,7 +17,7 @@ impl<T> Mutex<T>
 	}
 
 	pub fn lock(&self) -> HeldMutex<T> {
-		if self.0.fetch_sub(1, Ordering::Acquire) == 0 {
+		if self.0.fetch_sub(1, Ordering::Acquire) == 1 {
 			HeldMutex { _ptr: self, }
 		}
 		else {
