@@ -52,15 +52,23 @@ SECTIONS {
 		*(.ARM.exidx* .gnu.linkonce.armexidx.*)
 	}
 	PROVIDE_HIDDEN ( __exidx_end = . );
+
+	data_phys_base = . - _kernel_base;
 	
-	.data ALIGN (0x4000) : AT(ADDR(.data) - _kernel_base) {
+	/* .data (and all other mutable data) is aligned to 1MB */
+	.data ALIGN (0x100000) : AT(data_phys_base) {
 		*(.padata)
 		*(.data)
 		*(.data.*)
 	}
+	kernel_table0_ofs = kernel_table0 - ADDR(.data);
+	hwmap_table_0_ofs = hwmap_table_0 - ADDR(.data);
+	kernel_exception_map_ofs = kernel_exception_map - ADDR(.data);
+	kernel_maps_len = kernel_maps_end - kernel_table0;
+	data_len = . - ADDR(.data);
 
 	__bss_start = .;
-	.bss : AT(ADDR(.bss) - _kernel_base) {
+	.bss : AT(ADDR(.bss) - ADDR(.data) + data_phys_base) {
 		*(COMMON)
 		*(.bss)
 		*(.bss.*)

@@ -38,8 +38,10 @@ run: DiskImages/hda.img .qemu_trace
 # --- ARMv7 ---
 #
 else ifeq ($(ARCH),armv7)
+MACHINE_TYPE := realview-pb-a8
+MACHINE_TYPE := virt
 run:
-	qemu-system-arm -machine virt $(QEMU_ARGS) -kernel ../bin/kernel-armv7.bin -append $(CMDLINE) | tee QemuLog.txt
+	qemu-system-arm -machine $(MACHINE_TYPE) $(QEMU_ARGS) -kernel ../bin/kernel-armv7.bin -append "$(CMDLINE)" | tee QemuLog.txt
 endif
 
 

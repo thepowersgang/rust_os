@@ -11,12 +11,12 @@ pub mod pci;
 
 pub mod threads;
 
+mod fdt;
 
 #[allow(improper_ctypes)]
 extern "C" {
 	pub fn drop_to_user(entry: usize, stack: usize, args_len: usize) -> !;
 }
-
 
 #[no_mangle]
 pub unsafe extern fn hexdump(base: *const u8, size: usize) {

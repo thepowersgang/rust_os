@@ -19,7 +19,11 @@ MODS += input_ps2
 MODS += fs_fat fs_iso9660
 #MODS += video_vga
 
+ifeq ($(ARCH),amd64)
 USE_ACPICA ?= 1
+else
+USE_ACPICA = 0
+endif
 
 fn_getdeps = $(shell cat $1 | sed -nr 's/.*extern crate ([a-zA-Z_0-9]+);/\1/p' | tr '\n' ' ')
 fn_moddeps = $(filter-out core kernel,$(call fn_getdeps,Modules/$1/lib.rs))
