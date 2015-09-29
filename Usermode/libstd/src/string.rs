@@ -43,9 +43,13 @@ impl String
 		ret
 	}
 	
+	pub fn push(&mut self, c: char) {
+		let mut buf = [0,0,0,0];
+		let len = c.encode_utf8(&mut buf).expect("Four bytes not enough for utf-8?");
+		self.0.push_all(&buf[..len]);
+	}
 	/// Append `s` to the string
-	pub fn push_str(&mut self, s: &str)
-	{
+	pub fn push_str(&mut self, s: &str) {
 		self.0.push_all(s.as_bytes());
 	}
 	pub fn pop(&mut self) -> Option<char> {
@@ -107,6 +111,16 @@ impl fmt::Debug for String
 {
 	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
 		<str as fmt::Debug>::fmt(&self, f)
+	}
+}
+
+impl<'a> ::core::iter::FromIterator<&'a str> for String {
+	fn from_iter<T: IntoIterator<Item=&'a str>>(it: T) -> String {
+		let mut rv = String::new();
+		for s in it {
+			rv.push_str(s)
+		}
+		rv
 	}
 }
 

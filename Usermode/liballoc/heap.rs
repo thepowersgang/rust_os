@@ -10,6 +10,8 @@ const HEAP_LIMITS: (usize,usize) = (0x1000_0000_0000, 0x7000_0000_0000);
 #[cfg(arch="armv7")]
 const HEAP_LIMITS: (usize,usize) = (0x1000_0000, 0x7000_0000);
 
+pub const EMPTY: *mut u8 = 1 as *mut u8;
+
 static S_GLOBAL_HEAP: Mutex<AllocState> = Mutex::new(AllocState { start: 0 as *mut _, past_end: 0 as *mut _ } );
 
 // Used by Box<T>
@@ -28,6 +30,33 @@ pub unsafe fn exchange_free(ptr: *mut u8, _size: usize, align: usize)
 	S_GLOBAL_HEAP.lock().deallocate(ptr as *mut (), /*size,*/ align)
 }
 
+
+pub fn alloc_typed<T>(value: T) -> *mut T
+{
+	match S_GLOBAL_HEAP.lock().allocate(size_of::<T>(), align_of::<T>())
+	{
+	Ok(ptr) => {
+		let ptr = ptr as *mut T;
+		// SAFE: Pointer is valid and uninitialised
+		unsafe { ::core::ptr::write(ptr, value); }
+		ptr
+		},
+	Err(_e) => todo!("OOM in alloc"),
+	}
+}
+pub fn allocate(size: usize, align: usize) -> *mut u8
+{
+	match S_GLOBAL_HEAP.lock().allocate(size, align)
+	{
+	Ok(x) => x as *mut u8,
+	Err(_) => panic!("alloc_raw({}, {}) out of memory", size, align),
+	}
+}
+pub unsafe fn deallocate(ptr: *mut u8, _size: usize, align: usize)
+{
+	S_GLOBAL_HEAP.lock().deallocate(ptr as *mut (), /*size,*/ align)
+}
+
 pub struct Allocation<T>
 {
 	ptr: Unique<T>,
@@ -38,6 +67,9 @@ impl<T> Allocation<T>
 	pub unsafe fn new(bytes: usize) -> Result<Allocation<T>, ()> {
 		assert!(bytes == 0 || bytes >= size_of::<T>());
 		S_GLOBAL_HEAP.lock().allocate(bytes, align_of::<T>()).map(|v| Allocation { ptr: Unique::new(v as *mut T) })
+	}
+	pub unsafe fn from_raw(ptr: *mut T) -> Allocation<T> {
+		Allocation { ptr: Unique::new(ptr) }
 	}
 	pub unsafe fn try_resize(&mut self, newbytes: usize) -> bool {
 		let mut lh = S_GLOBAL_HEAP.lock();
@@ -96,7 +128,7 @@ impl AllocState
 	pub fn allocate(&mut self, size: usize, align: usize) -> Result<*mut (), ()>
 	{
 		if size == 0 {
-			return Ok( 1 as *mut () );
+			return Ok( EMPTY as *mut () );
 		}
 		if self.start == self.past_end {
 			self.extend_reservation(size);

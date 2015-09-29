@@ -9,7 +9,7 @@ ifeq ($(ENABLE_VIDEO),)
 else
 	QEMU_ARGS += -serial stdio
 endif
-QEMU_ARGS += -d int,guest_errors -D qemu.log
+QEMU_ARGS += -d int,guest_errors -D qemu_int_log.txt
 ifneq ($(QEMU_STALL),)
 	QEMU_ARGS += -S
 endif
@@ -50,11 +50,12 @@ DiskImages/hda_0.img:
 	mkdir -p $(dir $@)
 	# - 1MB of blank space 
 	dd if=/dev/zero of=$@.img bs=1M count=1
-DiskImages/hda_1.img: $(wildcard ../../Usermode/.output/$(ARCH)/*)
+DiskImages/hda_1.img: $(wildcard ../../Usermode/.output/$(ARCH)/*) Makefile
 	# - 32MB FAT? partition on disk 0
 	dd if=/dev/zero of=$@ bs=1M count=32
 	/sbin/mkfs.vfat $@
-	mcopy -s -D o -i $@ ../../Usermode/.output/$(ARCH) ::/Tifflin
+	mmd -i $@ ::/Tifflin
+	mcopy -s -D o -i $@ ../../Usermode/.output/$(ARCH)/bin ::/Tifflin/bin
 	echo "Test content" | mcopy -i $@ - ::/1.txt
 DiskImages/hda_2.img:
 	# - a 16MB ext2 partition on disk 0

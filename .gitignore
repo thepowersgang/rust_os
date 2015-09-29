@@ -9,6 +9,7 @@
 
 gitstats/
 libcore/
+rustc_src/
 acpica/*.a
 acpica/acpica-*/
 externals/crates.io/*/

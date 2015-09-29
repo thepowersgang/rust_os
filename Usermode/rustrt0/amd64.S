@@ -40,6 +40,23 @@ memcpy:
 	mov %rdi, %rax // Prepare to return RDI
 	rep movsb
 	ret
+// RDI = Destination
+// RSI = Source
+// RDX = Count
+.globl memmove
+memmove:
+	mov %rdi, %rax // Prepare to return RDI
+	cmp %rdi, %rsi
+	jb memcpy	// If RDI < RSI
+	add %rsi, %rdx
+	cmp %rdi, %rsi
+	ja memcpy	// If RDI > RSI+RDX
+	
+	add %rdx, %rdi
+	mov %rdx, %rcx
+	std
+	rep movsb
+	ret
 ;; RDI = A
 ;; RSI = B
 ;; RDX = Count

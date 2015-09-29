@@ -67,6 +67,15 @@ fn main()
 		//win.show();
 		});
 
+	/*
+	let loginbox = ::wtk::Frame::new( ::wtk::Box::new_virt(
+		( (), None ),
+		( &username, Some(TEXTBOX_HEIGHT) ),
+		( &password, Some(TEXTBOX_HEIGHT) ),
+		( (), None ),
+		) );
+	loginbox.items.1.ele.bind_submit();
+	 */
 	let mut loginbox = ::wtk::Frame::new( ::wtk::Box::new_vert() );
 	loginbox.inner_mut().add_fill(None);
 	loginbox.inner_mut().add(&username, Some(TEXTBOX_HEIGHT));

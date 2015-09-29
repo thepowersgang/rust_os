@@ -2,7 +2,7 @@
 //
 //
 use core::mem::size_of;
-use super::alloc::Allocation;
+use heap::Allocation;
 
 pub struct ArrayAlloc<T>
 {
@@ -13,14 +13,35 @@ pub struct ArrayAlloc<T>
 impl<T> ArrayAlloc<T>
 {
 	pub fn new(size: usize) -> ArrayAlloc<T> {
+		//kernel_log!("ArrayAlloc::<{}>::new({})", type_name!(T), size);
+		if size_of::<T>() == 0 {
+			ArrayAlloc {
+				// SAFE: Zero size is always valid
+				base: unsafe { Allocation::new(0).expect("ArrayAlloc::new") },
+				size: !0,
+			}
+		}
+		else {
+			ArrayAlloc {
+				// SAFE: Upper level code ensures size is correct
+				base: unsafe { Allocation::new( Self::get_alloc_size(size) ).expect("ArrayAlloc::new") },
+				size: size,
+			}
+		}
+	}
+	pub unsafe fn from_raw_parts(base: *mut T, size: usize) -> ArrayAlloc<T> {
 		ArrayAlloc {
-			// SAFE: Upper level code ensures size is correct
-			base: unsafe { Allocation::new(size * size_of::<T>()).expect("ArrayAlloc::new") },
+			base: Allocation::from_raw(base),
 			size: size,
 		}
 	}
+
+	fn get_alloc_size(cap: usize) -> usize {
+		cap * size_of::<T>()
+	}
 	
 	pub fn resize(&mut self, newsize: usize) -> bool {
+		//kernel_log!("ArrayAlloc::<{}>::resize({})", type_name!(T), newsize);
 		// SAFE: This struct only exposes raw pointers, so any size is valid
 		if unsafe { self.base.try_resize(newsize * size_of::<T>()) } {
 			self.size = newsize;

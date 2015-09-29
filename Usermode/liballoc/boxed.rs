@@ -12,7 +12,6 @@ impl<T> Box<T>
 {
 	pub fn new(v: T) -> Box<T> {
 		box v
-		//panic!("TODO: Box::new");
 	}
 }
 

@@ -32,7 +32,7 @@ impl<'a> Surface<'a>
 		Surface {
 			window: window,
 			cur_row: 0,
-			row_buf: Vec::from_fn( (pos.d.w*C_CELL_DIMS.h) as usize, |_| FILL_COLOUR),
+			row_buf: vec![FILL_COLOUR; (pos.d.w*C_CELL_DIMS.h) as usize],
 			pos: pos,
 			fill_colour: FILL_COLOUR,
 		}

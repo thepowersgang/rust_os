@@ -51,6 +51,10 @@ impl<T> Vec<T>
 		ret
 	}
 
+	pub fn capacity(&self) -> usize {
+		self.data.count()
+	}
+
 	/// Obtain a mutable pointer to an item within the vector
 	fn get_mut_ptr(&mut self, index: usize) -> *mut T
 	{
