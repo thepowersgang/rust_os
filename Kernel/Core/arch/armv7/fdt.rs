@@ -8,9 +8,6 @@ pub struct FDTRoot<'a>
 	buffer: &'a [u8],
 }
 
-#[repr(C)]
-struct BE32(u32);
-
 #[derive(Debug)]
 enum Tag<'a>
 {
@@ -43,6 +40,49 @@ impl<'a> FDTRoot<'a>
 		}
 	}
 
+	pub fn size(&self) -> usize {
+		self.buffer.len()
+	}
+
+	pub fn dump_nodes(&self) {
+		let mut ofs = 0;
+		loop
+		{
+			let (tag, new_ofs) = self.next_tag(ofs);
+			assert!(ofs < new_ofs);
+			ofs = new_ofs;
+			match tag
+			{
+			Tag::BeginNode(name) => log_debug!("<{}>", name),
+			Tag::EndNode => log_debug!("</>"),
+			Tag::Prop(name, data) => match name
+				{
+				"bootargs" => log_debug!(".{} = {:?}", name, ::core::str::from_utf8(data)),
+				"stdout-path" |
+				"device_type" |
+				"compatible"
+					=> log_debug!(".{} = {:?}", name, ::core::str::from_utf8(data)),
+				_ => log_debug!(".{} = {:?}", name, data),
+				},
+			Tag::End => break,
+			_ => {},
+			}
+		}
+	}
+
+	pub fn get_props<'s,'p>(&'s self, path: &'p [&'p str]) -> PropsIter<'s, 'a, 'p> {
+		PropsIter {
+			fdt: self,
+			path: path,
+			offset: 0,
+			path_depth: 0,
+			cur_depth: 0,
+		}
+	}
+}
+
+impl<'a> FDTRoot<'a>
+{
 	fn off_dt_struct(&self) -> usize {
 		BigEndian::read_u32(&self.buffer[8..]) as usize
 	}
@@ -50,7 +90,7 @@ impl<'a> FDTRoot<'a>
 		BigEndian::read_u32(&self.buffer[12..]) as usize
 	}
 
-	fn next_tag(&self, ofs: usize) -> (Tag, usize) {
+	fn next_tag(&self, ofs: usize) -> (Tag<'a>, usize) {
 		//log_debug!("FDTRoot::next_tag(ofs={}) len={}", ofs, self.buffer.len());
 		assert!(ofs % 4 == 0);
 		let data = &self.buffer[self.off_dt_struct() + ofs .. ];
@@ -87,36 +127,62 @@ impl<'a> FDTRoot<'a>
 		_ => panic!("Unknown tag value {}", tag),
 		}
 	}
+}
 
-	pub fn dump_nodes(&self) {
-		let mut ofs = 0;
+
+struct PropsIter<'a,'fdt: 'a,'b> {
+	fdt: &'a FDTRoot<'fdt>,
+	path: &'b [&'b str],
+	offset: usize,
+	path_depth: u8,
+	cur_depth: u8,
+}
+impl<'a,'fdt, 'b> Iterator for PropsIter<'a, 'fdt, 'b>
+{
+	type Item = &'fdt [u8];
+	fn next(&mut self) -> Option<Self::Item>
+	{
+		// Last item in self.path is the property name
+		let path_nodes_len = (self.path.len() - 1) as u8;
+
 		loop
 		{
-			let (tag, new_ofs) = self.next_tag(ofs);
-			assert!(ofs < new_ofs);
-			ofs = new_ofs;
+			let (tag, next_ofs) = self.fdt.next_tag(self.offset);
+			self.offset = next_ofs;
 			match tag
 			{
-			Tag::BeginNode(name) => log_debug!("<{}>", name),
-			Tag::EndNode => log_debug!("</>"),
-			Tag::Prop(name, data) => match name
-				{
-				"bootargs" => log_debug!(".{} = {:?}", name, ::core::str::from_utf8(data)),
-				"stdout-path" |
-				"device_type" |
-				"compatible"
-					=> log_debug!(".{} = {:?}", name, ::core::str::from_utf8(data)),
-				_ => log_debug!(".{} = {:?}", name, data),
+			Tag::BeginNode(name) => {
+				//log_trace!("BeginNode name = '{}' ({},{}) < {}", name, self.path_depth, self.cur_depth, path_nodes_len);
+				if self.path_depth == self.cur_depth && self.path_depth < path_nodes_len {
+					//log_trace!(" - '{}' == '{}'", name, self.path[self.path_depth as usize]);
+					if name == self.path[self.path_depth as usize] {
+						// Increment both path and cur depth
+						self.path_depth += 1;
+					}
+				}
+				self.cur_depth += 1;
 				},
-			Tag::End => break,
-			_ => {},
+			Tag::EndNode => {
+				//log_trace!("EndNode ({},{})", self.path_depth, self.cur_depth);
+				if self.path_depth == self.cur_depth {
+					assert!(self.path_depth > 0);
+					self.path_depth -= 1;
+				}
+				self.cur_depth -= 1;
+				},
+			Tag::Prop(name, data) => {
+				//log_trace!("Prop name = '{}' ({},{}) == {}", name, self.path_depth, self.cur_depth, path_nodes_len);
+				if self.path_depth == self.cur_depth && self.path_depth == path_nodes_len {
+					//log_trace!(" - '{}' == '{}'", name, self.path[self.path_depth as usize]);
+					if name == self.path[path_nodes_len as usize] {
+						// Desired property
+						return Some(data);
+					}
+				}
+				},
+			Tag::End => return None,
+			Tag::Nop => {},
 			}
 		}
 	}
 }
-
-
-//struct NodesIter<'a>(FDTRoot<'a>, usize);
-//impl NodesIter
-//{
-//}

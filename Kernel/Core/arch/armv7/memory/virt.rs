@@ -24,7 +24,8 @@ pub fn is_fixed_alloc<T>(addr: *const T, size: usize) -> bool {
 		false
 	}
 	else {
-		true
+		false
+		//true
 	}
 }
 // UNSAFE: Can cause aliasing
@@ -128,8 +129,10 @@ pub fn get_info<T>(addr: *const T) -> Option<(u32, ::memory::virt::ProtectionMod
 }
 
 pub unsafe fn map(a: *mut (), p: PAddr, mode: ProtectionMode) {
+	todo!("map({:p}, {:#x}, {:?}", a, p, mode)
 }
 pub unsafe fn reprotect(a: *mut (), mode: ProtectionMode) {
+	todo!("reprotect({:p}, {:?}", a, mode)
 }
 pub unsafe fn unmap(a: *mut ()) -> Option<PAddr> {
 	todo!("unmap")

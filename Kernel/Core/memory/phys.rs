@@ -11,7 +11,7 @@ use arch::memory::PAddr;
 pub const NOPAGE : PAddr = 1;
 
 static S_MEM_MAP: ::lib::LazyStatic<&'static [::memory::MemoryMapEnt]> = lazystatic_init!();
-// S_MAPALLOC - Tracks the allocation point in S_MEM_MAP : (Entry Index, Address)
+/// Tracks the allocation point in S_MEM_MAP : (Entry Index, Address)
 static S_MAPALLOC : ::sync::Mutex<(usize,PAddr)> = mutex_init!( (0,0) );
 // TODO: Multiple stacks based on page colouring
 static S_FREE_STACK : ::sync::Mutex<PAddr> = mutex_init!( NOPAGE );
@@ -29,10 +29,22 @@ pub fn init()
 	}
 	
 	log_log!("Memory Map:");
-	for (i,ent) in get_memory_map().iter().enumerate()
+	let map = get_memory_map();
+	if map.len() == 0 {
+		panic!("Empty memory map! Physical memory manager cannot operate");
+	}
+	for (i,ent) in map.iter().enumerate()
 	{
 		log_log!("#{} : {:?}", i, ent);
 	}
+	let mut i = 0;
+	while i != map.len() && map[i].state != ::memory::memorymap::MemoryState::Free {
+		i += 1;
+	}
+	if i == map.len() {
+		panic!("No free memory in map.");
+	}
+	*S_MAPALLOC.lock() = (i, map[i].start as PAddr);
 }
 
 impl FrameHandle
@@ -108,7 +120,7 @@ pub fn allocate_range(count: usize) -> PAddr
 	}
 
 	let mut h = S_MAPALLOC.lock();
-	log_trace!("allocate_range: *h = {:?} (init)", *h);
+	log_trace!("allocate_range: *h = ({},{:#x}) (init)", h.0, h.1);
 	let (mut i,mut addr) = *h;
 	
 	let map = get_memory_map();

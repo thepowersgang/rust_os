@@ -11,7 +11,7 @@ _kernel_base = 0x80000000;
 ENTRY(start)
 
 SECTIONS {
-	. = 0x00001000;
+	. = 0x00000000;
 	gKernelBase = .;
 	/* . += SIZEOF_HEADERS; */
 	__load_addr = .;

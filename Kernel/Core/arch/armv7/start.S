@@ -195,10 +195,18 @@ __aeabi_memclr8:
 
 .globl __aeabi_memset
 __aeabi_memset:
-	b .
+	movs r2, r2
+	beq 2f
+1:
+	strb r1, [r0], #1
+	subs r2, #1
+	bne 1b
+2:
+	bx lr
 .globl __aeabi_memclr
 __aeabi_memclr:
-	b .
+	MOV r1, #0
+	b __aeabi_memset
 
 .globl __aeabi_memcpy
 __aeabi_memcpy:
@@ -209,6 +217,10 @@ __aeabi_memcpy:
 // A, B, num
 memcmp:
 	push {r4}
+	movs r2,r2
+	mov r3, #0
+	mov r4, #0
+	beq 2f
 1:
 	ldrb r3, [r0], #1
 	ldrb r4, [r1], #1
@@ -249,6 +261,8 @@ ENTRY(__aeabi_fcmpgt)
 .globl dt_base
 dt_base:
 	.long	0 	@ (Firmware) Device Tree base location
+.globl kernel_data_start
+kernel_data_start:
 	.long	0	@ Start of kernel's .data segment
 
 .section .bss

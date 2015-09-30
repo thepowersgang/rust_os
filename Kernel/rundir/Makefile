@@ -69,6 +69,11 @@ DiskImages/hda.img: Makefile DiskImages/hda_0.img DiskImages/hda_1.img DiskImage
 	# - Commit
 	cat DiskImages/hda_0.img DiskImages/hda_1.img DiskImages/hda_2.img > DiskImages/hda.img
 	echo "$(shell echo $$((1*1024*2)),$$((32*1024*2)),0x83)\n$(shell echo $$((33*1024*2)),+,0x7)" | /sbin/sfdisk --no-reread DiskImages/hda.img -C $$((1+32+16)) -H 4 -S 256 -u S -f -q
+DiskImages/hdb_1.img: $(wildcard ../../Usermode/.output/$(ARCH)/*) Makefile
+	dd if=/dev/zero of=$@ bs=1M count=32
+	/sbin/mkfs.ext2 $@
+	guestfish -a $@ launch : mkdir /Tifflin
+	virt-copy-in -a $@ ../../Usermode/.output/$(ARCH)/bin /Tifflin/bin
 
 .qemu_trace: Makefile
 	echo "" 
