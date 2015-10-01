@@ -8,6 +8,7 @@
 
 use core::ptr::Unique;
 use core::ops;
+use arch::memory::addresses;
 
 // --------------------------------------------------------
 // Types
@@ -27,19 +28,23 @@ struct HeapDef
 unsafe impl ::core::marker::Send for HeapDef {}
 
 #[allow(raw_pointer_derive)]
-#[derive(Debug)]	// RawPtr Debug is the address
+#[derive(Debug,PartialEq)]	// RawPtr Debug is the address
 enum HeapState
 {
 	Free(*mut HeapHead),
 	Used(usize),
 }
 
-#[derive(Debug)]
 struct HeapHead
 {
 	magic: u32,
 	size: usize,
 	state: HeapState,
+}
+impl_fmt! {
+	Debug(self, f) for HeapHead {
+		write!(f, "HeapHead {{ magic: {:#x}, size: {:#x}, state: {:?} }}", self.magic, self.size, self.state)
+	}
 }
 struct HeapFoot
 {
@@ -374,16 +379,18 @@ impl HeapDef
 		}
 	}
 	
-	pub unsafe fn deallocate(&mut self, ptr: *mut (), _size: usize, _align: usize)
+	pub unsafe fn deallocate(&mut self, ptr: *mut (), size: usize, _align: usize)
 	{
-		log_debug!("deallocate(ptr={:p})", ptr);
+		log_debug!("deallocate(ptr={:p},size={:#x})", ptr, size);
 		if ptr == ZERO_ALLOC {
+			assert!(size == 0, "ZERO_ALLOC but size({}) != 0", size);
 			log_trace!("Free zero alloc");
 			return ;
 		}
 
 		let mut no_add = false;
 		let headptr = (ptr as *mut HeapHead).offset(-1);
+		assert!(headptr as usize >= addresses::HEAP_START);
 		
 		{
 			let headref = &mut *headptr;
@@ -391,17 +398,29 @@ impl HeapDef
 				headref, headref.magic, MAGIC );
 			assert!( headref.foot().head() as *mut _ == headptr, "Header {:p} foot backlink invalid, {:p} points to {:p}",
 				headref, headref.foot(), headref.foot().head() );
+			if size == 0 {
+				// Special case for use as C free() (as part of ACPICA shim)
+				assert!( is!(headref.state, HeapState::Used(_)), "Header {:p} state invalid {:?} not Used(_)",
+					headref, headref.state );
+			}
+			else {
+				assert!( headref.state == HeapState::Used(size), "Header {:p} state invalid {:?} not Used({:#x})",
+					headref, headref.state, size );
+			}
 			
 			// Merge left and right
 			// 1. Left:
-			if let HeapState::Free(_) = (*headref.prev()).state
+			if headptr as usize != addresses::HEAP_START
 			{
-				log_trace!("Merged left with {:p}", headref.prev());
-				// increase size of previous block to cover this block
-				let prev_block = &mut *headref.prev();
-				let new_size = prev_block.size() + headref.size();
-				prev_block.resize( new_size );
-				no_add = true;
+				if let HeapState::Free(_) = (*headref.prev()).state
+				{
+					log_trace!("Merged left with {:p}", headref.prev());
+					// increase size of previous block to cover this block
+					let prev_block = &mut *headref.prev();
+					let new_size = prev_block.size() + headref.size();
+					prev_block.resize( new_size );
+					no_add = true;
+				}
 			}
 			
 			// 2. Right
@@ -425,7 +444,7 @@ impl HeapDef
 		//log_debug!("self.{{start = {:p}, last_foot = {:?}}}", self.start, self.last_foot);
 		let use_prev =
 			if self.start.is_null() {
-				let base = ::arch::memory::addresses::HEAP_START;
+				let base = addresses::HEAP_START;
 				self.start = base as *mut HeapHead;
 				// note: Evil hack, set last_foot to invalid memory (it's only used for .next_head())
 				self.last_foot = (base as *mut HeapFoot).offset(-1);

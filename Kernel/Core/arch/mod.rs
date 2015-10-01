@@ -75,6 +75,12 @@ pub mod memory {
 		}
 
 		#[inline]
+		/// Returns `true` if the provided address can have `map` called on without needing memory allocation
+		pub fn can_map_without_alloc(a: *mut ()) -> bool {
+			todo!("can_map_without_alloc");
+		}
+
+		#[inline]
 		pub unsafe fn map(a: *mut (), p: ::memory::PAddr, mode: ::memory::virt::ProtectionMode) {
 			imp::map(a, p, mode)
 		}

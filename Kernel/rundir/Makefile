@@ -38,6 +38,9 @@ run: DiskImages/hda.img .qemu_trace
 # --- ARMv7 ---
 #
 else ifeq ($(ARCH),armv7)
+#QEMU_ARGS += -device pl110
+#QEMU_ARGS += -device virtio-gpu-device
+
 MACHINE_TYPE := realview-pb-a8
 MACHINE_TYPE := virt
 run:

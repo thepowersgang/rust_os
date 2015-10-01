@@ -172,45 +172,49 @@ __aeabi_memcpy4:
 	SUBS r2, r2, #4
 	BGE 1b
 	BX lr
+.globl __aeabi_memcpy
+__aeabi_memcpy:
+1:
+	LDRB r3, [r1], #1
+	STRB r3, [r0], #1
+	SUBS r2, r2, #1
+	BGE 1b
+	BX lr
 
 .globl __aeabi_memset4
 .globl __aeabi_memset8
 __aeabi_memset4:
 __aeabi_memset8:
-	LSL r3, r1, #8
-	ORR r1, r1, r3
-	LSL r3, r1, #16
-	ORR r1, r1, r3
+	LSL r3, r2, #8
+	ORR r2, r2, r3
+	LSL r3, r2, #16
+	ORR r2, r2, r3
 1:
-	STR r1, [r0], #0
-	SUBS r2, r2, #4
+	STR r2, [r0], #4
+	SUBS r1, r1, #4
 	BGE 1b
 	BX lr
 .globl __aeabi_memclr4
 .globl __aeabi_memclr8
 __aeabi_memclr4:
 __aeabi_memclr8:
-	MOV r1, #0
+	MOV r2, #0
 	b 1b
 
 .globl __aeabi_memset
 __aeabi_memset:
-	movs r2, r2
+	movs r1, r1
 	beq 2f
 1:
-	strb r1, [r0], #1
-	subs r2, #1
+	strb r2, [r0], #1
+	subs r1, #1
 	bne 1b
 2:
 	bx lr
 .globl __aeabi_memclr
 __aeabi_memclr:
-	MOV r1, #0
+	MOV r2, #0
 	b __aeabi_memset
-
-.globl __aeabi_memcpy
-__aeabi_memcpy:
-	b .
 
 
 .globl memcmp
@@ -255,6 +259,7 @@ ENTRY(__aeabi_fcmple)
 ENTRY(__aeabi_fcmpeq)
 ENTRY(__aeabi_fcmpge)
 ENTRY(__aeabi_fcmpgt)
+	b .
 
 
 .section .data

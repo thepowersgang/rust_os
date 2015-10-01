@@ -149,9 +149,17 @@ pub fn allocate_range(count: usize) -> PAddr
 	return rv;
 }
 
-pub fn allocate(address: *mut ()) -> bool
+pub fn allocate_bare() -> Result<PAddr, ()> {
+	allocate_int(None)
+}
+
+pub fn allocate(address: *mut ()) -> bool {
+	allocate_int(Some(address)).is_ok()
+}
+
+fn allocate_int( address: Option<*mut ()> ) -> Result<PAddr, ()>
 {
-	log_trace!("allocate(address={:p})", address);
+	log_trace!("allocate(address={:?})", address);
 	// 1. Pop a page from the free stack
 	// SAFE: Frames on the free are not aliased, alloc is safe
 	unsafe
@@ -160,29 +168,55 @@ pub fn allocate(address: *mut ()) -> bool
 		let paddr = *h;
 		if paddr != NOPAGE
 		{
-			::memory::virt::map(address, paddr, super::virt::ProtectionMode::KernelRO);
-			*h = *(address as *const PAddr);
-			*(address as *mut [u8; ::PAGE_SIZE]) = ::core::mem::zeroed();
+			// If calling map on this address will not cause a recursive allocation
+			match address
+			{
+			Some(address) => {
+				if ::arch::memory::virt::can_map_without_alloc(address) {
+					// Map and obtain the next page
+					::memory::virt::map(address, paddr, super::virt::ProtectionMode::KernelRW);
+					*h = *(address as *const PAddr);
+				}
+				else {
+					// Otherwise, do a temp mapping, extract the next page, then drop the lock and map
+					// NOTE: A race here doesn't matter, as lower operations are atomic, and it'd just be slower
+					::memory::virt::with_temp(paddr, |page| *h = *(&page[0] as *const u8 as *const PAddr));
+					drop(h);
+					::memory::virt::map(address, paddr, super::virt::ProtectionMode::KernelRW);
+				}
+				//*(address as *mut PAddr) = 0;
+				*(address as *mut [u8; ::PAGE_SIZE]) = ::core::mem::zeroed();
+				log_trace!("- {:p} (stack) paddr = {:#x}", address, paddr);
+				},
+			None => {
+				::memory::virt::with_temp(paddr, |page| *h = *(&page[0] as *const u8 as *const PAddr));
+				log_trace!("- None (stack) paddr = {:#x}", paddr);
+				},
+			}
 			mark_used(paddr);
-			log_trace!("- {:p} (stack) paddr = {:#x}", address, paddr);
-			return true;
+			return Ok(paddr);
 		}
 	}
 	// 2. If none, allocate from map
 	let paddr = allocate_range(1);
 	if paddr != NOPAGE
 	{
-		// SAFE: Physical address just allocated
-		unsafe {
-			::memory::virt::map(address, paddr, super::virt::ProtectionMode::KernelRW);
-			*(address as *mut [u8; ::PAGE_SIZE]) = ::core::mem::zeroed();
+		if let Some(address) = address {
+			// SAFE: Physical address just allocated
+			unsafe {
+				::memory::virt::map(address, paddr, super::virt::ProtectionMode::KernelRW);
+				*(address as *mut [u8; ::PAGE_SIZE]) = ::core::mem::zeroed();
+			}
+			log_trace!("- {:p} (range) paddr = {:#x}", address, paddr);
 		}
-		log_trace!("- {:p} (range) paddr = {:#x}", address, paddr);
-		return true
+		else {
+			log_trace!("- None (range) paddr = {:#x}", paddr);
+		}
+		return Ok(paddr);
 	}
 	// 3. Fail
 	log_trace!("- (none)");
-	false
+	Err( () )
 }
 
 pub fn ref_frame(paddr: PAddr)

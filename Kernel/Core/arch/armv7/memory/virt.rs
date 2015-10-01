@@ -117,6 +117,100 @@ impl PageEntry
 	}
 }
 
+struct AtomicU32(::core::cell::UnsafeCell<u32>);
+impl AtomicU32 {
+	pub fn cxchg(&self, val: u32, new: u32) -> u32 {
+		// SAFE: Atomic
+		unsafe { ::core::intrinsics::atomic_cxchg_relaxed(self.0.get(), val, new) }
+	}
+	pub fn store(&self, val: u32) {
+		// SAFE: Atomic
+		unsafe { ::core::intrinsics::atomic_store_relaxed(self.0.get(), val) }
+	}
+	pub fn load(&self) -> u32 {
+		// SAFE: Atomic
+		unsafe { ::core::intrinsics::atomic_load_relaxed(self.0.get()) }
+	}
+}
+extern "C" {
+	static kernel_table0: [AtomicU32; 0x800*2];
+	static kernel_exception_map: [AtomicU32; 1024];
+}
+
+fn get_table_addr<T>(a: *const T, alloc: bool) -> Option< (::arch::memory::PAddr, usize) > {
+	let addr = a as usize;
+	let page = addr >> 12;
+	let (ttbr_ofs, tab_idx) = (page >> 8, page & 0xFF);
+	let ent_r = if ttbr_ofs < 0x800 {
+			todo!("get_table_addr - User");
+		}
+		else {
+			// Kernel
+			&kernel_table0[ ttbr_ofs ]
+		};
+	
+	//let ent_v = ent_r.load();
+	let ent_v = ent_r.load();
+	match ent_v
+	{
+	0 => if alloc {
+			let frame = ::memory::phys::allocate_bare().expect("TODO get_table_addr");
+			let ent_v = ent_r.cxchg(0, frame + 0x1);
+			if ent_v != 0 {
+				::memory::phys::deref_frame(frame);
+				Some( (ent_v & !0xFFF, tab_idx) )
+			}
+			else {
+				Some( (frame & !0xFFF, tab_idx) )
+			}
+		}
+		else {
+			None
+		},
+	1 => Some( (ent_v & !0xFFF, tab_idx) ),
+	v @ _ => todo!("get_table_addr - Other flags bits {:#x}", v),
+	}
+}
+//static S_TEMP_MAP_SEMAPHORE: Semaphore = Semaphore::new();
+const TEMP_BASE: usize = 0xFFC0_0000;
+struct TempHandle(*mut [u32; 1024]);
+impl TempHandle
+{
+	/// UNSAFE: User must ensure that address is valid, and that no aliasing occurs
+	unsafe fn new(phys: ::arch::memory::PAddr) -> TempHandle {
+		let val = (phys as u32) + 0x13;	
+
+		//S_TEMP_MAP_SEMAPHORE.take();
+		// #1023 is reserved for -1 mapping
+		for i in 0 .. 1023 {
+			if kernel_exception_map[i].cxchg(0, val) == 0 {
+				return TempHandle( (TEMP_BASE + i * 0x1000) as *mut _ );
+			}
+		}
+		panic!("No free temp mappings");
+	}
+}
+impl ::core::ops::Deref for TempHandle {
+	type Target = [u32];
+	fn deref(&self) -> &[u32] {
+		// SAFE: We should have unique access
+		unsafe { &*self.0 }
+	}
+}
+impl ::core::ops::DerefMut for TempHandle {
+	fn deref_mut(&mut self) -> &mut [u32] {
+		// SAFE: We should have unique access
+		unsafe { &mut *self.0 }
+	}
+}
+impl ::core::ops::Drop for TempHandle {
+	fn drop(&mut self) {
+		let i = (self.0 as usize - TEMP_BASE) / 0x1000;
+		kernel_exception_map[i].store(0);
+		//S_TEMP_MAP_SEMAPHORE.add();
+	}
+}
+
 pub fn is_reserved<T>(addr: *const T) -> bool {
 	PageEntry::get(addr as *const ()).is_reserved()
 }
@@ -129,7 +223,24 @@ pub fn get_info<T>(addr: *const T) -> Option<(u32, ::memory::virt::ProtectionMod
 }
 
 pub unsafe fn map(a: *mut (), p: PAddr, mode: ProtectionMode) {
-	todo!("map({:p}, {:#x}, {:?}", a, p, mode)
+	// 1. Map the relevant table in the temp area
+	let (tab_phys, idx) = get_table_addr(a, true).unwrap();
+	// TODO: Ensure nothing else is manipulating this segment of AS
+	let mut mh = TempHandle::new( tab_phys );
+	// 2. Insert
+	let mode_flags = match mode
+		{
+		ProtectionMode::Unmapped => panic!("Invalid pass of Unmapped to map"),
+		ProtectionMode::KernelRO => 0x212,
+		ProtectionMode::KernelRW => 0x012,
+		ProtectionMode::KernelRX => 0x053,
+		ProtectionMode::UserRO => 0x232,
+		ProtectionMode::UserRW => 0x032,
+		ProtectionMode::UserRX => 0x233,
+		ProtectionMode::UserRWX => 0x033,
+		ProtectionMode::UserCOW => 0x223,	// 1,10 is a deprecated encoding, need to find a better encoding
+		};
+	mh[idx] = p + mode_flags;
 }
 pub unsafe fn reprotect(a: *mut (), mode: ProtectionMode) {
 	todo!("reprotect({:p}, {:?}", a, mode)

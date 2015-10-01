@@ -263,6 +263,13 @@ pub fn map_short(phys: PAddr) -> AllocHandle
 	
 }
 */
+/// Map a frame into memory and call the provided closure
+pub unsafe fn with_temp<F, R>(phys: PAddr, f: F) -> R
+where
+	F: FnOnce(&mut [u8; ::PAGE_SIZE]) -> R
+{
+	todo!("");
+}
 
 // TODO: Update these two methods to ENSURE that the memory passed isn't allocatable RAM (or has been invalidated in the PMM)
 /// Create a long-standing MMIO/other hardware mapping
