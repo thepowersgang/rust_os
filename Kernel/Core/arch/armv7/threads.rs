@@ -28,7 +28,8 @@ pub fn set_thread_ptr(thread: Box<Thread>) {
 	let real = borrow_thread_mut();
 	let new = thread.into_raw();
 	if real.is_null() {
-		todo!("set_thread_ptr");
+		// SAFE: Valid ASM
+		unsafe { asm!("mcr p15,0, $0, c13,c0,4" : : "r" (new)); }
 	}
 	else if new == real {
 		// Welp, we've forgotten the pointer, so all is ready
@@ -71,7 +72,7 @@ pub fn switch_to(thread: Box<Thread>) {
 		let outstate = &mut (*borrow_thread_mut()).cpu_state;
 		let new_sp = thread.cpu_state.sp;
 		let new_ttbr0 = thread.cpu_state.ttbr0;
-		log_trace!("Switching to SP={:#x},TTBR0={:}", new_sp, new_ttbr0);
+		log_trace!("Switching to SP={:#x},TTBR0={:#x}", new_sp, new_ttbr0);
 		task_switch(&mut outstate.sp, new_sp, new_ttbr0, thread.into_raw());
 	}
 }
@@ -93,7 +94,6 @@ pub fn start_thread<F: FnOnce()+Send+'static>(thread: &mut ::threads::Thread, co
 	for _ in 4 .. 12+1 {
 		stack.push(0u32);
 	}
-	//stack.push( 
 	
 	// 4. Apply newly updated state
 	let (stack_handle, stack_pos) = stack.unwrap();
@@ -130,6 +130,7 @@ impl StackInit {
 		(self.alloc, self.top)
 	}
 	fn push<T: 'static>(&mut self, v: T) {
+		assert!(self.top > &self.alloc[0] as *const _ as usize);
 		let mut p = self.top;
 		p -= ::core::mem::size_of::<T>();
 		p -= p % ::core::mem::align_of::<T>();
@@ -138,6 +139,7 @@ impl StackInit {
 		unsafe {
 			::core::ptr::write(p as *mut T, v);
 		}
+		self.top = p;
 	}
 }
 

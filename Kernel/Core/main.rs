@@ -40,7 +40,7 @@ use prelude::*;
 
 extern crate stack_dst;
 
-//#[repr(C)]
+//#[repr(C)]	// (not needed)
 pub enum Void {}
 
 pub use arch::memory::PAGE_SIZE;

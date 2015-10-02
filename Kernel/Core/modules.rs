@@ -7,13 +7,12 @@
 use prelude::*;
 
 #[repr(packed)]
-#[allow(missing_copy_implementations)]
 pub struct ModuleInfo
 {
 	pub name: &'static str,
 	pub init: fn(),
 	pub deps: &'static [&'static str],
-	pub _rsvd: usize,
+	pub _rsvd: [usize; 3],
 }
 
 #[derive(Clone,PartialEq)]
@@ -24,11 +23,9 @@ enum ModuleState
 	Initialised,
 }
 
-enum Void {}
-
 extern "C" {
-	static modules_base: Void;
-	static modules_end: Void;
+	static modules_base: ::Void;
+	static modules_end: ::Void;
 }
 
 /// Initialise statically linked modules

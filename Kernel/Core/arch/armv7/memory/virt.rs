@@ -39,14 +39,6 @@ enum PageEntryRegion {
 	Global,
 }
 impl PageEntryRegion {
-	unsafe fn get_page_ent(&self, idx: usize) -> &mut u32 {
-		assert!(idx < (1 << 20));
-		match self
-		{
-		&PageEntryRegion::NonGlobal => todo!("PageEntryRegion::get_page_ent - non-global"),
-		&PageEntryRegion::Global => todo!("PageEntryRegion::get_page_ent - global"),
-		}
-	}
 	unsafe fn get_section_ent(&self, idx: usize) -> &mut u32 {
 		assert!(idx < 4096);
 		match self
@@ -63,7 +55,7 @@ enum PageEntry {
 		ofs: usize
 		},
 	Page {
-		rgn: PageEntryRegion,
+		mapping: TempHandle,
 		idx: usize,
 		ofs: usize
 		},
@@ -83,9 +75,11 @@ impl PageEntry
 			};
 
 		// SAFE: Aliasing in this case is benign
-		if unsafe { *rgn.get_section_ent(p_idx >> 8) } & 0b11 == 0b01 {
+		let sect_ent = unsafe { *rgn.get_section_ent(p_idx >> 8) };
+		if sect_ent & 0b11 == 0b01 {
 			PageEntry::Page {
-				rgn: rgn,
+				// SAFE: ... won't be mutated (yet), but need to ensure safety TODO
+				mapping: unsafe { TempHandle::new( sect_ent & !0xFFF ) },
 				idx: p_idx,
 				ofs: (addr as usize) & 0xFFF,
 				}
@@ -107,13 +101,20 @@ impl PageEntry
 			match self
 			{
 			&PageEntry::Section { rgn, idx, .. } => (*rgn.get_section_ent(idx) & 3 != 0),
-			&PageEntry::Page { rgn, idx, .. } => (*rgn.get_page_ent(idx) & 3 != 0),
+			&PageEntry::Page { ref mapping, idx, .. } => (mapping[idx & 0x3FF] & 3 != 0),
 			}
 		}
 	}
 
 	fn phys_addr(&self) -> ::arch::memory::PAddr {
-		todo!("PageEntry::phys_addr");
+		// SAFE: Aliasing is benign, and page table should be mapped (see above TODO)
+		unsafe {
+			match self
+			{
+			&PageEntry::Section { rgn, idx, .. } => (*rgn.get_section_ent(idx) & !0xFFF),
+			&PageEntry::Page { ref mapping, idx, .. } => (mapping[idx & 0x3FF] & !0xFFF),
+			}
+		}
 	}
 }
 
@@ -151,7 +152,7 @@ fn get_table_addr<T>(a: *const T, alloc: bool) -> Option< (::arch::memory::PAddr
 	
 	//let ent_v = ent_r.load();
 	let ent_v = ent_r.load();
-	match ent_v
+	match ent_v & 0xFFF
 	{
 	0 => if alloc {
 			let frame = ::memory::phys::allocate_bare().expect("TODO get_table_addr");
@@ -255,9 +256,11 @@ impl AddressSpace
 {
 	pub fn pid0() -> AddressSpace {
 		extern "C" {
-			static kernel_table0: [u32; 4096];
+			static kernel_table0_ofs: ::Void;
+			static kernel_data_start: u32;
 		}
-		AddressSpace( &kernel_table0 as *const _ as usize as u32 )
+		let tab0_addr = kernel_data_start + (&kernel_table0_ofs as *const _ as usize as u32);
+		AddressSpace( tab0_addr )
 	}
 	pub fn new(clone_start: usize, clone_end: usize) -> Result<AddressSpace,::memory::virt::MapError> {
 		todo!("AddressSpace::new({:#x} -- {:#x})", clone_start, clone_end);

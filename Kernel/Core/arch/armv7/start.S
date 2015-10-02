@@ -126,7 +126,9 @@ vmsa_setup:
 .section .text
 .globl thread_trampoline
 thread_trampoline:
-	b .
+	pop {r1}
+	mov r0, sp
+	bx r1
 .globl task_switch
 @ R0: Old stack save location
 @ R1: New stack

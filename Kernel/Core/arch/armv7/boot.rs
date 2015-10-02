@@ -7,8 +7,8 @@ extern "C" {
 	static dt_base: u32;
 	static kernel_data_start: u32;
 	static mut kernel_exception_map: [u32; 1024];
-	static data_len: ();
-	static __bss_len: ();
+	static data_len: ::Void;
+	static __bss_len: ::Void;
 }
 
 enum BootInfo

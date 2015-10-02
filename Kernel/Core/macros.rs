@@ -31,7 +31,7 @@ macro_rules! module_define
 			name: stringify!($name),
 			init: $init,
 			deps: &S_DEPS,
-			_rsvd: 0,
+			_rsvd: [0,0,0],
 		};
 		#[doc(hidden)]
 		static S_DEPS: [&'static str; _count!($($deps),*)] = [$(stringify!($deps)),*];
