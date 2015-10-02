@@ -5,31 +5,16 @@
 use memory::virt::ProtectionMode;
 use arch::memory::PAddr;
 
-const KERNEL_TEMP_BASE : usize = 0xFF800000;
-const KERNEL_TEMP_LIMIT: usize = 0xFFFF0000;
 const KERNEL_BASE_TABLE: usize = 0xFFFF8000;
-const KERNEL_TEMP_TABLE: usize = 0xFFFF9000;
 
-pub fn is_fixed_alloc<T>(addr: *const T, size: usize) -> bool {
-	const BASE : usize = super::addresses::KERNEL_BASE;
-	const LIMIT: usize = super::addresses::KERNEL_BASE + 4*1024*1024;
-	let addr = addr as usize;
-	if addr < BASE {
-		false
-	}
-	else if addr >= LIMIT {
-		false
-	}
-	else if addr + size > LIMIT {
-		false
-	}
-	else {
-		false
-		//true
-	}
+pub fn is_fixed_alloc<T>(_addr: *const T, _size: usize) -> bool {
+	//const BASE : usize = super::addresses::KERNEL_BASE;
+	//const ONEMEG: usize =1024*1024
+	//const LIMIT: usize = super::addresses::KERNEL_BASE + 4*ONEMEG;
+	false
 }
 // UNSAFE: Can cause aliasing
-pub unsafe fn fixed_alloc(p: PAddr, count: usize) -> Option<*mut ()> {
+pub unsafe fn fixed_alloc(_p: PAddr, _count: usize) -> Option<*mut ()> {
 	None
 }
 
@@ -63,8 +48,9 @@ enum PageEntry {
 impl PageEntry
 {
 	fn alloc(addr: *const (), level: usize) -> Result<PageEntry, ()> {
-		todo!("PageEntry::alloc");
+		todo!("PageEntry::alloc({:p}, level={})", addr, level);
 	}
+	/// Obtain a page entry for the specified address
 	fn get(addr: *const ()) -> PageEntry {
 		use super::addresses::KERNEL_BASE;
 		let (rgn, p_idx) = if (addr as usize) < KERNEL_BASE {
@@ -111,13 +97,14 @@ impl PageEntry
 		unsafe {
 			match self
 			{
-			&PageEntry::Section { rgn, idx, .. } => (*rgn.get_section_ent(idx) & !0xFFF),
-			&PageEntry::Page { ref mapping, idx, .. } => (mapping[idx & 0x3FF] & !0xFFF),
+			&PageEntry::Section { rgn, idx, ofs } => (*rgn.get_section_ent(idx) & !0xFFF) + ofs as u32,
+			&PageEntry::Page { ref mapping, idx ,ofs } => (mapping[idx & 0x3FF] & !0xFFF) + ofs as u32,
 			}
 		}
 	}
 }
 
+#[repr(C)]
 struct AtomicU32(::core::cell::UnsafeCell<u32>);
 impl AtomicU32 {
 	pub fn cxchg(&self, val: u32, new: u32) -> u32 {
@@ -173,7 +160,8 @@ fn get_table_addr<T>(a: *const T, alloc: bool) -> Option< (::arch::memory::PAddr
 	}
 }
 //static S_TEMP_MAP_SEMAPHORE: Semaphore = Semaphore::new();
-const TEMP_BASE: usize = 0xFFC0_0000;
+const KERNEL_TEMP_BASE : usize = 0xFFC00000;
+
 struct TempHandle(*mut [u32; 1024]);
 impl TempHandle
 {
@@ -185,7 +173,7 @@ impl TempHandle
 		// #1023 is reserved for -1 mapping
 		for i in 0 .. 1023 {
 			if kernel_exception_map[i].cxchg(0, val) == 0 {
-				return TempHandle( (TEMP_BASE + i * 0x1000) as *mut _ );
+				return TempHandle( (KERNEL_TEMP_BASE + i * 0x1000) as *mut _ );
 			}
 		}
 		panic!("No free temp mappings");
@@ -206,7 +194,7 @@ impl ::core::ops::DerefMut for TempHandle {
 }
 impl ::core::ops::Drop for TempHandle {
 	fn drop(&mut self) {
-		let i = (self.0 as usize - TEMP_BASE) / 0x1000;
+		let i = (self.0 as usize - KERNEL_TEMP_BASE) / 0x1000;
 		kernel_exception_map[i].store(0);
 		//S_TEMP_MAP_SEMAPHORE.add();
 	}
@@ -239,7 +227,7 @@ pub unsafe fn map(a: *mut (), p: PAddr, mode: ProtectionMode) {
 		ProtectionMode::UserRW => 0x032,
 		ProtectionMode::UserRX => 0x233,
 		ProtectionMode::UserRWX => 0x033,
-		ProtectionMode::UserCOW => 0x223,	// 1,10 is a deprecated encoding, need to find a better encoding
+		ProtectionMode::UserCOW => 0x223,	// 1,10 is a deprecated encoding for RO, need to find a better encoding
 		};
 	mh[idx] = p + mode_flags;
 }
