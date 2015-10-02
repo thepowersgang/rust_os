@@ -7,9 +7,31 @@ use arch::memory::PAddr;
 
 const KERNEL_BASE_TABLE: usize = 0xFFFF8000;
 
+
+#[repr(C)]
+/// Atomic 32-bit integer, used for table entries
+struct AtomicU32(::core::cell::UnsafeCell<u32>);
+impl AtomicU32 {
+	/// Compare and exchange, returns old value and writes `new` if it was equal to `val`
+	pub fn cxchg(&self, val: u32, new: u32) -> u32 {
+		// SAFE: Atomic
+		unsafe { ::core::intrinsics::atomic_cxchg_relaxed(self.0.get(), val, new) }
+	}
+	/// Unconditionally stores
+	pub fn store(&self, val: u32) {
+		// SAFE: Atomic
+		unsafe { ::core::intrinsics::atomic_store_relaxed(self.0.get(), val) }
+	}
+	/// Unconditionally loads
+	pub fn load(&self) -> u32 {
+		// SAFE: Atomic
+		unsafe { ::core::intrinsics::atomic_load_relaxed(self.0.get()) }
+	}
+}
+
 pub fn is_fixed_alloc<T>(_addr: *const T, _size: usize) -> bool {
 	//const BASE : usize = super::addresses::KERNEL_BASE;
-	//const ONEMEG: usize =1024*1024
+	//const ONEMEG: usize = 1024*1024
 	//const LIMIT: usize = super::addresses::KERNEL_BASE + 4*ONEMEG;
 	false
 }
@@ -18,7 +40,7 @@ pub unsafe fn fixed_alloc(_p: PAddr, _count: usize) -> Option<*mut ()> {
 	None
 }
 
-#[derive(Copy,Clone)]
+#[derive(Copy,Clone,Debug)]
 enum PageEntryRegion {
 	NonGlobal,
 	Global,
@@ -102,31 +124,45 @@ impl PageEntry
 			}
 		}
 	}
+	fn mode(&self) -> ::memory::virt::ProtectionMode {
+		// SAFE: Aliasing is benign, and page table should be mapped (see above TODO)
+		unsafe {
+			match self
+			{
+			&PageEntry::Section { rgn, idx, .. } =>
+				match *rgn.get_section_ent(idx) & 0xFFF
+				{
+				0x000 => ProtectionMode::Unmapped,
+				0x402 => ProtectionMode::KernelRW,
+				v @ _ => todo!("Unknown mode value in section {:?} {} - {:#x}", rgn, idx, v),
+				},
+			&PageEntry::Page { ref mapping, idx, ofs } =>
+				match mapping[idx & 0x3FF] & 0xFFF
+				{
+				0x000 => ProtectionMode::Unmapped,
+				0x212 => ProtectionMode::KernelRO,
+				0x012 => ProtectionMode::KernelRW,
+				0x053 => ProtectionMode::KernelRX,
+				0x232 => ProtectionMode::UserRO,
+				0x032 => ProtectionMode::UserRW,
+				0x233 => ProtectionMode::UserRX,
+				0x033 => ProtectionMode::UserRWX,
+				0x223 => ProtectionMode::UserCOW,
+				v @ _ => todo!("Unknown mode value in page {} - {:#x}", idx, v),
+				},
+			}
+		}
+	}
 }
 
-#[repr(C)]
-struct AtomicU32(::core::cell::UnsafeCell<u32>);
-impl AtomicU32 {
-	pub fn cxchg(&self, val: u32, new: u32) -> u32 {
-		// SAFE: Atomic
-		unsafe { ::core::intrinsics::atomic_cxchg_relaxed(self.0.get(), val, new) }
-	}
-	pub fn store(&self, val: u32) {
-		// SAFE: Atomic
-		unsafe { ::core::intrinsics::atomic_store_relaxed(self.0.get(), val) }
-	}
-	pub fn load(&self) -> u32 {
-		// SAFE: Atomic
-		unsafe { ::core::intrinsics::atomic_load_relaxed(self.0.get()) }
-	}
-}
 extern "C" {
 	static kernel_table0: [AtomicU32; 0x800*2];
 	static kernel_exception_map: [AtomicU32; 1024];
 }
 
-fn get_table_addr<T>(a: *const T, alloc: bool) -> Option< (::arch::memory::PAddr, usize) > {
-	let addr = a as usize;
+/// Returns the physical address of the table controlling `vaddr`. If `alloc` is true, a new table will be allocated if needed.
+fn get_table_addr<T>(vaddr: *const T, alloc: bool) -> Option< (::arch::memory::PAddr, usize) > {
+	let addr = vaddr as usize;
 	let page = addr >> 12;
 	let (ttbr_ofs, tab_idx) = (page >> 8, page & 0xFF);
 	let ent_r = if ttbr_ofs < 0x800 {
@@ -159,9 +195,11 @@ fn get_table_addr<T>(a: *const T, alloc: bool) -> Option< (::arch::memory::PAddr
 	v @ _ => todo!("get_table_addr - Other flags bits {:#x}", v),
 	}
 }
+
 //static S_TEMP_MAP_SEMAPHORE: Semaphore = Semaphore::new();
 const KERNEL_TEMP_BASE : usize = 0xFFC00000;
 
+/// Handle to a temporarily mapped frame
 struct TempHandle(*mut [u32; 1024]);
 impl TempHandle
 {
@@ -214,7 +252,7 @@ pub fn get_info<T>(addr: *const T) -> Option<(u32, ::memory::virt::ProtectionMod
 pub unsafe fn map(a: *mut (), p: PAddr, mode: ProtectionMode) {
 	// 1. Map the relevant table in the temp area
 	let (tab_phys, idx) = get_table_addr(a, true).unwrap();
-	// TODO: Ensure nothing else is manipulating this segment of AS
+	// TODO: Ensure nothing else is manipulating this segment of AS. (Otherwise we'll see aliasing in TempHandle)
 	let mut mh = TempHandle::new( tab_phys );
 	// 2. Insert
 	let mode_flags = match mode
