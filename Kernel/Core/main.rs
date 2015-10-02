@@ -85,8 +85,6 @@ pub mod threads;
 /// Timekeeping (timers and wall time)
 pub mod time;
 
-// Module/Executable loading (and symbol lookup)
-pub mod loading;
 /// Module management (loading and initialisation of kernel modules)
 pub mod modules;
 

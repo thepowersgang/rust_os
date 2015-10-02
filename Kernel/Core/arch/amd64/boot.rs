@@ -207,24 +207,8 @@ impl MultibootParsed
 			log_debug!("Symbols a.out - tabsize={}, strsize={}, addr={:#x}", tabsize, strsize, addr);
 			},
 		2 => {
-			// Elf section header table
-			if false
-			{
-				let [num, size, addr, shndx] = info.syminfo;
-				log_debug!("Symbols ELF - num={}, size={}, addr={:#x}, shndx={}", num, size, addr, shndx);
-				//let byte_ofs = addr as usize & (::PAGE_SIZE - 1);
-				//let alloc = ::memory::virt::map_hw_ro(
-				//	addr as ::memory::PAddr - byte_ofs as ::memory::PAddr,
-				//	(byte_ofs as u32 + num*size) as usize, module_path!()
-				//	).unwrap();
-				//let buf = alloc.as_slice::<u8>(byte_ofs, (num*size) as usize);
-				
-				// SAFE: Memory is valid for this range (TODO: Use a checked version?)
-				let buf: &'static [u8] = unsafe { ::core::slice::from_raw_parts( (addr as usize + IDENT_START) as *const u8, (num*size) as usize) };
-				let sh = ::loading::elf::SectionHeader::from_ref(buf, size as usize, shndx as usize);
-				sh.dump();
-				sh.address_to_symbol(0);
-			}
+			let [num, size, addr, shndx] = info.syminfo;
+			log_debug!("Symbols ELF - num={}, size={}, addr={:#x}, shndx={}", num, size, addr, shndx);
 			},
 		_ => {
 			log_error!("Multiboot header malformed (both symbol table bits set)");
