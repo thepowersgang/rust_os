@@ -1,5 +1,6 @@
-
-use metadevs::video::bootvideo::{VideoMode,VideoFormat};
+//
+//
+//
 use lib::lazy_static::LazyStatic;
 use super::fdt::FDTRoot;
 
@@ -50,7 +51,7 @@ impl BootInfo
 	}
 }
 
-pub fn get_video_mode() -> Option<VideoMode> {
+pub fn get_video_mode() -> Option<::metadevs::video::bootvideo::VideoMode> {
 	None
 }
 

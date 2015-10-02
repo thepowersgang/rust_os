@@ -8,8 +8,8 @@ use arch::memory::PAddr;
 const KERNEL_BASE_TABLE: usize = 0xFFFF8000;
 
 
-#[repr(C)]
 /// Atomic 32-bit integer, used for table entries
+#[repr(C)]
 struct AtomicU32(::core::cell::UnsafeCell<u32>);
 impl AtomicU32 {
 	/// Compare and exchange, returns old value and writes `new` if it was equal to `val`
@@ -62,7 +62,7 @@ enum PageEntry {
 		ofs: usize
 		},
 	Page {
-		mapping: TempHandle,
+		mapping: TempHandle<AtomicU32>,
 		idx: usize,
 		ofs: usize
 		},
@@ -86,7 +86,7 @@ impl PageEntry
 		let sect_ent = unsafe { *rgn.get_section_ent(p_idx >> 8) };
 		if sect_ent & 0b11 == 0b01 {
 			PageEntry::Page {
-				// SAFE: ... won't be mutated (yet), but need to ensure safety TODO
+				// SAFE: Alias is beign, as accesses are atomic
 				mapping: unsafe { TempHandle::new( sect_ent & !0xFFF ) },
 				idx: p_idx,
 				ofs: (addr as usize) & 0xFFF,
@@ -103,29 +103,28 @@ impl PageEntry
 
 
 	fn is_reserved(&self) -> bool {
-		// TODO: Need to _ensure_ that the page table is not removed during manipulation
-		// SAFE: Aliasing is benign, and page table should be mapped (see above TODO)
+		// SAFE: Aliasing is benign, and page table should be mapped (unmapping should only happen once all threads are dead)
 		unsafe {
 			match self
 			{
 			&PageEntry::Section { rgn, idx, .. } => (*rgn.get_section_ent(idx) & 3 != 0),
-			&PageEntry::Page { ref mapping, idx, .. } => (mapping[idx & 0x3FF] & 3 != 0),
+			&PageEntry::Page { ref mapping, idx, .. } => (mapping[idx & 0x3FF].load() & 3 != 0),
 			}
 		}
 	}
 
 	fn phys_addr(&self) -> ::arch::memory::PAddr {
-		// SAFE: Aliasing is benign, and page table should be mapped (see above TODO)
+		// SAFE: Aliasing is benign, and page table should be mapped
 		unsafe {
 			match self
 			{
 			&PageEntry::Section { rgn, idx, ofs } => (*rgn.get_section_ent(idx) & !0xFFF) + ofs as u32,
-			&PageEntry::Page { ref mapping, idx ,ofs } => (mapping[idx & 0x3FF] & !0xFFF) + ofs as u32,
+			&PageEntry::Page { ref mapping, idx ,ofs } => (mapping[idx & 0x3FF].load() & !0xFFF) + ofs as u32,
 			}
 		}
 	}
 	fn mode(&self) -> ::memory::virt::ProtectionMode {
-		// SAFE: Aliasing is benign, and page table should be mapped (see above TODO)
+		// SAFE: Aliasing is benign, and page table should be mapped
 		unsafe {
 			match self
 			{
@@ -134,10 +133,11 @@ impl PageEntry
 				{
 				0x000 => ProtectionMode::Unmapped,
 				0x402 => ProtectionMode::KernelRW,
+				v @ _ if v & 3 == 1 => unreachable!(),
 				v @ _ => todo!("Unknown mode value in section {:?} {} - {:#x}", rgn, idx, v),
 				},
-			&PageEntry::Page { ref mapping, idx, ofs } =>
-				match mapping[idx & 0x3FF] & 0xFFF
+			&PageEntry::Page { ref mapping, idx, .. } =>
+				match mapping[idx & 0x3FF].load() & 0xFFF
 				{
 				0x000 => ProtectionMode::Unmapped,
 				0x212 => ProtectionMode::KernelRO,
@@ -153,6 +153,8 @@ impl PageEntry
 			}
 		}
 	}
+	//fn reset(&mut self) -> Option<(::arch::memory::PAddr, ::memory::virt::ProtectionMode)> {
+	//}
 }
 
 extern "C" {
@@ -173,12 +175,11 @@ fn get_table_addr<T>(vaddr: *const T, alloc: bool) -> Option< (::arch::memory::P
 			&kernel_table0[ ttbr_ofs ]
 		};
 	
-	//let ent_v = ent_r.load();
 	let ent_v = ent_r.load();
 	match ent_v & 0xFFF
 	{
 	0 => if alloc {
-			let frame = ::memory::phys::allocate_bare().expect("TODO get_table_addr");
+			let frame = ::memory::phys::allocate_bare().expect("TODO get_table_addr - alloc failed");
 			let ent_v = ent_r.cxchg(0, frame + 0x1);
 			if ent_v != 0 {
 				::memory::phys::deref_frame(frame);
@@ -200,11 +201,11 @@ fn get_table_addr<T>(vaddr: *const T, alloc: bool) -> Option< (::arch::memory::P
 const KERNEL_TEMP_BASE : usize = 0xFFC00000;
 
 /// Handle to a temporarily mapped frame
-struct TempHandle(*mut [u32; 1024]);
-impl TempHandle
+struct TempHandle<T>(*mut T);
+impl<T> TempHandle<T>
 {
 	/// UNSAFE: User must ensure that address is valid, and that no aliasing occurs
-	unsafe fn new(phys: ::arch::memory::PAddr) -> TempHandle {
+	unsafe fn new(phys: ::arch::memory::PAddr) -> TempHandle<T> {
 		let val = (phys as u32) + 0x13;	
 
 		//S_TEMP_MAP_SEMAPHORE.take();
@@ -217,20 +218,20 @@ impl TempHandle
 		panic!("No free temp mappings");
 	}
 }
-impl ::core::ops::Deref for TempHandle {
-	type Target = [u32];
-	fn deref(&self) -> &[u32] {
+impl<T> ::core::ops::Deref for TempHandle<T> {
+	type Target = [T];
+	fn deref(&self) -> &[T] {
 		// SAFE: We should have unique access
-		unsafe { &*self.0 }
+		unsafe { ::core::slice::from_raw_parts(self.0, 0x1000 / ::core::mem::size_of::<T>()) }
 	}
 }
-impl ::core::ops::DerefMut for TempHandle {
-	fn deref_mut(&mut self) -> &mut [u32] {
+impl<T> ::core::ops::DerefMut for TempHandle<T> {
+	fn deref_mut(&mut self) -> &mut [T] {
 		// SAFE: We should have unique access
-		unsafe { &mut *self.0 }
+		unsafe { ::core::slice::from_raw_parts_mut(self.0, 0x1000 / ::core::mem::size_of::<T>()) }
 	}
 }
-impl ::core::ops::Drop for TempHandle {
+impl<T> ::core::ops::Drop for TempHandle<T> {
 	fn drop(&mut self) {
 		let i = (self.0 as usize - KERNEL_TEMP_BASE) / 0x1000;
 		kernel_exception_map[i].store(0);
@@ -245,15 +246,24 @@ pub fn get_phys<T>(addr: *const T) -> ::arch::memory::PAddr {
 	PageEntry::get(addr as *const ()).phys_addr()
 }
 
-pub fn get_info<T>(addr: *const T) -> Option<(u32, ::memory::virt::ProtectionMode)> {
-	todo!("get_info")
+pub fn get_info<T>(addr: *const T) -> Option<(::arch::memory::PAddr, ::memory::virt::ProtectionMode)> {
+	let pe = PageEntry::get(addr as *const ());
+	if pe.is_reserved() {
+		Some( (pe.phys_addr(), pe.mode()) )
+	}
+	else {
+		None
+	}
 }
 
 pub unsafe fn map(a: *mut (), p: PAddr, mode: ProtectionMode) {
+	map_int(a,p,mode)
+}
+fn map_int(a: *mut (), p: PAddr, mode: ProtectionMode) {
 	// 1. Map the relevant table in the temp area
 	let (tab_phys, idx) = get_table_addr(a, true).unwrap();
-	// TODO: Ensure nothing else is manipulating this segment of AS. (Otherwise we'll see aliasing in TempHandle)
-	let mut mh = TempHandle::new( tab_phys );
+	// SAFE: Address space is valid during manipulation, and alias is benign
+	let mh: TempHandle<AtomicU32> = unsafe {  TempHandle::new( tab_phys ) };
 	// 2. Insert
 	let mode_flags = match mode
 		{
@@ -267,7 +277,8 @@ pub unsafe fn map(a: *mut (), p: PAddr, mode: ProtectionMode) {
 		ProtectionMode::UserRWX => 0x033,
 		ProtectionMode::UserCOW => 0x223,	// 1,10 is a deprecated encoding for RO, need to find a better encoding
 		};
-	mh[idx] = p + mode_flags;
+	let old = mh[idx].cxchg(0, p + mode_flags);
+	assert!(old == 0, "map() called over existing allocation: a={:p}, old={:#x}", a, old);
 }
 pub unsafe fn reprotect(a: *mut (), mode: ProtectionMode) {
 	todo!("reprotect({:p}, {:?}", a, mode)
