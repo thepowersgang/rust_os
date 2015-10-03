@@ -7,7 +7,7 @@
 	"os": "tifflin",
 	"arch": "arm",
 		"no-compiler-rt": true,
-		"features": "+v7",
+		"features": "+v7,+db",
 		"executables": true,
 		"dynamic-linking": true,
 	"morestack": false

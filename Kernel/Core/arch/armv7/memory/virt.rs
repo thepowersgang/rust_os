@@ -231,10 +231,36 @@ impl<T> ::core::ops::Drop for TempHandle<T> {
 }
 
 pub fn is_reserved<T>(addr: *const T) -> bool {
-	PageEntry::get(addr as *const ()).is_reserved()
+	get_phys_opt(addr).is_some()
+	//PageEntry::get(addr as *const ()).is_reserved()
 }
 pub fn get_phys<T>(addr: *const T) -> ::arch::memory::PAddr {
-	PageEntry::get(addr as *const ()).phys_addr()
+	get_phys_opt(addr).unwrap_or(0)
+	//PageEntry::get(addr as *const ()).phys_addr()
+}
+fn get_phys_opt<T>(addr: *const T) -> Option<::arch::memory::PAddr> {
+	let res: u32;
+	unsafe {
+		// TODO: Disable interrupts during this operation
+		asm!("
+			mcr p15,0, $1, c7,c8,0;
+			isb;
+			mrc p15,0, $0, c7,c4,0
+			"
+			: "=r" (res) : "r" (addr)
+			);
+	};
+
+	match res & 3 {
+	1 | 3 => None,
+	0 => Some( (res & !0xFFF) | (addr as usize as u32 & 0xFFF) ),
+	2 => {
+		todo!("Unexpected supersection at {:p}, res={:#x}", addr, res);
+		let pa_base: u64 = (res & !0xFFFFFF) as u64 | ((res as u64 & 0xFF0000) << (32-16));
+		Some( pa_base as u32 | (addr as usize as u32 & 0xFFFFFF) )
+		},
+	_ => unreachable!(),
+	}
 }
 
 pub fn get_info<T>(addr: *const T) -> Option<(::arch::memory::PAddr, ::memory::virt::ProtectionMode)> {
