@@ -5,9 +5,6 @@
 use memory::virt::ProtectionMode;
 use arch::memory::PAddr;
 
-const KERNEL_BASE_TABLE: usize = 0xFFFF8000;
-
-
 /// Atomic 32-bit integer, used for table entries
 #[repr(C)]
 struct AtomicU32(::core::cell::UnsafeCell<u32>);
@@ -46,12 +43,12 @@ enum PageEntryRegion {
 	Global,
 }
 impl PageEntryRegion {
-	unsafe fn get_section_ent(&self, idx: usize) -> &mut u32 {
+	fn get_section_ent(&self, idx: usize) -> &AtomicU32 {
 		assert!(idx < 4096);
 		match self
 		{
 		&PageEntryRegion::NonGlobal => todo!("PageEntryRegion::get_section_ent - non-global"),
-		&PageEntryRegion::Global => &mut *((KERNEL_BASE_TABLE + idx * 4) as *mut u32),
+		&PageEntryRegion::Global => &kernel_table0[idx],
 		}
 	}
 }
@@ -83,7 +80,7 @@ impl PageEntry
 			};
 
 		// SAFE: Aliasing in this case is benign
-		let sect_ent = unsafe { *rgn.get_section_ent(p_idx >> 8) };
+		let sect_ent = rgn.get_section_ent(p_idx >> 8).load();
 		if sect_ent & 0b11 == 0b01 {
 			PageEntry::Page {
 				// SAFE: Alias is beign, as accesses are atomic
@@ -103,54 +100,45 @@ impl PageEntry
 
 
 	fn is_reserved(&self) -> bool {
-		// SAFE: Aliasing is benign, and page table should be mapped (unmapping should only happen once all threads are dead)
-		unsafe {
-			match self
-			{
-			&PageEntry::Section { rgn, idx, .. } => (*rgn.get_section_ent(idx) & 3 != 0),
-			&PageEntry::Page { ref mapping, idx, .. } => (mapping[idx & 0x3FF].load() & 3 != 0),
-			}
+		match self
+		{
+		&PageEntry::Section { rgn, idx, .. } => (rgn.get_section_ent(idx).load() & 3 != 0),
+		&PageEntry::Page { ref mapping, idx, .. } => (mapping[idx & 0x3FF].load() & 3 != 0),
 		}
 	}
 
 	fn phys_addr(&self) -> ::arch::memory::PAddr {
-		// SAFE: Aliasing is benign, and page table should be mapped
-		unsafe {
-			match self
-			{
-			&PageEntry::Section { rgn, idx, ofs } => (*rgn.get_section_ent(idx) & !0xFFF) + ofs as u32,
-			&PageEntry::Page { ref mapping, idx ,ofs } => (mapping[idx & 0x3FF].load() & !0xFFF) + ofs as u32,
-			}
+		match self
+		{
+		&PageEntry::Section { rgn, idx, ofs } => (rgn.get_section_ent(idx).load() & !0xFFF) + ofs as u32,
+		&PageEntry::Page { ref mapping, idx ,ofs } => (mapping[idx & 0x3FF].load() & !0xFFF) + ofs as u32,
 		}
 	}
 	fn mode(&self) -> ::memory::virt::ProtectionMode {
-		// SAFE: Aliasing is benign, and page table should be mapped
-		unsafe {
-			match self
+		match self
+		{
+		&PageEntry::Section { rgn, idx, .. } =>
+			match rgn.get_section_ent(idx).load() & 0xFFF
 			{
-			&PageEntry::Section { rgn, idx, .. } =>
-				match *rgn.get_section_ent(idx) & 0xFFF
-				{
-				0x000 => ProtectionMode::Unmapped,
-				0x402 => ProtectionMode::KernelRW,
-				v @ _ if v & 3 == 1 => unreachable!(),
-				v @ _ => todo!("Unknown mode value in section {:?} {} - {:#x}", rgn, idx, v),
-				},
-			&PageEntry::Page { ref mapping, idx, .. } =>
-				match mapping[idx & 0x3FF].load() & 0xFFF
-				{
-				0x000 => ProtectionMode::Unmapped,
-				0x212 => ProtectionMode::KernelRO,
-				0x012 => ProtectionMode::KernelRW,
-				0x053 => ProtectionMode::KernelRX,
-				0x232 => ProtectionMode::UserRO,
-				0x032 => ProtectionMode::UserRW,
-				0x233 => ProtectionMode::UserRX,
-				0x033 => ProtectionMode::UserRWX,
-				0x223 => ProtectionMode::UserCOW,
-				v @ _ => todo!("Unknown mode value in page {} - {:#x}", idx, v),
-				},
-			}
+			0x000 => ProtectionMode::Unmapped,
+			0x402 => ProtectionMode::KernelRW,
+			v @ _ if v & 3 == 1 => unreachable!(),
+			v @ _ => todo!("Unknown mode value in section {:?} {} - {:#x}", rgn, idx, v),
+			},
+		&PageEntry::Page { ref mapping, idx, .. } =>
+			match mapping[idx & 0x3FF].load() & 0xFFF
+			{
+			0x000 => ProtectionMode::Unmapped,
+			0x212 => ProtectionMode::KernelRO,
+			0x012 => ProtectionMode::KernelRW,
+			0x053 => ProtectionMode::KernelRX,
+			0x232 => ProtectionMode::UserRO,
+			0x032 => ProtectionMode::UserRW,
+			0x233 => ProtectionMode::UserRX,
+			0x033 => ProtectionMode::UserRWX,
+			0x223 => ProtectionMode::UserCOW,
+			v @ _ => todo!("Unknown mode value in page {} - {:#x}", idx, v),
+			},
 		}
 	}
 	//fn reset(&mut self) -> Option<(::arch::memory::PAddr, ::memory::virt::ProtectionMode)> {
@@ -197,7 +185,7 @@ fn get_table_addr<T>(vaddr: *const T, alloc: bool) -> Option< (::arch::memory::P
 	}
 }
 
-//static S_TEMP_MAP_SEMAPHORE: Semaphore = Semaphore::new();
+static S_TEMP_MAP_SEMAPHORE: ::sync::Semaphore = ::sync::Semaphore::new(1022, 1023);
 const KERNEL_TEMP_BASE : usize = 0xFFC00000;
 
 /// Handle to a temporarily mapped frame
@@ -206,13 +194,16 @@ impl<T> TempHandle<T>
 {
 	/// UNSAFE: User must ensure that address is valid, and that no aliasing occurs
 	unsafe fn new(phys: ::arch::memory::PAddr) -> TempHandle<T> {
+		//log_trace!("TempHandle<{}>::new({:#x})", type_name!(T), phys);
 		let val = (phys as u32) + 0x13;	
 
-		//S_TEMP_MAP_SEMAPHORE.take();
+		S_TEMP_MAP_SEMAPHORE.acquire();
 		// #1023 is reserved for -1 mapping
 		for i in 0 .. 1023 {
 			if kernel_exception_map[i].cxchg(0, val) == 0 {
-				return TempHandle( (KERNEL_TEMP_BASE + i * 0x1000) as *mut _ );
+				let addr = (KERNEL_TEMP_BASE + i * 0x1000) as *mut _;
+				//log_trace!("- Addr = {:p}", addr);
+				return TempHandle( addr );
 			}
 		}
 		panic!("No free temp mappings");
@@ -235,7 +226,7 @@ impl<T> ::core::ops::Drop for TempHandle<T> {
 	fn drop(&mut self) {
 		let i = (self.0 as usize - KERNEL_TEMP_BASE) / 0x1000;
 		kernel_exception_map[i].store(0);
-		//S_TEMP_MAP_SEMAPHORE.add();
+		S_TEMP_MAP_SEMAPHORE.release();
 	}
 }
 

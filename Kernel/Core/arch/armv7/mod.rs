@@ -48,6 +48,7 @@ fn putb(b: u8) {
 	}
 }
 #[inline(never)]
+#[no_mangle]
 pub fn puts(s: &str) {
 	//putb(b'(');
 	//puth(s.as_ptr() as usize as u64);
@@ -59,6 +60,7 @@ pub fn puts(s: &str) {
 	}
 }
 #[inline(never)]
+#[no_mangle]
 pub fn puth(v: u64) {
 	putb(b'0');
 	putb(b'x');

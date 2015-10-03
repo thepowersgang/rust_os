@@ -16,7 +16,7 @@ ivt_reset:      b rst_start	@ 0x00 Reset
 ivt_undef:      b .	@ 0x04 #UD
 ivt_svc:        b .	@ 0x08 SVC (used to be called SWI)
 ivt_prefetch:   b .	@ 0x0C Prefetch abort
-ivt_data:       b .	@ 0x10 Data abort
+ivt_data:       ldr pc, =data_abort	@ 0x10 Data abort
 ivt_unused:     b .	@ 0x14 Not Used
 ivt_irq:        b .	@ 0x18 IRQ
 ivt_fiq:        b .	@ 0x1C FIQ (Fast interrupt)
@@ -111,6 +111,24 @@ vmsa_setup:
 	
 	// NOTE: VMSA is active here, so virtual addresses can be used
 
+	@
+	@ Check for security extensions
+	@
+	mrc p15, 0, r0, c0, c1, 1
+	and r0, #0xF0
+	beq 1f
+	@ - Present
+	ldr r0,=0xFFFF0000
+	mcr p15, 0, r0, c12, c0, 0      @ Set the VBAR (brings exceptions into high memory)
+	b 2f
+1:
+	@ - Absent
+	mrc p15, 0, r0, c1, c0, 0       @ Set SCTLR.V
+	orr r0, #0x2000
+	mcr p15, 0, r0, c1, c0, 0
+2:
+
+
 	@ Populate the first HWMapping address with the UART's base
 	ldr r0, =UART_BASE + 0x13
 	ldr r1, =hwmap_table_0+0
@@ -162,6 +180,34 @@ task_switch:
 @ R2: cmdline_len
 drop_to_user:
 	b .
+
+
+.globl data_abort
+data_abort:
+	sub lr, #8
+	//srsfd sp!, #23	@ Switch to exception mode, saving state
+	//srsfd sp!, #19	@ Switch to exception mode, saving state
+	ldr sp, =abort_stack
+	//push {r0-r12}	@ SP, LR, and PC not pushed
+	
+	mov r4, lr
+	ldr r0, =data_abort_message
+	mov r1, #(data_abort_message_end-data_abort_message)
+	bl puts
+	mov r0, r4
+	bl puth
+	ldr r0, =data_abort_message2
+	mov r1, #(data_abort_message2_end-data_abort_message2)
+	bl puts
+	
+	b .
+	
+	pop {r0-r12}
+	rfefd sp!
+	.long data_abort_EXIDX
+.section .ARM.exidx.data_abort
+data_abort_EXIDX:
+	.long	data_abort - data_abort_EXIDX - KERNEL_BASE, 0x80B00000
 
 .section .text
 .globl __aeabi_memcpy4
@@ -263,6 +309,13 @@ ENTRY(__aeabi_fcmpge)
 ENTRY(__aeabi_fcmpgt)
 	b .
 
+.section .rodata
+data_abort_message:	.ascii "Data Abort: "
+data_abort_message_end:
+data_abort_message2:	.ascii "\n"
+data_abort_message2_end:
+
+
 
 .section .data
 .globl dt_base
@@ -275,6 +328,8 @@ kernel_data_start:
 .section .bss
 	.space 0x2000, 0
 init_stack:
+	.space 0x1000, 0
+abort_stack:
 
 
 // Page Aligned data
@@ -324,16 +379,9 @@ kernel_exception_map:
 		.long 0
 	.endr
 	.long 0x00000000 + 0x212	@ Exceptions at 0xFFFF0000, re-map first page (TODO: Mangle this with load base instead)
-	.rept 8-1
+	.rept 16-1
 		.long 0
 	.endr
-	.long kernel_table0_ofs + 0x0000 + 0x13 @ Base fractal (0xFFFF8000)
-	.long kernel_table0_ofs + 0x1000 + 0x13
-	.long kernel_table0_ofs + 0x2000 + 0x13
-	.long kernel_table0_ofs + 0x3000 + 0x13
-	.long kernel_exception_map_ofs + 0x13	@ Self fractal (0xFFFFC000)
-	.long 0
-	.long 0
-	.long 0
+	.long 0	@ ALWAYS zero, to catch NULL-1 indexing
 .globl kernel_maps_end
 kernel_maps_end:
