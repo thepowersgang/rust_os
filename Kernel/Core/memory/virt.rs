@@ -92,6 +92,7 @@ impl ::core::iter::Iterator for Pages {
 }
 
 // Alias the arch's get_phys method into this namespace
+pub use arch::memory::virt::is_reserved;
 pub use arch::memory::virt::get_phys;
 pub use arch::memory::virt::get_info;
 

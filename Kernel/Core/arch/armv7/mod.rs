@@ -1,3 +1,8 @@
+//
+//
+//
+
+module_define!{arch, [], init}
 
 pub mod memory;
 
@@ -13,9 +18,15 @@ pub mod threads;
 
 mod fdt;
 
+mod aeabi_unwind;
+
 #[allow(improper_ctypes)]
 extern "C" {
 	pub fn drop_to_user(entry: usize, stack: usize, args_len: usize) -> !;
+}
+
+fn init()
+{
 }
 
 #[no_mangle]
@@ -86,7 +97,49 @@ pub fn cur_timestamp() -> u64 {
 	0
 }
 
+extern "C" {
+	static __exidx_start: [u32; 2];
+	static __exidx_end: ::Void;
+}
 pub fn print_backtrace() {
+	let mut rs = aeabi_unwind::UnwindState::new_cur();
+	while let Some(info) = get_unwind_info_for(rs.get_lr() as usize)
+	{
+		log_debug!("LR={:#x} info=[ {:#x}, {:#x} ]", rs.get_lr(), info[0], info[1]);
+		match rs.unwind_step(info)
+		{
+		Ok(_) => {},
+		Err(_) => return,
+		}
+	}
+}
+
+fn get_unwind_info_for(addr: usize) -> Option<&'static [u32; 2]> {
+	let base = &__exidx_start as *const _ as usize;
+	// SAFE: 'static slice
+	let exidx_tab: &[ [u32; 2] ] = unsafe { ::core::slice::from_raw_parts(&__exidx_start, (&__exidx_end as *const _ as usize - base) / (2*4)) };
+
+	let mut best = (0,0);
+	// Locate the closest entry before the return address
+	for (i,e) in exidx_tab.iter().enumerate() {
+		assert!(e[0] < 0x8000_0000);
+		let fcn_start = e[0] as usize + 0x8000_0000 + &e[0] as *const _ as usize;
+		// If before the addres
+		if fcn_start < addr {
+			// But after the previous closest
+			if fcn_start > best.0 {
+				// then use it
+				best = (fcn_start, i);
+			}
+		}
+	}
+	//log_debug!("get_unwind_info_for({:#x}) : best = ({:#x}, {})", addr, best.0, best.1);
+	if best.0 == 0 {
+		None
+	}
+	else {
+		Some( &exidx_tab[best.1] )
+	}
 }
 
 pub mod x86_io {
