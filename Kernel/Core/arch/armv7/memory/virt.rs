@@ -240,6 +240,7 @@ pub fn get_phys<T>(addr: *const T) -> ::arch::memory::PAddr {
 }
 fn get_phys_opt<T>(addr: *const T) -> Option<::arch::memory::PAddr> {
 	let res: u32;
+	// SAFE: Correct register accesses
 	unsafe {
 		// TODO: Disable interrupts during this operation
 		asm!("

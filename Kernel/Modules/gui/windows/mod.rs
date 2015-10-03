@@ -328,7 +328,10 @@ impl WindowGroup
 			let rect = match ::kernel::metadevs::video::get_display_for_pos(*pos)
 				{
 				Some(x) => x,
-				None => todo!("Handle window being off-screen"),
+				None => {
+					log_error!("TODO: Handle window being off-screen");
+					Rect::new(0,0, 0,0)
+					},
 				};
 			// - Move window to new position
 			*pos = rect.pos();

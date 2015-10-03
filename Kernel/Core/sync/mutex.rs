@@ -116,11 +116,16 @@ impl<T: Send> LazyMutex<T>
 		if lh.is_none() {
 			*lh = Some( init_fcn() );
 		}
+		else {
+			log_notice!("LazyMutex::init() called multiple times: T={}", type_name!(T));
+		}
 	}
 	/// Lock the lazy mutex
 	pub fn lock(&self) -> HeldLazyMutex<T>
 	{
-		HeldLazyMutex( self.0.lock() )
+		let lh = self.0.lock();
+		assert!(lh.is_some(), "Locking an uninitialised LazyMutex<{}>", type_name!(T));
+		HeldLazyMutex( lh )
 	}
 }
 
@@ -151,13 +156,13 @@ impl<'l,T:Send> ops::Deref for HeldLazyMutex<'l,T>
 {
 	type Target = T;
 	fn deref(&self) -> &T {
-		self.0.as_ref().unwrap()
+		self.0.as_ref().expect("Derefencing an uninitialised LazyMutex")
 	}
 }
 impl<'l,T:Send> ops::DerefMut for HeldLazyMutex<'l,T>
 {
 	fn deref_mut(&mut self) -> &mut T {
-		self.0.as_mut().unwrap()
+		self.0.as_mut().expect("Derefencing an uninitialised LazyMutex")
 	}
 }
 

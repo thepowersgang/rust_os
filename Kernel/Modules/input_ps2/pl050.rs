@@ -21,25 +21,26 @@ static S_PORTS: LazyMutex< Vec<irqs::ObjectHandle<Port>> > = lazymutex_init!();
 
 pub fn init()
 {
-	let mut lh = S_PORTS.lock();
+	let mut lh = S_PORTS.lock_init(|| Default::default());
 
 	// SAFE: Assumes the input addresses are sane
 	unsafe {
 		// Realview PB's keyboard port
-		lh.push( irqs::bind_object(20, Box::new(Port::new(0x10006000).unwrap())) );
-		lh.push( irqs::bind_object(21, Box::new(Port::new(0x10007000).unwrap())) );
+		lh.push( irqs::bind_object(20, Box::new(Port::new(0x10006000).expect("PB PS/2 #1 binding failed"))) );
+		lh.push( irqs::bind_object(21, Box::new(Port::new(0x10007000).expect("PB PS/2 #2 binding failed"))) );
 	}
 }
 
 impl Port
 {
+	#[inline(never)]
 	unsafe fn new(addr: ::kernel::memory::PAddr) -> Result<Port, ::kernel::memory::virt::MapError> {
 		let mut p = Port {
 			base: try!( ::kernel::memory::virt::map_hw_rw(addr, 1, "PL050") ),
 			dev: super::PS2Dev::None,
 			};
 
-		// ???
+		// TODO: Unknown what this does, Acess did it.
 		p.base.as_mut_slice(0, 4)[0] = 0x10;
 
 		Ok(p)

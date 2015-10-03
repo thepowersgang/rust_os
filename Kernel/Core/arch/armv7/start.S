@@ -3,6 +3,8 @@
 @
 #define KERNEL_BASE	0x80000000
 
+#define ENTRY(v)	.globl v; v:
+
 #if 1 || defined(PLATFORM_qemuvirt)
 # define UART_BASE	0x09000000
 # define RAM_START	0x40000000
@@ -66,6 +68,9 @@ start:
 	mov r1, #0
 	ldr r2, =__bss_len
 	bl __aeabi_memset4
+	sub r0, r12
+	cmp r0, #0x100000
+	bgt data_segment_too_large
 	
 prep_page_tables:
 	// 1. Prepare VMSA State
@@ -140,6 +145,15 @@ vmsa_setup:
 	
 	ldr sp, =init_stack
 	ldr pc, =kmain
+
+data_segment_too_large:
+	mov r1, #'D' ; str r1, [r0]
+	mov r1, #'A' ; str r1, [r0]
+	mov r1, #'T' ; str r1, [r0]
+	mov r1, #'A' ; str r1, [r0]
+	mov r1, #'!' ; str r1, [r0]
+	b .
+
 
 .section .text
 .globl thread_trampoline
@@ -228,6 +242,8 @@ __aeabi_memcpy:
 	SUBS r2, r2, #1
 	BGE 1b
 	BX lr
+ENTRY(memcpy)
+	b __aeabi_memcpy
 
 .globl __aeabi_memset4
 .globl __aeabi_memset8
@@ -259,6 +275,9 @@ __aeabi_memset:
 	bne 1b
 2:
 	bx lr
+ENTRY(memset)
+	b __aeabi_memset
+
 .globl __aeabi_memclr
 __aeabi_memclr:
 	MOV r2, #0
@@ -293,8 +312,6 @@ __aeabi_unwind_cpp_pr0:
 __aeabi_unwind_cpp_pr1:
 	b .
 
-
-#define ENTRY(v)	.globl v; v:
 
 ENTRY(__aeabi_dcmplt)
 ENTRY(__aeabi_dcmple)

@@ -132,9 +132,12 @@ impl IRQBinding
 		// TODO: Use a better function, needs to handle IRQ routing etc.
 		// - In theory, the IRQ num shouldn't be a u32, instead be an opaque IRQ index
 		//   that the arch code understands (e.g. value for PciLineA that gets translated into an IOAPIC line)
-		rv.arch_handle = interrupts::bind_gsi(
-			num as usize, IRQBinding::handler_raw, &*rv as *const IRQBinding as *const ()
-			).unwrap();
+		let context = &*rv as *const IRQBinding as *const ();
+		rv.arch_handle = match interrupts::bind_gsi(num as usize, IRQBinding::handler_raw, context)
+			{
+			Ok(v) => v,
+			Err(e) => panic!("Unable to bind handler to GSI {}: {:?}", num, e),
+			};
 		rv
 	}
 	

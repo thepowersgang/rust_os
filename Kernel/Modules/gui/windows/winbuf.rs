@@ -78,15 +78,20 @@ impl WinBuf
 	/// Obtain a Range<usize> given a scanline reference
 	fn scanline_range(&self, line: usize, ofs: usize, len: usize) -> ::core::ops::Range<usize>
 	{
-		assert!(ofs < self.dims.width() as usize);
-		assert!(line < self.dims.h as usize, "Requested scanline is out of range");
-		
-		let pitch_32 = self.dims.width() as usize;
-		let len = ::core::cmp::min(len, pitch_32 - ofs);
-		
-		let l_ofs = line * pitch_32;
-		
-		l_ofs + ofs .. l_ofs + ofs + len
+		if self.dims.width() == 0 {
+			0 .. 0
+		}
+		else {
+			assert!(ofs < self.dims.width() as usize, "Offset {} outside width of window buffer ({})", ofs, self.dims.width());
+			assert!(line < self.dims.h as usize, "Scanline {} outside height of window buffer ({})", line, self.dims.h);
+			
+			let pitch_32 = self.dims.width() as usize;
+			let len = ::core::cmp::min(len, pitch_32 - ofs);
+			
+			let l_ofs = line * pitch_32;
+			
+			l_ofs + ofs .. l_ofs + ofs + len
+		}
 	}
 	
 	pub fn scanline_rgn(&self, line: usize, ofs: usize, len: usize) -> &[u32]

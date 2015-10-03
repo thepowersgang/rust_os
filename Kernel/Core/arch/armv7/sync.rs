@@ -50,7 +50,13 @@ impl<T> Spinlock<T>
 			}
 	}
 	pub fn try_lock_cpu(&self) -> Option<HeldSpinlock<T>> {
-		todo!("");
+		// TODO: Ensure that this CPU isn't holding the lock
+		if self.flag.swap(true, Ordering::Acquire) == false {
+			Some( HeldSpinlock { _ptr: self } )
+		}
+		else {
+			None
+		}
 	}
 }
 

@@ -27,6 +27,7 @@ extern "C" {
 
 fn init()
 {
+	interrupts::init();
 }
 
 #[no_mangle]

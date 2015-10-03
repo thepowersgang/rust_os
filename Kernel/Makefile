@@ -182,7 +182,7 @@ endif
 
 %.dsm: %
 	@echo "[OBJDUMP] >" $*.dsm
-	$V$(TRIPLE)-objdump -s -Cg -S $* > $*.dsm
+	$V$(TRIPLE)-objdump -s -C -S $* > $*.dsm
 
 # Assembly
 $(OBJDIR)%.ao: Core/arch/$(ARCH)/%.asm

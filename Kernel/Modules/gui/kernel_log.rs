@@ -88,7 +88,14 @@ impl KernelLog
 	{
 		// TODO: Register to somehow be informed when dimensions change
 		// - Is this particular call bad for bypassing the GUI? Or is this acceptable
-		let max_dims = ::kernel::metadevs::video::get_display_for_pos( Pos::new(0,0) ).expect("No display at (0,0)").dims();
+		let max_dims = match ::kernel::metadevs::video::get_display_for_pos( Pos::new(0,0) )
+			{
+			Some(display) => display.dims(),
+			None => {
+				log_warning!("No display at (0,0)");
+				Dims::new(0,0)
+				},
+			};
 	
 		// Kernel's window group	
 		let mut wgh = WindowGroupHandle::alloc("Kernel");
@@ -106,10 +113,13 @@ impl KernelLog
 		logo_wh.set_pos(Pos::new(max_dims.w-dims.w, 0));
 		logo_wh.resize(dims);
 		logo_wh.blit_rect( Rect::new_pd(Pos::new(0,0),dims), &S_LOGO_DATA, dims.w as usize );
-		
-		// > Show windows in reverse render order
-		wh.show();
-		logo_wh.show();
+			
+		if max_dims != Dims::new(0,0)
+		{
+			// > Show windows in reverse render order
+			wh.show();
+			logo_wh.show();
+		}
 		
 		// Return struct populated with above handles	
 		KernelLog {
@@ -174,6 +184,10 @@ impl KernelLog
 	/// Actually does the rendering
 	fn render_char(&mut self, pos: CharPos, colour: Colour, cp: char)
 	{
+		if self.buffer_handle.dims().width() == 0 {
+			return ;
+		}
+
 		let idx = unicode_to_cp437(cp);
 		//log_trace!("KernelLog::render_char({:?}, {:?}, '{}') idx={}", pos, colour, cp, idx);
 		

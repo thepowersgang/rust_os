@@ -22,6 +22,14 @@ enum BootInfo
 static S_FDT: LazyStatic<BootInfo> = LazyStatic::new();
 static mut S_MEMMAP_DATA: [::memory::MemoryMapEnt; 16] = [::memory::MAP_PAD; 16];
 
+pub fn get_fdt() -> Option<&'static FDTRoot<'static>> {
+	match get_boot_info()
+	{
+	&BootInfo::FDT(ref fdt) => Some(fdt),
+	_ => None,
+	}
+}
+
 fn get_boot_info() -> &'static BootInfo {
 	if ! S_FDT.ls_is_valid() {
 		// SAFE: Shouldn't be called in a racy manner
