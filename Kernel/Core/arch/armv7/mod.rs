@@ -17,6 +17,7 @@ pub mod pci;
 pub mod threads;
 
 mod fdt;
+mod fdt_devices;
 
 mod aeabi_unwind;
 

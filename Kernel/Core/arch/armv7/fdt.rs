@@ -57,9 +57,10 @@ impl<'a> FDTRoot<'a>
 			Tag::EndNode => log_debug!("</>"),
 			Tag::Prop(name, data) => match name
 				{
-				"bootargs" => log_debug!(".{} = {:?}", name, ::core::str::from_utf8(data)),
+				"bootargs" |
 				"stdout-path" |
 				"device_type" |
+				"clock-names" |
 				"compatible"
 					=> log_debug!(".{} = {:?}", name, ::core::str::from_utf8(data)),
 				_ => log_debug!(".{} = {:?}", name, data),
@@ -70,6 +71,17 @@ impl<'a> FDTRoot<'a>
 		}
 	}
 
+	/// Return all immediate child nodes of the passed path
+	pub fn get_nodes<'s,'p>(&'s self, path: &'p [&'p str]) -> NodesIter<'s, 'a, 'p> {
+		NodesIter {
+			fdt: self,
+			path: path,
+			offset: 0,
+			path_depth: 0,
+			cur_depth: 0,
+		}
+	}
+	/// Return all properties matching the passed path
 	pub fn get_props<'s,'p>(&'s self, path: &'p [&'p str]) -> PropsIter<'s, 'a, 'p> {
 		PropsIter {
 			fdt: self,
@@ -183,6 +195,122 @@ impl<'a,'fdt, 'b> Iterator for PropsIter<'a, 'fdt, 'b>
 			Tag::End => return None,
 			Tag::Nop => {},
 			}
+		}
+	}
+}
+
+struct NodesIter<'a,'fdt: 'a,'b> {
+	fdt: &'a FDTRoot<'fdt>,
+	path: &'b [&'b str],
+	offset: usize,
+	path_depth: u8,
+	cur_depth: u8,
+}
+impl<'a,'fdt, 'b> Iterator for NodesIter<'a, 'fdt, 'b>
+{
+	type Item = Node<'a,'fdt>;
+	fn next(&mut self) -> Option<Self::Item>
+	{
+		// Last item in self.path is the property name
+		let path_nodes_len = self.path.len() as u8;
+
+		loop
+		{
+			let (tag, next_ofs) = self.fdt.next_tag(self.offset);
+			self.offset = next_ofs;
+			match tag
+			{
+			Tag::BeginNode(name) => {
+				//log_trace!("BeginNode name = '{}' ({},{}) < {}", name, self.path_depth, self.cur_depth, path_nodes_len);
+				if self.path_depth == self.cur_depth && self.path_depth < path_nodes_len {
+					//log_trace!(" - '{}' == '{}'", name, self.path[self.path_depth as usize]);
+					if name == self.path[self.path_depth as usize] {
+						// Increment both path and cur depth
+						self.path_depth += 1;
+					}
+				}
+				self.cur_depth += 1;
+				if self.path_depth + 1 == self.cur_depth && self.path_depth == path_nodes_len {
+					return Some(Node { fdt: self.fdt, offset: self.offset, name: name });
+				}
+				},
+			Tag::EndNode => {
+				//log_trace!("EndNode ({},{})", self.path_depth, self.cur_depth);
+				if self.path_depth == self.cur_depth {
+					assert!(self.path_depth > 0);
+					self.path_depth -= 1;
+				}
+				self.cur_depth -= 1;
+				},
+			Tag::Prop(..) => { },
+			Tag::End => return None,
+			Tag::Nop => {},
+			}
+		}
+	}
+}
+
+pub struct Node<'a, 'fdt: 'a>
+{
+	fdt: &'a FDTRoot<'fdt>,
+	offset: usize,
+	name: &'fdt str,
+}
+impl<'a, 'fdt: 'a> Node<'a, 'fdt>
+{
+	pub fn name(&self) -> &'fdt str { self.name }
+
+	pub fn items(&self) -> SubNodes<'a, 'fdt> {
+		SubNodes {
+			fdt: self.fdt,
+			offset: self.offset,
+		}
+	}
+}
+
+pub enum Item<'a, 'fdt: 'a> {
+	Node(Node<'a, 'fdt>),
+	Prop(&'fdt [u8]),
+}
+pub struct SubNodes<'a, 'fdt: 'a>
+{
+	fdt: &'a FDTRoot<'fdt>,
+	offset: usize,
+}
+impl<'a, 'fdt: 'a> Iterator for SubNodes<'a, 'fdt> {
+	type Item = (&'fdt str, Item<'a, 'fdt>);
+	fn next(&mut self) -> Option<Self::Item>
+	{
+		let (tag, next_ofs) = self.fdt.next_tag(self.offset);
+		self.offset = next_ofs;
+		match tag
+		{
+		Tag::BeginNode(name) => {
+			let rv = Node { fdt: self.fdt, offset: self.offset, name: name };
+			let mut level = 0;
+			loop {
+				let (tag, next_ofs) = self.fdt.next_tag(self.offset);
+				self.offset = next_ofs;
+				match tag
+				{
+				Tag::BeginNode(_) => level += 1,
+				Tag::EndNode =>
+					if level == 0 {
+						break;
+					}
+					else {
+						level -= 1;
+					},
+				Tag::End => break,
+				_ => {},
+				}
+			}
+			Some( (name, Item::Node(rv)) )
+			},
+		Tag::EndNode => None,
+		Tag::Prop(name, value) => Some( (name, Item::Prop(value)) ),
+		Tag::End => None,
+		Tag::Nop => Some( ("", Item::Prop(&[])) ),
 		}
 	}
 }
