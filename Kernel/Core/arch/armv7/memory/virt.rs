@@ -5,6 +5,10 @@
 use memory::virt::ProtectionMode;
 use arch::memory::PAddr;
 
+pub fn post_init() {
+	kernel_table0[0].store(0);
+}
+
 /// Atomic 32-bit integer, used for table entries
 #[repr(C)]
 struct AtomicU32(::core::cell::UnsafeCell<u32>);

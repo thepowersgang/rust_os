@@ -20,20 +20,6 @@ pub struct HeldSpinlock<'a, T: 'a> {
 	_ptr: &'a Spinlock<T>
 }
 
-fn acquire(flag: &AtomicBool) {
-	//super::puts("lock()\n");
-	//super::puts("lock() flag = ");
-	//super::puth(flag.load(Ordering::Relaxed) as u64);
-	//super::puts(", flag = ");
-	//super::puth(flag as *const AtomicBool as usize as u64);
-	//super::puts("\n");
-	
-	while flag.swap(true, Ordering::Acquire) {
-		// ...
-	}
-	//super::puts("- Locked\n");
-}
-
 impl<T> Spinlock<T>
 {
 	pub const fn new(v: T) -> Spinlock<T> {
@@ -44,7 +30,14 @@ impl<T> Spinlock<T>
 	}
 
 	pub fn lock(&self) -> HeldSpinlock<T> {
-		acquire(&self.flag);
+		while self.flag.swap(true, Ordering::Acquire) {
+			// TODO: Once SMP is a thing, this should spin.
+			super::puts(" <<Lock "); super::puth(self as *const _ as usize as u64); super::puts(": "); super::puts(type_name!(T)); super::puts(" contended>> ");
+			if type_name!(T) != "logging::Sinks" {
+				panic!("");
+			}
+			break ;
+		}
 		HeldSpinlock {
 			_ptr: self
 			}
@@ -78,8 +71,8 @@ impl<'a, T: 'a> ::core::ops::DerefMut for HeldSpinlock<'a, T>
 }
 impl<'a, T: 'a> ::core::ops::Drop for HeldSpinlock<'a, T> {
 	fn drop(&mut self) {
-		let v = self._ptr.flag.swap(false, Ordering::Release);
-		assert!(v);
+		assert!( self._ptr.flag.load(Ordering::Relaxed) );
+		self._ptr.flag.store(false, Ordering::Release);
 	}
 }
 

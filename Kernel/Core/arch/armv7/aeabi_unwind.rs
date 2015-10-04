@@ -4,10 +4,13 @@ pub struct UnwindState {
 	vsp: u32,
 }
 
+#[derive(Debug)]
+#[allow(raw_pointer_derive)]
 pub enum Error
 {
 	Refuse,	// Not an error
 	Malformed,
+	BadPointer(*const (),usize),
 	Todo,
 }
 
@@ -29,6 +32,12 @@ impl UnwindState {
 					],
 				vsp: { let v; asm!("mov $0, sp" : "=r" (v)); v },
 			}
+		}
+	}
+	pub fn from_regs(regs: [u32; 16]) -> UnwindState {
+		UnwindState {
+			regs: regs,
+			vsp: regs[13],
 		}
 	}
 
@@ -56,6 +65,7 @@ impl UnwindState {
 			// SAFE: Validity checked
 			let word = unsafe {
 				if ! ::memory::virt::is_reserved(ptr) {
+					log_error!("BUG: Malformed entry at {:#x} - ptr={:p}", base+4, ptr);
 					return Err( Error::Malformed );
 				}
 				*ptr
@@ -65,20 +75,36 @@ impl UnwindState {
 					log_error!("BUG: Malformed entry at {:p}: SBZ bits set 0x{:x} != 0x8", ptr, word >> 28);
 					return Err( Error::Malformed );
 				}
-				match (word >> 24) & 0xF
+				let personality = (word >> 24) & 0xF;
+				let words = if personality == 1 || personality == 2 {
+						let word_count = (word >> 16) & 0xff;
+						// SAFE: Will be checked
+						let words_ptr = unsafe { ptr.offset(1) };
+						// SAFE: Lifetime is 'static, data is POD
+						match unsafe { ::memory::buf_to_slice(words_ptr, word_count as usize) }
+						{
+						Some(b) => b,
+						None => {
+							log_error!("BUG: Malformed entry at {:p}: {} words not valid afterwards", ptr, word_count);
+							return Err( Error::Malformed );
+							},
+						}
+					}
+					else {
+						&[] as &[u32]
+					};
+
+				match personality
 				{
 				0 => {
 					try!( self.unwind_short16(word) );
 					},
 				1 => {
-					let word_count = (word >> 16) & 0xff;
-					// SAFE: Lifetime is 'static, data is POD
-					try!( self.unwind_long16(word, unsafe { try!(::memory::buf_to_slice(ptr.offset(1), word_count as usize).ok_or(Error::Malformed)) }) );
+					try!( self.unwind_long16(word, words) );
 					},
 				2 => {
-					let word_count = (word >> 16) & 0xff;
 					// SAFE: Lifetime is 'static, data is POD
-					try!( self.unwind_long32(word, unsafe { try!(::memory::buf_to_slice(ptr.offset(1), word_count as usize).ok_or(Error::Malformed)) }) );
+					try!( self.unwind_long32(word, words) );
 					},
 				v @ _ => {
 					log_error!("TODO: Handle extra-word compact v={}", v);
@@ -100,7 +126,8 @@ impl UnwindState {
 		let v = unsafe {
 			let ptr = self.vsp as *const u32;
 			if ! ::memory::virt::is_reserved(ptr) {
-				return Err( Error::Malformed );
+				log_error!("BUG: Stack pointer {:p} invalid", ptr);
+				return Err( Error::BadPointer(ptr as *const (), 4) );
 			}
 			*ptr
 			};
@@ -127,6 +154,7 @@ impl UnwindState {
 			},
 		0x8 => {	// ARM_EXIDX_CMD_REG_POP
 			let extra = try!( getb() );
+			//let extra = getb().unwrap_or(0);
 			if byte == 0x80 && extra == 0x00 {
 				// Refuse to unwind
 				return Err( Error::Refuse );
@@ -185,7 +213,6 @@ impl UnwindState {
 		Ok( () )
 	}
 	pub fn unwind_long16(&mut self, instrs: u32, extra: &[u32]) -> Result<(), Error> {
-		let bytes = [ ((instrs >> 8) & 0xFF) as u8, (instrs & 0xFF) as u8 ];
 		let mut it = WordBytesLE(instrs, 2).chain( extra.iter().flat_map(|w| WordBytesLE(*w, 4)) );
 		while let Some(b) = it.next()
 		{
@@ -215,3 +242,37 @@ impl ::core::iter::Iterator for WordBytesLE {
 	}
 }
 
+
+pub fn get_unwind_info_for(addr: usize) -> Option<&'static [u32; 2]>
+{
+	extern "C" {
+		static __exidx_start: [u32; 2];
+		static __exidx_end: ::Void;
+	}
+
+	let base = &__exidx_start as *const _ as usize;
+	// SAFE: 'static slice
+	let exidx_tab: &[ [u32; 2] ] = unsafe { ::core::slice::from_raw_parts(&__exidx_start, (&__exidx_end as *const _ as usize - base) / (2*4)) };
+
+	let mut best = (0,0);
+	// Locate the closest entry before the return address
+	for (i,e) in exidx_tab.iter().enumerate() {
+		assert!(e[0] < 0x8000_0000);
+		let fcn_start = e[0] as usize + 0x8000_0000 + &e[0] as *const _ as usize;
+		// If before the addres
+		if fcn_start < addr {
+			// But after the previous closest
+			if fcn_start > best.0 {
+				// then use it
+				best = (fcn_start, i);
+			}
+		}
+	}
+	//log_debug!("get_unwind_info_for({:#x}) : best = ({:#x}, {})", addr, best.0, best.1);
+	if best.0 == 0 {
+		None
+	}
+	else {
+		Some( &exidx_tab[best.1] )
+	}
+}

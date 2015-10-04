@@ -148,6 +148,11 @@ impl<C: Counter, T: ?Sized + fmt::Debug> fmt::Debug for Grc<C, T> {
 		<T as fmt::Debug>::fmt(&**self, f)
 	}
 }
+impl<C: Counter, T> fmt::Pointer for Grc<C, T> {
+	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+		<_ as fmt::Pointer>::fmt(&*self.ptr, f)
+	}
+}
 
 impl<C: Counter, T: ?Sized> ops::Drop for Grc<C, T>
 {

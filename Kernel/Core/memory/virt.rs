@@ -72,6 +72,7 @@ static S_TEMP_FREE: ::sync::Semaphore = ::sync::Semaphore::new(NUM_TEMP_SLOTS as
 pub fn init()
 {
 	// 1. Tell the architecture-specific VMM that it can clean up init state
+	::arch::memory::virt::post_init();
 	// 2. ???
 }
 

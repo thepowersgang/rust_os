@@ -142,6 +142,11 @@ vmsa_setup:
 	ldr r0, =dt_base
 	str r11, [r0]	@ R11 was set back at the start to be the DT base
 	str r12, [r0, #4]
+
+	
+	cps #23	@ Switch to 'abort' mode
+	ldr sp, =abort_stack
+	cps #19	@ Back to supervisor
 	
 	ldr sp, =init_stack
 	ldr pc, =kmain
@@ -158,8 +163,8 @@ data_segment_too_large:
 .section .text
 .globl thread_trampoline
 thread_trampoline:
-	pop {r1}
-	mov r0, sp
+	pop {r1}	@ "thread_root" (generic over closure type)
+	pop {r0}	@ Pop pointer to the closure
 	bx r1
 .globl task_switch
 @ R0: Old stack save location
@@ -174,9 +179,9 @@ task_switch:
 
 	@ Only update TTBR0 if the task has an explicit address space
 	tst r2, r2
-	mcrne p15, 0, r1, c2, c0, 0	@ Set TTBR0 to r0
-	@mov r1, #1
-	@mcrne p15, 0, r1, c8, c7, 0	@ TLBIALL - Invalid user space
+	mcrne p15,0, r2, c2,c0,0	@ Set TTBR0 to r2
+	@mov r2, #1
+	@mcrne p15,0, r2, c8,c7,0	@ TLBIALL - Invalid user space
 
 	@ Set new thread pointer
 	mcr p15, 0, r4, c13,c0,4	@ TPIDRPRW
@@ -198,30 +203,54 @@ drop_to_user:
 
 .globl data_abort
 data_abort:
-	sub lr, #8
-	//srsfd sp!, #23	@ Switch to exception mode, saving state
-	//srsfd sp!, #19	@ Switch to exception mode, saving state
-	ldr sp, =abort_stack
-	//push {r0-r12}	@ SP, LR, and PC not pushed
+	srsfd sp!, #0x17	@ Save state, using 'abort' mode stack
+	push {r0-r12}	@ SP, LR, and PC not pushed
 	
-	mov r4, lr
-	ldr r0, =data_abort_message
-	mov r1, #(data_abort_message_end-data_abort_message)
-	bl puts
-	mov r0, r4
-	bl puth
-	ldr r0, =data_abort_message2
-	mov r1, #(data_abort_message2_end-data_abort_message2)
-	bl puts
+	ldr r0, [sp, #4*13+4]
+	and r0, #0x1F
+	cmp r0, #0x10	@ 0x10 = user
+	cmpne r0, #0x13	@ 
+	bne not_known_mode
+	cmp r0, #0x10	@ 0x10 = user
+	beq 1f
+	cps #0x13 	@ 0x13 = supervisor (kernel)
+	mov r1, sp
+	mov r2, lr
+	b 2f
+1:
+	cps #0x1F 	@ 0x1F = "System" (user regs, kernel privs)
+	mov r1, sp
+	mov r2, lr
+2:
+	cps #23 	@ Switch back to abort mode
+	
+	push {r1,r2}	@ Push SP and LR
+	
+	mov r0, lr
+	sub r0, #8
+	mov r1, sp
+	mrc p15,0, r2, c6,c0,0
+	mrc p15,0, r3, c5,c0,0
+	bl data_abort_handler
 	
 	b .
 	
 	pop {r0-r12}
 	rfefd sp!
 	.long data_abort_EXIDX
+not_known_mode:
+	b .
 .section .ARM.exidx.data_abort
 data_abort_EXIDX:
-	.long	data_abort - data_abort_EXIDX - KERNEL_BASE, 0x80B00000
+	.long	data_abort - data_abort_EXIDX - 0x80000000
+	@.long	0x800384FF
+	.long	data_abort_EXTAB - . - 0x80000000
+.section .ARM.extab.data_abort
+data_abort_EXTAB:
+	.long	0x81028600	@ POP {SP, LR}
+	.long	0x81FFB10F	@ POP {r4-r12}, POP {r0-r3}
+	@.long	0x880000B0	@ POP {r15}, VSP+=4, END
+	.long	0x01B0B0B0	@ VSP+=8, END
 
 .section .text
 .globl __aeabi_memcpy4

@@ -35,6 +35,17 @@ fn init()
 	// None needed, just dependencies
 }
 
+#[inline(always)]
+pub fn checkmark() {
+	// SAFE: nop ASM
+	unsafe { asm!("xchg %bx, %bx" : : : "memory" : "volatile"); }
+}
+#[inline(always)]
+pub fn checkmark_val<T>(v: *const T) {
+	// SAFE: nop ASM (TODO: Ensure)
+	unsafe { asm!("xchg %bx, %bx; mov $0,$0" : : "r"(v) : "memory" : "volatile"); }
+}
+
 #[allow(improper_ctypes)]
 extern "C" {
 	pub fn drop_to_user(entry: usize, stack: usize, cmdline_len: usize) -> !;

@@ -27,6 +27,11 @@ extern "C" {
 	static InitialPML4: [u64; 512];
 }
 
+pub fn post_init() {
+	// TODO: Clear initial mapping
+}
+
+
 #[derive(PartialEq,Debug)]
 enum PTEPos
 {

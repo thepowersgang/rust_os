@@ -77,6 +77,11 @@ impl<T: ?Sized + fmt::Debug> fmt::Debug for Arc<T> {
 		<T as fmt::Debug>::fmt(&**self, f)
 	}
 }
+impl<T> fmt::Pointer for Arc<T> {
+	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+		<_ as fmt::Pointer>::fmt(&self._inner, f)
+	}
+}
 
 impl<T: ?Sized> ops::Deref for Arc<T>
 {

@@ -20,6 +20,17 @@ mod fdt;
 
 mod aeabi_unwind;
 
+#[inline(always)]
+pub fn checkmark() {
+	// SAFE: nop ASM
+	unsafe { asm!("mov r1, r1" : : : "memory" : "volatile"); }
+}
+#[inline(always)]
+pub fn checkmark_val<T>(v: *const T) {
+	// SAFE: nop ASM
+	unsafe { asm!("mov r1, r1; mov $0,$0" : : "r"(v) : "memory" : "volatile"); }
+}
+
 #[allow(improper_ctypes)]
 extern "C" {
 	pub fn drop_to_user(entry: usize, stack: usize, args_len: usize) -> !;
@@ -98,49 +109,53 @@ pub fn cur_timestamp() -> u64 {
 	0
 }
 
-extern "C" {
-	static __exidx_start: [u32; 2];
-	static __exidx_end: ::Void;
-}
 pub fn print_backtrace() {
-	let mut rs = aeabi_unwind::UnwindState::new_cur();
-	while let Some(info) = get_unwind_info_for(rs.get_lr() as usize)
+	let rs = aeabi_unwind::UnwindState::new_cur();
+	let addr = rs.get_lr() as usize;
+	print_backtrace_unwindstate(rs, addr);
+}
+fn print_backtrace_unwindstate(mut rs: aeabi_unwind::UnwindState, mut addr: usize)
+{
+	while let Some(info) = aeabi_unwind::get_unwind_info_for(addr)
 	{
 		log_debug!("LR={:#x} info=[ {:#x}, {:#x} ]", rs.get_lr(), info[0], info[1]);
 		match rs.unwind_step(info)
 		{
 		Ok(_) => {},
-		Err(_) => return,
+		Err(e) => {
+			log_debug!("- Error {:?}", e);
+			return;
+			},
 		}
+		addr = rs.get_lr() as usize;
 	}
+	log_debug!("- LR={:#x}", rs.get_lr());
 }
 
-fn get_unwind_info_for(addr: usize) -> Option<&'static [u32; 2]> {
-	let base = &__exidx_start as *const _ as usize;
-	// SAFE: 'static slice
-	let exidx_tab: &[ [u32; 2] ] = unsafe { ::core::slice::from_raw_parts(&__exidx_start, (&__exidx_end as *const _ as usize - base) / (2*4)) };
 
-	let mut best = (0,0);
-	// Locate the closest entry before the return address
-	for (i,e) in exidx_tab.iter().enumerate() {
-		assert!(e[0] < 0x8000_0000);
-		let fcn_start = e[0] as usize + 0x8000_0000 + &e[0] as *const _ as usize;
-		// If before the addres
-		if fcn_start < addr {
-			// But after the previous closest
-			if fcn_start > best.0 {
-				// then use it
-				best = (fcn_start, i);
-			}
-		}
-	}
-	//log_debug!("get_unwind_info_for({:#x}) : best = ({:#x}, {})", addr, best.0, best.1);
-	if best.0 == 0 {
-		None
-	}
-	else {
-		Some( &exidx_tab[best.1] )
-	}
+#[repr(C)]
+pub struct AbortRegs
+{
+	sp: u32,
+	lr: u32,
+	gprs: [u32; 13],	// R0-R12
+	ret_pc: u32,	// SRSFD/RFEFD state
+	spsr: u32,
+}
+#[no_mangle]
+pub fn data_abort_handler(pc: u32, reg_state: &AbortRegs, dfar: u32, dfsr: u32) {
+
+	log_warning!("Data abort by {:#x} address {:#x} status {:#x}", pc, dfar, dfsr);
+	//log_debug!("Registers:");
+	//log_debug!("R 0 {:08x}  R 1 {:08x}  R 2 {:08x}  R 3 {:08x}  R 4 {:08x}  R 5 {:08x}}  R 6 {:08x}", reg_state.gprs[0]);
+	
+	let rs = aeabi_unwind::UnwindState::from_regs([
+		reg_state.gprs[0], reg_state.gprs[1], reg_state.gprs[ 2], reg_state.gprs[3],
+		reg_state.gprs[4], reg_state.gprs[5], reg_state.gprs[ 6], reg_state.gprs[7],
+		reg_state.gprs[8], reg_state.gprs[9], reg_state.gprs[10], reg_state.gprs[11],
+		reg_state.gprs[12], reg_state.sp, reg_state.lr, reg_state.ret_pc,
+		]);
+	print_backtrace_unwindstate(rs, pc as usize);
 }
 
 pub mod x86_io {

@@ -77,6 +77,11 @@ pub fn switch_to(thread: Box<Thread>) {
 	}
 }
 pub fn idle() {
+	log_trace!("idle");
+	// SAFE: Calls 'wait for interrupt'
+	unsafe {
+		asm!("wfi" : : : : "volatile");
+	}
 }
 
 pub fn start_thread<F: FnOnce()+Send+'static>(thread: &mut ::threads::Thread, code: F) {
@@ -84,6 +89,10 @@ pub fn start_thread<F: FnOnce()+Send+'static>(thread: &mut ::threads::Thread, co
 
 	// 2. Populate stack with `code`
 	stack.push(code);
+	log_debug!("stack.pos() = {:#x}", stack.pos());
+	let a = stack.pos();
+	stack.align(8);
+	stack.push(a);
 	
 	// 3. Populate with task_switch state
 	// - Root function defined below
@@ -139,6 +148,14 @@ impl StackInit {
 		unsafe {
 			::core::ptr::write(p as *mut T, v);
 		}
+		self.top = p;
+	}
+	fn pos(&self) -> usize {
+		self.top
+	}
+	fn align(&mut self, bytes: usize) {
+		let mut p = self.top;
+		p -= p % bytes;
 		self.top = p;
 	}
 }

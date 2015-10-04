@@ -52,6 +52,10 @@ pub mod memory {
 		
 		pub type AddressSpace = imp::AddressSpace;
 
+		pub fn post_init() {
+			imp::post_init()
+		}
+
 		#[inline]
 		pub fn get_phys<T>(p: *const T) -> ::memory::PAddr {
 			imp::get_phys(p)
