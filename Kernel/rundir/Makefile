@@ -38,12 +38,14 @@ run: DiskImages/hda.img .qemu_trace
 # --- ARMv7 ---
 #
 else ifeq ($(ARCH),armv7)
+QEMU_ARGS += -net nic
+QEMU_ARGS += -drive index=0,file=DiskImages/hda.img,format=raw
 #QEMU_ARGS += -device pl110
 #QEMU_ARGS += -device virtio-gpu-device
 
 MACHINE_TYPE := realview-pb-a8
 MACHINE_TYPE := virt
-run:
+run: DiskImages/hda.img
 	qemu-system-arm -machine $(MACHINE_TYPE) $(QEMU_ARGS) -kernel ../bin/kernel-armv7.bin -append "$(CMDLINE)" | tee QemuLog.txt
 endif
 

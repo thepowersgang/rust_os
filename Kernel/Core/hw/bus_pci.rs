@@ -95,29 +95,31 @@ impl ::device_manager::BusDevice for PCIDev
 	fn addr(&self) -> u32 {
 		self.addr as u32
 	}
-	fn get_attr(&self, name: &str) -> u32 {
+	fn get_attr(&self, name: &str) -> ::device_manager::AttrValue {
+		use device_manager::AttrValue;
 		match name
 		{
-		"vendor" => self.vendor as u32,
-		"device" => self.device as u32,
-		"class" => self.class,
-		"bus_master" => if self.config[1] & 4 == 0 { 0 } else { 1 },
+		"vendor" => AttrValue::U32(self.vendor as u32),
+		"device" => AttrValue::U32(self.device as u32),
+		"class" => AttrValue::U32(self.class),
+		"bus_master" => AttrValue::U32(if self.config[1] & 4 == 0 { 0 } else { 1 }),
 		_ => {
 			log_warning!("Request for non-existant attr '{}' on device 0x{:05x}", name, self.addr);
-			0
+			AttrValue::None
 			},
 		}
 	}
-	fn set_attr(&mut self, name: &str, value: u32) {
-		match name
+	fn set_attr(&mut self, name: &str, value: ::device_manager::AttrValue) {
+		use device_manager::AttrValue;
+		match (name,value)
 		{
-		"vendor"|
-		"device"|
-		"class" => {
+		("vendor", _)|
+		("device", _)|
+		("class", _) => {
 			log_warning!("Attempting to set read-only attr '{}' on device {:#05x}", name, self.addr);
 			},
 		// Enable/Disable PCI bus-mastering support
-		"bus_master" => {
+		("bus_master", AttrValue::U32(value)) => {
 			if value != 0 {
 				self.config[1] |= 4;
 			}

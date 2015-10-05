@@ -1,7 +1,20 @@
 //
 //
 //
+use prelude::*;
+use super::fdt;
+
 module_define!{FDTDevices, [], init}
+
+struct BusManager;
+static S_BUS_MANAGER: BusManager = BusManager;
+struct BusDev
+{
+	node: fdt::Node<'static, 'static>,
+	compat: &'static str,
+	mmio: Option< (u64, u32) >,
+	irq_gsi: Option<u32>,
+}
 
 fn init() {
 	if let Some(fdt) = super::boot::get_fdt()
@@ -9,37 +22,80 @@ fn init() {
 		let root_node = fdt.get_nodes(&[]).next().unwrap();
 		let (scells,) = decode_value(&root_node, "#size-cells", (1,)).unwrap_or( (0,) );
 		let (acells,) = decode_value(&root_node, "#address-cells", (1,)).unwrap_or( (0,) );
+
+		let mut devices: Vec<Box<::device_manager::BusDevice>> = Vec::new();
 		for dev in fdt.get_nodes(&[""])
 		{
-			use super::fdt::Item;
-			if let Some(compat) = dev.items().filter_map(|r| match r { ("compatible", Item::Prop(v)) => Some(v), _ => None }).next()
+			if let Some(compat) = dev.items().filter_map(|r| match r { ("compatible", fdt::Item::Prop(v)) => Some(v), _ => None }).next()
 			{
 				let compat = ::core::str::from_utf8(compat).unwrap_or("");
 				
 				log_debug!("dev '{}' compat = '{}'", dev.name(), compat);
-				if let Some( (io_base, io_size) ) = decode_value(&dev, "reg", (acells, scells)) {
-					log_debug!("- IO {:#x}+{:#x}", io_base, io_size);
-				}
-				match compat
-				{
-				"virtio,mmio\0" => {
-					// TODO: Create bus device on a virtio bus
-					},
-				_ => {
-					},
-				}
+				let mmio = if let Some( (io_base, io_size) ) = decode_value(&dev, "reg", (acells, scells)) {
+						log_debug!("- IO {:#x}+{:#x}", io_base, io_size);
+						Some( (io_base, io_size as u32) )
+					}
+					else {
+						None
+					};
+
+				devices.push( Box::new(BusDev {
+					node: dev,
+					compat: compat,
+					mmio: mmio,
+					irq_gsi: None,
+					}) );
 			}
 		}
+
+
+		::device_manager::register_bus(&S_BUS_MANAGER, devices);
+	}
+}
+
+impl ::device_manager::BusManager for BusManager
+{
+	fn bus_type(&self) -> &str { "fdt" }
+	fn get_attr_names(&self) -> &[&str]
+	{
+		static S_ATTR_NAMES: [&'static str; 1] = ["compatible"];
+		&S_ATTR_NAMES
+	}
+}
+impl ::device_manager::BusDevice for BusDev
+{
+	fn addr(&self) -> u32 {
+		self.node.offset() as u32
+	}
+	fn get_attr(&self, name: &str) -> ::device_manager::AttrValue {
+		use device_manager::AttrValue;
+		match name
+		{
+		"compatible" => {
+			let v = self.node.get_prop("compatible").map(|v| ::core::str::from_utf8(v).unwrap_or("INVALID")).unwrap_or("");
+			AttrValue::String( v )
+			},
+		_ => AttrValue::None,
+		}
+	}
+	fn set_attr(&mut self, name: &str, value: ::device_manager::AttrValue) {
+	}
+	fn set_power(&mut self, state: bool) {
+	}
+	fn bind_io(&mut self, block_id: usize) -> ::device_manager::IOBinding {
+		todo!("bind_io");
+	}
+	fn get_irq(&mut self, idx: usize) -> u32 {
+		todo!("get_irq");
 	}
 }
 
 fn decode_value<T: Tuple<u64>>(dev: &super::fdt::Node, name: &str, cells: T) -> Option<T>
 {
-	use super::fdt::Item;
 	use lib::byteorder::{ReadBytesExt,BigEndian};
 
 	dev.items()
-		.filter_map(|(n, v)| if n == name { if let Item::Prop(v) = v { Some(v) } else { None } } else { None } )
+		.filter_map(|(n, v)| if n == name { if let fdt::Item::Prop(v) = v { Some(v) } else { None } } else { None } )
 		.next()
 		.map(|mut bytes|
 			cells.map(

@@ -30,7 +30,7 @@ impl device_manager::Driver for PciLegacyDriver
 	}
 	fn handles(&self, bus_dev: &device_manager::BusDevice) -> u32
 	{
-		let classcode = bus_dev.get_attr("class");
+		let classcode = bus_dev.get_attr("class").unwrap_u32();
 		// [class] [subclass] [IF] [ver]
 		// - The 5 masks in two bits representing the channel modes
 		if classcode & 0xFFFF0500 == 0x01010000 {
@@ -43,7 +43,7 @@ impl device_manager::Driver for PciLegacyDriver
 	fn bind(&self, bus_dev: &mut device_manager::BusDevice) -> Box<device_manager::DriverInstance+'static>
 	{
 		let bm_io = bus_dev.bind_io(4);
-		bus_dev.set_attr("bus_master", 1);
+		bus_dev.set_attr("bus_master", device_manager::AttrValue::U32(1));
 		Box::new( ::ControllerRoot::new(0x1F0, 0x3F6, 14,  0x170, 0x376, 15,  bm_io) )
 	}
 }
@@ -58,7 +58,7 @@ impl device_manager::Driver for PciNativeDriver
 	}
 	fn handles(&self, bus_dev: &device_manager::BusDevice) -> u32
 	{
-		let classcode = bus_dev.get_attr("class");
+		let classcode = bus_dev.get_attr("class").unwrap_u32();
 		// [class] [subclass] [IF] [ver]
 		// IF ~= 0x05 means that both channels are in PCI native mode
 		if classcode & 0xFFFF0500 == 0x01010500 {

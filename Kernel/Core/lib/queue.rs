@@ -89,6 +89,11 @@ impl<T> Queue<T>
 		None => None,
 		}
 	}
+	/// Obtain a borrow to the last element
+	pub fn last(&self) -> Option<&T> {
+		// SAFE: Lifetime and borrow are bound, aliasing will not occur
+		self.tail.as_ref().map(|x| unsafe { &x.get().value })
+	}
 	
 	/// Returns true if the queue is empty
 	pub fn is_empty(&self) -> bool
@@ -195,6 +200,10 @@ impl<T> ::core::ops::DerefMut for QueueEntPtr<T> {
 }
 impl<T> QueueTailPtr<T>
 {
+	/// UNSAFE: Can cause aliasing if called while &mut-s to the last object are active
+	unsafe fn get(&self) -> &QueueEnt<T> {
+		& **self.0
+	}
 	/// UNSAFE: Can cause aliasing if called while &mut-s to the last object are active
 	unsafe fn get_mut(&mut self) -> &mut QueueEnt<T> {
 		&mut **self.0

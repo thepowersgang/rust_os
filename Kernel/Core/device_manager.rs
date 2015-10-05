@@ -32,6 +32,36 @@ pub trait BusManager:
 	fn get_attr_names(&self) -> &[&str];
 }
 
+/// Attrbute on a bus device
+#[derive(Debug)]
+pub enum AttrValue<'a>
+{
+	/// Invalid attribute name
+	None,
+	/// 32-bit integer
+	U32(u32),
+	/// String value
+	String(&'a str),
+}
+impl<'a> AttrValue<'a> {
+	pub fn unwrap_u32(self) -> u32 {
+		if let AttrValue::U32(v) = self {
+			v
+		}
+		else {
+			panic!("AttrValue::unwrap_u32 - {:?}", self);
+		}
+	}
+	pub fn unwrap_str(self) -> &'a str {
+		if let AttrValue::String(v) = self {
+			v
+		}
+		else {
+			panic!("AttrValue::unwrap_str - {:?}", self);
+		}
+	}
+}
+
 /// Interface to a device on a bus
 pub trait BusDevice:
 	Send
@@ -39,9 +69,9 @@ pub trait BusDevice:
 	/// Returns the device's address on the parent bus
 	fn addr(&self) -> u32;
 	/// Returns the specified attribute (or 0, if invalid)
-	fn get_attr(&self, name: &str) -> u32;
+	fn get_attr(&self, name: &str) -> AttrValue;
 	/// Set the specified attribute
-	fn set_attr(&mut self, name: &str, value: u32);
+	fn set_attr(&mut self, name: &str, value: AttrValue);
 	/// Set the power state of this device
 	fn set_power(&mut self, state: bool);	// TODO: Power state enum for Off,Standby,Low,On
 	/// Bind to the specified IO block (meaning of `block_id` depends on the bus)
@@ -101,7 +131,7 @@ fn init()
 /// Register a bus with the device manager
 ///
 /// Creates a new internal representation of the bus, containg the passed set of devices.
-pub fn register_bus(manager: &'static BusManager, devices: Vec<Box<BusDevice>>)
+pub fn register_bus(manager: &'static BusManager, devices: Vec<Box<BusDevice>>) //-> BusHandle
 {
 	let bus = Bus {
 		manager: manager,
@@ -112,7 +142,10 @@ pub fn register_bus(manager: &'static BusManager, devices: Vec<Box<BusDevice>>)
 			bus_dev: d,
 			}).collect(),
 		};
-	s_root_busses.lock().push(bus);
+	let mut bus_list_lh = s_root_busses.lock();
+	bus_list_lh.push(bus);
+	//let ptr: *const _ = bus_list_lh.last().unwrap();
+	//BusHandle(ptr)
 }
 
 /// Registers a driver with the device manger

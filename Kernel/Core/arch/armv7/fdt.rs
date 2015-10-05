@@ -258,6 +258,7 @@ pub struct Node<'a, 'fdt: 'a>
 }
 impl<'a, 'fdt: 'a> Node<'a, 'fdt>
 {
+	pub fn offset(&self) -> usize { self.offset }
 	pub fn name(&self) -> &'fdt str { self.name }
 
 	pub fn items(&self) -> SubNodes<'a, 'fdt> {
@@ -265,6 +266,12 @@ impl<'a, 'fdt: 'a> Node<'a, 'fdt>
 			fdt: self.fdt,
 			offset: self.offset,
 		}
+	}
+
+	pub fn get_prop(&self, name: &str) -> Option<&'fdt [u8]> {
+		self.items()
+			.filter_map( |(n, val)| if n == name { if let Item::Prop(p) = val { Some(p) } else { None } } else { None } )
+			.next()
 	}
 }
 
