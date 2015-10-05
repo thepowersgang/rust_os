@@ -157,36 +157,39 @@ pub fn register_driver(driver: &'static Driver)
 	for bus in s_root_busses.lock().iter_mut()
 	{
 		log_trace!("bus type {}", bus.manager.bus_type());
-		for dev in bus.devices.iter_mut()
+		if driver.bus_type() == bus.manager.bus_type()
 		{
-			let rank = driver.handles(&*dev.bus_dev);
-			log_debug!("rank = {:?}", rank);
-			if rank == 0
+			for dev in bus.devices.iter_mut()
 			{
-				// SKIP!
-			}
-			else if dev.driver.is_some()
-			{
-				let bind = dev.driver.as_ref().unwrap();
-				let cur_rank = bind.1;
-				if cur_rank > rank
+				let rank = driver.handles(&*dev.bus_dev);
+				log_debug!("rank = {:?}", rank);
+				if rank == 0
 				{
-					// Existing driver is better
+					// SKIP!
 				}
-				else if cur_rank == rank
+				else if dev.driver.is_some()
 				{
-					// Fight!
+					let bind = dev.driver.as_ref().unwrap();
+					let cur_rank = bind.1;
+					if cur_rank > rank
+					{
+						// Existing driver is better
+					}
+					else if cur_rank == rank
+					{
+						// Fight!
+					}
+					else
+					{
+						// New driver is better
+						panic!("TODO: Unbind driver and bind in new one");
+					}
 				}
 				else
 				{
-					// New driver is better
-					panic!("TODO: Unbind driver and bind in new one");
+					// Bind new driver
+					dev.driver = Some( (driver.bind(&mut *dev.bus_dev), rank) );
 				}
-			}
-			else
-			{
-				// Bind new driver
-				dev.driver = Some( (driver.bind(&mut *dev.bus_dev), rank) );
 			}
 		}
 	}
