@@ -83,7 +83,19 @@ impl ::device_manager::BusDevice for BusDev
 	fn set_power(&mut self, state: bool) {
 	}
 	fn bind_io(&mut self, block_id: usize) -> ::device_manager::IOBinding {
-		todo!("bind_io");
+		match block_id
+		{
+		0 => if let Some((base, size)) = self.mmio {
+				// TODO: Ensure safety
+				// SAFE: Can't easily prove
+				let ah = unsafe { ::memory::virt::map_mmio(base as ::memory::PAddr, size as usize).unwrap() };
+				::device_manager::IOBinding::Memory( ah )
+			}
+			else {
+				panic!("No MMIO block");
+			},
+		_ => panic!("Unknown block_id {} for fdt_devices::BusDev::bind_io", block_id),
+		}
 	}
 	fn get_irq(&mut self, idx: usize) -> u32 {
 		todo!("get_irq");

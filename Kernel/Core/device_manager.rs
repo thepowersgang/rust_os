@@ -17,7 +17,7 @@ pub type DriverHandleLevel = u32;
 pub enum IOBinding
 {
 	/// Memory-mapped IO space
-	Memory(::memory::virt::AllocHandle),
+	Memory(::memory::virt::MmioHandle),
 	/// x86 IO bus (Base and offset)
 	IO(u16,u16),
 }
@@ -255,6 +255,21 @@ impl IOBinding
 			},
 		IOBinding::Memory(ref h) => {
 			::core::intrinsics::volatile_load( h.as_int_mut::<u8>(ofs) )
+			},
+		}
+	}
+	/// Read a single u32 from the binding
+	pub unsafe fn read_32(&self, ofs: usize) -> u32
+	{
+		//log_trace!("read_32({:?}, {:#x})", self, ofs);
+		match *self
+		{
+		IOBinding::IO(base, s) => {
+			assert!( ofs+4 <= s as usize, "read_u32(IO addr {:#x}+4 > {:#x})", ofs, s );
+			::arch::x86_io::inl(base + ofs as u16)
+			},
+		IOBinding::Memory(ref h) => {
+			::core::intrinsics::volatile_load( h.as_int_mut::<u32>(ofs) )
 			},
 		}
 	}

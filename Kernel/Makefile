@@ -14,6 +14,7 @@
 -include ../common.mk
 
 MODS := syscalls
+MODS += virtio
 MODS += storage_ata
 MODS += input_ps2
 MODS += fs_fat fs_iso9660

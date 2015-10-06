@@ -119,14 +119,18 @@ fn print_backtrace_unwindstate(mut rs: aeabi_unwind::UnwindState, mut addr: usiz
 {
 	while let Some(info) = aeabi_unwind::get_unwind_info_for(addr)
 	{
-		log_debug!("LR={:#x} info=[ {:#x}, {:#x} ]", rs.get_lr(), info[0], info[1]);
-		match rs.unwind_step(info)
+		log_debug!("addr={:#x} fcn={:#x}, info={:#x}", addr, info.0, info.1);
+		match rs.unwind_step(info.1)
 		{
 		Ok(_) => {},
 		Err(e) => {
 			log_debug!("- Error {:?}", e);
 			return;
 			},
+		}
+		if addr == rs.get_lr() as usize {
+			log_warning!("- Same stack frame detected {:#x}", addr);
+			break;
 		}
 		addr = rs.get_lr() as usize;
 	}

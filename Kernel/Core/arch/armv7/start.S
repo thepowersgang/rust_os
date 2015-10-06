@@ -240,17 +240,28 @@ data_abort:
 	.long data_abort_EXIDX
 not_known_mode:
 	b .
+.globl data_abort_EXIDX
+.globl data_abort_EXTAB
 .section .ARM.exidx.data_abort
 data_abort_EXIDX:
-	.long	data_abort - data_abort_EXIDX - 0x80000000
-	@.long	0x800384FF
+	.long	data_abort - . - 0x80000000
 	.long	data_abort_EXTAB - . - 0x80000000
 .section .ARM.extab.data_abort
 data_abort_EXTAB:
 	.long	0x81028600	@ POP {SP, LR}
 	.long	0x81FFB10F	@ POP {r4-r12}, POP {r0-r3}
-	@.long	0x880000B0	@ POP {r15}, VSP+=4, END
 	.long	0x01B0B0B0	@ VSP+=8, END
+
+@
+@ MAGIC MACRO
+@
+.macro EXIDX method handle
+.long EXIDX_\method
+.section .ARM.exidx.\method
+.globl EXIDX_\method
+EXIDX_\method: .long \method - . - 0x80000000, \handle
+.section .text
+.endm
 
 .section .text
 .globl __aeabi_memcpy4
@@ -263,6 +274,8 @@ __aeabi_memcpy4:
 	SUBS r2, r2, #4
 	BGE 1b
 	BX lr
+EXIDX __aeabi_memcpy4, 0x80B0B0B0
+
 .globl __aeabi_memcpy
 __aeabi_memcpy:
 1:
@@ -273,6 +286,7 @@ __aeabi_memcpy:
 	BX lr
 ENTRY(memcpy)
 	b __aeabi_memcpy
+EXIDX __aeabi_memcpy, 0x80B0B0B0
 
 .globl __aeabi_memset4
 .globl __aeabi_memset8
@@ -287,6 +301,8 @@ __aeabi_memset8:
 	SUBS r1, r1, #4
 	BGE 1b
 	BX lr
+EXIDX __aeabi_memset4, 0x80B0B0B0
+
 .globl __aeabi_memclr4
 .globl __aeabi_memclr8
 __aeabi_memclr4:
@@ -306,6 +322,7 @@ __aeabi_memset:
 	bx lr
 ENTRY(memset)
 	b __aeabi_memset
+EXIDX __aeabi_memset, 0x80B0B0B0
 
 .globl __aeabi_memclr
 __aeabi_memclr:
@@ -334,6 +351,7 @@ memcmp:
 	movlo r0, #-1
 	pop {r4}
 	mov pc, lr
+EXIDX memcmp, 0x80A0B0B0
 
 .globl __aeabi_unwind_cpp_pr0
 .globl __aeabi_unwind_cpp_pr1
@@ -354,6 +372,7 @@ ENTRY(__aeabi_fcmpeq)
 ENTRY(__aeabi_fcmpge)
 ENTRY(__aeabi_fcmpgt)
 	b .
+EXIDX __aeabi_unwind_cpp_pr0, 0x1
 
 .section .rodata
 data_abort_message:	.ascii "Data Abort: "

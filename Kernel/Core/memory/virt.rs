@@ -273,6 +273,65 @@ where
 	todo!("");
 }
 
+pub struct MmioHandle(*mut ::Void,u16,u16);
+unsafe impl Send for MmioHandle {}	// MmioHandle is sendable
+unsafe impl Sync for MmioHandle {}	// &MmioHandle is safe
+impl_fmt! {
+	Debug(self,f) for MmioHandle {
+		write!(f, "{:p}({:#x})+{:#x}", self.base(), get_phys(self.base()), self.2)
+	}
+}
+pub unsafe fn map_mmio(phys: PAddr, size: usize) -> Result<MmioHandle,MapError> {
+	assert!(size < (1 << 16), "map_mmio size {:#x} too large (must be below 16-bits)", size);
+
+	let mut ah = try!(map_hw(phys, (size + ::PAGE_SIZE - 1) / ::PAGE_SIZE, false, "MMIO"));
+
+	ah.count = 0;
+	Ok(MmioHandle( ah.addr as *mut ::Void, (phys & 0xFFF) as u16, size as u16 ))
+}
+impl MmioHandle
+{
+	fn base(&self) -> *mut ::Void {
+		(self.0 as usize + self.1 as usize) as *mut ::Void
+	}
+	fn as_raw_ptr_slice<T>(&self, ofs: usize, count: usize) -> *mut [T]
+	{
+		use core::mem::{align_of,size_of};
+		assert!(super::buf_valid(self.base() as *const (), self.2 as usize));
+		assert!( ofs % align_of::<T>() == 0,
+			"Offset {:#x} not aligned to {} bytes (T={})", ofs, align_of::<T>(), type_name!(T));
+		assert!( ofs <= self.2 as usize,
+			"Slice offset {} outside alloc of {} bytes", ofs, self.2 );
+		assert!( count * size_of::<T>() <= self.2 as usize,
+			"Entry count exceeds allocation ({} > {})", count * size_of::<T>(), self.2);
+		assert!( ofs + count * size_of::<T>() <= self.2 as usize,
+			"Sliced region exceeds bounds {}+{} > {}", ofs, count * size_of::<T>(), self.2);
+		// SAFE: Doesn't ensure lack of aliasing, but the address is valid. Immediately casted to a raw pointer, so aliasing is OK
+		unsafe {
+			::core::slice::from_raw_parts_mut( (self.base() as usize + ofs) as *mut T, count )
+		}
+	}
+	pub unsafe fn as_int_mut_slice<T: ::lib::POD>(&self, ofs: usize, count: usize) -> &mut [T]
+	{
+		&mut (*self.as_raw_ptr_slice(ofs, count))[..]
+	}
+	/// Return a mutable borrow of the content (interior mutable)
+	pub unsafe fn as_int_mut<T: ::lib::POD>(&self, ofs: usize) -> &mut T
+	{
+		&mut self.as_int_mut_slice(ofs, 1)[0]
+	}
+}
+impl ops::Drop for MmioHandle
+{
+	fn drop(&mut self)
+	{
+		// SAFE: Owned allocaton
+		unsafe {
+			unmap(self.0 as *mut (), (self.2 as usize + ::PAGE_SIZE - 1) / ::PAGE_SIZE);
+		}
+	}
+}
+
 // TODO: Update these two methods to ENSURE that the memory passed isn't allocatable RAM (or has been invalidated in the PMM)
 /// Create a long-standing MMIO/other hardware mapping
 pub unsafe fn map_hw_ro(phys: PAddr, count: usize, module: &'static str) -> Result<AllocHandle,MapError> {

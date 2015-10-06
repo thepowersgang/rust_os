@@ -18,6 +18,11 @@ impl AtomicU32 {
 		// SAFE: Atomic
 		unsafe { ::core::intrinsics::atomic_cxchg_relaxed(self.0.get(), val, new) }
 	}
+	/// Exchange
+	pub fn xchg(&self, new: u32) -> u32 {
+		// SAFE: Atomic
+		unsafe { ::core::intrinsics::atomic_xchg_relaxed(self.0.get(), new) }
+	}
 	/// Unconditionally stores
 	pub fn store(&self, val: u32) {
 		// SAFE: Atomic
@@ -306,7 +311,17 @@ pub unsafe fn reprotect(a: *mut (), mode: ProtectionMode) {
 	todo!("reprotect({:p}, {:?}", a, mode)
 }
 pub unsafe fn unmap(a: *mut ()) -> Option<PAddr> {
-	todo!("unmap")
+	// 1. Map the relevant table in the temp area
+	let (tab_phys, idx) = get_table_addr(a, true).unwrap();
+	// SAFE: Address space is valid during manipulation, and alias is benign
+	let mh: TempHandle<AtomicU32> = unsafe { TempHandle::new( tab_phys ) };
+	let old = mh[idx].xchg(0);
+	if old & 3 == 0 {
+		None
+	}
+	else {
+		Some( old & !0xFFF )
+	}
 }
 
 #[derive(Debug)]

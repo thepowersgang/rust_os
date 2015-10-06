@@ -44,9 +44,9 @@ impl UnwindState {
 	pub fn get_ip(&self) -> u32 { self.regs[15] }
 	pub fn get_lr(&self) -> u32 { self.regs[14] }
 	
-	pub fn unwind_step(&mut self, info: &[u32; 2]) -> Result<(),Error> {
-		let base = &info[0] as *const _ as usize + 4;
-		let info = info[1];
+	pub fn unwind_step(&mut self, info: &u32) -> Result<(),Error> {
+		let base = info as *const _ as usize;
+		let info = *info;
 		if info == 0x1 {
 			// Can't unwind
 			return Err( Error::Refuse );
@@ -61,7 +61,9 @@ impl UnwindState {
 		}
 		else {
 			// Indirect pointer
-			let ptr = (base + info as usize + 0x8000_0000) as *const u32;
+			let ofs = (info | (1 << 31)) as usize;
+			let ptr = (base + ofs) as *const u32;
+			log_debug!("ptr = {:#x} + {:#x} = {:p}", base, ofs, ptr);
 			// SAFE: Validity checked
 			let word = unsafe {
 				if ! ::memory::virt::is_reserved(ptr) {
@@ -145,12 +147,14 @@ impl UnwindState {
 		match byte >> 4
 		{
 		0x0 ... 0x3 => {	// ARM_EXIDX_CMD_DATA_POP
-			log_debug!("POP data {:#x}*4+4", byte & 0x3F);
-			self.vsp += (byte & 0x3F) as u32 * 4 + 4;
+			let count = (byte & 0x3F) as u32 * 4 + 4;
+			log_debug!("VSP += {:#x}*4+4 ({})", byte & 0x3F, count);
+			self.vsp += count;
 			},
 		0x4 ... 0x7 => {	// ARM_EXIDX_CMD_DATA_PUSH
-			log_debug!("PUSH data {:#x}*4+4", byte & 0x3F);
-			self.vsp -= (byte & 0x3F) as u32 * 4 + 4;
+			let count = (byte & 0x3F) as u32 * 4 + 4;
+			log_debug!("VSP -= {:#x}*4+4 ({})", byte & 0x3F, count);
+			self.vsp -= count;
 			},
 		0x8 => {	// ARM_EXIDX_CMD_REG_POP
 			let extra = try!( getb() );
@@ -202,21 +206,40 @@ impl UnwindState {
 		}
 		Ok( false )
 	}
+
+	fn getb<I: Iterator<Item=u8>>(it: &mut I) -> Result<u8,Error> {
+		match it.next()
+		{
+		Some(v) => {
+			log_trace!("(G) byte {:#x}", v);
+			Ok(v)
+			},
+		None => {
+			log_warning!("Out of bytes for unwind mid-instruction");
+			Err( Error::Malformed )
+			},
+		}
+	}
+
 	pub fn unwind_short16(&mut self, instrs: u32) -> Result<(), Error> {
 		let mut it = WordBytesLE(instrs, 3);
 		while let Some(b) = it.next()
 		{
-			if try!( self.unwind_instr(b, || it.next().ok_or( Error::Malformed )) ) {
+			if try!( self.unwind_instr(b, || Self::getb(&mut it)) ) {
 				break ;
 			}
 		}
 		Ok( () )
 	}
 	pub fn unwind_long16(&mut self, instrs: u32, extra: &[u32]) -> Result<(), Error> {
+		log_trace!("instrs = {:#x}, extra = {:?}", instrs, extra);
+		let mut it = WordBytesLE(instrs, 2).chain( extra.iter().flat_map(|w| WordBytesLE(*w, 4)) );
+		for b in it { log_trace!("b = {:#x}", b); }
 		let mut it = WordBytesLE(instrs, 2).chain( extra.iter().flat_map(|w| WordBytesLE(*w, 4)) );
 		while let Some(b) = it.next()
 		{
-			if try!( self.unwind_instr(b, || it.next().ok_or( Error::Malformed )) ) {
+			log_trace!("(R) byte {:#x}", b);
+			if try!( self.unwind_instr(b, || Self::getb(&mut it)) ) {
 				break ;
 			}
 		}
@@ -232,6 +255,7 @@ struct WordBytesLE(u32, u8);
 impl ::core::iter::Iterator for WordBytesLE {
 	type Item = u8;
 	fn next(&mut self) -> Option<u8> {
+		//log_trace!("self = ({:#x},{})", self.0, self.1);
 		if self.1 == 0 {
 			None
 		}
@@ -243,7 +267,7 @@ impl ::core::iter::Iterator for WordBytesLE {
 }
 
 
-pub fn get_unwind_info_for(addr: usize) -> Option<&'static [u32; 2]>
+pub fn get_unwind_info_for(addr: usize) -> Option<(usize, &'static u32)>
 {
 	extern "C" {
 		static __exidx_start: [u32; 2];
@@ -259,13 +283,14 @@ pub fn get_unwind_info_for(addr: usize) -> Option<&'static [u32; 2]>
 	for (i,e) in exidx_tab.iter().enumerate() {
 		assert!(e[0] < 0x8000_0000);
 		let fcn_start = e[0] as usize + 0x8000_0000 + &e[0] as *const _ as usize;
-		// If before the addres
-		if fcn_start < addr {
-			// But after the previous closest
-			if fcn_start > best.0 {
-				// then use it
-				best = (fcn_start, i);
-			}
+		// If before the address, but after the previous closest
+		if fcn_start < addr && fcn_start > best.0 {
+			// then use it
+			//log_trace!("{}: Use fcn_start={:#x}", i, fcn_start);
+			best = (fcn_start, i);
+		}
+		else {
+			//log_trace!("{}: Skip fcn_start={:#x}", i, fcn_start);
 		}
 	}
 	//log_debug!("get_unwind_info_for({:#x}) : best = ({:#x}, {})", addr, best.0, best.1);
@@ -273,6 +298,6 @@ pub fn get_unwind_info_for(addr: usize) -> Option<&'static [u32; 2]>
 		None
 	}
 	else {
-		Some( &exidx_tab[best.1] )
+		Some( (best.0, &exidx_tab[best.1][1]) )
 	}
 }

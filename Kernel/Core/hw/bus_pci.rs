@@ -156,7 +156,7 @@ impl ::device_manager::BusDevice for PCIDev
 		BAR::Mem(base, size, _prefetchable) => {
 			// TODO: Ensure safety by preventing multiple bindings to a BAR
 			// Assume SAFE: Shouldn't be aliased
-			let ah = unsafe {::memory::virt::map_hw_rw(base as ::memory::PAddr, size as usize / ::PAGE_SIZE, "pci").unwrap() };
+			let ah = unsafe {::memory::virt::map_mmio(base as ::memory::PAddr, size as usize).unwrap() };
 			::device_manager::IOBinding::Memory( ah )
 			}
 		}
