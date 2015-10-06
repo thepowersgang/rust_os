@@ -283,6 +283,13 @@ pub fn get_info<T>(addr: *const T) -> Option<(::arch::memory::PAddr, ::memory::v
 	}
 }
 
+fn tlbimva(a: *mut ()) {
+	// SAFE: TLB invalidation is not the unsafe part :)
+	unsafe {
+		asm!("mcr p15,0, $0, c8,c7,1 ; dsb ; isb" : : "r" ( (a as usize & !0xFFF) | 1 ) : "memory" : "volatile")
+	}
+}
+
 pub unsafe fn map(a: *mut (), p: PAddr, mode: ProtectionMode) {
 	map_int(a,p,mode)
 }
@@ -304,8 +311,10 @@ fn map_int(a: *mut (), p: PAddr, mode: ProtectionMode) {
 		ProtectionMode::UserRWX => 0x033,
 		ProtectionMode::UserCOW => 0x223,	// 1,10 is a deprecated encoding for RO, need to find a better encoding
 		};
+	log_debug!("map(): a={:p} mh={:p} idx={}, new={:#x}", a, &mh[0], idx, p + mode_flags);
 	let old = mh[idx].cxchg(0, p + mode_flags);
 	assert!(old == 0, "map() called over existing allocation: a={:p}, old={:#x}", a, old);
+	tlbimva(a);
 }
 pub unsafe fn reprotect(a: *mut (), mode: ProtectionMode) {
 	todo!("reprotect({:p}, {:?}", a, mode)
@@ -316,6 +325,7 @@ pub unsafe fn unmap(a: *mut ()) -> Option<PAddr> {
 	// SAFE: Address space is valid during manipulation, and alias is benign
 	let mh: TempHandle<AtomicU32> = unsafe { TempHandle::new( tab_phys ) };
 	let old = mh[idx].xchg(0);
+	tlbimva(a);
 	if old & 3 == 0 {
 		None
 	}

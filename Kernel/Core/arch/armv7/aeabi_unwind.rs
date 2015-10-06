@@ -186,7 +186,7 @@ impl UnwindState {
 			let pop_lr = byte & 0x8 != 0;
 			let count = (byte&0x7) as usize;
 			log_debug!("POP {{r4-r{}{}}}", 4 + count, if pop_lr { ",lr" } else { "" });
-			for r in 4 .. 4 + count {
+			for r in 4 .. 4 + count + 1 {
 				self.regs[r] = try!(self.pop());
 			}
 			if pop_lr { self.regs[14] = try!(self.pop()); }
@@ -211,7 +211,7 @@ impl UnwindState {
 		match it.next()
 		{
 		Some(v) => {
-			log_trace!("(G) byte {:#x}", v);
+			//log_trace!("(G) byte {:#x}", v);
 			Ok(v)
 			},
 		None => {
@@ -232,13 +232,9 @@ impl UnwindState {
 		Ok( () )
 	}
 	pub fn unwind_long16(&mut self, instrs: u32, extra: &[u32]) -> Result<(), Error> {
-		log_trace!("instrs = {:#x}, extra = {:?}", instrs, extra);
-		let mut it = WordBytesLE(instrs, 2).chain( extra.iter().flat_map(|w| WordBytesLE(*w, 4)) );
-		for b in it { log_trace!("b = {:#x}", b); }
 		let mut it = WordBytesLE(instrs, 2).chain( extra.iter().flat_map(|w| WordBytesLE(*w, 4)) );
 		while let Some(b) = it.next()
 		{
-			log_trace!("(R) byte {:#x}", b);
 			if try!( self.unwind_instr(b, || Self::getb(&mut it)) ) {
 				break ;
 			}

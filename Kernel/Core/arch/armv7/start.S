@@ -204,9 +204,10 @@ drop_to_user:
 .globl data_abort
 data_abort:
 	srsfd sp!, #0x17	@ Save state, using 'abort' mode stack
+	push {r0}
 	push {r0-r12}	@ SP, LR, and PC not pushed
 	
-	ldr r0, [sp, #4*13+4]
+	ldr r0, [sp, #4*13+4+4]
 	and r0, #0x1F
 	cmp r0, #0x10	@ 0x10 = user
 	cmpne r0, #0x13	@ 
@@ -236,6 +237,7 @@ data_abort:
 	b .
 	
 	pop {r0-r12}
+	pop {r0}
 	rfefd sp!
 	.long data_abort_EXIDX
 not_known_mode:
@@ -250,7 +252,7 @@ data_abort_EXIDX:
 data_abort_EXTAB:
 	.long	0x81028600	@ POP {SP, LR}
 	.long	0x81FFB10F	@ POP {r4-r12}, POP {r0-r3}
-	.long	0x01B0B0B0	@ VSP+=8, END
+	.long	0x02B0B0B0	@ VSP+=12, END
 
 @
 @ MAGIC MACRO
