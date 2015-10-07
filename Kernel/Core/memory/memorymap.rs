@@ -42,7 +42,7 @@ impl MemoryMapEnt
 		self.limit() + 1
 	}
 	pub fn limit(&self) -> u64 {
-		self.start + self.size - 1
+		self.start + (self.size & !0xFFF) - 1
 	}
 }
 impl ::core::fmt::Debug for MemoryMapEnt

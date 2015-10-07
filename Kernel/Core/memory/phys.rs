@@ -124,7 +124,7 @@ pub fn allocate_range(count: usize) -> PAddr
 		log_error!("Out of physical memory");
 		return NOPAGE;
 	}
-	if addr >= map[i].end() as PAddr
+	if addr + ::PAGE_SIZE as PAddr > map[i].end() as PAddr
 	{
 		i += 1;
 		while i != map.len() && map[i].state != ::memory::memorymap::MemoryState::Free {
@@ -138,10 +138,11 @@ pub fn allocate_range(count: usize) -> PAddr
 		addr = map[i].start as PAddr;
 	}
 	let rv = addr;
-	if addr + (count * ::PAGE_SIZE) as PAddr > map[i].end() as PAddr {
-		todo!("Handle allocating from ahead in map");
+	let shift = (count * ::PAGE_SIZE) as PAddr;
+	if addr + shift > map[i].end() as PAddr {
+		todo!("Handle allocating from ahead in map ({:#x} + {:#x} > {:#x})", addr, shift, map[i].end());
 	}
-	addr += (count * ::PAGE_SIZE) as PAddr;
+	addr += shift;
 	//log_trace!("allocate_range: rv={:#x}, i={}, addr={:#x}", rv, i, addr);
 	*h = (i, addr);
 	//log_trace!("allocate_range: *h = {:?}", *h);
