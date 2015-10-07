@@ -392,6 +392,7 @@ pub fn hex_dump_t<T>(label: &str, data: &T) {
 }
 pub fn hex_dump(label: &str, data: &[u8])
 {
+	log_debug!("{} Dump {:p}+{}", label, &data[0], data.len());
 	for block in data.chunks(16)
 	{
 		log_debug!("{} {:p}: {}", label, &block[0], HexDumpBlk(block));

@@ -13,12 +13,13 @@ QEMU_ARGS += -d int,guest_errors -D qemu_int_log.txt
 ifneq ($(QEMU_STALL),)
 	QEMU_ARGS += -S
 endif
-CMDLINE := SYSDISK=ATA-0p0 SYSROOT=Tifflin
+CMDLINE := SYSROOT=Tifflin
 
 #
 # --- AMD64 ---
 #
 ifeq ($(ARCH),amd64)
+CMDLINE += SYSDISK=ATA-0p0
 QEMU_ARGS += -net nic
 QEMU_ARGS += -drive if=ide,index=0,file=DiskImages/hda.img,format=raw
 #QEMU_ARGS += -drive if=ide,index=1,file=DiskImages/hdb.img,format=raw
@@ -38,9 +39,10 @@ run: DiskImages/hda.img .qemu_trace
 # --- ARMv7 ---
 #
 else ifeq ($(ARCH),armv7)
+CMDLINE += SYSDISK=virtio0p0
 QEMU_ARGS += -device virtio-net-device
 QEMU_ARGS += -device virtio-blk-device,drive=hda
-QEMU_ARGS += -drive id=hda,index=0,file=DiskImages/hda.img,format=raw
+QEMU_ARGS += -drive if=none,id=hda,index=0,file=DiskImages/hda.img,format=raw
 #QEMU_ARGS += -device pl110
 #QEMU_ARGS += -device virtio-gpu-device
 

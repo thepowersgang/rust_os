@@ -34,7 +34,7 @@ impl<T> Spinlock<T>
 			// TODO: Once SMP is a thing, this should spin.
 			super::puts(" <<Lock "); super::puth(self as *const _ as usize as u64); super::puts(": "); super::puts(type_name!(T)); super::puts(" contended>> ");
 			if type_name!(T) != "logging::Sinks" {
-				panic!("");
+				panic!("Contended lock");
 			}
 			break ;
 		}

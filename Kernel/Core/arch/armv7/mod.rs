@@ -183,7 +183,10 @@ mod helpers
 	pub struct ulldiv_t { quo: u64, rem: u64, }
 	#[no_mangle]
 	#[linkage="external"]
-	extern fn __aeabi_uldivmod(mut n: u64, mut d: u64) -> ulldiv_t {
+	extern fn __aeabi_uldivmod_(n: u64, d: u64, rv: &mut ulldiv_t) {
+		*rv = __aeabi_uldivmod(n, d);
+	}
+	fn __aeabi_uldivmod(mut n: u64, mut d: u64) -> ulldiv_t {
 		let mut ret = 0;
 		let mut add = 1;
 		while n / 2 >= d && add != 0 { d <<= 1; add <<= 1; }

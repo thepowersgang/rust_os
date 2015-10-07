@@ -97,7 +97,7 @@ impl Queue
 
 	fn allocate_descriptor<'a>(&self, mut next: Option<DescriptorHandle<'a>>, buffer: &mut Buffer<'a>) -> DescriptorHandle<'a> {
 		let write = buffer.is_write();
-		for (phys, len) in ::kernel::memory::helpers::DMABuffer::new(buffer.as_slice(), 64).phys_ranges()
+		for (phys, len) in ::kernel::memory::helpers::DMABuffer::new(buffer.as_slice(), 64).phys_ranges().rev()
 		{
 			next = Some( self.allocate_descriptor_raw(next, write, phys as u64, len as u32) );
 		}
@@ -105,6 +105,7 @@ impl Queue
 	}
 	fn allocate_descriptor_raw<'a>(&self, next: Option<DescriptorHandle<'a>>, write: bool, phys: u64, len: u32) -> DescriptorHandle<'a> {
 		// TODO: Semaphore to ensure sufficient quantity
+		// TODO: Use a "free chain" instead
 		for (idx, desc) in self.descriptors().iter_mut().enumerate()
 		{
 			if desc.length == 0 {
@@ -129,30 +130,27 @@ impl Queue
 			}
 	}
 
+	/// Return a lock handle to the "avaliable" ring buffer (the list of descriptors handed to the device)
 	fn avail_ring(&self) -> LockedAvailRing {
-		let lh = self.avail_ring_lock.lock();
-		// SAFE: Locked
-		let ptr = unsafe { 
-			let base_ptr: *const u16 = self.buffer.as_int_mut::<u16>(16 * self.size);
-			let ptr: &mut AvailRing = ::core::mem::transmute( (base_ptr, self.size) );
-			assert_eq!(&ptr.flags as *const _, base_ptr);
-			ptr
-			};
 		LockedAvailRing {
-			_lh: lh,
-			ptr: ptr,
+			_lh: self.avail_ring_lock.lock(),
+			// SAFE: Locked
+			ptr: unsafe { 
+				let base_ptr: *const u16 = self.buffer.as_int_mut(16 * self.size);
+				let ptr: &mut AvailRing = ::core::mem::transmute( (base_ptr, self.size) );
+				assert_eq!(&ptr.flags as *const _, base_ptr);
+				ptr
+				},
 		}
 	}
 
+	/// Return a lock handle to the descriptor table
 	fn descriptors(&self) -> LockedDescriptors {
 		LockedDescriptors {
 			_lh: self.descriptors_lock.lock(),
-			slice: self.descriptors_raw(),
+			// SAFE: Becomes raw pointer instantly
+			slice: unsafe { self.buffer.as_int_mut_slice(0, self.size) },
 		}
-	}
-	fn descriptors_raw(&self) -> *mut [VRingDesc] {
-		// SAFE: Becomes raw pointer instantly
-		unsafe { self.buffer.as_int_mut_slice(0, self.size) }
 	}
 }
 
@@ -206,6 +204,7 @@ struct Request<'a, I: 'a>
 impl<'a, I: 'a + Interface> Request<'a, I>
 {
 	pub fn wait_for_completion(&self) {
+		// TODO: Actually wait
 	}
 }
 

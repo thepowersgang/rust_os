@@ -332,6 +332,16 @@ __aeabi_memclr:
 	b __aeabi_memset
 
 
+ENTRY(__aeabi_uldivmod)
+.extern __aeabi_uldivmod_
+	push {lr}
+	sub sp, #16
+	push {sp}
+	bl __aeabi_uldivmod_
+	add sp, #4
+	pop {r0, r1, r2, r3}
+	pop {pc}
+
 .globl memcmp
 // A, B, num
 memcmp:

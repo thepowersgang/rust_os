@@ -5,6 +5,7 @@ use kernel::async;
 use interface::Interface;
 use queue::{Queue,Buffer};
 
+const VIRTIO_BLK_F_RO	: u32 = 1 << 5;
 
 const VIRTIO_BLK_T_IN    	: u32 = 0;
 const VIRTIO_BLK_T_OUT  	: u32 = 1;
@@ -32,9 +33,15 @@ impl BlockDevice
 		// SAFE: Readable registers
 		let capacity = unsafe { int.cfg_read_32(0) as u64 | ((int.cfg_read_32(4) as u64) << 32) };
 		log_debug!("Block Device: {}", storage::SizePrinter(capacity * 512));
+
+		let requestq = int.get_queue(0, 0).expect("Queue #0 'requestq' missing on virtio block device");
+	
+		let features = int.negotiate_features( VIRTIO_BLK_F_RO );
+		int.set_driver_ok();
+
 		BlockDevice {
 			pv_handle: storage::register_pv( Box::new(Volume{
-				requestq: int.get_queue(0, 0).expect("Queue #0 'requestq' missing on virtio block device"),
+				requestq: requestq,
 				capacity: capacity,
 				interface: int,
 				}) ),
@@ -55,7 +62,7 @@ unsafe impl ::kernel::lib::POD for VirtioBlockReq {}
 
 impl<I: Interface+Send+'static> storage::PhysicalVolume for Volume<I>
 {
-	fn name(&self) -> &str { "virtio" }
+	fn name(&self) -> &str { "virtio0" }
 	fn blocksize(&self) -> usize { 512 }
 	fn capacity(&self) -> Option<u64> { Some(self.capacity) }
 	

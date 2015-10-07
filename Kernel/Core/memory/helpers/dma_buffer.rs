@@ -141,3 +141,35 @@ impl<'a> Iterator for Ranges<'a>
 		}
 	}
 }
+impl<'a> DoubleEndedIterator for Ranges<'a>
+{
+	fn next_back(&mut self) -> Option<Self::Item> {
+		if self.0.len() == 0 {
+			None
+		}
+		else {
+			let full_len = self.0.len();
+			// get phys of last byte
+			let lastp: *const u8 = &self.0[full_len-1];
+			let min_len = (lastp as usize) % ::PAGE_SIZE + 1;
+
+			let mut len = ::core::cmp::min(min_len, full_len);
+			let mut paddr = ::memory::virt::get_phys( &self.0[full_len - len] );
+
+			// Merge physically contigious pages
+			while len < full_len && ::memory::virt::get_phys(&self.0[full_len - len - 1]) == paddr - 1 {
+				if full_len - len > ::PAGE_SIZE {
+					paddr -= ::PAGE_SIZE as PAddr;
+					len += ::PAGE_SIZE;
+				}
+				else {
+					paddr -= (full_len - len) as PAddr;
+					len = full_len;
+				}
+			}
+
+			self.0 = &self.0[ .. full_len - len];
+			Some( (paddr, len) )
+		}
+	}
+}
