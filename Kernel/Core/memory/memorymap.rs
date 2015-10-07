@@ -36,6 +36,15 @@ pub struct MemoryMapBuilder<'buf>
 	size: usize,
 }
 
+impl MemoryMapEnt
+{
+	pub fn end(&self) -> u64 {
+		self.limit() + 1
+	}
+	pub fn limit(&self) -> u64 {
+		self.start + self.size - 1
+	}
+}
 impl ::core::fmt::Debug for MemoryMapEnt
 {
 	fn fmt(&self, f: &mut ::core::fmt::Formatter) -> ::core::fmt::Result {

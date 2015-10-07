@@ -38,7 +38,7 @@ run: DiskImages/hda.img .qemu_trace
 # --- ARMv7 ---
 #
 else ifeq ($(ARCH),armv7)
-QEMU_ARGS += -net nic,model=virtio-net-device
+QEMU_ARGS += -device virtio-net-device
 QEMU_ARGS += -device virtio-blk-device,drive=hda
 QEMU_ARGS += -drive id=hda,index=0,file=DiskImages/hda.img,format=raw
 #QEMU_ARGS += -device pl110

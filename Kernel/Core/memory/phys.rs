@@ -101,9 +101,9 @@ pub fn make_unique(page: PAddr) -> PAddr
 pub fn allocate_range_bits(bits: u8, count: usize) -> PAddr
 {
 	// XXX: HACK! Falls back to the simple code if possible
-	if count == 1 && get_memory_map().last().unwrap().start >> bits == 0
+	if get_memory_map().last().unwrap().start >> bits == 0
 	{
-		return allocate_range(1);
+		return allocate_range(count);
 	}
 	// 1. Locate the last block of a suitable bitness
 	// - Take care to correctly handle blocks that straddle bitness boundaries
@@ -115,10 +115,6 @@ pub fn allocate_range_bits(bits: u8, count: usize) -> PAddr
 
 pub fn allocate_range(count: usize) -> PAddr
 {
-	if !(count == 1) {
-		panic!("TODO: Large range allocations (count={})", count);
-	}
-
 	let mut h = S_MAPALLOC.lock();
 	log_trace!("allocate_range: *h = ({},{:#x}) (init)", h.0, h.1);
 	let (mut i,mut addr) = *h;
@@ -128,7 +124,7 @@ pub fn allocate_range(count: usize) -> PAddr
 		log_error!("Out of physical memory");
 		return NOPAGE;
 	}
-	if addr >= (map[i].start + map[i].size) as PAddr
+	if addr >= map[i].end() as PAddr
 	{
 		i += 1;
 		while i != map.len() && map[i].state != ::memory::memorymap::MemoryState::Free {
@@ -142,7 +138,10 @@ pub fn allocate_range(count: usize) -> PAddr
 		addr = map[i].start as PAddr;
 	}
 	let rv = addr;
-	addr += ::PAGE_SIZE as PAddr;
+	if addr + (count * ::PAGE_SIZE) as PAddr > map[i].end() as PAddr {
+		todo!("Handle allocating from ahead in map");
+	}
+	addr += (count * ::PAGE_SIZE) as PAddr;
 	//log_trace!("allocate_range: rv={:#x}, i={}, addr={:#x}", rv, i, addr);
 	*h = (i, addr);
 	//log_trace!("allocate_range: *h = {:?}", *h);

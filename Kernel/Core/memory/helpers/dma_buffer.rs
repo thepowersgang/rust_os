@@ -27,6 +27,9 @@ impl<'a> DMABuffer<'a>
 		let vaddr = src.as_ptr() as usize;
 		let ofs = vaddr % ::PAGE_SIZE;
 		
+		if bits as usize >= ::core::mem::size_of::<PAddr>()*8 {
+			return true;
+		}
 		if ::memory::virt::get_phys(src.as_ptr()) >> (bits as usize) != 0 {
 			return false;
 		}

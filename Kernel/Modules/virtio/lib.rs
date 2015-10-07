@@ -1,13 +1,16 @@
 #![feature(no_std,linkage)]
 #![no_std]
 #![feature(core_slice_ext)]
-#![feature(associated_consts)]
+#![feature(ref_slice)]
 
 #[macro_use] extern crate kernel;
 
 module_define!{VirtIO, [DeviceManager, Storage], init}
 
 mod drivers;
+mod interface;
+mod devices;
+mod queue;
 
 fn init()
 {

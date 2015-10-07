@@ -98,7 +98,11 @@ impl ::device_manager::BusDevice for BusDev
 		}
 	}
 	fn get_irq(&mut self, idx: usize) -> u32 {
-		todo!("get_irq");
+		if idx != 0 {
+			panic!("Invalid IRQ index {}", idx);
+		}
+		//self.irq_gsi.expect("FDT Devices - No IRQ")
+		self.irq_gsi.unwrap_or(0)
 	}
 }
 

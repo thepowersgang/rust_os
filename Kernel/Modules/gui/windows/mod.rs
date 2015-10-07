@@ -149,10 +149,7 @@ fn render_thread()
 			match wglh.get(grp_idx)
 			{
 			Some(r) => {
-				let nr = r.clone();
-				log_trace!("r = {:p}, &**r = {:p}, &*nr = {:p}", r, &**r, &*nr);
-				::kernel::arch::imp::checkmark_val(&*nr);
-				(grp_idx, nr)
+				(grp_idx, r.clone())
 				},
 			None => {
 				log_log!("Selected group {} invalid, falling back to 0", grp_idx);
@@ -161,8 +158,6 @@ fn render_thread()
 				},
 			}
 			};
-		::kernel::arch::imp::checkmark_val(&*grp_ref);
-		log_trace!("render_thread: grp_idx={}, grp_ref={:p} {:p}", grp_idx, grp_ref, &*grp_ref);
 		
 		// Check for events
 		while let Some(ev) = S_EVENT_QUEUE.pop()

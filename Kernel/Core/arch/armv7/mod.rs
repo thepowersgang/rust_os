@@ -144,7 +144,7 @@ pub struct AbortRegs
 	sp: u32,
 	lr: u32,
 	gprs: [u32; 13],	// R0-R12
-	_unused: u32,
+	_unused: u32,	// Padding (actually R0)
 	ret_pc: u32,	// SRSFD/RFEFD state
 	spsr: u32,
 }

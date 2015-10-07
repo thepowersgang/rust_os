@@ -156,7 +156,7 @@ impl<'a,T> ::core::fmt::Pointer for SlicePtr<'a,T> {
 }
 
 
-pub unsafe trait POD { }
+pub unsafe trait POD {}
 unsafe impl POD for .. {}
 //impl<T: ::core::ops::Drop> !POD for T {}  // - I would love this, but it collides with every other !POD impl
 impl<T> !POD for ::core::ptr::Unique<T> {}
@@ -164,6 +164,11 @@ impl<T> !POD for *const T {}
 impl<T> !POD for *mut T {}
 impl<'a, T> !POD for &'a T {}
 impl<'a, T> !POD for &'a mut T {}
+
+pub fn as_byte_slice<T: POD>(s: &T) -> &[u8] {
+	// SAFE: Plain-old-data
+	unsafe { ::core::slice::from_raw_parts(s as *const _ as *const u8, ::core::mem::size_of::<T>()) }
+}
 
 // vim: ft=rust
 
