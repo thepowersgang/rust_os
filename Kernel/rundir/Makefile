@@ -50,7 +50,8 @@ MACHINE_TYPE := realview-pb-a8
 MACHINE_TYPE := virt
 run:
 # DiskImages/hda.img
-	qemu-system-arm -machine $(MACHINE_TYPE) $(QEMU_ARGS) -kernel ../bin/kernel-armv7.bin -append "$(CMDLINE)" | tee QemuLog.txt
+	make -C arm_bootloader PLATFORM=$(MACHINE_TYPE) CMDLINE="$(CMDLINE)"
+	qemu-system-arm -machine $(MACHINE_TYPE) $(QEMU_ARGS) -kernel arm_bootloader/loader-$(MACHINE_TYPE).bin -append "$(CMDLINE)" | tee QemuLog.txt
 endif
 
 

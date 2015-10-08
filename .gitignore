@@ -36,5 +36,7 @@ Kernel/rundir/*.dmp
 Kernel/rundir/DiskImages
 Kernel/rundir/trace-*
 Kernel/rundir/*.iso
+Kernel/rundir/arm_bootloader/Core/
+
 
 Usermode/doc/
