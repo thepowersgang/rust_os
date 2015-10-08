@@ -71,16 +71,16 @@ ENTRY(start)
 	bl elf_load_symbols
 	add r12, r11, r0
 	
-	@ R9: Kernel entrypoint
+	mov r8, r9
+	@ R8: Kernel entrypoint
+	@ R9: UART Address
 	@ R10: FDT base address
 	@ R11: Symbol information base
 	@ R12: End of used RAM
-	mov r0, r10
-	mov r1, r11
-	mov r2, r12
-	ldr r3, =UART_BASE
-	ldr r4, =0x1badb002	@ Just ninja the mulitboot magic value
-	mov pc, r9
+	@ R13: Magic
+	ldr r9, =UART_BASE
+	ldr r13, =0x1badb002	@ Just ninja the mulitboot magic value
+	mov pc, r8
 
 ENTRY(__aeabi_memcpy4)
 1:

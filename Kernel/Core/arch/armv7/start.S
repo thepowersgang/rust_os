@@ -33,48 +33,47 @@ rst_start:
 .extern kmain
 .globl start
 start:
-	// 0. Print a '\n' to the serial port
-	ldr r0, =UART_BASE
-	mov r1, #'T' ; str r1, [r0]
-	mov r1, #'i' ; str r1, [r0]
-	mov r1, #'f' ; str r1, [r0]
-	mov r1, #'f' ; str r1, [r0]
-	mov r1, #'l' ; str r1, [r0]
-	mov r1, #'i' ; str r1, [r0]
-	mov r1, #'n' ; str r1, [r0]
-	mov r1, #10 ; str r1, [r0]
-	
-	ldr r12, =RAM_START
-	ldr r1, [r12]	// FDT magic value
-	//ldr r2, =0xd00dfeed
-	ldr r2, =0xedfe0dd0
-	cmp r1, r2
-	bne 1f
-	
-	mov r11, r12	// Store base in R11, which will be stored to RAM once VMM is up
-	ldr r1, [r12, #4]	// Total blob size, i.e. start of usable RAM
-	ldr r2, =0x000FFFFF
-	add r1, r2
-	mvn r2, r2
-	and r1, r2	// Rounded up to 1MB
-	add r12, r1
+	ldr r0, =0x1badb002
+	teq r0, r13
+	beq 1f
+	@ TODO: What to do if we weren't loaded by our loader
+	b .
 1:
-	// R0: Start of usable RAM, we assume there's enough free to copy the .data section
-	// - Build/copy paging structures in RAM
-	mov r0, r12
-	ldr r1, =data_phys_base
-	ldr r2, =data_len
-	bl __aeabi_memcpy4
-	mov r1, #0
-	ldr r2, =__bss_len
-	bl __aeabi_memset4
-	sub r0, r12
-	cmp r0, #0x100000
-	bgt data_segment_too_large
+	@ R9: UART Address
+	@ R10: FDT base address
+	@ R11: Symbol information base
+	@ R12: End of used RAM
+	@ R13: Magic
+	
+	// 0. Print a '\n' to the serial port
+	mov r1, #'T' ; str r1, [r9]
+	mov r1, #'i' ; str r1, [r9]
+	mov r1, #'f' ; str r1, [r9]
+	mov r1, #'f' ; str r1, [r9]
+	mov r1, #'l' ; str r1, [r9]
+	mov r1, #'i' ; str r1, [r9]
+	mov r1, #'n' ; str r1, [r9]
+	mov r1, #10 ; str r1, [r9]
+	
+	// To get RAM start: subtract linked address of current instruction from real address
+	ldr r0, =(get_ram_base-0x80000000+4)
+	sub r8, pc, r0
+get_ram_base:
+	ldr r0, =(kernel_phys_start - KERNEL_BASE)
+	add r0, r8
+	str r8, [r0]
+	ldr r0, =(ram_first_free - KERNEL_BASE)
+	add r0, r8
+	str r12, [r0]
+	ldr r0, =(dt_phys_base - KERNEL_BASE)
+	add r0, r8
+	str r10, [r0]
+	
+	mov r12, r8
 	
 prep_page_tables:
 	// 1. Prepare VMSA State
-	ldr r0, =kernel_table0_ofs
+	ldr r0, =(kernel_table0-KERNEL_BASE)
 	add r0, r12
 
 	// - Prepare page tables (offset with RAM base)
@@ -82,19 +81,22 @@ prep_page_tables:
 	ldr r5, =kernel_maps_len
 1:
 	ldr r3, [r4]
-	cmp r3, #0x1000
-	blo 2f
+	cmp r3, #0	@ 0x1000
+	beq 2f
 	add r3, r12
 2:
 	str r3, [r4], #4
 	subs r5, #4
 	bne 1b
 	
-	// - Set RAM base in table
-	orr r2, r12, #0x400
-	orr r2, r2, #0x2
-	ldr r3, =0x2004
-	str r2, [r0, r3]
+	orr r1, r12, #0x400
+	orr r1, r1, #0x002
+	lsr r2, r12, #20
+	lsl r2, r2, #2
+	ldr r3, [r0,r2]
+	cmp r3, #0
+	bne ram_mapping_collision
+	str r1, [r0,r2]
 	
 vmsa_setup:
 	mcr p15, 0, r0, c2, c0, 1	@ Set TTBR1 to r0
@@ -135,15 +137,10 @@ vmsa_setup:
 
 
 	@ Populate the first HWMapping address with the UART's base
-	ldr r0, =UART_BASE + 0x13
+	add r0, r9, #0x13
 	ldr r1, =hwmap_table_0+0
 	str r0, [r1]
 
-	ldr r0, =dt_base
-	str r11, [r0]	@ R11 was set back at the start to be the DT base
-	str r12, [r0, #4]
-
-	
 	cps #23	@ Switch to 'abort' mode
 	ldr sp, =abort_stack
 	cps #19	@ Back to supervisor
@@ -151,12 +148,13 @@ vmsa_setup:
 	ldr sp, =init_stack
 	ldr pc, =kmain
 
-data_segment_too_large:
-	mov r1, #'D' ; str r1, [r0]
-	mov r1, #'A' ; str r1, [r0]
-	mov r1, #'T' ; str r1, [r0]
-	mov r1, #'A' ; str r1, [r0]
-	mov r1, #'!' ; str r1, [r0]
+@ If the start of RAM fell on an occupied section of the virtual address space
+ram_mapping_collision:
+	mov r0, #'R'; str r0, [r9]
+	mov r0, #'A'; str r0, [r9]
+	mov r0, #'M'; str r0, [r9]
+	mov r0, #'!'; str r0, [r9]
+	mov r0, #'\n'; str r0, [r9]
 	b .
 
 
@@ -395,12 +393,9 @@ data_abort_message2_end:
 
 
 .section .data
-.globl dt_base
-dt_base:
-	.long	0 	@ (Firmware) Device Tree base location
-.globl kernel_data_start
-kernel_data_start:
-	.long	0	@ Start of kernel's .data segment
+ENTRY(dt_phys_base)	.long	0 	@ (Firmware) Device Tree base location
+ENTRY(kernel_phys_start).long	0	@ Start of kernel in RAM
+ENTRY(ram_first_free)	.long	0
 
 .section .bss
 	.space 0x2000, 0
@@ -420,32 +415,32 @@ kernel_table0:
 	.endr
 	@ 0x80000000 - User/Kernel split
 	.long 0x00000000 + 0x402	@ Map first 4 MiB to 2GiB (KRW only)
-	.long 0 @ x00100000 + 0x402 	@ 
-	.long 0 @ x00200000 + 0x402	@ 
-	.long 0 @ x00300000 + 0x402	@ 
+	.long 0x00100000 + 0x402 	@ 
+	.long 0x00200000 + 0x402	@ 
+	.long 0x00300000 + 0x402	@ 
 	.rept 0xF00 - 0x800 - 4
 		.long 0
 	.endr
 	.rept 16
 		.long 0
 	.endr
-	.long hwmap_table_0_ofs + 0x000 + 1
-	.long hwmap_table_0_ofs + 0x400 + 1
-	.long hwmap_table_0_ofs + 0x800 + 1
-	.long hwmap_table_0_ofs + 0xC00 + 1
+	.long hwmap_table_0 - KERNEL_BASE + 0x000 + 1
+	.long hwmap_table_0 - KERNEL_BASE + 0x400 + 1
+	.long hwmap_table_0 - KERNEL_BASE + 0x800 + 1
+	.long hwmap_table_0 - KERNEL_BASE + 0xC00 + 1
 	.rept 0xFF8 - 0xF00 - 16 - 4
 		.long 0
 	.endr
 	@ Page fractals and vectored exceptions
 	.long 0, 0, 0, 0
-	.long kernel_exception_map_ofs + 0x000 + 1
-	.long kernel_exception_map_ofs + 0x400 + 1
-	.long kernel_exception_map_ofs + 0x800 + 1
-	.long kernel_exception_map_ofs + 0xC00 + 1
+	.long kernel_exception_map - KERNEL_BASE + 0x000 + 1
+	.long kernel_exception_map - KERNEL_BASE + 0x400 + 1
+	.long kernel_exception_map - KERNEL_BASE + 0x800 + 1
+	.long kernel_exception_map - KERNEL_BASE + 0xC00 + 1
 
 .globl hwmap_table_0
 hwmap_table_0:
-	.long 0	@ 0x10009000 + 0x13
+	.long 0	@ Will be filled with UART base
 	.rept 1023
 		.long 0
 	.endr

@@ -5,11 +5,10 @@ use lib::lazy_static::LazyStatic;
 use super::fdt::FDTRoot;
 
 extern "C" {
-	static dt_base: u32;
-	static kernel_data_start: u32;
+	static dt_phys_base: u32;
+	static kernel_phys_start: u32;
 	static mut kernel_exception_map: [u32; 1024];
-	static data_len: ::Void;
-	static __bss_len: ::Void;
+	static v_kernel_end: ::Void;
 }
 
 enum BootInfo
@@ -41,15 +40,16 @@ fn get_boot_info() -> &'static BootInfo {
 impl BootInfo
 {
 	fn new() -> BootInfo {
-		if dt_base == 0 {
+		log_debug!("dt_phys_base = {:#x}", dt_phys_base);
+		if dt_phys_base == 0 {
 			BootInfo::None
 		}
 		else {
 			// SAFE: In practice, this is run in a single-thread. Any possible race would be benign
 			unsafe {
 				const FLAGS: u32 = 0x13;
-				kernel_exception_map[1024-3] = dt_base + FLAGS;
-				kernel_exception_map[1024-2] = dt_base + 0x1000 + FLAGS;
+				kernel_exception_map[1024-3] = dt_phys_base + FLAGS;
+				kernel_exception_map[1024-2] = dt_phys_base + 0x1000 + FLAGS;
 			}
 			// SAFE: Memory is valid, and is immutable
 			unsafe {
@@ -95,13 +95,13 @@ pub fn get_memory_map() -> &'static [::memory::MemoryMapEnt] {
 				log_debug!("base = {:#x}, size = {:#x}", base, size);
 				mapbuilder.append( base, size, ::memory::MemoryState::Free, 0 );
 			}
-			mapbuilder.set_range( dt_base as u64, fdt.size() as u64, ::memory::MemoryState::Used, 0 ).unwrap();
+			mapbuilder.set_range( dt_phys_base as u64, fdt.size() as u64, ::memory::MemoryState::Used, 0 ).unwrap();
 			},
 		}
 
-		if kernel_data_start != 0 {
+		if kernel_phys_start != 0 {
 			// 2. Clobber out kernel, modules, and strings
-			mapbuilder.set_range( kernel_data_start as u64, (&data_len as *const _ as u64 + &__bss_len as *const _ as u64), ::memory::MemoryState::Used, 0 ).unwrap();
+			mapbuilder.set_range( kernel_phys_start as u64, (&v_kernel_end as *const _ as u64 - 0x80000000), ::memory::MemoryState::Used, 0 ).unwrap();
 		}
 		
 		mapbuilder.size()
