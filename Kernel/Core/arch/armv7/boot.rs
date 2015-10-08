@@ -4,9 +4,19 @@
 use lib::lazy_static::LazyStatic;
 use super::fdt::FDTRoot;
 
+#[repr(C)]
+#[derive(Debug)]
+struct SymbolInfo {
+	base: *const u8,
+	count: usize,
+	string_table: *const u8,
+	strtab_len: usize,
+}
+
 extern "C" {
 	static dt_phys_base: u32;
 	static kernel_phys_start: u32;
+	static symbol_info_phys: u32;
 	static mut kernel_exception_map: [u32; 1024];
 	static v_kernel_end: ::Void;
 }
@@ -51,6 +61,23 @@ impl BootInfo
 				kernel_exception_map[1024-3] = dt_phys_base + FLAGS;
 				kernel_exception_map[1024-2] = dt_phys_base + 0x1000 + FLAGS;
 			}
+
+			// SAFE: Address range checked
+			unsafe {
+				assert!(symbol_info_phys - kernel_phys_start < 4*1024*1024);
+				let info: &'static SymbolInfo = &*((symbol_info_phys - kernel_phys_start + 0x80000000) as *const SymbolInfo);
+				log_debug!("(symbol) info = {:?}", info);
+				if !info.base.is_null() {
+					let syms_addr = info.base as usize - kernel_phys_start as usize;
+					let strs_addr = info.string_table as usize - kernel_phys_start as usize;
+					assert!(syms_addr < 4*1024*1024);
+					assert!(strs_addr < 4*1024*1024);
+					let syms = ::core::slice::from_raw_parts( (syms_addr + 0x80000000) as *const ::symbols::Elf32_Sym, info.count as usize);
+					let strs = ::core::slice::from_raw_parts( (strs_addr + 0x80000000) as *const u8, info.strtab_len as usize);
+					::symbols::set_symtab(syms, strs, 0);
+				}
+			}
+			
 			// SAFE: Memory is valid, and is immutable
 			unsafe {
 				BootInfo::FDT( super::fdt::FDTRoot::new_raw(0xFFFFD000 as *const u8) )

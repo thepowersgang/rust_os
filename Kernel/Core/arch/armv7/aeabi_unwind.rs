@@ -63,7 +63,7 @@ impl UnwindState {
 			// Indirect pointer
 			let ofs = (info | (1 << 31)) as usize;
 			let ptr = (base + ofs) as *const u32;
-			log_debug!("ptr = {:#x} + {:#x} = {:p}", base, ofs, ptr);
+			//log_debug!("ptr = {:#x} + {:#x} = {:p}", base, ofs, ptr);
 			// SAFE: Validity checked
 			let word = unsafe {
 				if ! ::memory::virt::is_reserved(ptr) {
@@ -148,22 +148,21 @@ impl UnwindState {
 		{
 		0x0 ... 0x3 => {	// ARM_EXIDX_CMD_DATA_POP
 			let count = (byte & 0x3F) as u32 * 4 + 4;
-			log_debug!("VSP += {:#x}*4+4 ({})", byte & 0x3F, count);
+			//log_debug!("VSP += {:#x}*4+4 ({})", byte & 0x3F, count);
 			self.vsp += count;
 			},
 		0x4 ... 0x7 => {	// ARM_EXIDX_CMD_DATA_PUSH
 			let count = (byte & 0x3F) as u32 * 4 + 4;
-			log_debug!("VSP -= {:#x}*4+4 ({})", byte & 0x3F, count);
+			//log_debug!("VSP -= {:#x}*4+4 ({})", byte & 0x3F, count);
 			self.vsp -= count;
 			},
 		0x8 => {	// ARM_EXIDX_CMD_REG_POP
 			let extra = try!( getb() );
-			//let extra = getb().unwrap_or(0);
 			if byte == 0x80 && extra == 0x00 {
 				// Refuse to unwind
 				return Err( Error::Refuse );
 			}
-			log_debug!("POP mask {:#x}{:02x}", byte & 0xF, extra);
+			//log_debug!("POP mask {:#x}{:02x}", byte & 0xF, extra);
 
 			if extra & 0x01 != 0 { self.regs[4] = try!(self.pop()); }	// R4
 			if extra & 0x02 != 0 { self.regs[5] = try!(self.pop()); }	// R5
@@ -179,13 +178,13 @@ impl UnwindState {
 			if byte & 0x8 != 0 { self.regs[15] = try!(self.pop()); }	// R15
 			},
 		0x9 => {	// ARM_EXIDX_CMD_REG_TO_SP
-			log_debug!("VSP = R{}", byte & 0xF);
+			//log_debug!("VSP = R{}", byte & 0xF);
 			self.vsp = self.regs[(byte & 0xF) as usize];
 			},
 		0xA => {	// ARM_EXIDX_CMD_REG_POP
 			let pop_lr = byte & 0x8 != 0;
 			let count = (byte&0x7) as usize;
-			log_debug!("POP {{r4-r{}{}}}", 4 + count, if pop_lr { ",lr" } else { "" });
+			//log_debug!("POP {{r4-r{}{}}}", 4 + count, if pop_lr { ",lr" } else { "" });
 			for r in 4 .. 4 + count + 1 {
 				self.regs[r] = try!(self.pop());
 			}

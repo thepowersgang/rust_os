@@ -56,6 +56,22 @@ struct PhEnt {
 	p_flags: Elf32_Word,
 	p_align: Elf32_Word,
 }
+#[repr(C)]
+#[derive(Copy,Clone)]
+struct ShEnt {
+	sh_name: Elf32_Word,
+	sh_type: Elf32_Word,
+	sh_flags: Elf32_Word,
+	sh_addr: Elf32_Addr,
+	sh_offset: Elf32_Off,
+	sh_size: Elf32_Word,
+	sh_link: Elf32_Word,
+	sh_info: Elf32_Word,
+	sh_addralign: Elf32_Word,
+	sh_entsize: Elf32_Word,
+}
+
+
 pub struct ElfFile(ElfHeader);
 impl ElfFile
 {
@@ -73,6 +89,14 @@ impl ElfFile
 		log!("phents() - slice = {:p}+{}", slice.as_ptr(), slice.len());
 		PhEntIter( slice )
 	}
+	fn shents(&self) -> &[ShEnt] {
+		assert_eq!( self.0.e_shentsize as usize, ::core::mem::size_of::<ShEnt>() );
+		// SAFE: Assuming the file is correct...
+		unsafe {
+			let ptr = (&self.0 as *const _ as usize + self.0.e_shoff as usize) as *const ShEnt;
+			::core::slice::from_raw_parts( ptr, self.0.e_shnum as usize )
+		}
+	}
 
 	pub fn entrypoint(&self) -> usize {
 		self.0.e_entry as usize
@@ -82,6 +106,20 @@ struct PhEntIter<'a>(&'a [PhEnt]);
 impl<'a> Iterator for PhEntIter<'a> {
 	type Item = PhEnt;
 	fn next(&mut self) -> Option<PhEnt> {
+		if self.0.len() == 0 {
+			None
+		}
+		else {
+			let rv = self.0[0].clone();
+			self.0 = &self.0[1..];
+			Some(rv)
+		}
+	}
+}
+struct ShEntIter<'a>(&'a [ShEnt]);
+impl<'a> Iterator for ShEntIter<'a> {
+	type Item = ShEnt;
+	fn next(&mut self) -> Option<ShEnt> {
 		if self.0.len() == 0 {
 			None
 		}
@@ -122,6 +160,7 @@ pub extern "C" fn elf_get_size(file_base: &ElfFile) -> u32
 }
 
 #[no_mangle]
+/// Returns program entry point
 pub extern "C" fn elf_load_segments(file_base: &ElfFile, output_base: *mut u8) -> u32
 {
 	log!("elf_load_segments(file_base={:p}, output_base={:p})", file_base, output_base);
@@ -152,11 +191,68 @@ pub extern "C" fn elf_load_segments(file_base: &ElfFile, output_base: *mut u8) -
 	rv
 }
 
+#[derive(Copy,Clone,Debug)]
+pub struct SymEnt {
+	st_name: u32,
+	st_value: u32,
+	st_size: u32,
+	st_info: u8,
+	st_other: u8,
+	st_shndx: u16,
+}
+#[repr(C)]
+#[derive(Debug)]
+pub struct SymbolInfo {
+	base: *const SymEnt,
+	count: usize,
+	string_table: *const u8,
+	strtab_len: usize,
+}
 #[no_mangle]
-pub extern "C" fn elf_load_symbols(file_base: &ElfFile, output_base: *mut u8) -> u32
+/// Returns size of data written to output_base
+pub extern "C" fn elf_load_symbols(file_base: &ElfFile, output: &mut SymbolInfo) -> u32
 {
-	log!("elf_load_symbols(file_base={:p}, output_base={:p})", file_base, output_base);
-	0
+	log!("elf_load_symbols(file_base={:p}, output={:p})", file_base, output);
+	*output = SymbolInfo {base: 0 as *const _, count: 0, string_table: 0 as *const _, strtab_len: 0};
+	let mut pos = ::core::mem::size_of::<SymbolInfo>();
+	for ent in file_base.shents()
+	{
+		if ent.sh_type == 2
+		{
+			log!("Symbol table at +{:#x}+{:#x}, string table {}", ent.sh_offset, ent.sh_size, ent.sh_link);
+			let strtab = file_base.shents()[ent.sh_link as usize];
+			let strtab_bytes = unsafe { ::core::slice::from_raw_parts( (file_base as *const _ as usize + strtab.sh_offset as usize) as *const u8, strtab.sh_size as usize ) };
+			//log!("- strtab = {:?}", ::core::str::from_utf8(strtab_bytes));
+
+			output.base = (output as *const _ as usize + pos) as *const _;
+			output.count = ent.sh_size as usize / ::core::mem::size_of::<SymEnt>();
+			unsafe {
+				let bytes = ent.sh_size as usize;
+				let src = ::core::slice::from_raw_parts( (file_base as *const _ as usize + ent.sh_offset as usize) as *const SymEnt, output.count );
+				let dst = ::core::slice::from_raw_parts_mut( output.base as *mut SymEnt, output.count );
+				for (d,s) in Iterator::zip( dst.iter_mut(), src.iter() ) {
+					//log!("- {:?} = {:#x}+{:#x}", ::core::str::from_utf8(&strtab_bytes[s.st_name as usize..].split(|&v|v==0).next().unwrap()), s.st_value, s.st_size);
+					*d = *s;
+				}
+				pos += bytes;
+			}
+			output.string_table = (output as *const _ as usize + pos) as *const _;
+			output.strtab_len = strtab.sh_size as usize;
+			unsafe {
+				let bytes = strtab.sh_size as usize;
+				let src = ::core::slice::from_raw_parts( (file_base as *const _ as usize + strtab.sh_offset as usize) as *const u8, bytes );
+				let dst = ::core::slice::from_raw_parts_mut( output.string_table as *mut u8, bytes );
+				for (d,s) in Iterator::zip( dst.iter_mut(), src.iter() ) {
+					*d = *s;
+				}
+				pos += bytes;
+			}
+			break ;
+		}
+	}
+
+	log!("- output = {:?}", output);
+	pos as u32
 }
 
 

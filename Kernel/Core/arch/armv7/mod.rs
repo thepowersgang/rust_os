@@ -119,7 +119,12 @@ fn print_backtrace_unwindstate(mut rs: aeabi_unwind::UnwindState, mut addr: usiz
 {
 	while let Some(info) = aeabi_unwind::get_unwind_info_for(addr)
 	{
-		log_debug!("addr={:#x} fcn={:#x}, info={:#x}", addr, info.0, info.1);
+		//log_debug!("addr={:#x} fcn={:#x}, info={:#x}", addr, info.0, info.1);
+		match ::symbols::get_symbol_for_addr(addr)
+		{
+		Some( (name,ofs) ) => log_debug!("> {}+{:#x}", ::symbols::Demangle(name), ofs),
+		None => log_debug!("> {:#x}", addr),
+		}
 		match rs.unwind_step(info.1)
 		{
 		Ok(_) => {},

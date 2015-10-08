@@ -62,12 +62,15 @@ get_ram_base:
 	ldr r0, =(kernel_phys_start - KERNEL_BASE)
 	add r0, r8
 	str r8, [r0]
-	ldr r0, =(ram_first_free - KERNEL_BASE)
-	add r0, r8
-	str r12, [r0]
 	ldr r0, =(dt_phys_base - KERNEL_BASE)
 	add r0, r8
 	str r10, [r0]
+	ldr r0, =(symbol_info_phys - KERNEL_BASE)
+	add r0, r8
+	str r11, [r0]
+	ldr r0, =(ram_first_free - KERNEL_BASE)
+	add r0, r8
+	str r12, [r0]
 	
 	mov r12, r8
 	
@@ -396,6 +399,7 @@ data_abort_message2_end:
 ENTRY(dt_phys_base)	.long	0 	@ (Firmware) Device Tree base location
 ENTRY(kernel_phys_start).long	0	@ Start of kernel in RAM
 ENTRY(ram_first_free)	.long	0
+ENTRY(symbol_info_phys)	.long	0
 
 .section .bss
 	.space 0x2000, 0

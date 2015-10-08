@@ -68,6 +68,8 @@ pub mod prelude;
 #[macro_use]
 pub mod lib;	// Clone of libstd
 
+mod symbols;
+
 /// Heavy synchronisation primitives (Mutex, Semaphore, RWLock, ...)
 #[macro_use]
 pub mod sync;

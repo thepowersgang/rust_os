@@ -177,6 +177,10 @@ fn get_table_addr<T>(vaddr: *const T, alloc: bool) -> Option< (::arch::memory::P
 	{
 	0 => if alloc {
 			let frame = ::memory::phys::allocate_bare().expect("TODO get_table_addr - alloc failed");
+			// SAFE: Unaliased memory
+			for v in unsafe { TempHandle::<AtomicU32>::new( frame ) }.iter() {
+				v.store(0);
+			}
 			let ent_v = ent_r.cxchg(0, frame + 0x1);
 			if ent_v != 0 {
 				::memory::phys::deref_frame(frame);
