@@ -18,5 +18,5 @@ $(OBJDIR)start.ao: start.S platform-$(PLATFORM).h
 $(OBJDIR)main.o: main.rs ../../Core/arch/armv7/target.json $(LIBCORE)
 	mkdir -p $(dir $@)
 	mkdir -p Core/arch/armv7; cp ../../Core/arch/armv7/target.json Core/arch/armv7/target.json
-	$(RUSTC) --target Core/arch/armv7/target.json $< -o $@ --extern core=$(LIBCORE) -Z no-landing-pads --emit obj --crate-type lib
+	$(RUSTC) --target Core/arch/armv7/target.json $< -o $@ --extern core=$(LIBCORE) -Z no-landing-pads --emit obj --crate-type lib -O
 

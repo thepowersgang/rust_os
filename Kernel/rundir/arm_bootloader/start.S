@@ -49,11 +49,12 @@ ENTRY(start)
 #else
 .extern fdt_start
 .extern fdt_len
-	add r2, pc, #fdt_len - . - 8
+	ldr r2, =fdt_end
+	ldr r1, =fdt_start
+	sub r2, r2, r1
 	mov r10, r11	@ Save FDT base
 	add r11, r11, r2	@ Increment free RAM base by size of FDT
 	
-	add r1, pc, #fdt_start - . - 8
 	mov r0, r10	@ Destination
 	bl __aeabi_memcpy4
 #endif
@@ -62,7 +63,7 @@ ENTRY(start)
 	mov r0, r8
 	mov r1, #RAM_START
 	bl elf_load_segments
-	mov r0, r9	@ Save entrypoint
+	mov r9, r0	@ Save entrypoint
 	
 	@ Load symbols
 	mov r0, r8
