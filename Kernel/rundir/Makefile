@@ -54,10 +54,6 @@ run:
 	qemu-system-arm -machine $(MACHINE_TYPE) $(QEMU_ARGS) -kernel arm_bootloader/loader-$(MACHINE_TYPE).bin -append "$(CMDLINE)" | tee QemuLog.txt
 endif
 
-
-%.dtb: %.dts
-	dtc $< -O dtb -o $@
-
 DiskImages/hda_0.img:
 	mkdir -p $(dir $@)
 	# - 1MB of blank space 
