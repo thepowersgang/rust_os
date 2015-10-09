@@ -271,21 +271,25 @@ EXIDX_\method: .long \method - . - 0x80000000, \handle
 .globl __aeabi_memcpy8
 __aeabi_memcpy8:
 __aeabi_memcpy4:
+	movs r2, r2
+	bxeq lr
 1:
 	LDR r3, [r1], #4
 	STR r3, [r0], #4
 	SUBS r2, r2, #4
-	BGE 1b
+	BGT 1b
 	BX lr
 EXIDX __aeabi_memcpy4, 0x80B0B0B0
 
 .globl __aeabi_memcpy
 __aeabi_memcpy:
+	movs r2, r2
+	bxeq lr
 1:
 	LDRB r3, [r1], #1
 	STRB r3, [r0], #1
 	SUBS r2, r2, #1
-	BGE 1b
+	BGT 1b
 	BX lr
 ENTRY(memcpy)
 	b __aeabi_memcpy
@@ -295,6 +299,9 @@ EXIDX __aeabi_memcpy, 0x80B0B0B0
 .globl __aeabi_memset8
 __aeabi_memset4:
 __aeabi_memset8:
+	movs r1, r1
+	bxeq lr
+
 	LSL r3, r2, #8
 	ORR r2, r2, r3
 	LSL r3, r2, #16
@@ -302,7 +309,7 @@ __aeabi_memset8:
 1:
 	STR r2, [r0], #4
 	SUBS r1, r1, #4
-	BGE 1b
+	BGT 1b
 	BX lr
 EXIDX __aeabi_memset4, 0x80B0B0B0
 
@@ -461,3 +468,5 @@ kernel_exception_map:
 	.long 0	@ ALWAYS zero, to catch NULL-1 indexing
 .globl kernel_maps_end
 kernel_maps_end:
+
+@ vim: ft=armasm
