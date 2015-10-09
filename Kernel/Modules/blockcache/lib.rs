@@ -34,8 +34,7 @@ impl BlockCache
 	/// Construct a new cache instance
 	pub fn new() -> Self {
 		BlockCache {
-			//lru_blocks: Default::default(),
-			lru_blocks: ::kernel::sync::Mutex::new([None, None, None, None, None, None]),
+			lru_blocks: Default::default(),
 		}
 	}
 	
