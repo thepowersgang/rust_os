@@ -202,7 +202,16 @@ fn sysinit()
 	// XXX: hard-code the sysroot path here to avoid having to handle symlinks yet
 	spawn_init("/system/Tifflin/bin/loader", "/system/Tifflin/bin/init");
 	//spawn_init("/sysroot/bin/loader", "/sysroot/bin/init");
+	
+	//vfs_test();
+}
 
+fn vfs_test()
+{
+	use metadevs::storage::VolumeHandle;
+	use vfs::{mount,handle};
+	use vfs::Path;
+	
 	fn ls(p: &Path) {
 		// - Iterate root dir
 		match handle::Dir::open(p)
@@ -253,7 +262,7 @@ fn sysinit()
 		Err(e) => log_notice!("Unable to automount '{}': {:?}", v, e),
 		}
 	}
-	ls(Path::new("/mount/ATA-2w"));
+	//ls(Path::new("/mount/ATA-2w"));
 }
 
 fn spawn_init(loader_path: &str, init_cmdline: &str)
