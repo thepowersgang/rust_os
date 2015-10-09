@@ -119,8 +119,8 @@ impl<'buf> MemoryMapBuilder<'buf>
 		
 		let page_mask = ::PAGE_SIZE as u64 - 1;
 		let ofs = base_ & page_mask;
-		let base = base_ - ofs;
-		let size = (size_ + ofs + page_mask) & !page_mask;
+		let mut base = base_ - ofs;
+		let mut size = (size_ + ofs + page_mask) & !page_mask;
 		
 		// 1. Locate position
 		let mut pos = self._find_addr(base);
@@ -130,38 +130,51 @@ impl<'buf> MemoryMapBuilder<'buf>
 			return Ok( () );
 		}
 		if self.slots[pos].start > base {
+			// TODO: Handle range overlapping end of a hole
 			log_debug!("set_range - {:#x} in a memory hole, not setting", base);
 			return Ok( () );
 		}
-	
-		if base + size <= self.slots[pos].start + self.slots[pos].size
-		{
-			if self.slots[pos].state != state || self.slots[pos].domain != domain
-			{
-				// Split (possibly) two times to create a block corresponding to the marked range
-				if self.slots[pos].start != base
-				{
-					let leftsize = base - self.slots[pos].start;
-					try!(self._split_at(pos, leftsize));
-					pos += 1;
-				}
-				
-				if self.slots[pos].size > size
-				{
-					try!( self._split_at(pos, size) );
-				}
-				self.slots[pos].state = state;
-				self.slots[pos].domain = domain;
-				
-				//self.compact();
+		
+		while pos < self.size && size > 0 {
+			let slot = self.slots[pos];
+			log_debug!("{}: ({:#x}+{:#x}): slot={:?}", pos, base, size, slot);
+			if slot.start > base {
+				let seg_size = ::core::cmp::min(size, slot.start - base);
+				base += seg_size;
+				size -= seg_size;
 			}
-			
+			else {
+				let seg_size = ::core::cmp::min(size, slot.size - (base - slot.start));
+				if slot.state != state {
+					// Altered region starts within block
+					if slot.start < base {
+						let leftsize = base - slot.start;
+						try!(self._split_at(pos, leftsize));
+					}
+					// Altered region ends within block
+					else if slot.size > size {
+						try!( self._split_at(pos, size) );
+						base += size;
+						size = 0;
+					}
+					// Altered region encompasses block
+					else {
+						base += seg_size;
+						size -= seg_size;
+					}
+					self.slots[pos].state = state;
+					self.slots[pos].domain = domain;
+				}
+				else {
+					// Already same state, no change
+					base += seg_size;
+					size -= seg_size;
+				}
+				pos += 1;
+			}
 		}
-		else
-		{
-			panic!("TODO: Support marking range across multiple map entries: [{:#x}+{:#x}]",
-				self.slots[pos].start, self.slots[pos].size);
-		}	
+		// TODO: Merge ajoining regions
+		//self.compact();
 	
 		Ok( () )
 	}

@@ -17,6 +17,7 @@ extern "C" {
 	static dt_phys_base: u32;
 	static kernel_phys_start: u32;
 	static symbol_info_phys: u32;
+	static ram_first_free: u32;
 	static mut kernel_exception_map: [u32; 1024];
 	static v_kernel_end: ::Void;
 }
@@ -129,6 +130,9 @@ pub fn get_memory_map() -> &'static [::memory::MemoryMapEnt] {
 		if kernel_phys_start != 0 {
 			// 2. Clobber out kernel, modules, and strings
 			mapbuilder.set_range( kernel_phys_start as u64, (&v_kernel_end as *const _ as u64 - 0x80000000), ::memory::MemoryState::Used, 0 ).unwrap();
+		}
+		if ram_first_free != 0 {
+			mapbuilder.set_range( kernel_phys_start as u64, (ram_first_free - kernel_phys_start) as u64, ::memory::MemoryState::Used, 0 ).unwrap();
 		}
 		
 		mapbuilder.size()
