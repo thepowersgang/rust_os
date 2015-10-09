@@ -66,7 +66,8 @@ fn new_process_entry() -> !
 {
 	kernel_log!("new_process_entry");
 	// Release buffer lock once in new process
-	//S_BUFFER_LOCK.release();
+	// SAFE: Unlocking our copy of the lock
+	unsafe { S_BUFFER_LOCK.unlock(); }
 	assert!(arg_count > 0);
 	// SAFE: Valid memory from linker script
 	let arg_slice = unsafe { ::std::slice::from_raw_parts( init_path.as_ptr(), init_path_end.as_ptr() as usize - init_path.as_ptr() as usize ) };

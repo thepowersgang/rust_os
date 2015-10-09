@@ -30,6 +30,13 @@ impl<T> Mutex<T>
 		// SAFE: By-value self, so no aliasing
 		unsafe { self.1.into_inner() }
 	}
+
+	/// UNSAFE: User needs to ensure that resources are no longer borrowed
+	pub unsafe fn unlock(&self) {
+		if self.0.fetch_add(1, Ordering::Release) != 0 {
+			panic!("TODO: Release Mutex when contended");
+		}
+	}
 }
 
 pub struct HeldMutex<'a, T: 'a> {
