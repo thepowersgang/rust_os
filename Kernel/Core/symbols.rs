@@ -111,6 +111,7 @@ fn get_name(ofs: usize) -> &'static str {
 		""
 	}
 	else if ofs >= strtab.len() {
+		log_warning!("{:#x} >= {}", ofs, strtab.len());
 		"#BADSTR#"
 	}
 	else {
