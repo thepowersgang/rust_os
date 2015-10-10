@@ -188,11 +188,11 @@ impl Reservation
 	//	Ok( () )
 	//}
 	pub fn finalise(self, final_mode: ProtectionMode) -> Result<(),()> {
+		log_trace!("Reservation::finalise(final_mode={:?})", final_mode);
 		for addr in Pages(self.0, self.1) {
 			// SAFE: Just changing flags, and 'self' owns this region of memory.
 			unsafe {
-				let pa = ::arch::memory::virt::get_phys(addr);
-				::arch::memory::virt::map(addr, pa, final_mode);
+				::arch::memory::virt::reprotect(addr, final_mode);
 			}
 		}
 		Ok( () )
