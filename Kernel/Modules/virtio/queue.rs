@@ -2,7 +2,9 @@
 //
 //
 //!
+use kernel::prelude::*;
 use interface::Interface;
+use core::sync::atomic::{AtomicUsize,Ordering};
 
 pub struct Queue {
 	idx: usize,
@@ -10,6 +12,10 @@ pub struct Queue {
 	buffer: ::kernel::memory::virt::AllocHandle,
 	descriptors_lock: ::kernel::sync::Mutex<()>,
 	avail_ring_lock: ::kernel::sync::Mutex<()>,
+
+	last_seen_used: AtomicUsize,
+	interrupt_flag: ::kernel::sync::Semaphore,
+	avail_ring_res: Vec<AtomicUsize>,
 }
 
 pub enum Buffer<'a> {
@@ -50,6 +56,21 @@ struct AvailRing {
 	flags: u16,
 	idx: u16,
 	ents: [u16],
+	//used_event: u16,
+}
+#[repr(C)]
+#[derive(Debug)]
+struct UsedRing {
+	flags: u16,
+	idx: u16,
+	ents: [UsedElem],
+	//avail_event: u16,
+}
+#[repr(C)]
+#[derive(Debug)]
+struct UsedElem {
+	id: u32,
+	len: u32,
 }
 
 impl Queue
@@ -73,14 +94,30 @@ impl Queue
 			buffer: ::kernel::memory::virt::alloc_dma(32+12, n_pages, "VirtIO").expect("TODO: Handle alloc failure VirtIO queue"),
 			descriptors_lock: Default::default(),
 			avail_ring_lock: Default::default(),
+
+			last_seen_used: AtomicUsize::new(0),
+			interrupt_flag: ::kernel::sync::Semaphore::new(0, count as isize),
+			avail_ring_res: (0..count).map(|_| AtomicUsize::new(0)).collect(),
 			}
+	}
+
+	pub fn check_interrupt(&self) {
+		while self.last_seen_used.load(Ordering::Relaxed) as u16 != self.used_ring().idx {
+			let idx = self.last_seen_used.fetch_add(1, Ordering::Relaxed) & 0xFFFF;
+			log_debug!("idx={}, desc={:?}", idx, self.used_ring().ents[idx]);
+			let UsedElem { id, len } = self.used_ring().ents[idx];
+
+			assert!(len > 0);
+			self.avail_ring_res[id as usize].store(len as usize, Ordering::Release);
+			self.interrupt_flag.release();
+		}
 	}
 
 	pub fn phys_addr(&self) -> u64 {
 		::kernel::memory::virt::get_phys(self.buffer.as_ref::<u8>(0)) as u64
 	}
 
-	pub fn send_buffers<'a, I: 'a + Interface>(&self, interface: &'a I, buffers: &mut [Buffer<'a>]) -> Request<'a, I> {
+	pub fn send_buffers<'a, I: Interface>(&'a self, interface: &I, buffers: &mut [Buffer<'a>]) -> Request<'a> {
 		assert!(buffers.len() > 0);
 
 		// Allocate a descriptor for each buffer (backwards to build up linked list)
@@ -118,14 +155,14 @@ impl Queue
 		}
 		todo!("allocate_descriptor - out of descriptors");
 	}
-	fn dispatch_descriptor<'a, I: 'a + Interface>(&self, interface: &'a I, handle: DescriptorHandle<'a>) -> Request<'a, I> {
+	fn dispatch_descriptor<'a, I: Interface>(&'a self, interface: &I, handle: DescriptorHandle<'a>) -> Request<'a> {
 		
 		self.avail_ring().push( handle.idx );
 		// TODO: Memory barrier
 
 		interface.notify_queue(self.idx);
 		Request {
-			interface: interface,
+			queue: self,
 			first_desc: handle.idx
 			}
 	}
@@ -137,10 +174,20 @@ impl Queue
 			// SAFE: Locked
 			ptr: unsafe { 
 				let base_ptr: *const u16 = self.buffer.as_int_mut(16 * self.size);
+				// NOTE: Constructing an unsized struct pointer
 				let ptr: &mut AvailRing = ::core::mem::transmute( (base_ptr, self.size) );
 				assert_eq!(&ptr.flags as *const _, base_ptr);
 				ptr
 				},
+		}
+	}
+	fn used_ring(&self) -> &UsedRing {
+		// SAFE: Unaliased memory
+		unsafe {
+			let ptr: *const () = self.buffer.as_ref( Self::get_first_size(self.size) );
+			let rv: &UsedRing = ::core::mem::transmute(::core::raw::Slice { data: ptr, len: self.size });
+			assert_eq!(&rv.flags as *const _, ptr as *const u16);
+			rv
 		}
 	}
 
@@ -148,7 +195,7 @@ impl Queue
 	fn descriptors(&self) -> LockedDescriptors {
 		LockedDescriptors {
 			_lh: self.descriptors_lock.lock(),
-			// SAFE: Becomes raw pointer instantly
+			// SAFE: Locked access
 			slice: unsafe { self.buffer.as_int_mut_slice(0, self.size) },
 		}
 	}
@@ -176,6 +223,11 @@ impl AvailRing {
 	}
 }
 
+impl UsedRing {
+	//pub fn used_event(&self) -> &u16 {
+	//}
+}
+
 struct LockedDescriptors<'a> {
 	_lh: ::kernel::sync::mutex::HeldMutex<'a, ()>,
 	slice: *mut [VRingDesc],
@@ -196,15 +248,30 @@ struct DescriptorHandle<'a>
 	idx: u16,
 }
 
-struct Request<'a, I: 'a>
+struct Request<'a>
 {
-	interface: &'a I,
+	queue: &'a Queue,
 	first_desc: u16,
 }
-impl<'a, I: 'a + Interface> Request<'a, I>
+impl<'a> Request<'a>
 {
-	pub fn wait_for_completion(&self) {
-		// TODO: Actually wait
+	pub fn wait_for_completion(&self) -> Result<usize,()> {
+		// XXX: HACK! No interrupts... yet
+		while self.queue.avail_ring_res[self.first_desc as usize].load(Ordering::Relaxed) == 0 {
+			self.queue.check_interrupt();
+		}
+		self.queue.interrupt_flag.acquire();
+		loop
+		{
+			let v = self.queue.avail_ring_res[self.first_desc as usize].swap(0, Ordering::Acquire);
+			if v != 0 {
+				return Ok(v);
+			}
+			self.queue.interrupt_flag.release();
+			// HACK: Yield here to prevent this wait from instantly waking
+			::kernel::threads::yield_time();
+			self.queue.interrupt_flag.acquire();
+		}
 	}
 }
 
