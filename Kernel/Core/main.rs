@@ -293,7 +293,7 @@ fn spawn_init(loader_path: &str, init_cmdline: &str)
 	#[cfg(arch="amd64")]	const ARCH: ArchValues = ArchValues::AMD64;
 	#[cfg(arch="amd64")]	const LOAD_MAX: usize = 1 << 47;
 	#[cfg(arch="armv7")]	const ARCH: ArchValues = ArchValues::ARMv7;
-	#[cfg(arch="armv7")]	const LOAD_MAX: usize = 1 << 31;
+	#[cfg(arch="armv7")]	const LOAD_MAX: usize = (1 << 31) - (4 << 20);
 	const INFO: u32 = (5*4 + ::core::usize::BYTES as u32) | ((ARCH as u8 as u32) << 8);
 	
 	log_log!("Loading userland '{}' args '{}'", loader_path, init_cmdline);
