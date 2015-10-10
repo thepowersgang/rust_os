@@ -5,6 +5,12 @@
 use memory::virt::ProtectionMode;
 use arch::memory::PAddr;
 
+static S_TEMP_MAP_SEMAPHORE: ::sync::Semaphore = ::sync::Semaphore::new(1022, 1023);
+const KERNEL_TEMP_BASE : usize = 0xFFC00000;
+const USER_BASE_TABLE: usize = 0x7FFF_E000;	// 2GB - 0x800 * 4 = 0x2000
+const USER_TEMP_TABLE: usize = 0x7FFF_D000;	// Previous page to that
+const USER_TEMP_BASE: usize = 0x7FC0_0000;	// 1 page worth of temp mappings (top three are used for base table/temp table)
+
 pub fn post_init() {
 	kernel_table0[0].store(0);
 }
@@ -35,11 +41,22 @@ impl AtomicU32 {
 	}
 }
 
-pub fn is_fixed_alloc<T>(_addr: *const T, _size: usize) -> bool {
-	//const BASE : usize = super::addresses::KERNEL_BASE;
-	//const ONEMEG: usize = 1024*1024
-	//const LIMIT: usize = super::addresses::KERNEL_BASE + 4*ONEMEG;
-	false
+pub fn is_fixed_alloc<T>(addr: *const T, size: usize) -> bool {
+	const BASE: usize = super::addresses::KERNEL_BASE;
+	const ONEMEG: usize = 1024*1024;
+	const LIMIT: usize = super::addresses::KERNEL_BASE + 4*ONEMEG;
+	let addr = addr as usize;
+	if BASE <= addr && addr < LIMIT {
+		if addr + size <= LIMIT {
+			true
+		}
+		else {
+			false
+		}
+	}
+	else {
+		false
+	}
 }
 // UNSAFE: Can cause aliasing
 pub unsafe fn fixed_alloc(_p: PAddr, _count: usize) -> Option<*mut ()> {
@@ -163,30 +180,35 @@ extern "C" {
 fn get_table_addr<T>(vaddr: *const T, alloc: bool) -> Option< (::arch::memory::PAddr, usize) > {
 	let addr = vaddr as usize;
 	let page = addr >> 12;
-	let (ttbr_ofs, tab_idx) = (page >> 8, page & 0xFF);
-	let ent_r = if ttbr_ofs < 0x800 {
-			todo!("get_table_addr - User");
+	let (ttbr_ofs, tab_idx) = (page >> 10, page & 0x3FF);
+	let ent_r = if ttbr_ofs < 0x800/4 {
+			// SAFE: This memory should always be mapped
+			unsafe { & (*(USER_BASE_TABLE as *const [AtomicU32; 0x800]))[ttbr_ofs*4 .. ][..4] }
 		}
 		else {
 			// Kernel
-			&kernel_table0[ ttbr_ofs ]
+			&kernel_table0[ ttbr_ofs*4 .. ][..4]
 		};
 	
-	let ent_v = ent_r.load();
+	let ent_v = ent_r[0].load();
 	match ent_v & 0xFFF
 	{
 	0 => if alloc {
 			let frame = ::memory::phys::allocate_bare().expect("TODO get_table_addr - alloc failed");
+			//::memory::virt::with_temp(|frame: &[AtomicU32]| for v in frame.iter { v.store(0) });
 			// SAFE: Unaliased memory
 			for v in unsafe { TempHandle::<AtomicU32>::new( frame ) }.iter() {
 				v.store(0);
 			}
-			let ent_v = ent_r.cxchg(0, frame + 0x1);
+			let ent_v = ent_r[0].cxchg(0, frame + 0x1);
 			if ent_v != 0 {
 				::memory::phys::deref_frame(frame);
 				Some( (ent_v & !0xFFF, tab_idx) )
 			}
 			else {
+				ent_r[1].store(frame + 0x400 + 0x1);
+				ent_r[2].store(frame + 0x800 + 0x1);
+				ent_r[3].store(frame + 0xC00 + 0x1);
 				Some( (frame & !0xFFF, tab_idx) )
 			}
 		}
@@ -197,9 +219,6 @@ fn get_table_addr<T>(vaddr: *const T, alloc: bool) -> Option< (::arch::memory::P
 	v @ _ => todo!("get_table_addr - Other flags bits {:#x}", v),
 	}
 }
-
-static S_TEMP_MAP_SEMAPHORE: ::sync::Semaphore = ::sync::Semaphore::new(1022, 1023);
-const KERNEL_TEMP_BASE : usize = 0xFFC00000;
 
 /// Handle to a temporarily mapped frame
 struct TempHandle<T>(*mut T);
@@ -215,6 +234,7 @@ impl<T> TempHandle<T>
 		for i in 0 .. 1023 {
 			if kernel_exception_map[i].cxchg(0, val) == 0 {
 				let addr = (KERNEL_TEMP_BASE + i * 0x1000) as *mut _;
+				tlbimva(addr as *mut ());
 				//log_trace!("- Addr = {:p}", addr);
 				return TempHandle( addr );
 			}
@@ -304,6 +324,7 @@ pub unsafe fn map(a: *mut (), p: PAddr, mode: ProtectionMode) {
 fn map_int(a: *mut (), p: PAddr, mode: ProtectionMode) {
 	// 1. Map the relevant table in the temp area
 	let (tab_phys, idx) = get_table_addr(a, true).unwrap();
+	//log_debug!("map_int({:p}, {:#x}, {:?}) - tab_phys={:#x},idx={}", a, p, mode, tab_phys, idx);
 	// SAFE: Address space is valid during manipulation, and alias is benign
 	let mh: TempHandle<AtomicU32> = unsafe {  TempHandle::new( tab_phys ) };
 	// 2. Insert
@@ -319,7 +340,7 @@ fn map_int(a: *mut (), p: PAddr, mode: ProtectionMode) {
 		ProtectionMode::UserRWX => 0x033,
 		ProtectionMode::UserCOW => 0x223,	// 1,10 is a deprecated encoding for RO, need to find a better encoding
 		};
-	//log_debug!("map(): a={:p} mh={:p} idx={}, new={:#x}", a, &mh[0], idx, p + mode_flags);
+	log_debug!("map(): a={:p} mh={:p} idx={}, new={:#x}", a, &mh[0], idx, p + mode_flags);
 	let old = mh[idx].cxchg(0, p + mode_flags);
 	assert!(old == 0, "map() called over existing allocation: a={:p}, old={:#x}", a, old);
 	tlbimva(a);

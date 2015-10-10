@@ -3,7 +3,8 @@
 @
 #define KERNEL_BASE	0x80000000
 
-#define ENTRY(v)	.globl v; v:
+#define ENTRY(v)	.globl v; .type v,"function"; v:
+#define GLOBAL(v)	.globl v; v:
 
 #if 1 || defined(PLATFORM_qemuvirt)
 # define UART_BASE	0x09000000
@@ -202,8 +203,7 @@ drop_to_user:
 	b .
 
 
-.globl data_abort
-data_abort:
+ENTRY(data_abort)
 	srsfd sp!, #0x17	@ Save state, using 'abort' mode stack
 	push {r0}
 	push {r0-r12}	@ SP, LR, and PC not pushed
@@ -267,10 +267,8 @@ EXIDX_\method: .long \method - . - 0x80000000, \handle
 .endm
 
 .section .text
-.globl __aeabi_memcpy4
-.globl __aeabi_memcpy8
-__aeabi_memcpy8:
-__aeabi_memcpy4:
+ENTRY(__aeabi_memcpy4)
+ENTRY(__aeabi_memcpy8)
 	movs r2, r2
 	bxeq lr
 1:
@@ -281,8 +279,7 @@ __aeabi_memcpy4:
 	BX lr
 EXIDX __aeabi_memcpy4, 0x80B0B0B0
 
-.globl __aeabi_memcpy
-__aeabi_memcpy:
+ENTRY(__aeabi_memcpy)
 	movs r2, r2
 	bxeq lr
 1:
@@ -295,10 +292,8 @@ ENTRY(memcpy)
 	b __aeabi_memcpy
 EXIDX __aeabi_memcpy, 0x80B0B0B0
 
-.globl __aeabi_memset4
-.globl __aeabi_memset8
-__aeabi_memset4:
-__aeabi_memset8:
+ENTRY(__aeabi_memset4)
+ENTRY(__aeabi_memset8)
 	movs r1, r1
 	bxeq lr
 
@@ -313,15 +308,12 @@ __aeabi_memset8:
 	BX lr
 EXIDX __aeabi_memset4, 0x80B0B0B0
 
-.globl __aeabi_memclr4
-.globl __aeabi_memclr8
-__aeabi_memclr4:
-__aeabi_memclr8:
+ENTRY(__aeabi_memclr4)
+ENTRY(__aeabi_memclr8)
 	MOV r2, #0
 	b 1b
 
-.globl __aeabi_memset
-__aeabi_memset:
+ENTRY(__aeabi_memset)
 	movs r1, r1
 	beq 2f
 1:
@@ -334,8 +326,7 @@ ENTRY(memset)
 	b __aeabi_memset
 EXIDX __aeabi_memset, 0x80B0B0B0
 
-.globl __aeabi_memclr
-__aeabi_memclr:
+ENTRY(__aeabi_memclr)
 	MOV r2, #0
 	b __aeabi_memset
 
@@ -373,10 +364,8 @@ memcmp:
 	mov pc, lr
 EXIDX memcmp, 0x80A0B0B0
 
-.globl __aeabi_unwind_cpp_pr0
-.globl __aeabi_unwind_cpp_pr1
-__aeabi_unwind_cpp_pr0:
-__aeabi_unwind_cpp_pr1:
+ENTRY(__aeabi_unwind_cpp_pr0)
+ENTRY(__aeabi_unwind_cpp_pr1)
 	b .
 
 
@@ -403,10 +392,10 @@ data_abort_message2_end:
 
 
 .section .data
-ENTRY(dt_phys_base)	.long	0 	@ (Firmware) Device Tree base location
-ENTRY(kernel_phys_start).long	0	@ Start of kernel in RAM
-ENTRY(ram_first_free)	.long	0
-ENTRY(symbol_info_phys)	.long	0
+GLOBAL(dt_phys_base)	.long	0 	@ (Firmware) Device Tree base location
+GLOBAL(kernel_phys_start).long	0	@ Start of kernel in RAM
+GLOBAL(ram_first_free)	.long	0
+GLOBAL(symbol_info_phys)	.long	0
 
 .section .bss
 	.space 0x2000, 0
@@ -421,9 +410,13 @@ abort_stack:
 
 kernel_table0:
 	.long 0x00000402	@ Identity map the first 1 MiB
-	.rept 0x800 - 1
+	.rept 0x800 - 1 - 4
 		.long 0
 	.endr
+	.long user_last_map - KERNEL_BASE + 0x000 + 1
+	.long user_last_map - KERNEL_BASE + 0x400 + 1
+	.long user_last_map - KERNEL_BASE + 0x800 + 1
+	.long user_last_map - KERNEL_BASE + 0xC00 + 1
 	@ 0x80000000 - User/Kernel split
 	.long 0x00000000 + 0x402	@ Map first 4 MiB to 2GiB (KRW only)
 	.long 0x00100000 + 0x402 	@ 
@@ -448,6 +441,14 @@ kernel_table0:
 	.long kernel_exception_map - KERNEL_BASE + 0x400 + 1
 	.long kernel_exception_map - KERNEL_BASE + 0x800 + 1
 	.long kernel_exception_map - KERNEL_BASE + 0xC00 + 1
+
+user_last_map:
+	.rept 1024-3
+		.long 0
+	.endr
+	.long user_last_map - KERNEL_BASE + 0x13
+	.long kernel_table0 - KERNEL_BASE + 0x0000 + 0x13
+	.long kernel_table0 - KERNEL_BASE + 0x1000 + 0x13
 
 .globl hwmap_table_0
 hwmap_table_0:
