@@ -120,7 +120,7 @@ bad_location:
 	// Incorrect location, bail hard
 	mov r0, #-2
 	mov r12, #2	@ R12 = Call ID
-	svc #2
+	svc #2	@ Call ID too (TODO: Actually use this in kernel-land)
 	b .
 
 #include "../rustrt0/armv7-helpers.S"

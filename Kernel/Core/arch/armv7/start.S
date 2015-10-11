@@ -16,8 +16,8 @@
 
 .section VECTORS
 ivt_reset:      b rst_start	@ 0x00 Reset
-ivt_undef:      b .	@ 0x04 #UD
-ivt_svc:        b .	@ 0x08 SVC (used to be called SWI)
+ivt_undef:      ldr pc, =ud_abort	@ 0x04 #UD
+ivt_svc:        ldr pc, =svc_handler	@ 0x08 SVC (used to be called SWI)
 ivt_prefetch:   ldr pc, =prefetch_abort	@ 0x0C Prefetch abort
 ivt_data:       ldr pc, =data_abort	@ 0x10 Data abort
 ivt_unused:     b .	@ 0x14 Not Used
@@ -308,6 +308,21 @@ GLOBAL(data_abort_EXTAB)
 	.long	0x81028600	@ POP {SP, LR}
 	.long	0x81FFB10F	@ POP {r4-r12}, POP {r0-r3}
 	.long	0x02B0B0B0	@ VSP+=12, END
+.section .text
+GLOBAL(ud_abort)
+	b .
+GLOBAL(svc_handler)
+	srsfd sp!, #19  @ Save state to stack
+	push {r0-r5}
+	
+	mov r0, r12	@ R12 is the call ID
+	mov r1, sp	@ Args have been pushed to kernel stack
+	mov r2, #6	@ 6 of them
+	bl syscalls_handler
+	@ r0,r1 return value
+	
+	add sp, #6*4
+	rfefd sp!
 
 .section .text
 ENTRY(__aeabi_memcpy4)
