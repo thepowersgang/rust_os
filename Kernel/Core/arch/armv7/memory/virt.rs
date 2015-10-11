@@ -15,6 +15,37 @@ pub fn post_init() {
 	kernel_table0[0].store(0);
 }
 
+fn prot_mode_to_flags(mode: ProtectionMode) -> u32 {
+	//AP[2] = 9, AP[1:0] = 5:4, XN=0, SmallPage=1
+	match mode
+	{
+	ProtectionMode::Unmapped => 0x000,
+	ProtectionMode::KernelRO => 0x213,
+	ProtectionMode::KernelRW => 0x013,
+	ProtectionMode::KernelRX => 0x052,
+	ProtectionMode::UserRO => 0x233,	// 1,11,1
+	ProtectionMode::UserRW => 0x033,	// 0,11,1
+	ProtectionMode::UserRX => 0x232,	// 1,11,0
+	ProtectionMode::UserRWX => 0x032,	// 0,11,0
+	ProtectionMode::UserCOW => 0x223,	// 1,10,1 is a deprecated encoding for ReadOnly, need to find a better encoding
+	}
+}
+fn flags_to_prot_mode(flags: u32) -> ProtectionMode {
+	match flags
+	{
+	0x000 => ProtectionMode::Unmapped,
+	0x212 => ProtectionMode::KernelRO,
+	0x012 => ProtectionMode::KernelRW,
+	0x053 => ProtectionMode::KernelRX,
+	0x232 => ProtectionMode::UserRO,
+	0x032 => ProtectionMode::UserRW,
+	0x233 => ProtectionMode::UserRX,
+	0x033 => ProtectionMode::UserRWX,
+	0x223 => ProtectionMode::UserCOW,
+	v @ _ => todo!("Unknown mode value {:#x}", v),
+	}
+}
+
 /// Atomic 32-bit integer, used for table entries
 #[repr(C)]
 struct AtomicU32(::core::cell::UnsafeCell<u32>);
@@ -151,20 +182,7 @@ impl PageEntry
 			v @ _ if v & 3 == 1 => unreachable!(),
 			v @ _ => todo!("Unknown mode value in section {:?} {} - {:#x}", rgn, idx, v),
 			},
-		&PageEntry::Page { ref mapping, idx, .. } =>
-			match mapping[idx & 0x3FF].load() & 0xFFF
-			{
-			0x000 => ProtectionMode::Unmapped,
-			0x212 => ProtectionMode::KernelRO,
-			0x012 => ProtectionMode::KernelRW,
-			0x053 => ProtectionMode::KernelRX,
-			0x232 => ProtectionMode::UserRO,
-			0x032 => ProtectionMode::UserRW,
-			0x233 => ProtectionMode::UserRX,
-			0x033 => ProtectionMode::UserRWX,
-			0x223 => ProtectionMode::UserCOW,
-			v @ _ => todo!("Unknown mode value in page {} - {:#x}", idx, v),
-			},
+		&PageEntry::Page { ref mapping, idx, .. } => flags_to_prot_mode( mapping[idx & 0x3FF].load() & 0xFFF ),
 		}
 	}
 	//fn reset(&mut self) -> Option<(::arch::memory::PAddr, ::memory::virt::ProtectionMode)> {
@@ -327,26 +345,28 @@ fn map_int(a: *mut (), p: PAddr, mode: ProtectionMode) {
 	//log_debug!("map_int({:p}, {:#x}, {:?}) - tab_phys={:#x},idx={}", a, p, mode, tab_phys, idx);
 	// SAFE: Address space is valid during manipulation, and alias is benign
 	let mh: TempHandle<AtomicU32> = unsafe {  TempHandle::new( tab_phys ) };
+	assert!(mode != ProtectionMode::Unmapped, "Invalid pass of ProtectionMode::Unmapped to map");
 	// 2. Insert
-	let mode_flags = match mode
-		{
-		ProtectionMode::Unmapped => panic!("Invalid pass of Unmapped to map"),
-		ProtectionMode::KernelRO => 0x212,
-		ProtectionMode::KernelRW => 0x012,
-		ProtectionMode::KernelRX => 0x053,
-		ProtectionMode::UserRO => 0x232,
-		ProtectionMode::UserRW => 0x032,
-		ProtectionMode::UserRX => 0x233,
-		ProtectionMode::UserRWX => 0x033,
-		ProtectionMode::UserCOW => 0x223,	// 1,10 is a deprecated encoding for RO, need to find a better encoding
-		};
-	log_debug!("map(): a={:p} mh={:p} idx={}, new={:#x}", a, &mh[0], idx, p + mode_flags);
+	let mode_flags = prot_mode_to_flags(mode);
+	//log_debug!("map(): a={:p} mh={:p} idx={}, new={:#x}", a, &mh[0], idx, p + mode_flags);
 	let old = mh[idx].cxchg(0, p + mode_flags);
 	assert!(old == 0, "map() called over existing allocation: a={:p}, old={:#x}", a, old);
 	tlbimva(a);
 }
 pub unsafe fn reprotect(a: *mut (), mode: ProtectionMode) {
-	todo!("reprotect({:p}, {:?}", a, mode)
+	// 1. Map the relevant table in the temp area
+	let (tab_phys, idx) = get_table_addr(a, true).unwrap();
+	// SAFE: Address space is valid during manipulation, and alias is benign
+	let mh: TempHandle<AtomicU32> = unsafe { TempHandle::new( tab_phys ) };
+	assert!(mode != ProtectionMode::Unmapped, "Invalid pass of ProtectionMode::Unmapped to map");
+	// 2. Insert
+	let mode_flags = prot_mode_to_flags(mode);
+	let v = mh[idx].load();
+	assert!(v != 0, "reprotect() called on an unmapped location: a={:p}", a);
+	//log_debug!("reprotect(): a={:p} mh={:p} idx={}, new={:#x}", a, &mh[0], idx, (v & !0xFFF) + mode_flags);
+	let old = mh[idx].cxchg(v, (v & !0xFFF) + mode_flags);
+	assert!(old == v, "reprotect() called in a racy manner: a={:p} old({:#x}) != v({:#x})", a, old, v);
+	tlbimva(a);
 }
 pub unsafe fn unmap(a: *mut ()) -> Option<PAddr> {
 	// 1. Map the relevant table in the temp area
