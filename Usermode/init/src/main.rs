@@ -19,7 +19,7 @@ fn main()
 	let session_root = tifflin_process::Process::spawn("/sysroot/bin/login");
 
 	let wingrp = syscalls::gui::Group::new("Session 1").unwrap();
-	wingrp.force_active();
+	wingrp.force_active().expect("Cannot force session 1 to be active");
 	session_root.send_obj(wingrp);
 	loop {
 		let mut waits = [session_root.wait_terminate()];

@@ -4,7 +4,6 @@
 //! Tifflin window toolkit
 #![feature(zero_one)]
 #![feature(const_fn)]
-#![feature(core_slice_ext)]
 
 extern crate async;
 

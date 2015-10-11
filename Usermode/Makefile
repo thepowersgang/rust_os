@@ -128,7 +128,7 @@ $(OBJDIR)lib%.rlib: lib%/lib.rs $(TARGET_SPEC) $(makefile_deps)
 $(OBJDIR)lib%.rlib: ../rustc_src/lib%/lib.rs $(TARGET_SPEC) $(makefile_deps)
 	@mkdir -p $(dir $@)
 	@echo [RUSTC rust-src] $@
-	$VCFG_COMPILER_HOST_TRIPLE=x86_64-unknown-linux-gnu $(RUSTC) $(RUSTFLAGS) --emit=link,dep-info --out-dir $(OBJDIR) $< --crate-type=rlib --crate-name=$*
+	$VCFG_COMPILER_HOST_TRIPLE=x86_64-unknown-linux-gnu $(RUSTC) $(RUSTFLAGS) -A unused_unsafe -A unused_features --emit=link,dep-info --out-dir $(OBJDIR) $< --crate-type=rlib --crate-name=$*
 	@mv $(OBJDIR)$*.d $(OBJDIR)lib$*.d
 
 # - Loader's interface library, lives in the loader directory

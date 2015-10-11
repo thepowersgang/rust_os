@@ -12,7 +12,7 @@
 #![feature(const_fn)]
 #![feature(box_syntax)]
 #![feature(raw)]
-#![feature(collections,unicode,str_char,slice_concat_ext)]
+#![feature(collections,slice_concat_ext)]
 #![no_std]
 
 #[macro_use]
@@ -119,43 +119,3 @@ pub mod error;
 pub use collections::{vec, string, borrow};
 //pub mod vec;
 //pub mod string;
-
-// // TODO: Fully populate this, and str etc
-// #[lang = "slice"]
-// impl<T> [T] {
-// 	#[inline]
-// 	pub fn len(&self) -> usize { ::core::slice::SliceExt::len(self) }
-// 	#[inline]
-// 	pub fn is_empty(&self) -> bool { ::core::slice::SliceExt::is_empty(self) }
-// 	#[inline]
-// 	pub fn first(&self) -> Option<&T> { ::core::slice::SliceExt::first(self) }
-// 	#[inline]
-// 	pub fn first_mut(&mut self) -> Option<&mut T> { ::core::slice::SliceExt::first_mut(self) }
-// 	#[inline]
-// 	pub fn last(&self) -> Option<&T> { ::core::slice::SliceExt::last(self) }
-// 	#[inline]
-// 	pub fn last_mut(&mut self) -> Option<&mut T> { ::core::slice::SliceExt::last_mut(self) }
-// 
-// 	#[inline]
-// 	pub fn iter(&self) -> ::core::slice::Iter<T> { ::core::slice::SliceExt::iter(self) }
-// 	#[inline]
-// 	pub fn iter_mut(&mut self) -> ::core::slice::IterMut<T> { ::core::slice::SliceExt::iter_mut(self) }
-// 
-// 	#[inline]
-// 	pub fn chunks(&self, size: usize) -> ::core::slice::Chunks<T> { ::core::slice::SliceExt::chunks(self, size) }
-// 	#[inline]
-// 	pub fn chunks_mut(&mut self, chunk_size: usize) -> ::core::slice::ChunksMut<T> { ::core::slice::SliceExt::chunks_mut(self, chunk_size) }
-// 
-// 	#[inline]
-// 	pub fn as_ptr(&self) -> *const T { ::core::slice::SliceExt::as_ptr(self) }
-// }
-// 
-// #[lang = "str"]
-// impl str {
-// 	#[inline]
-// 	pub fn len(&self) -> usize { ::core::str::StrExt::len(self) }
-// 	#[inline]
-// 	pub fn is_empty(&self) -> bool { ::core::str::StrExt::is_empty(self) }
-// 	#[inline]
-// 	pub fn chars(&self) -> ::core::str::Chars { ::core::str::StrExt::chars(self) }
-// }
