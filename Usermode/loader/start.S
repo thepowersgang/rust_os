@@ -7,6 +7,7 @@
 #define HDR_ARCH_arm64	4
 
 #define ENTRY(v)	.globl v; .type v, "function"; v:
+#define GLOBAL(v)	.globl v; v:
 
 .globl BASE
 .globl LIMIT
@@ -102,8 +103,25 @@ ENTRY(_Unwind_Resume)
 .extern loader_main
 /* R0 = Argument length */
 start:
-	b .
+	@ 0. ASSERT that the loader was loaded to the correct location
+	ldr r1, =BASE
+	sub r1, r1, pc
+	cmp r1, #0x1000
+	bge bad_location
+	@ 1. Initialise the stack
+	ldr sp, =init_stack_end
+	@ 2. Set up the TLS area for stack checks
+	@ - Wait, they're disabled. Good
+	@ 3. Call into rust
+	mov r1, r0	@ R0 is still the argument length
+	ldr r0, =init_path
 	b loader_main
+bad_location:
+	// Incorrect location, bail hard
+	mov r0, #-2
+	mov r12, #2	@ R12 = Call ID
+	svc #2
+	b .
 
 #include "../rustrt0/armv7-helpers.S"
 
@@ -119,8 +137,7 @@ start:
 .section HEADER
 .extern codesize
 .extern imagesize
-.globl image_header
-image_header:
+GLOBAL(image_header)
 	.long HEADER_MAGIC
 	.byte (5*4+PTR_SIZE) , HDR_ARCH , 0 , 0	/* Header size, bit-ness, pad, pad */
 	.long codesize
@@ -130,17 +147,13 @@ image_header:
 	DEFPTR start
 
 .section .bss
-init_stack_base:
+GLOBAL(init_stack_base)
 	.space 0x2000
-.globl init_stack_end
-init_stack_end:
+GLOBAL(init_stack_end)
 
-.globl arg_count
-.globl init_path
-.globl init_path_end
-arg_count:	.space 4
-init_path:	.space 1024
-init_path_end:
+GLOBAL(arg_count)	.space 4
+GLOBAL(init_path)	.space 1024
+GLOBAL(init_path_end)
 
 /* vim: ft=gas
  */

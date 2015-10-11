@@ -3,7 +3,7 @@
 @
 .macro EXIDX method handle
 .long EXIDX_\method
-.section .ARM.exidx.\method
+.section .ARM.exidx.\method, #exidx
 .globl EXIDX_\method
 EXIDX_\method: .long \method - . - 0x80000000, \handle
 .section .text
