@@ -6,6 +6,8 @@
 #define HDR_ARCH_arm32	3
 #define HDR_ARCH_arm64	4
 
+#define ENTRY(v)	.globl v; .type v, "function"; v:
+
 .globl BASE
 .globl LIMIT
 
@@ -23,10 +25,9 @@
 #define RED_ZONE	128	/* the ABI defines a "red zone" above the stack for functions to dick with */
 
 .section .text
-.globl start
 .extern loader_main
 /* RAX = Argument length */
-start:
+ENTRY(start)
 	mov %rax, %rsi	/* Save arg length in ARG2 */
 	/* 0. ASSERT that the loader was loaded to the correct location */
 	mov $BASE, %rax
@@ -54,8 +55,7 @@ start:
 // RDI = Address
 // RSI = Value
 // RDX = Count
-.globl memset
-memset:
+ENTRY(memset)
 	mov %rsi, %rax
 	mov %rdx, %rcx
 	mov %rdi, %rdx // Save RDI
@@ -65,8 +65,7 @@ memset:
 // RDI = Destination
 // RSI = Source
 // RDX = Count
-.globl memcpy
-memcpy:
+ENTRY(memcpy)
 	mov %rdx, %rcx
 	mov %rdi, %rax // Prepare to return RDI
 	rep movsb
@@ -74,8 +73,7 @@ memcpy:
 ;; RDI = A
 ;; RSI = B
 ;; RDX = Count
-.globl memcmp
-memcmp:
+ENTRY(memcmp)
 	mov %rdx, %rcx
 	rep cmpsb
 	mov $0, %rax
@@ -88,8 +86,7 @@ memcmp:
 .neg:
 	inc %rax
 	ret
-.globl _Unwind_Resume
-_Unwind_Resume:
+ENTRY(_Unwind_Resume)
 	jmp .
 
 #elif defined(ARCH_armv7)
@@ -97,7 +94,7 @@ _Unwind_Resume:
 # define DEFPTR	.long
 # define PTR_SIZE	4
 # define HDR_ARCH HDR_ARCH_arm32
-.set BASE,  0x7FFE0000
+.set BASE,  0x7Fbe0000
 .set LIMIT, 0x80000000
 
 .section .text
@@ -106,8 +103,9 @@ _Unwind_Resume:
 /* R0 = Argument length */
 start:
 	b .
+	b loader_main
 
-//# error "TODO: ARMv7 usermode start.S"
+#include "../rustrt0/armv7-helpers.S"
 
 #else
 /*
