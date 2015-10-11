@@ -9,7 +9,7 @@
 				:
 				: "volatile"
 				);
-			(rv_l as u64) << 32 | (rv_h as u64)
+			(rv_h as u64) << 32 | (rv_l as u64)
 		}};
 	}
 	// SAVE r1, r2, r3, r4, r5, r6

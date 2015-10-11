@@ -101,26 +101,23 @@ impl File
 	}
 	/// Read from an arbitary location in the file
 	pub fn read_at(&self, ofs: u64, data: &mut [u8]) -> Result<usize,Error> {
-		assert!(::core::mem::size_of::<usize>() == ::core::mem::size_of::<u64>());
 		// SAFE: Passes valid arguments to READAT
-		to_result( unsafe { self.0.call_3(::values::VFS_FILE_READAT, ofs as usize, data.as_ptr() as usize, data.len()) as usize } )
+		to_result( unsafe { self.0.call_3l(::values::VFS_FILE_READAT, ofs, data.as_ptr() as usize, data.len()) as usize } )
 			.map(|v| v as usize)
 	}
 	
 	/// Write to an arbitary location in the file
 	pub fn write_at(&self, ofs: u64, data: &[u8]) -> Result<usize,Error> {
-		assert!(::core::mem::size_of::<usize>() == ::core::mem::size_of::<u64>());
 		// SAFE: All validated
-		to_result( unsafe { self.0.call_3( ::values::VFS_FILE_WRITEAT, ofs as usize, data.as_ptr() as usize, data.len() ) } as usize )
+		to_result( unsafe { self.0.call_3l( ::values::VFS_FILE_WRITEAT, ofs, data.as_ptr() as usize, data.len() ) } as usize )
 			.map(|v| v as usize)
 	}
 	
 	// Actualy safe, as it uses the aliasing restrictions from the file, and ensures that the provided address is free
 	/// Map a portion of this file into this process's address space.
 	pub fn memory_map(&self, ofs: u64, read_size: usize, mem_addr: *const ::Void, mode: MemoryMapMode) -> Result<(),Error> {
-		assert!(::core::mem::size_of::<usize>() == ::core::mem::size_of::<u64>());
 		// SAFE: Passes valid arguments to MEMMAP
-		to_result( unsafe { self.0.call_4(::values::VFS_FILE_MEMMAP, ofs as usize, read_size, mem_addr as usize, mode as u8 as usize) } as usize )
+		to_result( unsafe { self.0.call_4l(::values::VFS_FILE_MEMMAP, ofs, read_size, mem_addr as usize, mode as u8 as usize) } as usize )
 			.map( |_| () )
 	}
 }

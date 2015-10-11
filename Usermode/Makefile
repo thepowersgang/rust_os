@@ -32,7 +32,9 @@ RUSTFLAGS += -g
 RUSTFLAGS += --cfg disable_float
 RUSTFLAGS += -Z force-overflow-checks=yes
 # - This feels bad, sure it's valid, but...
-RUSTFLAGS += -C relocation-model=static
+ifeq ($(ARCH),armv7)
+  RUSTFLAGS += -C relocation-model=static
+endif
 
 # - List non-file targets
 .PHONY: all clean
