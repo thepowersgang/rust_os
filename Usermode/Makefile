@@ -31,6 +31,8 @@ RUSTFLAGS += -O
 RUSTFLAGS += -g
 RUSTFLAGS += --cfg disable_float
 RUSTFLAGS += -Z force-overflow-checks=yes
+# - This feels bad, sure it's valid, but...
+RUSTFLAGS += -C relocation-model=static
 
 # - List non-file targets
 .PHONY: all clean
