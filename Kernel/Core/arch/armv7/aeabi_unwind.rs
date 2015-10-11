@@ -163,7 +163,8 @@ impl UnwindState {
 				return Err( Error::Refuse );
 			}
 			//log_debug!("POP mask {:#x}{:02x}", byte & 0xF, extra);
-
+	
+			// Lowest register at lowest stack
 			if extra & 0x01 != 0 { self.regs[4] = try!(self.pop()); }	// R4
 			if extra & 0x02 != 0 { self.regs[5] = try!(self.pop()); }	// R5
 			if extra & 0x04 != 0 { self.regs[6] = try!(self.pop()); }	// R6
@@ -193,6 +194,23 @@ impl UnwindState {
 		0xB => match byte & 0xF
 			{
 			0 => return Ok(true),	// ARM_EXIDX_CMD_FINISH
+			1 => {
+				let extra = try!( getb() );
+				if extra == 0 {
+					log_error!("EXIDX opcode 0xB1 {:#02x} listed as Spare", extra);
+				}
+				else if extra & 0xF0 != 0 {
+					log_error!("EXIDX opcode 0xB1 {:#02x} listed as Spare", extra);
+				}
+				else {
+					// Pop registers
+					//log_debug!("POP mask 0-3 {:#x}", extra & 0xFF);
+					if extra & 0x1 != 0 { self.regs[0] = try!(self.pop()); }	// R0
+					if extra & 0x2 != 0 { self.regs[1] = try!(self.pop()); }	// R1
+					if extra & 0x4 != 0 { self.regs[2] = try!(self.pop()); }	// R2
+					if extra & 0x8 != 0 { self.regs[3] = try!(self.pop()); }	// R3
+				}
+				},
 			_ => {
 				log_error!("TODO: EXIDX opcode {:#02x}", byte);
 				return Err( Error::Todo );
