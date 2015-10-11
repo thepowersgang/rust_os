@@ -224,7 +224,12 @@ pub unsafe fn map(addr: *mut (), phys: PAddr, prot: ProtectionMode)
 /// UNSAFE: (Very) Can change the protection mode of a page to anything
 pub unsafe fn reprotect_user(addr: *mut (), prot: ProtectionMode) -> Result<(),()>
 {
-	assert_eq!(prot, ProtectionMode::UserRX);
+	match prot
+	{
+	ProtectionMode::UserRX => {},
+	ProtectionMode::UserRO => {},
+	_ => panic!("Invalid protection mode passed to reprotect_user - {:?}", prot),
+	}
 	if ::arch::memory::addresses::is_global(addr as usize) {
 		Err( () )
 	}

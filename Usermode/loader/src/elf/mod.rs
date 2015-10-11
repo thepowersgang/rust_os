@@ -70,6 +70,7 @@ impl<R: Read+Seek> ElfModuleHandle<R>
 		self.file.seek(SeekFrom::Start(self.header.e_phoff) ).expect("Unable to seek to phoff");
 		PhEntIterator {
 			file: &mut self.file,
+			object_size: self.header.object_size,
 			remaining_ents: self.header.e_phnum,
 			entry_size: self.header.e_phentsize,
 			}
@@ -346,10 +347,9 @@ const PT_LOAD: u32 = 1;
 const PT_DYNAMIC: u32 = 2;
 impl PHEnt
 {
-	fn parse<R: Read>(file: &mut R) -> Result<PHEnt,Error>
+	fn parse_64<R: Read>(file: &mut R) -> Result<PHEnt,Error>
 	{
 		use byteorder::{ReadBytesExt,LittleEndian};
-		// TODO: Handle Elf32
 		Ok(PHEnt {
 			p_type:  try!(file.read_u32::<LittleEndian>()),
 			p_flags: try!(file.read_u32::<LittleEndian>()),
@@ -361,10 +361,25 @@ impl PHEnt
 			p_align: try!(file.read_u64::<LittleEndian>()) as usize,
 			})
 	}
+	fn parse_32<R: Read>(file: &mut R) -> Result<PHEnt,Error>
+	{
+		use byteorder::{ReadBytesExt,LittleEndian};
+		Ok(PHEnt {
+			p_type:  try!(file.read_u32::<LittleEndian>()),
+			p_offset: try!(file.read_u32::<LittleEndian>()) as u64,
+			p_vaddr: try!(file.read_u32::<LittleEndian>()) as usize,
+			p_paddr: try!(file.read_u32::<LittleEndian>()) as usize,
+			p_filesz: try!(file.read_u32::<LittleEndian>()) as usize,
+			p_memsz: try!(file.read_u32::<LittleEndian>()) as usize,
+			p_flags: try!(file.read_u32::<LittleEndian>()),
+			p_align: try!(file.read_u32::<LittleEndian>()) as usize,
+			})
+	}
 }
 struct PhEntIterator<'a, R: 'a + Read>
 {
 	file: &'a mut R,	// File is pre-seeked to the start of the PHENT list
+	object_size: Size,
 	remaining_ents: u16,
 	entry_size: u16,
 }
@@ -377,7 +392,11 @@ impl<'a, R: 'a+Read>  PhEntIterator<'a, R> {
 			panic!("TODO");
 		}
 		else {
-			PHEnt::parse(&mut &*data)
+			match self.object_size
+			{
+			Size::Elf64 => PHEnt::parse_64(&mut &*data),
+			Size::Elf32 => PHEnt::parse_32(&mut &*data),
+			}
 		}
 	}
 }
@@ -840,7 +859,35 @@ impl Header
 		
 		match objsize
 		{
-		Size::Elf32 => panic!("TODO: Header::parse_partial (Elf32)"),
+		Size::Elf32 => {
+			let objtype = ObjectType::from( try!(file.read_u16::<LittleEndian>()) );
+			let machine = Machine::from( try!(file.read_u16::<LittleEndian>()) );
+			let version = try!(file.read_u32::<LittleEndian>());
+			if version != 1 {
+				kernel_log!("Unknown elf version: {}", version);
+				return Err(Error::Unsupported);
+			}
+			let e_entry = try!(file.read_u32::<LittleEndian>());
+			let e_phoff = try!(file.read_u32::<LittleEndian>());
+			let _e_shoff = try!(file.read_u32::<LittleEndian>());
+			let _e_flags = try!(file.read_u32::<LittleEndian>());
+			let _e_ehsize = try!(file.read_u16::<LittleEndian>());
+			let e_phentsize = try!(file.read_u16::<LittleEndian>());
+			let e_phnum     = try!(file.read_u16::<LittleEndian>());
+			let _e_shentsize = try!(file.read_u16::<LittleEndian>());
+			let _e_shnum     = try!(file.read_u16::<LittleEndian>());
+			let _e_shstrndx  = try!(file.read_u16::<LittleEndian>());
+			Ok( Header {
+				object_size: Size::Elf32, endian: endian,
+				object_type: objtype,
+				machine: machine,
+				
+				e_entry: e_entry as usize,
+				e_phoff: e_phoff as u64,
+				e_phentsize: e_phentsize,
+				e_phnum: e_phnum,
+				})
+			},
 		Size::Elf64 => {
 			let objtype = ObjectType::from( try!(file.read_u16::<LittleEndian>()) );
 			let machine = Machine::from( try!(file.read_u16::<LittleEndian>()) );
