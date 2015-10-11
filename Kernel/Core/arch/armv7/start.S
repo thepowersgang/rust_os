@@ -166,7 +166,7 @@ ram_mapping_collision:
 @
 .macro EXIDX method handle
 .long EXIDX_\method
-.section .ARM.exidx.\method
+.section .ARM.exidx.\method, #exidx
 .globl EXIDX_\method
 EXIDX_\method: .long \method - . - 0x80000000, \handle
 .section .text
@@ -255,8 +255,8 @@ ENTRY(prefetch_abort)
 	rfefd sp!
 	.long EXIDX_prefetch_abort
 EXIDX prefetch_abort, prefetch_abort_EXTAB - . - 0x80000000
-.section .ARM.extab.data_abort
-prefetch_abort_EXTAB:
+.section .ARM.extab.prefetch_abort
+GLOBAL(prefetch_abort_EXTAB)
 	.long	0x81028600	@ POP {SP, LR}
 	.long	0x81FFB10F	@ POP {r4-r12}, POP {r0-r3}
 	.long	0x02B0B0B0	@ VSP+=12, END
@@ -299,17 +299,12 @@ ENTRY(data_abort)
 	pop {r0-r12}
 	pop {r0}
 	rfefd sp!
-	.long data_abort_EXIDX
+	.long EXIDX_data_abort
 not_known_mode:
 	b .
-.globl data_abort_EXIDX
-.globl data_abort_EXTAB
-.section .ARM.exidx.data_abort
-data_abort_EXIDX:
-	.long	data_abort - . - 0x80000000
-	.long	data_abort_EXTAB - . - 0x80000000
+EXIDX data_abort, data_abort_EXTAB - . - 0x80000000
 .section .ARM.extab.data_abort
-data_abort_EXTAB:
+GLOBAL(data_abort_EXTAB)
 	.long	0x81028600	@ POP {SP, LR}
 	.long	0x81FFB10F	@ POP {r4-r12}, POP {r0-r3}
 	.long	0x02B0B0B0	@ VSP+=12, END

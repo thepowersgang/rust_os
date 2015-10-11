@@ -191,7 +191,7 @@ fn fsr_name(ifsr: u32) -> &'static str {
 }
 #[no_mangle]
 pub fn prefetch_abort_handler(pc: u32, reg_state: &AbortRegs, ifsr: u32) {
-	log_warning!("Prefetch abort at {:#x} status {:#x} ({})", pc, ifsr, fsr_name(ifsr));
+	log_warning!("Prefetch abort at {:#x} status {:#x} ({}) - LR={:#x}", pc, ifsr, fsr_name(ifsr), reg_state.lr);
 	//log_debug!("Registers:");
 	//log_debug!("R 0 {:08x}  R 1 {:08x}  R 2 {:08x}  R 3 {:08x}  R 4 {:08x}  R 5 {:08x}}  R 6 {:08x}", reg_state.gprs[0]);
 	
