@@ -5,7 +5,7 @@
 //! Virtual address space management
 use super::PAddr;
 use PAGE_SIZE;
-use memory::virt::ProtectionMode;
+use memory::virt::{ProtectionMode,MapError};
 use super::addresses;
 
 const MASK_VBITS : usize = 0x0000FFFF_FFFFFFFF;
@@ -229,13 +229,23 @@ pub fn get_info<T>(addr: *const T) -> Option<(PAddr,ProtectionMode)>
 		None
 	}
 }
+
+fn invlpg(addr: *mut ()) {
+	// SAFE: Cannot cause memory unsafety
+	unsafe {
+		asm!("invlpg ($0)" : : "r" (addr) : "memory" : "volatile");
+	}
+}
+
 /// Maps a physical frame to a page, with the provided protection mode
 pub unsafe fn map(addr: *mut (), phys: PAddr, prot: ::memory::virt::ProtectionMode)
 {
 	let mut pte = get_page_ent(addr as usize, true, LargeOk::No);
 	assert!( !pte.is_null(), "Failed to obtain ent for {:p}", addr );
-	pte.set( phys, prot );
-	asm!("invlpg ($0)" : : "r" (addr) : "memory" : "volatile");
+	if pte.set_if_unset( phys, prot ).is_err() {
+		panic!("Attempting to map over existing allocation addr={:p}", addr);
+	}
+	invlpg(addr);
 }
 /// Removes a mapping
 pub unsafe fn unmap(addr: *mut ()) -> Option<PAddr>
@@ -263,6 +273,7 @@ pub unsafe fn reprotect(addr: *mut (), prot: ::memory::virt::ProtectionMode)
 	assert!( pte.is_present(), "Reprotecting unmapped page {:p}", addr );
 	let phys = pte.addr();
 	pte.set( phys, prot );
+	invlpg(addr);
 }
 
 static PF_PRESENT : u64 = 0x001;
@@ -317,22 +328,39 @@ impl PTE
 	//	*self.data = (*self.data & !0x7FFFFFFF_FFFFF000) | paddr;
 	//}
 	
+	pub fn mode_to_flags(prot: ::memory::virt::ProtectionMode) -> u64 {
+		match prot
+		{
+		ProtectionMode::Unmapped => 0,
+		ProtectionMode::KernelRO => FLAG_P|FLAG_NX,
+		ProtectionMode::KernelRW => FLAG_P|FLAG_NX|FLAG_W,
+		ProtectionMode::KernelRX => FLAG_P,
+		ProtectionMode::UserRO   => FLAG_P|FLAG_U|FLAG_NX,
+		ProtectionMode::UserRW   => FLAG_P|FLAG_U|FLAG_NX|FLAG_W,
+		ProtectionMode::UserCOW  => FLAG_P|FLAG_U|FLAG_NX|FLAG_COW,
+		ProtectionMode::UserRX   => FLAG_P|FLAG_U,
+		ProtectionMode::UserRWX  => FLAG_P|FLAG_U|FLAG_W,
+		}
+	}
+
 	// UNSAFE: Can invaidate virtual addresses and cause aliasing
 	pub unsafe fn set(&mut self, paddr: PAddr, prot: ::memory::virt::ProtectionMode) {
 		assert!(!self.is_null());
-		let flags: u64 = match prot
-			{
-			ProtectionMode::Unmapped => 0,
-			ProtectionMode::KernelRO => FLAG_P|FLAG_NX,
-			ProtectionMode::KernelRW => FLAG_P|FLAG_NX|FLAG_W,
-			ProtectionMode::KernelRX => FLAG_P,
-			ProtectionMode::UserRO => FLAG_P|FLAG_U|FLAG_NX,
-			ProtectionMode::UserRW => FLAG_P|FLAG_U|FLAG_NX|FLAG_W,
-			ProtectionMode::UserCOW=> FLAG_P|FLAG_U|FLAG_NX|FLAG_COW,
-			ProtectionMode::UserRX => FLAG_P|FLAG_U,
-			ProtectionMode::UserRWX => FLAG_P|FLAG_U|FLAG_W,
-			};
+		let flags: u64 = Self::mode_to_flags(prot);
 		*self.data = (paddr & 0x7FFFFFFF_FFFFF000) | flags;
+	}
+	
+	pub fn set_if_unset(&mut self, paddr: PAddr, prot: ::memory::virt::ProtectionMode) -> Result<(),()> {
+		assert!(!self.is_null());
+		let flags: u64 = Self::mode_to_flags(prot);
+		let v = (paddr & 0x7FFFFFFF_FFFFF000) | flags;
+		// SAFE: Atomic 64-bit and valid pointer
+		if unsafe { ::core::intrinsics::atomic_cxchg_relaxed(self.data, 0, v) } == 0 {
+			Ok( () )
+		}
+		else {
+			Err( () )
+		}
 	}
 	
 	pub fn get_perms(&self) -> ::memory::virt::ProtectionMode {
@@ -434,15 +462,74 @@ pub fn handle_page_fault(accessed_address: usize, error_code: u32) -> bool
 	}
 }
 
-struct NewTable(::memory::virt::FreePage);
+
+static S_TEMP_FREE: ::sync::Semaphore = ::sync::Semaphore::new(NUM_TEMP_SLOTS as isize, NUM_TEMP_SLOTS as isize);
+const NUM_TEMP_SLOTS: usize = (addresses::TEMP_END - addresses::TEMP_BASE) / ::PAGE_SIZE;
+
+pub struct TempHandle<T>(*mut T);
+impl<T> TempHandle<T>
+{
+	/// UNSAFE: User must ensure that address is valid, and that no aliasing occurs
+	pub unsafe fn new(phys: ::arch::memory::PAddr) -> TempHandle<T> {
+
+		S_TEMP_FREE.acquire();
+
+		// 2. Locate a slot
+		for i in 0 .. NUM_TEMP_SLOTS {
+			let addr = (addresses::TEMP_BASE + i * ::PAGE_SIZE) as *mut ();
+
+			if get_page_ent(addr as usize, true, LargeOk::No).set_if_unset(phys, ProtectionMode::KernelRW).is_ok() {
+				invlpg(addr);
+				return TempHandle(addr as *mut T);
+			}
+		}
+		panic!("TempHandle::new() - Semaphore reported free slots, but none found");
+	}
+	pub fn phys_addr(&self) -> ::arch::memory::PAddr {
+		get_phys(self.0)
+	}
+}
+impl<T> ::core::ops::Deref for TempHandle<T> {
+	type Target = [T];
+	fn deref(&self) -> &[T] {
+		// SAFE: We should have unique access
+		unsafe { ::core::slice::from_raw_parts(self.0, 0x1000 / ::core::mem::size_of::<T>()) }
+	}
+}
+impl<T> ::core::ops::DerefMut for TempHandle<T> {
+	fn deref_mut(&mut self) -> &mut [T] {
+		// SAFE: We should have unique access
+		unsafe { ::core::slice::from_raw_parts_mut(self.0, 0x1000 / ::core::mem::size_of::<T>()) }
+	}
+}
+impl<T> ::core::ops::Drop for TempHandle<T> {
+	fn drop(&mut self) {
+		// SAFE: Owned allocation
+		unsafe {
+			get_page_ent(self.0 as usize, false, LargeOk::No).set(0, ProtectionMode::Unmapped);
+		}
+		S_TEMP_FREE.release();
+	}
+}
+
+struct NewTable(TempHandle<u64>);
 impl NewTable {
 	fn new() -> Result<NewTable,::memory::virt::MapError> {
-		Ok( NewTable( try!(::memory::virt::alloc_free()) ) )
+		match ::memory::phys::allocate_bare()
+		{
+		Err( () ) => Err( MapError::OutOfMemory ),
+		// SAFE: Frame is owned
+		Ok(f) => Ok( NewTable(unsafe { TempHandle::new(f) }) ),
+		}
 	}
-	fn into_addr(self) -> PAddr {
-		// SAFE: Forgets self instantly, so call to read is valid.
-		let frame = unsafe { let v = ::core::ptr::read(&self.0); ::core::mem::forget(self); v };
-		frame.into_frame().into_addr()
+	fn into_frame(self) -> PAddr {
+		// SAFE: Forgets after read
+		let h = unsafe {
+			let h = ::core::ptr::read(&self.0);
+			::core::mem::forget(self);
+			h
+			};
+		h.phys_addr()
 	}
 }
 impl ::core::ops::Drop for NewTable {
@@ -455,14 +542,12 @@ impl ::core::ops::Drop for NewTable {
 impl ::core::ops::Deref for NewTable {
 	type Target = [u64];
 	fn deref(&self) -> &[u64] {
-		// SAFE: Page is uniquely owned by this object
-		unsafe { ::core::slice::from_raw_parts(&self.0[0] as *const u8 as *const u64, 512) }
+		&self.0
 	}
 }
 impl ::core::ops::DerefMut for NewTable {
 	fn deref_mut(&mut self) -> &mut [u64] {
-		// SAFE: Page is uniquely owned by this object
-		unsafe { ::core::slice::from_raw_parts_mut(&mut self.0[0] as *mut u8 as *mut u64, 512) }
+		&mut self.0
 	}
 }
 
@@ -490,34 +575,26 @@ impl AddressSpace
 			}
 			else
 			{
-				match ent.get_perms()
-				{
-				ProtectionMode::UserRX => {
-					let addr = ent.addr();
-					::memory::phys::ref_frame( addr );
-					Ok( addr | FLAG_U|FLAG_P )
-					},
-				ProtectionMode::UserCOW => {
-					let addr = ent.addr();
-					::memory::phys::ref_frame( addr );
-					Ok( addr | FLAG_U|FLAG_COW|FLAG_P )
-					},
-				ProtectionMode::UserRWX => {
-					// SAFE: We've just determined that this page is mapped in, so we won't crash. Any race is the user's fault (and shouldn't impact the kernel)
-					let src = unsafe { ::core::slice::from_raw_parts((idx << 12) as *const u8, ::PAGE_SIZE) };
-					let mut newpg = try!(::memory::virt::alloc_free());
-					::core::slice::bytes::copy_memory(src, &mut *newpg);
-					Ok( newpg.into_frame().into_addr() | FLAG_U|FLAG_W|FLAG_P )
-					},
-				ProtectionMode::UserRW => {
-					// SAFE: We've just determined that this page is mapped in, so we won't crash. Any race is the user's fault (and shouldn't impact the kernel)
-					let src = unsafe { ::core::slice::from_raw_parts((idx << 12) as *const u8, ::PAGE_SIZE) };
-					let mut newpg = try!(::memory::virt::alloc_free());
-					::core::slice::bytes::copy_memory(src, &mut *newpg);
-					Ok( newpg.into_frame().into_addr() | FLAG_U|FLAG_W|FLAG_P|FLAG_NX )
-					},
-				v @ _ => todo!("opt_clone_page - Mode {:?}", v),
-				}
+				let p = ent.get_perms();
+				let frame = match p
+					{
+					ProtectionMode::UserRX | ProtectionMode::UserCOW => {
+						let addr = ent.addr();
+						::memory::phys::ref_frame( addr );
+						addr
+						},
+					ProtectionMode::UserRWX | ProtectionMode::UserRW => {
+						// SAFE: We've just determined that this page is mapped in, so we won't crash. Any race is the user's fault (and shouldn't impact the kernel)
+						let src = unsafe { ::core::slice::from_raw_parts((idx << 12) as *const u8, ::PAGE_SIZE) };
+						let mut newpg = try!(::memory::virt::alloc_free());
+						for (d,s) in Iterator::zip( newpg.iter_mut(), src.iter() ) {
+							*d = *s;
+						}
+						newpg.into_frame().into_addr()
+						},
+					v @ _ => todo!("opt_clone_page - Mode {:?}", v),
+					};
+				Ok( frame | PTE::mode_to_flags(p) )
 			}
 		}
 		fn opt_clone_segment(level: u8, idx: usize, clone_start_pidx: usize, clone_end_pidx: usize) -> Result<u64,::memory::virt::MapError>
@@ -536,7 +613,6 @@ impl AddressSpace
 			}
 			else
 			{
-				// TODO: On 'Err' this needs to correctly clean up after itself
 				let mut ents = try!(NewTable::new());
 				let base = idx << 9;
 				for i in 0 .. 512
@@ -554,11 +630,11 @@ impl AddressSpace
 							};
 					}
 				}
-				Ok( ents.into_addr() | FLAG_U|FLAG_W|FLAG_P )
+				Ok( ents.into_frame() | FLAG_U|FLAG_W|FLAG_P )
 			}
 		}
 	
-		// TODO: Make errors
+		// TODO: Make these two errors
 		assert!(clone_start < clone_end);
 		assert!(clone_end <= ::arch::memory::addresses::USER_END);
 		
@@ -587,9 +663,8 @@ impl AddressSpace
 				ents[i] = InitialPML4[i];
 			}
 		}
-		//log_debug!("ents[..256] = {:#x}", ::logging::print_iter(ents[..256].iter()));
-		//log_debug!("ents[256..] = {:#x}", ::logging::print_iter(ents[256..].iter()));
-		Ok( AddressSpace( ents.into_addr() ) )
+		log_debug!("ents[..256] = {:#x}", ::logging::print_iter(ents[..256].iter()));
+		Ok( AddressSpace( ents.into_frame() ) )
 	}
 	pub fn pid0() -> AddressSpace {
 		AddressSpace( get_phys(&InitialPML4) )

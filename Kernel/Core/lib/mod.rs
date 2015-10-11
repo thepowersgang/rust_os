@@ -156,7 +156,7 @@ impl<'a,T> ::core::fmt::Pointer for SlicePtr<'a,T> {
 }
 
 
-pub unsafe trait POD {}
+pub unsafe trait POD: 'static {}
 unsafe impl POD for .. {}
 //impl<T: ::core::ops::Drop> !POD for T {}  // - I would love this, but it collides with every other !POD impl
 impl<T> !POD for ::core::ptr::Unique<T> {}

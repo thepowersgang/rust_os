@@ -38,9 +38,6 @@ pub mod memory {
 		pub const STACKS_BASE: usize = imp::STACKS_BASE;
 		pub const STACKS_END : usize = imp::STACKS_END ;
 
-		pub const TEMP_BASE: usize = imp::TEMP_BASE;
-		pub const TEMP_END : usize = imp::TEMP_END ;
-		
 		pub const HARDWARE_BASE: usize = imp::HARDWARE_BASE;
 		pub const HARDWARE_END : usize = imp::HARDWARE_END ;
 
@@ -51,6 +48,8 @@ pub mod memory {
 		use arch::imp::memory::virt as imp;
 		
 		pub type AddressSpace = imp::AddressSpace;
+
+		pub type TempHandle<E> = imp::TempHandle<E>;
 
 		pub fn post_init() {
 			imp::post_init()

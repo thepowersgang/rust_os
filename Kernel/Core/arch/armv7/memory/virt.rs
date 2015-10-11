@@ -239,11 +239,11 @@ fn get_table_addr<T>(vaddr: *const T, alloc: bool) -> Option< (::arch::memory::P
 }
 
 /// Handle to a temporarily mapped frame
-struct TempHandle<T>(*mut T);
+pub struct TempHandle<T>(*mut T);
 impl<T> TempHandle<T>
 {
 	/// UNSAFE: User must ensure that address is valid, and that no aliasing occurs
-	unsafe fn new(phys: ::arch::memory::PAddr) -> TempHandle<T> {
+	pub unsafe fn new(phys: ::arch::memory::PAddr) -> TempHandle<T> {
 		//log_trace!("TempHandle<{}>::new({:#x})", type_name!(T), phys);
 		let val = (phys as u32) + 0x13;	
 

@@ -59,15 +59,11 @@ pub struct SliceAllocHandle<T: ::lib::POD>
 	_ty: ::core::marker::PhantomData<T>,
 }
 
-const NUM_TEMP_SLOTS: usize = (addresses::TEMP_END - addresses::TEMP_BASE) / ::PAGE_SIZE;
-
 #[link_section=".process_local"]
 #[allow(non_upper_case_globals)]
 static s_userspace_lock : ::sync::Mutex<()> = mutex_init!( () );
 #[allow(non_upper_case_globals)]
 static s_kernelspace_lock : ::sync::Mutex<()> = mutex_init!( () );
-
-static S_TEMP_FREE: ::sync::Semaphore = ::sync::Semaphore::new(NUM_TEMP_SLOTS as isize, NUM_TEMP_SLOTS as isize);
 
 pub fn init()
 {
@@ -96,6 +92,16 @@ impl ::core::iter::Iterator for Pages {
 pub use arch::memory::virt::is_reserved;
 pub use arch::memory::virt::get_phys;
 pub use arch::memory::virt::get_info;
+
+pub unsafe fn with_temp<F, R>(phys: ::memory::PAddr, f: F) -> R
+where
+	F: FnOnce(&mut [u8; ::PAGE_SIZE]) -> R
+{
+	assert!(phys & 0xFFF == 0, "Unaligned address passed to with_temp");
+	let mut th = ::arch::memory::virt::TempHandle::<u8>::new(phys);
+	let p: &mut [u8; ::PAGE_SIZE] = ::core::mem::transmute(&mut th[0]);
+	f(p)
+}
 
 pub fn with_lock<F>(addr: usize, fcn: F)
 where
@@ -265,13 +271,6 @@ pub fn map_short(phys: PAddr) -> AllocHandle
 	
 }
 */
-/// Map a frame into memory and call the provided closure
-pub unsafe fn with_temp<F, R>(phys: PAddr, f: F) -> R
-where
-	F: FnOnce(&mut [u8; ::PAGE_SIZE]) -> R
-{
-	todo!("");
-}
 
 pub struct MmioHandle(*mut ::Void,u16,u16);
 unsafe impl Send for MmioHandle {}	// MmioHandle is sendable
@@ -423,59 +422,50 @@ unsafe fn map_hw(phys: PAddr, count: usize, readonly: bool, _module: &'static st
 pub fn alloc_free() -> Result<FreePage,MapError>
 {
 	log_trace!("alloc_free()");
-	// 1. Lock the temp region (using a semaphore to ensure there will be a free slot)
-	let _sh = S_TEMP_FREE.acquire();
-	//let _sh = try!( S_TEMP_FREE.acquire_timed(1000) );
-	let _lh = s_kernelspace_lock.lock();
-	// 2. Locate a slot
-	for i in 0 .. NUM_TEMP_SLOTS {
-		let addr = (addresses::TEMP_BASE + i * ::PAGE_SIZE) as *mut ();
-		if ! ::arch::memory::virt::is_reserved(addr) {
-			::memory::phys::allocate( addr );
-			return Ok( FreePage(addr as *mut u8) );
-		}
-	}
-	panic!("alloc_free: Semaphore reported free slots, but none found");
+	let frame = try!( ::memory::phys::allocate_bare().map_err(|_| MapError::OutOfMemory) );
+	// SAFE: We own this frame
+	let map_handle = unsafe { ::arch::memory::virt::TempHandle::new(frame) };
+	log_trace!("- frame = {:#x}, map_handle = {:p}", frame, &map_handle[0]);
+	Ok( FreePage(map_handle) )
 }
 
-pub struct FreePage(*mut u8);
+pub struct FreePage( ::arch::memory::virt::TempHandle<u8> );
 impl FreePage
 {
-	pub fn into_frame(self) -> ::memory::phys::FrameHandle {
-		// SAFE: Unmap uses correct address
-		unsafe {
-			let vaddr = self.0;
-			::core::mem::forget(self);
-			if let Some(addr) = ::arch::memory::virt::unmap(vaddr as *mut ()) {
-				::memory::phys::FrameHandle::from_addr_noref(addr)
-			}
-			else {
-				panic!("Address was not mapped?");
-			}
-		}
+	fn phys(&self) -> PAddr {
+		get_phys( &self.0[0] )
 	}
-	/// UNSAFE: User must ensure that T is valid for all bit patterns
-	pub unsafe fn as_slice_mut<T: 'static>(&mut self) -> &mut [T] {
-		::core::slice::from_raw_parts_mut( self.0 as *mut _, ::PAGE_SIZE / ::core::mem::size_of::<T>() )
+	pub fn into_frame(self) -> ::memory::phys::FrameHandle {
+		let paddr = self.phys();
+		// SAFE: Forgets after read
+		unsafe {
+			let _ = ::core::ptr::read(&self.0);
+			::core::mem::forget(self);
+		}
+		// SAFE: Valid physical address passed
+		unsafe { ::memory::phys::FrameHandle::from_addr_noref(paddr) }
+	}
+	pub fn as_slice_mut<T: ::lib::POD>(&mut self) -> &mut [T] {
+		// SAFE: Lifetime and range is valid, data is POD
+		unsafe {
+			::core::slice::from_raw_parts_mut( &mut self[0] as *mut u8 as *mut _, ::PAGE_SIZE / ::core::mem::size_of::<T>() )
+		}
 	}
 }
 impl ops::Drop for FreePage {
 	fn drop(&mut self) {
-		// SAFE: Pointer is owned and valid
-		unsafe { unmap(self.0 as *mut (), 1); }
+		panic!("FreePage shouldn't be dropped");
 	}
 }
 impl ops::Deref for FreePage {
 	type Target = [u8];
 	fn deref(&self) -> &[u8] {
-		// SAFE: Page is uniquely owned by this object
-		unsafe { ::core::slice::from_raw_parts(self.0, ::PAGE_SIZE) }
+		&self.0
 	}
 }
 impl ops::DerefMut for FreePage {
 	fn deref_mut(&mut self) -> &mut [u8] {
-		// SAFE: Page is uniquely owned by this object
-		unsafe { ::core::slice::from_raw_parts_mut(self.0, ::PAGE_SIZE) }
+		&mut self.0
 	}
 }
 
