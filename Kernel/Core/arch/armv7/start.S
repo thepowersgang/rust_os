@@ -18,7 +18,7 @@
 ivt_reset:      b rst_start	@ 0x00 Reset
 ivt_undef:      b .	@ 0x04 #UD
 ivt_svc:        b .	@ 0x08 SVC (used to be called SWI)
-ivt_prefetch:   b .	@ 0x0C Prefetch abort
+ivt_prefetch:   ldr pc, =prefetch_abort	@ 0x0C Prefetch abort
 ivt_data:       ldr pc, =data_abort	@ 0x10 Data abort
 ivt_unused:     b .	@ 0x14 Not Used
 ivt_irq:        b .	@ 0x18 IRQ
@@ -161,19 +161,28 @@ ram_mapping_collision:
 	mov r0, #'\n'; str r0, [r9]
 	b .
 
+@
+@ MAGIC MACRO
+@
+.macro EXIDX method handle
+.long EXIDX_\method
+.section .ARM.exidx.\method
+.globl EXIDX_\method
+EXIDX_\method: .long \method - . - 0x80000000, \handle
+.section .text
+.endm
+
 
 .section .text
-.globl thread_trampoline
-thread_trampoline:
+ENTRY(thread_trampoline)
 	pop {r1}	@ "thread_root" (generic over closure type)
 	pop {r0}	@ Pop pointer to the closure
 	bx r1
-.globl task_switch
 @ R0: Old stack save location
 @ R1: New stack
 @ R2: New TTBR0
 @ R3: New Thread pointer
-task_switch:
+ENTRY(task_switch)
 	push {r4-r12,lr}
 
 	@ Save SP
@@ -194,14 +203,64 @@ task_switch:
 	@ Restore state
 	pop {r4-r12,pc}
 
-.globl drop_to_user
 @ pub fn drop_to_user(entry: usize, stack: usize, cmdline_len: usize) -> !;
 @ R0: entry
 @ R1: stack
 @ R2: cmdline_len
-drop_to_user:
-	b .
+ENTRY(drop_to_user)
+	cps #0x1F	@ Switch to "System" to set user SP
+	mov sp, r1
+	cps #0x13 	@ 0x13 = supervisor (kernel)
+	mov r1, #0x10
+	push {r0,r1}
+	mov r0, r2
+	rfefd sp!
 
+
+ENTRY(prefetch_abort)
+	srsfd sp!, #0x17	@ Save state, using 'abort' mode stack
+	push {r0}
+	push {r0-r12}	@ SP, LR, and PC not pushed
+	
+	ldr r0, [sp, #4*13+4+4]
+	and r0, #0x1F
+	cmp r0, #0x10	@ 0x10 = user
+	cmpne r0, #0x13	@ 
+	bne not_known_mode
+	cmp r0, #0x10	@ 0x10 = user
+	beq 1f
+	cps #0x13 	@ 0x13 = supervisor (kernel)
+	mov r1, sp
+	mov r2, lr
+	b 2f
+1:
+	cps #0x1F 	@ 0x1F = "System" (user regs, kernel privs)
+	mov r1, sp
+	mov r2, lr
+2:
+	cps #23 	@ Switch back to abort mode
+	
+	push {r1,r2}	@ Push SP and LR
+	
+	mov r0, lr
+	sub r0, #8
+	mov r1, sp
+	mrc p15,0, r2, c5,c0,1
+	bl prefetch_abort_handler
+	
+	b .
+	
+	pop {r0-r12}
+	pop {r0}
+	rfefd sp!
+	.long EXIDX_prefetch_abort
+EXIDX prefetch_abort, prefetch_abort_EXTAB - . - 0x80000000
+.section .ARM.extab.data_abort
+prefetch_abort_EXTAB:
+	.long	0x81028600	@ POP {SP, LR}
+	.long	0x81FFB10F	@ POP {r4-r12}, POP {r0-r3}
+	.long	0x02B0B0B0	@ VSP+=12, END
+.section .text
 
 ENTRY(data_abort)
 	srsfd sp!, #0x17	@ Save state, using 'abort' mode stack
@@ -254,17 +313,6 @@ data_abort_EXTAB:
 	.long	0x81028600	@ POP {SP, LR}
 	.long	0x81FFB10F	@ POP {r4-r12}, POP {r0-r3}
 	.long	0x02B0B0B0	@ VSP+=12, END
-
-@
-@ MAGIC MACRO
-@
-.macro EXIDX method handle
-.long EXIDX_\method
-.section .ARM.exidx.\method
-.globl EXIDX_\method
-EXIDX_\method: .long \method - . - 0x80000000, \handle
-.section .text
-.endm
 
 .section .text
 ENTRY(__aeabi_memcpy4)
