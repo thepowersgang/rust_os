@@ -63,24 +63,22 @@ pub fn print_backtrace()
 	let cur_bp: u64;
 	// SAFE: Reads from bp
 	unsafe{ asm!("mov %rbp, $0" : "=r" (cur_bp)); }
-	puts("Backtrace: ");
-	puth(cur_bp);
-	
-	let mut bp = cur_bp;
-	while let Option::Some((newbp, ip)) = cpu_faults::backtrace(bp)
-	{
-		puts(" > ");
-		puth(ip);
-		if let Some( (name, ofs) ) = ::symbols::get_symbol_for_addr(ip as usize - 1) {
-			puts("(");
-			puts(name);
-			puts("+");
-			puth(ofs as u64 + 1);
-			puts(")");
+	log_notice!("Backtrace: {}", Backtrace(cur_bp as usize));
+}
+pub struct Backtrace(usize);
+impl ::core::fmt::Display for Backtrace {
+	fn fmt(&self, f: &mut ::core::fmt::Formatter) -> ::core::fmt::Result {
+		let mut bp = self.0 as u64;
+		while let Option::Some((newbp, ip)) = cpu_faults::backtrace(bp)
+		{
+			try!(write!(f, " > {:#x}", ip));
+			if let Some( (name, ofs) ) = ::symbols::get_symbol_for_addr(ip as usize - 1) {
+				try!(write!(f, "({}+{:#x})", ::symbols::Demangle(name), ofs + 1));
+			}
+			bp = newbp;
 		}
-		bp = newbp;
+		Ok( () )
 	}
-	puts("\n");
 }
 
 // vim: ft=rust
