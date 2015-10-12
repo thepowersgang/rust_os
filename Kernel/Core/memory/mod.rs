@@ -20,7 +20,12 @@ pub mod memorymap;
 pub use arch::memory::PAddr;
 /*
 #[derive(Copy,Clone,Debug)]
-pub struct PAddr(u32);
+pub struct PAddr(::arch::memory::PAddrRaw);
+impl PAddr {
+	fn as_inner() -> ::arch::memory::PAddrRaw {
+		self.0
+	}
+}
 impl ::core::ops::Add<usize> for PAddr
 {
 	type Output = PAddr;

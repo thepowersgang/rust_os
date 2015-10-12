@@ -190,10 +190,10 @@ impl WindowGroup
 				
 				// 2. Obtain the visible sections of this window that have changed
 				// - Switch the dirty rect out with an empty Vec
-				let dirty_vec = ::core::mem::replace(&mut *win.dirty_rects.lock(), Vec::new());
+				let dirty_vec = win.take_dirty_rects();
 				// - Get a slice of it (OR, if doing a full re-render, get a wildcard region)
 				let dirty = if full { &FULL_RECT[..] } else { &dirty_vec[..] };
-				log_trace!("WindowGroup::redraw: {} '{}' dirty={:?}, vis={:?}", winidx, win.name, dirty, vis);
+				log_trace!("WindowGroup::redraw: {} '{}' dirty={:?}, vis={:?}", winidx, win.name(), dirty, vis);
 				// - Iterate all visible dirty regions and re-draw
 				for rgn in Rect::list_intersect(vis, dirty)
 				{
@@ -257,7 +257,7 @@ impl WindowGroup
 		// Get the area of the screen used by this window
 		let win_idx = self.render_order[vis_idx].0;
 		let (ref cur_pos, ref cur_win) = self.windows[win_idx];
-		let dims = cur_win.buf.read().dims();
+		let dims = cur_win.dims();
 		let win_rect = Rect::new_pd(*cur_pos, dims);
 		
 		// Iterate all windows above to obtain the visibility rect
@@ -265,7 +265,7 @@ impl WindowGroup
 		for &(win,_) in &self.render_order[ vis_idx+1 .. ]
 		{
 			let (ref pos, ref win) = self.windows[win];
-			if let Some(mut rect) = Rect::new_pd( *pos, win.buf.read().dims() ).intersect(&win_rect)
+			if let Some(mut rect) = Rect::new_pd( *pos, win.dims() ).intersect(&win_rect)
 			{
 				rect.pos.x -= cur_pos.x;
 				rect.pos.y -= cur_pos.y;
@@ -293,7 +293,7 @@ impl WindowGroup
 		if self.get_render_idx(idx).is_some() {
 			return ;
 		}
-		let rect = Rect { pos: self.windows[idx].0, dims: self.windows[idx].1.buf.read().dims() };
+		let rect = Rect { pos: self.windows[idx].0, dims: self.windows[idx].1.dims() };
 		self.render_order.push( (idx, vec![rect]) );
 		let vis_idx = self.render_order.len() - 1;
 		self.recalc_vis_int(vis_idx);
@@ -428,9 +428,7 @@ impl WindowHandle
 	/// This is invalidated (no longer backs the window) if the window is
 	/// resized.
 	pub fn get_buffer(&self) -> Arc<WinBuf> {
-		let win = self.get_win();
-		let lh = win.buf.read();
-		lh.clone()
+		self.get_win().get_buffer()
 	}
 	
 	/// Redraw the window (mark for re-blitting)
@@ -456,10 +454,16 @@ impl WindowHandle
 		wg.lock().move_window(self.win, pos);
 	}
 
+	/// Set the "client" region (area of window that can be influenced by render calls)
+	pub fn set_client_region(&mut self, rect: Rect) {
+		self.get_win().set_client_region(rect)
+	}
+
+	/// Return the dimensions of the currently usable portion of the window
 	pub fn get_dims(&self) -> Dims {
-		let w = self.get_win();
-		let b = w.buf.read();
-		b.dims()
+		let d = self.get_win().dims();
+		let m = self.get_win().get_client_region();
+		Rect::new_pd( Pos::new(0,0), d ).intersect( &m ).unwrap_or( Rect::new(0,0,0,0) ).dims()
 	}
 	
 	/// Maximise this window (fill all space on the current monitor)

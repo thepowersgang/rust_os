@@ -167,6 +167,14 @@ impl objects::Object for Window
 			let rv = (d.w as u64) << 32 | (d.h as u64);
 			Ok( rv )
 			},
+		values::GUI_WIN_SETCLIENTREGION => {
+			let x = try!( <u32>::get_arg(&mut args) );
+			let y = try!( <u32>::get_arg(&mut args) );
+			let w = try!( <u32>::get_arg(&mut args) );
+			let h = try!( <u32>::get_arg(&mut args) );
+			self.0.lock().set_client_region(Rect::new(x,y, w,h));
+			Ok(0)
+			},
 		_ => todo!("Window::handle_syscall({}, ...)", call),
 		}
 	}

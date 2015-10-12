@@ -20,21 +20,24 @@ use input;
 pub struct Window
 {
 	/// Window name (set once, never changes after)
-	pub name: String,
+	name: String,
 	
 	/// Actual window data
 	/// 
 	/// Write lock is for structure manipulations, slicing is sharable.
 	/// Arc allows the "user" to hold a copy of the framebuffer
-	pub buf: RwLock<Arc<WinBuf>>,
+	buf: RwLock<Arc<WinBuf>>,
+
+	/// Client region - Mask for window render calls
+	client_region: Mutex<Rect>,
 	
 	/// Window title (queried by the decorator)
 	#[allow(dead_code)]
-	pub title: String,
+	title: String,
 	
 	/// List of invalidated regions within the window
-	pub dirty_rects: Mutex<Vec<Rect>>,
-	pub is_dirty: atomic::AtomicBool,
+	dirty_rects: Mutex<Vec<Rect>>,
+	is_dirty: atomic::AtomicBool,
 	
 	/// Flags on the window
 	pub flags: Mutex<WindowFlags>,
@@ -65,6 +68,7 @@ impl Window
 		Window {
 			name: name,
 			buf: Default::default(),
+			client_region: Mutex::new(Rect::new(0,0,!0,!0)),
 			title: Default::default(),
 			dirty_rects: Default::default(),
 			is_dirty: atomic::ATOMIC_BOOL_INIT,
@@ -75,9 +79,32 @@ impl Window
 				},
 		}
 	}
-	
-	pub fn take_is_dirty(&self) -> bool { self.is_dirty.swap(false, atomic::Ordering::Relaxed) }
-	pub fn mark_dirty(&self) { self.is_dirty.store(true, atomic::Ordering::Relaxed); }
+	pub fn name(&self) -> &str {
+		&self.name
+	}
+	pub fn dims(&self) -> Dims {
+		self.buf.read().dims()
+	}
+	pub fn get_buffer(&self) -> Arc<WinBuf> {
+		self.buf.read().clone()
+	}
+
+	pub fn set_client_region(&self, r: Rect) {
+		*self.client_region.lock() = r;
+	}
+	pub fn get_client_region(&self) -> Rect {
+		*self.client_region.lock()
+	}
+
+	pub fn take_dirty_rects(&self) -> Vec<Rect> {
+		::core::mem::replace(&mut *self.dirty_rects.lock(), Vec::new())
+	}
+	pub fn take_is_dirty(&self) -> bool {
+		self.is_dirty.swap(false, atomic::Ordering::Relaxed)
+	}
+	pub fn mark_dirty(&self) {
+		self.is_dirty.store(true, atomic::Ordering::Relaxed);
+	}
 
 
 	pub fn handle_input(&self, ev: input::Event) {
@@ -163,6 +190,7 @@ impl Window
 	/// Fill an area of the window
 	pub fn fill_rect(&self, area: Rect, colour: Colour)
 	{
+		let area = area.intersect( &self.get_client_region() ).unwrap_or(Rect::new(0,0,0,0));
 		let dims = self.buf.read().dims();
 		let winrect = Rect::new_pd(Pos::new(0,0), dims);
 		if let Some(area) = area.intersect(&winrect)
@@ -184,20 +212,22 @@ impl Window
 	/// Blit from an external data source
 	/// 
 	/// `stride` is the number of data entries between rows (allows inner blits)
-	pub fn blit_rect(&self, rect: Rect, data: &[u32], stride: usize)
+	pub fn blit_rect(&self, area: Rect, data: &[u32], stride: usize)
 	{
-		log_trace!("Window::blit_rect({}, data={}px)", rect, data.len());
+		log_trace!("Window::blit_rect({}, data={}px)", area, data.len());
+		let area = area.intersect( &self.get_client_region() ).unwrap_or(Rect::new(0,0,0,0));
+		
 		let buf_h = self.buf.read();
-		for (row,src) in (rect.top() .. rect.bottom()).zip( data.chunks(stride) )
+		for (row,src) in (area.top() .. area.bottom()).zip( data.chunks(stride) )
 		{
 			buf_h.set_scanline(
 				row as usize,
-				rect.left() as usize,
+				area.left() as usize,
 				src.len(),
 				src
 				);
 		}
-		self.add_dirty( rect );
+		self.add_dirty( area );
 	}
 
 
