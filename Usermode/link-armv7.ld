@@ -27,5 +27,8 @@ SECTIONS {
 	.dynamic : {
 		*(.dynamic)
 	} :SegDYN
+	.rel.plt : {
+		*(.rel.plt)
+	} :SegDYN
 }
 

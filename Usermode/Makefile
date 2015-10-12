@@ -161,12 +161,12 @@ $(OBJDIR)%.o: %.rs $(TARGET_SPEC) $(makefile_deps)
 $(OBJDIR)%.ao: %.S $(makefile_deps)
 	@mkdir -p $(dir $@)
 	@echo [AS] $@
-	$V$(CC) -o $@ -c $< -D ARCH_$(ARCH)
+	$V$(CC) -o $@ -c $< -D ARCH_$(ARCH) -MMD -MF $@.d
 # - Base runtime
 $(OBJDIR)rustrt0.o: rustrt0/$(ARCH).S $(makefile_deps)
 	@mkdir -p $(dir $@)
 	@echo [AS] $@
-	$V$(CC) -o $@ -c $< -D ARCH_$(ARCH) -fPIC
+	$V$(CC) -o $@ -c $< -D ARCH_$(ARCH) -fPIC -MMD -MF $@.d
 
 # Generate dependencies for EVERY crate
 fn_getstd = $(shell grep -F "![no_std]" $1 >/dev/null && echo "core" || echo "std")
@@ -184,6 +184,7 @@ ALL_PRESENT_BINS := $(patsubst %/src/main.rs,%, $(wildcard */src/main.rs))
 
 DEPFILES := $(patsubst %,$(OBJDIR)lib%.d, $(ALL_USED_LIBS))
 DEPFILES += $(patsubst %,$(OBJDIR)%.d, $(ALL_PRESENT_BINS))
+DEPFILES += $(OBJDIR)loader/start.ao.d $(OBJDIR)rustrt0.o.d
 -include $(DEPFILES)
 
 # Official library dependency tree
