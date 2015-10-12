@@ -50,7 +50,7 @@ pub mod addresses
 	#[doc(hiddden)]
 	pub const IDENT_START:    usize = 0xFFFFFFFF_80000000;	// PML4[511] (plus some)
 	#[doc(hiddden)]
-	pub const IDENT_END:      usize = IDENT_START + 0x200000;	// 2MiB
+	pub const IDENT_END:      usize = IDENT_START + 0x400000;	// 4MiB
 	
 	/// returns true if the provided address is valid within all address spaces
 	pub fn is_global(addr: usize) -> bool

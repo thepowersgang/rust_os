@@ -92,6 +92,7 @@ struct MultibootParsed
 	cmdline: &'static str,
 	vidmode: Option<VideoMode>,
 	memmap: &'static [::memory::MemoryMapEnt],
+	symbol_info: SymbolInfo,
 }
 
 enum BootInfo
@@ -99,6 +100,13 @@ enum BootInfo
 	Uninit,
 	Invalid,
 	Multiboot(MultibootParsed),
+}
+
+struct PSlice(::memory::PAddr, usize);
+enum SymbolInfo
+{
+	None,
+	Elf32( &'static [::symbols::Elf32_Sym], &'static [u8] ),
 }
 
 
@@ -197,34 +205,91 @@ impl MultibootParsed
 				"-UNKNOWN-"
 			};
 		
-		// Symbol information
-		match (info.flags >> 4) & 3
-		{
-		0 => {},	// No symbol information
-		1 => {
-			// a.out symbol table
-			let [tabsize, strsize, addr, _resvd] = info.syminfo;
-			log_debug!("Symbols a.out - tabsize={}, strsize={}, addr={:#x}", tabsize, strsize, addr);
-			},
-		2 => {
-			let [num, size, addr, shndx] = info.syminfo;
-			log_debug!("Symbols ELF - num={}, size={}, addr={:#x}, shndx={}", num, size, addr, shndx);
-			},
-		_ => {
-			log_error!("Multiboot header malformed (both symbol table bits set)");
-			return None;
-			},
-		}
 		
 		log_notice!("Loading multiboot from loader '{}' (flags = {:#x})", loader_name, info.flags);
 		let mut ret = MultibootParsed {
 				cmdline: MultibootParsed::_cmdline(info),
 				vidmode: MultibootParsed::_vidmode(info),
+				symbol_info: MultibootParsed::_syminfo(info),
 				memmap: &[],
 			};
 		// SAFE: Should only be called before threading is initialised, so no race
 		ret.memmap = unsafe { ret._memmap(info, &mut s_memmap_data) };
 		Some( ret )
+	}
+
+	fn _syminfo(info: &MultibootInfo) -> SymbolInfo
+	{
+		// Symbol information
+		match (info.flags >> 4) & 3
+		{
+		0 => SymbolInfo::None,	// No symbol information
+		1 => {
+			// a.out symbol table
+			let [tabsize, strsize, addr, _resvd] = info.syminfo;
+			log_debug!("Symbols a.out - tabsize={}, strsize={}, addr={:#x}", tabsize, strsize, addr);
+			SymbolInfo::None
+			},
+		2 => {
+			use memory::PAddr;
+
+			let [num, size, addr, shndx] = info.syminfo;
+			log_debug!("Symbols ELF - num={}, size={}, addr={:#x}, shndx={}", num, size, addr, shndx);
+			type Elf32_Word = u32;
+			type Elf32_Addr = u32;
+			type Elf32_Off = u32;
+			#[derive(Debug)]
+			struct ShEnt {
+				sh_name: Elf32_Word,
+				sh_type: Elf32_Word,
+				sh_flags: Elf32_Word,
+				sh_addr: Elf32_Addr,
+				sh_offset: Elf32_Off,
+				sh_size: Elf32_Word,
+				sh_link: Elf32_Word,
+				sh_info: Elf32_Word,
+				sh_addralign: Elf32_Word,
+				sh_entsize: Elf32_Word,
+			}
+			assert_eq!( ::core::mem::size_of::<ShEnt>(), size as usize );
+			// SAFE: No aliasing
+			let shtab: &'static [ShEnt] = match unsafe { ::memory::virt::map_static_slice(addr as PAddr, num as usize) }
+				{
+				Ok(v) => v,
+				Err(_) => &[],
+				};
+			for shent in shtab
+			{
+				log_trace!("shent = {:?}", shent);
+				if shent.sh_type == 2
+				{
+					let count = shent.sh_size as usize / ::core::mem::size_of::<::symbols::Elf32_Sym>();
+					// SAFE: Un-aliased
+					let ents: &'static [_] = match unsafe { ::memory::virt::map_static_slice(shent.sh_addr as PAddr, count) }
+						{
+						Ok(v) => v,
+						Err(_) => break,
+						};
+					let strtab_ent = &shtab[shent.sh_link as usize];
+					// SAFE: Un-aliased
+					let strtab: &'static [u8] = match unsafe { ::memory::virt::map_static_slice(strtab_ent.sh_addr as PAddr, strtab_ent.sh_size as usize) }
+						{
+						Ok(v) => v,
+						Err(_) => break,
+						};
+					//log_debug!("ents = {:p}+{}, strtab={:?}", ents.as_ptr(), count, ::core::str::from_utf8_unchecked(strtab) );
+					// SAFE: Called in single-threaded context
+					unsafe { ::symbols::set_symtab(ents, strtab, 0xFFFFFFFF_00000000); }
+					return SymbolInfo::Elf32(ents, strtab);
+				}
+			}
+			SymbolInfo::None
+			},
+		_ => {
+			log_error!("Multiboot header malformed (both symbol table bits set)");
+			SymbolInfo::None
+			},
+		}
 	}
 	
 	fn _cmdline(info: &MultibootInfo) -> &'static str
@@ -317,11 +382,24 @@ impl MultibootParsed
 			// TODO: Fix if not valid
 			assert!( mapbuilder.validate() );
 			
-			// 2. Clobber out kernel, modules, and strings
+			// 2. Clobber out boot info
+			// - Kernel
 			mapbuilder.set_range( 0x100000, &::arch::imp::v_kernel_end as *const _ as u64 - IDENT_START as u64 - 0x10000,
 				::memory::MemoryState::Used, 0 ).ok().unwrap();
+			// - Command line string
 			mapbuilder.set_range( self.cmdline.as_ptr() as u64 - IDENT_START as u64, self.cmdline.len() as u64,
 				::memory::MemoryState::Used, 0 ).ok().unwrap();
+			// - Symbol information
+			match self.symbol_info
+			{
+			SymbolInfo::None => {},
+			SymbolInfo::Elf32(sym, str) => {
+				mapbuilder.set_range( ::memory::virt::get_phys(sym.as_ptr()), (sym.len() * ::core::mem::size_of::<::symbols::Elf32_Sym>()) as u64,
+					::memory::MemoryState::Used, 0).ok().unwrap();
+				mapbuilder.set_range( ::memory::virt::get_phys(str.as_ptr()), str.len() as u64,
+					::memory::MemoryState::Used, 0).ok().unwrap();
+				},
+			}
 			
 			mapbuilder.size()
 			};

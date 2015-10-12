@@ -69,7 +69,15 @@ pub fn print_backtrace()
 	let mut bp = cur_bp;
 	while let Option::Some((newbp, ip)) = cpu_faults::backtrace(bp)
 	{
-		puts(" > "); puth(ip);
+		puts(" > ");
+		puth(ip);
+		if let Some( (name, ofs) ) = ::symbols::get_symbol_for_addr(ip as usize - 1) {
+			puts("(");
+			puts(name);
+			puts("+");
+			puth(ofs as u64 + 1);
+			puts(")");
+		}
 		bp = newbp;
 	}
 	puts("\n");

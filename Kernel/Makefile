@@ -175,7 +175,7 @@ bin/kernel-$(ARCH).bin: $(OBJS) Core/arch/$(ARCH)/link.ld Makefile
 ifeq ($(ARCH),amd64)
 	@objcopy $@ --only-keep-debug $@.debug
 	@objcopy $@ -F elf32-i386 $@.elf32
-	@$(TRIPLE)-strip $@.elf32
+	@$(TRIPLE)-strip -g $@.elf32
 else
 	#@$(TRIPLE)-strip $@
 endif

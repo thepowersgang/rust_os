@@ -176,7 +176,7 @@ fn get_page_ent(addr: usize, allocate: bool, large_ok: LargeOk) -> PTE
 pub fn fixed_alloc(addr: PAddr, page_count: usize) -> Option<*mut ()>
 {
 	const FOURMEG: PAddr = (addresses::IDENT_END - addresses::IDENT_START) as PAddr;
-	if addr < FOURMEG && (FOURMEG - addr >> 10) as usize > page_count
+	if addr < FOURMEG && addr + (page_count * ::PAGE_SIZE) as PAddr <= FOURMEG
 	{
 		Some( (addresses::IDENT_START + addr as usize) as *mut () )
 	}

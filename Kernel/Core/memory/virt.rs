@@ -269,13 +269,28 @@ pub unsafe fn unmap(addr: *mut (), count: usize)
 	}
 }
 
-/*
-/// Map a physical page for a short period of time (typically long enough to copy data in/out)
-pub fn map_short(phys: PAddr) -> AllocHandle
-{
-	
+
+pub unsafe fn map_static_raw(phys: PAddr, size: usize) -> Result<*const ::Void, MapError> {
+	let ofs = phys as usize % ::PAGE_SIZE;
+	let pages = (ofs + size + ::PAGE_SIZE - 1) / ::PAGE_SIZE;
+	if let Some(p) = ::arch::memory::virt::fixed_alloc(phys & !(::PAGE_SIZE as PAddr - 1), pages) {
+		log_trace!("{:#x}+{}pg is {:p}", phys, pages, p);
+		Ok( (p as usize + ofs) as *const ::Void)
+	}
+	else {
+		log_trace!("{:#x}+{}pg not in fixed region", phys, pages);
+		Err(MapError::OutOfMemory)
+		//todo!("map_static_raw(phys={:#x}, size={:#x})", phys, size);
+	}
 }
-*/
+pub unsafe fn map_static_slice<T: ::lib::POD>(phys: PAddr, count: usize) -> Result<&'static [T], MapError> {
+	map_static_raw(phys, count * ::core::mem::size_of::<T>())
+		.map(|ptr| ::core::slice::from_raw_parts(ptr as *const T, count))
+}
+pub unsafe fn map_static<T: ::lib::POD>(phys: PAddr) -> Result<&'static T, MapError> {
+	map_static_raw(phys, ::core::mem::size_of::<T>())
+		.map(|ptr| &*(ptr as *const T))
+}
 
 pub struct MmioHandle(*mut ::Void,u16,u16);
 unsafe impl Send for MmioHandle {}	// MmioHandle is sendable
