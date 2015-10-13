@@ -68,7 +68,10 @@ $(IMGDIR)hda_1.img: $(wildcard ../../Usermode/.output/$(ARCH)/bin/*) Makefile
 	@dd if=/dev/zero of=$@ bs=1M count=32 status=none
 	@/sbin/mkfs.vfat $@
 	@mmd -i $@ ::/Tifflin
+	@mmd -i $@ ::/Tifflin/shared
+	@mmd -i $@ ::/Tifflin/shared/images
 	@mcopy -s -D o -i $@ ../../Usermode/.output/$(ARCH)/bin ::/Tifflin/bin
+	@mcopy -s -D o -i $@ ../../Graphics/*.r8 ::/Tifflin/shared/images/
 	@echo "Test content" | mcopy -i $@ - ::/1.txt
 $(IMGDIR)hda_2.img:
 	@mkdir -p $(dir $@)

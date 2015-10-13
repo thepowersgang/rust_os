@@ -29,13 +29,17 @@ fn main()
 
 	// Menu bar
 	// - Two buttons: Options and power
-	// TODO: At the moment, the image widget does nothing. Need to decide where images live, and what format.
-	let options_icon = ::wtk::Colour::theme_text_bg();	//::wtk::image::RasterMonoA::new("/Tifflin/shared/images/options.r32");
-	let power_icon   = ::wtk::Colour::theme_text_bg();	//::wtk::image::RasterMonoA::new("/Tifflin/shared/images/power.r32");
+	let options_icon = ::wtk::image::RasterMonoA::new("/system/Tifflin/shared/images/options.r8", ::wtk::Colour::theme_text_bg()).unwrap();
+	let power_icon   = ::wtk::image::RasterMonoA::new("/system/Tifflin/shared/images/power.r8"  , ::wtk::Colour::theme_text_bg()).unwrap();
 	let mut options_button = ::wtk::Button::new( ::wtk::Image::new(options_icon) );
 	options_button.bind_click( |_btn,_win| () );
 	let mut power_button = ::wtk::Button::new( ::wtk::Image::new(power_icon) );
 	power_button.bind_click( |_btn,_win| () );
+	//let menubar = ::wtk::StaticBox::new_horiz( (
+	//	::wtk::BoxEle::fixed(options_button, MENU_BTN_WIDTH),
+	//	::wtk::BoxEle::expand( () ),
+	//	::wtk::BoxEle::fixed(power_button, MENU_BTN_WIDTH),
+	//	));
 	let mut menubar = ::wtk::Box::new_horiz();
 	menubar.add(&options_button, Some(MENU_BTN_WIDTH));
 	menubar.add_fill(None);
@@ -68,12 +72,12 @@ fn main()
 		});
 
 	/*
-	let loginbox = ::wtk::Frame::new( ::wtk::Box::new_virt(
-		( (), None ),
-		( &username, Some(TEXTBOX_HEIGHT) ),
-		( &password, Some(TEXTBOX_HEIGHT) ),
-		( (), None ),
-		) );
+	let loginbox = ::wtk::Frame::new( ::wtk::StaticBox::new_virt((
+		::wtk::BoxEle::expand( () ),
+		::wtk::BoxEle::fixed( &username, TEXTBOX_HEIGHT ),
+		::wtk::BoxEle::fixed( &password, TEXTBOX_HEIGHT ),
+		::wtk::BoxEle::expand( () ),
+		));
 	loginbox.items.1.ele.bind_submit();
 	 */
 	let mut loginbox = ::wtk::Frame::new( ::wtk::Box::new_vert() );

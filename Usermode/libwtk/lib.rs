@@ -64,3 +64,6 @@ pub use input::text_box::TextInput;
 pub use input::button::Button;
 pub use image::Image;
 
+pub use static_layout::Box as StaticBox;
+pub use static_layout::BoxEle;
+

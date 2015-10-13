@@ -59,17 +59,12 @@ impl<S: BoxEleSet> Box<S>
 		}
 		else {
 			let expand = {
-				let (fixed_total, num_expand) = {
-					let mut fixed = 0;
-					let mut expand = 0;
-					self.elements.foreach_sizes(|s| if let Some(Size(v)) = s { fixed += v; } else { expand += 1; });
-					(fixed, expand)
-					};
+				let (fixed_total, num_expand) = self.elements.get_sizes();
 				if fixed_total > cap {
 					0
 				}
 				else if num_expand > 0 {
-					(cap - fixed_total) / num_expand
+					(cap - fixed_total) / num_expand as u32
 				}
 				else {
 					0
@@ -96,50 +91,16 @@ impl<S: BoxEleSet> super::Element for Box<S>
 
 	fn element_at_pos(&self, x: u32, y: u32) -> (&Element, (u32,u32))
 	{
-		let pos = if self.direction.is_vert() { y } else { x };
 		let (_cap, exp) = *self.sizes.borrow();
 
-		let mut ofs = 0;
-		let rv = self.elements.foreach_both(|size, element| {
-				let size = if let Some(Size(s)) = size { s } else { exp };
-				// If the cursor was before the right/bottom border of this element, it's within
-				// - Works because of ordering
-				if pos < ofs + size
-				{
-					Err(if self.direction.is_vert() {
-							element.element_at_pos(x, y - ofs)
-						}
-						else {
-							element.element_at_pos(x - ofs, y)
-						})
-				}
-				else {
-					ofs += size;
-					Ok( () )
-				}
-			});
-		// NOTE: Overloads Err for the success case, allows foreach_both to use try!
-		match rv
-		{
-		Ok(_) => (self,(0,0)),
-		Err(r) => r,
-		}
+		self.elements.get_ele_at_pos( x, y, exp, self.direction.is_vert() )
 	}
 	fn render(&self, surface: ::surface::SurfaceView, force: bool) {
 		// 1. Determine sizes
 		let (is_dirty, expand_size) = self.update_size(if self.direction.is_vert() { surface.height() } else { surface.width() });
 
 		// 2. Render sub-surfaces
-		let mut ofs = 0;
-		
-		let _ = self.elements.foreach_both::<(),_>(|size, element| {
-			let size = if let Some(Size(size)) = size { size } else { expand_size };
-
-			let rect = self.get_rect(ofs, size);
-			element.render(surface.slice(rect), force || is_dirty);
-			ofs += size;
-			Ok( () )
-			});
+		self.elements.render(surface, force || is_dirty, expand_size, |ofs,size| self.get_rect(ofs, size));
 	}
 }
 
@@ -147,30 +108,68 @@ pub trait BoxEleSet
 {
 	fn count() -> usize;
 	
-	fn foreach_sizes<F: FnMut(Option<Size>)>(&self, f: F);
-	fn foreach_both<'a, E: 'a, F>(&'a self, f: F) -> Result<(), E>
+	fn get_sizes(&self) -> (u32, usize);
+	fn render<G>(&self, surface: ::surface::SurfaceView, force: bool, expand_size: u32, get_rect: G)
 	where
-		F: FnMut(Option<Size>, &'a Element) -> Result<(),E>
+		G: Fn(u32, u32)->Rect<::geom::Px>
 		;
+	fn get_ele_at_pos(&self, x: u32, y: u32, exp: u32, is_vert: bool) -> (&Element,(u32,u32));
 }
 
 macro_rules! impl_box_set_tuple {
 	( $s:ident : $($n:ident = $v:expr),* ) => {
 		impl<$($n: Element),*> BoxEleSet for ($(BoxEle<$n>,)*) {
 			fn count() -> usize { $( ({ let _: $n; 1})+)* 0 }
-			fn foreach_sizes<F: FnMut(Option<Size>)>(&$s, mut f: F) {
+			fn get_sizes(&$s) -> (u32, usize) {
+				let mut fixed = 0;
+				let mut expand = 0;
 				$(
-				f($v.size);
+				if let Some(Size(v)) = $v.size {
+					fixed += v;
+				}
+				else {
+					expand += 1;
+				}
 				)*
+				(fixed, expand)
 			}
-			fn foreach_both<'a, E: 'a, F>(&'a $s, mut f: F) -> Result<(), E>
+			fn render<G>(&$s, surface: ::surface::SurfaceView, force: bool, expand_size: u32, get_rect: G)
 			where
-				F: FnMut(Option<Size>, &'a Element) -> Result<(),E>
+				G: Fn(u32, u32)->Rect<::geom::Px>
 			{
-				$(
-				try!(f($v.size, &$v.ele));
-				)*
-				Ok( () )
+				let mut ofs = 0;
+				$({
+					let size = if let Some(Size(size)) = $v.size { size } else { expand_size };
+					let rect = get_rect(ofs, size);
+					$v.ele.render(surface.slice(rect), force);
+					ofs += size;
+				})*
+				let _ = ofs;
+			}
+
+			fn get_ele_at_pos(&$s, x: u32, y: u32, exp: u32, is_vert: bool) -> (&Element,(u32,u32)) {
+				let pos = if is_vert { y } else { x };
+				let mut ofs = 0;
+				$({
+					let size = if let Some(Size(s)) = $v.size { s } else { exp };
+					// If the cursor was before the right/bottom border of this element, it's within
+					// - Works because of ordering
+					if pos < ofs + size
+					{
+						return if is_vert {
+								$v.ele.element_at_pos(x, y - ofs)
+							}
+							else {
+								$v.ele.element_at_pos(x - ofs, y)
+							};
+					}
+					else {
+						ofs += size;
+					}
+				})*
+				let _ = ofs;
+				static EMPTY_ELE: () = ();
+				(&EMPTY_ELE, (0,0))
 			}
 		}
 		};
