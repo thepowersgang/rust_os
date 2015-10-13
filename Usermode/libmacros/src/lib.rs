@@ -18,6 +18,43 @@ macro_rules! impl_fmt
 }
 
 #[macro_export]
+macro_rules! impl_conv {
+	(@as_item $($i:item)*) => {$($i)*};
+
+	(@match_ $( $(<($($params:tt)+)>)* From<$src:ty>($v:ident) for $t:ty { $($code:stmt)*} )+) => {
+		$(impl_from!{ @as_item 
+			impl$(<$($params)+>)* ::std::convert::From<$src> for $t {
+				fn from($v: $src) -> $t {
+					$($code)*
+				}
+			}
+		})+
+	};
+	(@match_ $( $(<($($params:tt)+)>)* Into<$dst:ty>($self_:ident) for $t:ty { $($code:stmt)*} )+) => {
+		$(impl_from!{ @as_item 
+			impl$(<$($params)+>)* ::std::convert::Into<$dst> for $t {
+				fn into($self_) -> $dst {
+					$($code)*
+				}
+			}
+		})+
+	};
+	(@match_ $( $(<($($params:tt)+)>)* AsRef<$dst:ty>($self_:ident) for $t:ty { $($code:stmt)*} )+) => {
+		$(impl_from!{ @as_item 
+			impl$(<$($params)+>)* ::std::convert::AsRef<$dst> for $t {
+				fn as_ref($self_) -> &$dst {
+					$($code)*
+				}
+			}
+		})+
+	};
+
+	($( $(<($($params:tt)+)>)* $name:ident<$src:ty>($v:ident) for $t:ty { $($code:stmt)*} )+) => {
+		$(impl_conv!{ @match_ $(<($($params:tt)+)>)* $name<$src>($v) for $t { $($code)* } })+
+	};
+}
+
+#[macro_export]
 macro_rules! impl_from {
 	(@as_item $($i:item)*) => {$($i)*};
 
