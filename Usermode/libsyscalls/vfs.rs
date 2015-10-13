@@ -17,6 +17,13 @@ pub use ::values::VFSNodeType as NodeType;
 pub use ::values::VFSFileOpenMode as FileOpenMode;
 pub use ::values::VFSMemoryMapMode as MemoryMapMode;
 
+
+impl From<Error> for ::std_io::Error {
+	fn from(v: Error) -> ::std_io::Error {
+		::std_io::Error
+	}
+}
+
 fn to_obj(val: usize) -> Result<super::ObjectHandle, Error> {
 	super::ObjectHandle::new(val).map_err(|code| Error::from(code))
 }
