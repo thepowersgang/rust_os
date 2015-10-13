@@ -6,6 +6,7 @@
 #![feature(const_fn)]
 
 extern crate async;
+extern crate byteorder;
 
 #[macro_use]
 extern crate macros;
@@ -18,6 +19,7 @@ mod surface;
 
 mod window;
 mod layout;
+mod static_layout;
 mod input;
 
 pub mod image;

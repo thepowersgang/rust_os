@@ -14,6 +14,7 @@ impl Direction {
 	fn is_vert(&self) -> bool { match self { &Direction::Vertical => true, &Direction::Horizontal => false } }
 }
 
+#[derive(Copy,Clone)]
 pub struct Size(u32);
 
 /// Box containing multiple elements, handles auto-sizing of elements
