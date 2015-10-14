@@ -88,14 +88,14 @@ impl<'a> ::Element for TextInput<'a>
 			let (w,h) = (surface.width(), surface.height());
 			// A basic raised border (top-left illuminated)
 			// TODO: Shouldn't the border be the job of a wrapping frame? Kinda heavy, but cleaner
-			surface.fill_rect( Rect::new(0,0,w,1), Colour::theme_border_main() );
-			surface.fill_rect( Rect::new(0,0,1,h), Colour::theme_border_main() );
-			surface.fill_rect( Rect::new(0,h-1,w,1), Colour::theme_border_alt() );
-			surface.fill_rect( Rect::new(w-1,0,1,h), Colour::theme_border_alt() );
+			//surface.fill_rect( Rect::new(0,0,w,1), Colour::theme_border_main() );
+			//surface.fill_rect( Rect::new(0,0,1,h), Colour::theme_border_main() );
+			//surface.fill_rect( Rect::new(0,h-1,w,1), Colour::theme_border_alt() );
+			//surface.fill_rect( Rect::new(w-1,0,1,h), Colour::theme_border_alt() );
 
+			surface.fill_rect( Rect::new(0,0,w,h), Colour::theme_text_bg() );
 			// Text positioned 1px from the corners
 			let pos = Rect::new(1,1,w-2,h-2);
-			surface.fill_rect( pos, Colour::theme_text_bg() );
 			// TODO: Support interior editing (and have the cursor midway)
 			let cursor_pos =
 				if state.value == ""
@@ -117,7 +117,7 @@ impl<'a> ::Element for TextInput<'a>
 			// If focused, render a cursor at the insert position.
 			// - Vertical line from 2px to -2px
 			if state.is_focussed {
-				surface.fill_rect( Rect::new(cursor_pos as u32, 2,  1, h-4), Colour::theme_text() );
+				surface.fill_rect( Rect::new(1 + cursor_pos as u32, 2,  1, h-4), Colour::theme_text() );
 			}
 
 			state.is_dirty = false;

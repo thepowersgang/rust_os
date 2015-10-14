@@ -1,4 +1,7 @@
 
+# NOTE: This is actually done in Kernel/Makefile
+logo.rs: TifflinLogoV1-128.png Makefile ConvertTo32bppRS
+	./ConvertTo32bppRS $< $@ S_LOGO
 
 power.r8: open-iconic_moon-2x.png Makefile
 	convert $< -depth 8 -channel A -separate gray:.tmp.$(notdir $@)

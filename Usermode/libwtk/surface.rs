@@ -168,6 +168,25 @@ impl<'a> SurfaceView<'a>
 			}
 			);
 	}
+	pub fn draw_rect(&self, rect: Rect<Px>, lw: Px, colour: Colour) {
+		let lwu = lw.0 as usize;
+		assert!(lwu > 0);
+		self.foreach_scanlines(rect, |i, line|
+			if i < lwu || i >= rect.h.0 as usize - lwu {
+				for px in line.iter_mut() {
+					*px = colour.as_argb32();
+				}
+			}
+			else {
+				for px in line[.. lwu].iter_mut() {
+					*px = colour.as_argb32();
+				}
+				for px in line[rect.w.0 as usize - lwu .. ].iter_mut() {
+					*px = colour.as_argb32();
+				}
+			}
+			);
+	}
 
 	/// Draw characters yielded from the passed iterator using the default font
 	pub fn draw_text<It: Iterator<Item=char>>(&self, mut rect: Rect<Px>, chars: It, colour: Colour) -> usize {

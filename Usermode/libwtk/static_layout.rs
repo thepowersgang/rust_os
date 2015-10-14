@@ -179,4 +179,5 @@ impl_box_set_tuple!{ self : A = self.0 }
 impl_box_set_tuple!{ self : A = self.0, B = self.1 }
 impl_box_set_tuple!{ self : A = self.0, B = self.1, C = self.2 }
 impl_box_set_tuple!{ self : A = self.0, B = self.1, C = self.2, D = self.3 }
+impl_box_set_tuple!{ self : A = self.0, B = self.1, C = self.2, D = self.3, E = self.4 }
 

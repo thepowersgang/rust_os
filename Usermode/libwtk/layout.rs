@@ -144,25 +144,41 @@ impl<'a> super::Element for Box<'a>
 	}
 }
 
-enum FrameType { Raise, Bevel }
+enum FrameType {
+	Raise,
+	Ring,
+}
 
 /// Provides a frame around an element
 pub struct Frame<E: ::Element>
 {
 	item: E,
 	frame_type: FrameType,
-	//frame_width: u32,
+	frame_width: u32,
+	colour_major: Colour,
+	colour_minor: Colour,
 }
 
 
 impl<E: ::Element> Frame<E>
 {
 	/// Construct a new framed element
-	pub fn new(ele: E) -> Frame<E> {
+	pub fn new_thin(ele: E) -> Frame<E> {
 		Frame {
-			frame_type: FrameType::Raise,
-			//frame_width: 2, // 2 px of frame
 			item: ele,
+			frame_type: FrameType::Raise,
+			frame_width: 1,
+			colour_major: Colour::theme_border_main(),
+			colour_minor: Colour::theme_border_alt(),
+		}
+	}
+	pub fn new_fat(ele: E) -> Frame<E> {
+		Frame {
+			item: ele,
+			frame_type: FrameType::Ring,
+			frame_width: 3,
+			colour_major: Colour::theme_border_main(),
+			colour_minor: Colour::theme_border_alt(),
 		}
 	}
 
@@ -184,17 +200,34 @@ impl<E: ::Element> ::Element for Frame<E>
 			match self.frame_type
 			{
 			FrameType::Raise => {
-				surface.fill_rect( Rect::new(0,0,!0,1), Colour::theme_border_alt() );
-				surface.fill_rect( Rect::new(0,0,1,!0), Colour::theme_border_alt() );
-				surface.fill_rect( Rect::new(0,surface.height()-1,!0,1), Colour::theme_border_main() );
-				surface.fill_rect( Rect::new(surface.width()-1,0,1,!0), Colour::theme_border_main() );
+				let lw = self.frame_width;
+				surface.fill_rect( Rect::new(0,0,!0,lw), self.colour_minor );
+				surface.fill_rect( Rect::new(0,0,lw,!0), self.colour_minor );
+				surface.fill_rect( Rect::new(0,surface.height()-lw,!0,lw), self.colour_major );
+				surface.fill_rect( Rect::new(surface.width()-lw,0,lw,!0), self.colour_major );
 				},
-			FrameType::Bevel => {
+			FrameType::Ring => {
+				let outer_w  = ::geom::Px((self.frame_width + 2) / 3);
+				let middle_w = ::geom::Px((self.frame_width + 1) / 3);
+				let inner_w  = ::geom::Px((self.frame_width + 0) / 3);
+
+				// Outer
+				let mut rect = surface.rect();
+				surface.draw_rect( rect, outer_w, self.colour_major );
+				rect.x = rect.x + outer_w; rect.w = rect.w - outer_w*2;
+				rect.y = rect.y + outer_w; rect.h = rect.h - outer_w*2;
+				// Inner
+				surface.draw_rect( rect, middle_w, self.colour_minor );
+				rect.x = rect.x + middle_w; rect.w = rect.w - middle_w*2;
+				rect.y = rect.y + middle_w; rect.h = rect.h - middle_w*2;
+				// Middle
+				surface.draw_rect( rect, inner_w, self.colour_major );
 				},
 			}
 		}
 
-		self.item.render(surface.slice( Rect::new(2,2, surface.width()-4, surface.height()-4) ), force);
+		let lw = self.frame_width;
+		self.item.render(surface.slice( Rect::new(lw+1,lw+1, surface.width()-lw*2-2, surface.height()-lw*2-2) ), force);
 	}
 	fn element_at_pos(&self, x: u32, y: u32) -> (&::Element, (u32,u32))
 	{

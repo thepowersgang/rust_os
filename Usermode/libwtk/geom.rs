@@ -1,6 +1,11 @@
 
 
-pub trait CoordType: Copy + ::std::ops::Add<Output=Self> + ::std::ops::Sub<Output=Self> + ::std::cmp::Ord + ::std::num::Zero + ::std::fmt::Debug
+pub trait CoordType:
+	Copy +
+	::std::ops::Add<Output=Self> + ::std::ops::Sub<Output=Self> +
+	//::std::ops::AddAssign + ::std::ops::SubAssign +
+	::std::cmp::Ord +
+	::std::num::Zero + ::std::fmt::Debug
 {
 	fn max_value() -> Self;
 }
@@ -17,6 +22,9 @@ macro_rules! impl_prim_coord {
 		impl ::std::cmp::Ord for $t { fn cmp(&self, o: &$t) -> ::std::cmp::Ordering { self.partial_cmp(o).unwrap() } }
 		impl ::std::ops::Add for $t { type Output = Self; fn add(self, v: Self) -> Self { $t(self.0.saturating_add(v.0)) } }
 		impl ::std::ops::Sub for $t { type Output = Self; fn sub(self, v: Self) -> Self { $t(self.0.saturating_sub(v.0)) } }
+		impl ::std::ops::Mul<u32> for $t { type Output = Self; fn mul(self, v: u32) -> Self { $t(self.0.checked_mul(v).unwrap_or(!0)) } }
+		//impl ::std::ops::AddAssign for $t { fn add_assign(&mut self, v: Self) { self.0 += v.0 } }
+		//impl ::std::ops::SubAssign for $t { fn sub_assign(&mut self, v: Self) { self.0 += v.0 } }
 		impl ::std::num::Zero for $t { fn zero() -> $t { $t(0) } }
 	}
 }
@@ -28,10 +36,10 @@ pub struct Mm(u32);
 #[derive(Copy,Clone,Default)]
 pub struct Rect<T: CoordType>
 {
-	x: T,
-	y: T,
-	w: T,
-	h: T,
+	pub x: T,
+	pub y: T,
+	pub w: T,
+	pub h: T,
 }
 impl<T: CoordType> ::std::fmt::Debug for Rect<T>
 {

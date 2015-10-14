@@ -35,15 +35,11 @@ fn main()
 	options_button.bind_click( |_btn,_win| () );
 	let mut power_button = ::wtk::Button::new( ::wtk::Image::new(power_icon) );
 	power_button.bind_click( |_btn,_win| () );
-	//let menubar = ::wtk::StaticBox::new_horiz( (
-	//	::wtk::BoxEle::fixed(options_button, MENU_BTN_WIDTH),
-	//	::wtk::BoxEle::expand( () ),
-	//	::wtk::BoxEle::fixed(power_button, MENU_BTN_WIDTH),
-	//	));
-	let mut menubar = ::wtk::Box::new_horiz();
-	menubar.add(&options_button, Some(MENU_BTN_WIDTH));
-	menubar.add_fill(None);
-	menubar.add(&power_button, Some(MENU_BTN_WIDTH));
+	let menubar = ::wtk::StaticBox::new_horiz( (
+		::wtk::BoxEle::fixed(options_button, MENU_BTN_WIDTH),
+		::wtk::BoxEle::expand( () ),
+		::wtk::BoxEle::fixed(power_button, MENU_BTN_WIDTH),
+		));
 
 	// Login box (vertially stacked, centered)
 	let mut username = ::wtk::TextInput::new();
@@ -71,32 +67,27 @@ fn main()
 		//win.show();
 		});
 
-	/*
-	let loginbox = ::wtk::Frame::new( ::wtk::StaticBox::new_virt((
+	let loginbox = ::wtk::Frame::new_fat( ::wtk::StaticBox::new_vert((
 		::wtk::BoxEle::expand( () ),
 		::wtk::BoxEle::fixed( &username, TEXTBOX_HEIGHT ),
+		::wtk::BoxEle::fixed( (), 1 ),	// <-- Padding
 		::wtk::BoxEle::fixed( &password, TEXTBOX_HEIGHT ),
 		::wtk::BoxEle::expand( () ),
+		)) );
+
+	let hbox = ::wtk::StaticBox::new_horiz((
+		::wtk::BoxEle::expand( () ),
+		::wtk::BoxEle::fixed(&loginbox, 120),
+		::wtk::BoxEle::expand( () ),
 		));
-	loginbox.items.1.ele.bind_submit();
-	 */
-	let mut loginbox = ::wtk::Frame::new( ::wtk::Box::new_vert() );
-	loginbox.inner_mut().add_fill(None);
-	loginbox.inner_mut().add(&username, Some(TEXTBOX_HEIGHT));
-	loginbox.inner_mut().add(&password, Some(TEXTBOX_HEIGHT));
-	loginbox.inner_mut().add_fill(None);
 
-	let mut hbox = ::wtk::Box::new_horiz();
-	hbox.add_fill(None);
-	hbox.add(&loginbox, Some(80));
-	hbox.add_fill(None);
-
-	let mut vbox = ::wtk::Box::new_vert();
-	vbox.add(&menubar, Some(MENU_HEIGHT));
-	vbox.add_fill(None);
-	vbox.add(&hbox, Some(ENTRY_FRAME_HEIGHT));
-	vbox.add_fill(None);
-	vbox.add_fill(Some(MENU_HEIGHT));
+	let vbox = ::wtk::StaticBox::new_vert((
+		::wtk::BoxEle::fixed(&menubar, MENU_HEIGHT),
+		::wtk::BoxEle::expand( () ),
+		::wtk::BoxEle::fixed(&hbox, ENTRY_FRAME_HEIGHT),
+		::wtk::BoxEle::expand( () ),
+		::wtk::BoxEle::fixed( (), MENU_HEIGHT ),
+		));
 
 	let mut win = ::wtk::Window::new(&vbox);
 	win.undecorate();
