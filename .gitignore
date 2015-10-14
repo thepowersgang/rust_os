@@ -16,6 +16,7 @@ externals/crates.io/*/
 Screenshots/
 
 Graphics/*.rs
+Graphics/*.r8
 
 Kernel/*.exp_rs
 Kernel/fdd.img
