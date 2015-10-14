@@ -126,7 +126,7 @@ $(OBJDIR)lib%.rlib: lib%/lib.rs $(TARGET_SPEC) $(makefile_deps)
 	@mv $(OBJDIR)$*.d $(OBJDIR)lib$*.d
 
 # - Official libraries
-$(OBJDIR)lib%.rlib: ../rustc_src/lib%/lib.rs $(TARGET_SPEC) $(makefile_deps)
+$(OBJDIR)lib%.rlib: ../rustc_src/lib%/lib.rs $(OBJDIR)libcore.rlib $(TARGET_SPEC) $(makefile_deps)
 	@mkdir -p $(dir $@)
 	@echo [RUSTC rust-src] $@
 	$VCFG_COMPILER_HOST_TRIPLE=x86_64-unknown-linux-gnu $(RUSTC) $(RUSTFLAGS) -A unused_unsafe -A unused_features --emit=link,dep-info --out-dir $(OBJDIR) $< --crate-type=rlib --crate-name=$*

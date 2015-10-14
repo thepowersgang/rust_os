@@ -93,17 +93,14 @@ impl RasterMonoA
 {
 	pub fn new<P: AsRef<::std::fs::Path>>(path: P, fg: ::surface::Colour) -> Result<RasterMonoA,LoadError> {
 		use ::byteorder::{LittleEndian,ReadBytesExt};
+		use std::io::Read;
 		let path = path.as_ref();
 		let mut file = try!( ::std::fs::File::open(path) );
 		let w = try!( file.read_u16::<LittleEndian>() ) as usize;
 		let h = try!( file.read_u16::<LittleEndian>() ) as usize;
 		kernel_log!("(w,h) = ({},{})", w, h);
-		let mut alpha = Vec::with_capacity(w * h);
-		for _ in 0 .. w * h
-		{
-			let v = try!( file.read_u8() );
-			alpha.push( v );
-		}
+		let mut alpha: Vec<u8> = (0 .. w*h).map(|_| 0u8).collect();
+		try!(file.read(&mut alpha));
 		Ok(RasterMonoA {
 			fg: fg,
 			width: w,

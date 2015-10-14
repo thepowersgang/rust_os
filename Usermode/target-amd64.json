@@ -7,7 +7,7 @@
 	"os": "tifflin",
 	"arch": "x86_64",
 		"linker": "x86_64-none-elf-gcc",
-		"pre-link-args": ["-nostdlib", "-ffreestanding", "-Wl,-T,link-amd64.ld", "-Wl,-z,max-page-size=4096", ".objs/amd64/rustrt0.o"],
+		"pre-link-args": ["-nostdlib", "-ffreestanding", "-Wl,-T,link-amd64.ld", "-Wl,-z,max-page-size=4096", "-Wl,--gc-sections", ".objs/amd64/rustrt0.o"],
 		"no-compiler-rt": true,
 		"disable-redzone": true,
 		"eliminate-frame-pointer": false,
