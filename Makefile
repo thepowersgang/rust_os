@@ -7,6 +7,8 @@ run: all
 all:
 	@echo ">>> $@: libcore source"
 	@+make -C Kernel/ ../libcore/lib.rs --no-print-directory
+	@echo ">>> $@: Graphics"
+	@make -C Graphics/ all
 	@echo ">>> $@: Usermode"
 	@+make -C Usermode/ all --no-print-directory
 	@echo ">>> $@: Kernel"

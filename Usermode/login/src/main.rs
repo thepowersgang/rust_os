@@ -112,7 +112,8 @@ fn try_login(username: &str, password: &str) -> Result<(), &'static str>
 	if username == "root" && password == "password"
 	{
 		// Spawn console, and wait for it to terminate
-		spawn_console_and_wait("/sysroot/bin/simple_console");
+		//spawn_console_and_wait("/sysroot/bin/simple_console");
+		spawn_console_and_wait("/sysroot/bin/shell");
 		Ok( () )
 	}
 	else

@@ -9,8 +9,6 @@
 #![feature(associated_consts)]
 #![no_std]
 
-extern crate std_io;
-
 mod std {
 	pub use core::convert;
 	pub use core::fmt;

@@ -74,6 +74,16 @@ impl<'a> Window<'a>
 		//panic!("TODO: undecorate");
 		self.needs_force_rerender = true;
 	}
+
+	pub fn set_pos(&mut self, x: u32, y: u32) {
+		self.win.set_pos(x,y)
+	}
+	pub fn set_dims(&mut self, w: u32, h: u32) {
+		self.needs_force_rerender = true;
+		self.win.set_dims( ::syscalls::gui::Dims { w: w, h: h } );
+		self.surface.resize( self.win.get_dims() );
+	}
+
 	/// Maximise the window
 	pub fn maximise(&mut self) {
 		self.needs_force_rerender = true;

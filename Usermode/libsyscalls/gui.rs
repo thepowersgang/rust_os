@@ -119,7 +119,20 @@ impl Window
 		let v = unsafe { self.0.call_0(::values::GUI_WIN_GETDIMS) };
 		Dims { w: (v >> 32) as u32, h: v as u32 }
 	}
+	pub fn set_dims(&self, dims: Dims) {
+		// SAFE: Syscall
+		unsafe { self.0.call_2(::values::GUI_WIN_SETDIMS, dims.w as usize, dims.h as usize); }
+	}
 
+	pub fn get_pos(&self) -> (u32, u32) {
+		// SAFE: No side-effect syscall
+		let v = unsafe { self.0.call_0(::values::GUI_WIN_GETPOS) };
+		( (v >> 32) as u32, v as u32 )
+	}
+	pub fn set_pos(&self, x: u32, y: u32) {
+		// SAFE: Syscall
+		unsafe { self.0.call_2(::values::GUI_WIN_SETPOS, x as usize, y as usize); }
+	}
 	// TODO: Should this be controllable by the application?
 	pub fn maximise(&self) {
 		// SAFE: Syscall
@@ -131,6 +144,7 @@ impl Window
 		assert!( data.len() >= rgn_size );
 		let data = &data[..rgn_size];
 
+		// Assert that data length and h*stride agree
 		{
 			assert!(data.len() > 0);
 			let h_calc = if data.len() >= w as usize {

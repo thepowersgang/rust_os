@@ -7,8 +7,15 @@
 #![no_std]
 use core::fmt;
 
+#[macro_use]
+extern crate macros;
+extern crate syscalls;
+
 pub mod prelude {
 	pub use super::{Read, Write, BufRead, Seek};
+}
+mod std {
+	pub use core::{fmt, convert};
 }
 
 /// Shorthand result type
@@ -16,7 +23,20 @@ pub type Result<T> = ::core::result::Result<T,Error>;
 
 /// IO Error type
 #[derive(Debug)]
-pub struct Error;
+pub struct Error(ErrorInner);
+#[derive(Debug)]
+enum ErrorInner
+{
+	Misc,
+	Interrupted,
+	VFS(::syscalls::vfs::Error),
+}
+
+impl_conv! {
+	From<::syscalls::vfs::Error>(v) for Error {
+		Error( ErrorInner::VFS(v) )
+	}
+}
 
 pub trait Read
 {
@@ -33,7 +53,7 @@ pub trait Write
 	fn write_all(&mut self, mut buf: &[u8]) -> Result<()> {
 		while !buf.is_empty() {
 			match self.write(buf) {
-			Ok(0) => return Err(Error/*::new(ErrorKind::WriteZero, "failed to write whole buffer")*/),
+			Ok(0) => return Err(Error(ErrorInner::Misc)/*::new(ErrorKind::WriteZero, "failed to write whole buffer")*/),
 			Ok(n) => buf = &buf[n..],
 			//Err(ref e) if e.kind() == ErrorKind::Interrupted => {}
 			Err(e) => return Err(e),
@@ -97,3 +117,34 @@ impl<'a> Read for &'a [u8]
 	}
 }
 
+
+impl Read for ::syscalls::vfs::File {
+	fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
+		Ok(try!( self.read(buf) ))
+	}
+}
+impl Seek for ::syscalls::vfs::File {
+	fn seek(&mut self, pos: SeekFrom) -> Result<u64> {
+		match pos
+		{
+		SeekFrom::Start(pos) => self.set_cursor(pos),
+		SeekFrom::End(ofs) => {
+			let pos = if ofs < 0 {
+				self.get_size() - (-ofs) as u64
+				} else {
+				self.get_size() + ofs as u64
+				};
+			self.set_cursor(pos);
+			},
+		SeekFrom::Current(ofs) => {
+			let pos = if ofs < 0 {
+				self.get_cursor() - (-ofs) as u64
+				} else {
+				self.get_cursor() + ofs as u64
+				};
+			self.set_cursor(pos);
+			},
+		}
+		Ok(self.get_cursor())
+	}
+}

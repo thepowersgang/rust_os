@@ -61,7 +61,7 @@ $(IMGDIR)hda_0.img:
 	@echo "[MkDisk] ZERO 1MB $@"
 	@# - 1MB of blank space 
 	@dd if=/dev/zero of=$@ bs=1M count=1 status=noxfer
-$(IMGDIR)hda_1.img: $(wildcard ../../Usermode/.output/$(ARCH)/bin/*) Makefile $(wildcard ../../Graphics/*.r8)
+$(IMGDIR)hda_1.img: $(wildcard ../../Usermode/.output/$(ARCH)/bin/*) Makefile $(wildcard ../../Graphics/.output/shared/*)
 	@mkdir -p $(dir $@)
 	@echo "[MkDisk] FAT 32MB $@"
 	@# - 32MB FAT? partition on disk 0
@@ -71,7 +71,7 @@ $(IMGDIR)hda_1.img: $(wildcard ../../Usermode/.output/$(ARCH)/bin/*) Makefile $(
 	@mmd -i $@ ::/Tifflin/shared
 	@mmd -i $@ ::/Tifflin/shared/images
 	@mcopy -s -D o -i $@ ../../Usermode/.output/$(ARCH)/bin ::/Tifflin/bin
-	@mcopy -s -D o -i $@ ../../Graphics/*.r8 ::/Tifflin/shared/images/
+	@mcopy -s -D o -i $@ ../../Graphics/.output/shared/* ::/Tifflin/shared/images/
 	@echo "Test content" | mcopy -i $@ - ::/1.txt
 $(IMGDIR)hda_2.img:
 	@mkdir -p $(dir $@)

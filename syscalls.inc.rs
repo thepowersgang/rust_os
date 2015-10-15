@@ -180,8 +180,14 @@ def_classes! {
 		=4: GUI_WIN_GETEVENT,
 		/// Obtain the window dimensions
 		=5: GUI_WIN_GETDIMS,
+		/// Set window dimensions (may be restricted)
+		=6: GUI_WIN_SETDIMS,
+		/// Obtain window position
+		=7: GUI_WIN_GETPOS,
+		/// Set window position (will be clipped to visible area)
+		=8: GUI_WIN_SETPOS,
 		/// Set the client region rectangle
-		=6: GUI_WIN_SETCLIENTREGION,
+		=9: GUI_WIN_SETCLIENTREGION,
 	}|{
 		/// Fires when the input queue is non-empty
 		=0: EV_GUI_WIN_INPUT,

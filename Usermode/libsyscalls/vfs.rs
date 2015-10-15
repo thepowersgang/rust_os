@@ -18,12 +18,6 @@ pub use ::values::VFSFileOpenMode as FileOpenMode;
 pub use ::values::VFSMemoryMapMode as MemoryMapMode;
 
 
-impl From<Error> for ::std_io::Error {
-	fn from(v: Error) -> ::std_io::Error {
-		::std_io::Error
-	}
-}
-
 fn to_obj(val: usize) -> Result<super::ObjectHandle, Error> {
 	super::ObjectHandle::new(val).map_err(|code| Error::from(code))
 }
@@ -140,44 +134,6 @@ impl ::Object for File {
 	type Waits = ();
 }
 
-
-impl ::std_io::Read for File {
-	fn read(&mut self, buf: &mut [u8]) -> ::std_io::Result<usize> {
-		match self.read(buf)
-		{
-		Ok(v) => Ok(v),
-		Err(e) => {
-			panic!("TODO: Convert VFS error to io error: {:?}", e);
-			},
-		}
-	}
-}
-impl ::std_io::Seek for File {
-	fn seek(&mut self, pos: ::std_io::SeekFrom) -> ::std_io::Result<u64> {
-		use std_io::SeekFrom;
-		match pos
-		{
-		SeekFrom::Start(pos) => self.set_cursor(pos),
-		SeekFrom::End(ofs) => {
-			let pos = if ofs < 0 {
-				self.get_size() - (-ofs) as u64
-				} else {
-				self.get_size() + ofs as u64
-				};
-			self.set_cursor(pos);
-			},
-		SeekFrom::Current(ofs) => {
-			let pos = if ofs < 0 {
-				self.get_cursor() - (-ofs) as u64
-				} else {
-				self.get_cursor() + ofs as u64
-				};
-			self.set_cursor(pos);
-			},
-		}
-		Ok(self.get_cursor())
-	}
-}
 
 impl Dir
 {
