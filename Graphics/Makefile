@@ -13,12 +13,14 @@ $(SHARED_DIR)logo.rs: TifflinLogoV1-128.png Makefile ConvertTo32bppRS
 %.r8:
 	mkdir -p $(dir $@)
 	convert $< -depth 8 -channel A -separate gray:.tmp.$(notdir $@)
-	/bin/echo -ne "\x7FR8M\x10\x00\x10\x00" | cat - .tmp.$(notdir $@) > $@
+	$(eval DIMS16=$(shell printf '%04x %04x' $(shell identify $< | sed -r 's/.* ([0-9]+)x([0-9]+) .*/\1 \2/') | sed -r 's/(..)(..) (..)(..)/\\x\2\\x\1\\x\4\\x\3/'))
+	/bin/echo -ne "\x7FR8M$(DIMS16)" | cat - .tmp.$(notdir $@) > $@
 
 %.r24:
 	mkdir -p $(dir $@)
 	convert $< -depth 8 rgb:.tmp.$(notdir $@)
-	/bin/echo -ne "\x7FR24\x10\x00\x10\x00" | cat - .tmp.$(notdir $@) > $@
+	$(eval DIMS16=$(shell printf '%04x %04x' $(shell identify $< | sed -r 's/.* ([0-9]+)x([0-9]+) .*/\1 \2/') | sed -r 's/(..)(..) (..)(..)/\\x\2\\x\1\\x\4\\x\3/'))
+	/bin/echo -ne "\x7FR24$(DIMS16)" | cat - .tmp.$(notdir $@) > $@
 
 $(SHARED_DIR)background.r24: rustacean-orig.png Makefile
 $(SHARED_DIR)power.r8: open-iconic_moon-2x.png Makefile
