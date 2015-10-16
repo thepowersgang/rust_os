@@ -12,13 +12,16 @@ pub struct Window<'a>
 
 	needs_force_rerender: bool,
 	focus: Option<&'a ::Element>,
+	taborder_pos: usize,
 	taborder: Vec<(usize, &'a ::Element)>,
+
+	background: ::surface::Colour,
 }
 
 impl<'a> Window<'a>
 {
 	/// Create a new window containing the provided element
-	pub fn new(ele: &::Element) -> Window {
+	pub fn new(ele: &::Element, background: ::surface::Colour) -> Window {
 		Window {
 			win: match ::syscalls::gui::Window::new("")
 				{
@@ -29,7 +32,10 @@ impl<'a> Window<'a>
 			root: ele,
 			needs_force_rerender: false,
 			focus: None,
+			taborder_pos: 0,
 			taborder: Vec::new(),
+
+			background: background,
 		}
 	}
 
@@ -64,6 +70,7 @@ impl<'a> Window<'a>
 	pub fn tabto(&mut self, idx: usize) {
 		if let Ok(i) = self.taborder.binary_search_by(|v| ::std::cmp::Ord::cmp(&v.0, &idx))
 		{
+			self.taborder_pos = i;
 			let e = self.taborder[i].1;
 			self.focus(e);
 		}
@@ -79,16 +86,18 @@ impl<'a> Window<'a>
 		self.win.set_pos(x,y)
 	}
 	pub fn set_dims(&mut self, w: u32, h: u32) {
-		self.needs_force_rerender = true;
 		self.win.set_dims( ::syscalls::gui::Dims { w: w, h: h } );
-		self.surface.resize( self.win.get_dims() );
+		self.update_surface_size();
 	}
 
 	/// Maximise the window
 	pub fn maximise(&mut self) {
-		self.needs_force_rerender = true;
 		self.win.maximise();
-		self.surface.resize( self.win.get_dims() );
+		self.update_surface_size();
+	}
+	fn update_surface_size(&mut self) {
+		self.needs_force_rerender = true;
+		self.surface.resize( self.win.get_dims(), self.background );
 	}
 
 	/// Manually request a redraw of the window
@@ -130,9 +139,12 @@ impl<'a> ::async::WaitController for Window<'a>
 				// TODO: Allow the element to capture instead, maybe by passing self to it?
 				::InputEvent::KeyDown(::syscalls::gui::KeyCode::Tab) => {},
 				::InputEvent::KeyUp(::syscalls::gui::KeyCode::Tab) => {
-					let e = self.taborder[1].1;	// HACK! Until I cbf tracking the position in the taborder, just hard-code to #2
-					self.focus(e);
-					redraw = true;
+					if self.taborder.len() > 0 {
+						self.taborder_pos = (self.taborder_pos + 1) % self.taborder.len();
+						let e = self.taborder[self.taborder_pos].1;
+						self.focus(e);
+						redraw = true;
+					}
 					},
 				// Mouse events need to be dispatched correctly
 				::InputEvent::MouseMove(x,y,dx,dy) => {

@@ -4,11 +4,40 @@
 use geom::{Rect,Px};
 use surface::Colour;
 
+pub enum Align {
+	Left,
+	Center,
+	Right,
+}
+
+//enum Tile {
+//	None,
+//	Stretch,
+//	Repeat,
+//}
+
 /// Static image wrapper
 pub struct Image<T: Buffer>
 {
 	has_changed: ::std::cell::Cell<bool>,
+	align_v: Align,
+	align_h: Align,
 	data: T,
+}
+
+impl Align
+{
+	fn get_ofs(&self, item: u32, avail: u32) -> u32 {
+		if item >= avail {
+			return 0;
+		}
+		match self
+		{
+		&Align::Left => 0,
+		&Align::Center => avail / 2 - item / 2,
+		&Align::Right => avail - item,
+		}
+	}
 }
 
 impl<T: Buffer> Image<T>
@@ -17,11 +46,28 @@ impl<T: Buffer> Image<T>
 		Image {
 			has_changed: ::std::cell::Cell::new(true),
 			data: i,
+			align_h: Align::Center,
+			align_v: Align::Center,
 		}
+	}
+
+	/// Set the vertical alignment of the image
+	pub fn set_align_v(&mut self, align: Align) {
+		self.align_v = align;
+		self.force_redraw();
+	}
+	/// Set the horizontal alignment of the image
+	pub fn set_align_h(&mut self, align: Align) {
+		self.align_h = align;
+		self.force_redraw();
 	}
 
 	pub fn force_redraw(&self) {
 		self.has_changed.set(true); 
+	}
+	pub fn dims_px(&self) -> (u32,u32) {
+		let Rect { w: Px(w), h: Px(h), .. } = self.data.dims_px();
+		(w, h)
 	}
 }
 
@@ -38,7 +84,11 @@ impl<T: Buffer> ::Element for Image<T>
 
 	fn render(&self, surface: ::surface::SurfaceView, force: bool) {
 		if force || self.has_changed.get() {
-			self.data.render(surface);
+			let (i_w, i_h) = self.dims_px();
+			let x = self.align_h.get_ofs(i_w, surface.width());
+			let y = self.align_h.get_ofs(i_h, surface.height());
+			let subsurf = surface.slice( Rect::new(Px(x), Px(y), Px(!0), Px(!0)) );
+			self.data.render(subsurf);
 			self.has_changed.set(false);
 		}
 	}
@@ -94,7 +144,7 @@ fn get_4_bytes<F: ::std::io::Read>(f: &mut F) -> Result<[u8; 4], ::std::io::Erro
 pub struct RasterRGB
 {
 	width: usize,
-	data: Vec<u32>,
+	data: Vec<u8>,
 }
 impl RasterRGB
 {
@@ -113,15 +163,10 @@ impl RasterRGB
 		// - Read dimensions
 		let w = try!( file.read_u16::<LittleEndian>() ) as usize;
 		let h = try!( file.read_u16::<LittleEndian>() ) as usize;
+		kernel_log!("w = {}, h = {}", w, h);
 		// - Read data
-		let mut data = Vec::with_capacity(w*h);
-		for _ in 0 .. w * h
-		{
-			let mut px = [0; 3];
-			if try!(file.read(&mut px)) != 3 { return Err(LoadError::Malformed); }
-			let v = (px[0] as u32) << 16 | (px[1] as u32) << 8 | (px[2] as u32) << 0;
-			data.push(v);
-		}
+		let mut data: Vec<u8> = (0 .. w*h*3).map(|_| 0u8).collect();
+		try!(file.read(&mut data));
 
 		Ok(RasterRGB {
 			width: w,
@@ -131,14 +176,16 @@ impl RasterRGB
 }
 impl Buffer for RasterRGB {
 	fn dims_px(&self) -> Rect<Px> {
-		Rect::new(0,0,  self.width as u32, (self.data.len() / self.width) as u32)
+		Rect::new(0,0,  self.width as u32, (self.data.len() / 3 / self.width) as u32)
 	}
 	fn render(&self, buf: ::surface::SurfaceView) {
-		let mut buf_rows = self.data.chunks(self.width);
+		kernel_log!("buf.rect() = {:?}, self.dims_px() = {:?}", buf.rect(), self.dims_px());
+		let mut buf_rows = self.data.chunks(self.width*3);
 		buf.foreach_scanlines(self.dims_px(), |_row, line| {
 			let val = buf_rows.next().unwrap();
-			for (d, v) in Iterator::zip( line.iter_mut(), val.iter().cloned() )
+			for (d, px) in Iterator::zip( line.iter_mut(), val.chunks(3) )
 			{
+				let v = (px[0] as u32) << 16 | (px[1] as u32) << 8 | (px[2] as u32) << 0;
 				*d = v;
 			}
 			});

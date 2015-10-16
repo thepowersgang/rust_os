@@ -12,6 +12,10 @@ extern crate syscalls;
 
 extern crate tifflin_process;
 
+macro_rules! imgpath {
+		($p:expr) => {concat!("/system/Tifflin/shared/images/",$p)};
+}
+
 fn main()
 {
 	const MENU_BTN_WIDTH: u32 = 16;
@@ -19,18 +23,12 @@ fn main()
 	const ENTRY_FRAME_HEIGHT: u32 = 40;
 	const TEXTBOX_HEIGHT: u32 = 16;
 
-	// Obtain window group from parent
-	{
-		use syscalls::Object;
-		use syscalls::threads::{S_THIS_PROCESS,ThisProcessWaits};
-		::syscalls::threads::wait(&mut [S_THIS_PROCESS.get_wait(ThisProcessWaits::new().recv_obj())], !0);
-		::syscalls::gui::set_group( S_THIS_PROCESS.receive_object::<::syscalls::gui::Group>(0).unwrap() );
-	}
+	::wtk::initialise();
 
 	// Menu bar
 	// - Two buttons: Options and power
-	let options_icon = ::wtk::image::RasterMonoA::new("/system/Tifflin/shared/images/options.r8", ::wtk::Colour::theme_text_bg()).unwrap();
-	let power_icon   = ::wtk::image::RasterMonoA::new("/system/Tifflin/shared/images/power.r8"  , ::wtk::Colour::theme_text_bg()).unwrap();
+	let options_icon = ::wtk::image::RasterMonoA::new(imgpath!("options.r8"), ::wtk::Colour::theme_text_bg()).unwrap();
+	let power_icon   = ::wtk::image::RasterMonoA::new(imgpath!("power.r8"  ), ::wtk::Colour::theme_text_bg()).unwrap();
 	let mut options_button = ::wtk::Button::new( ::wtk::Image::new(options_icon) );
 	options_button.bind_click( |_btn,_win| () );
 	let mut power_button = ::wtk::Button::new( ::wtk::Image::new(power_icon) );
@@ -89,7 +87,7 @@ fn main()
 		::wtk::BoxEle::fixed( (), MENU_HEIGHT ),
 		));
 
-	let mut win = ::wtk::Window::new(&vbox);
+	let mut win = ::wtk::Window::new(&vbox, ::wtk::Colour::theme_body_bg());
 	win.undecorate();
 	win.maximise();
 
@@ -126,6 +124,7 @@ fn spawn_console_and_wait(path: &str)
 {
 	// TODO: I need something more elegant than this.
 	// - Needs to automatically pass the WGH
+	// - OR - Just have a wtk method to pass it `::wtk::share_handle(&console)`
 	let console = tifflin_process::Process::spawn(path);
 	console.send_obj( ::syscalls::gui::clone_group_handle() );
 	::syscalls::threads::wait(&mut [console.wait_terminate()], !0);

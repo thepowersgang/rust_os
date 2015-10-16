@@ -15,9 +15,13 @@ fn main()
 	::wtk::initialise();
 
 
-	let mut background = ::wtk::image::RasterRGB::new_img(imgpath!("background.r24")).expect("Cannot load background");
+	let background = {
+		// Background image is "Ferris the crab" - credit to rustacean.net
+		let img = ::wtk::image::RasterRGB::new_img(imgpath!("background.r24")).expect("Cannot load background");
+		img
+		};
 	let mut win_background = {
-		let mut win = ::wtk::Window::new(&background);
+		let mut win = ::wtk::Window::new(&background, ::wtk::Colour::from_argb32(0x01346B));	// 01346B is Ferris's background colour
 		win.undecorate();
 		win.maximise();
 		win
@@ -35,7 +39,7 @@ fn main()
 			))
 		};
 	let mut win_menu = {
-		let mut win = ::wtk::Window::new(&menubar);
+		let mut win = ::wtk::Window::new(&menubar, ::wtk::Colour::theme_text_bg());
 		win.undecorate();
 		win.set_pos(0, 0);
 		win.set_dims(1920,20);

@@ -97,9 +97,9 @@ impl Surface
 		self.dirty.set( self.rect() );
 	}
 	/// Resize the surface (clearing existing content)
-	pub fn resize(&mut self, dims: ::syscalls::gui::Dims) {
+	pub fn resize(&mut self, dims: ::syscalls::gui::Dims, fill: Colour) {
 		self.width = dims.w as usize;
-		*self.data.borrow_mut() = vec![Colour::theme_body_bg().as_argb32(); (dims.w as usize * dims.h as usize)];
+		*self.data.borrow_mut() = vec![fill.as_argb32(); (dims.w as usize * dims.h as usize)];
 		// On resize, set dirty area to full area of the surface
 		self.invalidate_all();
 	}
@@ -110,12 +110,13 @@ impl Surface
 	/// Obtain a view into this surface
 	pub fn slice(&self, rect: Rect<Px>) -> SurfaceView {
 		let rect = self.rect().intersect(&rect);
-		kernel_log!("Surface::slice - rect={:?}", rect);
+		//kernel_log!("Surface::slice - rect={:?}", rect);
 		SurfaceView { surf: self, rect: rect }
 	}
 
 	fn foreach_scanlines<F: FnMut(usize, &mut [u32])>(&self, rect: Rect<Px>, mut f: F) {
 		// Update dirty region with this rect
+		let rect = self.rect().intersect(&rect);
 		//let mut dr = self.dirty.borrow_mut();
 		if self.dirty.get().is_empty() {
 			self.dirty.set(rect);
@@ -127,9 +128,10 @@ impl Surface
 		//kernel_log!("foreach_scanlines(rect={:?}, F={})", rect, type_name!(F));
 		for (i, row) in self.data.borrow_mut().chunks_mut(self.width).skip(rect.y().0 as usize).take(rect.height().0 as usize).enumerate()
 		{
-			//kernel_log!("{}: {}  {}..{}", i, rect.y().0 as usize + i, rect.x().0, rect.x2().0);
+			//kernel_log!("{}: {}  {}..{} row.len()={}", i, rect.y().0 as usize + i, rect.x().0, rect.x2().0, row.len());
 			f( i, &mut row[rect.x().0 as usize .. rect.x2().0 as usize] );
 		}
+		//kernel_log!("- done");
 	}
 }
 
@@ -192,10 +194,11 @@ impl<'a> SurfaceView<'a>
 	pub fn draw_text<It: Iterator<Item=char>>(&self, mut rect: Rect<Px>, chars: It, colour: Colour) -> usize {
 		let mut st = S_FONT.get_renderer();
 		let mut chars = chars.peekable();
-		kernel_log!("draw_text: rect = {:?}", rect);
+		//kernel_log!("draw_text: rect = {:?}", rect);
 		while let Some( (w,_h) ) = st.render_grapheme(&mut chars, colour)
 		{
 			self.foreach_scanlines(rect, |i, line| {
+				//kernel_log!("i = {}, line.len() = {}", i, line.len());
 				for (d,s) in line.iter_mut().zip( st.buffer(i, w as usize) )
 				{
 					*d = Colour::blend( Colour::from_argb32(*d), Colour::from_argb32(*s) ).as_argb32();
@@ -243,7 +246,12 @@ impl MonoFontRender
 		}
 	}
 	pub fn buffer(&self, row: usize, width: usize) -> &[u32] {
-		&self.buffer[row * 8..][..width]
+		if row*8 >= self.buffer.len() {
+			&[]
+		}
+		else {
+			&self.buffer[row * 8..][..width]
+		}
 	}
 
 	/// Actually does the rendering
