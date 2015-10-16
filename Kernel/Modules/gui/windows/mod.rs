@@ -323,6 +323,9 @@ impl WindowGroup
 		self.windows[idx].0 = pos;
 		self.recalc_vis(idx);
 	}
+	fn get_window_pos(&self, idx: usize) -> Pos {
+		self.windows[idx].0
+	}
 	
 	fn maximise_window(&mut self, idx: usize) {
 		{
@@ -464,6 +467,11 @@ impl WindowHandle
 		let d = self.get_win().dims();
 		let m = self.get_win().get_client_region();
 		Rect::new_pd( Pos::new(0,0), d ).intersect( &m ).unwrap_or( Rect::new(0,0,0,0) ).dims()
+	}
+	pub fn get_pos(&self) -> Pos {
+		let wg = self.get_wg();
+		let rv = wg.lock().get_window_pos(self.win);
+		rv
 	}
 	
 	/// Maximise this window (fill all space on the current monitor)

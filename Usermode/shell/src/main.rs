@@ -15,7 +15,7 @@ fn main()
 	::wtk::initialise();
 
 
-	let mut background = ::wtk::image::RasterRGB::new_img(imgpath!("backgound.r24")).expect("Cannot load background");
+	let mut background = ::wtk::image::RasterRGB::new_img(imgpath!("background.r24")).expect("Cannot load background");
 	let mut win_background = {
 		let mut win = ::wtk::Window::new(&background);
 		win.undecorate();

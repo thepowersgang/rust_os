@@ -167,6 +167,33 @@ impl objects::Object for Window
 			let rv = (d.w as u64) << 32 | (d.h as u64);
 			Ok( rv )
 			},
+		values::GUI_WIN_SETDIMS => {
+			let w = try!( <u32>::get_arg(&mut args) );
+			let h = try!( <u32>::get_arg(&mut args) );
+			let d = {
+				let mut lh = self.0.lock();
+				lh.resize( ::gui::Dims::new(w, h) );
+				lh.get_dims()
+				};
+			let rv = (d.w as u64) << 32 | (d.h as u64);
+			Ok( rv )
+			},
+		values::GUI_WIN_GETPOS => {
+			let p = self.0.lock().get_pos();
+			let rv = (p.x as u64) << 32 | (p.y as u64);
+			Ok( rv )
+			},
+		values::GUI_WIN_SETPOS => {
+			let x = try!( <u32>::get_arg(&mut args) );
+			let y = try!( <u32>::get_arg(&mut args) );
+			let p = {
+				let mut lh = self.0.lock();
+				lh.set_pos( ::gui::Pos::new(x, y) );
+				lh.get_pos()
+				};
+			let rv = (p.x as u64) << 32 | (p.y as u64);
+			Ok( rv )
+			},
 		values::GUI_WIN_SETCLIENTREGION => {
 			let x = try!( <u32>::get_arg(&mut args) );
 			let y = try!( <u32>::get_arg(&mut args) );
@@ -175,7 +202,10 @@ impl objects::Object for Window
 			self.0.lock().set_client_region(Rect::new(x,y, w,h));
 			Ok(0)
 			},
-		_ => todo!("Window::handle_syscall({}, ...)", call),
+		_ => {
+			log_error!("TODO: Window::handle_syscall({}, ...)", call);
+			Err(Error::UnknownCall)
+			},
 		}
 	}
 	fn bind_wait(&self, flags: u32, obj: &mut ::kernel::threads::SleepObject) -> u32 {

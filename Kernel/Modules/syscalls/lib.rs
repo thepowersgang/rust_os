@@ -34,6 +34,7 @@ pub type ObjectHandle = u32;
 #[derive(Debug)]
 pub enum Error
 {
+	UnknownCall,
 	TooManyArgs,
 	BadValue,
 	NoSuchObject(u32),
