@@ -34,9 +34,9 @@ fn main()
 	let mut power_button = ::wtk::Button::new( ::wtk::Image::new(power_icon) );
 	power_button.bind_click( |_btn,_win| () );
 	let menubar = ::wtk::StaticBox::new_horiz( (
-		::wtk::BoxEle::fixed(options_button, MENU_BTN_WIDTH),
+		::wtk::BoxEle::fixed(MENU_BTN_WIDTH, options_button),
 		::wtk::BoxEle::expand( () ),
-		::wtk::BoxEle::fixed(power_button, MENU_BTN_WIDTH),
+		::wtk::BoxEle::fixed(MENU_BTN_WIDTH, power_button),
 		));
 
 	// Login box (vertially stacked, centered)
@@ -67,24 +67,24 @@ fn main()
 
 	let loginbox = ::wtk::Frame::new_fat( ::wtk::StaticBox::new_vert((
 		::wtk::BoxEle::expand( () ),
-		::wtk::BoxEle::fixed( &username, TEXTBOX_HEIGHT ),
-		::wtk::BoxEle::fixed( (), 1 ),	// <-- Padding
-		::wtk::BoxEle::fixed( &password, TEXTBOX_HEIGHT ),
+		::wtk::BoxEle::fixed( TEXTBOX_HEIGHT, &username ),
+		::wtk::BoxEle::fixed( 1, () ),	// <-- Padding
+		::wtk::BoxEle::fixed( TEXTBOX_HEIGHT, &password ),
 		::wtk::BoxEle::expand( () ),
 		)) );
 
 	let hbox = ::wtk::StaticBox::new_horiz((
 		::wtk::BoxEle::expand( () ),
-		::wtk::BoxEle::fixed(&loginbox, 120),
+		::wtk::BoxEle::fixed(120, &loginbox),
 		::wtk::BoxEle::expand( () ),
 		));
 
 	let vbox = ::wtk::StaticBox::new_vert((
-		::wtk::BoxEle::fixed(&menubar, MENU_HEIGHT),
+		::wtk::BoxEle::fixed( MENU_HEIGHT, &menubar),
 		::wtk::BoxEle::expand( () ),
-		::wtk::BoxEle::fixed(&hbox, ENTRY_FRAME_HEIGHT),
+		::wtk::BoxEle::fixed(ENTRY_FRAME_HEIGHT, &hbox),
 		::wtk::BoxEle::expand( () ),
-		::wtk::BoxEle::fixed( (), MENU_HEIGHT ),
+		::wtk::BoxEle::fixed( MENU_HEIGHT, () ),
 		));
 
 	let mut win = ::wtk::Window::new(&vbox, ::wtk::Colour::theme_body_bg());

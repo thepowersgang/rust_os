@@ -1,7 +1,7 @@
 // Tifflin OS - login
 // - By John Hodge (thePowersGang)
 //
-// Graphical user session root
+// Graphical user session root - Provides background, taskbar and menus
 
 extern crate wtk;
 extern crate async;
@@ -27,15 +27,16 @@ fn main()
 		win
 		};
 	let menubar = {
-		let logo_button = ();
+		let logo_button = ::wtk::Button::new( () );
 		let taskbar = ();
 		let clock_widget = ::wtk::Label::new("12:34", ::wtk::Colour::theme_text());
-		let power_button = ::wtk::Button::new( ::wtk::image::RasterMonoA::new_img(imgpath!("power.r8"), ::wtk::Colour::theme_text()).unwrap() );
+		let mut power_button = ::wtk::Button::new( ::wtk::image::RasterMonoA::new_img(imgpath!("power.r8"), ::wtk::Colour::theme_text()).unwrap() );
+		power_button.bind_click(|_button, _window| {});
 		::wtk::StaticBox::new_horiz((
-			::wtk::BoxEle::fixed(logo_button, 20),
+			::wtk::BoxEle::fixed(20, logo_button),
 			::wtk::BoxEle::expand(taskbar),
-			::wtk::BoxEle::fixed(clock_widget, 50),
-			::wtk::BoxEle::fixed(power_button, 20),
+			::wtk::BoxEle::fixed(50, clock_widget),
+			::wtk::BoxEle::fixed(20, power_button),
 			))
 		};
 	let mut win_menu = {

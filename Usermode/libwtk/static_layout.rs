@@ -22,7 +22,7 @@ pub struct BoxEle<E: Element> {
 }
 impl<E: Element> BoxEle<E>
 {
-	pub fn fixed(ele: E, size: u32) -> BoxEle<E> {
+	pub fn fixed(size: u32, ele: E) -> BoxEle<E> {
 		BoxEle {
 			size: Some(Size(size)),
 			ele: ele,
