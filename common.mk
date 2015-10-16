@@ -1,4 +1,7 @@
 
+.PHONY: default
+default: all
+
 ARCH ?= amd64
 
 ifeq ($(ARCH),amd64)
@@ -25,6 +28,6 @@ RUSTC := $(call fn_rustcmd,rustc)
 RUSTDOC := $(call fn_rustcmd,rustdoc)
 CARGO := $(call fn_rustcmd,cargo)
 
-../rustc_src/lib%/lib.rs: ../rustc-nightly-src.tar.gz
+$(patsubst %,../rustc_src/lib%/lib.rs,core collections rustc_unicode): ../rustc-nightly-src.tar.gz
 	tar -C .. -xmf $< --wildcards 'rustc-nightly/src/lib*' rustc-nightly/src/driver rustc-nightly/src/rt --transform 's~^rustc-nightly/src/~rustc_src/~'
 

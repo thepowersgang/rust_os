@@ -213,6 +213,7 @@ $(OBJDIR)libcore.rlib: $(LIBCORESRC)lib.rs $(TARGET_FILE)
 	@cp $(OBJDIR)core.d $(OBJDIR)libcore.d
 
 $(OBJDIR)acpica.a: ../acpica/Makefile $(wildcard ../acpica/patches/source/include/platform/*)
+	make -C ../acpica TRIPLE=$(TRIPLE) ARCH=$(ARCH) srcdir
 	make -C ../acpica TRIPLE=$(TRIPLE) ARCH=$(ARCH)
 	cp ../acpica/acpica-$(TRIPLE).a $@
 
