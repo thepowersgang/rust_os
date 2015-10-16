@@ -194,5 +194,5 @@ $(eval $(call fn_rustdeps, collections, rustc_unicode alloc))
 
 
 
-%.rs:
-	
+#%.rs:
+#	

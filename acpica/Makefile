@@ -27,17 +27,19 @@ CFLAGS += -mcmodel=kernel -mno-red-zone
 endif
 CFLAGS += -O2
 
-.PHONY: all clean
+.PHONY: all clean srcdir
 
 all: acpica-$(TRIPLE).a
 
 clean:
 	rm -rf acpica-$(TRIPLE).a $(OBJDIR)
 
-$(TARBALL):
-	if [[ ! -e $(TARBALL) ]]; then wget $(TARBALL_URL) --no-check-certificate -O $@; fi
+srcdir: $(SRCDIR)
 
-$(SRCDIR):
+$(TARBALL):
+	if [ ! -e $(TARBALL) ]; then wget $(TARBALL_URL) --no-check-certificate -O $@; fi
+
+$(SRCDIR): $(TARBALL)
 	tar -xf $(TARBALL)
 
 $(TARBALL_DIR)%: patches/%.patch $(TARBALL)
