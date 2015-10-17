@@ -169,7 +169,7 @@ $(OBJDIR)kernel.ir: Core/main.rs $(OBJDIR)libcore.rlib $(TARGET_FILE)
 # Complilation
 # ===
 bin/kernel-$(ARCH).bin: $(OBJS) Core/arch/$(ARCH)/link.ld Makefile
-	@mkdir -p bin/
+	@mkdir -p bin/ $(OBJDIR)
 	@echo [LD] -o $@
 	$V$(TRIPLE)-ld -o $@ $(OBJS) $(LIBS) $(LINKFLAGS)
 ifeq ($(ARCH),amd64)
