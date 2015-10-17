@@ -1,15 +1,13 @@
-language: rust
 sudo: false
-rust: nightly
 env:
   matrix:
     - ARCH=amd64
 #    - ARCH=armv7
 before_script:
-  - ./BuildCrossCompiler
+  - ARCH=amd64 ./BuildCrossCompiler
+  - ARCH=armv7 ./BuildCrossCompiler
   - export PATH=$PATH:$PWD/.prefix/bin
 script:
-  - 
   - PATH=make UPDATE
   - make all TRIPLE=
 
