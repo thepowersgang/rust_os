@@ -20,6 +20,7 @@ use input;
 pub struct Window
 {
 	/// Window name (set once, never changes after)
+	// TODO: Box<str>
 	name: String,
 	
 	/// Actual window data
@@ -30,10 +31,6 @@ pub struct Window
 
 	/// Client region - Mask for window render calls
 	client_region: Mutex<Rect>,
-	
-	/// Window title (queried by the decorator)
-	#[allow(dead_code)]
-	title: String,
 	
 	/// List of invalidated regions within the window
 	dirty_rects: Mutex<Vec<Rect>>,
@@ -69,7 +66,6 @@ impl Window
 			name: name,
 			buf: Default::default(),
 			client_region: Mutex::new(Rect::new(0,0,!0,!0)),
-			title: Default::default(),
 			dirty_rects: Default::default(),
 			is_dirty: atomic::ATOMIC_BOOL_INIT,
 			flags: Default::default(),

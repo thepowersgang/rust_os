@@ -8,22 +8,24 @@ pub struct Window<'a>
 {
 	win: ::syscalls::gui::Window,
 	surface: ::surface::Surface,
-	root: &'a ::Element,
 
 	needs_force_rerender: bool,
 	focus: Option<&'a ::Element>,
 	taborder_pos: usize,
 	taborder: Vec<(usize, &'a ::Element)>,
 
+	// Rendering information
 	background: ::surface::Colour,
+	root: &'a ::Element,
+	//menus: Vec<OpenMenu>,
 }
 
 impl<'a> Window<'a>
 {
 	/// Create a new window containing the provided element
-	pub fn new(ele: &::Element, background: ::surface::Colour) -> Window {
+	pub fn new(debug_name: &str, ele: &'a ::Element, background: ::surface::Colour) -> Window<'a> {
 		Window {
-			win: match ::syscalls::gui::Window::new("")
+			win: match ::syscalls::gui::Window::new(debug_name)
 				{
 				Ok(w) => w,
 				Err(e) => panic!("TODO: Window::new e={:?}", e),
@@ -117,6 +119,51 @@ impl<'a> Window<'a>
 	pub fn hide(&mut self) {
 		self.win.hide();
 	}
+
+
+	fn handle_event(&mut self, ev: ::InputEvent) -> bool {
+		match ev
+		{
+		// Capture the Tab key for tabbing between fields
+		// TODO: Allow the element to capture instead, maybe by passing self to it?
+		::InputEvent::KeyDown(::syscalls::gui::KeyCode::Tab) => false,
+		::InputEvent::KeyUp(::syscalls::gui::KeyCode::Tab) => {
+			if self.taborder.len() > 0 {
+				self.taborder_pos = (self.taborder_pos + 1) % self.taborder.len();
+				let e = self.taborder[self.taborder_pos].1;
+				self.focus(e);
+				true
+			}
+			else {
+				false
+			}
+			},
+		// Mouse events need to be dispatched correctly
+		::InputEvent::MouseMove(x,y,dx,dy) => {
+			let (ele, (basex, basey)) = self.root.element_at_pos(x,y /*, self.surface.width(), self.surface.height()*/);
+			assert!(x >= basex); assert!(y >= basey);
+			// TODO: Also send an event to the source window
+			ele.handle_event( ::InputEvent::MouseMove(x - basex, y - basey, dx, dy), self )
+			},
+		::InputEvent::MouseUp(x,y,btn) => {
+			let (ele, (basex, basey)) = self.root.element_at_pos(x,y /*, self.surface.width(), self.surface.height()*/);
+			assert!(x >= basex); assert!(y >= basey);
+			ele.handle_event( ::InputEvent::MouseUp(x - basex, y - basey, btn), self )
+			},
+		::InputEvent::MouseDown(x,y,btn) => {
+			let (ele, (basex, basey)) = self.root.element_at_pos(x,y /*, self.surface.width(), self.surface.height()*/);
+			assert!(x >= basex); assert!(y >= basey);
+			ele.handle_event( ::InputEvent::MouseDown(x - basex, y - basey, btn), self )
+			},
+		ev @ _ => 
+			if let Some(ele) = self.focus {
+				ele.handle_event(ev, self)
+			}
+			else {
+				false
+			},
+		}
+	}
 }
 
 impl<'a> ::async::WaitController for Window<'a>
@@ -133,41 +180,7 @@ impl<'a> ::async::WaitController for Window<'a>
 		{
 			while let Some(ev) = self.win.pop_event()
 			{
-				match ev
-				{
-				// Capture the Tab key for tabbing between fields
-				// TODO: Allow the element to capture instead, maybe by passing self to it?
-				::InputEvent::KeyDown(::syscalls::gui::KeyCode::Tab) => {},
-				::InputEvent::KeyUp(::syscalls::gui::KeyCode::Tab) => {
-					if self.taborder.len() > 0 {
-						self.taborder_pos = (self.taborder_pos + 1) % self.taborder.len();
-						let e = self.taborder[self.taborder_pos].1;
-						self.focus(e);
-						redraw = true;
-					}
-					},
-				// Mouse events need to be dispatched correctly
-				::InputEvent::MouseMove(x,y,dx,dy) => {
-					let (ele, (basex, basey)) = self.root.element_at_pos(x,y /*, self.surface.width(), self.surface.height()*/);
-					assert!(x >= basex); assert!(y >= basey);
-					// TODO: Also send an event to the source window
-					redraw |= ele.handle_event( ::InputEvent::MouseMove(x - basex, y - basey, dx, dy), self );
-					},
-				::InputEvent::MouseUp(x,y,btn) => {
-					let (ele, (basex, basey)) = self.root.element_at_pos(x,y /*, self.surface.width(), self.surface.height()*/);
-					assert!(x >= basex); assert!(y >= basey);
-					redraw |= ele.handle_event( ::InputEvent::MouseUp(x - basex, y - basey, btn), self );
-					},
-				::InputEvent::MouseDown(x,y,btn) => {
-					let (ele, (basex, basey)) = self.root.element_at_pos(x,y /*, self.surface.width(), self.surface.height()*/);
-					assert!(x >= basex); assert!(y >= basey);
-					redraw |= ele.handle_event( ::InputEvent::MouseDown(x - basex, y - basey, btn), self );
-					},
-				ev @ _ => 
-					if let Some(ele) = self.focus {
-						redraw |= ele.handle_event(ev, self);
-					},
-				}
+				redraw |= self.handle_event(ev);
 			}
 		}
 

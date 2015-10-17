@@ -95,6 +95,7 @@ pub fn exit_process(status: u32) -> ! {
 	Ok(_) => {},
 	Err(_) => todo!("Two threads raced to exit"),
 	}
+	log_notice!("Terminating process with status={:#x}", status);
 
 	// - Request all other threads terminate
 	// TODO: How would this be done cleanly? Need to wake all and terminate on syscall boundary?

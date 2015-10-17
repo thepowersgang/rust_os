@@ -87,7 +87,7 @@ fn main()
 		::wtk::BoxEle::fixed( MENU_HEIGHT, () ),
 		));
 
-	let mut win = ::wtk::Window::new(&vbox, ::wtk::Colour::theme_body_bg());
+	let mut win = ::wtk::Window::new("Login", &vbox, ::wtk::Colour::theme_body_bg());
 	win.undecorate();
 	win.maximise();
 

@@ -21,7 +21,7 @@ fn main()
 		img
 		};
 	let mut win_background = {
-		let mut win = ::wtk::Window::new(&background, ::wtk::Colour::from_argb32(0x01346B));	// 01346B is Ferris's background colour
+		let mut win = ::wtk::Window::new("Background", &background, ::wtk::Colour::from_argb32(0x01346B));	// 01346B is Ferris's background colour
 		win.undecorate();
 		win.maximise();
 		win
@@ -40,7 +40,7 @@ fn main()
 			))
 		};
 	let mut win_menu = {
-		let mut win = ::wtk::Window::new(&menubar, ::wtk::Colour::theme_text_bg());
+		let mut win = ::wtk::Window::new("SystemBar", &menubar, ::wtk::Colour::theme_text_bg());
 		win.undecorate();
 		win.set_pos(0, 0);
 		win.set_dims(1920,20);
