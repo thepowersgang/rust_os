@@ -28,15 +28,12 @@ endif
 
 fn_getdeps = $(shell cat $1 | sed -nr 's/.*extern crate ([a-zA-Z_0-9]+);/\1/p' | tr '\n' ' ')
 fn_moddeps = $(filter-out core kernel,$(call fn_getdeps,Modules/$1/lib.rs))
-define uniq =
-  $(eval seen :=)
-  $(foreach _,$1,$(if $(filter $_,${seen}),,$(eval seen += $_)))
-  ${seen}
-endef
+uniq = $(eval seen :=) $(foreach _,$1,$(if $(filter $_,${seen}),,$(eval seen += $_))) ${seen}
 
 OBJS := start.ao $(MODS:%=%.o) libkernel.rlib libcore.rlib
 EOBJS := $(foreach m,$(MODS), $(addsuffix .o,$(call fn_moddeps,$m)) )
 OBJS += $(EOBJS)
+$(warning $(OBJS))
 OBJS := $(shell echo $(call uniq, $(OBJS)))
 ifeq ($(OBJS),)
 	$(error BUGCHECK - Objects list empty)
