@@ -36,6 +36,6 @@ cd ..
 
 mkdir -p ${ARCH}
 cd ${ARCH}
-(mkdir -p binutils && cd binutils && ../../${BINUTILS}/configure --prefix=${PREFIX} --disable-nls --target=${TRIPLE} && echo "MAKEINFO = :" >> Makefile && make && make install)
-(mkdir -p gcc && cd gcc && ../../${GCC}/configure --prefix=${PREFIX} --disable-nls --enable-langs=c --target=${TRIPLE} && make all-gcc all-target-libgcc && make install-gcc install-target-libgcc)
+(mkdir -p binutils && cd binutils && ../../${BINUTILS}/configure --prefix=${PREFIX} --disable-nls --target=${TRIPLE} && echo "MAKEINFO = :" >> Makefile && make -j 3 && make install)
+(mkdir -p gcc && cd gcc && ../../${GCC}/configure --prefix=${PREFIX} --disable-nls --enable-langs=c --target=${TRIPLE} && make all-gcc all-target-libgcc -j 3 && make install-gcc install-target-libgcc)
 
