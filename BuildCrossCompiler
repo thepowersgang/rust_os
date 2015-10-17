@@ -28,6 +28,6 @@ test -e ${BINUTILS}/configure || tar -xf ${BINUTILS}.tar.bz2
 test -e ${GCC}/configure || tar -xf ${GCC}.tar.bz2
 mkdir -p ${ARCH}
 cd ${ARCH}
-(mkdir -p binutils && cd binutils && ../../${BINUTILS}/configure --prefix=${PREFIX} --disable-nls --target=${TRIPLE} && make && make install)
+(mkdir -p binutils && cd binutils && ../../${BINUTILS}/configure --prefix=${PREFIX} --disable-nls --target=${TRIPLE} && echo "MAKEINFO = :" >> Makefile && make && make install)
 (mkdir -p gcc && cd gcc && ../../${GCC}/configure --prefix=${PREFIX} --disable-nls --enable-langs=c --target=${TRIPLE} && make all-gcc all-target-libgcc && make install-gcc install-target-libgcc)
 

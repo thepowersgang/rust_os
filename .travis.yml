@@ -2,7 +2,7 @@ sudo: false
 addons:
   apt:
     packages:
-    - makeinfo
+      - makeinfo
 env:
   matrix:
     - ARCH=amd64
