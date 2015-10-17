@@ -5,9 +5,9 @@ env:
 #    - ARCH=armv7
 before_script:
   - mkdir -p _archives
-  - cd _archives && wget -c http://tpg.ucc.asn.au/tifflin_build_tools.tar.bz2
+  - (cd _archives && wget -c http://tpg.ucc.asn.au/tifflin_build_tools.tar.bz2)
   - tar -xf _archives/tifflin_build_tools.tar.bz2
-  - cd _archives && wget -c https://static.rust-lang.org/dist/rustc-nightly-src.tar.gz
+  - (cd _archives && wget -c https://static.rust-lang.org/dist/rustc-nightly-src.tar.gz)
   - ln -s _archives/rustc-nightly-src.tar.gz
   - export PATH=$PATH:$PWD/.prefix/bin
 # try to cache the toolchain download
