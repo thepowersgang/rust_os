@@ -20,5 +20,5 @@ cache:
     - _archives
 script:
   - make UPDATE
-  - make all TRIPLE=
+  - make all
 
