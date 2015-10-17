@@ -38,6 +38,9 @@ OBJS := start.ao $(MODS:%=%.o) libkernel.rlib libcore.rlib
 EOBJS := $(foreach m,$(MODS), $(addsuffix .o,$(call fn_moddeps,$m)) )
 OBJS += $(EOBJS)
 OBJS := $(shell echo $(call uniq, $(OBJS)))
+ifeq ($(OBJS),)
+	$(error BUGCHECK - Objects list empty)
+endif
 
 PREFIX ?= ../.prefix/
 rustcmd = LD_LIBRARY_PATH=$(PREFIX)lib/ $(PREFIX)bin/$1

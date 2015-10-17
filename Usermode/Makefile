@@ -89,7 +89,7 @@ $(LIBDIR)libloader_dyn.so: loader/lib.S	$(makefile_deps)
 # Libraries are compiled into OBJDIR to get dependencies, but are actually stored in LIBDIR
 $(LIBDIR)lib%.rlib: $(OBJDIR)lib%.rlib
 	@mkdir -p $(dir $@)
-	@mv $< $@
+	@cp $< $@
 # libcore: Same code as used by the kernel, but different build
 $(OBJDIR)libcore.rlib: ../rustc_src/libcore/lib.rs $(TARGET_SPEC) $(makefile_deps)
 	@mkdir -p $(dir $@)
