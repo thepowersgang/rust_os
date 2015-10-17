@@ -1,0 +1,33 @@
+#!/bin/bash
+set -e
+set -x
+
+BINUTILS=binutils-2.25
+GCC=gcc-4.9.3
+
+
+if [[ ${ARCH} == "amd64" ]] ; then
+  TRIPLE=x86_64-none-elf
+elif [[ ${ARCH} == "armv7" ]]; then
+  TRIPLE=arm-elf-eabi
+else
+  echo "Unknown architecture '${ARCH}' in common.mk"
+  exit 1
+fi
+
+PREFIX=${PWD}/.prefix/
+
+
+mkdir -p .cross_build
+cd .cross_build
+
+test -e ${BINUTILS}.tar.bz2 || wget http://ftp.gnu.org/gnu/binutils/${BINUTILS}.tar.bz2
+test -e ${GCC}.tar.bz2 || wget http://ftp.gnu.org/gnu/gcc/${GCC}/${GCC}.tar.bz2
+
+test -e ${BINUTILS}/configure || tar -xf ${BINUTILS}.tar.bz2
+test -e ${GCC}/configure || tar -xf ${GCC}.tar.bz2
+mkdir -p ${ARCH}
+cd ${ARCH}
+mkdir -p binutils && cd binutils && ../../${BINUTILS}/configure --prefix=${PREFIX} --disable-nls --target=${TARGET} && make && make install
+mkdir -p gcc && cd gcc && ../../${GCC}/configure --prefix=${PREFIX} --disable-nls --enable-langs=c --target=${TARGET} && make all-gcc all-target-libgcc && make install-gcc install-target-libgcc
+
