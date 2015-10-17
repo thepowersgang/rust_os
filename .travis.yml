@@ -1,4 +1,8 @@
 sudo: false
+addons:
+  apt:
+    packages:
+    - nasm
 env:
   matrix:
     - ARCH=amd64

@@ -144,7 +144,7 @@ UPDATE_rustc:
 	@mkdir -p ../.prefix
 	curl -s https://static.rust-lang.org/rustup.sh | sh -s -- --channel=nightly --prefix=../.prefix --disable-sudo --disable-ldconfig --yes
 UPDATE_libcore_src:
-	cd .. && wget https://static.rust-lang.org/dist/rustc-nightly-src.tar.gz -N -nv
+	cd .. && wget http://static.rust-lang.org/dist/rustc-nightly-src.tar.gz -N -nv
 
 #../.prefix/bin/rustc: UPDATE_rustc
 #	@#
