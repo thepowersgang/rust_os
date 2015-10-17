@@ -1,4 +1,8 @@
 sudo: false
+addons:
+  apt:
+    packages:
+    - makeinfo
 env:
   matrix:
     - ARCH=amd64
