@@ -15,6 +15,6 @@ cache:
    directories:
     - _archives
 script:
-  - PATH=make UPDATE
+  - make UPDATE
   - make all TRIPLE=
 
