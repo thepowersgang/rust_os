@@ -171,7 +171,7 @@ $(OBJDIR)kernel.ir: Core/main.rs $(OBJDIR)libcore.rlib $(TARGET_FILE)
 bin/kernel-$(ARCH).bin: $(OBJS) Core/arch/$(ARCH)/link.ld Makefile
 	@mkdir -p bin/ $(OBJDIR)
 	@echo [LD] -o $@
-	$V$(TRIPLE)-ld -o $@ $(OBJS) $(LIBS) $(LINKFLAGS)
+	$V$(LD) -o $@ $(OBJS) $(LIBS) $(LINKFLAGS)
 ifeq ($(ARCH),amd64)
 	@objcopy $@ --only-keep-debug $@.debug
 	@objcopy $@ -F elf32-i386 $@.elf32
@@ -183,7 +183,7 @@ endif
 
 %.dsm: %
 	@echo "[OBJDUMP] >" $*.dsm
-	$V$(TRIPLE)-objdump -s -C -S $* > $*.dsm
+	$V$(OBJDUMP) -s -C -S $* > $*.dsm
 
 # Assembly
 $(OBJDIR)%.ao: Core/arch/$(ARCH)/%.asm
