@@ -16,7 +16,11 @@ else
 fi
 
 PREFIX=${PWD}/.prefix/
+PATH=${PREFIX}bin:${PATH}
 
+if [[ -e ${PREFIX}${TRIPLE}-gcc ]]; then
+	exit 0
+fi
 
 mkdir -p .cross_build
 cd .cross_build
@@ -26,6 +30,10 @@ test -e ${GCC}.tar.bz2 || wget http://ftp.gnu.org/gnu/gcc/${GCC}/${GCC}.tar.bz2
 
 test -e ${BINUTILS}/configure || tar -xf ${BINUTILS}.tar.bz2
 test -e ${GCC}/configure || tar -xf ${GCC}.tar.bz2
+cd ${GCC}
+test -e mpfr || ./contrib/download_prerequisites
+cd ..
+
 mkdir -p ${ARCH}
 cd ${ARCH}
 (mkdir -p binutils && cd binutils && ../../${BINUTILS}/configure --prefix=${PREFIX} --disable-nls --target=${TRIPLE} && echo "MAKEINFO = :" >> Makefile && make && make install)

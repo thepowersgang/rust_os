@@ -74,8 +74,8 @@ $(BINDIR)loader: loader/link.ld $(OBJDIR)loader/start.ao $(OBJDIR)loader/src/mai
 	@echo [LD] $@
 	@$(LD) -r --gc-sections --undefined image_header --entry start -o $(OBJDIR)loader.o $(OBJDIR)loader/start.ao $(OBJDIR)loader/src/main.o $(LOADER_DEPS)
 	@$(LD) -o $(OBJDIR)loader.elf -T loader/link.ld $(OBJDIR)loader.o -Map $(OBJDIR)loader_map.txt
-	@$(TRIPLE)-objcopy $(OBJDIR)loader.elf -O binary $@
-	@$(TRIPLE)-objdump -CS $(OBJDIR)loader.elf > $(OBJDIR)loader.dsm
+	@$(OBJCOPY) $(OBJDIR)loader.elf -O binary $@
+	@$(OBJDUMP) -CS $(OBJDIR)loader.elf > $(OBJDIR)loader.dsm
 $(OBJDIR)loader/src/main.o: $(LOADER_DEPS)
 
 # Low-level loader dummy dynamic library

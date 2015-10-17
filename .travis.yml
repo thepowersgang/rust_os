@@ -11,6 +11,11 @@ before_script:
   - ARCH=amd64 ./BuildCrossCompiler
   - ARCH=armv7 ./BuildCrossCompiler
   - export PATH=$PATH:$PWD/.prefix/bin
+# try to cache the toolchain download
+cache:
+   directories:
+    - .prefix
+    - .cross_build
 script:
   - PATH=make UPDATE
   - make all TRIPLE=

@@ -16,6 +16,7 @@ CC := $(TRIPLE)-gcc
 LD := $(TRIPLE)-ld
 AS := $(TRIPLE)-as
 OBJDUMP := $(TRIPLE)-objdump
+OBJCOPY := $(TRIPLE)-objcopy
 
 ROOTDIR := $(dir $(lastword $(MAKEFILE_LIST)))
 
