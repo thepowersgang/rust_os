@@ -157,6 +157,9 @@ impl<T> ArrayAlloc<T>
 			}
 		}
 	}
+	pub unsafe fn from_raw(ptr: *mut T, count: usize) -> ArrayAlloc<T> {
+		ArrayAlloc { ptr: Unique::new(ptr), count: count }
+	}
 	
 	pub fn count(&self) -> usize { self.count }
 	

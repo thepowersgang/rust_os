@@ -51,6 +51,17 @@ impl<T> Vec<T>
 		}
 		ret
 	}
+	/// 
+	pub fn from_boxed_slice(mut s: ::lib::mem::Box<[T]>) -> Vec<T> {
+		let ptr = s.as_mut_ptr();
+		let len = s.len();
+		::core::mem::forget(s);
+		Vec {
+			// SAFE: All heap pointers are equivalent
+			data: unsafe { ArrayAlloc::from_raw(ptr, len) },
+			size: len,
+		}
+	}
 
 	/// Obtain a mutable pointer to an item within the vector
 	fn get_mut_ptr(&mut self, index: usize) -> *mut T
@@ -193,10 +204,7 @@ impl<T> Vec<T>
 macro_rules! vec
 {
 	($( $v:expr ),*) => ({
-		let mut v = $crate::lib::Vec::new();
-		//v.reserve( _count!( $($v),* ) );
-		$( v.push($v); )*
-		v
+		$crate::lib::Vec::from_boxed_slice(Box::new([$($v),*]))
 		});
 	($v:expr; $c:expr) => ({
 		$crate::lib::Vec::from_elem($c, $v)
