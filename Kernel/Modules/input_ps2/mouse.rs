@@ -16,6 +16,7 @@ pub enum Type
 #[derive(Debug)]
 enum State
 {
+	Expect(usize),
 	Idle,
 	// TODO: Initialise mouse to have a know config
 	// TODO: Support magic to switch types up to scroll / five-button
@@ -35,9 +36,10 @@ pub struct Dev
 impl Dev
 {
 	pub fn new(ty: Type) -> (Option<u8>,Dev) {
-		(None, Dev {
+		// Enable scanning
+		(Some(0xF4), Dev {
 			ty: ty,
-			state: State::Idle,
+			state: State::Expect(0),
 			guidev: gui_mouse::Instance::new(),
 			btns: 0x00,
 			})
@@ -46,8 +48,20 @@ impl Dev
 	pub fn recv_byte(&mut self, byte: u8) -> Option<u8> {
 		let (rv, ns) = match self.state
 			{
+			State::Expect(extra) =>
+				if extra == 0 {
+					(None, State::Idle)
+				}
+				else {
+					(None, State::Expect(extra-1))
+				},
 			State::Idle =>
-				(None, State::WaitByte2(byte)),
+				if byte & 0x08 != 0 {
+					(None, State::WaitByte2(byte))
+				}
+				else {
+					(None, State::Idle)
+				},
 			State::WaitByte2(b1) =>
 				(None, State::WaitByte3(b1, byte)),
 			State::WaitByte3(b1, b2) => {
@@ -85,7 +99,7 @@ impl Dev
 				-256
 			}
 			else {
-				-(val as i16)
+				val as i16 - 0x100
 			}
 		}
 		else {
