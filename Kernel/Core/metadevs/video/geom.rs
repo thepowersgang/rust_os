@@ -29,7 +29,7 @@ pub struct Rect
 impl Pos
 {
 	/// Construct a new `Pos`
-	pub fn new(x: u32, y: u32) -> Pos {
+	pub const fn new(x: u32, y: u32) -> Pos {
 		Pos { x: x, y: y }
 	}
 }
@@ -37,7 +37,7 @@ impl Pos
 impl Dims
 {
 	/// Construct a new `Dims` struct
-	pub fn new(w: u32, h: u32) -> Dims {
+	pub const fn new(w: u32, h: u32) -> Dims {
 		Dims { w: w, h: h }
 	}
 
@@ -50,14 +50,14 @@ impl Dims
 impl Rect
 {
 	/// Construct a new `Rect`
-	pub fn new(x: u32, y: u32, w: u32, h: u32) -> Rect {
+	pub const fn new(x: u32, y: u32, w: u32, h: u32) -> Rect {
 		Rect {
 			pos: Pos { x: x, y: y },
 			dims: Dims::new(w,h),
 		}
 	}
 	/// Construct a new rect from a position and dimensions
-	pub fn new_pd(pos: Pos, dims: Dims) -> Rect {
+	pub const fn new_pd(pos: Pos, dims: Dims) -> Rect {
 		Rect { pos: pos, dims: dims }
 	}
 	

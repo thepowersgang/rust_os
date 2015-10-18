@@ -17,6 +17,10 @@ pub mod bootvideo;
 /// Geometry types (Pos, Dims, Rect)
 mod geom;
 
+/// Mouse cursor handle and rendering
+pub mod cursor;
+
+pub use self::cursor::CursorHandle;
 
 /// Handle held by framebuffer drivers
 pub struct FramebufferRegistration
@@ -44,6 +48,8 @@ pub trait Framebuffer: 'static + Send
 	fn blit_buf(&mut self, dst: Rect, buf: &[u32]);
 	fn fill(&mut self, dst: Rect, colour: u32);
 	
+	fn move_cursor(&mut self, p: Option<Pos>);
+	//fn set_cursor(&mut self, size: Dims, data: &[u32]);
 	// TODO: Handle 3D units
 }
 
@@ -52,10 +58,6 @@ struct DisplaySurface
 	region: Rect,
 	fb: Box<Framebuffer>,
 }
-//struct HiddenSurface
-//{
-//	fb: Box<Framebuffer>,
-//}
 
 /// Sparse list of registered display devices
 static S_DISPLAY_SURFACES: LazyMutex<SparseVec<DisplaySurface>> = lazymutex_init!( );

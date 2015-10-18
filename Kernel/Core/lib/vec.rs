@@ -194,7 +194,7 @@ macro_rules! vec
 {
 	($( $v:expr ),*) => ({
 		let mut v = $crate::lib::Vec::new();
-		v.reserve( _count!( $($v),* ) );
+		//v.reserve( _count!( $($v),* ) );
 		$( v.push($v); )*
 		v
 		});

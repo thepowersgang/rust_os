@@ -24,10 +24,10 @@ pub enum Event
 }
 
 struct ModKeyPair(AtomicUsize);
-const MOD_KEY_PAIR_INIT: ModKeyPair = ModKeyPair(ATOMIC_USIZE_INIT);
 
-struct MouseCursor(u32,u32);
-const MOUSE_CURSOR_INIT: MouseCursor = MouseCursor(0,0);
+struct MouseCursor {
+	graphics_cursor: ::kernel::sync::Mutex<::kernel::metadevs::video::CursorHandle>,
+}
 
 struct InputChannel
 {
@@ -47,12 +47,16 @@ struct InputChannel
 //}
 
 static MAIN_INPUT: InputChannel = InputChannel {
-	shift_held: MOD_KEY_PAIR_INIT,
-	ctrl_held: MOD_KEY_PAIR_INIT,
-	alt_held: MOD_KEY_PAIR_INIT,
-	//altgr: MOD_KEY_PAIR_INIT,
-	cursor: MOUSE_CURSOR_INIT,
+	shift_held: ModKeyPair::new(),
+	ctrl_held: ModKeyPair::new(),
+	alt_held: ModKeyPair::new(),
+	//altgr: ModKeyPair::new(),
+	cursor: MouseCursor::new(),
 	};
+
+pub fn init() {
+	//MAIN_INPUT.cursor.
+}
 
 fn get_channel_by_index(_idx: usize) -> &'static InputChannel {
 	&MAIN_INPUT
@@ -217,6 +221,9 @@ impl InputChannel
 }
 
 impl ModKeyPair {
+	const fn new() -> ModKeyPair {
+		ModKeyPair(ATOMIC_USIZE_INIT)
+	}
 	fn set_l(&self) { self.0.fetch_or(1, Ordering::Relaxed); }
 	fn set_r(&self) { self.0.fetch_or(2, Ordering::Relaxed); }
 	fn clear_l(&self) { self.0.fetch_and(!1, Ordering::Relaxed); }
@@ -226,11 +233,20 @@ impl ModKeyPair {
 	}
 }
 impl MouseCursor {
+	const fn new() -> MouseCursor {
+		MouseCursor {
+			graphics_cursor: ::kernel::sync::Mutex::new(::kernel::metadevs::video::CursorHandle::new()),
+			}
+	}
 	fn move_pos(&self, dx: i32, dy: i32) {
-		// TODO
-		todo!("Mouse move by {},{}", dx, dy);
+		let mut lh = self.graphics_cursor.lock();
+		let mut pos = lh.get_pos();
+		pos.x = (pos.x as i32 + dx) as u32;
+		pos.y = (pos.y as i32 + dy) as u32;
+		lh.set_pos(pos);
 	}
 	fn pos(&self) -> (u32,u32) {
-		todo!("Mouse get position");
+		let pos = self.graphics_cursor.lock().get_pos();
+		(pos.x, pos.y)
 	}
 }

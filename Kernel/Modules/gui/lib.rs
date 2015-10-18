@@ -27,6 +27,7 @@ fn init()
 {
 	// - Enumerate display devices
 	::kernel::metadevs::video::register_geom_update(display_geom_update);
+	input::init();
 	// - Create kernel logging screen+window
 	windows::init();
 	kernel_log::init();
