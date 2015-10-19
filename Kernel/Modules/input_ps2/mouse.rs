@@ -72,7 +72,7 @@ impl Dev
 				log_trace!("btns = {:#x}, (dx,dy) = ({},{})", newbtns, dx, dy);
 
 				if dx != 0 || dy != 0 {
-					self.guidev.move_cursor(dx, dy);
+					self.guidev.move_cursor(dx, -dy);
 				}
 				if newbtns != self.btns {
 					for i in 0 .. 8 {

@@ -32,6 +32,12 @@ impl Pos
 	pub const fn new(x: u32, y: u32) -> Pos {
 		Pos { x: x, y: y }
 	}
+
+	pub fn dist_sq(&self, other: &Pos) -> u64 {
+		let dx = (self.x - other.x) as u64;
+		let dy = (self.y - other.y) as u64;
+		dx*dx + dy*dy
+	}
 }
 
 impl Dims
@@ -87,6 +93,15 @@ impl Rect
 	pub fn br(&self) -> Pos { Pos::new( self.x() + self.w(), self.y() + self.h() ) }
 	/// Returns the "inner" bottom-right point (pointing to within the rect)
 	pub fn br_inner(&self) -> Pos { Pos::new( self.x() + self.w() - 1, self.y() + self.h() - 1 ) }
+
+
+	/// Obtain the closest Pos in this Rect
+	pub fn clamp_pos(&self, pos: Pos) -> Pos {
+		let x = ::core::cmp::min( ::core::cmp::max(pos.x, self.left()), self.right()  );
+		let y = ::core::cmp::min( ::core::cmp::max(pos.y, self.top() ), self.bottom() );
+		Pos::new(x, y)
+	}
+
 	
 	/// Returns true if this rect contains the provided point
 	pub fn contains(&self, pt: &Pos) -> bool {

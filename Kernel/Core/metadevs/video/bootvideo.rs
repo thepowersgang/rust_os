@@ -273,6 +273,9 @@ impl Framebuffer
 			
 			for (src, row) in Iterator::zip( self.cursor_cache.chunks(r.w() as usize * bpp),  r.top() .. r.bottom() )
 			{
+				if row >= self.buffer.mode.height as u32 {
+					break ;
+				}
 				let seg = self.buffer.scanline_slice(row as usize, r.left() as usize, r.right() as usize);
 				seg.clone_from_slice(src);
 			}
@@ -293,6 +296,9 @@ impl Framebuffer
 			self.cursor_cache.resize( r.h() as usize * r.w() as usize * bpp, 0 );
 			for (dst, row) in Iterator::zip( self.cursor_cache.chunks_mut(r.w() as usize * bpp),  r.top() .. r.bottom() )
 			{
+				if row >= self.buffer.mode.height as u32 {
+					break ;
+				}
 				let seg = self.buffer.scanline_slice(row as usize, r.left() as usize, r.right() as usize);
 				dst.clone_from_slice( seg );
 				self.cursor_data.render_line( (row - r.top()) as usize, seg, output_fmt );

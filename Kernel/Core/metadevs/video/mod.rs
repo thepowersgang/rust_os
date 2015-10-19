@@ -150,17 +150,46 @@ pub fn add_output(output: Box<Framebuffer>) -> FramebufferRegistration
 	}
 }
 
-/// Returns the display region that contains the given point
-pub fn get_display_for_pos(pos: Pos) -> Option<Rect>
+
+fn with_display_at_pos<R, F>(pos: Pos, fcn: F) -> Option<R>
+where
+	F: FnOnce(&mut DisplaySurface) -> R
 {
 	for surf in S_DISPLAY_SURFACES.lock().iter_mut()
 	{
 		if surf.region.contains(&pos)
 		{
-			return Some(surf.region);
+			return Some(fcn(surf));
 		}
 	}
 	None
+}
+
+fn get_closest_visible_pos(pos: Pos) -> Pos
+{
+	let (mut dist, mut cpos) = (!0, Pos::new(0, 0));
+
+	for surf in S_DISPLAY_SURFACES.lock().iter_mut()
+	{
+		if surf.region.contains(&pos) {
+			return pos;
+		}
+
+		let new_pos = surf.region.clamp_pos(pos);
+		let new_dist = new_pos.dist_sq(&pos);
+		if new_dist < dist {
+			dist = new_dist;
+			cpos = new_pos;
+		}
+	}
+
+	cpos
+}
+
+/// Returns the display region that contains the given point
+pub fn get_display_for_pos(pos: Pos) -> Option<Rect>
+{
+	with_display_at_pos(pos, |s| s.region)
 }
 
 /// Write part of a single scanline to the screen

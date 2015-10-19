@@ -44,7 +44,14 @@ impl CursorHandle
 	/// 
 	/// NOTE: Will clip the position to within the bounds of the visible display area
 	pub fn set_pos(&mut self, pos: Pos) {
-		todo!("CursorHandle::set_pos");
+		// TODO: Avoid clearing when surface doesn't change
+		//if self.visible {
+		//	super::with_display_at_pos( self.global_pos, |surf| surf.fb.move_cursor(None) );
+		//}
+		self.global_pos = super::get_closest_visible_pos(pos);
+		if self.visible {
+			super::with_display_at_pos( self.global_pos, |surf| surf.fb.move_cursor(Some(pos)) );
+		}
 	}
 	/// Show/hide the cursor
 	pub fn set_visible(&mut self, visible: bool) {
