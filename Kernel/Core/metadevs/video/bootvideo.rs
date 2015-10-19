@@ -271,12 +271,13 @@ impl Framebuffer
 			let r = Rect::new_pd(p, self.cursor_data.dims);
 			let bpp = self.buffer.mode.fmt.bytes_per_pixel();
 			
-			for (src, row) in Iterator::zip( self.cursor_cache.chunks(r.w() as usize * bpp),  r.top() .. r.bottom() )
+			for (src, row) in Iterator::zip( self.cursor_cache.chunks(self.cursor_data.dims.w as usize * bpp),  r.top() .. r.bottom() )
 			{
 				if row >= self.buffer.mode.height as u32 {
 					break ;
 				}
-				let seg = self.buffer.scanline_slice(row as usize, r.left() as usize, r.right() as usize);
+				let right = ::core::cmp::min(self.buffer.mode.width as usize, r.right() as usize);
+				let seg = self.buffer.scanline_slice(row as usize, r.left() as usize, right);
 				seg.clone_from_slice(src);
 			}
 		}
@@ -294,12 +295,13 @@ impl Framebuffer
 			// 1. Save the area of the screen underneath the cursor
 			// 2. Render the cursor over this area
 			self.cursor_cache.resize( r.h() as usize * r.w() as usize * bpp, 0 );
-			for (dst, row) in Iterator::zip( self.cursor_cache.chunks_mut(r.w() as usize * bpp),  r.top() .. r.bottom() )
+			for (dst, row) in Iterator::zip( self.cursor_cache.chunks_mut(self.cursor_data.dims.w as usize * bpp),  r.top() .. r.bottom() )
 			{
 				if row >= self.buffer.mode.height as u32 {
 					break ;
 				}
-				let seg = self.buffer.scanline_slice(row as usize, r.left() as usize, r.right() as usize);
+				let right = ::core::cmp::min(self.buffer.mode.width as usize, r.right() as usize);
+				let seg = self.buffer.scanline_slice(row as usize, r.left() as usize, right);
 				dst.clone_from_slice( seg );
 				self.cursor_data.render_line( (row - r.top()) as usize, seg, output_fmt );
 			}
