@@ -227,7 +227,7 @@ impl CacheHandle
 				// TODO: Should symlinks be handled in this function? Or should the passed path be without symlinks?
 				node_h = if let Node::Symlink(ref link) = *node_h.as_ref() {
 					let name = link.read();
-					log_debug!("- seg={:?} : SYMLINK {:?}", seg, name);
+					//log_debug!("- seg={:?} : SYMLINK {:?}", seg, name);
 					let linkpath = Path::new(&name);
 					if linkpath.is_absolute() {
 						try!(CacheHandle::from_path(linkpath))
@@ -250,7 +250,7 @@ impl CacheHandle
 			node_h = match *node_h.as_ref()
 				{
 				Node::Dir(ref dir) => {
-					log_debug!("- seg={:?} : DIR", seg);
+					//log_debug!("- seg={:?} : DIR", seg);
 					let next_id = match dir.lookup(seg)
 						{
 						Ok(v) => v,

@@ -302,7 +302,6 @@ impl node::Dir for DirNode {
 			let cluster = try!(self.fs.load_cluster(c));
 			for ent in DirEnts::new(&cluster)
 			{
-				log_debug!("lookup(): ent = {:?}", ent);
 				match ent {
 				DirEnt::End => return Err(node::IoError::NotFound),
 				DirEnt::Short(e) => {
