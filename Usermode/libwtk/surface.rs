@@ -135,6 +135,7 @@ impl Surface
 	}
 }
 
+#[derive(Clone)]
 pub struct SurfaceView<'a>
 {
 	surf: &'a Surface,
@@ -190,6 +191,18 @@ impl<'a> SurfaceView<'a>
 			);
 	}
 
+	pub fn size_text<It: Iterator<Item=char>>(&self, chars: It) -> (usize,usize) {
+		let mut st = S_FONT.get_renderer();
+		let mut chars = chars.peekable();
+		let mut dims = (0,0);
+		while let Some( (w,h) ) = st.size_grapheme(&mut chars)
+		{
+			dims.0 += w as usize;
+			dims.1 = ::std::cmp::max(dims.1, h as usize);
+		}
+		dims
+	}
+	
 	/// Draw characters yielded from the passed iterator using the default font
 	pub fn draw_text<It: Iterator<Item=char>>(&self, mut rect: Rect<Px>, chars: It, colour: Colour) -> usize {
 		let mut st = S_FONT.get_renderer();
@@ -199,7 +212,7 @@ impl<'a> SurfaceView<'a>
 		{
 			self.foreach_scanlines(rect, |i, line| {
 				//kernel_log!("i = {}, line.len() = {}", i, line.len());
-				for (d,s) in line.iter_mut().zip( st.buffer(i, w as usize) )
+				for (d,s) in Iterator::zip( line.iter_mut(), st.buffer(i, w as usize) )
 				{
 					*d = Colour::blend( Colour::from_argb32(*d), Colour::from_argb32(*s) ).as_argb32();
 				}
@@ -230,6 +243,18 @@ struct MonoFontRender {
 }
 impl MonoFontRender
 {
+	pub fn size_grapheme<It: Iterator<Item=char>>(&mut self, it: &mut ::std::iter::Peekable<It>) -> Option<(u32,u32)> {
+		if let Some(_ch) = it.next()
+		{
+			while it.peek().map(|c| c.is_combining()).unwrap_or(false) {
+				it.next();
+			}
+			Some( (8,16) )
+		}
+		else {
+			None
+		}
+	}
 	pub fn render_grapheme<It: Iterator<Item=char>>(&mut self, it: &mut ::std::iter::Peekable<It>, colour: Colour) -> Option<(u32,u32)> {
 		self.buffer = [0xFF_000000; 8*16];
 		if let Some(ch) = it.next()

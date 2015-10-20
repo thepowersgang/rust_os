@@ -30,8 +30,8 @@ macro_rules! impl_prim_coord {
 }
 
 impl_prim_coord!{ Px }
-pub struct Unit(u32);
-pub struct Mm(u32);
+pub struct Unit(pub u32);
+pub struct Mm(pub u32);
 
 #[derive(Copy,Clone,Default)]
 pub struct Rect<T: CoordType>

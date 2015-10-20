@@ -45,7 +45,7 @@ fn main()
 		let clock_widget = ::wtk::Label::new("12:34", ::wtk::Colour::theme_text());
 		let power_button = ::wtk::Button::new(
 			::wtk::image::RasterMonoA::new_img(imgpath!("power.r8"), ::wtk::Colour::theme_text()).unwrap(),
-			|_button, window| menuref.show()
+			|_button, _window| menuref.show()
 			);
 		::wtk::StaticBox::new_horiz((
 			::wtk::BoxEle::fixed(20, logo_button),
@@ -59,6 +59,8 @@ fn main()
 		win.undecorate();
 		win.set_pos(0, 0);
 		win.set_dims(1920,20);
+		//win.taborder_add(0, &menubar.inner().0);
+		//win.taborder_add(1, &menubar.inner().3);
 		win
 		};
 
@@ -68,6 +70,7 @@ fn main()
 	::async::idle_loop(&mut [
 		&mut win_background,
 		&mut win_menu,
+		//&mut ::wtk::menu::WaitWrapper(&power_menu),
 		]);
 
 }
