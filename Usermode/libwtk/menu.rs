@@ -16,13 +16,18 @@ pub struct Menu<I: MenuItems>
 }
 impl<I: MenuItems> Menu<I> {
 	pub fn new(debug_name: &str, items: I) -> Menu<I> {
+		let dims = items.total_dims();
+		let dims = ::syscalls::gui::Dims { w: dims.0, h: dims.1 };
 		Menu {
-			window: ::syscalls::gui::Window::new(debug_name).expect("TODO: Handle error in Menu::new()"),
+			window: {
+				let mut w = ::syscalls::gui::Window::new(debug_name).expect("TODO: Handle error in Menu::new()");
+				w.set_dims( dims );
+				w
+				},
 			hilight: 0,
 			buffer: {
 				let mut s = ::surface::Surface::default();
-				let dims = items.total_dims();
-				s.resize( ::syscalls::gui::Dims { w: dims.0, h: dims.1 }, Colour::theme_text_bg() );
+				s.resize( dims, Colour::theme_text_bg() );
 				s
 				},
 			items: items,
@@ -30,7 +35,9 @@ impl<I: MenuItems> Menu<I> {
 	}
 
 	pub fn show(&self) {
-		// TODO:
+		kernel_log!("Showing menu");
+		self.buffer.blit_to_win(&self.window);
+		self.window.show();
 	}
 	
 	// NOTE: When this menu loses focus, it should hide itself

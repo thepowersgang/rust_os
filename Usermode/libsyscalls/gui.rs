@@ -8,13 +8,16 @@ pub use ::values::KeyCode as KeyCode;
 pub struct Group(super::ObjectHandle);
 pub struct Window(super::ObjectHandle);
 
+#[derive(Copy,Clone)]
 pub	struct Rect { pub p: Pos, pub d: Dims, }
 impl Rect {
 	pub fn new(x: u32, y: u32, w: u32, h: u32) -> Rect {
 		Rect { p: Pos { x:x, y:y }, d: Dims { w:w, h:h } }
 	}
 }
+#[derive(Copy,Clone)]
 pub struct Pos { pub x: u32, pub y: u32, }
+#[derive(Copy,Clone)]
 pub struct Dims { pub w: u32, pub h: u32, }
 
 #[derive(Copy,Clone)]
