@@ -4,10 +4,6 @@
 // libwtk/menu.rs
 //! Pop-up menu support
 
-pub trait MenuTrait
-{
-	fn get_win(&self) -> &::syscalls::gui::Window;
-}
 
 pub struct Menu<I: MenuItems>
 {
@@ -25,11 +21,9 @@ impl<I: MenuItems> Menu<I> {
 	pub fn show(&self) {
 		// TODO:
 	}
-}
-impl<I> MenuTrait for Menu<I> {
-	fn get_win(&self) -> &::syscalls::gui::Window {
-		&self.window
-	}
+	
+	// NOTE: When this menu loses focus, it should hide itself
+	// - UNLESS it's just opened a sub-menu
 }
 
 pub trait MenuItems {

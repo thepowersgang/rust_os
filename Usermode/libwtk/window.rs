@@ -19,7 +19,6 @@ pub struct Window<'a>
 	// Rendering information
 	background: ::surface::Colour,
 	root: &'a ::Element,
-	menus: Vec<&'a ::menu::MenuTrait>,
 }
 
 impl<'a> Window<'a>
@@ -40,7 +39,6 @@ impl<'a> Window<'a>
 
 			background: background,
 			root: ele,
-			menus: Vec::new(),
 		}
 	}
 
@@ -121,10 +119,6 @@ impl<'a> Window<'a>
 	}
 	pub fn hide(&mut self) {
 		self.win.hide();
-	}
-
-	pub fn show_menu(&mut self, menu: &'a ::menu::MenuTrait) {
-		self.menus.push(menu);
 	}
 
 	fn handle_event(&mut self, ev: ::InputEvent) -> bool {

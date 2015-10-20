@@ -25,6 +25,7 @@ fn main()
 			Entry::new("Shut Down", 0, "", || {}),
 			))
 		};
+	let menuref = &power_menu;
 	
 	let background = {
 		// Background image is "Ferris the crab" - credit to rustacean.net
@@ -44,7 +45,7 @@ fn main()
 		let clock_widget = ::wtk::Label::new("12:34", ::wtk::Colour::theme_text());
 		let power_button = ::wtk::Button::new(
 			::wtk::image::RasterMonoA::new_img(imgpath!("power.r8"), ::wtk::Colour::theme_text()).unwrap(),
-			|_button, window| window.show_menu(&power_menu)
+			|_button, window| menuref.show()
 			);
 		::wtk::StaticBox::new_horiz((
 			::wtk::BoxEle::fixed(20, logo_button),

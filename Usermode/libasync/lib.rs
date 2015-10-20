@@ -16,7 +16,7 @@ pub trait WaitController
 }
 
 /// Idle, handling events on each WaitController passed
-pub fn idle_loop(items: &mut [&mut WaitController])
+pub fn idle_loop<'a,'b,'c>(items: &'a mut [&'b mut (WaitController+'c)])
 {
 	let mut objects = Vec::new();
 	loop {
