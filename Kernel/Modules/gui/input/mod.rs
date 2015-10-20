@@ -126,8 +126,8 @@ impl InputChannel
 	{
 		// Mouse movement, update cursor
 		self.cursor.move_pos(dx as i32, dy as i32);
-		let (x,y) = self.cursor.pos();
 		// NOTE: Don't send movement event here, they're generated magically
+		//let (x,y) = self.cursor.pos();
 		//super::windows::handle_input(/*self, */Event::MouseMove(x, y, dx, dy));
 	}
 	pub fn handle_mouse_btn(&self, btn: u8, release: bool)
@@ -239,11 +239,19 @@ impl MouseCursor {
 			graphics_cursor: ::kernel::sync::Mutex::new(::kernel::metadevs::video::CursorHandle::new()),
 			}
 	}
+	fn add_coord(cur: u32, d: i32) -> u32 {
+		if d < 0 {
+			u32::saturating_sub(cur, -d as u32)
+		}
+		else {
+			u32::saturating_add(cur, d as u32)
+		}
+	}
 	fn move_pos(&self, dx: i32, dy: i32) {
 		let mut lh = self.graphics_cursor.lock();
 		let mut pos = lh.get_pos();
-		pos.x = (pos.x as i32 + dx) as u32;
-		pos.y = (pos.y as i32 + dy) as u32;
+		pos.x = Self::add_coord(pos.x, dx);
+		pos.y = Self::add_coord(pos.y, dy);
 		lh.set_pos(pos);
 	}
 	fn pos(&self) -> (u32,u32) {
