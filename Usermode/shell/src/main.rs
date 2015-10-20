@@ -15,6 +15,17 @@ fn main()
 	::wtk::initialise();
 
 
+	let power_menu = {
+		use wtk::menu::{Menu,Entry,Spacer};
+		Menu::new("Power Menu", (
+			Entry::new("Lock", 0, "", || {}),
+			Entry::new("Logout", 1, "", || {}),
+			Spacer,
+			Entry::new("Restart", 0, "", || {}),
+			Entry::new("Shut Down", 0, "", || {}),
+			))
+		};
+	
 	let background = {
 		// Background image is "Ferris the crab" - credit to rustacean.net
 		let img = ::wtk::image::RasterRGB::new_img(imgpath!("background.r24")).expect("Cannot load background");
@@ -26,12 +37,15 @@ fn main()
 		win.maximise();
 		win
 		};
+	
 	let menubar = {
-		let logo_button = ::wtk::Button::new( () );
+		let logo_button = ::wtk::Button::new( (), |_,_| {} );
 		let taskbar = ();
 		let clock_widget = ::wtk::Label::new("12:34", ::wtk::Colour::theme_text());
-		let mut power_button = ::wtk::Button::new( ::wtk::image::RasterMonoA::new_img(imgpath!("power.r8"), ::wtk::Colour::theme_text()).unwrap() );
-		power_button.bind_click(|_button, _window| {});
+		let power_button = ::wtk::Button::new(
+			::wtk::image::RasterMonoA::new_img(imgpath!("power.r8"), ::wtk::Colour::theme_text()).unwrap(),
+			|_button, window| window.show_menu(&power_menu)
+			);
 		::wtk::StaticBox::new_horiz((
 			::wtk::BoxEle::fixed(20, logo_button),
 			::wtk::BoxEle::expand(taskbar),

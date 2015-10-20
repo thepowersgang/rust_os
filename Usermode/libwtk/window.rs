@@ -1,6 +1,8 @@
-
+//
+//
+//
+//
 use geom::Rect;
-
 use syscalls::Object;
 
 /// Toolkit window
@@ -17,7 +19,7 @@ pub struct Window<'a>
 	// Rendering information
 	background: ::surface::Colour,
 	root: &'a ::Element,
-	//menus: Vec<OpenMenu>,
+	menus: Vec<&'a ::menu::MenuTrait>,
 }
 
 impl<'a> Window<'a>
@@ -31,13 +33,14 @@ impl<'a> Window<'a>
 				Err(e) => panic!("TODO: Window::new e={:?}", e),
 				},
 			surface: Default::default(),
-			root: ele,
 			needs_force_rerender: false,
 			focus: None,
 			taborder_pos: 0,
 			taborder: Vec::new(),
 
 			background: background,
+			root: ele,
+			menus: Vec::new(),
 		}
 	}
 
@@ -120,6 +123,9 @@ impl<'a> Window<'a>
 		self.win.hide();
 	}
 
+	pub fn show_menu(&mut self, menu: &'a ::menu::MenuTrait) {
+		self.menus.push(menu);
+	}
 
 	fn handle_event(&mut self, ev: ::InputEvent) -> bool {
 		match ev

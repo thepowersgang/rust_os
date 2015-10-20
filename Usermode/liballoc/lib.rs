@@ -12,6 +12,7 @@
 #![feature(core_slice_ext)]
 #![feature(optin_builtin_traits)]	// For !Send
 #![feature(filling_drop)]	// for RawVec
+#![feature(unboxed_closures)]
 #![no_std]
 
 #[macro_use]

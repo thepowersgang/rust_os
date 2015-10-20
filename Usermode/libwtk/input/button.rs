@@ -3,10 +3,12 @@
 //
 use std::cell::RefCell;
 
-pub struct Button<'a, T: ::Element>
+pub struct Button<T: ::Element, F>
+where
+	F: Fn(&Button<T,F>, &mut ::window::Window)
 {
 	inner: T,
-	click_cb: Option< Box<Fn(&Button<'a, T>, &mut ::window::Window)+'a> >,
+	click_cb: F,
 	state: RefCell<State>,
 }
 
@@ -19,22 +21,20 @@ struct State
 	is_held: bool,
 }
 
-impl<'a, T: ::Element> Button<'a, T>
+impl<T: ::Element, F> Button<T, F>
+where
+	F: Fn(&Button<T, F>, &mut ::window::Window)
 {
-	pub fn new(ele: T) -> Button<'a, T> {
+	pub fn new(ele: T, cb: F) -> Button<T, F> {
 		Button {
 			inner: ele,
-			click_cb: None,
+			click_cb: cb,
 			state: Default::default(),
 		}
 	}
 
 	pub fn inner(&self) -> &T { &self.inner }
 	pub fn inner_mut(&mut self) -> &mut T { &mut self.inner }
-
-	pub fn bind_click<F: Fn(&Self, &mut ::window::Window)+'a>(&mut self, cb: F) {
-		self.click_cb = Some( Box::new(cb) );
-	}
 
 	pub fn downstate_change(&self, state: bool) -> bool {
 		let mut st = self.state.borrow_mut();
@@ -49,7 +49,9 @@ impl<'a, T: ::Element> Button<'a, T>
 	}
 }
 
-impl<'a, T: ::Element> ::Element for Button<'a, T>
+impl<T: ::Element, F> ::Element for Button<T,F>
+where
+	F: Fn(&Button<T, F>, &mut ::window::Window)
 {
 	fn focus_change(&self, have: bool) {
 		let mut st = self.state.borrow_mut();
@@ -63,7 +65,7 @@ impl<'a, T: ::Element> ::Element for Button<'a, T>
 		::InputEvent::MouseDown(_x,_y,0) => self.downstate_change(true),
 		::InputEvent::MouseUp(_x,_y,0) => self.downstate_change(false),
 		::InputEvent::KeyUp(::syscalls::gui::KeyCode::Return) => {
-			self.click_cb.as_ref().map(|cb| cb(self, win));
+			(self.click_cb)(self, win);
 			false
 			},
 		_ => false,

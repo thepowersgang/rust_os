@@ -23,6 +23,8 @@ mod static_layout;
 mod input;
 mod text;
 
+pub mod menu;
+
 pub mod image;
 
 pub use surface::Colour;

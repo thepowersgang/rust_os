@@ -29,10 +29,8 @@ fn main()
 	// - Two buttons: Options and power
 	let options_icon = ::wtk::image::RasterMonoA::new(imgpath!("options.r8"), ::wtk::Colour::theme_text_bg()).unwrap();
 	let power_icon   = ::wtk::image::RasterMonoA::new(imgpath!("power.r8"  ), ::wtk::Colour::theme_text_bg()).unwrap();
-	let mut options_button = ::wtk::Button::new( ::wtk::Image::new(options_icon) );
-	options_button.bind_click( |_btn,_win| () );
-	let mut power_button = ::wtk::Button::new( ::wtk::Image::new(power_icon) );
-	power_button.bind_click( |_btn,_win| () );
+	let options_button = ::wtk::Button::new( ::wtk::Image::new(options_icon), |_btn,_win| () );
+	let power_button = ::wtk::Button::new( ::wtk::Image::new(power_icon), |_btn,_win| () );
 	let menubar = ::wtk::StaticBox::new_horiz( (
 		::wtk::BoxEle::fixed(MENU_BTN_WIDTH, options_button),
 		::wtk::BoxEle::expand( () ),
