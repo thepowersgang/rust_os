@@ -33,7 +33,6 @@ uniq = $(eval seen :=) $(foreach _,$1,$(if $(filter $_,${seen}),,$(eval seen += 
 OBJS := start.ao $(MODS:%=%.o) libkernel.rlib libcore.rlib
 EOBJS := $(foreach m,$(MODS), $(addsuffix .o,$(call fn_moddeps,$m)) )
 OBJS += $(EOBJS)
-$(warning $(OBJS))
 OBJS := $(shell echo $(call uniq, $(OBJS)))
 ifeq ($(OBJS),)
 	$(error BUGCHECK - Objects list empty)
