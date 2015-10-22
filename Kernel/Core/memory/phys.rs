@@ -238,7 +238,12 @@ pub fn deref_frame(paddr: PAddr)
 		// - This page is the only reference.
 		if ::arch::memory::phys::mark_free(paddr as u64 / ::PAGE_SIZE as u64) == true {
 			// Release frame back into the pool
-			todo!("deref_frame({:#x}) Release", paddr);
+			// SAFE: This frame is unaliased
+			unsafe {
+				let mut h = S_FREE_STACK.lock();
+				::memory::virt::with_temp(paddr, |page| *(&mut page[0] as *mut u8 as *mut PAddr) = *h);
+				*h = paddr;
+			}
 		}
 		else {
 			// Page was either not allocated (oops) or is not managed

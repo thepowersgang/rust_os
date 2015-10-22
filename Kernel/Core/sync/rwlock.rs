@@ -34,7 +34,7 @@ pub struct Write<'a, T:Send+Sync+'a>
 impl<T: Send+Sync> RwLock<T>
 {
 	/// Construct a new Read-write lock wrapping the passed data
-	pub fn new(data: T) -> RwLock<T>
+	pub const fn new(data: T) -> RwLock<T>
 	{
 		RwLock {
 			inner: ::sync::Spinlock::new(RwLockInner {

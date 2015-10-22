@@ -66,7 +66,7 @@ pub extern "C" fn rust_begin_unwind(msg: ::core::fmt::Arguments, file: &'static 
 	::arch::print_backtrace();
 	//log_debug!("msg={:?} file={:?} line={}", ::logging::HexDump(&msg), ::logging::HexDump(&file), line);
 	//log_panic!("rust_begin_unwind(file=\"{}\", line={}, msg=\"{:?}\")", file, line, msg);
-	log_panic!("{}:{}: Panicked \"{:?}\")", file, line, msg);
+	log_panic!("{}:{}: Panicked \"{:?}\"", file, line, msg);
 	/*
 	// SAFE: Correctly calls extern function
 	unsafe {
