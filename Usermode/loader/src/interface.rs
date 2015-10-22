@@ -51,8 +51,9 @@ pub extern "C" fn new_process(binary: &[u8], args: &[&[u8]]) -> Result<::syscall
 		try!( builder.push(arg) );
 	}
 	
+	let name = ::std::str::from_utf8(binary).unwrap_or("BADSTR");
 	// Spawn new process
-	match ::syscalls::threads::start_process(new_process_entry as usize, init_stack_end.as_ptr() as usize, BASE.as_ptr() as usize, LIMIT.as_ptr() as usize)
+	match ::syscalls::threads::start_process(name, new_process_entry as usize, init_stack_end.as_ptr() as usize, BASE.as_ptr() as usize, LIMIT.as_ptr() as usize)
 	{
 	Ok(v) => Ok( v ),
 	Err(e) => panic!("TODO: new_process - Error '{:?}'", e),

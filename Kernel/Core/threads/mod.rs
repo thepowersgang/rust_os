@@ -52,14 +52,19 @@ pub fn init()
 	::arch::threads::set_thread_ptr( tid0 )
 }
 
+fn reap_threads()
+{
+	while let Some(thread) = S_TO_REAP_THREADS.lock().pop() {
+		log_log!("Reaping thread {:?}", thread);
+		drop(thread);
+	}
+}
+
 /// Yield control of the CPU for a short period (while polling or main thread halted)
 pub fn yield_time()
 {
 	// HACK: Drop to-reap threads in this function
-	// - TODO: Might take a while for this to happen
-	while let Some(thread) = S_TO_REAP_THREADS.lock().pop() {
-		drop(thread);
-	}
+	reap_threads();
 
 	// Add current thread to active queue, then reschedule
 	s_runnable_threads.lock().push( get_cur_thread() );
@@ -203,6 +208,7 @@ pub fn reschedule()
 		}
 		
 		log_trace!("reschedule() - No active threads, idling");
+		reap_threads();
 		::arch::threads::idle();
 	}
 }

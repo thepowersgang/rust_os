@@ -128,6 +128,7 @@ fn invoke_int(call_id: u32, mut args: &[usize]) -> Result<u64,Error>
 			},
 		// - 0/3: Start process
 		CORE_STARTPROCESS => {
+			let name  = try!( <Freeze<str>>::get_arg(&mut args) );
 			let ip = try!( <usize>::get_arg(&mut args) );
 			let sp = try!( <usize>::get_arg(&mut args) );
 			let start = try!( <usize>::get_arg(&mut args) );
@@ -136,7 +137,7 @@ fn invoke_int(call_id: u32, mut args: &[usize]) -> Result<u64,Error>
 				log_log!("CORE_STARTPROCESS - {:#x}--{:#x} invalid", start, end);
 				return Err( Error::BadValue );
 			}
-			threads::newprocess("TODO", ip, sp, start, end) as u64
+			threads::newprocess(&name, ip, sp, start, end) as u64
 			},
 		// - 0/4: Start thread
 		CORE_STARTTHREAD => {

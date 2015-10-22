@@ -30,6 +30,12 @@ macro_rules! syscall {
 	($id:ident, $arg1:expr, $arg2:expr, $arg3:expr, $arg4:expr) => {
 		::raw::syscall_4(::values::$id, $arg1, $arg2, $arg3, $arg4)
 		};
+	($id:ident, $arg1:expr, $arg2:expr, $arg3:expr, $arg4:expr, $arg5:expr) => {
+		::raw::syscall_5(::values::$id, $arg1, $arg2, $arg3, $arg4, $arg5)
+		};
+	($id:ident, $arg1:expr, $arg2:expr, $arg3:expr, $arg4:expr, $arg5:expr, $arg6:expr) => {
+		::raw::syscall_6(::values::$id, $arg1, $arg2, $arg3, $arg4, $arg5, $arg6)
+		};
 }
 //macro_rules! slice_arg { ($slice:ident) => { $slice.as_ptr(), $slice.len() } }
 

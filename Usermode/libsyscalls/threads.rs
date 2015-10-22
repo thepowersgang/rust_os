@@ -117,9 +117,9 @@ impl ::Object for Process {
 }
 
 #[inline]
-pub fn start_process(entry: usize, stack: usize,  clone_start: usize, clone_end: usize) -> Result<Process,()> {
+pub fn start_process(name: &str, entry: usize, stack: usize,  clone_start: usize, clone_end: usize) -> Result<Process,()> {
 	// SAFE: Syscall
-	let rv = unsafe { syscall!(CORE_STARTPROCESS, entry, stack, clone_start, clone_end) };
+	let rv = unsafe { syscall!(CORE_STARTPROCESS, name.as_ptr() as usize, name.len(), entry, stack, clone_start, clone_end) };
 	match ::ObjectHandle::new(rv as usize)
 	{
 	Ok(v) => Ok( Process(v) ),

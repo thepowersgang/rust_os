@@ -35,6 +35,7 @@ impl EventChannel
 	
 	/// Sleep until an event
 	pub fn sleep(&self) {
+		log_trace!("EventChannel::sleep()");
 		// SAFE: Queue is only accessed with the lock held
 		unsafe {
 			let mut lh = self.lock.lock();
@@ -52,6 +53,7 @@ impl EventChannel
 	/// Post the event
 	//#[tag_safe(irq)]	// SAFE: Handles case of lock being held by CPU
 	pub fn post(&self) {
+		log_trace!("EventChannel::post()");
 		// Attempt to lock (failing if the CPU already holds the lock)
 		if let Some(mut lh) = self.lock.try_lock_cpu() {
 			let mut count = 1;
