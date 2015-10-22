@@ -13,6 +13,7 @@ use core::{ops,fmt};
 pub trait Counter {
 	fn zero() -> Self;
 	fn one() -> Self;
+	fn get(&self) -> usize;
 	fn is_zero(&self) -> bool;
 	fn is_one(&self) -> bool;
 	fn inc(&self);
@@ -42,6 +43,7 @@ struct GrcInner<C: Counter, T: ?Sized> {
 impl Counter for ::core::cell::Cell<usize> {
 	fn zero() -> Self { ::core::cell::Cell::new(0) }
 	fn one() -> Self { ::core::cell::Cell::new(0) }
+	fn get(&self) -> usize { self.get() }
 	fn is_zero(&self) -> bool { self.get() == 0 }
 	fn is_one(&self) -> bool { self.get() == 1 }
 	fn inc(&self) { self.set( self.get() + 1 ) }
@@ -51,6 +53,7 @@ impl Counter for ::core::cell::Cell<usize> {
 impl Counter for AtomicUsize {
 	fn zero() -> Self { AtomicUsize::new(0) }
 	fn one() -> Self { AtomicUsize::new(1) }
+	fn get(&self) -> usize { self.load(Ordering::Relaxed) }
 	fn is_zero(&self) -> bool { self.load(Ordering::SeqCst) == 0 }
 	fn is_one(&self) -> bool { self.load(Ordering::SeqCst) == 1 }
 	fn inc(&self) { self.fetch_add(1, Ordering::Acquire); }
@@ -77,6 +80,9 @@ impl<C: Counter, T: ?Sized> Grc<C, T>
 	}
 	pub fn is_same(&self, other: &Self) -> bool {
 		*self.ptr == *other.ptr
+	}
+	pub fn strong_count(&self) -> usize {
+		self.grc_inner().strong.get()
 	}
 	pub fn get_mut(&mut self) -> Option<&mut T> {
 		if self.grc_inner().strong.is_one() {

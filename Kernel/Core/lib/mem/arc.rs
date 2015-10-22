@@ -26,6 +26,19 @@ impl<T> Arc<T>
 		Arc { _inner: Grc::new(value) }
 	}
 }
+
+
+impl<T: ?Sized> Arc<T>
+{
+	pub fn strong_count(this: &Arc<T>) -> usize {
+		this._inner.strong_count()
+	}
+
+	/// Returns Some(mut_ref) when this Arc only has one reference
+	pub fn get_mut(this: &mut Arc<T>) -> Option<&mut T> {
+		this._inner.get_mut()
+	}
+}
 impl<T: Default> Default for Arc<T> {
 	fn default() -> Arc<T> {
 		Arc::new( T::default() )
@@ -34,8 +47,8 @@ impl<T: Default> Default for Arc<T> {
 impl<T: Clone> Arc<T>
 {
 	/// Ensure that this instance is the only instance (cloning if needed)
-	pub fn make_unique(&mut self) -> &mut T {
-		self._inner.make_unique()
+	pub fn make_mut(this: &mut Arc<T>) -> &mut T {
+		this._inner.make_unique()
 	}
 }
 impl<U> Arc<[U]> {
@@ -89,10 +102,5 @@ impl<T: ?Sized> ops::Deref for Arc<T>
 	fn deref(&self) -> &T {
 		&*self._inner
 	}
-}
-
-/// Returns Some(mut_ref) when this Arc only has one reference
-pub fn get_mut<T: ?Sized>(arc: &mut Arc<T>) -> Option<&mut T> {
-	arc._inner.get_mut()
 }
 

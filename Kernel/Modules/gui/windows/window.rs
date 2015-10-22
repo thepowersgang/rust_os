@@ -113,7 +113,7 @@ impl Window
 	/// Resize the window
 	pub fn resize(&self, dim: Dims) {
 		// TODO: use something like "try_make_unique" and emit a notice if it needs to clone
-		self.buf.write().make_unique().resize(dim);
+		Arc::make_mut(&mut self.buf.write()).resize(dim);
 		*self.dirty_rects.lock() = vec![ Rect::new(0,0, dim.w, dim.h) ];
 	}
 	

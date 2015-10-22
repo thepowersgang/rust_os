@@ -354,7 +354,7 @@ impl VolumeHandle
 		match S_LOGICAL_VOLUMES.lock().iter_mut().find(|&(_, ref v)| v.name == name)
 		{
 		Some((_,v)) => {
-			if ::lib::mem::arc::get_mut(v).is_some() {
+			if Arc::get_mut(v).is_some() {
 				Ok( VolumeHandle { handle: v.clone() } )
 			}
 			else {

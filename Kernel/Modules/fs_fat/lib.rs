@@ -12,7 +12,7 @@ use kernel::prelude::*;
 use kernel::vfs::{self, mount, node};
 use kernel::metadevs::storage::{self,VolumeHandle,SizePrinter};
 use kernel::lib::mem::aref::{ArefInner,ArefBorrow};
-use kernel::lib::mem::{Arc,arc};
+use kernel::lib::mem::Arc;
 
 extern crate utf16;
 extern crate blockcache;
@@ -240,7 +240,7 @@ impl FilesystemInner
 			|_| {
 				log_debug!("load_cluster: miss {}", cluster);
 				let mut buf: Cluster = Arc::from_iter( (0..self.spc * self.vh.block_size()).map(|_| 0) );
-				try!(self.read_cluster( cluster, arc::get_mut(&mut buf).unwrap() ));
+				try!(self.read_cluster( cluster, Arc::get_mut(&mut buf).unwrap() ));
 				Ok( buf )
 			})
 	}
@@ -270,7 +270,7 @@ impl FilesystemInner
 			(self.first_fat_sector + fat_sector) as u32,
 			|sector| {
 				let mut sector_data = Arc/*::<[u8]>*/::from_fn(bs, |_|0);
-				try!(self.vh.read_blocks(sector as u64, arc::get_mut(&mut sector_data).unwrap()));
+				try!(self.vh.read_blocks(sector as u64, Arc::get_mut(&mut sector_data).unwrap()));
 				Ok(sector_data)
 			}));
 		// - Extract the entry

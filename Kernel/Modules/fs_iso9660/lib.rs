@@ -180,7 +180,7 @@ impl InstanceInner
 		
 		// If the block wasn't in the cache, read and cache it
 		let mut data: Arc<[u8]> = Arc::from_iter( (0 .. self.lb_size).map(|_| 0u8) );
-		try!(self.read_sector(sector, ::kernel::lib::mem::arc::get_mut(&mut data).unwrap()));
+		try!(self.read_sector(sector, Arc::get_mut(&mut data).unwrap()));
 		
 		lh[oldest_i] = Some(CachedBlock {
 			time: ::kernel::time::ticks(),

@@ -168,7 +168,7 @@ impl ProcessHandle
 	}
 	
 	pub fn start_root_thread(&mut self, ip: usize, sp: usize) {
-		assert!( ::lib::mem::arc::get_mut(&mut self.0).is_some() );
+		assert!( Arc::get_mut(&mut self.0).is_some() );
 		
 		let mut thread = Thread::new_boxed(allocate_tid(), format!("{}#1", self.0.name), self.0.clone());
 		::arch::threads::start_thread( &mut thread,
@@ -219,6 +219,11 @@ impl ProcessHandle
 
 	pub fn get_exit_status(&self) -> Option<u32> {
 		self.0.exit_status.lock().0
+	}
+}
+impl ::core::ops::Drop for ProcessHandle {
+	fn drop(&mut self) {
+		log_notice!("Dropping handle {:?} - ref_count={}", self, Arc::strong_count(&self.0));
 	}
 }
 
