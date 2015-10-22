@@ -4,6 +4,7 @@
 //
 use geom::Rect;
 use syscalls::Object;
+use syscalls::gui::KeyCode;
 
 /// Toolkit window
 pub struct Window<'a>
@@ -15,6 +16,11 @@ pub struct Window<'a>
 	focus: Option<&'a ::Element>,
 	taborder_pos: usize,
 	taborder: Vec<(usize, &'a ::Element)>,
+
+	// Keyboard shortcuts
+	//modifier_states: ModiferStates,
+	//shortcuts: ::std::collections::HashMap< (KeyCode,Modifiers), Box<FnMut()+'a> >,
+	shortcuts_0: Vec<(KeyCode, Box<FnMut()+'a>)>,
 
 	// Rendering information
 	background: ::surface::Colour,
@@ -36,6 +42,8 @@ impl<'a> Window<'a>
 			focus: None,
 			taborder_pos: 0,
 			taborder: Vec::new(),
+
+			shortcuts_0: Default::default(),
 
 			background: background,
 			root: ele,
@@ -76,6 +84,18 @@ impl<'a> Window<'a>
 			self.taborder_pos = i;
 			let e = self.taborder[i].1;
 			self.focus(e);
+		}
+	}
+
+	/// Add a shortcut key combination
+	pub fn add_shortcut<F: 'a + FnMut()>(&mut self, keys: &[KeyCode], fcn: F) /*-> Result<(),()>*/ {
+		match keys.len()
+		{
+		0 => {},
+		1 => {
+			self.shortcuts_0.push( (keys[0], Box::new(fcn)) );
+			},
+		_ => {},
 		}
 	}
 
@@ -143,12 +163,13 @@ impl<'a> Window<'a>
 		::InputEvent::MouseMove(x,y,dx,dy) => {
 			let (ele, (basex, basey)) = self.root.element_at_pos(x,y /*, self.surface.width(), self.surface.height()*/);
 			assert!(x >= basex); assert!(y >= basey);
-			// TODO: Also send an event to the source window
+			// TODO: Also send an event to the source element
 			ele.handle_event( ::InputEvent::MouseMove(x - basex, y - basey, dx, dy), self )
 			},
 		::InputEvent::MouseUp(x,y,btn) => {
 			let (ele, (basex, basey)) = self.root.element_at_pos(x,y /*, self.surface.width(), self.surface.height()*/);
 			assert!(x >= basex); assert!(y >= basey);
+			// TODO: Also send MouseUp to the element that received the MouseDown
 			ele.handle_event( ::InputEvent::MouseUp(x - basex, y - basey, btn), self )
 			},
 		::InputEvent::MouseDown(x,y,btn) => {
@@ -156,12 +177,25 @@ impl<'a> Window<'a>
 			assert!(x >= basex); assert!(y >= basey);
 			ele.handle_event( ::InputEvent::MouseDown(x - basex, y - basey, btn), self )
 			},
-		ev @ _ => 
+		ev @ _ => {
+			match ev {
+			::InputEvent::KeyUp(key) => {
+				for &mut (s_key, ref mut fcn) in self.shortcuts_0.iter_mut() {
+					if key == s_key {
+						fcn();
+						return false;
+					}
+				}
+				},
+			_ => {},
+			}
+			
 			if let Some(ele) = self.focus {
 				ele.handle_event(ev, self)
 			}
 			else {
 				false
+			}
 			},
 		}
 	}
