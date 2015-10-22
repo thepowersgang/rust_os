@@ -211,7 +211,7 @@ mod keymaps {
 		None, RightAlt, None, None, RightCtrl, None, None, None,
 		None, None, None, None, None, None, None, LeftGui,
 		None, None, None, None, None, None, None, RightGui,
-		None, None, None, None, None, None, None, None,
+		None, None, None, None, None, None, None, Application,	// Application = Menu
 		None, None, None, None, None, None, None, None,
 		None, None, None, None, None, None, None, None,
 		None, None, None, None, None, None, None, None,
