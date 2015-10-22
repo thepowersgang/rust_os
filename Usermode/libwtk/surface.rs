@@ -65,6 +65,9 @@ pub struct Surface
 
 impl Surface
 {
+	pub fn new() -> Surface {
+		Default::default()
+	}
 	fn height(&self) -> u32 {
 		if self.width == 0 {
 			assert_eq!(self.data.borrow().len(), 0);

@@ -63,7 +63,10 @@ where
 		match ev
 		{
 		::InputEvent::MouseDown(_x,_y,0) => self.downstate_change(true),
-		::InputEvent::MouseUp(_x,_y,0) => self.downstate_change(false),
+		::InputEvent::MouseUp(_x,_y,0) => {
+			(self.click_cb)(self, win);
+			self.downstate_change(false)
+			}
 		::InputEvent::KeyUp(::syscalls::gui::KeyCode::Return) => {
 			(self.click_cb)(self, win);
 			false
@@ -79,7 +82,8 @@ where
 		self.inner.render(surface, force)
 	}
 	fn element_at_pos(&self, x: u32, y: u32) -> (&::Element, (u32,u32)) {
-		self.inner.element_at_pos(x, y)
+		(self, (0,0))
+		//self.inner.element_at_pos(x, y)
 	}
 }
 

@@ -122,6 +122,7 @@ impl<'a> Window<'a>
 	}
 
 	fn handle_event(&mut self, ev: ::InputEvent) -> bool {
+		kernel_log!("Window::handle_event(ev={:?})", ev);
 		match ev
 		{
 		// Capture the Tab key for tabbing between fields

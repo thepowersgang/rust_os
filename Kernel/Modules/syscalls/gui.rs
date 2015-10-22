@@ -22,7 +22,7 @@ impl ::core::convert::Into<values::GuiEvent> for ::gui::input::Event {
 		Event::KeyDown(kc)  => values::GuiEvent::KeyDown(From::from(kc as u8)),
 		Event::Text   (buf) => values::GuiEvent::Text   (From::from(buf)),
 		Event::MouseMove(x,y, dx,dy) => values::GuiEvent::MouseMove(x,y, dx,dy),
-		Event::MouseUp(x,y,btn) => values::GuiEvent::MouseUp(y,x,btn),
+		Event::MouseUp  (x,y,btn) => values::GuiEvent::MouseUp  (x,y,btn),
 		Event::MouseDown(x,y,btn) => values::GuiEvent::MouseDown(x,y,btn),
 		}
 	}

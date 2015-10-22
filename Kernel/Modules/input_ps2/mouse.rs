@@ -74,16 +74,21 @@ impl Dev
 				if dx != 0 || dy != 0 {
 					self.guidev.move_cursor(dx, -dy);
 				}
-				if newbtns != self.btns {
+				let changed = newbtns ^ self.btns;
+				if changed != 0 {
 					for i in 0 .. 8 {
-						match ( (self.btns & 1 << i) != 0, (newbtns & 1 << i) != 0 ) {
-						(false, false) => {},
-						(false, true ) => self.guidev.press_button(i as u8),
-						(true , true ) => {},
-						(true , false) => self.guidev.release_button(i as u8),
+						let mask = 1 << i;
+						if (changed & mask) != 0 {
+							if (newbtns & mask) != 0 {
+								self.guidev.press_button(i as u8);
+							}
+							else {
+								self.guidev.release_button(i as u8);
+							}
 						}
 					}
 				}
+				self.btns = newbtns;
 				(None, State::Idle)
 				},
 			};
