@@ -84,6 +84,12 @@ impl fmt::Display for String
 		<str as fmt::Display>::fmt(&self, f)
 	}
 }
+impl fmt::Debug for String
+{
+	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+		<str as fmt::Debug>::fmt(&self, f)
+	}
+}
 
 impl<'a> From<&'a str> for String
 {
