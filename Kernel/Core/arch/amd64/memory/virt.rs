@@ -430,7 +430,7 @@ pub fn handle_page_fault(accessed_address: usize, error_code: u32) -> bool
 		::memory::virt::with_lock(accessed_address, || unsafe {
 			let frame = pte.addr();
 			// 2. Get the PMM to provide us with a unique copy of that frame (can return the same addr)
-			let newframe = ::memory::phys::make_unique(frame);
+			let newframe = ::memory::phys::make_unique( frame, &*(((accessed_address as usize) & !0xFFF) as *const [u8; 4096]) );
 			// 3. Remap to this page as UserRW (because COW is user-only atm)
 			pte.set(newframe, ProtectionMode::UserRW);
 			});

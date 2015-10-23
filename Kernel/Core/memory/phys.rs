@@ -85,7 +85,7 @@ fn is_ram(phys: PAddr) -> bool
 	false
 }
 
-pub fn make_unique(page: PAddr) -> PAddr
+pub fn make_unique(page: PAddr, virt_addr: &[u8; 0x1000]) -> PAddr
 {
 	if !is_ram(page) {
 		panic!("Calling 'make_unique' on non-RAM page");
@@ -94,7 +94,12 @@ pub fn make_unique(page: PAddr) -> PAddr
 		page
 	}
 	else {
-		todo!("make_unique");
+		// 1. Allocate a new frame in temp region
+		let mut new_frame = ::memory::virt::alloc_free().expect("TODO: handle OOM in make_unique");
+		// 2. Copy in content of old frame
+		// SAFE: Both are arrays of 0x1000 bytes
+		unsafe { ::core::ptr::copy_nonoverlapping(&virt_addr[0], &mut new_frame[0], 0x1000); }
+		new_frame.into_frame().into_addr()
 	}
 }
 
