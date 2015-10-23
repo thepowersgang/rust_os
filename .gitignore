@@ -33,6 +33,7 @@ Kernel/rundir/QemuLog.txt
 Kernel/rundir/qemu_trace
 Kernel/rundir/qemu_int_log.txt
 Kernel/rundir/*.ppm
+Kernel/rundir/*.png
 Kernel/rundir/*.dmp
 Kernel/rundir/DiskImages
 Kernel/rundir/trace-*
