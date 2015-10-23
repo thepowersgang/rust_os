@@ -88,13 +88,18 @@ impl Surface
 		let first_col = dirty.x().0 as usize;
 		let col_count = dirty.width().0 as usize;
 		
-		// Blit just the dirty region
-		win.blit_rect(
-			first_col as u32, first_row as u32,
-			col_count as u32, row_count as u32,
-			&self.data.borrow()[first_row*self.width + first_col .. ][ .. row_count*self.width],
-			self.width
-			);
+		if row_count == 0 || col_count == 0 {
+			kernel_log!("Surface::blit_to_win - nothing to blit");
+		}
+		else {
+			// Blit just the dirty region
+			win.blit_rect(
+				first_col as u32, first_row as u32,
+				col_count as u32, row_count as u32,
+				&self.data.borrow()[first_row*self.width + first_col .. ][ .. row_count*self.width],
+				self.width
+				);
+		}
 	}
 	pub fn invalidate_all(&mut self) {
 		self.dirty.set( self.rect() );

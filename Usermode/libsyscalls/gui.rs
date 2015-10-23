@@ -147,6 +147,10 @@ impl Window
 		assert!( data.len() >= rgn_size );
 		let data = &data[..rgn_size];
 
+		if w == 0 || h == 0 {
+			return;
+		}
+
 		// Assert that data length and h*stride agree
 		{
 			//assert!(data.len() > 0);
@@ -155,7 +159,7 @@ impl Window
 				} else {
 					1
 				};
-			assert_eq!(h_calc, h);
+			assert!(h_calc == h, "Calculated hight disagrees with stated - calc={}, stated={}", h_calc, h);
 		}
 
 		// SAFE: Syscall
