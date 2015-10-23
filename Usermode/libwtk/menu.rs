@@ -33,6 +33,9 @@ impl<I: MenuItems> Menu<I> {
 			items: items,
 		}
 	}
+	pub fn waiter(&self) -> WaitWrapper<I> {
+		WaitWrapper(self)
+	}
 
 	pub fn show(&self) {
 		kernel_log!("Showing menu");
@@ -74,12 +77,13 @@ impl<I: MenuItems> Menu<I> {
 			}
 			},
 		::InputEvent::KeyUp(KeyCode::Return) => {
-			// TODO: Close menu
 			self.items.select( *self.hilight.borrow() );
+			// TODO: Only hide menu if a sub-menu wasn't opened
+			self.window.hide();
 			true
 			},
 		::InputEvent::KeyUp(KeyCode::Esc) => {
-			// TODO: Close menu
+			self.window.hide();
 			false
 			},
 		// Mouse events need to be dispatched correctly
@@ -93,6 +97,7 @@ impl<I: MenuItems> Menu<I> {
 			let mut hl = self.hilight.borrow_mut();
 			*hl = idx;
 			self.items.select(idx);
+			self.window.hide();
 			true
 			},
 		//::InputEvent::MouseDown(x,y,btn) => false,

@@ -28,10 +28,11 @@ fn main()
 	let power_menu = {
 		use wtk::menu::{Menu,Entry,Spacer};
 		Menu::new("Power Menu", (
-			Entry::new("Restart", 0, "", || {}),
-			Entry::new("Shut Down", 0, "", || {}),
+			Entry::new("Restart", 0, "", || kernel_log!("TODO: Restart")),
+			Entry::new("Shut Down", 0, "", || kernel_log!("TODO: Shut down")),
 			))
 		};
+	//power_menu.set_pos(, MENU_BTN_WIDTH);
 
 	// Menu bar
 	// - Two buttons: Options and power
@@ -60,7 +61,7 @@ fn main()
 	password.bind_submit(|password, win| {
 		//win.hide();
 		if let Err(reason) = try_login(&username.get_content(), &password.get_content()) {
-			// TODO: Print error to the screen, as an overlay
+			// TODO: Print error to the screen, as an overlay (or another window?)
 			kernel_log!("Login failed - {:?}", reason);
 			//win.show_message("Login Failed", reason);
 		}
@@ -111,6 +112,7 @@ fn main()
 
 	::async::idle_loop(&mut [
 		&mut win,
+		&mut power_menu.waiter(),
 		]);
 }
 
