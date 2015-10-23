@@ -126,9 +126,8 @@ impl InputChannel
 	{
 		// Mouse movement, update cursor
 		self.cursor.move_pos(dx as i32, dy as i32);
-		// NOTE: Don't send movement event here, they're generated magically
-		//let (x,y) = self.cursor.pos();
-		//super::windows::handle_input(/*self, */Event::MouseMove(x, y, dx, dy));
+		let (x,y) = self.cursor.pos();
+		super::windows::handle_input(/*self, */Event::MouseMove(x, y, dx, dy));
 	}
 	pub fn handle_mouse_btn(&self, btn: u8, release: bool)
 	{

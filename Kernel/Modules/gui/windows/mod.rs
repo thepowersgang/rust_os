@@ -57,7 +57,8 @@ static S_WINDOW_GROUPS: LazyMutex<SparseVec< Arc<Mutex<WindowGroup>> >> = lazymu
 static S_CURRENT_GROUP: ::core::sync::atomic::AtomicUsize = ::core::sync::atomic::ATOMIC_USIZE_INIT;
 
 static S_RENDER_REQUEST: ::kernel::sync::EventChannel = ::kernel::sync::EVENTCHANNEL_INIT;
-static S_FULL_REDRAW: ::core::sync::atomic::AtomicBool = ::core::sync::atomic::ATOMIC_BOOL_INIT;
+static S_RENDER_NEEDED: atomic::AtomicBool = atomic::AtomicBool::new(false);
+static S_FULL_REDRAW: atomic::AtomicBool = atomic::AtomicBool::new(false);
 static S_EVENT_QUEUE: LazyStatic<::kernel::lib::ring_buffer::AtomicRingBuf<super::input::Event>> = lazystatic_init!();
 // Keep this lazy, as it's runtime initialised
 static S_RENDER_THREAD: LazyMutex<::kernel::threads::WorkerThread> = lazymutex_init!();
@@ -129,7 +130,8 @@ pub fn switch_active(new: usize)
 	// - Technically it shouldn't (reading the size is just racy, not unsafe), but representing that is nigh-on
 	//   impossible.
 	log_log!("Switching to group {}", new);
-	S_CURRENT_GROUP.store(new, ::core::sync::atomic::Ordering::Relaxed);
+	S_CURRENT_GROUP.store(new, atomic::Ordering::Relaxed);
+	S_RENDER_NEEDED.store(true, atomic::Ordering::Relaxed);
 	S_RENDER_REQUEST.post();
 }
 
@@ -144,7 +146,7 @@ fn render_thread()
 		
 		// Render the active window group
 		let (grp_idx, grp_ref) = {
-			let grp_idx = S_CURRENT_GROUP.load( ::core::sync::atomic::Ordering::Relaxed );
+			let grp_idx = S_CURRENT_GROUP.load( atomic::Ordering::Relaxed );
 			let wglh = S_WINDOW_GROUPS.lock();
 			match wglh.get(grp_idx)
 			{
@@ -153,7 +155,7 @@ fn render_thread()
 				},
 			None => {
 				log_log!("Selected group {} invalid, falling back to 0", grp_idx);
-				S_CURRENT_GROUP.store(0, ::core::sync::atomic::Ordering::Relaxed);
+				S_CURRENT_GROUP.store(0, atomic::Ordering::Relaxed);
 				(0, wglh[0].clone())
 				},
 			}
@@ -168,8 +170,11 @@ fn render_thread()
 			grp_ref.lock().handle_input(ev);
 		}
 		
-		log_debug!("render_thread: Rendering WG {} '{}'", grp_idx, grp_ref.lock().name);
-		grp_ref.lock().redraw( S_FULL_REDRAW.swap(false, ::core::sync::atomic::Ordering::Relaxed) );
+		if S_RENDER_NEEDED.swap(false, atomic::Ordering::Relaxed)
+		{
+			log_debug!("render_thread: Rendering WG {} '{}'", grp_idx, grp_ref.lock().name);
+			grp_ref.lock().redraw( S_FULL_REDRAW.swap(false, atomic::Ordering::Relaxed) );
+		}
 	}
 }
 
@@ -204,20 +209,82 @@ impl WindowGroup
 		}
 	}
 	
-	fn handle_input(&mut self, ev: super::input::Event) {
-		log_debug!("Focuessed window {}", self.focussed_window);
-		// - Apply shortcuts defined by the current session (TODO)
-		// - Pass events to the current window
-		if let Some(_) = self.get_render_idx( self.focussed_window )
+	fn get_win_at_pos(&self, x: u32, y: u32) -> Option<&(Pos, Arc<Window>)> {
+		let mut rv = None;
+		// Iterate render order finding the highest (latest) window which contains this point
+		for &(winidx, _) in &self.render_order
 		{
-			match self.windows.get( self.focussed_window )
-			{
-			Some(w) => w.1.handle_input(ev),
-			None => log_log!("Active window #{} not present", self.focussed_window),
+			let ptr = &self.windows[winidx];
+			let &(pos, ref win) = ptr;
+			let dims = win.dims();
+
+			if pos.x <= x && pos.y <= y {
+				if x < pos.x + dims.w && y < pos.y + dims.h {
+					rv = Some(ptr);
+				}
 			}
 		}
+		if let Some(v) = rv {
+			log_trace!("rv = Some({:p} &({:?}, {:p}))", v, v.0, v.1);
+		}
 		else {
-			self.focussed_window = 0;
+			log_trace!("rv = None");
+		}
+		rv
+	}
+
+	fn handle_input(&mut self, ev: super::input::Event) {
+		use super::input::Event;
+		match ev
+		{
+		Event::KeyDown(..) | Event::KeyUp(..) | Event::Text(..) => {
+			// - Apply shortcuts defined by the current session (TODO)
+			// - Pass events to the current window
+			if let Some(_) = self.get_render_idx( self.focussed_window )
+			{
+				match self.windows.get( self.focussed_window )
+				{
+				Some(w) => w.1.handle_input(ev),
+				None => log_log!("Active window #{} not present", self.focussed_window),
+				}
+			}
+			else {
+				self.focussed_window = 0;
+			}
+			},
+		Event::MouseMove(x,y, dx,dy) =>
+			if let Some(newwin) = self.get_win_at_pos(x,y)
+			{
+				//if self.mouse_last_win != &newwin {
+				//}
+				let Pos { x: bx, y: by } = newwin.0;
+				newwin.1.handle_input( Event::MouseMove(x - bx, y - by, dx, dy) );
+			}
+			else
+			{
+				//if !self.mouse_last_win.is_null() {
+				//}
+			},
+		Event::MouseDown(x,y, btn) =>
+			if let Some(newwin) = self.get_win_at_pos(x,y)
+			{
+				//self.mouse_down_win = &newwin;
+				let Pos { x: bx, y: by } = newwin.0;
+				newwin.1.handle_input( Event::MouseDown(x - bx, y - by, btn) );
+			},
+		Event::MouseUp(x,y, btn) =>
+			if let Some(newwin) = self.get_win_at_pos(x,y)
+			{
+				//if self.mouse_down_win != &newwin {
+				//}
+				let Pos { x: bx, y: by } = newwin.0;
+				newwin.1.handle_input( Event::MouseUp(x - bx, y - by, btn) );
+			}
+			else
+			{
+				//if !self.mouse_down_win.is_null() {
+				//}
+			},
 		}
 	}
 
@@ -315,7 +382,7 @@ impl WindowGroup
 			self.recalc_vis_int(prev_pos);
 
 			// TODO: Full redraw can be expensive... would prefer to force redraw of just the revealed region
-			S_FULL_REDRAW.store(true, ::core::sync::atomic::Ordering::Relaxed);
+			S_FULL_REDRAW.store(true, atomic::Ordering::Relaxed);
 		}
 	}
 	
@@ -438,11 +505,12 @@ impl WindowHandle
 	pub fn redraw(&mut self)
 	{
 		// if shown, mark self as requiring reblit and poke group
-		if self.grp != S_CURRENT_GROUP.load(::core::sync::atomic::Ordering::Relaxed) {
+		if self.grp != S_CURRENT_GROUP.load(atomic::Ordering::Relaxed) {
 			return ;
 		}
 		
 		self.get_win().mark_dirty();
+		S_RENDER_NEEDED.store(true, atomic::Ordering::Relaxed);
 		S_RENDER_REQUEST.post();
 	}
 	
