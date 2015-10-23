@@ -113,10 +113,18 @@ pub fn handle_input(event: super::input::Event)
 	// Push event to a FIFO queue (fixed-size)
 	// > Queue is cleared by the render thread
 	// > This method should be interrupt safe
-	match S_EVENT_QUEUE.push(event)
+	match event
 	{
-	Ok(_) => {},
-	Err(event) => log_notice!("Dropping event {:?}, queue full", event),
+	super::input::Event::MouseMove(x,y,dx,dy) => {
+		// TODO: Maintain a mouse movement cache
+		//S_MOVE_STATE.lock().update( dx, dy );
+		},
+	event @ _ =>
+		match S_EVENT_QUEUE.push(event)
+		{
+		Ok(_) => {},
+		Err(event) => log_notice!("Dropping event {:?}, queue full", event),
+		},
 	}
 	// > Prod a worker (e.g. the render thread) in an atomic way
 	S_RENDER_REQUEST.post();
@@ -224,12 +232,7 @@ impl WindowGroup
 				}
 			}
 		}
-		if let Some(v) = rv {
-			log_trace!("rv = Some({:p} &({:?}, {:p}))", v, v.0, v.1);
-		}
-		else {
-			log_trace!("rv = None");
-		}
+		log_trace!("rv = {:?}", rv);
 		rv
 	}
 
