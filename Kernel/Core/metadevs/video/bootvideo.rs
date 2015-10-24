@@ -267,12 +267,15 @@ impl super::Framebuffer for Framebuffer
 	}
 
 	fn move_cursor(&mut self, p: Option<Pos>) {
-		// 1. Un-render the cursor
-		self.unrender_cursor();
-		// 2. Update position
-		self.cursor_pos = p;
-		// 3. Re-render if required
-		self.render_cursor();
+		if p != self.cursor_pos
+		{
+			// 1. Un-render the cursor
+			self.unrender_cursor();
+			// 2. Update position
+			self.cursor_pos = p;
+			// 3. Re-render if required
+			self.render_cursor();
+		}
 	}
 }
 

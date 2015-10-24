@@ -50,7 +50,10 @@ impl CursorHandle
 		//}
 		self.global_pos = super::get_closest_visible_pos(pos);
 		if self.visible {
-			super::with_display_at_pos( self.global_pos, |surf| surf.fb.move_cursor(Some(pos)) );
+			super::with_display_at_pos( self.global_pos, |surf| {
+				let pos = self.global_pos - surf.region.pos();
+				surf.fb.move_cursor(Some(pos))
+				});
 		}
 	}
 	/// Show/hide the cursor

@@ -39,6 +39,15 @@ impl Pos
 		dx*dx + dy*dy
 	}
 }
+impl ::core::ops::Sub<Pos> for Pos {
+	type Output = Pos;
+	fn sub(self, other: Pos) -> Pos {
+		Pos {
+			x: self.x - other.x,
+			y: self.y - other.y,
+			}
+	}
+}
 
 impl Dims
 {
