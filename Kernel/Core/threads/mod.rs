@@ -78,7 +78,13 @@ pub fn yield_to(thread: Box<Thread>)
 	::arch::threads::switch_to( thread );
 }
 
-pub fn terminate_thread() -> ! {
+pub fn terminate_thread() -> !
+{
+	// NOTE: If TID0 (aka init's main thread) terminates, panic the kernel
+	if with_cur_thread(|cur| cur.get_tid() == 0) {
+		panic!("TID 0 terminated");
+	}
+
 	// NOTE: Can this just obtain a handle to the current thread then drop it?
 	// - No... kinda needs to be properly reaped. (so that no outstanding pointers exist)
 	//
