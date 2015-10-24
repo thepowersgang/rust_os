@@ -86,6 +86,32 @@ fn init()
 	}
 }
 
+
+// A picture of a sad ferris the crab
+// NOTE: Commented out, as uncompressed 32bpp is too large to be loaded
+//include!{"../../../../Graphics/.output/shared/panic.rs"}
+pub fn set_panic(file: &str, line: usize) {
+	static LOOP_PREVENT: ::core::sync::atomic::AtomicBool = ::core::sync::atomic::AtomicBool::new(false);
+	if LOOP_PREVENT.swap(true, ::core::sync::atomic::Ordering::Relaxed) {
+		return ;
+	}
+	const PANIC_COLOUR: u32 = 0x01346B;
+
+	for surf in S_DISPLAY_SURFACES.lock().iter_mut()
+	{
+		let dims = surf.fb.get_size();
+		surf.fb.fill(Rect::new_pd(Pos::new(0,0), dims), PANIC_COLOUR);
+		//if dims.w >= PANIC_IMAGE_DIMS.0 && dims.h >= PANIC_IMAGE_DIMS.1 {
+		//	let p = Pos::new(
+		//		(dims.w - PANIC_IMAGE_DIMS.0) / 2,
+		//		(dims.h - PANIC_IMAGE_DIMS.1) / 2,
+		//		);
+		//	let r = Rect::new_pd(p, Dims::new(PANIC_IMAGE_DIMS.0, PANIC_IMAGE_DIMS.1));
+		//	surf.fb.blit_buf(r, &PANIC_IMAGE_DATA);
+		//}
+	}
+}
+
 /// Set the boot video mode.
 ///
 /// NOTE: Must be called before this module is initialised to have any effect

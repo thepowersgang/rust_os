@@ -64,28 +64,8 @@ pub extern "C" fn rust_begin_unwind(msg: ::core::fmt::Arguments, file: &'static 
 	::arch::puth(line as u64);
 	::arch::puts("\n");
 	::arch::print_backtrace();
-	//log_debug!("msg={:?} file={:?} line={}", ::logging::HexDump(&msg), ::logging::HexDump(&file), line);
-	//log_panic!("rust_begin_unwind(file=\"{}\", line={}, msg=\"{:?}\")", file, line, msg);
 	log_panic!("{}:{}: Panicked \"{:?}\"", file, line, msg);
-	/*
-	// SAFE: Correctly calls extern function
-	unsafe {
-		let ex = box Exception {
-			cause: (),
-			header: _Unwind_Exception {
-				exception_class: EXCEPTION_CLASS,
-				exception_cleanup: cleanup,
-				private: [0,0],
-				}
-			};
-		let exptr: *const _Unwind_Exception = ::lib::mem::boxed::into_raw(ex);
-		log_trace!("exptr = {}", exptr);
-		_Unwind_RaiseException( exptr );
-	}
-	
-	fn cleanup(urc: _Unwind_Reason_Code, exception: *const _Unwind_Exception) {
-	}
-	// */
+	::metadevs::video::set_panic(file, line);
 	loop{}
 }
 #[lang="eh_personality"]
