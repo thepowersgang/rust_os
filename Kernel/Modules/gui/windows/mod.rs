@@ -25,6 +25,9 @@ use self::window::Window;
 /// Window groups combine windows into "sessions", that can be switched with magic key combinations
 struct WindowGroup
 {
+	/// Number of active handles to this window group
+	refcount: u32,
+
 	/// Window group name, may be shown to the user if requested
 	name: String,
 
@@ -202,6 +205,39 @@ fn render_thread()
 
 impl WindowGroup
 {
+	fn new(name: String) -> WindowGroup {
+		WindowGroup {
+			refcount: 1,
+			name: name,
+			focussed_window: 0,
+			windows: SparseVec::new(),
+			render_order: Vec::new(),
+			}
+	}
+	/// Increment the reference count
+	fn inc_ref(&mut self) {
+		assert!(self.refcount < !0);
+		self.refcount += 1;
+	}
+	/// Decrement the handle reference count
+	///
+	/// Returns `true` if the reference count reaches zero
+	fn deref(&mut self) -> bool
+	{
+		assert!(self.refcount > 0);
+		self.refcount -= 1;
+		if self.refcount == 0 {
+			// Delete all windows
+			self.focussed_window = 0;
+			self.render_order.truncate(0);
+			self.windows = Default::default();
+			true
+		}
+		else {
+			false
+		}
+	}
+
 	/// Re-draw this window group
 	fn redraw(&mut self, full: bool)
 	{
@@ -442,12 +478,7 @@ impl WindowGroup
 impl WindowGroupHandle
 {
 	pub fn alloc<T: Into<String>>(name: T) -> WindowGroupHandle {
-		let new_group = Arc::new( Mutex::new( WindowGroup {
-			name: T::into(name),
-			focussed_window: 0,
-			windows: SparseVec::new(),
-			render_order: Vec::new(),
-			} ) );
+		let new_group = Arc::new( Mutex::new( WindowGroup::new(name.into()) ) );
 		// Locate unused slot
 		let idx = {
 			let mut grps = S_WINDOW_GROUPS.lock();
@@ -462,6 +493,12 @@ impl WindowGroupHandle
 			};
 		WindowGroupHandle(idx)
 	}
+
+	fn with_wg<R, F: FnOnce(&mut WindowGroup)->R>(&self, fcn: F) -> R {
+		let wgs = S_WINDOW_GROUPS.lock();
+		let mut wgh = wgs[self.0].lock();
+		fcn( &mut wgh )
+	}
 	
 	pub fn create_window<T: Into<String>>(&mut self, name: T) -> WindowHandle {
 		// Allocate a new window from the list
@@ -474,12 +511,13 @@ impl WindowGroupHandle
 
 	/// Force this group to be the active group
 	pub fn force_active(&self) {
-		S_CURRENT_GROUP.store( self.0, atomic::Ordering::Relaxed )
+		switch_active(self.0);
 	}
 }
 impl Clone for WindowGroupHandle
 {
 	fn clone(&self) -> WindowGroupHandle {
+		self.with_wg(|wg| wg.inc_ref());
 		WindowGroupHandle( self.0 )
 	}
 }
@@ -487,8 +525,10 @@ impl ::core::ops::Drop for WindowGroupHandle
 {
 	fn drop(&mut self)
 	{
-		// TODO: This should decrement a reference count, and if zero cause the WG to be closed
-		todo!("Drop window group handle");
+		if self.with_wg(|wg| wg.deref()) == false {
+			S_WINDOW_GROUPS.lock().remove(self.0);
+			switch_active(0);
+		}
 	}
 }
 

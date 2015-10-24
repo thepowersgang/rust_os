@@ -54,7 +54,7 @@ impl<T> SparseVec<T>
 	}
 	/// Remove the item at the specified location
 	pub fn remove(&mut self, idx: usize) {
-		if self.data[idx].is_some()
+		if idx < self.data.len() && self.data[idx].is_some()
 		{
 			self.data[idx] = None;
 			self.count -= 1;

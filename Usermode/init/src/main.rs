@@ -25,6 +25,8 @@ fn main()
 		let mut waits = [session_root.wait_terminate()];
 		::syscalls::threads::wait(&mut waits, !0);
 		drop(session_root);	// drop before panicking (leads to better reaping)
+		::syscalls::threads::wait(&mut [], !0);
+
 		panic!("TODO: Handle login terminating");
 	}
 }
