@@ -257,6 +257,7 @@ impl ::core::ops::Drop for File
 		match self.mode
 		{
 		FileOpenMode::SharedRO => {},
+		FileOpenMode::Execute => {},
 		_ => todo!("File::drop() - mode={:?}", self.mode),
 		}
 		// TODO: For files, we need to release the lock
