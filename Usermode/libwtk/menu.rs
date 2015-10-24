@@ -38,6 +38,9 @@ impl<I: MenuItems> Menu<I> {
 		WaitWrapper(self)
 	}
 
+	pub fn set_pos(&self, pos: ::geom::Pos<::geom::Px>) {
+		self.window.set_pos( pos.x.0, pos.y.0 );
+	}
 	pub fn show(&self) {
 		kernel_log!("Showing menu");
 		self.render();
@@ -158,7 +161,7 @@ impl<'a> MenuItems for Vec<AnyItem<'a>> {
 	fn get_idx_at_y(&self, y: u32) -> usize {
 		let mut ofs = 0;
 		for (i,e) in self.iter().enumerate() {
-			let h = e.dims().height().0;
+			let h = e.dims().h;
 			if y < ofs + h {
 				return i;
 			}
@@ -167,13 +170,14 @@ impl<'a> MenuItems for Vec<AnyItem<'a>> {
 		return self.len();
 	}
 	fn total_dims(&self) -> (u32,u32) {
-		let mut rv = (0,0);
+		let (mut lw, mut rw, mut h) = (0, 0,0);
 		for e in self.iter() {
 			let d = e.dims();
-			rv.0 += ::std::cmp::max(d.width().0, rv.0);
-			rv.1 += d.height().0;
+			lw = ::std::cmp::max(lw, d.left_w);
+			rw = ::std::cmp::max(rw, d.right_w);
+			h += d.h;
 		}
-		rv
+		(lw + rw, h)
 	}
 	fn select(&self, index: usize) {
 		if index < self.len() {
@@ -186,7 +190,7 @@ impl<'a> MenuItems for Vec<AnyItem<'a>> {
 		let mut y = 0;
 		for (i,e) in self.iter().enumerate()
 		{
-			let h = e.dims().height().0;
+			let h = e.dims().h;
 			e.render(surf.slice(::geom::Rect::new( 0,y, !0,h)), i == focus);
 			y += h;
 		}
@@ -247,7 +251,7 @@ macro_rules! impl_menu_items_tuple {
 				1
 			}
 			fn get_idx_at_y(&$s, y: u32) -> usize {
-				if y < $v.dims().height().0 {
+				if y < $v.dims().h {
 					0
 				}
 				else {
@@ -256,7 +260,7 @@ macro_rules! impl_menu_items_tuple {
 			}
 			fn total_dims(&$s) -> (u32,u32) {
 				let d = $v.dims();
-				(d.width().0, d.height().0)
+				(d.left_w + d.right_w, d.h)
 			}
 			fn select(&$s, index: usize) {
 				if index == 0 {
@@ -274,14 +278,14 @@ macro_rules! impl_menu_items_tuple {
 				1 $(+ {let _ = $v; 1})*
 			}
 			fn get_idx_at_y(&$s, y: u32) -> usize {
-				let h = $v1.dims().height().0;
+				let h = $v1.dims().h;
 				if y < h {
 					return 0;
 				}
 				let mut ofs = h;
 				let mut i = 1;
 				$(
-				let h = $v.dims().height().0;
+				let h = $v.dims().h;
 				if y < ofs + h {
 					return i;
 				}
@@ -293,14 +297,14 @@ macro_rules! impl_menu_items_tuple {
 				i
 			}
 			fn total_dims(&$s) -> (u32,u32) {
-				let d = $v1.dims();
-				let mut rv = (d.width().0,d.height().0);
+				let ItemDims { left_w: mut lw, right_w: mut rw, mut h} = $v1.dims();
 				$(
 				let d = $v.dims();
-				rv.0 += ::std::cmp::max(d.width().0, rv.0);
-				rv.1 += d.height().0;
+				lw = ::std::cmp::max(lw, d.left_w);
+				rw = ::std::cmp::max(rw, d.right_w);
+				h += d.h;
 				)*
-				rv
+				(lw+rw, h)
 			}
 			fn select(&$s, index: usize) {
 				let mut i = 0 $(+ {let _ = $v; 1})*;
@@ -311,13 +315,13 @@ macro_rules! impl_menu_items_tuple {
 				)*
 			}
 			fn render(&$s, focus: usize, surf: ::surface::SurfaceView) {
-				let mut y = 0 $( + $v.dims().height().0)*;
+				let mut y = 0 $( + $v.dims().h)*;
 				let mut i = 0 $( + {let _ = $v; 1})*;
 
-				let h = $v1.dims().height().0;
+				let h = $v1.dims().h;
 				$v1.render(surf.slice(::geom::Rect::new(0,y, !0,h)), i == focus);
 				$(
-				let h = $v.dims().height().0;
+				let h = $v.dims().h;
 				y -= h;
 				i -= 1;
 				$v.render(surf.slice(::geom::Rect::new(0,y, !0,h)), i == focus);
@@ -330,10 +334,24 @@ macro_rules! impl_menu_items_tuple {
 // Only need one invocation, tuple args must be in reverse order.
 impl_menu_items_tuple! { self : I4 = self.4, I3 = self.3, I2 = self.2, I1 = self.1, I0 = self.0 }
 
-pub trait MenuItem {
-	fn dims(&self) -> ::geom::Rect<::geom::Px>;
+trait MenuItem {
+	fn dims(&self) -> ItemDims;
 	fn select(&self);
 	fn render(&self, surf: ::surface::SurfaceView, hover: bool);
+}
+struct ItemDims {
+	h: u32,
+	left_w: u32,
+	right_w: u32,
+}
+impl ItemDims {
+	fn new(h: u32, lw: u32, rw: u32) -> ItemDims {
+		ItemDims {
+			h: h,
+			left_w: lw,
+			right_w: rw,
+		}
+	}
 }
 
 
@@ -343,7 +361,7 @@ pub enum AnyItem<'a> {
 	Entry(Entry<&'a Fn()>),
 }
 impl<'a> MenuItem for AnyItem<'a> {
-	fn dims(&self) -> ::geom::Rect<::geom::Px> {
+	fn dims(&self) -> ItemDims {
 		match self
 		{
 		&AnyItem::Spacer(ref e) => e.dims(),
@@ -372,8 +390,8 @@ impl<'a> MenuItem for AnyItem<'a> {
 pub struct Spacer;
 
 impl MenuItem for Spacer {
-	fn dims(&self) -> ::geom::Rect<::geom::Px> {
-		::geom::Rect::new(0,0, 0,3)
+	fn dims(&self) -> ItemDims {
+		ItemDims::new(3, 0,0)
 	}
 	fn select(&self) {
 		// Do nothing
@@ -389,8 +407,9 @@ pub struct Label {
 }
 
 impl MenuItem for Label {
-	fn dims(&self) -> ::geom::Rect<::geom::Px> {
-		::geom::Rect::new(0,0, 0,18)
+	fn dims(&self) -> ItemDims {
+		let (w,h) = SurfaceView::size_text(self.value.chars());
+		ItemDims::new(2+h, 1+w, 0)
 	}
 	fn select(&self) {
 		// Do nothing
@@ -435,10 +454,10 @@ impl<A: Fn()> Entry<A> {
 	}
 }
 impl<A: Fn()> MenuItem for Entry<A> {
-	fn dims(&self) -> ::geom::Rect<::geom::Px> {
+	fn dims(&self) -> ItemDims {
 		const MARGIN_WIDTH: u32 = 1;
 		const LABEL_GAP: u32 = 5;
-		::geom::Rect::new(0,0, MARGIN_WIDTH*2 + self.label_width + LABEL_GAP + self.altlabel_width, MARGIN_WIDTH*2 + self.text_height)
+		ItemDims::new( MARGIN_WIDTH*2 + self.text_height, MARGIN_WIDTH + self.label_width + LABEL_GAP, self.altlabel_width + MARGIN_WIDTH )
 	}
 	fn select(&self) {
 		(self.action)()

@@ -48,6 +48,17 @@ impl<T: CoordType> ::std::fmt::Debug for Rect<T>
 	}
 }
 
+pub struct Pos<T: CoordType> {
+	pub x: T,
+	pub y: T,
+}
+impl<T: CoordType> ::std::fmt::Debug for Pos<T>
+{
+	fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
+		write!(f, "Pos({:?},{:?})", self.x, self.y)
+	}
+}
+
 impl<T: CoordType> Rect<T>
 {
 	pub fn new<U: Into<T>>(x: U, y: U, w: U, h: U) -> Rect<T> {
@@ -142,3 +153,14 @@ impl<T: CoordType> Rect<T>
 		rv
 	}
 }
+
+impl<T: CoordType> Pos<T>
+{
+	pub fn new<U: Into<T>>(x: U, y: U) -> Pos<T> {
+		Pos {
+			x: x.into(),
+			y: y.into(),
+			}
+	}
+}
+

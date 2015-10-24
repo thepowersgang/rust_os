@@ -5,6 +5,8 @@
 
 extern crate wtk;
 extern crate async;
+#[macro_use]
+extern crate syscalls;
 
 macro_rules! imgpath {
 		($p:expr) => {concat!("/system/Tifflin/shared/images/",$p)};
@@ -25,6 +27,17 @@ fn main()
 			Entry::new("Shut Down", 0, "", || {}),
 			))
 		};
+	//power_menu.set_pos( Pos::new(0,20) );
+	let system_menu = {
+		use wtk::menu::{Menu,Entry,Spacer};
+		Menu::new("System Menu", (
+			Entry::new("CLI", 0, "Win-T", || kernel_log!("TODO: Spawn GUI shell")),
+			Spacer,
+			Entry::new("Filesystem", 0, "Win-E", || kernel_log!("TODO: Spawn filesystem viewer")),
+			Entry::new("Text Editor", 5, "", || kernel_log!("TODO: Spawn text editor")),
+			))
+		};
+	system_menu.set_pos( ::wtk::geom::Pos::new(0,20) );
 	
 	let background = {
 		// Background image is "Ferris the crab" - credit to rustacean.net
@@ -62,6 +75,9 @@ fn main()
 		//win.taborder_add(1, &menubar.inner().3);
 		win
 		};
+	
+	win_menu.add_shortcut( &[::syscalls::gui::KeyCode::LeftGui], || system_menu.show() );
+	win_menu.add_shortcut( &[::syscalls::gui::KeyCode::RightGui], || system_menu.show() );
 
 	win_background.show();
 	win_menu.show();

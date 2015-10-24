@@ -14,7 +14,7 @@ extern crate macros;
 #[macro_use]
 extern crate syscalls;
 
-mod geom;
+pub mod geom;
 mod surface;
 
 mod window;

@@ -199,14 +199,14 @@ impl<'a> SurfaceView<'a>
 			);
 	}
 
-	pub fn size_text<It: Iterator<Item=char>>(chars: It) -> (usize,usize) {
+	pub fn size_text<It: Iterator<Item=char>>(chars: It) -> (u32,u32) {
 		let mut st = S_FONT.get_renderer();
 		let mut chars = chars.peekable();
 		let mut dims = (0,0);
 		while let Some( (w,h) ) = st.size_grapheme(&mut chars)
 		{
-			dims.0 += w as usize;
-			dims.1 = ::std::cmp::max(dims.1, h as usize);
+			dims.0 += w;
+			dims.1 = ::std::cmp::max(dims.1, h);
 		}
 		dims
 	}
