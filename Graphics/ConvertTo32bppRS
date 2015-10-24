@@ -14,6 +14,6 @@ convert $INFILE -depth 8 rgba:.tmp_image.raw
 echo "" > $OUTFILE
 echo "const ${SYMBOL}_DIMS: (u32,u32) = ($W,$H);" >> $OUTFILE
 echo "static ${SYMBOL}_DATA: [u32; $(($W*$H))] = [" >> $OUTFILE
-hexdump -v -e '16/4 "0x%08X, " "\n"' .tmp_image.raw | sed 's/0x00FFFFFF,/0x0,/g' >> $OUTFILE
+hexdump -v -e '16/4 "0x%08X, " "\n"' .tmp_image.raw | sed 's/0x00FFFFFF,/0x0,/g' | sed 's/ 0x        ,//g' >> $OUTFILE
 echo "];" >> $OUTFILE
 

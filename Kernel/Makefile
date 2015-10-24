@@ -99,6 +99,7 @@ ENV += TK_VERSION="0.1"
 ENV += TK_BUILD="$(shell hostname --fqdn):$(BUILDNUM)"
 
 LIBCORESRC := ../libcore/
+IMGDIR := ../Graphics/.output/shared/
 
 # - External crates
 EXT_CRATES := va_list stack_dst
@@ -249,6 +250,8 @@ SynExts/tag_safe/src/lib.rs:
 
 ../Graphics/logo.rs: ../Graphics/TifflinLogoV1-128.png ../Graphics/ConvertTo32bppRS
 	cd ../Graphics && ./ConvertTo32bppRS TifflinLogoV1-128.png logo.rs S_LOGO
+$(IMGDIR)%.rs: ../Graphics/ConvertTo32bppRS
+	cd ../Graphics && make $(@:../Graphics/%=%)
 
 -include $(OBJDIR)libkernel.d
 -include $(OBJDIR)libcore.d

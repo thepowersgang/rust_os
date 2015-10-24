@@ -9,6 +9,8 @@ all: $(addprefix $(SHARED_DIR),power.r8 options.r8 background.r24)
 # NOTE: This is actually done in Kernel/Makefile
 $(SHARED_DIR)logo.rs: TifflinLogoV1-128.png Makefile ConvertTo32bppRS
 	./ConvertTo32bppRS $< $@ S_LOGO
+#$(SHARED_DIR)panic.rs: PanicImage.png Makefile ConvertTo32bppRS
+#	./ConvertTo32bppRS $< $@ PANIC_IMAGE
 
 %.r8:
 	mkdir -p $(dir $@)
