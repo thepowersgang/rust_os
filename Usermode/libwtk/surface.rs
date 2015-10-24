@@ -199,7 +199,7 @@ impl<'a> SurfaceView<'a>
 			);
 	}
 
-	pub fn size_text<It: Iterator<Item=char>>(&self, chars: It) -> (usize,usize) {
+	pub fn size_text<It: Iterator<Item=char>>(chars: It) -> (usize,usize) {
 		let mut st = S_FONT.get_renderer();
 		let mut chars = chars.peekable();
 		let mut dims = (0,0);

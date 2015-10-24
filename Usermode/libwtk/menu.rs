@@ -5,6 +5,7 @@
 //! Pop-up menu support
 use geom::Rect;
 use surface::Colour;
+use surface::{SurfaceView};
 
 pub struct Menu<I: MenuItems>
 {
@@ -408,6 +409,7 @@ where
 	accel_ofs: usize,
 	altlabel: String,
 
+	text_height: u32,
 	label_width: u32,
 	altlabel_width: u32,
 	
@@ -418,9 +420,12 @@ impl<A: Fn()> Entry<A> {
 	pub fn new<Lab: Into<String>, Alt: Into<String>>(label: Lab, accel: usize, alt: Alt, action: A) -> Entry<A> {
 		let label = label.into();
 		let altlabel = alt.into();
+		let label_dims = SurfaceView::size_text(label.chars());
+		let altlabel_dims = SurfaceView::size_text(altlabel.chars());
 		Entry {
-			label_width: label.len() as u32 * 8,
-			altlabel_width: altlabel.len() as u32 * 8,
+			text_height: ::std::cmp::max(label_dims.1, altlabel_dims.1) as u32,
+			label_width: label_dims.0 as u32,
+			altlabel_width: altlabel_dims.0 as u32,
 
 			label: label,
 			accel_ofs: accel,
@@ -433,7 +438,7 @@ impl<A: Fn()> MenuItem for Entry<A> {
 	fn dims(&self) -> ::geom::Rect<::geom::Px> {
 		const MARGIN_WIDTH: u32 = 1;
 		const LABEL_GAP: u32 = 5;
-		::geom::Rect::new(0,0, MARGIN_WIDTH*2 + self.label_width + LABEL_GAP + self.altlabel_width, MARGIN_WIDTH*2 + 16)
+		::geom::Rect::new(0,0, MARGIN_WIDTH*2 + self.label_width + LABEL_GAP + self.altlabel_width, MARGIN_WIDTH*2 + self.text_height)
 	}
 	fn select(&self) {
 		(self.action)()
