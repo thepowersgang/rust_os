@@ -130,7 +130,6 @@ pub fn handle_input(event: super::input::Event)
 	match event
 	{
 	super::input::Event::MouseMove(x,y, _dx,_dy) => {
-		// TODO: Maintain a mouse movement cache
 		S_MOVE_STATE.lock().update( x, y );
 		},
 	event @ _ =>
@@ -176,6 +175,10 @@ fn render_thread()
 			Some(r) => {
 				(grp_idx, r.clone())
 				},
+			None if grp_idx == 0 => {
+				log_notice!("Group 0 invalid, sleeping render thread");
+				continue;
+				},
 			None => {
 				log_log!("Selected group {} invalid, falling back to 0", grp_idx);
 				S_CURRENT_GROUP.store(0, atomic::Ordering::Relaxed);
@@ -185,6 +188,7 @@ fn render_thread()
 			};
 		
 		// Check for events
+		// TODO: Could this be moved into the `handle_input()` function?
 		while let Some(ev) = S_EVENT_QUEUE.pop()
 		{
 			// - TODO: Filter out global bindings (e.g. session switch and lock combos)
@@ -192,8 +196,8 @@ fn render_thread()
 			// - Just pass on to active group
 			grp_ref.lock().handle_input(ev);
 		}
-		if let Some( (x,y, dx,dy) ) = S_MOVE_STATE.lock().take()
-		{
+		// - If the mouse has moved since last trigger, pass that on to the group
+		if let Some( (x,y, dx,dy) ) = S_MOVE_STATE.lock().take() {
 			grp_ref.lock().handle_input( super::input::Event::MouseMove(x,y, dx,dy) );
 		}
 		
