@@ -40,7 +40,6 @@ impl<I: MenuItems> Menu<I> {
 	pub fn show(&self) {
 		kernel_log!("Showing menu");
 		self.render();
-		self.buffer.blit_to_win(&self.window);
 		self.window.show();
 	}
 	
@@ -50,6 +49,7 @@ impl<I: MenuItems> Menu<I> {
 	pub fn render(&self) {
 		let bh = &self.buffer;
 		self.items.render( *self.hilight.borrow(), bh.slice(Rect::new(0,0, !0,!0)) );
+		self.buffer.blit_to_win(&self.window);
 	}
 
 	fn handle_event(&self, ev: ::InputEvent) -> bool {
@@ -89,6 +89,7 @@ impl<I: MenuItems> Menu<I> {
 		// Mouse events need to be dispatched correctly
 		::InputEvent::MouseMove(_x,y,_dx,_dy) => {
 			let idx = self.items.get_idx_at_y(y);
+			kernel_log!("New hilight = {}", idx);
 			*self.hilight.borrow_mut() = idx;
 			true
 			},
