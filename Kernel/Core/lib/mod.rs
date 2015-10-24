@@ -170,5 +170,32 @@ pub fn as_byte_slice<T: POD>(s: &T) -> &[u8] {
 	unsafe { ::core::slice::from_raw_parts(s as *const _ as *const u8, ::core::mem::size_of::<T>()) }
 }
 
+/// Zip adapter for ExactSizeIterator (easier for the optimiser)
+pub struct ExactZip<A,B>(usize,A,B);
+impl<A,B> ExactZip<A,B>
+where
+	A: ExactSizeIterator, B: ExactSizeIterator
+{
+	pub fn new(a: A, b: B) -> ExactZip<A,B> {
+		let size = ::core::cmp::min(a.len(), b.len());
+		ExactZip(size, a, b)
+	}
+}
+impl<A,B> Iterator for ExactZip<A,B>
+where
+	A: ExactSizeIterator, B: ExactSizeIterator
+{
+	type Item = (A::Item, B::Item);
+	fn next(&mut self) -> Option<(A::Item, B::Item)> {
+		if self.0 == 0 {
+			None
+		}
+		else {
+			self.0 -= 1;
+			Some( (self.1.next().unwrap(), self.2.next().unwrap()) )
+		}
+	}
+}
+
 // vim: ft=rust
 

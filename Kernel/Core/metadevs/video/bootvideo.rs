@@ -195,13 +195,13 @@ impl super::Framebuffer for Framebuffer
 
 		let bpp = output_fmt.bytes_per_pixel();
 		// Iterate across destination row nums and source rows
-		for (row,src) in (dst.top() .. dst.bottom()).zip( buf.chunks(src_pitch) )
+		for (row,src) in Iterator::zip( dst.top() .. dst.bottom(), buf.chunks(src_pitch) )
 		{
 			let seg = self.buffer.scanline_slice(row as usize, dst.left() as usize, dst.right() as usize);
 			match output_fmt
 			{
 			VideoFormat::X8R8G8B8 => {
-				for (px,&col) in Iterator::zip( seg.chunks_mut(bpp), src.iter() )
+				for (px,&col) in ::lib::ExactZip::new( seg.chunks_mut(bpp), src.iter() )
 				{
 					px[0] = ((col >>  0) & 0xFF) as u8;
 					px[1] = ((col >>  8) & 0xFF) as u8;
@@ -210,7 +210,7 @@ impl super::Framebuffer for Framebuffer
 				}
 				},
 			VideoFormat::R5G6B5 => {
-				for (px,&col) in Iterator::zip( seg.chunks_mut(bpp), src.iter() )
+				for (px,&col) in ::lib::ExactZip::new( seg.chunks_mut(bpp), src.iter() )
 				{
 					let col16 = output_fmt.col_from_xrgb(col);
 					px[0] = ((col16 >>  0) & 0xFF) as u8;
@@ -373,7 +373,7 @@ impl CursorData
 		match format
 		{
 		VideoFormat::X8R8G8B8 => {
-			for (px, &val) in Iterator::zip( dst.chunks_mut(bpp), data.iter() )
+			for (px, &val) in ::lib::ExactZip::new( dst.chunks_mut(bpp), data.iter() )
 			{
 				if let Some(colour) = self.get_colour(val)
 				{
@@ -385,7 +385,7 @@ impl CursorData
 			}
 			},
 		VideoFormat::R5G6B5 => {
-			for (px, &val) in Iterator::zip( dst.chunks_mut(bpp), data.iter() )
+			for (px, &val) in ::lib::ExactZip::new( dst.chunks_mut(bpp), data.iter() )
 			{
 				if let Some(colour) = self.get_colour(val)
 				{
