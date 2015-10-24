@@ -96,7 +96,7 @@ impl Surface
 			win.blit_rect(
 				first_col as u32, first_row as u32,
 				col_count as u32, row_count as u32,
-				&self.data.borrow()[first_row*self.width + first_col .. ][ .. row_count*self.width],
+				&self.data.borrow()[first_row*self.width + first_col .. ][ .. row_count*self.width - first_col],
 				self.width
 				);
 		}

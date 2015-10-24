@@ -58,23 +58,30 @@ impl<I: MenuItems> Menu<I> {
 		{
 		::InputEvent::KeyUp(KeyCode::UpArrow) => {
 			let mut hl = self.hilight.borrow_mut();
-			if *hl > 0 {
-				*hl += 1;
-				true
+			// If the hilight is !0, wrap to the bottom
+			if *hl == !0 {
+				*hl = self.items.count()-1;
+			}
+			else if *hl > 0 {
+				*hl -= 1;
 			}
 			else {
-				false
+				*hl = !0;
 			}
+			true
 			},
 		::InputEvent::KeyUp(KeyCode::DownArrow) => {
 			let mut hl = self.hilight.borrow_mut();
-			if *hl < self.items.count()-1 {
+			if *hl == !0 {
+				*hl = 0;
+			}
+			else if *hl < self.items.count()-1 {
 				*hl += 1;
-				true
 			}
 			else {
-				false
+				*hl = !0;
 			}
+			true
 			},
 		::InputEvent::KeyUp(KeyCode::Return) => {
 			self.items.select( *self.hilight.borrow() );
@@ -90,8 +97,8 @@ impl<I: MenuItems> Menu<I> {
 		::InputEvent::MouseMove(_x,y,_dx,_dy) => {
 			let idx = self.items.get_idx_at_y(y);
 			kernel_log!("New hilight = {}", idx);
-			*self.hilight.borrow_mut() = idx;
-			true
+			// Return true only if the hilight changed
+			::std::mem::replace(&mut *self.hilight.borrow_mut(), idx) != idx
 			},
 		::InputEvent::MouseUp(_x,y,0) => {
 			let idx = self.items.get_idx_at_y(y);
