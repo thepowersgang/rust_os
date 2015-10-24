@@ -21,6 +21,7 @@ pub trait Counter {
 }
 
 /// Generic reference counted allocation
+#[unsafe_no_drop_flag]
 pub struct Grc<C: Counter, T: ?Sized> {
 	ptr: NonZero<*mut GrcInner<C, T>>
 }
@@ -91,6 +92,13 @@ impl<C: Counter, T: ?Sized> Grc<C, T>
 		}
 		else {
 			None
+		}
+	}
+
+	fn dropped_ptr() -> *mut GrcInner<C,T> {
+		// SAFE: Constructs a junk pointer, but that pointer should never be dereferenced
+		unsafe {
+			::core::mem::transmute_copy(&[0x1du8; 24])
 		}
 	}
 }
@@ -170,10 +178,17 @@ impl<C: Counter, T: ?Sized> ops::Drop for Grc<C, T>
 			use core::intrinsics::drop_in_place;
 			use core::mem::{size_of_val,align_of_val};
 			let ptr = *self.ptr;
-			if (*ptr).strong.dec() // && (*ptr).weak.is_zero()
+			if ptr == Self::dropped_ptr()
 			{
-				drop_in_place( &mut (*ptr).val );
-				::memory::heap::dealloc_raw(ptr as *mut (), size_of_val(&*ptr), align_of_val(&*ptr));
+				// Double-drop
+			}
+			else {
+				if (*ptr).strong.dec() // && (*ptr).weak.is_zero()
+				{
+					drop_in_place( &mut (*ptr).val );
+					::memory::heap::dealloc_raw(ptr as *mut (), size_of_val(&*ptr), align_of_val(&*ptr));
+				}
+				self.ptr = NonZero::new( Self::dropped_ptr() );
 			}
 		}
 	}
