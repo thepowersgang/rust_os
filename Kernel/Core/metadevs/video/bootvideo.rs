@@ -172,12 +172,15 @@ impl super::Framebuffer for Framebuffer
 		if dst.dims() != src.dims() {
 			return ;
 		}
+		//let redraw_cursor = self.clobber_cursor(dst) || self.clobber_cursor(src);
 		todo!("Framebuffer::blit_inner");
 	}
 	fn blit_ext(&mut self, _dst: Rect, _src: Rect, _srf: &super::Framebuffer) -> bool {
 		false
 	}
 	fn blit_buf(&mut self, dst: Rect, buf: &[u32]) {
+		let redraw_cursor = self.clobber_cursor(dst);
+
 		//log_trace!("Framebuffer::blit_buf(dst={})", dst);
 		let output_fmt = self.buffer.mode.fmt;
 		let src_pitch = dst.w() as usize;
@@ -217,8 +220,14 @@ impl super::Framebuffer for Framebuffer
 			fmt @ _ => todo!("Framebuffer::blit_buf - {:?}", fmt),
 			}
 		}
+
+		if redraw_cursor {
+			self.render_cursor();
+		}
 	}
 	fn fill(&mut self, dst: Rect, colour: u32) {
+		let redraw_cursor = self.clobber_cursor(dst);
+
 		let output_fmt = self.buffer.mode.fmt;
 		assert!(dst.left()  <  self.buffer.mode.width as u32);
 		assert!(dst.right() <= self.buffer.mode.width as u32);
@@ -251,6 +260,10 @@ impl super::Framebuffer for Framebuffer
 			fmt @ _ => todo!("Framebuffer::blit_buf - {:?}", fmt),
 			}
 		}
+
+		if redraw_cursor {
+			self.render_cursor();
+		}
 	}
 
 	fn move_cursor(&mut self, p: Option<Pos>) {
@@ -265,10 +278,23 @@ impl super::Framebuffer for Framebuffer
 
 impl Framebuffer
 {
+	fn cursor_rect(&self) -> Option<Rect> {
+		self.cursor_pos.map(|p| Rect::new_pd(p, self.cursor_data.dims))
+	}
+	/// Returns true if modifying the provided rect will clobber the cursor
+	///
+	/// NOTE: Also hides the cursor in preparation for update
+	fn clobber_cursor(&mut self, rect: Rect) -> bool {
+		let clobbered = self.cursor_rect().and_then(|r| r.intersect(&rect)).is_some();
+
+		if clobbered {
+			self.unrender_cursor();
+		}
+		clobbered
+	}
 	fn unrender_cursor(&mut self) {
-		if let Some(p) = self.cursor_pos
+		if let Some(r) = self.cursor_rect()
 		{
-			let r = Rect::new_pd(p, self.cursor_data.dims);
 			let bpp = self.buffer.mode.fmt.bytes_per_pixel();
 			
 			for (src, row) in Iterator::zip( self.cursor_cache.chunks(self.cursor_data.dims.w as usize * bpp),  r.top() .. r.bottom() )
@@ -285,12 +311,10 @@ impl Framebuffer
 
 	fn render_cursor(&mut self)
 	{
-		if let Some(p) = self.cursor_pos
+		if let Some(r) = self.cursor_rect()
 		{
 			let output_fmt = self.buffer.mode.fmt;
 			let bpp = output_fmt.bytes_per_pixel();
-
-			let r = Rect::new_pd(p, self.cursor_data.dims);
 			
 			// 1. Save the area of the screen underneath the cursor
 			// 2. Render the cursor over this area
