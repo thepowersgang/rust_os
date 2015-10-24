@@ -191,6 +191,8 @@ def_classes! {
 	}|{
 		/// Fires when the input queue is non-empty
 		=0: EV_GUI_WIN_INPUT,
+		///// Fires when focus is lost/gained
+		//=1: EV_GUI_WIN_FOCUS,
 	}
 }
 

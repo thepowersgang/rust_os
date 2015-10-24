@@ -81,11 +81,16 @@ unsafe fn get_entry(level: u8, index: usize, force_allocate: bool) -> PTE
 	{
 	0 => {
 		assert!(index < 512*512*512*512);
+		assert!(tab_pml4[index >> 27] & 1 != 0);
+		assert!(tab_pdp[index >> 18] & 1 != 0);
+		assert!(tab_pd[index >> 9] & 1 != 0);
 		PTE::new(PTEPos::Page4K, &mut tab_pt[index as usize])
 		}
 	1 => {
 		const MAX_IDX: usize = 512*512*512;
 		assert!(index < MAX_IDX);
+		assert!(tab_pml4[index >> 18] & 1 != 0);
+		assert!(tab_pdp[index >> 9] & 1 != 0);
 		let rv = PTE::new(PTEPos::Page2M, &mut tab_pd[index]);
 		if !rv.is_present() && force_allocate {
 			let ptr = &mut tab_pt[index * 512] as *mut u64 as *mut ();
@@ -101,6 +106,7 @@ unsafe fn get_entry(level: u8, index: usize, force_allocate: bool) -> PTE
 	2 => {
 		const MAX_IDX: usize = 512*512;
 		assert!(index < MAX_IDX);
+		assert!(tab_pml4[index >> 9] & 1 != 0);
 		let rv = PTE::new(PTEPos::Page1G, &mut tab_pdp[index]);
 		if !rv.is_present() && force_allocate {
 			let ptr = &mut tab_pd[index * 512] as *mut u64 as *mut ();
@@ -260,7 +266,7 @@ pub unsafe fn unmap(addr: *mut ()) -> Option<PAddr>
 		};
 	pte.set( 0, ::memory::virt::ProtectionMode::Unmapped );
 	
-	asm!("invlpg ($0)" : : "r" (addr) : "memory" : "volatile");
+	invlpg(addr);
 	
 	rv
 }
@@ -433,12 +439,13 @@ pub fn handle_page_fault(accessed_address: usize, error_code: u32) -> bool
 			let newframe = ::memory::phys::make_unique( frame, &*(((accessed_address as usize) & !0xFFF) as *const [u8; 4096]) );
 			// 3. Remap to this page as UserRW (because COW is user-only atm)
 			pte.set(newframe, ProtectionMode::UserRW);
+			invlpg( (accessed_address & !0xFFF) as *mut () );
 			});
 		return true;
 	}
 	//  > Paged-out pages
 	if error_code & FAULT_LOCKED == 0 && !pte.is_null() {
-		todo!("Paged");
+		todo!("Paged - pte = {:?}", pte);
 	}
 	
 	
@@ -507,6 +514,7 @@ impl<T> ::core::ops::Drop for TempHandle<T> {
 		// SAFE: Owned allocation
 		unsafe {
 			get_page_ent(self.0 as usize, false, LargeOk::No).set(0, ProtectionMode::Unmapped);
+			invlpg(self.0 as *mut ());
 		}
 		S_TEMP_FREE.release();
 	}

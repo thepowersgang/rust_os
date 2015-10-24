@@ -31,7 +31,7 @@ fn main()
 	let system_menu = {
 		use wtk::menu::{Menu,Entry,Spacer};
 		Menu::new("System Menu", (
-			Entry::new("CLI", 0, "Win-T", || kernel_log!("TODO: Spawn GUI shell")),
+			Entry::new("CLI", 0, "Win-T", || start_app(&["/sysroot/bin/simple_console", "--windowed"])),
 			Spacer,
 			Entry::new("Filesystem", 0, "Win-E", || kernel_log!("TODO: Spawn filesystem viewer")),
 			Entry::new("Text Editor", 5, "", || kernel_log!("TODO: Spawn text editor")),
@@ -85,9 +85,24 @@ fn main()
 	::async::idle_loop(&mut [
 		&mut win_background,
 		&mut win_menu,
-		//&mut ::wtk::menu::WaitWrapper(&power_menu),
+		&mut system_menu.waiter(),
+		&mut power_menu.waiter(),
 		]);
 
+}
+
+fn start_app(args: &[&str]) {
+	extern crate loader;
+	kernel_log!("start_app(args={:?})", args);
+	// SAFE: &str and &[u8] have the same representation
+	let byte_args: &[&[u8]] = unsafe { ::std::mem::transmute(&args[1..]) };
+	match loader::new_process(args[0].as_bytes(), byte_args)
+	{
+	Ok(app) => {
+		app.send_obj( ::syscalls::gui::clone_group_handle() );
+		},
+	Err(_e) => {},
+	}
 }
 
 

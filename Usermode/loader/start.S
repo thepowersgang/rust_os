@@ -147,8 +147,9 @@ GLOBAL(image_header)
 	DEFPTR start
 
 .section .bss
+	.space 0x1000	/* Guard page */
 GLOBAL(init_stack_base)
-	.space 0x2000
+	.space 0x8000
 GLOBAL(init_stack_end)
 
 GLOBAL(arg_count)	.space 4

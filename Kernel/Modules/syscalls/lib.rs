@@ -232,7 +232,12 @@ fn invoke_int(call_id: u32, mut args: &[usize]) -> Result<u64,Error>
 			},
 		MEM_DEALLOCATE => {
 			let addr = try!(<usize>::get_arg(&mut args));
-			todo!("MEM_DEALLOCATE({:#x})", addr)
+			// SAFE: This internally does checks, but is marked as unsafe as a signal
+			match unsafe { ::kernel::memory::virt::reprotect_user(addr as *mut (), ::kernel::memory::virt::ProtectionMode::Unmapped) }
+			{
+			Ok( () ) => 0,
+			Err( () ) => error_code(0) as u64,
+			}
 			},
 		// === *: Default
 		_ => {

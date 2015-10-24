@@ -31,6 +31,15 @@ pub extern "C" fn loader_main(cmdline: *mut u8, cmdline_len: usize) -> !
 	kernel_log!("loader_main({:p}, {})", cmdline, cmdline_len);
 	// SAFE: (barring bugs in caller) Transmute just keeps 'mut' on the OsStr
 	let cmdline: &mut ::std::ffi::OsStr = unsafe { ::std::mem::transmute( ::std::slice::from_raw_parts_mut(cmdline, cmdline_len) ) };
+
+	// 0. Generate a guard page (by deallocating a special guard page just before the stack)
+	// SAFE: The memory freed is reserved explicitly for use as a guard page
+	//unsafe {
+	//	extern "C" {
+	//		static init_stack_base: [u8; 0];
+	//	}
+	//	let _ = ::syscalls::memory::deallocate( (init_stack_base.as_ptr() as usize) - 0x1000 );
+	//}
 	
 	// 1. Print the INIT parameter from the kernel
 	kernel_log!("- cmdline={:?}", cmdline);
@@ -94,6 +103,7 @@ impl<T> ::std::ops::DerefMut for FixedVec<T> {
 /// Panics if it fails to load, returns the entrypoint
 fn load_binary(path: &::std::ffi::OsStr) -> usize
 {
+	kernel_log!("load_binary({:?})", path);
 	// - Open the init path passed in `cmdline`
 	let mut handle = match ::elf::load_executable(path)
 		{
@@ -104,6 +114,7 @@ fn load_binary(path: &::std::ffi::OsStr) -> usize
 		};
 	
 	let entrypoint = handle.get_entrypoint();
+	kernel_log!("- entrypoint = {:#x}", entrypoint);
 	
 	let mut found_segment_for_entry = false;
 	// I would love to use a for loop here, but getting access the file is hard using that

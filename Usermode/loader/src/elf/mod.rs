@@ -56,7 +56,11 @@ pub fn load_executable(path: &::std::ffi::OsStr) -> Result<ElfModuleHandle<File>
 	}
 	
 	// 2. Read header
+	::syscalls::log_write("Reading header");
 	let hdr = try!( Header::parse_partial(&elf_ident, &mut fh) );
+	::syscalls::log_write("Header read");
+	kernel_log!("Text only");
+	kernel_log!("elf_ident = {:?}", elf_ident);
 	kernel_log!("hdr = {:?}", hdr);
 	Ok(ElfModuleHandle{
 		file: fh,
@@ -860,23 +864,26 @@ impl Header
 		match objsize
 		{
 		Size::Elf32 => {
-			let objtype = ObjectType::from( try!(file.read_u16::<LittleEndian>()) );
-			let machine = Machine::from( try!(file.read_u16::<LittleEndian>()) );
-			let version = try!(file.read_u32::<LittleEndian>());
+			let data = { let mut d = [0; 36]; try!(file.read(&mut d)); d };
+			let mut data = &data[..];
+
+			let objtype = ObjectType::from( try!(data.read_u16::<LittleEndian>()) );
+			let machine = Machine::from( try!(data.read_u16::<LittleEndian>()) );
+			let version = try!(data.read_u32::<LittleEndian>());
 			if version != 1 {
 				kernel_log!("Unknown elf version: {}", version);
 				return Err(Error::Unsupported);
 			}
-			let e_entry = try!(file.read_u32::<LittleEndian>());
-			let e_phoff = try!(file.read_u32::<LittleEndian>());
-			let _e_shoff = try!(file.read_u32::<LittleEndian>());
-			let _e_flags = try!(file.read_u32::<LittleEndian>());
-			let _e_ehsize = try!(file.read_u16::<LittleEndian>());
-			let e_phentsize = try!(file.read_u16::<LittleEndian>());
-			let e_phnum     = try!(file.read_u16::<LittleEndian>());
-			let _e_shentsize = try!(file.read_u16::<LittleEndian>());
-			let _e_shnum     = try!(file.read_u16::<LittleEndian>());
-			let _e_shstrndx  = try!(file.read_u16::<LittleEndian>());
+			let e_entry = try!(data.read_u32::<LittleEndian>());
+			let e_phoff = try!(data.read_u32::<LittleEndian>());
+			let _e_shoff = try!(data.read_u32::<LittleEndian>());
+			let _e_flags = try!(data.read_u32::<LittleEndian>());
+			let _e_ehsize = try!(data.read_u16::<LittleEndian>());
+			let e_phentsize = try!(data.read_u16::<LittleEndian>());
+			let e_phnum     = try!(data.read_u16::<LittleEndian>());
+			let _e_shentsize = try!(data.read_u16::<LittleEndian>());
+			let _e_shnum     = try!(data.read_u16::<LittleEndian>());
+			let _e_shstrndx  = try!(data.read_u16::<LittleEndian>());
 			Ok( Header {
 				object_size: Size::Elf32, endian: endian,
 				object_type: objtype,
@@ -889,23 +896,26 @@ impl Header
 				})
 			},
 		Size::Elf64 => {
-			let objtype = ObjectType::from( try!(file.read_u16::<LittleEndian>()) );
-			let machine = Machine::from( try!(file.read_u16::<LittleEndian>()) );
-			let version = try!(file.read_u32::<LittleEndian>());
+			let data = { let mut d = [0; 48]; try!(file.read(&mut d)); d };
+			let mut data = &data[..];
+
+			let objtype = ObjectType::from( try!(data.read_u16::<LittleEndian>()) );
+			let machine = Machine::from( try!(data.read_u16::<LittleEndian>()) );
+			let version = try!(data.read_u32::<LittleEndian>());
 			if version != 1 {
 				kernel_log!("Unknown elf version: {}", version);
 				return Err(Error::Unsupported);
 			}
-			let e_entry = try!(file.read_u64::<LittleEndian>());
-			let e_phoff = try!(file.read_u64::<LittleEndian>());
-			let _e_shoff = try!(file.read_u64::<LittleEndian>());
-			let _e_flags = try!(file.read_u32::<LittleEndian>());
-			let _e_ehsize = try!(file.read_u16::<LittleEndian>());
-			let e_phentsize = try!(file.read_u16::<LittleEndian>());
-			let e_phnum     = try!(file.read_u16::<LittleEndian>());
-			let _e_shentsize = try!(file.read_u16::<LittleEndian>());
-			let _e_shnum     = try!(file.read_u16::<LittleEndian>());
-			let _e_shstrndx  = try!(file.read_u16::<LittleEndian>());
+			let e_entry = try!(data.read_u64::<LittleEndian>());
+			let e_phoff = try!(data.read_u64::<LittleEndian>());
+			let _e_shoff = try!(data.read_u64::<LittleEndian>());
+			let _e_flags = try!(data.read_u32::<LittleEndian>());
+			let _e_ehsize = try!(data.read_u16::<LittleEndian>());
+			let e_phentsize = try!(data.read_u16::<LittleEndian>());
+			let e_phnum     = try!(data.read_u16::<LittleEndian>());
+			let _e_shentsize = try!(data.read_u16::<LittleEndian>());
+			let _e_shnum     = try!(data.read_u16::<LittleEndian>());
+			let _e_shstrndx  = try!(data.read_u16::<LittleEndian>());
 			Ok( Header {
 				object_size: Size::Elf64, endian: endian,
 				object_type: objtype,

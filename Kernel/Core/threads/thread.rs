@@ -164,7 +164,7 @@ impl Process
 impl ProcessHandle
 {
 	pub fn new<S: Into<String>+::core::fmt::Debug>(name: S, clone_start: usize, clone_end: usize) -> ProcessHandle {
-		ProcessHandle( Process::new(name, ::memory::virt::AddressSpace::new(clone_start, clone_end)) )
+		ProcessHandle( Process::new(name, ::memory::virt::AddressSpace::new(clone_start, clone_end).expect("ProcessHandle::new - OOM")) )
 	}
 	
 	pub fn start_root_thread(&mut self, ip: usize, sp: usize) {

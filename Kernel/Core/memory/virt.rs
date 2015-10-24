@@ -212,6 +212,7 @@ pub unsafe fn map(addr: *mut (), phys: PAddr, prot: ProtectionMode)
 	if ::arch::memory::virt::is_reserved(addr)
 	{
 		log_notice!("Mapping {:#x} to {:p}, collision", phys, addr);
+		::arch::print_backtrace();
 		// TODO: This needs to return an error!
 	}
 	else
@@ -226,6 +227,7 @@ pub unsafe fn reprotect_user(addr: *mut (), prot: ProtectionMode) -> Result<(),(
 {
 	match prot
 	{
+	ProtectionMode::Unmapped => {},
 	ProtectionMode::UserRX => {},
 	ProtectionMode::UserRO => {},
 	_ => panic!("Invalid protection mode passed to reprotect_user - {:?}", prot),
@@ -237,7 +239,14 @@ pub unsafe fn reprotect_user(addr: *mut (), prot: ProtectionMode) -> Result<(),(
 		Err( () )
 	}
 	else {
-		::arch::memory::virt::reprotect(addr, prot);
+		if prot == ProtectionMode::Unmapped {
+			if let Some(paddr) = ::arch::memory::virt::unmap(addr) {
+				::memory::phys::deref_frame(paddr);
+			}
+		}
+		else {
+			::arch::memory::virt::reprotect(addr, prot);
+		}
 		Ok( () )
 	}
 }
@@ -734,20 +743,6 @@ impl<T: ::lib::POD> ::core::ops::DerefMut for ArrayHandle<T>
 	}
 }
 
-/// Handle for an entire address space
-#[derive(Debug)]
-pub struct AddressSpace(::arch::memory::virt::AddressSpace);
-impl AddressSpace
-{
-	pub fn new(clone_start: usize, clone_end: usize) -> AddressSpace {
-		AddressSpace( ::arch::memory::virt::AddressSpace::new(clone_start, clone_end).unwrap() )
-	}
-	pub fn pid0() -> AddressSpace {
-		AddressSpace( ::arch::memory::virt::AddressSpace::pid0() )
-	}
-	pub fn inner(&self) -> &::arch::memory::virt::AddressSpace {
-		&self.0
-	}
-}
+pub use arch::memory::virt::AddressSpace;
 
 // vim: ft=rust

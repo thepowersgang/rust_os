@@ -32,7 +32,7 @@ pub extern "C" fn new_process(binary: &[u8], args: &[&[u8]]) -> Result<::syscall
 		static mut arg_count: u32;
 	}
 	
-	kernel_log!("new_process('{:?}', ...)", ::std::ffi::OsStr::new(binary));
+	kernel_log!("new_process({:?}, ...)", ::std::ffi::OsStr::new(binary));
 	
 	// Lock loader until after 'start_process', allowing global memory to be used as buffer for binary and arguments
 	// - After start_process, we can safely release and reuse the memory (becuase this space is cloned into the new process)
@@ -43,8 +43,12 @@ pub extern "C" fn new_process(binary: &[u8], args: &[&[u8]]) -> Result<::syscall
 	unsafe {
 		arg_count = (args.len() + 1) as u32;
 	}
+	let buf_end = init_path_end.as_ptr() as usize;
+	let buf_start = init_path.as_ptr() as usize;
+	let len = buf_end - buf_start;
+	assert!(buf_end > buf_start, "Init path symbols out of order: init_path_end({:#x}) !> init_path({:#x})", buf_end, buf_start );
 	// SAFE: Locked (so access is unique), and pointers are valid
-	let buf = unsafe { ::std::slice::from_raw_parts_mut(init_path.as_ptr() as *mut u8, init_path_end.as_ptr() as usize - init_path.as_ptr() as usize) };
+	let buf = unsafe { ::std::slice::from_raw_parts_mut(buf_start as *mut u8, len) };
 	let mut builder = NullStringBuilder( buf );
 	try!( builder.push(binary) );
 	for arg in args {
@@ -55,7 +59,10 @@ pub extern "C" fn new_process(binary: &[u8], args: &[&[u8]]) -> Result<::syscall
 	// Spawn new process
 	match ::syscalls::threads::start_process(name, new_process_entry as usize, init_stack_end.as_ptr() as usize, BASE.as_ptr() as usize, LIMIT.as_ptr() as usize)
 	{
-	Ok(v) => Ok( v ),
+	Ok(v) => {
+		kernel_log!("new_process - spawned");
+		Ok( v )
+		},
 	Err(e) => panic!("TODO: new_process - Error '{:?}'", e),
 	}
 	
