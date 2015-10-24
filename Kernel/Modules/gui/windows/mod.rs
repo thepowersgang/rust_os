@@ -51,6 +51,15 @@ pub struct WindowHandle
 	win: usize,
 }
 
+#[derive(Default)]
+struct CursorPos {
+	old_x: u32,
+	old_y: u32,
+	new_x: u32,
+	new_y: u32,
+	is_dirty: bool,
+}
+
 // - 13 sessions, #0 is fixed to be the kernel's log 1-12 are bound to F1-F12
 const C_MAX_SESSIONS: usize = 13;
 static S_WINDOW_GROUPS: LazyMutex<SparseVec< Arc<Mutex<WindowGroup>> >> = lazymutex_init!();
@@ -60,6 +69,7 @@ static S_RENDER_REQUEST: ::kernel::sync::EventChannel = ::kernel::sync::EVENTCHA
 static S_RENDER_NEEDED: atomic::AtomicBool = atomic::AtomicBool::new(false);
 static S_FULL_REDRAW: atomic::AtomicBool = atomic::AtomicBool::new(false);
 static S_EVENT_QUEUE: LazyStatic<::kernel::lib::ring_buffer::AtomicRingBuf<super::input::Event>> = lazystatic_init!();
+static S_MOVE_STATE: Mutex<CursorPos> = Mutex::new(CursorPos::new());
 // Keep this lazy, as it's runtime initialised
 static S_RENDER_THREAD: LazyMutex<::kernel::threads::WorkerThread> = lazymutex_init!();
 
@@ -115,9 +125,9 @@ pub fn handle_input(event: super::input::Event)
 	// > This method should be interrupt safe
 	match event
 	{
-	super::input::Event::MouseMove(x,y,dx,dy) => {
+	super::input::Event::MouseMove(x,y, _dx,_dy) => {
 		// TODO: Maintain a mouse movement cache
-		//S_MOVE_STATE.lock().update( dx, dy );
+		S_MOVE_STATE.lock().update( x, y );
 		},
 	event @ _ =>
 		match S_EVENT_QUEUE.push(event)
@@ -176,6 +186,10 @@ fn render_thread()
 			//  > NOTE: Session switch is currently handled by the input code
 			// - Just pass on to active group
 			grp_ref.lock().handle_input(ev);
+		}
+		if let Some( (x,y, dx,dy) ) = S_MOVE_STATE.lock().take()
+		{
+			grp_ref.lock().handle_input( super::input::Event::MouseMove(x,y, dx,dy) );
 		}
 		
 		if S_RENDER_NEEDED.swap(false, atomic::Ordering::Relaxed)
@@ -594,6 +608,43 @@ impl ::core::ops::Drop for WindowHandle
 		// WindowHandle uniquely owns the window, so can just drop it
 		let wg = self.get_wg();
 		wg.lock().drop_window( self.win );
+	}
+}
+
+impl CursorPos
+{
+	const fn new() -> CursorPos {
+		CursorPos {
+			old_x: 0, old_y: 0,
+			new_x: 0, new_y: 0,
+			is_dirty: false
+		}
+	}
+	fn update(&mut self, x: u32, y: u32) {
+		self.new_x = x;
+		self.new_y = y;
+		self.is_dirty = true;
+		log_debug!("CursorPos::update - ({},{})", x,y);
+	}
+	fn is_dirty(&self) -> bool {
+		self.is_dirty
+	}
+	fn take(&mut self) -> Option<(u32,u32, i16,i16)> {
+		if self.is_dirty()
+		{
+			let dx = (self.new_x as i32 - self.old_x as i32) as i16;
+			let dy = (self.new_y as i32 - self.old_y as i32) as i16;
+			self.is_dirty = false;
+			self.old_x = self.new_x;
+			self.old_y = self.new_y;
+			let rv = (self.new_x, self.new_y,  dx, dy);
+			log_debug!("CursorPos::take - {:?}", rv);
+			Some( rv )
+		}
+		else
+		{
+			None
+		}
 	}
 }
 

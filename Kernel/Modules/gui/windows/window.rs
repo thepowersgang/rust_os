@@ -49,6 +49,7 @@ impl_fmt! {
 }
 pub struct WindowInput {
 	queue: Mutex<RingBuf<input::Event>>,
+	cursor: Mutex<super::CursorPos>,
 	waiters: ::kernel::async::queue::Source,
 }
 
@@ -77,6 +78,7 @@ impl Window
 			input: WindowInput {
 				queue: Mutex::new(RingBuf::new(16)),
 				waiters: Default::default(),
+				cursor: Default::default(),
 				},
 		}
 	}
@@ -110,8 +112,7 @@ impl Window
 
 	pub fn handle_input(&self, ev: input::Event) {
 		// TODO: Filter events according to a map
-		let _ = self.input.queue.lock().push_back(ev);	// sliently drop extra events?
-		self.input.waiters.wake_one();
+		self.input.push_event(ev);
 	}
 	
 	/// Resize the window
@@ -239,18 +240,38 @@ impl Window
 
 impl WindowInput
 {
+	pub fn push_event(&self, ev: input::Event)
+	{
+		// TODO: Coalesce mouse movement events
+		match ev
+		{
+		input::Event::MouseMove(x,y, _dx,_dy) => {
+			self.cursor.lock().update(x,y)
+			},
+		ev @ _ => {
+			let _ = self.queue.lock().push_back(ev);	// sliently drop extra events?
+			},
+		}
+		self.waiters.wake_one();
+	}
+
 	pub fn pop_event(&self) -> Option<input::Event> {
 		let mut lh = self.queue.lock();
 		let rv = lh.pop_front();
 		if ! lh.is_empty() {
 			self.waiters.wake_one();
 		}
-		// TODO: Auto-generate a mouse move event (and don't store them)
-		rv
+		if rv.is_some() {
+			rv
+		}
+		else {
+			self.cursor.lock().take()
+				.map( |(x,y, dx,dy)| input::Event::MouseMove(x, y, dx, dy) )
+		}
 	}
 	pub fn wait(&self, obj: &mut ::kernel::threads::SleepObject) {
 		self.waiters.wait_upon(obj);
-		if ! self.queue.lock().is_empty() {
+		if ! self.queue.lock().is_empty() || self.cursor.lock().is_dirty() {
 			obj.signal()
 		}
 	}
