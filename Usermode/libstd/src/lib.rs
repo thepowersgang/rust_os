@@ -29,7 +29,7 @@ pub use collections::slice;
 
 // Raw re-exports from core
 pub use core::{option, result};
-pub use core::{/*slice, */str, ptr};
+pub use core::{/*slice, */str, ptr, char};
 pub use core::{iter, clone};
 pub use core::{mem, cmp, ops};
 pub use core::{default, cell};

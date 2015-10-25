@@ -15,7 +15,7 @@ extern crate macros;
 extern crate syscalls;
 
 pub mod geom;
-mod surface;
+pub mod surface;
 
 mod window;
 mod layout;

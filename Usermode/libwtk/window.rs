@@ -6,6 +6,9 @@ use geom::Rect;
 use syscalls::Object;
 use syscalls::gui::KeyCode;
 
+// TODO: I would _love_ to make Window generic over the root element, but due to the borrows in `focus`,`taborder`, and `shortcuts_0`, this is nigh-on-impossible
+// - Especially if you want &mut to the root
+
 /// Toolkit window
 pub struct Window<'a>
 {

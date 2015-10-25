@@ -19,16 +19,20 @@ pub struct Surface<'a>
 	fill_colour: u32,
 }
 
-/// Trait to provde 'is_combining', used by render code
-trait UnicodeCombining
-{
-	fn is_combining(&self) -> bool;
-}
-
 impl<'a> Surface<'a>
 {
 	pub fn new(window: &Window, pos: Rect) -> Surface {
 		const FILL_COLOUR: u32 = 0x33_00_00;
+		let win_dims = window.get_dims();
+		let max_dims = Dims { w: win_dims.w - pos.p.x, h: win_dims.h - pos.p.y };
+		
+		let pos = Rect {
+			p: pos.p,
+			d: Dims {
+				w: ::std::cmp::min(pos.d.w, max_dims.w),
+				h: ::std::cmp::min(pos.d.h, max_dims.h),
+				},
+			};
 		Surface {
 			window: window,
 			cur_row: 0,
@@ -152,23 +156,6 @@ impl<'a> Surface<'a>
 					r[col] = colour.as_argb32();
 				}
 			}
-		}
-	}
-}
-
-impl UnicodeCombining for char
-{
-	fn is_combining(&self) -> bool
-	{
-		match *self as u32
-		{
-		// Ranges from wikipedia:Combining_Character
-		0x0300 ... 0x036F => true,
-		0x1AB0 ... 0x1AFF => true,
-		0x1DC0 ... 0x1DFF => true,
-		0x20D0 ... 0x20FF => true,
-		0xFE20 ... 0xFE2F => true,
-		_ => false,
 		}
 	}
 }

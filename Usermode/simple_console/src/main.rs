@@ -9,96 +9,115 @@ extern crate syscalls;
 
 extern crate cmdline_words_parser;
 
-use syscalls::Object;
+extern crate wtk;
+extern crate async;
 
-use syscalls::gui::Colour;
+use wtk::Colour;
 
-mod terminal_surface;
-mod terminal;
+mod terminal_element;
+
+//mod terminal_surface;
+//mod terminal;
 
 mod input;
 
-use std::fmt::Write;
 
-fn main() {
-	use syscalls::gui::{Group,Window};
-	
-	use syscalls::threads::{S_THIS_PROCESS,ThisProcessWaits};
-	::syscalls::threads::wait(&mut [S_THIS_PROCESS.get_wait(ThisProcessWaits::new().recv_obj())], !0);
-	::syscalls::gui::set_group( S_THIS_PROCESS.receive_object::<Group>(0).unwrap() );
+trait Terminal
+{
+	fn set_foreground(&self, col: ::wtk::Colour);
+	fn flush(&self);
+	fn cur_col(&self) -> usize;
+	fn delete_left(&self);
+	fn delete_right(&self);
+	fn cursor_left(&self);
 
-	// Create maximised window
-	let window = Window::new("Console").unwrap();
-	window.maximise();
-	window.fill_rect(0,0, !0,!0, 0x33_00_00);   // A nice rust-like red :)
-
-	// Create terminal
-	let mut term = terminal::Terminal::new(&window, ::syscalls::gui::Rect::new(0,0, 1920,1080));
-	let mut input = input::InputStack::new();
-	// Print header
-	{
-		let mut buf = [0; 128];
-		term.set_foreground( Colour::def_green() );
-		let _ = write!(&mut term, "{}\n",  ::syscalls::get_text_info(::syscalls::TEXTINFO_KERNEL, 0, &mut buf));	// Kernel 0: Version line
-		term.set_foreground( Colour::def_yellow() );
-		let _ = write!(&mut term, " {}\n", ::syscalls::get_text_info(::syscalls::TEXTINFO_KERNEL, 1, &mut buf));	// Kernel 1: Build line
-		term.set_foreground( Colour::white() );
-		let _ = write!(&mut term, "Simple console\n");
-	}
-	window.show();
-	
-	// Initial prompt
-	term.write_str("> ").unwrap();
-	term.flush();
-
-	let mut shell = ShellState::new();
-
-	loop {
-		// Bind to receive events relating to the window
-		let mut events = [window.get_wait( ::syscalls::gui::WindowWaits::new().input() )];
-		
-		::syscalls::threads::wait(&mut events, !0);
-	
-		while let Some(ev) = window.pop_event()
-		{
-			if let Some(buf) = input.handle_event(ev, |a| render_input(&mut term, a))
-			{
-				kernel_log!("buf = {:?}", buf);
-				term.write_str("\n").unwrap();
-				term.flush();
-				window.redraw();
-
-				// XXX: Lazy option really... would maybe be cleaner to either have a flag in `shell` or just explicitly
-				//      exit when the exit command is invoked
-				if buf == "exit" {
-					return ;
-				}
-
-				shell.handle_command(&mut term, buf);
-				// - If the command didn't print a newline, print one for it
-				if term.cur_col() != 0 {
-					term.write_str("\n").unwrap();
-				}
-				// New prompt
-				term.write_str("> ").unwrap();
+	fn write_str(&self, s: &str);
+	fn write_fmt(&self, args: ::std::fmt::Arguments) {
+		struct Adapter<'a, T: 'a + ?Sized + Terminal>(&'a T);
+		impl<'a,T: ?Sized + 'a + Terminal> ::std::fmt::Write for Adapter<'a, T> {
+			fn write_str(&mut self, s: &str) -> ::std::fmt::Result {
+				self.0.write_str(s);
+				Ok( () )
 			}
-			term.flush();
-			window.redraw();
 		}
-		
-		window.check_wait(&events[0]);
+		let _ = ::std::fmt::write(&mut Adapter(self), args);
 	}
 }
 
+fn main() {
+
+	let maximised = true;
+	
+	::wtk::initialise();
+
+	let mut shell = ShellState::new();
+	let mut input = input::InputStack::new();
+	let term_ele = ::terminal_element::TerminalElement::new(
+		|_window, term, ev|
+		if let Some(buf) = input.handle_event(ev, |a| render_input(term, a))
+		{
+			kernel_log!("buf = {:?}", buf);
+			term.write_str("\n");
+
+			// XXX: Lazy option really... would maybe be cleaner to either have a flag in `shell` or just explicitly
+			//      exit when the exit command is invoked
+			if buf == "exit" {
+				::syscalls::threads::exit(0);
+			}
+
+			shell.handle_command(term, buf);
+			// - If the command didn't print a newline, print one for it
+			if term.cur_col() != 0 {
+				term.write_str("\n");
+			}
+			// New prompt
+			term.write_str("> ");
+		}
+		);
+
+	// Create maximised window
+	let mut window = ::wtk::Window::new("Console", &term_ele, ::wtk::Colour::from_argb32(0x330000));//.unwrap();
+	if maximised {
+		window.maximise();
+		//None
+	}
+	else {
+		window.set_dims(80*8+10, 25*16+20);
+		//window.set_title("Console");
+	}
+
+	// Create terminal
+	// Print header
+	{
+		let mut buf = [0; 128];
+		term_ele.set_foreground( Colour::from_argb32(0x00FF00) );
+		let _ = write!(term_ele, "{}\n",  ::syscalls::get_text_info(::syscalls::TEXTINFO_KERNEL, 0, &mut buf));	// Kernel 0: Version line
+		term_ele.set_foreground( Colour::from_argb32(0xFFFF00) );
+		let _ = write!(term_ele, " {}\n", ::syscalls::get_text_info(::syscalls::TEXTINFO_KERNEL, 1, &mut buf));	// Kernel 1: Build line
+		term_ele.set_foreground( Colour::from_argb32(0xFFFFFF) );
+		let _ = write!(term_ele, "Simple console\n");
+	}
+	// Initial prompt
+	term_ele.write_str("> ");
+
+	window.focus(&term_ele);
+	window.show();
+
+	::async::idle_loop(&mut [
+		&mut window,
+		]);
+}
+
+
 // Render callback for input stack
-fn render_input(term: &mut terminal::Terminal, action: input::Action)
+fn render_input<T: Terminal>(term: &T, action: input::Action)
 {
 	use input::Action;
 	match action
 	{
 	Action::Backspace => term.delete_left(),
 	Action::Delete => term.delete_right(),
-	Action::Puts(s) => term.write_str(s).unwrap(),
+	Action::Puts(s) => term.write_str(s),
 	}
 }
 
@@ -120,7 +139,7 @@ impl ShellState
 		Default::default()
 	}
 	/// Handle a command
-	pub fn handle_command(&mut self, term: &mut terminal::Terminal, mut cmdline: String)
+	pub fn handle_command<T: Terminal>(&mut self, term: &T, mut cmdline: String)
 	{
 		use cmdline_words_parser::StrExt;
 		let mut args = cmdline.parse_cmdline_words();
@@ -169,7 +188,7 @@ impl ShellState
 }
 
 /// List the contents of a directory
-fn command_ls(term: &mut terminal::Terminal, path: &str)
+fn command_ls<T: ::Terminal>(term: &T, path: &str)
 {
 	use syscalls::vfs::{NodeType, Node, Dir, File, Symlink};
 	let mut handle = match Dir::open(path)
@@ -222,6 +241,30 @@ fn command_ls(term: &mut terminal::Terminal, path: &str)
 		NodeType::Special => print!(term, "*"),
 		}
 		print!(term, "\n");
+	}
+}
+
+
+/// Trait to provde 'is_combining', used by render code
+pub trait UnicodeCombining
+{
+	fn is_combining(&self) -> bool;
+}
+
+impl UnicodeCombining for char
+{
+	fn is_combining(&self) -> bool
+	{
+		match *self as u32
+		{
+		// Ranges from wikipedia:Combining_Character
+		0x0300 ... 0x036F => true,
+		0x1AB0 ... 0x1AFF => true,
+		0x1DC0 ... 0x1DFF => true,
+		0x20D0 ... 0x20FF => true,
+		0xFE20 ... 0xFE2F => true,
+		_ => false,
+		}
 	}
 }
 
