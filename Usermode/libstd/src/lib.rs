@@ -100,6 +100,8 @@ pub mod ffi;
 
 pub mod hash;
 
+pub mod env;
+
 //pub extern crate std_io as io;
 extern crate std_io;
 pub use std_io as io;

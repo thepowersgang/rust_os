@@ -33,6 +33,7 @@ fn is_unicode_private(v: char) -> bool {
 	}
 }
 
+/// NOTE: This `String` stores foreground/background colours using the unicode private codepoint ranges
 struct Line(String, ::std::cell::Cell<bool>);
 impl Line {
 	fn new() -> Line {

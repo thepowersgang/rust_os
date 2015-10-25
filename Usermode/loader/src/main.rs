@@ -24,6 +24,7 @@ pub mod interface;
 mod load;
 
 // Main: This is the initial boot entrypoint
+// NOTE: If you're looking for the new process entrypoint, see interface.rs
 #[no_mangle]
 #[cfg(not(building_loader_lib))]
 pub extern "C" fn loader_main(cmdline: *mut u8, cmdline_len: usize) -> !

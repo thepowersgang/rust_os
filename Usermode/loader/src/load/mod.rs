@@ -48,7 +48,7 @@ impl_fmt! {
 ///
 /// TODO: Needs support for weak symbols, and multiple namespaces (or preferential namespaces)
 pub fn lookup_symbol(name: &::std::ffi::OsStr) -> Option<(usize, usize)> {
-	match name.as_ref()
+	match name.as_bytes()
 	{
 	b"new_process" => Some( (::interface::new_process as usize, 0) ),
 	_ => todo!("lookup_symbol({:?})", name),

@@ -44,9 +44,19 @@ trait Terminal
 	}
 }
 
-fn main() {
-
-	let maximised = true;
+fn main()
+{
+	// TODO: Get this from command line options
+	let mut maximised = false;
+	for arg in ::std::env::args_os().skip(1) {
+		match arg.as_bytes()
+		{
+		b"--maximised" => {maximised = true;},
+		_ => {
+			kernel_log!("Unknown arg {:?}", arg);
+			},
+		}
+	}
 	
 	::wtk::initialise();
 
@@ -78,11 +88,13 @@ fn main() {
 	// Create maximised window
 	let mut window = ::wtk::Window::new("Console", &term_ele, ::wtk::Colour::from_argb32(0x330000));//.unwrap();
 	if maximised {
+		//window.undecorate();
 		window.maximise();
 		//None
 	}
 	else {
-		window.set_dims(80*8+10, 25*16+20);
+		window.set_pos(50, 50);
+		window.set_dims(160*8+10, 25*16+20);
 		//window.set_title("Console");
 	}
 

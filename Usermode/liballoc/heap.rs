@@ -225,6 +225,13 @@ impl AllocState
 			&mut *self.past_end
 			};
 		self.past_end = cb.next();
+
+		if cb as *mut Block != self.start {
+			// SAFE: Not the first block, and even if we were using a freelist, it wouldn't be a problem
+			unsafe {
+				cb.try_merge_left();
+			}
+		}
 	}
 	fn free_blocks(&mut self) -> FreeBlocks {
 		FreeBlocks { cur: self.start, state: self, }
@@ -293,6 +300,16 @@ impl Block
 		(*pt).head_ptr
 	}
 
+	/// UNSAFE: Calls self.prev(), so has same caveats
+	unsafe fn try_merge_left(&mut self) {
+		let prev = &mut *self.prev();
+		if let BlockState::Free = prev.state
+		{
+			prev.size += self.size;
+			self.tail().head_ptr = prev;
+		}
+	}
+
 	fn self_free(&mut self) -> Option<&mut Self> {
 		if let BlockState::Free = self.state {
 			Some(self)
@@ -319,7 +336,7 @@ impl Block
 	fn allocate(&mut self, size: usize, align: usize) -> *mut () {
 		let dataofs = self.get_data_ofs(align);
 		assert!(dataofs == size_of::<Block>());
-		kernel_log!("size = {}, cap = {}", size, self.capacity(align));
+		kernel_log!("Block:allocate(self={:p}, size={:#x}, align={}) cap = {:#x}", self, size, align, self.capacity(align));
 		assert!(size <= self.capacity(align));
 
 		self.state = BlockState::Used(size);

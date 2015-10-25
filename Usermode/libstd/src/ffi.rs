@@ -11,10 +11,19 @@ impl OsStr
 		// SAFE: OsStr is [u8]
 		unsafe { ::core::mem::transmute(s.as_ref()) }
 	}
+
+	pub fn as_bytes(&self) -> &[u8] {
+		self.as_ref()
+	}
 }
 impl AsRef<[u8]> for OsStr {
 	fn as_ref(&self) -> &[u8] {
 		&self.0
+	}
+}
+impl AsRef<OsStr> for OsStr {
+	fn as_ref(&self) -> &OsStr {
+		self
 	}
 }
 
@@ -38,5 +47,45 @@ impl_fmt!{
 		try!(write!(f, "\""));
 		Ok( () )
 	}}
+	Debug(self,f) for OsString {
+		self.as_os_str().fmt(f)
+	}
+}
+impl ::core::cmp::PartialEq for OsStr {
+	fn eq(&self, other: &OsStr) -> bool {
+		&self.0 == &other.0
+	}
+}
+impl ::core::cmp::PartialEq<str> for OsStr {
+	fn eq(&self, other: &str) -> bool {
+		&self.0 == other.as_bytes()
+	}
+}
+
+#[derive(Clone)]
+pub struct OsString(::collections::Vec<u8>);
+impl OsString {
+	pub fn new() -> OsString {
+		OsString(::collections::Vec::new())
+	}
+	pub fn as_os_str(&self) -> &OsStr {
+		&self
+	}
+}
+impl ::core::ops::Deref for OsString {
+	type Target = OsStr;
+	fn deref(&self) -> &OsStr {
+		OsStr::new(&self.0)
+	}
+}
+impl<'a, T: 'a + ?Sized + AsRef<OsStr>> From<&'a T> for OsString {
+	fn from(v: &T) -> OsString {
+		OsString(From::from(&v.as_ref().0))
+	}
+}
+impl ::core::cmp::PartialEq<str> for OsString {
+	fn eq(&self, other: &str) -> bool {
+		&*self.0 == other.as_bytes()
+	}
 }
 
