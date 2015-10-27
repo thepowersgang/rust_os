@@ -104,7 +104,9 @@ impl<'a> Window<'a>
 
 	/// Disable window decorations on this window
 	pub fn undecorate(&mut self) {
-		//panic!("TODO: undecorate");
+		// TODO: Decide if decoratons should be done client-side, or server-side.
+		// - Client is slightly cleaner architectually
+		// - Server is more reliable, but has comms costs and server bloat
 		self.needs_force_rerender = true;
 	}
 

@@ -17,6 +17,7 @@ pub use self::winbuf::WinBuf;
 /// Handle to the backing buffer of a window
 pub type BufHandle = Arc<WinBuf>;
 
+mod decorations;
 mod window;
 mod winbuf;
 

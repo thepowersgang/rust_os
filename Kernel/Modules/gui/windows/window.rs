@@ -59,8 +59,8 @@ pub struct WindowFlags
 	/// If true, the window is maximised, and should be resized with the screen
 	pub maximised: bool,
 	
-	///// If true, the group's decorator should skip this window
-	//pub undecorated: bool,
+	/// If true, this window should have decorations rendered for it
+	pub decorated: bool,
 }
 
 
@@ -114,12 +114,24 @@ impl Window
 		// TODO: Filter events according to a map
 		self.input.push_event(ev);
 	}
+
+	fn redecorate(&self) {
+		if self.flags.lock().decorated
+		{
+			let dims = self.dims();
+			// Draw decorations using decoraton template
+			let template = &super::decorations::WINDOW_TEMPLATE;
+			template.render(&self.buf.read(), Rect::new_pd(Pos::new(0,0), dims));
+			self.set_client_region( Rect::new(template.left(),template.top(), dims.width()-template.left()-template.right(), dims.height()-10) );
+		}
+	}
 	
 	/// Resize the window
 	pub fn resize(&self, dim: Dims) {
 		// TODO: use something like "try_make_unique" and emit a notice if it needs to clone
 		Arc::make_mut(&mut self.buf.write()).resize(dim);
 		*self.dirty_rects.lock() = vec![ Rect::new(0,0, dim.w, dim.h) ];
+		self.redecorate();
 	}
 	
 	/// Add an area to the dirty rectangle list
