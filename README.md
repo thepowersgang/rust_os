@@ -11,7 +11,29 @@ Mostly the architecture is being designed as I go along, but it will be written 
  - Userland owns the ELF loader, kernel uses a custom format for init.
 - Object-based syscall API
 
+## Progress
+- VFS
+ - ISO9660
+ - FAT12/16/32
+- Storage
+ - (P)ATA
+ - ATA CDROM
+ - VirtIO Block
+- Input
+ - PS2 Keyboard/Mouse
+- Graphics
+ - Multiboot only
+- GUI Apps
+ - Login (Credentials are root/password)
+ - "GUI Shell" (with background!)
+ - Text Terminal app (with basic set of commands)
+- Architectures
+ - amd64 (aka x86\_64) - Boots to limit of implementation
+ - armv7 - Loads userland then crashes
 
 
 ## Build Dependencies
-`nasm` `imagemagick`
+- `nasm`
+- `imagemagick`
+- GNU Binutils (cross-compiled)
+- GCC (for ACPICA)
