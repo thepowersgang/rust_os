@@ -1,6 +1,6 @@
 diff -rub libcore_orig/clone.rs libcore/clone.rs
---- libcore_orig/clone.rs	2015-09-22 19:09:25.170462066 +0800
-+++ libcore/clone.rs	2015-09-22 19:02:10.962704201 +0800
+--- libcore_orig/clone.rs	2015-10-27 15:30:12.034969690 +0800
++++ libcore/clone.rs	2015-10-27 15:27:28.909752339 +0800
 @@ -80,7 +80,9 @@
  clone_impl! { u32 }
  clone_impl! { u64 }
@@ -12,9 +12,9 @@ diff -rub libcore_orig/clone.rs libcore/clone.rs
  
  clone_impl! { () }
 diff -rub libcore_orig/default.rs libcore/default.rs
---- libcore_orig/default.rs	2015-09-22 19:09:25.166462033 +0800
-+++ libcore/default.rs	2015-09-22 19:02:10.962704201 +0800
-@@ -153,5 +153,7 @@
+--- libcore_orig/default.rs	2015-10-27 15:30:12.034969690 +0800
++++ libcore/default.rs	2015-10-27 15:27:28.909752339 +0800
+@@ -155,5 +155,7 @@
  default_impl! { i32, 0 }
  default_impl! { i64, 0 }
  
@@ -22,9 +22,10 @@ diff -rub libcore_orig/default.rs libcore/default.rs
  default_impl! { f32, 0.0f32 }
 +#[cfg(not(disable_float))]
  default_impl! { f64, 0.0f64 }
+Only in libcore: default.rs.orig
 diff -rub libcore_orig/fmt/mod.rs libcore/fmt/mod.rs
---- libcore_orig/fmt/mod.rs	2015-09-22 19:09:25.170462066 +0800
-+++ libcore/fmt/mod.rs	2015-09-22 19:02:10.962704201 +0800
+--- libcore_orig/fmt/mod.rs	2015-10-27 15:30:12.038969720 +0800
++++ libcore/fmt/mod.rs	2015-10-27 15:27:28.909752339 +0800
 @@ -17,6 +17,7 @@
  use cell::{Cell, RefCell, Ref, RefMut, BorrowState};
  use marker::PhantomData;
@@ -49,7 +50,7 @@ diff -rub libcore_orig/fmt/mod.rs libcore/fmt/mod.rs
      fn write_formatted_parts(&mut self, formatted: &flt2dec::Formatted) -> Result {
          fn write_bytes(buf: &mut Write, s: &[u8]) -> Result {
              buf.write_str(unsafe { str::from_utf8_unchecked(s) })
-@@ -1406,6 +1409,7 @@
+@@ -1430,6 +1433,7 @@
      }
  }
  
@@ -57,7 +58,7 @@ diff -rub libcore_orig/fmt/mod.rs libcore/fmt/mod.rs
  // Common code of floating point Debug and Display.
  fn float_to_decimal_common<T>(fmt: &mut Formatter, num: &T, negative_zero: bool) -> Result
      where T: flt2dec::DecodableFloat
-@@ -1430,6 +1434,7 @@
+@@ -1454,6 +1458,7 @@
      fmt.pad_formatted_parts(&formatted)
  }
  
@@ -65,7 +66,7 @@ diff -rub libcore_orig/fmt/mod.rs libcore/fmt/mod.rs
  // Common code of floating point LowerExp and UpperExp.
  fn float_to_exponential_common<T>(fmt: &mut Formatter, num: &T, upper: bool) -> Result
      where T: flt2dec::DecodableFloat
-@@ -1483,7 +1488,9 @@
+@@ -1507,7 +1512,9 @@
          }
      }
  } }
@@ -75,9 +76,10 @@ diff -rub libcore_orig/fmt/mod.rs libcore/fmt/mod.rs
  floating! { f64 }
  
  // Implementation of Display/Debug for various core types
+Only in libcore/fmt: mod.rs.orig
 diff -rub libcore_orig/intrinsics.rs libcore/intrinsics.rs
---- libcore_orig/intrinsics.rs	2015-09-22 19:09:25.170462066 +0800
-+++ libcore/intrinsics.rs	2015-09-22 19:02:10.962704201 +0800
+--- libcore_orig/intrinsics.rs	2015-10-27 15:30:12.034969690 +0800
++++ libcore/intrinsics.rs	2015-10-27 15:27:28.909752339 +0800
 @@ -393,7 +393,10 @@
      pub fn volatile_load<T>(src: *const T) -> T;
      /// Perform a volatile store to the `dst` pointer.
@@ -100,8 +102,8 @@ diff -rub libcore_orig/intrinsics.rs libcore/intrinsics.rs
      pub fn ctpop8(x: u8) -> u8;
      /// Returns the number of bits set in a `u16`.
 diff -rub libcore_orig/lib.rs libcore/lib.rs
---- libcore_orig/lib.rs	2015-09-22 19:09:25.174462098 +0800
-+++ libcore/lib.rs	2015-09-22 19:02:10.962704201 +0800
+--- libcore_orig/lib.rs	2015-10-27 15:30:12.038969720 +0800
++++ libcore/lib.rs	2015-10-27 15:27:28.909752339 +0800
 @@ -115,7 +115,9 @@
  #[path = "num/u32.rs"]  pub mod u32;
  #[path = "num/u64.rs"]  pub mod u64;
@@ -121,8 +123,8 @@ diff -rub libcore_orig/lib.rs libcore/lib.rs
  
  pub mod slice;
 diff -rub libcore_orig/num/flt2dec/decoder.rs libcore/num/flt2dec/decoder.rs
---- libcore_orig/num/flt2dec/decoder.rs	2015-09-22 19:09:25.174462098 +0800
-+++ libcore/num/flt2dec/decoder.rs	2015-09-22 19:02:10.966704238 +0800
+--- libcore_orig/num/flt2dec/decoder.rs	2015-10-27 15:30:12.038969720 +0800
++++ libcore/num/flt2dec/decoder.rs	2015-10-27 15:27:28.909752339 +0800
 @@ -12,6 +12,7 @@
  
  use prelude::v1::*;
@@ -145,18 +147,9 @@ diff -rub libcore_orig/num/flt2dec/decoder.rs libcore/num/flt2dec/decoder.rs
      fn min_pos_norm_value() -> Self { f64::MIN_POSITIVE }
  }
 diff -rub libcore_orig/num/mod.rs libcore/num/mod.rs
---- libcore_orig/num/mod.rs	2015-09-22 19:09:25.174462098 +0800
-+++ libcore/num/mod.rs	2015-09-22 19:02:10.966704238 +0800
-@@ -19,7 +19,7 @@
- use cmp::{Eq, PartialOrd};
- use fmt;
- use intrinsics;
--use marker::{Copy, Sized};
-+use marker::{Copy};
- use mem::size_of;
- use option::Option::{self, Some, None};
- use result::Result::{self, Ok, Err};
-@@ -45,7 +45,9 @@
+--- libcore_orig/num/mod.rs	2015-10-27 15:30:12.042969749 +0800
++++ libcore/num/mod.rs	2015-10-27 15:27:28.909752339 +0800
+@@ -46,7 +46,9 @@
  pub mod wrapping;
  
  // All these modules are technically private and only exposed for libcoretest:
@@ -166,7 +159,7 @@ diff -rub libcore_orig/num/mod.rs libcore/num/mod.rs
  pub mod dec2flt;
  pub mod bignum;
  pub mod diy_float;
-@@ -100,6 +102,7 @@
+@@ -101,6 +103,7 @@
          }
      )*)
  }
@@ -174,7 +167,7 @@ diff -rub libcore_orig/num/mod.rs libcore/num/mod.rs
  zero_one_impl_float! { f32 f64 }
  
  macro_rules! checked_op {
-@@ -1266,6 +1269,7 @@
+@@ -1267,6 +1270,7 @@
  #[unstable(feature = "core_float",
             reason = "stable interface is via `impl f{32,64}` in later crates",
             issue = "27702")]
@@ -182,16 +175,18 @@ diff -rub libcore_orig/num/mod.rs libcore/num/mod.rs
  pub trait Float: Sized {
      /// Returns the NaN value.
      fn nan() -> Self;
-@@ -1469,4 +1473,5 @@
+@@ -1471,6 +1475,7 @@
      }
  }
  
 +#[cfg(not(disable_float))]
  pub use num::dec2flt::ParseFloatError;
+ 
+ // Conversion traits for primitive integer types
 Only in libcore/num: mod.rs.orig
 diff -rub libcore_orig/ops.rs libcore/ops.rs
---- libcore_orig/ops.rs	2015-09-22 19:09:25.174462098 +0800
-+++ libcore/ops.rs	2015-09-22 19:11:56.803704333 +0800
+--- libcore_orig/ops.rs	2015-10-27 15:30:12.038969720 +0800
++++ libcore/ops.rs	2015-10-27 15:27:28.909752339 +0800
 @@ -203,7 +203,9 @@
      )*)
  }
