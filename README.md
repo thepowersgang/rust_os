@@ -10,6 +10,7 @@ Mostly the architecture is being designed as I go along, but it will be written 
 - Clear user-kernel separation of duties
  - Userland owns the ELF loader, kernel uses a custom format for init.
 - Object-based syscall API
+- Kernel-provided window manager (yes, I know old windows did this)
 
 ## Progress
 - VFS
