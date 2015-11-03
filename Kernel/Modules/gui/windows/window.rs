@@ -122,7 +122,8 @@ impl Window
 			// Draw decorations using decoraton template
 			let template = &super::decorations::WINDOW_TEMPLATE;
 			template.render(&self.buf.read(), Rect::new_pd(Pos::new(0,0), dims));
-			self.set_client_region( Rect::new(template.left(),template.top(), dims.width()-template.left()-template.right(), dims.height()-10) );
+
+			self.set_client_region( Rect::new(template.left(),template.top(), dims.width()-template.fixed_width(), dims.height()-template.fixed_height()) );
 		}
 	}
 	

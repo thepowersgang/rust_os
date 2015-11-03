@@ -31,7 +31,7 @@ pub fn puth64(val: u64) {
 	puth_digits(val, 64/4)
 }
 pub fn puth_digits(val: u64, nibbles: usize) {
-	for i in (0 .. nibbles)
+	for i in 0 .. nibbles
 	{
 		let nibble : u8 = ((val >> (nibbles-i-1)*4) & 15) as u8;
 		putc( if nibble <= 9 { '0' as u8 + nibble } else { 'a' as u8 + nibble-10 } );

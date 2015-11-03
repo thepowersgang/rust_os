@@ -195,11 +195,11 @@ impl KernelLog
 		
 		// Actual render!
 		let Pos { x: bx, y: by } = pos.to_pixels();
-		for row in (0 .. 16)
+		for row in 0 .. 16
 		{
 			let byte = &bitmap[row as usize];
 			let r = self.buffer_handle.scanline_rgn_mut(by as usize + row, bx as usize, 8); 
-			for col in (0usize .. 8)
+			for col in 0 .. 8
 			{
 				if (byte >> 7-col) & 1 != 0 {
 					r[col] = colour.as_argb32();

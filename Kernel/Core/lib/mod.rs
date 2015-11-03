@@ -169,6 +169,10 @@ pub fn as_byte_slice<T: POD>(s: &T) -> &[u8] {
 	// SAFE: Plain-old-data
 	unsafe { ::core::slice::from_raw_parts(s as *const _ as *const u8, ::core::mem::size_of::<T>()) }
 }
+pub fn as_byte_slice_mut<T: POD>(s: &mut T) -> &mut [u8] {
+	// SAFE: Plain-old-data
+	unsafe { ::core::slice::from_raw_parts_mut(s as *mut _ as *mut u8, ::core::mem::size_of::<T>()) }
+}
 
 /// Zip adapter for ExactSizeIterator (easier for the optimiser)
 pub struct ExactZip<A,B>(usize,A,B);

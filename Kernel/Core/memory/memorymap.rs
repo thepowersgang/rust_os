@@ -79,10 +79,10 @@ impl<'buf> MemoryMapBuilder<'buf>
 	
 	pub fn sort(&mut self)
 	{
-		for entid in (0 .. self.size)
+		for entid in 0 .. self.size
 		{
 			let mut sel = entid;
-			for tgt in (entid+1 .. self.size)
+			for tgt in entid+1 .. self.size
 			{
 				if self.slots[sel].start > self.slots[tgt].start {
 					sel = tgt;
@@ -100,7 +100,7 @@ impl<'buf> MemoryMapBuilder<'buf>
 	pub fn validate(&self) -> bool
 	{
 		let mut ret = true;
-		for i in (0 .. self.size-1)
+		for i in 0 .. self.size-1
 		{
 			if self.slots[i].start + self.slots[i].size > self.slots[i+1].start
 			{

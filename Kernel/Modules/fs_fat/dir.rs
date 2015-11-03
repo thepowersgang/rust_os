@@ -198,7 +198,7 @@ impl<'a> ::core::iter::Iterator for DirEnts<'a> {
 				// 1. Decode name into a NUL-padded string
 				let (outname, _) = {
 					let (mut outname, mut oidx) =  ([0u8; 8+1+3], 0);
-					for iidx in (0 .. 8) {
+					for iidx in 0 .. 8 {
 						if ent.name[iidx] != b' ' {
 							outname[oidx] = ent.name[iidx];
 							if lower_base {
@@ -209,7 +209,7 @@ impl<'a> ::core::iter::Iterator for DirEnts<'a> {
 					}
 					outname[oidx] = b'.';
 					oidx += 1;
-					for iidx in (8 .. 11) {
+					for iidx in 8 .. 11 {
 						if ent.name[iidx] != b' ' {
 							outname[oidx] = ent.name[iidx];
 							if lower_ext {

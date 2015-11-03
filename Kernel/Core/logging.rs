@@ -353,7 +353,7 @@ impl<'a> fmt::Display for HexDumpBlk<'a>
 	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result
 	{
 		assert!(self.0.len() <= 16);
-		for i in (0 .. 16)
+		for i in 0 .. 16
 		{
 			if i == 8 {
 				try!(write!(f, " "));
@@ -367,7 +367,7 @@ impl<'a> fmt::Display for HexDumpBlk<'a>
 			
 		}
 		try!(write!(f, "|"));
-		for i in (0 .. 16)
+		for i in 0 .. 16
 		{
 			if i < self.0.len() {
 				try!(write!(f, "{}",

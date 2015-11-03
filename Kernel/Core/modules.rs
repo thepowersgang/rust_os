@@ -64,7 +64,7 @@ fn init_modules(mods: &[ModuleInfo], requests: &[&str])
 		init_module_by_name(modstates.slice_mut(), mods, "", req);
 	}
 	
-	for i in (0 .. mods.len())
+	for i in 0 .. mods.len()
 	{
 		init_module(modstates.slice_mut(), mods, i);
 	}

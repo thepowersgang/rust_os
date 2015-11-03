@@ -93,7 +93,7 @@ impl ByteOrder for LittleEndian
 	}
 	fn read_uint(buf: &[u8], nbytes: usize) -> u64 {
 		let mut rv = 0;
-		for i in (0 .. nbytes) {
+		for i in 0 .. nbytes {
 			rv |= (buf[i] as u64) << (8*i);
 		}
 		rv
@@ -128,7 +128,7 @@ impl ByteOrder for BigEndian
 	}
 	fn read_uint(buf: &[u8], nbytes: usize) -> u64 {
 		let mut rv = 0;
-		for i in (0 .. nbytes) {
+		for i in 0 .. nbytes {
 			rv |= (buf[i] as u64) << (8*(nbytes - 1 - i));
 		}
 		rv

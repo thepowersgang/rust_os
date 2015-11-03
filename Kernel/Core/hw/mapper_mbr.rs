@@ -65,7 +65,7 @@ impl storage::Mapper for Mapper
 		// the "unique ID" (according to the osdev.org wiki) might just be the tail of the MBR code
 		//let uid = &block[0x1b4 .. 0x1be];
 		
-		for i in (0 .. 4) {
+		for i in 0 .. 4 {
 			let ofs = 0x1BE + i*16;
 			
 			if let Some(info) = Entry::read( &block[ofs .. ofs + 16] )

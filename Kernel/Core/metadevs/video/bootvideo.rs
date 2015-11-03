@@ -235,7 +235,7 @@ impl super::Framebuffer for Framebuffer
 		assert!(dst.bottom() <= self.buffer.mode.height as u32);
 		
 		let bpp = output_fmt.bytes_per_pixel();
-		for row in (dst.top() .. dst.bottom())
+		for row in dst.top() .. dst.bottom()
 		{
 			let seg = self.buffer.scanline_slice(row as usize, dst.left() as usize, dst.right() as usize);
 			match output_fmt

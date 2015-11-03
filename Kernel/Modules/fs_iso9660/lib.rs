@@ -77,7 +77,7 @@ impl mount::Driver for Driver
 		// Search the start of the disk for the primary volume descriptor
 		// - TODO: Limit the number of sectors searched.
 		let mut block: Vec<u8> = (0 .. 2048).map(|_|0).collect();
-		for sector in (16 .. )
+		for sector in 16 .. 
 		{
 			try!(vol.read_blocks((sector*scale) as u64, &mut block));
 			if &block[1..6] != b"CD001" {

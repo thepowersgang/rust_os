@@ -90,11 +90,17 @@ impl<T: AsRef<[u32]>> DecorTemplate<T>
 			dst[dst_right + i] = src[self.left as usize + 1 + i];
 		}
 	}
+	pub fn fixed_width(&self) -> u32 {
+		self.w - 1
+	}
 	pub fn left(&self) -> u32 {
 		self.left
 	}
 	pub fn right(&self) -> u32 {
 		self.w - self.left - 1
+	}
+	pub fn fixed_height(&self) -> u32 {
+		self.h - 1
 	}
 	pub fn top(&self) -> u32 {
 		self.top

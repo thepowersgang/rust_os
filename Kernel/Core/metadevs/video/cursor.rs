@@ -58,6 +58,6 @@ impl CursorHandle
 	}
 	/// Show/hide the cursor
 	pub fn set_visible(&mut self, visible: bool) {
-		todo!("CursorHandle::set_visible");
+		todo!("CursorHandle::set_visible - visible={}", visible);
 	}
 }

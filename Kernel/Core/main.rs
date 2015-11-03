@@ -26,6 +26,7 @@
 #![cfg_attr(not(use_acpica),feature(ptr_as_ref))]	// used by ACPI code (custom impl, not ACPICA)
 #![feature(slice_bytes)]	// Gives bytes::copy_memory, used in VMM
 #![feature(unsafe_no_drop_flag,filling_drop)]	// Used by smart pointers to reduce size
+#![feature(drop_in_place)]	// Used by most smart pointers to support DSTs
 
 #![feature(num_bits_bytes)]	// Used for sysinit
 #![no_std]

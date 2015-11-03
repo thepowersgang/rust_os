@@ -235,8 +235,11 @@ impl MultibootParsed
 
 			let [num, size, addr, shndx] = info.syminfo;
 			log_debug!("Symbols ELF - num={}, size={}, addr={:#x}, shndx={}", num, size, addr, shndx);
+			#[allow(non_camel_case_types)]
 			type Elf32_Word = u32;
+			#[allow(non_camel_case_types)]
 			type Elf32_Addr = u32;
+			#[allow(non_camel_case_types)]
 			type Elf32_Off = u32;
 			#[derive(Debug)]
 			struct ShEnt {

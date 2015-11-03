@@ -178,7 +178,7 @@ fn scan_bus(bus_id: u8) -> Vec<Box<BusDevice+'static>>
 {
 	log_trace!("PCI scan_bus({})", bus_id);
 	let mut ret: Vec<Box<BusDevice>> = Vec::new();
-	for devidx in (0 .. MAX_DEV)
+	for devidx in 0 .. MAX_DEV
 	{
 		match get_device(bus_id, devidx, 0)
 		{
@@ -190,7 +190,7 @@ fn scan_bus(bus_id: u8) -> Vec<Box<BusDevice+'static>>
 			// Handle multi-function devices (iterate from 1 onwards)
 			if is_multifunc
 			{
-				for fcnidx in (1 .. MAX_FUNC)
+				for fcnidx in 1 .. MAX_FUNC
 				{
 					if let Some(devinfo) = get_device(bus_id, devidx, fcnidx)
 					{

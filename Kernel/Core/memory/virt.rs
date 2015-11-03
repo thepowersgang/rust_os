@@ -270,7 +270,7 @@ pub unsafe fn unmap(addr: *mut (), count: usize)
 		}
 		
 		// TODO: Dereference the frames returned
-		for i in (0 .. count) {
+		for i in 0 .. count {
 			if let Some(addr) = ::arch::memory::virt::unmap( (pos + i*::PAGE_SIZE) as *mut () ) {
 				::memory::phys::deref_frame(addr);
 			}
@@ -427,7 +427,7 @@ unsafe fn map_hw(phys: PAddr, count: usize, readonly: bool, _module: &'static st
 			pos += (free + 1) * ::PAGE_SIZE;
 		}
 		// 2. Map
-		for i in (0 .. count)
+		for i in 0 .. count
 		{
 			map(
 				(pos + i * ::PAGE_SIZE) as *mut (),
@@ -514,7 +514,7 @@ pub fn alloc_dma(bits: u8, count: usize, module: &'static str) -> Result<AllocHa
 
 fn count_free_in_range(addr: *const Page, count: usize) -> usize
 {
-	for i in (0 .. count)
+	for i in 0 .. count
 	{
 		// SAFE: Offset should be valid... (TODO: Ensure, and do bounds checking)
 		let pg = unsafe { addr.offset(i as isize) };

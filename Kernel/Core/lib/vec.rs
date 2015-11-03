@@ -46,7 +46,7 @@ impl<T> Vec<T>
 		Fcn: Fn(usize) -> T
 	{
 		let mut ret = Vec::with_capacity(length);
-		for i in (0 .. length) {
+		for i in 0 .. length {
 			ret.push( op(i) );
 		}
 		ret
@@ -104,7 +104,7 @@ impl<T> Vec<T>
 				let mut newdata = ArrayAlloc::new(newcap);
 				// SAFE: Only reads from valid region, writes into invalid data
 				unsafe {
-					for i in (0 .. self.size) {
+					for i in 0 .. self.size {
 						let val = self.move_ent(i as usize);
 						::core::ptr::write(newdata.get_ptr_mut(i), val);
 					}
@@ -167,8 +167,7 @@ impl<T> Vec<T>
 		{
 			let rv = ::core::ptr::read( self.data.get_ptr_mut(pos) );
 			// Move elements (pos+1 .. len) to (pos .. len-1)
-			for i in (pos .. self.size-1)
-			{
+			for i in pos .. self.size-1 {
 				let dst = self.data.get_ptr_mut( i );
 				let src = self.data.get_ptr( i+1 );
 				::core::ptr::write(dst, ::core::ptr::read(src));
@@ -186,7 +185,7 @@ impl<T> Vec<T>
 			// SAFE: Correct pointer accesses
 			unsafe
 			{
-				for i in (newsize .. self.size) {
+				for i in newsize .. self.size {
 					::core::mem::drop( ::core::ptr::read(self.get_mut_ptr(i) as *const T) );
 				}
 				self.size = newsize;
@@ -478,7 +477,7 @@ impl<T> ops::Drop for MoveItems<T>
 {
 	fn drop(&mut self)
 	{
-		for _ in (self.ofs .. self.count) {
+		for _ in self.ofs .. self.count {
 			self.pop_item();
 		}
 	}

@@ -5,15 +5,20 @@ use kernel::async;
 use interface::Interface;
 use queue::{Queue,Buffer};
 
-const VIRTIO_BLK_F_RO	: u32 = 1 << 5;
+#[allow(dead_code)]
+mod defs {
+pub const VIRTIO_BLK_F_RO	: u32 = 1 << 5;
+// TODO: Other feature flags
 
-const VIRTIO_BLK_T_IN    	: u32 = 0;
-const VIRTIO_BLK_T_OUT  	: u32 = 1;
-const VIRTIO_BLK_T_SCSI_CMD	: u32 = 2;
-const VIRTIO_BLK_T_SCSI_CMD_OUT	: u32 = 3;
-const VIRTIO_BLK_T_FLUSH	: u32 = 4;
-const VIRTIO_BLK_T_FLUSH_OUT: u32 = 5;
-const VIRTIO_BLK_T_BARRIER	: u32 = 0x8000_0000;
+pub const VIRTIO_BLK_T_IN    	: u32 = 0;
+pub const VIRTIO_BLK_T_OUT  	: u32 = 1;
+pub const VIRTIO_BLK_T_SCSI_CMD	: u32 = 2;
+pub const VIRTIO_BLK_T_SCSI_CMD_OUT	: u32 = 3;
+pub const VIRTIO_BLK_T_FLUSH	: u32 = 4;
+pub const VIRTIO_BLK_T_FLUSH_OUT: u32 = 5;
+pub const VIRTIO_BLK_T_BARRIER	: u32 = 0x8000_0000;
+}
+use self::defs::*;
 
 pub struct BlockDevice
 {
@@ -37,6 +42,9 @@ impl BlockDevice
 		let requestq = int.get_queue(0, 0).expect("Queue #0 'requestq' missing on virtio block device");
 	
 		let features = int.negotiate_features( VIRTIO_BLK_F_RO );
+		if features & VIRTIO_BLK_F_RO != 0 {
+			// TODO: Need a way of indicating to the upper layers that a volume is read-only
+		}
 		int.set_driver_ok();
 
 		BlockDevice {
@@ -80,15 +88,38 @@ impl<I: Interface+Send+'static> storage::PhysicalVolume for Volume<I>
 		let h = self.requestq.send_buffers(&self.interface, &mut[
 			Buffer::Read( ::kernel::lib::as_byte_slice(&cmd) ),
 			Buffer::Write(dst),
-			Buffer::Write( ::core::slice::mut_ref_slice(&mut status) )
+			Buffer::Write( ::kernel::lib::as_byte_slice_mut(&mut status) )
 			]);
-		h.wait_for_completion();
+		let rv = match h.wait_for_completion()
+			{
+			Ok(_bytes) => Ok( () ),
+			Err( () ) => Err( storage::IoError::Unknown("VirtIO") ),
+			};
 
-		Box::new(async::NullResultWaiter::new( || Ok( () ) ))
+		Box::new(async::NullResultWaiter::new( move || rv ))
 	}
-	fn write<'a>(&'a self, _prio: u8, idx: u64, num: usize, src: &'a [u8]) -> storage::AsyncIoResult<'a,()>
+	fn write<'a>(&'a self, prio: u8, idx: u64, num: usize, src: &'a [u8]) -> storage::AsyncIoResult<'a,()>
 	{
-		todo!("");
+		assert_eq!( src.len(), num * 512 );
+		let cmd = VirtioBlockReq {
+			type_: VIRTIO_BLK_T_OUT,
+			ioprio: (255 - prio) as u32,
+			sector: idx,
+			};
+		let mut status = 0u8;
+
+		let h = self.requestq.send_buffers(&self.interface, &mut[
+			Buffer::Read( ::kernel::lib::as_byte_slice(&cmd) ),
+			Buffer::Read( src ),
+			Buffer::Write( ::kernel::lib::as_byte_slice_mut(&mut status) )
+			]);
+		let rv = match h.wait_for_completion()
+			{
+			Ok(_bytes) => Ok( () ),
+			Err( () ) => Err( storage::IoError::Unknown("VirtIO") ),
+			};
+
+		Box::new(async::NullResultWaiter::new( move || rv ))
 	}
 	
 	fn wipe<'a>(&'a self, _blockidx: u64, _count: usize) -> storage::AsyncIoResult<'a,()>

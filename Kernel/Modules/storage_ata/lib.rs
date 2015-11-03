@@ -198,7 +198,7 @@ impl ControllerRoot
 		let mut volumes = Vec::new();
 		
 		// Send IDENTIFY to all disks
-		for i in (0 .. 2)
+		for i in 0 .. 2
 		{
 			let ctrlr_pri = &dma_controller.ata_controllers[0];
 			let ctrlr_sec = &dma_controller.ata_controllers[1];

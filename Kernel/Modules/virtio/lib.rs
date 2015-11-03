@@ -1,7 +1,6 @@
 #![feature(no_std,linkage)]
 #![no_std]
 #![feature(core_slice_ext)]
-#![feature(ref_slice)]
 #![feature(raw)]	// Used for unsized struct construction
 
 #[macro_use] extern crate kernel;
