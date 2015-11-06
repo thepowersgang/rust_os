@@ -8,7 +8,7 @@
 #![feature(const_fn,unsize,coerce_unsized)]
 #![feature(unique,nonzero)]
 #![feature(box_syntax)]
-#![feature(core_intrinsics,raw)]
+#![feature(drop_in_place,raw)]
 #![feature(core_slice_ext)]
 #![feature(optin_builtin_traits)]	// For !Send
 #![feature(filling_drop)]	// for RawVec

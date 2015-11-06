@@ -1,6 +1,6 @@
 diff -rub libcore_orig/clone.rs libcore/clone.rs
---- libcore_orig/clone.rs	2015-10-27 15:30:12.034969690 +0800
-+++ libcore/clone.rs	2015-10-27 15:27:28.909752339 +0800
+--- libcore_orig/clone.rs	2015-11-01 10:21:11.564916540 +1100
++++ libcore/clone.rs	2015-11-01 10:21:02.027603292 +1100
 @@ -80,7 +80,9 @@
  clone_impl! { u32 }
  clone_impl! { u64 }
@@ -12,8 +12,8 @@ diff -rub libcore_orig/clone.rs libcore/clone.rs
  
  clone_impl! { () }
 diff -rub libcore_orig/default.rs libcore/default.rs
---- libcore_orig/default.rs	2015-10-27 15:30:12.034969690 +0800
-+++ libcore/default.rs	2015-10-27 15:27:28.909752339 +0800
+--- libcore_orig/default.rs	2015-11-01 10:21:11.564916540 +1100
++++ libcore/default.rs	2015-11-01 10:21:02.027603292 +1100
 @@ -155,5 +155,7 @@
  default_impl! { i32, 0 }
  default_impl! { i64, 0 }
@@ -22,10 +22,10 @@ diff -rub libcore_orig/default.rs libcore/default.rs
  default_impl! { f32, 0.0f32 }
 +#[cfg(not(disable_float))]
  default_impl! { f64, 0.0f64 }
-Only in libcore: default.rs.orig
+Only in libcore/: default.rs.orig
 diff -rub libcore_orig/fmt/mod.rs libcore/fmt/mod.rs
---- libcore_orig/fmt/mod.rs	2015-10-27 15:30:12.038969720 +0800
-+++ libcore/fmt/mod.rs	2015-10-27 15:27:28.909752339 +0800
+--- libcore_orig/fmt/mod.rs	2015-11-01 10:21:11.568918771 +1100
++++ libcore/fmt/mod.rs	2015-11-01 10:21:02.027603292 +1100
 @@ -17,6 +17,7 @@
  use cell::{Cell, RefCell, Ref, RefMut, BorrowState};
  use marker::PhantomData;
@@ -78,9 +78,9 @@ diff -rub libcore_orig/fmt/mod.rs libcore/fmt/mod.rs
  // Implementation of Display/Debug for various core types
 Only in libcore/fmt: mod.rs.orig
 diff -rub libcore_orig/intrinsics.rs libcore/intrinsics.rs
---- libcore_orig/intrinsics.rs	2015-10-27 15:30:12.034969690 +0800
-+++ libcore/intrinsics.rs	2015-10-27 15:27:28.909752339 +0800
-@@ -393,7 +393,10 @@
+--- libcore_orig/intrinsics.rs	2015-11-01 10:21:11.564916540 +1100
++++ libcore/intrinsics.rs	2015-11-01 10:21:02.027603292 +1100
+@@ -412,7 +412,10 @@
      pub fn volatile_load<T>(src: *const T) -> T;
      /// Perform a volatile store to the `dst` pointer.
      pub fn volatile_store<T>(dst: *mut T, val: T);
@@ -91,7 +91,7 @@ diff -rub libcore_orig/intrinsics.rs libcore/intrinsics.rs
      /// Returns the square root of an `f32`
      pub fn sqrtf32(x: f32) -> f32;
      /// Returns the square root of an `f64`
-@@ -490,7 +493,9 @@
+@@ -509,7 +512,9 @@
      pub fn roundf32(x: f32) -> f32;
      /// Returns the nearest integer to an `f64`. Rounds half-way cases away from zero.
      pub fn roundf64(x: f64) -> f64;
@@ -101,9 +101,10 @@ diff -rub libcore_orig/intrinsics.rs libcore/intrinsics.rs
      /// Returns the number of bits set in a `u8`.
      pub fn ctpop8(x: u8) -> u8;
      /// Returns the number of bits set in a `u16`.
+Only in libcore/: intrinsics.rs.orig
 diff -rub libcore_orig/lib.rs libcore/lib.rs
---- libcore_orig/lib.rs	2015-10-27 15:30:12.038969720 +0800
-+++ libcore/lib.rs	2015-10-27 15:27:28.909752339 +0800
+--- libcore_orig/lib.rs	2015-11-01 10:21:11.568918771 +1100
++++ libcore/lib.rs	2015-11-01 10:21:02.027603292 +1100
 @@ -115,7 +115,9 @@
  #[path = "num/u32.rs"]  pub mod u32;
  #[path = "num/u64.rs"]  pub mod u64;
@@ -123,8 +124,8 @@ diff -rub libcore_orig/lib.rs libcore/lib.rs
  
  pub mod slice;
 diff -rub libcore_orig/num/flt2dec/decoder.rs libcore/num/flt2dec/decoder.rs
---- libcore_orig/num/flt2dec/decoder.rs	2015-10-27 15:30:12.038969720 +0800
-+++ libcore/num/flt2dec/decoder.rs	2015-10-27 15:27:28.909752339 +0800
+--- libcore_orig/num/flt2dec/decoder.rs	2015-11-01 10:21:11.568918771 +1100
++++ libcore/num/flt2dec/decoder.rs	2015-11-01 10:21:02.027603292 +1100
 @@ -12,6 +12,7 @@
  
  use prelude::v1::*;
@@ -147,8 +148,8 @@ diff -rub libcore_orig/num/flt2dec/decoder.rs libcore/num/flt2dec/decoder.rs
      fn min_pos_norm_value() -> Self { f64::MIN_POSITIVE }
  }
 diff -rub libcore_orig/num/mod.rs libcore/num/mod.rs
---- libcore_orig/num/mod.rs	2015-10-27 15:30:12.042969749 +0800
-+++ libcore/num/mod.rs	2015-10-27 15:27:28.909752339 +0800
+--- libcore_orig/num/mod.rs	2015-11-01 10:21:11.572921002 +1100
++++ libcore/num/mod.rs	2015-11-01 10:21:02.027603292 +1100
 @@ -46,7 +46,9 @@
  pub mod wrapping;
  
@@ -182,11 +183,25 @@ diff -rub libcore_orig/num/mod.rs libcore/num/mod.rs
 +#[cfg(not(disable_float))]
  pub use num::dec2flt::ParseFloatError;
  
- // Conversion traits for primitive integer types
+ // Conversion traits for primitive integer and float types
+@@ -1519,6 +1524,8 @@
+ // they fit in the significand, which is 24 bits in f32 and 53 bits in f64.
+ // Lossy float conversions are not implemented at this time.
+ 
++#[cfg(not(disable_float))]
++mod _int_flot_conv {
+ // Signed -> Float
+ impl_from! { i8, f32 }
+ impl_from! { i8, f64 }
+@@ -1535,3 +1542,4 @@
+ 
+ // Float -> Float
+ impl_from! { f32, f64 }
++}
 Only in libcore/num: mod.rs.orig
 diff -rub libcore_orig/ops.rs libcore/ops.rs
---- libcore_orig/ops.rs	2015-10-27 15:30:12.038969720 +0800
-+++ libcore/ops.rs	2015-10-27 15:27:28.909752339 +0800
+--- libcore_orig/ops.rs	2015-11-01 10:21:11.568918771 +1100
++++ libcore/ops.rs	2015-11-01 10:21:02.031605519 +1100
 @@ -203,7 +203,9 @@
      )*)
  }
