@@ -227,9 +227,9 @@ mod helpers
 		*rv = __aeabi_uldivmod(n, d);
 	}
 	fn __aeabi_uldivmod(mut n: u64, mut d: u64) -> ulldiv_t {
-		let mut ret = 0;
 		let mut add = 1;
 		while n / 2 >= d && add != 0 { d <<= 1; add <<= 1; }
+		let mut ret = 0;
 		while add > 0 { if n >= d { ret += add; n -= d; } add  >>= 1; d >>= 1; }
 	
 		ulldiv_t { quo: ret, rem: n, }

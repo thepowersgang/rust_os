@@ -85,7 +85,8 @@ $(IMGDIR)hda.img: Makefile $(IMGDIR)hda_0.img $(IMGDIR)hda_1.img $(IMGDIR)hda_2.
 	@echo "[MkDisk] mbr $@"
 	@# - Commit
 	@cat $(IMGDIR)hda_0.img $(IMGDIR)hda_1.img $(IMGDIR)hda_2.img > $(IMGDIR)hda.img
-	@echo "$(shell echo $$((1*1024*2)),$$((32*1024*2)),0x83)\n$(shell echo $$((33*1024*2)),+,0x7)" | /sbin/sfdisk --no-reread $(IMGDIR)hda.img -C $$((1+32+16)) -H 4 -S 32 -u S -f -q > /dev/null
+	@echo "$(shell echo $$((1*1024*2)),$$((32*1024*2)),0x83)\n$(shell echo $$((33*1024*2)),+,0x7)" | /sbin/sfdisk --no-reread $(IMGDIR)hda.img -u S -f -q > /dev/null
+#	@echo "$(shell echo $$((1*1024*2)),$$((32*1024*2)),0x83)\n$(shell echo $$((33*1024*2)),+,0x7)" | /sbin/sfdisk --no-reread $(IMGDIR)hda.img -C $$((1+32+16)) -H 4 -S 32 -u S -f -q > /dev/null
 
 $(IMGDIR)hdb_1.img: $(wildcard ../../Usermode/.output/$(ARCH)/*) Makefile
 	dd if=/dev/zero of=$@ bs=1M count=32

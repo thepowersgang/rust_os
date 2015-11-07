@@ -137,7 +137,10 @@ impl<R: Read+Seek> ElfModuleHandle<R>
 			DtEnt::PltRel(ty) => plt_type = match ty {
 				 7 => RelocType::RelA,	// DT_RELA
 				17 => RelocType::Rel,	// DT_REL
-				_ => return Err(Error::Malformed),
+				_ => {
+					kernel_log!("Malformed ELF - PltRel type invalid {}", ty);
+					return Err(Error::Malformed)
+					},
 				},
 			DtEnt::PltRelSz(size) => plt_sz = Some(size),
 			//v @ _ => kernel_log!("- ?{:?}", v),
@@ -319,7 +322,10 @@ impl<'a> StringTable<'a>
 		let strtab = match (addr,len) {
 			(Some(a), Some(l)) => ::std::slice::from_raw_parts(a as *const u8, l),
 			(None, None) => &[][..],
-			_ => return Err(Error::Malformed),
+			_ => {
+				kernel_log!("Malformed ELF - String table addr or len passed (addr={:?},len={:?})", addr, len);
+				return Err(Error::Malformed)
+				},
 			};
 		Ok( StringTable(strtab) )
 	}
@@ -563,11 +569,16 @@ impl<'a> SymbolTable<'a>
 			(Some(a), Some(l)) => {
 				if let Some(esz) = esz {
 					if esz != Self::ent_size_st(fmt.size) {
+						kernel_log!("Malformed Entry - Symbol table entry size invalid - {} != exp {}", esz, Self::ent_size_st(fmt.size));
 						return Err(Error::Malformed);
 					}
 				}
 				kernel_log!("SymbolTable::new(addr={:#x}, len={})", a, l);
 				if l % Self::ent_size_st(fmt.size) != 0 {
+					kernel_log!("Malformed Entry - Symbol table entry size invalid - len % {} ({}) != 0",
+						Self::ent_size_st(fmt.size),
+						l % Self::ent_size_st(fmt.size)
+						);
 					return Err(Error::Malformed);
 				}
 				::std::slice::from_raw_parts(a as *const u8, l)
@@ -691,6 +702,7 @@ impl<'a> RelocTable<'a> {
 		(Some(addr), Some(size)) => {
 			if let Some(esz) = entsz {
 				if esz != Self::ent_sz(format.size, ty) {
+					kernel_log!("Malformed Entry - Relocation table entry size invalid - {} != exp {}", esz, Self::ent_sz(format.size, ty));
 					return Err(Error::Malformed);
 				}
 			}

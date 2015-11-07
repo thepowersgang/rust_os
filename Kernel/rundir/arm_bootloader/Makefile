@@ -7,6 +7,8 @@ LIBCORE := ../../.obj/armv7/libcore.rlib
 OBJDIR := .obj/$(PLATFORM)/
 KERNEL := ../../bin/kernel-armv7.bin
 
+all: loader-$(PLATFORM).bin
+
 loader-$(PLATFORM).bin: $(OBJDIR)start.ao $(OBJDIR)main.o $(KERNEL)
 	@echo "[LD] -o $@"
 	@arm-elf-eabi-ld -e start -o $@ $(OBJDIR)start.ao $(OBJDIR)main.o $(LIBCORE) --format binary $(KERNEL) -Map $(OBJDIR)map.txt --gc-sections
