@@ -47,12 +47,7 @@ impl ::core::ops::Drop for ThreadLogWriter {
 	fn drop(&mut self) {
 		// SAFE: Thread-local
 		unsafe {
-			let b = &*T_LOG_BUFFER;
-			match ::core::str::from_utf8(b)
-			{
-			Ok(v) => ::log_write(v),
-			Err(_) => {}
-			}
+			::log_write( &*T_LOG_BUFFER );
 			T_LOG_BUFFER.clear();
 		}
 	}

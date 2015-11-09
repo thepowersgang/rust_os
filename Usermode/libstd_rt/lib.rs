@@ -46,7 +46,7 @@ pub extern "C" fn rust_begin_unwind(msg: ::core::fmt::Arguments, file: &'static 
 	// Spit out that log
 	kernel_log!("PANIC: {}:{}: {}", file, line, msg);
 	// - Backtrace
-	kernel_log!("- Backtrace: {:?}", arch::Backtrace::new());
+	kernel_log!("- {} Backtrace: {:?}", file, arch::Backtrace::new());
 	// Exit the process with a special error code
 	::syscalls::threads::exit(0xFFFF_FFFF);
 }

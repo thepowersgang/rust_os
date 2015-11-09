@@ -15,6 +15,26 @@ SECTIONS {
 	.rodata ALIGN(0x1000): {
 		*(.rodata .rodata.*)
 	} :SegRX
+	
+	/* ARM unwind tables */
+	/DISCARD/ : { *(.ARM.extab.init .ARM.exidx.init) }
+	.ARM.extab : AT( ADDR(.ARM.extab) - _kernel_base) {
+		*(.ARM.extab* .gnu.linkonce.armextab.*)
+	} :SegRX
+	PROVIDE_HIDDEN ( __exidx_start = . );
+	.ARM.exidx : AT( ADDR(.ARM.exidx) - _kernel_base) {
+		*(.ARM.exidx* .gnu.linkonce.armexidx.*)
+	} :SegRX
+	PROVIDE_HIDDEN ( __exidx_end = . );
+	
+	/* Dynamic linking info */
+	.dynamic : {
+		*(.dynamic)
+	} :SegDYN
+	.rel.plt : {
+		*(.rel.plt)
+	} :SegDYN
+	
 	. = ALIGN(0x1000);
 	.data ALIGN(0x1000): {
 		*(.data .data.*)
@@ -22,13 +42,5 @@ SECTIONS {
 	.bss ALIGN(0x1000) : {
 		*(.bss .bss.*)
 	} :SegRW
-	
-	. = 0;
-	.dynamic : {
-		*(.dynamic)
-	} :SegDYN
-	.rel.plt : {
-		*(.rel.plt)
-	} :SegDYN
 }
 

@@ -181,6 +181,7 @@ impl<R: Read+Seek> ElfModuleHandle<R>
 		}
 		
 		// 2. Iterate the Rel/RelA/PLT relocation lists and apply
+		kernel_log!("Relocations:");
 		for r in rel.iter() {
 			kernel_log!("REL {:?}", r);
 		}
@@ -191,6 +192,7 @@ impl<R: Read+Seek> ElfModuleHandle<R>
 			kernel_log!("PLT {:?}", r);
 		}
 		
+		kernel_log!("Applying relocations:");
 		{
 			let rs = RelocationState {
 				base: 0,
@@ -220,38 +222,20 @@ impl<'a> RelocationState<'a>
 		match self.machine
 		{
 		Machine::X8664 => for r in iter { try!(self.apply_reloc_x86_64(r)); },
-		_ => todo!("Machine {:?}", self.machine),
+		Machine::ARM => for r in iter { try!(self.apply_reloc_arm(r)); },
+		_ => todo!("apply_reloc - Machine {:?}", self.machine),
 		}
 		Ok( () )
 	}
-	
-	fn get_symbol(&self, idx: usize) -> Option<(usize, usize)> {
-		if let Some(sym) = self.symtab.get(idx)
+	fn apply_reloc_arm(&self, r: Reloc) -> Result<(), Error> {
+		const R_ARM_NONE: u16 = 0;
+		//const R_ARM_PC24: u16 = 1;	// ((S + A) | T) - P
+		match r.ty
 		{
-			let name = match self.strtab.get(sym.st_name)
-				{
-				Some(v) => v,
-				None => { kernel_log!("Malformed ELF, symbol {} name {} invalid", idx, sym.st_name); return None; },
-				};
-			kernel_log!("get_symbol: #{} = {:?} {:?}", idx, sym, name);
-			if sym.st_shndx == 0 {
-				::load::lookup_symbol(name)
-			}
-			else {
-				Some( (self.base + sym.st_value, sym.st_size) )
-			}
+		R_ARM_NONE => {},
+		v @ _ => todo!("apply_reloc_arm - ty={}", v),
 		}
-		else {
-			// TODO: This is kinda... not correct, as it actually means a malformed file
-			None
-		}
-	}
-	fn get_symbol_r(&self, idx: usize) -> Result<(usize, usize), Error> {
-		match self.get_symbol(idx)
-		{
-		Some(v) => Ok(v),
-		None => Err(Error::UndefinedSymbol),
-		}
+		Ok( () )
 	}
 	
 	fn apply_reloc_x86_64(&self, r: Reloc) -> Result<(), Error> {
@@ -293,6 +277,35 @@ impl<'a> RelocationState<'a>
 		v @ _ => todo!("apply_reloc_x86_64 - ty={}", v),
 		}
 		Ok( () )
+	}
+	
+	fn get_symbol(&self, idx: usize) -> Option<(usize, usize)> {
+		if let Some(sym) = self.symtab.get(idx)
+		{
+			let name = match self.strtab.get(sym.st_name)
+				{
+				Some(v) => v,
+				None => { kernel_log!("Malformed ELF, symbol {} name {} invalid", idx, sym.st_name); return None; },
+				};
+			kernel_log!("get_symbol: #{} = {:?} {:?}", idx, sym, name);
+			if sym.st_shndx == 0 {
+				::load::lookup_symbol(name)
+			}
+			else {
+				Some( (self.base + sym.st_value, sym.st_size) )
+			}
+		}
+		else {
+			// TODO: This is kinda... not correct, as it actually means a malformed file
+			None
+		}
+	}
+	fn get_symbol_r(&self, idx: usize) -> Result<(usize, usize), Error> {
+		match self.get_symbol(idx)
+		{
+		Some(v) => Ok(v),
+		None => Err(Error::UndefinedSymbol),
+		}
 	}
 	
 	fn relocate_64<F: FnOnce(u64)->u64>(&self, addr: usize, fcn: F) {
@@ -707,6 +720,7 @@ impl<'a> RelocTable<'a> {
 				}
 			}
 			let slice = ::std::slice::from_raw_parts(addr as *const u8, size);
+			kernel_log!("RelocTable {{ {:p}+{}, {:?} }}", slice.as_ptr(), slice.len(), ty);
 			Ok(RelocTable {
 				data: slice,
 				format: format,
@@ -761,10 +775,40 @@ impl<'a> RelocTable<'a> {
 		}
 	}
 	fn read_rel32(&self, idx: usize) -> Option<Reloc> {
-		todo!("read_rel32({})", idx);
+		assert_eq!(self.format.size, Size::Elf32);
+		assert_eq!(self.ty, RelocType::Rel);
+		let esz = self.get_ent_sz();
+		let ofs = idx * esz;
+		kernel_log!("read_rel32 - self.data = {:p}+{}, ofs={}", self.data.as_ptr(), self.data.len(), ofs);
+		if idx >= self.data.len() / esz {
+			None
+		}
+		else if ofs + esz > self.data.len() {
+			None
+		}
+		else {
+			let mut data = &self.data[idx*esz..];
+			let r_offset = self.format.read_u32(&mut data) as usize;
+			let r_info   = self.format.read_u32(&mut data);
+			Some(Reloc::new_rel(r_offset, r_info & 0xFF, r_info >> 8))
+		}
 	}
 	fn read_rela32(&self, idx: usize) -> Option<Reloc> {
-		todo!("read_rela32({})", idx);
+		assert_eq!(self.format.size, Size::Elf32);
+		assert_eq!(self.ty, RelocType::RelA);
+		let esz = self.get_ent_sz();
+		let ofs = idx * esz;
+		kernel_log!("read_rela32 - self.data = {:p}+{}, ofs={}", self.data.as_ptr(), self.data.len(), ofs);
+		if ofs + esz > self.data.len() {
+			None
+		}
+		else {
+			let mut data = &self.data[idx*esz..];
+			let r_offset = self.format.read_u32(&mut data) as usize;
+			let r_info   = self.format.read_u32(&mut data);
+			let r_addend = self.format.read_u32(&mut data) as usize;
+			Some(Reloc::new_rela(r_offset, r_info & 0xFF, r_info >> 8, r_addend))
+		}
 	}
 	
 	fn read(&self, idx: usize) -> Option<Reloc> {
@@ -801,7 +845,13 @@ enum Endian { Little, Big }
 #[derive(Copy,Clone,Debug)]
 enum ObjectType { None, Reloc, Exec, Dyn, Core, Unk(u16) }
 #[derive(Copy,Clone,Debug)]
-enum Machine { None, I386, X8664, Unk(u16) }
+enum Machine {
+	None,
+	I386,
+	ARM,
+	X8664,
+	Unk(u16)
+}
 impl_from! {
 	From<u16>(v) for ObjectType {
 		match v
@@ -819,6 +869,7 @@ impl_from! {
 		{
 		0 => Machine::None,
 		3 => Machine::I386,
+		40 => Machine::ARM,
 		62 => Machine::X8664,
 		_ => Machine::Unk(v),
 		}
@@ -837,6 +888,13 @@ impl Format
 		match self.endian {
 		Endian::Little => buf.read_u64::<LittleEndian>().unwrap(),
 		Endian::Big    => buf.read_u64::<BigEndian>().unwrap(),
+		}
+	}
+	fn read_u32(&self, buf: &mut Read) -> u32 {
+		use byteorder::{ReadBytesExt,LittleEndian,BigEndian};
+		match self.endian {
+		Endian::Little => buf.read_u32::<LittleEndian>().unwrap(),
+		Endian::Big    => buf.read_u32::<BigEndian>().unwrap(),
 		}
 	}
 }

@@ -204,7 +204,8 @@ fn to_result(val: usize) -> Result<u32,u32> {
 
 #[inline]
 /// Write a string to the kernel's log
-pub fn log_write(msg: &str) {
+pub fn log_write<S: ?Sized+AsRef<[u8]>>(msg: &S) {
+	let msg = msg.as_ref();
 	// SAFE: Syscall
 	unsafe { syscall!(CORE_LOGWRITE, msg.as_ptr() as usize, msg.len()); }
 }

@@ -107,7 +107,7 @@ fn invoke_int(call_id: u32, mut args: &[usize]) -> Result<u64,Error>
 		// === 0: Threads and core
 		// - 0/0: Userland log
 		CORE_LOGWRITE => {
-			let msg = try!( <Freeze<str>>::get_arg(&mut args) );
+			let msg = try!( <Freeze<[u8]>>::get_arg(&mut args) );
 			syscall_core_log(&msg); 0
 			},
 		CORE_TEXTINFO => {
@@ -430,8 +430,13 @@ impl SyscallArg for bool {
 
 // TODO: Support a better user logging framework
 #[inline(never)]
-fn syscall_core_log(msg: &str) {
-	log_debug!("USER> {}", msg);
+fn syscall_core_log(msg: &[u8]) {
+	match ::core::str::from_utf8(msg)
+	{
+	Ok(v) => log_debug!("USER> {}", v),
+	Err(e) =>
+		log_debug!("USER [valid {}]> {:?}", e.valid_up_to(), ::kernel::lib::byte_str::ByteStr::new(msg)),
+	}
 }
 
 #[inline(never)]

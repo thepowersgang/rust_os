@@ -6,7 +6,7 @@
 			asm!("swi #0"
 				: "={r0}" (rv_l), "={r1}" (rv_h)
 				: "{r12}" ($id as usize) $(, $reg ($val as usize))*
-				:
+				: "r0","r1","r2","r3"
 				: "volatile"
 				);
 			(rv_h as u64) << 32 | (rv_l as u64)
