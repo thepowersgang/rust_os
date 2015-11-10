@@ -110,17 +110,23 @@ fn invoke_int(call_id: u32, mut args: &[usize]) -> Result<u64,Error>
 			let msg = try!( <Freeze<[u8]>>::get_arg(&mut args) );
 			syscall_core_log(&msg); 0
 			},
+		// - Userland debug
+		CORE_DBGVALUE => {
+			let msg = try!( <Freeze<[u8]>>::get_arg(&mut args) );
+			let val = try!( <usize>::get_arg(&mut args) );
+			syscall_core_dbgvalue(&msg, val); 0
+			},
+		// - 0/2: Exit process
+		CORE_EXITPROCESS => {
+			let status = try!( <u32>::get_arg(&mut args) );
+			threads::exit(status); 0
+			},
 		CORE_TEXTINFO => {
 			let group = try!( <u32>::get_arg(&mut args) );
 			let id = try!( <usize>::get_arg(&mut args) );
 			let mut buf = try!( <FreezeMut<[u8]>>::get_arg(&mut args) );
 			// TODO: Use a Result here
 			syscall_core_textinfo(group, id, &mut buf) as u64
-			},
-		// - 0/1: Exit process
-		CORE_EXITPROCESS => {
-			let status = try!( <u32>::get_arg(&mut args) );
-			threads::exit(status); 0
 			},
 		// - 0/2: Terminate current thread
 		CORE_EXITTHREAD => {
@@ -437,6 +443,10 @@ fn syscall_core_log(msg: &[u8]) {
 	Err(e) =>
 		log_debug!("USER [valid {}]> {:?}", e.valid_up_to(), ::kernel::lib::byte_str::ByteStr::new(msg)),
 	}
+}
+#[inline(never)]
+fn syscall_core_dbgvalue(msg: &[u8], val: usize) {
+	log_debug!("USER DBG> {} {:#x}", ::core::str::from_utf8(msg).unwrap_or("BADUTF"), val);
 }
 
 #[inline(never)]

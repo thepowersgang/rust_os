@@ -5,6 +5,8 @@
 #![feature(no_std)]
 #![feature(lang_items)]	// Allow definition of lang_items
 #![feature(asm)]	// Used by backtrace code
+#![feature(core_slice_ext)]	// Not yet stable
+#![feature(const_fn)]	// HACK For debugging ARM unwind
 #![no_std]
 
 #[macro_use]
@@ -14,6 +16,25 @@ extern crate macros;
 
 mod std {
 	pub use core::fmt;
+}
+
+#[cfg(arch="armv7")]
+enum Void {}
+#[cfg(arch="armv7")]
+mod memory {
+	pub mod virt {
+		pub fn is_reserved<T>(p: *const T) -> bool {
+			true
+		}
+	}
+	pub unsafe fn buf_to_slice<'a, T: 'a>(ptr: *const T, count: usize) -> Option<&'a [T]> {
+		if virt::is_reserved(ptr) {
+			Some(::core::slice::from_raw_parts(ptr, count))
+		}
+		else {
+			None
+		}
+	}
 }
 
 #[cfg(arch="amd64")]
@@ -46,7 +67,8 @@ pub extern "C" fn rust_begin_unwind(msg: ::core::fmt::Arguments, file: &'static 
 	// Spit out that log
 	kernel_log!("PANIC: {}:{}: {}", file, line, msg);
 	// - Backtrace
-	kernel_log!("- {} Backtrace: {:?}", file, arch::Backtrace::new());
+	let bt = arch::Backtrace::new();
+	kernel_log!("- {} Backtrace: {:?}", file, bt);
 	// Exit the process with a special error code
 	::syscalls::threads::exit(0xFFFF_FFFF);
 }

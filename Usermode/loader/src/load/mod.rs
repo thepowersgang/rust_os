@@ -37,7 +37,7 @@ impl_fmt! {
 	Debug(self, f) for Segment {
 		write!(f, "Segment {{ {:#x}+{:#x} <= {:#x}+{:#x} {:?} }}",
 			self.load_addr, self.mem_size,
-			self.file_size, self.file_size,
+			self.file_addr, self.file_size,
 			self.protection
 			)
 	}

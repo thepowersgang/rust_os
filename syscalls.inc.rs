@@ -29,19 +29,21 @@ macro_rules! def_grp {
 def_grp!( 0: GROUP_CORE = {
 	/// Write a logging message
 	=0: CORE_LOGWRITE,
-	/// Request a text string from the kernel
-	=1: CORE_TEXTINFO,
+	/// Write a hex value and string
+	=1: CORE_DBGVALUE,
 	/// Terminate the current process
 	// NOTE: '2' is hard-coded in rustrt0
 	=2: CORE_EXITPROCESS,
+	/// Request a text string from the kernel
+	=3: CORE_TEXTINFO,
 	/// Terminate the current thread
-	=3: CORE_EXITTHREAD,
+	=4: CORE_EXITTHREAD,
 	/// Start a new process (loader only, use loader API instead)
-	=4: CORE_STARTPROCESS,
+	=5: CORE_STARTPROCESS,
 	/// Start a new thread in the current process
-	=5: CORE_STARTTHREAD,
+	=6: CORE_STARTTHREAD,
 	/// Wait for any of a set of events
-	=6: CORE_WAIT,
+	=7: CORE_WAIT,
 });
 
 /// Value for `get_text_info`'s `unit` argument, indicating kernel core

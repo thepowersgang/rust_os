@@ -10,8 +10,8 @@
 
 .section .text.start
 ENTRY(start)
-	b register_arguments
-	b main
+	bl register_arguments
+	bl main
 	
 	mov r12, #2
 	svc #2

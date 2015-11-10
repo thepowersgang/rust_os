@@ -18,21 +18,21 @@ SECTIONS {
 	
 	/* ARM unwind tables */
 	/DISCARD/ : { *(.ARM.extab.init .ARM.exidx.init) }
-	.ARM.extab : AT( ADDR(.ARM.extab) - _kernel_base) {
+	.ARM.extab : {
 		*(.ARM.extab* .gnu.linkonce.armextab.*)
 	} :SegRX
 	PROVIDE_HIDDEN ( __exidx_start = . );
-	.ARM.exidx : AT( ADDR(.ARM.exidx) - _kernel_base) {
+	.ARM.exidx : {
 		*(.ARM.exidx* .gnu.linkonce.armexidx.*)
+	} :SegRX
+	.rel.plt : {
+		*(.rel.plt)
 	} :SegRX
 	PROVIDE_HIDDEN ( __exidx_end = . );
 	
 	/* Dynamic linking info */
 	.dynamic : {
 		*(.dynamic)
-	} :SegDYN
-	.rel.plt : {
-		*(.rel.plt)
 	} :SegDYN
 	
 	. = ALIGN(0x1000);

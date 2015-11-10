@@ -209,6 +209,12 @@ pub fn log_write<S: ?Sized+AsRef<[u8]>>(msg: &S) {
 	// SAFE: Syscall
 	unsafe { syscall!(CORE_LOGWRITE, msg.as_ptr() as usize, msg.len()); }
 }
+pub fn debug_value<S: ?Sized+AsRef<[u8]>>(msg: &S, v: usize) {
+	let msg = msg.as_ref();
+	// SAFE: Syscall
+	unsafe { syscall!(CORE_DBGVALUE, msg.as_ptr() as usize, msg.len(), v); }
+}
+
 
 pub use values::TEXTINFO_KERNEL;
 

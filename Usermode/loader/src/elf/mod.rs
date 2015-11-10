@@ -230,9 +230,14 @@ impl<'a> RelocationState<'a>
 	fn apply_reloc_arm(&self, r: Reloc) -> Result<(), Error> {
 		const R_ARM_NONE: u16 = 0;
 		//const R_ARM_PC24: u16 = 1;	// ((S + A) | T) - P
+		const R_ARM_JUMP_SLOT: u16 = 22;	// (S + A) | T
 		match r.ty
 		{
 		R_ARM_NONE => {},
+		R_ARM_JUMP_SLOT => {
+			let (addr,_size) = try!( self.get_symbol_r(r.sym as usize) );
+			self.relocate_32(r.addr, |_val| addr as u32);
+			},
 		v @ _ => todo!("apply_reloc_arm - ty={}", v),
 		}
 		Ok( () )
@@ -354,7 +359,6 @@ impl<'a> StringTable<'a>
 }
 
 #[allow(dead_code)]
-#[derive(Debug)]
 struct PHEnt
 {
 	p_type: u32,
@@ -365,6 +369,19 @@ struct PHEnt
 	p_filesz: usize,
 	p_memsz: usize,
 	p_align: usize,	
+}
+impl_fmt! {
+	Debug(self,f) for PHEnt {
+		write!(f, "PHEnt {{ p_type: {}, p_flags: {:#x}, p_offset: {:#x}, p_vaddr: {:#x}, p_paddr: {:#x}, p_filesz: {:#x}, p_memsz: {:#x}, p_align: {}",
+			self.p_type,
+			self.p_flags,
+			self.p_offset,
+			self.p_vaddr,
+			self.p_paddr,
+			self.p_filesz,
+			self.p_memsz,
+			self.p_align)
+	}
 }
 const PT_LOAD: u32 = 1;
 const PT_DYNAMIC: u32 = 2;

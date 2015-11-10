@@ -31,6 +31,7 @@ RUSTFLAGS += -O
 RUSTFLAGS += -g
 RUSTFLAGS += --cfg disable_float
 RUSTFLAGS += -Z force-overflow-checks=yes
+RUSTFLAGS += -Z no-landing-pads
 #RUSTFLAGS += -C lto
 # - This feels bad, sure it's valid, but...
 ifeq ($(ARCH),armv7)

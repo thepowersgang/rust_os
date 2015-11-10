@@ -1,4 +1,5 @@
 
+#[derive(Clone)]
 pub struct UnwindState {
 	regs: [u32; 16],
 	vsp: u32,
@@ -16,6 +17,18 @@ pub enum Error
 
 macro_rules! getreg {
 	($r:ident) => {{ let v; asm!( concat!("mov $0, ", stringify!($r)) : "=r"(v)); v }};
+}
+
+//const TRACE_OPS: bool = true;
+const TRACE_OPS: bool = false;
+
+fn prel31(addr: usize, v: u32) -> usize {
+	if v > 0x4000_0000 {
+		usize::wrapping_add(addr, (v | 0x8000_0000) as usize)
+	}
+	else {
+		usize::wrapping_add(addr, v as usize)
+	}
 }
 
 impl UnwindState {
@@ -62,7 +75,7 @@ impl UnwindState {
 		else {
 			// Indirect pointer
 			let ofs = (info | (1 << 31)) as usize;
-			let ptr = (base + ofs) as *const u32;
+			let ptr = usize::wrapping_add(base, ofs) as *const u32;
 			//log_debug!("ptr = {:#x} + {:#x} = {:p}", base, ofs, ptr);
 			// SAFE: Validity checked
 			let word = unsafe {
@@ -115,7 +128,8 @@ impl UnwindState {
 				}
 			}
 			else {
-				log_error!("TODO: Custom exception routine? word={:#x}", word);
+				let addr = prel31(ptr as usize, word);
+				log_error!("TODO: Custom exception routine? word={:#x} - addr={:#x}", word, addr);
 				return Err( Error::Todo );
 			}
 		}
@@ -148,12 +162,16 @@ impl UnwindState {
 		{
 		0x0 ... 0x3 => {	// ARM_EXIDX_CMD_DATA_POP
 			let count = (byte & 0x3F) as u32 * 4 + 4;
-			//log_debug!("VSP += {:#x}*4+4 ({})", byte & 0x3F, count);
+			if TRACE_OPS {
+				log_debug!("VSP += {:#x}*4+4 ({})", byte & 0x3F, count);
+			}
 			self.vsp += count;
 			},
 		0x4 ... 0x7 => {	// ARM_EXIDX_CMD_DATA_PUSH
 			let count = (byte & 0x3F) as u32 * 4 + 4;
-			//log_debug!("VSP -= {:#x}*4+4 ({})", byte & 0x3F, count);
+			if TRACE_OPS {
+				log_debug!("VSP -= {:#x}*4+4 ({})", byte & 0x3F, count);
+			}
 			self.vsp -= count;
 			},
 		0x8 => {	// ARM_EXIDX_CMD_REG_POP
@@ -162,7 +180,9 @@ impl UnwindState {
 				// Refuse to unwind
 				return Err( Error::Refuse );
 			}
-			//log_debug!("POP mask {:#x}{:02x}", byte & 0xF, extra);
+			if TRACE_OPS {
+				log_debug!("POP mask {:#x}{:02x}", byte & 0xF, extra);
+			}
 	
 			// Lowest register at lowest stack
 			if extra & 0x01 != 0 { self.regs[4] = try!(self.pop()); }	// R4
@@ -179,13 +199,17 @@ impl UnwindState {
 			if byte & 0x8 != 0 { self.regs[15] = try!(self.pop()); }	// R15
 			},
 		0x9 => {	// ARM_EXIDX_CMD_REG_TO_SP
-			//log_debug!("VSP = R{}", byte & 0xF);
+			if TRACE_OPS {
+				log_debug!("VSP = R{}", byte & 0xF);
+			}
 			self.vsp = self.regs[(byte & 0xF) as usize];
 			},
 		0xA => {	// ARM_EXIDX_CMD_REG_POP
 			let pop_lr = byte & 0x8 != 0;
 			let count = (byte&0x7) as usize;
-			//log_debug!("POP {{r4-r{}{}}}", 4 + count, if pop_lr { ",lr" } else { "" });
+			if TRACE_OPS {
+				log_debug!("POP {{r4-r{}{}}}", 4 + count, if pop_lr { ",lr" } else { "" });
+			}
 			for r in 4 .. 4 + count + 1 {
 				self.regs[r] = try!(self.pop());
 			}
@@ -204,7 +228,9 @@ impl UnwindState {
 				}
 				else {
 					// Pop registers
-					//log_debug!("POP mask 0-3 {:#x}", extra & 0xFF);
+					if TRACE_OPS {
+						log_debug!("POP mask 0-3 {:#x}", extra & 0xFF);
+					}
 					if extra & 0x1 != 0 { self.regs[0] = try!(self.pop()); }	// R0
 					if extra & 0x2 != 0 { self.regs[1] = try!(self.pop()); }	// R1
 					if extra & 0x4 != 0 { self.regs[2] = try!(self.pop()); }	// R2
@@ -295,7 +321,8 @@ pub fn get_unwind_info_for(addr: usize) -> Option<(usize, &'static u32)>
 	// Locate the closest entry before the return address
 	for (i,e) in exidx_tab.iter().enumerate() {
 		assert!(e[0] < 0x8000_0000);
-		let fcn_start = e[0] as usize + 0x8000_0000 + &e[0] as *const _ as usize;
+		
+		let fcn_start = usize::wrapping_add( (e[0] as usize + 0x8000_0000), (&e[0] as *const _ as usize) );
 		// If before the address, but after the previous closest
 		if fcn_start < addr && fcn_start > best.0 {
 			// then use it
