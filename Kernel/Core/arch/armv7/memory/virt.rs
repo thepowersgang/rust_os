@@ -101,11 +101,18 @@ enum PageEntryRegion {
 }
 impl PageEntryRegion {
 	fn get_section_ent(&self, idx: usize) -> &AtomicU32 {
-		assert!(idx < 4096);
 		match self
 		{
-		&PageEntryRegion::NonGlobal => todo!("PageEntryRegion::get_section_ent - non-global"),
-		&PageEntryRegion::Global => &kernel_table0[idx],
+		// SAFE: Atomic and valid
+		&PageEntryRegion::NonGlobal => unsafe {
+			assert!(idx < 2048);
+			let table = &*(USER_BASE_TABLE as *const [AtomicU32; 0x800]);
+			&table[idx]
+			},
+		&PageEntryRegion::Global => {
+			assert!(idx < 4096);
+			&kernel_table0[idx]
+			},
 		}
 	}
 }
@@ -130,7 +137,7 @@ impl PageEntry
 	fn get(addr: *const ()) -> PageEntry {
 		use super::addresses::KERNEL_BASE;
 		let (rgn, p_idx) = if (addr as usize) < KERNEL_BASE {
-				(PageEntryRegion::NonGlobal, (addr as usize - KERNEL_BASE) >> 12)
+				(PageEntryRegion::NonGlobal, (addr as usize) >> 12)
 			}
 			else {
 				(PageEntryRegion::Global, (addr as usize) >> 12)
@@ -164,14 +171,14 @@ impl PageEntry
 		}
 	}
 
-	fn phys_addr(&self) -> ::arch::memory::PAddr {
+	fn phys_addr(&self) -> PAddr {
 		match self
 		{
 		&PageEntry::Section { rgn, idx, ofs } => (rgn.get_section_ent(idx).load() & !0xFFF) + ofs as u32,
 		&PageEntry::Page { ref mapping, idx ,ofs } => (mapping[idx & 0x3FF].load() & !0xFFF) + ofs as u32,
 		}
 	}
-	fn mode(&self) -> ::memory::virt::ProtectionMode {
+	fn mode(&self) -> ProtectionMode {
 		match self
 		{
 		&PageEntry::Section { rgn, idx, .. } =>
@@ -185,8 +192,25 @@ impl PageEntry
 		&PageEntry::Page { ref mapping, idx, .. } => flags_to_prot_mode( mapping[idx & 0x3FF].load() & 0xFFF ),
 		}
 	}
-	//fn reset(&mut self) -> Option<(::arch::memory::PAddr, ::memory::virt::ProtectionMode)> {
+	//fn reset(&mut self) -> Option<(PAddr, ProtectionMode)> {
 	//}
+	
+	unsafe fn set(&mut self, addr: PAddr, mode: ProtectionMode) -> Option<(PAddr, ProtectionMode)> {
+		match self
+		{
+		&mut PageEntry::Section { .. } => todo!("Calling PageEntry::set on Section"),
+		&mut PageEntry::Page { ref mapping, idx, .. } => {
+			let flags = prot_mode_to_flags(mode);
+			let old = mapping[idx & 0x3FF].xchg( (addr as u32) | flags );
+			if old & 0xFFF == 0 {
+				None
+			}
+			else {
+				Some( ((old & !0xFFF) as PAddr, flags_to_prot_mode(old & 0xFFF)) )
+			}
+			},
+		}
+	}
 }
 
 extern "C" {
@@ -396,9 +420,94 @@ impl AddressSpace
 		AddressSpace( tab0_addr )
 	}
 	pub fn new(clone_start: usize, clone_end: usize) -> Result<AddressSpace,::memory::virt::MapError> {
+		// 1. Allocate a new root-level table for the user code (requires two pages aligned, or just use 1GB for user)
 		todo!("AddressSpace::new({:#x} -- {:#x})", clone_start, clone_end);
 	}
 
 	pub fn get_ttbr0(&self) -> u32 { self.0 }
 }
 
+
+// --------------------------------------------------------------------
+//
+// --------------------------------------------------------------------
+#[repr(C)]
+pub struct AbortRegs
+{
+	sp: u32,
+	lr: u32,
+	gprs: [u32; 13],	// R0-R12
+	_unused: u32,	// Padding (actually R0)
+	ret_pc: u32,	// SRSFD/RFEFD state
+	spsr: u32,
+}
+#[no_mangle]
+pub fn data_abort_handler(pc: u32, reg_state: &AbortRegs, dfar: u32, dfsr: u32) {
+
+	log_warning!("Data abort by {:#x} address {:#x} status {:#x} ({})", pc, dfar, dfsr, fsr_name(dfsr));
+	//log_debug!("Registers:");
+	//log_debug!("R 0 {:08x}  R 1 {:08x}  R 2 {:08x}  R 3 {:08x}  R 4 {:08x}  R 5 {:08x}}  R 6 {:08x}", reg_state.gprs[0]);
+	
+	let mut ent = PageEntry::get(dfar as usize as *const ());
+	if ent.mode() == ProtectionMode::UserCOW {
+		// 1. Lock (relevant) address space
+		// SAFE: Changes to address space are transparent
+		::memory::virt::with_lock(dfar as usize, || unsafe {
+			let frame = ent.phys_addr();
+			// 2. Get the PMM to provide us with a unique copy of that frame (can return the same addr)
+			let newframe = ::memory::phys::make_unique( frame, &*(((dfar as usize) & !0xFFF) as *const [u8; 4096]) );
+			// 3. Remap to this page as UserRW (because COW is user-only atm)
+			ent.set(newframe, ProtectionMode::UserRW);
+			log_debug!("- COW frame copied");
+			});
+
+		return ;
+	}
+	
+	if pc < 0x8000_0000 {
+	}
+	else {
+		let rs = ::arch::imp::aeabi_unwind::UnwindState::from_regs([
+			reg_state.gprs[0], reg_state.gprs[1], reg_state.gprs[ 2], reg_state.gprs[3],
+			reg_state.gprs[4], reg_state.gprs[5], reg_state.gprs[ 6], reg_state.gprs[7],
+			reg_state.gprs[8], reg_state.gprs[9], reg_state.gprs[10], reg_state.gprs[11],
+			reg_state.gprs[12], reg_state.sp, reg_state.lr, reg_state.ret_pc,
+			]);
+		::arch::imp::print_backtrace_unwindstate(rs, pc as usize);
+		panic!("Kernel data abort by {:#x} at {:#x}", pc, dfar);
+	}
+}
+fn fsr_name(ifsr: u32) -> &'static str {
+	match ifsr & 0x40F
+	{
+	0x001 => "Alignment fault",
+	0x004 => "Instruction cache maintainence",
+	0x00C => "Sync Ext abort walk lvl1",
+	0x00E => "Sync Ext abort walk lvl2",
+	0x40C => "Sync Ext pairity walk lvl1",
+	0x40E => "Sync Ext pairity walk lvl2",
+	0x005 => "Translation fault lvl1",
+	0x007 => "Translation fault lvl2",
+	0x003 => "Access flag fault lvl1",
+	0x006 => "Access flag fault lvl2",
+	0x009 => "Domain fault lvl1",
+	0x00B => "Domain fault lvl2",
+	0x00D => "Permissions fault lvl1",
+	0x00F => "Permissions fault lvl2",
+	_ => "undefined",
+	}
+}
+#[no_mangle]
+pub fn prefetch_abort_handler(pc: u32, reg_state: &AbortRegs, ifsr: u32) {
+	log_warning!("Prefetch abort at {:#x} status {:#x} ({}) - LR={:#x}", pc, ifsr, fsr_name(ifsr), reg_state.lr);
+	//log_debug!("Registers:");
+	//log_debug!("R 0 {:08x}  R 1 {:08x}  R 2 {:08x}  R 3 {:08x}  R 4 {:08x}  R 5 {:08x}}  R 6 {:08x}", reg_state.gprs[0]);
+	
+	let rs = ::arch::imp::aeabi_unwind::UnwindState::from_regs([
+		reg_state.gprs[0], reg_state.gprs[1], reg_state.gprs[ 2], reg_state.gprs[3],
+		reg_state.gprs[4], reg_state.gprs[5], reg_state.gprs[ 6], reg_state.gprs[7],
+		reg_state.gprs[8], reg_state.gprs[9], reg_state.gprs[10], reg_state.gprs[11],
+		reg_state.gprs[12], reg_state.sp, reg_state.lr, reg_state.ret_pc,
+		]);
+	::arch::imp::print_backtrace_unwindstate(rs, pc as usize);
+}

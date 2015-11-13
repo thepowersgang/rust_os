@@ -144,65 +144,6 @@ fn print_backtrace_unwindstate(mut rs: aeabi_unwind::UnwindState, mut addr: usiz
 }
 
 
-#[repr(C)]
-pub struct AbortRegs
-{
-	sp: u32,
-	lr: u32,
-	gprs: [u32; 13],	// R0-R12
-	_unused: u32,	// Padding (actually R0)
-	ret_pc: u32,	// SRSFD/RFEFD state
-	spsr: u32,
-}
-#[no_mangle]
-pub fn data_abort_handler(pc: u32, reg_state: &AbortRegs, dfar: u32, dfsr: u32) {
-
-	log_warning!("Data abort by {:#x} address {:#x} status {:#x}", pc, dfar, dfsr);
-	//log_debug!("Registers:");
-	//log_debug!("R 0 {:08x}  R 1 {:08x}  R 2 {:08x}  R 3 {:08x}  R 4 {:08x}  R 5 {:08x}}  R 6 {:08x}", reg_state.gprs[0]);
-	
-	let rs = aeabi_unwind::UnwindState::from_regs([
-		reg_state.gprs[0], reg_state.gprs[1], reg_state.gprs[ 2], reg_state.gprs[3],
-		reg_state.gprs[4], reg_state.gprs[5], reg_state.gprs[ 6], reg_state.gprs[7],
-		reg_state.gprs[8], reg_state.gprs[9], reg_state.gprs[10], reg_state.gprs[11],
-		reg_state.gprs[12], reg_state.sp, reg_state.lr, reg_state.ret_pc,
-		]);
-	print_backtrace_unwindstate(rs, pc as usize);
-}
-fn fsr_name(ifsr: u32) -> &'static str {
-	match ifsr & 0x40F
-	{
-	0x001 => "Alignment fault",
-	0x004 => "Instruction cache maintainence",
-	0x00C => "Sync Ext abort walk lvl1",
-	0x00E => "Sync Ext abort walk lvl2",
-	0x40C => "Sync Ext pairity walk lvl1",
-	0x40E => "Sync Ext pairity walk lvl2",
-	0x005 => "Translation fault lvl1",
-	0x007 => "Translation fault lvl2",
-	0x003 => "Access flag fault lvl1",
-	0x006 => "Access flag fault lvl2",
-	0x009 => "Domain fault lvl1",
-	0x00B => "Domain fault lvl2",
-	0x00D => "Permissions fault lvl1",
-	0x00F => "Permissions fault lvl2",
-	_ => "undefined",
-	}
-}
-#[no_mangle]
-pub fn prefetch_abort_handler(pc: u32, reg_state: &AbortRegs, ifsr: u32) {
-	log_warning!("Prefetch abort at {:#x} status {:#x} ({}) - LR={:#x}", pc, ifsr, fsr_name(ifsr), reg_state.lr);
-	//log_debug!("Registers:");
-	//log_debug!("R 0 {:08x}  R 1 {:08x}  R 2 {:08x}  R 3 {:08x}  R 4 {:08x}  R 5 {:08x}}  R 6 {:08x}", reg_state.gprs[0]);
-	
-	let rs = aeabi_unwind::UnwindState::from_regs([
-		reg_state.gprs[0], reg_state.gprs[1], reg_state.gprs[ 2], reg_state.gprs[3],
-		reg_state.gprs[4], reg_state.gprs[5], reg_state.gprs[ 6], reg_state.gprs[7],
-		reg_state.gprs[8], reg_state.gprs[9], reg_state.gprs[10], reg_state.gprs[11],
-		reg_state.gprs[12], reg_state.sp, reg_state.lr, reg_state.ret_pc,
-		]);
-	print_backtrace_unwindstate(rs, pc as usize);
-}
 
 pub mod x86_io {
 	pub unsafe fn inb(_p: u16) -> u8 { panic!("calling inb on ARM") }

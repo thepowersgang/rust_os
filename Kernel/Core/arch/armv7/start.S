@@ -247,8 +247,8 @@ ENTRY(prefetch_abort)
 	mov r1, sp
 	mrc p15,0, r2, c5,c0,1
 	bl prefetch_abort_handler
-	
-	b .
+
+	add sp, #8	@ Undo saving of SP/LR to stack
 	
 	pop {r0-r12}
 	pop {r0}
@@ -293,8 +293,8 @@ ENTRY(data_abort)
 	mrc p15,0, r2, c6,c0,0
 	mrc p15,0, r3, c5,c0,0
 	bl data_abort_handler
-	
-	b .
+
+	add sp, #8	@ Undo saving of SP/LR to stack
 	
 	pop {r0-r12}
 	pop {r0}
