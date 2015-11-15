@@ -1,7 +1,9 @@
 
 -include ../../common.mk
 
-.PHONY: run
+.PHONY: run all
+
+all: run
 
 QEMU_ARGS := -s -no-reboot
 ifeq ($(ENABLE_VIDEO),)
@@ -15,6 +17,12 @@ ifneq ($(QEMU_STALL),)
 endif
 CMDLINE := SYSROOT=Tifflin
 
+
+ifeq ($(NOTEE),)
+ TEE := | tee QemuLog.txt
+else
+ TEE := 
+endif
 
 IMGDIR := DiskImages/$(ARCH)/
 
@@ -37,7 +45,7 @@ else
 endif
 
 run: $(IMGDIR)hda.img .qemu_trace
-	./$(SCRIPT) ../bin/kernel-amd64.bin.elf32 "$(CMDLINE)" "$(QEMU_ARGS)" | tee QemuLog.txt
+	./$(SCRIPT) ../bin/kernel-amd64.bin.elf32 "$(CMDLINE)" "$(QEMU_ARGS)" $(TEE)
 #
 # --- ARMv7 ---
 #
@@ -53,7 +61,7 @@ MACHINE_TYPE := realview-pb-a8
 MACHINE_TYPE := virt
 run: $(IMGDIR)hda.img
 	make -C arm_bootloader PLATFORM=$(MACHINE_TYPE) CMDLINE="$(CMDLINE)"
-	qemu-system-arm -machine $(MACHINE_TYPE) $(QEMU_ARGS) -kernel arm_bootloader/loader-$(MACHINE_TYPE).bin -append "$(CMDLINE)" | tee QemuLog.txt
+	qemu-system-arm -machine $(MACHINE_TYPE) $(QEMU_ARGS) -kernel arm_bootloader/loader-$(MACHINE_TYPE).bin -append "$(CMDLINE)" $(TEE)
 endif
 
 $(IMGDIR)hda_0.img:
