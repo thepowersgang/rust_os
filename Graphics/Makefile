@@ -3,7 +3,7 @@
 
 SHARED_DIR := .output/shared/
 
-all: $(addprefix $(SHARED_DIR),power.r8 options.r8 background.r24)
+all: $(addprefix $(SHARED_DIR),power.r8 options.r8 background.r24 menu.r8)
 
 
 # NOTE: This is actually done in Kernel/Makefile
@@ -27,4 +27,5 @@ $(SHARED_DIR)logo.rs: TifflinLogoV1-128.png Makefile ConvertTo32bppRS
 $(SHARED_DIR)background.r24: rustacean-orig.png Makefile
 $(SHARED_DIR)power.r8: open-iconic_moon-2x.png Makefile
 $(SHARED_DIR)options.r8: open-iconic_cog-2x.png Makefile
+$(SHARED_DIR)menu.r8: TifflinLogoV1-BW-16.png Makefile
 

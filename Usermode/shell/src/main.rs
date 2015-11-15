@@ -52,7 +52,10 @@ fn main()
 		};
 	
 	let menubar = {
-		let logo_button = ::wtk::Button::new( (), |_,_| {} );
+		let logo_button = ::wtk::Button::new(
+			::wtk::image::RasterMonoA::new_img(imgpath!("menu.r8"), ::wtk::Colour::theme_text()).expect("Error loading menu icon"),
+			|_,_| system_menu.show()
+			);
 		let taskbar = ();
 		let clock_widget = ::wtk::Label::new("12:34", ::wtk::Colour::theme_text());
 		let power_button = ::wtk::Button::new(
