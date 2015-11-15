@@ -93,6 +93,7 @@ impl Window
 	}
 
 	pub fn set_client_region(&self, r: Rect) {
+		log_debug!("set_client_region(r={:?})", r);
 		*self.client_region.lock() = r;
 	}
 	pub fn get_client_region(&self) -> Rect {
@@ -119,12 +120,21 @@ impl Window
 		if self.flags.lock().decorated
 		{
 			let dims = self.dims();
-			// Draw decorations using decoraton template
-			let template = &super::decorations::WINDOW_TEMPLATE;
-			template.render(&self.buf.read(), Rect::new_pd(Pos::new(0,0), dims));
+			if dims.width() > 0 && dims.height() > 0 {
+				// Draw decorations using decoraton template
+				let template = &super::decorations::WINDOW_TEMPLATE;
+				template.render(&self.buf.read(), Rect::new_pd(Pos::new(0,0), dims));
 
-			self.set_client_region( Rect::new(template.left(),template.top(), dims.width()-template.fixed_width(), dims.height()-template.fixed_height()) );
+				self.set_client_region( Rect::new(template.left(),template.top(), dims.width()-template.fixed_width(), dims.height()-template.fixed_height()) );
+			}
 		}
+		else {
+			self.set_client_region( Rect::new(0,0,!0,!0) );
+		}
+	}
+	pub fn set_decorated(&self, enabled: bool) {
+		self.flags.lock().decorated = enabled;
+		self.redecorate();
 	}
 	
 	/// Resize the window

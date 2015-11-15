@@ -138,8 +138,14 @@ impl Window
 	}
 	// TODO: Should this be controllable by the application?
 	pub fn maximise(&self) {
+		self.set_flag(::values::GUI_WIN_FLAG_MAXIMISED, true);
+	}
+	pub fn set_decorated(&self, value: bool) {
+		self.set_flag(::values::GUI_WIN_FLAG_DECORATED, value);
+	}
+	fn set_flag(&self, flag: u8, value: bool) {
 		// SAFE: Syscall
-		unsafe { self.0.call_2(::values::GUI_WIN_SETFLAG, ::values::GUI_WIN_FLAG_MAXIMISED as usize, 1); }
+		unsafe { self.0.call_2(::values::GUI_WIN_SETFLAG, flag as usize, if value { 1 } else { 0 }); }
 	}
 	
 	pub fn blit_rect(&self, x: u32, y: u32, w: u32, h: u32, data: &[u32], stride: usize) {

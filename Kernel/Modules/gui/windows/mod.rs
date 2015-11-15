@@ -590,15 +590,21 @@ impl WindowHandle
 
 	/// Return the dimensions of the currently usable portion of the window
 	pub fn get_dims(&self) -> Dims {
-		let d = self.get_win().dims();
-		let m = self.get_win().get_client_region();
-		Rect::new_pd( Pos::new(0,0), d ).intersect( &m ).unwrap_or( Rect::new(0,0,0,0) ).dims()
+		let total = Rect::new_pd( Pos::new(0,0), self.get_win().dims() );
+		let client = self.get_win().get_client_region();
+		log_debug!("WindowHandle:get_dims - total={:?}, client={:?}", total, client);
+		Rect::intersect( &total, &client ).unwrap_or( Rect::new(0,0,0,0) ).dims()
 	}
 	pub fn get_pos(&self) -> Pos {
 		let rv = self.grp.lock().get_window_pos(self.win);
 		rv
 	}
 	
+	pub fn set_decorated(&mut self, enabled: bool) {
+		let win = self.get_win();
+		win.set_decorated(enabled);
+	}
+
 	/// Maximise this window (fill all space on the current monitor)
 	pub fn maximise(&mut self) {
 		let win = self.get_win();

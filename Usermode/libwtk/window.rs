@@ -34,12 +34,14 @@ impl<'a> Window<'a>
 {
 	/// Create a new window containing the provided element
 	pub fn new(debug_name: &str, ele: &'a ::Element, background: ::surface::Colour) -> Window<'a> {
+		let w = match ::syscalls::gui::Window::new(debug_name)
+			{
+			Ok(w) => w,
+			Err(e) => panic!("TODO: Window::new e={:?}", e),
+			};
+		w.set_decorated(true);
 		Window {
-			win: match ::syscalls::gui::Window::new(debug_name)
-				{
-				Ok(w) => w,
-				Err(e) => panic!("TODO: Window::new e={:?}", e),
-				},
+			win: w,
 			surface: Default::default(),
 			needs_force_rerender: false,
 			focus: None,
@@ -107,6 +109,7 @@ impl<'a> Window<'a>
 		// TODO: Decide if decoratons should be done client-side, or server-side.
 		// - Client is slightly cleaner architectually
 		// - Server is more reliable, but has comms costs and server bloat
+		self.win.set_decorated(false);
 		self.needs_force_rerender = true;
 	}
 

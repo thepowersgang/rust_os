@@ -20,6 +20,7 @@ pub struct DecorTemplate<T: AsRef<[u32]>> {
 
 /// Used to coerce
 const fn as_slice<'a,T>(v: &'a [T]) -> &'a [T] { v }
+
 pub static WINDOW_TEMPLATE: DecorTemplate<&'static [u32]> = DecorTemplate {
 	w: 3, h: (1+16+1)+1+1,
 	left: 1, top: (1+16+1),
@@ -56,6 +57,9 @@ impl<T: AsRef<[u32]>> DecorTemplate<T>
 {
 	pub fn render(&self, buf: &WinBuf, rect: Rect)
 	{
+		if rect.h() < self.fixed_height() {
+			return ;
+		}
 		let dst_bottom = (rect.h() - self.bottom()) as usize;
 		for row in 0 .. self.top as usize {
 			self.render_line( row, buf.scanline_rgn_mut(rect.top() as usize + row, rect.left() as usize, rect.w() as usize) );
@@ -69,6 +73,11 @@ impl<T: AsRef<[u32]>> DecorTemplate<T>
 	}
 
 	fn render_line(&self, sline: usize, dst: &mut [u32]) {
+		log_trace!("render_line(self={:p}, sline={}, dst={:p}+{})",
+			self, sline, dst.as_ptr(), dst.len());
+		if dst.len() <= self.fixed_width() as usize {
+			return ;
+		}
 		let src = &self.data.as_ref()[self.w as usize * sline .. ][ .. self.w as usize];
 		let dst_w = dst.len();
 		let dst_right = dst_w - self.right() as usize;

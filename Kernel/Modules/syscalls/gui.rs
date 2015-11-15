@@ -114,6 +114,7 @@ impl objects::Object for Window
 			{
 			values::GUI_WIN_FLAG_VISIBLE   => if is_on { self.0.lock().show()	 } else { self.0.lock().hide() },
 			values::GUI_WIN_FLAG_MAXIMISED => if is_on { self.0.lock().maximise() } else { todo!("Unmaximise window"); },
+			values::GUI_WIN_FLAG_DECORATED => self.0.lock().set_decorated(is_on),
 			_ => todo!("Window::handle_syscall(GUI_WIN_SETFLAG, {} := {}) - Unknown flag", flag, is_on),
 			}
 			Ok(0)

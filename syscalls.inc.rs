@@ -200,6 +200,7 @@ def_classes! {
 
 pub const GUI_WIN_FLAG_VISIBLE: u8 = 0;
 pub const GUI_WIN_FLAG_MAXIMISED: u8 = 1;
+pub const GUI_WIN_FLAG_DECORATED: u8 = 2;
 
 macro_rules! enum_to_from {
 	($enm:ident => $ty:ty : $( $(#[$a:meta])* $n:ident = $v:expr,)*) => {
