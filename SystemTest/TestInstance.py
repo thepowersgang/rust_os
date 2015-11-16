@@ -11,6 +11,7 @@ class TestFail:
 def test_assert(reason, condition):
     if not condition:
         raise TestFail(reason)
+    print "STEP:",reason
 
 class Instance:
     def __init__(self, arch, testname):

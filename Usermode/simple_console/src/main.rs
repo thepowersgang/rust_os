@@ -46,8 +46,8 @@ trait Terminal
 
 fn main()
 {
-	// TODO: Get this from command line options
 	let mut maximised = false;
+	// TODO: Create a clone of getopts/docopt for this work
 	for arg in ::std::env::args_os().skip(1) {
 		match arg.as_bytes()
 		{
@@ -89,12 +89,14 @@ fn main()
 	let mut window = ::wtk::Window::new("Console", &term_ele, ::wtk::Colour::from_argb32(0x330000));//.unwrap();
 	if maximised {
 		//window.undecorate();
+		//window.decorator.set_mode_hidden();
 		window.maximise();
 		//None
 	}
 	else {
 		window.set_pos(50, 50);
 		window.set_dims(160*8+10, 25*16+20);
+		//window.decorator.set_mode_full();
 		//window.set_title("Console");
 	}
 

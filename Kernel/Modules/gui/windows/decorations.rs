@@ -73,8 +73,6 @@ impl<T: AsRef<[u32]>> DecorTemplate<T>
 	}
 
 	fn render_line(&self, sline: usize, dst: &mut [u32]) {
-		log_trace!("render_line(self={:p}, sline={}, dst={:p}+{})",
-			self, sline, dst.as_ptr(), dst.len());
 		if dst.len() <= self.fixed_width() as usize {
 			return ;
 		}

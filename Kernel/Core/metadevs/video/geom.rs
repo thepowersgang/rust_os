@@ -60,6 +60,13 @@ impl Dims
 	pub fn height(&self) -> u32 { self.h }
 	/// Return the width
 	pub fn width(&self) -> u32 { self.w }
+
+	pub fn min_of(&self, other: &Dims) -> Dims {
+		Dims {
+			w: ::core::cmp::min(self.w, other.w),
+			h: ::core::cmp::min(self.h, other.h),
+		}
+	}
 }
 
 impl Rect

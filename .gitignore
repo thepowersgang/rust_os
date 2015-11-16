@@ -7,6 +7,8 @@
 *.dsm
 *.tar.gz
 
+*.pyc
+
 gitstats/
 libcore/
 rustc_src/

@@ -54,7 +54,55 @@ impl<'a> Window<'a>
 			root: ele,
 		}
 	}
+}
 
+impl<'a> Window<'a>
+{
+	pub fn set_title(&self, title: &str) {
+		self.win.set_title(title);
+	}
+
+	/// Disable window decorations on this window
+	pub fn undecorate(&mut self) {
+		// TODO: Decide if decoratons should be done client-side, or server-side.
+		// - Client is slightly cleaner architectually
+		// - Server is more reliable, but has comms costs and server bloat
+		self.win.set_decorated(false);
+		self.needs_force_rerender = true;
+	}
+
+	/// Set window position
+	pub fn set_pos(&mut self, x: u32, y: u32) {
+		self.win.set_pos(x,y)
+	}
+	/// Set window dimensions (excludes decorator area), may be restricted by server
+	pub fn set_dims(&mut self, w: u32, h: u32) {
+		self.win.set_dims( ::syscalls::gui::Dims { w: w, h: h } );
+		self.update_surface_size();
+	}
+
+	/// Maximise the window
+	pub fn maximise(&mut self) {
+		self.win.maximise();
+		self.update_surface_size();
+	}
+
+	/// Show the window
+	pub fn show(&mut self) {
+		self.needs_force_rerender = true;
+		self.surface.invalidate_all();
+		self.rerender();
+		self.win.show();
+	}
+
+	/// Hide the window
+	pub fn hide(&mut self) {
+		self.win.hide();
+	}
+}
+
+impl<'a> Window<'a>
+{
 	/// Set the currently focussed element to an arbitary element)
 	/// 
 	/// NOTE: Undefined things happen if this element isn't within this window's 
@@ -104,28 +152,6 @@ impl<'a> Window<'a>
 		}
 	}
 
-	/// Disable window decorations on this window
-	pub fn undecorate(&mut self) {
-		// TODO: Decide if decoratons should be done client-side, or server-side.
-		// - Client is slightly cleaner architectually
-		// - Server is more reliable, but has comms costs and server bloat
-		self.win.set_decorated(false);
-		self.needs_force_rerender = true;
-	}
-
-	pub fn set_pos(&mut self, x: u32, y: u32) {
-		self.win.set_pos(x,y)
-	}
-	pub fn set_dims(&mut self, w: u32, h: u32) {
-		self.win.set_dims( ::syscalls::gui::Dims { w: w, h: h } );
-		self.update_surface_size();
-	}
-
-	/// Maximise the window
-	pub fn maximise(&mut self) {
-		self.win.maximise();
-		self.update_surface_size();
-	}
 	fn update_surface_size(&mut self) {
 		self.needs_force_rerender = true;
 		self.surface.resize( self.win.get_dims(), self.background );
@@ -136,17 +162,6 @@ impl<'a> Window<'a>
 		self.root.render( self.surface.slice( Rect::new_full() ), self.needs_force_rerender );
 		self.surface.blit_to_win( &self.win );
 		self.needs_force_rerender = false;
-	}
-
-	/// Show the window
-	pub fn show(&mut self) {
-		self.needs_force_rerender = true;
-		self.surface.invalidate_all();
-		self.rerender();
-		self.win.show();
-	}
-	pub fn hide(&mut self) {
-		self.win.hide();
 	}
 
 	fn handle_event(&mut self, ev: ::InputEvent) -> bool {

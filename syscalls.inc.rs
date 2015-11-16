@@ -198,9 +198,6 @@ def_classes! {
 	}
 }
 
-pub const GUI_WIN_FLAG_VISIBLE: u8 = 0;
-pub const GUI_WIN_FLAG_MAXIMISED: u8 = 1;
-pub const GUI_WIN_FLAG_DECORATED: u8 = 2;
 
 macro_rules! enum_to_from {
 	($enm:ident => $ty:ty : $( $(#[$a:meta])* $n:ident = $v:expr,)*) => {
@@ -209,18 +206,27 @@ macro_rules! enum_to_from {
 		{
 			$( $($a)* $n,)*
 		}
+		//impl ::core::convert::From<$ty> for ::core::option::Option<$enm> {
+		//	fn from(v: $ty) -> Self {
+		//		match v
+		//		{
+		//		$($v => Some($enm::$n),)*
+		//		_ => None,
+		//		}
+		//	}
+		//}
 		impl ::core::convert::From<$ty> for $enm {
 			fn from(v: $ty) -> Self {
 				match v
 				{
 				$($v => $enm::$n,)*
+				// TODO: This should not panic - it should return Result/Option instead
 				_ => panic!("Unknown value for {} - {}", stringify!($enm), v),
 				}
 			}
 		}
 		impl ::core::convert::Into<$ty> for $enm {
-			fn into(self) -> $ty
-			{
+			fn into(self) -> $ty {
 				match self
 				{
 				$($enm::$n => $v,)*
@@ -261,6 +267,13 @@ enum_to_from!{ VFSMemoryMapMode => u8:
 	COW = 2,
 	// /// Allows writing to the backing file
 	WriteBack = 3,
+}
+
+
+enum_to_from!{ GuiWinFlag => u8:
+	Visible = 0,
+	Maximised = 1,
+	Decorated = 2,
 }
 
 include!("keycodes.inc.rs");

@@ -133,12 +133,22 @@ impl Window
 		}
 	}
 	pub fn set_decorated(&self, enabled: bool) {
+		// TODO: Resize and reposition according to decoration?
 		self.flags.lock().decorated = enabled;
 		self.redecorate();
 	}
 	
 	/// Resize the window
 	pub fn resize(&self, dim: Dims) {
+		let dim = if self.flags.lock().decorated {
+				Dims {
+					w: dim.w + super::decorations::WINDOW_TEMPLATE.fixed_width(),
+					h: dim.h + super::decorations::WINDOW_TEMPLATE.fixed_height(),
+				}
+			}
+			else {
+				dim
+			};
 		// TODO: use something like "try_make_unique" and emit a notice if it needs to clone
 		Arc::make_mut(&mut self.buf.write()).resize(dim);
 		*self.dirty_rects.lock() = vec![ Rect::new(0,0, dim.w, dim.h) ];
@@ -211,10 +221,17 @@ impl Window
 		lh.push(area);
 	}
 	
+	fn offset_area(&self, area: Rect) -> Rect {
+		let client = self.get_client_region();
+		Rect::new_pd(
+			client.pos(),
+			Dims::min_of( &area.dims(), &client.dims() )
+			)
+	}
 	/// Fill an area of the window
 	pub fn fill_rect(&self, area: Rect, colour: Colour)
 	{
-		let area = area.intersect( &self.get_client_region() ).unwrap_or(Rect::new(0,0,0,0));
+		let area = self.offset_area(area);
 		let dims = self.buf.read().dims();
 		let winrect = Rect::new_pd(Pos::new(0,0), dims);
 		if let Some(area) = area.intersect(&winrect)
@@ -239,8 +256,7 @@ impl Window
 	pub fn blit_rect(&self, area: Rect, data: &[u32], stride: usize)
 	{
 		log_trace!("Window::blit_rect({}, data={}px)", area, data.len());
-		let area = area.intersect( &self.get_client_region() ).unwrap_or(Rect::new(0,0,0,0));
-		
+		let area = self.offset_area(area);
 		let buf_h = self.buf.read();
 		for (row,src) in (area.top() .. area.bottom()).zip( data.chunks(stride) )
 		{

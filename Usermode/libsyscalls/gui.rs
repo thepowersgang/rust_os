@@ -105,12 +105,10 @@ impl Window
 	}
 	
 	pub fn show(&self) {
-		// SAFE: Syscall
-		unsafe { self.0.call_2(::values::GUI_WIN_SETFLAG, ::values::GUI_WIN_FLAG_VISIBLE as usize, 1); }
+		self.set_flag(::values::GuiWinFlag::Visible, true);
 	}
 	pub fn hide(&self) {
-		// SAFE: Syscall
-		unsafe { self.0.call_2(::values::GUI_WIN_SETFLAG, ::values::GUI_WIN_FLAG_VISIBLE as usize, 0); }
+		self.set_flag(::values::GuiWinFlag::Visible, false);
 	}
 	pub fn redraw(&self) {
 		// SAFE: Syscall
@@ -138,12 +136,13 @@ impl Window
 	}
 	// TODO: Should this be controllable by the application?
 	pub fn maximise(&self) {
-		self.set_flag(::values::GUI_WIN_FLAG_MAXIMISED, true);
+		self.set_flag(::values::GuiWinFlag::Maximised, true);
 	}
 	pub fn set_decorated(&self, value: bool) {
-		self.set_flag(::values::GUI_WIN_FLAG_DECORATED, value);
+		self.set_flag(::values::GuiWinFlag::Decorated, value);
 	}
-	fn set_flag(&self, flag: u8, value: bool) {
+	fn set_flag(&self, flag: ::values::GuiWinFlag, value: bool) {
+		let flag: u8 = flag.into();
 		// SAFE: Syscall
 		unsafe { self.0.call_2(::values::GUI_WIN_SETFLAG, flag as usize, if value { 1 } else { 0 }); }
 	}

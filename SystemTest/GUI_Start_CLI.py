@@ -16,34 +16,30 @@ def test(instance):
     instance.type_key('ret')
     test_assert("Username return press timeout", instance.wait_for_idle()) # Press
     test_assert("Username return release timeout", instance.wait_for_idle())
-    print instance.lastlog
     # TODO: Have an item in the log here
     
     instance.type_string('password')
+    # - Wait until there's 1s with no action
     while instance.wait_for_idle():
         pass
     instance.type_key('ret')
     test_assert("Password return press timeout", instance.wait_for_idle()) # Press
-    test_assert("Shell startup timeout", instance.wait_for_idle(timeout=5))
-    print instance.lastlog
+    test_assert("Shell startup timeout", instance.wait_for_line("\[syscalls\] - USER> Calling entry 0x[0-9a-f]+ for b\"/sysroot/bin/shell\"", timeout=5))
+    test_assert("Shell idle timeout", instance.wait_for_idle(timeout=5))
     # TODO: Have an item in the log here
 
+    # - Open the "System" menu (press left windows key)
     instance.screenshot('Shell')
     instance.type_key('meta_l')
-    assert instance.wait_for_idle() # Press
-    assert instance.wait_for_idle(timeout=5);
-    #print instance.lastlog
+    test_assert("System menu press timeout", instance.wait_for_idle()) # Press
+    test_assert("System menu release timeout", instance.wait_for_idle(timeout=5)) # Release
     instance.screenshot('Menu')
 
-    #instance.type_key('down')
-    #assert instance.wait_for_idle() # Press
-    #assert instance.wait_for_idle(timeout=5);
-    ##print instance.lastlog
-    
+    # - Select the top item to open the CLI
     instance.type_key('ret')
     assert instance.wait_for_idle() # Press
-    assert instance.wait_for_idle(timeout=10);
-    #print instance.lastlog
+    test_assert("CLI startup timeout", instance.wait_for_line("\[syscalls\] - USER> Calling entry 0x[0-9a-f]+ for b\"/sysroot/bin/simple_console\"", timeout=5))
+    test_assert("CLI idle timeout", instance.wait_for_idle(timeout=5));
     instance.screenshot('CLI')
 
 
