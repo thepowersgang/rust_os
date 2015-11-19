@@ -5,14 +5,14 @@
 pub use surface::Colour;
 pub use geom::Rect;
 
-#[derive(Default)]
 /// A single-line text input widget, supporting shadow text and optionally obscured input
+#[derive(Default)]
 pub struct TextInput<'a>
 {
 	state: ::std::cell::RefCell<State>,
 	shadow: String,
 	obscure_char: Option<char>,
-	submit_cb: Option< Box<Fn(&TextInput<'a>, &mut ::window::Window)+'a> >,
+	submit_cb: Option< Box<Fn(&TextInput<'a>, &mut ::window::WindowTrait)+'a> >,
 }
 
 #[derive(Default)]
@@ -47,7 +47,7 @@ impl<'a> TextInput<'a>
 	/// 
 	/// Closure is passed a shared handle to this widget, and a mutable handle to the owning
 	/// window.
-	pub fn bind_submit<F: Fn(&Self, &mut ::window::Window)+'a>(&mut self, cb: F) {
+	pub fn bind_submit<F: Fn(&Self, &mut ::window::WindowTrait)+'a>(&mut self, cb: F) {
 		self.submit_cb = Some( Box::new(cb) );
 	}
 
@@ -124,7 +124,7 @@ impl<'a> ::Element for TextInput<'a>
 		}
 	}
 
-	fn handle_event(&self, ev: ::InputEvent, win: &mut ::window::Window) -> bool {
+	fn handle_event(&self, ev: ::InputEvent, win: &mut ::window::WindowTrait) -> bool {
 		match ev
 		{
 		::InputEvent::Text(v) => {

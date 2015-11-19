@@ -17,7 +17,6 @@ pub use self::winbuf::WinBuf;
 /// Handle to the backing buffer of a window
 pub type BufHandle = Arc<WinBuf>;
 
-mod decorations;
 mod window;
 mod winbuf;
 
@@ -600,11 +599,6 @@ impl WindowHandle
 		rv
 	}
 	
-	pub fn set_decorated(&mut self, enabled: bool) {
-		let win = self.get_win();
-		win.set_decorated(enabled);
-	}
-
 	/// Maximise this window (fill all space on the current monitor)
 	pub fn maximise(&mut self) {
 		let win = self.get_win();

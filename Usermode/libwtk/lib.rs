@@ -27,6 +27,8 @@ pub mod menu;
 
 pub mod image;
 
+pub mod decorator;
+
 pub use surface::Colour;
 
 /// Re-export GUI events for users of the library
@@ -38,17 +40,17 @@ pub trait Element
 	/// Called when focus changes to/from this element
 	fn focus_change(&self, _have: bool) {}
 	/// Called when an event fires. Keyboard events are controlled by focus, mouse via the render tree
-	fn handle_event(&self, _ev: ::InputEvent, _win: &mut ::window::Window) -> bool { false }
+	fn handle_event(&self, _ev: ::InputEvent, _win: &mut ::window::WindowTrait) -> bool { false }
 	/// Redraw this element into the provided surface view
 	fn render(&self, surface: ::surface::SurfaceView, force: bool);
 
-	fn element_at_pos(&self, x: u32, y: u32) -> (&::Element,(u32,u32));
+	fn element_at_pos(&self, x: u32, y: u32) -> (&::Element, (u32,u32));
 }
 /// Object safe
-impl<'a, T: Element> Element for &'a T
+impl<'a, T: 'a + Element> Element for &'a T
 {
 	fn focus_change(&self, have: bool) { (*self).focus_change(have) }
-	fn handle_event(&self, ev: ::InputEvent, win: &mut ::window::Window) -> bool { (*self).handle_event(ev, win) }
+	fn handle_event(&self, ev: ::InputEvent, win: &mut ::window::WindowTrait) -> bool { (*self).handle_event(ev, win) }
 	fn render(&self, surface: ::surface::SurfaceView, force: bool) { (*self).render(surface, force) }
 	fn element_at_pos(&self, x: u32, y: u32) -> (&::Element,(u32,u32)) { (*self).element_at_pos(x,y) }
 }
@@ -56,12 +58,12 @@ impl<'a, T: Element> Element for &'a T
 impl Element for ()
 {
 	fn focus_change(&self, _have: bool) { }
-	fn handle_event(&self, _ev: ::InputEvent, _win: &mut ::window::Window) -> bool { false }
+	fn handle_event(&self, _ev: ::InputEvent, _win: &mut ::window::WindowTrait) -> bool { false }
 	fn render(&self, _surface: ::surface::SurfaceView, _force: bool) { }
 	fn element_at_pos(&self, _x: u32, _y: u32) -> (&::Element,(u32,u32)) { (self,(0,0)) }
 }
 
-pub use window::Window;
+pub use window::{Window, WindowTrait};
 pub use layout::{Frame,Box};
 pub use input::text_box::TextInput;
 pub use input::button::Button;

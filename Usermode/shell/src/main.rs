@@ -45,8 +45,7 @@ fn main()
 		img
 		};
 	let mut win_background = {
-		let mut win = ::wtk::Window::new("Background", &background, ::wtk::Colour::from_argb32(0x01346B));	// 01346B is Ferris's background colour
-		win.undecorate();
+		let mut win = ::wtk::Window::new("Background", &background, ::wtk::Colour::from_argb32(0x01346B), ()).unwrap();	// 01346B is Ferris's background colour
 		win.maximise();
 		win
 		};
@@ -59,7 +58,7 @@ fn main()
 		let taskbar = ();
 		let clock_widget = ::wtk::Label::new("12:34", ::wtk::Colour::theme_text());
 		let power_button = ::wtk::Button::new(
-			::wtk::image::RasterMonoA::new_img(imgpath!("power.r8"), ::wtk::Colour::theme_text()).unwrap(),
+			::wtk::image::RasterMonoA::new_img(imgpath!("power.r8"), ::wtk::Colour::theme_text()).expect("Error loading power icon"),
 			|_button, _window| power_menu.show()
 			);
 		::wtk::StaticBox::new_horiz((
@@ -70,8 +69,7 @@ fn main()
 			))
 		};
 	let mut win_menu = {
-		let mut win = ::wtk::Window::new("SystemBar", &menubar, ::wtk::Colour::theme_text_bg());
-		win.undecorate();
+		let mut win = ::wtk::Window::new("SystemBar", &menubar, ::wtk::Colour::theme_text_bg(), ()).unwrap();
 		win.set_pos(0, 0);
 		win.set_dims(1920,20);
 		//win.taborder_add(0, &menubar.inner().0);

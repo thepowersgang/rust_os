@@ -114,7 +114,6 @@ impl objects::Object for Window
 			{
 			values::GuiWinFlag::Visible   => if is_on { self.0.lock().show()	 } else { self.0.lock().hide() },
 			values::GuiWinFlag::Maximised => if is_on { self.0.lock().maximise() } else { todo!("Unmaximise window"); },
-			values::GuiWinFlag::Decorated => self.0.lock().set_decorated(is_on),
 			}
 			Ok(0)
 			},

@@ -59,6 +59,17 @@ impl<T: CoordType> ::std::fmt::Debug for Pos<T>
 	}
 }
 
+pub struct Dims<T: CoordType> {
+	pub w: T,
+	pub h: T,
+}
+impl<T: CoordType> ::std::fmt::Debug for Dims<T>
+{
+	fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
+		write!(f, "Dims({:?}x={:?})", self.w, self.h)
+	}
+}
+
 impl<T: CoordType> Rect<T>
 {
 	pub fn new<U: Into<T>>(x: U, y: U, w: U, h: U) -> Rect<T> {
@@ -101,6 +112,11 @@ impl<T: CoordType> Rect<T>
 	pub fn y(&self) -> T { self.y }
 	pub fn x2(&self) -> T { self.x + self.w }
 	pub fn y2(&self) -> T { self.y + self.h }
+
+	pub fn contains(&self, pos: Pos<T>) -> bool {
+		self.x() <= pos.x && pos.x < self.x2()
+			&& self.y() <= pos.y && pos.y < self.y2()
+	}
 
 	/// Get the trivial union of two rectangles (i.e. the smallest rect containing both)
 	pub fn union(&self, other: &Rect<T>) -> Rect<T> {
@@ -161,6 +177,15 @@ impl<T: CoordType> Pos<T>
 			x: x.into(),
 			y: y.into(),
 			}
+	}
+}
+impl<T: CoordType> Dims<T>
+{
+	pub fn new<U: Into<T>>(w: U, h: U) -> Dims<T> {
+		Dims {
+			w: w.into(),
+			h: h.into(),
+		}
 	}
 }
 

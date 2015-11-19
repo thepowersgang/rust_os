@@ -97,8 +97,7 @@ fn main()
 		::wtk::BoxEle::fixed( MENU_HEIGHT, () ),
 		));
 
-	let mut win = ::wtk::Window::new("Login", &vbox, ::wtk::Colour::theme_body_bg());
-	win.undecorate();
+	let mut win = ::wtk::Window::new( "Login", &vbox, ::wtk::Colour::theme_body_bg(), () ).expect("Cannot create login window");
 	win.maximise();
 
 	win.taborder_add( 1, &username );

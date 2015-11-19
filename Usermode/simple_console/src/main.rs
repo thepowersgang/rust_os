@@ -86,18 +86,15 @@ fn main()
 		);
 
 	// Create maximised window
-	let mut window = ::wtk::Window::new("Console", &term_ele, ::wtk::Colour::from_argb32(0x330000));//.unwrap();
+	let decorator = if maximised { None } else { Some(::wtk::decorator::Standard::default()) };
+	let mut window = ::wtk::Window::new("Console", &term_ele, ::wtk::Colour::from_argb32(0x330000), decorator).unwrap();
 	if maximised {
-		//window.undecorate();
-		//window.decorator.set_mode_hidden();
 		window.maximise();
-		//None
 	}
 	else {
 		window.set_pos(50, 50);
 		window.set_dims(160*8+10, 25*16+20);
-		//window.decorator.set_mode_full();
-		//window.set_title("Console");
+		window.set_title("Console");
 	}
 
 	// Create terminal

@@ -273,7 +273,6 @@ enum_to_from!{ VFSMemoryMapMode => u8:
 enum_to_from!{ GuiWinFlag => u8:
 	Visible = 0,
 	Maximised = 1,
-	Decorated = 2,
 }
 
 include!("keycodes.inc.rs");

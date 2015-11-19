@@ -81,7 +81,7 @@ impl<'a> Box<'a>
 
 impl<'a> super::Element for Box<'a>
 {
-	fn handle_event(&self, _ev: ::InputEvent, _win: &mut ::window::Window) -> bool {
+	fn handle_event(&self, _ev: ::InputEvent, _win: &mut ::window::WindowTrait) -> bool {
 		false
 	}
 
@@ -188,7 +188,7 @@ impl<E: ::Element> Frame<E>
 
 impl<E: ::Element> ::Element for Frame<E>
 {
-	fn handle_event(&self, ev: ::InputEvent, win: &mut ::window::Window) -> bool {
+	fn handle_event(&self, ev: ::InputEvent, win: &mut ::window::WindowTrait) -> bool {
 		// TODO: For mouse events, clip to display region
 		//
 		self.item.handle_event(ev, win)

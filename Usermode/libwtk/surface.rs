@@ -296,12 +296,12 @@ impl MonoFontRender
 		let bitmap = &S_FONTDATA[idx as usize];
 		
 		// Actual render!
-		for row in (0 .. 16)
+		for row in 0 .. 16
 		{
 			let byte = &bitmap[row as usize];
 			let base = row * 8;
 			let r = &mut self.buffer[base .. base + 8]; 
-			for col in (0usize .. 8)
+			for col in 0usize .. 8
 			{
 				if (byte >> 7-col) & 1 != 0 {
 					r[col] = colour.as_argb32();

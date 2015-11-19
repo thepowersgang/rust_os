@@ -203,7 +203,7 @@ struct RenderCache {
 
 impl<EventCb> TerminalElement<EventCb>
 where
-	EventCb: FnMut(&mut ::wtk::Window, &TerminalElement<EventCb>, ::syscalls::gui::Event)
+	EventCb: FnMut(&mut ::wtk::WindowTrait, &TerminalElement<EventCb>, ::syscalls::gui::Event)
 {
 	pub fn new(cb: EventCb) -> TerminalElement<EventCb> {
 		TerminalElement {
@@ -217,9 +217,9 @@ where
 }
 impl<EventCb> ::wtk::Element for TerminalElement<EventCb>
 where
-	EventCb: FnMut(&mut ::wtk::Window, &TerminalElement<EventCb>, ::syscalls::gui::Event)
+	EventCb: FnMut(&mut ::wtk::WindowTrait, &TerminalElement<EventCb>, ::syscalls::gui::Event)
 {
-	fn handle_event(&self, ev: ::wtk::InputEvent, win: &mut ::wtk::Window) -> bool {
+	fn handle_event(&self, ev: ::wtk::InputEvent, win: &mut ::wtk::WindowTrait) -> bool {
 		let mut cb = self.cmd_callback.borrow_mut();
 		//(cb)(win, self, ev);
 		(&mut *cb)(win, self, ev);

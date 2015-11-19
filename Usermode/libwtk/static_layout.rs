@@ -22,13 +22,13 @@ pub struct BoxEle<E: Element> {
 }
 impl<E: Element> BoxEle<E>
 {
-	pub fn fixed(size: u32, ele: E) -> BoxEle<E> {
+	pub fn fixed(size: u32, ele: E) -> Self {
 		BoxEle {
 			size: Some(Size(size)),
 			ele: ele,
 		}
 	}
-	pub fn expand(ele: E) -> BoxEle<E> {
+	pub fn expand(ele: E) -> Self {
 		BoxEle {
 			size: None,
 			ele: ele,
@@ -39,15 +39,19 @@ impl<E: Element> BoxEle<E>
 
 impl<S: BoxEleSet> Box<S>
 {
-	fn new(dir: Direction, eles: S) -> Box<S> {
-		Box { direction: dir, sizes: Default::default(), elements: eles }
+	fn new(dir: Direction, eles: S) -> Self {
+		Box {
+			direction: dir,
+			sizes: Default::default(),
+			elements: eles
+		}
 	}
 	/// Create a vertically stacked box
-	pub fn new_vert(eles: S) -> Box<S> {
+	pub fn new_vert(eles: S) -> Self {
 		Box::new(Direction::Vertical, eles)
 	}
 	/// Create a horizontally stacked box
-	pub fn new_horiz(eles: S) -> Box<S> {
+	pub fn new_horiz(eles: S) -> Self {
 		Box::new(Direction::Horizontal, eles)
 	}
 
@@ -85,7 +89,7 @@ impl<S: BoxEleSet> Box<S>
 }
 impl<S: BoxEleSet> super::Element for Box<S>
 {
-	fn handle_event(&self, _ev: ::InputEvent, _win: &mut ::window::Window) -> bool {
+	fn handle_event(&self, _ev: ::InputEvent, _win: &mut ::window::WindowTrait) -> bool {
 		false
 	}
 

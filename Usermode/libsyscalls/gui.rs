@@ -138,9 +138,6 @@ impl Window
 	pub fn maximise(&self) {
 		self.set_flag(::values::GuiWinFlag::Maximised, true);
 	}
-	pub fn set_decorated(&self, value: bool) {
-		self.set_flag(::values::GuiWinFlag::Decorated, value);
-	}
 	fn set_flag(&self, flag: ::values::GuiWinFlag, value: bool) {
 		let flag: u8 = flag.into();
 		// SAFE: Syscall
