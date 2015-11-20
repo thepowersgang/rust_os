@@ -39,7 +39,8 @@ def test(instance):
     instance.type_key('ret')
     assert instance.wait_for_idle() # Press
     test_assert("CLI startup timeout", instance.wait_for_line("\[syscalls\] - USER> Calling entry 0x[0-9a-f]+ for b\"/sysroot/bin/simple_console\"", timeout=5))
-    test_assert("CLI idle timeout", instance.wait_for_idle(timeout=5));
+    test_assert("CLI window render", instance.wait_for_line("\[gui::windows\] - L\d+: WindowGroup::redraw: \d+ 'Console'", timeout=5))
+    test_assert("CLI idle timeout", instance.wait_for_idle(timeout=3))
     instance.screenshot('CLI')
 
 

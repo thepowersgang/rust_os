@@ -83,11 +83,11 @@ impl Decorator for Standard
 		//let mut left_x = theme.inner_left();
 		//self.icon.render( surface.slice( Rect::new(left_x, theme.titlebar_top(), 16, 16) ) );
 		//left_x += 16 + 2;
-		surface.draw_text( Rect::new( theme.titlebar_left(), theme.titlebar_top(),  !0, !0 ), self.title.chars(), Colour::theme_text() );
+		surface.draw_text( Rect::new( theme.titlebar_left(), theme.titlebar_top(),  !0, !0 ), self.title.chars(), Colour::from_argb32(0xFFFFFF) );
 
-		//StandardTheme.buttton_template().render(
-		//	surface.slice( Rect::new( surface.width() - theme.titlebar_right() - theme.button_width(), surface.titlebar_top(), theme.button_width(), theme.button_height() ) )
-		//	);
+		let mut right_x = surface.rect().x2().0 - theme.titlebar_right();
+		right_x -= theme.button_width();
+		theme.buttton_template().render( surface.slice( Rect::new( right_x, theme.titlebar_top(), theme.button_width(), theme.button_height() ) ) );
 	}
 	fn client_rect(&self) -> (Dims<Px>,Dims<Px>) {
 		let theme = StandardTheme;
@@ -109,12 +109,13 @@ impl StandardTheme
 	fn win_template(&self) -> &Template<&[u32]> {
 		const fn as_slice<T>(v: &[T]) -> &[T] { v } 
 		static TEMPLATE: Template<&'static [u32]> = Template {
-			w: 3, h: (1+16+1)+1+1,
+			w: 3, h: (2+16+2)+1+1,
 			left: 1, top: (1+16+1),
 			data: as_slice(&[
 				// Top fixed region
 				0xFFFFFF, 0xFFFFFF, 0xFFFFFF,
 				0xFFFFFF, 0x000000, 0xFFFFFF,
+
 				0xFFFFFF, 0x000000, 0xFFFFFF,
 				0xFFFFFF, 0x000000, 0xFFFFFF,
 				0xFFFFFF, 0x000000, 0xFFFFFF,
@@ -129,6 +130,9 @@ impl StandardTheme
 				0xFFFFFF, 0x000000, 0xFFFFFF,
 				0xFFFFFF, 0x000000, 0xFFFFFF,
 				0xFFFFFF, 0x000000, 0xFFFFFF,
+				0xFFFFFF, 0x000000, 0xFFFFFF,
+				0xFFFFFF, 0x000000, 0xFFFFFF,
+
 				0xFFFFFF, 0x000000, 0xFFFFFF,
 				0xFFFFFF, 0xFFFFFF, 0xFFFFFF,
 
@@ -141,29 +145,31 @@ impl StandardTheme
 			};
 		&TEMPLATE
 	}
-	//fn buttton_template(&self) -> &Template<[u32]> {
-	//	static TEMPLATE: Template<[u32; 5*5]> = Template {
-	//		w: 5, h: 5,
-	//		left: 2, top: 2,
-	//		data: [
-	//			// Top fixed region
-	//			0xFFFFFF, 0xFFFFFF,  0xFFFFFF,  0xFFFFFF, 0xFFFFFF,
-	//			0xFFFFFF, 0x000000,  0x000000,  0x000000, 0xFFFFFF,
+	fn buttton_template(&self) -> &Template<[u32]> {
+		static TEMPLATE: Template<[u32; 5*5]> = Template {
+			w: 5, h: 5,
+			left: 2, top: 2,
+			data: [
+				// Top fixed region
+				0xFFFFFF, 0xFFFFFF,  0xFFFFFF,  0xFFFFFF, 0xFFFFFF,
+				0xFFFFFF, 0x000000,  0x000000,  0x000000, 0xFFFFFF,
 
-	//			// Middle variable
-	//			0xFFFFFF, 0x000000,  0xFF_000000,  0x000000, 0xFFFFFF,
+				// Middle variable
+				0xFFFFFF, 0x000000,  0xFF_000000,  0x000000, 0xFFFFFF,
 
-	//			// Bottom fixed
-	//			0xFFFFFF, 0x000000,  0x000000,  0x000000, 0xFFFFFF,
-	//			0xFFFFFF, 0xFFFFFF,  0xFFFFFF,  0xFFFFFF, 0xFFFFFF,
-	//			],
-	//		};
-	//	&TEMPLATE
-	//}
+				// Bottom fixed
+				0xFFFFFF, 0x000000,  0x000000,  0x000000, 0xFFFFFF,
+				0xFFFFFF, 0xFFFFFF,  0xFFFFFF,  0xFFFFFF, 0xFFFFFF,
+				],
+			};
+		&TEMPLATE
+	}
+	fn button_width(&self) -> u32 { 16 }
+	fn button_height(&self) -> u32 { 16 }
 
 	fn titlebar_left(&self) -> u32 { 2 }
 	fn titlebar_top(&self) -> u32 { 2 }
-	//fn titlebar_right(&self) -> u32 { 2 }
+	fn titlebar_right(&self) -> u32 { 2 }
 	//fn titlebar_bottom(&self) -> u32 { 2 }
 
 	fn client_left (&self) -> u32 { self.win_template().left() }
@@ -184,7 +190,7 @@ struct Template<T: ?Sized + AsRef<[u32]>> {
 	/// Image data
 	data: T,
 }
-impl<T: AsRef<[u32]>> Template<T>
+impl<T: ?Sized + AsRef<[u32]>> Template<T>
 {
 	pub fn render(&self, surface: SurfaceView)
 	{
