@@ -14,8 +14,9 @@ def test(instance):
     while instance.wait_for_idle():
         pass
     instance.type_key('ret')
-    test_assert("Username return press timeout", instance.wait_for_idle()) # Press
-    test_assert("Username return release timeout", instance.wait_for_idle())
+    test_assert("Username return press timeout", instance.wait_for_line("\[syscalls\] - USER> Window::handle_event\(ev=KeyDown\(Return\)\)", timeout=1)) # Press
+    test_assert("Username return release timeout", instance.wait_for_line("\[syscalls\] - USER> Window::handle_event\(ev=KeyUp\(Return\)\)", timeout=1))
+    test_assert("Username return release idle", instance.wait_for_idle())
     # TODO: Have an item in the log here
     
     instance.type_string('password')
@@ -23,8 +24,8 @@ def test(instance):
     while instance.wait_for_idle():
         pass
     instance.type_key('ret')
-    test_assert("Password return press timeout", instance.wait_for_idle()) # Press
-    test_assert("Shell startup timeout", instance.wait_for_line("\[syscalls\] - USER> Calling entry 0x[0-9a-f]+ for b\"/sysroot/bin/shell\"", timeout=5))
+    test_assert("Password return press timeout", instance.wait_for_line("\[syscalls\] - USER> Window::handle_event\(ev=KeyDown\(Return\)\)", timeout=1)) # Press
+    test_assert("Shell startup timeout", instance.wait_for_line("\[syscalls\] - USER> Calling entry 0x[0-9a-f]+ for b\"/sysroot/bin/shell\"", timeout=1))
     test_assert("Shell idle timeout", instance.wait_for_idle(timeout=5))
     # TODO: Have an item in the log here
 

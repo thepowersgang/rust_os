@@ -166,6 +166,9 @@ impl<'a, D: 'a + Decorator> WindowTrait<'a> for Window<'a, D>
 	}
 	/// Set window dimensions (excludes decorator area), may be restricted by server
 	fn set_dims(&mut self, w: u32, h: u32) {
+		let (decor_tl, decor_br) = self.decorator.client_rect();
+		let w = w + decor_tl.w.0 + decor_br.w.0;
+		let h = h + decor_tl.h.0 + decor_br.h.0;
 		self.win.set_dims( ::syscalls::gui::Dims { w: w, h: h } );
 		self.update_surface_size();
 	}
@@ -217,7 +220,7 @@ impl<'a, D: 'a + Decorator> WindowTrait<'a> for Window<'a, D>
 
 	/// Manually request a redraw of the window
 	fn rerender(&mut self) {
-		self.decorator.render( self.surface.slice(Rect::new_full()) );
+		self.decorator.render( self.surface.slice(Rect::new_full()), self.needs_force_rerender );
 		self.root.render( self.surface.slice(self.client_rect()), self.needs_force_rerender );
 		self.surface.blit_to_win( &self.win );
 		self.needs_force_rerender = false;

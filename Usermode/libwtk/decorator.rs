@@ -10,7 +10,7 @@ pub trait Decorator
 {
 	fn set_title<S: Into<String>>(&mut self, title: S);
 
-	fn render(&self, surface: SurfaceView);
+	fn render(&self, surface: SurfaceView, full_redraw: bool);
 	fn client_rect(&self) -> (Dims<Px>,Dims<Px>);
 
 	fn handle_event(&self, ev: ::InputEvent) -> bool;
@@ -21,7 +21,7 @@ impl Decorator for ()
 	fn set_title<S: Into<String>>(&mut self, _title: S) {
 	}
 
-	fn render(&self, _surface: SurfaceView) {
+	fn render(&self, _surface: SurfaceView, _full_redraw: bool) {
 	}
 	fn client_rect(&self) -> (Dims<Px>,Dims<Px>) {
 		(Dims::new(0,0), Dims::new(0,0))
@@ -38,8 +38,12 @@ impl<D: Decorator> Decorator for Option<D>
 		self.as_mut().map(|x| x.set_title(title));
 	}
 
-	fn render(&self, surface: SurfaceView) {
-		self.as_ref().map(|x| x.render(surface));
+	fn render(&self, surface: SurfaceView, full_redraw: bool) {
+		match self
+		{
+		&Some(ref x) => x.render(surface, full_redraw),
+		&None => {},
+		}
 	}
 	fn client_rect(&self) -> (Dims<Px>,Dims<Px>) {
 		match self
@@ -69,48 +73,16 @@ impl<D: Decorator> Decorator for Option<D>
 #[derive(Default)]
 pub struct Standard
 {
+	dirty: ::std::cell::Cell<bool>,
 	title: String,
 }
-impl Decorator for Standard
-{
-	fn set_title<S: Into<String>>(&mut self, title: S) {
-		self.title = title.into();
-	}
-
-	fn render(&self, surface: SurfaceView) {
-		let theme = StandardTheme;
-		theme.win_template().render(surface.clone());
-		//let mut left_x = theme.inner_left();
-		//self.icon.render( surface.slice( Rect::new(left_x, theme.titlebar_top(), 16, 16) ) );
-		//left_x += 16 + 2;
-		surface.draw_text( Rect::new( theme.titlebar_left(), theme.titlebar_top(),  !0, !0 ), self.title.chars(), Colour::from_argb32(0xFFFFFF) );
-
-		let mut right_x = surface.rect().x2().0 - theme.titlebar_right();
-		right_x -= theme.button_width();
-		theme.buttton_template().render( surface.slice( Rect::new( right_x, theme.titlebar_top(), theme.button_width(), theme.button_height() ) ) );
-	}
-	fn client_rect(&self) -> (Dims<Px>,Dims<Px>) {
-		let theme = StandardTheme;
-		( Dims::new(theme.client_left(), theme.client_top()), Dims::new(theme.client_right(), theme.client_bottom()) )
-	}
-
-	fn handle_event(&self, ev: ::InputEvent) -> bool {
-		match ev
-		{
-		_ => false,
-		}
-	}
-}
-
-
-struct StandardTheme;
-impl StandardTheme
+impl Standard
 {
 	fn win_template(&self) -> &Template<&[u32]> {
 		const fn as_slice<T>(v: &[T]) -> &[T] { v } 
 		static TEMPLATE: Template<&'static [u32]> = Template {
 			w: 3, h: (2+16+2)+1+1,
-			left: 1, top: (1+16+1),
+			left: 1, top: (2+16+2),
 			data: as_slice(&[
 				// Top fixed region
 				0xFFFFFF, 0xFFFFFF, 0xFFFFFF,
@@ -170,12 +142,77 @@ impl StandardTheme
 	fn titlebar_left(&self) -> u32 { 2 }
 	fn titlebar_top(&self) -> u32 { 2 }
 	fn titlebar_right(&self) -> u32 { 2 }
-	//fn titlebar_bottom(&self) -> u32 { 2 }
+	fn titlebar_height(&self) -> u32 { 16 }
 
-	fn client_left (&self) -> u32 { self.win_template().left() }
-	fn client_right(&self) -> u32 { self.win_template().right() }
-	fn client_top   (&self) -> u32 { self.win_template().top() }
-	fn client_bottom(&self) -> u32 { self.win_template().bottom() }
+	fn render_button_exit(&self, surface: SurfaceView) {
+		self.buttton_template().render( surface.clone() );
+		//theme.render_button_exit(surface.slice(
+	}
+}
+impl Decorator for Standard
+{
+	fn set_title<S: Into<String>>(&mut self, title: S) {
+		self.dirty.set(true);
+		self.title = title.into();
+	}
+
+	fn render(&self, surface: SurfaceView, full_redraw: bool) {
+		let title_dirty = self.dirty.get(); self.dirty.set(false);
+
+		if title_dirty || full_redraw
+		{
+			// If not doing a full redraw, only re-blit the title bar
+			if ! full_redraw {
+				self.win_template().render_lines(surface.clone(), self.win_template().top());
+			}
+			else {
+				self.win_template().render(surface.clone());
+			}
+
+			// Draw buttons
+			// - Exit (always present)
+			let mut right_x = surface.rect().x2().0 - self.titlebar_right();
+			right_x -= self.button_width();
+			self.render_button_exit( surface.slice( Rect::new( right_x, self.titlebar_top(), self.button_width(), self.button_height() ) ) );
+
+			// - Maximise (optional)
+			//if self.button_mode.has_maximise() {
+			//	right_x -= theme.button_width();
+			//	self.render_button_maximise( surface.slice( Rect::new( right_x, self.titlebar_top(), self.button_width(), self.button_height() ) ) );
+			//}
+
+			// - Minimise (optional)
+			//if self.button_mode.has_minimise() {
+			//	right_x -= theme.button_width();
+			//	self.render_button_minimise( surface.slice( Rect::new( right_x, self.titlebar_top(), self.button_width(), self.button_height() ) ) );
+			//}
+
+			// Draw icon and title
+			// - Icon
+			//let mut left_x = theme.inner_left();
+			//if let Some(ref icon) = self.icon
+			//{
+			//	self.icon.render( surface.slice( Rect::new(left_x, theme.titlebar_top(), 16, 16) ) );
+			//	left_x += 16 + 2;
+			//}
+
+			// Draw title (last, to properly clip text)
+			surface.draw_text( Rect::new_pts( self.titlebar_left(), self.titlebar_top(),  right_x, self.titlebar_height() + self.titlebar_top() ), self.title.chars(), Colour::from_argb32(0xFFFFFF) );
+		}
+	}
+	fn client_rect(&self) -> (Dims<Px>,Dims<Px>) {
+		(
+			Dims::new(self.win_template().left() , self.win_template().top()),
+			Dims::new(self.win_template().right(), self.win_template().bottom())
+			)
+	}
+
+	fn handle_event(&self, ev: ::InputEvent) -> bool {
+		match ev
+		{
+		_ => false,
+		}
+	}
 }
 
 struct Template<T: ?Sized + AsRef<[u32]>> {
@@ -192,13 +229,16 @@ struct Template<T: ?Sized + AsRef<[u32]>> {
 }
 impl<T: ?Sized + AsRef<[u32]>> Template<T>
 {
-	pub fn render(&self, surface: SurfaceView)
+	pub fn render(&self, surface: SurfaceView) {
+		self.render_lines(surface, !0)
+	}
+	pub fn render_lines(&self, surface: SurfaceView, nlines: u32)
 	{
 		if surface.height() < self.fixed_height() {
 			return ;
 		}
 		let dst_bottom = (surface.height() - self.bottom()) as usize;
-		surface.foreach_scanlines(Rect::new(0,0,!0,!0), |row, sl|
+		surface.foreach_scanlines(Rect::new(0,0,!0,nlines), |row, sl|
 			if row < self.top as usize {
 				self.render_line( row, sl );
 			}
