@@ -188,8 +188,6 @@ def_classes! {
 		=7: GUI_WIN_GETPOS,
 		/// Set window position (will be clipped to visible area)
 		=8: GUI_WIN_SETPOS,
-		/// Set the client region rectangle
-		=9: GUI_WIN_SETCLIENTREGION,
 	}|{
 		/// Fires when the input queue is non-empty
 		=0: EV_GUI_WIN_INPUT,
