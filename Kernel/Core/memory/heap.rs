@@ -27,7 +27,6 @@ struct HeapDef
 }
 unsafe impl ::core::marker::Send for HeapDef {}
 
-#[allow(raw_pointer_derive)]
 #[derive(Debug,PartialEq)]	// RawPtr Debug is the address
 enum HeapState
 {

@@ -30,7 +30,6 @@ mod vfs;
 
 pub type ObjectHandle = u32;
 
-#[allow(raw_pointer_derive)]
 #[derive(Debug)]
 pub enum Error
 {

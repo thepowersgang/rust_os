@@ -6,7 +6,6 @@ pub struct UnwindState {
 }
 
 #[derive(Debug)]
-#[allow(raw_pointer_derive)]
 pub enum Error
 {
 	Refuse,	// Not an error
