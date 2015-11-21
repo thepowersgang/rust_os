@@ -1,11 +1,34 @@
 
 
-- Gui Decorations
- - Stubbed in, just needs to be expanded
-
+# Core Features/Drivers #
 - Networking
- - Requies a design
+ - Requires a design for both kernel API and user API
+ - Interacts with permissions (inetd-type system for servers?)
+  - Maybe just have a service like the FS?
+ - Client sockets unrestricted? (so that a web browser isn't spammy)
+- USB Support
+ - Requires API design for kernel API
+ - Possibly expose a user-side API? (for arbitary drivers)
+
+# Logging and Messages #
+- Kernel log rendered to its "window"
+- Kernel panic messages rendered to display
+- User panic messages rendered to a kernel-owned window
+ - This same infrastructure can be used for blocked windows/processes
 
 
-- Kernel log on screen
+# Filesystem permissions #
+- Strict file/object permissions via handle permissions
+ - Pass a set of directory handles to new processes, indicating what they can access
+  - Extend object passing to use names for the passed handles
+ - Disallow write to anything via absolute paths
+ - MAYBE disallow absolute paths?
+ - A process can request a handle via a service (which presents the file/folder-open dialog)
+ - Standard set of paths: "Root", "AppRoot", "AppData"
+
+# GUI tweaks #
+- Tag group handle with the application name (for server-side identification)
+
+<!-- vim: ft=markdown
+-->
 
