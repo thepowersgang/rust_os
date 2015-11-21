@@ -17,6 +17,10 @@
 #![feature(core_str_ext,core_slice_ext)]
 #![no_std]
 
+#![feature(plugin)]
+#![feature(custom_attribute)]
+#![plugin(tag_safe)]
+
 #[macro_use]
 extern crate kernel;
 

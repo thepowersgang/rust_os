@@ -53,11 +53,24 @@ def test(instance):
         pass
     instance.type_key('ret')
     test_assert("`ls` return press timeout", instance.wait_for_line("\[syscalls\] - USER> Window::handle_event\(ev=KeyDown\(Return\)\)", timeout=1)) # Press
-    test_assert("Run `ls` idle timeout", instance.wait_for_idle(timeout=5)) # Release
+    test_assert("`ls` return release timeout", instance.wait_for_line("\[syscalls\] - USER> Window::handle_event\(ev=KeyUp\(Return\)\)", timeout=1)) # Release
+    test_assert("Run `ls` idle timeout", instance.wait_for_idle(timeout=5))
     instance.screenshot('ls')
+
+    # - Quit shell
+    instance.type_string('exit')
     while instance.wait_for_idle():
         pass
-    instance.screenshot('ls2')
+    instance.type_key('ret')
+    test_assert("`exit` return release timeout", instance.wait_for_line("\[syscalls\] - USER> Window::handle_event\(ev=KeyUp\(Return\)\)", timeout=1)) # Release
+    test_assert("`exit` reap", instance.wait_for_line("Reaping thread 0x[0-9a-f]+(\d+ /sysroot/bin/simple_console#1)", timeout=2))
+    instance.screenshot('exit')
+    test_assert("`ls` idle timeout", instance.wait_for_idle(timeout=5))
+
+
+    while instance.wait_for_idle():
+        pass
+    instance.screenshot('final')
 
 
 try:

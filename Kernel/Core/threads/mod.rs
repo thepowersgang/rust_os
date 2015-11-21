@@ -49,14 +49,25 @@ pub fn init()
 	}
 	let mut tid0 = Thread::new_boxed(0, "ThreadZero", S_PID0.clone());
 	tid0.cpu_state = ::arch::threads::init_tid0_state();
-	::arch::threads::set_thread_ptr( tid0 )
+	::arch::threads::set_thread_ptr( tid0 );
 }
 
 fn reap_threads()
 {
 	while let Some(thread) = S_TO_REAP_THREADS.lock().pop() {
 		log_log!("Reaping thread {:?}", thread);
+		assert!(&*thread as *const _ != ::arch::threads::borrow_thread() as *const _, "Reaping thread from itself");
 		drop(thread);
+	}
+}
+
+pub fn idle_thread()
+{
+	loop
+	{
+		reap_threads();
+		::arch::threads::idle();
+		reschedule();
 	}
 }
 
@@ -212,10 +223,15 @@ pub fn reschedule()
 			}
 			return ;
 		}
-		
-		log_trace!("reschedule() - No active threads, idling");
-		reap_threads();
-		::arch::threads::idle();
+		else
+		{
+			log_trace!("reschedule() - No active threads, idling");
+			//::arch::threads::switch_to_idle();
+			
+			// TODO: Need to switch to an idle thread instead. This allows reaping of the last active thread.
+			reap_threads();
+			::arch::threads::idle();
+		}
 	}
 }
 

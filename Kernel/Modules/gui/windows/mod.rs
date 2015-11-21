@@ -7,6 +7,7 @@ use kernel::prelude::*;
 use super::{Dims,Pos,Rect,Colour};
 use kernel::sync::mutex::{LazyMutex,Mutex};
 use kernel::lib::mem::Arc;
+use kernel::lib::mem::aref::{Aref,ArefBorrow};
 use kernel::lib::LazyStatic;
 use core::sync::atomic;
 
@@ -38,7 +39,7 @@ struct WindowGroup
 	///
 	/// Contains both the window position and shared ownership of the window data.
 	/// Position is here because the window itself doesn't need control (or knowledge) of its position
-	windows: SparseVec< (Pos, Arc<Window>) >,
+	windows: SparseVec< (Pos, Aref<Window>) >,
 	/// Render order (indexes into `windows`, and visibilities)
 	render_order: Vec< (usize, Vec<Rect>) >,
 }
@@ -50,9 +51,10 @@ pub struct WindowGroupHandle(usize);
 /// Window handle (when dropped, the window is destroyed)
 pub struct WindowHandle
 {
+	win: Option<ArefBorrow<Window>>,
 	grp: Arc<Mutex<WindowGroup>>,
 	grp_id: usize,
-	win: usize,
+	win_id: usize,
 }
 
 #[derive(Default)]
@@ -273,7 +275,7 @@ impl WindowGroup
 		}
 	}
 	
-	fn get_win_at_pos(&self, x: u32, y: u32) -> Option<&(Pos, Arc<Window>)> {
+	fn get_win_at_pos(&self, x: u32, y: u32) -> Option<&(Pos, Aref<Window>)> {
 		let mut rv = None;
 		// Iterate render order finding the highest (latest) window which contains this point
 		for &(winidx, _) in &self.render_order
@@ -511,8 +513,10 @@ impl WindowGroupHandle
 		// - Get handle to this window group (ok to lock it)
 		let wgh_rc = S_WINDOW_GROUPS.lock()[self.0].clone();
 		
-		let idx = wgh_rc.lock().windows.insert( (Pos::new(0,0), Arc::new(Window::new(name.into()))) );
-		WindowHandle { grp: wgh_rc, grp_id: self.0, win: idx }
+		let win = Aref::new(Window::new(name.into()));
+		let win_ref = win.borrow();
+		let idx = wgh_rc.lock().windows.insert( (Pos::new(0,0), win) );
+		WindowHandle { win: Some(win_ref), grp: wgh_rc, grp_id: self.0, win_id: idx }
 	}
 
 	/// Force this group to be the active group
@@ -541,9 +545,8 @@ impl ::core::ops::Drop for WindowGroupHandle
 
 impl WindowHandle
 {
-	fn get_win(&self) -> Arc<Window> {
-		let win_arc: &Arc<Window> = &self.grp.lock().windows[self.win].1;
-		win_arc.clone()
+	fn get_win(&self) -> &Window {
+		self.win.as_ref().unwrap()
 	}
 	
 	//fn get_win_w_pos(&self) -> (Pos, Arc<Window>) {
@@ -561,25 +564,24 @@ impl WindowHandle
 	}
 	
 	/// Redraw the window (mark for re-blitting)
-	pub fn redraw(&mut self)
+	pub fn redraw(&self)
 	{
 		// if shown, mark self as requiring reblit and poke group
-		if self.grp_id != S_CURRENT_GROUP.load(atomic::Ordering::Relaxed) {
-			return ;
+		if self.grp_id == S_CURRENT_GROUP.load(atomic::Ordering::Relaxed)
+		{
+			self.get_win().mark_dirty();
+			S_RENDER_NEEDED.store(true, atomic::Ordering::Relaxed);
+			S_RENDER_REQUEST.post();
 		}
-		
-		self.get_win().mark_dirty();
-		S_RENDER_NEEDED.store(true, atomic::Ordering::Relaxed);
-		S_RENDER_REQUEST.post();
 	}
 	
 	/// Resize the window
 	pub fn resize(&mut self, dim: Dims) {
 		self.get_win().resize(dim);
-		self.grp.lock().recalc_vis(self.win);
+		self.grp.lock().recalc_vis(self.win_id);
 	}
 	pub fn set_pos(&mut self, pos: Pos) {
-		self.grp.lock().move_window(self.win, pos);
+		self.grp.lock().move_window(self.win_id, pos);
 	}
 
 	/// Return the dimensions of the currently usable portion of the window
@@ -587,7 +589,7 @@ impl WindowHandle
 		self.get_win().dims()
 	}
 	pub fn get_pos(&self) -> Pos {
-		let rv = self.grp.lock().get_window_pos(self.win);
+		let rv = self.grp.lock().get_window_pos(self.win_id);
 		rv
 	}
 	
@@ -595,17 +597,17 @@ impl WindowHandle
 	pub fn maximise(&mut self) {
 		let win = self.get_win();
 		win.flags.lock().maximised = true;
-		self.grp.lock().maximise_window( self.win );
+		self.grp.lock().maximise_window( self.win_id );
 		// No need to call trigger_recalc_vis, maximise_window does that
 	}
 	/// Show the window
 	pub fn show(&mut self) {
-		self.grp.lock().show_window( self.win );
+		self.grp.lock().show_window( self.win_id );
 		self.redraw();
 	}
 	/// Hide the window
 	pub fn hide(&mut self) {
-		self.grp.lock().hide_window( self.win );
+		self.grp.lock().hide_window( self.win_id );
 		self.redraw();
 	}
 	
@@ -635,7 +637,8 @@ impl ::core::ops::Drop for WindowHandle
 	fn drop(&mut self)
 	{
 		// WindowHandle uniquely owns the window, so can just drop it
-		self.grp.lock().drop_window( self.win );
+		self.win = None;
+		self.grp.lock().drop_window( self.win_id );
 	}
 }
 

@@ -30,6 +30,10 @@ pub struct InterruptRegs
 /// Error handler called by assembly
 pub extern "C" fn error_handler(regs: &InterruptRegs)
 {
+	// If the fault originated in kernel mode, emit a mode reset
+	//if regs.cs == 0x8 {
+	//	puts("\x1b[m");
+	//}
 	match regs.intnum
 	{
 	7 => {

@@ -12,7 +12,7 @@
 use prelude::*;
 use core::sync::atomic::{AtomicUsize,Ordering};
 use core::nonzero::NonZero;
-use core::ops;
+use core::{ops, fmt};
 
 
 /// Atomic referencable type. Panics if the type is dropped while any references are active.
@@ -67,6 +67,11 @@ impl<T: ?Sized> ops::Drop for Aref<T>
 {
 	fn drop(&mut self) {
 		assert_eq!(self.__inner.count.load(Ordering::Relaxed), 0);
+	}
+}
+impl<T: ?Sized+fmt::Debug> fmt::Debug for Aref<T> {
+	fn fmt(&self, f: &mut ::core::fmt::Formatter) -> ::core::fmt::Result {
+		fmt::Debug::fmt(&**self, f)
 	}
 }
 

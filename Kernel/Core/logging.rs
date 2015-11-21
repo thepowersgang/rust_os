@@ -206,6 +206,8 @@ mod video
 		fn start(&mut self, timestamp: ::time::TickCount, level: Level, source: &'static str) {
 			// Acquire a writer from the GUI
 			// - TODO: requires acquiring the lock on the kernel log, which is a Mutex, and may already be held.
+			// - What about having the kernel log write methods be unsafe, then they can assume that they're called in logging
+			//   context (which is unique already)
 			// Write header
 			todo!("VideoSink - {} {} {}", timestamp, level, source);
 		}

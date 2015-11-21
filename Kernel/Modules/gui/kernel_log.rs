@@ -30,7 +30,6 @@ struct KernelLog
 	_logo_wh: WindowHandle,
 	cur_line: u32,
 	
-	#[allow(dead_code)]
 	buffer_handle: super::windows::BufHandle,
 }
 
@@ -65,16 +64,8 @@ pub fn init()
 
 	{
 		use core::fmt::Write;
-		{
-			let mut w = LogWriter::new();
-			w.set_colour(Colour::def_green());
-			write!(&mut w, "{}", ::kernel::VERSION_STRING).unwrap();
-		}
-		{
-			let mut w = LogWriter::new();
-			w.set_colour(Colour::def_yellow());
-			write!(&mut w, "> {}", ::kernel::BUILD_STRING).unwrap();
-		}
+		write!(&mut LogWriter::new(Colour::def_green() ), "{}", ::kernel::VERSION_STRING).unwrap();
+		write!(&mut LogWriter::new(Colour::def_yellow()), "> {}", ::kernel::BUILD_STRING).unwrap();
 	}
 	
 	// Populate kernel logging window with accumulated logs
@@ -138,7 +129,7 @@ impl KernelLog
 	}
 	
 	/// Write a string to the log display (at the given character position)
-	fn write_text(&mut self, mut pos: CharPos, colour: Colour, text: &str) -> CharPos
+	fn write_text(&self, mut pos: CharPos, colour: Colour, text: &str) -> CharPos
 	{
 		for c in text.chars()
 		{
@@ -150,7 +141,8 @@ impl KernelLog
 		pos
 	}
 	/// Flush changes
-	fn flush(&mut self)
+	#[tag_safe(taskswitch)]	//< Must be safe to call from within a spinlock
+	fn flush(&self)
 	{
 		// Poke the WM and tell it to reblit us
 		self.wh.redraw();
@@ -159,7 +151,7 @@ impl KernelLog
 	/// Writes a single codepoint to the display
 	///
 	/// Returns true if the character caused a cell change (i.e. it wasn't a combining character)
-	fn putc(&mut self, pos: CharPos, colour: Colour, c: char) -> bool
+	fn putc(&self, pos: CharPos, colour: Colour, c: char) -> bool
 	{
 		// If the character was a combining AND it's not at the start of a line,
 		// render atop the previous cell
@@ -177,12 +169,21 @@ impl KernelLog
 	
 	// Low-level rendering
 	/// Clear a character cell
-	fn clear_cell(&mut self, pos: CharPos)
+	fn clear_cell(&self, pos: CharPos)
 	{
-		self.wh.fill_rect( Rect{ pos : pos.to_pixels(), dims: C_CELL_DIMS }, Colour::def_black());
+		let Pos { x: bx, y: by } = pos.to_pixels();
+		for row in 0 .. 16
+		{
+			let r = self.buffer_handle.scanline_rgn_mut(by as usize + row, bx as usize, 8); 
+			for col in 0 .. 8
+			{
+				r[col] = 0;
+			}
+		}
 	}
 	/// Actually does the rendering
-	fn render_char(&mut self, pos: CharPos, colour: Colour, cp: char)
+	#[tag_safe(taskswitch)]	//< Must be safe to call from within a spinlock
+	fn render_char(&self, pos: CharPos, colour: Colour, cp: char)
 	{
 		if self.buffer_handle.dims().width() == 0 {
 			return ;
@@ -221,13 +222,13 @@ impl CharPos
 
 impl LogWriter
 {
-	pub fn new() -> LogWriter
+	pub fn new(colour: Colour) -> LogWriter
 	{
 		let mut log = S_KERNEL_LOG.lock();
 		log.scroll_up();
 		LogWriter {
 			pos: CharPos(log.cur_line-1,0),
-			colour: Colour::def_white(),
+			colour: colour,
 			log: log,
 		}
 	}
