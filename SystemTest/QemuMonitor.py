@@ -6,7 +6,12 @@ class QemuMonitor:
         self._instance = subprocess.Popen(cmd_strings, stdin=subprocess.PIPE, stdout=subprocess.PIPE)
         self._mode = ''
     def __del__(self):
-        self.cmd("exit")
+        self.cmd("quit")
+        while True:
+            line = self.get_line(timeout=0.5)
+            if line == None:
+                break
+            print "QemuMonitor.__del__ -", line
         self._instance.terminate()
         print "Killing qemu instance"
     def send_key(self, keycode):

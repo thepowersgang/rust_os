@@ -44,6 +44,21 @@ def test(instance):
     test_assert("CLI idle timeout", instance.wait_for_idle(timeout=3))
     instance.screenshot('CLI')
 
+    # - Run a command
+    instance.type_string('ls /system')
+    while instance.wait_for_idle():
+        pass
+    instance.type_string('/Tifflin/bin')
+    while instance.wait_for_idle():
+        pass
+    instance.type_key('ret')
+    test_assert("`ls` return press timeout", instance.wait_for_line("\[syscalls\] - USER> Window::handle_event\(ev=KeyDown\(Return\)\)", timeout=1)) # Press
+    test_assert("Run `ls` idle timeout", instance.wait_for_idle(timeout=5)) # Release
+    instance.screenshot('ls')
+    while instance.wait_for_idle():
+        pass
+    instance.screenshot('ls2')
+
 
 try:
     test( TestInstance.Instance("amd64", "CLI") )

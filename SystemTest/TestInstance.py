@@ -44,11 +44,13 @@ class Instance:
             if 'a' <= c <= 'z':
                 self._cmd.send_key(c)
             elif 'A' <= c <= 'Z':
-                self._cmd.send_combo(['shift', c])
+                self._cmd.send_combo(['shift', c.lower()])
             elif c == '\n':
                 self._cmd.send_key('ret')
             elif c == ' ':
                 self._cmd.send_key('spc')
+            elif c == '/':
+                self._cmd.send_key('slash')
             else:
                 print "ERROR: Unknown character '%s' in type_string" % (c)
                 raise "Doop"
