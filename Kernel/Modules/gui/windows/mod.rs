@@ -582,17 +582,9 @@ impl WindowHandle
 		self.grp.lock().move_window(self.win, pos);
 	}
 
-	/// Set the "client" region (area of window that can be influenced by render calls)
-	pub fn set_client_region(&mut self, rect: Rect) {
-		self.get_win().set_client_region(rect)
-	}
-
 	/// Return the dimensions of the currently usable portion of the window
 	pub fn get_dims(&self) -> Dims {
-		let total = Rect::new_pd( Pos::new(0,0), self.get_win().dims() );
-		let client = self.get_win().get_client_region();
-		log_debug!("WindowHandle:get_dims - total={:?}, client={:?}", total, client);
-		Rect::intersect( &total, &client ).unwrap_or( Rect::new(0,0,0,0) ).dims()
+		self.get_win().dims()
 	}
 	pub fn get_pos(&self) -> Pos {
 		let rv = self.grp.lock().get_window_pos(self.win);

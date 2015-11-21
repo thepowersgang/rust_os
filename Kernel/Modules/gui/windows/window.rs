@@ -29,9 +29,6 @@ pub struct Window
 	/// Arc allows the "user" to hold a copy of the framebuffer
 	buf: RwLock<Arc<WinBuf>>,
 
-	/// Client region - Mask for window render calls
-	client_region: Mutex<Rect>,
-	
 	/// List of invalidated regions within the window
 	dirty_rects: Mutex<Vec<Rect>>,
 	is_dirty: atomic::AtomicBool,
@@ -68,7 +65,6 @@ impl Window
 		Window {
 			name: name,
 			buf: Default::default(),
-			client_region: Mutex::new(Rect::new(0,0,!0,!0)),
 			dirty_rects: Default::default(),
 			is_dirty: atomic::ATOMIC_BOOL_INIT,
 			flags: Default::default(),
@@ -87,14 +83,6 @@ impl Window
 	}
 	pub fn get_buffer(&self) -> Arc<WinBuf> {
 		self.buf.read().clone()
-	}
-
-	pub fn set_client_region(&self, r: Rect) {
-		log_debug!("set_client_region(r={:?})", r);
-		*self.client_region.lock() = r;
-	}
-	pub fn get_client_region(&self) -> Rect {
-		*self.client_region.lock()
 	}
 
 	pub fn take_dirty_rects(&self) -> Vec<Rect> {
@@ -186,17 +174,9 @@ impl Window
 		lh.push(area);
 	}
 	
-	fn offset_area(&self, area: Rect) -> Rect {
-		let client = self.get_client_region();
-		Rect::new_pd(
-			client.pos(),
-			Dims::min_of( &area.dims(), &client.dims() )
-			)
-	}
 	/// Fill an area of the window
 	pub fn fill_rect(&self, area: Rect, colour: Colour)
 	{
-		let area = self.offset_area(area);
 		let dims = self.buf.read().dims();
 		let winrect = Rect::new_pd(Pos::new(0,0), dims);
 		if let Some(area) = area.intersect(&winrect)
@@ -221,7 +201,6 @@ impl Window
 	pub fn blit_rect(&self, area: Rect, data: &[u32], stride: usize)
 	{
 		log_trace!("Window::blit_rect({}, data={}px)", area, data.len());
-		let area = self.offset_area(area);
 		let buf_h = self.buf.read();
 		for (row,src) in (area.top() .. area.bottom()).zip( data.chunks(stride) )
 		{
