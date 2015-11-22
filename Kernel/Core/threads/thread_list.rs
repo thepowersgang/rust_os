@@ -4,14 +4,15 @@
 // Core/threads/threadlist.rs
 //! Owned list of threads
 use prelude::*;
+use core::nonzero::NonZero;
 
-use super::Thread;
+use super::{Thread,ThreadPtr};
 
 /// Intrusive linked list of threads
 pub struct ThreadList
 {
-	first: Option<Box<Thread>>,
-	last: Option<*mut Thread>
+	first: Option<ThreadPtr>,
+	last: Option< NonZero<*mut Thread> >,
 }
 unsafe impl Send for ThreadList {}
 
@@ -25,7 +26,7 @@ impl ThreadList
 		self.first.is_none()
 	}
 	/// Remove a thread from the front of the list
-	pub fn pop(&mut self) -> Option<Box<Thread>>
+	pub fn pop(&mut self) -> Option<ThreadPtr>
 	{
 		match self.first.take()
 		{
@@ -40,7 +41,7 @@ impl ThreadList
 		}
 	}
 	/// Push a thread to the back
-	pub fn push(&mut self, t: Box<Thread>)
+	pub fn push(&mut self, t: ThreadPtr)
 	{
 		//log_debug!("Pushing thread {:?}", t);
 		assert!(t.next.is_none());
@@ -52,7 +53,7 @@ impl ThreadList
 			assert!(self.last.is_some());
 			// SAFE: WaitQueue should be locked (and nobody has any of the list items borrowed)
 			unsafe {
-				let last_ref = &mut *self.last.unwrap();
+				let last_ref: &mut Thread = &mut **self.last.unwrap();
 				assert!(last_ref.next.is_none());
 				last_ref.next = Some(t);
 			}
@@ -62,7 +63,8 @@ impl ThreadList
 			assert!(self.last.is_none());
 			self.first = Some(t);
 		}
-		self.last = Some(ptr);
+		// SAFE: ptr is non-zero
+		self.last = Some(unsafe { NonZero::new(ptr) });
 	}
 }
 

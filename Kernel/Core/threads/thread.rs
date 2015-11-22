@@ -67,6 +67,53 @@ pub struct ThreadHandle
 	// - Race problems
 }
 
+/// "Owned" pointer to a thread (panics if dropped)
+#[unsafe_no_drop_flag]
+pub struct ThreadPtr(::core::ptr::Unique<Thread>);
+impl ThreadPtr {
+	pub fn new(ptr: Box<Thread>) -> ThreadPtr {
+		// SAFE: Non-zero value
+		ThreadPtr( unsafe { ::core::ptr::Unique::new(ptr.into_raw()) } )
+	}
+	//pub fn new_static(ptr: &'static mut Thread) -> ThreadPtr {
+	//	// SAFE: Non-zero value
+	//	ThreadPtr( unsafe { ::core::ptr::Unique::new(ptr) } )
+	//}
+	pub fn into_boxed(self) -> Option<Box<Thread>> {
+		// SAFE: It's a originally boxed pointer
+		Some( unsafe { Box::from_raw( self.unwrap() ) } )
+	}
+	pub fn unwrap(self) -> *mut Thread {
+		*self.0
+	}
+}
+impl ::core::ops::Deref for ThreadPtr {
+	type Target = Thread;
+	fn deref(&self) -> &Thread {
+		// SAFE: Owned pointer
+		unsafe { &**self.0 }
+	}
+}
+impl ::core::ops::DerefMut for ThreadPtr {
+	fn deref_mut(&mut self) -> &mut Thread {
+		// SAFE: Owned pointer
+		unsafe { &mut **self.0 }
+	}
+}
+impl ::core::ops::Drop for ThreadPtr {
+	fn drop(&mut self) {
+		// SAFE: Only used for comparison, and Copy type
+		if *self.0 != unsafe { ::core::mem::dropped() } {
+			panic!("Dropping an owned thread pointer - {:?}", self);
+		}
+	}
+}
+impl ::core::fmt::Debug for ThreadPtr {
+	fn fmt(&self, f: &mut ::core::fmt::Formatter) -> ::core::fmt::Result {
+		::core::fmt::Debug::fmt( &**self, f )
+	}
+}
+
 /// Thread information
 pub struct Thread
 {
@@ -77,7 +124,7 @@ pub struct Thread
 	/// CPU state
 	pub cpu_state: ::arch::threads::State,
 	/// Next thread in intrusive list
-	pub next: Option<Box<Thread>>,
+	pub next: Option<ThreadPtr>,
 }
 assert_trait!{Thread : Send}
 
@@ -260,7 +307,7 @@ impl ::core::ops::Drop for ThreadHandle
 impl Thread
 {
 	/// Create a new thread
-	pub fn new_boxed<S: Into<String>>(tid: ThreadID, name: S, process: Arc<Process>) -> Box<Thread>
+	pub fn new_boxed<S: Into<String>>(tid: ThreadID, name: S, process: Arc<Process>) -> ThreadPtr
 	{
 		let rv = box Thread {
 			cpu_state: process.empty_cpu_state(),
@@ -272,7 +319,7 @@ impl Thread
 		// TODO: Add to global list of threads (removed on destroy)
 		log_debug!("Creating thread {:?}", rv);
 		
-		rv
+		ThreadPtr::new( rv )
 	}
 	
 	pub fn get_tid(&self) -> ThreadID { self.block.tid }

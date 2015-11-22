@@ -5,7 +5,7 @@
 //! Sleep object
 use prelude::*;
 use core::ops;
-use super::thread::{Thread, RunState};
+use super::thread::{ThreadPtr, RunState};
 use super::s_runnable_threads;
 
 /// An object on which a thread can sleep, woken by various event sources
@@ -27,7 +27,7 @@ struct SleepObjectInner
 {
 	flag: bool,
 	reference_count: usize,
-	thread: Option<Box<Thread>>,
+	thread: Option<ThreadPtr>,
 }
 
 /// Referece to an active sleep object

@@ -13,7 +13,8 @@ mod worker_thread;
 
 mod sleep_object;
 
-pub use self::thread::{Thread,ThreadHandle,ProcessHandle};
+pub use self::thread::{Thread,ThreadPtr};
+pub use self::thread::{ThreadHandle,ProcessHandle};
 
 pub use self::worker_thread::WorkerThread;
 
@@ -25,9 +26,6 @@ use lib::mem::aref::{Aref,ArefBorrow};
 
 /// A bitset of wait events
 pub type EventMask = u32;
-
-///// A borrowed Box<Thread>, released when borrow expires
-//struct BorrowedThread(Option<Box<Thread>>);
 
 // ----------------------------------------------
 // Statics
@@ -56,8 +54,13 @@ fn reap_threads()
 {
 	while let Some(thread) = S_TO_REAP_THREADS.lock().pop() {
 		log_log!("Reaping thread {:?}", thread);
-		assert!(&*thread as *const _ != ::arch::threads::borrow_thread() as *const _, "Reaping thread from itself");
-		drop(thread);
+		assert!(&*thread as *const Thread != ::arch::threads::borrow_thread() as *const _, "Reaping thread from itself");
+		if let Some(thread) = thread.into_boxed() {
+			drop(thread);
+		}
+		else {
+			// Dropping a non-heap thread pointer. Not possible
+		}
 	}
 }
 
@@ -82,7 +85,7 @@ pub fn yield_time()
 	reschedule();
 }
 
-pub fn yield_to(thread: Box<Thread>)
+pub fn yield_to(thread: ThreadPtr)
 {
 	log_debug!("Yielding CPU to {:?}", thread);
 	s_runnable_threads.lock().push( get_cur_thread() );
@@ -235,11 +238,11 @@ pub fn reschedule()
 	}
 }
 
-fn get_cur_thread() -> Box<Thread>
+fn get_cur_thread() -> ThreadPtr
 {
 	::arch::threads::get_thread_ptr().unwrap()
 }
-fn rel_cur_thread(t: Box<Thread>)
+fn rel_cur_thread(t: ThreadPtr)
 {
 	::arch::threads::set_thread_ptr(t)
 }
@@ -248,7 +251,7 @@ fn rel_cur_thread(t: Box<Thread>)
 //	BorrowedThread( Some(get_cur_thread()) )
 //}
 
-fn get_thread_to_run() -> Option<Box<Thread>>
+fn get_thread_to_run() -> Option<ThreadPtr>
 {
 	let _irq_lock = ::arch::sync::hold_interrupts();
 	let mut handle = s_runnable_threads.lock();
@@ -263,28 +266,6 @@ fn get_thread_to_run() -> Option<Box<Thread>>
 		handle.pop()
 	}
 }
-
-//impl BorrowedThread
-//{
-//	fn take(mut self) -> Box<Thread> {
-//		self.0.take().unwrap()
-//	}
-//}
-//impl Drop for BorrowedThread
-//{
-//	fn drop(&mut self) {
-//		match self.0.take()
-//		{
-//		Some(v) => rel_cur_thread(v),
-//		None => {},
-//		}
-//	}
-//}
-//impl ::core::ops::Deref for BorrowedThread
-//{
-//	type Target = Thread;
-//	fn deref(&self) -> &Thread { &**self.0.as_ref().unwrap() }
-//}
 
 // vim: ft=rust
 

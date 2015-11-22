@@ -175,7 +175,6 @@ pub mod pci {
 	}
 }
 pub mod threads {
-	use lib::mem::Box;
 	use super::imp::threads as imp;
 
 	pub type State = imp::State;
@@ -186,11 +185,11 @@ pub mod threads {
 	}
 
 	#[inline]
-	pub fn set_thread_ptr(t: Box<::threads::Thread>) {
+	pub fn set_thread_ptr(t: ::threads::ThreadPtr) {
 		imp::set_thread_ptr(t)
 	}
 	#[inline]
-	pub fn get_thread_ptr() -> Option<Box<::threads::Thread>> {
+	pub fn get_thread_ptr() -> Option<::threads::ThreadPtr> {
 		imp::get_thread_ptr()
 	}
 	#[inline]
@@ -203,7 +202,11 @@ pub mod threads {
 		imp::idle()
 	}
 	#[inline]
-	pub fn switch_to(t: Box<::threads::Thread>) {
+	pub fn switch_to_idle() {
+		imp::switch_to_idle()
+	}
+	#[inline]
+	pub fn switch_to(t: ::threads::ThreadPtr) {
 		imp::switch_to(t)
 	}
 

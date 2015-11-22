@@ -179,8 +179,14 @@ pub fn start_thread<F: FnOnce()+Send>(thread: &mut ::threads::Thread, code: F)
 	}
 }
 
+pub fn switch_to_idle()
+{
+	todo!("switch_to_idle");
+	//switch_to(get_idle_thread());
+}
+
 /// Switch to the passed thread (suspending the current thread until it is rescheduled)
-pub fn switch_to(newthread: Box<::threads::Thread>)
+pub fn switch_to(newthread: ::threads::ThreadPtr)
 {
 	if is_task_switching_disabled()
 	{
@@ -232,7 +238,7 @@ fn get_tls_ptr() -> *mut TLSData {
 }
 
 /// Obtain the current thread's pointer (as a owned box, thread is destroyed when box is dropped)
-pub fn get_thread_ptr() -> Option<Box<::threads::Thread>>
+pub fn get_thread_ptr() -> Option<::threads::ThreadPtr>
 {
 	// SAFE: Safe transmutes and derefs
 	unsafe {
@@ -251,7 +257,7 @@ pub fn borrow_thread() -> *const ::threads::Thread {
 	}
 }
 /// Release or set the current thread pointer
-pub fn set_thread_ptr(ptr: Box<::threads::Thread>)
+pub fn set_thread_ptr(ptr: ::threads::ThreadPtr)
 {
 	// SAFE: Good transmute/derefs
 	unsafe {
