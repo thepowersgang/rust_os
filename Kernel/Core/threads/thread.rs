@@ -70,49 +70,6 @@ pub struct ThreadHandle
 /// "Owned" pointer to a thread (panics if dropped)
 #[unsafe_no_drop_flag]
 pub struct ThreadPtr(::core::ptr::Unique<Thread>);
-impl ThreadPtr {
-	pub fn new(ptr: Box<Thread>) -> ThreadPtr {
-		// SAFE: Non-zero value
-		ThreadPtr( unsafe { ::core::ptr::Unique::new(ptr.into_raw()) } )
-	}
-	//pub fn new_static(ptr: &'static mut Thread) -> ThreadPtr {
-	//	// SAFE: Non-zero value
-	//	ThreadPtr( unsafe { ::core::ptr::Unique::new(ptr) } )
-	//}
-	pub fn into_boxed(self) -> Option<Box<Thread>> {
-		// SAFE: It's a originally boxed pointer
-		Some( unsafe { Box::from_raw( self.unwrap() ) } )
-	}
-	pub fn unwrap(self) -> *mut Thread {
-		*self.0
-	}
-}
-impl ::core::ops::Deref for ThreadPtr {
-	type Target = Thread;
-	fn deref(&self) -> &Thread {
-		// SAFE: Owned pointer
-		unsafe { &**self.0 }
-	}
-}
-impl ::core::ops::DerefMut for ThreadPtr {
-	fn deref_mut(&mut self) -> &mut Thread {
-		// SAFE: Owned pointer
-		unsafe { &mut **self.0 }
-	}
-}
-impl ::core::ops::Drop for ThreadPtr {
-	fn drop(&mut self) {
-		// SAFE: Only used for comparison, and Copy type
-		if *self.0 != unsafe { ::core::mem::dropped() } {
-			panic!("Dropping an owned thread pointer - {:?}", self);
-		}
-	}
-}
-impl ::core::fmt::Debug for ThreadPtr {
-	fn fmt(&self, f: &mut ::core::fmt::Formatter) -> ::core::fmt::Result {
-		::core::fmt::Debug::fmt( &**self, f )
-	}
-}
 
 /// Thread information
 pub struct Thread
@@ -304,6 +261,65 @@ impl ::core::ops::Drop for ThreadHandle
 	}
 }
 
+impl ThreadPtr {
+	pub fn new(ptr: Box<Thread>) -> ThreadPtr {
+		// SAFE: Non-zero value
+		ThreadPtr( unsafe { ::core::ptr::Unique::new(ptr.into_raw()) } )
+	}
+	pub fn new_static(ptr: &'static mut Thread) -> ThreadPtr {
+		// SAFE: Non-zero value
+		ThreadPtr( unsafe { ::core::ptr::Unique::new( (ptr as *mut _ as usize | 1) as *mut Thread) } )
+	}
+	pub fn into_boxed(self) -> Option<Box<Thread>> {
+		// SAFE: It's a originally boxed pointer
+		let p = *self.0 as usize;
+		::core::mem::forget(self);
+		if p & 1 == 0 {
+			// SAFE: bit 0 unset indicates heap pointer
+			Some( unsafe { Box::from_raw(p as *mut Thread) } )
+		}
+		else {
+			None
+		}
+	}
+	fn as_ptr(&self) -> *mut Thread {
+		let p = (*self.0 as usize) & !1;
+		p as *mut Thread
+	}
+	pub fn unwrap(self) -> *mut Thread {
+		let rv = self.as_ptr();
+		::core::mem::forget(self);
+		rv
+	}
+}
+impl ::core::ops::Deref for ThreadPtr {
+	type Target = Thread;
+	fn deref(&self) -> &Thread {
+		// SAFE: Owned pointer
+		unsafe { &*self.as_ptr() }
+	}
+}
+impl ::core::ops::DerefMut for ThreadPtr {
+	fn deref_mut(&mut self) -> &mut Thread {
+		// SAFE: Owned pointer
+		unsafe { &mut *self.as_ptr() }
+	}
+}
+impl ::core::ops::Drop for ThreadPtr {
+	fn drop(&mut self) {
+		// SAFE: Only used for comparison, and Copy type
+		if *self.0 != unsafe { ::core::mem::dropped() } {
+			panic!("Dropping an owned thread pointer - {:?}", self);
+		}
+	}
+}
+impl ::core::fmt::Debug for ThreadPtr {
+	fn fmt(&self, f: &mut ::core::fmt::Formatter) -> ::core::fmt::Result {
+		let t: &Thread = &self;
+		::core::fmt::Debug::fmt( t, f )
+	}
+}
+
 impl Thread
 {
 	/// Create a new thread
@@ -341,6 +357,12 @@ impl Thread
 	pub fn get_process_info(&self) -> &Process {
 		&*self.block.process
 	}
+}
+
+pub fn new_idle_thread(cpu: usize) -> ThreadPtr {
+	let mut thread = Thread::new_boxed(allocate_tid(), format!("Idle#{}", cpu), super::S_PID0.clone());
+	::arch::threads::start_thread(&mut thread, super::idle_thread);
+	thread
 }
 
 impl ::core::fmt::Display for SharedBlock

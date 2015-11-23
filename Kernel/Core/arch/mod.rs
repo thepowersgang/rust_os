@@ -202,8 +202,8 @@ pub mod threads {
 		imp::idle()
 	}
 	#[inline]
-	pub fn switch_to_idle() {
-		imp::switch_to_idle()
+	pub fn get_idle_thread() -> ::threads::ThreadPtr {
+		imp::get_idle_thread()
 	}
 	#[inline]
 	pub fn switch_to(t: ::threads::ThreadPtr) {

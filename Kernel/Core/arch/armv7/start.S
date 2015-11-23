@@ -164,6 +164,7 @@ ram_mapping_collision:
 @
 @ MAGIC MACRO
 @
+@ TODO: use https://sourceware.org/binutils/docs/as/ARM-Directives.html
 .macro EXIDX method handle
 .long EXIDX_\method
 .section .ARM.exidx.\method, #exidx

@@ -15,6 +15,7 @@ mod sleep_object;
 
 pub use self::thread::{Thread,ThreadPtr};
 pub use self::thread::{ThreadHandle,ProcessHandle};
+pub use self::thread::new_idle_thread;
 
 pub use self::worker_thread::WorkerThread;
 
@@ -60,6 +61,7 @@ fn reap_threads()
 		}
 		else {
 			// Dropping a non-heap thread pointer. Not possible
+			// - Likely a bug
 		}
 	}
 }
@@ -228,12 +230,15 @@ pub fn reschedule()
 		}
 		else
 		{
-			log_trace!("reschedule() - No active threads, idling");
-			//::arch::threads::switch_to_idle();
-			
-			// TODO: Need to switch to an idle thread instead. This allows reaping of the last active thread.
-			reap_threads();
-			::arch::threads::idle();
+			let thread = ::arch::threads::get_idle_thread();
+			if &*thread as *const _ != ::arch::threads::borrow_thread() as *const _
+			{
+				log_trace!("reschedule() - No active threads, idling");
+				
+				// TODO: Need to switch to an idle thread instead. This allows reaping of the last active thread.
+				::arch::threads::switch_to( thread );
+			}
+			return ;
 		}
 	}
 }

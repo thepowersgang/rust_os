@@ -38,7 +38,7 @@ def test(instance):
 
     # - Select the top item to open the CLI
     instance.type_key('ret')
-    assert instance.wait_for_idle() # Press
+    test_assert("CLI startup return press timeout", instance.wait_for_idle())
     test_assert("CLI startup timeout", instance.wait_for_line("\[syscalls\] - USER> Calling entry 0x[0-9a-f]+ for b\"/sysroot/bin/simple_console\"", timeout=5))
     test_assert("CLI window render", instance.wait_for_line("\[gui::windows\] - L\d+: WindowGroup::redraw: \d+ 'Console'", timeout=5))
     test_assert("CLI idle timeout", instance.wait_for_idle(timeout=3))
@@ -63,9 +63,10 @@ def test(instance):
         pass
     instance.type_key('ret')
     test_assert("`exit` return release timeout", instance.wait_for_line("\[syscalls\] - USER> Window::handle_event\(ev=KeyUp\(Return\)\)", timeout=1)) # Release
-    test_assert("`exit` reap", instance.wait_for_line("Reaping thread 0x[0-9a-f]+(\d+ /sysroot/bin/simple_console#1)", timeout=2))
+    test_assert("`exit` reap", instance.wait_for_line("Reaping thread 0x[0-9a-f]+\(\d+ /sysroot/bin/simple_console#1\)", timeout=2))
     instance.screenshot('exit')
-    test_assert("`ls` idle timeout", instance.wait_for_idle(timeout=5))
+    # DISABLED: Idle triggers reaping
+    #test_assert("`ls` idle timeout", instance.wait_for_idle(timeout=5))
 
 
     while instance.wait_for_idle():

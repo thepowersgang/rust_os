@@ -12,6 +12,8 @@
 
 # Logging and Messages #
 - Kernel log rendered to its "window"
+ - Downside: Kernel log is verbose, this will slow down most operations (on render)
+ - Having an aliased buffer containing the messages would be better (render in thread)
 - Kernel panic messages rendered to display
 - User panic messages rendered to a kernel-owned window
  - This same infrastructure can be used for blocked windows/processes

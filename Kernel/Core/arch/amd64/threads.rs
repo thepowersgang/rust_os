@@ -31,6 +31,7 @@ extern "C" {
 }
 
 pub static S_IRQS_ENABLED: ::core::sync::atomic::AtomicBool = ::core::sync::atomic::ATOMIC_BOOL_INIT;
+static mut S_IDLE_THREAD: *mut ::threads::Thread = 0 as *mut _;
 
 #[repr(C)]
 /// Thread-local-storage block
@@ -55,6 +56,10 @@ struct TLSData {
 /// Returns the thread state for TID0 (aka the kernel's core thread)
 pub fn init_tid0_state() -> State
 {
+	// SAFE: Called in single-threaded context... hopefully (TODO)
+	unsafe {
+		S_IDLE_THREAD = ::core::mem::transmute( ::threads::new_idle_thread(0) );
+	}
 	let cr3 = &InitialPML4 as *const _ as u64 - super::memory::addresses::IDENT_START as u64;
 	log_debug!("init_tid0_state - cr3 = {:#x}", cr3);
 	State {
@@ -179,10 +184,14 @@ pub fn start_thread<F: FnOnce()+Send>(thread: &mut ::threads::Thread, code: F)
 	}
 }
 
-pub fn switch_to_idle()
+pub fn get_idle_thread() -> ::threads::ThreadPtr
 {
-	todo!("switch_to_idle");
-	//switch_to(get_idle_thread());
+	// TODO: Shared mutability shouldn't be an issue (this thread pointer should not be created twice)
+	// SAFE: Passes a static pointer. `static mut` should be initialised
+	unsafe {
+		assert!(S_IDLE_THREAD != 0 as *mut _);
+		::threads::ThreadPtr::new_static( &mut *S_IDLE_THREAD )
+	}
 }
 
 /// Switch to the passed thread (suspending the current thread until it is rescheduled)
