@@ -51,27 +51,29 @@ pub fn init()
 	::arch::threads::set_thread_ptr( tid0 );
 }
 
-fn reap_threads()
+fn reap_threads() -> bool
 {
+	let mut rv = false;
 	while let Some(thread) = S_TO_REAP_THREADS.lock().pop() {
 		log_log!("Reaping thread {:?}", thread);
 		assert!(&*thread as *const Thread != ::arch::threads::borrow_thread() as *const _, "Reaping thread from itself");
-		if let Some(thread) = thread.into_boxed() {
-			drop(thread);
+		match thread.into_boxed()
+		{
+		Ok(thread) => drop(thread),
+		Err(thread) => log_warning!("Attempting reap 'static thread {:?}", thread),
 		}
-		else {
-			// Dropping a non-heap thread pointer. Not possible
-			// - Likely a bug
-		}
+		rv = true;
 	}
+	rv
 }
 
 pub fn idle_thread()
 {
 	loop
 	{
-		reap_threads();
-		::arch::threads::idle();
+		if ! reap_threads() {
+			::arch::threads::idle();
+		}
 		reschedule();
 	}
 }

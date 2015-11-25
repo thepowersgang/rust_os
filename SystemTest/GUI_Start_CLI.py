@@ -32,7 +32,8 @@ def test(instance):
     # - Open the "System" menu (press left windows key)
     instance.screenshot('Shell')
     instance.type_key('meta_l')
-    test_assert("System menu press timeout", instance.wait_for_idle()) # Press
+    test_assert("Password return press timeout", instance.wait_for_line("\[syscalls\] - USER> Window::handle_event\(ev=KeyDown\(LeftGui\)\)", timeout=1)) # Press
+    test_assert("Password return press timeout", instance.wait_for_line("\[syscalls\] - USER> Window::handle_event\(ev=KeyUp\(LeftGui\)\)", timeout=1))
     test_assert("System menu release timeout", instance.wait_for_idle(timeout=5)) # Release
     instance.screenshot('Menu')
 
@@ -67,6 +68,9 @@ def test(instance):
     instance.screenshot('exit')
     # DISABLED: Idle triggers reaping
     #test_assert("`ls` idle timeout", instance.wait_for_idle(timeout=5))
+    
+    # - Ensure that the GUI re-renders, and that the terminal no-longer shows
+    test_assert("final render", instance.wait_for_line("WindowGroup::redraw: render_order=\[\(1, \[\]\), \(4, \[\(0,20 \+ \d+x\d+\)\]\), \(5, \[\(0,0 \+ \d+x20\)\]\)\]", timeout=5))
 
 
     while instance.wait_for_idle():

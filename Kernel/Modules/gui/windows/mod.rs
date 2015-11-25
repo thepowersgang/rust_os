@@ -444,6 +444,11 @@ impl WindowGroup
 
 			// TODO: Full redraw can be expensive... would prefer to force redraw of just the revealed region
 			S_FULL_REDRAW.store(true, atomic::Ordering::Relaxed);
+			S_RENDER_NEEDED.store(true, atomic::Ordering::Relaxed);
+			S_RENDER_REQUEST.post();
+		}
+		else {
+			log_debug!("Window {} not visible", idx);
 		}
 	}
 	
@@ -636,6 +641,7 @@ impl ::core::ops::Drop for WindowHandle
 {
 	fn drop(&mut self)
 	{
+		log_debug!("WindowHandle::drop - {}/{}", self.grp_id, self.win_id);
 		// WindowHandle uniquely owns the window, so can just drop it
 		self.win = None;
 		self.grp.lock().drop_window( self.win_id );

@@ -165,6 +165,7 @@ impl Process
 		}
 	}
 }
+
 impl ProcessHandle
 {
 	pub fn new<S: Into<String>+::core::fmt::Debug>(name: S, clone_start: usize, clone_end: usize) -> ProcessHandle {
@@ -270,16 +271,17 @@ impl ThreadPtr {
 		// SAFE: Non-zero value
 		ThreadPtr( unsafe { ::core::ptr::Unique::new( (ptr as *mut _ as usize | 1) as *mut Thread) } )
 	}
-	pub fn into_boxed(self) -> Option<Box<Thread>> {
+	pub fn into_boxed(self) -> Result<Box<Thread>, &'static mut Thread> {
 		// SAFE: It's a originally boxed pointer
 		let p = *self.0 as usize;
 		::core::mem::forget(self);
 		if p & 1 == 0 {
 			// SAFE: bit 0 unset indicates heap pointer
-			Some( unsafe { Box::from_raw(p as *mut Thread) } )
+			Ok( unsafe { Box::from_raw(p as *mut Thread) } )
 		}
 		else {
-			None
+			// SAFE: bit 1 is cleared, pointer is valid
+			Err( unsafe { &mut *( (p & !1) as *mut Thread ) } )
 		}
 	}
 	fn as_ptr(&self) -> *mut Thread {
@@ -392,7 +394,7 @@ impl ::core::ops::Drop for Thread
 	fn drop(&mut self)
 	{
 		// TODO: Remove self from the global thread map
-		log_debug!("Destroying thread {:?}", self);
+		log_debug!("Destroying thread {:?} - {} handles to block, {} to process", self, Arc::strong_count(&self.block), Arc::strong_count(&self.block.process));
 	}
 }
 
