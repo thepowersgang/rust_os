@@ -13,6 +13,7 @@ use sync::AtomicU32;
 // 1. Reference counts are maintained as a region of address space containing the reference counts
 // 2. Bitmap (maybe?) maintained 
 
+/// Multiref count array
 static S_REFCOUNT_ARRAY: RwLock<PageArray<AtomicU32>> = RwLock::new( PageArray::new(PMEMREF_BASE, PMEMREF_END) );
 
 /// Calls the provided closure with a borrow of the reference count for the specified frame
@@ -45,13 +46,14 @@ pub fn get_multiref_count(frame_idx: u64) -> u32 {
 	with_ref( frame_idx, |r| r.load(Ordering::Relaxed) ).unwrap_or(0)
 }
 
+/// Returns true if the frame was marked as allocated
 pub fn mark_free(frame_idx: u64) -> bool {
-	// Don't really use this though...
-	log_notice!("TODO: mark_free - frame_idx={:#x}", frame_idx);
+	// TODO: Likely need to maintain a bitmap (along with mark_used) to track per-page usage
+	//log_notice!("TODO: mark_free - frame_idx={:#x}", frame_idx);
 	true
 }
 pub fn mark_used(frame_idx: u64) {
-	log_notice!("TODO: mark_used - frame_idx={:#x}", frame_idx);
+	panic!("TODO: mark_used - frame_idx={:#x}", frame_idx);
 }
 
 

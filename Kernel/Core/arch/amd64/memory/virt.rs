@@ -41,6 +41,18 @@ enum PTEPos
 	Page2M,
 	Page4K,
 }
+impl PTEPos {
+	fn from_level(level: u8) -> PTEPos {
+		match level {
+		0 => PTEPos::Absent,
+		1 => PTEPos::Page4K,
+		2 => PTEPos::Page2M,
+		3 => PTEPos::Page1G,
+		4 => PTEPos::Page512G,
+		_ => panic!("Invalid level {} for PTEPos::from_level", level),
+		}
+	}
+}
 
 struct PTE
 {
@@ -680,6 +692,50 @@ impl AddressSpace
 	
 	pub fn get_cr3(&self) -> u64 {
 		self.0
+	}
+}
+impl ::core::ops::Drop for AddressSpace {
+	fn drop(&mut self) {
+		
+		fn drop_table_ent(table_ent: &mut u64, level: u8) {
+			assert!(1 <= level && level <= 4, "AddressSpace::drop::drop_table_ent - level invalid, {}", level);
+			// SAFE: We have &mut
+			let pte = unsafe { PTE::new(PTEPos::from_level(level), table_ent) };
+			if ! pte.is_reserved() {
+				assert!( *table_ent == 0, "TODO: Handle non-zero non-present table entry" );
+			}
+			else {
+				let addr = pte.addr();
+				if level == 1 {
+					// Level 1, i.e. page table. Just dereference the page
+				}
+				else {
+					// Level 2-4 (PD, PDP, PML4). Recurse
+					// SAFE: All paging tables should be uniquely owned, transmute is valid
+					unsafe {
+						::memory::virt::with_temp(addr, |tab_pg| {
+							let tab: &mut [u64; 512] = ::core::mem::transmute(tab_pg);
+							for e in tab.iter_mut() {
+								drop_table_ent(e, level-1);
+							}
+							});
+					}
+				}
+				::memory::phys::deref_frame( addr );
+			}
+			*table_ent = 0;
+		}
+
+		// SAFE: All paging tables should be uniquely owned, transmute is valid
+		unsafe {
+			::memory::virt::with_temp(self.0, |pml4_pg| {
+				let pml4: &mut [u64; 512] = ::core::mem::transmute(pml4_pg);
+				for e in pml4[..256].iter_mut() {
+					drop_table_ent(e, 4);
+				}
+				});
+			::memory::phys::deref_frame( self.0 );
+		}
 	}
 }
 

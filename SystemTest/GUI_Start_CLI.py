@@ -73,7 +73,7 @@ def test(instance):
     test_assert("final render", instance.wait_for_line("WindowGroup::redraw: render_order=\[\(1, \[\]\), \(4, \[\(0,20 \+ \d+x\d+\)\]\), \(5, \[\(0,0 \+ \d+x20\)\]\)\]", timeout=5))
 
 
-    while instance.wait_for_idle():
+    while instance.wait_for_idle(timeout=2):
         pass
     instance.screenshot('final')
 
