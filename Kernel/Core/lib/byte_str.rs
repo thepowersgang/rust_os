@@ -86,6 +86,14 @@ impl ByteString
 		ByteString(Vec::new())
 	}
 }
+impl ::core::iter::FromIterator<u8> for ByteString {
+	fn from_iter<T>(iterator: T) -> ByteString
+	where
+		T: IntoIterator<Item=u8>
+	{
+		From::<Vec<u8>>::from(iterator.into_iter().collect())
+	}
+}
 
 impl_from! {
 	<('a)> From<&'a [u8]>(v) for ByteString {

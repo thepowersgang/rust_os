@@ -225,13 +225,14 @@ pub fn opendir(path: &[u8]) -> Result<ObjectHandle,u32>
 }
 
 struct Dir {
+	handle: ::kernel::vfs::handle::Dir,
 	inner: ::kernel::sync::Mutex<DirInner>,
 }
 impl Dir {
 	fn new(handle: ::kernel::vfs::handle::Dir) -> Dir {
 		Dir {
+			handle: handle,
 			inner: ::kernel::sync::Mutex::new( DirInner {
-				handle: handle,
 				lower_ofs: 0,
 				cache: Default::default(),
 				} )
@@ -245,11 +246,11 @@ impl objects::Object for Dir
 	fn class(&self) -> u16 { Self::CLASS }
 	fn as_any(&self) -> &Any { self }
 	fn handle_syscall(&self, call: u16, mut args: &[usize]) -> Result<u64,Error> {
-		match call
+		Ok(match call
 		{
 		values::VFS_DIR_READENT => {
 			let mut name = try!(<FreezeMut<[u8]>>::get_arg(&mut args));
-			Ok( super::from_result( match self.inner.lock().read_ent()
+			super::from_result( match self.inner.lock().read_ent(&self.handle)
 				{
 				Err(e) => Err(e),
 				Ok(None) => Ok(0),
@@ -257,10 +258,13 @@ impl objects::Object for Dir
 					name.clone_from_slice( s.as_bytes() );
 					Ok(s.len() as u32)
 					},
-				}) )
+				})
 			},
+		//values::VFS_DIR_OPENCHILD => {
+		//	let name = try!(<Freeze<[u8]>>::get_arg(&mut args));
+		//	},
 		_ => todo!("Dir::handle_syscall({}, ...)", call),
-		}
+		})
 	}
 	fn bind_wait(&self, _flags: u32, _obj: &mut ::kernel::threads::SleepObject) -> u32 { 0 }
 	fn clear_wait(&self, _flags: u32, _obj: &mut ::kernel::threads::SleepObject) -> u32 { 0 }
@@ -269,52 +273,46 @@ impl objects::Object for Dir
 type DirEnt = (::kernel::vfs::node::InodeId, ::kernel::lib::byte_str::ByteString);
 
 struct DirInner {
-	handle: ::kernel::vfs::handle::Dir,
 	lower_ofs: usize,
 	
 	cache: DirEntCache,
 }
 impl DirInner
 {
-	fn read_ent(&mut self) -> Result< Option<DirEnt>, ::values::VFSError > {
+	fn read_ent(&mut self, handle: &::kernel::vfs::handle::Dir) -> Result< Option<DirEnt>, ::values::VFSError >
+	{
 		if let Some(e) = self.cache.next() {
 			Ok( Some(e) )
 		}
 		else {
-			let (ofs, count) = try!(self.handle.read_ents(self.lower_ofs, self.cache.ents()));
-			self.lower_ofs = ofs;
-			if count > 0 {
-				self.cache.repopulate(count as u8);
-				Ok( self.cache.next() )
-			}
-			else {
-				Ok( None )
-			}
+			let mut cache = &mut self.cache;
+			cache.reset();
+			self.lower_ofs = try!(handle.read_ents(self.lower_ofs, &mut |inode, name| {
+				cache.push( (inode, name.collect()) );
+				! cache.is_full()
+				}));
+			Ok( cache.next() )
 		}
 	}
 }
 
-#[derive(Debug)]
+#[derive(Debug,Default)]
 struct DirEntCache {
 	count: u8,
 	ofs: u8,
 	ents: [DirEnt; 4],
 }
-impl Default for DirEntCache {
-	fn default() -> DirEntCache {
-		DirEntCache {
-			count: 0,
-			ofs: 0,
-			ents: [Default::default(), Default::default(), Default::default(), Default::default()],
-		}
-	}
-}
 impl DirEntCache {
-	fn ents(&mut self) -> &mut [DirEnt] {
-		&mut self.ents
+	fn is_full(&self) -> bool {
+		self.count == 4
 	}
-	fn repopulate(&mut self, count: u8) {
-		self.count = count;
+	fn push(&mut self, v: DirEnt) {
+		assert!(self.count < 4);
+		self.ents[self.count as usize] = v;
+		self.count += 1;
+	}
+	fn reset(&mut self) {
+		self.count = 0;
 		self.ofs = 0;
 	}
 	fn next(&mut self) -> Option<DirEnt> {

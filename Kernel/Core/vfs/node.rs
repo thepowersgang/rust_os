@@ -91,6 +91,11 @@ pub trait File: NodeBase {
 	/// Write data to the file, can only grow the file if ofs==size
 	fn write(&self, ofs: u64, buf: &mut [u8]) -> Result<usize>;
 }
+
+// TODO: Should this be &ByteStr instead of an iterator?
+// - For non-byte on-disk filenames (FAT LFN, NTFS) it would lead to excessive allocations.
+pub type ReadDirCallback<'a> = FnMut(InodeId, &mut Iterator<Item=u8>)->bool + 'a;
+
 /// Trait for "Directory" nodes, containers for files.
 pub trait Dir: NodeBase {
 	/// Acquire a node given the name
@@ -99,9 +104,9 @@ pub trait Dir: NodeBase {
 	/// Read Entry
 	/// 
 	/// Returns:
-	/// - Ok( (Next Offset, Number read) )
+	/// - Ok(Next Offset)
 	/// - Err(e) : Any error
-	fn read(&self, ofs: usize, items: &mut [(InodeId,ByteString)]) -> Result<(usize,usize)>;
+	fn read(&self, start_ofs: usize, callback: &mut ReadDirCallback) -> Result<usize>;
 	
 	/// Create a new file in this directory
 	/// 
@@ -297,7 +302,7 @@ impl CacheHandle
 		_ => Err( super::Error::Unknown("Calling create on non-directory") ),
 		}
 	}
-	pub fn read_dir(&self, ofs: usize, items: &mut [(InodeId,ByteString)]) -> super::Result<(usize,usize)> {
+	pub fn read_dir(&self, ofs: usize, items: &mut ReadDirCallback) -> super::Result<usize> {
 		match self.as_ref()
 		{
 		&Node::Dir(ref r) => Ok( try!(r.read(ofs, items)) ),

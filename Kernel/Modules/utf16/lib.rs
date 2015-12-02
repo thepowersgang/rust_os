@@ -131,6 +131,9 @@ impl cmp::PartialEq<str> for Str16
 	}
 }
 
+/// "WTF"-8 encoding iterator
+///
+/// WTF-8 is UTF-8 that can contain unpaired surrogate codepoints.
 pub struct Wtf8<'a>(Chars<'a>, [u8; 4]);
 impl<'a> ::core::iter::Iterator for Wtf8<'a>
 {
@@ -154,6 +157,7 @@ impl<'a> ::core::iter::Iterator for Wtf8<'a>
 	}
 }
 
+/// Iterator over characters in a UTF-16 string
 pub struct Chars<'a>(&'a [u16]);
 impl<'a> ::core::iter::Iterator for Chars<'a>
 {
@@ -169,8 +173,8 @@ impl<'a> ::core::iter::Iterator for Chars<'a>
 				{
 				// - Surrogate pair
 				Some(low @ LO_SURR_START ... LO_SURR_END) => {
-					let high = v as u32 - 0xD800;
-					let low = low as u32 - 0xDC00;
+					let high = (v - HI_SURR_START) as u32;
+					let low = (low - LO_SURR_START) as u32;
 					let cp: u32 = 0x10000 + high << 10 + low;
 					(cp, 2)
 					},

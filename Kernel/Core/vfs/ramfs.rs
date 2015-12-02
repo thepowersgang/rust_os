@@ -136,17 +136,18 @@ impl node::Dir for FileRef {
 		}
 	}
 	
-	fn read(&self, ofs: usize, items: &mut [(InodeId,ByteString)]) -> IoResult<(usize,usize)> {
+	fn read(&self, start_ofs: usize, callback: &mut node::ReadDirCallback) -> node::Result<usize> {
 		let lh = self.dir().ents.read();
 		let mut count = 0;
 		// NOTE: This will skip/repeat entries if `create` is called between calls
-		for (d,(name,&inode)) in zip!( items.iter_mut(), lh.iter().skip(ofs) )
+		for (name, &inode) in lh.iter().skip(start_ofs)
 		{
-			d.0 = inode as InodeId;
-			d.1 = name.clone();
 			count += 1;
+			if callback(inode as InodeId, &mut name.as_bytes().iter().cloned()) {
+				break ;
+			}
 		}
-		Ok( (ofs + count, count) )
+		Ok(start_ofs + count)
 	}
 	
 	fn create(&self, name: &ByteStr, nodetype: node::NodeType) -> IoResult<InodeId> {

@@ -12,7 +12,7 @@ use kernel::vfs::{self, mount, node};
 use kernel::metadevs::storage::{self,VolumeHandle};
 use kernel::lib::mem::aref::{ArefInner,ArefBorrow};
 use kernel::lib::byteorder::{ByteOrder,LittleEndian};
-use kernel::lib::byte_str::{ByteStr,ByteString};
+use kernel::lib::byte_str::ByteStr;
 use kernel::lib::mem::Arc;
 
 module_define!{FS_ISO9660, [VFS], init}
@@ -217,12 +217,10 @@ impl node::Dir for Dir
 	fn lookup(&self, name: &ByteStr) -> node::Result<node::InodeId> {
 		todo!("Dir::lookup({:?})", name)
 	}
-	fn read(&self, ofs: usize, items: &mut [(node::InodeId,ByteString)]) -> node::Result<(usize,usize)>
+	fn read(&self, ofs: usize, callback: &mut node::ReadDirCallback) -> node::Result<usize>
 	{
 		let (end_sect,end_ofs) = (self.size as usize / self.fs.lb_size, self.size as usize % self.fs.lb_size);
 		let (mut sector, mut ofs) = (ofs / self.fs.lb_size, ofs % self.fs.lb_size);
-		
-		let mut count = 0;
 		
 		let mut data = try!(self.fs.get_sector(self.first_lba + sector as u32));
 		// While not at the end of the allocation
@@ -246,11 +244,8 @@ impl node::Dir for Dir
 				let name = &ent[33 .. 33 + namelen];
 				let start = LittleEndian::read_u32(&ent[2..]);
 				
-				items[count] = (start as node::InodeId, ByteString::from(name));
-				count += 1;
-				if count == items.len() {
-					// Filled the array, return and continue
-					break;
+				if ! callback(start as node::InodeId, &mut name.iter().cloned()) {
+					break ;
 				}
 			}
 			if ofs >= self.fs.lb_size {
@@ -260,7 +255,7 @@ impl node::Dir for Dir
 			}
 		}
 		
-		Ok( (sector*self.fs.lb_size + ofs, count) )
+		Ok( sector*self.fs.lb_size + ofs, )
 	}
 	
 	fn create(&self, _name: &ByteStr, _nodetype: node::NodeType) -> node::Result<node::InodeId> {

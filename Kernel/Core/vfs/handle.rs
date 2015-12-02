@@ -304,9 +304,12 @@ impl Dir
 		Ok( () )
 	}
 
+	//pub fn open_child(&self, name: &ByteStr) -> super::Result<Node> {
+	//}
 
-	/// RETURN: (next position, read count)
-	pub fn read_ents(&self, pos: usize, ents: &mut [(super::node::InodeId, ByteString)]) -> super::Result<(usize, usize)> {
+
+	/// RETURN: next position
+	pub fn read_ents(&self, pos: usize, ents: &mut super::node::ReadDirCallback) -> super::Result<usize> {
 		self.node.read_dir(pos, ents)
 	}
 }
@@ -322,15 +325,19 @@ impl<'a> ::core::iter::Iterator for DirIter<'a> {
 	type Item = ByteString;
 	fn next(&mut self) -> Option<ByteString> {
 		if self.ofs == self.count {
-			match self.handle.node.read_dir(self.pos, &mut self.ents)
+			match self.handle.node.read_dir(self.pos, &mut |inode, name| {
+				self.ents[self.count].0 = inode;
+				self.ents[self.count].1 = name.collect();
+				self.count += 1;
+				self.count < 4
+				})
 			{
 			Err(e) => {
 				log_warning!("Error while iterating dir: {:?}", e);
 				return None;
 				},
-			Ok((next,count)) => {
+			Ok(next) => {
 				self.pos = next;
-				self.count = count;
 				},
 			}
 			if self.count == 0 {

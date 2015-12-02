@@ -5,7 +5,7 @@
 use kernel::prelude::*;
 use kernel::lib::mem::aref::ArefBorrow;
 use kernel::vfs::node;
-use kernel::lib::byte_str::{ByteStr,ByteString};
+use kernel::lib::byte_str::ByteStr;
 use kernel::lib::ascii::AsciiExt;
 use super::on_disk;
 use super::file::FileNode;
@@ -319,35 +319,35 @@ impl node::Dir for DirNode {
 		}
 		Err(node::IoError::NotFound)
 	}
-	fn read(&self, ofs: usize, items: &mut [(node::InodeId,ByteString)]) -> node::Result<(usize,usize)> {
+	fn read(&self, ofs: usize, callback: &mut node::ReadDirCallback) -> node::Result<usize> {
 		
 		let ents_per_cluster = self.fs.cluster_size / 32;
 		let (cluster_idx, c_ofs) = (ofs / ents_per_cluster, ofs % ents_per_cluster);
 		
 		let mut lfn = LFN::new();
-		let mut count = 0;
 		let mut cur_ofs = ofs;
-		'outer: for c in self.clusters().skip(cluster_idx)
+		for c in self.clusters().skip(cluster_idx)
 		{
 			let cluster = try!(self.fs.load_cluster(c));
-			for ent in DirEnts::new(&cluster).skip(c_ofs) {
+			for ent in DirEnts::new(&cluster).skip(c_ofs)
+			{
 				cur_ofs += 1;
-				match ent {
+				match ent
+				{
 				DirEnt::End => {
 					// On next call, we want to hit this entry (so we can return count=0)
-					return Ok( (cur_ofs-1, count) );
+					return Ok(cur_ofs - 1);
 					},
 				DirEnt::Short(e) => {
-					let name = if lfn.is_valid() {
-							ByteString::from( lfn.name().wtf8().collect::<Vec<_>>() )
+					let inode = e.inode(self.start_cluster);
+					let cont = if lfn.is_valid() {
+							callback(inode, &mut lfn.name().wtf8())
 						}
 						else {
-							ByteString::from(e.name())
+							callback(inode, &mut e.name().as_bytes().iter().cloned())
 						};
-					items[count] = (e.inode(self.start_cluster), name);
-					count += 1;
-					if count == items.len() {
-						return Ok( (cur_ofs, count) );
+					if ! cont {
+						return Ok(cur_ofs);
 					}
 					lfn.clear();
 					},
@@ -359,7 +359,7 @@ impl node::Dir for DirNode {
 			}
 		}
 		
-		Ok( (cur_ofs, count) )
+		Ok( cur_ofs )
 	}
 	fn create(&self, name: &ByteStr, nodetype: node::NodeType) -> node::Result<node::InodeId> {
 		todo!("DirNode::create('{:?}', {:?})", name, nodetype);
