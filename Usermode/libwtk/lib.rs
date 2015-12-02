@@ -38,13 +38,18 @@ pub use syscalls::gui::Event as InputEvent;
 pub trait Element
 {
 	/// Called when focus changes to/from this element
-	fn focus_change(&self, _have: bool) {}
+	fn focus_change(&self, _have: bool) {
+	}
 	/// Called when an event fires. Keyboard events are controlled by focus, mouse via the render tree
-	fn handle_event(&self, _ev: ::InputEvent, _win: &mut ::window::WindowTrait) -> bool { false }
+	fn handle_event(&self, _ev: ::InputEvent, _win: &mut ::window::WindowTrait) -> bool {
+		false
+	}
 	/// Redraw this element into the provided surface view
 	fn render(&self, surface: ::surface::SurfaceView, force: bool);
 
-	fn element_at_pos(&self, x: u32, y: u32) -> (&::Element, (u32,u32));
+	/// Fetch child element at the given position.
+	/// Returns the child element and the offset of the child.
+	fn element_at_pos(&self, x: u32, y: u32) -> (&::Element, (u32,u32)); //{ (self, (0,0)) }
 }
 /// Object safe
 impl<'a, T: 'a + Element> Element for &'a T

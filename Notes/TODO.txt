@@ -31,6 +31,14 @@
 # GUI tweaks #
 - Tag group handle with the application name (for server-side identification)
 
+# GUI Apps #
+- Text editor
+ - Simple text edit control
+ - With scrollbars
+ - Menu bar
+- File browser
+ - Simple list control
+
 <!-- vim: ft=markdown
 -->
 

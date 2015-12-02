@@ -61,6 +61,12 @@ pub struct Window<'a, D: 'a/* = ::decorator::Standard*/>
 	pub decorator: D,
 }
 
+impl<'a> Window<'a, ::decorator::Standard>
+{
+	pub fn new_def(debug_name: &str, ele: &'a ::Element) -> Result<Self, Error> {
+		Window::new(debug_name, ele, ::surface::Colour::from_argb32(0), ::decorator::Standard::default())
+	}
+}
 impl<'a, D: 'a + Decorator> Window<'a, D>
 {
 	/// Create a new window containing the provided element
@@ -108,6 +114,10 @@ impl<'a, D: 'a + Decorator> Window<'a, D>
 			},
 		_ => {},
 		}
+	}
+
+	pub fn idle_loop(&mut self) {
+		::async::idle_loop(&mut [ self ]);
 	}
 }
 

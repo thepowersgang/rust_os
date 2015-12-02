@@ -143,6 +143,7 @@ impl Surface
 	}
 }
 
+// TODO: Support masking region (for clipping left/top of text)
 #[derive(Clone)]
 pub struct SurfaceView<'a>
 {
