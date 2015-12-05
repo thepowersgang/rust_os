@@ -230,8 +230,15 @@ impl<'a, D: 'a + Decorator> WindowTrait<'a> for Window<'a, D>
 
 	/// Manually request a redraw of the window
 	fn rerender(&mut self) {
+		// Size the window to something sane if not sized (or 0 sized)
+		if self.surface.rect().dims() == ::geom::Dims::new(0,0) {
+			self.set_dims(250, 150);
+			self.set_pos(150, 100);
+		}
+
 		self.decorator.render( self.surface.slice(Rect::new_full()), self.needs_force_rerender );
-		self.root.render( self.surface.slice(self.client_rect()), self.needs_force_rerender );
+		let subsurf = self.surface.slice(self.client_rect());
+		self.root.render( subsurf, self.needs_force_rerender );
 		self.surface.blit_to_win( &self.win );
 		self.needs_force_rerender = false;
 	}

@@ -48,6 +48,7 @@ impl<T: CoordType> ::std::fmt::Debug for Rect<T>
 	}
 }
 
+#[derive(Copy,Clone,Default,PartialEq,Eq)]
 pub struct Pos<T: CoordType> {
 	pub x: T,
 	pub y: T,
@@ -59,6 +60,7 @@ impl<T: CoordType> ::std::fmt::Debug for Pos<T>
 	}
 }
 
+#[derive(Copy,Clone,Default,PartialEq,Eq)]
 pub struct Dims<T: CoordType> {
 	pub w: T,
 	pub h: T,
@@ -103,6 +105,10 @@ impl<T: CoordType> Rect<T>
 
 	pub fn is_empty(&self) -> bool {
 		self.w == T::zero() || self.h == T::zero()
+	}
+
+	pub fn dims(&self) -> Dims<T> {
+		Dims::new(self.w, self.h)
 	}
 
 	pub fn width(&self) -> T { self.w }

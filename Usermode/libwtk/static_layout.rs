@@ -2,10 +2,18 @@
 use super::Element;
 use geom::Rect;
 
-#[derive(PartialEq,Debug)]
+#[derive(PartialEq,Debug,Copy,Clone)]
 enum Direction { Vertical, Horizontal }
 impl Direction {
 	fn is_vert(&self) -> bool { match self { &Direction::Vertical => true, &Direction::Horizontal => false } }
+
+	fn get_rect(&self, ofs: u32, size: u32) -> Rect<::geom::Px> {
+		if self.is_vert() {
+			Rect::new(0, ofs, !0, size)
+		} else {
+			Rect::new(ofs, 0, size, !0)
+		}
+	}
 }
 #[derive(Copy,Clone)]
 pub struct Size(u32);
@@ -78,14 +86,6 @@ impl<S: BoxEleSet> Box<S>
 			(true, expand)
 		}
 	}
-
-	fn get_rect(&self, ofs: u32, size: u32) -> Rect<::geom::Px> {
-		if self.direction.is_vert() {
-			Rect::new(0, ofs, !0, size)
-		} else {
-			Rect::new(ofs, 0, size, !0)
-		}
-	}
 }
 impl<S: BoxEleSet> super::Element for Box<S>
 {
@@ -104,7 +104,8 @@ impl<S: BoxEleSet> super::Element for Box<S>
 		let (is_dirty, expand_size) = self.update_size(if self.direction.is_vert() { surface.height() } else { surface.width() });
 
 		// 2. Render sub-surfaces
-		self.elements.render(surface, force || is_dirty, expand_size, |ofs,size| self.get_rect(ofs, size));
+		let dir = self.direction;
+		self.elements.render(surface, force || is_dirty, expand_size, |ofs,size| dir.get_rect(ofs, size));
 	}
 }
 

@@ -94,6 +94,7 @@ pub trait File: NodeBase {
 
 // TODO: Should this be &ByteStr instead of an iterator?
 // - For non-byte on-disk filenames (FAT LFN, NTFS) it would lead to excessive allocations.
+/// Return `false` when read should stop
 pub type ReadDirCallback<'a> = FnMut(InodeId, &mut Iterator<Item=u8>)->bool + 'a;
 
 /// Trait for "Directory" nodes, containers for files.

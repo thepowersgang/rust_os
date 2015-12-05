@@ -316,7 +316,7 @@ impl DirEntCache {
 		self.ofs = 0;
 	}
 	fn next(&mut self) -> Option<DirEnt> {
-		log_debug!("DirEntCache self = {:?}", self);
+		log_debug!("DirEntCache::next() self = {:?}", self);
 		if self.ofs == self.count {
 			None
 		}

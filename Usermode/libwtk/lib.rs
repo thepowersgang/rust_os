@@ -45,6 +45,7 @@ pub trait Element
 		false
 	}
 	/// Redraw this element into the provided surface view
+	// MEMO: Cannot take &mut, because that requires `root: &mut` in Window, which precludes passing &mut Window to Element::handle_event
 	fn render(&self, surface: ::surface::SurfaceView, force: bool);
 
 	/// Fetch child element at the given position.

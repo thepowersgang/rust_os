@@ -4,6 +4,8 @@
 //! Cross-binary interfacing
 
 pub struct OsStr([u8]);
+#[derive(Clone)]
+pub struct OsString(::collections::Vec<u8>);
 
 impl OsStr
 {
@@ -15,6 +17,10 @@ impl OsStr
 	pub fn as_bytes(&self) -> &[u8] {
 		self.as_ref()
 	}
+
+	pub fn to_str_lossy(&self) -> ::borrow::Cow<str> {
+		::string::String::from_utf8_lossy(&self.0)
+	}
 }
 impl AsRef<[u8]> for OsStr {
 	fn as_ref(&self) -> &[u8] {
@@ -24,6 +30,11 @@ impl AsRef<[u8]> for OsStr {
 impl AsRef<OsStr> for OsStr {
 	fn as_ref(&self) -> &OsStr {
 		self
+	}
+}
+impl AsRef<OsStr> for [u8] {
+	fn as_ref(&self) -> &OsStr {
+		OsStr::new(self)
 	}
 }
 
@@ -62,8 +73,6 @@ impl ::core::cmp::PartialEq<str> for OsStr {
 	}
 }
 
-#[derive(Clone)]
-pub struct OsString(::collections::Vec<u8>);
 impl OsString {
 	pub fn new() -> OsString {
 		OsString(::collections::Vec::new())

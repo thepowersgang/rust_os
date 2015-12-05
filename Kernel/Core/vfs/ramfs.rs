@@ -143,7 +143,7 @@ impl node::Dir for FileRef {
 		for (name, &inode) in lh.iter().skip(start_ofs)
 		{
 			count += 1;
-			if callback(inode as InodeId, &mut name.as_bytes().iter().cloned()) {
+			if ! callback(inode as InodeId, &mut name.as_bytes().iter().cloned()) {
 				break ;
 			}
 		}

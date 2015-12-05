@@ -58,6 +58,7 @@ impl<I: MenuItems> Menu<I> {
 
 	fn handle_event(&self, ev: ::InputEvent) -> bool {
 		use syscalls::gui::KeyCode;
+		kernel_log!("Menu::handle_event(ev={:?})", ev);
 		match ev
 		{
 		::InputEvent::KeyUp(KeyCode::UpArrow) => {

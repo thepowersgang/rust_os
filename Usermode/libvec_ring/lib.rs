@@ -100,10 +100,11 @@ impl<T> VecRing<T> {
 	pub fn push_back(&mut self, v: T) -> bool {
 		if self.len < self.buf.cap() {
 			// Write to an unused slot
+			let pos = self.len;
 			self.len += 1;
 			// SAFE: Memory used is empty
 			unsafe {
-				::std::ptr::write(&mut self[0], v);
+				::std::ptr::write(&mut self[pos], v);
 			}
 			true
 		}
@@ -191,7 +192,14 @@ pub struct Iter<'a, T: 'a> {
 impl<'a, T: 'a> Iterator for Iter<'a, T> {
 	type Item = &'a T;
 	fn next(&mut self) -> Option<&'a T> {
-		None
+		if self.idx == self.ring.len() {
+			None
+		}
+		else {
+			self.idx += 1;
+			// SAFE: Bounds-checked pointer
+			Some( unsafe { &*self.ring.ptr(self.idx-1) } )
+		}
 	}
 }
 

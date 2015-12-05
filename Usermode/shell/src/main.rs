@@ -33,7 +33,7 @@ fn main()
 		Menu::new("System Menu", (
 			Entry::new("CLI", 0, "Win-T", || start_app(&["/sysroot/bin/simple_console", "--windowed"])),
 			Spacer,
-			Entry::new("Filesystem", 0, "Win-E", || kernel_log!("TODO: Spawn filesystem viewer")),
+			Entry::new("Filesystem", 0, "Win-E", || start_app(&["/sysroot/bin/filebrowser", "--windowed"])),
 			Entry::new("Text Editor", 5, "", || kernel_log!("TODO: Spawn text editor")),
 			))
 		};

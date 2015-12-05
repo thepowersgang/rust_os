@@ -156,7 +156,6 @@ impl ProcessObjects {
 pub fn new_object<T: Object+'static>(val: T) -> u32
 {
 	log_debug!("new_object<{}>", type_name!(T));
-	::kernel::arch::print_backtrace();
 	get_process_local::<ProcessObjects>().find_and_fill_slot(|| UserObject::new(val)).unwrap_or(!0)
 }
 

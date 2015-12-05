@@ -5,6 +5,7 @@
 
 extern crate wtk;
 extern crate vec_ring;
+#[macro_use(kernel_log)]
 extern crate syscalls;
 
 mod listview;
@@ -22,16 +23,16 @@ fn main()
 
 	::wtk::initialise();
 
-	let root_handle = ::syscalls::vfs::Dir::open("/").unwrap();
+	let mut root_handle = ::syscalls::vfs::Dir::open("/").unwrap();
 
 	let mut fl = ::filelist::FileList::new();
 	fl.bind_open(|fl, item_name| {
 		});
 
-	fl.populate(&root_handle);
+	fl.populate(&mut root_handle);
 
 	let mut window = ::wtk::Window::new_def("File browser", &fl).unwrap();
-
+	window.set_title("Filesystem - /");
 
 	window.focus(&fl);
 	window.show();

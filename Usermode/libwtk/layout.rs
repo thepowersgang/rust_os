@@ -7,11 +7,19 @@ use surface::Colour;
 use super::Element;
 use geom::Rect;
 
-#[derive(PartialEq,Debug)]
+#[derive(PartialEq,Debug,Copy,Clone)]
 enum Direction { Vertical, Horizontal }
 impl Default for Direction { fn default() -> Direction { Direction::Vertical } }
 impl Direction {
 	fn is_vert(&self) -> bool { match self { &Direction::Vertical => true, &Direction::Horizontal => false } }
+
+	fn get_rect(&self, ofs: u32, size: u32) -> Rect<::geom::Px> {
+		if self.is_vert() {
+			Rect::new(0, ofs, !0, size)
+		} else {
+			Rect::new(ofs, 0, size, !0)
+		}
+	}
 }
 
 #[derive(Copy,Clone)]
@@ -23,7 +31,7 @@ pub struct Box<'a>
 {
 	direction: Direction,
 	sizes: ::std::cell::RefCell<(u32,u32)>,
-	items: Vec< (Option<&'a Element>, Option<Size>) >,
+	items: Vec< (Option<&'a mut Element>, Option<Size>) >,
 }
 
 impl<'a> Box<'a>
@@ -38,7 +46,7 @@ impl<'a> Box<'a>
 	}
 
 	/// Add an item to the box, optionally a fixed size
-	pub fn add(&mut self, item: &'a Element, size: Option<u32>) {
+	pub fn add(&mut self, item: &'a mut Element, size: Option<u32>) {
 		self.items.push( (Some(item), size.map(|v| Size(v))) );
 	}
 	/// Add a spacer to the box, of an optional size
@@ -69,14 +77,6 @@ impl<'a> Box<'a>
 			(true, expand)
 		}
 	}
-
-	fn get_rect(&self, ofs: u32, size: u32) -> Rect<::geom::Px> {
-		if self.direction.is_vert() {
-			Rect::new(0, ofs, !0, size)
-		} else {
-			Rect::new(ofs, 0, size, !0)
-		}
-	}
 }
 
 impl<'a> super::Element for Box<'a>
@@ -91,14 +91,14 @@ impl<'a> super::Element for Box<'a>
 		let (_cap, exp) = *self.sizes.borrow();
 
 		let mut ofs = 0;
-		for &(element, ref size) in self.items.iter()
+		for &(ref element, ref size) in self.items.iter()
 		{
 			let size = if let &Some(ref s) = size { s.0 } else { exp };
 			// If the cursor was before the right/bottom border of this element, it's within
 			// - Works because of ordering
 			if pos < ofs + size
 			{
-				if let Some(e) = element {
+				if let &Some(ref e) = element {
 					return if self.direction.is_vert() {
 							e.element_at_pos(x, y - ofs)
 						}
@@ -131,8 +131,8 @@ impl<'a> super::Element for Box<'a>
 
 			match item.0
 			{
-			Some(ele) => {
-				let rect = self.get_rect(ofs, size);
+			Some(ref ele) => {
+				let rect = self.direction.get_rect(ofs, size);
 				//kernel_log!("- rect = {:?}", rect);
 				ele.render(surface.slice(rect), force || is_dirty);
 				},

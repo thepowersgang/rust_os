@@ -35,6 +35,16 @@ impl String
 		v.push_all(string.as_bytes());
 		String(v)
 	}
+	/// Create a string from a byte slice
+	pub fn from_utf8_lossy(slice: &[u8]) -> ::borrow::Cow<str> {
+		let mut i = match ::str::from_utf8(&self.0)
+			{
+			Ok(v) => return Cow::Borrowed(v),
+			Err(e) => e.valid_up_to(),
+			};
+
+		todo!("String::from_utf8_lossy");
+	}
 	/// Create a string from a `fmt::Arguments` instance (used by `format!`)
 	pub fn from_args(args: fmt::Arguments) -> String {
 		use core::fmt::Write;

@@ -38,8 +38,14 @@ pub mod addresses
 	/// End of the hardware mapping region
 	pub const HARDWARE_END:   usize = 0xFFFF_C000_00000000;
 
+	// Physical memory reference counting base:
+	//  - D-C = 1<<(32+12) = (1 << 44)
+	//  - / 4 = (1 << 42) frames, = 4 trillion = 16PB RAM
 	pub const PMEMREF_BASE:   usize = HARDWARE_END;
 	pub const PMEMREF_END:    usize = 0xFFFF_D000_00000000;
+	const MAX_FRAME_IDX: usize = (PMEMREF_END - PMEMREF_BASE) / 4;	// 32-bit integer each
+	pub const PMEMBM_BASE:	  usize = PMEMREF_END;
+	pub const PMEMBM_END:     usize = PMEMBM_BASE + MAX_FRAME_IDX / 8;	// 8 bits per byte in bitmap
 	// E is free, as is most of F
 	
 	pub const STACK_SIZE: usize = 0x8000;   // 4pg allocation was overflowed, 8 works

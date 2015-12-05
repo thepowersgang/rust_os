@@ -1,10 +1,39 @@
 import select
 import subprocess
+import threading
+import thread
+
+class KillerThread:
+    def __init__(self):
+        self._event = threading.Event()
+        self._start = threading.Event()
+        self._run = True
+        self._th = thread.start_new_thread(KillerThread.run, (self,))
+    def reset(self):
+        self._event.set()
+    def start(self):
+        self._start.set()
+    def kill(self):
+        self._run = False
+        self._start.set()
+    def run(self):
+        while self._run:
+            #print "- Waiting to time"
+            self._start.wait()
+            if not self._run:
+                break
+            #print "- Timing 2s"
+            self._start.clear()
+            if self._event.wait(2.0) == None:
+                thread.interrupt_main()
+            #print "- Done"
+            self._event.clear()
 
 class QemuMonitor:
     def __init__(self, cmd_strings):
         self._instance = subprocess.Popen(cmd_strings, stdin=subprocess.PIPE, stdout=subprocess.PIPE)
         self._mode = ''
+        self._timer = KillerThread()
     def __del__(self):
         self.cmd("quit")
         while True:
@@ -13,6 +42,7 @@ class QemuMonitor:
                 break
             print "QemuMonitor.__del__ -", line
         self._instance.terminate()
+        self._timer.kill()
         print "Killing qemu instance"
     def send_key(self, keycode):
         self.cmd('sendkey %s' % keycode)
@@ -22,7 +52,14 @@ class QemuMonitor:
     def get_line(self, timeout=1.0):
         r,_w,_e = select.select( [self._instance.stdout], [], [], timeout)
         if len(r) > 0:
-            s = self._instance.stdout.readline()
+            try:
+                self._timer.start()
+                s = self._instance.stdout.readline()
+            except KeyboardInterrupt:
+                print "--- ERROR: Timeout (or SIGINT) during readline()"
+                raise
+            finally:
+                self._timer.reset()
             if s == "":
                 return None
             return s.strip()
