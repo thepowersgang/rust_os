@@ -103,7 +103,7 @@ fn main()
 	win.taborder_add( 1, &username );
 	win.taborder_add( 2, &password );
 
-	win.add_shortcut( &[::syscalls::gui::KeyCode::Application], || power_menu.show() );
+	win.add_shortcut_1( ::syscalls::gui::KeyCode::Application, || power_menu.show() );
 
 	win.focus( &username );
 

@@ -29,7 +29,7 @@ class Instance:
             if line == None:
                 return False
             if line != "":
-                print "wait_for_idle - line=",line
+                print "wait_for_line - ",line
                 if re.search(regex, line) != None:
                     return True
                 self.lastlog.append( line )
@@ -56,6 +56,8 @@ class Instance:
                 raise "Doop"
     def type_key(self, key):
         self._cmd.send_key(key)
+    def type_combo(self, keys):
+        self._cmd.send_combo(keys)
 
     def screenshot(self, tag):
         self._cmd.send_screendump('test-%s-%s-%s.ppm' % (self._testname, self._screenshot_idx, tag))

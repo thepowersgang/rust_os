@@ -77,8 +77,8 @@ fn main()
 		win
 		};
 	
-	win_menu.add_shortcut( &[::syscalls::gui::KeyCode::LeftGui], || system_menu.show() );
-	win_menu.add_shortcut( &[::syscalls::gui::KeyCode::RightGui], || system_menu.show() );
+	win_menu.add_shortcut_1( ::syscalls::gui::KeyCode::LeftGui, || system_menu.show() );
+	win_menu.add_shortcut_1( ::syscalls::gui::KeyCode::RightGui, || system_menu.show() );
 
 	win_background.show();
 	win_menu.show();

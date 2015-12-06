@@ -13,7 +13,13 @@ pub trait Decorator
 	fn render(&self, surface: SurfaceView, full_redraw: bool);
 	fn client_rect(&self) -> (Dims<Px>,Dims<Px>);
 
-	fn handle_event(&self, ev: ::InputEvent) -> bool;
+	fn handle_event(&self, ev: ::InputEvent, mods: &::window::ModifierStates) -> EventHandled;
+}
+#[derive(Copy,Clone,Default)]
+pub struct EventHandled
+{
+	pub capture: bool,
+	pub rerender: bool,
 }
 
 impl Decorator for ()
@@ -27,8 +33,8 @@ impl Decorator for ()
 		(Dims::new(0,0), Dims::new(0,0))
 	}
 
-	fn handle_event(&self, ev: ::InputEvent) -> bool {
-		false
+	fn handle_event(&self, ev: ::InputEvent, mods: &::window::ModifierStates) -> EventHandled {
+		Default::default()
 	}
 }
 
@@ -53,11 +59,11 @@ impl<D: Decorator> Decorator for Option<D>
 		}
 	}
 
-	fn handle_event(&self, ev: ::InputEvent) -> bool {
+	fn handle_event(&self, ev: ::InputEvent, mods: &::window::ModifierStates) -> EventHandled {
 		match self
 		{
-		&Some(ref x) => x.handle_event(ev),
-		&None => false,
+		&Some(ref x) => x.handle_event(ev, mods),
+		&None => Default::default(),
 		}
 	}
 }
@@ -78,6 +84,9 @@ pub struct Standard
 }
 impl Standard
 {
+	pub fn new() -> Standard {
+		Default::default()
+	}
 	fn win_template(&self) -> &Template<&[u32]> {
 		const fn as_slice<T>(v: &[T]) -> &[T] { v } 
 		static TEMPLATE: Template<&'static [u32]> = Template {
@@ -207,10 +216,26 @@ impl Decorator for Standard
 			)
 	}
 
-	fn handle_event(&self, ev: ::InputEvent) -> bool {
+	fn handle_event(&self, ev: ::InputEvent, modifiers: &::window::ModifierStates) -> EventHandled {
 		match ev
 		{
-		_ => false,
+		// Alt-F4
+		::InputEvent::KeyUp(::syscalls::gui::KeyCode::F4) => {
+			if modifiers.test(::window::Modifier::Alt) {
+				//self.exit_handler();	// TODO: How can I cleanly do this
+				::syscalls::threads::exit(0);
+				// ^ Diverges
+			}
+			Default::default()
+			},
+		// Alt-Space
+		::InputEvent::KeyUp(::syscalls::gui::KeyCode::Space) => {
+			if modifiers.test(::window::Modifier::Alt) {
+				// TODO: Show titlebar menu
+			}
+			Default::default()
+			},
+		_ => Default::default(),
 		}
 	}
 }

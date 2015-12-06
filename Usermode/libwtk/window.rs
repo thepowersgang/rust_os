@@ -37,6 +37,9 @@ pub trait WindowTrait<'a>
 	fn tabto(&mut self, idx: usize);
 	/// Manually request a redraw of the window
 	fn rerender(&mut self);
+
+	/// Obtain the states of all "modifier" keys
+	fn get_modifiers(&self) -> &ModifierStates;
 }
 
 /// Toolkit window
@@ -51,8 +54,9 @@ pub struct Window<'a, D: 'a/* = ::decorator::Standard*/>
 	taborder: Vec<(usize, &'a ::Element)>,
 
 	// Keyboard shortcuts
-	//modifier_states: ModiferStates,
+	modifier_states: ModifierStates,
 	//shortcuts: ::std::collections::HashMap< (KeyCode,Modifiers), Box<FnMut()+'a> >,
+	shortcuts: Vec< ( (KeyCode,Modifiers), Box<FnMut()+'a> ) >,
 	shortcuts_0: Vec<(KeyCode, Box<FnMut()+'a>)>,
 
 	// Rendering information
@@ -84,6 +88,8 @@ impl<'a, D: 'a + Decorator> Window<'a, D>
 			taborder_pos: 0,
 			taborder: Vec::new(),
 
+			modifier_states: Default::default(),
+			shortcuts: Default::default(),
 			shortcuts_0: Default::default(),
 
 			background: background,
@@ -104,16 +110,19 @@ impl<'a, D: 'a + Decorator> Window<'a, D>
 			},
 		}
 	}
+
 	/// Add a shortcut key combination
-	pub fn add_shortcut<F: 'a + FnMut()>(&mut self, keys: &[KeyCode], fcn: F) /*-> Result<(),()>*/ {
-		match keys.len()
-		{
-		0 => {},
-		1 => {
-			self.shortcuts_0.push( (keys[0], Box::new(fcn)) );
-			},
-		_ => {},
-		}
+	pub fn add_shortcut_1<F: 'a + FnMut()>(&mut self, key: KeyCode, fcn: F) /*-> Result<(),()>*/ {
+		self.shortcuts_0.push( (key, Box::new(fcn)) );
+	}
+	pub fn add_shortcut_2<F: 'a + FnMut()>(&mut self, m: Modifier, key: KeyCode, fcn: F) /*-> Result<(),()>*/ {
+		self.shortcuts.push( ( (key, Modifiers::new(&[m])), Box::new(fcn)) );
+	}
+	pub fn rm_shortcut_1(&mut self, key: KeyCode) {
+		self.shortcuts_0.retain(|s| s.0 != key);
+	}
+	pub fn rm_shortcut_2(&mut self, m: Modifier, key: KeyCode) {
+		self.shortcuts.retain(|s| s.0 != (key, Modifiers::new(&[m])));
 	}
 
 	pub fn idle_loop(&mut self) {
@@ -161,6 +170,11 @@ impl<'a, D: 'a + Decorator> Window<'a, D>
 	/// Manually request a redraw of the window
 	pub fn rerender(&mut self)  {
 		WindowTrait::rerender(self)
+	}
+
+	/// Obtain the states of all "modifier" keys
+	pub fn get_modifiers(&self) -> &ModifierStates {
+		WindowTrait::get_modifiers(self)
 	}
 }
 
@@ -242,6 +256,11 @@ impl<'a, D: 'a + Decorator> WindowTrait<'a> for Window<'a, D>
 		self.surface.blit_to_win( &self.win );
 		self.needs_force_rerender = false;
 	}
+
+	/// Obtain the states of all "modifier" keys
+	fn get_modifiers(&self) -> &ModifierStates {
+		&self.modifier_states
+	}
 }
 
 impl<'a, D: Decorator> Window<'a, D>
@@ -281,7 +300,7 @@ impl<'a, D: Decorator> Window<'a, D>
 		// Mouse events need to be dispatched correctly
 		::InputEvent::MouseMove(x,y,dx,dy) => {
 			if ! self.client_rect().contains( Pos::new(x,y) ) {
-				self.decorator.handle_event(ev);
+				self.decorator.handle_event(ev, &self.modifier_states);
 				false
 			}
 			else {
@@ -293,7 +312,7 @@ impl<'a, D: Decorator> Window<'a, D>
 			},
 		::InputEvent::MouseUp(x,y,btn) => {
 			if ! self.client_rect().contains( Pos::new(x,y) ) {
-				self.decorator.handle_event(ev);
+				self.decorator.handle_event(ev, &self.modifier_states);
 				false
 			}
 			else {
@@ -305,7 +324,7 @@ impl<'a, D: Decorator> Window<'a, D>
 			},
 		::InputEvent::MouseDown(x,y,btn) => {
 			if ! self.client_rect().contains( Pos::new(x,y) ) {
-				self.decorator.handle_event(ev);
+				self.decorator.handle_event(ev, &self.modifier_states);
 				false
 			}
 			else {
@@ -315,26 +334,51 @@ impl<'a, D: Decorator> Window<'a, D>
 			}
 			},
 		ev @ _ => {
-			//if self.decorator.handle_event(ev) {
-			//	return true;
-			//}
-			match ev {
-			::InputEvent::KeyUp(key) => {
-				for &mut (s_key, ref mut fcn) in self.shortcuts_0.iter_mut() {
-					if key == s_key {
-						fcn();
-						return false;
+			let ::decorator::EventHandled { capture, rerender } = self.decorator.handle_event(ev, &self.modifier_states);
+			if capture
+			{
+				rerender
+			}
+			else
+			{
+				match ev {
+				::InputEvent::KeyDown(key) =>
+					if let Some( (m,side) ) = Modifier::from_key(key)
+					{
+						self.modifier_states.set(m, side);
+					},
+				::InputEvent::KeyUp(key) => {
+					if let Some( (m,side) ) = Modifier::from_key(key)
+					{
+						self.modifier_states.clear(m, side);
 					}
+					else
+					{
+						for &mut ( (s_key, ref mods), ref mut fcn) in self.shortcuts.iter_mut() {
+							if mods.check(&self.modifier_states) && key == s_key {
+								fcn();
+								return false || rerender;
+							}
+						}
+					}
+					// - Single-key shortcuts
+					//  TODO: Prevent meta-key shortcuts from firing if they were used as part of a multi-key shortcut
+					for &mut (s_key, ref mut fcn) in self.shortcuts_0.iter_mut() {
+						if key == s_key {
+							fcn();
+							return false || rerender;
+						}
+					}
+					},
+				_ => {},
 				}
-				},
-			_ => {},
-			}
-			
-			if let Some(ele) = self.focus {
-				ele.handle_event(ev, self)
-			}
-			else {
-				false
+				
+				if let Some(ele) = self.focus {
+					ele.handle_event(ev, self) || rerender
+				}
+				else {
+					false || rerender
+				}
 			}
 			},
 		}
@@ -363,6 +407,76 @@ impl<'a, D: Decorator> ::async::WaitController for Window<'a, D>
 			self.rerender();
 			self.win.redraw();
 		}
+	}
+}
+
+#[repr(C)]
+#[derive(Copy,Clone)]
+pub enum Modifier {
+	Shift = 0,
+	Ctrl  = 1,
+	Alt   = 2,
+	Gui   = 3,
+	Menu  = 4,
+}
+impl Modifier
+{
+	fn from_key(key: KeyCode) -> Option<(Modifier, bool)> {
+		match key
+		{
+		KeyCode::LeftShift  => Some( (Modifier::Shift, false) ),
+		KeyCode::RightShift => Some( (Modifier::Shift, true ) ),
+		KeyCode::LeftCtrl  => Some( (Modifier::Ctrl, false) ),
+		KeyCode::RightCtrl => Some( (Modifier::Ctrl, true ) ),
+		KeyCode::LeftAlt  => Some( (Modifier::Alt, false) ),
+		KeyCode::RightAlt => Some( (Modifier::Alt, true ) ),
+		KeyCode::LeftGui  => Some( (Modifier::Gui, false) ),
+		KeyCode::RightGui => Some( (Modifier::Gui, true ) ),
+		KeyCode::Application  => Some( (Modifier::Menu, false) ),
+		//KeyCode::RightMenu => Some( (Modifier::Menu, true ) ),
+		_ => None,
+		}
+	}
+}
+#[derive(Default)]
+pub struct ModifierStates(u16);
+impl ModifierStates {
+	fn mask(v: u16, m: Modifier) -> u16 {
+		(v & 3) << ((m as u8) * 2)
+	}
+	pub fn set(&mut self, m: Modifier, right: bool) {
+		self.0 |= Self::mask(if right { 2 } else { 1 }, m);
+	}
+	pub fn clear(&mut self, m: Modifier, right: bool) {
+		self.0 &= !Self::mask(if right { 2 } else { 1 }, m);
+	}
+	pub fn test(&self, m: Modifier) -> bool {
+		self.0 & Self::mask(3, m) != 0
+	}
+}
+#[derive(Default,PartialEq)]
+struct Modifiers(u8);
+impl Modifiers {
+	fn mask(m: Modifier) -> u8 {
+		1 << (m as u8)
+	}
+	pub fn new(mods: &[Modifier]) -> Modifiers {
+		let mut rv = 0;
+		for &m in mods {
+			rv |= Self::mask(m);
+		}
+		Modifiers(rv)
+	}
+	fn has(&self, m: Modifier) -> bool {
+		self.0 & Self::mask(m) != 0
+	}
+	fn check(&self, states: &ModifierStates) -> bool {
+		if self.has(Modifier::Shift) && ! states.test(Modifier::Shift) { return false; }
+		if self.has(Modifier::Ctrl ) && ! states.test(Modifier::Ctrl ) { return false; }
+		if self.has(Modifier::Alt  ) && ! states.test(Modifier::Alt  ) { return false; }
+		if self.has(Modifier::Gui  ) && ! states.test(Modifier::Gui  ) { return false; }
+		if self.has(Modifier::Menu ) && ! states.test(Modifier::Menu ) { return false; }
+		true
 	}
 }
 

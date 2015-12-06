@@ -283,6 +283,7 @@ EXPORT syscall_handler
 	; NOTE: We're FUCKED if an interrupt happens before the new stack is up
 	; - Thankfully, only an NMI can cause that
 	; - Also, the NMI should use a separate stack (thanks to the IST)
+	; TODO TODO TODO Actually use the IST for NMI
 	
 	; >>> Switch to kernel stack
 	; - The format of 'gs' is specified in arch/amd64/threads.rs (TLSData)

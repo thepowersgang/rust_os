@@ -276,6 +276,7 @@ enum_to_from!{ GuiWinFlag => u8:
 include!("keycodes.inc.rs");
 
 /// Fixed-capacity string buffer (6 bytes)
+#[derive(Copy,Clone)]
 pub struct FixedStr6([u8; 6]);
 impl ::core::fmt::Debug for FixedStr6 {
 	fn fmt(&self, f: &mut ::core::fmt::Formatter) -> ::core::fmt::Result {
@@ -303,7 +304,7 @@ impl ::core::convert::From<[u8; 6]> for FixedStr6 {
 	}
 }
 
-#[derive(Debug)]
+#[derive(Copy,Clone,Debug)]
 /// GUI Window event
 pub enum GuiEvent
 {
