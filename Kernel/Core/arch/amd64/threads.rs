@@ -332,7 +332,7 @@ pub fn enable_sse() -> bool
 		// SAFE: Buffer should be sane, and CR0 manipulation has been checked
 		unsafe {
 			let ptr: &SSERegisters = regs_opt.as_ref().unwrap();
-			log_debug!("sse_registers = {:p}", ptr);
+			//log_debug!("sse_registers = {:p}", ptr);
 			asm!("fxrstor ($0)" : : "r" (ptr) : : "volatile");
 		}
 		true
@@ -358,7 +358,7 @@ pub fn disable_sse()
 		// SAFE: Buffer should be sane, and CR0 manipulation has been checked
 		unsafe {
 			let ptr: &mut SSERegisters = (*get_tls_ptr()).sse_registers.as_mut().expect("SSE enabled, but no save location");
-			log_debug!("sse_registers = {:p}", ptr);
+			//log_debug!("sse_registers = {:p}", ptr);
 			asm!("fxsave ($0) ; mov %cr0, %rax ; or $$8, %rax ; mov %rax, %cr0" : : "r" (ptr) : "%rax" : "volatile");
 		}
 	}

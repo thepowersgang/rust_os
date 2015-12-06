@@ -1,5 +1,6 @@
 import TestInstance
 import sys
+import time
 
 from TestInstance import test_assert
 
@@ -33,8 +34,11 @@ def _keypress(instance, key, name, idle=True):
             test_assert(name+" "+key+" release idle", instance.wait_for_idle(timeout=5))
 def _mouseto(instance, name, x,y):
     instance.mouse_to(x,y)
-    test_assert(name+" mouse(%i,%i) reached" % (x,y,), instance.wait_for_line("windows\] CursorPos::update - \(%i,%i\)" % (x,y), timeout=3))
+    test_assert(name+" mouse(%i,%i) reached" % (x,y,), instance.wait_for_line("windows\] - CursorPos::update - \(%i,%i\)" % (x,y), timeout=3))
     test_assert(name+" mouse(%i,%i) idle" % (x,y,), instance.wait_for_idle(timeout=5))
+#def _mouseclick_at(instance, name, x,y btn):
+#    _mouseto(instance, name, x,y)
+#    instance.mouse_press(btn) 
 def _mouseclick(instance, name, btn):
     instance.mouse_press(btn) 
     test_assert(name+" mouse(%i down) idle" % (btn,), instance.wait_for_idle(timeout=5))
@@ -128,6 +132,7 @@ def test(instance):
         # - By default, WTK creates 250x200 windows at (150,100)
         _mouseto(instance, "Exit button", 150 + 250 - 6, 100 + 6)
         instance.screenshot('mouse')
+        time.sleep(1)
         _mouseclick(instance, "Exit button", 1)
         test_assert("Close FileBrowser reap", instance.wait_for_line("Reaping thread 0x[0-9a-f]+\(\d+ /sysroot/bin/filebrowser#1\)", timeout=2))
         
