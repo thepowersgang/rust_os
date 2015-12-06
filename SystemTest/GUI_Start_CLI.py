@@ -10,23 +10,36 @@ KEYNAME_MAP = {
     
     'alt': "LeftAlt",
     'f4': "F4",
+    
+    'e': "E",
+    't': "T",
     }
 
 def _keypress(instance, key, name, idle=True):
+    timeout = 2.0
     if isinstance(key, list):
         instance.type_combo(key)
         for k in key:
-            test_assert(name+" "+k+" press timeout", instance.wait_for_line("\[syscalls\] - USER> (Window|Menu)::handle_event\(ev=KeyDown\("+KEYNAME_MAP[k]+"\)\)", timeout=1)) # Press
-        for k in reversed(key):
-            test_assert(name+" "+k+" release timeout", instance.wait_for_line("\[syscalls\] - USER> (Window|Menu)::handle_event\(ev=KeyUp\("+KEYNAME_MAP[k]+"\)\)", timeout=1))
+            test_assert(name+" "+k+" press timeout", instance.wait_for_line("\[syscalls\] - USER> (Window|Menu)::handle_event\(ev=KeyDown\("+KEYNAME_MAP[k]+"\)\)", timeout=timeout)) # Press
+        # - Only assert release for the final key
+        k = key[-1]
+        test_assert(name+" "+k+" release timeout", instance.wait_for_line("\[syscalls\] - USER> (Window|Menu)::handle_event\(ev=KeyUp\("+KEYNAME_MAP[k]+"\)\)", timeout=timeout))
     else:
         keyname = KEYNAME_MAP[key]
         instance.type_key(key)
-        test_assert(name+" "+key+" press timeout", instance.wait_for_line("\[syscalls\] - USER> (Window|Menu)::handle_event\(ev=KeyDown\("+keyname+"\)\)", timeout=1)) # Press
-        test_assert(name+" "+key+" release timeout", instance.wait_for_line("\[syscalls\] - USER> (Window|Menu)::handle_event\(ev=KeyUp\("+keyname+"\)\)", timeout=1))
-    if idle:
-        test_assert(name+" "+key+" release idle", instance.wait_for_idle(timeout=5))
-    
+        test_assert(name+" "+key+" press timeout", instance.wait_for_line("\[syscalls\] - USER> (Window|Menu)::handle_event\(ev=KeyDown\("+keyname+"\)\)", timeout=timeout)) # Press
+        test_assert(name+" "+key+" release timeout", instance.wait_for_line("\[syscalls\] - USER> (Window|Menu)::handle_event\(ev=KeyUp\("+keyname+"\)\)", timeout=timeout))
+        if idle:
+            test_assert(name+" "+key+" release idle", instance.wait_for_idle(timeout=5))
+def _mouseto(instance, name, x,y):
+    instance.mouse_to(x,y)
+    test_assert(name+" mouse(%i,%i) reached" % (x,y,), instance.wait_for_line("windows\] CursorPos::update - \(%i,%i\)" % (x,y), timeout=3))
+    test_assert(name+" mouse(%i,%i) idle" % (x,y,), instance.wait_for_idle(timeout=5))
+def _mouseclick(instance, name, btn):
+    instance.mouse_press(btn) 
+    test_assert(name+" mouse(%i down) idle" % (btn,), instance.wait_for_idle(timeout=5))
+    instance.mouse_release(btn) 
+    test_assert(name+" mouse(%i up) idle" % (btn,), instance.wait_for_idle(timeout=5))
 
 def test(instance):
     test_assert("Kernel image start timed out", instance.wait_for_line("OK43e6H", timeout=10))
@@ -105,11 +118,23 @@ def test(instance):
         test_assert("Close FileBrowser f4 press timeout", instance.wait_for_line("\[syscalls\] - USER> Window::handle_event\(ev=KeyDown\(F4\)\)", timeout=1))
         test_assert("Close FileBrowser f4 release timeout", instance.wait_for_line("\[syscalls\] - USER> Window::handle_event\(ev=KeyUp\(F4\)\)", timeout=1))
         test_assert("Close FileBrowser reap", instance.wait_for_line("Reaping thread 0x[0-9a-f]+\(\d+ /sysroot/bin/filebrowser#1\)", timeout=2))
+    # >>> Start the filesystem browser (again)
+    if True:
+        _keypress(instance, ['meta_l', 'e'], "FileBrowser")
+        test_assert("FileBrowser window render", instance.wait_for_line("\[gui::windows\] - L\d+: WindowGroup::redraw: \d+ 'File browser'", timeout=5))
+        test_assert("FileBrowser idle timeout", instance.wait_for_idle(timeout=3))
+        instance.screenshot('FileBrowser2')
+        
+        # - By default, WTK creates 250x200 windows at (150,100)
+        _mouseto(instance, "Exit button", 150 + 250 - 6, 100 + 6)
+        instance.screenshot('mouse')
+        _mouseclick(instance, "Exit button", 1)
+        test_assert("Close FileBrowser reap", instance.wait_for_line("Reaping thread 0x[0-9a-f]+\(\d+ /sysroot/bin/filebrowser#1\)", timeout=2))
+        
 
 
     while instance.wait_for_idle():
         pass
-    instance.screenshot('final')
 
 
 try:

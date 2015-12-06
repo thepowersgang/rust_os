@@ -48,6 +48,10 @@ class QemuMonitor:
         self.cmd('sendkey %s' % keycode)
     def send_combo(self, keycodes):
         self.cmd('sendkey %s' % '-'.join(keycodes))
+    def mouse_move(self, dx, dy):
+        self.cmd('mouse_move %i %i' % (dx,dy))
+    def mouse_button(self, mask):
+        self.cmd('mouse_button %i' % (mask,))
     
     def get_line(self, timeout=1.0):
         r,_w,_e = select.select( [self._instance.stdout], [], [], timeout)

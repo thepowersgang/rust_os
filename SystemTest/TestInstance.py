@@ -19,7 +19,13 @@ class Instance:
         self.lastlog = []
         self._testname = testname
         self._screenshot_idx = 0
+        self._x = 0
+        self._y = 0
+        self._btns = 0
         pass
+    def __del__(self):
+        self._cmd.send_screendump('test-%s-z-final.ppm' % (self._testname,))
+
     
     def wait_for_line(self, regex, timeout):
         self.lastlog = []
@@ -58,6 +64,21 @@ class Instance:
         self._cmd.send_key(key)
     def type_combo(self, keys):
         self._cmd.send_combo(keys)
+    def mouse_to(self, x,y):
+        dx, dy = x - self._x, y - self._y
+        self._cmd.mouse_move(dx,dy)
+        self._x = x
+        self._y = y
+    def mouse_press(self, btn):
+        assert btn >= 1
+        assert btn <= 3
+        self._btns |= 1 << (btn-1)
+        self._cmd.mouse_button(self._btns)
+    def mouse_release(self, btn):
+        assert btn >= 1
+        assert btn <= 3
+        self._btns &= ~(1 << (btn-1))
+        self._cmd.mouse_button(self._btns)
 
     def screenshot(self, tag):
         self._cmd.send_screendump('test-%s-%s-%s.ppm' % (self._testname, self._screenshot_idx, tag))

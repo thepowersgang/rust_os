@@ -8,8 +8,18 @@ extern crate async;
 #[macro_use]
 extern crate syscalls;
 
+use syscalls::gui::KeyCode;
+use wtk::ModifierKey;
+
 macro_rules! imgpath {
 		($p:expr) => {concat!("/system/Tifflin/shared/images/",$p)};
+}
+
+fn start_app_console() {
+	start_app(&["/sysroot/bin/simple_console", "--windowed"]);
+}
+fn start_app_filebrowser() {
+	start_app(&["/sysroot/bin/filebrowser"])
 }
 
 fn main()
@@ -31,9 +41,9 @@ fn main()
 	let system_menu = {
 		use wtk::menu::{Menu,Entry,Spacer};
 		Menu::new("System Menu", (
-			Entry::new("CLI", 0, "Win-T", || start_app(&["/sysroot/bin/simple_console", "--windowed"])),
+			Entry::new("CLI", 0, "Win-T", || start_app_console()),
 			Spacer,
-			Entry::new("Filesystem", 0, "Win-E", || start_app(&["/sysroot/bin/filebrowser", "--windowed"])),
+			Entry::new("Filesystem", 0, "Win-E", || start_app_filebrowser()),
 			Entry::new("Text Editor", 5, "", || kernel_log!("TODO: Spawn text editor")),
 			))
 		};
@@ -77,8 +87,10 @@ fn main()
 		win
 		};
 	
-	win_menu.add_shortcut_1( ::syscalls::gui::KeyCode::LeftGui, || system_menu.show() );
-	win_menu.add_shortcut_1( ::syscalls::gui::KeyCode::RightGui, || system_menu.show() );
+	win_menu.add_shortcut_1( KeyCode::LeftGui, || system_menu.show() );
+	win_menu.add_shortcut_1( KeyCode::RightGui, || system_menu.show() );
+	win_menu.add_shortcut_2( ModifierKey::Gui, KeyCode::T, || start_app_console() );
+	win_menu.add_shortcut_2( ModifierKey::Gui, KeyCode::E, || start_app_filebrowser() );
 
 	win_background.show();
 	win_menu.show();
