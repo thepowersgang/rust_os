@@ -13,7 +13,7 @@ pub trait Decorator
 	fn render(&self, surface: SurfaceView, full_redraw: bool);
 	fn client_rect(&self) -> (Dims<Px>,Dims<Px>);
 
-	fn handle_event(&self, ev: ::InputEvent, mods: &::window::ModifierStates) -> EventHandled;
+	fn handle_event(&self, ev: ::InputEvent, win: &::window::WindowTrait) -> EventHandled;
 }
 #[derive(Copy,Clone,Default)]
 pub struct EventHandled
@@ -33,7 +33,7 @@ impl Decorator for ()
 		(Dims::new(0,0), Dims::new(0,0))
 	}
 
-	fn handle_event(&self, ev: ::InputEvent, mods: &::window::ModifierStates) -> EventHandled {
+	fn handle_event(&self, ev: ::InputEvent, win: &::window::WindowTrait) -> EventHandled {
 		Default::default()
 	}
 }
@@ -59,13 +59,27 @@ impl<D: Decorator> Decorator for Option<D>
 		}
 	}
 
-	fn handle_event(&self, ev: ::InputEvent, mods: &::window::ModifierStates) -> EventHandled {
+	fn handle_event(&self, ev: ::InputEvent, win: &::window::WindowTrait) -> EventHandled {
 		match self
 		{
-		&Some(ref x) => x.handle_event(ev, mods),
+		&Some(ref x) => x.handle_event(ev, win),
 		&None => Default::default(),
 		}
 	}
+}
+
+#[derive(Debug)]
+enum MouseRegion
+{
+	BorderTopLeft,
+	BorderTop,
+	BorderTopRight,
+	BorderLeft,
+	BorderRight,
+	BorderBottomLeft,
+	BorderBottom,
+	BorderBottomRight,
+	ButtonClose,
 }
 
 //pub enum Buttons
@@ -157,6 +171,61 @@ impl Standard
 		self.buttton_template().render( surface.clone() );
 		//theme.render_button_exit(surface.slice(
 	}
+
+	fn mouse_region(&self, x: u32, y: u32, w: u32, h: u32) -> Option<MouseRegion> {
+		if y < self.win_template().bottom() { //self.win_template().top() {
+			if x < self.win_template().left() {
+				Some(MouseRegion::BorderTopLeft)
+			}
+			else if x < w - self.win_template().right() {
+				Some(MouseRegion::BorderTop)
+			}
+			else {
+				Some(MouseRegion::BorderTopRight)
+			}
+		}
+		else if y < self.titlebar_height() {
+			if x < self.win_template().left() {
+				Some(MouseRegion::BorderLeft)
+			}
+			else if x < w - self.win_template().right() {
+				let right = w - self.win_template().right();
+				// TODO: Buttons/move
+				if x > right - self.button_width() {
+					Some(MouseRegion::ButtonClose)
+				}
+				else {
+					None
+				}
+			}
+			else {
+				Some(MouseRegion::BorderRight)
+			}
+		}
+		else if y < h - self.win_template().bottom() {
+			if x < self.win_template().left() {
+				Some(MouseRegion::BorderLeft)
+			}
+			else if x < w - self.win_template().right() {
+				// Client region
+				None
+			}
+			else {
+				Some(MouseRegion::BorderRight)
+			}
+		}
+		else {
+			if x < self.win_template().left() {
+				Some(MouseRegion::BorderBottomLeft)
+			}
+			else if x < w - self.win_template().right() {
+				Some(MouseRegion::BorderBottom)
+			}
+			else {
+				Some(MouseRegion::BorderBottomRight)
+			}
+		}
+	}
 }
 impl Decorator for Standard
 {
@@ -216,7 +285,9 @@ impl Decorator for Standard
 			)
 	}
 
-	fn handle_event(&self, ev: ::InputEvent, modifiers: &::window::ModifierStates) -> EventHandled {
+	fn handle_event(&self, ev: ::InputEvent, win: &::window::WindowTrait) -> EventHandled {
+		let modifiers = win.get_modifiers();
+		let (w, h) = win.get_full_dims();
 		match ev
 		{
 		// Alt-F4
@@ -234,6 +305,18 @@ impl Decorator for Standard
 				// TODO: Show titlebar menu
 			}
 			Default::default()
+			},
+		
+		// Click
+		::InputEvent::MouseUp(x,y,0) =>
+			match self.mouse_region(x,y, w,h)
+			{
+			Some(MouseRegion::ButtonClose) => ::syscalls::threads::exit(0),
+			Some(r) => {	// TODO: Other regions
+				kernel_log!("TODO: Region {:?} wxh={}x{}", r, w, h);
+				Default::default()
+				},
+			None => Default::default(),
 			},
 		_ => Default::default(),
 		}

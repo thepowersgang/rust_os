@@ -41,8 +41,11 @@ def _mouseto(instance, name, x,y):
 #    instance.mouse_press(btn) 
 def _mouseclick(instance, name, btn):
     instance.mouse_press(btn) 
+    test_assert("%s mouse(%i down) event" % (name, btn,), instance.wait_for_line("syscalls\] - USER> Window::handle_event\(ev=MouseDown\(\d+, \d+, %i\)\)" % (btn-1,), timeout=3))
     test_assert(name+" mouse(%i down) idle" % (btn,), instance.wait_for_idle(timeout=5))
+    time.sleep(0.5)
     instance.mouse_release(btn) 
+    test_assert("%s mouse(%i up) event" % (name, btn,), instance.wait_for_line("syscalls\] - USER> Window::handle_event\(ev=MouseUp\(\d+, \d+, %i\)\)" % (btn-1,), timeout=3))
     test_assert(name+" mouse(%i up) idle" % (btn,), instance.wait_for_idle(timeout=5))
 
 def test(instance):

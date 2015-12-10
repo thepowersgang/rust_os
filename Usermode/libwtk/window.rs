@@ -2,7 +2,7 @@
 //
 //
 //! WTK Window
-use geom::{Rect,Pos};
+use geom::{Rect,Pos,Dims};
 use syscalls::Object;
 use syscalls::gui::KeyCode;
 use decorator::Decorator;
@@ -20,6 +20,8 @@ pub trait WindowTrait<'a>
 	fn set_pos(&mut self, x: u32, y: u32);
 	/// Set window dimensions (excludes decorator area), may be restricted by server
 	fn set_dims(&mut self, w: u32, h: u32);
+	fn get_dims(&self) -> (u32, u32);
+	fn get_full_dims(&self) -> (u32, u32);
 	/// Maximise the window
 	fn maximise(&mut self);
 	/// Show the window
@@ -196,6 +198,18 @@ impl<'a, D: 'a + Decorator> WindowTrait<'a> for Window<'a, D>
 		self.win.set_dims( ::syscalls::gui::Dims { w: w, h: h } );
 		self.update_surface_size();
 	}
+	fn get_dims(&self) -> (u32, u32) {
+		let (decor_tl, decor_br) = self.decorator.client_rect();
+		let Dims { w, h } = self.surface.rect().dims();
+		(
+			w.0 - decor_tl.w.0 + decor_br.w.0,
+			h.0 - decor_tl.h.0 + decor_br.h.0,
+			)
+	}
+	fn get_full_dims(&self) -> (u32, u32) {
+		let Dims { w, h } = self.surface.rect().dims();
+		(w.0, h.0)
+	}
 
 	/// Maximise the window
 	fn maximise(&mut self) {
@@ -300,7 +314,7 @@ impl<'a, D: Decorator> Window<'a, D>
 		// Mouse events need to be dispatched correctly
 		::InputEvent::MouseMove(x,y,dx,dy) => {
 			if ! self.client_rect().contains( Pos::new(x,y) ) {
-				self.decorator.handle_event(ev, &self.modifier_states);
+				self.decorator.handle_event(ev, self);
 				false
 			}
 			else {
@@ -312,7 +326,7 @@ impl<'a, D: Decorator> Window<'a, D>
 			},
 		::InputEvent::MouseUp(x,y,btn) => {
 			if ! self.client_rect().contains( Pos::new(x,y) ) {
-				self.decorator.handle_event(ev, &self.modifier_states);
+				self.decorator.handle_event(ev, self);
 				false
 			}
 			else {
@@ -324,7 +338,7 @@ impl<'a, D: Decorator> Window<'a, D>
 			},
 		::InputEvent::MouseDown(x,y,btn) => {
 			if ! self.client_rect().contains( Pos::new(x,y) ) {
-				self.decorator.handle_event(ev, &self.modifier_states);
+				self.decorator.handle_event(ev, self);
 				false
 			}
 			else {
@@ -334,7 +348,7 @@ impl<'a, D: Decorator> Window<'a, D>
 			}
 			},
 		ev @ _ => {
-			let ::decorator::EventHandled { capture, rerender } = self.decorator.handle_event(ev, &self.modifier_states);
+			let ::decorator::EventHandled { capture, rerender } = self.decorator.handle_event(ev, self);
 			if capture
 			{
 				rerender
