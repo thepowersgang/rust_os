@@ -18,6 +18,9 @@ impl OsStr
 		self.as_ref()
 	}
 
+	pub fn to_str(&self) -> Option<&str> {
+		::str::from_utf8(self.as_bytes()).ok()
+	}
 	pub fn to_str_lossy(&self) -> ::borrow::Cow<str> {
 		::string::String::from_utf8_lossy(&self.0)
 	}
@@ -85,6 +88,11 @@ impl ::core::ops::Deref for OsString {
 	type Target = OsStr;
 	fn deref(&self) -> &OsStr {
 		OsStr::new(&self.0)
+	}
+}
+impl<'a> From<::collections::Vec<u8>> for OsString {
+	fn from(v: ::collections::Vec<u8>) -> OsString {
+		OsString(v)
 	}
 }
 impl<'a, T: 'a + ?Sized + AsRef<OsStr>> From<&'a T> for OsString {

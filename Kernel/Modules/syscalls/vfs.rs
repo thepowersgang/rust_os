@@ -116,7 +116,11 @@ impl objects::Object for Node
 			let mode = ::values::VFSFileOpenMode::from(mode);
 			todo!("VFS_NODE_TOFILE({:?}", mode)
 			},
-		values::VFS_NODE_TODIR => todo!("VFS_NODE_TODIR"),
+		values::VFS_NODE_TODIR => {
+			let objres = to_result(self.0.clone().to_dir())
+				.map( |h| objects::new_object(Dir::new(h)) );
+			Ok( super::from_result(objres) )
+			},
 		values::VFS_NODE_TOLINK => {
 			// TODO: I'd like this to reuse this object handle etc... but that's not possible with
 			// the current structure.
@@ -260,9 +264,13 @@ impl objects::Object for Dir
 					},
 				})
 			},
-		//values::VFS_DIR_OPENCHILD => {
-		//	let name = try!(<Freeze<[u8]>>::get_arg(&mut args));
-		//	},
+		values::VFS_DIR_OPENCHILD => {
+			let name = try!(<Freeze<[u8]>>::get_arg(&mut args));
+			super::from_result(
+				to_result( self.handle.open_child( ::kernel::lib::byte_str::ByteStr::new(&*name) ) )
+					.map( |h| objects::new_object(Node(h)) )
+				)
+			},
 		_ => todo!("Dir::handle_syscall({}, ...)", call),
 		})
 	}

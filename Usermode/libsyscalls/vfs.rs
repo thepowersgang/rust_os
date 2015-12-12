@@ -137,7 +137,7 @@ impl ::Object for File {
 impl Dir
 {
 	/// Open a directory for iteration
-	pub fn open<T: AsRef<[u8]>>(path: T) -> Result<Dir, Error> {
+	pub fn open<T: ?Sized+AsRef<[u8]>>(path: &T) -> Result<Dir, Error> {
 		let path = path.as_ref();
 		// SAFE: Syscall
 		match super::ObjectHandle::new( unsafe { syscall!(VFS_OPENDIR, path.as_ptr() as usize, path.len()) } as usize )
@@ -148,10 +148,26 @@ impl Dir
 	}
 
 	/// Obtain the name of the next entry in the directory
-	pub fn read_ent<'a>(&mut self, namebuf: &'a mut [u8]) -> Result<&'a [u8], Error> {
+	pub fn read_ent<'a>(&mut self, namebuf: &'a mut [u8]) -> Result<Option<&'a [u8]>, Error> {
 		// SAFE: Syscall
 		let len = try!(to_result(unsafe { self.0.call_2(::values::VFS_DIR_READENT, namebuf.as_ptr() as usize, namebuf.len()) } as usize ));
-		Ok( &namebuf[ .. len as usize] )
+		if len > 0 {
+			Ok( Some( &namebuf[ .. len as usize] ) )
+		}
+		else {
+			Ok(None)
+		}
+	}
+
+	/// Open an immediate child of this directory
+	pub fn open_child<P: ?Sized+AsRef<[u8]>>(&self, name: &P) -> Result<Node, Error> {
+		let name = name.as_ref();
+		// SAFE: Syscall
+		match super::ObjectHandle::new( unsafe { self.0.call_2(::values::VFS_DIR_OPENCHILD, name.as_ptr() as usize, name.len()) } as usize )
+		{
+		Ok(rv) => Ok( Node(rv) ),
+		Err(code) => Err( From::from(code) ),
+		}
 	}
 }
 impl ::Object for Dir {

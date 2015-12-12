@@ -31,6 +31,8 @@ struct MouseCursor {
 
 struct InputChannel
 {
+	//last_key_pressed: KeyCode,
+	
 	//caps_active: AtomicBool,	// Go DIAF capslock
 	shift_held: ModKeyPair,
 	ctrl_held: ModKeyPair,
@@ -38,6 +40,9 @@ struct InputChannel
 	//altgr: ModKeyPair,	// AltGr is usually just one... but meh
 	
 	cursor: MouseCursor,
+	
+	//last_button: u8,
+	//last_button_time: ::kernel::time::TickCount,
 }
 
 //struct IMEState

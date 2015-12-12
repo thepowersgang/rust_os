@@ -152,6 +152,8 @@ def_classes! {
 	=4: CLASS_VFS_DIR = {
 		/// Read an entry
 		=0: VFS_DIR_READENT,
+		/// Open a child node
+		=1: VFS_DIR_OPENCHILD,
 	}|{
 	},
 	/// Opened symbolic link
@@ -315,13 +317,22 @@ pub enum GuiEvent
 	KeyUp(KeyCode),
 	/// Key pressed
 	KeyDown(KeyCode),
+	/// Key fired (pressed+released with no intermediate keys)
+	KeyFire(KeyCode),
 	/// Translated text from a keypress
 	Text(FixedStr6),
+	
 	/// Mouse movement event - X,Y, dX, dY
 	MouseMove(u32,u32, i16,i16),
 	/// Mouse button released - X,Y, Button
 	MouseUp(u32,u32, u8),
 	/// Mouse button pressed - X,Y, Button
 	MouseDown(u32,u32, u8),
+	/// Mouse button clicked (pressed+released with minimal movement and elapsed time)
+	MouseClick(u32,u32, u8),
+	/// Mouse button double-clicked (clicked twice within timeout)
+	MouseDblClick(u32,u32, u8),
+	/// Triple-clicked
+	MouseTriClick(u32,u32, u8),
 }
 

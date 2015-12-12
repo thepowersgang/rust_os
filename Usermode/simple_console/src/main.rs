@@ -216,13 +216,13 @@ fn command_ls<T: ::Terminal>(term: &T, path: &str)
 	{
 		let name_bytes = match handle.read_ent(&mut buf)
 			{
-			Ok(v) => v,
+			Ok(Some(v)) => v,
+			Ok(None) => break,
 			Err(e) => {
 				print!(term, "Read error: {:?}", e);
 				return ;
 				},
 			};
-		if name_bytes == b"" { break ; }
 
 		let name = ::std::str::from_utf8(name_bytes).expect("Filename not utf-8");
 

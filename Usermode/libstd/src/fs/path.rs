@@ -29,4 +29,35 @@ impl AsRef<Path> for Path {
 
 impl Path
 {
+	pub fn new<S: ?Sized + AsRef<::std::ffi::OsStr>>(s: &S) -> &Path {
+		// SAFE: Assume all OsStrs are valid Paths
+		unsafe { ::core::mem::transmute(s.as_ref()) }
+	}
+	pub fn display(&self) -> Display {
+		Display(self)
+	}
 }
+
+pub struct Display<'a>(&'a Path);
+
+impl<'a> ::std::fmt::Display for Display<'a>
+{
+	fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
+		let mut b: &[u8] = self.0.as_ref();
+		while b.len() > 0
+		{
+			match ::std::str::from_utf8(b)
+			{
+			Ok(v) => return ::std::fmt::Display::fmt(v, f),
+			Err(e) => {
+				let l = e.valid_up_to();
+				try!( ::std::fmt::Display::fmt( ::std::str::from_utf8(&b[..l]).unwrap(), f  ) );
+				try!( write!(f, "\\u{{?{:#02x}}}", b[l]) );
+				b = &b[ l+1 .. ];
+				},
+			}
+		}
+		Ok( () )
+	}
+}
+

@@ -4,25 +4,26 @@
 ///
 use wtk::Colour;
 use wtk::geom::Rect;
-use vec_ring::VecRing;
+use std::cell::Cell;
 
-pub trait RowItems
+pub trait Row
 {
+	//fn is_dirty(&self) -> bool;
 	fn count(&self) -> usize;
 	fn value(&self, idx: usize) -> &str;
 }
 
-struct RowItemIter<'a, T: 'a + RowItems> {
+struct RowItemIter<'a, T: 'a + Row> {
 	p: &'a T,
 	i: usize,
 }
-impl<'a, T: 'a + RowItems> RowItemIter<'a, T> {
+impl<'a, T: 'a + Row> RowItemIter<'a, T> {
 	fn new(p: &T) -> RowItemIter<T> {
 		RowItemIter { p: p, i: 0 }
 	}
 }
 
-impl<'a, T: 'a + RowItems> Iterator for RowItemIter<'a, T> {
+impl<'a, T: 'a + Row> Iterator for RowItemIter<'a, T> {
 	type Item = &'a str;
 	fn next(&mut self) -> Option<&'a str> {
 		if self.i == self.p.count() {
@@ -36,71 +37,46 @@ impl<'a, T: 'a + RowItems> Iterator for RowItemIter<'a, T> {
 }
 
 
-pub struct ListView<Titles: RowItems, Row: RowItems>
+pub struct ListView<Titles: Row, R: Row>
 {
-	view_offset: usize,
-	selected_id: usize,
+	view_offset: Cell<usize>,
+	selected_id: Cell<usize>,
 
-	header_dirty: bool,
+	header_dirty: Cell<bool>,
+	widths_dirty: Cell<bool>,
+	items_replaced: Cell<bool>,
+
 	column_titles: Titles,
-	widths_dirty: bool,
 	column_widths: Vec<u32>,
 	
-	items: VecRing<(usize, Row)>,
+	items: ::std::cell::RefCell<Vec<R>>,
 }
 
-impl<Titles: RowItems, Row: RowItems> ListView<Titles, Row>
+impl<Titles: Row, R: Row> ListView<Titles, R>
 {
 	pub fn new(titles: Titles) -> Self {
 		ListView {
 			column_widths: RowItemIter::new(&titles).map(|x| (x.chars().count()*8+3) as u32).collect(),
 
-			view_offset: 0,
-			selected_id: 0,
-			header_dirty: true,
+			view_offset: Default::default(),
+			selected_id: Default::default(),
+			header_dirty: Cell::new(true),
+			widths_dirty: Cell::new(true),
+			items_replaced: Cell::new(true),
 			column_titles: titles,
-			widths_dirty: true,
-			items: VecRing::new(),
+			items: Default::default(),
 		}
 	}
 	/// Clear all state, ready for a fresh set of items
-	pub fn clear(&mut self) {
-		self.view_offset = 0;
-		self.selected_id = 0;
-		self.items = VecRing::new();
+	pub fn clear(&self) {
+		self.items_replaced.set(true);
+		self.view_offset.set( 0 );
+		self.selected_id.set( 0 );
+		*self.items.borrow_mut() = Vec::new();
 	}
-	/// Clear cached names (e.g. item list has updated)
-	pub fn refresh(&mut self) {
-		self.items = VecRing::new();
+	pub fn append_item(&self, item: R) {
+		self.items.borrow_mut().push(item);
 	}
-	/// Called to update the locally stored items
-	pub fn maybe_resize<F>(&mut self, height: u32, mut get_row: F) -> bool
-	where
-		F: FnMut(usize) -> Option<(usize, Row)>
-	{
-		if height < self.row_height() {
-			return false;
-		}
-		let new_count: usize = ((height - self.row_height()) / self.row_height()) as usize;
-		if new_count != self.items.len() {
-			self.items = VecRing::with_capacity(new_count);
-			for idx in 0 .. new_count {
-				if let Some(v) = get_row(idx) {
-					self.items.push_back( v );
-				}
-			}
-			true
-		}
-		else {
-			false
-		}
-	}
-
-	//pub fn scroll_down<F>(&mut self, pixels: u32, mut get_row: F)
-	//where
-	//	F: FnMut(usize) -> Row
-	//{
-	//}
 
 	fn row_height(&self) -> u32 {
 		16+1
@@ -125,11 +101,61 @@ impl<Titles: RowItems, Row: RowItems> ListView<Titles, Row>
 	fn colour_sel_fg(&self) -> Colour {
 		Colour::from_argb32(0xFFFFFF)
 	}
+}
 
+impl<Titles: Row, R: Row> ListView<Titles, R>
+{
+	// NOTE: VERY VERY EVIL - The passed closure returns Option<OtherCLosure> where OtherClosure can mutate the item list
+	pub fn handle_event<F,C>(&self, event: ::wtk::InputEvent, mut open_cb: F) -> bool
+	where
+		F: FnMut(&R)->Option<C>,
+		C: FnOnce()
+	{
+		match event
+		{
+		//::wtk::InputEvent::MouseClick(x,y,b) =>
+		//::wtk::InputEvent::MouseUp(x,y,b) => {
+		//
+		//	},
+
+		::wtk::InputEvent::KeyUp(key) =>
+			match key
+			{
+			::wtk::KeyCode::UpArrow =>
+				if self.selected_id.get() > 0 {
+					self.selected_id.set( self.selected_id.get() - 1 );
+					true
+				}
+				else {
+					false
+				},
+			::wtk::KeyCode::DownArrow =>
+				if self.selected_id.get() < self.items.borrow().len() {
+					self.selected_id.set( self.selected_id.get() + 1 );
+					true
+				}
+				else {
+					false
+				},
+			::wtk::KeyCode::Return => {
+				let c = open_cb( &self.items.borrow()[self.selected_id.get()]);
+				if let Some(c) = c {
+					c();
+					true
+				}
+				else {
+					false
+				}
+				},
+			_ => false,
+			},
+		_ => false,
+		}
+	}
 	pub fn render(&self, surface: ::wtk::surface::SurfaceView, force: bool)
 	{
 		// 1. Render the header
-		if force || self.header_dirty || self.widths_dirty
+		if force || self.header_dirty.get() || self.widths_dirty.get()
 		{
 			let row_rect = Rect::new(0, 0, !0, self.row_height());
 			surface.fill_rect(row_rect, self.colour_header_bg());
@@ -146,12 +172,11 @@ impl<Titles: RowItems, Row: RowItems> ListView<Titles, Row>
 		}
 		// 2. Render each item
 		let mut max_y = self.row_height();
-		for (&(idx, ref row), y) in ::iterx::zip( &self.items, (1 .. ).map(|x| x*self.row_height()) )
+		for (idx, (row, y)) in (0 .. ).zip( ::iterx::zip( self.items.borrow().iter(), (1 .. ).map(|x| x*self.row_height()) ) )
 		{
-			kernel_log!("ListView::render - idx={}, row=['{}',...]", idx, row.value(0));
-			if force || self.widths_dirty || true
+			if force || self.widths_dirty.get() || true //row.is_dirty()
 			{
-				let (c_bg, c_fg) = if idx == self.selected_id {
+				let (c_bg, c_fg) = if idx == self.selected_id.get() {
 						(self.colour_sel_bg(), self.colour_sel_fg())
 					}
 					else {
@@ -178,7 +203,7 @@ impl<Titles: RowItems, Row: RowItems> ListView<Titles, Row>
 		}
 
 		// 3. Clear bottom area
-		if force
+		if force || self.widths_dirty.get() || self.items_replaced.get()
 		{
 			if max_y < surface.height()
 			{
@@ -194,26 +219,30 @@ impl<Titles: RowItems, Row: RowItems> ListView<Titles, Row>
 				}
 			}
 		}
+
+		self.items_replaced.set(false);
+		self.widths_dirty.set(false);
+		self.header_dirty.set(false);
 	}
 }
 
 
 
-impl RowItems for String {
+impl Row for String {
 	fn count(&self) -> usize { 1 }
 	fn value(&self, _idx: usize) -> &str { &self }
 }
-impl<'a> RowItems for &'a str {
+impl<'a> Row for &'a str {
 	fn count(&self) -> usize { 1 }
 	fn value(&self, _idx: usize) -> &str { *self }
 }
-impl<T: AsRef<str>> RowItems for Vec<T> {
+impl<T: AsRef<str>> Row for Vec<T> {
 	fn count(&self) -> usize { self.len() }
 	fn value(&self, idx: usize) -> &str { self[idx].as_ref() }
 }
 macro_rules! impl_rowitems_arrays {
 	($($n:expr),*) => { $(
-		impl<T: AsRef<str>> RowItems for [T; $n] {
+		impl<T: AsRef<str>> Row for [T; $n] {
 			fn count(&self) -> usize { $n }
 			fn value(&self, idx: usize) -> &str { self[idx].as_ref() }
 		})*
@@ -230,7 +259,7 @@ macro_rules! impl_rowitems_tuple {
 		impl_rowitems_tuple! { @forallsub $s : $($n = $v),* }
 	};
 	( $s:ident : $($n:ident = $v:expr),* ) => {
-		impl<$($n: AsRef<str>),*> RowItems for ($($n,)*) {
+		impl<$($n: AsRef<str>),*> Row for ($($n,)*) {
 			fn count(&$s) -> usize { 0 $( + {let _ = $v; 1})*  }
 			fn value(&$s, idx: usize) -> &str { let mut v = $s.count(); $(v -= 1; if idx == v { return $v.as_ref(); } )* panic!("") }
 		}

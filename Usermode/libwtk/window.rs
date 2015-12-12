@@ -15,7 +15,7 @@ pub struct Error;
 
 pub trait WindowTrait<'a>
 {
-	fn set_title(&mut self, title: &str);
+	fn set_title(&mut self, title: String);
 	/// Set window position
 	fn set_pos(&mut self, x: u32, y: u32);
 	/// Set window dimensions (excludes decorator area), may be restricted by server
@@ -134,8 +134,8 @@ impl<'a, D: 'a + Decorator> Window<'a, D>
 
 impl<'a, D: 'a + Decorator> Window<'a, D>
 {
-	pub fn set_title(&mut self, title: &str) {
-		WindowTrait::set_title(self, title)
+	pub fn set_title<T: Into<String>>(&mut self, title: T) {
+		WindowTrait::set_title(self, title.into())
 	}
 	/// Set window position
 	pub fn set_pos(&mut self, x: u32, y: u32) {
@@ -182,7 +182,7 @@ impl<'a, D: 'a + Decorator> Window<'a, D>
 
 impl<'a, D: 'a + Decorator> WindowTrait<'a> for Window<'a, D>
 {
-	fn set_title(&mut self, title: &str) {
+	fn set_title(&mut self, title: String) {
 		self.decorator.set_title(title);
 	}
 

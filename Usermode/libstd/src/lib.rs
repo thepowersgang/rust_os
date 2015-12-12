@@ -48,6 +48,7 @@ mod std {
 	pub use fmt;
 	pub use core::iter;
 	pub use core::{mem, cmp, ops};
+	pub use core::{str};
 	pub use core::convert;
 	pub use ffi;
 }

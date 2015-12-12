@@ -33,6 +33,7 @@ pub use surface::Colour;
 
 /// Re-export GUI events for users of the library
 pub use syscalls::gui::Event as InputEvent;
+pub use syscalls::gui::KeyCode as KeyCode;
 pub use window::Modifier as ModifierKey;
 
 /// Common trait for window elements

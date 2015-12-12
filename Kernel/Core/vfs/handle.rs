@@ -6,7 +6,7 @@
 #[allow(unused_imports)]
 use prelude::*;
 use super::node::{CacheHandle,NodeType};
-use lib::byte_str::ByteString;
+use lib::byte_str::{ByteStr,ByteString};
 use super::Path;
 
 #[derive(Debug,Clone)]
@@ -304,8 +304,11 @@ impl Dir
 		Ok( () )
 	}
 
-	//pub fn open_child(&self, name: &ByteStr) -> super::Result<Node> {
-	//}
+	/// Open a child of this node
+	pub fn open_child(&self, name: &ByteStr) -> super::Result<Any> {
+		let node = try!(self.node.open_child(name));
+		Ok(Any { node: node })
+	}
 
 
 	/// RETURN: next position

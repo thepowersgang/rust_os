@@ -15,6 +15,7 @@ extern "C" fn register_arguments(args: &[&::ffi::OsStr]) {
 	let args: Vec<_> = args.iter().map(|&a| OsString::from(a)).collect();
 	// SAFE: Runs in a single-threaded context
 	unsafe {
+		//S_ARGUMENTS = args.into_static();
 		S_ARGUMENTS = ::core::mem::transmute(&args[..]);
 		::core::mem::forget(args);
 	}

@@ -310,6 +310,16 @@ impl CacheHandle
 		_ => Err( super::Error::Unknown("Calling read_dir on non-directory") ),
 		}
 	}
+	pub fn open_child(&self, name: &ByteStr) -> super::Result<CacheHandle> {
+		match self.as_ref()
+		{
+		&Node::Dir(ref r) => {
+			let inode = try!(r.lookup(name));
+			Ok( try!(CacheHandle::from_ids(self.mountpt, inode)) )
+			},
+		_ => Err( super::Error::Unknown("Calling open_child on non-directory") ),
+		}
+	}
 }
 /// Normal file methods
 impl CacheHandle

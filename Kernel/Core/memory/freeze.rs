@@ -38,6 +38,11 @@ impl<T: ?Sized> Freeze<T> {
 		Ok( Freeze(ptr) )
 	}
 }
+impl<T: ?Sized> ::core::convert::AsRef<T> for Freeze<T> {
+	fn as_ref(&self) -> &T {
+		&**self
+	}
+}
 impl<T: ?Sized> ::core::ops::Deref for Freeze<T> {
 	type Target = T;
 	fn deref(&self) -> &T {
@@ -53,11 +58,21 @@ impl<T: ?Sized> FreezeMut<T> {
 		Ok( FreezeMut(ptr) )
 	}
 }
+impl<T: ?Sized> ::core::convert::AsRef<T> for FreezeMut<T> {
+	fn as_ref(&self) -> &T {
+		&**self
+	}
+}
 impl<T: ?Sized> ::core::ops::Deref for FreezeMut<T> {
 	type Target = T;
 	fn deref(&self) -> &T {
 		// SAFE: Type ensures that memory is always valid, borrow rules are maintained if construction is valid
 		unsafe { &*self.0 }
+	}
+}
+impl<T: ?Sized> ::core::convert::AsMut<T> for FreezeMut<T> {
+	fn as_mut(&mut self) -> &mut T {
+		&mut **self
 	}
 }
 impl<T: ?Sized> ::core::ops::DerefMut for FreezeMut<T> {

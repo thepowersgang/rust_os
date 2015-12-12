@@ -26,10 +26,9 @@ fn main()
 	let mut root_handle = ::syscalls::vfs::Dir::open("/").unwrap();
 
 	let mut fl = ::filelist::FileList::new();
-	fl.bind_open(|fl, item_name| {
-		});
 
 	fl.populate(&mut root_handle);
+	fl.on_chdir(|win, newdir| win.set_title(format!("Filesystem - {}", newdir.display())));
 
 	let mut window = ::wtk::Window::new_def("File browser", &fl).unwrap();
 	window.set_title("Filesystem - /");
