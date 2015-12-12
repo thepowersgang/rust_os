@@ -3,9 +3,7 @@
 //
 // Modules/lib_utf16/lib.rs
 //! UTF-16 string support
-#![feature(no_std)]
 #![no_std]
-#![feature(core_slice_ext,core_str_ext,core_char_ext)]
 #[macro_use] extern crate kernel;
 #[allow(unused_imports)]
 use kernel::prelude::*;

@@ -126,7 +126,7 @@ impl<'a> Iterator for NullStringList<'a>
 			None
 		}
 		else {
-			if let Some(nul_pos) = self.0.position_elem(&0)
+			if let Some(nul_pos) = self.0.iter().enumerate().find(|&(_,&v)| v == 0).map(|(i,_)| i)
 			{
 				let ret = &self.0[..nul_pos];
 				self.0 = &self.0[nul_pos+1..];

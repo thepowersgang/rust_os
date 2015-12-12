@@ -2,11 +2,10 @@
 // - By John Hodge (thePowersGang)
 //
 // Modules/storage_scsi/lib.rs
-#![feature(no_std,linkage)]
-#![feature(core_slice_ext)]
+#![feature(linkage)]
 #![feature(associated_consts)]
-#![no_std]
 #![feature(num_bits_bytes)]
+#![no_std]
 #[macro_use] extern crate kernel;
 #[allow(unused_imports)]
 use kernel::prelude::*;

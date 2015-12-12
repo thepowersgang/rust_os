@@ -3,10 +3,9 @@
 //
 // Core/syscalls/mod.rs
 //! Userland system-call interface
-#![feature(no_std)]
 #![no_std]
 #![feature(associated_consts)]
-#![feature(core_slice_ext,core_str_ext)]
+#![feature(clone_from_slice)]
 #![feature(reflect_marker)]
 
 #[macro_use]

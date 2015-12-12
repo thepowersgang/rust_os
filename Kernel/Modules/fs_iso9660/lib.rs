@@ -2,9 +2,8 @@
 // - By John Hodge (thePowersGang)
 //
 // Modules/fs_iso9660/lib.rs
-#![feature(no_std,linkage)]
+#![feature(linkage)]
 #![no_std]
-#![feature(core_slice_ext)]
 #[macro_use] extern crate kernel;
 use kernel::prelude::*;
 

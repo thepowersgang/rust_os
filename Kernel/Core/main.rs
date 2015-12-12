@@ -5,8 +5,7 @@
 // - Kernel main
 #![crate_name="kernel"]
 #![crate_type="lib"]
-#![feature(no_std)]
-#![feature(core_slice_ext,core_str_ext,core_char_ext)]	// Needed to use libcore and provided prelude
+#![feature(clone_from_slice)]
 #![feature(unsize,coerce_unsized)]	// For DST smart pointers
 #![feature(core_intrinsics)]	// Intrinsics
 #![feature(asm)]	// Enables the asm! syntax extension
@@ -21,7 +20,6 @@
 #![feature(linkage)]	// allows using #[linkage="external"]
 #![feature(const_fn)]	// Allows defining `const fn`
 #![feature(raw)]	// Needed for raw::Slice in Grc
-#![feature(iter_cmp)]	// for max_by
 #![feature(get_type_id,reflect_marker)] // used by process_local's "AnyMap" hackery
 #![cfg_attr(not(use_acpica),feature(ptr_as_ref))]	// used by ACPI code (custom impl, not ACPICA)
 #![feature(unsafe_no_drop_flag,filling_drop)]	// Used by smart pointers to reduce size

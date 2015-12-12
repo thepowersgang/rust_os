@@ -64,7 +64,7 @@ pub fn mount(location: &Path, vol: VolumeHandle, fs: &str, _options: &[&str]) ->
 	let driver = if fs == "" {
 			match drivers.iter()
 				.filter_map(|(n,fs)| fs.detect(&vol).ok().map(|r| (r, n, fs)))
-				.max_by(|&(l,_,_)| l)
+				.max_by_key(|&(l,_,_)| l)
 			{
 			Some((0,_,_)) => return Err(MountError::NoHandler),
 			Some((_,_name,fs)) => fs,

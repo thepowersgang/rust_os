@@ -2,7 +2,8 @@
 // - By John Hodge (thePowersGang)
 //
 // Provides wrappers around most system calls
-#![feature(no_std,core_str_ext,core_slice_ext)]
+#![feature(no_std)]
+#![feature(clone_from_slice)]
 #![feature(core_intrinsics)]
 #![feature(asm)]
 #![feature(thread_local,const_fn)]
