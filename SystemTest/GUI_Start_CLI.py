@@ -8,6 +8,7 @@ KEYNAME_MAP = {
     'meta_l': "LeftGui",
     'ret': "Return",
     'down': "DownArrow",
+    'up': "UpArrow",
     
     'alt': "LeftAlt",
     'f4': "F4",
@@ -119,6 +120,15 @@ def test(instance):
         test_assert("FileBrowser idle timeout", instance.wait_for_idle(timeout=3))
         instance.screenshot('FileBrowser')
         
+        _keypress(instance, 'down', "File browser")
+        #test_assert("FileBrowser window render", instance.wait_for_idle(timeout=5))
+        instance.screenshot('FileBrowser-sel2')
+        #_keypress(instance, 'up', "File browser")
+        _keypress(instance, 'ret', "File browser", idle=False)
+        test_assert("FileBrowser window render", instance.wait_for_line("\[gui::windows\] - L\d+: WindowGroup::redraw: \d+ 'File browser'", timeout=5))
+        test_assert("FileBrowser window render", instance.wait_for_idle(timeout=5))
+        instance.screenshot('FileBrowser-enter2')
+        
         # Close using alt-f4
         instance.type_combo(['alt', 'f4'])
         test_assert("Close FileBrowser alt press timeout", instance.wait_for_line("\[syscalls\] - USER> Window::handle_event\(ev=KeyDown\(LeftAlt\)\)", timeout=1))
@@ -126,7 +136,7 @@ def test(instance):
         test_assert("Close FileBrowser f4 release timeout", instance.wait_for_line("\[syscalls\] - USER> Window::handle_event\(ev=KeyUp\(F4\)\)", timeout=1))
         test_assert("Close FileBrowser reap", instance.wait_for_line("Reaping thread 0x[0-9a-f]+\(\d+ /sysroot/bin/filebrowser#1\)", timeout=2))
     # >>> Start the filesystem browser (again)
-    if True:
+    if False:
         _keypress(instance, ['meta_l', 'e'], "FileBrowser")
         test_assert("FileBrowser window render", instance.wait_for_line("\[gui::windows\] - L\d+: WindowGroup::redraw: \d+ 'File browser'", timeout=5))
         test_assert("FileBrowser idle timeout", instance.wait_for_idle(timeout=3))

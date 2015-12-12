@@ -24,6 +24,8 @@ class Instance:
         self._btns = 0
         pass
     def __del__(self):
+        while self.wait_for_idle():
+            pass
         self._cmd.send_screendump('test-%s-z-final.ppm' % (self._testname,))
 
     
@@ -36,6 +38,10 @@ class Instance:
                 return False
             if line != "":
                 print "wait_for_line - ",line
+                if re.search('\d+k \d+\[kernel::unwind\] - ', line) != None:
+                    raise TestFail("Kernel panic")
+                if re.search('\d+d \d+\[syscalls\] - USER> PANIC: ', line) != None:
+                    raise TestFail("User panic")
                 if re.search(regex, line) != None:
                     return True
                 self.lastlog.append( line )
