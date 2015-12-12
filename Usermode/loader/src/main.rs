@@ -2,7 +2,6 @@
 // - By John Hodge (thePowersGang)
 //
 // This program is both the initial entrypoint for the userland, and the default dynamic linker.
-#![feature(core_slice_ext)]	// needed for core's SliceExt
 #![feature(const_fn)]
 #![crate_type="lib"]
 

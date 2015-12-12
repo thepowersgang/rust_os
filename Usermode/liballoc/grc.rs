@@ -212,7 +212,7 @@ impl<C: Counter, U> Grc<C, [U]>
 			let ptr = ::heap::allocate(size, align);
 			let inner = Self::rcinner_ptr(len, ptr as *mut ());
 			::core::ptr::write( &mut (*inner).strong, C::one() );
-			for i in (0 .. len) {
+			for i in 0 .. len {
 				::core::ptr::write( (*inner).val.as_mut_ptr().offset(i as isize), fcn(i) );
 			}
 			

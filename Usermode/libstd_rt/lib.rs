@@ -2,10 +2,8 @@
 // - By John Hodge (thePowersGang)
 //
 // Standard Library - Runtime support (aka unwind and panic)
-#![feature(no_std)]
 #![feature(lang_items)]	// Allow definition of lang_items
 #![feature(asm)]	// Used by backtrace code
-#![feature(core_slice_ext)]	// Not yet stable
 #![feature(const_fn)]	// HACK For debugging ARM unwind
 #![no_std]
 
