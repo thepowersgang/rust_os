@@ -298,7 +298,7 @@ impl WindowGroup
 		use super::input::Event;
 		match ev
 		{
-		Event::KeyDown(..) | Event::KeyUp(..) | Event::Text(..) => {
+		Event::KeyDown(..) | Event::KeyUp(..) | Event::KeyFire(..) | Event::Text(..) => {
 			// - Apply shortcuts defined by the current session (TODO)
 			// - Pass events to the current window
 			if let Some(_) = self.get_render_idx( self.focussed_window )

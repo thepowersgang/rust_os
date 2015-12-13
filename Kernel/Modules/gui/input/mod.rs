@@ -7,6 +7,8 @@
 use kernel::prelude::*;
 use self::keyboard::KeyCode;
 use core::sync::atomic::{AtomicUsize,ATOMIC_USIZE_INIT,Ordering};
+use kernel::sync::atomic::AtomicValue;
+use kernel::sync::Mutex;
 
 pub mod keyboard;
 pub mod mouse;
@@ -16,6 +18,7 @@ pub enum Event
 {
 	KeyDown(keyboard::KeyCode),
 	KeyUp(keyboard::KeyCode),
+	KeyFire(keyboard::KeyCode),
 	Text([u8; 6]),	// 6 bytes, as that can fit in a u64 with a 16-bit tag
 
 	MouseMove(u32,u32,i16,i16),
@@ -31,8 +34,6 @@ struct MouseCursor {
 
 struct InputChannel
 {
-	//last_key_pressed: KeyCode,
-	
 	//caps_active: AtomicBool,	// Go DIAF capslock
 	shift_held: ModKeyPair,
 	ctrl_held: ModKeyPair,
@@ -41,8 +42,14 @@ struct InputChannel
 	
 	cursor: MouseCursor,
 	
-	//last_button: u8,
-	//last_button_time: ::kernel::time::TickCount,
+	last_key_pressed: AtomicValue<KeyCode>,
+	double_click_info: Mutex<MouseClickInfo>,
+}
+
+struct MouseClickInfo
+{
+	button: u8,
+	time: ::kernel::time::TickCount,
 }
 
 //struct IMEState
@@ -51,13 +58,7 @@ struct InputChannel
 //	ime_val: u32,
 //}
 
-static MAIN_INPUT: InputChannel = InputChannel {
-	shift_held: ModKeyPair::new(),
-	ctrl_held: ModKeyPair::new(),
-	alt_held: ModKeyPair::new(),
-	//altgr: ModKeyPair::new(),
-	cursor: MouseCursor::new(),
-	};
+static MAIN_INPUT: InputChannel = InputChannel::new();
 
 pub fn init() {
 	//MAIN_INPUT.cursor.
@@ -69,6 +70,21 @@ fn get_channel_by_index(_idx: usize) -> &'static InputChannel {
 
 impl InputChannel
 {
+	const fn new() -> InputChannel {
+		InputChannel { 
+			shift_held: ModKeyPair::new(),
+			ctrl_held: ModKeyPair::new(),
+			alt_held: ModKeyPair::new(),
+			//altgr: ModKeyPair::new(),
+			cursor: MouseCursor::new(),
+			
+			last_key_pressed: AtomicValue::new(KeyCode::None),
+			double_click_info: Mutex::new(MouseClickInfo {
+				button: 0xFF,
+				time: 0,
+				}),
+			}
+	}
 	pub fn handle_key(&self, key: keyboard::KeyCode, release: bool)
 	{
 		match (release, key)
@@ -88,6 +104,7 @@ impl InputChannel
 		(true, KeyCode::LeftAlt)  => self.alt_held.clear_l(),
 		// Check for session change commands, don't propagate if they fired
 		// - 'try_change_session' checks modifiers and permissions
+		// - TODO: Should this be moved to upper levels?
 		(false, KeyCode::Esc) => if self.try_change_session(0) { return ; },
 		(false, KeyCode::F1)  => if self.try_change_session(1) { return ; },
 		(false, KeyCode::F2)  => if self.try_change_session(2) { return ; },
@@ -107,7 +124,9 @@ impl InputChannel
 		// Handle text events
 		// - On key up, translate the keystroke into text (accounting for input state)
 		// TODO: Support repetition?
-		if release {
+		if release && self.last_key_pressed.swap(KeyCode::None, Ordering::Relaxed) == key {
+			super::windows::handle_input( Event::KeyFire(key) );
+
 			//if self.enable_input_translation {
 				let s = self.get_input_string(key);
 				if s.len() > 0 {
@@ -116,6 +135,10 @@ impl InputChannel
 					super::windows::handle_input( Event::Text(buf) );
 				}
 			//}
+		}
+
+		if !release {
+			self.last_key_pressed.store(key, Ordering::Relaxed);
 		}
 
 		// TODO: Send key combination to active active window

@@ -361,18 +361,16 @@ impl<'a, D: Decorator> Window<'a, D>
 					{
 						self.modifier_states.set(m, side);
 					},
-				::InputEvent::KeyUp(key) => {
+				::InputEvent::KeyUp(key) =>
 					if let Some( (m,side) ) = Modifier::from_key(key)
 					{
 						self.modifier_states.clear(m, side);
-					}
-					else
-					{
-						for &mut ( (s_key, ref mods), ref mut fcn) in self.shortcuts.iter_mut() {
-							if mods.check(&self.modifier_states) && key == s_key {
-								fcn();
-								return false || rerender;
-							}
+					},
+				::InputEvent::KeyFire(key) => {
+					for &mut ( (s_key, ref mods), ref mut fcn) in self.shortcuts.iter_mut() {
+						if mods.check(&self.modifier_states) && key == s_key {
+							fcn();
+							return false || rerender;
 						}
 					}
 					// - Single-key shortcuts
