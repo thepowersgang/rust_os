@@ -33,7 +33,7 @@ ifeq ($(ARCH),amd64)
 CMDLINE += SYSDISK=ATA-0p0
 QEMU_ARGS += -net nic
 QEMU_ARGS += -drive if=ide,index=0,file=$(IMGDIR)hda.img,format=raw
-#QEMU_ARGS += -drive if=ide,index=1,file=$(IMGDIR)hdb.img,format=raw
+QEMU_ARGS += -drive if=none,id=sata1,file=$(IMGDIR)hdb.img,format=raw -device ahci,id=ahci -device ide-drive,drive=sata1,bus=ahci.0
 #QEMU_ARGS += -trace file=qemu_trace
 #QEMU_OPTS += -trace events=.qemu_trace,file=qemu_trace
 
@@ -44,7 +44,7 @@ else
 	SCRIPT := RunQemuPXE
 endif
 
-run: $(IMGDIR)hda.img .qemu_trace
+run: $(IMGDIR)hda.img $(IMGDIR)hdb.img .qemu_trace
 	./$(SCRIPT) ../bin/kernel-amd64.bin.elf32 "$(CMDLINE)" "$(QEMU_ARGS)" $(TEE)
 #
 # --- ARMv7 ---
@@ -64,7 +64,7 @@ run: $(IMGDIR)hda.img
 	qemu-system-arm -machine $(MACHINE_TYPE) $(QEMU_ARGS) -kernel arm_bootloader/loader-$(MACHINE_TYPE).bin -append "$(CMDLINE)" $(TEE)
 endif
 
-$(IMGDIR)hda_0.img:
+$(IMGDIR)hd%_0.img:
 	@mkdir -p $(dir $@)
 	@echo "[MkDisk] ZERO 1MB $@"
 	@# - 1MB of blank space 
@@ -99,8 +99,13 @@ $(IMGDIR)hda.img: Makefile $(IMGDIR)hda_0.img $(IMGDIR)hda_1.img $(IMGDIR)hda_2.
 $(IMGDIR)hdb_1.img: $(wildcard ../../Usermode/.output/$(ARCH)/*) Makefile
 	dd if=/dev/zero of=$@ bs=1M count=32
 	/sbin/mkfs.ext2 $@
-	guestfish -a $@ launch : mkdir /Tifflin
-	virt-copy-in -a $@ ../../Usermode/.output/$(ARCH)/bin /Tifflin/bin
+	guestfish -a $@ launch : mount /dev/sda / : mkdir /Tifflin : copy-in ../../Usermode/.output/$(ARCH)/bin /Tifflin/
+$(IMGDIR)hdb.img: Makefile $(IMGDIR)hdb_0.img $(IMGDIR)hdb_1.img
+	@mkdir -p $(dir $@)
+	@echo "[MkDisk] mbr $@"
+	@# - Commit
+	@cat $(IMGDIR)hdb_0.img $(IMGDIR)hdb_1.img > $@
+	@echo "$(shell echo $$((1*1024*2)),+,0x83)" | /sbin/sfdisk --no-reread $@ -u S -f -q > /dev/null
 
 .qemu_trace: Makefile
 	echo "" 
