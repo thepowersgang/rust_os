@@ -59,27 +59,33 @@ impl Default for AtaClass { fn default() -> AtaClass { AtaClass::Invalid } }
 #[repr(C,packed)]
 pub struct AtaIdentifyData
 {
-	flags: u16,
+	pub flags: u16,
 	_unused1: [u16; 9],
-	serial_number: [u8; 20],
+	pub serial_number: [u8; 20],
 	_unused2: [u16; 3],
-	firmware_ver: [u8; 8],
-	model_number: [u8; 40],
+	pub firmware_ver: [u8; 8],
+	pub model_number: [u8; 40],
 	/// Maximum number of blocks per transfer
-	sect_per_int: u16,
+	pub sect_per_int: u16,
 	_unused3: u16,
-	capabilities: [u16; 2],
+	pub capabilities: [u16; 2],
 	_unused4: [u16; 2],
 	/// Bitset of translation fields (next five shorts)
-	valid_ext_data: u16,
+	pub valid_ext_data: u16,
 	_unused5: [u16; 5],
-	size_of_rw_multiple: u16,
+	pub size_of_rw_multiple: u16,
 	/// LBA 28 sector count (if zero, use 48)
-	sector_count_28: u32,
+	pub sector_count_28: u32,
 	_unused6: [u16; 100-62],
 	/// LBA 48 sector count
-	sector_count_48: u64,
-	_unused7: [u16; 256-104],
+	pub sector_count_48: u64,
+	_unused7: [u16; 2],
+	/// [0:3] Physical sector size (in logical sectors
+	pub physical_sector_size: u16,
+	_unused8: [u16; 9],
+	/// Number of words per logical sector
+	pub words_per_logical_sector: u32,
+	_unusedz: [u16; 256-119],
 }
 impl Default for AtaIdentifyData {
 	fn default() -> AtaIdentifyData {
@@ -95,12 +101,13 @@ impl ::core::fmt::Debug for AtaIdentifyData {
 		try!(write!(f, " serial_number: {:?}", ::kernel::lib::RawString(&self.serial_number)));
 		try!(write!(f, " firmware_ver: {:?}", ::kernel::lib::RawString(&self.firmware_ver)));
 		try!(write!(f, " model_number: {:?}", ::kernel::lib::RawString(&self.model_number)));
-		try!(write!(f, " sect_per_int: {}", self.sect_per_int));
+		try!(write!(f, " sect_per_int: {}", self.sect_per_int & 0xFF));
 		try!(write!(f, " capabilities: [{:#x},{:#x}]", self.capabilities[0], self.capabilities[1]));
 		try!(write!(f, " valid_ext_data: {}", self.valid_ext_data));
 		try!(write!(f, " size_of_rw_multiple: {}", self.size_of_rw_multiple));
 		try!(write!(f, " sector_count_28: {:#x}", self.sector_count_28));
 		try!(write!(f, " sector_count_48: {:#x}", self.sector_count_48));
+		try!(write!(f, " words_per_logical_sector: {}", self.words_per_logical_sector));
 		try!(write!(f, "}}"));
 		Ok( () )
 	}

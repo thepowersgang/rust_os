@@ -18,6 +18,7 @@ MODS += virtio
 MODS += storage_ata
 MODS += input_ps2
 MODS += fs_fat fs_iso9660
+MODS += storage_ahci
 #MODS += video_vga
 
 ifeq ($(ARCH),amd64)

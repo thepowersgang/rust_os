@@ -19,7 +19,7 @@ CMDLINE := SYSROOT=Tifflin
 
 
 ifeq ($(NOTEE),)
- TEE := | tee QemuLog.txt
+ TEE := 2>&1 | tee QemuLog.txt
 else
  TEE := 
 endif
