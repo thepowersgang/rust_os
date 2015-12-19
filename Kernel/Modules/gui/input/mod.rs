@@ -43,6 +43,7 @@ struct InputChannel
 	cursor: MouseCursor,
 	
 	last_key_pressed: AtomicValue<KeyCode>,
+	// TODO: Mutex feels too heavy, but there may be multiple mice on one channel
 	double_click_info: Mutex<MouseClickInfo>,
 }
 
@@ -127,6 +128,7 @@ impl InputChannel
 		if release && self.last_key_pressed.swap(KeyCode::None, Ordering::Relaxed) == key {
 			super::windows::handle_input( Event::KeyFire(key) );
 
+			// TODO: Should only generate text if no non-shift modifiers are depressed
 			//if self.enable_input_translation {
 				let s = self.get_input_string(key);
 				if s.len() > 0 {

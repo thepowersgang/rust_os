@@ -57,7 +57,7 @@ impl Default for AtaClass { fn default() -> AtaClass { AtaClass::Invalid } }
 
 /// ATA "IDENTIFY" packet data
 #[repr(C,packed)]
-struct AtaIdentifyData
+pub struct AtaIdentifyData
 {
 	flags: u16,
 	_unused1: [u16; 9],
