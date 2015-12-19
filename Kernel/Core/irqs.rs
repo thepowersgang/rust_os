@@ -17,22 +17,10 @@ pub struct EventHandle
 	index: usize,
 	event: Arc<::async::event::Source>,
 }
-pub struct ObjectHandle<T: Handler>
+pub struct ObjectHandle
 {
 	num: u32,
 	index: usize,
-	_pd: ::core::marker::PhantomData<T>,
-}
-
-struct HandlerEvent
-{
-	//index: usize,
-	event: Arc<::async::event::Source>
-}
-pub trait Handler: Send + 'static
-{
-	//fn get_idx(&self) -> usize;
-	fn handle(&mut self) -> bool;
 }
 
 #[derive(Default)]
@@ -40,7 +28,8 @@ struct IRQBinding
 {
 	arch_handle: interrupts::IRQHandle,
 	has_fired: AtomicBool,	// Set to true if the IRQ fires while the lock is held by this CPU
-	handlers: Spinlock<Vec<Box<Handler>>>,	// TODO: When DST functions are avaliable, change to Queue<Handler>
+	//handlers: Spinlock<Queue<Handler>>,
+	handlers: Spinlock<Vec<Box<FnMut()->bool + Send + 'static>>>,
 }
 
 struct Bindings
@@ -67,7 +56,7 @@ pub fn init() {
 	}
 }
 
-fn bind(num: u32, obj: Box<Handler>) -> usize
+fn bind(num: u32, obj: Box<FnMut()->bool + Send>) -> usize
 {
 	// 1. (if not already) bind a handler on the architecture's handlers
 	let mut map_lh = S_IRQ_BINDINGS.lock_init(|| Bindings { mapping: VecMap::new(), next_index: 0 });
@@ -95,7 +84,7 @@ fn irq_worker()
 			{
 				if let Some(mut lh) = b.handlers.try_lock_cpu() {
 					for handler in &mut *lh {
-						handler.handle();
+						handler();
 					}
 				}
 			}
@@ -109,17 +98,17 @@ pub fn bind_event(num: u32) -> EventHandle
 	let ev = Arc::new( ::async::event::Source::new() );
 	EventHandle {
 		num: num,
-		index: bind(num, Box::new(HandlerEvent { event: ev.clone() }) as Box<Handler>),
-		event: ev,
+		event: ev.clone(),
+		index: bind(num, Box::new(move || { ev.trigger(); true })),
+		//index: bind(num, Box::new(HandlerEvent { event: ev })),
 		}
 }
 
-pub fn bind_object<T: Handler>(num: u32, obj: Box<T>) -> ObjectHandle<T>
+pub fn bind_object<F: FnMut()->bool + Send + 'static>(num: u32, obj: Box<F>) -> ObjectHandle
 {
 	ObjectHandle {
 		num: num,
 		index: bind(num, obj),
-		_pd: ::core::marker::PhantomData,
 		}
 }
 
@@ -159,17 +148,6 @@ impl IRQBinding
 	}
 }
 
-impl Handler for HandlerEvent
-{
-	//fn get_idx(&self) -> usize { self.index }
-	
-	//#[tag_safe(irq)]
-	fn handle(&mut self) -> bool {
-		self.event.trigger();
-		true
-	}
-}
-
 impl EventHandle
 {
 	pub fn get_event(&self) -> &::async::event::Source
@@ -186,14 +164,6 @@ impl ::core::ops::Drop for EventHandle
 		// - Locate interrupt handler block
 		// - Locate this index within that list
 		// - Remove from list
-	}
-}
-
-impl<T: Handler> ::core::ops::Drop for ObjectHandle<T>
-{
-	fn drop(&mut self)
-	{
-		panic!("TODO: ObjectHandle::drop() num={},idx={}", self.num, self.index);
 	}
 }
 

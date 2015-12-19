@@ -17,8 +17,8 @@ struct Port
 #[derive(Default)]
 struct Ctrlr8042
 {
-	port1: Option< irqs::ObjectHandle<Port> >,
-	port2: Option< irqs::ObjectHandle<Port> >,
+	port1: Option< irqs::ObjectHandle >,
+	port2: Option< irqs::ObjectHandle >,
 }
 
 static S_8042_CTRLR: ::kernel::sync::mutex::LazyMutex<Ctrlr8042> = lazymutex_init!();
@@ -69,11 +69,9 @@ impl Port
 		}
 		c.write_data(b);
 	}
-}
 
-impl irqs::Handler for Port
-{
-	fn handle(&mut self) -> bool {
+
+	fn handle_irq(&mut self) -> bool {
 		// SAFE: Current impl avoids most races, but can misbehave (returnign bad data) if an IRQ happens between the inb calls
 		unsafe {
 			// NOTE: This matches qemu's behavior, but the wiki says it's chipset dependent
@@ -168,14 +166,16 @@ impl Ctrlr8042
 		ctrlr.write_data(config);
 		// - Enable ports second
 		if port1_works {
+			let mut port = Port::new(false);
 			log_debug!("Enabling port 1");
-			ctrlr.port1 = Some( ::kernel::irqs::bind_object(1, Box::new(Port::new(false))) );
+			ctrlr.port1 = Some( ::kernel::irqs::bind_object(1, Box::new(move || port.handle_irq())) );
 			ctrlr.write_cmd(0xAE);
 			ctrlr.write_data(0xFF);
 		}
 		if port2_works {
+			let mut port = Port::new(true);
 			log_debug!("Enabling port 2");
-			ctrlr.port2 = Some( ::kernel::irqs::bind_object(12, Box::new(Port::new(true))) );
+			ctrlr.port2 = Some( ::kernel::irqs::bind_object(12, Box::new(move || port.handle_irq())) );
 			ctrlr.write_cmd(0xA8);
 			ctrlr.write_cmd(0xD4);
 			ctrlr.write_data(0xFF);
