@@ -1,4 +1,7 @@
-
+//
+//
+//
+#![allow(dead_code)]
 
 pub const REG_CAP: usize = 0x00;
 pub const REG_GHC: usize = 0x04;
@@ -34,7 +37,7 @@ pub const REG_PxSACT: usize = 0x34;	// Serial ATA Active
 pub const REG_PxCI  : usize = 0x38;	// Command Issue
 pub const REG_PxSNTF: usize = 0x3C;	// Serial ATA Notification
 pub const REG_PxFBS : usize = 0x40;	// FIS-based Switching Control
-pub const REG_PxVS0 : usize = 0x70;	// 4x ?
+//pub const REG_PxVS0 : usize = 0x70;	// 4x Vendor-Specific
 
 pub const PxIS_CPDS: u32 = (1 << 31);	// Cold Port Detect Status
 pub const PxIS_TFES: u32 = (1 << 30);	// Task File Error Status

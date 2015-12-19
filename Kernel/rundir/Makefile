@@ -33,7 +33,9 @@ ifeq ($(ARCH),amd64)
 CMDLINE += SYSDISK=ATA-0p0
 QEMU_ARGS += -net nic
 QEMU_ARGS += -drive if=ide,index=0,file=$(IMGDIR)hda.img,format=raw
-QEMU_ARGS += -drive if=none,id=sata1,file=$(IMGDIR)hdb.img,format=raw -device ahci,id=ahci -device ide-drive,drive=sata1,bus=ahci.0
+QEMU_ARGS += -device ahci,id=ahci
+QEMU_ARGS += -drive if=none,id=sata1,file=$(IMGDIR)hdb.img,format=raw -device ide-hd,drive=sata1,bus=ahci.0
+QEMU_ARGS += -drive if=none,id=sata2,file=$(TESTISO),format=raw -device ide-cd,drive=sata2,bus=ahci.1
 #QEMU_ARGS += -trace file=qemu_trace
 #QEMU_OPTS += -trace events=.qemu_trace,file=qemu_trace
 

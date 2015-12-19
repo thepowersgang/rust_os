@@ -135,7 +135,7 @@ impl Controller
 
 			let capabilities = io.read_32(hw::REG_CAP);
 			let supports_64bit = capabilities & hw::CAP_S64A != 0;
-			let max_commands = (capabilities & hw::CAP_NCS) >> hw::CAP_NCS_ofs;
+			let max_commands = ((capabilities & hw::CAP_NCS) >> hw::CAP_NCS_ofs) + 1;
 			
 			(n_ports, max_commands, supports_64bit,)
 			};
@@ -159,8 +159,9 @@ impl Controller
 			if ports_implemented & mask == 0 {
 				continue ;
 			}
-			// SAFE: Exclusive access to hardware
-			unsafe {
+
+
+			{
 				let port = PortRegs::new(&ret.inner.io_base, port_idx);
 			
 				let cmd = port.read(hw::REG_PxCMD);
@@ -232,9 +233,11 @@ impl<'a> PortRegs<'a>
 			}
 	}
 
-	unsafe fn read(&self, ofs: usize) -> u32 {
+	fn read(&self, ofs: usize) -> u32 {
 		assert!(ofs < 0x80);
-		self.io.read_32(hw::REG_Px + self.idx * 0x80 + ofs)
+		assert!(ofs & 3 == 0);
+		// SAFE: None of the Px registers have a read side-effect
+		unsafe { self.io.read_32(hw::REG_Px + self.idx * 0x80 + ofs) }
 	}
 	unsafe fn write(&self, ofs: usize, val: u32) {
 		assert!(ofs < 0x80);
@@ -264,18 +267,19 @@ impl Port
 		log_trace!("Port::new(, idx={}, max_commands={})", idx, max_commands);
 
 		assert!(idx < 32);
-		assert!(max_commands < 32);
+		assert!(max_commands <= 32);
 		
 		
 		let cl_size = max_commands * size_of::<hw::CmdHeader>();
 
 		// Command list
-		let cl_page = try!( ::kernel::memory::virt::alloc_dma(64, 1, "AHCI") );
 		// - Command list first (32 * max_commands)
+		// - Up to MAX_COMMANDS_FOR_SHARE in 1024 -- 4096-256
 		// - RcvdFis last
-		//let rcvd_fis = cl_page.as_raw_ptr(rcvd_fis_pos);
+		let cl_page = try!( ::kernel::memory::virt::alloc_dma(64, 1, "AHCI") );
 
 		// Allocate pages for the command table
+		// TODO: Delay allocating memory until a device is detected on this port
 		let cmdtab_pages = if max_commands <= MAX_COMMANDS_FOR_SHARE {
 				// All fits in the CL page!
 				
@@ -306,6 +310,7 @@ impl Port
 			}
 		}
 
+		// TODO: This function should be unsafe itself, to pass the buck of ensuring that it's not called twice
 		// (questionable) SAFE: Exclusive access to this segment of registers
 		unsafe {
 			let regs = PortRegs::new(&controller.io_base, idx);
@@ -320,7 +325,7 @@ impl Port
 			// Interrupts on
 			regs.write(hw::REG_PxSERR, 0x3FF783);
 			regs.write(hw::REG_PxIS, !0);
-			regs.write(hw::REG_PxIE, hw::PxIS_CPDS|hw::PxIS_DSS|hw::PxIS_PSS|hw::PxIS_DHRS);
+			regs.write(hw::REG_PxIE, hw::PxIS_CPDS|hw::PxIS_DSS|hw::PxIS_PSS|hw::PxIS_DHRS|hw::PxIS_TFES);
 			// Start command engine (Start, FIS Rx Enable)
 			let cmd = regs.read(hw::REG_PxCMD);
 			regs.write(hw::REG_PxCMD, cmd|hw::PxCMD_ST|hw::PxCMD_FRE);
@@ -345,14 +350,22 @@ impl Port
 	{
 		let regs = self.regs();
 
-		// SAFE: Read has no side-effects
-		let int_status = unsafe { regs.read(hw::REG_PxIS) };
+		let int_status = regs.read(hw::REG_PxIS);
 		log_trace!("{} - int_status={:#x}", self, int_status);
 
 		// Cold Port Detection Status
 		if int_status & hw::PxIS_CPDS != 0
 		{
 			log_notice!("{} - Presence change", self);
+		}
+
+
+		// "Task File Error Status"
+		if int_status & hw::PxIS_TFES != 0
+		{
+			let tfd = regs.read(hw::REG_PxTFD);
+			log_warning!("{} - Device pushed error: TFD={:#x}", self, tfd);
+			// TODO: This should terminate all outstanding transactions with an error.
 		}
 
 		// Device->Host Register Update
@@ -369,10 +382,9 @@ impl Port
 		// Check commands
 		//if int_status & hw::PxIS_DPS != 0
 		//{
-		// SAFE: No side-effects
-		let (issued_commands, active_commands, error_commands) = unsafe {
-			(regs.read(hw::REG_PxCI), regs.read(hw::REG_PxSACT), regs.read(hw::REG_PxSERR), )
-			};
+		let issued_commands = regs.read(hw::REG_PxCI);
+		let active_commands = regs.read(hw::REG_PxSACT);
+		let error_commands = regs.read(hw::REG_PxSERR);
 		let used_commands = self.used_commands.load(Ordering::Relaxed);
 		log_trace!("used_commands = {:#x}, issued_commands={:#x}, active_commands={:#x}, error_commands={:#x}",
 			used_commands, issued_commands, active_commands, error_commands);
@@ -436,12 +448,13 @@ impl Port
 			}
 	}
 
+	// Re-check the port for a new device
 	pub fn update_connection(&self)
 	{
 		let io = self.regs();
 
 		// SAFE: Status only registers
-		let (tfd, ssts) = unsafe { (io.read(hw::REG_PxTFD), io.read(hw::REG_PxSSTS)) };
+		let (tfd, ssts) = (io.read(hw::REG_PxTFD), io.read(hw::REG_PxSSTS));
 
 		if tfd & (hw::PxTFD_STS_BSY|hw::PxTFD_STS_DRQ) != 0 {
 			return ;
@@ -452,31 +465,49 @@ impl Port
 		}
 		
 
-		// Request ATA Identify from the disk
-		let ident = {
+		// SAFE: Read has no side-effect
+		match io.read(hw::REG_PxSIG)
+		{
+		0x00000101 => {
+			// Standard ATA
+			// Request ATA Identify from the disk
 			const ATA_IDENTIFY: u8 = 0xEC;
-			let mut ata_identify_data = ::storage_ata::AtaIdentifyData::default();
-			self.request_ata_lba28(0, ATA_IDENTIFY, 0,0, DataPtr::Recv(::kernel::lib::as_byte_slice_mut(&mut ata_identify_data)));
+			let ident = self.request_identify(ATA_IDENTIFY).expect("Failure requesting ATA identify");
 
-			fn flip_bytes(bytes: &mut [u8]) {
-				for pair in bytes.chunks_mut(2) {
-					pair.swap(0, 1);
-				}
-			}
-			// All strings are sent 16-bit endian flipped, so reverse that
-			flip_bytes(&mut ata_identify_data.serial_number);
-			flip_bytes(&mut ata_identify_data.firmware_ver);
-			flip_bytes(&mut ata_identify_data.model_number);
-			ata_identify_data
-			};
-
-		log_debug!("ATA `IDENTIFY` response data = {:?}", ident);
-		
-		let sectors = if ident.sector_count_48 == 0 { ident.sector_count_28 as u64 } else { ident.sector_count_48 };
-		log_log!("{}: Hard Disk, {} sectors, {}", self, sectors, storage::SizePrinter(sectors * 512));
-		// TODO: Create a volume descriptor pointing back to this disk
+			log_debug!("ATA `IDENTIFY` response data = {:?}", ident);
+			
+			let sectors = if ident.sector_count_48 == 0 { ident.sector_count_28 as u64 } else { ident.sector_count_48 };
+			log_log!("{}: Hard Disk, {} sectors, {}", self, sectors, storage::SizePrinter(sectors * 512));
+			// TODO: Create a volume descriptor pointing back to this disk/port
+			},
+		0xEB140101 => {
+			// ATAPI Device
+			const ATA_IDENTIFY_PACKET: u8 = 0xA1;
+			let ident = self.request_identify(ATA_IDENTIFY_PACKET).expect("Failure requesting ATA IDENTIFY PACKET");
+			log_warning!("TODO: ATAPI on {}, ident={:?}", self, ident);
+			},
+		signature @ _ => {
+			log_error!("{} - Unknown signature {:08x}", self, signature);
+			},
+		}
 	}
 
+	fn request_identify(&self, cmd: u8) -> Result<::storage_ata::AtaIdentifyData, u16>
+	{
+		let mut ata_identify_data = ::storage_ata::AtaIdentifyData::default();
+		try!( self.request_ata_lba28(0, cmd, 0,0, DataPtr::Recv(::kernel::lib::as_byte_slice_mut(&mut ata_identify_data))) );
+
+		fn flip_bytes(bytes: &mut [u8]) {
+			for pair in bytes.chunks_mut(2) {
+				pair.swap(0, 1);
+			}
+		}
+		// All strings are sent 16-bit endian flipped, so reverse that
+		flip_bytes(&mut ata_identify_data.serial_number);
+		flip_bytes(&mut ata_identify_data.firmware_ver);
+		flip_bytes(&mut ata_identify_data.model_number);
+		Ok( ata_identify_data )
+	}
 
 	fn request_ata_lba28(&self, disk: u8, cmd: u8,  n_sectors: u8, lba: u32, data: DataPtr) -> Result<usize, u16>
 	{
@@ -498,6 +529,7 @@ impl Port
 		Ok( 0 )
 	}
 
+	/// Create and dispatch a FIS
 	fn do_fis(&self, cmd: &[u8], pkt: &[u8], data: DataPtr)
 	{
 		use kernel::memory::virt::get_phys;
@@ -510,6 +542,7 @@ impl Port
 		slot.data.cmd_fis.clone_from_slice(cmd);
 		slot.data.atapi_cmd.clone_from_slice(pkt);
 
+		// Generate the scatter-gather list
 		let mut va = data.as_slice().as_ptr() as usize;
 		let mut len = data.as_slice().len();
 		let mut n_prdt_ents = 0;
@@ -517,16 +550,19 @@ impl Port
 		{
 			let base_phys = get_phys(va as *const u8);
 			let mut seglen = ::kernel::PAGE_SIZE - base_phys as usize % ::kernel::PAGE_SIZE;
-			while seglen < len && seglen <= 0xFFFFFFFF && get_phys( (va + seglen-1) as *const u8 ) == base_phys + (seglen-1) as u64
+			const MAX_SEG_LEN: usize = (1 << 22);
+			// Each entry must be contigious, and not >4MB
+			while seglen < len && seglen <= MAX_SEG_LEN && get_phys( (va + seglen-1) as *const u8 ) == base_phys + (seglen-1) as u64
 			{
 				seglen += ::kernel::PAGE_SIZE;
 			}
 			let seglen = ::core::cmp::min(len, seglen);
+			let seglen = ::core::cmp::min(MAX_SEG_LEN, seglen);
 			if base_phys % 4 != 0 || seglen % 2 != 0 {
 				todo!("AHCI Port::do_fis - Use a bounce buffer if alignment requirements are not met");
 			}
 			slot.data.prdt[n_prdt_ents].DBA = base_phys as u64;
-			slot.data.prdt[n_prdt_ents].DBC = seglen as u32;
+			slot.data.prdt[n_prdt_ents].DBC = (seglen - 1) as u32;
 
 			va += seglen;
 			len -= seglen;
@@ -541,7 +577,6 @@ impl Port
 		// SAFE: Wait ensures that memory stays valid
 		unsafe {
 			slot.start();
-			log_debug!("data = {:?}", data.as_slice());
 			slot.wait();
 		}
 	}
@@ -590,6 +625,8 @@ impl Port
 					event: &self.command_events[avail],
 					};
 			}
+
+			cur_used_commands = newval;
 		}
 	}
 }
@@ -616,8 +653,7 @@ impl<'a> CommandSlot<'a>
 		self.event.sleep();
 
 		let regs = self.port.regs();
-		// SAFE: Read has no effect
-		let (active, error) = unsafe { (regs.read(hw::REG_PxCI), regs.read(hw::REG_PxSERR)) };
+		let (active, error) = (regs.read(hw::REG_PxCI), regs.read(hw::REG_PxSERR));
 
 		let mask = 1 << self.idx;
 		if active & mask == 0 {
@@ -639,9 +675,8 @@ impl<'a> ::core::ops::Drop for CommandSlot<'a>
 	{
 		let mask = 1 << self.idx;
 		let regs = self.port.regs();
-		// TODO: When does PxSACT go low?
 		// SAFE: Reading has no effect
-		let cur_active = unsafe { regs.read(hw::REG_PxCI) /* | regs.read(hw::REG_PxSACT) */ };
+		let cur_active = regs.read(hw::REG_PxCI) /* | regs.read(hw::REG_PxSACT) */;
 		if cur_active & mask != 0 {
 			todo!("CommandSlot::drop - Port {} cmd {} - Still active", self.port.index, self.idx);
 		}
