@@ -567,6 +567,15 @@ impl fmt::Display for MapError
 //	alloc: &'a mut AllocHandle,
 //	idx: usize,
 //}
+impl Default for AllocHandle {
+	fn default() -> AllocHandle {
+		AllocHandle {
+			addr: ::core::ptr::null(),
+			mode: ProtectionMode::Unmapped,
+			count: 0,
+			}
+	}
+}
 impl AllocHandle
 {
 	pub fn count(&self) -> usize {
@@ -610,8 +619,8 @@ impl AllocHandle
 		assert!( count * size_of::<T>() <= self.count * ::PAGE_SIZE,
 			"Entry count exceeds allocation ({} > {})", count * size_of::<T>(), self.count*::PAGE_SIZE);
 		assert!( ofs + count * size_of::<T>() <= self.count * ::PAGE_SIZE,
-			"Sliced region exceeds bounds {}+{} > {}", ofs, count * size_of::<T>(), self.count*::PAGE_SIZE);
-		// SAFE: Doesn't ensure lack of aliasing, but the address is valid. Immediately casted to a raw pointer, so aliasing is OK
+			"Sliced region exceeds bounds {}+{}*{} {} > {}", ofs, count, size_of::<T>(), ofs+count*size_of::<T>(), self.count*::PAGE_SIZE);
+		// SAFE: Doesn't ensure lack of aliasing, but the address is valid. Immediately coerced to a raw pointer, so aliasing is OK
 		unsafe {
 			::core::slice::from_raw_parts_mut( (self.addr as usize + ofs) as *mut T, count )
 		}

@@ -106,7 +106,7 @@ pub fn make_unique(page: PAddr, virt_addr: &[u8; 0x1000]) -> PAddr
 pub fn allocate_range_bits(bits: u8, count: usize) -> PAddr
 {
 	// XXX: HACK! Falls back to the simple code if possible
-	if get_memory_map().last().unwrap().start >> bits == 0
+	if bits >= 64 || get_memory_map().last().unwrap().start >> bits == 0
 	{
 		return allocate_range(count);
 	}
@@ -115,7 +115,7 @@ pub fn allocate_range_bits(bits: u8, count: usize) -> PAddr
 	// NOTE: Memory map constructor _can_ break blocks up at common bitness boundaries (16, 24, 32 bits) to make this more efficient
 	// 2. Obtain `count` pages from either the end (if possible) or the start of this block
 	// TODO: If the block is not large enough, return an error (NOPAGE)
-	panic!("TODO: allocate_range(bits={}, count={})", bits, count);
+	panic!("TODO: allocate_range_bits(bits={}, count={})", bits, count);
 }
 
 pub fn allocate_range(count: usize) -> PAddr
