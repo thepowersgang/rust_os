@@ -57,7 +57,8 @@ pub fn init() {
 }
 
 fn bind(num: u32, obj: Box<FnMut()->bool + Send>) -> usize
-{
+{	
+	log_trace!("bind(num={}, obj={:?})", num, "TODO"/*obj*/);
 	// 1. (if not already) bind a handler on the architecture's handlers
 	let mut map_lh = S_IRQ_BINDINGS.lock_init(|| Bindings { mapping: VecMap::new(), next_index: 0 });
 	let index = map_lh.next_index;

@@ -19,6 +19,11 @@ pub struct EventChannel
 	pending_wakes: ::core::sync::atomic::AtomicUsize,
 }
 unsafe impl Sync for EventChannel {}
+impl Default for EventChannel {
+	fn default() -> Self {
+		EVENTCHANNEL_INIT
+	}
+}
 
 /// Static initialiser for EventChannel
 pub const EVENTCHANNEL_INIT: EventChannel = EventChannel {
@@ -50,6 +55,11 @@ impl EventChannel
 		}
 	}
 	
+	/// Clear any pending event
+	pub fn clear(&self) {
+		*self.lock.lock() = false;
+	}
+
 	/// Post the event
 	//#[tag_safe(irq)]	// SAFE: Handles case of lock being held by CPU
 	pub fn post(&self) {

@@ -93,6 +93,22 @@ pub trait Driver:
 	/// Requests that the driver bind itself to the specified device
 	fn bind(&self, bus_dev: &mut BusDevice) -> Box<DriverInstance>;
 }
+/// Error type for `Driver::bind`
+#[derive(Debug)]
+pub enum DriverBindError
+{
+	OutOfMemory,
+	Bug(&'static str),
+}
+impl_from! {
+	From<::memory::virt::MapError>(v) for DriverBindError {
+		match v
+		{
+		::memory::virt::MapError::OutOfMemory => DriverBindError::OutOfMemory,
+		::memory::virt::MapError::RangeInUse => DriverBindError::Bug("Memory map range collision"),
+		}
+	}
+}
 
 /// Driver instance (maps directly to a device)
 pub trait DriverInstance:

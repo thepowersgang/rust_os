@@ -46,6 +46,7 @@ impl<T> Default for Queue<T>
 impl<T> Queue<T>
 {
 	/// Add an item to the end of the queue
+	//pub fn push<U: ::core::ops::CoerceUnsized<T>>(&mut self, value: U)
 	pub fn push(&mut self, value: T)
 	{
 		// SAFE: New QueueTailPtr should not outlive the object, tail does not alias
