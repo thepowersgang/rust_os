@@ -2,6 +2,7 @@
 //
 //
 #![allow(dead_code)]
+#![allow(non_upper_case_globals)]
 
 pub const REG_CAP: usize = 0x00;
 pub const REG_GHC: usize = 0x04;
@@ -96,26 +97,27 @@ pub const PxSSTS_DET_ofs: usize = 0;
 #[repr(C)]
 pub struct CmdHeader
 {
-	pub Flags: u16,
-	pub PRDTL: u16,
-	pub PRDBC: u32,
-	pub CTBA: u64,	// Upper 32 must be 0 if 64-bit not supported
+	pub flags: u16,
+	pub prdtl: u16,	// PRDT Length
+	pub prdbc: u32,	// PRDT Byte Count
+	pub ctba: u64,	// Command Table Base Address, Upper 32 must be 0 if 64-bit not supported
 	resvd: [u32; 4],
 }
 impl CmdHeader
 {
 	pub fn new(addr: u64) -> CmdHeader {
 		CmdHeader {
-			Flags: 0,
-			PRDTL: 0,
-			PRDBC: 0,
-			CTBA: addr,
+			flags: 0,
+			prdtl: 0,
+			prdbc: 0,
+			ctba: addr,
 			resvd: [0; 4],
 		}
 	}
 }
 
 #[repr(C)]
+#[allow(non_snake_case)]
 pub struct RcvdFis
 {
 	pub DSFIS: sata::FisDmaSetup,
@@ -141,9 +143,9 @@ pub struct CmdTable
 #[repr(C)]
 pub struct CmdEnt
 {
-	pub DBA: u64,	// Data base address
+	pub dba: u64,	// Data base address
 	_rsvd: u32,
-	pub DBC: u32,	// Data byte count (and flags, [31] = IntOnComplete, [21:0] = count-1)
+	pub dbc: u32,	// Data byte count (and flags, [31] = IntOnComplete, [21:0] = count-1)
 }
 
 pub mod sata
@@ -164,11 +166,11 @@ pub mod sata
 		ty: u8, // = 0x41
 		flags: u8,	// [6]: Interrupt, [5]: Direction
 		_resvd1: [u8; 2],
-		DMABufIdLow: u32,
-		DMABufIdHigh: u32,
+		dma_buf_id_low: u32,
+		dma_buf_id_high: u32,
 		_resvd2: [u32; 1],
-		DMABufOfs: u32,
-		DMATransferCount: u32,
+		dma_buf_ofs: u32,
+		dma_transfer_count: u32,
 		_resvd: [u32; 1],
 	}
 	#[repr(C)]
@@ -186,19 +188,19 @@ pub mod sata
 		flags: u8,
 		status: u8,
 		error: u8,
-		SectorNum: u8,
-		CylLow: u8,
-		CylHigh: u8,
-		Dev_Head: u8,
-		SectorNumExp: u8,
-		CylLowExp: u8,
-		CylHighExp: u8,
+		sector_num: u8,
+		cyl_low: u8,
+		cyl_high: u8,
+		dev_head: u8,
+		sector_num_exp: u8,
+		cyl_low_exp: u8,
+		cyl_high_exp: u8,
 		_resvd1: [u8; 1],
-		SectorCount: u8,
-		SectorCountExp: u8,
+		sector_count: u8,
+		sector_count_exp: u8,
 		_resvd2: [u8; 1],
-		E_Status: u8,
-		TransferCount: u16,
+		e_status: u8,
+		transfer_count: u16,
 		_resvd3: [u8; 2],
 	}
 	#[derive(Default)]
@@ -235,30 +237,30 @@ pub mod sata
 	#[derive(Debug)]
 	pub struct FisDev2HostReg
 	{
-		Type: u8,	// = 0x34
-		IntResvd: u8,	// [6]: Interrupt bit
-		Status: u8,
-		Error: u8,
-		SectorNum: u8,
-		CylLow: u8,
-		CylHigh: u8,
-		Dev_Head: u8,
-		SectorNumExp: u8,
-		CylLowExp: u8,
-		CylHighExp: u8,
+		ty: u8,	// = 0x34
+		int_resvd: u8,	// [6]: Interrupt bit
+		status: u8,
+		error: u8,
+		sector_num: u8,
+		cyl_low: u8,
+		cyl_high: u8,
+		dev_head: u8,
+		sector_num_exp: u8,
+		cyl_low_exp: u8,
+		cyl_high_exp: u8,
 		_resvd1: [u8; 1],
-		SectorCount: u8,
-		SectorCountExp: u8,
+		sector_count: u8,
+		sector_count_exp: u8,
 		_resvd: [u8; 6],
 	}
 	#[repr(C)]
 	#[derive(Debug)]
 	pub struct FisSDB
 	{
-		Type: u8,	// = 0xA1
-		IntResvd: u8,
-		Status: u8,
-		Error: u8,
+		ty: u8,	// = 0xA1
+		int_resvd: u8,
+		status: u8,
+		error: u8,
 		_resvd: [u32; 1],
 	}
 }

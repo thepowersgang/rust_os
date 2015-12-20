@@ -91,7 +91,7 @@ impl<I: ScsiInterface> Volume<I>
 			Err(e) => return Err(From::from(e)),
 			}
 			};
-		log_debug!("SCSI Volume {:?} size={:?}", class, size);
+		log_log!("SCSI Volume {} - class={:?} size={:?}", int.name(), class, size);
 		
 		Ok(Box::new( Volume {
 			int: int,

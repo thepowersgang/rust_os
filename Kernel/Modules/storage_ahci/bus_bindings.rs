@@ -35,6 +35,6 @@ impl device_manager::Driver for PciDriver
 		let irq = bus_dev.get_irq(0);
 		let base = bus_dev.bind_io(5);
 
-		super::Controller::new(irq, base).unwrap()
+		::controller::Controller::new(irq, base).unwrap()
 	}
 }
