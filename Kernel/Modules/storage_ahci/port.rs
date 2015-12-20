@@ -6,7 +6,7 @@ use kernel::prelude::*;
 use core::sync::atomic::Ordering;
 use kernel::sync::atomic::AtomicU32;
 use kernel::sync::Mutex;
-use kernel::metadevs::storage;
+use kernel::metadevs::storage::{self, DataPtr};
 use kernel::memory::virt::AllocHandle;
 use kernel::lib::mem::aref::ArefBorrow;
 use kernel::device_manager;
@@ -58,39 +58,6 @@ pub struct PortRegs<'a>
 	io: &'a device_manager::IOBinding,
 }
 
-enum DataPtr<'a>
-{
-	Send(&'a [u8]),
-	Recv(&'a mut [u8]),
-}
-impl<'a> DataPtr<'a> {
-	fn as_slice(&self) -> &[u8] {
-		match self
-		{
-		&DataPtr::Send(p) => p,
-		&DataPtr::Recv(ref p) => p,
-		}
-	}
-	fn len(&self) -> usize {
-		self.as_slice().len()
-	}
-	fn is_send(&self) -> bool {
-		match self
-		{
-		&DataPtr::Send(_) => true,
-		&DataPtr::Recv(_) => false,
-		}
-	}
-}
-impl<'a> ::core::fmt::Debug for DataPtr<'a> {
-	fn fmt(&self, f: &mut ::core::fmt::Formatter) -> ::core::fmt::Result {
-		match self
-		{
-		&DataPtr::Send(p) => write!(f, "Send({:p}+{})", p.as_ptr(), p.len()),
-		&DataPtr::Recv(ref p) => write!(f, "Recv(mut {:p}+{})", p.as_ptr(), p.len()),
-		}
-	}
-}
 impl<'a> PortRegs<'a>
 {
 	pub fn new(io: &device_manager::IOBinding, port_idx: usize) -> PortRegs {
@@ -163,7 +130,7 @@ impl Port
 
 
 		Ok(Port {
-			name: format!("ahci?p{}", idx),
+			name: format!("ahci?-{}", idx),
 			ctrlr: controller,
 			index: idx,
 
@@ -357,9 +324,15 @@ impl Port
 				
 				let sectors = if ident.sector_count_48 == 0 { ident.sector_count_28 as u64 } else { ident.sector_count_48 };
 				log_log!("{}: Hard Disk, {} sectors, {}", self, sectors, storage::SizePrinter(sectors * 512));
-				// TODO: Create a volume descriptor pointing back to this disk/port
-				log_warning!("TODO: AHCI ATA wrapper");
-				None
+
+				//*
+				match ::storage_ata::volume::AtaVolume::new_boxed( self.get_interface() )
+				{
+				Ok(vol) => Some(storage::register_pv(vol)),
+				Err(e) => { log_error!("{}: Error while creating ATA device: {:?}", self, e); None },
+				}
+				// */
+				//None
 				},
 			// ATAPI Device
 			0xEB140101 => {
@@ -432,13 +405,33 @@ impl Port
 			};
 		self.do_fis(cmd_data.as_ref(), &[], data)
 	}
+	fn request_ata_lba48(&self, disk: u8, cmd: u8,  n_sectors: u16, lba: u64, data: DataPtr) -> Result<usize, Error>
+	{
+		assert!(lba < (1<<48));
+		let cmd_data = hw::sata::FisHost2DevReg {
+			ty: hw::sata::FisType::H2DRegister as u8,
+			flags: 0x80,
+			command: cmd,
+			sector_num: lba as u8,
+			cyl_low: (lba >> 8) as u8,
+			cyl_high: (lba >> 16) as u8,
+			dev_head: 0x40 | (disk << 4),
+			sector_num_exp: (lba >> 24) as u8,
+			cyl_low_exp: (lba >> 32) as u8,
+			cyl_high_exp: (lba >> 40) as u8,
+			sector_count: n_sectors as u8,
+			sector_count_exp: (n_sectors >> 8) as u8,
+			..Default::default()
+			};
+		self.do_fis(cmd_data.as_ref(), &[], data)
+	}
 	fn request_atapi(&self, disk: u8, cmd: &[u8], data: DataPtr) -> Result<(), Error>
 	{
 		let fis = hw::sata::FisHost2DevReg {
 			ty: hw::sata::FisType::H2DRegister as u8,
 			flags: 0x80,
-			dev_head: (disk << 4),
 			command: 0xA0,
+			dev_head: (disk << 4),
 			cyl_low: (data.len() & 0xFF) as u8,
 			cyl_high: (data.len() >> 8) as u8,
 			..Default::default()
@@ -455,8 +448,8 @@ impl Port
 	{
 		use kernel::memory::virt::get_phys;
 
-		log_trace!("do_fis(cmd={:p}+{}, pkt={:p}+{}, data={:?})",
-			cmd.as_ptr(), cmd.len(), pkt.as_ptr(), pkt.len(), data);
+		log_trace!("do_fis(self={}, cmd={:p}+{}, pkt={:p}+{}, data={:?})",
+			self, cmd.as_ptr(), cmd.len(), pkt.as_ptr(), pkt.len(), data);
 
 		let mut slot = self.get_command_slot();
 
@@ -657,6 +650,36 @@ impl Interface
 	fn port(&self) -> &Port {
 		// SAFE: (TODO) Port should not be dropped before this is (due to handle ownership)
 		unsafe { &*self.0 }
+	}
+}
+
+impl ::storage_ata::volume::Interface for Interface
+{
+	fn name(&self) -> &str { &self.port().name }
+
+	fn ata_identify(&self) -> Result<::storage_ata::AtaIdentifyData, ::storage_ata::volume::Error> {
+		match self.port().request_identify(0xEC)
+		{
+		Ok(v) => Ok(v),
+		Err(Error::Ata{err, ..}) => Err(From::from(err)),
+		Err(_) => Err(From::from(0)),
+		}
+	}
+	fn dma_lba_28(&self, cmd: u8, count: u8 , addr: u32, data: DataPtr) -> Result<(),::storage_ata::volume::Error> {
+		match self.port().request_ata_lba28(0, cmd, count, addr, data)
+		{
+		Ok(_) => Ok( () ),
+		Err(Error::Ata{err, ..}) => Err(From::from(err)),
+		Err(_) => Err(From::from(0)),
+		}
+	}
+	fn dma_lba_48(&self, cmd: u8, count: u16, addr: u64, data: DataPtr) -> Result<(),::storage_ata::volume::Error> {
+		match self.port().request_ata_lba48(0, cmd, count, addr, data)
+		{
+		Ok(_) => Ok( () ),
+		Err(Error::Ata{err, ..}) => Err(From::from(err)),
+		Err(_) => Err(From::from(0)),
+		}
 	}
 }
 

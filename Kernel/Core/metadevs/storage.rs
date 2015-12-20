@@ -44,6 +44,41 @@ pub enum IoError
 	Unknown(&'static str),
 }
 
+/// Mutable/Immutable data pointer, encoded as host-relative (Send = immutable data)
+pub enum DataPtr<'a>
+{
+	Send(&'a [u8]),
+	Recv(&'a mut [u8]),
+}
+impl<'a> DataPtr<'a> {
+	pub fn as_slice(&self) -> &[u8] {
+		match self
+		{
+		&DataPtr::Send(p) => p,
+		&DataPtr::Recv(ref p) => p,
+		}
+	}
+	pub fn len(&self) -> usize {
+		self.as_slice().len()
+	}
+	pub fn is_send(&self) -> bool {
+		match self
+		{
+		&DataPtr::Send(_) => true,
+		&DataPtr::Recv(_) => false,
+		}
+	}
+}
+impl<'a> ::core::fmt::Debug for DataPtr<'a> {
+	fn fmt(&self, f: &mut ::core::fmt::Formatter) -> ::core::fmt::Result {
+		match self
+		{
+		&DataPtr::Send(p) => write!(f, "Send({:p}+{})", p.as_ptr(), p.len()),
+		&DataPtr::Recv(ref p) => write!(f, "Recv(mut {:p}+{})", p.as_ptr(), p.len()),
+		}
+	}
+}
+
 /// Physical volume instance provided by driver
 ///
 /// Provides the low-level methods to manipulate the underlying storage

@@ -151,7 +151,7 @@ pub extern "C" fn kmain()
 	::modules::init(&["GUI"]);
 	
 	// Yield to allow init threads to run
-	::threads::yield_time();
+	//::threads::yield_time();
 	
 	// Run system init
 	sysinit();

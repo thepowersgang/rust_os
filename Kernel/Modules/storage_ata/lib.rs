@@ -22,6 +22,8 @@ module_define!{ATA, [DeviceManager, Storage], init}
 mod drivers;
 mod io;
 
+pub mod volume;
+
 struct AtaVolume
 {
 	name: String,
