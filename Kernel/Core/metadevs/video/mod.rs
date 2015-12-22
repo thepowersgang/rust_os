@@ -88,27 +88,38 @@ fn init()
 
 
 // A picture of a sad ferris the crab
-// NOTE: Commented out, as uncompressed 32bpp is too large to be loaded
+// NOTE: Commented out, as uncompressed 32bpp is too large to fit in the image
 //include!{"../../../../Graphics/.output/shared/panic.rs"}
 pub fn set_panic(file: &str, line: usize) {
-	static LOOP_PREVENT: ::core::sync::atomic::AtomicBool = ::core::sync::atomic::AtomicBool::new(false);
-	if LOOP_PREVENT.swap(true, ::core::sync::atomic::Ordering::Relaxed) {
+	use core::sync::atomic::{AtomicBool, Ordering};
+	static LOOP_PREVENT: AtomicBool = AtomicBool::new(false);
+	if LOOP_PREVENT.swap(true, Ordering::Relaxed) {
 		return ;
 	}
 	const PANIC_COLOUR: u32 = 0x01346B;
+	//static mut PANIC_IMG_ROW_BUF: [u32; PANIC_IMAGE_DIMS.0] = [0; PANIC_IMAGE_DIMS.0];
 
 	for surf in S_DISPLAY_SURFACES.lock().iter_mut()
 	{
 		let dims = surf.fb.get_size();
+		// 1. Fill
 		surf.fb.fill(Rect::new_pd(Pos::new(0,0), dims), PANIC_COLOUR);
-		//if dims.w >= PANIC_IMAGE_DIMS.0 && dims.h >= PANIC_IMAGE_DIMS.1 {
-		//	let p = Pos::new(
-		//		(dims.w - PANIC_IMAGE_DIMS.0) / 2,
-		//		(dims.h - PANIC_IMAGE_DIMS.1) / 2,
-		//		);
-		//	let r = Rect::new_pd(p, Dims::new(PANIC_IMAGE_DIMS.0, PANIC_IMAGE_DIMS.1));
-		//	surf.fb.blit_buf(r, &PANIC_IMAGE_DATA);
-		//}
+		// 2. Draw a sad ferris
+		/*
+		if dims.w >= PANIC_IMAGE_DIMS.0 && dims.h >= PANIC_IMAGE_DIMS.1 {
+			let p = Pos::new(
+				(dims.w - PANIC_IMAGE_DIMS.0) / 2,
+				(dims.h - PANIC_IMAGE_DIMS.1) / 2,
+				);
+			for (y,row) in PANIC_IMAGE_DATA.iter().enumerate() {
+				row.decompress(&mut PANIC_IMG_ROW_BUF);
+				let p = p.offset(0,y);
+				let r = Rect::new_pd(p, Dims::new(PANIC_IMAGE_DIMS.0, 1));
+				surf.fb.blit_buf(r, &PANIC_IMG_ROW_BUF);
+			}
+		}
+		*/
+		// 3. Render message to top-left
 	}
 }
 

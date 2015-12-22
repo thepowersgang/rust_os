@@ -54,8 +54,6 @@ static EXCEPTION_CLASS : u64 = 0x544B3120_52757374;	// TK1 Rust (big endian)
 // Evil fail when doing unwind
 #[no_mangle] 
 #[lang = "panic_fmt"]
-//pub extern fn rust_begin_unwind(file: &'static str, line: usize, msg: &::core::fmt::Arguments) -> !
-//pub extern "C" fn rust_begin_unwind(msg: &::core::fmt::Arguments, file: &'static str, line: usize) -> !
 pub extern "C" fn rust_begin_unwind(msg: ::core::fmt::Arguments, file: &'static str, line: usize) -> !
 {
 	::arch::puts("\nERROR: rust_begin_unwind: ");
