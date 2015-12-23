@@ -54,7 +54,7 @@ fn init()
 	node::init();
 	ramfs::init();
 	// 2. Start the root/builtin filesystems
-	mount::mount("/".as_ref(), VolumeHandle::new_ramdisk(0), "ramfs", &[]).unwrap();//"Unable to mount /");
+	mount::mount("/".as_ref(), VolumeHandle::new_ramdisk(0), "ramfs", &[]).expect("Unable to mount /");
 	// 3. Initialise root filesystem layout
 	let root = match handle::Dir::open( Path::new("/") )
 		{

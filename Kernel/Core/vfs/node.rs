@@ -142,13 +142,42 @@ pub enum Node
 	Special(Box<Special>),
 }
 
+enum CacheNodeInt
+{
+	File {
+		fsnode: Box<File>
+		
+		// File memory map data
+		//mapped_pages: HashMap<u64,FrameHandle>,
+		},
+	Dir {
+		mountpoint: AtomicUsize,	// 0 is invalid (that's root), so means "no mount"
+		fsnode: Box<Dir>
+		},
+	Symlink {
+		target: ByteString,
+		fsnode: Box<Symlink>
+		},
+	Special {
+		fsnode: Box<Special>
+		},
+}
+impl_from!{
+	From<Node>(v) for CacheNodeInt {
+		match v
+		{
+		Node::File(f) => CacheNodeInt::File { fsnode: f },
+		Node::Dir(f) => CacheNodeInt::Dir { fsnode: f, mountpoint: AtomicUsize::new(0) },
+		Node::Symlink(f) => CacheNodeInt::Symlink { target: f.read(), fsnode: f },
+		Node::Special(f) => CacheNodeInt::Special { fsnode: f },
+		}
+	}
+}
+
 struct CachedNode
 {
-	node: Node,
 	refcount: AtomicUsize,
-	
-	// File memory map data
-	//mapped_pages: HashMap<u64,FrameHandle>,
+	node: CacheNodeInt,
 }
 
 pub struct CacheHandle
@@ -191,8 +220,10 @@ impl Clone for CacheHandle
 impl CacheHandle
 {
 	/// Obtain a node handle using a mountpoint ID and inode number
-	pub fn from_ids(mountpoint: usize, inode: InodeId) -> super::Result<CacheHandle> {
+	pub fn from_ids(mountpoint: usize, inode: InodeId) -> super::Result<CacheHandle>
+	{
 		use lib::vec_map::Entry;
+		// TODO: Use a hashmap of some form and use a fixed-range allocation
 		let ptr: *const _ = &**match S_NODE_CACHE.lock().entry( (mountpoint, inode) )
 			{
 			Entry::Occupied(mut e) =>
@@ -203,15 +234,34 @@ impl CacheHandle
 			Entry::Vacant(e) =>
 				match super::mount::Handle::from_id(mountpoint).get_node(inode)
 				{
-				Some(node) => e.insert(Box::new(CachedNode { node: node, refcount: AtomicUsize::new(1) })),
+				Some(node) => e.insert(Box::new(CachedNode { node: node.into(), refcount: AtomicUsize::new(1) })),
 				None => return Err( super::Error::NotFound ),
 				},
 			};
-		Ok(CacheHandle {
+
+		// SAFE: Reference count has been incremented by this function, and will be valid until return
+		let ent_ref = unsafe { &*ptr };
+
+		// Create handle before checking for mountpoint
+		// - This handles the edge case where a volume is being unmounted
+		let rv = CacheHandle {
 			mountpt: mountpoint,
 			inode: inode,
 			ptr: ptr,
-			})
+			};
+
+		// If this newly opened node is actually a mountpoint
+		if let CacheNodeInt::Dir { ref mountpoint, .. } = ent_ref.node {
+			let mountpoint = mountpoint.load(atomic::Ordering::Relaxed);
+			if mountpoint != 0 {
+				// Then recurse (hopefully only once) with the new mountpoint
+				let inode = super::mount::Handle::from_id(mountpoint).root_inode();
+				return CacheHandle::from_ids(mountpoint, inode);
+			}
+		}
+
+		log_trace!("CacheHandle::from_ids - rv={:?}", rv);
+		Ok(rv)
 	}
 	
 	/// Obtain a node handle using a path
@@ -220,42 +270,48 @@ impl CacheHandle
 		log_function!("CacheHandle::from_path({:?})", path);
 		// TODO: Support path caching?
 		
-		// Locate mountpoint for the path
-		// - This does a longest prefix match on the path
-		let (mph,tail) = try!(super::mount::Handle::for_path(path));
-		// Acquire the mountpoint's root node
+		let (first_comp, remaining) = try!( path.split_off_first().ok_or(super::Error::MalformedPath) );
+		if first_comp.len() != 0 {
+			return Err(super::Error::MalformedPath);
+		}
+
+		// Acquire the root vnode
+		let mph = super::mount::Handle::from_id(0);
 		let mut node_h = try!(CacheHandle::from_ids( mph.id(), mph.root_inode() ));
-		log_debug!("- tail={:?}", tail);
 		// Iterate components of the path that were not consumed by the mountpoint
-		for seg in tail
+		for seg in remaining
 		{
-			loop {
+			// Loop resolving symbolic links
+			loop
+			{
 				// TODO: Should symlinks be handled in this function? Or should the passed path be without symlinks?
-				node_h = if let Node::Symlink(ref link) = *node_h.as_ref() {
-					let name = link.read();
+				node_h = if let CacheNodeInt::Symlink { ref target, .. } = *node_h.as_ref() {
 					//log_debug!("- seg={:?} : SYMLINK {:?}", seg, name);
-					let linkpath = Path::new(&name);
+					let linkpath = Path::new(&target);
 					if linkpath.is_absolute() {
 						try!(CacheHandle::from_path(linkpath))
 					}
 					else {
 						//TODO: To make this work (or any path-relative symlink), the current position in
 						//      `path` needs to be known.
+						// It can be hacked up though...
 						//let segs = [ &path[..pos], &link ];
 						//let p = PathChain::new(&segs);
 						//try!( CacheHandle::from_path(p) )
 						// Recurse with a special chained path type
 						// (that iterates but can't be sliced).
-						todo!("Relative symbolic links {:?}", name)
+						todo!("Relative symbolic links {:?}", target)
 					}
 				}
 				else {
 					break;
 				};
 			}
+
+			// Look up this component in the current node
 			node_h = match *node_h.as_ref()
 				{
-				Node::Dir(ref dir) => {
+				CacheNodeInt::Dir { fsnode: ref dir, .. } => {
 					//log_debug!("- seg={:?} : DIR", seg);
 					let next_id = match dir.lookup(seg)
 						{
@@ -274,10 +330,10 @@ impl CacheHandle
 	pub fn get_class(&self) -> NodeClass {
 		match self.as_ref()
 		{
-		&Node::Dir(_) => NodeClass::Dir,
-		&Node::File(_) => NodeClass::File,
-		&Node::Symlink(_) => NodeClass::Symlink,
-		&Node::Special(_) => NodeClass::Special,
+		&CacheNodeInt::Dir { .. } => NodeClass::Dir,
+		&CacheNodeInt::File { .. } => NodeClass::File,
+		&CacheNodeInt::Symlink { .. } => NodeClass::Symlink,
+		&CacheNodeInt::Special { .. } => NodeClass::Special,
 		}
 	}
 	pub fn is_dir(&self) -> bool {
@@ -296,8 +352,8 @@ impl CacheHandle
 	pub fn create(&self, name: &ByteStr, ty: NodeType) -> super::Result<CacheHandle> {
 		match self.as_ref()
 		{
-		&Node::Dir(ref r) => {
-			let inode = try!(r.create(name, ty));
+		&CacheNodeInt::Dir { ref fsnode, .. } => {
+			let inode = try!(fsnode.create(name, ty));
 			Ok( try!(CacheHandle::from_ids(self.mountpt, inode)) )
 			},
 		_ => Err( super::Error::Unknown("Calling create on non-directory") ),
@@ -306,18 +362,40 @@ impl CacheHandle
 	pub fn read_dir(&self, ofs: usize, items: &mut ReadDirCallback) -> super::Result<usize> {
 		match self.as_ref()
 		{
-		&Node::Dir(ref r) => Ok( try!(r.read(ofs, items)) ),
+		&CacheNodeInt::Dir { ref fsnode, .. } => Ok( try!(fsnode.read(ofs, items)) ),
 		_ => Err( super::Error::Unknown("Calling read_dir on non-directory") ),
 		}
 	}
 	pub fn open_child(&self, name: &ByteStr) -> super::Result<CacheHandle> {
 		match self.as_ref()
 		{
-		&Node::Dir(ref r) => {
-			let inode = try!(r.lookup(name));
+		&CacheNodeInt::Dir { ref fsnode, .. } => {
+			let inode = try!(fsnode.lookup(name));
 			Ok( try!(CacheHandle::from_ids(self.mountpt, inode)) )
 			},
 		_ => Err( super::Error::Unknown("Calling open_child on non-directory") ),
+		}
+	}
+}
+/// Directory methods (mountpoint)
+impl CacheHandle
+{
+	pub fn is_mountpoint(&self) -> bool {
+		match self.as_ref()
+		{
+		&CacheNodeInt::Dir { ref mountpoint, .. } => {
+			mountpoint.load(atomic::Ordering::Relaxed) != 0
+			},
+		_ => false,
+		}
+	}
+	pub fn mount(&self, filesystem_id: usize) -> bool {
+		match self.as_ref()
+		{
+		&CacheNodeInt::Dir { ref mountpoint, .. } => {
+			mountpoint.compare_and_swap(0, filesystem_id, atomic::Ordering::Relaxed) == 0
+			},
+		_ => false,
 		}
 	}
 }
@@ -328,14 +406,14 @@ impl CacheHandle
 	pub fn get_valid_size(&self) -> u64 {
 		match self.as_ref()
 		{
-		&Node::File(ref r) => r.size(),
+		&CacheNodeInt::File { ref fsnode, .. } => fsnode.size(),
 		_ => 0,
 		}
 	}
 	pub fn read(&self, ofs: u64, dst: &mut [u8]) -> super::Result<usize> {
 		match self.as_ref()
 		{
-		&Node::File(ref f) => Ok( try!(f.read(ofs, dst)) ),
+		&CacheNodeInt::File { ref fsnode, .. } => Ok( try!(fsnode.read(ofs, dst)) ),
 		_ => Err( super::Error::Unknown("Calling read on non-file") ),
 		}
 	}
@@ -348,15 +426,15 @@ impl CacheHandle
 	pub fn get_target(&self) -> super::Result<ByteString> {
 		match self.as_ref()
 		{
-		&Node::Symlink(ref l) => Ok(l.read()),
+		&CacheNodeInt::Symlink { ref fsnode, .. } => Ok(fsnode.read()),
 		_ => Err( super::Error::TypeMismatch ),
 		}
 	}
 }
 
-impl ::core::convert::AsRef<Node> for CacheHandle
+impl CacheHandle
 {
-	fn as_ref(&self) -> &Node {
+	fn as_ref(&self) -> &CacheNodeInt {
 		let lh = S_NODE_CACHE.lock();
 		// SAFE: While this handle is active, the box will be present
 		unsafe {

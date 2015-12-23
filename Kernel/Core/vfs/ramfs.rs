@@ -12,7 +12,8 @@ use lib::{VecMap,SparseVec};
 use lib::byte_str::{ByteStr,ByteString};
 use lib::mem::aref::{Aref,ArefInner,ArefBorrow};
 
-struct Driver;
+pub struct Driver;
+pub static S_DRIVER: Driver = Driver;
 
 enum RamFile
 {
@@ -49,8 +50,6 @@ struct RamFSInner
 	// - Possibly by using an allocation pool backed onto the volume
 	nodes: ::sync::Mutex< SparseVec<Aref<RamFile>> >,
 }
-
-static S_DRIVER: Driver = Driver;
 
 pub fn init()
 {

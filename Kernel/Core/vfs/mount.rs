@@ -5,7 +5,7 @@
 //! Mountpoint managment
 use prelude::*;
 use super::path::{Path,PathBuf};
-use super::node::{InodeId,Node};
+use super::node::{InodeId,Node,CacheHandle};
 use sync::RwLock;
 use lib::{LazyStatic,SparseVec,VecMap};
 
@@ -14,11 +14,12 @@ use metadevs::storage::VolumeHandle;
 /// A handle to a mounted filesystem
 pub struct Handle(usize);
 
-struct Mountpoint
+struct MountedVolume
 {
-	path: PathBuf,
-	volume_id: usize,
+	mountpoint_node: CacheHandle,
+	fs: Box<Filesystem>,
 }
+
 
 /// Filesystem instance trait (i.e. the instance)
 pub trait Filesystem:
@@ -40,17 +41,15 @@ pub struct DriverRegistration(&'static str);
 
 /// Known drivers
 static S_DRIVERS: LazyStatic<RwLock< VecMap<&'static str, &'static Driver> >> = lazystatic_init!();
-/// Active mountpoints
-static S_MOUNTS: LazyStatic<RwLock< Vec<Mountpoint> >> = lazystatic_init!();
 /// Mounted volumes
-static S_VOLUMES: LazyStatic<RwLock< SparseVec<Box<Filesystem>> >> = lazystatic_init!();
+static S_VOLUMES: LazyStatic<RwLock< SparseVec<MountedVolume> >> = lazystatic_init!();
+static S_ROOT_VOLUME: RwLock<Option<Box<Filesystem>>> = RwLock::new(None);
 
 pub fn init()
 {
 	// SAFE: Running in a single-threaded context
 	unsafe {
 		S_DRIVERS.prep( || Default::default() );
-		S_MOUNTS.prep( || Default::default() );
 		S_VOLUMES.prep( || Default::default() );
 	}
 }
@@ -78,28 +77,53 @@ pub fn mount(location: &Path, vol: VolumeHandle, fs: &str, _options: &[&str]) ->
 			None => return Err(MountError::UnknownFilesystem),
 			}
 		};
-	// 2. Check that mountpoint is valid
-	let mut mountpoints = S_MOUNTS.write();
-	// - Mount list is sorted by path, allows simpler logic in lookup
-	let idx = match mountpoints.binary_search_by(|a| Ord::cmp(&*a.path, location))
-		{
-		Ok(_) => return Err(MountError::MountpointUsed),
-		Err(i) => i,
-		};
 	
-	
-	// 3. Mount and register volume
-	let fs = match driver.mount(vol)
-		{
-		Ok(v) => v,
-		Err(_) => return Err(MountError::CallFailed),
-		};
-	let vidx = S_VOLUMES.write().insert(fs);
-	
-	mountpoints.insert(idx, Mountpoint {
-		path: PathBuf::from(location),
-		volume_id: vidx,
-		});
+	if location == Path::new("/")
+	{
+		let fs: Box<_> = match driver.mount(vol)
+			{
+			Ok(v) => v,
+			Err(_) => return Err(MountError::CallFailed),
+			};
+		let mut lh = S_ROOT_VOLUME.write();
+		if lh.is_some() {
+			todo!("Remount /");
+		}
+		*lh = Some(fs);
+	}
+	else
+	{
+		// 2. Acquire mountpoint
+		let nh = match CacheHandle::from_path(location)
+			{
+			Ok(nh) => nh,
+			Err(_) => return Err(MountError::InvalidMountpoint),
+			};
+		if ! nh.is_dir() {
+			return Err(MountError::InvalidMountpoint);
+		}
+		if nh.is_mountpoint() {
+			return Err(MountError::MountpointUsed);
+		}
+		
+		// 3. Mount and register volume
+		let fs = match driver.mount(vol)
+			{
+			Ok(v) => v,
+			Err(_) => return Err(MountError::CallFailed),
+			};
+		let vidx = S_VOLUMES.write().insert(MountedVolume {
+			mountpoint_node: nh.clone(),
+			fs: fs,
+			});
+		
+		// 4. Bind to mountpoint
+		if nh.mount( vidx + 1 ) == false {
+			S_VOLUMES.write().remove(vidx);
+			return Err(MountError::MountpointUsed);
+		}
+	}
+
 	Ok( () )
 }
 #[derive(Debug)]
@@ -107,6 +131,7 @@ pub enum MountError
 {
 	UnknownFilesystem,
 	NoHandler,
+	InvalidMountpoint,
 	MountpointUsed,
 	CallFailed,
 }
@@ -116,6 +141,7 @@ impl_fmt! {
 			{
 			&MountError::UnknownFilesystem => "Filesystem driver not found",
 			&MountError::NoHandler => "No registered filesystem driver handles this volume",
+			&MountError::InvalidMountpoint => "The specified mountpoint was invalid",
 			&MountError::MountpointUsed => "The specified mountpoint was already used",
 			&MountError::CallFailed => "Driver's mount call failed",
 			})
@@ -139,41 +165,36 @@ impl DriverRegistration
 
 impl Handle
 {
-	pub fn for_path(path: &Path) -> Result<(Handle,&Path),super::Error> {
-		log_trace!("Handle::for_path({:?})", path);
-		if !path.is_absolute() {
-			return Err(super::Error::MalformedPath);
-		}
-		// TODO: Does the path have to be normalised? Might want to accept 
-		if !path.is_normalised() {
-			return Err(super::Error::MalformedPath);
-		}
-		let lh = S_MOUNTS.read();
-		// Work backwards until a prefix match is found
-		// - The mount list is sorted, which means that longer items are later in the list
-		for ent in lh.iter().rev()
-		{
-			if let Some(tail) = path.starts_with( &ent.path ) {
-				log_debug!("Return {}'{:?}', tail={:?}", ent.volume_id, ent.path, tail);
-				return Ok( (Handle(ent.volume_id), tail) );
-			}
-		}
-		Err( super::Error::Unknown("/ mount is missing") )
-	}
 	pub fn from_id(id: usize) -> Handle {
-		assert!(S_VOLUMES.read().get(id).is_some());
-		Handle(id)
+		if id == 0 {
+			Handle(0)
+		}
+		else {
+			if ! S_VOLUMES.read().get(id-1).is_some() {
+				panic!("Handle::from_id - ID {} not valid", id);
+			}
+			Handle(id)
+		}
 	}
 	
 	pub fn id(&self) -> usize {
 		self.0
 	}
 	pub fn root_inode(&self) -> InodeId {
-		S_VOLUMES.read().get(self.0).unwrap().root_inode()
+		self.with_fs(|fs| fs.root_inode())
 	}
 	
 	pub fn get_node(&self, id: InodeId) -> Option<Node> {
-		S_VOLUMES.read().get(self.0).unwrap().get_node_by_inode(id)
+		self.with_fs(|fs| fs.get_node_by_inode(id))
+	}
+
+	fn with_fs<R, F: FnOnce(&Filesystem)->R>(&self, f: F) -> R {
+		if self.0 == 0 {
+			f(&**S_ROOT_VOLUME.read().as_ref().unwrap())
+		}
+		else {
+			f(&*S_VOLUMES.read().get(self.0 - 1).unwrap().fs)
+		}
 	}
 }
 

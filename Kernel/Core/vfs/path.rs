@@ -50,7 +50,7 @@ impl Path
 	}
 	
 	/// Return the first element of the path, and the remainder
-	fn split_off_first(&self) -> Option<(&ByteStr, &Path)> {
+	pub fn split_off_first(&self) -> Option<(&ByteStr, &Path)> {
 		if self.0.len() == 0 {
 			None
 		}
@@ -105,6 +105,11 @@ impl Path
 impl AsRef<[u8]> for Path {
 	fn as_ref(&self) -> &[u8] {
 		self.0.as_ref()
+	}
+}
+impl AsRef<ByteStr> for Path {
+	fn as_ref(&self) -> &ByteStr {
+		&self.0
 	}
 }
 impl AsRef<Path> for str {
