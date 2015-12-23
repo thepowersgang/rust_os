@@ -13,12 +13,13 @@ Mostly the architecture is being designed as I go along, but it will be written 
 - Kernel-provided window manager (yes, I know old windows did this)
 
 ## Progress
-- VFS
+- Filesystems
  - ISO9660
  - FAT12/16/32
 - Storage
  - (P)ATA
- - ATA CDROM
+ - SATA (AHCI)
+ - ATAPI CDROM
  - VirtIO Block
 - Input
  - PS2 Keyboard/Mouse
@@ -28,6 +29,7 @@ Mostly the architecture is being designed as I go along, but it will be written 
  - Login (Credentials are root/password)
  - "GUI Shell" (with background!)
  - Text Terminal app (with basic set of commands)
+ - Filesystem viewer
 - Architectures
  - amd64 (aka x86\_64) - Boots to limit of implementation
  - armv7 - Loads userland then crashes
@@ -35,6 +37,6 @@ Mostly the architecture is being designed as I go along, but it will be written 
 
 ## Build Dependencies
 - `nasm`
-- `imagemagick`
+- `imagemagick` (for graphics)
 - GNU Binutils (cross-compiled)
 - GCC (for ACPICA)
