@@ -196,6 +196,7 @@ fn sysinit()
 	handle::Dir::open(Path::new("/")).unwrap()
 		.symlink("sysroot", Path::new(&format!("/system/{}",sysroot)[..])).unwrap();
 	
+	//automount();
 	
 	// 3. Start 'init' (parent process)
 	// XXX: hard-code the sysroot path here to avoid having to handle symlinks yet
@@ -243,6 +244,15 @@ fn vfs_test()
 	
 	// *. TEST Automount
 	// - Probably shouldn't be included in the final version, but works for testing filesystem and storage drivers
+	automount();
+
+	//ls(Path::new("/mount/ATA-2w"));
+}
+fn automount()
+{
+	use metadevs::storage::VolumeHandle;
+	use vfs::{Path,mount,handle};
+
 	let mountdir = handle::Dir::open( Path::new("/") ).and_then(|h| h.mkdir("mount")).unwrap();
 	for (_,v) in ::metadevs::storage::enum_lvs()
 	{
@@ -262,7 +272,6 @@ fn vfs_test()
 		Err(e) => log_notice!("Unable to automount '{}': {:?}", v, e),
 		}
 	}
-	//ls(Path::new("/mount/ATA-2w"));
 }
 
 fn spawn_init(loader_path: &str, init_cmdline: &str)

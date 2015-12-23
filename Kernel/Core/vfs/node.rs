@@ -223,7 +223,7 @@ impl CacheHandle
 	pub fn from_ids(mountpoint: usize, inode: InodeId) -> super::Result<CacheHandle>
 	{
 		use lib::vec_map::Entry;
-		// TODO: Use a hashmap of some form and use a fixed-range allocation
+		// TODO: Use a hashmap of some form and use a fixed-range allocation (same as VMM code)
 		let ptr: *const _ = &**match S_NODE_CACHE.lock().entry( (mountpoint, inode) )
 			{
 			Entry::Occupied(mut e) =>
@@ -270,7 +270,9 @@ impl CacheHandle
 		log_function!("CacheHandle::from_path({:?})", path);
 		// TODO: Support path caching?
 		
-		let (first_comp, remaining) = try!( path.split_off_first().ok_or(super::Error::MalformedPath) );
+		// - Remove the leading / from the absolute path
+		//  > Also checks that it's actually abolsute
+		let (first_comp, path) = try!( path.split_off_first().ok_or(super::Error::MalformedPath) );
 		if first_comp.len() != 0 {
 			return Err(super::Error::MalformedPath);
 		}
@@ -278,8 +280,8 @@ impl CacheHandle
 		// Acquire the root vnode
 		let mph = super::mount::Handle::from_id(0);
 		let mut node_h = try!(CacheHandle::from_ids( mph.id(), mph.root_inode() ));
-		// Iterate components of the path that were not consumed by the mountpoint
-		for seg in remaining
+		// Iterate path components
+		for seg in path
 		{
 			// Loop resolving symbolic links
 			loop
@@ -295,12 +297,15 @@ impl CacheHandle
 						//TODO: To make this work (or any path-relative symlink), the current position in
 						//      `path` needs to be known.
 						// It can be hacked up though...
+						let parent_segs_len = seg.as_ref().as_ptr() as usize - AsRef::<[u8]>::as_ref(path).as_ptr() as usize;
+						let parent = ByteStr::new( &AsRef::<[u8]>::as_ref(path)[..parent_segs_len] );
+
 						//let segs = [ &path[..pos], &link ];
 						//let p = PathChain::new(&segs);
 						//try!( CacheHandle::from_path(p) )
 						// Recurse with a special chained path type
 						// (that iterates but can't be sliced).
-						todo!("Relative symbolic links {:?}", target)
+						todo!("Relative symbolic links {:?} relative to {:?}", target, parent)
 					}
 				}
 				else {
@@ -389,6 +394,7 @@ impl CacheHandle
 		_ => false,
 		}
 	}
+	/// Returns `true` if the mount binding succeeded
 	pub fn mount(&self, filesystem_id: usize) -> bool {
 		match self.as_ref()
 		{
