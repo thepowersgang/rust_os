@@ -1,6 +1,8 @@
+// "Tifflin" Kernel - ATA Driver
+// - By John Hodge (thePowersGang)
 //
-//
-//
+// Modules/storage_ata/volume.rs
+//! Generic ATA volume support
 use kernel::prelude::*;
 use kernel::metadevs::storage::{self, DataPtr};
 use kernel::async;
