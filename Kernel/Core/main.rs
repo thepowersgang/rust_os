@@ -196,7 +196,7 @@ fn sysinit()
 	handle::Dir::open(Path::new("/")).unwrap()
 		.symlink("sysroot", Path::new(&format!("/system/{}",sysroot)[..])).unwrap();
 	
-	//automount();
+	automount();
 	
 	// 3. Start 'init' (parent process)
 	// XXX: hard-code the sysroot path here to avoid having to handle symlinks yet

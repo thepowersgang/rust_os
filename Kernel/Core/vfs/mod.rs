@@ -28,6 +28,12 @@ pub enum Error
 	RecursionDepthExceeded,
 	/// Block-level IO Error
 	BlockIoError(::metadevs::storage::IoError),
+
+	/// Filesystem is read-only
+	ReadOnlyFilesystem,
+	/// Filesystem driver hit an internal consistency error
+	ConsistencyError,
+
 	/// Path was malformed (too long, not absolute, not normalised, ... depends)
 	MalformedPath,
 	/// Unknown (misc) error

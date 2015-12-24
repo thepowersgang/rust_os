@@ -159,6 +159,15 @@ impl<T> ArrayAlloc<T>
 	pub unsafe fn from_raw(ptr: *mut T, count: usize) -> ArrayAlloc<T> {
 		ArrayAlloc { ptr: Unique::new(ptr), count: count }
 	}
+	pub fn into_raw(self) -> *mut [T] {
+		let ptr = *self.ptr;
+		let count = self.count;
+		::core::mem::forget(self);
+		// SAFE: Takes ownership
+		unsafe {
+			::core::slice::from_raw_parts_mut(ptr, count)
+		}
+	}
 	
 	pub fn count(&self) -> usize { self.count }
 	
@@ -204,6 +213,12 @@ impl<T> ArrayAlloc<T>
 			log_warning!("ArrayAlloc<{}>::expand: Called with <= count", type_name!(T));
 			true
 		}
+	}
+	
+	pub fn shrink(&mut self, new_count: usize)
+	{
+		// TODO: 
+		log_warning!("TODO: ArrayAlloc::shrink");
 	}
 }
 impl_fmt!{

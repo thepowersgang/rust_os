@@ -46,6 +46,7 @@ pub use self::stack_dst_::stack_dst;
 pub mod io;
 pub mod byteorder;
 
+mod pod;
 
 pub mod num
 {
@@ -65,6 +66,9 @@ pub mod num
 	impl Int for u64 {
 		fn one() -> Self { 1 }
 	}
+	impl Int for u32 {
+		fn one() -> Self { 1 }
+	}
 	impl Int for usize {
 		fn one() -> Self { 1 }
 	}
@@ -73,6 +77,11 @@ pub mod num
 	pub fn round_up<T: Int+Copy>(val: T, target: T) -> T
 	{
 		return (val + target - Int::one()) / target * target;
+	}
+	/// Divide `num` by `den`, rounding up
+	pub fn div_up<T: Int+Copy>(num: T, den: T) -> T
+	{
+		return (num + den - Int::one()) / den;
 	}
 }
 
@@ -156,24 +165,7 @@ impl<'a,T> ::core::fmt::Pointer for SlicePtr<'a,T> {
 }
 
 
-pub unsafe trait POD: 'static {}
-unsafe impl POD for .. {}
-//impl<T: ::core::ops::Drop> !POD for T {}  // - I would love this, but it collides with every other !POD impl
-impl<T> !POD for ::core::cell::UnsafeCell<T> {}
-impl<T> !POD for ::core::ptr::Unique<T> {}
-impl<T> !POD for *const T {}
-impl<T> !POD for *mut T {}
-impl<'a, T> !POD for &'a T {}
-impl<'a, T> !POD for &'a mut T {}
-
-pub fn as_byte_slice<T: ?Sized + POD>(s: &T) -> &[u8] {
-	// SAFE: Plain-old-data
-	unsafe { ::core::slice::from_raw_parts(s as *const _ as *const u8, ::core::mem::size_of_val(s)) }
-}
-pub fn as_byte_slice_mut<T: ?Sized + POD>(s: &mut T) -> &mut [u8] {
-	// SAFE: Plain-old-data
-	unsafe { ::core::slice::from_raw_parts_mut(s as *mut _ as *mut u8, ::core::mem::size_of_val(s)) }
-}
+pub use self::pod::{POD, as_byte_slice, as_byte_slice_mut};
 
 /// Zip adapter for ExactSizeIterator (easier for the optimiser)
 pub struct ExactZip<A,B>(usize,A,B);

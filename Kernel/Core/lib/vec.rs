@@ -62,6 +62,16 @@ impl<T> Vec<T>
 			size: len,
 		}
 	}
+	pub fn into_boxed_slice(mut self) -> ::lib::mem::Box<[T]> {
+		let len = self.len();
+		self.data.shrink( len );
+		// SAFE: (assume) Box<[T]> == *mut [T]
+		unsafe {
+			let raw: *mut [T] = ::core::ptr::read(&self.data).into_raw();
+			::core::mem::forget(self);
+			::core::mem::transmute( raw )
+		}
+	}
 
 	/// Obtain a mutable pointer to an item within the vector
 	fn get_mut_ptr(&mut self, index: usize) -> *mut T

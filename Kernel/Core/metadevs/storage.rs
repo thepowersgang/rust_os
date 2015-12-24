@@ -17,6 +17,7 @@ pub type AsyncIoResult<'a, T> = ::async::BoxAsyncResult<'a, T, IoError>;
 pub struct VolumeHandle
 {
 	handle: ::lib::mem::Arc<LogicalVolume>,
+	// TODO: Store within this a single block cache? Or store on the LV?
 }
 
 /// Physical volume registration (PV will be deregistered when this handle is dropped)
@@ -459,6 +460,10 @@ impl VolumeHandle
 			rem -= count;
 		}
 		Ok( () )
+	}
+
+	pub fn write_blocks(&self, idx: u64, dst: &[u8]) -> Result<(),IoError> {
+		todo!("VolumeHandle::write_blocks");
 	}
 }
 

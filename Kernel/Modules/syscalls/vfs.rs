@@ -38,6 +38,8 @@ impl_from! {
 		Error::Locked => VFSError::FileLocked,
 		Error::MalformedPath => VFSError::MalformedPath,
 		Error::NonDirComponent
+		| Error::ConsistencyError
+		| Error::ReadOnlyFilesystem
 		| Error::RecursionDepthExceeded
 		| Error::BlockIoError(_)
 			=> todo!("VFS Error - {:?}", v),
