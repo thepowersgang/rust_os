@@ -31,7 +31,7 @@ impl Instance
 		let superblock_ofs = (1024 % vol_bs) as usize;
 
 		let (superblock, first_block) = {
-			let mut first_block: Vec<u32> = (0 .. ::core::cmp::max(1024, vol_bs)/4).map(|_|0).collect();
+			let mut first_block: Vec<u32> = vec![0; ::core::cmp::max(1024, vol_bs)/4];
 			try!(vol.read_blocks(superblock_idx, ::kernel::lib::as_byte_slice_mut(&mut first_block[..])));
 			(
 				::ondisk::Superblock::from_slice(&mut first_block[superblock_ofs ..][..1024/4]).data,
@@ -61,7 +61,7 @@ impl Instance
 
 			let groups_per_vol_block = vol_bs / ::core::mem::size_of::<::ondisk::GroupDesc>();
 
-			let mut gds: Vec<::ondisk::GroupDesc> = (0 .. num_groups).map(|_| Default::default()).collect();
+			let mut gds: Vec<::ondisk::GroupDesc> = vec![Default::default(); num_groups as usize];
 
 			let n_skip = if vol_bs % 1024 == 0 {
 					// Volume block size is larger than the superblock
@@ -95,7 +95,7 @@ impl Instance
 			if tail_count > 0
 			{
 				// Read a single volume block into a buffer, then populate from that
-				let mut buf: Vec<u8> = (0 .. vol_bs).map(|_| 0).collect();
+				let mut buf: Vec<u8> = vec![0; vol_bs];
 				try!(vol.read_blocks(block, &mut buf));
 				as_byte_slice_mut(&mut gds[rem_count + body_count ..]).clone_from_slice( &buf );
 			}
@@ -138,8 +138,31 @@ impl vfs::mount::Filesystem for Instance
 		::ondisk::S_IFREG => {
 			Some( node::Node::File( Box::new( ::file::File::new(inode) )  ) )
 			},
-		_ => None,
+		::ondisk::S_IFDIR => {
+			Some( node::Node::Dir( Box::new( ::dir::Dir::new(inode) )  ) )
+			},
+		v @ _ => {
+			log_warning!("TODO: Handle node format {} in extN get_node_by_inode", v >> 12);
+			None
+			},
 		}
+	}
+}
+
+impl InstanceInner
+{
+	/// Obtain a block (possibly cached)
+	pub fn get_block(&self, block: u32) -> vfs::node::Result<Box<[u32]>>
+	{
+		let mut rv = vec![0u32; self.fs_block_size / 4].into_boxed_slice();
+		try!( self.read_blocks( block, ::kernel::lib::as_byte_slice_mut(&mut rv) ) );
+		Ok(rv)
+	}
+	/// Read a sequence of blocks into a user-provided buffer
+	pub fn read_blocks(&self, first_block: u32, data: &mut [u8]) -> vfs::node::Result<()>
+	{
+		try!( self.vol.read_blocks( first_block as u64 * self.vol.block_size() as u64, data) );
+		Ok( () )
 	}
 }
 
@@ -155,6 +178,8 @@ impl InstanceInner
 
 		(base_blk_id + sub_blk_id as u64,  sub_blk_ofs as usize)
 	}
+
+	/// Read an inode descriptor from the disk
 	pub fn read_inode(&self, inode_num: u32) -> vfs::Result< ::ondisk::Inode >
 	{
 		let (vol_block, blk_ofs) = self.get_inode_pos(inode_num);
@@ -167,6 +192,7 @@ impl InstanceInner
 		}
 		Ok( rv )
 	}
+	/// Write an inode descriptor back to the disk
 	pub fn write_inode(&self, inode_num: u32, inode_data: ::ondisk::Inode) -> vfs::Result< () >
 	{
 		let (vol_block, blk_ofs) = self.get_inode_pos(inode_num);

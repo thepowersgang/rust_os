@@ -19,7 +19,7 @@
  - This same infrastructure can be used for blocked windows/processes
 
 
-# Filesystem permissions #
+# Filesystem #
 - Strict file/object permissions via handle permissions
  - Pass a set of directory handles to new processes, indicating what they can access
   - Extend object passing to use names for the passed handles
@@ -27,6 +27,8 @@
  - MAYBE disallow absolute paths?
  - A process can request a handle via a service (which presents the file/folder-open dialog)
  - Standard set of paths: "Root", "AppRoot", "AppData"
+- Remodel VFS to have split roots
+ - Things like sysroot with retargeted handles
 
 # GUI tweaks #
 - Tag group handle with the application name (for server-side identification)

@@ -7,7 +7,7 @@ use kernel::vfs;
 
 pub struct Inode
 {
-	fs: InstancePtr,
+	pub fs: InstancePtr,
 	inode_idx: u32,
 	ondisk: ::ondisk::Inode,
 }
@@ -30,12 +30,24 @@ impl Inode
 	pub fn i_mode_fmt(&self) -> u16 {
 		self.ondisk.i_mode & ::ondisk::S_IFMT
 	}
+	pub fn i_size(&self) -> u64 {
+		self.ondisk.i_size as u64
+	}
 }
 
 impl Inode
 {
 	pub fn get_id(&self) -> vfs::node::InodeId {
 		self.inode_idx as vfs::node::InodeId
+	}
+	pub fn max_blocks(&self) -> u32 {
+		let n_blocks = self.i_size() / self.fs.fs_block_size as u64;
+		if n_blocks > ::core::u32::MAX as u64 {
+			::core::u32::MAX
+		}
+		else {
+			n_blocks as u32
+		}
 	}
 }
 
@@ -75,6 +87,52 @@ impl Inode
 			let (blk, idx) = (idx / u32_per_fs_block, idx % u32_per_fs_block);
 			let (blk_o, blk_i) = (blk / u32_per_fs_block, blk % u32_per_fs_block);
 			todo!("Support triple-indirect {},{},{}", blk_o, blk_i, idx);
+		}
+	}
+
+
+	pub fn blocks(&self) -> Blocks//impl Iterator<Item=u32>
+	{
+		Blocks {
+			inode: self,
+			inner_idx: 0,
+			}
+		//(0 .. self.i_size() / self.fs.fs_block_size).map(|i| self.get_block_addr(i))
+	}
+	pub fn blocks_from(&self, start: u32) -> Blocks//impl Iterator<Item=u32>
+	{
+		Blocks {
+			inode: self,
+			inner_idx: start,
+			}
+	}
+}
+
+/// Iterator over block numbers owned by an inode
+pub struct Blocks<'a>
+{
+	inode: &'a Inode,
+	inner_idx: u32,
+}
+impl<'a> Blocks<'a>
+{
+	pub fn next_or_err(&mut self) -> ::kernel::vfs::node::Result<u32>
+	{
+		self.next().ok_or( ::kernel::vfs::node::IoError::Unknown("Unexpected end of node list") )
+	}
+}
+impl<'a> Iterator for Blocks<'a>
+{
+	type Item = u32;
+	fn next(&mut self) -> Option<u32>
+	{
+		if self.inner_idx >= self.inode.max_blocks() {
+			None
+		}
+		else {
+			let ba = self.inode.get_block_addr(self.inner_idx);
+			self.inner_idx += 1;
+			Some(ba)
 		}
 	}
 }

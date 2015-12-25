@@ -59,6 +59,7 @@ pub mod num
 		Self: ops::Sub<Output=Self>,
 		Self: ops::Mul<Output=Self>,
 		Self: ops::Div<Output=Self>,
+		Self: ops::Rem<Output=Self>,
 		Self: Sized
 	{
 		fn one() -> Self;
@@ -82,6 +83,11 @@ pub mod num
 	pub fn div_up<T: Int+Copy>(num: T, den: T) -> T
 	{
 		return (num + den - Int::one()) / den;
+	}
+	/// Divide+Remainder `num` by `den`
+	pub fn div_rem<T: Int+Copy>(num: T, den: T) -> (T,T)
+	{
+		return (num / den, num % den);
 	}
 }
 

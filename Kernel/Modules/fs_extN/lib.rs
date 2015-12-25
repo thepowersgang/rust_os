@@ -43,7 +43,7 @@ impl vfs::mount::Driver for Driver
 		let superblock_ofs = (1024 % bs) as usize;
 
 		let blk = {
-			let mut block: Vec<_> = (0 .. ::core::cmp::max(1024, bs)).map(|_|0).collect();
+			let mut block: Vec<u8> = vec![0; ::core::cmp::max(1024, bs) as usize];
 			try!(vol.read_blocks(superblock_idx, &mut block));
 			block
 			};

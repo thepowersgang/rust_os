@@ -3,6 +3,7 @@
 //
 // Modules/fs_extN/ondisk.rs
 //! On-disk structures
+#![allow(dead_code)]
 
 pub const S_MAGIC_OFS: usize = (3*4*4 + 2*4);
 
@@ -19,6 +20,11 @@ macro_rules! pod_impls {
 				unsafe { ::core::mem::zeroed() }
 			}
 		}
+	};
+}
+
+macro_rules! def_from_slice {
+	($t:ty) => {
 		impl $t {
 			#[allow(dead_code)]
 			pub fn from_slice(r: &mut [u32]) -> &mut Self {
@@ -79,6 +85,7 @@ impl Clone for SuperblockData {
 	fn clone(&self) -> Self { *self }
 }
 pod_impls!{ Superblock }
+def_from_slice!{ Superblock }
 
 #[repr(C)]
 pub struct Inode
@@ -103,6 +110,7 @@ pub struct Inode
 	pub _osd2: [u32; 3],	// OS Dependent #2 (Typically fragment info)
 }
 pod_impls!{ Inode }
+//def_from_slice!{ Inode }
 
 pub const S_IFMT: u16 = 0xF000;	// Format Mask
 pub const S_IFSOCK: u16 = 0xC000;	// Socket
@@ -142,4 +150,62 @@ pub struct GroupDesc
 	pub bg_reserved: [u32; 3],	// Reserved
 }
 pod_impls!{ GroupDesc }
+//def_from_slice!{ GroupDesc }
 
+
+
+#[repr(C)]
+pub struct DirEnt
+{
+	/// Inode number
+	pub d_inode: u32,
+	/// Directory entry length
+	pub d_rec_len: u16,
+	/// Name Length
+	pub d_name_len: u8,
+	/// File Type (Duplicate of ext2_inode_s.i_mode)
+	pub d_type: u8,
+	/// Actual file name
+	pub d_name: [u8],	// EXT2_NAME_LEN+1
+}
+pub const DIRENT_MIN_SIZE: usize = 8;
+
+//pod_impls!{ DirEnt }
+
+impl DirEnt
+{
+	pub fn new_raw(buf: &[u32], name_len: usize) -> *const DirEnt
+	{
+		// SAFE: Returns a raw pointer, alignment is valid though
+		unsafe {
+			::core::slice::from_raw_parts(buf.as_ptr() as *const u8, name_len) as *const [u8] as *const DirEnt
+		}
+	}
+	pub fn new(buf: &[u32]) -> Option<&DirEnt>
+	{
+		assert!(buf.len() >= 8);
+		// SAFE: 0 name length is valid
+		let rv0: &DirEnt = unsafe { &*Self::new_raw(buf, 0) };
+
+		let rec_len = rv0.d_rec_len as usize;
+		let name_len = rv0.d_name_len as usize;
+
+		if rec_len > buf.len() * 4 {
+			None
+		}
+		else if name_len + 8 > rec_len {
+			None
+		}
+		else {
+			// SAFE: Name length has just been checked
+			let rv_n = unsafe { &*Self::new_raw(buf, name_len) };
+			Some(rv_n)
+		}
+	}
+
+
+	/// Returns the number of 32-bit integers this entry takes up
+	pub fn u32_len(&self) -> usize {
+		(self.d_rec_len as usize + 3) / 4
+	}
+}
