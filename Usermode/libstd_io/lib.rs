@@ -1,9 +1,7 @@
 // Tifflin OS Usermode
 // - By John Hodge (thePowersGang)
 //
-// libstd_io
-#![feature(no_std)]
-#![feature(core_slice_ext,core_str_ext)]
+//! libstd's IO support
 #![no_std]
 use core::fmt;
 

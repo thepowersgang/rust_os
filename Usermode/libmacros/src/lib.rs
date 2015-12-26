@@ -1,4 +1,8 @@
-#![feature(no_std,core_intrinsics)]
+// Tifflin OS - Usermode Macros
+// - By John Hodge (thePowersGang)
+//
+//! Provides a collection of helpful macros
+#![feature(core_intrinsics)]
 #![no_std]
 
 #[macro_export]

@@ -1,9 +1,9 @@
+// Tifflin OS - Usermod Synchronisation
+// - By John Hodge (thePowersGang)
 //
-//
-//
-#![feature(no_std)]
-#![no_std]
+//! Usermode synchronisation primitives
 #![feature(const_fn)]
+#![no_std]
 
 pub use mutex::Mutex;
 

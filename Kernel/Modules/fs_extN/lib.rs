@@ -58,7 +58,7 @@ impl vfs::mount::Driver for Driver
 			try!(vol.read_blocks(superblock_idx, ::kernel::lib::as_byte_slice_mut(&mut block[..])));
 			block
 			};
-		let sb = &::ondisk::Superblock::from_slice(&blk[..1024/4]);
+		let sb = &::ondisk::Superblock::from_slice(&blk[superblock_ofs / 4 ..][..1024/4]);
 
 		if sb.data.s_magic == 0xEF53 {
 			// Legacy (no feature flags)

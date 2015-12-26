@@ -2,7 +2,6 @@
 // - By John Hodge (thePowersGang)
 //
 // Process management support (between syscalls and std)
-#![feature(no_std)]
 #![no_std]
 
 extern crate loader;

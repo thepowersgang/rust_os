@@ -335,12 +335,12 @@ macro_rules! impl_menu_items_tuple {
 // Only need one invocation, tuple args must be in reverse order.
 impl_menu_items_tuple! { self : I4 = self.4, I3 = self.3, I2 = self.2, I1 = self.1, I0 = self.0 }
 
-trait MenuItem {
+pub trait MenuItem {
 	fn dims(&self) -> ItemDims;
 	fn select(&self);
 	fn render(&self, surf: ::surface::SurfaceView, hover: bool);
 }
-struct ItemDims {
+pub struct ItemDims {
 	h: u32,
 	left_w: u32,
 	right_w: u32,

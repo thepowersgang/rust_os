@@ -2,7 +2,7 @@
 // - By John Hodge (thePowersGang)
 //
 // A dummy interface library that provides dynamically-linked interfaces to the loader
-#![feature(no_std,lang_items)]
+//#![feature(lang_items)]
 #![no_std]
 #![crate_type="dylib"]
 #![crate_name="loader"]

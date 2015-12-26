@@ -1,7 +1,7 @@
 // Tifflin OS - System Calls
 // - By John Hodge (thePowersGang)
 //
-// Provides wrappers around most system calls
+//! Provides wrappers around most system calls
 #![feature(clone_from_slice)]
 #![feature(core_intrinsics)]
 #![feature(asm)]
@@ -164,7 +164,8 @@ impl Drop for ObjectHandle {
 	}
 }
 
-trait Waits: Default {
+#[doc(hidden)]
+pub trait Waits: Default {
 	fn from_val(v: u32) -> Self;
 	fn into_val(self) -> u32;
 }
