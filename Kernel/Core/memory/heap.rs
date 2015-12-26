@@ -217,8 +217,19 @@ impl<T> ArrayAlloc<T>
 	
 	pub fn shrink(&mut self, new_count: usize)
 	{
-		// TODO: 
-		log_warning!("TODO: ArrayAlloc::shrink");
+		if new_count == self.count
+		{
+			// Nothing to do
+		}
+		else if new_count > self.count
+		{
+			log_warning!("ArrayAlloc::<{}>::shrink - Called with > count", type_name!(T));
+		}
+		else
+		{
+			// TODO: 
+			log_warning!("TODO: ArrayAlloc::shrink");
+		}
 	}
 }
 impl_fmt!{

@@ -404,6 +404,10 @@ impl VolumeHandle
 	pub fn block_size(&self) -> usize {
 		self.handle.block_size
 	}
+
+	pub fn name(&self) -> &str {
+		&self.handle.name
+	}
 	
 	// TODO: Return a more complex type that can be incremented
 	// Returns: VolIdx, Block, Count

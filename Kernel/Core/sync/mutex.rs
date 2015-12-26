@@ -21,9 +21,6 @@ pub struct MutexInner
 	queue: ::threads::WaitQueue,
 }
 
-#[doc(hidden)]
-pub const MUTEX_INNER_INIT: MutexInner = MutexInner { held: false, queue: ::threads::WAITQUEUE_INIT };
-
 // Mutexes are inherently sync
 unsafe impl<T: Send> Sync for Mutex<T> { }
 unsafe impl<T: Send> Send for Mutex<T> { }
@@ -37,6 +34,7 @@ pub struct HeldMutex<'lock,T:'lock+Send>
 /// A lazily populated mutex (must be initialised on/before first lock)
 pub struct LazyMutex<T: Send>(Mutex<Option<T>>);
 
+/// Wrapper handle for a held LazyMutex
 pub struct HeldLazyMutex<'a, T: Send+'a>( HeldMutex<'a, Option<T>> );
 
 impl<T: Send> Mutex<T>
@@ -44,7 +42,10 @@ impl<T: Send> Mutex<T>
 	/// Construct a new mutex-protected value
 	pub const fn new(val: T) -> Mutex<T> {
 		Mutex {
-			inner: ::sync::Spinlock::new(MUTEX_INNER_INIT),
+			inner: ::sync::Spinlock::new(MutexInner {
+				held: false,
+				queue: ::threads::WAITQUEUE_INIT
+				}),
 			val: ::core::cell::UnsafeCell::new(val),
 		}
 	}

@@ -89,7 +89,7 @@ pub trait File: NodeBase {
 	/// Read data from the file
 	fn read(&self, ofs: u64, buf: &mut [u8]) -> Result<usize>;
 	/// Write data to the file, can only grow the file if ofs==size
-	fn write(&self, ofs: u64, buf: &mut [u8]) -> Result<usize>;
+	fn write(&self, ofs: u64, buf: &[u8]) -> Result<usize>;
 }
 
 // TODO: Should this be &ByteStr instead of an iterator?
@@ -260,7 +260,7 @@ impl CacheHandle
 			}
 		}
 
-		log_trace!("CacheHandle::from_ids - rv={:?}", rv);
+		log_trace!("CacheHandle::from_ids() {:?}", rv);
 		Ok(rv)
 	}
 	
@@ -328,7 +328,7 @@ impl CacheHandle
 				_ => return Err(super::Error::NonDirComponent),
 				};
 		}
-		log_debug!("return {:?}", node_h);
+		log_trace!("CacheHandle::from_path() {:?}", node_h);
 		Ok( node_h )
 	}
 	
