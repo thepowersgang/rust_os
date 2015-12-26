@@ -27,65 +27,229 @@ macro_rules! def_from_slice {
 	($t:ty) => {
 		impl $t {
 			#[allow(dead_code)]
-			pub fn from_slice(r: &mut [u32]) -> &mut Self {
+			pub fn from_slice(r: &[u32]) -> &Self {
 				assert_eq!(r.len() * 4, ::core::mem::size_of::<Self>() );
 				// SAFE: Alignment is correct, (max is u32), size checked
 				unsafe {
-					let p = r.as_ptr() as *mut Self;
-					&mut *p
+					let p = r.as_ptr() as *const Self;
+					&*p
 				}
 			}
 		}
 	};
 }
 
-#[repr(C)]
+// Packed is required because the base data is an odd number of u32s long, and extension has u64s
+#[repr(packed,C)]
 pub struct Superblock
 {
 	pub data: SuperblockData,
-	pub _s_reserved: [u32; 235],	// Padding to the end of the block
+	pub ext: SuperblockDataExt,
+	pub _s_reserved: [u32; 98],
+	pub s_checksum: u32,
 }
+#[allow(dead_code)]
+// SAFE: Never called, and does POD transmutes
+fn _sb_size() { unsafe {
+	use core::mem::transmute;
+	let _: [u32; 0x54/4] = transmute(SuperblockData::default());
+	let _: [u32; (0x274-0x54)/4] = transmute(SuperblockDataExt::default());
+	let _: [u32; 1024/4] = transmute(Superblock::default());
+} }
+pod_impls!{ Superblock }
+def_from_slice!{ Superblock }
+
 #[repr(C)]
 pub struct SuperblockData
 {
 	pub s_inodes_count: u32,		// Inodes count
 	pub s_blocks_count: u32,		// Blocks count
 	pub s_r_blocks_count: u32,	// Reserved blocks count
-	pub s_free_blocks_count: u32,	// Free blocks count
 
+	pub s_free_blocks_count: u32,	// Free blocks count
 	pub s_free_inodes_count: u32,	// Free inodes count
+
 	pub s_first_data_block: u32,	// First Data Block
 	pub s_log_block_size: u32,	// Block size
-	pub s_log_frag_size: i32,	// Fragment size
+	pub s_log_cluster_size: i32,	// Cluster size [FEAT_RO_COMPAT_BIGALLOC]
 
 	pub s_blocks_per_group: u32,	// Number Blocks per group
-	pub s_frags_per_group: u32,	// Number Fragments per group
+	pub s_clusters_per_group: u32,	// Number of clusters per group
 	pub s_inodes_per_group: u32,	// Number Inodes per group
-	pub s_mtime: u32,			// Mount time
 
+	pub s_mtime: u32,			// Mount time
 	pub s_wtime: u32,			// Write time
+
 	pub s_mnt_count: u16,		// Mount count
 	pub s_max_mnt_count: i16,	// Maximal mount count
+
 	pub s_magic: u16,			// Magic signature
 	pub s_state: u16,			// File system state
 	pub s_errors: u16,			// Behaviour when detecting errors
-	pub s_pad: u16,				// Padding
+	pub s_minor_rev_level: u16,				// Padding
 
 	pub s_lastcheck: u32,		// time of last check
 	pub s_checkinterval: u32,	// max. time between checks
+
 	pub s_creator_os: u32,		// Formatting OS
 	pub s_rev_level: u32,		// Revision level
 
 	pub s_def_resuid: u16,		// Default uid for reserved blocks
 	pub s_def_resgid: u16,		// Default gid for reserved blocks
 }
+pod_impls!{ SuperblockData }
 
-impl Copy for SuperblockData {}
-impl Clone for SuperblockData {
-	fn clone(&self) -> Self { *self }
+#[repr(C)]
+pub struct SuperblockDataExt
+{
+	// The following fields are only valid if s_rev_level > 0
+	pub s_first_ino: u32,	// First valid inode
+	pub s_inode_size: u16,	// Size of inode structure in bytes
+	pub s_block_group_nr: u16,	// Block group number of this superblock (for backups)
+
+	/// Compatible feature set flags (see FEAT_COMPAT_*). Can mount full RW if unknown
+	pub s_feature_compat: u32,
+	/// Incompatible feature set flags (see FEAT_INCOMPAT_*). Can't mount if unknown
+	pub s_feature_incompat: u32,
+	/// Read-only compatible feature set flags (see FEAT_RO_COMPAT_*). Can read but can't write if unknown
+	pub s_feature_ro_compat: u32,
+
+	/// 128-bit volume UUID
+	pub s_uuid: [u8; 16],
+	/// Volume label
+	pub s_volume_name: [u8; 16],
+	/// Last mounted directory
+	pub s_last_mounted: [u8; 64],
+	
+	// FEAT_COMPAT_DIR_PREALLOC
+	pub s_prealloc_blocks: u8,
+	pub s_prealloc_dir_blocks: u8,
+	pub s_reserved_gdt_blocks: u16,
+
+	// FEAT_COMPAT_HAS_JOURNAL
+	pub s_journal_uuid: [u8; 16],
+	/// Inode number of the journal
+	pub s_journal_inum: u32,
+	/// Journal device number if an external journal is in use (FEAT_INCOMPAT_JOURNAL_DEV)
+	pub s_journal_dev: u32,
+
+
+	pub s_last_orphan: u32,
+	pub s_hash_seed: [u32; 4],
+	pub s_def_hash_version: u8,
+	pub s_jnl_backup_type: u8,
+
+	/// [FEAT_INCOMPAT_64BIT] Group descriptor size
+	pub s_desc_size: u16,
+	pub s_default_mount_opts: u32,
+	/// [FEAT_INCOMPAT_META_BG] First metadata block group
+	pub s_first_meta_bg: u32,
+	pub s_mkfs_time: u32,
+	pub s_jnl_blocks: [u32; 15+2],
+	// FEAT_INCOMPAT_64BIT
+	pub s_blocks_count_hi: u32,
+	pub s_r_blocks_count_hi: u32,
+	pub s_free_blocks_count_hi: u32,
+	pub s_min_extra_isize: u16,
+	pub s_want_extra_isize: u16,
+
+	pub s_flags: u32,
+	pub s_raid_stride: u16,
+	pub s_mmp_interval: u16,
+	pub s_mmp_block: u64,
+	pub s_raid_stripe_width: u32,
+	pub s_log_groups_per_flex: u8,
+	pub s_checksum_type: u8,
+	pub _s_reserved_pad: u16,
+
+	pub s_kbytes_written: u64,
+	// Snapshots
+	pub s_snapshot_inum: u32,
+	pub s_snapshot_id: u32,
+	pub s_snapshot_r_blocks_count: u64,
+	pub s_snapshot_list: u32,
+	// Error tracking
+	pub s_error_count: u32,
+	pub s_first_error_time: u32,
+	pub s_first_error_ino: u32,
+	pub s_first_error_block: u64,
+	pub s_first_error_func: [u8; 32],
+	pub s_first_error_line: u32,
+	// - Most recent error
+	pub s_last_error_time: u32,
+	pub s_last_error_ino: u32,
+	pub s_last_error_line: u32,
+	pub s_last_error_block: u64,
+	pub s_last_error_func: [u8; 32],
+
+	pub s_mount_opts: [u8; 64],
+	pub s_usr_quota_inum: u32,
+	pub s_grp_quota_inum: u32,
+	pub s_overhead_blocks: u32,
+	/// [FEAT_COMPAT_SPARSE_SUPER2]
+	pub s_backup_bgs: [u32; 2],
+	pub s_encrypt_algos: [u8; 4],
+	pub s_encrypt_pw_salt: [u8; 16],
+	/// Inode number of `lost+found` folder
+	pub s_lpf_ino: u32,
+	/// [FEAT_RO_COMPAT_PROJECT] Project quota inode
+	pub s_prj_quota_inum: u32,
+	pub s_checksum_seed: u32,
 }
-pod_impls!{ Superblock }
-def_from_slice!{ Superblock }
+pod_impls!{ SuperblockDataExt }
+
+macro_rules! def_bitset {
+	( $($v:expr => $name:ident,)* ) => {
+		$( pub const $name: u32 = 1 << $v; )*
+		};
+}
+
+def_bitset! {
+	 0 => FEAT_INCOMPAT_COMPRESSION,
+	 1 => FEAT_INCOMPAT_FILETYPE, 
+	 2 => FEAT_INCOMPAT_RECOVER, 
+	 3 => FEAT_INCOMPAT_JOURNAL_DEV,
+	 4 => FEAT_INCOMPAT_META_BG,
+	 5 => _FEAT_INCOMPAT_UNUSED,
+	 6 => FEAT_INCOMPAT_EXTENTS,	// Some files use extents
+	 7 => FEAT_INCOMPAT_64BIT,	// 64-bit block count
+	 8 => FEAT_INCOMPAT_MMP,	// Multiple mount protection
+	 9 => FEAT_INCOMPAT_FLEX_BG,	// Flexible block groups
+	10 => FEAT_INCOMPAT_EA_MODE,	// Inodes used for large extneded attributes
+	12 => FEAT_INCOMPAT_DIRDATA,	// Directory entry can contain data
+	13 => FEAT_INCOMPAT_CSUM_SEED,
+	14 => FEAT_INCOMPAT_LARGEDIR,	// Large Directories (>2GB) or 3-level htree
+	15 => FEAT_INCOMPAT_INLINE_DATA,	// Data stored in inode
+	16 => FEAT_INCOMPAT_ENCRYPT,	// Encrypted inodes present
+}
+
+def_bitset! {
+	 0 => FEAT_RO_COMPAT_SPARSE_SUPER,
+	 1 => FEAT_RO_COMPAT_LARGE_FILE,
+	 2 => FEAT_RO_COMPAT_BTREE_DIR,
+	 3 => FEAT_RO_COMPAT_HUGE_FILE,
+	 4 => FEAT_RO_COMPAT_GDT_CSUM,
+	 5 => FEAT_RO_COMPAT_DIR_NLINK,
+	 6 => FEAT_RO_COMPAT_EXTRA_ISIZE,
+	 7 => FEAT_RO_COMPAT_HAS_SNAPSHOT,
+	 8 => FEAT_RO_COMPAT_QUOTA,
+	 9 => FEAT_RO_COMPAT_BIGALLOC,
+	10 => FEAT_RO_COMPAT_METADATA_CSUM,
+	11 => FEAT_RO_COMPAT_REPLICA,
+	12 => FEAT_RO_COMPAT_READONLY,
+	13 => FEAT_RO_COMPAT_PROJECT,
+}
+
+pub const FEAT_COMPAT_DIR_PREALLOCT: u32 = (1 << 0);	// Directory Preallocation
+pub const FEAT_COMPAT_IMAGIC_INODES: u32 = (1 << 1);	// ?
+pub const FEAT_COMPAT_HAS_JOURNAL  : u32 = (1 << 2);
+pub const FEAT_COMPAT_EXT_ATTR     : u32 = (1 << 3);
+pub const FEAT_COMPAT_RESIZE_INODE : u32 = (1 << 4);
+pub const FEAT_COMPAT_DIR_INDEX    : u32 = (1 << 5);	// Directory indicies
+pub const FEAT_COMPAT_LAZY_BG      : u32 = (1 << 6);
+pub const FEAT_COMPAT_EXCLUDE_INODE: u32 = (1 << 7);
+pub const FEAT_COMPAT_EXCLUDE_BITMAP:u32 = (1 << 8);
+pub const FEAT_COMPAT_SPARSE_SUPER2: u32 = (1 << 9);
 
 #[repr(C)]
 pub struct Inode
@@ -124,18 +288,18 @@ pub const S_IFIFO: u16 = 0x1000;	// FIFO
 pub const S_ISUID: u16 = 0x0800;	// SUID
 pub const S_ISGID: u16 = 0x0400;	// SGID
 pub const S_ISVTX: u16 = 0x0200;	// sticky bit
-pub const S_IRWXU: u16 = 0700;	// user access rights mask
-pub const S_IRUSR: u16 = 0400;	// Owner Read
-pub const S_IWUSR: u16 = 0200;	// Owner Write
-pub const S_IXUSR: u16 = 0100;	// Owner Execute
-pub const S_IRWXG: u16 = 0070;	// Group Access rights mask
-pub const S_IRGRP: u16 = 0040;	// Group Read
-pub const S_IWGRP: u16 = 0020;	// Group Write
-pub const S_IXGRP: u16 = 0010;	// Group Execute
-pub const S_IRWXO: u16 = 0007;	// Global Access rights mask
-pub const S_IROTH: u16 = 0004;	// Global Read
-pub const S_IWOTH: u16 = 0002;	// Global Write
-pub const S_IXOTH: u16 = 0001;	// Global Execute
+pub const S_IRWXU: u16 =  0o700;	// user access rights mask
+pub const S_IRUSR: u16 =  0o400;	// Owner Read
+pub const S_IWUSR: u16 =  0o200;	// Owner Write
+pub const S_IXUSR: u16 =  0o100;	// Owner Execute
+pub const S_IRWXG: u16 =  0o070;	// Group Access rights mask
+pub const S_IRGRP: u16 =  0o040;	// Group Read
+pub const S_IWGRP: u16 =  0o020;	// Group Write
+pub const S_IXGRP: u16 =  0o010;	// Group Execute
+pub const S_IRWXO: u16 =  0o007;	// Global Access rights mask
+pub const S_IROTH: u16 =  0o004;	// Global Read
+pub const S_IWOTH: u16 =  0o002;	// Global Write
+pub const S_IXOTH: u16 =  0o001;	// Global Execute
 
 #[repr(C)]
 pub struct GroupDesc
@@ -164,6 +328,7 @@ pub struct DirEnt
 	/// Name Length
 	pub d_name_len: u8,
 	/// File Type (Duplicate of ext2_inode_s.i_mode)
+	/// NOTE: This is only populated if FEAT_INCOMPAT_FILETYPE is present
 	pub d_type: u8,
 	/// Actual file name
 	pub d_name: [u8],	// EXT2_NAME_LEN+1

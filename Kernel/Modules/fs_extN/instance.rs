@@ -14,7 +14,7 @@ pub type InstancePtr = ArefBorrow<InstanceInner>;
 pub struct InstanceInner
 {
 	pub vol: ::buffered_volume::BufferedVolume,
-	superblock: ::ondisk::SuperblockData,
+	superblock: ::ondisk::Superblock,
 	pub fs_block_size: usize,
 
 	group_descriptors: Vec<::ondisk::GroupDesc>,
@@ -33,26 +33,24 @@ impl Instance
 		let (superblock, first_block) = {
 			let mut first_block: Vec<u32> = vec![0; ::core::cmp::max(1024, vol_bs)/4];
 			try!(vol.read_blocks(superblock_idx, ::kernel::lib::as_byte_slice_mut(&mut first_block[..])));
+			assert!(superblock_ofs % 4 == 0);
 			(
-				::ondisk::Superblock::from_slice(&mut first_block[superblock_ofs ..][..1024/4]).data,
+				*::ondisk::Superblock::from_slice(&first_block[superblock_ofs/4 ..][..1024/4]),
 				first_block,
 				)
 			};
 
 		// - Limit block size to 1MB each
-		if superblock.s_log_block_size > 10 {
+		if superblock.data.s_log_block_size > 10 {
 			return Err(vfs::Error::Unknown("extN block size out of range"));
 		}
-		if superblock.s_log_frag_size > 10 {
-			return Err(vfs::Error::Unknown("extN fragment size out of range"));
-		}
 
-		let fs_block_size = 1024 << superblock.s_log_block_size as usize;
+		let fs_block_size = 1024 << superblock.data.s_log_block_size as usize;
 		if fs_block_size % vol_bs != 0 {
 			log_warning!("ExtN TODO: Handle filesystem block size smaller than disk block size?");
 			return Err(vfs::Error::ConsistencyError);
 		}
-		let num_groups = ::kernel::lib::num::div_up(superblock.s_blocks_count, superblock.s_blocks_per_group);
+		let num_groups = ::kernel::lib::num::div_up(superblock.data.s_blocks_count, superblock.data.s_blocks_per_group);
 
 		// Read group descriptor table
 		// - This always resides immediately after the superblock
@@ -208,7 +206,7 @@ impl InstanceInner
 impl InstanceInner
 {
 	fn s_inodes_per_group(&self) -> u32 {
-		self.superblock.s_inodes_per_group
+		self.superblock.data.s_inodes_per_group
 	}
 
 	fn vol_blocks_per_fs_block(&self) -> u64 {
@@ -216,7 +214,12 @@ impl InstanceInner
 	}
 
 	fn s_inode_size(&self) -> usize {
-		128
+		if self.superblock.data.s_rev_level > 0 {
+			self.superblock.ext.s_inode_size as usize
+		}
+		else {
+			128
+		}
 	}
 }
 

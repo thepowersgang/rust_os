@@ -100,7 +100,7 @@ impl node::File for FileNode {
 		Ok( read_length )
 	}
 	/// Write data to the file, can only grow the file if ofs==size
-	fn write(&self, ofs: u64, buf: &mut [u8]) -> node::Result<usize> {
+	fn write(&self, ofs: u64, buf: &[u8]) -> node::Result<usize> {
 		todo!("FileNode::write({:#x}, {:p})", ofs, ::kernel::lib::SlicePtr(buf));
 	}
 }

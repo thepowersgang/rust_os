@@ -101,7 +101,7 @@ impl vfs::node::File for File
 	fn clear(&self, ofs: u64, size: u64) -> vfs::node::Result<()> {
 		todo!("clear");
 	}
-	fn write(&self, ofs: u64, buf: &mut [u8]) -> vfs::node::Result<usize> {
+	fn write(&self, ofs: u64, buf: &[u8]) -> vfs::node::Result<usize> {
 		todo!("write");
 	}
 }
