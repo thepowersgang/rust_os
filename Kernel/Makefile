@@ -80,7 +80,7 @@ RUSTFLAGS += -C target-feature=$(subst $(space),$(comma),$(EXCLUDE_FEATURES:%=-%
 RUSTFLAGS += -Z no-landing-pads
 RUSTFLAGS += --cfg 'arch="$(ARCH)"'
 RUSTFLAGS += -L bin/plugins/
-RUSTFLAGS += --cfg nightly --cfg no_std
+RUSTFLAGS += --cfg nightly --cfg no_std --cfg 'feature="no_std"'
 RUSTFLAGS += --cfg disable_float
 #RUSTFLAGS += -C save-temps
 ifeq ($(USE_ACPICA),1)
