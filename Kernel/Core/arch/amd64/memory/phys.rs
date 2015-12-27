@@ -85,14 +85,10 @@ pub fn mark_free(frame_idx: u64) -> bool {
 pub fn mark_used(frame_idx: u64) {
 	let mask = 1 << ((frame_idx % 32) as usize);
 	with_bm_alloc( (frame_idx / 32) as usize, |c| {
+		// Should always succeed due to write lock in `with_bm_alloc`
 		let mut old = c.load(Ordering::Relaxed);
-		loop
-		{
-			let new_old = c.compare_and_swap(old, old | mask, Ordering::Relaxed);
-			assert_eq!(new_old, old);
-			old = new_old;
-			return ;
-		}
+		let new_old = c.compare_and_swap(old, old | mask, Ordering::Relaxed);
+		assert_eq!(new_old, old);
 		})
 }
 
