@@ -14,6 +14,8 @@ pub const EMPTY: *mut u8 = 1 as *mut u8;
 
 static S_GLOBAL_HEAP: Mutex<AllocState> = Mutex::new(AllocState { start: 0 as *mut _, past_end: 0 as *mut _ } );
 
+const MIN_BLOCK_SIZE: usize = 8*::core::usize::BYTES;
+
 // Used by Box<T>
 #[lang="exchange_malloc"]
 pub unsafe fn exchange_malloc(size: usize, align: usize) -> *mut u8
@@ -31,6 +33,7 @@ pub unsafe fn exchange_free(ptr: *mut u8, _size: usize, align: usize)
 }
 
 
+/// Allocate a pointer to a known-typed value and populate it
 pub fn alloc_typed<T>(value: T) -> *mut T
 {
 	match S_GLOBAL_HEAP.lock().allocate(size_of::<T>(), align_of::<T>())
@@ -107,12 +110,13 @@ struct AllocState
 }
 unsafe impl Send for AllocState {}
 
+#[derive(Debug)]
 struct Block
 {
 	size: usize,
 	state: BlockState,
 }
-#[derive(PartialEq)]
+#[derive(PartialEq,Debug)]
 enum BlockState
 {
 	Free,
@@ -128,20 +132,26 @@ impl AllocState
 	pub fn allocate(&mut self, size: usize, align: usize) -> Result<*mut (), ()>
 	{
 		if size == 0 {
+			kernel_log!("allocate({}, {}) = {:p}", size, align, EMPTY);
 			return Ok( EMPTY as *mut () );
 		}
 		if self.start == self.past_end {
 			self.extend_reservation(size);
 
 			let block = self.last_block();
-			return Ok(block.allocate(size, align));
+			let rv = block.allocate(size, align);
+			kernel_log!("allocate({}, {}) = {:p}", size, align, rv);
+			return Ok(rv);
 		}
 		
 		for block in self.free_blocks()
 		{
 			// TODO: Block split
-			if block.capacity(align) >= size {
-				return Ok(block.allocate(size, align));
+			if block.capacity(align) >= size
+			{
+				let rv = block.allocate(size, align);
+				kernel_log!("allocate({}, {}) = {:p}", size, align, rv);
+				return Ok(rv);
 			}
 		}
 
@@ -149,7 +159,9 @@ impl AllocState
 		self.extend_reservation(size - current_extra);
 
 		let block = self.last_block();
-		return Ok(block.allocate(size, align));
+		let rv = block.allocate(size, align);
+		kernel_log!("allocate({}, {}) = {:p}", size, align, rv);
+		return Ok( rv );
 	}
 	/// Returns 'true' if expanding succeeded
 	pub unsafe fn try_expand(&mut self, ptr: *mut (), size: usize, align: usize) -> bool {
@@ -162,17 +174,35 @@ impl AllocState
 		}
 		else {
 			let bp = Block::ptr_from_ptr(ptr, align);
-			if (*bp).capacity(align) > size {
-				(*bp).state = BlockState::Used( size );
+			let bp = &mut *bp;
+			if bp.capacity(align) > size {
+				bp.state = BlockState::Used( size );
+				kernel_log!("expand(bp={:p}, {}, {}) = true", bp, size, align);
 				true
 			}
 			else {
-				let n = (*bp).next();
+				let n = bp.next();
 				if n == self.past_end {
 					false
 				}
-				else if (*n).self_free().is_some() {
-					todo!("AllocState::try_expand - Next is free");
+				else if let Some(v) = (*n).self_free() {
+					if bp.capacity(align) + v.size > size
+					{
+						// The next block is free, and has sufficient shared capacicty
+						let new_size = bp.size + v.size;
+						// - Resize this block to cover the next block (effectively deleting it)
+						bp.initialise( new_size );
+						// - Allocate this block again (potentially splitting it)
+						bp.allocate( size, align );
+						kernel_log!("expand(bp={:p}, {}, {}) = true", bp, size, align);
+
+						true
+					}
+					else
+					{
+						// Insufficient space in the next block
+						false
+					}
 				}
 				else {
 					false
@@ -181,22 +211,22 @@ impl AllocState
 		}
 	}
 	pub unsafe fn deallocate(&mut self, ptr: *mut (), align: usize) {
-		if ptr == 1 as *mut () {
+		if ptr == EMPTY as *mut () {
 			// Nothing needs to be done, as the allocation was empty
 		}
 		else {
 			let bp = Block::ptr_from_ptr(ptr, align);
-			(*bp).state = BlockState::Free;
-			let np = (*bp).next();
+			let bp = &mut *bp;
+			kernel_log!("deallocate(bp={:p}, align={})", bp, align);
+			bp.state = BlockState::Free;
+
+			let np = bp.next();
 			if np == self.past_end {
 				// Final block
 			}
 			else if let Some(next) = (*np).self_free() {
-				let size = next.size;
-				let foot = next.tail();
-				(*bp).size += size;
-				assert_eq!((*bp).tail() as *mut BlockTail, foot as *mut _);
-				*foot = BlockTail { head_ptr: bp, };
+				let new_size = bp.size + next.size;
+				bp.initialise( new_size );
 			}
 			else {
 				// Next block isn't free, can't merge
@@ -256,6 +286,7 @@ impl<'a> ::std::iter::Iterator for FreeBlocks<'a>
 				self.cur = (*self.cur).next();
 				&mut *bp
 				};
+			//kernel_log!("FreeBlocks::next() - block={:p} {:?}", block, block);
 			if let BlockState::Free = block.state {
 				return Some(block);
 			}
@@ -336,11 +367,25 @@ impl Block
 	fn allocate(&mut self, size: usize, align: usize) -> *mut () {
 		let dataofs = self.get_data_ofs(align);
 		assert!(dataofs == size_of::<Block>());
-		kernel_log!("Block:allocate(self={:p}, size={:#x}, align={}) cap = {:#x}", self, size, align, self.capacity(align));
+		kernel_log!("Block::allocate(self={:p}, size={:#x}, align={}) cap = {:#x}", self, size, align, self.capacity(align));
 		assert!(size <= self.capacity(align));
 
+		if self.capacity(align) - size > MIN_BLOCK_SIZE
+		{
+			const BLOCK_ALIGN: usize = 2*::core::usize::BYTES;
+			let new_self_size = (size_of::<Block>() + size + size_of::<BlockTail>() + BLOCK_ALIGN-1) & !(BLOCK_ALIGN-1);
+			let new_other_size = self.size - new_self_size;
+			// SAFE: Unique access, new block is valid (part of old block)
+			unsafe {
+				self.initialise(new_self_size);
+				let next = &mut *self.next();
+				next.initialise(new_other_size);
+			}
+			assert!(size <= self.capacity(align));
+			kernel_log!("- resized to cap = {:#x}", self.capacity(align));
+		}
+		//kernel_log!("- {}/{} bytes used", size, self.capacity(align));
 		self.state = BlockState::Used(size);
 		(self as *mut Block as usize + dataofs) as *mut ()
 	}
 }
-
