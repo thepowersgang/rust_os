@@ -86,7 +86,7 @@ pub fn mark_used(frame_idx: u64) {
 	let mask = 1 << ((frame_idx % 32) as usize);
 	with_bm_alloc( (frame_idx / 32) as usize, |c| {
 		// Should always succeed due to write lock in `with_bm_alloc`
-		let mut old = c.load(Ordering::Relaxed);
+		let old = c.load(Ordering::Relaxed);
 		let new_old = c.compare_and_swap(old, old | mask, Ordering::Relaxed);
 		assert_eq!(new_old, old);
 		})

@@ -15,7 +15,7 @@ QEMU_ARGS += -d int,guest_errors -D qemu_int_log.txt
 ifneq ($(QEMU_STALL),)
 	QEMU_ARGS += -S
 endif
-CMDLINE := SYSROOT=Tifflin
+CMDLINE := SYSROOT=/system/Tifflin
 
 
 ifeq ($(NOTEE),)

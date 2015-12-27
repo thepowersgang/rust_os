@@ -102,7 +102,6 @@ enum BootInfo
 	Multiboot(MultibootParsed),
 }
 
-struct PSlice(::memory::PAddr, usize);
 enum SymbolInfo
 {
 	None,
@@ -241,7 +240,6 @@ impl MultibootParsed
 			type Elf32_Addr = u32;
 			#[allow(non_camel_case_types)]
 			type Elf32_Off = u32;
-			#[derive(Debug)]
 			struct ShEnt {
 				sh_name: Elf32_Word,
 				sh_type: Elf32_Word,
@@ -253,6 +251,14 @@ impl MultibootParsed
 				sh_info: Elf32_Word,
 				sh_addralign: Elf32_Word,
 				sh_entsize: Elf32_Word,
+			}
+			impl_fmt! {
+				Debug(self, f) for ShEnt {
+					write!(f, "ShEnt {{ name: {}, type: {}, flags: {:x}h, addr: {:#x}, offset: {:#x}, size: {:#x}, link: {}, info: {:#x}, addralign: {}, entsize: {} }}",
+						self.sh_name, self.sh_type, self.sh_flags, self.sh_addr, self.sh_offset, self.sh_size, self.sh_link,
+						self.sh_info, self.sh_addralign, self.sh_entsize
+						)
+				}
 			}
 			assert_eq!( ::core::mem::size_of::<ShEnt>(), size as usize );
 			// SAFE: No aliasing

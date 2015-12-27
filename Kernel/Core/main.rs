@@ -171,6 +171,9 @@ fn sysinit()
 	use metadevs::storage::VolumeHandle;
 	use vfs::{mount,handle};
 	use vfs::Path;
+
+	// TODO: Should I automount at startup, then use chroot magic?
+	//automount();
 	
 	// 1. Mount /system to the specified volume
 	let sysdisk = ::config::get_string(::config::Value::SysDisk);
@@ -194,31 +197,29 @@ fn sysinit()
 	let sysroot = ::config::get_string(::config::Value::SysRoot);
 	log_debug!("sysroot = \"{}\"", sysroot);
 	handle::Dir::open(Path::new("/")).unwrap()
-		.symlink("sysroot", Path::new(&format!("/system/{}",sysroot)[..])).unwrap();
-	
-	//automount();
+		.symlink("sysroot", Path::new(&sysroot[..])).unwrap();
 	
 	vfs_test();
 	
-	// 3. Start 'init' (parent process)
-	// XXX: hard-code the sysroot path here to avoid having to handle symlinks yet
-	match spawn_init("/system/Tifflin/bin/loader", "/system/Tifflin/bin/init")
+	// 3. Start 'init' (root process) using the userland loader
+	let loader = ::config::get_string(::config::Value::Loader);
+	let init = ::config::get_string(::config::Value::Init);
+	match spawn_init(loader, init)
 	{
 	Ok(_) => unreachable!(),
 	Err(e) => panic!("Failed to start init: {}", e),
 	}
-	//spawn_init("/sysroot/bin/loader", "/sysroot/bin/init");
 }
 
 //#[cfg(DISABLED)]
 fn vfs_test()
 {
-	use metadevs::storage::VolumeHandle;
-	use vfs::{mount,handle};
+	use vfs::handle;
 	use vfs::Path;
 	
 	fn ls(p: &Path) {
 		// - Iterate root dir
+		log_log!("ls({:?})", p);
 		match handle::Dir::open(p)
 		{
 		Err(e) => log_warning!("'{:?}' cannot be opened: {:?}", p, e),
@@ -296,7 +297,6 @@ fn spawn_init(loader_path: &str, init_cmdline: &str) -> Result<Void, &'static st
 		init_path_len: u32,
 		entrypoint: usize,
 	}
-	const MAGIC: u32 = 0x71FF1013;
 	#[allow(dead_code)]
 	#[repr(C,u8)]
 	enum ArchValues {
@@ -308,6 +308,7 @@ fn spawn_init(loader_path: &str, init_cmdline: &str) -> Result<Void, &'static st
 	#[cfg(arch="amd64")]	const LOAD_MAX: usize = 1 << 47;
 	#[cfg(arch="armv7")]	const ARCH: ArchValues = ArchValues::ARMv7;
 	#[cfg(arch="armv7")]	const LOAD_MAX: usize = (1 << 31) - (4 << 20);
+	const MAGIC: u32 = 0x71FF1013;
 	const INFO: u32 = (5*4 + ::core::usize::BYTES as u32) | ((ARCH as u8 as u32) << 8);
 	
 	log_log!("Loading userland '{}' args '{}'", loader_path, init_cmdline);
@@ -338,7 +339,7 @@ fn spawn_init(loader_path: &str, init_cmdline: &str) -> Result<Void, &'static st
 	// - 2. Parse the header
 	// SAFE: LoaderHeader is POD, and pointer is valid
 	let header_ptr = unsafe { &*(load_base as *const LoaderHeader) };
-	if header_ptr.magic != 0x71FF1013 || header_ptr.info != INFO {
+	if header_ptr.magic != MAGIC || header_ptr.info != INFO {
 		log_error!("Loader header is invalid: magic {:#x} != {:#x} or info {:#x} != {:#x}",
 			header_ptr.magic, MAGIC, header_ptr.info, INFO);
 		return Err("Loader invalid");
@@ -365,20 +366,19 @@ fn spawn_init(loader_path: &str, init_cmdline: &str) -> Result<Void, &'static st
 		log_error!("Userland init string location out of range: {:#x}", header_ptr.init_path_ofs);
 		return Err("Loader invalid");
 	}
-	// TODO: Write loader arguments into the provided location
-	// TODO: Should the argument string length be passed down to the user? In memory, or via a register?
 	// SAFE: Addresses are checked
 	let argslen = unsafe {
-		assert!(header_ptr.init_path_ofs as usize + header_ptr.init_path_len as usize <= memsize);
-		::core::slice::from_raw_parts_mut(
-				(load_base + header_ptr.init_path_ofs as usize) as *mut u8,
-				header_ptr.init_path_len as usize
-				)
-			.clone_from_slice(init_cmdline.as_bytes())
+		let init_path_ofs = header_ptr.init_path_ofs as usize;
+		let init_path_len = header_ptr.init_path_len as usize;
+		assert!(init_path_ofs <= memsize);
+		assert!(init_path_ofs + init_path_len <= memsize);
+		let cmdline_buf_base = load_base + init_path_ofs;
+		let cmdline_buf = ::core::slice::from_raw_parts_mut(cmdline_buf_base as *mut u8, init_path_len);
+		cmdline_buf.clone_from_slice( init_cmdline.as_bytes() )
 		};
 	
 	// - 6. Enter userland
-	if header_ptr.entrypoint < load_base || header_ptr.entrypoint >= load_base + LOAD_MAX {
+	if ! ( load_base <= header_ptr.entrypoint && header_ptr.entrypoint < LOAD_MAX ) {
 		log_error!("Userland entrypoint out of range: {:#x}", header_ptr.entrypoint);
 		return Err("Loader invalid");
 	}
@@ -393,6 +393,7 @@ fn spawn_init(loader_path: &str, init_cmdline: &str) -> Result<Void, &'static st
 	// > Forget the loader handle too
 	// TODO: Instead hand this handle over to the syscall layer, as the first user file
 	//forget(loader);
+	
 	log_notice!("Entering userland at {:#x} '{}' '{}'", header_ptr.entrypoint, loader_path, init_cmdline);
 	// SAFE: This pointer is as validated as it can be...
 	unsafe {

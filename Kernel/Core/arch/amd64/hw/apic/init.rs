@@ -78,7 +78,7 @@ pub enum MADTDevRecord<'a>
 	DevLAPICAddr(&'a MADT_LAPICAddr),
 }
 
-struct MADTRecords<'a>
+pub struct MADTRecords<'a>
 {
 	madt: &'a ACPI_MADT,
 	pos: usize,

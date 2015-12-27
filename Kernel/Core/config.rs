@@ -12,10 +12,17 @@ pub enum Value
 	SysDisk,
 	/// VFS - Path relative to the root of SysDisk where Tifflin was installed
 	SysRoot,
+
+	/// Startup - Loader executable
+	Loader,
+	/// Startup - Init executable (first userland process)
+	Init,
 }
 
 static mut S_SYSDISK: Option<&'static str> = None;
 static mut S_SYSROOT: Option<&'static str> = None;
+static mut S_INIT: Option<&'static str> = None;
+static mut S_LOADER: Option<&'static str> = None;
 
 pub fn init(cmdline: &'static str)
 {
@@ -53,6 +60,8 @@ pub fn get_string(val: Value) -> &'static str
 		{
 		Value::SysDisk => S_SYSDISK.unwrap_or("ATA-0p0"),
 		Value::SysRoot => S_SYSROOT.unwrap_or("/system/Tifflin"),
+		Value::Init   => S_INIT.unwrap_or("/sysroot/bin/init"),
+		Value::Loader => S_LOADER.unwrap_or("/sysroot/bin/loader"),
 		}
 	}
 }
