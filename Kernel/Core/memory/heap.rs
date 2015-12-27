@@ -63,6 +63,7 @@ pub struct ArrayAlloc<T>
 	ptr: Unique<T>,
 	count: usize,
 }
+impl<T> !::lib::POD for ArrayAlloc<T> {}
 
 // Curse no CTFE
 //const HEADERS_SIZE: usize = ::core::mem::size_of::<HeapHead>() + ::core::mem::size_of::<HeapFoot>();
@@ -227,8 +228,10 @@ impl<T> ArrayAlloc<T>
 		}
 		else
 		{
-			// TODO: 
-			log_warning!("TODO: ArrayAlloc::shrink");
+			let newsize = ::core::mem::size_of::<T>() * new_count;
+			// SAFE: Pointer is valid, and raw pointer is being manipulated (lifetimes up to the caller)
+			unsafe { shrink(*self.ptr as *mut (), newsize) };
+			self.count = new_count;
 		}
 	}
 }
@@ -262,6 +265,10 @@ unsafe fn allocate(heap: HeapId, size: usize, align: usize) -> Option<*mut ()>
 unsafe fn expand(pointer: *mut (), newsize: usize) -> bool
 {
 	s_global_heap.lock().expand_alloc(pointer, newsize)
+}
+unsafe fn shrink(pointer: *mut (), newsize: usize)
+{
+	s_global_heap.lock().shrink_alloc(pointer, newsize)
 }
 
 unsafe fn deallocate(pointer: *mut (), size: usize, align: usize)
@@ -401,9 +408,37 @@ impl HeapDef
 			headptr.state = HeapState::Used(size);
 			true
 		}
+		// TODO: Can this expand into the next block?
 		else
 		{
 			false
+		}
+	}
+	pub unsafe fn shrink_alloc(&mut self, ptr: *mut (), new_size: usize)
+	{
+		let headers_size = ::core::mem::size_of::<HeapHead>() + ::core::mem::size_of::<HeapFoot>();
+		
+		// Quick check: Zero allocation can't grow or shrink
+		if ptr == ZERO_ALLOC {
+			assert!(new_size == 0, "Calling shrink_alloc on ZERO_ALLOC with new_size!=0");
+			return ;
+		}
+		
+		let headptr = {
+			let hp = (ptr as *mut HeapHead).offset(-1);
+			assert!( (hp as usize) >= self.start as usize );
+			assert!( (hp as usize) < self.last_foot as usize );
+			&mut *hp
+			};
+
+		match headptr.state
+		{
+		HeapState::Used(ref mut sz) => {
+			// TODO: Split block if possible
+			assert!(*sz >= new_size, "Calling shrink_alloc with a larger size");
+			*sz = new_size;
+			},
+		HeapState::Free(..) => panic!("Calling shrink_alloc on a free block ({:p})", ptr),
 		}
 	}
 	
