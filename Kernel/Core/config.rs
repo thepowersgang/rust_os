@@ -3,52 +3,13 @@
 //
 // Core/config.rs
 //! Boot-time configuration managment
-#[allow(unused_imports)]
-use prelude::*;
-
-pub enum Value
-{
-	/// VFS - Volume to mount as the 'system' disk
-	SysDisk,
-	/// VFS - Path relative to the root of SysDisk where Tifflin was installed
-	SysRoot,
-
-	/// Startup - Loader executable
-	Loader,
-	/// Startup - Init executable (first userland process)
-	Init,
-}
-
-static mut S_SYSDISK: Option<&'static str> = None;
-static mut S_SYSROOT: Option<&'static str> = None;
-static mut S_INIT: Option<&'static str> = None;
-static mut S_LOADER: Option<&'static str> = None;
+// NOTE: See the bottom of the file for the runtime configuration options
 
 pub fn init(cmdline: &'static str)
 {
-	for ent in cmdline.split(' ')
-	{
-		let mut it = ent.splitn(2, '=');
-		let tag = it.next().unwrap();
-		let value = it.next();
-		match tag
-		{
-		"SYSDISK" =>
-			match value
-			{
-			// SAFE: Called in single-threaded context
-			Some(v) => unsafe { S_SYSDISK = Some(v); },
-			None => log_warning!("SYSDISK requires a value"),
-			},
-		"SYSROOT" =>
-			match value
-			{
-			// SAFE: Called in single-threaded context
-			Some(v) => unsafe { S_SYSROOT = Some(v); },
-			None => log_warning!("SYSDISK requires a value"),
-			},
-		v @ _ => log_warning!("Unknown option '{}", v),
-		}
+	// SAFE: Called in a single-threaded context
+	unsafe {
+		S_CONFIG.init(cmdline);
 	}
 }
 
@@ -56,13 +17,79 @@ pub fn get_string(val: Value) -> &'static str
 {
 	// SAFE: No mutation should happen when get_string is being called
 	unsafe {
-		match val
-		{
-		Value::SysDisk => S_SYSDISK.unwrap_or("ATA-0p0"),
-		Value::SysRoot => S_SYSROOT.unwrap_or("/system/Tifflin"),
-		Value::Init   => S_INIT.unwrap_or("/sysroot/bin/init"),
-		Value::Loader => S_LOADER.unwrap_or("/sysroot/bin/loader"),
-		}
+		S_CONFIG.get_str(val)
 	}
 }
+
+
+macro_rules! def_config_set {
+	(
+		$enum_name:ident in $struct_name:ident : {
+			$(
+			//$($at:meta)*
+			$name:ident @ $sname:pat = $default:expr,
+			)*
+		}
+	) => {
+		#[allow(non_snake_case)]
+		struct $struct_name {
+			$($name: Option<&'static str>),*
+		}
+		pub enum $enum_name {
+			$( /* $($at)* */ $name, )*
+		}
+		impl Config
+		{
+			const fn new() -> Config {
+				Config { $($name: None),* }
+			}
+			
+			fn init(&mut self, cmdline: &'static str)
+			{
+				for ent in cmdline.split(' ')
+				{
+					let mut it = ent.splitn(2, '=');
+					let tag = it.next().unwrap();
+					let value = it.next();
+					match tag
+					{
+					$(
+					$sname => match value
+						{
+						Some(v) => self.$name = Some(v),
+						None => log_warning!("{} requires a value", tag),
+						},
+					)*
+					v @ _ => log_warning!("Unknown option '{}", v),
+					}
+				}
+			}
+
+			fn get_str(&self, val: Value) -> &'static str
+			{
+				match val
+				{
+				$(
+				Value::$name => self.$name.unwrap_or($default),
+				)*
+				}
+			}
+		}
+	};
+}
+
+def_config_set! {
+	Value in Config: {
+//		/// VFS - Volume to mount as the 'system' disk
+		SysDisk @ "SYSDISK" = "ATA0p0",
+//		/// VFS - Path relative to the root of SysDisk where Tifflin was installed
+		SysRoot @ "SYSROOT" = "/system/Tifflin",
+//		/// Startup - Loader executable
+		Loader @ "LOADER" = "/sysroot/bin/loader",
+//		/// Startup - Init executable (first userland process)
+		Init @ "INIT" = "/sysroot/bin/init",
+	}
+}
+
+static mut S_CONFIG: Config = Config::new();
 
