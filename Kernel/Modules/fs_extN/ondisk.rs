@@ -357,7 +357,7 @@ impl DirEnt
 	}
 	pub fn new(buf: &[u32]) -> Option<&DirEnt>
 	{
-		assert!(buf.len() >= 8);
+		assert!(buf.len() >= 8/4);
 		// SAFE: 0 name length is valid
 		let rv0: &DirEnt = unsafe { &*Self::new_raw(buf, 0) };
 
@@ -365,9 +365,11 @@ impl DirEnt
 		let name_len = rv0.d_name_len as usize;
 
 		if rec_len > buf.len() * 4 {
+			log_warning!("Consistency error: Record too long {} > {}", rec_len, buf.len()*4);
 			None
 		}
 		else if name_len + 8 > rec_len {
+			log_warning!("Consistency error: Record too long {}+8 > {} (name exceeds space)", name_len+8, rec_len);
 			None
 		}
 		else {
@@ -381,5 +383,13 @@ impl DirEnt
 	/// Returns the number of 32-bit integers this entry takes up
 	pub fn u32_len(&self) -> usize {
 		(self.d_rec_len as usize + 3) / 4
+	}
+}
+
+impl_fmt! {
+	Debug(self,f) for DirEnt {
+		write!(f, "DirEnt {{ d_inode: {}, d_rec_len: {}, d_type: {}, d_name: {:?} }}",
+			self.d_inode, self.d_rec_len, self.d_type, ::kernel::lib::byte_str::ByteStr::new(&self.d_name)
+			)
 	}
 }

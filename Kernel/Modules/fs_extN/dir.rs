@@ -98,6 +98,7 @@ impl vfs::node::Dir for Dir
 		{
 			for ent in DirEnts(&data[cur_ofs / 4..])
 			{
+				log_debug!("ent = {:?}", ent);
 				if ent.d_rec_len == 0 {
 					return Some(cur_ofs);
 				}
@@ -112,7 +113,7 @@ impl vfs::node::Dir for Dir
 					callback(ent.d_inode as vfs::node::InodeId, &mut ent.d_name.iter().cloned());
 				}
 				
-				cur_ofs += ent.u32_len();
+				cur_ofs += ent.u32_len() * 4;
 			}
 
 			None
@@ -138,8 +139,13 @@ impl<'a> Iterator for DirEnts<'a>
 	type Item = &'a ::ondisk::DirEnt;
 	fn next(&mut self) -> Option<Self::Item>
 	{
-		if self.0.len() < ::ondisk::DIRENT_MIN_SIZE / 4 {
+		if self.0.len() == 0 {
+			// Complete
+			None
+		}
+		else if self.0.len() < ::ondisk::DIRENT_MIN_SIZE / 4 {
 			// Consistency error: This shouldn't happen
+			log_warning!("Consistency error: Remaining len {} < min {}", self.0.len()*4, ::ondisk::DIRENT_MIN_SIZE);
 			None
 		}
 		else {
@@ -151,7 +157,7 @@ impl<'a> Iterator for DirEnts<'a>
 					return None;
 					},
 				};
-			self.0 = &self.0[.. rv.u32_len() / 4];
+			self.0 = &self.0[rv.u32_len() .. ];
 			Some( rv )
 		}
 	}
