@@ -218,12 +218,12 @@ impl Port
 		// Device->Host Register Update
 		if int_status & hw::PxIS_DHRS != 0
 		{
-			log_notice!("{} - Device register update, RFIS={:?}", self, self.get_rcvd_fis().RFIS);
+			log_trace!("{} - Device register update, RFIS={:?}", self, self.get_rcvd_fis().RFIS);
 		}
 		// PIO Setup FIS Update
 		if int_status & hw::PxIS_PSS != 0
 		{
-			log_notice!("{} - PIO setup status update, PSFIS={:?}", self, self.get_rcvd_fis().PSFIS);
+			log_trace!("{} - PIO setup status update, PSFIS={:?}", self, self.get_rcvd_fis().PSFIS);
 		}
 
 		// Check commands
@@ -232,8 +232,8 @@ impl Port
 		let issued_commands = regs.read(hw::REG_PxCI);
 		let active_commands = regs.read(hw::REG_PxSACT);
 		let used_commands = self.used_commands.load(Ordering::Relaxed);
-		log_trace!("used_commands = {:#x}, issued_commands={:#x}, active_commands={:#x}",
-			used_commands, issued_commands, active_commands);
+		log_trace!("{} - used_commands = {:#x}, issued_commands={:#x}, active_commands={:#x}",
+			self, used_commands, issued_commands, active_commands);
 		for cmd in 0 .. self.ctrlr.max_commands as usize
 		{
 			let mask = 1 << cmd;
@@ -389,6 +389,7 @@ impl Port
 
 	fn request_ata_lba28(&self, disk: u8, cmd: u8,  n_sectors: u8, lba: u32, data: DataPtr) -> Result<usize, Error>
 	{
+		log_trace!("request_ata_lba28(disk={}, cmd={:#02x}, n_sectors={}, lba={})", disk, cmd, n_sectors, lba);
 		assert!(lba < (1<<24));
 		let cmd_data = hw::sata::FisHost2DevReg {
 			ty: hw::sata::FisType::H2DRegister as u8,
@@ -407,6 +408,7 @@ impl Port
 	}
 	fn request_ata_lba48(&self, disk: u8, cmd: u8,  n_sectors: u16, lba: u64, data: DataPtr) -> Result<usize, Error>
 	{
+		log_trace!("request_ata_lba48(disk={}, cmd={:#02x}, n_sectors={}, lba={})", disk, cmd, n_sectors, lba);
 		assert!(lba < (1<<48));
 		let cmd_data = hw::sata::FisHost2DevReg {
 			ty: hw::sata::FisType::H2DRegister as u8,

@@ -181,7 +181,6 @@ pub mod sata
 		data: [u32; 0],
 	}
 	#[repr(C)]
-	#[derive(Debug)]
 	pub struct FisPioSetup
 	{
 		ty: u8,	// = 0x5F
@@ -234,7 +233,6 @@ pub mod sata
 		}
 	}
 	#[repr(C)]
-	#[derive(Debug)]
 	pub struct FisDev2HostReg
 	{
 		ty: u8,	// = 0x34
@@ -262,6 +260,32 @@ pub mod sata
 		status: u8,
 		error: u8,
 		_resvd: [u32; 1],
+	}
+
+	struct RegPair(u8,u8);
+	impl_fmt! {
+		Debug(self, f) for RegPair {
+			write!(f, "{:02x}-{:02x}", self.0, self.1)
+		}
+		Debug(self, f) for FisPioSetup {
+			write!(f, "FisPioSetup {{ flags/status/error/e_status: {:02x}/{:02x}/{:02x}/{:02x}, sector_num: {:?}, cyl_low: {:?}, cyl_high: {:?}, sector_count: {:?}, transfer_count: {} }}",
+				self.flags, self.status, self.error, self.e_status,
+				RegPair(self.sector_num_exp, self.sector_num),
+				RegPair(self.cyl_low_exp, self.cyl_low),
+				RegPair(self.cyl_high_exp, self.cyl_high),
+				RegPair(self.sector_count_exp, self.sector_count),
+				self.transfer_count
+				)
+		}
+		Debug(self, f) for FisDev2HostReg {
+			write!(f, "FisDev2HostReg {{ flags/status/error: {:02x}/{:02x}/{:02x}, sector_num: {:?}, cyl_low: {:?}, cyl_high: {:?}, sector_count: {:?} }}",
+				self.int_resvd, self.status, self.error,
+				RegPair(self.sector_num_exp, self.sector_num),
+				RegPair(self.cyl_low_exp, self.cyl_low),
+				RegPair(self.cyl_high_exp, self.cyl_high),
+				RegPair(self.sector_count_exp, self.sector_count),
+				)
+		}
 	}
 }
 
