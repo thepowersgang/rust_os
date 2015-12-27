@@ -20,7 +20,7 @@ pub enum Error
 	PermissionDenied,
 	/// File exclusively locked
 	Locked,
-	/// Node was not the requested type
+	/// Node was not the requested type (or selected FS driver doesn't support that volume)
 	TypeMismatch,
 	/// A component of the path was not a directory
 	NonDirComponent,

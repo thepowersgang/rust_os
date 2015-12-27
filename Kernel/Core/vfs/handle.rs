@@ -327,7 +327,10 @@ pub struct DirIter<'a> {
 impl<'a> ::core::iter::Iterator for DirIter<'a> {
 	type Item = ByteString;
 	fn next(&mut self) -> Option<ByteString> {
-		if self.ofs == self.count {
+		if self.ofs == self.count
+		{
+			self.count = 0;
+			self.ofs = 0;
 			match self.handle.node.read_dir(self.pos, &mut |inode, name| {
 				self.ents[self.count].0 = inode;
 				self.ents[self.count].1 = name.collect();

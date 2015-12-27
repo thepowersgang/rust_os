@@ -47,6 +47,7 @@ impl From<IoError> for super::Error {
 		{
 		IoError::NotFound => super::Error::NotFound,
 		IoError::Unknown(s) => super::Error::Unknown(s),
+		IoError::ReadFail(e) => super::Error::BlockIoError(e),
 		_ => super::Error::Unknown(v.as_str()),
 		}
 	}
@@ -251,12 +252,14 @@ impl CacheHandle
 			};
 
 		// If this newly opened node is actually a mountpoint
-		if let CacheNodeInt::Dir { ref mountpoint, .. } = ent_ref.node {
-			let mountpoint = mountpoint.load(atomic::Ordering::Relaxed);
-			if mountpoint != 0 {
+		if let CacheNodeInt::Dir { mountpoint: ref new_mountpoint, .. } = ent_ref.node {
+			let new_mountpoint = new_mountpoint.load(atomic::Ordering::Relaxed);
+			if new_mountpoint != 0 {
 				// Then recurse (hopefully only once) with the new mountpoint
-				let inode = super::mount::Handle::from_id(mountpoint).root_inode();
-				return CacheHandle::from_ids(mountpoint, inode);
+				let new_inode = super::mount::Handle::from_id(new_mountpoint).root_inode();
+				log_trace!("CacheHandle::from_ids({},{}) => Mount {}, {}",
+					mountpoint, inode,  new_mountpoint, new_inode);
+				return CacheHandle::from_ids(new_mountpoint, new_inode);
 			}
 		}
 
