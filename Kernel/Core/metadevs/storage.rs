@@ -453,7 +453,10 @@ impl VolumeHandle
 		{
 			let (pv, ofs, count) = match self.get_phys_block(idx + blk as u64, rem) {
 				Some(v) => v,
-				None => return Err( IoError::BadAddr ),
+				None => {
+					log_warning!("VolumeHandle::read_blocks - Block id {} is invalid", idx + blk as u64);
+					return Err( IoError::BadAddr )
+					},
 				};
 			log_trace!("- PV{} {} + {}", pv, ofs, count);
 			assert!(count <= rem);
