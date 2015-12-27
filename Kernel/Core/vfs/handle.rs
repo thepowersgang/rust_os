@@ -330,7 +330,6 @@ impl<'a> ::core::iter::Iterator for DirIter<'a> {
 		if self.ofs == self.count
 		{
 			self.count = 0;
-			self.ofs = 0;
 			match self.handle.node.read_dir(self.pos, &mut |inode, name| {
 				self.ents[self.count].0 = inode;
 				self.ents[self.count].1 = name.collect();
@@ -349,12 +348,12 @@ impl<'a> ::core::iter::Iterator for DirIter<'a> {
 			if self.count == 0 {
 				return None;
 			}
-			self.ofs = 1;
+			self.ofs = 0;
 		}
-		else {
-			self.ofs += 1;
-		}
-		Some( ::core::mem::replace(&mut self.ents[self.ofs-1].1, ByteString::new()) )
+		
+		let ent_str = &mut self.ents[self.ofs].1;
+		self.ofs += 1;
+		Some( ::core::mem::replace(ent_str, ByteString::new()) )
 	}
 }
 
