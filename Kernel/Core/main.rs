@@ -196,17 +196,21 @@ fn sysinit()
 	handle::Dir::open(Path::new("/")).unwrap()
 		.symlink("sysroot", Path::new(&format!("/system/{}",sysroot)[..])).unwrap();
 	
-	automount();
+	//automount();
+	
+	vfs_test();
 	
 	// 3. Start 'init' (parent process)
 	// XXX: hard-code the sysroot path here to avoid having to handle symlinks yet
-	spawn_init("/system/Tifflin/bin/loader", "/system/Tifflin/bin/init");
+	match spawn_init("/system/Tifflin/bin/loader", "/system/Tifflin/bin/init")
+	{
+	Ok(_) => unreachable!(),
+	Err(e) => panic!("Failed to start init: {}", e),
+	}
 	//spawn_init("/sysroot/bin/loader", "/sysroot/bin/init");
-	
-	//vfs_test();
 }
 
-#[cfg(DISABLED)]
+//#[cfg(DISABLED)]
 fn vfs_test()
 {
 	use metadevs::storage::VolumeHandle;
@@ -226,6 +230,7 @@ fn vfs_test()
 	}
 
 	// *. Testing: open a file known to exist on the testing disk	
+	if false
 	{
 		match handle::File::open( Path::new("/system/1.TXT"), handle::FileOpenMode::SharedRO )
 		{
@@ -246,7 +251,7 @@ fn vfs_test()
 	// - Probably shouldn't be included in the final version, but works for testing filesystem and storage drivers
 	automount();
 
-	//ls(Path::new("/mount/ATA-2w"));
+	ls(Path::new("/mount/ahci?-0p0"));
 }
 fn automount()
 {
@@ -274,7 +279,7 @@ fn automount()
 	}
 }
 
-fn spawn_init(loader_path: &str, init_cmdline: &str)
+fn spawn_init(loader_path: &str, init_cmdline: &str) -> Result<Void, &'static str>
 {
 	use vfs::handle;
 	use vfs::Path;
@@ -316,7 +321,7 @@ fn spawn_init(loader_path: &str, init_cmdline: &str)
 		Ok(v) => v,
 		Err(e) => {
 			log_error!("Unable to open initial userland loader '{}': {:?}", loader_path, e);
-			return ;
+			return Err("No such file");
 			},
 		};
 	let max_size: usize = 2*64*1024;
@@ -326,7 +331,7 @@ fn spawn_init(loader_path: &str, init_cmdline: &str)
 		if ondisk_size > max_size as u64 {
 			log_error!("Loader is too large to fit in reserved region ({}, max {})",
 				ondisk_size, max_size);
-			return ;
+			return Err("Loader too large");
 		}
 		loader.memory_map(load_base,  0, ::PAGE_SIZE,  handle::MemoryMapMode::Execute)
 		};
@@ -336,7 +341,7 @@ fn spawn_init(loader_path: &str, init_cmdline: &str)
 	if header_ptr.magic != 0x71FF1013 || header_ptr.info != INFO {
 		log_error!("Loader header is invalid: magic {:#x} != {:#x} or info {:#x} != {:#x}",
 			header_ptr.magic, MAGIC, header_ptr.info, INFO);
-		return ;
+		return Err("Loader invalid");
 	}
 	// - 3. Map the remainder of the image into memory (with correct permissions)
 	let codesize = header_ptr.codesize as usize;
@@ -358,7 +363,7 @@ fn spawn_init(loader_path: &str, init_cmdline: &str)
 	// - 5. Write loader arguments
 	if (header_ptr.init_path_ofs as usize) < codesize || (header_ptr.init_path_ofs as usize + header_ptr.init_path_len as usize) >= memsize {
 		log_error!("Userland init string location out of range: {:#x}", header_ptr.init_path_ofs);
-		return ;
+		return Err("Loader invalid");
 	}
 	// TODO: Write loader arguments into the provided location
 	// TODO: Should the argument string length be passed down to the user? In memory, or via a register?
@@ -375,7 +380,7 @@ fn spawn_init(loader_path: &str, init_cmdline: &str)
 	// - 6. Enter userland
 	if header_ptr.entrypoint < load_base || header_ptr.entrypoint >= load_base + LOAD_MAX {
 		log_error!("Userland entrypoint out of range: {:#x}", header_ptr.entrypoint);
-		return ;
+		return Err("Loader invalid");
 	}
 	
 	// > Forget about all maps and allocations
