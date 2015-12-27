@@ -55,6 +55,7 @@ impl vfs::node::Dir for Dir
 	}
 	fn read(&self, start_ofs: usize, callback: &mut vfs::node::ReadDirCallback) -> vfs::node::Result<usize>
 	{
+		log_trace!("read(start_ofs={}, ...)", start_ofs);
 		let (blk_idx, ofs) = ::kernel::lib::num::div_rem(start_ofs, self.inode.fs.fs_block_size);
 		let mut blk_ofs = start_ofs - ofs;
 
@@ -101,8 +102,13 @@ impl vfs::node::Dir for Dir
 					return Some(cur_ofs);
 				}
 
-				if ent.d_name.len() > 0
-				{
+				// Zero-length names should be ignored
+				if ent.d_name.len() == 0 {
+				}
+				// Ignore . and .. entries
+				else if &ent.d_name == b"." || &ent.d_name == b".." {
+				}
+				else {
 					callback(ent.d_inode as vfs::node::InodeId, &mut ent.d_name.iter().cloned());
 				}
 				

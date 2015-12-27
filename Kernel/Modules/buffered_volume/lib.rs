@@ -26,11 +26,20 @@ pub struct BufferedVolume
 
 impl BufferedVolume
 {
+	pub fn block_size(&self) -> usize {
+		self.vh.block_size()
+	}
+	pub fn name(&self) -> &str {
+		self.vh.name()
+	}
+}
+impl BufferedVolume
+{
 	pub fn new(vol: VolumeHandle) -> Self
 	{
 		BufferedVolume {
 			rmw_hold: RwLock::new( () ),
-			buffer: Mutex::new( (!0, ((0 .. vol.block_size()).map(|_| 0).collect(): Vec<_>).into_boxed_slice()) ),
+			buffer: Mutex::new( (!0, vec![0; vol.block_size()].into_boxed_slice()) ),
 			vh: vol,
 		}
 	}
@@ -43,9 +52,6 @@ impl BufferedVolume
 	{
 		let _h = self.rmw_hold.read();
 		self.vh.write_blocks(block, data)
-	}
-	pub fn block_size(&self) -> usize {
-		self.vh.block_size()
 	}
 
 	pub fn read_subblock_single(&self, block: u64, offset: usize, data: &mut [u8]) -> Result<(),IoError>

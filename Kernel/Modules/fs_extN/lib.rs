@@ -1,4 +1,4 @@
-// "Tifflin" Kernel - ext2/3/4 Filesystem Driver
+// "Tifflin" Kernel - ext3/3/4 Filesystem Driver
 // - By John Hodge (thePowersGang)
 //
 // Modules/fs_extN/lib.rs
@@ -35,6 +35,7 @@ const SUPPORTED_OPT_FEATURES: u32 = 0
 	;
 /// Read-only features: Missing features stop write support
 const SUPPORTED_RDO_FEATURES: u32 = 0
+	| ::ondisk::FEAT_RO_COMPAT_SPARSE_SUPER	// Enables storing SB backups at group 0, 3^n, 5^n, and 7^n
 	;
 /// Required Features: Missing features prevent mounting
 const SUPPORTED_REQ_FEATURES: u32 = 0
@@ -61,32 +62,15 @@ impl vfs::mount::Driver for Driver
 		let sb = &::ondisk::Superblock::from_slice(&blk[superblock_ofs / 4 ..][..1024/4]);
 
 		if sb.data.s_magic == 0xEF53 {
-			// Legacy (no feature flags)
-			if sb.data.s_rev_level == 0 {
-				Ok(3)
-			}
-			else {
-				let unsupported_req = sb.ext.s_feature_incompat & !SUPPORTED_REQ_FEATURES;
-				let unsupported_rdo = sb.ext.s_feature_ro_compat & !SUPPORTED_RDO_FEATURES;
-				let unsupported_opt = sb.ext.s_feature_compat & !SUPPORTED_OPT_FEATURES;
-				if unsupported_req != 0 {
-					log_warning!("Volume `{}` uses incompatible required features (unsupported bits {:#x})", vol.name(), unsupported_req);
-					Ok(0)
-				}
-				else if unsupported_rdo != 0 {
-					// Read-only
-					log_warning!("Volume `{}` uses incompatible read-write features (unsupported bits {:#x})", vol.name(), unsupported_rdo);
-					Ok(2)
-				}
-				else if unsupported_opt != 0 {
-					// Can read and write, but may confuse other systems
-					log_warning!("Volume `{}` uses incompatible optional features (unsupported bits {:#x})", vol.name(), unsupported_rdo);
-					Ok(2)
-				}
-				else {
-					// Fully supported
-					Ok(3)
-				}
+			use instance::FeatureState;
+			match ::instance::Instance::check_features(vol.name(), &sb)
+			{
+			FeatureState::AllOk => Ok(3),
+			// Lower binding strength if slightly incompatible
+			FeatureState::Reduced(_) => Ok(2),
+			FeatureState::ReadOnly(_) => Ok(2),
+			// Can't bind
+			FeatureState::Incompatible(_) => Ok(0),
 			}
 		}
 		else {
