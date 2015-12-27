@@ -367,7 +367,7 @@ impl Block
 	fn allocate(&mut self, size: usize, align: usize) -> *mut () {
 		let dataofs = self.get_data_ofs(align);
 		assert!(dataofs == size_of::<Block>());
-		kernel_log!("Block::allocate(self={:p}, size={:#x}, align={}) cap = {:#x}", self, size, align, self.capacity(align));
+		//kernel_log!("Block::allocate(self={:p}, size={:#x}, align={}) cap = {:#x}", self, size, align, self.capacity(align));
 		assert!(size <= self.capacity(align));
 
 		if self.capacity(align) - size > MIN_BLOCK_SIZE
@@ -382,7 +382,7 @@ impl Block
 				next.initialise(new_other_size);
 			}
 			assert!(size <= self.capacity(align));
-			kernel_log!("- resized to cap = {:#x}", self.capacity(align));
+			//kernel_log!("- resized to cap = {:#x}", self.capacity(align));
 		}
 		//kernel_log!("- {}/{} bytes used", size, self.capacity(align));
 		self.state = BlockState::Used(size);
