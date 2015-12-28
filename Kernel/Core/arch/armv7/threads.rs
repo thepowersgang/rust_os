@@ -23,30 +23,34 @@ impl State
 pub fn init_tid0_state() -> State {
 	State::default()
 }
+pub fn get_idle_thread() -> ::threads::ThreadPtr {
+	todo!("get_idle_thread");
+}
 
-pub fn set_thread_ptr(thread: Box<Thread>) {
+pub fn set_thread_ptr(thread: ::threads::ThreadPtr) {
 	let real = borrow_thread_mut();
-	let new = thread.into_raw();
 	if real.is_null() {
 		// SAFE: Valid ASM
-		unsafe { asm!("mcr p15,0, $0, c13,c0,4" : : "r" (new)); }
+		unsafe { asm!("mcr p15,0, $0, c13,c0,4" : : "r" (thread.into_usize())); }
 	}
-	else if new == real {
-		// Welp, we've forgotten the pointer, so all is ready
+	else if real as *const _ == &*thread {
+		// Convert and discard
+		thread.into_usize();
 	}
 	else {
 		panic!("");
 	}
 }
-pub fn get_thread_ptr() -> Option<Box<::threads::Thread>> {
+pub fn get_thread_ptr() -> Option<::threads::ThreadPtr> {
 	// SAFE: Thread pointer should either be valid, or NULL
 	unsafe {
-		let cur = borrow_thread_mut();
-		if cur.is_null() {
+		let cur: usize;
+		asm!("mrc p15,0, $0, c13,c0,4" : "=r" (cur));
+		if cur == 0 {
 			None
 		}
 		else {
-			Some( Box::from_raw(cur) )
+			Some( ::threads::ThreadPtr::from_usize(cur) )
 		}
 	}
 }
@@ -55,16 +59,16 @@ fn borrow_thread_mut() -> *mut ::threads::Thread {
 	unsafe {
 		let ptr: usize;
 		asm!("mrc p15,0, $0, c13,c0,4" : "=r" (ptr));
-		ptr as *mut _
+		(ptr & !1) as *mut _
 	}
 }
 pub fn borrow_thread() -> *const ::threads::Thread {
 	borrow_thread_mut() as *const _
 }
-pub fn switch_to(thread: Box<Thread>) {
+pub fn switch_to(thread: ::threads::ThreadPtr) {
 	#[allow(improper_ctypes)]
 	extern "C" {
-		fn task_switch(old_sp: &mut usize, new_sp: usize, ttbr0: u32, thread_ptr: *mut Thread);
+		fn task_switch(old_sp: &mut usize, new_sp: usize, ttbr0: u32, thread_ptr: usize);
 	}
 	// SAFE: Pointer access is valid, task_switch should be too
 	unsafe
@@ -73,7 +77,7 @@ pub fn switch_to(thread: Box<Thread>) {
 		let new_sp = thread.cpu_state.sp;
 		let new_ttbr0 = thread.cpu_state.ttbr0;
 		log_trace!("Switching to SP={:#x},TTBR0={:#x}", new_sp, new_ttbr0);
-		task_switch(&mut outstate.sp, new_sp, new_ttbr0, thread.into_raw());
+		task_switch(&mut outstate.sp, new_sp, new_ttbr0, thread.into_usize());
 	}
 }
 pub fn idle() {

@@ -293,6 +293,15 @@ impl ThreadPtr {
 		::core::mem::forget(self);
 		rv
 	}
+
+	pub fn into_usize(self) -> usize {
+		let rv = *self.0 as usize;
+		::core::mem::forget(self);
+		rv
+	}
+	pub unsafe fn from_usize(v: usize) -> Self {
+		ThreadPtr( ::core::ptr::Unique::new( v as *mut Thread ) )
+	}
 }
 impl ::core::ops::Deref for ThreadPtr {
 	type Target = Thread;

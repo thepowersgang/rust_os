@@ -110,10 +110,10 @@ impl Port
 		{
 			let regs = PortRegs::new(&controller.io_base, idx);
 
-			let addr = ::kernel::memory::virt::get_phys( cl_page.as_ref::<()>(0) );
+			let addr = ::kernel::memory::virt::get_phys( cl_page.as_ref::<()>(0) ) as u64;
 			regs.write(hw::REG_PxCLB , (addr >>  0) as u32);
 			regs.write(hw::REG_PxCLBU, (addr >> 32) as u32);
-			let addr = ::kernel::memory::virt::get_phys( cl_page.as_ref::<hw::RcvdFis>( ::kernel::PAGE_SIZE - size_of::<hw::RcvdFis>() ) );
+			let addr = ::kernel::memory::virt::get_phys( cl_page.as_ref::<hw::RcvdFis>( ::kernel::PAGE_SIZE - size_of::<hw::RcvdFis>() ) ) as u64;
 			regs.write(hw::REG_PxFB , (addr >>  0) as u32);
 			regs.write(hw::REG_PxFBU, (addr >> 32) as u32);
 
@@ -184,7 +184,7 @@ impl Port
 			let cl_ents = unsafe { cl_page.as_int_mut_slice(0, max_commands) };
 			for (listent, tabent) in Iterator::zip( cl_ents.iter_mut(), (0 .. max_commands).map(|i| Self::cmdidx_to_ref(&cl_page, cl_size, &cmdtab_pages, i)) )
 			{
-				*listent = hw::CmdHeader::new( ::kernel::memory::virt::get_phys(tabent) );
+				*listent = hw::CmdHeader::new( ::kernel::memory::virt::get_phys(tabent) as u64 );
 				//*tabent = hw::CmdTable::new();
 			}
 		}
@@ -472,7 +472,7 @@ impl Port
 			let mut seglen = ::kernel::PAGE_SIZE - base_phys as usize % ::kernel::PAGE_SIZE;
 			const MAX_SEG_LEN: usize = (1 << 22);
 			// Each entry must be contigious, and not >4MB
-			while seglen < len && seglen <= MAX_SEG_LEN && get_phys( (va + seglen-1) as *const u8 ) == base_phys + (seglen-1) as u64
+			while seglen < len && seglen <= MAX_SEG_LEN && get_phys( (va + seglen-1) as *const u8 ) == base_phys + (seglen-1) as ::kernel::memory::PAddr
 			{
 				seglen += ::kernel::PAGE_SIZE;
 			}

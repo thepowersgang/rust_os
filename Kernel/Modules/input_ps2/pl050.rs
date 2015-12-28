@@ -17,7 +17,7 @@ struct Port
 	dev: super::PS2Dev,
 }
 
-static S_PORTS: LazyMutex< Vec<irqs::ObjectHandle<Port>> > = lazymutex_init!();
+static S_PORTS: LazyMutex< Vec<irqs::ObjectHandle> > = lazymutex_init!();
 
 pub fn init()
 {
@@ -26,8 +26,10 @@ pub fn init()
 	// SAFE: Assumes the input addresses are sane
 	unsafe {
 		// Realview PB's keyboard port
-		lh.push( irqs::bind_object(20, Box::new(Port::new(0x10006000).expect("PB PS/2 #1 binding failed"))) );
-		lh.push( irqs::bind_object(21, Box::new(Port::new(0x10007000).expect("PB PS/2 #2 binding failed"))) );
+		let mut port = Port::new(0x10006000).expect("PB PS/2 #1 binding failed");
+		lh.push( irqs::bind_object(20, Box::new(move || port.handle_irq()) ) );
+		let mut port = Port::new(0x10007000).expect("PB PS/2 #2 binding failed");
+		lh.push( irqs::bind_object(21, Box::new(move || port.handle_irq()) ) );
 	}
 }
 
@@ -59,11 +61,8 @@ impl Port
 		assert!( regs[1] & PL050_TXBUSY != 0 );
 		regs[2] = byte as u32;
 	}
-}
 
-impl irqs::Handler for Port
-{
-	fn handle(&mut self) -> bool {
+	fn handle_irq(&mut self) -> bool {
 
 		// SAFE: Should never race, and any race will be benign
 		unsafe {

@@ -360,6 +360,10 @@ fn tlbimva(a: *mut ()) {
 //fn dccmvac(a: *mut ()) {
 //}
 
+pub fn can_map_without_alloc(a: *mut ()) -> bool {
+	get_table_addr(a, false).is_some()
+}
+
 pub unsafe fn map(a: *mut (), p: PAddr, mode: ProtectionMode) {
 	map_int(a,p,mode)
 }
