@@ -4,7 +4,7 @@
 // Core/vfs/mount.rs
 //! Mountpoint managment
 use prelude::*;
-use super::path::{Path,PathBuf};
+use super::path::Path;
 use super::node::{InodeId,Node,CacheHandle};
 use sync::RwLock;
 use lib::{LazyStatic,SparseVec,VecMap};
@@ -16,7 +16,7 @@ pub struct Handle(usize);
 
 struct MountedVolume
 {
-	mountpoint_node: CacheHandle,
+	_mountpoint_node: CacheHandle,
 	fs: Box<Filesystem>,
 }
 
@@ -113,7 +113,7 @@ pub fn mount(location: &Path, vol: VolumeHandle, fs: &str, _options: &[&str]) ->
 			Err(_) => return Err(MountError::CallFailed),
 			};
 		let vidx = S_VOLUMES.write().insert(MountedVolume {
-			mountpoint_node: nh.clone(),
+			_mountpoint_node: nh.clone(),
 			fs: fs,
 			});
 		

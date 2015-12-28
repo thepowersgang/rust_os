@@ -80,7 +80,7 @@ pub mod memory {
 		#[inline]
 		/// Returns `true` if the provided address can have `map` called on without needing memory allocation
 		pub fn can_map_without_alloc(a: *mut ()) -> bool {
-			todo!("can_map_without_alloc");
+			imp::can_map_without_alloc(a)
 		}
 
 		#[inline]

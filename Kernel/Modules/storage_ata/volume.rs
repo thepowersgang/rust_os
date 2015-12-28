@@ -10,7 +10,7 @@ use kernel::async;
 pub struct Error(u8);
 impl From<Error> for storage::IoError
 {
-	fn from(v: Error) -> storage::IoError
+	fn from(_v: Error) -> storage::IoError
 	{
 		storage::IoError::Unknown("ATA")
 	}
@@ -21,7 +21,7 @@ impl_from! {
 	}
 }
 
-const ATA_IDENTIFY_DEVICE: u8 = 0xEC;
+//const ATA_IDENTIFY_DEVICE: u8 = 0xEC;
 
 const ATA_READ_DMA: u8 = 0xC8;
 const ATA_WRITE_DMA: u8 = 0xCA;

@@ -41,6 +41,7 @@ impl<'a> Buffer<'a> {
 
 pub const VRING_DESC_F_NEXT 	: u16 = 1;
 pub const VRING_DESC_F_WRITE	: u16 = 2;
+#[allow(dead_code)]
 pub const VRING_DESC_F_INDIRECT	: u16 = 4;
 
 #[repr(C)]
@@ -248,7 +249,7 @@ struct DescriptorHandle<'a>
 	idx: u16,
 }
 
-struct Request<'a>
+pub struct Request<'a>
 {
 	queue: &'a Queue,
 	first_desc: u16,

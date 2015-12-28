@@ -10,13 +10,12 @@ use kernel::lib::ascii::AsciiExt;
 use super::on_disk;
 use super::file::FileNode;
 use super::ClusterList;
+use super::FilesystemInner;
 use utf16::Str16;
-
-pub type FilesystemInner = super::FilesystemInner;
 
 pub struct DirNode
 {
-	fs: ArefBorrow<FilesystemInner>,
+	fs: ArefBorrow<::FilesystemInner>,
 	start_cluster: u32,
 	// - Uses the cluster chain
 }

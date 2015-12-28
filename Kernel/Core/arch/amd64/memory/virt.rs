@@ -255,6 +255,11 @@ fn invlpg(addr: *mut ()) {
 	}
 }
 
+pub fn can_map_without_alloc(addr: *mut ()) -> bool {
+	// The following only returns PTE::null() if an intermediate step was unallocated
+	! get_page_ent(addr as usize, false, LargeOk::No).is_null()
+}
+
 /// Maps a physical frame to a page, with the provided protection mode
 pub unsafe fn map(addr: *mut (), phys: PAddr, prot: ::memory::virt::ProtectionMode)
 {

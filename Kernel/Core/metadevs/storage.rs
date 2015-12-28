@@ -470,7 +470,32 @@ impl VolumeHandle
 	}
 
 	pub fn write_blocks(&self, idx: u64, dst: &[u8]) -> Result<(),IoError> {
-		todo!("VolumeHandle::write_blocks");
+		log_trace!("VolumeHandle::write_blocks(idx={}, dst={{len={}}})", idx, dst.len());
+		if dst.len() % self.block_size() != 0 {
+			log_warning!("Write size {} not a multiple of {} bytes", dst.len(), self.block_size());
+			return Err( IoError::InvalidParameter );
+		}
+		
+		let mut rem = dst.len() / self.block_size();
+		let mut blk = 0;
+		while rem > 0
+		{
+			let (pv, ofs, count) = match self.get_phys_block(idx + blk as u64, rem) {
+				Some(v) => v,
+				None => {
+					log_warning!("VolumeHandle::write_blocks - Block id {} is invalid", idx + blk as u64);
+					return Err( IoError::BadAddr )
+					},
+				};
+			log_trace!("- PV{} {} + {}", pv, ofs, count);
+			assert!(count <= rem);
+			let bofs = blk as usize * self.block_size();
+			let dst = &dst[bofs .. bofs + count * self.block_size()];
+			try!( S_PHYSICAL_VOLUMES.lock().get(&pv).unwrap().write(ofs, dst) );
+			blk += count;
+			rem -= count;
+		}
+		Ok( () )
 	}
 }
 
@@ -497,6 +522,28 @@ impl PhysicalVolumeInfo
 				
 				// TODO: Async! (maybe return a composite read handle?)
 				self.dev.read(prio, blk_id, blocks, buf).wait().unwrap()
+			}
+		}
+		Ok(dst.len()/block_size)
+	}
+	
+	/// Write blocks from the device
+	pub fn write(&self, first: u64, dst: &[u8]) -> Result<usize,IoError>
+	{
+		log_trace!("PhysicalVolumeInfo::write(first={},{} bytes)", first, dst.len());
+		let block_step = self.max_blocks_per_read();
+		let block_size = self.dev.blocksize();
+		// Read up to 'block_step' blocks in each read call
+		{
+			let iter_ids  = (first .. ).step_by(block_step as u64);
+			let iter_bufs = dst.chunks( block_step * block_size );
+			for (blk_id,buf) in iter_ids.zip( iter_bufs )
+			{
+				let prio = 0;
+				let blocks = buf.len() / block_size;
+				
+				// TODO: Async! (maybe return a composite read handle?)
+				self.dev.write(prio, blk_id, blocks, buf).wait().unwrap()
 			}
 		}
 		Ok(dst.len()/block_size)

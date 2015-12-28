@@ -58,7 +58,7 @@ impl ::core::ops::Deref for Filesystem {
 }
 
 //const FAT_CACHE_BLOCK_SIZE: usize = 512;
-struct FilesystemInner
+pub struct FilesystemInner
 {
 	vh: VolumeHandle,
 	ty: Size,

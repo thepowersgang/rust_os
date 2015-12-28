@@ -22,7 +22,7 @@ use self::defs::*;
 
 pub struct BlockDevice
 {
-	pv_handle: storage::PhysicalVolumeReg,
+	_pv_handle: storage::PhysicalVolumeReg,
 }
 
 struct Volume<I: Interface>
@@ -47,13 +47,21 @@ impl BlockDevice
 		}
 		int.set_driver_ok();
 
+		let mut vol = Box::new(Volume {
+			requestq: requestq,
+			capacity: capacity,
+			interface: int,
+			});
+
+		struct SPtr<T>(*const T);
+		unsafe impl<T> Send for SPtr<T> {}
+		let sp = SPtr(&*vol);
+		// SAFE: Now boxed, won't be invalidated until after Drop is called
+		vol.interface.bind_interrupt( Box::new(move || unsafe { (*sp.0).requestq.check_interrupt(); true }) );
+
 		BlockDevice {
-			pv_handle: storage::register_pv( Box::new(Volume{
-				requestq: requestq,
-				capacity: capacity,
-				interface: int,
-				}) ),
-		}
+			_pv_handle: storage::register_pv(vol),
+			}
 	}
 }
 impl ::kernel::device_manager::DriverInstance for BlockDevice {

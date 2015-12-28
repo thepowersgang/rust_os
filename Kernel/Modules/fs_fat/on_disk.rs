@@ -137,7 +137,7 @@ impl BootSectInfo {
 		}
 	}
 }
-struct BootSect16
+pub struct BootSect16
 {
 	common: BootSectInfo,
 	info: BootSect16Info,
@@ -163,7 +163,7 @@ impl BootSect16Info {
 		}
 	}
 }
-struct BootSect32
+pub struct BootSect32
 {
 	common: BootSectInfo,
 	info32: BootSect32Info,

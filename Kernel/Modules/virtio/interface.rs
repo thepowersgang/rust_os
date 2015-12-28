@@ -1,7 +1,8 @@
-// 
+// "Tifflin" Kernel - VirtIO Driver
+// - By John Hodge (thePowersGang)
 //
-//
-//! Interface support
+// virtio/interface.rs
+//! VirtualIO Interface (bus binding)
 use kernel::prelude::*;
 use kernel::device_manager::IOBinding;
 use queue::Queue;
@@ -9,6 +10,9 @@ use queue::Queue;
 pub trait Interface
 {
 	fn new(io: IOBinding, irq: u32) -> Self;
+
+	fn bind_interrupt(&mut self, cb: Box<FnMut()->bool + Send + 'static>);
+
 	fn negotiate_features(&mut self, supported: u32) -> u32;
 	fn get_queue(&mut self, idx: usize, size: usize) -> Option<Queue>;
 	fn set_driver_ok(&mut self);
@@ -24,15 +28,19 @@ pub trait Interface
 }
 
 
+/// Memory-Mapped IO binding
 pub struct Mmio {
 	io: IOBinding,
-	//irq: 
+	irq_gsi: u32,
+	irq_handle: Option<::kernel::irqs::ObjectHandle>,
 }
 impl Interface for Mmio
 {
 	fn new(io: IOBinding, irq_gsi: u32) -> Self {
 		let mut rv = Mmio {
 			io: io,
+			irq_gsi: irq_gsi,
+			irq_handle: None,
 			};
 		// SAFE: Unique access
 		unsafe {
@@ -41,6 +49,10 @@ impl Interface for Mmio
 			rv.io.write_32(0x28, 0x1000);	// "GuestPageSize"
 		}
 		rv
+	}
+
+	fn bind_interrupt(&mut self, cb: Box<FnMut()->bool + Send + 'static>) {
+		self.irq_handle = Some( ::kernel::irqs::bind_object(self.irq_gsi, cb) );
 	}
 
 	fn negotiate_features(&mut self, supported: u32) -> u32 {

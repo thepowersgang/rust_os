@@ -13,15 +13,12 @@ use lib::mem::Arc;
 /// A handle for an IRQ binding that pokes an async event when the IRQ fires
 pub struct EventHandle
 {
-	num: u32,
-	index: usize,
+	_binding: BindingHandle,
 	event: Arc<::async::event::Source>,
 }
-pub struct ObjectHandle
-{
-	num: u32,
-	index: usize,
-}
+pub struct ObjectHandle( BindingHandle );
+
+struct BindingHandle(u32, u32);
 
 #[derive(Default)]
 struct IRQBinding
@@ -56,7 +53,7 @@ pub fn init() {
 	}
 }
 
-fn bind(num: u32, obj: Box<FnMut()->bool + Send>) -> usize
+fn bind(num: u32, obj: Box<FnMut()->bool + Send>) -> BindingHandle
 {	
 	log_trace!("bind(num={}, obj={:?})", num, "TODO"/*obj*/);
 	// 1. (if not already) bind a handler on the architecture's handlers
@@ -72,7 +69,14 @@ fn bind(num: u32, obj: Box<FnMut()->bool + Send>) -> usize
 	// 2. Add this handler to the meta-handler
 	binding.handlers.lock().push( obj );
 	
-	index
+	BindingHandle( num, index as u32 )
+}
+impl Drop for BindingHandle
+{
+	fn drop(&mut self)
+	{
+		todo!("Drop IRQ binding handle: IRQ {} idx {}", self.0, self.1);
+	}
 }
 
 fn irq_worker()
@@ -98,19 +102,15 @@ pub fn bind_event(num: u32) -> EventHandle
 {
 	let ev = Arc::new( ::async::event::Source::new() );
 	EventHandle {
-		num: num,
 		event: ev.clone(),
-		index: bind(num, Box::new(move || { ev.trigger(); true })),
-		//index: bind(num, Box::new(HandlerEvent { event: ev })),
+		_binding: bind(num, Box::new(move || { ev.trigger(); true })),
+		//_binding: bind(num, Box::new(HandlerEvent { event: ev })),
 		}
 }
 
-pub fn bind_object<F: FnMut()->bool + Send + 'static>(num: u32, obj: Box<F>) -> ObjectHandle
+pub fn bind_object(num: u32, obj: Box<FnMut()->bool + Send + 'static>) -> ObjectHandle
 {
-	ObjectHandle {
-		num: num,
-		index: bind(num, obj),
-		}
+	ObjectHandle( bind(num, obj) )
 }
 
 impl IRQBinding
@@ -154,17 +154,6 @@ impl EventHandle
 	pub fn get_event(&self) -> &::async::event::Source
 	{
 		&*self.event
-	}
-}
-
-impl ::core::ops::Drop for EventHandle
-{
-	fn drop(&mut self)
-	{
-		panic!("TODO: EventHandle::drop() num={}, idx={}", self.num, self.index);
-		// - Locate interrupt handler block
-		// - Locate this index within that list
-		// - Remove from list
 	}
 }
 

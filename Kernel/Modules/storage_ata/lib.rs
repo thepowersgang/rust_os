@@ -47,7 +47,7 @@ struct ControllerRoot
 	_volumes: Vec<storage::PhysicalVolumeReg>,
 }
 
-enum AtaClass
+pub enum AtaClass
 {
 	Invalid,	// No valid response (timeout)
 	None,	// No disk

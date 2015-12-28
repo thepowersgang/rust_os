@@ -5,10 +5,9 @@
 use kernel::prelude::*;
 use kernel::lib::mem::aref::ArefBorrow;
 use kernel::vfs::node;
+use super::FilesystemInner;
 
 const ERROR_SHORTCHAIN: node::IoError = node::IoError::Unknown("Cluster chain terminated early");
-
-pub type FilesystemInner = super::FilesystemInner;
 
 pub struct FileNode
 {

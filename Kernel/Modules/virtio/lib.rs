@@ -1,3 +1,8 @@
+// "Tifflin" Kernel - VirtIO Driver
+// - By John Hodge (thePowersGang)
+//
+// virtio/lib.rs
+//! Virtual IO devices
 #![no_std]
 #![feature(linkage)]
 #![feature(raw)]	// Used for unsized struct construction
