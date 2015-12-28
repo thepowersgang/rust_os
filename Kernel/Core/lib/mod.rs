@@ -160,6 +160,26 @@ impl<'a> ::core::fmt::Debug for RawString<'a>
 	}
 }
 
+pub struct FmtSlice<'a, T: 'a>(pub &'a [T]);
+impl<'a, T: 'a + ::core::fmt::LowerHex> ::core::fmt::LowerHex for FmtSlice<'a, T> {
+	fn fmt(&self, f: &mut ::core::fmt::Formatter) -> ::core::fmt::Result {
+		if self.0.len() == 0 {
+			Ok( () )
+		}
+		else if self.0.len() == 1 {
+			self.0[0].fmt(f)
+		}
+		else {
+			try!( self.0[0].fmt(f) );
+			for e in &self.0[1..] {
+				try!( f.write_str(",") );
+				try!( e.fmt(f) );
+			}
+			Ok( () )
+		}
+	}
+}
+
 
 pub struct SlicePtr<'a,T:'a>(pub &'a [T]);
 impl<'a,T> ::core::fmt::Pointer for SlicePtr<'a,T> {

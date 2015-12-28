@@ -577,6 +577,7 @@ impl<'a> CommandSlot<'a>
 	// UNSAFE: Caller must ensure that memory pointed to by the `data` table stays valid until the command is complete
 	pub unsafe fn start(&self)
 	{
+		log_trace!("{} - start(idx={})", self.port, self.idx);
 		let mask = 1 << self.idx as usize;
 		self.port.regs().write(hw::REG_PxSACT, mask);
 		self.port.regs().write(hw::REG_PxCI, mask);

@@ -180,6 +180,10 @@ pub fn register_irq(global_num: usize, callback: IRQHandler, info: *const() ) ->
 //	}
 //}
 
+impl IRQHandle
+{
+	pub fn num(&self) -> u32 { self.num as u32 }
+}
 impl ::core::fmt::Debug for IRQHandle
 {
 	fn fmt(&self, f: &mut ::core::fmt::Formatter) -> Result<(),::core::fmt::Error>

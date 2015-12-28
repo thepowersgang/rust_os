@@ -114,7 +114,7 @@ ifeq ($(USE_ACPICA),1)
 endif
 
 .SUFFIXES:
-.PHONY: all clean docs run dsm
+.PHONY: all clean docs dsm
 
 all: bin/kernel-$(ARCH).bin
 
@@ -127,13 +127,6 @@ docs:
 	@mkdir -p doc/Kernel
 	$V$(ENV) $(RUSTDOC) -o doc/Kernel Core/main.rs --cfg 'arch="amd64"' -L bin/plugins
 	@chmod +rX doc/ -R 
-
-run: bin/kernel-$(ARCH).bin
-ifeq ($(ARCH),amd64)
-	cd rundir && ./RunQemuPXE ../$<.elf32 "SYSDISK=ATA-0p0 SYSROOT=Tifflin"
-else ifeq ($(ARCH),armv7)
-	cd rundir && qemu-system-arm -machine realview-pb-a8 -serial stdio -s -no-reboot -kernel ../$< -append "SYSDISK=ATA-0p0 SYSROOT=Tifflin"
-endif
 
 # ===
 # Toolchain maintainence

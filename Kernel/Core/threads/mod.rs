@@ -71,10 +71,25 @@ pub fn idle_thread()
 {
 	loop
 	{
-		if ! reap_threads() {
-			::arch::threads::idle();
+		if ! reap_threads()
+		{
+			// SAFE: I know what I'm doing, and we trust idle() to re-enable them
+			unsafe { ::arch::sync::stop_interrupts(); }
+			if let Some(thread) = get_thread_to_run() {
+				// SAFE: We turned them off, we turn them back on
+				unsafe { ::arch::sync::start_interrupts(); }
+				log_debug!("Idle task switch to {:?}", thread);
+				::arch::threads::switch_to(thread);
+			}
+			else {
+				// NOTE: Idle _must_ re-enable interrupts
+				::arch::threads::idle();
+			}
 		}
-		reschedule();
+		else
+		{
+			reschedule();
+		}
 	}
 }
 
@@ -237,8 +252,11 @@ pub fn reschedule()
 			{
 				log_trace!("reschedule() - No active threads, idling");
 				
-				// TODO: Need to switch to an idle thread instead. This allows reaping of the last active thread.
+				// Switch to the idle thread
 				::arch::threads::switch_to( thread );
+			}
+			else {
+				::core::mem::forget(thread);
 			}
 			return ;
 		}

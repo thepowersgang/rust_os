@@ -133,6 +133,16 @@ pub mod sync {
 	pub fn hold_interrupts() -> HeldInterrupts {
 		imp::hold_interrupts()
 	}
+
+
+	/// UNSAFE: Not strictly speaking...
+	pub unsafe fn stop_interrupts() {
+		imp::stop_interrupts()
+	}
+	/// UNSAFE: Can be used to break `hold_interrupts`, and other related assumptions
+	pub unsafe fn start_interrupts() {
+		imp::start_interrupts()
+	}
 }
 pub mod interrupts {
 	use super::imp::interrupts as imp;

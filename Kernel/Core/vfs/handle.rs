@@ -100,6 +100,15 @@ impl Any
 			Err(super::Error::TypeMismatch)
 		}
 	}
+
+	pub fn to_file(self, mode: FileOpenMode) -> super::Result<File> {
+		if self.node.is_file() {
+			File::from_node(self.node, mode)
+		}
+		else {
+			Err(super::Error::TypeMismatch)
+		}
+	}
 	
 	pub fn to_symlink(self) -> super::Result<Symlink> {
 		if self.node.is_symlink() {
@@ -123,6 +132,10 @@ impl File
 	/// Open the specified path as a file
 	pub fn open(path: &Path, mode: FileOpenMode) -> super::Result<File> {
 		let node = try!(CacheHandle::from_path(path));
+		Self::from_node(node, mode)
+	}
+
+	fn from_node(node: CacheHandle, mode: FileOpenMode) -> super::Result<File> {
 		if !node.is_file() {
 			return Err(super::Error::TypeMismatch);
 		}

@@ -150,13 +150,15 @@ impl vfs::node::Dir for Dir
 				}
 
 				// Zero-length names should be ignored
-				if ent.d_inode != 0 || ent.d_name.len() == 0 {
+				if ent.d_inode == 0 || ent.d_name.len() == 0 {
 				}
 				// Ignore . and .. entries
-				else if &ent.d_name != b"." || &ent.d_name == b".." {
+				else if &ent.d_name == b"." || &ent.d_name == b".." {
 				}
 				else {
-					callback(ent.d_inode as vfs::node::InodeId, &mut ent.d_name.iter().cloned());
+					if callback(ent.d_inode as vfs::node::InodeId, &mut ent.d_name.iter().cloned()) == false {
+						return Some(cur_ofs);
+					}
 				}
 				
 				cur_ofs += ent.u32_len() * 4;

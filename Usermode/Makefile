@@ -9,6 +9,8 @@ V ?= @
 APPS := loader init login
 APPS += simple_console shell
 APPS += filebrowser
+APPS += vfs_test
+APPS += hello_world
 
 # Build directories
 # - Distribution output root

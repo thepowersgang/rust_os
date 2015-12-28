@@ -17,6 +17,10 @@ ifneq ($(QEMU_STALL),)
 endif
 CMDLINE := SYSROOT=/system/Tifflin
 
+ifneq ($(TIFFLIN_INIT),)
+	CMDLINE += INIT=$(TIFFLIN_INIT)
+endif
+
 
 ifeq ($(NOTEE),)
  TEE := 2>&1 | tee QemuLog.txt

@@ -44,7 +44,11 @@ impl SleepObject
 	{
 		SleepObject {
 			name: name,
-			inner: Default::default(),
+			inner: ::sync::Spinlock::new(SleepObjectInner {
+				flag: false,
+				reference_count: 0,
+				thread: None,
+				}),
 		}
 	}
 	

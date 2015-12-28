@@ -90,7 +90,7 @@ impl Inode
 		todo!("Inode::write_lock");
 	}
 
-	pub fn get_block_addr(&self, block_idx: u32) -> u32
+	pub fn get_block_addr(&self, block_idx: u32) -> vfs::node::Result<u32>
 	{
 		let u32_per_fs_block = (self.fs.fs_block_size / ::core::mem::size_of::<u32>()) as u32;
 
@@ -101,14 +101,15 @@ impl Inode
 		if block_idx < si_base
 		{
 			// Direct block
-			self.ondisk.i_block[block_idx as usize]
+			Ok( self.ondisk.i_block[block_idx as usize] )
 		}
 		else if block_idx < di_base
 		{
 			// Single-indirect block
 			let idx = block_idx - si_base;
 			// TODO: Have locally a mutex-protected cached filesystem block (linked to a global cache manager)
-			todo!("Support single-indirect idx={}", idx);
+			let si_block = try!( self.fs.get_block( self.ondisk.i_block[12] ) );
+			Ok( si_block[ idx as usize ] )
 		}
 		else if block_idx < ti_base
 		{
@@ -167,7 +168,11 @@ impl<'a> Iterator for Blocks<'a>
 			None
 		}
 		else {
-			let ba = self.inode.get_block_addr(self.inner_idx);
+			let ba = match self.inode.get_block_addr(self.inner_idx)
+				{
+				Ok(v) => v,
+				Err(_) => return None,
+				};
 			self.inner_idx += 1;
 			Some(ba)
 		}

@@ -204,7 +204,7 @@ macro_rules! enum_to_from {
 		#[derive(Debug)]
 		pub enum $enm
 		{
-			$( $($a)* $n,)*
+			$( $($a)* $n = $v,)*
 		}
 		//impl ::core::convert::From<$ty> for ::core::option::Option<$enm> {
 		//	fn from(v: $ty) -> Self {

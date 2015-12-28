@@ -56,7 +56,7 @@ impl UserObject {
 				{
 				Ok(v) => v,
 				Err(v) => {
-					log_warning!("Object '{}' did not fit in StackDST {} > {}", type_name!(T), ::core::mem::size_of::<T>(), ::core::mem::size_of::<StackDST<Object>>());
+					log_trace!("Object '{}' did not fit in StackDST {} > {}", type_name!(T), ::core::mem::size_of::<T>(), ::core::mem::size_of::<StackDST<Object>>());
 					StackDST::new(Box::new(v)).ok().unwrap()
 					},
 				},
@@ -155,7 +155,7 @@ impl ProcessObjects {
 //pub fn new_object<T: Object+'static>(val: T) -> Result<u32, super::Error>
 pub fn new_object<T: Object+'static>(val: T) -> u32
 {
-	log_debug!("new_object<{}>", type_name!(T));
+	//log_debug!("new_object<{}>", type_name!(T));
 	get_process_local::<ProcessObjects>().find_and_fill_slot(|| UserObject::new(val)).unwrap_or(!0)
 }
 
@@ -205,7 +205,7 @@ pub fn call_object(handle: u32, call: u16, args: &[usize]) -> Result<u64,super::
 {
 	// Obtain reference/borrow to object (individually locked), and call the syscall on it
 	get_process_local::<ProcessObjects>().with_object(handle, |obj| {
-		log_trace!("#{} {} Call {}", handle, obj.type_name(), call);
+		log_trace!("#{} {} Call {} - args=[{:#x}]", handle, obj.type_name(), call, ::kernel::lib::FmtSlice(args));
 		obj.handle_syscall(call, args)
 		})
 }

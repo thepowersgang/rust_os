@@ -22,7 +22,7 @@ ROOTDIR := $(dir $(lastword $(MAKEFILE_LIST)))
 
 PREFIX := $(ROOTDIR).prefix/
 
-fn_getdeps = $(shell cat $1 | sed -nr 's/.*extern crate ([a-zA-Z_]+)( as .*)?;/\1/p' | tr '\n' ' ')
+fn_getdeps = $(shell cat $1 | sed -nr 's/.*extern crate ([a-zA-Z_0-9]+)( as .*)?;/\1/p' | tr '\n' ' ')
 fn_rustcmd = LD_LIBRARY_PATH=$(PREFIX)lib/ $(PREFIX)bin/$1
 
 RUSTC := $(call fn_rustcmd,rustc)

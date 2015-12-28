@@ -45,9 +45,12 @@ impl node::File for FileNode {
 	}
 	fn read(&self, ofs: u64, buf: &mut [u8]) -> node::Result<usize> {
 		// Sanity check and bound parameters
-		if ofs >= self.size as u64 {
+		if ofs > self.size as u64 {
 			// out of range
 			return Err( node::IoError::OutOfRange );
+		}
+		if ofs == self.size as u64 {
+			return Ok(0);
 		}
 		let maxread = (self.size as u64 - ofs) as usize;
 		let buf = if buf.len() > maxread { &mut buf[..maxread] } else { buf };

@@ -116,7 +116,9 @@ impl objects::Object for Node
 			let mode = try!( <u8>::get_arg(&mut args) );
 
 			let mode = ::values::VFSFileOpenMode::from(mode);
-			todo!("VFS_NODE_TOFILE({:?}", mode)
+			let objres = to_result(self.0.clone().to_file(mode.into()))
+				.map( |h| objects::new_object(File(h)) );
+			Ok( super::from_result(objres) )
 			},
 		values::VFS_NODE_TODIR => {
 			let objres = to_result(self.0.clone().to_dir())
@@ -326,7 +328,7 @@ impl DirEntCache {
 		self.ofs = 0;
 	}
 	fn next(&mut self) -> Option<DirEnt> {
-		log_debug!("DirEntCache::next() self = {:?}", self);
+		//log_trace!("DirEntCache::next() self = {:?}", self);
 		if self.ofs == self.count {
 			None
 		}

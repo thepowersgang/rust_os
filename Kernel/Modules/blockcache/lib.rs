@@ -17,7 +17,7 @@ use kernel::lib::mem::Arc;
 /// Has an internal mutex, and uses Arc as the buffer type.
 pub struct BlockCache//<#count>
 {
-	lru_blocks: ::kernel::sync::Mutex< [Option<CachedBlock>; 6/*#count*/] >,
+	lru_blocks: ::kernel::sync::Mutex< [Option<CachedBlock>; 8/*#count*/] >,
 }
 
 struct CachedBlock

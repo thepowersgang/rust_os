@@ -168,5 +168,12 @@ impl ::core::ops::Drop for HeldInterrupts
 	}
 }
 
+pub unsafe fn stop_interrupts() {
+	asm!("cli" : : : : "volatile");
+}
+pub unsafe fn start_interrupts() {
+	asm!("sti" : : : : "volatile");
+}
+
 // vim: ft=rust
 

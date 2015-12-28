@@ -84,13 +84,13 @@ impl State
 /// Idle for a short period, called when the CPU has nothing else to do
 pub fn idle()
 {
-	if true {
-		// SAFE: Just pulls rflags
-		let flags = unsafe { let v: u64; asm!("pushf; pop $0" : "=r" (v)); v };
-		assert!(flags & 0x200 != 0, "idle() with IF clear, RFLAGS = {:#x}", flags);
-	}
-	// SAFE: Safe assembly, just haldts
-	unsafe { asm!("hlt" : : : : "volatile"); }
+	//if true {
+	//	// SAFE: Just pulls rflags
+	//	let flags = unsafe { let v: u64; asm!("pushf; pop $0" : "=r" (v)); v };
+	//	assert!(flags & 0x200 != 0, "idle() with IF clear, RFLAGS = {:#x}", flags);
+	//}
+	// SAFE: Safe assembly, just halts
+	unsafe { asm!("sti;hlt" : : : : "volatile"); }
 }
 
 /// Prepares the TLS block at the stop of a kernel stack
