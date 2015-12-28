@@ -416,7 +416,7 @@ impl HeapDef
 	}
 	pub unsafe fn shrink_alloc(&mut self, ptr: *mut (), new_size: usize)
 	{
-		let headers_size = ::core::mem::size_of::<HeapHead>() + ::core::mem::size_of::<HeapFoot>();
+		//let headers_size = ::core::mem::size_of::<HeapHead>() + ::core::mem::size_of::<HeapFoot>();
 		
 		// Quick check: Zero allocation can't grow or shrink
 		if ptr == ZERO_ALLOC {

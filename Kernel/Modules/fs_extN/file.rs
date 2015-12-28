@@ -3,7 +3,6 @@
 //
 // Modules/fs_extN/file.rs
 //! Regular file
-use kernel::prelude::*;
 use kernel::vfs;
 
 pub struct File
@@ -62,7 +61,7 @@ impl vfs::node::File for File
 			let partial_bytes = self.fs_block_size() - blk_ofs;
 			
 			let blk_data = try!(self.inode.fs.get_block( try!(blocks.next_or_err()) ));
-			let blk_data = ::kernel::lib::as_byte_slice(&blk_data);
+			let blk_data = ::kernel::lib::as_byte_slice(&blk_data[..]);
 			if buf.len() <= partial_bytes
 			{
 				buf.clone_from_slice( blk_data );
@@ -86,7 +85,7 @@ impl vfs::node::File for File
 		if buf.len() - read_bytes > 0
 		{
 			let blk_data = try!(self.inode.fs.get_block( try!(blocks.next_or_err()) ));
-			let blk_data = ::kernel::lib::as_byte_slice(&blk_data);
+			let blk_data = ::kernel::lib::as_byte_slice(&blk_data[..]);
 			buf[read_bytes..].clone_from_slice(&blk_data);
 			read_bytes += buf.len();
 		}
@@ -96,13 +95,58 @@ impl vfs::node::File for File
 	}
 
 	fn truncate(&self, newsize: u64) -> vfs::node::Result<u64> {
-		todo!("truncate");
+		if newsize == 0
+		{
+			todo!("truncate - 0");
+		}
+		else if newsize == self.inode.i_size()
+		{
+			Ok( newsize )
+		}
+		else if newsize < self.inode.i_size()
+		{
+			todo!("truncate - shrink");
+		}
+		else
+		{
+			todo!("truncate - grow");
+		}
 	}
 	fn clear(&self, ofs: u64, size: u64) -> vfs::node::Result<()> {
-		todo!("clear");
+		if self.inode.fs.is_readonly()
+		{
+			Err( vfs::node::IoError::ReadOnly )
+		}
+		else if ofs >= self.inode.i_size() || size > self.inode.i_size() || ofs + size > self.inode.i_size() {
+			Err( vfs::node::IoError::OutOfRange )
+		}
+		else {
+			// 1. Leading partial
+			// 2. Inner
+			// 3. Trailing partial
+			todo!("clear");
+		}
 	}
 	fn write(&self, ofs: u64, buf: &[u8]) -> vfs::node::Result<usize> {
-		todo!("write");
+		if self.inode.fs.is_readonly()
+		{
+			Err( vfs::node::IoError::ReadOnly )
+		}
+		else if ofs == self.inode.i_size()
+		{
+			todo!("write - extend");
+		}
+		else
+		{
+			if ofs > self.inode.i_size() || buf.len() as u64 > self.inode.i_size() || ofs + buf.len() as u64 > self.inode.i_size() {
+				Err( vfs::node::IoError::OutOfRange )
+			}
+			else {
+				// NOTE: In this section, we're free to read-modify-write blocks without fear, as the VFS itself handles
+				//       the file "borrow checking". A file race is the userland's problem (if a SharedRW handle is used)
+				todo!("write - mutate");
+			}
+		}
 	}
 }
 

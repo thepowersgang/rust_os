@@ -122,7 +122,7 @@ impl Port
 			// Interrupts on
 			regs.write(hw::REG_PxSERR, 0x3FF783);
 			regs.write(hw::REG_PxIS, !0);
-			regs.write(hw::REG_PxIE, hw::PxIS_CPDS|hw::PxIS_DSS|hw::PxIS_PSS|hw::PxIS_DHRS|hw::PxIS_TFES);
+			regs.write(hw::REG_PxIE, hw::PxIS_CPDS|hw::PxIS_DSS|hw::PxIS_PSS|hw::PxIS_DHRS|hw::PxIS_TFES|hw::PxIS_IFS);
 			// Start command engine (Start, FIS Rx Enable)
 			let cmd = regs.read(hw::REG_PxCMD);
 			regs.write(hw::REG_PxCMD, cmd|hw::PxCMD_ST|hw::PxCMD_FRE);
@@ -224,6 +224,10 @@ impl Port
 		if int_status & hw::PxIS_PSS != 0
 		{
 			log_trace!("{} - PIO setup status update, PSFIS={:?}", self, self.get_rcvd_fis().PSFIS);
+		}
+
+		if int_status & hw::PxIS_IFS != 0
+		{
 		}
 
 		// Check commands
@@ -587,7 +591,10 @@ impl<'a> CommandSlot<'a>
 		let tfd = regs.read(hw::REG_PxTFD);
 
 		let mask = 1 << self.idx;
-		if tfd & 0x01 != 0 {
+		if regs.read(hw::REG_PxSERR) != 0 {
+			Err( Error::Bus )
+		}
+		else if tfd & 0x01 != 0 {
 			// Errored (ATA)
 			if self.hdr.flags & (1 << 5) == 0 {
 				Err( Error::Ata {

@@ -3,7 +3,6 @@
 //
 // Core/threads/threadlist.rs
 //! Owned list of threads
-use prelude::*;
 use core::nonzero::NonZero;
 
 use super::{Thread,ThreadPtr};

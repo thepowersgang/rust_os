@@ -379,6 +379,16 @@ impl DirEnt
 		}
 	}
 
+	pub fn new_mut(buf: &mut [u32]) -> Option<&mut DirEnt>
+	{
+		match Self::new(buf)
+		{
+		// SAFE: &mut in, &mut out
+		Some(v) => Some( unsafe { &mut *(v as *const _ as *mut _) } ),
+		None => None,
+		}
+	}
+
 
 	/// Returns the number of 32-bit integers this entry takes up
 	pub fn u32_len(&self) -> usize {

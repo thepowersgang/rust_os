@@ -3,8 +3,7 @@
 //
 // Core/metadevs/video/mod.rs
 ///! Video (Display) management
-use prelude::*;
-use metadevs::video::geom::{Pos,Dims,Rect};
+use metadevs::video::geom::Pos;
 
 /// Handle used by the display client (GUI) to control a mouse cursor
 pub struct CursorHandle

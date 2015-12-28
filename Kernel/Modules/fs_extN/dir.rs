@@ -3,7 +3,6 @@
 //
 // Modules/fs_extN/dir.rs
 //! Directory handling
-use kernel::prelude::*;
 use kernel::vfs;
 use kernel::lib::byte_str::ByteStr;
 
@@ -22,6 +21,64 @@ impl Dir
 			inode: inode,
 			}
 	}
+
+
+	/// Returns (block_index, offset)
+	fn find_name(&self, name: &ByteStr) -> vfs::node::Result<(usize, usize, vfs::node::InodeId)>
+	{
+		// Linear search
+		// TODO: Later revisions have B+ trees
+		'outer: for (blk_index, vol_blk) in self.inode.blocks().enumerate()
+		{
+			let blk_data = try!(self.inode.fs.get_block(vol_blk));
+			
+			let mut offset = 0;
+			for ent in DirEnts(&blk_data)
+			{
+				if ent.d_rec_len == 0 {
+					return Err( vfs::node::IoError::Corruption );
+				}
+				else if ent.d_inode != 0 && &ent.d_name == name.as_ref()
+				{
+					return Ok( (blk_index, offset, ent.d_inode as vfs::node::InodeId) );
+				}
+				else {
+					offset += ent.u32_len() * 4;
+				}
+			}
+		}
+		Err(vfs::node::IoError::NotFound)
+	}
+
+
+	fn find_free(&self, name: &ByteStr) -> vfs::node::Result<(u32, usize)>
+	{
+		assert!(name.len() <= 255);
+		// Linear search
+		// TODO: Later revisions have B+ trees
+		for (blk_index, vol_blk) in self.inode.blocks().enumerate()
+		{
+			let blk_data = try!(self.inode.fs.get_block(vol_blk));
+			
+			let mut offset = 0;
+			for ent in DirEnts(&blk_data)
+			{
+				if ent.d_rec_len == 0 {
+					return Err( vfs::node::IoError::Corruption );
+				}
+				else if ent.d_inode == 0 && (ent.d_rec_len - 8) <= name.len() as u16
+				{
+					// Free entry with sufficient space!
+					return Ok( (blk_index as u32, offset) );
+				}
+				else {
+					offset += ent.u32_len() * 4;
+				}
+			}
+		}
+
+		todo!("Dir::find_free - expand directory");
+	}
 }
 
 impl vfs::node::NodeBase for Dir
@@ -34,24 +91,13 @@ impl vfs::node::Dir for Dir
 {
 	fn lookup(&self, name: &ByteStr) -> vfs::node::Result<vfs::node::InodeId>
 	{
-		// Linear search
-		// TODO: Later revisions have B+ trees
-		'outer: for blkid in self.inode.blocks()
-		{
-			let blk_data = try!(self.inode.fs.get_block(blkid));
-			
-			for ent in DirEnts(&blk_data)
-			{
-				if ent.d_rec_len == 0 {
-					break 'outer;
-				}
-				if &ent.d_name == name.as_ref()
-				{
-					return Ok( ent.d_inode as vfs::node::InodeId );
-				}
-			}
+		if name.len() == 0 {
+			Err(vfs::node::IoError::NotFound)
 		}
-		Err(vfs::node::IoError::NotFound)
+		else {
+			let (_, _, rv) = try!(self.find_name(name));
+			Ok( rv )
+		}
 	}
 	fn read(&self, start_ofs: usize, callback: &mut vfs::node::ReadDirCallback) -> vfs::node::Result<usize>
 	{
@@ -104,10 +150,10 @@ impl vfs::node::Dir for Dir
 				}
 
 				// Zero-length names should be ignored
-				if ent.d_name.len() == 0 {
+				if ent.d_inode != 0 || ent.d_name.len() == 0 {
 				}
 				// Ignore . and .. entries
-				else if &ent.d_name == b"." || &ent.d_name == b".." {
+				else if &ent.d_name != b"." || &ent.d_name == b".." {
 				}
 				else {
 					callback(ent.d_inode as vfs::node::InodeId, &mut ent.d_name.iter().cloned());
@@ -121,13 +167,110 @@ impl vfs::node::Dir for Dir
 	}
 
 	fn create(&self, name: &ByteStr, nodetype: vfs::node::NodeType) -> vfs::node::Result<vfs::node::InodeId> {
-		todo!("create");
+		if self.inode.fs.is_readonly()
+		{
+			Err( vfs::node::IoError::ReadOnly )
+		}
+		else
+		{
+			let _lh = self.inode.write_lock();
+
+			let ino_id = try!( self.inode.fs.allocate_inode(self.inode.get_id() as u32, nodetype) );
+			match self.link(name, ino_id as vfs::node::InodeId)
+			{
+			Ok(_) => Ok(ino_id as vfs::node::InodeId),
+			Err(e) => {
+				// Call with_inode to force the inode to be deallocated
+				let _ = self.inode.fs.with_inode(ino_id, |_| ());
+				Err(e)
+				},
+			}
+		}
 	}
 	fn link(&self, name: &ByteStr, inode: vfs::node::InodeId) -> vfs::node::Result<()> {
-		todo!("link");
+		if self.inode.fs.is_readonly()
+		{
+			Err( vfs::node::IoError::ReadOnly )
+		}
+		else if name == ""
+		{
+			Err(vfs::node::IoError::NotFound)
+		}
+		else if name.len() > 255
+		{
+			Err(vfs::node::IoError::Unknown("Filename too long"))
+		}
+		else
+		{
+			let _lh = self.inode.write_lock();
+
+			// TODO: How can I be sure that the passed inode number is valid? (or that it stays valid)
+
+			// 1. Find a suitable slot
+			let (blk, ofs) = try!(self.find_free(name));
+			// 2. Fill said slot
+			let vol_blk = try!( self.inode.blocks_from(blk as u32).next().ok_or(vfs::node::IoError::OutOfRange) );
+			let mut blk_data = try!( self.inode.fs.get_block(vol_blk) );
+			match ::ondisk::DirEnt::new_mut(&mut blk_data[ofs/4 ..])
+			{
+			None => return Err(vfs::node::IoError::Corruption),
+			Some(ent) => {
+				ent.d_name_len = name.len() as u8;
+				ent.d_inode = inode as u32;
+				},
+			}
+			// - Now that name length is longer, update the name
+			::ondisk::DirEnt::new_mut(&mut blk_data[ofs/4 ..]).unwrap()
+				.d_name.clone_from_slice( name.as_ref() );
+			// 3. Update inode's link count
+			try!(self.inode.fs.with_inode(inode as u32, |ino|
+				ino.inc_link_count()
+				));
+			
+			todo!("link(name={:?}, inode={:?})", name, inode);
+		}
 	}
 	fn unlink(&self, name: &ByteStr) -> vfs::node::Result<()> {
-		todo!("unlink");
+		if self.inode.fs.is_readonly()
+		{
+			Err( vfs::node::IoError::ReadOnly )
+		}
+		else if name == "" {
+			Err(vfs::node::IoError::NotFound)
+		}
+		else
+		{
+			let _lh = self.inode.write_lock();
+
+			let (blk, ofs, _) = try!(self.find_name(name));
+
+			let vol_blk = match self.inode.blocks_from(blk as u32).next()
+				{
+				Some(v) => v,
+				None => return Err(vfs::node::IoError::OutOfRange),	// TODO: Better error?
+				};
+
+			let mut blk_data = try!(self.inode.fs.get_block(vol_blk));
+
+			match ::ondisk::DirEnt::new_mut(&mut blk_data[ofs/4 ..])
+			{
+			None => return Err(vfs::node::IoError::Corruption),
+			Some(ent) => {
+				// Clear name length
+				ent.d_name_len = 0;
+				// TODO: Decrement reference count in inode.
+				// > Requires either read+modify+write of the inode on disk
+				// > OR, opening the inode and editing it via the VFS's cache
+				try!(self.inode.fs.with_inode(ent.d_inode, |ino|
+					ino.dec_link_count()
+					));
+				},
+			}
+
+			try!( self.inode.fs.write_blocks(vol_blk, ::kernel::lib::as_byte_slice(&blk_data[..])) );
+
+			Ok( () )
+		}
 	}
 }
 

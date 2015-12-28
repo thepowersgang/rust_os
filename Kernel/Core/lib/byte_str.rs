@@ -73,6 +73,11 @@ impl cmp::PartialEq<str> for ByteStr {
 		cmp::PartialEq::eq(&self.0, v.as_bytes())
 	}
 }
+impl cmp::PartialEq<[u8]> for ByteStr {
+	fn eq(&self, v: &[u8]) -> bool {
+		cmp::PartialEq::eq(&self.0, v)
+	}
+}
 impl ::lib::borrow::ToOwned for ByteStr {
 	type Owned = ByteString;
 	fn to_owned(&self) -> ByteString {

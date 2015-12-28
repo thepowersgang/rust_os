@@ -26,7 +26,7 @@ macro_rules! def_config_set {
 	(
 		$enum_name:ident in $struct_name:ident : {
 			$(
-			//$($at:meta)*
+			$(#[$at:meta])*
 			$name:ident @ $sname:pat = $default:expr,
 			)*
 		}
@@ -36,7 +36,7 @@ macro_rules! def_config_set {
 			$($name: Option<&'static str>),*
 		}
 		pub enum $enum_name {
-			$( /* $($at)* */ $name, )*
+			$( $(#[$at])* $name, )*
 		}
 		impl Config
 		{

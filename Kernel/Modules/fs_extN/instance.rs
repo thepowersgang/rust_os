@@ -87,6 +87,7 @@ impl Instance
 		match Self::check_features(vol.name(), &superblock)
 		{
 		FeatureState::Incompatible(_) => return Err(vfs::Error::TypeMismatch),
+		FeatureState::ReadOnly(_) => {},
 		_ => {},
 		}
 
@@ -211,6 +212,14 @@ impl vfs::mount::Filesystem for Instance
 
 impl InstanceInner
 {
+	pub fn is_readonly(&self) -> bool
+	{
+		false
+	}
+}
+
+impl InstanceInner
+{
 	/// Obtain a block (possibly cached)
 	pub fn get_block(&self, block: u32) -> vfs::node::Result<Box<[u32]>>
 	{
@@ -223,6 +232,14 @@ impl InstanceInner
 	pub fn read_blocks(&self, first_block: u32, data: &mut [u8]) -> vfs::node::Result<()>
 	{
 		try!( self.vol.read_blocks( first_block as u64 * self.vol_blocks_per_fs_block(), data) );
+		Ok( () )
+	}
+
+	/// Write a sequence of blocks from a user-provided buffer
+	pub fn write_blocks(&self, first_block: u32, data: &[u8]) -> vfs::node::Result<()>
+	{
+		// TODO: Requires maybe interfacing with the cache used by get_block?
+		try!( self.vol.write_blocks( first_block as u64 * self.vol_blocks_per_fs_block(), data) );
 		Ok( () )
 	}
 }
@@ -243,6 +260,27 @@ impl InstanceInner
 		(base_blk_id + sub_blk_id as u64,  sub_blk_ofs as usize)
 	}
 
+	/// Perform an operation with a temporary handle to an inode
+	pub fn with_inode<F,R>(&self, inode_num: u32, fcn: F) -> vfs::node::Result<R>
+	where
+		F: FnOnce(&::inodes::Inode) -> R
+	{
+		// TODO: Hook into the VFS's node cache somehow (we'd need to know our mount ID) and
+		//       obtain a reference to a cached inode.
+		// - This prevents us from having to maintain our own node cache
+
+		//let in = try!(self.mount_handle.get_node(inode_num as vfs::node::InodeId))
+		//let our_in: &::inodes::Inode = in.get_inode_any().downcast_ref();
+		//fcn(our_in)
+		todo!("InstanceInner::with_inode");
+	}
+
+	/// Allocate a new inode number, possibly in the same block group as `parent_inode_num`.
+	pub fn allocate_inode(&self, parent_inode_num: u32, nodetype: vfs::node::NodeType) -> vfs::node::Result< u32 >
+	{
+		todo!("InstanceInner::allocate_inode");
+	}
+
 	/// Read an inode descriptor from the disk
 	pub fn read_inode(&self, inode_num: u32) -> vfs::Result< ::ondisk::Inode >
 	{
@@ -259,11 +297,11 @@ impl InstanceInner
 		Ok( rv )
 	}
 	/// Write an inode descriptor back to the disk
-	pub fn write_inode(&self, inode_num: u32, inode_data: ::ondisk::Inode) -> vfs::Result< () >
+	pub fn write_inode(&self, inode_num: u32, inode_data: &::ondisk::Inode) -> vfs::Result< () >
 	{
 		let (vol_block, blk_ofs) = self.get_inode_pos(inode_num);
 		
-		let slice = &::kernel::lib::as_byte_slice(&inode_data)[.. self.s_inode_size()];
+		let slice = &::kernel::lib::as_byte_slice(inode_data)[.. self.s_inode_size()];
 		try!( self.vol.write_subblock_single(vol_block, blk_ofs, slice) );
 
 		Ok( () )

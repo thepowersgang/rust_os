@@ -4,12 +4,15 @@
 //! 
 use instance::InstancePtr;
 use kernel::vfs;
+use core::sync::atomic::{AtomicBool,Ordering};
 
 pub struct Inode
 {
 	pub fs: InstancePtr,
 	inode_idx: u32,
 	ondisk: ::ondisk::Inode,
+
+	is_dirty: AtomicBool,
 }
 
 impl Inode
@@ -21,7 +24,37 @@ impl Inode
 			fs: fs,
 			inode_idx: id,
 			ondisk: od,
+			is_dirty: AtomicBool::new(false),
 			})
+	}
+
+	pub fn dec_link_count(&self) {
+		todo!("Inode::dec_link_count");
+	}
+	pub fn inc_link_count(&self) {
+		todo!("Inode::inc_link_count");
+	}
+
+
+	pub fn flush(&self) -> vfs::Result<()>
+	{
+		if self.is_dirty.swap(false, Ordering::Relaxed)
+		{
+			try!(self.fs.write_inode(self.inode_idx, &self.ondisk));
+		}
+		Ok( () )
+	}
+}
+
+impl Drop for Inode
+{
+	fn drop(&mut self)
+	{
+		if self.is_dirty.load(Ordering::Relaxed)
+		{
+			log_warning!("Inode::drop - Dirty node being dropped, writing back and ignoring errors");
+			let _ = self.flush();
+		}
 	}
 }
 
@@ -53,6 +86,10 @@ impl Inode
 
 impl Inode
 {
+	pub fn write_lock(&self) -> ::kernel::sync::rwlock::Write<()> {
+		todo!("Inode::write_lock");
+	}
+
 	pub fn get_block_addr(&self, block_idx: u32) -> u32
 	{
 		let u32_per_fs_block = (self.fs.fs_block_size / ::core::mem::size_of::<u32>()) as u32;
