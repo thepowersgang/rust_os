@@ -38,6 +38,12 @@ impl vfs::node::File for File
 	}
 	fn read(&self, ofs: u64, buf: &mut [u8]) -> vfs::node::Result<usize>
 	{
+		if ofs > self.inode.i_size() {
+			return Err(vfs::node::IoError::OutOfRange);
+		}
+		if ofs == self.inode.i_size() {
+			return Ok(0);
+		}
 		// 1. Restrict buffer size to avaiable bytes
 		let avail_bytes = self.inode.i_size() - ofs;
 		let buf = if buf.len() as u64 > avail_bytes {
@@ -56,6 +62,7 @@ impl vfs::node::File for File
 		let mut read_bytes = 0;
 
 		// 3. Read leading partial block
+		//log_trace!("blk_ofs={} (partial)", blk_ofs);
 		if blk_ofs != 0
 		{
 			let partial_bytes = self.fs_block_size() - blk_ofs;
@@ -75,19 +82,22 @@ impl vfs::node::File for File
 		}
 
 		// 4. Read full blocks
-		if buf.len() - read_bytes >= self.fs_block_size()
+		//log_trace!("remain {} (bulk)", buf.len() - read_bytes);
+		while buf.len() - read_bytes >= self.fs_block_size()
 		{
 			let blkid = try!(blocks.next_or_err());
 			try!(self.inode.fs.read_blocks(blkid, &mut buf[read_bytes ..][.. self.fs_block_size()]));
+			read_bytes += self.fs_block_size();
 		}
 
 		// 5. Read the trailing partial block
+		//log_trace!("remain {} (tail)", buf.len() - read_bytes);
 		if buf.len() - read_bytes > 0
 		{
 			let blk_data = try!(self.inode.fs.get_block( try!(blocks.next_or_err()) ));
 			let blk_data = ::kernel::lib::as_byte_slice(&blk_data[..]);
 			buf[read_bytes..].clone_from_slice(&blk_data);
-			read_bytes += buf.len();
+			read_bytes = buf.len();
 		}
 
 		// 6. Return number of bytes read (which may be smaller than the original buffer length)

@@ -454,8 +454,8 @@ impl Port
 	{
 		use kernel::memory::virt::get_phys;
 
-		log_trace!("do_fis(self={}, cmd={:p}+{}, pkt={:p}+{}, data={:?})",
-			self, cmd.as_ptr(), cmd.len(), pkt.as_ptr(), pkt.len(), data);
+		//log_trace!("do_fis(self={}, cmd={:p}+{}, pkt={:p}+{}, data={:?})",
+		//	self, cmd.as_ptr(), cmd.len(), pkt.as_ptr(), pkt.len(), data);
 
 		let mut slot = self.get_command_slot();
 
@@ -577,7 +577,7 @@ impl<'a> CommandSlot<'a>
 	// UNSAFE: Caller must ensure that memory pointed to by the `data` table stays valid until the command is complete
 	pub unsafe fn start(&self)
 	{
-		log_trace!("{} - start(idx={})", self.port, self.idx);
+		//log_trace!("{} - start(idx={})", self.port, self.idx);
 		let mask = 1 << self.idx as usize;
 		self.port.regs().write(hw::REG_PxSACT, mask);
 		self.port.regs().write(hw::REG_PxCI, mask);

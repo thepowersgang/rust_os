@@ -35,11 +35,12 @@ RUSTFLAGS += -g
 RUSTFLAGS += --cfg disable_float
 RUSTFLAGS += -Z force-overflow-checks=yes
 RUSTFLAGS += -Z no-landing-pads
-#RUSTFLAGS += -C lto
 # - This feels bad, sure it's valid, but...
 ifeq ($(ARCH),armv7)
   RUSTFLAGS += -C relocation-model=static
 endif
+BIN_RUSTFLAGS := 
+#BIN_RUSTFLAGS += -C lto
 
 # - List non-file targets
 .PHONY: all clean
@@ -110,7 +111,7 @@ $(BINDIR)%: $(OBJDIR)%
 $(APPS:%=$(OBJDIR)%): $(OBJDIR)%: %/src/main.rs $(TARGET_SPEC) $(makefile_deps) link-$(ARCH).ld $(OBJDIR)rustrt0.o $(LIBDIR)libloader_dyn.so
 	@mkdir -p $(dir $@)
 	@echo [RUSTC] $@
-	$V$(RUSTC) $(RUSTFLAGS) --emit=link,dep-info --out-dir $(OBJDIR) $< --crate-type=bin --crate-name=$* --verbose
+	$V$(RUSTC) $(RUSTFLAGS) $(BIN_RUSTFLAGS) --emit=link,dep-info --out-dir $(OBJDIR) $< --crate-type=bin --crate-name=$* --verbose
 	$V$(OBJDUMP) -S $@ > $@.dsm
 
 # ===============

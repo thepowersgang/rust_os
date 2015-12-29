@@ -127,7 +127,6 @@ impl Controller
 	{
 		// SAFE: Readonly register
 		let root_is = unsafe { self.inner.io_base.read_32(hw::REG_IS) };
-		log_trace!("{}: IS={:#08x}", *self.inner, root_is);
 
 		let mut rv = false;
 		for port in &self.ports

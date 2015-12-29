@@ -142,7 +142,7 @@ impl IRQBinding
 	#[tag_safe(irq)]
 	fn handle(&self)
 	{
-		log_trace!("handle() num={}", self.arch_handle.num());
+		//log_trace!("handle() num={}", self.arch_handle.num());
 		// The CPU owns the lock, so we don't care about ordering
 		self.has_fired.store(true, ::core::sync::atomic::Ordering::Relaxed);
 		

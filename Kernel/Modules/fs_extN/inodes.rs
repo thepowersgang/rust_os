@@ -74,7 +74,7 @@ impl Inode
 		self.inode_idx as vfs::node::InodeId
 	}
 	pub fn max_blocks(&self) -> u32 {
-		let n_blocks = self.i_size() / self.fs.fs_block_size as u64;
+		let n_blocks = (self.i_size() + self.fs.fs_block_size as u64 - 1) / self.fs.fs_block_size as u64;
 		if n_blocks > ::core::u32::MAX as u64 {
 			::core::u32::MAX
 		}
@@ -116,7 +116,9 @@ impl Inode
 			// Double-indirect block
 			let idx = block_idx - di_base;
 			let (blk, idx) = (idx / u32_per_fs_block, idx % u32_per_fs_block);
-			todo!("Support double-indirect {},{}", blk, idx);
+			let di_block = try!( self.fs.get_block( self.ondisk.i_block[13] ) );
+			let di_block = try!( self.fs.get_block( di_block[blk as usize] ) );
+			Ok( di_block[idx as usize] )
 		}
 		else
 		{
@@ -124,7 +126,10 @@ impl Inode
 			let idx = block_idx - ti_base;
 			let (blk, idx) = (idx / u32_per_fs_block, idx % u32_per_fs_block);
 			let (blk_o, blk_i) = (blk / u32_per_fs_block, blk % u32_per_fs_block);
-			todo!("Support triple-indirect {},{},{}", blk_o, blk_i, idx);
+			let ti_block = try!( self.fs.get_block( self.ondisk.i_block[14] ) );
+			let ti_block = try!( self.fs.get_block( ti_block[blk_o as usize] ) );
+			let ti_block = try!( self.fs.get_block( ti_block[blk_i as usize] ) );
+			Ok( ti_block[idx as usize] )
 		}
 	}
 
@@ -156,7 +161,7 @@ impl<'a> Blocks<'a>
 {
 	pub fn next_or_err(&mut self) -> ::kernel::vfs::node::Result<u32>
 	{
-		self.next().ok_or( ::kernel::vfs::node::IoError::Unknown("Unexpected end of node list") )
+		self.next().ok_or( ::kernel::vfs::node::IoError::Unknown("Unexpected end of block list") )
 	}
 }
 impl<'a> Iterator for Blocks<'a>
