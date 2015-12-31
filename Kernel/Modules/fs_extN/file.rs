@@ -85,9 +85,11 @@ impl vfs::node::File for File
 		//log_trace!("remain {} (bulk)", buf.len() - read_bytes);
 		while buf.len() - read_bytes >= self.fs_block_size()
 		{
-			let blkid = try!(blocks.next_or_err());
-			try!(self.inode.fs.read_blocks(blkid, &mut buf[read_bytes ..][.. self.fs_block_size()]));
-			read_bytes += self.fs_block_size();
+			let remain_blocks = (buf.len() - read_bytes)/self.fs_block_size();
+			let (blkid, count) = try!(blocks.next_extent_or_err( remain_blocks as u32 ));
+			let byte_count = count as usize * self.fs_block_size();
+			try!(self.inode.fs.read_blocks(blkid, &mut buf[read_bytes ..][.. byte_count]));
+			read_bytes += byte_count;
 		}
 
 		// 5. Read the trailing partial block
