@@ -84,18 +84,22 @@ pub use values::WaitItem;
 pub struct ObjectHandle(u32);
 impl ObjectHandle
 {
+	#[inline]
 	fn new(rv: usize) -> Result<ObjectHandle,u32> {
 		to_result(rv).map( |v| ObjectHandle(v) )
 	}
+	#[inline]
 	fn into_raw(self) -> u32 {
 		let rv = self.0;
 		::core::mem::forget(self);
 		rv
 	}
+	#[inline]
 	fn call_value(&self, call: u16) -> u32 {
 		(1 << 31 | self.0 | (call as u32) << 20)
 	}
 	
+	#[inline]
 	fn get_wait(&self, mask: u32) -> ::values::WaitItem {
 		::values::WaitItem {
 			object: self.0,
@@ -104,53 +108,64 @@ impl ObjectHandle
 	}
 	
 	#[allow(dead_code)]
+	#[inline]
 	unsafe fn call_0(&self, call: u16) -> u64 {
 		::raw::syscall_0( self.call_value(call) )
 	}
 	#[allow(dead_code)]
+	#[inline]
 	unsafe fn call_1(&self, call: u16, a1: usize) -> u64 {
 		::raw::syscall_1( self.call_value(call), a1)
 	}
 	#[allow(dead_code)]
+	#[inline]
 	unsafe fn call_2(&self, call: u16, a1: usize, a2: usize) -> u64 {
 		::raw::syscall_2( self.call_value(call), a1, a2 )
 	}
 
 	#[allow(dead_code)]
+	#[inline]
 	unsafe fn call_3(&self, call: u16, a1: usize, a2: usize, a3: usize) -> u64 {
 		::raw::syscall_3( self.call_value(call), a1, a2, a3 )
 	}
 	#[cfg(target_pointer_width="64")]
 	#[allow(dead_code)]
+	#[inline]
 	unsafe fn call_3l(&self, call: u16, a1: u64, a2: usize, a3: usize) -> u64 {
 		::raw::syscall_3( self.call_value(call), a1 as usize, a2, a3 )
 	}
 	#[cfg(target_pointer_width="32")]
 	#[allow(dead_code)]
+	#[inline]
 	unsafe fn call_3l(&self, call: u16, a1: u64, a2: usize, a3: usize) -> u64 {
 		::raw::syscall_4( self.call_value(call), (a1 & 0xFFFFFFFF) as usize, (a1 >> 32) as usize, a2, a3 )
 	}
 
 	#[allow(dead_code)]
+	#[inline]
 	unsafe fn call_4(&self, call: u16, a1: usize, a2: usize, a3: usize, a4: usize) -> u64 {
 		::raw::syscall_4( self.call_value(call), a1, a2, a3, a4 )
 	}
 	#[cfg(target_pointer_width="64")]
 	#[allow(dead_code)]
+	#[inline]
 	unsafe fn call_4l(&self, call: u16, a1: u64, a2: usize, a3: usize, a4: usize) -> u64 {
 		::raw::syscall_4( self.call_value(call), a1 as usize, a2, a3, a4 )
 	}
 	#[cfg(target_pointer_width="32")]
 	#[allow(dead_code)]
+	#[inline]
 	unsafe fn call_4l(&self, call: u16, a1: u64, a2: usize, a3: usize, a4: usize) -> u64 {
 		::raw::syscall_5( self.call_value(call), (a1 & 0xFFFFFFFF) as usize, (a1 >> 32) as usize, a2, a3, a4 )
 	}
 
 	#[allow(dead_code)]
+	#[inline]
 	unsafe fn call_5(&self, call: u16, a1: usize, a2: usize, a3: usize, a4: usize, a5: usize) -> u64 {
 		::raw::syscall_5( self.call_value(call), a1, a2, a3, a4, a5 )
 	}
 	#[allow(dead_code)]
+	#[inline]
 	unsafe fn call_6(&self, call: u16, a1: usize, a2: usize, a3: usize, a4: usize, a5: usize, a6: usize) -> u64 {
 		::raw::syscall_6( self.call_value(call), a1, a2, a3, a4, a5, a6 )
 	}
@@ -193,6 +208,7 @@ pub trait Object
 	}
 }
 
+#[inline]
 fn to_result(val: usize) -> Result<u32,u32> {
 	const SIGNAL_VAL: usize = (1 << 31);
 	if val < SIGNAL_VAL {
