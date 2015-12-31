@@ -108,6 +108,7 @@ $(OBJDIR)libcore.rlib: ../rustc_src/libcore/lib.rs $(TARGET_SPEC) $(makefile_dep
 $(BINDIR)%: $(OBJDIR)%
 	@mkdir -p $(dir $@)
 	@cp $< $@
+	@$(STRIP) $@
 $(APPS:%=$(OBJDIR)%): $(OBJDIR)%: %/src/main.rs $(TARGET_SPEC) $(makefile_deps) link-$(ARCH).ld $(OBJDIR)rustrt0.o $(LIBDIR)libloader_dyn.so
 	@mkdir -p $(dir $@)
 	@echo [RUSTC] $@

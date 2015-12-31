@@ -17,6 +17,7 @@ LD := $(TRIPLE)-ld
 AS := $(TRIPLE)-as
 OBJDUMP := $(TRIPLE)-objdump
 OBJCOPY := $(TRIPLE)-objcopy
+STRIP := $(TRIPLE)-strip
 
 ROOTDIR := $(dir $(lastword $(MAKEFILE_LIST)))
 

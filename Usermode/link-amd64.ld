@@ -1,31 +1,36 @@
 ENTRY(start)
 
-PHDRS {
+/* */ PHDRS {
 	SegRX PT_LOAD;
 	SegRW PT_LOAD;
 	SegDYN PT_DYNAMIC;
 }
+/* */
 
 SECTIONS {
 	. = 0x200000;
 	
 	.text : {
 		*(.text .text.*)
-	} :SegRX
+	} /* */ :SegRX /* */
 	.rodata ALIGN(0x1000): {
 		*(.rodata .rodata.*)
-	} :SegRX
+	} /* */ :SegRX /* */
+	.dynsym : { *(.dynsym) } :SegRX
+	.dynstr : { *(.dynstr) } :SegRX
+	.plt : { *(.plt) } :SegRX
+
 	. = ALIGN(0x1000);
 	.data ALIGN(0x1000): {
 		*(.data .data.*)
-	} :SegRW
+	} /* */ :SegRW /* */
 	.bss ALIGN(0x1000) : {
 		*(.bss .bss.*)
-	} :SegRW
+	} /* */ :SegRW /* */
 	
+	/* */
 	. = 0;
-	.dynamic : {
-		*(.dynamic)
-	} :SegDYN
+	.dynamic : { *(.dynamic) } :SegDYN
+	/* */
 }
 
