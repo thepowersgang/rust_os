@@ -58,8 +58,8 @@ pub mod memory {
 		/// End of the heap reservation
 		pub const HEAP_END : usize = imp::HEAP_END ;
 
-		//pub const PCACHE_START: usize = imp::PCACHE_START;
-		//pub const PCACHE_END: usize = imp::PCACHE_END;
+		pub const BUMP_START: usize = imp::BUMP_START;
+		pub const BUMP_END: usize = imp::BUMP_END;
 	}
 	/// Virtual memory manipulation
 	pub mod virt {

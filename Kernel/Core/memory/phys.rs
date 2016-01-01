@@ -66,7 +66,23 @@ impl FrameHandle
 		FrameHandle(addr)
 	}
 	pub fn into_addr(self) -> PAddr {
-		self.0
+		let rv = self.0;
+		::core::mem::forget(self);
+		rv
+	}
+}
+impl Clone for FrameHandle
+{
+	fn clone(&self) -> FrameHandle {
+		ref_frame(self.0);
+		FrameHandle(self.0)
+	}
+}
+impl Drop for FrameHandle
+{
+	fn drop(&mut self)
+	{
+		deref_frame(self.0)
 	}
 }
 
@@ -279,8 +295,7 @@ pub fn deref_frame(paddr: PAddr)
 
 fn mark_used(paddr: PAddr)
 {
-	log_error!("TODO: mark_used(paddr={:#x})", paddr);
-	// TODO:
+	//::arch::memory::phys::mark_used(paddr / ::PAGE_SIZE as PAddr)
 }
 
 // vim: ft=rust

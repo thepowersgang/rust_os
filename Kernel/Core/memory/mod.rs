@@ -17,6 +17,9 @@ pub mod helpers;
 
 pub mod memorymap;
 
+pub mod bump_region;
+pub mod page_cache;
+
 pub use arch::memory::PAddr;
 /*
 #[derive(Copy,Clone,Debug)]

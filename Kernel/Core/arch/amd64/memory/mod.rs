@@ -46,7 +46,10 @@ pub mod addresses
 	const MAX_FRAME_IDX: usize = (PMEMREF_END - PMEMREF_BASE) / 4;	// 32-bit integer each
 	pub const PMEMBM_BASE:	  usize = PMEMREF_END;
 	pub const PMEMBM_END:     usize = PMEMBM_BASE + MAX_FRAME_IDX / 8;	// 8 bits per byte in bitmap
-	// E is free, as is most of F
+	
+	pub const BUMP_START:	usize = 0xFFFF_E000_00000000;
+	pub const BUMP_END:	usize = 0xFFFF_F000_00000000;
+	// Most of F is free
 	
 	pub const STACK_SIZE: usize = 0x8000;   // 4pg allocation was overflowed, 8 works
 	
