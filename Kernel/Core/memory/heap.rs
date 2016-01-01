@@ -27,6 +27,14 @@ struct HeapDef
 }
 unsafe impl ::core::marker::Send for HeapDef {}
 
+#[derive(Debug)]
+enum Error
+{
+	Corrupted,
+	OutOfReservation,
+	OutOfMemory,
+}
+
 #[derive(Debug,PartialEq)]	// RawPtr Debug is the address
 enum HeapState
 {
@@ -65,15 +73,15 @@ pub struct ArrayAlloc<T>
 }
 impl<T> !::lib::POD for ArrayAlloc<T> {}
 
+// --------------------------------------------------------
+
 // Curse no CTFE
 //const HEADERS_SIZE: usize = ::core::mem::size_of::<HeapHead>() + ::core::mem::size_of::<HeapFoot>();
 const MAGIC: u32 = 0x71ff11A1;
 pub const ZERO_ALLOC: *mut () = 1 as *mut _;
-// --------------------------------------------------------
-// Globals
-//#[link_section(process_local)] static s_local_heap : ::sync::Mutex<HeapDef> = mutex_init!(HeapDef{head:None});
-#[allow(non_upper_case_globals)]
-static s_global_heap : ::sync::Mutex<HeapDef> = mutex_init!(HeapDef{start:0 as*mut _, last_foot:0 as*mut _, first_free:0 as*mut _});
+
+//static S_LOCAL_HEAP: ::sync::Mutex<HeapDef> = mutex_init!(HeapDef{head:None});
+static S_GLOBAL_HEAP: ::sync::Mutex<HeapDef> = ::sync::Mutex::new(HeapDef{start:0 as*mut _, last_foot:0 as*mut _, first_free:0 as*mut _});
 
 // --------------------------------------------------------
 // Code
@@ -94,7 +102,7 @@ unsafe fn exchange_malloc(size: usize, align: usize) -> *mut u8
 #[lang="exchange_free"]
 unsafe fn exchange_free(ptr: *mut u8, size: usize, align: usize)
 {
-	s_global_heap.lock().deallocate(ptr as *mut (), size, align)
+	S_GLOBAL_HEAP.lock().deallocate(ptr as *mut (), size, align)
 }
 
 // Used by libgcc
@@ -135,6 +143,16 @@ pub unsafe fn dealloc_raw(ptr: *mut (), size: usize, align: usize) {
 
 impl<T> ArrayAlloc<T>
 {
+	///// Create a new empty array allocation (const)
+	//pub const fn empty() -> ArrayAlloc<T> {
+	//	ArrayAlloc {
+	//		// SAFE: Non-zero value
+	//		ptr: unsafe { Unique::new(ZERO_ALLOC as *mut T) },
+	//		count: 0
+	//		}
+	//}
+	
+	/// Create a new array allocation with `count` items
 	pub fn new(count: usize) -> ArrayAlloc<T>
 	{
 		// SAFE: Correctly constructs 'Unique' instances
@@ -252,11 +270,19 @@ impl<T> ops::Drop for ArrayAlloc<T>
 }
 
 // Main entrypoints
+/// Allocate memory from the specified heap
 unsafe fn allocate(heap: HeapId, size: usize, align: usize) -> Option<*mut ()>
 {
 	match heap
 	{
-	HeapId::Global => s_global_heap.lock().allocate(size, align),
+	HeapId::Global => match S_GLOBAL_HEAP.lock().allocate(size, align)
+		{
+		Ok(v) => Some(v),
+		Err(e) => {
+			log_error!("Unable to allocate: {:?}", e);
+			None
+			},
+		},
 	_ => panic!("TODO: Non-global heaps"),
 	}
 }
@@ -264,27 +290,27 @@ unsafe fn allocate(heap: HeapId, size: usize, align: usize) -> Option<*mut ()>
 /// Attempt to expand in-place
 unsafe fn expand(pointer: *mut (), newsize: usize) -> bool
 {
-	s_global_heap.lock().expand_alloc(pointer, newsize)
+	S_GLOBAL_HEAP.lock().expand_alloc(pointer, newsize)
 }
 unsafe fn shrink(pointer: *mut (), newsize: usize)
 {
-	s_global_heap.lock().shrink_alloc(pointer, newsize)
+	S_GLOBAL_HEAP.lock().shrink_alloc(pointer, newsize)
 }
 
 unsafe fn deallocate(pointer: *mut (), size: usize, align: usize)
 {
-	s_global_heap.lock().deallocate(pointer as *mut (), size, align);
+	S_GLOBAL_HEAP.lock().deallocate(pointer as *mut (), size, align);
 }
 
 impl HeapDef
 {
-	pub unsafe fn allocate(&mut self, size: usize, align: usize) -> Option<*mut ()>
+	pub unsafe fn allocate(&mut self, size: usize, align: usize) -> Result<*mut (), Error>
 	{
 		// Have different pools for different alignments
 		
 		// SHORT CCT: Zero size allocation
 		if size == 0 {
-			return Some(ZERO_ALLOC);
+			return Ok(ZERO_ALLOC);
 		}
 		
 		// This would be static, if CTFE was avalible
@@ -293,6 +319,7 @@ impl HeapDef
 		// 1. Round size up to closest heap block size
 		let blocksize = ::lib::num::round_up(size + headers_size, 32);
 		log_debug!("allocate(size={},align={}) blocksize={}", size, align, blocksize);
+
 		// 2. Locate a free location
 		// Check all free blocks for one that would fit this allocation
 		let mut prev = ::core::ptr::null_mut();
@@ -301,9 +328,14 @@ impl HeapDef
 		{
 			let fb = &*opt_fb;
 			assert!( fb.magic == MAGIC );
-			let next = match fb.state {
-				HeapState::Free(n)=> n,
-				_ => { self.dump(); panic!("Non-free block ({:p}) in free list", opt_fb); }
+			let next = match fb.state
+				{
+				HeapState::Free(n) => n,
+				_ => {
+					self.dump();
+					log_error!("Non-free block ({:p}) in free list", fb);
+					return Err(Error::Corrupted)
+					}
 				};
 			if fb.size() >= blocksize
 			{
@@ -316,7 +348,7 @@ impl HeapDef
 		if !opt_fb.is_null()
 		{
 			let fb = &mut *opt_fb;
-			let next = match fb.state { HeapState::Free(n)=> n, _ => {self.dump(); panic!("Non-free block in free list"); } };
+			let next = match fb.state { HeapState::Free(n) => n, _ => unreachable!() };
 			// Split block (if needed)
 			if fb.size() > blocksize + headers_size
 			{
@@ -326,12 +358,9 @@ impl HeapDef
 				
 				let far_head = fb.next();
 				assert!(far_head != prev);
-				*far_head = HeapHead {
-					magic: MAGIC,
-					size: far_size,
-					state: HeapState::Free(next)
-					};
-				(*far_foot).head = far_head;
+				(*far_head).initialise( far_size, HeapState::Free(next) );
+				assert_eq!( far_foot, (*far_head).foot() as *mut _ );
+
 				log_debug!("Split block, new block {:?}", *far_head);
 				if prev.is_null() {
 					self.first_free = far_head;
@@ -354,14 +383,14 @@ impl HeapDef
 			// Return newly allocated block
 			fb.state = HeapState::Used(size);
 			log_debug!("Returning block {:p} (Freelist)", fb);
-			return Some( fb.data() );
+			return Ok( fb.data() );
 		}
 		assert!(opt_fb.is_null());
-		// Fall: No free blocks would fit the allocation
-		//log_trace!("allocate - No suitable free blocks");
+
+		// Fall through: No free blocks would fit the allocation
 		
 		// 3. If none, allocate more space
-		let block_ptr = self.expand(blocksize);
+		let block_ptr = try!( self.expand(blocksize) );
 		let block = &mut *block_ptr;
 		// > Split returned block into a block of required size and a free block
 		if block.size() > blocksize
@@ -369,20 +398,16 @@ impl HeapDef
 			// Create a new block header at end of block
 			let tailsize = block.size() - blocksize;
 			block.resize(blocksize);
-			let tailblock = &mut *block.next();
-			*tailblock = HeapHead {
-				magic: MAGIC,
-				size: tailsize,
-				state: HeapState::Free(self.first_free),
-				};
-			tailblock.foot().head = block.next();
+
+			(*block.next()).initialise( tailsize, HeapState::Free(self.first_free) );
+
 			self.first_free = block.next();
 		}
 		
 		block.state = HeapState::Used(size);	
 	
 		log_trace!("Returning block {:p} (new)", block);
-		Some( block.data() )
+		Ok( block.data() )
 	}
 
 	/// Attempt to expand the specified block without reallocating
@@ -457,10 +482,7 @@ impl HeapDef
 		
 		{
 			let headref = &mut *headptr;
-			assert!( headref.magic == MAGIC, "Header {:p} magic invalid {:#x} instead of {:#x}",
-				headref, headref.magic, MAGIC );
-			assert!( headref.foot().head() as *mut _ == headptr, "Header {:p} foot backlink invalid, {:p} points to {:p}",
-				headref, headref.foot(), headref.foot().head() );
+			headref.validate().unwrap();
 			if size == 0 {
 				// Special case for use as C free() (as part of ACPICA shim)
 				assert!( is!(headref.state, HeapState::Used(_)), "Header {:p} state invalid {:?} not Used(_)",
@@ -501,7 +523,7 @@ impl HeapDef
 	/// Expand the heap to create a block at least `min_size` bytes long at the end
 	/// \return New block, pre-allocated
 	#[inline(never)]
-	unsafe fn expand(&mut self, min_size: usize) -> *mut HeapHead
+	unsafe fn expand(&mut self, min_size: usize) -> Result<*mut HeapHead, Error>
 	{
 		log_trace!("HeapDef::expand(min_size={:#x})", min_size);
 		//log_debug!("self.{{start = {:p}, last_foot = {:?}}}", self.start, self.last_foot);
@@ -517,30 +539,35 @@ impl HeapDef
 				false
 				// DISABLED: To use the final block, the previous block on the freelist must be edited
 				// - Not easy to do
-				//assert!(!self.last_foot.is_null());
-				//let lasthdr = (*self.last_foot).head();
-				//match lasthdr.state
-				//{
-				//HeapState::Free(_) => {
-				//	assert!(lasthdr.size < min_size);
-				//	true
-				//	},
-				//HeapState::Used(_) => false
-				//}
 			};
 		//log_debug!("(2) self.{{start = {:#x}, last_foot = {:?}}}, use_prev={}", self.start as usize, self.last_foot, use_prev);
 		assert!( !self.last_foot.is_null() );
 		let last_foot = &mut *self.last_foot;
 		let alloc_size = min_size - (if use_prev { last_foot.head().size() } else { 0 });
 		
+		
 		// 1. Allocate at least one page at the end of the heap
 		let n_pages = ::lib::num::round_up(alloc_size, ::PAGE_SIZE) / ::PAGE_SIZE;
 		//log_debug!("HeapDef.expand(min_size={}), alloc_size={}, n_pages={}", min_size, alloc_size, n_pages);
 		//log_trace!("last_foot = {:p}", self.last_foot);
 		assert!(n_pages > 0);
-		::memory::virt::allocate(last_foot.next_head() as *mut(), n_pages);
-		
-		// 2. If the final block is a free block, allocate it and expand to cover the new area
+
+		if last_foot.next_head() as usize == addresses::HEAP_END {
+			return Err( Error::OutOfReservation );
+		}
+		if last_foot.next_head() as usize + n_pages * ::PAGE_SIZE > addresses::HEAP_END {
+			return Err( Error::OutOfReservation );
+		}
+
+		// Allocate memory into the new region
+		match ::memory::virt::allocate(last_foot.next_head() as *mut(), n_pages)
+		{
+		Ok(_) => {},
+		Err(::memory::virt::MapError::OutOfMemory) => return Err(Error::OutOfMemory),
+		Err(e @ _) => panic!("Unknown error from VMM: {:?}", e),
+		}
+
+		// 2. If the final block is a free block, expand it to cover the new area
 		let block = if use_prev
 			{
 				let block = &mut *last_foot.head;
@@ -553,13 +580,9 @@ impl HeapDef
 			else
 			{
 				let block = &mut *last_foot.next_head();
+
 				log_debug!("HeapDef.expand: (new) &block={:p}", block);
-				*block = HeapHead {
-					magic: MAGIC,
-					state: HeapState::Free(0 as *mut _),
-					size: n_pages * ::PAGE_SIZE,
-					};
-				block.foot().head = last_foot.next_head();
+				(*block).initialise( n_pages * ::PAGE_SIZE, HeapState::Free(0 as *mut _) );
 				
 				block
 			};
@@ -567,7 +590,7 @@ impl HeapDef
 		//log_debug!("HeapDef.expand: &block={:p}, self.last_foot={:p}", block, self.last_foot);
 		//block.state = HeapState::Used(0);
 		// 3. Return final block
-		block
+		Ok( block )
 	}
 	
 	fn dump(&self)
@@ -580,7 +603,7 @@ impl HeapDef
 			{
 				let head_ref = &*block_head;
 				log_log!("{:p} {:?}", block_head, head_ref);
-				if head_ref.foot() as *const HeapFoot == self.last_foot {
+				if head_ref.foot_im() as *const HeapFoot == self.last_foot {
 					break;
 				}
 				block_head = head_ref.next();
@@ -593,24 +616,56 @@ impl HeapHead
 {
 	fn size(&self) -> usize { self.size }
 	
-	unsafe fn ptr(&self) -> *mut HeapHead { ::core::mem::transmute(self) }
+	fn ptr(&self) -> *mut HeapHead { self as *const _ as *mut _ }
 	pub unsafe fn prev(&self) -> *mut HeapHead
 	{
 		(*(self.ptr() as *mut HeapFoot).offset(-1)).head()
 	}
-	pub unsafe fn next(&self) -> *mut HeapHead
+
+	/// Obtain a raw pointer to the next block linearly
+	pub fn next(&self) -> *mut HeapHead
 	{
-		(self.ptr() as *mut u8).offset( self.size as isize ) as *mut HeapHead
+		// SAFE: This block should control its entire allocation, thus the offsetting is valid
+		unsafe { 
+			(self.ptr() as *mut u8).offset( self.size as isize ) as *mut HeapHead
+		}
 	}
+
 	pub unsafe fn data(&mut self) -> *mut ()
 	{
 		self.ptr().offset( 1 ) as *mut ()
 	}
-	pub unsafe fn foot<'a>(&'a self) -> &'a mut HeapFoot
+
+	pub fn foot(&mut self) -> &mut HeapFoot
 	{
-		::core::mem::transmute( (self.next() as *mut HeapFoot).offset( -1 ) )
+		// SAFE: Block foot is owned by the block
+		unsafe {
+			&mut *(self.next() as *mut HeapFoot).offset( -1 )
+		}
 	}
-	
+	pub fn foot_im(&self) -> &HeapFoot
+	{
+		// SAFE: Block foot is owned by the block
+		unsafe {
+			& *(self.next() as *const HeapFoot).offset( -1 )
+		}
+	}
+
+	pub fn validate(&mut self) -> Result<(), Error>
+	{
+		let selfptr: *mut _ = self;
+		if self.magic != MAGIC {
+			log_error!("Header {:p} magic invalid {:#x} instead of {:#x}",  self, self.magic, MAGIC );
+			return Err( Error::Corrupted );
+		}
+		let foot_headptr: *mut _ = self.foot().head();
+		if foot_headptr != selfptr {
+			log_error!("Header {:p} foot backlink invalid, {:p} points to {:p}",  selfptr, self.foot_im(), foot_headptr );
+			return Err( Error::Corrupted );
+		}
+		Ok( () )
+	}
+
 	pub unsafe fn resize(&mut self, new_size: usize)
 	{
 		assert!( is!(self.state, HeapState::Free(_)) );
@@ -619,13 +674,27 @@ impl HeapHead
 				head: self as *mut _,
 				};
 	}
+
+	/// UNSAFE: Assumes that the passed size is valid
+	pub unsafe fn initialise(&mut self, size: usize, state: HeapState)
+	{
+		*self = HeapHead {
+			magic: MAGIC,
+			state: state,
+			size: size,
+			};
+		self.foot().head = self;
+	}
 }
 
 impl HeapFoot
 {
-	pub unsafe fn head<'a>(&'a mut self) -> &'a mut HeapHead
+	pub fn head(&mut self) -> &mut HeapHead
 	{
-		::core::mem::transmute( self.head )
+		// SAFE: It's your own dumb fault if this is somewhere invalid
+		unsafe {
+			&mut *self.head
+		}
 	}
 	pub unsafe fn next_head(&mut self) -> *mut HeapHead
 	{

@@ -133,6 +133,8 @@ struct PhysicalVolumeInfo
 #[derive(Default)]
 struct LogicalVolume
 {
+	/// LV Index, should be equal to the index in the VecMap
+	index: usize,
 	/// Logical volume name (should be unique)
 	name: String,
 	/// If true, a VolumeHandle exists for this volume
@@ -323,6 +325,7 @@ fn new_simple_lv(name: String, pv_id: usize, block_size: usize, base: u64, size:
 	
 	assert!(size <= !0usize as u64);
 	let lv = Arc::new( LogicalVolume {
+		index: lvidx,
 		name: name,
 		is_opened: false,
 		block_size: block_size,
@@ -386,6 +389,7 @@ impl VolumeHandle
 		None => Err( VolOpenError::NotFound ),
 		}
 	}
+	/// Acquire an unique handle to a logical volume
 	pub fn open_named(name: &str) -> Result<VolumeHandle,VolOpenError> {
 		match S_LOGICAL_VOLUMES.lock().iter_mut().find(|&(_, ref v)| v.name == name)
 		{
@@ -405,6 +409,9 @@ impl VolumeHandle
 		self.handle.block_size
 	}
 
+	pub fn idx(&self) -> usize {
+		self.handle.index
+	}
 	pub fn name(&self) -> &str {
 		&self.handle.name
 	}
@@ -436,7 +443,6 @@ impl VolumeHandle
 		None
 	}
 	
-	#[allow(dead_code)]
 	/// Read a series of blocks from the volume into the provided buffer.
 	/// 
 	/// The buffer must be a multiple of the logical block size

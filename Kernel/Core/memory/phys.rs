@@ -5,10 +5,17 @@
 // - Physical memory manager
 #[allow(unused_imports)]
 use prelude::*;
-//use arch::memory::addresses::{physinfo_start, physinfo_end};
 use arch::memory::PAddr;
+use arch::memory::virt::TempHandle;
 
 pub const NOPAGE : PAddr = 1;
+
+pub struct Error;
+impl_fmt! {
+	Debug(self,f) for Error {
+		write!(f, "phys::Error")
+	}
+}
 
 static S_MEM_MAP: ::lib::LazyStatic<&'static [::memory::MemoryMapEnt]> = lazystatic_init!();
 /// Tracks the allocation point in S_MEM_MAP : (Entry Index, Address)
@@ -54,7 +61,7 @@ impl FrameHandle
 		mark_used(addr);
 		FrameHandle(addr)
 	}
-	/// UNSAFE due to using a raw physical address, and can cause a leak
+	/// UNSAFE due to using a raw physical address, and can cause an alias
 	pub unsafe fn from_addr_noref(addr: PAddr) -> FrameHandle {
 		FrameHandle(addr)
 	}
@@ -154,15 +161,20 @@ pub fn allocate_range(count: usize) -> PAddr
 	return rv;
 }
 
-pub fn allocate_bare() -> Result<PAddr, ()> {
-	allocate_int(None)
+/// Allocate a page with no fixed alocation, returns a temporary handle to it
+pub fn allocate_bare() -> Result<TempHandle<u8>, Error> {
+	allocate_int(None).map(|x| x.expect("Ok(None) from allocate_int when None passed"))
 }
 
+/// Allocate at a given address
 pub fn allocate(address: *mut ()) -> bool {
 	allocate_int(Some(address)).is_ok()
 }
 
-fn allocate_int( address: Option<*mut ()> ) -> Result<PAddr, ()>
+/// Allocate a page at the given (optional) address
+/// 
+/// If no address is provided, a temporary handle is returned
+fn allocate_int( address: Option<*mut ()> ) -> Result<Option<TempHandle<u8>>, Error>
 {
 	log_trace!("allocate(address={:?})", address);
 	// 1. Pop a page from the free stack
@@ -173,10 +185,10 @@ fn allocate_int( address: Option<*mut ()> ) -> Result<PAddr, ()>
 		let paddr = *h;
 		if paddr != NOPAGE
 		{
-			// If calling map on this address will not cause a recursive allocation
 			match address
 			{
 			Some(address) => {
+				// Check that calling `virt::map` will not cause us to be called
 				if ::arch::memory::virt::can_map_without_alloc(address) {
 					// Map and obtain the next page
 					::memory::virt::map(address, paddr, super::virt::ProtectionMode::KernelRW);
@@ -189,17 +201,20 @@ fn allocate_int( address: Option<*mut ()> ) -> Result<PAddr, ()>
 					drop(h);
 					::memory::virt::map(address, paddr, super::virt::ProtectionMode::KernelRW);
 				}
-				//*(address as *mut PAddr) = 0;
+				// Zero page - Why? - Should fill it with dropped :)
 				*(address as *mut [u8; ::PAGE_SIZE]) = ::core::mem::zeroed();
 				log_trace!("- {:p} (stack) paddr = {:#x}", address, paddr);
+				mark_used(paddr);
+				return Ok(None);
 				},
 			None => {
-				::memory::virt::with_temp(paddr, |page| *h = *(&page[0] as *const u8 as *const PAddr));
+				let handle = ::arch::memory::virt::TempHandle::new(paddr);
+				*h = *(&handle[0] as *const u8 as *const PAddr);
 				log_trace!("- None (stack) paddr = {:#x}", paddr);
+				mark_used(paddr);
+				return Ok( Some(handle) );
 				},
 			}
-			mark_used(paddr);
-			return Ok(paddr);
 		}
 	}
 	// 2. If none, allocate from map
@@ -213,15 +228,20 @@ fn allocate_int( address: Option<*mut ()> ) -> Result<PAddr, ()>
 				*(address as *mut [u8; ::PAGE_SIZE]) = ::core::mem::zeroed();
 			}
 			log_trace!("- {:p} (range) paddr = {:#x}", address, paddr);
+			mark_used(paddr);
+			return Ok( None );
 		}
 		else {
 			log_trace!("- None (range) paddr = {:#x}", paddr);
+			mark_used(paddr);
+			// SAFE: Physical address was just allocated, can't alias
+			let handle = unsafe { ::arch::memory::virt::TempHandle::new(paddr) };
+			return Ok( Some(handle) );
 		}
-		return Ok(paddr);
 	}
 	// 3. Fail
-	log_trace!("- (none)");
-	Err( () )
+	log_warning!("Out of physical memory");
+	Err( Error )
 }
 
 pub fn ref_frame(paddr: PAddr)

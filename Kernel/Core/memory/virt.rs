@@ -113,14 +113,14 @@ where
 }
 
 /// Ensure that the provded pages are valid (i.e. backed by memory)
-pub fn allocate(addr: *mut (), page_count: usize) {
+pub fn allocate(addr: *mut (), page_count: usize) -> Result<(), MapError> {
 	allocate_int(addr, page_count, false)
 }
-pub fn allocate_user(addr: *mut (), page_count: usize) {
+pub fn allocate_user(addr: *mut (), page_count: usize) -> Result<(), MapError> {
 	allocate_int(addr, page_count, true)
 }
 
-fn allocate_int(addr: *mut (), page_count: usize, is_user: bool)
+fn allocate_int(addr: *mut (), page_count: usize, is_user: bool) -> Result<(), MapError>
 {
 	use arch::memory::addresses::is_global;
 
@@ -131,12 +131,26 @@ fn allocate_int(addr: *mut (), page_count: usize, is_user: bool)
 	{
 		if ::arch::memory::virt::is_reserved( pgptr ) {
 			// nope.avi
-			panic!("TODO: Allocated memory ({:p}) in allocate({:p},{})", pgptr, addr, page_count);
+			log_warning!("Allocated memory ({:p}) in allocate({:p},{})", pgptr, addr, page_count);
+			return Err(MapError::RangeInUse);
 		}
 	}
 	// 3. do `page_count` single arbitary allocations
 	for pgptr in Pages(addr, page_count) {
-		::memory::phys::allocate( pgptr );
+		if ! ::memory::phys::allocate( pgptr ) {
+			// Allocation error!
+			let n_done = (pgptr as usize - addr as usize) / ::PAGE_SIZE;
+			for pgptr in Pages(addr, n_done) {
+				// SAFE: We've just made these valid, thus we own them
+				unsafe {
+					if let Some(pa) = ::arch::memory::virt::unmap(pgptr) {
+						::memory::phys::deref_frame(pa);
+					}
+				}
+			}
+
+			return Err( MapError::OutOfMemory );
+		}
 	}
 	if is_user {
 		for pgptr in Pages(addr, page_count) {
@@ -146,6 +160,8 @@ fn allocate_int(addr: *mut (), page_count: usize, is_user: bool)
 			}
 		}
 	}
+
+	Ok( () )
 }
 
 /// Atomically reserves a region of address space
@@ -445,16 +461,16 @@ unsafe fn map_hw(phys: PAddr, count: usize, readonly: bool, _module: &'static st
 	}
 }
 
+// TODO: Have a specialised allocator just for the disk/file cache. Like the heap.
+
 /// Allocate a new page mapped in a temporary region, ready for use with memory-mapped files
 // TODO: What else would use this? Should I just have it be "alloc file page" and take the file ID/offset?
 // - May also be used by new process code
 pub fn alloc_free() -> Result<FreePage,MapError>
 {
 	log_trace!("alloc_free()");
-	let frame = try!( ::memory::phys::allocate_bare().map_err(|_| MapError::OutOfMemory) );
-	// SAFE: We own this frame
-	let map_handle = unsafe { ::arch::memory::virt::TempHandle::new(frame) };
-	log_trace!("- frame = {:#x}, map_handle = {:p}", frame, &map_handle[0]);
+	let map_handle = try!( ::memory::phys::allocate_bare().map_err(|_| MapError::OutOfMemory) );
+	log_trace!("- frame = {:#x}, map_handle = {:p}", get_phys(&map_handle[0]), &map_handle[0]);
 	Ok( FreePage(map_handle) )
 }
 
@@ -466,7 +482,7 @@ impl FreePage
 	}
 	pub fn into_frame(self) -> ::memory::phys::FrameHandle {
 		let paddr = self.phys();
-		// SAFE: Forgets after read
+		// SAFE: Forgets after read (used because Self::drop panics)
 		unsafe {
 			let _ = ::core::ptr::read(&self.0);
 			::core::mem::forget(self);

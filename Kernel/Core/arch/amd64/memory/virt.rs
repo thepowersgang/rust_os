@@ -513,14 +513,22 @@ impl<T> TempHandle<T>
 		get_phys(self.0)
 	}
 }
-impl<T> ::core::ops::Deref for TempHandle<T> {
+impl<T: ::lib::POD> TempHandle<T>
+{
+	fn into<U: ::lib::POD>(self) -> TempHandle<U> {
+		let addr = self.0;
+		::core::mem::forget(self);
+		TempHandle(addr as *mut U)
+	}
+}
+impl<T: ::lib::POD> ::core::ops::Deref for TempHandle<T> {
 	type Target = [T];
 	fn deref(&self) -> &[T] {
 		// SAFE: We should have unique access
 		unsafe { ::core::slice::from_raw_parts(self.0, 0x1000 / ::core::mem::size_of::<T>()) }
 	}
 }
-impl<T> ::core::ops::DerefMut for TempHandle<T> {
+impl<T: ::lib::POD> ::core::ops::DerefMut for TempHandle<T> {
 	fn deref_mut(&mut self) -> &mut [T] {
 		// SAFE: We should have unique access
 		unsafe { ::core::slice::from_raw_parts_mut(self.0, 0x1000 / ::core::mem::size_of::<T>()) }
@@ -542,9 +550,8 @@ impl NewTable {
 	fn new() -> Result<NewTable,::memory::virt::MapError> {
 		match ::memory::phys::allocate_bare()
 		{
-		Err( () ) => Err( MapError::OutOfMemory ),
-		// SAFE: Frame is owned
-		Ok(f) => Ok( NewTable(unsafe { TempHandle::new(f) }) ),
+		Err(::memory::phys::Error) => Err( MapError::OutOfMemory ),
+		Ok(temp_handle) => Ok( NewTable( temp_handle.into() ) ),
 		}
 	}
 	fn into_frame(self) -> PAddr {

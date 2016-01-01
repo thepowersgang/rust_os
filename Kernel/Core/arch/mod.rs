@@ -18,32 +18,50 @@ pub mod imp;
 pub use self::imp::acpi;
 
 
+/// Memory management
 pub mod memory {
+	/// Physical address type
 	pub type PAddr = ::arch::imp::memory::PAddr;
 	pub type VAddr = ::arch::imp::memory::VAddr;
+
+	/// Size of a page/frame in bytes
 	pub const PAGE_SIZE: usize = ::arch::imp::memory::PAGE_SIZE;
 
+	/// Address space layout
 	pub mod addresses {
 		use arch::imp::memory::addresses as imp;
 
 		#[inline]
+		/// Returns `true` if the passed address is valid in every address space
 		pub fn is_global(addr: usize) -> bool {
 			imp::is_global(addr)
 		}
 
+		/// Size of a single kernel statck
 		pub const STACK_SIZE: usize = imp::STACK_SIZE;
 
+		/// Last first address after the user-controlled region
 		pub const USER_END: usize = imp::USER_END;
 
+		/// Start of the kernel stack region
 		pub const STACKS_BASE: usize = imp::STACKS_BASE;
+		/// End of the kernel stack region
 		pub const STACKS_END : usize = imp::STACKS_END ;
 
+		/// Start of hardware mappings
 		pub const HARDWARE_BASE: usize = imp::HARDWARE_BASE;
+		/// End of hardware mappings
 		pub const HARDWARE_END : usize = imp::HARDWARE_END ;
 
+		/// Start of the heap reservation
 		pub const HEAP_START: usize = imp::HEAP_START;
-		//pub const HEAP_END : usize = imp::HEAP_END ;
+		/// End of the heap reservation
+		pub const HEAP_END : usize = imp::HEAP_END ;
+
+		//pub const PCACHE_START: usize = imp::PCACHE_START;
+		//pub const PCACHE_END: usize = imp::PCACHE_END;
 	}
+	/// Virtual memory manipulation
 	pub mod virt {
 		use arch::imp::memory::virt as imp;
 		
@@ -96,6 +114,7 @@ pub mod memory {
 			imp::unmap(a)
 		}
 	}
+	/// Physical memory state tracking
 	pub mod phys {
 		use arch::imp::memory::phys as imp;
 
@@ -123,13 +142,17 @@ pub mod memory {
 	}
 }
 
+/// Syncronisation types (spinlock and interrupt holding)
 pub mod sync {
 	use super::imp::sync as imp;
+
+	/// Busy-waiting spin-lock type
 	pub type Spinlock<T> = imp::Spinlock<T>;
 	pub type HeldSpinlock<'a, T: 'a> = imp::HeldSpinlock<'a, T>;
 	pub type HeldInterrupts = imp::HeldInterrupts;
 
 	#[inline]
+	/// Halt interrupts and return a RAII handle
 	pub fn hold_interrupts() -> HeldInterrupts {
 		imp::hold_interrupts()
 	}
@@ -226,6 +249,7 @@ pub mod threads {
 	}
 }
 
+/// x86 IO bus accesses
 pub mod x86_io {
 	use super::imp::x86_io as imp;
 

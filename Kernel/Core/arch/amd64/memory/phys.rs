@@ -141,8 +141,10 @@ impl<T> PageArray<T>
 		let pgidx = idx / per_page;
 		let pgofs = idx % per_page;
 		let page = (self.start as usize + pgidx * ::PAGE_SIZE) as *mut T;
-		if ! ::memory::virt::is_reserved( page ) {
-			::memory::virt::allocate( page as *mut (), 1 );
+		if ! ::memory::virt::is_reserved( page )
+		{
+			// TODO: Handle OOM gracefully
+			::memory::virt::allocate( page as *mut (), 1 ).expect("Failed to allocate memory for PageArray");
 
 			// SAFE: Newly allocated, and nothing valid in it
 			unsafe {

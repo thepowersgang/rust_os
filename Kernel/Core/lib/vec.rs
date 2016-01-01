@@ -25,8 +25,6 @@ pub struct MoveItems<T>
 
 impl<T> Vec<T>
 {
-	//pub static EMPTY: Vec<T> = Vec { data: Unique(::memory::heap::ZERO_ALLOC), size: 0, capacity: 0 };
-	
 	/// Create a new, empty vector
 	pub fn new() -> Vec<T>
 	{
