@@ -43,7 +43,6 @@ PREFIX ?= ../.prefix/
 rustcmd = LD_LIBRARY_PATH=$(PREFIX)lib/ $(PREFIX)bin/$1
 RUSTC := $(call rustcmd,rustc)
 RUSTDOC := $(call rustcmd,rustdoc)
-RUSTDOC := $(call rustcmd,cargo)
 
 -include BuildNum.$(ARCH).mk
 BUILDNUM ?= 1
@@ -67,7 +66,16 @@ TARGET_FILE := Core/arch/$(ARCH)/target.json
 
 OBJDIR := .obj/$(ARCH)/
 
-RUSTFLAGS := -L $(OBJDIR)
+RUSTFLAGS_C := --target=$(TARGET_FILE) --cfg 'arch="$(ARCH)"'
+RUSTFLAGS_C += -L $(OBJDIR)
+RUSTFLAGS_C += -L bin/plugins/
+RUSTFLAGS_C += --cfg nightly --cfg no_std --cfg 'feature="no_std"'
+RUSTFLAGS_C += --cfg disable_float
+ifeq ($(USE_ACPICA),1)
+	RUSTFLAGS_C += --cfg use_acpica
+endif
+
+RUSTFLAGS := $(RUSTFLAGS_C)
 RUSTFLAGS += -O
 #RUSTFLAGS += -C opt-level=1
 RUSTFLAGS += -g
@@ -78,15 +86,7 @@ RUSTFLAGS += -C target-feature=$(subst $(space),$(comma),$(EXCLUDE_FEATURES:%=-%
 #RUSTFLAGS += -C no-vectorize-loops
 #RUSTFLAGS += -C no-vectorize-slp
 RUSTFLAGS += -Z no-landing-pads
-RUSTFLAGS += --cfg 'arch="$(ARCH)"'
-RUSTFLAGS += -L bin/plugins/
-RUSTFLAGS += --cfg nightly --cfg no_std --cfg 'feature="no_std"'
-RUSTFLAGS += --cfg disable_float
 #RUSTFLAGS += -C save-temps
-ifeq ($(USE_ACPICA),1)
-	RUSTFLAGS += --cfg use_acpica
-endif
-RUSTFLAGS += --target=$(TARGET_FILE)
 #RUSTFLAGS += -Z time-passes
 
 LINKFLAGS := -T Core/arch/$(ARCH)/link.ld -Map $(OBJDIR)map.txt -g
@@ -123,9 +123,10 @@ dsm: bin/kernel-$(ARCH).bin.dsm
 clean:
 	rm -r $(OBJDIR)
 
-docs:
-	@mkdir -p doc/Kernel
-	$V$(ENV) $(RUSTDOC) -o doc/Kernel Core/main.rs --cfg 'arch="amd64"' -L bin/plugins
+docs: bin/kernel-$(ARCH).bin
+	@mkdir -p doc/$(ARCH)/Kernel
+	@echo [RUSTDOC] Core/main.rs
+	$V$(ENV) $(RUSTDOC) $(RUSTFLAGS_C) -o doc/$(ARCH)/Kernel Core/main.rs
 	@chmod +rX doc/ -R 
 
 # ===
