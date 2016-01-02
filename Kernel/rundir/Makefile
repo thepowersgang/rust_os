@@ -12,6 +12,7 @@ else
 	QEMU_ARGS += -serial stdio
 endif
 QEMU_ARGS += -d int,guest_errors -D qemu_int_log.txt
+#QEMU_ARGS += -d int,guest_errors,exec -D qemu_int_log.txt
 ifneq ($(QEMU_STALL),)
 	QEMU_ARGS += -S
 endif

@@ -13,7 +13,7 @@ pub type InstancePtr = ArefBorrow<InstanceInner>;
 
 pub struct InstanceInner
 {
-	pub vol: ::buffered_volume::BufferedVolume,
+	pub vol: ::block_cache::CacheHandle,
 	superblock: ::ondisk::Superblock,
 	pub fs_block_size: usize,
 
@@ -167,7 +167,7 @@ impl Instance
 			fs_block_size: fs_block_size,
 			superblock: superblock,
 			group_descriptors: group_descs,
-			vol: ::buffered_volume::BufferedVolume::new(vol),
+			vol: ::block_cache::CacheHandle::new(vol),
 			};
 
 		// SAFE: Boxed instantly
@@ -218,16 +218,59 @@ impl InstanceInner
 	}
 }
 
+/// Structure representing a view into a BlockCache entry
+pub struct Block(::block_cache::CachedBlockHandle, u16,u16);
+impl Block
+{
+	pub fn write<F: FnOnce(&mut [u32])->R, R>(&mut self, f: F) -> R
+	{
+		todo!("Block::write");
+	}
+}
+impl ::core::ops::Deref for Block
+{
+	type Target = [u32];
+	fn deref(&self) -> &[u32] {
+		let &Block(ref handle, ofs, size) = self;
+		// SAFE: Alignment should be good (but is checked anyway)
+		unsafe {
+			assert!(ofs as usize + size as usize <= handle.data().len());
+			assert!(ofs % 4 == 0);
+			assert!(&handle.data()[0] as *const _ as usize % 4 == 0);
+			::core::slice::from_raw_parts(&handle.data()[ofs as usize] as *const u8 as *const u32, (size / 4) as usize)
+		}
+	}
+}
+
 impl InstanceInner
 {
-	/// Obtain a block (possibly cached)
-	pub fn get_block(&self, block: u32) -> vfs::node::Result<Box<[u32]>>
+	/// Obtain a block (using the block cache)
+	pub fn get_block(&self, block: u32) -> vfs::node::Result<Block>
 	{
+		if self.fs_block_size > ::kernel::PAGE_SIZE {
+			// TODO: To handle extN blocks larger than the system's page size, we'd need to start packing multiple cache handles into
+			//       the `Block` structure
+			todo!("Handle extN block sizes > PAGE_SIZE - {} > {}", self.fs_block_size, ::kernel::PAGE_SIZE);
+		}
 		log_trace!("get_block({})", block);
-		let mut rv = vec![0u32; self.fs_block_size / 4].into_boxed_slice();
-		try!( self.read_blocks( block, ::kernel::lib::as_byte_slice_mut(&mut rv[..]) ) );
-		Ok(rv)
+		let sector = block as u64 * self.vol_blocks_per_fs_block();
+		let ch = try!(self.vol.get_block(sector));
+		let ofs = (sector - ch.index()) as usize * self.vol.block_size();
+		Ok( Block(ch, ofs as u16, self.fs_block_size as u16) )
 	}
+
+	/// Obtain a block (uncached)
+	///
+	/// This is the more expensive version of `get_block`, which doesn't directly touch the block cache.
+	/// It's used to handle partial file reads (which should be cached by higher layers)
+	pub fn get_block_uncached(&self, block: u32) -> vfs::node::Result<Box<[u32]>>                           
+	{                                                                                              
+		log_trace!("get_block_uncached({})", block);                                                    
+		let mut rv = vec![0u32; self.fs_block_size / 4].into_boxed_slice();                    
+		try!( self.read_blocks( block, ::kernel::lib::as_byte_slice_mut(&mut rv[..]) ) );      
+		Ok(rv)                                                                                 
+	}                
+
 	/// Read a sequence of blocks into a user-provided buffer
 	pub fn read_blocks(&self, first_block: u32, data: &mut [u8]) -> vfs::node::Result<()>
 	{
@@ -291,7 +334,7 @@ impl InstanceInner
 		{
 			// NOTE: Unused fields in the inode are zero
 			let slice = &mut ::kernel::lib::as_byte_slice_mut(&mut rv)[.. self.s_inode_size()];
-			try!( self.vol.read_subblock_single(vol_block, blk_ofs, slice) );
+			try!( self.vol.read_inner(vol_block, blk_ofs, slice) );
 		}
 		log_trace!("- rv={:?}", rv);
 		Ok( rv )
@@ -302,7 +345,7 @@ impl InstanceInner
 		let (vol_block, blk_ofs) = self.get_inode_pos(inode_num);
 		
 		let slice = &::kernel::lib::as_byte_slice(inode_data)[.. self.s_inode_size()];
-		try!( self.vol.write_subblock_single(vol_block, blk_ofs, slice) );
+		try!( self.vol.write_inner(vol_block, blk_ofs, slice) );
 
 		Ok( () )
 	}

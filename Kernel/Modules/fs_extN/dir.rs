@@ -212,18 +212,20 @@ impl vfs::node::Dir for Dir
 			let (blk, ofs) = try!(self.find_free(name));
 			// 2. Fill said slot
 			let vol_blk = try!( self.inode.blocks_from(blk as u32).next().ok_or(vfs::node::IoError::OutOfRange) );
-			let mut blk_data = try!( self.inode.fs.get_block(vol_blk) );
-			match ::ondisk::DirEnt::new_mut(&mut blk_data[ofs/4 ..])
-			{
-			None => return Err(vfs::node::IoError::Corruption),
-			Some(ent) => {
-				ent.d_name_len = name.len() as u8;
-				ent.d_inode = inode as u32;
-				},
-			}
-			// - Now that name length is longer, update the name
-			::ondisk::DirEnt::new_mut(&mut blk_data[ofs/4 ..]).unwrap()
-				.d_name.clone_from_slice( name.as_ref() );
+			try!(try!( self.inode.fs.get_block(vol_blk) ).write(|blk_data| {
+				match ::ondisk::DirEnt::new_mut(&mut blk_data[ofs/4 ..])
+				{
+				None => return Err(vfs::node::IoError::Corruption),
+				Some(ent) => {
+					ent.d_name_len = name.len() as u8;
+					ent.d_inode = inode as u32;
+					},
+				}
+				// - Now that name length is longer, update the name
+				::ondisk::DirEnt::new_mut(&mut blk_data[ofs/4 ..]).unwrap()
+					.d_name.clone_from_slice( name.as_ref() );
+				Ok( () )
+				}));
 			// 3. Update inode's link count
 			try!(self.inode.fs.with_inode(inode as u32, |ino|
 				ino.inc_link_count()
@@ -252,26 +254,24 @@ impl vfs::node::Dir for Dir
 				None => return Err(vfs::node::IoError::OutOfRange),	// TODO: Better error?
 				};
 
-			let mut blk_data = try!(self.inode.fs.get_block(vol_blk));
-
-			match ::ondisk::DirEnt::new_mut(&mut blk_data[ofs/4 ..])
-			{
-			None => return Err(vfs::node::IoError::Corruption),
-			Some(ent) => {
-				// Clear name length
-				ent.d_name_len = 0;
-				// TODO: Decrement reference count in inode.
-				// > Requires either read+modify+write of the inode on disk
-				// > OR, opening the inode and editing it via the VFS's cache
-				try!(self.inode.fs.with_inode(ent.d_inode, |ino|
-					ino.dec_link_count()
-					));
-				},
-			}
-
-			try!( self.inode.fs.write_blocks(vol_blk, ::kernel::lib::as_byte_slice(&blk_data[..])) );
-
-			Ok( () )
+			try!(self.inode.fs.get_block(vol_blk))
+				.write(|blk_data|
+					match ::ondisk::DirEnt::new_mut(&mut blk_data[ofs/4 ..])
+					{
+					None => return Err(vfs::node::IoError::Corruption),
+					Some(ent) => {
+						// Clear name length
+						ent.d_name_len = 0;
+						// TODO: Decrement reference count in inode.
+						// > Requires either read+modify+write of the inode on disk
+						// > OR, opening the inode and editing it via the VFS's cache
+						try!(self.inode.fs.with_inode(ent.d_inode, |ino|
+							ino.dec_link_count()
+							));
+						Ok( () )
+						},
+					}
+					)
 		}
 	}
 }

@@ -128,6 +128,7 @@ pub extern "C" fn kmain()
 	::memory::phys::init();
 	::memory::virt::init();
 	::memory::heap::init();
+	::memory::page_cache::init();
 	::threads::init();
 	
 	log_log!("Command line = '{}'", ::arch::boot::get_boot_string());

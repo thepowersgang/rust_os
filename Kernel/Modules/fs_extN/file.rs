@@ -67,7 +67,7 @@ impl vfs::node::File for File
 		{
 			let partial_bytes = self.fs_block_size() - blk_ofs;
 			
-			let blk_data = try!(self.inode.fs.get_block( try!(blocks.next_or_err()) ));
+			let blk_data = try!(self.inode.fs.get_block_uncached( try!(blocks.next_or_err()) ));
 			let blk_data = ::kernel::lib::as_byte_slice(&blk_data[..]);
 			if buf.len() <= partial_bytes
 			{
@@ -96,7 +96,7 @@ impl vfs::node::File for File
 		//log_trace!("remain {} (tail)", buf.len() - read_bytes);
 		if buf.len() - read_bytes > 0
 		{
-			let blk_data = try!(self.inode.fs.get_block( try!(blocks.next_or_err()) ));
+			let blk_data = try!(self.inode.fs.get_block_uncached( try!(blocks.next_or_err()) ));
 			let blk_data = ::kernel::lib::as_byte_slice(&blk_data[..]);
 			buf[read_bytes..].clone_from_slice(&blk_data);
 			read_bytes = buf.len();
@@ -148,16 +148,39 @@ impl vfs::node::File for File
 		{
 			todo!("write - extend");
 		}
-		else
-		{
-			if ofs > self.inode.i_size() || buf.len() as u64 > self.inode.i_size() || ofs + buf.len() as u64 > self.inode.i_size() {
-				Err( vfs::node::IoError::OutOfRange )
+		else if ofs > self.inode.i_size() || buf.len() as u64 > self.inode.i_size() || ofs + buf.len() as u64 > self.inode.i_size() {
+			Err( vfs::node::IoError::OutOfRange )
+		}
+		else {
+			// NOTE: In this section, we're free to read-modify-write blocks without fear, as the VFS itself handles
+			//       the file "borrow checking". A file race is the userland's problem (if a SharedRW handle is used)
+			let (blk_idx, blk_ofs) = ::kernel::lib::num::div_rem(ofs, self.fs_block_size() as u64);
+			let mut blocks = self.inode.blocks_from(blk_idx as u32);
+			let mut written = 0;
+			// 1. Leading partial
+			let blk_ofs = blk_ofs as usize;
+			if blk_ofs > 0
+			{
+				todo!("write - mutate - leading partial {}", blk_ofs);
+				//written += blk_ofs;
 			}
-			else {
-				// NOTE: In this section, we're free to read-modify-write blocks without fear, as the VFS itself handles
-				//       the file "borrow checking". A file race is the userland's problem (if a SharedRW handle is used)
-				todo!("write - mutate");
+			// 2. Inner
+			while buf.len() - written >= self.fs_block_size()
+			{
+				let remain_blocks = (buf.len() - written)/self.fs_block_size();
+				let (blkid, count) = try!(blocks.next_extent_or_err( remain_blocks as u32 ));
+				let byte_count = count as usize * self.fs_block_size();
+				try!(self.inode.fs.write_blocks(blkid, &buf[written ..][.. byte_count]));
+				written += byte_count;
 			}
+			// 3. Trailing partial
+			let trailing_bytes = buf.len() - written;
+			if trailing_bytes > 0
+			{
+				todo!("write - mutate - trailing partial {}", trailing_bytes);
+			}
+
+			Ok( written )
 		}
 	}
 }

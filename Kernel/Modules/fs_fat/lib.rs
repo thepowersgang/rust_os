@@ -17,6 +17,7 @@ use kernel::lib::mem::Arc;
 
 extern crate utf16;
 extern crate blockcache;
+extern crate block_cache;
 
 module_define!{FS_FAT, [VFS], init}
 
@@ -60,7 +61,8 @@ impl ::core::ops::Deref for Filesystem {
 //const FAT_CACHE_BLOCK_SIZE: usize = 512;
 pub struct FilesystemInner
 {
-	vh: VolumeHandle,
+	//vh: VolumeHandle,
+	vh: ::block_cache::CacheHandle,
 	ty: Size,
 	
 	spc: usize,
@@ -75,8 +77,6 @@ pub struct FilesystemInner
 	
 	//fat_cache: vfs::Cache<[u32; FAT_CACHE_BLOCK_SIZE]>,
 	// XXX: Should really use the above line for this, but BlockCache exists
-	/// A cache of sectors used for the FAT
-	fat_block_cache: ::blockcache::BlockCache,
 	/// A cache of metadata clusters (i.e. directories)
 	metadata_block_cache: ::blockcache::BlockCache,
 }
@@ -127,10 +127,12 @@ impl mount::Driver for Driver
 		}
 	}
 	fn mount(&self, vol: VolumeHandle) -> vfs::Result<Box<mount::Filesystem>> {
+		let vol = ::block_cache::CacheHandle::new(vol);
+
+		// Read the bootsector
 		let bs = {
-			let mut bs = [0u8; 512];
-			try!( vol.read_blocks(0, &mut bs) );
-			on_disk::BootSect::read(&mut &bs[..])
+			let blk = try!(vol.get_block(0));
+			on_disk::BootSect::read(&mut &blk.data()[..512])
 			};
 		let bs_c = bs.common();
 		if bs_c.bps != 512 {
@@ -195,7 +197,6 @@ impl mount::Driver for Driver
 				root_sector_count: root_dir_sectors as u32,
 				
 				metadata_block_cache: ::blockcache::BlockCache::new(),
-				fat_block_cache: ::blockcache::BlockCache::new(),
 
 				vh: vol,
 				}) },
@@ -235,7 +236,7 @@ impl FilesystemInner
 	// - Should this function lock the cluster somehow to prevent accidental overlap?
 	// - Could also cache somehow (with a refcount) along with the 'writing' flag
 	fn load_cluster(&self, cluster: u32) -> Result<Cluster, storage::IoError>
-	{	
+	{
 		self.metadata_block_cache.get(
 			cluster,
 			|_| {
@@ -266,14 +267,12 @@ impl FilesystemInner
 				(cluster as usize / cps, (cluster as usize % cps) * 2)
 				},
 			};
+
 		// - Read a single sector from the FAT
-		let sector_data: Arc<[u8]> = try!(self.fat_block_cache.get(
-			(self.first_fat_sector + fat_sector) as u32,
-			|sector| {
-				let mut sector_data = Arc/*::<[u8]>*/::from_fn(bs, |_|0);
-				try!(self.vh.read_blocks(sector as u64, Arc::get_mut(&mut sector_data).unwrap()));
-				Ok(sector_data)
-			}));
+		let sector_idx = (self.first_fat_sector + fat_sector) as u64;
+		let sector_data = try!(self.vh.get_block( sector_idx ));
+		let start_ofs = (sector_idx - sector_data.index()) as usize * bs;
+		let sector_data = &sector_data.data()[start_ofs .. ];
 		// - Extract the entry
 		Ok(match self.ty
 		{

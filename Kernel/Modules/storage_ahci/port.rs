@@ -199,7 +199,7 @@ impl Port
 
 		let int_status = regs.read(hw::REG_PxIS);
 		let tfd = regs.read(hw::REG_PxTFD);
-		log_trace!("{} - int_status={:#x}", self, int_status);
+		//log_trace!("{} - int_status={:#x}", self, int_status);
 
 		// Cold Port Detection Status
 		if int_status & hw::PxIS_CPDS != 0
@@ -236,8 +236,8 @@ impl Port
 		let issued_commands = regs.read(hw::REG_PxCI);
 		let active_commands = regs.read(hw::REG_PxSACT);
 		let used_commands = self.used_commands.load(Ordering::Relaxed);
-		log_trace!("{} - used_commands = {:#x}, issued_commands={:#x}, active_commands={:#x}",
-			self, used_commands, issued_commands, active_commands);
+		//log_trace!("{} - used_commands = {:#x}, issued_commands={:#x}, active_commands={:#x}",
+		//	self, used_commands, issued_commands, active_commands);
 		for cmd in 0 .. self.ctrlr.max_commands as usize
 		{
 			let mask = 1 << cmd;

@@ -14,7 +14,7 @@ use kernel::metadevs::storage::VolumeHandle;
 #[macro_use]
 extern crate kernel;
 
-extern crate buffered_volume;
+extern crate block_cache;
 
 module_define!{FS_EXTN, [VFS], init}
 

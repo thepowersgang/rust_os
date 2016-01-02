@@ -15,10 +15,16 @@ use memory::virt::ProtectionMode;
 type AtomicU32 = ::sync::atomic::AtomicValue<u32>;
 
 /// Error returned by mapping functions
+#[derive(Debug)]
 pub struct Error;
+impl_from! {
+	From<::memory::virt::MapError>(_v) for Error {
+		Error
+	}
+}
 
 /// Unique handle to a page in the cache
-pub struct CachedPage(NonZero<*mut [u8; PAGE_SIZE]>);
+pub struct CachedPage(NonZero<*mut Page>);
 unsafe impl Send for CachedPage {}
 unsafe impl Sync for CachedPage {}
 
@@ -66,10 +72,9 @@ impl PageCache
 		(base as usize + idx * PAGE_SIZE) as *mut Page
 	}
 
-	/// Map the provided physical frame into virtual memory and return a handle to it
-	/// 
-	// TODO: This should be unsafe, as passing the same FrameHandle twice will induce aliasing
-	pub fn map(&self, frame_handle: &FrameHandle) -> Result<CachedPage, Error>
+	fn get_free_ent<F,R>(&self, cb: F) -> Result<R, Error>
+	where
+		F: FnOnce(usize) -> Result<R, Error>
 	{
 		self.avail_ents.acquire();
 
@@ -85,13 +90,7 @@ impl PageCache
 				let i = (!cur).trailing_zeros() as usize;
 				
 				if cur == e.compare_and_swap(cur, cur | (1 << i), Ordering::Acquire) {
-					let addr = self.addr( blk * 32 + i );
-					assert!( !addr.is_null() );
-					// SAFE: Assuming that we're passed an unaliased handle. Address is non-zero
-					unsafe {
-						::memory::virt::map(addr as *mut (), frame_handle.clone().into_addr(), ProtectionMode::KernelRW);
-						return Ok( CachedPage(NonZero::new(addr as *mut _)) );
-					}
+					return cb( blk * 32 + i );
 				}
 			}
 		}
@@ -99,10 +98,57 @@ impl PageCache
 		todo!("Is this even possible?");
 	}
 
+	/// Map the provided physical frame into virtual memory and return a handle to it
+	/// 
+	// TODO: This should be unsafe, as passing the same FrameHandle twice will induce aliasing
+	pub fn map(&self, frame_handle: &FrameHandle) -> Result<CachedPage, Error>
+	{
+		self.get_free_ent(|idx| {
+			let addr = self.addr( idx );
+			assert!( !addr.is_null() );
+			// SAFE: Assuming that we're passed an unaliased handle. Address is non-zero
+			unsafe {
+				::memory::virt::map(addr as *mut (), frame_handle.clone().into_addr(), ProtectionMode::KernelRW);
+				Ok( CachedPage(NonZero::new(addr as *mut _)) )
+			}
+			})
+	}
+
 	/// Allocate a new frame and place it in the cache
 	pub fn create(&self) -> Result<CachedPage, Error>
 	{
-		todo!("PageCache::create");
+		self.get_free_ent(|idx| {
+			let addr = self.addr(idx);
+			try!(::memory::virt::allocate(addr as *mut (), 1));
+			// SAFE: Non-null pointer
+			Ok( CachedPage(unsafe { NonZero::new(addr as *mut _) }) )
+			})
+	}
+
+
+	fn release(&self, addr: *mut Page)
+	{
+		assert!(addr as usize % ::PAGE_SIZE == 0);
+		let base = self.addr(0);
+		assert!(addr as usize >= base as usize);
+		let idx = (addr as usize - base as usize) / ::PAGE_SIZE;
+		assert!(idx < MAX_ENTS);
+
+		// SAFE: Internally only called on drop of handle
+		unsafe {
+			::memory::virt::unmap(addr as *mut (), 1);
+		}
+
+		let e = &self.bitmap[idx / 32];
+		let mask: u32 = 1 << (idx % 32);
+		loop
+		{
+			let cur = e.load(Ordering::Acquire);
+			if cur == e.compare_and_swap(cur, cur & !mask, Ordering::Release) {
+				break ;
+			}
+		}
+		self.avail_ents.release();
 	}
 }
 
@@ -111,13 +157,24 @@ impl PageCache
 impl CachedPage
 {
 	pub fn get_frame_handle(&self) -> FrameHandle {
-		todo!("CachedPage::get_frame_handle");
+		// SAFE: Physical address is valid
+		unsafe {
+			FrameHandle::from_addr( ::memory::virt::get_phys(*self.0) )
+		}
+	}
+	pub fn data(&self) -> &[u8] {
+		// SAFE: Owned and valid
+		unsafe { &(**self.0).0 }
+	}
+	pub fn data_mut(&mut self) -> &mut [u8] {
+		// SAFE: Owned and valid
+		unsafe { &mut (**self.0).0 }
 	}
 }
 impl ::core::ops::Drop for CachedPage
 {
 	fn drop(&mut self) {
-		todo!("CachedPage::drop()");
+		S_PAGE_CACHE.release( *self.0 );
 	}
 }
 

@@ -272,11 +272,11 @@ pub unsafe fn unmap(addr: *mut (), count: usize)
 	if ::arch::memory::virt::is_fixed_alloc(addr, count)
 	{
 		// Do nothing
-		log_trace!("unmap(*{:p} {}) - Fixed alloc", addr, count);
+		//log_trace!("unmap(*{:p} {}) - Fixed alloc", addr, count);
 	}
 	else
 	{	
-		log_trace!("unmap(*{:p} {}) - Dynamic alloc", addr, count);
+		//log_trace!("unmap(*{:p} {}) - Dynamic alloc", addr, count);
 		let _lock = s_kernelspace_lock.lock();
 		let pos = addr as usize;
 		
@@ -285,7 +285,7 @@ pub unsafe fn unmap(addr: *mut (), count: usize)
 			panic!("Non-aligned page {:p} passed (unmapping {} pages)", addr, count);
 		}
 		
-		// TODO: Dereference the frames returned
+		// Dereference the frames returned
 		for i in 0 .. count {
 			if let Some(addr) = ::arch::memory::virt::unmap( (pos + i*::PAGE_SIZE) as *mut () ) {
 				::memory::phys::deref_frame(addr);
