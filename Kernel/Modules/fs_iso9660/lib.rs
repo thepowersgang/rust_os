@@ -37,6 +37,8 @@ struct InstanceInner
 	lb_size: usize,
 	root_lba: u32,
 	root_size: u32,
+
+	susp_len_skip: Option<u8>,
 }
 
 fn init()
@@ -99,16 +101,34 @@ impl mount::Driver for Driver
 		let root_size = LittleEndian::read_u32(&block[156+10..]);
 		
 		log_debug!("lb_size = {}, root = {:#x} + {:#x} bytes", lb_size, root_lba, root_size);
+	
+	
+		let mut inner = InstanceInner {
+			vh: ::block_cache::CacheHandle::new(vol),
+			lb_size: lb_size as usize,
+			root_lba: root_lba,
+			root_size: root_size,
+			susp_len_skip: None,
+			};
+
+		// Determine if SUSP is in use (used for RockRidge extensions)
+		inner.susp_len_skip = {
+			let mut it = DirSector::new(&inner, try!(inner.get_sector(root_lba)), 0 );
+			let first_ent = match try!(it.next())
+				{
+				None => return Err(::kernel::vfs::Error::ConsistencyError),
+				Some(v) => v,
+				};
+			if first_ent.sys_use.len() >= 6 && &first_ent.sys_use[..6] == b"SP\x07\x01\xBE\xEF" {
+				Some(first_ent.sys_use[6])
+			}
+			else {
+				None
+			}
+			};
 		
-		Ok( Box::new( Instance(
-			// SAFE: Stored in a box, and not moved out.
-			unsafe { ArefInner::new( InstanceInner {
-				vh: ::block_cache::CacheHandle::new(vol),
-				lb_size: lb_size as usize,
-				root_lba: root_lba,
-				root_size: root_size,
-				} ) }
-			) ) )
+		// SAFE: Stored in a box, and not moved out.
+		Ok( Box::new( Instance(unsafe { ArefInner::new( inner ) }) ) )
 	}
 }
 
@@ -129,7 +149,7 @@ impl mount::Filesystem for Instance
 				Ok(v) => v,
 				Err(_) => return None,
 				};
-			let mut it = DirSector::new(blk, ofs as usize);
+			let mut it = DirSector::new(&self.0, blk, ofs as usize);
 			let ent = match it.next()
 				{
 				Ok(Some(v)) => v,
@@ -168,7 +188,7 @@ impl InstanceInner
 {
 	/// Read a sector from the disk into the provided buffer
 	fn read_sector(&self, sector: u32, buf: &mut [u8]) -> Result<(), storage::IoError> {
-		assert_eq!(buf.len(), self.lb_size);
+		assert_eq!(buf.len() % self.lb_size, 0);
 		// - Will be round, Driver::mount() ensures this
 		let hwsects_per_lb = self.lb_size / self.vh.block_size();
 		let hwsector = sector as usize * hwsects_per_lb;
@@ -234,24 +254,28 @@ impl node::File for File
 			let mut read = 0;
 			// 1. Leading
 			if ofs > 0 {
+				log_trace!("ofs {} > 0, reading partial at {}", ofs, sector);
 				let mut tmp = vec![0u8; self.fs.lb_size];
 				try!(self.fs.read_sector(self.first_lba + sector, &mut tmp));
 
+				assert!(ofs < self.fs.lb_size);
 				sector += 1;
-				read += buf[read..].clone_from_slice(&tmp[ofs..]);
+				read = buf[..len].clone_from_slice(&tmp[ofs..]);
 			}
 
 			// 2. Inner
 			if len - read >= self.fs.lb_size {
-				let sectors = (len - read) / self.fs.lb_size;
-				let bytes = sectors * self.fs.lb_size;
+				let sector_count = (len - read) / self.fs.lb_size;
+				log_trace!("reading {} sectors worth of data at {} (len = {}, read = {})", sector_count, sector, len, read);
+				let bytes = sector_count * self.fs.lb_size;
 				try!(self.fs.read_sector(self.first_lba + sector, &mut buf[read..][..bytes]));
-				sector += sectors as u32;
+				sector += sector_count as u32;
 				read += bytes;
 			}
 
 			// 3. Trailing
 			if read < len {
+				log_trace!("reading {} bytes trailing at {}", len - read, sector);
 				let mut tmp = vec![0; self.fs.lb_size];
 				try!(self.fs.read_sector(self.first_lba + sector, &mut tmp));
 
@@ -296,7 +320,7 @@ impl node::Dir for Dir
 	{
 		for sector in 0 .. ::kernel::lib::num::div_up(self.size, self.fs.lb_size as u32)
 		{
-			let mut it = DirSector::new(try!(self.fs.get_sector(self.first_lba + sector)), 0); 
+			let mut it = DirSector::new(&self.fs, try!(self.fs.get_sector(self.first_lba + sector)), 0); 
 
 			while let Some(ent) = try!(it.next())
 			{
@@ -319,13 +343,14 @@ impl node::Dir for Dir
 		
 		for sector in sector as u32 .. max_sectors
 		{
-			let mut it = DirSector::new( try!(self.fs.get_sector(self.first_lba + sector)),  ofs );
+			let mut it = DirSector::new(&self.fs, try!(self.fs.get_sector(self.first_lba + sector)),  ofs );
 			ofs = 0;
 
 			while let Some(ent) = try!(it.next())
 			{
-				if ent.name.len() > 0
+				if ent.name.len() > 0 && ent.name != b"\0" && ent.name != b"\x01"
 				{
+					log_debug!("ent = {:?}", ent);
 					let inode = (self.first_lba + sector) as u64 * self.fs.lb_size as u64 + ent.this_ofs as u64;
 					if ! callback(inode, &mut ent.name.iter().cloned()) {
 						return Ok( sector as usize * self.fs.lb_size + ent.next_ofs );
@@ -365,22 +390,32 @@ struct DirEnt<'a>
 	start: u32,
 	size: u32,
 	name: &'a [u8],
+	sys_use: &'a [u8],
+}
+impl<'a> ::core::fmt::Debug for DirEnt<'a> {
+	fn fmt(&self, f: &mut ::core::fmt::Formatter) -> ::core::fmt::Result {
+		write!(f, "DirEnt {{ start: {:#x}, size: {:#x}, name: {:?} }}",
+			self.start, self.size, ByteStr::new(self.name)
+			)
+	}
 }
 
 impl<'a> DirEnt<'a>
 {
 }
 
-struct DirSector {
+struct DirSector<'a> {
+	fs: &'a InstanceInner,
 	data: Sector,
 	ofs: usize
 }
 
-impl DirSector
+impl<'a> DirSector<'a>
 {
-	pub fn new(data: Sector, start_ofs: usize) -> DirSector
+	pub fn new<'b>(fs: &'b InstanceInner, data: Sector, start_ofs: usize) -> DirSector<'b>
 	{
 		DirSector {
+			fs: fs,
 			data: data,
 			ofs: start_ofs,
 		}
@@ -418,6 +453,26 @@ impl DirSector
 					log_warning!("Name overruns end of entry");
 					return Err(node::IoError::Corruption);
 				}
+				let su = &ent[33 + namelen ..];
+
+				let mut name = &ent[33..][..namelen];
+
+				if let Some(skip) = self.fs.susp_len_skip {
+					let skip = skip as usize;
+					if su.len() < skip {
+						log_warning!("System use area smaller than SUSP skip value");
+						return Err(node::IoError::Corruption);
+					}
+
+					for ent in SuspIterator(&su[skip..])
+					{
+						//log_trace!("ent={:?}", ent);
+						// TODO: Need to handle this _FAR_ better
+						if let SuspItem::AlternateName(0, new_name) = ent {
+							name = new_name;
+						}
+					}
+				}
 
 				Ok(Some(DirEnt {
 					this_ofs: cur_ofs,
@@ -425,10 +480,110 @@ impl DirSector
 					flags: ent[25],
 					start: LittleEndian::read_u32(&ent[2..]),
 					size: LittleEndian::read_u32(&ent[10..]),
-					name: &ent[33 ..][.. namelen],
+					name: name,
+					sys_use: su,
 					}))
 			}
 		}
 	}
 }
 
+struct SuspIterator<'a>(&'a [u8]);
+
+#[derive(Debug)]
+enum SuspItem<'a>
+{
+	// SUSP Base
+	ContinuationEntry(u32, u32, u32),
+	Pad(&'a [u8]),
+	Identifer,
+	//End,
+	
+	// RockRidge
+	RockRidge(u8),
+	PosixMode {
+		mode: u32,
+		n_links: u32,
+		uid: u32,
+		gid: u32,
+		serial_number: u32,
+		},
+	AlternateName(u8, &'a [u8]),
+	Timestamps {
+		flags: u8,
+		data: &'a [u8],
+		},
+
+	Unknown([u8; 2], u8, &'a[u8]),
+}
+
+impl<'a> Iterator for SuspIterator<'a>
+{
+	type Item = SuspItem<'a>;
+	fn next(&mut self) -> Option<SuspItem<'a>>
+	{
+		if self.0.len() == 0 {
+			None
+		}
+		else if self.0.len() < 4 {
+			None
+		}
+		else {
+			let tag = [self.0[0], self.0[1]];
+			let len = self.0[2] as usize;
+			let ver = self.0[3];
+			if len < 4 {
+				return None;
+			}
+			if self.0.len() < len {
+				return None;
+			}
+			let data = &self.0[4..len];
+
+			self.0 = &self.0[len..];
+			
+			log_debug!("tag = {}{} - data={} [{:?}]", tag[0] as char, tag[1] as char, len-4, data);
+			Some(match &tag[..]
+				{
+				b"ST" => return None,	// Terminated
+				b"SP" => SuspItem::Identifer,
+				b"PD" => SuspItem::Pad(data),
+				b"CE" => {
+					if data.len() < 3*8 { return None; }
+					SuspItem::ContinuationEntry(
+						LittleEndian::read_u32(&data[0..]),
+						LittleEndian::read_u32(&data[8..]),
+						LittleEndian::read_u32(&data[16..])
+						)
+					},
+				b"RR" => {
+					if data.len() < 1 { return None; }
+					SuspItem::RockRidge(data[0])
+					},
+				b"PX" => {
+					if data.len() < 4*8 { return None; }
+					SuspItem::PosixMode {
+						mode:    LittleEndian::read_u32(&data[0..]),
+						n_links: LittleEndian::read_u32(&data[8..]),
+						uid:     LittleEndian::read_u32(&data[16..]),
+						gid:     LittleEndian::read_u32(&data[24..]),
+						serial_number: if data.len() >= 32+8 { LittleEndian::read_u32(&data[32..]) } else { 0 },
+						}
+					},
+				b"TF" => {
+					if data.len() < 1 { return None; }
+					SuspItem::Timestamps {
+						flags: data[0],
+						data: &data[1..],
+						}
+					},
+				//b"SL" => SuspItem::Symlink(),
+				b"NM" => {
+					if data.len() < 1 { return None; }
+					SuspItem::AlternateName(data[0], &data[1..])
+					},
+				_ => SuspItem::Unknown(tag, ver, data),
+				})
+		}
+	}
+}

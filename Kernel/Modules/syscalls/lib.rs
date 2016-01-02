@@ -78,12 +78,12 @@ fn from_result<O: Into<u32>, E: Into<u32>>(r: Result<O,E>) -> u64 {
 	{
 	Ok(v) => {
 		let v: u32 = v.into();
-		assert!(v < 1<<31);
+		assert!(v < 1<<31, "Result value {:#x} from {} is above 2^31", v, type_name!(O));
 		v as u64
 		}
 	Err(e) => {
 		let v: u32 = e.into();
-		assert!(v < 1<<31);
+		assert!(v < 1<<31, "Result value {:#x} from {} is above 2^31", v, type_name!(E));
 		(1 << 31) | (v as u64)
 		},
 	}

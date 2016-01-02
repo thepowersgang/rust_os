@@ -38,9 +38,10 @@ ifeq ($(ARCH),amd64)
 CMDLINE += SYSDISK=ATA-0p0
 QEMU_ARGS += -net nic
 QEMU_ARGS += -drive if=ide,index=0,file=$(IMGDIR)hda.img,format=raw
+QEMU_ARGS += -cdrom $(IMGDIR)test.iso
 QEMU_ARGS += -device ahci,id=ahci
 QEMU_ARGS += -drive if=none,id=sata1,file=$(IMGDIR)hdb.img,format=raw -device ide-hd,drive=sata1,bus=ahci.0
-QEMU_ARGS += -drive if=none,id=sata2,file=$(TESTISO),format=raw -device ide-cd,drive=sata2,bus=ahci.1
+QEMU_ARGS += -drive if=none,id=sata2,file=$(IMGDIR)test.iso,format=raw -device ide-cd,drive=sata2,bus=ahci.1
 #QEMU_ARGS += -trace file=qemu_trace
 #QEMU_OPTS += -trace events=.qemu_trace,file=qemu_trace
 
@@ -71,6 +72,10 @@ run: $(IMGDIR)hda.img
 	qemu-system-arm -machine $(MACHINE_TYPE) $(QEMU_ARGS) -kernel arm_bootloader/loader-$(MACHINE_TYPE).bin -append "$(CMDLINE)" $(TEE)
 endif
 
+$(IMGDIR)test.iso: $(wildcard ../../Usermode/.output/$(ARCH)/bin/*) Makefile
+	@mkdir -p $(dir $@)
+	@echo "[mkisofs] -o $@"
+	@mkisofs -o $@ -r -graft-points -q /Tifflin/bin=../../Usermode/.output/$(ARCH)/bin /Tifflin/shared/images=../../Graphics/.output/shared
 $(IMGDIR)hd%_0.img:
 	@mkdir -p $(dir $@)
 	@echo "[MkDisk] ZERO 1MB $@"

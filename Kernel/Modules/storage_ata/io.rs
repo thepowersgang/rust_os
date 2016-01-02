@@ -101,10 +101,10 @@ impl DmaController
 	}
 	
 	pub fn do_atapi_rd<'a>(&'a self, disk: u8, cmd: &[u8], dst: &'a mut [u8]) -> storage::AsyncIoResult<'a,()> {
-		self.do_atapi(disk, cmd, DMABuffer::new_contig_mut(dst, 32), false)
+		self.do_atapi(disk, cmd, DMABuffer::new_mut(dst, 32), false)
 	}
 	pub fn do_atapi_wr<'a>(&'a self, disk: u8, cmd: &[u8], dst: &'a [u8]) -> storage::AsyncIoResult<'a,()> {
-		self.do_atapi(disk, cmd, DMABuffer::new_contig(dst, 32), true)
+		self.do_atapi(disk, cmd, DMABuffer::new(dst, 32), true)
 	}
 	fn do_atapi<'a>(&'a self, disk: u8, cmd: &[u8], dst: DMABuffer<'a>, is_write: bool) -> storage::AsyncIoResult<'a,()>
 	{
