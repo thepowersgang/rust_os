@@ -63,9 +63,10 @@ fn dump_dir(level: usize, mut handle: Dir, buffer: &mut [u8])
 	}
 }
 
+// Reads and applies a CRC32 to the file
 fn dump_file(level: usize, mut handle: File)
 {
-	let mut buffer = [0; 4096];
+	let mut buffer = [0; 8*4096];
 
 	let mut crc = ::crc::Crc32::new();
 	loop
