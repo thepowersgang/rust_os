@@ -4,7 +4,7 @@
 // Modules/fs_fat/dir.rs
 use kernel::prelude::*;
 use kernel::lib::mem::aref::ArefBorrow;
-use kernel::vfs::node;
+use kernel::vfs::{self, node};
 use kernel::lib::byte_str::ByteStr;
 use kernel::lib::ascii::AsciiExt;
 use super::on_disk;
@@ -40,6 +40,9 @@ impl DirNode {
 impl node::NodeBase for DirNode {
 	fn get_id(&self) -> node::InodeId {
 		todo!("DirNode::get_id")
+	}
+	fn get_any(&self) -> &::core::any::Any {
+		self
 	}
 }
 
@@ -302,7 +305,7 @@ impl node::Dir for DirNode {
 			for ent in DirEnts::new(&cluster)
 			{
 				match ent {
-				DirEnt::End => return Err(node::IoError::NotFound),
+				DirEnt::End => return Err(vfs::Error::NotFound),
 				DirEnt::Short(e) => {
 					if e.name() == name || lfn.name() == name {
 						return Ok( e.inode(self.start_cluster) );
@@ -316,7 +319,7 @@ impl node::Dir for DirNode {
 				}
 			}
 		}
-		Err(node::IoError::NotFound)
+		Err(vfs::Error::NotFound)
 	}
 	fn read(&self, ofs: usize, callback: &mut node::ReadDirCallback) -> node::Result<usize> {
 		
@@ -363,8 +366,8 @@ impl node::Dir for DirNode {
 	fn create(&self, name: &ByteStr, nodetype: node::NodeType) -> node::Result<node::InodeId> {
 		todo!("DirNode::create('{:?}', {:?})", name, nodetype);
 	}
-	fn link(&self, name: &ByteStr, inode: node::InodeId) -> node::Result<()> {
-		todo!("DirNode::link('{:?}', {:#x})", name, inode);
+	fn link(&self, name: &ByteStr, node: &node::NodeBase) -> node::Result<()> {
+		todo!("DirNode::link('{:?}', {:#x})", name, node.get_id());
 	}
 	fn unlink(&self, name: &ByteStr) -> node::Result<()> {
 		todo!("DirNode::unlink('{:?}')", name);

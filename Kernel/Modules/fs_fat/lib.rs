@@ -126,7 +126,7 @@ impl mount::Driver for Driver
 			Ok(1)
 		}
 	}
-	fn mount(&self, vol: VolumeHandle) -> vfs::Result<Box<mount::Filesystem>> {
+	fn mount(&self, vol: VolumeHandle, _mounthandle: mount::SelfHandle) -> vfs::Result<Box<mount::Filesystem>> {
 		let vol = ::block_cache::CacheHandle::new(vol);
 
 		// Read the bootsector

@@ -20,22 +20,36 @@ pub enum Error
 	PermissionDenied,
 	/// File exclusively locked
 	Locked,
+	/// The item already exists
+	AlreadyExists,
+
+	/// Path was malformed (too long, not absolute, not normalised, ... depends)
+	MalformedPath,
+	/// A general parameter was malformed (empty filename, offset out of range, ...)
+	InvalidParameter,
 	/// Node was not the requested type (or selected FS driver doesn't support that volume)
 	TypeMismatch,
 	/// A component of the path was not a directory
 	NonDirComponent,
 	/// Symbolic link recursion limit reached
 	RecursionDepthExceeded,
+
+
 	/// Block-level IO Error
 	BlockIoError(::metadevs::storage::IoError),
-
 	/// Filesystem is read-only
 	ReadOnlyFilesystem,
 	/// Filesystem driver hit an internal consistency error
-	ConsistencyError,
+	InconsistentFilesystem,
+	/// Volume ran out of space
+	OutOfSpace,
 
-	/// Path was malformed (too long, not absolute, not normalised, ... depends)
-	MalformedPath,
+	/// System has run out of memory
+	OutOfMemory,
+
+	/// Operation failed due to a transient error, can can be retried
+	TransientError,
+
 	/// Unknown (misc) error
 	Unknown(&'static str),
 }
@@ -44,6 +58,15 @@ impl From<::metadevs::storage::IoError> for Error {
 		Error::BlockIoError(v)
 	}
 }
+//impl_fmt! {
+//	Display(self, f) for Error {
+//		match self
+//		{
+//		&Error::NotFound => "File not found",
+//		&Error::PermissionDenied => "Permission denied",
+//		}
+//	}
+//}
 
 pub use self::path::{Path,PathBuf};
 

@@ -64,7 +64,7 @@ impl mount::Driver for Driver
 			Ok(0)
 		}
 	}
-	fn mount(&self, vol: VolumeHandle) -> vfs::Result<Box<mount::Filesystem>> {
+	fn mount(&self, vol: VolumeHandle, _mounthandle: mount::SelfHandle) -> vfs::Result<Box<mount::Filesystem>> {
 		// For this to work properly, the block size must evenly divide 2048
 		if 2048 % vol.block_size() != 0 {
 			return Err( vfs::Error::Unknown("Can't mount ISO9660 with sector size not a factor of 2048"/*, vol.block_size()*/) );
@@ -116,7 +116,7 @@ impl mount::Driver for Driver
 			let mut it = DirSector::new(&inner, try!(inner.get_sector(root_lba)), 0 );
 			let first_ent = match try!(it.next())
 				{
-				None => return Err(::kernel::vfs::Error::ConsistencyError),
+				None => return Err(vfs::Error::InconsistentFilesystem),
 				Some(v) => v,
 				};
 			if first_ent.sys_use.len() >= 6 && &first_ent.sys_use[..6] == b"SP\x07\x01\xBE\xEF" {
@@ -228,6 +228,9 @@ impl node::NodeBase for File
 	fn get_id(&self) -> node::InodeId {
 		todo!("File::get_id")
 	}
+	fn get_any(&self) -> &::core::any::Any {
+		self
+	}
 }
 impl node::File for File
 {
@@ -235,14 +238,14 @@ impl node::File for File
 		self.size as u64
 	}
 	fn truncate(&self, _newsize: u64) -> node::Result<u64> {
-		Err(node::IoError::ReadOnly)
+		Err(vfs::Error::ReadOnlyFilesystem)
 	}
 	fn clear(&self, _ofs: u64, _size: u64) -> node::Result<()> {
-		Err(node::IoError::ReadOnly)
+		Err(vfs::Error::ReadOnlyFilesystem)
 	}
 	fn read(&self, ofs: u64, buf: &mut [u8]) -> node::Result<usize> {
 		if ofs > self.size as u64 {
-			Err(node::IoError::OutOfRange)
+			Err(vfs::Error::InvalidParameter)
 		}
 		else {
 			let len = ::core::cmp::min( buf.len(),  (self.size as u64 - ofs) as usize );
@@ -286,7 +289,7 @@ impl node::File for File
 		}
 	}
 	fn write(&self, _ofs: u64, _buf: &[u8]) -> node::Result<usize> {
-		Err(node::IoError::ReadOnly)
+		Err(vfs::Error::ReadOnlyFilesystem)
 	}
 }
 
@@ -313,6 +316,9 @@ impl node::NodeBase for Dir
 	fn get_id(&self) -> node::InodeId {
 		todo!("Dir::get_id")
 	}
+	fn get_any(&self) -> &::core::any::Any {
+		self
+	}
 }
 impl node::Dir for Dir
 {
@@ -332,7 +338,7 @@ impl node::Dir for Dir
 			}
 		}
 
-		Err(node::IoError::NotFound)
+		Err(vfs::Error::NotFound)
 	}
 	fn read(&self, ofs: usize, callback: &mut node::ReadDirCallback) -> node::Result<usize>
 	{
@@ -367,15 +373,15 @@ impl node::Dir for Dir
 	
 	fn create(&self, _name: &ByteStr, _nodetype: node::NodeType) -> node::Result<node::InodeId> {
 		// ISO9660 is readonly
-		Err( node::IoError::ReadOnly )
+		Err( vfs::Error::ReadOnlyFilesystem )
 	}
-	fn link(&self, _name: &ByteStr, _inode: node::InodeId) -> node::Result<()> {
+	fn link(&self, _name: &ByteStr, _node: &node::NodeBase) -> node::Result<()> {
 		// ISO9660 is readonly
-		Err( node::IoError::ReadOnly )
+		Err( vfs::Error::ReadOnlyFilesystem )
 	}
 	fn unlink(&self, _name: &ByteStr) -> node::Result<()> {
 		// ISO9660 is readonly
-		Err( node::IoError::ReadOnly )
+		Err( vfs::Error::ReadOnlyFilesystem )
 	}
 }
 
@@ -438,11 +444,11 @@ impl<'a> DirSector<'a>
 			}
 			else if len < 33 {
 				log_warning!("Consistency error in filesystem (dir entry length {} < 33)", len);
-				return Err(node::IoError::Corruption);
+				return Err(vfs::Error::InconsistentFilesystem);
 			}
 			else if self.ofs + len > self.data.len() {
 				log_warning!("Consistency error in filesystem (dir entry spans sectors)");
-				return Err(node::IoError::Corruption);
+				return Err(vfs::Error::InconsistentFilesystem);
 			}
 			else {
 				let ent = &self.data[self.ofs ..][.. len];
@@ -451,7 +457,7 @@ impl<'a> DirSector<'a>
 				let namelen = ent[32] as usize;
 				if 33 + namelen > len {
 					log_warning!("Name overruns end of entry");
-					return Err(node::IoError::Corruption);
+					return Err(vfs::Error::InconsistentFilesystem);
 				}
 				let su = &ent[33 + namelen ..];
 
@@ -461,7 +467,7 @@ impl<'a> DirSector<'a>
 					let skip = skip as usize;
 					if su.len() < skip {
 						log_warning!("System use area smaller than SUSP skip value");
-						return Err(node::IoError::Corruption);
+						return Err(vfs::Error::InconsistentFilesystem);
 					}
 
 					for ent in SuspIterator(&su[skip..])

@@ -10,54 +10,7 @@ use lib::byte_str::{ByteStr,ByteString};
 use core::sync::atomic::{self,AtomicUsize};
 
 pub type InodeId = u64;
-pub enum IoError {
-	NoSpace,
-	NoNodes,
-	ReadFail(::metadevs::storage::IoError),
-	OutOfRange,
-	ReadOnly,
-	Timeout,
-	Transient,
-	NotFound,
-	AlreadyExists,
-	Corruption,
-	Unknown(&'static str),
-}
-impl IoError {
-	fn as_str(&self) -> &'static str {
-		match self
-		{
-		&IoError::NoSpace => "NoSpace",
-		&IoError::NoNodes => "NoNodes",
-		&IoError::ReadFail(_) => "ReadFail",
-		&IoError::OutOfRange => "OutOfRange",
-		&IoError::ReadOnly => "ReadOnly",
-		&IoError::Timeout => "Timeout",
-		&IoError::Transient => "Transient",
-		&IoError::NotFound => "NotFound",
-		&IoError::AlreadyExists => "AlreadyExists",
-		&IoError::Corruption => "Corruption",
-		&IoError::Unknown(_) => "Unknown",
-		}
-	}
-}
-impl From<IoError> for super::Error {
-	fn from(v: IoError) -> super::Error {
-		match v
-		{
-		IoError::NotFound => super::Error::NotFound,
-		IoError::Unknown(s) => super::Error::Unknown(s),
-		IoError::ReadFail(e) => super::Error::BlockIoError(e),
-		_ => super::Error::Unknown(v.as_str()),
-		}
-	}
-}
-impl From<::metadevs::storage::IoError> for IoError {
-	fn from(v: ::metadevs::storage::IoError) -> IoError {
-		IoError::ReadFail(v)
-	}
-}
-pub type Result<T> = ::core::result::Result<T,IoError>;
+pub type Result<T> = ::core::result::Result<T,super::Error>;
 
 /// Node type used by `Dir::create`
 #[derive(Debug,PartialEq)]
@@ -78,6 +31,8 @@ pub enum NodeClass {
 pub trait NodeBase: Send {
 	/// Return the volume's inode number
 	fn get_id(&self) -> InodeId;
+	/// Return an &Any associated with this node (not nessesarily same as `self`, up to the driver)
+	fn get_any(&self) -> &Any;
 }
 /// Trait for "File" nodes
 pub trait File: NodeBase {
@@ -115,7 +70,7 @@ pub trait Dir: NodeBase {
 	/// Returns the newly created node
 	fn create(&self, name: &ByteStr, nodetype: NodeType) -> Result<InodeId>;
 	/// Create a new name for the provided inode
-	fn link(&self, name: &ByteStr, inode: InodeId) -> Result<()>;
+	fn link(&self, name: &ByteStr, inode: &NodeBase) -> Result<()>;
 	/// Remove the specified name
 	fn unlink(&self, name: &ByteStr) -> Result<()>;
 }
@@ -352,6 +307,16 @@ impl CacheHandle
 	}
 	pub fn is_symlink(&self) -> bool {
 		self.get_class() == NodeClass::Symlink
+	}
+
+	pub fn get_any(&self) -> &Any {
+		match self.as_ref()
+		{
+		&CacheNodeInt::Dir { ref fsnode, .. } => fsnode.get_any(),
+		&CacheNodeInt::File { ref fsnode, .. } => fsnode.get_any(),
+		&CacheNodeInt::Special { ref fsnode, .. } => fsnode.get_any(),
+		&CacheNodeInt::Symlink { ref fsnode, .. } => fsnode.get_any(),
+		}
 	}
 }
 /// Directory methods

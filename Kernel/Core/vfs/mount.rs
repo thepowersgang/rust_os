@@ -12,11 +12,19 @@ use lib::{LazyStatic,SparseVec,VecMap};
 use metadevs::storage::VolumeHandle;
 
 /// A handle to a mounted filesystem
+/// 
+/// Used by the node cache and maintained for a very short period of time
 pub struct Handle(usize);
 
+/// Handle to a mounted filesystem held by the filesystem itself
+///
+/// Allows access to the node cache
+pub struct SelfHandle(usize);
+
+/// Internal representation of a mounted volume
 struct MountedVolume
 {
-	_mountpoint_node: CacheHandle,
+	mountpoint_node: CacheHandle,
 	fs: Box<Filesystem>,
 }
 
@@ -29,12 +37,25 @@ pub trait Filesystem:
 	fn get_node_by_inode(&self, InodeId) -> Option<Node>;
 }
 
+struct NullFs;
+impl Filesystem for NullFs {
+	fn root_inode(&self) -> InodeId { 0 }
+	fn get_node_by_inode(&self, _: InodeId) -> Option<Node> { None }
+}
+
 /// Filesystem instance trait
 pub trait Driver:
 	Send + Sync
 {
+	/// Returns an integer bindng strength where 0 means "doesn't handle"
+	///
+	/// Levels are left unspecified, but FAT uses 1, and extN uses 2/3 (depending on if the system is fully supported)
 	fn detect(&self, vol: &VolumeHandle) -> super::Result<usize>;
-	fn mount(&self, vol: VolumeHandle) -> super::Result<Box<Filesystem>>;
+
+	/// Mount the provided volume as this filesystem
+	///
+	/// NOTE: `handle` isn't actually usable until after this function returns
+	fn mount(&self, vol: VolumeHandle, handle: SelfHandle) -> super::Result<Box<Filesystem>>;
 }
 
 pub struct DriverRegistration(&'static str);
@@ -43,6 +64,7 @@ pub struct DriverRegistration(&'static str);
 static S_DRIVERS: LazyStatic<RwLock< VecMap<&'static str, &'static Driver> >> = lazystatic_init!();
 /// Mounted volumes
 static S_VOLUMES: LazyStatic<RwLock< SparseVec<MountedVolume> >> = lazystatic_init!();
+/// Root mount
 static S_ROOT_VOLUME: RwLock<Option<Box<Filesystem>>> = RwLock::new(None);
 
 pub fn init()
@@ -80,14 +102,15 @@ pub fn mount(location: &Path, vol: VolumeHandle, fs: &str, _options: &[&str]) ->
 	
 	if location == Path::new("/")
 	{
-		let fs: Box<_> = match driver.mount(vol)
+		let fs: Box<_> = match driver.mount(vol, SelfHandle(0))
 			{
 			Ok(v) => v,
 			Err(_) => return Err(MountError::CallFailed),
 			};
 		let mut lh = S_ROOT_VOLUME.write();
 		if lh.is_some() {
-			todo!("Remount /");
+			log_warning!("TODO: Support remounting /");
+			return Err(MountError::MountpointUsed);
 		}
 		*lh = Some(fs);
 	}
@@ -106,21 +129,25 @@ pub fn mount(location: &Path, vol: VolumeHandle, fs: &str, _options: &[&str]) ->
 			return Err(MountError::MountpointUsed);
 		}
 		
-		// 3. Mount and register volume
-		let fs = match driver.mount(vol)
+		// 3. Reserve the mountpoint ID (using a placeholder instance)
+		// NOTE: Nothing should know of this index until after mount is completed
+		let vidx = S_VOLUMES.write().insert(MountedVolume { mountpoint_node: nh, fs: Box::new(NullFs) });
+
+		// 4. Mount and register volume
+		let fs = match driver.mount(vol, SelfHandle(vidx))
 			{
 			Ok(v) => v,
 			Err(_) => return Err(MountError::CallFailed),
 			};
-		let vidx = S_VOLUMES.write().insert(MountedVolume {
-			_mountpoint_node: nh.clone(),
-			fs: fs,
-			});
-		
-		// 4. Bind to mountpoint
-		if nh.mount( vidx + 1 ) == false {
-			S_VOLUMES.write().remove(vidx);
-			return Err(MountError::MountpointUsed);
+
+		// 5. Store and bind to mountpoint
+		{
+			let mut lh = S_VOLUMES.write();
+			lh[vidx].fs = fs;
+			if lh[vidx].mountpoint_node.mount(vidx + 1) == false {
+				lh.remove(vidx);
+				return Err(MountError::MountpointUsed);
+			}
 		}
 	}
 
@@ -195,6 +222,14 @@ impl Handle
 		else {
 			f(&*S_VOLUMES.read().get(self.0 - 1).unwrap().fs)
 		}
+	}
+}
+
+
+impl SelfHandle
+{
+	pub fn get_node(&self, inode: InodeId) -> super::Result<super::node::CacheHandle> {
+		super::node::CacheHandle::from_ids(self.0, inode)
 	}
 }
 

@@ -240,15 +240,15 @@ pub struct Blocks<'a>
 }
 impl<'a> Blocks<'a>
 {
-	pub fn next_or_err(&mut self) -> ::kernel::vfs::node::Result<u32>
+	pub fn next_or_err(&mut self) -> ::kernel::vfs::Result<u32>
 	{
-		self.next().ok_or( ::kernel::vfs::node::IoError::Unknown("Unexpected end of block list") )
+		self.next().ok_or( ::kernel::vfs::Error::Unknown("Unexpected end of block list") )
 	}
 
-	pub fn next_extent_or_err(&mut self, max: u32) -> ::kernel::vfs::node::Result<(u32, u32)>
+	pub fn next_extent_or_err(&mut self, max: u32) -> ::kernel::vfs::Result<(u32, u32)>
 	{
 		if self.inner_idx >= self.inode.max_blocks() {
-			Err( ::kernel::vfs::node::IoError::Unknown("Unexpected end of block list") )
+			Err( ::kernel::vfs::Error::Unknown("Unexpected end of block list") )
 		}
 		else {
 			let max = ::core::cmp::min(self.inode.max_blocks() - self.inner_idx, max);

@@ -17,6 +17,7 @@ pub struct InstanceInner
 	superblock: ::ondisk::Superblock,
 	pub fs_block_size: usize,
 
+	mount_handle: vfs::mount::SelfHandle,
 	group_descriptors: Vec<::ondisk::GroupDesc>,
 }
 
@@ -62,7 +63,7 @@ impl Instance
 		}
 	}
 
-	pub fn new_boxed(vol: VolumeHandle) -> vfs::Result<Box<Instance>>
+	pub fn new_boxed(vol: VolumeHandle, mount_handle: vfs::mount::SelfHandle) -> vfs::Result<Box<Instance>>
 	{
 		let vol_bs = vol.block_size();
 
@@ -99,7 +100,7 @@ impl Instance
 		let fs_block_size = 1024 << superblock.data.s_log_block_size as usize;
 		if fs_block_size % vol_bs != 0 {
 			log_warning!("ExtN TODO: Handle filesystem block size smaller than disk block size?");
-			return Err(vfs::Error::ConsistencyError);
+			return Err(vfs::Error::InconsistentFilesystem);
 		}
 		let num_groups = ::kernel::lib::num::div_up(superblock.data.s_blocks_count, superblock.data.s_blocks_per_group);
 
@@ -167,6 +168,7 @@ impl Instance
 			fs_block_size: fs_block_size,
 			superblock: superblock,
 			group_descriptors: group_descs,
+			mount_handle: mount_handle,
 			vol: ::block_cache::CacheHandle::new(vol),
 			};
 
@@ -306,16 +308,18 @@ impl InstanceInner
 	/// Perform an operation with a temporary handle to an inode
 	pub fn with_inode<F,R>(&self, inode_num: u32, fcn: F) -> vfs::node::Result<R>
 	where
-		F: FnOnce(&::inodes::Inode) -> R
+		F: FnOnce(&::inodes::Inode) -> vfs::node::Result<R>
 	{
 		// TODO: Hook into the VFS's node cache somehow (we'd need to know our mount ID) and
 		//       obtain a reference to a cached inode.
 		// - This prevents us from having to maintain our own node cache
 
-		//let in = try!(self.mount_handle.get_node(inode_num as vfs::node::InodeId))
-		//let our_in: &::inodes::Inode = in.get_inode_any().downcast_ref();
-		//fcn(our_in)
-		todo!("InstanceInner::with_inode");
+		let node = try!(self.mount_handle.get_node(inode_num as vfs::node::InodeId));
+		match node.get_any().downcast_ref()
+		{
+		Some(our_in) => fcn(our_in),
+		None => Err(vfs::Error::Unknown("BUG: Node wasn't an extN inode")),
+		}
 	}
 
 	/// Allocate a new inode number, possibly in the same block group as `parent_inode_num`.

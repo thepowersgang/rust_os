@@ -4,9 +4,8 @@
 // Core/vfs/mod.rs
 //! Virtual File System
 use prelude::*;
+use vfs;
 use super::{mount, node};
-use super::node::Result as IoResult;
-use super::node::{Node,InodeId,IoError};
 use metadevs::storage::VolumeHandle;
 use lib::{VecMap,SparseVec};
 use lib::byte_str::{ByteStr,ByteString};
@@ -63,7 +62,7 @@ impl mount::Driver for Driver
 		// RAMFS should never bind to an arbitary volume
 		Ok(0)
 	}
-	fn mount(&self, vol: VolumeHandle) -> super::Result<Box<mount::Filesystem>> {
+	fn mount(&self, vol: VolumeHandle, _: mount::SelfHandle) -> super::Result<Box<mount::Filesystem>> {
 		let rv = Box::new(RamFS {
 			// SAFE: ArefInner must not change addresses, but because you can't move out of a boxed trait, we're good
 			inner: unsafe { ArefInner::new( RamFSInner {
@@ -79,13 +78,13 @@ impl mount::Driver for Driver
 
 impl mount::Filesystem for RamFS
 {
-	fn root_inode(&self) -> InodeId {
+	fn root_inode(&self) -> node::InodeId {
 		0
 	}
-	fn get_node_by_inode(&self, id: InodeId) -> Option<Node> {
+	fn get_node_by_inode(&self, id: node::InodeId) -> Option<node::Node> {
 		log_trace!("RamFS::get_node_by_inode({})", id);
 		let nodes = self.inner.nodes.lock();
-		if id >= nodes.len() as InodeId {
+		if id >= nodes.len() as node::InodeId {
 			log_log!("RamFile::get_node_by_inode - Inode {} out of range", id);
 			None
 		}
@@ -96,8 +95,8 @@ impl mount::Filesystem for RamFS
 				));
 			match *nodes[id as usize]
 			{
-			RamFile::Dir(_) => Some(Node::Dir(fr)),
-			RamFile::Symlink(_) => Some(Node::Symlink(fr)),
+			RamFile::Dir(_) => Some(node::Node::Dir(fr)),
+			RamFile::Symlink(_) => Some(node::Node::Symlink(fr)),
 			//RamFile::File(_) => todo!("normal files"),
 			}
 		}
@@ -121,17 +120,20 @@ impl FileRef {
 	}
 }
 impl node::NodeBase for FileRef {
-	fn get_id(&self) -> InodeId {
+	fn get_id(&self) -> node::InodeId {
 		unimplemented!()
+	}
+	fn get_any(&self) -> &::core::any::Any {
+		self
 	}
 }
 impl node::Dir for FileRef {
-	fn lookup(&self, name: &ByteStr) -> IoResult<InodeId> {
+	fn lookup(&self, name: &ByteStr) -> vfs::Result<node::InodeId> {
 		let lh = self.dir().ents.read();
 		match lh.get(name)
 		{
-		Some(v) => Ok(*v as InodeId),
-		None => Err(IoError::NotFound),
+		Some(&v) => Ok(v as node::InodeId),
+		None => Err(vfs::Error::NotFound),
 		}
 	}
 	
@@ -142,38 +144,38 @@ impl node::Dir for FileRef {
 		for (name, &inode) in lh.iter().skip(start_ofs)
 		{
 			count += 1;
-			if ! callback(inode as InodeId, &mut name.as_bytes().iter().cloned()) {
+			if ! callback(inode as node::InodeId, &mut name.as_bytes().iter().cloned()) {
 				break ;
 			}
 		}
 		Ok(start_ofs + count)
 	}
 	
-	fn create(&self, name: &ByteStr, nodetype: node::NodeType) -> IoResult<InodeId> {
+	fn create(&self, name: &ByteStr, nodetype: node::NodeType) -> vfs::Result<node::InodeId> {
 		use lib::vec_map::Entry;
 		let mut lh = self.dir().ents.write();
 		match lh.entry(From::from(name))
 		{
-		Entry::Occupied(_) => Err(IoError::AlreadyExists),
+		Entry::Occupied(_) => Err(vfs::Error::AlreadyExists),
 		Entry::Vacant(e) => {
 			let nn = match nodetype
 				{
 				node::NodeType::Dir  => RamFile::Dir (Default::default()),
 				//node::NodeType::File => RamFile::File(Default::default()),
-				node::NodeType::File => return Err(node::IoError::Unknown("TODO: Files")),
+				node::NodeType::File => return Err(vfs::Error::Unknown("TODO: Files")),
 				node::NodeType::Symlink(v) =>
 					RamFile::Symlink(RamFileSymlink{target: From::from(v)}),
 				};
 			let inode = self.0.nodes.lock().insert( Aref::new(nn) );
 			e.insert(inode);
-			Ok(inode as InodeId)
+			Ok(inode as node::InodeId)
 			},
 		}
 	}
-	fn link(&self, name: &ByteStr, inode: InodeId) -> IoResult<()> {
-		todo!("<FileRef as Dir>::link({:?}, inode={})", name, inode)
+	fn link(&self, name: &ByteStr, node: &node::NodeBase) -> vfs::Result<()> {
+		todo!("<FileRef as Dir>::link({:?}, inode={})", name, node.get_id())
 	}
-	fn unlink(&self, name: &ByteStr) -> IoResult<()> {
+	fn unlink(&self, name: &ByteStr) -> vfs::Result<()> {
 		todo!("<FileRef as Dir>::unlink({:?})", name)
 	}
 }

@@ -30,6 +30,9 @@ impl vfs::node::NodeBase for File
 	fn get_id(&self) -> vfs::node::InodeId {
 		self.inode.get_id()
 	}
+	fn get_any(&self) -> &::core::any::Any {
+		self
+	}
 }
 impl vfs::node::File for File
 {
@@ -39,7 +42,7 @@ impl vfs::node::File for File
 	fn read(&self, ofs: u64, buf: &mut [u8]) -> vfs::node::Result<usize>
 	{
 		if ofs > self.inode.i_size() {
-			return Err(vfs::node::IoError::OutOfRange);
+			return Err(vfs::Error::InvalidParameter);
 		}
 		if ofs == self.inode.i_size() {
 			return Ok(0);
@@ -127,10 +130,10 @@ impl vfs::node::File for File
 	fn clear(&self, ofs: u64, size: u64) -> vfs::node::Result<()> {
 		if self.inode.fs.is_readonly()
 		{
-			Err( vfs::node::IoError::ReadOnly )
+			Err( vfs::Error::ReadOnlyFilesystem )
 		}
 		else if ofs >= self.inode.i_size() || size > self.inode.i_size() || ofs + size > self.inode.i_size() {
-			Err( vfs::node::IoError::OutOfRange )
+			Err( vfs::Error::InvalidParameter )
 		}
 		else {
 			// 1. Leading partial
@@ -139,17 +142,17 @@ impl vfs::node::File for File
 			todo!("clear");
 		}
 	}
-	fn write(&self, ofs: u64, buf: &[u8]) -> vfs::node::Result<usize> {
+	fn write(&self, ofs: u64, buf: &[u8]) -> vfs::Result<usize> {
 		if self.inode.fs.is_readonly()
 		{
-			Err( vfs::node::IoError::ReadOnly )
+			Err( vfs::Error::ReadOnlyFilesystem )
 		}
 		else if ofs == self.inode.i_size()
 		{
 			todo!("write - extend");
 		}
 		else if ofs > self.inode.i_size() || buf.len() as u64 > self.inode.i_size() || ofs + buf.len() as u64 > self.inode.i_size() {
-			Err( vfs::node::IoError::OutOfRange )
+			Err( vfs::Error::InvalidParameter )
 		}
 		else {
 			// NOTE: In this section, we're free to read-modify-write blocks without fear, as the VFS itself handles

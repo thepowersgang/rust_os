@@ -4,10 +4,10 @@
 // Modules/fs_fat/dir.rs
 use kernel::prelude::*;
 use kernel::lib::mem::aref::ArefBorrow;
-use kernel::vfs::node;
+use kernel::vfs::{self, node};
 use super::FilesystemInner;
 
-const ERROR_SHORTCHAIN: node::IoError = node::IoError::Unknown("Cluster chain terminated early");
+const ERROR_SHORTCHAIN: vfs::Error = vfs::Error::Unknown("Cluster chain terminated early");
 
 pub struct FileNode
 {
@@ -32,6 +32,9 @@ impl node::NodeBase for FileNode {
 	fn get_id(&self) -> node::InodeId {
 		todo!("FileNode::get_id")
 	}
+	fn get_any(&self) -> &::core::any::Any {
+		self
+	}
 }
 impl node::File for FileNode {
 	fn size(&self) -> u64 {
@@ -47,7 +50,7 @@ impl node::File for FileNode {
 		// Sanity check and bound parameters
 		if ofs > self.size as u64 {
 			// out of range
-			return Err( node::IoError::OutOfRange );
+			return Err( vfs::Error::InvalidParameter );
 		}
 		if ofs == self.size as u64 {
 			return Ok(0);
