@@ -32,6 +32,8 @@ fn init()
 
 /// Optional Features: Doesn't stop Read+Write, but might confuse other systems or be inefficient
 const SUPPORTED_OPT_FEATURES: u32 = 0
+	| ::ondisk::FEAT_COMPAT_EXT_ATTR	// Extended attributes
+	| ::ondisk::FEAT_COMPAT_RESIZE_INODE	// Extra space was allocated for resizing the filesystem
 	;
 /// Read-only features: Missing features stop write support
 const SUPPORTED_RDO_FEATURES: u32 = 0

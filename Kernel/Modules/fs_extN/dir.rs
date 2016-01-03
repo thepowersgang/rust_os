@@ -38,7 +38,10 @@ impl Dir
 				if ent.d_rec_len == 0 {
 					return Err( vfs::Error::InconsistentFilesystem );
 				}
-				else if ent.d_inode != 0 && &ent.d_name == name.as_ref()
+				else if ent.d_inode == 0 {
+					return Err(vfs::Error::NotFound);
+				}
+				else if &ent.d_name == name.as_ref()
 				{
 					return Ok( (blk_index, offset, ent.d_inode as vfs::node::InodeId) );
 				}

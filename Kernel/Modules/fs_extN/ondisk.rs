@@ -274,6 +274,21 @@ pub struct Inode
 	pub i_faddr: u32,	// Fragment address
 	pub _osd2: [u32; 3],	// OS Dependent #2 (Typically fragment info)
 }
+#[repr(C)]
+#[derive(Debug)]
+pub struct InodeExtra
+{
+	// FEAT_COMPAT_EXT_ATTR
+	pub i_extra_size: u16,	// Size of extra fields
+	pub i_checksum_hi: u16,
+	pub i_ctime_extra: u32,	// Sub-section precision on CTime
+	pub i_mtime_extra: u32,
+	pub i_atime_extra: u32,
+	pub i_crtime: u32,	// File creation time
+	pub i_crtime_extra: u32,
+	pub i_version_hi: u32,
+	pub i_projid: u32,
+}
 pod_impls!{ Inode }
 //def_from_slice!{ Inode }
 
@@ -301,6 +316,8 @@ pub const S_IRWXO: u16 =  0o007;	// Global Access rights mask
 pub const S_IROTH: u16 =  0o004;	// Global Read
 pub const S_IWOTH: u16 =  0o002;	// Global Write
 pub const S_IXOTH: u16 =  0o001;	// Global Execute
+
+pub const EXT4_INDEX_FL: u16 = 0x1000;	// i_flags: Directory uses a hashed btree
 
 #[repr(C)]
 pub struct GroupDesc
