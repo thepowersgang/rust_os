@@ -191,7 +191,7 @@ $(OBJDIR)%.ao: Core/arch/$(ARCH)/%.S
 	$V$(CC) -o $@ -c $<
 
 # - Kernel Core
-$(OBJDIR)libkernel.rlib: Core/main.rs $(OBJDIR)libcore.rlib $(TARGET_FILE) ../Graphics/logo.rs bin/plugins/libtag_safe.so $(LIBS)
+$(OBJDIR)libkernel.rlib: Core/main.rs $(OBJDIR)libcore.rlib $(TARGET_FILE) ../Graphics/logo.rs $(IMGDIR)panic.rs bin/plugins/libtag_safe.so $(LIBS)
 	@echo [RUSTC] -o $@
 	@mkdir -p $(dir $@)
 	$V$(ENV) $(RUSTC) $(RUSTFLAGS) --emit=link,dep-info --out-dir $(dir $@) $<
