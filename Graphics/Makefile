@@ -1,15 +1,16 @@
+-include ../common.mk
 
 .PHONY: all
 
 SHARED_DIR := .output/shared/
 
-all: $(addprefix $(SHARED_DIR),power.r8 options.r8 background.r24 menu.r8)
+all: $(addprefix $(SHARED_DIR),power.r8 options.r8 background.r24 menu.r8 panic.rs)
 
 
 ConvertTo32bppRleRs: rle32_rust
 
 rle32_rust: rle32_rust.rs
-	rustc $< -o $@
+	$(RUSTC) $< -o $@
 
 # NOTE: This is actually done in Kernel/Makefile
 $(SHARED_DIR)logo.rs: TifflinLogoV1-128.png Makefile ConvertTo32bppRS
