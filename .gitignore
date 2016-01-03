@@ -19,6 +19,7 @@ Screenshots/
 
 Graphics/*.rs
 Graphics/*.r8
+Graphics/rle32_rust
 
 Kernel/*.exp_rs
 Kernel/fdd.img

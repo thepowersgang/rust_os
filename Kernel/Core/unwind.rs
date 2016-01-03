@@ -63,7 +63,7 @@ pub extern "C" fn rust_begin_unwind(msg: ::core::fmt::Arguments, file: &'static 
 	::arch::puts("\n");
 	::arch::print_backtrace();
 	log_panic!("{}:{}: Panicked \"{:?}\"", file, line, msg);
-	::metadevs::video::set_panic(file, line);
+	::metadevs::video::set_panic(file, line, msg);
 	loop{}
 }
 #[lang="eh_personality"]

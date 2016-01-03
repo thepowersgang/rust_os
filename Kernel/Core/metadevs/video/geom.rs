@@ -38,6 +38,13 @@ impl Pos
 		let dy = (self.y - other.y) as u64;
 		dx*dx + dy*dy
 	}
+
+	pub fn offset(&self, dx: i32, dy: i32) -> Pos {
+		Pos {
+			x: (self.x as i32 + dx) as u32,
+			y: (self.y as i32 + dy) as u32,
+			}
+	}
 }
 impl ::core::ops::Sub<Pos> for Pos {
 	type Output = Pos;

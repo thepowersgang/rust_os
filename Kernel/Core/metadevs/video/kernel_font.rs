@@ -3,12 +3,12 @@
 // Bitmap font used by this module is in another file
 include!("../../../../Graphics/font_cp437_8x16.rs");
 
-pub struct KernelFont([u32; 8*16]);
+pub struct KernelFont([u32; 8*16], u32);
 
 impl KernelFont
 {
-	pub fn new() -> KernelFont {
-		KernelFont([0; 8*16])
+	pub fn new(background: u32) -> KernelFont {
+		KernelFont([background; 8*16], background)
 	}
 	pub fn get_buf(&self) -> &[u32; 8*16] {
 		&self.0
@@ -26,7 +26,7 @@ impl KernelFont
 		// Otherwise, wipe the cell and render into it
 		else {
 			blit(&self.0);
-			self.0 = [0; 8*16];
+			self.0 = [self.1; 8*16];
 			self.render_char(colour, c);
 		}
 	}

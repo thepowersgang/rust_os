@@ -92,8 +92,8 @@ fn init()
 
 // A picture of a sad ferris the crab
 // NOTE: Commented out, as uncompressed 32bpp is too large to fit in the image
-//include!{"../../../../Graphics/.output/shared/panic.rs"}
-pub fn set_panic(file: &str, line: usize)
+include!{"../../../../Graphics/.output/shared/panic.rs"}
+pub fn set_panic(file: &str, line: usize, message: ::core::fmt::Arguments)
 {
 	use core::sync::atomic::{AtomicBool, Ordering};
 	static LOOP_PREVENT: AtomicBool = AtomicBool::new(false);
@@ -102,7 +102,10 @@ pub fn set_panic(file: &str, line: usize)
 	}
 	const PANIC_COLOUR: u32 = 0x01346B;
 	const PANIC_TEXT_COLOUR: u32 = 0xFFFFFF;
-	//static mut PANIC_IMG_ROW_BUF: [u32; PANIC_IMAGE_DIMS.0] = [0; PANIC_IMAGE_DIMS.0];
+	static mut PANIC_IMG_ROW_BUF: [u32; PANIC_IMAGE_DIMS.0 as usize] = [0; PANIC_IMAGE_DIMS.0 as usize];
+
+	// SAFE: `LOOP_PREVENT` prevents this code from running over itself
+	let row_buf = unsafe { &mut PANIC_IMG_ROW_BUF };
 
 	for surf in S_DISPLAY_SURFACES.lock().iter_mut()
 	{
@@ -111,23 +114,21 @@ pub fn set_panic(file: &str, line: usize)
 		// 1. Fill
 		surf.fb.fill(Rect::new_pd(Pos::new(0,0), dims), PANIC_COLOUR);
 		// 2. Draw a sad ferris
-		/*
 		if dims.w >= PANIC_IMAGE_DIMS.0 && dims.h >= PANIC_IMAGE_DIMS.1 {
 			let p = Pos::new(
 				(dims.w - PANIC_IMAGE_DIMS.0) / 2,
 				(dims.h - PANIC_IMAGE_DIMS.1) / 2,
 				);
 			for (y,row) in PANIC_IMAGE_DATA.iter().enumerate() {
-				row.decompress(&mut PANIC_IMG_ROW_BUF);
-				let p = p.offset(0,y);
+				row.decompress(row_buf);
+				let p = p.offset(0,y as i32);
 				let r = Rect::new_pd(p, Dims::new(PANIC_IMAGE_DIMS.0, 1));
-				surf.fb.blit_buf(r, &PANIC_IMG_ROW_BUF);
+				surf.fb.blit_buf(r, row_buf);
 			}
 		}
-		*/
 		// 3. Render message to top-left
 		let _ = write!(&mut PanicWriter::new(&mut *surf.fb, 0, 0), "Panic at {}:{}", file, line);
-		//let _ = write!(&mut PanicWriter::new(&mut *surf.fb, 0, 16), "- {}", message);
+		let _ = write!(&mut PanicWriter::new(&mut *surf.fb, 0, 16), "- {}", message);
 	}
 
 	return ;
@@ -152,7 +153,7 @@ pub fn set_panic(file: &str, line: usize)
 	impl<'a> PanicWriter<'a> {
 		fn new<'b>(fb: &'b mut Framebuffer, x: u16, y: u16) -> PanicWriter<'b> {
 			PanicWriter {
-				font: kernel_font::KernelFont::new(),
+				font: kernel_font::KernelFont::new(PANIC_COLOUR),
 				out: PanicWriterOut {
 					fb: fb,
 					x: x, y: y,
