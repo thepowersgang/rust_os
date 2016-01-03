@@ -26,7 +26,7 @@ fn main()
 	::wtk::initialise();
 
 	let power_menu = {
-		use wtk::menu::{Menu,Entry,Spacer};
+		use wtk::menu::{Menu,Entry};
 		Menu::new("Power Menu", (
 			Entry::new("Restart", 0, "", || kernel_log!("TODO: Restart")),
 			Entry::new("Shut Down", 0, "", || kernel_log!("TODO: Shut down")),

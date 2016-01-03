@@ -33,7 +33,7 @@ impl Decorator for ()
 		(Dims::new(0,0), Dims::new(0,0))
 	}
 
-	fn handle_event(&self, ev: ::InputEvent, win: &::window::WindowTrait) -> EventHandled {
+	fn handle_event(&self, _ev: ::InputEvent, _win: &::window::WindowTrait) -> EventHandled {
 		Default::default()
 	}
 }

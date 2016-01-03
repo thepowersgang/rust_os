@@ -24,7 +24,7 @@ impl<'a> ::Element for Label<'a>
 {
 	fn render(&self, surface: ::surface::SurfaceView, force: bool) {
 		if force {
-			surface.draw_text( Rect::new(0,0,!0,!0), self.value.chars(), Colour::theme_text() );
+			surface.draw_text( Rect::new(0,0,!0,!0), self.value.chars(), self.colour );
 		}
 	}
 	fn element_at_pos(&self, _x: u32, _y: u32) -> (&::Element,(u32,u32)) {

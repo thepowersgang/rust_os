@@ -15,10 +15,6 @@ extern crate async;
 use wtk::Colour;
 
 mod terminal_element;
-
-//mod terminal_surface;
-//mod terminal;
-
 mod input;
 
 
@@ -201,7 +197,7 @@ impl ShellState
 /// List the contents of a directory
 fn command_ls<T: ::Terminal>(term: &T, path: &str)
 {
-	use syscalls::vfs::{NodeType, Node, Dir, File, Symlink};
+	use syscalls::vfs::{NodeType, Dir, FileOpenMode};
 	let mut handle = match Dir::open(path)
 		{
 		Ok(v) => v,
@@ -228,7 +224,7 @@ fn command_ls<T: ::Terminal>(term: &T, path: &str)
 
 		print!(term, "- {}", name);
 
-		let file_node = match Node::open(&format!("{}/{}", if path != "/" { path } else { "" }, name)[..])//handle.open_node(node_id)
+		let file_node = match handle.open_child(name)
 			{
 			Ok(v) => v,
 			Err(e) => {
@@ -238,7 +234,10 @@ fn command_ls<T: ::Terminal>(term: &T, path: &str)
 			};
 		match file_node.class()
 		{
-		NodeType::File => {},
+		NodeType::File => {
+			let size = file_node.into_file(FileOpenMode::ReadOnly).and_then(|h| Ok(h.get_size())).unwrap_or(0);
+			print!(term, " ({})", size);
+			},
 		NodeType::Dir => print!(term, "/"),
 		NodeType::Symlink => {
 			let mut link_path_buf = [0; 256];

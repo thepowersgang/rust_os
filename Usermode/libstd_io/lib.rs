@@ -26,7 +26,7 @@ pub struct Error(ErrorInner);
 enum ErrorInner
 {
 	Misc,
-	Interrupted,
+	//Interrupted,
 	VFS(::syscalls::vfs::Error),
 }
 

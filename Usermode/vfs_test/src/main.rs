@@ -24,7 +24,7 @@ fn main()
 struct Repeat<T>(usize, T);
 impl<T: ::std::fmt::Display> ::std::fmt::Display for Repeat<T> {
 	fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
-		for i in 0 .. self.0 {
+		for _ in 0 .. self.0 {
 			try!( self.1.fmt(f) );
 		}
 		Ok( () )
@@ -58,6 +58,8 @@ fn dump_dir(level: usize, mut handle: Dir, buffer: &mut [u8])
 			_ => {},
 			},
 		Err(e) => {
+			kernel_log!(">> ERROR {:?}", e);
+			//return ;
 			},
 		}
 	}
@@ -75,7 +77,10 @@ fn dump_file(level: usize, mut handle: File)
 			{
 			Ok(0) => break,
 			Ok(v) => v,
-			Err(e) => return,
+			Err(e) => {
+				kernel_log!(">> ERROR {:?}", e);
+				return;
+				},
 			};
 
 		crc.update( &buffer[..len] );

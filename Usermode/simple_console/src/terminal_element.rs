@@ -129,14 +129,14 @@ struct LineEnts<'a> {
 	cur_pos: usize,
 }
 impl<'a> LineEnts<'a> {
-	fn get_pos(&self) -> usize {
-		self.cur_pos
-	}
+	//fn get_pos(&self) -> usize {
+	//	self.cur_pos
+	//}
 }
 impl<'a> Iterator for LineEnts<'a> {
 	type Item = LineEnt<'a>;
 	fn next(&mut self) -> Option<LineEnt<'a>> {
-		let mut start = self.cur_pos;
+		let start = self.cur_pos;
 		while let Some( &(pos, ch) ) = self.iter.peek()
 		{
 			self.cur_pos = pos + ch.len_utf8();

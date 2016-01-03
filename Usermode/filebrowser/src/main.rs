@@ -19,8 +19,6 @@ mod iterx {
 
 fn main()
 {
-	use wtk::Colour;
-
 	::wtk::initialise();
 
 	let mut root_handle = ::syscalls::vfs::Dir::open("/").unwrap();
@@ -29,6 +27,7 @@ fn main()
 
 	fl.populate(&mut root_handle);
 	fl.on_chdir(|win, newdir| win.set_title(format!("Filesystem - {}", newdir.display())));
+	fl.on_open(|_win, file_path| kernel_log!("TODO: Open path {}", file_path.display()));
 
 	let mut window = ::wtk::Window::new_def("File browser", &fl).unwrap();
 	window.set_title("Filesystem - /");

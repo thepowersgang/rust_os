@@ -48,6 +48,7 @@ impl<'a> FileList<'a>
 		self.on_open = Box::new(f);
 	}
 
+	/// Bind to changing directory
 	pub fn on_chdir<F: 'a>(&mut self, f: F)
 	where
 		F: Fn(&mut ::wtk::WindowTrait, &Path)
