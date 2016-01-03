@@ -14,6 +14,9 @@ module_define!{Video, [], init}
 /// Pre-driver graphics support (using a bootloader provided video mode)
 pub mod bootvideo;
 
+/// Kernel-provided bitmap font
+pub mod kernel_font;
+
 /// Geometry types (Pos, Dims, Rect)
 mod geom;
 
@@ -90,17 +93,20 @@ fn init()
 // A picture of a sad ferris the crab
 // NOTE: Commented out, as uncompressed 32bpp is too large to fit in the image
 //include!{"../../../../Graphics/.output/shared/panic.rs"}
-pub fn set_panic(file: &str, line: usize) {
+pub fn set_panic(file: &str, line: usize)
+{
 	use core::sync::atomic::{AtomicBool, Ordering};
 	static LOOP_PREVENT: AtomicBool = AtomicBool::new(false);
 	if LOOP_PREVENT.swap(true, Ordering::Relaxed) {
 		return ;
 	}
 	const PANIC_COLOUR: u32 = 0x01346B;
+	const PANIC_TEXT_COLOUR: u32 = 0xFFFFFF;
 	//static mut PANIC_IMG_ROW_BUF: [u32; PANIC_IMAGE_DIMS.0] = [0; PANIC_IMAGE_DIMS.0];
 
 	for surf in S_DISPLAY_SURFACES.lock().iter_mut()
 	{
+		use core::fmt::Write;
 		let dims = surf.fb.get_size();
 		// 1. Fill
 		surf.fb.fill(Rect::new_pd(Pos::new(0,0), dims), PANIC_COLOUR);
@@ -120,6 +126,55 @@ pub fn set_panic(file: &str, line: usize) {
 		}
 		*/
 		// 3. Render message to top-left
+		let _ = write!(&mut PanicWriter::new(&mut *surf.fb, 0, 0), "Panic at {}:{}", file, line);
+		//let _ = write!(&mut PanicWriter::new(&mut *surf.fb, 0, 16), "- {}", message);
+	}
+
+	return ;
+
+	struct PanicWriter<'a> {
+		font: kernel_font::KernelFont,
+		out: PanicWriterOut<'a>
+	}
+	impl<'a> ::core::fmt::Write for PanicWriter<'a> {
+		fn write_char(&mut self, c: char) -> ::core::fmt::Result {
+			let out = &mut self.out;
+			self.font.putc(PANIC_TEXT_COLOUR, c, |buf| out.putc(buf));
+			Ok( () )
+		}
+		fn write_str(&mut self, s: &str) -> ::core::fmt::Result {
+			for c in s.chars() {
+				try!(self.write_char(c));
+			}
+			Ok( () )
+		}
+	}
+	impl<'a> PanicWriter<'a> {
+		fn new<'b>(fb: &'b mut Framebuffer, x: u16, y: u16) -> PanicWriter<'b> {
+			PanicWriter {
+				font: kernel_font::KernelFont::new(),
+				out: PanicWriterOut {
+					fb: fb,
+					x: x, y: y,
+					},
+				}
+		}
+	}
+	impl<'a> ::core::ops::Drop for PanicWriter<'a> {
+		fn drop(&mut self) {
+			self.out.putc( self.font.get_buf() );
+		}
+	}
+	struct PanicWriterOut<'a> {
+		fb: &'a mut Framebuffer,
+		x: u16, y: u16,
+	}
+	impl<'a> PanicWriterOut<'a>
+	{
+		fn putc(&mut self, data: &[u32; 8*16]) {
+			self.fb.blit_buf(Rect::new(self.x as u32, self.y as u32,  8, 16), data);
+			self.x += 8;
+		}
 	}
 }
 
