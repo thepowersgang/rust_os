@@ -68,7 +68,7 @@ fn invoke(call_id: u32, args: &[usize]) -> u64 {
 }
 
 fn error_code(value: u32) -> usize {
-	value as usize + usize::max_value() / 2
+	value as usize + (!0 / 2)
 }
 
 /// Pack a result into a u32
@@ -208,12 +208,11 @@ fn invoke_int(call_id: u32, mut args: &[usize]) -> Result<u64,Error>
 			let count = try!(<usize>::get_arg(&mut args));
 			// Wait? Why do I have a 'mode' here?
 			log_debug!("MEM_ALLOCATE({:#x},{})", addr, count);
-			::kernel::memory::virt::allocate_user(addr as *mut (), count); 0
-			//match ::kernel::memory::virt::allocate_user(addr as *mut (), count)
-			//{
-			//Ok(_) => 0,
-			//Err(e) => todo!("MEM_ALLOCATE - error {:?}", e),
-			//}
+			match ::kernel::memory::virt::allocate_user(addr as *mut (), count)
+			{
+			Ok(_) => 0,
+			Err(e) => todo!("MEM_ALLOCATE - error {:?}", e),
+			}
 			},
 		MEM_REPROTECT => {
 			let addr = try!(<usize>::get_arg(&mut args));

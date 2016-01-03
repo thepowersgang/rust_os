@@ -232,11 +232,6 @@ impl LogWriter
 			log: log,
 		}
 	}
-	
-	pub fn set_colour(&mut self, colour: Colour)
-	{
-		self.colour = colour;
-	}
 }
 impl fmt::Write for LogWriter
 {

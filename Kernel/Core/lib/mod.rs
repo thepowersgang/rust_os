@@ -89,6 +89,11 @@ pub mod num
 	{
 		return (num / den, num % den);
 	}
+
+	/// Absolute difference between two numbers
+	pub fn abs_diff<T: PartialOrd + ops::Sub>(a: T, b: T) -> T::Output {
+		return if a > b { a - b } else { b - a };
+	}
 }
 
 pub mod collections

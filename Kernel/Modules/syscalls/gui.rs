@@ -25,6 +25,10 @@ impl ::core::convert::Into<values::GuiEvent> for ::gui::input::Event {
 		Event::MouseMove(x,y, dx,dy) => values::GuiEvent::MouseMove(x,y, dx,dy),
 		Event::MouseUp  (x,y,btn) => values::GuiEvent::MouseUp  (x,y,btn),
 		Event::MouseDown(x,y,btn) => values::GuiEvent::MouseDown(x,y,btn),
+		Event::MouseClick(x,y,btn,1) => values::GuiEvent::MouseClick(x,y,btn),
+		Event::MouseClick(x,y,btn,2) => values::GuiEvent::MouseDblClick(x,y,btn),
+		Event::MouseClick(x,y,btn,3) => values::GuiEvent::MouseTriClick(x,y,btn),
+		Event::MouseClick(x,y,btn,_) => values::GuiEvent::MouseClick(x,y,btn),
 		}
 	}
 }

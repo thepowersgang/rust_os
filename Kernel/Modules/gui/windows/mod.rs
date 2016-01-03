@@ -333,6 +333,13 @@ impl WindowGroup
 				let Pos { x: bx, y: by } = newwin.0;
 				newwin.1.handle_input( Event::MouseDown(x - bx, y - by, btn) );
 			},
+		Event::MouseClick(x,y, btn, count) =>
+			if let Some(newwin) = self.get_win_at_pos(x,y)
+			{
+				//self.mouse_down_win = &newwin;
+				let Pos { x: bx, y: by } = newwin.0;
+				newwin.1.handle_input( Event::MouseClick(x - bx, y - by, btn, count) );
+			},
 		Event::MouseUp(x,y, btn) =>
 			if let Some(newwin) = self.get_win_at_pos(x,y)
 			{

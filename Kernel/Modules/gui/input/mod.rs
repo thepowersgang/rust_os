@@ -24,6 +24,7 @@ pub enum Event
 	MouseMove(u32,u32,i16,i16),
 	MouseDown(u32,u32,u8),
 	MouseUp(u32,u32,u8),
+	MouseClick(u32,u32, u8, u8),
 }
 
 struct ModKeyPair(AtomicUsize);
@@ -50,7 +51,10 @@ struct InputChannel
 struct MouseClickInfo
 {
 	button: u8,
+	count: u8,
 	time: ::kernel::time::TickCount,
+	x: u32,
+	y: u32,
 }
 
 //struct IMEState
@@ -59,6 +63,10 @@ struct MouseClickInfo
 //	ime_val: u32,
 //}
 
+/// Maximum time in kernel ticks between subsequent press/release events for a click/doubleclick
+const DOUBLE_CLICK_TIMEOUT: u64 = 500;	// 500ms
+/// Maximum distance along any axis between press/release before a click is not registered
+const MAX_CLICK_MOVE: u32 = 10;
 static MAIN_INPUT: InputChannel = InputChannel::new();
 
 pub fn init() {
@@ -80,10 +88,7 @@ impl InputChannel
 			cursor: MouseCursor::new(),
 			
 			last_key_pressed: AtomicValue::new(KeyCode::None),
-			double_click_info: Mutex::new(MouseClickInfo {
-				button: 0xFF,
-				time: 0,
-				}),
+			double_click_info: Mutex::new(MouseClickInfo::new()),
 			}
 	}
 	pub fn handle_key(&self, key: keyboard::KeyCode, release: bool)
@@ -157,15 +162,29 @@ impl InputChannel
 		// Mouse movement, update cursor
 		self.cursor.move_pos(dx as i32, dy as i32);
 		let (x,y) = self.cursor.pos();
+		self.double_click_info.lock().clear();
 		super::windows::handle_input(/*self, */Event::MouseMove(x, y, dx, dy));
 	}
 	pub fn handle_mouse_btn(&self, btn: u8, release: bool)
 	{
 		let (x,y) = self.cursor.pos();
-		if release {
+		if release
+		{
+
+			// Released - check the double-click timer
+			if let Some(ev) = self.double_click_info.lock().check( x,y, btn )
+			{
+				super::windows::handle_input(/*self, */ev);
+			}
+
 			super::windows::handle_input(/*self, */Event::MouseUp(x, y, btn));
 		}
-		else {
+		else
+		{
+
+			// Pressed - reset the double-click timer
+			self.double_click_info.lock().reset(x,y, btn);
+
 			super::windows::handle_input(/*self, */Event::MouseDown(x, y, btn));
 		}
 	}
@@ -286,5 +305,55 @@ impl MouseCursor {
 	fn pos(&self) -> (u32,u32) {
 		let pos = self.graphics_cursor.lock().get_pos();
 		(pos.x, pos.y)
+	}
+}
+
+impl MouseClickInfo
+{
+	const fn new() -> MouseClickInfo {
+		MouseClickInfo {
+			button: 0xFF, x: 0, y: 0,
+			time: 0,
+			count: 0,
+			}
+	}
+	fn clear(&mut self)
+	{
+		self.button = 0xFF;
+	}
+	fn reset(&mut self, x: u32, y: u32, button: u8)
+	{
+		self.button = button;
+		self.count = 0;
+		self.x = x;
+		self.y = y;
+		self.time = ::kernel::time::ticks();
+	}
+
+	fn check(&mut self, x: u32, y: u32, button: u8) -> Option<Event>
+	{
+		use kernel::lib::num::abs_diff;
+		if self.button != button {
+			self.clear();
+			None
+		}
+		else if (::kernel::time::ticks() - self.time) > DOUBLE_CLICK_TIMEOUT {
+			self.clear();
+			None
+		}
+		else if abs_diff(self.x, x) > MAX_CLICK_MOVE || abs_diff(self.y, y) > MAX_CLICK_MOVE {
+			self.clear();
+			None
+		}
+		else {
+			self.time = ::kernel::time::ticks();
+			self.x = x;
+			self.y = y;
+			if self.count < 0xFF {
+				self.count += 1;
+			}
+
+			Some( Event::MouseClick(x, y, button, self.count) )
+		}
 	}
 }
