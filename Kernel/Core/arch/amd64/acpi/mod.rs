@@ -153,7 +153,7 @@ impl<T> SDT<T>
 			// SAFE: Self is POD
 			unsafe {
 				let bytes = ::core::slice::from_raw_parts(self as *const _ as *const u8, self.header.length as usize);
-				bytes.iter().fold(0, |a,&b| a+b) == 0
+				bytes.iter().fold(0u8, |a,&b| a.wrapping_add(b)) == 0
 			}
 		}
 	}

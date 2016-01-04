@@ -369,11 +369,13 @@ EXPORT memmove
 ;; RSI = B
 ;; RDX = Count
 EXPORT memcmp
+	test rdx, rdx
 	mov rcx, rdx
 	rep cmpsb
 	mov rax, 0
 	ja .pos
 	jb .neg
+.eq:
 	ret
 .pos:
 	dec rax
