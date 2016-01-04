@@ -42,6 +42,7 @@ Kernel/rundir/DiskImages
 Kernel/rundir/trace-*
 Kernel/rundir/*.iso
 Kernel/rundir/arm_bootloader/Core/
+Kernel/rundir/test-*/
 
 
 Usermode/doc/
