@@ -79,10 +79,14 @@ struct ProcessObjects
 	objs: Vec< ObjectSlot >,
 }
 
-
-/// Construct the initial ProcessObjects list
 impl Default for ProcessObjects {
 	fn default() -> ProcessObjects {
+		ProcessObjects::new()
+	}
+}
+impl ProcessObjects {
+	/// Construct the initial ProcessObjects list
+	pub fn new() -> ProcessObjects {
 		const MAX_OBJECTS_PER_PROC: usize = 64;
 		let mut ret = ProcessObjects {
 				objs: Vec::from_fn(MAX_OBJECTS_PER_PROC, |_| RwLock::new(None)),
@@ -91,8 +95,7 @@ impl Default for ProcessObjects {
 		*ret.objs[0].write() = Some(UserObject::new(::threads::CurProcess));
 		ret
 	}
-}
-impl ProcessObjects {
+
 	fn get(&self, idx: u32) -> Option<&ObjectSlot> {
 		self.objs.get(idx as usize)
 	}
@@ -149,6 +152,12 @@ impl ProcessObjects {
 		}
 		log_debug!("No space");
 		Err(super::Error::TooManyObjects)
+	}
+}
+impl Drop for ProcessObjects {
+	fn drop(&mut self)
+	{
+		//self.objs.sort_by(|a,b| );
 	}
 }
 

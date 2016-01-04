@@ -105,6 +105,9 @@ impl<'a> ::wtk::Element for FileList<'a>
 					(self.on_chdir)(win, Path::new(&*path));
 					Some( move || self.populate( &mut nh.into_dir().unwrap() ) )
 					},
+				::syscalls::vfs::NodeType::Symlink => {
+					None
+					},
 				_ => None,
 				}
 				}
@@ -117,13 +120,24 @@ impl<'a> ::wtk::Element for FileList<'a>
 
 struct FileEnt
 {
+	ty_str: &'static str,
 	name: OsString,
 	display_name: Option<String>,
 }
 impl FileEnt
 {
-	fn new(_dir: &::syscalls::vfs::Dir, name: &[u8]) -> FileEnt {
+	fn new(dir: &::syscalls::vfs::Dir, name: &[u8]) -> FileEnt {
+		let node = dir.open_child(name);
+		let node_ty = match node { Ok(n) => Some(n.class()), Err(_) => None };
 		FileEnt {
+			ty_str: match node_ty
+				{
+				Some(::syscalls::vfs::NodeType::File) => "f",
+				Some(::syscalls::vfs::NodeType::Dir) => "d",
+				Some(::syscalls::vfs::NodeType::Symlink) => "l",
+				Some(::syscalls::vfs::NodeType::Special) => "s",
+				None => "?",
+				},
 			name: OsString::from(name),
 			display_name: if ::std::str::from_utf8(name).is_ok() {
 					None
@@ -141,7 +155,7 @@ impl ::listview::Row for FileEnt {
 	fn value(&self, col: usize) -> &str {
 		match col
 		{
-		0 => "d",
+		0 => self.ty_str,
 		1 => if let Some(ref dn) = self.display_name {
 				dn
 			}

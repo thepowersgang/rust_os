@@ -1,6 +1,8 @@
 import QemuMonitor
 import re
 import time
+import os
+import shutil
 
 class TestFail:
     def __init__(self, reason):
@@ -22,11 +24,20 @@ class Instance:
         self._x = 0
         self._y = 0
         self._btns = 0
+        self._screenshot_dir = 'test-%s-%s' % (arch,testname,)
+        try:
+            shutil.rmtree("Kernel/rundir/"+self._screenshot_dir)
+        except:
+            pass
+        os.mkdir("Kernel/rundir/"+self._screenshot_dir)
         pass
     def __del__(self):
-        while self.wait_for_idle():
-            pass
-        self._cmd.send_screendump('test-%s-z-final.ppm' % (self._testname,))
+        try:
+            while self.wait_for_idle():
+                pass
+        except TestFail as e:
+            print "%r" % (e,)
+        self._cmd.send_screendump('%s/z-final.ppm' % (self._screenshot_dir,))
 
     
     def wait_for_line(self, regex, timeout):
@@ -87,6 +98,6 @@ class Instance:
         self._cmd.mouse_button(self._btns)
 
     def screenshot(self, tag):
-        self._cmd.send_screendump('test-%s-%s-%s.ppm' % (self._testname, self._screenshot_idx, tag))
+        self._cmd.send_screendump('%s/%s-%s.ppm' % (self._screenshot_dir, self._screenshot_idx, tag))
         self._screenshot_idx += 1
 

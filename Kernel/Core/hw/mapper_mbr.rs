@@ -33,7 +33,7 @@ impl storage::Mapper for Mapper
 
 	fn handles_pv(&self, pv: &storage::PhysicalVolume) -> Result<usize,storage::IoError> {
 		if pv.blocksize() != 512 {
-			log_log!("Support non 512 byte sectors in MBR mapper (got {})", pv.blocksize());
+			log_log!("Support non 512 byte sectors in MBR mapper (got {} for {})", pv.blocksize(), pv.name());
 			return Ok(0);
 		}
 		

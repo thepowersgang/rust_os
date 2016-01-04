@@ -51,8 +51,8 @@ pub struct WindowGroupHandle(usize);
 /// Window handle (when dropped, the window is destroyed)
 pub struct WindowHandle
 {
-	win: Option<ArefBorrow<Window>>,
 	grp: Arc<Mutex<WindowGroup>>,
+	win: Option<ArefBorrow<Window>>,
 	grp_id: usize,
 	win_id: usize,
 }
@@ -238,7 +238,8 @@ impl WindowGroup
 			// Delete all windows
 			self.focussed_window = 0;
 			self.render_order.truncate(0);
-			self.windows = Default::default();
+			// - Can't drop all the windows yet, their handles include ArefBorrow-s
+			//self.windows = Default::default();
 			true
 		}
 		else {

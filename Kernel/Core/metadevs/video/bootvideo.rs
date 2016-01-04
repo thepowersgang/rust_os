@@ -195,7 +195,8 @@ impl super::Framebuffer for Framebuffer
 
 		let bpp = output_fmt.bytes_per_pixel();
 		// Iterate across destination row nums and source rows
-		for (row,src) in Iterator::zip( dst.top() .. dst.bottom(), buf.chunks(src_pitch) )
+		//for (row,src) in Iterator::zip( dst.top() .. dst.bottom(), buf.chunks(src_pitch) )
+		for (row,src) in ::lib::ExactZip::new( dst.top() .. dst.bottom(), buf.chunks(src_pitch) )
 		{
 			let seg = self.buffer.scanline_slice(row as usize, dst.left() as usize, dst.right() as usize);
 			match output_fmt

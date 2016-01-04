@@ -181,15 +181,13 @@ fn sysinit()
 	match VolumeHandle::open_named(sysdisk)
 	{
 	Err(e) => {
-		log_error!("Unable to open /system volume {}: {}", sysdisk, e);
-		return ;
+		panic!("Unable to open /system volume {}: {}", sysdisk, e);
 		},
 	Ok(vh) => match mount::mount("/system".as_ref(), vh, "", &[])
 		{
 		Ok(_) => {},
 		Err(e) => {
-			log_error!("Unable to mount /system from {}: {:?}", sysdisk, e);
-			return ;
+			panic!("Unable to mount /system from {}: {:?}", sysdisk, e);
 			},
 		},
 	}

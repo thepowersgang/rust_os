@@ -49,7 +49,20 @@ impl<T> ArrayAlloc<T>
 			true
 		}
 		else {
-			todo!("ArrayAlloc::expand({})", newsize);
+			// SAFE: Allocaton should be safe
+			let newalloc = match unsafe { Allocation::new( Self::get_alloc_size(newsize) ) }
+				{
+				Ok(v) => v,
+				Err(_) => return false,
+				};
+			let copy_count = ::core::cmp::min(self.size, newsize);
+			// SAFE: Both pointers are valid to at least this many entries
+			unsafe {
+				::core::ptr::copy_nonoverlapping(*self.base, *newalloc, copy_count);
+			}
+			self.size = newsize;
+			self.base = newalloc;
+			true
 		}
 	}
 

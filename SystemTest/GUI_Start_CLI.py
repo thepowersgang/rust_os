@@ -51,9 +51,10 @@ def _mouseclick(instance, name, btn):
 
 def test(instance):
     test_assert("Kernel image start timed out", instance.wait_for_line("OK43e6H", timeout=10))
-    test_assert("Init load timed out", instance.wait_for_line("Entering userland at 0x[0-9a-f]+ '/system/Tifflin/bin/loader' '/system/Tifflin/bin/init'", timeout=5))
+    test_assert("Init load timed out", instance.wait_for_line("Entering userland at 0x[0-9a-f]+ '/sysroot/bin/loader' '/sysroot/bin/init'", timeout=10))
+    test_assert("Login startup timeout", instance.wait_for_line("\[syscalls\] - USER> Calling entry 0x[0-9a-f]+ for b\"/sysroot/bin/login\"", timeout=5))
 
-    test_assert("Initial startup timed out", instance.wait_for_idle(timeout=20))
+    test_assert("Initial startup timed out", instance.wait_for_idle(timeout=25))
     instance.screenshot('Login')
 
     instance.type_string('root')
@@ -67,7 +68,7 @@ def test(instance):
     while instance.wait_for_idle():
         pass
     _keypress(instance, 'ret', "Password", idle=False)
-    test_assert("Shell startup timeout", instance.wait_for_line("\[syscalls\] - USER> Calling entry 0x[0-9a-f]+ for b\"/sysroot/bin/shell\"", timeout=1))
+    test_assert("Shell startup timeout", instance.wait_for_line("\[syscalls\] - USER> Calling entry 0x[0-9a-f]+ for b\"/sysroot/bin/shell\"", timeout=10))
     test_assert("Shell idle timeout", instance.wait_for_idle(timeout=5))
     instance.screenshot('Shell')
     # TODO: Have an item in the log here
@@ -121,6 +122,7 @@ def test(instance):
         instance.screenshot('FileBrowser')
         
         _keypress(instance, 'down', "File browser")
+        _keypress(instance, 'down', "File browser")
         #test_assert("FileBrowser window render", instance.wait_for_idle(timeout=5))
         instance.screenshot('FileBrowser-sel2')
         #_keypress(instance, 'up', "File browser")
@@ -155,8 +157,10 @@ def test(instance):
         pass
 
 
+instance = TestInstance.Instance("amd64", "CLI")
 try:
-    test( TestInstance.Instance("amd64", "CLI") )
+    test( instance )
 except TestInstance.TestFail as e:
+    instance = None
     print "TEST FAILURE:",e
     sys.exit(1)

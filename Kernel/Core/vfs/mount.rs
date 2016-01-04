@@ -96,7 +96,10 @@ pub fn mount(location: &Path, vol: VolumeHandle, fs: &str, _options: &[&str]) ->
 			match drivers.get(fs)
 			{
 			Some(d) => d,
-			None => return Err(MountError::UnknownFilesystem),
+			None => {
+				log_notice!("Filesystem '{}' not registered", fs);
+				return Err(MountError::UnknownFilesystem);
+				},
 			}
 		};
 	

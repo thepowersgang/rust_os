@@ -70,7 +70,8 @@ impl<T: ?Sized> ops::Drop for Aref<T>
 	fn drop(&mut self) {
 		// SAFE: Constructs a dropped non-Drop value for comparison only
 		if (&*self.__inner as *const _) != unsafe { ::core::mem::dropped::<*const _>() } {
-			assert_eq!(self.__inner.count.load(Ordering::Relaxed), 0);
+			let cur_count = self.__inner.count.load(Ordering::SeqCst);
+			assert!(cur_count == 0, "BUG: Dropping Aref<{}> while {} references are outstanding", type_name!(T), cur_count);
 		}
 	}
 }
