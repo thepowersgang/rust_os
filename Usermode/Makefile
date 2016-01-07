@@ -8,7 +8,7 @@ V ?= @
 # List of root-level applications to build
 APPS := loader init login
 APPS += simple_console shell
-APPS += filebrowser
+APPS += filebrowser fileviewer
 APPS += vfs_test
 APPS += hello_world
 

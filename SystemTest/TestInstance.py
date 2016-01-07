@@ -11,7 +11,7 @@ class TestFail:
         return "TestFail(%r)" % (self.reason,)
 
 def test_assert(reason, condition):
-    if not condition:
+    if condition == False:
         raise TestFail(reason)
     print "STEP:",reason
 
@@ -53,8 +53,9 @@ class Instance:
                     raise TestFail("Kernel panic")
                 if re.search('\d+d \d+\[syscalls\] - USER> PANIC: ', line) != None:
                     raise TestFail("User panic")
-                if re.search(regex, line) != None:
-                    return True
+                rv = re.search(regex, line)
+                if rv != None:
+                    return rv
                 self.lastlog.append( line )
             if time.time() - now > timeout:
                 return False

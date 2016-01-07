@@ -290,6 +290,8 @@ impl<'a, D: Decorator> Window<'a, D>
 	fn update_surface_size(&mut self) {
 		self.needs_force_rerender = true;
 		self.surface.resize( self.win.get_dims(), self.background );
+		let sub_dims = self.client_rect();
+		self.root.resize( sub_dims.w.0, sub_dims.h.0 );
 	}
 
 	// Returns redraw status
@@ -322,6 +324,9 @@ impl<'a, D: Decorator> Window<'a, D>
 				assert!(x >= basex); assert!(y >= basey);
 				// TODO: Also send an event to the source element
 				ele.handle_event( ::InputEvent::MouseMove(x - basex, y - basey, dx, dy), self )
+				//self.root.with_element_at_pos(x,y, self.surface.width(), self.surface.height(),
+				//	&|ele, relx, rely| ele.handle_event(::InputEvent::MouseMove(relx, rely, dx, dy), self)
+				//	);
 			}
 			},
 		::InputEvent::MouseUp(x,y,btn) => {

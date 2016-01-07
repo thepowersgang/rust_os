@@ -95,9 +95,19 @@ impl<S: BoxEleSet> super::Element for Box<S>
 
 	fn element_at_pos(&self, x: u32, y: u32) -> (&Element, (u32,u32))
 	{
-		let (_cap, exp) = *self.sizes.borrow();
+		let (_cap, expand_size) = *self.sizes.borrow();
 
-		self.elements.get_ele_at_pos( x, y, exp, self.direction.is_vert() )
+		self.elements.get_ele_at_pos( x, y, expand_size, self.direction.is_vert() )
+	}
+	fn resize(&self, w: u32, h: u32)
+	{
+		let (is_dirty, expand_size) = self.update_size(if self.direction.is_vert() { h } else { w });
+
+		let dir = self.direction;
+		if is_dirty
+		{
+			self.elements.resize(w, h, expand_size, dir.is_vert());
+		}
 	}
 	fn render(&self, surface: ::surface::SurfaceView, force: bool) {
 		// 1. Determine sizes
@@ -118,6 +128,7 @@ pub trait BoxEleSet
 	where
 		G: Fn(u32, u32)->Rect<::geom::Px>
 		;
+	fn resize(&self, w: u32, h: u32, expand_size: u32, is_vert: bool);
 	fn get_ele_at_pos(&self, x: u32, y: u32, exp: u32, is_vert: bool) -> (&Element,(u32,u32));
 }
 
@@ -137,6 +148,15 @@ macro_rules! impl_box_set_tuple {
 				}
 				)*
 				(fixed, expand)
+			}
+			fn resize(&$s, w: u32, h: u32, expand_size: u32, is_vert: bool)
+			{
+				$({
+					let size = if let Some(Size(size)) = $v.size { size } else { expand_size };
+					let s_w = if !is_vert { size } else { w };
+					let s_h = if  is_vert { size } else { h };
+					$v.ele.resize(s_w, s_h)
+				})*
 			}
 			fn render<G>(&$s, surface: ::surface::SurfaceView, force: bool, expand_size: u32, get_rect: G)
 			where

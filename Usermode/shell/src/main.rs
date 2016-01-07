@@ -44,7 +44,7 @@ fn main()
 			Entry::new("CLI", 0, "Win-T", || start_app_console()),
 			Spacer,
 			Entry::new("Filesystem", 0, "Win-E", || start_app_filebrowser()),
-			Entry::new("Text Editor", 5, "", || kernel_log!("TODO: Spawn text editor")),
+			Entry::new("Text Editor", 5, "", || start_app(&["/sysroot/bin/fileviewer", "/system/1.txt"])),
 			))
 		};
 	system_menu.set_pos( ::wtk::geom::Pos::new(0,20) );

@@ -33,6 +33,13 @@ def _keypress(instance, key, name, idle=True):
         test_assert(name+" "+key+" release timeout", instance.wait_for_line("\[syscalls\] - USER> (Window|Menu)::handle_event\(ev=KeyUp\("+keyname+"\)\)", timeout=timeout))
         if idle:
             test_assert(name+" "+key+" release idle", instance.wait_for_idle(timeout=5))
+
+def _startapp(instance, path, timeout=5):
+    line = instance.wait_for_line("\[syscalls\] - USER> Calling entry 0x[0-9a-f]+ for b\"(.*)\"", timeout=timeout)
+    test_assert("Start timeout: %s" % (path,), line)
+    if line.group(1) != path:
+        raise TestFail("Unexpected binary start: %r != %r" % (line.group(1), path,))
+    
 def _mouseto(instance, name, x,y):
     instance.mouse_to(x,y)
     test_assert(name+" mouse(%i,%i) reached" % (x,y,), instance.wait_for_line("windows\] - CursorPos::update - \(%i,%i\)" % (x,y), timeout=3))
@@ -52,7 +59,7 @@ def _mouseclick(instance, name, btn):
 def test(instance):
     test_assert("Kernel image start timed out", instance.wait_for_line("OK43e6H", timeout=10))
     test_assert("Init load timed out", instance.wait_for_line("Entering userland at 0x[0-9a-f]+ '/sysroot/bin/loader' '/sysroot/bin/init'", timeout=10))
-    test_assert("Login startup timeout", instance.wait_for_line("\[syscalls\] - USER> Calling entry 0x[0-9a-f]+ for b\"/sysroot/bin/login\"", timeout=5))
+    _startapp(instance, "/sysroot/bin/login", timeout=5)
 
     test_assert("Initial startup timed out", instance.wait_for_idle(timeout=25))
     instance.screenshot('Login')
@@ -68,20 +75,20 @@ def test(instance):
     while instance.wait_for_idle():
         pass
     _keypress(instance, 'ret', "Password", idle=False)
-    test_assert("Shell startup timeout", instance.wait_for_line("\[syscalls\] - USER> Calling entry 0x[0-9a-f]+ for b\"/sysroot/bin/shell\"", timeout=10))
+    _startapp(instance, "/sysroot/bin/shell", timeout=10)
     test_assert("Shell idle timeout", instance.wait_for_idle(timeout=5))
     instance.screenshot('Shell')
     # TODO: Have an item in the log here
 
     # >>> Spawn the GUI terminal
-    if True:
+    if False:
         # - Open the "System" menu (press left windows key)
         _keypress(instance, 'meta_l', "System menu")
         instance.screenshot('Menu')
 
         # - Select the top item to open the CLI
         _keypress(instance, 'ret', "CLI Startup", idle=False)
-        test_assert("CLI startup timeout", instance.wait_for_line("\[syscalls\] - USER> Calling entry 0x[0-9a-f]+ for b\"/sysroot/bin/simple_console\"", timeout=5))
+        _startapp(instance, "/sysroot/bin/simple_console", timeout=10)
         test_assert("CLI window render", instance.wait_for_line("\[gui::windows\] - L\d+: WindowGroup::redraw: \d+ 'Console'", timeout=5))
         test_assert("CLI idle timeout", instance.wait_for_idle(timeout=3))
         instance.screenshot('CLI')
@@ -112,7 +119,7 @@ def test(instance):
         test_assert("Final render idle", instance.wait_for_idle(timeout=5))
     
     # >>> Start the filesystem browser
-    if True:
+    if False:
         _keypress(instance, 'meta_l', "Menu 2")
         _keypress(instance, 'down', "Menu 2")
         _keypress(instance, 'down', "Menu 2")
@@ -150,8 +157,20 @@ def test(instance):
         time.sleep(1)
         _mouseclick(instance, "Exit button", 1)
         test_assert("Close FileBrowser reap", instance.wait_for_line("Reaping thread 0x[0-9a-f]+\(\d+ /sysroot/bin/filebrowser#1\)", timeout=2))
-        
 
+    # >>> Start the text viewer
+    if True:
+        _keypress(instance, 'meta_l', "Menu 2")
+        _keypress(instance, 'down', "Menu 2")
+        _keypress(instance, 'down', "Menu 2")
+        _keypress(instance, 'down', "Menu 2")
+        instance.screenshot('FileViewer-P')
+        _keypress(instance, 'ret', "Menu 2", idle=False)
+        _startapp(instance, "/sysroot/bin/fileviewer", timeout=5)
+        test_assert("FileViewer window render", instance.wait_for_line("\[gui::windows\] - L\d+: WindowGroup::redraw: \d+ 'File viewer'", timeout=5))
+        test_assert("FileViewer idle timeout", instance.wait_for_idle(timeout=3))
+        instance.screenshot('FileViewer')
+        
 
     while instance.wait_for_idle():
         pass

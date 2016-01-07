@@ -30,8 +30,16 @@ pub struct Size(u32);
 pub struct Box<'a>
 {
 	direction: Direction,
-	sizes: ::std::cell::RefCell<(u32,u32)>,
 	items: Vec< (Option<&'a mut Element>, Option<Size>) >,
+	sizes: ::std::cell::RefCell<SizeState>,
+	size_changed: ::std::cell::Cell<bool>,
+}
+
+#[derive(Default)]
+struct SizeState
+{
+	last_cap: u32,
+	expand_size: u32,
 }
 
 impl<'a> Box<'a>
@@ -57,10 +65,11 @@ impl<'a> Box<'a>
 	// returns (has_changed, expand_size)
 	fn update_size(&self, cap: u32) -> (bool, u32) {
 		let mut sizes = self.sizes.borrow_mut();
-		if sizes.0 == cap {
-			(false, sizes.1)
+		if sizes.last_cap == cap {
+			(false, sizes.expand_size)
 		}
 		else {
+			self.size_changed.set(true);
 			let expand = {
 				let (fixed_total, num_expand) = self.items.iter().fold( (0,0), |(total,exp), i| if let Some(Size(v)) = i.1 { (total+v, exp) } else { (total, exp+1) } );
 				if fixed_total > cap {
@@ -73,7 +82,8 @@ impl<'a> Box<'a>
 					0
 				}
 				};
-			*sizes = (cap, expand);
+			sizes.last_cap = cap;
+			sizes.expand_size = expand;
 			(true, expand)
 		}
 	}
@@ -88,12 +98,12 @@ impl<'a> super::Element for Box<'a>
 	fn element_at_pos(&self, x: u32, y: u32) -> (&Element, (u32,u32))
 	{
 		let pos = if self.direction.is_vert() { y } else { x };
-		let (_cap, exp) = *self.sizes.borrow();
+		let SizeState { expand_size, .. } = *self.sizes.borrow();
 
 		let mut ofs = 0;
 		for &(ref element, ref size) in self.items.iter()
 		{
-			let size = if let &Some(ref s) = size { s.0 } else { exp };
+			let size = if let &Some(ref s) = size { s.0 } else { expand_size };
 			// If the cursor was before the right/bottom border of this element, it's within
 			// - Works because of ordering
 			if pos < ofs + size
@@ -114,9 +124,29 @@ impl<'a> super::Element for Box<'a>
 		}
 		(self,(0,0))
 	}
+	fn resize(&self, w: u32, h: u32) {
+		let (changed, expand_size) = self.update_size(if self.direction.is_vert() { h } else { w });
+		if changed
+		{
+			for item in self.items.iter()
+			{
+				let size = item.1.map(|Size(s)| s).unwrap_or(expand_size);
+
+				match item.0
+				{
+				Some(ref ele) => {
+					let rect = self.direction.get_rect(0, size);
+					ele.resize(rect.width().0, rect.height().0);
+					},
+				None => {},
+				}
+			}
+		}
+	}
 	fn render(&self, surface: ::surface::SurfaceView, force: bool) {
 		// 1. Determine sizes
-		let (is_dirty, expand_size)  = self.update_size(if self.direction.is_vert() { surface.height() } else { surface.width() });
+		let is_dirty = self.size_changed.get(); self.size_changed.set(false);
+		let expand_size  = self.sizes.borrow().expand_size;
 
 		// 2. Render sub-surfaces
 		let mut ofs = 0;
@@ -192,6 +222,9 @@ impl<E: ::Element> ::Element for Frame<E>
 		// TODO: For mouse events, clip to display region
 		//
 		self.item.handle_event(ev, win)
+	}
+	fn resize(&self, w: u32, h: u32) {
+		self.item.resize(w - self.frame_width * 2, h - self.frame_width * 2)
 	}
 	fn render(&self, surface: ::surface::SurfaceView, force: bool)
 	{

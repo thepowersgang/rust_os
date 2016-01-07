@@ -123,6 +123,8 @@ impl<'a> ::Element for TextInput<'a>
 			state.is_dirty = false;
 		}
 	}
+	fn resize(&self, _w: u32, _h: u32) {
+	}
 
 	fn handle_event(&self, ev: ::InputEvent, win: &mut ::window::WindowTrait) -> bool {
 		match ev

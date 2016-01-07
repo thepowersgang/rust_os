@@ -16,12 +16,12 @@ impl Colour
 	//pub fn white() -> Colour { Colour(0xFF_FF_FF) }
 	pub fn as_argb32(&self) -> u32 { self.0 }
 
-	pub fn theme_text() -> Colour { Colour(0x00_000000) }
-	pub fn theme_text_alt() -> Colour { Colour(0x00_606060) }
-	pub fn theme_border_main() -> Colour { Colour(0x00_C0C0C0) }
-	pub fn theme_border_alt() -> Colour { Colour(0x00_E0E0E0) }
-	pub fn theme_text_bg() -> Colour { Colour(0xF8FFF8) }
-	pub fn theme_body_bg() -> Colour { Colour(0x002000) }
+	pub const fn theme_text() -> Colour { Colour(0x00_000000) }
+	pub const fn theme_text_alt() -> Colour { Colour(0x00_606060) }
+	pub const fn theme_border_main() -> Colour { Colour(0x00_C0C0C0) }
+	pub const fn theme_border_alt() -> Colour { Colour(0x00_E0E0E0) }
+	pub const fn theme_text_bg() -> Colour { Colour(0xF8FFF8) }
+	pub const fn theme_body_bg() -> Colour { Colour(0x002000) }
 
 	/// Alpha value, 0 = opaque, 255 = transparent
 	pub fn alpha(&self) -> u8 {
@@ -230,6 +230,48 @@ impl<'a> SurfaceView<'a>
 		}
 		rect.x().0 as usize
 	}
+
+	pub fn draw_text_fmt(&self, rect: Rect<Px>, colour: Colour) -> TextFmtWrite {
+		TextFmtWrite(self, S_FONT.get_renderer(), colour, rect)
+	}
+}
+
+pub struct TextFmtWrite<'a>(&'a SurfaceView<'a>, MonoFontRender, Colour, Rect<Px>);
+impl<'a> TextFmtWrite<'a> {
+	fn blit(&mut self, w: u32, _h: u32) {
+		self.0.foreach_scanlines(self.3, |i, line| {
+			for (d,s) in Iterator::zip( line.iter_mut(), self.1.buffer(i, w as usize) )
+			{
+				*d = Colour::blend( Colour::from_argb32(*d), Colour::from_argb32(*s) ).as_argb32();
+			}
+			});
+
+		self.3 = self.3.offset(::geom::Px(w), ::geom::Px(0));
+	}
+}
+impl<'a> ::std::fmt::Write for TextFmtWrite<'a> {
+	fn write_str(&mut self, s: &str) -> ::std::fmt::Result {
+		for c in s.chars() {
+			try!( self.write_char(c) );
+		}
+		Ok( () )
+	}
+	fn write_char(&mut self, c: char) -> ::std::fmt::Result {
+		if ! c.is_combining() {
+			if let Some((w,h)) = self.1.get_rendered_dims() {
+				self.blit(w, h);
+			}
+		}
+		self.1.render_char(self.2, c);
+		Ok( () )
+	}
+}
+impl<'a> ::std::ops::Drop for TextFmtWrite<'a> {
+	fn drop(&mut self) {
+		if let Some((w,h)) = self.1.get_rendered_dims() {
+			self.blit(w, h);
+		}
+	}
 }
 
 // --------------------------------------------------------------------
@@ -265,18 +307,35 @@ impl MonoFontRender
 		}
 	}
 	pub fn render_grapheme<It: Iterator<Item=char>>(&mut self, it: &mut ::std::iter::Peekable<It>, colour: Colour) -> Option<(u32,u32)> {
-		self.buffer = [0xFF_000000; 8*16];
+		self.clear_buffer();
+		self.buffer[0] = 0xFF_000000;
 		if let Some(ch) = it.next()
 		{
 			self.render_char(colour, ch);
 			while it.peek().map(|c| c.is_combining()).unwrap_or(false)
 			{
-				self.render_char(colour, it.next().unwrap());
+				self.render_int_char(colour, it.next().unwrap());
 			}
 			Some( (8,16) )
 		}
 		else {
 			None
+		}
+	}
+	pub fn render_char(&mut self, colour: Colour, ch: char)
+	{
+		if ! ch.is_combining() {
+			self.clear_buffer();
+		}
+		self.render_int_char(colour, ch);
+	}
+	pub fn get_rendered_dims(&self) -> Option<(u32, u32)> {
+		if &self.buffer[..] == &[0; 8*16][..] {
+			// The buffer is only zero when this hasn't been cleared
+			None
+		}
+		else {
+			Some( (8,16) )
 		}
 	}
 	pub fn buffer(&self, row: usize, width: usize) -> &[u32] {
@@ -288,8 +347,11 @@ impl MonoFontRender
 		}
 	}
 
+	fn clear_buffer(&mut self) {
+		self.buffer = [0xFF_000000; 8*16];
+	}
 	/// Actually does the rendering
-	fn render_char(&mut self, colour: Colour, cp: char)
+	fn render_int_char(&mut self, colour: Colour, cp: char)
 	{
 		let idx = unicode_to_cp437(cp);
 		//kernel_log!("render_char - '{}' = {:#x}", cp, idx);

@@ -40,6 +40,11 @@ pub trait Read
 {
 	fn read(&mut self, buf: &mut [u8]) -> Result<usize>;
 }
+impl<'a, T: 'a + Read> Read for &'a mut T {
+	fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
+		(**self).read(buf)
+	}
+}
 pub trait BufRead: Read
 {
 }
@@ -98,6 +103,11 @@ pub enum SeekFrom
 pub trait Seek
 {
 	fn seek(&mut self, pos: SeekFrom) -> Result<u64>;
+}
+impl<'a, T: 'a + Seek> Seek for &'a mut T {
+	fn seek(&mut self, pos: SeekFrom) -> Result<u64> {
+		(**self).seek(pos)
+	}
 }
 
 /// Updates the slice as it reads
