@@ -57,6 +57,7 @@ impl String
 	}
 }
 
+/// Construct an empty string
 impl Default for String {
 	fn default() -> String { String::new() }
 }

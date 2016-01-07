@@ -123,11 +123,14 @@ dsm: bin/kernel-$(ARCH).bin.dsm
 clean:
 	rm -r $(OBJDIR)
 
-docs: bin/kernel-$(ARCH).bin
-	@mkdir -p doc/$(ARCH)/Kernel
-	@echo [RUSTDOC] Core/main.rs
-	$V$(ENV) $(RUSTDOC) $(RUSTFLAGS_C) -o doc/$(ARCH)/Kernel Core/main.rs
-	@chmod +rX doc/ -R 
+docs: $(patsubst %,doc/$(ARCH)/%/index.html,kernel core)
+
+doc/$(ARCH)/%/index.html:
+	@mkdir -p doc/$(ARCH)
+	@echo [RUSTDOC] $<
+	$V$(ENV) $(RUSTDOC) $(RUSTFLAGS_C) -o doc/$(ARCH) $<
+doc/$(ARCH)/kernel/index.html: Core/main.rs bin/kernel-$(ARCH).bin
+doc/$(ARCH)/core/index.html: ../libcore/lib.rs $(OBJDIR)libcore.rlib
 
 # ===
 # Toolchain maintainence
