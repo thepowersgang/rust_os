@@ -13,8 +13,11 @@ trait Theme
 struct FixedTheme;
 impl Theme for FixedTheme {
 	fn control_detail(&self) -> Colour {
-		Colour::from_argb32(0xFF_B0B0B0)
+		Colour::from_argb32(0xFF_909090)
 	}
+	//fn control_detail_disabled(&self) -> Colour {
+	//	Colour::from_argb32(0xFF_C0C0C0)
+	//}
 	fn control_background(&self) -> Colour {
 		Colour::from_argb32(0xFF_F0F0F0)
 	}
@@ -46,7 +49,7 @@ struct State
 	bar_size: u32,
 }
 
-const MIN_HANDLE_LENGTH: u32 = 7;	// 3 lines, padding*2, border*2
+const MIN_HANDLE_LENGTH: u32 = 11;	// 3 lines, padding*4, border*2
 const ARROW_SIZE: u32 = 5;	// 5px high/wide arrow
 
 trait Direction: Default
@@ -57,6 +60,7 @@ trait Direction: Default
 	fn from_sl(short: u32, long: u32) -> (u32,u32);
 	fn draw_arrow(suraface: ::surface::SurfaceView, side_is_low: bool);
 	fn draw_grip(suraface: ::surface::SurfaceView);
+	fn name() -> &'static str;
 }
 
 #[derive(Default)]
@@ -73,7 +77,7 @@ impl Direction for Vertical
 	{
 		let midpt_x = surface.width() / 2;
 		let midpt_y = surface.height() / 2;
-		let surface = surface.slice(Rect::new(midpt_x - ARROW_SIZE, midpt_y - ARROW_SIZE, ARROW_SIZE*2,ARROW_SIZE*2));
+		let surface = surface.slice(Rect::new(midpt_x - ARROW_SIZE, midpt_y - ARROW_SIZE/2, ARROW_SIZE*2,ARROW_SIZE*2));
 
 		for row in 0 .. ARROW_SIZE {
 			let npx = if side_is_low { (row + 1) * 2 } else { ARROW_SIZE*2 - row * 2 };
@@ -82,12 +86,17 @@ impl Direction for Vertical
 	}
 	fn draw_grip(surface: ::surface::SurfaceView)
 	{
-		let surface = surface.slice(Rect::new(0, surface.height()/2 - MIN_HANDLE_LENGTH/2, !0,MIN_HANDLE_LENGTH));
+		const SIZE: u32 = 7;
+		const MARGIN: u32 = 2;
+		let surface = surface.slice(Rect::new(0, surface.height()/2 - SIZE/2, !0,SIZE));
 
 		// Three lines at +1, +3, +5
-		surface.fill_rect( Rect::new(2,1, surface.width()-4,1), FixedTheme.control_detail() );
-		surface.fill_rect( Rect::new(2,3, surface.width()-4,1), FixedTheme.control_detail() );
-		surface.fill_rect( Rect::new(2,5, surface.width()-4,1), FixedTheme.control_detail() );
+		surface.fill_rect( Rect::new(MARGIN,1, surface.width()-MARGIN*2,1), FixedTheme.control_detail() );
+		surface.fill_rect( Rect::new(MARGIN,3, surface.width()-MARGIN*2,1), FixedTheme.control_detail() );
+		surface.fill_rect( Rect::new(MARGIN,5, surface.width()-MARGIN*2,1), FixedTheme.control_detail() );
+	}
+	fn name() -> &'static str {
+		"vert"
 	}
 }
 #[derive(Default)]
@@ -104,7 +113,7 @@ impl Direction for Horizontal
 	{
 		let midpt_x = surface.width() / 2;
 		let midpt_y = surface.height() / 2;
-		let surface = surface.slice(Rect::new(midpt_x - ARROW_SIZE, midpt_y - ARROW_SIZE, ARROW_SIZE*2,ARROW_SIZE*2));
+		let surface = surface.slice(Rect::new(midpt_x - ARROW_SIZE/2, midpt_y - ARROW_SIZE, ARROW_SIZE*2,ARROW_SIZE*2));
 
 		for row in 0 .. ARROW_SIZE {
 			let npx = row;
@@ -116,12 +125,17 @@ impl Direction for Horizontal
 	}
 	fn draw_grip(surface: ::surface::SurfaceView)
 	{
-		let surface = surface.slice(Rect::new(surface.width()/2 - MIN_HANDLE_LENGTH/2,0, MIN_HANDLE_LENGTH,!0));
+		const SIZE: u32 = 7;
+		const MARGIN: u32 = 2;
+		let surface = surface.slice(Rect::new(surface.width()/2 - SIZE/2,0, SIZE,!0));
 
-		// Three lines at +1, +3, +5
-		surface.fill_rect( Rect::new(1,2, 1, surface.height()-4), FixedTheme.control_detail() );
-		surface.fill_rect( Rect::new(3,2, 1, surface.height()-4), FixedTheme.control_detail() );
-		surface.fill_rect( Rect::new(5,2, 1, surface.height()-4), FixedTheme.control_detail() );
+		// Three lines at +2, +4, +6
+		surface.fill_rect( Rect::new(1,MARGIN, 1, surface.height()-MARGIN*2), FixedTheme.control_detail() );
+		surface.fill_rect( Rect::new(3,MARGIN, 1, surface.height()-MARGIN*2), FixedTheme.control_detail() );
+		surface.fill_rect( Rect::new(5,MARGIN, 1, surface.height()-MARGIN*2), FixedTheme.control_detail() );
+	}
+	fn name() -> &'static str {
+		"horiz"
 	}
 }
 
@@ -135,6 +149,30 @@ where
 			state: Default::default(),
 			dir: D::default(),
 			}
+	}
+
+	/// Set (capacity, handke_size)
+	/// NOTE: The size must be <= the capacity
+	pub fn set_bar(&self, bar: Option<(usize, usize)>) {
+		let mut s = self.state.borrow_mut();
+		if let Some( (cap, size) ) = bar {
+			assert!( size <= cap );
+			s.value_limit = cap;
+			s.value_size = size;
+		}
+		else {
+			s.value_limit = 0;
+			s.value_size = 1;
+		}
+		s.recalculate();
+	}
+	pub fn set_pos(&self, cap: usize) {
+		let mut st = self.state.borrow_mut();
+		st.value_cur = cap;
+		st.recalculate();
+	}
+	pub fn get_pos(&self) -> usize {
+		self.state.borrow().value_cur
 	}
 }
 impl Widget<Vertical> {
@@ -165,7 +203,10 @@ where
 		}
 		let (short_d, long_d) = D::to_sl(surface.width(), surface.height());
 		if force {
-			D::draw_arrow(surface.slice(Rect::new(0,0, short_d,short_d)), true);
+			let r = Rect::new(0,0, short_d,short_d);
+			kernel_log!("{} start r={:?}", D::name(), r);
+			surface.draw_rect(r, ::geom::Px(1), FixedTheme.control_detail());
+			D::draw_arrow(surface.slice(r), true);
 		}
 		let mut state = self.state.borrow_mut();
 		if force || ::std::mem::replace(&mut state.dirty, false) {
@@ -178,13 +219,17 @@ where
 			let (x,y) = D::from_sl(0, short_d + state.bar_start);
 			let (w,h) = D::from_sl(short_d, state.bar_size);
 			let r = Rect::new(x,y, w,h);
+			kernel_log!("{} bar r={:?}", D::name(), r);
 			surface.draw_rect(r, ::geom::Px(1), FixedTheme.control_detail());
 			// Indicator grip
 			D::draw_grip( surface.slice(r) );
 		}
 		if force {
 			let (x,y) = D::from_sl(0, long_d - short_d);
-			D::draw_arrow(surface.slice(Rect::new(x,y, short_d,short_d)), false);
+			let r = Rect::new(x,y, short_d,short_d);
+			kernel_log!("{} end r={:?}", D::name(), r);
+			surface.draw_rect(r, ::geom::Px(1), FixedTheme.control_detail());
+			D::draw_arrow(surface.slice(r), false);
 		}
 	}
 	fn element_at_pos(&self, _x: u32, _y: u32) -> (&::Element,(u32,u32)) {
@@ -201,7 +246,7 @@ impl State
 			(n + d/2) / d
 		}
 
-		if self.value_limit == 0 {
+		if self.value_limit == 0 || self.value_size > self.value_limit {
 			self.bar_start = 0;
 			self.bar_size = self.bar_cap;
 		}
@@ -224,6 +269,9 @@ impl State
 				self.bar_size = size;
 			}
 		}
+
+		kernel_log!("State = {{ bar_start: {}, bar_size: {}, bar_cap: {} }}",
+			self.bar_start, self.bar_size, self.bar_cap);
 	}
 }
 

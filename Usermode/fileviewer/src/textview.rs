@@ -1,3 +1,7 @@
+// Tifflin OS File Viewer
+// - By John Hodge (thePowersGang)
+//
+//! Text view widget
 
 pub struct Widget
 {

@@ -163,11 +163,11 @@ impl<T: CoordType> Rect<T>
 			else {
 				( self.x + self.w, T::zero() )
 			};
-		let (y, oy) = if other.y < self.w {
+		let (y, oy) = if other.y < self.h {
 				( self.y + other.y, ::std::cmp::min(self.y2(), self.y + other.y2()) )
 			}
 			else {
-				( self.y + self.w, T::zero() )
+				( self.y + self.h, T::zero() )
 			};
 
 		let rv = Rect::new_pts(x, y, ox, oy);

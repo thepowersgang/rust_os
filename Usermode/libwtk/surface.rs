@@ -122,9 +122,9 @@ impl Surface
 		SurfaceView { surf: self, rect: rect }
 	}
 
-	fn foreach_scanlines<F: FnMut(usize, &mut [u32])>(&self, rect: Rect<Px>, mut f: F) {
+	fn foreach_scanlines<F: FnMut(usize, &mut [u32])>(&self, rect_o: Rect<Px>, mut f: F) {
 		// Update dirty region with this rect
-		let rect = self.rect().intersect(&rect);
+		let rect = self.rect().intersect(&rect_o);
 		//let mut dr = self.dirty.borrow_mut();
 		if self.dirty.get().is_empty() {
 			self.dirty.set(rect);
@@ -133,7 +133,7 @@ impl Surface
 			self.dirty.set( self.dirty.get().union(&rect) ); 
 		}
 
-		//kernel_log!("foreach_scanlines(rect={:?}, F={})", rect, type_name!(F));
+		//kernel_log!("foreach_scanlines(rect_o={:?} [ rect={:?} ], F={})", rect_o, rect, type_name!(F));
 		for (i, row) in self.data.borrow_mut().chunks_mut(self.width).skip(rect.y().0 as usize).take(rect.height().0 as usize).enumerate()
 		{
 			//kernel_log!("{}: {}  {}..{} row.len()={}", i, rect.y().0 as usize + i, rect.x().0, rect.x2().0, row.len());
@@ -181,19 +181,20 @@ impl<'a> SurfaceView<'a>
 			);
 	}
 	pub fn draw_rect(&self, rect: Rect<Px>, lw: Px, colour: Colour) {
-		let lwu = lw.0 as usize;
-		assert!(lwu > 0);
+		let inner_min = lw.0 as usize;
+		let inner_max = (rect.h.0 - lw.0) as usize;
+		assert!(inner_min > 0);
 		self.foreach_scanlines(rect, |i, line|
-			if i < lwu || i >= rect.h.0 as usize - lwu {
-				for px in line.iter_mut() {
+			if inner_min <= i && i < inner_max {
+				for px in line[.. inner_min].iter_mut() {
+					*px = colour.as_argb32();
+				}
+				for px in line[(rect.w.0 - lw.0) as usize .. ].iter_mut() {
 					*px = colour.as_argb32();
 				}
 			}
 			else {
-				for px in line[.. lwu].iter_mut() {
-					*px = colour.as_argb32();
-				}
-				for px in line[rect.w.0 as usize - lwu .. ].iter_mut() {
+				for px in line.iter_mut() {
 					*px = colour.as_argb32();
 				}
 			}
@@ -216,11 +217,9 @@ impl<'a> SurfaceView<'a>
 	pub fn draw_text<It: Iterator<Item=char>>(&self, mut rect: Rect<Px>, chars: It, colour: Colour) -> usize {
 		let mut st = S_FONT.get_renderer();
 		let mut chars = chars.peekable();
-		//kernel_log!("draw_text: rect = {:?}", rect);
 		while let Some( (w,_h) ) = st.render_grapheme(&mut chars, colour)
 		{
 			self.foreach_scanlines(rect, |i, line| {
-				//kernel_log!("i = {}, line.len() = {}", i, line.len());
 				for (d,s) in Iterator::zip( line.iter_mut(), st.buffer(i, w as usize) )
 				{
 					*d = Colour::blend( Colour::from_argb32(*d), Colour::from_argb32(*s) ).as_argb32();
@@ -354,7 +353,6 @@ impl MonoFontRender
 	fn render_int_char(&mut self, colour: Colour, cp: char)
 	{
 		let idx = unicode_to_cp437(cp);
-		//kernel_log!("render_char - '{}' = {:#x}", cp, idx);
 		
 		let bitmap = &S_FONTDATA[idx as usize];
 		

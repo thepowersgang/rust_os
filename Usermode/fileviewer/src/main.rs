@@ -17,7 +17,6 @@ struct Viewer<'a>
 	file: ::std::cell::RefCell<&'a mut ::syscalls::vfs::File>,
 	mode: ViewerMode,
 
-	menu: (),
 	vscroll: ::wtk::ScrollbarV,
 	hscroll: ::wtk::ScrollbarH,
 	hex: ::hexview::Widget,
@@ -75,7 +74,6 @@ impl<'a> Viewer<'a>
 			hex: ::hexview::Widget::new(),
 			text: ::textview::Widget::new(),
 
-			menu: (),
 			vscroll: ::wtk::ScrollbarV::new(),
 			hscroll: ::wtk::ScrollbarH::new(),
 			toggle_button: ::wtk::Button::new_boxfn( ::wtk::Colour::theme_body_bg(), |_,_| {} ),
@@ -85,8 +83,6 @@ impl<'a> Viewer<'a>
 			let mut file = rv.file.borrow_mut();
 			file.set_cursor(0);
 			let _ = rv.hex.populate(&mut *file);
-			//self.vscroll.set( Some(rv.hex.get_start(), filesize - rv.hex.get_capacity()) );
-			//self.hscroll.set( None );
 		}
 		else {
 			// 1. Calculate number of lines and maximum width?
@@ -110,16 +106,14 @@ impl<'a> Viewer<'a>
 		SCROLL_SIZE + self.hex.min_width() + 2*2
 	}
 }
-const MENU_HEIGHT: u32 = 16;
 const SCROLL_SIZE: u32 = 16;
 impl<'a> ::wtk::Element for Viewer<'a>
 {
 	fn resize(&self, width: u32, height: u32) {
 		*self.dims.borrow_mut() = (width, height);
 
-		self.menu.resize(width, MENU_HEIGHT);
 		let body_width  = width - SCROLL_SIZE;
-		let body_height = height - MENU_HEIGHT - SCROLL_SIZE;
+		let body_height = height - SCROLL_SIZE;
 
 		self.vscroll.resize(SCROLL_SIZE, body_height);
 		match self.mode
@@ -135,19 +129,34 @@ impl<'a> ::wtk::Element for Viewer<'a>
 			self.text.resize(body_width, body_height);
 			},
 		}
-		self.hscroll.resize(body_height, SCROLL_SIZE);
+		self.hscroll.resize(body_width, SCROLL_SIZE);
+
+		// Reposition the scroll elements
+		let file = self.file.borrow();
+		let filesize = file.get_size();
+		if filesize > usize::max_value() as u64 {
+			// - Disable vertical scroll if the filesize is > usize
+			self.vscroll.set_bar( None );
+		}
+		else if filesize <= self.hex.get_capacity() as u64 {
+			self.vscroll.set_bar( Some( (0,0) ) );
+		}
+		else {
+			self.vscroll.set_bar( Some( (filesize as usize, self.hex.get_capacity() as usize) ) );
+		}
+		self.vscroll.set_pos( 0 );
+		self.hscroll.set_bar( None );
 	}
 	fn render(&self, surface: ::wtk::surface::SurfaceView, force: bool) {
 		use wtk::geom::Rect;
 		let (width, height) = (surface.width(), surface.height());
 		assert_eq!( (width,height), *self.dims.borrow() );
 
-		self.menu.render(surface.slice(Rect::new(0, 0,  width, MENU_HEIGHT)), force);
 		let body_width  = width - SCROLL_SIZE;
-		let body_height = height - MENU_HEIGHT - SCROLL_SIZE;
-		self.vscroll.render(surface.slice(Rect::new(body_width, MENU_HEIGHT,  SCROLL_SIZE, body_height)), force);
+		let body_height = height - SCROLL_SIZE;
+		self.vscroll.render(surface.slice(Rect::new(body_width, 0,  SCROLL_SIZE, body_height)), force);
 
-		let body_view = surface.slice(Rect::new(0, MENU_HEIGHT,  body_width, body_height));
+		let body_view = surface.slice(Rect::new(0, 0,  body_width, body_height));
 		match self.mode
 		{
 		ViewerMode::Hex  => self.hex.render(body_view, force),
@@ -158,21 +167,18 @@ impl<'a> ::wtk::Element for Viewer<'a>
 	fn element_at_pos(&self, x: u32, y: u32) -> (&::wtk::Element, (u32,u32)) {
 		let (width, height) = *self.dims.borrow();
 
-		let vscroll_pos = (width - SCROLL_SIZE, MENU_HEIGHT);
+		let vscroll_pos = (width - SCROLL_SIZE, 0);
 		let hscroll_pos = (0, height - SCROLL_SIZE);
 
-		if y < MENU_HEIGHT {
-			self.menu.element_at_pos(x - 0, y - 0)
-		}
-		else if y < hscroll_pos.1 {
+		if y < hscroll_pos.1 {
 			if x > vscroll_pos.0 {
 				self.vscroll.element_at_pos(x - vscroll_pos.0, y - vscroll_pos.1)
 			}
 			else {
 				match self.mode
 				{
-				ViewerMode::Hex  => (&self.hex , (0,MENU_HEIGHT)),
-				ViewerMode::Text => (&self.text, (0,MENU_HEIGHT)),
+				ViewerMode::Hex  => (&self.hex , (0,0)),
+				ViewerMode::Text => (&self.text, (0,0)),
 				}
 			}
 		}

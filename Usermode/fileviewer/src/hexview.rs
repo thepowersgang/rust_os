@@ -1,7 +1,7 @@
+// Tifflin OS File Viewer
+// - By John Hodge (thePowersGang)
 //
-//
-//
-//!
+//! 16-byte hex view
 use wtk::geom::Rect;
 use wtk::Colour;
 
@@ -57,6 +57,9 @@ impl Widget
 	}
 	pub fn get_start(&self) -> u64 {
 		self.state.borrow().view_start
+	}
+	pub fn get_capacity(&self) -> usize {
+		self.state.borrow().view_size
 	}
 	pub fn min_width(&self) -> u32 {
 		(self.offset_width as u32 + (3*8) + 1 + (3*8) + 2 + 8 + 1 + 8) * 8
