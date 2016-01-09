@@ -13,6 +13,7 @@ pub type InstancePtr = ArefBorrow<InstanceInner>;
 
 pub struct InstanceInner
 {
+	is_readonly: bool,
 	pub vol: ::block_cache::CacheHandle,
 	superblock: ::ondisk::Superblock,
 	pub fs_block_size: usize,
@@ -85,12 +86,12 @@ impl Instance
 		if superblock.data.s_magic != 0xEF53 {
 			return Err(vfs::Error::TypeMismatch);
 		}
-		match Self::check_features(vol.name(), &superblock)
-		{
-		FeatureState::Incompatible(_) => return Err(vfs::Error::TypeMismatch),
-		FeatureState::ReadOnly(_) => {},
-		_ => {},
-		}
+		let is_readonly = match Self::check_features(vol.name(), &superblock)
+			{
+			FeatureState::Incompatible(_) => return Err(vfs::Error::TypeMismatch),
+			FeatureState::ReadOnly(_) => true,
+			_ => false,
+			};
 
 		// - Limit block size to 1MB each
 		if superblock.data.s_log_block_size > 10 {
@@ -165,6 +166,7 @@ impl Instance
 		}
 
 		let inner = InstanceInner {
+			is_readonly: is_readonly,
 			fs_block_size: fs_block_size,
 			superblock: superblock,
 			group_descriptors: group_descs,
@@ -216,7 +218,7 @@ impl InstanceInner
 {
 	pub fn is_readonly(&self) -> bool
 	{
-		false
+		self.is_readonly
 	}
 }
 
@@ -292,12 +294,17 @@ impl InstanceInner
 /// Inode lookup and save
 impl InstanceInner
 {
-	/// Returns (volblock, byte_ofs)
-	fn get_inode_pos(&self, inode_num: u32) -> (u64, usize) {
+	/// Returns (grp_idx, inner_idx)
+	fn get_inode_grp_id(&self, inode_num: u32) -> (u32, u32) {
 		assert!(inode_num != 0);
 		let inode_num = inode_num - 1;
 
-		let (group, ofs) = ( inode_num / self.s_inodes_per_group(), inode_num % self.s_inodes_per_group() );
+		( inode_num / self.s_inodes_per_group(), inode_num % self.s_inodes_per_group() )
+	}
+	/// Returns (volblock, byte_ofs)
+	fn get_inode_pos(&self, inode_num: u32) -> (u64, usize) {
+		let (group, ofs) = self.get_inode_grp_id(inode_num);
+
 		let base_blk_id = self.group_descriptors[group as usize].bg_inode_table as u64 * self.vol_blocks_per_fs_block();
 		let ofs_bytes = (ofs as usize) * self.s_inode_size();
 		let (sub_blk_id, sub_blk_ofs) = (ofs_bytes / self.vol.block_size(), ofs_bytes % self.vol.block_size());
@@ -325,7 +332,20 @@ impl InstanceInner
 	/// Allocate a new inode number, possibly in the same block group as `parent_inode_num`.
 	pub fn allocate_inode(&self, parent_inode_num: u32, nodetype: vfs::node::NodeType) -> vfs::node::Result< u32 >
 	{
-		todo!("InstanceInner::allocate_inode");
+		let (grp, _idx) = self.get_inode_grp_id(parent_inode_num);
+		let gd = &self.group_descriptors[grp as usize];
+		if gd.bg_free_inodes_count > 0
+		{
+			todo!("InstanceInner::allocate_inode - Current BG");
+		}
+		else if self.superblock.data.s_free_inodes_count > 0
+		{
+			todo!("InstanceInner::allocate_inode - Search for any BG");
+		}
+		else
+		{
+			Err(vfs::Error::OutOfSpace)
+		}
 	}
 
 	/// Read an inode descriptor from the disk

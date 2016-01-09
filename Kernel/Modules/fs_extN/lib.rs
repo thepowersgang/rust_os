@@ -6,6 +6,7 @@
 #![feature(linkage)]
 #![feature(clone_from_slice)]
 #![no_std]
+//#![allow(non_snake_case)]
 
 use kernel::prelude::*;
 use kernel::vfs;
