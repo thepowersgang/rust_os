@@ -2,7 +2,7 @@ import TestInstance
 import sys
 import time
 
-from TestInstance import test_assert
+from TestInstance import test_assert,TestFail
 
 KEYNAME_MAP = {
     'meta_l': "LeftGui",
@@ -34,6 +34,14 @@ def _keypress(instance, key, name, idle=True):
         if idle:
             test_assert(name+" "+key+" release idle", instance.wait_for_idle(timeout=5))
 
+def _matchline(instance, name, pattern, matches, timeout=5):
+    line = instance.wait_for_line(pattern, timeout=timeout)
+    test_assert("%s - Match timeout: %s" % (name, pattern,), line)
+    for i,m in enumerate(matches):
+        if line.group(i+1) != m:
+            raise TestFail("%s - Unexpected match from \"%s\" - %i: %r != %r" % (name, pattern, i, line.group(1+i), m,))
+            
+    
 def _startapp(instance, path, timeout=5):
     line = instance.wait_for_line("\[syscalls\] - USER> Calling entry 0x[0-9a-f]+ for b\"(.*)\"", timeout=timeout)
     test_assert("Start timeout: %s" % (path,), line)
@@ -145,12 +153,28 @@ def test(instance):
         test_assert("Close FileBrowser f4 release timeout", instance.wait_for_line("\[syscalls\] - USER> Window::handle_event\(ev=KeyUp\(F4\)\)", timeout=1))
         test_assert("Close FileBrowser reap", instance.wait_for_line("Reaping thread 0x[0-9a-f]+\(\d+ /sysroot/bin/filebrowser#1\)", timeout=2))
     # >>> Start the filesystem browser (again)
-    if False:
+    if True:
         _keypress(instance, ['meta_l', 'e'], "FileBrowser")
         test_assert("FileBrowser window render", instance.wait_for_line("\[gui::windows\] - L\d+: WindowGroup::redraw: \d+ 'File browser'", timeout=5))
         test_assert("FileBrowser idle timeout", instance.wait_for_idle(timeout=3))
         instance.screenshot('FileBrowser2')
-        
+
+        _keypress(instance, 'down', "File browser")
+        _keypress(instance, 'down', "File browser")
+        _keypress(instance, 'ret', "File browser")
+        instance.screenshot('FileBrowser2-1')
+        _keypress(instance, 'down', "File browser")
+        _keypress(instance, 'ret', "File browser", idle=False)
+        instance.screenshot('FileBrowser2-2')
+        _startapp(instance, "/sysroot/bin/fileviewer", timeout=5)
+        _matchline(instance, "FileViewer open file", "openfile\(Path\(b\"([^\"]+)\"\)", ["/system/1.txt"], timeout=5)
+        test_assert("FileViewer window render", instance.wait_for_line("\[gui::windows\] - L\d+: WindowGroup::redraw: \d+ 'File viewer'", timeout=5))
+        test_assert("FileViewer idle timeout", instance.wait_for_idle(timeout=3))
+        instance.screenshot('Browser-Viewer')
+        _keypress(instance, ['alt', 'f4'], "FileViewerClose")
+        test_assert("Close FileViewer reap", instance.wait_for_line("Reaping thread 0x[0-9a-f]+\(\d+ /sysroot/bin/fileviewer#1\)", timeout=2))
+        test_assert("FileViewer reap idle timeout", instance.wait_for_idle(timeout=3))
+
         # - By default, WTK creates 250x200 windows at (150,100)
         _mouseto(instance, "Exit button", 150 + 250 - 6, 100 + 6)
         instance.screenshot('mouse')

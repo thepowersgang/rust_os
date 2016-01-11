@@ -7,6 +7,7 @@ extern crate wtk;
 extern crate vec_ring;
 #[macro_use(kernel_log)]
 extern crate syscalls;
+extern crate loader;
 
 mod listview;
 mod filelist;
@@ -27,7 +28,7 @@ fn main()
 
 	fl.populate(&mut root_handle);
 	fl.on_chdir(|win, newdir| win.set_title(format!("Filesystem - {}", newdir.display())));
-	fl.on_open(|_win, file_path| kernel_log!("TODO: Open path {}", file_path.display()));
+	fl.on_open(|_win, file_path| view_file(file_path));
 
 	let mut window = ::wtk::Window::new_def("File browser", &fl).unwrap();
 	window.set_title("Filesystem - /");
@@ -36,4 +37,15 @@ fn main()
 	window.show();
 
 	window.idle_loop();
+}
+
+fn view_file(p: &::std::fs::Path) {
+	let byte_args: &[&[u8]] = &[ p.as_ref(), ];
+	match ::loader::new_process(b"/sysroot/bin/fileviewer", byte_args)
+	{
+	Ok(app) => {
+		app.send_obj( ::syscalls::gui::clone_group_handle() );
+		},
+	Err(_e) => {},
+	}
 }

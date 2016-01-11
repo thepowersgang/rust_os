@@ -16,7 +16,7 @@ extern "C" fn register_arguments(args: &[&::ffi::OsStr]) {
 	// SAFE: Runs in a single-threaded context
 	unsafe {
 		//S_ARGUMENTS = args.into_static();
-		S_ARGUMENTS = ::core::mem::transmute(&args[..]);
+		S_ARGUMENTS = &*(&args[..] as *const [_]);
 		::core::mem::forget(args);
 	}
 }

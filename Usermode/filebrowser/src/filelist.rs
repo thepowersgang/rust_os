@@ -63,6 +63,7 @@ impl<'a> ::wtk::Element for FileList<'a>
 		self.list.render(surface, force);
 	}
 	fn resize(&self, w: u32, h: u32) {
+		//self.list.resize(w, h);
 	}
 	fn handle_event(&self, ev: ::wtk::InputEvent, win: &mut ::wtk::WindowTrait) -> bool {
 		self.list.handle_event(

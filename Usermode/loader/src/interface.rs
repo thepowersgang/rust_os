@@ -89,7 +89,7 @@ fn new_process_entry() -> !
 		kernel_log!("Arg {}: {:?}", i, arg);
 	}
 
-	let arg_iter = NullStringList(arg_slice).map(::std::ffi::OsStr::new);
+	let arg_iter = NullStringList(arg_slice).map(::std::ffi::OsStr::new).skip(1);
 	let arg_iter = (0 .. arg_count-1).zip(arg_iter);
 	
 	

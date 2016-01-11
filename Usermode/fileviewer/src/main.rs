@@ -32,9 +32,15 @@ fn main()
 {
 	::wtk::initialise();
 
+	for a in ::std::env::args_os() {
+		kernel_log!("arg = {:?}", a);
+	}
+
+	let mut args = ::std::env::args_os().skip(0);
+	let path = args.next();
+	let path: Option<&::std::ffi::OsStr> = path.as_ref().map(|x| x.as_ref());
+	let path = path.unwrap_or( ::std::ffi::OsStr::new(b"/sysroot/bin/fileviewer") );
 	
-	//let path = "/system/1.txt";
-	let path = "/sysroot/bin/fileviewer";
 	let mut file = match ::syscalls::vfs::File::open(path, ::syscalls::vfs::FileOpenMode::ReadOnly)
 		{
 		Ok(v) => v,
@@ -53,7 +59,7 @@ fn main()
 	let root = Viewer::new(&mut file, use_hex);
 
 	let mut window = ::wtk::Window::new_def("File viewer", &root).unwrap();
-	window.set_title("File Viewer");
+	window.set_title( format!("File Viewer - {:?}", path) );
 
 	window.focus(&root);
 	window.set_dims(root.min_width(), 150);
