@@ -93,8 +93,8 @@ impl<T: Buffer> ::Element for Image<T>
 		}
 	}
 	fn resize(&self, _w: u32, _h: u32) {}
-	fn element_at_pos(&self, _x: u32, _y: u32) -> (&::Element, (u32,u32)) {
-		(self, (0,0))
+	fn with_element_at_pos(&self, pos: ::geom::PxPos, _dims: ::geom::PxDims, f: ::WithEleAtPosCb) -> bool {
+		f(self, pos)
 	}
 }
 

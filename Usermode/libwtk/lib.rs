@@ -38,6 +38,8 @@ pub use syscalls::gui::Event as InputEvent;
 pub use syscalls::gui::KeyCode as KeyCode;
 pub use window::Modifier as ModifierKey;
 
+pub type WithEleAtPosCb<'a> = &'a mut FnMut(&::Element, ::geom::PxPos) -> bool;
+
 /// Common trait for window elements
 pub trait Element
 {
@@ -58,7 +60,7 @@ pub trait Element
 
 	/// Fetch child element at the given position.
 	/// Returns the child element and the offset of the child.
-	fn element_at_pos(&self, x: u32, y: u32) -> (&::Element, (u32,u32)); //{ (self, (0,0)) }
+	fn with_element_at_pos(&self, pos: ::geom::PxPos, dims: ::geom::PxDims, f: ::WithEleAtPosCb) -> bool;// { f(self, pos) }
 }
 /// Object safe
 impl<'a, T: 'a + Element> Element for &'a T
@@ -68,7 +70,7 @@ impl<'a, T: 'a + Element> Element for &'a T
 
 	fn render(&self, surface: ::surface::SurfaceView, force: bool) { (*self).render(surface, force) }
 	fn resize(&self, w: u32, h: u32) { (*self).resize(w, h) }
-	fn element_at_pos(&self, x: u32, y: u32) -> (&::Element,(u32,u32)) { (*self).element_at_pos(x,y) }
+	fn with_element_at_pos(&self, pos: ::geom::PxPos, dims: ::geom::PxDims, f: ::WithEleAtPosCb) -> bool { (*self).with_element_at_pos(pos,dims,f) }
 }
 /// Unit type is a valid element. Just does nothing.
 impl Element for ()
@@ -77,7 +79,7 @@ impl Element for ()
 	fn handle_event(&self, _ev: ::InputEvent, _win: &mut ::window::WindowTrait) -> bool { false }
 	fn render(&self, _surface: ::surface::SurfaceView, _force: bool) { }
 	fn resize(&self, _w: u32, _h: u32) { }
-	fn element_at_pos(&self, _x: u32, _y: u32) -> (&::Element,(u32,u32)) { (self,(0,0)) }
+	fn with_element_at_pos(&self, pos: ::geom::PxPos, _dims: ::geom::PxDims, f: ::WithEleAtPosCb) -> bool { f(self, pos) }
 }
 
 impl Element for Colour
@@ -88,7 +90,7 @@ impl Element for Colour
 			surface.fill_rect(geom::Rect::new(0,0,!0,!0), *self);
 		}
 	}
-	fn element_at_pos(&self, _x: u32, _y: u32) -> (&::Element,(u32,u32)) { (self,(0,0)) }
+	fn with_element_at_pos(&self, pos: ::geom::PxPos, _dims: ::geom::PxDims, f: ::WithEleAtPosCb) -> bool { f(self, pos) }
 }
 
 pub use window::{Window, WindowTrait};

@@ -320,13 +320,10 @@ impl<'a, D: Decorator> Window<'a, D>
 				false
 			}
 			else {
-				let (ele, (basex, basey)) = self.root.element_at_pos(x,y /*, self.surface.width(), self.surface.height()*/);
-				assert!(x >= basex); assert!(y >= basey);
 				// TODO: Also send an event to the source element
-				ele.handle_event( ::InputEvent::MouseMove(x - basex, y - basey, dx, dy), self )
-				//self.root.with_element_at_pos(x,y, self.surface.width(), self.surface.height(),
-				//	&|ele, relx, rely| ele.handle_event(::InputEvent::MouseMove(relx, rely, dx, dy), self)
-				//	);
+				self.root.with_element_at_pos( Pos::new(x,y), self.surface.rect().dims(),
+					&mut |ele, p| ele.handle_event(::InputEvent::MouseMove(p.x.0, p.y.0, dx, dy), self)
+					)
 			}
 			},
 		::InputEvent::MouseUp(x,y,btn) => {
@@ -335,10 +332,10 @@ impl<'a, D: Decorator> Window<'a, D>
 				false
 			}
 			else {
-				let (ele, (basex, basey)) = self.root.element_at_pos(x,y /*, self.surface.width(), self.surface.height()*/);
-				assert!(x >= basex); assert!(y >= basey);
 				// TODO: Also send MouseUp to the element that received the MouseDown
-				ele.handle_event( ::InputEvent::MouseUp(x - basex, y - basey, btn), self )
+				self.root.with_element_at_pos( Pos::new(x,y), self.surface.rect().dims(),
+					&mut |ele, p| ele.handle_event( ::InputEvent::MouseUp(p.x.0,p.y.0, btn), self )
+					)
 			}
 			},
 		::InputEvent::MouseDown(x,y,btn) => {
@@ -347,9 +344,9 @@ impl<'a, D: Decorator> Window<'a, D>
 				false
 			}
 			else {
-				let (ele, (basex, basey)) = self.root.element_at_pos(x,y /*, self.surface.width(), self.surface.height()*/);
-				assert!(x >= basex); assert!(y >= basey);
-				ele.handle_event( ::InputEvent::MouseDown(x - basex, y - basey, btn), self )
+				self.root.with_element_at_pos( Pos::new(x,y), self.surface.rect().dims(),
+					&mut |ele, p| ele.handle_event( ::InputEvent::MouseDown(p.x.0, p.y.0, btn), self )
+					)
 			}
 			},
 		ev @ _ => {

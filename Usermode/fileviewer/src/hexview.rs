@@ -98,8 +98,8 @@ impl ::wtk::Element for Widget
 			}
 		}
 	}
-	fn element_at_pos(&self, _x: u32, _y: u32) -> (&::wtk::Element,(u32,u32)) {
-		(self, (0,0))
+	fn with_element_at_pos(&self, pos: ::wtk::geom::PxPos, _dims: ::wtk::geom::PxDims, f: ::wtk::WithEleAtPosCb) -> bool {
+		f(self, pos)
 	}
 }
 

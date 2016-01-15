@@ -52,7 +52,7 @@ struct State
 const MIN_HANDLE_LENGTH: u32 = 11;	// 3 lines, padding*4, border*2
 const ARROW_SIZE: u32 = 5;	// 5px high/wide arrow
 
-trait Direction: Default
+pub trait Direction: Default
 {
 	/// Turn cartesian into short/long coords
 	fn to_sl(w: u32, h: u32) -> (u32,u32);
@@ -232,8 +232,8 @@ where
 			D::draw_arrow(surface.slice(r), false);
 		}
 	}
-	fn element_at_pos(&self, _x: u32, _y: u32) -> (&::Element,(u32,u32)) {
-		(self, (0,0))
+	fn with_element_at_pos(&self, pos: ::geom::PxPos, _dims: ::geom::PxDims, f: ::WithEleAtPosCb) -> bool {
+		f(self, pos)
 	}
 }
 

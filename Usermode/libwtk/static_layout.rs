@@ -93,11 +93,11 @@ impl<S: BoxEleSet> super::Element for Box<S>
 		false
 	}
 
-	fn element_at_pos(&self, x: u32, y: u32) -> (&Element, (u32,u32))
+	fn with_element_at_pos(&self, pos: ::geom::PxPos, dims: ::geom::PxDims, f: ::WithEleAtPosCb) -> bool
 	{
+		// TODO: Use `dims`
 		let (_cap, expand_size) = *self.sizes.borrow();
-
-		self.elements.get_ele_at_pos( x, y, expand_size, self.direction.is_vert() )
+		self.elements.with_element_at_pos( pos, dims, f, expand_size, self.direction.is_vert() )
 	}
 	fn resize(&self, w: u32, h: u32)
 	{
@@ -129,7 +129,7 @@ pub trait BoxEleSet
 		G: Fn(u32, u32)->Rect<::geom::Px>
 		;
 	fn resize(&self, w: u32, h: u32, expand_size: u32, is_vert: bool);
-	fn get_ele_at_pos(&self, x: u32, y: u32, exp: u32, is_vert: bool) -> (&Element,(u32,u32));
+	fn with_element_at_pos(&self, pos: ::geom::PxPos, _dims: ::geom::PxDims, f: ::WithEleAtPosCb, exp: u32, is_vert: bool) -> bool;
 }
 
 macro_rules! impl_box_set_tuple {
@@ -172,8 +172,9 @@ macro_rules! impl_box_set_tuple {
 				let _ = ofs;
 			}
 
-			fn get_ele_at_pos(&$s, x: u32, y: u32, exp: u32, is_vert: bool) -> (&Element,(u32,u32)) {
-				let pos = if is_vert { y } else { x };
+			fn with_element_at_pos(&$s, p: ::geom::PxPos, dims: ::geom::PxDims, f: ::WithEleAtPosCb, exp: u32, is_vert: bool) -> bool {
+				let pos = if is_vert { p.y } else { p.x };
+				let pos = pos.0;
 				let mut ofs = 0;
 				$({
 					let size = if let Some(Size(s)) = $v.size { s } else { exp };
@@ -182,10 +183,10 @@ macro_rules! impl_box_set_tuple {
 					if pos < ofs + size
 					{
 						return if is_vert {
-								$v.ele.element_at_pos(x, y - ofs)
+								$v.ele.with_element_at_pos( p - ::geom::PxPos::new(0,ofs), ::geom::PxDims::new(dims.w.0, size), f )
 							}
 							else {
-								$v.ele.element_at_pos(x - ofs, y)
+								$v.ele.with_element_at_pos( p - ::geom::PxPos::new(ofs,0), ::geom::PxDims::new(size, dims.h.0), f )
 							};
 					}
 					else {
@@ -193,8 +194,7 @@ macro_rules! impl_box_set_tuple {
 					}
 				})*
 				let _ = ofs;
-				static EMPTY_ELE: () = ();
-				(&EMPTY_ELE, (0,0))
+				false
 			}
 		}
 		};

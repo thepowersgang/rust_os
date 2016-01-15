@@ -139,9 +139,9 @@ where
 	fn resize(&self, w: u32, h: u32) {
 		self.inner.resize(w, h)
 	}
-	fn element_at_pos(&self, _x: u32, _y: u32) -> (&::Element, (u32,u32)) {
-		(self, (0,0))
-		//self.inner.element_at_pos(x, y)
+	fn with_element_at_pos(&self, pos: ::geom::PxPos, _dims: ::geom::PxDims, f: ::WithEleAtPosCb) -> bool {
+		f(self, pos)
+		//self.inner.with_element_at_pos(pos, f)	// Nah
 	}
 }
 

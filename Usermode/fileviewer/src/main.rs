@@ -170,30 +170,33 @@ impl<'a> ::wtk::Element for Viewer<'a>
 		}
 		self.hscroll.render(surface.slice(Rect::new(0, height - SCROLL_SIZE, body_width, SCROLL_SIZE)), force);
 	}
-	fn element_at_pos(&self, x: u32, y: u32) -> (&::wtk::Element, (u32,u32)) {
-		let (width, height) = *self.dims.borrow();
+	fn with_element_at_pos(&self, pos: ::wtk::geom::PxPos, dims: ::wtk::geom::PxDims, f: ::wtk::WithEleAtPosCb) -> bool {
+		let x = pos.x.0;
+		let y = pos.y.0;
+		let (width, height) = (dims.w.0, dims.h.0);
 
-		let vscroll_pos = (width - SCROLL_SIZE, 0);
-		let hscroll_pos = (0, height - SCROLL_SIZE);
+		let body_dims = ::wtk::geom::PxDims::new( width - SCROLL_SIZE, height - SCROLL_SIZE );
+		let vscroll_pos = ::wtk::geom::PxPos::new(body_dims.w.0, 0);
+		let hscroll_pos = ::wtk::geom::PxPos::new(0, body_dims.h.0);
 
-		if y < hscroll_pos.1 {
-			if x > vscroll_pos.0 {
-				self.vscroll.element_at_pos(x - vscroll_pos.0, y - vscroll_pos.1)
+		if y < hscroll_pos.y.0 {
+			if x > vscroll_pos.x.0 {
+				self.vscroll.with_element_at_pos(pos - vscroll_pos, ::wtk::geom::PxDims::new(SCROLL_SIZE, body_dims.h.0), f)
 			}
 			else {
 				match self.mode
 				{
-				ViewerMode::Hex  => (&self.hex , (0,0)),
-				ViewerMode::Text => (&self.text, (0,0)),
+				ViewerMode::Hex  => self.hex.with_element_at_pos(pos, body_dims, f),
+				ViewerMode::Text => self.text.with_element_at_pos(pos, body_dims, f),
 				}
 			}
 		}
 		else {
-			if x > vscroll_pos.0 {
-				self.toggle_button.element_at_pos(x, y - hscroll_pos.1)
+			if x > body_dims.w.0 {
+				self.toggle_button.with_element_at_pos(pos - body_dims.bottomright(), ::wtk::geom::PxDims::new(SCROLL_SIZE, SCROLL_SIZE), f)
 			}
 			else {
-				self.hscroll.element_at_pos(x - hscroll_pos.0, y - hscroll_pos.1)
+				self.hscroll.with_element_at_pos(pos - hscroll_pos, ::wtk::geom::PxDims::new(body_dims.w.0, SCROLL_SIZE), f)
 			}
 		}
 	}

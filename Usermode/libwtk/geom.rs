@@ -1,4 +1,6 @@
 
+pub type PxPos = Pos<Px>;
+pub type PxDims = Dims<Px>;
 
 pub trait CoordType:
 	Copy +
@@ -185,6 +187,16 @@ impl<T: CoordType> Pos<T>
 			}
 	}
 }
+impl<T: CoordType> ::std::ops::Sub for Pos<T>
+{
+	type Output = Self;
+	fn sub(self, other: Self) -> Self {
+		Pos {
+			x: self.x - other.x,
+			y: self.y - other.y,
+			}
+	}
+}
 impl<T: CoordType> Dims<T>
 {
 	pub fn new<U: Into<T>>(w: U, h: U) -> Dims<T> {
@@ -193,5 +205,21 @@ impl<T: CoordType> Dims<T>
 			h: h.into(),
 		}
 	}
-}
 
+	pub fn bottomright(&self) -> Pos<T> {
+		Pos {
+			x: self.w,
+			y: self.h,
+			}
+	}
+}
+impl<T: CoordType> ::std::ops::Sub for Dims<T>
+{
+	type Output = Self;
+	fn sub(self, other: Self) -> Self {
+		Dims {
+			w: self.w - other.w,
+			h: self.h - other.h,
+			}
+	}
+}

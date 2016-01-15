@@ -95,9 +95,9 @@ impl<'a> super::Element for Box<'a>
 		false
 	}
 
-	fn element_at_pos(&self, x: u32, y: u32) -> (&Element, (u32,u32))
+	fn with_element_at_pos(&self, p: ::geom::PxPos, dims: ::geom::PxDims, f: ::WithEleAtPosCb) -> bool
 	{
-		let pos = if self.direction.is_vert() { y } else { x };
+		let pos = if self.direction.is_vert() { p.y.0 } else { p.x.0 };
 		let SizeState { expand_size, .. } = *self.sizes.borrow();
 
 		let mut ofs = 0;
@@ -110,10 +110,10 @@ impl<'a> super::Element for Box<'a>
 			{
 				if let &Some(ref e) = element {
 					return if self.direction.is_vert() {
-							e.element_at_pos(x, y - ofs)
+							e.with_element_at_pos(p - ::geom::PxPos::new(0,ofs), ::geom::PxDims::new(dims.w.0, size), f)
 						}
 						else {
-							e.element_at_pos(x - ofs, y)
+							e.with_element_at_pos(p - ::geom::PxPos::new(ofs,0), ::geom::PxDims::new(size, dims.h.0), f)
 						};
 				}
 				else {
@@ -122,7 +122,8 @@ impl<'a> super::Element for Box<'a>
 			}
 			ofs += size;
 		}
-		(self,(0,0))
+		
+		unreachable!()
 	}
 	fn resize(&self, w: u32, h: u32) {
 		let (changed, expand_size) = self.update_size(if self.direction.is_vert() { h } else { w });
@@ -262,13 +263,13 @@ impl<E: ::Element> ::Element for Frame<E>
 		let lw = self.frame_width;
 		self.item.render(surface.slice( Rect::new(lw+1,lw+1, surface.width()-lw*2-2, surface.height()-lw*2-2) ), force);
 	}
-	fn element_at_pos(&self, x: u32, y: u32) -> (&::Element, (u32,u32))
+	fn with_element_at_pos(&self, pos: ::geom::PxPos, dims: ::geom::PxDims, f: ::WithEleAtPosCb) -> bool
 	{
-		if x < 2 || y < 2 {
-			(self, (0,0))
+		if pos.x.0 < 2 || pos.y.0 < 2 {
+			f(self, pos)
 		}
 		else {
-			self.item.element_at_pos(x,y)
+			self.item.with_element_at_pos(pos - ::geom::PxPos::new(2,2), dims - ::geom::PxDims::new(2*2,2*2), f)
 		}
 	}
 }
