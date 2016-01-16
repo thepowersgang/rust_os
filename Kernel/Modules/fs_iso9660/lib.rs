@@ -177,8 +177,8 @@ impl mount::Filesystem for Instance
 		}
 	}
 }
-struct Sector(::block_cache::CachedBlockHandle,u16,u16);
-impl ::core::ops::Deref for Sector {
+struct Sector<'a>(::block_cache::CachedBlockHandle<'a>,u16,u16);
+impl<'a> ::core::ops::Deref for Sector<'a> {
 	type Target = [u8];
 	fn deref(&self) -> &[u8] {
 		&self.0.data()[self.1 as usize ..][.. self.2 as usize]
@@ -412,13 +412,13 @@ impl<'a> DirEnt<'a>
 
 struct DirSector<'a> {
 	fs: &'a InstanceInner,
-	data: Sector,
+	data: Sector<'a>,
 	ofs: usize
 }
 
 impl<'a> DirSector<'a>
 {
-	pub fn new<'b>(fs: &'b InstanceInner, data: Sector, start_ofs: usize) -> DirSector<'b>
+	pub fn new<'b>(fs: &'b InstanceInner, data: Sector<'b>, start_ofs: usize) -> DirSector<'b>
 	{
 		DirSector {
 			fs: fs,

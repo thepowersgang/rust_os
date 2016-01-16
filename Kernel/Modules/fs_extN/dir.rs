@@ -89,8 +89,7 @@ impl Dir
 		let (blk, ofs) = try!(self.find_free(name));
 		// 2. Fill said slot
 		let vol_blk = try!( self.inode.blocks_from(blk as u32).next_or_err() );
-		try!(self.inode.fs.get_block(vol_blk))
-			.write(|blk_data| {
+		self.inode.fs.edit_block(vol_blk, |blk_data| {
 				match ::ondisk::DirEnt::new_mut(&mut blk_data[ofs/4 ..])
 				{
 				None => return Err(vfs::Error::InconsistentFilesystem),
@@ -264,23 +263,22 @@ impl vfs::node::Dir for Dir
 
 			let vol_blk = try!( self.inode.blocks_from(blk as u32).next_or_err() );
 
-			try!(self.inode.fs.get_block(vol_blk))
-				.write(|blk_data|
-					match ::ondisk::DirEnt::new_mut(&mut blk_data[ofs/4 ..])
-					{
-					None => return Err(vfs::Error::InconsistentFilesystem),
-					Some(ent) => {
-						// Clear name length
-						ent.d_name_len = 0;
-						// Decrement inode's reference count
-						try!(self.inode.fs.with_inode(ent.d_inode, |ino| {
-							ino.dec_link_count();
-							Ok( () )
-							}));
+			self.inode.fs.edit_block(vol_blk, |blk_data| {
+				match ::ondisk::DirEnt::new_mut(&mut blk_data[ofs/4 ..])
+				{
+				None => return Err(vfs::Error::InconsistentFilesystem),
+				Some(ent) => {
+					// Clear name length
+					ent.d_name_len = 0;
+					// Decrement inode's reference count
+					try!(self.inode.fs.with_inode(ent.d_inode, |ino| {
+						ino.dec_link_count();
 						Ok( () )
-						},
-					}
-					)
+						}));
+					Ok( () )
+					},
+				}
+				})
 		}
 	}
 }

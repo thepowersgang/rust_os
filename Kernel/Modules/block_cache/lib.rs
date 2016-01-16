@@ -6,16 +6,14 @@
 #![no_std]
 
 #![feature(const_fn)]
-#![feature(nonzero)]
 #![feature(clone_from_slice)]
 
 use kernel::prelude::*;
 use kernel::PAGE_SIZE;
-use core::sync::atomic::{AtomicUsize, AtomicBool, Ordering};
+use core::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use kernel::metadevs::storage::{VolumeHandle,IoError};
-use kernel::sync::Mutex;
+use kernel::sync::{RwLock,rwlock};
 use kernel::sync::mutex::LazyMutex;
-use kernel::sync::Spinlock;
 
 // NOTES:
 // - Handles wrap logical volume handles
@@ -23,7 +21,7 @@ use kernel::sync::Spinlock;
 //  > read/write (unbuffered)
 //  > read_inner/get/edit (buffered)
 //
-// - The global cache is registerd with the PMM as a source of reclaimable memory
+// - The global cache is registered with the PMM as a source of reclaimable memory
 
 #[macro_use]
 extern crate kernel;
@@ -35,8 +33,9 @@ pub struct CacheHandle
 }
 
 /// A handle to a block in the cache
-pub struct CachedBlockHandle(::core::nonzero::NonZero<*const CachedBlock>);
+pub struct CachedBlockHandle<'a>(MetaBlockHandle<'a>);
 
+struct MetaBlockHandle<'a>(&'a CachedBlock);
 
 /// Global cache structure
 #[derive(Default)]
@@ -47,12 +46,15 @@ struct Cache
 
 struct CachedBlock
 {
+	// Constant:
 	index: u64,
-	last_access: Spinlock<::kernel::time::TickCount>,
-	is_dirty: AtomicBool,
-	reference_count: AtomicUsize,
 	block_paddr: ::kernel::memory::phys::FrameHandle,
-	mapping: Mutex<Option<::kernel::memory::page_cache::CachedPage>>,	// TODO: A mutex is pretty heavy...
+
+	reference_count: AtomicUsize,
+	last_access: ::kernel::time::CacheTimer,
+	is_dirty: AtomicBool,
+
+	mapping: RwLock<Option<::kernel::memory::page_cache::CachedPage>>,
 }
 
 
@@ -104,21 +106,28 @@ impl CacheHandle
 /// Cached accesses
 impl CacheHandle
 {
-	/// Obtain a handle to a cached block.
-	/// NOTE: The returned handle will point to the start of the cache block, which may be larger than the disk block. Remember to check the returned block index.
-	pub fn get_block(&self, block: u64) -> Result<CachedBlockHandle, IoError>
+	fn get_block_meta(&self, block: u64) -> Result<MetaBlockHandle, IoError>
 	{
 		let cache_block = block - block % self.blocks_per_page();
 		let handle = {
 			use kernel::lib::vec_map::Entry;
 			let mut lh = S_BLOCK_CACHE.lock_init(|| Default::default());
-			match lh.map.entry( (self.vh.idx(), cache_block) )
-			{
-			Entry::Occupied(v) => v.into_mut().borrow(),
-			Entry::Vacant(v) => v.insert( Box::new( try!(CachedBlock::new(&self.vh, cache_block)) ) ).borrow(),
-			}
+			let handle = match lh.map.entry( (self.vh.idx(), cache_block) )
+				{
+				Entry::Occupied(v) => v.into_mut().borrow(),
+				Entry::Vacant(v) => v.insert( Box::new( try!(CachedBlock::new(&self.vh, cache_block)) ) ).borrow(),
+				};
+			// SAFE: 1. The internal data is boxed, 2. The box won't be dropped while a borrow exists.
+			unsafe { ::core::mem::transmute::<MetaBlockHandle, MetaBlockHandle>(handle) }
 			};
-		Ok( handle )
+		Ok(handle)
+	}
+
+	/// Obtain a handle to a cached block.
+	/// NOTE: The returned handle will point to the start of the cache block, which may be larger than the disk block. Remember to check the returned block index.
+	pub fn get_block(&self, block: u64) -> Result<CachedBlockHandle, IoError>
+	{
+		Ok( try!(self.get_block_meta(block)).into_ro() )
 	}
 
 	/// Read out of a cached block
@@ -127,17 +136,55 @@ impl CacheHandle
 		let cached_block = try!(self.get_block(block));
 		let blk_ofs = (block - cached_block.index()) as usize * self.block_size();
 
-		// TODO: Check ranges to avoid panics
+		if offset >= self.block_size() {
+			return Err(IoError::InvalidParameter);
+		}
+		if offset >= self.block_size() - blk_ofs {
+			return Err(IoError::InvalidParameter);
+		}
 		data.clone_from_slice( &cached_block.data()[blk_ofs + offset .. ] );
 		Ok( () )
 	}
 	/// Write into a cached block
 	pub fn write_inner(&self, block: u64, offset: usize, data: &[u8]) -> Result<(), IoError>
 	{
-		todo!("");
+		let cached_block = try!(self.get_block_meta(block));
+		let blk_ofs = (block - cached_block.index()) as usize * self.block_size();
+
+		if offset >= self.block_size() {
+			return Err(IoError::InvalidParameter);
+		}
+		if blk_ofs + offset >= self.block_size() {
+			return Err(IoError::InvalidParameter);
+		}
+
+		cached_block.edit(|block_data| {
+			block_data[blk_ofs + offset ..].clone_from_slice( data );
+			Ok( () )
+			})
+	}
+	/// Edit block
+	pub fn edit<F: FnOnce(&mut [u8])->R,R>(&self, block: u64, count: usize, f: F) -> Result<R, IoError>
+	{
+		let cached_block = try!(self.get_block_meta(block));
+		let blk_ofs = (block - cached_block.index()) as usize * self.block_size();
+
+		if (block - cached_block.index()) as usize + count > self.blocks_per_page() as usize {
+			return Err(IoError::InvalidParameter);
+		}
+
+		cached_block.edit(|block_data| {
+			Ok( f( &mut block_data[blk_ofs ..][ .. count * self.block_size()] ) )
+			})
 	}
 }
 
+fn map_cached_frame(frame: &::kernel::memory::phys::FrameHandle) -> ::kernel::memory::page_cache::CachedPage
+{
+	// TODO: If this returns that there's no free mappings, go and steal one from within the cache
+	// - Or just do a GC pass, then try again.
+	::kernel::memory::page_cache::S_PAGE_CACHE.map(frame).expect("TODO: OOM in CachedBlock::borrow")
+}
 
 // --------------------------------------------------------------------
 impl CachedBlock
@@ -146,49 +193,73 @@ impl CachedBlock
 	{
 		let mut mapping = try!(::kernel::memory::page_cache::S_PAGE_CACHE.create().map_err(|_| IoError::Unknown("OOM")));
 
+		// TODO: Defer disk read until after the cache entry is created
 		try!( vol.read_blocks(first_block, mapping.data_mut()) );
-		//log_debug!("Loaded block={}", first_block);
-		//::kernel::logging::hex_dump("", mapping.data());
 		
 		Ok(CachedBlock {
 			index: first_block,
+			block_paddr: mapping.get_frame_handle(),
 			reference_count: AtomicUsize::new(0),
+
 			last_access: Default::default(),
 			is_dirty: AtomicBool::new(false),
-			block_paddr: mapping.get_frame_handle(),
-			mapping: Mutex::new( Some(mapping) ),
+			mapping: RwLock::new(Some(mapping)),
 			})
 	}
 
-	fn borrow(&self) -> CachedBlockHandle {
-		self.reference_count.fetch_add(1, Ordering::Acquire);
-		let mut lh = self.mapping.lock();
-		if lh.is_none() {
-			*lh = Some( ::kernel::memory::page_cache::S_PAGE_CACHE.map(&self.block_paddr).expect("TODO: OOM in CachedBlock::borrow") );
+	fn borrow(&self) -> MetaBlockHandle {
+
+		if self.mapping.read().is_none()
+		{
+			let mut lh = self.mapping.write();
+			if lh.is_none() {
+				*lh = Some( map_cached_frame(&self.block_paddr) );
+			}
 		}
 
-		*self.last_access.lock() = ::kernel::time::ticks();
+		self.reference_count.fetch_add(1, Ordering::Acquire);
+		self.last_access.bump();
 
-		// SAFE: Non-zero value passed
-		CachedBlockHandle( unsafe { ::core::nonzero::NonZero::new(self) } )
+		MetaBlockHandle(self)
 	}
-	fn release_borrow(&self) {
-		if self.reference_count.fetch_sub(1, Ordering::Release) == 1 {
-			// TODO: Clearing this when the refcount reaches zero will lead to a lot of mapping/unmapping
-			let mut lh = self.mapping.lock();
-			if self.reference_count.load(Ordering::SeqCst) == 0 {
-				*lh = None;
-			}
+}
+
+impl<'a> MetaBlockHandle<'a>
+{
+	pub fn index(&self) -> u64 {
+		self.0.index
+	}
+
+	pub fn edit<F: FnOnce(&mut [u8])->R, R>(&self, f: F) -> R {
+		let mut lh = self.0.mapping.write();
+		let dataptr = lh.as_mut().expect("CachedBlock mapping is None").data_mut();
+		self.0.is_dirty.store(true, Ordering::Relaxed);
+		f(dataptr)
+	}
+
+	pub fn into_ro(self) -> CachedBlockHandle<'a> {
+		let read_handle = self.0.mapping.read();
+		::core::mem::forget(read_handle);
+		CachedBlockHandle( self/*, read_handle*/ )
+	}
+}
+impl<'a> ::core::ops::Drop for MetaBlockHandle<'a>
+{
+	fn drop(&mut self)
+	{
+		// TODO: Clearing this when the refcount reaches zero will lead to a lot of mapping/unmapping
+		if self.0.reference_count.fetch_sub(1, Ordering::Release) == 1
+		{
+			let mut wh = self.0.mapping.write();
+			*wh = None;
 		}
 	}
 }
 
-
-impl CachedBlockHandle
+impl<'a> CachedBlockHandle<'a>
 {
 	fn block(&self) -> &CachedBlock {
-		// SAFE: While this handle exists, the reference count is positive, hence the pointer should be valid
-		unsafe { &**self.0 }
+		self.0 .0
 	}
 
 	pub fn index(&self) -> u64 {
@@ -196,16 +267,23 @@ impl CachedBlockHandle
 	}
 
 	pub fn data(&self) -> &[u8] {
-		let raw: *const [u8] = self.block().mapping.lock().as_ref().expect("None mapping").data();
+		// SAFE: Read handle is constructed from a read-locked RwLock, and forgotten soon after
+		let rawptr: *const [u8] = unsafe {
+			let rh = rwlock::Read::from_raw(&self.block().mapping);
+			let p: *const [u8] = rh.as_ref().expect("None mapping").data();
+			::core::mem::forget(rh);
+			p
+			};
 		// SAFE: While this type exists, the mapping should not be invalidated or mutated
-		unsafe { &*raw }
+		unsafe { &*rawptr }
 	}
 }
-impl Drop for CachedBlockHandle
+impl<'a> Drop for CachedBlockHandle<'a>
 {
 	fn drop(&mut self)
 	{
-		self.block().release_borrow();
+		// SAFE: Read hanle is constructed from a read-locked RwLock
+		let _ = unsafe { rwlock::Read::from_raw(&self.block().mapping) };
 	}
 }
 

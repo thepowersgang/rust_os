@@ -223,15 +223,8 @@ impl InstanceInner
 }
 
 /// Structure representing a view into a BlockCache entry
-pub struct Block(::block_cache::CachedBlockHandle, u16,u16);
-impl Block
-{
-	pub fn write<F: FnOnce(&mut [u32])->R, R>(&mut self, f: F) -> R
-	{
-		todo!("Block::write");
-	}
-}
-impl ::core::ops::Deref for Block
+pub struct Block<'a>(::block_cache::CachedBlockHandle<'a>, u16,u16);
+impl<'a> ::core::ops::Deref for Block<'a>
 {
 	type Target = [u32];
 	fn deref(&self) -> &[u32] {
@@ -258,9 +251,33 @@ impl InstanceInner
 		}
 		log_trace!("get_block({})", block);
 		let sector = block as u64 * self.vol_blocks_per_fs_block();
+
 		let ch = try!(self.vol.get_block(sector));
 		let ofs = (sector - ch.index()) as usize * self.vol.block_size();
 		Ok( Block(ch, ofs as u16, self.fs_block_size as u16) )
+	}
+
+	/// Edit a block in the cache using the provided closure
+	pub fn edit_block<F,R>(&self, block: u32, f: F) -> vfs::node::Result<R>
+	where
+		F: FnOnce(&mut [u32]) -> vfs::node::Result<R>
+	{
+		if self.fs_block_size > ::kernel::PAGE_SIZE {
+			// TODO: To handle extN blocks larger than the system's page size, we'd need to start packing multiple cache handles into
+			//       the `Block` structure
+			todo!("Handle extN block sizes > PAGE_SIZE - {} > {}", self.fs_block_size, ::kernel::PAGE_SIZE);
+		}
+		log_trace!("get_block({})", block);
+		let sector = block as u64 * self.vol_blocks_per_fs_block();
+
+		try!(self.vol.edit(sector, self.vol_blocks_per_fs_block() as usize, |data| {
+			// SAFE: Alignment checked, range valid
+			let slice_u32: &mut [u32] = unsafe {
+				assert!(&data[0] as *const _ as usize % 4 == 0);
+				::core::slice::from_raw_parts_mut(data.as_mut_ptr() as *mut u32, data.len() / 4)
+				};
+			f(slice_u32)
+			}))
 	}
 
 	/// Obtain a block (uncached)
