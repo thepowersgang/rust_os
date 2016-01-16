@@ -139,9 +139,9 @@ macro_rules! impl_from {
 ///
 /// Due to lifetime issues, the more erganomical `lock.queue.wait(lock)` does not pass borrow checking.
 macro_rules! waitqueue_wait_ext {
-	($lock:expr, $field:ident) => ({
+	($lock:expr, $(.$field:ident)+) => ({
 		let mut lock: $crate::arch::sync::HeldSpinlock<_> = $lock;
-		let irql = lock.$field.wait_int();
+		let irql = lock$(.$field)+.wait_int();
 		::core::mem::drop(lock);
 		::core::mem::drop(irql);
 		$crate::threads::reschedule();

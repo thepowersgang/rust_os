@@ -112,6 +112,9 @@ ErrorCommon:
 	int 3
 	jmp $
 .spurrious:
+	mov rdi, rsp
+	[extern spurrious_handler]
+	call spurrious_handler
 	int3
 	pop gs
 	POP_GPR

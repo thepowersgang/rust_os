@@ -61,7 +61,7 @@ impl<T: Send> Mutex<T>
 			{
 				// If mutex is locked, then wait for it to be unlocked
 				// - ThreadList::wait will release the passed spinlock
-				waitqueue_wait_ext!(lh, queue);
+				waitqueue_wait_ext!(lh, .queue);
 				// lh.queue.wait(lh);	// << Trips borrowck
 			}
 			else

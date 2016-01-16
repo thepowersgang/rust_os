@@ -28,6 +28,14 @@ pub struct InterruptRegs
 #[no_mangle]
 #[doc(hidden)]
 /// Error handler called by assembly
+pub extern "C" fn spurrious_handler(regs: &InterruptRegs)
+{
+	panic!("Spurrious interrupt: v={} @ ip={:#x}", regs.intnum, regs.errorcode);
+}
+
+#[no_mangle]
+#[doc(hidden)]
+/// Error handler called by assembly
 pub extern "C" fn error_handler(regs: &InterruptRegs)
 {
 	// If the fault originated in kernel mode, emit a mode reset

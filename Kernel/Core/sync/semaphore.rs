@@ -40,7 +40,7 @@ impl Semaphore
 		let mut lh = self.internals.lock();
 		if lh.value < 1 {
 			log_trace!("acquire: value={} < 1, sleeping", lh.value);
-			waitqueue_wait_ext!(lh, wait_queue);
+			waitqueue_wait_ext!(lh, .wait_queue);
 		}
 		else {
 			lh.value -= 1;

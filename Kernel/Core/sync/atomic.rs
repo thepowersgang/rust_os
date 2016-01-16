@@ -8,6 +8,13 @@
 use core::sync::atomic::Ordering;
 use core::intrinsics;
 
+pub unsafe trait ValidAtomic {}
+
+unsafe impl ValidAtomic for usize {}
+unsafe impl ValidAtomic for u32 {}
+// TODO: I'm not 100% sure about this
+unsafe impl ValidAtomic for u64 {}
+
 pub struct AtomicValue<T: Copy>(::core::cell::UnsafeCell<T>);
 unsafe impl<T: Copy+Send+Sync> Sync for AtomicValue<T> {}
 unsafe impl<T: Copy+Send+Sync> Send for AtomicValue<T> {}
@@ -18,12 +25,15 @@ impl<T: Copy+Send+Sync+Default> Default for AtomicValue<T>
 		AtomicValue::new(Default::default())
 	}
 }
-
 impl<T: Copy+Send+Sync> AtomicValue<T>
 {
 	pub const fn new(val: T) -> AtomicValue<T> {
 		AtomicValue( ::core::cell::UnsafeCell::new(val) )
 	}
+}
+
+impl<T: Copy+Send+Sync/*+ValidAtomic*/> AtomicValue<T>
+{
 	/// Unconditionally loads
 	pub fn load(&self, order: Ordering) -> T {
 		// SAFE: Atomic
