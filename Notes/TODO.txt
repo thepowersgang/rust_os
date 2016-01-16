@@ -41,6 +41,10 @@
 - File browser
  - Simple list control
 
+Replace libwtk's `get_element_at` with `with_element_at`
+- Allows internal update after an element gets an event
+- May remove need to always define it
+
 <!-- vim: ft=markdown
 -->
 

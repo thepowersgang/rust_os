@@ -104,6 +104,7 @@ impl Ctrlr8042
 		// Read, Modify, Write the controller's config
 		ctrlr.write_cmd(0x20);
 		let mut config = ctrlr.read_data().ok().expect("Timeout reading PS/2 config");
+		// - Clear 0: Port1 Enable, 1: Port2 Enable, 6: Port1 Translation
 		config &= !( (1<<0)|(1<<1)|(1<<6) );
 		let can_have_second_port = config & (1<<5) != 0;
 		ctrlr.write_cmd(0x60);
