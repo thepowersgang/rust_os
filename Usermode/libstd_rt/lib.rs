@@ -60,6 +60,7 @@ pub fn begin_unwind_fmt(msg: ::core::fmt::Arguments, file_line: &(&'static str, 
 }
 
 #[lang = "panic_fmt"]
+#[no_mangle]
 pub extern "C" fn rust_begin_unwind(msg: ::core::fmt::Arguments, file: &'static str, line: usize) -> ! {
 	use core::fmt::Write;
 	// Spit out that log
