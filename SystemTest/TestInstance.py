@@ -3,6 +3,17 @@ import re
 import time
 import os
 import shutil
+import sys
+
+def run_test(arch, test_name,  test_method):
+    instance = Instance(arch, test_name)
+    try:
+        test_method( instance )
+    except TestFail as e:
+        print "--- FAILED"
+        instance.flush()
+        print "TEST FAILURE:",e
+        sys.exit(1)
 
 class TestFail:
     def __init__(self, reason):
@@ -31,12 +42,14 @@ class Instance:
             pass
         os.mkdir("Kernel/rundir/"+self._screenshot_dir)
         pass
-    def __del__(self):
+    def flush(self):
         try:
             while self.wait_for_idle():
                 pass
         except TestFail as e:
             print "%r" % (e,)
+        
+    def __del__(self):
         self._cmd.send_screendump('%s/z-final.ppm' % (self._screenshot_dir,))
 
     

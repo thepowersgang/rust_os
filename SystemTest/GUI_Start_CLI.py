@@ -25,11 +25,12 @@ def _keypress(instance, key, name, idle=True):
             test_assert(name+" "+k+" press timeout", instance.wait_for_line("\[syscalls\] - USER> (Window|Menu)::handle_event\(ev=KeyDown\("+KEYNAME_MAP[k]+"\)\)", timeout=timeout)) # Press
         # - Only assert release for the final key
         k = key[-1]
-        test_assert(name+" "+k+" release timeout", instance.wait_for_line("\[syscalls\] - USER> (Window|Menu)::handle_event\(ev=KeyUp\("+KEYNAME_MAP[k]+"\)\)", timeout=timeout))
+        test_assert(name+" "+k+" fire timeout", instance.wait_for_line("\[syscalls\] - USER> (Window|Menu)::handle_event\(ev=KeyFire\("+KEYNAME_MAP[k]+"\)\)", timeout=timeout))
     else:
         keyname = KEYNAME_MAP[key]
         instance.type_key(key)
         test_assert(name+" "+key+" press timeout", instance.wait_for_line("\[syscalls\] - USER> (Window|Menu)::handle_event\(ev=KeyDown\("+keyname+"\)\)", timeout=timeout)) # Press
+        test_assert(name+" "+key+" fire timeout", instance.wait_for_line("\[syscalls\] - USER> (Window|Menu)::handle_event\(ev=KeyFire\("+keyname+"\)\)", timeout=timeout))
         test_assert(name+" "+key+" release timeout", instance.wait_for_line("\[syscalls\] - USER> (Window|Menu)::handle_event\(ev=KeyUp\("+keyname+"\)\)", timeout=timeout))
         if idle:
             test_assert(name+" "+key+" release idle", instance.wait_for_idle(timeout=5))
@@ -40,7 +41,13 @@ def _matchline(instance, name, pattern, matches, timeout=5):
     for i,m in enumerate(matches):
         if line.group(i+1) != m:
             raise TestFail("%s - Unexpected match from \"%s\" - %i: %r != %r" % (name, pattern, i, line.group(1+i), m,))
-            
+
+def _gui_rerender(instance, name, window_names):
+    for win in window_names:
+        line = instance.wait_for_line("\[gui::windows\] - L\d+: WindowGroup::redraw: \d+ '([^']+)' dirty", timeout=10);
+        test_assert("%s - Timeout waiting for '%s'" % (name, win,), line)
+        if line.group(1) != win:
+            raise TestFail("%s - Unexpected window rendered - \"%s\" != exp \"%s\"" % (name, line.group(1), win,))
     
 def _startapp(instance, path, timeout=5):
     line = instance.wait_for_line("\[syscalls\] - USER> Calling entry 0x[0-9a-f]+ for b\"(.*)\"", timeout=timeout)
@@ -152,6 +159,7 @@ def test(instance):
         test_assert("Close FileBrowser f4 press timeout", instance.wait_for_line("\[syscalls\] - USER> Window::handle_event\(ev=KeyDown\(F4\)\)", timeout=1))
         test_assert("Close FileBrowser f4 release timeout", instance.wait_for_line("\[syscalls\] - USER> Window::handle_event\(ev=KeyUp\(F4\)\)", timeout=1))
         test_assert("Close FileBrowser reap", instance.wait_for_line("Reaping thread 0x[0-9a-f]+\(\d+ /sysroot/bin/filebrowser#1\)", timeout=2))
+        test_assert("Close FileBrowser idle", instance.wait_for_idle(timeout=10))
     # >>> Start the filesystem browser (again)
     if True:
         _keypress(instance, ['meta_l', 'e'], "FileBrowser")
@@ -168,12 +176,14 @@ def test(instance):
         instance.screenshot('FileBrowser2-2')
         _startapp(instance, "/sysroot/bin/fileviewer", timeout=5)
         _matchline(instance, "FileViewer open file", "openfile\(Path\(b\"([^\"]+)\"\)", ["/system/1.txt"], timeout=5)
-        test_assert("FileViewer window render", instance.wait_for_line("\[gui::windows\] - L\d+: WindowGroup::redraw: \d+ 'File viewer'", timeout=5))
+        _gui_rerender(instance, "Close FileBrowser", ['File viewer'])
+        #test_assert("FileViewer window render", instance.wait_for_line("\[gui::windows\] - L\d+: WindowGroup::redraw: \d+ 'File viewer'", timeout=5))
         test_assert("FileViewer idle timeout", instance.wait_for_idle(timeout=3))
         instance.screenshot('Browser-Viewer')
         _keypress(instance, ['alt', 'f4'], "FileViewerClose")
         test_assert("Close FileViewer reap", instance.wait_for_line("Reaping thread 0x[0-9a-f]+\(\d+ /sysroot/bin/fileviewer#1\)", timeout=2))
-        test_assert("FileViewer reap idle timeout", instance.wait_for_idle(timeout=3))
+        _gui_rerender(instance, "Close FileBrowser", ['Login','Background','SystemBar','File browser'])
+        test_assert("FileViewer reap idle timeout", instance.wait_for_idle(timeout=15))
 
         # - By default, WTK creates 250x200 windows at (150,100)
         _mouseto(instance, "Exit button", 150 + 250 - 6, 100 + 6)
@@ -181,6 +191,8 @@ def test(instance):
         time.sleep(1)
         _mouseclick(instance, "Exit button", 1)
         test_assert("Close FileBrowser reap", instance.wait_for_line("Reaping thread 0x[0-9a-f]+\(\d+ /sysroot/bin/filebrowser#1\)", timeout=2))
+        #_gui_rerender(instance, "Close FileBrowser", ['Login','Background','SystemBar'])
+        test_assert("Close FileBrowser idle", instance.wait_for_idle(timeout=10))
 
     # >>> Start the text viewer
     if True:
@@ -200,10 +212,4 @@ def test(instance):
         pass
 
 
-instance = TestInstance.Instance("amd64", "CLI")
-try:
-    test( instance )
-except TestInstance.TestFail as e:
-    instance = None
-    print "TEST FAILURE:",e
-    sys.exit(1)
+TestInstance.run_test("amd64", "CLI",  test)
