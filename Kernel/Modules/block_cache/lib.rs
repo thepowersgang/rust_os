@@ -173,9 +173,13 @@ impl CacheHandle
 			return Err(IoError::InvalidParameter);
 		}
 
-		cached_block.edit(|block_data| {
-			Ok( f( &mut block_data[blk_ofs ..][ .. count * self.block_size()] ) )
-			})
+		let rv = cached_block.edit(|block_data| {
+			f( &mut block_data[blk_ofs ..][ .. count * self.block_size()] )
+			});
+
+		try!(cached_block.0.flush(&self.vh));
+
+		Ok( rv )
 	}
 }
 
@@ -206,7 +210,18 @@ impl CachedBlock
 			mapping: RwLock::new(Some(mapping)),
 			})
 	}
-
+	
+	/// Write a modified block back to disk
+	fn flush(&self, vol: &VolumeHandle) -> Result<(), IoError>
+	{
+		let lh = self.mapping.read();
+		if self.is_dirty.swap(false, Ordering::Acquire)
+		{
+			try!( vol.write_blocks(self.index, lh.as_ref().expect("CachedBlock::flush - None mapping").data()) );
+		}
+		Ok( () )
+	}
+	
 	fn borrow(&self) -> MetaBlockHandle {
 
 		if self.mapping.read().is_none()
