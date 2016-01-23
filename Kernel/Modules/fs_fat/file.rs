@@ -73,8 +73,8 @@ impl node::File for FileNode {
 					};
 				let short_count = ::core::cmp::min(self.fs.cluster_size-ofs, buf.len());
 				let c = try!(self.fs.load_cluster(cluster));
-				let n = buf[..short_count].clone_from_slice( &c[ofs..] );
-				assert_eq!(n, short_count);
+				assert_eq!(c.len()-ofs, short_count);
+				buf[..short_count].clone_from_slice( &c[ofs..] );
 				
 				buf[short_count..].chunks_mut(self.fs.cluster_size)
 			}
@@ -97,8 +97,8 @@ impl node::File for FileNode {
 			else {
 				// Bounce (could leave the bouncing up to read_cluster I guess...)
 				let c = try!(self.fs.load_cluster(cluster));
-				let n = dst.clone_from_slice( &c );
-				assert_eq!(n, dst.len());
+				assert_eq!(c.len(), dst.len());
+				dst.clone_from_slice( &c );
 			}
 		}
 		

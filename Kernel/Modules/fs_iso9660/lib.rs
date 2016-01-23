@@ -3,7 +3,6 @@
 //
 // Modules/fs_iso9660/lib.rs
 #![feature(linkage)]
-#![feature(clone_from_slice)]
 #![no_std]
 use kernel::prelude::*;
 
@@ -263,7 +262,8 @@ impl node::File for File
 
 				assert!(ofs < self.fs.lb_size);
 				sector += 1;
-				read = buf[..len].clone_from_slice(&tmp[ofs..]);
+				buf[..len].clone_from_slice(&tmp[ofs..]);
+				read = len;
 			}
 
 			// 2. Inner

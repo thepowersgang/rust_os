@@ -14,12 +14,9 @@ impl FixedBuf {
 		self.len = 0;
 	}
 	fn push_back(&mut self, data: &[u8]) {
-		let len = self.data[self.len..].clone_from_slice( data );
-		self.len += len;
-		if len > LOG_BUF_SIZE {
-			self.len = 0;
-			assert!(self.len <= 128);
-		}
+		assert!( data.len() <= self.data.len() - self.len, "Pushed too much to FixedBuf" );
+		self.data[self.len..].clone_from_slice( data );
+		self.len += data.len();;
 	}
 }
 impl ::core::ops::Deref for FixedBuf {

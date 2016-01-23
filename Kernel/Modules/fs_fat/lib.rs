@@ -4,7 +4,6 @@
 // Modules/fs_fat/lib.rs
 //! FAT (12/16/32) Filesystemd river
 #![feature(linkage)]
-#![feature(clone_from_slice)]
 #![no_std]
 
 #[macro_use] extern crate kernel;

@@ -5,7 +5,6 @@
 //! AHCI Driver
 #![feature(linkage)]
 #![feature(associated_consts)]
-#![feature(clone_from_slice)]
 #![no_std]
 
 #[macro_use]

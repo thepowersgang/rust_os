@@ -15,3 +15,13 @@ impl<T> Box<T>
 	}
 }
 
+impl<T: ?Sized> Box<T>
+{
+	pub fn into_raw(this: Self) -> *mut T {
+		// SAFE: Box<T> and *mut T have the same repr
+		unsafe {
+			::core::mem::transmute(this)
+		}
+	}
+}
+

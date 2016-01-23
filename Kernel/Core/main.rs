@@ -373,7 +373,8 @@ fn spawn_init(loader_path: &str, init_cmdline: &str) -> Result<Void, &'static st
 		assert!(init_path_ofs + init_path_len <= memsize);
 		let cmdline_buf_base = load_base + init_path_ofs;
 		let cmdline_buf = ::core::slice::from_raw_parts_mut(cmdline_buf_base as *mut u8, init_path_len);
-		cmdline_buf.clone_from_slice( init_cmdline.as_bytes() )
+		cmdline_buf.clone_from_slice( init_cmdline.as_bytes() );
+		init_cmdline.len()
 		};
 	
 	// - 6. Enter userland

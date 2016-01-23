@@ -4,7 +4,6 @@
 // Modules/fs_extN/lib.rs
 //! Ext2/3/4 filesystem driver
 #![feature(linkage)]
-#![feature(clone_from_slice)]
 #![no_std]
 //#![allow(non_snake_case)]
 
