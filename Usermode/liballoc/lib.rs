@@ -11,7 +11,6 @@
 #![feature(optin_builtin_traits)]	// For !Send
 #![feature(filling_drop)]	// for RawVec
 #![feature(unboxed_closures)]
-#![feature(num_bits_bytes)]
 #![no_std]
 
 #[macro_use]

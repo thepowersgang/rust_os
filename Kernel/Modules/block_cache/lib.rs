@@ -6,7 +6,6 @@
 #![no_std]
 
 #![feature(const_fn)]
-#![feature(clone_from_slice)]
 
 use kernel::prelude::*;
 use kernel::PAGE_SIZE;

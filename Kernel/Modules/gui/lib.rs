@@ -14,7 +14,6 @@
 //! - All windows are backed by a framebuffer in this code
 //!  - Kernel log is provided by a builtin text renderer
 #![feature(linkage,const_fn)]
-#![feature(clone_from_slice)]
 #![no_std]
 
 #![feature(plugin)]

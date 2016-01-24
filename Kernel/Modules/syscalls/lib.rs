@@ -5,7 +5,6 @@
 //! Userland system-call interface
 #![no_std]
 #![feature(associated_consts)]
-#![feature(clone_from_slice)]
 #![feature(reflect_marker)]
 
 #[macro_use]

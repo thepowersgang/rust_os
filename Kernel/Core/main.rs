@@ -5,7 +5,6 @@
 // - Kernel main
 #![crate_name="kernel"]
 #![crate_type="lib"]
-#![feature(clone_from_slice)]
 #![feature(unsize,coerce_unsized)]	// For DST smart pointers
 #![feature(core_intrinsics)]	// Intrinsics
 #![feature(asm)]	// Enables the asm! syntax extension

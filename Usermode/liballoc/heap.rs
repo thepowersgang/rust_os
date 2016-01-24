@@ -14,7 +14,13 @@ pub const EMPTY: *mut u8 = 1 as *mut u8;
 
 static S_GLOBAL_HEAP: Mutex<AllocState> = Mutex::new(AllocState { start: 0 as *mut _, past_end: 0 as *mut _ } );
 
-const MIN_BLOCK_SIZE: usize = 8*::core::usize::BYTES;
+#[cfg(target_pointer_width="64")]
+const PTR_SIZE: usize = 8;
+#[cfg(target_pointer_width="32")]
+const PTR_SIZE: usize = 4;
+
+const MIN_BLOCK_SIZE: usize = 8 * PTR_SIZE;
+const BLOCK_ALIGN: usize = 2 * PTR_SIZE;
 
 // Used by Box<T>
 #[lang="exchange_malloc"]
@@ -372,7 +378,6 @@ impl Block
 
 		if self.capacity(align) - size > MIN_BLOCK_SIZE
 		{
-			const BLOCK_ALIGN: usize = 2*::core::usize::BYTES;
 			let new_self_size = (size_of::<Block>() + size + size_of::<BlockTail>() + BLOCK_ALIGN-1) & !(BLOCK_ALIGN-1);
 			let new_other_size = self.size - new_self_size;
 			// SAFE: Unique access, new block is valid (part of old block)
