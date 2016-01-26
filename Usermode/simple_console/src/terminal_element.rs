@@ -225,7 +225,7 @@ where
 		(&mut *cb)(win, self, ev);
 		true
 	}
-	fn resize(&self, w: u32, h: u32) {
+	fn resize(&self, _w: u32, _h: u32) {
 	}
 	fn render(&self, surface: ::wtk::surface::SurfaceView, mut force: bool) {
 		

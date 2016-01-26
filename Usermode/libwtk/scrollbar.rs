@@ -55,25 +55,25 @@ const ARROW_SIZE: u32 = 5;	// 5px high/wide arrow
 pub trait Direction: Default
 {
 	/// Turn cartesian into short/long coords
-	fn to_sl(w: u32, h: u32) -> (u32,u32);
+	fn to_sl(&self, w: u32, h: u32) -> (u32,u32);
 	/// Turn short/long into cartesian
-	fn from_sl(short: u32, long: u32) -> (u32,u32);
-	fn draw_arrow(suraface: ::surface::SurfaceView, side_is_low: bool);
-	fn draw_grip(suraface: ::surface::SurfaceView);
-	fn name() -> &'static str;
+	fn from_sl(&self, short: u32, long: u32) -> (u32,u32);
+	fn draw_arrow(&self, suraface: ::surface::SurfaceView, side_is_low: bool);
+	fn draw_grip(&self, suraface: ::surface::SurfaceView);
+	fn name(&self) -> &'static str;
 }
 
 #[derive(Default)]
 pub struct Vertical;
 impl Direction for Vertical
 {
-	fn to_sl(w: u32, h: u32) -> (u32,u32) {
+	fn to_sl(&self, w: u32, h: u32) -> (u32,u32) {
 		(w, h)
 	}
-	fn from_sl(short: u32, long: u32) -> (u32,u32) {
+	fn from_sl(&self, short: u32, long: u32) -> (u32,u32) {
 		(short, long)
 	}
-	fn draw_arrow(surface: ::surface::SurfaceView, side_is_low: bool)
+	fn draw_arrow(&self, surface: ::surface::SurfaceView, side_is_low: bool)
 	{
 		let midpt_x = surface.width() / 2;
 		let midpt_y = surface.height() / 2;
@@ -84,7 +84,7 @@ impl Direction for Vertical
 			surface.fill_rect( Rect::new(ARROW_SIZE - npx/2, row, npx, 1), FixedTheme.control_detail() );
 		}
 	}
-	fn draw_grip(surface: ::surface::SurfaceView)
+	fn draw_grip(&self, surface: ::surface::SurfaceView)
 	{
 		const SIZE: u32 = 7;
 		const MARGIN: u32 = 2;
@@ -95,7 +95,7 @@ impl Direction for Vertical
 		surface.fill_rect( Rect::new(MARGIN,3, surface.width()-MARGIN*2,1), FixedTheme.control_detail() );
 		surface.fill_rect( Rect::new(MARGIN,5, surface.width()-MARGIN*2,1), FixedTheme.control_detail() );
 	}
-	fn name() -> &'static str {
+	fn name(&self) -> &'static str {
 		"vert"
 	}
 }
@@ -103,13 +103,13 @@ impl Direction for Vertical
 pub struct Horizontal;
 impl Direction for Horizontal
 {
-	fn to_sl(w: u32, h: u32) -> (u32,u32) {
+	fn to_sl(&self, w: u32, h: u32) -> (u32,u32) {
 		(h, w)
 	}
-	fn from_sl(short: u32, long: u32) -> (u32,u32) {
+	fn from_sl(&self, short: u32, long: u32) -> (u32,u32) {
 		(long, short)
 	}
-	fn draw_arrow(surface: ::surface::SurfaceView, side_is_low: bool)
+	fn draw_arrow(&self, surface: ::surface::SurfaceView, side_is_low: bool)
 	{
 		let midpt_x = surface.width() / 2;
 		let midpt_y = surface.height() / 2;
@@ -123,7 +123,7 @@ impl Direction for Horizontal
 		}
 		surface.fill_rect( Rect::new(0, ARROW_SIZE, ARROW_SIZE, 1), FixedTheme.control_detail() );
 	}
-	fn draw_grip(surface: ::surface::SurfaceView)
+	fn draw_grip(&self, surface: ::surface::SurfaceView)
 	{
 		const SIZE: u32 = 7;
 		const MARGIN: u32 = 2;
@@ -134,7 +134,7 @@ impl Direction for Horizontal
 		surface.fill_rect( Rect::new(3,MARGIN, 1, surface.height()-MARGIN*2), FixedTheme.control_detail() );
 		surface.fill_rect( Rect::new(5,MARGIN, 1, surface.height()-MARGIN*2), FixedTheme.control_detail() );
 	}
-	fn name() -> &'static str {
+	fn name(&self) -> &'static str {
 		"horiz"
 	}
 }
@@ -191,7 +191,7 @@ where
 	D: Direction
 {
 	fn resize(&self, w: u32, h: u32) {
-		let (sd, ld) = D::to_sl(w, h);
+		let (sd, ld) = self.dir.to_sl(w, h);
 		let mut state = self.state.borrow_mut();
 		state.dirty = true;
 		state.bar_cap = ld - 2*sd;
@@ -201,35 +201,35 @@ where
 		if force {
 			surface.fill_rect(Rect::new(0,0,!0,!0), FixedTheme.control_background());
 		}
-		let (short_d, long_d) = D::to_sl(surface.width(), surface.height());
+		let (short_d, long_d) = self.dir.to_sl(surface.width(), surface.height());
 		if force {
 			let r = Rect::new(0,0, short_d,short_d);
-			kernel_log!("{} start r={:?}", D::name(), r);
+			kernel_log!("{} start r={:?}", self.dir.name(), r);
 			surface.draw_rect(r, ::geom::Px(1), FixedTheme.control_detail());
-			D::draw_arrow(surface.slice(r), true);
+			self.dir.draw_arrow(surface.slice(r), true);
 		}
 		let mut state = self.state.borrow_mut();
 		if force || ::std::mem::replace(&mut state.dirty, false) {
 			// Background
-			let (x,y) = D::from_sl(0, short_d);
-			let (w,h) = D::from_sl(short_d, long_d - 2*short_d);
+			let (x,y) = self.dir.from_sl(0, short_d);
+			let (w,h) = self.dir.from_sl(short_d, long_d - 2*short_d);
 			surface.fill_rect(Rect::new(x,y, w,h), FixedTheme.control_background());
 
 			// Indicator outline
-			let (x,y) = D::from_sl(0, short_d + state.bar_start);
-			let (w,h) = D::from_sl(short_d, state.bar_size);
+			let (x,y) = self.dir.from_sl(0, short_d + state.bar_start);
+			let (w,h) = self.dir.from_sl(short_d, state.bar_size);
 			let r = Rect::new(x,y, w,h);
-			kernel_log!("{} bar r={:?}", D::name(), r);
+			kernel_log!("{} bar r={:?}", self.dir.name(), r);
 			surface.draw_rect(r, ::geom::Px(1), FixedTheme.control_detail());
 			// Indicator grip
-			D::draw_grip( surface.slice(r) );
+			self.dir.draw_grip( surface.slice(r) );
 		}
 		if force {
-			let (x,y) = D::from_sl(0, long_d - short_d);
+			let (x,y) = self.dir.from_sl(0, long_d - short_d);
 			let r = Rect::new(x,y, short_d,short_d);
-			kernel_log!("{} end r={:?}", D::name(), r);
+			kernel_log!("{} end r={:?}", self.dir.name(), r);
 			surface.draw_rect(r, ::geom::Px(1), FixedTheme.control_detail());
-			D::draw_arrow(surface.slice(r), false);
+			self.dir.draw_arrow(surface.slice(r), false);
 		}
 	}
 	fn with_element_at_pos(&self, pos: ::geom::PxPos, _dims: ::geom::PxDims, f: ::WithEleAtPosCb) -> bool {
