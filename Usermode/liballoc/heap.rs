@@ -24,6 +24,7 @@ const BLOCK_ALIGN: usize = 2 * PTR_SIZE;
 
 // Used by Box<T>
 #[lang="exchange_malloc"]
+#[inline]
 pub unsafe fn exchange_malloc(size: usize, align: usize) -> *mut u8
 {
 	match S_GLOBAL_HEAP.lock().allocate(size, align)
