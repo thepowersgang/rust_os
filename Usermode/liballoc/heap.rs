@@ -33,6 +33,7 @@ pub unsafe fn exchange_malloc(size: usize, align: usize) -> *mut u8
 	}
 }
 #[lang="exchange_free"]
+#[inline]
 pub unsafe fn exchange_free(ptr: *mut u8, _size: usize, align: usize)
 {
 	S_GLOBAL_HEAP.lock().deallocate(ptr as *mut (), /*size,*/ align)

@@ -58,6 +58,7 @@ pub fn init()
 
 // Used by Box<T>
 #[lang="exchange_malloc"]
+#[inline]
 unsafe fn exchange_malloc(size: usize, align: usize) -> *mut u8
 {
 	match allocate(HeapId::Global, size, align)
@@ -67,6 +68,7 @@ unsafe fn exchange_malloc(size: usize, align: usize) -> *mut u8
 	}
 }
 #[lang="exchange_free"]
+#[inline]
 unsafe fn exchange_free(ptr: *mut u8, size: usize, align: usize)
 {
 	S_GLOBAL_HEAP.lock().deallocate(ptr as *mut (), size, align)
