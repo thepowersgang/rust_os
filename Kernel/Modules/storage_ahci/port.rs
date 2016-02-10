@@ -459,8 +459,8 @@ impl Port
 
 		let mut slot = self.get_command_slot();
 
-		slot.data.cmd_fis.clone_from_slice(cmd);
-		slot.data.atapi_cmd.clone_from_slice(pkt);
+		slot.data.cmd_fis[..cmd.len()].clone_from_slice(cmd);
+		slot.data.atapi_cmd[..pkt.len()].clone_from_slice(pkt);
 
 		// Generate the scatter-gather list
 		let mut va = data.as_slice().as_ptr() as usize;
