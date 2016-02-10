@@ -73,6 +73,14 @@ unsafe fn exchange_free(ptr: *mut u8, size: usize, align: usize)
 {
 	S_GLOBAL_HEAP.lock().deallocate(ptr as *mut (), size, align)
 }
+#[lang = "box_free"]
+#[inline]
+unsafe fn box_free<T>(ptr: *mut T) {
+	let size = ::core::mem::size_of::<T>();
+	if size != 0 {
+		S_GLOBAL_HEAP.lock().deallocate(ptr as *mut (), size, ::core::mem::align_of::<T>());
+	}
+}
 
 // Used by libgcc and ACPICA
 #[no_mangle] pub unsafe extern "C" fn malloc(size: usize) -> *mut () {

@@ -39,6 +39,14 @@ pub unsafe fn exchange_free(ptr: *mut u8, _size: usize, align: usize)
 {
 	S_GLOBAL_HEAP.lock().deallocate(ptr as *mut (), /*size,*/ align)
 }
+#[lang = "box_free"]
+#[inline]
+unsafe fn box_free<T>(ptr: *mut T) {
+	let size = size_of::<T>();
+	if size != 0 {
+		S_GLOBAL_HEAP.lock().deallocate(ptr as *mut (), /*size,*/ align_of::<T>());
+	}
+}
 
 
 /// Allocate a pointer to a known-typed value and populate it
