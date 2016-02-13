@@ -1,7 +1,7 @@
 
 -include ../../common.mk
 
-.PHONY: run all
+.PHONY: run all images
 
 all: run
 
@@ -52,8 +52,9 @@ else
 	SCRIPT := RunQemuPXE
 endif
 
-run: $(IMGDIR)hda.img $(IMGDIR)hdb.img .qemu_trace
+run: .qemu_trace images
 	./$(SCRIPT) ../bin/kernel-amd64.bin.elf32 "$(CMDLINE)" "$(QEMU_ARGS)" $(TEE)
+images: $(IMGDIR)hda.img $(IMGDIR)hdb.img
 #
 # --- ARMv7 ---
 #
@@ -70,6 +71,7 @@ MACHINE_TYPE := virt
 run: $(IMGDIR)hda.img
 	make -C arm_bootloader PLATFORM=$(MACHINE_TYPE) CMDLINE="$(CMDLINE)"
 	qemu-system-arm -machine $(MACHINE_TYPE) $(QEMU_ARGS) -kernel arm_bootloader/loader-$(MACHINE_TYPE).bin -append "$(CMDLINE)" $(TEE)
+images: $(IMGDIR)hda.img
 endif
 
 $(IMGDIR)test.iso: $(wildcard ../../Usermode/.output/$(ARCH)/bin/*) Makefile

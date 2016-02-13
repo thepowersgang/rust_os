@@ -22,5 +22,5 @@ cache:
 script:
   - make UPDATE
   - make all
-  - python SystemTest/BasicBoot.py
+#  - python SystemTest/BasicBoot.py
 
