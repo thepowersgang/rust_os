@@ -10,6 +10,8 @@ pub use self::memorymap::MemoryState;
 pub mod phys;
 pub mod virt;
 pub mod heap;
+// TODO: Merge user and freeze
+pub mod user;
 
 pub mod freeze;
 

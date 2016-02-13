@@ -141,7 +141,9 @@ impl CacheHandle
 		if offset >= self.block_size() - blk_ofs {
 			return Err(IoError::InvalidParameter);
 		}
-		data.clone_from_slice( &cached_block.data()[blk_ofs + offset .. ] );
+		assert!(data.len() <= self.block_size() - offset);
+		let bytes = data.len();
+		data.clone_from_slice( &cached_block.data()[blk_ofs + offset .. ][ .. bytes] );
 		Ok( () )
 	}
 	/// Write into a cached block

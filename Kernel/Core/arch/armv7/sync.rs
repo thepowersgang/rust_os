@@ -85,4 +85,8 @@ impl ::core::ops::Drop for HeldInterrupts {
 	fn drop(&mut self) {
 	}
 }
+pub fn stop_interrupts() {
+}
+pub fn start_interrupts() {
+}
 

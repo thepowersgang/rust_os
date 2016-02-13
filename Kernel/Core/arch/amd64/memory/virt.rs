@@ -6,6 +6,8 @@
 use super::PAddr;
 use PAGE_SIZE;
 use memory::virt::{ProtectionMode,MapError};
+use arch::memory::virt::TempHandle;
+use arch::memory::PAGE_MASK;
 use super::addresses;
 
 const MASK_VBITS : usize = 0x0000FFFF_FFFFFFFF;
@@ -448,12 +450,14 @@ pub fn handle_page_fault(accessed_address: usize, error_code: u32) -> bool
 	if error_code & (FAULT_WRITE|FAULT_LOCKED) == (FAULT_WRITE|FAULT_LOCKED) && pte.is_cow() {
 		// Poke the main VMM layer
 		//::memory::virt::cow_write(accessed_address);
+
 		// 1. Lock (relevant) address space
 		// SAFE: Changes to address space are transparent
 		::memory::virt::with_lock(accessed_address, || unsafe {
 			let frame = pte.addr();
+			let pgaddr = (accessed_address as usize) & !PAGE_MASK;
 			// 2. Get the PMM to provide us with a unique copy of that frame (can return the same addr)
-			let newframe = ::memory::phys::make_unique( frame, &*(((accessed_address as usize) & !0xFFF) as *const [u8; 4096]) );
+			let newframe = ::memory::phys::make_unique( frame, &*(pgaddr as *const [u8; 4096]) );
 			// 3. Remap to this page as UserRW (because COW is user-only atm)
 			pte.set(newframe, ProtectionMode::UserRW);
 			invlpg( (accessed_address & !0xFFF) as *mut () );
@@ -474,7 +478,7 @@ pub fn handle_page_fault(accessed_address: usize, error_code: u32) -> bool
 			if error_code & FAULT_FETCH != 0 { " (instruction fetch)" } else { "" },
 			accessed_address
 			);
-		todo!("User fault - PTE = {:?}", pte);
+		return false;
 	}
 	else {
 		log_error!("Kernel {} {} memory{}",
@@ -490,60 +494,29 @@ pub fn handle_page_fault(accessed_address: usize, error_code: u32) -> bool
 static S_TEMP_FREE: ::sync::Semaphore = ::sync::Semaphore::new(NUM_TEMP_SLOTS as isize, NUM_TEMP_SLOTS as isize);
 const NUM_TEMP_SLOTS: usize = (addresses::TEMP_END - addresses::TEMP_BASE) / ::PAGE_SIZE;
 
-pub struct TempHandle<T>(*mut T);
-impl<T> TempHandle<T>
-{
-	/// UNSAFE: User must ensure that address is valid, and that no aliasing occurs
-	pub unsafe fn new(phys: ::arch::memory::PAddr) -> TempHandle<T> {
+pub unsafe fn temp_map<T>(phys: ::arch::memory::PAddr) -> *mut T {
+	S_TEMP_FREE.acquire();
 
-		S_TEMP_FREE.acquire();
+	// 2. Locate a slot
+	for i in 0 .. NUM_TEMP_SLOTS {
+		let addr = (addresses::TEMP_BASE + i * ::PAGE_SIZE) as *mut ();
 
-		// 2. Locate a slot
-		for i in 0 .. NUM_TEMP_SLOTS {
-			let addr = (addresses::TEMP_BASE + i * ::PAGE_SIZE) as *mut ();
-
-			if get_page_ent(addr as usize, true, LargeOk::No).set_if_unset(phys, ProtectionMode::KernelRW).is_ok() {
-				invlpg(addr);
-				return TempHandle(addr as *mut T);
-			}
+		if get_page_ent(addr as usize, true, LargeOk::No).set_if_unset(phys, ProtectionMode::KernelRW).is_ok() {
+			invlpg(addr);
+			return addr as *mut T;
 		}
-		panic!("TempHandle::new() - Semaphore reported free slots, but none found");
 	}
-	pub fn phys_addr(&self) -> ::arch::memory::PAddr {
-		get_phys(self.0)
-	}
+	panic!("TempHandle::new() - Semaphore reported free slots, but none found");
 }
-impl<T: ::lib::POD> TempHandle<T>
-{
-	fn into<U: ::lib::POD>(self) -> TempHandle<U> {
-		let addr = self.0;
-		::core::mem::forget(self);
-		TempHandle(addr as *mut U)
+pub unsafe fn temp_unmap<T>(addr: *mut T) {
+	// SAFE: Owned allocation
+	unsafe {
+		get_page_ent(addr as usize, false, LargeOk::No).set(0, ProtectionMode::Unmapped);
+		invlpg(addr as *mut ());
 	}
+	S_TEMP_FREE.release();
 }
-impl<T: ::lib::POD> ::core::ops::Deref for TempHandle<T> {
-	type Target = [T];
-	fn deref(&self) -> &[T] {
-		// SAFE: We should have unique access
-		unsafe { ::core::slice::from_raw_parts(self.0, 0x1000 / ::core::mem::size_of::<T>()) }
-	}
-}
-impl<T: ::lib::POD> ::core::ops::DerefMut for TempHandle<T> {
-	fn deref_mut(&mut self) -> &mut [T] {
-		// SAFE: We should have unique access
-		unsafe { ::core::slice::from_raw_parts_mut(self.0, 0x1000 / ::core::mem::size_of::<T>()) }
-	}
-}
-impl<T> ::core::ops::Drop for TempHandle<T> {
-	fn drop(&mut self) {
-		// SAFE: Owned allocation
-		unsafe {
-			get_page_ent(self.0 as usize, false, LargeOk::No).set(0, ProtectionMode::Unmapped);
-			invlpg(self.0 as *mut ());
-		}
-		S_TEMP_FREE.release();
-	}
-}
+
 
 struct NewTable(TempHandle<u64>);
 impl NewTable {

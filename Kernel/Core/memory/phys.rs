@@ -108,7 +108,7 @@ fn is_ram(phys: PAddr) -> bool
 	false
 }
 
-pub fn make_unique(page: PAddr, virt_addr: &[u8; 0x1000]) -> PAddr
+pub fn make_unique(page: PAddr, virt_addr: &[u8; ::PAGE_SIZE]) -> PAddr
 {
 	if !is_ram(page) {
 		panic!("Calling 'make_unique' on non-RAM page");
@@ -120,8 +120,7 @@ pub fn make_unique(page: PAddr, virt_addr: &[u8; 0x1000]) -> PAddr
 		// 1. Allocate a new frame in temp region
 		let mut new_frame = ::memory::virt::alloc_free().expect("TODO: handle OOM in make_unique");
 		// 2. Copy in content of old frame
-		// SAFE: Both are arrays of 0x1000 bytes
-		unsafe { ::core::ptr::copy_nonoverlapping(&virt_addr[0], &mut new_frame[0], 0x1000); }
+		new_frame.clone_from_slice( virt_addr );
 		new_frame.into_frame().into_addr()
 	}
 }
@@ -152,7 +151,8 @@ pub fn allocate_range(count: usize) -> PAddr
 		log_error!("Out of physical memory");
 		return NOPAGE;
 	}
-	if addr + ::PAGE_SIZE as PAddr > map[i].end() as PAddr
+	// If there's less than one page left in the map entry, go to the next one
+	if addr + (1 * ::PAGE_SIZE) as PAddr > map[i].end() as PAddr
 	{
 		i += 1;
 		while i != map.len() && map[i].state != ::memory::memorymap::MemoryState::Free {
@@ -168,7 +168,8 @@ pub fn allocate_range(count: usize) -> PAddr
 	let rv = addr;
 	let shift = (count * ::PAGE_SIZE) as PAddr;
 	if addr + shift > map[i].end() as PAddr {
-		todo!("Handle allocating from ahead in map ({:#x} + {:#x} > {:#x})", addr, shift, map[i].end());
+		todo!("Handle allocating from ahead in map ({:#x} + {:#x} > {:#x}, start={:#x})", addr, shift, map[i].end(), map[i].start);
+		// TODO: If the shift pushes this allocation over the edge of a map entry, stick the remaining entries onto the free stack and move to the next free block
 	}
 	addr += shift;
 	//log_trace!("allocate_range: rv={:#x}, i={}, addr={:#x}", rv, i, addr);

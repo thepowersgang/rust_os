@@ -4,12 +4,19 @@
 
 use memory::virt::ProtectionMode;
 use arch::memory::PAddr;
+use arch::memory::{PAGE_SIZE, PAGE_MASK};
+use arch::memory::virt::TempHandle;
 
-static S_TEMP_MAP_SEMAPHORE: ::sync::Semaphore = ::sync::Semaphore::new(1022, 1023);
 const KERNEL_TEMP_BASE : usize = 0xFFC00000;
+const KERNEL_TEMP_COUNT: usize = 1023;	// Final mapping is ?
 const USER_BASE_TABLE: usize = 0x7FFF_E000;	// 2GB - 0x800 * 4 = 0x2000
 const USER_TEMP_TABLE: usize = 0x7FFF_D000;	// Previous page to that
 const USER_TEMP_BASE: usize = 0x7FC0_0000;	// 1 page worth of temp mappings (top three are used for base table/temp table)
+
+const PAGE_MASK_U32: u32 = PAGE_MASK as u32;
+
+// TODO: Why is this -1 here?
+static S_TEMP_MAP_SEMAPHORE: ::sync::Semaphore = ::sync::Semaphore::new(KERNEL_TEMP_COUNT as isize - 1, KERNEL_TEMP_COUNT as isize);
 
 pub fn post_init() {
 	kernel_table0[0].store(0);
@@ -49,6 +56,7 @@ fn flags_to_prot_mode(flags: u32) -> ProtectionMode {
 /// Atomic 32-bit integer, used for table entries
 #[repr(C)]
 struct AtomicU32(::core::cell::UnsafeCell<u32>);
+unsafe impl ::lib::POD for AtomicU32 {}
 impl AtomicU32 {
 	/// Compare and exchange, returns old value and writes `new` if it was equal to `val`
 	pub fn cxchg(&self, val: u32, new: u32) -> u32 {
@@ -148,9 +156,9 @@ impl PageEntry
 		if sect_ent & 0b11 == 0b01 {
 			PageEntry::Page {
 				// SAFE: Alias is beign, as accesses are atomic
-				mapping: unsafe { TempHandle::new( sect_ent & !0xFFF ) },
+				mapping: unsafe { TempHandle::new( sect_ent & !PAGE_MASK_U32 ) },
 				idx: p_idx,
-				ofs: (addr as usize) & 0xFFF,
+				ofs: (addr as usize) & PAGE_MASK,
 				}
 		}
 		else {
@@ -174,22 +182,22 @@ impl PageEntry
 	fn phys_addr(&self) -> PAddr {
 		match self
 		{
-		&PageEntry::Section { rgn, idx, ofs } => (rgn.get_section_ent(idx).load() & !0xFFF) + ofs as u32,
-		&PageEntry::Page { ref mapping, idx ,ofs } => (mapping[idx & 0x3FF].load() & !0xFFF) + ofs as u32,
+		&PageEntry::Section { rgn, idx, ofs } => (rgn.get_section_ent(idx).load() & !PAGE_MASK_U32) + ofs as u32,
+		&PageEntry::Page { ref mapping, idx ,ofs } => (mapping[idx & 0x3FF].load() & !PAGE_MASK_U32) + ofs as u32,
 		}
 	}
 	fn mode(&self) -> ProtectionMode {
 		match self
 		{
 		&PageEntry::Section { rgn, idx, .. } =>
-			match rgn.get_section_ent(idx).load() & 0xFFF
+			match rgn.get_section_ent(idx).load() & PAGE_MASK_U32
 			{
 			0x000 => ProtectionMode::Unmapped,
 			0x402 => ProtectionMode::KernelRW,
 			v @ _ if v & 3 == 1 => unreachable!(),
 			v @ _ => todo!("Unknown mode value in section {:?} {} - {:#x}", rgn, idx, v),
 			},
-		&PageEntry::Page { ref mapping, idx, .. } => flags_to_prot_mode( mapping[idx & 0x3FF].load() & 0xFFF ),
+		&PageEntry::Page { ref mapping, idx, .. } => flags_to_prot_mode( mapping[idx & 0x3FF].load() & PAGE_MASK_U32 ),
 		}
 	}
 	//fn reset(&mut self) -> Option<(PAddr, ProtectionMode)> {
@@ -202,11 +210,11 @@ impl PageEntry
 		&mut PageEntry::Page { ref mapping, idx, .. } => {
 			let flags = prot_mode_to_flags(mode);
 			let old = mapping[idx & 0x3FF].xchg( (addr as u32) | flags );
-			if old & 0xFFF == 0 {
+			if old & PAGE_MASK_U32 == 0 {
 				None
 			}
 			else {
-				Some( ((old & !0xFFF) as PAddr, flags_to_prot_mode(old & 0xFFF)) )
+				Some( ((old & !PAGE_MASK_U32) as PAddr, flags_to_prot_mode(old & PAGE_MASK_U32)) )
 			}
 			},
 		}
@@ -233,76 +241,66 @@ fn get_table_addr<T>(vaddr: *const T, alloc: bool) -> Option< (::arch::memory::P
 		};
 	
 	let ent_v = ent_r[0].load();
-	match ent_v & 0xFFF
+	match ent_v & PAGE_MASK_U32
 	{
 	0 => if alloc {
-			let frame = ::memory::phys::allocate_bare().expect("TODO get_table_addr - alloc failed");
+			let handle: TempHandle<AtomicU32> = match ::memory::phys::allocate_bare()
+				{
+				Ok(v) => v.into(),
+				Err(e) => todo!("get_table_addr - alloc failed")
+				};
 			//::memory::virt::with_temp(|frame: &[AtomicU32]| for v in frame.iter { v.store(0) });
-			// SAFE: Unaliased memory
-			for v in unsafe { TempHandle::<AtomicU32>::new( frame ) }.iter() {
+			for v in handle.iter() {
 				v.store(0);
 			}
+			let frame = handle.phys_addr();
 			let ent_v = ent_r[0].cxchg(0, frame + 0x1);
 			if ent_v != 0 {
 				::memory::phys::deref_frame(frame);
-				Some( (ent_v & !0xFFF, tab_idx) )
+				Some( (ent_v & !PAGE_MASK_U32, tab_idx) )
 			}
 			else {
-				ent_r[1].store(frame + 0x400 + 0x1);
-				ent_r[2].store(frame + 0x800 + 0x1);
-				ent_r[3].store(frame + 0xC00 + 0x1);
-				Some( (frame & !0xFFF, tab_idx) )
+				for i in 1 .. (PAGE_SIZE/0x400) as u32 {
+					ent_r[i as usize].store(frame + i*0x400 + 0x1);
+				}
+				Some( (frame & !PAGE_MASK_U32, tab_idx) )
 			}
 		}
 		else {
 			None
 		},
-	1 => Some( (ent_v & !0xFFF, tab_idx) ),
+	1 => Some( (ent_v & !PAGE_MASK_U32, tab_idx) ),
 	v @ _ => todo!("get_table_addr - Other flags bits {:#x}", v),
 	}
 }
 
-/// Handle to a temporarily mapped frame
-pub struct TempHandle<T>(*mut T);
-impl<T> TempHandle<T>
-{
-	/// UNSAFE: User must ensure that address is valid, and that no aliasing occurs
-	pub unsafe fn new(phys: ::arch::memory::PAddr) -> TempHandle<T> {
-		//log_trace!("TempHandle<{}>::new({:#x})", type_name!(T), phys);
-		let val = (phys as u32) + 0x13;	
 
-		S_TEMP_MAP_SEMAPHORE.acquire();
-		// #1023 is reserved for -1 mapping
-		for i in 0 .. 1023 {
-			if kernel_exception_map[i].cxchg(0, val) == 0 {
-				let addr = (KERNEL_TEMP_BASE + i * 0x1000) as *mut _;
-				tlbimva(addr as *mut ());
-				//log_trace!("- Addr = {:p}", addr);
-				return TempHandle( addr );
-			}
+/// Temporarily map a frame into memory
+/// UNSAFE: User to ensure that the passed address doesn't alias
+pub unsafe fn temp_map<T>(phys: ::arch::memory::PAddr) -> *mut T {
+	//log_trace!("TempHandle<{}>::new({:#x})", type_name!(T), phys);
+	let val = (phys as u32) + 0x13;	
+
+	S_TEMP_MAP_SEMAPHORE.acquire();
+	// #1023 is reserved for -1 mapping
+	for i in 0 .. KERNEL_TEMP_COUNT {
+		if kernel_exception_map[i].cxchg(0, val) == 0 {
+			let addr = (KERNEL_TEMP_BASE + i * ::PAGE_SIZE) as *mut _;
+			tlbimva(addr as *mut ());
+			//log_trace!("- Addr = {:p}", addr);
+			return addr;
 		}
-		panic!("No free temp mappings");
 	}
+	panic!("No free temp mappings");
 }
-impl<T> ::core::ops::Deref for TempHandle<T> {
-	type Target = [T];
-	fn deref(&self) -> &[T] {
-		// SAFE: We should have unique access
-		unsafe { ::core::slice::from_raw_parts(self.0, 0x1000 / ::core::mem::size_of::<T>()) }
-	}
-}
-impl<T> ::core::ops::DerefMut for TempHandle<T> {
-	fn deref_mut(&mut self) -> &mut [T] {
-		// SAFE: We should have unique access
-		unsafe { ::core::slice::from_raw_parts_mut(self.0, 0x1000 / ::core::mem::size_of::<T>()) }
-	}
-}
-impl<T> ::core::ops::Drop for TempHandle<T> {
-	fn drop(&mut self) {
-		let i = (self.0 as usize - KERNEL_TEMP_BASE) / 0x1000;
-		kernel_exception_map[i].store(0);
-		S_TEMP_MAP_SEMAPHORE.release();
-	}
+// UNSAFE: Can cause use-after-free if address is invalid
+pub unsafe fn temp_unmap<T>(addr: *mut T)
+{
+	assert!(addr as usize >= KERNEL_TEMP_BASE);
+	let i = (addr as usize - KERNEL_TEMP_BASE) / ::PAGE_SIZE;
+	assert!(i < KERNEL_TEMP_COUNT);
+	kernel_exception_map[i].store(0);
+	S_TEMP_MAP_SEMAPHORE.release();
 }
 
 pub fn is_reserved<T>(addr: *const T) -> bool {
@@ -329,7 +327,7 @@ fn get_phys_opt<T>(addr: *const T) -> Option<::arch::memory::PAddr> {
 
 	match res & 3 {
 	1 | 3 => None,
-	0 => Some( (res & !0xFFF) | (addr as usize as u32 & 0xFFF) ),
+	0 => Some( ((res as usize & !PAGE_MASK) | (addr as usize & PAGE_MASK)) as u32 ),
 	2 => {
 		todo!("Unexpected supersection at {:p}, res={:#x}", addr, res);
 		let pa_base: u64 = (res & !0xFFFFFF) as u64 | ((res as u64 & 0xFF0000) << (32-16));
@@ -353,7 +351,7 @@ pub fn get_info<T>(addr: *const T) -> Option<(::arch::memory::PAddr, ::memory::v
 fn tlbimva(a: *mut ()) {
 	// SAFE: TLB invalidation is not the unsafe part :)
 	unsafe {
-		asm!("mcr p15,0, $0, c8,c7,1 ; dsb ; isb" : : "r" ( (a as usize & !0xFFF) | 1 ) : "memory" : "volatile")
+		asm!("mcr p15,0, $0, c8,c7,1 ; dsb ; isb" : : "r" ( (a as usize & !PAGE_MASK) | 1 ) : "memory" : "volatile")
 	}
 }
 ///// Data Cache Clean by Modified Virtual Address (to PoC)
@@ -391,8 +389,8 @@ pub unsafe fn reprotect(a: *mut (), mode: ProtectionMode) {
 	let mode_flags = prot_mode_to_flags(mode);
 	let v = mh[idx].load();
 	assert!(v != 0, "reprotect() called on an unmapped location: a={:p}", a);
-	//log_debug!("reprotect(): a={:p} mh={:p} idx={}, new={:#x}", a, &mh[0], idx, (v & !0xFFF) + mode_flags);
-	let old = mh[idx].cxchg(v, (v & !0xFFF) + mode_flags);
+	//log_debug!("reprotect(): a={:p} mh={:p} idx={}, new={:#x}", a, &mh[0], idx, (v & !PAGE_MASK_U32) + mode_flags);
+	let old = mh[idx].cxchg(v, (v & !PAGE_MASK_U32) + mode_flags);
 	assert!(old == v, "reprotect() called in a racy manner: a={:p} old({:#x}) != v({:#x})", a, old, v);
 	tlbimva(a);
 }
@@ -407,7 +405,8 @@ pub unsafe fn unmap(a: *mut ()) -> Option<PAddr> {
 		None
 	}
 	else {
-		Some( old & !0xFFF )
+		// TODO: 8K pages
+		Some( old & !PAGE_MASK_U32 )
 	}
 }
 
@@ -459,7 +458,7 @@ pub fn data_abort_handler(pc: u32, reg_state: &AbortRegs, dfar: u32, dfsr: u32) 
 		::memory::virt::with_lock(dfar as usize, || unsafe {
 			let frame = ent.phys_addr();
 			// 2. Get the PMM to provide us with a unique copy of that frame (can return the same addr)
-			let newframe = ::memory::phys::make_unique( frame, &*(((dfar as usize) & !0xFFF) as *const [u8; 4096]) );
+			let newframe = ::memory::phys::make_unique( frame, &*(((dfar as usize) & !PAGE_MASK) as *const [u8; PAGE_SIZE]) );
 			// 3. Remap to this page as UserRW (because COW is user-only atm)
 			ent.set(newframe, ProtectionMode::UserRW);
 			log_debug!("- COW frame copied");

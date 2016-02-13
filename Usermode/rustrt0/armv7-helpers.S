@@ -33,6 +33,38 @@ ENTRY(\v)
 TODO_STUB __aeabi_memmove4
 EXIDX __aeabi_memmove4, 0x80B0B0B0
 
+@ R0 = dst
+@ R1 = src
+@ R2 = cnt
+ENTRY(memmove)
+	movs r2, r2
+	bxeq lr
+
+	@ TODO: Have memmove4 for 4 byte aligned versions	
+
+	cmp r0, r1
+	bxeq lr
+	@ If DST < SRC: Check for overlap
+	blt .dst_first
+	@ SRC < DST: Possible slow path
+	add r3, r1, r2
+	cmp r0, r3
+	@ If SRC + CNT <= DST, go the fast path
+	ble __aeabi_memcpy
+	@ Reverse slow path
+1:
+	add r1, r2
+	add r0, r2
+	LDRB r3, [r1, #-1]!
+	STRB r3, [r0, #-1]!
+	SUBS r2, r2, #1
+	BGT 1b
+	BX lr
+	
+.dst_first:
+	@ - Lazy byte-wise memcpy if the destination is first
+	b __aeabi_memcpy
+
 ENTRY(__aeabi_memcpy4)
 ENTRY_(__aeabi_memcpy8)
 	movs r2, r2

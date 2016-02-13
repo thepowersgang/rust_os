@@ -24,8 +24,10 @@ pub mod memory {
 	pub type PAddr = ::arch::imp::memory::PAddr;
 	pub type VAddr = ::arch::imp::memory::VAddr;
 
-	/// Size of a page/frame in bytes
+	/// Size of a page/frame in bytes (always a power of two)
 	pub const PAGE_SIZE: usize = ::arch::imp::memory::PAGE_SIZE;
+	/// Offset mask for a page
+	pub const PAGE_MASK: usize = (PAGE_SIZE-1);
 
 	/// Address space layout
 	pub mod addresses {
@@ -67,7 +69,45 @@ pub mod memory {
 		
 		pub type AddressSpace = imp::AddressSpace;
 
-		pub type TempHandle<E> = imp::TempHandle<E>;
+		/// A handle to a temproarily mapped frame
+		pub struct TempHandle<T>(*mut T);
+		impl<T> TempHandle<T>
+		{
+			/// UNSAFE: User must ensure that address is valid, and that no aliasing occurs
+			pub unsafe fn new(phys: ::arch::memory::PAddr) -> TempHandle<T> {
+				TempHandle( imp::temp_map(phys) )
+			}
+			/// Cast to another type
+			pub fn into<U>(self) -> TempHandle<U> {
+				let rv = TempHandle( self.0 as *mut U );
+				::core::mem::forget(self);
+				rv
+			}
+			pub fn phys_addr(&self) -> ::memory::PAddr {
+				get_phys(self.0)
+			}
+		}
+		impl<T: ::lib::POD> ::core::ops::Deref for TempHandle<T> {
+			type Target = [T];
+			fn deref(&self) -> &[T] {
+				// SAFE: We should have unique access, and data is POD
+				unsafe { ::core::slice::from_raw_parts(self.0, ::PAGE_SIZE / ::core::mem::size_of::<T>()) }
+			}
+		}
+		impl<T: ::lib::POD> ::core::ops::DerefMut for TempHandle<T> {
+			fn deref_mut(&mut self) -> &mut [T] {
+				// SAFE: We should have unique access, and data is POD
+				unsafe { ::core::slice::from_raw_parts_mut(self.0, ::PAGE_SIZE / ::core::mem::size_of::<T>()) }
+			}
+		}
+		impl<T> ::core::ops::Drop for TempHandle<T> {
+			fn drop(&mut self) {
+				// SAFE: Address came from a capp to temp_map
+				unsafe {
+					imp::temp_unmap(self.0);
+				}
+			}
+		}
 
 		pub fn post_init() {
 			imp::post_init()

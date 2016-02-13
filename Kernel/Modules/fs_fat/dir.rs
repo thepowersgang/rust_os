@@ -282,7 +282,7 @@ impl LFN {
 		}
 		self.next_idx = (idx-1) as u8;
 		let ofs = (idx-1) * 13;
-		self.data[ofs..].clone_from_slice( &ent.chars );
+		self.data[ofs..][..13].clone_from_slice( &ent.chars );
 	}
 	fn is_valid(&self) -> bool {
 		self.next_idx == 0 && self.data[0] != 0

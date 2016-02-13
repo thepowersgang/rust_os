@@ -46,7 +46,7 @@ impl Interface for Mmio
 		unsafe {
 			rv.set_device_status(0x0);	// Reset
 			rv.set_device_status(0x1);	// Acknowledge
-			rv.io.write_32(0x28, 0x1000);	// "GuestPageSize"
+			rv.io.write_32(0x28, ::kernel::PAGE_SIZE as u32);	// "GuestPageSize"
 		}
 		rv
 	}
@@ -83,7 +83,7 @@ impl Interface for Mmio
 			unsafe {
 				self.io.write_32(0x38, size as u32);
 				//self.io.write_32(0x3C, );	// QueueAlign - TODO: What value to use here
-				let page = queue.phys_addr() / 0x1000;
+				let page = queue.phys_addr() / ::kernel::PAGE_SIZE as u64;
 				log_debug!("size = {}, page={:#x}", size, page);
 				self.io.write_32(0x40, page as u32);
 			}

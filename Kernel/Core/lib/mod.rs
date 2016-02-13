@@ -13,6 +13,9 @@ pub use self::vec::Vec;
 pub use self::sparse_vec::SparseVec;
 pub use self::string::String;
 pub use self::lazy_static::LazyStatic;
+pub use self::pod::POD;
+
+pub use self::pod::{as_byte_slice, as_byte_slice_mut};
 
 pub mod thunk;
 pub mod borrow;
@@ -196,7 +199,6 @@ impl<'a,T> ::core::fmt::Pointer for SlicePtr<'a,T> {
 }
 
 
-pub use self::pod::{POD, as_byte_slice, as_byte_slice_mut};
 
 /// Zip adapter for ExactSizeIterator (easier for the optimiser)
 pub struct ExactZip<A,B>(usize,A,B);

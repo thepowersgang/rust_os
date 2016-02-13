@@ -109,27 +109,23 @@ impl Instance
 		// - This always resides immediately after the superblock
 		let group_descs = {
 			use kernel::lib::{as_byte_slice_mut,as_byte_slice};
+			#[allow(non_snake_case)]
+			let GROUP_DESC_SIZE = ::core::mem::size_of::<::ondisk::GroupDesc>();
 
-			let groups_per_vol_block = vol_bs / ::core::mem::size_of::<::ondisk::GroupDesc>();
+			let groups_per_vol_block = vol_bs / GROUP_DESC_SIZE;
 
 			let mut gds: Vec<::ondisk::GroupDesc> = vec![Default::default(); num_groups as usize];
 
 			let (n_skip, mut block) = if vol_bs % (2*1024) == 0 {
 					// Volume block size is larger than the superblock
 					// - This means that at least 2048 bytes of the group descriptors are in the same block as the superblock
-					let n_shared = (vol_bs - 2*1024) / ::core::mem::size_of::<::ondisk::GroupDesc>();
+					let n_shared = (vol_bs - 2*1024) / GROUP_DESC_SIZE;
 
 					let src = as_byte_slice(&first_block[2*1024/4..]);
-					if n_shared >= gds.len()
-					{
-						as_byte_slice_mut(&mut gds[..]).clone_from_slice( src );
-						(gds.len(), 1)
-					}
-					else
-					{
-						as_byte_slice_mut(&mut gds[..n_shared]).clone_from_slice( src );
-						(n_shared, 1)
-					}
+					let count = ::core::cmp::min(n_shared, gds.len());
+					assert_eq!(src.len(), count * GROUP_DESC_SIZE);
+					as_byte_slice_mut(&mut gds[..count]).clone_from_slice( src );
+					(count, 1)
 				}
 				else {
 					// Volume BS <= superblock
@@ -150,10 +146,12 @@ impl Instance
 
 			if tail_count > 0
 			{
+				let ofs = n_skip + body_count;
 				// Read a single volume block into a buffer, then populate from that
 				let mut buf: Vec<u8> = vec![0; vol_bs];
 				try!(vol.read_blocks(block, &mut buf));
-				as_byte_slice_mut(&mut gds[n_skip + body_count ..]).clone_from_slice( &buf );
+				let n_bytes = (gds.len() - ofs) * GROUP_DESC_SIZE;
+				as_byte_slice_mut(&mut gds[ofs ..]).clone_from_slice( &buf[..n_bytes] );
 			}
 
 			gds

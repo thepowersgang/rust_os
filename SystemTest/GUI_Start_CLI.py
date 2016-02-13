@@ -208,7 +208,7 @@ def test(instance):
         instance.screenshot('FileViewer')
         
 
-    while instance.wait_for_idle():
+    while instance.wait_for_idle(timeout=3):
         pass
 
 

@@ -6,7 +6,7 @@
 use core::fmt;
 use core::ops;
 use arch::memory::addresses;
-use arch::memory::PAddr;
+use arch::memory::{PAddr, PAGE_MASK};
 
 type Page = [u8; ::PAGE_SIZE];
 
@@ -93,11 +93,11 @@ pub use arch::memory::virt::is_reserved;
 pub use arch::memory::virt::get_phys;
 pub use arch::memory::virt::get_info;
 
-pub unsafe fn with_temp<F, R>(phys: ::memory::PAddr, f: F) -> R
+pub unsafe fn with_temp<F, R>(phys: PAddr, f: F) -> R
 where
 	F: FnOnce(&mut [u8; ::PAGE_SIZE]) -> R
 {
-	assert!(phys & 0xFFF == 0, "Unaligned address passed to with_temp");
+	assert!(phys & PAGE_MASK as PAddr == 0, "Unaligned address passed to with_temp");
 	let mut th = ::arch::memory::virt::TempHandle::<u8>::new(phys);
 	let p: &mut [u8; ::PAGE_SIZE] = ::core::mem::transmute(&mut th[0]);
 	f(p)
@@ -331,7 +331,7 @@ pub unsafe fn map_mmio(phys: PAddr, size: usize) -> Result<MmioHandle,MapError> 
 	let mut ah = try!(map_hw(phys, (size + ::PAGE_SIZE - 1) / ::PAGE_SIZE, false, "MMIO"));
 
 	ah.count = 0;
-	Ok(MmioHandle( ah.addr as *mut ::Void, (phys & 0xFFF) as u16, size as u16 ))
+	Ok(MmioHandle( ah.addr as *mut ::Void, (phys & PAGE_MASK as PAddr) as u16, size as u16 ))
 }
 impl MmioHandle
 {
@@ -616,7 +616,7 @@ impl AllocHandle
 	/// Forget the allocation and return a static reference to the data
 	pub fn make_static<T: ::lib::POD>(mut self, ofs: usize) -> &'static mut T
 	{
-		assert!(super::buf_valid(self.addr, self.count*0x1000));
+		assert!(super::buf_valid(self.addr, self.count * ::PAGE_SIZE));
 		assert!(ofs % ::core::mem::align_of::<T>() == 0);
 		assert!(ofs + ::core::mem::size_of::<T>() <= self.count * ::PAGE_SIZE);
 		self.count = 0;
@@ -627,7 +627,7 @@ impl AllocHandle
 	fn as_raw_ptr_slice<T>(&self, ofs: usize, count: usize) -> *mut [T]
 	{
 		use core::mem::{align_of,size_of};
-		assert!(super::buf_valid(self.addr, self.count*0x1000));
+		assert!(super::buf_valid(self.addr, self.count * ::PAGE_SIZE));
 		assert!( ofs % align_of::<T>() == 0,
 			"Offset {:#x} not aligned to {} bytes (T={})", ofs, align_of::<T>(), type_name!(T));
 		assert!( ofs <= self.count * ::PAGE_SIZE,
@@ -727,11 +727,11 @@ impl Drop for AllocHandle
 //}
 //impl<'a> ::core::convert::AsRef<[u8]> for PageHandle<'a>
 //{
-//	fn as_ref(&self) -> &[u8] { self.alloc.as_slice(self.idx * 0x1000, 0x1000) }
+//	fn as_ref(&self) -> &[u8] { self.alloc.as_slice(self.idx * ::PAGE_SIZE, ::PAGE_SIZE) }
 //}
 //impl<'a> ::core::convert::AsMut<[u8]> for PageHandle<'a>
 //{
-//	fn as_mut(&mut self) -> &mut [u8] { self.alloc.as_mut_slice(self.idx * 0x1000, 0x1000) }
+//	fn as_mut(&mut self) -> &mut [u8] { self.alloc.as_mut_slice(self.idx * ::PAGE_SIZE, ::PAGE_SIZE) }
 //}
 
 impl<T: ::lib::POD> SliceAllocHandle<T>

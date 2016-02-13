@@ -138,7 +138,7 @@ impl InputChannel
 				let s = self.get_input_string(key);
 				if s.len() > 0 {
 					let mut buf = [0; 6];
-					buf.clone_from_slice( s.as_bytes() );
+					buf[.. s.len()].clone_from_slice( s.as_bytes() );
 					super::windows::handle_input( Event::Text(buf) );
 				}
 			//}

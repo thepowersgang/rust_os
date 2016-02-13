@@ -15,8 +15,8 @@ impl FixedBuf {
 	}
 	fn push_back(&mut self, data: &[u8]) {
 		assert!( data.len() <= self.data.len() - self.len, "Pushed too much to FixedBuf" );
-		self.data[self.len..].clone_from_slice( data );
-		self.len += data.len();;
+		self.data[self.len..][..data.len()].clone_from_slice( data );
+		self.len += data.len();
 	}
 }
 impl ::core::ops::Deref for FixedBuf {

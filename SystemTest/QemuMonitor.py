@@ -80,12 +80,16 @@ class QemuMonitor:
             line = self.get_line(timeout=1)
         
         self._instance.stdin.flush()
+        self._instance.stdin.write('\n')
         print ">> CMD:", string
         self._instance.stdin.write(string)
         self._instance.stdin.write('\n')
         self._instance.stdin.flush()
     
         line = self.get_line(timeout=1)
+        print ">> rv =",line
+        line = self.get_line(timeout=1)
+        print ">> rv =",line
         #if line != '(qemu) %s' % (string):
         #    print "Unexpected response: '%s', expected '%s'" % (line, '(qemu) %s' % (string)) 
         #    raise "Doop"

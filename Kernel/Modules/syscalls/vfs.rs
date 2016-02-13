@@ -258,7 +258,7 @@ impl objects::Object for Dir
 				Err(e) => Err(e),
 				Ok(None) => Ok(0),
 				Ok(Some((_ino, s))) => {
-					name.clone_from_slice( s.as_bytes() );
+					name[.. s.len()].clone_from_slice( s.as_bytes() );
 					Ok(s.len() as u32)
 					},
 				})

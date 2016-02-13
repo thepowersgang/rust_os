@@ -70,9 +70,6 @@ pub extern "C" fn error_handler(regs: &InterruptRegs)
 		},
 	_ => { puts("ERROR "); puth(regs.intnum); puts(" (code "); puth(regs.errorcode); puts(")\n"); },
 	}
-	if regs.cs != 0x08 {
-		// It's a user fault, terminate that thread
-	}
 	puts("CS:RIP  = "); puth(regs.cs); puts(":"); puth(regs.rip); puts("\n");
 	puts("SS:RSP  = "); puth(regs.ss); puts(":"); puth(regs.rsp); puts("\n");
 	puts("CR2 = "); puth(get_cr2()); puts("\n");
@@ -85,16 +82,33 @@ pub extern "C" fn error_handler(regs: &InterruptRegs)
 	puts("R12 "); puth64(regs.r12); puts("  R13 "); puth64(regs.r13); puts("  ");
 	puts("R14 "); puth64(regs.r14); puts("  R15 "); puth64(regs.r15); puts("\n");
 
-
-	// For all other kernel-side errors, backtrace and lock
-	let mut bp = regs.rbp;
-	while let Some((newbp, ip)) = backtrace(bp)
-	{
-		puts(" > "); puth(ip);
-		bp = newbp;
+	if regs.cs != 0x08 {
+		// It's a user fault, terminate that thread
+		puts("Stack :");
+		for i in 0 .. 4 {
+			puts(" ");
+			match ::memory::user::read::<u64>(regs.rsp as usize + i * 8)
+			{
+			Ok(v) => puth64(v),
+			Err(_) => puts("INVAL"),
+			}
+		}
+		todo!("User fault");
 	}
-	puts("\n");
-	
+	else
+	{
+		// Kernel fault
+
+		// For all other kernel-side errors, backtrace and lock
+		let mut bp = regs.rbp;
+		while let Some((newbp, ip)) = backtrace(bp)
+		{
+			puts(" > "); puth(ip);
+			bp = newbp;
+		}
+		puts("\n");
+	}
+		
 	// For interrupts 2 and 3, don't backtrace and error.
 	// - 3 = breakpoint, 2 = ? (NMI?)
 	if regs.intnum == 3 || regs.intnum == 2 {
