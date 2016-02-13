@@ -18,6 +18,8 @@
 - User panic messages rendered to a kernel-owned window
  - This same infrastructure can be used for blocked windows/processes
 
+# Syscalls #
+Named object handles (or just named VFS roots?)
 
 # Filesystem #
 - Strict file/object permissions via handle permissions
@@ -38,12 +40,6 @@
  - Simple text edit control
  - With scrollbars
  - Menu bar
-- File browser
- - Simple list control
-
-Replace libwtk's `get_element_at` with `with_element_at`
-- Allows internal update after an element gets an event
-- May remove need to always define it
 
 <!-- vim: ft=markdown
 -->
