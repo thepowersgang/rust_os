@@ -85,7 +85,7 @@ $(IMGDIR)hda_1.img: $(wildcard ../../Usermode/.output/$(ARCH)/bin/*) Makefile $(
 	@mkdir -p $(dir $@)
 	@echo "[MkDisk] FAT 32MB $@"
 	@# - 32MB FAT? partition on disk 0
-	@dd if=/dev/zero of=$@ bs=1M count=32 status=none
+	@dd if=/dev/zero of=$@ bs=1M count=32 status=noxfer
 	@/sbin/mkfs.vfat $@
 	@mmd -i $@ ::/Tifflin
 	@mmd -i $@ ::/Tifflin/shared
