@@ -76,6 +76,27 @@ class Instance:
     def wait_for_idle(self, timeout=1.0):
         return self.wait_for_line('\d+t \d+\[kernel::threads\] - L\d+: reschedule\(\) - No active threads, idling', timeout)
     
+
+    def match_line(self, name, pattern, matches, timeout=5):
+        """
+        Wait for a line that matches the provided pattern, and assert that it fits the provided matches
+        """
+        line = self.wait_for_line(pattern, timeout=timeout)
+        test_assert("%s - Match timeout: %s" % (name, pattern,), line)
+        for i,m in enumerate(matches):
+            if line.group(i+1) != m:
+                raise TestFail("%s - Unexpected match from \"%s\" - %i: %r != %r" % (name, pattern, i, line.group(1+i), m,))
+    
+    
+    def wait_startapp(self, path, timeout=5):
+        """
+        TIFFLIN - Wait for the userland entrypoint to be invoked, and check the binary name
+        """
+        line = self.wait_for_line("\[syscalls\] - USER> Calling entry 0x[0-9a-f]+ for b\"(.*)\"", timeout=timeout)
+        test_assert("Start timeout: %s" % (path,), line)
+        if line.group(1) != path:
+            raise TestFail("Unexpected binary start: %r != %r" % (line.group(1), path,))
+    
     def type_string(self, string):
         for c in string:
             if 'a' <= c <= 'z':

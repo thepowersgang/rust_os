@@ -3,6 +3,7 @@ addons:
   apt:
     packages:
     - nasm
+    - qemu
 env:
   matrix:
     - ARCH=amd64
@@ -21,4 +22,5 @@ cache:
 script:
   - make UPDATE
   - make all
+  - python SystemTest/BasicBoot.py
 

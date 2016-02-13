@@ -36,11 +36,7 @@ def _keypress(instance, key, name, idle=True):
             test_assert(name+" "+key+" release idle", instance.wait_for_idle(timeout=5))
 
 def _matchline(instance, name, pattern, matches, timeout=5):
-    line = instance.wait_for_line(pattern, timeout=timeout)
-    test_assert("%s - Match timeout: %s" % (name, pattern,), line)
-    for i,m in enumerate(matches):
-        if line.group(i+1) != m:
-            raise TestFail("%s - Unexpected match from \"%s\" - %i: %r != %r" % (name, pattern, i, line.group(1+i), m,))
+    instance.match_line(name, pattern, matches, timeout)
 
 def _gui_rerender(instance, name, window_names):
     for win in window_names:
@@ -50,10 +46,7 @@ def _gui_rerender(instance, name, window_names):
             raise TestFail("%s - Unexpected window rendered - \"%s\" != exp \"%s\"" % (name, line.group(1), win,))
     
 def _startapp(instance, path, timeout=5):
-    line = instance.wait_for_line("\[syscalls\] - USER> Calling entry 0x[0-9a-f]+ for b\"(.*)\"", timeout=timeout)
-    test_assert("Start timeout: %s" % (path,), line)
-    if line.group(1) != path:
-        raise TestFail("Unexpected binary start: %r != %r" % (line.group(1), path,))
+    instance.wait_startapp(path, timeout)
     
 def _mouseto(instance, name, x,y):
     instance.mouse_to(x,y)

@@ -63,7 +63,7 @@ pub extern "C" fn loader_main(cmdline: *mut u8, cmdline_len: usize) -> !
 	// TODO: Switch stacks into a larger dynamically-allocated stack
 	// SAFE: Entrypoint assumed to have this format... will likely crash if it isn't
 	let ep: fn(&[&::std::ffi::OsStr]) = unsafe { ::std::mem::transmute(entrypoint) };
-	kernel_log!("Calling entry {:p}", ep as *const ());
+	kernel_log!("Calling entry {:p} for INIT {:?}", ep as *const (), init_path);
 	ep(&args);
 	kernel_log!("User entrypoint returned");
 	::syscalls::threads::exit(!0);
