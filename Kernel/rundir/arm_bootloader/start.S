@@ -113,6 +113,18 @@ ENTRY(__aeabi_memset4)
 	subs r1, r1, #4
 	bge 1b
 	bx lr
+ENTRY(__aeabi_memset)
+	movs r1, r1
+	beq 2f
+1:
+	strb r2, [r0], #1
+	subs r1, #1
+	bne 1b
+2:
+	bx lr
+ENTRY(memset)
+	b __aeabi_memset
+@EXIDX __aeabi_memset, 0x80B0B0B0
 
 ENTRY(putb)
 	mov r1, #STACK_TOP

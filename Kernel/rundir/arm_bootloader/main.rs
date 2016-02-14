@@ -2,8 +2,7 @@
 //
 //
 #![no_std]
-#![feature(no_std,lang_items)]
-#![feature(core_str_ext,core_slice_ext)]
+#![feature(lang_items)]
 
 
 /// Stub logging macro
@@ -17,10 +16,15 @@ macro_rules! log{
 		}};
 }
 
+#[allow(non_camel_case_types)]
 type Elf32_Half = u16;
+#[allow(non_camel_case_types)]
 type Elf32_Addr = u32;
+#[allow(non_camel_case_types)]
 type Elf32_Off = u32;
+#[allow(non_camel_case_types)]
 type Elf32_Sword = i32;
+#[allow(non_camel_case_types)]
 type Elf32_Word = u32;
 
 #[repr(C)]
