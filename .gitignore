@@ -44,5 +44,8 @@ Kernel/rundir/*.iso
 Kernel/rundir/arm_bootloader/Core/
 Kernel/rundir/test-*/
 
+Bootloaders/uefi/Core
+Bootloaders/uefi/*.txt
+Bootloaders/*.pe
 
 Usermode/doc/
