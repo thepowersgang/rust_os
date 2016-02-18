@@ -47,12 +47,14 @@ mod mouse;
 #[cfg(any(arch="amd64", arch="x86"))]
 fn init()
 {
+	#[path="i8042.rs"]
 	mod i8042;
 	i8042::init();
 }
 #[cfg(any(arch="armv7"))]
 fn init()
 {
+	#[path="pl050.rs"]
 	mod pl050;
 	pl050::init();
 }
