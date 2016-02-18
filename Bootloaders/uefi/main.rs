@@ -1,65 +1,29 @@
 #![feature(lang_items)]
 #![feature(asm)]
-#![no_std]
+#![no_std] 
+//#![crate_type="obj"]
 
-mod efi;
+#[macro_use]
+extern crate uefi;
 
-macro_rules! loge {
-	($l:expr, $($t:tt)*) => {{
-		use ::core::fmt::Write;
-		let mut logger = ::EfiLogger($l);
-		let _ = write!(&mut logger, "[{}] ", module_path!());
-		let _ = write!(&mut logger, $($t)*); 
-	}};
-}
-
-
-struct EfiLogger<'a>(&'a efi::SimpleTextOutputInterface);
-impl<'a> ::core::fmt::Write for EfiLogger<'a> {
-	fn write_str(&mut self, s: &str) -> ::core::fmt::Result {
-		for c in s.chars() {
-			let mut b = [0, 0, 0];
-			let c = c as u32;
-			if c <= 0xD7FF {
-				b[0] = c as u16;
-			}
-			else if c < 0xE000 {
-				loop {}
-			}
-			else if c < 0x10000 {
-				b[0] = c as u16;
-			}
-			else {
-				let c2 = c - 0x10000;
-				let (hi,lo) = (c2 >> 10, c2 & 0x3FF);
-				// Surrogate time!
-				b[0] = 0xD800 + hi as u16;
-				b[1] = 0xDC00 + lo as u16;
-			}
-			self.0.output_string( b.as_ptr() );
-		}
-		Ok( () )
-	}
-}
-impl<'a> Drop for EfiLogger<'a> {
-	fn drop(&mut self) {
-		self.0.output_string( [b'\r' as u16, b'\n' as u16, 0].as_ptr() );
-	}
-}
+// Marker to tell where the executable was loaded
+#[link_section=".text"]
+static S_MARKER: () = ();
 
 
 #[no_mangle]
-pub extern "win64" fn efi_main(image_handle: efi::Handle, system_table: &efi::SystemTable) -> efi::Status
+pub extern "win64" fn efi_main(image_handle: ::uefi::Handle, system_table: &::uefi::SystemTable) -> ::uefi::Status
 {
 	// SAFE: Assuming that the system table data is valid
 	let conout = system_table.con_out();
-	loge!(conout, "efi_main(image_handle={:?}, system_table={:p})", image_handle, system_table);
-	loge!(conout, "- Firmware Version {:x}", system_table.firmware_revision);
-	//loge!(conout, "- Firmware Version {:#x} by '{}'", system_table.firmware_revision, system_table.firmware_vendor());
-
+	loge!(conout, "efi_main(image_handle={:?}, system_table={:p}) - {:p}", image_handle, system_table, &S_MARKER);
+	let sp = unsafe { let v: u64; asm!("mov %rsp, $0" : "=r" (v)); v };
+	loge!(conout, "- RSP: {:p}", sp as usize as *const ());
+	loge!(conout, "- Firmware Version {:#x} by '{}'", system_table.firmware_revision, system_table.firmware_vendor());
+	loge!(conout, "- Boot Services @ {:p}, Runtime Services @ {:p}",
+		system_table.boot_services, system_table.runtime_services);
 
 	loop {}
-	0
 }
 
 

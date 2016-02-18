@@ -1,0 +1,14 @@
+{
+	"cpu": "x86-64",
+	"llvm-target": "x86_64-pc-windows-gnu",
+	"target-endian": "little",
+	"target-pointer-width": "64",
+	"target-word-size": "64",
+	"os": "tifflin",
+	"arch": "x86_64",
+		"pre-link-args": ["-m64"],
+		"no-compiler-rt": true,
+		"disable-redzone": true,
+		"eliminate-frame-pointer": false,
+	"morestack": false
+}

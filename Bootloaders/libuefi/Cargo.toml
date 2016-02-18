@@ -1,0 +1,4 @@
+[package]
+name = "uefi"
+version = "0.0.1"
+author = "John Hodge <tpg@mutabah.net>"

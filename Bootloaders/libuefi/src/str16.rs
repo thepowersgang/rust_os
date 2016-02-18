@@ -1,16 +1,19 @@
+///
+///
+///
 
 pub struct Str16([u16]);
 impl Str16
 {
+	/// Converts a UCS-2 (no need to be valid UTF-16) slice into a string
 	pub fn from_slice(s: &[u16]) -> &Str16 {
-		// TODO: Check for valid UTF-16
 		// SAFE: Same represenaton as &[u16]
 		unsafe {
 			::core::mem::transmute(s)
 		}
 	}
 
-	// UNSAFE: Indexes input until NUL, lifetime inferred
+	/// UNSAFE: Indexes input until NUL, lifetime inferred
 	pub unsafe fn from_nul_terminated<'a>(p: *const u16) -> &'a Str16 {
 		let len = {
 			let mut len = 0;
@@ -25,6 +28,9 @@ impl Str16
 		Self::from_slice(s)
 	}
 
+	/// Obtain an iterator of characters over this string
+	/// 
+	/// NOTE: Unpaired UTF-16 surrogates are returned as \uFFFD
 	pub fn chars(&self) -> Chars {
 		Chars(&self.0)
 	}
@@ -56,16 +62,28 @@ impl<'a> Iterator for Chars<'a>
 {
 	type Item = char;
 
-	fn next(&mut self) -> Option<char> {
+	fn next(&mut self) -> Option<char>
+	{
 		if let Some(w) = self.next_codeunit()
 		{
 			if 0xD800 <= w && w < 0xDC00 {
 				let hi = w - 0xD800;
-				let w2 = self.next_codeunit().unwrap();
-				assert!(0xDC00 <= w2 && w2 < 0xE000);
-				let lo = w2 - 0xDC00;
-				let cp32 = 0x10000 + (hi as u32) << 10 + lo as u32;
-				Some( ::core::char::from_u32(cp32).unwrap() )
+				if self.0.len() == 0 {
+					Some( '\u{fffd}' )
+				}
+				else if self.0[0] < 0xDC00 {
+					Some( '\u{fffd}' )
+				}
+				else if self.0[0] >= 0xE000 {
+					Some( '\u{fffd}' )
+				}
+				else {
+					let w2 = self.next_codeunit().unwrap();
+					assert!(0xDC00 <= w2 && w2 < 0xE000);
+					let lo = w2 - 0xDC00;
+					let cp32 = 0x10000 + (hi as u32) << 10 + lo as u32;
+					Some( ::core::char::from_u32(cp32).unwrap() )
+				}
 			}
 			else {
 				Some( ::core::char::from_u32(w as u32).unwrap() )
