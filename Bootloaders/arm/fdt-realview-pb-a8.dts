@@ -1,0 +1,341 @@
+
+/dts-v1/;
+
+/ {
+	#address-cells = <1>;
+	#size-cells = <1>;
+
+	model = "realview-pb-a8";
+	device_type = "guest";
+	psci_version = <2>;
+
+	chosen {
+	};
+
+	memory {
+		device_type = "memory";
+		reg = <0 0x06000000>;
+	};
+
+	uart@10009000 {
+		address_type = "memory";
+		reg = <0x10009000 0x1000>;
+		compatible = "primecell,arm,pl011";
+		fifo_size = <1024>;
+		interrupts = <44>;
+	};
+	vcpus {
+		vcpu0 {
+			device_type = "vcpu";
+			compatible = "armv7a,cortex-a8";
+			start_pc = <0x40000000>;
+		};
+	};
+
+/*	
+	aspace {
+
+		sysctl {
+			manifest_type = "virtual";
+			address_type = "memory";
+			guest_physical_addr = <0x10000000>;
+			physical_size = <0x1000>;
+			device_type = "sys";
+			compatible = "realview,pb-a8";
+			mux_in_irq = <1200 1201>;
+			mux_out_irq = <1202>;
+		};
+
+		sysctrl0 { /* No SP810 sysctrl * /
+			manifest_type = "virtual";
+			address_type = "memory";
+			guest_physical_addr = <0x10001000>;
+			physical_size = <0x1000>;
+			device_type = "misc";
+			compatible = "zero";
+		};
+
+		i2c { /* No I2C * /
+			manifest_type = "virtual";
+			address_type = "memory";
+			guest_physical_addr = <0x10002000>;
+			physical_size = <0x1000>;
+			device_type = "misc";
+			compatible = "zero";
+		};
+
+		aaci { /* No Audio Controller * /
+			manifest_type = "virtual";
+			address_type = "memory";
+			guest_physical_addr = <0x10004000>;
+			physical_size = <0x1000>;
+			device_type = "misc";
+			compatible = "zero";
+		};
+
+		mmc0 { /* No Multimedia Card Interface * /
+			manifest_type = "virtual";
+			address_type = "memory";
+			guest_physical_addr = <0x10005000>;
+			physical_size = <0x1000>;
+			device_type = "misc";
+			compatible = "zero";
+		};
+
+		kmi0 {
+			manifest_type = "virtual";
+			address_type = "memory";
+			guest_physical_addr = <0x10006000>;
+			physical_size = <0x1000>;
+			device_type = "input";
+			compatible = "primecell,arm,pl050,keyboard";
+			interrupts = <52>;
+		};
+
+		kmi1 {
+			manifest_type = "virtual";
+			address_type = "memory";
+			guest_physical_addr = <0x10007000>;
+			physical_size = <0x1000>;
+			device_type = "input";
+			compatible = "primecell,arm,pl050,mouse";
+			interrupts = <53>;
+		};
+
+		uart0 {
+		};
+
+		uart1 {
+			manifest_type = "virtual";
+			address_type = "memory";
+			guest_physical_addr = <0x1000A000>;
+			physical_size = <0x1000>;
+			device_type = "serial";
+			compatible = "primecell,arm,pl011";
+			fifo_size = <1024>;
+			interrupts = <45>;
+		};
+
+		uart2 {
+			manifest_type = "virtual";
+			address_type = "memory";
+			guest_physical_addr = <0x1000B000>;
+			physical_size = <0x1000>;
+			device_type = "serial";
+			compatible = "primecell,arm,pl011";
+			fifo_size = <1024>;
+			interrupts = <46>;
+		};
+
+		uart3 {
+			manifest_type = "virtual";
+			address_type = "memory";
+			guest_physical_addr = <0x1000C000>;
+			physical_size = <0x1000>;
+			device_type = "serial";
+			compatible = "primecell,arm,pl011";
+			fifo_size = <1024>;
+			interrupts = <47>;
+		};
+
+		ssp0 { /* No Synchronous Serial Port * /
+			manifest_type = "virtual";
+			address_type = "memory";
+			guest_physical_addr = <0x1000D000>;
+			physical_size = <0x1000>;
+			device_type = "misc";
+			compatible = "zero";
+		};
+
+		sci0 { /* No Smart card controller * /
+			manifest_type = "virtual";
+			address_type = "memory";
+			guest_physical_addr = <0x1000E000>;
+			physical_size = <0x1000>;
+			device_type = "misc";
+			compatible = "zero";
+		};
+
+		wdt { /* No Watch-Dog controller * /
+			manifest_type = "virtual";
+			address_type = "memory";
+			guest_physical_addr = <0x10010000>;
+			physical_size = <0x1000>;
+			device_type = "misc";
+			compatible = "zero";
+		};
+
+		timer0_1 {
+			manifest_type = "virtual";
+			address_type = "memory";
+			guest_physical_addr = <0x10011000>;
+			physical_size = <0x1000>;
+			device_type = "timer";
+			compatible = "primecell,sp804";
+			interrupts = <36>;
+		};
+
+		timer2_3 {
+			manifest_type = "virtual";
+			address_type = "memory";
+			guest_physical_addr = <0x10012000>;
+			physical_size = <0x1000>;
+			device_type = "timer";
+			compatible = "primecell,sp804";
+			interrupts = <37>;
+		};
+
+		gpio0 {
+			manifest_type = "virtual";
+			address_type = "memory";
+			guest_physical_addr = <0x10013000>;
+			physical_size = <0x1000>;
+			device_type = "gpio";
+			compatible = "primecell,pl061";
+			gpio_in_invert = <0 0 0 0 0 0 0 0>;
+			gpio_in_irq = <1400 1401 1402 1403 1404 1405 1406 1407>;
+			gpio_out_irq = <1408 1409 1410 1411 1412 1413 1414 1415>;
+			interrupts = <38>;
+		};
+
+		gpio1 {
+			manifest_type = "virtual";
+			address_type = "memory";
+			guest_physical_addr = <0x10014000>;
+			physical_size = <0x1000>;
+			device_type = "gpio";
+			compatible = "primecell,pl061";
+			gpio_in_invert = <0 0 0 0 0 0 0 0>;
+			gpio_in_irq = <1300 1301 1302 1303 1304 1305 1306 1307>;
+			gpio_out_irq = <1308 1309 1310 1311 1312 1313 1314 1315>;
+			interrupts = <39>;
+		};
+
+		gpio2 {
+			manifest_type = "virtual";
+			address_type = "memory";
+			guest_physical_addr = <0x10015000>;
+			physical_size = <0x1000>;
+			device_type = "gpio";
+			compatible = "primecell,pl061";
+			gpio_in_invert = <1 0 0 0 0 0 0 0>;
+			gpio_in_irq = <1201 1200 1202 1203 1204 1205 1206 1207>;
+			gpio_out_irq = <1208 1209 1210 1211 1212 1213 1214 1215>;
+			interrupts = <40>;
+		};
+
+		rtc0 {
+			manifest_type = "virtual";
+			address_type = "memory";
+			guest_physical_addr = <0x10017000>;
+			physical_size = <0x1000>;
+			device_type = "rtc";
+			compatible = "primecell,pl031";
+			interrupts = <42>;
+		};
+
+		sysctrl1 { /* No SP810 sysctrl * /
+			manifest_type = "virtual";
+			address_type = "memory";
+			guest_physical_addr = <0x1001A000>;
+			physical_size = <0x1000>;
+			device_type = "misc";
+			compatible = "zero";
+		};
+
+		clcd {
+			manifest_type = "virtual";
+			address_type = "memory";
+			guest_physical_addr = <0x10020000>;
+			physical_size = <0x1000>;
+			device_type = "display";
+			compatible = "primecell,pl111";
+			interrupts = <55>;
+		};
+
+		dmac { /* No DMA Controller * /
+			manifest_type = "virtual";
+			address_type = "memory";
+			guest_physical_addr = <0x10030000>;
+			physical_size = <0x1000>;
+			device_type = "misc";
+			compatible = "zero";
+		};
+
+		smc { /* No SMC * /
+			manifest_type = "virtual";
+			address_type = "memory";
+			guest_physical_addr = <0x100E1000>;
+			physical_size = <0x1000>;
+			device_type = "misc";
+			compatible = "zero";
+		};
+
+		gic0 {
+			manifest_type = "virtual";
+			address_type = "memory";
+			guest_physical_addr = <0x1E000000>;
+			physical_size = <0x2000>;
+			device_type = "pic";
+			compatible = "realview,gic";
+			parent_irq = <6>;
+		};
+
+		NET0: virtio-net0 {
+			manifest_type = "virtual";
+			address_type = "memory";
+			device_type = "virtio";
+			compatible = "virtio,mmio";
+			virtio_type = <1>;
+			guest_physical_addr = <0x20100000>;
+			physical_size = <0x1000>;
+			switch = ""; /* Override this before guest creation * /
+			interrupts = <34>;
+		};
+
+		DISK0: virtio-blk0 {
+			manifest_type = "virtual";
+			address_type = "memory";
+			device_type = "virtio";
+			compatible = "virtio,mmio";
+			virtio_type = <2>;
+			guest_physical_addr = <0x20200000>;
+			physical_size = <0x1000>;
+			blkdev = ""; /* Override this before guest creation * /
+			interrupts = <35>;
+		};
+
+		virtio-con0 {
+			manifest_type = "virtual";
+			address_type = "memory";
+			device_type = "virtio";
+			compatible = "virtio,mmio";
+			virtio_type = <3>;
+			guest_physical_addr = <0x20300000>;
+			physical_size = <0x1000>;
+			interrupts = <41>;
+		};
+
+		nor_flash0 {
+			manifest_type = "real";
+			address_type = "memory";
+			guest_physical_addr = <0x40000000>;
+			physical_size = <0x01000000>;
+			device_type = "alloced_rom";
+			align_order = <21>; /* Align alloced memory to 2MB * /
+		};
+
+		NET1: lan9118 {
+			manifest_type = "virtual";
+			address_type = "memory";
+			guest_physical_addr = <0x4E000000>;
+			physical_size = <0x10000>;
+			device_type = "nic";
+			compatible = "smsc,lan9118";
+			switch = ""; /* Override this before guest creation * /
+			interrupts = <60>;
+		};
+	};
+	*/
+};
+

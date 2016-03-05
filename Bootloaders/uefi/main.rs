@@ -6,16 +6,30 @@
 #[macro_use]
 extern crate uefi;
 
+macro_rules! log {
+	($($v:tt)*) => { loge!( ::get_conout(), $($v)*) };
+}
+#[path="../_common/elf.rs"]
+mod elf;
+
 // Marker to tell where the executable was loaded
 #[link_section=".text"]
 static S_MARKER: () = ();
 
+static mut S_CONOUT: *const ::uefi::SimpleTextOutputInterface = 1 as *const _;
+
+pub fn get_conout() -> &'static ::uefi::SimpleTextOutputInterface {
+	unsafe { &*S_CONOUT }
+}
 
 #[no_mangle]
 pub extern "win64" fn efi_main(image_handle: ::uefi::Handle, system_table: &::uefi::SystemTable) -> ::uefi::Status
 {
 	// SAFE: Assuming that the system table data is valid
 	let conout = system_table.con_out();
+	unsafe {
+		S_CONOUT = conout;
+	}
 	loge!(conout, "efi_main(image_handle={:?}, system_table={:p}) - {:p}", image_handle, system_table, &S_MARKER);
 	let sp = unsafe { let v: u64; asm!("mov %rsp, $0" : "=r" (v)); v };
 	loge!(conout, "- RSP: {:p}", sp as usize as *const ());
