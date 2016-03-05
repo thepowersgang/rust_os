@@ -169,7 +169,7 @@ impl<B: AsMut<[u8]>+AsRef<[u8]>> ops::Deref for FixedString<B>
 	fn deref(&self) -> &str {
 		let bytes = &self.data.as_ref()[..self.len];
 		// SAFE: String bytes are valid UTF-8
-		unsafe { ::core::mem::transmute(bytes) }
+		unsafe { ::core::str::from_utf8_unchecked(bytes) }
 	}
 }
 impl<B: AsMut<[u8]>+AsRef<[u8]>> ::core::fmt::Display for FixedString<B> {

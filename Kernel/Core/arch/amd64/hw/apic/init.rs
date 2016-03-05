@@ -118,12 +118,12 @@ impl ACPI_MADT
 		let typeid = (*ptr).dev_type;
 		
 		let ret_ref = match typeid {
-			0 => MADTDevRecord::DevLAPIC(     ::core::mem::transmute( ptr.offset(1) ) ),
-			1 => MADTDevRecord::DevIOAPIC(    ::core::mem::transmute( ptr.offset(1) ) ),
-			2 => MADTDevRecord::DevIntSrcOvr( ::core::mem::transmute( ptr.offset(1) ) ),
-			3 => MADTDevRecord::DevNMI(       ::core::mem::transmute( ptr.offset(1) ) ),
-			4 => MADTDevRecord::DevLAPICNMI(  ::core::mem::transmute( ptr.offset(1) ) ),
-			5 => MADTDevRecord::DevLAPICAddr( ::core::mem::transmute( ptr.offset(1) ) ),
+			0 => MADTDevRecord::DevLAPIC(     &*(ptr.offset(1) as *const _) ),
+			1 => MADTDevRecord::DevIOAPIC(    &*(ptr.offset(1) as *const _) ),
+			2 => MADTDevRecord::DevIntSrcOvr( &*(ptr.offset(1) as *const _) ),
+			3 => MADTDevRecord::DevNMI(       &*(ptr.offset(1) as *const _) ),
+			4 => MADTDevRecord::DevLAPICNMI(  &*(ptr.offset(1) as *const _) ),
+			5 => MADTDevRecord::DevLAPICAddr( &*(ptr.offset(1) as *const _) ),
 			_ => MADTDevRecord::DevUnk(typeid) ,
 			};
 		

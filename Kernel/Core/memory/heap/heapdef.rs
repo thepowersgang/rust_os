@@ -451,7 +451,7 @@ impl HeapFoot
 	}
 	pub unsafe fn next_head(&mut self) -> *mut HeapHead
 	{
-		let self_ptr: *mut HeapFoot = ::core::mem::transmute(self);
+		let self_ptr: *mut HeapFoot = self;
 		self_ptr.offset(1) as *mut HeapHead
 	}
 }
