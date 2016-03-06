@@ -7,7 +7,8 @@
 #![feature(const_fn,unsize,coerce_unsized)]
 #![feature(unique,nonzero)]
 #![feature(box_syntax)]
-#![feature(drop_in_place,raw)]
+#![feature(raw)]
+#![feature(placement_new_protocol)]
 #![feature(optin_builtin_traits)]	// For !Send
 #![feature(filling_drop)]	// for RawVec
 #![feature(unboxed_closures)]

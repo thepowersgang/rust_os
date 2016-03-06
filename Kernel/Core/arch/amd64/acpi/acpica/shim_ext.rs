@@ -40,7 +40,7 @@ pub struct ACPI_BUFFER
 	Pointer: *const Void,
 }
 
-#[repr(C,u32)]
+#[repr(C)]
 pub struct ACPI_OBJECT
 {
 	Type: ACPI_OBJECT_TYPE,

@@ -5,7 +5,7 @@
 //! Low-level interrupt handling and CPU error handling
 //use prelude::*;
 
-#[repr(C)]
+//#[repr(C)]
 /// A handler for an ISR
 pub type ISRHandler = extern "C" fn(isrnum: usize,info:*const(),idx:usize);
 

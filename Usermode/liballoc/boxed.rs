@@ -25,3 +25,29 @@ impl<T: ?Sized> Box<T>
 	}
 }
 
+pub struct IntermediateBox<T: ?Sized> {
+	ptr: *const u8,
+	_marker: ::core::marker::PhantomData<*mut T>,
+}
+impl<T> IntermediateBox<T> {
+	pub fn make_place() -> IntermediateBox<T> {
+		IntermediateBox {
+			ptr: ::heap::allocate(::core::mem::size_of::<T>(), ::core::mem::align_of::<T>()),
+			_marker: ::core::marker::PhantomData,
+			}
+	}
+}
+impl<T> ::core::ops::Place<T> for IntermediateBox<T> {
+	fn pointer(&mut self) -> *mut T {
+		self.ptr as *mut T
+	}
+}
+impl<T> ::core::ops::InPlace<T> for IntermediateBox<T> {
+	type Owner = Box<T>;
+	unsafe fn finalize(self) -> Box<T> {
+		let p = self.ptr;
+		::core::mem::forget(self);
+		::core::mem::transmute(p)
+	}
+}
+
