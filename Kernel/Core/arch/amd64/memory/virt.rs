@@ -380,7 +380,7 @@ impl PTE
 		let flags: u64 = Self::mode_to_flags(prot);
 		let v = (paddr & 0x7FFFFFFF_FFFFF000) | flags;
 		// SAFE: Atomic 64-bit and valid pointer
-		if unsafe { ::core::intrinsics::atomic_cxchg_relaxed(self.data, 0, v) } == 0 {
+		if unsafe { ::core::intrinsics::atomic_cxchg_relaxed(self.data, 0, v).0 } == 0 {
 			Ok( () )
 		}
 		else {
@@ -510,7 +510,7 @@ pub unsafe fn temp_map<T>(phys: ::arch::memory::PAddr) -> *mut T {
 }
 pub unsafe fn temp_unmap<T>(addr: *mut T) {
 	// SAFE: Owned allocation
-	unsafe {
+	/*unsafe*/ {
 		get_page_ent(addr as usize, false, LargeOk::No).set(0, ProtectionMode::Unmapped);
 		invlpg(addr as *mut ());
 	}

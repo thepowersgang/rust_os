@@ -102,19 +102,11 @@ pub mod hash;
 
 pub mod env;
 
-//pub extern crate std_io as io;
-extern crate std_io;
-pub use std_io as io;
+pub extern crate std_io as io;
+pub extern crate std_rt as rt;
+pub extern crate std_sync as sync;
 
 pub mod fs;
-
-//pub extern crate std_rt as rt;
-extern crate std_rt;
-pub use std_rt as rt;
-
-//pub extern crate std_sync as sync;
-extern crate std_sync;
-pub use std_sync as sync;
 
 pub mod error;
 

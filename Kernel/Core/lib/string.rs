@@ -137,10 +137,14 @@ impl<B: AsMut<[u8]>+AsRef<[u8]>> FixedString<B>
 		}
 	}
 	pub fn push_char(&mut self, c: char) {
-		match c.encode_utf8(&mut self.data.as_mut()[self.len..])
+		let l = c.encode_utf8().count();
+		if l > self.data.as_ref().len() - self.len {
+			todo!("Freeze string once allocation exceeded");
+		}
+		for b in c.encode_utf8()
 		{
-		Some(l) => self.len += l,
-		None => todo!("Freeze string once allocation exceeded"),
+			self.data.as_mut()[self.len] = b;
+			self.len += 1;
 		}
 	}
 	/// Append a slice

@@ -41,10 +41,7 @@ pub mod vec_map;
 
 pub mod ring_buffer;
 
-mod stack_dst_ {
-	extern crate stack_dst;
-}
-pub use self::stack_dst_::stack_dst;
+pub extern crate stack_dst;
 
 pub mod io;
 pub mod byteorder;

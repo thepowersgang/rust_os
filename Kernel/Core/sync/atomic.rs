@@ -76,8 +76,13 @@ impl<T: Copy+Send+Sync/*+ValidAtomic*/> AtomicValue<T>
 			}
 		}
 	}
+
 	/// Compare and exchange, returns old value and writes `new` if it was equal to `val`
 	pub fn compare_and_swap(&self, old: T, new: T, order: Ordering) -> T {
+		self.compare_exchange(old, new, order).0
+	}
+	/// Compare and exchange, returns old value and writes `new` if it was equal to `val`
+	pub fn compare_exchange(&self, old: T, new: T, order: Ordering) -> (T, bool) {
 		// SAFE: Atomic
 		unsafe {
 			let dst = self.0.get();
@@ -148,6 +153,10 @@ impl AtomicU32 {
 	}
 	/// Compare and exchange, returns old value and writes `new` if it was equal to `val`
 	pub fn compare_and_swap(&self, old: u32, new: u32, order: Ordering) -> u32 {
+		self.compare_exchange(old, new, order).0
+	}
+	/// Compare and exchange, returns old value and writes `new` if it was equal to `val`
+	pub fn compare_exchange(&self, old: u32, new: u32, order: Ordering) -> (u32, bool) {
 		// SAFE: Atomic
 		unsafe {
 			let dst = self.0.get();

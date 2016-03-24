@@ -80,10 +80,4 @@ fn rust_eh_personality(
 	loop {} 
 }
 
-#[lang = "stack_exhausted"]
-extern fn stack_exhausted() {
-	loop {}
-}
-
-
 

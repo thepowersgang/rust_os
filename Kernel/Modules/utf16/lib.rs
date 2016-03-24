@@ -4,6 +4,7 @@
 // Modules/lib_utf16/lib.rs
 //! UTF-16 string support
 #![no_std]
+#![feature(unicode)]
 #[macro_use] extern crate kernel;
 #[allow(unused_imports)]
 use kernel::prelude::*;
@@ -143,7 +144,9 @@ impl<'a> ::core::iter::Iterator for Wtf8<'a>
 			{
 			None => return None,
 			// no real need to check length. 4 is sufficient, and NUL termination is maintained
-			Some(c) => {c.encode_utf8(&mut self.1).unwrap();},
+			Some(c) => for (i, b) in Iterator::enumerate( c.encode_utf8() ) {
+					self.1[i] = b;
+				},
 			}
 		}
 		let rv = self.1[0];

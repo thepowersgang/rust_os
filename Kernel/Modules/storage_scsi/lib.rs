@@ -4,7 +4,6 @@
 // Modules/storage_scsi/lib.rs
 #![feature(linkage)]
 #![feature(associated_consts)]
-#![feature(num_bits_bytes)]
 #![no_std]
 #[macro_use] extern crate kernel;
 #[allow(unused_imports)]
@@ -102,7 +101,7 @@ impl<I: ScsiInterface> Volume<I>
 }
 
 fn fits_in_bits(v: usize, bits: usize) -> bool {
-	if bits >= ::core::usize::BITS {
+	if bits >= ::core::mem::size_of::<usize>() * 8 {
 		true
 	}
 	else {

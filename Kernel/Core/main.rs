@@ -22,9 +22,8 @@
 #![feature(get_type_id,reflect_marker)] // used by process_local's "AnyMap" hackery
 #![cfg_attr(not(use_acpica),feature(ptr_as_ref))]	// used by ACPI code (custom impl, not ACPICA)
 #![feature(unsafe_no_drop_flag,filling_drop)]	// Used by smart pointers to reduce size
-#![feature(drop_in_place)]	// Used by most smart pointers to support DSTs
+#![feature(unicode)]
 
-#![feature(num_bits_bytes)]	// Used for sysinit
 #![no_std]
 
 #![deny(not_tagged_safe)]
@@ -306,8 +305,10 @@ fn spawn_init(loader_path: &str, init_cmdline: &str) -> Result<Void, &'static st
 	#[cfg(arch="amd64")]	const LOAD_MAX: usize = 1 << 47;
 	#[cfg(arch="armv7")]	const ARCH: ArchValues = ArchValues::ARMv7;
 	#[cfg(arch="armv7")]	const LOAD_MAX: usize = (1 << 31) - (4 << 20);
+	#[cfg(target_pointer_width="64")]	const USIZE_BYTES: u32 = 8;
+	#[cfg(target_pointer_width="32")]	const USIZE_BYTES: u32 = 4;
 	const MAGIC: u32 = 0x71FF1013;
-	const INFO: u32 = (5*4 + ::core::usize::BYTES as u32) | ((ARCH as u8 as u32) << 8);
+	const INFO: u32 = (5*4 + USIZE_BYTES) | ((ARCH as u8 as u32) << 8);
 	
 	log_log!("Loading userland '{}' args '{}'", loader_path, init_cmdline);
 	
