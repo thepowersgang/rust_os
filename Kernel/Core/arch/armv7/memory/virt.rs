@@ -6,6 +6,7 @@ use memory::virt::ProtectionMode;
 use arch::memory::PAddr;
 use arch::memory::{PAGE_SIZE, PAGE_MASK};
 use arch::memory::virt::TempHandle;
+use core::sync::atomic::Ordering;
 
 const KERNEL_TEMP_BASE : usize = 0xFFC00000;
 const KERNEL_TEMP_COUNT: usize = 1023;	// Final mapping is ?
@@ -19,7 +20,7 @@ const PAGE_MASK_U32: u32 = PAGE_MASK as u32;
 static S_TEMP_MAP_SEMAPHORE: ::sync::Semaphore = ::sync::Semaphore::new(KERNEL_TEMP_COUNT as isize - 1, KERNEL_TEMP_COUNT as isize);
 
 pub fn post_init() {
-	kernel_table0[0].store(0);
+	kernel_table0[0].store(0, Ordering::SeqCst);
 }
 
 fn prot_mode_to_flags(mode: ProtectionMode) -> u32 {
@@ -54,31 +55,7 @@ fn flags_to_prot_mode(flags: u32) -> ProtectionMode {
 }
 
 /// Atomic 32-bit integer, used for table entries
-#[repr(C)]
-struct AtomicU32(::core::cell::UnsafeCell<u32>);
-unsafe impl ::lib::POD for AtomicU32 {}
-impl AtomicU32 {
-	/// Compare and exchange, returns old value and writes `new` if it was equal to `val`
-	pub fn cxchg(&self, val: u32, new: u32) -> u32 {
-		// SAFE: Atomic
-		unsafe { ::core::intrinsics::atomic_cxchg_relaxed(self.0.get(), val, new) }
-	}
-	/// Exchange
-	pub fn xchg(&self, new: u32) -> u32 {
-		// SAFE: Atomic
-		unsafe { ::core::intrinsics::atomic_xchg_relaxed(self.0.get(), new) }
-	}
-	/// Unconditionally stores
-	pub fn store(&self, val: u32) {
-		// SAFE: Atomic
-		unsafe { ::core::intrinsics::atomic_store_relaxed(self.0.get(), val) }
-	}
-	/// Unconditionally loads
-	pub fn load(&self) -> u32 {
-		// SAFE: Atomic
-		unsafe { ::core::intrinsics::atomic_load_relaxed(self.0.get()) }
-	}
-}
+type AtomicU32 = ::sync::atomic::AtomicValue<u32>;
 
 pub fn is_fixed_alloc<T>(addr: *const T, size: usize) -> bool {
 	const BASE: usize = super::addresses::KERNEL_BASE;
@@ -152,7 +129,7 @@ impl PageEntry
 			};
 
 		// SAFE: Aliasing in this case is benign
-		let sect_ent = rgn.get_section_ent(p_idx >> 8).load();
+		let sect_ent = rgn.get_section_ent(p_idx >> 8).load(Ordering::SeqCst);
 		if sect_ent & 0b11 == 0b01 {
 			PageEntry::Page {
 				// SAFE: Alias is beign, as accesses are atomic
@@ -174,30 +151,30 @@ impl PageEntry
 	fn is_reserved(&self) -> bool {
 		match self
 		{
-		&PageEntry::Section { rgn, idx, .. } => (rgn.get_section_ent(idx).load() & 3 != 0),
-		&PageEntry::Page { ref mapping, idx, .. } => (mapping[idx & 0x3FF].load() & 3 != 0),
+		&PageEntry::Section { rgn, idx, .. } => (rgn.get_section_ent(idx).load(Ordering::SeqCst) & 3 != 0),
+		&PageEntry::Page { ref mapping, idx, .. } => (mapping[idx & 0x3FF].load(Ordering::SeqCst) & 3 != 0),
 		}
 	}
 
 	fn phys_addr(&self) -> PAddr {
 		match self
 		{
-		&PageEntry::Section { rgn, idx, ofs } => (rgn.get_section_ent(idx).load() & !PAGE_MASK_U32) + ofs as u32,
-		&PageEntry::Page { ref mapping, idx ,ofs } => (mapping[idx & 0x3FF].load() & !PAGE_MASK_U32) + ofs as u32,
+		&PageEntry::Section { rgn, idx, ofs } => (rgn.get_section_ent(idx).load(Ordering::SeqCst) & !PAGE_MASK_U32) + ofs as u32,
+		&PageEntry::Page { ref mapping, idx ,ofs } => (mapping[idx & 0x3FF].load(Ordering::SeqCst) & !PAGE_MASK_U32) + ofs as u32,
 		}
 	}
 	fn mode(&self) -> ProtectionMode {
 		match self
 		{
 		&PageEntry::Section { rgn, idx, .. } =>
-			match rgn.get_section_ent(idx).load() & PAGE_MASK_U32
+			match rgn.get_section_ent(idx).load(Ordering::SeqCst) & PAGE_MASK_U32
 			{
 			0x000 => ProtectionMode::Unmapped,
 			0x402 => ProtectionMode::KernelRW,
 			v @ _ if v & 3 == 1 => unreachable!(),
 			v @ _ => todo!("Unknown mode value in section {:?} {} - {:#x}", rgn, idx, v),
 			},
-		&PageEntry::Page { ref mapping, idx, .. } => flags_to_prot_mode( mapping[idx & 0x3FF].load() & PAGE_MASK_U32 ),
+		&PageEntry::Page { ref mapping, idx, .. } => flags_to_prot_mode( mapping[idx & 0x3FF].load(Ordering::SeqCst) & PAGE_MASK_U32 ),
 		}
 	}
 	//fn reset(&mut self) -> Option<(PAddr, ProtectionMode)> {
@@ -209,7 +186,7 @@ impl PageEntry
 		&mut PageEntry::Section { .. } => todo!("Calling PageEntry::set on Section"),
 		&mut PageEntry::Page { ref mapping, idx, .. } => {
 			let flags = prot_mode_to_flags(mode);
-			let old = mapping[idx & 0x3FF].xchg( (addr as u32) | flags );
+			let old = mapping[idx & 0x3FF].swap( (addr as u32) | flags, Ordering::SeqCst );
 			if old & PAGE_MASK_U32 == 0 {
 				None
 			}
@@ -240,7 +217,7 @@ fn get_table_addr<T>(vaddr: *const T, alloc: bool) -> Option< (::arch::memory::P
 			&kernel_table0[ ttbr_ofs*4 .. ][..4]
 		};
 	
-	let ent_v = ent_r[0].load();
+	let ent_v = ent_r[0].load(Ordering::SeqCst);
 	match ent_v & PAGE_MASK_U32
 	{
 	0 => if alloc {
@@ -251,17 +228,17 @@ fn get_table_addr<T>(vaddr: *const T, alloc: bool) -> Option< (::arch::memory::P
 				};
 			//::memory::virt::with_temp(|frame: &[AtomicU32]| for v in frame.iter { v.store(0) });
 			for v in handle.iter() {
-				v.store(0);
+				v.store(0, Ordering::SeqCst);
 			}
 			let frame = handle.phys_addr();
-			let ent_v = ent_r[0].cxchg(0, frame + 0x1);
+			let ent_v = ent_r[0].compare_and_swap(0, frame + 0x1, Ordering::Acquire);
 			if ent_v != 0 {
 				::memory::phys::deref_frame(frame);
 				Some( (ent_v & !PAGE_MASK_U32, tab_idx) )
 			}
 			else {
 				for i in 1 .. (PAGE_SIZE/0x400) as u32 {
-					ent_r[i as usize].store(frame + i*0x400 + 0x1);
+					ent_r[i as usize].store(frame + i*0x400 + 0x1, Ordering::SeqCst);
 				}
 				Some( (frame & !PAGE_MASK_U32, tab_idx) )
 			}
@@ -284,7 +261,7 @@ pub unsafe fn temp_map<T>(phys: ::arch::memory::PAddr) -> *mut T {
 	S_TEMP_MAP_SEMAPHORE.acquire();
 	// #1023 is reserved for -1 mapping
 	for i in 0 .. KERNEL_TEMP_COUNT {
-		if kernel_exception_map[i].cxchg(0, val) == 0 {
+		if kernel_exception_map[i].compare_and_swap(0, val, Ordering::Acquire) == 0 {
 			let addr = (KERNEL_TEMP_BASE + i * ::PAGE_SIZE) as *mut _;
 			tlbimva(addr as *mut ());
 			//log_trace!("- Addr = {:p}", addr);
@@ -299,7 +276,7 @@ pub unsafe fn temp_unmap<T>(addr: *mut T)
 	assert!(addr as usize >= KERNEL_TEMP_BASE);
 	let i = (addr as usize - KERNEL_TEMP_BASE) / ::PAGE_SIZE;
 	assert!(i < KERNEL_TEMP_COUNT);
-	kernel_exception_map[i].store(0);
+	kernel_exception_map[i].store(0, Ordering::Release);
 	S_TEMP_MAP_SEMAPHORE.release();
 }
 
@@ -375,7 +352,7 @@ fn map_int(a: *mut (), p: PAddr, mode: ProtectionMode) {
 	// 2. Insert
 	let mode_flags = prot_mode_to_flags(mode);
 	//log_debug!("map(): a={:p} mh={:p} idx={}, new={:#x}", a, &mh[0], idx, p + mode_flags);
-	let old = mh[idx].cxchg(0, p + mode_flags);
+	let old = mh[idx].compare_and_swap(0, p + mode_flags, Ordering::SeqCst);
 	assert!(old == 0, "map() called over existing allocation: a={:p}, old={:#x}", a, old);
 	tlbimva(a);
 }
@@ -387,10 +364,10 @@ pub unsafe fn reprotect(a: *mut (), mode: ProtectionMode) {
 	assert!(mode != ProtectionMode::Unmapped, "Invalid pass of ProtectionMode::Unmapped to map");
 	// 2. Insert
 	let mode_flags = prot_mode_to_flags(mode);
-	let v = mh[idx].load();
+	let v = mh[idx].load(Ordering::Acquire);
 	assert!(v != 0, "reprotect() called on an unmapped location: a={:p}", a);
 	//log_debug!("reprotect(): a={:p} mh={:p} idx={}, new={:#x}", a, &mh[0], idx, (v & !PAGE_MASK_U32) + mode_flags);
-	let old = mh[idx].cxchg(v, (v & !PAGE_MASK_U32) + mode_flags);
+	let old = mh[idx].compare_and_swap(v, (v & !PAGE_MASK_U32) + mode_flags, Ordering::Release);
 	assert!(old == v, "reprotect() called in a racy manner: a={:p} old({:#x}) != v({:#x})", a, old, v);
 	tlbimva(a);
 }
@@ -399,7 +376,7 @@ pub unsafe fn unmap(a: *mut ()) -> Option<PAddr> {
 	let (tab_phys, idx) = get_table_addr(a, true).unwrap();
 	// SAFE: Address space is valid during manipulation, and alias is benign
 	let mh: TempHandle<AtomicU32> = unsafe { TempHandle::new( tab_phys ) };
-	let old = mh[idx].xchg(0);
+	let old = mh[idx].swap(0, Ordering::SeqCst);
 	tlbimva(a);
 	if old & 3 == 0 {
 		None

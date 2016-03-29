@@ -15,9 +15,11 @@ unsafe impl ValidAtomic for u32 {}
 // TODO: I'm not 100% sure about this
 unsafe impl ValidAtomic for u64 {}
 
+#[repr(C)]
 pub struct AtomicValue<T: Copy>(::core::cell::UnsafeCell<T>);
 unsafe impl<T: Copy+Send+Sync> Sync for AtomicValue<T> {}
 unsafe impl<T: Copy+Send+Sync> Send for AtomicValue<T> {}
+unsafe impl<T: 'static+Copy+ValidAtomic> ::lib::POD for AtomicValue<T> {}
 
 impl<T: Copy+Send+Sync+Default> Default for AtomicValue<T>
 {

@@ -142,7 +142,7 @@ impl<'a> FDTRoot<'a>
 }
 
 
-struct PropsIter<'a,'fdt: 'a,'b> {
+pub struct PropsIter<'a,'fdt: 'a,'b> {
 	fdt: &'a FDTRoot<'fdt>,
 	path: &'b [&'b str],
 	offset: usize,
@@ -199,7 +199,7 @@ impl<'a,'fdt, 'b> Iterator for PropsIter<'a, 'fdt, 'b>
 	}
 }
 
-struct NodesIter<'a,'fdt: 'a,'b> {
+pub struct NodesIter<'a,'fdt: 'a,'b> {
 	fdt: &'a FDTRoot<'fdt>,
 	path: &'b [&'b str],
 	offset: usize,
