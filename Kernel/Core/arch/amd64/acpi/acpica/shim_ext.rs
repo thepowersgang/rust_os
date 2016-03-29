@@ -95,6 +95,7 @@ pub type ACPI_STRING = *mut u8;
 pub type ACPI_THREAD_ID = u64;
 
 #[repr(C)]
+#[derive(PartialEq,Eq)]
 pub struct ACPI_STATUS(i32);
 
 const AE_CODE_ENVIRONMENTAL: i32 = 0x0000;
