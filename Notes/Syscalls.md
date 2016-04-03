@@ -18,6 +18,19 @@
 1. Yield permissions
 1. Lend permissions
 
+
+## IPC
+1. Create Named Server
+1. Create Anon Server
+1. Open Named Socket
+
+### IPC Socket "Class"
+ 1. Send Blob
+    Send a "datagram" packet to the other end of the socket.
+ 1. Send Object
+ 1. Recv Blob
+ 1. Recv Object
+
 ## Window Manager
 1. New Group
 1. New Window

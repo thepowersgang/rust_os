@@ -7,17 +7,14 @@
 #![feature(associated_consts)]
 #![feature(reflect_marker)]
 
-#[macro_use]
-extern crate kernel;
-
-extern crate gui;
-
-extern crate stack_dst;
-
 #[allow(unused_imports)]
 use kernel::prelude::*;
-
 use kernel::memory::freeze::{Freeze,FreezeMut,FreezeError};
+
+#[macro_use]
+extern crate kernel;
+extern crate gui;
+extern crate stack_dst;
 
 mod objects;
 

@@ -71,16 +71,8 @@ def_grp!( 1: GROUP_GUI = {
 	=3: GUI_NEWWINDOW,
 });
 
-/// VFS Access
-def_grp!(2: GROUP_VFS = {
-	=0: VFS_OPENNODE,
-	=1: VFS_OPENFILE,
-	=2: VFS_OPENDIR,
-	=3: VFS_OPENLINK,
-});
-
 /// Process memory management
-def_grp!(3: GROUP_MEM = {
+def_grp!( 2: GROUP_MEM = {
 	=0: MEM_ALLOCATE,
 	=1: MEM_REPROTECT,
 	=2: MEM_DEALLOCATE,
@@ -114,19 +106,21 @@ def_classes! {
 		/// Request that the process be terminated
 		=0: CORE_PROCESS_KILL,
 		/// Give the process one of this process's objects
+		/// This method blocks if the child process hasn't popped the previous object
 		=1: CORE_PROCESS_SENDOBJ,
-		/// Send a message to the object
-		=2: CORE_PROCESS_SENDMSG,
 	}|{
+		/// Wakes if the child process terminates
 		=0: EV_PROCESS_TERMINATED,
+		/// Wakes if an object can be sent to the child
+		=1: EV_PROCESS_OBJECTFREE,
 	},
+	/// A handle providing process inherent IPC
 	=1: CLASS_CORE_THISPROCESS = {
-		/// Fetch a handle to the 'n'th object of the specified class that hasn't been claimed
+		/// Receive a sent object
 		=0: CORE_THISPROCESS_RECVOBJ,
-		=1: CORE_THISPROCESS_RECVMSG,
 	}|{
+		/// Wakes if an object is waiting to be received
 		=0: EV_THISPROCESS_RECVOBJ,
-		=1: EV_THISPROCESS_RECVMSG,
 	},
 	/// Opened node
 	=2: CLASS_VFS_NODE = {
