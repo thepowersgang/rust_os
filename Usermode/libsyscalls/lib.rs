@@ -105,6 +105,17 @@ impl ObjectHandle
 			flags: mask,
 		}
 	}
+
+	fn get_class(&self) -> Result<u16,()> {
+		// SAFE: Known method
+		let v = unsafe { ::raw::syscall_0( (1 << 31 | (0x7FE << 20) | self.0) ) };
+		if v >= (1<<16) {
+			Err( () )
+		}
+		else {
+			Ok( v as u16 )
+		}
+	}
 	
 	#[allow(dead_code)]
 	#[inline]
@@ -204,6 +215,46 @@ pub trait Object
 	fn check_wait(&self, wi: &::values::WaitItem) -> Self::Waits {
 		assert_eq!(wi.object, self.handle().0);
 		Self::Waits::from_val(wi.flags)
+	}
+
+	fn from_raw(handle: u32) -> Result<Self, FromRawError> where Self: Sized {
+		object_from_raw(handle)
+	}
+}
+
+#[derive(Debug)]
+pub enum FromRawError
+{
+	/// The handle index passed wasn't valid
+	BadIndex,
+	/// The object at this index wasn't the desired class
+	BadClass(u16),
+}
+impl ::core::fmt::Display for FromRawError
+{
+	fn fmt(&self, f: &mut ::core::fmt::Formatter) -> ::core::fmt::Result {
+		match self
+		{
+		&FromRawError::BadIndex => f.write_str("Invalid object index"),
+		&FromRawError::BadClass(v) => write!(f, "Incorrect class: was {}", v),
+		}
+	}
+}
+
+/// Obtain an object handle from a raw handle index
+///
+/// NOTE: This method is only meant for loader/init to use
+pub fn object_from_raw<T: Object>(handle: u32) -> Result<T,::FromRawError> {
+	let h = ::ObjectHandle(handle);
+	match h.get_class()
+	{
+	Ok(v) => if v == T::class() {
+			Ok(T::from_handle(h))
+		}
+		else {
+			Err(::FromRawError::BadClass(v))
+		},
+	Err(_) => Err(::FromRawError::BadIndex),
 	}
 }
 

@@ -22,11 +22,12 @@ fn main()
 {
 	::wtk::initialise();
 
-	let mut root_handle = ::syscalls::vfs::Dir::open("/").unwrap();
+	let root_handle: ::syscalls::vfs::Dir = ::syscalls::threads::S_THIS_PROCESS.receive_object().unwrap();
+	//let root_handle = ::syscalls::vfs::Dir::open("/").unwrap();
 
-	let mut fl = ::filelist::FileList::new();
+	let mut fl = ::filelist::FileList::new(&root_handle);
 
-	fl.populate(&mut root_handle);
+	fl.populate(&root_handle);
 	fl.on_chdir(|win, newdir| win.set_title(format!("Filesystem - {}", newdir.display())));
 	fl.on_open(|_win, file_path| view_file(file_path));
 

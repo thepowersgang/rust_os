@@ -144,19 +144,27 @@ def_classes! {
 	},
 	/// Opened directory
 	=4: CLASS_VFS_DIR = {
-		/// Read an entry
-		=0: VFS_DIR_READENT,
+		/// Create an enumerating handle
+		=0: VFS_DIR_ENUMERATE,
 		/// Open a child node
 		=1: VFS_DIR_OPENCHILD,
+		/// Open a sub-path
+		=2: VFS_DIR_OPENPATH,
+	}|{
+	},
+	/// Enumerating directory
+	=5: CLASS_VFS_DIRITER = {
+		/// Read an entry
+		=0: VFS_DIRITER_READENT,
 	}|{
 	},
 	/// Opened symbolic link
-	=5: CLASS_VFS_LINK = {
+	=6: CLASS_VFS_LINK = {
 		=0: VFS_LINK_READ,
 	}|{
 	},
 	/// GUI Group/Session
-	=6: CLASS_GUI_GROUP = {
+	=7: CLASS_GUI_GROUP = {
 		/// Force this group to be the active one (requires permission)
 		=0: GUI_GRP_FORCEACTIVE,
 	}|{
@@ -164,7 +172,7 @@ def_classes! {
 		=0: EV_GUI_GRP_SHOWHIDE,
 	},
 	/// Window
-	=7: CLASS_GUI_WIN = {
+	=8: CLASS_GUI_WIN = {
 		/// Set the show/hide state of the window
 		=0: GUI_WIN_SETFLAG,
 		/// Trigger a redraw of the window

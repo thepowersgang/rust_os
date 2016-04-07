@@ -394,6 +394,9 @@ fn spawn_init(loader_path: &str, init_cmdline: &str) -> Result<Void, &'static st
 	// TODO: Instead hand this handle over to the syscall layer, as the first user file
 	//forget(loader);
 	
+
+	//syscalls_init(loader, init);
+	
 	log_notice!("Entering userland at {:#x} '{}' '{}'", header_ptr.entrypoint, loader_path, init_cmdline);
 	// SAFE: This pointer is as validated as it can be...
 	unsafe {

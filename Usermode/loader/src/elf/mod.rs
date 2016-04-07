@@ -40,10 +40,9 @@ pub struct ElfModuleHandle<R: Read+Seek>
 	header: Header,
 }
 
-pub fn load_executable(path: &::std::ffi::OsStr) -> Result<ElfModuleHandle<File>,Error>
+pub fn load_executable(mut fh: File) -> Result<ElfModuleHandle<File>,Error>
 {
 	// 1. Open file
-	let mut fh = try!(File::open(path, FileOpenMode::Execute));
 	let elf_ident = {
 		let mut hdr: [u8; 16] = [0; 16];
 		if try!(fh.read(&mut hdr)) != 16 {

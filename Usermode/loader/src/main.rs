@@ -49,8 +49,10 @@ pub extern "C" fn loader_main(cmdline: *mut u8, cmdline_len: usize) -> !
 	let init_path = arg_iter.next().expect("Init path is empty");
 	kernel_log!("- init_path={:?}", init_path);
 	
+	
 	// 3. Spin up init
-	let entrypoint = load_binary(init_path);
+	let fh: ::syscalls::vfs::File = ::syscalls::object_from_raw(1).expect("Unable to open object #1 as init");
+	let entrypoint = load_binary(init_path, fh);
 	
 	// Populate arguments
 	let mut args = FixedVec::new();
@@ -103,11 +105,11 @@ impl<T> ::std::ops::DerefMut for FixedVec<T> {
 }
 
 /// Panics if it fails to load, returns the entrypoint
-fn load_binary(path: &::std::ffi::OsStr) -> usize
+fn load_binary(path: &::std::ffi::OsStr, fh: ::syscalls::vfs::File) -> usize
 {
 	kernel_log!("load_binary({:?})", path);
 	// - Open the init path passed in `cmdline`
-	let mut handle = match ::elf::load_executable(path)
+	let mut handle = match ::elf::load_executable(fh)
 		{
 		Ok(v) => v,
 		Err(e) => {

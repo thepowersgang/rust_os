@@ -20,7 +20,7 @@ pub struct File {
 	node: CacheHandle,
 	mode: FileOpenMode,
 }
-#[derive(Debug)]
+#[derive(Debug,Clone)]
 /// Directory (for enumeration)
 pub struct Dir {
 	node: CacheHandle,

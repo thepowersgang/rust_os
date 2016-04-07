@@ -43,7 +43,7 @@ struct InputChannel
 	
 	cursor: MouseCursor,
 	
-	last_key_pressed: AtomicValue<KeyCode>,
+	last_key_pressed: AtomicValue<u8>,
 	// TODO: Mutex feels too heavy, but there may be multiple mice on one channel
 	double_click_info: Mutex<MouseClickInfo>,
 }
@@ -87,7 +87,7 @@ impl InputChannel
 			//altgr: ModKeyPair::new(),
 			cursor: MouseCursor::new(),
 			
-			last_key_pressed: AtomicValue::new(KeyCode::None),
+			last_key_pressed: AtomicValue::new(KeyCode::None as u8),
 			double_click_info: Mutex::new(MouseClickInfo::new()),
 			}
 	}
@@ -130,7 +130,7 @@ impl InputChannel
 		// Handle text events
 		// - On key up, translate the keystroke into text (accounting for input state)
 		// TODO: Support repetition?
-		if release && self.last_key_pressed.swap(KeyCode::None, Ordering::Relaxed) == key {
+		if release && self.last_key_pressed.swap(KeyCode::None as u8, Ordering::Relaxed) == key as u8 {
 			super::windows::handle_input( Event::KeyFire(key) );
 
 			// TODO: Should only generate text if no non-shift modifiers are depressed
@@ -145,7 +145,7 @@ impl InputChannel
 		}
 
 		if !release {
-			self.last_key_pressed.store(key, Ordering::Relaxed);
+			self.last_key_pressed.store(key as u8, Ordering::Relaxed);
 		}
 
 		// TODO: Send key combination to active active window

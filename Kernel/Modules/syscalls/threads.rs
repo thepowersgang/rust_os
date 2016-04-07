@@ -26,12 +26,7 @@ impl ::objects::Object for CurProcess
 		{
 		values::CORE_THISPROCESS_RECVOBJ => {
 			let class = try!( <u16>::get_arg(&mut args) );
-			let idx = try!( <usize>::get_arg(&mut args) );
-			Ok( ::objects::get_unclaimed(class, idx) )
-			},
-		values::CORE_THISPROCESS_RECVMSG => {
-			let dest = try!( <FreezeMut<[u8]>>::get_arg(&mut args) );
-			todo!("CORE_THISPROCESS_RECVMSG - {:p}+{}", dest.as_ptr(), dest.len());
+			Ok( ::objects::get_unclaimed(class) )
 			},
 		_ => todo!("CurProcess::handle_syscall({}, ...)", call),
 		}
@@ -43,9 +38,6 @@ impl ::objects::Object for CurProcess
 			::objects::wait_for_obj(obj);
 			ret += 1;
 		}
-		if flags & values::EV_THISPROCESS_RECVMSG != 0 {
-			todo!("EV_THISPROCESS_RECVMSG");
-		}
 		ret
 	}
 	fn clear_wait(&self, flags: u32, obj: &mut ::kernel::threads::SleepObject) -> u32
@@ -54,9 +46,6 @@ impl ::objects::Object for CurProcess
 		if flags & values::EV_THISPROCESS_RECVOBJ != 0 {
 			::objects::clear_wait_for_obj(obj);
 			ret |= values::EV_THISPROCESS_RECVOBJ;
-		}
-		if flags & values::EV_THISPROCESS_RECVMSG != 0 {
-			todo!("EV_THISPROCESS_RECVMSG");
 		}
 		ret
 	}
@@ -99,8 +88,6 @@ pub fn newprocess(name: &str, ip: usize, sp: usize, clone_start: usize, clone_en
 				let handle = try!(<u32>::get_arg(&mut args));
 				::objects::give_object(&self.0, handle).map(|_| 0)
 				},
-			// Send an IPC message to teh child process
-			values::CORE_PROCESS_SENDMSG => todo!("CORE_PROCESS_SENDMSG"),
 			_ => todo!("Process::handle_syscall({}, ...)", call),
 			}
 		}

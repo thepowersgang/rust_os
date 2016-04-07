@@ -128,9 +128,11 @@ fn render_input<T: Terminal>(term: &T, action: input::Action)
 	}
 }
 
-#[derive(Default)]
 struct ShellState
 {
+	/// Root directory handle
+	root_handle: ::syscalls::vfs::Dir,
+
 	/// Current working directory, relative to /
 	cwd_rel: String,
 }
@@ -143,7 +145,10 @@ macro_rules! print {
 impl ShellState
 {
 	pub fn new() -> ShellState {
-		Default::default()
+		ShellState {
+			cwd_rel: Default::default(),
+			root_handle: panic!("TODO: Open/acquire the root directory"),
+			}
 	}
 	/// Handle a command
 	pub fn handle_command<T: Terminal>(&mut self, term: &T, mut cmdline: String)
@@ -170,11 +175,11 @@ impl ShellState
 			if let Some(dir) = args.next()
 			{
 				// TODO: Parse 'dir' as relative correctly
-				command_ls(term, dir);
+				command_ls(term, &self.root_handle, dir);
 			}
 			else
 			{
-				command_ls(term, &format!("/{}", self.cwd_rel));
+				command_ls(term, &self.root_handle, &format!("/{}", self.cwd_rel));
 			},
 		// 'cat' - Dump the contents of a file
 		// TODO: Implement
@@ -195,22 +200,30 @@ impl ShellState
 }
 
 /// List the contents of a directory
-fn command_ls<T: ::Terminal>(term: &T, path: &str)
+fn command_ls<T: ::Terminal>(term: &T, root: &::syscalls::vfs::Dir, path: &str)
 {
 	use syscalls::vfs::{NodeType, Dir, FileOpenMode};
-	let mut handle = match Dir::open(path)
+	let handle = match root.open_child_path(path)
 		{
-		Ok(v) => v,
+		Ok(v) => match v.into_dir()
+			{
+			Ok(v) => v,
+			Err(e) => {
+				print!(term, "Unable to open '{}': {:?}", path, e);
+				return ;
+				},
+			},
 		Err(e) => {
 			print!(term, "Unable to open '{}': {:?}", path, e);
 			return ;
 			},
 		};
+	let mut iter = handle.enumerate().unwrap();
 	
 	let mut buf = [0; 256];
 	loop
 	{
-		let name_bytes = match handle.read_ent(&mut buf)
+		let name_bytes = match iter.read_ent(&mut buf)
 			{
 			Ok(Some(v)) => v,
 			Ok(None) => break,

@@ -10,6 +10,7 @@ use wtk::WindowTrait;
 
 pub struct FileList<'a>
 {
+	root: &'a ::syscalls::vfs::Dir,
 	on_open: Box<Fn(&mut WindowTrait, &Path) + 'a>,
 	on_chdir: Box<Fn(&mut WindowTrait, &Path) + 'a>,
 
@@ -20,9 +21,10 @@ pub struct FileList<'a>
 
 impl<'a> FileList<'a>
 {
-	pub fn new() -> FileList<'a>
+	pub fn new(root: &'a ::syscalls::vfs::Dir) -> FileList<'a>
 	{
 		FileList {
+			root: root,
 			on_open: Box::new(|_,_|()),
 			on_chdir: Box::new(|_,_|()),
 			cur_paths: Default::default(),
@@ -31,10 +33,15 @@ impl<'a> FileList<'a>
 	}
 	
 
-	pub fn populate(&self, dir: &mut ::syscalls::vfs::Dir) {
+	pub fn populate(&self, dir: &::syscalls::vfs::Dir) {
+		let mut iter = match dir.enumerate()
+			{
+			Ok(v) => v,
+			Err(e) => return,
+			};
 		let mut namebuf = [0; 512];
 		self.list.clear();
-		while let Ok(Some(name)) = dir.read_ent(&mut namebuf)
+		while let Ok(Some(name)) = iter.read_ent(&mut namebuf)
 		{
 			self.list.append_item( FileEnt::new(dir, name) );
 		}
@@ -89,7 +96,7 @@ impl<'a> ::wtk::Element for FileList<'a>
 					}
 					v.into()
 					};
-				let nh = match ::syscalls::vfs::Node::open(&*path)
+				let nh = match self.root.open_child_path(&*path)
 					{
 					Ok(v) => v,
 					Err(e) => {

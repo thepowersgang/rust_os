@@ -31,6 +31,14 @@ enum ViewerMode {
 fn main()
 {
 	::wtk::initialise();
+	let mut file: ::syscalls::vfs::File = match ::syscalls::threads::S_THIS_PROCESS.receive_object()
+		{
+		Ok(v) => v,
+		Err(e) => {
+			kernel_log!("TOOD: Handle open error in fileviewer - {:?}", e);
+			return ;
+			},
+		};
 
 	for a in ::std::env::args_os() {
 		kernel_log!("arg = {:?}", a);
@@ -40,15 +48,6 @@ fn main()
 	let path = args.next();
 	let path: Option<&::std::ffi::OsStr> = path.as_ref().map(|x| x.as_ref());
 	let path = path.unwrap_or( ::std::ffi::OsStr::new(b"/sysroot/bin/fileviewer") );
-	
-	let mut file = match ::syscalls::vfs::File::open(path, ::syscalls::vfs::FileOpenMode::ReadOnly)
-		{
-		Ok(v) => v,
-		Err(e) => {
-			kernel_log!("TOOD: Handle open error in fileviewer - {:?}", e);
-			return ;
-			},
-		};
 
 
 	// 1. Read a few lines and check if they're valid UTF-8 (just scanning)

@@ -9,6 +9,8 @@ pub struct Node(super::ObjectHandle);
 pub struct File(super::ObjectHandle, u64);
 /// Directory handle
 pub struct Dir(super::ObjectHandle);
+/// Directory iterator
+pub struct DirIter(::ObjectHandle);
 /// Symbolic link
 pub struct Symlink(super::ObjectHandle);
 
@@ -29,15 +31,6 @@ fn to_result(val: usize) -> Result<u32, Error> {
 
 impl Node
 {
-	/// Open an arbitary node
-	#[inline]
-	pub fn open<T: AsRef<[u8]>>(path: T) -> Result<Node, Error> {
-		let path = path.as_ref();
-		// SAFE: Syscall
-		to_obj( unsafe { syscall!(VFS_OPENNODE, path.as_ptr() as usize, path.len()) } as usize )
-			.map(|h| Node(h))
-	}
-
 	/// Query the class/type of the node
 	#[inline]
 	pub fn class(&self) -> NodeType {
@@ -81,15 +74,6 @@ impl ::Object for Node {
 
 impl File
 {
-	/// Open a file with the provided mode
-	#[inline]
-	pub fn open<T: AsRef<[u8]>>(path: T, mode: FileOpenMode) -> Result<File,Error> {
-		let path = path.as_ref();
-		// SAFE: Syscall
-		to_obj( unsafe { syscall!(VFS_OPENFILE, path.as_ptr() as usize, path.len(), Into::<u8>::into(mode) as usize) } as usize )
-			.map(|h| File(h, 0))
-	} 
-	
 	/// Query the size of the file
 	#[inline]
 	pub fn get_size(&self) -> u64 {
@@ -151,28 +135,13 @@ impl ::Object for File {
 
 impl Dir
 {
-	/// Open a directory for iteration
-	#[inline]
-	pub fn open<T: ?Sized+AsRef<[u8]>>(path: &T) -> Result<Dir, Error> {
-		let path = path.as_ref();
+	/// Obtain a handle to enumerate the contents of the directory
+	pub fn enumerate(&self) -> Result<DirIter, Error> {
 		// SAFE: Syscall
-		match super::ObjectHandle::new( unsafe { syscall!(VFS_OPENDIR, path.as_ptr() as usize, path.len()) } as usize )
+		match super::ObjectHandle::new( unsafe { self.0.call_0(::values::VFS_DIR_ENUMERATE) } as usize )
 		{
-		Ok(rv) => Ok( Dir(rv) ),
+		Ok(rv) => Ok( DirIter(rv) ),
 		Err(code) => Err( From::from(code) ),
-		}
-	}
-
-	/// Obtain the name of the next entry in the directory
-	#[inline]
-	pub fn read_ent<'a>(&mut self, namebuf: &'a mut [u8]) -> Result<Option<&'a [u8]>, Error> {
-		// SAFE: Syscall
-		let len = try!(to_result(unsafe { self.0.call_2(::values::VFS_DIR_READENT, namebuf.as_ptr() as usize, namebuf.len()) } as usize ));
-		if len > 0 {
-			Ok( Some( &namebuf[ .. len as usize] ) )
-		}
-		else {
-			Ok(None)
 		}
 	}
 
@@ -182,6 +151,18 @@ impl Dir
 		let name = name.as_ref();
 		// SAFE: Syscall
 		match super::ObjectHandle::new( unsafe { self.0.call_2(::values::VFS_DIR_OPENCHILD, name.as_ptr() as usize, name.len()) } as usize )
+		{
+		Ok(rv) => Ok( Node(rv) ),
+		Err(code) => Err( From::from(code) ),
+		}
+	}
+
+	/// Open a path relative to this directory
+	#[inline]
+	pub fn open_child_path<P: ?Sized+AsRef<[u8]>>(&self, path: &P) -> Result<Node, Error> {
+		let name = path.as_ref();
+		// SAFE: Syscall
+		match super::ObjectHandle::new( unsafe { self.0.call_2(::values::VFS_DIR_OPENPATH, name.as_ptr() as usize, name.len()) } as usize )
 		{
 		Ok(rv) => Ok( Node(rv) ),
 		Err(code) => Err( From::from(code) ),
@@ -200,18 +181,36 @@ impl ::Object for Dir {
 	type Waits = ();
 }
 
+impl DirIter
+{
+	/// Obtain the name of the next entry in the directory
+	#[inline]
+	pub fn read_ent<'a>(&mut self, namebuf: &'a mut [u8]) -> Result<Option<&'a [u8]>, Error> {
+		// SAFE: Syscall
+		let len = try!(to_result(unsafe { self.0.call_2(::values::VFS_DIRITER_READENT, namebuf.as_ptr() as usize, namebuf.len()) } as usize ));
+		if len > 0 {
+			Ok( Some( &namebuf[ .. len as usize] ) )
+		}
+		else {
+			Ok(None)
+		}
+	}
+}
+impl ::Object for DirIter {
+	const CLASS: u16 = ::values::CLASS_VFS_DIRITER;
+	fn class() -> u16 { Self::CLASS }
+	fn from_handle(handle: ::ObjectHandle) -> Self {
+		DirIter(handle)
+	}
+	fn into_handle(self) -> ::ObjectHandle { self.0 }
+	fn handle(&self) -> &::ObjectHandle { &self.0 }
+
+	type Waits = ();
+}
+
 
 impl Symlink
 {
-	/// Open a symbolic link
-	#[inline]
-	pub fn open<T: AsRef<[u8]>>(path: T) -> Result<Symlink, Error> {
-		let path = path.as_ref();
-		// SAFE: Syscall
-		to_obj( unsafe { syscall!(VFS_OPENLINK, path.as_ptr() as usize, path.len()) } as usize )
-			.map(|h| Symlink(h))
-	}
-
 	/// Read the target path from the link
 	///
 	/// If the buffer is not long enough, the return value is truncated.

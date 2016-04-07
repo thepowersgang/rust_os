@@ -10,11 +10,7 @@ impl File
 {
 	pub fn open<P: AsRef<Path>>(path: P) -> ::io::Result<File> {
 		let p = path.as_ref();
-		match ::syscalls::vfs::File::open(p, ::syscalls::vfs::FileOpenMode::ReadOnly)
-		{
-		Ok(f) => Ok( File(f) ),
-		Err(e) => Err( From::from(e) ),
-		}
+		Ok( File(super::Node::open(p)?.into_file()?) )
 	}
 }
 

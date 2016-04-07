@@ -22,7 +22,6 @@ pub static S_THIS_PROCESS: ThisProcess = ThisProcess;//( ::ObjectHandle(0) );
 
 define_waits!{ ThisProcessWaits => (
 	recv_obj:has_recv_obj = ::values::EV_THISPROCESS_RECVOBJ,
-	recv_msg:has_recv_msg = ::values::EV_THISPROCESS_RECVMSG,
 )}
 
 /// 
@@ -37,28 +36,15 @@ impl ThisProcess
 	}
 	#[inline]
 	/// Obtain the 'n'th unclaimed object of the specifed type
-	pub fn receive_object<T: ::Object>(&self, idx: usize) -> Result<T, ()> {
+	pub fn receive_object<T: ::Object>(&self) -> Result<T, ()> {
 		self.with_obj(|obj| 
 			// SAFE: Syscall
-			match super::ObjectHandle::new( unsafe { obj.call_2(::values::CORE_THISPROCESS_RECVOBJ, T::class() as usize, idx) } as usize )
+			match super::ObjectHandle::new( unsafe { obj.call_1(::values::CORE_THISPROCESS_RECVOBJ, T::class() as usize) } as usize )
 			{
 			Ok(v) => Ok(T::from_handle(v)),
 			Err(e) => panic!("receive_object error {}", e),
 			}
 		)
-	}
-
-	#[inline]
-	pub fn recv_msg(&self, data: &mut [u8]) -> Option<(usize, u32)> {
-		// SAFE: Syscall
-		let rv = unsafe { self.with_obj(|obj| obj.call_2(::values::CORE_THISPROCESS_RECVMSG, data.as_ptr() as usize, data.len())) };
-		if rv == 0 {
-			None
-		}
-		else {
-			let (id, size) = ((rv >> 32) as u32, (rv & 0xFFFFFFFF) as u32);
-			Some( (size as usize, id) )
-		}
 	}
 }
 impl ::Object for ThisProcess {
@@ -79,6 +65,7 @@ impl ::Object for ThisProcess {
 
 define_waits!{ ProcessWaits => (
 	terminate:get_terminate = ::values::EV_PROCESS_TERMINATED,
+	can_send:get_can_send = ::values::EV_PROCESS_OBJECTFREE,
 )}
 pub struct Process(::ObjectHandle);
 impl Process {
@@ -92,11 +79,6 @@ impl Process {
 		let oh = obj.into_handle().into_raw();
 		// SAFE: Syscall
 		unsafe { self.0.call_1(::values::CORE_PROCESS_SENDOBJ, oh as usize); }
-	}
-	#[inline]
-	pub fn send_msg(&self, id: u32, data: &[u8]) {
-		// SAFE: Syscall
-		unsafe { self.0.call_3(::values::CORE_PROCESS_SENDMSG, id as usize, data.as_ptr() as usize, data.len()); }
 	}
 
 	#[inline]

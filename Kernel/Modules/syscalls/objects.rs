@@ -169,44 +169,17 @@ pub fn new_object<T: Object+'static>(val: T) -> u32
 }
 
 /// Grab the 'n'th unclaimed object of the specified class
-pub fn get_unclaimed(class: u16, idx: usize) -> u64
+pub fn get_unclaimed(class: u16) -> u64
 {
-	let objs = get_process_local::<ProcessObjects>();
+	let objs = get_process_local::<ObjectQueue>();
 
-	let mut cur_idx = 0;
-	for (i, ent) in objs.iter().enumerate()
-	{
-		let found = if let Some(ref v) = *ent.read()
-			{
-				if v.data.class() == class && v.unclaimed {
-					if cur_idx == idx {
-						true
-					}
-					else {
-						cur_idx += 1;
-						false
-					}
-				}
-				else {
-					false
-				}
-			}
-			else {
-				false
-			};
-		if found
-		{
-			if let Some(ref mut v) = *ent.write()
-			{
-				if v.data.class() == class && v.unclaimed {
-					v.unclaimed = false;
-					return super::from_result::<u32,u32>( Ok(i as u32) );
-				}
-			}
-			break;
-		}
+	let mut lh = objs.objects.lock();
+	if let Some(id) = lh.pop() {
+		super::from_result::<u32,u32>( Ok(id as u32) )
 	}
-	super::from_result::<u32,u32>( Err(0) )
+	else {
+		super::from_result::<u32,u32>( Err(0) )
+	}
 }
 
 #[inline(never)]
@@ -235,19 +208,19 @@ pub fn clear_wait(handle: u32, mask: u32, sleeper: &mut ::kernel::threads::Sleep
 struct ObjectQueue
 {
 	event: ::kernel::async::event::Source,
+	//objects: ::kernel::sync::Mutex< [u32; 4] >,
+	objects: ::kernel::sync::Mutex< Vec<u32> >,
 	//event: ::kernel::async::Semaphore,
 }
 
 /// Give the target process the object specified by `handle`
 pub fn give_object(target: &::kernel::threads::ProcessHandle, handle: u32) -> Result<(),super::Error> {
 	let target_queue = target.get_process_local::<ObjectQueue>().expect("TODO: Handle no queue");
-	let target_objs = target.get_process_local::<ProcessObjects>().expect("TODO: Handle no queue");
-	if ! target_objs.iter().any(|x| x.read().is_none()) {
-		return Err(super::Error::TooManyObjects);
-	}
+	let target_list = target.get_process_local::<ProcessObjects>().expect("TODO: Handle no queue");
 	log_debug!("give_object(target={:?}, handle={:?})", target, handle);
 	let obj = try!(get_process_local::<ProcessObjects>().take_object(handle));
-	try!( target_objs.find_and_fill_slot(|| UserObject::sent(obj)) );
+	let id = try!( target_list.find_and_fill_slot(|| UserObject { unclaimed: false, data: obj }) );
+	target_queue.objects.lock().push( id );
 	target_queue.event.trigger();
 	Ok( () )
 }

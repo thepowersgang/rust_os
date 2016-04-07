@@ -13,7 +13,7 @@ use syscalls::vfs::{NodeType,FileOpenMode};
 
 fn main()
 {
-	let root = Dir::open("/").unwrap();
+	let root: Dir = ::syscalls::threads::S_THIS_PROCESS.receive_object().unwrap();
 
 	let mut buffer = [0; 256];
 	dump_dir(0, root, &mut buffer);
@@ -31,11 +31,12 @@ impl<T: ::std::fmt::Display> ::std::fmt::Display for Repeat<T> {
 	}
 }
 
-fn dump_dir(level: usize, mut handle: Dir, buffer: &mut [u8])
+fn dump_dir(level: usize, handle: Dir, buffer: &mut [u8])
 {
+	let mut dir_iter = handle.enumerate().unwrap();
 	loop
 	{
-		let node_res = match handle.read_ent(buffer)
+		let node_res = match dir_iter.read_ent(buffer)
 			{
 			Ok(Some(name)) => {
 				if name == b"." || name == b".." {

@@ -29,10 +29,13 @@ pub extern "C" fn new_process(binary: &[u8], args: &[&[u8]]) -> Result<::syscall
 		static LIMIT: [u8; 0];
 		static init_stack_end: [u8; 0];
 		
+		// NOTE: References the same symbol as above, but mutable
 		static mut arg_count: u32;
 	}
 	
 	kernel_log!("new_process({:?}, ...)", ::std::ffi::OsStr::new(binary));
+
+	let executable_handle: ::syscalls::vfs::File = todo!("Open '{:?}' from root", ::std::ffi::OsStr::new(binary));
 	
 	// Lock loader until after 'start_process', allowing global memory to be used as buffer for binary and arguments
 	// - After start_process, we can safely release and reuse the memory (becuase this space is cloned into the new process)
@@ -43,14 +46,17 @@ pub extern "C" fn new_process(binary: &[u8], args: &[&[u8]]) -> Result<::syscall
 	unsafe {
 		arg_count = (args.len() + 1) as u32;
 	}
-	let buf_end = init_path_end.as_ptr() as usize;
-	let buf_start = init_path.as_ptr() as usize;
-	let len = buf_end - buf_start;
-	assert!(buf_end > buf_start, "Init path symbols out of order: init_path_end({:#x}) !> init_path({:#x})", buf_end, buf_start );
 	// SAFE: Locked (so access is unique), and pointers are valid
-	let buf = unsafe { ::std::slice::from_raw_parts_mut(buf_start as *mut u8, len) };
+	let buf = unsafe {
+		let buf_end = init_path_end.as_ptr() as usize;
+		let buf_start = init_path.as_ptr() as usize;
+		let len = buf_end - buf_start;
+		assert!(buf_end > buf_start, "Init path symbols out of order: init_path_end({:#x}) !> init_path({:#x})", buf_end, buf_start );
+		
+		::std::slice::from_raw_parts_mut(buf_start as *mut u8, len)
+		};
 	let mut builder = NullStringBuilder( buf );
-	try!( builder.push(binary) );
+	builder.push( binary );
 	for arg in args {
 		try!( builder.push(arg) );
 	}
@@ -61,6 +67,8 @@ pub extern "C" fn new_process(binary: &[u8], args: &[&[u8]]) -> Result<::syscall
 	{
 	Ok(v) => {
 		kernel_log!("new_process - spawned");
+		// Send the executable handle
+		v.send_obj( executable_handle );
 		Ok( v )
 		},
 	Err(e) => panic!("TODO: new_process - Error '{:?}'", e),
@@ -94,8 +102,8 @@ fn new_process_entry() -> !
 	
 	
 	
-	
-	let entrypoint = ::load_binary(binary);
+	let fh: ::syscalls::vfs::File = ::syscalls::threads::S_THIS_PROCESS.receive_object().expect("Could not receive the executable vfs::File object");
+	let entrypoint = ::load_binary(binary, fh);
 	
 	// TODO: Coordinate with the parent process and receive an initial set of objects (e.g. WM root)?
 	// - Could possibly leave this up to user code, or at least std

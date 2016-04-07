@@ -88,12 +88,6 @@ fn to_result<T>(r: Result<T, ::kernel::vfs::Error>) -> Result<T, u32> {
 //
 // --------------------------------------------------------------------
 
-/// Open a bare file
-#[inline(never)]
-pub fn opennode(path: &[u8]) -> Result<ObjectHandle,u32> {
-	to_result( handle::Any::open( Path::new(path) ) )
-		.map( |h| objects::new_object(Node(h)) )
-}
 struct Node( handle::Any );
 impl objects::Object for Node
 {
@@ -140,15 +134,6 @@ impl objects::Object for Node
 //
 // --------------------------------------------------------------------
 
-#[inline(never)]
-pub fn openfile(path: &[u8], mode: u8) -> Result<ObjectHandle,u32> {
-	
-	let mode: handle::FileOpenMode = ::values::VFSFileOpenMode::from(mode).into();
-	let path = Path::new(path);
-	log_trace!("openfile({:?}, mode={:?})", path, mode);
-	to_result( handle::File::open(path, mode) )
-		.map( |h| objects::new_object(File(h)) )
-}
 struct File(::kernel::vfs::handle::File);
 impl objects::Object for File
 {
@@ -220,25 +205,13 @@ impl objects::Object for File
 //
 // --------------------------------------------------------------------
 
-#[inline(never)]
-pub fn opendir(path: &[u8]) -> Result<ObjectHandle,u32>
-{
-	to_result( handle::Dir::open(::kernel::vfs::Path::new(path)) )
-		.map(|h| objects::new_object(Dir::new(h)) )
-}
-
 struct Dir {
 	handle: ::kernel::vfs::handle::Dir,
-	inner: ::kernel::sync::Mutex<DirInner>,
 }
 impl Dir {
 	fn new(handle: ::kernel::vfs::handle::Dir) -> Dir {
 		Dir {
 			handle: handle,
-			inner: ::kernel::sync::Mutex::new( DirInner {
-				lower_ofs: 0,
-				cache: Default::default(),
-				} )
 		}
 	}
 }
@@ -251,7 +224,51 @@ impl objects::Object for Dir
 	fn handle_syscall(&self, call: u16, mut args: &[usize]) -> Result<u64,Error> {
 		Ok(match call
 		{
-		values::VFS_DIR_READENT => {
+		values::VFS_DIR_OPENCHILD => {
+			let name = try!(<Freeze<[u8]>>::get_arg(&mut args));
+			super::from_result(
+				to_result( self.handle.open_child( ::kernel::lib::byte_str::ByteStr::new(&*name) ) )
+					.map( |h| objects::new_object(Node(h)) )
+				)
+			},
+		values::VFS_DIR_OPENPATH => {
+			//let name = try!(<Freeze<[u8]>>::get_arg(&mut args));
+			todo!("Dir::handle_syscall - VFS_DIR_OPENPATH");
+			},
+		values::VFS_DIR_ENUMERATE => {
+			objects::new_object( DirIter::new( self.handle.clone() ) ) as u64
+			},
+		_ => todo!("Dir::handle_syscall({}, ...)", call),
+		})
+	}
+	fn bind_wait(&self, _flags: u32, _obj: &mut ::kernel::threads::SleepObject) -> u32 { 0 }
+	fn clear_wait(&self, _flags: u32, _obj: &mut ::kernel::threads::SleepObject) -> u32 { 0 }
+}
+
+struct DirIter {
+	handle: ::kernel::vfs::handle::Dir,
+	inner: ::kernel::sync::Mutex<DirInner>,
+}
+impl DirIter {
+	fn new(handle: ::kernel::vfs::handle::Dir) -> DirIter {
+		DirIter {
+			handle: handle,
+			inner: ::kernel::sync::Mutex::new( DirInner {
+				lower_ofs: 0,
+				cache: Default::default(),
+				} )
+		}
+	}
+}
+impl objects::Object for DirIter
+{
+	const CLASS: u16 = values::CLASS_VFS_DIRITER;
+	fn class(&self) -> u16 { Self::CLASS }
+	fn as_any(&self) -> &Any { self }
+	fn handle_syscall(&self, call: u16, mut args: &[usize]) -> Result<u64,Error> {
+		Ok(match call
+		{
+		values::VFS_DIRITER_READENT => {
 			let mut name = try!(<FreezeMut<[u8]>>::get_arg(&mut args));
 			super::from_result( match self.inner.lock().read_ent(&self.handle)
 				{
@@ -262,13 +279,6 @@ impl objects::Object for Dir
 					Ok(s.len() as u32)
 					},
 				})
-			},
-		values::VFS_DIR_OPENCHILD => {
-			let name = try!(<Freeze<[u8]>>::get_arg(&mut args));
-			super::from_result(
-				to_result( self.handle.open_child( ::kernel::lib::byte_str::ByteStr::new(&*name) ) )
-					.map( |h| objects::new_object(Node(h)) )
-				)
 			},
 		_ => todo!("Dir::handle_syscall({}, ...)", call),
 		})
@@ -338,13 +348,6 @@ impl DirEntCache {
 // --------------------------------------------------------------------
 //
 // --------------------------------------------------------------------
-
-#[inline(never)]
-pub fn openlink(path: &[u8]) -> Result<ObjectHandle,u32>
-{
-	to_result( handle::Symlink::open(::kernel::vfs::Path::new(path)) )
-		.map(|h| objects::new_object(Link(h)) )
-}
 
 struct Link(handle::Symlink);
 impl objects::Object for Link
