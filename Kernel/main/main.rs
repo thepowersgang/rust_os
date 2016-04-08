@@ -207,6 +207,7 @@ fn spawn_init(loader_path: &str, init_cmdline: &str) -> Result<::kernel::Void, &
 	// - Load the loader into memory
 	let (header_ptr, memsize) = try!( load_loader(&loader) );
 
+	// - Populate argument region and return size written
 	// SAFE: Addresses are checked
 	let argslen = unsafe {
 		let init_path_ofs = header_ptr.init_path_ofs as usize;
@@ -312,7 +313,7 @@ enum ArchValues {
 #[cfg(arch="amd64")]	const ARCH: ArchValues = ArchValues::AMD64;
 #[cfg(arch="amd64")]	const LOAD_MAX: usize = 1 << 47;
 #[cfg(arch="armv7")]	const ARCH: ArchValues = ArchValues::ARMv7;
-#[cfg(arch="armv7")]	const LOAD_MAX: usize = (1 << 31) - (4 << 20);
+#[cfg(arch="armv7")]	const LOAD_MAX: usize = (1 << 31) - (4 << 20);	// Leave 4MB for the kernel to control within the user table
 #[cfg(target_pointer_width="64")]	const USIZE_BYTES: u32 = 8;
 #[cfg(target_pointer_width="32")]	const USIZE_BYTES: u32 = 4;
 const MAGIC: u32 = 0x71FF1013;

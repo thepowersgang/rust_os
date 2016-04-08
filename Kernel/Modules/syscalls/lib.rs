@@ -46,7 +46,9 @@ impl From<FreezeError> for Error {
 
 /// Initialise PID0's handles
 pub fn init(loader_handle: ::kernel::vfs::handle::File, init_handle: ::kernel::vfs::handle::File) {
-
+	todo!("Put file handles into PID0's table");
+	// - Hand over loader+init handles (fixed as objects 0 and 1)
+	// - Open root RW handle
 }
 
 #[no_mangle]

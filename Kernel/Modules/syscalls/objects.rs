@@ -44,14 +44,12 @@ pub type ObjectAlloc = StackDST<Object>;
 
 struct UserObject
 {
-	unclaimed: bool,
 	data: ObjectAlloc,
 }
 
 impl UserObject {
 	fn new<T: Object+'static>(v: T) -> Self {
 		UserObject {
-			unclaimed: false,
 			data: match StackDST::new(v)
 				{
 				Ok(v) => v,
@@ -60,12 +58,6 @@ impl UserObject {
 					StackDST::new(Box::new(v)).ok().unwrap()
 					},
 				},
-		}
-	}
-	fn sent(obj: ObjectAlloc) -> Self {
-		UserObject {
-			unclaimed: true,
-			data: obj,
 		}
 	}
 }
@@ -168,18 +160,38 @@ pub fn new_object<T: Object+'static>(val: T) -> u32
 	get_process_local::<ProcessObjects>().find_and_fill_slot(|| UserObject::new(val)).unwrap_or(!0)
 }
 
-/// Grab the 'n'th unclaimed object of the specified class
+/// Grab an unclaimed object (checking the class)
 pub fn get_unclaimed(class: u16) -> u64
 {
-	let objs = get_process_local::<ObjectQueue>();
+	let queue = get_process_local::<ObjectQueue>();
 
-	let mut lh = objs.objects.lock();
-	if let Some(id) = lh.pop() {
-		super::from_result::<u32,u32>( Ok(id as u32) )
-	}
-	else {
-		super::from_result::<u32,u32>( Err(0) )
-	}
+	let mut lh = queue.objects.lock();
+	let rv = 
+		if let Some(id) = lh.pop() {
+			let objs = get_process_local::<ProcessObjects>();
+			let slot = match objs.get(id)
+				{
+				Some(v) => v,
+				None => todo!("return error when object in queue doesn't exist (user may have dropped it)"),
+				};
+			let mut lh = slot.write();
+			if lh.is_none() {
+				log_notice!("Object didn't exist");
+				Err(2)
+			}
+			else if lh.as_ref().map(|x| x.data.class()) == Some(class) {
+				Ok(id as u32)
+			}
+			else {
+				log_notice!("Object was the wrong class");
+				*lh = None;
+				Err(1)
+			}
+		}
+		else {
+			Err(0)
+		};
+	super::from_result::<u32,u32>( rv )
 }
 
 #[inline(never)]
@@ -219,7 +231,7 @@ pub fn give_object(target: &::kernel::threads::ProcessHandle, handle: u32) -> Re
 	let target_list = target.get_process_local::<ProcessObjects>().expect("TODO: Handle no queue");
 	log_debug!("give_object(target={:?}, handle={:?})", target, handle);
 	let obj = try!(get_process_local::<ProcessObjects>().take_object(handle));
-	let id = try!( target_list.find_and_fill_slot(|| UserObject { unclaimed: false, data: obj }) );
+	let id = try!( target_list.find_and_fill_slot(|| UserObject { data: obj }) );
 	target_queue.objects.lock().push( id );
 	target_queue.event.trigger();
 	Ok( () )

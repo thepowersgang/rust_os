@@ -6,7 +6,7 @@
 use kernel::prelude::*;
 
 use kernel::memory::freeze::{Freeze,FreezeMut};
-use super::{objects,ObjectHandle};
+use super::objects;
 use super::values;
 use super::Error;
 use super::SyscallArg;
@@ -232,8 +232,9 @@ impl objects::Object for Dir
 				)
 			},
 		values::VFS_DIR_OPENPATH => {
-			//let name = try!(<Freeze<[u8]>>::get_arg(&mut args));
-			todo!("Dir::handle_syscall - VFS_DIR_OPENPATH");
+			let path = try!(<Freeze<[u8]>>::get_arg(&mut args));
+			let path = Path::new(&path);
+			todo!("Dir::handle_syscall - VFS_DIR_OPENPATH(path={:?})", path);
 			},
 		values::VFS_DIR_ENUMERATE => {
 			objects::new_object( DirIter::new( self.handle.clone() ) ) as u64
