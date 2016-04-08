@@ -31,7 +31,7 @@ fn_getdeps = $(shell cat $1 | sed -nr 's/.*extern crate ([a-zA-Z_0-9]+);/\1/p' |
 fn_moddeps = $(filter-out core kernel,$(call fn_getdeps,Modules/$1/lib.rs))
 uniq = $(eval seen :=) $(foreach _,$1,$(if $(filter $_,${seen}),,$(eval seen += $_))) ${seen}
 
-OBJS := start.ao $(MODS:%=%.o) libkernel.rlib libcore.rlib
+OBJS := start.ao main.o $(MODS:%=%.o) libkernel.rlib libcore.rlib
 EOBJS := $(foreach m,$(MODS), $(addsuffix .o,$(call fn_moddeps,$m)) )
 OBJS += $(EOBJS)
 OBJS := $(shell echo $(call uniq, $(OBJS)))
@@ -192,6 +192,11 @@ $(OBJDIR)%.ao: Core/arch/$(ARCH)/%.S
 	@echo [AS] -o $@
 	@mkdir -p $(dir $@)
 	$V$(CC) -o $@ -c $<
+
+$(OBJDIR)main.o: main/main.rs $(OBJDIR)libkernel.rlib $(OBJDIR)libcore.rlib $(OBJDIR)libsyscalls.rlib
+	@echo [RUSTC] -o $@
+	@mkdir -p $(dir $@)
+	$V$(ENV) $(RUSTC) $(RUSTFLAGS) --emit=obj,dep-info --out-dir $(dir $@) $<
 
 # - Kernel Core
 $(OBJDIR)libkernel.rlib: Core/main.rs $(OBJDIR)libcore.rlib $(TARGET_FILE) ../Graphics/logo.rs $(IMGDIR)panic.rs bin/plugins/libtag_safe.so $(LIBS)

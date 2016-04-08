@@ -44,6 +44,11 @@ impl From<FreezeError> for Error {
 	fn from(_v: FreezeError) -> Self { Error::BorrowFailure }
 }
 
+/// Initialise PID0's handles
+pub fn init(loader_handle: ::kernel::vfs::handle::File, init_handle: ::kernel::vfs::handle::File) {
+
+}
+
 #[no_mangle]
 pub unsafe extern "C" fn syscalls_handler(id: u32, first_arg: *const usize, count: u32) -> u64
 {
