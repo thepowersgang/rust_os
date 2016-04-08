@@ -114,3 +114,7 @@ pub mod error;
 pub use collections::{vec, string, borrow};
 //pub mod vec;
 //pub mod string;
+
+
+pub mod os;
+
