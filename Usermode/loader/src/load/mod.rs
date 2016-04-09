@@ -51,6 +51,7 @@ pub fn lookup_symbol(name: &::std::ffi::OsStr) -> Option<(usize, usize)> {
 	match name.as_bytes()
 	{
 	b"new_process" => Some( (::interface::new_process as usize, 0) ),
+	b"start_process" => Some( (::interface::start_process as usize, 0) ),
 	_ => todo!("lookup_symbol({:?})", name),
 	}
 }

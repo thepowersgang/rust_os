@@ -21,7 +21,6 @@ pub fn exit_thread() -> ! {
 pub static S_THIS_PROCESS: ThisProcess = ThisProcess;//( ::ObjectHandle(0) );
 
 define_waits!{ ThisProcessWaits => (
-	recv_obj:has_recv_obj = ::values::EV_THISPROCESS_RECVOBJ,
 )}
 
 /// 
@@ -63,9 +62,53 @@ impl ::Object for ThisProcess {
 	}
 }
 
+
+#[inline]
+pub fn start_process(name: &str,  clone_start: usize, clone_end: usize) -> Result<ProtoProcess,()> {
+	// SAFE: Syscall
+	let rv = unsafe { syscall!(CORE_STARTPROCESS, name.as_ptr() as usize, name.len(),  clone_start, clone_end) };
+	match ::ObjectHandle::new(rv as usize)
+	{
+	Ok(v) => Ok( ProtoProcess(v) ),
+	Err(_e) => Err( () ),
+	}
+}
+
+pub struct ProtoProcess(::ObjectHandle);
+impl ::Object for ProtoProcess {
+	const CLASS: u16 = ::values::CLASS_CORE_PROTOPROCESS;
+	fn class() -> u16 { Self::CLASS }
+	fn from_handle(handle: ::ObjectHandle) -> Self {
+		ProtoProcess(handle)
+	}
+	fn into_handle(self) -> ::ObjectHandle {
+		self.0
+	}
+	fn handle(&self) -> &::ObjectHandle {
+		&self.0
+	}
+
+	type Waits = ();
+}
+impl ProtoProcess
+{
+	#[inline]
+	pub fn send_obj<O: ::Object>(&self, obj: O) {
+		let oh = obj.into_handle().into_raw();
+		// SAFE: Syscall
+		unsafe { self.0.call_1(::values::CORE_PROTOPROCESS_SENDOBJ, oh as usize); }
+	}
+ 
+ 	#[inline]
+	pub fn start(self, entry: usize, stack: usize) -> Process {
+		// SAFE: Syscall
+		let rv = unsafe { self.0.call_2_v(::values::CORE_PROTOPROCESS_START, entry, stack) };
+		Process( ::ObjectHandle::new(rv as usize).expect("Error erturned from CORE_PROTOPROCESS_START - unexpected") )
+	}
+}
+
 define_waits!{ ProcessWaits => (
 	terminate:get_terminate = ::values::EV_PROCESS_TERMINATED,
-	can_send:get_can_send = ::values::EV_PROCESS_OBJECTFREE,
 )}
 pub struct Process(::ObjectHandle);
 impl Process {
@@ -73,12 +116,6 @@ impl Process {
 	pub fn terminate(&self) {
 		// SAFE: Syscall
 		unsafe { self.0.call_0(::values::CORE_PROCESS_KILL); }
-	}
-	#[inline]
-	pub fn send_obj<O: ::Object>(&self, obj: O) {
-		let oh = obj.into_handle().into_raw();
-		// SAFE: Syscall
-		unsafe { self.0.call_1(::values::CORE_PROCESS_SENDOBJ, oh as usize); }
 	}
 
 	#[inline]
@@ -96,17 +133,6 @@ impl ::Object for Process {
 	fn handle(&self) -> &::ObjectHandle { &self.0 }
 	
 	type Waits = ProcessWaits;
-}
-
-#[inline]
-pub fn start_process(name: &str, entry: usize, stack: usize,  clone_start: usize, clone_end: usize) -> Result<Process,()> {
-	// SAFE: Syscall
-	let rv = unsafe { syscall!(CORE_STARTPROCESS, name.as_ptr() as usize, name.len(), entry, stack, clone_start, clone_end) };
-	match ::ObjectHandle::new(rv as usize)
-	{
-	Ok(v) => Ok( Process(v) ),
-	Err(_e) => Err( () ),
-	}
 }
 
 #[inline]

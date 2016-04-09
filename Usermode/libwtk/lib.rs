@@ -111,8 +111,6 @@ pub use text::Label;
 /// Initialise the WTK library with a window group handle sent by the parent process
 pub fn initialise()
 {
-	use syscalls::Object;
-	use syscalls::threads::{S_THIS_PROCESS,ThisProcessWaits};
-	::syscalls::threads::wait(&mut [S_THIS_PROCESS.get_wait(ThisProcessWaits::new().recv_obj())], !0);
+	use syscalls::threads::S_THIS_PROCESS;
 	::syscalls::gui::set_group( S_THIS_PROCESS.receive_object().unwrap() );
 }

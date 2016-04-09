@@ -7,6 +7,11 @@ use core::cell::UnsafeCell;
 use core::marker::{Send,Sync};
 use core::ops;
 
+macro_rules! trace_type {
+	//($t:ty) => { false };
+	($t:ty) => { type_name!(T) == "core::option::Option<objects::UserObject>" };
+}
+
 /// Reader-writer lock
 pub struct RwLock<T: Send+Sync>
 {
@@ -59,39 +64,82 @@ impl<T: Send+Sync> RwLock<T>
 		if lh.reader_count < 0
 		{
 			// A writer is active, sleep until it's done
-			log_trace!("RwLock::read() - Wait on writer active");
+			log_trace!("RwLock<{}>::read({:p}) - Wait on writer release", type_name!(T), self);
 			//lh.reader_queue.wait(lh);
 			waitqueue_wait_ext!(lh, .reader_queue);
 		}
 		else if lh.writer_queue.has_waiter()
 		{
 			// A writer is waiting, sleep until it's done
-			log_trace!("RwLock::read() - Wait on writer acquire");
+			log_trace!("RwLock<{}>::read({:p}) - Wait on writer acquire", type_name!(T), self);
 			//lh.reader_queue.wait(lh);
 			waitqueue_wait_ext!(lh, .reader_queue);
 		}
 		else
 		{
 			// Increment reader count and return success
+			if trace_type!(T) {
+				log_trace!("RwLock<{}>::read({:p}) - ACQUIRED", type_name!(T), self);
+			}
 			lh.reader_count += 1;
 		}
 		return Read { _lock: self }
+	}
+	pub fn try_read<'a>(&'a self) -> Option<Read<'a, T>> {
+		let mut lh = self.inner.lock();
+		if lh.reader_count < 0
+		{
+			// A writer is active
+			None
+		}
+		else if lh.writer_queue.has_waiter()
+		{
+			// A writer is waiting
+			None
+		}
+		else
+		{
+			// Increment reader count and return success
+			if trace_type!(T) {
+				log_trace!("RwLock<{}>::read({:p}) - ACQUIRED", type_name!(T), self);
+			}
+			lh.reader_count += 1;
+			Some(Read { _lock: self })
+		}
 	}
 	/// Obtain a write (unique) handle
 	pub fn write<'a>(&'a self) -> Write<'a, T> {
 		let mut lh = self.inner.lock();
 		if lh.reader_count != 0
 		{
-			log_trace!("RwLock::write() - Wait on writer acquire");
+			log_trace!("RwLock<{}>::write({:p}) - Wait on {} release", type_name!(T), self, if lh.reader_count > 0 { "reader" } else { "writer" } );
 			//lh.writer_queue.wait(lh);
 			waitqueue_wait_ext!(lh, .writer_queue);
 			// When woken, the reader count will still be -1
 		}
 		else
 		{
+			if trace_type!(T) {
+				log_trace!("RwLock<{}>::write({:p}) - ACQUIRED", type_name!(T), self);
+			}
 			lh.reader_count = -1;
 		}
 		return Write { _lock: self }
+	}
+	pub fn try_write(&self) -> Option<Write<T>> {
+		let mut lh = self.inner.lock();
+		if lh.reader_count != 0
+		{
+			None
+		}
+		else
+		{
+			if trace_type!(T) {
+				log_trace!("RwLock<{}>::write({:p}) - ACQUIRED", type_name!(T), self);
+			}
+			lh.reader_count = -1;
+			Some(Write { _lock: self })
+		}
 	}
 }
 
@@ -145,10 +193,10 @@ impl<'a, T: Send+Sync> ops::Drop for Read<'a, T>
 		lh.reader_count -= 1;
 		if lh.reader_count > 0 {
 			// Threads are still active
-			log_trace!("Read::drop() - Readers active");
+			log_trace!("Read<{}>::drop({:p}) - Readers active", type_name!(T), self._lock);
 		}
 		else if lh.writer_queue.has_waiter() {
-			log_trace!("Read::drop() - Yielding to writer");
+			log_trace!("Read<{}>::drop({:p}) - Yielding to writer", type_name!(T), self._lock);
 			assert!(lh.reader_count == 0);
 			// There's a writer waiting, yeild to it
 			lh.reader_count = -1;
@@ -157,7 +205,9 @@ impl<'a, T: Send+Sync> ops::Drop for Read<'a, T>
 		}
 		else {
 			// Fully released!
-			//log_trace!("Read::drop() - Released");
+			if trace_type!(T) {
+				log_trace!("Read<{}>::drop({:p}) - RELEASED", type_name!(T), self._lock);
+			}
 		}
 	}
 }
@@ -180,14 +230,14 @@ impl<'a, T: Send+Sync> ops::Drop for Write<'a, T>
 		assert!(lh.reader_count == -1, "Dropping 'Write' for RwLock, but no write lock active (reader_count={})", lh.reader_count);
 		if lh.writer_queue.has_waiter()
 		{
-			log_trace!("Write::drop() - Yielding to other writer");
+			log_trace!("Write<{}>::drop({:p}) - Yielding to other writer", type_name!(T), self._lock);
 			//lh.reader_count = -1;
 			lh.writer_queue.wake_one()
 			// - Woken writer takes logical ownership of the write handle
 		}
 		else if lh.reader_queue.has_waiter()
 		{
-			log_trace!("Write::drop() - Waking readers");
+			log_trace!("Write<{}>::drop({:p}) - Waking readers", type_name!(T), self._lock);
 			lh.reader_count = 0;
 			while lh.reader_queue.has_waiter() {
 				lh.reader_count += 1;
@@ -198,7 +248,9 @@ impl<'a, T: Send+Sync> ops::Drop for Write<'a, T>
 		else
 		{
 			// Fully released
-			//log_trace!("Write::drop() - Released");
+			if trace_type!(T) {
+				log_trace!("Write<{}>::drop({:p}) - RELEASED", type_name!(T), self._lock);
+			}
 			lh.reader_count = 0;
 		}
 	}

@@ -74,7 +74,7 @@ impl objects::Object for Group
 	const CLASS: u16 = values::CLASS_GUI_GROUP;
 	fn class(&self) -> u16 { Self::CLASS }
 	fn as_any(&self) -> &Any { self }
-	fn handle_syscall(&self, call: u16, _args: &[usize]) -> Result<u64,Error>
+	fn handle_syscall_ref(&self, call: u16, _args: &[usize]) -> Result<u64,Error>
 	{
 		match call
 		{
@@ -87,7 +87,7 @@ impl objects::Object for Group
 				Ok(1)
 			}
 			},
-		_ => todo!("Group::handle_syscall({}, ...)", call),
+		_ => ::objects::object_has_no_such_method_ref("gui::Group", call),
 		}
 	}
 	fn bind_wait(&self, flags: u32, obj: &mut ::kernel::threads::SleepObject) -> u32 {
@@ -108,7 +108,7 @@ impl objects::Object for Window
 	const CLASS: u16 = values::CLASS_GUI_WIN;
 	fn class(&self) -> u16 { Self::CLASS }
 	fn as_any(&self) -> &Any { self }
-	fn handle_syscall(&self, call: u16, mut args: &[usize]) -> Result<u64,Error>
+	fn handle_syscall_ref(&self, call: u16, mut args: &[usize]) -> Result<u64,Error>
 	{
 		match call
 		{
@@ -198,12 +198,12 @@ impl objects::Object for Window
 			let rv = (p.x as u64) << 32 | (p.y as u64);
 			Ok( rv )
 			},
-		_ => {
-			log_error!("TODO: Window::handle_syscall({}, ...)", call);
-			Err(Error::UnknownCall)
-			},
+		_ => ::objects::object_has_no_such_method_ref("gui::Window", call),
 		}
 	}
+	//fn handle_syscall_val(self, call: u16, _args: &[usize]) -> Result<u64,Error> {
+	//	::objects::object_has_no_such_method_val("gui::Window", call)
+	//}
 	fn bind_wait(&self, flags: u32, obj: &mut ::kernel::threads::SleepObject) -> u32 {
 		let mut ret = 0;
 		if flags & values::EV_GUI_WIN_INPUT != 0 {

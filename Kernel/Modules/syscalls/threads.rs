@@ -10,7 +10,6 @@ use ObjectHandle;
 use Error;
 use values;
 use SyscallArg;
-use kernel::memory::freeze::FreezeMut;
 //use kernel::threads::get_process_local;
 
 /// Current process type (provides an object handle for IPC)
@@ -20,7 +19,7 @@ impl ::objects::Object for CurProcess
 	const CLASS: u16 = values::CLASS_CORE_THISPROCESS;
 	fn class(&self) -> u16 { Self::CLASS }
 	fn as_any(&self) -> &Any { self }
-	fn handle_syscall(&self, call: u16, mut args: &[usize]) -> Result<u64, Error>
+	fn handle_syscall_ref(&self, call: u16, mut args: &[usize]) -> Result<u64, Error>
 	{
 		match call
 		{
@@ -28,26 +27,17 @@ impl ::objects::Object for CurProcess
 			let class = try!( <u16>::get_arg(&mut args) );
 			Ok( ::objects::get_unclaimed(class) )
 			},
-		_ => todo!("CurProcess::handle_syscall({}, ...)", call),
+		_ => ::objects::object_has_no_such_method_ref("threads::CurProcess", call),
 		}
 	}
-	fn bind_wait(&self, flags: u32, obj: &mut ::kernel::threads::SleepObject) -> u32
-	{
-		let mut ret = 0;
-		if flags & values::EV_THISPROCESS_RECVOBJ != 0 {
-			::objects::wait_for_obj(obj);
-			ret += 1;
-		}
-		ret
+	//fn handle_syscall_val(self, call: u16, _args: &[usize]) -> Result<u64,Error> {
+	//	::objects::object_has_no_such_method_val("threads::CurProcess", call)
+	//}
+	fn bind_wait(&self, _flags: u32, _obj: &mut ::kernel::threads::SleepObject) -> u32 {
+		0
 	}
-	fn clear_wait(&self, flags: u32, obj: &mut ::kernel::threads::SleepObject) -> u32
-	{
-		let mut ret = 0;
-		if flags & values::EV_THISPROCESS_RECVOBJ != 0 {
-			::objects::clear_wait_for_obj(obj);
-			ret |= values::EV_THISPROCESS_RECVOBJ;
-		}
-		ret
+	fn clear_wait(&self, _flags: u32, _obj: &mut ::kernel::threads::SleepObject) -> u32 {
+		0
 	}
 }
 
@@ -64,55 +54,11 @@ pub fn newthread(sp: usize, ip: usize) -> ObjectHandle {
 	todo!("newthread(sp={:#x},ip={:#x})", sp, ip);
 }
 #[inline(never)]
-pub fn newprocess(name: &str, ip: usize, sp: usize, clone_start: usize, clone_end: usize) -> ObjectHandle {
+pub fn newprocess(name: &str,  clone_start: usize, clone_end: usize) -> ObjectHandle {
 	// 1. Create a new process image (virtual address space)
-	let mut process = ::kernel::threads::ProcessHandle::new(name, clone_start, clone_end);
+	let process = ::kernel::threads::ProcessHandle::new(name, clone_start, clone_end);
 	
-	// 3. Create a new thread using that process image with the specified ip/sp
-	process.start_root_thread(ip, sp);
-	
-	struct Process(::kernel::threads::ProcessHandle);
-	impl ::objects::Object for Process
-	{
-		const CLASS: u16 = values::CLASS_CORE_PROCESS;
-		fn class(&self) -> u16 { Self::CLASS }
-		fn as_any(&self) -> &Any { self }
-		fn handle_syscall(&self, call: u16, mut args: &[usize]) -> Result<u64,Error>
-		{
-			match call
-			{
-			// Request termination of child process
-			values::CORE_PROCESS_KILL => todo!("CORE_PROCESS_KILL"),
-			// Send one of this process' objects to the child process
-			values::CORE_PROCESS_SENDOBJ => {
-				let handle = try!(<u32>::get_arg(&mut args));
-				::objects::give_object(&self.0, handle).map(|_| 0)
-				},
-			_ => todo!("Process::handle_syscall({}, ...)", call),
-			}
-		}
-		fn bind_wait(&self, flags: u32, obj: &mut ::kernel::threads::SleepObject) -> u32 {
-			let mut ret = 0;
-			// Wait for child process to terminate
-			if flags & values::EV_PROCESS_TERMINATED != 0 {
-				self.0.bind_wait_terminate(obj);
-				ret += 1;
-			}
-			ret
-		}
-		fn clear_wait(&self, flags: u32, obj: &mut ::kernel::threads::SleepObject) -> u32 {
-			let mut ret = 0;
-			// Wait for child process to terminate
-			if flags & values::EV_PROCESS_TERMINATED != 0 {
-				if self.0.clear_wait_terminate(obj) {
-					ret |= values::EV_PROCESS_TERMINATED;
-				}
-			}
-			ret
-		}
-	}
-
-	::objects::new_object( Process(process) )
+	::objects::new_object( ProtoProcess(process) )
 }
 
 // ret: number of events triggered
@@ -145,4 +91,87 @@ pub fn wait(events: &mut [values::WaitItem], wake_time_mono: u64) -> Result<u32,
 	}
 
 	Ok( events.iter_mut().fold(0, |total,ev| total + ::objects::clear_wait(ev.object, ev.flags, &mut waiter).unwrap()) )
+}
+
+pub struct ProtoProcess(::kernel::threads::ProcessHandle);
+impl ::objects::Object for ProtoProcess
+{
+	const CLASS: u16 = values::CLASS_CORE_PROTOPROCESS;
+	fn class(&self) -> u16 { Self::CLASS }
+	fn as_any(&self) -> &Any { self }
+	fn handle_syscall_ref(&self, call: u16, mut args: &[usize]) -> Result<u64,Error>
+	{
+		match call
+		{
+		// Request termination of child process
+		values::CORE_PROTOPROCESS_SENDOBJ => {
+			let handle = try!(<u32>::get_arg(&mut args));
+			::objects::give_object(&self.0, handle).map(|_| 0)
+			}
+		_ => ::objects::object_has_no_such_method_ref("threads::ProtoProcess", call),
+		}
+	}
+	fn handle_syscall_val(&mut self, call: u16, mut args: &[usize]) -> Result<u64,Error> {
+		match call
+		{
+		values::CORE_PROTOPROCESS_START => {
+			let ip = try!(<usize>::get_arg(&mut args));
+			let sp = try!(<usize>::get_arg(&mut args));
+			
+			// HACK: Leaves the value as "valid" (but dropped)
+			// SAFE: Raw pointer coerced from &mut
+			let mut inner = unsafe { ::core::ptr::read_and_drop(&mut self.0) };
+
+			// NOTE: Don't need to validate these values, as they're used only in user-space
+			inner.start_root_thread(ip, sp);
+			Ok( ::objects::new_object( Process(inner) ) as u64 )
+			},
+		_ => ::objects::object_has_no_such_method_val("threads::ProtoProcess", call)
+		}
+	}
+	fn bind_wait(&self, _flags: u32, _obj: &mut ::kernel::threads::SleepObject) -> u32 {
+		0
+	}
+	fn clear_wait(&self, _flags: u32, _obj: &mut ::kernel::threads::SleepObject) -> u32 {
+		0
+	}
+}
+
+pub struct Process(::kernel::threads::ProcessHandle);
+impl ::objects::Object for Process
+{
+	const CLASS: u16 = values::CLASS_CORE_PROCESS;
+	fn class(&self) -> u16 { Self::CLASS }
+	fn as_any(&self) -> &Any { self }
+	fn handle_syscall_ref(&self, call: u16, _args: &[usize]) -> Result<u64,Error>
+	{
+		match call
+		{
+		// Request termination of child process
+		values::CORE_PROCESS_KILL => todo!("CORE_PROCESS_KILL"),
+		_ => ::objects::object_has_no_such_method_ref("threads::Process", call),
+		}
+	}
+	//fn handle_syscall_val(self, call: u16, _args: &[usize]) -> Result<u64,Error> {
+	//	::objects::object_has_no_such_method_val("threads::process", call)
+	//}
+	fn bind_wait(&self, flags: u32, obj: &mut ::kernel::threads::SleepObject) -> u32 {
+		let mut ret = 0;
+		// Wait for child process to terminate
+		if flags & values::EV_PROCESS_TERMINATED != 0 {
+			self.0.bind_wait_terminate(obj);
+			ret += 1;
+		}
+		ret
+	}
+	fn clear_wait(&self, flags: u32, obj: &mut ::kernel::threads::SleepObject) -> u32 {
+		let mut ret = 0;
+		// Wait for child process to terminate
+		if flags & values::EV_PROCESS_TERMINATED != 0 {
+			if self.0.clear_wait_terminate(obj) {
+				ret |= values::EV_PROCESS_TERMINATED;
+			}
+		}
+		ret
+	}
 }

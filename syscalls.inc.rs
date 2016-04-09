@@ -81,57 +81,81 @@ def_grp!( 2: GROUP_MEM = {
 
 // Define all classes, using c-like enums to ensure that values are not duplicated
 macro_rules! def_classes {
-	( $($(#[$ca:meta])* =$cval:tt: $cname:ident = { $( $(#[$a:meta])* =$v:tt: $n:ident, )* }|{ $( $(#[$ea:meta])* =$ev:tt: $en:ident, )* }),* ) => {
+	(
+		$(
+			$(#[$class_attrs:meta])*
+			=$class_idx:tt: $class_name:ident = {
+					$( $(#[$va:meta])* =$vv:tt: $vn:ident, )*
+					--
+					$( $(#[$ma:meta])* =$mv:tt: $mn:ident, )*
+				}|{
+					$( $(#[$ea:meta])* =$ev:tt: $en:ident, )*
+				}
+		),*
+	) => {
 		#[repr(u16)]
 		#[allow(non_camel_case_types,dead_code)]
-		enum Classes { $($cname = expand_expr!($cval)),* }
+		enum Classes {
+			$($class_name = expand_expr!($class_idx)),*
+		}
 		mod calls { $(
 			//#[repr(u16)]
 			#[allow(non_camel_case_types,dead_code)]
-			pub enum $cname { $($n = expand_expr!($v)),* }
+			pub enum $class_name {
+				$($vn = expand_expr!($vv)),*
+				,
+				$($mn = expand_expr!($mv)|0x400),*
+			}
 		)* }
 		mod masks { $(
 			#[allow(non_camel_case_types,dead_code)]
-			pub enum $cname { $($en = expand_expr!($ev)),* }
+			pub enum $class_name { $($en = expand_expr!($ev)),* }
 		)* }
-		$( $(#[$ca])* pub const $cname: u16 = Classes::$cname as u16; )*
-		$( $( $(#[$a])* pub const $n: u16 = self::calls::$cname::$n as u16; )* )*
-		$( $( $(#[$ea])* pub const $en: u32 = 1 << self::masks::$cname::$en as usize; )* )*
+		$( $(#[$class_attrs])* pub const $class_name: u16 = Classes::$class_name as u16; )*
+		$( $( $(#[$va])* pub const $vn: u16 = self::calls::$class_name::$vn as u16; )* )*
+		$( $( $(#[$ma])* pub const $mn: u16 = self::calls::$class_name::$mn as u16; )* )*
+		$( $( $(#[$ea])* pub const $en: u32 = 1 << self::masks::$class_name::$en as usize; )* )*
 		};
 }
 
 def_classes! {
 	/// Handle to a spawned process, used to communicate with it
-	=0: CLASS_CORE_PROCESS = {
-		/// Request that the process be terminated
-		=0: CORE_PROCESS_KILL,
+	=0: CLASS_CORE_PROTOPROCESS = {
 		/// Give the process one of this process's objects
 		/// This method blocks if the child process hasn't popped the previous object
-		=1: CORE_PROCESS_SENDOBJ,
+		=0: CORE_PROTOPROCESS_SENDOBJ,
+		--
+		/// Start the process executing
+		=0: CORE_PROTOPROCESS_START,
+	}|{
+	},
+	/// Handle to a spawned process, used to communicate with it
+	=1: CLASS_CORE_PROCESS = {
+		/// Request that the process be terminated
+		=0: CORE_PROCESS_KILL,
+		--
 	}|{
 		/// Wakes if the child process terminates
 		=0: EV_PROCESS_TERMINATED,
-		/// Wakes if an object can be sent to the child
-		=1: EV_PROCESS_OBJECTFREE,
 	},
 	/// A handle providing process inherent IPC
-	=1: CLASS_CORE_THISPROCESS = {
+	=2: CLASS_CORE_THISPROCESS = {
 		/// Receive a sent object
 		=0: CORE_THISPROCESS_RECVOBJ,
+		--
 	}|{
-		/// Wakes if an object is waiting to be received
-		=0: EV_THISPROCESS_RECVOBJ,
 	},
 	/// Opened node
-	=2: CLASS_VFS_NODE = {
+	=3: CLASS_VFS_NODE = {
 		=0: VFS_NODE_GETTYPE,
-		=1: VFS_NODE_TOFILE,
-		=2: VFS_NODE_TODIR,
-		=3: VFS_NODE_TOLINK,
+		--
+		=0: VFS_NODE_TOFILE,
+		=1: VFS_NODE_TODIR,
+		=2: VFS_NODE_TOLINK,
 	}|{
 	},
 	/// Opened file
-	=3: CLASS_VFS_FILE = {
+	=4: CLASS_VFS_FILE = {
 		/// Get the size of the file (maximum addressable byte + 1)
 		=0: VFS_FILE_GETSIZE,
 		/// Read data from the specified position in the file
@@ -140,39 +164,44 @@ def_classes! {
 		=2: VFS_FILE_WRITEAT,
 		/// Map part of the file into the current address space
 		=3: VFS_FILE_MEMMAP,
+		--
 	}|{
 	},
 	/// Opened directory
-	=4: CLASS_VFS_DIR = {
+	=5: CLASS_VFS_DIR = {
 		/// Create an enumerating handle
 		=0: VFS_DIR_ENUMERATE,
 		/// Open a child node
 		=1: VFS_DIR_OPENCHILD,
 		/// Open a sub-path
 		=2: VFS_DIR_OPENPATH,
+		--
 	}|{
 	},
 	/// Enumerating directory
-	=5: CLASS_VFS_DIRITER = {
+	=6: CLASS_VFS_DIRITER = {
 		/// Read an entry
 		=0: VFS_DIRITER_READENT,
+		--
 	}|{
 	},
 	/// Opened symbolic link
-	=6: CLASS_VFS_LINK = {
+	=7: CLASS_VFS_LINK = {
 		=0: VFS_LINK_READ,
+		--
 	}|{
 	},
 	/// GUI Group/Session
-	=7: CLASS_GUI_GROUP = {
+	=8: CLASS_GUI_GROUP = {
 		/// Force this group to be the active one (requires permission)
 		=0: GUI_GRP_FORCEACTIVE,
+		--
 	}|{
 		/// Fires when the group is shown/hidden
 		=0: EV_GUI_GRP_SHOWHIDE,
 	},
 	/// Window
-	=8: CLASS_GUI_WIN = {
+	=9: CLASS_GUI_WIN = {
 		/// Set the show/hide state of the window
 		=0: GUI_WIN_SETFLAG,
 		/// Trigger a redraw of the window
@@ -192,6 +221,7 @@ def_classes! {
 		=7: GUI_WIN_GETPOS,
 		/// Set window position (will be clipped to visible area)
 		=8: GUI_WIN_SETPOS,
+		--
 	}|{
 		/// Fires when the input queue is non-empty
 		=0: EV_GUI_WIN_INPUT,

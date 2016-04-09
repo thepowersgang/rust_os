@@ -173,6 +173,7 @@ impl ProcessHandle
 	}
 	
 	pub fn start_root_thread(&mut self, ip: usize, sp: usize) {
+		log_trace!("start_thread(self={:?}, ip={:#x}, sp={:#x})", self, ip, sp);
 		assert!( Arc::get_mut(&mut self.0).is_some() );
 		
 		let mut thread = Thread::new_boxed(allocate_tid(), format!("{}#1", self.0.name), self.0.clone());
@@ -186,7 +187,10 @@ impl ProcessHandle
 		super::yield_to(thread);
 	}
 
-	pub fn get_process_local<T: Send+Sync+::core::marker::Reflect+Default+'static>(&self) -> Option<::lib::mem::aref::ArefBorrow<T>> {
+	pub fn get_process_local<T>(&self) -> Option<::lib::mem::aref::ArefBorrow<T>>
+	where
+		T: Send+Sync+::core::marker::Reflect+Default+'static
+	{
 		let pld = &self.0.proc_local_data;
 		// 1. Try without write-locking
 		for s in pld.read().iter()
@@ -199,8 +203,39 @@ impl ProcessHandle
 		None
 	}
 
+	pub fn get_process_local_alloc<T>(&self) -> ::lib::mem::aref::ArefBorrow<T>
+	where
+		T: Send+Sync+::core::marker::Reflect+Default+'static
+	{
+		let pld = &self.0.proc_local_data;
+		// 1. Try without write-locking
+		for s in pld.read().iter()
+		{
+			let item_ref: &::core::any::Any = &**s;
+			if item_ref.get_type_id() == ::core::any::TypeId::of::<T>() {
+				return s.borrow().downcast::<T>().ok().unwrap();
+			}
+		}
+		// 2. Try _with_ write-locking
+		let mut lh = pld.write();
+		for s in lh.iter()
+		{
+			let item_ref: &::core::any::Any = &**s;
+			if item_ref.get_type_id() == ::core::any::TypeId::of::<T>() {
+				return s.borrow().downcast::<T>().ok().unwrap();
+			}
+		}
+		// 3. Create an instance
+		log_debug!("Creating instance of {} for {:?} (remote)", type_name!(T), self);
+		let buf = ::lib::mem::aref::Aref::new(T::default());
+		let ret = buf.borrow();
+		lh.push( buf );
+		ret
+	}
+
 
 	pub fn bind_wait_terminate(&self, obj: &mut ::threads::SleepObject) {
+		log_trace!("bind_wait_terminate({:p}, obj={:p})", self, obj);
 		let mut lh = self.0.exit_status.lock();
 		if let Some(_status) = lh.0 {
 			obj.signal();
@@ -213,10 +248,15 @@ impl ProcessHandle
 		}
 	}
 	pub fn clear_wait_terminate(&self, obj: &mut ::threads::SleepObject) -> bool {
+		log_trace!("clear_wait_terminate({:p}, obj={:p})", self, obj);
 		let mut lh = self.0.exit_status.lock();
 
-		assert!(lh.1.is_some());
-		assert!(lh.1.as_ref().unwrap().is_from(obj));
+		if let Some(ref v) = lh.1 {
+			assert!(v.is_from(obj), "clear_wait_terminate from different object");
+		}
+		else {
+			log_trace!("- Wasn't registered");
+		}
 		lh.1 = None;
 		
 		lh.0.is_some()

@@ -4,7 +4,7 @@
 // elf/mod.rs
 // - ELF Parser
 
-use syscalls::vfs::{File,FileOpenMode};
+use syscalls::vfs::File;
 use syscalls::vfs::Error as VfsError;
 
 use std::io::{Read,Seek,SeekFrom};

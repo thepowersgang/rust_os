@@ -2,7 +2,6 @@
 // - By John Hodge (thePowersGang)
 //
 // A dummy interface library that provides dynamically-linked interfaces to the loader
-//#![feature(lang_items)]
 #![no_std]
 #![crate_type="dylib"]
 #![crate_name="loader"]
@@ -12,6 +11,7 @@ extern crate syscalls;
 
 use core::result::Result;
 
+#[derive(Debug)]
 pub enum Error
 {
 	NotFound,
@@ -20,6 +20,9 @@ pub enum Error
 	CorruptExecutable,
 	BadArguments,
 }
+
+/// Process still being initialised (not yet running)
+pub struct ProtoProcess( ::syscalls::threads::ProtoProcess );
 
 mod int {
 	use core::result::Result;
@@ -33,12 +36,30 @@ mod int {
 		//  > Arguments
 		//  > ? Environment (could this be transferred using IPC during init?)
 		//  > ? Handles (same thing really, send them over an IPC channel)
-		pub fn new_process(binary: &[u8], args: &[&[u8]]) -> Result<::syscalls::threads::Process,super::Error>;
+		pub fn new_process(binary: &[u8], args: &[&[u8]]) -> Result<::syscalls::threads::ProtoProcess,super::Error>;
+
+		pub fn start_process(handle: ::syscalls::threads::ProtoProcess) -> ::syscalls::threads::Process;
 	}
 }
 
-pub fn new_process(binary: &[u8], args: &[&[u8]]) -> Result<::syscalls::threads::Process,Error> {
+impl ProtoProcess
+{
+	pub fn send_obj<T: ::syscalls::Object>(&self, obj: T) {
+		self.0.send_obj( obj );
+	}
+
+	pub fn start(self) -> ::syscalls::threads::Process {
+		// SAFE: FFI into rust code
+		unsafe {
+			int::start_process(self.0)
+		}
+	}
+}
+
+pub fn new_process(binary: &[u8], args: &[&[u8]]) -> Result<ProtoProcess,Error> {
 	// SAFE: Call is actually to rust
-	unsafe { int::new_process(binary, args) }
+	unsafe {
+		int::new_process(binary, args).map( |v| ProtoProcess(v) )
+	}
 }
 

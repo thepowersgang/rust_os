@@ -222,25 +222,20 @@ impl CacheHandle
 		Ok(rv)
 	}
 	
-	/// Obtain a node handle using a path
-	pub fn from_path(path: &Path) -> super::Result<CacheHandle>
+	
+	pub fn from_path_at_node(mut node_h: CacheHandle, path: &Path) -> super::Result<CacheHandle>
 	{
-		log_function!("CacheHandle::from_path({:?})", path);
-		// TODO: Support path caching?
-		
-		// - Remove the leading / from the absolute path
-		//  > Also checks that it's actually abolsute
-		let (first_comp, path) = try!( path.split_off_first().ok_or(super::Error::MalformedPath) );
-		if first_comp.len() != 0 {
-			return Err(super::Error::MalformedPath);
-		}
-
-		// Acquire the root vnode
-		let mph = super::mount::Handle::from_id(0);
-		let mut node_h = try!(CacheHandle::from_ids( mph.id(), mph.root_inode() ));
+		log_function!("CacheHandle::from_path_at_node(node_h={:?}, {:?})", node_h, path);
+		let path = if path.is_absolute() {
+				try!(path.split_off_first().ok_or(super::Error::MalformedPath)).1
+			}
+			else {
+				path
+			};
 		// Iterate path components
 		for seg in path
 		{
+			log_trace!("seg = {:?}", seg);
 			// Loop resolving symbolic links
 			loop
 			{
@@ -286,8 +281,28 @@ impl CacheHandle
 				_ => return Err(super::Error::NonDirComponent),
 				};
 		}
-		log_trace!("CacheHandle::from_path() {:?}", node_h);
+		log_trace!("CacheHandle::from_path_at_node() {:?}", node_h);
 		Ok( node_h )
+	}
+
+	/// Obtain a node handle using a path
+	pub fn from_path(path: &Path) -> super::Result<CacheHandle>
+	{
+		log_function!("CacheHandle::from_path({:?})", path);
+		// TODO: Support path caching?
+		
+		// - Remove the leading / from the absolute path
+		//  > Also checks that it's actually abolsute
+		let (first_comp, path) = try!( path.split_off_first().ok_or(super::Error::MalformedPath) );
+		if first_comp.len() != 0 {
+			return Err(super::Error::MalformedPath);
+		}
+
+		// Acquire the root vnode
+		let mph = super::mount::Handle::from_id(0);
+		let node_h = try!(CacheHandle::from_ids( mph.id(), mph.root_inode() ));
+
+		CacheHandle::from_path_at_node(node_h, path)
 	}
 	
 	pub fn get_class(&self) -> NodeClass {

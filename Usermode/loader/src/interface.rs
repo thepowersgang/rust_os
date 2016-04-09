@@ -10,7 +10,7 @@ extern crate loader;
 extern "C" {
 	static init_path: [u8; 0];
 	static init_path_end: [u8; 0];
-	static arg_count: u32;
+	static mut arg_count: u32;
 }
 
 static S_BUFFER_LOCK: ::syscalls::sync::Mutex<()> = ::syscalls::sync::Mutex::new( () );
@@ -22,59 +22,76 @@ impl_from! {
 }
 
 #[no_mangle]
-pub extern "C" fn new_process(binary: &[u8], args: &[&[u8]]) -> Result<::syscalls::threads::Process,loader::Error>
+/// Spawn a new process using the provided binary and arguments
+pub extern "C" fn new_process(binary: &[u8], args: &[&[u8]]) -> Result<::syscalls::threads::ProtoProcess,loader::Error>
 {
 	extern "C" {
 		static BASE: [u8; 0];
 		static LIMIT: [u8; 0];
-		static init_stack_end: [u8; 0];
-		
-		// NOTE: References the same symbol as above, but mutable
-		static mut arg_count: u32;
 	}
 	
 	kernel_log!("new_process({:?}, ...)", ::std::ffi::OsStr::new(binary));
 
-	let executable_handle: ::syscalls::vfs::File = todo!("Open '{:?}' from root", ::std::ffi::OsStr::new(binary));
-	
-	// Lock loader until after 'start_process', allowing global memory to be used as buffer for binary and arguments
-	// - After start_process, we can safely release and reuse the memory (becuase this space is cloned into the new process)
-	let _lh = S_BUFFER_LOCK.lock();
-	
-	// Store binary and arguments in .data
-	// SAFE: Locked
-	unsafe {
-		arg_count = (args.len() + 1) as u32;
-	}
-	// SAFE: Locked (so access is unique), and pointers are valid
-	let buf = unsafe {
-		let buf_end = init_path_end.as_ptr() as usize;
-		let buf_start = init_path.as_ptr() as usize;
-		let len = buf_end - buf_start;
-		assert!(buf_end > buf_start, "Init path symbols out of order: init_path_end({:#x}) !> init_path({:#x})", buf_end, buf_start );
-		
-		::std::slice::from_raw_parts_mut(buf_start as *mut u8, len)
+	let executable_handle = match ::syscalls::vfs::ROOT.open_child_path(binary)
+		{
+		Err(_) => return Err(loader::Error::NotFound),
+		Ok(v) => match v.into_file(::syscalls::vfs::FileOpenMode::Execute)
+			{
+			Err(_) => return Err(loader::Error::NotExecutable),
+			Ok(v) => v,
+			}
 		};
-	let mut builder = NullStringBuilder( buf );
-	builder.push( binary );
-	for arg in args {
-		try!( builder.push(arg) );
-	}
 	
-	let name = ::std::str::from_utf8(binary).unwrap_or("BADSTR");
-	// Spawn new process
-	match ::syscalls::threads::start_process(name, new_process_entry as usize, init_stack_end.as_ptr() as usize, BASE.as_ptr() as usize, LIMIT.as_ptr() as usize)
-	{
-	Ok(v) => {
-		kernel_log!("new_process - spawned");
-		// Send the executable handle
-		v.send_obj( executable_handle );
-		Ok( v )
-		},
-	Err(e) => panic!("TODO: new_process - Error '{:?}'", e),
-	}
+	// Acquire the global buffer lock and start the new process
+	let proto_proc = {
+		// Lock loader until after 'start_process', allowing global memory to be used as buffer for binary and arguments
+		// - After start_process, we can safely release and reuse the memory (becuase this space is cloned into the new process)
+		let _lh = S_BUFFER_LOCK.lock();
+		
+		// Store binary and arguments in .data
+		// SAFE: Locked
+		unsafe {
+			arg_count = (args.len() + 1) as u32;
+		}
+		// SAFE: Locked (so access is unique), and pointers are valid
+		let buf = unsafe {
+			let buf_end = init_path_end.as_ptr() as usize;
+			let buf_start = init_path.as_ptr() as usize;
+			let len = buf_end - buf_start;
+			assert!(buf_end > buf_start, "Init path symbols out of order: init_path_end({:#x}) !> init_path({:#x})", buf_end, buf_start );
+			
+			::std::slice::from_raw_parts_mut(buf_start as *mut u8, len)
+			};
+		let mut builder = NullStringBuilder( buf );
+		builder.push( binary );
+		for arg in args {
+			try!( builder.push(arg) );
+		}
+		
+		let name = ::std::str::from_utf8(binary).unwrap_or("BADSTR");
+
+		// Spawn new process
+		match ::syscalls::threads::start_process(name, BASE.as_ptr() as usize, LIMIT.as_ptr() as usize)
+		{
+		Ok(v) => v,
+		Err(e) => panic!("TODO: new_process - Error '{:?}'", e),
+		}
+		// - Lock is dropped here (for this process)
+		};
 	
-	// - Lock is dropped here (for this process)
+	// Send the executable handle
+	kernel_log!("- Sending executable handle");
+	proto_proc.send_obj( executable_handle );	
+
+	kernel_log!("- Returning ProtoProcess");
+	Ok(proto_proc)
+}
+#[no_mangle]
+pub extern "C" fn start_process(pp: ::syscalls::threads::ProtoProcess) -> ::syscalls::threads::Process {
+	extern "C" {
+		static init_stack_end: [u8; 0];
+	}
+	pp.start( new_process_entry as usize, init_stack_end.as_ptr() as usize )
 }
 
 /// Entrypoint for new processes, runs with a clean stack
@@ -83,22 +100,27 @@ fn new_process_entry() -> !
 	kernel_log!("new_process_entry");
 	// Release buffer lock once in new process
 	// SAFE: Unlocking our copy of the lock
-	unsafe { S_BUFFER_LOCK.unlock(); }
-	assert!(arg_count > 0);
+	unsafe {
+		S_BUFFER_LOCK.unlock();
+	}
 	// SAFE: Valid memory from linker script
-	let arg_slice = unsafe { ::std::slice::from_raw_parts( init_path.as_ptr(), init_path_end.as_ptr() as usize - init_path.as_ptr() as usize ) };
+	let (arg_slice, argc) = unsafe {
+		assert!(arg_count > 0);
+		let s = ::std::slice::from_raw_parts( init_path.as_ptr(), init_path_end.as_ptr() as usize - init_path.as_ptr() as usize );
+		(s, arg_count)
+		};
 	
 	// Parse command line stored in data area (including image path)
 	let mut arg_iter = NullStringList(arg_slice).map(::std::ffi::OsStr::new);
 	let binary = arg_iter.next().expect("No binary was passed");
-	let arg_iter = (0 .. arg_count-1).zip(arg_iter);
+	let arg_iter = (0 .. argc).zip(arg_iter);
 	kernel_log!("Binary = {:?}", binary);
 	for (i,arg) in arg_iter {
 		kernel_log!("Arg {}: {:?}", i, arg);
 	}
 
 	let arg_iter = NullStringList(arg_slice).map(::std::ffi::OsStr::new).skip(1);
-	let arg_iter = (0 .. arg_count-1).zip(arg_iter);
+	let arg_iter = (0 .. argc).zip(arg_iter);
 	
 	
 	

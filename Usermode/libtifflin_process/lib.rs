@@ -14,8 +14,8 @@ impl Process
 	pub fn spawn<S: AsRef<[u8]>>(path: S) -> Process {
 		match loader::new_process(path.as_ref(), &[])
 		{
-		Ok(v) => Process(v),
-		Err(_) => panic!(""),
+		Ok(v) => Process(v.start()),
+		Err(e) => panic!("Couldn't start process - {:?}", e),
 		}
 	}
 }

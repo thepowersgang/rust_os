@@ -5,7 +5,7 @@
 //! Userland "owned" objects
 use kernel::prelude::*;
 
-use kernel::sync::RwLock;
+use kernel::sync::{RwLock,Mutex};
 use stack_dst::StackDST;
 
 use kernel::threads::get_process_local;
@@ -18,8 +18,15 @@ pub trait Object: Send + Sync + ::core::marker::Reflect
 	fn type_name(&self) -> &str { type_name!(Self) }
 	fn as_any(&self) -> &Any;
 	fn class(&self) -> u16;
+
 	/// Return: Return value or argument error
-	fn handle_syscall(&self, call: u16, args: &[usize]) -> Result<u64,super::Error>;
+	fn handle_syscall_ref(&self, call: u16, args: &[usize]) -> Result<u64,super::Error>;
+	/// Return: Return value or argument error
+	//fn handle_syscall_val(self, call: u16, args: &[usize]) -> Result<u64,super::Error>;
+	fn handle_syscall_val(&mut self, call: u16, _args: &[usize]) -> Result<u64,super::Error> {
+		::objects::object_has_no_such_method_val(self.type_name(), call)
+	}
+
 	/// Return: Number of wakeup events bound
 	fn bind_wait(&self, flags: u32, obj: &mut ::kernel::threads::SleepObject) -> u32;
 	/// Return: Number of wakeup events fired
@@ -30,8 +37,11 @@ impl<T: Object> Object for Box<T> {
 	fn type_name(&self) -> &str { (**self).type_name() }
 	fn as_any(&self) -> &Any { (**self).as_any() }
 	fn class(&self) -> u16 { (**self).class() }
-	fn handle_syscall(&self, call: u16, args: &[usize]) -> Result<u64,super::Error> {
-		(**self).handle_syscall(call, args)
+	fn handle_syscall_ref(&self, call: u16, args: &[usize]) -> Result<u64,super::Error> {
+		(**self).handle_syscall_ref(call, args)
+	}
+	fn handle_syscall_val(&mut self, call: u16, args: &[usize]) -> Result<u64,super::Error> {
+		(**self).handle_syscall_val(call, args)
 	}
 	fn bind_wait(&self, flags: u32, obj: &mut ::kernel::threads::SleepObject) -> u32 {
 		(**self).bind_wait(flags, obj)
@@ -69,6 +79,13 @@ struct ProcessObjects
 {
 	// TODO: Use a FAR better collection for this, allowing cheap expansion of the list
 	objs: Vec< ObjectSlot >,
+
+	// TODO: Something lighter than a mutex?
+	given: Mutex<GivenObjects>,
+}
+struct GivenObjects {
+	next: u16,
+	total: u16,
 }
 
 impl Default for ProcessObjects {
@@ -82,6 +99,7 @@ impl ProcessObjects {
 		const MAX_OBJECTS_PER_PROC: usize = 64;
 		let mut ret = ProcessObjects {
 				objs: Vec::from_fn(MAX_OBJECTS_PER_PROC, |_| RwLock::new(None)),
+				given: Mutex::new( GivenObjects { next: 1, total: 1 } ),
 			};
 		// Object 0 is fixed to be "this process" (and is not droppable)
 		*ret.objs[0].write() = Some(UserObject::new(::threads::CurProcess));
@@ -95,7 +113,9 @@ impl ProcessObjects {
 		self.objs.iter()
 	}
 
-	fn with_object<O, F: FnOnce(&Object)->Result<O,super::Error>>(&self, handle: u32, fcn: F) -> Result< O, super::Error >
+	fn with_object<O, F>(&self, handle: u32, fcn: F) -> Result< O, super::Error >
+	where
+		F: FnOnce(&Object)->Result<O,super::Error> 
 	{
 		if let Some(h) = self.get(handle)
 		{
@@ -111,16 +131,43 @@ impl ProcessObjects {
 			Err( super::Error::NoSuchObject(handle) )
 		}
 	}
+	fn with_object_val<O, F>(&self, handle: u32, fcn: F) -> Result<O, super::Error>
+	where
+		F: FnOnce(&mut Object) -> Result<O, super::Error>
+	{
+		if let Some(h) = self.get(handle)
+		{
+			// Call method
+			// NOTE: Move out of the collection before calling, to allow reusing the slot
+			let v = h.write().take();
+			if let Some(mut obj) = v {
+				fcn(&mut *obj.data)
+			}
+			else {
+				return Err( super::Error::NoSuchObject(handle) )
+			}
+		}
+		else {
+			Err( super::Error::NoSuchObject(handle) )
+		}
+	}
 	fn take_object(&self, handle: u32) -> Result<ObjectAlloc, super::Error>
 	{
 		if let Some(h) = self.get(handle)
 		{
 			// Call method
-			if let Some(obj) = h.write().take() {
-				Ok( obj.data )
+			if let Some(mut lh) = h.try_write()
+			{
+				if let Some(obj) = lh.take() {
+					Ok( obj.data )
+				}
+				else {
+					Err( super::Error::NoSuchObject(handle) )
+				}
 			}
-			else {
-				Err( super::Error::NoSuchObject(handle) )
+			else
+			{
+				Err( super::Error::MoveContention )
 			}
 		}
 		else {
@@ -137,13 +184,32 @@ impl ProcessObjects {
 				let mut wh = ent.write();
 				if wh.is_none() {
 					*wh = Some(fcn());
-					log_debug!("Object {}: {}", i, wh.as_ref().unwrap().data.type_name());
+					log_debug!("Object created #{}: {}", i, wh.as_ref().unwrap().data.type_name());
 					return Ok(i as u32);
 				}
 			}
 		}
 		log_debug!("No space");
 		Err(super::Error::TooManyObjects)
+	}
+
+	fn push_given(&self, handle: u32) {
+		let mut lh = self.given.lock();
+		assert!( lh.next == 1 );
+		assert!( lh.total as u32 == handle );
+		assert!( handle < 0x10000 );
+		lh.total += 1;
+	}
+	fn pop_given(&self) -> Option<u32> {
+		let mut lh = self.given.lock();
+		assert!(lh.next <= lh.total);
+		if lh.next == lh.total {
+			None
+		}
+		else {
+			lh.next += 1;
+			Some( (lh.next - 1) as u32 )
+		}
 	}
 }
 impl Drop for ProcessObjects {
@@ -163,12 +229,9 @@ pub fn new_object<T: Object+'static>(val: T) -> u32
 /// Grab an unclaimed object (checking the class)
 pub fn get_unclaimed(class: u16) -> u64
 {
-	let queue = get_process_local::<ObjectQueue>();
+	let objs = get_process_local::<ProcessObjects>();
 
-	let mut lh = queue.objects.lock();
-	let rv = 
-		if let Some(id) = lh.pop() {
-			let objs = get_process_local::<ProcessObjects>();
+	let rv = if let Some(id) = objs.pop_given() {
 			let slot = match objs.get(id)
 				{
 				Some(v) => v,
@@ -189,19 +252,35 @@ pub fn get_unclaimed(class: u16) -> u64
 			}
 		}
 		else {
+			log_notice!("No object in queue");
 			Err(0)
 		};
 	super::from_result::<u32,u32>( rv )
 }
 
 #[inline(never)]
-pub fn call_object(handle: u32, call: u16, args: &[usize]) -> Result<u64,super::Error>
+pub fn call_object_ref(handle: u32, call: u16, args: &[usize]) -> Result<u64,super::Error>
 {
 	// Obtain reference/borrow to object (individually locked), and call the syscall on it
 	get_process_local::<ProcessObjects>().with_object(handle, |obj| {
-		log_trace!("#{} {} Call {} - args=[{:#x}]", handle, obj.type_name(), call, ::kernel::lib::FmtSlice(args));
-		obj.handle_syscall(call, args)
+		log_trace!("#{} {} Call Ref {} - args=[{:#x}]", handle, obj.type_name(), call, ::kernel::lib::FmtSlice(args));
+		obj.handle_syscall_ref(call, args)
 		})
+}
+#[inline(never)]
+pub fn call_object_val(handle: u32, call: u16, args: &[usize]) -> Result<u64,super::Error>
+{
+	log_trace!("call_object_val(handle={}, call={}, args={}", handle, call, args.len());
+	// Obtain reference/borrow to object (individually locked), and call the syscall on it
+	get_process_local::<ProcessObjects>().with_object_val(handle, |obj| {
+		log_trace!("#{} {} Call Val {} - args=[{:#x}]", handle, obj.type_name(), call-0x400, ::kernel::lib::FmtSlice(args));
+		obj.handle_syscall_val(call, args)
+		})
+}
+#[inline(never)]
+pub fn get_class(handle: u32) -> Result<u64, super::Error>
+{
+	get_process_local::<ProcessObjects>().with_object(handle, |obj| Ok(obj.class() as u64))
 }
 
 pub fn wait_on_object(handle: u32, mask: u32, sleeper: &mut ::kernel::threads::SleepObject) -> Result<u32,super::Error> {
@@ -215,32 +294,16 @@ pub fn clear_wait(handle: u32, mask: u32, sleeper: &mut ::kernel::threads::Sleep
 		})
 }
 
-/// Queue of objects to be delivered to a process
-#[derive(Default)]
-struct ObjectQueue
-{
-	event: ::kernel::async::event::Source,
-	//objects: ::kernel::sync::Mutex< [u32; 4] >,
-	objects: ::kernel::sync::Mutex< Vec<u32> >,
-	//event: ::kernel::async::Semaphore,
-}
-
 /// Give the target process the object specified by `handle`
 pub fn give_object(target: &::kernel::threads::ProcessHandle, handle: u32) -> Result<(),super::Error> {
-	let target_queue = target.get_process_local::<ObjectQueue>().expect("TODO: Handle no queue");
-	let target_list = target.get_process_local::<ProcessObjects>().expect("TODO: Handle no queue");
 	log_debug!("give_object(target={:?}, handle={:?})", target, handle);
+	let target_list = target.get_process_local_alloc::<ProcessObjects>();
 	let obj = try!(get_process_local::<ProcessObjects>().take_object(handle));
 	let id = try!( target_list.find_and_fill_slot(|| UserObject { data: obj }) );
-	target_queue.objects.lock().push( id );
-	target_queue.event.trigger();
+	
+	target_list.push_given( id );
+
 	Ok( () )
-}
-pub fn wait_for_obj(obj: &mut ::kernel::threads::SleepObject) {
-	get_process_local::<ObjectQueue>().event.wait_upon(obj);
-}
-pub fn clear_wait_for_obj(obj: &mut ::kernel::threads::SleepObject) {
-	get_process_local::<ObjectQueue>().event.clear_wait(obj);
 }
 
 pub fn take_object<T: Object+'static>(handle: u32) -> Result<T,super::Error> {
@@ -264,8 +327,36 @@ pub fn drop_object(handle: u32)
 		// Ignore, it's the "this process" object
 	}
 	else {
-		::core::mem::drop( get_process_local::<ProcessObjects>().take_object(handle) );
+		match get_process_local::<ProcessObjects>().take_object(handle)
+		{
+		Ok(v) => {
+			log_debug!("Object dropped {}: {}", handle, v.type_name());
+			::core::mem::drop( v );
+			},
+		Err(_) => {}
+		}
 	}
 }
 
+
+
+
+pub fn object_has_no_such_method_val(name: &str, call: u16) -> Result<u64,::Error> {
+	if call < 0x400 {
+		panic!("BUGCHECK: Call ID {:#x} < 0x400 invoked by-value call on {}", call, name);
+	}
+	else {
+		log_notice!("User called non-existent mathod (by-value) {} on {}", call-0x400, name);
+	}
+	Err( ::Error::UnknownCall )
+}
+pub fn object_has_no_such_method_ref(name: &str, call: u16) -> Result<u64,::Error> {
+	if call >= 0x400 {
+		panic!("BUGCHECK: Call ID {:#x} > 0x400 invoked by-ref call on {}", call, name);
+	}
+	else {
+		log_notice!("User called non-existent mathod (by-ref) {} on {}", call, name);
+	}
+	Err( ::Error::UnknownCall )
+}
 

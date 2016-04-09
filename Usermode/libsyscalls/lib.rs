@@ -6,6 +6,8 @@
 #![feature(asm)]
 #![feature(thread_local,const_fn)]
 #![feature(associated_consts)]
+#![feature(unsafe_no_drop_flag)]
+#![feature(filling_drop)]
 #![no_std]
 
 mod std {
@@ -79,7 +81,27 @@ pub mod sync;
 
 pub use values::WaitItem;
 
+macro_rules! def_call {
+	($name:ident,$name_v:ident => $fcn:ident( $($arg_name:ident),* )) => {
+		#[allow(dead_code)]
+		#[inline]
+		unsafe fn $name(&self, call: u16 $(, $arg_name: usize)*) -> u64 {
+			assert!(call < 0x400);
+			::raw::$fcn( self.call_value(call) $(, $arg_name)* )
+		}
+		#[allow(dead_code)]
+		#[inline]
+		unsafe fn $name_v(self, call: u16 $(, $arg_name: usize)*) -> u64 {
+			assert!(call >= 0x400);
+			let cv = self.call_value(call);
+			::core::mem::forget(self);
+			::raw::$fcn( cv $(, $arg_name)* )
+		}
+	}
+}
+
 #[doc(hidden)]
+#[unsafe_no_drop_flag]
 pub struct ObjectHandle(u32);
 impl ObjectHandle
 {
@@ -108,7 +130,7 @@ impl ObjectHandle
 
 	fn get_class(&self) -> Result<u16,()> {
 		// SAFE: Known method
-		let v = unsafe { ::raw::syscall_0( (1 << 31 | (0x7FE << 20) | self.0) ) };
+		let v = unsafe { ::raw::syscall_0( (1 << 31 | (0x3FF << 20) | self.0) ) };
 		if v >= (1<<16) {
 			Err( () )
 		}
@@ -116,22 +138,10 @@ impl ObjectHandle
 			Ok( v as u16 )
 		}
 	}
-	
-	#[allow(dead_code)]
-	#[inline]
-	unsafe fn call_0(&self, call: u16) -> u64 {
-		::raw::syscall_0( self.call_value(call) )
-	}
-	#[allow(dead_code)]
-	#[inline]
-	unsafe fn call_1(&self, call: u16, a1: usize) -> u64 {
-		::raw::syscall_1( self.call_value(call), a1)
-	}
-	#[allow(dead_code)]
-	#[inline]
-	unsafe fn call_2(&self, call: u16, a1: usize, a2: usize) -> u64 {
-		::raw::syscall_2( self.call_value(call), a1, a2 )
-	}
+
+	def_call!{ call_0,call_0_v => syscall_0() }
+	def_call!{ call_1,call_1_v => syscall_1(a1) }
+	def_call!{ call_2,call_2_v => syscall_2(a1, a2) }
 
 	#[allow(dead_code)]
 	#[inline]
@@ -184,7 +194,10 @@ impl Drop for ObjectHandle {
 	fn drop(&mut self) {
 		// SAFE: Valid call
 		unsafe {
-			::raw::syscall_0( (1 << 31 | (0x7FF << 20) | self.0) );
+			if self.0 != ::core::mem::dropped()
+			{
+				::raw::syscall_0( (1 << 31 | (0x7FF << 20) | self.0) );
+			}
 		}
 	}
 }

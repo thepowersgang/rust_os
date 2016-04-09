@@ -10,7 +10,7 @@ extern crate async;
 #[macro_use]
 extern crate syscalls;
 
-extern crate tifflin_process;
+extern crate loader;
 
 macro_rules! imgpath {
 		($p:expr) => {concat!("/system/Tifflin/shared/images/",$p)};
@@ -137,8 +137,11 @@ fn spawn_console_and_wait(path: &str)
 	// TODO: I need something more elegant than this.
 	// - Needs to automatically pass the WGH
 	// - OR - Just have a wtk method to pass it `::wtk::share_handle(&console)`
-	let console = tifflin_process::Process::spawn(path);
-	console.send_obj( ::syscalls::gui::clone_group_handle() );
+	let console = {
+		let pp = loader::new_process(path.as_bytes(), &[]).expect("Could not spawn shell");
+		pp.send_obj( ::syscalls::gui::clone_group_handle() );
+		pp.start()
+		};
 	::syscalls::threads::wait(&mut [console.wait_terminate()], !0);
 }
 

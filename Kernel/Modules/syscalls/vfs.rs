@@ -83,6 +83,14 @@ fn to_result<T>(r: Result<T, ::kernel::vfs::Error>) -> Result<T, u32> {
 	r.map_err( |e| Into::into( <::values::VFSError as From<_>>::from(e) ) )
 }
 
+pub fn init_handles(loader_handle: ::kernel::vfs::handle::File, init_handle: ::kernel::vfs::handle::File) {
+	// - Hand over loader+init handles (fixed as objects 0 and 1)
+	//::objects::new_object( File(loader_handle) );
+	::objects::new_object( File(init_handle) );
+	::objects::new_object( Dir::new( ::kernel::vfs::handle::Dir::open(Path::new("/")).unwrap() ) );
+	// - Open root RW handle
+}
+
 
 // --------------------------------------------------------------------
 //
@@ -94,35 +102,41 @@ impl objects::Object for Node
 	const CLASS: u16 = values::CLASS_VFS_NODE;
 	fn class(&self) -> u16 { Self::CLASS }
 	fn as_any(&self) -> &Any { self }
-	fn handle_syscall(&self, call: u16, mut args: &[usize]) -> Result<u64,Error> {
+	fn handle_syscall_ref(&self, call: u16, _args: &[usize]) -> Result<u64,Error> {
 		match call
 		{
 		values::VFS_NODE_GETTYPE => {
 			let v32: u32 = ::values::VFSNodeType::from( self.0.get_class() ).into();
 			Ok( v32 as u64 )
 			},
+		_ => ::objects::object_has_no_such_method_ref("vfs::Node", call),
+		}
+	}
+	fn handle_syscall_val(&mut self, call: u16, mut args: &[usize]) -> Result<u64,Error> {
+		// HACK: Leaves the value as "valid" (but dropped)
+		// SAFE: Raw pointer coerced from &mut
+		let inner = unsafe { ::core::ptr::read_and_drop(&mut self.0) };
+		match call
+		{
 		values::VFS_NODE_TOFILE => {
 			let mode = try!( <u8>::get_arg(&mut args) );
 
 			let mode = ::values::VFSFileOpenMode::from(mode);
-			let objres = to_result(self.0.clone().to_file(mode.into()))
+			let objres = to_result(inner.to_file(mode.into()))
 				.map( |h| objects::new_object(File(h)) );
 			Ok( super::from_result(objres) )
 			},
 		values::VFS_NODE_TODIR => {
-			let objres = to_result(self.0.clone().to_dir())
+			let objres = to_result(inner.to_dir())
 				.map( |h| objects::new_object(Dir::new(h)) );
 			Ok( super::from_result(objres) )
 			},
 		values::VFS_NODE_TOLINK => {
-			// TODO: I'd like this to reuse this object handle etc... but that's not possible with
-			// the current structure.
-			// - Has to clone the Any to avoid moving out of self (cheap operation, just a refcount inc).
-			let objres = to_result(self.0.clone().to_symlink())
+			let objres = to_result(inner.to_symlink())
 				.map( |h| objects::new_object(Link(h)) );
 			Ok(super::from_result( objres ))
 			},
-		_ => todo!("Node::handle_syscall({}, ...)", call),
+		_ => ::objects::object_has_no_such_method_val("vfs::Node", call),
 		}
 	}
 	fn bind_wait(&self, _flags: u32, _obj: &mut ::kernel::threads::SleepObject) -> u32 { 0 }
@@ -140,7 +154,7 @@ impl objects::Object for File
 	const CLASS: u16 = values::CLASS_VFS_FILE;
 	fn class(&self) -> u16 { Self::CLASS }
 	fn as_any(&self) -> &Any { self }
-	fn handle_syscall(&self, call: u16, mut args: &[usize]) -> Result<u64,Error> {
+	fn handle_syscall_ref(&self, call: u16, mut args: &[usize]) -> Result<u64,Error> {
 		match call
 		{
 		values::VFS_FILE_GETSIZE => {
@@ -193,9 +207,12 @@ impl objects::Object for File
 			Err(e) => todo!("File::handle_syscall MEMMAP Error {:?}", e),
 			}
 			},
-		_ => todo!("File::handle_syscall({}, ...)", call),
+		_ => ::objects::object_has_no_such_method_ref("vfs::File", call),
 		}
 	}
+	//fn handle_syscall_val(self, call: u16, _args: &[usize]) -> Result<u64,Error> {
+	//	::objects::object_has_no_such_method_val("vfs::File", call)
+	//}
 	fn bind_wait(&self, _flags: u32, _obj: &mut ::kernel::threads::SleepObject) -> u32 { 0 }
 	fn clear_wait(&self, _flags: u32, _obj: &mut ::kernel::threads::SleepObject) -> u32 { 0 }
 }
@@ -221,7 +238,7 @@ impl objects::Object for Dir
 	const CLASS: u16 = values::CLASS_VFS_DIR;
 	fn class(&self) -> u16 { Self::CLASS }
 	fn as_any(&self) -> &Any { self }
-	fn handle_syscall(&self, call: u16, mut args: &[usize]) -> Result<u64,Error> {
+	fn handle_syscall_ref(&self, call: u16, mut args: &[usize]) -> Result<u64,Error> {
 		Ok(match call
 		{
 		values::VFS_DIR_OPENCHILD => {
@@ -234,14 +251,20 @@ impl objects::Object for Dir
 		values::VFS_DIR_OPENPATH => {
 			let path = try!(<Freeze<[u8]>>::get_arg(&mut args));
 			let path = Path::new(&path);
-			todo!("Dir::handle_syscall - VFS_DIR_OPENPATH(path={:?})", path);
+			super::from_result(
+				to_result( self.handle.open_child_path( Path::new(&*path) ) )
+					.map( |h| objects::new_object(Node(h)) )
+				)
 			},
 		values::VFS_DIR_ENUMERATE => {
 			objects::new_object( DirIter::new( self.handle.clone() ) ) as u64
 			},
-		_ => todo!("Dir::handle_syscall({}, ...)", call),
+		_ => return ::objects::object_has_no_such_method_ref("vfs::Dir", call),
 		})
 	}
+	//fn handle_syscall_val(self, call: u16, _args: &[usize]) -> Result<u64,Error> {
+	//	::objects::object_has_no_such_method_val("vfs::Dir", call)
+	//}
 	fn bind_wait(&self, _flags: u32, _obj: &mut ::kernel::threads::SleepObject) -> u32 { 0 }
 	fn clear_wait(&self, _flags: u32, _obj: &mut ::kernel::threads::SleepObject) -> u32 { 0 }
 }
@@ -266,7 +289,7 @@ impl objects::Object for DirIter
 	const CLASS: u16 = values::CLASS_VFS_DIRITER;
 	fn class(&self) -> u16 { Self::CLASS }
 	fn as_any(&self) -> &Any { self }
-	fn handle_syscall(&self, call: u16, mut args: &[usize]) -> Result<u64,Error> {
+	fn handle_syscall_ref(&self, call: u16, mut args: &[usize]) -> Result<u64,Error> {
 		Ok(match call
 		{
 		values::VFS_DIRITER_READENT => {
@@ -281,9 +304,12 @@ impl objects::Object for DirIter
 					},
 				})
 			},
-		_ => todo!("Dir::handle_syscall({}, ...)", call),
+		_ => return ::objects::object_has_no_such_method_ref("vfs::Dir", call),
 		})
 	}
+	//fn handle_syscall_val(self, call: u16, _args: &[usize]) -> Result<u64,Error> {
+	//	::objects::object_has_no_such_method_val("vfs::Dir", call)
+	//}
 	fn bind_wait(&self, _flags: u32, _obj: &mut ::kernel::threads::SleepObject) -> u32 { 0 }
 	fn clear_wait(&self, _flags: u32, _obj: &mut ::kernel::threads::SleepObject) -> u32 { 0 }
 }
@@ -356,7 +382,7 @@ impl objects::Object for Link
 	const CLASS: u16 = values::CLASS_VFS_LINK;
 	fn class(&self) -> u16 { Self::CLASS }
 	fn as_any(&self) -> &Any { self }
-	fn handle_syscall(&self, call: u16, mut args: &[usize]) -> Result<u64,Error> {
+	fn handle_syscall_ref(&self, call: u16, mut args: &[usize]) -> Result<u64,Error> {
 		match call
 		{
 		values::VFS_LINK_READ => {
@@ -368,9 +394,12 @@ impl objects::Object for Link
 					});
 			Ok( super::from_result(res) )
 			},
-		_ => todo!("Node::handle_syscall({}, ...)", call),
+		_ => ::objects::object_has_no_such_method_ref("vfs::Link", call),
 		}
 	}
+	//fn handle_syscall_val(self, call: u16, _args: &[usize]) -> Result<u64,Error> {
+	//	::objects::object_has_no_such_method_val("vfs::Link", call)
+	//}
 	fn bind_wait(&self, _flags: u32, _obj: &mut ::kernel::threads::SleepObject) -> u32 { 0 }
 	fn clear_wait(&self, _flags: u32, _obj: &mut ::kernel::threads::SleepObject) -> u32 { 0 }
 }

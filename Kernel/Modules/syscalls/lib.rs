@@ -6,6 +6,7 @@
 #![no_std]
 #![feature(associated_consts)]
 #![feature(reflect_marker)]
+#![feature(filling_drop)]	// For evil in vfs::Node
 
 #[allow(unused_imports)]
 use kernel::prelude::*;
@@ -35,6 +36,7 @@ pub enum Error
 	TooManyObjects,
 	InvalidBuffer(*const (), usize),
 	BorrowFailure,
+	MoveContention,
 	InvalidUnicode(::core::str::Utf8Error),
 }
 impl From<::core::str::Utf8Error> for Error {
@@ -46,9 +48,7 @@ impl From<FreezeError> for Error {
 
 /// Initialise PID0's handles
 pub fn init(loader_handle: ::kernel::vfs::handle::File, init_handle: ::kernel::vfs::handle::File) {
-	todo!("Put file handles into PID0's table");
-	// - Hand over loader+init handles (fixed as objects 0 and 1)
-	// - Open root RW handle
+	vfs::init_handles(loader_handle, init_handle);
 }
 
 #[no_mangle]
@@ -136,15 +136,13 @@ fn invoke_int(call_id: u32, mut args: &[usize]) -> Result<u64,Error>
 		// - 0/3: Start process
 		CORE_STARTPROCESS => {
 			let name  = try!( <Freeze<str>>::get_arg(&mut args) );
-			let ip = try!( <usize>::get_arg(&mut args) );
-			let sp = try!( <usize>::get_arg(&mut args) );
 			let start = try!( <usize>::get_arg(&mut args) );
 			let end   = try!( <usize>::get_arg(&mut args) );
 			if start > end || end > ::kernel::arch::memory::addresses::USER_END {
 				log_log!("CORE_STARTPROCESS - {:#x}--{:#x} invalid", start, end);
 				return Err( Error::BadValue );
 			}
-			threads::newprocess(&name, ip, sp, start, end) as u64
+			threads::newprocess(&name, start, end) as u64
 			},
 		// - 0/4: Start thread
 		CORE_STARTTHREAD => {
@@ -240,14 +238,24 @@ fn invoke_int(call_id: u32, mut args: &[usize]) -> Result<u64,Error>
 		// - Look up the object (first argument) and dispatch using registered methods
 		
 		// - Call method
-		if call_id == CALL_MASK {
+		match call_id
+		{
+		0 ... 0x3FE => {
+			objects::call_object_ref(handle_id, call_id as u16, args)
+			},
+		0x3FF => {
+			objects::get_class(handle_id)
+			},
+		0x400 ... 0x7FE => {
+			// Call a method defined for the object class.
+			objects::call_object_val(handle_id, call_id as u16, args)
+			},
+		0x7FF => {
 			// Destroy object
 			objects::drop_object(handle_id);
 			Ok(0)
-		}
-		else {
-			// Call a method defined for the object class?
-			objects::call_object(handle_id, call_id as u16, args)
+			},
+		_ => unreachable!(),
 		}
 	}
 }

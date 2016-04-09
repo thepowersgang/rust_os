@@ -7,7 +7,7 @@
 #[macro_use]
 extern crate syscalls;
 
-extern crate tifflin_process;
+extern crate loader;
 
 fn main()
 {
@@ -16,15 +16,23 @@ fn main()
 	//let daemons = Vec::new();
 	//let shells = Vec::new();
 
-	let session_root = tifflin_process::Process::spawn("/sysroot/bin/login");
+	let session_root = {
+		let pp = loader::new_process(b"/sysroot/bin/login", &[]).expect("Could not load login");
 
-	let wingrp = syscalls::gui::Group::new("Session 1").unwrap();
-	wingrp.force_active().expect("Cannot force session 1 to be active");
-	session_root.send_obj(wingrp);
+		pp.send_obj({
+			let wingrp = syscalls::gui::Group::new("Session 1").unwrap();
+			wingrp.force_active().expect("Cannot force session 1 to be active");
+			wingrp
+			});
+		pp.start()
+		};
+
 	loop {
 		let mut waits = [session_root.wait_terminate()];
 		::syscalls::threads::wait(&mut waits, !0);
 		drop(session_root);	// drop before panicking (leads to better reaping)
+		
+		// Empty wait set for ???
 		::syscalls::threads::wait(&mut [], !0);
 
 		panic!("TODO: Handle login terminating");

@@ -323,6 +323,11 @@ impl Dir
 		Ok(Any { node: node })
 	}
 
+	pub fn open_child_path(&self, path: &Path) -> super::Result<Any> {
+		let node = try!(CacheHandle::from_path_at_node(self.node.clone(), path));
+		Ok(Any{ node: node })
+	}
+
 
 	/// RETURN: next position
 	pub fn read_ents(&self, pos: usize, ents: &mut super::node::ReadDirCallback) -> super::Result<usize> {

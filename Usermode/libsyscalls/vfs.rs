@@ -19,6 +19,14 @@ pub use ::values::VFSNodeType as NodeType;
 pub use ::values::VFSFileOpenMode as FileOpenMode;
 pub use ::values::VFSMemoryMapMode as MemoryMapMode;
 
+//pub static ROOT: Dir = Dir( ::ObjectHandle(2) );
+#[allow(improper_ctypes)]
+extern "Rust" {
+	// NOTE: This is a 32-bit intger defined in the assembly stubs. I woudl use the above commented-out line, but can't
+	#[link_name="syscalls_vfs_root"]
+	pub static ROOT: Dir;
+}
+
 
 #[inline]
 fn to_obj(val: usize) -> Result<super::ObjectHandle, Error> {
@@ -42,21 +50,21 @@ impl Node
 	#[inline]
 	pub fn into_dir(self) -> Result<Dir,Error> {
 		// SAFE: Syscall
-		to_obj( unsafe { self.0.call_0(::values::VFS_NODE_TODIR) } as usize )
+		to_obj( unsafe { self.0.call_0_v(::values::VFS_NODE_TODIR) } as usize )
 			.map(|h| Dir(h))
 	}
 	/// Convert handle to a file handle (with the provided mode)
 	#[inline]
 	pub fn into_file(self, mode: FileOpenMode) -> Result<File,Error> {
 		// SAFE: Syscall
-		to_obj( unsafe { self.0.call_1(::values::VFS_NODE_TOFILE, mode as u8 as usize) } as usize )
+		to_obj( unsafe { self.0.call_1_v(::values::VFS_NODE_TOFILE, mode as u8 as usize) } as usize )
 			.map(|h| File(h, 0))
 	}
 	/// Convert handle to a symbolic link handle
 	#[inline]
 	pub fn into_symlink(self) -> Result<Symlink,Error> {
 		// SAFE: Syscall
-		to_obj( unsafe { self.0.call_0(::values::VFS_NODE_TOLINK) } as usize )
+		to_obj( unsafe { self.0.call_0_v(::values::VFS_NODE_TOLINK) } as usize )
 			.map(|h| Symlink(h))
 	}
 }

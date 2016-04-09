@@ -1,4 +1,6 @@
 
+#include "common.S"
+
 .section .text.start
 
 .extern main

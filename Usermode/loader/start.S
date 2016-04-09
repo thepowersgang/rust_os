@@ -12,6 +12,8 @@
 .globl BASE
 .globl LIMIT
 
+#include "../rustrt0/common.S"
+
 #ifdef ARCH_amd64
 # define DEFPTR 	.quad
 # define PTR_SIZE	8
