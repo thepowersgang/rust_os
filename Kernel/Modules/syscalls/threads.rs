@@ -9,7 +9,7 @@ use kernel::prelude::*;
 use ObjectHandle;
 use Error;
 use values;
-use SyscallArg;
+use args::Args;
 //use kernel::threads::get_process_local;
 
 /// Current process type (provides an object handle for IPC)
@@ -19,18 +19,18 @@ impl ::objects::Object for CurProcess
 	const CLASS: u16 = values::CLASS_CORE_THISPROCESS;
 	fn class(&self) -> u16 { Self::CLASS }
 	fn as_any(&self) -> &Any { self }
-	fn handle_syscall_ref(&self, call: u16, mut args: &[usize]) -> Result<u64, Error>
+	fn handle_syscall_ref(&self, call: u16, args: &mut Args) -> Result<u64, Error>
 	{
 		match call
 		{
 		values::CORE_THISPROCESS_RECVOBJ => {
-			let class = try!( <u16>::get_arg(&mut args) );
+			let class: u16 = try!(args.get());
 			Ok( ::objects::get_unclaimed(class) )
 			},
 		_ => ::objects::object_has_no_such_method_ref("threads::CurProcess", call),
 		}
 	}
-	//fn handle_syscall_val(self, call: u16, _args: &[usize]) -> Result<u64,Error> {
+	//fn handle_syscall_val(self, call: u16, _args: &mut Args) -> Result<u64,Error> {
 	//	::objects::object_has_no_such_method_val("threads::CurProcess", call)
 	//}
 	fn bind_wait(&self, _flags: u32, _obj: &mut ::kernel::threads::SleepObject) -> u32 {
@@ -99,24 +99,24 @@ impl ::objects::Object for ProtoProcess
 	const CLASS: u16 = values::CLASS_CORE_PROTOPROCESS;
 	fn class(&self) -> u16 { Self::CLASS }
 	fn as_any(&self) -> &Any { self }
-	fn handle_syscall_ref(&self, call: u16, mut args: &[usize]) -> Result<u64,Error>
+	fn handle_syscall_ref(&self, call: u16, args: &mut Args) -> Result<u64,Error>
 	{
 		match call
 		{
 		// Request termination of child process
 		values::CORE_PROTOPROCESS_SENDOBJ => {
-			let handle = try!(<u32>::get_arg(&mut args));
+			let handle: u32 = try!(args.get());
 			::objects::give_object(&self.0, handle).map(|_| 0)
 			}
 		_ => ::objects::object_has_no_such_method_ref("threads::ProtoProcess", call),
 		}
 	}
-	fn handle_syscall_val(&mut self, call: u16, mut args: &[usize]) -> Result<u64,Error> {
+	fn handle_syscall_val(&mut self, call: u16, args: &mut Args) -> Result<u64,Error> {
 		match call
 		{
 		values::CORE_PROTOPROCESS_START => {
-			let ip = try!(<usize>::get_arg(&mut args));
-			let sp = try!(<usize>::get_arg(&mut args));
+			let ip: usize = try!(args.get());
+			let sp: usize = try!(args.get());
 			
 			// HACK: Leaves the value as "valid" (but dropped)
 			// SAFE: Raw pointer coerced from &mut
@@ -143,7 +143,7 @@ impl ::objects::Object for Process
 	const CLASS: u16 = values::CLASS_CORE_PROCESS;
 	fn class(&self) -> u16 { Self::CLASS }
 	fn as_any(&self) -> &Any { self }
-	fn handle_syscall_ref(&self, call: u16, _args: &[usize]) -> Result<u64,Error>
+	fn handle_syscall_ref(&self, call: u16, _args: &mut Args) -> Result<u64,Error>
 	{
 		match call
 		{
@@ -152,7 +152,7 @@ impl ::objects::Object for Process
 		_ => ::objects::object_has_no_such_method_ref("threads::Process", call),
 		}
 	}
-	//fn handle_syscall_val(self, call: u16, _args: &[usize]) -> Result<u64,Error> {
+	//fn handle_syscall_val(self, call: u16, _args: &mut Args) -> Result<u64,Error> {
 	//	::objects::object_has_no_such_method_val("threads::process", call)
 	//}
 	fn bind_wait(&self, flags: u32, obj: &mut ::kernel::threads::SleepObject) -> u32 {

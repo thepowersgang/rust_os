@@ -7,6 +7,7 @@ use kernel::prelude::*;
 
 use kernel::sync::{RwLock,Mutex};
 use stack_dst::StackDST;
+use args::Args;
 
 use kernel::threads::get_process_local;
 
@@ -20,10 +21,10 @@ pub trait Object: Send + Sync + ::core::marker::Reflect
 	fn class(&self) -> u16;
 
 	/// Return: Return value or argument error
-	fn handle_syscall_ref(&self, call: u16, args: &[usize]) -> Result<u64,super::Error>;
+	fn handle_syscall_ref(&self, call: u16, args: &mut Args) -> Result<u64,super::Error>;
 	/// Return: Return value or argument error
-	//fn handle_syscall_val(self, call: u16, args: &[usize]) -> Result<u64,super::Error>;
-	fn handle_syscall_val(&mut self, call: u16, _args: &[usize]) -> Result<u64,super::Error> {
+	//fn handle_syscall_val(self, call: u16, args: &mut Args) -> Result<u64,super::Error>;
+	fn handle_syscall_val(&mut self, call: u16, _args: &mut Args) -> Result<u64,super::Error> {
 		::objects::object_has_no_such_method_val(self.type_name(), call)
 	}
 
@@ -37,10 +38,10 @@ impl<T: Object> Object for Box<T> {
 	fn type_name(&self) -> &str { (**self).type_name() }
 	fn as_any(&self) -> &Any { (**self).as_any() }
 	fn class(&self) -> u16 { (**self).class() }
-	fn handle_syscall_ref(&self, call: u16, args: &[usize]) -> Result<u64,super::Error> {
+	fn handle_syscall_ref(&self, call: u16, args: &mut Args) -> Result<u64,super::Error> {
 		(**self).handle_syscall_ref(call, args)
 	}
-	fn handle_syscall_val(&mut self, call: u16, args: &[usize]) -> Result<u64,super::Error> {
+	fn handle_syscall_val(&mut self, call: u16, args: &mut Args) -> Result<u64,super::Error> {
 		(**self).handle_syscall_val(call, args)
 	}
 	fn bind_wait(&self, flags: u32, obj: &mut ::kernel::threads::SleepObject) -> u32 {
@@ -80,7 +81,7 @@ struct ProcessObjects
 	// TODO: Use a FAR better collection for this, allowing cheap expansion of the list
 	objs: Vec< ObjectSlot >,
 
-	// TODO: Something lighter than a mutex?
+	// TODO: Something lighter than a mutex? (could be an atomic)
 	given: Mutex<GivenObjects>,
 }
 struct GivenObjects {
@@ -259,21 +260,20 @@ pub fn get_unclaimed(class: u16) -> u64
 }
 
 #[inline(never)]
-pub fn call_object_ref(handle: u32, call: u16, args: &[usize]) -> Result<u64,super::Error>
+pub fn call_object_ref(handle: u32, call: u16, args: &mut Args) -> Result<u64,super::Error>
 {
 	// Obtain reference/borrow to object (individually locked), and call the syscall on it
 	get_process_local::<ProcessObjects>().with_object(handle, |obj| {
-		log_trace!("#{} {} Call Ref {} - args=[{:#x}]", handle, obj.type_name(), call, ::kernel::lib::FmtSlice(args));
+		log_trace!("#{} {} Call Ref {} - args={:?}", handle, obj.type_name(), call, args);
 		obj.handle_syscall_ref(call, args)
 		})
 }
 #[inline(never)]
-pub fn call_object_val(handle: u32, call: u16, args: &[usize]) -> Result<u64,super::Error>
+pub fn call_object_val(handle: u32, call: u16, args: &mut Args) -> Result<u64,super::Error>
 {
-	log_trace!("call_object_val(handle={}, call={}, args={}", handle, call, args.len());
 	// Obtain reference/borrow to object (individually locked), and call the syscall on it
 	get_process_local::<ProcessObjects>().with_object_val(handle, |obj| {
-		log_trace!("#{} {} Call Val {} - args=[{:#x}]", handle, obj.type_name(), call-0x400, ::kernel::lib::FmtSlice(args));
+		log_trace!("#{} {} Call Val {} - args={:?}", handle, obj.type_name(), call-0x400, args);
 		obj.handle_syscall_val(call, args)
 		})
 }

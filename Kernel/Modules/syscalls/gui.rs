@@ -11,7 +11,7 @@ use kernel::sync::Mutex;
 
 use super::{values,objects};
 use super::{Error,ObjectHandle};
-use super::SyscallArg;
+use args::Args;
 
 impl ::core::convert::Into<values::GuiEvent> for ::gui::input::Event {
 	fn into(self) -> values::GuiEvent {
@@ -74,7 +74,7 @@ impl objects::Object for Group
 	const CLASS: u16 = values::CLASS_GUI_GROUP;
 	fn class(&self) -> u16 { Self::CLASS }
 	fn as_any(&self) -> &Any { self }
-	fn handle_syscall_ref(&self, call: u16, _args: &[usize]) -> Result<u64,Error>
+	fn handle_syscall_ref(&self, call: u16, _args: &mut Args) -> Result<u64,Error>
 	{
 		match call
 		{
@@ -108,13 +108,13 @@ impl objects::Object for Window
 	const CLASS: u16 = values::CLASS_GUI_WIN;
 	fn class(&self) -> u16 { Self::CLASS }
 	fn as_any(&self) -> &Any { self }
-	fn handle_syscall_ref(&self, call: u16, mut args: &[usize]) -> Result<u64,Error>
+	fn handle_syscall_ref(&self, call: u16, args: &mut Args) -> Result<u64,Error>
 	{
 		match call
 		{
 		values::GUI_WIN_SETFLAG => {
-			let flag  = try!( <u8>::get_arg(&mut args) );
-			let is_on = try!( <bool>::get_arg(&mut args) );
+			let flag: u8  = try!(args.get());
+			let is_on: bool = try!(args.get());
 			match values::GuiWinFlag::from(flag)
 			{
 			values::GuiWinFlag::Visible   => if is_on { self.0.lock().show()	 } else { self.0.lock().hide() },
@@ -127,11 +127,11 @@ impl objects::Object for Window
 			Ok(0)
 			},
 		values::GUI_WIN_BLITRECT => {
-			let x = try!( <u32>::get_arg(&mut args) );
-			let y = try!( <u32>::get_arg(&mut args) );
-			let w = try!( <u32>::get_arg(&mut args) );
-			let data = try!( <Freeze<[u32]>>::get_arg(&mut args) );
-			let stride = try!( <usize>::get_arg(&mut args) );
+			let x: u32 = try!(args.get());
+			let y: u32 = try!(args.get());
+			let w: u32 = try!(args.get());
+			let data: Freeze<[u32]> = try!(args.get());
+			let stride: usize = try!(args.get());
 			if data.len() == 0 {
 				Ok(0)
 			}
@@ -147,11 +147,11 @@ impl objects::Object for Window
 			}
 			},
 		values::GUI_WIN_FILLRECT => {
-			let x = try!( <u32>::get_arg(&mut args) );
-			let y = try!( <u32>::get_arg(&mut args) );
-			let w = try!( <u32>::get_arg(&mut args) );
-			let h = try!( <u32>::get_arg(&mut args) );
-			let colour = try!( <u32>::get_arg(&mut args) );
+			let x: u32 = try!(args.get());
+			let y: u32 = try!(args.get());
+			let w: u32 = try!(args.get());
+			let h: u32 = try!(args.get());
+			let colour: u32 = try!(args.get());
 			self.0.lock().fill_rect(Rect::new(x,y,w,h), ::gui::Colour::from_argb32(colour));
 			Ok(0)
 			},
@@ -159,7 +159,7 @@ impl objects::Object for Window
 			match self.0.lock().pop_event()
 			{
 			Some(ev) => {
-				let mut ev_ptr = try!( <FreezeMut<values::GuiEvent>>::get_arg(&mut args) );
+				let mut ev_ptr: FreezeMut<values::GuiEvent> = try!(args.get());
 				*ev_ptr = ev.into();
 				Ok(0)
 				},
@@ -172,8 +172,8 @@ impl objects::Object for Window
 			Ok( rv )
 			},
 		values::GUI_WIN_SETDIMS => {
-			let w = try!( <u32>::get_arg(&mut args) );
-			let h = try!( <u32>::get_arg(&mut args) );
+			let w: u32 = try!(args.get());
+			let h: u32 = try!(args.get());
 			let d = {
 				let mut lh = self.0.lock();
 				lh.resize( ::gui::Dims::new(w, h) );
@@ -188,8 +188,8 @@ impl objects::Object for Window
 			Ok( rv )
 			},
 		values::GUI_WIN_SETPOS => {
-			let x = try!( <u32>::get_arg(&mut args) );
-			let y = try!( <u32>::get_arg(&mut args) );
+			let x: u32 = try!(args.get());
+			let y: u32 = try!(args.get());
 			let p = {
 				let mut lh = self.0.lock();
 				lh.set_pos( ::gui::Pos::new(x, y) );
@@ -201,7 +201,7 @@ impl objects::Object for Window
 		_ => ::objects::object_has_no_such_method_ref("gui::Window", call),
 		}
 	}
-	//fn handle_syscall_val(self, call: u16, _args: &[usize]) -> Result<u64,Error> {
+	//fn handle_syscall_val(self, call: u16, _args: &mut Args) -> Result<u64,Error> {
 	//	::objects::object_has_no_such_method_val("gui::Window", call)
 	//}
 	fn bind_wait(&self, flags: u32, obj: &mut ::kernel::threads::SleepObject) -> u32 {

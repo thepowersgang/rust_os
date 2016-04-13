@@ -9,7 +9,7 @@ use kernel::memory::freeze::{Freeze,FreezeMut};
 use super::objects;
 use super::values;
 use super::Error;
-use super::SyscallArg;
+use args::Args;
 use kernel::vfs::{handle,node};
 use kernel::vfs::Path;
 
@@ -102,7 +102,7 @@ impl objects::Object for Node
 	const CLASS: u16 = values::CLASS_VFS_NODE;
 	fn class(&self) -> u16 { Self::CLASS }
 	fn as_any(&self) -> &Any { self }
-	fn handle_syscall_ref(&self, call: u16, _args: &[usize]) -> Result<u64,Error> {
+	fn handle_syscall_ref(&self, call: u16, _args: &mut Args) -> Result<u64,Error> {
 		match call
 		{
 		values::VFS_NODE_GETTYPE => {
@@ -112,14 +112,14 @@ impl objects::Object for Node
 		_ => ::objects::object_has_no_such_method_ref("vfs::Node", call),
 		}
 	}
-	fn handle_syscall_val(&mut self, call: u16, mut args: &[usize]) -> Result<u64,Error> {
+	fn handle_syscall_val(&mut self, call: u16, args: &mut Args) -> Result<u64,Error> {
 		// HACK: Leaves the value as "valid" (but dropped)
 		// SAFE: Raw pointer coerced from &mut
 		let inner = unsafe { ::core::ptr::read_and_drop(&mut self.0) };
 		match call
 		{
 		values::VFS_NODE_TOFILE => {
-			let mode = try!( <u8>::get_arg(&mut args) );
+			let mode: u8 = try!(args.get());
 
 			let mode = ::values::VFSFileOpenMode::from(mode);
 			let objres = to_result(inner.to_file(mode.into()))
@@ -154,15 +154,15 @@ impl objects::Object for File
 	const CLASS: u16 = values::CLASS_VFS_FILE;
 	fn class(&self) -> u16 { Self::CLASS }
 	fn as_any(&self) -> &Any { self }
-	fn handle_syscall_ref(&self, call: u16, mut args: &[usize]) -> Result<u64,Error> {
+	fn handle_syscall_ref(&self, call: u16, args: &mut Args) -> Result<u64,Error> {
 		match call
 		{
 		values::VFS_FILE_GETSIZE => {
 			Ok( self.0.size() )
 			},
 		values::VFS_FILE_READAT => {
-			let ofs = try!( <u64>::get_arg(&mut args) );
-			let mut dest = try!( <FreezeMut<[u8]>>::get_arg(&mut args) );
+			let ofs: u64 = try!(args.get());
+			let mut dest: FreezeMut<[u8]> = try!(args.get());
 			log_debug!("File::readat({}, {:p}+{} bytes)", ofs, dest.as_ptr(), dest.len());
 			match self.0.read(ofs, &mut dest)
 			{
@@ -171,8 +171,8 @@ impl objects::Object for File
 			}
 			},
 		values::VFS_FILE_WRITEAT => {
-			let ofs = try!( <u64>::get_arg(&mut args) );
-			let src = try!( <Freeze<[u8]>>::get_arg(&mut args) );
+			let ofs: u64 = try!(args.get());
+			let src: Freeze<[u8]> = try!(args.get());
 			log_debug!("File::writeat({}, {:p}+{} bytes)", ofs, src.as_ptr(), src.len());
 			match self.0.write(ofs, &src)
 			{
@@ -181,10 +181,10 @@ impl objects::Object for File
 			}
 			},
 		values::VFS_FILE_MEMMAP => {
-			let ofs = try!( <u64>::get_arg(&mut args) );
-			let size = try!( <usize>::get_arg(&mut args) );
-			let addr = try!( <usize>::get_arg(&mut args) );
-			let mode = match try!( <u8>::get_arg(&mut args) )
+			let ofs: u64 = try!(args.get());
+			let size: usize = try!(args.get());
+			let addr: usize = try!(args.get());
+			let mode = match try!(args.get::<u8>())
 				{
 				0 => ::kernel::vfs::handle::MemoryMapMode::ReadOnly,
 				1 => ::kernel::vfs::handle::MemoryMapMode::Execute,
@@ -210,7 +210,7 @@ impl objects::Object for File
 		_ => ::objects::object_has_no_such_method_ref("vfs::File", call),
 		}
 	}
-	//fn handle_syscall_val(self, call: u16, _args: &[usize]) -> Result<u64,Error> {
+	//fn handle_syscall_val(self, call: u16, _args: &mut Args) -> Result<u64,Error> {
 	//	::objects::object_has_no_such_method_val("vfs::File", call)
 	//}
 	fn bind_wait(&self, _flags: u32, _obj: &mut ::kernel::threads::SleepObject) -> u32 { 0 }
@@ -238,18 +238,19 @@ impl objects::Object for Dir
 	const CLASS: u16 = values::CLASS_VFS_DIR;
 	fn class(&self) -> u16 { Self::CLASS }
 	fn as_any(&self) -> &Any { self }
-	fn handle_syscall_ref(&self, call: u16, mut args: &[usize]) -> Result<u64,Error> {
+	fn handle_syscall_ref(&self, call: u16, args: &mut Args) -> Result<u64,Error> {
 		Ok(match call
 		{
 		values::VFS_DIR_OPENCHILD => {
-			let name = try!(<Freeze<[u8]>>::get_arg(&mut args));
+			let name: Freeze<[u8]> = try!(args.get());
 			super::from_result(
 				to_result( self.handle.open_child( ::kernel::lib::byte_str::ByteStr::new(&*name) ) )
 					.map( |h| objects::new_object(Node(h)) )
 				)
 			},
 		values::VFS_DIR_OPENPATH => {
-			let path = try!(<Freeze<[u8]>>::get_arg(&mut args));
+			let path: Freeze<[u8]> = try!(args.get());
+
 			let path = Path::new(&path);
 			super::from_result(
 				to_result( self.handle.open_child_path( Path::new(&*path) ) )
@@ -262,7 +263,7 @@ impl objects::Object for Dir
 		_ => return ::objects::object_has_no_such_method_ref("vfs::Dir", call),
 		})
 	}
-	//fn handle_syscall_val(self, call: u16, _args: &[usize]) -> Result<u64,Error> {
+	//fn handle_syscall_val(self, call: u16, _args: &mut Args) -> Result<u64,Error> {
 	//	::objects::object_has_no_such_method_val("vfs::Dir", call)
 	//}
 	fn bind_wait(&self, _flags: u32, _obj: &mut ::kernel::threads::SleepObject) -> u32 { 0 }
@@ -289,11 +290,12 @@ impl objects::Object for DirIter
 	const CLASS: u16 = values::CLASS_VFS_DIRITER;
 	fn class(&self) -> u16 { Self::CLASS }
 	fn as_any(&self) -> &Any { self }
-	fn handle_syscall_ref(&self, call: u16, mut args: &[usize]) -> Result<u64,Error> {
+	fn handle_syscall_ref(&self, call: u16, args: &mut Args) -> Result<u64,Error> {
 		Ok(match call
 		{
 		values::VFS_DIRITER_READENT => {
-			let mut name = try!(<FreezeMut<[u8]>>::get_arg(&mut args));
+			let mut name: FreezeMut<[u8]> = try!(args.get());
+
 			super::from_result( match self.inner.lock().read_ent(&self.handle)
 				{
 				Err(e) => Err(e),
@@ -307,7 +309,7 @@ impl objects::Object for DirIter
 		_ => return ::objects::object_has_no_such_method_ref("vfs::Dir", call),
 		})
 	}
-	//fn handle_syscall_val(self, call: u16, _args: &[usize]) -> Result<u64,Error> {
+	//fn handle_syscall_val(self, call: u16, _args: &mut Args) -> Result<u64,Error> {
 	//	::objects::object_has_no_such_method_val("vfs::Dir", call)
 	//}
 	fn bind_wait(&self, _flags: u32, _obj: &mut ::kernel::threads::SleepObject) -> u32 { 0 }
@@ -382,11 +384,12 @@ impl objects::Object for Link
 	const CLASS: u16 = values::CLASS_VFS_LINK;
 	fn class(&self) -> u16 { Self::CLASS }
 	fn as_any(&self) -> &Any { self }
-	fn handle_syscall_ref(&self, call: u16, mut args: &[usize]) -> Result<u64,Error> {
+	fn handle_syscall_ref(&self, call: u16, args: &mut Args) -> Result<u64,Error> {
 		match call
 		{
 		values::VFS_LINK_READ => {
-			let mut buf = try!(<FreezeMut<[u8]>>::get_arg(&mut args));
+			let mut buf: FreezeMut<[u8]> = try!(args.get());
+
 			let res = to_result( self.0.get_target() )
 				.map(|tgt| {
 					buf.clone_from_slice(tgt.as_bytes());
@@ -397,7 +400,7 @@ impl objects::Object for Link
 		_ => ::objects::object_has_no_such_method_ref("vfs::Link", call),
 		}
 	}
-	//fn handle_syscall_val(self, call: u16, _args: &[usize]) -> Result<u64,Error> {
+	//fn handle_syscall_val(self, call: u16, _args: &mut Args) -> Result<u64,Error> {
 	//	::objects::object_has_no_such_method_val("vfs::Link", call)
 	//}
 	fn bind_wait(&self, _flags: u32, _obj: &mut ::kernel::threads::SleepObject) -> u32 { 0 }
