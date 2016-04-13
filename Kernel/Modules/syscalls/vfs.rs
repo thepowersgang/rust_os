@@ -102,6 +102,9 @@ impl objects::Object for Node
 	const CLASS: u16 = values::CLASS_VFS_NODE;
 	fn class(&self) -> u16 { Self::CLASS }
 	fn as_any(&self) -> &Any { self }
+	fn try_clone(&self) -> Option<u32> {
+		Some( ::objects::new_object( Node(self.0.clone()) ) )
+	}
 	fn handle_syscall_ref(&self, call: u16, _args: &mut Args) -> Result<u64,Error> {
 		match call
 		{
@@ -154,6 +157,9 @@ impl objects::Object for File
 	const CLASS: u16 = values::CLASS_VFS_FILE;
 	fn class(&self) -> u16 { Self::CLASS }
 	fn as_any(&self) -> &Any { self }
+	fn try_clone(&self) -> Option<u32> {
+		Some( ::objects::new_object( File(self.0.clone()) ) )
+	}
 	fn handle_syscall_ref(&self, call: u16, args: &mut Args) -> Result<u64,Error> {
 		match call
 		{
@@ -238,6 +244,9 @@ impl objects::Object for Dir
 	const CLASS: u16 = values::CLASS_VFS_DIR;
 	fn class(&self) -> u16 { Self::CLASS }
 	fn as_any(&self) -> &Any { self }
+	fn try_clone(&self) -> Option<u32> {
+		Some( ::objects::new_object( Dir { handle: self.handle.clone() } ) )
+	}
 	fn handle_syscall_ref(&self, call: u16, args: &mut Args) -> Result<u64,Error> {
 		Ok(match call
 		{
@@ -290,6 +299,9 @@ impl objects::Object for DirIter
 	const CLASS: u16 = values::CLASS_VFS_DIRITER;
 	fn class(&self) -> u16 { Self::CLASS }
 	fn as_any(&self) -> &Any { self }
+	fn try_clone(&self) -> Option<u32> {
+		None
+	}
 	fn handle_syscall_ref(&self, call: u16, args: &mut Args) -> Result<u64,Error> {
 		Ok(match call
 		{
@@ -384,6 +396,9 @@ impl objects::Object for Link
 	const CLASS: u16 = values::CLASS_VFS_LINK;
 	fn class(&self) -> u16 { Self::CLASS }
 	fn as_any(&self) -> &Any { self }
+	fn try_clone(&self) -> Option<u32> {
+		Some( ::objects::new_object( Link(self.0.clone()) ) )
+	}
 	fn handle_syscall_ref(&self, call: u16, args: &mut Args) -> Result<u64,Error> {
 		match call
 		{

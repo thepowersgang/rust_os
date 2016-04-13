@@ -131,12 +131,22 @@ impl ObjectHandle
 
 	fn get_class(&self) -> Result<u16,()> {
 		// SAFE: Known method
-		let v = unsafe { ::raw::syscall_0( (1 << 31 | (0x3FF << 20) | self.0) ) };
+		let v = unsafe { ::raw::syscall_0( self.call_value(::values::OBJECT_GETCLASS) ) };
 		if v >= (1<<16) {
 			Err( () )
 		}
 		else {
 			Ok( v as u16 )
+		}
+	}
+	fn try_clone(&self) -> Result<Self,()> {
+		// SAFE: Standard method
+		let v = unsafe { ::raw::syscall_0( self.call_value(::values::OBJECT_CLONE) ) };
+		if v >= (1<<20) {
+			Err( () )
+		}
+		else {
+			Ok( ObjectHandle(v as u32) )
 		}
 	}
 
@@ -168,11 +178,10 @@ impl ObjectHandle
 }
 impl Drop for ObjectHandle {
 	fn drop(&mut self) {
-		// SAFE: Valid call
+		// SAFE: Valid call and use of dropped
 		unsafe {
-			if self.0 != ::core::mem::dropped()
-			{
-				::raw::syscall_0( (1 << 31 | (0x7FF << 20) | self.0) );
+			if self.0 != ::core::mem::dropped() {
+				::raw::syscall_0( self.call_value(::values::OBJECT_DROP) );
 			}
 		}
 	}

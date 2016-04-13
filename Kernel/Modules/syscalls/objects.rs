@@ -20,6 +20,8 @@ pub trait Object: Send + Sync + ::core::marker::Reflect
 	fn as_any(&self) -> &Any;
 	fn class(&self) -> u16;
 
+	fn try_clone(&self) -> Option<u32>;
+
 	/// Return: Return value or argument error
 	fn handle_syscall_ref(&self, call: u16, args: &mut Args) -> Result<u64,super::Error>;
 	/// Return: Return value or argument error
@@ -38,6 +40,9 @@ impl<T: Object> Object for Box<T> {
 	fn type_name(&self) -> &str { (**self).type_name() }
 	fn as_any(&self) -> &Any { (**self).as_any() }
 	fn class(&self) -> u16 { (**self).class() }
+	fn try_clone(&self) -> Option<u32> {
+		(**self).try_clone()
+	}
 	fn handle_syscall_ref(&self, call: u16, args: &mut Args) -> Result<u64,super::Error> {
 		(**self).handle_syscall_ref(call, args)
 	}
@@ -247,7 +252,11 @@ pub fn get_unclaimed(class: u16) -> u64
 				Ok(id as u32)
 			}
 			else {
-				log_notice!("Object was the wrong class");
+				{
+					let o = lh.as_ref().unwrap();
+					log_notice!("Object was the wrong class (wanted {}, but got {} [{}])",
+						class, o.data.class(), o.data.type_name());
+				}
 				*lh = None;
 				Err(1)
 			}
@@ -281,6 +290,15 @@ pub fn call_object_val(handle: u32, call: u16, args: &mut Args) -> Result<u64,su
 pub fn get_class(handle: u32) -> Result<u64, super::Error>
 {
 	get_process_local::<ProcessObjects>().with_object(handle, |obj| Ok(obj.class() as u64))
+}
+pub fn clone_object(handle: u32) -> Result<u64, super::Error> {
+	get_process_local::<ProcessObjects>().with_object(handle, |obj| {
+		match obj.try_clone()
+		{
+		Some(v) => Ok(v as u64),
+		None => Ok(!0),
+		}
+		})
 }
 
 pub fn wait_on_object(handle: u32, mask: u32, sleeper: &mut ::kernel::threads::SleepObject) -> Result<u32,super::Error> {

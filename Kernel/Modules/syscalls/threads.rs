@@ -19,6 +19,9 @@ impl ::objects::Object for CurProcess
 	const CLASS: u16 = values::CLASS_CORE_THISPROCESS;
 	fn class(&self) -> u16 { Self::CLASS }
 	fn as_any(&self) -> &Any { self }
+	fn try_clone(&self) -> Option<u32> {
+		None
+	}
 	fn handle_syscall_ref(&self, call: u16, args: &mut Args) -> Result<u64, Error>
 	{
 		match call
@@ -99,6 +102,9 @@ impl ::objects::Object for ProtoProcess
 	const CLASS: u16 = values::CLASS_CORE_PROTOPROCESS;
 	fn class(&self) -> u16 { Self::CLASS }
 	fn as_any(&self) -> &Any { self }
+	fn try_clone(&self) -> Option<u32> {
+		None
+	}
 	fn handle_syscall_ref(&self, call: u16, args: &mut Args) -> Result<u64,Error>
 	{
 		match call
@@ -143,6 +149,9 @@ impl ::objects::Object for Process
 	const CLASS: u16 = values::CLASS_CORE_PROCESS;
 	fn class(&self) -> u16 { Self::CLASS }
 	fn as_any(&self) -> &Any { self }
+	fn try_clone(&self) -> Option<u32> {
+		None
+	}
 	fn handle_syscall_ref(&self, call: u16, _args: &mut Args) -> Result<u64,Error>
 	{
 		match call

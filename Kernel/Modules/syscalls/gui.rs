@@ -74,6 +74,9 @@ impl objects::Object for Group
 	const CLASS: u16 = values::CLASS_GUI_GROUP;
 	fn class(&self) -> u16 { Self::CLASS }
 	fn as_any(&self) -> &Any { self }
+	fn try_clone(&self) -> Option<u32> {
+		Some( ::objects::new_object( Group(self.0.clone()) ) )
+	}
 	fn handle_syscall_ref(&self, call: u16, _args: &mut Args) -> Result<u64,Error>
 	{
 		match call
@@ -108,6 +111,9 @@ impl objects::Object for Window
 	const CLASS: u16 = values::CLASS_GUI_WIN;
 	fn class(&self) -> u16 { Self::CLASS }
 	fn as_any(&self) -> &Any { self }
+	fn try_clone(&self) -> Option<u32> {
+		None
+	}
 	fn handle_syscall_ref(&self, call: u16, args: &mut Args) -> Result<u64,Error>
 	{
 		match call

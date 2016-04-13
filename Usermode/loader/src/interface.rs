@@ -82,8 +82,7 @@ pub extern "C" fn new_process(binary: &[u8], args: &[&[u8]]) -> Result<::syscall
 	// Send the executable handle
 	kernel_log!("- Sending executable handle");
 	proto_proc.send_obj( executable_handle );
-	// TODO: Send a copy of the root handle
-	//proto_proc.send_obj( ::syscalls::vfs::ROOT.clone() );
+	proto_proc.send_obj( ::syscalls::vfs::ROOT.clone() );
 
 	kernel_log!("- Returning ProtoProcess");
 	Ok(proto_proc)
@@ -127,7 +126,7 @@ fn new_process_entry() -> !
 	
 	
 	let fh: ::syscalls::vfs::File = ::syscalls::threads::S_THIS_PROCESS.receive_object().expect("Could not receive the executable vfs::File object");
-	let root: ::syscalls::vfs::File = ::syscalls::threads::S_THIS_PROCESS.receive_object().expect("Could not receive the root");
+	let root: ::syscalls::vfs::Dir = ::syscalls::threads::S_THIS_PROCESS.receive_object().expect("Could not receive the root");
 	::std::mem::forget(root);
 	let entrypoint = ::load_binary(binary, fh);
 	

@@ -258,19 +258,22 @@ fn invoke_int(call_id: u32, args: &mut Args) -> Result<u64,Error>
 		// - Look up the object (first argument) and dispatch using registered methods
 		
 		// - Call method
-		match call_id
+		match call_id as u16
 		{
-		0 ... 0x3FE => {
+		0 ... 0x3FD => {
 			objects::call_object_ref(handle_id, call_id as u16, args)
 			},
-		0x3FF => {
+		::values::OBJECT_CLONE => {
+			objects::clone_object(handle_id)
+			},
+		::values::OBJECT_GETCLASS => {
 			objects::get_class(handle_id)
 			},
 		0x400 ... 0x7FE => {
 			// Call a method defined for the object class.
 			objects::call_object_val(handle_id, call_id as u16, args)
 			},
-		0x7FF => {
+		::values::OBJECT_DROP => {
 			// Destroy object
 			objects::drop_object(handle_id);
 			Ok(0)

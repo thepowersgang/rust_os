@@ -14,7 +14,7 @@ use super::Path;
 pub struct Any {
 	node: CacheHandle,
 }
-#[derive(Debug)]
+#[derive(Debug,Clone)]
 /// Normal file
 pub struct File {
 	node: CacheHandle,
@@ -25,18 +25,18 @@ pub struct File {
 pub struct Dir {
 	node: CacheHandle,
 }
-#[derive(Debug)]
+#[derive(Debug,Clone)]
 /// Symbolic link (allows reading the link contents)
 pub struct Symlink {
 	node: CacheHandle,
 }
-#[derive(Debug)]
+#[derive(Debug,Clone)]
 /// Special file (?API exposed)
 pub struct Special {
 	node: CacheHandle,
 }
 
-#[derive(Debug)]
+#[derive(Debug,Clone)]
 pub enum FileOpenMode
 {
 	/// Shared read-only, multiple readers but no writers visible

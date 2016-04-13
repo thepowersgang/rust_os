@@ -188,6 +188,11 @@ impl ::Object for Dir {
 
 	type Waits = ();
 }
+impl Clone for Dir {
+	fn clone(&self) -> Self {
+		Dir( self.0.try_clone().expect("Failed to clone vfs::Dir (should have been able to)") )
+	}
+}
 
 impl DirIter
 {
