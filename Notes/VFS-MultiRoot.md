@@ -49,6 +49,13 @@ Ideas
   - Fix: Can combine with loaded application manifiest that lists the app name and executables.
 - Tie to the GUI window handle
  - Upside: Obvious origin (the window can be disabled), title shown taken from the window title.
+ - Downside: Requires a complete rework of GUI handle distribution
+
+Accepted Method
+---------------
+
+Use the application's window handle (which must be visible) as the modal parent of the file-open dialog. This is made possible
+through special access granted to the session leader (holder of the window group handle, all other applications just have a root window).
 
 Usecases
 ====
