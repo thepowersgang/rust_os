@@ -79,6 +79,10 @@ def_grp!( 2: GROUP_MEM = {
 });
 
 
+pub const OBJECT_CLONE: u16 = 0x3FE;
+pub const OBJECT_GETCLASS: u16 = 0x3FF;
+pub const OBJECT_DROP: u16 = 0x7FF;
+
 // Define all classes, using c-like enums to ensure that values are not duplicated
 macro_rules! def_classes {
 	(

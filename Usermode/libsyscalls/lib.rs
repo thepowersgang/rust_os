@@ -8,6 +8,7 @@
 #![feature(associated_consts)]
 #![feature(unsafe_no_drop_flag)]
 #![feature(filling_drop)]
+#![feature(stmt_expr_attributes)]
 #![no_std]
 
 mod std {
@@ -142,52 +143,27 @@ impl ObjectHandle
 	def_call!{ call_0,call_0_v => syscall_0() }
 	def_call!{ call_1,call_1_v => syscall_1(a1) }
 	def_call!{ call_2,call_2_v => syscall_2(a1, a2) }
+	def_call!{ call_3,call_3_v => syscall_3(a1, a2, a3) }
+	def_call!{ call_4,call_4_v => syscall_4(a1, a2, a3, a4) }
+	def_call!{ call_5,call_5_v => syscall_5(a1, a2, a3, a4, a5) }
+	def_call!{ call_6,call_6_v => syscall_6(a1, a2, a3, a4, a5, a6) }
 
-	#[allow(dead_code)]
-	#[inline]
-	unsafe fn call_3(&self, call: u16, a1: usize, a2: usize, a3: usize) -> u64 {
-		::raw::syscall_3( self.call_value(call), a1, a2, a3 )
-	}
-	#[cfg(target_pointer_width="64")]
 	#[allow(dead_code)]
 	#[inline]
 	unsafe fn call_3l(&self, call: u16, a1: u64, a2: usize, a3: usize) -> u64 {
-		::raw::syscall_3( self.call_value(call), a1 as usize, a2, a3 )
-	}
-	#[cfg(target_pointer_width="32")]
-	#[allow(dead_code)]
-	#[inline]
-	unsafe fn call_3l(&self, call: u16, a1: u64, a2: usize, a3: usize) -> u64 {
-		::raw::syscall_4( self.call_value(call), (a1 & 0xFFFFFFFF) as usize, (a1 >> 32) as usize, a2, a3 )
+		#[cfg(target_pointer_width="64")]
+		{ return ::raw::syscall_3( self.call_value(call), a1 as usize, a2, a3 ) }
+		#[cfg(target_pointer_width="32")]
+		{ return ::raw::syscall_4( self.call_value(call), (a1 & 0xFFFFFFFF) as usize, (a1 >> 32) as usize, a2, a3 ) }
 	}
 
 	#[allow(dead_code)]
 	#[inline]
-	unsafe fn call_4(&self, call: u16, a1: usize, a2: usize, a3: usize, a4: usize) -> u64 {
-		::raw::syscall_4( self.call_value(call), a1, a2, a3, a4 )
-	}
-	#[cfg(target_pointer_width="64")]
-	#[allow(dead_code)]
-	#[inline]
 	unsafe fn call_4l(&self, call: u16, a1: u64, a2: usize, a3: usize, a4: usize) -> u64 {
-		::raw::syscall_4( self.call_value(call), a1 as usize, a2, a3, a4 )
-	}
-	#[cfg(target_pointer_width="32")]
-	#[allow(dead_code)]
-	#[inline]
-	unsafe fn call_4l(&self, call: u16, a1: u64, a2: usize, a3: usize, a4: usize) -> u64 {
-		::raw::syscall_5( self.call_value(call), (a1 & 0xFFFFFFFF) as usize, (a1 >> 32) as usize, a2, a3, a4 )
-	}
-
-	#[allow(dead_code)]
-	#[inline]
-	unsafe fn call_5(&self, call: u16, a1: usize, a2: usize, a3: usize, a4: usize, a5: usize) -> u64 {
-		::raw::syscall_5( self.call_value(call), a1, a2, a3, a4, a5 )
-	}
-	#[allow(dead_code)]
-	#[inline]
-	unsafe fn call_6(&self, call: u16, a1: usize, a2: usize, a3: usize, a4: usize, a5: usize, a6: usize) -> u64 {
-		::raw::syscall_6( self.call_value(call), a1, a2, a3, a4, a5, a6 )
+		#[cfg(target_pointer_width="64")]
+		return ::raw::syscall_4( self.call_value(call), a1 as usize, a2, a3, a4 );
+		#[cfg(target_pointer_width="32")]
+		return ::raw::syscall_5( self.call_value(call), (a1 & 0xFFFFFFFF) as usize, (a1 >> 32) as usize, a2, a3, a4 );
 	}
 }
 impl Drop for ObjectHandle {

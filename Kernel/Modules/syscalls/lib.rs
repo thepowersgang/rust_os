@@ -45,6 +45,22 @@ impl From<::core::str::Utf8Error> for Error {
 impl From<FreezeError> for Error {
 	fn from(_v: FreezeError) -> Self { Error::BorrowFailure }
 }
+impl ::core::fmt::Display for Error {
+	fn fmt(&self, f: &mut ::core::fmt::Formatter) -> ::core::fmt::Result {
+		match *self
+		{
+		Error::UnknownCall => f.write_str("Unknown system call"),
+		Error::TooManyArgs => f.write_str("Too many arguments needed"),
+		Error::BadValue => f.write_str("Invalid value passed"),
+		Error::NoSuchObject(v) => write!(f, "Object {} is invalid", v),
+		Error::TooManyObjects => f.write_str("Out of object slots"),
+		Error::InvalidBuffer(p,s) => write!(f, "Buffer {:p}+{} wasn't valid", p, s),
+		Error::BorrowFailure => f.write_str("Contention on memory accesses"),
+		Error::MoveContention => f.write_str("Contention on object transfer"),
+		Error::InvalidUnicode(_) => f.write_str("Passed string wasn't valid unicode"),
+		}
+	}
+}
 
 /// Initialise PID0's handles
 pub fn init(loader_handle: ::kernel::vfs::handle::File, init_handle: ::kernel::vfs::handle::File) {
@@ -64,8 +80,9 @@ fn invoke(call_id: u32, args: &[usize]) -> u64 {
 	{
 	Ok(v) => v,
 	Err(e) => {
-		log_log!("Syscall formatting error in call {:#x} - {:?}", call_id, e);
-		!0
+		log_log!("Syscall formatting error in call {:#x} - {:?} {}", call_id, e, e);
+		::kernel::threads::exit_process(0x8000_0000);
+		// !0
 		},
 	}
 }
@@ -262,6 +279,14 @@ fn invoke_int(call_id: u32, mut args: &[usize]) -> Result<u64,Error>
 
 trait SyscallArg: Sized {
 	fn get_arg(args: &mut &[usize]) -> Result<Self,Error>;
+}
+
+struct Args<'a>(&'a [usize]);
+impl<'a> Args<'a>
+{
+	pub fn get<T: SyscallArg>(&mut self) -> Result<T, Error> {
+		T::get_arg(&mut self.0)
+	}
 }
 
 // POD - Plain Old Data

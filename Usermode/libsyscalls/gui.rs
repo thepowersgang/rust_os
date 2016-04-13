@@ -164,6 +164,7 @@ impl Window
 			assert!(h_calc == h, "Calculated hight disagrees with stated - calc={}, stated={}", h_calc, h);
 		}
 
+		kernel_log!("GUI_WIN_BLITRECT");
 		// SAFE: Syscall
 		unsafe { self.0.call_6(::values::GUI_WIN_BLITRECT, x as usize, y as usize, w as usize, data.as_ptr() as usize, data.len(), stride); }
 	}

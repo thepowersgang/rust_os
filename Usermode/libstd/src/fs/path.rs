@@ -36,6 +36,26 @@ impl Path
 	pub fn display(&self) -> Display {
 		Display(self)
 	}
+
+	pub fn is_absolute(&self) -> bool {
+		self.0.as_bytes().len() > 0 && self.0.as_bytes()[0] == b'/'
+	}
+
+	pub fn starts_with<P: AsRef<Path>>(&self, base: P) -> bool {
+		let base = base.as_ref();
+		self.0.as_bytes().starts_with( base.0.as_bytes() )
+	}
+
+
+
+	pub fn split_off_first(&self) -> (&::std::ffi::OsStr, &Path) {
+		let (a, b) = {
+			let mut it = self.0.as_bytes().splitn(2, |&x| x == b'/');
+			(it.next().unwrap(), it.next().unwrap_or(&[]))
+			};
+
+		(a.as_ref(), Path::new(b))
+	}
 }
 
 pub struct Display<'a>(&'a Path);
