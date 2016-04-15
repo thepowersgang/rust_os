@@ -29,6 +29,7 @@ Kernel/bin
 Kernel/gitstats
 Kernel/SynExts
 
+Kernel/rundir/fat.img
 Kernel/rundir/bochsout.txt
 Kernel/rundir/bochsdbg.txt
 Kernel/rundir/serial.txt

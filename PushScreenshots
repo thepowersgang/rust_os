@@ -1,0 +1,15 @@
+#!/bin/bash
+
+#
+# Local-only script to push screenshots from the automated testing (SysTest/) to ted.mutabah.net
+# 
+
+rm -rf .autotest_screenshots
+for d in Kernel/rundir/test-*/; do
+	mkdir -p .autotest_screenshots/$(basename $d)
+	for f in $d/*.ppm; do
+		convert $f .autotest_screenshots/$(basename $d)/$(basename $f).png
+	done
+done
+ssh ted 'rm -r /home/tpg/public_html/TifflinScreenshots/autotest'
+scp -r .autotest_screenshots ted.mutabah.net:/home/tpg/public_html/TifflinScreenshots/autotest
