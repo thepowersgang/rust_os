@@ -1,5 +1,9 @@
-
-use kernel::memory::freeze::{Freeze,FreezeMut,FreezeError};
+// "Tifflin" Kernel
+// - By John Hodge (thePowersGang)
+//
+// Core/syscalls/args.rs
+//! Argument de-marshalling
+use kernel::memory::freeze::{Freeze,FreezeMut};
 
 pub trait SyscallArg: Sized {
 	fn get_arg(args: &mut &[usize]) -> Result<Self,::Error>;

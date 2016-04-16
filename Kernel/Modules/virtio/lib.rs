@@ -5,7 +5,6 @@
 //! Virtual IO devices
 #![no_std]
 #![feature(linkage)]
-#![feature(raw)]	// Used for unsized struct construction
 
 #[macro_use] extern crate kernel;
 

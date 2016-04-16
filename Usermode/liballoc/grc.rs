@@ -186,10 +186,7 @@ impl<C: Counter, U> Grc<C, [U]>
 		::core::cmp::max(::core::mem::align_of::<U>(), ::core::mem::align_of::<usize>())
 	}
 	unsafe fn rcinner_ptr(count: usize, ptr: *mut ()) -> *mut GrcInner<C, [U]> {
-		::core::mem::transmute(::core::raw::Slice {
-			data: ptr,
-			len: count,
-			} )
+		::core::mem::transmute(::core::slice::from_raw_parts(ptr, count))
 	}
 	fn rcinner_size(len: usize) -> usize {
 		// SAFE: (TODO: Check validity here) Should not cause a read from invalid pointer

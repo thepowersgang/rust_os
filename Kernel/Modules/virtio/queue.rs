@@ -186,7 +186,7 @@ impl Queue
 		// SAFE: Unaliased memory
 		unsafe {
 			let ptr: *const () = self.buffer.as_ref( Self::get_first_size(self.size) );
-			let rv: &UsedRing = ::core::mem::transmute(::core::raw::Slice { data: ptr, len: self.size });
+			let rv: &UsedRing = ::core::mem::transmute(::core::slice::from_raw_parts(ptr, self.size));
 			assert_eq!(&rv.flags as *const _, ptr as *const u16);
 			rv
 		}

@@ -18,7 +18,6 @@
 #![feature(step_by)]	// Range::step_by
 #![feature(linkage)]	// allows using #[linkage="external"]
 #![feature(const_fn)]	// Allows defining `const fn`
-#![feature(raw)]	// Needed for raw::Slice in Grc
 #![feature(get_type_id,reflect_marker)] // used by process_local's "AnyMap" hackery
 #![cfg_attr(not(use_acpica),feature(ptr_as_ref))]	// used by ACPI code (custom impl, not ACPICA)
 #![feature(unsafe_no_drop_flag,filling_drop)]	// Used by smart pointers to reduce size
