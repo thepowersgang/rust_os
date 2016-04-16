@@ -17,7 +17,7 @@ fn main()
 	//let shells = Vec::new();
 
 	let session_root = {
-		let pp = loader::new_process(b"/sysroot/bin/login", &[]).expect("Could not load login");
+		let pp = loader::new_process(open_exec("/sysroot/bin/login"), b"/sysroot/bin/login", &[]).expect("Could not start login");
 
 		pp.send_obj({
 			let wingrp = syscalls::gui::Group::new("Session 1").unwrap();
@@ -36,6 +36,19 @@ fn main()
 		::syscalls::threads::wait(&mut [], !0);
 
 		panic!("TODO: Handle login terminating");
+	}
+}
+
+fn open_exec(path: &str) -> ::syscalls::vfs::File
+{
+	match ::syscalls::vfs::ROOT.open_child_path(path.as_bytes())
+	{
+	Ok(v) => match v.into_file(::syscalls::vfs::FileOpenMode::Execute)
+		{
+		Ok(v) => v,
+		Err(e) => panic!("Couldn't open '{}' as an executable file - {:?}", path, e),
+		},
+	Err(e) => panic!("Couldn't open executable '{}' - {:?}", path, e),
 	}
 }
 

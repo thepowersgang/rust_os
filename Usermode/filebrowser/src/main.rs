@@ -41,12 +41,13 @@ fn main()
 }
 
 fn view_file(p: &::std::fs::Path) {
-	let byte_args: &[&[u8]] = &[ p.as_ref(), ];
-	match ::loader::new_process(b"/sysroot/bin/fileviewer", byte_args)
-	{
-	Ok(app) => {
-		app.send_obj( ::syscalls::gui::clone_group_handle() );
-		},
-	Err(_e) => {},
-	}
+	panic!("filebrowser - view_file (post VFS rejig)");
+	//let byte_args: &[&[u8]] = &[ p.as_ref(), ];
+	//match ::loader::new_process(b"/sysroot/bin/fileviewer", byte_args)
+	//{
+	//Ok(app) => {
+	//	app.send_obj( ::syscalls::gui::clone_group_handle() );
+	//	},
+	//Err(_e) => {},
+	//}
 }

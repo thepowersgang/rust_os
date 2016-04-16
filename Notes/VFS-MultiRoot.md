@@ -35,6 +35,8 @@ Requirements
 ------------
 - Not forgeable (presenting the handle via the kernel means that the communicating process was started by that program)
 - Immutable
+- Unique for each process
+- Tied to a unique or unambigious user-readable name
 
 Ideas
 -----
@@ -71,6 +73,7 @@ The handle server could have mappings of application names to root binaries (or 
 Dynamic libraries (if any) are handled in a similar manner, except the loader also looks in `AppBin`
 
 NOTE: Root is _not_ avaliable unless operating in an emulation environment
+- Even then, it's likely a fake root
 
 
 File Editing

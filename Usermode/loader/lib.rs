@@ -36,7 +36,7 @@ mod int {
 		//  > Arguments
 		//  > ? Environment (could this be transferred using IPC during init?)
 		//  > ? Handles (same thing really, send them over an IPC channel)
-		pub fn new_process(binary: &[u8], args: &[&[u8]]) -> Result<::syscalls::threads::ProtoProcess,super::Error>;
+		pub fn new_process(executable_handle: ::syscalls::vfs::File, process_name: &[u8], args: &[&[u8]]) -> Result<::syscalls::threads::ProtoProcess,super::Error>;
 
 		pub fn start_process(handle: ::syscalls::threads::ProtoProcess) -> ::syscalls::threads::Process;
 	}
@@ -56,10 +56,10 @@ impl ProtoProcess
 	}
 }
 
-pub fn new_process(binary: &[u8], args: &[&[u8]]) -> Result<ProtoProcess,Error> {
+pub fn new_process(binary_file: ::syscalls::vfs::File, binary: &[u8], args: &[&[u8]]) -> Result<ProtoProcess,Error> {
 	// SAFE: Call is actually to rust
 	unsafe {
-		int::new_process(binary, args).map( |v| ProtoProcess(v) )
+		int::new_process(binary_file, binary, args).map( |v| ProtoProcess(v) )
 	}
 }
 

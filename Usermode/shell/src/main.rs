@@ -107,9 +107,10 @@ fn main()
 fn start_app(args: &[&str]) {
 	extern crate loader;
 	kernel_log!("start_app(args={:?})", args);
+	let fh = open_exec(args[0]);
 	// SAFE: &str and &[u8] have the same representation
 	let byte_args: &[&[u8]] = unsafe { ::std::mem::transmute(&args[1..]) };
-	match loader::new_process(args[0].as_bytes(), byte_args)
+	match loader::new_process(fh, args[0].as_bytes(), byte_args)
 	{
 	Ok(app) => {
 		app.send_obj( ::syscalls::gui::clone_group_handle() );
@@ -118,4 +119,15 @@ fn start_app(args: &[&str]) {
 	}
 }
 
-
+fn open_exec(path: &str) -> ::syscalls::vfs::File
+{
+	match ::syscalls::vfs::ROOT.open_child_path(path.as_bytes())
+	{
+	Ok(v) => match v.into_file(::syscalls::vfs::FileOpenMode::Execute)
+		{
+		Ok(v) => v,
+		Err(e) => panic!("Couldn't open '{}' as an executable file - {:?}", path, e),
+		},
+	Err(e) => panic!("Couldn't open executable '{}' - {:?}", path, e),
+	}
+}

@@ -138,7 +138,16 @@ fn spawn_console_and_wait(path: &str)
 	// - Needs to automatically pass the WGH
 	// - OR - Just have a wtk method to pass it `::wtk::share_handle(&console)`
 	let console = {
-		let pp = loader::new_process(path.as_bytes(), &[]).expect("Could not spawn shell");
+		let fh = match ::syscalls::vfs::ROOT.open_child_path(path.as_bytes())
+			{
+			Ok(v) => match v.into_file(::syscalls::vfs::FileOpenMode::Execute)
+				{
+				Ok(v) => v,
+				Err(e) => panic!("Couldn't open '{}' as an executable file - {:?}", path, e),
+				},
+			Err(e) => panic!("Couldn't open executable '{}' - {:?}", path, e),
+			};
+		let pp = loader::new_process(fh, path.as_bytes(), &[]).expect("Could not spawn shell");
 		pp.send_obj( ::syscalls::gui::clone_group_handle() );
 		pp.start()
 		};

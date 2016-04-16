@@ -23,24 +23,14 @@ impl_from! {
 
 #[no_mangle]
 /// Spawn a new process using the provided binary and arguments
-pub extern "C" fn new_process(binary: &[u8], args: &[&[u8]]) -> Result<::syscalls::threads::ProtoProcess,loader::Error>
+pub extern "C" fn new_process(executable_handle: ::syscalls::vfs::File, process_name: &[u8], args: &[&[u8]]) -> Result<::syscalls::threads::ProtoProcess,loader::Error>
 {
 	extern "C" {
 		static BASE: [u8; 0];
 		static LIMIT: [u8; 0];
 	}
 	
-	kernel_log!("new_process({:?}, ...)", ::std::ffi::OsStr::new(binary));
-
-	let executable_handle = match ::syscalls::vfs::ROOT.open_child_path(binary)
-		{
-		Err(_) => return Err(loader::Error::NotFound),
-		Ok(v) => match v.into_file(::syscalls::vfs::FileOpenMode::Execute)
-			{
-			Err(_) => return Err(loader::Error::NotExecutable),
-			Ok(v) => v,
-			}
-		};
+	kernel_log!("new_process({:?}, ...)", ::std::ffi::OsStr::new(process_name));
 	
 	// Acquire the global buffer lock and start the new process
 	let proto_proc = {
@@ -63,12 +53,12 @@ pub extern "C" fn new_process(binary: &[u8], args: &[&[u8]]) -> Result<::syscall
 			::std::slice::from_raw_parts_mut(buf_start as *mut u8, len)
 			};
 		let mut builder = NullStringBuilder( buf );
-		builder.push( binary );
+		try!( builder.push( process_name ) );
 		for arg in args {
 			try!( builder.push(arg) );
 		}
 		
-		let name = ::std::str::from_utf8(binary).unwrap_or("BADSTR");
+		let name = ::std::str::from_utf8(process_name).unwrap_or("BADSTR");
 
 		// Spawn new process
 		match ::syscalls::threads::start_process(name, BASE.as_ptr() as usize, LIMIT.as_ptr() as usize)
@@ -113,9 +103,9 @@ fn new_process_entry() -> !
 	
 	// Parse command line stored in data area (including image path)
 	let mut arg_iter = NullStringList(arg_slice).map(::std::ffi::OsStr::new);
-	let binary = arg_iter.next().expect("No binary was passed");
+	let process_name = arg_iter.next().expect("No binary was passed");
+	kernel_log!("Binary = {:?}", process_name);
 	let arg_iter = (0 .. argc).zip(arg_iter);
-	kernel_log!("Binary = {:?}", binary);
 	for (i,arg) in arg_iter {
 		kernel_log!("Arg {}: {:?}", i, arg);
 	}
@@ -128,14 +118,13 @@ fn new_process_entry() -> !
 	let fh: ::syscalls::vfs::File = ::syscalls::threads::S_THIS_PROCESS.receive_object().expect("Could not receive the executable vfs::File object");
 	let root: ::syscalls::vfs::Dir = ::syscalls::threads::S_THIS_PROCESS.receive_object().expect("Could not receive the root");
 	::std::mem::forget(root);
-	let entrypoint = ::load_binary(binary, fh);
+	let entrypoint = ::load_binary(process_name, fh);
 	
 	// TODO: Coordinate with the parent process and receive an initial set of objects (e.g. WM root)?
 	// - Could possibly leave this up to user code, or at least std
 	
 	// Populate arguments
 	let mut args = super::FixedVec::new();
-	//args.push(binary).unwrap();
 	for (_,arg) in arg_iter {
 		args.push(arg).unwrap();
 	}
@@ -144,7 +133,7 @@ fn new_process_entry() -> !
 	// TODO: Switch stacks into a larger dynamically-allocated stack
 	// SAFE: Entrypoint assumed to have this signature
 	let ep: fn(&[&::std::ffi::OsStr]) -> ! = unsafe { ::std::mem::transmute(entrypoint) };
-	kernel_log!("Calling entry {:p} for {:?}", ep as *const (), binary);
+	kernel_log!("Calling entry {:p} for {:?}", ep as *const (), process_name);
 	ep(&args);
 }
 
