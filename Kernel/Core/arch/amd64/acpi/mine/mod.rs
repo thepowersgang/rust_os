@@ -4,7 +4,6 @@
 // arch/amd64/acpi/mod_mine.rs
 //! ACPI Component Architecture binding
 use prelude::*;
-use core::fmt;
 use core::str::from_utf8;
 
 use self::TLSDT::{TopRSDT,TopXSDT};
@@ -88,8 +87,7 @@ pub fn init()
 			if rsdp.revision == 0 {
 				TopRSDT( SDTHandle::<RSDT>::new( rsdp.rsdt_address as u64 ).make_static() )
 			} else {
-				// SAFE: It's actually a v2 RDSP, so transmute is valid
-				let v2: &RSDPv2 = unsafe { ::core::mem::transmute(rsdp) };
+				let v2: &RSDPv2 = &*(rsdp as *const _ as *const _);
 				if sum_struct(v2) != 0 {
 					// oh
 					panic!("RSDPv2 checksum failed");
@@ -117,7 +115,7 @@ pub fn init()
 }
 
 /// Find all SDTs with a given signature
-pub fn find_table<T:'static>(req_name: &str, mut idx: usize) -> Option<SDTHandle<T>>
+pub fn find_table<T: 'static + ::lib::POD>(req_name: &str, mut idx: usize) -> Option<SDTHandle<T>>
 {
 	log_debug!("find('{}',{})", req_name, idx);
 	assert_eq!(req_name.len(), 4);
@@ -151,11 +149,11 @@ fn get_rsdp() -> Option<&'static RSDP>
 {
 	// SAFE: Valid pointers are passed
 	unsafe {
-		let ebda_ver = locate_rsdp((::arch::memory::addresses::IDENT_START + 0x9_FC00) as *const u8, 0x400);
+		let ebda_ver = locate_rsdp((::arch::imp::memory::addresses::IDENT_START + 0x9_FC00) as *const u8, 0x400);
 		if !ebda_ver.is_null() {
 			return ebda_ver.as_ref();
 		}
-		let bios_ver = locate_rsdp((::arch::memory::addresses::IDENT_START + 0xE_0000) as *const u8, 0x2_0000);
+		let bios_ver = locate_rsdp((::arch::imp::memory::addresses::IDENT_START + 0xE_0000) as *const u8, 0x2_0000);
 		if !bios_ver.is_null() {
 			return bios_ver.as_ref();
 		}
@@ -166,7 +164,7 @@ fn get_rsdp() -> Option<&'static RSDP>
 unsafe fn locate_rsdp(base: *const u8, size: usize) -> *const RSDP
 {
 	//for ofs in (0 .. size).step_by(16)
-	for i in (0 .. size)
+	for i in 0 .. (size/16)
 	{
 		let ofs = i * 16;
 		let sig = base.offset(ofs as isize) as *const [u8; 8];
@@ -227,7 +225,7 @@ impl TLSDT
 	fn oemid<'self_>(&'self_ self) -> &'self_ str {
 		from_utf8(&self._header().oemid).unwrap()
 	}
-	fn get<T>(&self, idx: usize) -> SDTHandle<T> {
+	fn get<T: ::lib::POD>(&self, idx: usize) -> SDTHandle<T> {
 		// SAFE: Immutable access, and address is as validated as can be
 		unsafe {
 			assert!(idx < self.len());
@@ -270,7 +268,7 @@ impl ::core::fmt::Debug for SDTHeader
 	}
 }
 
-impl<T> SDTHandle<T>
+impl<T: ::lib::POD> SDTHandle<T>
 {
 	/// Map an SDT into memory, given a physical address
 	pub unsafe fn new(physaddr: u64) -> SDTHandle<T>
@@ -316,7 +314,7 @@ impl<T> SDTHandle<T>
 	}
 }
 
-impl<T> ::core::ops::Deref for SDTHandle<T>
+impl<T: ::lib::POD> ::core::ops::Deref for SDTHandle<T>
 {
 	type Target = SDT<T>;
 	fn deref<'s>(&'s self) -> &'s SDT<T> {

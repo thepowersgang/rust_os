@@ -47,8 +47,8 @@ impl<'a> AmlStream<'a>
 		{
 		0 => Ok(lead as usize),
 		count @ 1 ... 3 => {
-			let mut rv = (lead as usize & 0xF);
-			for ofs in (0 .. count) {
+			let mut rv = lead as usize & 0xF;
+			for ofs in 0 .. count {
 				let b = try!(self.read_byte()) as usize;
 				rv |= b << (4 + ofs*8);
 			}
@@ -97,7 +97,7 @@ impl<'a> AmlStream<'a>
 	
 	fn read_uint(&mut self, bytes: usize) -> Result<u64, Error> {
 		let mut rv = 0;
-		for i in (0 .. bytes) {
+		for i in 0 .. bytes {
 			rv |= (try!(self.read_byte()) as u64) << i*8;
 		}
 		Ok( rv )
@@ -181,7 +181,8 @@ fn dump_aml_termobj(data: &mut AmlStream) -> Result<usize,Error>
 			let mut subdata = try!(data.take(len));
 			while !subdata.empty()
 			{
-				log_debug!("- {:?}", try!(data.read_fieldelement()));
+				let e = try!(data.read_fieldelement());
+				log_debug!("- {:?}", e);
 			}
 			},
 		v @ _ => {

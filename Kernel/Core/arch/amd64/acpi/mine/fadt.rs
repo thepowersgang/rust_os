@@ -3,7 +3,6 @@
 //
 // arch/amd64/acpi/fadt.rs
 //! Fixed ACPI Description Table
-use prelude::*;
 
 use super::super::Fadt;
 

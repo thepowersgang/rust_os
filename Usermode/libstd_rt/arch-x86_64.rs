@@ -44,7 +44,7 @@ fn backtrace(bp: u64) -> Option<(u64,u64)>
 	// SAFE: (uncheckable) Walks stack frames and may crash
 	unsafe
 	{
-		let ptr: *const [u64; 2] = ::core::mem::transmute(bp);
+		let ptr: *const [u64; 2] = bp as usize as *const _;
 		let newbp = (*ptr)[0];
 		let newip = (*ptr)[1];
 		// Check validity of output BP, must be > old BP (upwards on the stack)

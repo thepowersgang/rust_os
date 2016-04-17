@@ -429,7 +429,8 @@ impl CacheHandle
 		unsafe {
 			let box_r = lh.get( &(self.mountpt, self.inode) ).expect("Cached node with open handle absent");
 			let cn_ref: &CachedNode = &**box_r;
-			::core::mem::transmute(&cn_ref.node)
+			// Dereference a raw pointer to disconnect the lifetimes
+			&*(&cn_ref.node as *const _)
 		}
 	}
 }
@@ -441,7 +442,8 @@ impl CacheHandle
 //		unsafe {
 //			let box_r = lh.get( &(self.mountpt, self.inode) ).expect("Cached node with open handle absent");
 //			let cn_ref: &CachedNode = &**box_r;
-//			::core::mem::transmute(&cn_ref.node)
+//			// Dereference a raw pointer to disconnect the lifetimes
+//			&*(&cn_ref.node as *const _)
 //		}
 //	}
 //}

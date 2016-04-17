@@ -145,7 +145,7 @@ extern "C" fn AcpiOsCreateMutex(OutHandle: *mut ACPI_MUTEX) -> ACPI_STATUS {
 	// SAFE: Transmutes Box to *mut to forget the box. Will be recreated to drop
 	unsafe {
 		let mutex = ::sync::Mutex::<()>::new( () );
-		*OutHandle = ::core::mem::transmute( Box::new(mutex) );
+		*OutHandle = Box::into_raw(Box::new(mutex));
 		AE_OK
 	}
 }
@@ -167,7 +167,7 @@ extern "C" fn AcpiOsCreateSemaphore(MaxUnits: u32, InitialUnits: u32, OutHandle:
 	// SAFE: Transmutes Box to *mut to forget the box. Will be recreated to drop
 	unsafe {
 		let sem = ::sync::Semaphore::new(InitialUnits as isize, MaxUnits as isize);
-		*OutHandle = ::core::mem::transmute(Box::new( sem ));
+		*OutHandle = Box::into_raw(Box::new(sem));
 		AE_OK
 	}
 }
@@ -175,7 +175,7 @@ extern "C" fn AcpiOsCreateSemaphore(MaxUnits: u32, InitialUnits: u32, OutHandle:
 extern "C" fn AcpiOsDeleteSemaphore(Handle: ACPI_SEMAPHORE) -> ACPI_STATUS {
 	assert!( !Handle.is_null() );
 	// SAFE: ACPICA should pass us a valid handle
-	let boxed: Box<::sync::Semaphore> = unsafe { ::core::mem::transmute(Handle) };
+	let boxed: Box<::sync::Semaphore> = unsafe { Box::from_raw(Handle) };
 	::core::mem::drop(boxed);
 	AE_OK
 }

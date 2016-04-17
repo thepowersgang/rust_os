@@ -120,6 +120,7 @@ pub struct SDT<T:'static>
 	header: SDTHeader,
 	data: T
 }
+unsafe impl<T: ::lib::POD> ::lib::POD for SDT<T> {}
 
 fn init()
 {
@@ -129,7 +130,7 @@ fn init()
 
 use self::internal::SDTHandle;
 
-pub fn find<T>(name: &str, idx: usize) -> Option<SDTHandle<T>> {
+pub fn find<T: ::lib::POD>(name: &str, idx: usize) -> Option<SDTHandle<T>> {
 	internal::find_table(name, idx)
 }
 pub fn count(name: &str) -> usize {

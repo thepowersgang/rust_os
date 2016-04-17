@@ -7,7 +7,7 @@ use core::marker::{Sized,Send,Unsize};
 use core::ops::{CoerceUnsized};
 
 #[lang = "owned_box"]
-pub struct Box<T>(*mut T);
+pub struct Box<T: ?Sized>(*mut T);
 
 unsafe impl<T: ?Sized+Send> Send for Box<T> { }
 impl<T: ?Sized + Unsize<U>, U: ?Sized> CoerceUnsized<Box<U>> for Box<T> { }
@@ -22,6 +22,7 @@ impl<T> Box<T>
 impl<T: ?Sized> Box<T>
 {
 	pub unsafe fn from_raw(p: *mut T) -> Box<T> {
+		//Box(p)
 		::core::mem::transmute(p)
 	}
 	

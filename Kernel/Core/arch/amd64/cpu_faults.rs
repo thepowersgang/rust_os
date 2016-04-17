@@ -144,7 +144,7 @@ pub fn backtrace(bp: u64) -> Option<(u64,u64)>
 	// SAFE: Pointer access checked, any alias is benign
 	unsafe
 	{
-		let ptr: *const [u64; 2] = ::core::mem::transmute(bp);
+		let ptr: *const [u64; 2] = bp as usize as *const _;
 		if ! ::arch::memory::virt::is_reserved(ptr) {
 			None
 		}
