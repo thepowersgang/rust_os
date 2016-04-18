@@ -2,6 +2,7 @@ ENTRY(start)
 
 /* */ PHDRS {
 	SegRX PT_LOAD;
+	SegR PT_LOAD FLAGS(4);	/* 4 = PT_R */
 	SegRW PT_LOAD;
 	SegDYN PT_DYNAMIC;
 }
@@ -12,25 +13,25 @@ SECTIONS {
 	
 	.text : {
 		*(.text .text.*)
-	} /* */ :SegRX /* */
+	} :SegRX
 	.rodata ALIGN(0x1000): {
 		*(.rodata .rodata.*)
-	} /* */ :SegRX /* */
-	.dynsym : { *(.dynsym) } :SegRX
-	.dynstr : { *(.dynstr) } :SegRX
-	.plt : { *(.plt) } :SegRX
+	} :SegR
+	
+	.dynamic : { *(.dynamic) } :SegDYN :SegR
+	.dynsym : { *(.dynsym) } :SegR
+	.dynstr : { *(.dynstr) } :SegR
+	.rela.dyn : { *(.rela.dyn) } :SegR
+	.rel.dyn : { *(.rel.dyn) } :SegR
+	
+	.plt : { *(.plt) } :SegR
 
 	. = ALIGN(0x1000);
 	.data ALIGN(0x1000): {
 		*(.data .data.*)
-	} /* */ :SegRW /* */
+	} :SegRW
 	.bss ALIGN(0x1000) : {
 		*(.bss .bss.*)
-	} /* */ :SegRW /* */
-	
-	/* */
-	. = 0;
-	.dynamic : { *(.dynamic) } :SegDYN
-	/* */
+	} :SegRW
 }
 

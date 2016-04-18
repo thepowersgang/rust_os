@@ -119,9 +119,9 @@ impl<R: Read+Seek> ElfModuleHandle<R>
 		{
 			match ent
 			{
-			DtEnt::SymTab(addr) => symtab_addr = Some(addr),
+			DtEnt::SymTab(addr) => symtab_addr = Some(addr as *const _),
 			DtEnt::SymEntSz(count) => symtab_esz = Some(count),
-			DtEnt::StrTab(addr) => strtab_addr = Some(addr),
+			DtEnt::StrTab(addr) => strtab_addr = Some(addr as *const _),
 			DtEnt::StrSz(count) => strtab_len = Some(count),
 			
 			DtEnt::RelA(addr) => rela_addr = Some(addr),
@@ -142,6 +142,7 @@ impl<R: Read+Seek> ElfModuleHandle<R>
 					},
 				},
 			DtEnt::PltRelSz(size) => plt_sz = Some(size),
+			DtEnt::Needed(_) => {/* do nothing */},
 			//v @ _ => kernel_log!("- ?{:?}", v),
 			_ => {},
 			}
@@ -151,8 +152,8 @@ impl<R: Read+Seek> ElfModuleHandle<R>
 		let (strtab, symtab, rel, rela, plt) = unsafe {
 			let strtab = try!(StringTable::new(strtab_addr,strtab_len));
 			// TODO: Check assumption that symtab_addr < strtab_addr
-			let symtab = try!(SymbolTable::new(self.header.get_format(), symtab_addr, strtab_addr.map(|x| x - symtab_addr.unwrap_or(x)), symtab_esz));
-			let rel  = try!(RelocTable::new(self.header.get_format(), rel_addr, rel_sz, rel_esz, RelocType::Rel));
+			let symtab = try!(SymbolTable::new(self.header.get_format(), symtab_addr, strtab_addr.map(|x| x as usize - symtab_addr.unwrap_or(x as *const _) as usize), symtab_esz));
+			let rel  = try!(RelocTable::new(self.header.get_format(), rel_addr , rel_sz , rel_esz , RelocType::Rel ));
 			let rela = try!(RelocTable::new(self.header.get_format(), rela_addr, rela_sz, rela_esz, RelocType::RelA));
 			let plt  = try!(RelocTable::new(self.header.get_format(), plt_addr, plt_sz, None, plt_type));
 			(strtab, symtab, rel, rela, plt)
@@ -172,7 +173,10 @@ impl<R: Read+Seek> ElfModuleHandle<R>
 			if let DtEnt::Needed(ofs) = ent {
 				if let Some(name) = strtab.get(ofs) {
 					kernel_log!("DT_NEEDED '{:?}'", name);
-					//::load::load_library(name);
+					if name != "libloader_dyn.so" {
+						//::load::load_library(name);
+						panic!("TODO: Load library '{:?}'", name);
+					}
 				}
 				else {
 				}
@@ -315,7 +319,7 @@ impl<'a> RelocationState<'a>
 	fn relocate_64<F: FnOnce(u64)->u64>(&self, addr: usize, fcn: F) {
 		// SAFE: (uncheckable) Assumes that the file is valid
 		unsafe {
-			// TODO: Ensure that address is valid
+			// TODO: Ensure that address is valid (i.e. within the newly loaded sections)
 			let ptr = addr as *mut u64;
 			// TODO: Ensure that endianness is native endian
 			*ptr = fcn(*ptr);
@@ -335,9 +339,9 @@ impl<'a> RelocationState<'a>
 struct StringTable<'a>(&'a [u8]);
 impl<'a> StringTable<'a>
 {
-	unsafe fn new<'b>(addr: Option<usize>, len: Option<usize>) -> Result<StringTable<'b>,Error> {
+	unsafe fn new<'b>(addr: Option<*const u8>, len: Option<usize>) -> Result<StringTable<'b>,Error> {
 		let strtab = match (addr,len) {
-			(Some(a), Some(l)) => ::std::slice::from_raw_parts(a as *const u8, l),
+			(Some(a), Some(l)) => ::std::slice::from_raw_parts(a, l),
 			(None, None) => &[][..],
 			_ => {
 				kernel_log!("Malformed ELF - String table addr or len passed (addr={:?},len={:?})", addr, len);
@@ -457,15 +461,16 @@ impl<'a, R: 'a+Read> ::std::iter::Iterator for PhEntIterator<'a, R> {
 enum DtEnt {
 	Null,
 	Needed(usize),
-	PltRelSz(usize), PltRel(usize), Plt(usize),
-	PltGot(usize),
+	Plt(*const u8), PltRelSz(usize),
+	PltRel(usize),
+	PltGot(*const u8),
 	Hash(usize),
-	StrTab(usize),
-	SymTab(usize),
-	RelA(usize), RelASz(usize), RelAEnt(usize),
+	StrTab(*const u8),
+	SymTab(*const Symbol),
+	RelA(*const u8), RelASz(usize), RelAEnt(usize),
 	StrSz(usize),
 	SymEntSz(usize),
-	Rel(usize), RelSz(usize), RelEnt(usize),
+	Rel(*const u8), RelSz(usize), RelEnt(usize),
 	Unknown(u8, u64),
 }
 impl_from! {
@@ -479,11 +484,11 @@ impl_from! {
 		0 => DtEnt::Null,
 		1 => DtEnt::Needed(val),
 		2 => DtEnt::PltRelSz(val),
-		3 => DtEnt::PltGot(val),
+		3 => DtEnt::PltGot(val as *const _),
 		4 => DtEnt::Hash(val),
-		5 => DtEnt::StrTab(val),
-		6 => DtEnt::SymTab(val),
-		7 => DtEnt::RelA(val),
+		5 => DtEnt::StrTab(val as *const _),
+		6 => DtEnt::SymTab(val as *const _),
+		7 => DtEnt::RelA(val as *const _),
 		8 => DtEnt::RelASz(val),
 		9 => DtEnt::RelAEnt(val),
 		10 => DtEnt::StrSz(val),
@@ -493,13 +498,13 @@ impl_from! {
 		//14 = DT_SONAME
 		//15 = DT_RPATH
 		//16 = DT_SYMBOLIC
-		17 => DtEnt::Rel(val),
+		17 => DtEnt::Rel(val as *const _),
 		18 => DtEnt::RelSz(val),
 		19 => DtEnt::RelEnt(val),
 		20 => DtEnt::PltRel(val),
 		//21 = DT_DEBUG
 		//22 = DT_TEXTREL
-		23 => DtEnt::Plt(val),
+		23 => DtEnt::Plt(val as *const _),
 		t @ _ => DtEnt::Unknown(t as u8, v[1]),
 		}
 	}}
@@ -515,14 +520,26 @@ impl<'a, R: 'a+Read> DtEntIterator<'a, R> {
 		use byteorder::{ReadBytesExt,LittleEndian};
 		Ok(match self.size
 		{
-		Size::Elf32 => [
-				try!(self.file.read_u32::<LittleEndian>()) as u64,
-				try!(self.file.read_u32::<LittleEndian>()) as u64
-			],
-		Size::Elf64 => [
-			try!(self.file.read_u64::<LittleEndian>()),
-			try!(self.file.read_u64::<LittleEndian>())
-			],
+		Size::Elf32 => {
+			let mut d = [0; 4*2];
+			if try!(self.file.read(&mut d)) != d.len() {
+				return Err( Error::Malformed );
+			}
+			else {
+				let mut p = &d[..];
+				[ try!(p.read_u32::<LittleEndian>()) as u64, try!(p.read_u32::<LittleEndian>()) as u64 ]
+			}
+			},
+		Size::Elf64 => {
+			let mut d = [0; 8*2];
+			if try!(self.file.read(&mut d)) != d.len() {
+				return Err( Error::Malformed );
+			}
+			else {
+				let mut p = &d[..];
+				[ try!(p.read_u64::<LittleEndian>()), try!(p.read_u64::<LittleEndian>()) ]
+			}
+			},
 		})
 	}
 }
@@ -593,7 +610,7 @@ struct Symbol
 struct SymbolTable<'a>(&'a [u8], Format);
 impl<'a> SymbolTable<'a>
 {
-	unsafe fn new<'b>(fmt: Format, addr: Option<usize>, len: Option<usize>, esz: Option<usize>) -> Result<SymbolTable<'b>,Error> {
+	unsafe fn new<'b>(fmt: Format, addr: Option<*const Symbol>, len: Option<usize>, esz: Option<usize>) -> Result<SymbolTable<'b>,Error> {
 		let bytes = match (addr,len) {
 			(Some(a), Some(l)) => {
 				if let Some(esz) = esz {
@@ -602,7 +619,7 @@ impl<'a> SymbolTable<'a>
 						return Err(Error::Malformed);
 					}
 				}
-				kernel_log!("SymbolTable::new(addr={:#x}, len={})", a, l);
+				kernel_log!("SymbolTable::new(addr={:?}, len={})", a, l);
 				if l % Self::ent_size_st(fmt.size) != 0 {
 					kernel_log!("Malformed Entry - Symbol table entry size invalid - len % {} ({}) != 0",
 						Self::ent_size_st(fmt.size),
@@ -725,7 +742,7 @@ struct RelocTable<'a> {
 	ty: RelocType,
 }
 impl<'a> RelocTable<'a> {
-	unsafe fn new<'b>(format: Format, addr: Option<usize>, size: Option<usize>, entsz: Option<usize>, ty: RelocType) -> Result<RelocTable<'b>,Error> {
+	unsafe fn new<'b>(format: Format, addr: Option<*const u8>, size: Option<usize>, entsz: Option<usize>, ty: RelocType) -> Result<RelocTable<'b>,Error> {
 		match (addr, size)
 		{
 		(Some(addr), Some(size)) => {
@@ -735,7 +752,7 @@ impl<'a> RelocTable<'a> {
 					return Err(Error::Malformed);
 				}
 			}
-			let slice = ::std::slice::from_raw_parts(addr as *const u8, size);
+			let slice = ::std::slice::from_raw_parts(addr, size);
 			kernel_log!("RelocTable {{ {:p}+{}, {:?} }}", slice.as_ptr(), slice.len(), ty);
 			Ok(RelocTable {
 				data: slice,

@@ -114,6 +114,9 @@ fn start_app(args: &[&str]) {
 	{
 	Ok(app) => {
 		app.send_obj( ::syscalls::gui::clone_group_handle() );
+		// HACK: Only filebrowser needs this.
+		app.send_obj( ::syscalls::vfs::ROOT.clone() );
+		app.start();
 		},
 	Err(_e) => {},
 	}

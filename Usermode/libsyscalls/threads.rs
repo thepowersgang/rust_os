@@ -41,6 +41,7 @@ impl ThisProcess
 			match super::ObjectHandle::new( unsafe { obj.call_1(::values::CORE_THISPROCESS_RECVOBJ, T::class() as usize) } as usize )
 			{
 			Ok(v) => Ok(T::from_handle(v)),
+			Err(0) => Err( () ),
 			Err(e) => panic!("receive_object error {}", e),
 			}
 		)

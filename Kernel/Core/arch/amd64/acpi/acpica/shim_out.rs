@@ -175,7 +175,7 @@ extern "C" fn AcpiOsCreateSemaphore(MaxUnits: u32, InitialUnits: u32, OutHandle:
 extern "C" fn AcpiOsDeleteSemaphore(Handle: ACPI_SEMAPHORE) -> ACPI_STATUS {
 	assert!( !Handle.is_null() );
 	// SAFE: ACPICA should pass us a valid handle
-	let boxed: Box<::sync::Semaphore> = unsafe { Box::from_raw(Handle) };
+	let boxed: Box<::sync::Semaphore> = unsafe { Box::from_raw(Handle as *mut _)};
 	::core::mem::drop(boxed);
 	AE_OK
 }

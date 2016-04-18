@@ -8,8 +8,8 @@ use core::marker::{Send,Sync};
 use core::ops;
 
 macro_rules! trace_type {
-	//($t:ty) => { false };
-	($t:ty) => { type_name!(T) == "core::option::Option<objects::UserObject>" };
+	($t:ty) => { false };
+	//($t:ty) => { type_name!(T) == "core::option::Option<objects::UserObject>" };
 }
 
 /// Reader-writer lock

@@ -348,7 +348,7 @@ pub fn drop_object(handle: u32)
 		match get_process_local::<ProcessObjects>().take_object(handle)
 		{
 		Ok(v) => {
-			log_debug!("Object dropped {}: {}", handle, v.type_name());
+			log_debug!("Object dropped #{}: {}", handle, v.type_name());
 			::core::mem::drop( v );
 			},
 		Err(_) => {}
