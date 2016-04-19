@@ -19,10 +19,11 @@ SECTIONS {
 	} :SegR
 	
 	.dynamic : { *(.dynamic) } :SegDYN :SegR
-	.dynsym : { *(.dynsym) } :SegR
-	.dynstr : { *(.dynstr) } :SegR
-	.rela.dyn : { *(.rela.dyn) } :SegR
-	.rel.dyn : { *(.rel.dyn) } :SegR
+	.dynsym : { *(.dynsym) } :SegDYN :SegR
+	.dynstr : { *(.dynstr) } :SegDYN :SegR
+	.rela.dyn : { *(.rela.dyn) } :SegDYN :SegR
+	.rela.got : { *(.rela.got) } :SegDYN :SegR
+	.rel.dyn : { *(.rel.dyn) } :SegDYN :SegR
 	
 	.plt : { *(.plt) } :SegR
 
