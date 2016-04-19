@@ -4,6 +4,7 @@
 
 
 #include "armv7-helpers.S"
+#include "common.S"
 
 .extern main
 .extern register_arguments

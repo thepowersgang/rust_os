@@ -1,12 +1,11 @@
 ENTRY(start)
 
-/* */ PHDRS {
+PHDRS {
 	SegRX PT_LOAD;
 	SegR PT_LOAD FLAGS(4);	/* 4 = PT_R */
 	SegRW PT_LOAD;
 	SegDYN PT_DYNAMIC;
 }
-/* */
 
 SECTIONS {
 	. = 0x200000;
@@ -18,6 +17,7 @@ SECTIONS {
 		*(.rodata .rodata.*)
 	} :SegR
 	
+	/* Dynamic linking info */
 	.dynamic : { *(.dynamic) } :SegDYN :SegR
 	.dynsym : { *(.dynsym) } :SegDYN :SegR
 	.dynstr : { *(.dynstr) } :SegDYN :SegR

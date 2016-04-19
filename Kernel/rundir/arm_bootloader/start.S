@@ -5,6 +5,8 @@
 
 #define ENTRY(n)	.globl n ; n:
 
+#include "../../../Usermode/rustrt0/armv7-helpers.S"
+
 .extern _binary_______bin_kernel_armv7_bin_start
 
 .section .text
@@ -82,49 +84,6 @@ ENTRY(start)
 	ldr r13, =0x1badb002	@ Just ninja the mulitboot magic value
 	mov pc, r8
 
-ENTRY(__aeabi_memcpy4)
-1:
-	LDR r3, [r1], #4
-	STR r3, [r0], #4
-	SUBS r2, r2, #4
-	BGE 1b
-	BX lr
-ENTRY(__aeabi_memcpy)
-1:
-	LDRB r3, [r1], #1
-	STRB r3, [r0], #1
-	SUBS r2, r2, #1
-	BGE 1b
-	BX lr
-ENTRY(memcpy)
-1:
-	LDRB r3, [r1], #1
-	STRB r3, [r0], #1
-	SUBS r2, r2, #1
-	BGE 1b
-	BX lr
-ENTRY(__aeabi_memclr8)
-ENTRY(__aeabi_memclr4)
-	mov r2, #0
-ENTRY(__aeabi_memset8)
-ENTRY(__aeabi_memset4)
-1:
-	str r2, [r0], #4
-	subs r1, r1, #4
-	bge 1b
-	bx lr
-ENTRY(__aeabi_memset)
-	movs r1, r1
-	beq 2f
-1:
-	strb r2, [r0], #1
-	subs r1, #1
-	bne 1b
-2:
-	bx lr
-ENTRY(memset)
-	b __aeabi_memset
-@EXIDX __aeabi_memset, 0x80B0B0B0
 
 ENTRY(putb)
 	mov r1, #STACK_TOP
@@ -144,10 +103,5 @@ ENTRY(puts)
 	bne 1b
 2:
 	bx lr
-
-.section .text.eh_prs
-ENTRY(__aeabi_unwind_cpp_pr0)
-ENTRY(__aeabi_unwind_cpp_pr1)
-	b .
 
 // vim: ft=armasm

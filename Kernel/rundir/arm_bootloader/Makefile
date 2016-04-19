@@ -24,7 +24,7 @@ $(OBJDIR)main.o: main.rs ../../Core/arch/armv7/target.json $(LIBCORE)
 	@echo "[RUSTC] -o $@"
 	@mkdir -p $(dir $@)
 	@mkdir -p Core/arch/armv7; cp ../../Core/arch/armv7/target.json Core/arch/armv7/target.json
-	@$(RUSTC) --target Core/arch/armv7/target.json $< -o $@ --extern core=$(LIBCORE) -Z no-landing-pads --emit obj --crate-type lib -O -Z print-llvm-passes
+	@$(RUSTC) --target Core/arch/armv7/target.json $< -o $@ --extern core=$(LIBCORE) -Z no-landing-pads --emit obj --crate-type lib -O
 
 %.dtb: %.dts
 	@echo "[DTC] -o $@"
