@@ -132,6 +132,9 @@ impl<'a> ::wtk::Element for Viewer<'a>
 			},
 		ViewerMode::Text => {
 			self.text.resize(body_width, body_height);
+
+			let mut file = self.file.borrow_mut();
+			let _ = self.text.populate(&mut *file);
 			},
 		}
 		self.hscroll.resize(body_width, SCROLL_SIZE);
