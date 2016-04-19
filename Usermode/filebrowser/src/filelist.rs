@@ -11,7 +11,7 @@ use wtk::WindowTrait;
 pub struct FileList<'a>
 {
 	root: &'a ::syscalls::vfs::Dir,
-	on_open: Box<Fn(&mut WindowTrait, &Path) + 'a>,
+	on_open: Box<Fn(&mut WindowTrait, &Path, ::syscalls::vfs::Node) + 'a>,
 	on_chdir: Box<Fn(&mut WindowTrait, &Path) + 'a>,
 
 	cur_paths: RefCell<Vec<OsString>>,
@@ -25,7 +25,7 @@ impl<'a> FileList<'a>
 	{
 		FileList {
 			root: root,
-			on_open: Box::new(|_,_|()),
+			on_open: Box::new(|_,_,_|()),
 			on_chdir: Box::new(|_,_|()),
 			cur_paths: Default::default(),
 			list: ListView::new(["T", "Filename"]),
@@ -37,7 +37,7 @@ impl<'a> FileList<'a>
 		let mut iter = match dir.enumerate()
 			{
 			Ok(v) => v,
-			Err(e) => return,
+			Err(_e) => return,
 			};
 		let mut namebuf = [0; 512];
 		self.list.clear();
@@ -50,7 +50,7 @@ impl<'a> FileList<'a>
 	/// Bind to "Opening" a file (double-click or select+enter)
 	pub fn on_open<F: 'a>(&mut self, f: F)
 	where
-		F: Fn(&mut ::wtk::WindowTrait, &Path)
+		F: Fn(&mut ::wtk::WindowTrait, &Path, ::syscalls::vfs::Node)
 	{
 		self.on_open = Box::new(f);
 	}
@@ -108,7 +108,7 @@ impl<'a> ::wtk::Element for FileList<'a>
 				match nh.class()
 				{
 				::syscalls::vfs::NodeType::File => {
-					(self.on_open)(win, Path::new(&*path));
+					(self.on_open)(win, Path::new(&*path), nh);
 					None
 					},
 				::syscalls::vfs::NodeType::Dir => {

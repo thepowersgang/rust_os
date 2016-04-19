@@ -29,7 +29,7 @@ fn main()
 
 	fl.populate(&root_handle);
 	fl.on_chdir(|win, newdir| win.set_title(format!("Filesystem - {}", newdir.display())));
-	fl.on_open(|_win, file_path| view_file(file_path));
+	fl.on_open(|_win, file_path, nh| view_file(file_path, nh));
 
 	let mut window = ::wtk::Window::new_def("File browser", &fl).unwrap();
 	window.set_title("Filesystem - /");
@@ -40,14 +40,23 @@ fn main()
 	window.idle_loop();
 }
 
-fn view_file(p: &::std::fs::Path) {
-	panic!("filebrowser - view_file (post VFS rejig)");
-	//let byte_args: &[&[u8]] = &[ p.as_ref(), ];
-	//match ::loader::new_process(b"/sysroot/bin/fileviewer", byte_args)
-	//{
-	//Ok(app) => {
-	//	app.send_obj( ::syscalls::gui::clone_group_handle() );
-	//	},
-	//Err(_e) => {},
-	//}
+fn get_app_exe(name: &[u8]) -> Result<::syscalls::vfs::File, ()> {
+	match name
+	{
+	b"fileviewer" => Ok( ::syscalls::vfs::ROOT.open_child_path("/sysroot/bin/fileviewer").unwrap().into_file(::syscalls::vfs::FileOpenMode::Execute).unwrap() ),
+	_ => Err( () ),
+	}
+}
+
+fn view_file(p: &::std::fs::Path, nh: ::syscalls::vfs::Node) {
+	let byte_args: &[&[u8]] = &[ p.as_ref(), ];
+	match ::loader::new_process(get_app_exe(b"fileviewer").unwrap(), b"/sysroot/bin/fileviewer", byte_args)
+	{
+	Ok(app) => {
+		app.send_obj( ::syscalls::gui::clone_group_handle() );
+		app.send_obj( nh.into_file(::syscalls::vfs::FileOpenMode::ReadOnly).unwrap() );
+		app.start();
+		},
+	Err(_e) => {},
+	}
 }
