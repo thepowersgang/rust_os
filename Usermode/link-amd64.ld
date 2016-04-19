@@ -13,6 +13,10 @@ SECTIONS {
 	.text : {
 		*(.text .text.*)
 	} :SegRX
+	.plt : {
+		*(.plt)
+	} :SegRX
+
 	.rodata ALIGN(0x1000): {
 		*(.rodata .rodata.*)
 	} :SegR
@@ -21,11 +25,9 @@ SECTIONS {
 	.dynamic : { *(.dynamic) } :SegDYN :SegR
 	.dynsym : { *(.dynsym) } :SegDYN :SegR
 	.dynstr : { *(.dynstr) } :SegDYN :SegR
-	.rela.dyn : { *(.rela.dyn) } :SegDYN :SegR
 	.rela.got : { *(.rela.got) } :SegDYN :SegR
+	.rela.dyn : { *(.rela.dyn) } :SegDYN :SegR
 	.rel.dyn : { *(.rel.dyn) } :SegDYN :SegR
-	
-	.plt : { *(.plt) } :SegR
 
 	. = ALIGN(0x1000);
 	.data ALIGN(0x1000): {
