@@ -8,6 +8,8 @@ extern crate async;
 #[macro_use]
 extern crate syscalls;
 
+extern crate loader;
+
 use syscalls::gui::KeyCode;
 use wtk::ModifierKey;
 
@@ -16,10 +18,22 @@ macro_rules! imgpath {
 }
 
 fn start_app_console() {
-	start_app(&["/sysroot/bin/simple_console", "--windowed"]);
+	start_app(&["/sysroot/bin/simple_console", "--windowed"], |app| {
+		app.send_obj( ::syscalls::vfs::ROOT.clone() );
+		});
 }
 fn start_app_filebrowser() {
-	start_app(&["/sysroot/bin/filebrowser"])
+	start_app(&["/sysroot/bin/filebrowser"], |app| {
+		app.send_obj( ::syscalls::vfs::ROOT.clone() );
+		});
+}
+fn start_app_editor() {
+	let path = "/system/1.txt";
+	let f = ::syscalls::vfs::ROOT.open_child_path(path.as_bytes()).expect("Couldn't open file")
+		.into_file(::syscalls::vfs::FileOpenMode::ReadOnly).expect("Couldn't open file as readonly");
+	start_app(&["/sysroot/bin/fileviewer", path], |app| {
+		app.send_obj( f );
+		});
 }
 
 fn main()
@@ -44,7 +58,7 @@ fn main()
 			Entry::new("CLI", 0, "Win-T", || start_app_console()),
 			Spacer,
 			Entry::new("Filesystem", 0, "Win-E", || start_app_filebrowser()),
-			Entry::new("Text Editor", 5, "", || start_app(&["/sysroot/bin/fileviewer", "/system/1.txt"])),
+			Entry::new("Text Editor", 5, "", || start_app_editor()),
 			))
 		};
 	system_menu.set_pos( ::wtk::geom::Pos::new(0,20) );
@@ -104,18 +118,19 @@ fn main()
 
 }
 
-fn start_app(args: &[&str]) {
-	extern crate loader;
+fn start_app<F>(args: &[&str], cb: F)
+where
+	F: FnOnce(&mut ::loader::ProtoProcess)
+{
 	kernel_log!("start_app(args={:?})", args);
 	let fh = open_exec(args[0]);
 	// SAFE: &str and &[u8] have the same representation
 	let byte_args: &[&[u8]] = unsafe { ::std::mem::transmute(&args[1..]) };
-	match loader::new_process(fh, args[0].as_bytes(), byte_args)
+	match ::loader::new_process(fh, args[0].as_bytes(), byte_args)
 	{
-	Ok(app) => {
+	Ok(mut app) => {
 		app.send_obj( ::syscalls::gui::clone_group_handle() );
-		// HACK: Only filebrowser needs this.
-		app.send_obj( ::syscalls::vfs::ROOT.clone() );
+		cb(&mut app);
 		app.start();
 		},
 	Err(_e) => {},

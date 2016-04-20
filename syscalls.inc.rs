@@ -78,6 +78,9 @@ def_grp!( 2: GROUP_MEM = {
 	=2: MEM_DEALLOCATE,
 });
 
+pub fn get_class_name(class_idx: u16) -> &'static str {
+	CLASS_NAMES.get(class_idx as usize).unwrap_or(&"UNK")
+}
 
 pub const OBJECT_CLONE: u16 = 0x3FE;
 pub const OBJECT_GETCLASS: u16 = 0x3FF;
@@ -119,6 +122,9 @@ macro_rules! def_classes {
 		$( $( $(#[$va])* pub const $vn: u16 = self::calls::$class_name::$vn as u16; )* )*
 		$( $( $(#[$ma])* pub const $mn: u16 = self::calls::$class_name::$mn as u16; )* )*
 		$( $( $(#[$ea])* pub const $en: u32 = 1 << self::masks::$class_name::$en as usize; )* )*
+		pub const CLASS_NAMES: &'static [&'static str] = &[
+			$(stringify!($class_name),)*
+			]; 
 		};
 }
 

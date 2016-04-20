@@ -47,7 +47,7 @@ fn main()
 	let mut args = ::std::env::args_os().skip(0);
 	let path = args.next();
 	let path: Option<&::std::ffi::OsStr> = path.as_ref().map(|x| x.as_ref());
-	let path = path.unwrap_or( ::std::ffi::OsStr::new(b"/sysroot/bin/fileviewer") );
+	let path = path.unwrap_or( ::std::ffi::OsStr::new(b"-") );
 
 
 	// 1. Read a few lines and check if they're valid UTF-8 (just scanning)

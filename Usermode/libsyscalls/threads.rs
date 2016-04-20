@@ -3,6 +3,22 @@
 //
 //! Thread management system calls
 
+#[derive(Debug)]
+pub enum RecvObjectError
+{
+	NoObject,
+	ClassMismatch(u16),
+}
+impl ::core::fmt::Display for RecvObjectError {
+	fn fmt(&self, f: &mut ::core::fmt::Formatter) -> ::core::fmt::Result {
+		match self
+		{
+		&RecvObjectError::NoObject => f.write_str("No object on queue"),
+		&RecvObjectError::ClassMismatch(class) => write!(f, "Object class mismatch (was {} {})", class, ::values::get_class_name(class)),
+		}
+	}
+}
+
 #[inline]
 pub unsafe fn start_thread(ip: usize, sp: usize, tlsbase: usize) -> Result<u32, u32> {
 	::to_result( syscall!(CORE_STARTTHREAD, ip, sp, tlsbase) as usize )
@@ -35,14 +51,15 @@ impl ThisProcess
 	}
 	#[inline]
 	/// Obtain the 'n'th unclaimed object of the specifed type
-	pub fn receive_object<T: ::Object>(&self) -> Result<T, ()> {
+	pub fn receive_object<T: ::Object>(&self) -> Result<T, RecvObjectError> {
 		self.with_obj(|obj| 
 			// SAFE: Syscall
 			match super::ObjectHandle::new( unsafe { obj.call_1(::values::CORE_THISPROCESS_RECVOBJ, T::class() as usize) } as usize )
 			{
 			Ok(v) => Ok(T::from_handle(v)),
-			Err(0) => Err( () ),
-			Err(e) => panic!("receive_object error {}", e),
+			Err(e @ 0 ... 0xFFFF) => Err( RecvObjectError::ClassMismatch(e as u16) ),
+			Err(0x1_0000) => Err( RecvObjectError::NoObject ),
+			Err(e) => panic!("receive_object error {:#x}", e),
 			}
 		)
 	}

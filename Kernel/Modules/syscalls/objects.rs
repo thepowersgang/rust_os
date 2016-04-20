@@ -245,25 +245,28 @@ pub fn get_unclaimed(class: u16) -> u64
 				};
 			let mut lh = slot.write();
 			if lh.is_none() {
-				log_notice!("Object didn't exist");
-				Err(2)
+				log_notice!("QUIRK - Object index popped wasn't populated (already freed)");
+				Err(0x1_0000)
 			}
 			else if lh.as_ref().map(|x| x.data.class()) == Some(class) {
 				Ok(id as u32)
 			}
 			else {
-				{
+				let real_class = {
 					let o = lh.as_ref().unwrap();
-					log_notice!("Object was the wrong class (wanted {}, but got {} [{}])",
-						class, o.data.class(), o.data.type_name());
-				}
+					log_notice!("get_unclaimed() - Object was the wrong class (wanted {} [{} ?], but got {} [{} {}])",
+						class, ::values::get_class_name(class),
+						o.data.class(), ::values::get_class_name(o.data.class()), o.data.type_name()
+						);
+					o.data.class()
+					};
 				*lh = None;
-				Err(1)
+				Err(real_class as u32)
 			}
 		}
 		else {
-			log_notice!("No object in queue");
-			Err(0)
+			log_notice!("get_unclaimed() - No object in queue");
+			Err(0x1_0000)
 		};
 	super::from_result::<u32,u32>( rv )
 }
