@@ -2,6 +2,7 @@ import select
 import subprocess
 import threading
 import thread
+import time
 
 class KillerThread:
     def __init__(self):
@@ -29,6 +30,27 @@ class KillerThread:
             #print "- Done"
             self._event.clear()
 
+def readline_timeout(stream, timeout=1.0):
+    rv = ""
+    end_time = time.time() + timeout
+    #print "readline_timeout"
+    while end_time > time.time():
+        r,_w,_e = select.select( [stream], [], [], end_time - time.time())
+        if len(r) > 0:
+            v = stream.read(1)
+            rv += v
+            #print "'%s' %02x" % (v, ord(v))
+            if v == "\n" or v == "\r":
+                #print "--- --"
+                break
+        else:
+            print "TIMEOUT"
+            break
+    if rv == "":
+        return None
+    else:
+        return rv.strip()
+
 class QemuMonitor:
     def __init__(self, cmd_strings):
         self._instance = subprocess.Popen(cmd_strings, stdin=subprocess.PIPE, stdout=subprocess.PIPE)
@@ -40,7 +62,7 @@ class QemuMonitor:
             line = self.get_line(timeout=0.5)
             if line == None:
                 break
-            print "QemuMonitor.__del__ -", line
+            print "QemuMonitor.__del__ - '%s'" % (line,)
         self._instance.terminate()
         self._timer.kill()
         print "Killing qemu instance"
@@ -54,11 +76,14 @@ class QemuMonitor:
         self.cmd('mouse_button %i' % (mask,))
     
     def get_line(self, timeout=1.0):
+        return readline_timeout(self._instance.stdout, timeout)
+    def get_line__(self, timeout=1.0):
         r,_w,_e = select.select( [self._instance.stdout], [], [], timeout)
         if len(r) > 0:
             try:
                 self._timer.start()
                 s = self._instance.stdout.readline()
+                #s = readline_timeout(self._instance.stdout, timeout)
             except KeyboardInterrupt:
                 print "--- ERROR: Timeout (or SIGINT) during readline()"
                 raise
