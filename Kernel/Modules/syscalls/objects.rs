@@ -276,7 +276,7 @@ pub fn call_object_ref(handle: u32, call: u16, args: &mut Args) -> Result<u64,su
 {
 	// Obtain reference/borrow to object (individually locked), and call the syscall on it
 	get_process_local::<ProcessObjects>().with_object(handle, |obj| {
-		log_trace!("#{} {} Call Ref {} - args={:?}", handle, obj.type_name(), call, args);
+		//log_trace!("#{} {} Call Ref {} - args={:?}", handle, obj.type_name(), call, args);
 		obj.handle_syscall_ref(call, args)
 		})
 }
@@ -285,7 +285,7 @@ pub fn call_object_val(handle: u32, call: u16, args: &mut Args) -> Result<u64,su
 {
 	// Obtain reference/borrow to object (individually locked), and call the syscall on it
 	get_process_local::<ProcessObjects>().with_object_val(handle, |obj| {
-		log_trace!("#{} {} Call Val {} - args={:?}", handle, obj.type_name(), call-0x400, args);
+		//log_trace!("#{} {} Call Val {} - args={:?}", handle, obj.type_name(), call-0x400, args);
 		obj.handle_syscall_val(call, args)
 		})
 }

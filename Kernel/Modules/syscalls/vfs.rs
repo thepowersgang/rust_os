@@ -85,7 +85,7 @@ fn to_result<T>(r: Result<T, ::kernel::vfs::Error>) -> Result<T, u32> {
 
 pub fn init_handles(loader_handle: ::kernel::vfs::handle::File, init_handle: ::kernel::vfs::handle::File) {
 	// - Hand over loader+init handles (fixed as objects 0 and 1)
-	//::objects::new_object( File(loader_handle) );
+	::core::mem::forget(loader_handle);
 	::objects::new_object( File(init_handle) );
 	::objects::new_object( Dir::new( ::kernel::vfs::handle::Dir::open(Path::new("/")).unwrap() ) );
 	// - Open root RW handle
@@ -109,6 +109,7 @@ impl objects::Object for Node
 		match call
 		{
 		values::VFS_NODE_GETTYPE => {
+			log_debug!("VFS_NODE_GETTYPE()");
 			let v32: u32 = ::values::VFSNodeType::from( self.0.get_class() ).into();
 			Ok( v32 as u64 )
 			},
@@ -124,7 +125,13 @@ impl objects::Object for Node
 		values::VFS_NODE_TOFILE => {
 			let mode: u8 = try!(args.get());
 
-			let mode = ::values::VFSFileOpenMode::from(mode);
+			let mode = match ::values::VFSFileOpenMode::try_from(mode)
+				{
+				Ok(v) => v,
+				Err(_) => return Err( Error::BadValue ),
+				};
+			log_debug!("VFS_NODE_TOFILE({:?})", mode);
+
 			let objres = to_result(inner.to_file(mode.into()))
 				.map( |h| objects::new_object(File(h)) );
 			Ok( super::from_result(objres) )
@@ -201,12 +208,15 @@ impl objects::Object for File
 					return Err( Error::BadValue );
 					},
 				};
-			log_debug!("VFS_FILE_MEMMAP({:#x}, {:#x}+{}, {:?}", ofs, addr, size, mode);
+			log_debug!("VFS_FILE_MEMMAP({:#x}, {:#x}+{}, {:?})", ofs, addr, size, mode);
 			
 			match self.0.memory_map(addr, ofs, size, mode)
 			{
 			Ok(h) => {
-				log_warning!("TODO: register memory map handle with object table");
+				// TODO: I would like the map handle to be avaliable, but I'd like the user to be able to "forget" it
+				// (so it becomes an indelible part of the address space).
+				// - That would likely need a new system call similar to Drop
+				// - XXX: The handle here has borrow of the file handle, so can't be stored as-is
 				::core::mem::forget(h);
 				Ok(0)
 				},
@@ -216,9 +226,6 @@ impl objects::Object for File
 		_ => ::objects::object_has_no_such_method_ref("vfs::File", call),
 		}
 	}
-	//fn handle_syscall_val(self, call: u16, _args: &mut Args) -> Result<u64,Error> {
-	//	::objects::object_has_no_such_method_val("vfs::File", call)
-	//}
 	fn bind_wait(&self, _flags: u32, _obj: &mut ::kernel::threads::SleepObject) -> u32 { 0 }
 	fn clear_wait(&self, _flags: u32, _obj: &mut ::kernel::threads::SleepObject) -> u32 { 0 }
 }
@@ -252,8 +259,12 @@ impl objects::Object for Dir
 		{
 		values::VFS_DIR_OPENCHILD => {
 			let name: Freeze<[u8]> = try!(args.get());
+
+			let name = ::kernel::lib::byte_str::ByteStr::new(&*name);
+			log_debug!("VFS_DIR_OPENCHILD({:?})", name);
+
 			super::from_result(
-				to_result( self.handle.open_child( ::kernel::lib::byte_str::ByteStr::new(&*name) ) )
+				to_result( self.handle.open_child(name) )
 					.map( |h| objects::new_object(Node(h)) )
 				)
 			},
@@ -261,8 +272,9 @@ impl objects::Object for Dir
 			let path: Freeze<[u8]> = try!(args.get());
 
 			let path = Path::new(&path);
+			log_debug!("VFS_DIR_OPENPATH({:?})", path);
 			super::from_result(
-				to_result( self.handle.open_child_path( Path::new(&*path) ) )
+				to_result( self.handle.open_child_path(path) )
 					.map( |h| objects::new_object(Node(h)) )
 				)
 			},
@@ -307,6 +319,7 @@ impl objects::Object for DirIter
 		{
 		values::VFS_DIRITER_READENT => {
 			let mut name: FreezeMut<[u8]> = try!(args.get());
+			log_debug!("VFS_DIRITER_READENT({:p}+{})", name.as_ptr(), name.len());
 
 			super::from_result( match self.inner.lock().read_ent(&self.handle)
 				{
@@ -404,6 +417,7 @@ impl objects::Object for Link
 		{
 		values::VFS_LINK_READ => {
 			let mut buf: FreezeMut<[u8]> = try!(args.get());
+			log_debug!("VFS_LINK_READ({:p}+{})", buf.as_ptr(), buf.len());
 
 			let res = to_result( self.0.get_target() )
 				.map(|tgt| {
@@ -421,4 +435,13 @@ impl objects::Object for Link
 	fn bind_wait(&self, _flags: u32, _obj: &mut ::kernel::threads::SleepObject) -> u32 { 0 }
 	fn clear_wait(&self, _flags: u32, _obj: &mut ::kernel::threads::SleepObject) -> u32 { 0 }
 }
+
+
+
+// -
+// -
+//impl objects::Object for ::kernel::vfs::handle::MemoryMapHandle<'a>
+//{
+//}
+
 

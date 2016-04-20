@@ -30,11 +30,11 @@ extern "Rust" {
 
 #[inline]
 fn to_obj(val: usize) -> Result<super::ObjectHandle, Error> {
-	super::ObjectHandle::new(val).map_err(|code| Error::from(code))
+	super::ObjectHandle::new(val).map_err(|code| Error::try_from(code).expect("Bad VFS Error"))
 }
 #[inline]
 fn to_result(val: usize) -> Result<u32, Error> {
-	super::to_result(val).map_err(|code| Error::from(code))
+	super::to_result(val).map_err(|code| Error::try_from(code).expect("Bad VFS Error"))
 }
 
 impl Node
@@ -43,7 +43,7 @@ impl Node
 	#[inline]
 	pub fn class(&self) -> NodeType {
 		// SAFE: Syscall with no side-effects
-		NodeType::from( unsafe { self.0.call_0(::values::VFS_NODE_GETTYPE) } as u32 )
+		NodeType::try_from( unsafe { self.0.call_0(::values::VFS_NODE_GETTYPE) } as u32 ).expect("Bad VFS Node Type")
 	}
 
 	/// Convert handle to a directory handle
@@ -149,7 +149,7 @@ impl Dir
 		match super::ObjectHandle::new( unsafe { self.0.call_0(::values::VFS_DIR_ENUMERATE) } as usize )
 		{
 		Ok(rv) => Ok( DirIter(rv) ),
-		Err(code) => Err( From::from(code) ),
+		Err(code) => Err( Error::try_from(code).expect("Bad VFS Error") ),
 		}
 	}
 
@@ -161,7 +161,7 @@ impl Dir
 		match super::ObjectHandle::new( unsafe { self.0.call_2(::values::VFS_DIR_OPENCHILD, name.as_ptr() as usize, name.len()) } as usize )
 		{
 		Ok(rv) => Ok( Node(rv) ),
-		Err(code) => Err( From::from(code) ),
+		Err(code) => Err( Error::try_from(code).expect("Bad VFS Error") ),
 		}
 	}
 
@@ -173,7 +173,7 @@ impl Dir
 		match super::ObjectHandle::new( unsafe { self.0.call_2(::values::VFS_DIR_OPENPATH, name.as_ptr() as usize, name.len()) } as usize )
 		{
 		Ok(rv) => Ok( Node(rv) ),
-		Err(code) => Err( From::from(code) ),
+		Err(code) => Err( Error::try_from(code).expect("Bad VFS Error") ),
 		}
 	}
 }

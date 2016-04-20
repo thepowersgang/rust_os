@@ -257,13 +257,14 @@ macro_rules! enum_to_from {
 		//		}
 		//	}
 		//}
-		impl ::core::convert::From<$ty> for $enm {
-			fn from(v: $ty) -> Self {
+		impl $enm {
+			#[allow(dead_code)]
+			pub fn try_from(v: $ty) -> Result<Self,$ty> {
 				match v
 				{
-				$($v => $enm::$n,)*
+				$($v => Ok($enm::$n),)*
 				// TODO: This should not panic - it should return Result/Option instead
-				_ => panic!("Unknown value for {} - {}", stringify!($enm), v),
+				_ => Err(v),
 				}
 			}
 		}

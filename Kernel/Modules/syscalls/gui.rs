@@ -82,6 +82,7 @@ impl objects::Object for Group
 		match call
 		{
 		values::GUI_GRP_FORCEACTIVE => {
+			log_debug!("GUI_GRP_FORCEACTIVE()");
 			if ::kernel::threads::get_process_id() == 0 {
 				self.0.force_active();
 				Ok(0)
@@ -121,7 +122,11 @@ impl objects::Object for Window
 		values::GUI_WIN_SETFLAG => {
 			let flag: u8  = try!(args.get());
 			let is_on: bool = try!(args.get());
-			match values::GuiWinFlag::from(flag)
+
+			let flag = try!( values::GuiWinFlag::try_from(flag).map_err(|_| Error::BadValue) );
+			log_debug!("GUI_WIN_SETFLAG({:?} = {})", flag, is_on);
+
+			match flag
 			{
 			values::GuiWinFlag::Visible   => if is_on { self.0.lock().show()	 } else { self.0.lock().hide() },
 			values::GuiWinFlag::Maximised => if is_on { self.0.lock().maximise() } else { todo!("Unmaximise window"); },
@@ -129,6 +134,7 @@ impl objects::Object for Window
 			Ok(0)
 			},
 		values::GUI_WIN_REDRAW => {
+			log_debug!("GUI_WIN_REDRAW()");
 			self.0.lock().redraw();
 			Ok(0)
 			},
@@ -138,6 +144,8 @@ impl objects::Object for Window
 			let w: u32 = try!(args.get());
 			let data: Freeze<[u32]> = try!(args.get());
 			let stride: usize = try!(args.get());
+			log_debug!("GUI_WIN_BLITRECT({},{}, {}, {:p}+{}, stride={})",
+				x, y, w,  data.as_ptr(), data.len(), stride);
 			if data.len() == 0 {
 				Ok(0)
 			}
@@ -158,14 +166,16 @@ impl objects::Object for Window
 			let w: u32 = try!(args.get());
 			let h: u32 = try!(args.get());
 			let colour: u32 = try!(args.get());
+			log_debug!("GUI_WIN_FILLRECT({},{}, {},{}, {:06x})", x, y, w, h, colour);
 			self.0.lock().fill_rect(Rect::new(x,y,w,h), ::gui::Colour::from_argb32(colour));
 			Ok(0)
 			},
 		values::GUI_WIN_GETEVENT => {
+			let mut ev_ptr: FreezeMut<values::GuiEvent> = try!(args.get());
+			log_debug!("GUI_WIN_GETEVENT({:p})", &*ev_ptr);
 			match self.0.lock().pop_event()
 			{
 			Some(ev) => {
-				let mut ev_ptr: FreezeMut<values::GuiEvent> = try!(args.get());
 				*ev_ptr = ev.into();
 				Ok(0)
 				},
@@ -173,6 +183,7 @@ impl objects::Object for Window
 			}
 			},
 		values::GUI_WIN_GETDIMS => {
+			log_debug!("GUI_WIN_GETDIMS()");
 			let d = self.0.lock().get_dims();
 			let rv = (d.w as u64) << 32 | (d.h as u64);
 			Ok( rv )
@@ -180,6 +191,7 @@ impl objects::Object for Window
 		values::GUI_WIN_SETDIMS => {
 			let w: u32 = try!(args.get());
 			let h: u32 = try!(args.get());
+			log_debug!("GUI_WIN_SETDIMS({},{})", w, h);
 			let d = {
 				let mut lh = self.0.lock();
 				lh.resize( ::gui::Dims::new(w, h) );
@@ -189,6 +201,7 @@ impl objects::Object for Window
 			Ok( rv )
 			},
 		values::GUI_WIN_GETPOS => {
+			log_debug!("GUI_WIN_GETPOS()");
 			let p = self.0.lock().get_pos();
 			let rv = (p.x as u64) << 32 | (p.y as u64);
 			Ok( rv )
@@ -196,6 +209,7 @@ impl objects::Object for Window
 		values::GUI_WIN_SETPOS => {
 			let x: u32 = try!(args.get());
 			let y: u32 = try!(args.get());
+			log_debug!("GUI_WIN_SETPOS({},{})", x,y);
 			let p = {
 				let mut lh = self.0.lock();
 				lh.set_pos( ::gui::Pos::new(x, y) );
