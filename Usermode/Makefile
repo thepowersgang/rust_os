@@ -7,6 +7,7 @@ V ?= @
 
 # List of root-level applications to build
 APPS := loader init login
+APPS += handle_server
 APPS += simple_console shell
 APPS += filebrowser fileviewer
 APPS += vfs_test

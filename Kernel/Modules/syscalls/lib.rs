@@ -26,6 +26,7 @@ mod threads;
 #[path="gui.rs"]
 mod gui_calls;
 mod vfs;
+mod ipc;
 
 pub type ObjectHandle = u32;
 
@@ -71,13 +72,13 @@ pub fn init(loader_handle: ::kernel::vfs::handle::File, init_handle: ::kernel::v
 }
 
 #[no_mangle]
+/// Method called from architectue-specific (assembly) code
 pub unsafe extern "C" fn syscalls_handler(id: u32, first_arg: *const usize, count: u32) -> u64
 {
 	//log_debug!("syscalls_handler({}, {:p}+{})", id, first_arg, count);
 	invoke(id, ::core::slice::from_raw_parts(first_arg, count as usize))
 }
 
-/// Entrypoint invoked by the architecture-specific syscall handler
 fn invoke(call_id: u32, args: &[usize]) -> u64 {
 	match invoke_int(call_id, &mut Args::new(args))
 	{
@@ -206,7 +207,6 @@ fn invoke_int(call_id: u32, args: &mut Args) -> Result<u64,Error>
 		MEM_ALLOCATE => {
 			let addr: usize = try!(args.get());
 			let count: usize = try!(args.get());
-			// Wait? Why do I have a 'mode' here?
 			log_debug!("MEM_ALLOCATE({:#x},{})", addr, count);
 			match ::kernel::memory::virt::allocate_user(addr as *mut (), count)
 			{
@@ -273,6 +273,7 @@ fn invoke_int(call_id: u32, args: &mut Args) -> Result<u64,Error>
 			// Call a method defined for the object class.
 			objects::call_object_val(handle_id, call_id as u16, args)
 			},
+		//::values::OBJECT_FORGET => objects::forget_object(handle_id),
 		::values::OBJECT_DROP => {
 			// Destroy object
 			objects::drop_object(handle_id);

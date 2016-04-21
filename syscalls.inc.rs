@@ -109,8 +109,7 @@ macro_rules! def_classes {
 			//#[repr(u16)]
 			#[allow(non_camel_case_types,dead_code)]
 			pub enum $class_name {
-				$($vn = expand_expr!($vv)),*
-				,
+				$($vn = expand_expr!($vv),)*
 				$($mn = expand_expr!($mv)|0x400),*
 			}
 		)* }
@@ -237,6 +236,12 @@ def_classes! {
 		=0: EV_GUI_WIN_INPUT,
 		///// Fires when focus is lost/gained
 		//=1: EV_GUI_WIN_FOCUS,
+	},
+
+	/// Remote procedure call channel
+	=10: CLASS_IPC_RPC = {
+	--
+	}|{
 	}
 }
 
@@ -379,3 +384,4 @@ pub enum GuiEvent
 	MouseTriClick(u32,u32, u8),
 }
 
+pub type RpcMessage = [u8; 32];

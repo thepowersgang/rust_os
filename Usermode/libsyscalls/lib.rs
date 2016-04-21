@@ -79,6 +79,7 @@ pub mod gui;
 pub mod memory;
 pub mod threads;
 pub mod sync;
+pub mod ipc;
 
 pub use values::WaitItem;
 
@@ -202,7 +203,7 @@ pub trait Object
 {
 	const CLASS: u16;
 	fn class() -> u16;
-	fn from_handle(handle: ObjectHandle) -> Self;
+	fn from_handle(handle: ::ObjectHandle) -> Self;
 	fn into_handle(self) -> ::ObjectHandle;
 	fn handle(&self) -> &::ObjectHandle;
 

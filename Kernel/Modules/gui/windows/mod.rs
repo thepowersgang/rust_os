@@ -15,6 +15,9 @@ use kernel::lib::sparse_vec::SparseVec;
 
 pub use self::winbuf::WinBuf;
 
+type WinId = u16;
+type GrpId = u16;
+
 /// Handle to the backing buffer of a window
 pub type BufHandle = Arc<WinBuf>;
 
@@ -33,7 +36,7 @@ struct WindowGroup
 	name: String,
 
 	/// Window that currently has focus, different to the top of the render order
-	focussed_window: usize,
+	focussed_window: WinId,
 
 	/// Canonical list of windows (sparse, for reallocation of IDs)
 	///
@@ -41,20 +44,20 @@ struct WindowGroup
 	/// Position is here because the window itself doesn't need control (or knowledge) of its position
 	windows: SparseVec< (Pos, Aref<Window>) >,
 	/// Render order (indexes into `windows`, and visibilities)
-	render_order: Vec< (usize, Vec<Rect>) >,
+	render_order: Vec< (WinId, Vec<Rect>) >,
 }
 
 
 /// Handle on a window group (owning, when dropped the group is destroyed)
-pub struct WindowGroupHandle(usize);
+pub struct WindowGroupHandle(GrpId);
 
 /// Window handle (when dropped, the window is destroyed)
 pub struct WindowHandle
 {
 	grp: Arc<Mutex<WindowGroup>>,
 	win: Option<ArefBorrow<Window>>,
-	grp_id: usize,
-	win_id: usize,
+	grp_id: GrpId,
+	win_id: WinId,
 }
 
 #[derive(Default)]
@@ -153,7 +156,7 @@ pub fn switch_active(new: usize)
 	// - Technically it shouldn't (reading the size is just racy, not unsafe), but representing that is nigh-on
 	//   impossible.
 	log_log!("Switching to group {}", new);
-	S_CURRENT_GROUP.store(new, atomic::Ordering::Relaxed);
+	S_CURRENT_GROUP.store(new as usize, atomic::Ordering::Relaxed);
 	S_RENDER_NEEDED.store(true, atomic::Ordering::Relaxed);
 	S_FULL_REDRAW.store(true, atomic::Ordering::Relaxed);
 	S_RENDER_REQUEST.post();
@@ -254,7 +257,7 @@ impl WindowGroup
 		for &(winidx,ref vis) in &self.render_order
 		{
 			let vis = &vis[..];
-			let (ref pos, ref win) = self.windows[winidx];
+			let (ref pos, ref win) = self.windows[winidx as usize];
 			// 1. Is the window dirty, or are we doing a full redraw
 			if win.take_is_dirty() || full
 			{
@@ -281,7 +284,7 @@ impl WindowGroup
 		// Iterate render order finding the highest (latest) window which contains this point
 		for &(winidx, _) in &self.render_order
 		{
-			let ptr = &self.windows[winidx];
+			let ptr = &self.windows[winidx as usize];
 			let &(pos, ref win) = ptr;
 			let dims = win.dims();
 
@@ -304,7 +307,7 @@ impl WindowGroup
 			// - Pass events to the current window
 			if let Some(_) = self.get_render_idx( self.focussed_window )
 			{
-				match self.windows.get( self.focussed_window )
+				match self.windows.get( self.focussed_window as usize )
 				{
 				Some(w) => w.1.handle_input(ev),
 				None => log_log!("Active window #{} not present", self.focussed_window),
@@ -358,12 +361,12 @@ impl WindowGroup
 	}
 
 	/// Obtains the render position of the specified window
-	fn get_render_idx(&self, winidx: usize) -> Option<usize> {
+	fn get_render_idx(&self, winidx: WinId) -> Option<usize> {
 		self.render_order.iter().position( |&(idx,_)| idx == winidx )
 	}
 		
 	/// Recalculate the cached visibility regions caused by 'changed_idx' updating
-	fn recalc_vis(&mut self, changed_idx: usize)
+	fn recalc_vis(&mut self, changed_idx: WinId)
 	{
 		// Changed visibility only affects this window and lower windows.
 		if let Some(idx) = self.get_render_idx(changed_idx)
@@ -392,7 +395,7 @@ impl WindowGroup
 	{
 		// Get the area of the screen used by this window
 		let win_idx = self.render_order[vis_idx].0;
-		let (ref cur_pos, ref cur_win) = self.windows[win_idx];
+		let (ref cur_pos, ref cur_win) = self.windows[win_idx as usize];
 		let dims = cur_win.dims();
 		let win_rect = Rect::new_pd(*cur_pos, dims);
 		
@@ -400,7 +403,7 @@ impl WindowGroup
 		let mut vis = vec![ Rect::new_pd(Pos::new(0,0), dims) ];
 		for &(win,_) in &self.render_order[ vis_idx+1 .. ]
 		{
-			let (ref pos, ref win) = self.windows[win];
+			let (ref pos, ref win) = self.windows[win as usize];
 			if let Some(mut rect) = Rect::new_pd( *pos, win.dims() ).intersect(&win_rect)
 			{
 				rect.pos.x -= cur_pos.x;
@@ -425,11 +428,11 @@ impl WindowGroup
 		vis
 	}
 	
-	fn show_window(&mut self, idx: usize) {
+	fn show_window(&mut self, idx: WinId) {
 		if self.get_render_idx(idx).is_some() {
 			return ;
 		}
-		let rect = Rect { pos: self.windows[idx].0, dims: self.windows[idx].1.dims() };
+		let rect = Rect { pos: self.windows[idx as usize].0, dims: self.windows[idx as usize].1.dims() };
 		self.render_order.push( (idx, vec![rect]) );
 		let vis_idx = self.render_order.len() - 1;
 		self.recalc_vis_int(vis_idx);
@@ -437,7 +440,7 @@ impl WindowGroup
 		// TODO: Have a better method than just switching focus on show
 		self.focussed_window = idx;
 	}
-	fn hide_window(&mut self, idx: usize) {
+	fn hide_window(&mut self, idx: WinId) {
 		if let Some(pos) = self.get_render_idx(idx)
 		{
 			let prev_pos = if pos == 0 { 0 } else { pos - 1 };
@@ -460,17 +463,17 @@ impl WindowGroup
 		}
 	}
 	
-	fn move_window(&mut self, idx: usize, pos: Pos) {
-		self.windows[idx].0 = pos;
+	fn move_window(&mut self, idx: WinId, pos: Pos) {
+		self.windows[idx as usize].0 = pos;
 		self.recalc_vis(idx);
 	}
-	fn get_window_pos(&self, idx: usize) -> Pos {
-		self.windows[idx].0
+	fn get_window_pos(&self, idx: WinId) -> Pos {
+		self.windows[idx as usize].0
 	}
 	
-	fn maximise_window(&mut self, idx: usize) {
+	fn maximise_window(&mut self, idx: WinId) {
 		{
-			let &mut(ref mut pos, ref win_rc) = &mut self.windows[idx];
+			let &mut(ref mut pos, ref win_rc) = &mut self.windows[idx as usize];
 			let rect = match ::kernel::metadevs::video::get_display_for_pos(*pos)
 				{
 				Some(x) => x,
@@ -490,9 +493,9 @@ impl WindowGroup
 
 
 	/// Drops (functionally destroys) a window
-	fn drop_window(&mut self, idx: usize) {
+	fn drop_window(&mut self, idx: WinId) {
 		self.hide_window(idx);
-		self.windows.remove(idx);
+		self.windows.remove(idx as usize);
 	}
 }
 
@@ -512,29 +515,29 @@ impl WindowGroupHandle
 				grps.insert(new_group)
 			}
 			};
-		WindowGroupHandle(idx)
+		WindowGroupHandle(idx as GrpId)
 	}
 
 	fn with_wg<R, F: FnOnce(&mut WindowGroup)->R>(&self, fcn: F) -> R {
 		let wgs = S_WINDOW_GROUPS.lock();
-		let mut wgh = wgs[self.0].lock();
+		let mut wgh = wgs[self.0 as usize].lock();
 		fcn( &mut wgh )
 	}
 	
 	pub fn create_window<T: Into<String>>(&mut self, name: T) -> WindowHandle {
 		// Allocate a new window from the list
 		// - Get handle to this window group (ok to lock it)
-		let wgh_rc = S_WINDOW_GROUPS.lock()[self.0].clone();
+		let wgh_rc = S_WINDOW_GROUPS.lock()[self.0 as usize].clone();
 		
 		let win = Aref::new(Window::new(name.into()));
 		let win_ref = win.borrow();
 		let idx = wgh_rc.lock().windows.insert( (Pos::new(0,0), win) );
-		WindowHandle { win: Some(win_ref), grp: wgh_rc, grp_id: self.0, win_id: idx }
+		WindowHandle { win: Some(win_ref), grp: wgh_rc, grp_id: self.0, win_id: idx as WinId }
 	}
 
 	/// Force this group to be the active group
 	pub fn force_active(&self) {
-		switch_active(self.0);
+		switch_active(self.0 as usize);
 	}
 }
 impl Clone for WindowGroupHandle
@@ -550,7 +553,7 @@ impl ::core::ops::Drop for WindowGroupHandle
 	{
 		if self.with_wg(|wg| wg.deref()) == true {
 			log_notice!("Window group {} destroyed", self.0);
-			S_WINDOW_GROUPS.lock().remove(self.0);
+			S_WINDOW_GROUPS.lock().remove(self.0 as usize);
 			switch_active(0);
 		}
 	}
@@ -580,7 +583,7 @@ impl WindowHandle
 	pub fn redraw(&self)
 	{
 		// if shown, mark self as requiring reblit and poke group
-		if self.grp_id == S_CURRENT_GROUP.load(atomic::Ordering::Relaxed)
+		if self.grp_id as usize == S_CURRENT_GROUP.load(atomic::Ordering::Relaxed)
 		{
 			self.get_win().mark_dirty();
 			S_RENDER_NEEDED.store(true, atomic::Ordering::Relaxed);

@@ -202,7 +202,7 @@ impl ShellState
 /// List the contents of a directory
 fn command_ls<T: ::Terminal>(term: &T, root: &::syscalls::vfs::Dir, path: &str)
 {
-	use syscalls::vfs::{NodeType, Dir, FileOpenMode};
+	use syscalls::vfs::{NodeType, FileOpenMode};
 	let handle = match root.open_child_path(path)
 		{
 		Ok(v) => match v.into_dir()

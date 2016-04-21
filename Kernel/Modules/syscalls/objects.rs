@@ -6,7 +6,6 @@
 use kernel::prelude::*;
 
 use kernel::sync::{RwLock,Mutex};
-use stack_dst::StackDST;
 use args::Args;
 
 use kernel::threads::get_process_local;
@@ -56,7 +55,7 @@ impl<T: Object> Object for Box<T> {
 		(**self).clear_wait(flags, obj)
 	}
 }
-pub type ObjectAlloc = StackDST<Object>;
+pub type ObjectAlloc = ::stack_dst::StackDSTA<Object, [usize; 8]>;
 
 struct UserObject
 {
@@ -66,12 +65,12 @@ struct UserObject
 impl UserObject {
 	fn new<T: Object+'static>(v: T) -> Self {
 		UserObject {
-			data: match StackDST::new(v)
+			data: match ::stack_dst::StackDSTA::new(v)
 				{
 				Ok(v) => v,
 				Err(v) => {
-					log_trace!("Object '{}' did not fit in StackDST {} > {}", type_name!(T), ::core::mem::size_of::<T>(), ::core::mem::size_of::<StackDST<Object>>());
-					StackDST::new(Box::new(v)).ok().unwrap()
+					log_trace!("Object '{}' did not fit in StackDST {} > {}", type_name!(T), ::core::mem::size_of::<T>(), ::core::mem::size_of::<ObjectAlloc>());
+					::stack_dst::StackDSTA::new(Box::new(v)).ok().unwrap()
 					},
 				},
 		}
@@ -229,6 +228,7 @@ impl Drop for ProcessObjects {
 pub fn new_object<T: Object+'static>(val: T) -> u32
 {
 	//log_debug!("new_object<{}>", type_name!(T));
+	log_debug!("size_of {} = {}", type_name!(T), ::core::mem::size_of::<T>());
 	get_process_local::<ProcessObjects>().find_and_fill_slot(|| UserObject::new(val)).unwrap_or(!0)
 }
 
