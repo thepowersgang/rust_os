@@ -44,6 +44,10 @@ mod int {
 
 impl ProtoProcess
 {
+	pub fn from_syscall(v: ::syscalls::threads::ProtoProcess) -> ProtoProcess {
+		ProtoProcess(v)
+	}
+
 	pub fn send_obj<T: ::syscalls::Object>(&self, obj: T) {
 		self.0.send_obj( obj );
 	}

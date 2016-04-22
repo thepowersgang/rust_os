@@ -34,8 +34,7 @@ impl RpcChannel
 	pub fn send_obj<T: ::Object>(&self, message: RpcMessage, object: T) {
 		unimplemented!();
 	}
-	// TODO TODO TODO Use a proper type here that can be checked-casted
-	pub fn try_receive(&self) -> Result< (RpcMessage, Option<::ObjectHandle>), ()> {
+	pub fn try_receive(&self) -> Result< (RpcMessage, Option<::AnyObject>), RxError> {
 		unimplemented!()
 	}
 
@@ -43,3 +42,11 @@ impl RpcChannel
 		unimplemented!();
 	}
 }
+
+#[derive(Debug)]
+pub enum RxError
+{
+	NoMessage,
+	ConnectionClosed,
+}
+

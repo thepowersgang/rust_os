@@ -42,15 +42,19 @@ impl Connection
 {
 	/// Open a named executable
 	pub fn open_executable(&self, name: &str) -> Result< ::syscalls::vfs::File, OpenError > {
-		self.channel.send( protocol::RequestExecutable::new(name).into() );
+		self.channel.send( protocol::ReqOpenExecutable::new(name).into() );
 		::syscalls::threads::wait(&mut [ self.channel.wait_rx() ], !0);
-		let (_rsp, obj) = self.channel.try_receive().unwrap();
-		if let Some(v) = obj {
-			// TODO TODO TODO Use a proper type here that can be checked-casted
-			Ok( ::syscalls::Object::from_handle(v) )
-		}
-		else {
+		let (rsp, obj) = self.channel.try_receive().unwrap();
+		match protocol::Response::try_from(rsp)
+		{
+		Ok(protocol::Response::OpenedFile(v)) => {
+			Ok( obj.expect("No handle returned with OpenFile response").downcast_panic() )
+			},
+		Ok(protocol::Response::Error(e)) => {
 			Err( OpenError::NotFound )
+			},
+		Ok(_) => panic!("Unexpected response from handle server"),
+		Err(_) => panic!("Error receiving response from handle server"),
 		}
 	}
 

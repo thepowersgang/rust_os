@@ -7,6 +7,7 @@
 #[macro_use]
 extern crate syscalls;
 
+extern crate loader;
 extern crate handle_server;
 
 use handle_server::protocol;
@@ -35,40 +36,45 @@ fn main()
 		::syscalls::threads::wait(&mut waits, !0);
 		for conn in handles.iter()
 		{
-			if let Ok( (buffer, obj) ) = conn.channel.try_receive()
-			{
-				match protocol::RequestId::try_from(buffer[0])
+			let (buffer, obj) = match conn.channel.try_receive()
 				{
-				Some(protocol::RequestId::OpenExecutable) => {
-					let req: protocol::RequestExecutable = buffer.into();
-					// TODO: Search a set of paths and registered applications.
-					let path = match req.name()
-						{
-						b"fileviewer" => b"/system/bin/fileviewer",
-						_ => {
-							conn.channel.send( protocol::RspError::new(0, "Unknown name").into() );
-							return
-							},
-						};
-					let fh = match filesystem_root.open_child_path(path).and_then(|x| x.into_file(::syscalls::vfs::FileOpenMode::Execute))
-						{
-						Ok(v) => v,
-						Err(_) => {
-							conn.channel.send( protocol::RspError::new(0, "Could not open executable file").into() );
-							return
-							},
-						};
-					conn.channel.send_obj( protocol::RspFile::new(path).into(), fh );
+				Ok(v) => v,
+				Err(::syscalls::ipc::RxError::NoMessage) => continue,
+				Err(::syscalls::ipc::RxError::ConnectionClosed) => panic!("TODO: Handle connection loss"),
+				};
+			match protocol::Request::try_from(buffer)
+			{
+			// Request to open an executable
+			Ok(protocol::Request::OpenExecutable(req)) => {
+				// TODO: Search a set of paths and registered applications.
+				let path = match req.name()
+					{
+					b"fileviewer" => b"/system/bin/fileviewer",
+					_ => {
+						conn.channel.send( protocol::RspError::new(0, "Unknown name").into() );
+						continue
+						},
+					};
+				match filesystem_root.open_child_path(path).and_then(|x| x.into_file(::syscalls::vfs::FileOpenMode::Execute))
+				{
+				Ok(fh) => {
+					conn.channel.send_obj( protocol::RspOpenedFile::new(path).into(), fh );
 					},
-				Some(protocol::RequestId::PickFile) => {
-					// TODO: Spawn a "open file" dialog linked to the calling process
-					unimplemented!();
-					},
-				None => {
-					kernel_log!("NOTICE: Unknown request from '{}' - {}", conn.name, buffer[0]);
-					conn.channel.send( protocol::RspError::new(0, "Unknown request").into() );
+				Err(_) => {
+					conn.channel.send( protocol::RspError::new(0, "Could not open executable file").into() );
+					continue
 					},
 				}
+				},
+			// Request the user pick a file to open
+			Ok(protocol::Request::PickFile(req)) => {
+				// TODO: Spawn a "open file" dialog linked to the calling process
+				unimplemented!();
+				},
+			Err(e) => {
+				kernel_log!("NOTICE: Unknown request from '{}' - {}", conn.name, buffer[0]);
+				conn.channel.send( protocol::RspError::new(0, "Unknown request").into() );
+				},
 			}
 		}
 	}

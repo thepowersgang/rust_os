@@ -16,6 +16,14 @@ mod std {
 	pub use core::fmt;
 }
 
+fn type_name<T:?Sized>() -> &'static str {
+	// SAFE: type_name intrinsic
+	unsafe { ::core::intrinsics::type_name::<T>() }
+}
+macro_rules! type_name {
+	($t:ty) => {::type_name::<$t>()};
+}
+
 macro_rules! syscall {
 	($id:ident) => {
 		::raw::syscall_0(::values::$id)
@@ -184,6 +192,34 @@ impl Drop for ObjectHandle {
 			if self.0 != ::core::mem::dropped() {
 				::raw::syscall_0( self.call_value(::values::OBJECT_DROP) );
 			}
+		}
+	}
+}
+
+/// Opaque representation of an arbitary syscall object
+pub struct AnyObject(::ObjectHandle);
+impl AnyObject
+{
+	pub fn downcast<T: ::Object>(self) -> Result<T, Self> {
+		if self.0.get_class() == Ok(T::CLASS) {
+			Ok( T::from_handle(self.0) )
+		}
+		else {
+			Err(self)
+		}
+	}
+	/// Cast this to the specified type, panicing on failure
+	pub fn downcast_panic<T: ::Object>(self) -> T {
+		match self.0.get_class()
+		{
+		Ok(c) if c == T::CLASS => T::from_handle(self.0),
+		Ok(class) => panic!("AnyObject({})::downcast_panic<{}> - Fail, {} {} != {}",
+			self.0 .0, type_name!(T),
+			class, values::get_class_name(class), T::CLASS
+			),
+		Err(_) => panic!("AnyObject({})::downcast_panic<{}> - Invalid object num",
+			self.0 .0, type_name!(T)
+			),
 		}
 	}
 }
