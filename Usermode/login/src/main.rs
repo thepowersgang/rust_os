@@ -2,19 +2,23 @@
 // - By John Hodge (thePowersGang)
 //
 // GUI root process, handling user logins on a single session
+#![feature(const_fn)]
 
-extern crate wtk;
+use lazy_static::LazyStatic;
 
 extern crate async;
-
+extern crate lazy_static;
+extern crate loader;
+extern crate wtk;
 #[macro_use]
 extern crate syscalls;
-
-extern crate loader;
 
 macro_rules! imgpath {
 		($p:expr) => {concat!("/system/Tifflin/shared/images/",$p)};
 }
+
+
+static VFS_ROOT: LazyStatic< ::syscalls::vfs::Dir > = LazyStatic::new();
 
 fn main()
 {
@@ -22,6 +26,8 @@ fn main()
 	const MENU_HEIGHT: u32 = 16;
 	const ENTRY_FRAME_HEIGHT: u32 = 40;
 	const TEXTBOX_HEIGHT: u32 = 16;
+
+	//VFS_ROOT.init(|| ::syscalls::threads::S_THIS_PROCESS.receive_object().unwrap() );
 
 	::wtk::initialise();
 
@@ -121,8 +127,10 @@ fn try_login(username: &str, password: &str) -> Result<(), &'static str>
 	// TODO: Use a proper auth infrastructure
 	if username == "root" && password == "password"
 	{
+		// Start the handle server for this session?
+		// - TODO: Should the handle server be per-session, or a global service?
+		// - Global service makes some logic easier, but leads to DoS between users
 		// Spawn console, and wait for it to terminate
-		//spawn_console_and_wait("/sysroot/bin/simple_console");
 		spawn_console_and_wait("/sysroot/bin/shell");
 		Ok( () )
 	}
@@ -132,19 +140,30 @@ fn try_login(username: &str, password: &str) -> Result<(), &'static str>
 	}
 }
 
+fn open_exe(path: &str) -> Result<::syscalls::vfs::File, ::syscalls::vfs::Error> {
+	match ::syscalls::vfs::ROOT.open_child_path(path.as_bytes())
+	{
+	Ok(v) => v.into_file(::syscalls::vfs::FileOpenMode::Execute),
+	Err(e) => Err(e),
+	}
+}
+
 fn spawn_console_and_wait(path: &str)
 {
+	let handle_server = {
+		let path = "/sysroot/bin/handle_server";
+		let fh = open_exe(path).unwrap_or_else(|e| panic!("Couldn't open handle server - {:?}", e));
+		let pp = loader::new_process(fh, path.as_bytes(), &[]).expect("Could not spawn handle server");
+		//pp.send_obj();
+		pp.start()
+		};
 	// TODO: I need something more elegant than this.
 	// - Needs to automatically pass the WGH
 	// - OR - Just have a wtk method to pass it `::wtk::share_handle(&console)`
 	let console = {
-		let fh = match ::syscalls::vfs::ROOT.open_child_path(path.as_bytes())
+		let fh = match open_exe(path)
 			{
-			Ok(v) => match v.into_file(::syscalls::vfs::FileOpenMode::Execute)
-				{
-				Ok(v) => v,
-				Err(e) => panic!("Couldn't open '{}' as an executable file - {:?}", path, e),
-				},
+			Ok(v) => v,
 			Err(e) => panic!("Couldn't open executable '{}' - {:?}", path, e),
 			};
 		let pp = loader::new_process(fh, path.as_bytes(), &[]).expect("Could not spawn shell");

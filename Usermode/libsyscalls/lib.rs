@@ -217,9 +217,7 @@ impl AnyObject
 			self.0 .0, type_name!(T),
 			class, values::get_class_name(class), T::CLASS
 			),
-		Err(_) => panic!("AnyObject({})::downcast_panic<{}> - Invalid object num",
-			self.0 .0, type_name!(T)
-			),
+		Err(_) => panic!("AnyObject({})::downcast_panic<{}> - Invalid object num", self.0 .0, type_name!(T)),
 		}
 	}
 }

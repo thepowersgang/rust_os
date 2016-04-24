@@ -22,7 +22,7 @@ pub use ::values::VFSMemoryMapMode as MemoryMapMode;
 //pub static ROOT: Dir = Dir( ::ObjectHandle(2) );
 #[allow(improper_ctypes)]
 extern "Rust" {
-	// NOTE: This is a 32-bit intger defined in the assembly stubs. I woudl use the above commented-out line, but can't
+	// NOTE: This is a 32-bit intger defined in the assembly stubs. I would use the above commented-out line, but can't
 	#[link_name="syscalls_vfs_root"]
 	pub static ROOT: Dir;
 }
