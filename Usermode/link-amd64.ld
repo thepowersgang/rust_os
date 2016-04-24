@@ -1,5 +1,7 @@
 ENTRY(start)
 
+STARTUP( .objs/amd64/rustrt0.o )
+
 PHDRS {
 	SegRX PT_LOAD;
 	SegR PT_LOAD FLAGS(4);	/* 4 = PT_R */

@@ -8,12 +8,11 @@
 	"os": "tifflin",
 	"arch": "x86_64",
 		"linker": "x86_64-none-elf-gcc",
-		"pre-link-args": ["-nostdlib", "-ffreestanding", "-Wl,-T,link-amd64.ld", "-Wl,-z,max-page-size=4096", "-Wl,--gc-sections", ".objs/amd64/rustrt0.o", "-Wl,--start-group"],
+		"pre-link-args": ["-nostdlib", "-Wl,-T,link-amd64.ld", "-ffreestanding", "-Wl,-z,max-page-size=4096", "-Wl,--gc-sections", "-Wl,--start-group"],
 		"post-link-args": ["-Wl,--end-group"],
 		"no-compiler-rt": true,
 		"disable-redzone": true,
 		"eliminate-frame-pointer": false,
-		"_features": "-3dnow,-avx,-avx2,-sse,-sse2,-sse3,-sse4.1,-sse4.2,-mmx",
 		"executables": true,
 		"dynamic-linking": true,
 	"morestack": false

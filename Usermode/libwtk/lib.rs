@@ -114,3 +114,4 @@ pub fn initialise()
 	use syscalls::threads::S_THIS_PROCESS;
 	::syscalls::gui::set_group( S_THIS_PROCESS.receive_object().unwrap() );
 }
+
