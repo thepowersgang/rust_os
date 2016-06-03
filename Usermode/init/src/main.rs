@@ -11,7 +11,9 @@ extern crate loader;
 
 fn main()
 {
-	kernel_log!("Hello userland!");
+	kernel_log!("Tifflin (rust_os) userland started");
+
+	let rw_root: ::syscalls::vfs::Dir = get_handle("RW VFS Root");
 	
 	//let daemons = Vec::new();
 	//let shells = Vec::new();
@@ -24,6 +26,7 @@ fn main()
 			wingrp.force_active().expect("Cannot force session 1 to be active");
 			wingrp
 			});
+		pp.send_obj( rw_root.clone() );
 		pp.start()
 		};
 
@@ -36,6 +39,15 @@ fn main()
 		::syscalls::threads::wait(&mut [], !0);
 
 		panic!("TODO: Handle login terminating");
+	}
+}
+
+fn get_handle<T: ::syscalls::Object>(desc: &str) -> T
+{
+	match ::syscalls::threads::S_THIS_PROCESS.receive_object()
+	{
+	Ok(v) => v,
+	Err(e) => panic!("Failed to receive {} - {:?}", desc, e),
 	}
 }
 

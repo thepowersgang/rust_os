@@ -333,7 +333,6 @@ pub fn take_object<T: Object+'static>(handle: u32) -> Result<T,super::Error> {
 	unsafe {
 		let rv = {
 			let r = obj.as_any().downcast_ref::<T>().expect("Object was not expected type (TODO: Proper error)");
-			//let r = obj.downcast_ref::<T>().expect("Object was not expected type (TODO: Proper error)");
 			::core::ptr::read(r)
 			};
 		::core::mem::forget(obj);

@@ -65,16 +65,6 @@ impl_from! {
 				(Unsynch),
 			}
 		)
-		//match v
-		//{
-		//::values::VFSFileOpenMode::None => todo!(""),
-		//::values::VFSFileOpenMode::ReadOnly => handle::FileOpenMode::SharedRO,
-		//::values::VFSFileOpenMode::Execute => handle::FileOpenMode::Execute,
-		//::values::VFSFileOpenMode::ExclRW => handle::FileOpenMode::ExclRW,
-		//::values::VFSFileOpenMode::UniqueRW => handle::FileOpenMode::UniqueRW,
-		//::values::VFSFileOpenMode::Append => handle::FileOpenMode::Append,
-		//::values::VFSFileOpenMode::Unsynch => handle::FileOpenMode::Unsynch,
-		//}
 	}}
 }
 
@@ -84,11 +74,19 @@ fn to_result<T>(r: Result<T, ::kernel::vfs::Error>) -> Result<T, u32> {
 }
 
 pub fn init_handles(loader_handle: ::kernel::vfs::handle::File, init_handle: ::kernel::vfs::handle::File) {
-	// - Hand over loader+init handles (fixed as objects 0 and 1)
+	use kernel::vfs::handle;
+	// - Forget the loader (no need)
 	::core::mem::forget(loader_handle);
+	// - Send the init file handle as #1
 	::objects::new_object( File(init_handle) );
-	::objects::new_object( Dir::new( ::kernel::vfs::handle::Dir::open(Path::new("/")).unwrap() ) );
-	// - Open root RW handle
+	// - Send the RO root as #2
+	::objects::new_object(Dir::new( {
+		let root = handle::Dir::open(Path::new("/")).unwrap();
+		//root.set_permissions( handle::Perms::readonly() );
+		root
+		}));
+	// - Open root RW handle (TODO: Push to this process)
+	::objects::new_object( Dir::new( handle::Dir::open(Path::new("/")).unwrap() ) );
 }
 
 
