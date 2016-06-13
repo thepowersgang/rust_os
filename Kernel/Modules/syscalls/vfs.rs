@@ -77,16 +77,20 @@ pub fn init_handles(loader_handle: ::kernel::vfs::handle::File, init_handle: ::k
 	use kernel::vfs::handle;
 	// - Forget the loader (no need)
 	::core::mem::forget(loader_handle);
-	// - Send the init file handle as #1
+
+	// #1: Initial file handle
 	::objects::new_object( File(init_handle) );
-	// - Send the RO root as #2
+	// #2: Read-only root
 	::objects::new_object(Dir::new( {
 		let root = handle::Dir::open(Path::new("/")).unwrap();
 		//root.set_permissions( handle::Perms::readonly() );
 		root
 		}));
-	// - Open root RW handle (TODO: Push to this process)
-	::objects::new_object( Dir::new( handle::Dir::open(Path::new("/")).unwrap() ) );
+
+	// --- All other objects must be pushed ---
+	::objects::init_unclaimed(3);
+	// - Read-write handle to /
+	::objects::push_as_unclaimed( ::objects::new_object( Dir::new( handle::Dir::open(Path::new("/")).unwrap() ) ) );
 }
 
 

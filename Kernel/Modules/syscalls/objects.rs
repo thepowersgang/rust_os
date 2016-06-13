@@ -232,6 +232,21 @@ pub fn new_object<T: Object+'static>(val: T) -> u32
 	get_process_local::<ProcessObjects>().find_and_fill_slot(|| UserObject::new(val)).unwrap_or(!0)
 }
 
+/// Startup: Pushes the specified index as an unclaimed object
+pub fn push_as_unclaimed(handle: u32) {
+	let objs = get_process_local::<ProcessObjects>();
+	let mut lh = objs.given.lock();
+	assert_eq!( lh.total as u32, handle );
+	lh.total += 1;
+}
+/// Startup: Sets this process's unclaimed list positions to the end of the process list
+pub fn init_unclaimed(count: u32) {
+	let objs = get_process_local::<ProcessObjects>();
+	let mut lh = objs.given.lock();
+	lh.next = count as u16;
+	lh.total = count as u16;
+}
+
 /// Grab an unclaimed object (checking the class)
 pub fn get_unclaimed(class: u16) -> u64
 {
