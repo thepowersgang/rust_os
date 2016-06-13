@@ -82,7 +82,14 @@ ENTRY(start)
 	@ R13: Magic
 	ldr r9, =UART_BASE
 	ldr r13, =0x1badb002	@ Just ninja the mulitboot magic value
-	mov pc, r8
+	blx r8
+	@mov pc, r8
+	
+	
+	ldr r0, =string_boot_fail
+	mov r1, #(5+7+2)
+	bl puts
+	b .
 
 
 ENTRY(putb)
@@ -103,5 +110,9 @@ ENTRY(puts)
 	bne 1b
 2:
 	bx lr
+
+.section .rodata
+string_boot_fail:
+	.string "Boot failure.\n"
 
 // vim: ft=armasm

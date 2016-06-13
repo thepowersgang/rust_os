@@ -42,28 +42,24 @@ ENTRY(memmove)
 
 	@ TODO: Have memmove4 for 4 byte aligned versions	
 
-	cmp r0, r1
-	bxeq lr
 	@ If DST < SRC: Check for overlap
-	blt .dst_first
+	cmp r0, r1
+	bxeq lr	@ if DST==SRC, return early
+	blt __aeabi_memcpy
 	@ SRC < DST: Possible slow path
 	add r3, r1, r2
-	cmp r0, r3
+	cmp r3, r0
 	@ If SRC + CNT <= DST, go the fast path
 	ble __aeabi_memcpy
 	@ Reverse slow path
-1:
 	add r1, r2
 	add r0, r2
+1:
 	LDRB r3, [r1, #-1]!
 	STRB r3, [r0, #-1]!
 	SUBS r2, r2, #1
-	BGT 1b
+	BNE 1b
 	BX lr
-	
-.dst_first:
-	@ - Lazy byte-wise memcpy if the destination is first
-	b __aeabi_memcpy
 
 ENTRY(__aeabi_memcpy4)
 ENTRY_(__aeabi_memcpy8)

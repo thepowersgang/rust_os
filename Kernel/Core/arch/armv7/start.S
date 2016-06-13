@@ -38,6 +38,7 @@ start:
 	teq r0, r13
 	beq 1f
 	@ TODO: What to do if we weren't loaded by our loader
+	mov pc,lr
 	b .
 1:
 	@ R9: UART Address

@@ -4,79 +4,26 @@
 #![no_std]
 #![feature(lang_items)]
 
+mod elf_fmt;
+
+#[inline(never)]
+fn log_closure<F: FnOnce(&mut ::core::fmt::Write)>(f: F) {
+	use core::fmt::Write;
+	let mut lh = ::Logger;
+	let _ = write!(lh, "[loader log] ");
+	f(&mut lh);
+	let _ = write!(lh, "\n");
+}
 
 /// Stub logging macro
 macro_rules! log{
 	($($v:tt)*) => {{
-		use core::fmt::Write;
-		let mut lh = ::Logger;
-		let _ = write!(lh, "[loader log] ");
-		let _ = write!(lh, $($v)*);
-		let _ = write!(lh, "\n");
+		::log_closure(|lh| {let _ = write!(lh, $($v)*);});
 		}};
 }
 
-#[allow(non_camel_case_types)]
-type Elf32_Half = u16;
-#[allow(non_camel_case_types)]
-type Elf32_Addr = u32;
-#[allow(non_camel_case_types)]
-type Elf32_Off = u32;
-#[allow(non_camel_case_types)]
-type Elf32_Sword = i32;
-#[allow(non_camel_case_types)]
-type Elf32_Word = u32;
 
-#[repr(C)]
-struct ElfHeader {
-	e_ident: [u8; 16],
-	e_object_type: Elf32_Half,
-	e_machine_type: Elf32_Half,
-	e_version: Elf32_Word,
-
-	e_entry: Elf32_Addr,
-	e_phoff: Elf32_Off,
-	e_shoff: Elf32_Off,
-
-	e_flags: Elf32_Word,
-	e_ehsize: Elf32_Half,
-
-	e_phentsize: Elf32_Half,
-	e_phnum: Elf32_Half,
-
-	e_shentsize: Elf32_Half,
-	e_shnum: Elf32_Half,
-	e_shstrndx: Elf32_Half,
-}
-#[repr(C)]
-#[derive(Copy,Clone)]
-struct PhEnt {
-	p_type: Elf32_Word,
-	p_offset: Elf32_Off,
-	p_vaddr: Elf32_Addr,
-	p_paddr: Elf32_Addr,	// aka load
-	p_filesz: Elf32_Word,
-	p_memsz: Elf32_Word,
-	p_flags: Elf32_Word,
-	p_align: Elf32_Word,
-}
-#[repr(C)]
-#[derive(Copy,Clone)]
-struct ShEnt {
-	sh_name: Elf32_Word,
-	sh_type: Elf32_Word,
-	sh_flags: Elf32_Word,
-	sh_addr: Elf32_Addr,
-	sh_offset: Elf32_Off,
-	sh_size: Elf32_Word,
-	sh_link: Elf32_Word,
-	sh_info: Elf32_Word,
-	sh_addralign: Elf32_Word,
-	sh_entsize: Elf32_Word,
-}
-
-
-pub struct ElfFile(ElfHeader);
+pub struct ElfFile(elf_fmt::ElfHeader);
 impl ElfFile
 {
 	pub fn check_header(&self) {
@@ -84,20 +31,20 @@ impl ElfFile
 		assert_eq!(self.0.e_version, 1);
 	}
 	fn phents(&self) -> PhEntIter {
-		assert_eq!( self.0.e_phentsize as usize, ::core::mem::size_of::<PhEnt>() );
+		assert_eq!( self.0.e_phentsize as usize, ::core::mem::size_of::<elf_fmt::PhEnt>() );
 		// SAFE: Assuming the file is correct...
-		let slice: &[PhEnt] = unsafe {
-			let ptr = (&self.0 as *const _ as usize + self.0.e_phoff as usize) as *const PhEnt;
+		let slice: &[elf_fmt::PhEnt] = unsafe {
+			let ptr = (&self.0 as *const _ as usize + self.0.e_phoff as usize) as *const elf_fmt::PhEnt;
 			::core::slice::from_raw_parts( ptr, self.0.e_phnum as usize )
 			};
 		log!("phents() - slice = {:p}+{}", slice.as_ptr(), slice.len());
 		PhEntIter( slice )
 	}
-	fn shents(&self) -> &[ShEnt] {
-		assert_eq!( self.0.e_shentsize as usize, ::core::mem::size_of::<ShEnt>() );
+	fn shents(&self) -> &[elf_fmt::ShEnt] {
+		assert_eq!( self.0.e_shentsize as usize, ::core::mem::size_of::<elf_fmt::ShEnt>() );
 		// SAFE: Assuming the file is correct...
 		unsafe {
-			let ptr = (&self.0 as *const _ as usize + self.0.e_shoff as usize) as *const ShEnt;
+			let ptr = (&self.0 as *const _ as usize + self.0.e_shoff as usize) as *const elf_fmt::ShEnt;
 			::core::slice::from_raw_parts( ptr, self.0.e_shnum as usize )
 		}
 	}
@@ -106,34 +53,35 @@ impl ElfFile
 		self.0.e_entry as usize
 	}
 }
-struct PhEntIter<'a>(&'a [PhEnt]);
+struct PhEntIter<'a>(&'a [elf_fmt::PhEnt]);
 impl<'a> Iterator for PhEntIter<'a> {
-	type Item = PhEnt;
-	fn next(&mut self) -> Option<PhEnt> {
+	type Item = elf_fmt::PhEnt;
+	fn next(&mut self) -> Option<elf_fmt::PhEnt> {
 		if self.0.len() == 0 {
 			None
 		}
 		else {
 			let rv = self.0[0].clone();
+			//log!("rv.p_type = {}", rv.p_type);
 			self.0 = &self.0[1..];
 			Some(rv)
 		}
 	}
 }
-struct ShEntIter<'a>(&'a [ShEnt]);
-impl<'a> Iterator for ShEntIter<'a> {
-	type Item = ShEnt;
-	fn next(&mut self) -> Option<ShEnt> {
-		if self.0.len() == 0 {
-			None
-		}
-		else {
-			let rv = self.0[0].clone();
-			self.0 = &self.0[1..];
-			Some(rv)
-		}
-	}
-}
+//struct ShEntIter<'a>(&'a [elf_fmt::ShEnt]);
+//impl<'a> Iterator for ShEntIter<'a> {
+//	type Item = elf_fmt::ShEnt;
+//	fn next(&mut self) -> Option<elf_fmt::ShEnt> {
+//		if self.0.len() == 0 {
+//			None
+//		}
+//		else {
+//			let rv = self.0[0].clone();
+//			self.0 = &self.0[1..];
+//			Some(rv)
+//		}
+//	}
+//}
 
 #[no_mangle]
 pub extern "C" fn elf_get_size(file_base: &ElfFile) -> u32
@@ -144,6 +92,7 @@ pub extern "C" fn elf_get_size(file_base: &ElfFile) -> u32
 	let mut max_end = 0;
 	for phent in file_base.phents()
 	{
+		log!("{}", phent.p_type);
 		if phent.p_type == 1
 		{
 			log!("- {:#x}+{:#x} loads +{:#x}+{:#x}",
@@ -160,6 +109,10 @@ pub extern "C" fn elf_get_size(file_base: &ElfFile) -> u32
 	// Round the image size to 4KB
 	let max_end = (max_end + 0xFFF) & !0xFFF;
 	log!("return load_size={:#x}", max_end);
+	if max_end == 0 {
+		log!("ERROR!!! Kernel reported zero loadable size");
+		loop {}
+	}
 	max_end as u32
 }
 
@@ -170,6 +123,7 @@ pub extern "C" fn elf_load_segments(file_base: &ElfFile, output_base: *mut u8) -
 	log!("elf_load_segments(file_base={:p}, output_base={:p})", file_base, output_base);
 	for phent in file_base.phents()
 	{
+		log!("{}", phent.p_type);
 		if phent.p_type == 1
 		{
 			log!("- {:#x}+{:#x} loads +{:#x}+{:#x}",
@@ -195,23 +149,15 @@ pub extern "C" fn elf_load_segments(file_base: &ElfFile, output_base: *mut u8) -
 	rv
 }
 
-#[derive(Copy,Clone,Debug)]
-pub struct SymEnt {
-	st_name: u32,
-	st_value: u32,
-	st_size: u32,
-	st_info: u8,
-	st_other: u8,
-	st_shndx: u16,
-}
 #[repr(C)]
 #[derive(Debug)]
 pub struct SymbolInfo {
-	base: *const SymEnt,
+	base: *const elf_fmt::SymEnt,
 	count: usize,
 	string_table: *const u8,
 	strtab_len: usize,
 }
+
 #[no_mangle]
 /// Returns size of data written to output_base
 pub extern "C" fn elf_load_symbols(file_base: &ElfFile, output: &mut SymbolInfo) -> u32
@@ -229,11 +175,11 @@ pub extern "C" fn elf_load_symbols(file_base: &ElfFile, output: &mut SymbolInfo)
 			//log!("- strtab = {:?}", ::core::str::from_utf8(strtab_bytes));
 
 			output.base = (output as *const _ as usize + pos) as *const _;
-			output.count = ent.sh_size as usize / ::core::mem::size_of::<SymEnt>();
+			output.count = ent.sh_size as usize / ::core::mem::size_of::<elf_fmt::SymEnt>();
 			unsafe {
 				let bytes = ent.sh_size as usize;
-				let src = ::core::slice::from_raw_parts( (file_base as *const _ as usize + ent.sh_offset as usize) as *const SymEnt, output.count );
-				let dst = ::core::slice::from_raw_parts_mut( output.base as *mut SymEnt, output.count );
+				let src = ::core::slice::from_raw_parts( (file_base as *const _ as usize + ent.sh_offset as usize) as *const elf_fmt::SymEnt, output.count );
+				let dst = ::core::slice::from_raw_parts_mut( output.base as *mut elf_fmt::SymEnt, output.count );
 				for (d,s) in Iterator::zip( dst.iter_mut(), src.iter() ) {
 					//log!("- {:?} = {:#x}+{:#x}", ::core::str::from_utf8(&strtab_bytes[s.st_name as usize..].split(|&v|v==0).next().unwrap()), s.st_value, s.st_size);
 					*d = *s;
