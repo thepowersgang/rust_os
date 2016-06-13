@@ -21,21 +21,19 @@ pub struct EventChannel
 unsafe impl Sync for EventChannel {}
 impl Default for EventChannel {
 	fn default() -> Self {
-		EVENTCHANNEL_INIT
+		EventChannel::new()
 	}
 }
 
-/// Static initialiser for EventChannel
-pub const EVENTCHANNEL_INIT: EventChannel = EventChannel {
-	lock: Spinlock::new( false ),
-	queue: UnsafeCell::new( ::threads::WAITQUEUE_INIT ),
-	pending_wakes: ::core::sync::atomic::ATOMIC_USIZE_INIT,
-	};
-
 impl EventChannel
 {
-	pub fn new() -> EventChannel {
-		EVENTCHANNEL_INIT
+	/// Constant initialiser for EventChannel
+	pub const fn new() -> EventChannel {
+		EventChannel {
+			lock: Spinlock::new( false ),
+			queue: UnsafeCell::new( WaitQueue::new() ),
+			pending_wakes: ::core::sync::atomic::ATOMIC_USIZE_INIT,
+			}
 	}
 	
 	/// Sleep until an event

@@ -6,6 +6,7 @@
 #![no_std]
 
 #![feature(const_fn)]
+#![feature(drop_types_in_const)]
 
 use kernel::prelude::*;
 use kernel::PAGE_SIZE;

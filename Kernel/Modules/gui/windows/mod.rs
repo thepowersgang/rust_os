@@ -74,7 +74,7 @@ const C_MAX_SESSIONS: usize = 13;
 static S_WINDOW_GROUPS: LazyMutex<SparseVec< Arc<Mutex<WindowGroup>> >> = lazymutex_init!();
 static S_CURRENT_GROUP: ::core::sync::atomic::AtomicUsize = ::core::sync::atomic::ATOMIC_USIZE_INIT;
 
-static S_RENDER_REQUEST: ::kernel::sync::EventChannel = ::kernel::sync::EVENTCHANNEL_INIT;
+static S_RENDER_REQUEST: ::kernel::sync::EventChannel = ::kernel::sync::EventChannel::new();
 static S_RENDER_NEEDED: atomic::AtomicBool = atomic::AtomicBool::new(false);
 static S_FULL_REDRAW: atomic::AtomicBool = atomic::AtomicBool::new(false);
 static S_EVENT_QUEUE: LazyStatic<::kernel::lib::ring_buffer::AtomicRingBuf<super::input::Event>> = lazystatic_init!();

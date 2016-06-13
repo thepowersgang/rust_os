@@ -9,7 +9,7 @@ pub use arch::sync::hold_interrupts;
 pub use sync::mutex::Mutex;
 pub use sync::semaphore::Semaphore;
 pub use sync::rwlock::RwLock;
-pub use sync::event_channel::{EventChannel,EVENTCHANNEL_INIT};
+pub use sync::event_channel::EventChannel;
 pub use self::atomic::AtomicU32;
 
 #[macro_use]

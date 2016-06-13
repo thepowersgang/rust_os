@@ -44,7 +44,7 @@ impl<T: Send> Mutex<T>
 		Mutex {
 			inner: ::sync::Spinlock::new(MutexInner {
 				held: false,
-				queue: ::threads::WAITQUEUE_INIT
+				queue: ::threads::WaitQueue::new(),
 				}),
 			val: ::core::cell::UnsafeCell::new(val),
 		}

@@ -21,7 +21,7 @@ pub use self::worker_thread::WorkerThread;
 
 pub use self::thread_list::{ThreadList,THREADLIST_INIT};
 pub use self::sleep_object::{SleepObject,SleepObjectRef};
-pub use self::wait_queue::{WaitQueue,WAITQUEUE_INIT};
+pub use self::wait_queue::WaitQueue;
 
 use lib::mem::aref::{Aref,ArefBorrow};
 

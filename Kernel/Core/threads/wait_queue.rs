@@ -11,9 +11,6 @@ use super::ThreadList;
 use super::{get_cur_thread,rel_cur_thread,reschedule};
 use super::s_runnable_threads;
 
-#[doc(hidden)]
-pub const WAITQUEUE_INIT: WaitQueue = WaitQueue::new();
-
 /// A list of waiting threads, can be woken one at a time, or all at once
 pub struct WaitQueue
 {
