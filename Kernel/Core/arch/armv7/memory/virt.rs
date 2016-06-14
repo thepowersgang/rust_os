@@ -123,6 +123,7 @@ impl PageEntryRegion {
 		&PageEntryRegion::NonGlobal => unsafe {
 			assert!(idx < 2048);
 			let table = &*(USER_BASE_TABLE as *const [AtomicU32; 0x800]);
+			assert!( get_phys(table) != 0 );
 			&table[idx]
 			},
 		&PageEntryRegion::Global => {
@@ -272,6 +273,7 @@ fn get_table_addr<T>(vaddr: *const T, alloc: bool) -> Option< (::arch::memory::P
 			}
 			else {
 				for i in 1 .. ENTS_PER_ALLOC as u32 {
+					assert!( ent_r[i as usize].load(Ordering::Relaxed) == 0 );
 					ent_r[i as usize].store(frame + i*0x400 + 0x1, Ordering::SeqCst);
 				}
 				Some( (frame & !PAGE_MASK_U32, tab_idx) )
@@ -396,6 +398,7 @@ pub unsafe fn map(a: *mut (), p: PAddr, mode: ProtectionMode) {
 		assert!(old == 0, "map() called over existing allocation: a={:p}, old={:#x}", a, old);
 		mh[idx+1].swap(p + 0x1000 + mode_flags, Ordering::SeqCst);
 		tlbimva(a);
+		tlbimva( (a as usize + 0x1000) as *mut () );
 	}
 }
 pub unsafe fn reprotect(a: *mut (), mode: ProtectionMode) {
@@ -417,6 +420,7 @@ pub unsafe fn reprotect(a: *mut (), mode: ProtectionMode) {
 		assert!(old == v, "reprotect() called in a racy manner: a={:p} old({:#x}) != v({:#x})", a, old, v);
 		mh[idx+1].swap(p + 0x1000 + mode_flags, Ordering::SeqCst);
 		tlbimva(a);
+		tlbimva( (a as usize + 0x1000) as *mut () );
 	}
 }
 pub unsafe fn unmap(a: *mut ()) -> Option<PAddr> {
@@ -431,11 +435,11 @@ pub unsafe fn unmap(a: *mut ()) -> Option<PAddr> {
 		let old = mh[idx+0].swap(0, Ordering::SeqCst);
 		mh[idx+1].swap(0, Ordering::SeqCst);
 		tlbimva(a);
+		tlbimva( (a as usize + 0x1000) as *mut () );
 		if old & 3 == 0 {
 			None
 		}
 		else {
-			// TODO: 8K pages
 			Some( old & !PAGE_MASK_U32 )
 		}
 	}
@@ -479,6 +483,7 @@ pub struct AbortRegs
 pub fn data_abort_handler(pc: u32, reg_state: &AbortRegs, dfar: u32, dfsr: u32) {
 
 	log_warning!("Data abort by {:#x} address {:#x} status {:#x} ({})", pc, dfar, dfsr, fsr_name(dfsr));
+	dump_tables();
 	//log_debug!("Registers:");
 	//log_debug!("R 0 {:08x}  R 1 {:08x}  R 2 {:08x}  R 3 {:08x}  R 4 {:08x}  R 5 {:08x}}  R 6 {:08x}", reg_state.gprs[0]);
 	

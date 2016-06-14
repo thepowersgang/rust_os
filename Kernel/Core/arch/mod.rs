@@ -164,6 +164,7 @@ pub mod memory {
 			imp::ref_frame(frame_idx)
 		}
 		#[inline]
+		/// Decrement the "multi-reference" count associated with a frame, returning the previous value.
 		pub fn deref_frame(frame_idx: u64) -> u32 {
 			imp::deref_frame(frame_idx)
 		}
@@ -173,10 +174,12 @@ pub mod memory {
 		}
 
 		#[inline]
+		/// Returns true if the frame was marked as allocated
 		pub fn mark_free(frame_idx: u64) -> bool {
 			imp::mark_free(frame_idx)
 		}
 		#[inline]
+		/// Mark a frame as "allocated"
 		pub fn mark_used(frame_idx: u64) {
 			imp::mark_used(frame_idx)
 		}

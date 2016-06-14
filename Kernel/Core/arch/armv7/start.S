@@ -375,6 +375,7 @@ EXIDX __aeabi_memcpy, 0x80B0B0B0
 
 ENTRY(__aeabi_memset4)
 ENTRY(__aeabi_memset8)
+	.fnstart
 	movs r1, r1
 	bxeq lr
 
@@ -387,7 +388,7 @@ ENTRY(__aeabi_memset8)
 	SUBS r1, r1, #4
 	BGT 1b
 	BX lr
-EXIDX __aeabi_memset4, 0x80B0B0B0
+	.fnend
 
 ENTRY(__aeabi_memclr4)
 ENTRY(__aeabi_memclr8)
@@ -404,6 +405,7 @@ ENTRY(__aeabi_memset)
 2:
 	bx lr
 ENTRY(memset)
+	.fnstart
 	movs r2, r2
 	beq 2f
 1:
@@ -412,7 +414,7 @@ ENTRY(memset)
 	bne 1b
 2:
 	bx lr
-EXIDX __aeabi_memset, 0x80B0B0B0
+	.fnend
 
 ENTRY(__aeabi_memclr)
 	MOV r2, #0
@@ -421,17 +423,22 @@ ENTRY(__aeabi_memclr)
 
 ENTRY(__aeabi_uldivmod)
 .extern __aeabi_uldivmod_
+	.fnstart
+	.save {lr}
 	push {lr}
+	.pad #20
 	sub sp, #16
 	push {sp}
 	bl __aeabi_uldivmod_
 	add sp, #4
 	pop {r0, r1, r2, r3}
 	pop {pc}
+	.fnend
 
-.globl memcmp
 // A, B, num
-memcmp:
+ENTRY(memcmp)
+	.fnstart
+	.save {r4}
 	push {r4}
 	movs r2,r2
 	mov r3, #0
@@ -446,11 +453,11 @@ memcmp:
 	bne 1b
 2:
 	movhs r0, #1
-	moveq r0, #0
 	movlo r0, #-1
+	moveq r0, #0
 	pop {r4}
 	mov pc, lr
-EXIDX memcmp, 0x80A0B0B0
+	.fnend
 
 ENTRY(__aeabi_unwind_cpp_pr0)
 ENTRY(__aeabi_unwind_cpp_pr1)
@@ -499,13 +506,17 @@ abort_stack:
 
 kernel_table0:
 	.long 0x00000402	@ Identity map the first 1 MiB
-	.rept 0x800 - 1 - 4
+	.rept 0x800 - 1 - 8
 		.long 0
 	.endr
-	.long user_last_map - KERNEL_BASE + 0x000 + 1
-	.long user_last_map - KERNEL_BASE + 0x400 + 1
-	.long user_last_map - KERNEL_BASE + 0x800 + 1
-	.long user_last_map - KERNEL_BASE + 0xC00 + 1
+	.long user_last_map - KERNEL_BASE + 0x0000 + 1
+	.long user_last_map - KERNEL_BASE + 0x0400 + 1
+	.long user_last_map - KERNEL_BASE + 0x0800 + 1
+	.long user_last_map - KERNEL_BASE + 0x0C00 + 1
+	.long user_last_map - KERNEL_BASE + 0x1000 + 1
+	.long user_last_map - KERNEL_BASE + 0x1400 + 1
+	.long user_last_map - KERNEL_BASE + 0x1800 + 1
+	.long user_last_map - KERNEL_BASE + 0x1C00 + 1
 	@ 0x80000000 - User/Kernel split
 	.long 0x00000000 + 0x402	@ Map first 8 MiB to 2GiB (KRW only)
 	.long 0x00100000 + 0x402 	@ 
@@ -539,6 +550,9 @@ kernel_table0:
 	.long kernel_exception_map - KERNEL_BASE + 0xC00 + 1
 
 user_last_map:
+	.rept 1024
+		.long 0
+	.endr
 	.rept 1024-3
 		.long 0
 	.endr

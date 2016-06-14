@@ -101,9 +101,12 @@ impl KernelLog
 		// - Fancy logo window
 		let dims = Dims::new(S_LOGO_DIMS.0,S_LOGO_DIMS.1);
 		let mut logo_wh = wgh.create_window("Logo");
-		logo_wh.set_pos(Pos::new(max_dims.w-dims.w, 0));
-		logo_wh.resize(dims);
-		logo_wh.blit_rect( Rect::new_pd(Pos::new(0,0),dims), &S_LOGO_DATA, dims.w as usize );
+		if max_dims != Dims::new(0,0)
+		{
+			logo_wh.set_pos(Pos::new(max_dims.w-dims.w, 0));
+			logo_wh.resize(dims);
+			logo_wh.blit_rect( Rect::new_pd(Pos::new(0,0),dims), &S_LOGO_DATA, dims.w as usize );
+		}
 			
 		if max_dims != Dims::new(0,0)
 		{

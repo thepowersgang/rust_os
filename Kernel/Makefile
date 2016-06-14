@@ -76,7 +76,7 @@ ifeq ($(USE_ACPICA),1)
 endif
 
 RUSTFLAGS := $(RUSTFLAGS_C)
-RUSTFLAGS += -O
+#RUSTFLAGS += -O
 #RUSTFLAGS += -C opt-level=1
 RUSTFLAGS += -g
 RUSTFLAGS += -C code-model=kernel

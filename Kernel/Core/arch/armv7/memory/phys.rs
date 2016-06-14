@@ -14,7 +14,9 @@ pub fn ref_frame(frame_idx: u64) {
 	log_error!("TODO: ref_frame #{:#x}", frame_idx);
 }
 pub fn deref_frame(frame_idx: u64) -> u32 {
-	todo!("deref_frame #{:#x}", frame_idx);
+
+	log_warning!("TODO: deref_frame #{:#x}", frame_idx);
+	0
 }
 pub fn get_multiref_count(frame_idx: u64) -> u32 {
 	log_warning!("TODO: get_multiref_count frame_idx={:#x}", frame_idx);
@@ -22,10 +24,12 @@ pub fn get_multiref_count(frame_idx: u64) -> u32 {
 }
 
 pub fn mark_free(frame_idx: u64) -> bool {
-	todo!("mark_free - frame_idx={:#x}", frame_idx);
+	log_warning!("TODO: mark_free - frame_idx={:#x}", frame_idx);
+	// HACK: Assume it was used
+	true
 }
 pub fn mark_used(frame_idx: u64) {
-	todo!("mark_used - frame_idx={:#x}", frame_idx);
+	log_warning!("TODO: mark_used - frame_idx={:#x}", frame_idx);
 }
 
 

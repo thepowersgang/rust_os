@@ -292,6 +292,9 @@ pub fn deref_frame(paddr: PAddr)
 			// - Either way, ignore
 		}
 	}
+	else {
+		// References still exist
+	}
 }
 
 fn mark_used(paddr: PAddr)
