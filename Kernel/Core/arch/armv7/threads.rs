@@ -1,6 +1,4 @@
-
-use lib::mem::Box;
-use threads::Thread;
+//! ARMv7 thread handling
 
 #[derive(Default)]
 pub struct State {

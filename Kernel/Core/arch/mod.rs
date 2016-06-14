@@ -1,8 +1,8 @@
 //
 //
 //
+//! Achitecture-specific code
 
-/// Achitecture-specific code - AMD64 (aka x86-64)
 #[macro_use]
 #[cfg(arch="amd64")] #[path="amd64/mod.rs"]
 #[doc(hidden)]
@@ -67,9 +67,10 @@ pub mod memory {
 	pub mod virt {
 		use arch::imp::memory::virt as imp;
 		
+		/// TODO: Wrap this to ensure a consistent API
 		pub type AddressSpace = imp::AddressSpace;
 
-		/// A handle to a temproarily mapped frame
+		/// A handle to a temproarily mapped frame containing instances of 'T'
 		pub struct TempHandle<T>(*mut T);
 		impl<T> TempHandle<T>
 		{

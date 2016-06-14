@@ -9,7 +9,7 @@ use arch::memory::virt::TempHandle;
 use core::sync::atomic::Ordering;
 
 const KERNEL_TEMP_BASE : usize = 0xFFC00000;
-const KERNEL_TEMP_COUNT: usize = 1023;	// Final mapping is ?
+const KERNEL_TEMP_COUNT: usize = 1023/2;	// 1024 4KB entries, PAGE_SIZE is 8KB, final 4KB is left zero for the -1 deref mapping
 const USER_BASE_TABLE: usize = 0x7FFF_E000;	// 2GB - 0x800 * 4 = 0x2000
 const USER_TEMP_TABLE: usize = 0x7FFF_D000;	// Previous page to that
 const USER_TEMP_BASE: usize = 0x7FC0_0000;	// 1 page worth of temp mappings (top three are used for base table/temp table)
@@ -207,14 +207,17 @@ extern "C" {
 fn get_table_addr<T>(vaddr: *const T, alloc: bool) -> Option< (::arch::memory::PAddr, usize) > {
 	let addr = vaddr as usize;
 	let page = addr >> 12;
-	let (ttbr_ofs, tab_idx) = (page >> 10, page & 0x3FF);
-	let ent_r = if ttbr_ofs < 0x800/4 {
+	let (ttbr_ofs, tab_idx) = (page >> 11, page & 0x7FF);
+	const ENTS_PER_ALLOC: usize = PAGE_SIZE / 0x400;	// Each entry in the top-level table points to a 1KB second-level table
+	const USER_BASE_TABLE_PTR: *const [AtomicU32; 0x800] = USER_BASE_TABLE as *const [AtomicU32; 0x800];
+	
+	let ent_r = if ttbr_ofs < 0x800/ENTS_PER_ALLOC {
 			// SAFE: This memory should always be mapped
-			unsafe { & (*(USER_BASE_TABLE as *const [AtomicU32; 0x800]))[ttbr_ofs*4 .. ][..4] }
+			unsafe { & (*USER_BASE_TABLE_PTR)[ttbr_ofs*ENTS_PER_ALLOC .. ][..ENTS_PER_ALLOC] }
 		}
 		else {
 			// Kernel
-			&kernel_table0[ ttbr_ofs*4 .. ][..4]
+			&kernel_table0[ ttbr_ofs*ENTS_PER_ALLOC .. ][..ENTS_PER_ALLOC]
 		};
 	
 	let ent_v = ent_r[0].load(Ordering::SeqCst);
@@ -237,7 +240,7 @@ fn get_table_addr<T>(vaddr: *const T, alloc: bool) -> Option< (::arch::memory::P
 				Some( (ent_v & !PAGE_MASK_U32, tab_idx) )
 			}
 			else {
-				for i in 1 .. (PAGE_SIZE/0x400) as u32 {
+				for i in 1 .. ENTS_PER_ALLOC as u32 {
 					ent_r[i as usize].store(frame + i*0x400 + 0x1, Ordering::SeqCst);
 				}
 				Some( (frame & !PAGE_MASK_U32, tab_idx) )
@@ -247,7 +250,8 @@ fn get_table_addr<T>(vaddr: *const T, alloc: bool) -> Option< (::arch::memory::P
 			None
 		},
 	1 => Some( (ent_v & !PAGE_MASK_U32, tab_idx) ),
-	v @ _ => todo!("get_table_addr - Other flags bits {:#x}", v),
+	0x402 => panic!("Called get_table_addr on large mapping @ {:p} (idx={:#x})", vaddr, ttbr_ofs*ENTS_PER_ALLOC),
+	v @ _ => todo!("get_table_addr - Other flags bits {:#x} (for addr {:p})", v, vaddr),
 	}
 }
 
@@ -255,13 +259,16 @@ fn get_table_addr<T>(vaddr: *const T, alloc: bool) -> Option< (::arch::memory::P
 /// Temporarily map a frame into memory
 /// UNSAFE: User to ensure that the passed address doesn't alias
 pub unsafe fn temp_map<T>(phys: ::arch::memory::PAddr) -> *mut T {
-	//log_trace!("TempHandle<{}>::new({:#x})", type_name!(T), phys);
+	log_trace!("TempHandle<{}>::new({:#x})", type_name!(T), phys);
+	assert!(phys as u32 % PAGE_SIZE as u32 == 0);
 	let val = (phys as u32) + 0x13;	
-
+	
 	S_TEMP_MAP_SEMAPHORE.acquire();
-	// #1023 is reserved for -1 mapping
 	for i in 0 .. KERNEL_TEMP_COUNT {
-		if kernel_exception_map[i].compare_and_swap(0, val, Ordering::Acquire) == 0 {
+		let ents = &kernel_exception_map[i*2 ..][.. 2];
+		if ents[0].compare_and_swap(0, val, Ordering::Acquire) == 0 {
+			// - Set the next node and check that it's zero
+			assert!( ents[1].swap(val+0x1000, Ordering::Acquire) == 0 );
 			let addr = (KERNEL_TEMP_BASE + i * ::PAGE_SIZE) as *mut _;
 			tlbimva(addr as *mut ());
 			//log_trace!("- Addr = {:p}", addr);
@@ -276,7 +283,8 @@ pub unsafe fn temp_unmap<T>(addr: *mut T)
 	assert!(addr as usize >= KERNEL_TEMP_BASE);
 	let i = (addr as usize - KERNEL_TEMP_BASE) / ::PAGE_SIZE;
 	assert!(i < KERNEL_TEMP_COUNT);
-	kernel_exception_map[i].store(0, Ordering::Release);
+	kernel_exception_map[i+0].store(0, Ordering::Release);
+	kernel_exception_map[i+1].store(0, Ordering::Release);
 	S_TEMP_MAP_SEMAPHORE.release();
 }
 
@@ -340,50 +348,64 @@ pub fn can_map_without_alloc(a: *mut ()) -> bool {
 }
 
 pub unsafe fn map(a: *mut (), p: PAddr, mode: ProtectionMode) {
-	map_int(a,p,mode)
-}
-fn map_int(a: *mut (), p: PAddr, mode: ProtectionMode) {
-	// 1. Map the relevant table in the temp area
-	let (tab_phys, idx) = get_table_addr(a, true).unwrap();
-	//log_debug!("map_int({:p}, {:#x}, {:?}) - tab_phys={:#x},idx={}", a, p, mode, tab_phys, idx);
-	// SAFE: Address space is valid during manipulation, and alias is benign
-	let mh: TempHandle<AtomicU32> = unsafe {  TempHandle::new( tab_phys ) };
-	assert!(mode != ProtectionMode::Unmapped, "Invalid pass of ProtectionMode::Unmapped to map");
-	// 2. Insert
-	let mode_flags = prot_mode_to_flags(mode);
-	//log_debug!("map(): a={:p} mh={:p} idx={}, new={:#x}", a, &mh[0], idx, p + mode_flags);
-	let old = mh[idx].compare_and_swap(0, p + mode_flags, Ordering::SeqCst);
-	assert!(old == 0, "map() called over existing allocation: a={:p}, old={:#x}", a, old);
-	tlbimva(a);
+	return map_int(a,p,mode);
+	
+	// "Safe" helper to constrain interior unsafety
+	fn map_int(a: *mut (), p: PAddr, mode: ProtectionMode) {
+		// 1. Map the relevant table in the temp area
+		let (tab_phys, idx) = get_table_addr(a, true).unwrap();
+		//log_debug!("map_int({:p}, {:#x}, {:?}) - tab_phys={:#x},idx={}", a, p, mode, tab_phys, idx);
+		// SAFE: Address space is valid during manipulation, and alias is benign
+		let mh: TempHandle<AtomicU32> = unsafe {  TempHandle::new( tab_phys ) };
+		assert!(mode != ProtectionMode::Unmapped, "Invalid pass of ProtectionMode::Unmapped to map");
+		// 2. Insert
+		let mode_flags = prot_mode_to_flags(mode);
+		//log_debug!("map(): a={:p} mh={:p} idx={}, new={:#x}", a, &mh[0], idx, p + mode_flags);
+		let old = mh[idx+0].compare_and_swap(0, p + mode_flags, Ordering::SeqCst);
+		assert!(old == 0, "map() called over existing allocation: a={:p}, old={:#x}", a, old);
+		mh[idx+1].swap(p + 0x1000 + mode_flags, Ordering::SeqCst);
+		tlbimva(a);
+	}
 }
 pub unsafe fn reprotect(a: *mut (), mode: ProtectionMode) {
-	// 1. Map the relevant table in the temp area
-	let (tab_phys, idx) = get_table_addr(a, true).unwrap();
-	// SAFE: Address space is valid during manipulation, and alias is benign
-	let mh: TempHandle<AtomicU32> = unsafe { TempHandle::new( tab_phys ) };
-	assert!(mode != ProtectionMode::Unmapped, "Invalid pass of ProtectionMode::Unmapped to map");
-	// 2. Insert
-	let mode_flags = prot_mode_to_flags(mode);
-	let v = mh[idx].load(Ordering::Acquire);
-	assert!(v != 0, "reprotect() called on an unmapped location: a={:p}", a);
-	//log_debug!("reprotect(): a={:p} mh={:p} idx={}, new={:#x}", a, &mh[0], idx, (v & !PAGE_MASK_U32) + mode_flags);
-	let old = mh[idx].compare_and_swap(v, (v & !PAGE_MASK_U32) + mode_flags, Ordering::Release);
-	assert!(old == v, "reprotect() called in a racy manner: a={:p} old({:#x}) != v({:#x})", a, old, v);
-	tlbimva(a);
+	return reprotect_int(a, mode);
+
+	fn reprotect_int(a: *mut (), mode: ProtectionMode) {
+		// 1. Map the relevant table in the temp area
+		let (tab_phys, idx) = get_table_addr(a, true).unwrap();
+		// SAFE: Address space is valid during manipulation, and alias is benign
+		let mh: TempHandle<AtomicU32> = unsafe { TempHandle::new( tab_phys ) };
+		assert!(mode != ProtectionMode::Unmapped, "Invalid pass of ProtectionMode::Unmapped to map");
+		// 2. Insert
+		let mode_flags = prot_mode_to_flags(mode);
+		let v = mh[idx].load(Ordering::Acquire);
+		assert!(v != 0, "reprotect() called on an unmapped location: a={:p}", a);
+		let p = v & !PAGE_MASK_U32;
+		//log_debug!("reprotect(): a={:p} mh={:p} idx={}, new={:#x}", a, &mh[0], idx, (v & !PAGE_MASK_U32) + mode_flags);
+		let old = mh[idx].compare_and_swap(v, p + mode_flags, Ordering::Release);
+		assert!(old == v, "reprotect() called in a racy manner: a={:p} old({:#x}) != v({:#x})", a, old, v);
+		mh[idx+1].swap(p + 0x1000 + mode_flags, Ordering::SeqCst);
+		tlbimva(a);
+	}
 }
 pub unsafe fn unmap(a: *mut ()) -> Option<PAddr> {
-	// 1. Map the relevant table in the temp area
-	let (tab_phys, idx) = get_table_addr(a, true).unwrap();
-	// SAFE: Address space is valid during manipulation, and alias is benign
-	let mh: TempHandle<AtomicU32> = unsafe { TempHandle::new( tab_phys ) };
-	let old = mh[idx].swap(0, Ordering::SeqCst);
-	tlbimva(a);
-	if old & 3 == 0 {
-		None
-	}
-	else {
-		// TODO: 8K pages
-		Some( old & !PAGE_MASK_U32 )
+	return unmap_int(a);
+
+	fn unmap_int(a: *mut()) -> Option<PAddr> {
+		// 1. Map the relevant table in the temp area
+		let (tab_phys, idx) = get_table_addr(a, true).unwrap();
+		// SAFE: Address space is valid during manipulation, and alias is benign
+		let mh: TempHandle<AtomicU32> = unsafe { TempHandle::new( tab_phys ) };
+		let old = mh[idx+0].swap(0, Ordering::SeqCst);
+		mh[idx+1].swap(0, Ordering::SeqCst);
+		tlbimva(a);
+		if old & 3 == 0 {
+			None
+		}
+		else {
+			// TODO: 8K pages
+			Some( old & !PAGE_MASK_U32 )
+		}
 	}
 }
 

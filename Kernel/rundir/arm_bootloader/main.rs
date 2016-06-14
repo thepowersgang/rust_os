@@ -62,7 +62,6 @@ impl<'a> Iterator for PhEntIter<'a> {
 		}
 		else {
 			let rv = self.0[0].clone();
-			//log!("rv.p_type = {}", rv.p_type);
 			self.0 = &self.0[1..];
 			Some(rv)
 		}
@@ -92,7 +91,6 @@ pub extern "C" fn elf_get_size(file_base: &ElfFile) -> u32
 	let mut max_end = 0;
 	for phent in file_base.phents()
 	{
-		log!("{}", phent.p_type);
 		if phent.p_type == 1
 		{
 			log!("- {:#x}+{:#x} loads +{:#x}+{:#x}",
@@ -123,7 +121,6 @@ pub extern "C" fn elf_load_segments(file_base: &ElfFile, output_base: *mut u8) -
 	log!("elf_load_segments(file_base={:p}, output_base={:p})", file_base, output_base);
 	for phent in file_base.phents()
 	{
-		log!("{}", phent.p_type);
 		if phent.p_type == 1
 		{
 			log!("- {:#x}+{:#x} loads +{:#x}+{:#x}",

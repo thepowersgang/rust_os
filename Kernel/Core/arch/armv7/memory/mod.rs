@@ -21,7 +21,7 @@ pub mod addresses {
 	
 	pub const USER_END: usize = 0x8000_0000;
 	pub const KERNEL_BASE: usize = 0x8000_0000;
-	pub const HEAP_START: usize = 0x804_00000;
+	pub const HEAP_START: usize = 0x808_00000;	// 8MB because of the 8KB page size
 	pub const HEAP_END  : usize = 0x8C0_00000;
 	
 	pub const BUMP_START: usize = 0x8C0_00000;

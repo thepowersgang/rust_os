@@ -446,13 +446,13 @@ pub fn enabled(level: Level, modname: &str) -> bool
 {
 	match modname
 	{
-	"kernel::memory::heap::heapdef" => (level < Level::LevelDebug),	// Heap only prints higher than debug
-	"kernel::memory::phys" => (level < Level::LevelTrace),	// PMM only prints >Trace
-	"kernel::metadevs::storage" => (level < Level::LevelTrace),
-	"kernel::arch::imp::acpi::internal::shim_out" => (level < Level::LevelTrace),
-	"storage_ata::io" => (level < Level::LevelDebug),
-	"kernel::async" => (level < Level::LevelDebug),
-	"fs_fat" => (level < Level::LevelDebug),
+	//"kernel::memory::heap::heapdef" => (level < Level::LevelDebug),	// Heap only prints higher than debug
+	//"kernel::memory::phys" => (level < Level::LevelTrace),	// PMM only prints >Trace
+	//"kernel::metadevs::storage" => (level < Level::LevelTrace),
+	//"kernel::arch::imp::acpi::internal::shim_out" => (level < Level::LevelTrace),
+	//"storage_ata::io" => (level < Level::LevelDebug),
+	//"kernel::async" => (level < Level::LevelDebug),
+	//"fs_fat" => (level < Level::LevelDebug),
 	_ => true,
 	}
 }

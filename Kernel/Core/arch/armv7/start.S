@@ -228,7 +228,7 @@ ENTRY(prefetch_abort)
 	and r0, #0x1F
 	cmp r0, #0x10	@ 0x10 = user
 	cmpne r0, #0x13	@ 
-	bne not_known_mode
+	bne abort__not_known_mode
 	cmp r0, #0x10	@ 0x10 = user
 	beq 1f
 	cps #0x13 	@ 0x13 = supervisor (kernel)
@@ -265,15 +265,19 @@ GLOBAL(prefetch_abort_EXTAB)
 .section .text
 
 ENTRY(data_abort)
+	.fnstart
+	.cantunwind
+	@.pad #12
 	srsfd sp!, #0x17	@ Save state, using 'abort' mode stack
 	push {r0}
+	@.save {r0-r12}
 	push {r0-r12}	@ SP, LR, and PC not pushed
 	
 	ldr r0, [sp, #4*13+4+4]
 	and r0, #0x1F
 	cmp r0, #0x10	@ 0x10 = user
 	cmpne r0, #0x13	@ 
-	bne not_known_mode
+	bne abort__not_known_mode
 	cmp r0, #0x10	@ 0x10 = user
 	beq 1f
 	cps #0x13 	@ 0x13 = supervisor (kernel)
@@ -287,7 +291,8 @@ ENTRY(data_abort)
 2:
 	cps #23 	@ Switch back to abort mode
 	
-	push {r1,r2}	@ Push SP and LR
+	@.save {sp,lr}
+	push {r1,r2}	@ Source SP and LR
 	
 	mov r0, lr
 	sub r0, #8
@@ -301,15 +306,16 @@ ENTRY(data_abort)
 	pop {r0-r12}
 	pop {r0}
 	rfefd sp!
-	.long EXIDX_data_abort
-not_known_mode:
+	.fnend
+	@.long EXIDX_data_abort
+abort__not_known_mode:
 	b .
-EXIDX data_abort, data_abort_EXTAB - . - 0x80000000
-.section .ARM.extab.data_abort
-GLOBAL(data_abort_EXTAB)
-	.long	0x81028600	@ POP {SP, LR}
-	.long	0x81FFB10F	@ POP {r4-r12}, POP {r0-r3}
-	.long	0x02B0B0B0	@ VSP+=12, END
+@EXIDX data_abort, data_abort_EXTAB - . - 0x80000000
+@.section .ARM.extab.data_abort
+@GLOBAL(data_abort_EXTAB)
+@	.long	0x81028600	@ POP {SP, LR}
+@	.long	0x81FFB10F	@ POP {r4-r12}, POP {r0-r3}
+@	.long	0x02B0B0B0	@ VSP+=12, END
 .section .text
 GLOBAL(ud_abort)
 	b .
