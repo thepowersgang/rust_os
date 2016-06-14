@@ -36,6 +36,9 @@ impl<T> Spinlock<T>
 			if type_name!(T) != "logging::Sinks" {
 				panic!("Contended lock");
 			}
+			else {
+				loop {}
+			}
 			break ;
 		}
 		HeldSpinlock {

@@ -17,7 +17,8 @@ pub mod addresses {
 		// Kernel area is global (i.e. present in all address spaces)
 		addr >= KERNEL_BASE
 	}
-	
+
+	pub const IDENT_SIZE: usize = 8*1024*1024;	
 	
 	pub const USER_END: usize = 0x8000_0000;
 	pub const KERNEL_BASE: usize = 0x8000_0000;

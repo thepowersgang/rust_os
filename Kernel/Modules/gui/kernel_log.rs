@@ -131,6 +131,9 @@ impl KernelLog
 	/// Write a string to the log display (at the given character position)
 	fn write_text(&self, mut pos: CharPos, colour: Colour, text: &str) -> CharPos
 	{
+		if self.buffer_handle.dims().w == 0 || self.buffer_handle.dims().h == 0 {
+			return pos;
+		}
 		for c in text.chars()
 		{
 			if self.putc(pos, colour, c)

@@ -3,6 +3,7 @@
 //
 use lib::lazy_static::LazyStatic;
 use super::fdt::FDTRoot;
+use super::memory::addresses::IDENT_SIZE;
 
 #[repr(C)]
 #[derive(Debug)]
@@ -65,14 +66,14 @@ impl BootInfo
 
 			// SAFE: Address range checked
 			unsafe {
-				assert!(symbol_info_phys - kernel_phys_start < 4*1024*1024);
+				assert!(symbol_info_phys - kernel_phys_start < IDENT_SIZE as u32);
 				let info: &'static SymbolInfo = &*((symbol_info_phys - kernel_phys_start + 0x80000000) as *const SymbolInfo);
 				log_debug!("(symbol) info = {:?}", info);
 				if !info.base.is_null() {
 					let syms_addr = info.base as usize - kernel_phys_start as usize;
 					let strs_addr = info.string_table as usize - kernel_phys_start as usize;
-					assert!(syms_addr < 4*1024*1024);
-					assert!(strs_addr < 4*1024*1024);
+					assert!(syms_addr < IDENT_SIZE);
+					assert!(strs_addr < IDENT_SIZE);
 					let syms = ::core::slice::from_raw_parts( (syms_addr + 0x80000000) as *const ::symbols::Elf32_Sym, info.count as usize);
 					let strs = ::core::slice::from_raw_parts( (strs_addr + 0x80000000) as *const u8, info.strtab_len as usize);
 					::symbols::set_symtab(syms, strs, 0);

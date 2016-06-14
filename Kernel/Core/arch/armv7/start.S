@@ -38,6 +38,7 @@ start:
 	teq r0, r13
 	beq 1f
 	@ TODO: What to do if we weren't loaded by our loader
+	@ - For now, we return
 	mov pc,lr
 	b .
 1:
@@ -177,14 +178,19 @@ EXIDX_\method: .long \method - . - 0x80000000, \handle
 
 .section .text
 ENTRY(thread_trampoline)
+	.fnstart
+	.cantunwind
 	pop {r1}	@ "thread_root" (generic over closure type)
 	pop {r0}	@ Pop pointer to the closure
 	bx r1
+	.fnend
 @ R0: Old stack save location
 @ R1: New stack
 @ R2: New TTBR0
 @ R3: New Thread pointer
 ENTRY(task_switch)
+	.fnstart
+	.cantunwind
 	push {r4-r12,lr}
 
 	@ Save SP
@@ -197,19 +203,22 @@ ENTRY(task_switch)
 	@mcrne p15,0, r2, c8,c7,0	@ TLBIALL - Invalid user space
 
 	@ Set new thread pointer
-	mcr p15, 0, r4, c13,c0,4	@ TPIDRPRW
+	mcr p15, 0, r3, c13,c0,4	@ TPIDRPRW
 
 	@ Set new SP
 	mov sp, r1
 
 	@ Restore state
 	pop {r4-r12,pc}
+	.fnend
 
 @ pub fn drop_to_user(entry: usize, stack: usize, cmdline_len: usize) -> !;
 @ R0: entry
 @ R1: stack
 @ R2: cmdline_len
 ENTRY(drop_to_user)
+	.fnstart
+	.cantunwind
 	cps #0x1F	@ Switch to "System" to set user SP
 	mov sp, r1
 	cps #0x13 	@ 0x13 = supervisor (kernel)
@@ -217,6 +226,7 @@ ENTRY(drop_to_user)
 	push {r0,r1}
 	mov r0, r2
 	rfefd sp!
+	.fnend
 
 
 ENTRY(prefetch_abort)
@@ -267,31 +277,36 @@ GLOBAL(prefetch_abort_EXTAB)
 ENTRY(data_abort)
 	.fnstart
 	.cantunwind
-	@.pad #12
 	srsfd sp!, #0x17	@ Save state, using 'abort' mode stack
-	push {r0}
-	@.save {r0-r12}
 	push {r0-r12}	@ SP, LR, and PC not pushed
 	
-	ldr r0, [sp, #4*13+4+4]
+	ldr r0, [sp, #4*13+4]
 	and r0, #0x1F
 	cmp r0, #0x10	@ 0x10 = user
 	cmpne r0, #0x13	@ 
+	cmpne r0, #0x17	@ 
 	bne abort__not_known_mode
+
 	cmp r0, #0x10	@ 0x10 = user
-	beq 1f
-	cps #0x13 	@ 0x13 = supervisor (kernel)
+	bne 1f
+	cps #0x1F 	@ 0x1F = "System" (user regs, kernel privs)
 	mov r1, sp
 	mov r2, lr
 	b 2f
 1:
-	cps #0x1F 	@ 0x1F = "System" (user regs, kernel privs)
+	cmp r0, #0x17	@ 0x17 = abort
+	bne 1f
+	sub r1, sp, #(13*4+8)
+	ldr r2, [sp, #(13*4)]
+	b 2f
+1:
+	cps #0x13 	@ 0x13 = supervisor (kernel)
 	mov r1, sp
 	mov r2, lr
+	@b 2f
 2:
 	cps #23 	@ Switch back to abort mode
 	
-	@.save {sp,lr}
 	push {r1,r2}	@ Source SP and LR
 	
 	mov r0, lr
@@ -304,7 +319,6 @@ ENTRY(data_abort)
 	add sp, #8	@ Undo saving of SP/LR to stack
 	
 	pop {r0-r12}
-	pop {r0}
 	rfefd sp!
 	.fnend
 	@.long EXIDX_data_abort
@@ -316,7 +330,8 @@ abort__not_known_mode:
 @	.long	0x81028600	@ POP {SP, LR}
 @	.long	0x81FFB10F	@ POP {r4-r12}, POP {r0-r3}
 @	.long	0x02B0B0B0	@ VSP+=12, END
-.section .text
+@.section .text
+
 GLOBAL(ud_abort)
 	b .
 GLOBAL(svc_handler)
@@ -389,7 +404,14 @@ ENTRY(__aeabi_memset)
 2:
 	bx lr
 ENTRY(memset)
-	b __aeabi_memset
+	movs r2, r2
+	beq 2f
+1:
+	strb r1, [r0], #1
+	subs r2, #1
+	bne 1b
+2:
+	bx lr
 EXIDX __aeabi_memset, 0x80B0B0B0
 
 ENTRY(__aeabi_memclr)
@@ -464,7 +486,8 @@ GLOBAL(ram_first_free)	.long	0
 GLOBAL(symbol_info_phys)	.long	0
 
 .section .bss
-	.space 0x2000, 0
+init_stack_base:
+	.space 0x20000, 0
 init_stack:
 	.space 0x1000, 0
 abort_stack:
@@ -484,20 +507,27 @@ kernel_table0:
 	.long user_last_map - KERNEL_BASE + 0x800 + 1
 	.long user_last_map - KERNEL_BASE + 0xC00 + 1
 	@ 0x80000000 - User/Kernel split
-	.long 0x00000000 + 0x402	@ Map first 4 MiB to 2GiB (KRW only)
+	.long 0x00000000 + 0x402	@ Map first 8 MiB to 2GiB (KRW only)
 	.long 0x00100000 + 0x402 	@ 
 	.long 0x00200000 + 0x402	@ 
 	.long 0x00300000 + 0x402	@ 
-	.rept 0xF00 - 0x800 - 4
+	.long 0x00400000 + 0x402	@ 
+	.long 0x00500000 + 0x402 	@ 
+	.long 0x00600000 + 0x402	@ 
+	.long 0x00700000 + 0x402	@ 
+	.rept 0xF00 - 0x800 - 8
 		.long 0
 	.endr
+	@  - 0xF00_00000
 	.rept 16
 		.long 0
 	.endr
+	@  - 0xF10_00000
 	.long hwmap_table_0 - KERNEL_BASE + 0x000 + 1
 	.long hwmap_table_0 - KERNEL_BASE + 0x400 + 1
 	.long hwmap_table_0 - KERNEL_BASE + 0x800 + 1
 	.long hwmap_table_0 - KERNEL_BASE + 0xC00 + 1
+	@  - 0xF14_00000
 	.rept 0xFF8 - 0xF00 - 16 - 4
 		.long 0
 	.endr
@@ -528,7 +558,7 @@ kernel_exception_map:
 	.rept 1024-16
 		.long 0
 	.endr
-	.long 0x00000000 + 0x212	@ Exceptions at 0xFFFF0000, re-map first page (TODO: Mangle this with load base instead)
+	.long 0x00000000 + 0x212	@ Exceptions at 0xFFFF0000, re-map first page
 	.rept 16-1
 		.long 0
 	.endr

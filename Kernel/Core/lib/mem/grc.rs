@@ -171,11 +171,8 @@ impl<C: Counter, T: ?Sized> ops::Drop for Grc<C, T>
 			use core::intrinsics::drop_in_place;
 			use core::mem::{size_of_val,align_of_val};
 			let ptr = *self.ptr;
-			if self.ptr == ::core::mem::dropped()
+			if self.ptr != ::core::mem::dropped()
 			{
-				// Double-drop
-			}
-			else {
 				if (*ptr).strong.dec() // && (*ptr).weak.is_zero()
 				{
 					drop_in_place( &mut (*ptr).val );

@@ -100,7 +100,8 @@ impl<T> Vec<T>
 	
 	fn reserve_cap(&mut self, size: usize)
 	{
-		let newcap = ::lib::num::round_up(size, 1 << (64-size.leading_zeros()));
+		let usize_bits: u32 = (::core::mem::size_of::<usize>() * 8) as u32;
+		let newcap = ::lib::num::round_up(size, 1 << (usize_bits - size.leading_zeros()));
 		if newcap > self.data.count()
 		{
 			if self.data.expand(newcap)
@@ -280,11 +281,13 @@ impl<T> ops::Drop for Vec<T>
 	{
 		// SAFE: Drops only values within valid region
 		unsafe {
-			while self.size > 0 {
-				self.size -= 1;
-				let idx = self.size;
-				let ptr = self.data.get_ptr(idx) as *const T;
-				::core::mem::drop( ::core::ptr::read(ptr) );
+			if ::core::intrinsics::needs_drop::<T>() {
+				while self.size > 0 {
+					self.size -= 1;
+					let idx = self.size;
+					let ptr = self.data.get_ptr(idx);
+					::core::ptr::drop_in_place( ptr as *mut T );
+				}
 			}
 		}
 	}

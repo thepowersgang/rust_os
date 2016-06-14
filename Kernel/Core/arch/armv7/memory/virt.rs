@@ -21,6 +21,37 @@ static S_TEMP_MAP_SEMAPHORE: ::sync::Semaphore = ::sync::Semaphore::new(KERNEL_T
 
 pub fn post_init() {
 	kernel_table0[0].store(0, Ordering::SeqCst);
+
+	//dump_tables();
+}
+
+fn dump_tables() {
+	let mut start = 0;
+	let mut exp = get_phys_opt(0 as *const u8);
+	for page in 1 .. 0xFFFF_F {
+		let addr = page * 0x1000;
+		let v = get_phys_opt( addr as *const u8 );
+		if v != exp {
+			print(start, addr-1, exp);
+			start = addr;
+			exp = v;
+		}
+		if let Some(ref mut v) = exp {
+			*v += 0x1000;
+		}
+	}
+	print(start, !0, exp);
+
+	fn print(start: usize, end: usize, exp_val: Option<u32>) {
+		match exp_val
+		{
+		None    => log_trace!("{:08x}-{:08x} --", start, end),
+		Some(e) => {
+			let (paddr, flags) = (e & !0xFFF, e & 0xFFF);
+			log_trace!("{:08x}-{:08x} = {:08x}-{:08x} {:03x}", start, end, paddr as usize - (end-start+1), paddr-1, flags);
+			},
+		}
+	}
 }
 
 fn prot_mode_to_flags(mode: ProtectionMode) -> u32 {
@@ -115,9 +146,9 @@ enum PageEntry {
 }
 impl PageEntry
 {
-	fn alloc(addr: *const (), level: usize) -> Result<PageEntry, ()> {
-		todo!("PageEntry::alloc({:p}, level={})", addr, level);
-	}
+	//fn alloc(addr: *const (), level: usize) -> Result<PageEntry, ()> {
+	//	todo!("PageEntry::alloc({:p}, level={})", addr, level);
+	//}
 	/// Obtain a page entry for the specified address
 	fn get(addr: *const ()) -> PageEntry {
 		use super::addresses::KERNEL_BASE;
