@@ -16,6 +16,10 @@ pub fn new_boxed<T: Interface+Send+'static>(dev: u32, io: device_manager::IOBind
 	// 0: Reserved/invalid
 	0 => Box::new( NullDevice ),
 	//1 => Box::new( network::NetDevice::new(T::new(io, irq)) ),
+	1 => {
+		log_notice!("TODO: Support VirtIO network devices (type = 1)");
+		Box::new(NullDevice)
+		}
 	2 => Box::new( block::BlockDevice::new(T::new(io, irq)) ),
 	dev @ _ => {
 		log_error!("VirtIO device has unknown device ID {:#x}", dev);

@@ -328,10 +328,11 @@ impl_fmt! {
 pub unsafe fn map_mmio(phys: PAddr, size: usize) -> Result<MmioHandle,MapError> {
 	assert!(size < (1 << 16), "map_mmio size {:#x} too large (must be below 16-bits)", size);
 
-	let mut ah = try!(map_hw(phys, (size + ::PAGE_SIZE - 1) / ::PAGE_SIZE, false, "MMIO"));
+	let (phys_page, phys_ofs) = (phys & !(PAGE_MASK as PAddr), phys & PAGE_MASK as PAddr);
+	let mut ah = try!(map_hw(phys_page, (size + phys_ofs as usize + ::PAGE_SIZE - 1) / ::PAGE_SIZE, false, "MMIO"));
 
-	ah.count = 0;
-	Ok(MmioHandle( ah.addr as *mut ::Void, (phys & PAGE_MASK as PAddr) as u16, size as u16 ))
+	ah.count = 0;	// HACK: Set count to zero to prevent `ah` from deallocating the memory
+	Ok(MmioHandle( ah.addr as *mut ::Void, phys_ofs as u16, size as u16 ))
 }
 impl MmioHandle
 {

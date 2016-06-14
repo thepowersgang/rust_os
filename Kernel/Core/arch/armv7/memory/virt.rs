@@ -236,8 +236,8 @@ extern "C" {
 
 /// Returns the physical address of the table controlling `vaddr`. If `alloc` is true, a new table will be allocated if needed.
 fn get_table_addr<T>(vaddr: *const T, alloc: bool) -> Option< (::arch::memory::PAddr, usize) > {
-	let addr = vaddr as usize;
-	let page = addr >> 12;
+	let addr = vaddr as usize & !PAGE_MASK;
+	let page = addr >> 12;	// NOTE: 12 as each entry in the table services 4KB
 	let (ttbr_ofs, tab_idx) = (page >> 11, page & 0x7FF);
 	const ENTS_PER_ALLOC: usize = PAGE_SIZE / 0x400;	// Each entry in the top-level table points to a 1KB second-level table
 	const USER_BASE_TABLE_PTR: *const [AtomicU32; 0x800] = USER_BASE_TABLE as *const [AtomicU32; 0x800];
@@ -379,6 +379,7 @@ pub fn can_map_without_alloc(a: *mut ()) -> bool {
 }
 
 pub unsafe fn map(a: *mut (), p: PAddr, mode: ProtectionMode) {
+	log_debug!("map({:p} = {:#x}, {:?})", a, p, mode);
 	return map_int(a,p,mode);
 	
 	// "Safe" helper to constrain interior unsafety
@@ -391,7 +392,6 @@ pub unsafe fn map(a: *mut (), p: PAddr, mode: ProtectionMode) {
 		assert!(mode != ProtectionMode::Unmapped, "Invalid pass of ProtectionMode::Unmapped to map");
 		// 2. Insert
 		let mode_flags = prot_mode_to_flags(mode);
-		//log_debug!("map(): a={:p} mh={:p} idx={}, new={:#x}", a, &mh[0], idx, p + mode_flags);
 		let old = mh[idx+0].compare_and_swap(0, p + mode_flags, Ordering::SeqCst);
 		assert!(old == 0, "map() called over existing allocation: a={:p}, old={:#x}", a, old);
 		mh[idx+1].swap(p + 0x1000 + mode_flags, Ordering::SeqCst);
@@ -420,6 +420,7 @@ pub unsafe fn reprotect(a: *mut (), mode: ProtectionMode) {
 	}
 }
 pub unsafe fn unmap(a: *mut ()) -> Option<PAddr> {
+	log_debug!("unmapmap({:p})", a);
 	return unmap_int(a);
 
 	fn unmap_int(a: *mut()) -> Option<PAddr> {
