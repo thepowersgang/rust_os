@@ -7,8 +7,13 @@ use core::ptr::Unique;
 
 #[cfg(arch="amd64")]
 const HEAP_LIMITS: (usize,usize) = (0x1000_0000_0000, 0x7000_0000_0000);
+#[cfg(arch="amd64")]
+const PAGE_SIZE: usize = 0x1000;
 #[cfg(arch="armv7")]
 const HEAP_LIMITS: (usize,usize) = (0x1000_0000, 0x7000_0000);
+#[cfg(arch="armv7")]
+const PAGE_SIZE: usize = 0x2000;
+
 
 pub const EMPTY: *mut u8 = 1 as *mut u8;
 
@@ -255,10 +260,10 @@ impl AllocState
 		unsafe { &mut *(*self.past_end).prev() }
 	}
 	fn extend_reservation(&mut self, required_space: usize) {
-		let npages = (required_space + size_of::<Block>() + size_of::<BlockTail>() + 0xFFF) >> 12;
+		let npages = (required_space + size_of::<Block>() + size_of::<BlockTail>() + PAGE_SIZE-1) / PAGE_SIZE;
 		assert!(npages > 0);
 		assert!(self.past_end != HEAP_LIMITS.1 as *mut Block);
-		assert!(self.past_end as usize + (npages << 12) <= HEAP_LIMITS.1);	// TODO: This isn't an assert conditon, it's an OOM
+		assert!(self.past_end as usize + (npages * PAGE_SIZE) <= HEAP_LIMITS.1);	// TODO: This isn't an assert conditon, it's an OOM
 		if self.start.is_null() {
 			self.start = HEAP_LIMITS.0 as *mut Block;
 			self.past_end = HEAP_LIMITS.0 as *mut Block;
@@ -267,7 +272,7 @@ impl AllocState
 		// SAFE: Allocates only in controlled region.
 		let cb = unsafe {
 			::syscalls::memory::allocate(self.past_end as usize, npages).expect("Heap allocation failure");
-			(*self.past_end).initialise(npages << 12);
+			(*self.past_end).initialise(npages * PAGE_SIZE);
 			&mut *self.past_end
 			};
 		self.past_end = cb.next();
