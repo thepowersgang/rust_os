@@ -574,3 +574,16 @@ pub fn prefetch_abort_handler(pc: u32, reg_state: &AbortRegs, ifsr: u32) {
 	::arch::imp::print_backtrace_unwindstate(rs, pc as usize);
 	loop {}
 }
+#[no_mangle]
+pub fn ud_abort_handler(pc: u32, reg_state: &AbortRegs) {
+	log_warning!("Undefined instruction abort at {:#x} - LR={:#x}", pc, reg_state.lr);
+		
+	let rs = ::arch::imp::aeabi_unwind::UnwindState::from_regs([
+		reg_state.gprs[ 0], reg_state.gprs[1], reg_state.gprs[ 2], reg_state.gprs[ 3],
+		reg_state.gprs[ 4], reg_state.gprs[5], reg_state.gprs[ 6], reg_state.gprs[ 7],
+		reg_state.gprs[ 8], reg_state.gprs[9], reg_state.gprs[10], reg_state.gprs[11],
+		reg_state.gprs[12], reg_state.sp, reg_state.lr, reg_state.ret_pc,
+		]);
+	::arch::imp::print_backtrace_unwindstate(rs, pc as usize);
+	loop {}
+}

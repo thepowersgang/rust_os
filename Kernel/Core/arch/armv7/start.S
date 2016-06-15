@@ -222,48 +222,28 @@ ENTRY(drop_to_user)
 	cps #0x1F	@ Switch to "System" to set user SP
 	mov sp, r1
 	cps #0x13 	@ 0x13 = supervisor (kernel)
-	mov r1, #0x10
-	push {r0,r1}
-	mov r0, r2
+	mov r1, #0x10	@ -
+	push {r0,r1}	@ Push user entrypoint and operating mode (r1)
+	mov r0, r2	@ Set R0 = commandline length
 	rfefd sp!
 	.fnend
 
 
 ENTRY(prefetch_abort)
 	srsfd sp!, #0x17	@ Save state, using 'abort' mode stack
-	push {r0}
 	push {r0-r12}	@ SP, LR, and PC not pushed
 	
-	ldr r0, [sp, #4*13+4+4]
-	and r0, #0x1F
-	cmp r0, #0x10	@ 0x10 = user
-	cmpne r0, #0x13	@ 
-	bne abort__not_known_mode
-	cmp r0, #0x10	@ 0x10 = user
-	beq 1f
-	cps #0x13 	@ 0x13 = supervisor (kernel)
-	mov r1, sp
-	mov r2, lr
-	b 2f
-1:
-	cps #0x1F 	@ 0x1F = "System" (user regs, kernel privs)
-	mov r1, sp
-	mov r2, lr
-2:
-	cps #23 	@ Switch back to abort mode
+	bl get_abort_sp_lr
+	push {r1,r2}	@ Source SP and LR
 	
-	push {r1,r2}	@ Push SP and LR
-	
-	mov r0, lr
+	ldr r0, [sp, #4*(2+13)]
 	sub r0, #8
 	mov r1, sp
 	mrc p15,0, r2, c5,c0,1
 	bl prefetch_abort_handler
 
 	add sp, #8	@ Undo saving of SP/LR to stack
-	
 	pop {r0-r12}
-	pop {r0}
 	rfefd sp!
 	.long EXIDX_prefetch_abort
 EXIDX prefetch_abort, prefetch_abort_EXTAB - . - 0x80000000
@@ -280,12 +260,49 @@ ENTRY(data_abort)
 	srsfd sp!, #0x17	@ Save state, using 'abort' mode stack
 	push {r0-r12}	@ SP, LR, and PC not pushed
 	
-	ldr r0, [sp, #4*13+4]
+	mov r3, lr
+	bl get_abort_sp_lr
+	push {r1,r2}	@ Source SP and LR
+	
+	ldr r0, [sp, #4*(2+13)]
+	sub r0, #8
+	mov r1, sp
+	mrc p15,0, r2, c6,c0,0
+	mrc p15,0, r3, c5,c0,0
+	bl data_abort_handler
+
+	add sp, #8	@ Undo saving of SP/LR to stack
+	pop {r0-r12}
+	rfefd sp!
+	.fnend
+
+ENTRY(ud_abort)
+	.fnstart
+	.cantunwind
+	srsfd sp!, #0x17	@ Save state, using 'abort' mode stack ([0]=LR_curr, [1]=SPSR)
+	cps #0x17	@ UD Abort is mode 0x1b, but that's an extra stack...
+	push {r0-r12}	@ SP, LR, and PC not pushed
+	
+	bl get_abort_sp_lr
+	push {r1,r2}	@ Source SP and LR
+	
+	ldr r0, [sp, #4*(2+13)]
+	sub r0, #4
+	mov r1, sp
+	bl ud_abort_handler
+	
+	add sp, #8	@ Undo saving of SP/LR to stack
+	pop {r0-r12}
+	rfefd sp!
+	.fnend
+
+get_abort_sp_lr:
+	ldr r0, [sp, #4*(13+1)]	@ 13 GPRs, LR, [SPSR]
 	and r0, #0x1F
-	cmp r0, #0x10	@ 0x10 = user
+	cmp   r0, #0x10	@ 0x10 = user
 	cmpne r0, #0x13	@ 
 	cmpne r0, #0x17	@ 
-	bne abort__not_known_mode
+	bne 3f
 
 	cmp r0, #0x10	@ 0x10 = user
 	bne 1f
@@ -296,8 +313,8 @@ ENTRY(data_abort)
 1:
 	cmp r0, #0x17	@ 0x17 = abort
 	bne 1f
-	sub r1, sp, #(13*4+8)
-	ldr r2, [sp, #(13*4)]
+	sub r1, sp, #4*(13+2)
+	ldr r2, [sp, #13*4]
 	b 2f
 1:
 	cps #0x13 	@ 0x13 = supervisor (kernel)
@@ -306,34 +323,10 @@ ENTRY(data_abort)
 	@b 2f
 2:
 	cps #23 	@ Switch back to abort mode
-	
-	push {r1,r2}	@ Source SP and LR
-	
-	mov r0, lr
-	sub r0, #8
-	mov r1, sp
-	mrc p15,0, r2, c6,c0,0
-	mrc p15,0, r3, c5,c0,0
-	bl data_abort_handler
-
-	add sp, #8	@ Undo saving of SP/LR to stack
-	
-	pop {r0-r12}
-	rfefd sp!
-	.fnend
-	@.long EXIDX_data_abort
-abort__not_known_mode:
+	bx lr
+3:
 	b .
-@EXIDX data_abort, data_abort_EXTAB - . - 0x80000000
-@.section .ARM.extab.data_abort
-@GLOBAL(data_abort_EXTAB)
-@	.long	0x81028600	@ POP {SP, LR}
-@	.long	0x81FFB10F	@ POP {r4-r12}, POP {r0-r3}
-@	.long	0x02B0B0B0	@ VSP+=12, END
-@.section .text
 
-GLOBAL(ud_abort)
-	b .
 GLOBAL(svc_handler)
 	srsfd sp!, #19  @ Save state to stack
 	push {r0-r5}
@@ -394,7 +387,6 @@ ENTRY(__aeabi_memclr4)
 ENTRY(__aeabi_memclr8)
 	MOV r2, #0
 	b 1b
-
 ENTRY(__aeabi_memset)
 	movs r1, r1
 	beq 2f
