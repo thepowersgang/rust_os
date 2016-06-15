@@ -139,7 +139,7 @@ struct ShellState
 
 
 macro_rules! print {
-	($term:expr, $($t:tt)*) => ({use std::fmt::Write; let _ = write!($term, $($t)*);});
+	($term:expr, $($t:tt)*) => ({let _ = write!($term, $($t)*);});
 }
 
 impl ShellState

@@ -424,7 +424,7 @@ pub unsafe fn reprotect(a: *mut (), mode: ProtectionMode) {
 	}
 }
 pub unsafe fn unmap(a: *mut ()) -> Option<PAddr> {
-	log_debug!("unmapmap({:p})", a);
+	log_debug!("unmap({:p})", a);
 	return unmap_int(a);
 
 	fn unmap_int(a: *mut()) -> Option<PAddr> {
@@ -504,6 +504,7 @@ pub fn data_abort_handler(pc: u32, reg_state: &AbortRegs, dfar: u32, dfsr: u32) 
 	}
 	
 	if pc < 0x8000_0000 {
+		loop {}
 	}
 	else {
 		let rs = ::arch::imp::aeabi_unwind::UnwindState::from_regs([
@@ -549,4 +550,5 @@ pub fn prefetch_abort_handler(pc: u32, reg_state: &AbortRegs, ifsr: u32) {
 		reg_state.gprs[12], reg_state.sp, reg_state.lr, reg_state.ret_pc,
 		]);
 	::arch::imp::print_backtrace_unwindstate(rs, pc as usize);
+	loop {}
 }

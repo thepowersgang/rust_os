@@ -17,7 +17,7 @@ SECTIONS {
 		*(.plt)
 	} :SegRX
 
-	.rodata ALIGN(0x1000): {
+	.rodata ALIGN(0x2000): {
 		*(.rodata .rodata.*)
 	} :SegR
 	
@@ -41,12 +41,14 @@ SECTIONS {
 	.rel.dyn : { *(.rel.dyn) } :SegDYN :SegR
 	.rel.plt : { *(.rel.plt) } :SegDYN :SegR
 	
-	. = ALIGN(0x1000);
-	.data ALIGN(0x1000): {
+	. = ALIGN(0x2000);
+	.data : {
 		*(.data .data.*)
 	} :SegRW
-	.bss ALIGN(0x1000) : {
+	. = ALIGN(0x2000);	/* File must be page-aligned */
+	.bss : {
 		*(.bss .bss.*)
 	} :SegRW
+	. = ALIGN(0x2000);
 }
 

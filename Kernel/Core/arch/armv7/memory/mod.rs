@@ -30,6 +30,12 @@ pub mod addresses {
 	
 	pub const HARDWARE_BASE: usize = 0xA00_00000;	
 	pub const HARDWARE_END : usize = 0xB00_00000;	
+
+	const MAX_RAM_BYTES: usize = 2*1024*1024*1024;
+	pub const PMEMREF_BASE: usize = 0xB00_00000;
+	pub const PMEMREF_END : usize = PMEMREF_BASE + MAX_RAM_BYTES / ::PAGE_SIZE * 4;	// 4 bytes / 8KB frame = 1MB?
+	
+
 	pub const TEMP_BASE: usize = 0xEFF_00000;
 	pub const TEMP_END : usize = 0xF00_00000;
 	
