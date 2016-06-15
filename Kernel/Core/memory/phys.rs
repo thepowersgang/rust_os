@@ -58,7 +58,8 @@ impl FrameHandle
 {
 	/// UNSAFE due to using a raw physical address
 	pub unsafe fn from_addr(addr: PAddr) -> FrameHandle {
-		mark_used(addr);
+		//mark_used(addr);
+		ref_frame(addr);
 		FrameHandle(addr)
 	}
 	/// UNSAFE due to using a raw physical address, and can cause an alias

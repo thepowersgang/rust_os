@@ -65,6 +65,7 @@ impl node::File for FileNode {
 		let ofs = (ofs % self.fs.cluster_size as u64) as usize;
 		
 		// First incomplete cluster
+		let mut cur_read_ofs = 0;
 		let chunks = if ofs != 0 {
 				let cluster = match clusters.next()
 					{
@@ -75,6 +76,7 @@ impl node::File for FileNode {
 				let c = try!(self.fs.load_cluster(cluster));
 				buf[..short_count].clone_from_slice( &c[ofs..][..short_count] );
 				
+				cur_read_ofs += short_count;
 				buf[short_count..].chunks_mut(self.fs.cluster_size)
 			}
 			else {
@@ -87,7 +89,10 @@ impl node::File for FileNode {
 			let cluster = match clusters.next()
 				{
 				Some(v) => v,
-				None => return Err(ERROR_SHORTCHAIN),
+				None => {
+					log_notice!("Unexpected end of cluster chain at offset {}", cur_read_ofs);
+					return Err(ERROR_SHORTCHAIN);
+					},
 				};
 			if dst.len() == self.fs.cluster_size {
 				// Read directly
@@ -99,6 +104,7 @@ impl node::File for FileNode {
 				let bytes = dst.len();
 				dst.clone_from_slice( &c[..bytes] );
 			}
+			cur_read_ofs += dst.len();
 		}
 		
 		Ok( read_length )

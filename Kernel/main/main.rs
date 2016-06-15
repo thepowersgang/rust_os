@@ -249,7 +249,7 @@ fn load_loader(loader: &::kernel::vfs::handle::File) -> Result<(&'static LoaderH
 				ondisk_size, MAX_SIZE);
 			return Err("Loader too large");
 		}
-		loader.memory_map(LOAD_BASE,  0, PAGE_SIZE,  handle::MemoryMapMode::Execute).expect("Loader first page");
+		loader.memory_map(LOAD_BASE,  0, PAGE_SIZE,  handle::MemoryMapMode::Execute).expect("Loader first page")
 		};
 	// - 2. Parse the header
 	// SAFE: LoaderHeader is POD, and pointer is valid (not Sync, so passing to another thread/process is invalid)

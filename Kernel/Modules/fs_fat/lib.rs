@@ -225,7 +225,7 @@ impl FilesystemInner
 				assert!(cluster - 2 < self.cluster_count as u32);
 				self.first_data_sector as u64 + (cluster as u64 - 2) * self.spc as u64
 			};
-		log_debug!("cluster = {:#x}, sector = 0x{:x}", cluster, sector);
+		log_debug!("read_cluster: cluster = {:#x}, sector = 0x{:x}", cluster, sector);
 		try!(self.vh.read_blocks(sector, dst));
 		//::kernel::logging::hex_dump("FAT Cluster", &buf);
 		Ok( () )
@@ -269,9 +269,12 @@ impl FilesystemInner
 
 		// - Read a single sector from the FAT
 		let sector_idx = (self.first_fat_sector + fat_sector) as u64;
-		let sector_data = try!(self.vh.get_block( sector_idx ));
-		let start_ofs = (sector_idx - sector_data.index()) as usize * bs;
-		let sector_data = &sector_data.data()[start_ofs .. ];
+		let sector_data_blk = try!(self.vh.get_block( sector_idx ));
+		let start_ofs = (sector_idx - sector_data_blk.index()) as usize * bs;
+		let sector_data = &sector_data_blk.data()[start_ofs .. ];
+		//log_debug!("Sector {} accessed via cached block at sector {}", sector_idx, sector_data_blk.index());
+		//::kernel::logging::hex_dump("FAT FAT", &sector_data[..bs]);
+
 		// - Extract the entry
 		Ok(match self.ty
 		{
@@ -281,14 +284,17 @@ impl FilesystemInner
 				let v24 = (&sector_data[ofs..]).read_uint::<LittleEndian>(3).unwrap();
 				if cluster % 2 == 0 { v24 & 0xFFF } else { v24 >> 12 }
 				} as u16;
+			if val == 0 { return Err(storage::IoError::Unknown("FAT: Zero FAT entry")); }
 			if val == FAT12_EOC { None } else { Some(val as u32) }
 			},
 		Size::Fat16 => {
 			let val = (&sector_data[ofs..]).read_u16::<LittleEndian>().unwrap();
+			if val == 0 { return Err(storage::IoError::Unknown("FAT: Zero FAT entry")); }
 			if val == FAT16_EOC { None } else { Some(val as u32) }
 			},
 		Size::Fat32 => {
 			let val = (&sector_data[ofs..]).read_u32::<LittleEndian>().unwrap();
+			if val == 0 { return Err(storage::IoError::Unknown("FAT: Zero FAT entry")); }
 			if val == FAT32_EOC { None } else { Some(val as u32) }
 			},
 		})
@@ -370,7 +376,11 @@ impl ::core::iter::Iterator for ClusterList {
 				*next = match fs.get_next_cluster(*next)
 					{
 					Ok(Some(v)) => v,
-					_ => 0,
+					Ok(None) => 0,
+					Err(e) => {
+						log_warning!("Error when reading cluster chain - {:?}", e);
+						return None;	// Inconsistency, terminate asap
+						},
 					};
 				Some( rv )
 			},

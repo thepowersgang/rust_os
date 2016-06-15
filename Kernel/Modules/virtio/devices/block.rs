@@ -93,17 +93,22 @@ impl<I: Interface+Send+'static> storage::PhysicalVolume for Volume<I>
 			};
 		let mut status = 0u8;
 
-		let h = self.requestq.send_buffers(&self.interface, &mut[
-			Buffer::Read( ::kernel::lib::as_byte_slice(&cmd) ),
-			Buffer::Write(dst),
-			Buffer::Write( ::kernel::lib::as_byte_slice_mut(&mut status) )
-			]);
-		let rv = match h.wait_for_completion()
-			{
-			Ok(_bytes) => Ok( () ),
-			Err( () ) => Err( storage::IoError::Unknown("VirtIO") ),
+		let rv = {
+			let h = self.requestq.send_buffers(&self.interface, &mut[
+				Buffer::Read( ::kernel::lib::as_byte_slice(&cmd) ),
+				Buffer::Write(dst),
+				Buffer::Write( ::kernel::lib::as_byte_slice_mut(&mut status) )
+				]);
+			match h.wait_for_completion()
+				{
+				Ok(_bytes) => Ok( () ),
+				Err( () ) => Err( storage::IoError::Unknown("VirtIO") ),
+				}
 			};
-
+		
+		//log_debug!("read block {}", idx);
+		//::kernel::logging::hex_dump("VirtIO block data", dst);
+		
 		Box::new(async::NullResultWaiter::new( move || rv ))
 	}
 	fn write<'a>(&'a self, prio: u8, idx: u64, num: usize, src: &'a [u8]) -> storage::AsyncIoResult<'a,()>

@@ -31,12 +31,12 @@ pub fn get_multiref_count(frame_idx: u64) -> u32 {
 }
 
 pub fn mark_free(frame_idx: u64) -> bool {
-	log_warning!("TODO: mark_free - frame_idx={:#x}", frame_idx);
+	log_warning!("TODO: mark_free - frame_idx={:#x} ({:#x})", frame_idx, frame_idx*::PAGE_SIZE as u64);
 	// HACK: Assume it was used
 	true
 }
 pub fn mark_used(frame_idx: u64) {
-	log_warning!("TODO: mark_used - frame_idx={:#x}", frame_idx);
+	log_warning!("TODO: mark_used - frame_idx={:#x} ({:#x})", frame_idx, frame_idx*::PAGE_SIZE as u64);
 }
 
 
