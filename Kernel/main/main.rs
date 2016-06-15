@@ -320,5 +320,5 @@ enum ArchValues {
 const MAGIC: u32 = 0x71FF1013;
 const INFO: u32 = (5*4 + USIZE_BYTES) | ((ARCH as u8 as u32) << 8);
 
-const MAX_SIZE: usize = 2*64*1024;	// 128KB
+const MAX_SIZE: usize = 4*64*1024;	// 128KB
 const LOAD_BASE: usize = LOAD_MAX - MAX_SIZE;

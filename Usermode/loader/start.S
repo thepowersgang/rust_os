@@ -97,7 +97,7 @@ ENTRY(_Unwind_Resume)
 # define DEFPTR	.long
 # define PTR_SIZE	4
 # define HDR_ARCH HDR_ARCH_arm32
-.set BASE,  0x7Fbe0000
+.set BASE,  0x7fbc0000
 .set LIMIT, 0x80000000
 
 .section .text

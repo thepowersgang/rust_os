@@ -151,6 +151,7 @@ impl Queue
 				desc.length = len;
 				desc.flags = (if next.is_some() { VRING_DESC_F_NEXT } else { 0 }) | (if write { VRING_DESC_F_WRITE } else { 0 });
 				desc.next = match next { Some(v) => v.idx, None => 0 };
+				log_trace!("Desc {}: {:#x}+{}", idx, phys, len);
 				return DescriptorHandle { pd: ::core::marker::PhantomData, idx: idx as u16 };
 			}
 		}
@@ -272,6 +273,22 @@ impl<'a> Request<'a>
 			// HACK: Yield here to prevent this wait from instantly waking
 			::kernel::threads::yield_time();
 			self.queue.interrupt_flag.acquire();
+		}
+	}
+}
+impl<'a> ::core::ops::Drop for Request<'a>
+{
+	fn drop(&mut self) {
+		let mut d = self.queue.descriptors();
+		let mut idx = self.first_desc as usize;
+		loop
+		{
+			log_trace!("- Desc {}: Release", idx);
+			d[idx].length = 0;
+			if d[idx].flags & VRING_DESC_F_NEXT == 0 {
+				break ;
+			}
+			idx = d[idx].next as usize;
 		}
 	}
 }

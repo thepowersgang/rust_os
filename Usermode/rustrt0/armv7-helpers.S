@@ -108,6 +108,7 @@ ENTRY_(__aeabi_memclr8)
 	b 1b
 
 ENTRY(__aeabi_memset)
+	.fnstart
 	movs r1, r1
 	beq 2f
 1:
@@ -116,13 +117,21 @@ ENTRY(__aeabi_memset)
 	bne 1b
 2:
 	bx lr
-ENTRY(memset)
-	b __aeabi_memset
-EXIDX __aeabi_memset, 0x80B0B0B0
-
+	.fnend
 ENTRY(__aeabi_memclr)
 	MOV r2, #0
 	b __aeabi_memset
+ENTRY(memset)
+	.fnstart
+	movs r2, r2
+	beq 2f
+1:
+	strb r1, [r0], #1
+	subs r2, #1
+	bne 1b
+2:
+	bx lr
+	.fnend
 
 
 @ 64-bit divide/modulo
@@ -330,8 +339,8 @@ ENTRY(memcmp)
 	bne 1b
 2:
 	movhs r0, #1
-	moveq r0, #0
 	movlo r0, #-1
+	moveq r0, #0
 	pop {r4}
 	mov pc, lr
 EXIDX memcmp, 0x80A0B0B0

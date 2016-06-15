@@ -19,7 +19,13 @@ impl State
 }
 
 pub fn init_tid0_state() -> State {
-	State::default()
+	extern "C" {
+		static kernel_table0: ::Void;
+	}
+	State {
+		ttbr0: ::memory::virt::get_phys( &kernel_table0 ),
+		..State::default()
+		}
 }
 pub fn get_idle_thread() -> ::threads::ThreadPtr {
 	todo!("get_idle_thread");

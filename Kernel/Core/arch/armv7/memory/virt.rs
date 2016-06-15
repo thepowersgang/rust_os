@@ -483,15 +483,13 @@ impl AddressSpace
 	pub fn pid0() -> AddressSpace {
 		extern "C" {
 			static kernel_table0: ::Void;
-			static kernel_phys_start: u32;
 		}
-		let tab0_addr = kernel_phys_start + (&kernel_table0 as *const _ as usize as u32 - 0x80000000);
-		AddressSpace( tab0_addr )
+		AddressSpace( get_phys(&kernel_table0) )
 	}
 	pub fn new(clone_start: usize, clone_end: usize) -> Result<AddressSpace,::memory::virt::MapError> {
 		assert!( clone_start % ::PAGE_SIZE == 0 );
 		assert!( clone_end % ::PAGE_SIZE == 0 );
-		// 1. Allocate a new root-level table for the user code (requires two pages aligned, or just use 1GB for user)
+		// 1. Allocate a new root-level table for the user code
 		let mut new_root: TempHandle<u32> = try!( ::memory::phys::allocate_bare() ).into();
 		// 2. Allocate the final table (for fractal)
 		let mut last_tab: TempHandle<u32> = try!( ::memory::phys::allocate_bare() ).into();

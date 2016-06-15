@@ -25,7 +25,7 @@ SECTIONS {
 	PROVIDE_HIDDEN ( __exidx_end = . );
 	/* */
 
-	. = ALIGN(0x1000);
+	. = ALIGN(0x2000);
 	codesize = . - BASE;
 	.data ALIGN(0x1000): {
 		data_start = .;
