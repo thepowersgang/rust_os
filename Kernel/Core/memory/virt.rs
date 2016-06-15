@@ -32,6 +32,11 @@ pub enum MapError
 	OutOfMemory,
 	RangeInUse,
 }
+impl_from! {
+	From<::memory::phys::Error>(_v) for MapError {
+		MapError::OutOfMemory
+	}
+}
 
 /// A handle to an owned memory allocation
 pub struct AllocHandle

@@ -11,7 +11,7 @@ use core::sync::atomic::Ordering;
 const KERNEL_TEMP_BASE : usize = 0xFFC00000;
 const KERNEL_TEMP_COUNT: usize = 1023/2;	// 1024 4KB entries, PAGE_SIZE is 8KB, final 4KB is left zero for the -1 deref mapping
 const USER_BASE_TABLE: usize = 0x7FFF_E000;	// 2GB - 0x800 * 4 = 0x2000
-const USER_TEMP_TABLE: usize = 0x7FFF_D000;	// Previous page to that
+const USER_LAST_TABLE_FRAC: usize = 0x7FFF_C000;
 const USER_TEMP_BASE: usize = 0x7FC0_0000;	// 1 page worth of temp mappings (top three are used for base table/temp table)
 
 const PAGE_MASK_U32: u32 = PAGE_MASK as u32;
@@ -51,6 +51,24 @@ fn dump_tables() {
 			log_trace!("{:08x}-{:08x} = {:08x}-{:08x} {:03x}", start, end, paddr as usize - (end-start+1), paddr-1, flags);
 			},
 		}
+	}
+}
+
+fn user_root_table() -> &'static [AtomicU32; 2048]
+{
+	// SAFE: This memory is always mapped. (TODO: Shouldn't be Sync)
+	unsafe {
+		let table_ptr = USER_BASE_TABLE as *const _;
+		assert!( get_phys(table_ptr) != 0 );
+		&*table_ptr
+	}
+}
+fn user_last_table() -> &'static [AtomicU32; 0x2000 / 4] {
+	// SAFE: This memory is always mapped. (TODO: Shouldn't be Sync)
+	unsafe {
+		let table_ptr = USER_LAST_TABLE_FRAC as *const _;
+		assert!( get_phys(table_ptr) != 0 );
+		&*table_ptr
 	}
 }
 
@@ -119,12 +137,9 @@ impl PageEntryRegion {
 	fn get_section_ent(&self, idx: usize) -> &AtomicU32 {
 		match self
 		{
-		// SAFE: Atomic and valid
-		&PageEntryRegion::NonGlobal => unsafe {
+		&PageEntryRegion::NonGlobal => {
 			assert!(idx < 2048);
-			let table = &*(USER_BASE_TABLE as *const [AtomicU32; 0x800]);
-			assert!( get_phys(table) != 0 );
-			&table[idx]
+			&user_root_table()[idx]
 			},
 		&PageEntryRegion::Global => {
 			assert!(idx < 4096);
@@ -251,11 +266,10 @@ fn get_table_addr<T>(vaddr: *const T, alloc: bool) -> Option< (::arch::memory::P
 	let page = addr >> 12;	// NOTE: 12 as each entry in the table services 4KB
 	let (ttbr_ofs, tab_idx) = (page >> 11, page & 0x7FF);
 	const ENTS_PER_ALLOC: usize = PAGE_SIZE / 0x400;	// Each entry in the top-level table points to a 1KB second-level table
-	const USER_BASE_TABLE_PTR: *const [AtomicU32; 0x800] = USER_BASE_TABLE as *const [AtomicU32; 0x800];
 	
 	let ent_r = if ttbr_ofs < 0x800/ENTS_PER_ALLOC {
 			// SAFE: This memory should always be mapped
-			unsafe { & (*USER_BASE_TABLE_PTR)[ttbr_ofs*ENTS_PER_ALLOC .. ][..ENTS_PER_ALLOC] }
+			&user_root_table()[ttbr_ofs*ENTS_PER_ALLOC .. ][..ENTS_PER_ALLOC]
 		}
 		else {
 			// Kernel
@@ -266,15 +280,15 @@ fn get_table_addr<T>(vaddr: *const T, alloc: bool) -> Option< (::arch::memory::P
 	match ent_v & PAGE_MASK_U32
 	{
 	0 => if alloc {
-			let handle: TempHandle<AtomicU32> = match ::memory::phys::allocate_bare()
+			log_debug!("New table for {:#x}", ttbr_ofs << (11+12));
+			let mut handle: TempHandle<u32> = match ::memory::phys::allocate_bare()
 				{
 				Ok(v) => v.into(),
 				Err(e) => todo!("get_table_addr - alloc failed")
 				};
+			for v in handle.iter_mut() { *v = 0; }
 			//::memory::virt::with_temp(|frame: &[AtomicU32]| for v in frame.iter { v.store(0) });
-			for v in handle.iter() {
-				v.store(0, Ordering::SeqCst);
-			}
+
 			let frame = handle.phys_addr();
 			let ent_v = ent_r[0].compare_and_swap(0, frame + 0x1, Ordering::Acquire);
 			if ent_v != 0 {
@@ -302,7 +316,7 @@ fn get_table_addr<T>(vaddr: *const T, alloc: bool) -> Option< (::arch::memory::P
 /// Temporarily map a frame into memory
 /// UNSAFE: User to ensure that the passed address doesn't alias
 pub unsafe fn temp_map<T>(phys: ::arch::memory::PAddr) -> *mut T {
-	log_trace!("TempHandle<{}>::new({:#x})", type_name!(T), phys);
+	log_trace!("temp_map<{}>({:#x})", type_name!(T), phys);
 	assert!(phys as u32 % PAGE_SIZE as u32 == 0);
 	let val = (phys as u32) + 0x13;	
 	
@@ -310,11 +324,11 @@ pub unsafe fn temp_map<T>(phys: ::arch::memory::PAddr) -> *mut T {
 	for i in 0 .. KERNEL_TEMP_COUNT {
 		let ents = &kernel_exception_map[i*2 ..][.. 2];
 		if ents[0].compare_and_swap(0, val, Ordering::Acquire) == 0 {
+			let addr = (KERNEL_TEMP_BASE + i * ::PAGE_SIZE) as *mut _;
+			log_trace!("- Addr = {:p}", addr);
 			// - Set the next node and check that it's zero
 			assert!( ents[1].swap(val+0x1000, Ordering::Acquire) == 0 );
-			let addr = (KERNEL_TEMP_BASE + i * ::PAGE_SIZE) as *mut _;
 			tlbimva(addr as *mut ());
-			//log_trace!("- Addr = {:p}", addr);
 			return addr;
 		}
 	}
@@ -323,11 +337,13 @@ pub unsafe fn temp_map<T>(phys: ::arch::memory::PAddr) -> *mut T {
 // UNSAFE: Can cause use-after-free if address is invalid
 pub unsafe fn temp_unmap<T>(addr: *mut T)
 {
+	log_trace!("temp_unmap<{}>({:p})", type_name!(T), addr);
 	assert!(addr as usize >= KERNEL_TEMP_BASE);
 	let i = (addr as usize - KERNEL_TEMP_BASE) / ::PAGE_SIZE;
 	assert!(i < KERNEL_TEMP_COUNT);
-	kernel_exception_map[i+0].store(0, Ordering::Release);
-	kernel_exception_map[i+1].store(0, Ordering::Release);
+	// - Clear in reverse order to avoid racing between the +1 release and +0's acquire
+	kernel_exception_map[i*2+1].store(0, Ordering::Release);
+	kernel_exception_map[i*2+0].store(0, Ordering::Release);
 	S_TEMP_MAP_SEMAPHORE.release();
 }
 
@@ -473,8 +489,53 @@ impl AddressSpace
 		AddressSpace( tab0_addr )
 	}
 	pub fn new(clone_start: usize, clone_end: usize) -> Result<AddressSpace,::memory::virt::MapError> {
+		assert!( clone_start % ::PAGE_SIZE == 0 );
+		assert!( clone_end % ::PAGE_SIZE == 0 );
 		// 1. Allocate a new root-level table for the user code (requires two pages aligned, or just use 1GB for user)
-		todo!("AddressSpace::new({:#x} -- {:#x})", clone_start, clone_end);
+		let mut new_root: TempHandle<u32> = try!( ::memory::phys::allocate_bare() ).into();
+		// 2. Allocate the final table (for fractal)
+		let mut last_tab: TempHandle<u32> = try!( ::memory::phys::allocate_bare() ).into();
+		last_tab[2044] = (last_tab.phys_addr() as u32 + 0x0000) | 0x13;
+		last_tab[2045] = (last_tab.phys_addr() as u32 + 0x1000) | 0x13;
+		last_tab[2046] = (new_root.phys_addr() as u32 + 0x0000) | 0x13;
+		last_tab[2047] = (new_root.phys_addr() as u32 + 0x1000) | 0x13;
+		for i in 0 .. 8 {
+			new_root[2048-8 + i as usize] = (last_tab.phys_addr() as u32 + i * 0x400) | 0x1;
+		}
+
+		if clone_start >> 20 < 2040 {
+			todo!("Allocate extra tables for AddressSpace::new");
+		}
+		let start_pidx = clone_start / ::PAGE_SIZE;
+		let end_pidx = clone_end / ::PAGE_SIZE;
+		
+		for page in start_pidx .. end_pidx
+		{
+			let ofs = page*2 - 2040*256;
+			let dst_slots = &mut last_tab[ofs ..][.. 2];
+			let src_slot_0_val = user_last_table()[ofs].load(Ordering::Relaxed);
+			
+			let mode_flags = src_slot_0_val & PAGE_MASK_U32;
+			match flags_to_prot_mode(mode_flags)
+			{
+			ProtectionMode::Unmapped => {},
+			ProtectionMode::UserCOW => todo!("Clone when COW"),
+			ProtectionMode::UserRW | ProtectionMode::UserRO | ProtectionMode::UserRX => {
+				let src_ptr = (page * ::PAGE_SIZE) as *const u8;
+				// SAFE: Memory is valid (TODO: What if this changes? Shouldn't cause errors, just inconsistent user data)
+				let src = unsafe { ::core::slice::from_raw_parts(src_ptr, ::PAGE_SIZE) };
+				let mut data = try!( ::memory::phys::allocate_bare() );
+				data.copy_from_slice(src);
+				dst_slots[0] = (data.phys_addr() as u32 + 0x0000) | mode_flags;
+				dst_slots[1] = (data.phys_addr() as u32 + 0x1000) | mode_flags;
+				},
+			mode @ _ => {
+				log_warning!("TODO: Other protection modes: {:?}", mode)
+				},
+			}
+		}
+
+		Ok( AddressSpace( new_root.phys_addr() ) )
 	}
 
 	pub fn get_ttbr0(&self) -> u32 { self.0 }

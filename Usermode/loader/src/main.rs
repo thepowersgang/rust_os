@@ -22,6 +22,11 @@ mod elf;
 pub mod interface;
 mod load;
 
+#[cfg(arch="armv7")]
+const PAGE_SIZE: usize = 0x2000;
+#[cfg(not(arch="armv7"))]
+const PAGE_SIZE: usize = 0x1000;
+
 // Main: This is the initial boot entrypoint
 // NOTE: If you're looking for the new process entrypoint, see interface.rs
 #[no_mangle]
@@ -38,7 +43,7 @@ pub extern "C" fn loader_main(cmdline: *mut u8, cmdline_len: usize) -> !
 	//	extern "C" {
 	//		static init_stack_base: [u8; 0];
 	//	}
-	//	let _ = ::syscalls::memory::deallocate( (init_stack_base.as_ptr() as usize) - 0x1000 );
+	//	let _ = ::syscalls::memory::deallocate( (init_stack_base.as_ptr() as usize) - ::PAGE_SIZE );
 	//}
 	
 	// 1. Print the INIT parameter from the kernel
@@ -128,7 +133,6 @@ fn load_binary(path: &::std::ffi::OsStr, fh: ::syscalls::vfs::File) -> usize
 		{
 			use syscalls::vfs::MemoryMapMode;
 			use syscalls::memory::ProtectionMode;
-			const PAGE_SIZE: usize = 0x1000;
 			kernel_log!("segment = {:?}", segment);
 			
 			if segment.load_addr <= entrypoint && entrypoint < segment.load_addr + segment.mem_size {

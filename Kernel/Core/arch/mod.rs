@@ -71,6 +71,7 @@ pub mod memory {
 		pub type AddressSpace = imp::AddressSpace;
 
 		/// A handle to a temproarily mapped frame containing instances of 'T'
+		// TODO: TempHandle doens't own the mapped frame - It probably should
 		pub struct TempHandle<T>(*mut T);
 		impl<T> TempHandle<T>
 		{
@@ -103,7 +104,7 @@ pub mod memory {
 		}
 		impl<T> ::core::ops::Drop for TempHandle<T> {
 			fn drop(&mut self) {
-				// SAFE: Address came from a capp to temp_map
+				// SAFE: Address came from a call to temp_map
 				unsafe {
 					imp::temp_unmap(self.0);
 				}

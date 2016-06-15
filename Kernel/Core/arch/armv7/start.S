@@ -545,10 +545,11 @@ user_last_map:
 	.rept 1024
 		.long 0
 	.endr
-	.rept 1024-3
+	.rept 1024-4
 		.long 0
 	.endr
-	.long user_last_map - KERNEL_BASE + 0x13
+	.long user_last_map - KERNEL_BASE + 0x0000 + 0x13
+	.long user_last_map - KERNEL_BASE + 0x1000 + 0x13
 	.long kernel_table0 - KERNEL_BASE + 0x0000 + 0x13
 	.long kernel_table0 - KERNEL_BASE + 0x1000 + 0x13
 
@@ -565,7 +566,7 @@ kernel_exception_map:
 		.long 0
 	.endr
 	.long 0x00000000 + 0x212	@ Exceptions at 0xFFFF0000, re-map first page
-	.rept 16-1
+	.rept 16-1-1
 		.long 0
 	.endr
 	.long 0	@ ALWAYS zero, to catch NULL-1 indexing

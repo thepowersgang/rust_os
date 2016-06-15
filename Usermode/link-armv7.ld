@@ -9,7 +9,8 @@ PHDRS {
 
 SECTIONS {
 	. = 0x200000;
-	
+	/*. += SIZEOF_HEADERS;*/
+
 	.text : {
 		*(.text .text.*)
 	} :SegRX
@@ -45,7 +46,7 @@ SECTIONS {
 	.data : {
 		*(.data .data.*)
 	} :SegRW
-	. = ALIGN(0x2000);	/* File must be page-aligned */
+	/* . = ALIGN(0x2000);	/* File must be page-aligned */
 	.bss : {
 		*(.bss .bss.*)
 	} :SegRW

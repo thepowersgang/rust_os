@@ -8,10 +8,11 @@
 	"os": "tifflin",
 	"arch": "arm",
 		"linker": "arm-elf-eabi-gcc",
-		"pre-link-args": ["-nostdlib", "-ffreestanding", "-Wl,-T,link-armv7.ld", "-Wl,-z,max-page-size=4096", "-Wl,--gc-sections", ".objs/armv7/rustrt0.o", "-Wl,--start-group"],
+		"pre-link-args": ["-nostdlib", "-ffreestanding", "-Wl,-T,link-armv7.ld", "-Wl,-z,max-page-size=8192", "-Wl,--gc-sections", ".objs/armv7/rustrt0.o", "-Wl,--start-group"],
 		"post-link-args": ["-Wl,--end-group"],
 		"no-compiler-rt": true,
-		"features": "+v7",
+		"__features": "+v7", "_comment": "TODO: Enable all the fun features, but that requires kernel suppport",
+		"features": "+v7,+db,-neon,-vfp2,-vfp3,-vfp4,-fp16,+soft-float",
 		"executables": true,
 		"dynamic-linking": true,
 	"morestack": false
