@@ -29,8 +29,8 @@ pub struct IntermediateBox<T: ?Sized> {
 	ptr: *const u8,
 	_marker: ::core::marker::PhantomData<*mut T>,
 }
-impl<T> IntermediateBox<T> {
-	pub fn make_place() -> IntermediateBox<T> {
+impl<T> ::core::ops::BoxPlace<T> for IntermediateBox<T> {
+	fn make_place() -> IntermediateBox<T> {
 		IntermediateBox {
 			ptr: ::heap::allocate(::core::mem::size_of::<T>(), ::core::mem::align_of::<T>()),
 			_marker: ::core::marker::PhantomData,
