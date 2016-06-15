@@ -31,7 +31,7 @@ SECTIONS {
 		data_start = .;
 		*(.data .data.*)
 		*(.got .got.*)
-		. = ALIGN(0x2000);
+		. = ALIGN(0x2000);	/* 8KB for ARMv7 */
 	} = 0x0000
 	.bss ALIGN(0x1000) : {
 		bss_start = .;

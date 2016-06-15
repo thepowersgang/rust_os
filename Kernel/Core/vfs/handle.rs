@@ -257,6 +257,7 @@ impl File
 			MemoryMapMode::WriteBack => ::memory::virt::ProtectionMode::UserRW,
 			})
 			.unwrap();
+		log_debug!("- Mapped at {:p} + {:#x}", address as *mut (), page_count * ::PAGE_SIZE);
 		Ok(MemoryMapHandle {
 			handle: self,
 			base: address as *mut (),

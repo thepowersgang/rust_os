@@ -73,13 +73,13 @@ fn flags_to_prot_mode(flags: u32) -> ProtectionMode {
 	match flags
 	{
 	0x000 => ProtectionMode::Unmapped,
-	0x212 => ProtectionMode::KernelRO,
-	0x012 => ProtectionMode::KernelRW,
-	0x053 => ProtectionMode::KernelRX,
-	0x232 => ProtectionMode::UserRO,
-	0x032 => ProtectionMode::UserRW,
-	0x233 => ProtectionMode::UserRX,
-	0x033 => ProtectionMode::UserRWX,
+	0x213 => ProtectionMode::KernelRO,
+	0x013 => ProtectionMode::KernelRW,
+	0x052 => ProtectionMode::KernelRX,
+	0x233 => ProtectionMode::UserRO,
+	0x033 => ProtectionMode::UserRW,
+	0x232 => ProtectionMode::UserRX,
+	0x032 => ProtectionMode::UserRWX,
 	0x223 => ProtectionMode::UserCOW,
 	v @ _ => todo!("Unknown mode value {:#x}", v),
 	}
@@ -91,7 +91,7 @@ type AtomicU32 = ::sync::atomic::AtomicValue<u32>;
 pub fn is_fixed_alloc<T>(addr: *const T, size: usize) -> bool {
 	const BASE: usize = super::addresses::KERNEL_BASE;
 	const ONEMEG: usize = 1024*1024;
-	const LIMIT: usize = super::addresses::KERNEL_BASE + 4*ONEMEG;
+	const LIMIT: usize = super::addresses::KERNEL_BASE + 8*ONEMEG;
 	let addr = addr as usize;
 	if BASE <= addr && addr < LIMIT {
 		if addr + size <= LIMIT {
@@ -226,6 +226,16 @@ impl PageEntry
 				Some( ((old & !PAGE_MASK_U32) as PAddr, flags_to_prot_mode(old & PAGE_MASK_U32)) )
 			}
 			},
+		}
+	}
+}
+impl_fmt! {
+	Debug(self, f) for PageEntry {
+		if self.is_reserved() {
+			write!(f, "{:#x}-{:?}", self.phys_addr(), self.mode())
+		}
+		else {
+			write!(f, "Unmapped()")
 		}
 	}
 }
@@ -388,10 +398,11 @@ pub unsafe fn map(a: *mut (), p: PAddr, mode: ProtectionMode) {
 	fn map_int(a: *mut (), p: PAddr, mode: ProtectionMode) {
 		// 1. Map the relevant table in the temp area
 		let (tab_phys, idx) = get_table_addr(a, true).unwrap();
-		//log_debug!("map_int({:p}, {:#x}, {:?}) - tab_phys={:#x},idx={}", a, p, mode, tab_phys, idx);
 		// SAFE: Address space is valid during manipulation, and alias is benign
 		let mh: TempHandle<AtomicU32> = unsafe {  TempHandle::new( tab_phys ) };
 		assert!(mode != ProtectionMode::Unmapped, "Invalid pass of ProtectionMode::Unmapped to map");
+		assert!( idx % 2 == 0 );	// two entries per 8KB page
+
 		// 2. Insert
 		let mode_flags = prot_mode_to_flags(mode);
 		let old = mh[idx+0].compare_and_swap(0, p + mode_flags, Ordering::SeqCst);
@@ -402,24 +413,26 @@ pub unsafe fn map(a: *mut (), p: PAddr, mode: ProtectionMode) {
 	}
 }
 pub unsafe fn reprotect(a: *mut (), mode: ProtectionMode) {
+	log_debug!("reprotect({:p}, {:?})", a, mode);
 	return reprotect_int(a, mode);
 
 	fn reprotect_int(a: *mut (), mode: ProtectionMode) {
 		// 1. Map the relevant table in the temp area
-		let (tab_phys, idx) = get_table_addr(a, true).unwrap();
+		let (tab_phys, idx) = get_table_addr(a, false).expect("Calling reprotect() on unmapped location");
 		// SAFE: Address space is valid during manipulation, and alias is benign
 		let mh: TempHandle<AtomicU32> = unsafe { TempHandle::new( tab_phys ) };
-		assert!(mode != ProtectionMode::Unmapped, "Invalid pass of ProtectionMode::Unmapped to map");
-		// 2. Insert
+		assert!(mode != ProtectionMode::Unmapped, "Invalid pass of ProtectionMode::Unmapped to reprotect");
+		assert!( idx % 2 == 0 );	// two entries per 8KB page
+
+		// 2. Update
 		let mode_flags = prot_mode_to_flags(mode);
-		let v = mh[idx].load(Ordering::Acquire);
+		let v = mh[idx].load(Ordering::SeqCst);
 		assert!(v != 0, "reprotect() called on an unmapped location: a={:p}", a);
 		let p = v & !PAGE_MASK_U32;
-		//log_debug!("reprotect(): a={:p} mh={:p} idx={}, new={:#x}", a, &mh[0], idx, (v & !PAGE_MASK_U32) + mode_flags);
-		let old = mh[idx].compare_and_swap(v, p + mode_flags, Ordering::Release);
+		let old = mh[idx+0].compare_and_swap(v, p | mode_flags, Ordering::SeqCst);
 		assert!(old == v, "reprotect() called in a racy manner: a={:p} old({:#x}) != v({:#x})", a, old, v);
-		mh[idx+1].swap(p + 0x1000 + mode_flags, Ordering::SeqCst);
-		tlbimva(a);
+		mh[idx+1].swap( (p + 0x1000) | mode_flags, Ordering::SeqCst);
+		tlbimva( a );
 		tlbimva( (a as usize + 0x1000) as *mut () );
 	}
 }
@@ -429,11 +442,13 @@ pub unsafe fn unmap(a: *mut ()) -> Option<PAddr> {
 
 	fn unmap_int(a: *mut()) -> Option<PAddr> {
 		// 1. Map the relevant table in the temp area
-		let (tab_phys, idx) = get_table_addr(a, true).unwrap();
+		let (tab_phys, idx) = get_table_addr(a, false).expect("Calling unmap() on unmapped location");
 		// SAFE: Address space is valid during manipulation, and alias is benign
 		let mh: TempHandle<AtomicU32> = unsafe { TempHandle::new( tab_phys ) };
+		assert!( idx % 2 == 0 );	// two entries per 8KB page
+
 		let old = mh[idx+0].swap(0, Ordering::SeqCst);
-		mh[idx+1].swap(0, Ordering::SeqCst);
+		mh[idx+1].store(0, Ordering::SeqCst);
 		tlbimva(a);
 		tlbimva( (a as usize + 0x1000) as *mut () );
 		if old & 3 == 0 {
@@ -540,13 +555,20 @@ fn fsr_name(ifsr: u32) -> &'static str {
 #[no_mangle]
 pub fn prefetch_abort_handler(pc: u32, reg_state: &AbortRegs, ifsr: u32) {
 	log_warning!("Prefetch abort at {:#x} status {:#x} ({}) - LR={:#x}", pc, ifsr, fsr_name(ifsr), reg_state.lr);
+	dump_tables();
+	let ent = PageEntry::get(pc as usize as *const ());
+	//log_debug!("- {:?}", ent);
+	{
+		let mode = ent.mode();
+		log_debug!("- {:#x} {:?}", ent.phys_addr(), mode);
+	}
 	//log_debug!("Registers:");
 	//log_debug!("R 0 {:08x}  R 1 {:08x}  R 2 {:08x}  R 3 {:08x}  R 4 {:08x}  R 5 {:08x}}  R 6 {:08x}", reg_state.gprs[0]);
 	
 	let rs = ::arch::imp::aeabi_unwind::UnwindState::from_regs([
-		reg_state.gprs[0], reg_state.gprs[1], reg_state.gprs[ 2], reg_state.gprs[3],
-		reg_state.gprs[4], reg_state.gprs[5], reg_state.gprs[ 6], reg_state.gprs[7],
-		reg_state.gprs[8], reg_state.gprs[9], reg_state.gprs[10], reg_state.gprs[11],
+		reg_state.gprs[ 0], reg_state.gprs[1], reg_state.gprs[ 2], reg_state.gprs[ 3],
+		reg_state.gprs[ 4], reg_state.gprs[5], reg_state.gprs[ 6], reg_state.gprs[ 7],
+		reg_state.gprs[ 8], reg_state.gprs[9], reg_state.gprs[10], reg_state.gprs[11],
 		reg_state.gprs[12], reg_state.sp, reg_state.lr, reg_state.ret_pc,
 		]);
 	::arch::imp::print_backtrace_unwindstate(rs, pc as usize);

@@ -249,7 +249,7 @@ fn load_loader(loader: &::kernel::vfs::handle::File) -> Result<(&'static LoaderH
 				ondisk_size, MAX_SIZE);
 			return Err("Loader too large");
 		}
-		loader.memory_map(LOAD_BASE,  0, PAGE_SIZE,  handle::MemoryMapMode::Execute)
+		loader.memory_map(LOAD_BASE,  0, PAGE_SIZE,  handle::MemoryMapMode::Execute).expect("Loader first page");
 		};
 	// - 2. Parse the header
 	// SAFE: LoaderHeader is POD, and pointer is valid (not Sync, so passing to another thread/process is invalid)
@@ -268,8 +268,8 @@ fn load_loader(loader: &::kernel::vfs::handle::File) -> Result<(&'static LoaderH
 	assert!(codesize % PAGE_SIZE == 0, "Loader code doesn't end on a page boundary - {:#x}", codesize);
 	assert!(ondisk_size as usize % PAGE_SIZE == 0, "Loader file size is not aligned to a page - {:#x}", ondisk_size);
 	assert!(datasize % PAGE_SIZE == 0, "Loader is not an integeral number of pages long - datasize={:#x}", datasize);
-	let mh_code = loader.memory_map(LOAD_BASE + PAGE_SIZE, PAGE_SIZE as u64, codesize - PAGE_SIZE,  handle::MemoryMapMode::Execute);
-	let mh_data = loader.memory_map(LOAD_BASE + codesize, codesize as u64, datasize,  handle::MemoryMapMode::COW);
+	let mh_code = loader.memory_map(LOAD_BASE + PAGE_SIZE, PAGE_SIZE as u64, codesize - PAGE_SIZE,  handle::MemoryMapMode::Execute).expect("Loader code");
+	let mh_data = loader.memory_map(LOAD_BASE + codesize, codesize as u64, datasize,  handle::MemoryMapMode::COW).expect("Loader data");
 	
 	// - 4. Allocate the loaders's BSS
 	let pages = (bss_size + PAGE_SIZE-1) / PAGE_SIZE;
