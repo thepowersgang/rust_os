@@ -94,13 +94,13 @@ pub use values::WaitItem;
 macro_rules! def_call {
 	($name:ident,$name_v:ident => $fcn:ident( $($arg_name:ident),* )) => {
 		#[allow(dead_code)]
-		#[inline]
+		#[inline(always)]
 		unsafe fn $name(&self, call: u16 $(, $arg_name: usize)*) -> u64 {
 			assert!(call < 0x400);
 			::raw::$fcn( self.call_value(call) $(, $arg_name)* )
 		}
 		#[allow(dead_code)]
-		#[inline]
+		#[inline(always)]
 		unsafe fn $name_v(self, call: u16 $(, $arg_name: usize)*) -> u64 {
 			assert!(call >= 0x400);
 			let cv = self.call_value(call);
