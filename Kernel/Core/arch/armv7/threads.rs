@@ -111,6 +111,8 @@ pub fn start_thread<F: FnOnce()+Send+'static>(thread: &mut ::threads::Thread, co
 	for _ in 4 .. 12+1 {
 		stack.push(0u32);
 	}
+	stack.push(0u32);	// User SP
+	stack.push(0u32);	// User LR
 	
 	// 4. Apply newly updated state
 	let (stack_handle, stack_pos) = stack.unwrap();

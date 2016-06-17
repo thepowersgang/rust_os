@@ -79,7 +79,7 @@ fn prot_mode_to_flags(mode: ProtectionMode) -> u32 {
 	ProtectionMode::Unmapped => 0x000,
 	ProtectionMode::KernelRO => 0x213,
 	ProtectionMode::KernelRW => 0x013,
-	ProtectionMode::KernelRX => 0x052,
+	ProtectionMode::KernelRX => 0x012,
 	ProtectionMode::UserRO => 0x233,	// 1,11,1
 	ProtectionMode::UserRW => 0x033,	// 0,11,1
 	ProtectionMode::UserRX => 0x232,	// 1,11,0
@@ -88,12 +88,12 @@ fn prot_mode_to_flags(mode: ProtectionMode) -> u32 {
 	}
 }
 fn flags_to_prot_mode(flags: u32) -> ProtectionMode {
-	match flags
+	match flags & 0x233
 	{
 	0x000 => ProtectionMode::Unmapped,
 	0x213 => ProtectionMode::KernelRO,
 	0x013 => ProtectionMode::KernelRW,
-	0x052 => ProtectionMode::KernelRX,
+	0x212 => ProtectionMode::KernelRX,
 	0x233 => ProtectionMode::UserRO,
 	0x033 => ProtectionMode::UserRW,
 	0x232 => ProtectionMode::UserRX,
@@ -260,15 +260,32 @@ extern "C" {
 	static kernel_exception_map: [AtomicU32; 1024];
 }
 
+enum TableRef {
+	Static(&'static [AtomicU32; 0x800]),
+	Dynamic(TempHandle<AtomicU32>),
+}
+impl ::core::ops::Deref for TableRef {
+	type Target = [AtomicU32];
+	fn deref(&self) -> &Self::Target {
+		match self
+		{
+		&TableRef::Static(ref v) => &v[..],
+		&TableRef::Dynamic(ref v) => &v[..],
+		}
+	}
+}
+
 /// Returns the physical address of the table controlling `vaddr`. If `alloc` is true, a new table will be allocated if needed.
-fn get_table_addr<T>(vaddr: *const T, alloc: bool) -> Option< (::arch::memory::PAddr, usize) > {
+fn get_table_addr<T>(vaddr: *const T, alloc: bool) -> Option< (TableRef, usize) > {
 	let addr = vaddr as usize & !PAGE_MASK;
 	let page = addr >> 12;	// NOTE: 12 as each entry in the table services 4KB
 	let (ttbr_ofs, tab_idx) = (page >> 11, page & 0x7FF);
 	const ENTS_PER_ALLOC: usize = PAGE_SIZE / 0x400;	// Each entry in the top-level table points to a 1KB second-level table
 	
-	let ent_r = if ttbr_ofs < 0x800/ENTS_PER_ALLOC {
-			// SAFE: This memory should always be mapped
+	let ent_r = if ttbr_ofs*ENTS_PER_ALLOC < 0x800 {
+			if ttbr_ofs * ENTS_PER_ALLOC > 0x800 - 8 {
+				return Some( (TableRef::Static(user_last_table()), tab_idx) );
+			}
 			&user_root_table()[ttbr_ofs*ENTS_PER_ALLOC .. ][..ENTS_PER_ALLOC]
 		}
 		else {
@@ -293,20 +310,24 @@ fn get_table_addr<T>(vaddr: *const T, alloc: bool) -> Option< (::arch::memory::P
 			let ent_v = ent_r[0].compare_and_swap(0, frame + 0x1, Ordering::Acquire);
 			if ent_v != 0 {
 				::memory::phys::deref_frame(frame);
-				Some( (ent_v & !PAGE_MASK_U32, tab_idx) )
+				drop(handle);
+				// SAFE: Address is correct, and immutable
+				let ret_handle = unsafe { TempHandle::new(ent_v & !PAGE_MASK_U32) };
+				Some( (TableRef::Dynamic( ret_handle ), tab_idx) )
 			}
 			else {
 				for i in 1 .. ENTS_PER_ALLOC as u32 {
 					assert!( ent_r[i as usize].load(Ordering::Relaxed) == 0 );
 					ent_r[i as usize].store(frame + i*0x400 + 0x1, Ordering::SeqCst);
 				}
-				Some( (frame & !PAGE_MASK_U32, tab_idx) )
+				Some( (TableRef::Dynamic(handle.into()), tab_idx) )
 			}
 		}
 		else {
 			None
 		},
-	1 => Some( (ent_v & !PAGE_MASK_U32, tab_idx) ),
+	// SAFE: Address is correct, and immutable
+	1 => Some( (TableRef::Dynamic( unsafe { TempHandle::new(ent_v & !PAGE_MASK_U32) } ), tab_idx) ),
 	0x402 => panic!("Called get_table_addr on large mapping @ {:p} (idx={:#x})", vaddr, ttbr_ofs*ENTS_PER_ALLOC),
 	v @ _ => todo!("get_table_addr - Other flags bits {:#x} (for addr {:p})", v, vaddr),
 	}
@@ -325,7 +346,7 @@ pub unsafe fn temp_map<T>(phys: ::arch::memory::PAddr) -> *mut T {
 		let ents = &kernel_exception_map[i*2 ..][.. 2];
 		if ents[0].compare_and_swap(0, val, Ordering::Acquire) == 0 {
 			let addr = (KERNEL_TEMP_BASE + i * ::PAGE_SIZE) as *mut _;
-			log_trace!("- Addr = {:p}", addr);
+			//log_trace!("- Addr = {:p}", addr);
 			// - Set the next node and check that it's zero
 			assert!( ents[1].swap(val+0x1000, Ordering::Acquire) == 0 );
 			tlbimva(addr as *mut ());
@@ -413,9 +434,7 @@ pub unsafe fn map(a: *mut (), p: PAddr, mode: ProtectionMode) {
 	// "Safe" helper to constrain interior unsafety
 	fn map_int(a: *mut (), p: PAddr, mode: ProtectionMode) {
 		// 1. Map the relevant table in the temp area
-		let (tab_phys, idx) = get_table_addr(a, true).unwrap();
-		// SAFE: Address space is valid during manipulation, and alias is benign
-		let mh: TempHandle<AtomicU32> = unsafe {  TempHandle::new( tab_phys ) };
+		let (mh, idx) = get_table_addr(a, true).unwrap();
 		assert!(mode != ProtectionMode::Unmapped, "Invalid pass of ProtectionMode::Unmapped to map");
 		assert!( idx % 2 == 0 );	// two entries per 8KB page
 
@@ -434,9 +453,7 @@ pub unsafe fn reprotect(a: *mut (), mode: ProtectionMode) {
 
 	fn reprotect_int(a: *mut (), mode: ProtectionMode) {
 		// 1. Map the relevant table in the temp area
-		let (tab_phys, idx) = get_table_addr(a, false).expect("Calling reprotect() on unmapped location");
-		// SAFE: Address space is valid during manipulation, and alias is benign
-		let mh: TempHandle<AtomicU32> = unsafe { TempHandle::new( tab_phys ) };
+		let (mh, idx) = get_table_addr(a, false).expect("Calling reprotect() on unmapped location");
 		assert!(mode != ProtectionMode::Unmapped, "Invalid pass of ProtectionMode::Unmapped to reprotect");
 		assert!( idx % 2 == 0 );	// two entries per 8KB page
 
@@ -458,9 +475,7 @@ pub unsafe fn unmap(a: *mut ()) -> Option<PAddr> {
 
 	fn unmap_int(a: *mut()) -> Option<PAddr> {
 		// 1. Map the relevant table in the temp area
-		let (tab_phys, idx) = get_table_addr(a, false).expect("Calling unmap() on unmapped location");
-		// SAFE: Address space is valid during manipulation, and alias is benign
-		let mh: TempHandle<AtomicU32> = unsafe { TempHandle::new( tab_phys ) };
+		let (mh, idx) = get_table_addr(a, false).expect("Calling unmap() on unmapped location");
 		assert!( idx % 2 == 0 );	// two entries per 8KB page
 
 		let old = mh[idx+0].swap(0, Ordering::SeqCst);
@@ -526,6 +541,7 @@ impl AddressSpace
 				data.copy_from_slice(src);
 				dst_slots[0] = (data.phys_addr() as u32 + 0x0000) | mode_flags;
 				dst_slots[1] = (data.phys_addr() as u32 + 0x1000) | mode_flags;
+				log_trace!("- Clone @{:p} = {:#x}", src_ptr, data.phys_addr());
 				},
 			mode @ _ => {
 				log_warning!("TODO: Other protection modes: {:?}", mode)
@@ -613,7 +629,7 @@ fn fsr_name(ifsr: u32) -> &'static str {
 }
 #[no_mangle]
 pub fn prefetch_abort_handler(pc: u32, reg_state: &AbortRegs, ifsr: u32) {
-	log_warning!("Prefetch abort at {:#x} status {:#x} ({}) - LR={:#x}", pc, ifsr, fsr_name(ifsr), reg_state.lr);
+	log_warning!("Prefetch abort at {:#x} status {:#x} ({}) - LR={:#x}, SP={:#x}", pc, ifsr, fsr_name(ifsr), reg_state.lr, reg_state.sp);
 	dump_tables();
 	let ent = PageEntry::get(pc as usize as *const ());
 	//log_debug!("- {:?}", ent);

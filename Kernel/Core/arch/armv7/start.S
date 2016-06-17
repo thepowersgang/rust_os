@@ -192,22 +192,31 @@ ENTRY(task_switch)
 	.fnstart
 	.cantunwind
 	push {r4-r12,lr}
+	
+	mov r4, sp
+	cps #0x1F
+	stmfd r4!, {sp,lr}
+	cps #0x13
 
 	@ Save SP
-	str sp, [r0]
+	str r4, [r0]
 
 	@ Only update TTBR0 if the task has an explicit address space
-	tst r2, r2
+	movs r2, r2
 	mcrne p15,0, r2, c2,c0,0	@ Set TTBR0 to r2
-	@mov r2, #1
-	@mcrne p15,0, r2, c8,c7,0	@ TLBIALL - Invalid user space
+	mov r2, #1
+	mcrne p15,0, r2, c8,c7,0	@ TLBIALL - Invalid user space
 
 	@ Set new thread pointer
 	mcr p15, 0, r3, c13,c0,4	@ TPIDRPRW
 
 	@ Set new SP
-	mov sp, r1
+	mov r4, r1
 
+	cps #0x1F
+	ldmfd r4!, {sp,lr}
+	cps #0x13
+	mov sp, r4
 	@ Restore state
 	pop {r4-r12,pc}
 	.fnend
@@ -327,7 +336,9 @@ get_abort_sp_lr:
 3:
 	b .
 
-GLOBAL(svc_handler)
+ENTRY(svc_handler)
+	.fnstart
+	.cantunwind
 	srsfd sp!, #19  @ Save state to stack
 	push {r0-r5}
 	
@@ -339,6 +350,7 @@ GLOBAL(svc_handler)
 	
 	add sp, #6*4
 	rfefd sp!
+	.fnend
 
 .section .text
 ENTRY(__aeabi_memcpy4)

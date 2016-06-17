@@ -6,6 +6,8 @@
 //!
 //! This module provides a type that controls a region of memory used only for mapping segments of the
 //! file/block cache into memory. It does _not_ manage eviction of cache entries from physical memory.
+//
+// TODO: Should this module handle a LRU cache of mappings (not actually unmap until needed)
 use core::nonzero::NonZero;
 use PAGE_SIZE;
 use memory::phys::FrameHandle;
