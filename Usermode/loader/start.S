@@ -11,6 +11,7 @@
 
 .globl BASE
 .globl LIMIT
+.globl PAGE_SIZE
 
 #include "../rustrt0/common.S"
 
@@ -25,6 +26,7 @@
 */
 .set BASE,  0x00007fffFFFE0000
 .set LIMIT, 0x0000800000000000
+.set PAGE_SIZE, 0x1000
 #define RED_ZONE	128	/* the ABI defines a "red zone" above the stack for functions to dick with */
 
 .section .text
@@ -99,6 +101,7 @@ ENTRY(_Unwind_Resume)
 # define HDR_ARCH HDR_ARCH_arm32
 .set BASE,  0x7fbc0000
 .set LIMIT, 0x80000000
+.set PAGE_SIZE, 0x2000
 
 .section .text
 .globl start

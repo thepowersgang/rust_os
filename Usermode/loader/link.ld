@@ -6,7 +6,7 @@ SECTIONS {
 		*(HEADER);
 		*(.text .text.*)
 	}
-	.rodata ALIGN(0x1000): {
+	.rodata ALIGN(PAGE_SIZE): {
 		rodata_start = .;
 		*(.rodata .rodata.*)
 	}
@@ -25,15 +25,15 @@ SECTIONS {
 	PROVIDE_HIDDEN ( __exidx_end = . );
 	/* */
 
-	. = ALIGN(0x2000);
+	. = ALIGN(PAGE_SIZE);
 	codesize = . - BASE;
-	.data ALIGN(0x1000): {
+	.data ALIGN(PAGE_SIZE): {
 		data_start = .;
 		*(.data .data.*)
 		*(.got .got.*)
-		. = ALIGN(0x2000);	/* 8KB for ARMv7 */
+		. = ALIGN(PAGE_SIZE);
 	} = 0x0000
-	.bss ALIGN(0x1000) : {
+	.bss ALIGN(PAGE_SIZE) : {
 		bss_start = .;
 		*(.bss .bss.*)
 		bss_end = .;
