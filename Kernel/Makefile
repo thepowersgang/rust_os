@@ -31,7 +31,7 @@ fn_getdeps = $(shell cat $1 | sed -nr 's/.*extern crate ([a-zA-Z_0-9]+);/\1/p' |
 fn_moddeps = $(filter-out core kernel,$(call fn_getdeps,Modules/$1/lib.rs))
 uniq = $(eval seen :=) $(foreach _,$1,$(if $(filter $_,${seen}),,$(eval seen += $_))) ${seen}
 
-OBJS := start.ao main.o $(MODS:%=%.o) libkernel.rlib libcore.rlib
+OBJS := start.ao log_cfg.ao main.o $(MODS:%=%.o) libkernel.rlib libcore.rlib
 EOBJS := $(foreach m,$(MODS), $(addsuffix .o,$(call fn_moddeps,$m)) )
 OBJS += $(EOBJS)
 OBJS := $(shell echo $(call uniq, $(OBJS)))
@@ -189,6 +189,10 @@ $(OBJDIR)%.ao: Core/arch/$(ARCH)/%.asm
 	@mkdir -p $(dir $@)
 	$Vnasm -o $@ $< -f elf64 -MD $@.d -MP
 $(OBJDIR)%.ao: Core/arch/$(ARCH)/%.S
+	@echo [AS] -o $@
+	@mkdir -p $(dir $@)
+	$V$(CC) -o $@ -c $<
+$(OBJDIR)log_cfg.ao: Core/log_cfg.S
 	@echo [AS] -o $@
 	@mkdir -p $(dir $@)
 	$V$(CC) -o $@ -c $<

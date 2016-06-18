@@ -16,25 +16,26 @@ use core::fmt;
 use arch::sync::Spinlock;
 
 /// Log level, ranging from a kernel panic down to tracing
+#[repr(u16)]
 #[derive(PartialEq,PartialOrd,Copy,Clone)]
 pub enum Level
 {
 	/// Everything broke
-	LevelPanic,
+	LevelPanic = 0,
 	/// Something broke
-	LevelError,
+	LevelError = 1,
 	/// Recoverable
-	LevelWarning,
+	LevelWarning = 2,
  	/// Odd
-	LevelNotice,
+	LevelNotice = 3,
    	/// Interesting (least important for the user)
-	LevelInfo,
+	LevelInfo = 4,
 	/// General (highest developer-only level)
-	LevelLog,
+	LevelLog = 5,
    	/// What
-	LevelDebug,
+	LevelDebug = 6,
   	/// Where
-	LevelTrace,
+	LevelTrace = 7,
 }
 
 #[doc(hidden)]
@@ -444,17 +445,48 @@ pub fn start_memory_sink() {
 /// Returns true if the passed combination of module and level is enabled
 pub fn enabled(level: Level, modname: &str) -> bool
 {
+	if modname == "kernel::unwind" {
+		return true;
+	}
+
+	#[repr(C)]
+	struct LogCfgEnt {
+		name_ptr: *const u8,
+		name_len: u16,
+		level: u16,
+		#[cfg(target_pointer_width="64")]
+		_pad: u32,
+	}
+	extern "C" {
+		static log_cfg: [LogCfgEnt; 0];
+		static log_cfg_end: [LogCfgEnt; 0];
+	}
+	let log_ent_count = (log_cfg_end.as_ptr() as usize - log_cfg.as_ptr() as usize) / ::core::mem::size_of::<LogCfgEnt>();
+	// SAFE: Assembly defines these symbols, and I hope it gets the format right
+	let log_ents = unsafe { ::core::slice::from_raw_parts(log_cfg.as_ptr(), log_ent_count) };
+	for ent in log_ents {
+		// SAFE: They're UTF-8 strings from assembly.
+		let ent_modname = unsafe { ::core::str::from_utf8_unchecked( ::core::slice::from_raw_parts(ent.name_ptr, ent.name_len as usize) ) };
+		if modname == ent_modname {
+			return (level as u16) < ent.level;
+		}
+	}
+
+	true
+	/*
+	// TODO: Have a file or other so changes here are inexpensive
 	match modname
 	{
 	"kernel::memory::heap::heapdef" => (level < Level::LevelDebug),	// Heap only prints higher than debug
 	"kernel::memory::phys" => (level < Level::LevelTrace),	// PMM only prints >Trace
-	"kernel::metadevs::storage" => (level < Level::LevelTrace),
+	//"kernel::metadevs::storage" => (level < Level::LevelTrace),
 	"kernel::arch::imp::acpi::internal::shim_out" => (level < Level::LevelTrace),
-	"storage_ata::io" => (level < Level::LevelDebug),
+	//"storage_ata::io" => (level < Level::LevelDebug),
 	"kernel::async" => (level < Level::LevelDebug),
 	"fs_fat" => (level < Level::LevelDebug),
 	_ => true,
 	}
+	*/
 }
 
 #[doc(hidden)]
