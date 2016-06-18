@@ -557,6 +557,7 @@ user_last_map:
 	.rept 1024
 		.long 0
 	.endr
+	@ - 4MB for the kernel's use, 1020 places for temp table mappings
 	.rept 1024-4
 		.long 0
 	.endr

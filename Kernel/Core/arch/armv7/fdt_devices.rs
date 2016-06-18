@@ -78,9 +78,9 @@ impl ::device_manager::BusDevice for BusDev
 		_ => AttrValue::None,
 		}
 	}
-	fn set_attr(&mut self, name: &str, value: ::device_manager::AttrValue) {
+	fn set_attr(&mut self, _name: &str, _value: ::device_manager::AttrValue) {
 	}
-	fn set_power(&mut self, state: bool) {
+	fn set_power(&mut self, _state: bool) {
 	}
 	fn bind_io(&mut self, block_id: usize) -> ::device_manager::IOBinding {
 		match block_id

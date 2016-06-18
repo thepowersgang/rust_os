@@ -61,8 +61,28 @@ impl<'a> FDTRoot<'a>
 				"stdout-path" |
 				"device_type" |
 				"clock-names" |
+				"label" |
 				"compatible"
 					=> log_debug!(".{} = {:?}", name, ::core::str::from_utf8(data)),
+				"reg" |
+				"interrupts"
+					=> if data.len() == 8+4 {
+						use lib::byteorder::{ReadBytesExt,BigEndian};
+						let mut bytes = data;
+						let a = bytes.read_u64::<BigEndian>().unwrap();
+						let s = bytes.read_u32::<BigEndian>().unwrap();
+						log_debug!(".{} = {:#x}+{:#x}", name, a, s);
+					}
+					else if data.len() == 8+8 {
+						use lib::byteorder::{ReadBytesExt,BigEndian};
+						let mut bytes = data;
+						let a = bytes.read_u64::<BigEndian>().unwrap();
+						let s = bytes.read_u64::<BigEndian>().unwrap();
+						log_debug!(".{} = {:#x}+{:#x}", name, a, s);
+					}
+					else {
+						log_debug!(".{} = {:?}", name, data)
+					},
 				_ => log_debug!(".{} = {:?}", name, data),
 				},
 			Tag::End => break,

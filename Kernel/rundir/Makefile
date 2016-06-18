@@ -59,6 +59,9 @@ images: $(IMGDIR)hda.img $(IMGDIR)hdb.img
 # --- ARMv7 ---
 #
 else ifeq ($(ARCH),armv7)
+MACHINE_TYPE ?= virt
+#MACHINE_TYPE ?= realview-pb-a8
+
 CMDLINE += SYSDISK=virtio0p0
 QEMU_ARGS += -device virtio-net-device
 QEMU_ARGS += -device virtio-blk-device,drive=hda
@@ -66,8 +69,6 @@ QEMU_ARGS += -drive if=none,id=hda,index=0,file=$(IMGDIR)hda.img,format=raw
 #QEMU_ARGS += -device pl110
 #QEMU_ARGS += -device virtio-gpu-device
 
-MACHINE_TYPE := realview-pb-a8
-MACHINE_TYPE := virt
 run: $(IMGDIR)hda.img
 	make -C arm_bootloader PLATFORM=$(MACHINE_TYPE) CMDLINE="$(CMDLINE)"
 	qemu-system-arm -machine $(MACHINE_TYPE) $(QEMU_ARGS) -kernel arm_bootloader/loader-$(MACHINE_TYPE).bin -append "$(CMDLINE)" $(TEE)

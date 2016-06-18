@@ -8,11 +8,18 @@ use arch::memory::{PAGE_SIZE, PAGE_MASK};
 use arch::memory::virt::TempHandle;
 use core::sync::atomic::Ordering;
 
+extern "C" {
+	static kernel_table0: [AtomicU32; 0x800*2];
+	static kernel_exception_map: [AtomicU32; 1024];
+}
+
 const KERNEL_TEMP_BASE : usize = 0xFFC00000;
 const KERNEL_TEMP_COUNT: usize = 1023/2;	// 1024 4KB entries, PAGE_SIZE is 8KB, final 4KB is left zero for the -1 deref mapping
-const USER_BASE_TABLE: usize = 0x7FFF_E000;	// 2GB - 0x800 * 4 = 0x2000
+const USER_TEMP_BASE : usize = 0x7FC0_0000;	// 4MB region at end of user space
+const USER_TEMP_COUNT: usize = 0x1000 / 8 - 3;	// Top three entries are: Mapping metadata, user last table fractal, user base table
+const USER_TEMP_MDATA: usize = 0x7FFF_A000;
 const USER_LAST_TABLE_FRAC: usize = 0x7FFF_C000;
-const USER_TEMP_BASE: usize = 0x7FC0_0000;	// 1 page worth of temp mappings (top three are used for base table/temp table)
+const USER_BASE_TABLE: usize = 0x7FFF_E000;	// 2GB - 0x800 * 4 = 0x2000
 
 const PAGE_MASK_U32: u32 = PAGE_MASK as u32;
 
@@ -22,6 +29,11 @@ static S_TEMP_MAP_SEMAPHORE: ::sync::Semaphore = ::sync::Semaphore::new(KERNEL_T
 pub fn post_init() {
 	kernel_table0[0].store(0, Ordering::SeqCst);
 
+	// SAFE: Valid memory passed to init_at
+	unsafe {
+		::memory::virt::allocate(USER_TEMP_MDATA as *mut (), 1).expect("Couldn't allocate space for user temp metadat");
+		pl_temp::init_at(USER_TEMP_MDATA as *mut ());
+	}
 	//dump_tables();
 }
 
@@ -255,14 +267,121 @@ impl_fmt! {
 	}
 }
 
-extern "C" {
-	static kernel_table0: [AtomicU32; 0x800*2];
-	static kernel_exception_map: [AtomicU32; 1024];
+mod pl_temp
+{
+	use super::{USER_TEMP_BASE,USER_TEMP_COUNT};
+	use PAGE_SIZE;
+	use core::sync::atomic::Ordering;
+
+	struct MetaDataInner {
+		counts: [u32; USER_TEMP_COUNT],
+	}
+	impl MetaDataInner {
+		fn mappings(&self) -> &[super::AtomicU32] {
+			&super::user_last_table()[1024..]
+		}
+	}
+	struct MetaData {
+		free: ::sync::Semaphore,
+		lock: ::sync::Mutex<MetaDataInner>,
+	}
+	impl MetaData {
+		// UNSAFE: User must not leak this pointer across process boundaries
+		unsafe fn get() -> &'static MetaData {
+			let addr = super::USER_TEMP_MDATA as *mut MetaData;
+			assert!( super::get_phys(addr) != 0 );
+			&*addr
+		}
+	}
+
+	pub unsafe fn init_at(addr: *mut ()) {
+		let addr = addr as *mut MetaData;
+		*addr = MetaData {
+			free: ::sync::Semaphore::new(USER_TEMP_COUNT as isize, USER_TEMP_COUNT as isize),
+			lock: ::sync::Mutex::new(MetaDataInner {
+				counts: [0; USER_TEMP_COUNT],
+				}),
+			};
+	}
+
+	// UNSAFE: Can cause aliasing
+	pub unsafe fn map_temp(paddr: ::memory::PAddr) -> ProcTempMapping {
+		let val = paddr as u32 | 0x13;
+
+		// SAFE: Only used locally
+		let md = unsafe { MetaData::get() };
+		md.free.acquire();
+		let mut lh = md.lock.lock();
+
+		// 1. Semaphore
+		// 2. Search through entries search for one with the same paddr
+		for i in 0 .. USER_TEMP_COUNT
+		{
+			let v = lh.mappings()[i*2].load(Ordering::Relaxed);
+			
+			if v == val {
+				lh.counts[i] += 1;
+				return ProcTempMapping( (USER_TEMP_BASE + i*PAGE_SIZE) as *const _ );
+			}
+			//else if v == 0 {
+			//	first_free = Some(i);
+			//}
+			//else lh.counts[i] == 0 {
+			//	// TODO: Want to avoid churning a slot
+			//	first_zero = Some(i);
+			//}
+		}
+		for i in 0 .. USER_TEMP_COUNT
+		{
+			if lh.mappings()[i*2].compare_and_swap(0, val, Ordering::Relaxed) == 0 {
+				lh.mappings()[i*2+1].store(val + 0x1000, Ordering::Relaxed);
+				lh.counts[i] += 1;
+
+				let addr = USER_TEMP_BASE + i*PAGE_SIZE;
+				super::tlbimva( addr as *mut () );
+				super::tlbimva( (addr + 0x1000) as *mut () );
+				return ProcTempMapping( addr as *const _ );
+			}
+		}
+		for i in 0 .. USER_TEMP_COUNT
+		{
+			if lh.counts[i] == 0 {
+				lh.mappings()[i*2  ].store(val         , Ordering::Relaxed);
+				lh.mappings()[i*2+1].store(val + 0x1000, Ordering::Relaxed);
+				lh.counts[i] += 1;
+
+				let addr = USER_TEMP_BASE + i*PAGE_SIZE;
+				super::tlbimva( addr as *mut () );
+				super::tlbimva( (addr + 0x1000) as *mut () );
+				return ProcTempMapping( (USER_TEMP_BASE + i*PAGE_SIZE) as *const _ );
+			}
+		}
+		panic!("Out of temp mappings but semaphore said there were some");
+	}
+	pub struct ProcTempMapping(*const [u8; PAGE_SIZE]);
+	impl ProcTempMapping {
+		pub fn get_slice<T: ::lib::POD>(&self) -> &[T] {
+			// SAFE: POD and alignment is always < 1 page
+			unsafe {
+				::core::slice::from_raw_parts( self.0 as *const T, PAGE_SIZE / ::core::mem::size_of::<T>() )
+			}
+		}
+	}
+	impl Drop for ProcTempMapping {
+		fn drop(&mut self) {
+			let i = (self.0 as usize - USER_TEMP_BASE) / PAGE_SIZE;
+			// SAFE: Doesn't leak
+			let md = unsafe { MetaData::get() };
+			md.lock.lock().counts[i] -= 1;
+			md.free.release();
+		}
+	}
 }
 
 enum TableRef {
 	Static(&'static [AtomicU32; 0x800]),
 	Dynamic(TempHandle<AtomicU32>),
+	DynamicPL(pl_temp::ProcTempMapping),
 }
 impl ::core::ops::Deref for TableRef {
 	type Target = [AtomicU32];
@@ -271,6 +390,7 @@ impl ::core::ops::Deref for TableRef {
 		{
 		&TableRef::Static(ref v) => &v[..],
 		&TableRef::Dynamic(ref v) => &v[..],
+		&TableRef::DynamicPL(ref v) => v.get_slice(),
 		}
 	}
 }
@@ -283,7 +403,7 @@ fn get_table_addr<T>(vaddr: *const T, alloc: bool) -> Option< (TableRef, usize) 
 	const ENTS_PER_ALLOC: usize = PAGE_SIZE / 0x400;	// Each entry in the top-level table points to a 1KB second-level table
 	
 	let ent_r = if ttbr_ofs*ENTS_PER_ALLOC < 0x800 {
-			if ttbr_ofs * ENTS_PER_ALLOC > 0x800 - 8 {
+			if ttbr_ofs * ENTS_PER_ALLOC >= 0x800 - 8 {
 				return Some( (TableRef::Static(user_last_table()), tab_idx) );
 			}
 			&user_root_table()[ttbr_ofs*ENTS_PER_ALLOC .. ][..ENTS_PER_ALLOC]
@@ -328,6 +448,8 @@ fn get_table_addr<T>(vaddr: *const T, alloc: bool) -> Option< (TableRef, usize) 
 		},
 	// SAFE: Address is correct, and immutable
 	1 => Some( (TableRef::Dynamic( unsafe { TempHandle::new(ent_v & !PAGE_MASK_U32) } ), tab_idx) ),
+	//// SAFE: Address is correct, and immutable
+	//1 => Some( (TableRef::DynamicPL( unsafe { pl_temp::map_temp(ent_v & !PAGE_MASK_U32) } ), tab_idx) ),
 	0x402 => panic!("Called get_table_addr on large mapping @ {:p} (idx={:#x})", vaddr, ttbr_ofs*ENTS_PER_ALLOC),
 	v @ _ => todo!("get_table_addr - Other flags bits {:#x} (for addr {:p})", v, vaddr),
 	}
@@ -395,8 +517,8 @@ fn get_phys_opt<T>(addr: *const T) -> Option<::arch::memory::PAddr> {
 	0 => Some( ((res as usize & !PAGE_MASK) | (addr as usize & PAGE_MASK)) as u32 ),
 	2 => {
 		todo!("Unexpected supersection at {:p}, res={:#x}", addr, res);
-		let pa_base: u64 = (res & !0xFFFFFF) as u64 | ((res as u64 & 0xFF0000) << (32-16));
-		Some( pa_base as u32 | (addr as usize as u32 & 0xFFFFFF) )
+		//let pa_base: u64 = (res & !0xFFFFFF) as u64 | ((res as u64 & 0xFF0000) << (32-16));
+		//Some( pa_base as u32 | (addr as usize as u32 & 0xFFFFFF) )
 		},
 	_ => unreachable!(),
 	}

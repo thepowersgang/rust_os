@@ -265,11 +265,14 @@ impl<'a> ::core::ops::Drop for MetaBlockHandle<'a>
 	fn drop(&mut self)
 	{
 		// TODO: Clearing this when the refcount reaches zero will lead to a lot of mapping/unmapping
+		// - Maybe keep a local queue or run a purge every now and then. Using a LRU list could work.
+		/*
 		if self.0.reference_count.fetch_sub(1, Ordering::Release) == 1
 		{
 			let mut wh = self.0.mapping.write();
 			*wh = None;
 		}
+		*/
 	}
 }
 

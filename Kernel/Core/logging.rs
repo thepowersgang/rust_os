@@ -12,7 +12,7 @@
 // > Serial sink
 #[allow(unused_imports)]
 use prelude::*;
-use core::fmt::{self,Write};
+use core::fmt;
 use arch::sync::Spinlock;
 
 /// Log level, ranging from a kernel panic down to tracing
@@ -29,7 +29,7 @@ pub enum Level
 	LevelNotice,
    	/// Interesting (least important for the user)
 	LevelInfo,
-		/// General (highest developer-only level)
+	/// General (highest developer-only level)
 	LevelLog,
    	/// What
 	LevelDebug,
