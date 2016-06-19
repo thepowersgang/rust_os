@@ -402,7 +402,7 @@ impl CacheHandle
 	pub fn read(&self, ofs: u64, dst: &mut [u8]) -> super::Result<usize> {
 		match self.as_ref()
 		{
-		&CacheNodeInt::File { ref fsnode, .. } => { log_debug!("fsnode={:p} {:p}", fsnode, &**fsnode); assert!( !(&**fsnode as *const _ as *const u8).is_null() ); Ok( try!(fsnode.read(ofs, dst)) ) },
+		&CacheNodeInt::File { ref fsnode, .. } => Ok( try!(fsnode.read(ofs, dst)) ),
 		_ => Err( super::Error::Unknown("Calling read on non-file") ),
 		}
 	}
