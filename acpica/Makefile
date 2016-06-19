@@ -37,7 +37,7 @@ clean:
 srcdir: $(SRCDIR)
 
 $(TARBALL):
-	if [ ! -e $(TARBALL) ]; then wget $(TARBALL_URL) --no-check-certificate -O $@; fi
+	if [ ! -e $(TARBALL) ]; then curl -o $@ $(TARBALL_URL) ; fi
 
 $(SRCDIR): $(TARBALL)
 	tar -xf $(TARBALL)
