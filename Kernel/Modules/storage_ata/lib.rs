@@ -178,6 +178,16 @@ impl storage_scsi::ScsiInterface for AtapiVolume
 		self.controller.do_atapi_wr(self.disk, command, data)
 	}
 	fn recv<'a>(&'a self, command: &[u8], data: &'a mut [u8]) -> storage::AsyncIoResult<'a,()>  {
+		log_debug!("- command=[{:?}]", command);
+		match command[0] & 0xE0
+		{
+		0x00 => assert_eq!(command.len(), 6),
+		0x20 => assert_eq!(command.len(), 10),
+		0x40 => assert_eq!(command.len(), 10),
+		0xA0 => assert_eq!(command.len(), 12),
+		0x80 => assert_eq!(command.len(), 16),
+		_ => {},
+		}
 		self.controller.do_atapi_rd(self.disk, command, data)
 	}
 }

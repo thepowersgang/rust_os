@@ -54,7 +54,7 @@ endif
 
 run: .qemu_trace images
 	./$(SCRIPT) ../bin/kernel-amd64.bin.elf32 "$(CMDLINE)" "$(QEMU_ARGS)" $(TEE)
-images: $(IMGDIR)hda.img $(IMGDIR)hdb.img
+images: $(IMGDIR)hda.img $(IMGDIR)hdb.img $(IMGDIR)test.iso
 #
 # --- ARMv7 ---
 #

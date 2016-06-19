@@ -301,8 +301,16 @@ impl AtaRegs
 	
 	fn start_atapi(&mut self, bm: &DmaRegBorrow, disk: u8, is_write: bool, cmd: &[u16], dma_buffer: &DMABuffer)
 	{
-		log_debug!("start_atapi(...,disk={},is_write,is_write={},cmd={{len={}}},dma_buffer={{len={}}})",
-			disk, is_write, cmd.len(), dma_buffer.len());
+		log_debug!("start_atapi(...,disk={},is_write={},cmd={{len={}}},dma_buffer={{len={}}})",
+			disk, is_write, cmd.len()*2, dma_buffer.len());
+		//log_debug!("- cmd=[{:02x},{:02x},{:02x},{:02x},{:02x},{:02x},{:02x},{:02x},{:02x},{:02x},{:02x},{:02x}]",
+		//	cmd[0] & 0xFF, cmd[0] >> 8,
+		//	cmd[1] & 0xFF, cmd[1] >> 8,
+		//	cmd[2] & 0xFF, cmd[2] >> 8,
+		//	cmd[3] & 0xFF, cmd[3] >> 8,
+		//	cmd[4] & 0xFF, cmd[4] >> 8,
+		//	cmd[5] & 0xFF, cmd[5] >> 8
+		//	);
 		
 		self.fill_prdt(dma_buffer);
 		
@@ -315,7 +323,7 @@ impl AtaRegs
 			bm.out_8(0, 0x04);	// Reset IRQ
 			// Start IO
 			bm.out_8(0, if is_write { 0 } else { 8 } | 1);
-			
+
 			// Select channel
 			self.out_8(6, (disk << 4));
 			// Set DMA enable
@@ -327,8 +335,8 @@ impl AtaRegs
 			self.out_8(7, 0xA0);
 			// - Send command once IRQ is fired?
 			// TODO: Find a way of avoiding this poll
-			while self.in_sts() & 0x80 != 0 { }
-			assert!(self.in_sts() & (1<<3) != 0);
+			while self.in_sts() & AtaStatusVal::BSY != 0 { }
+			assert!(self.in_sts() & AtaStatusVal::DRQ != 0);
 			
 			// Send command
 			for i in 0 .. 6 {
@@ -403,6 +411,7 @@ impl<'a,'b> async::Waiter for AtaWaiter<'a,'b>
 			WaitState::IoActive(ref mut lh, ref _waiter) => WaitState::Done(
 				// SAFE: Holding the register lock
 				unsafe {
+					log_trace!("Complete");
 					self.dma_regs.out_8(0, 0);	// Stop transfer
 					let ata_status = AtaStatusVal(lh.in_8(7));
 					let dma_status = DmaStatusVal(self.dma_regs.in_8(2));
@@ -485,16 +494,23 @@ impl<'a,'b> async::Waiter for AtapiWaiter<'a,'b>
 				WaitState::IoActive(lh, self.dev.interrupt.handle.get_event().wait())
 				},
 			// And if IoActive completes, we're complete
-			WaitState::IoActive(ref mut lh, ref _waiter) => WaitState::Done(
-				// SAFE: Holding the register lock
-				unsafe {
-					self.dma_regs.out_8(0, 0);	// Stop transfer
-					let ata_status = AtaStatusVal( lh.in_8(7) );
-					let dma_status = DmaStatusVal(self.dma_regs.in_8(2));
-					log_trace!("BM Status = {:?}, ATA Status = {:?}", dma_status, ata_status);
-					lh.last_result(true)
+			WaitState::IoActive(ref mut lh, ref _waiter) => {
+				// If the controller is still busy, keep going
+				if lh.in_sts() & AtaStatusVal::BSY != 0 {
+					log_warning!("Controller still busy when waiter woken");
+					return false;
 				}
-				),
+				// SAFE: Holding the register lock
+				let completion_res = unsafe {
+						//log_trace!("Complete");
+						self.dma_regs.out_8(0, 0);	// Stop transfer
+						let ata_status = AtaStatusVal( lh.in_8(7) );
+						let dma_status = DmaStatusVal(self.dma_regs.in_8(2));
+						log_trace!("BM Status = {:?}, ATA Status = {:?}", dma_status, ata_status);
+						lh.last_result(true)
+					};
+				WaitState::Done( completion_res )
+				},
 			//
 			WaitState::Done(..) => unreachable!(),
 			};
@@ -602,7 +618,7 @@ impl AtaController
 			{
 				// Block until BSY clears
 				// TODO: Timeout?
-				while buslock.in_sts() & 0x80 != 0 { }
+				while buslock.in_sts() & AtaStatusVal::BSY != 0 { }
 				
 				// Return a poller
 				async::poll::Waiter::new(move |e| match e
@@ -669,7 +685,7 @@ impl AtaStatusVal
 	const SRV: u8 = (1<<4);	// Overlapped service request
 	const DF:  u8 = (1<<5);	// Drive fault
 	const RDY: u8 = (1<<6);	// Set when the drive is ready
-	const BSY: u8 = (1<<6);	// Drive is busy prepping for IO
+	const BSY: u8 = (1<<7);	// Drive is busy prepping for IO
 }
 impl_fmt! {
 	Debug(self,f) for AtaStatusVal {{

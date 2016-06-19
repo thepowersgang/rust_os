@@ -41,6 +41,17 @@ pub struct Volume<I: ScsiInterface>
 impl<I: ScsiInterface> Volume<I>
 {
 	fn recv_cmd<'a>(int: &I, cmd: &[u8], data: &'a mut [u8]) -> Result<(), storage::IoError> {
+		log_debug!("- cmd=[{:?}]", cmd);
+		match cmd[0] & 0xE0
+		{
+		0x00 => assert_eq!(cmd.len(), 6),
+		0x20 => assert_eq!(cmd.len(), 10),
+		0x40 => assert_eq!(cmd.len(), 10),
+		0xA0 => assert_eq!(cmd.len(), 12),
+		0x80 => assert_eq!(cmd.len(), 16),
+		_ => {},
+		}
+
 		let _size = {
 			let mut v = int.recv(cmd, data);
 			while !v.is_complete() {

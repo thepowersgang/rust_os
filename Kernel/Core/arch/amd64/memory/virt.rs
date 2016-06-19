@@ -423,8 +423,8 @@ impl ::core::fmt::Debug for PTE
 		
 		let addr = val & !(FLAG_NX|0xFFF);
 		write!(f,
-			"PTE({:?}, *{:?} = {:#x} [{}{}{}{}{}])",
-			self.pos, self.data, addr,
+			"PTE({:?}, {:#x} = {:#x} [{}{}{}{}{}])",
+			self.pos, val, addr,
 			if val & FLAG_G != 0   { "g" } else { "" },
 			if val & FLAG_U != 0   { "u" } else { "" },
 			if val & FLAG_W != 0   { "w" } else { "" },
@@ -465,8 +465,8 @@ pub fn handle_page_fault(accessed_address: usize, error_code: u32) -> bool
 		return true;
 	}
 	//  > Paged-out pages
-	if error_code & FAULT_LOCKED == 0 && !pte.is_null() {
-		todo!("Paged - pte = {:?}", pte);
+	if error_code & FAULT_LOCKED == 0 && pte.is_reserved() {
+		todo!("Paged - {:#x} pte = {:?}", accessed_address, pte);
 	}
 	
 	

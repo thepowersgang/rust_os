@@ -115,7 +115,7 @@ impl<'a> super::PrimitiveWaiter for Waiter<'a>
 	}
 	fn poll(&self) -> bool {
 		match self.source {
-		Some(r) => r.flag.load(Ordering::Relaxed),
+		Some(r) => r.flag.swap(false, Ordering::Relaxed),
 		None => true,
 		}
 	}

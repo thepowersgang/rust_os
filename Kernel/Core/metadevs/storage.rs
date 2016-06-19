@@ -468,7 +468,7 @@ impl VolumeHandle
 			assert!(count <= rem);
 			let bofs = blk as usize * self.block_size();
 			let dst = &mut dst[bofs .. bofs + count * self.block_size()];
-			try!( S_PHYSICAL_VOLUMES.lock().get(&pv).unwrap().read(ofs, dst) );
+			try!( S_PHYSICAL_VOLUMES.lock().get(&pv).expect("Volume missing").read(ofs, dst) );
 			blk += count;
 			rem -= count;
 		}
@@ -527,7 +527,11 @@ impl PhysicalVolumeInfo
 				let blocks = buf.len() / block_size;
 				
 				// TODO: Async! (maybe return a composite read handle?)
-				self.dev.read(prio, blk_id, blocks, buf).wait().unwrap()
+				match self.dev.read(prio, blk_id, blocks, buf).wait()
+				{
+				Ok(_) => {},
+				Err(e) => todo!("Error when PV fails to read: {:?}", e),
+				}
 			}
 		}
 		Ok(dst.len()/block_size)

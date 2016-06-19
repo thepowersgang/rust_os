@@ -64,22 +64,17 @@ macro_rules! def_rsp {
 	};
 }
 
-pub struct Read6([u8; 6]);
-impl AsRef<[u8]> for Read6 { fn as_ref(&self) -> &[u8] { &self.0 } }
+def_cmd!{ Read6[6] 0x08,
+	(lba: u32, count: u8) => [
+		((lba >> 16) & 0xFF) as u8,
+		((lba >>  8) & 0xFF) as u8,
+		((lba >>  0) & 0xFF) as u8,
+		count,
+		0	// 5: control
+	]
+}
 impl Read6
 {
-	const CMD: u8 = 0x08;
-	pub fn new(lba: u32, count: u8) -> Self {
-		assert!(lba < 1<<24);
-		Read6([
-			Self::CMD,
-			((lba >> 16) & 0xFF) as u8,
-			((lba >>  8) & 0xFF) as u8,
-			((lba >>  0) & 0xFF) as u8,
-			count,
-			0
-			])
-	}
 	pub fn set_control(&mut self, control: u8) {
 		self.0[5] = control;
 	}
