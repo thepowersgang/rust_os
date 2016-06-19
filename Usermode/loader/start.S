@@ -24,8 +24,8 @@
 == AMD64: Aka - x86_64, x64, ...
 =======================================================================
 */
-.set BASE,  0x00007fffFFFE0000
 .set LIMIT, 0x0000800000000000
+.set BASE,  LIMIT - 4*64*1024	/* 0x00007fffFFFE0000 */
 .set PAGE_SIZE, 0x1000
 #define RED_ZONE	128	/* the ABI defines a "red zone" above the stack for functions to dick with */
 
