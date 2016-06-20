@@ -20,12 +20,12 @@ struct Connection
 
 fn main()
 {
-	let filesystem_root: ::syscalls::vfs::Dir = ::syscalls::threads::S_THIS_PROCESS.receive_object().expect("Failed to receive FS root");
+	let filesystem_root: ::syscalls::vfs::Dir = ::syscalls::threads::S_THIS_PROCESS.receive_object("RwRoot").expect("Failed to receive FS root");
 
 	let mut handles = vec![
 		Connection {
 			name: String::from("Leader"),
-			channel: ::syscalls::threads::S_THIS_PROCESS.receive_object().expect("Failed to receive leader channel"),
+			channel: ::syscalls::threads::S_THIS_PROCESS.receive_object("HsChan").expect("Failed to receive leader channel"),
 		}
 		];
 

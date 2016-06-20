@@ -108,6 +108,53 @@ impl<T: Pod> SyscallArg for FreezeMut<[T]>
 	}
 }
 
+impl SyscallArg for ::values::FixedStr8
+{
+	fn get_arg(args: &mut &[usize]) -> Result<Self, ::Error> {
+		let count = 8 / ::core::mem::size_of::<usize>();
+		if args.len() < count {
+			return Err( ::Error::TooManyArgs );
+		}
+		let mut rv_bytes = [0; 8];
+		if count == 2 {
+			let v1 = args[0];
+			let v2 = args[1];
+			rv_bytes[..4].copy_from_slice( ::kernel::lib::as_byte_slice(&v1) );
+			rv_bytes[4..].copy_from_slice( ::kernel::lib::as_byte_slice(&v2) );
+			*args = &args[2..];
+		}
+		else {
+			let v = args[0];
+			rv_bytes.copy_from_slice( ::kernel::lib::as_byte_slice(&v) );
+			*args = &args[1..];
+		}
+		Ok( ::values::FixedStr8::from(rv_bytes) )
+	}
+}
+impl SyscallArg for ::values::FixedStr6
+{
+	fn get_arg(args: &mut &[usize]) -> Result<Self, ::Error> {
+		let count = (6 + ::core::mem::size_of::<usize>() - 1) / ::core::mem::size_of::<usize>();
+		if args.len() < count {
+			return Err( ::Error::TooManyArgs );
+		}
+		let mut rv_bytes = [0; 6];
+		if count == 2 {
+			let v1 = args[0];
+			let v2 = args[1];
+			rv_bytes[..4].copy_from_slice( ::kernel::lib::as_byte_slice(&v1) );
+			rv_bytes[4..].copy_from_slice( &::kernel::lib::as_byte_slice(&v2)[..2] );
+			*args = &args[2..];
+		}
+		else {
+			let v = args[0];
+			rv_bytes.copy_from_slice( &::kernel::lib::as_byte_slice(&v)[..6] );
+			*args = &args[1..];
+		}
+		Ok( ::values::FixedStr6::from(rv_bytes) )
+	}
+}
+
 impl SyscallArg for usize {
 	fn get_arg(args: &mut &[usize]) -> Result<Self, ::Error> {
 		if args.len() < 1 {

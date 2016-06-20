@@ -169,6 +169,14 @@ impl ObjectHandle
 
 	#[allow(dead_code)]
 	#[inline]
+	unsafe fn call_2l(&self, call: u16, a1: u64, a2: usize) -> u64 {
+		#[cfg(target_pointer_width="64")]
+		{ return ::raw::syscall_2( self.call_value(call), a1 as usize, a2 ) }
+		#[cfg(target_pointer_width="32")]
+		{ return ::raw::syscall_3( self.call_value(call), (a1 & 0xFFFFFFFF) as usize, (a1 >> 32) as usize, a2 ) }
+	}
+	#[allow(dead_code)]
+	#[inline]
 	unsafe fn call_3l(&self, call: u16, a1: u64, a2: usize, a3: usize) -> u64 {
 		#[cfg(target_pointer_width="64")]
 		{ return ::raw::syscall_3( self.call_value(call), a1 as usize, a2, a3 ) }

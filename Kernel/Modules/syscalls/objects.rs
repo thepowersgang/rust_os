@@ -7,6 +7,7 @@ use kernel::prelude::*;
 
 use kernel::sync::{RwLock,Mutex};
 use args::Args;
+use values::FixedStr6;
 
 use kernel::threads::get_process_local;
 
@@ -85,12 +86,7 @@ struct ProcessObjects
 	// TODO: Use a FAR better collection for this, allowing cheap expansion of the list
 	objs: Vec< ObjectSlot >,
 
-	// TODO: Something lighter than a mutex? (could be an atomic)
-	given: Mutex<GivenObjects>,
-}
-struct GivenObjects {
-	next: u16,
-	total: u16,
+	given: Mutex< Vec<(FixedStr6, u16)> >,
 }
 
 impl Default for ProcessObjects {
@@ -104,7 +100,8 @@ impl ProcessObjects {
 		const MAX_OBJECTS_PER_PROC: usize = 64;
 		let mut ret = ProcessObjects {
 				objs: Vec::from_fn(MAX_OBJECTS_PER_PROC, |_| RwLock::new(None)),
-				given: Mutex::new( GivenObjects { next: 1, total: 1 } ),
+				//given: Mutex::new( GivenObjects { next: 1, total: 1 } ),
+				given: Mutex::new( Vec::new() ),
 			};
 		// Object 0 is fixed to be "this process" (and is not droppable)
 		*ret.objs[0].write() = Some(UserObject::new(::threads::CurProcess));
@@ -198,22 +195,18 @@ impl ProcessObjects {
 		Err(super::Error::TooManyObjects)
 	}
 
-	fn push_given(&self, handle: u32) {
+	fn push_given(&self, handle: u32, tag: &str)
+	{
 		let mut lh = self.given.lock();
-		assert!( lh.next == 1 );
-		assert!( lh.total as u32 == handle );
-		assert!( handle < 0x10000 );
-		lh.total += 1;
+		lh.push( (tag.into(), handle as u16) );
 	}
-	fn pop_given(&self) -> Option<u32> {
+
+	fn pop_given(&self, tag: &str) -> Option<u32> {
 		let mut lh = self.given.lock();
-		assert!(lh.next <= lh.total);
-		if lh.next == lh.total {
-			None
-		}
-		else {
-			lh.next += 1;
-			Some( (lh.next - 1) as u32 )
+		match lh.iter().position(|e| &e.0[..] == tag)
+		{
+		Some(i) => Some( lh.remove(i).1 as u32 ),
+		None => None,
 		}
 	}
 }
@@ -233,26 +226,17 @@ pub fn new_object<T: Object+'static>(val: T) -> u32
 }
 
 /// Startup: Pushes the specified index as an unclaimed object
-pub fn push_as_unclaimed(handle: u32) {
+pub fn push_as_unclaimed(tag: &str, handle: u32) {
 	let objs = get_process_local::<ProcessObjects>();
-	let mut lh = objs.given.lock();
-	assert_eq!( lh.total as u32, handle );
-	lh.total += 1;
-}
-/// Startup: Sets this process's unclaimed list positions to the end of the process list
-pub fn init_unclaimed(count: u32) {
-	let objs = get_process_local::<ProcessObjects>();
-	let mut lh = objs.given.lock();
-	lh.next = count as u16;
-	lh.total = count as u16;
+	objs.push_given(handle, tag);
 }
 
 /// Grab an unclaimed object (checking the class)
-pub fn get_unclaimed(class: u16) -> u64
+pub fn get_unclaimed(class: u16, tag: &str) -> u64
 {
 	let objs = get_process_local::<ProcessObjects>();
 
-	let rv = if let Some(id) = objs.pop_given() {
+	let rv = if let Some(id) = objs.pop_given(tag) {
 			let slot = match objs.get(id)
 				{
 				Some(v) => v,
@@ -331,13 +315,13 @@ pub fn clear_wait(handle: u32, mask: u32, sleeper: &mut ::kernel::threads::Sleep
 }
 
 /// Give the target process the object specified by `handle`
-pub fn give_object(target: &::kernel::threads::ProcessHandle, handle: u32) -> Result<(),super::Error> {
+pub fn give_object(target: &::kernel::threads::ProcessHandle, tag: &str, handle: u32) -> Result<(),super::Error> {
 	log_debug!("give_object(target={:?}, handle={:?})", target, handle);
 	let target_list = target.get_process_local_alloc::<ProcessObjects>();
 	let obj = try!(get_process_local::<ProcessObjects>().take_object(handle));
 	let id = try!( target_list.find_and_fill_slot(|| UserObject { data: obj }) );
 	
-	target_list.push_given( id );
+	target_list.push_given( id, tag );
 
 	Ok( () )
 }

@@ -83,7 +83,7 @@ fn irq_worker()
 {
 	loop {
 		S_IRQ_WORKER_SIGNAL.wait();
-		for (_,b) in S_IRQ_BINDINGS.lock().mapping.iter()
+		for (irqnum,b) in S_IRQ_BINDINGS.lock().mapping.iter()
 		{
 			if b.has_fired.swap(false, ::core::sync::atomic::Ordering::Relaxed)
 			{
@@ -92,6 +92,7 @@ fn irq_worker()
 						handler();
 					}
 				}
+				log_trace!("irq_worker: IRQ{} fired", irqnum);
 			}
 		}
 	}

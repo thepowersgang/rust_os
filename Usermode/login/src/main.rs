@@ -28,9 +28,8 @@ fn main()
 	const ENTRY_FRAME_HEIGHT: u32 = 40;
 	const TEXTBOX_HEIGHT: u32 = 16;
 
-	//VFS_ROOT.init(|| ::syscalls::threads::S_THIS_PROCESS.receive_object().unwrap() );
-
 	::wtk::initialise();
+	VFS_ROOT.init(|| ::syscalls::threads::S_THIS_PROCESS.receive_object("RwRoot").unwrap() );
 
 	let power_menu = {
 		use wtk::menu::{Menu,Entry};
@@ -151,11 +150,14 @@ fn open_exe(path: &str) -> Result<::syscalls::vfs::File, ::syscalls::vfs::Error>
 
 fn spawn_console_and_wait(path: &str)
 {
+	let (hs_chan, cli_chan) = ::syscalls::ipc::RpcChannel::new_pair().expect("Coudn't create new RPC Channel");
+
 	let handle_server = {
 		let path = "/sysroot/bin/handle_server";
 		let fh = open_exe(path).unwrap_or_else(|e| panic!("Couldn't open handle server - {:?}", e));
 		let pp = loader::new_process(fh, path.as_bytes(), &[]).expect("Could not spawn handle server");
-		//pp.send_obj();
+		pp.send_obj( "RwRoot", VFS_ROOT.clone() );
+		pp.send_obj( "HsChan", hs_chan );
 		pp.start()
 		};
 	// TODO: I need something more elegant than this.
@@ -168,9 +170,11 @@ fn spawn_console_and_wait(path: &str)
 			Err(e) => panic!("Couldn't open executable '{}' - {:?}", path, e),
 			};
 		let pp = loader::new_process(fh, path.as_bytes(), &[]).expect("Could not spawn shell");
-		pp.send_obj( ::syscalls::gui::clone_group_handle() );
+		pp.send_obj( "guigrp", ::syscalls::gui::clone_group_handle() );
+		pp.send_obj( "HsChan", cli_chan );
 		pp.start()
 		};
 	::syscalls::threads::wait(&mut [console.wait_terminate()], !0);
+	//::syscalls::threads::wait(&mut [console.wait_terminate(), handle_server.wait_terminate()], !0);
 }
 

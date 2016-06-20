@@ -48,8 +48,8 @@ impl ProtoProcess
 		ProtoProcess(v)
 	}
 
-	pub fn send_obj<T: ::syscalls::Object>(&self, obj: T) {
-		self.0.send_obj( obj );
+	pub fn send_obj<T: ::syscalls::Object>(&self, tag: &str, obj: T) {
+		self.0.send_obj( tag, obj );
 	}
 
 	pub fn start(self) -> ::syscalls::threads::Process {

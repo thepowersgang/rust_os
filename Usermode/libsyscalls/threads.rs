@@ -51,10 +51,11 @@ impl ThisProcess
 	}
 	#[inline]
 	/// Obtain the 'n'th unclaimed object of the specifed type
-	pub fn receive_object<T: ::Object>(&self) -> Result<T, RecvObjectError> {
-		self.with_obj(|obj| 
+	pub fn receive_object<T: ::Object>(&self, tag: &str) -> Result<T, RecvObjectError> {
+		assert!(tag.len() <= 6);
+		self.with_obj(|obj|
 			// SAFE: Syscall
-			match super::ObjectHandle::new( unsafe { obj.call_1(::values::CORE_THISPROCESS_RECVOBJ, T::class() as usize) } as usize )
+			match super::ObjectHandle::new( unsafe { obj.call_2l(::values::CORE_THISPROCESS_RECVOBJ, ::values::FixedStr8::from(tag).into(), T::class() as usize) } as usize )
 			{
 			Ok(v) => Ok(T::from_handle(v)),
 			Err(e @ 0 ... 0xFFFF) => Err( RecvObjectError::ClassMismatch(e as u16) ),
@@ -111,10 +112,12 @@ impl ::Object for ProtoProcess {
 impl ProtoProcess
 {
 	#[inline]
-	pub fn send_obj<O: ::Object>(&self, obj: O) {
+	/// Send an object to the child process. `tag` is a up-to 6 byte string naming the object for the child.
+	pub fn send_obj<O: ::Object>(&self, tag: &str, obj: O) {
+		assert!(tag.len() <= 6);
 		let oh = obj.into_handle().into_raw();
 		// SAFE: Syscall
-		unsafe { self.0.call_1(::values::CORE_PROTOPROCESS_SENDOBJ, oh as usize); }
+		unsafe { self.0.call_2l(::values::CORE_PROTOPROCESS_SENDOBJ, ::values::FixedStr8::from(tag).into(), oh as usize); }
 	}
  
  	#[inline]

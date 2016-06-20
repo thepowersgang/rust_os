@@ -31,7 +31,7 @@ enum ViewerMode {
 fn main()
 {
 	::wtk::initialise();
-	let mut file: ::syscalls::vfs::File = match ::syscalls::threads::S_THIS_PROCESS.receive_object()
+	let mut file: ::syscalls::vfs::File = match ::syscalls::threads::S_THIS_PROCESS.receive_object("file")
 		{
 		Ok(v) => v,
 		Err(e) => {

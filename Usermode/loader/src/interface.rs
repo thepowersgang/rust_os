@@ -71,8 +71,8 @@ pub extern "C" fn new_process(executable_handle: ::syscalls::vfs::File, process_
 	
 	// Send the executable handle
 	kernel_log!("- Sending executable handle");
-	proto_proc.send_obj( executable_handle );
-	proto_proc.send_obj( ::syscalls::vfs::ROOT.clone() );
+	proto_proc.send_obj( "exec", executable_handle );
+	proto_proc.send_obj( "ro:/", ::syscalls::vfs::ROOT.clone() );
 
 	kernel_log!("- Returning ProtoProcess");
 	Ok(proto_proc)
@@ -115,8 +115,8 @@ fn new_process_entry() -> !
 	
 	
 	
-	let fh: ::syscalls::vfs::File = ::syscalls::threads::S_THIS_PROCESS.receive_object().expect("Could not receive the executable vfs::File object");
-	let root: ::syscalls::vfs::Dir = ::syscalls::threads::S_THIS_PROCESS.receive_object().expect("Could not receive the root");
+	let fh: ::syscalls::vfs::File = ::syscalls::threads::S_THIS_PROCESS.receive_object("exec").expect("Could not receive the executable vfs::File object");
+	let root: ::syscalls::vfs::Dir = ::syscalls::threads::S_THIS_PROCESS.receive_object("ro:/").expect("Could not receive the root");
 	::std::mem::forget(root);
 	let entrypoint = ::load_binary(process_name, fh);
 	

@@ -19,12 +19,12 @@ macro_rules! imgpath {
 
 fn start_app_console() {
 	start_app(&["/sysroot/bin/simple_console", "--windowed"], |app| {
-		app.send_obj( ::syscalls::vfs::ROOT.clone() );
+		//app.send_obj( "vfs", ::syscalls::vfs::ROOT.clone() );
 		});
 }
 fn start_app_filebrowser() {
 	start_app(&["/sysroot/bin/filebrowser"], |app| {
-		app.send_obj( ::syscalls::vfs::ROOT.clone() );
+		app.send_obj( "ro:/", ::syscalls::vfs::ROOT.clone() );
 		});
 }
 fn start_app_editor() {
@@ -32,7 +32,7 @@ fn start_app_editor() {
 	let f = ::syscalls::vfs::ROOT.open_child_path(path.as_bytes()).expect("Couldn't open file")
 		.into_file(::syscalls::vfs::FileOpenMode::ReadOnly).expect("Couldn't open file as readonly");
 	start_app(&["/sysroot/bin/fileviewer", path], |app| {
-		app.send_obj( f );
+		app.send_obj( "file", f );
 		});
 }
 
@@ -129,7 +129,7 @@ where
 	match ::loader::new_process(fh, args[0].as_bytes(), byte_args)
 	{
 	Ok(mut app) => {
-		app.send_obj( ::syscalls::gui::clone_group_handle() );
+		app.send_obj( "guigrp", ::syscalls::gui::clone_group_handle() );
 		cb(&mut app);
 		app.start();
 		},

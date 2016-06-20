@@ -46,7 +46,6 @@ pub fn begin_panic<M: ::core::any::Any+Send+'static>(msg: M, file_line: &(&'stat
 	begin_unwind(msg, file_line)
 }
 pub fn begin_panic_fmt(msg: &::core::fmt::Arguments, file_line: &(&'static str, u32)) -> ! {
-	use core::fmt::Write;
 	// Spit out that log
 	kernel_log!("PANIC: {}:{}: {}", file_line.0, file_line.1, msg);
 	// - Backtrace

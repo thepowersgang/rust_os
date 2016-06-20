@@ -64,10 +64,14 @@ def _mouseclick(instance, name, btn):
     test_assert("%s mouse(%i up) event" % (name, btn,), instance.wait_for_line("syscalls\] - USER> Window::handle_event\(ev=MouseUp\(\d+, \d+, %i\)\)" % (btn-1,), timeout=3))
     test_assert(name+" mouse(%i up) idle" % (btn,), instance.wait_for_idle(timeout=5))
 
+#
+#
+#
 def test(instance):
     test_assert("Kernel image start timed out", instance.wait_for_line("OK43e6H", timeout=10))
     test_assert("Init load timed out", instance.wait_for_line("Entering userland at 0x[0-9a-f]+ '/sysroot/bin/loader' '/sysroot/bin/init'", timeout=10))
     _startapp(instance, "/sysroot/bin/login", timeout=5)
+    _gui_rerender(instance, "Login window render", ["Login"])
 
     test_assert("Initial startup timed out", instance.wait_for_idle(timeout=25))
     instance.screenshot('Login')
@@ -83,8 +87,10 @@ def test(instance):
     while instance.wait_for_idle():
         pass
     _keypress(instance, 'ret', "Password", idle=False)
+    _startapp(instance, "/sysroot/bin/handle_server", timeout=10)
     _startapp(instance, "/sysroot/bin/shell", timeout=10)
-    test_assert("Shell idle timeout", instance.wait_for_idle(timeout=5))
+    _gui_rerender(instance, "Shell idle render", ["Login"])
+    #test_assert("Shell idle timeout", instance.wait_for_idle(timeout=5))
     instance.screenshot('Shell')
     # TODO: Have an item in the log here
 

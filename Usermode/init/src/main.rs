@@ -13,7 +13,7 @@ fn main()
 {
 	kernel_log!("Tifflin (rust_os) userland started");
 
-	let rw_root: ::syscalls::vfs::Dir = get_handle("RW VFS Root");
+	let rw_root: ::syscalls::vfs::Dir = get_handle("RW VFS Root", "RwRoot");
 	
 	//let daemons = Vec::new();
 	//let shells = Vec::new();
@@ -21,12 +21,12 @@ fn main()
 	let session_root = {
 		let pp = loader::new_process(open_exec("/sysroot/bin/login"), b"/sysroot/bin/login", &[]).expect("Could not start login");
 
-		pp.send_obj({
+		pp.send_obj("guigrp", {
 			let wingrp = syscalls::gui::Group::new("Session 1").unwrap();
 			wingrp.force_active().expect("Cannot force session 1 to be active");
 			wingrp
 			});
-		pp.send_obj( rw_root.clone() );
+		pp.send_obj("RwRoot", rw_root.clone() );
 		pp.start()
 		};
 
@@ -42,9 +42,9 @@ fn main()
 	}
 }
 
-fn get_handle<T: ::syscalls::Object>(desc: &str) -> T
+fn get_handle<T: ::syscalls::Object>(desc: &str, tag: &str) -> T
 {
-	match ::syscalls::threads::S_THIS_PROCESS.receive_object()
+	match ::syscalls::threads::S_THIS_PROCESS.receive_object(tag)
 	{
 	Ok(v) => v,
 	Err(e) => panic!("Failed to receive {} - {:?}", desc, e),

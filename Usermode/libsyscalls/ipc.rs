@@ -24,7 +24,7 @@ impl ::Object for RpcChannel
 }
 impl RpcChannel
 {
-	pub fn new_pair() -> Result< (RpcChannel, RpcChannel), () > {
+	pub fn new_pair() -> Result< (RpcChannel, RpcChannel), NewError > {
 		unimplemented!()
 	}
 
@@ -49,4 +49,7 @@ pub enum RxError
 	NoMessage,
 	ConnectionClosed,
 }
+
+#[derive(Debug)]
+pub struct NewError( () );
 

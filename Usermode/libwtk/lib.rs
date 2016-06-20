@@ -112,6 +112,6 @@ pub use text::Label;
 pub fn initialise()
 {
 	use syscalls::threads::S_THIS_PROCESS;
-	::syscalls::gui::set_group( S_THIS_PROCESS.receive_object().unwrap() );
+	::syscalls::gui::set_group( S_THIS_PROCESS.receive_object("guigrp").unwrap() );
 }
 

@@ -13,7 +13,7 @@ use syscalls::vfs::{NodeType,FileOpenMode};
 
 fn main()
 {
-	let root: Dir = ::syscalls::threads::S_THIS_PROCESS.receive_object().unwrap();
+	let root: Dir = ::syscalls::threads::S_THIS_PROCESS.receive_object("/").unwrap();
 
 	let mut buffer = [0; 256];
 	dump_dir(0, root, &mut buffer);

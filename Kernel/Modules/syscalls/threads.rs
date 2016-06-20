@@ -27,8 +27,9 @@ impl ::objects::Object for CurProcess
 		match call
 		{
 		values::CORE_THISPROCESS_RECVOBJ => {
+			let tag: ::values::FixedStr8 = try!(args.get());
 			let class: u16 = try!(args.get());
-			Ok( ::objects::get_unclaimed(class) )
+			Ok( ::objects::get_unclaimed(class, &tag) )
 			},
 		_ => ::objects::object_has_no_such_method_ref("threads::CurProcess", call),
 		}
@@ -111,8 +112,9 @@ impl ::objects::Object for ProtoProcess
 		{
 		// Request termination of child process
 		values::CORE_PROTOPROCESS_SENDOBJ => {
+			let tag: ::values::FixedStr8 = try!(args.get());
 			let handle: u32 = try!(args.get());
-			::objects::give_object(&self.0, handle).map(|_| 0)
+			::objects::give_object(&self.0, &tag, handle).map(|_| 0)
 			}
 		_ => ::objects::object_has_no_such_method_ref("threads::ProtoProcess", call),
 		}

@@ -26,7 +26,7 @@ impl Connection
 {
 	/// Create a new connection by receiving the handle from the parent process
 	pub fn rx_new() -> Connection {
-		Self::new( ::syscalls::threads::S_THIS_PROCESS.receive_object().expect("Failed to receive handle_server connection") )
+		Self::new( ::syscalls::threads::S_THIS_PROCESS.receive_object("HsChan").expect("Failed to receive handle_server connection") )
 	}
 	/// Create a new connection using the provided RPC Channel handle
 	pub fn new(channel: ::syscalls::ipc::RpcChannel) -> Connection {

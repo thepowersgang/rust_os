@@ -87,10 +87,9 @@ pub fn init_handles(loader_handle: ::kernel::vfs::handle::File, init_handle: ::k
 		root
 		}));
 
-	// --- All other objects must be pushed ---
-	::objects::init_unclaimed(3);
 	// - Read-write handle to /
-	::objects::push_as_unclaimed( ::objects::new_object( Dir::new( handle::Dir::open(Path::new("/")).unwrap() ) ) );
+	//::objects::push_as_unclaimed( ::objects::new_object( Dir::new( handle::Dir::open(Path::new("/")).unwrap() ) ) );
+	::objects::push_as_unclaimed("RwRoot", ::objects::new_object( Dir::new( handle::Dir::open(Path::new("/")).unwrap() ) ) );
 }
 
 
