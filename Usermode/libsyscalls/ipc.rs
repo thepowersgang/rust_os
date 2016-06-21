@@ -25,7 +25,17 @@ impl ::Object for RpcChannel
 impl RpcChannel
 {
 	pub fn new_pair() -> Result< (RpcChannel, RpcChannel), NewError > {
-		unimplemented!()
+		// SAFE: Zero-operand syscall
+		let rv = unsafe { syscall!(IPC_NEWPAIR) };
+		if rv == !0 {
+			Err( NewError(()) )
+		}
+		else {
+			let l = super::ObjectHandle::new( (rv & 0xFFFFFFFF) as usize ).expect("RpcChannel::new_pair - left bad");
+			let r = super::ObjectHandle::new( (rv >> 32) as usize ).expect("RpcChannel::new_pair - right bad");
+
+			Ok( (RpcChannel(l), RpcChannel(r)) )
+		}
 	}
 
 	pub fn send(&self, message: RpcMessage) {

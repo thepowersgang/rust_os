@@ -78,6 +78,12 @@ def_grp!( 2: GROUP_MEM = {
 	=2: MEM_DEALLOCATE,
 });
 
+/// Process memory management
+def_grp!( 3: GROUP_IPC = {
+	/// Allocate a handle pair (returns two object handles)
+	=0: IPC_NEWPAIR,
+});
+
 pub fn get_class_name(class_idx: u16) -> &'static str {
 	CLASS_NAMES.get(class_idx as usize).unwrap_or(&"UNK")
 }
