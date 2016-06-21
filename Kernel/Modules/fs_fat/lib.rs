@@ -209,8 +209,12 @@ impl FilesystemInner
 {
 	/// Load a cluster from disk
 	fn read_cluster(&self, cluster: u32, dst: &mut [u8]) -> Result<(), storage::IoError> {
-		log_trace!("Filesystem::read_cluster({:#x})", cluster);
 		assert_eq!(dst.len(), self.cluster_size);
+		self.read_clusters(cluster, dst)
+	}
+	fn read_clusters(&self, cluster: u32, dst: &mut [u8]) -> Result<(), storage::IoError> {
+		log_trace!("Filesystem::read_clusters({:#x}, {})", cluster, dst.len() / self.cluster_size);
+		assert_eq!(dst.len() % self.cluster_size, 0);
 		// For now, just read the bytes, screw caching
 		let sector = if !is!(self.ty, Size::Fat32) && cluster >= FATL_ROOT_CLUSTER {
 				// Root directory (for FAT12/16, where it was not a normal file)
@@ -225,7 +229,7 @@ impl FilesystemInner
 				assert!(cluster - 2 < self.cluster_count as u32);
 				self.first_data_sector as u64 + (cluster as u64 - 2) * self.spc as u64
 			};
-		log_debug!("read_cluster: cluster = {:#x}, sector = 0x{:x}", cluster, sector);
+		log_debug!("read_clusters: cluster = {:#x}, sector = 0x{:x}", cluster, sector);
 		try!(self.vh.read_blocks(sector, dst));
 		//::kernel::logging::hex_dump("FAT Cluster", &buf);
 		Ok( () )
@@ -359,6 +363,36 @@ impl From<node::InodeId> for InodeRef {
 impl ClusterList {
 	pub fn chained(fs: ArefBorrow<FilesystemInner>, start: u32) -> ClusterList {
 		ClusterList::Chained(fs, start)
+	}
+
+	/// Returns an extent of at most `max_clusters` contigious clusters
+	pub fn next_extent(&mut self, max_clusters: usize) -> Option<(u32, usize)> {
+		match *self
+		{
+		ClusterList::Range(ref mut r) => r.next().map(|v| (v, 1)),
+		ClusterList::Chained(ref fs, ref mut next) =>
+			if *next == 0 {
+				None
+			}
+			else {
+				let rv = *next;
+				let mut count = 0;
+				while *next != 0 && *next == rv + count as u32 && count < max_clusters
+				{
+					*next = match fs.get_next_cluster(*next)
+						{
+						Ok(Some(v)) => v,
+						Ok(None) => 0,
+						Err(e) => {
+							log_warning!("Error when reading cluster chain - {:?}", e);
+							return None;	// Inconsistency, terminate asap
+							},
+						};
+					count += 1;
+				}
+				Some( (rv, count) )
+			},
+		}
 	}
 }
 impl ::core::iter::Iterator for ClusterList {

@@ -60,13 +60,15 @@ impl node::File for FileNode {
 		let read_length = buf.len();
 		
 		// Seek to correct position in the cluster chain
-		let mut clusters = super::ClusterList::chained(self.fs.reborrow(), self.first_cluster)
-			.skip( (ofs/self.fs.cluster_size as u64) as usize);
+		let mut clusters = super::ClusterList::chained(self.fs.reborrow(), self.first_cluster);
+		for _ in 0 .. (ofs/self.fs.cluster_size as u64) {
+			clusters.next();
+		}
 		let ofs = (ofs % self.fs.cluster_size as u64) as usize;
 		
 		// First incomplete cluster
 		let mut cur_read_ofs = 0;
-		let chunks = if ofs != 0 {
+		/*let chunks = */if ofs != 0 {
 				let cluster = match clusters.next()
 					{
 					Some(v) => v,
@@ -77,15 +79,51 @@ impl node::File for FileNode {
 				buf[..short_count].clone_from_slice( &c[ofs..][..short_count] );
 				
 				cur_read_ofs += short_count;
-				buf[short_count..].chunks_mut(self.fs.cluster_size)
+				//buf[short_count..].chunks_mut(self.fs.cluster_size)
 			}
 			else {
-				buf.chunks_mut(self.fs.cluster_size)
+				//buf.chunks_mut(self.fs.cluster_size)
 			};
-		
+	
+		//#[cfg(DISABLED)]
+		while buf.len() - cur_read_ofs >= self.fs.cluster_size
+		{
+			let dst = &mut buf[cur_read_ofs..];
+			let (cluster, count) = match clusters.next_extent( dst.len() / self.fs.cluster_size )
+				{
+				Some(v) => v,
+				None => {
+					log_notice!("Unexpected end of cluster chain at offset {}", cur_read_ofs);
+					return Err(ERROR_SHORTCHAIN);
+					},
+				};
+			let bytes = count * self.fs.cluster_size;
+			log_trace!("- Read cluster {}+{}", cluster, count);
+			try!(self.fs.read_clusters(cluster, &mut dst[..bytes]));
+			cur_read_ofs += bytes;
+		}
+		//#[cfg(DISABLED)]
+		if buf.len() - cur_read_ofs > 0
+		{
+			let dst = &mut buf[cur_read_ofs..];
+			let cluster = match clusters.next()
+				{
+				Some(v) => v,
+				None => {
+					log_notice!("Unexpected end of cluster chain at offset {}", cur_read_ofs);
+					return Err(ERROR_SHORTCHAIN);
+					},
+				};
+			let c = try!(self.fs.load_cluster(cluster));
+			let bytes = dst.len();
+			dst.clone_from_slice( &c[..bytes] );
+		}
+
 		// The rest of the clusters
+		/*
 		for dst in chunks
 		{
+			// TODO: Cluster extents
 			let cluster = match clusters.next()
 				{
 				Some(v) => v,
@@ -106,6 +144,7 @@ impl node::File for FileNode {
 			}
 			cur_read_ofs += dst.len();
 		}
+		*/
 		
 		Ok( read_length )
 	}
