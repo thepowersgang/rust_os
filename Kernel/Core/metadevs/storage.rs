@@ -508,6 +508,7 @@ impl VolumeHandle
 impl PhysicalVolumeInfo
 {
 	fn max_blocks_per_read(&self) -> usize {
+		// 32 blocks per read op, = 0x4000 (16KB) for 512 byte sectors
 		32
 	}
 	
@@ -518,6 +519,7 @@ impl PhysicalVolumeInfo
 		let block_step = self.max_blocks_per_read();
 		let block_size = self.dev.blocksize();
 		// Read up to 'block_step' blocks in each read call
+		// - TODO: Request a read of as much as possible, and be told by the device how many were serviced
 		{
 			let iter_ids  = (first .. ).step_by(block_step as u64);
 			let iter_bufs = dst.chunks_mut( block_step * block_size );

@@ -9,7 +9,7 @@ use kernel::metadevs::storage;
 use kernel::device_manager::IOBinding;
 
 pub const SECTOR_SIZE: usize = 512;
-const MAX_DMA_SECTORS: usize = 0x10000 / SECTOR_SIZE;	// Limited by byte count, 16-9 = 7 bits = 128 sectors
+const MAX_DMA_SECTORS: usize = 0x1_0000 / SECTOR_SIZE;	// Limited by byte count, 16-9 = 7 bits = 128 sectors
 
 //const HDD_PIO_W28: u8 = 0x30,
 //const HDD_PIO_R28: u8 = 0x20;
@@ -237,8 +237,7 @@ impl AtaRegs
 	fn fill_prdt(&mut self, dma_buffer: &DMABuffer)
 	{
 		// Fill PRDT
-		// TODO: Use a chain of PRDTs to support 32-bit scatter-gather
-		//  Is that possible?
+		// TODO: Restrict physical ranges to 0x10000 bytes for longer DMAs
 		let mut count = 0;
 		for (prdt, region) in zip!( self.prdts.iter_mut(), dma_buffer.phys_ranges() )
 		{
@@ -333,14 +332,26 @@ impl AtaRegs
 			self.out_8(5, (dma_buffer.len() >> 8) as u8);
 			// ATAPI PACKET
 			self.out_8(7, 0xA0);
+
 			// - Send command once IRQ is fired?
-			// TODO: Find a way of avoiding this poll
+			// TODO: Find a way of avoiding this poll (extra wait state)
+
 			while self.in_sts() & AtaStatusVal::BSY != 0 { }
+			self.atapi_send_cmd(cmd);
+		}
+	}
+
+	fn atapi_send_cmd(&mut self, cmd: &[u16])
+	{
+		// Command must be 6 words long
+		assert!(cmd.len() == 6);
+		// SAFE: Unique self
+		unsafe {
 			assert!(self.in_sts() & AtaStatusVal::DRQ != 0);
 			
 			// Send command
-			for i in 0 .. 6 {
-				self.out_16(0, cmd[i]);
+			for &word in cmd {
+				self.out_16(0, word);
 			}
 		}
 	}
