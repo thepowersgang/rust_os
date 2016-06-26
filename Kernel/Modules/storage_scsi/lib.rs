@@ -126,7 +126,7 @@ impl<I: ScsiInterface> storage::PhysicalVolume for Volume<I>
 	fn blocksize(&self) -> usize { self.size.expect("Calling blocksize on no-media volume").0 }
 	fn capacity(&self) -> Option<u64> { self.size.map(|x| x.1) }
 	
-	fn read<'a>(&'a self, _prio: u8, idx: u64, num: usize, dst: &'a mut [u8]) -> storage::AsyncIoResult<'a,()>
+	fn read<'a>(&'a self, _prio: u8, idx: u64, num: usize, dst: &'a mut [u8]) -> storage::AsyncIoResult<'a,usize>
 	{
 		// NOTE: Read6 commented out, as qemu's CD code doesn't support it
 		let rv = /*if idx < (1<<24) && num < (1 << 8) {
@@ -145,11 +145,23 @@ impl<I: ScsiInterface> storage::PhysicalVolume for Volume<I>
 				todo!("SCSI read out of range");
 			};
 		
-		// TODO: use when recv API is changed back to return the read byte count
-		//Box::new( rv.map(|x| x.map(|_| ())) )
-		rv
+		#[derive(Debug)]
+		struct Wrapper<'a>(storage::AsyncIoResult<'a,()>, usize);
+		impl<'a> ::kernel::async::Waiter for Wrapper<'a> {
+			fn is_complete(&self) -> bool { self.0.is_complete() }
+			fn get_waiter(&mut self) -> &mut ::kernel::async::PrimitiveWaiter { self.0.get_waiter() }
+			fn complete(&mut self) -> bool { self.0.complete() }
+		}
+		impl<'a> ::kernel::async::ResultWaiter for Wrapper<'a> {
+			type Result = Result<usize, ::kernel::metadevs::storage::IoError>;
+			fn get_result(&mut self) -> Option<Self::Result> { self.0.get_result().map(|v| v.map(|_| self.1)) }
+			fn as_waiter(&mut self) -> &mut ::kernel::async::Waiter { self.0.as_waiter() }
+		}
+		Box::new( Wrapper(rv, num) )
+
+		//rv
 	}
-	fn write<'s>(&'s self, _prio: u8, idx: u64, num: usize, src: &'s [u8]) -> storage::AsyncIoResult<'s,()> {
+	fn write<'s>(&'s self, _prio: u8, idx: u64, num: usize, src: &'s [u8]) -> storage::AsyncIoResult<'s,usize> {
 		match self.class
 		{
 		VolumeClass::CdDvd => Box::new(async::NullResultWaiter::new( || Err(storage::IoError::ReadOnly) )),

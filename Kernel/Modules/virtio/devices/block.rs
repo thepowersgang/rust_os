@@ -76,15 +76,16 @@ struct VirtioBlockReq
 }
 unsafe impl ::kernel::lib::POD for VirtioBlockReq {}
 
+const BLOCK_SIZE: usize = 512;
 impl<I: Interface+Send+'static> storage::PhysicalVolume for Volume<I>
 {
 	fn name(&self) -> &str { "virtio0" }
-	fn blocksize(&self) -> usize { 512 }
+	fn blocksize(&self) -> usize { BLOCK_SIZE }
 	fn capacity(&self) -> Option<u64> { Some(self.capacity) }
 	
-	fn read<'a>(&'a self, prio: u8, idx: u64, num: usize, dst: &'a mut [u8]) -> storage::AsyncIoResult<'a,()>
+	fn read<'a>(&'a self, prio: u8, idx: u64, num: usize, dst: &'a mut [u8]) -> storage::AsyncIoResult<'a,usize>
 	{
-		assert_eq!( dst.len(), num * 512 );
+		assert_eq!( dst.len(), num * BLOCK_SIZE );
 		
 		let cmd = VirtioBlockReq {
 			type_: VIRTIO_BLK_T_IN,
@@ -101,7 +102,7 @@ impl<I: Interface+Send+'static> storage::PhysicalVolume for Volume<I>
 				]);
 			match h.wait_for_completion()
 				{
-				Ok(_bytes) => Ok( () ),
+				Ok(bytes) => Ok( bytes / BLOCK_SIZE ),
 				Err( () ) => Err( storage::IoError::Unknown("VirtIO") ),
 				}
 			};
@@ -111,9 +112,9 @@ impl<I: Interface+Send+'static> storage::PhysicalVolume for Volume<I>
 		
 		Box::new(async::NullResultWaiter::new( move || rv ))
 	}
-	fn write<'a>(&'a self, prio: u8, idx: u64, num: usize, src: &'a [u8]) -> storage::AsyncIoResult<'a,()>
+	fn write<'a>(&'a self, prio: u8, idx: u64, num: usize, src: &'a [u8]) -> storage::AsyncIoResult<'a, usize>
 	{
-		assert_eq!( src.len(), num * 512 );
+		assert_eq!( src.len(), num * BLOCK_SIZE );
 		let cmd = VirtioBlockReq {
 			type_: VIRTIO_BLK_T_OUT,
 			ioprio: (255 - prio) as u32,
@@ -128,7 +129,7 @@ impl<I: Interface+Send+'static> storage::PhysicalVolume for Volume<I>
 			]);
 		let rv = match h.wait_for_completion()
 			{
-			Ok(_bytes) => Ok( () ),
+			Ok(bytes) => Ok( bytes / BLOCK_SIZE ),
 			Err( () ) => Err( storage::IoError::Unknown("VirtIO") ),
 			};
 

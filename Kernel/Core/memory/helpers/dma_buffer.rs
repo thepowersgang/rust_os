@@ -21,6 +21,12 @@ pub struct DMABuffer<'a>
 impl<'a> !Send for DMABuffer<'a> {}
 impl<'a> !Sync for DMABuffer<'a> {}
 
+impl<'a> ::core::fmt::Debug for DMABuffer<'a> {
+	fn fmt(&self, f: &mut ::core::fmt::Formatter) -> ::core::fmt::Result {
+		write!(f, "{:p}({:x})+{}", self.source_ptr, self.phys, self.buffer_len)
+	}
+}
+
 impl<'a> DMABuffer<'a>
 {
 	fn check_bits(src: &[u8], bits: u8) -> bool {

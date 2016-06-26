@@ -449,7 +449,7 @@ impl Port
 		}
 	}
 
-	/// Create and dispatch a FIS
+	/// Create and dispatch a FIS, returns the number of bytes
 	fn do_fis(&self, cmd: &[u8], pkt: &[u8], data: DataPtr) -> Result<usize, Error>
 	{
 		use kernel::memory::virt::get_phys;
@@ -583,6 +583,7 @@ impl<'a> CommandSlot<'a>
 		self.port.regs().write(hw::REG_PxCI, mask);
 	}
 
+	/// Wait for a command to complete and returns the number of bytes transferred
 	pub fn wait(&self) -> Result<usize, Error>
 	{
 		self.event.sleep();
@@ -675,18 +676,18 @@ impl ::storage_ata::volume::Interface for Interface
 		Err(_) => Err(From::from(0)),
 		}
 	}
-	fn dma_lba_28(&self, cmd: u8, count: u8 , addr: u32, data: DataPtr) -> Result<(),::storage_ata::volume::Error> {
+	fn dma_lba_28(&self, cmd: u8, count: u8 , addr: u32, data: DataPtr) -> Result<usize,::storage_ata::volume::Error> {
 		match self.port().request_ata_lba28(0, cmd, count, addr, data)
 		{
-		Ok(_) => Ok( () ),
+		Ok(bc) => Ok( bc / 512 ),
 		Err(Error::Ata{err, ..}) => Err(From::from(err)),
 		Err(_) => Err(From::from(0)),
 		}
 	}
-	fn dma_lba_48(&self, cmd: u8, count: u16, addr: u64, data: DataPtr) -> Result<(),::storage_ata::volume::Error> {
+	fn dma_lba_48(&self, cmd: u8, count: u16, addr: u64, data: DataPtr) -> Result<usize,::storage_ata::volume::Error> {
 		match self.port().request_ata_lba48(0, cmd, count, addr, data)
 		{
-		Ok(_) => Ok( () ),
+		Ok(bc) => Ok( bc / 512 ),
 		Err(Error::Ata{err, ..}) => Err(From::from(err)),
 		Err(_) => Err(From::from(0)),
 		}

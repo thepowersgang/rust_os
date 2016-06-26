@@ -9,7 +9,9 @@ use kernel::metadevs::storage;
 use kernel::device_manager::IOBinding;
 
 pub const SECTOR_SIZE: usize = 512;
-const MAX_DMA_SECTORS: usize = 0x1_0000 / SECTOR_SIZE;	// Limited by byte count, 16-9 = 7 bits = 128 sectors
+//const MAX_DMA_SECTORS: usize = 0x2_0000 / SECTOR_SIZE;	// Limited by sector count (and PRDT entries)
+const MAX_DMA_SECTORS: usize = 0x1F_F000 / SECTOR_SIZE;	// Limited by sector count (and PRDT entries)
+// 512 PDRT entries, assume maximum fragmentation = 512 * 4K max = 2^21 = 2MB per transfer
 
 //const HDD_PIO_W28: u8 = 0x30,
 //const HDD_PIO_R28: u8 = 0x20;
@@ -76,18 +78,22 @@ impl DmaController
 	}
 
 	/// Read ATA DMA
-	pub fn do_dma_rd<'a>(&'a self, blockidx: u64, count: usize, dst: &'a mut [u8], disk: u8) -> storage::AsyncIoResult<'a,()> {
-		self.do_dma(blockidx, count, DMABuffer::new_mut(dst, 32), disk, false)
+	pub fn do_dma_rd<'a>(&'a self, blockidx: u64, count: usize, dst: &'a mut [u8], disk: u8) -> storage::AsyncIoResult<'a,usize> {
+		assert_eq!(dst.len(), count * SECTOR_SIZE);
+		let dst = if count > MAX_DMA_SECTORS { &mut dst[.. MAX_DMA_SECTORS * SECTOR_SIZE] } else { dst };
+		self.do_dma(blockidx, DMABuffer::new_mut(dst, 32), disk, false)
 	}
 	/// Write ATA DMA
-	pub fn do_dma_wr<'a>(&'a self, blockidx: u64, count: usize, dst: &'a [u8], disk: u8) -> storage::AsyncIoResult<'a,()> {
-		self.do_dma(blockidx, count, DMABuffer::new(dst, 32), disk, true)
-	}
-	fn do_dma<'a>(&'a self, blockidx: u64, count: usize, dst: DMABuffer<'a>, disk: u8, is_write: bool) -> storage::AsyncIoResult<'a,()>
-	{
-		assert!(disk < 4);
-		assert!(count < MAX_DMA_SECTORS);
+	pub fn do_dma_wr<'a>(&'a self, blockidx: u64, count: usize, dst: &'a [u8], disk: u8) -> storage::AsyncIoResult<'a,usize> {
 		assert_eq!(dst.len(), count * SECTOR_SIZE);
+		let dst = if count > MAX_DMA_SECTORS { &dst[.. MAX_DMA_SECTORS * SECTOR_SIZE] } else { dst };
+		self.do_dma(blockidx, DMABuffer::new(dst, 32), disk, true)
+	}
+	fn do_dma<'a>(&'a self, blockidx: u64, dst: DMABuffer<'a>, disk: u8, is_write: bool) -> storage::AsyncIoResult<'a,usize>
+	{
+		log_trace!("do_dma(blockidx={}, dst={:?}, disk={})", blockidx, dst, disk);
+		assert!(disk < 4);
+		assert!(dst.len() <= MAX_DMA_SECTORS * SECTOR_SIZE);
 		
 		let bus = (disk >> 1) & 1;
 		let disk = disk & 1;
@@ -234,22 +240,42 @@ impl AtaRegs
 		}
 	}
 	
-	fn fill_prdt(&mut self, dma_buffer: &DMABuffer)
+	fn fill_prdt(&mut self, dma_buffer: &DMABuffer)// -> Result<(), usize>
 	{
+		// TODO: Handle running out of entries.
+		// - Should ensure that transfer is aligned to 512 bytes (or to sector size)
+
 		// Fill PRDT
-		// TODO: Restrict physical ranges to 0x10000 bytes for longer DMAs
 		let mut count = 0;
-		for (prdt, region) in zip!( self.prdts.iter_mut(), dma_buffer.phys_ranges() )
 		{
-			// Wait, this may not need to be here, as the max transfer size is < 2^16
-			assert!(region.1 < (1<<16), "TODO: Split buffers over PRDTs");
-			prdt.bytes = region.1 as u16;
-			prdt.addr = region.0 as u32;
-			prdt.flags = 0;
-			count += 1;
+			let mut prdt_ents = self.prdts.iter_mut();
+			for region in dma_buffer.phys_ranges()
+			{
+				let mut paddr = region.0;
+				let mut bytes = region.1;
+				while bytes > 0
+				{
+					let prd_ent = match prdt_ents.next()
+						{
+						Some(v) => v,
+						None => todo!("Ran out of PRDT ents, return early with truncated read"),
+						};
+					let ent_bytes = if bytes >= 0x1_0000 { 0xFFFF } else { bytes };
+
+					assert!(paddr <= 0xFFFF_FFFF);
+					prd_ent.bytes = ent_bytes as u16;
+					prd_ent.addr = paddr as u32;
+					prd_ent.flags = 0;
+					count += 1;
+					
+					paddr += ent_bytes as u64;
+					bytes -= ent_bytes;
+				}
+			}
 		}
 		assert!(count > 0);
 		self.prdts[count-1].flags = 0x8000;
+		//Ok( () )
 	}
 	
 	fn start_dma(&mut self, disk: u8, blockidx: u64, dma_buffer: &DMABuffer, is_write: bool, bm: &DmaRegBorrow)
@@ -265,10 +291,10 @@ impl AtaRegs
 		unsafe
 		{
 			// - Only use LBA48 if needed
-			if blockidx >= (1 << 28)
+			if blockidx >= (1 << 28) || count >= 256
 			{
 				self.out_8(6, 0x40 | (disk << 4));
-				self.out_8(2, 0);	// Upper sector count (must be zero because of MAX_DMA_SECTORS)
+				self.out_8(2, (count >> 8) as u8);
 				self.out_8(3, (blockidx >> 24) as u8);
 				self.out_8(4, (blockidx >> 32) as u8);
 				self.out_8(5, (blockidx >> 40) as u8);
@@ -375,12 +401,13 @@ struct AtaWaiter<'dev,'buf>
 }
 impl<'a,'b> async::ResultWaiter for AtaWaiter<'a,'b>
 {
-	type Result = Result<(), storage::IoError>;
+	type Result = Result<usize, storage::IoError>;
 	
 	fn get_result(&mut self) -> Option<Self::Result> {
 		match self.state
 		{
-		WaitState::Done(r) => Some(r),
+		WaitState::Done(r) => Some(r.map( |()| self.dma_buffer.len() / 512 )),
+		//WaitState::Done(r) => Some(r),
 		_ => None,
 		}
 	}
@@ -465,7 +492,6 @@ impl<'a,'b> async::ResultWaiter for AtapiWaiter<'a,'b>
 	fn get_result(&mut self) -> Option<Self::Result> {
 		match self.state
 		{
-		//WaitState::Done(r) => Some(r.map( |_| self.dma_buffer.len() )),
 		WaitState::Done(r) => Some(r),
 		_ => None,
 		}

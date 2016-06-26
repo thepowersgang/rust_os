@@ -33,8 +33,8 @@ pub trait Interface: 'static + Send
 	fn name(&self) -> &str;
 
 	fn ata_identify(&self) -> Result<super::AtaIdentifyData, Error>;
-	fn dma_lba_28(&self, cmd: u8, count: u8 , addr: u32, data: DataPtr) -> Result<(),Error>;
-	fn dma_lba_48(&self, cmd: u8, count: u16, addr: u64, data: DataPtr) -> Result<(),Error>;
+	fn dma_lba_28(&self, cmd: u8, count: u8 , addr: u32, data: DataPtr) -> Result<usize,Error>;
+	fn dma_lba_48(&self, cmd: u8, count: u16, addr: u64, data: DataPtr) -> Result<usize,Error>;
 }
 
 pub struct AtaVolume<I: Interface>
@@ -70,7 +70,7 @@ impl<I: Interface + Send + 'static> storage::PhysicalVolume for AtaVolume<I>
 	fn blocksize(&self) -> usize { self.block_size as usize }
 	fn capacity(&self) -> Option<u64> { Some(self.block_count) }
 	
-	fn read<'a>(&'a self, _prio: u8, idx: u64, num: usize, dst: &'a mut [u8]) -> storage::AsyncIoResult<'a,()>
+	fn read<'a>(&'a self, _prio: u8, idx: u64, num: usize, dst: &'a mut [u8]) -> storage::AsyncIoResult<'a,usize>
 	{
 		assert_eq!( dst.len(), num * self.block_size as usize );
 		let ret = if idx < (1 << 28) && num < 256 {
@@ -86,7 +86,7 @@ impl<I: Interface + Send + 'static> storage::PhysicalVolume for AtaVolume<I>
 
 		Box::new( ::kernel::async::NullResultWaiter::new( move || ret ) )
 	}
-	fn write<'a>(&'a self, _prio: u8, idx: u64, num: usize, src: &'a [u8]) -> storage::AsyncIoResult<'a,()>
+	fn write<'a>(&'a self, _prio: u8, idx: u64, num: usize, src: &'a [u8]) -> storage::AsyncIoResult<'a,usize>
 	{
 		assert_eq!( src.len(), num * self.block_size as usize );
 		let ret = if idx < (1 << 28) && num < 256 {

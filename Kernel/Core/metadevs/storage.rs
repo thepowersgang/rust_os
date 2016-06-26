@@ -97,9 +97,12 @@ pub trait PhysicalVolume: Send + 'static
 	/// Reads `count` blocks starting with `blockidx` into the buffer `dst` (which will/should
 	/// be the size of `count` blocks). The read is performed with the provided priority, where
 	/// 0 is higest, and 255 is lowest.
-	fn read<'a>(&'a self, prio: u8, blockidx: u64, count: usize, dst: &'a mut [u8]) -> AsyncIoResult<'a,()>;
+	///
+	/// The yeilded return value is the number of blocks that were written in this request (which
+	/// can be less than `count`, if the underlying medium has a maximum transfer size).
+	fn read<'a>(&'a self, prio: u8, blockidx: u64, count: usize, dst: &'a mut [u8]) -> AsyncIoResult<'a, usize>;
 	/// Writer a number of blocks to the volume
-	fn write<'a>(&'a self, prio: u8, blockidx: u64, count: usize, src: &'a [u8]) -> AsyncIoResult<'a,()>;
+	fn write<'a>(&'a self, prio: u8, blockidx: u64, count: usize, src: &'a [u8]) -> AsyncIoResult<'a, usize>;
 	/// Erases a number of blocks from the volume
 	///
 	/// Erases (requests the underlying storage forget about) `count` blocks starting at `blockidx`.
@@ -509,6 +512,7 @@ impl PhysicalVolumeInfo
 {
 	fn max_blocks_per_read(&self) -> usize {
 		// 32 blocks per read op, = 0x4000 (16KB) for 512 byte sectors
+		// TODO: Remove this?
 		32
 	}
 	
@@ -516,27 +520,35 @@ impl PhysicalVolumeInfo
 	pub fn read(&self, first: u64, dst: &mut [u8]) -> Result<usize,IoError>
 	{
 		log_trace!("PhysicalVolumeInfo::read(first={},{} bytes)", first, dst.len());
-		let block_step = self.max_blocks_per_read();
 		let block_size = self.dev.blocksize();
+		let total_blocks = dst.len() / block_size;
 		// Read up to 'block_step' blocks in each read call
 		// - TODO: Request a read of as much as possible, and be told by the device how many were serviced
 		{
-			let iter_ids  = (first .. ).step_by(block_step as u64);
-			let iter_bufs = dst.chunks_mut( block_step * block_size );
-			for (blk_id,buf) in iter_ids.zip( iter_bufs )
+			let mut buf = dst;
+			let mut blk_id = first;
+			while buf.len() > 0
 			{
+				assert!(buf.len() % block_size == 0);
 				let prio = 0;
 				let blocks = buf.len() / block_size;
 				
 				// TODO: Async! (maybe return a composite read handle?)
-				match self.dev.read(prio, blk_id, blocks, buf).wait()
-				{
-				Ok(_) => {},
-				Err(e) => todo!("Error when PV fails to read: {:?}", e),
-				}
+				let real_count = match self.dev.read(prio, blk_id, blocks, buf).wait()
+					{
+					Ok(v) => v,
+					Err(e) => todo!("Error when PV fails to read: {:?}", e),
+					};
+				assert!(real_count <= blocks);
+				blk_id += real_count as u64;
+
+				// SAFE: Evil stuff to advance the buffer
+				buf = unsafe { &mut *(&mut buf[real_count * block_size..] as *mut _) };
+//				split_at_mut_inplace(&mut buf, real_count * block_size);
 			}
 		}
-		Ok(dst.len()/block_size)
+
+		Ok(total_blocks)
 	}
 	
 	/// Write blocks from the device
@@ -555,7 +567,11 @@ impl PhysicalVolumeInfo
 				let blocks = buf.len() / block_size;
 				
 				// TODO: Async! (maybe return a composite read handle?)
-				self.dev.write(prio, blk_id, blocks, buf).wait().unwrap()
+				match self.dev.write(prio, blk_id, blocks, buf).wait()
+				{
+				Ok(real_count) => { assert!(real_count == blocks, "TODO: Handle incomplete writes"); },
+				Err(e) => todo!("Error when PV fails to write: {:?}", e),
+				}
 			}
 		}
 		Ok(dst.len()/block_size)
