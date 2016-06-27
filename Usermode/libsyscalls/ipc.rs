@@ -20,8 +20,17 @@ impl ::Object for RpcChannel
 		&self.0
 	}
 
-	type Waits = ();
+	type Waits = RpcChannelWaits;
+	fn get_wait(&self, waits: Self::Waits) -> ::values::WaitItem {
+		::values::WaitItem { object: 0, flags: waits.0 }
+	}
+	fn check_wait(&self, wi: &::values::WaitItem) -> Self::Waits {
+		RpcChannelWaits(wi.flags)
+	}
 }
+define_waits!{ RpcChannelWaits => (
+	rx:has_rx = ::values::EV_IPC_RPC_RECV,
+)}
 impl RpcChannel
 {
 	pub fn new_pair() -> Result< (RpcChannel, RpcChannel), NewError > {
@@ -58,7 +67,7 @@ impl RpcChannel
 	}
 
 	pub fn wait_rx(&self) -> ::WaitItem {
-		unimplemented!();
+		::values::WaitItem { object: self.0 .0, flags: ::values::EV_IPC_RPC_RECV }
 	}
 }
 

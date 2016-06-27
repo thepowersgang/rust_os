@@ -252,6 +252,8 @@ def_classes! {
 		=1: IPC_RPC_RECV,
 	--
 	}|{
+		/// Fires when the channel has a message waiting
+		=0: EV_IPC_RPC_RECV,
 	}
 }
 
