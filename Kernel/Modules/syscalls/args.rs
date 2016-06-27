@@ -31,7 +31,14 @@ unsafe impl Pod for u8 {}
 unsafe impl Pod for u32 {}
 unsafe impl Pod for ::values::WaitItem {}
 unsafe impl Pod for ::values::GuiEvent {}	// Kinda lies, but meh
+unsafe impl Pod for ::values::RpcMessage {}
 
+impl<T: Pod> SyscallArg for Freeze<T>
+{
+	fn get_arg(args: &mut &[usize]) -> Result<Self, ::Error> {
+		todo!("");
+	}
+}
 impl<T: Pod> SyscallArg for Freeze<[T]>
 {
 	fn get_arg(args: &mut &[usize]) -> Result<Self, ::Error> {

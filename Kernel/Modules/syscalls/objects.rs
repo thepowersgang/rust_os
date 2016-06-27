@@ -234,40 +234,47 @@ pub fn push_as_unclaimed(tag: &str, handle: u32) {
 /// Grab an unclaimed object (checking the class)
 pub fn get_unclaimed(class: u16, tag: &str) -> u64
 {
+	super::from_result( get_unclaimed_int(class, tag) )
+}
+fn get_unclaimed_int(class: u16, tag: &str) -> Result<u32,u32>
+{
 	let objs = get_process_local::<ProcessObjects>();
 
-	let rv = if let Some(id) = objs.pop_given(tag) {
-			let slot = match objs.get(id)
-				{
-				Some(v) => v,
-				None => todo!("return error when object in queue doesn't exist (user may have dropped it)"),
-				};
-			let mut lh = slot.write();
-			if lh.is_none() {
-				log_notice!("QUIRK - Object index popped wasn't populated (already freed)");
-				Err(0x1_0000)
-			}
-			else if lh.as_ref().map(|x| x.data.class()) == Some(class) {
-				Ok(id as u32)
-			}
-			else {
-				let real_class = {
-					let o = lh.as_ref().unwrap();
-					log_notice!("get_unclaimed() - Object was the wrong class (wanted {} [{} ?], but got {} [{} {}])",
-						class, ::values::get_class_name(class),
-						o.data.class(), ::values::get_class_name(o.data.class()), o.data.type_name()
-						);
-					o.data.class()
-					};
-				*lh = None;
-				Err(real_class as u32)
-			}
+	if let Some(id) = objs.pop_given(tag) {
+		let slot = match objs.get(id)
+			{
+			Some(v) => v,
+			None => {
+				log_notice!("QUIRK - Object index popped ({}) wasn't in list", id);
+				return Err(0x1_0000);
+				},
+			};
+		let mut lh = slot.write();
+		if lh.is_none() {
+			log_notice!("QUIRK - Object index popped ({}) wasn't populated (already freed)", id);
+			Err(0x1_0000)
+		}
+		else if lh.as_ref().map(|x| x.data.class()) == Some(class) {
+			Ok(id as u32)
 		}
 		else {
-			log_notice!("get_unclaimed() - No object in queue");
-			Err(0x1_0000)
-		};
-	super::from_result::<u32,u32>( rv )
+			let real_class = {
+				let o = lh.as_ref().unwrap();
+				log_notice!("get_unclaimed({}) - Object popped ({}) was the wrong class (wanted {} [{} ?], but got {} [{} {}])",
+					tag, id,
+					class, ::values::get_class_name(class),
+					o.data.class(), ::values::get_class_name(o.data.class()), o.data.type_name()
+					);
+				o.data.class()
+				};
+			*lh = None;
+			Err(real_class as u32)
+		}
+	}
+	else {
+		log_notice!("get_unclaimed() - No object in queue");
+		Err(0x1_0000)
+	}
 }
 
 #[inline(never)]
@@ -319,8 +326,13 @@ pub fn give_object(target: &::kernel::threads::ProcessHandle, tag: &str, handle:
 	log_debug!("give_object(target={:?}, handle={:?})", target, handle);
 	let target_list = target.get_process_local_alloc::<ProcessObjects>();
 	let obj = try!(get_process_local::<ProcessObjects>().take_object(handle));
+	let class_id = obj.class();
 	let id = try!( target_list.find_and_fill_slot(|| UserObject { data: obj }) );
 	
+	log_trace!("- Giving object {} ({} {}) as '{}' (handle {})",
+		handle, class_id, ::values::get_class_name(class_id),
+		tag, id
+		);
 	target_list.push_given( id, tag );
 
 	Ok( () )

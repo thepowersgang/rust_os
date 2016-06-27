@@ -246,6 +246,10 @@ def_classes! {
 
 	/// Remote procedure call channel
 	=10: CLASS_IPC_RPC = {
+		/// Send a message over the channel (RpcMessage, limited size)
+		=0: IPC_RPC_SEND,
+		/// Receive a message
+		=1: IPC_RPC_RECV,
 	--
 	}|{
 	}

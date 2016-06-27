@@ -39,13 +39,22 @@ impl RpcChannel
 	}
 
 	pub fn send(&self, message: RpcMessage) {
-		unimplemented!();
+		// SAFE: Syscall
+		unsafe { self.0.call_2(::values::IPC_RPC_SEND, &message as *const _ as usize, 0); }
 	}
 	pub fn send_obj<T: ::Object>(&self, message: RpcMessage, object: T) {
 		unimplemented!();
 	}
 	pub fn try_receive(&self) -> Result< (RpcMessage, Option<::AnyObject>), RxError> {
-		unimplemented!()
+		let mut msg: RpcMessage = Default::default();
+		// SAFE: Syscall
+		let rv = unsafe { self.0.call_1(::values::IPC_RPC_RECV, &mut msg as *mut _ as usize) };
+		if rv < 0x1000 {
+			Ok( (msg, if rv > 0 { Some(::AnyObject(::ObjectHandle(rv as u32))) } else { None }) )
+		}
+		else {
+			unimplemented!()
+		}
 	}
 
 	pub fn wait_rx(&self) -> ::WaitItem {

@@ -26,7 +26,7 @@ mod threads;
 #[path="gui.rs"]
 mod gui_calls;
 mod vfs;
-mod ipc;
+mod ipc_calls;
 
 pub type ObjectHandle = u32;
 
@@ -242,10 +242,18 @@ fn invoke_int(call_id: u32, args: &mut Args) -> Result<u64,Error>
 			Err( () ) => error_code(0) as u64,
 			}
 			},
+		// === 4: IPC
+		IPC_NEWPAIR => {
+			match ipc_calls::new_pair()
+			{
+			Ok( (oh_a, oh_b) ) => oh_a as u64 | (oh_b as u64) << 32,
+			Err( () ) => !0
+			}
+			},
 		// === *: Default
 		_ => {
 			log_error!("Unknown syscall {:05x}", call_id);
-			0
+			!0
 			},
 		})
 	}
