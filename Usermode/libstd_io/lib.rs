@@ -3,11 +3,14 @@
 //
 //! libstd's IO support
 #![no_std]
+#![feature(collections)]	// goddamnit
 use core::fmt;
 
 #[macro_use]
 extern crate macros;
 extern crate syscalls;
+
+extern crate collections;
 
 pub mod prelude {
 	pub use super::{Read, Write, BufRead, Seek};
@@ -15,6 +18,10 @@ pub mod prelude {
 mod std {
 	pub use core::{fmt, convert};
 }
+
+mod buf_reader;
+
+pub use buf_reader::BufReader;
 
 /// Shorthand result type
 pub type Result<T> = ::core::result::Result<T,Error>;

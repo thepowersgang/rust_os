@@ -156,23 +156,55 @@ impl RasterRGB
 		use ::byteorder::{LittleEndian,ReadBytesExt};
 		use std::io::Read;
 		let path = path.as_ref();
-		let mut file = try!( ::std::fs::File::open(path) );
+		let mut file = ::std::io::BufReader::new( try!( ::std::fs::File::open(path) ) );
 		// - Check magic
-		if &try!(get_4_bytes(&mut file)) != b"\x7FR24" {
-			return Err(LoadError::Malformed);
-		}
-		// - Read dimensions
-		let w = try!( file.read_u16::<LittleEndian>() ) as usize;
-		let h = try!( file.read_u16::<LittleEndian>() ) as usize;
-		kernel_log!("w = {}, h = {}", w, h);
-		// - Read data
-		let mut data: Vec<u8> = (0 .. w*h*3).map(|_| 0u8).collect();
-		try!(file.read(&mut data));
+		let magic = try!(get_4_bytes(&mut file));
+		if &magic ==  b"\x7FR24" {
+			// - Read dimensions
+			let w = try!( file.read_u16::<LittleEndian>() ) as usize;
+			let h = try!( file.read_u16::<LittleEndian>() ) as usize;
+			kernel_log!("w = {}, h = {}", w, h);
+			// - Read data
+			let mut data: Vec<u8> = (0 .. w*h*3).map(|_| 0u8).collect();
+			try!(file.read(&mut data));
 
-		Ok(RasterRGB {
-			width: w,
-			data: data,
-			})
+			Ok(RasterRGB {
+				width: w,
+				data: data,
+				})
+		}
+		else if &magic ==  b"\x7FR\x18R" {
+			// - Read dimensions
+			let w = try!( file.read_u16::<LittleEndian>() ) as usize;
+			let h = try!( file.read_u16::<LittleEndian>() ) as usize;
+			kernel_log!("w = {}, h = {}", w, h);
+			let size = w*h*3;
+			let mut data: Vec<u8> = (0 .. size).map(|_| 0u8).collect();
+			let mut pos = 0;
+			
+			while pos < size
+			{
+				let count_u8 = try!(file.read_u8());
+				let px_buf = {
+					let mut buf = [0; 3];
+					try!( file.read(&mut buf) ) == 3;
+					buf
+					};
+				for _ in 0 .. count_u8 {
+					data[pos..][..3].copy_from_slice(&px_buf);
+					pos += 3;
+				}
+			}
+
+			Ok(RasterRGB {
+				width: w,
+				data: data,
+				})
+		}
+		else {
+			kernel_log!("RasterRGB::new - Image magic ({:?}) bad", magic);
+			Err(LoadError::Malformed)
+		}
 	}
 }
 impl Buffer for RasterRGB {
