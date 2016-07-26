@@ -9,7 +9,9 @@ impl<'a> EfiLogger<'a> {
 	}
 	fn write_char(&mut self, c: char) {
 		let mut b = [0, 0, 0];
-		let _len = c.encode_utf16(&mut b);
+		for (i,w) in c.encode_utf16().enumerate() {
+			b[i] = w;
+		}
 		self.0.output_string( b.as_ptr() );
 	}
 }

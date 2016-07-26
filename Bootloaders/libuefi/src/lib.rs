@@ -4,6 +4,7 @@
 #![no_std]
 #![crate_name="uefi"]
 #![crate_type="lib"]
+#![feature(unicode)]
 
 pub enum Void {}
 pub type Handle = *mut Void;

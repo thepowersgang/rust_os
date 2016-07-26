@@ -1,7 +1,7 @@
 #![feature(lang_items)]
 #![feature(asm)]
 #![no_std] 
-//#![crate_type="obj"]
+//#![crate_type="lib"]
 
 #[macro_use]
 extern crate uefi;
@@ -45,8 +45,10 @@ pub extern "win64" fn efi_main(image_handle: ::uefi::Handle, system_table: &::ue
 fn eh_personality() -> ! {
 	loop {}
 }
+
+#[no_mangle]
 #[lang="panic_fmt"]
-fn panic_fmt() -> ! {
+pub extern "C" fn rust_begin_unwind(_msg: ::core::fmt::Arguments, _file: &'static str, _line: usize) -> ! {
 	loop {}
 }
 

@@ -3,7 +3,8 @@
 
 BIN := ../bootloader-efi.pe
 TARGET_FILE := target.json
-RUSTFLAGS := --target=$(TARGET_FILE) --out-dir=.obj/ -Z no-landing-pads -L .obj/ -C lto
+RUSTFLAGS := --target=$(TARGET_FILE) --out-dir=.obj/ -Z no-landing-pads -L .obj/
+#RUSTFLAGS += -C lto
 
 all: $(BIN)
 
