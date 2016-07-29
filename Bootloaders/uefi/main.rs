@@ -3,6 +3,8 @@
 #![no_std] 
 //#![crate_type="lib"]
 
+use uefi::boot_services::protocols;
+
 #[macro_use]
 extern crate uefi;
 
@@ -11,6 +13,14 @@ macro_rules! log {
 }
 #[path="../_common/elf.rs"]
 mod elf;
+
+//static PATH_CONFIG: &'static [u16] = ucs2_c!("Tifflin\\boot.cfg");
+//static PATH_FALLBACK_KERNEL: &'static [u16] = ucs2_c!("Tifflin\\kernel-amd4.bin");
+macro_rules! u16_cs {
+	($($v:expr),+) => ( [$($v as u16),*] );
+}
+static PATH_CONFIG: &'static [u16] = &u16_cs!('T','I','F','F','L','I','N','\\','B','O','O','T','.','C','F','G',0);
+static PATH_FALLBACK_KERNEL: &'static [u16] = &u16_cs!('T','I','F','F','L','I','N','\\','K','E','R','N','E','L','.','E','L','F',0);
 
 // Marker to tell where the executable was loaded
 #[link_section=".text"]
@@ -31,12 +41,37 @@ pub extern "win64" fn efi_main(image_handle: ::uefi::Handle, system_table: &::ue
 		S_CONOUT = conout;
 	}
 	loge!(conout, "efi_main(image_handle={:?}, system_table={:p}) - {:p}", image_handle, system_table, &S_MARKER);
-	let sp = unsafe { let v: u64; asm!("mov %rsp, $0" : "=r" (v)); v };
-	loge!(conout, "- RSP: {:p}", sp as usize as *const ());
+	//let sp = unsafe { let v: u64; asm!("mov %rsp, $0" : "=r" (v)); v };
+	//loge!(conout, "- RSP: {:p}", sp as usize as *const ());
 	loge!(conout, "- Firmware Version {:#x} by '{}'", system_table.firmware_revision, system_table.firmware_vendor());
 	loge!(conout, "- Boot Services @ {:p}, Runtime Services @ {:p}",
 		system_table.boot_services, system_table.runtime_services);
+	
+	let image_dev: &protocols::LoadedImageDevicePath = system_table.boot_services.handle_protocol(&image_handle).expect("image_handle - LoadedImageDevicePath");
+	//loge!(conout, "- image_dev = {:?}", image_dev);
+	let image_proto: &protocols::LoadedImage = system_table.boot_services.handle_protocol(&image_handle).expect("image_handle - LoadedImage");
+	//loge!(conout, "- image_proto.file_path={:?}", image_proto.file_path);
+	
+	if image_proto.file_path.type_code() != (4,4) {
+	}
 
+	let system_volume_fs: &protocols::SimpleFileSystem = system_table.boot_services.handle_protocol(&image_proto.device_handle).expect("image_proto - FileProtocol");
+	let system_volume_root = system_volume_fs.open_volume().expect("system_volume_fs - File");
+	
+	let kernel_file = match system_volume_root.open_read(PATH_CONFIG)
+		{
+		Ok(cfg) => panic!("TODO: Read config file"),
+		Err(::uefi::status::NOT_FOUND) => {
+			system_volume_root.open_read(PATH_FALLBACK_KERNEL).expect("Unable to open fallback kernel");
+			},
+		Err(e) => panic!("Failed to open config file: {:?}", e),
+		};
+	// TODO: Load kernel from this file (ELF).
+	// - Could just have the kernel be part of this image... but nah.
+
+
+	loge!(conout, "> Spinning. TODO: Load kernel from system partition");
+	
 	loop {}
 }
 
@@ -48,7 +83,15 @@ fn eh_personality() -> ! {
 
 #[no_mangle]
 #[lang="panic_fmt"]
-pub extern "C" fn rust_begin_unwind(_msg: ::core::fmt::Arguments, _file: &'static str, _line: usize) -> ! {
+pub extern "C" fn rust_begin_unwind(msg: ::core::fmt::Arguments, _file: &'static str, _line: usize) -> ! {
+	static mut NESTED: bool = false;
+	unsafe {
+		if NESTED {
+			loop {}
+		}
+		NESTED = true;
+		loge!(&*S_CONOUT, "PANIC: {}", msg);
+	}
 	loop {}
 }
 
