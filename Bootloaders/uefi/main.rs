@@ -27,6 +27,8 @@ static PATH_FALLBACK_KERNEL: &'static [u16] = &u16_cs!('T','I','F','F','L','I','
 static S_MARKER: () = ();
 
 static mut S_CONOUT: *const ::uefi::SimpleTextOutputInterface = 1 as *const _;
+static mut S_BOOT_SERVICES: *const ::uefi::boot_services::BootServices = 0 as *const _;
+static mut S_IMAGE_HANDLE: ::uefi::Handle = 0 as *mut _;
 
 pub fn get_conout() -> &'static ::uefi::SimpleTextOutputInterface {
 	unsafe { &*S_CONOUT }
@@ -39,6 +41,8 @@ pub extern "win64" fn efi_main(image_handle: ::uefi::Handle, system_table: &::ue
 	let conout = system_table.con_out();
 	unsafe {
 		S_CONOUT = conout;
+		S_IMAGE_HANDLE = image_handle;
+		S_BOOT_SERVICES = system_table.boot_services;
 	}
 	loge!(conout, "efi_main(image_handle={:?}, system_table={:p}) - {:p}", image_handle, system_table, &S_MARKER);
 	//let sp = unsafe { let v: u64; asm!("mov %rsp, $0" : "=r" (v)); v };
@@ -47,31 +51,74 @@ pub extern "win64" fn efi_main(image_handle: ::uefi::Handle, system_table: &::ue
 	loge!(conout, "- Boot Services @ {:p}, Runtime Services @ {:p}",
 		system_table.boot_services, system_table.runtime_services);
 	
-	let image_dev: &protocols::LoadedImageDevicePath = system_table.boot_services.handle_protocol(&image_handle).expect("image_handle - LoadedImageDevicePath");
-	//loge!(conout, "- image_dev = {:?}", image_dev);
-	let image_proto: &protocols::LoadedImage = system_table.boot_services.handle_protocol(&image_handle).expect("image_handle - LoadedImage");
-	//loge!(conout, "- image_proto.file_path={:?}", image_proto.file_path);
-	
-	if image_proto.file_path.type_code() != (4,4) {
-	}
+	{
+		let boot_services = system_table.boot_services;
+		//let image_dev: &protocols::LoadedImageDevicePath = boot_services.handle_protocol(&image_handle).expect("image_handle - LoadedImageDevicePath");
+		//loge!(conout, "- image_dev = {:?}", image_dev);
+		let image_proto: &protocols::LoadedImage = boot_services.handle_protocol(&image_handle).expect("image_handle - LoadedImage");
+		//loge!(conout, "- image_proto.file_path={:?}", image_proto.file_path);
+		
+		if image_proto.file_path.type_code() != (4,4) {
+			panic!("Loader wans't loaded from a filesystem");
+		}
 
-	let system_volume_fs: &protocols::SimpleFileSystem = system_table.boot_services.handle_protocol(&image_proto.device_handle).expect("image_proto - FileProtocol");
-	let system_volume_root = system_volume_fs.open_volume().expect("system_volume_fs - File");
-	
-	let kernel_file = match system_volume_root.open_read(PATH_CONFIG)
+		let system_volume_fs: &protocols::SimpleFileSystem = boot_services.handle_protocol(&image_proto.device_handle).expect("image_proto - FileProtocol");
+		let system_volume_root = system_volume_fs.open_volume().expect("system_volume_fs - File");
+		
+		let mut kernel_file = match system_volume_root.open_read(PATH_CONFIG)
+			{
+			Ok(cfg) => panic!("TODO: Read config file"),
+			Err(::uefi::status::NOT_FOUND) => {
+				system_volume_root.open_read(PATH_FALLBACK_KERNEL).expect("Unable to open fallback kernel")
+				},
+			Err(e) => panic!("Failed to open config file: {:?}", e),
+			};
+		// TODO: Load kernel from this file (ELF).
+		// - Could just have the kernel be part of this image... but nah.
+
+		let elf_hdr = {
+			let mut hdr = elf::ElfHeader::default();
+			kernel_file.read( unsafe { ::core::slice::from_raw_parts_mut( &mut hdr as *mut _ as *mut u8, ::core::mem::size_of::<elf::ElfHeader>() ) } ).expect("ElfHeader read");
+			hdr
+			};
+		elf_hdr.check_header();
+		for i in 0 .. elf_hdr.e_phnum
 		{
-		Ok(cfg) => panic!("TODO: Read config file"),
-		Err(::uefi::status::NOT_FOUND) => {
-			system_volume_root.open_read(PATH_FALLBACK_KERNEL).expect("Unable to open fallback kernel");
-			},
-		Err(e) => panic!("Failed to open config file: {:?}", e),
-		};
-	// TODO: Load kernel from this file (ELF).
-	// - Could just have the kernel be part of this image... but nah.
+			let mut ent = elf::PhEnt::default();
+			kernel_file.set_position(elf_hdr.e_phoff as u64 + (i as usize * ::core::mem::size_of::<elf::PhEnt>()) as u64 );
+			kernel_file.read( unsafe { ::core::slice::from_raw_parts_mut( &mut ent as *mut _ as *mut u8, ::core::mem::size_of::<elf::PhEnt>() ) } ).expect("PhEnt read");
+			
+			if ent.p_type == 1
+			{
+				loge!(conout, "- {:#x}+{:#x} loads +{:#x}+{:#x}",
+					ent.p_paddr, ent.p_memsz,
+					ent.p_offset, ent.p_filesz
+					);
+				
+				let mut addr = ent.p_paddr as u64;
+				// TODO: OVMF is returning INVALID_PARAMETER from this
+				(boot_services.allocate_pages)(
+					::uefi::boot_services::AllocateType::Address,
+					::uefi::boot_services::MemoryType::ConventionalMemory,
+					(ent.p_memsz + 0xFFF) as usize / 0x1000,
+					&mut addr
+					)
+					.err_or( () )
+					.expect("allocate_pages")
+					;
+				
+				let data_slice = unsafe { ::core::slice::from_raw_parts_mut(ent.p_paddr as usize as *mut u8, ent.p_memsz as usize) };
+				kernel_file.set_position(ent.p_offset as u64);
+				kernel_file.read( &mut data_slice[.. ent.p_filesz as usize] ).expect("read segment");
+				for b in &mut data_slice[ent.p_filesz as usize .. ent.p_memsz as usize] {
+					*b = 0;
+				}
+			}
+		}
 
-
-	loge!(conout, "> Spinning. TODO: Load kernel from system partition");
+	}
 	
+	loge!(conout, "> Spinning. TODO: Load kernel from system partition");
 	loop {}
 }
 
@@ -91,6 +138,8 @@ pub extern "C" fn rust_begin_unwind(msg: ::core::fmt::Arguments, _file: &'static
 		}
 		NESTED = true;
 		loge!(&*S_CONOUT, "PANIC: {}", msg);
+
+		((*S_BOOT_SERVICES).exit)(S_IMAGE_HANDLE, ::uefi::status::NOT_FOUND, 0, ::core::ptr::null());
 	}
 	loop {}
 }

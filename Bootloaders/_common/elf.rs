@@ -1,47 +1,54 @@
 
 
-type Elf32_Half = u16;
-type Elf32_Addr = u32;
-type Elf32_Off = u32;
-type Elf32_Sword = i32;
-type Elf32_Word = u32;
+pub type Elf32_Half = u16;
+pub type Elf32_Addr = u32;
+pub type Elf32_Off = u32;
+pub type Elf32_Sword = i32;
+pub type Elf32_Word = u32;
 
 #[repr(C)]
-struct ElfHeader {
-	e_ident: [u8; 16],
-	e_object_type: Elf32_Half,
-	e_machine_type: Elf32_Half,
-	e_version: Elf32_Word,
+#[derive(Default)]
+pub struct ElfHeader {
+	pub e_ident: [u8; 16],
+	pub e_object_type: Elf32_Half,
+	pub e_machine_type: Elf32_Half,
+	pub e_version: Elf32_Word,
 
-	e_entry: Elf32_Addr,
-	e_phoff: Elf32_Off,
-	e_shoff: Elf32_Off,
+	pub e_entry: Elf32_Addr,
+	pub e_phoff: Elf32_Off,
+	pub e_shoff: Elf32_Off,
 
-	e_flags: Elf32_Word,
-	e_ehsize: Elf32_Half,
+	pub e_flags: Elf32_Word,
+	pub e_ehsize: Elf32_Half,
 
-	e_phentsize: Elf32_Half,
-	e_phnum: Elf32_Half,
+	pub e_phentsize: Elf32_Half,
+	pub e_phnum: Elf32_Half,
 
-	e_shentsize: Elf32_Half,
-	e_shnum: Elf32_Half,
-	e_shstrndx: Elf32_Half,
+	pub e_shentsize: Elf32_Half,
+	pub e_shnum: Elf32_Half,
+	pub e_shstrndx: Elf32_Half,
+}
+impl ElfHeader {
+	pub fn check_header(&self) {
+		assert_eq!(&self.e_ident[..8], b"\x7FELF\x01\x01\x01\x00");	// Elf32, LSB, Version, Pad
+		assert_eq!(self.e_version, 1);
+	}
+}
+#[repr(C)]
+#[derive(Copy,Clone,Default)]
+pub struct PhEnt {
+	pub p_type: Elf32_Word,
+	pub p_offset: Elf32_Off,
+	pub p_vaddr: Elf32_Addr,
+	pub p_paddr: Elf32_Addr,	// aka load
+	pub p_filesz: Elf32_Word,
+	pub p_memsz: Elf32_Word,
+	pub p_flags: Elf32_Word,
+	pub p_align: Elf32_Word,
 }
 #[repr(C)]
 #[derive(Copy,Clone)]
-struct PhEnt {
-	p_type: Elf32_Word,
-	p_offset: Elf32_Off,
-	p_vaddr: Elf32_Addr,
-	p_paddr: Elf32_Addr,	// aka load
-	p_filesz: Elf32_Word,
-	p_memsz: Elf32_Word,
-	p_flags: Elf32_Word,
-	p_align: Elf32_Word,
-}
-#[repr(C)]
-#[derive(Copy,Clone)]
-struct ShEnt {
+pub struct ShEnt {
 	sh_name: Elf32_Word,
 	sh_type: Elf32_Word,
 	sh_flags: Elf32_Word,
@@ -59,8 +66,7 @@ pub struct ElfFile(ElfHeader);
 impl ElfFile
 {
 	pub fn check_header(&self) {
-		assert_eq!(&self.0.e_ident[..8], b"\x7FELF\x01\x01\x01\x00");	// Elf32, LSB, Version, Pad
-		assert_eq!(self.0.e_version, 1);
+		self.0.check_header();
 	}
 	fn phents(&self) -> PhEntIter {
 		assert_eq!( self.0.e_phentsize as usize, ::core::mem::size_of::<PhEnt>() );

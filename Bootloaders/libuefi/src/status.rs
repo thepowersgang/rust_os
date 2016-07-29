@@ -3,10 +3,10 @@
 #[repr(C)]
 #[derive(Copy,Clone,PartialEq,Eq)]
 /// EFI Status type
-pub struct Status(i32);
+pub struct Status(u64);
 impl Status
 {
-	pub fn new(val: i32) -> Status {
+	pub fn new(val: u64) -> Status {
 		Status(val)
 	}
 	pub fn err_or<T>(self, v: T) -> Result<T,Status> {
@@ -34,11 +34,16 @@ impl ::core::fmt::Debug for Status
 	fn fmt(&self, f: &mut ::core::fmt::Formatter) -> ::core::fmt::Result {
 		match *self
 		{
-		NOT_FOUND => write!(f, "Status({} The item was not found.)", self.0),
-		_ => write!(f, "Status({})", self.0),
+		NOT_FOUND => write!(f, "Status(NOT_FOUND The item was not found)"),
+		LOAD_ERROR => write!(f, "Status(LOAD_ERROR A parameter was incorrect)"),
+		INVALID_PARAMETER => write!(f, "Status(INVALID_PARAMETER The operation is not supported)"),
+		_ => write!(f, "Status({:#x})", self.0),
 		}
 	}
 }
 
-pub const NOT_FOUND: Status = Status(14);
+pub const SUCCESS: Status = Status(0);
+pub const LOAD_ERROR: Status = Status(1 << 63 | 1);
+pub const INVALID_PARAMETER: Status = Status(1 << 63 | 2);
+pub const NOT_FOUND: Status = Status(1 << 63 | 14);
 

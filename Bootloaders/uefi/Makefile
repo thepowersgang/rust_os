@@ -9,10 +9,10 @@ RUSTFLAGS := --target=$(TARGET_FILE) --out-dir=.obj/ -Z no-landing-pads -L .obj/
 all: $(BIN)
 
 .obj/bootloader-efi.o: .obj/main.o .obj/core.o .obj/uefi.o Makefile
-	x86_64-efi-pe-ld -r -o $@ -e efi_main .obj/main.o .obj/core.o .obj/uefi.o --strip-discarded --gc-sections --allow-multiple-definition --print-gc-sections
+	x86_64-efi-pe-ld -r -o $@ -e efi_main .obj/main.o .obj/core.o .obj/uefi.o --strip-discarded --gc-sections --allow-multiple-definition
 
 $(BIN): .obj/bootloader-efi.o
-	x86_64-efi-pe-ld -dll -shared --subsystem 10 -e efi_main -o $@ .obj/bootloader-efi.o -Map map.txt --gc-sections --print-gc-sections 2>&1 | (grep -v 'has no section'; true)
+	x86_64-efi-pe-ld -dll -shared --subsystem 10 -e efi_main -o $@ .obj/bootloader-efi.o -Map map.txt --gc-sections 2>&1 | (grep -v 'has no section'; true)
 	x86_64-efi-pe-objdump -d $@ > $@.dsm
 	x86_64-efi-pe-strip $@
 
