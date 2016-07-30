@@ -39,11 +39,15 @@ mboot:
 [BITS 32]
 [global start]
 start:
+	; NOTE: If this passes, it's being run in 64-bit mode
+	cmp ecx, 0x71FF0EF1
+	jz start_uefi
+	
 	; 0. Save multboot state
 	mov [s_multiboot_signature - KERNEL_BASE], eax
 	or ebx, 0x80000000
 	mov [s_multiboot_pointer - KERNEL_BASE], ebx
-	
+
 	; 1. Ensure that CPU is compatible
 	mov eax, 0x80000000
 	cpuid
@@ -109,6 +113,7 @@ start:
 	mov cr0, eax
 	lgdt [GDTPtr - KERNEL_BASE]
 	jmp 0x08:start64
+
 ;;
 ;;
 ;;
@@ -130,6 +135,44 @@ not64bitCapable:
 	jmp .hlt
 
 [BITS 64]
+start_uefi:
+	;; 1. Enable a nice set of features
+	; Enable:
+	;   [4] PGE (Page Global Enable)
+	; + [5] PAE (Physical Address Extension)
+	; + [7] PSE (Page Size Extensions)
+	; + [ 9] OSFXSR (Operating System Support for FXSAVE and FXRSTOR instructions)
+	; + [10] OSXMMEXCPT (Operating System Support for Unmasked SIMD Floating-Point Exceptions)
+	mov rax, cr4
+	or eax, 0x80|0x20|0x10
+        or ax, (1 << 9)|(1 << 10)
+	mov cr4, rax
+	
+	; Enable IA-32e mode
+	; (Also enables SYSCALL and NX)
+	mov ecx, 0xC0000080
+	rdmsr
+	or eax, (1 << 11)|(1 << 8)|(1 << 0)	; NXE, LME, SCE
+	wrmsr
+	
+	; Load PDP4
+	mov eax, low_InitialPML4
+	mov cr3, rax
+	; 2. Enable paging and enter long mode (enable SSE too)
+	; Set [31] PG (Paging enabled)
+	; Set [16] WP (Kernel write-protect)
+	; Set [3]TS (Enables #NM on all FPU instructions)
+	; Set [1]MP (with TS, Enables #NM when FWAIT is used)
+	; Clear [2]EM (Disables emulation of the FPU)
+	mov rax, cr0
+	or eax, 0x80010000|(1 << 3)|(1 << 1)	; PG & WP
+	and ax, ~(1 << 2)
+	mov cr0, rax
+	
+	lgdt [DWORD GDTPtr - KERNEL_BASE]
+	;jmp 0x08:start64
+	jmp start64
+
 [extern prep_tls]
 start64:
 	mov dx, 0x3F8

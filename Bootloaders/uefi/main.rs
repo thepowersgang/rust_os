@@ -96,10 +96,9 @@ pub extern "win64" fn efi_main(image_handle: ::uefi::Handle, system_table: &::ue
 					);
 				
 				let mut addr = ent.p_paddr as u64;
-				// TODO: OVMF is returning INVALID_PARAMETER from this
 				(boot_services.allocate_pages)(
 					::uefi::boot_services::AllocateType::Address,
-					::uefi::boot_services::MemoryType::ConventionalMemory,
+					::uefi::boot_services::MemoryType::LoaderData,
 					(ent.p_memsz + 0xFFF) as usize / 0x1000,
 					&mut addr
 					)
@@ -115,7 +114,37 @@ pub extern "win64" fn efi_main(image_handle: ::uefi::Handle, system_table: &::ue
 				}
 			}
 		}
+		let entrypoint: extern "cdecl" fn(usize)->! = unsafe { ::core::mem::transmute(elf_hdr.e_entry as usize) };
 
+		// TODO: Set a sane video mode
+		
+		// Save memory map
+		let (map_key, map) = {
+			let mut map_size = 0;
+			let mut map_key = 0;
+			let mut ent_size = 0;
+			let mut ent_ver = 0;
+			match (boot_services.get_memory_map)(&mut map_size, ::core::ptr::null_mut(), &mut map_key, &mut ent_size, &mut ent_ver)
+			{
+			::uefi::status::SUCCESS => {},
+			::uefi::status::BUFFER_TOO_SMALL => {},
+			e => panic!("get_memory_map - {:?}", e),
+			}
+
+			assert_eq!( ent_size, ::core::mem::size_of::<uefi::boot_services::MemoryDescriptor>() );
+			let mut map = boot_services.allocate_pool_vec( map_size / ent_size ).unwrap();
+			(boot_services.get_memory_map)(&mut map_size, map.as_mut_ptr(), &mut map_key, &mut ent_size, &mut ent_ver).err_or( () ).expect("get_memory_map 2");
+			unsafe {
+				map.set_len( map_size / ent_size );
+			}
+
+			(map_key, map)
+			};
+		loge!(conout, "- Exiting boot services");
+		(boot_services.exit_boot_services)(image_handle, map_key).err_or( () ).expect("exit_boot_services");
+
+		// TODO: Execute kernel (passing a magic value and general boot information)
+		entrypoint(0x71FF0EF1);
 	}
 	
 	loge!(conout, "> Spinning. TODO: Load kernel from system partition");

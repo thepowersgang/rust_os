@@ -84,6 +84,12 @@ pub struct BootServices
 }
 impl BootServices
 {
+	pub fn allocate_pool_vec<T>(&self, capacity: usize) -> Result<PoolVec<T>, Status> {
+		let mut ptr = ::core::ptr::null_mut();
+		(self.allocate_pool)(MemoryType::LoaderCode, capacity * ::core::mem::size_of::<T>(), &mut ptr)
+			.err_or_else(|| unsafe { PoolVec::from_ptr(self, ptr as *mut T, capacity, 0) }) 
+	}
+
 	//pub fn locate_handles_by_protocol(&self, protocol: &Guid) -> Result<PoolSlice<Handle>, Status> {
 	//	let mut ptr = 0 as *mut _;
 	//	let mut count = 0;
@@ -97,6 +103,45 @@ impl BootServices
 			.err_or_else( || unsafe { &*P::from_ptr(ptr) } )
 	}
 }
+pub struct PoolVec<'a, T>
+{
+	bs: &'a BootServices,
+	ptr: ::core::ptr::Unique<T>,
+	cap: usize,
+	len: usize,
+}
+impl<'a,T> PoolVec<'a, T>
+{
+	pub unsafe fn from_ptr(bs: &BootServices, p: *mut T, cap: usize, len: usize) -> PoolVec<T> {
+		PoolVec {
+			bs: bs,
+			ptr: ::core::ptr::Unique::new(p),
+			cap: cap,
+			len: len,
+			}
+	}
+	pub unsafe fn set_len(&mut self, len: usize) {
+		assert!(len <= self.cap);
+		self.len = len;
+	}
+}
+impl<'a,T> ::core::ops::Deref for PoolVec<'a, T>
+{
+	type Target = [T];
+	fn deref(&self) -> &[T] {
+		unsafe {
+			::core::slice::from_raw_parts(*self.ptr, self.len)
+		}
+	}
+}
+impl<'a,T> ::core::ops::DerefMut for PoolVec<'a, T>
+{
+	fn deref_mut(&mut self) -> &mut [T] {
+		unsafe {
+			::core::slice::from_raw_parts_mut(*self.ptr, self.len)
+		}
+	}
+}
 
 #[repr(C)]
 pub struct MemoryDescriptor
@@ -107,6 +152,7 @@ pub struct MemoryDescriptor
 	pub virtual_start: VirtualAddress,
 	pub number_of_pages: u64,
 	pub attribute: u64,
+	_pad2: u64,
 }
 #[repr(C)]
 pub enum MemoryType
