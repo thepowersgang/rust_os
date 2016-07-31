@@ -136,6 +136,11 @@ not64bitCapable:
 
 [BITS 64]
 start_uefi:
+	mov [s_multiboot_signature - KERNEL_BASE], ecx
+	or edx, 0x80000000
+	mov [s_multiboot_pointer - KERNEL_BASE], edx
+	mov [s_multiboot_pointer - KERNEL_BASE + 4], DWORD 0xFFFFFFFF
+	
 	;; 1. Enable a nice set of features
 	; Enable:
 	;   [4] PGE (Page Global Enable)
@@ -170,8 +175,14 @@ start_uefi:
 	mov cr0, rax
 	
 	lgdt [DWORD GDTPtr - KERNEL_BASE]
-	;jmp 0x08:start64
-	jmp start64
+	; - Far jump (indirect)
+	jmp far [.ljmp_addr]
+
+[section .initdata]
+.ljmp_addr:
+	dq	start64
+	dw	0x08
+[section .inittext]
 
 [extern prep_tls]
 start64:

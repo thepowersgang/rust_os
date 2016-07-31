@@ -14,6 +14,9 @@ macro_rules! log {
 #[path="../_common/elf.rs"]
 mod elf;
 
+#[path="../uefi_proto.rs"]
+mod kernel_proto;
+
 //static PATH_CONFIG: &'static [u16] = ucs2_c!("Tifflin\\boot.cfg");
 //static PATH_FALLBACK_KERNEL: &'static [u16] = ucs2_c!("Tifflin\\kernel-amd4.bin");
 macro_rules! u16_cs {
@@ -114,7 +117,7 @@ pub extern "win64" fn efi_main(image_handle: ::uefi::Handle, system_table: &::ue
 				}
 			}
 		}
-		let entrypoint: extern "cdecl" fn(usize)->! = unsafe { ::core::mem::transmute(elf_hdr.e_entry as usize) };
+		let entrypoint: extern "cdecl" fn(usize, *const kernel_proto::Info)->! = unsafe { ::core::mem::transmute(elf_hdr.e_entry as usize) };
 
 		// TODO: Set a sane video mode
 		
@@ -132,7 +135,7 @@ pub extern "win64" fn efi_main(image_handle: ::uefi::Handle, system_table: &::ue
 			}
 
 			assert_eq!( ent_size, ::core::mem::size_of::<uefi::boot_services::MemoryDescriptor>() );
-			let mut map = boot_services.allocate_pool_vec( map_size / ent_size ).unwrap();
+			let mut map = boot_services.allocate_pool_vec( uefi::boot_services::MemoryType::LoaderData, map_size / ent_size ).unwrap();
 			(boot_services.get_memory_map)(&mut map_size, map.as_mut_ptr(), &mut map_key, &mut ent_size, &mut ent_ver).err_or( () ).expect("get_memory_map 2");
 			unsafe {
 				map.set_len( map_size / ent_size );
@@ -143,12 +146,21 @@ pub extern "win64" fn efi_main(image_handle: ::uefi::Handle, system_table: &::ue
 		loge!(conout, "- Exiting boot services");
 		(boot_services.exit_boot_services)(image_handle, map_key).err_or( () ).expect("exit_boot_services");
 
+		let boot_info = kernel_proto::Info {
+			runtime_services: system_table.runtime_services as *const _ as *const (),
+			
+			cmdline_ptr: 1 as *const u8,
+			cmdline_len: 0,
+			
+			map_addr: map.as_ptr() as usize as u64,
+			map_entnum: map.len() as u32,
+			map_entsz: ::core::mem::size_of::<uefi::boot_services::MemoryDescriptor>() as u32,
+			};
+		
+		
 		// TODO: Execute kernel (passing a magic value and general boot information)
-		entrypoint(0x71FF0EF1);
+		entrypoint(0x71FF0EF1, &boot_info);
 	}
-	
-	loge!(conout, "> Spinning. TODO: Load kernel from system partition");
-	loop {}
 }
 
 

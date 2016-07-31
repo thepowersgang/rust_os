@@ -20,6 +20,7 @@ SECTIONS {
 	.init : AT(ADDR(.init)) {
 		KEEP( *(.multiboot) )
 		*(.inittext)
+		. = ALIGN(8);
 		*(.initdata)
 	}
 	

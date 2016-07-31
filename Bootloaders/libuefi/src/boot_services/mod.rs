@@ -84,9 +84,9 @@ pub struct BootServices
 }
 impl BootServices
 {
-	pub fn allocate_pool_vec<T>(&self, capacity: usize) -> Result<PoolVec<T>, Status> {
+	pub fn allocate_pool_vec<T>(&self, mt: MemoryType, capacity: usize) -> Result<PoolVec<T>, Status> {
 		let mut ptr = ::core::ptr::null_mut();
-		(self.allocate_pool)(MemoryType::LoaderCode, capacity * ::core::mem::size_of::<T>(), &mut ptr)
+		(self.allocate_pool)(mt, capacity * ::core::mem::size_of::<T>(), &mut ptr)
 			.err_or_else(|| unsafe { PoolVec::from_ptr(self, ptr as *mut T, capacity, 0) }) 
 	}
 

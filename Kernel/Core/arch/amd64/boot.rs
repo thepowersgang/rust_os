@@ -10,6 +10,12 @@ use prelude::*;
 use super::memory::addresses::{IDENT_START, IDENT_END};
 use metadevs::video::bootvideo::{VideoMode,VideoFormat};
 
+#[path="../../../../Bootloaders/uefi_proto.rs"]
+mod uefi_proto;
+
+//#[path="../../../../Bootloaders/multiboot.rs"]
+//mod multiboot;
+
 #[repr(C)]
 #[allow(unused)]
 struct MultibootInfo
@@ -94,12 +100,19 @@ struct MultibootParsed
 	memmap: &'static [::memory::MemoryMapEnt],
 	symbol_info: SymbolInfo,
 }
+struct UefiParsed
+{
+	cmdline: &'static str,
+	vidmode: Option<VideoMode>,
+	memmap: &'static [::memory::MemoryMapEnt],
+}
 
 enum BootInfo
 {
 	Uninit,
 	Invalid,
 	Multiboot(MultibootParsed),
+	Uefi(UefiParsed),
 }
 
 enum SymbolInfo
@@ -112,7 +125,7 @@ enum SymbolInfo
 extern "C"
 {
 	static s_multiboot_signature : u32;
-	static s_multiboot_pointer : &'static MultibootInfo;
+	static s_multiboot_pointer : *const ();
 }
 static mut s_memmap_data: [::memory::MemoryMapEnt; 16] = [::memory::MAP_PAD; 16];
 static mut s_bootinfo : BootInfo = BootInfo::Uninit;
@@ -128,8 +141,15 @@ fn get_bootinfo() -> &'static BootInfo
 			s_bootinfo = match s_multiboot_signature
 				{
 				0x2BADB002 =>
-					if let Some(mbi) = MultibootParsed::new(s_multiboot_pointer) {
+					if let Some(mbi) = MultibootParsed::new( &*(s_multiboot_pointer as *const MultibootInfo) ) {
 						BootInfo::Multiboot(mbi)
+					}
+					else {
+						BootInfo::Invalid
+					},
+				0x71FF0EF1 =>
+					if let Some(i) = UefiParsed::new( &*(s_multiboot_pointer as *const uefi_proto::Info) ) {
+						BootInfo::Uefi(i)
 					}
 					else {
 						BootInfo::Invalid
@@ -152,7 +172,8 @@ impl BootInfo
 		{
 		BootInfo::Uninit => "",
 		BootInfo::Invalid => "",
-		BootInfo::Multiboot(ref mb) => mb.cmdline
+		BootInfo::Multiboot(ref i) => i.cmdline,
+		BootInfo::Uefi(ref i) => i.cmdline,
 		}
 	}
 	
@@ -162,7 +183,8 @@ impl BootInfo
 		{
 		BootInfo::Uninit => None,
 		BootInfo::Invalid => None,
-		BootInfo::Multiboot(ref mb) => mb.vidmode
+		BootInfo::Multiboot(ref i) => i.vidmode,
+		BootInfo::Uefi(ref i) => i.vidmode,
 		}
 	}
 	pub fn memmap(&self) -> &'static[::memory::MemoryMapEnt]
@@ -171,7 +193,8 @@ impl BootInfo
 		{
 		BootInfo::Uninit => &[],
 		BootInfo::Invalid => &[],
-		BootInfo::Multiboot(ref mb) => mb.memmap
+		BootInfo::Multiboot(ref i) => i.memmap,
+		BootInfo::Uefi(ref i) => i.memmap,
 		}
 	}
 }
@@ -414,6 +437,92 @@ impl MultibootParsed
 			};
 		
 		// 3. Return final result
+		&buf[0 .. size]
+	}
+}
+
+impl UefiParsed
+{
+	pub fn new(info: &uefi_proto::Info) -> Option<Self>
+	{
+		log_trace!("info = {:p}", info);
+		let mut ret = UefiParsed {
+				cmdline: Self::_cmdline(info),
+				vidmode: None,//MultibootParsed::_vidmode(info),
+				//symbol_info: MultibootParsed::_syminfo(info),
+				memmap: &[],
+			};
+		// - Memory map is initialised afterwards so it gets easy access to used addresses
+		// SAFE: Should only be called before threading is initialised, so no race
+		ret.memmap = unsafe { ret._memmap(info, &mut s_memmap_data) };
+		Some( ret )
+	}
+
+	fn _cmdline(info: &uefi_proto::Info) -> &'static str {
+		// SAFE: We can't easily check, so trust the bootloader
+		unsafe {
+			::core::str::from_utf8( ::core::slice::from_raw_parts(info.cmdline_ptr, info.cmdline_len) ).expect("UefiParsed::_cmdline")
+		}
+	}
+	fn _memmap<'a>(&self, info: &uefi_proto::Info, buf: &'a mut[::memory::MemoryMapEnt]) -> &'a [::memory::MemoryMapEnt] {
+		// TODO: Get this from libuefi
+		#[repr(C)]
+		#[derive(Copy,Clone)]
+		struct MemoryDescriptor
+		{
+			ty: u32,
+			_pad: u32,
+			physical_start: u64,
+			virtual_start: u64,
+			number_of_pages: u64,
+			attribute: u64,
+			_pad2: u64,
+		}
+		
+		struct StrideSlice<T> {
+			ptr: *const T,
+			count: usize,
+			stride: usize,
+		}
+		impl<T> StrideSlice<T> {
+			unsafe fn new(ptr: *const T, count: usize, stride: usize) -> StrideSlice<T> {
+				StrideSlice {
+					ptr: ptr, count: count, stride: stride
+					}
+			}
+			fn get(&self, idx: usize) -> &T {
+				assert!(idx < self.count);
+				let ptr = (self.ptr as usize + self.stride * idx) as *const T;
+				// SAFE: Ensured by constructor and range checks
+				unsafe { &*ptr }
+			}
+		}
+		impl<T: Copy> Iterator for StrideSlice<T> {
+			type Item = T;
+			fn next(&mut self) -> Option<T> {
+				if self.count == 0 {
+					None
+				}
+				else {
+					// SAFE: Ensured by constructor and range checks
+					let val = unsafe { *self.ptr };
+					self.ptr = (self.ptr as usize + self.stride) as *const _;
+					self.count -= 1;
+					Some(val)
+				}
+			}
+		}
+
+		let size = {
+			let mut mapbuilder = ::memory::MemoryMapBuilder::new(buf);
+			// SAFE: Trusting the bootloader
+			for ent in unsafe { StrideSlice::new(info.map_addr as *const MemoryDescriptor, info.map_entnum as usize, info.map_entsz as usize) }
+			{
+				log_debug!("ent = {{ {}, {:#x}+{:#x} {:#x}", ent.ty, ent.physical_start, ent.number_of_pages, ent.attribute);
+			}
+			mapbuilder.size()
+			};
+
 		&buf[0 .. size]
 	}
 }
