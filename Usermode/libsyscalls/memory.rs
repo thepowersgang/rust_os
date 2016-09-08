@@ -2,7 +2,7 @@
 //
 //
 
-#[repr(C,u8)]
+#[repr(u8)]
 #[derive(Debug,PartialEq)]
 pub enum ProtectionMode
 {

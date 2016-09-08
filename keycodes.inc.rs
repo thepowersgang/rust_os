@@ -1,6 +1,6 @@
 
 #[derive(Copy,Clone,Debug,PartialEq)]
-#[repr(C,u8)]
+#[repr(u8)]
 #[allow(dead_code)]
 /// Same values as the USB HID protocol
 pub enum KeyCode
@@ -154,13 +154,13 @@ impl ::core::convert::From<u8> for KeyCode
 		// SAFE: Bounds checks performed internally.
 		unsafe {
 			if v <= KeyCode::Oper as u8 {
-				::core::mem::transmute(v as u32)
+				::core::mem::transmute(v as u8)
 			}
 			else if v < 0xE0 {
 				panic!("KeyCode::from - Out of range");
 			}
 			else if v <= KeyCode::RightGui as u8 {
-				::core::mem::transmute(v as u32)
+				::core::mem::transmute(v as u8)
 			}
 			else {
 				panic!("KeyCode::from - Out of range");

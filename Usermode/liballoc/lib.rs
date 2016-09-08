@@ -9,7 +9,6 @@
 #![feature(box_syntax)]
 #![feature(placement_new_protocol)]
 #![feature(optin_builtin_traits)]	// For !Send
-#![feature(filling_drop)]	// for RawVec
 #![feature(unboxed_closures)]
 #![no_std]
 
@@ -91,10 +90,6 @@ pub mod raw_vec {
 		}
 		pub fn into_box(self) -> ::boxed::Box<[T]> {
 			todo!("into_box");
-		}
-		
-		pub fn unsafe_no_drop_flag_needs_drop(&self) -> bool {
-			self.cap() != ::core::mem::POST_DROP_USIZE
 		}
 	}
 }

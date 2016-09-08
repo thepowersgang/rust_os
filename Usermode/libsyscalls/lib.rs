@@ -6,8 +6,6 @@
 #![feature(asm)]
 #![feature(thread_local,const_fn)]
 #![feature(associated_consts)]
-#![feature(unsafe_no_drop_flag)]
-#![feature(filling_drop)]
 #![feature(stmt_expr_attributes)]
 #![no_std]
 
@@ -111,7 +109,6 @@ macro_rules! def_call {
 }
 
 #[doc(hidden)]
-#[unsafe_no_drop_flag]
 pub struct ObjectHandle(u32);
 impl ObjectHandle
 {
@@ -195,11 +192,9 @@ impl ObjectHandle
 }
 impl Drop for ObjectHandle {
 	fn drop(&mut self) {
-		// SAFE: Valid call and use of dropped
+		// SAFE: Valid syscall
 		unsafe {
-			if self.0 != ::core::mem::dropped() {
-				::raw::syscall_0( self.call_value(::values::OBJECT_DROP) );
-			}
+			::raw::syscall_0( self.call_value(::values::OBJECT_DROP) );
 		}
 	}
 }
