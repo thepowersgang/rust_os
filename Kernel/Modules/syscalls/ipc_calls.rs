@@ -33,6 +33,8 @@ impl ::objects::Object for SyncChannel
 		}
 	}
 	fn handle_syscall_val(&mut self, call: u16, _args: &mut Args) -> Result<u64,::Error> {
+		// SAFE: Valid pointer which is forgotten after call
+		let _ = unsafe { ::core::ptr::read(self) };
 		::objects::object_has_no_such_method_val("ipc_calls::SyncChannel", call)
 	}
 	fn bind_wait(&self, _flags: u32, _obj: &mut ::kernel::threads::SleepObject) -> u32 { 0 }

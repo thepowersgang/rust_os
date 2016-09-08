@@ -19,7 +19,7 @@
 #![feature(linkage)]	// allows using #[linkage="external"]
 #![feature(const_fn)]	// Allows defining `const fn`
 #![feature(get_type_id,reflect_marker)] // used by process_local's "AnyMap" hackery
-#![feature(unsafe_no_drop_flag,filling_drop)]	// Used by smart pointers to reduce size
+#![feature(filling_drop)]	// Used by smart pointers to reduce size
 #![feature(drop_types_in_const)]	// Allows `statics` to contain destructors
 #![feature(unicode)]
 

@@ -17,14 +17,12 @@ use core::{ops, fmt};
 
 /// Atomic referencable type. Panics if the type is dropped while any references are active.
 /// Internally uses a `Box` to contain an ArefInner
-#[unsafe_no_drop_flag]
 pub struct Aref<T: ?Sized>
 {
 	__inner: Box<ArefInner<T>>,
 }
 impl<T: ?Sized + ::core::marker::Unsize<U>, U: ?Sized> ops::CoerceUnsized<Aref<U>> for Aref<T> {}
 /// A borrow of an Aref
-#[unsafe_no_drop_flag]
 pub struct ArefBorrow<T: ?Sized>
 {
 	__ptr: NonZero<*const ArefInner<T>>,
@@ -69,10 +67,8 @@ impl<T: ?Sized> ops::Drop for Aref<T>
 {
 	fn drop(&mut self) {
 		// SAFE: Constructs a dropped non-Drop value for comparison only
-		if (&*self.__inner as *const _) != unsafe { ::core::mem::dropped::<*const _>() } {
-			let cur_count = self.__inner.count.load(Ordering::SeqCst);
-			assert!(cur_count == 0, "BUG: Dropping Aref<{}> while {} references are outstanding", type_name!(T), cur_count);
-		}
+		let cur_count = self.__inner.count.load(Ordering::SeqCst);
+		assert!(cur_count == 0, "BUG: Dropping Aref<{}> while {} references are outstanding", type_name!(T), cur_count);
 	}
 }
 impl<T: ?Sized+fmt::Debug> fmt::Debug for Aref<T> {
@@ -149,8 +145,6 @@ impl<T: ?Sized> ops::Drop for ArefBorrow<T>
 {
 	fn drop(&mut self) {
 		// SAFE: Constructs a drop-filled non-Drop type for comparison only
-		if *self.__ptr != unsafe { ::core::mem::dropped::<*const _>() } {
-			self.__inner().count.fetch_sub(1, Ordering::Relaxed);
-		}
+		self.__inner().count.fetch_sub(1, Ordering::Relaxed);
 	}
 }

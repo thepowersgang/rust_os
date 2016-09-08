@@ -21,7 +21,6 @@ pub trait Counter {
 }
 
 /// Generic reference counted allocation
-#[unsafe_no_drop_flag]
 pub struct Grc<C: Counter, T: ?Sized> {
 	ptr: NonZero<*mut GrcInner<C, T>>
 }
@@ -171,14 +170,11 @@ impl<C: Counter, T: ?Sized> ops::Drop for Grc<C, T>
 			use core::intrinsics::drop_in_place;
 			use core::mem::{size_of_val,align_of_val};
 			let ptr = *self.ptr;
-			if self.ptr != ::core::mem::dropped()
+				
+			if (*ptr).strong.dec() // && (*ptr).weak.is_zero()
 			{
-				if (*ptr).strong.dec() // && (*ptr).weak.is_zero()
-				{
-					drop_in_place( &mut (*ptr).val );
-					::memory::heap::dealloc_raw(ptr as *mut (), size_of_val(&*ptr), align_of_val(&*ptr));
-				}
-				self.ptr = ::core::mem::dropped();
+				drop_in_place( &mut (*ptr).val );
+				::memory::heap::dealloc_raw(ptr as *mut (), size_of_val(&*ptr), align_of_val(&*ptr));
 			}
 		}
 	}

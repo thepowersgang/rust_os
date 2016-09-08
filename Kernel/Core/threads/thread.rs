@@ -68,7 +68,6 @@ pub struct ThreadHandle
 }
 
 /// "Owned" pointer to a thread (panics if dropped)
-#[unsafe_no_drop_flag]
 pub struct ThreadPtr(::core::ptr::Unique<Thread>);
 
 /// Thread information
@@ -358,10 +357,7 @@ impl ::core::ops::DerefMut for ThreadPtr {
 }
 impl ::core::ops::Drop for ThreadPtr {
 	fn drop(&mut self) {
-		// SAFE: Only used for comparison, and Copy type
-		if *self.0 != unsafe { ::core::mem::dropped() } {
-			panic!("Dropping an owned thread pointer - {:?}", self);
-		}
+		panic!("Dropping an owned thread pointer - {:?}", self);
 	}
 }
 impl ::core::fmt::Debug for ThreadPtr {

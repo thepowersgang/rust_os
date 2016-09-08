@@ -24,6 +24,7 @@ pub trait Object: Send + Sync + ::core::marker::Reflect
 
 	/// Return: Return value or argument error
 	fn handle_syscall_ref(&self, call: u16, args: &mut Args) -> Result<u64,super::Error>;
+	/// NOTE: Implementors should always move out of `self` and drop the contents (the caller will forget)
 	/// Return: Return value or argument error
 	//fn handle_syscall_val(self, call: u16, args: &mut Args) -> Result<u64,super::Error>;
 	fn handle_syscall_val(&mut self, call: u16, _args: &mut Args) -> Result<u64,super::Error> {
@@ -47,7 +48,11 @@ impl<T: Object> Object for Box<T> {
 		(**self).handle_syscall_ref(call, args)
 	}
 	fn handle_syscall_val(&mut self, call: u16, args: &mut Args) -> Result<u64,super::Error> {
-		(**self).handle_syscall_val(call, args)
+		// SAFE: Valid pointer, forgotten by caller
+		let mut this: Box<T> = unsafe { ::core::ptr::read(&mut *self) };
+		let rv = (*this).handle_syscall_val(call, args);
+		Box::shallow_drop(this);
+		rv
 	}
 	fn bind_wait(&self, flags: u32, obj: &mut ::kernel::threads::SleepObject) -> u32 {
 		(**self).bind_wait(flags, obj)
@@ -143,7 +148,9 @@ impl ProcessObjects {
 			// NOTE: Move out of the collection before calling, to allow reusing the slot
 			let v = h.write().take();
 			if let Some(mut obj) = v {
-				fcn(&mut *obj.data)
+				let rv = fcn(&mut *obj.data);
+				::core::mem::forget(obj);
+				rv
 			}
 			else {
 				return Err( super::Error::NoSuchObject(handle) )

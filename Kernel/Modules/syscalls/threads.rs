@@ -120,15 +120,15 @@ impl ::objects::Object for ProtoProcess
 		}
 	}
 	fn handle_syscall_val(&mut self, call: u16, args: &mut Args) -> Result<u64,Error> {
+		// SAFE: Raw pointer coerced from &mut, forgotten by caller
+		let mut this = unsafe { ::core::ptr::read(self) };
 		match call
 		{
 		values::CORE_PROTOPROCESS_START => {
 			let ip: usize = try!(args.get());
 			let sp: usize = try!(args.get());
 			
-			// HACK: Leaves the value as "valid" (but dropped)
-			// SAFE: Raw pointer coerced from &mut
-			let mut inner = unsafe { ::core::ptr::read_and_drop(&mut self.0) };
+			let mut inner = this.0;
 
 			// NOTE: Don't need to validate these values, as they're used only in user-space
 			inner.start_root_thread(ip, sp);

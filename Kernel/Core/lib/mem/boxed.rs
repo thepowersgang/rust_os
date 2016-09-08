@@ -36,6 +36,19 @@ impl<T: ?Sized> Box<T>
 			::core::mem::transmute(self)
 		}
 	}
+
+	pub fn shallow_drop(mut this: Self) {
+		// TODO: Is this valid if the inner value has been dropped?
+		let size = ::core::mem::size_of_val(&*this);
+		let align = ::core::mem::align_of_val(&*this);
+		if size != 0 {
+			// SAFE: Should be using the correct alignment and size
+			unsafe {
+				::memory::heap::dealloc_raw(&mut *this as *mut T as *mut (), size, align);
+			}
+		}
+		::core::mem::forget(this);
+	}
 }
 
 pub fn into_inner<T>(b: Box<T>) -> T {

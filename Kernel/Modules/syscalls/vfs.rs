@@ -118,9 +118,9 @@ impl objects::Object for Node
 		}
 	}
 	fn handle_syscall_val(&mut self, call: u16, args: &mut Args) -> Result<u64,Error> {
-		// HACK: Leaves the value as "valid" (but dropped)
-		// SAFE: Raw pointer coerced from &mut
-		let inner = unsafe { ::core::ptr::read_and_drop(&mut self.0) };
+		// SAFE: Raw pointer coerced from &mut, caller forgets us
+		let this = unsafe { ::core::ptr::read(self) };
+		let inner = this.0;
 		match call
 		{
 		values::VFS_NODE_TOFILE => {
