@@ -3,7 +3,7 @@ ifeq ($(TRIPLE),)
  $(error Please specify a target with TRIPLE)
 endif
 
-TARBALL_URL := http://acpica.org/sites/acpica/files/acpica-unix2-20150410.tar.gz
+TARBALL_URL := https://acpica.org/sites/acpica/files/acpica-unix2-20150410.tar.gz
 TARBALL := $(notdir $(TARBALL_URL))
 TARBALL_DIR := $(TARBALL:%.tar.gz=%)/
 SRCDIR := $(TARBALL_DIR)source/
