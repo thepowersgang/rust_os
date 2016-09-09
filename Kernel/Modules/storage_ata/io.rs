@@ -268,7 +268,7 @@ impl AtaRegs
 					prd_ent.flags = 0;
 					count += 1;
 					
-					paddr += ent_bytes as u64;
+					paddr += ent_bytes as ::kernel::memory::PAddr;
 					bytes -= ent_bytes;
 				}
 			}
