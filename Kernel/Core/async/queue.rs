@@ -3,7 +3,7 @@
 //
 // Core/async/queue.rs
 //! Asynchronous wait queue
-use prelude::*;
+#[allow(dead_code)]
 use core::fmt;
 
 pub struct Waiter<'a>(Option<&'a Source>);

@@ -6,7 +6,6 @@
 #![no_std]
 #![feature(associated_consts)]
 #![feature(reflect_marker)]
-#![feature(filling_drop)]	// For evil in vfs::Node
 
 #[allow(unused_imports)]
 use kernel::prelude::*;

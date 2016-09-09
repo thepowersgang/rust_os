@@ -37,7 +37,14 @@ impl ::objects::Object for SyncChannel
 		let _ = unsafe { ::core::ptr::read(self) };
 		::objects::object_has_no_such_method_val("ipc_calls::SyncChannel", call)
 	}
-	fn bind_wait(&self, _flags: u32, _obj: &mut ::kernel::threads::SleepObject) -> u32 { 0 }
+	fn bind_wait(&self, flags: u32, _obj: &mut ::kernel::threads::SleepObject) -> u32 {
+		let /*mut*/ ret = 0;
+		if flags & ::values::EV_IPC_RPC_RECV != 0 {
+			todo!("SyncChannel::bind_wait - _RECV");
+			//ret += 1;
+		}
+		ret
+	}
 	fn clear_wait(&self, _flags: u32, _obj: &mut ::kernel::threads::SleepObject) -> u32 { 0 }
 }
 

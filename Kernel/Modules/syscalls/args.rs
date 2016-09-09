@@ -36,7 +36,12 @@ unsafe impl Pod for ::values::RpcMessage {}
 impl<T: Pod> SyscallArg for Freeze<T>
 {
 	fn get_arg(args: &mut &[usize]) -> Result<Self, ::Error> {
-		todo!("");
+		if args.len() < 1 {
+			return Err( ::Error::TooManyArgs );
+		}
+		let ptr = args[0] as *const T;
+		*args = &args[2..];
+		todo!("Freeze {:p}", ptr);
 	}
 }
 impl<T: Pod> SyscallArg for Freeze<[T]>

@@ -121,7 +121,7 @@ impl ::objects::Object for ProtoProcess
 	}
 	fn handle_syscall_val(&mut self, call: u16, args: &mut Args) -> Result<u64,Error> {
 		// SAFE: Raw pointer coerced from &mut, forgotten by caller
-		let mut this = unsafe { ::core::ptr::read(self) };
+		let this = unsafe { ::core::ptr::read(self) };
 		match call
 		{
 		values::CORE_PROTOPROCESS_START => {

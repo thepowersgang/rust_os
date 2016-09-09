@@ -15,7 +15,7 @@ module_define!{ACPI, [], init}
 #[cfg(not(use_acpica))]
 #[path="mine/mod.rs"] mod internal;
 
-#[repr(C,u8)]
+#[repr(u8)]
 #[derive(Copy,Clone,PartialEq)]
 /// Address space identifier
 pub enum AddressSpaceID

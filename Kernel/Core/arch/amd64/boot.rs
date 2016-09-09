@@ -125,7 +125,7 @@ enum SymbolInfo
 extern "C"
 {
 	static s_multiboot_signature : u32;
-	static s_multiboot_pointer : *const ();
+	static s_multiboot_pointer : *const ::Void;
 }
 static mut s_memmap_data: [::memory::MemoryMapEnt; 16] = [::memory::MAP_PAD; 16];
 static mut s_bootinfo : BootInfo = BootInfo::Uninit;
@@ -490,12 +490,12 @@ impl UefiParsed
 					ptr: ptr, count: count, stride: stride
 					}
 			}
-			fn get(&self, idx: usize) -> &T {
-				assert!(idx < self.count);
-				let ptr = (self.ptr as usize + self.stride * idx) as *const T;
-				// SAFE: Ensured by constructor and range checks
-				unsafe { &*ptr }
-			}
+			//fn get(&self, idx: usize) -> &T {
+			//	assert!(idx < self.count);
+			//	let ptr = (self.ptr as usize + self.stride * idx) as *const T;
+			//	// SAFE: Ensured by constructor and range checks
+			//	unsafe { &*ptr }
+			//}
 		}
 		impl<T: Copy> Iterator for StrideSlice<T> {
 			type Item = T;
@@ -514,7 +514,7 @@ impl UefiParsed
 		}
 
 		let size = {
-			let mut mapbuilder = ::memory::MemoryMapBuilder::new(buf);
+			let /*mut*/ mapbuilder = ::memory::MemoryMapBuilder::new(buf);
 			// SAFE: Trusting the bootloader
 			for ent in unsafe { StrideSlice::new(info.map_addr as *const MemoryDescriptor, info.map_entnum as usize, info.map_entsz as usize) }
 			{

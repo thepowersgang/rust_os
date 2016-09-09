@@ -7,7 +7,7 @@
 use kernel::prelude::*;
 use kernel::lib::byteorder::{ByteOrder,BigEndian};
 
-#[repr(u8,C)]
+#[repr(u8)]
 #[derive(Debug,Copy,Clone)]
 pub enum SenseKey
 {

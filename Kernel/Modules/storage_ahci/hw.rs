@@ -150,7 +150,7 @@ pub struct CmdEnt
 
 pub mod sata
 {
-	#[repr(C,u8)]
+	#[repr(u8)]
 	pub enum FisType
 	{
 		H2DRegister = 0x27,

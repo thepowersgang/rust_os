@@ -110,7 +110,7 @@ impl<'a, T: Send> fmt::Debug for Waiter<'a,T>
 	}
 }
 
-impl<'a, T: Send> super::PrimitiveWaiter for Waiter<'a,T>
+impl<'a, T: Send> PrimitiveWaiter for Waiter<'a,T>
 {
 	fn is_complete(&self) -> bool {
 		log_debug!("Waiter<{}>::is_complete - self.state={:?}", type_name!(T), self.state);

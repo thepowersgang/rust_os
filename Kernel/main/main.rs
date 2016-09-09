@@ -305,7 +305,7 @@ struct LoaderHeader
 }
 impl !Sync for LoaderHeader { }
 #[allow(dead_code)]
-#[repr(C,u8)]
+#[repr(u8)]
 enum ArchValues {
 	X86 = 1,
 	AMD64 = 2,
