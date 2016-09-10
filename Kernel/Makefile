@@ -140,9 +140,17 @@ doc/$(ARCH)/core/index.html: ../libcore/lib.rs $(OBJDIR)libcore.rlib
 UPDATE: UPDATE_rustc UPDATE_libcore_src
 UPDATE_rustc: 
 	@mkdir -p ../.prefix
+ifeq ($(RUSTC_DATE),)
 	curl -s https://static.rust-lang.org/rustup.sh | sh -s -- --channel=nightly --prefix=../.prefix --disable-sudo --disable-ldconfig --yes
+else
+	curl -s https://static.rust-lang.org/rustup.sh | sh -s -- --channel=nightly --date=$(RUSTC_DATE) --prefix=../.prefix --disable-sudo --disable-ldconfig --yes
+endif
 UPDATE_libcore_src:
+ifeq ($(RUSTC_DATE),)
 	cd .. && curl -s https://static.rust-lang.org/dist/rustc-nightly-src.tar.gz -o rustc-nightly-src.tar.gz
+else
+	cd .. && curl -s https://static.rust-lang.org/dist/$(RUSTC_DATE)/rustc-nightly-src.tar.gz -o rustc-nightly-src.tar.gz
+endif
 
 #../.prefix/bin/rustc: UPDATE_rustc
 #	@#
