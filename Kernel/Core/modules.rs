@@ -36,8 +36,12 @@ extern "C" {
 /// `requests` is a list of modules that should be loaded as soon as possible (e.g. the GUI)
 pub fn init(requests: &[&str])
 {
-	let baseptr = &modules_base as *const _ as *const ModuleInfo;
-	let size = &modules_end as *const _ as usize - baseptr as usize;
+	let (baseptr, size);
+	// SAFE: Data behind the static doesn't change
+	unsafe {
+		baseptr = &modules_base as *const _ as *const ModuleInfo;
+		size = &modules_end as *const _ as usize - baseptr as usize;
+	}
 	let count = size / ::core::mem::size_of::<ModuleInfo>();
 	log_debug!("baseptr={:p}, size={:#x}, count={}", baseptr, size, count);
 	assert!(count < 1024);

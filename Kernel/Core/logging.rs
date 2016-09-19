@@ -461,7 +461,8 @@ pub fn enabled(level: Level, modname: &str) -> bool
 		static log_cfg: [LogCfgEnt; 0];
 		static log_cfg_end: [LogCfgEnt; 0];
 	}
-	let log_ent_count = (log_cfg_end.as_ptr() as usize - log_cfg.as_ptr() as usize) / ::core::mem::size_of::<LogCfgEnt>();
+	// SAFE: This data doesn't change (only does pointers)
+	let log_ent_count = (unsafe { log_cfg_end.as_ptr() as usize - log_cfg.as_ptr() as usize }) / ::core::mem::size_of::<LogCfgEnt>();
 	// SAFE: Assembly defines these symbols, and I hope it gets the format right
 	let log_ents = unsafe { ::core::slice::from_raw_parts(log_cfg.as_ptr(), log_ent_count) };
 	for ent in log_ents {
@@ -473,20 +474,6 @@ pub fn enabled(level: Level, modname: &str) -> bool
 	}
 
 	true
-	/*
-	// TODO: Have a file or other so changes here are inexpensive
-	match modname
-	{
-	"kernel::memory::heap::heapdef" => (level < Level::LevelDebug),	// Heap only prints higher than debug
-	"kernel::memory::phys" => (level < Level::LevelTrace),	// PMM only prints >Trace
-	//"kernel::metadevs::storage" => (level < Level::LevelTrace),
-	"kernel::arch::imp::acpi::internal::shim_out" => (level < Level::LevelTrace),
-	//"storage_ata::io" => (level < Level::LevelDebug),
-	"kernel::async" => (level < Level::LevelDebug),
-	"fs_fat" => (level < Level::LevelDebug),
-	_ => true,
-	}
-	*/
 }
 
 #[doc(hidden)]

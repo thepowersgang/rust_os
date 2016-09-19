@@ -60,12 +60,14 @@ pub fn init_tid0_state() -> State
 	unsafe {
 		S_IDLE_THREAD = ::core::mem::transmute( ::threads::new_idle_thread(0) );
 	}
-	let cr3 = &InitialPML4 as *const _ as u64 - super::memory::addresses::IDENT_START as u64;
+	// SAFE: Just taking the address
+	let cr3 = unsafe { &InitialPML4 as *const _ as u64 - super::memory::addresses::IDENT_START as u64 };
 	log_debug!("init_tid0_state - cr3 = {:#x}", cr3);
 	State {
 		cr3: cr3,
 		rsp: 0,
-		tlsbase: s_tid0_tls_base,
+		// SAFE: Doesn't change outside rust control
+		tlsbase: unsafe { s_tid0_tls_base },
 		stack_handle: None,
 		}
 }

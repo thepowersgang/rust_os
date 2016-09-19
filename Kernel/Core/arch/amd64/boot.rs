@@ -416,7 +416,9 @@ impl MultibootParsed
 			
 			// 2. Clobber out boot info
 			// - Kernel
-			mapbuilder.set_range( 0x100000, &::arch::imp::v_kernel_end as *const _ as u64 - IDENT_START as u64 - 0x10000,
+			// SAFE: Just taking the address
+			let kernel_start = unsafe { &::arch::imp::v_kernel_end as *const _ as u64 - IDENT_START as u64 };
+			mapbuilder.set_range( 0x100000, kernel_start - 0x10000,
 				::memory::MemoryState::Used, 0 ).ok().unwrap();
 			// - Command line string
 			mapbuilder.set_range( self.cmdline.as_ptr() as u64 - IDENT_START as u64, self.cmdline.len() as u64,

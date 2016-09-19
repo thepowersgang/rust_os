@@ -665,14 +665,16 @@ impl AddressSpace
 				ents[i] = get_phys(&ents[0]) | 3;
 			}
 			else {
-				ents[i] = InitialPML4[i];
+				// SAFE: Doesn't change while this is active
+				ents[i] = unsafe { InitialPML4[i] };
 			}
 		}
 		log_debug!("ents[..256] = {:#x}", ::logging::print_iter(ents[..256].iter()));
 		Ok( AddressSpace( ents.into_frame() ) )
 	}
 	pub fn pid0() -> AddressSpace {
-		AddressSpace( get_phys(&InitialPML4) )
+		// SAFE: Doesn't change while rust code is active
+		AddressSpace( get_phys( unsafe { &InitialPML4 }) )
 	}
 	
 	pub fn get_cr3(&self) -> u64 {
