@@ -13,6 +13,7 @@ where
 	state: RefCell<State>,
 }
 
+#[cfg(nightly)]
 pub type ButtonBcb<'a, T> = Button<T, BoxCb<'a, T>>;
 
 #[cfg(nightly)]

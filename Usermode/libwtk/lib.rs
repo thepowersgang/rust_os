@@ -2,7 +2,6 @@
 //
 //
 //! Tifflin window toolkit
-#![feature(zero_one)]
 #![feature(const_fn)]
 #![cfg_attr(nightly, feature(unboxed_closures,fn_traits))]
 

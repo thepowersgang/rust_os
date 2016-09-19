@@ -61,7 +61,8 @@ pub extern "C" fn new_process(executable_handle: ::syscalls::vfs::File, process_
 		let name = ::std::str::from_utf8(process_name).unwrap_or("BADSTR");
 
 		// Spawn new process
-		match ::syscalls::threads::start_process(name, BASE.as_ptr() as usize, LIMIT.as_ptr() as usize)
+		// SAFE: Just takes the address of the externs statics
+		match ::syscalls::threads::start_process(name, unsafe { BASE.as_ptr() as usize }, unsafe { LIMIT.as_ptr() as usize })
 		{
 		Ok(v) => v,
 		Err(e) => panic!("TODO: new_process - Error '{:?}'", e),
@@ -82,7 +83,8 @@ pub extern "C" fn start_process(pp: ::syscalls::threads::ProtoProcess) -> ::sysc
 	extern "C" {
 		static init_stack_end: [u8; 0];
 	}
-	pp.start( new_process_entry as usize, init_stack_end.as_ptr() as usize )
+	// SAFE: Just takes the address
+	pp.start( new_process_entry as usize, unsafe { init_stack_end.as_ptr() as usize } )
 }
 
 /// Entrypoint for new processes, runs with a clean stack

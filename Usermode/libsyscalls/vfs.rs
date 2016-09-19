@@ -19,14 +19,7 @@ pub use ::values::VFSNodeType as NodeType;
 pub use ::values::VFSFileOpenMode as FileOpenMode;
 pub use ::values::VFSMemoryMapMode as MemoryMapMode;
 
-//pub static ROOT: Dir = Dir( ::ObjectHandle(2) );
-#[allow(improper_ctypes)]
-extern "Rust" {
-	// NOTE: This is a 32-bit intger defined in the assembly stubs. I would use the above commented-out line, but can't
-	#[link_name="syscalls_vfs_root"]
-	/// Read-only handle to the VFS root (as the "current" user)
-	pub static ROOT: Dir;
-}
+pub static ROOT: Dir = Dir( ::ObjectHandle(2) );
 
 
 #[inline]

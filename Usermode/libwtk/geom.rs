@@ -7,8 +7,9 @@ pub trait CoordType:
 	::std::ops::Add<Output=Self> + ::std::ops::Sub<Output=Self> +
 	//::std::ops::AddAssign + ::std::ops::SubAssign +
 	::std::cmp::Ord +
-	::std::num::Zero + ::std::fmt::Debug
+	::std::fmt::Debug
 {
+	fn zero() -> Self;
 	fn max_value() -> Self;
 }
 
@@ -19,6 +20,7 @@ macro_rules! impl_prim_coord {
 		impl From<u32> for $t { fn from(v: u32) -> $t { $t(v) } }
 		impl CoordType for $t {
 			fn max_value() -> $t { $t(!0) }
+			fn zero() -> $t { $t(0) }
 		}
 		impl ::std::cmp::Eq for $t {}
 		impl ::std::cmp::Ord for $t { fn cmp(&self, o: &$t) -> ::std::cmp::Ordering { self.partial_cmp(o).unwrap() } }
@@ -27,7 +29,6 @@ macro_rules! impl_prim_coord {
 		impl ::std::ops::Mul<u32> for $t { type Output = Self; fn mul(self, v: u32) -> Self { $t(self.0.checked_mul(v).unwrap_or(!0)) } }
 		//impl ::std::ops::AddAssign for $t { fn add_assign(&mut self, v: Self) { self.0 += v.0 } }
 		//impl ::std::ops::SubAssign for $t { fn sub_assign(&mut self, v: Self) { self.0 += v.0 } }
-		impl ::std::num::Zero for $t { fn zero() -> $t { $t(0) } }
 	}
 }
 
