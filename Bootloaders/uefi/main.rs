@@ -1,9 +1,13 @@
+//
+//
+//
 #![feature(lang_items)]
 #![feature(asm)]
 #![no_std] 
 //#![crate_type="lib"]
 
 use uefi::boot_services::protocols;
+use core::mem::size_of;
 
 #[macro_use]
 extern crate uefi;
@@ -17,6 +21,7 @@ mod elf;
 #[path="../uefi_proto.rs"]
 mod kernel_proto;
 
+// TODO: Write a procedural macro that creates a UCS2 string literal
 //static PATH_CONFIG: &'static [u16] = ucs2_c!("Tifflin\\boot.cfg");
 //static PATH_FALLBACK_KERNEL: &'static [u16] = ucs2_c!("Tifflin\\kernel-amd4.bin");
 macro_rules! u16_cs {
@@ -34,14 +39,15 @@ static mut S_BOOT_SERVICES: *const ::uefi::boot_services::BootServices = 0 as *c
 static mut S_IMAGE_HANDLE: ::uefi::Handle = 0 as *mut _;
 
 pub fn get_conout() -> &'static ::uefi::SimpleTextOutputInterface {
+	// SAFE: Immutable after efi_main starts running
 	unsafe { &*S_CONOUT }
 }
 
 #[no_mangle]
 pub extern "win64" fn efi_main(image_handle: ::uefi::Handle, system_table: &::uefi::SystemTable) -> ::uefi::Status
 {
-	// SAFE: Assuming that the system table data is valid
 	let conout = system_table.con_out();
+	// SAFE: Single-threaded context
 	unsafe {
 		S_CONOUT = conout;
 		S_IMAGE_HANDLE = image_handle;
@@ -70,26 +76,27 @@ pub extern "win64" fn efi_main(image_handle: ::uefi::Handle, system_table: &::ue
 		
 		let mut kernel_file = match system_volume_root.open_read(PATH_CONFIG)
 			{
-			Ok(cfg) => panic!("TODO: Read config file"),
+			Ok(cfg) => {
+				panic!("TODO: Read config file");
+				},
 			Err(::uefi::status::NOT_FOUND) => {
+				// If the config file couldn't be located, open a hard-coded fallback kernel path
 				system_volume_root.open_read(PATH_FALLBACK_KERNEL).expect("Unable to open fallback kernel")
 				},
 			Err(e) => panic!("Failed to open config file: {:?}", e),
 			};
-		// TODO: Load kernel from this file (ELF).
-		// - Could just have the kernel be part of this image... but nah.
-
+		// Load kernel from this file (ELF).
 		let elf_hdr = {
 			let mut hdr = elf::ElfHeader::default();
-			kernel_file.read( unsafe { ::core::slice::from_raw_parts_mut( &mut hdr as *mut _ as *mut u8, ::core::mem::size_of::<elf::ElfHeader>() ) } ).expect("ElfHeader read");
+			kernel_file.read( unsafe { ::core::slice::from_raw_parts_mut( &mut hdr as *mut _ as *mut u8, size_of::<elf::ElfHeader>() ) } ).expect("ElfHeader read");
 			hdr
 			};
 		elf_hdr.check_header();
 		for i in 0 .. elf_hdr.e_phnum
 		{
 			let mut ent = elf::PhEnt::default();
-			kernel_file.set_position(elf_hdr.e_phoff as u64 + (i as usize * ::core::mem::size_of::<elf::PhEnt>()) as u64 );
-			kernel_file.read( unsafe { ::core::slice::from_raw_parts_mut( &mut ent as *mut _ as *mut u8, ::core::mem::size_of::<elf::PhEnt>() ) } ).expect("PhEnt read");
+			kernel_file.set_position(elf_hdr.e_phoff as u64 + (i as usize * size_of::<elf::PhEnt>()) as u64 ).expect("PhEnt seek");
+			kernel_file.read( unsafe { ::core::slice::from_raw_parts_mut( &mut ent as *mut _ as *mut u8, size_of::<elf::PhEnt>() ) } ).expect("PhEnt read");
 			
 			if ent.p_type == 1
 			{
@@ -105,18 +112,20 @@ pub extern "win64" fn efi_main(image_handle: ::uefi::Handle, system_table: &::ue
 					(ent.p_memsz + 0xFFF) as usize / 0x1000,
 					&mut addr
 					)
-					.err_or( () )
+					.err_or( () )	// uefi::Status -> Result<(), Status>
 					.expect("allocate_pages")
 					;
 				
+				// SAFE: This memory has just been allocated by the above
 				let data_slice = unsafe { ::core::slice::from_raw_parts_mut(ent.p_paddr as usize as *mut u8, ent.p_memsz as usize) };
-				kernel_file.set_position(ent.p_offset as u64);
+				kernel_file.set_position(ent.p_offset as u64).expect("seek segment");
 				kernel_file.read( &mut data_slice[.. ent.p_filesz as usize] ).expect("read segment");
 				for b in &mut data_slice[ent.p_filesz as usize .. ent.p_memsz as usize] {
 					*b = 0;
 				}
 			}
 		}
+		// SAFE: Assuming that the executable is sane
 		let entrypoint: extern "cdecl" fn(usize, *const kernel_proto::Info)->! = unsafe { ::core::mem::transmute(elf_hdr.e_entry as usize) };
 
 		// TODO: Set a sane video mode
@@ -134,7 +143,7 @@ pub extern "win64" fn efi_main(image_handle: ::uefi::Handle, system_table: &::ue
 			e => panic!("get_memory_map - {:?}", e),
 			}
 
-			assert_eq!( ent_size, ::core::mem::size_of::<uefi::boot_services::MemoryDescriptor>() );
+			assert_eq!( ent_size, size_of::<uefi::boot_services::MemoryDescriptor>() );
 			let mut map = boot_services.allocate_pool_vec( uefi::boot_services::MemoryType::LoaderData, map_size / ent_size ).unwrap();
 			(boot_services.get_memory_map)(&mut map_size, map.as_mut_ptr(), &mut map_key, &mut ent_size, &mut ent_ver).err_or( () ).expect("get_memory_map 2");
 			unsafe {
@@ -154,11 +163,11 @@ pub extern "win64" fn efi_main(image_handle: ::uefi::Handle, system_table: &::ue
 			
 			map_addr: map.as_ptr() as usize as u64,
 			map_entnum: map.len() as u32,
-			map_entsz: ::core::mem::size_of::<uefi::boot_services::MemoryDescriptor>() as u32,
+			map_entsz: size_of::<uefi::boot_services::MemoryDescriptor>() as u32,
 			};
 		
 		
-		// TODO: Execute kernel (passing a magic value and general boot information)
+		// - Execute kernel (passing a magic value and general boot information)
 		entrypoint(0x71FF0EF1, &boot_info);
 	}
 }

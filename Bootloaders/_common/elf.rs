@@ -1,3 +1,10 @@
+//!
+//!
+//!
+
+// NOTE: A given executable may not use all of this
+#![allow(dead_code)]
+#![allow(non_camel_case_types)]
 
 
 pub type Elf32_Half = u16;
@@ -210,7 +217,7 @@ pub extern "C" fn elf_load_symbols(file_base: &ElfFile, output: &mut SymbolInfo)
 		{
 			log!("Symbol table at +{:#x}+{:#x}, string table {}", ent.sh_offset, ent.sh_size, ent.sh_link);
 			let strtab = file_base.shents()[ent.sh_link as usize];
-			let strtab_bytes = unsafe { ::core::slice::from_raw_parts( (file_base as *const _ as usize + strtab.sh_offset as usize) as *const u8, strtab.sh_size as usize ) };
+			//let strtab_bytes = unsafe { ::core::slice::from_raw_parts( (file_base as *const _ as usize + strtab.sh_offset as usize) as *const u8, strtab.sh_size as usize ) };
 			//log!("- strtab = {:?}", ::core::str::from_utf8(strtab_bytes));
 
 			output.base = (output as *const _ as usize + pos) as *const _;
