@@ -71,7 +71,7 @@ macro_rules! zip
 /// Iterator helper, desugars to a.chain(b).chain(b2)
 macro_rules! chain
 {
-	($b:expr, $($b:expr),+) => ( $a$(.chain($b))+ );
+	($a:expr, $($b:expr),+) => ( $a$(.chain($b))+ );
 }
 
 /// Provides a short and noticable "TODO: " message
