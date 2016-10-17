@@ -11,7 +11,7 @@ use self::shim_ext::*;
 // Shim - Functions called by rust
 mod shim_ext;
 // Shim - Functions called by ACPICA
-mod shim_out;
+mod os_int;
 
 extern crate va_list;
 

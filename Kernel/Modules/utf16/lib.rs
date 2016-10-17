@@ -144,9 +144,7 @@ impl<'a> ::core::iter::Iterator for Wtf8<'a>
 			{
 			None => return None,
 			// no real need to check length. 4 is sufficient, and NUL termination is maintained
-			Some(c) => for (i, b) in Iterator::enumerate( c.encode_utf8() ) {
-					self.1[i] = b;
-				},
+			Some(c) => { c.encode_utf8(&mut self.1); },
 			}
 		}
 		let rv = self.1[0];
