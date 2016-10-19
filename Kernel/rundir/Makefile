@@ -37,7 +37,7 @@ IMGDIR := DiskImages/$(ARCH)/
 ifeq ($(ARCH),amd64)
 CMDLINE += SYSDISK=ATA-0p0
 QEMU_ARGS += -net nic
-#QEMU_ARGS += -drive if=ide,index=0,file=$(IMGDIR)hda.img,format=raw
+QEMU_ARGS += -drive if=ide,index=0,file=$(IMGDIR)hda.img,format=raw
 QEMU_ARGS += -cdrom $(IMGDIR)test.iso
 QEMU_ARGS += -device ahci,id=ahci
 QEMU_ARGS += -drive if=none,id=sata1,file=$(IMGDIR)hdb.img,format=raw -device ide-hd,drive=sata1,bus=ahci.0
