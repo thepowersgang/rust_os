@@ -90,7 +90,7 @@ def test(instance):
     _startapp(instance, "/sysroot/bin/handle_server", timeout=10)
     _startapp(instance, "/sysroot/bin/shell", timeout=10)
     _gui_rerender(instance, "Shell idle render", ["Background","SystemBar"])
-    #test_assert("Shell idle timeout", instance.wait_for_idle(timeout=5))
+    test_assert("Shell idle timeout", instance.wait_for_idle(timeout=5))
     instance.screenshot('Shell')
     # TODO: Have an item in the log here
 
