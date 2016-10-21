@@ -13,6 +13,8 @@ before_script:
   - (cd _archives && wget -c http://tpg.ucc.asn.au/tifflin_build_tools.tar.bz2)
   - tar -xf _archives/tifflin_build_tools.tar.bz2
   - (cd _archives && curl -O http://static.rust-lang.org/dist/rustc-nightly-src.tar.gz)
+  - (cd _archives && curl -O https://acpica.org/sites/acpica/files/acpica-unix2-20150410.tar.gz -3)
+  - (cd acpica && ln -s ../_archives/acpica-unix2-20150410.tar.gz)
   - ln -s _archives/rustc-nightly-src.tar.gz
   - export PATH=$PATH:$PWD/.prefix/bin
 # try to cache the toolchain download
