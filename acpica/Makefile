@@ -37,7 +37,7 @@ clean:
 srcdir: $(SRCDIR)
 
 $(TARBALL):
-	if [ ! -e $(TARBALL) ]; then curl -o $@ $(TARBALL_URL) ; fi
+	if [ ! -e $(TARBALL) ]; then curl -s -k $(TARBALL_URL) -o $@ ; fi
 
 $(SRCDIR): $(TARBALL)
 	tar -xf $(TARBALL)
