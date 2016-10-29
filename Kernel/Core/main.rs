@@ -21,6 +21,7 @@
 #![feature(get_type_id,reflect_marker)] // used by process_local's "AnyMap" hackery
 #![feature(drop_types_in_const)]	// Allows `statics` to contain destructors
 #![feature(unicode)]
+#![feature(integer_atomics)]
 
 #![no_std]
 

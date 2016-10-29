@@ -9,7 +9,7 @@ const TRACE_IF: bool = false;
 //const TRACE_IF: bool = true;
 
 /// Lightweight protecting spinlock
-pub struct Spinlock<T: Send>
+pub struct Spinlock<T>
 {
 	#[doc(hidden)]
 	pub lock: AtomicBool,
@@ -19,7 +19,7 @@ pub struct Spinlock<T: Send>
 unsafe impl<T: Send> Sync for Spinlock<T> {}
 
 /// Handle to the held spinlock
-pub struct HeldSpinlock<'lock,T:'lock+Send>
+pub struct HeldSpinlock<'lock,T:'lock>
 {
 	lock: &'lock Spinlock<T>,
 }
@@ -34,7 +34,7 @@ pub struct HeldInterrupts(bool);
 //	irqs: HeldInterrupts,
 //}
 
-impl<T: Send> Spinlock<T>
+impl<T> Spinlock<T>
 {
 	/// Create a new spinning lock
 	pub const fn new(val: T) -> Spinlock<T> {
@@ -96,14 +96,14 @@ impl Spinlock<()>
 		self.inner_release()
 	}
 }
-impl<T: Send+Default> Default for Spinlock<T>
+impl<T: Default> Default for Spinlock<T>
 {
 	fn default() -> Self {
 		Spinlock::new(Default::default())
 	}
 }
 
-impl<'lock,T: Send> ::core::ops::Drop for HeldSpinlock<'lock, T>
+impl<'lock,T> ::core::ops::Drop for HeldSpinlock<'lock, T>
 {
 	fn drop(&mut self)
 	{
@@ -111,17 +111,17 @@ impl<'lock,T: Send> ::core::ops::Drop for HeldSpinlock<'lock, T>
 	}
 }
 
-impl<'lock,T: Send> ::core::ops::Deref for HeldSpinlock<'lock, T>
+impl<'lock,T> ::core::ops::Deref for HeldSpinlock<'lock, T>
 {
 	type Target = T;
-	fn deref<'a>(&'a self) -> &'a T {
+	fn deref(&self) -> &T {
 		// SAFE: & to handle makes & to value valid
 		unsafe { &*self.lock.value.get() }
 	}
 }
-impl<'lock,T: Send> ::core::ops::DerefMut for HeldSpinlock<'lock, T>
+impl<'lock,T> ::core::ops::DerefMut for HeldSpinlock<'lock, T>
 {
-	fn deref_mut<'a>(&'a mut self) -> &'a mut T {
+	fn deref_mut(&mut self) -> &mut T {
 		// SAFE: &mut to handle makes &mut to value valid
 		unsafe { &mut *self.lock.value.get() }
 	}

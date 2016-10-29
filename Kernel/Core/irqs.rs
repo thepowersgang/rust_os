@@ -42,7 +42,7 @@ struct Bindings
 /// Map of IRQ numbers to core's dispatcher bindings. Bindings are boxed so the address is known in the constructor
 static S_IRQ_BINDINGS: ::sync::mutex::LazyMutex<Bindings> = lazymutex_init!();
 
-static S_IRQ_WORKER_SIGNAL: ::lib::LazyStatic<::threads::SleepObject> = lazystatic_init!();
+static S_IRQ_WORKER_SIGNAL: ::lib::LazyStatic<::threads::SleepObject<'static>> = lazystatic_init!();
 static S_IRQ_WORKER: ::lib::LazyStatic<::threads::WorkerThread> = lazystatic_init!();
 
 pub fn init() {

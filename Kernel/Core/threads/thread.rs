@@ -27,7 +27,7 @@ pub enum RunState
 	/// Sleeping on a WaitQueue
 	ListWait(*const super::WaitQueue),
 	/// Sleeping on a SleepObject
-	Sleep(*const super::sleep_object::SleepObject),
+	Sleep(*const super::sleep_object::SleepObject<'static>),
 	/// Dead, waiting to be reaped
 	Dead(u32),
 }

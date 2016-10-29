@@ -85,3 +85,10 @@ impl WaitQueue
 	}
 }
 
+impl Default for WaitQueue
+{
+	fn default() -> WaitQueue {
+		WaitQueue::new()
+	}
+}
+
