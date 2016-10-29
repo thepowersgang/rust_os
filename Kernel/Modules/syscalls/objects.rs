@@ -12,7 +12,7 @@ use values::FixedStr6;
 use kernel::threads::get_process_local;
 
 /// A system-call object
-pub trait Object: Send + Sync + ::core::marker::Reflect
+pub trait Object: Send + Sync + ::core::any::Any
 {
 	/// Object class code (values::CLASS_*)
 	const CLASS: u16;

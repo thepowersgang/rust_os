@@ -188,7 +188,7 @@ impl ProcessHandle
 
 	pub fn get_process_local<T>(&self) -> Option<::lib::mem::aref::ArefBorrow<T>>
 	where
-		T: Send+Sync+::core::marker::Reflect+Default+'static
+		T: Send+Sync+::core::any::Any+Default+'static
 	{
 		let pld = &self.0.proc_local_data;
 		// 1. Try without write-locking
@@ -204,7 +204,7 @@ impl ProcessHandle
 
 	pub fn get_process_local_alloc<T>(&self) -> ::lib::mem::aref::ArefBorrow<T>
 	where
-		T: Send+Sync+::core::marker::Reflect+Default+'static
+		T: Send+Sync+::core::any::Any+Default+'static
 	{
 		let pld = &self.0.proc_local_data;
 		// 1. Try without write-locking

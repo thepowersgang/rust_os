@@ -5,7 +5,6 @@
 //! Userland system-call interface
 #![no_std]
 #![feature(associated_consts)]
-#![feature(reflect_marker)]
 #![feature(integer_atomics)]
 
 #[allow(unused_imports)]

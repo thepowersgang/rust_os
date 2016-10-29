@@ -184,7 +184,7 @@ fn with_cur_thread<T, F: FnOnce(&thread::Thread)->T>(fcn: F) -> T
 }
 
 // TODO: Prevent this pointer from being sent (which will prevent accessing of freed memory)
-pub fn get_process_local<T: Send+Sync+::core::marker::Reflect+Default+'static>() -> ArefBorrow<T>
+pub fn get_process_local<T: Send+Sync+::core::any::Any+Default+'static>() -> ArefBorrow<T>
 {
 	// SAFE: Checks for NULL, and the thread should be vaild while executing
 	let t = unsafe {
