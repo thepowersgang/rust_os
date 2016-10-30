@@ -3,13 +3,12 @@
 //
 // Core/lib/mem/mod.rs
 //! Owned dynamic allocation (box)
-use core::marker::{Sized,Send,Unsize};
+use core::marker::{Sized,Unsize};
 use core::ops::{CoerceUnsized};
 
 #[lang = "owned_box"]
-pub struct Box<T: ?Sized>(*mut T);
+pub struct Box<T: ?Sized>(::core::ptr::Unique<T>);
 
-unsafe impl<T: ?Sized+Send> Send for Box<T> { }
 impl<T: ?Sized + Unsize<U>, U: ?Sized> CoerceUnsized<Box<U>> for Box<T> { }
 
 impl<T> Box<T>
