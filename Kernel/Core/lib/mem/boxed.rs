@@ -5,6 +5,7 @@
 //! Owned dynamic allocation (box)
 use core::marker::{Sized,Unsize};
 use core::ops::{CoerceUnsized};
+use core::{ops,fmt};
 
 #[lang = "owned_box"]
 pub struct Box<T: ?Sized>(::core::ptr::Unique<T>);
@@ -55,13 +56,26 @@ pub fn into_inner<T>(b: Box<T>) -> T {
 	v
 }
 
-impl<T: ?Sized> ::core::fmt::Debug for Box<T>
-where
-	T: ::core::fmt::Debug
-{
-	fn fmt(&self, f: &mut ::core::fmt::Formatter) -> ::core::result::Result<(),::core::fmt::Error>
-	{
+impl<T: ?Sized + fmt::Debug> fmt::Debug for Box<T> {
+	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
 		(**self).fmt(f)
+	}
+}
+impl<T: ?Sized + fmt::Display> fmt::Display for Box<T> {
+	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+		(**self).fmt(f)
+	}
+}
+impl<T: ?Sized> ops::Deref for Box<T> {
+	type Target = T;
+
+	fn deref(&self) -> &T {
+		&**self
+	}
+}
+impl<T: ?Sized> ops::DerefMut for Box<T> {
+	fn deref_mut(&mut self) -> &mut T {
+		&mut **self
 	}
 }
 
