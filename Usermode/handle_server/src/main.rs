@@ -20,8 +20,10 @@ struct Connection
 
 fn main()
 {
+	// handle_server gets the read-write root handle for the session user
 	let filesystem_root: ::syscalls::vfs::Dir = ::syscalls::threads::S_THIS_PROCESS.receive_object("RwRoot").expect("Failed to receive FS root");
 
+	// Active handle set - pre-populated with connection to leader
 	let mut handles = vec![
 		Connection {
 			name: String::from("Leader"),

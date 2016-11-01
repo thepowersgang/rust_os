@@ -60,7 +60,7 @@ impl StreamServer
 Kernelland
 ----
 NIC Interface:
-* 
+* NOTE: Should be async capable
 
 
 % vim: ft=markdown
