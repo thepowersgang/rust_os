@@ -47,6 +47,7 @@ impl<T: Copy+Send+Sync/*+ValidAtomic*/> AtomicValue<T>
 			Ordering::SeqCst  => intrinsics::atomic_load(dst),
 			Ordering::Release => panic!("there is no such thing as a release load"),
 			Ordering::AcqRel  => panic!("there is no such thing as an acquire/release load"),
+			_ => panic!("Ordering {:?}", order),
 			}
 		}
 	}
@@ -61,6 +62,7 @@ impl<T: Copy+Send+Sync/*+ValidAtomic*/> AtomicValue<T>
 			Ordering::SeqCst  => intrinsics::atomic_store(dst, val),
 			Ordering::Acquire => panic!("there is no such thing as an acquire store"),
 			Ordering::AcqRel  => panic!("there is no such thing as an acquire/release store"),
+			_ => panic!("Ordering {:?}", order),
 			}
 		}
 	}
@@ -74,7 +76,8 @@ impl<T: Copy+Send+Sync/*+ValidAtomic*/> AtomicValue<T>
 			Ordering::Release => intrinsics::atomic_xchg_rel(dst, val),
 			Ordering::AcqRel  => intrinsics::atomic_xchg_acqrel(dst, val),
 			Ordering::Relaxed => intrinsics::atomic_xchg_relaxed(dst, val),
-			Ordering::SeqCst  => intrinsics::atomic_xchg(dst, val)
+			Ordering::SeqCst  => intrinsics::atomic_xchg(dst, val),
+			_ => panic!("Ordering {:?}", order),
 			}
 		}
 	}
@@ -94,6 +97,7 @@ impl<T: Copy+Send+Sync/*+ValidAtomic*/> AtomicValue<T>
 			Ordering::AcqRel  => intrinsics::atomic_cxchg_acqrel(dst, old, new),
 			Ordering::Relaxed => intrinsics::atomic_cxchg_relaxed(dst, old, new),
 			Ordering::SeqCst  => intrinsics::atomic_cxchg(dst, old, new),
+			_ => panic!("Ordering {:?}", order),
 			}
 		}
 	}
@@ -122,6 +126,7 @@ impl AtomicU32 {
 			Ordering::SeqCst  => intrinsics::atomic_load(dst),
 			Ordering::Release => panic!("there is no such thing as a release load"),
 			Ordering::AcqRel  => panic!("there is no such thing as an acquire/release load"),
+			_ => panic!("Ordering {:?}", order),
 			}
 		}
 	}
@@ -136,6 +141,7 @@ impl AtomicU32 {
 			Ordering::SeqCst  => intrinsics::atomic_store(dst, val),
 			Ordering::Acquire => panic!("there is no such thing as an acquire store"),
 			Ordering::AcqRel  => panic!("there is no such thing as an acquire/release store"),
+			_ => panic!("Ordering {:?}", order),
 			}
 		}
 	}
@@ -149,7 +155,8 @@ impl AtomicU32 {
 			Ordering::Release => intrinsics::atomic_xchg_rel(dst, val),
 			Ordering::AcqRel  => intrinsics::atomic_xchg_acqrel(dst, val),
 			Ordering::Relaxed => intrinsics::atomic_xchg_relaxed(dst, val),
-			Ordering::SeqCst  => intrinsics::atomic_xchg(dst, val)
+			Ordering::SeqCst  => intrinsics::atomic_xchg(dst, val),
+			_ => panic!("Ordering {:?}", order),
 			}
 		}
 	}
@@ -168,6 +175,7 @@ impl AtomicU32 {
 			Ordering::AcqRel  => intrinsics::atomic_cxchg_acqrel(dst, old, new),
 			Ordering::Relaxed => intrinsics::atomic_cxchg_relaxed(dst, old, new),
 			Ordering::SeqCst  => intrinsics::atomic_cxchg(dst, old, new),
+			_ => panic!("Ordering {:?}", order),
 			}
 		}
 	}
@@ -181,7 +189,8 @@ impl AtomicU32 {
 			Ordering::Release => intrinsics::atomic_xadd_rel(dst, val),
 			Ordering::AcqRel  => intrinsics::atomic_xadd_acqrel(dst, val),
 			Ordering::Relaxed => intrinsics::atomic_xadd_relaxed(dst, val),
-			Ordering::SeqCst  => intrinsics::atomic_xadd(dst, val)
+			Ordering::SeqCst  => intrinsics::atomic_xadd(dst, val),
+			_ => panic!("Ordering {:?}", order),
 			}
 		}
 	}
@@ -194,7 +203,8 @@ impl AtomicU32 {
 			Ordering::Release => intrinsics::atomic_xsub_rel(dst, val),
 			Ordering::AcqRel  => intrinsics::atomic_xsub_acqrel(dst, val),
 			Ordering::Relaxed => intrinsics::atomic_xsub_relaxed(dst, val),
-			Ordering::SeqCst  => intrinsics::atomic_xsub(dst, val)
+			Ordering::SeqCst  => intrinsics::atomic_xsub(dst, val),
+			_ => panic!("Ordering {:?}", order),
 			}
 		}
 	}
