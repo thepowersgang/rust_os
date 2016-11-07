@@ -84,6 +84,7 @@ pub struct BootServices
 }
 impl BootServices
 {
+	/// Allocate a `Vec`-alike from the firmware's general use pool
 	pub fn allocate_pool_vec<T>(&self, mt: MemoryType, capacity: usize) -> Result<PoolVec<T>, Status> {
 		let mut ptr = ::core::ptr::null_mut();
 		(self.allocate_pool)(mt, capacity * ::core::mem::size_of::<T>(), &mut ptr)
@@ -103,6 +104,7 @@ impl BootServices
 			.err_or_else( || unsafe { &*P::from_ptr(ptr) } )
 	}
 }
+/// Owned vector from the UEFI general pool
 pub struct PoolVec<'a, T>
 {
 	bs: &'a BootServices,
@@ -139,6 +141,17 @@ impl<'a,T> ::core::ops::DerefMut for PoolVec<'a, T>
 	fn deref_mut(&mut self) -> &mut [T] {
 		unsafe {
 			::core::slice::from_raw_parts_mut(*self.ptr, self.len)
+		}
+	}
+}
+impl<'a,T> ::core::ops::Drop for PoolVec<'a, T>
+{
+	fn drop(&mut self) {
+		unsafe {
+			for v in self.iter_mut() {
+				::core::ptr::drop_in_place(v);
+			}
+			(self.bs.free_pool)(*self.ptr as *mut Void);
 		}
 	}
 }

@@ -144,8 +144,17 @@ pub extern "win64" fn efi_main(image_handle: ::uefi::Handle, system_table: &::ue
 			}
 
 			assert_eq!( ent_size, size_of::<uefi::boot_services::MemoryDescriptor>() );
-			let mut map = boot_services.allocate_pool_vec( uefi::boot_services::MemoryType::LoaderData, map_size / ent_size ).unwrap();
-			(boot_services.get_memory_map)(&mut map_size, map.as_mut_ptr(), &mut map_key, &mut ent_size, &mut ent_ver).err_or( () ).expect("get_memory_map 2");
+			let mut map;
+			loop
+			{
+				map = boot_services.allocate_pool_vec( uefi::boot_services::MemoryType::LoaderData, map_size / ent_size ).unwrap();
+				match (boot_services.get_memory_map)(&mut map_size, map.as_mut_ptr(), &mut map_key, &mut ent_size, &mut ent_ver)
+				{
+				::uefi::status::SUCCESS => break,
+				::uefi::status::BUFFER_TOO_SMALL => continue,
+				e => panic!("get_memory_map 2 - {:?}", e),
+				}
+			}
 			unsafe {
 				map.set_len( map_size / ent_size );
 			}
