@@ -14,12 +14,14 @@
 -include ../common.mk
 
 MODS := syscalls
+MODS += network
 MODS += virtio
 MODS += storage_ata
 MODS += input_ps2
 MODS += fs_fat fs_iso9660 fs_extN
 MODS += storage_ahci
 #MODS += video_vga
+MODS += nic_rtl8139
 
 ifeq ($(ARCH),amd64)
 USE_ACPICA ?= 1
@@ -123,13 +125,13 @@ dsm: bin/kernel-$(ARCH).bin.dsm
 clean:
 	rm -r $(OBJDIR)
 
-docs: $(patsubst %,doc/$(ARCH)/%/index.html,kernel core)
+docs: $(patsubst %,doc/$(ARCH)/%/index.html,core kernel)
 
 doc/$(ARCH)/%/index.html:
 	@mkdir -p doc/$(ARCH)
 	@echo [RUSTDOC] $<
 	$V$(ENV) $(RUSTDOC) $(RUSTFLAGS_C) -o doc/$(ARCH) $<
-doc/$(ARCH)/kernel/index.html: Core/main.rs bin/kernel-$(ARCH).bin
+doc/$(ARCH)/kernel/index.html: Core/main.rs $(OBJDIR)libkernel.rlib
 doc/$(ARCH)/core/index.html: ../libcore/lib.rs $(OBJDIR)libcore.rlib
 
 # ===

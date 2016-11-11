@@ -2,7 +2,7 @@
 // - By John Hodge (thePowersGang)
 //
 // Core/memory/virt.rs
-// - Virtual memory manager
+//! Virtual memory management - DMA and temprory mappings
 use core::fmt;
 use core::ops;
 use arch::memory::addresses;
@@ -11,6 +11,7 @@ use arch::memory::{PAddr, PAGE_MASK};
 type Page = [u8; ::PAGE_SIZE];
 
 #[derive(PartialEq,Debug,Copy,Clone)]
+/// Memory protection flags
 pub enum ProtectionMode
 {
 	/// Inaccessible
@@ -36,9 +37,15 @@ impl_from! {
 	From<::memory::phys::Error>(_v) for MapError {
 		MapError::OutOfMemory
 	}
+	From<MapError>(v) for &'static str {
+		match v {
+		MapError::OutOfMemory => "VMM: Out of memory",
+		MapError::RangeInUse => "VMM: Range in use",
+		}
+	}
 }
 
-/// A handle to an owned memory allocation
+/// A handle to an arbitary owned memory allocation.
 pub struct AllocHandle
 {
 	addr: *const (),
@@ -70,6 +77,7 @@ static s_userspace_lock : ::sync::Mutex<()> = mutex_init!( () );
 #[allow(non_upper_case_globals)]
 static s_kernelspace_lock : ::sync::Mutex<()> = mutex_init!( () );
 
+#[doc(hidden)]
 pub fn init()
 {
 	// 1. Tell the architecture-specific VMM that it can clean up init state
@@ -98,6 +106,7 @@ pub use arch::memory::virt::is_reserved;
 pub use arch::memory::virt::get_phys;
 pub use arch::memory::virt::get_info;
 
+/// Temporarily map a frame into memory and run the provided closure
 pub unsafe fn with_temp<F, R>(phys: PAddr, f: F) -> R
 where
 	F: FnOnce(&mut [u8; ::PAGE_SIZE]) -> R
@@ -108,6 +117,7 @@ where
 	f(p)
 }
 
+/// Run the provided closure with no changes possible to the address space
 pub fn with_lock<F>(addr: usize, fcn: F)
 where
 	F: FnOnce()
@@ -121,6 +131,7 @@ where
 pub fn allocate(addr: *mut (), page_count: usize) -> Result<(), MapError> {
 	allocate_int(addr, page_count, false)
 }
+/// Allocate memory for user access
 pub fn allocate_user(addr: *mut (), page_count: usize) -> Result<(), MapError> {
 	allocate_int(addr, page_count, true)
 }
@@ -199,6 +210,7 @@ pub fn reserve(addr: *mut (), page_count: usize) -> Result<Reservation, ()>
 	
 	Ok( Reservation(addr, page_count) )
 }
+/// Handle to a reserved region of address space
 pub struct Reservation(*mut (), usize);
 impl Reservation
 {
@@ -226,6 +238,7 @@ impl Reservation
 	}
 }
 
+/// Map the given physical address to the given virtual address
 /// UNSAFE: Does no checks on validity of the physical address. When deallocated, the mapped address will be dereferenced
 pub unsafe fn map(addr: *mut (), phys: PAddr, prot: ProtectionMode)
 {
@@ -243,6 +256,7 @@ pub unsafe fn map(addr: *mut (), phys: PAddr, prot: ProtectionMode)
 	}
 }
 
+/// Alter the protection flags on a mapping (only allows changing to a user-accessible mode)
 /// UNSAFE: (Very) Can change the protection mode of a page to anything
 pub unsafe fn reprotect_user(addr: *mut (), prot: ProtectionMode) -> Result<(),()>
 {
@@ -272,6 +286,8 @@ pub unsafe fn reprotect_user(addr: *mut (), prot: ProtectionMode) -> Result<(),(
 	}
 }
 
+/// Unmap the frame at the given virtual address
+/// UNSAFE: (Very) invalidates the given pointer
 pub unsafe fn unmap(addr: *mut (), count: usize)
 {
 	if ::arch::memory::virt::is_fixed_alloc(addr, count)
@@ -299,7 +315,9 @@ pub unsafe fn unmap(addr: *mut (), count: usize)
 	}
 }
 
-
+/// Return a pointer to the given physical address in the fixed allocation region
+///
+/// Usually only works for addresses under 4MB
 pub unsafe fn map_static_raw(phys: PAddr, size: usize) -> Result<*const ::Void, MapError> {
 	let ofs = phys as usize % ::PAGE_SIZE;
 	let pages = (ofs + size + ::PAGE_SIZE - 1) / ::PAGE_SIZE;
@@ -313,15 +331,18 @@ pub unsafe fn map_static_raw(phys: PAddr, size: usize) -> Result<*const ::Void, 
 		//todo!("map_static_raw(phys={:#x}, size={:#x})", phys, size);
 	}
 }
+/// Wraps `map_static_raw` and returns a `&'static [T]`
 pub unsafe fn map_static_slice<T: ::lib::POD>(phys: PAddr, count: usize) -> Result<&'static [T], MapError> {
 	map_static_raw(phys, count * ::core::mem::size_of::<T>())
 		.map(|ptr| ::core::slice::from_raw_parts(ptr as *const T, count))
 }
+/// Wraps `map_static_raw` and returns a `&'static T`
 pub unsafe fn map_static<T: ::lib::POD>(phys: PAddr) -> Result<&'static T, MapError> {
 	map_static_raw(phys, ::core::mem::size_of::<T>())
 		.map(|ptr| &*(ptr as *const T))
 }
 
+/// Handle to a region of memory to be used for MMIO. See [map_mmio](function.map_mmio.html)
 pub struct MmioHandle(*mut ::Void,u16,u16);
 unsafe impl Send for MmioHandle {}	// MmioHandle is sendable
 unsafe impl Sync for MmioHandle {}	// &MmioHandle is safe
@@ -330,6 +351,7 @@ impl_fmt! {
 		write!(f, "{:p}({:#x})+{:#x}", self.base(), get_phys(self.base()), self.2)
 	}
 }
+/// Maps the given physical address for memory-mapped IO access. NOTE: This address does not need to be page aligned.
 pub unsafe fn map_mmio(phys: PAddr, size: usize) -> Result<MmioHandle,MapError> {
 	assert!(size < (1 << 16), "map_mmio size {:#x} too large (must be below 16-bits)", size);
 
@@ -361,6 +383,7 @@ impl MmioHandle
 			::core::slice::from_raw_parts_mut( (self.base() as usize + ofs) as *mut T, count )
 		}
 	}
+	/// Interpret the backing memory as a slice
 	pub unsafe fn as_int_mut_slice<T: ::lib::POD>(&self, ofs: usize, count: usize) -> &mut [T]
 	{
 		&mut (*self.as_raw_ptr_slice(ofs, count))[..]
@@ -480,12 +503,14 @@ pub fn alloc_free() -> Result<FreePage,MapError>
 	Ok( FreePage(map_handle) )
 }
 
+/// Handle returned by [alloc_free](fn.alloc_free.html). This type panics on drop.
 pub struct FreePage( ::arch::memory::virt::TempHandle<u8> );
 impl FreePage
 {
 	fn phys(&self) -> PAddr {
 		get_phys( &self.0[0] )
 	}
+	/// Unmap the memory and return a handle to the backing frame
 	pub fn into_frame(self) -> ::memory::phys::FrameHandle {
 		let paddr = self.phys();
 		// SAFE: Forgets after read (used because Self::drop panics)
@@ -496,6 +521,7 @@ impl FreePage
 		// SAFE: Valid physical address passed
 		unsafe { ::memory::phys::FrameHandle::from_addr_noref(paddr) }
 	}
+	/// Interpret the page as a mutable slice of `T`
 	pub fn as_slice_mut<T: ::lib::POD>(&mut self) -> &mut [T] {
 		// SAFE: Lifetime and range is valid, data is POD
 		unsafe {
@@ -520,6 +546,7 @@ impl ops::DerefMut for FreePage {
 	}
 }
 
+/// Allocate memory allowing for hardware DMA restrictions
 pub fn alloc_dma(bits: u8, count: usize, module: &'static str) -> Result<AllocHandle,MapError>
 {
 	// 1. Allocate enough pages within the specified range

@@ -120,14 +120,15 @@ pub unsafe fn dealloc_raw(ptr: *mut (), size: usize, align: usize) {
 
 impl<T> ArrayAlloc<T>
 {
-	///// Create a new empty array allocation (const)
-	//pub const fn empty() -> ArrayAlloc<T> {
-	//	ArrayAlloc {
-	//		// SAFE: Non-zero value
-	//		ptr: unsafe { Unique::new(ZERO_ALLOC as *mut T) },
-	//		count: 0
-	//		}
-	//}
+	/// Create a new empty array allocation (const)
+	/// - NOTE: Zero count, even when the type is zero-sized
+	pub const fn empty() -> ArrayAlloc<T> {
+		ArrayAlloc {
+			// SAFE: Non-zero value
+			ptr: unsafe { Unique::new(ZERO_ALLOC as *mut T) },
+			count: 0
+			}
+	}
 	
 	/// Create a new array allocation with `count` items
 	pub fn new(count: usize) -> ArrayAlloc<T>

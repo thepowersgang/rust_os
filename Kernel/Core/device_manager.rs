@@ -252,6 +252,7 @@ fn find_driver(bus: &BusManager, bus_dev: &mut BusDevice) -> Option<(Box<DriverI
 impl IOBinding
 {
 	/// Returns the x86 IO space base
+	#[inline]
 	pub fn io_base(&self) -> u16 {
 		match *self
 		{
@@ -260,6 +261,7 @@ impl IOBinding
 		}
 	}
 	/// Read a single u8 from the binding
+	#[inline]
 	pub unsafe fn read_8(&self, ofs: usize) -> u8
 	{
 		//log_trace!("read_8({:?}, {:#x})", self, ofs);
@@ -274,7 +276,24 @@ impl IOBinding
 			},
 		}
 	}
+	/// Read a single u16 from the binding
+	#[inline]
+	pub unsafe fn read_16(&self, ofs: usize) -> u16
+	{
+		//log_trace!("read_16({:?}, {:#x})", self, ofs);
+		match *self
+		{
+		IOBinding::IO(base, s) => {
+			assert!( ofs+2 <= s as usize, "read_u16(IO addr {:#x}+2 > {:#x})", ofs, s );
+			::arch::x86_io::inw(base + ofs as u16)
+			},
+		IOBinding::Memory(ref h) => {
+			::core::intrinsics::volatile_load( h.as_int_mut::<u16>(ofs) )
+			},
+		}
+	}
 	/// Read a single u32 from the binding
+	#[inline]
 	pub unsafe fn read_32(&self, ofs: usize) -> u32
 	{
 		//log_trace!("read_32({:?}, {:#x})", self, ofs);
@@ -290,6 +309,7 @@ impl IOBinding
 		}
 	}
 	/// Writes a single u8 to the binding
+	#[inline]
 	pub unsafe fn write_8(&self, ofs: usize, val: u8)
 	{
 		//log_trace!("write_8({:?}, {:#x}, {:#02x})", self, ofs, val);
@@ -305,6 +325,22 @@ impl IOBinding
 		}
 	}
 	/// Write a single u32 to the binding
+	#[inline]
+	pub unsafe fn write_16(&self, ofs: usize, val: u16)
+	{
+		match *self
+		{
+		IOBinding::IO(base, s) => {
+			assert!(ofs+2 <= s as usize, "write_16(IO addr {:#x}+4 > {:#x})", ofs, s);
+			::arch::x86_io::outw(base + ofs as u16, val);
+			},
+		IOBinding::Memory(ref h) => {
+			::core::intrinsics::volatile_store( h.as_int_mut::<u16>(ofs), val );
+			},
+		}
+	}
+	/// Write a single u32 to the binding
+	#[inline]
 	pub unsafe fn write_32(&self, ofs: usize, val: u32)
 	{
 		match *self
