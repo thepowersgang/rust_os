@@ -31,7 +31,7 @@ impl ::objects::Object for SyncChannel
 		::values::IPC_RPC_SEND => {
 			let data: Freeze<::values::RpcMessage> = try!(args.get());
 			let obj: u32 = try!(args.get());
-			todo!("IPC_RPC_SENDBLOB({:p}, {})", &*data, obj);
+			todo!("IPC_RPC_SEND({:p}, {})", &*data, obj);
 			},
 		::values::IPC_RPC_RECV => {
 			let _data: FreezeMut<::values::RpcMessage> = try!(args.get());

@@ -10,7 +10,6 @@
 #![feature(core_char_ext,core_str_ext,core_slice_ext)]
 #![feature(const_fn)]
 #![feature(box_syntax)]
-#![feature(question_mark)]
 #![feature(raw)]
 #![feature(collections,slice_concat_ext)]
 #![no_std]

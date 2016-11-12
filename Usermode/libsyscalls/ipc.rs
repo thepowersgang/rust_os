@@ -52,7 +52,8 @@ impl RpcChannel
 		unsafe { self.0.call_2(::values::IPC_RPC_SEND, &message as *const _ as usize, 0); }
 	}
 	pub fn send_obj<T: ::Object>(&self, message: RpcMessage, object: T) {
-		unimplemented!();
+		// SAFE: Syscall
+		unsafe { self.0.call_2(::values::IPC_RPC_SEND, &message as *const _ as usize, object.into_handle().into_raw() as usize); }
 	}
 	pub fn try_receive(&self) -> Result< (RpcMessage, Option<::AnyObject>), RxError> {
 		let mut msg: RpcMessage = Default::default();

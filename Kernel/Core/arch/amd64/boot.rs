@@ -127,18 +127,18 @@ extern "C"
 	static s_multiboot_signature : u32;
 	static s_multiboot_pointer : *const ::Void;
 }
-static mut s_memmap_data: [::memory::MemoryMapEnt; 16] = [::memory::MAP_PAD; 16];
-static mut s_bootinfo : BootInfo = BootInfo::Uninit;
+static mut S_MEMMAP_DATA: [::memory::MemoryMapEnt; 16] = [::memory::MAP_PAD; 16];
+static mut S_BOOTINFO: BootInfo = BootInfo::Uninit;
 
 fn get_bootinfo() -> &'static BootInfo
 {
 	// SAFE: Assumes all bootloader-provided pointers are valid, `static mut` write valid
 	unsafe
 	{
-		match s_bootinfo
+		match S_BOOTINFO
 		{
 		BootInfo::Uninit => {
-			s_bootinfo = match s_multiboot_signature
+			S_BOOTINFO = match s_multiboot_signature
 				{
 				0x2BADB002 =>
 					if let Some(mbi) = MultibootParsed::new( &*(s_multiboot_pointer as *const MultibootInfo) ) {
@@ -160,7 +160,7 @@ fn get_bootinfo() -> &'static BootInfo
 		_ => {}
 		}
 		
-		&s_bootinfo
+		&S_BOOTINFO
 	}
 }
 
@@ -236,7 +236,7 @@ impl MultibootParsed
 				memmap: &[],
 			};
 		// SAFE: Should only be called before threading is initialised, so no race
-		ret.memmap = unsafe { ret._memmap(info, &mut s_memmap_data) };
+		ret.memmap = unsafe { ret._memmap(info, &mut S_MEMMAP_DATA) };
 		Some( ret )
 	}
 
@@ -456,7 +456,7 @@ impl UefiParsed
 			};
 		// - Memory map is initialised afterwards so it gets easy access to used addresses
 		// SAFE: Should only be called before threading is initialised, so no race
-		ret.memmap = unsafe { ret._memmap(info, &mut s_memmap_data) };
+		ret.memmap = unsafe { ret._memmap(info, &mut S_MEMMAP_DATA) };
 		Some( ret )
 	}
 
@@ -467,20 +467,7 @@ impl UefiParsed
 		}
 	}
 	fn _memmap<'a>(&self, info: &uefi_proto::Info, buf: &'a mut[::memory::MemoryMapEnt]) -> &'a [::memory::MemoryMapEnt] {
-		// TODO: Get this from libuefi
-		#[repr(C)]
-		#[derive(Copy,Clone)]
-		struct MemoryDescriptor
-		{
-			ty: u32,
-			_pad: u32,
-			physical_start: u64,
-			virtual_start: u64,
-			number_of_pages: u64,
-			attribute: u64,
-			_pad2: u64,
-		}
-		
+		// TODO: Put this elsewhere
 		struct StrideSlice<T> {
 			ptr: *const T,
 			count: usize,
@@ -518,7 +505,7 @@ impl UefiParsed
 		let size = {
 			let /*mut*/ mapbuilder = ::memory::MemoryMapBuilder::new(buf);
 			// SAFE: Trusting the bootloader
-			for ent in unsafe { StrideSlice::new(info.map_addr as *const MemoryDescriptor, info.map_entnum as usize, info.map_entsz as usize) }
+			for ent in unsafe { StrideSlice::new(info.map_addr as *const uefi_proto::MemoryDescriptor, info.map_entnum as usize, info.map_entsz as usize) }
 			{
 				log_debug!("ent = {{ {}, {:#x}+{:#x} {:#x}", ent.ty, ent.physical_start, ent.number_of_pages, ent.attribute);
 			}
