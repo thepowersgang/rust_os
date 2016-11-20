@@ -15,6 +15,8 @@ extern crate network;
 
 mod hw;
 
+mod buffer_set;
+
 module_define!{nic_Rtl8139, [Network], init}
 
 fn init()
@@ -33,7 +35,31 @@ struct Card
 	// Buffer: Three contigious pages
 	rx_buffer: ::kernel::memory::virt::ArrayHandle<u8>,
 
-	tx_buffers: [ ::kernel::memory::virt::ArrayHandle<u8>; 2 ],
+	tx_buffer_handles: [ ::kernel::memory::virt::ArrayHandle<u8>; 2 ],
+
+	// Transmit Buffers
+	//tx_slots: buffer_set::BufferSet<TxSlot, 4>,
+	tx_slots: buffer_set::BufferSet4<TxSlot>,
+}
+struct TxSlot
+{
+	buffer: *mut [u8],
+}
+unsafe impl Send for TxSlot {}
+impl TxSlot
+{
+	fn fill(&mut self, buf: &[u8], ofs: usize) -> Result<(),usize> {
+		// SAFE: Just gets the length
+		let buflen = unsafe { (*self.buffer).len() };
+		if ofs > buflen || ofs + buf.len() > buflen {
+			Err( buflen - (ofs + buf.len()) )
+		}
+		else {
+			// SAFE: This object owns this buffer.
+			unsafe { (*self.buffer)[ofs ..][.. buf.len()].copy_from_slice(buf); }
+			Ok( () )
+		}
+	}
 }
 
 impl BusDev
@@ -45,15 +71,24 @@ impl BusDev
 			io.read_8(0), io.read_8(1), io.read_8(2),
 			io.read_8(3), io.read_8(4), io.read_8(5),
 			]};
-
+		
+		let mut tx_buffer_handles = [
+			::kernel::memory::virt::alloc_dma(32, 1, "rtl8139")?.into_array(),
+			::kernel::memory::virt::alloc_dma(32, 1, "rtl8139")?.into_array(),
+			];
+		let tx_slots = [
+			TxSlot { buffer: &mut tx_buffer_handles[0][..0x800], },
+			TxSlot { buffer: &mut tx_buffer_handles[0][0x800..], },
+			TxSlot { buffer: &mut tx_buffer_handles[1][..0x800], },
+			TxSlot { buffer: &mut tx_buffer_handles[1][0x800..], },
+			];
+		
 		let rv = Box::new( BusDev( nic::register(mac, Card {
 			io_base: io,
 			irq_handle: None,
 			rx_buffer: ::kernel::memory::virt::alloc_dma(32, 3, "rtl8139")?.into_array(),
-			tx_buffers: [
-				::kernel::memory::virt::alloc_dma(32, 1, "rtl8139")?.into_array(),
-				::kernel::memory::virt::alloc_dma(32, 1, "rtl8139")?.into_array(),
-				],
+			tx_buffer_handles: tx_buffer_handles,
+			tx_slots: buffer_set::BufferSet::new(tx_slots),
 			}) ) );
 		
 		{
@@ -78,10 +113,10 @@ impl BusDev
 				card.write_32(Regs::CAPR, 0);
 				// Transmit buffers
 				// - TODO: These need protected access
-				card.write_32(Regs::TSAD0, ::kernel::memory::virt::get_phys(&card.tx_buffers[0][    0]) as u32);
-				card.write_32(Regs::TSAD1, ::kernel::memory::virt::get_phys(&card.tx_buffers[0][0x800]) as u32);
-				card.write_32(Regs::TSAD2, ::kernel::memory::virt::get_phys(&card.tx_buffers[1][    0]) as u32);
-				card.write_32(Regs::TSAD3, ::kernel::memory::virt::get_phys(&card.tx_buffers[1][0x800]) as u32);
+				card.write_32(Regs::TSAD0, ::kernel::memory::virt::get_phys(&card.tx_buffer_handles[0][    0]) as u32);
+				card.write_32(Regs::TSAD1, ::kernel::memory::virt::get_phys(&card.tx_buffer_handles[0][0x800]) as u32);
+				card.write_32(Regs::TSAD2, ::kernel::memory::virt::get_phys(&card.tx_buffer_handles[1][    0]) as u32);
+				card.write_32(Regs::TSAD3, ::kernel::memory::virt::get_phys(&card.tx_buffer_handles[1][0x800]) as u32);
 				
 				//card.write_16(Regs::RCR, hw::RCR_DMA_BURST_1024|hw::RCR_BUFSZ_8K16|hw::RCR_FIFO_1024|hw::RCR_OVERFLOW|0x1F);
 				card.write_16(Regs::RCR, (6<<13)|(0<<11)|(6<<8)|0x80|0x1F);
@@ -97,12 +132,44 @@ impl BusDev
 impl ::kernel::device_manager::DriverInstance for BusDev
 {
 }
+
+impl Card
+{
+	fn start_tx(&self, slot: buffer_set::Handle<[TxSlot; 4]>, len: usize)
+	{
+		let idx = slot.get_index();
+		// SAFE: Handing a uniquely-owned buffer to the card
+		unsafe {
+			// - Prevent the slot's destructor from running once we trigger the hardware.
+			::core::mem::forget(slot);
+
+			let tx_status: u32
+				= (len as u32 & 0x1FFF)
+				| (0 << 13)	// OWN bit, clear becuase we're sending to the card.
+				| (0 & 0x3F) << 16	// Early TX Threshold (disabled?)
+				;
+			assert!(idx < 4);
+			self.io_base.write_32(Regs::TSD0 as usize + idx, tx_status);
+		}
+		
+		// Card now owns the TX descriptor, return
+		// - IRQ handler will release the descriptor
+	}
+}
+
 impl nic::Interface for Card
 {
 	fn tx_raw(&self, pkt: nic::SparsePacket) {
 		// 1. Pick a TX buffer (what to do when there is none?)
+		let mut buf = self.tx_slots.acquire_wait();
 		// 2. Populate the buffer with the contents of the packet
-		todo!("tx_raw");
+		let mut total_len = 0;
+		for span in &pkt {
+			buf.fill(span, total_len).expect("TODO: Error when packet TX overflows buffer");
+			total_len += span.len();
+		}
+
+		self.start_tx(buf, total_len);
 	}
 	fn rx_wait_register(&self, channel: &::kernel::async::Waiter) {
 		todo!("rx_wait_register");

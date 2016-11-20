@@ -23,6 +23,14 @@ pub struct SparsePacket<'a>
 	head: &'a [u8],
 	next: Option<&'a SparsePacket<'a>>,
 }
+impl<'a> IntoIterator for &'a SparsePacket<'a>
+{
+	type IntoIter = SparsePacketIter<'a>;
+	type Item = &'a [u8];
+	fn into_iter(self) -> SparsePacketIter<'a> {
+		SparsePacketIter(Some(self))
+	}
+}
 pub struct SparsePacketIter<'a>(Option<&'a SparsePacket<'a>>);
 impl<'a> Iterator for SparsePacketIter<'a> {
 	type Item = &'a [u8];

@@ -138,6 +138,7 @@ macro_rules! impl_from {
 /// Wait on a wait queue contained within a spinlock
 ///
 /// Due to lifetime issues, the more erganomical `lock.queue.wait(lock)` does not pass borrow checking.
+#[macro_export]
 macro_rules! waitqueue_wait_ext {
 	($lock:expr, $(.$field:ident)+) => ({
 		let mut lock: $crate::arch::sync::HeldSpinlock<_> = $lock;
