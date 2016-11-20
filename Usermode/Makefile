@@ -64,13 +64,13 @@ clean:
 docs: $(patsubst lib%/,.docs/%/index.html,$(wildcard lib*/))
 
 .docs/%/index.html: lib%/lib.rs $(LIBDIR)lib%.rlib
-	@echo $@
-	@$(RUSTDOC) -o .docs $< --crate-name $* $(RUST_COMMON_FLAGS)
+	@echo [RUSTDOC] -o $@
+	$V$(RUSTDOC) -o .docs $< --crate-name $* $(RUST_COMMON_FLAGS)
 .docs/%/index.html: lib%/src/lib.rs $(LIBDIR)lib%.rlib
-	@echo $@
-	@$(RUSTDOC) -o .docs $< --crate-name $* $(RUST_COMMON_FLAGS)
+	@echo "[RUSTDOC] -o $@"
+	$V$(RUSTDOC) -o .docs $< --crate-name $* $(RUST_COMMON_FLAGS)
 
-LOADER_DEPS := $(patsubst %,$(LIBDIR)lib%.rlib,$(call fn_getdeps,loader/src/main.rs) std std_io std_rt core)
+LOADER_DEPS := $(patsubst %,$(LIBDIR)lib%.rlib,$(call fn_getdeps,loader/src/main.rs) std std_io core std_rt)
 
 # Most binary targets have simple templates, but loader and libcore are special
 # loader: Requires an assembly stub
@@ -78,10 +78,10 @@ LOADER_DEPS := $(patsubst %,$(LIBDIR)lib%.rlib,$(call fn_getdeps,loader/src/main
 $(BINDIR)loader: loader/link.ld $(OBJDIR)loader/start.ao $(OBJDIR)loader/src/main.o $(LOADER_DEPS)
 	@mkdir -p $(dir $@)
 	@echo [LD] $@
-	@$(LD) -r --gc-sections --undefined image_header --entry start -o $(OBJDIR)loader.o $(OBJDIR)loader/start.ao $(OBJDIR)loader/src/main.o $(LOADER_DEPS)
-	@$(LD) -o $(OBJDIR)loader.elf -T loader/link.ld $(OBJDIR)loader.o -Map $(OBJDIR)loader_map.txt
-	@$(OBJCOPY) $(OBJDIR)loader.elf -O binary $@
-	@$(OBJDUMP) -CS $(OBJDIR)loader.elf > $(OBJDIR)loader.dsm
+	$V$(LD) -r --gc-sections --undefined image_header --entry start -o $(OBJDIR)loader.o $(OBJDIR)loader/start.ao $(OBJDIR)loader/src/main.o $(LOADER_DEPS)
+	$V$(LD) -o $(OBJDIR)loader.elf -T loader/link.ld $(OBJDIR)loader.o -Map $(OBJDIR)loader_map.txt
+	$V$(OBJCOPY) $(OBJDIR)loader.elf -O binary $@
+	$V$(OBJDUMP) -CS $(OBJDIR)loader.elf > $(OBJDIR)loader.dsm
 $(OBJDIR)loader/src/main.o: $(LOADER_DEPS)
 
 # Low-level loader dummy dynamic library
@@ -162,7 +162,7 @@ $(OBJDIR)lib%.rlib: ../externals/crates.io/%/src/lib.rs $(TARGET_SPEC) $(makefil
 $(OBJDIR)%.o: %.rs $(TARGET_SPEC) $(makefile_deps)
 	@mkdir -p $(dir $@)
 	@echo [RUSTC] $@
-	@$(RUSTC) $(RUSTFLAGS) $< --out-dir=$(dir $@) --emit=obj,dep-info
+	$V$(RUSTC) $(RUSTFLAGS) $< --out-dir=$(dir $@) --emit=obj,dep-info
 -include $(OBJDIR)loader/src/main.d
 
 # - Assembly objects (loader)

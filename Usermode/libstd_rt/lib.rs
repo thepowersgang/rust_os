@@ -72,7 +72,7 @@ pub fn begin_unwind_fmt(msg: ::core::fmt::Arguments, file_line: &(&'static str, 
 
 #[lang = "panic_fmt"]
 #[no_mangle]
-pub extern fn rust_begin_panic(msg: ::core::fmt::Arguments, file: &'static str, line: usize) -> ! {
+pub extern fn rust_begin_unwind(msg: ::core::fmt::Arguments, file: &'static str, line: usize) -> ! {
 	begin_panic_fmt(&msg, &(file, line as u32))
 }
 #[lang="eh_personality"]

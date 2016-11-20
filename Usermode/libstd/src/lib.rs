@@ -12,6 +12,7 @@
 #![feature(box_syntax)]
 #![feature(raw)]
 #![feature(collections,slice_concat_ext)]
+#![feature(macro_reexport)]
 #![no_std]
 
 #[macro_use]
@@ -21,10 +22,14 @@ extern crate macros;
 
 extern crate alloc as heap;
 
+#[macro_reexport(vec,format)]
 extern crate collections;
-pub use collections::slice;
+
+#[macro_reexport(try,assert,assert_eq,panic,write,unreachable,unimplemented)]
+extern crate core as core_2;	// Alternate name because it collides otherwise
 
 //extern crate loader;
+
 
 // Raw re-exports from core
 pub use core::{option, result};
@@ -38,9 +43,9 @@ pub use core::marker;
 pub use core::num;
 pub use core::raw;
 
-
 // Crate re-exports
 pub use heap::{rc,boxed};
+pub use collections::slice;
 
 mod std {
 	pub use core::{option, result};
@@ -111,9 +116,6 @@ pub mod fs;
 pub mod error;
 
 pub use collections::{vec, string, borrow};
-//pub mod vec;
-//pub mod string;
-
 
 pub mod os;
 
