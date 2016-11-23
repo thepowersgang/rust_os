@@ -1,6 +1,12 @@
+// "Tifflin" Kernel - Networking Stack
+// - By John Hodge (thePowersGang)
+//
+// Modules/nic_rtl8139/hw.rs
+//! Hardware definitions (registers and flags)
+#![allow(dead_code)]
 
 #[repr(u16)]
-#[allow(dead_code,non_camel_case_types)]
+#[allow(non_camel_case_types)]
 pub enum Regs
 {
 	// MAC Address
@@ -44,4 +50,19 @@ pub enum Regs
 	// 0x53 resvd
 	TIMERINT = 0x54,        // Fires a timeout when TCTR equals this value
 }
+
+pub const FLAG_ISR_SERR  : u16 = 0x8000;	// System error
+pub const FLAG_ISR_TIMEO : u16 = 0x4000;	// Timer timeout (See TIMERINT)
+pub const FLAG_ISR_LENCHG: u16 = 0x2000;	// Cable length changed
+pub const FLAG_ISR_FOVW  : u16 = 0x0040;	// Rx FIFO Underflow
+pub const FLAG_ISR_PUN   : u16 = 0x0020;	// Packet Underrung
+pub const FLAG_ISR_RXOVW : u16 = 0x0010;	// Rx Buffer Overflow
+pub const FLAG_ISR_TER   : u16 = 0x0008;	// Tx Error
+pub const FLAG_ISR_TOK   : u16 = 0x0004;	// Tx OK
+pub const FLAG_ISR_RER   : u16 = 0x0002;	// Rx Error
+pub const FLAG_ISR_ROK   : u16 = 0x0001;	// Rx OK
+
+
+pub const FLAG_TSD_TOK: u32 = 0x8000;
+
 

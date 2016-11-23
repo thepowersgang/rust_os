@@ -4,8 +4,10 @@
 // Modules/nic_rtl8139/lib.rs
 //! Realtek 8139 driver
 #![no_std]
-#![feature(linkage)]
+#![feature(linkage)]	// for module_define!
+#![feature(integer_atomics)]	// AtomicU8
 use kernel::prelude::*;
+use core::sync::atomic::{Ordering,AtomicU8,AtomicU16};
 use network::nic;
 use hw::Regs;
 
@@ -15,7 +17,8 @@ extern crate network;
 
 mod hw;
 
-mod buffer_set;
+//mod buffer_set;
+mod buffer_ring;
 
 module_define!{nic_Rtl8139, [Network], init}
 
@@ -25,21 +28,23 @@ fn init()
 	::kernel::device_manager::register_driver(&PCI_DRIVER);
 }
 
+const RX_BUFFER_LENGTH: usize = 0x2000+16;
+const RX_BUFFER_LIMIT : usize = 0x3000;
 
-struct BusDev( nic::Registration<Card> );
+struct BusDev( nic::Registration<Card>, ::kernel::irqs::ObjectHandle );
 struct Card
 {
 	io_base: ::kernel::device_manager::IOBinding,
-	irq_handle: Option<::kernel::irqs::ObjectHandle>,
 	
 	// Buffer: Three contigious pages
 	rx_buffer: ::kernel::memory::virt::ArrayHandle<u8>,
-
-	tx_buffer_handles: [ ::kernel::memory::virt::ArrayHandle<u8>; 2 ],
+	rx_seen_ofs: AtomicU16,
 
 	// Transmit Buffers
-	//tx_slots: buffer_set::BufferSet<TxSlot, 4>,
-	tx_slots: buffer_set::BufferSet4<TxSlot>,
+	tx_buffer_handles: [ ::kernel::memory::virt::ArrayHandle<u8>; 2 ],
+	//tx_slots: buffer_set::BufferSet4<TxSlot>,
+	tx_slots: buffer_ring::BufferRing4<TxSlot>,
+	tx_slots_active: AtomicU8,
 }
 struct TxSlot
 {
@@ -83,16 +88,17 @@ impl BusDev
 			TxSlot { buffer: &mut tx_buffer_handles[1][0x800..], },
 			];
 		
-		let rv = Box::new( BusDev( nic::register(mac, Card {
+		let card_nic_reg = nic::register(mac, Card {
 			io_base: io,
-			irq_handle: None,
 			rx_buffer: ::kernel::memory::virt::alloc_dma(32, 3, "rtl8139")?.into_array(),
+			rx_seen_ofs: AtomicU16::new(0),
 			tx_buffer_handles: tx_buffer_handles,
-			tx_slots: buffer_set::BufferSet::new(tx_slots),
-			}) ) );
+			tx_slots: buffer_ring::BufferRing::new(tx_slots),
+			tx_slots_active: AtomicU8::new(0),
+			});
 		
 		{
-			let card = &*rv.0;
+			let card = &*card_nic_reg;
 
 			// SAFE: I hope so
 			unsafe {
@@ -125,8 +131,17 @@ impl BusDev
 				card.write_8(Regs::CMD, 0x0C);
 			}
 		}
+		
+		let irq_handle = {
+			struct RawSend<T: Send>(*const T);
+			unsafe impl<T: Send> Send for RawSend<T> {}
+			let ret_raw = RawSend(&*card_nic_reg);
+			// SAFE: Pointer _should_ be valid as long as this IRQ binding exists
+			// SAFE: The network stack garuntees that the pointer is stable.
+			::kernel::irqs::bind_object(irq, Box::new(move || unsafe { (*ret_raw.0).handle_irq() } ))
+			};
 
-		Ok(rv)
+		Ok( Box::new( BusDev(card_nic_reg, irq_handle) ) )
 	}
 }
 impl ::kernel::device_manager::DriverInstance for BusDev
@@ -135,7 +150,7 @@ impl ::kernel::device_manager::DriverInstance for BusDev
 
 impl Card
 {
-	fn start_tx(&self, slot: buffer_set::Handle<[TxSlot; 4]>, len: usize)
+	fn start_tx(&self, slot: buffer_ring::Handle<[TxSlot; 4]>, len: usize)
 	{
 		let idx = slot.get_index();
 		// SAFE: Handing a uniquely-owned buffer to the card
@@ -146,14 +161,111 @@ impl Card
 			let tx_status: u32
 				= (len as u32 & 0x1FFF)
 				| (0 << 13)	// OWN bit, clear becuase we're sending to the card.
-				| (0 & 0x3F) << 16	// Early TX Threshold (disabled?)
+				| (0 & 0x3F) << 16	// Early TX Threshold (0=8 bytes,n=32*n bytes)
 				;
 			assert!(idx < 4);
 			self.io_base.write_32(Regs::TSD0 as usize + idx, tx_status);
+			self.tx_slots_active.fetch_or(1 << idx, Ordering::SeqCst);
 		}
 		
 		// Card now owns the TX descriptor, return
 		// - IRQ handler will release the descriptor
+	}
+	
+	fn handle_irq(&self) -> bool
+	{
+		let status = self.read_16(Regs::ISR);
+		if status == 0 { return false; }
+		let mut status_clear = 0;
+		
+		// ---
+		// Transmit OK - Release completed descriptors
+		// ---
+		if status & hw::FLAG_ISR_TOK != 0
+		{
+			while let Some(idx) = self.tx_slots.get_first_used()
+			{
+				// SAFE: Read has no side-effects
+				let tsd = unsafe { self.io_base.read_32(Regs::TSD0 as usize + idx) };
+				if tsd & hw::FLAG_TSD_TOK == 0 {
+					// This descriptor isn't done, stop
+					break ;
+				}
+				else if self.tx_slots_active.fetch_and(!(1 << idx), Ordering::SeqCst) & 1 << idx == 0 {
+					// This descriptor isn't even active
+					break ;
+				}
+				else {
+					// Activated and complete (and now marked as inactive), release it to the pool
+					// SAFE: This descriptor can only have been activated if ownership was passed to the card, so it's safe to release.
+					unsafe { self.tx_slots.release(idx); }
+				}
+			}
+			status_clear |= hw::FLAG_ISR_TOK;
+		}
+		// ---
+		// Receive OK
+		// ---
+		if status & hw::FLAG_ISR_ROK != 0
+		{
+			// Starting at the last known Rx address, enumerate packets
+			let mut read_ofs = self.rx_seen_ofs.load(Ordering::Relaxed);
+			let end_ofs = self.read_16(Regs::CBA);
+
+			let mut num_packets = 0;
+			if read_ofs > end_ofs
+			{
+				// Rx buffer has wrapped around, read until the end of the buffer and reset read_ofs to 0
+				while read_ofs < RX_BUFFER_LENGTH as u16
+				{
+					// NOTE: The maximum valid address is RX_BUFFER_LIMIT (larger)
+					let (size, _hdr, _data) = self.get_packet(read_ofs as usize, RX_BUFFER_LIMIT);
+					num_packets += 1;
+					read_ofs += size as u16;
+				}
+				read_ofs = 0;
+			}
+
+			while read_ofs < end_ofs
+			{
+				let (size, _hdr, _data) = self.get_packet(read_ofs as usize, end_ofs as usize);
+				num_packets += 1;
+				read_ofs += size as u16;
+			}
+
+			self.rx_seen_ofs.store(read_ofs, Ordering::Relaxed);
+			// NOTE: Don't write back CAPR here - It's updated once the packet has been seen by the network stack
+			status_clear |= hw::FLAG_ISR_ROK;
+			
+			if num_packets > 0
+			{
+				todo!("Wake waiting thread");
+			}
+		}
+		
+
+		if status & !status_clear != 0
+		{
+			todo!("Handle other status bits - 0x{:04x}", status & !status_clear);
+		}
+
+		// SAFE: No memory triggered by this, only thread active
+		unsafe { self.write_16(Regs::ISR, status_clear) };
+
+		true
+	}
+
+
+	fn get_packet(&self, ofs: usize, max_ofs: usize) -> (usize, u16, &[u8]) {
+		assert!(ofs < max_ofs);
+		assert!(ofs+4 < max_ofs);
+		assert!(ofs%4 == 0);
+		
+		let pkt_flags = self.rx_buffer[ofs+0] as u16 | (self.rx_buffer[ofs+1] as u16 * 256);
+		let raw_len   = self.rx_buffer[ofs+2] as u16 | (self.rx_buffer[ofs+3] as u16 * 256);
+
+		let size = (raw_len + 4 + 3) & !4;
+		(size as usize, pkt_flags, &self.rx_buffer[ofs+4..][..raw_len as usize])
 	}
 }
 
@@ -184,9 +296,12 @@ impl Card
 	unsafe fn write_8 (&self, reg: Regs, val: u8)  { self.io_base.write_8( reg as usize, val)  }
 	unsafe fn write_16(&self, reg: Regs, val: u16) { self.io_base.write_16(reg as usize, val)  }
 	unsafe fn write_32(&self, reg: Regs, val: u32) { self.io_base.write_32(reg as usize, val)  }
-	unsafe fn read_8 (&self, reg: Regs) -> u8  { self.io_base.read_8( reg as usize) }
-	unsafe fn read_16(&self, reg: Regs) -> u16 { self.io_base.read_16(reg as usize) }
-	unsafe fn read_32(&self, reg: Regs) -> u32 { self.io_base.read_32(reg as usize) }
+	// SAFE: All reads on this card have no side-effects
+	fn read_8 (&self, reg: Regs) -> u8  { unsafe { self.io_base.read_8( reg as usize) } }
+	// SAFE: All reads on this card have no side-effects
+	fn read_16(&self, reg: Regs) -> u16 { unsafe { self.io_base.read_16(reg as usize) } }
+	// SAFE: All reads on this card have no side-effects
+	fn read_32(&self, reg: Regs) -> u32 { unsafe { self.io_base.read_32(reg as usize) } }
 }
 
 struct PciDriver;
