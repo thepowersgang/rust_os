@@ -89,8 +89,7 @@ impl<'a> SleepObject<'a>
 	}
 	
 	/// Signal this sleep object (waking threads)
-	#[tag_safe(irq)]
-	#[allow(not_tagged_safe)]	// Holds an IRQ lock
+	#[is_safe(irq)]	// Holds interrupts before locking
 	pub fn signal(&self)
 	{
 		//log_trace!("SleepObject::signal {:p} '{}'", self, self.name);

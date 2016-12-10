@@ -120,7 +120,7 @@ fn get_lapic() -> &'static raw::LAPIC
 //}
 
 /// Local + IO APIC interrupt handler
-#[tag_safe(irq)]
+#[req_safe(irq)]
 extern "C" fn lapic_irq_handler(isr: usize, info: *const(), gsi: usize)
 {
 	//log_trace!("lapic_irq_handler: (isr={},info={:?},gsi={})", isr, info, gsi);

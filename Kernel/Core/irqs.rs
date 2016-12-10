@@ -140,7 +140,7 @@ impl IRQBinding
 			binding_ref.handle();
 		}
 	}
-	#[tag_safe(irq)]
+	#[req_safe(irq)]
 	fn handle(&self)
 	{
 		//log_trace!("handle() num={}", self.arch_handle.num());

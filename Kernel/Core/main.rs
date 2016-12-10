@@ -28,7 +28,6 @@
 #![deny(not_tagged_safe)]
 
 #![feature(plugin)]
-#![feature(custom_attribute)]
 #![plugin(tag_safe)]
 
 #[allow(unused_imports)]

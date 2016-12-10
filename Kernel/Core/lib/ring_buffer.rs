@@ -121,8 +121,7 @@ impl<T: Send> AtomicRingBuf<T>
 		}
 	}
 	
-	#[tag_safe(irq)]
-	#[allow(not_tagged_safe)]	// Handles IRQ safety
+	#[is_safe(irq)]	// Handles IRQ safety
 	/// Pop an item from the ring buffer
 	pub fn pop(&self) -> Option<T>
 	{
@@ -144,8 +143,7 @@ impl<T: Send> AtomicRingBuf<T>
 		}
 	}
 	
-	#[tag_safe(irq)]
-	#[allow(not_tagged_safe)]	// Handles IRQ safety
+	#[is_safe(irq)]	// Handles IRQ safety
 	/// Push onto the end, returning Err(val) if full
 	pub fn push(&self, val: T) -> Result<(),T>
 	{
