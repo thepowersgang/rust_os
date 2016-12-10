@@ -274,6 +274,7 @@ impl Sinks
 impl<'a> LoggingFormatter<'a>
 {
 	/// Create a new logging formatter
+	#[is_safe(irq)]	// SAFE: This lock holds interrupts, so can't interrupt itself.
 	pub fn new(level: Level, modname: &'static str) -> LoggingFormatter<'static>
 	{
 		let mut rv = LoggingFormatter {
