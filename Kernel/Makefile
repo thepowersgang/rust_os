@@ -160,7 +160,7 @@ endif
 	@echo -- nightly source required, run "make UPDATE"
 	@false
 ../libcore/lib.rs: ../rustc-nightly-src.tar.gz ../libcore_nofp.patch
-	tar -xmf ../rustc-nightly-src.tar.gz -C ../ rustc-nightly/src/libcore --transform 's~^rustc-nightly/src/~~'
+	tar -xmf ../rustc-nightly-src.tar.gz -C ../ rustc-nightly-src/src/libcore --transform 's~^rustc-nightly-src/src/~~'
 	cd .. && patch -p0 < libcore_nofp.patch
 
 # ---
