@@ -12,7 +12,7 @@ before_script:
   - mkdir -p _archives
   - (cd _archives && wget -c http://tpg.ucc.asn.au/tifflin_build_tools.tar.bz2)
   - tar -xf _archives/tifflin_build_tools.tar.bz2
-  - (cd _archives && curl -O http://static.rust-lang.org/dist/rustc-nightly-src.tar.gz)
+  - (cd _archives && curl -O https://static.rust-lang.org/dist/rustc-nightly-src.tar.gz)
 # Fetch ACPICA from UCC, as both curl and wget fail on travis
 #  - (cd _archives && curl -O https://acpica.org/sites/acpica/files/acpica-unix2-20150410.tar.gz -3)
   - (cd _archives && wget -c http://tpg.ucc.asn.au/acpica-unix2-20150410.tar.gz)
