@@ -38,12 +38,6 @@ pub unsafe fn exchange_malloc(size: usize, align: usize) -> *mut u8
 	Err(_) => panic!("exchange_malloc({}, {}) out of memory", size, align),
 	}
 }
-#[lang="exchange_free"]
-#[inline]
-pub unsafe fn exchange_free(ptr: *mut u8, _size: usize, align: usize)
-{
-	S_GLOBAL_HEAP.lock().deallocate(ptr as *mut (), /*size,*/ align)
-}
 #[lang = "box_free"]
 #[inline]
 unsafe fn box_free<T>(ptr: *mut T) {
