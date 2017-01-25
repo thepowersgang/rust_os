@@ -61,6 +61,7 @@ pub trait Interface: 'static + Send + Sync
 	/// Transmit a raw packet
 	fn tx_raw(&self, pkt: SparsePacket);
 
+	// TODO: This interface is wrong, Waiter is the trait that bounds waitable objects (Use SleepObject instead)
 	/// Called once to allow the interface to get an object to signal a new packet arrival
 	fn rx_wait_register(&self, channel: &::kernel::async::Waiter);
 	
@@ -102,6 +103,9 @@ pub fn register<T: Interface>(mac_addr: [u8; 6], int: T) -> Registration<T> {
 		list.push( Some(val) );
 		return list.len() - 1;
 	}
+
+	// HACK: Send a dummy packet
+	reg.tx_raw(SparsePacket { head: b"Hello World", next: None });
 
 	let idx = insert_opt(&mut INTERFACES_LIST.lock(), reg);
 	

@@ -87,51 +87,50 @@ impl BusDev
 			TxSlot { buffer: &mut tx_buffer_handles[1][..0x800], },
 			TxSlot { buffer: &mut tx_buffer_handles[1][0x800..], },
 			];
+
+		let rx_buffer = ::kernel::memory::virt::alloc_dma(32, 3, "rtl8139")?.into_array();
 		
-		let card_nic_reg = nic::register(mac, Card {
+		let card = Card {
 			io_base: io,
-			rx_buffer: ::kernel::memory::virt::alloc_dma(32, 3, "rtl8139")?.into_array(),
+			rx_buffer: rx_buffer,
 			rx_seen_ofs: AtomicU16::new(0),
 			tx_buffer_handles: tx_buffer_handles,
 			tx_slots: buffer_ring::BufferRing::new(tx_slots),
 			tx_slots_active: AtomicU8::new(0),
-			});
+			};
 		
-		{
-			let card = &*card_nic_reg;
-
-			// SAFE: I hope so
-			unsafe {
-				// - Power on
-				card.write_8(Regs::CONFIG1, 0x00);
-				// - Reset and wait for reset bit to clear
-				card.write_8(Regs::CMD, 0x10);
-				while card.read_8(Regs::CMD) & 0x10 != 0 {
-					// TODO: Timeout
-				}
-
-				// - Mask all interrupts on
-				card.write_16(Regs::IMR, 0xE07F);
-
-				// Receive buffer
-				card.write_32(Regs::RBSTART, ::kernel::memory::virt::get_phys(&card.rx_buffer[0]) as u32);
-				card.write_32(Regs::CBA, 0);
-				card.write_32(Regs::CAPR, 0);
-				// Transmit buffers
-				// - TODO: These need protected access
-				card.write_32(Regs::TSAD0, ::kernel::memory::virt::get_phys(&card.tx_buffer_handles[0][    0]) as u32);
-				card.write_32(Regs::TSAD1, ::kernel::memory::virt::get_phys(&card.tx_buffer_handles[0][0x800]) as u32);
-				card.write_32(Regs::TSAD2, ::kernel::memory::virt::get_phys(&card.tx_buffer_handles[1][    0]) as u32);
-				card.write_32(Regs::TSAD3, ::kernel::memory::virt::get_phys(&card.tx_buffer_handles[1][0x800]) as u32);
-				
-				//card.write_16(Regs::RCR, hw::RCR_DMA_BURST_1024|hw::RCR_BUFSZ_8K16|hw::RCR_FIFO_1024|hw::RCR_OVERFLOW|0x1F);
-				card.write_16(Regs::RCR, (6<<13)|(0<<11)|(6<<8)|0x80|0x1F);
-
-				// Enable Rx and Tx engines
-				card.write_8(Regs::CMD, 0x0C);
+		// SAFE: I hope so (NOTE: All addresses taken here are stable addresses)
+		unsafe {
+			// - Power on
+			card.write_8(Regs::CONFIG1, 0x00);
+			// - Reset and wait for reset bit to clear
+			card.write_8(Regs::CMD, 0x10);
+			while card.read_8(Regs::CMD) & 0x10 != 0 {
+				// TODO: Timeout
 			}
+
+			// - Mask all interrupts on
+			card.write_16(Regs::IMR, 0xE07F);
+
+			// Receive buffer
+			card.write_32(Regs::RBSTART, ::kernel::memory::virt::get_phys(&card.rx_buffer[0]) as u32);
+			card.write_32(Regs::CBA, 0);
+			card.write_32(Regs::CAPR, 0);
+			// Transmit buffers
+			// - TODO: These need protected access
+			card.write_32(Regs::TSAD0, ::kernel::memory::virt::get_phys(&card.tx_buffer_handles[0][    0]) as u32);
+			card.write_32(Regs::TSAD1, ::kernel::memory::virt::get_phys(&card.tx_buffer_handles[0][0x800]) as u32);
+			card.write_32(Regs::TSAD2, ::kernel::memory::virt::get_phys(&card.tx_buffer_handles[1][    0]) as u32);
+			card.write_32(Regs::TSAD3, ::kernel::memory::virt::get_phys(&card.tx_buffer_handles[1][0x800]) as u32);
+			
+			//card.write_16(Regs::RCR, hw::RCR_DMA_BURST_1024|hw::RCR_BUFSZ_8K16|hw::RCR_FIFO_1024|hw::RCR_OVERFLOW|0x1F);
+			card.write_16(Regs::RCR, (6<<13)|(0<<11)|(6<<8)|0x80|0x1F);
+
+			// Enable Rx and Tx engines
+			card.write_8(Regs::CMD, 0x0C);
 		}
 		
+		let card_nic_reg = nic::register(mac, card);
 		let irq_handle = {
 			struct RawSend<T: Send>(*const T);
 			unsafe impl<T: Send> Send for RawSend<T> {}
