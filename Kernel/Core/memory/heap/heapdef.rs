@@ -242,7 +242,7 @@ impl HeapDef
 					headref, headref.state );
 			}
 			else {
-				assert!( headref.state == HeapState::Used(size), "Header {:p} state invalid {:?} not Used({:#x})",
+				assert_eq!( headref.state, HeapState::Used(size), "Header {:p} state invalid {:?} not Used({})",
 					headref, headref.state, size );
 			}
 			

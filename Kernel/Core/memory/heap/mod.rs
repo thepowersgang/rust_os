@@ -69,10 +69,11 @@ unsafe fn exchange_malloc(size: usize, align: usize) -> *mut u8
 }
 #[lang = "box_free"]
 #[inline]
-unsafe fn box_free<T>(ptr: *mut T) {
-	let size = ::core::mem::size_of::<T>();
+unsafe fn box_free<T: ?Sized>(ptr: *mut T) {
+	let size = ::core::mem::size_of_val(&*ptr);
+	let align = ::core::mem::align_of_val(&*ptr);
 	if size != 0 {
-		S_GLOBAL_HEAP.lock().deallocate(ptr as *mut (), size, ::core::mem::align_of::<T>());
+		S_GLOBAL_HEAP.lock().deallocate(ptr as *mut (), size, align);
 	}
 }
 
