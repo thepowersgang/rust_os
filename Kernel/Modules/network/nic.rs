@@ -7,6 +7,7 @@ use kernel::prelude::*;
 use kernel::lib::mem::aref::{Aref,ArefBorrow};
 use kernel::sync::Mutex;
 
+#[derive(Debug)]
 pub enum Error
 {
 	/// No packets waiting
@@ -63,13 +64,19 @@ pub trait Interface: 'static + Send + Sync
 
 	// TODO: This interface is wrong, Waiter is the trait that bounds waitable objects (Use SleepObject instead)
 	/// Called once to allow the interface to get an object to signal a new packet arrival
-	fn rx_wait_register(&self, channel: &::kernel::async::Waiter);
+	fn rx_wait_register(&self, channel: &mut ::kernel::threads::SleepObject);
 	
 	/// Obtain a packet from the interface (or `Err(Error::NoPacket)` if there is none)
 	fn rx_packet(&self) -> Result<PacketHandle, Error>;
 }
 
-static INTERFACES_LIST: Mutex<Vec< Option<Aref<Interface>> >> = Mutex::new(Vec::new_const());
+struct InterfaceData
+{
+	base_interface: Aref<Interface+'static>,
+	thread: ::kernel::threads::WorkerThread,
+}
+
+static INTERFACES_LIST: Mutex<Vec< Option<InterfaceData> >> = Mutex::new(Vec::new_const());
 
 /// Handle to a registered interface
 pub struct Registration<T> {
@@ -93,6 +100,22 @@ pub fn register<T: Interface>(mac_addr: [u8; 6], int: T) -> Registration<T> {
 	let reg = Aref::new(int);
 	let b = reg.borrow();
 
+	// HACK: Send a dummy packet
+	// - An ICMP Echo request to qemu's user network router
+	{
+		let pkt = 
+			// MAC Dst                MAC Src     EtherTy IP      TotalLen Identif Frag   TTL Prot CkSum  Source          Dest            ICMP
+			b"\xFF\xFF\xFF\xFF\xFF\xFF\0\0\0\0\0\0\x08\x00\x45\x00\x00\x23\x00\x00\x00\x00\xFF\x01\xa3\xca\x0A\x00\x02\x0F\x0A\x00\x02\x01\x08\x00\x7d\x0d\x00\x00\x00\x00Hello World"
+			;
+		reg.tx_raw(SparsePacket { head: pkt, next: None });
+	}
+
+	let worker_reg = reg.borrow();
+	let reg = InterfaceData {
+		thread: ::kernel::threads::WorkerThread::new("Network Rx", move || rx_thread(&*worker_reg)),
+		base_interface: reg,
+		};
+
 	fn insert_opt<T>(list: &mut Vec<Option<T>>, val: T) -> usize {
 		for (i,s) in list.iter_mut().enumerate() {
 			if s.is_none() {
@@ -103,10 +126,6 @@ pub fn register<T: Interface>(mac_addr: [u8; 6], int: T) -> Registration<T> {
 		list.push( Some(val) );
 		return list.len() - 1;
 	}
-
-	// HACK: Send a dummy packet
-	reg.tx_raw(SparsePacket { head: b"Hello World", next: None });
-
 	let idx = insert_opt(&mut INTERFACES_LIST.lock(), reg);
 	
 	Registration {
@@ -114,5 +133,21 @@ pub fn register<T: Interface>(mac_addr: [u8; 6], int: T) -> Registration<T> {
 		index: idx,
 		ptr: b,
 		}
+}
+
+fn rx_thread(int: &Interface)
+{
+	loop
+	{
+		let mut so = ::kernel::threads::SleepObject::new("rx_thread");
+		//int.rx_wait_register(&mut so);
+		so.wait();
+		match int.rx_packet()
+		{
+		Ok(pkt) => todo!(""),
+		Err(Error::NoPacket) => {},
+		Err(e) => todo!("{:?}", e),
+		}
+	}
 }
 

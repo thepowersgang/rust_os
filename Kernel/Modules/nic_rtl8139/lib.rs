@@ -76,6 +76,10 @@ impl BusDev
 			io.read_8(0), io.read_8(1), io.read_8(2),
 			io.read_8(3), io.read_8(4), io.read_8(5),
 			]};
+		log_notice!("RTL8139 {:?} IRQ={} MAC={:02x}:{:02x}:{:02x}:{:02x}:{:02x}:{:02x}",
+				io, irq,
+				mac[0], mac[1], mac[2], mac[3], mac[4], mac[5],
+				);
 		
 		let mut tx_buffer_handles = [
 			::kernel::memory::virt::alloc_dma(32, 1, "rtl8139")?.into_array(),
@@ -109,8 +113,8 @@ impl BusDev
 				// TODO: Timeout
 			}
 
-			// - Mask all interrupts on
-			card.write_16(Regs::IMR, 0xE07F);
+			// - Mask all interrupts off
+			card.write_16(Regs::IMR, 0x0);
 
 			// Receive buffer
 			card.write_32(Regs::RBSTART, ::kernel::memory::virt::get_phys(&card.rx_buffer[0]) as u32);
@@ -139,6 +143,11 @@ impl BusDev
 			// SAFE: The network stack garuntees that the pointer is stable.
 			::kernel::irqs::bind_object(irq, Box::new(move || unsafe { (*ret_raw.0).handle_irq() } ))
 			};
+		// SAFE: Single register access that doesn't impact memory safety
+		unsafe {
+			// Mask interrupts on
+			card_nic_reg.write_16(Regs::IMR, 0xE07F);
+		}
 
 		Ok( Box::new( BusDev(card_nic_reg, irq_handle) ) )
 	}
@@ -152,6 +161,7 @@ impl Card
 	fn start_tx(&self, slot: buffer_ring::Handle<[TxSlot; 4]>, len: usize)
 	{
 		let idx = slot.get_index();
+		log_debug!("start_tx: idx={}, len={}", idx, len);
 		// SAFE: Handing a uniquely-owned buffer to the card
 		unsafe {
 			// - Prevent the slot's destructor from running once we trigger the hardware.
@@ -176,6 +186,7 @@ impl Card
 		let status = self.read_16(Regs::ISR);
 		if status == 0 { return false; }
 		let mut status_clear = 0;
+		log_trace!("handle_irq: status=0x{:02x}", status);
 		
 		// ---
 		// Transmit OK - Release completed descriptors
@@ -199,6 +210,7 @@ impl Card
 					// SAFE: This descriptor can only have been activated if ownership was passed to the card, so it's safe to release.
 					unsafe { self.tx_slots.release(idx); }
 				}
+				log_trace!("handle_irq: TOK {}", idx);
 			}
 			status_clear |= hw::FLAG_ISR_TOK;
 		}
@@ -264,6 +276,7 @@ impl Card
 		let raw_len   = self.rx_buffer[ofs+2] as u16 | (self.rx_buffer[ofs+3] as u16 * 256);
 
 		let size = (raw_len + 4 + 3) & !4;
+		log_trace!("get_packet({}): len={} flags=0x{:04x}", ofs, raw_len, pkt_flags);
 		(size as usize, pkt_flags, &self.rx_buffer[ofs+4..][..raw_len as usize])
 	}
 }
@@ -282,7 +295,7 @@ impl nic::Interface for Card
 
 		self.start_tx(buf, total_len);
 	}
-	fn rx_wait_register(&self, channel: &::kernel::async::Waiter) {
+	fn rx_wait_register(&self, channel: &mut ::kernel::threads::SleepObject) {
 		todo!("rx_wait_register");
 	}
 	fn rx_packet(&self) -> Result<nic::PacketHandle, nic::Error> {
@@ -313,10 +326,10 @@ impl ::kernel::device_manager::Driver for PciDriver {
 	}
 	fn handles(&self, bus_dev: &::kernel::device_manager::BusDevice) -> u32
 	{
-		let classcode = bus_dev.get_attr("class").unwrap_u32();
-		// [class] [subclass] [IF] [ver]
-		if classcode & 0xFFFFFF00 == 0x01060100 {
-			1	// Handle as weakly as possible (vendor-provided drivers bind higher)
+		let vendor = bus_dev.get_attr("vendor").unwrap_u32();
+		let device = bus_dev.get_attr("device").unwrap_u32();
+		if vendor == 0x10ec && device == 0x8139 {
+			2
 		}
 		else {
 			0
