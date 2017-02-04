@@ -378,6 +378,24 @@ ENTRY(memcpy)
 	b __aeabi_memcpy
 EXIDX __aeabi_memcpy, 0x80B0B0B0
 
+ENTRY(memmove)
+	movs r2, r2
+	bxeq lr
+	cmp r0,r1
+	blt __aeabi_memcpy	@ DST < SRC, memcpy
+	adds r3,r1,r2
+	cmp r0,r3
+	bgt __aeabi_memcpy	@ DST > SRC+NUM, memcpy
+	add r0,r2
+	add r1,r2
+1:	@ Reverse copy
+	LDRB r3, [r1,#-1]!
+	STRB r3, [r0,#-1]!
+	SUBS r2, r2, #1
+	BGT 1b
+	BX lr
+EXIDX memmove, 0x80B0B0B0
+
 ENTRY(__aeabi_memset4)
 ENTRY(__aeabi_memset8)
 	.fnstart
