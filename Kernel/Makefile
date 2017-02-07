@@ -81,7 +81,9 @@ RUSTFLAGS := $(RUSTFLAGS_C)
 RUSTFLAGS += -O
 #RUSTFLAGS += -C opt-level=1
 RUSTFLAGS += -g
+ifeq ($(ARCH),amd64)
 RUSTFLAGS += -C code-model=kernel
+endif
 RUSTFLAGS += -C relocation-model=static
 RUSTFLAGS += -C soft-float	# Disables requiring SSE etc
 RUSTFLAGS += -C target-feature=$(subst $(space),$(comma),$(EXCLUDE_FEATURES:%=-%))
@@ -105,7 +107,10 @@ LIBCORESRC := ../libcore/
 IMGDIR := ../Graphics/.output/shared/
 
 # - External crates
-EXT_CRATES := va_list stack_dst
+EXT_CRATES := stack_dst
+ifeq ($(ARCH),amd64)
+EXT_CRATES += va_list
+endif
 
 # - Exclude non-module crates from the object list
 OBJS := $(filter-out $(EXT_CRATES:%=%.o), $(OBJS))
