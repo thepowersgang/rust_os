@@ -201,38 +201,32 @@ diff -rub libcore_orig/num/mod.rs libcore/num/mod.rs
 diff -rub libcore_orig/ops.rs libcore/ops.rs
 --- libcore_orig/ops.rs	2016-07-06 11:07:50.020716460 +0800
 +++ libcore/ops.rs	2016-07-06 11:06:59.888814705 +0800
-@@ -214,7 +214,9 @@
+@@ -214,5 +214,7 @@
      )*)
  }
  
--add_impl! { usize u8 u16 u32 u64 isize i8 i16 i32 i64 f32 f64 }
-+add_impl! { usize u8 u16 u32 u64 isize i8 i16 i32 i64 }
+-add_impl! { usize u8 u16 u32 u64 u128 isize i8 i16 i32 i64 i128 f32 f64 }
++add_impl! { usize u8 u16 u32 u64 u128 isize i8 i16 i32 i64 i128 }
 +#[cfg(not(disable_float))]
 +add_impl! { f32 f64 }
- #[cfg(not(stage0))]
- add_impl! { u128 i128 }
  
-@@ -268,7 +270,9 @@
+@@ -268,5 +270,7 @@
      )*)
  }
  
--sub_impl! { usize u8 u16 u32 u64 isize i8 i16 i32 i64 f32 f64 }
-+sub_impl! { usize u8 u16 u32 u64 isize i8 i16 i32 i64 }
+-sub_impl! { usize u8 u16 u32 u64 u128 isize i8 i16 i32 i64 i128 f32 f64 }
++sub_impl! { usize u8 u16 u32 u64 u128 isize i8 i16 i32 i64 i128 }
 +#[cfg(not(disable_float))]
 +sub_impl! { f32 f64 }
- #[cfg(not(stage0))]
- sub_impl! { u128 i128 }
  
-@@ -322,7 +326,9 @@
+@@ -322,5 +326,7 @@
      )*)
  }
  
--mul_impl! { usize u8 u16 u32 u64 isize i8 i16 i32 i64 f32 f64 }
-+mul_impl! { usize u8 u16 u32 u64 isize i8 i16 i32 i64 }
+-mul_impl! { usize u8 u16 u32 u64 u128 isize i8 i16 i32 i64 i128 f32 f64 }
++mul_impl! { usize u8 u16 u32 u64 u128 isize i8 i16 i32 i64 i128 }
 +#[cfg(not(disable_float))]
 +mul_impl! { f32 f64 }
- #[cfg(not(stage0))]
- mul_impl! { u128 i128 }
  
 @@ -393,6 +399,7 @@
      )*)
@@ -251,32 +245,32 @@ diff -rub libcore_orig/ops.rs libcore/ops.rs
  
  /// The `Neg` trait is used to specify the functionality of unary `-`.
 @@ -532,1 +540,3 @@
--neg_impl_numeric! { isize i8 i16 i32 i64 f32 f64 }
-+neg_impl_numeric! { isize i8 i16 i32 i64 }
+-neg_impl_numeric! { isize i8 i16 i32 i64 i128 f32 f64 }
++neg_impl_numeric! { isize i8 i16 i32 i64 i128 }
 +#[cfg(not(disable_float))]
 +neg_impl_numeric! { f32 f64 }
 @@ -933,1 +943,3 @@
--add_assign_impl! { usize u8 u16 u32 u64 isize i8 i16 i32 i64 f32 f64 }
-+add_assign_impl! { usize u8 u16 u32 u64 isize i8 i16 i32 i64 }
+-add_assign_impl! { usize u8 u16 u32 u64 u128 isize i8 i16 i32 i64 i128 f32 f64 }
++add_assign_impl! { usize u8 u16 u32 u64 u128 isize i8 i16 i32 i64 i128 }
 +#[cfg(not(disable_float))]
 +add_assign_impl! { f32 f64 }
 @@ -978,1 +990,3 @@
--sub_assign_impl! { usize u8 u16 u32 u64 isize i8 i16 i32 i64 f32 f64 }
-+sub_assign_impl! { usize u8 u16 u32 u64 isize i8 i16 i32 i64 }
+-sub_assign_impl! { usize u8 u16 u32 u64 u128 isize i8 i16 i32 i64 i128 f32 f64 }
++sub_assign_impl! { usize u8 u16 u32 u64 u128 isize i8 i16 i32 i64 i128 }
 +#[cfg(not(disable_float))]
 +sub_assign_impl! { f32 f64 }
 @@ -1023,1 +1037,3 @@
--mul_assign_impl! { usize u8 u16 u32 u64 isize i8 i16 i32 i64 f32 f64 }
-+mul_assign_impl! { usize u8 u16 u32 u64 isize i8 i16 i32 i64 }
+-mul_assign_impl! { usize u8 u16 u32 u64 u128 isize i8 i16 i32 i64 i128 f32 f64 }
++mul_assign_impl! { usize u8 u16 u32 u64 u128 isize i8 i16 i32 i64 i128 }
 +#[cfg(not(disable_float))]
 +mul_assign_impl! { f32 f64 }
 @@ -1067,1 +1083,3 @@
--div_assign_impl! { usize u8 u16 u32 u64 isize i8 i16 i32 i64 f32 f64 }
-+div_assign_impl! { usize u8 u16 u32 u64 isize i8 i16 i32 i64 }
+-div_assign_impl! { usize u8 u16 u32 u64 u128 isize i8 i16 i32 i64 i128 f32 f64 }
++div_assign_impl! { usize u8 u16 u32 u64 u128 isize i8 i16 i32 i64 i128 }
 +#[cfg(not(disable_float))]
 +div_assign_impl! { f32 f64 }
 @@ -1111,1 +1129,3 @@
--rem_assign_impl! { usize u8 u16 u32 u64 isize i8 i16 i32 i64 f32 f64 }
-+rem_assign_impl! { usize u8 u16 u32 u64 isize i8 i16 i32 i64 }
+-rem_assign_impl! { usize u8 u16 u32 u64 u128 isize i8 i16 i32 i64 i128 f32 f64 }
++rem_assign_impl! { usize u8 u16 u32 u64 u128 isize i8 i16 i32 i64 i128 }
 +#[cfg(not(disable_float))]
 +rem_assign_impl! { f32 f64 }
