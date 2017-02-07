@@ -41,6 +41,10 @@ Named object handles (or just named VFS roots?)
  - With scrollbars
  - Menu bar
 
+# Async IO #
+- Unified kernel API
+- User can have two, one pure async, one standard sync
+
 <!-- vim: ft=markdown
 -->
 
