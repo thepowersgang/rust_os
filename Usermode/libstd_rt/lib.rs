@@ -41,6 +41,9 @@ mod arch;
 #[cfg(arch="armv7")]
 #[path="arch-armv7.rs"]
 mod arch;
+#[cfg(arch="armv8")]
+#[path="arch-armv8.rs"]
+mod arch;
 
 pub fn begin_panic<M: ::core::any::Any+Send+'static>(msg: M, file_line: &(&'static str, u32)) -> ! {
 	begin_unwind(msg, file_line)

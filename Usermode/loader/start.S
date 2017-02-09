@@ -95,10 +95,15 @@ ENTRY(_Unwind_Resume)
 	jmp .
 
 #elif defined(ARCH_armv7)
-
 # define DEFPTR	.long
 # define PTR_SIZE	4
 # define HDR_ARCH HDR_ARCH_arm32
+/*
+=======================================================================
+== ARMv7
+=======================================================================
+*/
+
 .set BASE,  0x7fbc0000
 .set LIMIT, 0x80000000
 .set PAGE_SIZE, 0x2000
@@ -130,6 +135,46 @@ bad_location:
 
 #include "../rustrt0/armv7-helpers.S"
 
+#elif defined(ARCH_armv8)
+# define DEFPTR	.quad
+# define PTR_SIZE	8
+# define HDR_ARCH HDR_ARCH_arm64
+/*
+=======================================================================
+== ARMv8
+=======================================================================
+*/
+.set LIMIT, (0x0000800000000000 - 64*1024*1024*1024)
+.set BASE,  LIMIT - 4*64*1024	/* 0x00007fffFFFE0000 */
+.set PAGE_SIZE, 0x4000
+.section .text
+
+.globl start
+.extern loader_main
+/* X0 = Argument length */
+start:
+	// 0. ASSERT that the loader was loaded to the correct location
+	//ldr x1, =BASE
+	//sub x1, x1, pc
+	//cmp x1, #0x1000
+	//bge bad_location
+	// 1. Initialise the stack
+	ldr x1, =init_stack_end
+	mov sp, x1
+	// 2. Set up the TLS area for stack checks
+	// - Wait, they're disabled. Good
+	// 3. Call into rust
+	mov x1, x0	// R0 is still the argument length
+	ldr x0, =init_path
+	b loader_main
+bad_location:
+	// Incorrect location, bail hard
+	mov x0, #-2
+	mov x12, #2	// R12 = Call ID
+	svc #2	// Call ID too (TODO: Actually use this in kernel-land)
+	b .
+
+#include "../rustrt0/armv8-helpers.S"
 #else
 /*
 =======================================================================
@@ -142,12 +187,13 @@ bad_location:
 .section HEADER
 .extern codesize
 .extern imagesize
+.extern init_path_ofs
 GLOBAL(image_header)
 	.long HEADER_MAGIC
 	.byte (5*4+PTR_SIZE) , HDR_ARCH , 0 , 0	/* Header size, bit-ness, pad, pad */
 	.long codesize
 	.long imagesize
-	.long init_path - BASE
+	.long init_path_ofs
 	.long init_path_end - init_path
 	DEFPTR start
 

@@ -77,6 +77,8 @@ pub enum Void {}
 mod raw;
 #[cfg(arch="armv7")] #[path="raw-armv7.rs"]
 mod raw;
+#[cfg(arch="armv8")] #[path="raw-armv8.rs"]
+mod raw;
 
 #[macro_use]
 pub mod logging;

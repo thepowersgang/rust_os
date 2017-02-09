@@ -1,0 +1,19 @@
+{
+	"cpu": "cortex-a57",
+	"data-layout": "e-m:e-i8:8:32-i16:16:32-i64:64-i128:128-n32:64-S128",
+	"llvm-target": "aarch64-none-elf",
+	"target-endian": "little",
+	"target-pointer-width": "64",
+	"target-word-size": "64",
+	"os": "tifflin",
+	"arch": "aarch64",
+		"linker": "aarch64-none-elf-gcc",
+		"pre-link-args": ["-nostdlib", "-ffreestanding", "-Wl,-T,link-armv8.ld", "-Wl,-z,max-page-size=0x4000", "-Wl,--gc-sections", ".objs/armv8/rustrt0.o", "-Wl,--start-group"],
+		"post-link-args": ["-Wl,--end-group"],
+		"no-compiler-rt": true,
+		"__features": "+v7", "_comment": "TODO: Enable all the fun features, but that requires kernel suppport",
+		"features": "",
+		"executables": true,
+		"dynamic-linking": true,
+	"morestack": false
+}

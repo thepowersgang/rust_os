@@ -12,7 +12,10 @@ _start:
 	b .
 _start:
 	b .
-
+#elif defined(ARCH_armv8)
+	b .
+_start:
+	b .
 #else
 # error "Unknown architecture in Usermode/loader/lib.S"
 #endif

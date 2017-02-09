@@ -39,6 +39,7 @@ SECTIONS {
 		bss_end = .;
 	}
 	imagesize = . - BASE;
+	init_path_ofs = init_path - BASE;
 
 	ASSERT(. < LIMIT, "Image is too large to fit in reservation")
 }
