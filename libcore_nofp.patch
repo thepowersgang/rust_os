@@ -33,6 +33,10 @@ diff -rub libcore_orig/fmt/mod.rs libcore/fmt/mod.rs
  use num::flt2dec;
  use ops::Deref;
  use result;
+@@ -23,2 +23,3 @@
+ 
++#[cfg(not(disable_float))]
+ mod float;
 @@ -1053,6 +1054,7 @@
      /// Takes the formatted parts and applies the padding.
      /// Assumes that the caller already has rendered the parts with required precision,
@@ -49,32 +53,6 @@ diff -rub libcore_orig/fmt/mod.rs libcore/fmt/mod.rs
      fn write_formatted_parts(&mut self, formatted: &flt2dec::Formatted) -> Result {
          fn write_bytes(buf: &mut Write, s: &[u8]) -> Result {
              buf.write_str(unsafe { str::from_utf8_unchecked(s) })
-@@ -1477,6 +1480,7 @@
-     }
- }
- 
-+#[cfg(not(disable_float))]
- // Common code of floating point Debug and Display.
- fn float_to_decimal_common<T>(fmt: &mut Formatter, num: &T, negative_zero: bool) -> Result
-     where T: flt2dec::DecodableFloat
-@@ -1501,6 +1505,7 @@
-     fmt.pad_formatted_parts(&formatted)
- }
- 
-+#[cfg(not(disable_float))]
- // Common code of floating point LowerExp and UpperExp.
- fn float_to_exponential_common<T>(fmt: &mut Formatter, num: &T, upper: bool) -> Result
-     where T: flt2dec::DecodableFloat
-@@ -1554,7 +1559,9 @@
-         }
-     }
- } }
-+#[cfg(not(disable_float))]
- floating! { f32 }
-+#[cfg(not(disable_float))]
- floating! { f64 }
- 
- // Implementation of Display/Debug for various core types
 diff -rub libcore_orig/intrinsics.rs libcore/intrinsics.rs
 --- libcore_orig/intrinsics.rs	2016-07-06 11:07:50.020716460 +0800
 +++ libcore/intrinsics.rs	2016-07-06 11:06:59.888814705 +0800
