@@ -8,7 +8,7 @@
 	"os": "tifflin",
 	"arch": "aarch64",
 		"no-compiler-rt": true,
-		"features": "",
+		"features": "-neon,-fp-armv8",
 		"executables": true,
 		"dynamic-linking": true,
 	"morestack": false
