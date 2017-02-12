@@ -83,8 +83,8 @@ QEMU_ARGS += -device virtio-blk-device,drive=hda
 QEMU_ARGS += -drive if=none,id=hda,index=0,file=$(IMGDIR)hda.img,format=raw
 
 run: $(IMGDIR)hda.img
-	make -C arm_bootloader PLATFORM=$(MACHINE_TYPE) CMDLINE="$(CMDLINE)"
-	qemu-system-aarch64 -cpu cortex-a57 -machine $(MACHINE_TYPE) $(QEMU_ARGS) -kernel arm_bootloader/loader-$(MACHINE_TYPE).bin -append "$(CMDLINE)" $(TEE)
+	make -C arm_bootloader_64 PLATFORM=$(MACHINE_TYPE) CMDLINE="$(CMDLINE)"
+	qemu-system-aarch64 -cpu cortex-a57 -machine $(MACHINE_TYPE) $(QEMU_ARGS) -kernel arm_bootloader_64/loader-$(MACHINE_TYPE).bin -append "$(CMDLINE)" $(TEE)
 endif
 
 $(IMGDIR)test.iso: $(wildcard ../../Usermode/.output/$(ARCH)/bin/*) Makefile
