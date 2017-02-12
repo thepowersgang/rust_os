@@ -28,7 +28,7 @@ ENTRY(__aeabi_memcpy)
 1:
 	LDRB w3, [x1], #1
 	STRB w3, [x0], #1
-	SUB x2, x2, #1
+	SUBS x2, x2, #1
 	BGT 1b
 2:
 	ret
@@ -49,7 +49,7 @@ ENTRY(memmove)
 1:	// Reverse copy
 	LDRB w3, [x1,#-1]!
 	STRB w3, [x0,#-1]!
-	SUB x2, x2, #1
+	SUBS x2, x2, #1
 	BGT 1b
 2:
 	ret
@@ -68,7 +68,7 @@ ENTRY(__aeabi_memset8)
 	ORR x2, x2, x3
 1:
 	STR x2, [x0], #8
-	SUB x1, x1, #8
+	SUBS x1, x1, #8
 	BGT 1b
 2:
 	ret
@@ -99,7 +99,7 @@ ENTRY(__aeabi_memset)
 	beq 2f
 1:
 	strb w2, [x0], #1
-	sub x1,x1, #1
+	subs x1,x1, #1
 	bne 1b
 2:
 	ret
@@ -109,7 +109,7 @@ ENTRY(memset)
 	beq 2f
 1:
 	strb w1, [x0], #1
-	sub x2,x2, #1
+	subs x2,x2, #1
 	bne 1b
 2:
 	ret
@@ -133,7 +133,7 @@ ENTRY(memcmp)
 	ldrb w4, [x1], #1
 	cmp x4, x3
 	bne 2f
-	sub x2,x2, #1
+	subs x2,x2, #1
 	bne 1b
 2:
 	mov x0, #0
