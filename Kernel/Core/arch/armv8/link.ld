@@ -63,7 +63,7 @@ SECTIONS {
 	kernel_maps_len = kernel_maps_end - kernel_maps_start;
 
 	__bss_start = .;
-	.bss : AT(ADDR(.bss) + _kernel_base) {
+	.bss : AT(ADDR(.bss) - _kernel_base) {
 		*(COMMON)
 		*(.bss)
 		*(.bss.*)

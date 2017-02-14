@@ -31,20 +31,20 @@ impl ElfFile
 		assert_eq!(self.0.e_version, 1);
 	}
 	fn phents(&self) -> PhEntIter {
-		assert_eq!( self.0.e_phentsize as usize, ::core::mem::size_of::<elf_fmt::PhEnt>() );
+		assert_eq!( self.0.e_phentsize as usize, ::core::mem::size_of::<elf_fmt::Elf64_PhEnt>() );
 		// SAFE: Assuming the file is correct...
-		let slice: &[elf_fmt::PhEnt] = unsafe {
-			let ptr = (&self.0 as *const _ as usize + self.0.e_phoff as usize) as *const elf_fmt::PhEnt;
+		let slice: &[elf_fmt::Elf64_PhEnt] = unsafe {
+			let ptr = (&self.0 as *const _ as usize + self.0.e_phoff as usize) as *const elf_fmt::Elf64_PhEnt;
 			::core::slice::from_raw_parts( ptr, self.0.e_phnum as usize )
 			};
 		log!("phents() - slice = {:p}+{}", slice.as_ptr(), slice.len());
 		PhEntIter( slice )
 	}
-	fn shents(&self) -> &[elf_fmt::ShEnt] {
-		assert_eq!( self.0.e_shentsize as usize, ::core::mem::size_of::<elf_fmt::ShEnt>() );
+	fn shents(&self) -> &[elf_fmt::Elf64_ShEnt] {
+		assert_eq!( self.0.e_shentsize as usize, ::core::mem::size_of::<elf_fmt::Elf64_ShEnt>() );
 		// SAFE: Assuming the file is correct...
 		unsafe {
-			let ptr = (&self.0 as *const _ as usize + self.0.e_shoff as usize) as *const elf_fmt::ShEnt;
+			let ptr = (&self.0 as *const _ as usize + self.0.e_shoff as usize) as *const elf_fmt::Elf64_ShEnt;
 			::core::slice::from_raw_parts( ptr, self.0.e_shnum as usize )
 		}
 	}
@@ -53,10 +53,10 @@ impl ElfFile
 		self.0.e_entry as usize
 	}
 }
-struct PhEntIter<'a>(&'a [elf_fmt::PhEnt]);
+struct PhEntIter<'a>(&'a [elf_fmt::Elf64_PhEnt]);
 impl<'a> Iterator for PhEntIter<'a> {
-	type Item = elf_fmt::PhEnt;
-	fn next(&mut self) -> Option<elf_fmt::PhEnt> {
+	type Item = elf_fmt::Elf64_PhEnt;
+	fn next(&mut self) -> Option<elf_fmt::Elf64_PhEnt> {
 		if self.0.len() == 0 {
 			None
 		}
@@ -67,10 +67,10 @@ impl<'a> Iterator for PhEntIter<'a> {
 		}
 	}
 }
-//struct ShEntIter<'a>(&'a [elf_fmt::ShEnt]);
+//struct ShEntIter<'a>(&'a [elf_fmt::Elf64_ShEnt]);
 //impl<'a> Iterator for ShEntIter<'a> {
-//	type Item = elf_fmt::ShEnt;
-//	fn next(&mut self) -> Option<elf_fmt::ShEnt> {
+//	type Item = elf_fmt::Elf64_ShEnt;
+//	fn next(&mut self) -> Option<elf_fmt::Elf64_ShEnt> {
 //		if self.0.len() == 0 {
 //			None
 //		}
@@ -83,7 +83,7 @@ impl<'a> Iterator for PhEntIter<'a> {
 //}
 
 #[no_mangle]
-pub extern "C" fn elf_get_size(file_base: &ElfFile) -> u32
+pub extern "C" fn elf_get_size(file_base: &ElfFile) -> usize
 {
 	log!("elf_get_size(file_base={:p})", file_base);
 	file_base.check_header();
@@ -111,12 +111,12 @@ pub extern "C" fn elf_get_size(file_base: &ElfFile) -> u32
 		log!("ERROR!!! Kernel reported zero loadable size");
 		loop {}
 	}
-	max_end as u32
+	max_end
 }
 
 #[no_mangle]
 /// Returns program entry point
-pub extern "C" fn elf_load_segments(file_base: &ElfFile, output_base: *mut u8) -> u32
+pub extern "C" fn elf_load_segments(file_base: &ElfFile, output_base: *mut u8) -> usize
 {
 	log!("elf_load_segments(file_base={:p}, output_base={:p})", file_base, output_base);
 	for phent in file_base.phents()
@@ -140,8 +140,8 @@ pub extern "C" fn elf_load_segments(file_base: &ElfFile, output_base: *mut u8) -
 		}
 	}
 	
-
-	let rv = (file_base.entrypoint() - 0x80000000 + output_base as usize) as u32;
+	const KERNEL_VBASE: usize = 0xFFFF000000000000;
+	let rv = file_base.entrypoint() - KERNEL_VBASE + output_base as usize;
 	log!("return entrypoint={:#x}", rv);
 	rv
 }
@@ -157,7 +157,7 @@ pub struct SymbolInfo {
 
 #[no_mangle]
 /// Returns size of data written to output_base
-pub extern "C" fn elf_load_symbols(file_base: &ElfFile, output: &mut SymbolInfo) -> u32
+pub extern "C" fn elf_load_symbols(file_base: &ElfFile, output: &mut SymbolInfo) -> usize
 {
 	log!("elf_load_symbols(file_base={:p}, output={:p})", file_base, output);
 	*output = SymbolInfo {base: 0 as *const _, count: 0, string_table: 0 as *const _, strtab_len: 0};
@@ -171,6 +171,7 @@ pub extern "C" fn elf_load_symbols(file_base: &ElfFile, output: &mut SymbolInfo)
 			let strtab_bytes = unsafe { ::core::slice::from_raw_parts( (file_base as *const _ as usize + strtab.sh_offset as usize) as *const u8, strtab.sh_size as usize ) };
 			//log!("- strtab = {:?}", ::core::str::from_utf8(strtab_bytes));
 
+			// Copy symbol table
 			output.base = (output as *const _ as usize + pos) as *const _;
 			output.count = ent.sh_size as usize / ::core::mem::size_of::<elf_fmt::SymEnt>();
 			unsafe {
@@ -183,6 +184,7 @@ pub extern "C" fn elf_load_symbols(file_base: &ElfFile, output: &mut SymbolInfo)
 				}
 				pos += bytes;
 			}
+			// Copy string table
 			output.string_table = (output as *const _ as usize + pos) as *const _;
 			output.strtab_len = strtab.sh_size as usize;
 			unsafe {
@@ -199,7 +201,7 @@ pub extern "C" fn elf_load_symbols(file_base: &ElfFile, output: &mut SymbolInfo)
 	}
 
 	log!("- output = {:?}", output);
-	pos as u32
+	pos
 }
 
 

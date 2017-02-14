@@ -7,7 +7,7 @@ pub type Elf64_Off = u64;
 #[allow(non_camel_case_types)]
 pub type Elf64_Sword = i32;
 #[allow(non_camel_case_types)]
-pub type Elf64_Word = u64;
+pub type Elf64_Word = u32;
 #[allow(non_camel_case_types)]
 pub type Elf64_Sxword = i32;
 #[allow(non_camel_case_types)]
@@ -36,7 +36,7 @@ pub struct ElfHeader {
 }
 #[repr(C,packed)]
 #[derive(Copy,Clone)]
-pub struct PhEnt {
+pub struct Elf64_PhEnt {
 	pub p_type: Elf64_Word,
 	pub p_flags: Elf64_Word,
 	pub p_offset: Elf64_Off,
@@ -48,17 +48,17 @@ pub struct PhEnt {
 }
 #[repr(C)]
 #[derive(Copy,Clone)]
-pub struct ShEnt {
+pub struct Elf64_ShEnt {
 	pub sh_name: Elf64_Word,
 	pub sh_type: Elf64_Word,
-	pub sh_flags: Elf64_Word,
+	pub sh_flags: Elf64_Xword,
 	pub sh_addr: Elf64_Addr,
 	pub sh_offset: Elf64_Off,
-	pub sh_size: Elf64_Word,
+	pub sh_size: Elf64_Xword,
 	pub sh_link: Elf64_Word,
 	pub sh_info: Elf64_Word,
-	pub sh_addralign: Elf64_Word,
-	pub sh_entsize: Elf64_Word,
+	pub sh_addralign: Elf64_Xword,
+	pub sh_entsize: Elf64_Xword,
 }
 #[derive(Copy,Clone,Debug)]
 pub struct SymEnt {

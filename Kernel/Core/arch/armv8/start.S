@@ -119,14 +119,10 @@ start:
 	mov w1, #'\n'; str w1, [x9]
 	
 	// To get RAM start: subtract linked address of current instruction from real address
-	ldr x0, =(get_ram_base-0x80000000+4)
+	ldr x0, =(1f-KERNEL_BASE+4)
 	bl 1f
-get_ram_base:
-	b 2f
 1:
 	sub x8, x30, x0
-	ret
-2:
 	// Save bootloader information in various globals
 	ldr x0, =(kernel_phys_start - KERNEL_BASE)
 	add x0,x0, x8
@@ -178,7 +174,7 @@ prep_page_tables:
 vmsa_setup:
 	msr TTBR1_EL1, x3
 	msr TTBR1_EL1, x0
-	ldr w1, =0x0
+	ldr x1, =0x5800F800F
 	msr TCR_EL1, x1
 
 	// Populate the first HWMapping address with the UART's base

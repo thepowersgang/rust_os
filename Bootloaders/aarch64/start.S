@@ -20,16 +20,14 @@ ENTRY(start)
 	ldr x0, =string_init
 	mov x1, #(string_init_END-string_init)
 	bl puts
-	
-	ldr x8, =_binary_kernel_bin_start
 
 	// Get the size of the kernel image
-	mov x0, x8
+	ldr x0, =_binary_kernel_bin_start
 	bl elf_get_size
 	mov x12, x0	// X12 = ELF Size
 	
 	mov x1, #RAM_START
-	add x11, x0, x1	// X11 = End of loaded image
+	add x21, x0, x1	// X21 = End of loaded image
 	
 #if defined(FDT_BASE)
 	mov x10, #0	// Pre-set FDT base register to 0 (invalid)
@@ -40,16 +38,17 @@ ENTRY(start)
 	tst w1, w2
 	bne 1f
 	// X1 = Size of FDT
+	mov x1, #0
 	ldr w1, [x0, #4]
 	rev w1, w1
 	// R1 = Size of FDT
 	
-	mov x10, x11	// Save FDT base
-	add x11, x11, x1	// Increment free RAM base by size of FDT
+	mov x20, x21	// Save FDT base
+	add x21, x21, x1	// Increment free RAM base by size of FDT
 	
 	mov x2, x1	// Count
 	mov x1, x0	// Source
-	mov x0, x10	// Destination
+	mov x0, x20	// Destination
 	bl __aeabi_memcpy4
 1:
 #else
@@ -58,26 +57,25 @@ ENTRY(start)
 	ldr x2, =fdt_end
 	ldr x1, =fdt_start
 	sub x2, x2, x1
-	mov x10, x11	// Save FDT base
-	add x11, x11, x2	// Increment free RAM base by size of FDT
+	mov x20, x21	// Save FDT base
+	add x21, x21, x2	// Increment free RAM base by size of FDT
 	
-	mov x0, x10	// Destination
+	mov x0, x20	// Destination
 	bl __aeabi_memcpy4
 #endif
 	
 	// Load image
-	mov x0, x8
+	ldr x0, =_binary_kernel_bin_start
 	mov x1, #RAM_START
 	bl elf_load_segments
-	mov x9, x0	// Save entrypoint
+	mov x19, x0	// Save entrypoint
 	
 	// Load symbols
-	mov x0, x8
-	mov x1, x11
+	ldr x0, =_binary_kernel_bin_start
+	mov x1, x21
 	bl elf_load_symbols
-	add x12, x11, x0
+	add x12, x21, x0
 	
-	mov x8, x9
 	// R8: Kernel entrypoint
 	// R9: UART Address
 	// R10: FDT base address
@@ -86,8 +84,7 @@ ENTRY(start)
 	// R13: Magic
 	ldr x9, =UART_BASE
 	ldr x13, =0x1badb002	// Just ninja the mulitboot magic value
-	blr x8
-	//mov pc, r8
+	blr x19
 	
 	
 	ldr x0, =string_boot_fail
