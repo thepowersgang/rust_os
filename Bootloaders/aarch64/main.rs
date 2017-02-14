@@ -16,7 +16,7 @@ fn log_closure<F: FnOnce(&mut ::core::fmt::Write)>(f: F) {
 }
 
 /// Stub logging macro
-macro_rules! log{
+macro_rules! log {
 	($($v:tt)*) => {{
 		::log_closure(|lh| {let _ = write!(lh, $($v)*);});
 		}};
@@ -27,7 +27,7 @@ pub struct ElfFile(elf_fmt::ElfHeader);
 impl ElfFile
 {
 	pub fn check_header(&self) {
-		assert_eq!(&self.0.e_ident[..8], b"\x7FELF\x01\x01\x01\x00");	// Elf32, LSB, Version, Pad
+		assert_eq!(&self.0.e_ident[..8], b"\x7FELF\x02\x01\x01\x00");	// Elf64, LSB, Version, Pad
 		assert_eq!(self.0.e_version, 1);
 	}
 	fn phents(&self) -> PhEntIter {

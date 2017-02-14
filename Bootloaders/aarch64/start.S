@@ -5,9 +5,9 @@
 
 #define ENTRY(n)	.globl n ; n:
 
-#include "../../../Usermode/rustrt0/armv8-helpers.S"
+#include "../../Usermode/rustrt0/armv8-helpers.S"
 
-.extern _binary_______bin_kernel_armv8_bin_start
+.extern _binary_kernel_bin_start
 
 .section .text
 ENTRY(start)
@@ -21,7 +21,7 @@ ENTRY(start)
 	mov x1, #(string_init_END-string_init)
 	bl puts
 	
-	ldr x8, =_binary_______bin_kernel_armv8_bin_start
+	ldr x8, =_binary_kernel_bin_start
 
 	// Get the size of the kernel image
 	mov x0, x8
