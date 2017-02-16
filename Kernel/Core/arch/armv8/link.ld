@@ -6,7 +6,7 @@
  * - ARMv8 linker script 
  */
 /* - -64GB */
-_kernel_base = 0xFFFF000000000000;
+_kernel_base = 0xFFFF800000000000;
 _PAGE_SIZE = 0x10000;	/* 64KB */
 
 ENTRY(start)

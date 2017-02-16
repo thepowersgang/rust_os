@@ -140,7 +140,7 @@ pub extern "C" fn elf_load_segments(file_base: &ElfFile, output_base: *mut u8) -
 		}
 	}
 	
-	const KERNEL_VBASE: usize = 0xFFFF000000000000;
+	const KERNEL_VBASE: usize = 0xFFFF800000000000;
 	let rv = file_base.entrypoint() - KERNEL_VBASE + output_base as usize;
 	log!("return entrypoint={:#x}", rv);
 	rv

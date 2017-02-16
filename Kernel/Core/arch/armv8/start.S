@@ -1,7 +1,7 @@
 //
 //
 //
-#define KERNEL_BASE	0xFFFF000000000000
+#define KERNEL_BASE	0xFFFF800000000000
 
 #define ENTRY(v)	.globl v; .type v,"function"; v:
 #define GLOBAL(v)	.globl v; v:
@@ -157,7 +157,8 @@ prep_page_tables:
 	bne 1b
 	
 	// Create an identity mapping before enabling paging
-	orr x1, x12, #1	// R1 = R12 | 1 (Valid, Block, Kernel RWX)
+	orr x1, x12, #0x001	// R1 = R12 | (1<<10) | 1 (Valid, AF, Block, Kernel RWX)
+	orr x1, x1, #0x400
 	lsr x2, x12, #25 	// R2 = (R12 / 32MB)
 	// - Split x2 into two values, indexing Lv1 and Lvl2
 	lsr x6, x2, #11
@@ -194,15 +195,22 @@ vmsa_setup:
 	msr TCR_EL1, x1
 
 	// Populate the first HWMapping address with the UART's base
-	add x0, x9, #0x13
-	ldr x1, =kernel_hwmap_level3+0
+	orr x0, x9, #0x3
+	orr x0, x0, #0x400
+	ldr x1, =(kernel_hwmap_level3+0 - KERNEL_BASE)
+	add x1, x1, x12
 	str x0, [x1]
 	
 	ldr x0, =init_stack
 	mov sp, x0
 	ldr x0, =kmain
 
-	ldr x1, =0x1
+	//  4 - SA0 = 1 (SP alignment check)
+	//  3 - SA = 1 (SP alignment check)
+	//  2 - C = 0
+	//  1 - A = 1 (Alignment check on)
+	//  0 - M = 1 (MMU on)
+	ldr x1, =0x1B
 	msr SCTLR_EL1, x1
 	br x0
 
@@ -320,15 +328,16 @@ kernel_maps_start:
 .globl kernel_root
 kernel_root:
 	.quad (kernel_image_level2-KERNEL_BASE)+0x3
-	.rept 2048-1-3
+	.rept 2048-1-4
 		.quad 0
 	.endr
-	.quad (kernel_hwmap_level2-KERNEL_BASE)+0x3	// -192GB
-	.quad (kernel_root-KERNEL_BASE)+0x3
+	.quad (kernel_hwmap_level2-KERNEL_BASE)+0x3	// 0xFFFF_FFC0_0000_0000
+	.quad 0                                    	// 0xFFFF_FFD0_0000_0000
+	.quad (kernel_root-KERNEL_BASE)+0x3        	// 0xFFFF_FFE0_0000_0000
 	.quad 0
 // - Level 2 table for kernel image, 32MB per entry
 kernel_image_level2:
-	.quad 0+0x1	// Kernel image "identity" map, Priv RW only
+	.quad 0+0x401	// Kernel image "identity" map, Priv RW only
 	.rept 2048-1
 		.quad 0
 	.endr
