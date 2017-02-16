@@ -1,10 +1,11 @@
-
+//!
 use core::cell::UnsafeCell;
 use core::ops;
+use core::sync::atomic::{AtomicU8, Ordering};
 
 pub struct Spinlock<T>
 {
-	flag: UnsafeCell<u32>,
+	flag: AtomicU8,
 	data: UnsafeCell<T>,
 }
 
@@ -15,15 +16,20 @@ impl<T> Spinlock<T>
 {
 	pub const fn new(v: T) -> Spinlock<T> {
 		Spinlock {
-			flag: UnsafeCell::new(0),
+			flag: AtomicU8::new(0),
 			data: UnsafeCell::new(v),
 			}
 	}
 	pub fn lock(&self) -> HeldSpinlock<T> {
-		todo!("");
+		if self.flag.load(Ordering::Acquire) == 1 {
+			panic!("Double-lock");
+		}
+		while self.flag.compare_exchange(0, 1, Ordering::Acquire, Ordering::Acquire).is_err() {
+		}
+		HeldSpinlock(self)
 	}
 	pub fn try_lock_cpu(&self) -> Option<HeldSpinlock<T>> {
-		todo!("");
+		todo!("Spinlock::try_lock_cpu");
 	}
 }
 impl<T> Default for Spinlock<T>
@@ -51,11 +57,30 @@ impl<'a, T: 'a> ops::DerefMut for HeldSpinlock<'a, T>
 		unsafe { &mut*self.0.data.get() }
 	}
 }
+impl<'a, T: 'a> ops::Drop for HeldSpinlock<'a, T>
+{
+	fn drop(&mut self)
+	{
+		self.0.flag.store(0, Ordering::Release)
+	}
+}
 
 
 pub struct HeldInterrupts;
+impl ops::Drop for HeldInterrupts {
+	fn drop(&mut self) {
+		// SAFE: TODO
+		unsafe {
+			start_interrupts();
+		}
+	}
+}
 
 pub fn hold_interrupts()->HeldInterrupts {
+	// SAFE: TODO
+	unsafe {
+		stop_interrupts();
+	}
 	HeldInterrupts
 }
 pub unsafe fn stop_interrupts() {

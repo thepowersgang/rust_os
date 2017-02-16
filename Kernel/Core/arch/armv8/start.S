@@ -243,13 +243,15 @@ ENTRY(task_switch)
 	mrs x5, SP_EL0
 	mrs x6, ELR_EL1
 	stp x5,x6, [x4], #-16
+	// TODO: Save TPIDR_EL0
 
 	// Save SP
 	str x4, [x0]
 
-	// TODO: Update VMM root
-
-	// TODO: Set new thread pointer
+	// Update VMM root
+	msr TTBR0_EL1, x2
+	// Set new thread pointer
+	msr TPIDR_EL1, x3
 
 	// Set new SP
 	mov x4, x1

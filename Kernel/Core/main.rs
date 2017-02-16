@@ -22,6 +22,7 @@
 #![feature(drop_types_in_const)]	// Allows `statics` to contain destructors
 #![feature(unicode)]
 #![feature(placement_new_protocol)]	// Used for Box<T> (mrustc support)
+#![feature(integer_atomics)]	// AtomicU8
 
 #![no_std]
 

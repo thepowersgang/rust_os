@@ -39,10 +39,20 @@ pub fn set_thread_ptr(thread: ::threads::ThreadPtr) {
 	todo!("set_thread_ptr")
 }
 pub fn get_thread_ptr() -> Option<::threads::ThreadPtr> {
-	todo!("get_thread_ptr");
+	let ret;
+	// SAFE: Read-only access to a per-cpu register
+	unsafe {
+		asm!("mrs $0, TPIDR_EL1" : "=r"(ret));
+	}
+	ret
 }
 fn borrow_thread_mut() -> *mut ::threads::Thread {
-	todo!("borrow_thread_mut");
+	let ret;
+	// SAFE: Read-only access to a per-cpu register
+	unsafe {
+		asm!("mrs $0, TPIDR_EL1" : "=r"(ret));
+	}
+	ret
 }
 pub fn borrow_thread() -> *const ::threads::Thread {
 	borrow_thread_mut() as *const _
