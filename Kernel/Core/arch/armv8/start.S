@@ -1,7 +1,7 @@
 //
 //
 //
-#define KERNEL_BASE	0x80000000
+#define KERNEL_BASE	0xFFFF000000000000
 
 #define ENTRY(v)	.globl v; .type v,"function"; v:
 #define GLOBAL(v)	.globl v; v:
@@ -119,7 +119,7 @@ start:
 	mov w1, #'\n'; str w1, [x9]
 	
 	// To get RAM start: subtract linked address of current instruction from real address
-	ldr x0, =(1f-KERNEL_BASE+4)
+	ldr x0, =(1f-KERNEL_BASE)
 	bl 1f
 1:
 	sub x8, x30, x0
@@ -147,34 +147,50 @@ prep_page_tables:
 	mov x4, x0
 	ldr x5, =kernel_maps_len
 1:
-	ldr x3, [x4]
+	ldr x3, [x4], #8
 	cmp x3, #0
 	beq 2f
 	add x3, x3, x12
-	str x3, [x4], #4
+	str x3, [x4, #-8]
 2:
-	subs x5, x5, #4
+	subs x5, x5, #8
 	bne 1b
 	
 	// Create an identity mapping before enabling paging
 	orr x1, x12, #1	// R1 = R12 | 1 (Valid, Block, Kernel RWX)
 	lsr x2, x12, #25 	// R2 = (R12 / 32MB)
 	// - Split x2 into two values, indexing Lv1 and Lvl2
-	lsr x3, x2, #12
+	lsr x6, x2, #11
+	and x6, x6, #0x7FF
 	and x2, x2, #0x7FF
 	// - Set entries in the top and next level of the low mappings
 	ldr x3, =(user0_root-KERNEL_BASE) ; add x3, x3, x12
 	ldr x4, =(user0_tab2-KERNEL_BASE) ; add x4, x4, x12
 	add x5, x4, #3	// Valid, Table, Kernel RWX
-	str x5, [x3,x2,LSL 3]
+	str x5, [x3,x6,LSL 3]
 	str x1, [x4,x2,LSL 3]
 	
 	// X0: Physical address of kernel_root
 	// X3: Physical address of user0_root
 vmsa_setup:
-	msr TTBR1_EL1, x3
+	msr TTBR0_EL1, x3
 	msr TTBR1_EL1, x0
-	ldr x1, =0x5800F800F
+	// Translation Control Register
+	// 34:32 - IPS = 5 (48 bits)
+	// 31:30 - TG1 = 1 (16KB)
+	// 29:28 - SH1 = 0 (Non-sharable)
+	// 27:26 - ORGN1 = 0
+	// 25:24 - IRGN1 = 0
+	// 23    - EPD1 = 0 (enabled)
+	// 22    - A1 = 0 (TTBR0 gives ASID)
+	// 21:16 - T1SZ = 17 (47 bits)
+	// 15:14 - TG0 = 2 (16KB)
+	// 13:12 - SH0 = 0 (non-sharable)
+	// 11:10 - ORGN0 = 0
+	//  9: 8 - IRGN0 = 0
+	//  7    - EPD0 = 0 (enabled)
+	//  5: 0 - T0SZ = 17 (47 bits)
+	ldr x1, =0x540118011
 	msr TCR_EL1, x1
 
 	// Populate the first HWMapping address with the UART's base
@@ -185,6 +201,9 @@ vmsa_setup:
 	ldr x0, =init_stack
 	mov sp, x0
 	ldr x0, =kmain
+
+	ldr x1, =0x1
+	msr SCTLR_EL1, x1
 	br x0
 
 
@@ -295,6 +314,7 @@ user0_tab2:
 // Page Aligned data
 .section .padata
 // - Top level table (lvl1), 16KB (one page), covering 2048 entries of 64GB each
+// > 47 bits total
 .globl kernel_maps_start
 kernel_maps_start:
 .globl kernel_root
