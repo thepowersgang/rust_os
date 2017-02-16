@@ -56,11 +56,16 @@ static EXCEPTION_CLASS : u64 = 0x544B3120_52757374;	// TK1 Rust (big endian)
 #[lang = "panic_fmt"]
 pub extern "C" fn rust_begin_unwind(msg: ::core::fmt::Arguments, file: &'static str, line: usize) -> !
 {
+	static NESTED: ::core::sync::atomic::AtomicBool = ::core::sync::atomic::ATOMIC_BOOL_INIT;
 	::arch::puts("\nERROR: rust_begin_unwind: ");
 	::arch::puts(file);
 	::arch::puts(":");
 	::arch::puth(line as u64);
 	::arch::puts("\n");
+	if NESTED.swap(true, ::core::sync::atomic::Ordering::SeqCst) {
+		::arch::puts("NESTED!\n");
+		loop {}
+	}
 	::arch::print_backtrace();
 	log_panic!("{}:{}: Panicked \"{:?}\"", file, line, msg);
 	::metadevs::video::set_panic(file, line, msg);
