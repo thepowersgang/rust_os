@@ -76,6 +76,7 @@ ENTRY(start)
 	bl elf_load_symbols
 	add x12, x21, x0
 	
+	mov x11, x21
 	// R8: Kernel entrypoint
 	// R9: UART Address
 	// R10: FDT base address

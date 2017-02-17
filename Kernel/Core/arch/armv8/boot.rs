@@ -68,7 +68,8 @@ impl BootInfo
 
 			// SAFE: Address range checked
 			unsafe {
-				assert!(symbol_info_phys - kernel_phys_start < IDENT_SIZE as u64);
+				assert!(symbol_info_phys - kernel_phys_start < IDENT_SIZE as u64,
+					"Symbol information {:#x} outside of ident {:#x}+{:#x}", symbol_info_phys, kernel_phys_start, IDENT_SIZE);
 				let info: &'static SymbolInfo = &*((symbol_info_phys - kernel_phys_start + IDENT_START as u64) as *const SymbolInfo);
 				log_debug!("(symbol) info = {:?}", info);
 				if !info.base.is_null() {

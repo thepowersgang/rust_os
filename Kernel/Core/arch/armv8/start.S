@@ -193,6 +193,7 @@ vmsa_setup:
 	//  5: 0 - T0SZ = 17 (47 bits)
 	ldr x1, =0x540118011
 	msr TCR_EL1, x1
+	isb
 
 	// Populate the first HWMapping address with the UART's base
 	orr x0, x9, #0x3
@@ -212,6 +213,7 @@ vmsa_setup:
 	//  0 - M = 1 (MMU on)
 	ldr x1, =0x1B
 	msr SCTLR_EL1, x1
+	isb
 	br x0
 
 
