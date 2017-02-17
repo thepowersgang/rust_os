@@ -33,8 +33,8 @@ fn_getdeps = $(shell cat $1 | sed -nr 's/.*extern crate ([a-zA-Z_0-9]+);/\1/p' |
 fn_moddeps = $(filter-out core kernel,$(call fn_getdeps,Modules/$1/lib.rs))
 uniq = $(eval seen :=) $(foreach _,$1,$(if $(filter $_,${seen}),,$(eval seen += $_))) ${seen}
 
-OBJS := start.ao log_cfg.ao main.o $(MODS:%=%.o) libkernel.rlib libcore.rlib
-EOBJS := $(foreach m,$(MODS), $(addsuffix .o,$(call fn_moddeps,$m)) )
+OBJS := start.ao log_cfg.ao main.o $(MODS:%=lib%.rlib) libkernel.rlib libcore.rlib
+EOBJS := $(foreach m,$(MODS), $(patsubst %,lib%.rlib,$(call fn_moddeps,$m)) )
 OBJS += $(EOBJS)
 OBJS := $(shell echo $(call uniq, $(OBJS)))
 ifeq ($(OBJS),)
@@ -92,6 +92,8 @@ RUSTFLAGS += -C target-feature=$(subst $(space),$(comma),$(EXCLUDE_FEATURES:%=-%
 RUSTFLAGS += -Z no-landing-pads
 #RUSTFLAGS += -C save-temps
 #RUSTFLAGS += -Z time-passes
+# - DISABLED: Causes undefined symbol errors
+#RUSTFLAGS += -Zincremental=$(OBJDIR)incremental/
 
 LINKFLAGS := -T Core/arch/$(ARCH)/link.ld -Map $(OBJDIR)map.txt -g
 LINKFLAGS += -z max-page-size=0x1000	# Reduces binary size
@@ -215,12 +217,12 @@ $(OBJDIR)log_cfg.ao: Core/log_cfg.S
 $(OBJDIR)main.o: main/main.rs $(OBJDIR)libkernel.rlib $(OBJDIR)libcore.rlib $(OBJDIR)libsyscalls.rlib
 	@echo [RUSTC] -o $@
 	@mkdir -p $(dir $@)
-	$V$(ENV) $(RUSTC) $(RUSTFLAGS) --emit=obj,dep-info --out-dir $(dir $@) $<
+	$V$(ENV) $(RUSTC) $(filter-out -Zincremental=%,$(RUSTFLAGS)) --emit=obj,dep-info --out-dir $(dir $@) $<
 
 # - Kernel Core
 $(OBJDIR)libkernel.rlib: Core/main.rs $(OBJDIR)libcore.rlib $(TARGET_FILE) ../Graphics/logo.rs $(IMGDIR)panic.rs bin/plugins/libtag_safe.so $(LIBS)
 	@echo [RUSTC] -o $@
-	@mkdir -p $(dir $@)
+	@mkdir -p $(dir $@) $(OBJDIR)incremental/
 	$V$(ENV) $(RUSTC) $(RUSTFLAGS) --emit=link,dep-info --out-dir $(dir $@) $<
 	@cp $(OBJDIR)kernel.d $(OBJDIR)libkernel.d
 
@@ -241,7 +243,7 @@ $(OBJDIR)acpica.a: ../acpica/Makefile $(wildcard ../acpica/patches/source/includ
 $(OBJDIR)lib%.rlib: Modules/%/lib.rs $(OBJDIR)libcore.rlib $(OBJDIR)libkernel.rlib
 	@echo [RUSTC] -o $@
 	@mkdir -p $(dir $@)
-	$V$(ENV) $(RUSTC) $(RUSTFLAGS) --emit=obj,link,dep-info --out-dir $(dir $@) --crate-name=$* --crate-type=lib $< $(call LocalLib,core) $(call LocalLib,kernel)
+	$V$(ENV) $(RUSTC) $(RUSTFLAGS) --emit=link,dep-info --out-dir $(dir $@) --crate-name=$* --crate-type=lib $< $(call LocalLib,core) $(call LocalLib,kernel)
 
 $(OBJDIR)%.o: Modules/%/lib.rs $(OBJDIR)lib%.rlib
 	@#
