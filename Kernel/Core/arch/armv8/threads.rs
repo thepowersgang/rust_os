@@ -36,15 +36,26 @@ pub fn get_idle_thread() -> ::threads::ThreadPtr {
 }
 
 pub fn set_thread_ptr(thread: ::threads::ThreadPtr) {
-	todo!("set_thread_ptr")
+	// SAFE: Write to per-CPU register
+	unsafe {
+		asm!("msr TPIDR_EL1, $0" : : "r"(thread.into_usize()));
+	}
 }
 pub fn get_thread_ptr() -> Option<::threads::ThreadPtr> {
-	let ret;
+	let ret: usize;
 	// SAFE: Read-only access to a per-cpu register
 	unsafe {
 		asm!("mrs $0, TPIDR_EL1" : "=r"(ret));
 	}
-	ret
+	if ret == 0 {
+		None
+	}
+	else {
+		// SAFE: Stored value assumed to be valid
+		unsafe {
+			Some(::threads::ThreadPtr::from_usize(ret))
+		}
+	}
 }
 fn borrow_thread_mut() -> *mut ::threads::Thread {
 	let ret;
