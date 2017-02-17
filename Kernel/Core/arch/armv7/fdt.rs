@@ -25,6 +25,7 @@ fn align_to_tag(v: usize) -> usize {
 impl<'a> FDTRoot<'a>
 {
 	pub unsafe fn new_raw(base: *const u8) -> FDTRoot<'static> {
+		log_trace!("FDTRoot::new_raw({:p})", base);
 		let minbuf = ::core::slice::from_raw_parts(base, 8);
 		let magic = BigEndian::read_u32(&minbuf[..4]);
 		let len = BigEndian::read_u32(&minbuf[4..]);
@@ -34,7 +35,7 @@ impl<'a> FDTRoot<'a>
 	}
 	pub fn new_buf<'b>(buf: &'b [u8]) -> FDTRoot<'b> {
 		let magic = BigEndian::read_u32(buf);
-		assert_eq!(magic, 0xd00dfeed);
+		assert_eq!(magic, 0xd00dfeed, "FDT magic mismatc - Expected 0xd00dfeed, got 0x{:8x}", magic);
 		FDTRoot {
 			buffer: buf,
 		}

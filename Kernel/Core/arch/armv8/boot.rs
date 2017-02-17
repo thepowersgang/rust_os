@@ -61,7 +61,7 @@ impl BootInfo
 		else {
 			// SAFE: In practice, this is run in a single-thread. Any possible race would be benign
 			unsafe {
-				const FLAGS: u64 = 0x1;
+				const FLAGS: u64 = 0x403;
 				assert_eq!(kernel_hwmap_level3[1], 0);
 				kernel_hwmap_level3[1] = (dt_phys_base & !0x3FFF) + FLAGS;
 			}
@@ -77,13 +77,14 @@ impl BootInfo
 					let strs_addr = info.string_table as usize - kernel_phys_start as usize;
 					assert!(syms_addr < IDENT_SIZE);
 					assert!(strs_addr < IDENT_SIZE);
+					log_trace!("syms_addr={:#x}, strs_addr={:#x}", syms_addr, strs_addr);
 					let syms = ::core::slice::from_raw_parts( (syms_addr + IDENT_START) as *const ::symbols::Elf32_Sym, info.count as usize);
 					let strs = ::core::slice::from_raw_parts( (strs_addr + IDENT_START) as *const u8, info.strtab_len as usize);
 					::symbols::set_symtab(syms, strs, 0);
 				}
 			}
 			
-			// SAFE: Memory is valid, and is immutable
+			// SAFE: Memory is valid (mapped above), and is immutable
 			unsafe {
 				BootInfo::FDT( super::fdt::FDTRoot::new_raw( (super::memory::addresses::HARDWARE_BASE + 0x4000 + (dt_phys_base & 0x3FFF) as usize) as *const u8 ) )
 			}
