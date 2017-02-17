@@ -122,26 +122,22 @@ ENTRY(__aeabi_memclr)
 // A, B, num
 ENTRY(memcmp)
 	//.fnstart
-	//.save {r4}
-	stp x4,x5, [sp], #-16	// Subtract 16, write to registers
 	tst x2,x2
-	mov x3, #0
-	mov x4, #0
 	beq 2f
 1:
 	ldrb w3, [x0], #1
 	ldrb w4, [x1], #1
-	cmp x4, x3
+	cmp w4, w3
 	bne 2f
 	subs x2,x2, #1
 	bne 1b
 2:
 	mov x0, #0
+	beq 3f
 	cinv x0,x0, lo
 	cinc x0,x0, hs
-	ldp x4,x5, [sp, #16]!	// Read two registers, add 16
+3:
 	ret
-	//.fnend
 
 
 ENTRY(__aeabi_dcmplt)
