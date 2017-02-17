@@ -30,12 +30,12 @@ ENTRY(start)
 	add x21, x0, x1	// X21 = End of loaded image
 	
 #if defined(FDT_BASE)
-	mov x10, #0	// Pre-set FDT base register to 0 (invalid)
+	mov x20, #0	// Pre-set FDT base register to 0 (invalid)
 	ldr x0, =FDT_BASE
 	// Compare `*(FDT_BASE as *const u32) == 0xedfe0dd0`
 	ldr w1, [x0]
 	ldr w2, =0xedfe0dd0
-	tst w1, w2
+	cmp w1, w2
 	bne 1f
 	// X1 = Size of FDT
 	mov x1, #0
@@ -76,6 +76,7 @@ ENTRY(start)
 	bl elf_load_symbols
 	add x12, x21, x0
 	
+	mov x10, x20
 	mov x11, x21
 	// R8: Kernel entrypoint
 	// R9: UART Address
