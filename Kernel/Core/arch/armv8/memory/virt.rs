@@ -28,9 +28,11 @@ pub fn can_map_without_alloc(addr: *mut ()) -> bool
 }
 pub unsafe fn map(addr: *const (), phys: u64, prot: ProtectionMode)
 {
+	todo!("map");
 }
 pub unsafe fn reprotect(addr: *const (), prot: ProtectionMode)
 {
+	todo!("reprotect");
 }
 pub unsafe fn unmap(addr: *const ()) -> Option<u64>
 {
