@@ -16,18 +16,78 @@ pub fn post_init()
 {
 }
 
+fn prot_mode_to_attrs(prot: ProtectionMode) -> u64
+{
+	match prot
+	{
+	//ProtectionMode::KernelRWX=> (0x00<<56 | 0x00<<2),
+	//ProtectionMode::UserRWX  => (0x00<<56 | 0x40<<2),
+	ProtectionMode::KernelRX => (0x00<<56 | 0x80<<2),
+	ProtectionMode::UserRX   => (0x00<<56 | 0xC0<<2),
+	ProtectionMode::KernelRW => (0x20<<56 | 0x00<<2),
+	ProtectionMode::UserRW   => (0x20<<56 | 0x40<<2),
+	ProtectionMode::KernelRO => (0x20<<56 | 0x80<<2),
+	ProtectionMode::UserRO   => (0x20<<56 | 0xC0<<2),
+	_ => 0,
+	}
+}
+fn attrs_to_prot_mode(attrs: u64) -> ProtectionMode
+{
+	let v = (((attrs >> 56) & 0xFF) << 8) | ((attrs >> 2) & 0xFF);
+	match v
+	{
+	0x00_00 => ProtectionMode::KernelRW,	// RWX
+	0x00_40 => ProtectionMode::UserRW,	// RWX
+	0x00_80 => ProtectionMode::KernelRX,
+	0x00_C0 => ProtectionMode::UserRX,
+	0x20_00 => ProtectionMode::KernelRW,
+	0x20_40 => ProtectionMode::UserRW,
+	0x20_80 => ProtectionMode::KernelRO,
+	0x20_C0 => ProtectionMode::UserRO,
+	_ => todo!("Unknown attributes - 0x{:04x}", v),
+	}
+}
+
 
 pub fn is_reserved<T>(addr: *const T) -> bool
 {
-	false
+	get_phys_raw(addr).is_some()
 }
 pub fn get_phys<T>(addr: *const T) -> u64
 {
-	0
+	get_phys_raw(addr).unwrap_or(0)
 }
 pub fn get_info<T>(addr: *const T) -> Option<(u64, ProtectionMode)>
 {
-	None
+	if let Some(paddr) = get_phys_raw(addr)
+	{
+		let a = with_entry(Level::Middle, addr as usize >> (14+11), |e| {
+			let v = e.load(Ordering::Relaxed);
+			if v & 3 == 3 { None } else { Some(v) }
+			})
+			.unwrap_or_else(|| with_entry(Level::Bottom, addr as usize >> 14, |e| e.load(Ordering::Relaxed)))
+			;
+		let prot = attrs_to_prot_mode(a & 0xFF000000_000003FC);
+		Some( (paddr, prot) )
+	}
+	else
+	{
+		None
+	}
+}
+fn get_phys_raw<T>(addr: *const T) -> Option<u64> {
+	// SAFE: Queries an interface that cannot cause an exception (and won't induce memory unsafety)
+	let v = unsafe {
+		let ret: usize;
+		asm!("AT S1E1R, $1; mrs $0, PAR_EL1" : "=r"(ret) : "r"(addr));
+		ret
+		};
+	if v & 1 != 0 {
+		None
+	}
+	else {
+		Some( ((v & 0x0000FFFF_FFFFF000) + (addr as usize % PAGE_SIZE)) as u64 )
+	}
 }
 
 #[derive(Debug,Copy,Clone)]
@@ -69,13 +129,6 @@ where
 	fcn( unsafe { &*ptr } )
 }
 
-fn prot_mode_to_flags(prot: ProtectionMode) -> u64 {
-	match prot
-	{
-	_ => 0,
-	}
-}
-
 pub fn can_map_without_alloc(addr: *mut ()) -> bool
 {
 	false
@@ -106,7 +159,7 @@ pub unsafe fn map(addr: *const (), phys: u64, prot: ProtectionMode)
 			}
 			});
 		// 3. Set mapping in level3
-		let val = phys | prot_mode_to_flags(prot) | 0x403;
+		let val = phys | prot_mode_to_attrs(prot) | 0x403;
 		with_entry(Level::Bottom, page, |e| {
 			if let Err(old) = e.compare_exchange(0, val, Ordering::SeqCst, Ordering::SeqCst) {
 				panic!("map() called over existing allocation: a={:p}, old={:#x}", addr, old);
