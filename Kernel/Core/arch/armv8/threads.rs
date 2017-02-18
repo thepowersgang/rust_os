@@ -97,20 +97,24 @@ pub fn start_thread<F: FnOnce()+Send+'static>(thread: &mut ::threads::Thread, co
 	// 2. Populate stack with `code`
 	stack.push(code);
 	let a = stack.pos();
-	stack.align(8);
+	stack.align(16);
+	// State for `thread_trampoline`
 	stack.push(a);
+	stack.push( thread_root::<F> as usize );
 	
 	// 3. Populate with task_switch state
-	// - Root function defined below
-	stack.push( thread_root::<F> as usize );
-	// - LR popped by task_switch - Trampoline that sets R0 to the address of 'code'
-	stack.push( thread_trampoline as usize );
-	// - R4-R12 saved by task_switch
-	for _ in 4 .. 12+1 {
-		stack.push(0u32);
+	// - R19-R28 saved by task_switch
+	for _ in 19 .. 28+1 {
+		stack.push(0_usize);
 	}
-	stack.push(0u32);	// User SP
-	stack.push(0u32);	// User LR
+	// - LR popped by task_switch - Trampoline that sets R0 to the address of 'code'
+	stack.push( thread_trampoline as usize );	// R30 - aka LR
+	stack.push(0_usize);	// R29
+
+	stack.push(0_usize);	// TPIDR_EL0 - User Thread Pointer
+	stack.push(0_usize);	// SP_EL0    - User SP
+	stack.push(0_usize);	// pad
+	stack.push(0_usize);	// ELR_EL1 - Exception return
 	
 	// 4. Apply newly updated state
 	let (stack_handle, stack_pos) = stack.unwrap();

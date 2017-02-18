@@ -6,6 +6,9 @@
 #define ENTRY(v)	.globl v; .type v,"function"; v:
 #define GLOBAL(v)	.globl v; v:
 
+#define PUSH(_t1,_t2)	stp _t1,_t2, [sp, #-16]!
+#define POP(_t1,_t2)	ldp _t1,_t2, [sp], #16
+
 .section VECTORS
 vector_cur_sp0_sync:
 	b .
@@ -224,7 +227,7 @@ vmsa_setup:
 ENTRY(thread_trampoline)
 	//.fnstart
 	//.cantunwind
-	stp x1,x0, [sp, #16]!	// X1: "thread_root" (generic over closure type), X0: Pop pointer to the closure
+	POP(x1, x0)	// X1: "thread_root" (generic over closure type), X0: Pop pointer to the closure
 	br x1
 	//.fnend
 // pub fn task_switch(old_stack: &mut usize, new_stack: usize, new_ttbr0: usize, new_tp: usize);
@@ -236,21 +239,22 @@ ENTRY(task_switch)
 	//.fnstart
 	//.cantunwind
 	// Save callee-save state (19-30)
-	stp x19,x20, [sp], #-16
-	stp x21,x22, [sp], #-16
-	stp x23,x24, [sp], #-16
-	stp x25,x26, [sp], #-16
-	stp x27,x28, [sp], #-16
-	stp x29,x30, [sp], #-16
-	
-	// Save user state (SP and ELR)
-	mov x4, sp
+	PUSH(x19, x20)
+	PUSH(x21, x22)
+	PUSH(x23, x24)
+	PUSH(x25, x26)
+	PUSH(x27, x28)
+	PUSH(x29, x30)
+	// Save user state (User SP and ELR)
 	mrs x5, SP_EL0
-	mrs x6, ELR_EL1
-	stp x5,x6, [x4], #-16
-	// TODO: Save TPIDR_EL0
-
-	// Save SP
+	mrs x6, TPIDR_EL0
+	PUSH(x5, x6)
+	// Save ELR (exception return)
+	mrs x5, ELR_EL1
+	PUSH(x5, x6)
+	
+	// Save SP to provided location
+	mov x4, sp
 	str x4, [x0]
 
 	// Update VMM root
@@ -259,22 +263,23 @@ ENTRY(task_switch)
 	msr TPIDR_EL1, x3
 
 	// Set new SP
-	mov x4, x1
+	mov sp, x1
 
+	// Restore ELR
+	POP(x5,x6)
+	msr ELR_EL1, x5
 	// Restore user
-	stp x5,x6, [x4, #16]!
+	POP(x5,x6)
 	msr SP_EL0, x5
-	msr ELR_EL1, x6
+	msr TPIDR_EL0, x6
 
-	// Restore SP
-	mov sp, x4
-	// Restore state
-	stp x29,x30, [sp, #16]!
-	stp x27,x28, [sp, #16]!
-	stp x25,x26, [sp, #16]!
-	stp x23,x24, [sp, #16]!
-	stp x21,x22, [sp, #16]!
-	stp x19,x20, [sp, #16]!
+	// Restore callee state
+	POP(x29,x30)
+	POP(x27,x28)
+	POP(x25,x26)
+	POP(x23,x24)
+	POP(x21,x22)
+	POP(x19,x20)
 	ret
 	//.fnend
 
