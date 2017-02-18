@@ -30,6 +30,7 @@ pub fn get_info<T>(addr: *const T) -> Option<(u64, ProtectionMode)>
 	None
 }
 
+#[derive(Debug,Copy,Clone)]
 enum Level
 {
 	Root,
@@ -62,6 +63,7 @@ where
 {
 	let ptr = get_entry_addr(level, index);
 	debug_assert!(get_info(ptr).is_some());
+	log_trace!("with_entry({:?}, {}): ptr={:p}", level, index, ptr);
 	
 	// SAFE: Pointer is asserted to be valid above
 	fcn( unsafe { &*ptr } )
@@ -86,8 +88,8 @@ pub unsafe fn map(addr: *const (), phys: u64, prot: ProtectionMode)
 	if page >> (48-14) > 0
 	{
 		// Kernel AS doesn't need locking, as it's never pruned
-
-		let page = page & !((1 << 33)-1);
+		let mask = (1 << 33)-1;
+		let page = page & mask;
 		log_trace!("page = {:#x}", page);
 		// 1. Ensure that top-level region is valid.
 		with_entry(Level::Root, page >> 22, |e| {
