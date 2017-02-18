@@ -62,8 +62,8 @@ where
 	F: FnOnce(&AtomicU64)->R
 {
 	let ptr = get_entry_addr(level, index);
-	debug_assert!(get_info(ptr).is_some());
-	log_trace!("with_entry({:?}, {}): ptr={:p}", level, index, ptr);
+	debug_assert!(is_reserved(ptr));
+	//log_trace!("with_entry({:?}, {}): ptr={:p}", level, index, ptr);
 	
 	// SAFE: Pointer is asserted to be valid above
 	fcn( unsafe { &*ptr } )
@@ -87,20 +87,22 @@ pub unsafe fn map(addr: *const (), phys: u64, prot: ProtectionMode)
 	let page = addr as usize / PAGE_SIZE;
 	if page >> (48-14) > 0
 	{
-		// Kernel AS doesn't need locking, as it's never pruned
+		// Kernel AS doesn't need a deletion lock, as it's never pruned
+		// Mutation lock also not needed (but is provided in VMM)
+		
 		let mask = (1 << 33)-1;
 		let page = page & mask;
-		log_trace!("page = {:#x}", page);
+		//log_trace!("page = {:#x}", page);
 		// 1. Ensure that top-level region is valid.
 		with_entry(Level::Root, page >> 22, |e| {
 			if e.load(Ordering::Relaxed) == 0 {
-				::memory::virt::allocate( get_entry_addr(Level::Middle, page >> 22 << 11) as *mut (), 1 );
+				::memory::phys::allocate( get_entry_addr(Level::Middle, page >> 22 << 11) as *mut () );
 			}
 			});
 		// 2. Ensure that level2 is valid
 		with_entry(Level::Middle, page >> 11, |e| {
 			if e.load(Ordering::Relaxed) == 0 {
-				::memory::virt::allocate( get_entry_addr(Level::Bottom, page >> 11 << 11) as *mut (), 1 );
+				::memory::phys::allocate( get_entry_addr(Level::Bottom, page >> 11 << 11) as *mut () );
 			}
 			});
 		// 3. Set mapping in level3
@@ -113,7 +115,7 @@ pub unsafe fn map(addr: *const (), phys: u64, prot: ProtectionMode)
 	}
 	else
 	{
-		// TODO: Lock address space
+		// NOTE: Locking of address space not needed, as the VMM does that.
 		todo!("map - user");
 	}
 }
