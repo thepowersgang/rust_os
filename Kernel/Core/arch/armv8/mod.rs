@@ -14,6 +14,30 @@ pub mod interrupts;
 mod fdt;
 
 pub fn print_backtrace() {
+	let mut fp: *const FrameEntry;
+	// SAFE: Just loads the frame pointer
+	unsafe { asm!("mov $0, fp" : "=r"(fp)); }
+
+	#[repr(C)]
+	struct FrameEntry {
+		next: *const FrameEntry,
+		ret_addr: usize,
+	}
+	puts("Backtrace:");
+	while ! fp.is_null()
+	{
+		//if ! ::memory::virt::is_reserved(data_ptr) {
+		//	break;
+		//}
+		// SAFE: Checked by above
+		let data = unsafe { &*fp };
+		puts(" -> "); puth(data.ret_addr as u64);
+		if let Some( (name,ofs) ) = ::symbols::get_symbol_for_addr(data.ret_addr) {
+			puts("("); puts(name); puts("+"); puth(ofs as u64); puts(")");
+		}
+		fp = data.next;
+	}
+	puts("\n");
 }
 
 pub fn cur_timestamp() -> u64 {

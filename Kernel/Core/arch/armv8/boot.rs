@@ -80,7 +80,7 @@ impl BootInfo
 					log_trace!("syms_addr={:#x}, strs_addr={:#x}", syms_addr, strs_addr);
 					let syms = ::core::slice::from_raw_parts( (syms_addr + IDENT_START) as *const ::symbols::Elf32_Sym, info.count as usize);
 					let strs = ::core::slice::from_raw_parts( (strs_addr + IDENT_START) as *const u8, info.strtab_len as usize);
-					::symbols::set_symtab(syms, strs, 0);
+					::symbols::set_symtab(syms, strs, IDENT_START);
 				}
 			}
 			

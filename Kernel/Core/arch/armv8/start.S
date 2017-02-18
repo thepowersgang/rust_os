@@ -214,6 +214,7 @@ vmsa_setup:
 	ldr x1, =0x1B
 	msr SCTLR_EL1, x1
 	isb
+	mov x29, #0	// Clear FP so kernel backtrace code knows to terminate cleanly
 	br x0
 
 
