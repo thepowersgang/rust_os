@@ -4,21 +4,21 @@
 // Modules/video_vgs/mod.rs
 // - VGA (and derivative) device driver
 //
-#![feature(no_std,core)]
+#![feature(linkage)]
+#![feature(const_fn)]
 #![feature(box_syntax)]
 #![no_std]
 use kernel::prelude::*;
 #[macro_use] extern crate kernel;
-#[macro_use] extern crate core;
 mod std {
 	pub use core::fmt;	// write!
 	pub use core::option;	// for loops
 	pub use core::iter;	// for loops
 }
 
-use kernel::metadevs::video::{Framebuffer,Rect,Dims};
+use kernel::metadevs::video::{self,Framebuffer,Rect,Dims};
 use kernel::device_manager;
-use kernel::metadevs::video;
+use core::sync::atomic;
 
 module_define!{VGA, [DeviceManager, Video], init}
 
@@ -58,15 +58,13 @@ struct CrtcAttrs
 	v_sync_len: u16,
 }
 
-#[allow(non_upper_case_globals)]
-static s_vga_pci_driver: VgaPciDriver = VgaPciDriver;
-#[allow(non_upper_case_globals)]
-static s_legacy_bound: ::core::atomic::AtomicBool = ::core::atomic::ATOMIC_BOOL_INIT;
+static S_VGA_PCI_DRIVER: VgaPciDriver = VgaPciDriver;
+static S_LEGACY_BOUND: atomic::AtomicBool = atomic::AtomicBool::new(false);
 
 fn init()
 {
 	// 1. Register Driver
-	//device_manager::register_driver(&s_vga_pci_driver);
+	device_manager::register_driver(&S_VGA_PCI_DRIVER);
 }
 
 impl device_manager::Driver for VgaPciDriver
@@ -79,9 +77,9 @@ impl device_manager::Driver for VgaPciDriver
 	}
 	fn handles(&self, bus_dev: &device_manager::BusDevice) -> u32
 	{
-		let classcode = bus_dev.get_attr("class");
+		let classcode = bus_dev.get_attr("class").unwrap_u32();
 		// [class] [subclass] [IF] [ver]
-		if classcode & 0xFFFFFF00 == 0x03000000 {
+		if classcode & 0xFFFF_FF00 == 0x0300_0000 {
 			1	// Handle as weakly as possible (vendor-provided drivers bind higher)
 		}
 		else {
@@ -90,7 +88,7 @@ impl device_manager::Driver for VgaPciDriver
 	}
 	fn bind(&self, _bus_dev: &mut device_manager::BusDevice) -> Box<device_manager::DriverInstance+'static>
 	{
-		if s_legacy_bound.swap(true, ::core::atomic::Ordering::AcqRel)
+		if S_LEGACY_BOUND.swap(true, atomic::Ordering::AcqRel)
 		{
 			panic!("Duplicate binding of legacy VGA");
 		}
@@ -118,9 +116,10 @@ impl VgaFramebuffer
 	fn new(base: u16) -> VgaFramebuffer
 	{
 		log_debug!("Creating VGA driver at base {:#3x}", base);
-		let mut rv = VgaFramebuffer {
+		let rv = VgaFramebuffer {
 			io_base: base,
-			window: ::kernel::memory::virt::map_hw_rw(0xA0000, (0xC0-0xA0), module_path!()).unwrap(),
+			// SAFE: VGA window should be avaliable
+			window: unsafe {::kernel::memory::virt::map_hw_rw(0xA0000, (0xC0-0xA0), module_path!()).unwrap() },
 			crtc: crtc::CrtcRegs::load(base + 0x24),	// Colour CRTC regs
 			w: 320,
 			h: 240,
@@ -254,6 +253,8 @@ impl video::Framebuffer for VgaFramebuffer
 				scanline[col as usize] = colour_val;
 			}
 		}
+	}
+	fn move_cursor(&mut self, _p: Option<video::Pos>) {
 	}
 }
 
