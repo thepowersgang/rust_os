@@ -171,6 +171,12 @@ pub unsafe fn map(addr: *const (), phys: u64, prot: ProtectionMode)
 		// NOTE: Locking of address space not needed, as the VMM does that.
 		todo!("map - user");
 	}
+	// Invalidate TLB for this address
+	// SAFE: Safe assembly
+	unsafe {
+		let MASK: usize = ((1 << 43)-1) & !3;	// 43 bits of address (after shifting by 12)
+		asm!("TLBI ALLE1 $0" : : "r"( (addr as usize >> 12) & MASK ));
+	}
 }
 pub unsafe fn reprotect(addr: *const (), prot: ProtectionMode)
 {
