@@ -265,7 +265,7 @@ pub fn reschedule()
 
 fn get_cur_thread() -> ThreadPtr
 {
-	::arch::threads::get_thread_ptr().unwrap()
+	::arch::threads::get_thread_ptr().expect("Current thread is None")
 }
 fn rel_cur_thread(t: ThreadPtr)
 {
