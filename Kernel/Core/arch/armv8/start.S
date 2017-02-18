@@ -331,13 +331,13 @@ user0_tab2:
 kernel_maps_start:
 .globl kernel_root
 kernel_root:
-	.quad (kernel_image_level2-KERNEL_BASE)+0x3
+	.quad (kernel_image_level2-KERNEL_BASE)+0x403
 	.rept 2048-1-4
 		.quad 0
 	.endr
-	.quad (kernel_hwmap_level2-KERNEL_BASE)+0x3	// 0xFFFF_FFC0_0000_0000
+	.quad (kernel_hwmap_level2-KERNEL_BASE)+0x403	// 0xFFFF_FFC0_0000_0000
 	.quad 0                                    	// 0xFFFF_FFD0_0000_0000
-	.quad (kernel_root-KERNEL_BASE)+0x3        	// 0xFFFF_FFE0_0000_0000
+	.quad (kernel_root-KERNEL_BASE)+0x403    	// 0xFFFF_FFE0_0000_0000
 	.quad 0
 // - Level 2 table for kernel image, 32MB per entry
 kernel_image_level2:
@@ -347,7 +347,7 @@ kernel_image_level2:
 	.endr
 // - Level 2 table for hardware mappings
 kernel_hwmap_level2:
-	.quad (kernel_hwmap_level3-KERNEL_BASE)+0x3
+	.quad (kernel_hwmap_level3-KERNEL_BASE)+0x403
 	.rept 2048-1
 		.quad 0
 	.endr
