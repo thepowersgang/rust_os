@@ -69,3 +69,14 @@ pub struct SymEnt {
 	pub st_value: Elf64_Addr,
 	pub st_size: Elf64_Xword,
 }
+
+#[derive(Copy,Clone,Debug)]
+#[allow(non_camel_case_types)]
+pub struct Elf32_SymEnt {
+	pub st_name: u32,
+	pub st_value: u32,
+	pub st_size: u32,
+	pub st_info: u8,
+	pub st_other: u8,
+	pub st_shndx: u16,
+}

@@ -177,10 +177,17 @@ pub extern "C" fn elf_load_symbols(file_base: &ElfFile, output: &mut SymbolInfo)
 			unsafe {
 				let bytes = ent.sh_size as usize;
 				let src = ::core::slice::from_raw_parts( (file_base as *const _ as usize + ent.sh_offset as usize) as *const elf_fmt::SymEnt, output.count );
-				let dst = ::core::slice::from_raw_parts_mut( output.base as *mut elf_fmt::SymEnt, output.count );
+				let dst = ::core::slice::from_raw_parts_mut( output.base as *mut elf_fmt::Elf32_SymEnt, output.count );
 				for (d,s) in Iterator::zip( dst.iter_mut(), src.iter() ) {
 					//log!("- {:?} = {:#x}+{:#x}", ::core::str::from_utf8(&strtab_bytes[s.st_name as usize..].split(|&v|v==0).next().unwrap()), s.st_value, s.st_size);
-					*d = *s;
+					*d = elf_fmt::Elf32_SymEnt {
+						st_name: s.st_name,
+						st_value: s.st_value as u32,	// mask down
+						st_size: s.st_size as u32,
+						st_info: s.st_info,
+						st_other: s.st_other,
+						st_shndx: s.st_shndx,
+						};
 				}
 				pos += bytes;
 			}
@@ -189,7 +196,7 @@ pub extern "C" fn elf_load_symbols(file_base: &ElfFile, output: &mut SymbolInfo)
 			output.strtab_len = strtab.sh_size as usize;
 			unsafe {
 				let bytes = strtab.sh_size as usize;
-				let src = ::core::slice::from_raw_parts( (file_base as *const _ as usize + strtab.sh_offset as usize) as *const u8, bytes );
+				let src = strtab_bytes;
 				let dst = ::core::slice::from_raw_parts_mut( output.string_table as *mut u8, bytes );
 				for (d,s) in Iterator::zip( dst.iter_mut(), src.iter() ) {
 					*d = *s;
