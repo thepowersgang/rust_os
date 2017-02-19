@@ -20,8 +20,10 @@ MODS += storage_ata
 MODS += input_ps2
 MODS += fs_fat fs_iso9660 fs_extN
 MODS += storage_ahci
-#MODS += video_vga
 MODS += nic_rtl8139
+ifeq ($(ARCH),amd64)
+MODS += video_vga
+endif
 
 ifeq ($(ARCH),amd64)
 USE_ACPICA ?= 1
@@ -29,12 +31,18 @@ else
 USE_ACPICA = 0
 endif
 
+# - External crates
+EXT_CRATES := core stack_dst
+ifeq ($(ARCH),amd64)
+EXT_CRATES += va_list
+endif
+
 fn_getdeps = $(shell cat $1 | sed -nr 's/.*extern crate ([a-zA-Z_0-9]+);/\1/p' | tr '\n' ' ')
 fn_moddeps = $(filter-out core kernel,$(call fn_getdeps,Modules/$1/lib.rs))
 uniq = $(eval seen :=) $(foreach _,$1,$(if $(filter $_,${seen}),,$(eval seen += $_))) ${seen}
 
-OBJS := start.ao log_cfg.ao main.o $(MODS:%=lib%.rlib) libkernel.rlib libcore.rlib
-EOBJS := $(foreach m,$(MODS), $(patsubst %,lib%.rlib,$(call fn_moddeps,$m)) )
+OBJS := start.ao log_cfg.ao main.o $(MODS:%=lib%.rlib.o) libkernel.rlib.o
+EOBJS := $(foreach m,$(MODS), $(patsubst %,lib%.rlib.o,$(call fn_moddeps,$m)) )
 OBJS += $(EOBJS)
 OBJS := $(shell echo $(call uniq, $(OBJS)))
 ifeq ($(OBJS),)
@@ -108,16 +116,10 @@ ENV += TK_BUILD="$(shell hostname --fqdn):$(BUILDNUM)"
 LIBCORESRC := ../libcore/
 IMGDIR := ../Graphics/.output/shared/
 
-# - External crates
-EXT_CRATES := stack_dst
-ifeq ($(ARCH),amd64)
-EXT_CRATES += va_list
-endif
-
 # - Exclude non-module crates from the object list
 OBJS := $(filter-out $(EXT_CRATES:%=%.o), $(OBJS))
 OBJS := $(OBJS:%=$(OBJDIR)%)
-LIBS := $(EXT_CRATES:%=$(OBJDIR)lib%.rlib)
+LIBS := $(OBJDIR)libcore.rlib $(EXT_CRATES:%=$(OBJDIR)lib%.rlib)
 ifeq ($(USE_ACPICA),1)
 	LIBS += $(OBJDIR)acpica.a
 endif
@@ -186,7 +188,7 @@ $(OBJDIR)kernel.ir: Core/main.rs $(OBJDIR)libcore.rlib $(TARGET_FILE)
 bin/kernel-$(ARCH).bin: $(OBJS) Core/arch/$(ARCH)/link.ld Makefile
 	@mkdir -p bin/ $(OBJDIR)
 	@echo [LD] -o $@
-	$V$(LD) -o $@ $(OBJS) $(LIBS) $(LINKFLAGS)
+	$V$(LD) -o $@ --whole-archive $(OBJS) --no-whole-archive $(LIBS) $(LINKFLAGS)
 ifeq ($(ARCH),amd64)
 	@objcopy $@ --only-keep-debug $@.debug
 	@objcopy $@ -F elf32-i386 $@.elf32
@@ -244,6 +246,10 @@ $(OBJDIR)lib%.rlib: Modules/%/lib.rs $(OBJDIR)libcore.rlib $(OBJDIR)libkernel.rl
 	@echo [RUSTC] -o $@
 	@mkdir -p $(dir $@)
 	$V$(ENV) $(RUSTC) $(RUSTFLAGS) --emit=link,dep-info --out-dir $(dir $@) --crate-name=$* --crate-type=lib $< $(call LocalLib,core) $(call LocalLib,kernel)
+$(OBJDIR)lib%.rlib.o: $(OBJDIR)lib%.rlib
+	$Vcp $< $@.tmp
+	$Var d $@.tmp $$(ar t $< | grep -v '\.o$$')
+	$Vmv $@.tmp $@
 
 $(OBJDIR)%.o: Modules/%/lib.rs $(OBJDIR)lib%.rlib
 	@#
