@@ -4,7 +4,6 @@
 // Modules/lib_utf16/lib.rs
 //! UTF-16 string support
 #![no_std]
-#![feature(unicode)]
 #[macro_use] extern crate kernel;
 #[allow(unused_imports)]
 use kernel::prelude::*;
