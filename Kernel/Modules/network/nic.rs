@@ -64,7 +64,7 @@ pub trait Interface: 'static + Send + Sync
 
 	// TODO: This interface is wrong, Waiter is the trait that bounds waitable objects (Use SleepObject instead)
 	/// Called once to allow the interface to get an object to signal a new packet arrival
-	fn rx_wait_register(&self, channel: &mut ::kernel::threads::SleepObject);
+	fn rx_wait_register(&self, channel: &::kernel::threads::SleepObject);
 	
 	/// Obtain a packet from the interface (or `Err(Error::NoPacket)` if there is none)
 	fn rx_packet(&self) -> Result<PacketHandle, Error>;

@@ -7,6 +7,7 @@
 #![feature(linkage)]	// for module_define!
 #![feature(integer_atomics)]	// AtomicU8
 use kernel::prelude::*;
+use kernel::sync::Mutex;
 use core::sync::atomic::{Ordering,AtomicU8,AtomicU16};
 use network::nic;
 use hw::Regs;
@@ -39,6 +40,8 @@ struct Card
 	// Buffer: Three contigious pages
 	rx_buffer: ::kernel::memory::virt::ArrayHandle<u8>,
 	rx_seen_ofs: AtomicU16,
+
+	waiter_handle: Mutex<Option<::kernel::threads::SleepObjectRef>>,
 
 	// Transmit Buffers
 	tx_buffer_handles: [ ::kernel::memory::virt::ArrayHandle<u8>; 2 ],
@@ -98,6 +101,7 @@ impl BusDev
 			io_base: io,
 			rx_buffer: rx_buffer,
 			rx_seen_ofs: AtomicU16::new(0),
+			waiter_handle: Default::default(),
 			tx_buffer_handles: tx_buffer_handles,
 			tx_slots: buffer_ring::BufferRing::new(tx_slots),
 			tx_slots_active: AtomicU8::new(0),
@@ -295,8 +299,8 @@ impl nic::Interface for Card
 
 		self.start_tx(buf, total_len);
 	}
-	fn rx_wait_register(&self, channel: &mut ::kernel::threads::SleepObject) {
-		todo!("rx_wait_register");
+	fn rx_wait_register(&self, channel: &::kernel::threads::SleepObject) {
+		*self.waiter_handle.lock() = Some(channel.get_ref());
 	}
 	fn rx_packet(&self) -> Result<nic::PacketHandle, nic::Error> {
 		todo!("rx_packet");
