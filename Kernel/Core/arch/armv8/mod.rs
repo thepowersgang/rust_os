@@ -13,6 +13,11 @@ pub mod interrupts;
 #[path="../armv7/fdt.rs"]
 mod fdt;
 
+module_define!{arch, [], init}
+fn init()
+{
+}
+
 pub fn print_backtrace() {
 	let mut fp: *const FrameEntry;
 	// SAFE: Just loads the frame pointer

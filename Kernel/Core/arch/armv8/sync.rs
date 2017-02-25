@@ -12,6 +12,8 @@ pub struct Spinlock<T>
 unsafe impl<T: Send> Sync for Spinlock<T> {}
 unsafe impl<T: Send> Send for Spinlock<T> {}
 
+fn cur_cpu() -> usize { 0 }
+
 impl<T> Spinlock<T>
 {
 	pub const fn new(v: T) -> Spinlock<T> {
@@ -21,15 +23,25 @@ impl<T> Spinlock<T>
 			}
 	}
 	pub fn lock(&self) -> HeldSpinlock<T> {
+		let my_id = cur_cpu() as u8 + 1;
 		if self.flag.load(Ordering::Acquire) == 1 {
 			panic!("Double-lock");
 		}
-		while self.flag.compare_exchange(0, 1, Ordering::Acquire, Ordering::Acquire).is_err() {
+		// Set flag to my_id if zero, loop otherwise
+		while self.flag.compare_exchange(0, my_id, Ordering::Acquire, Ordering::Acquire).is_err() {
 		}
 		HeldSpinlock(self)
 	}
 	pub fn try_lock_cpu(&self) -> Option<HeldSpinlock<T>> {
-		todo!("Spinlock::try_lock_cpu");
+		let my_id = cur_cpu() as u8 + 1;
+		if self.flag.load(Ordering::Acquire) == my_id {
+			None
+		}
+		else {
+			while self.flag.compare_exchange(0, my_id, Ordering::Acquire, Ordering::Acquire).is_err() {
+			}
+			Some(HeldSpinlock(self))
+		}
 	}
 }
 impl<T> Default for Spinlock<T>
