@@ -173,10 +173,10 @@ pub unsafe fn map(addr: *const (), phys: u64, prot: ProtectionMode)
 	}
 	// Invalidate TLB for this address
 	// SAFE: Safe assembly
-	unsafe {
+	//unsafe {
 		let MASK: usize = ((1 << 43)-1) & !3;	// 43 bits of address (after shifting by 12)
 		asm!("TLBI ALLE1 $0" : : "r"( (addr as usize >> 12) & MASK ));
-	}
+	//}
 }
 pub unsafe fn reprotect(addr: *const (), prot: ProtectionMode)
 {
@@ -215,7 +215,8 @@ impl AddressSpace
 		extern "C" {
 			static kernel_root: [u64; 2048];
 		}
-		AddressSpace(kernel_root[2048-2] & !0x3FFF)
+		// SAFE: Constant value
+		AddressSpace(unsafe { kernel_root[2048-2] & !0x3FFF })
 	}
 	pub fn new(start: usize, end: usize) -> Result<AddressSpace,()>
 	{
