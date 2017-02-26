@@ -285,4 +285,5 @@ $(IMGDIR)%.rs: ../Graphics/ConvertTo32bppRS
 -include $(OBJDIR)libcore.d
 -include $(filter %.d, $(patsubst %.o,%.d,$(OBJS)))
 -include $(filter %.d, $(patsubst %.ao,%.ao.d,$(OBJS)))
+-include $(filter %.d, $(patsubst $(OBJDIR)lib%.rlib.o,$(OBJDIR)%.d,$(OBJS)))
 
