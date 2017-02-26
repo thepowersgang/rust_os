@@ -72,6 +72,7 @@ pub trait Interface: 'static + Send + Sync
 
 struct InterfaceData
 {
+	#[allow(dead_code)]	// Never read, just exists to hold the handle
 	base_interface: Aref<Interface+'static>,
 	thread: ::kernel::threads::WorkerThread,
 }
@@ -80,13 +81,23 @@ static INTERFACES_LIST: Mutex<Vec< Option<InterfaceData> >> = Mutex::new(Vec::ne
 
 /// Handle to a registered interface
 pub struct Registration<T> {
+	// Logically owns the `T`
 	pd: ::core::marker::PhantomData<T>,
 	index: usize,
 	ptr: ArefBorrow<T>,
 }
 impl<T> Drop for Registration<T> {
 	fn drop(&mut self) {
-		// TODO: Poke registration and tell it to remove
+		let mut lh = INTERFACES_LIST.lock();
+		assert!( self.index < lh.len() );
+		if let Some(ref int_ent) = lh[self.index] {
+			//int_ent.stop_signal.set();
+			int_ent.thread.wait().expect("Couldn't wait for NIC worker to terminate");
+		}
+		else {
+			panic!("NIC registration pointed to unpopulated entry");
+		}
+		lh[self.index] = None;
 	}
 }
 impl<T> ::core::ops::Deref for Registration<T> {
@@ -103,11 +114,12 @@ pub fn register<T: Interface>(mac_addr: [u8; 6], int: T) -> Registration<T> {
 	// HACK: Send a dummy packet
 	// - An ICMP Echo request to qemu's user network router
 	{
-		let pkt = 
+		let mut pkt = 
 			// MAC Dst                MAC Src     EtherTy IP      TotalLen Identif Frag   TTL Prot CkSum  Source          Dest            ICMP
-			b"\xFF\xFF\xFF\xFF\xFF\xFF\0\0\0\0\0\0\x08\x00\x45\x00\x00\x23\x00\x00\x00\x00\xFF\x01\xa3\xca\x0A\x00\x02\x0F\x0A\x00\x02\x01\x08\x00\x7d\x0d\x00\x00\x00\x00Hello World"
+			*b"\xFF\xFF\xFF\xFF\xFF\xFF\0\0\0\0\0\0\x08\x00\x45\x00\x00\x23\x00\x00\x00\x00\xFF\x01\xa3\xca\x0A\x00\x02\x0F\x0A\x00\x02\x01\x08\x00\x7d\x0d\x00\x00\x00\x00Hello World"
 			;
-		reg.tx_raw(SparsePacket { head: pkt, next: None });
+		pkt[6..][..6].copy_from_slice( &mac_addr );
+		reg.tx_raw(SparsePacket { head: &pkt, next: None });
 	}
 
 	let worker_reg = reg.borrow();
@@ -139,12 +151,12 @@ fn rx_thread(int: &Interface)
 {
 	loop
 	{
-		let mut so = ::kernel::threads::SleepObject::new("rx_thread");
-		//int.rx_wait_register(&mut so);
+		let so = ::kernel::threads::SleepObject::new("rx_thread");
+		int.rx_wait_register(&so);
 		so.wait();
 		match int.rx_packet()
 		{
-		Ok(pkt) => todo!(""),
+		Ok(pkt) => todo!("Received packet - len={}", pkt.len()),
 		Err(Error::NoPacket) => {},
 		Err(e) => todo!("{:?}", e),
 		}

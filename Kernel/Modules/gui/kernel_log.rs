@@ -147,7 +147,7 @@ impl KernelLog
 		pos
 	}
 	/// Flush changes
-	#[tag_safe(taskswitch)]	//< Must be safe to call from within a spinlock
+	#[req_safe(taskswitch)]	//< Must be safe to call from within a spinlock
 	fn flush(&self)
 	{
 		// Poke the WM and tell it to reblit us
@@ -188,7 +188,7 @@ impl KernelLog
 		}
 	}
 	/// Actually does the rendering
-	#[tag_safe(taskswitch)]	//< Must be safe to call from within a spinlock
+	#[req_safe(taskswitch)]	//< Must be safe to call from within a spinlock
 	fn render_char(&self, pos: CharPos, colour: Colour, cp: char)
 	{
 		if self.buffer_handle.dims().width() == 0 {

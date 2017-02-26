@@ -18,6 +18,12 @@ impl WorkerThread
 		let handle = super::thread::ThreadHandle::new(name, fcn, super::S_PID0.clone());
 		WorkerThread(handle)
 	}
+
+	// TODO: Allow the worker to return a value?
+	pub fn wait(&self) -> Result<(),()>
+	{
+		todo!("Wait for worker thread to terminate");
+	}
 }
 
 

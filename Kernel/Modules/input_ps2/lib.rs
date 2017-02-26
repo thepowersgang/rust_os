@@ -19,7 +19,7 @@ use kernel::prelude::*;
 // HACK: Requires USB to be active to ensure that emulation is off
 #[cfg(any(arch="amd64", arch="x86"))]
 module_define!{PS2, [DeviceManager, ACPI, GUI/*, USB*/], init}
-#[cfg(any(arch="armv7"))]
+#[cfg(any(arch="armv7",arch="armv8"))]
 module_define!{PS2, [DeviceManager, GUI/*, USB*/], init}
 
 #[derive(Debug)]
@@ -52,7 +52,7 @@ fn init()
 	mod i8042;
 	i8042::init();
 }
-#[cfg(any(arch="armv7"))]
+#[cfg(any(arch="armv7",arch="armv8"))]
 fn init()
 {
 	#[path="pl050.rs"]
