@@ -5,6 +5,7 @@
 //! Asynchronous Mutex.
 //!
 //! Provides an asynchonous mutex type, for use with the async IO framework
+
 #[allow(unused_imports)]
 use prelude::*;
 use core::cell::UnsafeCell;
@@ -12,11 +13,20 @@ use core::sync::atomic::{AtomicBool,Ordering};
 use core::fmt;
 use async::PrimitiveWaiter;
 
+// NOTES:
+// This should support:
+// - Blocking waits (by deferring to a new async structure)
+// - try_lock()
+// - async_lock()
+//  > Returns a handle registered to be the next lock handle
+//  > If this handle is leaked, the lock deadlocks (understandably)
+//  > When dropped, this handle will wait until the mutex is yielded to it before it instantly yields
+
 /// Asynchronous mutex type
 pub struct Mutex<T: Send>
 {
 	locked: AtomicBool,
-	waiters: super::queue::Source,
+	waiters: super::sequential_queue::Source,
 	data: UnsafeCell<T>,
 }
 unsafe impl<T: Send> Sync for Mutex<T> {}
@@ -31,7 +41,7 @@ pub struct Waiter<'a,T: Send+'a>
 #[derive(Debug)]
 enum WaitState<'a>
 {
-	Sleep(super::queue::Waiter<'a>),
+	Sleep(super::sequential_queue::Waiter<'a>),
 	Complete,
 	Consumed
 }
@@ -49,7 +59,7 @@ impl<T: Send> Mutex<T>
 	{
 		Mutex {
 			locked: AtomicBool::new(false),
-			waiters: super::queue::Source::new(),
+			waiters: super::sequential_queue::Source::new(),
 			data: UnsafeCell::new(data),
 		}
 	}
@@ -59,6 +69,7 @@ impl<T: Send> Mutex<T>
 	{
 		if self.locked.swap(true, Ordering::Acquire) == false
 		{
+			log_trace!("async::Mutex<{}>::try_lock - success", type_name!(T));
 			Some(HeldMutex { __lock: self })
 		}
 		else
@@ -70,20 +81,29 @@ impl<T: Send> Mutex<T>
 	/// Asynchronously lock the mutex
 	pub fn async_lock(&self) -> Waiter<T>
 	{
+		// Short-circuit successful lock
 		if self.locked.swap(true, Ordering::Acquire) == false
 		{
+			log_trace!("async::Mutex<{}>::async_lock - success", type_name!(T));
+			// A complete handle is a lock handle that doesn't yet fully exist
 			Waiter::new_complete(self)
 		}
 		else
 		{
+			log_trace!("async::Mutex<{}>::async_lock - wait", type_name!(T));
+			// Create a handle that will be the next one woken
 			Waiter::new_sleep(self, &self.waiters)
 		}
 	}
 }
 
+
+// --
+// Waiter : A handle representing a position in the queue
+// --
 impl<'a, T: Send> Waiter<'a,T>
 {
-	fn new_sleep<'b>(lock: &'b Mutex<T>, queue: &'b super::queue::Source) -> Waiter<'b, T> {
+	fn new_sleep<'b>(lock: &'b Mutex<T>, queue: &'b super::sequential_queue::Source) -> Waiter<'b, T> {
 		Waiter { lock: lock, state: WaitState::Sleep(queue.wait_on()) }
 	}
 	fn new_complete(lock: &Mutex<T>) -> Waiter<T> {
@@ -102,11 +122,25 @@ impl<'a, T: Send> Waiter<'a,T>
 		}
 	}
 }
+impl<'a, T: Send> ::core::ops::Drop for Waiter<'a, T>
+{
+	fn drop(&mut self) {
+		match self.state
+		{
+		WaitState::Sleep(_) => todo!("Either panic or wait until the lock is released"),
+		WaitState::Complete => {
+			// Allocate a lock handle then let it drop, 
+			let _ = HeldMutex { __lock: self.lock };
+			},
+		WaitState::Consumed => {},
+		}
+	}
+}
 
 impl<'a, T: Send> fmt::Debug for Waiter<'a,T>
 {
 	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-		write!(f, "Mutex<{}>::Waiter(state={:?})", type_name!(T), self.state)
+		write!(f, "async::Mutex<{}>::Waiter(state={:?})", type_name!(T), self.state)
 	}
 }
 
@@ -133,6 +167,7 @@ impl<'a, T: Send> PrimitiveWaiter for Waiter<'a,T>
 		self.state = match self.state
 			{
 			WaitState::Sleep(ref mut obj) => {
+				assert!(obj.is_complete());
 				obj.run_completion();
 				WaitState::Complete
 				},
@@ -168,9 +203,11 @@ impl<'a,T: Send + 'a> ::core::ops::Drop for HeldMutex<'a, T>
 		if self.__lock.waiters.wake_one()
 		{
 			// If a thread was woken, they now own this lock
+			log_trace!("async::HeldMutex<{}>::drop - yield", type_name!(T));
 		}
 		else
 		{
+			log_trace!("async::HeldMutex<{}>::async_lock - release", type_name!(T));
 			self.__lock.locked.store(false, Ordering::Release);
 		}
 	}

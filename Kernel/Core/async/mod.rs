@@ -17,6 +17,7 @@ pub mod mutex;
 pub mod timer;
 pub mod event;
 pub mod queue;
+pub mod sequential_queue;
 pub mod poll;
 
 /// A boxed ResultWaiter that resturns a Result
@@ -38,6 +39,8 @@ pub trait PrimitiveWaiter:
 	/// Binds this waiter to signal the provided sleep object
 	/// 
 	/// Called before the completion handler
+	///
+	/// Returns true if the sleep object was sucessfully registered, false to force polling (e.g. if already complete)
 	fn bind_signal(&mut self, sleeper: &mut ::threads::SleepObject) -> bool;
 	
 	/// Unbind waiters from this sleep object
@@ -210,8 +213,18 @@ pub fn wait_on_list(waiters: &mut [&mut Waiter], timeout: Option<u64>) -> Option
 		log_trace!("- Polling");
 		let mut n_passes = 0;
 		// While none of the active waiters returns true from poll()
-		while !waiters.iter_mut().filter(|x| !x.is_complete()).fold(false, |r,e| r || e.get_waiter().poll())
+		'outer: loop
 		{
+			for w in waiters.iter_mut()
+			{
+				if w.is_complete() {
+				}
+				else if w.get_waiter().poll() {
+					break 'outer;
+				}
+				else {
+				}
+			}
 			n_passes += 1;
 			// TODO: Take a short nap
 		}

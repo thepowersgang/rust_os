@@ -3,6 +3,8 @@
 //
 // Core/async/queue.rs
 //! Asynchronous wait queue
+//!
+//! Only wakes waiters that are currently waiting on the queue.
 #[allow(dead_code)]
 use core::fmt;
 
