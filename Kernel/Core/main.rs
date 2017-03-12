@@ -20,9 +20,9 @@
 #![feature(const_fn)]	// Allows defining `const fn`
 #![feature(get_type_id)] // used by process_local's "AnyMap" hackery
 #![feature(drop_types_in_const)]	// Allows `statics` to contain destructors
-#![feature(unicode)]
 #![feature(placement_new_protocol)]	// Used for Box<T> (mrustc support)
 #![feature(integer_atomics)]	// AtomicU8
+#![feature(generic_param_attrs,dropck_eyepatch)]
 
 #![no_std]
 

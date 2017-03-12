@@ -128,3 +128,8 @@ impl<T: ?Sized> ops::DerefMut for Box<T> {
 	}
 }
 
+unsafe impl<#[may_dangle] T: ?Sized> ops::Drop for Box<T> {
+	fn drop(&mut self) {
+	}
+}
+
