@@ -82,8 +82,12 @@ impl Dev
 		State::Init(s) =>
 			match s
 			{
-			Init::Disabled => None,
+			Init::Disabled => {
+				log_debug!("Disabled keyboard {:#02x}", byte);
+				None
+				},
 			Init::ReqScancodeSetAck => {
+				log_debug!("ACK ReqScancodeSet");
 				self.state = State::Init(Init::ReqScancodeSetRsp);
 				Some(0x00)
 				},
@@ -98,6 +102,7 @@ impl Dev
 					},
 				// Scancode set 2 (most common)
 				2 /*0x41*/ => {
+					log_debug!("Keyboard ready, scancode set 2");
 					self.state = State::Idle(Layer::Base,false);
 					None
 					},
@@ -105,6 +110,10 @@ impl Dev
 				3 /*0x3F*/ => {
 					log_warning!("TODO: Support scancode set 3");
 					self.state = State::Init(Init::Disabled);
+					None
+					},
+				0xFA => {
+					log_warning!("Received second ACK for ReqScancodeSetRsp {:#02x}", byte);
 					None
 					},
 				_ => {

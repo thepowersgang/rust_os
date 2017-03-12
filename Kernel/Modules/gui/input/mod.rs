@@ -93,6 +93,7 @@ impl InputChannel
 	}
 	pub fn handle_key(&self, key: keyboard::KeyCode, release: bool)
 	{
+		log_trace!("key={:?}, release={}", key, release);
 		match (release, key)
 		{
 		// Maintain key states
