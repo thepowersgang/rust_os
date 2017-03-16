@@ -4,6 +4,7 @@ import time
 import os
 import shutil
 import sys
+import subprocess
 
 def run_test(arch, test_name,  test_method):
     instance = Instance(arch, test_name)
@@ -36,12 +37,15 @@ class Instance:
         self._y = 0
         self._btns = 0
         self._screenshot_dir = 'test-%s-%s' % (arch,testname,)
+        self._cmd.cmd("change vnc :99")
         try:
             shutil.rmtree("Kernel/rundir/"+self._screenshot_dir)
         except:
             pass
         os.mkdir("Kernel/rundir/"+self._screenshot_dir)
         pass
+    def start_capture(self):
+        self._encoder = subprocess.Popen(['/home/tpg/.local/bin/flvrec.py', '-o', 'Kernel/rundir/'+self._screenshot_dir+'/video.flv', 'localhost:99'])
     def flush(self):
         try:
             while self.wait_for_idle():
