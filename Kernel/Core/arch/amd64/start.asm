@@ -396,7 +396,19 @@ EXPORT memset
 ;; RSI = Source
 ;; RDX = Count
 EXPORT memcpy
+	mov rax, rdi ; Prepare to return RDI
 	mov rcx, rdx
+	; Check if a word-wise copy is possible
+	test di, 7
+	jnz .byte
+	test si, 7
+	jnz .byte
+	test cx, 7
+	jnz .byte
+	shr rcx, 3
+	rep movsq
+	ret
+.byte:
 	rep movsb
 	ret
 ;; RDI = Destination

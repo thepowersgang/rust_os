@@ -38,8 +38,20 @@ memset:
 // RDX = Count
 .globl memcpy
 memcpy:
-	mov %rdx, %rcx
 	mov %rdi, %rax // Prepare to return RDI
+	// Check if a word-wise copy is possible
+	test $7, %di
+	jnz 1f
+	test $7, %si
+	jnz 1f
+	test $7, %dx
+	jnz 1f
+	mov %rdx, %rcx
+	shr $3, %rcx
+	rep movsq
+	ret
+1:
+	mov %rdx, %rcx
 	rep movsb
 	ret
 // RDI = Destination
