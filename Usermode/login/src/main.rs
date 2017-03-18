@@ -18,6 +18,7 @@ macro_rules! imgpath {
 		($p:expr) => {concat!("/system/Tifflin/shared/images/",$p)};
 }
 
+mod auth;
 
 static VFS_ROOT: LazyStatic< ::syscalls::vfs::Dir > = LazyStatic::new();
 
@@ -124,19 +125,16 @@ fn main()
 fn try_login(username: &str, password: &str) -> Result<(), &'static str>
 {
 	kernel_log!("username = \"{}\", password = \"{}\"", username, password);
-	// TODO: Use a proper auth infrastructure
-	if username == "root" && password == "password"
+	match auth::try_login(username, password)
 	{
-		// Start the handle server for this session?
-		// - TODO: Should the handle server be per-session, or a global service?
-		// - Global service makes some logic easier, but leads to DoS between users
+	Ok(i) => {
 		// Spawn console, and wait for it to terminate
-		spawn_console_and_wait("/sysroot/bin/shell");
+		// - This also spawns the handle server for the session
+		spawn_console_and_wait( i.get_shell() );
 		Ok( () )
-	}
-	else
-	{
-		Err( "Invalid username or password" )
+		},
+	Err(auth::Error::InvalidAuthentication) => Err("Invalid username or password"),
+	Err(auth::Error::Disabled) => Err("Account disabled"),
 	}
 }
 
@@ -160,9 +158,7 @@ fn spawn_console_and_wait(path: &str)
 		pp.send_obj( "HsChan", hs_chan );
 		pp.start()
 		};
-	// TODO: I need something more elegant than this.
-	// - Needs to automatically pass the WGH
-	// - OR - Just have a wtk method to pass it `::wtk::share_handle(&console)`
+	// Spawn the shell and hand it a GUI root and handle server channel
 	let console = {
 		let fh = match open_exe(path)
 			{
