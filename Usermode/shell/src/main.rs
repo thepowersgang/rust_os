@@ -85,11 +85,16 @@ fn main()
 			::wtk::image::RasterMonoA::new_img(imgpath!("power.r8"), ::wtk::Colour::theme_text()).expect("Error loading power icon"),
 			|_button, _window| power_menu.show()
 			);
+		let options_button = ::wtk::Button::new(
+			::wtk::image::RasterMonoA::new_img(imgpath!("options.r8"), ::wtk::Colour::theme_text()).expect("Error loading options icon"),
+			|_button, _window| {}
+			);
 		::wtk::StaticBox::new_horiz((
 			::wtk::BoxEle::fixed(20, logo_button),
 			::wtk::BoxEle::expand(taskbar),
 			::wtk::BoxEle::fixed(50, clock_widget),
 			::wtk::BoxEle::fixed(20, power_button),
+			::wtk::BoxEle::fixed(20, options_button),
 			))
 		};
 	let mut win_menu = {
