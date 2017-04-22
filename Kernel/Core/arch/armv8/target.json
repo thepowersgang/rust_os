@@ -7,6 +7,7 @@
 	"target-word-size": "64",
 	"os": "tifflin",
 	"arch": "aarch64",
+		"linker-flavor": "ld",
 		"no-compiler-rt": true,
 		"features": "-neon,-fp-armv8",
 		"executables": true,

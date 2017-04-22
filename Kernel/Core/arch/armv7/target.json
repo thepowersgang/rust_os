@@ -7,6 +7,7 @@
 	"target-word-size": "32",
 	"os": "tifflin",
 	"arch": "arm",
+		"linker-flavor": "ld",
 		"no-compiler-rt": true,
 		"features": "+v7,+db,-neon,-vfp2,-vfp3,-vfp4,-fp16,+soft-float",
 		"executables": true,
