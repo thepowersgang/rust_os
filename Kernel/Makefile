@@ -22,7 +22,7 @@ MODS += fs_fat fs_iso9660 fs_extN
 MODS += storage_ahci
 MODS += nic_rtl8139
 ifeq ($(ARCH),amd64)
-MODS += video_vga
+#MODS += video_vga
 endif
 
 ifeq ($(ARCH),amd64)
