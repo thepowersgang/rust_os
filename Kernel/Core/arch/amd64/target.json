@@ -7,6 +7,7 @@
 	"target-word-size": "64",
 	"os": "tifflin",
 	"arch": "x86_64",
+		"linker-flavor": "ld",
 		"pre-link-args": ["-m64"],
 		"no-compiler-rt": true,
 		"disable-redzone": true,

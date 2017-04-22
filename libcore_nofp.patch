@@ -127,10 +127,10 @@ diff -rub libcore_orig/num/flt2dec/decoder.rs libcore/num/flt2dec/decoder.rs
 diff -rub libcore_orig/num/mod.rs libcore/num/mod.rs
 --- libcore_orig/num/mod.rs	2016-07-06 11:07:50.024716452 +0800
 +++ libcore/num/mod.rs	2016-07-06 11:06:59.888814705 +0800
-@@ -97,7 +97,9 @@
+@@ -91,7 +91,9 @@
  mod wrapping;
  
- // All these modules are technically private and only exposed for libcoretest:
+ // All these modules are technically private and only exposed for coretests:
 +#[cfg(not(disable_float))]
  pub mod flt2dec;
 +#[cfg(not(disable_float))]
