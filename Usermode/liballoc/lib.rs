@@ -48,6 +48,14 @@ pub mod raw_vec {
 		pub fn with_capacity(cap: usize) -> RawVec<T> {
 			RawVec( ::array::ArrayAlloc::new(cap) )
 		}
+		pub fn with_capacity_zeroed(cap: usize) -> RawVec<T> {
+			let rv = RawVec( ::array::ArrayAlloc::new(cap) );
+			// SAFE: Access in bounds, shouldn't be read without upper unsafe ensuring safety of zero value
+			unsafe {
+				::core::ptr::write_bytes(rv.ptr(), 0, rv.cap() * ::core::mem::size_of::<T>());
+			}
+			rv
+		}
 		pub unsafe fn from_raw_parts(base: *mut T, size: usize) -> RawVec<T> {
 			RawVec( ::array::ArrayAlloc::from_raw_parts(base, size) )
 		}
