@@ -137,14 +137,6 @@ diff -rub libcore_orig/num/mod.rs libcore/num/mod.rs
  pub mod dec2flt;
  pub mod bignum;
  pub mod diy_float;
-@@ -172,6 +174,7 @@
-         }
-     )*)
- }
-+#[cfg(not(disable_float))]
- zero_one_impl_float! { f32 f64 }
- 
- macro_rules! checked_op {
 @@ -2306,6 +2309,7 @@
  #[unstable(feature = "core_float",
             reason = "stable interface is via `impl f{32,64}` in later crates",
