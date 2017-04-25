@@ -100,8 +100,7 @@ pub fn init_handles(loader_handle: ::kernel::vfs::handle::File, init_handle: ::k
 struct Node( handle::Any );
 impl objects::Object for Node
 {
-	const CLASS: u16 = values::CLASS_VFS_NODE;
-	fn class(&self) -> u16 { Self::CLASS }
+	fn class(&self) -> u16 { values::CLASS_VFS_NODE }
 	fn as_any(&self) -> &Any { self }
 	fn try_clone(&self) -> Option<u32> {
 		Some( ::objects::new_object( Node(self.0.clone()) ) )
@@ -162,8 +161,7 @@ impl objects::Object for Node
 struct File(::kernel::vfs::handle::File);
 impl objects::Object for File
 {
-	const CLASS: u16 = values::CLASS_VFS_FILE;
-	fn class(&self) -> u16 { Self::CLASS }
+	fn class(&self) -> u16 { values::CLASS_VFS_FILE }
 	fn as_any(&self) -> &Any { self }
 	fn try_clone(&self) -> Option<u32> {
 		Some( ::objects::new_object( File(self.0.clone()) ) )
@@ -249,8 +247,7 @@ impl Dir {
 
 impl objects::Object for Dir
 {
-	const CLASS: u16 = values::CLASS_VFS_DIR;
-	fn class(&self) -> u16 { Self::CLASS }
+	fn class(&self) -> u16 { values::CLASS_VFS_DIR }
 	fn as_any(&self) -> &Any { self }
 	fn try_clone(&self) -> Option<u32> {
 		Some( ::objects::new_object( Dir { handle: self.handle.clone() } ) )
@@ -309,8 +306,7 @@ impl DirIter {
 }
 impl objects::Object for DirIter
 {
-	const CLASS: u16 = values::CLASS_VFS_DIRITER;
-	fn class(&self) -> u16 { Self::CLASS }
+	fn class(&self) -> u16 { values::CLASS_VFS_DIRITER }
 	fn as_any(&self) -> &Any { self }
 	fn try_clone(&self) -> Option<u32> {
 		None
@@ -407,8 +403,7 @@ impl DirEntCache {
 struct Link(handle::Symlink);
 impl objects::Object for Link
 {
-	const CLASS: u16 = values::CLASS_VFS_LINK;
-	fn class(&self) -> u16 { Self::CLASS }
+	fn class(&self) -> u16 { values::CLASS_VFS_LINK }
 	fn as_any(&self) -> &Any { self }
 	fn try_clone(&self) -> Option<u32> {
 		Some( ::objects::new_object( Link(self.0.clone()) ) )

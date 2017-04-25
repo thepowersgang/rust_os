@@ -16,8 +16,7 @@ use args::Args;
 pub struct CurProcess;
 impl ::objects::Object for CurProcess
 {
-	const CLASS: u16 = values::CLASS_CORE_THISPROCESS;
-	fn class(&self) -> u16 { Self::CLASS }
+	fn class(&self) -> u16 { values::CLASS_CORE_THISPROCESS }
 	fn as_any(&self) -> &Any { self }
 	fn try_clone(&self) -> Option<u32> {
 		None
@@ -100,8 +99,7 @@ pub fn wait(events: &mut [values::WaitItem], wake_time_mono: u64) -> Result<u32,
 pub struct ProtoProcess(::kernel::threads::ProcessHandle);
 impl ::objects::Object for ProtoProcess
 {
-	const CLASS: u16 = values::CLASS_CORE_PROTOPROCESS;
-	fn class(&self) -> u16 { Self::CLASS }
+	fn class(&self) -> u16 { values::CLASS_CORE_PROTOPROCESS }
 	fn as_any(&self) -> &Any { self }
 	fn try_clone(&self) -> Option<u32> {
 		None
@@ -148,8 +146,7 @@ impl ::objects::Object for ProtoProcess
 pub struct Process(::kernel::threads::ProcessHandle);
 impl ::objects::Object for Process
 {
-	const CLASS: u16 = values::CLASS_CORE_PROCESS;
-	fn class(&self) -> u16 { Self::CLASS }
+	fn class(&self) -> u16 { values::CLASS_CORE_PROCESS }
 	fn as_any(&self) -> &Any { self }
 	fn try_clone(&self) -> Option<u32> {
 		None

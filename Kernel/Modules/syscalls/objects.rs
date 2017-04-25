@@ -14,10 +14,9 @@ use kernel::threads::get_process_local;
 /// A system-call object
 pub trait Object: Send + Sync + ::core::any::Any
 {
-	/// Object class code (values::CLASS_*)
-	const CLASS: u16;
 	fn type_name(&self) -> &str { type_name!(Self) }
 	fn as_any(&self) -> &Any;
+	/// Object class code (values::CLASS_*)
 	fn class(&self) -> u16;
 
 	fn try_clone(&self) -> Option<u32>;
@@ -37,7 +36,6 @@ pub trait Object: Send + Sync + ::core::any::Any
 	fn clear_wait(&self, flags: u32, obj: &mut ::kernel::threads::SleepObject) -> u32;
 }
 impl<T: Object> Object for Box<T> {
-	const CLASS: u16 = 0xFFFF;
 	fn type_name(&self) -> &str { (**self).type_name() }
 	fn as_any(&self) -> &Any { (**self).as_any() }
 	fn class(&self) -> u16 { (**self).class() }

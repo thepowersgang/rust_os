@@ -18,8 +18,7 @@ unsafe impl Send for SyncChannel {}
 
 impl ::objects::Object for SyncChannel
 {
-	const CLASS: u16 = ::values::CLASS_IPC_RPC;
-	fn class(&self) -> u16 { Self::CLASS }
+	fn class(&self) -> u16 { ::values::CLASS_IPC_RPC }
 	fn as_any(&self) -> &::core::any::Any { self }
 	fn try_clone(&self) -> Option<u32> {
 		None
