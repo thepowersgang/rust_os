@@ -80,7 +80,7 @@ fn main()
 			|_,_| system_menu.show()
 			);
 		let taskbar = ();
-		let clock_widget = ::wtk::Label::new("12:34", ::wtk::Colour::theme_text());
+		let clock_widget = ::std::cell::RefCell::new(::wtk::OwnedLabel::new("12:34".to_owned(), ::wtk::Colour::theme_text()));
 		let power_button = ::wtk::Button::new(
 			::wtk::image::RasterMonoA::new_img(imgpath!("power.r8"), ::wtk::Colour::theme_text()).expect("Error loading power icon"),
 			|_button, _window| power_menu.show()
@@ -113,6 +113,14 @@ fn main()
 
 	win_background.show();
 	win_menu.show();
+
+	//let clock_timer = AsyncTimer::new_realtime( time::Realtime::now(), || {
+	//		let mut cur_time = time::Realtime::now();
+	//		// Update clock
+	//		menubar.inner().2.inner().borrow_mut().set( cur_time.format("%H:%M").to_string() );
+	//		// Re-schedule for the next minute
+	//		Some(cur_time % time::Interval::minute(1) + time::Interval::minute(1))
+	//		});
 
 	::async::idle_loop(&mut [
 		&mut win_background,

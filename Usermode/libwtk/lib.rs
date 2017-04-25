@@ -61,15 +61,25 @@ pub trait Element
 	/// Returns the child element and the offset of the child.
 	fn with_element_at_pos(&self, pos: ::geom::PxPos, dims: ::geom::PxDims, f: ::WithEleAtPosCb) -> bool;// { f(self, pos) }
 }
+macro_rules! dispatch_ele {
+	($self_:ident, $inner:expr) => {
+		fn focus_change(&$self_, have: bool) { $inner.focus_change(have) }
+		fn handle_event(&$self_, ev: ::InputEvent, win: &mut ::window::WindowTrait) -> bool { $inner.handle_event(ev, win) }
+
+		fn render(&$self_, surface: ::surface::SurfaceView, force: bool) { $inner.render(surface, force) }
+		fn resize(&$self_, w: u32, h: u32) { $inner.resize(w, h) }
+		fn with_element_at_pos(&$self_, pos: ::geom::PxPos, dims: ::geom::PxDims, f: ::WithEleAtPosCb) -> bool { $inner.with_element_at_pos(pos,dims,f) }
+		};
+}
 /// Object safe
 impl<'a, T: 'a + Element> Element for &'a T
 {
-	fn focus_change(&self, have: bool) { (*self).focus_change(have) }
-	fn handle_event(&self, ev: ::InputEvent, win: &mut ::window::WindowTrait) -> bool { (*self).handle_event(ev, win) }
-
-	fn render(&self, surface: ::surface::SurfaceView, force: bool) { (*self).render(surface, force) }
-	fn resize(&self, w: u32, h: u32) { (*self).resize(w, h) }
-	fn with_element_at_pos(&self, pos: ::geom::PxPos, dims: ::geom::PxDims, f: ::WithEleAtPosCb) -> bool { (*self).with_element_at_pos(pos,dims,f) }
+	dispatch_ele!{self, *self}
+}
+/// RefCell - Interior mutability
+impl<T: Element> Element for ::std::cell::RefCell<T>
+{
+	dispatch_ele!{self, self.borrow()}
 }
 /// Unit type is a valid element. Just does nothing.
 impl Element for ()
@@ -81,6 +91,7 @@ impl Element for ()
 	fn with_element_at_pos(&self, pos: ::geom::PxPos, _dims: ::geom::PxDims, f: ::WithEleAtPosCb) -> bool { f(self, pos) }
 }
 
+/// Solid colour
 impl Element for Colour
 {
 	fn resize(&self, _w: u32, _u: u32) {}
@@ -105,7 +116,7 @@ pub use scrollbar::Widget as Scrollbar;
 pub type ScrollbarV = scrollbar::Widget<scrollbar::Vertical>;
 pub type ScrollbarH = scrollbar::Widget<scrollbar::Horizontal>;
 
-pub use text::Label;
+pub use text::{Label,OwnedLabel};
 
 /// Initialise the WTK library with a window group handle sent by the parent process
 pub fn initialise()

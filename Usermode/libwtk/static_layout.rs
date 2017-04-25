@@ -42,6 +42,10 @@ impl<E: Element> BoxEle<E>
 			ele: ele,
 		}
 	}
+
+	pub fn inner(&self) -> &E {
+		&self.ele
+	}
 }
 
 
@@ -61,6 +65,10 @@ impl<S: BoxEleSet> Box<S>
 	/// Create a horizontally stacked box
 	pub fn new_horiz(eles: S) -> Self {
 		Box::new(Direction::Horizontal, eles)
+	}
+
+	pub fn inner(&self) -> &S {
+		&self.elements
 	}
 
 	// returns (has_changed, expand_size)

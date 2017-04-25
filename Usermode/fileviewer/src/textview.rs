@@ -1,7 +1,10 @@
 // Tifflin OS File Viewer
 // - By John Hodge (thePowersGang)
 //
-//! Text view widget
+// fileviewer/src/textview.rs
+//! Text buffer viewer widget
+//!
+//! 
 use wtk::geom::Rect;
 use wtk::Colour;
 
@@ -32,6 +35,7 @@ impl Widget
 			}
 	}
 
+	/// Populate the buffer with the provided "file"
 	pub fn populate<R>(&self, mut file: R) -> ::std::io::Result<()>
 	where
 		R: ::std::io::Read + ::std::io::Seek

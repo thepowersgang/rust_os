@@ -169,7 +169,8 @@ impl Standard
 
 	fn render_button_exit(&self, surface: SurfaceView) {
 		self.buttton_template().render( surface.clone() );
-		//theme.render_button_exit(surface.slice(
+		// Draw an X in the middle
+		// TODO: ^
 	}
 
 	fn mouse_region(&self, x: u32, y: u32, w: u32, h: u32) -> Option<MouseRegion> {
