@@ -1,7 +1,8 @@
+// Tifflin OS - Usermode Synchronisation
+// - By John Hodge (thePowersGang)
 //
-//
-//
-///
+///! Mutex type
+// NOTE: This is based on the futex-based mutex used by linux (source unknown, TODO: find)
 use core::ops;
 use core::cell::UnsafeCell;
 use core::sync::atomic::{AtomicUsize,Ordering};
@@ -14,7 +15,7 @@ pub struct Mutex<T>
 unsafe impl<T: Send> Send for Mutex<T> {}
 unsafe impl<T: Send> Sync for Mutex<T> {}
 
-// NOTE: Unlock code requires these exact values
+// NOTE: Unlock code requires these exact values (the ordering)
 /// Lock is unlocked
 const STATE_UNLOCKED   : usize = 0;
 /// Locked, with nothing waiting
@@ -32,8 +33,9 @@ impl<T> Mutex<T>
 	}
 
 	pub fn lock(&self) -> HeldMutex<T> {
+		// If existing value is UNLOCKED, then set to UNCONTENDED locked
 		let mut cur = self.locked.compare_and_swap(STATE_UNLOCKED, STATE_UNCONTENDED, Ordering::Acquire);
-		// If it wasn't locked, contention has happened
+		// If it wasn't locked, contention has happened. Do a contented acquire
 		if cur != STATE_UNLOCKED
 		{
 			// If the lock was uncontended
@@ -44,8 +46,7 @@ impl<T> Mutex<T>
 			// While the last seen value wasn't "unlocked"
 			while cur != STATE_UNLOCKED {
 				// Go to sleep if still contended when wait starts
-				//::syscalls::sync::futex_wait(&self.locked, STATE_CONTENDED);
-				panic!("TODO: Mutex::lock() - futex_wait()");
+				::syscalls::sync::futex_wait(&self.locked, STATE_CONTENDED);
 				cur = self.locked.swap(STATE_CONTENDED, Ordering::Acquire)
 			}
 		}
@@ -78,8 +79,7 @@ impl<'a, T> ::core::ops::Drop for HeldMutex<'a, T> {
 			// - Set to unlocked state
 			self.ptr.locked.store(STATE_UNLOCKED, Ordering::Release);
 			// - And wake one waiter
-			//::syscalls::sync::futex_wake(&self.ptr.locked, 1);
-			panic!("TODO: Release contended mutex");
+			::syscalls::sync::futex_wake(&self.ptr.locked, 1);
 		}
 		// In unlocked state
 	}

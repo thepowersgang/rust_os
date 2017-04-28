@@ -1,7 +1,9 @@
+// Tifflin OS - Usermode Synchronisation
+// - By John Hodge (thePowersGang)
 //
+//! Reader-writer lock
 use core::ops;
 use core::cell::UnsafeCell;
-use core::sync::atomic::{AtomicUsize,Ordering};
 use mutex::Mutex;
 
 pub struct RwLock<T: ?Sized>

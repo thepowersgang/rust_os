@@ -5,6 +5,8 @@
 #![feature(const_fn)]
 #![no_std]
 
+extern crate syscalls;
+
 pub use mutex::Mutex;
 pub use rwlock::RwLock;
 

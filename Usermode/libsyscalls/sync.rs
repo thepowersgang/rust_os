@@ -67,3 +67,11 @@ impl<'a, T: 'a> ops::Drop for HeldMutex<'a, T>
 	}
 }
 
+pub fn futex_wait(addr: &AtomicUsize, sleep_if_val: usize)
+{
+	panic!("TODO: futex_wait");
+}
+pub fn futex_wake(addr: &AtomicUsize, num_to_wake: usize)
+{
+}
+
