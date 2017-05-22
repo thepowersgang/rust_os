@@ -311,8 +311,7 @@ impl ThreadPtr {
 		ThreadPtr( unsafe { ::core::ptr::Unique::new( (ptr as *mut _ as usize | 1) as *mut Thread) } )
 	}
 	pub fn into_boxed(self) -> Result<Box<Thread>, &'static mut Thread> {
-		// SAFE: It's a originally boxed pointer
-		let p = *self.0 as usize;
+		let p = self.0.as_ptr() as usize;
 		::core::mem::forget(self);
 		if p & 1 == 0 {
 			// SAFE: bit 0 unset indicates heap pointer
@@ -324,7 +323,7 @@ impl ThreadPtr {
 		}
 	}
 	fn as_ptr(&self) -> *mut Thread {
-		let p = (*self.0 as usize) & !1;
+		let p = (self.0.as_ptr() as usize) & !1;
 		p as *mut Thread
 	}
 	pub fn unwrap(self) -> *mut Thread {
@@ -334,7 +333,7 @@ impl ThreadPtr {
 	}
 
 	pub fn into_usize(self) -> usize {
-		let rv = *self.0 as usize;
+		let rv = self.0.as_ptr() as usize;
 		::core::mem::forget(self);
 		rv
 	}

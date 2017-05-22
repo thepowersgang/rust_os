@@ -8,6 +8,7 @@ all: run
 QEMU_ARGS := -s -no-reboot
 ifeq ($(ENABLE_VIDEO),)
 	QEMU_ARGS += -nographic
+	QEMU_ARGS += -vnc 127.0.0.1:99
 else
 	QEMU_ARGS += -serial stdio
 endif

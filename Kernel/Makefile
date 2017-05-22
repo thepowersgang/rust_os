@@ -171,6 +171,11 @@ endif
 ../libcore/lib.rs: ../rustc-nightly-src.tar.gz ../libcore_nofp.patch
 	tar -xmf ../rustc-nightly-src.tar.gz -C ../ rustc-nightly-src/src/libcore --transform 's~^rustc-nightly-src/src/~~'
 	cd .. && patch -p0 < libcore_nofp.patch
+.PHONY: NEWPATCH
+NEWPATCH:
+	tar -xmf ../rustc-nightly-src.tar.gz -C ../ rustc-nightly-src/src/libcore --transform 's~^rustc-nightly-src/src/libcore~libcore_orig~'
+	cd .. && (diff -rub libcore_orig/ libcore/; true) > libcore_nofp.patch
+	
 
 # ---
 # Debug

@@ -13,7 +13,7 @@
 #![feature(thread_local)]	// Allows use of thread_local
 #![feature(lang_items)]	// Allow definition of lang_items
 #![feature(optin_builtin_traits)]	// Negative impls
-#![feature(unique,nonzero)]	// Unique/NonZero for smart pointers
+#![feature(unique,shared,nonzero)]	// Unique/Shared/NonZero for smart pointers
 #![feature(slice_patterns)]	// Slice (array) destructuring patterns, used by multiboot code
 #![feature(step_by)]	// Range::step_by
 #![feature(linkage)]	// allows using #[linkage="external"]

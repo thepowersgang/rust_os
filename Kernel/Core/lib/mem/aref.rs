@@ -116,7 +116,7 @@ impl<T: ?Sized> ArefBorrow<T>
 	}
 	fn __inner(&self) -> &ArefInner<T> {
 		// SAFE: Nobody gets a &mut to the inner, and pointer should be valid
-		unsafe { &**self.__ptr }
+		unsafe { &*self.__ptr.get() }
 	}
 }
 impl<T: ?Sized + Any> ArefBorrow<T> {
@@ -124,7 +124,7 @@ impl<T: ?Sized + Any> ArefBorrow<T> {
 		// SAFE: Transmute validity is checked by checking that the type IDs match
 		unsafe { 
 			if (*self).get_type_id() == ::core::any::TypeId::of::<U>() {
-				let ptr = *self.__ptr as *const ArefInner<U>;
+				let ptr = self.__ptr.get() as *const ArefInner<U>;
 				::core::mem::forget(self);
 				Ok(ArefBorrow { __ptr: NonZero::new(ptr) })
 			}

@@ -73,15 +73,15 @@ impl<C: Counter, T: ?Sized> Grc<C, T>
 {
 	fn grc_inner(&self) -> &GrcInner<C, T> {
 		// SAFE: Immutable alias valid since self: &Self
-		unsafe { &**self.ptr }
+		unsafe { &*self.ptr.get() }
 	}
 	pub fn is_same(&self, other: &Self) -> bool {
-		*self.ptr == *other.ptr
+		self.ptr.get() == other.ptr.get()
 	}
 	pub fn get_mut(&mut self) -> Option<&mut T> {
 		if self.grc_inner().strong.is_one() {
 			// SAFE: This instance is the only reference, and we have &mut, hence safe to get &mut to inner
-			Some( unsafe { &mut (*(*self.ptr as *mut GrcInner<C,T>)).val } ) 
+			Some( unsafe { &mut (*(self.ptr.get() as *mut GrcInner<C,T>)).val } ) 
 		}
 		else {
 			None
@@ -122,7 +122,7 @@ impl<C: Counter, T: Clone> Grc<C,T>
 		}
 		
 		// Obtain a mutable pointer to the interior
-		let mut_ptr = *self.ptr as *mut GrcInner<C,T>;
+		let mut_ptr = self.ptr.get() as *mut GrcInner<C,T>;
 		// SAFE: Can only get &mut if this instance is the only handle
 		unsafe {
 			assert!(self.grc_inner().strong.is_one());
@@ -135,7 +135,7 @@ impl<C: Counter, T: ?Sized> ops::Deref for Grc<C, T> {
 	type Target = T;
 	fn deref(&self) -> &T {
 		// SAFE: Pointer is valid, can't get &mut so no aliasing issues
-		unsafe { &(**self.ptr).val }
+		unsafe { &(*self.ptr.get()).val }
 	}
 }
 impl<C: Counter, T: ?Sized + fmt::Display> fmt::Display for Grc<C, T> {
@@ -158,7 +158,7 @@ impl<C: Counter, T: ?Sized> ops::Drop for Grc<C, T>
 		{
 			use core::intrinsics::drop_in_place;
 			use core::mem::{size_of_val,align_of_val};
-			let ptr = *self.ptr;
+			let ptr = self.ptr.get();
 			if (*ptr).strong.dec() // && (*ptr).weak.is_zero()
 			{
 				drop_in_place( &mut (*ptr).val );

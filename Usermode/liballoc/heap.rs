@@ -89,20 +89,16 @@ impl<T> Allocation<T>
 	}
 	pub unsafe fn try_resize(&mut self, newbytes: usize) -> bool {
 		let mut lh = S_GLOBAL_HEAP.lock();
-		if *self.ptr == 1 as *mut T {
+		if self.ptr.as_ptr() == 1 as *mut T {
 			self.ptr = Unique::new( lh.allocate(newbytes, align_of::<T>()).unwrap() as *mut T );
 			true
 		}
 		else {
-			lh.try_expand( *self.ptr as *mut (), newbytes, align_of::<T>() )
+			lh.try_expand( self.ptr.as_ptr() as *mut (), newbytes, align_of::<T>() )
 		}
 	}
-}
-impl<T> ::core::ops::Deref for Allocation<T>
-{
-	type Target = *mut T;
-	fn deref(&self) -> &*mut T {
-		&*self.ptr
+	pub fn as_ptr(&self) -> *mut T {
+		self.ptr.as_ptr()
 	}
 }
 impl<T> ::core::ops::Drop for Allocation<T>
@@ -110,7 +106,7 @@ impl<T> ::core::ops::Drop for Allocation<T>
 	fn drop(&mut self) {
 		// SAFE: Pointer and size are valid
 		unsafe {
-			S_GLOBAL_HEAP.lock().deallocate(*self.ptr as *mut (), align_of::<T>());
+			S_GLOBAL_HEAP.lock().deallocate(self.ptr.as_ptr() as *mut (), align_of::<T>());
 		}
 	}
 }

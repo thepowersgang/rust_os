@@ -15,6 +15,7 @@ extern crate stack_dst;
 module_define!{Network, [], init}
 
 pub mod nic;
+pub mod tcp;
 
 fn init()
 {

@@ -8,7 +8,7 @@
 //! file/block cache into memory. It does _not_ manage eviction of cache entries from physical memory.
 //
 // TODO: Should this module handle a LRU cache of mappings (not actually unmap until needed)
-use core::nonzero::NonZero;
+use core::ptr::Unique;
 use PAGE_SIZE;
 use memory::phys::FrameHandle;
 use core::sync::atomic::{AtomicPtr, Ordering};
@@ -26,7 +26,7 @@ impl_from! {
 }
 
 /// Unique handle to a page in the cache
-pub struct CachedPage(NonZero<*mut Page>);
+pub struct CachedPage(Unique<Page>);
 unsafe impl Send for CachedPage {}
 unsafe impl Sync for CachedPage {}
 
@@ -111,7 +111,7 @@ impl PageCache
 			// SAFE: Assuming that we're passed an unaliased handle. Address is non-zero
 			unsafe {
 				::memory::virt::map(addr as *mut (), frame_handle.clone().into_addr(), ProtectionMode::KernelRW);
-				Ok( CachedPage(NonZero::new(addr as *mut _)) )
+				Ok( CachedPage(Unique::new(addr as *mut _)) )
 			}
 			})
 	}
@@ -123,7 +123,7 @@ impl PageCache
 			let addr = self.addr(idx);
 			try!(::memory::virt::allocate(addr as *mut (), 1));
 			// SAFE: Non-null pointer
-			Ok( CachedPage(unsafe { NonZero::new(addr as *mut _) }) )
+			Ok( CachedPage(unsafe { Unique::new(addr as *mut _) }) )
 			})
 	}
 
@@ -159,24 +159,25 @@ impl PageCache
 impl CachedPage
 {
 	pub fn get_frame_handle(&self) -> FrameHandle {
+		// TODO: Is this actually safe? It would allow aliasing if someone maps this FrameHandle
 		// SAFE: Physical address is valid
 		unsafe {
-			FrameHandle::from_addr( ::memory::virt::get_phys(*self.0) )
+			FrameHandle::from_addr( ::memory::virt::get_phys(self.0.as_ptr()) )
 		}
 	}
 	pub fn data(&self) -> &[u8] {
 		// SAFE: Owned and valid
-		unsafe { &(**self.0).0 }
+		unsafe { &self.0.as_ref().0 }
 	}
 	pub fn data_mut(&mut self) -> &mut [u8] {
 		// SAFE: Owned and valid
-		unsafe { &mut (**self.0).0 }
+		unsafe { &mut self.0.as_mut().0 }
 	}
 }
 impl ::core::ops::Drop for CachedPage
 {
 	fn drop(&mut self) {
-		S_PAGE_CACHE.release( *self.0 );
+		S_PAGE_CACHE.release( self.0.as_ptr() );
 	}
 }
 

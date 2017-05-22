@@ -5,7 +5,7 @@
 //! Generic reference-counted shared allocation
 //!
 //! Provides common functionality between Rc and Arc
-use core::nonzero::NonZero;
+use core::ptr::Shared;
 use core::sync::atomic::{AtomicUsize,Ordering};
 use core::{ops,fmt};
 
@@ -22,7 +22,7 @@ pub trait Counter {
 
 /// Generic reference counted allocation
 pub struct Grc<C: Counter, T: ?Sized> {
-	ptr: NonZero<*mut GrcInner<C, T>>
+	ptr: Shared<GrcInner<C, T>>
 }
 
 /// Not Send (Arc overrides this)
@@ -67,7 +67,7 @@ impl<C: Counter, T> Grc<C, T>
 		// SAFE: Pointer won't be NULL
 		unsafe {
 			Grc {
-				ptr: NonZero::new( GrcInner::new_ptr(value) )
+				ptr: Shared::new( GrcInner::new_ptr(value) )
 			}
 		}
 	}
@@ -76,10 +76,10 @@ impl<C: Counter, T: ?Sized> Grc<C, T>
 {
 	fn grc_inner(&self) -> &GrcInner<C, T> {
 		// SAFE: Immutable alias valid since self: &Self
-		unsafe { &**self.ptr }
+		unsafe { self.ptr.as_ref() }
 	}
 	pub fn is_same(&self, other: &Self) -> bool {
-		*self.ptr == *other.ptr
+		self.ptr.as_ptr() == other.ptr.as_ptr()
 	}
 	pub fn strong_count(&self) -> usize {
 		self.grc_inner().strong.get()
@@ -87,7 +87,7 @@ impl<C: Counter, T: ?Sized> Grc<C, T>
 	pub fn get_mut(&mut self) -> Option<&mut T> {
 		if self.grc_inner().strong.is_one() {
 			// SAFE: This instance is the only reference, and we have &mut, hence safe to get &mut to inner
-			Some( unsafe { &mut (*(*self.ptr as *mut GrcInner<C,T>)).val } ) 
+			Some( unsafe { &mut (*(self.ptr.as_ptr() as *mut GrcInner<C,T>)).val } ) 
 		}
 		else {
 			None
@@ -128,7 +128,7 @@ impl<C: Counter, T: Clone> Grc<C,T>
 		}
 		
 		// Obtain a mutable pointer to the interior
-		let mut_ptr = *self.ptr as *mut GrcInner<C,T>;
+		let mut_ptr = self.ptr.as_ptr() as *mut GrcInner<C,T>;
 		// SAFE: Can only get &mut if this instance is the only handle
 		unsafe {
 			assert!(self.grc_inner().strong.is_one());
@@ -141,7 +141,7 @@ impl<C: Counter, T: ?Sized> ops::Deref for Grc<C, T> {
 	type Target = T;
 	fn deref(&self) -> &T {
 		// SAFE: Pointer is valid, can't get &mut so no aliasing issues
-		unsafe { &(**self.ptr).val }
+		unsafe { &self.ptr.as_ref().val }
 	}
 }
 impl<C: Counter, T: ?Sized + fmt::Display> fmt::Display for Grc<C, T> {
@@ -156,7 +156,7 @@ impl<C: Counter, T: ?Sized + fmt::Debug> fmt::Debug for Grc<C, T> {
 }
 impl<C: Counter, T> fmt::Pointer for Grc<C, T> {
 	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-		<_ as fmt::Pointer>::fmt(&*self.ptr, f)
+		<_ as fmt::Pointer>::fmt(&self.ptr.as_ptr(), f)
 	}
 }
 
@@ -169,7 +169,7 @@ impl<C: Counter, T: ?Sized> ops::Drop for Grc<C, T>
 		{
 			use core::intrinsics::drop_in_place;
 			use core::mem::{size_of_val,align_of_val};
-			let ptr = *self.ptr;
+			let ptr = self.ptr.as_ptr();
 				
 			if (*ptr).strong.dec() // && (*ptr).weak.is_zero()
 			{
@@ -228,7 +228,7 @@ impl<C: Counter, U> Grc<C, [U]>
 				::core::ptr::write( (*inner).val.as_mut_ptr().offset(i as isize), fcn(i) );
 			}
 			
-			Grc { ptr: NonZero::new(inner) }
+			Grc { ptr: Shared::new(inner) }
 		}
 	}
 	

@@ -30,7 +30,7 @@ log_cfg:
 	LOG_CFG_ENT("kernel::memory::phys"         , LEVEL_TRACE)	// PMM only prints >Trace
 	//LOG_CFG_ENT("kernel::metadevs::storage", LEVEL_TRACE)
 	LOG_CFG_ENT("kernel::arch::imp::acpi::internal::shim_out", LEVEL_TRACE)	// Shut up the x86 ACPI shim
-	LOG_CFG_ENT("kernel::async", LEVEL_DEBUG)
+	//LOG_CFG_ENT("kernel::async", LEVEL_DEBUG)
 	//LOG_CFG_ENT("fs_fat", LEVEL_DEBUG)
 	//LOG_CFG_ENT("storage_ata::io", LEVEL_DEBUG)
 	LOG_CFG_ENT("input_ps2::i8042", LEVEL_TRACE)

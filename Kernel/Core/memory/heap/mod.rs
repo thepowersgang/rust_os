@@ -152,7 +152,7 @@ impl<T> ArrayAlloc<T>
 		ArrayAlloc { ptr: Unique::new(ptr), count: count }
 	}
 	pub fn into_raw(self) -> *mut [T] {
-		let ptr = *self.ptr;
+		let ptr = self.ptr.as_ptr();
 		let count = self.count;
 		::core::mem::forget(self);
 		// SAFE: Takes ownership
@@ -163,15 +163,15 @@ impl<T> ArrayAlloc<T>
 	
 	pub fn count(&self) -> usize { self.count }
 	
-	pub fn get_base(&self) -> *const T { *self.ptr }
-	pub fn get_base_mut(&mut self) -> *mut T { *self.ptr }
+	pub fn get_base(&self) -> *const T { self.ptr.as_ptr() }
+	pub fn get_base_mut(&mut self) -> *mut T { self.ptr.as_ptr() }
 	
 	#[is_safe(irq)]
 	pub fn get_ptr_mut(&mut self, idx: usize) -> *mut T {
 		// SAFE: Index asserted to be valid, have &mut
 		unsafe {
 			assert!(idx < self.count, "ArrayAlloc<{}>::get_mut({}) OOB {}", type_name!(T), idx, self.count);
-			self.ptr.offset(idx as isize)
+			self.ptr.as_ptr().offset(idx as isize)
 		}
 	}
 	#[is_safe(irq)]
@@ -179,7 +179,7 @@ impl<T> ArrayAlloc<T>
 		// SAFE: Index asserted to be valid
 		unsafe {
 			assert!(idx < self.count, "ArrayAlloc<{}>::get_ptr({}) OOB {}", type_name!(T), idx, self.count);
-			self.ptr.offset(idx as isize)
+			self.ptr.as_ptr().offset(idx as isize)
 		}
 	}
 
@@ -190,7 +190,7 @@ impl<T> ArrayAlloc<T>
 		{
 			let newsize = ::core::mem::size_of::<T>() * new_count;
 			// SAFE: Pointer is valid
-			if unsafe { expand( *self.ptr as *mut(), newsize ) }
+			if unsafe { expand( self.ptr.as_ptr() as *mut (), newsize ) }
 			{
 				self.count = new_count;
 				true
@@ -221,14 +221,14 @@ impl<T> ArrayAlloc<T>
 		{
 			let newsize = ::core::mem::size_of::<T>() * new_count;
 			// SAFE: Pointer is valid, and raw pointer is being manipulated (lifetimes up to the caller)
-			unsafe { shrink(*self.ptr as *mut (), newsize) };
+			unsafe { shrink(self.ptr.as_ptr() as *mut (), newsize) };
 			self.count = new_count;
 		}
 	}
 }
 impl_fmt!{
 	<T> Debug(self,f) for ArrayAlloc<T> {
-		write!(f, "ArrayAlloc {{ {:p} + {} }}", *self.ptr, self.count)
+		write!(f, "ArrayAlloc {{ {:p} + {} }}", self.ptr.as_ptr(), self.count)
 	}
 }
 impl<T> ::core::ops::Drop for ArrayAlloc<T>
@@ -237,7 +237,7 @@ impl<T> ::core::ops::Drop for ArrayAlloc<T>
 	{
 		if self.count > 0 {
 			// SAFE: Pointer is valid
-			unsafe { deallocate(*self.ptr as *mut (), ::core::mem::size_of::<T>() * self.count, ::core::mem::align_of::<T>()) };
+			unsafe { deallocate(self.ptr.as_ptr() as *mut (), ::core::mem::size_of::<T>() * self.count, ::core::mem::align_of::<T>()) };
 		}
 	}
 }

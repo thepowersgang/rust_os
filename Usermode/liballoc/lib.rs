@@ -29,6 +29,8 @@ pub mod heap;
 mod array;
 pub mod boxed;
 
+pub mod str;
+
 pub mod rc;
 pub mod grc;
 pub mod raw_vec;

@@ -52,7 +52,7 @@ impl ThreadList
 			assert!(self.last.is_some());
 			// SAFE: WaitQueue should be locked (and nobody has any of the list items borrowed)
 			unsafe {
-				let last_ref: &mut Thread = &mut **self.last.unwrap();
+				let last_ref: &mut Thread = &mut *self.last.unwrap().get();
 				assert!(last_ref.next.is_none());
 				last_ref.next = Some(t);
 			}

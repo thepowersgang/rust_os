@@ -203,11 +203,11 @@ impl<T> QueueTailPtr<T>
 {
 	/// UNSAFE: Can cause aliasing if called while &mut-s to the last object are active
 	unsafe fn get(&self) -> &QueueEnt<T> {
-		& **self.0
+		& *self.0.get()
 	}
 	/// UNSAFE: Can cause aliasing if called while &mut-s to the last object are active
 	unsafe fn get_mut(&mut self) -> &mut QueueEnt<T> {
-		&mut **self.0
+		&mut *self.0.get()
 	}
 }
 

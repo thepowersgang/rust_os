@@ -58,7 +58,7 @@ impl<T> ArrayAlloc<T>
 			let copy_count = ::core::cmp::min(self.size, newsize);
 			// SAFE: Both pointers are valid to at least this many entries
 			unsafe {
-				::core::ptr::copy_nonoverlapping(*self.base, *newalloc, copy_count);
+				::core::ptr::copy_nonoverlapping(self.base.as_ptr(), newalloc.as_ptr(), copy_count);
 			}
 			self.size = newsize;
 			self.base = newalloc;
@@ -70,23 +70,23 @@ impl<T> ArrayAlloc<T>
 		self.size
 	}
 	pub fn get_base(&self) -> *const T {
-		*self.base
+		self.base.as_ptr()
 	}
 	pub fn get_base_mut(&mut self) -> *mut T {
-		*self.base
+		self.base.as_ptr()
 	}
 	pub fn get_ptr(&self, idx: usize) -> *const T {
 		// SAFE: Bounds checked
 		unsafe {
 			assert!(idx < self.size);
-			self.base.offset( idx as isize )
+			self.base.as_ptr().offset( idx as isize )
 		}
 	}
 	pub fn get_ptr_mut(&mut self, idx: usize) -> *mut T {
 		// SAFE: Bounds checked
 		unsafe {
 			assert!(idx < self.size);
-			self.base.offset( idx as isize )
+			self.base.as_ptr().offset( idx as isize )
 		}
 	}
 }
