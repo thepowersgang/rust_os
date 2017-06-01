@@ -47,7 +47,7 @@ impl<'a> Iterator for SparsePacketIter<'a> {
 	}
 }
 
-pub type PacketHandle<'a> = ::stack_dst::StackDST<RxPacket + 'a>;
+pub type PacketHandle<'a> = ::stack_dst::ValueA<RxPacket + 'a, [usize; 8]>;
 pub trait RxPacket
 {
 	fn len(&self) -> usize;

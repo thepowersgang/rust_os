@@ -59,7 +59,7 @@ impl<T: Object> Object for Box<T> {
 		(**self).clear_wait(flags, obj)
 	}
 }
-pub type ObjectAlloc = ::stack_dst::StackDSTA<Object, [usize; 8]>;
+pub type ObjectAlloc = ::stack_dst::ValueA<Object, [usize; 8]>;
 
 struct UserObject
 {
@@ -69,12 +69,12 @@ struct UserObject
 impl UserObject {
 	fn new<T: Object+'static>(v: T) -> Self {
 		UserObject {
-			data: match ::stack_dst::StackDSTA::new(v)
+			data: match ::stack_dst::ValueA::new(v)
 				{
 				Ok(v) => v,
 				Err(v) => {
 					log_trace!("Object '{}' did not fit in StackDST {} > {}", type_name!(T), ::core::mem::size_of::<T>(), ::core::mem::size_of::<ObjectAlloc>());
-					::stack_dst::StackDSTA::new(Box::new(v)).ok().unwrap()
+					::stack_dst::ValueA::new(Box::new(v)).ok().unwrap()
 					},
 				},
 		}
