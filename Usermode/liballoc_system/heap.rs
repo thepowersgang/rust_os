@@ -25,41 +25,6 @@ const PTR_SIZE: usize = 4;
 const MIN_BLOCK_SIZE: usize = 8 * PTR_SIZE;
 const BLOCK_ALIGN: usize = 2 * PTR_SIZE;
 
-// Used by Box<T>
-#[lang="exchange_malloc"]
-#[inline]
-pub unsafe fn exchange_malloc(size: usize, align: usize) -> *mut u8
-{
-	match S_GLOBAL_HEAP.lock().allocate(size, align)
-	{
-	Ok(x) => x as *mut u8,
-	Err(_) => panic!("exchange_malloc({}, {}) out of memory", size, align),
-	}
-}
-#[lang = "box_free"]
-#[inline]
-unsafe fn box_free<T>(ptr: *mut T) {
-	let size = size_of::<T>();
-	if size != 0 {
-		S_GLOBAL_HEAP.lock().deallocate(ptr as *mut (), /*size,*/ align_of::<T>());
-	}
-}
-
-
-/// Allocate a pointer to a known-typed value and populate it
-pub fn alloc_typed<T>(value: T) -> *mut T
-{
-	match S_GLOBAL_HEAP.lock().allocate(size_of::<T>(), align_of::<T>())
-	{
-	Ok(ptr) => {
-		let ptr = ptr as *mut T;
-		// SAFE: Pointer is valid and uninitialised
-		unsafe { ::core::ptr::write(ptr, value); }
-		ptr
-		},
-	Err(_e) => todo!("OOM in alloc"),
-	}
-}
 pub fn allocate(size: usize, align: usize) -> *mut u8
 {
 	match S_GLOBAL_HEAP.lock().allocate(size, align)
@@ -72,12 +37,49 @@ pub unsafe fn deallocate(ptr: *mut u8, _size: usize, align: usize)
 {
 	S_GLOBAL_HEAP.lock().deallocate(ptr as *mut (), /*size,*/ align)
 }
+pub unsafe fn reallocate(ptr: *mut u8, old_size: usize, align: usize, new_size: usize) -> *mut u8
+{
+	let mut lh = S_GLOBAL_HEAP.lock();
+	if lh.try_expand(ptr as *mut (), new_size, align)
+	{
+		ptr
+	}
+	else
+	{
+		let new_ptr = match lh.allocate(new_size, align)
+			{
+			Ok(x) => x as *mut u8,
+			Err(_) => return ::core::ptr::null_mut(),
+			};
+		::core::ptr::copy_nonoverlapping(ptr, new_ptr, old_size);
+		lh.deallocate(ptr as *mut (), /*size,*/ align);
+		new_ptr
+	}
+}
+pub unsafe fn reallocate_inplace(ptr: *mut u8, old_size: usize, align: usize, new_size: usize) -> usize
+{
+	let mut lh = S_GLOBAL_HEAP.lock();
+	if lh.try_expand(ptr as *mut (), new_size, align)
+	{
+		new_size
+	}
+	else
+	{
+		old_size
+	}
+}
+pub fn get_usable_size(size: usize, _align: usize) -> usize
+{
+	size
+}
 
+#[cfg(comment)]
 pub struct Allocation<T>
 {
 	ptr: Unique<T>,
 }
 
+#[cfg(comment)]
 impl<T> Allocation<T>
 {
 	pub unsafe fn new(bytes: usize) -> Result<Allocation<T>, ()> {
@@ -101,6 +103,7 @@ impl<T> Allocation<T>
 		self.ptr.as_ptr()
 	}
 }
+#[cfg(comment)]
 impl<T> ::core::ops::Drop for Allocation<T>
 {
 	fn drop(&mut self) {
@@ -282,7 +285,7 @@ struct FreeBlocks<'a>
 	state: &'a mut AllocState,
 	cur: *mut Block,
 }
-impl<'a> ::std::iter::Iterator for FreeBlocks<'a>
+impl<'a> ::core::iter::Iterator for FreeBlocks<'a>
 {
 	type Item = &'a mut Block;
 	fn next(&mut self) -> Option<Self::Item>

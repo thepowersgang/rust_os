@@ -13,6 +13,7 @@
 #![feature(raw)]
 #![feature(collections,slice_concat_ext)]
 #![feature(macro_reexport)]
+#![feature(alloc)]
 #![no_std]
 
 #[macro_use]
@@ -20,7 +21,7 @@ extern crate syscalls;
 #[macro_use]
 extern crate macros;
 
-extern crate alloc as heap;
+extern crate alloc;
 
 #[macro_reexport(vec,format)]
 extern crate collections;
@@ -44,7 +45,7 @@ pub use core::num;
 pub use core::raw;
 
 // Crate re-exports
-pub use heap::{rc,boxed};
+pub use alloc::{rc,boxed};
 pub use collections::slice;
 
 mod std {
@@ -63,7 +64,7 @@ pub mod prelude {
 		pub use core::marker::{Copy,Send,Sync,Sized};
 		pub use core::ops::{Drop,Fn,FnMut,FnOnce};
 		pub use core::mem::drop;
-		pub use heap::boxed::Box;
+		pub use alloc::boxed::Box;
 		pub use borrow::ToOwned;
 		pub use core::clone::Clone;
 		pub use core::cmp::{PartialEq, PartialOrd, Eq, Ord};

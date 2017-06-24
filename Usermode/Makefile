@@ -187,7 +187,7 @@ $(foreach m, $(wildcard */src/main.rs), $(eval $(call fn_mmdep,$m,$(m:%/src/main
 #$(foreach m, $(wildcard ../rustc_src/lib*/lib.rs), $(eval $(call fn_mmdep,$m,$(m:../rustc_src/%/lib.rs=$(OBJDIR)%.rlib))))
 #$(foreach m, $(wildcard ../rustc_src/lib*/lib.rs), $(warning $(call fn_mmdep,$m,$(m:../rustc_src/%/lib.rs=$(OBJDIR)%.rlib))))
 
-ALL_USED_LIBS := std $(sort $(foreach m, $(wildcard */src/lib.rs) $(wildcard */src/main.rs), $(call fn_getdeps,$m)))
+ALL_USED_LIBS := std $(sort $(foreach m, $(wildcard */src/lib.rs */lib.rs) $(wildcard */src/main.rs), $(call fn_getdeps,$m)))
 ALL_PRESENT_BINS := $(patsubst %/src/main.rs,%, $(wildcard */src/main.rs))
 
 DEPFILES := $(patsubst %,$(OBJDIR)lib%.d, $(ALL_USED_LIBS))
@@ -198,6 +198,7 @@ DEPFILES += $(OBJDIR)loader/start.ao.d $(OBJDIR)rustrt0.o.d
 # Official library dependency tree
 fn_rustdeps = $(patsubst %,$(OBJDIR)lib%.rlib,$1): $(patsubst %,$(LIBDIR)lib%.rlib,$2)
 $(eval $(call fn_rustdeps, collections, std_unicode alloc))
+$(eval $(call fn_rustdeps, alloc, alloc_system))
 
 
 

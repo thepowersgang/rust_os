@@ -1,3 +1,4 @@
+#![feature(alloc)]
 
 extern crate alloc;
 
