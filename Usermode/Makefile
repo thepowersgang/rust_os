@@ -198,7 +198,7 @@ DEPFILES += $(OBJDIR)loader/start.ao.d $(OBJDIR)rustrt0.o.d
 # Official library dependency tree
 fn_rustdeps = $(patsubst %,$(OBJDIR)lib%.rlib,$1): $(patsubst %,$(LIBDIR)lib%.rlib,$2)
 $(eval $(call fn_rustdeps, collections, std_unicode alloc))
-$(eval $(call fn_rustdeps, alloc, alloc_system))
+$(eval $(call fn_rustdeps, alloc, alloc_system std_unicode))
 
 
 
