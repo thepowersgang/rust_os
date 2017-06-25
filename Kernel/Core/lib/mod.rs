@@ -7,7 +7,7 @@
 //! features for operation in kernel-land.
 
 pub use self::queue::Queue;
-pub use self::vec_map::VecMap;
+pub use self::collections::vec_map::VecMap;
 //pub use self::btree_map::BTreeMap;
 pub use self::vec::Vec;
 pub use self::sparse_vec::SparseVec;
@@ -16,6 +16,10 @@ pub use self::lazy_static::LazyStatic;
 pub use self::pod::POD;
 
 pub use self::pod::{as_byte_slice, as_byte_slice_mut};
+
+
+pub use self::collections::vec_map;
+pub mod collections;
 
 pub mod thunk;
 pub mod borrow;
@@ -36,7 +40,6 @@ pub mod sparse_vec;
 pub mod string;
 pub mod byte_str;
 
-pub mod vec_map;
 //pub mod btree_map;
 
 pub mod ring_buffer;
@@ -48,65 +51,7 @@ pub mod byteorder;
 
 mod pod;
 
-pub mod num
-{
-	//! General numeric helpers
-	use core::ops;
-	
-	pub trait Int
-	where
-		Self: ops::Add<Output=Self>,
-		Self: ops::Sub<Output=Self>,
-		Self: ops::Mul<Output=Self>,
-		Self: ops::Div<Output=Self>,
-		Self: ops::Rem<Output=Self>,
-		Self: Sized
-	{
-		fn one() -> Self;
-	}
-	impl Int for u64 {
-		fn one() -> Self { 1 }
-	}
-	impl Int for u32 {
-		fn one() -> Self { 1 }
-	}
-	impl Int for usize {
-		fn one() -> Self { 1 }
-	}
-	
-	/// Round the passed value up to a multiple of the target value
-	pub fn round_up<T: Int+Copy>(val: T, target: T) -> T
-	{
-		return (val + target - Int::one()) / target * target;
-	}
-	/// Divide `num` by `den`, rounding up
-	pub fn div_up<T: Int+Copy>(num: T, den: T) -> T
-	{
-		return (num + den - Int::one()) / den;
-	}
-	/// Divide+Remainder `num` by `den`
-	pub fn div_rem<T: Int+Copy>(num: T, den: T) -> (T,T)
-	{
-		return (num / den, num % den);
-	}
-
-	/// Absolute difference between two numbers
-	pub fn abs_diff<T: PartialOrd + ops::Sub>(a: T, b: T) -> T::Output {
-		return if a > b { a - b } else { b - a };
-	}
-}
-
-pub mod collections
-{
-	//! Collection traits
-	
-	/// A mutable sequence
-	pub trait MutableSeq<T>
-	{
-		fn push(&mut self, t: T);
-		fn pop(&mut self) -> ::core::option::Option<T>;
-	}
-}
+pub mod num;
 
 /// Unsafely cast a byte slice into the destination type (performing checks for alignment and size)
 ///
