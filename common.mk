@@ -32,6 +32,6 @@ RUSTC := $(call fn_rustcmd,rustc)
 RUSTDOC := $(call fn_rustcmd,rustdoc)
 CARGO := $(call fn_rustcmd,cargo)
 
-$(patsubst %,../rustc_src/lib%/lib.rs,core collections std_unicode): ../rustc-nightly-src.tar.gz
+$(patsubst %,../rustc_src/lib%/lib.rs,core collections std_unicode alloc): ../rustc-nightly-src.tar.gz
 	tar -C .. -xmf $< --wildcards 'rustc-nightly-src/src/lib*' rustc-nightly-src/src/driver rustc-nightly-src/src/rt --transform 's~^rustc-nightly-src/src/~rustc_src/~'
 
