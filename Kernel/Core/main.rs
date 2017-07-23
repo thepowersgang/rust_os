@@ -15,7 +15,7 @@
 #![feature(optin_builtin_traits)]	// Negative impls
 #![feature(unique,shared,nonzero)]	// Unique/Shared/NonZero for smart pointers
 #![feature(slice_patterns)]	// Slice (array) destructuring patterns, used by multiboot code
-#![feature(step_by)]	// Range::step_by
+#![feature(iterator_step_by)]	// Iterator::step_by
 #![feature(linkage)]	// allows using #[linkage="external"]
 #![feature(const_fn)]	// Allows defining `const fn`
 #![feature(get_type_id)] // used by process_local's "AnyMap" hackery
@@ -72,6 +72,8 @@ pub mod sync;
 
 /// Asynchrnous wait support
 pub mod async;
+//#[path="async-v3/mod.rs"]
+//pub mod _async3;
 
 /// Logging framework
 pub mod logging;

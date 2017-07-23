@@ -14,14 +14,11 @@ diff -rub libcore_orig/clone.rs libcore/clone.rs
 diff -rub libcore_orig/default.rs libcore/default.rs
 --- libcore_orig/default.rs	2017-06-22 16:51:20.271895100 +0800
 +++ libcore/default.rs	2017-06-22 16:51:09.831744196 +0800
-@@ -153,5 +153,7 @@
- default_impl! { i64, 0 }
- default_impl! { i128, 0 }
- 
+@@ -157,2 +157,4 @@
 +#[cfg(not(disable_float))]
- default_impl! { f32, 0.0f32 }
+ default_impl! { f32, 0.0f32, "Returns the default value of `0.0`" }
 +#[cfg(not(disable_float))]
- default_impl! { f64, 0.0f64 }
+ default_impl! { f64, 0.0f64, "Returns the default value of `0.0`" }
 diff -rub libcore_orig/fmt/mod.rs libcore/fmt/mod.rs
 --- libcore_orig/fmt/mod.rs	2017-06-22 16:51:20.055891975 +0800
 +++ libcore/fmt/mod.rs	2017-06-22 16:51:09.831744196 +0800
@@ -96,7 +93,7 @@ diff -rub libcore_orig/iter/traits.rs libcore/iter/traits.rs
 @@ -733,6 +734,7 @@
  }
  
- integer_sum_product! { i8 i16 i32 i64 isize u8 u16 u32 u64 usize }
+ integer_sum_product! { i8 i16 i32 i64 i128 isize u8 u16 u32 u64 u128 usize }
 +#[cfg(not(disable_float))]
  float_sum_product! { f32 f64 }
  

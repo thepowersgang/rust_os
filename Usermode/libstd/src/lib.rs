@@ -13,7 +13,9 @@
 #![feature(raw)]
 #![feature(collections,slice_concat_ext)]
 #![feature(macro_reexport)]
-#![feature(alloc)]
+#![feature(alloc,allocator_api)]
+#![feature(allocator_internals)]
+#![default_lib_allocator]
 #![no_std]
 
 #[macro_use]
@@ -22,6 +24,7 @@ extern crate syscalls;
 extern crate macros;
 
 extern crate alloc;
+extern crate alloc_system;
 
 #[macro_reexport(vec,format)]
 extern crate collections;
@@ -119,4 +122,6 @@ pub mod error;
 pub use collections::{vec, string, borrow};
 
 pub mod os;
+
+pub mod heap;
 

@@ -559,7 +559,7 @@ impl PhysicalVolumeInfo
 		let block_size = self.dev.blocksize();
 		// Read up to 'block_step' blocks in each read call
 		{
-			let iter_ids  = (first .. ).step_by(block_step as u64);
+			let iter_ids  = (first .. ).step_by(block_step);
 			let iter_bufs = dst.chunks( block_step * block_size );
 			for (blk_id,buf) in iter_ids.zip( iter_bufs )
 			{

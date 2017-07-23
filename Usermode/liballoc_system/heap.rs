@@ -3,7 +3,6 @@
 //
 use sync::Mutex;
 use core::mem::{align_of,size_of};
-use core::ptr::Unique;
 
 #[cfg(arch="amd64")] const HEAP_LIMITS: (usize,usize) = (0x1000_0000_0000, 0x7000_0000_0000);
 #[cfg(arch="amd64")] const PAGE_SIZE: usize = 0x1000;
@@ -71,47 +70,6 @@ pub unsafe fn reallocate_inplace(ptr: *mut u8, old_size: usize, align: usize, ne
 pub fn get_usable_size(size: usize, _align: usize) -> usize
 {
 	size
-}
-
-#[cfg(comment)]
-pub struct Allocation<T>
-{
-	ptr: Unique<T>,
-}
-
-#[cfg(comment)]
-impl<T> Allocation<T>
-{
-	pub unsafe fn new(bytes: usize) -> Result<Allocation<T>, ()> {
-		assert!(bytes == 0 || bytes >= size_of::<T>());
-		S_GLOBAL_HEAP.lock().allocate(bytes, align_of::<T>()).map(|v| Allocation { ptr: Unique::new(v as *mut T) })
-	}
-	pub unsafe fn from_raw(ptr: *mut T) -> Allocation<T> {
-		Allocation { ptr: Unique::new(ptr) }
-	}
-	pub unsafe fn try_resize(&mut self, newbytes: usize) -> bool {
-		let mut lh = S_GLOBAL_HEAP.lock();
-		if self.ptr.as_ptr() == 1 as *mut T {
-			self.ptr = Unique::new( lh.allocate(newbytes, align_of::<T>()).unwrap() as *mut T );
-			true
-		}
-		else {
-			lh.try_expand( self.ptr.as_ptr() as *mut (), newbytes, align_of::<T>() )
-		}
-	}
-	pub fn as_ptr(&self) -> *mut T {
-		self.ptr.as_ptr()
-	}
-}
-#[cfg(comment)]
-impl<T> ::core::ops::Drop for Allocation<T>
-{
-	fn drop(&mut self) {
-		// SAFE: Pointer and size are valid
-		unsafe {
-			S_GLOBAL_HEAP.lock().deallocate(self.ptr.as_ptr() as *mut (), align_of::<T>());
-		}
-	}
 }
 
 struct AllocState
