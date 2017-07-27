@@ -189,7 +189,7 @@ impl<T> QueueEntPtr<T>
 
 	/// UNSAFE: Requires that the tail pointer not outlive this object
 	unsafe fn tail_ptr(&mut self) -> QueueTailPtr<T> {
-		QueueTailPtr(::core::nonzero::NonZero::new(&mut *self.0))
+		QueueTailPtr(::core::nonzero::NonZero::new_unchecked(&mut *self.0))
 	}
 }
 impl<T> ::core::ops::Deref for QueueEntPtr<T> {

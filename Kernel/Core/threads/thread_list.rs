@@ -63,7 +63,7 @@ impl ThreadList
 			self.first = Some(t);
 		}
 		// SAFE: ptr is non-zero
-		self.last = Some(unsafe { NonZero::new(ptr) });
+		self.last = Some(unsafe { NonZero::new_unchecked(ptr) });
 	}
 }
 

@@ -67,7 +67,7 @@ impl<C: Counter, T> Grc<C, T>
 		// SAFE: Pointer won't be NULL
 		unsafe {
 			Grc {
-				ptr: Shared::new( GrcInner::new_ptr(value) )
+				ptr: Shared::new_unchecked( GrcInner::new_ptr(value) )
 			}
 		}
 	}
@@ -228,7 +228,7 @@ impl<C: Counter, U> Grc<C, [U]>
 				::core::ptr::write( (*inner).val.as_mut_ptr().offset(i as isize), fcn(i) );
 			}
 			
-			Grc { ptr: Shared::new(inner) }
+			Grc { ptr: Shared::new_unchecked(inner) }
 		}
 	}
 	

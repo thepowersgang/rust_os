@@ -96,7 +96,7 @@ impl<T: ?Sized> ArefInner<T>
 		self.count.fetch_add(1, Ordering::Relaxed);
 		ArefBorrow {
 			// SAFE: Pointers are never 0
-			__ptr: unsafe { NonZero::new(self) },
+			__ptr: unsafe { NonZero::new_unchecked(self) },
 			}
 	}
 }
@@ -126,7 +126,7 @@ impl<T: ?Sized + Any> ArefBorrow<T> {
 			if (*self).get_type_id() == ::core::any::TypeId::of::<U>() {
 				let ptr = self.__ptr.get() as *const ArefInner<U>;
 				::core::mem::forget(self);
-				Ok(ArefBorrow { __ptr: NonZero::new(ptr) })
+				Ok(ArefBorrow { __ptr: NonZero::new_unchecked(ptr) })
 			}
 			else {
 				Err(self)

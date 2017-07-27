@@ -119,8 +119,9 @@ impl<T> ArrayAlloc<T>
 	/// - NOTE: Zero count, even when the type is zero-sized
 	pub const fn empty() -> ArrayAlloc<T> {
 		ArrayAlloc {
+			// TODO: When Unique::empty is const, use that
 			// SAFE: Non-zero value
-			ptr: unsafe { Unique::new(ZERO_ALLOC as *mut T) },
+			ptr: unsafe { Unique::new_unchecked(ZERO_ALLOC as *mut T) },
 			count: 0
 			}
 	}
@@ -131,10 +132,10 @@ impl<T> ArrayAlloc<T>
 		// SAFE: Correctly constructs 'Unique' instances
 		unsafe {
 			if ::core::mem::size_of::<T>() == 0 {
-				ArrayAlloc { ptr: Unique::new(ZERO_ALLOC as *mut T), count: !0 }
+				ArrayAlloc { ptr: Unique::new_unchecked(ZERO_ALLOC as *mut T), count: !0 }
 			}
 			else if count == 0 {
-				ArrayAlloc { ptr: Unique::new(ZERO_ALLOC as *mut T), count: 0 }
+				ArrayAlloc { ptr: Unique::new_unchecked(ZERO_ALLOC as *mut T), count: 0 }
 			}
 			else
 			{
@@ -144,12 +145,12 @@ impl<T> ArrayAlloc<T>
 					None => panic!("Out of memory when allocating array of {} elements", count)
 					};
 				assert!(!ptr.is_null());
-				ArrayAlloc { ptr: Unique::new(ptr), count: count }
+				ArrayAlloc { ptr: Unique::new_unchecked(ptr), count: count }
 			}
 		}
 	}
 	pub unsafe fn from_raw(ptr: *mut T, count: usize) -> ArrayAlloc<T> {
-		ArrayAlloc { ptr: Unique::new(ptr), count: count }
+		ArrayAlloc { ptr: Unique::new_unchecked(ptr), count: count }
 	}
 	pub fn into_raw(self) -> *mut [T] {
 		let ptr = self.ptr.as_ptr();
