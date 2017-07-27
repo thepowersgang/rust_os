@@ -4,7 +4,6 @@
 // Core/syscalls/mod.rs
 //! Userland system-call interface
 #![no_std]
-#![feature(associated_consts)]
 #![feature(integer_atomics)]
 
 #[allow(unused_imports)]

@@ -3,7 +3,6 @@
 //
 // Modules/storage_scsi/lib.rs
 #![feature(linkage)]
-#![feature(associated_consts)]
 #![no_std]
 #[macro_use] extern crate kernel;
 #[allow(unused_imports)]

@@ -5,7 +5,6 @@
 //! x86 ATA driver
 #![feature(linkage)]
 #![no_std]
-#![feature(associated_consts)]
 
 #[macro_use] extern crate kernel;
 extern crate storage_scsi;

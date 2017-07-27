@@ -4,7 +4,6 @@
 // Modules/storage_ahci/lib.rs
 //! AHCI Driver
 #![feature(linkage)]
-#![feature(associated_consts)]
 #![no_std]
 
 #[macro_use]
