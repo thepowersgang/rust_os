@@ -32,6 +32,7 @@ impl Status
 	pub fn message(&self) -> &str {
 		match *self
 		{
+		SUCCESS => "Success",
 		LOAD_ERROR => "The image failed to load.",
 		INVALID_PARAMETER => "A parameter was incorrect.",
 		UNSUPPORTED => "The operation is not supported.",
@@ -42,19 +43,47 @@ impl Status
 		}
 	}
 }
+
+impl ::core::ops::Try for Status
+{
+	type Ok = ();
+	type Error = Status;
+
+	fn into_result(self) -> Result<(), Status> {
+		if self == SUCCESS {
+			Ok( () )
+		}
+		else {
+			Err(self)
+		}
+	}
+	fn from_error(v: Status) -> Status {
+		v
+	}
+	fn from_ok(_: ()) -> Status {
+		SUCCESS
+	}
+}
+
 impl ::core::fmt::Debug for Status
 {
 	fn fmt(&self, f: &mut ::core::fmt::Formatter) -> ::core::fmt::Result {
+		f.write_str("Status(")?;
 		match *self
 		{
-		LOAD_ERROR => write!(f, "Status(LOAD_ERROR {})", self.message()),
-		INVALID_PARAMETER => write!(f, "Status(INVALID_PARAMETER {})", self.message()),
-		UNSUPPORTED => write!(f, "Status(UNSUPPORTED The operation is not supported.)"),
-		BAD_BUFFER_SIZE => write!(f, "Status(BAD_BUFFER_SIZE The buffer was not the proper size for the request.)"),
-		BUFFER_TOO_SMALL => write!(f, "Status(BUFFER_TOO_SMALL The buffer is not large enough to hold the requested data.)"),
-		NOT_FOUND => write!(f, "Status(NOT_FOUND The item was not found)"),
-		_ => write!(f, "Status({:#x})", self.0),
+		SUCCESS    => f.write_str("SUCCESS")?,
+		LOAD_ERROR => f.write_str("LOAD_ERROR")?,
+		INVALID_PARAMETER => f.write_str("INVALID_PARAMETER")?,
+		UNSUPPORTED       => f.write_str("UNSUPPORTED")?,
+		BAD_BUFFER_SIZE   => f.write_str("BAD_BUFFER_SIZE")?,
+		BUFFER_TOO_SMALL  => f.write_str("BUFFER_TOO_SMALL")?,
+		NOT_FOUND         => f.write_str("NOT_FOUND")?,
+		_ => write!(f, "Status({:#x})", self.0)?,
 		}
+		f.write_str(" ")?;
+		f.write_str(self.message())?;
+		f.write_str(")")?;
+		Ok( () )
 	}
 }
 

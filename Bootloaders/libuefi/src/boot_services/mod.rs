@@ -1,4 +1,7 @@
-
+//! Boot services
+//!
+//! These are functions that are only usable while the firmware has control of the system (i.e.
+//! before `exit_boot_services` has been called
 use super::{Void,Status,Guid,Handle,Event};
 use super::{PhysicalAddress,VirtualAddress};
 

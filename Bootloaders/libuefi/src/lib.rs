@@ -1,11 +1,20 @@
+//! UEFI Interface Crate
 //!
+//! Provides FFI access to a UEFI environment for UEFI Applications and bootloaders
 //!
-//!
+//! ```no_run
+//! #[no_mangle]
+//! pub extern "win64" fn efi_main(_image_handle: ::uefi::Handle, system_table: &::uefi::SystemTable) -> ::uefi::Status
+//! {
+//!     system_table.con_out.output_string_utf8("Hello, world.");
+//!     ::uefi::status::SUCCESS
+//! }
+//! ```
 #![no_std]
 #![crate_name="uefi"]
 #![crate_type="lib"]
-#![feature(unicode)]	// For UTF-16 handling
 #![feature(unique)]
+#![feature(try_trait)]	// Makes Status a little easier to use
 
 pub use self::str16::Str16;
 
@@ -13,6 +22,15 @@ pub use self::con::{EfiLogger};
 pub use self::con::{SimpleInputInterface,SimpleTextOutputInterface};
 
 pub use self::status::Status;
+
+macro_rules! efi_fcn {
+	(fn $name:ident ( $($n:ident: $t:ty),* ) -> $rv:ty) => {
+		extern "win64" fn $name( $($n: $t),* ) -> $rv
+	};
+	(fn ( $($n:ident: $t:ty),* ) -> $rv:ty) => {
+		unsafe extern "win64" fn( $($n: $t),* ) -> $rv
+	};
+}
 
 mod con;
 mod str16;
@@ -32,14 +50,8 @@ pub type CStr16Ptr = *const u16;
 /// GUID
 pub struct Guid( pub u32, pub u16, pub u16, pub [u8; 8] );
 
-macro_rules! efi_fcn {
-	(fn $name:ident ( $($n:ident: $t:ty),* ) -> $rv:ty) => {
-		extern "win64" fn $name( $($n: $ty),* ) -> $rv
-	}
-}
-
 #[macro_export]
-/// Log to the provided UEFI sink
+/// Log to the provided UEFI SimpleTextOutputInterface sink
 macro_rules! loge {
 	($l:expr, $($t:tt)*) => {{
 		use ::core::fmt::Write;
@@ -50,7 +62,7 @@ macro_rules! loge {
 }
 
 #[repr(C)]
-/// Header for a UEFI header
+/// Header for a UEFI table
 pub struct TableHeader
 {
 	pub signature: u64,
@@ -80,6 +92,8 @@ impl<T> ::core::ops::Deref for SizePtr<T>
 
 #[repr(C)]
 /// System Table (top-level EFI structure)
+///
+/// A pointer to this is passed by the environment to the application as the second parameter to `efi_main`
 pub struct SystemTable<'a>
 {
 	pub hdr: TableHeader,
@@ -96,6 +110,7 @@ pub struct SystemTable<'a>
 	pub standard_error_handle: Handle,
 	pub std_err: &'a SimpleTextOutputInterface,
 
+	/// Runtime-acessible UEFI services (avaliable after `boot_services.exit_boot_services` has been called)
 	pub runtime_services: *const runtime_services::RuntimeServices,
 	pub boot_services: &'a boot_services::BootServices,
 
