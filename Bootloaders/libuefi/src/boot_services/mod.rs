@@ -132,7 +132,7 @@ impl<'a,T> ::core::ops::Deref for PoolVec<'a, T>
 	type Target = [T];
 	fn deref(&self) -> &[T] {
 		unsafe {
-			::core::slice::from_raw_parts(*self.ptr, self.len)
+			::core::slice::from_raw_parts(self.ptr.as_ptr(), self.len)
 		}
 	}
 }
@@ -140,7 +140,7 @@ impl<'a,T> ::core::ops::DerefMut for PoolVec<'a, T>
 {
 	fn deref_mut(&mut self) -> &mut [T] {
 		unsafe {
-			::core::slice::from_raw_parts_mut(*self.ptr, self.len)
+			::core::slice::from_raw_parts_mut(self.ptr.as_ptr(), self.len)
 		}
 	}
 }
@@ -151,7 +151,7 @@ impl<'a,T> ::core::ops::Drop for PoolVec<'a, T>
 			for v in self.iter_mut() {
 				::core::ptr::drop_in_place(v);
 			}
-			(self.bs.free_pool)(*self.ptr as *mut Void);
+			(self.bs.free_pool)(self.ptr.as_ptr() as *mut Void);
 		}
 	}
 }

@@ -38,7 +38,7 @@ where
 	fn drop(&mut self) {
 		// SAFE: Owned pointer
 		unsafe {
-			(**self.0).drop();
+			self.0.as_mut().drop();
 		}
 	}
 }
@@ -49,7 +49,7 @@ where
 	type Target = T;
 	fn deref(&self) -> &T {
 		// SAFE: Owned pointer
-		unsafe { &**self.0 }
+		unsafe { self.0.as_ref() }
 	}
 }
 impl<T> ::core::ops::DerefMut for Owned<T>
@@ -58,7 +58,7 @@ where
 {
 	fn deref_mut(&mut self) -> &mut T {
 		// SAFE: Owned pointer
-		unsafe { &mut **self.0 }
+		unsafe { self.0.as_mut() }
 	}
 }
 
