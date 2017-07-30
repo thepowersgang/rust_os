@@ -47,6 +47,7 @@ Kernel/rundir/test-*/
 
 Bootloaders/uefi/Core
 Bootloaders/uefi/*.txt
+Bootloaders/libuefi/target/
 Bootloaders/*.pe
 
 Usermode/doc/
