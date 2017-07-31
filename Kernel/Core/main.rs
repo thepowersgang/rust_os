@@ -72,8 +72,8 @@ pub mod sync;
 
 /// Asynchrnous wait support
 pub mod async;
-//#[path="async-v3/mod.rs"]
-//pub mod _async3;
+#[path="async-v3/mod.rs"]
+pub mod _async3;
 
 /// Logging framework
 pub mod logging;
