@@ -11,6 +11,7 @@
 
 gitstats/
 libcore/
+libcore_orig/
 rustc_src/
 acpica/*.a
 acpica/acpica-*/
@@ -39,13 +40,15 @@ Kernel/rundir/qemu_int_log.txt
 Kernel/rundir/*.ppm
 Kernel/rundir/*.png
 Kernel/rundir/*.dmp
+Kernel/rundir/*.pcap
 Kernel/rundir/DiskImages
 Kernel/rundir/trace-*
 Kernel/rundir/*.iso
 Kernel/rundir/arm_bootloader/Core/
 Kernel/rundir/test-*/
 
-Bootloaders/uefi/Core
+# The bootloaders usually use the Kernel's libcore, so need an equivalent path to the target spec
+Bootloaders/*/Core/arch/*/target.json
 Bootloaders/uefi/*.txt
 Bootloaders/libuefi/target/
 Bootloaders/*.pe
