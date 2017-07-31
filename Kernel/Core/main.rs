@@ -48,15 +48,6 @@ pub use arch::memory::PAGE_SIZE;
 #[doc(hidden)]
 #[macro_use] #[cfg(arch="amd64")] #[path="arch/amd64/mod-macros.rs"] pub mod arch_macros;
 
-// Evil Hack: For some reason, write! (and friends) will expand pointing to std instead of core
-#[doc(hidden)]
-mod std {
-	pub use core::option;
-	pub use core::{default,fmt,cmp};
-	pub use core::marker;	// needed for derive(Copy)
-	pub use core::iter;	// needed for 'for'
-}
-
 /// Kernel's version of 'std::prelude'
 pub mod prelude;
 
