@@ -94,6 +94,7 @@ impl BootServices
 			.err_or_else(|| unsafe { PoolVec::from_ptr(self, ptr as *mut T, capacity, 0) }) 
 	}
 
+	//#[inline]
 	//pub fn locate_handles_by_protocol(&self, protocol: &Guid) -> Result<PoolSlice<Handle>, Status> {
 	//	let mut ptr = 0 as *mut _;
 	//	let mut count = 0;
@@ -117,10 +118,11 @@ pub struct PoolVec<'a, T>
 }
 impl<'a,T> PoolVec<'a, T>
 {
+	/// UNSAFE: Pointer must be to `len` valid items, `cap` capacity, and be non-zero
 	pub unsafe fn from_ptr(bs: &BootServices, p: *mut T, cap: usize, len: usize) -> PoolVec<T> {
 		PoolVec {
 			bs: bs,
-			ptr: ::core::ptr::Unique::new(p),
+			ptr: ::core::ptr::Unique::new_unchecked(p),
 			cap: cap,
 			len: len,
 			}

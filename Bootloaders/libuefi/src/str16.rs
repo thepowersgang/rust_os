@@ -6,6 +6,7 @@ pub struct Str16([u16]);
 impl Str16
 {
 	/// Converts a UCS-2 (no need to be valid UTF-16) slice into a string
+	#[inline]
 	pub fn from_slice(s: &[u16]) -> &Str16 {
 		// SAFE: Same represenaton as &[u16]
 		unsafe {
@@ -14,6 +15,7 @@ impl Str16
 	}
 
 	/// UNSAFE: Indexes input until NUL, lifetime inferred
+	#[inline]
 	pub unsafe fn from_nul_terminated<'a>(p: *const u16) -> &'a Str16 {
 		let len = {
 			let mut len = 0;
@@ -31,6 +33,7 @@ impl Str16
 	/// Obtain an iterator of characters over this string
 	/// 
 	/// NOTE: Unpaired UTF-16 surrogates are returned as \uFFFD
+	#[inline]
 	pub fn chars(&self) -> Chars {
 		Chars(&self.0)
 	}

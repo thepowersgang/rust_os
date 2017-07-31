@@ -30,6 +30,9 @@ macro_rules! efi_fcn {
 	(fn ( $($n:ident: $t:ty),* ) -> $rv:ty) => {
 		unsafe extern "win64" fn( $($n: $t),* ) -> $rv
 	};
+	(fn ( $($t:ty),* ) -> $rv:ty) => {
+		unsafe extern "win64" fn( $($t),* ) -> $rv
+	};
 }
 
 mod con;
@@ -118,27 +121,34 @@ pub struct SystemTable<'a>
 }
 impl<'a> SystemTable<'a>
 {
+	#[inline]
 	pub fn firmware_vendor(&self) -> &Str16 {
 		unsafe {
 			Str16::from_nul_terminated(self.firmware_vendor)
 		}
 	}
+	#[inline]
 	pub fn con_in(&self) -> &SimpleInputInterface {
 		self.con_in
 	}
+	#[inline]
 	pub fn con_out(&self) -> &SimpleTextOutputInterface {
 		self.con_out
 	}
+	#[inline]
 	pub fn std_err(&self) -> &SimpleTextOutputInterface {
 		self.std_err
 	}
 
+	#[inline]
 	pub fn runtime_services(&self) -> &runtime_services::RuntimeServices {
 		unsafe { &*self.runtime_services }
 	}
+	#[inline]
 	pub fn boot_services(&self) -> &boot_services::BootServices {
 		self.boot_services
 	}
+	#[inline]
 	pub fn configuraton_table(&self) -> &[ConfigurationTable] {
 		&self.configuraton_table[..]
 	}

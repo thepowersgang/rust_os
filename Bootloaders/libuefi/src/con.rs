@@ -47,6 +47,7 @@ pub struct SimpleTextOutputInterface
 impl SimpleTextOutputInterface
 {
 	/// Reset the console
+	#[inline]
 	pub fn reset(&mut self) -> Status {
 		// SAFE: Call cannot cause memory unsafety
 		unsafe { 
@@ -54,10 +55,12 @@ impl SimpleTextOutputInterface
 		}
 	}
 	/// Print the passed string to the console
+	#[inline]
 	pub unsafe fn output_string(&self, s16: super::CStr16Ptr) -> Status {
 		(self.output_string)(self, s16)
 	}
 	/// ?? TODO
+	#[inline]
 	pub unsafe fn test_string(&self, s16: super::CStr16Ptr) -> Status {
 		(self.test_string)(self, s16)
 	}
@@ -96,10 +99,12 @@ pub struct SimpleInputInterface
 
 impl SimpleInputInterface
 {
+	#[inline]
 	pub fn reset(&mut self) -> Status {
 		(self.reset)(self, false)
 	}
 
+	#[inline]
 	pub fn read_key_stroke(&mut self) -> Result<InputKey, Status> {
 		let mut ik = Default::default();
 		let s = (self.read_key_stroke)(self, &mut ik);

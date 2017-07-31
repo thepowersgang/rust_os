@@ -9,15 +9,19 @@ pub struct DevicePath
 
 impl DevicePath
 {
+	#[inline]
 	pub fn type_code(&self) -> (u8,u8) {
 		(self.ty, self.sub_type)
 	}
+	#[inline]
 	fn data_ptr(&self) -> *const u8 {
 		(self.length.as_ptr() as usize + 4) as *const u8
 	}
+	#[inline]
 	fn data_len(&self) -> usize {
 		self.length[0] as usize + self.length[1] as usize * 256
 	}
+	#[inline]
 	fn data(&self) -> &[u8] {
 		unsafe {
 			::core::slice::from_raw_parts(self.data_ptr(), self.data_len())

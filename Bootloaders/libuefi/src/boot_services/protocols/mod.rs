@@ -28,7 +28,7 @@ where
 {
 	/// UNSAFE: Pointer must be valid to hand to this for ownership
 	unsafe fn from_ptr(p: *mut T) -> Self {
-		Owned( ::core::ptr::Unique::new(p) )
+		Owned( ::core::ptr::Unique::new_unchecked(p) )
 	}
 }
 impl<T> ::core::ops::Drop for Owned<T>

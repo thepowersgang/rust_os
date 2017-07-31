@@ -6,9 +6,11 @@
 pub struct Status(u64);
 impl Status
 {
+	#[inline]
 	pub fn new(val: u64) -> Status {
 		Status(val)
 	}
+	#[inline]
 	pub fn err_or<T>(self, v: T) -> Result<T,Status> {
 		if self.0 == 0 {
 			Ok(v)
@@ -17,6 +19,7 @@ impl Status
 			Err(self)
 		}
 	}
+	#[inline]
 	pub fn err_or_else<F, T>(self, f: F) -> Result<T,Status>
 	where
 		F: FnOnce()->T
