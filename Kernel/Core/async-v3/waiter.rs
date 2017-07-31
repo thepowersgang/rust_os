@@ -159,8 +159,10 @@ impl ops::Drop for WaitHandle
 }
 
 pub struct WaitResult {
-	slot: usize,
-	result: usize,
+	/// Index of the slot that completed
+	pub slot: usize,
+	/// Result value from the operation
+	pub result: usize,
 }
 
 

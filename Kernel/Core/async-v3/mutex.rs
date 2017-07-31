@@ -35,7 +35,7 @@ impl<T> Mutex<T>
 				cur_index: 0,
 				sleep_queue: VecDeque::new(),
 				locked: false,
-				helf: false,
+				held: false,
 				}),
 			data: UnsafeCell::new(v),
 			}
