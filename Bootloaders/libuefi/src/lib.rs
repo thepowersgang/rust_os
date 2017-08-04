@@ -49,6 +49,19 @@ pub type VirtualAddress = u64;
 
 /// Pointer to a UCS-2 NUL-terminated string
 pub type CStr16Ptr = *const u16;
+/// Safe unsized UCS-2 NUL-terminated string type
+pub struct CStr16([u16]);
+impl CStr16 {
+	pub fn as_ptr(&self) -> CStr16Ptr {
+		self.0.as_ptr()
+	}
+	pub fn from_slice(s: &[u16]) -> &CStr16 {
+		let l = s.iter().position(|&x| x == 0).expect("No NUL in slice passed to CStr16::from_slice");
+		let ss = &s[..l+1];
+		// SAFE: Same internal representation, string is NUL terminated
+		unsafe { &*(ss as *const [u16] as *const CStr16) }
+	}
+}
 
 /// GUID
 pub struct Guid( pub u32, pub u16, pub u16, pub [u8; 8] );

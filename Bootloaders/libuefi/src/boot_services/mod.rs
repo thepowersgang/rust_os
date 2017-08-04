@@ -161,6 +161,7 @@ impl<'a,T> ::core::ops::Drop for PoolVec<'a, T>
 	}
 }
 
+// TODO: Make a wrapper around an array of MemoryDescriptor
 #[repr(C)]
 pub struct MemoryDescriptor
 {
