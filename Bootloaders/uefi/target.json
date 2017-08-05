@@ -7,9 +7,10 @@
 	"target-word-size": "64",
 	"os": "tifflin",
 	"arch": "x86_64",
-		"pre-link-args": ["-m64"],
+		"pre-link-args": [],
 		"no-compiler-rt": true,
 		"disable-redzone": true,
 		"eliminate-frame-pointer": false,
+	"linker-flavor": "ld",
 	"morestack": false
 }
