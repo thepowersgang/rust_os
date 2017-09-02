@@ -1,16 +1,3 @@
-diff -rub libcore_orig/clone.rs libcore/clone.rs
---- libcore_orig/clone.rs	2017-06-22 16:51:20.087892438 +0800
-+++ libcore/clone.rs	2017-06-22 16:51:09.831744196 +0800
-@@ -162,7 +162,9 @@
- clone_impl! { u64 }
- clone_impl! { u128 }
- 
-+#[cfg(not(disable_float))]
- clone_impl! { f32 }
-+#[cfg(not(disable_float))]
- clone_impl! { f64 }
- 
- clone_impl! { () }
 diff -rub libcore_orig/default.rs libcore/default.rs
 --- libcore_orig/default.rs	2017-06-22 16:51:20.271895100 +0800
 +++ libcore/default.rs	2017-06-22 16:51:09.831744196 +0800
