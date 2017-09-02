@@ -100,7 +100,7 @@ $(LIBDIR)lib%.rlib: $(OBJDIR)lib%.rlib
 $(OBJDIR)libcore.rlib: ../rustc_src/libcore/lib.rs $(TARGET_SPEC) $(makefile_deps)
 	@mkdir -p $(dir $@)
 	@echo [RUSTC] $@
-	$V$(RUSTC) $(RUSTFLAGS) --emit=link,dep-info --out-dir $(OBJDIR) $<
+	$V$(RUSTC) $(RUSTFLAGS) --emit=link,dep-info --crate-type=rlib --crate-name=core --out-dir $(OBJDIR) $<
 	@mv $(OBJDIR)core.d $(OBJDIR)libcore.d
 
 # ===============

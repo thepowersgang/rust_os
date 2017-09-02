@@ -125,7 +125,7 @@ ifeq ($(USE_ACPICA),1)
 endif
 
 .SUFFIXES:
-.PHONY: all clean docs dsm
+.PHONY: all clean docs dsm doctest
 
 all: bin/kernel-$(ARCH).bin
 
@@ -142,6 +142,7 @@ doc/$(ARCH)/%/index.html:
 	$V$(ENV) $(RUSTDOC) $(RUSTFLAGS_C) -o doc/$(ARCH) $<
 doc/$(ARCH)/kernel/index.html: Core/main.rs $(OBJDIR)libkernel.rlib
 doc/$(ARCH)/core/index.html: ../libcore/lib.rs $(OBJDIR)libcore.rlib
+
 
 # ===
 # Toolchain maintainence
@@ -238,7 +239,7 @@ $(OBJDIR)libkernel.rlib: Core/main.rs $(OBJDIR)libcore.rlib $(TARGET_FILE) ../Gr
 $(OBJDIR)libcore.rlib: $(LIBCORESRC)lib.rs $(TARGET_FILE)
 	@echo [RUSTC] -o $@
 	@mkdir -p $(dir $@)
-	$V$(ENV) $(RUSTC) $(RUSTFLAGS) --emit=link,dep-info --out-dir $(dir $@) --crate-name core $<
+	$V$(ENV) $(RUSTC) $(RUSTFLAGS) --emit=link,dep-info --out-dir $(dir $@) --crate-name core --crate-type=lib $<
 	@cp $(OBJDIR)core.d $(OBJDIR)libcore.d
 
 $(OBJDIR)acpica.a: ../acpica/Makefile $(wildcard ../acpica/patches/source/include/platform/*)
