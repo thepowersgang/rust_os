@@ -43,7 +43,6 @@ pub mod boot_services;
 
 pub enum Void {}
 pub type Handle = *mut Void;
-pub type Event = *mut Void;
 pub type PhysicalAddress = u64;
 pub type VirtualAddress = u64;
 

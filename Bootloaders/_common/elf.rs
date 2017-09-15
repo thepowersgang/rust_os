@@ -127,8 +127,7 @@ impl<'a> Iterator for ShEntIter<'a> {
 	}
 }
 
-#[no_mangle]
-pub extern "C" fn elf_get_size(file_base: &ElfFile) -> u32
+pub fn elf_get_size(file_base: &ElfFile) -> u32
 {
 	log!("elf_get_size(file_base={:p})", file_base);
 	file_base.check_header();
@@ -155,9 +154,8 @@ pub extern "C" fn elf_get_size(file_base: &ElfFile) -> u32
 	max_end as u32
 }
 
-#[no_mangle]
 /// Returns program entry point
-pub extern "C" fn elf_load_segments(file_base: &ElfFile, output_base: *mut u8) -> u32
+pub fn elf_load_segments(file_base: &ElfFile, output_base: *mut u8) -> u32
 {
 	log!("elf_load_segments(file_base={:p}, output_base={:p})", file_base, output_base);
 	for phent in file_base.phents()
@@ -204,7 +202,6 @@ pub struct SymbolInfo {
 	string_table: *const u8,
 	strtab_len: usize,
 }
-#[no_mangle]
 /// Returns size of data written to output_base
 pub extern "C" fn elf_load_symbols(file_base: &ElfFile, output: &mut SymbolInfo) -> u32
 {

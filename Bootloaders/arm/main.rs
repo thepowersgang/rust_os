@@ -2,8 +2,7 @@
 //
 //
 #![no_std]
-#![feature(no_std,lang_items)]
-#![feature(core_str_ext,core_slice_ext)]
+#![feature(lang_items)]
 
 /// Stub logging macro
 macro_rules! log{
@@ -16,7 +15,26 @@ macro_rules! log{
 		}};
 }
 
-include!{"_common/elf.rs"}
+#[path="../_common/elf.rs"]
+mod elf;
+
+#[no_mangle]
+pub extern "C" fn elf_get_size(file_base: &elf::ElfFile) -> u32
+{
+	elf::elf_get_size(file_base)
+}
+/// Returns program entry point
+#[no_mangle]
+pub extern "C" fn elf_load_segments(file_base: &elf::ElfFile, output_base: *mut u8) -> u32
+{
+	elf::elf_load_segments(file_base, output_base)
+}
+#[no_mangle]
+/// Returns size of data written to output_base
+pub extern "C" fn elf_load_symbols(file_base: &elf::ElfFile, output: &mut elf::SymbolInfo) -> u32
+{
+	elf::elf_load_symbols(file_base, output)
+}
 
 
 //

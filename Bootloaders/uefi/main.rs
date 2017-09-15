@@ -76,7 +76,7 @@ pub extern "win64" fn efi_main(image_handle: ::uefi::Handle, system_table: &::ue
 		
 		let mut kernel_file = match system_volume_root.open_read(PATH_CONFIG)
 			{
-			Ok(cfg) => {
+			Ok(_cfg_file) => {
 				panic!("TODO: Read config file");
 				},
 			Err(::uefi::status::NOT_FOUND) => {
@@ -106,15 +106,15 @@ pub extern "win64" fn efi_main(image_handle: ::uefi::Handle, system_table: &::ue
 					);
 				
 				let mut addr = ent.p_paddr as u64;
-				(boot_services.allocate_pages)(
+				// SAFE: Trusting the executable
+				unsafe { (boot_services.allocate_pages)(
 					::uefi::boot_services::AllocateType::Address,
 					::uefi::boot_services::MemoryType::LoaderData,
 					(ent.p_memsz + 0xFFF) as usize / 0x1000,
 					&mut addr
 					)
-					.err_or( () )	// uefi::Status -> Result<(), Status>
-					.expect("allocate_pages")
-					;
+					.expect("Allocating pages for program segment")
+					;}
 				
 				// SAFE: This memory has just been allocated by the above
 				let data_slice = unsafe { ::core::slice::from_raw_parts_mut(ent.p_paddr as usize as *mut u8, ent.p_memsz as usize) };
@@ -136,7 +136,7 @@ pub extern "win64" fn efi_main(image_handle: ::uefi::Handle, system_table: &::ue
 			let mut map_key = 0;
 			let mut ent_size = 0;
 			let mut ent_ver = 0;
-			match (boot_services.get_memory_map)(&mut map_size, ::core::ptr::null_mut(), &mut map_key, &mut ent_size, &mut ent_ver)
+			match unsafe { (boot_services.get_memory_map)(&mut map_size, ::core::ptr::null_mut(), &mut map_key, &mut ent_size, &mut ent_ver) }
 			{
 			::uefi::status::SUCCESS => {},
 			::uefi::status::BUFFER_TOO_SMALL => {},
@@ -148,7 +148,7 @@ pub extern "win64" fn efi_main(image_handle: ::uefi::Handle, system_table: &::ue
 			loop
 			{
 				map = boot_services.allocate_pool_vec( uefi::boot_services::MemoryType::LoaderData, map_size / ent_size ).unwrap();
-				match (boot_services.get_memory_map)(&mut map_size, map.as_mut_ptr(), &mut map_key, &mut ent_size, &mut ent_ver)
+				match unsafe { (boot_services.get_memory_map)(&mut map_size, map.as_mut_ptr(), &mut map_key, &mut ent_size, &mut ent_ver) }
 				{
 				::uefi::status::SUCCESS => break,
 				::uefi::status::BUFFER_TOO_SMALL => continue,
@@ -162,7 +162,10 @@ pub extern "win64" fn efi_main(image_handle: ::uefi::Handle, system_table: &::ue
 			(map_key, map)
 			};
 		loge!(conout, "- Exiting boot services");
-		(boot_services.exit_boot_services)(image_handle, map_key).err_or( () ).expect("exit_boot_services");
+		// SAFE: Weeelll...
+		unsafe { 
+			(boot_services.exit_boot_services)(image_handle, map_key).expect("exit_boot_services");
+		}
 
 		let boot_info = kernel_proto::Info {
 			runtime_services: system_table.runtime_services as *const _ as *const (),

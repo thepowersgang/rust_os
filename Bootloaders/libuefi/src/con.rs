@@ -1,5 +1,5 @@
 
-use super::{Status,Event,status};
+use super::{Status,status};
 
 /// ::core::fmt::Write object for logging via the UEFI SimpleTextOutputInterface
 pub struct EfiLogger<'a>(&'a SimpleTextOutputInterface);
@@ -94,7 +94,7 @@ pub struct SimpleInputInterface
 {
 	reset: extern "win64" fn(this: *mut SimpleInputInterface, extended_verification: bool) -> Status,
 	read_key_stroke: extern "win64" fn(this: *mut SimpleInputInterface, keyout: &mut InputKey) -> Status,
-	wait_for_key: Event,
+	wait_for_key: ::boot_services::raw::Event,
 }
 
 impl SimpleInputInterface
