@@ -52,16 +52,18 @@ fn get_boot_info() -> &'static BootInfo {
 impl BootInfo
 {
 	fn new() -> BootInfo {
-		log_debug!("dt_phys_base = {:#x}", dt_phys_base);
-		if dt_phys_base == 0 {
+		// SAFE: Immutable
+		let dt_phys = unsafe { dt_phys_base };
+		log_debug!("dt_phys_base = {:#x}", dt_phys);
+		if dt_phys == 0 {
 			BootInfo::None
 		}
 		else {
 			// SAFE: In practice, this is run in a single-thread. Any possible race would be benign
 			unsafe {
 				const FLAGS: u32 = 0x13;
-				kernel_exception_map[1024-3] = dt_phys_base + FLAGS;
-				kernel_exception_map[1024-2] = dt_phys_base + 0x1000 + FLAGS;
+				kernel_exception_map[1024-3] = dt_phys + FLAGS;
+				kernel_exception_map[1024-2] = dt_phys + 0x1000 + FLAGS;
 			}
 
 			// SAFE: Address range checked
@@ -124,16 +126,20 @@ pub fn get_memory_map() -> &'static [::memory::MemoryMapEnt] {
 				log_debug!("base = {:#x}, size = {:#x}", base, size);
 				mapbuilder.append( base, size, ::memory::MemoryState::Free, 0 );
 			}
-			mapbuilder.set_range( dt_phys_base as u64, fdt.size() as u64, ::memory::MemoryState::Used, 0 ).unwrap();
+			// SAFE: Immutable extern static
+			mapbuilder.set_range( unsafe { dt_phys_base as u64 }, fdt.size() as u64, ::memory::MemoryState::Used, 0 ).unwrap();
 			},
 		}
 
-		if kernel_phys_start != 0 {
-			// 2. Clobber out kernel, modules, and strings
-			mapbuilder.set_range( kernel_phys_start as u64, (&v_kernel_end as *const _ as u64 - 0x80000000), ::memory::MemoryState::Used, 0 ).unwrap();
-		}
-		if ram_first_free != 0 {
-			mapbuilder.set_range( kernel_phys_start as u64, (ram_first_free - kernel_phys_start) as u64, ::memory::MemoryState::Used, 0 ).unwrap();
+		// SAFE: Immutable statics
+		unsafe { 
+			if kernel_phys_start != 0 {
+				// 2. Clobber out kernel, modules, and strings
+				mapbuilder.set_range( kernel_phys_start as u64, (&v_kernel_end as *const _ as u64 - 0x80000000), ::memory::MemoryState::Used, 0 ).unwrap();
+			}
+			if ram_first_free != 0 {
+				mapbuilder.set_range( kernel_phys_start as u64, (ram_first_free - kernel_phys_start) as u64, ::memory::MemoryState::Used, 0 ).unwrap();
+			}
 		}
 		
 		mapbuilder.size()

@@ -23,7 +23,8 @@ pub fn init_tid0_state() -> State {
 		static kernel_table0: ::Void;
 	}
 	State {
-		ttbr0: ::memory::virt::get_phys( &kernel_table0 ),
+		// SAFE: Just gets the address
+		ttbr0: ::memory::virt::get_phys( unsafe { &kernel_table0 } ),
 		..State::default()
 		}
 }

@@ -312,7 +312,8 @@ pub fn get_unwind_info_for(addr: usize) -> Option<(usize, &'static u32)>
 		static __exidx_end: ::Void;
 	}
 
-	let base = &__exidx_start as *const _ as usize;
+	// SAFE: Data at `__exidx_start` doesn't change
+	let base = unsafe { &__exidx_start as *const _ as usize };
 	// SAFE: 'static slice
 	let exidx_tab: &[ [u32; 2] ] = unsafe { ::core::slice::from_raw_parts(&__exidx_start, (&__exidx_end as *const _ as usize - base) / (2*4)) };
 

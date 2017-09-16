@@ -27,7 +27,8 @@ const PAGE_MASK_U32: u32 = PAGE_MASK as u32;
 static S_TEMP_MAP_SEMAPHORE: ::sync::Semaphore = ::sync::Semaphore::new(KERNEL_TEMP_COUNT as isize - 1, KERNEL_TEMP_COUNT as isize);
 
 pub fn post_init() {
-	kernel_table0[0].store(0, Ordering::SeqCst);
+	// SAFE: Atomic
+	unsafe { kernel_table0[0].store(0, Ordering::SeqCst) };
 
 	// SAFE: Valid memory passed to init_at
 	unsafe {
@@ -155,7 +156,8 @@ impl PageEntryRegion {
 			},
 		&PageEntryRegion::Global => {
 			assert!(idx < 4096);
-			&kernel_table0[idx]
+			// SAFE: Atomic pointer
+			unsafe { &kernel_table0[idx] }
 			},
 		}
 	}
@@ -410,7 +412,8 @@ fn get_table_addr<T>(vaddr: *const T, alloc: bool) -> Option< (TableRef, usize) 
 		}
 		else {
 			// Kernel
-			&kernel_table0[ ttbr_ofs*ENTS_PER_ALLOC .. ][..ENTS_PER_ALLOC]
+			// SAFE: Atomic static
+			unsafe { &kernel_table0[ ttbr_ofs*ENTS_PER_ALLOC .. ][..ENTS_PER_ALLOC] }
 		};
 	
 	let ent_v = ent_r[0].load(Ordering::SeqCst);
@@ -621,7 +624,8 @@ impl AddressSpace
 		extern "C" {
 			static kernel_table0: ::Void;
 		}
-		AddressSpace( get_phys(&kernel_table0) )
+		// SAFE: Static.
+		AddressSpace( get_phys( unsafe { &kernel_table0 } ) )
 	}
 	pub fn new(clone_start: usize, clone_end: usize) -> Result<AddressSpace,::memory::virt::MapError> {
 		assert!( clone_start % ::PAGE_SIZE == 0 );
