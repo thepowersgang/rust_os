@@ -16,6 +16,7 @@
 #![feature(linkage,const_fn)]
 #![feature(drop_types_in_const)]
 #![no_std]
+#![feature(const_atomic_bool_new)]	// Various const fns
 
 #![feature(plugin)]
 #![feature(custom_attribute)]

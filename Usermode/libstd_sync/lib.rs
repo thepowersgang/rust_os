@@ -3,6 +3,7 @@
 //
 //! Usermode synchronisation primitives
 #![feature(const_fn)]
+#![feature(const_unsafe_cell_new)]
 #![no_std]
 
 extern crate syscalls;
