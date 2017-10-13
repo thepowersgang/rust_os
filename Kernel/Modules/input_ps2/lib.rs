@@ -5,7 +5,6 @@
 //! PS2 Keyboard/Mouse controller
 #![feature(linkage)]
 #![feature(const_fn)]	// needed for lazystatic_init
-#![feature(drop_types_in_const)]
 #![no_std]
 
 #[macro_use]

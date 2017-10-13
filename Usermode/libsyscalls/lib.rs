@@ -6,9 +6,7 @@
 #![feature(asm)]
 #![feature(thread_local,const_fn)]
 #![feature(const_atomic_usize_new,const_unsafe_cell_new)]
-#![feature(associated_consts)]
 #![feature(stmt_expr_attributes)]
-#![feature(drop_types_in_const)]	// for vfs::ROOT
 #![no_std]
 
 mod std {

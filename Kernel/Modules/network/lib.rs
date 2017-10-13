@@ -6,7 +6,6 @@
 #![no_std]
 #![feature(linkage)]
 #![feature(const_fn)]
-#![feature(drop_types_in_const)]
 
 #[macro_use]
 extern crate kernel;

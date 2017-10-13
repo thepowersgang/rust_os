@@ -3,7 +3,6 @@
 //
 // GUI root process, handling user logins on a single session
 #![feature(const_fn)]
-#![feature(drop_types_in_const)]
 
 use lazy_static::LazyStatic;
 
