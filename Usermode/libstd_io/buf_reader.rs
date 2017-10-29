@@ -1,5 +1,5 @@
 
-use collections::vec::Vec;
+use alloc::vec::Vec;
 
 const DEFAULT_BUF_SIZE: usize = 0x1000-32;
 

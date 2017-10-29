@@ -11,7 +11,7 @@
 #![feature(const_fn)]
 #![feature(box_syntax)]
 #![feature(raw)]
-#![feature(collections,slice_concat_ext)]
+#![feature(slice_concat_ext)]
 #![feature(macro_reexport)]
 #![feature(alloc,allocator_api)]
 #![feature(allocator_internals)]
@@ -23,11 +23,9 @@ extern crate syscalls;
 #[macro_use]
 extern crate macros;
 
+#[macro_reexport(vec,format)]
 extern crate alloc;
 extern crate alloc_system;
-
-#[macro_reexport(vec,format)]
-extern crate collections;
 
 #[macro_reexport(try,assert,assert_eq,panic,write,unreachable,unimplemented)]
 extern crate core as core_2;	// Alternate name because it collides otherwise
@@ -49,7 +47,7 @@ pub use core::raw;
 
 // Crate re-exports
 pub use alloc::{rc,boxed};
-pub use collections::slice;
+pub use alloc::slice;
 
 mod std {
 	pub use core::{option, result};
@@ -82,7 +80,7 @@ pub mod prelude {
 		pub use slice::SliceConcatExt;
 
 		pub use string::{String,ToString};
-		pub use collections::Vec;
+		pub use alloc::Vec;
 
 		pub use core::slice::SliceExt;
 		pub use core::char::CharExt;
@@ -103,6 +101,10 @@ pub mod fmt {
 
 }
 
+pub mod collections {
+	//pub use alloc::BTreeMap;
+}
+
 mod start;
 
 pub mod ffi;
@@ -119,7 +121,7 @@ pub mod fs;
 
 pub mod error;
 
-pub use collections::{vec, string, borrow};
+pub use alloc::{vec, string, borrow};
 
 pub mod os;
 

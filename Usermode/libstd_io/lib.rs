@@ -3,14 +3,14 @@
 //
 //! libstd's IO support
 #![no_std]
-#![feature(collections)]	// goddamnit
+#![feature(alloc)]	// goddamnit
 use core::fmt;
 
 #[macro_use]
 extern crate macros;
 extern crate syscalls;
 
-extern crate collections;
+extern crate alloc;
 
 pub mod prelude {
 	pub use super::{Read, Write, BufRead, Seek};

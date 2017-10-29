@@ -1,7 +1,7 @@
 //
 //
 //
-use ::collections::Vec;
+use ::alloc::Vec;
 use ::ffi::OsString;
 
 static mut S_ARGUMENTS: &'static [OsString] = &[];
