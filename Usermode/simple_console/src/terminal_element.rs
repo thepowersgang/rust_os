@@ -183,12 +183,20 @@ impl<'a> Iterator for LineEnts<'a> {
 
 pub struct TerminalElement<EventCb>
 {
+	inner: TerminalElementInner,
+	cmd_callback: RefCell<EventCb>,
+}
+impl<EventCb> ::std::ops::Deref for TerminalElement<EventCb> {
+	type Target = TerminalElementInner;
+	fn deref(&self) -> &TerminalElementInner {
+		&self.inner
+	}
+}
+pub struct TerminalElementInner
+{
 	lines: RefCell<Lines>,
 	render_cache: RefCell<RenderCache>,
 	//render_base: usize,	// Lowest line to render
-
-
-	cmd_callback: RefCell<EventCb>,
 }
 #[derive(Default)]
 struct Lines {
@@ -203,26 +211,27 @@ struct RenderCache {
 
 impl<EventCb> TerminalElement<EventCb>
 where
-	EventCb: FnMut(&mut ::wtk::WindowTrait, &TerminalElement<EventCb>, ::syscalls::gui::Event)
+	EventCb: FnMut(&mut ::wtk::WindowTrait, &TerminalElementInner, ::syscalls::gui::Event)
 {
 	pub fn new(cb: EventCb) -> TerminalElement<EventCb> {
 		TerminalElement {
-			lines: Default::default(),
-			render_cache: Default::default(),
-			//render_base: 0,
-
+			inner: TerminalElementInner {
+				lines: Default::default(),
+				render_cache: Default::default(),
+				//render_base: 0,
+				},
 			cmd_callback: RefCell::new(cb),
 			}
 	}
 }
 impl<EventCb> ::wtk::Element for TerminalElement<EventCb>
 where
-	EventCb: FnMut(&mut ::wtk::WindowTrait, &TerminalElement<EventCb>, ::syscalls::gui::Event)
+	EventCb: FnMut(&mut ::wtk::WindowTrait, &TerminalElementInner, ::syscalls::gui::Event)
 {
 	fn handle_event(&self, ev: ::wtk::InputEvent, win: &mut ::wtk::WindowTrait) -> bool {
 		let mut cb = self.cmd_callback.borrow_mut();
 		//(cb)(win, self, ev);
-		(&mut *cb)(win, self, ev);
+		(&mut *cb)(win, &self.inner, ev);
 		true
 	}
 	fn resize(&self, _w: u32, _h: u32) {
@@ -232,8 +241,8 @@ where
 		const FONT_HEIGHT: u32 = 16;
 		const FONT_WIDTH : u32 = 8;
 
-		let mut rc_h = self.render_cache.borrow_mut();
-		let lines_h = self.lines.borrow();
+		let mut rc_h = self.inner.render_cache.borrow_mut();
+		let lines_h = self.inner.lines.borrow();
 
 		force |= rc_h.line_count != lines_h.lines.len();
 
@@ -278,7 +287,7 @@ where
 }
 
 // Terminal interface
-impl<EventCb> ::Terminal for TerminalElement<EventCb>
+impl ::Terminal for TerminalElementInner
 {
 	fn set_foreground(&self, col: Colour) {
 		//self.cur_fg = col;
