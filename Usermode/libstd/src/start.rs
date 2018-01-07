@@ -3,16 +3,36 @@
 //
 //! Language entrypoint
 
+#[lang="termination"]
+pub trait Termination
+{
+	fn report(self) -> i32;
+}
+
 #[lang="start"]
-fn lang_start(main: *const u8, argc: isize, argv: *const *const u8) -> isize {
+fn lang_start<T: Termination+'static>(main: fn()->T, argc: isize, argv: *const *const u8) -> isize {
 	kernel_log!("lang_start(main={:p}, argc={}, argv={:p})", main, argc, argv);
 	
-	// SAFE: We're trusting that the pointer provied is the main function, and that it has the correct signature
-	unsafe {
-		let mainfcn: fn() = ::core::mem::transmute(main);
-		mainfcn();
+	main().report() as isize
+}
+
+impl Termination for ()
+{
+	fn report(self) -> i32 { 0 }
+}
+impl<T,E> Termination for Result<T,E>
+where
+	T: Termination//,
+	//E: ::error::Error
+{
+	fn report(self) -> i32
+	{
+		match self
+		{
+		Ok(v) => v.report(),
+		Err(_e) => 1,
+		}
 	}
-	0
 }
 
 // register_arguments is defined in std::env
