@@ -33,6 +33,3 @@ RUSTDOC := $(call fn_rustcmd,rustdoc)
 CARGO := $(call fn_rustcmd,cargo)
 XARGO := $(call fn_rustcmd,xargo)
 
-$(patsubst %,../rustc_src/lib%/lib.rs,core collections std_unicode alloc): ../rustc-nightly-src.tar.gz
-	cp -r $(firstword $(wildcard ../.prefix/toolchains/nightly-*/lib/rustlib/src/rust/src)) rustc_src
-
