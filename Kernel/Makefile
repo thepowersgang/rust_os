@@ -275,7 +275,7 @@ $(OBJDIR)lib%.rlib: ../externals/crates.io/%/src/lib.rs $(OBJDIR)libcore.rlib
 # - Plugins
 bin/plugins/lib%.so: SynExts/%/src/lib.rs $(PREFIX)bin/rustc
 	mkdir -p $(dir $@)
-	cd SynExts/$* ; RUSTC=../../$(PREFIX)bin/rustc cargo build --release
+	cd SynExts/$* ; $(CARGO) build --release
 	cp SynExts/$*/target/release/lib*.so $@
 SynExts/tag_safe/src/lib.rs:
 	@mkdir -p SynExts
