@@ -3,18 +3,24 @@
 
 PLATFORM ?= virt
 
-LIBCORE := ../../Kernel/.obj/armv7/libcore.rlib
+ifeq ($(PLATFORM),bcm2708)
+  ARCH=armv6
+else
+  ARCH=armv7
+endif
+
+LIBCORE := ../../Kernel/.obj/$(ARCH)/libcore.rlib
 OBJDIR := .obj/$(PLATFORM)/
-KERNEL := ../../Kernel/bin/kernel-armv7.bin
-TARGET := ../../Kernel/Core/arch/armv7/target.json
+KERNEL := ../../Kernel/bin/kernel-$(ARCH).bin
+TARGET := ../../Kernel/Core/arch/$(ARCH)/target.json
 
 all: loader-$(PLATFORM).bin
 
-loader-$(PLATFORM).bin: $(OBJDIR)start.ao $(OBJDIR)main.o $(KERNEL)
+loader-$(PLATFORM).bin: $(OBJDIR)start-$(PLATFORM).ao $(OBJDIR)main.o $(KERNEL)
 	@echo "[LD] -o $@"
-	$Varm-elf-eabi-ld -e start -o $@ $(OBJDIR)start.ao $(OBJDIR)main.o $(LIBCORE) --format binary $(KERNEL) -Map $(OBJDIR)map.txt --gc-sections
+	$Varm-elf-eabi-ld -e start -o $@ $(OBJDIR)start-$(PLATFORM).ao $(OBJDIR)main.o $(LIBCORE) --format binary $(KERNEL) -Map $(OBJDIR)map.txt --gc-sections
 
-$(OBJDIR)start.ao: start.S platform-$(PLATFORM).h
+$(OBJDIR)start-$(PLATFORM).ao: start-$(PLATFORM).S platform-$(PLATFORM).h
 	@echo "[AS] -o $@"
 	@mkdir -p $(dir $@)
 	$Varm-elf-eabi-cpp -o $@.S $< -include platform-$(PLATFORM).h
