@@ -50,9 +50,6 @@ ifeq ($(OBJS),)
 endif
 
 PREFIX ?= ../.prefix/
-rustcmd = LD_LIBRARY_PATH=$(PREFIX)lib/ $(PREFIX)bin/$1
-RUSTC := $(call rustcmd,rustc)
-RUSTDOC := $(call rustcmd,rustdoc)
 
 -include BuildNum.$(ARCH).mk
 BUILDNUM ?= 1

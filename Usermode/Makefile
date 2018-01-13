@@ -29,6 +29,8 @@ TARGET_SPEC := target-$(ARCH).json
 RUST_COMMON_FLAGS := --target=$(TARGET_SPEC) --cfg 'arch="$(ARCH)"' --cfg nightly
 RUST_COMMON_FLAGS += -L $(LIBDIR)
 
+RUSTUP_SRC_DIR = $(firstword $(wildcard ../.prefix/toolchains/nightly-*/lib/rustlib/src/rust/src))/
+
 RUSTFLAGS := $(RUST_COMMON_FLAGS)
 RUSTFLAGS += -O
 #RUSTFLAGS += -C llvm-args=-Os
@@ -96,8 +98,8 @@ $(LIBDIR)libloader_dyn.so: loader/lib.S	$(makefile_deps)
 $(LIBDIR)lib%.rlib: $(OBJDIR)lib%.rlib
 	@mkdir -p $(dir $@)
 	@cp $< $@
-# libcore: Same code as used by the kernel, but different build
-$(OBJDIR)libcore.rlib: ../rustc_src/libcore/lib.rs $(TARGET_SPEC) $(makefile_deps)
+# libcore: Straight from the source
+$(OBJDIR)libcore.rlib: $(RUSTUP_SRC_DIR)libcore/lib.rs $(TARGET_SPEC) $(makefile_deps)
 	@mkdir -p $(dir $@)
 	@echo [RUSTC] $@
 	$V$(RUSTC) $(RUSTFLAGS) --emit=link,dep-info --crate-type=rlib --crate-name=core --out-dir $(OBJDIR) $<
@@ -133,7 +135,7 @@ $(OBJDIR)lib%.rlib: lib%/lib.rs $(TARGET_SPEC) $(makefile_deps)
 	@mv $(OBJDIR)$*.d $(OBJDIR)lib$*.d
 
 # - Official libraries
-$(OBJDIR)lib%.rlib: ../rustc_src/lib%/lib.rs $(OBJDIR)libcore.rlib $(TARGET_SPEC) $(makefile_deps)
+$(OBJDIR)lib%.rlib: $(RUSTUP_SRC_DIR)lib%/lib.rs $(OBJDIR)libcore.rlib $(TARGET_SPEC) $(makefile_deps)
 	@mkdir -p $(dir $@)
 	@echo [RUSTC rust-src] $@
 	$VCFG_COMPILER_HOST_TRIPLE=x86_64-unknown-linux-gnu $(RUSTC) $(RUSTFLAGS) -A unused_unsafe -A unused_features --emit=link,dep-info --out-dir $(OBJDIR) $< --crate-type=rlib --crate-name=$*
@@ -183,9 +185,6 @@ fn_mmdep = $2: $(filter-out $2,$(patsubst %,$(LIBDIR)lib%.rlib,$(call fn_getdeps
 $(foreach m, $(wildcard */lib.rs), $(eval $(call fn_mmdep,$m,$(m:%/lib.rs=$(OBJDIR)%.rlib))))
 $(foreach m, $(wildcard */src/lib.rs), $(eval $(call fn_mmdep,$m,$(m:%/src/lib.rs=$(OBJDIR)%.rlib))))
 $(foreach m, $(wildcard */src/main.rs), $(eval $(call fn_mmdep,$m,$(m:%/src/main.rs=$(OBJDIR)%))))
-
-#$(foreach m, $(wildcard ../rustc_src/lib*/lib.rs), $(eval $(call fn_mmdep,$m,$(m:../rustc_src/%/lib.rs=$(OBJDIR)%.rlib))))
-#$(foreach m, $(wildcard ../rustc_src/lib*/lib.rs), $(warning $(call fn_mmdep,$m,$(m:../rustc_src/%/lib.rs=$(OBJDIR)%.rlib))))
 
 ALL_USED_LIBS := std $(sort $(foreach m, $(wildcard */src/lib.rs */lib.rs) $(wildcard */src/main.rs), $(call fn_getdeps,$m)))
 ALL_PRESENT_BINS := $(patsubst %/src/main.rs,%, $(wildcard */src/main.rs))
