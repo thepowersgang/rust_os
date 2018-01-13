@@ -17,6 +17,7 @@
 #![feature(try_trait)]	// Makes Status a little easier to use
 
 pub use self::str16::Str16;
+pub use self::str16::{CStr16Ptr, CStr16};
 
 pub use self::con::{EfiLogger};
 pub use self::con::{SimpleInputInterface,SimpleTextOutputInterface};
@@ -41,26 +42,13 @@ pub mod status;
 pub mod runtime_services;
 pub mod boot_services;
 
+// libstd miniature clones
+pub mod borrow;
+
 pub enum Void {}
 pub type Handle = *mut Void;
 pub type PhysicalAddress = u64;
 pub type VirtualAddress = u64;
-
-/// Pointer to a UCS-2 NUL-terminated string
-pub type CStr16Ptr = *const u16;
-/// Safe unsized UCS-2 NUL-terminated string type
-pub struct CStr16([u16]);
-impl CStr16 {
-	pub fn as_ptr(&self) -> CStr16Ptr {
-		self.0.as_ptr()
-	}
-	pub fn from_slice(s: &[u16]) -> &CStr16 {
-		let l = s.iter().position(|&x| x == 0).expect("No NUL in slice passed to CStr16::from_slice");
-		let ss = &s[..l+1];
-		// SAFE: Same internal representation, string is NUL terminated
-		unsafe { &*(ss as *const [u16] as *const CStr16) }
-	}
-}
 
 /// GUID
 pub struct Guid( pub u32, pub u16, pub u16, pub [u8; 8] );

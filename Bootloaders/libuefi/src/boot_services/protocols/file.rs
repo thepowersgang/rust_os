@@ -21,9 +21,8 @@ pub struct File
 impl File
 {
 	#[inline]
-	pub fn open_read(&self, path: &[u16]) -> Result< super::Owned<File>, Status > {
+	pub fn open_read(&self, path: &::CStr16) -> Result< super::Owned<File>, Status > {
 		let mut out = ::core::ptr::null_mut();
-		assert!( path.last() == Some(&0) );
 		// SAFE: File path is NUL-terminated
 		(unsafe { (self.open)(self, &mut out, path.as_ptr(), FILE_MODE_READ, 0) })
 			// SAFE: Pointer has been passed to us for ownership

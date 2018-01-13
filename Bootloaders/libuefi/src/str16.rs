@@ -99,3 +99,50 @@ impl<'a> Iterator for Chars<'a>
 	}
 }
 
+/// Pointer to a UCS-2 NUL-terminated string
+pub type CStr16Ptr = *const u16;
+
+/// Safe unsized UCS-2 NUL-terminated string type
+pub struct CStr16([u16]);
+impl CStr16 {
+	pub fn as_ptr(&self) -> CStr16Ptr {
+		self.0.as_ptr()
+	}
+	pub fn from_slice(s: &[u16]) -> &CStr16 {
+		let l = s.iter().position(|&x| x == 0).expect("No NUL in slice passed to CStr16::from_slice");
+		let ss = &s[..l+1];
+		// SAFE: Same internal representation, string is NUL terminated
+		unsafe { &*(ss as *const [u16] as *const CStr16) }
+	}
+}
+
+impl<'a> From<&'a [u16]> for &'a CStr16
+{
+	fn from(v: &'a [u16]) -> Self {
+		CStr16::from_slice(v)
+	}
+}
+
+impl ::core::fmt::Display for CStr16
+{
+	fn fmt(&self, f: &mut ::core::fmt::Formatter) -> ::core::fmt::Result {
+		Str16::from_slice(&self.0[.. self.0.len() - 1]).fmt(f)
+	}
+}
+
+pub struct CString16<'h>(::boot_services::PoolVec<'h, u16>);
+impl<'h> ::borrow::ToOwned<'h> for CStr16
+{
+	type Owned = CString16<'h>;
+	fn to_owned(&self, _bs: &'h ::boot_services::BootServices) -> CString16<'h> {
+		panic!("CStr16::to_owned");
+	}
+}
+impl<'h> ::borrow::Borrow<CStr16> for CString16<'h>
+{
+	fn borrow(&self) -> &CStr16 {
+		// SAFE: Same internal representation, string is NUL terminated
+		unsafe { &*(&*self.0 as *const [u16] as *const CStr16) }
+	}
+}
+
