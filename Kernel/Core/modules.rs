@@ -6,7 +6,7 @@
 #[allow(unused_imports)]
 use prelude::*;
 
-#[repr(packed)]
+#[repr(C)]
 pub struct ModuleInfo
 {
 	pub name: &'static str,
