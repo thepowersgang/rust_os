@@ -57,7 +57,7 @@ pub enum AtaClass
 impl Default for AtaClass { fn default() -> AtaClass { AtaClass::Invalid } }
 
 /// ATA "IDENTIFY" packet data
-#[repr(C,packed)]
+#[repr(C)]	// All non-u16 values are aligned.
 pub struct AtaIdentifyData
 {
 	pub flags: u16,
