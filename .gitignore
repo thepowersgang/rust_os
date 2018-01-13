@@ -50,6 +50,8 @@ Kernel/rundir/test-*/
 # The bootloaders usually use the Kernel's libcore, so need an equivalent path to the target spec
 Bootloaders/*/Core/arch/*/target.json
 Bootloaders/uefi/*.txt
+Bootloaders/uefi/target
+Bootloaders/uefi/Cargo.lock
 Bootloaders/libuefi/target/
 Bootloaders/*.pe
 

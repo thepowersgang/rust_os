@@ -1,0 +1,11 @@
+[package]
+name = "bootloader-uefi"
+version = "0.0.0"
+
+[dependencies]
+uefi = {path = "../libuefi"}
+
+[lib]
+crate-type = ["staticlib"]
+name = "bootloader_uefi"
+path = "main.rs"

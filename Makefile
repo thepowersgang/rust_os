@@ -23,3 +23,4 @@ clean:
 UPDATE:
 	@echo ">>> Updating rustc and libcore"
 	@make -C Kernel/ UPDATE --no-print-directory
+	@make -C Kernel/ ../libcore/lib.rs --no-print-directory

@@ -9,3 +9,7 @@ __udivti3:
 .globl __umodti3
 __umodti3:
 	jmp .
+
+.globl rust_eh_personality
+rust_eh_personality:
+	jmp .

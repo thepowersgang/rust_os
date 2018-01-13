@@ -225,7 +225,7 @@ fn load_kernel_file(boot_services: &::uefi::boot_services::BootServices, sys_vol
 
 
 #[lang="eh_personality"]
-fn eh_personality() -> ! {
+pub fn eh_personality() -> ! {
 	loop {}
 }
 

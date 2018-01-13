@@ -144,37 +144,36 @@ doc/$(ARCH)/kernel/index.html: Core/main.rs $(OBJDIR)libkernel.rlib
 doc/$(ARCH)/core/index.html: ../libcore/lib.rs $(OBJDIR)libcore.rlib
 
 
+ifeq ($(RUSTC_DATE),)
+ RUSTUP_VER := nightly
+ LIBCORE_URL := https://static.rust-lang.org/dist/rustc-nightly-src.tar.gz
+else
+ RUSTUP_VER := nightly-$(RUSTC_DATE)
+ LIBCORE_URL := https://static.rust-lang.org/dist/$(RUSTC_DATE)/rustc-nightly-src.tar.gz
+endif
+RUSTUP_SRC_DIR = $(firstword $(wildcard ../.prefix/toolchains/nightly-*/lib/rustlib/src/rust/src))/
+
 # ===
 # Toolchain maintainence
 # - Downloads rustc and libcore
 # ===
-.PHONY: UPDATE UPDATE_rustc UPDATE_libcore_src
-UPDATE: UPDATE_rustc UPDATE_libcore_src
-UPDATE_rustc: 
+.PHONY: UPDATE
+UPDATE:
 	@mkdir -p ../.prefix
-ifeq ($(RUSTC_DATE),)
-	curl -s https://static.rust-lang.org/rustup.sh | sh -s -- --channel=nightly --prefix=../.prefix --disable-sudo --disable-ldconfig --yes
-else
-	curl -s https://static.rust-lang.org/rustup.sh | sh -s -- --channel=nightly --date=$(RUSTC_DATE) --prefix=../.prefix --disable-sudo --disable-ldconfig --yes
-endif
-UPDATE_libcore_src:
-ifeq ($(RUSTC_DATE),)
-	cd .. && curl -s https://static.rust-lang.org/dist/rustc-nightly-src.tar.gz -o rustc-nightly-src.tar.gz
-else
-	cd .. && curl -s https://static.rust-lang.org/dist/$(RUSTC_DATE)/rustc-nightly-src.tar.gz -o rustc-nightly-src.tar.gz
-endif
+	curl https://static.rust-lang.org/rustup/rustup-init.sh -sSf | RUSTUP_HOME=$(abspath ../.prefix) CARGO_HOME=$(abspath ../.prefix) sh -s -- --default-toolchain none --no-modify-path -y
+	$(call fn_rustcmd,rustup) update $(RUSTUP_VER)
+	$(call fn_rustcmd,rustup) default $(RUSTUP_VER)
+	$(call fn_rustcmd,rustup) component add rust-src
+	test -f ../.prefix/bin/xargo || $(CARGO) install xargo
 
-#../.prefix/bin/rustc: UPDATE_rustc
-#	@#
-../rustc-nightly-src.tar.gz:
-	@echo -- nightly source required, run "make UPDATE"
-	@false
-../libcore/lib.rs: ../rustc-nightly-src.tar.gz ../libcore_nofp.patch
-	tar -xmf ../rustc-nightly-src.tar.gz -C ../ rustc-nightly-src/src/libcore --transform 's~^rustc-nightly-src/src/~~'
+../libcore/lib.rs: ../libcore_nofp.patch $(RUSTUP_SRC_DIR)libcore/lib.rs
+	rm -rf ../libcore
+	cp -r $(RUSTUP_SRC_DIR)libcore ../libcore
 	cd .. && patch -p0 < libcore_nofp.patch
 .PHONY: NEWPATCH
 NEWPATCH:
-	tar -xmf ../rustc-nightly-src.tar.gz -C ../ rustc-nightly-src/src/libcore --transform 's~^rustc-nightly-src/src/libcore~libcore_orig~'
+	rm -rf ../libcore_orig
+	cp -r $(RUSTUP_SRC_DIR)libcore ../libcore_orig
 	cd .. && (diff -rub libcore_orig/ libcore/; true) > libcore_nofp.patch
 	
 
