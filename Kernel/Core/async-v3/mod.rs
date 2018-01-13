@@ -9,4 +9,5 @@ pub mod mutex;
 //pub mod buffer;
 
 pub use self::waiter::{Layer, Waiter, WaitHandle, WaitResult};
+//pub use self::buffer::{WriteBuffer, ReadBuffer, WriteBufferHandle, ReadBufferHandle};
 
