@@ -4,6 +4,7 @@ version = "0.0.0"
 
 [dependencies]
 uefi = {path = "../libuefi"}
+utf16_literal = { path = "../libuefi/utf16_literal" }
 
 [lib]
 crate-type = ["staticlib"]

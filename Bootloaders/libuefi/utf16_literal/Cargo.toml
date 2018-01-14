@@ -1,0 +1,6 @@
+[package]
+name = "utf16_literal"
+version = "0.0.0"
+
+[lib]
+proc-macro = true

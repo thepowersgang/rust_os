@@ -1,8 +1,9 @@
-//
+// UEFI Boot-loader
 //
 //
 #![feature(lang_items)]
 #![feature(asm)]
+#![feature(proc_macro)]	// utf16_literal
 #![no_std] 
 //#![crate_type="lib"]
 
@@ -11,6 +12,7 @@ use core::mem::size_of;
 
 #[macro_use]
 extern crate uefi;
+extern crate utf16_literal;
 
 macro_rules! log {
 	($($v:tt)*) => { loge!( ::get_conout(), $($v)*) };
@@ -21,25 +23,11 @@ mod elf;
 #[path="../uefi_proto.rs"]
 mod kernel_proto;
 
-// TODO: Write a procedural macro that creates a UCS2 string literal
-//static PATH_CONFIG: &'static [u16] = ucs2_c!("Tifflin\\boot.cfg");
-//static PATH_FALLBACK_KERNEL: &'static [u16] = ucs2_c!("Tifflin\\kernel-amd4.bin");
-macro_rules! u16_cs {
-	($($v:expr),+) => ( [$($v as u16),*] );
-}
-static PATH_CONFIG: &'static [u16] = &u16_cs!('T','I','F','F','L','I','N','\\','B','O','O','T','.','C','F','G',0);
-static PATH_FALLBACK_KERNEL: &'static [u16] = &u16_cs!('T','I','F','F','L','I','N','\\','K','E','R','N','E','L','.','E','L','F',0);
+static PATH_CONFIG: &'static [u16] = ::utf16_literal::utf16!("Tifflin\\boot.cfg\0");
+static PATH_FALLBACK_KERNEL: &'static [u16] = ::utf16_literal::utf16!("Tifflin\\kernel-amd4.bin\0");
 
-// Marker to tell where the executable was loaded
-#[link_section=".text"]
-static S_MARKER: () = ();
-
+// Globals used for panic handling and loging
 static mut S_CONOUT: *const ::uefi::SimpleTextOutputInterface = 1 as *const _;
-macro_rules! debug {
-	// SAFE: It's assumed that `S_CONOUT` is valid
-	($($v:tt)*) => { loge!(unsafe { &*S_CONOUT }, $($v)*) };
-}
-// Globals used for panic handling
 static mut S_BOOT_SERVICES: *const ::uefi::boot_services::BootServices = 0 as *const _;
 static mut S_IMAGE_HANDLE: ::uefi::Handle = 0 as *mut _;
 
@@ -50,7 +38,7 @@ struct Configuration<'bs>
 }
 impl<'bs> Configuration<'bs>
 {
-	fn from_file(bs: &'bs ::uefi::boot_services::BootServices, sys_vol: &protocols::File, filename: &::uefi::CStr16) -> Result<Configuration<'bs>, ::uefi::Status>
+	fn from_file(_bs: &'bs ::uefi::boot_services::BootServices, sys_vol: &protocols::File, filename: &::uefi::CStr16) -> Result<Configuration<'bs>, ::uefi::Status>
 	{
 		match sys_vol.open_read(filename)
 		{
@@ -78,7 +66,7 @@ pub extern "win64" fn efi_main(image_handle: ::uefi::Handle, system_table: &::ue
 {
 	let conout = system_table.con_out();
 
-	// Set up globals for panic! and debug!
+	// Set up globals for panic! and log!
 	// SAFE: Single-threaded context
 	unsafe {
 		S_CONOUT = conout;
@@ -87,7 +75,7 @@ pub extern "win64" fn efi_main(image_handle: ::uefi::Handle, system_table: &::ue
 	}
 
 
-	loge!(conout, "efi_main(image_handle={:?}, system_table={:p}) - {:p}", image_handle, system_table, &S_MARKER);
+	loge!(conout, "efi_main(image_handle={:?}, system_table={:p}) - {:p}", image_handle, system_table, { #[link_section=".text"] static S_MARKER: () = (); &S_MARKER });
 	//loge!(conout, "- RSP: {:p}", unsafe { let v: u64; asm!("mov %rsp, $0" : "=r" (v)); v } as usize as *const ());
 	loge!(conout, "- Firmware Version {:#x} by '{}'", system_table.firmware_revision, system_table.firmware_vendor());
 	loge!(conout, "- Boot Services @ {:p}, Runtime Services @ {:p}",
@@ -194,7 +182,7 @@ fn load_kernel_file(boot_services: &::uefi::boot_services::BootServices, sys_vol
 		
 		if ent.p_type == 1
 		{
-			debug!("- {:#x}+{:#x} loads +{:#x}+{:#x}",
+			log!("- {:#x}+{:#x} loads +{:#x}+{:#x}",
 				ent.p_paddr, ent.p_memsz,
 				ent.p_offset, ent.p_filesz
 				);
