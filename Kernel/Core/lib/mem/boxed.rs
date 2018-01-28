@@ -6,9 +6,13 @@
 use core::{mem,ops,fmt,marker};
 
 #[lang = "owned_box"]
-pub struct Box<T: ?Sized>(::core::ptr::Unique<T>);
+pub struct Box<T: ?Sized>(::core::ptr::NonNull<T>);
 
 impl<T: ?Sized + marker::Unsize<U>, U: ?Sized> ops::CoerceUnsized<Box<U>> for Box<T> { }
+unsafe impl<T: ?Sized + Send> Send for Box<T> {
+}
+unsafe impl<T: ?Sized + Sync> Sync for Box<T> {
+}
 
 impl<T> Box<T>
 {
@@ -94,7 +98,7 @@ impl<T> ops::BoxPlace<T> for IntermediateBox<T> {
 			}
 	}
 }
-impl<T> ops::Place<T> for IntermediateBox<T> {
+unsafe impl<T> ops::Place<T> for IntermediateBox<T> {
 	fn pointer(&mut self) -> *mut T {
 		self.ptr as *mut T
 	}

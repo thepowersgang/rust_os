@@ -68,7 +68,7 @@ pub struct ThreadHandle
 }
 
 /// "Owned" pointer to a thread (panics if dropped)
-pub struct ThreadPtr(::core::ptr::Unique<Thread>);
+pub struct ThreadPtr(::lib::mem::Unique<Thread>);
 
 /// Thread information
 pub struct Thread
@@ -304,11 +304,11 @@ impl ::core::ops::Drop for ThreadHandle
 impl ThreadPtr {
 	pub fn new(ptr: Box<Thread>) -> ThreadPtr {
 		// SAFE: Non-zero value
-		ThreadPtr( unsafe { ::core::ptr::Unique::new_unchecked(ptr.into_raw()) } )
+		ThreadPtr( unsafe { ::lib::mem::Unique::new_unchecked(ptr.into_raw()) } )
 	}
 	pub fn new_static(ptr: &'static mut Thread) -> ThreadPtr {
 		// SAFE: Non-zero value
-		ThreadPtr( unsafe { ::core::ptr::Unique::new_unchecked( (ptr as *mut _ as usize | 1) as *mut Thread) } )
+		ThreadPtr( unsafe { ::lib::mem::Unique::new_unchecked( (ptr as *mut _ as usize | 1) as *mut Thread) } )
 	}
 	pub fn into_boxed(self) -> Result<Box<Thread>, &'static mut Thread> {
 		let p = self.0.as_ptr() as usize;
@@ -338,7 +338,7 @@ impl ThreadPtr {
 		rv
 	}
 	pub unsafe fn from_usize(v: usize) -> Self {
-		ThreadPtr( ::core::ptr::Unique::new_unchecked( v as *mut Thread ) )
+		ThreadPtr( ::lib::mem::Unique::new_unchecked( v as *mut Thread ) )
 	}
 }
 impl ::core::ops::Deref for ThreadPtr {

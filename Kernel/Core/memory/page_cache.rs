@@ -8,7 +8,7 @@
 //! file/block cache into memory. It does _not_ manage eviction of cache entries from physical memory.
 //
 // TODO: Should this module handle a LRU cache of mappings (not actually unmap until needed)
-use core::ptr::Unique;
+use core::ptr::NonNull;
 use PAGE_SIZE;
 use memory::phys::FrameHandle;
 use core::sync::atomic::{AtomicPtr, Ordering};
@@ -25,8 +25,8 @@ impl_from! {
 	}
 }
 
-/// Unique handle to a page in the cache
-pub struct CachedPage(Unique<Page>);
+/// NonNull handle to a page in the cache
+pub struct CachedPage(NonNull<Page>);
 unsafe impl Send for CachedPage {}
 unsafe impl Sync for CachedPage {}
 
@@ -111,7 +111,7 @@ impl PageCache
 			// SAFE: Assuming that we're passed an unaliased handle. Address is non-zero
 			unsafe {
 				::memory::virt::map(addr as *mut (), frame_handle.clone().into_addr(), ProtectionMode::KernelRW);
-				Ok( CachedPage(Unique::new_unchecked(addr as *mut _)) )
+				Ok( CachedPage(NonNull::new_unchecked(addr as *mut _)) )
 			}
 			})
 	}
@@ -123,7 +123,7 @@ impl PageCache
 			let addr = self.addr(idx);
 			try!(::memory::virt::allocate(addr as *mut (), 1));
 			// SAFE: Non-null pointer
-			Ok( CachedPage(unsafe { Unique::new_unchecked(addr as *mut _) }) )
+			Ok( CachedPage(unsafe { NonNull::new_unchecked(addr as *mut _) }) )
 			})
 	}
 

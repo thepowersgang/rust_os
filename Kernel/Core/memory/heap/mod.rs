@@ -3,7 +3,7 @@
 //
 // Core/memory/heap.rs
 //! Dynamic memory manager
-use core::ptr::Unique;
+use core::ptr::NonNull;
 
 // TODO: Rewrite this to correctly use the size information avaliable
 
@@ -30,18 +30,22 @@ pub enum Error
 
 //pub struct AnyAlloc
 //{
-//	ptr: Unique<()>,
+//	ptr: NonNull<()>,
 //}
 //pub struct TypedAlloc<T>
 //{
-//	ptr: Unique<T>,
+//	ptr: NonNull<T>,
 //}
 pub struct ArrayAlloc<T>
 {
-	ptr: Unique<T>,
+	ptr: NonNull<T>,
 	count: usize,
 }
 impl<T> !::lib::POD for ArrayAlloc<T> {}
+unsafe impl<T: Sync> Sync for ArrayAlloc<T> {
+}
+unsafe impl<T: Send> Send for ArrayAlloc<T> {
+}
 
 // --------------------------------------------------------
 
@@ -119,9 +123,9 @@ impl<T> ArrayAlloc<T>
 	/// - NOTE: Zero count, even when the type is zero-sized
 	pub const fn empty() -> ArrayAlloc<T> {
 		ArrayAlloc {
-			// TODO: When Unique::empty is const, use that
+			// TODO: When NonNull::empty is const, use that
 			// SAFE: Non-zero value
-			ptr: unsafe { Unique::new_unchecked(ZERO_ALLOC as *mut T) },
+			ptr: unsafe { NonNull::new_unchecked(ZERO_ALLOC as *mut T) },
 			count: 0
 			}
 	}
@@ -129,13 +133,13 @@ impl<T> ArrayAlloc<T>
 	/// Create a new array allocation with `count` items
 	pub fn new(count: usize) -> ArrayAlloc<T>
 	{
-		// SAFE: Correctly constructs 'Unique' instances
+		// SAFE: Correctly constructs 'NonNull' instances
 		unsafe {
 			if ::core::mem::size_of::<T>() == 0 {
-				ArrayAlloc { ptr: Unique::new_unchecked(ZERO_ALLOC as *mut T), count: !0 }
+				ArrayAlloc { ptr: NonNull::new_unchecked(ZERO_ALLOC as *mut T), count: !0 }
 			}
 			else if count == 0 {
-				ArrayAlloc { ptr: Unique::new_unchecked(ZERO_ALLOC as *mut T), count: 0 }
+				ArrayAlloc { ptr: NonNull::new_unchecked(ZERO_ALLOC as *mut T), count: 0 }
 			}
 			else
 			{
@@ -145,12 +149,12 @@ impl<T> ArrayAlloc<T>
 					None => panic!("Out of memory when allocating array of {} elements", count)
 					};
 				assert!(!ptr.is_null());
-				ArrayAlloc { ptr: Unique::new_unchecked(ptr), count: count }
+				ArrayAlloc { ptr: NonNull::new_unchecked(ptr), count: count }
 			}
 		}
 	}
 	pub unsafe fn from_raw(ptr: *mut T, count: usize) -> ArrayAlloc<T> {
-		ArrayAlloc { ptr: Unique::new_unchecked(ptr), count: count }
+		ArrayAlloc { ptr: NonNull::new_unchecked(ptr), count: count }
 	}
 	pub fn into_raw(self) -> *mut [T] {
 		let ptr = self.ptr.as_ptr();

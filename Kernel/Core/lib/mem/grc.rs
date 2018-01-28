@@ -5,7 +5,7 @@
 //! Generic reference-counted shared allocation
 //!
 //! Provides common functionality between Rc and Arc
-use core::ptr::Shared;
+use core::ptr::NonNull;
 use core::sync::atomic::{AtomicUsize,Ordering};
 use core::{ops,fmt};
 
@@ -22,7 +22,7 @@ pub trait Counter {
 
 /// Generic reference counted allocation
 pub struct Grc<C: Counter, T: ?Sized> {
-	ptr: Shared<GrcInner<C, T>>
+	ptr: NonNull<GrcInner<C, T>>
 }
 
 /// Not Send (Arc overrides this)
@@ -67,7 +67,7 @@ impl<C: Counter, T> Grc<C, T>
 		// SAFE: Pointer won't be NULL
 		unsafe {
 			Grc {
-				ptr: Shared::new_unchecked( GrcInner::new_ptr(value) )
+				ptr: NonNull::new_unchecked( GrcInner::new_ptr(value) )
 			}
 		}
 	}
@@ -228,7 +228,7 @@ impl<C: Counter, U> Grc<C, [U]>
 				::core::ptr::write( (*inner).val.as_mut_ptr().offset(i as isize), fcn(i) );
 			}
 			
-			Grc { ptr: Shared::new_unchecked(inner) }
+			Grc { ptr: NonNull::new_unchecked(inner) }
 		}
 	}
 	
