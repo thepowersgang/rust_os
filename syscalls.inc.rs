@@ -44,6 +44,10 @@ def_grp!( 0: GROUP_CORE = {
 	=6: CORE_STARTTHREAD,
 	/// Wait for any of a set of events
 	=7: CORE_WAIT,
+	/// Wait on a futex
+	=8: CORE_FUTEX_SLEEP,
+	/// Wake a number of sleepers on a futex
+	=9: CORE_FUTEX_WAKE,
 });
 
 /// Value for `get_text_info`'s `unit` argument, indicating kernel core
@@ -105,6 +109,7 @@ macro_rules! def_classes {
 					$( $(#[$ea:meta])* =$ev:tt: $en:ident, )*
 				}
 		),*
+		$(,)*
 	) => {
 		#[repr(u16)]
 		#[allow(non_camel_case_types,dead_code)]
@@ -254,7 +259,19 @@ def_classes! {
 	}|{
 		/// Fires when the channel has a message waiting
 		=0: EV_IPC_RPC_RECV,
+	},
+
+/*
+	/// A registered read/write buffer
+	=11: CLASS_BUFFER = {
+		--
+		/// Release the buffer (and return the memory to userland)
+		=0: BUFFER_RELEASE,
+	}|{
+		/// Fires when the buffer is used (populated/read)
+		=0: EV_BUFFER_CONSUMED,
 	}
+*/
 }
 
 

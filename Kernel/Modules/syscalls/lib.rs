@@ -175,6 +175,12 @@ fn invoke_int(call_id: u32, args: &mut Args) -> Result<u64,Error>
 			let timeout: u64 = try!(args.get());
 			try!(threads::wait(&mut events, timeout)) as u64
 			},
+		CORE_FUTEX_SLEEP => {
+			todo!("FUTEX_SLEEP");
+			},
+		CORE_FUTEX_WAKE => {
+			todo!("FUTEX_SLEEP");
+			},
 		// === 1: Window Manager / GUI
 		// - 1/0: New group (requires permission, has other restrictions)
 		GUI_NEWGROUP => {

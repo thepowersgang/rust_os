@@ -27,8 +27,7 @@ impl<T> Mutex<T>
 
 	pub fn unwrap(self) -> T {
 		assert_eq!( self.0.load(Ordering::Relaxed), 0 );
-		// SAFE: By-value self, so no aliasing
-		unsafe { self.1.into_inner() }
+		self.1.into_inner()
 	}
 
 	/// UNSAFE: User needs to ensure that resources are no longer borrowed
@@ -69,9 +68,16 @@ impl<'a, T: 'a> ops::Drop for HeldMutex<'a, T>
 
 pub fn futex_wait(addr: &AtomicUsize, sleep_if_val: usize)
 {
-	panic!("TODO: futex_wait");
+	// SAFE: Assumed
+	unsafe {
+		syscall!(CORE_FUTEX_SLEEP, addr as *const _ as usize, sleep_if_val);
+	}
 }
 pub fn futex_wake(addr: &AtomicUsize, num_to_wake: usize)
 {
+	// SAFE: Assumed
+	unsafe {
+		syscall!(CORE_FUTEX_WAKE, addr as *const _ as usize, num_to_wake);
+	}
 }
 

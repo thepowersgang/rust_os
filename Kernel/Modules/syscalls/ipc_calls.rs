@@ -37,7 +37,7 @@ impl ::objects::Object for SyncChannel
 
 			if let Some(msg) = self.take_message()
 			{
-				todo!("IPC_RPC_RECV - Message present");
+				todo!("IPC_RPC_RECV - Message present - {:?}", msg);
 			}
 			else
 			{
