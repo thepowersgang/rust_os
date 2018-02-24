@@ -64,7 +64,7 @@ fn init()
 
 	let info = hpet.data();
 	assert!(info.addr.asid == AddressSpaceID::Memory as u8);
-	assert!(info.addr.address % ::PAGE_SIZE as u64 == 0, "Address {:#x} not page aligned", info.addr.address);
+	assert!(info.addr.address % ::PAGE_SIZE as u64 == 0, "Address {:#x} not page aligned", { info.addr.address });
 	// Assume SAFE: Shouldn't be sharing paddrs
 	let mapping = unsafe { ::memory::virt::map_hw_rw(info.addr.address, 1, "HPET").unwrap() };
 

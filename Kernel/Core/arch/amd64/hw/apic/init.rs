@@ -7,6 +7,7 @@
 use prelude::*;
 
 #[repr(C,packed)]
+//#[derive(FromPacked)]
 pub struct ACPI_MADT
 {
 	pub local_controller_addr: u32,
@@ -98,8 +99,8 @@ impl ACPI_MADT
 	pub fn dump(&self, len: usize)
 	{
 		log_debug!("MADT = {{");
-		log_debug!("  local_controller_addr: {:#x}", self.local_controller_addr);
-		log_debug!("  flags: {:#x}", self.flags);
+		log_debug!("  local_controller_addr: {:#x}", { self.local_controller_addr });
+		log_debug!("  flags: {:#x}", { self.flags });
 		log_debug!("}}");
 		
 		for (i,rec) in self.records(len).enumerate()
@@ -154,14 +155,14 @@ impl ::core::fmt::Debug for MADT_LAPIC
 {
 	fn fmt(&self, f: &mut ::core::fmt::Formatter) -> Result<(),::core::fmt::Error>
 	{
-		write!(f, "{{Proc:{},APIC:{},Flags:{:#x}}}", self.processor, self.apic_id, self.flags)
+		write!(f, "{{Proc:{},APIC:{},Flags:{:#x}}}", self.processor, self.apic_id, { self.flags })
 	}
 }
 impl ::core::fmt::Debug for MADT_IOAPIC
 {
 	fn fmt(&self, f: &mut ::core::fmt::Formatter) -> Result<(),::core::fmt::Error>
 	{
-		write!(f, "{{ID:{},Addr:{:#x},BaseIRQ:{}}}", self.ioapic_id, self.address, self.interrupt_base)
+		write!(f, "{{ID:{},Addr:{:#x},BaseIRQ:{}}}", self.ioapic_id, { self.address }, { self.interrupt_base })
 	}
 }
 
