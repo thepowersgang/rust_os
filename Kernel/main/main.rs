@@ -209,7 +209,7 @@ fn spawn_init(loader_path: &str, init_cmdline: &str) -> Result<::kernel::Void, &
 	let (header_ptr, memsize) = try!( load_loader(&loader) );
 
 	// - Populate argument region and return size written
-	// SAFE: Addresses are checked
+	// SAFE: Addresses are checked by load_loader
 	let argslen = unsafe {
 		let init_path_ofs = header_ptr.init_path_ofs as usize;
 		let init_path_len = header_ptr.init_path_len as usize;
@@ -277,8 +277,13 @@ fn load_loader(loader: &::kernel::vfs::handle::File) -> Result<(&'static LoaderH
 	let ah_bss = ::kernel::memory::virt::allocate_user(bss_start, pages);
 	
 	// - 5. Write loader arguments
-	if (header_ptr.init_path_ofs as usize) < codesize || (header_ptr.init_path_ofs as usize + header_ptr.init_path_len as usize) >= memsize {
-		log_error!("Userland init string location out of range: {:#x}", header_ptr.init_path_ofs);
+	//   > Target buffer should be outside of the code region, and within the reserved region
+	if header_ptr.init_path_ofs as usize > codesize && (header_ptr.init_path_ofs as usize + header_ptr.init_path_len as usize) <= memsize {
+		// Init commandline is within a valid region
+		// TODO: Should this function return a slice instead of letting the caller do the casts?
+	}
+	else {
+		log_error!("Userland init string location out of range: {:#x}+{} not in {:#x}--{:#x}", header_ptr.init_path_ofs, header_ptr.init_path_len, codesize, memsize);
 		return Err("Loader invalid");
 	}
 
