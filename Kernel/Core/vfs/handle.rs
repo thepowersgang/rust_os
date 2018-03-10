@@ -282,7 +282,13 @@ impl<'a> Drop for MemoryMapHandle<'a>
 {
 	fn drop(&mut self)
 	{
-		todo!("MemoryMapHandle::drop {{ handle={:?}, base={:p}+{}}}", self.handle, self.base, self.len);
+		assert_eq!(self.len % ::PAGE_SIZE, 0, "TODO: Handle unaligned lengths in MemoryMapHandle::drop");
+		assert_eq!(self.base as usize % ::PAGE_SIZE, 0, "TODO: Handle unaligned addresses in MemoryMapHandle::drop");
+		let npages = self.len / ::PAGE_SIZE;
+		// SAFE: This is a uniquely owned handle
+		unsafe {
+			::memory::virt::unmap(self.base, npages);
+		}
 	}
 }
 
