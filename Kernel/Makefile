@@ -166,7 +166,8 @@ UPDATE:
 ../libcore/lib.rs: ../libcore_nofp.patch $(RUSTUP_SRC_DIR)libcore/lib.rs
 	rm -rf ../libcore
 	cp -r $(RUSTUP_SRC_DIR)libcore ../libcore
-	cd .. && patch -p0 < libcore_nofp.patch
+	cp -r $(RUSTUP_SRC_DIR)stdsimd ../stdsimd
+	#cd .. && patch -p0 < libcore_nofp.patch
 .PHONY: NEWPATCH
 NEWPATCH:
 	rm -rf ../libcore_orig
