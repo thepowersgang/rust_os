@@ -4,6 +4,7 @@ addons:
     packages:
     - nasm
     - qemu
+    - libguestfs-tools
 env:
   matrix:
     - ARCH=amd64
@@ -26,5 +27,5 @@ cache:
 script:
   - make UPDATE
   - make all
-#  - python SystemTest/BasicBoot.py
+  - python SystemTest/BasicBoot.py
 
