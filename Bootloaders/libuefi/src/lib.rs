@@ -15,6 +15,7 @@
 #![crate_type="lib"]
 #![feature(unique)]
 #![feature(try_trait)]	// Makes Status a little easier to use
+#![feature(ptr_internals)]	// rawptr as_ref
 
 pub use self::str16::Str16;
 pub use self::str16::{CStr16Ptr, CStr16};
