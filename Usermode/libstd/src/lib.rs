@@ -27,7 +27,7 @@ extern crate macros;
 extern crate alloc;
 extern crate alloc_system;
 
-#[macro_reexport(try,assert,assert_eq,panic,write,unreachable,unimplemented)]
+#[macro_reexport(try,assert_eq,panic,write,unreachable,unimplemented)]
 extern crate core as core_2;	// Alternate name because it collides otherwise
 
 //extern crate loader;
