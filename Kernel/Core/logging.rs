@@ -277,6 +277,7 @@ impl<'a> LoggingFormatter<'a>
 	#[is_safe(irq)]	// SAFE: This lock holds interrupts, so can't interrupt itself.
 	pub fn new(level: Level, modname: &'static str) -> LoggingFormatter<'static>
 	{
+		// TODO: if S_LOGGING_LOCK is held by the current CPU, error.
 		let mut rv = LoggingFormatter {
 				_irq_handle: ::arch::sync::hold_interrupts(),
 				lock_handle: S_LOGGING_LOCK.lock()

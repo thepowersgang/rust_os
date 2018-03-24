@@ -11,6 +11,7 @@ pub fn write<F: ::core::ops::FnOnce(&mut ::logging::LoggingFormatter)->::core::f
 macro_rules! log{ ($lvl:expr, $modname:expr, $($arg:tt)*) => (
 	if $crate::logging::enabled($lvl, $modname)
 	{
+		// NOTE: Keeps the logging out of the main path by using a closure
 		$crate::logmacros::write($lvl, $modname, |s| { use core::fmt::Write; write!(s, $($arg)*) });
 	}
 	)}
