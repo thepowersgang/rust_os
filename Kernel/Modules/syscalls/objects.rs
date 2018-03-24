@@ -191,7 +191,8 @@ impl ProcessObjects {
 				let mut wh = ent.write();
 				if wh.is_none() {
 					*wh = Some(fcn());
-					log_debug!("Object created #{}: {}", i, wh.as_ref().unwrap().data.type_name());
+					let name = wh.as_ref().unwrap().data.type_name();
+					log_debug!("Object created #{}: {}", i, name);
 					return Ok(i as u32);
 				}
 			}
@@ -225,8 +226,7 @@ impl Drop for ProcessObjects {
 //pub fn new_object<T: Object+'static>(val: T) -> Result<u32, super::Error>
 pub fn new_object<T: Object+'static>(val: T) -> u32
 {
-	//log_debug!("new_object<{}>", type_name!(T));
-	log_debug!("size_of {} = {}", type_name!(T), ::core::mem::size_of::<T>());
+	log_debug!("new_object() - size_of {} = {}", type_name!(T), ::core::mem::size_of::<T>());
 	get_process_local::<ProcessObjects>().find_and_fill_slot(|| UserObject::new(val)).unwrap_or(!0)
 }
 
