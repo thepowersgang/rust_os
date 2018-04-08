@@ -21,7 +21,7 @@ unsafe impl<T: Send> ::core::marker::Send for Queue<T> {}
 macro_rules! queue_init{ () => ($crate::lib::queue::Queue::new()) }
 
 struct QueueEntPtr<T>(Box<QueueEnt<T>>);
-struct QueueTailPtr<T>(::core::nonzero::NonZero<*mut QueueEnt<T>>);
+struct QueueTailPtr<T>(::core::ptr::NonNull<QueueEnt<T>>);
 
 struct QueueEnt<T>
 {
@@ -189,7 +189,7 @@ impl<T> QueueEntPtr<T>
 
 	/// UNSAFE: Requires that the tail pointer not outlive this object
 	unsafe fn tail_ptr(&mut self) -> QueueTailPtr<T> {
-		QueueTailPtr(::core::nonzero::NonZero::new_unchecked(&mut *self.0))
+		QueueTailPtr(::core::ptr::NonNull::new_unchecked(&mut *self.0))
 	}
 }
 impl<T> ::core::ops::Deref for QueueEntPtr<T> {
@@ -203,11 +203,11 @@ impl<T> QueueTailPtr<T>
 {
 	/// UNSAFE: Can cause aliasing if called while &mut-s to the last object are active
 	unsafe fn get(&self) -> &QueueEnt<T> {
-		& *self.0.get()
+		self.0.as_ref()
 	}
 	/// UNSAFE: Can cause aliasing if called while &mut-s to the last object are active
 	unsafe fn get_mut(&mut self) -> &mut QueueEnt<T> {
-		&mut *self.0.get()
+		self.0.as_mut()
 	}
 }
 

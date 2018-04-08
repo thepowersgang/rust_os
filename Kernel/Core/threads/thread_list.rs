@@ -3,7 +3,7 @@
 //
 // Core/threads/threadlist.rs
 //! Owned list of threads
-use core::nonzero::NonZero;
+use core::ptr::NonNull;
 
 use super::{Thread,ThreadPtr};
 
@@ -11,7 +11,7 @@ use super::{Thread,ThreadPtr};
 pub struct ThreadList
 {
 	first: Option<ThreadPtr>,
-	last: Option< NonZero<*mut Thread> >,
+	last: Option< NonNull<Thread> >,
 }
 unsafe impl Send for ThreadList {}
 
@@ -52,7 +52,7 @@ impl ThreadList
 			assert!(self.last.is_some());
 			// SAFE: WaitQueue should be locked (and nobody has any of the list items borrowed)
 			unsafe {
-				let last_ref: &mut Thread = &mut *self.last.unwrap().get();
+				let last_ref: &mut Thread = self.last.as_mut().unwrap().as_mut();
 				assert!(last_ref.next.is_none());
 				last_ref.next = Some(t);
 			}
@@ -63,7 +63,7 @@ impl ThreadList
 			self.first = Some(t);
 		}
 		// SAFE: ptr is non-zero
-		self.last = Some(unsafe { NonZero::new_unchecked(ptr) });
+		self.last = Some(unsafe { NonNull::new_unchecked(ptr) });
 	}
 }
 

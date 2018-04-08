@@ -3,7 +3,7 @@
 //
 // Core/lib/mem/mod.rs
 //! Owned dynamic allocation (box)
-use core::{mem,ops,fmt,marker};
+use core::{ops,fmt,marker};
 
 #[lang = "owned_box"]
 pub struct Box<T: ?Sized>(::core::ptr::NonNull<T>);
@@ -53,6 +53,7 @@ impl<T: ?Sized> Box<T>
 	}
 }
 
+/*
 impl<T> ops::Boxed for Box<T> {
 	type Data = T;
 	type Place = IntermediateBox<T>;
@@ -79,8 +80,8 @@ impl<T: ?Sized> Drop for IntermediateBox<T> {
 }
 impl<T> ops::BoxPlace<T> for IntermediateBox<T> {
 	fn make_place() -> IntermediateBox<T> {
-		let size = mem::size_of::<T>();
-		let align = mem::align_of::<T>();
+		let size = ::core::mem::size_of::<T>();
+		let align = ::core::mem::align_of::<T>();
 		
 		let ptr = if size == 0 {
 				::memory::heap::ZERO_ALLOC as *mut u8
@@ -103,6 +104,7 @@ unsafe impl<T> ops::Place<T> for IntermediateBox<T> {
 		self.ptr as *mut T
 	}
 }
+*/
 
 pub fn into_inner<T>(b: Box<T>) -> T {
 	let box v = b;

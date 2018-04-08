@@ -11,7 +11,7 @@
 //! original memory).
 use prelude::*;
 use core::sync::atomic::{AtomicUsize,Ordering};
-use core::nonzero::NonZero;
+use core::ptr::NonNull;
 use core::{ops, fmt};
 
 
@@ -25,7 +25,7 @@ impl<T: ?Sized + ::core::marker::Unsize<U>, U: ?Sized> ops::CoerceUnsized<Aref<U
 /// A borrow of an Aref
 pub struct ArefBorrow<T: ?Sized>
 {
-	__ptr: NonZero<*const ArefInner<T>>,
+	__ptr: NonNull<ArefInner<T>>,
 }
 unsafe impl<T: ?Sized + Sync+Send> Send for ArefBorrow<T> {}
 unsafe impl<T: ?Sized + Sync+Send> Sync for ArefBorrow<T> {}
@@ -96,7 +96,7 @@ impl<T: ?Sized> ArefInner<T>
 		self.count.fetch_add(1, Ordering::Relaxed);
 		ArefBorrow {
 			// SAFE: Pointers are never 0
-			__ptr: unsafe { NonZero::new_unchecked(self) },
+			__ptr: unsafe { NonNull::new_unchecked(self as *const _ as *mut _) },
 			}
 	}
 }
@@ -116,7 +116,7 @@ impl<T: ?Sized> ArefBorrow<T>
 	}
 	fn __inner(&self) -> &ArefInner<T> {
 		// SAFE: Nobody gets a &mut to the inner, and pointer should be valid
-		unsafe { &*self.__ptr.get() }
+		unsafe { self.__ptr.as_ref() }
 	}
 }
 impl<T: ?Sized + Any> ArefBorrow<T> {
@@ -124,9 +124,9 @@ impl<T: ?Sized + Any> ArefBorrow<T> {
 		// SAFE: Transmute validity is checked by checking that the type IDs match
 		unsafe { 
 			if (*self).get_type_id() == ::core::any::TypeId::of::<U>() {
-				let ptr = self.__ptr.get() as *const ArefInner<U>;
+				let ptr = self.__ptr.as_ptr() as *const ArefInner<U>;
 				::core::mem::forget(self);
-				Ok(ArefBorrow { __ptr: NonZero::new_unchecked(ptr) })
+				Ok(ArefBorrow { __ptr: NonNull::new_unchecked(ptr as *mut _) })
 			}
 			else {
 				Err(self)

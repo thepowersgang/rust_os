@@ -160,7 +160,7 @@ impl Rect
 		if max_x1 < min_x2 && max_y1 < min_y2 {
 			Some( Rect {
 				pos: Pos { x: max_x1, y: max_y1 },
-				dims: Dims::new((min_x2 - max_x1), (min_y2 - max_y1))
+				dims: Dims::new(min_x2 - max_x1, min_y2 - max_y1)
 				} )
 		}
 		else {
