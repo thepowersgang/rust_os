@@ -45,6 +45,8 @@ endif
 BIN_RUSTFLAGS := 
 #BIN_RUSTFLAGS += -C lto
 
+RUSTFLAGS_compiler_builtins = --cfg feature=\"compiler-builtins\"
+
 # - List non-file targets
 .PHONY: all clean
 # - Don't delete intermediate targets
@@ -138,7 +140,13 @@ $(OBJDIR)lib%.rlib: lib%/lib.rs $(TARGET_SPEC) $(makefile_deps)
 $(OBJDIR)lib%.rlib: $(RUSTUP_SRC_DIR)lib%/lib.rs $(OBJDIR)libcore.rlib $(TARGET_SPEC) $(makefile_deps)
 	@mkdir -p $(dir $@)
 	@echo [RUSTC rust-src] $@
-	$VCFG_COMPILER_HOST_TRIPLE=x86_64-unknown-linux-gnu $(RUSTC) $(RUSTFLAGS) -A unused_unsafe -A unused_features --emit=link,dep-info --out-dir $(OBJDIR) $< --crate-type=rlib --crate-name=$*
+	$VCFG_COMPILER_HOST_TRIPLE=x86_64-unknown-linux-gnu $(RUSTC) $(RUSTFLAGS) $(RUSTFLAGS_$*) --emit=link,dep-info --out-dir $(OBJDIR) $< --crate-type=rlib --crate-name=$*
+	@mv $(OBJDIR)$*.d $(OBJDIR)lib$*.d
+# - Official libraries
+$(OBJDIR)lib%.rlib: $(RUSTUP_SRC_DIR)lib%/src/lib.rs $(OBJDIR)libcore.rlib $(TARGET_SPEC) $(makefile_deps)
+	@mkdir -p $(dir $@)
+	@echo [RUSTC rust-src] $@
+	$VCFG_COMPILER_HOST_TRIPLE=x86_64-unknown-linux-gnu $(RUSTC) $(RUSTFLAGS) $(RUSTFLAGS_$*) --emit=link,dep-info --out-dir $(OBJDIR) $< --crate-type=rlib --crate-name=$*
 	@mv $(OBJDIR)$*.d $(OBJDIR)lib$*.d
 
 # - Loader's interface library, lives in the loader directory
@@ -179,7 +187,7 @@ $(OBJDIR)rustrt0.o: rustrt0/$(ARCH).S $(makefile_deps)
 	$V$(CC) -o $@ -c $< -D ARCH_$(ARCH) -fPIC -MMD -MF $@.d
 
 # Generate dependencies for EVERY crate
-fn_getstd = $(shell grep -F "![no_std]" $1 >/dev/null && echo "core" || echo "std")
+fn_getstd = $(shell grep -F "![no_std]" $1 >/dev/null && echo "core compiler_builtins" || echo "std")
 fn_mmdep = $2: $(filter-out $2,$(patsubst %,$(LIBDIR)lib%.rlib,$(call fn_getdeps,$1) $(call fn_getstd,$1)))
 # - Assumes that if there's a main.rs file, a binary is generated, and for lib.rs a rlib is generated
 $(foreach m, $(wildcard */lib.rs), $(eval $(call fn_mmdep,$m,$(m:%/lib.rs=$(OBJDIR)%.rlib))))

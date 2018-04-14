@@ -50,6 +50,7 @@ ifeq ($(OBJS),)
 endif
 
 PREFIX ?= ../.prefix/
+RUSTUP_SRC_DIR = $(firstword $(wildcard ../.prefix/toolchains/nightly-*/lib/rustlib/src/rust/src))/
 
 -include BuildNum.$(ARCH).mk
 BUILDNUM ?= 1
@@ -116,7 +117,7 @@ IMGDIR := ../Graphics/.output/shared/
 # - Exclude non-module crates from the object list
 OBJS := $(filter-out $(EXT_CRATES:%=%.o), $(OBJS))
 OBJS := $(OBJS:%=$(OBJDIR)%)
-LIBS := $(OBJDIR)libcore.rlib $(EXT_CRATES:%=$(OBJDIR)lib%.rlib)
+LIBS := $(OBJDIR)libcore.rlib $(OBJDIR)libcompiler_builtins.rlib $(EXT_CRATES:%=$(OBJDIR)lib%.rlib)
 ifeq ($(USE_ACPICA),1)
 	LIBS += $(OBJDIR)acpica.a
 endif
@@ -237,6 +238,11 @@ $(OBJDIR)libcore.rlib: $(LIBCORESRC)lib.rs $(TARGET_FILE)
 	@echo [RUSTC] -o $@
 	@mkdir -p $(dir $@)
 	$V$(ENV) $(RUSTC) $(RUSTFLAGS) --emit=link,dep-info --out-dir $(dir $@) --crate-name core --crate-type=lib $<
+	@cp $(OBJDIR)core.d $(OBJDIR)libcore.d
+$(OBJDIR)libcompiler_builtins.rlib: $(RUSTUP_SRC_DIR)libcompiler_builtins/src/lib.rs $(TARGET_FILE)
+	@echo [RUSTC] -o $@
+	@mkdir -p $(dir $@)
+	$V$(ENV) $(RUSTC) $(RUSTFLAGS) --emit=link,dep-info --out-dir $(dir $@) --cfg feature=\"compiler-builtins\" $<
 	@cp $(OBJDIR)core.d $(OBJDIR)libcore.d
 
 $(OBJDIR)acpica.a: ../acpica/Makefile $(wildcard ../acpica/patches/source/include/platform/*)
