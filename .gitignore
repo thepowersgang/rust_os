@@ -9,14 +9,15 @@
 
 *.pyc
 
-gitstats/
-libcore/
-libcore_orig/
-rustc_src/
-acpica/*.a
-acpica/acpica-*/
-externals/crates.io/*/
-Screenshots/
+/gitstats
+/libcore
+/stdsimd
+/libcore_orig
+/rustc_src
+/acpica/*.a
+/acpica/acpica-*
+/externals/crates.io/*
+/Screenshots
 
 Graphics/*.rs
 Graphics/*.r8
