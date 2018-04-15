@@ -291,6 +291,7 @@ impl Card
 impl nic::Interface for Card
 {
 	fn tx_raw(&self, pkt: nic::SparsePacket) {
+		log_trace!("tx_raw()");
 		// 1. Pick a TX buffer (waiting until one is free)
 		let mut buf = self.tx_slots.acquire_wait();
 		// 2. Populate the buffer with the contents of the packet
@@ -305,7 +306,8 @@ impl nic::Interface for Card
 		// - No need to wait.
 	}
 
-	fn tx_async(&self, async: async::ObjectHandle, mut stack: async::StackPush, pkt: nic::SparsePacket) -> Result<(), nic::Error> {
+	fn tx_async<'a, 's>(&'s self, async: async::ObjectHandle, mut stack: async::StackPush<'a, 's>, pkt: nic::SparsePacket) -> Result<(), nic::Error> {
+		log_trace!("tx_async()");
 		// If there's an immediately-avaliable slot, take it
 		if let Some(mut buf) = self.tx_slots.try_acquire()
 		{
@@ -331,16 +333,16 @@ impl nic::Interface for Card
 				buf.into_boxed_slice()
 				};
 			// Handler that will pause for us (Just as cheap as using an enum)
-			stack.push_closure(|_async, _stack, v| if v == !0 { None } else { Some(v) });
+			stack.push_closure(|_async, _stack, v| if v == !0 { None } else { Some(v) }).expect("Insufficient space when pushing closure");
 			// Push a handler to start the run.
-			//stack.push_closure(move |async, stack, slot_idx| {
-			//	// SAFE: This (should) only be called when tx_slots has found a slot.
-			//	let mut hw_buf = unsafe { self.tx_slots.handle_from_async(slot_idx) };
-			//	hw_buf.fill(&buf, 0).expect("TODO: Error when TX overflows buffer");
-			//	hw_buf.async = Some(async);
-			//	self.start_tx(hw_buf, buf.len());
-			//	Some(!0)	// Return a value that will pop the state, then pause at the above handler.
-			//	});
+			stack.push_closure(move |async, _stack, slot_idx| {
+				// SAFE: This (should) only be called when tx_slots has found a slot.
+				let mut hw_buf = unsafe { self.tx_slots.handle_from_async(slot_idx) };
+				hw_buf.fill(&buf, 0).expect("TODO: Error when TX overflows buffer");
+				hw_buf.async = Some(async);
+				self.start_tx(hw_buf, buf.len());
+				Some(!0)	// Return a value that will pop the state, then pause at the above handler.
+				}).expect("Insufficient space when pushing closure");
 			self.tx_slots.acquire_async(async, stack);
 		}
 		

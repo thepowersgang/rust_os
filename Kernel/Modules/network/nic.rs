@@ -17,10 +17,13 @@ pub enum Error
 	MtuExceeded,
 	/// Not enough space avaliable for the packet
 	BufferUnderrun,
+	///// Async stack space exceeded
+	//AsyncTooDeep,
 }
 
 /// Chain of wrapping packet information, used for scatter-gather DMA
 // TODO: Represent the lifetime of the components relative to the async root
+// - Two lifetime parameters, one for inner and one for outer
 pub struct SparsePacket<'a>
 {
 	head: &'a [u8],
@@ -68,7 +71,7 @@ pub trait Interface: 'static + Send + Sync
 
 	/// The input buffer can be a mix of `> 'stack` and `< 'stack` buffers. This function should collapse shorter lifetime
 	/// buffers into an internal buffer that lives long enough.
-	fn tx_async(&self, async: async::ObjectHandle, stack: async::StackPush, pkt: SparsePacket) -> Result<(), Error>;
+	fn tx_async<'a, 's>(&'s self, async: async::ObjectHandle, stack: async::StackPush<'a, 's>, pkt: SparsePacket) -> Result<(), Error>;
 
 	/// Called once to allow the interface to get an object to signal a new packet arrival
 	fn rx_wait_register(&self, channel: &::kernel::threads::SleepObject);
@@ -120,14 +123,28 @@ pub fn register<T: Interface>(mac_addr: [u8; 6], int: T) -> Registration<T> {
 	let b = reg.borrow();
 
 	// HACK: Send a dummy packet
-	// - An ICMP Echo request to qemu's user network router
+	// - An ICMP Echo request to qemu's user network router (10.0.2.2 from 10.0.2.15)
 	{
 		let mut pkt = 
-			// MAC Dst                MAC Src     EtherTy IP      TotalLen Identif Frag   TTL Prot CkSum  Source          Dest            ICMP
-			*b"\xFF\xFF\xFF\xFF\xFF\xFF\0\0\0\0\0\0\x08\x00\x45\x00\x00\x23\x00\x00\x00\x00\xFF\x01\xa3\xca\x0A\x00\x02\x0F\x0A\x00\x02\x01\x08\x00\x7d\x0d\x00\x00\x00\x00Hello World"
+			//  MAC Dst                MAC Src     EtherTy IP      TotalLen Identif Frag   TTL Prot CkSum  Source          Dest            ICMP
+			*b"\x52\x55\x0a\x00\x02\x02\0\0\0\0\0\0\x08\x00\x45\x00\x00\x23\x00\x00\x00\x00\xFF\x01\xa3\xca\x0A\x00\x02\x0F\x0A\x00\x02\x02\x08\x00\x7d\x0d\x00\x00\x00\x00Hello World"
 			;
 		pkt[6..][..6].copy_from_slice( &mac_addr );
+
+		// Blocking
+		log_debug!("TESTING - Tx Blocking");
 		reg.tx_raw(SparsePacket { head: &pkt, next: None });
+
+		// Async
+		log_debug!("TESTING - Tx Async");
+		let mut o: async::Object = Default::default();
+		reg.tx_async(o.get_handle(), o.get_stack(), SparsePacket { head: &pkt, next: None });
+		let h = [&o];
+		{
+			let w = async::Waiter::new(&h);
+			w.wait_one();
+		}
+		log_debug!("TESTING - Tx Complete");
 	}
 
 	let worker_reg = reg.borrow();

@@ -43,6 +43,10 @@ impl<T> Spinlock<T>
 			value: ::core::cell::UnsafeCell::new(val),
 		}
 	}
+	pub fn get_mut(&mut self) -> &mut T {
+		// SAFE: &mut to lock
+		unsafe { &mut *self.value.get() }
+	}
 	
 	/// Lock this spinning lock
 	#[not_safe(irq)]

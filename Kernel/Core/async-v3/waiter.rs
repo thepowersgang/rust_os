@@ -26,56 +26,64 @@ pub trait Layer
 }
 
 /// A handle to an async stack that is only allowed to push to the stack (cannot pop or access values)
-pub struct StackPush<'a>
+pub struct StackPush<'a,'b: 'a>
 {
-	_pd: PhantomData<&'a mut AsyncStack>,
-	stack: *mut AsyncStack,
+	_pd: PhantomData<&'a mut AsyncStack<'b>>,
+	stack: *mut AsyncStack<'b>,
 }
 
 const SLOT_STACK_SIZE_WORDS: usize = 256 / 8;
-type AsyncStack = ::stack_dst::StackA<Layer, [usize; SLOT_STACK_SIZE_WORDS]>;
+type AsyncStack<'a> = ::stack_dst::StackA<Layer+'a, [usize; SLOT_STACK_SIZE_WORDS]>;
 
-#[derive(Default)]
 /// A single async slot (i.e. a single async operation as requested by the user)
 ///
 /// This should have a stable address for the life of the operation (as hardware will have a handle to it)
 /// TODO: How can this be ensured? Force a self-borrow? It must be _safe_, which implies that this has to be used via ARefBorrow?
-pub struct Object
+#[derive(Default)]
+pub struct Object<'a>
+{
+	inner: ObjectInner,
+	/// Async call stack
+	stack: Spinlock<AsyncStack<'a>>,
+}
+#[derive(Default)]
+struct ObjectInner
 {
 	/// A pointer to the currently-active waiter object. If null, there's no active sleeper
 	waiter: atomic::AtomicPtr<SleepObject<'static>>,
 	/// Result of the async operation, set to indicate it's time for the operation to advance
 	// TODO: Could this be a AtomicUsize with a magic value (-1?) indicating empty?
 	result: Spinlock<Option<usize>>,
-	/// Async call stack
-	stack: Spinlock<AsyncStack>,
 }
 /// A handle to an Object (as passed to state updates)
 pub struct ObjectHandle
 {
-	ptr: ::core::ptr::NonNull<Object>,
+	ptr: ::core::ptr::NonNull<ObjectInner>,
 }
 unsafe impl Send for ObjectHandle {
 }
 
 /// Top-level waiter object (see module-level documentation)
-pub struct Waiter<'h>
+pub struct Waiter<'h, 'a: 'h>
 {
 	sleeper: SleepObject<'static>,
-	handles: &'h [&'h Object],
+	handles: &'h [&'h Object<'a>],
 }
-impl<'a,'h> !Sync for Waiter<'h> {}
+impl<'h, 'a: 'h> !Sync for Waiter<'h, 'a> {}
 
 // ----------
 // Object
 // ----------
-impl Object
+impl<'a> Object<'a>
 {
 	pub fn get_handle(&self) -> ObjectHandle {
 		// TODO: UNSAFE! How can this ensure that the pointer is valid as long as this object exists?
 		ObjectHandle {
-			ptr: ::core::ptr::NonNull::new(self as *const _ as *mut _).unwrap(),
+			ptr: ::core::ptr::NonNull::new(&self.inner as *const _ as *mut _).unwrap(),
 			}
+	}
+	pub fn get_stack<'s>(&'s mut self) -> StackPush<'s, 'a> {
+		StackPush::new(self.stack.get_mut())
 	}
 }
 impl ObjectHandle
@@ -103,10 +111,10 @@ impl ObjectHandle
 // ----------
 // Waiter
 // ----------
-impl<'h> Waiter<'h>
+impl<'h, 'a: 'h> Waiter<'h, 'a>
 {
 	/// Construct a new waiter with `count` slots
-	pub fn new(handles: &'h [&'h Object]) -> Waiter<'h>
+	pub fn new(handles: &'h [&'h Object<'a>]) -> Waiter<'h, 'a>
 	{
 		Waiter {
 			sleeper: SleepObject::new("Waiter"),
@@ -118,7 +126,7 @@ impl<'h> Waiter<'h>
 	{
 		for (idx,h) in Iterator::enumerate(self.handles.iter())
 		{
-			let mut res = h.result.lock().take();
+			let mut res = h.inner.result.lock().take();
 			while let Some(res_val) = res
 			{
 				// There's a result waiting!
@@ -127,8 +135,10 @@ impl<'h> Waiter<'h>
 				// If there's no handler, return.
 				if stack_lh.is_empty()
 				{
+					log_debug!("check_one: {} result {:#x}", idx, res_val);
 					return Some(WaitResult { slot: idx, result: res_val });
 				}
+				log_debug!("check_one: {} advance {:#x}", idx, res_val);
 
 				// Stack has an entry, so pass the value on to that entry.
 				let test_ptr: *mut ();
@@ -181,22 +191,25 @@ impl<'h> Waiter<'h>
 // -----------
 // StackPush
 // -----------
-impl<'a> StackPush<'a>
+impl<'a, 'b: 'a> StackPush<'a, 'b>
 {
+	fn new(stack: &'a mut AsyncStack<'b>) -> StackPush<'a, 'b> {
+		StackPush { _pd: PhantomData, stack }
+	}
 	/// Construct a new instance as well as get a pointer to the top of the stack
-	fn new_with_top(stack: &mut AsyncStack) -> (StackPush, &mut Layer)
+	fn new_with_top(stack: &'a mut AsyncStack<'b>) -> (StackPush<'a, 'b>, &'a mut (Layer+'b))
 	{
 		(StackPush { _pd: PhantomData, stack }, stack.top_mut().expect("new_with_top"), )
 	}
 	/// Push onto the stack
-	pub fn push<T: Layer + 'static>(&mut self, v: T) -> Result<(), T>
+	pub fn push<T: Layer + 'b>(&mut self, v: T) -> Result<(), T>
 	{
 		// SAFE: The rule with this type is that it is ONLY allowed to push.
 		unsafe {
 			(*self.stack).push(v)
 		}
 	}
-	pub fn push_closure<F: FnMut(ObjectHandle, StackPush, usize)->Option<usize> + 'static>(&mut self, f: F) -> Result<(), ()>
+	pub fn push_closure<F: FnMut(ObjectHandle, StackPush, usize)->Option<usize> + 'b>(&mut self, f: F) -> Result<(), ()>
 	{
 		self.push(ClosureLayer(f)).map_err(|_| ())
 	}
@@ -216,14 +229,14 @@ pub struct WaitResult {
 // --------------------------------------------------------------------
 
 //
-struct HandleSleepReg<'a, 'h>
+struct HandleSleepReg<'a, 'h, 'ha: 'h>
 {
 	so: &'a SleepObject<'a>,
-	handles: &'h [&'h Object],
+	handles: &'h [&'h Object<'ha>],
 }
-impl<'a, 'h> HandleSleepReg<'a, 'h>
+impl<'a, 'h, 'ha: 'h> HandleSleepReg<'a, 'h, 'ha>
 {
-	fn new(so: &'a SleepObject, handles: &'h [&'h Object]) -> Result<HandleSleepReg<'a, 'h>, usize>
+	fn new(so: &'a SleepObject, handles: &'h [&'h Object<'ha>]) -> Result<HandleSleepReg<'a, 'h, 'ha>, usize>
 	{
 		// Create return structure before starting to register
 		let rv = HandleSleepReg {
@@ -233,7 +246,7 @@ impl<'a, 'h> HandleSleepReg<'a, 'h>
 		// Try to register, returning Err(index) if it fails
 		for (i,h) in handles.iter().enumerate()
 		{
-			let ex = h.waiter.compare_and_swap(::core::ptr::null_mut(), so as *const _ as *mut _, Ordering::SeqCst);
+			let ex = h.inner.waiter.compare_and_swap(::core::ptr::null_mut(), so as *const _ as *mut _, Ordering::SeqCst);
 			if ex != ::core::ptr::null_mut()
 			{
 				// Uh-oh, something else is waiting on this?
@@ -245,14 +258,14 @@ impl<'a, 'h> HandleSleepReg<'a, 'h>
 		Ok(rv)
 	}
 }
-impl<'a, 'h> ::core::ops::Drop for HandleSleepReg<'a, 'h>
+impl<'a, 'h, 'ha: 'h> ::core::ops::Drop for HandleSleepReg<'a, 'h, 'ha>
 {
 	fn drop(&mut self)
 	{
 		// Deregister all handles (if they're set to this object)
 		for h in self.handles
 		{
-			h.waiter.compare_and_swap(self.so as *const _ as *mut _, ::core::ptr::null_mut(), Ordering::SeqCst);
+			h.inner.waiter.compare_and_swap(self.so as *const _ as *mut _, ::core::ptr::null_mut(), Ordering::SeqCst);
 		}
 	}
 }
