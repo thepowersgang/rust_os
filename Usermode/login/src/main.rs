@@ -149,6 +149,7 @@ fn spawn_console_and_wait(path: &str)
 {
 	let (hs_chan, cli_chan) = ::syscalls::ipc::RpcChannel::new_pair().expect("Coudn't create new RPC Channel");
 
+	// Spawn a session leader handled server
 	let handle_server = {
 		let path = "/sysroot/bin/handle_server";
 		let fh = open_exe(path).unwrap_or_else(|e| panic!("Couldn't open handle server - {:?}", e));
@@ -169,7 +170,7 @@ fn spawn_console_and_wait(path: &str)
 		pp.send_obj( "HsChan", cli_chan );
 		pp.start()
 		};
-	::syscalls::threads::wait(&mut [console.wait_terminate()], !0);
-	//::syscalls::threads::wait(&mut [console.wait_terminate(), handle_server.wait_terminate()], !0);
+	//::syscalls::threads::wait(&mut [console.wait_terminate()], !0);
+	::syscalls::threads::wait(&mut [console.wait_terminate(), handle_server.wait_terminate()], !0);
 }
 

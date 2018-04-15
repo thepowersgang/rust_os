@@ -107,7 +107,7 @@ impl Surface
 	/// Resize the surface (clearing existing content)
 	pub fn resize(&mut self, dims: ::syscalls::gui::Dims, fill: Colour) {
 		self.width = dims.w as usize;
-		*self.data.borrow_mut() = vec![fill.as_argb32(); (dims.w as usize * dims.h as usize)];
+		*self.data.borrow_mut() = vec![fill.as_argb32(); dims.w as usize * dims.h as usize];
 		// On resize, set dirty area to full area of the surface
 		self.invalidate_all();
 	}

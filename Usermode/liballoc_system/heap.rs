@@ -67,9 +67,9 @@ pub unsafe fn reallocate_inplace(ptr: *mut u8, old_size: usize, align: usize, ne
 		old_size
 	}
 }
-pub fn get_usable_size(size: usize, _align: usize) -> usize
+pub fn get_usable_size(size: usize, _align: usize) -> (usize, usize)
 {
-	size
+	(size, size)
 }
 
 struct AllocState

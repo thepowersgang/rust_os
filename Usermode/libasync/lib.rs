@@ -4,7 +4,7 @@
 //
 //! Asynchronous waiting support
 
-#[macro_use]
+//#[macro_use]
 extern crate syscalls;
 
 /// Trait for types that can be used for 'idle_loop'

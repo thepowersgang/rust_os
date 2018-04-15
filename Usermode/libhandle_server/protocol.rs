@@ -60,6 +60,7 @@ pub enum UnmarshalError
 
 pub enum Request
 {
+	CreateChild(ReqCreateChild),
 	OpenExecutable(ReqOpenExecutable),
 	PickFile(ReqPickFile),
 }
@@ -68,6 +69,7 @@ impl Request
 	pub fn try_from(v: ::syscalls::ipc::RpcMessage) -> Result<Self, UnmarshalError> {
 		match RequestId::try_from(v[0])
 		{
+		Some(RequestId::CreateChild) => ReqCreateChild::try_from(v).ok_or(UnmarshalError::BadValue).map(Request::CreateChild),
 		Some(RequestId::OpenExecutable) => match ReqOpenExecutable::try_from(v)
 			{
 			Some(rv) => Ok(Request::OpenExecutable(rv)),
@@ -86,6 +88,7 @@ impl Request
 #[repr(u8)]
 enum RequestId
 {
+	CreateChild,
 	OpenExecutable,
 	PickFile,
 }
@@ -99,6 +102,26 @@ impl RequestId
 		else {
 			None
 		}
+	}
+}
+
+def_proto_type! {
+	RequestId::CreateChild => ReqCreateChild
+	struct {
+		name_buf: [u8; 31],
+	}
+	new(name: &str) {
+		name_buf: zero_pad_bytes_into(name.as_bytes()),
+	}
+	try_from(v) {
+		name_buf: zero_pad_bytes_into(&v[1..]),
+	}
+}
+def_message_transmute! { ReqCreateChild }
+impl ReqCreateChild
+{
+	pub fn name(&self) -> &[u8] {
+		get_zero_terminated_slice(&self.name_buf)
 	}
 }
 
@@ -151,7 +174,7 @@ impl ReqPickFile
 	}
 }
 #[repr(u8)]
-#[derive(Copy,Clone)]
+#[derive(Copy,Clone,Debug)]
 pub enum PickFileMode
 {
 	ReadOnly,
@@ -243,6 +266,13 @@ impl RspError
 	}
 	pub fn message(&self) -> &str {
 		::core::str::from_utf8( get_zero_terminated_slice(&self.message) ).expect("Invalid UTF-8 from handle server")
+	}
+}
+impl ::core::fmt::Debug for RspError
+{
+	fn fmt(&self, f: &mut ::core::fmt::Formatter) -> ::core::fmt::Result
+	{
+		write!(f, "RspError({} {})", self.error_id, self.message())
 	}
 }
 

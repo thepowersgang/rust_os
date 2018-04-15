@@ -18,7 +18,7 @@ macro_rules! imgpath {
 }
 
 fn start_app_console() {
-	start_app(&["/sysroot/bin/simple_console", "--windowed"], |app| {
+	start_app(&["/sysroot/bin/simple_console", "--windowed"], |_app| {
 		//app.send_obj( "vfs", ::syscalls::vfs::ROOT.clone() );
 		});
 }
@@ -29,7 +29,7 @@ fn start_app_filebrowser() {
 }
 fn start_app_editor() {
 	let path = "/system/1.txt";
-	let f = ::syscalls::vfs::ROOT.open_child_path(path.as_bytes()).expect("Couldn't open file")
+	let f = ::syscalls::vfs::ROOT.open_child_path(path.as_bytes()).expect("Couldn't open editor executable file")
 		.into_file(::syscalls::vfs::FileOpenMode::ReadOnly).expect("Couldn't open file as readonly");
 	start_app(&["/sysroot/bin/fileviewer", path], |app| {
 		app.send_obj( "file", f );

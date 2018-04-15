@@ -18,8 +18,6 @@ use core::ptr::NonNull;
 
 #[macro_use]
 extern crate syscalls;
-#[macro_use]
-extern crate macros;
 
 extern crate std_sync as sync;
 extern crate alloc;
@@ -57,6 +55,12 @@ unsafe impl alloc::allocator::Alloc for &'static Allocator
 	{
 		heap::deallocate(ptr.as_ptr() as *mut u8, layout.size(), layout.align())
 	}
+
+	fn usable_size(&self, layout: &Layout) -> (usize, usize)
+	{
+		heap::get_usable_size(layout.size(), layout.align())
+	}
+
 	unsafe fn realloc(&mut self, ptr: NonNull<Opaque>, layout: Layout, new_size: usize) -> Result<NonNull<Opaque>, AllocErr>
 	{
 		let rv = heap::reallocate(ptr.as_ptr() as *mut u8, layout.size(), layout.align(), new_size);
