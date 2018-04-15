@@ -255,12 +255,16 @@ impl<T: Clone> Vec<T>
 		ret
 	}
 	
-	pub fn push_all(&mut self, other: &[T])
-	{
+	pub fn extend_from_slice(&mut self, other: &[T]) {
 		self.reserve(other.len());
 		for v in other.iter() {
 			self.push(v.clone());
 		}
+	}
+	#[deprecated]
+	pub fn push_all(&mut self, other: &[T])
+	{
+		self.extend_from_slice(other);
 	}
 }
 

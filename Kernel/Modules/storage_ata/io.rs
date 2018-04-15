@@ -350,7 +350,7 @@ impl AtaRegs
 			bm.out_8(0, if is_write { 0 } else { 8 } | 1);
 
 			// Select channel
-			self.out_8(6, (disk << 4));
+			self.out_8(6, disk << 4);
 			// Set DMA enable
 			self.out_8(1, 0x01);
 			// Max byte count

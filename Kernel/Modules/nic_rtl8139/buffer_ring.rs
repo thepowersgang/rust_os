@@ -3,6 +3,7 @@
 //
 //! Container for a ring buffer of pooled objects
 use core::ops;
+use kernel::_async3 as async;
 
 pub type BufferRing4<V> = BufferRing<[V; 4]>;
 
@@ -40,6 +41,23 @@ impl<S: Storage> BufferRing<S>
 			}
 	}
 	
+	/// Acquire if possible
+	pub fn try_acquire(&self) -> Option<Handle<S>> {
+		let mut lh = self.inner.lock();
+		if (lh.next_free + 1) % S::len() as u16 == lh.first_used {
+			None
+		}
+		else {
+			let idx = lh.next_free as usize;
+			lh.next_free = (lh.next_free + 1) % S::len() as u16;
+			
+			Some(Handle {
+				bs: self,
+				idx: idx,
+				})
+		}
+	}
+	/// Aquire with a blocking wait
 	pub fn acquire_wait(&self) -> Handle<S> {
 		let mut lh = self.inner.lock();
 		while (lh.next_free + 1) % S::len() as u16 == lh.first_used {
@@ -55,6 +73,18 @@ impl<S: Storage> BufferRing<S>
 			idx: idx,
 			}
 	}
+	/// Acquire in an async manner
+	pub fn acquire_async(&self, async: async::ObjectHandle, _stack: async::StackPush) {
+		let mut lh = self.inner.lock();
+		if (lh.next_free + 1) % S::len() as u16 == lh.first_used {
+			// TODO: Figure out how to push `async` onto the wait queue
+			panic!("TODO: acquire_async");
+		}
+		else {
+			async.signal( lh.next_free as usize );
+			lh.next_free = (lh.next_free + 1) % S::len() as u16;
+		}
+	}
 	
 	pub fn get_first_used(&self) -> Option<usize> {
 		let lh = self.inner.lock();
@@ -66,6 +96,13 @@ impl<S: Storage> BufferRing<S>
 		}
 	}
 
+	/// Get a handle using the id returned by an async operation
+	pub unsafe fn handle_from_async(&self, index: usize) -> Handle<S> {
+		Handle {
+			bs: self,
+			idx: index,
+			}
+	}
 	/// Release an object by index
 	pub unsafe fn release(&self, index: usize) {
 		let mut lh = self.inner.lock();

@@ -8,7 +8,7 @@
 #![feature(integer_atomics)]	// AtomicU8
 use kernel::prelude::*;
 use kernel::sync::Mutex;
-//use kernel::_async3 as async;
+use kernel::_async3 as async;
 use core::sync::atomic::{Ordering,AtomicU8,AtomicU16};
 use network::nic;
 use hw::Regs;
@@ -53,7 +53,7 @@ struct Card
 struct TxSlot
 {
 	buffer: *mut [u8],
-	async: Option<()>,
+	async: Option<async::ObjectHandle>,
 }
 unsafe impl Send for TxSlot {}
 impl TxSlot
@@ -305,8 +305,7 @@ impl nic::Interface for Card
 		// - No need to wait.
 	}
 
-	#[cfg(_false)]
-	fn tx_async(&self, async: async::ObjectHandle, stack: async::StackPush, pkt: nic::SparsePacket) -> Result<(), nic::Error> {
+	fn tx_async(&self, async: async::ObjectHandle, mut stack: async::StackPush, pkt: nic::SparsePacket) -> Result<(), nic::Error> {
 		// If there's an immediately-avaliable slot, take it
 		if let Some(mut buf) = self.tx_slots.try_acquire()
 		{
@@ -325,25 +324,27 @@ impl nic::Interface for Card
 			// Take a copy of the input packet for later use.
 			// - TODO: Get a async-safe version of `pkt` instead
 			let buf = {
-				let buf = Vec::new();
+				let mut buf = Vec::new();
 				for span in &pkt {
-					buf.append(span);
+					buf.extend_from_slice(span);
 				}
 				buf.into_boxed_slice()
 				};
 			// Handler that will pause for us (Just as cheap as using an enum)
-			stack.push(|_async, _stack, v| if v == !0 { None } else { Some(v) });
+			stack.push_closure(|_async, _stack, v| if v == !0 { None } else { Some(v) });
 			// Push a handler to start the run.
-			stack.push(move |async, stack, slot_idx| {
-				// SAFE: This (should) only be called when tx_slots has found a slot.
-				let mut hw_buf = unsafe { self.tx_slots.handle_from_async(slot_idx) };
-				hw_buf.fill(&buf, 0).expect("TODO: Error when TX overflows buffer");
-				hw_buf.async = Some(async);
-				self.start_tx(hw_buf, total_len);
-				Some(!0)	// Return a value that will pop the state, then pause at the above handler.
-				});
+			//stack.push_closure(move |async, stack, slot_idx| {
+			//	// SAFE: This (should) only be called when tx_slots has found a slot.
+			//	let mut hw_buf = unsafe { self.tx_slots.handle_from_async(slot_idx) };
+			//	hw_buf.fill(&buf, 0).expect("TODO: Error when TX overflows buffer");
+			//	hw_buf.async = Some(async);
+			//	self.start_tx(hw_buf, buf.len());
+			//	Some(!0)	// Return a value that will pop the state, then pause at the above handler.
+			//	});
 			self.tx_slots.acquire_async(async, stack);
 		}
+		
+		Ok( () )
 	}
 	
 	fn rx_wait_register(&self, channel: &::kernel::threads::SleepObject) {

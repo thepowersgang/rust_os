@@ -6,7 +6,6 @@ use kernel::prelude::*;
 use kernel::lib::mem::aref::ArefBorrow;
 use kernel::vfs::{self, node};
 use kernel::lib::byte_str::ByteStr;
-use kernel::lib::ascii::AsciiExt;
 use super::on_disk;
 use super::file::FileNode;
 use super::ClusterList;

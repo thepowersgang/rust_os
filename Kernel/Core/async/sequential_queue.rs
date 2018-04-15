@@ -6,11 +6,9 @@
 //!
 //! Waiters are woken in order (acknowledgement required)
 //!
-//! NOTE: This queue requires that all waiters eventuall run their
+//! NOTE: This queue requires that all waiters eventually run their
 //! completion handlers (to correctly yield to the next waiter)
-#[allow(dead_code)]
 use core::fmt;
-use core::sync::atomic::{Ordering, AtomicUsize};
 
 pub enum Waiter<'a>
 {

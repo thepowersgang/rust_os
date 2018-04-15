@@ -457,7 +457,7 @@ impl Port
 		//log_trace!("do_fis(self={}, cmd={:p}+{}, pkt={:p}+{}, data={:?})",
 		//	self, cmd.as_ptr(), cmd.len(), pkt.as_ptr(), pkt.len(), data);
 
-		let mut slot = self.get_command_slot();
+		let slot = self.get_command_slot();
 
 		slot.data.cmd_fis[..cmd.len()].clone_from_slice(cmd);
 		slot.data.atapi_cmd[..pkt.len()].clone_from_slice(pkt);

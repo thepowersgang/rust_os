@@ -35,6 +35,7 @@ pub struct MADT_IOAPIC
 	pub address: u32,
 	pub interrupt_base: u32,
 }
+#[derive(Copy,Clone)]
 #[derive(Debug)]
 #[repr(C,packed)]
 pub struct MADT_IntSrcOvr
@@ -44,6 +45,7 @@ pub struct MADT_IntSrcOvr
 	gsi: u32,
 	flags: u16,	// Polarity (2), Trigger Mode (2), MBZ(12)
 }
+#[derive(Copy,Clone)]
 #[derive(Debug)]
 #[repr(C,packed)]
 pub struct MADT_NMI
@@ -51,6 +53,7 @@ pub struct MADT_NMI
 	flags: u16,
 	gsi: u32,
 }
+#[derive(Copy,Clone)]
 #[derive(Debug)]
 #[repr(C,packed)]
 pub struct MADT_LAPICNMI
@@ -59,6 +62,7 @@ pub struct MADT_LAPICNMI
 	flags: u16,
 	lint_num: u8,
 }
+#[derive(Copy,Clone)]
 #[derive(Debug)]
 #[repr(C,packed)]
 pub struct MADT_LAPICAddr

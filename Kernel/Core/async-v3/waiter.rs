@@ -196,6 +196,10 @@ impl<'a> StackPush<'a>
 			(*self.stack).push(v)
 		}
 	}
+	pub fn push_closure<F: FnMut(ObjectHandle, StackPush, usize)->Option<usize> + 'static>(&mut self, f: F) -> Result<(), ()>
+	{
+		self.push(ClosureLayer(f)).map_err(|_| ())
+	}
 }
 
 /// Result from an async operation
@@ -250,5 +254,16 @@ impl<'a, 'h> ::core::ops::Drop for HandleSleepReg<'a, 'h>
 		{
 			h.waiter.compare_and_swap(self.so as *const _ as *mut _, ::core::ptr::null_mut(), Ordering::SeqCst);
 		}
+	}
+}
+
+// --------------------------------------------------------------------
+// Trait Impls
+// --------------------------------------------------------------------
+struct ClosureLayer<F>(pub F);
+impl<F: FnMut(ObjectHandle, StackPush, usize)->Option<usize>> Layer for ClosureLayer<F>
+{
+	fn advance(&mut self, object: ObjectHandle, stack: StackPush, result: usize) -> Option<usize> {
+		(self.0)(object, stack, result)
 	}
 }

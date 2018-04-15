@@ -66,9 +66,9 @@ pub trait Interface: 'static + Send + Sync
 	/// Transmit a raw packet (blocking)
 	fn tx_raw(&self, pkt: SparsePacket);
 
-	///// The input buffer can be a mix of `> 'stack` and `< 'stack` buffers. This function should collapse shorter lifetime
-	///// buffers into an internal buffer that lives long enough.
-	//fn tx_async(&self, async: async::ObjectHandle, stack: async::StackPush, pkt: SparsePacket) -> Result<(), Error>;
+	/// The input buffer can be a mix of `> 'stack` and `< 'stack` buffers. This function should collapse shorter lifetime
+	/// buffers into an internal buffer that lives long enough.
+	fn tx_async(&self, async: async::ObjectHandle, stack: async::StackPush, pkt: SparsePacket) -> Result<(), Error>;
 
 	/// Called once to allow the interface to get an object to signal a new packet arrival
 	fn rx_wait_register(&self, channel: &::kernel::threads::SleepObject);

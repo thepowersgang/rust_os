@@ -32,7 +32,7 @@ impl String
 	/// Create a string from a string slice
 	pub fn from_str(string: &str) -> String {
 		let mut v = Vec::new();
-		v.push_all(string.as_bytes());
+		v.extend_from_slice(string.as_bytes());
 		String(v)
 	}
 	/// Create a string from a `fmt::Arguments` instance (used by `format!`)
@@ -46,7 +46,7 @@ impl String
 	/// Append `s` to the string
 	pub fn push_str(&mut self, s: &str)
 	{
-		self.0.push_all(s.as_bytes());
+		self.0.extend_from_slice(s.as_bytes());
 	}
 	
 	/// Return the string as a &str
