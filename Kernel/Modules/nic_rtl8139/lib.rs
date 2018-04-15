@@ -8,6 +8,7 @@
 #![feature(integer_atomics)]	// AtomicU8
 use kernel::prelude::*;
 use kernel::sync::Mutex;
+//use kernel::_async3 as async;
 use core::sync::atomic::{Ordering,AtomicU8,AtomicU16};
 use network::nic;
 use hw::Regs;
@@ -52,12 +53,13 @@ struct Card
 struct TxSlot
 {
 	buffer: *mut [u8],
+	async: Option<()>,
 }
 unsafe impl Send for TxSlot {}
 impl TxSlot
 {
 	fn fill(&mut self, buf: &[u8], ofs: usize) -> Result<(),usize> {
-		// SAFE: Just gets the length
+		// SAFE: Just gets the length from the slice, no memory access
 		let buflen = unsafe { (*self.buffer).len() };
 		if ofs > buflen || ofs + buf.len() > buflen {
 			Err( buflen - (ofs + buf.len()) )
@@ -89,10 +91,10 @@ impl BusDev
 			::kernel::memory::virt::alloc_dma(32, 1, "rtl8139")?.into_array(),
 			];
 		let tx_slots = [
-			TxSlot { buffer: &mut tx_buffer_handles[0][..0x800], },
-			TxSlot { buffer: &mut tx_buffer_handles[0][0x800..], },
-			TxSlot { buffer: &mut tx_buffer_handles[1][..0x800], },
-			TxSlot { buffer: &mut tx_buffer_handles[1][0x800..], },
+			TxSlot { buffer: &mut tx_buffer_handles[0][..0x800], async: None, },
+			TxSlot { buffer: &mut tx_buffer_handles[0][0x800..], async: None, },
+			TxSlot { buffer: &mut tx_buffer_handles[1][..0x800], async: None, },
+			TxSlot { buffer: &mut tx_buffer_handles[1][0x800..], async: None, },
 			];
 
 		let rx_buffer = ::kernel::memory::virt::alloc_dma(32, 3, "rtl8139")?.into_array();
@@ -213,6 +215,7 @@ impl Card
 					// Activated and complete (and now marked as inactive), release it to the pool
 					// SAFE: This descriptor can only have been activated if ownership was passed to the card, so it's safe to release.
 					unsafe { self.tx_slots.release(idx); }
+					// TODO: signal waiter.
 				}
 				log_trace!("handle_irq: TOK {}", idx);
 			}
@@ -288,7 +291,7 @@ impl Card
 impl nic::Interface for Card
 {
 	fn tx_raw(&self, pkt: nic::SparsePacket) {
-		// 1. Pick a TX buffer (what to do when there is none?)
+		// 1. Pick a TX buffer (waiting until one is free)
 		let mut buf = self.tx_slots.acquire_wait();
 		// 2. Populate the buffer with the contents of the packet
 		let mut total_len = 0;
@@ -296,9 +299,53 @@ impl nic::Interface for Card
 			buf.fill(span, total_len).expect("TODO: Error when packet TX overflows buffer");
 			total_len += span.len();
 		}
+		buf.async = None;
 
 		self.start_tx(buf, total_len);
+		// - No need to wait.
 	}
+
+	#[cfg(_false)]
+	fn tx_async(&self, async: async::ObjectHandle, stack: async::StackPush, pkt: nic::SparsePacket) -> Result<(), nic::Error> {
+		// If there's an immediately-avaliable slot, take it
+		if let Some(mut buf) = self.tx_slots.try_acquire()
+		{
+			// Populate the hardware buffer with the contents of the packet
+			let mut total_len = 0;
+			for span in &pkt {
+				buf.fill(span, total_len).expect("TODO: Error when packet TX overflows buffer");
+				total_len += span.len();
+			}
+
+			buf.async = Some(async);
+			self.start_tx(buf, total_len);
+		}
+		else
+		{
+			// Take a copy of the input packet for later use.
+			// - TODO: Get a async-safe version of `pkt` instead
+			let buf = {
+				let buf = Vec::new();
+				for span in &pkt {
+					buf.append(span);
+				}
+				buf.into_boxed_slice()
+				};
+			// Handler that will pause for us (Just as cheap as using an enum)
+			stack.push(|_async, _stack, v| if v == !0 { None } else { Some(v) });
+			// Push a handler to start the run.
+			stack.push(move |async, stack, slot_idx| {
+				// SAFE: This (should) only be called when tx_slots has found a slot.
+				let mut hw_buf = unsafe { self.tx_slots.handle_from_async(slot_idx) };
+				hw_buf.fill(&buf, 0).expect("TODO: Error when TX overflows buffer");
+				hw_buf.async = Some(async);
+				self.start_tx(hw_buf, total_len);
+				Some(!0)	// Return a value that will pop the state, then pause at the above handler.
+				});
+			self.tx_slots.acquire_async(async, stack);
+		}
+	}
+	
 	fn rx_wait_register(&self, channel: &::kernel::threads::SleepObject) {
 		*self.waiter_handle.lock() = Some(channel.get_ref());
 	}

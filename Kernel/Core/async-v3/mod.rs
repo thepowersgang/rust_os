@@ -8,6 +8,10 @@ mod waiter;
 pub mod mutex;
 //pub mod buffer;
 
-pub use self::waiter::{Layer, Waiter, WaitHandle, WaitResult};
+pub use self::waiter::{Layer, ObjectHandle, StackPush};
+pub use self::waiter::{Object, Waiter, WaitResult};
+
+pub use self::mutex::Mutex;
+
 //pub use self::buffer::{WriteBuffer, ReadBuffer, WriteBufferHandle, ReadBufferHandle};
 

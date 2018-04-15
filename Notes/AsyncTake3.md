@@ -91,6 +91,8 @@ while let Some(ev) = waiter.wait_event()
 
 
 
+Use a stack of async operations (using `stack_dst`'s stack support), which handles recursive calls to a limit (with the stack attached to the userland handle)
+- When a stack is exhausted, it's extended on the heap (attached to the calling process?)
 
 ```rust
 trait AsyncLayer

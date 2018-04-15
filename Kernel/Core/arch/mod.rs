@@ -198,7 +198,7 @@ pub mod sync {
 
 	/// Busy-waiting spin-lock type
 	pub type Spinlock<T> = imp::Spinlock<T>;
-	pub type HeldSpinlock<'a, T: 'a> = imp::HeldSpinlock<'a, T>;
+	pub type HeldSpinlock<'a, T/*: 'a*/> = imp::HeldSpinlock<'a, T>;
 	pub type HeldInterrupts = imp::HeldInterrupts;
 
 	#[inline]

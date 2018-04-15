@@ -6,6 +6,7 @@
 use kernel::prelude::*;
 use kernel::lib::mem::aref::{Aref,ArefBorrow};
 use kernel::sync::Mutex;
+use kernel::_async3 as async;
 
 #[derive(Debug)]
 pub enum Error
@@ -18,7 +19,8 @@ pub enum Error
 	BufferUnderrun,
 }
 
-/// Chain of wrapping packet information
+/// Chain of wrapping packet information, used for scatter-gather DMA
+// TODO: Represent the lifetime of the components relative to the async root
 pub struct SparsePacket<'a>
 {
 	head: &'a [u8],
@@ -47,7 +49,9 @@ impl<'a> Iterator for SparsePacketIter<'a> {
 	}
 }
 
+/// Handle to a packet in driver-owned memory
 pub type PacketHandle<'a> = ::stack_dst::ValueA<RxPacket + 'a, [usize; 8]>;
+/// Trait representing a packet in driver-owned memory
 pub trait RxPacket
 {
 	fn len(&self) -> usize;
@@ -59,14 +63,18 @@ pub trait RxPacket
 /// Network interface API
 pub trait Interface: 'static + Send + Sync
 {
-	/// Transmit a raw packet
+	/// Transmit a raw packet (blocking)
 	fn tx_raw(&self, pkt: SparsePacket);
 
-	// TODO: This interface is wrong, Waiter is the trait that bounds waitable objects (Use SleepObject instead)
+	///// The input buffer can be a mix of `> 'stack` and `< 'stack` buffers. This function should collapse shorter lifetime
+	///// buffers into an internal buffer that lives long enough.
+	//fn tx_async(&self, async: async::ObjectHandle, stack: async::StackPush, pkt: SparsePacket) -> Result<(), Error>;
+
 	/// Called once to allow the interface to get an object to signal a new packet arrival
 	fn rx_wait_register(&self, channel: &::kernel::threads::SleepObject);
 	
 	/// Obtain a packet from the interface (or `Err(Error::NoPacket)` if there is none)
+	/// - Non-blocking
 	fn rx_packet(&self) -> Result<PacketHandle, Error>;
 }
 

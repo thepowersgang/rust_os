@@ -3,6 +3,7 @@
 //
 // Core/async-v3/mutex.rs
 //! Asynchonous mutex
+#[allow(unused_imports)]
 use prelude::*;
 use lib::collections::VecDeque;
 use core::ops;
@@ -12,7 +13,7 @@ use core::cell::UnsafeCell;
 pub struct MutexInner
 {
 	/// List of threads waiting on this mutex
-	sleep_queue: VecDeque<super::WaitHandle>,
+	sleep_queue: VecDeque<super::ObjectHandle>,
 	/// Current lock handle index (used to ensure that callers of `ack_lock` are the ones that were woken)
 	cur_index: usize,
 	/// The mutex is locked, but might not be acknowledged
@@ -47,20 +48,35 @@ impl<T> Mutex<T>
 		unsafe { &mut *self.data.get() }
 	}
 
+	pub fn try_lock(&self) -> Option<Handle<T>> {
+		let mut lh = self.inner.lock();
+		if !lh.locked {
+			assert!( !lh.held, "Mutex not locked, but is still held" );
+			lh.locked = true;
+			lh.held = true;
+			Some(Handle { lock: self })
+		}
+		else {
+			None
+		}
+	}
+
 	/// Asynchronously lock the mutex
-	pub fn lock_async(&self, mut waiter: super::WaitHandle) {
+	/// 
+	/// This signals the current layer with a "handle" to the mutex (to be passed to `ack_lock`)
+	pub fn lock_async(&self, object: super::ObjectHandle, _stack: super::StackPush) {
 		let mut lh = self.inner.lock();
 		if !lh.locked {
 			assert!( !lh.held, "Mutex not locked, but is still held" );
 			lh.locked = true;
 			// Uncontended. We now have the lock.
 			// - Schedule a wake with the next ID
-			waiter.wake(lh.cur_index);
+			object.signal(lh.cur_index);
 		}
 		else {
 			// Contented (can't just outright acquire the lock)
 			// - Push this waiter onto the list of waiting threads
-			lh.sleep_queue.push_back(waiter)
+			lh.sleep_queue.push_back(object)
 		}
 	}
 
@@ -73,7 +89,8 @@ impl<T> Mutex<T>
 			"Attmpeting to acquire an async mutex which isn't locked" );
 		assert_eq!(lh.cur_index, index,
 			"Attempting to acknowledge an async mutex acquire using a mismatched index - {} != cur {}", index, lh.cur_index);
-		// TODO: Mangle the ID so callers can't easily predict it.
+		// TODO: Mangle the ID so callers can't easily predict it? Or should this method be unsafe to indicate that if you
+		// fudge the ID, it's your own fault?.
 		lh.cur_index += 1;
 		lh.held = true;
 
@@ -81,7 +98,7 @@ impl<T> Mutex<T>
 	}
 }
 
-
+/// Handle to the mutex, dereferences to the inner `T`
 pub struct Handle<'a, T: 'a>
 {
 	lock: &'a Mutex<T>,
@@ -91,9 +108,9 @@ impl<'a, T: 'a> ops::Drop for Handle<'a, T> {
 		let mut lh = self.lock.inner.lock();
 		lh.held = false;
 		// If there's somebody waiting on the mutex, wake them
-		if let Some(mut h) = lh.sleep_queue.pop_front() {
+		if let Some(h) = lh.sleep_queue.pop_front() {
 			// TODO: Make some indication of who is currently holding the mutex?
-			h.wake( lh.cur_index );
+			h.signal( lh.cur_index );
 		}
 		else {
 			lh.locked = false;

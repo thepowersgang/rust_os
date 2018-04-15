@@ -69,6 +69,7 @@ macro_rules! zip
 	($a:expr, $b:expr) => ( $a.zip($b) );
 }
 /// Iterator helper, desugars to a.chain(b).chain(b2)
+#[macro_export]
 macro_rules! chain
 {
 	($a:expr, $($b:expr),+) => ( $a$(.chain($b))+ );
