@@ -13,6 +13,8 @@
 #![no_std]
 
 use alloc::allocator::{Layout,AllocErr,CannotReallocInPlace};
+use alloc::allocator::Opaque;
+use core::ptr::NonNull;
 
 #[macro_use]
 extern crate syscalls;
@@ -39,39 +41,39 @@ pub const ALLOCATOR: &Allocator = &Allocator;
 
 unsafe impl alloc::allocator::Alloc for &'static Allocator
 {
-	unsafe fn alloc(&mut self, layout: Layout) -> Result<*mut u8, AllocErr>
+	unsafe fn alloc(&mut self, layout: Layout) -> Result<NonNull<Opaque>, AllocErr>
 	{
 		let rv = heap::allocate(layout.size(), layout.align());
 		if rv == ::core::ptr::null_mut()
 		{
-			Err(AllocErr::Exhausted { request: layout })
+			Err(AllocErr)
 		}
 		else
 		{
-			Ok(rv)
+			Ok(NonNull::new_unchecked(rv as *mut Opaque))
 		}
 	}
-	unsafe fn dealloc(&mut self, ptr: *mut u8, layout: Layout)
+	unsafe fn dealloc(&mut self, ptr: NonNull<Opaque>, layout: Layout)
 	{
-		heap::deallocate(ptr, layout.size(), layout.align())
+		heap::deallocate(ptr.as_ptr() as *mut u8, layout.size(), layout.align())
 	}
-	unsafe fn realloc(&mut self, ptr: *mut u8, layout: Layout, new_layout: Layout) -> Result<*mut u8, AllocErr>
+	unsafe fn realloc(&mut self, ptr: NonNull<Opaque>, layout: Layout, new_size: usize) -> Result<NonNull<Opaque>, AllocErr>
 	{
-		let rv = heap::reallocate(ptr, layout.size(), layout.align(), new_layout.size());
+		let rv = heap::reallocate(ptr.as_ptr() as *mut u8, layout.size(), layout.align(), new_size);
 		if rv == ::core::ptr::null_mut()
 		{
-			Err(AllocErr::Exhausted { request: new_layout })
+			Err(AllocErr)
 		}
 		else
 		{
-			Ok(rv)
+			Ok(NonNull::new_unchecked(rv as *mut Opaque))
 		}
 	}
 	// TODO: alloc_excess
-	unsafe fn grow_in_place(&mut self, ptr: *mut u8, layout: Layout, new_layout: Layout) -> Result<(), CannotReallocInPlace>
+	unsafe fn grow_in_place(&mut self, ptr: NonNull<Opaque>, layout: Layout, new_size: usize) -> Result<(), CannotReallocInPlace>
 	{
-		let rv = heap::reallocate_inplace(ptr, new_layout.size(), layout.align(), new_layout.size());
-		if rv != new_layout.size()
+		let rv = heap::reallocate_inplace(ptr.as_ptr() as *mut u8, layout.size(), layout.align(), new_size);
+		if rv != new_size
 		{
 			Err(CannotReallocInPlace)
 		}

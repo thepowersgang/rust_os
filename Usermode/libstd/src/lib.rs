@@ -83,7 +83,6 @@ pub mod prelude {
 		pub use alloc::Vec;
 
 		pub use core::slice::SliceExt;
-		pub use core::char::CharExt;
 		pub use core::str::StrExt;
 	}
 }
