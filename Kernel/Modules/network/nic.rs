@@ -125,9 +125,12 @@ pub fn register<T: Interface>(mac_addr: [u8; 6], int: T) -> Registration<T> {
 	// HACK: Send a dummy packet
 	// - An ICMP Echo request to qemu's user network router (10.0.2.2 from 10.0.2.15)
 	{
+		// TODO: Make this a ARP lookup instead.
 		let mut pkt = 
 			//  MAC Dst                MAC Src     EtherTy IP      TotalLen Identif Frag   TTL Prot CkSum  Source          Dest            ICMP
-			*b"\x52\x55\x0a\x00\x02\x02\0\0\0\0\0\0\x08\x00\x45\x00\x00\x23\x00\x00\x00\x00\xFF\x01\xa3\xca\x0A\x00\x02\x0F\x0A\x00\x02\x02\x08\x00\x7d\x0d\x00\x00\x00\x00Hello World"
+			//*b"\xFF\xFF\xFF\xFF\xFF\xFF\0\0\0\0\0\0\x08\x00\x45\x00\x00\x23\x00\x00\x00\x00\xFF\x01\xa3\xca\x0A\x00\x02\x0F\x0A\x00\x02\x02\x08\x00\x7d\x0d\x00\x00\x00\x00Hello World"
+			//  MAC Dst                MAC Src     EtherTy HWType  |Type   |sizes  |Req    |SourceMac              |SourceIP       |DestMac                |DestIP         |
+			*b"\xFF\xFF\xFF\xFF\xFF\xFF\0\0\0\0\0\0\x08\x06\x00\x01\x08\x00\x06\x04\x00\x01\x52\x54\x00\x12\x34\x56\x0a\x00\x02\x0F\xFF\xFF\xFF\xFF\xFF\xFF\x0A\x00\x02\x02"
 			;
 		pkt[6..][..6].copy_from_slice( &mac_addr );
 
@@ -174,14 +177,20 @@ pub fn register<T: Interface>(mac_addr: [u8; 6], int: T) -> Registration<T> {
 
 fn rx_thread(int: &Interface)
 {
+	let so = ::kernel::threads::SleepObject::new("rx_thread");
+	int.rx_wait_register(&so);
 	loop
 	{
-		let so = ::kernel::threads::SleepObject::new("rx_thread");
-		int.rx_wait_register(&so);
 		so.wait();
 		match int.rx_packet()
 		{
-		Ok(pkt) => todo!("Received packet - len={}", pkt.len()),
+		Ok(pkt) => {
+			log_notice!("Received packet, len={} (chunks={})", pkt.len(), pkt.num_regions());
+			for r in 0 .. pkt.num_regions() {
+				log_debug!("{} {:?}", r, pkt.get_region(r));
+			}
+			//todo!("Received packet - len={}", pkt.len())
+			},
 		Err(Error::NoPacket) => {},
 		Err(e) => todo!("{:?}", e),
 		}

@@ -9,7 +9,7 @@
 use kernel::prelude::*;
 use kernel::sync::Mutex;
 use kernel::_async3 as async;
-use core::sync::atomic::{Ordering,AtomicU8,AtomicU16};
+use core::sync::atomic::{Ordering,AtomicU8,AtomicU16,AtomicBool};
 use network::nic;
 use hw::Regs;
 
@@ -22,7 +22,7 @@ mod hw;
 //mod buffer_set;
 mod buffer_ring;
 
-module_define!{nic_Rtl8139, [Network], init}
+module_define!{nic_rtl8139, [Network], init}
 
 fn init()
 {
@@ -41,6 +41,7 @@ struct Card
 	// Buffer: Three contigious pages
 	rx_buffer: ::kernel::memory::virt::ArrayHandle<u8>,
 	rx_seen_ofs: AtomicU16,
+	rx_packet_out: AtomicBool,	// TODO: Support having multiple packets held by the IPStack at once?
 
 	waiter_handle: Mutex<Option<::kernel::threads::SleepObjectRef>>,
 
@@ -103,6 +104,7 @@ impl BusDev
 			io_base: io,
 			rx_buffer: rx_buffer,
 			rx_seen_ofs: AtomicU16::new(0),
+			rx_packet_out: AtomicBool::new(false),
 			waiter_handle: Default::default(),
 			tx_buffer_handles: tx_buffer_handles,
 			tx_slots: buffer_ring::BufferRing::new(tx_slots),
@@ -124,7 +126,7 @@ impl BusDev
 
 			// Receive buffer
 			card.write_32(Regs::RBSTART, ::kernel::memory::virt::get_phys(&card.rx_buffer[0]) as u32);
-			card.write_32(Regs::CBA, 0);
+			card.write_32(Regs::CBA, 0);	// NOTE: Although these two are nominally 16 bit registers, they seem to need 32 bit writes here
 			card.write_32(Regs::CAPR, 0);
 			// Transmit buffers
 			// - TODO: These need protected access
@@ -257,7 +259,11 @@ impl Card
 			
 			if num_packets > 0
 			{
-				todo!("Wake waiting thread");
+				if let Some(ref v) = *self.waiter_handle.lock()
+				{
+					v.signal();
+					//todo!("Wake waiting thread - {:?}", v);
+				}
 			}
 		}
 		
@@ -353,7 +359,63 @@ impl nic::Interface for Card
 		*self.waiter_handle.lock() = Some(channel.get_ref());
 	}
 	fn rx_packet(&self) -> Result<nic::PacketHandle, nic::Error> {
-		todo!("rx_packet");
+		struct RxPacketHandle<'a> {
+			card: &'a Card,
+			ofs: u16,
+			len: u16,
+		}
+		impl<'a> nic::RxPacket for RxPacketHandle<'a> {
+			fn len(&self) -> usize {
+				self.len as usize
+			}
+			fn num_regions(&self) -> usize {
+				1
+			}
+			fn get_region(&self, idx: usize) -> &[u8] {
+				assert!(idx == 0);
+				&self.card.rx_buffer[self.ofs as usize + 4 .. ][ .. self.len as usize]
+			}
+			fn get_slice(&self, range: ::core::ops::Range<usize>) -> Option<&[u8]> {
+				let b = self.get_region(0);
+				b.get(range)
+			}
+		}
+		impl<'a> ::core::ops::Drop for RxPacketHandle<'a> {
+			fn drop(&mut self) {
+				// SAFE: This is the only place CAPR is written
+				unsafe {
+					let mut new_ofs = self.ofs + ((self.len + 3) & !3) + 4;
+					log_debug!("Release packet at {} .. {} to hardware", self.ofs, new_ofs);
+					if new_ofs as usize >= RX_BUFFER_LIMIT {
+						new_ofs = 0;
+					}
+					self.card.write_16(Regs::CAPR, new_ofs.wrapping_sub(0x10));
+					self.card.rx_packet_out.store(false, Ordering::Release);
+				}
+			}
+		}
+	
+		// Compare rx_seen_ofs with CAPR
+		let ofs = self.read_16(Regs::CAPR).wrapping_add(0x10);
+		if self.rx_seen_ofs.load(Ordering::Relaxed) == ofs
+		{
+			Err(nic::Error::NoPacket)
+		}
+		// If there's already handle out, return NoPacket
+		else if self.rx_packet_out.swap(true, Ordering::Relaxed) == true
+		{
+			Err(nic::Error::NoPacket)
+		}
+		else
+		{
+			log_debug!("RX Packet at {} being passed to stack", ofs);
+			let (size, _hdr, _data) = self.get_packet(ofs as usize, RX_BUFFER_LIMIT);
+			Ok(nic::PacketHandle::new(RxPacketHandle {
+				card: self,
+				ofs: ofs,
+				len: size as u16,
+				}).ok().unwrap())
+		}
 	}
 }
 #[allow(dead_code)]
