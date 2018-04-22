@@ -60,7 +60,7 @@ pub struct LoggingFormatter<'a>
 }
 
 /// Wrapper around a &-ptr that prints a hexdump of the passed data.
-pub struct HexDump<'a,T:'a>(pub &'a T);
+pub struct HexDump<'a,T: ?Sized + 'a>(pub &'a T);
 
 /// Wrapper around a `&[u8]` to print it as an escaped byte string
 pub struct RawString<'a>(pub &'a [u8]);
@@ -304,18 +304,18 @@ impl<'a> ::core::ops::Drop for LoggingFormatter<'a>
 	}
 }
 
-impl<'a,T:'a> HexDump<'a,T>
+impl<'a, T: ?Sized + 'a> HexDump<'a,T>
 {
 	/// Return the wrapped type as a &[u8]
 	fn byteslice(&self) -> &[u8]
 	{
-		let size = ::core::mem::size_of::<T>();
+		let size = ::core::mem::size_of_val::<T>(&self.0);
 		// SAFE: Memory is valid, and cast is allowed
 		unsafe { ::core::slice::from_raw_parts( self.0 as *const T as *const u8, size ) }
 	}
 }
 
-impl<'a,T:'a> fmt::Debug for HexDump<'a,T>
+impl<'a, T: ?Sized + 'a> fmt::Debug for HexDump<'a,T>
 {
 	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result
 	{

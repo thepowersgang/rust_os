@@ -62,6 +62,72 @@ pub trait RxPacket
 	fn get_region(&self, idx: usize) -> &[u8];
 	fn get_slice(&self, range: ::core::ops::Range<usize>) -> Option<&[u8]>;
 }
+#[derive(Clone)]
+pub struct PacketReader<'a> {
+	pkt: &'a PacketHandle<'a>,
+	ofs: usize,
+}
+impl<'a> PacketReader<'a> {
+	fn new(pkt: &'a PacketHandle<'a>) -> PacketReader<'a> {
+		PacketReader {
+			pkt: pkt,
+			ofs: 0,
+			}
+	}
+	pub fn remain(&self) -> usize {
+		self.pkt.len() - self.ofs
+	}
+	pub fn read(&mut self, dst: &mut [u8]) -> Result<usize, ()> {
+		// TODO: Should this be cached?
+		let mut ofs = self.ofs;
+		let mut r = 0;
+		while ofs >= self.pkt.get_region(r).len() {
+			ofs -= self.pkt.get_region(r).len();
+			r += 1;
+			if r == self.pkt.num_regions() {
+				return Err( () );
+			}
+		}
+
+		let mut wofs = 0;
+		while wofs < dst.len() && self.ofs + wofs < self.pkt.len()
+		{
+			let rgn = self.pkt.get_region(r);
+			let alen = rgn.len() - ofs;
+			let rlen = dst.len() - wofs;
+			let len = ::core::cmp::min(alen, rlen);
+
+			dst[wofs..][..len].copy_from_slice( &rgn[ofs..][..len] );
+			
+			r += 1;
+			ofs = 0;
+			wofs += len;
+		}
+
+		self.ofs += wofs;
+		Ok(wofs)
+	}
+
+	pub fn read_bytes<T: AsMut<[u8]>>(&mut self, mut b: T) -> Result<T, ()> {
+		self.read(b.as_mut())?;
+		Ok(b)
+	}
+	pub fn read_u8(&mut self) -> Result<u8, ()> {
+		let mut b = [0];
+		self.read(&mut b)?;
+		Ok( b[0] )
+	}
+	pub fn read_u16n(&mut self) -> Result<u16, ()> {
+		let mut b = [0,0];
+		self.read(&mut b)?;
+		Ok( (b[0] as u16) << 8 | (b[1] as u16) )
+	}
+	pub fn read_u32n(&mut self) -> Result<u32, ()> {
+		let mut b = [0,0,0,0];
+		self.read(&mut b)?;
+		Ok( (b[0] as u32) << 24 + (b[1] as u32) << 16 | (b[2] as u32) << 8 | (b[3] as u32) )
+	}
+}
 
 /// Network interface API
 pub trait Interface: 'static + Send + Sync
@@ -85,6 +151,7 @@ struct InterfaceData
 {
 	#[allow(dead_code)]	// Never read, just exists to hold the handle
 	base_interface: Aref<Interface+'static>,
+	// TODO: Metadata?
 	thread: ::kernel::threads::WorkerThread,
 }
 
@@ -104,6 +171,7 @@ impl<T> Drop for Registration<T> {
 		if let Some(ref int_ent) = lh[self.index] {
 			//int_ent.stop_signal.set();
 			int_ent.thread.wait().expect("Couldn't wait for NIC worker to terminate");
+			// TODO: Inform the rest of the stack that this interface is gone?
 		}
 		else {
 			panic!("NIC registration pointed to unpopulated entry");
@@ -120,7 +188,6 @@ impl<T> ::core::ops::Deref for Registration<T> {
 
 pub fn register<T: Interface>(mac_addr: [u8; 6], int: T) -> Registration<T> {
 	let reg = Aref::new(int);
-	let b = reg.borrow();
 
 	// HACK: Send a dummy packet
 	// - An ICMP Echo request to qemu's user network router (10.0.2.2 from 10.0.2.15)
@@ -141,7 +208,7 @@ pub fn register<T: Interface>(mac_addr: [u8; 6], int: T) -> Registration<T> {
 		// Async
 		log_debug!("TESTING - Tx Async");
 		let mut o: async::Object = Default::default();
-		reg.tx_async(o.get_handle(), o.get_stack(), SparsePacket { head: &pkt, next: None });
+		reg.tx_async(o.get_handle(), o.get_stack(), SparsePacket { head: &pkt, next: None }).expect("Failed tx_async in testing");
 		let h = [&o];
 		{
 			let w = async::Waiter::new(&h);
@@ -150,9 +217,10 @@ pub fn register<T: Interface>(mac_addr: [u8; 6], int: T) -> Registration<T> {
 		log_debug!("TESTING - Tx Complete");
 	}
 
-	let worker_reg = reg.borrow();
+	let worker_reg_handle = reg.borrow();
+	let rv_reg_handle = reg.borrow();
 	let reg = InterfaceData {
-		thread: ::kernel::threads::WorkerThread::new("Network Rx", move || rx_thread(&*worker_reg)),
+		thread: ::kernel::threads::WorkerThread::new("Network Rx", move || rx_thread(&*worker_reg_handle)),
 		base_interface: reg,
 		};
 
@@ -171,7 +239,7 @@ pub fn register<T: Interface>(mac_addr: [u8; 6], int: T) -> Registration<T> {
 	Registration {
 		pd: ::core::marker::PhantomData,
 		index: idx,
-		ptr: b,
+		ptr: rv_reg_handle,
 		}
 }
 
@@ -187,9 +255,62 @@ fn rx_thread(int: &Interface)
 		Ok(pkt) => {
 			log_notice!("Received packet, len={} (chunks={})", pkt.len(), pkt.num_regions());
 			for r in 0 .. pkt.num_regions() {
-				log_debug!("{} {:?}", r, pkt.get_region(r));
+				log_debug!("{} {:?}", r, ::kernel::logging::HexDump(pkt.get_region(r)));
 			}
-			//todo!("Received packet - len={}", pkt.len())
+			// TODO: Should this go in is own module?
+			// 1. Interpret the `Ethernet II` header
+			if pkt.len() < 6+6+2 {
+				log_notice!("Short packet ({} < {})", pkt.len(), 6+6+2);
+				continue ;
+			}
+			let mut r = PacketReader::new(&pkt);
+			// 2. Hand off to sub-modules depending on the EtherTy field
+			let src_mac = {
+				let mut b = [0; 6];
+				r.read(&mut b).unwrap();
+				b
+				};
+			let _dst_mac = {
+				let mut b = [0; 6];
+				r.read(&mut b).unwrap();
+				b
+				};
+			let ether_ty = r.read_u16n().unwrap();
+			match ether_ty
+			{
+			0x0800 => ::ipv4::handle_rx_ethernet(int, src_mac, r).unwrap(),
+			// ARP
+			0x0806 => {
+				// TODO: Pass on to ARP
+				//::arp::handle_packet(int, r);
+				// TODO: Length test
+				let hw_ty  = r.read_u16n().unwrap();
+				let sw_ty  = r.read_u16n().unwrap();
+				let hwsize = r.read_u8().unwrap();
+				let swsize = r.read_u8().unwrap();
+				let code = r.read_u16n().unwrap();
+				log_debug!("ARP HW {:04x} {}B SW {:04x} {}B req={}", hw_ty, hwsize, sw_ty, swsize, code);
+				if hwsize == 6 {
+					let mac = {
+						let mut b = [0; 6];
+						r.read(&mut b).unwrap();
+						b
+						};
+					log_debug!("ARP HW {:?}", ::kernel::logging::HexDump(&mac));
+				}
+				if swsize == 4 {
+					let ip = {
+						let mut b = [0; 4];
+						r.read(&mut b).unwrap();
+						b
+						};
+					log_debug!("ARP SW {:?}", ip);
+				}
+				},
+			v @ _ => {
+				log_warning!("TODO: Handle packet with EtherTy={:#x}", v);
+				},
+			}
 			},
 		Err(Error::NoPacket) => {},
 		Err(e) => todo!("{:?}", e),

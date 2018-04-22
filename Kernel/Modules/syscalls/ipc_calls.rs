@@ -9,6 +9,7 @@ use core::sync::atomic::{AtomicU8,Ordering};
 use values::RpcMessage;
 
 struct SyncChannel {
+	// TODO: NonZero?
 	ptr: *const SyncChannelBack,
 	side_idx: u8,
 }

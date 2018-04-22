@@ -206,8 +206,7 @@ fn invoke_int(call_id: u32, args: &mut Args) -> Result<u64,Error>
 			let name: Freeze<str> = try!(args.get());
 			from_result(gui_calls::newwindow(&name))
 			},
-		// === 2: VFS
-		// === 3: Memory Mangement
+		// === 2: Memory Mangement
 		MEM_ALLOCATE => {
 			let addr: usize = try!(args.get());
 			let count: usize = try!(args.get());
@@ -246,13 +245,23 @@ fn invoke_int(call_id: u32, args: &mut Args) -> Result<u64,Error>
 			Err( () ) => error_code(0) as u64,
 			}
 			},
-		// === 4: IPC
+		// === 3: IPC
 		IPC_NEWPAIR => {
 			match ipc_calls::new_pair()
 			{
 			Ok( (oh_a, oh_b) ) => oh_a as u64 | (oh_b as u64) << 32,
 			Err( () ) => !0
 			}
+			},
+		// === 4: Networking
+		NET_CONNECT => {
+			todo!("NET_CONNECT");
+			},
+		NET_LISTEN => {
+			todo!("NET_LISTEN");
+			},
+		NET_BIND => {
+			todo!("NET_BIND");
 			},
 		// === *: Default
 		_ => {

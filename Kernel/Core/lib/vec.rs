@@ -159,6 +159,19 @@ impl<T> Vec<T>
 		::core::ptr::read(self.data.get_ptr(pos))
 	}
 
+	pub fn push(&mut self, value: T)
+	{
+		let ns = self.size + 1;
+		self.reserve_cap(ns);
+		// SAFE: Checked accesses
+		unsafe
+		{
+			// Store new element
+			::core::ptr::write( self.data.get_ptr_mut(self.size), value );
+			self.size += 1;
+		}
+	}
+
 	/// Insert an item at the specified index (moving subsequent items up)	
 	pub fn insert(&mut self, pos: usize, value: T)
 	{

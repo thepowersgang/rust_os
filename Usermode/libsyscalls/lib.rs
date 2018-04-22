@@ -88,6 +88,7 @@ pub mod memory;
 pub mod threads;
 pub mod sync;
 pub mod ipc;
+pub mod net;
 
 pub use values::WaitItem;
 

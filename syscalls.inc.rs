@@ -88,6 +88,17 @@ def_grp!( 3: GROUP_IPC = {
 	=0: IPC_NEWPAIR,
 });
 
+/// Netwokring
+def_grp!( 4: GROUP_NETOWRK = {
+	/// Connect a socket
+	=0: NET_CONNECT,
+	/// Start a socket server
+	=1: NET_LISTEN,
+	/// Open a free-form datagram 'socket'
+	=2: NET_BIND,
+});
+
+
 pub fn get_class_name(class_idx: u16) -> &'static str {
 	CLASS_NAMES.get(class_idx as usize).unwrap_or(&"UNK")
 }
@@ -261,9 +272,36 @@ def_classes! {
 		=0: EV_IPC_RPC_RECV,
 	},
 
+	/// Socket server
+	=11: CLASS_SERVER = {
+		/// Check for a new client
+		=0: NET_SERVER_ACCEPT,
+	--
+	}|{
+	},
+	/// Socket connection
+	=12: CLASS_SOCKET = {
+		/// Read data
+		=0: NET_CONNSOCK_RECV,
+		/// Send data
+		=1: NET_CONNSOCK_SEND,
+		///
+		=2: NET_CONNSOCK_SHUTDOWN,
+	--
+	}|{
+	},
+	/// Free-bind socket
+	=13: CLASS_FREESOCKET = {
+		/// Receive a packet (if avaliable)
+		=0: NET_FREESOCK_RECV,
+		/// Send a packet to an address
+		=1: NET_FREESOCK_SEND,
+	--
+	}|{
+	},
 /*
 	/// A registered read/write buffer
-	=11: CLASS_BUFFER = {
+	=12: CLASS_BUFFER = {
 		--
 		/// Release the buffer (and return the memory to userland)
 		=0: BUFFER_RELEASE,
@@ -280,7 +318,7 @@ macro_rules! enum_to_from {
 		#[derive(Debug)]
 		pub enum $enm
 		{
-			$( $($a)* $n = $v,)*
+			$( $(#[$a])* $n = $v,)*
 		}
 		//impl ::core::convert::From<$ty> for ::core::option::Option<$enm> {
 		//	fn from(v: $ty) -> Self {
@@ -456,3 +494,53 @@ pub enum GuiEvent
 }
 
 pub type RpcMessage = [u8; 32];
+
+// --------------------------------------------------------------------
+// Network
+// --------------------------------------------------------------------
+enum_to_from!{ SocketError => u8:
+	/// No data waiting/avaliable
+	NoData = 0,
+	/// An invalid value was passed to the call
+	InvalidValue = 1,
+	/// The specified address was already in use
+	AlreadyInUse = 2,
+}
+enum_to_from!{ SocketShutdownSide => u8:
+	Transmit = 0,
+	Receive = 1,
+}
+/// Values for the `addr_ty` field of SocketAddress
+enum_to_from!{ SocketAddressType => u8:
+	/// Ethernet II MAC addresses, only supports 'SocketPortType::Raw'
+	Mac = 0,
+	/// IPv4 addresses
+	Ipv4 = 1,
+	/// IPv6 addresses
+	Ipv6 = 2,
+}
+enum_to_from!{ SocketPortType => u8:
+	/// Raw frames
+	Raw = 0,
+	/// Transmission Control Protocol
+	Tcp = 1,
+	/// User Datagram Protocol
+	Udp = 2,
+	/// Stream Control Transmission Protocol
+	Sctp = 3,
+}
+#[derive(Default,Copy,Clone)]
+pub struct SocketAddress
+{
+	port_ty: u8,
+	port: u16,
+	addr_ty: u8,
+	addr: [u8; 16],
+}
+#[derive(Default,Copy,Clone)]
+pub struct MaskedSocketAddress
+{
+	addr: SocketAddress,
+	mask: u8,
+}
+

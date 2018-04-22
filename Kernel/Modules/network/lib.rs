@@ -15,6 +15,9 @@ module_define!{Network, [], init}
 
 pub mod nic;
 pub mod tcp;
+pub mod arp;
+pub mod ipv4;
+//pub mod ipv6;
 
 fn init()
 {
