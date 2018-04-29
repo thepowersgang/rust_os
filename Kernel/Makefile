@@ -24,6 +24,7 @@ MODS += nic_rtl8139
 ifeq ($(ARCH),amd64)
 #MODS += video_vga
 endif
+MODS += usb_core usb_ohci
 
 ifeq ($(ARCH),amd64)
 USE_ACPICA ?= 1
