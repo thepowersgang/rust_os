@@ -81,9 +81,6 @@ pub mod prelude {
 
 		pub use string::{String,ToString};
 		pub use alloc::Vec;
-
-		pub use core::slice::SliceExt;
-		pub use core::str::StrExt;
 	}
 }
 

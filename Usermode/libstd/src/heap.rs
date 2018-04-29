@@ -22,9 +22,10 @@ pub unsafe extern fn __rdl_alloc(size: usize,
 	}
 }
 
-#[no_mangle]
+#[lang="oom"]
 pub unsafe extern fn __rdl_oom() -> ! {
-	System.oom()
+	//System.oom()
+	panic!("OOM");
 }
 
 #[no_mangle]
