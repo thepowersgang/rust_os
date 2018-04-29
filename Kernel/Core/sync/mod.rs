@@ -10,6 +10,7 @@ pub use sync::mutex::Mutex;
 pub use sync::semaphore::Semaphore;
 pub use sync::rwlock::RwLock;
 pub use sync::event_channel::EventChannel;
+pub use self::queue::Queue;
 pub use self::atomic::AtomicU32;
 
 #[macro_use]
@@ -20,6 +21,7 @@ pub mod semaphore;
 pub mod rwlock;
 
 pub mod event_channel;
+pub mod queue;
 
 pub mod atomic;
 

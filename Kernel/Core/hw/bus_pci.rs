@@ -75,7 +75,7 @@ impl ::device_manager::Driver for PCIChildBusDriver
 		let bridge_type = (read_word(addr, 3) >> 16) & 0x7F;
 		// 0x00 == Normal device, 0x01 = PCI-PCI Bridge
 		// -> There should only be one PCI bridge handler, but bind low just in case
-		if bridge_type == 0x01 { 1 } else {0 }
+		if bridge_type == 0x01 { 1 } else { 0 }
 	}
 	fn bind(&self, bus_dev: &mut ::device_manager::BusDevice) -> Box<::device_manager::DriverInstance+'static>
 	{
@@ -151,7 +151,10 @@ impl ::device_manager::BusDevice for PCIDev
 		}
 		match parse_bar(self.addr, 4+block_id as u8)
 		{
-		BAR::None => ::device_manager::IOBinding::IO(0,0),
+		BAR::None => {
+			log_error!("PCI bind_io - Request for BAR{} of {:#x} which isn't populated", block_id, self.addr);
+			::device_manager::IOBinding::IO(0,0)
+			},
 		BAR::IO(b,s) => ::device_manager::IOBinding::IO(b,s),
 		BAR::Mem(base, size, _prefetchable) => {
 			// TODO: Ensure safety by preventing multiple bindings to a BAR
@@ -241,6 +244,7 @@ fn parse_bar(addr: u16, word: u8) -> BAR
 	let value = read_word(addr, word);
 	if value == 0
 	{
+		log_debug!("parse_bar: None");
 		BAR::None
 	}
 	else if value & 1 == 0
@@ -249,6 +253,7 @@ fn parse_bar(addr: u16, word: u8) -> BAR
 		let one_value = read_word(addr, word);
 		let size = !(one_value & 0xFFFF_FFF0) + 1;
 		write_word(addr, word, value);
+		log_debug!("parse_bar: (memory) one_value={:#x}, size={:#x}, value={:#x}", one_value, size, value);
 		// memory BAR
 		let pf = (value >> 3) & 1;
 		let ty = (value >> 1) & 3;
@@ -276,7 +281,7 @@ fn parse_bar(addr: u16, word: u8) -> BAR
 		write_word(addr, word, 0xFFFF);
 		let one_value = read_word(addr, word);
 		let size = ( !(one_value & 0xFFFC) + 1 ) & 0xFFFF;
-		log_debug!("one_value = {:#x}, size={:#x}, value={:#x}", one_value, size, value);
+		log_debug!("parse_bar: (IO) one_value = {:#x}, size={:#x}, value={:#x}", one_value, size, value);
 		write_word(addr, word, value);
 		BAR::IO( (value & 0xFFFC) as u16, size as u16 )
 	}

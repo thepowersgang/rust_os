@@ -4,6 +4,7 @@
 // Core/async-v3/buffer.rs
 //! Asynchronous buffer handles
 
+/*
 /// Buffer providing a location for read data (incoming / mutable)
 pub struct ReadBuffer<'a> {
 }
@@ -15,9 +16,18 @@ pub struct ReadBufferHandle<'a> {
 	// Needs to hold a borrow on the buffer
 	buf: &'a ReadBuffer<'a>,
 }
-pub struct WriteBufferHandle<'a> {
+*/
+
+pub enum WriteBufferHandle<'async: 'local,'local> {
+	/// Buffer that outlives the async stack
+	Long(&'async mut [u8]),
+	/// A buffer that doesn't outlive the async stack (and will have to be buffered by something)
+	Short(&'local mut [u8]),
+	///// A buffer with ownership being passed in.
+	//Owned(Vec<u8>),
 }
 
+/*
 impl ReadBuffer<'a>
 {
 	// UNSAFE: If this is leaked while borrowed, the borrow will access invalidated memory
@@ -39,4 +49,5 @@ impl ReadBuffer<'a>
 		todo!("ReadBuffer::borrow");
 	}
 }
+*/
 

@@ -56,6 +56,7 @@ struct ObjectInner
 	result: Spinlock<Option<usize>>,
 }
 /// A handle to an Object (as passed to state updates)
+#[derive(Clone)]
 pub struct ObjectHandle
 {
 	ptr: ::core::ptr::NonNull<ObjectInner>,

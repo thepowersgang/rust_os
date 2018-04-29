@@ -55,6 +55,15 @@ impl<T: ?Sized> Aref<T>
 	pub fn borrow(&self) -> ArefBorrow<T> {
 		self.__inner.borrow()
 	}
+	/// Obtain a mutable reference to the inner (if unique)
+	pub fn get_mut(this: &mut Self) -> Option<&mut T> {
+		if this.__inner.count.load(Ordering::SeqCst) == 0 {
+			Some(&mut this.__inner.data)
+		}
+		else {
+			None
+		}
+	}
 }
 impl<T: ?Sized> ops::Deref for Aref<T>
 {
