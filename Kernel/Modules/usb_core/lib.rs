@@ -33,28 +33,36 @@ struct Host
 	next_id: u8,
 	used_ids: [u8; 128/8],
 
-	//endpoint_zero_state: (),
+	//// If true, EP0 is currently being enumerated
+	//endpoint_zero_state: bool,
 }
 struct HubDevice
 {
 	host: ArefBorrow<Host>,
 	int_ep: host::Handle<host::InterruptEndpoint>,
 }
+///// An endpoint currently being enumerated
+//struct EnumeratingDevice
+//{
+//	obj: async::Object,
+//}
 
 static WATCH_LIST: ::kernel::sync::Mutex<Vec<Meta>> = ::kernel::sync::Mutex::new(Vec::new_const());
 static EVENT_QUEUE: ::kernel::sync::Queue<(usize, usize)> = ::kernel::sync::Queue::new_const();
+//static ENUM_ENDPOINTS: ::kernel::sync::Mutex<Vec<Box<Endpoint>>> = ::kernel::sync::Mutex::new(Vec::new_const());
 
 pub fn register_host(mut h: Box<host::HostController>)
 {
 	let mut lh = WATCH_LIST.lock();
 	let idx = lh.len();
+	// Note: Setting the root waiter should trigger event pushes for any connected port
+	// - This doesn't race, because the list lock is still held.
 	h.set_root_waiter(&EVENT_QUEUE, idx);
 	lh.push(Meta::RootHub(Aref::new(Host {
 		driver: h,
 		next_id: 1,
 		used_ids: [0; 128/8],
 		})));
-	// TODO: Wake the worker and get it to check the root hub.
 }
 
 fn worker_thread()
@@ -74,11 +82,21 @@ fn worker_thread()
 		}
 	}
 }
+//fn enum_worker_thread()
+//{
+//	loop
+//	{
+//		// 1. Register sleeps on new endpoints
+//		// - Get device descriptor
+//		// - Enumerate available configurations
+//	}
+//}
 
 impl Host
 {
 	fn handle_root_event(&self, port_idx: usize)
 	{
+		log_debug!("handle_root_event: ({})", port_idx);
 		// TODO: Support timing port updates by using large values of `port_idx`
 		if self.driver.get_port_feature(port_idx, host::PortFeature::CConnection)
 		{
@@ -88,7 +106,19 @@ impl Host
 				// Connection detected, either:
 				// - Trigger a reset (and record this port as the next EP0)
 				// - OR, add to a list of to-be-enumerated ports (if EP0 is already in use)
-				self.driver.set_port_feature(port_idx, host::PortFeature::Reset);
+				if self.driver.get_port_feature(port_idx, host::PortFeature::Power)
+				{
+					//if self.endpoint_zero_in_use {
+					//}
+					//else {
+					//	self.endpoint_zero_in_use = true;
+						self.driver.set_port_feature(port_idx, host::PortFeature::Reset);
+					//}
+				}
+				else
+				{
+					todo!("Power on a newly connected port");
+				}
 			}
 			else
 			{
@@ -97,18 +127,30 @@ impl Host
 				todo!("Handle port disconnection");
 			}
 		}
-		else if self.driver.get_port_feature(port_idx, host::PortFeature::CEnable)
+		else if self.driver.get_port_feature(port_idx, host::PortFeature::CReset)
 		{
-			self.driver.clear_port_feature(port_idx, host::PortFeature::CEnable);
-			if self.driver.get_port_feature(port_idx, host::PortFeature::Enable)
+			self.driver.clear_port_feature(port_idx, host::PortFeature::CReset);
+			if self.driver.get_port_feature(port_idx, host::PortFeature::Reset)
 			{
-				// Hand over to EP0 enumeration.
+			}
+			else if self.driver.get_port_feature(port_idx, host::PortFeature::Enable)
+			{
+				// Allocate an ID, allocate a , send the 'set device ID' request
 				todo!("Push new device to enumeration");
 			}
 			else
 			{
-				todo!("Handle port being disabled?");
+				// Reset complete, but not enabled?
+				todo!("Handle port completing reset, but not being enabled?");
 			}
+		}
+		else if self.driver.get_port_feature(port_idx, host::PortFeature::CEnable)
+		{
+			self.driver.clear_port_feature(port_idx, host::PortFeature::CEnable);
+			log_debug!("Change in enable status...");
+		}
+		else
+		{
 		}
 	}
 }

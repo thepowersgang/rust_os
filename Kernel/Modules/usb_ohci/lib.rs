@@ -6,7 +6,7 @@
 use kernel::prelude::*;
 use kernel::_async3 as async;
 use kernel::lib::mem::aref::{Aref,ArefBorrow};
-use core::sync::atomic::{AtomicPtr,Ordering};
+use core::sync::atomic::{AtomicPtr,AtomicUsize,Ordering};
 
 #[macro_use]
 extern crate kernel;
@@ -37,6 +37,8 @@ struct HostInner
 	irq_handle: Option<::kernel::irqs::ObjectHandle>,
 	hcca_handle: ::kernel::memory::virt::AllocHandle,
 	nports: u8,
+	waiter_idx: AtomicUsize,
+	waiter_ptr: AtomicPtr<::kernel::sync::Queue<(usize,usize)>>,
 }
 struct IoWrapper(::kernel::device_manager::IOBinding);
 
@@ -229,6 +231,8 @@ impl HostInner
 			hcca_handle: handle_hcca,
 			nports: nports,
 			irq_handle: None,	// Filled below, once the allocation is made
+			waiter_idx: Default::default(),
+			waiter_ptr: Default::default(),
 			});
 		
 		// Bind interrupt
@@ -249,9 +253,58 @@ impl HostInner
 		let v = self.io.read_reg(hw::Regs::HcInterruptStatus);
 		if v != 0
 		{
+			log_trace!("handle_irq: {:#x}", v);
+
+			// SchedulingOverrun
+			if v & 0x01 != 0
+			{
+				log_notice!("USB Scheduling Overrun");
+			}
+			// WritebackDoneHead
+			if v & 0x02 != 0
+			{
+				log_debug!("WritebackDoneHead - ");
+				// TODO: Clear the contents of HccaDoneHead, releasing and completing those TDs
+			}
+			// StartofFrame (disabled)
+			if v & 0x04 != 0
+			{
+
+			}
+			// ResumeDetected
+			if v & 0x08 != 0
+			{
+				// A device is asking for a resume?
+			}
+			// UnrecoverableError
+			if v & 0x10 != 0
+			{
+				log_error!("Unrecoverable error!");
+			}
+			// FrameNumberOverflow
+			if v & 0x20 != 0
+			{
+				// Frame number has reached 2^15
+			}
+			// RootHubStatusChange
+			if v & 0x40 != 0
+			{
+				// A change to any of the root hub registers
+				for i in 0 .. self.nports
+				{
+					let v = self.io.read_reg(self.get_port_reg(i as usize));
+					if v & 0xFFFF_0000 != 0 {
+						log_debug!("Status change on port {} = {:#x}", i, v);
+						let host_idx = self.waiter_idx.load(Ordering::Relaxed);
+						let queue_ptr = self.waiter_ptr.load(Ordering::Relaxed);
+						// SAFE: If this is set, it's to a &'static
+						unsafe { (*queue_ptr).push( (host_idx, i as usize) ); }
+					}
+				}
+			}
+
 			// SAFE: Write clear, no memory unsafety
 			unsafe { self.io.write_reg(hw::Regs::HcInterruptStatus, v) };
-			log_trace!("handle_irq: {:#x}", v);
 
 			true
 		}
@@ -384,6 +437,14 @@ impl HostInner
 			},
 		}
 	}
+
+	fn get_port_reg(&self, port: usize) -> hw::Regs
+	{
+		assert!(port < 16);
+		assert!(port < self.nports as usize);
+		// SAFE: Bounds are checked to fit within the alowable range for the enum
+		unsafe { ::core::mem::transmute(hw::Regs::HcRhPortStatus0 as usize + port) }
+	}
 }
 
 use ::usb_core::host::{EndpointAddr, PortFeature, Handle};
@@ -422,7 +483,7 @@ impl ::usb_core::host::HostController for UsbHost
 	// Root hub maintainence
 	fn set_port_feature(&self, port: usize, feature: PortFeature) {
 		log_trace!("set_port_feature({}, {:?})", port, feature);
-		let r = self.get_port_reg(port);
+		let r = self.host.get_port_reg(port);
 		// All bits only set on write (some clear on write, but those aren't handled here.
 		let v = match feature
 			{
@@ -441,7 +502,7 @@ impl ::usb_core::host::HostController for UsbHost
 	}
 	fn clear_port_feature(&self, port: usize, feature: PortFeature) {
 		log_trace!("clear_port_feature({}, {:?})", port, feature);
-		let r = self.get_port_reg(port);
+		let r = self.host.get_port_reg(port);
 		// All bits only set on write (some clear on write, but those aren't handled here.
 		let v = match feature
 			{
@@ -463,7 +524,7 @@ impl ::usb_core::host::HostController for UsbHost
 	}
 	fn get_port_feature(&self, port: usize, feature: PortFeature) -> bool {
 		log_trace!("get_port_feature({}, {:?})", port, feature);
-		let r = self.get_port_reg(port);
+		let r = self.host.get_port_reg(port);
 		let v = self.host.io.read_reg(r);
 		let mask = match feature
 			{
@@ -486,28 +547,18 @@ impl ::usb_core::host::HostController for UsbHost
 	}
 	fn set_root_waiter(&mut self, waiter: &'static ::kernel::sync::Queue<(usize,usize)>, my_idx: usize) {
 		// 1. Store the waiter pointer
-		//self.host.waiter_idx.store(my_idx, Ordering::SeqCst);
-		//self.host.waiter_ptr.store(waiter, Ordering::SeqCst);
+		self.host.waiter_idx.store(my_idx, Ordering::SeqCst);
+		self.host.waiter_ptr.store(waiter as *const _ as *mut _, Ordering::SeqCst);
 		// 2. For each connected port, push an event/item
 		// - Don't worry about duplicates from interrupts...
 		for i in 0 .. self.host.nports as usize
 		{
-			let v = self.host.io.read_reg(self.get_port_reg(i));
+			let v = self.host.io.read_reg(self.host.get_port_reg(i));
 			log_debug!("set_root_waiter: Port {} - v={:#x}", i, v);
 			if v & 0x1 != 0 {
 				waiter.push( (my_idx, i) );
 			}
 		}
-	}
-}
-impl UsbHost
-{
-	fn get_port_reg(&self, port: usize) -> hw::Regs
-	{
-		assert!(port < 16);
-		assert!(port < self.host.nports as usize);
-		// SAFE: Bounds are checked to fit within the alowable range for the enum
-		unsafe { ::core::mem::transmute(hw::Regs::HcRhPortStatus0 as usize + port) }
 	}
 }
 struct ControlEndpointHandle {

@@ -46,6 +46,11 @@ pub struct Object<'a>
 	/// Async call stack
 	stack: Spinlock<AsyncStack<'a>>,
 }
+#[cfg(_false)]
+pub struct VoidObject
+{
+	inner: ObjectInner,
+}
 #[derive(Default)]
 struct ObjectInner
 {
@@ -85,6 +90,41 @@ impl<'a> Object<'a>
 	}
 	pub fn get_stack<'s>(&'s mut self) -> StackPush<'s, 'a> {
 		StackPush::new(self.stack.get_mut())
+	}
+
+	fn check(&self, idx: usize) -> Option<usize> {
+		let mut res = self.inner.result.lock().take();
+		while let Some(res_val) = res
+		{
+			// There's a result waiting!
+			let mut stack_lh = self.stack.lock();
+
+			// If there's no handler, return.
+			if stack_lh.is_empty()
+			{
+				log_debug!("check_one: {} result {:#x}", idx, res_val);
+				return Some(res_val);
+			}
+			log_debug!("check_one: {} advance {:#x}", idx, res_val);
+
+			// Stack has an entry, so pass the value on to that entry.
+			let test_ptr: *mut ();
+			res = {
+				// - Magic handle that only allows pushing to this (append-only) stack
+				let (magic_handle, top) = StackPush::new_with_top(&mut stack_lh);
+				test_ptr = top as *mut _ as *mut ();
+
+				top.advance(self.get_handle(), magic_handle, res_val)
+				};
+			// If this returns non-None, then pop and continue
+			if res.is_some()
+			{
+				assert!( !stack_lh.is_empty() );
+				assert_eq!( stack_lh.top_mut().unwrap() as *mut _ as *mut (), test_ptr, "Non-None return from async advance, but it also registered callbacks." );
+				stack_lh.pop();
+			}
+		}
+		None
 	}
 }
 impl ObjectHandle
@@ -127,36 +167,9 @@ impl<'h, 'a: 'h> Waiter<'h, 'a>
 	{
 		for (idx,h) in Iterator::enumerate(self.handles.iter())
 		{
-			let mut res = h.inner.result.lock().take();
-			while let Some(res_val) = res
+			if let Some(res_val) = h.check(idx)
 			{
-				// There's a result waiting!
-				let mut stack_lh = h.stack.lock();
-
-				// If there's no handler, return.
-				if stack_lh.is_empty()
-				{
-					log_debug!("check_one: {} result {:#x}", idx, res_val);
-					return Some(WaitResult { slot: idx, result: res_val });
-				}
-				log_debug!("check_one: {} advance {:#x}", idx, res_val);
-
-				// Stack has an entry, so pass the value on to that entry.
-				let test_ptr: *mut ();
-				res = {
-					// - Magic handle that only allows pushing to this (append-only) stack
-					let (magic_handle, top) = StackPush::new_with_top(&mut stack_lh);
-					test_ptr = top as *mut _ as *mut ();
-
-					top.advance(h.get_handle(), magic_handle, res_val)
-					};
-				// If this returns non-None, then pop and continue
-				if res.is_some()
-				{
-					assert!( !stack_lh.is_empty() );
-					assert_eq!( stack_lh.top_mut().unwrap() as *mut _ as *mut (), test_ptr, "Non-None return from async advance, but it also registered callbacks." );
-					stack_lh.pop();
-				}
+				return Some(WaitResult { slot: idx, result: res_val });
 			}
 		}
 
