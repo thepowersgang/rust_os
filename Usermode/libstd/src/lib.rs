@@ -12,9 +12,10 @@
 #![feature(box_syntax)]
 #![feature(raw)]
 #![feature(slice_concat_ext)]
-#![feature(macro_reexport)]
+#![feature(use_extern_macros)]	// allow `use` with macros
 #![feature(alloc,allocator_api)]
 #![feature(allocator_internals)]
+#![feature(core_panic_info)]	// Needed because of import of `panic` macro bringin in the module too
 #![default_lib_allocator]
 #![no_std]
 
@@ -23,14 +24,13 @@ extern crate syscalls;
 #[macro_use]
 extern crate macros;
 
-#[macro_reexport(vec,format)]
 extern crate alloc;
 extern crate alloc_system;
 
-#[macro_reexport(try,assert_eq,panic,write,unreachable,unimplemented)]
-extern crate core as core_2;	// Alternate name because it collides otherwise
-
 //extern crate loader;
+// Macros
+pub use alloc::{/*vec, */format};
+pub use core::{try, assert_eq, panic, write, unreachable, unimplemented};
 
 
 // Raw re-exports from core
