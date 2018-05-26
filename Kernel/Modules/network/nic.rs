@@ -278,7 +278,7 @@ fn rx_thread(int: &Interface)
 			let ether_ty = r.read_u16n().unwrap();
 			match ether_ty
 			{
-			0x0800 => ::ipv4::handle_rx_ethernet(int, src_mac, r).unwrap(),
+			0x0800 => ::ipv4::handle_rx_ethernet(int, src_mac, r).expect("Unable to hanle IPv4 packet (TODO)"),
 			// ARP
 			0x0806 => {
 				// TODO: Pass on to ARP
