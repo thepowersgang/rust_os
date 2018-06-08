@@ -3,6 +3,7 @@
 //
 // Standard Library - Runtime support (aka unwind and panic)
 #![feature(lang_items)]	// Allow definition of lang_items
+#![feature(panic_implementation,panic_info_message)]
 #![feature(asm)]	// Used by backtrace code
 #![feature(const_fn)]	// HACK For debugging ARM unwind
 #![no_std]
@@ -45,10 +46,7 @@ mod arch;
 #[path="arch-armv8.rs"]
 mod arch;
 
-pub fn begin_panic<M: ::core::any::Any+Send+'static>(msg: M, file_line: &(&'static str, u32)) -> ! {
-	begin_unwind(msg, file_line)
-}
-pub fn begin_panic_fmt(msg: &::core::fmt::Arguments, file_line: &(&'static str, u32)) -> ! {
+fn begin_panic_fmt(msg: &::core::fmt::Arguments, file_line: (&str, u32)) -> ! {
 	// Spit out that log
 	kernel_log!("PANIC: {}:{}: {}", file_line.0, file_line.1, msg);
 	// - Backtrace
@@ -58,25 +56,25 @@ pub fn begin_panic_fmt(msg: &::core::fmt::Arguments, file_line: &(&'static str, 
 	::syscalls::threads::exit(0xFFFF_FFFF);
 }
 
-pub fn begin_unwind<M: ::core::any::Any+Send+'static>(msg: M, file_line: &(&'static str, u32)) -> ! {
-	if let Some(m) = ::core::any::Any::downcast_ref::<::core::fmt::Arguments>(&msg) {
+#[panic_implementation]
+pub extern fn rust_begin_unwind(info: &::core::panic::PanicInfo) -> ! {
+	let file_line = match info.location()
+		{
+		Some(v) => (v.file(), v.line()),
+		None => ("", 0),
+		};
+	if let Some(m) = info.payload().downcast_ref::<::core::fmt::Arguments>() {
+		begin_panic_fmt(m, file_line)
+	}
+	else if let Some(m) = info.payload().downcast_ref::<&str>() {
 		begin_panic_fmt(&format_args!("{}", m), file_line)
 	}
-	else if let Some(m) = ::core::any::Any::downcast_ref::<&str>(&msg) {
-		begin_panic_fmt(&format_args!("{}", m), file_line)
+	else if let Some(m) = info.message() {
+		begin_panic_fmt(m, file_line)
 	}
 	else {
-		begin_panic_fmt(&format_args!("begin_unwind<{}>", type_name!(M)), file_line)
+		begin_panic_fmt(&format_args!("Unknown"), file_line)
 	}
-}
-pub fn begin_unwind_fmt(msg: ::core::fmt::Arguments, file_line: &(&'static str, u32)) -> ! {
-	begin_panic_fmt(&msg, file_line)
-}
-
-#[lang = "panic_fmt"]
-#[no_mangle]
-pub extern fn rust_begin_unwind(msg: ::core::fmt::Arguments, file: &'static str, line: usize) -> ! {
-	begin_panic_fmt(&msg, &(file, line as u32))
 }
 #[lang="eh_personality"]
 fn rust_eh_personality(

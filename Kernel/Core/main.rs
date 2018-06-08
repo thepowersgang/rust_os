@@ -23,6 +23,7 @@
 #![feature(integer_atomics)]	// AtomicU8
 #![feature(dropck_eyepatch)]
 #![feature(const_atomic_bool_new,const_atomic_ptr_new,const_atomic_usize_new,const_unsafe_cell_new,const_unique_new)]	// Various const fns
+#![feature(panic_implementation,panic_info_message)]
 
 #![no_std]
 

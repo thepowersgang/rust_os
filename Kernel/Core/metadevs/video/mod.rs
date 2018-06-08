@@ -93,7 +93,7 @@ fn init()
 // A picture of a sad ferris the crab
 // NOTE: Commented out, as uncompressed 32bpp is too large to fit in the image
 include!{"../../../../Graphics/.output/shared/panic.rs"}
-pub fn set_panic(file: &str, line: usize, message: ::core::fmt::Arguments)
+pub fn set_panic(file: &str, line: usize, message: &::core::fmt::Arguments)
 {
 	use core::sync::atomic::{AtomicBool, Ordering};
 	static LOOP_PREVENT: AtomicBool = AtomicBool::new(false);

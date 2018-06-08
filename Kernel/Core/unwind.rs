@@ -52,9 +52,27 @@ static EXCEPTION_CLASS : u64 = 0x544B3120_52757374;	// TK1 Rust (big endian)
 // */
 
 // Evil fail when doing unwind
-#[no_mangle] 
-#[lang = "panic_fmt"]
-pub extern "C" fn rust_begin_unwind(msg: ::core::fmt::Arguments, file: &'static str, line: usize) -> !
+#[panic_implementation]
+pub extern fn rust_begin_unwind(info: &::core::panic::PanicInfo) -> ! {
+	let file_line = match info.location()
+		{
+		Some(v) => (v.file(), v.line()),
+		None => ("", 0),
+		};
+	if let Some(m) = info.payload().downcast_ref::<::core::fmt::Arguments>() {
+		begin_panic_fmt(m, file_line)
+	}
+	else if let Some(m) = info.payload().downcast_ref::<&str>() {
+		begin_panic_fmt(&format_args!("{}", m), file_line)
+	}
+	else if let Some(m) = info.message() {
+		begin_panic_fmt(m, file_line)
+	}
+	else {
+		begin_panic_fmt(&format_args!("Unknown"), file_line)
+	}
+}
+fn begin_panic_fmt(msg: &::core::fmt::Arguments, (file, line): (&str, u32)) -> !
 {
 	static NESTED: ::core::sync::atomic::AtomicBool = ::core::sync::atomic::ATOMIC_BOOL_INIT;
 	::arch::puts("\nERROR: rust_begin_unwind: ");
@@ -68,7 +86,7 @@ pub extern "C" fn rust_begin_unwind(msg: ::core::fmt::Arguments, file: &'static 
 	}
 	::arch::print_backtrace();
 	log_panic!("{}:{}: Panicked \"{:?}\"", file, line, msg);
-	::metadevs::video::set_panic(file, line, msg);
+	::metadevs::video::set_panic(file, line as usize, msg);
 	loop{}
 }
 #[lang="eh_personality"]
