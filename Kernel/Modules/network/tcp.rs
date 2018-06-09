@@ -3,13 +3,28 @@
 //
 // Modules/network/tcp.rs
 //! Transmission Control Protocol (Layer 4)
+use shared_map::SharedMap;
 
 pub fn init()
 {
 	::ipv4::register_handler(6, rx_handler_v4);
 }
 
+#[derive(Copy,Clone,PartialOrd,PartialEq,Ord,Eq)]
+enum Address
+{
+	Ipv4(::ipv4::Address),
+}
+
+static CONNECTIONS: SharedMap<(Address,u16,Address,u16), Connection> = SharedMap::new();
+static PROTO_CONNECTIONS: SharedMap<(Address,u16,Address,u16), ProtoConnection> = SharedMap::new();
+static SERVERS: SharedMap<(Option<Address>,u16), Server> = SharedMap::new();
+
 fn rx_handler_v4(int: &::ipv4::Interface, src_addr: ::ipv4::Address, mut pkt: ::nic::PacketReader)
+{
+	rx_handler(Address::Ipv4(src_addr), Address::Ipv4(int.addr()), pkt)
+}
+fn rx_handler(src_addr: Address, dest_addr: Address, mut pkt: ::nic::PacketReader)
 {
 	let pre_header_reader = pkt.clone();
 	let hdr = match PktHeader::read(&mut pkt)
@@ -35,12 +50,28 @@ fn rx_handler_v4(int: &::ipv4::Interface, src_addr: ::ipv4::Address, mut pkt: ::
 		_ => {},
 		}
 	}
-
-	// Search for active connections with this quad (or triple)
-	//if let Some(c) = CONNECTIONS.get( &(src_addr, hdr.source_port, hdr.dest_port) )
-	//{
-	//}
+	
+	// Search for active connections with this quad
+	if let Some(c) = CONNECTIONS.get( &( src_addr, hdr.source_port, dest_addr, hdr.dest_port, ) )
+	{
+		c.handle(&hdr, pkt);
+	}
+	// Search for proto-connections
+	if hdr.flags == FLAG_ACK
+	{
+		if let Some(c) = PROTO_CONNECTIONS.take( &( src_addr, hdr.source_port, dest_addr, hdr.dest_port, ) )
+		{
+			// Check the SEQ/ACK numbers, and create the actual connection
+		}
+	}
 	// If none found, look for servers on the destination (if SYN)
+	if hdr.flags == FLAG_SYN
+	{
+		if let Some(s) = Option::or( SERVERS.get( &(Some(dest_addr), hdr.dest_port) ), SERVERS.get( &(None, hdr.dest_port) ) )
+		{
+			// - Add the quad as a proto-connection and send the SYN-ACK
+		}
+	}
 	// Otherwise, drop
 }
 
@@ -70,6 +101,8 @@ struct PktHeader
 
 	//options: [u8],
 }
+const FLAG_SYN: u8 = 1 << 1;
+const FLAG_ACK: u8 = 1 << 4;
 impl PktHeader
 {
 	fn read(reader: &mut ::nic::PacketReader) -> Result<Self, ()>
@@ -89,5 +122,24 @@ impl PktHeader
 	fn get_header_size(&self) -> usize {
 		(self.data_offset >> 4) as usize * 4
 	}
+}
+
+struct Connection
+{
+}
+impl Connection
+{
+	fn handle(&self, hdr: &PktHeader, pkt: ::nic::PacketReader)
+	{
+	}
+}
+
+struct ProtoConnection
+{
+	seen_seq: u32,
+	sent_seq: u32,
+}
+struct Server
+{
 }
 

@@ -10,6 +10,7 @@
 #[macro_use]
 extern crate kernel;
 extern crate stack_dst;
+extern crate shared_map;
 
 module_define!{Network, [], init}
 

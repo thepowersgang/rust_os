@@ -1,4 +1,8 @@
-
+// "Tifflin" Kernel - Networking Stack
+// - By John Hodge (thePowersGang)
+//
+// Modules/network/ipv4.rs
+//! IPv4 (Layer 3)
 use kernel::lib::Vec;
 use kernel::sync::RwLock;
 
@@ -85,6 +89,7 @@ pub fn handle_rx_ethernet(_physical_interface: &::nic::Interface, _source_mac: [
 	// - Could also be doing routing.
 	for interface in INTERFACES.read().iter()
 	{
+		// TODO: Interfaces should be locked to the physical interface too
 		if interface.address == hdr.destination
 		{
 			// TODO: Should there be per-interface handlers?
@@ -193,4 +198,10 @@ impl ::core::fmt::Display for Address
 pub struct Interface
 {
 	address: Address,
+}
+impl Interface
+{
+	pub fn addr(&self) -> Address {
+		self.address
+	}
 }

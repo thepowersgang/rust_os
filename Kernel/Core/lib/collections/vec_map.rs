@@ -46,6 +46,11 @@ pub struct VacantEntry<'a, K: 'a + Ord, V: 'a>
 
 impl<K: Ord, V> VecMap<K,V>
 {
+	pub const fn new_const() -> VecMap<K,V> {
+		VecMap {
+			ents: Vec::new_const(),
+		}
+	}
 	/// Create a new (empty) VecMap
 	pub fn new() -> VecMap<K,V> {
 		VecMap {
