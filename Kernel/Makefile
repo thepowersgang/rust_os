@@ -50,9 +50,6 @@ ifeq ($(OBJS),)
 	$(error BUGCHECK - Objects list empty)
 endif
 
-PREFIX ?= ../.prefix/
-RUSTUP_SRC_DIR = $(firstword $(wildcard ../.prefix/toolchains/nightly-*/lib/rustlib/src/rust/src))/
-
 -include BuildNum.$(ARCH).mk
 BUILDNUM ?= 1
 

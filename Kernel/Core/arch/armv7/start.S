@@ -352,20 +352,7 @@ ENTRY(svc_handler)
 	rfefd sp!
 	.fnend
 
-.section .text
-ENTRY(__aeabi_memcpy4)
-ENTRY(__aeabi_memcpy8)
-	movs r2, r2
-	bxeq lr
-1:
-	LDR r3, [r1], #4
-	STR r3, [r0], #4
-	SUBS r2, r2, #4
-	BGT 1b
-	BX lr
-EXIDX __aeabi_memcpy4, 0x80B0B0B0
-
-ENTRY(__aeabi_memcpy)
+ENTRY(memcpy)
 	movs r2, r2
 	bxeq lr
 1:
@@ -374,9 +361,7 @@ ENTRY(__aeabi_memcpy)
 	SUBS r2, r2, #1
 	BGT 1b
 	BX lr
-ENTRY(memcpy)
-	b __aeabi_memcpy
-EXIDX __aeabi_memcpy, 0x80B0B0B0
+EXIDX memcpy, 0x80B0B0B0
 
 ENTRY(memmove)
 	movs r2, r2
@@ -396,36 +381,6 @@ ENTRY(memmove)
 	BX lr
 EXIDX memmove, 0x80B0B0B0
 
-ENTRY(__aeabi_memset4)
-ENTRY(__aeabi_memset8)
-	.fnstart
-	movs r1, r1
-	bxeq lr
-
-	LSL r3, r2, #8
-	ORR r2, r2, r3
-	LSL r3, r2, #16
-	ORR r2, r2, r3
-1:
-	STR r2, [r0], #4
-	SUBS r1, r1, #4
-	BGT 1b
-	BX lr
-	.fnend
-
-ENTRY(__aeabi_memclr4)
-ENTRY(__aeabi_memclr8)
-	MOV r2, #0
-	b 1b
-ENTRY(__aeabi_memset)
-	movs r1, r1
-	beq 2f
-1:
-	strb r2, [r0], #1
-	subs r1, #1
-	bne 1b
-2:
-	bx lr
 ENTRY(memset)
 	.fnstart
 	movs r2, r2
@@ -438,24 +393,6 @@ ENTRY(memset)
 	bx lr
 	.fnend
 
-ENTRY(__aeabi_memclr)
-	MOV r2, #0
-	b __aeabi_memset
-
-
-ENTRY(__aeabi_uldivmod)
-.extern __aeabi_uldivmod_
-	.fnstart
-	.save {lr}
-	push {lr}
-	.pad #20
-	sub sp, #16
-	push {sp}
-	bl __aeabi_uldivmod_
-	add sp, #4
-	pop {r0, r1, r2, r3}
-	pop {pc}
-	.fnend
 
 // A, B, num
 ENTRY(memcmp)

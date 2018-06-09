@@ -33,3 +33,5 @@ RUSTDOC := $(call fn_rustcmd,rustdoc)
 CARGO := $(call fn_rustcmd,cargo)
 XARGO := $(call fn_rustcmd,xargo)
 
+RUSTUP_SRC_DIR = $(firstword $(wildcard $(PREFIX)toolchains/nightly-*/lib/rustlib/src/rust/src))/
+

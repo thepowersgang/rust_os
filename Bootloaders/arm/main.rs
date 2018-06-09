@@ -2,7 +2,7 @@
 //
 //
 #![no_std]
-#![feature(lang_items)]
+#![feature(panic_implementation)]
 
 /// Stub logging macro
 macro_rules! log{
@@ -41,27 +41,27 @@ pub extern "C" fn elf_load_symbols(file_base: &elf::ElfFile, output: &mut elf::S
 //
 //
 
-#[lang="eh_personality"]
-fn eh_personality() -> ! {
-	loop {}
-}
-#[lang="panic_fmt"]
-fn panic_fmt() -> ! {
+#[panic_implementation]
+fn panic_fmt(_: &::core::panic::PanicInfo) -> ! {
+	puts("PANIC");
 	loop {}
 }
 
 
-extern "C" {
-	fn puts(_: *const u8, _: u32);
+fn puts(s: &str) {
+	extern "C" {
+		fn puts(_: *const u8, _: u32);
+	}
+	// SAFE: Single-threaded
+	unsafe {
+		puts(s.as_ptr(), s.len() as u32);
+	}
 }
 struct Logger;
 impl ::core::fmt::Write for Logger {
 	fn write_str(&mut self, s: &str) -> ::core::fmt::Result
 	{
-		// SAFE: Single-threaded
-		unsafe {
-			puts(s.as_ptr(), s.len() as u32);
-		}
+		puts(s);
 		Ok( () )
 	}
 }

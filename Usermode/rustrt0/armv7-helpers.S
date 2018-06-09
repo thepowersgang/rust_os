@@ -307,21 +307,21 @@ ENTRY(__aeabi_idivmod)
 	@ }
 1:
 	pop {r4, pc}
-@ 32-bit unsigned divide
-ENTRY(__aeabi_uidiv)
-	b __aeabi_uidivmod
-@ 32-bit unsigned modulo
-ENTRY(__umoddi3)
-	push {lr}
-	bl __aeabi_uidivmod
-	mov r0, r1
-	pop {pc}
-@ 32-bit signed modulo
-ENTRY(__umodsi3)
-	push {lr}
-	bl __aeabi_idivmod
-	mov r0, r1
-	pop {pc}
+@@ 32-bit unsigned divide
+@ENTRY(__aeabi_uidiv)
+@	b __aeabi_uidivmod
+@@ 32-bit unsigned modulo
+@ENTRY(__umoddi3)
+@	push {lr}
+@	bl __aeabi_uidivmod
+@	mov r0, r1
+@	pop {pc}
+@@ 32-bit signed modulo
+@ENTRY(__umodsi3)
+@	push {lr}
+@	bl __aeabi_idivmod
+@	mov r0, r1
+@	pop {pc}
 
 // A, B, num
 ENTRY(memcmp)

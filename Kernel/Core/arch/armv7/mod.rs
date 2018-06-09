@@ -158,6 +158,7 @@ pub mod x86_io {
 
 #[allow(private_no_mangle_fns)]
 #[allow(dead_code)]
+#[cfg(no)]
 mod helpers
 {
 	#[repr(C)]

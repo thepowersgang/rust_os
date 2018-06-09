@@ -74,7 +74,7 @@ docs: $(patsubst lib%/,.docs/%/index.html,$(wildcard lib*/))
 	@echo "[RUSTDOC] -o $@"
 	$V$(RUSTDOC) -o .docs $< --crate-name $* $(RUST_COMMON_FLAGS)
 
-LOADER_DEPS := $(patsubst %,$(LIBDIR)lib%.rlib,$(call fn_getdeps,loader/src/main.rs) std std_io core std_rt)
+LOADER_DEPS := $(patsubst %,$(LIBDIR)lib%.rlib,$(call fn_getdeps,loader/src/main.rs) std std_io core std_rt compiler_builtins)
 
 # Most binary targets have simple templates, but loader and libcore are special
 # loader: Requires an assembly stub

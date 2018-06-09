@@ -29,6 +29,10 @@ impl<T> Spinlock<T>
 		}
 	}
 
+	pub fn get_mut(&mut self) -> &mut T {
+		// SAFE: Unique access
+		unsafe { &mut *self.value.get() }
+	}
 	pub fn lock(&self) -> HeldSpinlock<T> {
 		while self.flag.swap(true, Ordering::Acquire) {
 			// TODO: Once SMP is a thing, this should spin.

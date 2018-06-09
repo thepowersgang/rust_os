@@ -143,10 +143,11 @@ impl HostInner
 			let r: &mut hw::IntLists = handle_hcca.as_mut(256);
 			let mut next_level_phys = ::kernel::memory::virt::get_phys(r);
 			let mut init_int_ep = |i, cnt, v: &mut hw::Endpoint| {
+				use kernel::memory::PAddr;
 				if i == 0 {
-					next_level_phys += (cnt * ::core::mem::size_of::<hw::Endpoint>()) as u64;
+					next_level_phys += (cnt * ::core::mem::size_of::<hw::Endpoint>()) as PAddr;
 				}
-				v.next_ed = (next_level_phys + (i as u64 / 2) * ::core::mem::size_of::<hw::Endpoint>() as u64) as u32;
+				v.next_ed = (next_level_phys + (i as PAddr / 2) * ::core::mem::size_of::<hw::Endpoint>() as PAddr) as u32;
 				v.flags = 1 << 14;
 				};
 			for (i,v) in r.int_16ms.iter_mut().enumerate()
