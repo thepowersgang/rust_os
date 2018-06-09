@@ -1,11 +1,10 @@
 // UEFI Boot-loader
 //
 //
-#![feature(lang_items)]
 #![feature(asm)]
-#![feature(proc_macro)]	// utf16_literal
+#![feature(proc_macro, proc_macro_non_items)]	// utf16_literal
+#![feature(panic_implementation,panic_info_message)]
 #![no_std] 
-//#![crate_type="lib"]
 
 use uefi::boot_services::protocols;
 use core::mem::size_of;
@@ -212,21 +211,25 @@ fn load_kernel_file(boot_services: &::uefi::boot_services::BootServices, sys_vol
 }
 
 
-#[lang="eh_personality"]
-pub fn eh_personality() -> ! {
-	loop {}
-}
-
+#[panic_implementation]
+// NOTE: Needs to be public and no_mangle (rust#51342)
 #[no_mangle]
-#[lang="panic_fmt"]
-pub extern "C" fn rust_begin_unwind(msg: ::core::fmt::Arguments, _file: &'static str, _line: usize) -> ! {
+pub fn handle_panic(info: &::core::panic::PanicInfo) -> ! {
 	static mut NESTED: bool = false;
 	unsafe {
 		if NESTED {
 			loop {}
 		}
 		NESTED = true;
-		loge!(&*S_CONOUT, "PANIC: {}", msg);
+		if let Some(m) = info.message() {
+			loge!(&*S_CONOUT, "PANIC: {}", m);
+		}
+		else if let Some(m) = info.payload().downcast_ref::<&str>() {
+			loge!(&*S_CONOUT, "PANIC: {}", m);
+		}
+		else {
+			loge!(&*S_CONOUT, "PANIC: ?");
+		}
 
 		((*S_BOOT_SERVICES).exit)(S_IMAGE_HANDLE, ::uefi::status::NOT_FOUND, 0, ::core::ptr::null());
 	}

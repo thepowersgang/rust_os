@@ -2,6 +2,6 @@
 name = "uefi"
 version = "0.0.1"
 authors = ["John Hodge <tpg@mutabah.net>"]
-licence = "MIT OR Apache-2.0
+licence = "MIT OR Apache-2.0"
 description = "Bindings to the UEFI runtime environment"
 repository = "http://github.com/thepowersgang/rust_os"

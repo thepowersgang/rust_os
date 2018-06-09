@@ -2,6 +2,9 @@
 name = "bootloader-uefi"
 version = "0.0.0"
 
+[profile.release]
+panic = "abort"
+
 [dependencies]
 uefi = {path = "../libuefi"}
 utf16_literal = { path = "../../externals/crates.io/utf16_literal" }

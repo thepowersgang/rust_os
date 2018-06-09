@@ -7,7 +7,7 @@ BIN := ../bootloader-efi.pe
 TARGET_NAME := target-uefi
 TARGET_FILE := ./$(TARGET_NAME).json
 RUSTFLAGS := -Z no-landing-pads -L .obj/ -C opt-level=s
-TARGET_DIR := $(abspath target/target/release)/
+TARGET_DIR := $(abspath target/$(TARGET_NAME)/release)/
 
 OBJS := $(TARGET_DIR)libbootloader_uefi.a .obj/libstubs.a
 
@@ -23,7 +23,7 @@ clean:
 
 $(TARGET_DIR)libbootloader_uefi.a: .obj/libstubs.a $(TARGET_FILE)
 	@echo [XARGO] build
-	@RUSTFLAGS="$(RUSTFLAGS)" RUST_TARGET_PATH=$(abspath .) $(XARGO) build --target=$(TARGET_NAME) --release 
+	$VRUSTFLAGS="$(RUSTFLAGS)" RUST_TARGET_PATH=$(abspath .) $(XARGO) build --target=$(TARGET_NAME) --release 
 
 $(BIN): .obj/bootloader-efi.o
 	@echo [LD] -o $@
