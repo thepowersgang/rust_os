@@ -184,7 +184,7 @@ impl<T> QueueEntPtr<T>
 	}
 
 	fn into_inner(self) -> QueueEnt<T> {
-		::lib::mem::boxed::into_inner(self.0)
+		*self.0
 	}
 
 	/// UNSAFE: Requires that the tail pointer not outlive this object

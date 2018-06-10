@@ -121,9 +121,12 @@ ifeq ($(USE_ACPICA),1)
 endif
 
 .SUFFIXES:
-.PHONY: all clean docs dsm doctest
+.PHONY: all clean docs dsm doctest test
 
 all: bin/kernel-$(ARCH).bin
+
+test: $(OBJDIR)libkernel-test
+	$(OBJDIR)libkernel-test
 
 dsm: bin/kernel-$(ARCH).bin.dsm
 
@@ -229,6 +232,10 @@ $(OBJDIR)libkernel.rlib: Core/main.rs $(OBJDIR)libcore.rlib $(TARGET_FILE) ../Gr
 	@mkdir -p $(dir $@) $(OBJDIR)incremental/
 	$V$(ENV) $(RUSTC) $(RUSTFLAGS) --emit=link,dep-info --out-dir $(dir $@) $<
 	@cp $(OBJDIR)kernel.d $(OBJDIR)libkernel.d
+$(OBJDIR)libkernel-test: Core/main.rs $(OBJDIR)test/libstack_dst.rlib $(OBJDIR)libkernel.rlib
+	@echo [RUSTC] -o $@
+	@mkdir -p $(dir $@)
+	$V$(ENV) $(RUSTC) --test -o $@ $< -L bin/plugins/ -L $(OBJDIR)test/
 
 
 # - Locally compiled libcore, needs to not use SSE
@@ -268,6 +275,10 @@ $(foreach m,$(MODS), $(eval $(call fn_modline,$m) ) )
 $(OBJDIR)lib%.rlib: ../externals/crates.io/%/src/lib.rs $(OBJDIR)libcore.rlib
 	@echo [RUSTC] -o $@ $<
 	$V$(ENV) $(RUSTC) $(RUSTFLAGS) -o $@ $<
+$(OBJDIR)test/lib%.rlib: ../externals/crates.io/%/src/lib.rs
+	@echo [RUSTC] -o $@ $<
+	@mkdir -p $(dir $@)
+	$V$(ENV) $(RUSTC) -o $@ $<
 
 .PRECIOUS: %.rs
 ../externals/crates.io/%/src/lib.rs: ../externals/crates.io/%.repo

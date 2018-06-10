@@ -9,6 +9,9 @@ pub unsafe auto trait POD {}
 //impl<T: ::core::ops::Drop> !POD for T {}  // - I would love this, but it collides with every other !POD impl
 impl<T> !POD for ::core::cell::UnsafeCell<T> {}
 impl<T> !POD for ::core::ptr::NonNull<T> {}
+#[cfg(test)]
+impl<T> !POD for ::std::boxed::Box<T> {}
+#[cfg(not(test))]
 impl<T> !POD for ::lib::mem::boxed::Box<T> {}
 impl<T> !POD for *const T {}
 impl<T> !POD for *mut T {}

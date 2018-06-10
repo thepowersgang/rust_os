@@ -304,7 +304,7 @@ impl ::core::ops::Drop for ThreadHandle
 impl ThreadPtr {
 	pub fn new(ptr: Box<Thread>) -> ThreadPtr {
 		// SAFE: Non-zero value
-		ThreadPtr( unsafe { ::lib::mem::Unique::new_unchecked(ptr.into_raw()) } )
+		ThreadPtr( unsafe { ::lib::mem::Unique::new_unchecked( Box::into_raw(ptr) ) } )
 	}
 	pub fn new_static(ptr: &'static mut Thread) -> ThreadPtr {
 		// SAFE: Non-zero value

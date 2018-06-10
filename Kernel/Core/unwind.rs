@@ -53,6 +53,7 @@ static EXCEPTION_CLASS : u64 = 0x544B3120_52757374;	// TK1 Rust (big endian)
 
 // Evil fail when doing unwind
 #[panic_implementation]
+#[cfg(not(test))]
 pub extern fn rust_begin_unwind(info: &::core::panic::PanicInfo) -> ! {
 	let file_line = match info.location()
 		{
@@ -90,6 +91,7 @@ fn begin_panic_fmt(msg: &::core::fmt::Arguments, (file, line): (&str, u32)) -> !
 	loop{}
 }
 #[lang="eh_personality"]
+#[cfg(not(test))]
 fn rust_eh_personality(
 	version: isize, _actions: _Unwind_Action, _exception_class: u64,
 	_exception_object: &_Unwind_Exception, _context: &_Unwind_Context

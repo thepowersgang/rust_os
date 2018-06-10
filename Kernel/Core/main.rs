@@ -25,12 +25,15 @@
 #![feature(const_atomic_bool_new,const_atomic_ptr_new,const_atomic_usize_new,const_unsafe_cell_new,const_unique_new)]	// Various const fns
 #![feature(panic_implementation,panic_info_message)]
 
-#![no_std]
+#![cfg_attr(not(test),no_std)]
 
 #![deny(not_tagged_safe)]
 
 #![feature(plugin)]
 #![plugin(tag_safe)]
+
+#[cfg(test)]
+extern crate core;
 
 #[allow(unused_imports)]
 use prelude::*;

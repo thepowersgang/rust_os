@@ -4,19 +4,12 @@
 //! Achitecture-specific code
 
 #[macro_use]
-#[cfg(arch="amd64")] #[path="amd64/mod.rs"]
+#[cfg_attr(arch="amd64", path="amd64/mod.rs")]
+#[cfg_attr(arch="armv7", path="armv7/mod.rs")]
+#[cfg_attr(arch="armv8", path="armv8/mod.rs")]
+#[cfg_attr(test, path="imp-test.rs")]
 #[doc(hidden)]
 pub mod imp;	// Needs to be pub for exports to be avaliable
-
-#[macro_use]
-#[cfg(arch="armv7")] #[path="armv7/mod.rs"]
-#[doc(hidden)]
-pub mod imp;
-
-#[macro_use]
-#[cfg(arch="armv8")] #[path="armv8/mod.rs"]
-#[doc(hidden)]
-pub mod imp;
 
 // If on x86/amd64, import ACPI
 #[cfg(arch="amd64")]

@@ -3,6 +3,7 @@
 //
 // Core/lib/vec.rs
 //! Dynamically growable vector type
+use prelude::*;
 use core::iter::{FromIterator};
 use core::{ops,fmt};
 use lib::collections::{MutableSeq};
@@ -61,7 +62,7 @@ impl<T> Vec<T>
 		ret
 	}
 	/// 
-	pub fn from_boxed_slice(mut s: ::lib::mem::Box<[T]>) -> Vec<T> {
+	pub fn from_boxed_slice(mut s: /*::lib::mem::*/Box<[T]>) -> Vec<T> {
 		let ptr = s.as_mut_ptr();
 		let len = s.len();
 		::core::mem::forget(s);

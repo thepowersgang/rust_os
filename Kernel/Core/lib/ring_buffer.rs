@@ -165,3 +165,18 @@ impl<T: Send> AtomicRingBuf<T>
 		}
 	}
 }
+
+#[test]
+fn test_ring_basic()
+{
+	let mut r = RingBuf::<i32>::new(3);
+	r.push_back(1).expect("push_back");
+	r.push_back(2).expect("push_back");
+	r.push_back(3).expect("push_back");
+	assert_eq!(r.push_back(4), Err(4));
+	assert_eq!(r.pop_front(), Some(1));
+	assert_eq!(r.pop_front(), Some(2));
+	assert_eq!(r.pop_front(), Some(3));
+	assert_eq!(r.pop_front(), None);
+
+}

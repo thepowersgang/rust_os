@@ -5,13 +5,17 @@
 //! Memory allocation types
 pub use self::rc::Rc;
 pub use self::arc::Arc;
+#[cfg(not(test))]
 pub use self::boxed::Box;
+#[cfg(test)]
+pub use std::boxed::Box;
 
 mod grc;
 pub mod rc;
 pub mod arc;
 
 pub mod aref;
+#[cfg(not(test))]
 pub mod boxed;
 
 

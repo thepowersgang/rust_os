@@ -463,10 +463,15 @@ pub fn enabled(level: Level, modname: &str) -> bool
 		static log_cfg: [LogCfgEnt; 0];
 		static log_cfg_end: [LogCfgEnt; 0];
 	}
-	// SAFE: This data doesn't change (only does pointers)
-	let log_ent_count = (unsafe { log_cfg_end.as_ptr() as usize - log_cfg.as_ptr() as usize }) / ::core::mem::size_of::<LogCfgEnt>();
-	// SAFE: Assembly defines these symbols, and I hope it gets the format right
-	let log_ents = unsafe { ::core::slice::from_raw_parts(log_cfg.as_ptr(), log_ent_count) };
+	#[cfg(not(test))]
+	let log_ents = {
+		// SAFE: This data doesn't change (only does pointers)
+		let log_ent_count = (unsafe { log_cfg_end.as_ptr() as usize - log_cfg.as_ptr() as usize }) / ::core::mem::size_of::<LogCfgEnt>();
+		// SAFE: Assembly defines these symbols, and I hope it gets the format right
+		unsafe { ::core::slice::from_raw_parts(log_cfg.as_ptr(), log_ent_count) }
+		};
+	#[cfg(test)]
+	let log_ents: &[LogCfgEnt] = &[];
 	for ent in log_ents {
 		// SAFE: They're UTF-8 strings from assembly.
 		let ent_modname = unsafe { ::core::str::from_utf8_unchecked( ::core::slice::from_raw_parts(ent.name_ptr, ent.name_len as usize) ) };
