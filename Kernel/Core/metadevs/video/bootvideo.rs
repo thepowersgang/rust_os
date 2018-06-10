@@ -308,6 +308,7 @@ impl Framebuffer
 				}
 				let right = ::core::cmp::min(self.buffer.mode.width as usize, r.right() as usize);
 				let seg = self.buffer.scanline_slice(row as usize, r.left() as usize, right);
+				let src = &src[..seg.len()];
 				seg.clone_from_slice(src);
 			}
 		}
@@ -330,7 +331,8 @@ impl Framebuffer
 				}
 				let right = ::core::cmp::min(self.buffer.mode.width as usize, r.right() as usize);
 				let seg = self.buffer.scanline_slice(row as usize, r.left() as usize, right);
-				dst.clone_from_slice( seg );
+				// - Handle the case where the cursor is off the RHS
+				dst[..seg.len()].clone_from_slice( seg );
 				self.cursor_data.render_line( (row - r.top()) as usize, seg, output_fmt );
 			}
 		}
