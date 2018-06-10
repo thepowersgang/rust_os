@@ -41,9 +41,11 @@ struct InputChannel
 	alt_held: ModKeyPair,
 	//altgr: ModKeyPair,	// AltGr is usually just one... but meh
 	
-	cursor: MouseCursor,
-	
 	last_key_pressed: AtomicValue<u8>,
+	//active_repeat: AtomicValue<u8>,
+	//repeat_start: Timestamp,
+	
+	cursor: MouseCursor,
 	// TODO: Mutex feels too heavy, but there may be multiple mice on one channel
 	double_click_info: Mutex<MouseClickInfo>,
 }
@@ -110,8 +112,8 @@ impl InputChannel
 		(true, KeyCode::RightAlt) => self.alt_held.clear_r(),
 		(true, KeyCode::LeftAlt)  => self.alt_held.clear_l(),
 		// Check for session change commands, don't propagate if they fired
-		// - 'try_change_session' checks modifiers and permissions
-		// - TODO: Should this be moved to upper levels?
+		// - 'try_change_session' checks for the required modifier keys and permissions
+		// TODO: Should this be handled by the `windows` module?
 		(false, KeyCode::Esc) => if self.try_change_session(0) { return ; },
 		(false, KeyCode::F1)  => if self.try_change_session(1) { return ; },
 		(false, KeyCode::F2)  => if self.try_change_session(2) { return ; },
@@ -128,32 +130,42 @@ impl InputChannel
 		_ => {},
 		}
 
-		// Handle text events
-		// - On key up, translate the keystroke into text (accounting for input state)
-		// TODO: Support repetition?
-		if release && self.last_key_pressed.swap(KeyCode::None as u8, Ordering::Relaxed) == key as u8 {
-			super::windows::handle_input( Event::KeyFire(key) );
+		// Handle fire and text events
+		if key.is_modifier()
+		{
+			// Only fire a modifier on key-up IF they were the last one pressed
+			// - This allows "Gui" (windows) to fire on key-up while still being used as a modifier
+			if release && self.last_key_pressed.load(Ordering::Relaxed) == key as u8
+			{
+				super::windows::handle_input( Event::KeyFire(key) );
+			}
+		}
+		else
+		{
+			// TODO: Support repetition (of the last non-modifier pressed)
+			if !release
+			{
+				super::windows::handle_input( Event::KeyFire(key) );
 
-			// TODO: Should only generate text if no non-shift modifiers are depressed
-			//if self.enable_input_translation {
-				let s = self.get_input_string(key);
-				if s.len() > 0 {
-					let mut buf = [0; 6];
-					buf[.. s.len()].clone_from_slice( s.as_bytes() );
-					super::windows::handle_input( Event::Text(buf) );
-				}
-			//}
+				// TODO: Should only generate text if no non-shift modifiers are depressed
+				//if self.enable_input_translation {
+					let s = self.get_input_string(key);
+					if s.len() > 0 {
+						let mut buf = [0; 6];
+						buf[.. s.len()].clone_from_slice( s.as_bytes() );
+						super::windows::handle_input( Event::Text(buf) );
+					}
+				//}
+			}
 		}
 
-		if !release {
-			self.last_key_pressed.store(key as u8, Ordering::Relaxed);
-		}
-
-		// TODO: Send key combination to active active window
+		// Send key combination to active active window (via the window subsystem)
 		if release {
+			self.last_key_pressed.store(KeyCode::None as u8, Ordering::Relaxed);
 			super::windows::handle_input(/*self, */Event::KeyUp(key));
 		}
 		else {
+			self.last_key_pressed.store(key as u8, Ordering::Relaxed);
 			super::windows::handle_input(/*self, */Event::KeyDown(key));
 		}
 	}

@@ -148,6 +148,22 @@ pub enum KeyCode
 	RightGui
 }
 
+impl KeyCode
+{
+	pub fn is_modifier(&self) -> bool
+	{
+		match *self
+		{
+		KeyCode::LeftCtrl | KeyCode::RightCtrl |
+		KeyCode::LeftShift| KeyCode::RightShift|
+		KeyCode::LeftAlt  | KeyCode::RightAlt  |
+		KeyCode::LeftGui  | KeyCode::RightGui  =>
+			true,
+		_ => false,
+		}
+	}
+}
+
 impl ::core::convert::From<u8> for KeyCode
 {
 	fn from(v: u8) -> KeyCode {
