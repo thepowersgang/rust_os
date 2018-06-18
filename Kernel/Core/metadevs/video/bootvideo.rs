@@ -202,12 +202,13 @@ impl super::Framebuffer for Framebuffer
 			match output_fmt
 			{
 			VideoFormat::X8R8G8B8 => {
+				// TODO: Find a faster way of bliting.
 				for (px,&col) in ::lib::ExactZip::new( seg.chunks_mut(bpp), src.iter() )
 				{
 					px[0] = ((col >>  0) & 0xFF) as u8;
 					px[1] = ((col >>  8) & 0xFF) as u8;
 					px[2] = ((col >> 16) & 0xFF) as u8;
-					//px[3] = ((col >> 32) & 0xFF) as u8;
+					//px[3] = ((col >> 24) & 0xFF) as u8;
 				}
 				},
 			VideoFormat::R5G6B5 => {
