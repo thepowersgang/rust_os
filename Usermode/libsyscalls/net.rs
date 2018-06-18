@@ -21,6 +21,22 @@ fn to_result(val: usize) -> Result<u32, Error> {
 }
 
 // --------------------------------------------------------------------
+impl ::Object for Server
+{
+	const CLASS: u16 = ::values::CLASS_SERVER;
+	fn class() -> u16 { Self::CLASS }
+	fn from_handle(handle: ::ObjectHandle) -> Self {
+		Server(handle)
+	}
+	fn into_handle(self) -> ::ObjectHandle {
+		self.0
+	}
+	fn handle(&self) -> &::ObjectHandle {
+		&self.0
+	}
+
+	type Waits = ();
+}
 impl Server
 {
 	pub fn open(addr: impl Into<SocketAddress>) -> Result<Server, Error> {
@@ -40,6 +56,22 @@ impl Server
 	}
 }
 // --------------------------------------------------------------------
+impl ::Object for ConnectedSocket
+{
+	const CLASS: u16 = ::values::CLASS_SOCKET;
+	fn class() -> u16 { Self::CLASS }
+	fn from_handle(handle: ::ObjectHandle) -> Self {
+		ConnectedSocket(handle)
+	}
+	fn into_handle(self) -> ::ObjectHandle {
+		self.0
+	}
+	fn handle(&self) -> &::ObjectHandle {
+		&self.0
+	}
+
+	type Waits = ();
+}
 impl ConnectedSocket
 {
 	pub fn connect(addr: impl Into<SocketAddress>) -> Result<ConnectedSocket, Error> {
@@ -67,15 +99,35 @@ impl ConnectedSocket
 impl ConnectedSocket
 {
 	pub fn send(&mut self, data: &[u8]) -> Result<usize, Error> {
-		panic!("TODO: ConnectedSocket::send");
+		// SAFE: Syscall
+		to_result(unsafe { self.0.call_2(::values::NET_CONNSOCK_SEND, data.as_ptr() as usize, data.len()) as usize })
+			.map(|v| v as usize)
 	}
 	pub fn recv(&mut self, data: &mut [u8]) -> Result<usize, Error> {
-		panic!("TODO: ConnectedSocket::recv");
+		// SAFE: Syscall
+		to_result(unsafe { self.0.call_2(::values::NET_CONNSOCK_RECV, data.as_ptr() as usize, data.len()) as usize })
+			.map(|v| v as usize)
 	}
 
 	// TODO: Async IO using registered buffers (which minimises the problems with borrowing)
 }
 // --------------------------------------------------------------------
+impl ::Object for FreeSocket
+{
+	const CLASS: u16 = ::values::CLASS_FREESOCKET;
+	fn class() -> u16 { Self::CLASS }
+	fn from_handle(handle: ::ObjectHandle) -> Self {
+		FreeSocket(handle)
+	}
+	fn into_handle(self) -> ::ObjectHandle {
+		self.0
+	}
+	fn handle(&self) -> &::ObjectHandle {
+		&self.0
+	}
+
+	type Waits = ();
+}
 impl FreeSocket
 {
 	/// Create a free socket using the specified local and remote addresses.

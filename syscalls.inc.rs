@@ -530,17 +530,19 @@ enum_to_from!{ SocketPortType => u8:
 	Sctp = 3,
 }
 #[derive(Default,Copy,Clone)]
+#[repr(C)]
 pub struct SocketAddress
 {
-	port_ty: u8,
-	port: u16,
-	addr_ty: u8,
-	addr: [u8; 16],
+	pub port_ty: u8,
+	pub addr_ty: u8,
+	pub port: u16,
+	pub addr: [u8; 16],
 }
 #[derive(Default,Copy,Clone)]
+#[repr(C)]
 pub struct MaskedSocketAddress
 {
-	addr: SocketAddress,
-	mask: u8,
+	pub addr: SocketAddress,
+	pub mask: u8,
 }
 

@@ -243,6 +243,7 @@ pub trait Object
 {
 	const CLASS: u16;
 	fn class() -> u16;
+	// TODO: Make this unsafe (and/or hide from the user)
 	fn from_handle(handle: ::ObjectHandle) -> Self;
 	fn into_handle(self) -> ::ObjectHandle;
 	fn handle(&self) -> &::ObjectHandle;

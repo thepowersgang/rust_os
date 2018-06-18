@@ -25,6 +25,7 @@ mod threads;
 mod gui_calls;
 mod vfs;
 mod ipc_calls;
+mod network_calls;
 
 pub type ObjectHandle = u32;
 
@@ -261,7 +262,13 @@ fn invoke_int(call_id: u32, args: &mut Args) -> Result<u64,Error>
 			todo!("NET_LISTEN");
 			},
 		NET_BIND => {
-			todo!("NET_BIND");
+			let local: ::values::SocketAddress = { let p: Freeze<_> = try!(args.get()); *p };
+			let remote: ::values::MaskedSocketAddress = { let p: Freeze<_> = try!(args.get()); *p };
+			match network_calls::new_free_socket(local, remote)
+			{
+			Ok(v) => v as u64,
+			Err(e) => e as u8 as u64,
+			}
 			},
 		// === *: Default
 		_ => {
