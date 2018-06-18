@@ -7,10 +7,16 @@ all: run
 
 QEMU_ARGS := -s -no-reboot
 ifeq ($(ENABLE_VIDEO),)
-	QEMU_ARGS += -nographic
-	QEMU_ARGS += -vnc 127.0.0.1:99
+  QEMU_ARGS += -nographic
+  QEMU_ARGS += -vnc 127.0.0.1:99
 else
-	QEMU_ARGS += -serial stdio
+  QEMU_ARGS += -serial stdio
+endif
+ifeq ($(ENABLE_USB),)
+else
+  QEMU_ARGS += -usb
+  QEMU_ARGS += -device pci-ohci,id=ohci
+  QEMU_ARGS += -device usb-tablet,bus=ohci.0
 endif
 QEMU_ARGS += -d int,guest_errors -D qemu_int_log.txt
 #QEMU_ARGS += -d int,guest_errors,exec -D qemu_int_log.txt
