@@ -80,7 +80,7 @@ pub mod prelude {
 		pub use slice::SliceConcatExt;
 
 		pub use string::{String,ToString};
-		pub use alloc::Vec;
+		pub use alloc::vec::Vec;
 	}
 }
 

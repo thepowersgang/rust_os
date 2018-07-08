@@ -1,4 +1,6 @@
+//! Vector backed ring buffer
 #![feature(alloc)]
+#![feature(raw_vec_internals)]
 
 extern crate alloc;
 

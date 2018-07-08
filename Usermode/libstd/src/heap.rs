@@ -3,8 +3,7 @@
 //!
 use core::ptr;
 use core::ptr::NonNull;
-
-pub use alloc::allocator::{Layout,Alloc,AllocErr};
+use core::alloc::{Layout,Alloc,AllocErr};
 
 use alloc_system::ALLOCATOR as System;
 

@@ -2,10 +2,11 @@
 //
 //
 //! Cross-binary interfacing
+use alloc::vec::Vec;
 
 pub struct OsStr([u8]);
 #[derive(Clone)]
-pub struct OsString(::alloc::Vec<u8>);
+pub struct OsString(Vec<u8>);
 
 impl OsStr
 {
@@ -78,7 +79,7 @@ impl ::core::cmp::PartialEq<str> for OsStr {
 
 impl OsString {
 	pub fn new() -> OsString {
-		OsString(::alloc::Vec::new())
+		OsString(Vec::new())
 	}
 	pub fn as_os_str(&self) -> &OsStr {
 		&self
@@ -90,8 +91,8 @@ impl ::core::ops::Deref for OsString {
 		OsStr::new(&self.0)
 	}
 }
-impl<'a> From<::alloc::Vec<u8>> for OsString {
-	fn from(v: ::alloc::Vec<u8>) -> OsString {
+impl<'a> From<Vec<u8>> for OsString {
+	fn from(v: Vec<u8>) -> OsString {
 		OsString(v)
 	}
 }
