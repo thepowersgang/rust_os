@@ -9,7 +9,7 @@
 	"os": "tifflin",
 	"arch": "x86_64",
 		"linker-flavor": "ld",
-		"pre-link-args": ["-m64"],
+		"pre-link-args": { "ld": ["-m64"] },
 		"no-compiler-rt": true,
 		"disable-redzone": true,
 		"eliminate-frame-pointer": false,
