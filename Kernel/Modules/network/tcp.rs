@@ -4,6 +4,8 @@
 // Modules/network/tcp.rs
 //! Transmission Control Protocol (Layer 4)
 use shared_map::SharedMap;
+use kernel::prelude::*;
+use kernel::lib::ring_buffer::RingBuf;
 
 pub fn init()
 {
@@ -51,25 +53,40 @@ fn rx_handler(src_addr: Address, dest_addr: Address, mut pkt: ::nic::PacketReade
 		}
 	}
 	
+	let quad = ( src_addr, hdr.source_port, dest_addr, hdr.dest_port, );
 	// Search for active connections with this quad
-	if let Some(c) = CONNECTIONS.get( &( src_addr, hdr.source_port, dest_addr, hdr.dest_port, ) )
+	if let Some(c) = CONNECTIONS.get(&quad)
 	{
 		c.handle(&hdr, pkt);
 	}
 	// Search for proto-connections
-	if hdr.flags == FLAG_ACK
+	// - Proto-connections are lighter weight than full-blown connections, reducing the impact of a SYN flood
+	else if hdr.flags == FLAG_ACK
 	{
-		if let Some(c) = PROTO_CONNECTIONS.take( &( src_addr, hdr.source_port, dest_addr, hdr.dest_port, ) )
+		if let Some(c) = PROTO_CONNECTIONS.take(&quad)
 		{
 			// Check the SEQ/ACK numbers, and create the actual connection
+			if hdr.sequence_number == c.seen_seq + 1 && hdr.acknowlegement_number == c.sent_seq
+			{
+				// Make the full connection struct
+				CONNECTIONS.insert(quad, Connection::new(&hdr));
+			}
+			else
+			{
+				// - Bad ACK, put the proto connection back into the list
+				PROTO_CONNECTIONS.insert(quad, c);
+			}
 		}
 	}
 	// If none found, look for servers on the destination (if SYN)
-	if hdr.flags == FLAG_SYN
+	else if hdr.flags == FLAG_SYN
 	{
 		if let Some(s) = Option::or( SERVERS.get( &(Some(dest_addr), hdr.dest_port) ), SERVERS.get( &(None, hdr.dest_port) ) )
 		{
 			// - Add the quad as a proto-connection and send the SYN-ACK
+			let pc = ProtoConnection::new(hdr.sequence_number);
+			// TODO: Send the SYN-ACK
+			PROTO_CONNECTIONS.insert(quad, pc);
 		}
 	}
 	// Otherwise, drop
@@ -126,11 +143,124 @@ impl PktHeader
 
 struct Connection
 {
+	/// Sequence number of the next expected remote byte
+	next_rx_seq: u32,
+	/// Received bytes
+	rx_buffer: RxBuffer,
+
+	/// Sequence number of last transmitted byte
+	last_tx_seq: u32,
+	/// Buffer of transmitted but not ACKed bytes
+	tx_buffer: RingBuf<u8>,
 }
 impl Connection
 {
+	fn new(hdr: &PktHeader) -> Self
+	{
+		Connection {
+			next_rx_seq: hdr.sequence_number,
+			rx_buffer: RxBuffer::new(2048),
+			last_tx_seq: hdr.acknowlegement_number,
+			tx_buffer: RingBuf::new(2048),
+			}
+	}
 	fn handle(&self, hdr: &PktHeader, pkt: ::nic::PacketReader)
 	{
+	}
+}
+
+struct RxBuffer
+{
+	// Number of bytes in the buffer
+	// Equal to `8 * data.len() / 9`
+	size: usize,
+	// Start of the first non-consumed byte
+	read_pos: usize,
+	// Bitmap followed by data
+	data: Vec<u8>,
+}
+impl RxBuffer
+{
+	fn new(window_size: usize) -> RxBuffer {
+		let mut rv = RxBuffer {
+			size: 0, read_pos: 0, data: vec![],
+			};
+		rv.resize(window_size);
+		rv
+	}
+	fn insert(&mut self, offset: usize, data: &[u8]) {
+	}
+	fn take(&mut self, buf: &mut [u8]) -> usize {
+		let out_len = ::core::cmp::min( buf.len(), self.valid_len() );
+		panic!("TODO");
+	}
+	fn valid_len(&self) -> usize
+	{
+		// Number of valid bytes in the first partial bitmap entry
+		let mut len = {
+			let ofs = self.read_pos % 8;
+			let v = self.data[self.size..][self.read_pos/8] >> ofs;
+			(!v).trailing_zeros()
+			};
+		if len > 0
+		{
+			for i in 1 .. self.size / 8
+			{
+				let v = self.data[self.size ..][i];
+				if v != 0xFF
+				{
+					len += (!v).trailing_zeros();
+					break;
+				}
+				else
+				{
+					len += 8;
+				}
+			}
+			// NOTE: There's an edge case where if the buffer is 100% full, it won't return that (if the read position is unaligned)
+			// But that isn't a critical problem.
+		}
+		len as usize
+	}
+	fn resize(&mut self, new_size: usize) {
+		self.compact();
+		assert!(self.read_pos == 0);
+		if new_size > self.size {
+			// Resize underlying vector
+			self.data.resize(new_size + (new_size + 7) / 8, 0u8);
+			// Copy/move the bitmap up
+			self.data[self.size ..].rotate_right( (new_size - self.size) / 8 );
+		}
+		else {
+			// Move the bitmap down
+			self.data[new_size ..].rotate_left( (self.size - new_size) / 8 );
+			self.data.truncate( new_size + (new_size + 7) / 8 );
+		}
+		self.size = new_size;
+	}
+	/// Compact the current state so read_pos=0
+	fn compact(&mut self)
+	{
+		if self.read_pos != 0
+		{
+			// Rotate data
+			self.data[..self.size].rotate_left( self.read_pos );
+			// Bitmap:
+			// Step 1: Octet align
+			let bitofs = self.read_pos % 8;
+			if bitofs > 0
+			{
+				let bitmap_rgn = &mut self.data[self.size ..];
+				let mut last_val = bitmap_rgn[0];
+				for p in bitmap_rgn.iter_mut().rev()
+				{
+					let v = (last_val << (8 - bitofs)) | (*p >> bitofs);;
+					last_val = ::core::mem::replace(p, v);
+				}
+			}
+			// Step 2: shift bytes down
+			self.data[self.size ..].rotate_left( self.read_pos / 8 );
+		}
 	}
 }
 
@@ -139,6 +269,17 @@ struct ProtoConnection
 	seen_seq: u32,
 	sent_seq: u32,
 }
+impl ProtoConnection
+{
+	fn new(seen_seq: u32) -> ProtoConnection
+	{
+		ProtoConnection {
+			seen_seq: seen_seq,
+			sent_seq: 1,	// TODO: Random
+			}
+	}
+}
+
 struct Server
 {
 }
