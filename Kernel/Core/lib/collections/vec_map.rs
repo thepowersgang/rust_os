@@ -48,7 +48,10 @@ impl<K: Ord, V> VecMap<K,V>
 {
 	pub const fn new_const() -> VecMap<K,V> {
 		VecMap {
+			//#[cfg(not(test_shim))]
 			ents: Vec::new_const(),
+			//#[cfg(test_shim)]
+			//ents: Vec::new(),
 		}
 	}
 	/// Create a new (empty) VecMap

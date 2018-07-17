@@ -8,6 +8,7 @@
 #[cfg_attr(arch="armv7", path="armv7/mod.rs")]
 #[cfg_attr(arch="armv8", path="armv8/mod.rs")]
 #[cfg_attr(test, path="imp-test.rs")]
+#[cfg_attr(test_shim, path="imp-test.rs")]
 #[doc(hidden)]
 pub mod imp;	// Needs to be pub for exports to be avaliable
 

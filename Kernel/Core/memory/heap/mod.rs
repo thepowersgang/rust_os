@@ -61,7 +61,7 @@ pub fn init()
 }
 
 // Used by Box<T>
-#[cfg(not(test))]
+#[cfg(all(not(test),not(test_shim)))]
 #[lang="exchange_malloc"]
 #[inline]
 unsafe fn exchange_malloc(size: usize, align: usize) -> *mut u8
@@ -73,7 +73,7 @@ unsafe fn exchange_malloc(size: usize, align: usize) -> *mut u8
 	}
 }
 #[lang = "box_free"]
-#[cfg(not(test))]
+#[cfg(all(not(test),not(test_shim)))]
 #[inline]
 unsafe fn box_free<T: ?Sized>(ptr: *mut T) {
 	let size = ::core::mem::size_of_val(&*ptr);
@@ -84,11 +84,11 @@ unsafe fn box_free<T: ?Sized>(ptr: *mut T) {
 }
 
 // Used by libgcc and ACPICA
-#[cfg(not(test))]
+#[cfg(all(not(test),not(test_shim)))]
 #[no_mangle] pub unsafe extern "C" fn malloc(size: usize) -> *mut () {
 	allocate(HeapId::Global, size, 16).unwrap()
 } 
-#[cfg(not(test))]
+#[cfg(all(not(test),not(test_shim)))]
 #[no_mangle] pub unsafe extern "C" fn free(ptr: *mut ()) {
 	if !ptr.is_null() {
 		deallocate(ptr, 0, 16)

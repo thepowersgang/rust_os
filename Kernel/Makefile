@@ -33,7 +33,7 @@ USE_ACPICA = 0
 endif
 
 # - External crates
-EXT_CRATES := core stack_dst
+EXT_CRATES := stack_dst
 ifeq ($(ARCH),amd64)
 EXT_CRATES += va_list
 endif
@@ -125,8 +125,10 @@ endif
 
 all: bin/kernel-$(ARCH).bin
 
-test: $(OBJDIR)libkernel-test
-	$(OBJDIR)libkernel-test
+test: run-libkernel-test run-libnetwork-test
+.PHONY: run-%-test
+run-%-test: $(OBJDIR)%-test
+	$<
 
 dsm: bin/kernel-$(ARCH).bin.dsm
 
@@ -236,6 +238,10 @@ $(OBJDIR)libkernel-test: Core/main.rs $(OBJDIR)test/libstack_dst.rlib $(OBJDIR)l
 	@echo [RUSTC] -o $@
 	@mkdir -p $(dir $@)
 	$V$(ENV) $(RUSTC) --test -o $@ $< -L bin/plugins/ -L $(OBJDIR)test/
+$(OBJDIR)test/libkernel.rlib: Core/main.rs $(OBJDIR)libkernel.rlib bin/plugins/libtag_safe.so $(EXT_CRATES:%=$(OBJDIR)test/lib%.rlib)
+	@echo [RUSTC] -o $@
+	@mkdir -p $(dir $@)
+	$V$(ENV) $(RUSTC) --out-dir $(dir $@) --emit=link,dep-info $< --crate-type rlib --crate-name kernel --cfg test_shim -L bin/plugins -L $(OBJDIR)test
 
 
 # - Locally compiled libcore, needs to not use SSE
@@ -260,22 +266,31 @@ $(OBJDIR)lib%.rlib: Modules/%/lib.rs $(OBJDIR)libcore.rlib $(OBJDIR)libkernel.rl
 	@echo [RUSTC] -o $@
 	@mkdir -p $(dir $@)
 	$V$(ENV) $(RUSTC) $(RUSTFLAGS) --emit=link,dep-info --out-dir $(dir $@) --crate-name=$* --crate-type=lib $< $(call LocalLib,core) $(call LocalLib,kernel)
+$(OBJDIR)test/lib%.rlib: Modules/%/lib.rs $(OBJDIR)lib%.rlib $(OBJDIR)test/libkernel.rlib
+	@echo [RUSTC] -o $@
+	@mkdir -p $(dir $@)
+	$V$(ENV) $(RUSTC) --out-dir $(dir $@) --crate-name=$* --crate-type=lib $< -L $(OBJDIR)test/
 $(OBJDIR)lib%.rlib.o: $(OBJDIR)lib%.rlib
 	$Vcp $< $@.tmp
 	$Var d $@.tmp $$(ar t $< | grep -v '\.o$$')
 	$Vmv $@.tmp $@
+$(OBJDIR)lib%-test: Modules/%/lib.rs $(OBJDIR)test/lib%.rlib
+	@echo [RUSTC] -o $@
+	@mkdir -p $(dir $@)
+	$V$(ENV) $(RUSTC) --test -o $@ $< -L bin/plugins/ -L $(OBJDIR)test/
 
 $(OBJDIR)%.o: Modules/%/lib.rs $(OBJDIR)lib%.rlib
 	@#
 
 fn_modline = $(OBJDIR)lib$1.rlib: $(patsubst %,$(OBJDIR)lib%.rlib,$(call fn_moddeps,$1))
-$(foreach m,$(MODS), $(eval $(call fn_modline,$m) ) )
+fn_modline2 = $(OBJDIR)test/lib$1.rlib: $(patsubst %,$(OBJDIR)test/lib%.rlib,$(call fn_moddeps,$1))
+$(foreach m,$(MODS), $(eval $(call fn_modline,$m) ) $(eval $(call fn_modline2,$m) ) )
 
 # - External libs
 $(OBJDIR)lib%.rlib: ../externals/crates.io/%/src/lib.rs $(OBJDIR)libcore.rlib
 	@echo [RUSTC] -o $@ $<
 	$V$(ENV) $(RUSTC) $(RUSTFLAGS) -o $@ $<
-$(OBJDIR)test/lib%.rlib: ../externals/crates.io/%/src/lib.rs
+$(OBJDIR)test/lib%.rlib: ../externals/crates.io/%/src/lib.rs $(OBJDIR)libcore.rlib
 	@echo [RUSTC] -o $@ $<
 	@mkdir -p $(dir $@)
 	$V$(ENV) $(RUSTC) -o $@ $<
@@ -300,6 +315,7 @@ $(IMGDIR)%.rs: ../Graphics/ConvertTo32bppRS
 	cd ../Graphics && make $(@:../Graphics/%=%)
 
 -include $(OBJDIR)libkernel.d
+-include $(OBJDIR)test/libkernel.d
 -include $(OBJDIR)libcore.d
 -include $(filter %.d, $(patsubst %.o,%.d,$(OBJS)))
 -include $(filter %.d, $(patsubst %.ao,%.ao.d,$(OBJS)))

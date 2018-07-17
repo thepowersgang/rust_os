@@ -9,7 +9,7 @@ pub use self::memorymap::MemoryState;
 
 pub mod phys;
 pub mod virt;
-#[cfg_attr(test, path="heap-test.rs")]
+#[cfg_attr(any(test,test_shim), path="heap-test.rs")]
 pub mod heap;
 // TODO: Merge user and freeze
 pub mod user;

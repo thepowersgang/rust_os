@@ -8,8 +8,11 @@
 // Recreate std::prelude
 pub use core::prelude::*;
 
-#[cfg(not(test))]
+#[cfg(not(any(test,test_shim)))]
 pub use lib::mem::boxed::Box;
+#[cfg(any(test,test_shim))]
+pub use std::boxed::Box;
+
 //pub use lib::borrow::ToOwned;
 pub use lib::vec::Vec;
 pub use lib::string::String;

@@ -32,7 +32,9 @@ impl<T> ArrayAlloc<T>
 			}
 	}
 	pub unsafe fn from_raw(ptr: *mut T, count: usize) -> ArrayAlloc<T> {
-		todo!("ArrayAlloc::from_raw");
+		ArrayAlloc {
+			mem: Some(Vec::from_raw_parts(ptr, count, count).into_boxed_slice())
+			}
 	}
 	pub fn into_raw(self) -> *mut [T] {
 		todo!("ArrayAlloc::into_raw");

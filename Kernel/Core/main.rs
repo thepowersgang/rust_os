@@ -25,14 +25,14 @@
 #![feature(const_atomic_bool_new,const_atomic_ptr_new,const_atomic_usize_new,const_unsafe_cell_new,const_unique_new)]	// Various const fns
 #![feature(panic_implementation,panic_info_message)]
 
-#![cfg_attr(not(test),no_std)]
+#![cfg_attr(not(any(test,test_shim)),no_std)]
 
 #![deny(not_tagged_safe)]
 
 #![feature(plugin)]
 #![plugin(tag_safe)]
 
-#[cfg(test)]
+#[cfg(any(test,test_shim))]
 extern crate core;
 
 #[allow(unused_imports)]
@@ -59,6 +59,7 @@ pub mod prelude;
 #[macro_use]
 pub mod lib;	// Clone of libstd
 
+#[cfg(not(any(test,test_shim)))]
 mod symbols;
 
 /// Heavy synchronisation primitives (Mutex, Semaphore, RWLock, ...)
