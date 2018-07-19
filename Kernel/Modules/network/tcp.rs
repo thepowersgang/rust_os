@@ -12,6 +12,13 @@ pub fn init()
 	::ipv4::register_handler(6, rx_handler_v4);
 }
 
+#[path="tcp-lib/"]
+/// Library types just for TCP
+mod lib {
+	pub mod rx_buffer;
+}
+use self::lib::rx_buffer::RxBuffer;
+
 #[derive(Copy,Clone,PartialOrd,PartialEq,Ord,Eq)]
 enum Address
 {
@@ -22,7 +29,7 @@ static CONNECTIONS: SharedMap<(Address,u16,Address,u16), Connection> = SharedMap
 static PROTO_CONNECTIONS: SharedMap<(Address,u16,Address,u16), ProtoConnection> = SharedMap::new();
 static SERVERS: SharedMap<(Option<Address>,u16), Server> = SharedMap::new();
 
-fn rx_handler_v4(int: &::ipv4::Interface, src_addr: ::ipv4::Address, mut pkt: ::nic::PacketReader)
+fn rx_handler_v4(int: &::ipv4::Interface, src_addr: ::ipv4::Address, pkt: ::nic::PacketReader)
 {
 	rx_handler(Address::Ipv4(src_addr), Address::Ipv4(int.addr()), pkt)
 }
@@ -83,6 +90,8 @@ fn rx_handler(src_addr: Address, dest_addr: Address, mut pkt: ::nic::PacketReade
 	{
 		if let Some(s) = Option::or( SERVERS.get( &(Some(dest_addr), hdr.dest_port) ), SERVERS.get( &(None, hdr.dest_port) ) )
 		{
+			// TODO: Check the server's accept queue length
+			//
 			// - Add the quad as a proto-connection and send the SYN-ACK
 			let pc = ProtoConnection::new(hdr.sequence_number);
 			// TODO: Send the SYN-ACK
@@ -166,101 +175,6 @@ impl Connection
 	}
 	fn handle(&self, hdr: &PktHeader, pkt: ::nic::PacketReader)
 	{
-	}
-}
-
-struct RxBuffer
-{
-	// Number of bytes in the buffer
-	// Equal to `8 * data.len() / 9`
-	size: usize,
-	// Start of the first non-consumed byte
-	read_pos: usize,
-	// Bitmap followed by data
-	data: Vec<u8>,
-}
-impl RxBuffer
-{
-	fn new(window_size: usize) -> RxBuffer {
-		let mut rv = RxBuffer {
-			size: 0, read_pos: 0, data: vec![],
-			};
-		rv.resize(window_size);
-		rv
-	}
-	fn insert(&mut self, offset: usize, data: &[u8]) {
-	}
-	fn take(&mut self, buf: &mut [u8]) -> usize {
-		let out_len = ::core::cmp::min( buf.len(), self.valid_len() );
-		panic!("TODO");
-	}
-	fn valid_len(&self) -> usize
-	{
-		// Number of valid bytes in the first partial bitmap entry
-		let mut len = {
-			let ofs = self.read_pos % 8;
-			let v = self.data[self.size..][self.read_pos/8] >> ofs;
-			(!v).trailing_zeros()
-			};
-		if len > 0
-		{
-			for i in 1 .. self.size / 8
-			{
-				let v = self.data[self.size ..][i];
-				if v != 0xFF
-				{
-					len += (!v).trailing_zeros();
-					break;
-				}
-				else
-				{
-					len += 8;
-				}
-			}
-			// NOTE: There's an edge case where if the buffer is 100% full, it won't return that (if the read position is unaligned)
-			// But that isn't a critical problem.
-		}
-		len as usize
-	}
-	fn resize(&mut self, new_size: usize) {
-		self.compact();
-		assert!(self.read_pos == 0);
-		if new_size > self.size {
-			// Resize underlying vector
-			self.data.resize(new_size + (new_size + 7) / 8, 0u8);
-			// Copy/move the bitmap up
-			self.data[self.size ..].rotate_right( (new_size - self.size) / 8 );
-		}
-		else {
-			// Move the bitmap down
-			self.data[new_size ..].rotate_left( (self.size - new_size) / 8 );
-			self.data.truncate( new_size + (new_size + 7) / 8 );
-		}
-		self.size = new_size;
-	}
-	/// Compact the current state so read_pos=0
-	fn compact(&mut self)
-	{
-		if self.read_pos != 0
-		{
-			// Rotate data
-			self.data[..self.size].rotate_left( self.read_pos );
-			// Bitmap:
-			// Step 1: Octet align
-			let bitofs = self.read_pos % 8;
-			if bitofs > 0
-			{
-				let bitmap_rgn = &mut self.data[self.size ..];
-				let mut last_val = bitmap_rgn[0];
-				for p in bitmap_rgn.iter_mut().rev()
-				{
-					let v = (last_val << (8 - bitofs)) | (*p >> bitofs);;
-					last_val = ::core::mem::replace(p, v);
-				}
-			}
-			// Step 2: shift bytes down
-			self.data[self.size ..].rotate_left( self.read_pos / 8 );
-		}
 	}
 }
 

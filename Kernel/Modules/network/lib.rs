@@ -7,6 +7,8 @@
 #![feature(linkage)]
 #![feature(const_fn)]
 
+#[cfg(test)] #[macro_use] extern crate /**/ std;
+
 #[macro_use]
 extern crate kernel;
 extern crate stack_dst;
