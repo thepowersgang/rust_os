@@ -5,7 +5,8 @@
 //! Transmission Control Protocol (Layer 4)
 use shared_map::SharedMap;
 use kernel::prelude::*;
-use kernel::lib::ring_buffer::RingBuf;
+use kernel::lib::ring_buffer::{RingBuf,AtomicRingBuf};
+use core::sync::atomic::{AtomicUsize, Ordering};
 
 pub fn init()
 {
@@ -19,14 +20,8 @@ mod lib {
 }
 use self::lib::rx_buffer::RxBuffer;
 
-#[derive(Copy,Clone,PartialOrd,PartialEq,Ord,Eq)]
-enum Address
-{
-	Ipv4(::ipv4::Address),
-}
-
-static CONNECTIONS: SharedMap<(Address,u16,Address,u16), Connection> = SharedMap::new();
-static PROTO_CONNECTIONS: SharedMap<(Address,u16,Address,u16), ProtoConnection> = SharedMap::new();
+static CONNECTIONS: SharedMap<Quad, Connection> = SharedMap::new();
+static PROTO_CONNECTIONS: SharedMap<Quad, ProtoConnection> = SharedMap::new();
 static SERVERS: SharedMap<(Option<Address>,u16), Server> = SharedMap::new();
 
 fn rx_handler_v4(int: &::ipv4::Interface, src_addr: ::ipv4::Address, pkt: ::nic::PacketReader)
@@ -51,6 +46,8 @@ fn rx_handler(src_addr: Address, dest_addr: Address, mut pkt: ::nic::PacketReade
 		return ;
 	}
 
+	// TODO: Validate checksum.
+
 	// Options
 	while pkt.remain() > pre_header_reader.remain() - hdr_len
 	{
@@ -60,7 +57,7 @@ fn rx_handler(src_addr: Address, dest_addr: Address, mut pkt: ::nic::PacketReade
 		}
 	}
 	
-	let quad = ( src_addr, hdr.source_port, dest_addr, hdr.dest_port, );
+	let quad = Quad::new(dest_addr, hdr.dest_port, src_addr, hdr.source_port);
 	// Search for active connections with this quad
 	if let Some(c) = CONNECTIONS.get(&quad)
 	{
@@ -77,6 +74,9 @@ fn rx_handler(src_addr: Address, dest_addr: Address, mut pkt: ::nic::PacketReade
 			{
 				// Make the full connection struct
 				CONNECTIONS.insert(quad, Connection::new(&hdr));
+				// Add the connection onto the server's accept queue
+				let server = Option::or( SERVERS.get( &(Some(dest_addr), hdr.dest_port) ), SERVERS.get( &(None, hdr.dest_port) ) ).expect("Can't find server");
+				server.accept_queue.push(quad).expect("Acceped connection with full accept queue");
 			}
 			else
 			{
@@ -90,15 +90,57 @@ fn rx_handler(src_addr: Address, dest_addr: Address, mut pkt: ::nic::PacketReade
 	{
 		if let Some(s) = Option::or( SERVERS.get( &(Some(dest_addr), hdr.dest_port) ), SERVERS.get( &(None, hdr.dest_port) ) )
 		{
-			// TODO: Check the server's accept queue length
-			//
-			// - Add the quad as a proto-connection and send the SYN-ACK
-			let pc = ProtoConnection::new(hdr.sequence_number);
-			// TODO: Send the SYN-ACK
-			PROTO_CONNECTIONS.insert(quad, pc);
+			// Decrement the server's accept space
+			if s.accept_space.fetch_update(|v| if v == 0 { None } else { Some(v - 1) }, Ordering::SeqCst, Ordering::SeqCst).is_err() { 
+				// Reject if no space
+				// - Send a RST
+				quad.send_packet(hdr.acknowlegement_number, hdr.sequence_number, FLAG_RST, 0, &[]);
+			}
+			else {
+				// - Add the quad as a proto-connection and send the SYN-ACK
+				let pc = ProtoConnection::new(hdr.sequence_number);
+				quad.send_packet(pc.sent_seq, pc.seen_seq, FLAG_SYN|FLAG_ACK, hdr.window_size, &[]);
+				PROTO_CONNECTIONS.insert(quad, pc);
+			}
+		}
+		else
+		{
+			// Send a RST
+			quad.send_packet(hdr.acknowlegement_number, hdr.sequence_number, FLAG_RST, 0, &[]);
 		}
 	}
 	// Otherwise, drop
+}
+
+#[derive(Copy,Clone,PartialOrd,PartialEq,Ord,Eq,Debug)]
+enum Address
+{
+	Ipv4(::ipv4::Address),
+}
+
+#[derive(Copy,Clone,PartialOrd,PartialEq,Ord,Eq,Debug)]
+struct Quad
+{
+	local_addr: Address,
+	local_port: u16,
+	remote_addr: Address,
+	remote_port: u16,
+}
+impl Quad
+{
+	fn new(local_addr: Address, local_port: u16, remote_addr: Address, remote_port: u16) -> Quad
+	{
+		Quad {
+			local_addr, local_port, remote_addr, remote_port
+			}
+	}
+	fn send_packet(&self, seq: u32, ack: u32, flgs: u8, window_size: u32, data: &[u8])
+	{
+		// Make a header
+		// TODO: Options?
+		// Attach data
+		todo!("Quad::send_packet");
+	}
 }
 
 #[derive(Debug)]
@@ -128,6 +170,7 @@ struct PktHeader
 	//options: [u8],
 }
 const FLAG_SYN: u8 = 1 << 1;
+const FLAG_RST: u8 = 1 << 2;
 const FLAG_ACK: u8 = 1 << 4;
 impl PktHeader
 {
@@ -144,6 +187,7 @@ impl PktHeader
 			checksum: reader.read_u16n()?,
 			urgent_pointer: reader.read_u16n()?,
 			})
+		// TODO: Check checksum?
 	}
 	fn get_header_size(&self) -> usize {
 		(self.data_offset >> 4) as usize * 4
@@ -175,6 +219,7 @@ impl Connection
 	}
 	fn handle(&self, hdr: &PktHeader, pkt: ::nic::PacketReader)
 	{
+		// TODO: Handle various stages of a connection
 	}
 }
 
@@ -196,5 +241,9 @@ impl ProtoConnection
 
 struct Server
 {
+	// Amount of connections that can still be accepted
+	accept_space: AtomicUsize,
+	// Established connections waiting for the user to accept
+	accept_queue: AtomicRingBuf<Quad>,
 }
 

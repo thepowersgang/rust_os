@@ -5,7 +5,8 @@
 //! Networking stack
 #![no_std]
 #![feature(linkage)]
-#![feature(const_fn)]
+#![feature(const_fn)] 
+#![feature(no_more_cas)]	// AtomicUsize::fetch_update
 
 #[cfg(test)] #[macro_use] extern crate /**/ std;
 

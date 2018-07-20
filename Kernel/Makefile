@@ -127,6 +127,7 @@ all: bin/kernel-$(ARCH).bin
 
 test: run-libkernel-test run-libnetwork-test
 .PHONY: run-%-test
+.PRECIOUS: $(OBJDIR)libnetwork-test
 run-%-test: $(OBJDIR)%-test
 	$<
 

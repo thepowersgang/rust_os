@@ -186,7 +186,7 @@ impl ProtoHandler
 	}
 }
 
-#[derive(Copy,Clone,Default,PartialEq,PartialOrd,Eq,Ord)]
+#[derive(Copy,Clone,Default,PartialEq,PartialOrd,Eq,Ord,Debug)]
 pub struct Address([u8; 4]);
 impl ::core::fmt::Display for Address
 {
