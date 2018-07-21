@@ -134,7 +134,7 @@ impl Quad
 			local_addr, local_port, remote_addr, remote_port
 			}
 	}
-	fn send_packet(&self, seq: u32, ack: u32, flgs: u8, window_size: u32, data: &[u8])
+	fn send_packet(&self, seq: u32, ack: u32, flgs: u8, window_size: u16, data: &[u8])
 	{
 		// Make a header
 		// TODO: Options?
