@@ -29,6 +29,21 @@ pub struct SparsePacket<'a>
 	head: &'a [u8],
 	next: Option<&'a SparsePacket<'a>>,
 }
+impl<'a> SparsePacket<'a>
+{
+	pub fn new_root(data: &'a [u8]) -> SparsePacket<'a> {
+		SparsePacket {
+			head: data,
+			next: None,
+			}
+	}
+	pub fn new_chained(data: &'a [u8], next: &'a SparsePacket<'a>) -> SparsePacket<'a> {
+		SparsePacket {
+			head: data,
+			next: Some(next),
+			}
+	}
+}
 impl<'a> IntoIterator for &'a SparsePacket<'a>
 {
 	type IntoIter = SparsePacketIter<'a>;

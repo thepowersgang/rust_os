@@ -117,6 +117,10 @@ pub fn handle_rx_ethernet(_physical_interface: &::nic::Interface, _source_mac: [
 	Ok( () )
 }
 
+pub fn send_packet(source: Address, dest: Address, pkt: ::nic::SparsePacket)
+{
+}
+
 #[allow(dead_code)]
 struct Ipv4Header
 {

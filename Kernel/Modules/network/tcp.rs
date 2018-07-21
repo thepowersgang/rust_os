@@ -7,6 +7,7 @@ use shared_map::SharedMap;
 use kernel::prelude::*;
 use kernel::lib::ring_buffer::{RingBuf,AtomicRingBuf};
 use core::sync::atomic::{AtomicUsize, Ordering};
+use crate::nic::SparsePacket;
 
 pub fn init()
 {
@@ -70,7 +71,7 @@ fn rx_handler(src_addr: Address, dest_addr: Address, mut pkt: ::nic::PacketReade
 		if let Some(c) = PROTO_CONNECTIONS.take(&quad)
 		{
 			// Check the SEQ/ACK numbers, and create the actual connection
-			if hdr.sequence_number == c.seen_seq + 1 && hdr.acknowlegement_number == c.sent_seq
+			if hdr.sequence_number == c.seen_seq + 1 && hdr.acknowledgement_number == c.sent_seq
 			{
 				// Make the full connection struct
 				CONNECTIONS.insert(quad, Connection::new(&hdr));
@@ -94,7 +95,7 @@ fn rx_handler(src_addr: Address, dest_addr: Address, mut pkt: ::nic::PacketReade
 			if s.accept_space.fetch_update(|v| if v == 0 { None } else { Some(v - 1) }, Ordering::SeqCst, Ordering::SeqCst).is_err() { 
 				// Reject if no space
 				// - Send a RST
-				quad.send_packet(hdr.acknowlegement_number, hdr.sequence_number, FLAG_RST, 0, &[]);
+				quad.send_packet(hdr.acknowledgement_number, hdr.sequence_number, FLAG_RST, 0, &[]);
 			}
 			else {
 				// - Add the quad as a proto-connection and send the SYN-ACK
@@ -106,7 +107,7 @@ fn rx_handler(src_addr: Address, dest_addr: Address, mut pkt: ::nic::PacketReade
 		else
 		{
 			// Send a RST
-			quad.send_packet(hdr.acknowlegement_number, hdr.sequence_number, FLAG_RST, 0, &[]);
+			quad.send_packet(hdr.acknowledgement_number, hdr.sequence_number, FLAG_RST, 0, &[]);
 		}
 	}
 	// Otherwise, drop
@@ -116,6 +117,14 @@ fn rx_handler(src_addr: Address, dest_addr: Address, mut pkt: ::nic::PacketReade
 enum Address
 {
 	Ipv4(::ipv4::Address),
+}
+impl Address
+{
+	fn unwrap_ipv4(&self) -> ::ipv4::Address {
+		match self {
+		&Address::Ipv4(v) => v,
+		}
+	}
 }
 
 #[derive(Copy,Clone,PartialOrd,PartialEq,Ord,Eq,Debug)]
@@ -134,11 +143,37 @@ impl Quad
 			local_addr, local_port, remote_addr, remote_port
 			}
 	}
-	fn send_packet(&self, seq: u32, ack: u32, flgs: u8, window_size: u16, data: &[u8])
+	fn send_packet(&self, seq: u32, ack: u32, flags: u8, window_size: u16, data: &[u8])
 	{
 		// Make a header
-		// TODO: Options?
-		// Attach data
+		// TODO: Any options required?
+		let options_bytes = &[];
+		let opts_len_rounded = ((options_bytes.len() + 3) / 4) * 4;
+		let hdr = PktHeader {
+			source_port: self.local_port,
+			dest_port: self.remote_port,
+			sequence_number: seq,
+			acknowledgement_number: ack,
+			data_offset: ((5 + opts_len_rounded/4) << 4) as u8 | 0,
+			flags: flags,
+			window_size: window_size,
+			checksum: 0,	// To be filled afterwards
+			urgent_pointer: 0,
+			}.as_bytes();
+		// Calculate checksum
+
+		// Create sparse packet chain
+		let data_pkt = SparsePacket::new_root(data);
+		// - Padding required to make the header a multiple of 4 bytes long
+		let opt_pad_pkt = SparsePacket::new_chained(&[0; 3][.. opts_len_rounded - options_bytes.len()], &data_pkt);
+		let opt_pkt = SparsePacket::new_chained(options_bytes, &opt_pad_pkt);
+		let hdr_pkt = SparsePacket::new_chained(&hdr, &opt_pkt);
+
+		// Pass packet downstream
+		match self.local_addr
+		{
+		Address::Ipv4(a) => ::ipv4::send_packet(a, self.remote_addr.unwrap_ipv4(), hdr_pkt),
+		}
 		todo!("Quad::send_packet");
 	}
 }
@@ -149,7 +184,7 @@ struct PktHeader
 	source_port: u16,
 	dest_port: u16,
 	sequence_number: u32,
-	acknowlegement_number: u32,
+	acknowledgement_number: u32,
 	/// Packed: top 4 bits are header size in 4byte units, bottom 4 are reserved
 	data_offset: u8,
 	/// Bitfield:
@@ -180,7 +215,7 @@ impl PktHeader
 			source_port: reader.read_u16n()?,
 			dest_port: reader.read_u16n()?,
 			sequence_number: reader.read_u32n()?,
-			acknowlegement_number: reader.read_u32n()?,
+			acknowledgement_number: reader.read_u32n()?,
 			data_offset: reader.read_u8()?,
 			flags: reader.read_u8()?,
 			window_size: reader.read_u16n()?,
@@ -191,6 +226,32 @@ impl PktHeader
 	}
 	fn get_header_size(&self) -> usize {
 		(self.data_offset >> 4) as usize * 4
+	}
+
+	fn as_bytes(&self) -> [u8; 5*4]
+	{
+		[
+			(self.source_port >> 8) as u8,
+			(self.source_port >> 0) as u8,
+			(self.dest_port >> 8) as u8,
+			(self.dest_port >> 0) as u8,
+			(self.sequence_number >> 24) as u8,
+			(self.sequence_number >> 16) as u8,
+			(self.sequence_number >> 8) as u8,
+			(self.sequence_number >> 0) as u8,
+			(self.acknowledgement_number >> 24) as u8,
+			(self.acknowledgement_number >> 16) as u8,
+			(self.acknowledgement_number >> 8) as u8,
+			(self.acknowledgement_number >> 0) as u8,
+			self.data_offset,
+			self.flags,
+			(self.window_size >> 8) as u8,
+			(self.window_size >> 0) as u8,
+			(self.checksum >> 8) as u8,
+			(self.checksum >> 0) as u8,
+			(self.urgent_pointer >> 8) as u8,
+			(self.urgent_pointer >> 0) as u8,
+			]
 	}
 }
 
@@ -213,7 +274,7 @@ impl Connection
 		Connection {
 			next_rx_seq: hdr.sequence_number,
 			rx_buffer: RxBuffer::new(2048),
-			last_tx_seq: hdr.acknowlegement_number,
+			last_tx_seq: hdr.acknowledgement_number,
 			tx_buffer: RingBuf::new(2048),
 			}
 	}

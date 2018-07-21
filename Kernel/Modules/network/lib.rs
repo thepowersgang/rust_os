@@ -7,6 +7,7 @@
 #![feature(linkage)]
 #![feature(const_fn)] 
 #![feature(no_more_cas)]	// AtomicUsize::fetch_update
+#![feature(crate_in_paths)]
 
 #[cfg(test)] #[macro_use] extern crate /**/ std;
 
