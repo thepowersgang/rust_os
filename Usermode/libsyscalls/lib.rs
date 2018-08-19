@@ -5,7 +5,6 @@
 #![feature(core_intrinsics)]
 #![feature(asm)]
 #![feature(thread_local,const_fn)]
-#![feature(const_atomic_usize_new,const_unsafe_cell_new)]
 #![feature(stmt_expr_attributes)]
 #![no_std]
 

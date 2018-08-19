@@ -13,16 +13,12 @@
 #![feature(thread_local)]	// Allows use of thread_local
 #![feature(lang_items)]	// Allow definition of lang_items
 #![feature(optin_builtin_traits)]	// Negative impls
-#![feature(unique,shared,nonzero)]	// Unique/Shared/NonZero for smart pointers
 #![feature(slice_patterns)]	// Slice (array) destructuring patterns, used by multiboot code
-#![feature(iterator_step_by)]	// Iterator::step_by
 #![feature(linkage)]	// allows using #[linkage="external"]
 #![feature(const_fn)]	// Allows defining `const fn`
 #![feature(get_type_id)] // used by process_local's "AnyMap" hackery
-#![feature(placement_new_protocol)]	// Used for Box<T> (mrustc support)
 #![feature(integer_atomics)]	// AtomicU8
 #![feature(dropck_eyepatch)]
-#![feature(const_atomic_bool_new,const_atomic_ptr_new,const_atomic_usize_new,const_unsafe_cell_new,const_unique_new)]	// Various const fns
 #![feature(panic_implementation,panic_info_message)]
 
 #![cfg_attr(not(any(test,test_shim)),no_std)]

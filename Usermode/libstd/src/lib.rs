@@ -7,12 +7,10 @@
 #![feature(lang_items)]	// Allow definition of lang_items
 #![feature(linkage)]	// Used for low-level runtime
 #![feature(core_intrinsics)]
-#![feature(core_char_ext,core_str_ext,core_slice_ext)]
 #![feature(const_fn)]
 #![feature(box_syntax)]
 #![feature(raw)]
 #![feature(slice_concat_ext)]
-#![feature(use_extern_macros)]	// allow `use` with macros
 #![feature(alloc,allocator_api)]
 #![feature(allocator_internals)]
 #![feature(core_panic_info)]	// Needed because of import of `panic` macro bringin in the module too

@@ -15,7 +15,6 @@
 //!  - Kernel log is provided by a builtin text renderer
 #![feature(linkage,const_fn)]
 #![no_std]
-#![feature(const_atomic_bool_new)]	// Various const fns
 
 #![feature(plugin)]
 #![feature(custom_attribute)]

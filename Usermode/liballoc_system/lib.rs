@@ -8,7 +8,6 @@
 #![feature(box_syntax)]
 #![feature(optin_builtin_traits)]	// For !Send
 #![feature(unboxed_closures)]
-#![feature(alloc)]
 #![feature(allocator_api)]
 #![no_std]
 
