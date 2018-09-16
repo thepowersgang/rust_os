@@ -43,6 +43,20 @@ impl<'a> SparsePacket<'a>
 			next: Some(next),
 			}
 	}
+
+	pub fn total_len(&self) -> usize {
+		let mut s = self;
+		let mut rv = 0;
+		loop {
+			rv += s.head.len();
+			match s.next
+			{
+			None => break,
+			Some(v) => s = v,
+			}
+		}
+		rv
+	}
 }
 impl<'a> IntoIterator for &'a SparsePacket<'a>
 {

@@ -56,7 +56,7 @@ fn begin_panic_fmt(msg: &::core::fmt::Arguments, file_line: (&str, u32)) -> ! {
 	::syscalls::threads::exit(0xFFFF_FFFF);
 }
 
-#[panic_implementation]
+#[panic_handler]
 pub extern fn rust_begin_unwind(info: &::core::panic::PanicInfo) -> ! {
 	let file_line = match info.location()
 		{

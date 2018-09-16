@@ -227,7 +227,7 @@ $(OBJDIR)log_cfg.ao: Core/log_cfg.S
 $(OBJDIR)main.o: main/main.rs $(OBJDIR)libkernel.rlib $(OBJDIR)libcore.rlib $(OBJDIR)libsyscalls.rlib
 	@echo [RUSTC] -o $@
 	@mkdir -p $(dir $@)
-	$V$(ENV) $(RUSTC) $(filter-out -Zincremental=%,$(RUSTFLAGS)) --emit=obj,dep-info --out-dir $(dir $@) $<
+	$V$(ENV) $(RUSTC) --emit=obj,dep-info --out-dir $(dir $@) $(RUSTFLAGS) $<
 
 # - Kernel Core
 $(OBJDIR)libkernel.rlib: Core/main.rs $(OBJDIR)libcore.rlib $(TARGET_FILE) ../Graphics/logo.rs $(IMGDIR)panic.rs bin/plugins/libtag_safe.so $(LIBS)

@@ -48,6 +48,14 @@ fn rx_handler(src_addr: Address, dest_addr: Address, mut pkt: ::nic::PacketReade
 	}
 
 	// TODO: Validate checksum.
+	{
+		let sum_header = hdr.checksum();
+		let sum_options = {
+			let mut pkt = pkt.clone();
+			::ipv4::calculate_checksum( (0 .. (pre_header_reader.remain() - hdr_len) / 2).map(|_| pkt.read_u16n().unwrap()) )
+			};
+		//let sum_data = ::ipv4::calculate_checksum( pkt.iter_u16n() );
+	}
 
 	// Options
 	while pkt.remain() > pre_header_reader.remain() - hdr_len
@@ -252,6 +260,23 @@ impl PktHeader
 			(self.urgent_pointer >> 8) as u8,
 			(self.urgent_pointer >> 0) as u8,
 			]
+	}
+	fn as_u16s(&self) -> [u16; 5*2] {
+		[
+			self.source_port,
+			self.dest_port,
+			(self.sequence_number >> 16) as u16,
+			(self.sequence_number >> 0) as u16,
+			(self.acknowledgement_number >> 16) as u16,
+			(self.acknowledgement_number >> 0) as u16,
+			(self.data_offset as u16) << 8 | (self.flags as u16),
+			self.window_size,
+			self.checksum,
+			self.urgent_pointer,
+			]
+	}
+	fn checksum(&self) -> u16 {
+		::ipv4::calculate_checksum(self.as_u16s().iter().cloned())
 	}
 }
 

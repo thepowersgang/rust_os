@@ -56,18 +56,9 @@ pub fn handle_rx_ethernet(_physical_interface: &::nic::Interface, _source_mac: [
 	
 	// Validate checksum: Sum all of the bytes
 	{
-		let mut reader = pre_header_reader;
-		let mut sum = 0;
-		for _ in 0 .. hdr_len / 2
-		{
-			sum += reader.read_u16n().unwrap() as usize;
-		}
-		while sum > 0xFFFF
-		{
-			sum = (sum & 0xFFFF) + (sum >> 16);
-		}
+		let sum = calculate_checksum( (0 .. hdr_len/2).map(|_| reader.read_u16n().unwrap()) );
 		if sum != 0 {
-			log_warning!("IP Checksum failure, sum is {:#x}", sum);
+			log_warning!("IP Checksum failure - sum is {:#x}, not zero", sum);
 		}
 	}
 	
@@ -85,7 +76,7 @@ pub fn handle_rx_ethernet(_physical_interface: &::nic::Interface, _source_mac: [
 	}
 
 	
-	// TODO: Check destination IP against known interfaces.
+	// Check destination IP against known interfaces.
 	// - Could also be doing routing.
 	for interface in INTERFACES.read().iter()
 	{
@@ -112,13 +103,29 @@ pub fn handle_rx_ethernet(_physical_interface: &::nic::Interface, _source_mac: [
 	//else
 	{
 		// Routing.
+		// For now, just drop it
 	}
 	
 	Ok( () )
 }
 
+pub fn calculate_checksum(words: impl Iterator<Item=u16>) -> u16
+{
+	let mut sum = 0;
+	for v in words
+	{
+		sum += v as usize;
+	}
+	while sum > 0xFFFF
+	{
+		sum = (sum & 0xFFFF) + (sum >> 16);
+	}
+	!sum as u16
+}
+
 pub fn send_packet(source: Address, dest: Address, pkt: ::nic::SparsePacket)
 {
+	todo!("send_packet({}, {}, {} bytes)", source, dest, pkt.total_len());
 }
 
 #[allow(dead_code)]
