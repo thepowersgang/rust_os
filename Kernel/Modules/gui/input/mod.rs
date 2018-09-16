@@ -130,12 +130,18 @@ impl InputChannel
 		_ => {},
 		}
 
+		let last_key = self.last_key_pressed.load(Ordering::Relaxed);
+		if !release {
+			self.last_key_pressed.store(key as u8, Ordering::Relaxed);
+			super::windows::handle_input(/*self, */Event::KeyDown(key));
+		}
+
 		// Handle fire and text events
 		if key.is_modifier()
 		{
 			// Only fire a modifier on key-up IF they were the last one pressed
 			// - This allows "Gui" (windows) to fire on key-up while still being used as a modifier
-			if release && self.last_key_pressed.load(Ordering::Relaxed) == key as u8
+			if release && last_key == key as u8
 			{
 				super::windows::handle_input( Event::KeyFire(key) );
 			}
@@ -163,10 +169,6 @@ impl InputChannel
 		if release {
 			self.last_key_pressed.store(KeyCode::None as u8, Ordering::Relaxed);
 			super::windows::handle_input(/*self, */Event::KeyUp(key));
-		}
-		else {
-			self.last_key_pressed.store(key as u8, Ordering::Relaxed);
-			super::windows::handle_input(/*self, */Event::KeyDown(key));
 		}
 	}
 	
