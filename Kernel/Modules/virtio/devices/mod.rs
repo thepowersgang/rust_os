@@ -7,9 +7,10 @@ use kernel::device_manager;
 use interface::Interface;
 
 mod block;
+mod video;
 //mod network;
 
-pub fn new_boxed<T: Interface+Send+'static>(dev: u32, io: device_manager::IOBinding, irq: u32) -> Box<device_manager::DriverInstance>
+pub fn new_boxed<T: Interface+Send+Sync+'static>(dev: u32, io: device_manager::IOBinding, irq: u32) -> Box<device_manager::DriverInstance>
 {
 	match dev
 	{
@@ -21,6 +22,7 @@ pub fn new_boxed<T: Interface+Send+'static>(dev: u32, io: device_manager::IOBind
 		Box::new(NullDevice)
 		}
 	2 => Box::new( block::BlockDevice::new(T::new(io, irq)) ),
+	16 => Box::new( video::VideoDevice::new(T::new(io, irq)) ),
 	dev @ _ => {
 		log_error!("VirtIO device has unknown device ID {:#x}", dev);
 		Box::new(NullDevice)

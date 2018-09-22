@@ -14,7 +14,7 @@ pub use self::sparse_vec::SparseVec;
 pub use self::string::String;
 pub use self::lazy_static::LazyStatic;
 pub use self::vec_deque::VecDeque;
-pub use self::pod::POD;
+pub use self::pod::{POD, PodHelpers};
 
 pub use self::pod::{as_byte_slice, as_byte_slice_mut};
 

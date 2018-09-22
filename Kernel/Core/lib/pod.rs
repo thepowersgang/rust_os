@@ -6,6 +6,7 @@
 
 /// Plain-old-data trait
 pub unsafe auto trait POD {}
+
 //impl<T: ::core::ops::Drop> !POD for T {}  // - I would love this, but it collides with every other !POD impl
 impl<T> !POD for ::core::cell::UnsafeCell<T> {}
 impl<T> !POD for ::core::ptr::NonNull<T> {}
@@ -26,4 +27,22 @@ pub fn as_byte_slice<T: ?Sized + POD>(s: &T) -> &[u8] {
 pub fn as_byte_slice_mut<T: ?Sized + POD>(s: &mut T) -> &mut [u8] {
 	// SAFE: Plain-old-data
 	unsafe { ::core::slice::from_raw_parts_mut(s as *mut _ as *mut u8, ::core::mem::size_of_val(s)) }
+}
+
+pub trait PodHelpers
+{
+	fn zeroed() -> Self where Self: Sized + POD {
+		// SAFE: This method is only ever valid when Self: POD, which allows any bit pattern
+		unsafe { ::core::mem::zeroed() }
+	}
+	fn as_byte_slice(&self) -> &[u8];
+	fn as_byte_slice_mut(&mut self) -> &mut [u8];
+}
+impl<T: ?Sized + POD> PodHelpers for T {
+	fn as_byte_slice(&self) -> &[u8] {
+		as_byte_slice(self)
+	}
+	fn as_byte_slice_mut(&mut self) -> &mut [u8] {
+		as_byte_slice_mut(self)
+	}
 }
