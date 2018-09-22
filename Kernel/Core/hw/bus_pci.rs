@@ -95,7 +95,7 @@ impl ::device_manager::BusDevice for PCIDev
 	fn addr(&self) -> u32 {
 		self.addr as u32
 	}
-	fn get_attr(&self, name: &str) -> ::device_manager::AttrValue {
+	fn get_attr_idx(&self, name: &str, idx: usize) -> ::device_manager::AttrValue {
 		use device_manager::AttrValue;
 		match name
 		{
@@ -103,13 +103,21 @@ impl ::device_manager::BusDevice for PCIDev
 		"device" => AttrValue::U32(self.device as u32),
 		"class" => AttrValue::U32(self.class),
 		"bus_master" => AttrValue::U32(if self.config[1] & 4 == 0 { 0 } else { 1 }),
+		"raw_config" => {
+			if idx >= 256 || idx % 4 != 0 {
+				AttrValue::None
+			}
+			else {
+				AttrValue::U32(read_word(self.addr, idx as u8 / 4))
+			}
+			},
 		_ => {
 			log_warning!("Request for non-existant attr '{}' on device 0x{:05x}", name, self.addr);
 			AttrValue::None
 			},
 		}
 	}
-	fn set_attr(&mut self, name: &str, value: ::device_manager::AttrValue) {
+	fn set_attr_idx(&mut self, name: &str, _idx: usize, value: ::device_manager::AttrValue) {
 		use device_manager::AttrValue;
 		match (name,value)
 		{
@@ -138,7 +146,7 @@ impl ::device_manager::BusDevice for PCIDev
 		// Nope
 		todo!("Set power state of PCI devices (state={})", state);
 	}
-	fn bind_io(&mut self, block_id: usize) -> ::device_manager::IOBinding
+	fn bind_io_slice(&mut self, block_id: usize, slice: Option<(usize,usize)>) -> ::device_manager::IOBinding
 	{
 		if block_id > 6 {
 			panic!("PCI bind_io - block_id out of range (max 5, got {})", block_id);
@@ -155,8 +163,29 @@ impl ::device_manager::BusDevice for PCIDev
 			log_error!("PCI bind_io - Request for BAR{} of {:#x} which isn't populated", block_id, self.addr);
 			::device_manager::IOBinding::IO(0,0)
 			},
-		BAR::IO(b,s) => ::device_manager::IOBinding::IO(b,s),
+		BAR::IO(b,s) => {
+			if let Some(slice) = slice {
+				if slice.0 >= s as usize || slice.1 + slice.0 > s as usize {
+					::device_manager::IOBinding::IO(0,0)
+				}
+				else {
+					::device_manager::IOBinding::IO(b + slice.0 as u16, slice.1 as u16)
+				}
+			}
+			else {
+				::device_manager::IOBinding::IO(b,s)
+			}
+			},
 		BAR::Mem(base, size, _prefetchable) => {
+			let (base, size) = if let Some(slice) = slice {
+					if slice.0 >= size as usize || slice.1 + slice.0 > size as usize {
+						return ::device_manager::IOBinding::IO(0,0);
+					}
+					(base + slice.0 as u64, slice.1 as u32)
+				}
+				else {
+					(base, size)
+				};
 			// TODO: Ensure safety by preventing multiple bindings to a BAR
 			// Assume SAFE: Shouldn't be aliased
 			let ah = unsafe {::memory::virt::map_mmio(base as ::memory::PAddr, size as usize).unwrap() };

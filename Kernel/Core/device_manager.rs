@@ -69,13 +69,22 @@ pub trait BusDevice:
 	/// Returns the device's address on the parent bus
 	fn addr(&self) -> u32;
 	/// Returns the specified attribute (or 0, if invalid)
-	fn get_attr(&self, name: &str) -> AttrValue;
+	fn get_attr(&self, name: &str) -> AttrValue {
+		self.get_attr_idx(name, 0)
+	}
+	fn get_attr_idx(&self, name: &str, idx: usize) -> AttrValue;
 	/// Set the specified attribute
-	fn set_attr(&mut self, name: &str, value: AttrValue);
+	fn set_attr(&mut self, name: &str, value: AttrValue) {
+		self.set_attr_idx(name, 0, value)
+	}
+	fn set_attr_idx(&mut self, name: &str, idx: usize, value: AttrValue);
 	/// Set the power state of this device
 	fn set_power(&mut self, state: bool);	// TODO: Power state enum for Off,Standby,Low,On
 	/// Bind to the specified IO block (meaning of `block_id` depends on the bus)
-	fn bind_io(&mut self, block_id: usize) -> IOBinding;
+	fn bind_io(&mut self, block_id: usize) -> IOBinding {
+		self.bind_io_slice(block_id, None)
+	}
+	fn bind_io_slice(&mut self, block_id: usize, slice: Option<(usize,usize)>) -> IOBinding;
 	/// Obtain the specified interrupt vector
 	fn get_irq(&mut self, idx: usize) -> u32;
 }
