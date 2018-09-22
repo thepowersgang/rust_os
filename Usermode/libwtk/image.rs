@@ -135,10 +135,17 @@ impl_conv! {
 
 fn get_4_bytes<F: ::std::io::Read>(f: &mut F) -> Result<[u8; 4], ::std::io::Error> {
 	let mut rv = [0; 4];
-	if try!(f.read(&mut rv)) != 4 {
+	if f.read(&mut rv)? != 4 {
 		todo!("Handle unexpected EOF in get_4_bytes");
 	}
 	Ok( rv )
+}
+fn get_fixed_vec<F: ::std::io::Read>(f: &mut F, size: usize) -> Result<Vec<u8>, ::std::io::Error> {
+	let mut data: Vec<u8> = (0 .. size).map(|_| 0u8).collect();
+	if f.read(&mut data)? != size {
+		todo!("Handle unexpected EOF in get_fixed_vec");
+	}
+	Ok( data )
 }
 
 /// Full-colour raster image
@@ -156,17 +163,16 @@ impl RasterRGB
 		use ::byteorder::{LittleEndian,ReadBytesExt};
 		use std::io::Read;
 		let path = path.as_ref();
-		let mut file = ::std::io::BufReader::new( try!( ::std::fs::File::open(path) ) );
+		let mut file = ::std::io::BufReader::new( ::std::fs::File::open(path)? );
 		// - Check magic
-		let magic = try!(get_4_bytes(&mut file));
+		let magic = get_4_bytes(&mut file)?;
 		if &magic ==  b"\x7FR24" {
 			// - Read dimensions
-			let w = try!( file.read_u16::<LittleEndian>() ) as usize;
-			let h = try!( file.read_u16::<LittleEndian>() ) as usize;
+			let w = file.read_u16::<LittleEndian>()? as usize;
+			let h = file.read_u16::<LittleEndian>()? as usize;
 			kernel_log!("w = {}, h = {}", w, h);
 			// - Read data
-			let mut data: Vec<u8> = (0 .. w*h*3).map(|_| 0u8).collect();
-			try!(file.read(&mut data));
+			let data = get_fixed_vec(&mut file, w*h*3)?;
 
 			Ok(RasterRGB {
 				width: w,
@@ -175,8 +181,8 @@ impl RasterRGB
 		}
 		else if &magic ==  b"\x7FR\x18R" {
 			// - Read dimensions
-			let w = try!( file.read_u16::<LittleEndian>() ) as usize;
-			let h = try!( file.read_u16::<LittleEndian>() ) as usize;
+			let w = file.read_u16::<LittleEndian>()? as usize;
+			let h = file.read_u16::<LittleEndian>()? as usize;
 			kernel_log!("w = {}, h = {}", w, h);
 			let size = w*h*3;
 			let mut data: Vec<u8> = (0 .. size).map(|_| 0u8).collect();
@@ -184,10 +190,12 @@ impl RasterRGB
 			
 			while pos < size
 			{
-				let count_u8 = try!(file.read_u8());
+				let count_u8 = file.read_u8()?;
 				let px_buf = {
 					let mut buf = [0; 3];
-					try!( file.read(&mut buf) ) == 3;
+					if file.read(&mut buf)? != 3 {
+						panic!("TODO: Handle unexpected EOF when parsing RLE");
+					}
 					buf
 					};
 				for _ in 0 .. count_u8 {
@@ -239,19 +247,17 @@ impl RasterMonoA
 	}
 	pub fn new<P: AsRef<::std::fs::Path>>(path: P, fg: ::surface::Colour) -> Result<RasterMonoA,LoadError> {
 		use ::byteorder::{LittleEndian,ReadBytesExt};
-		use std::io::Read;
 		let path = path.as_ref();
-		let mut file = try!( ::std::fs::File::open(path) );
+		let mut file = ::std::fs::File::open(path)?;
 		// - Check magic
-		if &try!(get_4_bytes(&mut file)) != b"\x7FR8M" {
+		if &get_4_bytes(&mut file)? != b"\x7FR8M" {
 			return Err(LoadError::Malformed);
 		}
 		// - Read dimensions
-		let w = try!( file.read_u16::<LittleEndian>() ) as usize;
-		let h = try!( file.read_u16::<LittleEndian>() ) as usize;
+		let w = file.read_u16::<LittleEndian>()? as usize;
+		let h = file.read_u16::<LittleEndian>()? as usize;
 		// - Read data (directly)
-		let mut alpha: Vec<u8> = (0 .. w*h).map(|_| 0u8).collect();
-		try!(file.read(&mut alpha));
+		let alpha = get_fixed_vec(&mut file, w*h)?;
 		Ok(RasterMonoA {
 			fg: fg,
 			width: w,
@@ -292,20 +298,20 @@ impl RasterBiA
 	pub fn new<P: AsRef<::std::fs::Path>>(path: P, fg: ::surface::Colour, bg: ::surface::Colour) -> Result<RasterBiA,LoadError> {
 		use ::byteorder::{LittleEndian,ReadBytesExt};
 		let path = path.as_ref();
-		let mut file = try!( ::std::fs::File::open(path) );
+		let mut file = ::std::fs::File::open(path)?;
 		// - Check magic
-		if &try!(get_4_bytes(&mut file)) != b"\x7FR8B" {
+		if &get_4_bytes(&mut file)? != b"\x7FR8B" {
 			return Err(LoadError::Malformed);
 		}
 		// - Read dimensions
-		let w = try!( file.read_u16::<LittleEndian>() ) as usize;
-		let h = try!( file.read_u16::<LittleEndian>() ) as usize;
+		let w = file.read_u16::<LittleEndian>()? as usize;
+		let h = file.read_u16::<LittleEndian>()? as usize;
 
 		let mut data = Vec::with_capacity(w * h);
 		let mut alpha = Vec::with_capacity(w * h);
 		for _ in 0 .. w * h
 		{
-			let v = try!( file.read_u8() );
+			let v = file.read_u8()?;
 			data.push( v >= 128 );
 			alpha.push( (v & 0x7F) * 2 | ((v >> 6) & 1) );
 		}
