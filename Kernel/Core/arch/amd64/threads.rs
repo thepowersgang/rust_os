@@ -18,7 +18,7 @@ pub struct State
 	// TODO: Usermode TLS bsae
 }
 
-// TODO: This needs to be 16 byte aligned
+#[repr(align(16))]
 struct SSERegisters([u64; 512/8]);
 impl Default for SSERegisters {
 	fn default() -> Self { SSERegisters([0; 512/8]) }
@@ -212,8 +212,22 @@ pub fn switch_to(newthread: ::threads::ThreadPtr)
 			let flags = unsafe { let v: u64; asm!("pushf; pop $0" : "=r" (v)); v };
 			assert!(flags & 0x200 != 0, "switch_to() with IF clear, RFLAGS = {:#x}", flags);
 		}
+		const EAGER_SSE_ENABLE: bool = false;
 
-		disable_sse();
+		if EAGER_SSE_ENABLE {
+			if false {
+				enable_sse_and_restore();
+			}
+			else {
+				// Save SSE state (but don't disable yet)
+				sse::save();
+			}
+		}
+		else {
+			// Save/disable SSE
+			disable_sse_and_save();
+			assert!( !sse::is_enabled() );
+		}
 		
 		// SAFE: Valid pointer accesses, task_switch trusted
 		unsafe
@@ -231,6 +245,20 @@ pub fn switch_to(newthread: ::threads::ThreadPtr)
 			task_switch(&mut outstate.rsp, &state.rsp, state.tlsbase, state.cr3);
 		}
 		
+		if EAGER_SSE_ENABLE {
+			// If the task is using SSE, enable SSE here
+			// Otherwise, disable it
+			if sse::restore_and_enable_opt() {
+				// Restored! SSE will now be on
+			}
+			else {
+				sse::disable();
+			}
+		}
+		else {
+			assert!( !sse::is_enabled() );
+		}
+
 		// SAFE: Valid pointer access
 		unsafe
 		{
@@ -305,67 +333,135 @@ pub fn is_task_switching_disabled() -> bool
 	false
 }
 
-
 /// Enable SSE for this thread
 /// 
 /// Returns `true` enable succeeded, `false` if already active
-pub fn enable_sse() -> bool
+pub fn enable_sse_and_restore() -> bool
 {
-	// SAFE: Correctly clears TR and returns original state
-	let was_enabled = unsafe {
-		let ts_state: usize;
-		asm!("mov %cr0, $0; btc $$3, $0; mov $0, %cr0; sbb $0, $0" : "=r" (ts_state) : : "rflags");
-		// If TS was clear, return true
-		ts_state == 0
-		};
-	
+	// TODO: Need to ensure that no preemption happens between SSE being turned on, and state restore
+	let was_enabled = sse::enable();
+
+	// If SSE wasn't enbled beforehand, do a restore
 	if !was_enabled
 	{
-		log_debug!("SSE enabled");
+		log_debug!("SSE now enabled");
 
-		// SAFE: Limited lifetime, thread-local
-		let regs_opt = unsafe { &mut (*get_tls_ptr()).sse_registers };
-		
-		// TODO: Need to ensure that no preemption happens during this operation
-		if regs_opt.is_none() {
-			*regs_opt = Some( box SSERegisters::default() );
-		}
-
-		// SAFE: Buffer should be sane, and CR0 manipulation has been checked
-		unsafe {
-			let ptr: &SSERegisters = regs_opt.as_ref().unwrap();
-			//log_debug!("sse_registers = {:p}", ptr);
-			asm!("fxrstor ($0)" : : "r" (ptr) : : "volatile");
-		}
+		sse::restore_with_allocate();
 		true
 	}
-	else {
+	else
+	{
 		// Error: SSE was already enabled
 		false
 	}
 }
-pub fn disable_sse()
+fn disable_sse_and_save()
 {
 	// SAFE: Just queries CR0
-	let is_enabled = unsafe {
-		let cr0: usize;
-		asm!("mov %cr0, $0" : "=r" (cr0));
-		// If TS was clear, return true
-		cr0 & 8 == 0
-		};
-
+	let is_enabled = sse::is_enabled();
 	if is_enabled
 	{
-		log_debug!("SSE disabled");
-		// SAFE: Buffer should be sane, and CR0 manipulation has been checked
-		unsafe {
-			let ptr: &mut SSERegisters = (*get_tls_ptr()).sse_registers.as_mut().expect("SSE enabled, but no save location");
-			//log_debug!("sse_registers = {:p}", ptr);
-			asm!("fxsave ($0) ; mov %cr0, %rax ; or $$8, %rax ; mov %rax, %cr0" : : "r" (ptr) : "%rax" : "volatile");
-		}
+		assert!( sse::save(), "Doing a disable+save, but no save location" );
+		sse::disable();
+		log_debug!("SSE now disabled");
 	}
 }
 
+mod sse
+{
+	use super::get_tls_ptr;
+	use super::SSERegisters;
+	pub fn enable() -> bool
+	{
+		// SAFE: CR0 manipulation has been checked
+		unsafe {
+			let ts_state: usize;
+			// Load CR0, bit test+clear RFLAGS.TS, save CR0, set output to 0 iff TS was clear
+			asm!("mov %cr0, $0; btc $$3, $0; mov $0, %cr0; sbb $0, $0" : "=r" (ts_state) : : "rflags");
+			// If TS was clear, return true
+			ts_state == 0
+		}
+	}
+	pub fn disable()
+	{
+		// SAFE: CR0 manipulation has been checked
+		unsafe {
+			asm!("mov %cr0, %rax ; or $$8, %rax ; mov %rax, %cr0" : : : "%rax" : "volatile");
+		}
+	}
+	pub fn is_enabled() -> bool
+	{
+		// SAFE: Read-only
+		unsafe {
+			let cr0: usize;
+			asm!("mov %cr0, $0" : "=r" (cr0));
+			// If TS was clear, return true
+			cr0 & 8 == 0
+		}
+	}
+	fn save_to(ptr: &mut SSERegisters)
+	{
+		// TODO: What if SSE isn't on?
+		// SAFE: Right type
+		unsafe {
+			asm!("fxsave ($0)" : : "r" (ptr) : "memory" : "volatile");
+		}
+	}
+	fn restore_from(ptr: &SSERegisters)
+	{
+		// TODO: What if SSE isn't on?
+		// SAFE: Right type
+		unsafe {
+			asm!("fxrstor ($0)" : : "r" (ptr) : : "volatile");
+		}
+	}
+
+	pub fn restore_with_allocate() -> bool
+	{
+		// SAFE: Limited lifetime, thread-local
+		let regs_opt = unsafe { &mut (*get_tls_ptr()).sse_registers };
+		
+		if regs_opt.is_none() {
+			*regs_opt = Some( box SSERegisters::default() );
+		}
+
+		restore_from( regs_opt.as_ref().unwrap() );
+		true
+	}
+
+	pub fn restore_and_enable_opt() -> bool
+	{
+		// SAFE: Limited lifetime, thread-local
+		let regs_opt = unsafe { &mut (*get_tls_ptr()).sse_registers };
+		
+		if let Some(ref p) = regs_opt
+		{
+			enable();
+			restore_from(p);
+			true
+		}
+		else
+		{
+			false
+		}
+	}
+	pub fn save() -> bool
+	{
+		// SAFE: Limited lifetime, thread-local
+		let regs_opt = unsafe { &mut (*get_tls_ptr()).sse_registers };
+
+		if let Some(ref mut ptr) = regs_opt
+		{
+			assert!( is_enabled(), "Saving task SSE state, but SSE not on" );
+			save_to(ptr);
+			true
+		}
+		else
+		{
+			false
+		}
+	}
+} // mod sse
 
 // vim: ft=rust
 

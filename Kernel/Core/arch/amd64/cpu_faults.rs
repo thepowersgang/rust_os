@@ -52,7 +52,7 @@ pub extern "C" fn error_handler(regs: &InterruptRegs)
 		}
 
 		puts("#NM at "); puth(regs.rip); puts("\n");
-		if super::threads::enable_sse() {
+		if super::threads::enable_sse_and_restore() {
 			// SSE was disabled, try again with it enabled
 			return ;
 		}
