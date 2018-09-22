@@ -9,6 +9,11 @@ use kernel::memory::freeze::{Freeze,FreezeMut};
 unsafe impl ::args::Pod for ::values::SocketAddress { }
 unsafe impl ::args::Pod for ::values::MaskedSocketAddress { }
 
+pub fn new_server(local_address: ::values::SocketAddress) -> Result<u32, ::values::SocketError>
+{
+	todo!("new_server");
+}
+
 pub fn new_free_socket(local_address: ::values::SocketAddress, remote_mask: ::values::MaskedSocketAddress) -> Result<u32, ::values::SocketError>
 {
 	if local_address.port_ty != remote_mask.addr.port_ty {

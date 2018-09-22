@@ -170,11 +170,12 @@ impl objects::Object for Window
 			},
 		values::GUI_WIN_GETEVENT => {
 			let mut ev_ptr: FreezeMut<values::GuiEvent> = try!(args.get());
-			log_debug!("GUI_WIN_GETEVENT({:p})", &*ev_ptr);
+			log_trace!("GUI_WIN_GETEVENT({:p})", &*ev_ptr);
 			match self.0.lock().pop_event()
 			{
 			Some(ev) => {
 				*ev_ptr = ev.into();
+				log_debug!("GUI_WIN_GETEVENT() = {:?}", *ev_ptr);
 				Ok(0)
 				},
 			None => Ok(!0),

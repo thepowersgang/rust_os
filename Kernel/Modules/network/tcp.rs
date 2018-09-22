@@ -25,6 +25,7 @@ static CONNECTIONS: SharedMap<Quad, Connection> = SharedMap::new();
 static PROTO_CONNECTIONS: SharedMap<Quad, ProtoConnection> = SharedMap::new();
 static SERVERS: SharedMap<(Option<Address>,u16), Server> = SharedMap::new();
 
+
 fn rx_handler_v4(int: &::ipv4::Interface, src_addr: ::ipv4::Address, pkt: ::nic::PacketReader)
 {
 	rx_handler(Address::Ipv4(src_addr), Address::Ipv4(int.addr()), pkt)
@@ -182,7 +183,6 @@ impl Quad
 		{
 		Address::Ipv4(a) => ::ipv4::send_packet(a, self.remote_addr.unwrap_ipv4(), hdr_pkt),
 		}
-		todo!("Quad::send_packet");
 	}
 }
 
