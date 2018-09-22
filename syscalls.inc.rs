@@ -16,39 +16,94 @@ pub const GRP_OFS: usize = 16;
 
 macro_rules! expand_expr { ($e:expr) => {$e}; }
 
-// Define a group of system calls
-// TODO: Restructure like the class list
-macro_rules! def_grp {
-	($val:tt: $name:ident = { $( $(#[$a:meta])* =$v:tt: $n:ident, )* }) => {
-		pub const $name: u32 = expand_expr!($val);
-		$( $(#[$a])* pub const $n: u32 = ($name << GRP_OFS) | expand_expr!($v); )*
-	}
+// Define the non-object system calls (broken into groups)
+macro_rules! def_groups {
+	(
+		$(
+			$(#[$group_attrs:meta])*
+			=$group_idx:tt: $group_name:ident = {
+					$( $(#[$a:meta])* =$v:tt: $n:ident, )*
+				}
+		),*
+		$(,)*
+	) => {
+		#[repr(u32)]
+		#[allow(non_camel_case_types,dead_code)]
+		enum Groups {
+			$($group_name = expand_expr!($group_idx)),*
+		}
+		mod group_calls { $(
+			#[repr(u32)]
+			#[allow(non_camel_case_types,dead_code)]
+			pub enum $group_name {
+				$($n = expand_expr!($v),)*
+			}
+		)* }
+		$( $(#[$group_attrs])* pub const $group_name: u32 = Groups::$group_name as u32; )*
+		$( $( $(#[$a])* pub const $n: u32 = ($group_name << GRP_OFS) | (self::group_calls::$group_name::$n as u32); )* )*
+		//pub const GROUP_NAMES: &'static [&'static str] = &[
+		//	$(stringify!($group_name),)*
+		//	]; 
+		};
 }
 
-/// Core system calls, mostly thread management
-def_grp!( 0: GROUP_CORE = {
-	/// Write a logging message
-	=0: CORE_LOGWRITE,
-	/// Write a hex value and string
-	=1: CORE_DBGVALUE,
-	/// Terminate the current process
-	// NOTE: '2' is hard-coded in rustrt0
-	=2: CORE_EXITPROCESS,
-	/// Request a text string from the kernel
-	=3: CORE_TEXTINFO,
-	/// Terminate the current thread
-	=4: CORE_EXITTHREAD,
-	/// Start a new process (loader only, use loader API instead)
-	=5: CORE_STARTPROCESS,
-	/// Start a new thread in the current process
-	=6: CORE_STARTTHREAD,
-	/// Wait for any of a set of events
-	=7: CORE_WAIT,
-	/// Wait on a futex
-	=8: CORE_FUTEX_SLEEP,
-	/// Wake a number of sleepers on a futex
-	=9: CORE_FUTEX_WAKE,
-});
+def_groups! {
+	/// Core system calls, mostly thread management
+	=0: GROUP_CORE = {
+		/// Write a logging message
+		=0: CORE_LOGWRITE,
+		/// Write a hex value and string
+		=1: CORE_DBGVALUE,
+		/// Terminate the current process
+		// NOTE: '2' is hard-coded in rustrt0
+		=2: CORE_EXITPROCESS,
+		/// Request a text string from the kernel
+		=3: CORE_TEXTINFO,
+		/// Terminate the current thread
+		=4: CORE_EXITTHREAD,
+		/// Start a new process (loader only, use loader API instead)
+		=5: CORE_STARTPROCESS,
+		/// Start a new thread in the current process
+		=6: CORE_STARTTHREAD,
+		/// Wait for any of a set of events
+		=7: CORE_WAIT,
+		/// Wait on a futex
+		=8: CORE_FUTEX_SLEEP,
+		/// Wake a number of sleepers on a futex
+		=9: CORE_FUTEX_WAKE,
+	},
+	/// GUI System calls
+	=1: GROUP_GUI = {
+		/// Create a new GUI group/session (requires capability, init only usually)
+		=0: GUI_NEWGROUP,
+		/// Set the passed group object to be the controlling group for this process
+		=1: GUI_BINDGROUP,
+		/// Obtain a new handle to this window group
+		=2: GUI_GETGROUP,
+		/// Create a new window in the current group
+		=3: GUI_NEWWINDOW,
+	},
+	/// Process memory management
+	=2: GROUP_MEM = {
+		=0: MEM_ALLOCATE,
+		=1: MEM_REPROTECT,
+		=2: MEM_DEALLOCATE,
+	},
+	/// Process memory management
+	=3: GROUP_IPC = {
+		/// Allocate a handle pair (returns two object handles)
+		=0: IPC_NEWPAIR,
+	},
+	/// Netwokring
+	=4: GROUP_NETOWRK = {
+		/// Connect a socket
+		=0: NET_CONNECT,
+		/// Start a socket server
+		=1: NET_LISTEN,
+		/// Open a free-form datagram 'socket'
+		=2: NET_BIND,
+	}
+}
 
 /// Value for `get_text_info`'s `unit` argument, indicating kernel core
 pub const TEXTINFO_KERNEL: u32 = 0;
@@ -62,41 +117,6 @@ pub struct WaitItem {
 	/// Class-specific wait flags
 	pub flags: u32,
 }
-
-/// GUI System calls
-def_grp!( 1: GROUP_GUI = {
-	/// Create a new GUI group/session (requires capability, init only usually)
-	=0: GUI_NEWGROUP,
-	/// Set the passed group object to be the controlling group for this process
-	=1: GUI_BINDGROUP,
-	/// Obtain a new handle to this window group
-	=2: GUI_GETGROUP,
-	/// Create a new window in the current group
-	=3: GUI_NEWWINDOW,
-});
-
-/// Process memory management
-def_grp!( 2: GROUP_MEM = {
-	=0: MEM_ALLOCATE,
-	=1: MEM_REPROTECT,
-	=2: MEM_DEALLOCATE,
-});
-
-/// Process memory management
-def_grp!( 3: GROUP_IPC = {
-	/// Allocate a handle pair (returns two object handles)
-	=0: IPC_NEWPAIR,
-});
-
-/// Netwokring
-def_grp!( 4: GROUP_NETOWRK = {
-	/// Connect a socket
-	=0: NET_CONNECT,
-	/// Start a socket server
-	=1: NET_LISTEN,
-	/// Open a free-form datagram 'socket'
-	=2: NET_BIND,
-});
 
 
 pub fn get_class_name(class_idx: u16) -> &'static str {
@@ -113,10 +133,13 @@ macro_rules! def_classes {
 		$(
 			$(#[$class_attrs:meta])*
 			=$class_idx:tt: $class_name:ident = {
+					// By-reference (non-moving) methods
 					$( $(#[$va:meta])* =$vv:tt: $vn:ident, )*
 					--
+					// By-value (moving) methods
 					$( $(#[$ma:meta])* =$mv:tt: $mn:ident, )*
 				}|{
+					// Events
 					$( $(#[$ea:meta])* =$ev:tt: $en:ident, )*
 				}
 		),*
