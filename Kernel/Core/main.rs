@@ -19,7 +19,7 @@
 #![feature(get_type_id)] // used by process_local's "AnyMap" hackery
 #![feature(integer_atomics)]	// AtomicU8
 #![feature(dropck_eyepatch)]
-#![feature(panic_handler,panic_info_message)]
+#![feature(panic_info_message)]
 
 #![cfg_attr(not(any(test,test_shim)),no_std)]
 
