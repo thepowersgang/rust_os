@@ -127,8 +127,8 @@ pub fn set_panic(file: &str, line: usize, message: &::core::fmt::Arguments)
 			}
 		}
 		// 3. Render message to top-left
-		let _ = write!(&mut PanicWriter::new(&mut *surf.fb, 0, 0), "Panic at {}:{}", file, line);
-		let _ = write!(&mut PanicWriter::new(&mut *surf.fb, 0, 16), "- {}", message);
+		let _ = write!(&mut PanicWriter::new(&mut *surf.fb, 0, 0 , dims.w as u16), "Panic at {}:{}", file, line);
+		let _ = write!(&mut PanicWriter::new(&mut *surf.fb, 0, 16, dims.w as u16), "- {}", message);
 	}
 
 	return ;
@@ -151,12 +151,12 @@ pub fn set_panic(file: &str, line: usize, message: &::core::fmt::Arguments)
 		}
 	}
 	impl<'a> PanicWriter<'a> {
-		fn new<'b>(fb: &'b mut Framebuffer, x: u16, y: u16) -> PanicWriter<'b> {
+		fn new<'b>(fb: &'b mut Framebuffer, x: u16, y: u16, w: u16) -> PanicWriter<'b> {
 			PanicWriter {
 				font: kernel_font::KernelFont::new(PANIC_COLOUR),
 				out: PanicWriterOut {
 					fb: fb,
-					x: x, y: y,
+					x: x, y: y, w: w,
 					},
 				}
 		}
@@ -168,13 +168,17 @@ pub fn set_panic(file: &str, line: usize, message: &::core::fmt::Arguments)
 	}
 	struct PanicWriterOut<'a> {
 		fb: &'a mut Framebuffer,
-		x: u16, y: u16,
+		x: u16, y: u16, w: u16,
 	}
 	impl<'a> PanicWriterOut<'a>
 	{
 		fn putc(&mut self, data: &[u32; 8*16]) {
 			self.fb.blit_buf(Rect::new(self.x as u32, self.y as u32,  8, 16), data);
 			self.x += 8;
+			if self.x == self.w {
+				self.y += 16;
+				self.x = 0;
+			}
 		}
 	}
 }
