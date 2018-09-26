@@ -337,6 +337,7 @@ impl IOBinding
 	#[inline]
 	pub unsafe fn write_16(&self, ofs: usize, val: u16)
 	{
+		//log_trace!("write_16({:?}, {:#x}, {:#02x})", self, ofs, val);
 		match *self
 		{
 		IOBinding::IO(base, s) => {
@@ -352,6 +353,7 @@ impl IOBinding
 	#[inline]
 	pub unsafe fn write_32(&self, ofs: usize, val: u32)
 	{
+		//log_trace!("write_32({:?}, {:#x}, {:#02x})", self, ofs, val);
 		match *self
 		{
 		IOBinding::IO(base, s) => {
