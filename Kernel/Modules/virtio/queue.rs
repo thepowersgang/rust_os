@@ -45,12 +45,14 @@ pub const VRING_DESC_F_WRITE	: u16 = 2;
 pub const VRING_DESC_F_INDIRECT	: u16 = 4;
 
 #[repr(C)]
+// sizeof = 16
 pub struct VRingDesc {
 	addr: u64,
 	length: u32,
 	flags: u16,
 	next: u16,
 }
+const SIZEOF_VRING_DESC: usize = ::core::mem::size_of::<VRingDesc>();
 #[repr(C)]
 #[derive(Debug)]
 struct AvailRing {
@@ -77,11 +79,14 @@ struct UsedElem {
 impl Queue
 {
 	fn get_first_size(count: usize) -> usize {
-		let first = 16 * count + (2 + count + 1) * 2;
+		let first =
+			SIZEOF_VRING_DESC * count	// VRingDesc entries
+			+ (2 + count + 1) * 2	// AvailRing
+			;
 		(first + 0xFFF) & !0xFFF
 	}
 	fn get_alloc_size(count: usize) -> usize {
-		let second = 2*3 + 8 * count;
+		let second = 2*3 + 8 * count;	// UsedRing header (and footer) plus UsedElem entries
 		Self::get_first_size(count) + ((second + 0xFFF) & !0xFFF)
 	}
 
@@ -114,8 +119,14 @@ impl Queue
 		}
 	}
 
-	pub fn phys_addr(&self) -> u64 {
+	pub fn phys_addr_desctab(&self) -> u64 {
 		::kernel::memory::virt::get_phys(self.buffer.as_ref::<u8>(0)) as u64
+	}
+	pub fn phys_addr_avail(&self) -> u64 {
+		::kernel::memory::virt::get_phys(&self.avail_ring().flags) as u64
+	}
+	pub fn phys_addr_used(&self) -> u64 {
+		::kernel::memory::virt::get_phys(&self.used_ring().flags) as u64
 	}
 
 	pub fn send_buffers<'a, I: Interface>(&'a self, interface: &I, buffers: &mut [Buffer<'a>]) -> Request<'a> {
@@ -175,7 +186,7 @@ impl Queue
 			_lh: self.avail_ring_lock.lock(),
 			// SAFE: Locked
 			ptr: unsafe { 
-				let base_ptr: *const u16 = self.buffer.as_int_mut(16 * self.size);
+				let base_ptr: *const u16 = self.buffer.as_int_mut(SIZEOF_VRING_DESC * self.size);
 				// NOTE: Constructing an unsized struct pointer
 				let ptr: &mut AvailRing = ::core::mem::transmute( (base_ptr, self.size) );
 				assert_eq!(&ptr.flags as *const _, base_ptr);

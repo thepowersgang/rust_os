@@ -5,7 +5,7 @@ use kernel::metadevs::video;
 use interface::Interface;
 use queue::{Queue,Buffer};
 use kernel::lib::mem::aref::{Aref,ArefBorrow};
-use kernel::async::Mutex;
+use kernel::sync::Mutex;
 
 pub struct VideoDevice<I>
 where
@@ -27,7 +27,7 @@ where
 	controlq: Queue,
 	cursorq: Queue,
 
-	scanouts: Mutex<Vec<Option<Framebuffer<I>>>>,
+	scanouts: Mutex<Vec<Option<video::FramebufferRegistration>>>,
 }
 
 struct Framebuffer<I>
@@ -35,8 +35,8 @@ where
 	I: Interface + Send + Sync
 {
 	dev: ArefBorrow<DeviceCore<I>>,
-	/// Handle to video metadev registration
-	_video_handle: video::FramebufferRegistration,
+	scanout_idx: usize,
+	dims: (u32, u32,),
 }
 
 impl<I> VideoDevice<I>
@@ -56,7 +56,14 @@ where
 			});
 
 		let di = core.get_display_info();
-		log_debug!("di = {:?}", di);
+		for (i,screen) in Iterator::enumerate( di[..num_scanouts].iter() )
+		{
+			if screen.enabled != 0
+			{
+				log_debug!("Scanout #{} enabled: {:?} flags={:#x}", i, screen.r, screen.flags);
+				core.scanouts.lock()[i] = Some(video::add_output( Box::new(Framebuffer::new(core.borrow(), i, screen)) ));
+			}
+		}
 
 		VideoDevice {
 			_core: core,
@@ -80,19 +87,38 @@ where
 			};
 		let mut ret_hdr: hw::CtrlHeader = ::kernel::lib::PodHelpers::zeroed();
 		let mut ret_info: [hw::DisplayOne; 16] = ::kernel::lib::PodHelpers::zeroed();
-		let h = self.controlq.send_buffers(&self.interface, &mut [
-			Buffer::Read(::kernel::lib::as_byte_slice(&hdr)),
-			Buffer::Write(::kernel::lib::as_byte_slice_mut(&mut ret_hdr)),
-			Buffer::Write(::kernel::lib::as_byte_slice_mut(&mut ret_info)),
-			]);
-		match h.wait_for_completion()
+		let rv = {
+			let h = self.controlq.send_buffers(&self.interface, &mut [
+				Buffer::Read(::kernel::lib::as_byte_slice(&hdr)),
+				Buffer::Write(::kernel::lib::as_byte_slice_mut(&mut ret_hdr)),
+				Buffer::Write(::kernel::lib::as_byte_slice_mut(&mut ret_info)),
+				]);
+			h.wait_for_completion()
+			};
+		match rv
 		{
-		Ok(bytes) => todo!("{} bytes from gpu request", bytes),
-		Err( () ) => panic!("TODO"),
+		Ok(bytes) => {
+			assert_eq!(bytes, ::core::mem::size_of_val(&ret_hdr) + ::core::mem::size_of_val(&ret_info), "Mismatched respose size");
+			ret_info
+			},
+		Err( () ) => panic!("TODO: Handle error waiting for VIRTIO_GPU_CMD_GET_DISPLAY_INFO response"),
 		}
 	}
 }
 
+impl<I> Framebuffer<I>
+where
+	I: 'static + Interface + Send + Sync
+{
+	fn new(dev: ArefBorrow<DeviceCore<I>>, scanout_idx: usize, info: &hw::DisplayOne) -> Self
+	{
+		Framebuffer {
+			dev: dev,
+			scanout_idx: scanout_idx,
+			dims: (info.r.width, info.r.height,),
+			}
+	}
+}
 impl<I> video::Framebuffer for Framebuffer<I>
 where
 	I: 'static + Interface + Send + Sync
@@ -105,8 +131,10 @@ where
 	}
 	
 	fn get_size(&self) -> video::Dims {
-		// TODO
-		todo!("");
+		video::Dims {
+			w: self.dims.0,
+			h: self.dims.1,
+			}
 	}
 	fn set_size(&mut self, _newsize: video::Dims) -> bool {
 		// TODO
@@ -114,15 +142,19 @@ where
 	}
 	
 	fn blit_inner(&mut self, dst: video::Rect, src: video::Rect) {
+		todo!("blit_inner");
 	}
 	fn blit_ext(&mut self, dst: video::Rect, src: video::Rect, srf: &video::Framebuffer) -> bool {
 		false
 	}
 	fn blit_buf(&mut self, dst: video::Rect, buf: &[u32]) {
+		todo!("blit_buf");
 	}
 	fn fill(&mut self, dst: video::Rect, colour: u32) {
+		todo!("fill");
 	}
 	fn move_cursor(&mut self, _p: Option<video::Pos>) {
+		todo!("move_cursor");
 	}
 }
 
@@ -162,6 +194,7 @@ mod hw
 	pub const VIRTIO_GPU_FLAG_FENCE: u32 = 1 << 0;
 
 	#[repr(C)]
+	#[derive(Debug)]
 	pub struct CtrlHeader
 	{
 		pub type_: u32,
@@ -172,13 +205,17 @@ mod hw
 	}
 
 	#[repr(C)]
-	#[derive(Debug)]
 	pub struct Rect
 	{
 		pub x: u32,
 		pub y: u32,
 		pub width: u32,
 		pub height: u32,
+	}
+	impl ::core::fmt::Debug for Rect {
+		fn fmt(&self, f: &mut ::core::fmt::Formatter) -> ::core::fmt::Result {
+			write!(f, "Rect {{ {},{} {}x{} }}", self.x, self.y, self.width, self.height)
+		}
 	}
 	#[repr(C)]
 	#[derive(Debug)]
