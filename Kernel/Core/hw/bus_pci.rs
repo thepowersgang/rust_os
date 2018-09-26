@@ -271,6 +271,7 @@ fn get_device(bus_id: u8, devidx: u8, function: u8) -> Option<PCIDev>
 fn parse_bar(addr: u16, word: u8) -> BAR
 {
 	let value = read_word(addr, word);
+	log_trace!("parse_bar({}) value={:#x}", word-4, value);
 	if value == 0
 	{
 		log_debug!("parse_bar: None");
@@ -294,11 +295,13 @@ fn parse_bar(addr: u16, word: u8) -> BAR
 			assert!(word % 2 == 0);
 			let value2 = read_word(addr, word+1);
 			write_word(addr, word+1, !0);
-			let size2 = !read_word(addr, word+1) + 1;
+			let size2 = !read_word(addr, word+1);	// No +1
 			write_word(addr, word+1, value2);
-			assert_eq!(size2, 0);
+			assert!(size2 == 0, "TODO: Support 64-bit BARs with sizes >4GB - size={},size2={}", size, size2);
+			let addr = (value2 as u64) << 32 | (value as u64 & !0xF);
+			log_debug!("parse_bar: (memory 64) addr={:#x} size={:#x}", addr, size);
 			
-			BAR::Mem( (value2 as u64) << 32 | (value as u64 & !0xF), size, pf == 1 )
+			BAR::Mem( addr, size, pf == 1 )
 			},
 		3 => BAR::None,	// reserved
 		_ => unreachable!()
