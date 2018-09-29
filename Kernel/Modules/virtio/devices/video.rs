@@ -6,7 +6,9 @@ use interface::Interface;
 use queue::{Queue,Buffer};
 use kernel::lib::mem::aref::{Aref,ArefBorrow};
 use kernel::sync::Mutex;
+use core::marker::PhantomData;
 
+/// Device instance (as stored by the device manager)
 pub struct VideoDevice<I>
 where
 	I: Interface + Send + Sync
@@ -19,6 +21,7 @@ where
 {
 }
 
+/// Common device structure ("owned" by the device manager, shared by scanouts)
 struct DeviceCore<I>
 where
 	I: Interface + Send + Sync
@@ -28,8 +31,10 @@ where
 	cursorq: Queue,
 
 	scanouts: Mutex<Vec<Option<video::FramebufferRegistration>>>,
+	next_resource_id: ::core::sync::atomic::AtomicU32,
 }
 
+/// Video metadevice framebuffer wrapping a scanout
 struct Framebuffer<I>
 where
 	I: Interface + Send + Sync
@@ -37,6 +42,16 @@ where
 	dev: ArefBorrow<DeviceCore<I>>,
 	scanout_idx: usize,
 	dims: (u32, u32,),
+
+	backing_alloc: ::kernel::memory::virt::AllocHandle,
+	backing_res: Resource2D<I>,
+}
+
+/// 2D Resource
+struct Resource2D<I>
+{
+	_pd: PhantomData<ArefBorrow<I>>,
+	idx: u32,
 }
 
 impl<I> VideoDevice<I>
@@ -53,6 +68,7 @@ where
 			cursorq: int.get_queue(1, 0).expect("Queue #1 'cursorq' missing on virtio gpu device"),
 			scanouts: Mutex::new(Vec::from_fn(num_scanouts, |_| None)),
 			interface: int,
+			next_resource_id: Default::default(),
 			});
 
 		let di = core.get_display_info();
@@ -104,6 +120,64 @@ where
 		Err( () ) => panic!("TODO: Handle error waiting for VIRTIO_GPU_CMD_GET_DISPLAY_INFO response"),
 		}
 	}
+
+	fn allocate_resource_id(&self) -> u32
+	{
+		self.next_resource_id.fetch_add(1, ::core::sync::atomic::Ordering::SeqCst)
+	}
+	fn allocate_resource(&self, format: hw::virtio_gpu_formats, width: u32, height: u32) -> Resource2D<I>
+	{
+		let hdr = hw::CtrlHeader {
+			type_: hw::VIRTIO_GPU_CMD_RESOURCE_CREATE_2D as u32,
+			flags: 0,
+			fence_id: 0,
+			ctx_id: 0,
+			_padding: 0,
+			};
+		let res_id = self.allocate_resource_id();
+		let cmd = hw::ResourceCreate2d {
+			resource_id: res_id,
+			format: format as u32,
+			width: width,
+			height: height,
+			};
+		let _rv = {
+			let h = self.controlq.send_buffers(&self.interface, &mut [
+				Buffer::Read(::kernel::lib::as_byte_slice(&hdr)),
+				Buffer::Read(::kernel::lib::as_byte_slice(&cmd)),
+				]);
+			h.wait_for_completion().expect("")
+			};
+
+		Resource2D {
+			_pd: PhantomData,
+			idx: res_id,
+			}
+	}
+
+	fn set_scanout_backing(&self, scanout_idx: usize, rect: hw::Rect, resource_handle: &Resource2D<I>)
+	{
+		let hdr = hw::CtrlHeader {
+			type_: hw::VIRTIO_GPU_CMD_SET_SCANOUT as u32,
+			flags: 0,
+			fence_id: 0,
+			ctx_id: 0,
+			_padding: 0,
+			};
+		let cmd = hw::SetScanout {
+			r: rect,
+			scanout_id: scanout_idx as u32,
+			resource_id: resource_handle.idx,
+			};
+
+		let _rv = {
+			let h = self.controlq.send_buffers(&self.interface, &mut [
+				Buffer::Read(::kernel::lib::as_byte_slice(&hdr)),
+				Buffer::Read(::kernel::lib::as_byte_slice(&cmd)),
+				]);
+			h.wait_for_completion().expect("")
+			};
+	}
 }
 
 impl<I> Framebuffer<I>
@@ -112,10 +186,22 @@ where
 {
 	fn new(dev: ArefBorrow<DeviceCore<I>>, scanout_idx: usize, info: &hw::DisplayOne) -> Self
 	{
+		let fb = ::kernel::memory::virt::alloc_dma(64, ::kernel::lib::num::div_up(info.r.width as usize * info.r.width as usize * 4, ::kernel::PAGE_SIZE), "virtio-video").expect("");
+		// - Create resource (TODO: Should the resource handle its backing buffer?)
+		let mut res = dev.allocate_resource(hw::VIRTIO_GPU_FORMAT_B8G8R8X8_UNORM, info.r.width, info.r.height);
+		// SAFE: We'e ensuring that both the backing memory and the resource are kept as long as they're in use
+		unsafe {
+			// - Bind framebuffer to it
+			res.attach_backing(&dev, fb.as_slice(0,1));
+			// - Set scanout's backing to that resource
+			dev.set_scanout_backing(scanout_idx, info.r, &res);
+		}
 		Framebuffer {
 			dev: dev,
 			scanout_idx: scanout_idx,
 			dims: (info.r.width, info.r.height,),
+			backing_alloc: fb,
+			backing_res: res,
 			}
 	}
 }
@@ -155,6 +241,18 @@ where
 	}
 	fn move_cursor(&mut self, _p: Option<video::Pos>) {
 		todo!("move_cursor");
+	}
+}
+
+impl<I> Resource2D<I>
+where
+	I: 'static + Interface + Send + Sync
+{
+	pub fn drop(self, dev: &DeviceCore<I>)
+	{
+	}
+	pub unsafe fn attach_backing(&mut self, dev: &DeviceCore<I>, buffer: &[u32])
+	{
 	}
 }
 
@@ -205,6 +303,7 @@ mod hw
 	}
 
 	#[repr(C)]
+	#[derive(Copy,Clone)]
 	pub struct Rect
 	{
 		pub x: u32,
@@ -224,6 +323,40 @@ mod hw
 		pub r: Rect,
 		pub enabled: u32,
 		pub flags: u32,
+	}
+
+	#[repr(C)]
+	#[derive(Debug)]
+	pub struct ResourceCreate2d
+	{
+		pub resource_id: u32,
+		pub format: u32,
+		pub width: u32,
+		pub height: u32,
+	}
+	#[allow(non_camel_case_types,dead_code)]
+	pub enum virtio_gpu_formats
+	{
+		VIRTIO_GPU_FORMAT_B8G8R8A8_UNORM  = 1,
+		VIRTIO_GPU_FORMAT_B8G8R8X8_UNORM  = 2,
+		VIRTIO_GPU_FORMAT_A8R8G8B8_UNORM  = 3,
+		VIRTIO_GPU_FORMAT_X8R8G8B8_UNORM  = 4,
+
+		VIRTIO_GPU_FORMAT_R8G8B8A8_UNORM  = 67,
+		VIRTIO_GPU_FORMAT_X8B8G8R8_UNORM  = 68,
+
+		VIRTIO_GPU_FORMAT_A8B8G8R8_UNORM  = 121,
+		VIRTIO_GPU_FORMAT_R8G8B8X8_UNORM  = 134,
+	}
+	pub use self::virtio_gpu_formats::*;
+
+	#[repr(C)]
+	#[derive(Debug)]
+	pub struct SetScanout
+	{
+		pub r: Rect,
+		pub scanout_id: u32,
+		pub resource_id: u32,
 	}
 }
 

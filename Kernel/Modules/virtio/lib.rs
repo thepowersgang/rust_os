@@ -5,6 +5,7 @@
 //! Virtual IO devices
 #![no_std]
 #![feature(linkage)]
+#![feature(integer_atomics)]
 
 #[macro_use] extern crate kernel;
 
