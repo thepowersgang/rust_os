@@ -18,6 +18,7 @@ pub struct Mutex<T: Send>
 pub struct MutexInner
 {
 	held: bool,
+	holder: ::threads::ThreadID,
 	queue: ::threads::WaitQueue,
 }
 
@@ -44,6 +45,7 @@ impl<T: Send> Mutex<T>
 		Mutex {
 			inner: ::sync::Spinlock::new(MutexInner {
 				held: false,
+				holder: 0,
 				queue: ::threads::WaitQueue::new(),
 				}),
 			val: ::core::cell::UnsafeCell::new(val),
@@ -59,14 +61,17 @@ impl<T: Send> Mutex<T>
 			let mut lh = self.inner.lock();
 			if lh.held != false
 			{
+				assert!(lh.holder != ::threads::get_thread_id(), "Recursive lock of {}", type_name!(Self));
 				// If mutex is locked, then wait for it to be unlocked
 				// - ThreadList::wait will release the passed spinlock
 				waitqueue_wait_ext!(lh, .queue);
 				// lh.queue.wait(lh);	// << Trips borrowck
+				self.inner.lock().holder = ::threads::get_thread_id();
 			}
 			else
 			{
 				lh.held = true;
+				lh.holder = ::threads::get_thread_id();
 			}
 		}
 		::core::sync::atomic::fence(::core::sync::atomic::Ordering::Acquire);
