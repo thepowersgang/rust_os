@@ -4,7 +4,6 @@
 // arch/amd64/acpi/acpica/os_int.rs
 //! ACPICA OS bindings
 #![allow(non_snake_case)]
-#![allow(private_no_mangle_fns)]
 #![allow(dead_code,unused_variables)]
 use prelude::*;
 use super::shim_ext::*;

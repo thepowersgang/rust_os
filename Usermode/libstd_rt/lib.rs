@@ -3,7 +3,7 @@
 //
 // Standard Library - Runtime support (aka unwind and panic)
 #![feature(lang_items)]	// Allow definition of lang_items
-#![feature(panic_implementation,panic_info_message)]
+#![feature(panic_info_message)]
 #![feature(asm)]	// Used by backtrace code
 #![feature(const_fn)]	// HACK For debugging ARM unwind
 #![no_std]
