@@ -274,7 +274,8 @@ pub fn ref_frame(paddr: PAddr)
 pub fn deref_frame(paddr: PAddr)
 {
 	if ! is_ram(paddr) {
-		log_log!("Calling deref_frame on non-RAM {:#x}", paddr);
+		// NOTE: Don't bother logging, as this can be called when unmapping hardware mappings
+		//log_log!("Calling deref_frame on non-RAM {:#x}", paddr);
 	}
 	// Dereference page (returns prevous value, zero meaning page was not multi-referenced)
 	else if ::arch::memory::phys::deref_frame(paddr as u64 / ::PAGE_SIZE as u64) == 0 {
