@@ -67,7 +67,7 @@ static S_DISPLAY_SURFACES: LazyMutex<SparseVec<DisplaySurface>> = lazymutex_init
 /// Boot video mode
 static S_BOOT_MODE: Mutex<Option<bootvideo::VideoMode>> = Mutex::new(None);
 /// Function called when display geometry changes
-static S_GEOM_UPDATE_SIGNAL: Mutex<Option<fn(new_total: Rect)>> = mutex_init!(None);
+static S_GEOM_UPDATE_SIGNAL: Mutex<Option<fn(new_total: Rect)>> = Mutex::new(None);
 
 fn init()
 {
@@ -201,7 +201,7 @@ pub fn register_geom_update(fcn: fn(new_total: Rect))
 	*lh = Some(fcn);
 }
 
-fn signal_geom_update(surfs: &SparseVec<DisplaySurface>)
+fn signal_geom_update(surfs: ::sync::mutex::HeldLazyMutex<SparseVec<DisplaySurface>>)
 {
 	// API Requirements
 	// - New surface added (with location)
@@ -211,6 +211,8 @@ fn signal_geom_update(surfs: &SparseVec<DisplaySurface>)
 	if let Some(fcn) = *S_GEOM_UPDATE_SIGNAL.lock()
 	{
 		let total_area = surfs.iter().map(|x| x.region).fold(Rect::new(0,0,0,0), |a,b| a.union(&b));
+		log_trace!("signal_geom_update: total_area={:?}", total_area);
+		drop( surfs );
 		fcn( total_area );
 	}
 }
@@ -223,8 +225,8 @@ pub fn add_output(output: Box<Framebuffer>) -> FramebufferRegistration
 	if S_BOOT_MODE.lock().take().is_some()
 	{
 		// - Remove boot video framebuffer
-		S_DISPLAY_SURFACES.lock().remove(0);
 		log_notice!("Alternative display driver loaded, dropping boot video");
+		S_DISPLAY_SURFACES.lock().remove(0);
 	}
 
 	// Add new output to the global list	
@@ -239,7 +241,7 @@ pub fn add_output(output: Box<Framebuffer>) -> FramebufferRegistration
 		fb: output
 		} );
 	
-	signal_geom_update(&lh);
+	signal_geom_update(lh);
 	
 	log_debug!("Registering framebuffer #{}", idx);
 	FramebufferRegistration {
@@ -314,7 +316,7 @@ impl ::core::ops::Drop for FramebufferRegistration
 	{
 		let mut lh = S_DISPLAY_SURFACES.lock();
 		lh.remove(self.reg_id);
-		signal_geom_update(&lh);
+		signal_geom_update(lh);
 	}
 }
 
