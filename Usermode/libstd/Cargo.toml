@@ -1,0 +1,11 @@
+[package]
+name = "std"
+version = "0.0.1"
+
+[dependencies]
+std_io = { path = "../libstd_io" }
+std_rt = { path = "../libstd_rt" }
+std_sync = { path = "../libstd_sync" }
+syscalls = { path = "../libsyscalls" }
+macros = { path = "../libmacros" }
+alloc_system = { path = "../liballoc_system" }

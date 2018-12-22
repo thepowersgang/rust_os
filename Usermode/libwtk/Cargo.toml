@@ -1,0 +1,14 @@
+[package]
+name = "wtk"
+version = "0.0.1"
+
+[lib]
+path = "lib.rs"
+
+[dependencies]
+syscalls = { path = "../libsyscalls" }
+macros = { path = "../libmacros" }
+async = { path = "../libasync" }
+byteorder = { path = "../libbyteorder" }
+
+std = { path = "../libstd" }

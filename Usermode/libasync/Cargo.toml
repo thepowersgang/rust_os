@@ -1,0 +1,10 @@
+[package]
+name = "async"
+version = "0.0.1"
+
+[lib]
+path = "lib.rs"
+
+[dependencies]
+std = { path = "../libstd" }
+syscalls = { path = "../libsyscalls" }

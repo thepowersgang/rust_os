@@ -1,0 +1,8 @@
+[package]
+name = "byteorder"
+version = "0.0.1"
+
+[dependencies]
+std = { path = "../libstd" }
+
+

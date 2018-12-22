@@ -1,0 +1,6 @@
+[dependencies.alloc]
+stage = 0
+
+#[dependencies.std]
+#path = "libstd"
+#stage = 2

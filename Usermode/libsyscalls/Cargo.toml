@@ -1,0 +1,6 @@
+[package]
+name = "syscalls"
+version = "0.0.1"
+
+[lib]
+path = "lib.rs"

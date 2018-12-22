@@ -1,0 +1,12 @@
+[package]
+crate-type = "lib"
+name = "std_rt"
+version = "0.0.1"
+
+[lib]
+path = "lib.rs"
+
+[dependencies]
+syscalls = { path = "../libsyscalls" }
+macros = { path = "../libmacros" }
+

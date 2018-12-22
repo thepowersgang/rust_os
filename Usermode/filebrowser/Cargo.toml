@@ -1,0 +1,9 @@
+[package]
+name = "filebrowser"
+version = "0.0.1"
+
+[dependencies]
+wtk = { path = "../libwtk" }
+vec_ring = { path = "../libvec_ring" }
+syscalls = { path = "../libsyscalls" }
+loader = { path = "../loader" }

@@ -1,0 +1,6 @@
+[package]
+crate-type = "lib"
+name = "macros"
+version = "0.0.1"
+
+

@@ -8,6 +8,7 @@
 *.tar.gz
 
 *.pyc
+Cargo.lock
 
 /gitstats
 /libcore
@@ -18,6 +19,7 @@
 /acpica/acpica-*
 /externals/crates.io/*
 /Screenshots
+/rustc-nightly-src
 
 Graphics/*.rs
 Graphics/*.r8

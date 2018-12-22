@@ -1,0 +1,10 @@
+[package]
+name = "std_io"
+version = "0.0.1"
+
+[lib]
+path = "lib.rs"
+
+[dependencies]
+syscalls = { path = "../libsyscalls" }
+macros = { path = "../libmacros" }
