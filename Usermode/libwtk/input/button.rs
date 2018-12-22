@@ -19,14 +19,11 @@ where
 	state: RefCell<State>,
 }
 
-#[cfg(nightly)]
 pub type ButtonBcb<'a, T> = Button<T, BoxCb<'a, T>>;
 
-#[cfg(nightly)]
 /// Wrapper around a Box<Fn> that allows a `Button` to be stored in a struct
 pub struct BoxCb<'a, T: 'a + ::Element>(Box<Fn(&ButtonInner<T>, &mut ::window::WindowTrait)+'a>);
 
-#[cfg(nightly)]
 impl<'a, 'b1, 'b2, 'b3, T> ::std::ops::Fn<(&'b1 ButtonInner<T>, &'b2 mut (::window::WindowTrait<'b3> + 'b2))> for BoxCb<'a, T>
 where
 	T: 'a + ::Element
@@ -35,7 +32,6 @@ where
 		self.0.call(args)
 	}
 }
-#[cfg(nightly)]
 impl<'a, 'b1, 'b2, 'b3, T> ::std::ops::FnMut<(&'b1 ButtonInner<T>, &'b2 mut (::window::WindowTrait<'b3> + 'b2))> for BoxCb<'a, T>
 where
 	T: 'a + ::Element
@@ -44,7 +40,6 @@ where
 		self.call(args)
 	}
 }
-#[cfg(nightly)]
 impl<'a, 'b1, 'b2, 'b3, T> ::std::ops::FnOnce<(&'b1 ButtonInner<T>, &'b2 mut (::window::WindowTrait<'b3> + 'b2))> for BoxCb<'a, T>
 where
 	T: 'a + ::Element
@@ -83,7 +78,6 @@ impl<'a, T> Button<T, BoxCb<'a, T>>
 where
 	T: ::Element,
 {
-	#[cfg(nightly)]
 	pub fn new_boxfn<F2>(ele: T, cb: F2) -> Self
 	where
 		F2: 'a + Fn(&ButtonInner<T>, &mut ::window::WindowTrait)

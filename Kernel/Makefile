@@ -146,15 +146,6 @@ doc/$(ARCH)/kernel/index.html: Core/main.rs $(OBJDIR)libkernel.rlib
 doc/$(ARCH)/core/index.html: ../libcore/lib.rs $(OBJDIR)libcore.rlib
 
 
-ifeq ($(RUSTC_DATE),)
- RUSTUP_VER := nightly
- LIBCORE_URL := https://static.rust-lang.org/dist/rustc-nightly-src.tar.gz
-else
- RUSTUP_VER := nightly-$(RUSTC_DATE)
- LIBCORE_URL := https://static.rust-lang.org/dist/$(RUSTC_DATE)/rustc-nightly-src.tar.gz
-endif
-RUSTUP_SRC_DIR = $(firstword $(wildcard ../.prefix/toolchains/nightly-*/lib/rustlib/src/rust/src))/
-
 # ===
 # Toolchain maintainence
 # - Downloads rustc and libcore
@@ -165,7 +156,8 @@ UPDATE:
 	curl https://static.rust-lang.org/rustup/rustup-init.sh -sSf | RUSTUP_HOME=$(abspath ../.prefix) CARGO_HOME=$(abspath ../.prefix) sh -s -- --default-toolchain none --no-modify-path -y
 	$(call fn_rustcmd,rustup) update $(RUSTUP_VER)
 	$(call fn_rustcmd,rustup) default $(RUSTUP_VER)
-	$(call fn_rustcmd,rustup) component add rust-src
+	#$(call fn_rustcmd,rustup) component add rust-src
+	curl $(LIBCORE_URL)
 	test -f ../.prefix/bin/xargo || $(CARGO) install xargo
 
 ../libcore/lib.rs: ../libcore_nofp.patch $(RUSTUP_SRC_DIR)libcore/lib.rs

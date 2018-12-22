@@ -71,11 +71,11 @@ mod values;
 
 pub enum Void {}
 
-#[cfg(arch="amd64")] #[path="raw-amd64.rs"]
+#[cfg(target_arch="x86_64")] #[path="raw-amd64.rs"]
 mod raw;
-#[cfg(arch="armv7")] #[path="raw-armv7.rs"]
+#[cfg(target_arch="arm")] #[path="raw-armv7.rs"]
 mod raw;
-#[cfg(arch="armv8")] #[path="raw-armv8.rs"]
+#[cfg(target_arch="aarch64")] #[path="raw-armv8.rs"]
 mod raw;
 
 #[macro_use]

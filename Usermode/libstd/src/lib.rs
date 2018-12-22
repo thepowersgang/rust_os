@@ -4,6 +4,7 @@
 // A clone of rust's libstd customised to work correctly on Tifflin
 #![crate_type="rlib"]
 #![crate_name="std"]
+//#![feature(staged_api)]	// stability
 #![feature(lang_items)]	// Allow definition of lang_items
 #![feature(linkage)]	// Used for low-level runtime
 #![feature(core_intrinsics)]

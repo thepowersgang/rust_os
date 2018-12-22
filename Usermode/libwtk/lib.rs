@@ -3,7 +3,7 @@
 //
 //! Tifflin window toolkit
 #![feature(const_fn)]
-#![cfg_attr(nightly, feature(unboxed_closures,fn_traits))]
+#![feature(unboxed_closures,fn_traits)]
 
 extern crate async;
 extern crate byteorder;

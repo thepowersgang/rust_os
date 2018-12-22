@@ -29,7 +29,8 @@ TARGET_SPEC := target-$(ARCH).json
 RUST_COMMON_FLAGS := --target=$(TARGET_SPEC) --cfg 'arch="$(ARCH)"' --cfg nightly
 RUST_COMMON_FLAGS += -L $(LIBDIR)
 
-RUSTUP_SRC_DIR = $(firstword $(wildcard ../.prefix/toolchains/nightly-*/lib/rustlib/src/rust/src))/
+XARGO := RUST_TARGET_PATH=$(dir $(abspath $(TARGET_SPEC))) $(XARGO)
+XARGO_FLAGS := --target target-$(ARCH)
 
 RUSTFLAGS := $(RUST_COMMON_FLAGS)
 RUSTFLAGS += -O
@@ -79,6 +80,7 @@ LOADER_DEPS := $(patsubst %,$(LIBDIR)lib%.rlib,$(call fn_getdeps,loader/src/main
 # Most binary targets have simple templates, but loader and libcore are special
 # loader: Requires an assembly stub
 # > Linking is done in two steps so that --gc-sections works
+#$(BINDIR)loader: loader/link.ld $(OBJDIR)loader/start.ao $(OBJDIR)loader/src/main.o
 $(BINDIR)loader: loader/link.ld $(OBJDIR)loader/start.ao $(OBJDIR)loader/src/main.o $(LOADER_DEPS)
 	@mkdir -p $(dir $@)
 	@echo [LD] $@
@@ -87,6 +89,12 @@ $(BINDIR)loader: loader/link.ld $(OBJDIR)loader/start.ao $(OBJDIR)loader/src/mai
 	$V$(OBJCOPY) $(OBJDIR)loader.elf -O binary $@
 	$V$(OBJDUMP) -CS $(OBJDIR)loader.elf > $(OBJDIR)loader.dsm
 $(OBJDIR)loader/src/main.o: $(LOADER_DEPS)
+#$(OBJDIR)loader/src/main.o:
+#	$(XARGO) build $(XARGO_FLAGS) --manifest-path loader/Cargo.toml
+
+.PHONY: xargo
+xargo:
+	$(XARGO) build $(XARGO_FLAGS)
 
 # Low-level loader dummy dynamic library
 # - Used to tell ld that `loader`'s exported symbols actually exist

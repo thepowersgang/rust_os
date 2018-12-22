@@ -17,9 +17,9 @@ mod std {
 	pub use core::fmt;
 }
 
-#[cfg(arch="armv7")]
+#[cfg(target_arch="arm")]
 enum Void {}
-#[cfg(arch="armv7")]
+#[cfg(target_arch="arm")]
 mod memory {
 	pub mod virt {
 		pub fn is_reserved<T>(p: *const T) -> bool {
@@ -36,14 +36,9 @@ mod memory {
 	}
 }
 
-#[cfg(arch="amd64")]
-#[path="arch-x86_64.rs"]
-mod arch;
-#[cfg(arch="armv7")]
-#[path="arch-armv7.rs"]
-mod arch;
-#[cfg(arch="armv8")]
-#[path="arch-armv8.rs"]
+#[cfg_attr(target_arch="x86_64", path="arch-x86_64.rs")]
+#[cfg_attr(target_arch="arm", path="arch-armv7.rs")]
+#[cfg_attr(target_arch="aarch64", path="arch-armv8.rs")]
 mod arch;
 
 fn begin_panic_fmt(msg: &::core::fmt::Arguments, file_line: (&str, u32)) -> ! {
