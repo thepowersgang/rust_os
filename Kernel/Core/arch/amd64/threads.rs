@@ -30,7 +30,7 @@ extern "C" {
 	fn task_switch(oldrsp: &mut u64, newrsp: &u64, tlsbase: u64, cr3: u64);
 }
 
-pub static S_IRQS_ENABLED: ::core::sync::atomic::AtomicBool = ::core::sync::atomic::ATOMIC_BOOL_INIT;
+pub static S_IRQS_ENABLED: ::core::sync::atomic::AtomicBool = ::core::sync::atomic::AtomicBool::new(false);
 static mut S_IDLE_THREAD: *mut ::threads::Thread = 0 as *mut _;
 
 #[repr(C)]

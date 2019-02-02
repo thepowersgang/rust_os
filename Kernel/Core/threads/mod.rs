@@ -198,8 +198,8 @@ pub fn get_process_local<T: Send+Sync+::core::any::Any+Default+'static>() -> Are
 	for s in pld.read().iter()
 	{
 		let item_ref: &::core::any::Any = &**s;
-		//log_debug!("{:?} ?== {:?}", item_ref.get_type_id(), ::core::any::TypeId::of::<T>());
-		if item_ref.get_type_id() == ::core::any::TypeId::of::<T>() {
+		//log_debug!("{:?} ?== {:?}", item_ref.type_id(), ::core::any::TypeId::of::<T>());
+		if item_ref.type_id() == ::core::any::TypeId::of::<T>() {
 			return s.borrow().downcast::<T>().ok().unwrap();
 		}
 	}
@@ -208,8 +208,8 @@ pub fn get_process_local<T: Send+Sync+::core::any::Any+Default+'static>() -> Are
 	let mut lh = pld.write();
 	for s in lh.iter() {
 		let item_ref: &::core::any::Any = &**s;
-		//log_debug!("{:?} ?== {:?}", item_ref.get_type_id(), ::core::any::TypeId::of::<T>());
-		if item_ref.get_type_id() == ::core::any::TypeId::of::<T>() {
+		//log_debug!("{:?} ?== {:?}", item_ref.type_id(), ::core::any::TypeId::of::<T>());
+		if item_ref.type_id() == ::core::any::TypeId::of::<T>() {
 			return s.borrow().downcast::<T>().ok().unwrap();
 		}
 	}

@@ -113,7 +113,7 @@ impl Queue
 			log_debug!("idx={}, desc={:?}", idx, self.used_ring().ents[idx]);
 			let UsedElem { id, len } = self.used_ring().ents[idx];
 
-			assert!(len > 0);
+			assert!(len > 0, "Used entry {} returned a zero length (id={})", idx, id);
 			self.avail_ring_res[id as usize].store(len as usize, Ordering::Release);
 			self.interrupt_flag.release();
 		}

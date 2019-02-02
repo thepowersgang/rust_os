@@ -66,7 +66,7 @@ impl Window
 			name: name,
 			buf: Default::default(),
 			dirty_rects: Default::default(),
-			is_dirty: atomic::ATOMIC_BOOL_INIT,
+			is_dirty: atomic::AtomicBool::new(false),
 			flags: Default::default(),
 			input: WindowInput {
 				queue: Mutex::new(RingBuf::new(16)),

@@ -75,7 +75,7 @@ pub extern fn rust_begin_unwind(info: &::core::panic::PanicInfo) -> ! {
 }
 fn begin_panic_fmt(msg: &::core::fmt::Arguments, (file, line): (&str, u32)) -> !
 {
-	static NESTED: ::core::sync::atomic::AtomicBool = ::core::sync::atomic::ATOMIC_BOOL_INIT;
+	static NESTED: ::core::sync::atomic::AtomicBool = ::core::sync::atomic::AtomicBool::new(false);
 	::arch::puts("\nERROR: rust_begin_unwind: ");
 	::arch::puts(file);
 	::arch::puts(":");

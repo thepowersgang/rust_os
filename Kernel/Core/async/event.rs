@@ -5,7 +5,7 @@
 //! Asynchronous event waiter
 #[allow(unused_imports)]
 use prelude::*;
-use core::sync::atomic::{AtomicBool,ATOMIC_BOOL_INIT,Ordering};
+use core::sync::atomic::{AtomicBool,Ordering};
 use core::fmt;
 
 /// A general-purpose wait event (when flag is set, waiters will be informed)
@@ -34,15 +34,15 @@ pub struct Waiter<'a>
 	source: Option<&'a Source>,
 }
 
-//static S_EVENT_NONE: Source = Source { flag: ATOMIC_BOOL_INIT, waiter: mutex_init!(None) };
+//static S_EVENT_NONE: Source = Source { flag: AtomicBool::new(false), waiter: mutex_init!(None) };
 
 impl Source
 {
 	/// Create a new event source
-	pub fn new() -> Source
+	pub const fn new() -> Source
 	{
 		Source {
-			flag: ATOMIC_BOOL_INIT,
+			flag: AtomicBool::new(false),
 			waiter: ::sync::mutex::Mutex::new(None),
 		}
 	}

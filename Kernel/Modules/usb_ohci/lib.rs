@@ -2,7 +2,6 @@
 //! Open Host Controller Interface (OHCI) driver
 #![no_std]
 #![feature(linkage)]	// for module_define!
-#![feature(integer_atomics)]	// AtomicU8
 use kernel::prelude::*;
 use kernel::_async3 as async;
 use kernel::lib::mem::aref::{Aref,ArefBorrow};

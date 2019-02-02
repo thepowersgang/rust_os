@@ -81,8 +81,8 @@ impl KernelLog
 		// - Is this particular call bad for bypassing the GUI? Or is this acceptable
 		let max_dims = match ::kernel::metadevs::video::get_display_for_pos( Pos::new(0,0) )
 			{
-			Some(display) => display.dims(),
-			None => {
+			Ok(display) => display.dims(),
+			Err(_) => {
 				log_warning!("No display at (0,0)");
 				Dims::new(0,0)
 				},

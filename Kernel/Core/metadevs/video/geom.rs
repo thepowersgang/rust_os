@@ -120,8 +120,8 @@ impl Rect
 
 	/// Obtain the closest Pos in this Rect
 	pub fn clamp_pos(&self, pos: Pos) -> Pos {
-		let x = ::core::cmp::min( ::core::cmp::max(pos.x, self.left()), self.right()  );
-		let y = ::core::cmp::min( ::core::cmp::max(pos.y, self.top() ), self.bottom() );
+		let x = ::core::cmp::min( ::core::cmp::max(pos.x, self.left()), self.right() - 1  );
+		let y = ::core::cmp::min( ::core::cmp::max(pos.y, self.top() ), self.bottom() - 1 );
 		Pos::new(x, y)
 	}
 

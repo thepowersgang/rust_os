@@ -46,7 +46,7 @@ endif
 BIN_RUSTFLAGS := 
 #BIN_RUSTFLAGS += -C lto
 
-RUSTFLAGS_compiler_builtins = --cfg feature=\"compiler-builtins\"
+RUSTFLAGS_compiler_builtins = --cfg feature=\"compiler-builtins\" --cfg stage0
 
 # - List non-file targets
 .PHONY: all clean

@@ -85,9 +85,9 @@ pub struct Thread
 assert_trait!{Thread : Send}
 
 /// Last allocated TID (because TID0 is allocated differently)
-static S_LAST_TID: ::core::sync::atomic::AtomicUsize = ::core::sync::atomic::ATOMIC_USIZE_INIT;
+static S_LAST_TID: ::core::sync::atomic::AtomicUsize = ::core::sync::atomic::AtomicUsize::new(0);
 const C_MAX_TID: usize = 0x7FFF_FFF0;	// Leave 16 TIDs spare at end of 31 bit number
-static S_LAST_PID: ::core::sync::atomic::AtomicUsize = ::core::sync::atomic::ATOMIC_USIZE_INIT;
+static S_LAST_PID: ::core::sync::atomic::AtomicUsize = ::core::sync::atomic::AtomicUsize::new(0);
 const C_MAX_PID: usize = 0x007F_FFF0;	// Leave 16 PIDs spare at end of 23 bit number
 
 fn allocate_tid() -> ThreadID
@@ -195,7 +195,7 @@ impl ProcessHandle
 		for s in pld.read().iter()
 		{
 			let item_ref: &::core::any::Any = &**s;
-			if item_ref.get_type_id() == ::core::any::TypeId::of::<T>() {
+			if item_ref.type_id() == ::core::any::TypeId::of::<T>() {
 				return Some( s.borrow().downcast::<T>().ok().unwrap() );
 			}
 		}
@@ -211,7 +211,7 @@ impl ProcessHandle
 		for s in pld.read().iter()
 		{
 			let item_ref: &::core::any::Any = &**s;
-			if item_ref.get_type_id() == ::core::any::TypeId::of::<T>() {
+			if item_ref.type_id() == ::core::any::TypeId::of::<T>() {
 				return s.borrow().downcast::<T>().ok().unwrap();
 			}
 		}
@@ -220,7 +220,7 @@ impl ProcessHandle
 		for s in lh.iter()
 		{
 			let item_ref: &::core::any::Any = &**s;
-			if item_ref.get_type_id() == ::core::any::TypeId::of::<T>() {
+			if item_ref.type_id() == ::core::any::TypeId::of::<T>() {
 				return s.borrow().downcast::<T>().ok().unwrap();
 			}
 		}

@@ -6,7 +6,7 @@
 #[allow(unused_imports)]
 use kernel::prelude::*;
 use self::keyboard::KeyCode;
-use core::sync::atomic::{AtomicUsize,ATOMIC_USIZE_INIT,Ordering};
+use core::sync::atomic::{AtomicUsize,Ordering};
 use kernel::sync::atomic::AtomicValue;
 use kernel::sync::Mutex;
 
@@ -286,7 +286,7 @@ impl InputChannel
 
 impl ModKeyPair {
 	const fn new() -> ModKeyPair {
-		ModKeyPair(ATOMIC_USIZE_INIT)
+		ModKeyPair(AtomicUsize::new(0))
 	}
 	fn set_l(&self) { self.0.fetch_or(1, Ordering::Relaxed); }
 	fn set_r(&self) { self.0.fetch_or(2, Ordering::Relaxed); }

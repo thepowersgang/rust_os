@@ -72,7 +72,7 @@ struct CursorPos {
 // - 13 sessions, #0 is fixed to be the kernel's log 1-12 are bound to F1-F12
 const C_MAX_SESSIONS: usize = 13;
 static S_WINDOW_GROUPS: LazyMutex<SparseVec< Arc<Mutex<WindowGroup>> >> = lazymutex_init!();
-static S_CURRENT_GROUP: ::core::sync::atomic::AtomicUsize = ::core::sync::atomic::ATOMIC_USIZE_INIT;
+static S_CURRENT_GROUP: ::core::sync::atomic::AtomicUsize = ::core::sync::atomic::AtomicUsize::new(0);
 
 static S_RENDER_REQUEST: ::kernel::sync::EventChannel = ::kernel::sync::EventChannel::new();
 static S_RENDER_NEEDED: atomic::AtomicBool = atomic::AtomicBool::new(false);
@@ -102,19 +102,35 @@ pub fn update_dims()
 		let mut lh = grp.lock();
 		for &mut (ref mut pos, ref win) in lh.windows.iter_mut()
 		{
-			// Locate screen for the upper-left corner
-			let screen = match ::kernel::metadevs::video::get_display_for_pos(*pos)
-				{
-				Some(x) => x,
-				// TODO: If now off-screen, warp to a visible position (with ~20px leeway)
-				None => todo!("update_dims: Handle window moving off display area"),
-				};
 			// if window is maximised, keep it that way
 			if win.flags.lock().maximised
 			{
+				// Locate screen for the upper-left corner
+				let screen = match ::kernel::metadevs::video::get_display_for_pos(*pos)
+					{
+					Ok(x) => x,
+					// TODO: If now off-screen, warp to a visible position (with ~20px leeway)
+					Err(r) => {
+						todo!("update_dims: Handle full-screen window moving off display area - {:?} - {:?}", *pos, r)
+						},
+					};
 				// Re-maximise
 				*pos = screen.pos();
 				win.resize(screen.dims());
+			}
+			else
+			{
+				// Otherwise, ensure that the window stays visible
+				match ::kernel::metadevs::video::get_display_for_pos(*pos)
+				{
+				Ok(x) => {
+					// TODO: Crop window's display area to fit on-screen?
+					},
+				// TODO: If now off-screen, warp to a visible position (with ~20px leeway)
+				Err(r) => {
+					todo!("update_dims: Handle window moving off display area - {:?} - {:?}", *pos, r)
+					},
+				}
 			}
 		}
 		// Recalculate all visibilities
@@ -476,9 +492,9 @@ impl WindowGroup
 			let &mut(ref mut pos, ref win_rc) = &mut self.windows[idx as usize];
 			let rect = match ::kernel::metadevs::video::get_display_for_pos(*pos)
 				{
-				Some(x) => x,
-				None => {
-					log_error!("TODO: Handle window being off-screen");
+				Ok(x) => x,
+				Err(r) => {
+					log_error!("TODO: Handle window being off-screen - closest {:?}", r);
 					Rect::new(0,0, 0,0)
 					},
 				};

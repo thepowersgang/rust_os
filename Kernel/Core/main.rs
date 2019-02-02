@@ -16,8 +16,7 @@
 #![feature(slice_patterns)]	// Slice (array) destructuring patterns, used by multiboot code
 #![feature(linkage)]	// allows using #[linkage="external"]
 #![feature(const_fn)]	// Allows defining `const fn`
-#![feature(get_type_id)] // used by process_local's "AnyMap" hackery
-#![feature(integer_atomics)]	// AtomicU8
+//#![feature(integer_atomics)]	// AtomicU8
 #![feature(dropck_eyepatch)]
 #![feature(panic_info_message)]
 

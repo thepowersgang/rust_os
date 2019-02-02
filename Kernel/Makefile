@@ -246,7 +246,7 @@ $(OBJDIR)libcore.rlib: $(LIBCORESRC)lib.rs $(TARGET_FILE)
 $(OBJDIR)libcompiler_builtins.rlib: $(RUSTUP_SRC_DIR)libcompiler_builtins/src/lib.rs $(TARGET_FILE)
 	@echo [RUSTC] -o $@
 	@mkdir -p $(dir $@)
-	$V$(ENV) $(RUSTC) $(RUSTFLAGS) --emit=link,dep-info --out-dir $(dir $@) --cfg feature=\"compiler-builtins\" $<
+	$V$(ENV) $(RUSTC) $(RUSTFLAGS) --emit=link,dep-info --out-dir $(dir $@) --cfg feature=\"compiler-builtins\" $< --cfg stage0
 	@cp $(OBJDIR)core.d $(OBJDIR)libcore.d
 
 $(OBJDIR)acpica.a: ../acpica/Makefile $(wildcard ../acpica/patches/source/include/platform/*)

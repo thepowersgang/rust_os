@@ -4,7 +4,7 @@
 // Core/metadevs/storage.rs
 // - Storage (block device) subsystem
 use prelude::*;
-use core::sync::atomic::{AtomicUsize,ATOMIC_USIZE_INIT};
+use core::sync::atomic::{AtomicUsize};
 use sync::mutex::LazyMutex;
 use lib::{VecMap};
 use lib::mem::Arc;
@@ -157,9 +157,9 @@ struct PhysicalRegion
 	first_block: u64,
 }
 
-static S_NEXT_PV_IDX: AtomicUsize = ATOMIC_USIZE_INIT;
+static S_NEXT_PV_IDX: AtomicUsize = AtomicUsize::new(0);
 static S_PHYSICAL_VOLUMES: LazyMutex<VecMap<usize,PhysicalVolumeInfo>> = lazymutex_init!();
-static S_NEXT_LV_IDX: AtomicUsize = ATOMIC_USIZE_INIT;
+static S_NEXT_LV_IDX: AtomicUsize = AtomicUsize::new(0);
 static S_LOGICAL_VOLUMES: LazyMutex<VecMap<usize,Arc<LogicalVolume>>> = lazymutex_init!();
 static S_MAPPERS: LazyMutex<Vec<&'static Mapper>> = lazymutex_init!();
 

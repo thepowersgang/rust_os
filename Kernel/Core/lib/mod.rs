@@ -22,7 +22,7 @@ pub use self::pod::{as_byte_slice, as_byte_slice_mut};
 pub use self::collections::vec_map;
 pub mod collections;
 
-pub mod thunk;
+//pub mod thunk;
 pub mod borrow;
 
 pub mod ascii;

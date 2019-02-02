@@ -5,7 +5,6 @@
 //! Realtek 8139 driver
 #![no_std]
 #![feature(linkage)]	// for module_define!
-#![feature(integer_atomics)]	// AtomicU8
 use kernel::prelude::*;
 use kernel::sync::Mutex;
 use kernel::_async3 as async;

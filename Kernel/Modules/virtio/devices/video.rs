@@ -141,10 +141,12 @@ where
 			width: width,
 			height: height,
 			};
+		let mut ret_hdr: hw::CtrlHeader = ::kernel::lib::PodHelpers::zeroed();
 		let _rv = {
 			let h = self.controlq.send_buffers(&self.interface, &mut [
 				Buffer::Read(::kernel::lib::as_byte_slice(&hdr)),
 				Buffer::Read(::kernel::lib::as_byte_slice(&cmd)),
+				Buffer::Write(::kernel::lib::as_byte_slice_mut(&mut ret_hdr)),
 				]);
 			h.wait_for_completion().expect("")
 			};
@@ -169,11 +171,13 @@ where
 			scanout_id: scanout_idx as u32,
 			resource_id: resource_handle.idx,
 			};
+		let mut ret_hdr: hw::CtrlHeader = ::kernel::lib::PodHelpers::zeroed();
 
 		let _rv = {
 			let h = self.controlq.send_buffers(&self.interface, &mut [
 				Buffer::Read(::kernel::lib::as_byte_slice(&hdr)),
 				Buffer::Read(::kernel::lib::as_byte_slice(&cmd)),
+				Buffer::Write(::kernel::lib::as_byte_slice_mut(&mut ret_hdr)),
 				]);
 			h.wait_for_completion().expect("")
 			};

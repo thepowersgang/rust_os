@@ -32,7 +32,7 @@ impl EventChannel
 		EventChannel {
 			lock: Spinlock::new( false ),
 			queue: UnsafeCell::new( WaitQueue::new() ),
-			pending_wakes: ::core::sync::atomic::ATOMIC_USIZE_INIT,
+			pending_wakes: ::core::sync::atomic::AtomicUsize::new(0),
 			}
 	}
 	

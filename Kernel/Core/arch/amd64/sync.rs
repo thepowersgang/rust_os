@@ -39,7 +39,7 @@ impl<T> Spinlock<T>
 	/// Create a new spinning lock
 	pub const fn new(val: T) -> Spinlock<T> {
 		Spinlock {
-			lock: ::core::sync::atomic::ATOMIC_BOOL_INIT, //AtomicBool::new(false),
+			lock: AtomicBool::new(false),
 			value: ::core::cell::UnsafeCell::new(val),
 		}
 	}

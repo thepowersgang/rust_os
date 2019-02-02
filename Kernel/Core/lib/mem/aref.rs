@@ -133,7 +133,7 @@ impl<T: ?Sized + Any> ArefBorrow<T> {
 	pub fn downcast<U: Any>(self) -> Result<ArefBorrow<U>,Self> {
 		// SAFE: Transmute validity is checked by checking that the type IDs match
 		unsafe { 
-			if (*self).get_type_id() == ::core::any::TypeId::of::<U>() {
+			if (*self).type_id() == ::core::any::TypeId::of::<U>() {
 				let ptr = self.__ptr.as_ptr() as *const ArefInner<U>;
 				::core::mem::forget(self);
 				Ok(ArefBorrow { __ptr: NonNull::new_unchecked(ptr as *mut _) })
