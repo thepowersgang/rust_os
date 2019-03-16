@@ -4,10 +4,15 @@
 // This program is both the initial entrypoint for the userland, and the default dynamic linker.
 #![feature(const_fn)]
 #![crate_type="lib"]
+#![no_main]
 
 use cmdline_words_parser::StrExt as CmdlineStrExt;
 
 use load::SegmentIterator;
+
+#[link(name="loader_start")]
+extern "C" {
+}
 
 #[macro_use]
 extern crate syscalls;

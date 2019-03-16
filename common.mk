@@ -2,6 +2,10 @@
 .PHONY: default
 default: all
 
+nop :=
+space := $(nop) $(nop)
+comma := ,
+
 ARCH ?= amd64
 
 ifeq ($(ARCH),amd64)
@@ -42,6 +46,7 @@ RUSTDOC := $(call fn_rustcmd,rustdoc)
 CARGO := $(call fn_rustcmd,cargo)
 XARGO := XARGO_HOME=$(abspath $(PREFIX)xargo) $(call fn_rustcmd,xargo)
 
+# NOTE: rustc-src doesn't contain compiler_builtins (which is a crates.io package)
 #RUSTUP_SRC_DIR = $(firstword $(wildcard $(PREFIX)toolchains/nightly-*/lib/rustlib/src/rust/src))/
 RUSTUP_SRC_DIR := $(abspath $(ROOTDIR)/rustc-nightly-src/src)/
 $(warning $(RUSTUP_SRC_DIR))

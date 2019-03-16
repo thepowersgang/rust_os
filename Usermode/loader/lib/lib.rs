@@ -6,7 +6,7 @@
 #![crate_type="dylib"]
 #![crate_name="loader"]
 
-extern crate std_rt;
+//extern crate std_rt;
 extern crate syscalls;
 
 use core::result::Result;

@@ -1,5 +1,6 @@
 ENTRY(start)
 
+SEARCH_DIR( .ojs/amd64/libs )
 STARTUP( .objs/amd64/rustrt0.o )
 
 PHDRS {

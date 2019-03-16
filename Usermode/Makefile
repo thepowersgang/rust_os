@@ -30,7 +30,15 @@ RUST_COMMON_FLAGS := --target=$(TARGET_SPEC) --cfg 'arch="$(ARCH)"' --cfg nightl
 RUST_COMMON_FLAGS += -L $(LIBDIR)
 
 XARGO := RUST_TARGET_PATH=$(dir $(abspath $(TARGET_SPEC))) $(XARGO)
-XARGO_FLAGS := --target target-$(ARCH)
+XARGO_TARGET := target-$(ARCH)
+XARGO_PROFILE := release
+XARGO_FLAGS := --target $(XARGO_TARGET)
+ifeq ($(XARGO_PROFILE),debug)
+else ifeq ($(XARGO_PROFILE),release)
+  XARGO_FLAGS += --release
+else
+  $(error Unknown xargo profile $(XARGO_PROFILE))
+endif
 
 RUSTFLAGS := $(RUST_COMMON_FLAGS)
 RUSTFLAGS += -O
@@ -47,6 +55,7 @@ BIN_RUSTFLAGS :=
 #BIN_RUSTFLAGS += -C lto
 
 RUSTFLAGS_compiler_builtins = --cfg feature=\"compiler-builtins\" --cfg stage0
+RUSTFLAGS_alloc = --edition 2018
 
 # - List non-file targets
 .PHONY: all clean
@@ -75,30 +84,33 @@ docs: $(patsubst lib%/,.docs/%/index.html,$(wildcard lib*/))
 	@echo "[RUSTDOC] -o $@"
 	$V$(RUSTDOC) -o .docs $< --crate-name $* $(RUST_COMMON_FLAGS)
 
-LOADER_DEPS := $(patsubst %,$(LIBDIR)lib%.rlib,$(call fn_getdeps,loader/src/main.rs) std std_io core std_rt compiler_builtins)
+LOADER_DEPS := $(patsubst %,$(LIBDIR)lib%.rlib,$(call fn_getdeps,loader/bin/src/main.rs) std std_io core std_rt compiler_builtins)
 
 # Most binary targets have simple templates, but loader and libcore are special
 # loader: Requires an assembly stub
 # > Linking is done in two steps so that --gc-sections works
-#$(BINDIR)loader: loader/link.ld $(OBJDIR)loader/start.ao $(OBJDIR)loader/src/main.o
-$(BINDIR)loader: loader/link.ld $(OBJDIR)loader/start.ao $(OBJDIR)loader/src/main.o $(LOADER_DEPS)
+#$(BINDIR)loader: loader/bin/link.ld $(OBJDIR)loader/bin/start.ao $(OBJDIR)loader/bin/src/main.o
+$(BINDIR)loader: loader/bin/link.ld $(OBJDIR)loader/bin/start.ao $(OBJDIR)loader/bin/src/main.o $(LOADER_DEPS)
 	@mkdir -p $(dir $@)
 	@echo [LD] $@
-	$V$(LD) -r --gc-sections --undefined image_header --entry start -o $(OBJDIR)loader.o $(OBJDIR)loader/start.ao $(OBJDIR)loader/src/main.o $(LOADER_DEPS)
-	$V$(LD) -o $(OBJDIR)loader.elf -T loader/link.ld $(OBJDIR)loader.o -Map $(OBJDIR)loader_map.txt
+	$V$(LD) -r --gc-sections --undefined image_header --entry start -o $(OBJDIR)loader.o $(OBJDIR)loader/bin/start.ao $(OBJDIR)loader/bin/src/main.o $(LOADER_DEPS)
+	$V$(LD) -o $(OBJDIR)loader.elf -T loader/bin/link.ld $(OBJDIR)loader.o -Map $(OBJDIR)loader_map.txt
 	$V$(OBJCOPY) $(OBJDIR)loader.elf -O binary $@
 	$V$(OBJDUMP) -CS $(OBJDIR)loader.elf > $(OBJDIR)loader.dsm
-$(OBJDIR)loader/src/main.o: $(LOADER_DEPS)
-#$(OBJDIR)loader/src/main.o:
+$(OBJDIR)loader/bin/src/main.o: $(LOADER_DEPS)
+#$(OBJDIR)loader/bin/src/main.o:
 #	$(XARGO) build $(XARGO_FLAGS) --manifest-path loader/Cargo.toml
 
 .PHONY: xargo
-xargo:
+xargo: $(LIBDIR)libloader_dyn.so $(OBJDIR)loader/bin/start.ao	# Referenced by link-$(TARGET).ld
+	$(XARGO) build $(XARGO_FLAGS) --manifest-path libstd/Cargo.toml
+	$(XARGO) build $(XARGO_FLAGS) --manifest-path loader/bin/Cargo.toml
+	cp target/$(XARGO_TARGET)/$(XARGO_PROFILE)/libstd.rlib ../.prefix/xargo/lib/rustlib/$(XARGO_TARGET)/lib/
 	$(XARGO) build $(XARGO_FLAGS)
 
 # Low-level loader dummy dynamic library
 # - Used to tell ld that `loader`'s exported symbols actually exist
-$(LIBDIR)libloader_dyn.so: loader/lib.S	$(makefile_deps)
+$(LIBDIR)libloader_dyn.so: loader/bin/lib.S	$(makefile_deps)
 	@mkdir -p $(dir $@)
 	@echo [CC] $@
 	$V$(CC) -o $@.o -c $< -fPIC -D ARCH_$(ARCH)
@@ -158,7 +170,7 @@ $(OBJDIR)lib%.rlib: $(RUSTUP_SRC_DIR)lib%/src/lib.rs $(OBJDIR)libcore.rlib $(TAR
 	@mv $(OBJDIR)$*.d $(OBJDIR)lib$*.d
 
 # - Loader's interface library, lives in the loader directory
-$(OBJDIR)libloader.rlib: loader/lib.rs $(TARGET_SPEC) $(makefile_deps) $(patsubst %,$(LIBDIR)lib%.rlib,$(call fn_getdeps,loader/lib.rs))
+$(OBJDIR)libloader.rlib: loader/lib/lib.rs $(TARGET_SPEC) $(makefile_deps) $(patsubst %,$(LIBDIR)lib%.rlib,$(call fn_getdeps,loader/lib/lib.rs))
 	@mkdir -p $(dir $@)
 	@echo [RUSTC] $@
 	$V$(RUSTC) $(RUSTFLAGS) --emit=link,dep-info --out-dir $(OBJDIR) $< --crate-type=rlib
@@ -181,7 +193,7 @@ $(OBJDIR)%.o: %.rs $(TARGET_SPEC) $(makefile_deps)
 	@mkdir -p $(dir $@)
 	@echo [RUSTC] $@
 	$V$(RUSTC) $(RUSTFLAGS) $< --out-dir=$(dir $@) --emit=obj,dep-info
--include $(OBJDIR)loader/src/main.d
+-include $(OBJDIR)loader/bin/src/main.d
 
 # - Assembly objects (loader)
 $(OBJDIR)%.ao: %.S $(makefile_deps)
@@ -207,7 +219,7 @@ ALL_PRESENT_BINS := $(patsubst %/src/main.rs,%, $(wildcard */src/main.rs))
 
 DEPFILES := $(patsubst %,$(OBJDIR)lib%.d, $(ALL_USED_LIBS))
 DEPFILES += $(patsubst %,$(OBJDIR)%.d, $(ALL_PRESENT_BINS))
-DEPFILES += $(OBJDIR)loader/start.ao.d $(OBJDIR)rustrt0.o.d
+DEPFILES += $(OBJDIR)loader/bin/start.ao.d $(OBJDIR)rustrt0.o.d
 -include $(DEPFILES)
 
 # Official library dependency tree
