@@ -1,0 +1,84 @@
+#
+#
+#
+V ?= @
+-include ../common.mk
+
+-include BuildNum.$(ARCH).mk
+BUILDNUM ?= 1
+
+OBJDIR := .obj/$(ARCH)/
+OBJS := $(addprefix $(OBJDIR),start.ao log_cfg.ao libmain.a)
+
+ENV := RUST_VERSION="$(shell $(RUSTC) --version)"
+ENV += TK_GITSPEC="$(shell git log -n 1 | head -n 1 | awk '{print $$2}')"
+ENV += TK_VERSION="0.1"
+ENV += TK_BUILD="$(shell hostname --fqdn):$(BUILDNUM)"
+
+LINKFLAGS := -T Core/arch/$(ARCH)/link.ld -Map $(OBJDIR)map.txt -g
+LINKFLAGS += -z max-page-size=0x1000	# Reduces binary size
+LINKFLAGS += --gc-sections	# Prevents complaining about floating point methods
+#LINKFLAGS += --print-gc-sections
+
+EXCLUDE_FEATURES :=
+ifeq ($(ARCH),amd64)
+EXCLUDE_FEATURES := 3dnow avx avx2 sse sse2 sse3 sse4.1 sse4.2 mmx
+endif
+
+XARGO := RUST_TARGET_PATH=$(abspath targets) $(XARGO)
+
+.PHONY: all dsm PHONY
+
+all: bin/kernel-$(ARCH).bin
+dsm: bin/kernel-$(ARCH).bin.dsm
+
+# 
+# Final linking stage
+# 
+bin/kernel-$(ARCH).bin: $(OBJS) Core/arch/$(ARCH)/link.ld
+	@mkdir -p bin/
+	@echo [LD] -o $@
+	$V$(LD) -o $@ $(OBJS) --no-whole-archive $(LINKFLAGS)
+ifeq ($(ARCH),amd64)
+	$Vobjcopy $@ --only-keep-debug $@.debug
+	$Vobjcopy $@ -F elf32-i386 $@.elf32
+	$V$(TRIPLE)-strip -g $@.elf32
+else
+	#$V$(TRIPLE)-strip $@
+endif
+	@echo "BUILDNUM := $$(( $(BUILDNUM) + 1 ))" > BuildNum.$(ARCH).mk
+
+#
+# Disassembly
+#
+%.dsm: %
+	@echo "[OBJDUMP] >" $*.dsm
+	$V$(OBJDUMP) -s -C -S $* > $*.dsm
+
+#
+# Invoke xargo to build the main part of the kernel
+# - This includes all modules enabled in ./Cargo.toml
+#
+$(OBJDIR)libmain.a: PHONY targets/target-$(ARCH).json
+	@echo "[XARGO] . > $@"
+	$V$(ENV) $(XARGO) rustc --target=target-$(ARCH) --release -- -C target-feature=$(subst $(space),$(comma),$(EXCLUDE_FEATURES:%=-%))
+	@mkdir -p $(dir $@)
+	@cp target/target-$(ARCH)/release/libmain.a $@
+
+targets/target-$(ARCH).json: Core/arch/$(ARCH)/target.json
+	@mkdir -p $(dir $@)
+	$Vcp $< $@
+
+$(OBJDIR)%.ao: Core/arch/$(ARCH)/%.asm
+	@echo [AS] -o $@
+	@mkdir -p $(dir $@)
+	$Vnasm -o $@ $< -f elf64 -MD $@.d -MP
+$(OBJDIR)%.ao: Core/arch/$(ARCH)/%.S
+	@echo [AS] -o $@
+	@mkdir -p $(dir $@)
+	$V$(CC) -o $@ -c $<
+# Log configuration
+$(OBJDIR)log_cfg.ao: Core/log_cfg.S
+	@echo [AS] -o $@
+	@mkdir -p $(dir $@)
+	$V$(CC) -o $@ -c $<

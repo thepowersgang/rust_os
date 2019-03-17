@@ -1,0 +1,12 @@
+[package]
+name = "usb-core"
+version = "0.0.0"
+
+[lib]
+path = "lib.rs"
+
+[dependencies]
+kernel = { path = "../../Core" }
+stack_dst = { path = "../../../externals/crates.io/stack_dst", default-features = false }
+
+

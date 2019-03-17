@@ -1,0 +1,10 @@
+[package]
+name = "fs_extN"
+version = "0.0.0"
+
+[lib]
+path = "lib.rs"
+
+[dependencies]
+kernel = { path = "../../Core" }
+block_cache = { path = "../block_cache" }

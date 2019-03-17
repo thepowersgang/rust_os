@@ -25,6 +25,8 @@ ifneq ($(QEMU_STALL),)
 endif
 CMDLINE := SYSROOT=/system/Tifflin
 
+#QEMU_ARGS += -tcg-plugin $(shell dirname $(shell type -P qemu-system-x86_64))/../libexec/tcg-plugin-oprofile.so -singlestep
+
 ifneq ($(TIFFLIN_INIT),)
 	CMDLINE += INIT=$(TIFFLIN_INIT)
 endif
@@ -38,19 +40,23 @@ endif
 
 IMGDIR := DiskImages/$(ARCH)/
 
+ifneq ($(ENABLE_TRACE),)
+  QEMU_ARGS += --trace events=.qemu_trace,file=qemu_trace_events
+endif
+
 #
 # --- AMD64 ---
 #
 ifeq ($(ARCH),amd64)
 CMDLINE += SYSDISK=ATA-0p0
-QEMU_ARGS += -net nic,model=rtl8139 -net dump
+QEMU_ARGS += -vga virtio
+QEMU_ARGS += -net nic,model=rtl8139
+# -net dump
 QEMU_ARGS += -drive if=ide,index=0,file=$(IMGDIR)hda.img,format=raw
 QEMU_ARGS += -cdrom $(IMGDIR)test.iso
 QEMU_ARGS += -device ahci,id=ahci
 QEMU_ARGS += -drive if=none,id=sata1,file=$(IMGDIR)hdb.img,format=raw -device ide-hd,drive=sata1,bus=ahci.0
 QEMU_ARGS += -drive if=none,id=sata2,file=$(IMGDIR)test.iso,format=raw -device ide-cd,drive=sata2,bus=ahci.1
-#QEMU_ARGS += -trace file=qemu_trace
-#QEMU_OPTS += -trace events=.qemu_trace,file=qemu_trace
 
 MODE ?= pxe
 ifeq ($(MODE),iso)
@@ -142,14 +148,9 @@ $(IMGDIR)hdb.img: Makefile $(IMGDIR)hdb_0.img $(IMGDIR)hdb_1.img
 	@echo "$(shell echo $$((1*1024*2)),+,0x83)" | /sbin/sfdisk --no-reread $@ -u S -f -q > /dev/null
 
 .qemu_trace: Makefile
-	echo "" 
 	echo "" > $@
-	#echo "apic_deliver_irq" >> $@
-	#echo "apic_local_deliver" >> $@
-	#echo "apic_mem_readl" >> $@
-	echo "bdrv_aio_readv" >> $@
-	echo "bdrv_aio_writev" >> $@
-	echo "bdrv_co_readv" >> $@
-	echo "bdrv_co_do_copy_on_readv" >> $@
+	echo pci_* >> $@
+	echo virtio_* >> $@
+	echo virtqueue_* >> $@
 
 

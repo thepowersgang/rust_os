@@ -1,0 +1,10 @@
+[package]
+name = "virtio"
+version = "0.0.0"
+
+[lib]
+path = "lib.rs"
+
+[dependencies]
+kernel = { path = "../../Core" }
+

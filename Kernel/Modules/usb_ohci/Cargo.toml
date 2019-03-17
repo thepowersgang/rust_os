@@ -1,0 +1,11 @@
+[package]
+name = "usb-ohci"
+version = "0.0.0"
+
+[lib]
+path = "lib.rs"
+
+[dependencies]
+kernel = { path = "../../Core" }
+usb-core = { path = "../usb_core" }
+

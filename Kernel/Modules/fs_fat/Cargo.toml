@@ -1,0 +1,13 @@
+[package]
+name = "fs_fat"
+version = "0.0.0"
+
+[lib]
+path = "lib.rs"
+
+[dependencies]
+kernel = { path = "../../Core" }
+blockcache = { path = "../blockcache" }
+block_cache = { path = "../block_cache" }
+utf16 = { path = "../utf16" }
+

@@ -1,0 +1,10 @@
+[package]
+name = "kernel"
+version = "0.0.0"
+
+[lib]
+path = "main.rs"
+
+[dependencies]
+stack_dst = { path = "../../externals/crates.io/stack_dst", default-features = false }
+tag_safe = "0.2"

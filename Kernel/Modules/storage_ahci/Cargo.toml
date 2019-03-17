@@ -1,0 +1,11 @@
+[package]
+name = "storage-ahci"
+version = "0.0.0"
+
+[lib]
+path = "lib.rs"
+
+[dependencies]
+kernel = { path = "../../Core" }
+storage-ata = { path = "../storage_ata" }
+storage-scsi = { path = "../storage_scsi" }

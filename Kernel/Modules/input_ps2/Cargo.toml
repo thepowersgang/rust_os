@@ -1,0 +1,11 @@
+[package]
+name = "input_ps2"
+version = "0.0.0"
+
+[lib]
+path = "lib.rs"
+
+[dependencies]
+kernel = { path = "../../Core" }
+gui = { path = "../gui" }
+

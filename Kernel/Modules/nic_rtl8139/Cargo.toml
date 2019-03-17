@@ -1,0 +1,11 @@
+[package]
+name = "nic-rtl8139"
+version = "0.0.0"
+
+[lib]
+path = "lib.rs"
+
+[dependencies]
+kernel = { path = "../../Core" }
+network = { path = "../network" }
+
