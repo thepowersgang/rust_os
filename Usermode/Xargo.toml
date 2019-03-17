@@ -1,2 +1,11 @@
+[xargo]
+track-sysroot = true
+[xargo.stage1]
+disable-staged-api = true
+
 [dependencies.alloc]
 stage = 0
+[dependencies.std]
+stage = 1
+path = "libstd"
+

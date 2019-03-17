@@ -6,7 +6,7 @@
 .extern main
 .extern register_arguments
 
-.globl start
+.weak start
 start:
 	call *start_ra(%rip)
 	mov $0, %rdi

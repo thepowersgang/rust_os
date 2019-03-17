@@ -90,10 +90,10 @@ LOADER_DEPS := $(patsubst %,$(LIBDIR)lib%.rlib,$(call fn_getdeps,loader/bin/src/
 # loader: Requires an assembly stub
 # > Linking is done in two steps so that --gc-sections works
 #$(BINDIR)loader: loader/bin/link.ld $(OBJDIR)loader/bin/start.ao $(OBJDIR)loader/bin/src/main.o
-$(BINDIR)loader: loader/bin/link.ld $(OBJDIR)loader/bin/start.ao $(OBJDIR)loader/bin/src/main.o $(LOADER_DEPS)
+$(BINDIR)loader: loader/bin/link.ld $(OBJDIR)loader/bin/start.ao $(OBJDIR)loader/bin/src/main.o $(OBJDIR)rustrt0.o $(LOADER_DEPS)
 	@mkdir -p $(dir $@)
 	@echo [LD] $@
-	$V$(LD) -r --gc-sections --undefined image_header --entry start -o $(OBJDIR)loader.o $(OBJDIR)loader/bin/start.ao $(OBJDIR)loader/bin/src/main.o $(LOADER_DEPS)
+	$V$(LD) -r --gc-sections --undefined image_header --entry start -o $(OBJDIR)loader.o $(OBJDIR)rustrt0.o $(OBJDIR)loader/bin/start.ao $(OBJDIR)loader/bin/src/main.o $(LOADER_DEPS)
 	$V$(LD) -o $(OBJDIR)loader.elf -T loader/bin/link.ld $(OBJDIR)loader.o -Map $(OBJDIR)loader_map.txt
 	$V$(OBJCOPY) $(OBJDIR)loader.elf -O binary $@
 	$V$(OBJDUMP) -CS $(OBJDIR)loader.elf > $(OBJDIR)loader.dsm
@@ -102,12 +102,15 @@ $(OBJDIR)loader/bin/src/main.o: $(LOADER_DEPS)
 #	$(XARGO) build $(XARGO_FLAGS) --manifest-path loader/Cargo.toml
 
 .PHONY: xargo
-xargo: $(LIBDIR)libloader_dyn.so $(OBJDIR)loader/bin/start.ao	# Referenced by link-$(TARGET).ld
-	$(XARGO) build $(XARGO_FLAGS) --manifest-path libstd/Cargo.toml
+xargo: $(OBJDIR)rustrt0.o $(LIBDIR)libloader_dyn.so $(LIBDIR)libloader_start.a	# Referenced by link-$(TARGET).ld
+	#$(XARGO) build $(XARGO_FLAGS) --manifest-path libstd/Cargo.toml
 	$(XARGO) build $(XARGO_FLAGS) --manifest-path loader/bin/Cargo.toml
-	cp target/$(XARGO_TARGET)/$(XARGO_PROFILE)/libstd.rlib ../.prefix/xargo/lib/rustlib/$(XARGO_TARGET)/lib/
+	#cp target/$(XARGO_TARGET)/$(XARGO_PROFILE)/libstd.rlib ../.prefix/xargo/lib/rustlib/$(XARGO_TARGET)/lib/
 	$(XARGO) build $(XARGO_FLAGS)
 
+$(LIBDIR)libloader_start.a: $(OBJDIR)loader/bin/start.ao
+	@mkdir -p $(dir $@)
+	$V$(AR) rcu $@ $<
 # Low-level loader dummy dynamic library
 # - Used to tell ld that `loader`'s exported symbols actually exist
 $(LIBDIR)libloader_dyn.so: loader/bin/lib.S	$(makefile_deps)

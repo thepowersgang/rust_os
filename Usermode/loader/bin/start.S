@@ -57,6 +57,7 @@ ENTRY(start)
 .loop:
 	jmp .loop
 
+/*
 // RDI = Address
 // RSI = Value
 // RDX = Count
@@ -93,6 +94,7 @@ ENTRY(memcmp)
 	ret
 ENTRY(_Unwind_Resume)
 	jmp .
+*/
 
 #elif defined(ARCH_armv7)
 # define DEFPTR	.long
