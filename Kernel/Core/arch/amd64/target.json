@@ -6,6 +6,7 @@
 	"target-pointer-width": "64",
 	"target-word-size": "64",
 	"target-c-int-width": "32",
+	"features": "-mmx,-sse,+soft-float",
 	"os": "tifflin",
 	"arch": "x86_64",
 		"linker-flavor": "ld",

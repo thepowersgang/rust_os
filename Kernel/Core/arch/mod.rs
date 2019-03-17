@@ -5,6 +5,7 @@
 
 #[macro_use]
 #[cfg_attr(arch="amd64", path="amd64/mod.rs")]
+#[cfg_attr(target_arch="x86_64", path="amd64/mod.rs")]
 #[cfg_attr(arch="armv7", path="armv7/mod.rs")]
 #[cfg_attr(arch="armv8", path="armv8/mod.rs")]
 #[cfg_attr(test, path="imp-test.rs")]
@@ -13,7 +14,7 @@
 pub mod imp;	// Needs to be pub for exports to be avaliable
 
 // If on x86/amd64, import ACPI
-#[cfg(arch="amd64")]
+#[cfg(any(arch="amd64", target_arch="x86_64"))]
 pub use self::imp::acpi;
 
 

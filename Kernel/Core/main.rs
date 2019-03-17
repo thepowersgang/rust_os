@@ -45,7 +45,7 @@ pub use arch::memory::PAGE_SIZE;
 #[doc(hidden)]
 #[macro_use] pub mod macros;
 #[doc(hidden)]
-#[macro_use] #[cfg(arch="amd64")] #[path="arch/amd64/mod-macros.rs"] pub mod arch_macros;
+#[macro_use] #[cfg(any(arch="amd64", target_arch="x86_64"))] #[path="arch/amd64/mod-macros.rs"] pub mod arch_macros;
 
 /// Kernel's version of 'std::prelude'
 pub mod prelude;
