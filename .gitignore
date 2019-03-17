@@ -30,6 +30,8 @@ Kernel/fdd.img
 Kernel/BuildNum.*.mk
 Kernel/doc
 Kernel/bin
+Kernel/target
+Kernel/targets
 Kernel/gitstats
 Kernel/SynExts
 
@@ -59,3 +61,4 @@ Bootloaders/libuefi/target/
 Bootloaders/*.pe
 
 Usermode/doc/
+Usermode/target/
