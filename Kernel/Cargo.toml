@@ -6,6 +6,9 @@ version = "0.0.0"
 path = "main/main.rs"
 crate-type = ["staticlib"]
 
+[features]
+acpica = [ "kernel/acpica" ]
+
 [dependencies]
 kernel = { path = "Core" }
 syscalls = { path = "Modules/syscalls" }

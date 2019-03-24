@@ -5,6 +5,10 @@ version = "0.0.0"
 [lib]
 path = "main.rs"
 
+[features]
+acpica = [ "va_list" ]
+
 [dependencies]
 stack_dst = { path = "../../externals/crates.io/stack_dst", default-features = false }
 tag_safe = "0.2"
+va_list = { version = "0.1", default-features = false, features = ["no_std"], optional = true }

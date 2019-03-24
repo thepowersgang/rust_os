@@ -117,7 +117,7 @@ OBJS := $(filter-out $(EXT_CRATES:%=%.o), $(OBJS))
 OBJS := $(OBJS:%=$(OBJDIR)%)
 LIBS := $(OBJDIR)libcore.rlib $(OBJDIR)libcompiler_builtins.rlib $(EXT_CRATES:%=$(OBJDIR)lib%.rlib)
 ifeq ($(USE_ACPICA),1)
-	LIBS += $(OBJDIR)acpica.a
+	LIBS += $(OBJDIR)libacpica.a
 endif
 
 .SUFFIXES:
@@ -249,7 +249,7 @@ $(OBJDIR)libcompiler_builtins.rlib: $(RUSTUP_SRC_DIR)libcompiler_builtins/src/li
 	$V$(ENV) $(RUSTC) $(RUSTFLAGS) --emit=link,dep-info --out-dir $(dir $@) --cfg feature=\"compiler-builtins\" $< --cfg stage0
 	@cp $(OBJDIR)core.d $(OBJDIR)libcore.d
 
-$(OBJDIR)acpica.a: ../acpica/Makefile $(wildcard ../acpica/patches/source/include/platform/*)
+$(OBJDIR)libacpica.a: ../acpica/Makefile $(wildcard ../acpica/patches/source/include/platform/*)
 	make -C ../acpica TRIPLE=$(TRIPLE) ARCH=$(ARCH) srcdir
 	make -C ../acpica TRIPLE=$(TRIPLE) ARCH=$(ARCH)
 	cp ../acpica/acpica-$(TRIPLE).a $@

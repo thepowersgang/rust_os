@@ -10,10 +10,9 @@ use prelude::*;
 
 module_define!{ACPI, [], init}
 
-#[cfg(use_acpica)]
-#[path="acpica/mod.rs"] mod internal;
-#[cfg(not(use_acpica))]
-#[path="mine/mod.rs"] mod internal;
+#[cfg_attr(any(use_acpica,feature="acpica"), path="acpica/mod.rs")]
+#[cfg_attr(not(any(use_acpica,feature="acpica")), path="mine/mod.rs")]
+mod internal;
 
 #[repr(u8)]
 #[derive(Copy,Clone,PartialEq)]
