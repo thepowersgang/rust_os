@@ -16,10 +16,13 @@ extern crate gui;
 use kernel::prelude::*;
 
 // HACK: Requires USB to be active to ensure that emulation is off
-#[cfg(any(arch="amd64", arch="x86"))]
-module_define!{PS2, [DeviceManager, ACPI, GUI/*, USB*/], init}
-#[cfg(any(arch="armv7",arch="armv8"))]
-module_define!{PS2, [DeviceManager, GUI/*, USB*/], init}
+module_define!{PS2, [
+	DeviceManager,
+	#[cfg(any(arch="x86",arch="amd64",target_arch="x86",target_arch="x86_64"))]
+	ACPI,
+	GUI
+	/*, USB*/
+	], init}
 
 #[derive(Debug)]
 enum PS2Dev
@@ -44,7 +47,7 @@ enum EnumWaitState
 mod keyboard;
 mod mouse;
 
-#[cfg(any(arch="amd64", arch="x86"))]
+#[cfg(any(arch="x86",arch="amd64",target_arch="x86",target_arch="x86_64"))]
 fn init()
 {
 	#[path="i8042.rs"]

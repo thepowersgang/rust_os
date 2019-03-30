@@ -13,12 +13,45 @@
 extern crate kernel;
 extern crate syscalls;
 
+#[cfg(false_)]
+pub mod modules {
+	include!{ env!("RUSTOS_MODPATH") }
+}
+#[cfg(not(false_))]
+pub mod modules {
+	extern crate network;
+	extern crate virtio;
+	extern crate storage_ata;
+	extern crate input_ps2;
+	extern crate fs_fat;
+	extern crate fs_iso9660;
+	extern crate fs_extN;
+	extern crate storage_ahci;
+	extern crate nic_rtl8139;
+	extern crate usb_core;
+	extern crate usb_ohci;
+	pub static MODLIST: &'static [&::kernel::modules::ModuleInfo] = &[
+		//&network::S_MODULE,
+		//&virtio::S_MODULE,
+		//&storage_ata::S_MODULE,
+		//&input_ps2::S_MODULE,
+		//&fs_fat::S_MODULE,
+		//&fs_iso9660::S_MODULE,
+		//&fs_extN::S_MODULE,
+		//&storage_ahci::S_MODULE,
+		//&nic_rtl8139::S_MODULE,
+		//&usb_core::S_MODULE,
+		//&usb_ohci::S_MODULE,
+		];
+}
+
 /// Kernel entrypoint
 #[no_mangle]
 pub extern "C" fn kmain()
 {
 	log_notice!("{} starting", ::kernel::VERSION_STRING);
 	log_notice!("> {}", ::kernel::BUILD_STRING);
+	log_notice!("{} compiled-in modules", modules::MODLIST.len());	// NOTE: Needed to ensure that the modules are linked
 	
 	// Initialise core services before attempting modules
 	::kernel::memory::phys::init();
@@ -206,7 +239,7 @@ fn spawn_init(loader_path: &str, init_cmdline: &str) -> Result<::kernel::Void, &
 		};
 	
 	// - Load the loader into memory
-	let (header_ptr, memsize) = try!( load_loader(&loader) );
+	let (header_ptr, memsize) = load_loader(&loader)?;
 
 	// - Populate argument region and return size written
 	// SAFE: Addresses are checked by load_loader

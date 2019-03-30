@@ -21,7 +21,7 @@ macro_rules! _count
 #[macro_export]
 macro_rules! module_define
 {
-	($name:ident, [$($deps:ident),*], $init:path) => (
+	($name:ident, [ $( $(#[$da:meta])* $deps:ident ),*], $init:path) => (
 		//#[assume_reachable]
 		#[doc(hidden)]
 		#[link_section = ".MODULE_LIST"]
@@ -34,7 +34,7 @@ macro_rules! module_define
 			_rsvd: [0,0,0],
 		};
 		#[doc(hidden)]
-		static S_DEPS: [&'static str; _count!($($deps),*)] = [$(stringify!($deps)),*];
+		const S_DEPS: &'static [&'static str] = &[$( $(#[$da])* stringify!($deps) ),*];
 	);
 }
 
