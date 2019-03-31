@@ -7,42 +7,28 @@
 #![crate_type="rlib"]
 #![no_std]
 #![feature(optin_builtin_traits)]	// Used for !Send on LoaderHeader (for pedantic safety)
-
+#![feature(asm)]
 
 #[macro_use]
 extern crate kernel;
 extern crate syscalls;
 
-#[cfg(false_)]
+#[cfg(not(target))]
 pub mod modules {
-	include!{ env!("RUSTOS_MODPATH") }
+	fn use_mod(m: &::kernel::modules::ModuleInfo) {
+		unsafe { asm!("" : : "r" (m)) }
+	}
+	pub fn use_mods() -> usize {
+		let mut rv = 0;
+		include!{ env!("RUSTOS_MODPATH") }
+		rv
+	}
 }
-#[cfg(not(false_))]
+#[cfg(target)]
 pub mod modules {
-	extern crate network;
-	extern crate virtio;
-	extern crate storage_ata;
-	extern crate input_ps2;
-	extern crate fs_fat;
-	extern crate fs_iso9660;
-	extern crate fs_extN;
-	extern crate storage_ahci;
-	extern crate nic_rtl8139;
-	extern crate usb_core;
-	extern crate usb_ohci;
-	pub static MODLIST: &'static [&::kernel::modules::ModuleInfo] = &[
-		//&network::S_MODULE,
-		//&virtio::S_MODULE,
-		//&storage_ata::S_MODULE,
-		//&input_ps2::S_MODULE,
-		//&fs_fat::S_MODULE,
-		//&fs_iso9660::S_MODULE,
-		//&fs_extN::S_MODULE,
-		//&storage_ahci::S_MODULE,
-		//&nic_rtl8139::S_MODULE,
-		//&usb_core::S_MODULE,
-		//&usb_ohci::S_MODULE,
-		];
+	pub fn use_mods() -> usize {
+		0
+	}
 }
 
 /// Kernel entrypoint
@@ -51,7 +37,7 @@ pub extern "C" fn kmain()
 {
 	log_notice!("{} starting", ::kernel::VERSION_STRING);
 	log_notice!("> {}", ::kernel::BUILD_STRING);
-	log_notice!("{} compiled-in modules", modules::MODLIST.len());	// NOTE: Needed to ensure that the modules are linked
+	log_notice!("{} compiled-in modules", modules::use_mods());
 	
 	// Initialise core services before attempting modules
 	::kernel::memory::phys::init();

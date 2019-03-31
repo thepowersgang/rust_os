@@ -18,14 +18,14 @@ macro_rules! _count
 }
 
 /// Define a kernel module (creates the module header, containg the name and dependency strings)
+///
+/// For external modules, at the module must be defined in the root (lib.rs)
 #[macro_export]
 macro_rules! module_define
 {
 	($name:ident, [ $( $(#[$da:meta])* $deps:ident ),*], $init:path) => (
-		//#[assume_reachable]
 		#[doc(hidden)]
 		#[link_section = ".MODULE_LIST"]
-		#[linkage="external"]
 		#[allow(dead_code)]
 		pub static S_MODULE: $crate::modules::ModuleInfo = $crate::modules::ModuleInfo {
 			name: stringify!($name),
@@ -35,6 +35,11 @@ macro_rules! module_define
 		};
 		#[doc(hidden)]
 		const S_DEPS: &'static [&'static str] = &[$( $(#[$da])* stringify!($deps) ),*];
+		// External linkage symbol, to force the module info to be maintained
+		#[linkage="external"]
+		#[doc(hidden)]
+		#[allow(dead_code)]
+		pub static S_MODULE_P: &$crate::modules::ModuleInfo = &S_MODULE;
 	);
 }
 

@@ -99,8 +99,9 @@ $(patsubst %,$(OBJDIR)lib%.a,main $(MODS)): $(OBJDIR)libmain.a
 # - Module listing
 $(OBJDIR)modules.rs: Makefile-xargo
 	@echo "" > $@
-	@echo '$(patsubst %,extern crate %;\n,$(MODS))' >> $@
-	@echo "pub static MODLIST: &'static [&::kernel::modules::ModuleInfo] = &[\n\t$(patsubst %,&%::S_MODULE$(comma)\n\t,$(MODS))];" >> $@
+	@echo '{\n $(patsubst %,extern crate %;\n,$(MODS))' >> $@
+	@echo "    $(patsubst %,use_mod(&%::S_MODULE); rv+=1;\n   ,$(MODS))" >> $@
+	@echo "}" >> $@
 targets/target-$(ARCH).json: Core/arch/$(ARCH)/target.json
 	@mkdir -p $(dir $@)
 	$Vcp $< $@
@@ -125,3 +126,7 @@ $(OBJDIR)log_cfg.ao: Core/log_cfg.S
 	@mkdir -p $(dir $@)
 	$V$(CC) -o $@ -c $<
 
+../Graphics/logo.rs: ../Graphics/TifflinLogoV1-128.png ../Graphics/ConvertTo32bppRS
+	cd ../Graphics && ./ConvertTo32bppRS TifflinLogoV1-128.png logo.rs S_LOGO
+$(IMGDIR)%.rs: ../Graphics/ConvertTo32bppRS
+	cd ../Graphics && make $(@:../Graphics/%=%)
