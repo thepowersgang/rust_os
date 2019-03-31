@@ -35,6 +35,7 @@ BUILDNUM ?= 1
 
 OBJDIR := .obj/$(ARCH)/
 OBJS := $(addprefix $(OBJDIR),start.ao log_cfg.ao libmain.a)
+IMGDIR := ../Graphics/.output/shared/
 
 CARGO_FEATURES :=
 ENV := RUST_VERSION="$(shell $(RUSTC) --version)"
