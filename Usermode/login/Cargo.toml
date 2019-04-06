@@ -1,0 +1,11 @@
+[package]
+name = "login"
+version = "0.0.1"
+
+[dependencies]
+wtk = { path = "../libwtk" }
+async = { path = "../libasync" }
+lazy_static = { path = "../liblazy_static" }
+
+#syscalls = { path = "../libsyscalls" }
+#loader = { path = "../loader/lib" }

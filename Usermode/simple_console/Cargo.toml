@@ -1,0 +1,11 @@
+[package]
+name = "simple_console"
+version = "0.0.1"
+
+[dependencies]
+#syscalls = { path = "../libsyscalls" }
+wtk = { path = "../libwtk" }
+async = { path = "../libasync" }
+cmdline_words_parser = { path = "../../externals/crates.io/cmdline_words_parser" }
+
+

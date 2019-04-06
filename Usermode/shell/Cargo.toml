@@ -1,0 +1,12 @@
+[package]
+name = "shell"
+version = "0.0.1"
+
+[dependencies]
+wtk = { path = "../libwtk" }
+async = { path = "../libasync" }
+
+# Sysroot crates
+#syscalls = { path = "../libsyscalls" }
+#loader = { path = "../loader/lib" }
+

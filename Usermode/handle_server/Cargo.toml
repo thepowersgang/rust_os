@@ -1,0 +1,11 @@
+[package]
+name = "handle_server-bin"
+version = "0.0.1"
+
+[dependencies]
+handle_server = { path = "../libhandle_server" }
+
+# Sysroot crates
+#syscalls = { path = "../libsyscalls" }
+#loader = { path = "../loader/lib" }
+

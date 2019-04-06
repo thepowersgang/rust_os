@@ -1,0 +1,8 @@
+[package]
+name = "fileviewer"
+version = "0.0.1"
+
+[dependencies]
+#syscalls = { path = "../libsyscalls" }
+wtk = { path = "../libwtk" }
+
