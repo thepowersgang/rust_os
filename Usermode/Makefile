@@ -103,9 +103,7 @@ $(OBJDIR)loader/bin/src/main.o: $(LOADER_DEPS)
 
 .PHONY: xargo
 xargo: $(OBJDIR)rustrt0.o $(LIBDIR)libloader_dyn.so $(LIBDIR)libloader_start.a	# Referenced by link-$(TARGET).ld
-	#$(XARGO) build $(XARGO_FLAGS) --manifest-path libstd/Cargo.toml
 	$(XARGO) build $(XARGO_FLAGS) --manifest-path loader/bin/Cargo.toml
-	#cp target/$(XARGO_TARGET)/$(XARGO_PROFILE)/libstd.rlib ../.prefix/xargo/lib/rustlib/$(XARGO_TARGET)/lib/
 	$(XARGO) build $(XARGO_FLAGS)
 
 $(LIBDIR)libloader_start.a: $(OBJDIR)loader/bin/start.ao

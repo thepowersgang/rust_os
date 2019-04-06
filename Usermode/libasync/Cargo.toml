@@ -7,4 +7,4 @@ path = "lib.rs"
 
 [dependencies]
 #std = { path = "../libstd" }
-syscalls = { path = "../libsyscalls" }
+#syscalls = { path = "../libsyscalls" }
