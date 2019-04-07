@@ -13,7 +13,6 @@
 #![no_std]
 #![crate_name="uefi"]
 #![crate_type="lib"]
-#![feature(unique)]
 #![feature(try_trait)]	// Makes Status a little easier to use
 #![feature(ptr_internals)]	// rawptr as_ref
 
@@ -93,6 +92,9 @@ impl<T> ::core::ops::Deref for SizePtr<T>
 		}
 	}
 }
+
+// TODO: Have a SystemTablePtr structure that exposes the various boot services as borrows only
+// - BUT: The only way to call ExitBootServices is to consume it
 
 #[repr(C)]
 /// System Table (top-level EFI structure)

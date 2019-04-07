@@ -2,8 +2,8 @@
 //
 //
 #![feature(asm)]
-#![feature(proc_macro, proc_macro_non_items)]	// utf16_literal
-#![feature(panic_implementation,panic_info_message)]
+#![feature(proc_macro_hygiene)]	// utf16_literal
+#![feature(panic_info_message)]
 #![no_std] 
 
 use uefi::boot_services::protocols;
@@ -91,6 +91,7 @@ pub extern "win64" fn efi_main(image_handle: ::uefi::Handle, system_table: &::ue
 		let system_volume_fs: &protocols::SimpleFileSystem = boot_services.handle_protocol(&image_proto.device_handle).expect("image_proto - FileProtocol");
 		// - Get the root of this volume and load the bootloader configuration file from it
 		let system_volume_root = system_volume_fs.open_volume().expect("system_volume_fs - File");
+		// NOTE: This function will return Ok(Default::default()) if the file can't be found
 		let config = match Configuration::from_file(boot_services, &system_volume_root, PATH_CONFIG.into())
 			{
 			Ok(c) => c,
@@ -133,6 +134,7 @@ pub extern "win64" fn efi_main(image_handle: ::uefi::Handle, system_table: &::ue
 			(map_key, map)
 			};
 		loge!(conout, "- Exiting boot services");
+		//let runtime_services = system_table_ptr.exit_boot_services().ok().expect("exit_boot_services");
 		// SAFE: Weeelll...
 		unsafe { 
 			(boot_services.exit_boot_services)(image_handle, map_key).expect("exit_boot_services");
@@ -211,10 +213,8 @@ fn load_kernel_file(boot_services: &::uefi::boot_services::BootServices, sys_vol
 }
 
 
-#[panic_implementation]
-// NOTE: Needs to be public and no_mangle (rust#51342)
-#[no_mangle]
-pub fn handle_panic(info: &::core::panic::PanicInfo) -> ! {
+#[panic_handler]
+fn handle_panic(info: &::core::panic::PanicInfo) -> ! {
 	static mut NESTED: bool = false;
 	unsafe {
 		if NESTED {

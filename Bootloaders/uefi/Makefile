@@ -21,7 +21,7 @@ clean:
 	@echo [LD] -o $@
 	$Vx86_64-efi-pe-ld -g -r -o $@ -e efi_main $(OBJS) --strip-discarded --gc-sections --allow-multiple-definition
 
-$(TARGET_DIR)libbootloader_uefi.a: .obj/libstubs.a $(TARGET_FILE)
+$(TARGET_DIR)libbootloader_uefi.a: .obj/libstubs.a $(TARGET_FILE) .PHONY
 	@echo [XARGO] build
 	$VRUSTFLAGS="$(RUSTFLAGS)" RUST_TARGET_PATH=$(abspath .) $(XARGO) build --target=$(TARGET_NAME) --release 
 

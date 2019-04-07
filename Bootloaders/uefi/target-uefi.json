@@ -8,7 +8,7 @@
 	"target-c-int-width": "32",
 	"os": "tifflin",
 	"arch": "x86_64",
-		"pre-link-args": [],
+		"pre-link-args": {},
 		"no-compiler-rt": true,
 		"disable-redzone": true,
 		"eliminate-frame-pointer": false,
