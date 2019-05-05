@@ -105,6 +105,7 @@ $(OBJDIR)loader/bin/src/main.o: $(LOADER_DEPS)
 xargo: $(OBJDIR)rustrt0.o $(LIBDIR)libloader_dyn.so $(LIBDIR)libloader_start.a	# Referenced by link-$(TARGET).ld
 	$(XARGO) build $(XARGO_FLAGS) --manifest-path loader/bin/Cargo.toml
 	$(XARGO) build $(XARGO_FLAGS)
+xargo: $(patsubst %,../externals/crates.io/%/src/lib.rs,cmdline_words_parser stack_dst utf16_literal va_list)
 
 $(LIBDIR)libloader_start.a: $(OBJDIR)loader/bin/start.ao
 	@mkdir -p $(dir $@)
