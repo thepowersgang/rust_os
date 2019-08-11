@@ -90,12 +90,12 @@ endif
 # Invoke xargo to build the main part of the kernel
 # - This includes all modules enabled in ./Cargo.toml
 #
-$(OBJDIR)libmain.a: PHONY $(OBJDIR)modules.rs targets/target-$(ARCH).json
+$(OBJDIR)libmain.a: PHONY $(OBJDIR)modules.rs targets/target-k-$(ARCH).json
 	@echo "[XARGO] . > $@"
-	$VRUSTOS_MODPATH=../$(OBJDIR)modules.rs RUSTFLAGS="-C target-feature=$(subst $(space),$(comma),$(EXCLUDE_FEATURES:%=-%))" $(ENV) $(XARGO) build --target=target-$(ARCH) --release --features "$(CARGO_FEATURES)"
+	$VRUSTOS_MODPATH=../$(OBJDIR)modules.rs RUSTFLAGS="-C target-feature=$(subst $(space),$(comma),$(EXCLUDE_FEATURES:%=-%))" $(ENV) $(XARGO) build --target=target-k-$(ARCH) --release --features "$(CARGO_FEATURES)"
 	@mkdir -p $(dir $@)
-	@cp target/target-$(ARCH)/release/libmain.a $@
-$(patsubst %,$(OBJDIR)lib%.a,main $(MODS)): $(OBJDIR)libmain.a
+	@cp target/target-k-$(ARCH)/release/libmain.a $@
+$(patsubst %,$(OBJDIR)lib%.a,$(MODS)): $(OBJDIR)libmain.a
 
 # - Module listing
 $(OBJDIR)modules.rs: Makefile-xargo
@@ -103,7 +103,7 @@ $(OBJDIR)modules.rs: Makefile-xargo
 	@echo '{\n $(patsubst %,extern crate %;\n,$(MODS))' >> $@
 	@echo "    $(patsubst %,use_mod(&%::S_MODULE); rv+=1;\n   ,$(MODS))" >> $@
 	@echo "}" >> $@
-targets/target-$(ARCH).json: Core/arch/$(ARCH)/target.json
+targets/targetk-k-$(ARCH).json: Core/arch/$(ARCH)/target.json
 	@mkdir -p $(dir $@)
 	$Vcp $< $@
 
