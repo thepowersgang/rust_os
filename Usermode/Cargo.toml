@@ -1,0 +1,11 @@
+[workspace]
+members = [
+	"loader/bin",
+	#"init",	# handled by makefile
+	"login",
+	"handle_server",
+	"simple_console", "shell",
+	"filebrowser", "fileviewer",
+	"vfs_test",
+	"hello_world",
+	]
