@@ -26,3 +26,4 @@ UPDATE:
 	$(call fn_rustcmd,rustup) default $(RUSTUP_VER)
 	$(call fn_rustcmd,rustup) component add rust-src
 	$(CARGO) install xargo --git https://github.com/thepowersgang/xargo --force
+	cd Kernel && $(XARGO) update
