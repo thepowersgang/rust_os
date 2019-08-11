@@ -68,32 +68,33 @@ pub fn newprocess(name: &str,  clone_start: usize, clone_end: usize) -> ObjectHa
 #[inline(never)]
 pub fn wait(events: &mut [values::WaitItem], wake_time_mono: u64) -> Result<u32,Error>
 {
-	let mut waiter = ::kernel::threads::SleepObject::new("wait");
-	let mut num_bound = 0;
-	for ev in events.iter() {
-		num_bound += try!(::objects::wait_on_object(ev.object, ev.flags, &mut waiter));
-	}
-
-	if num_bound == 0 && wake_time_mono == !0 {
-		// Attempting to sleep on no events with an infinite timeout! Would sleep forever
-		log_error!("TODO: What to do when a thread tries to sleep forever");
-		waiter.wait();
-	}
-
-	// A wake time of 0 means to not sleep at all, just check the status of the events
-	// TODO: There should be a more efficient way of doing this, than binding only to unbind again
-	if wake_time_mono != 0 {
-		// !0 indicates an unbounded wait (no need to set a wakeup time)
-		if wake_time_mono != !0 {
-			todo!("Set a wakeup timer at {}", wake_time_mono);
-			//waiter.wait_until(wake_time_mono);
+	::kernel::threads::SleepObject::with_new("wait", |waiter: &mut _| {
+		let mut num_bound = 0;
+		for ev in events.iter() {
+			num_bound += try!(::objects::wait_on_object(ev.object, ev.flags, waiter));
 		}
-		else {
+
+		if num_bound == 0 && wake_time_mono == !0 {
+			// Attempting to sleep on no events with an infinite timeout! Would sleep forever
+			log_error!("TODO: What to do when a thread tries to sleep forever");
 			waiter.wait();
 		}
-	}
 
-	Ok( events.iter_mut().fold(0, |total,ev| total + ::objects::clear_wait(ev.object, ev.flags, &mut waiter).unwrap()) )
+		// A wake time of 0 means to not sleep at all, just check the status of the events
+		// TODO: There should be a more efficient way of doing this, than binding only to unbind again
+		if wake_time_mono > 0 {
+			// !0 indicates an unbounded wait (no need to set a wakeup time)
+			if wake_time_mono != !0 {
+				todo!("Set a wakeup timer at {}", wake_time_mono);
+				//waiter.wait_until(wake_time_mono);
+			}
+			else {
+				waiter.wait();
+			}
+		}
+
+		Ok( events.iter_mut().fold(0, |total,ev| total + ::objects::clear_wait(ev.object, ev.flags, waiter).unwrap()) )
+		})
 }
 
 pub struct ProtoProcess(::kernel::threads::ProcessHandle);

@@ -158,7 +158,8 @@ impl<'h, 'a: 'h> Waiter<'h, 'a>
 	pub fn new(handles: &'h [&'h Object<'a>]) -> Waiter<'h, 'a>
 	{
 		Waiter {
-			sleeper: SleepObject::new("Waiter"),
+			// SAFE: TODO: This isn't safe, the sleep object must have a stable pointer to be safe
+			sleeper: unsafe { SleepObject::new("Waiter") },
 			handles: handles,
 			}
 	}

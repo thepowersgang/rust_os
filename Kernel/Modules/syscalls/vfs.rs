@@ -74,7 +74,6 @@ fn to_result<T>(r: Result<T, ::kernel::vfs::Error>) -> Result<T, u32> {
 }
 
 pub fn init_handles(loader_handle: ::kernel::vfs::handle::File, init_handle: ::kernel::vfs::handle::File) {
-	use kernel::vfs::handle;
 	// - Forget the loader (no need)
 	::core::mem::forget(loader_handle);
 

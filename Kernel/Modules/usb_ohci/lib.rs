@@ -58,6 +58,15 @@ struct EndpointMetadata {
 	tail: AtomicPtr<hw::GeneralTD>,
 }
 
+
+enum BounceBufferHandle<'a> {
+	Direct(&'a [u8]),
+	Bounced {
+		orig_buf: Option<&'a mut [u8]>,
+		bounce_buf: ::kernel::memory::virt::AllocHandle,
+		},
+}
+
 impl BusDev
 {
 	fn new_boxed(irq: u32, io: ::kernel::device_manager::IOBinding) -> Result<Box<BusDev>, &'static str>
@@ -413,7 +422,8 @@ impl HostInner
 		td_handle
 	}
 
-	fn get_dma_write(&self, buffer: async::WriteBufferHandle) -> ((), u32, u32)
+	// Get a handle for a DMA output
+	fn get_dma_todev<'long,'short>(&self, buffer: async::WriteBufferHandle<'long,'short>) -> (BounceBufferHandle<'long>, u32, u32)
 	{
 		match buffer
 		{
@@ -428,13 +438,32 @@ impl HostInner
 			}
 			else {
 				// Good
-				return ( (), start_phys as u32, last_phys as u32);
+				return ( BounceBufferHandle::Direct(p), start_phys as u32, last_phys as u32);
 			}
 			todo!("Bounce buffer - long lifetime");
 			},
 		async::WriteBufferHandle::Short(p) => {
 			todo!("Bounce buffer - short lifetime");
 			},
+		}
+	}
+	// Get a handle for a DMA input
+	fn get_dma_fromdev<'a>(&self, p: &'a mut [u8]) -> (BounceBufferHandle<'a>, u32, u32)
+	{
+		{
+			let start_phys = ::kernel::memory::virt::get_phys(p.as_ptr());
+			let last_phys = ::kernel::memory::virt::get_phys(&p[p.len()-1]);
+			if start_phys > 0xFFFF_FFFF || last_phys > 0xFFFF_FFFF {
+				// An address is more than 32-bits, bounce
+			}
+			else if start_phys & !0xFFF != last_phys & !0xFFF && (0x1000 - (start_phys & 0xFFF) + last_phys & 0xFFF) as usize != p.len() {
+				// The buffer spans more than two pages, bounce
+			}
+			else {
+				// Good
+				return ( BounceBufferHandle::Direct(p), start_phys as u32, last_phys as u32);
+			}
+			todo!("Bounce buffer for read");
 		}
 	}
 
@@ -567,24 +596,45 @@ struct ControlEndpointHandle {
 }
 impl ControlEndpoint for ControlEndpointHandle
 {
-	fn out_only<'a, 's>(&'s self, async: async::ObjectHandle, mut stack: async::StackPush<'a, 's>, setup_data: async::WriteBufferHandle<'a, '_>, out_data: async::WriteBufferHandle<'a, '_>) {
-		// TODO: Figure out this stuff...
-		let (setup_buf, setup_first_phys, setup_last_phys) = self.controller.get_dma_write(setup_data);
-		let (out_buf, out_first_phys, out_last_phys) = self.controller.get_dma_write(out_data);
-		// SAFE: The buffers stay valid because they're moved into the async closure.
+	fn out_only<'a, 's>(&'s self, async: async::ObjectHandle, mut stack: async::StackPush<'a, 's>, setup_data: async::WriteBufferHandle<'s, '_>, out_data: async::WriteBufferHandle<'s, '_>)
+	{
+		// Get (potentially bounced) data handles
+		let (setup_buf, setup_first_phys, setup_last_phys) = self.controller.get_dma_todev(setup_data);
+		let (out_buf, out_first_phys, out_last_phys) = self.controller.get_dma_todev(out_data);
+
+		// SAFE: The buffers stay valid because the handles are moved into the async closure.
 		unsafe {
 			self.controller.push_td( &self.id, (0b00 << 19) /* setup */ | (7 << 21) /* no int */, setup_first_phys, setup_last_phys, async.clone() );
 			self.controller.push_td( &self.id, (0b01 << 19) /* out */ | (0 << 21) /* immediate int */, out_first_phys, out_last_phys, async.clone() );
 		}
-		stack.push_closure(move |async, _stack, out_bytes| {
+		stack.push_closure(move |_async, _stack, out_bytes| {
 			// - Capture buffer handles so they stay valid
 			let _ = setup_buf;
 			let _ = out_buf;
 			// - Pass the result down the chain.
 			Some(out_bytes)
-			}).unwrap();
+			}).expect("Stack exhaustion in ohci::ControlEndpointHandle::out_only");
 	}
-	fn in_only<'a, 's>(&'s self, async: async::ObjectHandle, stack: async::StackPush<'a, 's>, setup_data: async::WriteBufferHandle<'a, '_>, in_buf: &'a mut [u8]) {
+	fn in_only<'a, 's>(&'s self, async: async::ObjectHandle, mut stack: async::StackPush<'a, 's>, setup_data: async::WriteBufferHandle<'s, '_>, in_buf: &'s mut [u8])
+	{
+		// Get (potentially bounced) data handles
+		let (setup_buf, setup_first_phys, setup_last_phys) = self.controller.get_dma_todev(setup_data);
+		let (data_buf, data_first_phys, data_last_phys) = self.controller.get_dma_fromdev(in_buf);
+		// SAFE: The buffers stay valid because they're moved into the async closure.
+		unsafe {
+			self.controller.push_td( &self.id, (0b00 << 19) /* setup */ | (7 << 21) /* no int */, setup_first_phys, setup_last_phys, async.clone() );
+			self.controller.push_td( &self.id, (0b10 << 19) /* in */ | (0 << 21) /* immediate int */, data_first_phys, data_last_phys, async.clone() );
+		}
+		stack.push_closure(move |_async, _stack, out_bytes| {
+			// - Capture buffer handles so they stay valid
+			let _ = setup_buf;
+			let _ = data_buf;
+			if let BounceBufferHandle::Bounced { ref orig_buf, ref bounce_buf } = data_buf {
+				todo!("Copy data back out of the bounce buffer");
+			}
+			// - Pass the result down the chain.
+			Some(out_bytes)
+			}).expect("Stack exhaustion in ohci::ControlEndpointHandle::in_only");
 	}
 }
 

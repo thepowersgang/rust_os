@@ -141,18 +141,19 @@ impl<'a> Waiter+'a
 		{
 			let completed = {
 				let prim = self.get_waiter();
-				let mut obj = ::threads::SleepObject::new("wait_on_list");
-				log_trace!("- bind");
-				if prim.bind_signal( &mut obj ) {
-					obj.wait();
-				}
-				else {
-					while !prim.poll() {
-						// TODO: Take a nap
+				::threads::SleepObject::with_new("wait_on_list", |obj_ref| {
+					log_trace!("- bind");
+					if prim.bind_signal( obj_ref ) {
+						obj_ref.wait();
 					}
-				}
-				prim.unbind_signal();
-				log_trace!("- sleep over");
+					else {
+						while !prim.poll() {
+							// TODO: Take a nap
+						}
+					}
+					prim.unbind_signal();
+					log_trace!("- sleep over");
+					});
 				prim.is_ready()
 				};
 			// completed = This cycle is done, not everything?
@@ -201,46 +202,46 @@ pub fn wait_on_list(waiters: &mut [&mut Waiter], timeout: Option<u64>) -> Option
 	}
 	
 	// - Create an object for them to signal
-	let mut obj = ::threads::SleepObject::new("wait_on_list");
-	let force_poll = waiters.iter_mut()
-		.filter( |x| !x.is_complete() )
-		.fold(false, |v,x| v | !x.get_waiter().bind_signal( &mut obj) )
-		// ^ doesn't use .any() becuase of unbind_signal below
-		;
-	
-	if force_poll
-	{
-		log_trace!("- Polling");
-		let mut n_passes = 0;
-		// While none of the active waiters returns true from poll()
-		'outer: loop
+	::threads::SleepObject::with_new("wait_on_list", |obj| {
+		let force_poll = waiters.iter_mut()
+			.filter( |x| !x.is_complete() )
+			.fold(false, |v,x| v | !x.get_waiter().bind_signal(obj) )
+			// ^ doesn't use .any() becuase of unbind_signal below
+			;
+		
+		if force_poll
 		{
-			for w in waiters.iter_mut()
+			log_trace!("- Polling");
+			let mut n_passes = 0;
+			// While none of the active waiters returns true from poll()
+			'outer: loop
 			{
-				if w.is_complete() {
+				for w in waiters.iter_mut()
+				{
+					if w.is_complete() {
+					}
+					else if w.get_waiter().poll() {
+						break 'outer;
+					}
+					else {
+					}
 				}
-				else if w.get_waiter().poll() {
-					break 'outer;
-				}
-				else {
-				}
+				n_passes += 1;
+				// TODO: Take a short nap
 			}
-			n_passes += 1;
-			// TODO: Take a short nap
+			log_trace!("- Fire ({} passes)", n_passes);
 		}
-		log_trace!("- Fire ({} passes)", n_passes);
-	}
-	else
-	{
-		// - Wait the current thread on that object
-		log_trace!(" Sleeping");
-		obj.wait();
-	}
-	
-	for ent in waiters.iter_mut().filter(|x| !x.is_complete()) {
-		ent.get_waiter().unbind_signal();
-	}
-	::core::mem::drop(obj);
+		else
+		{
+			// - Wait the current thread on that object
+			log_trace!(" Sleeping");
+			obj.wait();
+		}
+		
+		for ent in waiters.iter_mut().filter(|x| !x.is_complete()) {
+			ent.get_waiter().unbind_signal();
+		}
+		});
 	
 	// Run completion handlers (via .is_ready and .complete), counting the number of changed waiters
 	let mut n_complete = 0;

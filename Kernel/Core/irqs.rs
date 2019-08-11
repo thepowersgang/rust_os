@@ -46,9 +46,10 @@ static S_IRQ_WORKER_SIGNAL: ::lib::LazyStatic<::threads::SleepObject<'static>> =
 static S_IRQ_WORKER: ::lib::LazyStatic<::threads::WorkerThread> = lazystatic_init!();
 
 pub fn init() {
-	// SAFE: Called in a single-threaded context
+	// SAFE: Called in a single-threaded context? (Not fully conttrolled)
 	unsafe {
-		S_IRQ_WORKER_SIGNAL.prep(|| ::threads::SleepObject::new("IRQ Worker"));
+		// SAFE: The SleepObject here is static, so is never invalidated
+		S_IRQ_WORKER_SIGNAL.prep(|| /*unsafe*/ { ::threads::SleepObject::new("IRQ Worker") });
 		S_IRQ_WORKER.prep(|| ::threads::WorkerThread::new("IRQ Worker", irq_worker));
 	}
 }

@@ -274,82 +274,83 @@ pub fn register<T: Interface>(mac_addr: [u8; 6], int: T) -> Registration<T> {
 
 fn rx_thread(int: &Interface)
 {
-	let so = ::kernel::threads::SleepObject::new("rx_thread");
-	int.rx_wait_register(&so);
-	loop
-	{
-		so.wait();
-		match int.rx_packet()
+	::kernel::threads::SleepObject::with_new("rx_thread",|so| {
+		int.rx_wait_register(&so);
+		loop
 		{
-		Ok(pkt) => {
-			log_notice!("Received packet, len={} (chunks={})", pkt.len(), pkt.num_regions());
-			for r in 0 .. pkt.num_regions() {
-				log_debug!("{} {:?}", r, ::kernel::logging::HexDump(pkt.get_region(r)));
-			}
-			// TODO: Should this go in is own module?
-			// 1. Interpret the `Ethernet II` header
-			if pkt.len() < 6+6+2 {
-				log_notice!("Short packet ({} < {})", pkt.len(), 6+6+2);
-				continue ;
-			}
-			let mut r = PacketReader::new(&pkt);
-			// 2. Hand off to sub-modules depending on the EtherTy field
-			let src_mac = {
-				let mut b = [0; 6];
-				r.read(&mut b).unwrap();
-				b
-				};
-			let _dst_mac = {
-				let mut b = [0; 6];
-				r.read(&mut b).unwrap();
-				b
-				};
-			let ether_ty = r.read_u16n().unwrap();
-			match ether_ty
+			so.wait();
+			match int.rx_packet()
 			{
-			0x0800 => match ::ipv4::handle_rx_ethernet(int, src_mac, r)
+			Ok(pkt) => {
+				log_notice!("Received packet, len={} (chunks={})", pkt.len(), pkt.num_regions());
+				for r in 0 .. pkt.num_regions() {
+					log_debug!("{} {:?}", r, ::kernel::logging::HexDump(pkt.get_region(r)));
+				}
+				// TODO: Should this go in is own module?
+				// 1. Interpret the `Ethernet II` header
+				if pkt.len() < 6+6+2 {
+					log_notice!("Short packet ({} < {})", pkt.len(), 6+6+2);
+					continue ;
+				}
+				let mut r = PacketReader::new(&pkt);
+				// 2. Hand off to sub-modules depending on the EtherTy field
+				let src_mac = {
+					let mut b = [0; 6];
+					r.read(&mut b).unwrap();
+					b
+					};
+				let _dst_mac = {
+					let mut b = [0; 6];
+					r.read(&mut b).unwrap();
+					b
+					};
+				let ether_ty = r.read_u16n().unwrap();
+				match ether_ty
 				{
-				Ok( () ) => {},
-				Err(e) => {
-					log_warning!("TODO: Unable to hanle IPv4 packet - {:?}", e);
+				0x0800 => match ::ipv4::handle_rx_ethernet(int, src_mac, r)
+					{
+					Ok( () ) => {},
+					Err(e) => {
+						log_warning!("TODO: Unable to hanle IPv4 packet - {:?}", e);
+						},
+					}
+				// ARP
+				0x0806 => {
+					// TODO: Pass on to ARP
+					//::arp::handle_packet(int, r);
+					// TODO: Length test
+					let hw_ty  = r.read_u16n().unwrap();
+					let sw_ty  = r.read_u16n().unwrap();
+					let hwsize = r.read_u8().unwrap();
+					let swsize = r.read_u8().unwrap();
+					let code = r.read_u16n().unwrap();
+					log_debug!("ARP HW {:04x} {}B SW {:04x} {}B req={}", hw_ty, hwsize, sw_ty, swsize, code);
+					if hwsize == 6 {
+						let mac = {
+							let mut b = [0; 6];
+							r.read(&mut b).unwrap();
+							b
+							};
+						log_debug!("ARP HW {:?}", ::kernel::logging::HexDump(&mac));
+					}
+					if swsize == 4 {
+						let ip = {
+							let mut b = [0; 4];
+							r.read(&mut b).unwrap();
+							b
+							};
+						log_debug!("ARP SW {:?}", ip);
+					}
+					},
+				v @ _ => {
+					log_warning!("TODO: Handle packet with EtherTy={:#x}", v);
 					},
 				}
-			// ARP
-			0x0806 => {
-				// TODO: Pass on to ARP
-				//::arp::handle_packet(int, r);
-				// TODO: Length test
-				let hw_ty  = r.read_u16n().unwrap();
-				let sw_ty  = r.read_u16n().unwrap();
-				let hwsize = r.read_u8().unwrap();
-				let swsize = r.read_u8().unwrap();
-				let code = r.read_u16n().unwrap();
-				log_debug!("ARP HW {:04x} {}B SW {:04x} {}B req={}", hw_ty, hwsize, sw_ty, swsize, code);
-				if hwsize == 6 {
-					let mac = {
-						let mut b = [0; 6];
-						r.read(&mut b).unwrap();
-						b
-						};
-					log_debug!("ARP HW {:?}", ::kernel::logging::HexDump(&mac));
-				}
-				if swsize == 4 {
-					let ip = {
-						let mut b = [0; 4];
-						r.read(&mut b).unwrap();
-						b
-						};
-					log_debug!("ARP SW {:?}", ip);
-				}
 				},
-			v @ _ => {
-				log_warning!("TODO: Handle packet with EtherTy={:#x}", v);
-				},
+			Err(Error::NoPacket) => {},
+			Err(e) => todo!("{:?}", e),
 			}
-			},
-		Err(Error::NoPacket) => {},
-		Err(e) => todo!("{:?}", e),
 		}
-	}
+		});
 }
 

@@ -44,7 +44,8 @@ unsafe impl ::core::marker::Send for SleepObjectRef {}
 impl<'a> SleepObject<'a>
 {
 	/// Create a new sleep object
-	pub fn new(name: &'static str) -> SleepObject
+	/// UNSAFE: The caller must ensure that this type's destructor is called (maintaining the correctness of obtained SleepObjectRef instances)
+	pub unsafe fn new(name: &'static str) -> SleepObject
 	{
 		SleepObject {
 			_nomove: ::core::marker::PhantomData,
@@ -54,6 +55,15 @@ impl<'a> SleepObject<'a>
 				reference_count: 0,
 				thread: None,
 				}),
+		}
+	}
+	/// Create a new sleep object and call a closure with it
+	pub fn with_new<T>(name: &'static str, f: impl FnOnce(&mut SleepObject)->T) -> T {
+		// SAFE: Destructor is called
+		unsafe {
+			let mut v = Self::new(name);
+			// TODO: Pass a handle instead?
+			f(&mut v)
 		}
 	}
 	
