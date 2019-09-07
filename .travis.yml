@@ -21,12 +21,13 @@ before_script:
   - (cd acpica && ln -s ../_archives/acpica-unix2-20150410.tar.gz)
   - ln -s _archives/rustc-nightly-src.tar.gz
   - export PATH=$PATH:$PWD/.prefix/bin
+  - make UPDATE
+  - make EXTERNALS
 # try to cache the toolchain download
 cache:
    directories:
     - _archives
 script:
-  - make UPDATE
   - make all
 #  - python SystemTest/BasicBoot.py
 
