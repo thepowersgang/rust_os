@@ -103,7 +103,7 @@ $(OBJDIR)modules.rs: Makefile-xargo
 	@echo '{\n $(patsubst %,extern crate %;\n,$(MODS))' >> $@
 	@echo "    $(patsubst %,use_mod(&%::S_MODULE); rv+=1;\n   ,$(MODS))" >> $@
 	@echo "}" >> $@
-targets/targetk-k-$(ARCH).json: Core/arch/$(ARCH)/target.json
+targets/target-k-$(ARCH).json: Core/arch/$(ARCH)/target.json
 	@mkdir -p $(dir $@)
 	$Vcp $< $@
 
