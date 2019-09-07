@@ -199,6 +199,11 @@ GLOBAL(image_header)
 	.long init_path_end - init_path
 	DEFPTR start
 
+.section .data
+GLOBAL(limit_and_base)
+	.quad	BASE
+	.quad	LIMIT
+
 .section .bss
 	.space 0x1000	/* Guard page */
 GLOBAL(init_stack_base)

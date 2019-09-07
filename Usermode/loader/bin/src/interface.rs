@@ -26,8 +26,7 @@ impl_from! {
 pub extern "C" fn new_process(executable_handle: ::syscalls::vfs::File, process_name: &[u8], args: &[&[u8]]) -> Result<::syscalls::threads::ProtoProcess,loader::Error>
 {
 	extern "C" {
-		static BASE: [u8; 0];
-		static LIMIT: [u8; 0];
+		static limit_and_base: (u64, u64);
 	}
 	
 	kernel_log!("new_process({:?}, ...)", ::std::ffi::OsStr::new(process_name));
@@ -62,7 +61,7 @@ pub extern "C" fn new_process(executable_handle: ::syscalls::vfs::File, process_
 
 		// Spawn new process
 		// SAFE: Just takes the address of the externs statics
-		match ::syscalls::threads::start_process(name, unsafe { BASE.as_ptr() as usize }, unsafe { LIMIT.as_ptr() as usize })
+		match ::syscalls::threads::start_process(name, unsafe { limit_and_base.0 as usize }, unsafe { limit_and_base.1 as usize })
 		{
 		Ok(v) => v,
 		Err(e) => panic!("TODO: new_process - Error '{:?}'", e),
