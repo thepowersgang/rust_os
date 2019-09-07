@@ -15,7 +15,6 @@
 #![feature(alloc,allocator_api)]
 #![feature(allocator_internals)]
 #![feature(core_panic_info)]	// Needed because of import of `panic` macro bringin in the module too
-#![feature(__rust_unstable_column)]	// needed for panics
 #![feature(test,custom_test_frameworks)]	// used for macro import
 #![feature(asm,global_asm,concat_idents,format_args_nl,log_syntax)]
 #![default_lib_allocator]
@@ -33,7 +32,7 @@ extern crate alloc_system;
 // Macros
 pub use alloc::{/*vec, */format};
 pub use core::{try, assert, assert_eq, panic, write, unreachable, unimplemented};
-pub use core::{file, line, __rust_unstable_column};
+pub use core::{file, line};
 //pub use core::{deriving_Debug};
 
 
@@ -106,7 +105,6 @@ pub mod prelude {
 			test_case,
 			};
 		pub use core::prelude::v1::{
-			__rust_unstable_column,
 			asm,
 			assert,
 			cfg,
