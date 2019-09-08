@@ -69,11 +69,12 @@ makefile_deps =
 
 
 # DEFAULT: Compile all applications
-all: $(APPS:%=$(BINDIR)%)
+#all: $(APPS:%=$(BINDIR)%)
+all: xargo
 
 # Delete all artifacts
 clean:
-	$(RM) -rf $(OUTDIR) $(OBJDIR) .docs
+	$(RM) -rf $(OUTDIR) $(OBJDIR) .docs target
 
 docs: $(patsubst lib%/,.docs/%/index.html,$(wildcard lib*/))
 
