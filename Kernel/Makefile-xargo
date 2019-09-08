@@ -90,7 +90,7 @@ endif
 # Invoke xargo to build the main part of the kernel
 # - This includes all modules enabled in ./Cargo.toml
 #
-$(OBJDIR)libmain.a: PHONY $(OBJDIR)modules.rs targets/target-k-$(ARCH).json
+$(OBJDIR)libmain.a: PHONY $(OBJDIR)modules.rs targets/target-k-$(ARCH).json $(IMGDIR)logo.rs $(IMGDIR)panic.rs
 	@echo "[XARGO] . > $@"
 	$VRUSTOS_MODPATH=../$(OBJDIR)modules.rs RUSTFLAGS="-C target-feature=$(subst $(space),$(comma),$(EXCLUDE_FEATURES:%=-%))" $(ENV) $(XARGO) build --target=target-k-$(ARCH) --release --features "$(CARGO_FEATURES)"
 	@mkdir -p $(dir $@)
@@ -127,7 +127,5 @@ $(OBJDIR)log_cfg.ao: Core/log_cfg.S
 	@mkdir -p $(dir $@)
 	$V$(CC) -o $@ -c $<
 
-../Graphics/logo.rs: ../Graphics/TifflinLogoV1-128.png ../Graphics/ConvertTo32bppRS
-	cd ../Graphics && ./ConvertTo32bppRS TifflinLogoV1-128.png logo.rs S_LOGO
 $(IMGDIR)%.rs: ../Graphics/ConvertTo32bppRS
 	cd ../Graphics && make $(@:../Graphics/%=%)
