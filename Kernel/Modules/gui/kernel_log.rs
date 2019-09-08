@@ -21,7 +21,7 @@ use kernel::sync::mutex::{LazyMutex,HeldLazyMutex};
 include!("../../../Graphics/font_cp437_8x16.rs");
 
 // Raw bitmap logo (already encoded with dims and as a rust array)
-include!("../../../Graphics/logo.rs");
+include!("../../../Graphics/.output/shared/logo.rs");
 
 struct KernelLog
 {
