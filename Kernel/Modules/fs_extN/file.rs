@@ -30,7 +30,7 @@ impl vfs::node::NodeBase for File
 	fn get_id(&self) -> vfs::node::InodeId {
 		self.inode.get_id()
 	}
-	fn get_any(&self) -> &::core::any::Any {
+	fn get_any(&self) -> &dyn (::core::any::Any) {
 		self
 	}
 }

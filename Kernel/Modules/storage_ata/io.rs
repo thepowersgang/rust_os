@@ -412,7 +412,7 @@ impl<'a,'b> async::ResultWaiter for AtaWaiter<'a,'b>
 		}
 	}
 	
-	fn as_waiter(&mut self) -> &mut async::Waiter { self }
+	fn as_waiter(&mut self) -> &mut dyn async::Waiter { self }
 }
 
 impl<'a,'b> async::Waiter for AtaWaiter<'a,'b>
@@ -421,7 +421,7 @@ impl<'a,'b> async::Waiter for AtaWaiter<'a,'b>
 		if let WaitState::Done(..) = self.state { true } else { false }
 	}
 	
-	fn get_waiter(&mut self) -> &mut async::PrimitiveWaiter
+	fn get_waiter(&mut self) -> &mut dyn async::PrimitiveWaiter
 	{
 		match self.state
 		{
@@ -497,7 +497,7 @@ impl<'a,'b> async::ResultWaiter for AtapiWaiter<'a,'b>
 		}
 	}
 	
-	fn as_waiter(&mut self) -> &mut async::Waiter { self }
+	fn as_waiter(&mut self) -> &mut dyn async::Waiter { self }
 }
 
 impl<'a,'b> async::Waiter for AtapiWaiter<'a,'b>
@@ -506,7 +506,7 @@ impl<'a,'b> async::Waiter for AtapiWaiter<'a,'b>
 		if let WaitState::Done(..) = self.state { true } else { false }
 	}
 	
-	fn get_waiter(&mut self) -> &mut async::PrimitiveWaiter
+	fn get_waiter(&mut self) -> &mut dyn async::PrimitiveWaiter
 	{
 		match self.state
 		{

@@ -119,18 +119,18 @@ pub trait Mapper: Send + Sync
 	///
 	/// Lower values are weaker handles, 0 means unhandled.
 	/// Typical values are: 1=MBR, 2=GPT, 3=LVM etc
-	fn handles_pv(&self, pv: &PhysicalVolume) -> Result<usize,IoError>;
+	fn handles_pv(&self, pv: &dyn PhysicalVolume) -> Result<usize,IoError>;
 	
 	/// Enumerate volumes
-	fn enum_volumes(&self, pv: &PhysicalVolume, f: &mut FnMut(String, u64, u64)) -> Result<(),IoError>;
+	fn enum_volumes(&self, pv: &dyn PhysicalVolume, f: &mut dyn FnMut(String, u64, u64)) -> Result<(),IoError>;
 }
 
 
 /// A single physical volume
 struct PhysicalVolumeInfo
 {
-	dev: Box<PhysicalVolume>,
-	mapper: Option<(usize,&'static Mapper)>,
+	dev: Box<dyn PhysicalVolume>,
+	mapper: Option<(usize,&'static dyn Mapper)>,
 }
 /// A single logical volume, composed of 1 or more physical blocks
 #[derive(Default)]
@@ -161,7 +161,7 @@ static S_NEXT_PV_IDX: AtomicUsize = AtomicUsize::new(0);
 static S_PHYSICAL_VOLUMES: LazyMutex<VecMap<usize,PhysicalVolumeInfo>> = lazymutex_init!();
 static S_NEXT_LV_IDX: AtomicUsize = AtomicUsize::new(0);
 static S_LOGICAL_VOLUMES: LazyMutex<VecMap<usize,Arc<LogicalVolume>>> = lazymutex_init!();
-static S_MAPPERS: LazyMutex<Vec<&'static Mapper>> = lazymutex_init!();
+static S_MAPPERS: LazyMutex<Vec<&'static dyn Mapper>> = lazymutex_init!();
 
 // NOTE: Should unbinding of LVs be allowed? (Yes, for volume removal)
 
@@ -176,13 +176,13 @@ fn init()
 }
 
 /// Register a physical volume
-pub fn register_pv(dev: Box<PhysicalVolume>) -> PhysicalVolumeReg
+pub fn register_pv(dev: Box<dyn PhysicalVolume>) -> PhysicalVolumeReg
 {
 	log_trace!("register_pv(pv = \"{}\")", dev.name());
 	let pv_id = S_NEXT_PV_IDX.fetch_add(1, ::core::sync::atomic::Ordering::Relaxed);
 
 	// Now that a new PV has been inserted, handlers should be informed
-	let mut best_mapper: Option<&Mapper> = None;
+	let mut best_mapper: Option<&dyn Mapper> = None;
 	let mut best_mapper_level = 0;
 	// - Only try to resolve a mapper if there's media in the drive
 	if dev.capacity().is_some()
@@ -236,7 +236,7 @@ pub fn register_pv(dev: Box<PhysicalVolume>) -> PhysicalVolumeReg
 // module is unloaded.
 // TODO: In the current model, mappers can be unloaded without needing the volumes to be unmounted, but a possible
 // extension is to allow the mapper to handle logical->physical itself.
-pub fn register_mapper(mapper: &'static Mapper)
+pub fn register_mapper(mapper: &'static dyn Mapper)
 {
 	S_MAPPERS.lock().push(mapper);
 	
@@ -274,7 +274,7 @@ pub fn register_mapper(mapper: &'static Mapper)
 }
 
 /// Apply the passed mapper to the provided physical volume
-fn apply_mapper_to_pv(mapper: &'static Mapper, level: usize, pv_id: usize, pvi: &mut PhysicalVolumeInfo)
+fn apply_mapper_to_pv(mapper: &'static dyn Mapper, level: usize, pv_id: usize, pvi: &mut PhysicalVolumeInfo)
 {
 	// - Can't compare fat raw pointers (ICE, #23888)
 	//assert!(level > 0 || mapper as *const _ == &default_mapper::S_MAPPER as *const _);
@@ -617,6 +617,7 @@ impl ::core::fmt::Display for SizePrinter
 mod default_mapper
 {
 	use prelude::*;
+	use metadevs::storage;
 	
 	pub struct Mapper;
 	
@@ -624,11 +625,11 @@ mod default_mapper
 	
 	impl ::metadevs::storage::Mapper for Mapper {
 		fn name(&self) -> &str { "fallback" }
-		fn handles_pv(&self, _pv: &::metadevs::storage::PhysicalVolume) -> Result<usize,super::IoError> {
+		fn handles_pv(&self, _pv: &dyn storage::PhysicalVolume) -> Result<usize,super::IoError> {
 			// The fallback mapper never explicitly handles
 			Ok(0)
 		}
-		fn enum_volumes(&self, pv: &::metadevs::storage::PhysicalVolume, new_volume_cb: &mut FnMut(String, u64, u64)) -> Result<(),super::IoError> {
+		fn enum_volumes(&self, pv: &dyn storage::PhysicalVolume, new_volume_cb: &mut dyn FnMut(String, u64, u64)) -> Result<(),super::IoError> {
 			if let Some(cap) = pv.capacity() {
 				new_volume_cb(format!("{}w", pv.name()), 0, cap );
 			}

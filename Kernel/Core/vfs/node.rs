@@ -32,7 +32,7 @@ pub trait NodeBase: Send {
 	/// Return the volume's inode number
 	fn get_id(&self) -> InodeId;
 	/// Return an &Any associated with this node (not nessesarily same as `self`, up to the driver)
-	fn get_any(&self) -> &Any;
+	fn get_any(&self) -> &dyn Any;
 }
 /// Trait for "File" nodes
 pub trait File: NodeBase {
@@ -51,7 +51,7 @@ pub trait File: NodeBase {
 // TODO: Should this be &ByteStr instead of an iterator?
 // - For non-byte on-disk filenames (FAT LFN, NTFS) it would lead to excessive allocations.
 /// Return `false` when read should stop
-pub type ReadDirCallback<'a> = FnMut(InodeId, &mut Iterator<Item=u8>)->bool + 'a;
+pub type ReadDirCallback<'a> = dyn FnMut(InodeId, &mut dyn Iterator<Item=u8>)->bool + 'a;
 
 /// Trait for "Directory" nodes, containers for files.
 pub trait Dir: NodeBase {
@@ -70,7 +70,7 @@ pub trait Dir: NodeBase {
 	/// Returns the newly created node
 	fn create(&self, name: &ByteStr, nodetype: NodeType) -> Result<InodeId>;
 	/// Create a new name for the provided inode
-	fn link(&self, name: &ByteStr, inode: &NodeBase) -> Result<()>;
+	fn link(&self, name: &ByteStr, inode: &dyn NodeBase) -> Result<()>;
 	/// Remove the specified name
 	fn unlink(&self, name: &ByteStr) -> Result<()>;
 }
@@ -92,30 +92,30 @@ pub trait Special: NodeBase {
 /// VFS Node
 pub enum Node
 {
-	File(Box<File>),
-	Dir(Box<Dir>),
-	Symlink(Box<Symlink>),
-	Special(Box<Special>),
+	File(Box<dyn File>),
+	Dir(Box<dyn Dir>),
+	Symlink(Box<dyn Symlink>),
+	Special(Box<dyn Special>),
 }
 
 enum CacheNodeInt
 {
 	File {
-		fsnode: Box<File>
+		fsnode: Box<dyn File>
 		
 		// File memory map data
 		//mapped_pages: HashMap<u64,FrameHandle>,
 		},
 	Dir {
 		mountpoint: AtomicUsize,	// 0 is invalid (that's root), so means "no mount"
-		fsnode: Box<Dir>
+		fsnode: Box<dyn Dir>
 		},
 	Symlink {
 		target: ByteString,
-		fsnode: Box<Symlink>
+		fsnode: Box<dyn Symlink>
 		},
 	Special {
-		fsnode: Box<Special>
+		fsnode: Box<dyn Special>
 		},
 }
 impl_from!{
@@ -324,7 +324,7 @@ impl CacheHandle
 		self.get_class() == NodeClass::Symlink
 	}
 
-	pub fn get_any(&self) -> &Any {
+	pub fn get_any(&self) -> &dyn Any {
 		match self.as_ref()
 		{
 		&CacheNodeInt::Dir { ref fsnode, .. } => fsnode.get_any(),

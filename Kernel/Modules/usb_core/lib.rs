@@ -37,7 +37,7 @@ struct AddressPool
 /// - Used to hold the device address allocation logic/structures
 struct Host
 {
-	driver: Box<host::HostController>,
+	driver: Box<dyn host::HostController>,
 	addresses: ::kernel::sync::Mutex<AddressPool>,
 
 	//// If true, EP0 is currently being enumerated
@@ -47,7 +47,7 @@ struct Host
 struct HubDevice
 {
 	host: ArefBorrow<Host>,
-	int_ep: host::Handle<host::InterruptEndpoint>,
+	int_ep: host::Handle<dyn host::InterruptEndpoint>,
 }
 ///// An endpoint currently being enumerated
 //struct EnumeratingDevice
@@ -62,7 +62,7 @@ static EVENT_QUEUE: ::kernel::sync::Queue<(usize, usize)> = ::kernel::sync::Queu
 //static ENUM_DEVICE_LIST: ::kernel::sync::Mutex<Vec<PortTask>> = :kernel::sync::Mutex::new(Vec::new_const());
 
 /// Add a new host controller/bus to the system
-pub fn register_host(mut h: Box<host::HostController>)
+pub fn register_host(mut h: Box<dyn host::HostController>)
 {
 	let mut lh = WATCH_LIST.lock();
 	let idx = lh.len();
@@ -95,35 +95,34 @@ fn worker_thread()
 		}
 	}
 }
-/*
-impl Meta
+#[allow(dead_code)]	// TODO: Remove when used
+impl Hub
 {
 	fn set_port_feature(&self, port_idx: usize, feat: host::PortFeature)
 	{
 		match self
 		{
-		&Meta::RootHub(ref h) => h.driver.set_port_feature(port_idx, feat),
-		&Meta::Hub(ref h) => h.set_port_feature(port_idx, feat),
+		&Hub::Root  (ref h) => h.driver.set_port_feature(port_idx, feat),
+		&Hub::Device(ref h) => h.set_port_feature(port_idx, feat),
 		}
 	}
 	fn clear_port_feature(&self, port_idx: usize, feat: host::PortFeature)
 	{
 		match self
 		{
-		&Meta::RootHub(ref h) => h.driver.clear_port_feature(port_idx, feat),
-		&Meta::Hub(ref h) => h.clear_port_feature(port_idx, feat),
+		&Hub::Root  (ref h) => h.driver.clear_port_feature(port_idx, feat),
+		&Hub::Device(ref h) => h.clear_port_feature(port_idx, feat),
 		}
 	}
 	fn get_port_feature(&self, port_idx: usize, feat: host::PortFeature) -> bool
 	{
 		match self
 		{
-		&Meta::RootHub(ref h) => h.driver.get_port_feature(port_idx, feat),
-		&Meta::Hub    (ref h) => h.get_port_feature(port_idx, feat),
+		&Hub::Root  (ref h) => h.driver.get_port_feature(port_idx, feat),
+		&Hub::Device(ref h) => h.get_port_feature(port_idx, feat),
 		}
 	}
 }
-*/
 
 struct Port
 {
@@ -193,6 +192,7 @@ impl Port
 
 impl Host
 {
+	#[allow(dead_code)] // TODO: Remove when used
 	fn allocate_address(&self) -> Option<u8>
 	{
 		match self.addresses.lock().allocate()
@@ -297,13 +297,13 @@ impl HubDevice
 	}
 
 	fn set_port_feature(&self, port_idx: usize, feat: host::PortFeature) {
-		todo!("HubDevice::set_port_feature")
+		todo!("HubDevice::set_port_feature({}, {:?})", port_idx, feat)
 	}
 	fn clear_port_feature(&self, port_idx: usize, feat: host::PortFeature) {
-		todo!("HubDevice::clear_port_feature")
+		todo!("HubDevice::clear_port_feature({}, {:?})", port_idx, feat)
 	}
 	fn get_port_feature(&self, port_idx: usize, feat: host::PortFeature) -> bool {
-		todo!("HubDevice::get_port_feature")
+		todo!("HubDevice::get_port_feature({}, {:?})", port_idx, feat)
 	}
 
 }

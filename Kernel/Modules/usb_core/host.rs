@@ -7,7 +7,7 @@ use kernel::_async3 as kasync;
 pub use crate::hub::PortFeature;
 
 /// A double-fat pointer (three words long)
-pub type Handle<T: ?Sized> = ::stack_dst::ValueA<T, [usize; 3]>;
+pub type Handle<T/*: ?Sized*/> = ::stack_dst::ValueA<T, [usize; 3]>;
 
 pub struct EndpointAddr(u16);	// 7 bit device and 4 bit endpoint (encoded together)
 impl EndpointAddr
@@ -24,10 +24,16 @@ impl EndpointAddr
 		(self.0 & 0xF) as u8
 	}
 }
+impl ::core::fmt::Debug for EndpointAddr
+{
+	fn fmt(&self, f: &mut ::core::fmt::Formatter) -> ::core::fmt::Result {
+		write!(f, "{}:{}", self.dev_addr(), self.endpt())
+	}
+}
 
 pub trait InterruptEndpoint: Send + Sync
 {
-	fn get_data(&self) -> Handle<crate::handle::RemoteBuffer>;
+	fn get_data(&self) -> Handle<dyn crate::handle::RemoteBuffer>;
 }
 //	fn tx_async<'a, 's>(&'s self, async_obj: kasync::ObjectHandle, stack: kasync::StackPush<'a, 's>, pkt: SparsePacket) -> Result<(), Error>;
 pub trait ControlEndpoint
@@ -59,15 +65,15 @@ pub trait BulkEndpoint: Send + Sync
 pub trait HostController: Send + Sync
 {
 	///// Obtain a handle to endpoint zero
-	//fn get_control_zero(&self) -> Handle<ControlEndpoint>;
+	//fn get_control_zero(&self) -> Handle<dyn ControlEndpoint>;
 	/// Begin polling an endpoint at the given rate (buffer used is allocated by the driver to be the interrupt endpoint's size)
-	fn init_interrupt(&self, endpoint: EndpointAddr, period_ms: usize, waiter: kasync::ObjectHandle) -> Handle<InterruptEndpoint>;
+	fn init_interrupt(&self, endpoint: EndpointAddr, period_ms: usize, waiter: kasync::ObjectHandle) -> Handle<dyn InterruptEndpoint>;
 	/// Initialise an ichronous endpoint
-	fn init_isoch(&self, endpoint: EndpointAddr, max_packet_size: usize) -> Handle<IsochEndpoint>;
+	fn init_isoch(&self, endpoint: EndpointAddr, max_packet_size: usize) -> Handle<dyn IsochEndpoint>;
 	/// Initialise a control endpoint
-	fn init_control(&self, endpoint: EndpointAddr, max_packet_size: usize) -> Handle<ControlEndpoint>;
+	fn init_control(&self, endpoint: EndpointAddr, max_packet_size: usize) -> Handle<dyn ControlEndpoint>;
 	/// Initialise a bulk endpoint
-	fn init_bulk(&self, endpoint: EndpointAddr, max_packet_size: usize) -> Handle<BulkEndpoint>;
+	fn init_bulk(&self, endpoint: EndpointAddr, max_packet_size: usize) -> Handle<dyn BulkEndpoint>;
 
 
 	// Root hub maintainence

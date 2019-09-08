@@ -111,7 +111,7 @@ impl vfs::node::NodeBase for Dir
 	fn get_id(&self) -> vfs::node::InodeId {
 		self.inode.get_id()
 	}
-	fn get_any(&self) -> &::core::any::Any {
+	fn get_any(&self) -> &dyn core::any::Any {
 		self
 	}
 }
@@ -217,7 +217,7 @@ impl vfs::node::Dir for Dir
 			}
 		}
 	}
-	fn link(&self, name: &ByteStr, node: &vfs::node::NodeBase) -> vfs::node::Result<()> {
+	fn link(&self, name: &ByteStr, node: &dyn vfs::node::NodeBase) -> vfs::node::Result<()> {
 		if self.inode.fs.is_readonly()
 		{
 			Err( vfs::Error::ReadOnlyFilesystem )

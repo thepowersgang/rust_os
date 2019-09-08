@@ -11,7 +11,7 @@ unsafe impl ::args::Pod for ::values::MaskedSocketAddress { }
 
 pub fn new_server(local_address: ::values::SocketAddress) -> Result<u32, ::values::SocketError>
 {
-	todo!("new_server");
+	todo!("new_server({:?}", local_address);
 }
 
 pub fn new_free_socket(local_address: ::values::SocketAddress, remote_mask: ::values::MaskedSocketAddress) -> Result<u32, ::values::SocketError>
@@ -32,7 +32,7 @@ struct ConnServer
 impl ::objects::Object for ConnServer
 {
 	fn class(&self) -> u16 { ::values::CLASS_SERVER }
-	fn as_any(&self) -> &::core::any::Any { self }
+	fn as_any(&self) -> &dyn core::any::Any { self }
 	fn try_clone(&self) -> Option<u32> {
 		None
 		//Some( ::objects::new_object(self.clone()) )
@@ -66,7 +66,7 @@ struct ConnSocket
 impl ::objects::Object for ConnSocket
 {
 	fn class(&self) -> u16 { ::values::CLASS_SOCKET }
-	fn as_any(&self) -> &::core::any::Any { self }
+	fn as_any(&self) -> &dyn core::any::Any { self }
 	fn try_clone(&self) -> Option<u32> {
 		None
 		//Some( ::objects::new_object(self.clone()) )
@@ -109,7 +109,7 @@ struct FreeSocket
 impl ::objects::Object for FreeSocket
 {
 	fn class(&self) -> u16 { ::values::CLASS_FREESOCKET }
-	fn as_any(&self) -> &::core::any::Any { self }
+	fn as_any(&self) -> &dyn core::any::Any { self }
 	fn try_clone(&self) -> Option<u32> {
 		None
 		//Some( ::objects::new_object(self.clone()) )

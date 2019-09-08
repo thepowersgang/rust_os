@@ -19,7 +19,7 @@ impl device_manager::Driver for PciDriver
 	fn bus_type(&self) -> &str {
 		"pci"
 	}
-	fn handles(&self, bus_dev: &::kernel::device_manager::BusDevice) -> u32
+	fn handles(&self, bus_dev: &dyn device_manager::BusDevice) -> u32
 	{
 		let classcode = bus_dev.get_attr("class").unwrap_u32();
 		// [class] [subclass] [IF] [ver]
@@ -30,7 +30,7 @@ impl device_manager::Driver for PciDriver
 			0
 		}
 	}
-	fn bind(&self, bus_dev: &mut ::kernel::device_manager::BusDevice) -> Box<::kernel::device_manager::DriverInstance+'static>
+	fn bind(&self, bus_dev: &mut dyn device_manager::BusDevice) -> Box<dyn device_manager::DriverInstance+'static>
 	{
 		let irq = bus_dev.get_irq(0);
 		let base = bus_dev.bind_io(5);

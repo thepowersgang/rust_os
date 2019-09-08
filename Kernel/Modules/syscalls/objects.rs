@@ -15,7 +15,7 @@ use kernel::threads::get_process_local;
 pub trait Object: Send + Sync + ::core::any::Any
 {
 	fn type_name(&self) -> &str { type_name!(Self) }
-	fn as_any(&self) -> &Any;
+	fn as_any(&self) -> &dyn Any;
 	/// Object class code (values::CLASS_*)
 	fn class(&self) -> u16;
 
@@ -37,7 +37,7 @@ pub trait Object: Send + Sync + ::core::any::Any
 }
 impl<T: Object> Object for Box<T> {
 	fn type_name(&self) -> &str { (**self).type_name() }
-	fn as_any(&self) -> &Any { (**self).as_any() }
+	fn as_any(&self) -> &dyn Any { (**self).as_any() }
 	fn class(&self) -> u16 { (**self).class() }
 	fn try_clone(&self) -> Option<u32> {
 		(**self).try_clone()
@@ -59,7 +59,7 @@ impl<T: Object> Object for Box<T> {
 		(**self).clear_wait(flags, obj)
 	}
 }
-pub type ObjectAlloc = ::stack_dst::ValueA<Object, [usize; 8]>;
+pub type ObjectAlloc = ::stack_dst::ValueA<dyn Object, [usize; 8]>;
 
 struct UserObject
 {
@@ -120,7 +120,7 @@ impl ProcessObjects {
 
 	fn with_object<O, F>(&self, handle: u32, fcn: F) -> Result< O, super::Error >
 	where
-		F: FnOnce(&Object)->Result<O,super::Error> 
+		F: FnOnce(&dyn Object)->Result<O,super::Error> 
 	{
 		if let Some(h) = self.get(handle)
 		{
@@ -138,7 +138,7 @@ impl ProcessObjects {
 	}
 	fn with_object_val<O, F>(&self, handle: u32, fcn: F) -> Result<O, super::Error>
 	where
-		F: FnOnce(&mut Object) -> Result<O, super::Error>
+		F: FnOnce(&mut dyn Object) -> Result<O, super::Error>
 	{
 		if let Some(h) = self.get(handle)
 		{

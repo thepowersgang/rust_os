@@ -263,7 +263,7 @@ impl fmt::Display for Level
 
 impl Sinks
 {
-	pub fn foreach_mut<Fcn: FnMut(&mut Sink)>(&mut self, mut f: Fcn)
+	pub fn foreach_mut<Fcn: FnMut(&mut dyn Sink)>(&mut self, mut f: Fcn)
 	{
 		f(&mut self.serial);
 		self.memory.as_mut().map(|x| f(x));
@@ -343,7 +343,7 @@ impl<'a> fmt::Debug for RawString<'a>
 			b'\n' => try!(write!(f, "\\n")),
 			b'\\' => try!(write!(f, "\\\\")),
 			b'"' => try!(write!(f, "\\\"")),
-			32 ... 0x7E => try!(write!(f, "{}", b as char)),
+			32 ..= 0x7E => try!(write!(f, "{}", b as char)),
 			_ => try!(write!(f, "\\x{:02x}", b)),
 			}
 		}
@@ -378,7 +378,7 @@ impl<'a> fmt::Display for HexDumpBlk<'a>
 				try!(write!(f, "{}",
 					match self.0[i]
 					{
-					v @ 32 ... 0x7E => v as char,
+					v @ 32 ..= 0x7E => v as char,
 					_ => '.',
 					}));
 			}

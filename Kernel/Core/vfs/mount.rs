@@ -25,7 +25,7 @@ pub struct SelfHandle(usize);
 struct MountedVolume
 {
 	mountpoint_node: CacheHandle,
-	fs: Box<Filesystem>,
+	fs: Box<dyn Filesystem>,
 }
 
 
@@ -55,17 +55,17 @@ pub trait Driver:
 	/// Mount the provided volume as this filesystem
 	///
 	/// NOTE: `handle` isn't actually usable until after this function returns
-	fn mount(&self, vol: VolumeHandle, handle: SelfHandle) -> super::Result<Box<Filesystem>>;
+	fn mount(&self, vol: VolumeHandle, handle: SelfHandle) -> super::Result<Box<dyn Filesystem>>;
 }
 
 pub struct DriverRegistration(&'static str);
 
 /// Known drivers
-static S_DRIVERS: LazyStatic<RwLock< VecMap<&'static str, &'static Driver> >> = lazystatic_init!();
+static S_DRIVERS: LazyStatic<RwLock< VecMap<&'static str, &'static dyn Driver> >> = lazystatic_init!();
 /// Mounted volumes
 static S_VOLUMES: LazyStatic<RwLock< SparseVec<MountedVolume> >> = lazystatic_init!();
 /// Root mount
-static S_ROOT_VOLUME: RwLock<Option<Box<Filesystem>>> = RwLock::new(None);
+static S_ROOT_VOLUME: RwLock<Option<Box<dyn Filesystem>>> = RwLock::new(None);
 
 pub fn init()
 {
@@ -181,7 +181,7 @@ impl_fmt! {
 
 impl DriverRegistration
 {
-	pub fn new(name: &'static str, fs: &'static Driver) -> Option<DriverRegistration> {
+	pub fn new(name: &'static str, fs: &'static dyn Driver) -> Option<DriverRegistration> {
 		match S_DRIVERS.write().entry(name)
 		{
 		::lib::vec_map::Entry::Vacant(e) => {
@@ -218,7 +218,7 @@ impl Handle
 		self.with_fs(|fs| fs.get_node_by_inode(id))
 	}
 
-	fn with_fs<R, F: FnOnce(&Filesystem)->R>(&self, f: F) -> R {
+	fn with_fs<R, F: FnOnce(&dyn Filesystem)->R>(&self, f: F) -> R {
 		if self.0 == 0 {
 			f(&**S_ROOT_VOLUME.read().as_ref().unwrap())
 		}

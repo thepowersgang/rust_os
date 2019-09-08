@@ -287,7 +287,7 @@ fn invoke_int(call_id: u32, args: &mut Args) -> Result<u64,Error>
 		// - Call method
 		match call_id as u16
 		{
-		0 ... 0x3FD => {
+		0 ..= 0x3FD => {
 			objects::call_object_ref(handle_id, call_id as u16, args)
 			},
 		::values::OBJECT_CLONE => {
@@ -296,7 +296,7 @@ fn invoke_int(call_id: u32, args: &mut Args) -> Result<u64,Error>
 		::values::OBJECT_GETCLASS => {
 			objects::get_class(handle_id)
 			},
-		0x400 ... 0x7FE => {
+		0x400 ..= 0x7FE => {
 			// Call a method defined for the object class.
 			objects::call_object_val(handle_id, call_id as u16, args)
 			},

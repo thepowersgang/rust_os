@@ -345,7 +345,7 @@ impl InstanceInner
 	}
 
 	/// Allocate a new inode number, possibly in the same block group as `parent_inode_num`.
-	pub fn allocate_inode(&self, parent_inode_num: u32, nodetype: vfs::node::NodeType) -> vfs::node::Result< u32 >
+	pub fn allocate_inode(&self, parent_inode_num: u32, _nodetype: vfs::node::NodeType) -> vfs::node::Result< u32 >
 	{
 		let (grp, _idx) = self.get_inode_grp_id(parent_inode_num);
 		let gd = &self.group_descriptors[grp as usize];

@@ -63,7 +63,7 @@ impl mount::Driver for Driver
 			Ok(0)
 		}
 	}
-	fn mount(&self, vol: VolumeHandle, _mounthandle: mount::SelfHandle) -> vfs::Result<Box<mount::Filesystem>> {
+	fn mount(&self, vol: VolumeHandle, _mounthandle: mount::SelfHandle) -> vfs::Result<Box<dyn mount::Filesystem>> {
 		// For this to work properly, the block size must evenly divide 2048
 		if 2048 % vol.block_size() != 0 {
 			return Err( vfs::Error::Unknown("Can't mount ISO9660 with sector size not a factor of 2048"/*, vol.block_size()*/) );
@@ -227,7 +227,7 @@ impl node::NodeBase for File
 	fn get_id(&self) -> node::InodeId {
 		todo!("File::get_id")
 	}
-	fn get_any(&self) -> &::core::any::Any {
+	fn get_any(&self) -> &dyn core::any::Any {
 		self
 	}
 }
@@ -316,7 +316,7 @@ impl node::NodeBase for Dir
 	fn get_id(&self) -> node::InodeId {
 		todo!("Dir::get_id")
 	}
-	fn get_any(&self) -> &::core::any::Any {
+	fn get_any(&self) -> &dyn core::any::Any {
 		self
 	}
 }
@@ -375,7 +375,7 @@ impl node::Dir for Dir
 		// ISO9660 is readonly
 		Err( vfs::Error::ReadOnlyFilesystem )
 	}
-	fn link(&self, _name: &ByteStr, _node: &node::NodeBase) -> node::Result<()> {
+	fn link(&self, _name: &ByteStr, _node: &dyn node::NodeBase) -> node::Result<()> {
 		// ISO9660 is readonly
 		Err( vfs::Error::ReadOnlyFilesystem )
 	}

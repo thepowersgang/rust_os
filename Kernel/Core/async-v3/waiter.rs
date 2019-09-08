@@ -33,7 +33,7 @@ pub struct StackPush<'a,'b: 'a>
 }
 
 const SLOT_STACK_SIZE_WORDS: usize = 256 / 8;
-type AsyncStack<'a> = ::stack_dst::StackA<Layer+'a, [usize; SLOT_STACK_SIZE_WORDS]>;
+type AsyncStack<'a> = ::stack_dst::StackA<dyn Layer+'a, [usize; SLOT_STACK_SIZE_WORDS]>;
 
 /// A single async slot (i.e. a single async operation as requested by the user)
 ///
@@ -212,7 +212,7 @@ impl<'a, 'b: 'a> StackPush<'a, 'b>
 		StackPush { _pd: PhantomData, stack }
 	}
 	/// Construct a new instance as well as get a pointer to the top of the stack
-	fn new_with_top(stack: &'a mut AsyncStack<'b>) -> (StackPush<'a, 'b>, &'a mut (Layer+'b))
+	fn new_with_top(stack: &'a mut AsyncStack<'b>) -> (StackPush<'a, 'b>, &'a mut (dyn Layer+'b))
 	{
 		(StackPush { _pd: PhantomData, stack }, stack.top_mut().expect("new_with_top"), )
 	}

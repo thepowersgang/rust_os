@@ -131,7 +131,7 @@ impl<T: PrimitiveWaiter> Waiter for T {
 	}
 }
 
-impl<'a> Waiter+'a
+impl<'a> dyn Waiter+'a
 {
 	/// Wait on a single wait object
 	pub fn wait(&mut self)
@@ -164,7 +164,7 @@ impl<'a> Waiter+'a
 	}
 }
 
-impl<'a,T> ResultWaiter<Result=T>+'a
+impl<'a,T> dyn ResultWaiter<Result=T>+'a
 {
 	/// Wait for the waiter to complete, then return the result
 	pub fn wait(&mut self) -> T
@@ -182,7 +182,7 @@ pub enum WaitError
 
 /// Wait on the provided list of Waiter trait objects
 ///
-pub fn wait_on_list(waiters: &mut [&mut Waiter], timeout: Option<u64>) -> Option<usize>
+pub fn wait_on_list(waiters: &mut [&mut dyn Waiter], timeout: Option<u64>) -> Option<usize>
 {
 	log_trace!("wait_on_list(waiters = {:?}, timeout = {:?})", waiters, timeout);
 	if waiters.len() == 0

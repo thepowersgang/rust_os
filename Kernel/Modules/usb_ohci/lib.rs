@@ -370,7 +370,7 @@ impl HostInner
 	/// Allocate a new TD
 	fn allocate_td(&self, flags: u32) -> TransferDescriptorId
 	{
-		use core::sync::atomic::{AtomicU32, Ordering};
+		use core::sync::atomic::AtomicU32;
 		// Iterate over all avaliable pools
 		const SIZE: usize = ::core::mem::size_of::<hw::GeneralTD>();
 		for i in (2048 / SIZE .. 4096 / SIZE)
@@ -442,7 +442,7 @@ impl HostInner
 			}
 			todo!("Bounce buffer - long lifetime");
 			},
-		async::WriteBufferHandle::Short(p) => {
+		async::WriteBufferHandle::Short(_p) => {
 			todo!("Bounce buffer - short lifetime");
 			},
 		}
@@ -481,13 +481,13 @@ use ::usb_core::host::{InterruptEndpoint, IsochEndpoint, ControlEndpoint, BulkEn
 impl ::usb_core::host::HostController for UsbHost
 {
 	/// Begin polling an endpoint at the given rate (buffer used is allocated by the driver to be the interrupt endpoint's size)
-	fn init_interrupt(&self, endpoint: EndpointAddr, period_ms: usize, waiter: async::ObjectHandle) -> Handle<InterruptEndpoint> {
-		todo!("init_interrupt");
+	fn init_interrupt(&self, endpoint: EndpointAddr, period_ms: usize, _waiter: async::ObjectHandle) -> Handle<dyn InterruptEndpoint> {
+		todo!("init_interrupt({:?}, period_ms={}", endpoint, period_ms);
 	}
-	fn init_isoch(&self, endpoint: EndpointAddr, max_packet_size: usize) -> Handle<IsochEndpoint> {
-		todo!("init_isoch");
+	fn init_isoch(&self, endpoint: EndpointAddr, max_packet_size: usize) -> Handle<dyn IsochEndpoint> {
+		todo!("init_isoch({:?}, max_packet_size={})", endpoint, max_packet_size);
 	}
-	fn init_control(&self, endpoint: EndpointAddr, max_packet_size: usize) -> Handle<ControlEndpoint> {
+	fn init_control(&self, endpoint: EndpointAddr, max_packet_size: usize) -> Handle<dyn ControlEndpoint> {
 		// Allocate an endpoint
 		let ptr = self.host.register_control_ed(
 			  (endpoint.dev_addr() & 0x7F) as u32
@@ -504,8 +504,8 @@ impl ::usb_core::host::HostController for UsbHost
 			id: ptr,
 			}).ok().unwrap()
 	}
-	fn init_bulk(&self, endpoint: EndpointAddr, max_packet_size: usize) -> Handle<BulkEndpoint> {
-		todo!("init_bulk");
+	fn init_bulk(&self, endpoint: EndpointAddr, max_packet_size: usize) -> Handle<dyn BulkEndpoint> {
+		todo!("init_bulk({:?}, max_packet_size={})", endpoint, max_packet_size);
 	}
 
 
@@ -630,7 +630,7 @@ impl ControlEndpoint for ControlEndpointHandle
 			let _ = setup_buf;
 			let _ = data_buf;
 			if let BounceBufferHandle::Bounced { ref orig_buf, ref bounce_buf } = data_buf {
-				todo!("Copy data back out of the bounce buffer");
+				todo!("Copy data back out of the bounce buffer - {:?} -> {:p}", bounce_buf, orig_buf);
 			}
 			// - Pass the result down the chain.
 			Some(out_bytes)

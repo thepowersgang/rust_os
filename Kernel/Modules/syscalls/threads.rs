@@ -17,7 +17,7 @@ pub struct CurProcess;
 impl ::objects::Object for CurProcess
 {
 	fn class(&self) -> u16 { values::CLASS_CORE_THISPROCESS }
-	fn as_any(&self) -> &Any { self }
+	fn as_any(&self) -> &dyn Any { self }
 	fn try_clone(&self) -> Option<u32> {
 		None
 	}
@@ -101,7 +101,7 @@ pub struct ProtoProcess(::kernel::threads::ProcessHandle);
 impl ::objects::Object for ProtoProcess
 {
 	fn class(&self) -> u16 { values::CLASS_CORE_PROTOPROCESS }
-	fn as_any(&self) -> &Any { self }
+	fn as_any(&self) -> &dyn Any { self }
 	fn try_clone(&self) -> Option<u32> {
 		None
 	}
@@ -148,7 +148,7 @@ pub struct Process(::kernel::threads::ProcessHandle);
 impl ::objects::Object for Process
 {
 	fn class(&self) -> u16 { values::CLASS_CORE_PROCESS }
-	fn as_any(&self) -> &Any { self }
+	fn as_any(&self) -> &dyn Any { self }
 	fn try_clone(&self) -> Option<u32> {
 		None
 	}

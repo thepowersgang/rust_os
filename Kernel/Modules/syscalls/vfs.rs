@@ -100,7 +100,7 @@ struct Node( handle::Any );
 impl objects::Object for Node
 {
 	fn class(&self) -> u16 { values::CLASS_VFS_NODE }
-	fn as_any(&self) -> &Any { self }
+	fn as_any(&self) -> &dyn Any { self }
 	fn try_clone(&self) -> Option<u32> {
 		Some( ::objects::new_object( Node(self.0.clone()) ) )
 	}
@@ -161,7 +161,7 @@ struct File(::kernel::vfs::handle::File);
 impl objects::Object for File
 {
 	fn class(&self) -> u16 { values::CLASS_VFS_FILE }
-	fn as_any(&self) -> &Any { self }
+	fn as_any(&self) -> &dyn Any { self }
 	fn try_clone(&self) -> Option<u32> {
 		Some( ::objects::new_object( File(self.0.clone()) ) )
 	}
@@ -247,7 +247,7 @@ impl Dir {
 impl objects::Object for Dir
 {
 	fn class(&self) -> u16 { values::CLASS_VFS_DIR }
-	fn as_any(&self) -> &Any { self }
+	fn as_any(&self) -> &dyn Any { self }
 	fn try_clone(&self) -> Option<u32> {
 		Some( ::objects::new_object( Dir { handle: self.handle.clone() } ) )
 	}
@@ -306,7 +306,7 @@ impl DirIter {
 impl objects::Object for DirIter
 {
 	fn class(&self) -> u16 { values::CLASS_VFS_DIRITER }
-	fn as_any(&self) -> &Any { self }
+	fn as_any(&self) -> &dyn Any { self }
 	fn try_clone(&self) -> Option<u32> {
 		None
 	}
@@ -352,7 +352,7 @@ impl DirInner
 			Ok( Some(e) )
 		}
 		else {
-			let mut cache = &mut self.cache;
+			let cache = &mut self.cache;
 			cache.reset();
 			self.lower_ofs = try!(handle.read_ents(self.lower_ofs, &mut |inode, name| {
 				cache.push( (inode, name.collect()) );
@@ -403,7 +403,7 @@ struct Link(handle::Symlink);
 impl objects::Object for Link
 {
 	fn class(&self) -> u16 { values::CLASS_VFS_LINK }
-	fn as_any(&self) -> &Any { self }
+	fn as_any(&self) -> &dyn Any { self }
 	fn try_clone(&self) -> Option<u32> {
 		Some( ::objects::new_object( Link(self.0.clone()) ) )
 	}

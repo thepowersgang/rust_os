@@ -154,8 +154,8 @@ impl Buffer
 
 impl super::Framebuffer for Framebuffer
 {
-	fn as_any(&self) -> &::core::any::Any {
-		self as &::core::any::Any
+	fn as_any(&self) -> &dyn (::core::any::Any) {
+		self
 	}
 	fn activate(&mut self) {
 		// no-op, already active
@@ -175,7 +175,7 @@ impl super::Framebuffer for Framebuffer
 		//let redraw_cursor = self.clobber_cursor(dst) || self.clobber_cursor(src);
 		todo!("Framebuffer::blit_inner");
 	}
-	fn blit_ext(&mut self, _dst: Rect, _src: Rect, _srf: &super::Framebuffer) -> bool {
+	fn blit_ext(&mut self, _dst: Rect, _src: Rect, _srf: &dyn super::Framebuffer) -> bool {
 		false
 	}
 	fn blit_buf(&mut self, dst: Rect, buf: &[u32]) {

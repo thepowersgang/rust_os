@@ -533,7 +533,7 @@ enum_to_from!{ SocketShutdownSide => u8:
 	Transmit = 0,
 	Receive = 1,
 }
-/// Values for the `addr_ty` field of SocketAddress
+// Values for the `addr_ty` field of SocketAddress
 enum_to_from!{ SocketAddressType => u8:
 	/// Ethernet II MAC addresses, only supports 'SocketPortType::Raw'
 	Mac = 0,
@@ -552,7 +552,7 @@ enum_to_from!{ SocketPortType => u8:
 	/// Stream Control Transmission Protocol
 	Sctp = 3,
 }
-#[derive(Default,Copy,Clone)]
+#[derive(Default,Copy,Clone,Debug)]
 #[repr(C)]
 pub struct SocketAddress
 {

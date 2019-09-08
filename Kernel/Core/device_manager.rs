@@ -98,9 +98,9 @@ pub trait Driver:
 	/// Bus type the driver binds against (matches value from `BusManager::bus_type`)
 	fn bus_type(&self) -> &str;
 	/// Return the handling level of this driver for the specified device
-	fn handles(&self, bus_dev: &BusDevice) -> DriverHandleLevel;
+	fn handles(&self, bus_dev: &dyn BusDevice) -> DriverHandleLevel;
 	/// Requests that the driver bind itself to the specified device
-	fn bind(&self, bus_dev: &mut BusDevice) -> Box<DriverInstance>;
+	fn bind(&self, bus_dev: &mut dyn BusDevice) -> Box<dyn DriverInstance+'static>;
 }
 /// Error type for `Driver::bind`
 #[derive(Debug)]
@@ -128,15 +128,15 @@ pub trait DriverInstance:
 /// Internal representation of a device on a bus
 struct Device
 {
-	bus_dev: Box<BusDevice>,
-	driver: Option<(Box<DriverInstance>, DriverHandleLevel)>,
+	bus_dev: Box<dyn BusDevice>,
+	driver: Option<(Box<dyn DriverInstance>, DriverHandleLevel)>,
 	//attribs: Vec<u32>,
 }
 
 /// Internal representation of a bus
 struct Bus
 {
-	manager: &'static BusManager,
+	manager: &'static dyn BusManager,
 	devices: Vec<Device>,
 }
 
@@ -146,7 +146,7 @@ static s_root_busses: Mutex<Queue<Bus>> = mutex_init!(queue_init!());
 
 /// List of registered drivers
 #[allow(non_upper_case_globals)]
-static s_driver_list: Mutex<Queue<&'static Driver>> = mutex_init!( queue_init!() );
+static s_driver_list: Mutex<Queue<&'static dyn Driver>> = mutex_init!( queue_init!() );
 
 fn init()
 {
@@ -156,7 +156,7 @@ fn init()
 /// Register a bus with the device manager
 ///
 /// Creates a new internal representation of the bus, containg the passed set of devices.
-pub fn register_bus(manager: &'static BusManager, devices: Vec<Box<BusDevice>>) //-> BusHandle
+pub fn register_bus(manager: &'static dyn BusManager, devices: Vec<Box<dyn BusDevice>>) //-> BusHandle
 {
 	let bus = Bus {
 		manager: manager,
@@ -174,7 +174,7 @@ pub fn register_bus(manager: &'static BusManager, devices: Vec<Box<BusDevice>>) 
 }
 
 /// Registers a driver with the device manger
-pub fn register_driver(driver: &'static Driver)
+pub fn register_driver(driver: &'static dyn Driver)
 {
 	s_driver_list.lock().push(driver);
 	log_debug!("Registering driver {}", driver.name());
@@ -223,7 +223,7 @@ pub fn register_driver(driver: &'static Driver)
 /**
  * Locate the best registered driver for this device and instanciate it
  */
-fn find_driver(bus: &BusManager, bus_dev: &mut BusDevice) -> Option<(Box<DriverInstance>,DriverHandleLevel)>
+fn find_driver(bus: &dyn BusManager, bus_dev: &mut dyn BusDevice) -> Option<(Box<dyn DriverInstance>,DriverHandleLevel)>
 {
 	log_debug!("Finding driver for {}:{:x}", bus.bus_type(), bus_dev.addr());
 	let mut best_ranking = 0;

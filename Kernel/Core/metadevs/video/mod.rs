@@ -40,14 +40,14 @@ pub struct FramebufferRegistration
  */
 pub trait Framebuffer: 'static + Send
 {
-	fn as_any(&self) -> &Any;
+	fn as_any(&self) -> &dyn Any;
 	fn activate(&mut self);
 	
 	fn get_size(&self) -> Dims;
 	fn set_size(&mut self, newsize: Dims) -> bool;
 	
 	fn blit_inner(&mut self, dst: Rect, src: Rect);
-	fn blit_ext(&mut self, dst: Rect, src: Rect, srf: &Framebuffer) -> bool;
+	fn blit_ext(&mut self, dst: Rect, src: Rect, srf: &dyn Framebuffer) -> bool;
 	fn blit_buf(&mut self, dst: Rect, buf: &[u32]);
 	fn fill(&mut self, dst: Rect, colour: u32);
 	
@@ -59,7 +59,7 @@ pub trait Framebuffer: 'static + Send
 struct DisplaySurface
 {
 	region: Rect,
-	fb: Box<Framebuffer>,
+	fb: Box<dyn Framebuffer>,
 }
 
 /// Sparse list of registered display devices
@@ -76,7 +76,7 @@ fn init()
 	if let Some(mode) = S_BOOT_MODE.lock().as_ref()
 	{
 		log_notice!("Using boot video mode {:?}", mode);
-		let fb = box bootvideo::Framebuffer::new(*mode) as Box<Framebuffer>;
+		let fb = box bootvideo::Framebuffer::new(*mode) as Box<dyn Framebuffer>;
 		let dims = fb.get_size();
 		S_DISPLAY_SURFACES.lock().insert( DisplaySurface {
 			region: Rect::new(0,0, dims.w,dims.h),
@@ -151,7 +151,7 @@ pub fn set_panic(file: &str, line: usize, message: &::core::fmt::Arguments)
 		}
 	}
 	impl<'a> PanicWriter<'a> {
-		fn new<'b>(fb: &'b mut Framebuffer, x: u16, y: u16, w: u16) -> PanicWriter<'b> {
+		fn new<'b>(fb: &'b mut dyn Framebuffer, x: u16, y: u16, w: u16) -> PanicWriter<'b> {
 			PanicWriter {
 				font: kernel_font::KernelFont::new(PANIC_COLOUR),
 				out: PanicWriterOut {
@@ -167,7 +167,7 @@ pub fn set_panic(file: &str, line: usize, message: &::core::fmt::Arguments)
 		}
 	}
 	struct PanicWriterOut<'a> {
-		fb: &'a mut Framebuffer,
+		fb: &'a mut dyn Framebuffer,
 		x: u16, y: u16, w: u16,
 	}
 	impl<'a> PanicWriterOut<'a>
@@ -218,7 +218,7 @@ fn signal_geom_update(surfs: ::sync::mutex::HeldLazyMutex<SparseVec<DisplaySurfa
 }
 
 /// Add an output to the display manager
-pub fn add_output(output: Box<Framebuffer>) -> FramebufferRegistration
+pub fn add_output(output: Box<dyn Framebuffer>) -> FramebufferRegistration
 {
 	let dims = output.get_size();
 	// Detect if the boot mode is still present, and clear if it is

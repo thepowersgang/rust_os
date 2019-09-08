@@ -26,7 +26,7 @@ struct IRQBinding
 	arch_handle: interrupts::IRQHandle,
 	has_fired: AtomicBool,	// Set to true if the IRQ fires while the lock is held by this CPU
 	//handlers: Spinlock<Queue<Handler>>,
-	handlers: Spinlock<Vec<Box<FnMut()->bool + Send + 'static>>>,
+	handlers: Spinlock<Vec<Box<dyn FnMut()->bool + Send + 'static>>>,
 }
 
 struct Bindings
@@ -54,7 +54,7 @@ pub fn init() {
 	}
 }
 
-fn bind(num: u32, obj: Box<FnMut()->bool + Send>) -> BindingHandle
+fn bind(num: u32, obj: Box<dyn FnMut()->bool + Send>) -> BindingHandle
 {	
 	log_trace!("bind(num={}, obj={:?})", num, "TODO"/*obj*/);
 	// 1. (if not already) bind a handler on the architecture's handlers
@@ -110,7 +110,7 @@ pub fn bind_event(num: u32) -> EventHandle
 		}
 }
 
-pub fn bind_object(num: u32, obj: Box<FnMut()->bool + Send + 'static>) -> ObjectHandle
+pub fn bind_object(num: u32, obj: Box<dyn FnMut()->bool + Send + 'static>) -> ObjectHandle
 {
 	ObjectHandle( bind(num, obj) )
 }

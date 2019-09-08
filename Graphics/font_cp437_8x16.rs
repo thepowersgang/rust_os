@@ -268,7 +268,7 @@ fn unicode_to_cp437(c: char) -> u8
 	match c
 	{
 	'\0' => 10,	// Hack, 10 is a solid bg with cleared circle
-	' ' ... '~' => c as u8,
+	' ' ..= '~' => c as u8,
 	'±' => 241,	// ±
 	'\u{2022}' => 7,    // •
 	_ => b'?',

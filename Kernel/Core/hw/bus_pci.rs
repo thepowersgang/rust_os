@@ -69,7 +69,7 @@ impl ::device_manager::Driver for PCIChildBusDriver
 	fn bus_type(&self) -> &str {
 		"pci"
 	}
-	fn handles(&self, bus_dev: &::device_manager::BusDevice) -> u32
+	fn handles(&self, bus_dev: &dyn (::device_manager::BusDevice)) -> u32
 	{
 		let addr = bus_dev.addr() as u16;
 		let bridge_type = (read_word(addr, 3) >> 16) & 0x7F;
@@ -77,7 +77,7 @@ impl ::device_manager::Driver for PCIChildBusDriver
 		// -> There should only be one PCI bridge handler, but bind low just in case
 		if bridge_type == 0x01 { 1 } else { 0 }
 	}
-	fn bind(&self, bus_dev: &mut ::device_manager::BusDevice) -> Box<::device_manager::DriverInstance+'static>
+	fn bind(&self, bus_dev: &mut dyn (::device_manager::BusDevice)) -> Box<dyn (::device_manager::DriverInstance)>
 	{
 		let addr = bus_dev.addr() as u16;
 		let bridge_type = (read_word(addr, 3) >> 16) & 0x7F;
@@ -206,10 +206,10 @@ impl ::device_manager::BusDevice for PCIDev
 	}
 }
 
-fn scan_bus(bus_id: u8) -> Vec<Box<BusDevice+'static>>
+fn scan_bus(bus_id: u8) -> Vec<Box<dyn BusDevice+'static>>
 {
 	log_trace!("PCI scan_bus({})", bus_id);
-	let mut ret: Vec<Box<BusDevice>> = Vec::new();
+	let mut ret: Vec<Box<dyn BusDevice>> = Vec::new();
 	for devidx in 0 .. MAX_DEV
 	{
 		match get_device(bus_id, devidx, 0)

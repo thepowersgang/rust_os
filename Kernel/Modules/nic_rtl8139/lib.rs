@@ -7,6 +7,7 @@
 #![feature(linkage)]	// for module_define!
 use kernel::prelude::*;
 use kernel::sync::Mutex;
+use kernel::device_manager;
 use kernel::_async3 as async;
 use core::sync::atomic::{Ordering,AtomicU8,AtomicU16,AtomicBool};
 use network::nic;
@@ -26,7 +27,7 @@ module_define!{nic_rtl8139, [Network], init}
 fn init()
 {
 	static PCI_DRIVER: PciDriver = PciDriver;
-	::kernel::device_manager::register_driver(&PCI_DRIVER);
+	device_manager::register_driver(&PCI_DRIVER);
 }
 
 const RX_BUFFER_LENGTH: usize = 0x2000+16;
@@ -35,7 +36,7 @@ const RX_BUFFER_LIMIT : usize = 0x3000;
 struct BusDev( nic::Registration<Card>, ::kernel::irqs::ObjectHandle );
 struct Card
 {
-	io_base: ::kernel::device_manager::IOBinding,
+	io_base: device_manager::IOBinding,
 	
 	// Buffer: Three contigious pages
 	rx_buffer: ::kernel::memory::virt::ArrayHandle<u8>,
@@ -74,7 +75,7 @@ impl TxSlot
 
 impl BusDev
 {
-	fn new_boxed(irq: u32, io: ::kernel::device_manager::IOBinding) -> Result<Box<BusDev>, &'static str> {
+	fn new_boxed(irq: u32, io: device_manager::IOBinding) -> Result<Box<BusDev>, &'static str> {
 
 		// SAFE: Just reads MAC addr
 		let mac = unsafe {[
@@ -159,7 +160,7 @@ impl BusDev
 		Ok( Box::new( BusDev(card_nic_reg, irq_handle) ) )
 	}
 }
-impl ::kernel::device_manager::DriverInstance for BusDev
+impl device_manager::DriverInstance for BusDev
 {
 }
 
@@ -432,14 +433,14 @@ impl Card
 }
 
 struct PciDriver;
-impl ::kernel::device_manager::Driver for PciDriver {
+impl device_manager::Driver for PciDriver {
 	fn name(&self) -> &str {
 		"rtl8139-pci"
 	}
 	fn bus_type(&self) -> &str {
 		"pci"
 	}
-	fn handles(&self, bus_dev: &::kernel::device_manager::BusDevice) -> u32
+	fn handles(&self, bus_dev: &dyn device_manager::BusDevice) -> u32
 	{
 		let vendor = bus_dev.get_attr("vendor").unwrap_u32();
 		let device = bus_dev.get_attr("device").unwrap_u32();
@@ -450,7 +451,7 @@ impl ::kernel::device_manager::Driver for PciDriver {
 			0
 		}
 	}
-	fn bind(&self, bus_dev: &mut ::kernel::device_manager::BusDevice) -> Box<::kernel::device_manager::DriverInstance+'static>
+	fn bind(&self, bus_dev: &mut dyn device_manager::BusDevice) -> Box<dyn device_manager::DriverInstance+'static>
 	{
 		let irq = bus_dev.get_irq(0);
 		let base = bus_dev.bind_io(0);

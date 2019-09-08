@@ -23,7 +23,7 @@ fn init() {
 		let (scells,) = decode_value(&root_node, "#size-cells", (1,)).unwrap_or( (0,) );
 		let (acells,) = decode_value(&root_node, "#address-cells", (1,)).unwrap_or( (0,) );
 
-		let mut devices: Vec<Box<::device_manager::BusDevice>> = Vec::new();
+		let mut devices: Vec<Box<dyn ::device_manager::BusDevice>> = Vec::new();
 		for dev in fdt.get_nodes(&[""])
 		{
 			if let Some(compat) = dev.items().filter_map(|r| match r { ("compatible", fdt::Item::Prop(v)) => Some(v), _ => None }).next()

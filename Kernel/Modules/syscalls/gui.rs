@@ -72,7 +72,7 @@ struct Group(::gui::WindowGroupHandle);
 impl objects::Object for Group
 {
 	fn class(&self) -> u16 { values::CLASS_GUI_GROUP }
-	fn as_any(&self) -> &Any { self }
+	fn as_any(&self) -> &dyn Any { self }
 	fn try_clone(&self) -> Option<u32> {
 		Some( ::objects::new_object( Group(self.0.clone()) ) )
 	}
@@ -109,7 +109,7 @@ struct Window(Mutex<::gui::WindowHandle>);
 impl objects::Object for Window
 {
 	fn class(&self) -> u16 { values::CLASS_GUI_WIN }
-	fn as_any(&self) -> &Any { self }
+	fn as_any(&self) -> &dyn Any { self }
 	fn try_clone(&self) -> Option<u32> {
 		None
 	}

@@ -62,7 +62,7 @@ impl mount::Driver for Driver
 		// RAMFS should never bind to an arbitary volume
 		Ok(0)
 	}
-	fn mount(&self, vol: VolumeHandle, _: mount::SelfHandle) -> super::Result<Box<mount::Filesystem>> {
+	fn mount(&self, vol: VolumeHandle, _: mount::SelfHandle) -> super::Result<Box<dyn mount::Filesystem>> {
 		let rv = Box::new(RamFS {
 			// SAFE: ArefInner must not change addresses, but because you can't move out of a boxed trait, we're good
 			inner: unsafe { ArefInner::new( RamFSInner {
@@ -123,7 +123,7 @@ impl node::NodeBase for FileRef {
 	fn get_id(&self) -> node::InodeId {
 		unimplemented!()
 	}
-	fn get_any(&self) -> &::core::any::Any {
+	fn get_any(&self) -> &dyn (::core::any::Any) {
 		self
 	}
 }
@@ -172,7 +172,7 @@ impl node::Dir for FileRef {
 			},
 		}
 	}
-	fn link(&self, name: &ByteStr, node: &node::NodeBase) -> vfs::Result<()> {
+	fn link(&self, name: &ByteStr, node: &dyn node::NodeBase) -> vfs::Result<()> {
 		todo!("<FileRef as Dir>::link({:?}, inode={})", name, node.get_id())
 	}
 	fn unlink(&self, name: &ByteStr) -> vfs::Result<()> {

@@ -197,7 +197,7 @@ pub fn get_process_local<T: Send+Sync+::core::any::Any+Default+'static>() -> Are
 	// 1. Try without write-locking
 	for s in pld.read().iter()
 	{
-		let item_ref: &::core::any::Any = &**s;
+		let item_ref: &dyn core::any::Any = &**s;
 		//log_debug!("{:?} ?== {:?}", item_ref.type_id(), ::core::any::TypeId::of::<T>());
 		if item_ref.type_id() == ::core::any::TypeId::of::<T>() {
 			return s.borrow().downcast::<T>().ok().unwrap();
@@ -207,7 +207,7 @@ pub fn get_process_local<T: Send+Sync+::core::any::Any+Default+'static>() -> Are
 	// 2. Try _with_ write locking
 	let mut lh = pld.write();
 	for s in lh.iter() {
-		let item_ref: &::core::any::Any = &**s;
+		let item_ref: &dyn core::any::Any = &**s;
 		//log_debug!("{:?} ?== {:?}", item_ref.type_id(), ::core::any::TypeId::of::<T>());
 		if item_ref.type_id() == ::core::any::TypeId::of::<T>() {
 			return s.borrow().downcast::<T>().ok().unwrap();

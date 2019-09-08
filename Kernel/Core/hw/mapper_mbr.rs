@@ -31,7 +31,7 @@ impl storage::Mapper for Mapper
 {
 	fn name(&self) -> &str { "mbr" }
 
-	fn handles_pv(&self, pv: &storage::PhysicalVolume) -> Result<usize,storage::IoError> {
+	fn handles_pv(&self, pv: &dyn storage::PhysicalVolume) -> Result<usize,storage::IoError> {
 		if pv.blocksize() != 512 {
 			log_log!("Support non 512 byte sectors in MBR mapper (got {} for {})", pv.blocksize(), pv.name());
 			return Ok(0);
@@ -50,7 +50,7 @@ impl storage::Mapper for Mapper
 		}
 	}
 	
-	fn enum_volumes(&self, pv: &::metadevs::storage::PhysicalVolume, new_volume_cb: &mut FnMut(String, u64, u64)) -> Result<(),storage::IoError> {
+	fn enum_volumes(&self, pv: &dyn (::metadevs::storage::PhysicalVolume), new_volume_cb: &mut dyn FnMut(String, u64, u64)) -> Result<(),storage::IoError> {
 		if !(pv.blocksize() == 512) {
 			return Err( storage::IoError::InvalidParameter );
 		}

@@ -42,7 +42,7 @@ pub struct Process
 	address_space: ::memory::virt::AddressSpace,
 	// TODO: use of a tuple here looks a little crufty
 	exit_status: ::sync::Mutex< (Option<u32>, Option<::threads::sleep_object::SleepObjectRef>) >,
-	pub proc_local_data: ::sync::RwLock<Vec< ::lib::mem::aref::Aref<::core::any::Any+Sync+Send> >>,
+	pub proc_local_data: ::sync::RwLock<Vec< ::lib::mem::aref::Aref<dyn core::any::Any+Sync+Send> >>,
 }
 /// Handle to a process, used for spawning and communicating
 pub struct ProcessHandle(Arc<Process>);
@@ -194,7 +194,7 @@ impl ProcessHandle
 		// 1. Try without write-locking
 		for s in pld.read().iter()
 		{
-			let item_ref: &::core::any::Any = &**s;
+			let item_ref: &dyn core::any::Any = &**s;
 			if item_ref.type_id() == ::core::any::TypeId::of::<T>() {
 				return Some( s.borrow().downcast::<T>().ok().unwrap() );
 			}
@@ -210,7 +210,7 @@ impl ProcessHandle
 		// 1. Try without write-locking
 		for s in pld.read().iter()
 		{
-			let item_ref: &::core::any::Any = &**s;
+			let item_ref: &dyn core::any::Any = &**s;
 			if item_ref.type_id() == ::core::any::TypeId::of::<T>() {
 				return s.borrow().downcast::<T>().ok().unwrap();
 			}
@@ -219,7 +219,7 @@ impl ProcessHandle
 		let mut lh = pld.write();
 		for s in lh.iter()
 		{
-			let item_ref: &::core::any::Any = &**s;
+			let item_ref: &dyn core::any::Any = &**s;
 			if item_ref.type_id() == ::core::any::TypeId::of::<T>() {
 				return s.borrow().downcast::<T>().ok().unwrap();
 			}

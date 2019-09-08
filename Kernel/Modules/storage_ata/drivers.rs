@@ -28,7 +28,7 @@ impl device_manager::Driver for PciLegacyDriver
 	fn bus_type(&self) -> &str {
 		"pci"
 	}
-	fn handles(&self, bus_dev: &device_manager::BusDevice) -> u32
+	fn handles(&self, bus_dev: &dyn device_manager::BusDevice) -> u32
 	{
 		let classcode = bus_dev.get_attr("class").unwrap_u32();
 		// [class] [subclass] [IF] [ver]
@@ -40,7 +40,7 @@ impl device_manager::Driver for PciLegacyDriver
 			0
 		}
 	}
-	fn bind(&self, bus_dev: &mut device_manager::BusDevice) -> Box<device_manager::DriverInstance+'static>
+	fn bind(&self, bus_dev: &mut dyn device_manager::BusDevice) -> Box<dyn device_manager::DriverInstance+'static>
 	{
 		let bm_io = bus_dev.bind_io(4);
 		bus_dev.set_attr("bus_master", device_manager::AttrValue::U32(1));
@@ -56,7 +56,7 @@ impl device_manager::Driver for PciNativeDriver
 	fn bus_type(&self) -> &str {
 		"pci"
 	}
-	fn handles(&self, bus_dev: &device_manager::BusDevice) -> u32
+	fn handles(&self, bus_dev: &dyn device_manager::BusDevice) -> u32
 	{
 		let classcode = bus_dev.get_attr("class").unwrap_u32();
 		// [class] [subclass] [IF] [ver]
@@ -68,7 +68,7 @@ impl device_manager::Driver for PciNativeDriver
 			0
 		}
 	}
-	fn bind(&self, bus_dev: &mut device_manager::BusDevice) -> Box<device_manager::DriverInstance+'static>
+	fn bind(&self, bus_dev: &mut dyn device_manager::BusDevice) -> Box<dyn device_manager::DriverInstance+'static>
 	{
 		let irq = bus_dev.get_irq(0);
 		let io_pri = bus_dev.bind_io(0).io_base();

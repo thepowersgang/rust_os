@@ -79,7 +79,7 @@ impl vfs::mount::Driver for Driver
 			Ok(0)
 		}
 	}
-	fn mount(&self, vol: VolumeHandle, mounthandle: vfs::mount::SelfHandle) -> vfs::Result<Box<vfs::mount::Filesystem>> {
+	fn mount(&self, vol: VolumeHandle, mounthandle: vfs::mount::SelfHandle) -> vfs::Result<Box<dyn vfs::mount::Filesystem>> {
 		Ok( try!(instance::Instance::new_boxed(vol, mounthandle)) )
 	}
 }
