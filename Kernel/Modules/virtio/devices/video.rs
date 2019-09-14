@@ -213,8 +213,8 @@ impl<I> video::Framebuffer for Framebuffer<I>
 where
 	I: 'static + Interface + Send + Sync
 {
-	fn as_any(&self) -> &Any {
-		self as &Any
+	fn as_any(&self) -> &dyn Any {
+		self as &dyn Any
 	}
 	fn activate(&mut self) {
 		// TODO
@@ -234,7 +234,7 @@ where
 	fn blit_inner(&mut self, dst: video::Rect, src: video::Rect) {
 		todo!("blit_inner");
 	}
-	fn blit_ext(&mut self, dst: video::Rect, src: video::Rect, srf: &video::Framebuffer) -> bool {
+	fn blit_ext(&mut self, dst: video::Rect, src: video::Rect, srf: &dyn video::Framebuffer) -> bool {
 		false
 	}
 	fn blit_buf(&mut self, dst: video::Rect, buf: &[u32]) {

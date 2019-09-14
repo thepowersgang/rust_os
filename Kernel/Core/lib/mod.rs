@@ -103,7 +103,7 @@ impl<'a> ::core::fmt::Debug for RawString<'a>
 			b'"' => try!(write!(f, "\\\"")),
 			b'\0' => try!(write!(f, "\\0")),
 			// ASCII printable characters
-			32...127 => try!(write!(f, "{}", b as char)),
+			32..=127 => try!(write!(f, "{}", b as char)),
 			_ => try!(write!(f, "\\x{:02x}", b)),
 			}
 		}

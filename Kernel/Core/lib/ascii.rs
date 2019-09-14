@@ -15,14 +15,14 @@ impl AsciiExt for u8
 	fn to_ascii_uppercase(&self) -> u8 {
 		match *self
 		{
-		v @ b'a' ... b'z' => v - 0x20,
+		v @ b'a' ..= b'z' => v - 0x20,
 		v @ _ => v,
 		}
 	}
 	fn to_ascii_lowercase(&self) -> u8 {
 		match *self
 		{
-		v @ b'A' ... b'Z' => v + 0x20,
+		v @ b'A' ..= b'Z' => v + 0x20,
 		v @ _ => v,
 		}
 	}

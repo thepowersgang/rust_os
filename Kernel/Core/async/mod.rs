@@ -21,7 +21,7 @@ pub mod sequential_queue;
 pub mod poll;
 
 /// A boxed ResultWaiter that resturns a Result
-pub type BoxAsyncResult<'a,T,E> = Box<ResultWaiter<Result=Result<T,E>>+'a>;
+pub type BoxAsyncResult<'a,T,E> = Box<dyn ResultWaiter<Result=Result<T,E>>+'a>;
 
 /// Trait for primitive waiters
 ///
@@ -76,7 +76,7 @@ pub trait Waiter:
 	fn is_complete(&self) -> bool;
 	
 	/// Request a primitive wait object
-	fn get_waiter(&mut self) -> &mut PrimitiveWaiter;
+	fn get_waiter(&mut self) -> &mut dyn PrimitiveWaiter;
 	/// Called when the wait returns
 	///
 	/// Return true to indicate that this waiter is complete
@@ -93,7 +93,7 @@ pub trait ResultWaiter:
 	///
 	fn get_result(&mut self) -> Option<Self::Result>;
 	
-	fn as_waiter(&mut self) -> &mut Waiter;// { self }
+	fn as_waiter(&mut self) -> &mut dyn Waiter;// { self }
 }
 
 /// A null result waiter, which returns the result of a simple closure when asked
@@ -110,20 +110,20 @@ impl<T, F: Fn()->T> ::core::fmt::Debug for NullResultWaiter<T,F> {
 }
 impl<T, F: Fn()->T> Waiter for NullResultWaiter<T,F> {
 	fn is_complete(&self) -> bool { true }
-	fn get_waiter(&mut self) -> &mut PrimitiveWaiter { &mut self.1 }
+	fn get_waiter(&mut self) -> &mut dyn PrimitiveWaiter { &mut self.1 }
 	fn complete(&mut self) -> bool { true }
 }
 impl<T, F: Fn()->T> ResultWaiter for NullResultWaiter<T,F> {
 	type Result = F::Output;
 	fn get_result(&mut self) -> Option<Self::Result> { Some( self.0() ) }
-	fn as_waiter(&mut self) -> &mut Waiter { self }
+	fn as_waiter(&mut self) -> &mut dyn Waiter { self }
 }
 
 impl<T: PrimitiveWaiter> Waiter for T {
 	fn is_complete(&self) -> bool {
 		self.is_complete()
 	}
-	fn get_waiter(&mut self) -> &mut PrimitiveWaiter {
+	fn get_waiter(&mut self) -> &mut dyn PrimitiveWaiter {
 		self
 	}
 	fn complete(&mut self) -> bool {

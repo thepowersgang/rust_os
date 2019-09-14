@@ -32,7 +32,7 @@ impl node::NodeBase for FileNode {
 	fn get_id(&self) -> node::InodeId {
 		todo!("FileNode::get_id")
 	}
-	fn get_any(&self) -> &::core::any::Any {
+	fn get_any(&self) -> &dyn core::any::Any {
 		self
 	}
 }

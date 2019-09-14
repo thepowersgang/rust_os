@@ -10,7 +10,7 @@ mod block;
 mod video;
 //mod network;
 
-pub fn new_boxed<T: Interface+Send+Sync+'static>(dev_id: u32, int: T) -> Box<device_manager::DriverInstance>
+pub fn new_boxed<T: Interface+Send+Sync+'static>(dev_id: u32, int: T) -> Box<dyn device_manager::DriverInstance>
 {
 	match dev_id
 	{

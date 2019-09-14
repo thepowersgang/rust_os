@@ -9,7 +9,7 @@ use queue::Queue;
 
 pub trait Interface
 {
-	fn bind_interrupt(&mut self, cb: Box<FnMut()->bool + Send + 'static>);
+	fn bind_interrupt(&mut self, cb: Box<dyn FnMut()->bool + Send + 'static>);
 
 	fn negotiate_features(&mut self, supported: u32) -> u32;
 	fn get_queue(&mut self, idx: usize, size: usize) -> Option<Queue>;
@@ -92,7 +92,7 @@ impl Pci
 }
 impl Interface for Pci
 {
-	fn bind_interrupt(&mut self, cb: Box<FnMut()->bool + Send + 'static>) {
+	fn bind_interrupt(&mut self, cb: Box<dyn FnMut()->bool + Send + 'static>) {
 		self.irq_handle = Some( ::kernel::irqs::bind_object(self.irq_gsi, cb) );
 	}
 
@@ -197,7 +197,7 @@ impl Mmio
 }
 impl Interface for Mmio
 {
-	fn bind_interrupt(&mut self, cb: Box<FnMut()->bool + Send + 'static>) {
+	fn bind_interrupt(&mut self, cb: Box<dyn FnMut()->bool + Send + 'static>) {
 		self.irq_handle = Some( ::kernel::irqs::bind_object(self.irq_gsi, cb) );
 	}
 

@@ -40,7 +40,7 @@ impl node::NodeBase for DirNode {
 	fn get_id(&self) -> node::InodeId {
 		todo!("DirNode::get_id")
 	}
-	fn get_any(&self) -> &::core::any::Any {
+	fn get_any(&self) -> &dyn core::any::Any {
 		self
 	}
 }
@@ -365,7 +365,7 @@ impl node::Dir for DirNode {
 	fn create(&self, name: &ByteStr, nodetype: node::NodeType) -> node::Result<node::InodeId> {
 		todo!("DirNode::create('{:?}', {:?})", name, nodetype);
 	}
-	fn link(&self, name: &ByteStr, node: &node::NodeBase) -> node::Result<()> {
+	fn link(&self, name: &ByteStr, node: &dyn node::NodeBase) -> node::Result<()> {
 		todo!("DirNode::link('{:?}', {:#x})", name, node.get_id());
 	}
 	fn unlink(&self, name: &ByteStr) -> node::Result<()> {

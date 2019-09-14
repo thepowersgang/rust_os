@@ -9,7 +9,7 @@ use core::fmt;
 
 /// Callback for a poll waiter
 // RefCell allows calling FnMut from poll(&self)
-type PollCb<'a> = RefCell<Box<for<'r> FnMut(Option<&'r mut Waiter<'a>>) -> bool + Send + 'a>>;
+type PollCb<'a> = RefCell<Box<dyn for<'r> FnMut(Option<&'r mut Waiter<'a>>) -> bool + Send + 'a>>;
 
 pub struct Waiter<'a>( Option<PollCb<'a>> );
 

@@ -76,7 +76,6 @@ impl<'a> DMABuffer<'a>
 	}
 	pub fn new_contig(src: &[u8], bits: u8) -> DMABuffer
 	{
-		use arch::memory::PAddr;
 		let bytes = src.len();
 		let phys = ::memory::virt::get_phys( &src[0] );
 		let end_phys = ::memory::virt::get_phys( &src[src.len()-1] );

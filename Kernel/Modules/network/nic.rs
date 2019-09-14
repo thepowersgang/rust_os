@@ -82,7 +82,7 @@ impl<'a> Iterator for SparsePacketIter<'a> {
 }
 
 /// Handle to a packet in driver-owned memory
-pub type PacketHandle<'a> = ::stack_dst::ValueA<RxPacket + 'a, [usize; 8]>;
+pub type PacketHandle<'a> = ::stack_dst::ValueA<dyn RxPacket + 'a, [usize; 8]>;
 /// Trait representing a packet in driver-owned memory
 pub trait RxPacket
 {
@@ -179,7 +179,7 @@ pub trait Interface: 'static + Send + Sync
 struct InterfaceData
 {
 	#[allow(dead_code)]	// Never read, just exists to hold the handle
-	base_interface: Aref<Interface+'static>,
+	base_interface: Aref<dyn Interface+'static>,
 	// TODO: Metadata?
 	thread: ::kernel::threads::WorkerThread,
 }
@@ -272,7 +272,7 @@ pub fn register<T: Interface>(mac_addr: [u8; 6], int: T) -> Registration<T> {
 		}
 }
 
-fn rx_thread(int: &Interface)
+fn rx_thread(int: &dyn Interface)
 {
 	::kernel::threads::SleepObject::with_new("rx_thread",|so| {
 		int.rx_wait_register(&so);

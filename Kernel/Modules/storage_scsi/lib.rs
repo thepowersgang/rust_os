@@ -146,15 +146,15 @@ impl<I: ScsiInterface> storage::PhysicalVolume for Volume<I>
 		
 		#[derive(Debug)]
 		struct Wrapper<'a>(storage::AsyncIoResult<'a,()>, usize);
-		impl<'a> ::kernel::async::Waiter for Wrapper<'a> {
+		impl<'a> async::Waiter for Wrapper<'a> {
 			fn is_complete(&self) -> bool { self.0.is_complete() }
-			fn get_waiter(&mut self) -> &mut ::kernel::async::PrimitiveWaiter { self.0.get_waiter() }
+			fn get_waiter(&mut self) -> &mut dyn async::PrimitiveWaiter { self.0.get_waiter() }
 			fn complete(&mut self) -> bool { self.0.complete() }
 		}
-		impl<'a> ::kernel::async::ResultWaiter for Wrapper<'a> {
+		impl<'a> async::ResultWaiter for Wrapper<'a> {
 			type Result = Result<usize, ::kernel::metadevs::storage::IoError>;
 			fn get_result(&mut self) -> Option<Self::Result> { self.0.get_result().map(|v| v.map(|_| self.1)) }
-			fn as_waiter(&mut self) -> &mut ::kernel::async::Waiter { self.0.as_waiter() }
+			fn as_waiter(&mut self) -> &mut dyn async::Waiter { self.0.as_waiter() }
 		}
 		Box::new( Wrapper(rv, num) )
 

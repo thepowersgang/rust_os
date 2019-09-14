@@ -82,7 +82,7 @@ impl_fmt! {
 			'"' => try!(write!(f, "\\\"")),
 			'\0' => try!(write!(f, "\\0")),
 			// ASCII printable characters
-			' '...'\u{127}' => try!(write!(f, "{}", c)),
+			' '..='\u{127}' => try!(write!(f, "{}", c)),
 			_ => try!(write!(f, "\\u{{{:x}}}", c as u32)),
 			}
 		}
@@ -166,11 +166,11 @@ impl<'a> ::core::iter::Iterator for Chars<'a>
 			{
 			None => return None,
 			// High surrogate
-			Some(v @ HI_SURR_START ... HI_SURR_END) =>
+			Some(v @ HI_SURR_START ..= HI_SURR_END) =>
 				match self.0.get(1).cloned()
 				{
 				// - Surrogate pair
-				Some(low @ LO_SURR_START ... LO_SURR_END) => {
+				Some(low @ LO_SURR_START ..= LO_SURR_END) => {
 					let high = (v - HI_SURR_START) as u32;
 					let low = (low - LO_SURR_START) as u32;
 					let cp: u32 = 0x10000 + high << 10 + low;
@@ -180,7 +180,7 @@ impl<'a> ::core::iter::Iterator for Chars<'a>
 				_ => (v as u32, 1),
 				},
 			// - Lone low surrogate, use semi-standard behavior
-			Some(v @ LO_SURR_START ... LO_SURR_END) => (v as u32, 1),
+			Some(v @ LO_SURR_START ..= LO_SURR_END) => (v as u32, 1),
 			// - Pure codepoint
 			Some(v) => (v as u32, 1),
 			};
