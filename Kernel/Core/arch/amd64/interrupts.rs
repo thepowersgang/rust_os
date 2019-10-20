@@ -34,7 +34,7 @@ static S_IRQ_HANDLERS_LOCK: ::sync::Spinlock<[IRQHandlersEnt; 256]> = ::sync::Sp
 
 #[no_mangle]
 #[doc(hidden)]
-#[req_safe(irq)]
+//#[req_safe(irq)]
 /// ISR handler called by assembly
 pub extern "C" fn irq_handler(index: usize)
 {

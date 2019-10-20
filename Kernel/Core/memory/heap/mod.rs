@@ -175,7 +175,7 @@ impl<T> ArrayAlloc<T>
 	pub fn get_base(&self) -> *const T { self.ptr.as_ptr() }
 	pub fn get_base_mut(&mut self) -> *mut T { self.ptr.as_ptr() }
 	
-	#[is_safe(irq)]
+	//#[is_safe(irq)]
 	pub fn get_ptr_mut(&mut self, idx: usize) -> *mut T {
 		// SAFE: Index asserted to be valid, have &mut
 		unsafe {
@@ -183,7 +183,7 @@ impl<T> ArrayAlloc<T>
 			self.ptr.as_ptr().offset(idx as isize)
 		}
 	}
-	#[is_safe(irq)]
+	//#[is_safe(irq)]
 	pub fn get_ptr(&self, idx: usize) -> *const T {
 		// SAFE: Index asserted to be valid
 		unsafe {

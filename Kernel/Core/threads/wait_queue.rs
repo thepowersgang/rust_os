@@ -25,7 +25,7 @@ impl WaitQueue
 	}
 	
 	#[doc(hidden)]
-	#[not_safe(irq,taskswitch)]
+	//#[not_safe(irq,taskswitch)]
 	pub fn wait_int(&mut self) -> ::arch::sync::HeldInterrupts
 	{
 		log_trace!("WaitQueue::wait(...)");

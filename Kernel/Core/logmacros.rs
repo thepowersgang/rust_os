@@ -1,7 +1,7 @@
 
 #[inline(never)]
 #[doc(hidden)]
-#[cfg_attr(not(test_shim),req_safe(irq))]
+//#[cfg_attr(not(test_shim),req_safe(irq))]
 pub fn write<F: ::core::ops::FnOnce(&mut ::logging::LoggingFormatter)->::core::fmt::Result>(lvl: ::logging::Level, modname: &'static str, fcn: F) {
 	let _ = fcn(&mut ::logging::getstream(lvl, modname));
 }

@@ -7,5 +7,5 @@ path = "lib.rs"
 
 [dependencies]
 kernel = { path = "../../Core" }
-tag_safe = "*"
+#tag_safe = "*"
 

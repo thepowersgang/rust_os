@@ -153,7 +153,7 @@ impl LAPIC
 			//let ef: u64; asm!("pushf\npop $0" : "=r" (ef)); log_debug!("EFLAGS = {:#x}", ef);
 		}
 	}
-	#[is_safe(irq)]
+	//#[is_safe(irq)]
 	pub fn eoi(&self, num: usize)
 	{
 		self.write_reg(ApicReg::EOI, num as u32);
@@ -252,7 +252,7 @@ impl IOAPIC
 	pub fn first(&self) -> usize {
 		self.first_irq
 	}
-	#[is_safe(irq)]	// Holds interrupts before lock
+	//#[is_safe(irq)]	// Holds interrupts before lock
 	pub fn get_callback(&self, idx: usize) -> Option<super::IRQHandler> {
 		assert!( idx < self.num_lines );
 		let _irql = ::sync::hold_interrupts();

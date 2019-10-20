@@ -22,10 +22,9 @@
 
 #![cfg_attr(not(any(test,test_shim)),no_std)]
 
-#![deny(not_tagged_safe)]
-
-#![feature(plugin)]
-#![plugin(tag_safe)]
+//#![deny(not_tagged_safe)]
+//#![feature(plugin)]
+//#![plugin(tag_safe)]
 
 #[cfg(any(test,test_shim))]
 extern crate core;

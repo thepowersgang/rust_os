@@ -16,9 +16,8 @@
 #![feature(linkage,const_fn)]
 #![no_std]
 
-#![feature(plugin)]
-#![feature(custom_attribute)]
-#![plugin(tag_safe)]
+//#![feature(plugin)]
+//#![plugin(tag_safe)]
 
 #[macro_use]
 extern crate kernel;

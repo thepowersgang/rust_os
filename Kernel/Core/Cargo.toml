@@ -10,5 +10,5 @@ acpica = [ "va_list" ]
 
 [dependencies]
 stack_dst = { path = "../../externals/crates.io/stack_dst", default-features = false }
-tag_safe = "0.2"
+#tag_safe = "0.2"
 va_list = { version = "0.1", default-features = false, features = ["no_std"], optional = true }

@@ -274,7 +274,7 @@ impl Sinks
 impl<'a> LoggingFormatter<'a>
 {
 	/// Create a new logging formatter
-	#[is_safe(irq)]	// SAFE: This lock holds interrupts, so can't interrupt itself.
+	//#[is_safe(irq)]	// SAFE: This lock holds interrupts, so can't interrupt itself.
 	pub fn new(level: Level, modname: &'static str) -> LoggingFormatter<'static>
 	{
 		// TODO: if S_LOGGING_LOCK is held by the current CPU, error.
