@@ -19,8 +19,8 @@
 pub use self::str16::Str16;
 pub use self::str16::{CStr16Ptr, CStr16};
 
-pub use self::con::{EfiLogger};
-pub use self::con::{SimpleInputInterface,SimpleTextOutputInterface};
+pub use self::console::{EfiLogger};
+pub use self::console::{SimpleInputInterface,SimpleTextOutputInterface};
 
 pub use self::status::Status;
 
@@ -36,7 +36,7 @@ macro_rules! efi_fcn {
 	};
 }
 
-mod con;
+mod console;
 mod str16;
 pub mod status;
 pub mod runtime_services;
