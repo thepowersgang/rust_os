@@ -4,22 +4,6 @@
 V ?= @
 -include ../common.mk
 
-# ---------------------------------------
-# List of linked-in modules
-# - NOTE: These need to be listed in Cargo.toml too
-MODS :=
-#MODS += syscalls
-MODS += network
-MODS += virtio
-MODS += storage_ata
-MODS += input_ps2
-MODS += fs_fat fs_iso9660 fs_extN
-MODS += storage_ahci
-MODS += nic_rtl8139
-ifeq ($(ARCH),amd64)
-#MODS += video_vga
-endif
-MODS += usb_core usb_ohci
 
 # ---------------------------------------
 
@@ -90,19 +74,13 @@ endif
 # Invoke xargo to build the main part of the kernel
 # - This includes all modules enabled in ./Cargo.toml
 #
-$(OBJDIR)libmain.a: PHONY $(OBJDIR)modules.rs targets/target-k-$(ARCH).json $(IMGDIR)logo.rs $(IMGDIR)panic.rs
+$(OBJDIR)libmain.a: PHONY targets/target-k-$(ARCH).json $(IMGDIR)logo.rs $(IMGDIR)panic.rs
 	@echo "[XARGO] . > $@"
-	$VRUSTOS_MODPATH=../$(OBJDIR)modules.rs RUSTFLAGS="-C target-feature=$(subst $(space),$(comma),$(EXCLUDE_FEATURES:%=-%))" $(ENV) $(XARGO) build --target=target-k-$(ARCH) --release --features "$(CARGO_FEATURES)"
+	$V$(ENV) $(XARGO) build --target=target-k-$(ARCH) --release --features "$(CARGO_FEATURES)"
 	@mkdir -p $(dir $@)
 	@cp target/target-k-$(ARCH)/release/libmain.a $@
 $(patsubst %,$(OBJDIR)lib%.a,$(MODS)): $(OBJDIR)libmain.a
 
-# - Module listing
-$(OBJDIR)modules.rs: Makefile-xargo
-	@echo "" > $@
-	@echo '{\n $(patsubst %,extern crate %;\n,$(MODS))' >> $@
-	@echo "    $(patsubst %,use_mod(&%::S_MODULE); rv+=1;\n   ,$(MODS))" >> $@
-	@echo "}" >> $@
 targets/target-k-$(ARCH).json: Core/arch/$(ARCH)/target.json
 	@mkdir -p $(dir $@)
 	$Vcp $< $@
@@ -127,5 +105,5 @@ $(OBJDIR)log_cfg.ao: Core/log_cfg.S
 	@mkdir -p $(dir $@)
 	$V$(CC) -o $@ -c $<
 
-$(IMGDIR)%.rs: ../Graphics/ConvertTo32bppRS
+$(IMGDIR)%.rs: ../Graphics/Makefile
 	cd ../Graphics && make $(@:../Graphics/%=%)
