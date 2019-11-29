@@ -24,6 +24,7 @@ Cargo.lock
 Graphics/*.rs
 Graphics/*.r8
 Graphics/rle32_rust
+Graphics/target
 
 Kernel/*.exp_rs
 Kernel/fdd.img

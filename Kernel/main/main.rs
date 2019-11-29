@@ -20,7 +20,7 @@ pub mod modules {
 	}
 	pub fn use_mods() -> usize {
 		let mut rv = 0;
-		include!{ env!("RUSTOS_MODPATH") }
+		include!{ concat!( env!("OUT_DIR"), "/modules.rs" ) }
 		rv
 	}
 }

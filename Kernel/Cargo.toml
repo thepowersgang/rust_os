@@ -28,3 +28,7 @@ usb-ohci = { path = "Modules/usb_ohci" }
 
 [target.'cfg(target_arch = "x86_64")'.dependencies]
 #video-vga = { path = "Modules/video_vga" }
+
+[build_dependencies]
+cargo_toml = "0.8"
+syn = { version = "1.0", features = ["extra-traits"] }
