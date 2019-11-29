@@ -28,18 +28,18 @@ fn main()
 
 	let mut outfile = ::std::fs::File::create(&args.outfile).expect("Cannot open output file");
 
-	outfile.write(b"\x7FR\x18R");
+	outfile.write(b"\x7FR\x18R").unwrap();
 	outfile.write(&[
 		(width >> 0) as u8,
 		(width >> 8) as u8,
 		(height >> 0) as u8,
 		(height >> 8) as u8,
-		]);
+		]).unwrap();
 	
-	let mut raw_data: Vec<u32> = Vec::with_capacity(width*height);
+	let mut raw_data: Vec<u32> = Vec::with_capacity( (width*height) as usize );
 	for p in im.pixels()
 	{
-		raw_data.push( rgba_to_u32(p) );
+		raw_data.push( rgba_to_u32(*p) );
 	}
 
 	const COUNT_MAX: usize = 255;
@@ -68,6 +68,6 @@ fn write_count_px<F: ::std::io::Write>(f: &mut F, count: u8, val: u32) {
 		(val >> 16 & 0xFF) as u8,
 		//(val >> 32 & 0xFF) as u8,
 		];
-	f.write(&buf);
+	f.write(&buf).unwrap();
 }
 
