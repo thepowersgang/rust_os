@@ -55,8 +55,7 @@ macro_rules! assert_trait
 #[doc(hidden)]
 //#[cfg_attr(not(test_shim),is_safe(irq))]
 pub fn type_name<T: ?::core::marker::Sized>() -> &'static str {
-	// SAFE: All intrinsics are unsafe, no matter how safe they really are
-	unsafe { ::core::intrinsics::type_name::<T>() }
+	::core::any::type_name::<T>()
 }
 /// A safe wrapper around the `type_name` intrinsic
 #[macro_export]

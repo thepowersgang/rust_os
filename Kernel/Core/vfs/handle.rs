@@ -282,6 +282,7 @@ impl<'a> Drop for MemoryMapHandle<'a>
 {
 	fn drop(&mut self)
 	{
+		let _ = self.handle;
 		assert_eq!(self.len % ::PAGE_SIZE, 0, "TODO: Handle unaligned lengths in MemoryMapHandle::drop");
 		assert_eq!(self.base as usize % ::PAGE_SIZE, 0, "TODO: Handle unaligned addresses in MemoryMapHandle::drop");
 		let npages = self.len / ::PAGE_SIZE;

@@ -301,7 +301,7 @@ pub fn deref_frame(paddr: PAddr)
 
 fn mark_used(paddr: PAddr)
 {
-	//::arch::memory::phys::mark_used(paddr / ::PAGE_SIZE as PAddr)
+	::arch::memory::phys::mark_used(paddr / ::PAGE_SIZE as PAddr)
 }
 
 // vim: ft=rust
