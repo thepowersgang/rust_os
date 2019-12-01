@@ -49,8 +49,11 @@ where
 
 /// 2D Resource
 struct Resource2D<I>
+where
+	I: Interface + Send + Sync
 {
-	_pd: PhantomData<ArefBorrow<I>>,
+	// Why not store the ArefBorrow?
+	_pd: PhantomData<ArefBorrow<DeviceCore<I>>>,
 	idx: u32,
 }
 
@@ -125,6 +128,21 @@ where
 	{
 		self.next_resource_id.fetch_add(1, ::core::sync::atomic::Ordering::SeqCst)
 	}
+	fn send_cmd<T: kernel::lib::POD>(&self, hdr: &hw::CtrlHeader, cmd: &T) -> hw::CtrlHeader {
+		self.send_cmd_raw(hdr, ::kernel::lib::as_byte_slice(cmd))
+	}
+	fn send_cmd_raw(&self, hdr: &hw::CtrlHeader, cmd: &[u8]) -> hw::CtrlHeader {
+		let mut ret_hdr: hw::CtrlHeader = ::kernel::lib::PodHelpers::zeroed();
+		let _rv = {
+			let h = self.controlq.send_buffers(&self.interface, &mut [
+				Buffer::Read(::kernel::lib::as_byte_slice(hdr)),
+				Buffer::Read(cmd),
+				Buffer::Write(::kernel::lib::as_byte_slice_mut(&mut ret_hdr)),
+				]);
+			h.wait_for_completion().expect("")
+			};
+		ret_hdr
+	}
 	fn allocate_resource(&self, format: hw::virtio_gpu_formats, width: u32, height: u32) -> Resource2D<I>
 	{
 		let hdr = hw::CtrlHeader {
@@ -141,15 +159,7 @@ where
 			width: width,
 			height: height,
 			};
-		let mut ret_hdr: hw::CtrlHeader = ::kernel::lib::PodHelpers::zeroed();
-		let _rv = {
-			let h = self.controlq.send_buffers(&self.interface, &mut [
-				Buffer::Read(::kernel::lib::as_byte_slice(&hdr)),
-				Buffer::Read(::kernel::lib::as_byte_slice(&cmd)),
-				Buffer::Write(::kernel::lib::as_byte_slice_mut(&mut ret_hdr)),
-				]);
-			h.wait_for_completion().expect("")
-			};
+		self.send_cmd(&hdr, &cmd);
 
 		Resource2D {
 			_pd: PhantomData,
@@ -196,7 +206,7 @@ where
 		// SAFE: We'e ensuring that both the backing memory and the resource are kept as long as they're in use
 		unsafe {
 			// - Bind framebuffer to it
-			res.attach_backing(&dev, fb.as_slice(0,1));
+			res.attach_backing(&dev, fb.as_slice(0,(info.r.width * info.r.height) as usize));
 			// - Set scanout's backing to that resource
 			dev.set_scanout_backing(scanout_idx, info.r, &res);
 		}
@@ -207,6 +217,12 @@ where
 			backing_alloc: fb,
 			backing_res: res,
 			}
+	}
+
+	fn get_scanline_mut(&mut self, idx: u32) -> &mut [u32] {
+		let pitch_bytes = self.dims.0 as usize * 4;
+		let row_start = idx as usize * pitch_bytes;
+		self.backing_alloc.as_mut_slice(row_start, self.dims.0 as usize)
 	}
 }
 impl<I> video::Framebuffer for Framebuffer<I>
@@ -231,20 +247,31 @@ where
 		false
 	}
 	
-	fn blit_inner(&mut self, dst: video::Rect, src: video::Rect) {
+	fn blit_inner(&mut self, _dst: video::Rect, _src: video::Rect) {
 		todo!("blit_inner");
 	}
-	fn blit_ext(&mut self, dst: video::Rect, src: video::Rect, srf: &dyn video::Framebuffer) -> bool {
+	fn blit_ext(&mut self, _dst: video::Rect, _src: video::Rect, _srf: &dyn video::Framebuffer) -> bool {
 		false
 	}
 	fn blit_buf(&mut self, dst: video::Rect, buf: &[u32]) {
-		todo!("blit_buf");
+		// Iterate rows of the input
+		let src_pitch = dst.w() as usize;
+		for (row,src) in kernel::lib::ExactZip::new( dst.top() .. dst.bottom(), buf.chunks(src_pitch) )
+		{
+			let out_row = self.get_scanline_mut(row);
+			out_row[dst.left() as usize .. dst.right() as usize].copy_from_slice(src);
+		}
+		// VIRTIO_GPU_CMD_TRANSFER_TO_HOST_2D
+		self.backing_res.transfer_to_host(&self.dev, dst);
+		// VIRTIO_GPU_CMD_RESOURCE_FLUSH
+		self.backing_res.flush(&self.dev, dst);
 	}
 	fn fill(&mut self, dst: video::Rect, colour: u32) {
-		todo!("fill");
+		todo!("fill({:?}, {:06x})", dst, colour);
 	}
 	fn move_cursor(&mut self, _p: Option<video::Pos>) {
 		todo!("move_cursor");
+		// VIRTIO_GPU_CMD_MOVE_CURSOR
 	}
 }
 
@@ -252,14 +279,133 @@ impl<I> Resource2D<I>
 where
 	I: 'static + Interface + Send + Sync
 {
-	pub fn drop(self, dev: &DeviceCore<I>)
+	// TODO: How would this be called? shouldn't this just keep a ARef around
+	pub fn drop(mut self, dev: &DeviceCore<I>)
 	{
+		// Release the resource
+		dev.send_cmd(&hw::CtrlHeader {
+				type_: hw::VIRTIO_GPU_CMD_RESOURCE_UNREF as u32,
+				flags: 0,
+				fence_id: 0,
+				ctx_id: 0,
+				_padding: 0,
+				},
+			&hw::ResourceUnref {
+				resource_id: self.idx,
+				_padding: 0,
+				});
+		self.idx = 0;
 	}
+	/// Attach a buffer to this resource
 	pub unsafe fn attach_backing(&mut self, dev: &DeviceCore<I>, buffer: &[u32])
 	{
+		// 1. Enumerate contigious sections
+		let mut entries: [hw::MemEntry; 16] = ::kernel::lib::PodHelpers::zeroed();
+		let mut n_ents = 0;
+		{
+			fn iter_pages(mut base: *const u8, mut len: usize, mut cb: impl FnMut(u64, usize)) {
+				use kernel::PAGE_SIZE;
+				let base_ofs = (base as usize) % PAGE_SIZE;
+				let max_len = PAGE_SIZE - base_ofs;
+				if max_len > len {
+					cb(kernel::memory::virt::get_phys(base), len);
+					return ;
+				}
+
+				cb(kernel::memory::virt::get_phys(base), max_len);
+				len -= max_len;
+				base = (base as usize + max_len) as *const u8;
+				while len > PAGE_SIZE {
+					cb(kernel::memory::virt::get_phys(base), PAGE_SIZE);
+					len -= PAGE_SIZE;
+					base = (base as usize + PAGE_SIZE) as *const u8;
+				}
+				cb(kernel::memory::virt::get_phys(base), len);
+			}
+			let mut exp_phys = kernel::memory::virt::get_phys(buffer.as_ptr());
+			entries[0].addr = exp_phys;
+			let mut cur_len = 0;
+			iter_pages(buffer.as_ptr() as *const u8, buffer.len() * 4, |phys, len| {
+				if phys != exp_phys {
+					entries[n_ents].length = cur_len as u32;
+					n_ents += 1;
+					entries[n_ents].addr = phys;
+					cur_len = 0;
+				}
+				exp_phys = phys + len as u64;
+				cur_len += len;
+				});
+			entries[n_ents].length = cur_len as u32;
+			n_ents += 1;
+		}
+
+		let hdr = hw::CtrlHeader {
+			type_: hw::VIRTIO_GPU_CMD_TRANSFER_TO_HOST_2D as u32,
+			flags: 0,
+			fence_id: 0,
+			ctx_id: 0,
+			_padding: 0,
+			};
+		let cmd = hw::ResourceAttachBacking {
+			resource_id: self.idx,
+			nr_entries: n_ents as u32,
+			};
+
+		let mut ret_hdr: hw::CtrlHeader = ::kernel::lib::PodHelpers::zeroed();
+		let _rv = {
+			let h = dev.controlq.send_buffers(&dev.interface, &mut [
+				Buffer::Read(::kernel::lib::as_byte_slice(&hdr)),
+				Buffer::Read(::kernel::lib::as_byte_slice(&cmd)),
+				Buffer::Read(::kernel::lib::as_byte_slice(&entries[..n_ents])),
+				Buffer::Write(::kernel::lib::as_byte_slice_mut(&mut ret_hdr)),
+				]);
+			h.wait_for_completion().expect("")
+			};
+	}
+	pub fn transfer_to_host(&self, dev: &DeviceCore<I>, rect: video::Rect)
+	{
+		dev.send_cmd(&hw::CtrlHeader {
+				type_: hw::VIRTIO_GPU_CMD_TRANSFER_TO_HOST_2D as u32,
+				flags: 0,
+				fence_id: 0,
+				ctx_id: 0,
+				_padding: 0,
+				},
+			&hw::TransferToHost {
+				r: rect.into(),
+				offset: 0,
+				resource_id: self.idx,
+				_padding: 0,
+				});
+	}
+	pub fn flush(&self, dev: &DeviceCore<I>, rect: video::Rect)
+	{
+		let hdr = hw::CtrlHeader {
+			type_: hw::VIRTIO_GPU_CMD_RESOURCE_FLUSH as u32,
+			flags: 0,
+			fence_id: 0,
+			ctx_id: 0,
+			_padding: 0,
+			};
+		let cmd = hw::Flush {
+			r: rect.into(),
+			resource_id: self.idx,
+			_padding: 0,
+			};
+		dev.send_cmd(&hdr, &cmd);
 	}
 }
 
+impl From<video::Rect> for hw::Rect {
+	fn from(rect: video::Rect) -> Self {
+		hw::Rect {
+			x: rect.x(),
+			y: rect.y(),
+			width: rect.w(),
+			height: rect.h(),
+			}
+	}
+}
 
 mod hw
 {
@@ -353,6 +499,13 @@ mod hw
 		VIRTIO_GPU_FORMAT_R8G8B8X8_UNORM  = 134,
 	}
 	pub use self::virtio_gpu_formats::*;
+	#[repr(C)]
+	#[derive(Debug)]
+	pub struct ResourceUnref
+	{
+		pub resource_id: u32,
+		pub _padding: u32,
+	}
 
 	#[repr(C)]
 	#[derive(Debug)]
@@ -361,6 +514,41 @@ mod hw
 		pub r: Rect,
 		pub scanout_id: u32,
 		pub resource_id: u32,
+	}
+
+	#[repr(C)]
+	#[derive(Debug)]
+	pub struct ResourceAttachBacking
+	{
+		pub resource_id: u32,
+		pub nr_entries: u32,
+	}
+	#[repr(C)]
+	#[derive(Debug)]
+	pub struct MemEntry
+	{
+		pub addr: u64,
+		pub length: u32,
+		pub padding: u32,
+	}
+
+	#[repr(C)]
+	#[derive(Debug)]
+	pub struct TransferToHost
+	{
+		pub r: Rect,
+		pub offset: u64,
+		pub resource_id: u32,
+		pub _padding: u32,
+	}
+
+	#[repr(C)]
+	#[derive(Debug)]
+	pub struct Flush
+	{
+		pub r: Rect,
+		pub resource_id: u32,
+		pub _padding: u32,
 	}
 }
 
