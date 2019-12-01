@@ -123,8 +123,9 @@ pub fn update_dims()
 				// Otherwise, ensure that the window stays visible
 				match ::kernel::metadevs::video::get_display_for_pos(*pos)
 				{
-				Ok(x) => {
+				Ok(r) => {
 					// TODO: Crop window's display area to fit on-screen?
+					log_debug!("Check {:?} vs {:?}", *pos, r);
 					},
 				// TODO: If now off-screen, warp to a visible position (with ~20px leeway)
 				Err(r) => {

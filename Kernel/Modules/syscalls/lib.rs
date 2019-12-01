@@ -258,7 +258,12 @@ fn invoke_int(call_id: u32, args: &mut Args) -> Result<u64,Error>
 			todo!("NET_CONNECT");
 			},
 		NET_LISTEN => {
-			todo!("NET_LISTEN");
+			let local: ::values::SocketAddress = { let p: Freeze<_> = try!(args.get()); *p };
+			match network_calls::new_server(local)
+			{
+			Ok(v) => v as u64,
+			Err(e) => e as u8 as u64,
+			}
 			},
 		NET_BIND => {
 			let local: ::values::SocketAddress = { let p: Freeze<_> = try!(args.get()); *p };

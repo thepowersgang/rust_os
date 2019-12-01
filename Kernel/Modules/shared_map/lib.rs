@@ -9,7 +9,6 @@
 #![feature(const_fn)]
 use kernel::sync::rwlock::{RwLock, self};
 
-#[macro_use]
 extern crate kernel;
 
 pub struct SharedMap<K: Send+Sync+Ord,V: Send+Sync>
@@ -29,18 +28,26 @@ impl<K: Send+Sync+Ord, V: Send+Sync> SharedMap<K,V>
 			}
 	}
 	pub fn get(&self, k: &K) -> Option<Handle<K,V>> {
-		todo!("SharedMap::get")
+		let lh = self.lock.read();
+		let p = lh.m.get(k).map(|r| r as *const _);
+		// SAFE: Lock handle is carried with the pointer, pointer can't be invalidated until that handle is dropped
+		p.map(|ptr| unsafe { Handle {
+			_ref_handle: lh,
+			data_ptr: &*ptr,
+			}})
 	}
 	pub fn take(&self, k: &K) -> Option<V> {
-		todo!("SharedMap::take")
+		let mut lh = self.lock.write();
+		lh.m.remove(k)
 	}
 	pub fn insert(&self, k: K, v: V) {
-		todo!("SharedMap::insert");
+		let mut lh = self.lock.write();
+		lh.m.insert(k, v);
 	}
 }
 pub struct Handle<'a, K: 'a + Send+Sync+Ord, V: 'a + Send+Sync>
 {
-	ref_handle: rwlock::Read<'a, SharedMapInner<K,V>>,
+	_ref_handle: rwlock::Read<'a, SharedMapInner<K,V>>,
 	data_ptr: &'a V,
 }
 impl<'a, K: 'a + Send+Sync+Ord, V: 'a + Send+Sync> ::core::ops::Deref for Handle<'a, K, V>

@@ -61,7 +61,6 @@ pub struct WindowFlags
 impl Window
 {
 	pub fn new(name: String) -> Window {
-		use core::default::Default;
 		Window {
 			name: name,
 			buf: Default::default(),
