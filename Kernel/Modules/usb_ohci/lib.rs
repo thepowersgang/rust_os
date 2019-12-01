@@ -6,6 +6,7 @@ use kernel::prelude::*;
 use kernel::_async3 as async;
 use kernel::lib::mem::aref::{Aref,ArefBorrow};
 use core::sync::atomic::{AtomicPtr,AtomicUsize,Ordering};
+use core::mem::size_of;
 
 #[macro_use]
 extern crate kernel;
@@ -24,12 +25,14 @@ fn init()
 
 struct BusDev
 {
-	host: Aref<HostInner>,
+	// Just holds the handle
+	_host: Aref<HostInner>,
 }
 struct UsbHost
 {
 	host: ArefBorrow<HostInner>,
 }
+const MAX_INT_PERIOD_MS: usize = 16;
 struct HostInner
 {
 	io: IoWrapper,
@@ -38,14 +41,28 @@ struct HostInner
 	nports: u8,
 	waiter_idx: AtomicUsize,
 	waiter_ptr: AtomicPtr<::kernel::sync::Queue<(usize,usize)>>,
+
+	/// Table containing metadata for each of the entries in the interrupt table (in the HCCA)
+	int_table_meta: [InterruptSlotMeta; MAX_INT_PERIOD_MS*2 - 1],
 }
 struct IoWrapper(::kernel::device_manager::IOBinding);
+#[derive(Default)]
+struct InterruptSlotMeta
+{
+	/// Total number of direct and downstream events on this slot
+	loading: AtomicUsize,
+}
 
 /// Handle/index to an endpoint
 struct EndpointId {
 	// Group 0 is in the HCCA page (either in the interrupt graph or the buffers)
 	group: u8,
 	idx: u8
+}
+impl_fmt! {
+	Debug(self, f) for EndpointId {
+		write!(f, "EndpointId({}/{})", self.group, self.idx)
+	}
 }
 /// Index into a pool of transfer descriptors
 struct TransferDescriptorId {
@@ -54,7 +71,6 @@ struct TransferDescriptorId {
 	idx: u8,
 }
 struct EndpointMetadata {
-	spinlock: ::kernel::sync::Spinlock<()>,
 	tail: AtomicPtr<hw::GeneralTD>,
 }
 
@@ -72,7 +88,7 @@ impl BusDev
 	fn new_boxed(irq: u32, io: ::kernel::device_manager::IOBinding) -> Result<Box<BusDev>, &'static str>
 	{
 		Ok(Box::new(BusDev {
-			host: HostInner::new_aref(irq, io)?
+			_host: HostInner::new_aref(irq, io)?
 			}))
 	}
 }
@@ -150,14 +166,18 @@ impl HostInner
 		{
 			let r: &mut hw::IntLists = handle_hcca.as_mut(256);
 			let mut next_level_phys = ::kernel::memory::virt::get_phys(r);
+			// captures: `next_level_phys`
 			let mut init_int_ep = |i, cnt, v: &mut hw::Endpoint| {
 				use kernel::memory::PAddr;
 				if i == 0 {
-					next_level_phys += (cnt * ::core::mem::size_of::<hw::Endpoint>()) as PAddr;
+					next_level_phys += (cnt * size_of::<hw::Endpoint>()) as PAddr;
 				}
-				v.next_ed = (next_level_phys + (i as PAddr / 2) * ::core::mem::size_of::<hw::Endpoint>() as PAddr) as u32;
+				v.next_ed = (next_level_phys + (i as PAddr / 2) * size_of::<hw::Endpoint>() as PAddr) as u32;
 				v.flags = 1 << 14;
 				};
+			// NOTE: Max polling interval is 16ms
+			assert_eq!( MAX_INT_PERIOD_MS, 16 );
+			assert_eq!( size_of::<hw::IntLists>(), MAX_INT_PERIOD_MS*2 * size_of::<hw::Endpoint>() );
 			for (i,v) in r.int_16ms.iter_mut().enumerate()
 			{
 				init_int_ep(i, 16, v);
@@ -191,7 +211,7 @@ impl HostInner
 				];
 			for (d,&idx) in Iterator::zip(hcca.interrupt_table.iter_mut(), int_indexes.iter())
 			{
-				*d = int_base + idx * ::core::mem::size_of::<hw::Endpoint>() as u32;
+				*d = int_base + idx * size_of::<hw::Endpoint>() as u32;
 			}
 			hcca.frame_number = 0;
 			hcca.done_head = 0;
@@ -242,6 +262,7 @@ impl HostInner
 			irq_handle: None,	// Filled below, once the allocation is made
 			waiter_idx: Default::default(),
 			waiter_ptr: Default::default(),
+			int_table_meta: Default::default(),
 			});
 		
 		// Bind interrupt
@@ -323,9 +344,12 @@ impl HostInner
 		}
 	}
 
+	fn allocate_endpoint(&self, flags: u32) -> EndpointId {
+		todo!("allocate_endpoint: flags={:#x}", flags)
+	}
 	fn get_ed_pointer(&self, id: &EndpointId) -> *const hw::Endpoint {
 		if id.group == 0 {
-			let ofs = (id.idx as usize) * ::core::mem::size_of::<hw::Endpoint>();
+			let ofs = (id.idx as usize) * size_of::<hw::Endpoint>();
 			assert!(ofs >= 256);
 			assert!(ofs < 2048);
 			self.hcca_handle.as_ref(ofs)
@@ -334,9 +358,16 @@ impl HostInner
 			todo!("get_ed_pointer: Alternate pools for endpoint descriptors");
 		}
 	}
+	/// Obtain a lock handle for a given endpoint descriptor
+	fn get_ed_locked(&self, id: &EndpointId) -> LockedEndpoint {
+		// SAFE: Pointer is valid
+		unsafe {
+			LockedEndpoint::new(self.get_ed_pointer(id) as *mut hw::Endpoint)
+		}
+	}
 	fn get_general_td_pointer(&self, id: &TransferDescriptorId) -> *const hw::GeneralTD {
 		if id.group == 0 {
-			let ofs = (id.idx as usize) * ::core::mem::size_of::<hw::GeneralTD>();
+			let ofs = (id.idx as usize) * size_of::<hw::GeneralTD>();
 			assert!(ofs >= 2048);
 			assert!(ofs < 4096);
 			self.hcca_handle.as_ref(ofs)
@@ -345,41 +376,83 @@ impl HostInner
 			todo!("get_general_td_pointer: Alternate pools for transfer descriptors");
 		}
 	}
+
 	fn get_endpoint_meta(&self, id: &EndpointId) -> &EndpointMetadata {
-		todo!("get_endpoint_meta");
+		todo!("get_endpoint_meta({:?})", id);
 	}
 
 	/// Register an interrupt endpoint
 	fn register_interrupt_ed(&self, period_pow_2: usize, flags: u32) -> EndpointId
 	{
 		// 1. Find a low-load slot of this period
+		let (start,len) = 
+			match period_pow_2
+			{
+			4 => (0, 16),
+			3 => (16, 8),
+			2 => (16+8, 4),
+			1 => (16+8+4, 2),
+			0 => (16+8+4+2, 1),
+			_ => (0, 16),
+			};
+		let meta = &self.int_table_meta[start..][..len];
+		let min_slot_idx = (0 .. len).min_by_key(|&i| meta[i].loading.load(Ordering::SeqCst)).unwrap();
+		let placeholder_ed_id = EndpointId {
+			group: 0,
+			idx: (256 / size_of::<hw::Endpoint>() + start + min_slot_idx) as u8,
+			};
+		// Increment loading of this slot and all down-stream slots
+		for idx in UpstreamIntSlots(start + min_slot_idx)
+		{
+			self.int_table_meta[idx].loading.fetch_add(1, Ordering::SeqCst);
+		}
+		let mut placeholder_ed = self.get_ed_locked(&placeholder_ed_id);
+
 		// 2. Check if the placeholder is in use
-		// 3. If not, allocate a new endpoint descriptor and put it after the placeholder
-		todo!("register_interrupt_ed");
+		if placeholder_ed.flags() & (1 << 14) == 0 {
+			// - If it is, allocate a new endpoint descriptor and put it after the placeholder
+			let new_ed_id = self.allocate_endpoint(flags);
+
+			// SAFE: Ordering ensures consistency, writing valid addreses
+			unsafe {
+				let mut new_ed = self.get_ed_locked(&new_ed_id);
+				new_ed.set_next_ed( placeholder_ed.next_ed() );
+				placeholder_ed.set_next_ed( new_ed.get_phys() );
+			}
+
+			new_ed_id
+		}
+		else {
+			// - Otherwise use the placeholder
+			placeholder_ed.set_flags(flags);
+			placeholder_ed_id
+		}
 	}
 	/// Register a general-purpose endpoint descriptor and add it to the control queue
 	fn register_control_ed(&self, flags: u32) -> EndpointId
 	{
-		todo!("register_control_ed");
+		let ep = self.allocate_endpoint(flags);
+		todo!("register_control_ed: {:?}", ep);
 	}
 	/// Register a general-purpose endpoint descriptor and add it to the bulk queue
 	fn register_bulk_ed(&self, flags: u32) -> EndpointId
 	{
-		todo!("register_bulk_ed");
+		let ep = self.allocate_endpoint(flags);
+		todo!("register_bulk_ed: {:?}", ep);
 	}
 	/// Allocate a new TD
 	fn allocate_td(&self, flags: u32) -> TransferDescriptorId
 	{
 		use core::sync::atomic::AtomicU32;
 		// Iterate over all avaliable pools
-		const SIZE: usize = ::core::mem::size_of::<hw::GeneralTD>();
-		for i in (2048 / SIZE .. 4096 / SIZE)
+		const SIZE: usize = size_of::<hw::GeneralTD>();
+		for i in (2048 / SIZE) .. (4096 / SIZE)
 		{
 			let ofs = i * SIZE;
 			log_debug!("allocate_td: i={} ofs={}", i, ofs);
 			// Do a compare+set of the flags field with the new value (with some masking)
 			// SAFE: I assume so? (TODO: Check)
-			let flags_ptr: &AtomicU32 = unsafe { &*(self.hcca_handle.as_ref(ofs) as *const u32 as *const AtomicU32) };
+			let flags_ptr: &AtomicU32 = unsafe { &*hw::GeneralTD::atomic_flags(self.hcca_handle.as_ref(ofs)) };
 			if flags_ptr.compare_and_swap(0, flags | 1, Ordering::SeqCst) == 0
 			{
 				return TransferDescriptorId { group: 0, idx: i as u8 };
@@ -401,15 +474,13 @@ impl HostInner
 			::core::ptr::write(&mut (*td_ptr).meta_async_handle, ::core::mem::transmute::<_, usize>(async_handle) as u64);
 		}
 		// 2. Add to the end of the endpoint's queue.
-		let ed = self.get_ed_pointer(ep) as *mut hw::Endpoint;
-		// - Set SKIP in flags
-		// - Get the metadata for this endpoint and lock it (spinlock)
+		// TODO: Could the metadata be locked to the endpoint handle?
+		let mut ed = self.get_ed_locked(ep);
 		let epm = self.get_endpoint_meta(ep);
-		let _lh = epm.spinlock.lock();
 		// - If the NextP is 0, set NextP = phys(td)
 		// > TODO: Atomic compare_and_swap
-		if (*ed).head_ptr == 0 {
-			(*ed).head_ptr = ::kernel::memory::virt::get_phys(td_ptr) as u32;
+		if ed.head_ptr() == 0 {
+			ed.set_head_ptr( ::kernel::memory::virt::get_phys(td_ptr) as u32 );
 			epm.tail.store(td_ptr, Ordering::SeqCst);
 		}
 		// - Else, set EP_Meta.tail.NextP = phys(td)
@@ -418,6 +489,8 @@ impl HostInner
 			let prev_tail = epm.tail.swap(td_ptr, Ordering::SeqCst);
 			(*prev_tail).next_td = ::kernel::memory::virt::get_phys(td_ptr) as u32;
 		}
+		// TODO: What about the tail? Anything special needed there?
+		ed.set_tail_ptr( ::kernel::memory::virt::get_phys(td_ptr) as u32 );
 
 		td_handle
 	}
@@ -476,13 +549,135 @@ impl HostInner
 	}
 }
 
+
+/// Lock handle on a `hw::Endpoint`
+struct LockedEndpoint<'a> {
+	_lt: ::core::marker::PhantomData<&'a HostInner>,
+	ptr: *mut hw::Endpoint,
+	_held_interrupts: kernel::arch::sync::HeldInterrupts,
+}
+impl<'a> LockedEndpoint<'a>
+{
+	// UNSAFE: Ensure pointer is valid
+	unsafe fn new(ptr: *mut hw::Endpoint) -> LockedEndpoint<'a> {
+		// TODO: Lock by:
+		// - Blocking interrupts
+		let held_interrupts = kernel::arch::sync::hold_interrupts();
+		// - doing a CAS loop on bit 31 of flags
+		let flags_atomic = &*hw::Endpoint::atomic_flags(ptr);
+		loop {
+			let v = flags_atomic.load(Ordering::Acquire) & !hw::Endpoint::FLAG_LOCKED;
+
+			if flags_atomic.compare_and_swap(v, v | hw::Endpoint::FLAG_LOCKED, Ordering::Acquire) == v {
+				break;
+			}
+		}
+		LockedEndpoint {
+			_lt: core::marker::PhantomData,
+			ptr: ptr,
+			_held_interrupts: held_interrupts,
+			}
+	}
+
+	/// Obtain the physical address of this endpoint descriptor
+	fn get_phys(&self) -> u32 {
+		kernel::memory::virt::get_phys(self.ptr) as u32
+	}
+
+	// SAFE: Read-only, locked
+	pub fn flags   (&self) -> u32 { unsafe { (*self.ptr).flags    } }
+	// SAFE: Read-only, locked
+	pub fn tail_ptr(&self) -> u32 { unsafe { (*self.ptr).tail_ptr } }
+	// NOTE: The controller can write to this value, so use read_volatile
+	// SAFE: Read-only, locked
+	pub fn head_ptr(&self) -> u32 { unsafe { core::ptr::read_volatile(&(*self.ptr).head_ptr) } }
+	// SAFE: Read-only, locked
+	pub fn next_ed (&self) -> u32 { unsafe { (*self.ptr).next_ed  } }
+
+	// Safe field, so not unsafe to call
+	pub fn set_flags(&mut self, v: u32) {
+		// SAFE: Value cannot cause unsafety on its own, locked
+		unsafe {
+			(*self.ptr).flags = v | (1 << 31);	// maintain the lock bit
+		}
+	}
+	/// UNSAFE: Value must be a valid physical address
+	unsafe fn set_tail_ptr(&mut self, v: u32) {
+		core::ptr::write_volatile( &mut (*self.ptr).tail_ptr, v );
+	}
+	/// UNSAFE: Value must be a valid physical address
+	unsafe fn set_head_ptr(&mut self, v: u32) {
+		// TODO: The controller writes to this field too
+		core::ptr::write_volatile( &mut (*self.ptr).head_ptr, v );
+	}
+	/// UNSAFE: Value must be a valid physical address
+	unsafe fn set_next_ed(&mut self, v: u32) {
+		core::ptr::write_volatile( &mut (*self.ptr).next_ed, v );
+	}
+}
+impl<'a> core::ops::Drop for LockedEndpoint<'a> {
+	fn drop(&mut self) {
+		// Write back `flags` ensuring that the lock bit (31) is clear
+		// SAFE: Atomic accesses, valid pointer
+		unsafe {
+			let new_flags = self.flags() & !hw::Endpoint::FLAG_LOCKED;
+			(*hw::Endpoint::atomic_flags(self.ptr)).store( new_flags, Ordering::Release );
+		}
+		// Interrupt hold released on inner drop
+	}
+}
+
+
+/// Iterator over the "upstream" slots for a given interrupt slot
+/// I.e. the slots that would have increased loading if an item was added to this slot
+struct UpstreamIntSlots(usize);
+impl Iterator for UpstreamIntSlots
+{
+	type Item = usize;
+	fn next(&mut self) -> Option<usize>
+	{
+		if self.0 == MAX_INT_PERIOD_MS*2 - 1 {
+			None
+		}
+		else {
+			let cur = self.0;
+			let (mut base, mut size) = (0,MAX_INT_PERIOD_MS);
+			while size > 1 {
+				if cur-base < size {
+					self.0 = base + size + (self.0 - base) / 2;
+					break;
+				}
+				base += size;
+				size /= 2;
+			}
+			if size == 1 {
+				assert_eq!(cur, base);
+				assert_eq!(cur, MAX_INT_PERIOD_MS*2 - 2);
+				self.0 = MAX_INT_PERIOD_MS*2 - 1;
+			}
+			Some(cur)
+		}
+	}
+}
+
 use ::usb_core::host::{EndpointAddr, PortFeature, Handle};
 use ::usb_core::host::{InterruptEndpoint, IsochEndpoint, ControlEndpoint, BulkEndpoint};
 impl ::usb_core::host::HostController for UsbHost
 {
 	/// Begin polling an endpoint at the given rate (buffer used is allocated by the driver to be the interrupt endpoint's size)
 	fn init_interrupt(&self, endpoint: EndpointAddr, period_ms: usize, _waiter: async::ObjectHandle) -> Handle<dyn InterruptEndpoint> {
-		todo!("init_interrupt({:?}, period_ms={}", endpoint, period_ms);
+		// NOTE: This rounds down (so 3 = 2^1)
+		let period_pow_2 = if period_ms == 0 { 0 } else { 32-1 - (period_ms as u32).leading_zeros()};
+		let ptr = self.host.register_interrupt_ed(period_pow_2 as usize,
+			  (endpoint.dev_addr() & 0x7F) as u32
+			| ((endpoint.endpt() & 0xF) << 7) as u32
+			| (0b00 << 11)	// Direction - Use TD
+			| (0b0 << 13)	// Speed (TODO)
+			| (0b0 << 14)	// Skip - clear
+			| (0b0 << 15)	// Format - 0=control/bulk/int
+			// TODO: max packet size?
+			);
+		todo!("init_interrupt({:?}, period_ms={}): ptr={:?}", endpoint, period_ms, ptr);
 	}
 	fn init_isoch(&self, endpoint: EndpointAddr, max_packet_size: usize) -> Handle<dyn IsochEndpoint> {
 		todo!("init_isoch({:?}, max_packet_size={})", endpoint, max_packet_size);
@@ -505,7 +700,16 @@ impl ::usb_core::host::HostController for UsbHost
 			}).ok().unwrap()
 	}
 	fn init_bulk(&self, endpoint: EndpointAddr, max_packet_size: usize) -> Handle<dyn BulkEndpoint> {
-		todo!("init_bulk({:?}, max_packet_size={})", endpoint, max_packet_size);
+		let ptr = self.host.register_bulk_ed(
+			  (endpoint.dev_addr() & 0x7F) as u32
+			| ((endpoint.endpt() & 0xF) << 7) as u32
+			| (0b00 << 11)	// Direction - Use TD
+			| (0b0 << 13)	// Speed (TODO)
+			| (0b0 << 14)	// Skip - clear
+			| (0b0 << 15)	// Format - 0=control/bulk/int
+			| ((max_packet_size & 0xFFFF) << 16) as u32
+			);
+		todo!("init_bulk({:?}, max_packet_size={}): {:?}", endpoint, max_packet_size, ptr);
 	}
 
 

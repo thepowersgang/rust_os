@@ -89,6 +89,16 @@ pub struct Endpoint
 
 	// TODO: Extra metadata?
 }
+impl Endpoint
+{
+	/// (AVAIL) Lock bit
+	pub const FLAG_LOCKED: u32 = (1 << 31);
+
+	pub fn atomic_flags(s: *const Self) -> *const core::sync::atomic::AtomicU32 {
+		// NOTE: flags is the first field
+		s as *const core::sync::atomic::AtomicU32
+	}
+}
 
 /// A general (non-isochronous) transfer descriptor
 #[repr(C)]
@@ -118,6 +128,13 @@ pub struct GeneralTD
 	// -- Acess Information
 	pub meta_async_handle: u64,
 	_meta_unused: u64,
+}
+impl GeneralTD
+{
+	pub fn atomic_flags(s: *const Self) -> *const core::sync::atomic::AtomicU32 {
+		// NOTE: flags is the first field
+		s as *const core::sync::atomic::AtomicU32
+	}
 }
 
 // 32 * 16  = 512 bytes long
