@@ -22,7 +22,7 @@ pub fn register_handler(proto: u8, handler: fn(&Interface, Address, ::nic::Packe
 	lh.push( (proto, ProtoHandler::DirectKernel(handler),) );
 	Ok( () )
 }
-pub fn handle_rx_ethernet(_physical_interface: &::nic::Interface, _source_mac: [u8; 6], mut reader: ::nic::PacketReader) -> Result<(), ()>
+pub fn handle_rx_ethernet(_physical_interface: &dyn crate::nic::Interface, _source_mac: [u8; 6], mut reader: ::nic::PacketReader) -> Result<(), ()>
 {
 	let pre_header_reader = reader.clone();
 	let hdr = match Ipv4Header::read(&mut reader)
@@ -109,6 +109,7 @@ pub fn handle_rx_ethernet(_physical_interface: &::nic::Interface, _source_mac: [
 	Ok( () )
 }
 
+// Calculate a checksum of a sequence of NATIVE ENDIAN (not network) 16-bit words
 pub fn calculate_checksum(words: impl Iterator<Item=u16>) -> u16
 {
 	let mut sum = 0;
@@ -204,6 +205,16 @@ impl ::core::fmt::Display for Address
 	fn fmt(&self, f: &mut ::core::fmt::Formatter) -> ::core::fmt::Result
 	{
 		write!(f, "{}.{}.{}.{}", self.0[0], self.0[1], self.0[2], self.0[3])
+	}
+}
+impl Address
+{
+	/// Big endian u32 (so 127.0.0.1 => 0x7F000001)
+	pub fn as_u32(&self) -> u32 {
+		(self.0[0] as u32) << 24
+		| (self.0[1] as u32) << 16
+		| (self.0[2] as u32) << 8
+		| (self.0[3] as u32) << 0
 	}
 }
 pub struct Interface

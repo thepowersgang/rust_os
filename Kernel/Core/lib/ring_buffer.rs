@@ -53,6 +53,9 @@ impl<T> RingBuf<T>
 	pub fn is_empty(&self) -> bool {
 		self.len == 0
 	}
+	pub fn len(&self) -> usize {
+		self.len
+	}
 
 	/// Push an item to the end of the buffer
 	pub fn push_back(&mut self, val: T) -> Result<(),T>

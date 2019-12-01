@@ -4,14 +4,18 @@
 // Modules/network/tcp.rs
 //! Transmission Control Protocol (Layer 4)
 use shared_map::SharedMap;
-use kernel::prelude::*;
+use kernel::sync::Mutex;
 use kernel::lib::ring_buffer::{RingBuf,AtomicRingBuf};
 use core::sync::atomic::{AtomicUsize, Ordering};
 use crate::nic::SparsePacket;
 
+const IPV4_PROTO_TCP: u8 = 6;
+const MAX_WINDOW_SIZE: u32 = 0x100000;	// 4MiB
+const DEF_WINDOW_SIZE: u32 = 0x4000;	// 16KiB
+
 pub fn init()
 {
-	::ipv4::register_handler(6, rx_handler_v4);
+	::ipv4::register_handler(IPV4_PROTO_TCP, rx_handler_v4).unwrap();
 }
 
 #[path="tcp-lib/"]
@@ -21,7 +25,7 @@ mod lib {
 }
 use self::lib::rx_buffer::RxBuffer;
 
-static CONNECTIONS: SharedMap<Quad, Connection> = SharedMap::new();
+static CONNECTIONS: SharedMap<Quad, Mutex<Connection>> = SharedMap::new();
 static PROTO_CONNECTIONS: SharedMap<Quad, ProtoConnection> = SharedMap::new();
 static SERVERS: SharedMap<(Option<Address>,u16), Server> = SharedMap::new();
 
@@ -50,12 +54,32 @@ fn rx_handler(src_addr: Address, dest_addr: Address, mut pkt: ::nic::PacketReade
 
 	// TODO: Validate checksum.
 	{
-		let sum_header = hdr.checksum();
-		let sum_options = {
-			let mut pkt = pkt.clone();
-			::ipv4::calculate_checksum( (0 .. (pre_header_reader.remain() - hdr_len) / 2).map(|_| pkt.read_u16n().unwrap()) )
+		let packet_len = pre_header_reader.remain();
+		// Pseudo header for checksum
+		let sum_pseudo = match (src_addr,dest_addr)
+			{
+			(Address::Ipv4(s), Address::Ipv4(d)) =>
+				::ipv4::calculate_checksum([
+					// Big endian stores MSB first, so write the high word first
+					(s.as_u32() >> 16) as u16, (s.as_u32() >> 0) as u16,
+					(d.as_u32() >> 16) as u16, (d.as_u32() >> 0) as u16,
+					IPV4_PROTO_TCP as u16, packet_len as u16,
+					].iter().copied()),
 			};
-		//let sum_data = ::ipv4::calculate_checksum( pkt.iter_u16n() );
+		let sum_header = hdr.checksum();
+		let sum_options_and_data = {
+			let mut pkt = pkt.clone();
+			let psum_whole = !::ipv4::calculate_checksum( (0 .. (pre_header_reader.remain() - hdr_len) / 2).map(|_| pkt.read_u16n().unwrap()) );
+			// Final byte is decoded as if there was a zero after it (so as 0x??00)
+			let psum_partial = if pkt.remain() > 0 { (pkt.read_u8().unwrap() as u16) << 8} else { 0 };
+			::ipv4::calculate_checksum([psum_whole, psum_partial].iter().copied())
+			};
+		let sum_total = ::ipv4::calculate_checksum([
+			!sum_pseudo, !sum_header, !sum_options_and_data
+			].iter().copied());
+		if sum_total != 0 {
+			log_error!("Incorrect checksum: 0x{:04x} != 0", sum_total);
+		}
 	}
 
 	// Options
@@ -71,7 +95,7 @@ fn rx_handler(src_addr: Address, dest_addr: Address, mut pkt: ::nic::PacketReade
 	// Search for active connections with this quad
 	if let Some(c) = CONNECTIONS.get(&quad)
 	{
-		c.handle(&hdr, pkt);
+		c.lock().handle(&quad, &hdr, pkt);
 	}
 	// Search for proto-connections
 	// - Proto-connections are lighter weight than full-blown connections, reducing the impact of a SYN flood
@@ -83,7 +107,7 @@ fn rx_handler(src_addr: Address, dest_addr: Address, mut pkt: ::nic::PacketReade
 			if hdr.sequence_number == c.seen_seq + 1 && hdr.acknowledgement_number == c.sent_seq
 			{
 				// Make the full connection struct
-				CONNECTIONS.insert(quad, Connection::new(&hdr));
+				CONNECTIONS.insert(quad, Mutex::new(Connection::new_inbound(&hdr)));
 				// Add the connection onto the server's accept queue
 				let server = Option::or( SERVERS.get( &(Some(dest_addr), hdr.dest_port) ), SERVERS.get( &(None, hdr.dest_port) ) ).expect("Can't find server");
 				server.accept_queue.push(quad).expect("Acceped connection with full accept queue");
@@ -212,8 +236,10 @@ struct PktHeader
 
 	//options: [u8],
 }
+const FLAG_FIN: u8 = 1 << 0;
 const FLAG_SYN: u8 = 1 << 1;
 const FLAG_RST: u8 = 1 << 2;
+const FLAG_PSH: u8 = 1 << 3;
 const FLAG_ACK: u8 = 1 << 4;
 impl PktHeader
 {
@@ -282,30 +308,292 @@ impl PktHeader
 
 struct Connection
 {
+	state: ConnectionState,
+
 	/// Sequence number of the next expected remote byte
 	next_rx_seq: u32,
+	/// Last ACKed sequence number
+	last_rx_ack: u32,
 	/// Received bytes
 	rx_buffer: RxBuffer,
+	/// Sequence number of the first byte in the RX buffer
+	rx_buffer_seq: u32,
+
+	rx_window_size_max: u32,
+	rx_window_size: u32,
 
 	/// Sequence number of last transmitted byte
 	last_tx_seq: u32,
 	/// Buffer of transmitted but not ACKed bytes
 	tx_buffer: RingBuf<u8>,
+	/// Last received transmit window size
+	tx_window_size: u32,
+}
+#[derive(Copy,Clone,Debug,PartialEq)]
+enum ConnectionState
+{
+	//Closed,	// Unused
+
+	SynSent,	// SYN sent by local, waiting for SYN-ACK
+	//SynReceived,	// Server only, handled by PROTO_CONNECTIONS
+
+	Established,
+
+	FinWait1,	// FIN sent, waiting for reply (ACK or FIN)
+	FinWait2,	// sent FIN acked, waiting for FIN from peer 
+	Closing,	// Waiting for ACK of FIN (FIN sent and recieved)
+	TimeWait,	// Waiting for timeout after local close
+
+	ForceClose,	// RST recieved, waiting for user close
+	CloseWait,	// FIN recieved, waiting for user to close (error set, wait for node close)
+	LastAck,	// FIN sent and recieved, waiting for ACK
+
+	Finished,
 }
 impl Connection
 {
-	fn new(hdr: &PktHeader) -> Self
+	/// Create a new connection from the ACK in a SYN-SYN,ACK-ACK
+	fn new_inbound(hdr: &PktHeader) -> Self
 	{
 		Connection {
+			state: ConnectionState::Established,
 			next_rx_seq: hdr.sequence_number,
-			rx_buffer: RxBuffer::new(2048),
+			last_rx_ack: hdr.sequence_number,
+			rx_buffer_seq: hdr.sequence_number,
+			rx_buffer: RxBuffer::new(2*DEF_WINDOW_SIZE as usize),
+
+			rx_window_size_max: MAX_WINDOW_SIZE,	// Can be updated by the user
+			rx_window_size: DEF_WINDOW_SIZE,
+
 			last_tx_seq: hdr.acknowledgement_number,
-			tx_buffer: RingBuf::new(2048),
+			tx_buffer: RingBuf::new(2048),//hdr.window_size as usize),
+			tx_window_size: hdr.window_size as u32,
 			}
 	}
-	fn handle(&self, hdr: &PktHeader, pkt: ::nic::PacketReader)
+
+	/// Handle inbound data
+	fn handle(&mut self, quad: &Quad, hdr: &PktHeader, mut pkt: ::nic::PacketReader)
 	{
-		// TODO: Handle various stages of a connection
+		match self.state
+		{
+		//ConnectionState::Closed => return,
+		ConnectionState::Finished => return,
+		_ => {},
+		}
+
+		// Synchronisation request
+		if hdr.flags & FLAG_SYN != 0 {
+			// TODO: Send an ACK of the last recieved byte (should this be conditional?)
+			if self.last_rx_ack != self.next_rx_seq {
+			}
+			//self.next_rx_seq = hdr.sequence_number;
+		}
+		// ACK of sent data
+		if hdr.flags & FLAG_ACK != 0 {
+			let in_flight = (self.last_tx_seq - hdr.acknowledgement_number) as usize;
+			if in_flight > self.tx_buffer.len() {
+				// TODO: Error, something funky has happened
+			}
+			else {
+				let n_bytes = self.tx_buffer.len() - in_flight;
+				log_debug!("{:?} ACQ {} bytes", quad, n_bytes);
+				for _ in 0 .. n_bytes {
+					self.tx_buffer.pop_front();
+				}
+			}
+		}
+
+		
+		let new_state = match self.state
+		{
+		//ConnectionState::Closed => return,
+
+		// SYN sent by local, waiting for SYN-ACK
+		ConnectionState::SynSent => {	
+			if hdr.flags & FLAG_SYN != 0 {
+				self.next_rx_seq += 1;
+				if hdr.flags & FLAG_ACK != 0 {
+					// Now established
+					// TODO: Send ACK back
+					self.send_ack(quad, "SYN-ACK");
+					ConnectionState::Established
+				}
+				else {
+					// Why did we get a plain SYN in this state?
+					self.state
+				}
+			}
+			else {
+				// Ignore non-SYN
+				self.state
+			}
+			},
+
+		ConnectionState::Established =>
+			if hdr.flags & FLAG_RST != 0 {
+				// RST received, do an unclean close (reset by peer)
+				// TODO: Signal to user that the connection is closing (error)
+				ConnectionState::ForceClose
+			}
+			else if hdr.flags & FLAG_FIN != 0 {
+				// FIN received, start a clean shutdown
+				self.next_rx_seq += 1;
+				// TODO: Signal to user that the connection is closing (EOF)
+				ConnectionState::CloseWait
+			}
+			else {
+				if pkt.remain() == 0 {
+					// Pure ACK, no change
+					if hdr.flags == FLAG_ACK {
+						log_trace!("{:?} ACK only", quad);
+					}
+					else if self.next_rx_seq != hdr.sequence_number {
+						log_trace!("{:?} Empty packet, unexpected seqeunce number {:x} != {:x}", quad, hdr.sequence_number, self.next_rx_seq);
+					}
+					else {
+						// Counts as one byte
+						self.next_rx_seq += 1;
+						self.send_ack(quad, "Empty");
+					}
+				}
+				else if hdr.sequence_number - self.next_rx_seq + pkt.remain() as u32 > MAX_WINDOW_SIZE {
+					// Completely out of sequence
+				}
+				else {
+					// In sequence.
+					let mut start_ofs = (hdr.sequence_number - self.next_rx_seq) as i32;
+					while start_ofs < 0 {
+						pkt.read_u8().unwrap();
+						start_ofs += 1;
+					}
+					let mut ofs = start_ofs as usize;
+					while let Ok(b) = pkt.read_u8() {
+						match self.rx_buffer.insert( (self.next_rx_seq - self.rx_buffer_seq) as usize + ofs, &[b])
+						{
+						Ok(_) => {},
+						Err(e) => {
+							log_error!("{:?} RX buffer push {:?}", quad, e);
+							break;
+							},
+						}
+						ofs += 1;
+					}
+					// Better idea: Have an ACQ point, and a window point. Buffer is double the window
+					// Once the window point reaches 25% of the window from the ACK point
+					if start_ofs == 0 {
+						self.next_rx_seq += ofs as u32;
+						// Calculate a maximum window size based on how much space is left in the buffer
+						let buffered_len = self.next_rx_seq - self.rx_buffer_seq;	// How much data the user has buffered
+						let cur_max_window = 2*self.rx_window_size_max - buffered_len;	// NOTE: 2* for some flex so the window can stay at max size
+						if cur_max_window < self.rx_window_size {
+							// Reduce the window size and send an ACQ (with the updated size)
+							while cur_max_window < self.rx_window_size {
+								self.rx_window_size /= 2;
+							}
+							self.send_ack(quad, "Constrain window");
+						}
+						else if self.next_rx_seq - self.last_rx_ack > self.rx_window_size/2 {
+							// Send an ACK now, we've recieved a burst of data
+							self.send_ack(quad, "Data burst");
+						}
+						else {
+							// TODO: Schedule an ACK in a few hundred milliseconds
+						}
+					}
+
+					if hdr.flags & FLAG_PSH != 0 {
+						// TODO: Prod the user that there's new data?
+					}
+				}
+
+				self.state
+			},
+
+		ConnectionState::CloseWait => {
+			// Ignore all packets while waiting for the user to complete teardown
+			self.state
+			},
+		ConnectionState::LastAck =>	// Waiting for ACK in FIN,FIN/ACK,ACK
+			if hdr.flags & FLAG_ACK != 0 {
+				ConnectionState::Finished
+			}
+			else {
+				self.state
+			},
+
+		ConnectionState::FinWait1 =>	// FIN sent, waiting for reply (ACK or FIN)
+			if hdr.flags & FLAG_FIN != 0 {
+				// TODO: Check the sequence number vs the sequence for the FIN
+				self.send_ack(quad, "SYN-ACK");
+				ConnectionState::Closing
+			}
+			else if hdr.flags & FLAG_ACK != 0 {
+				// TODO: Check the sequence number vs the sequence for the FIN
+				ConnectionState::FinWait2
+			}
+			else {
+				self.state
+			},
+		ConnectionState::FinWait2 =>
+			if hdr.flags & FLAG_FIN != 0 {	// Got a FIN after the ACK, close
+				ConnectionState::TimeWait
+			}
+			else {
+				self.state
+			},
+
+		ConnectionState::Closing =>
+			if hdr.flags & FLAG_ACK != 0 {
+				// TODO: Check the sequence number vs the sequence for the FIN
+				ConnectionState::TimeWait
+			}
+			else {
+				self.state
+			},
+
+		ConnectionState::ForceClose => self.state,
+		ConnectionState::TimeWait => self.state,
+
+		ConnectionState::Finished => return,
+		};
+
+		if self.state != new_state
+		{
+			log_trace!("{:?} {:?} -> {:?}", quad, self.state, new_state);
+			self.state = new_state;
+		}
+	}
+
+	fn send_data(&mut self, quad: &Quad, buf: &[u8]) -> Result<usize, ()>
+	{
+		// TODO: Is it valid to send before the connection is fully established?
+		if self.state != ConnectionState::Established {
+			return Err( () );
+		}
+
+		// 1. Determine how much data we can send (based on the TX window)
+		let max_len = usize::saturating_sub(self.tx_window_size as usize, self.tx_buffer.len());
+		todo!("{:?} send_data( min({}, {}) )", quad, max_len, buf.len());
+	}
+	// TODO: Error types
+	fn recv_data(&mut self, _quad: &Quad, buf: &mut [u8]) -> Result<usize, ()>
+	{
+		match self.state
+		{
+		ConnectionState::Established => {
+			//let valid_len = self.rx_buffer.valid_len();
+			//let acked_len = u32::wrapping_sub(self.next_rx_seq, self.rx_buffer_seq);
+			//let len = usize::min(valid_len, buf.len());
+			Ok( self.rx_buffer.take(buf) )
+			},
+		_ => Err( () ),
+		}
+	}
+
+	fn send_ack(&mut self, quad: &Quad, msg: &str)
+	{
+		// - Cancel any pending ACK
+		todo!("{:?} send_ack({:?})", quad, msg);
 	}
 }
 
@@ -333,3 +621,26 @@ struct Server
 	accept_queue: AtomicRingBuf<Quad>,
 }
 
+
+pub struct ConnectionHandle(Quad);
+
+impl ConnectionHandle
+{
+	pub fn send_data(&self, buf: &[u8]) -> Result<usize, ()>
+	{
+		match CONNECTIONS.get(&self.0)
+		{
+		None => panic!("Connection {:?} removed before handle dropped", self.0),
+		Some(v) => v.lock().send_data(&self.0, buf),
+		}
+	}
+
+	pub fn recv_data(&self, buf: &mut [u8]) -> Result<usize, ()>
+	{
+		match CONNECTIONS.get(&self.0)
+		{
+		None => panic!("Connection {:?} removed before handle dropped", self.0),
+		Some(v) => v.lock().recv_data(&self.0, buf),
+		}
+	}
+}

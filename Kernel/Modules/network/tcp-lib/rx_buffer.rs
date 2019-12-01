@@ -70,7 +70,7 @@ impl RxBuffer
 		}
 		out_len
 	}
-	fn valid_len(&self) -> usize
+	pub fn valid_len(&self) -> usize
 	{
 		// Number of valid bytes in the first partial bitmap entry
 		let mut len = {
@@ -140,7 +140,7 @@ impl RxBuffer
 				let mut last_val = bitmap_rgn[0];
 				for p in bitmap_rgn.iter_mut().rev()
 				{
-					let v = (last_val << (8 - bitofs)) | (*p >> bitofs);;
+					let v = (last_val << (8 - bitofs)) | (*p >> bitofs);
 					last_val = ::core::mem::replace(p, v);
 				}
 			}
