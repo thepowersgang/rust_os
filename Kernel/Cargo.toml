@@ -30,5 +30,4 @@ usb-ohci = { path = "Modules/usb_ohci" }
 #video-vga = { path = "Modules/video_vga" }
 
 [build_dependencies]
-cargo_toml = "0.8"
-syn = { version = "1.0", features = ["extra-traits"] }
+my_dependencies = { git = "https://github.com/thepowersgang/my-dependencies-rs.git" }
