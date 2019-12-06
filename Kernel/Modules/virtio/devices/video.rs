@@ -6,7 +6,6 @@ use interface::Interface;
 use queue::{Queue,Buffer};
 use kernel::lib::mem::aref::{Aref,ArefBorrow};
 use kernel::sync::Mutex;
-use core::marker::PhantomData;
 
 /// Device instance (as stored by the device manager)
 pub struct VideoDevice<I>
@@ -39,8 +38,7 @@ struct Framebuffer<I>
 where
 	I: Interface + Send + Sync
 {
-	dev: ArefBorrow<DeviceCore<I>>,
-	scanout_idx: usize,
+	_scanout_idx: usize,
 	dims: (u32, u32,),
 
 	backing_alloc: ::kernel::memory::virt::AllocHandle,
@@ -52,8 +50,7 @@ struct Resource2D<I>
 where
 	I: Interface + Send + Sync
 {
-	// Why not store the ArefBorrow?
-	_pd: PhantomData<ArefBorrow<DeviceCore<I>>>,
+	dev: ArefBorrow<DeviceCore<I>>,
 	idx: u32,
 }
 
@@ -143,7 +140,7 @@ where
 			};
 		ret_hdr
 	}
-	fn allocate_resource(&self, format: hw::virtio_gpu_formats, width: u32, height: u32) -> Resource2D<I>
+	fn allocate_resource(self: &ArefBorrow<Self>, format: hw::virtio_gpu_formats, width: u32, height: u32) -> Resource2D<I>
 	{
 		let hdr = hw::CtrlHeader {
 			type_: hw::VIRTIO_GPU_CMD_RESOURCE_CREATE_2D as u32,
@@ -162,7 +159,7 @@ where
 		self.send_cmd(&hdr, &cmd);
 
 		Resource2D {
-			_pd: PhantomData,
+			dev: self.reborrow(),
 			idx: res_id,
 			}
 	}
@@ -206,13 +203,12 @@ where
 		// SAFE: We'e ensuring that both the backing memory and the resource are kept as long as they're in use
 		unsafe {
 			// - Bind framebuffer to it
-			res.attach_backing(&dev, fb.as_slice(0,(info.r.width * info.r.height) as usize));
+			res.attach_backing(fb.as_slice(0,(info.r.width * info.r.height) as usize));
 			// - Set scanout's backing to that resource
 			dev.set_scanout_backing(scanout_idx, info.r, &res);
 		}
 		Framebuffer {
-			dev: dev,
-			scanout_idx: scanout_idx,
+			_scanout_idx: scanout_idx,
 			dims: (info.r.width, info.r.height,),
 			backing_alloc: fb,
 			backing_res: res,
@@ -262,9 +258,9 @@ where
 			out_row[dst.left() as usize .. dst.right() as usize].copy_from_slice(src);
 		}
 		// VIRTIO_GPU_CMD_TRANSFER_TO_HOST_2D
-		self.backing_res.transfer_to_host(&self.dev, dst);
+		self.backing_res.transfer_to_host(dst);
 		// VIRTIO_GPU_CMD_RESOURCE_FLUSH
-		self.backing_res.flush(&self.dev, dst);
+		self.backing_res.flush(dst);
 	}
 	fn fill(&mut self, dst: video::Rect, colour: u32) {
 		todo!("fill({:?}, {:06x})", dst, colour);
@@ -279,25 +275,8 @@ impl<I> Resource2D<I>
 where
 	I: 'static + Interface + Send + Sync
 {
-	// TODO: How would this be called? shouldn't this just keep a ARef around
-	pub fn drop(mut self, dev: &DeviceCore<I>)
-	{
-		// Release the resource
-		dev.send_cmd(&hw::CtrlHeader {
-				type_: hw::VIRTIO_GPU_CMD_RESOURCE_UNREF as u32,
-				flags: 0,
-				fence_id: 0,
-				ctx_id: 0,
-				_padding: 0,
-				},
-			&hw::ResourceUnref {
-				resource_id: self.idx,
-				_padding: 0,
-				});
-		self.idx = 0;
-	}
 	/// Attach a buffer to this resource
-	pub unsafe fn attach_backing(&mut self, dev: &DeviceCore<I>, buffer: &[u32])
+	pub unsafe fn attach_backing(&mut self, buffer: &[u32])
 	{
 		// 1. Enumerate contigious sections
 		let mut entries: [hw::MemEntry; 16] = ::kernel::lib::PodHelpers::zeroed();
@@ -353,7 +332,7 @@ where
 
 		let mut ret_hdr: hw::CtrlHeader = ::kernel::lib::PodHelpers::zeroed();
 		let _rv = {
-			let h = dev.controlq.send_buffers(&dev.interface, &mut [
+			let h = self.dev.controlq.send_buffers(&self.dev.interface, &mut [
 				Buffer::Read(::kernel::lib::as_byte_slice(&hdr)),
 				Buffer::Read(::kernel::lib::as_byte_slice(&cmd)),
 				Buffer::Read(::kernel::lib::as_byte_slice(&entries[..n_ents])),
@@ -362,9 +341,9 @@ where
 			h.wait_for_completion().expect("")
 			};
 	}
-	pub fn transfer_to_host(&self, dev: &DeviceCore<I>, rect: video::Rect)
+	pub fn transfer_to_host(&self, rect: video::Rect)
 	{
-		dev.send_cmd(&hw::CtrlHeader {
+		self.dev.send_cmd(&hw::CtrlHeader {
 				type_: hw::VIRTIO_GPU_CMD_TRANSFER_TO_HOST_2D as u32,
 				flags: 0,
 				fence_id: 0,
@@ -378,7 +357,7 @@ where
 				_padding: 0,
 				});
 	}
-	pub fn flush(&self, dev: &DeviceCore<I>, rect: video::Rect)
+	pub fn flush(&self, rect: video::Rect)
 	{
 		let hdr = hw::CtrlHeader {
 			type_: hw::VIRTIO_GPU_CMD_RESOURCE_FLUSH as u32,
@@ -392,7 +371,7 @@ where
 			resource_id: self.idx,
 			_padding: 0,
 			};
-		dev.send_cmd(&hdr, &cmd);
+		self.dev.send_cmd(&hdr, &cmd);
 	}
 }
 
@@ -404,6 +383,27 @@ impl From<video::Rect> for hw::Rect {
 			width: rect.w(),
 			height: rect.h(),
 			}
+	}
+}
+impl<I> Drop for Resource2D<I>
+where
+	I: Interface + Send + Sync
+{
+	fn drop(&mut self)
+	{
+		// Release the resource
+		self.dev.send_cmd(&hw::CtrlHeader {
+				type_: hw::VIRTIO_GPU_CMD_RESOURCE_UNREF as u32,
+				flags: 0,
+				fence_id: 0,
+				ctx_id: 0,
+				_padding: 0,
+				},
+			&hw::ResourceUnref {
+				resource_id: self.idx,
+				_padding: 0,
+				});
+		self.idx = 0;
 	}
 }
 
