@@ -169,9 +169,9 @@ impl Ipv4Header
 	fn get_has_more_fragments(&self) -> bool {
 		self.flags & 1 << 5 != 0
 	}
-	fn set_has_more_fragments(&mut self) {
-		self.flags |= 1 << 5;
-	}
+	//fn set_has_more_fragments(&mut self) {
+	//	self.flags |= 1 << 5;
+	//}
 
 	fn get_fragment_ofs(&self) -> usize {
 		((self.frag_ofs_high as usize) << 5) | (self.flags & 0x1F) as usize
@@ -184,6 +184,7 @@ enum ProtoHandler
 	DirectKernel(fn(&Interface, Address, ::nic::PacketReader)),
 	/// Indirect user handling (pushes onto a buffer for the user to read from)
 	// Ooh, another use for stack_dst, a DST queue!
+	#[allow(dead_code)]
 	User(Address, ()),
 }
 impl ProtoHandler
