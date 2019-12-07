@@ -1,0 +1,12 @@
+[package]
+name = "kernel-test-network"
+version = "0.1.0"
+authors = ["John Hodge <tpg@mutabah.net>"]
+edition = "2018"
+
+[dependencies]
+network = { path = "../../Modules/network" }
+kernel = { path = "../../Core", features = ["test"] }
+serde = "1.0"
+serde_derive = "1.0"
+bincode = "1.2"
