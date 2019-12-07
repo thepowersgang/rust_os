@@ -9,6 +9,8 @@ use kernel::sync::Mutex;
 use kernel::_async3 as async;
 use core::sync::atomic::{Ordering,AtomicBool};
 
+pub type MacAddr = [u8; 6];
+
 #[derive(Debug)]
 pub enum Error
 {
@@ -180,8 +182,8 @@ pub trait Interface: 'static + Send + Sync
 
 struct InterfaceData
 {
+	addr: MacAddr,
 	stop_flag: AtomicBool,
-	#[allow(dead_code)]	// Never read, just exists to hold the handle
 	base_interface: ArefBorrow<dyn Interface+'static>,
 
 	sleep_object_ref: Mutex<Option<kernel::threads::SleepObjectRef>>,
@@ -193,6 +195,25 @@ struct InterfaceListEnt
 }
 
 static INTERFACES_LIST: Mutex<Vec< Option<InterfaceListEnt> >> = Mutex::new(Vec::new_const());
+
+pub fn send_from(addr: MacAddr, pkt: SparsePacket)
+{
+	let mut int = None;
+	for i in INTERFACES_LIST.lock().iter()
+	{
+		if let Some(v) = i
+		{
+			if v.data.addr == addr
+			{
+				int = Some(v.data.clone());
+			}
+		}
+	}
+	if let Some(i) = int
+	{
+		i.base_interface.tx_raw(pkt);
+	}
+}
 
 /// Handle to a registered interface
 pub struct Registration<T> {
@@ -258,6 +279,7 @@ pub fn register<T: Interface>(mac_addr: [u8; 6], int: T) -> Registration<T> {
 	}
 
 	let int_data = kernel::lib::mem::Arc::new(InterfaceData {
+		addr: mac_addr,
 		stop_flag: Default::default(),
 		sleep_object_ref: Default::default(),
 		base_interface: int_ptr.borrow(),
@@ -331,31 +353,7 @@ fn rx_thread(int_data: &InterfaceData)
 					}
 				// ARP
 				0x0806 => {
-					// TODO: Pass on to ARP
-					//::arp::handle_packet(int, r);
-					// TODO: Length test
-					let hw_ty  = r.read_u16n().unwrap();
-					let sw_ty  = r.read_u16n().unwrap();
-					let hwsize = r.read_u8().unwrap();
-					let swsize = r.read_u8().unwrap();
-					let code = r.read_u16n().unwrap();
-					log_debug!("ARP HW {:04x} {}B SW {:04x} {}B req={}", hw_ty, hwsize, sw_ty, swsize, code);
-					if hwsize == 6 {
-						let mac = {
-							let mut b = [0; 6];
-							r.read(&mut b).unwrap();
-							b
-							};
-						log_debug!("ARP HW {:?}", ::kernel::logging::HexDump(&mac));
-					}
-					if swsize == 4 {
-						let ip = {
-							let mut b = [0; 4];
-							r.read(&mut b).unwrap();
-							b
-							};
-						log_debug!("ARP SW {:?}", ip);
-					}
+					crate::arp::handle_packet(&*int_data.base_interface, src_mac, r);
 					},
 				v @ _ => {
 					log_warning!("TODO: Handle packet with EtherTy={:#x}", v);

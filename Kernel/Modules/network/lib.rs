@@ -25,6 +25,7 @@ pub mod ipv4;
 
 fn init()
 {
+	crate::tcp::init();
 }
 
 #[derive(Copy,Clone,PartialOrd,PartialEq,Ord,Eq,Debug)]

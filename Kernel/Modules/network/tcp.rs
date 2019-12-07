@@ -202,7 +202,7 @@ impl Quad
 		// Pass packet downstream
 		match self.local_addr
 		{
-		Address::Ipv4(a) => ::ipv4::send_packet(a, self.remote_addr.unwrap_ipv4(), hdr_pkt),
+		Address::Ipv4(a) => crate::ipv4::send_packet(a, self.remote_addr.unwrap_ipv4(), IPV4_PROTO_TCP, hdr_pkt),
 		}
 	}
 }

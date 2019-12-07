@@ -5,15 +5,29 @@
 //! IPv4 (Layer 3)
 use kernel::lib::Vec;
 use kernel::sync::RwLock;
+use crate::nic::MacAddr;
 
 // List of protocol numbers and handlers
 static PROTOCOLS: RwLock<Vec<(u8, ProtoHandler)>> = RwLock::new(Vec::new_const());
 static INTERFACES: RwLock<Vec<Interface>> = RwLock::new(Vec::new_const());
 
-#[cfg(DISABLED)]
 // NOTE: uses mac address to identify interface
 pub fn add_interface(local_mac: [u8; 6], addr: Address)
 {
+	let mut lh = INTERFACES.write();
+	for interface in lh.iter()
+	{
+		if interface.address == addr
+		{
+			// Whups?
+			return ;
+		}
+	}
+
+	lh.push(Interface {
+		local_mac: local_mac,
+		address: addr,
+		});
 }
 
 pub fn register_handler(proto: u8, handler: fn(&Interface, Address, ::nic::PacketReader)) -> Result<(), ()>
@@ -28,7 +42,7 @@ pub fn register_handler(proto: u8, handler: fn(&Interface, Address, ::nic::Packe
 	lh.push( (proto, ProtoHandler::DirectKernel(handler),) );
 	Ok( () )
 }
-pub fn handle_rx_ethernet(_physical_interface: &dyn crate::nic::Interface, _source_mac: [u8; 6], mut reader: ::nic::PacketReader) -> Result<(), ()>
+pub fn handle_rx_ethernet(_physical_interface: &dyn crate::nic::Interface, source_mac: [u8; 6], mut reader: ::nic::PacketReader) -> Result<(), ()>
 {
 	let pre_header_reader = reader.clone();
 	let hdr = match Ipv4Header::read(&mut reader)
@@ -100,6 +114,9 @@ pub fn handle_rx_ethernet(_physical_interface: &dyn crate::nic::Interface, _sour
 		{
 			// TODO: Should there be per-interface handlers?
 
+			// TODO: Check if the source address is from the same subnet, and only cache in ARP if it is
+			crate::arp::peek_v4(source_mac, hdr.source);
+
 			// Figure out which sub-protocol to send this packet to
 			// - Should there be alternate handlers for 
 			for &(id,ref handler) in PROTOCOLS.read().iter()
@@ -108,9 +125,9 @@ pub fn handle_rx_ethernet(_physical_interface: &dyn crate::nic::Interface, _sour
 				{
 					handler.dispatch(interface, hdr.source, hdr.destination, reader);
 					return Ok( () );
-					
 				}
 			}
+			log_debug!("Unknown protocol {}", hdr.protocol);
 			// No handler, but the interface is known
 			return Ok( () );
 		}
@@ -140,9 +157,44 @@ pub fn calculate_checksum(words: impl Iterator<Item=u16>) -> u16
 	!sum as u16
 }
 
-pub fn send_packet(source: Address, dest: Address, pkt: ::nic::SparsePacket)
+fn route_lookup(source: Address, dest: Address) -> Option<(MacAddr, Address)>
 {
-	todo!("send_packet({}, {}, {} bytes)", source, dest, pkt.total_len());
+	for interface in INTERFACES.read().iter()
+	{
+		if interface.address == source
+		{
+			return Some( (interface.local_mac, dest) );
+		}
+	}
+	None
+}
+pub fn send_packet(source: Address, dest: Address, proto: u8, pkt: crate::nic::SparsePacket)
+{
+	// 1. Look up routing table for destination IP and interface
+	let (interface_mac, next_hop) = match route_lookup(source, dest)
+		{
+		Some(v) => v,
+		None => return,	// TODO: Error - No route to host
+		};
+	// 2. ARP (what if ARP has to wait?)
+	let dest_mac = crate::arp::lookup_v4(next_hop);
+	// 3. Send
+	let mut hdr = Ipv4Header {
+		ver_and_len: 0x40 | 20/4,
+		diff_services: 0,
+		total_length: (20 + pkt.total_len()) as u16,
+		identification: 0,
+		flags: 0,
+		frag_ofs_high: 0,
+		ttl: 255,
+		protocol: proto,
+		hdr_checksum: 0,
+		source: source,
+		destination: dest,
+		};
+	hdr.set_checksum();
+	let hdr_bytes = hdr.encode();
+	crate::nic::send_from(interface_mac, crate::nic::SparsePacket::new_chained(&hdr_bytes, &pkt));
 }
 
 #[allow(dead_code)]
@@ -162,6 +214,26 @@ struct Ipv4Header
 }
 impl Ipv4Header
 {
+	fn encode(&self) -> [u8; 20] {
+		[
+			self.ver_and_len,
+			self.diff_services,
+			(self.total_length >> 8) as u8, self.total_length as u8,
+			(self.identification >> 8) as u8, self.identification as u8,
+			self.flags,
+			self.frag_ofs_high,
+			self.ttl,
+			self.protocol,
+			(self.hdr_checksum >> 8) as u8, self.hdr_checksum as u8,
+			self.source.0[0], self.source.0[1], self.source.0[2], self.source.0[3],
+			self.destination.0[0], self.destination.0[1], self.destination.0[2], self.destination.0[3],
+			]
+	}
+	fn set_checksum(&mut self)
+	{
+		self.hdr_checksum = 0;
+		self.hdr_checksum = calculate_checksum(self.encode().chunks(2).map(|v| (v[1] as u16) << 8 | v[0] as u16));
+	}
 	fn read(reader: &mut ::nic::PacketReader) -> Result<Self, ()>
 	{
 		Ok(Ipv4Header {
@@ -226,6 +298,9 @@ impl ::core::fmt::Display for Address
 }
 impl Address
 {
+	pub fn new(a: u8, b: u8, c: u8, d: u8) -> Self {
+		Address([a,b,c,d])
+	}
 	/// Big endian u32 (so 127.0.0.1 => 0x7F000001)
 	pub fn as_u32(&self) -> u32 {
 		(self.0[0] as u32) << 24
@@ -236,6 +311,7 @@ impl Address
 }
 pub struct Interface
 {
+	local_mac: [u8; 6],
 	address: Address,
 }
 impl Interface
