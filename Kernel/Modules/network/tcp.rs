@@ -8,6 +8,7 @@ use kernel::sync::Mutex;
 use kernel::lib::ring_buffer::{RingBuf,AtomicRingBuf};
 use core::sync::atomic::{AtomicUsize, Ordering};
 use crate::nic::SparsePacket;
+use crate::Address;
 
 const IPV4_PROTO_TCP: u8 = 6;
 const MAX_WINDOW_SIZE: u32 = 0x100000;	// 4MiB
@@ -29,6 +30,16 @@ static CONNECTIONS: SharedMap<Quad, Mutex<Connection>> = SharedMap::new();
 static PROTO_CONNECTIONS: SharedMap<Quad, ProtoConnection> = SharedMap::new();
 static SERVERS: SharedMap<(Option<Address>,u16), Server> = SharedMap::new();
 
+/// Find the local source address for the given remote address
+fn get_outbound_ip_for(addr: &Address) -> Option<Address>
+{
+	todo!("Query routing table (in the relevant IP module) and find the local interface (addr = {:?})", addr);
+}
+/// Allocate a port for the given local address
+fn allocate_port(addr: &Address) -> Option<u16>
+{
+	todo!("Check bitmap of used ports (for this interface), jumping randomly beween them (addr = {:?})", addr);
+}
 
 fn rx_handler_v4(int: &::ipv4::Interface, src_addr: ::ipv4::Address, pkt: ::nic::PacketReader)
 {
@@ -144,20 +155,6 @@ fn rx_handler(src_addr: Address, dest_addr: Address, mut pkt: ::nic::PacketReade
 		}
 	}
 	// Otherwise, drop
-}
-
-#[derive(Copy,Clone,PartialOrd,PartialEq,Ord,Eq,Debug)]
-enum Address
-{
-	Ipv4(::ipv4::Address),
-}
-impl Address
-{
-	fn unwrap_ipv4(&self) -> ::ipv4::Address {
-		match self {
-		&Address::Ipv4(v) => v,
-		}
-	}
 }
 
 #[derive(Copy,Clone,PartialOrd,PartialEq,Ord,Eq,Debug)]
@@ -371,6 +368,26 @@ impl Connection
 			}
 	}
 
+	fn new_outbound(quad: &Quad, sequence_number: u32) -> Self
+	{
+		let mut rv = Connection {
+			state: ConnectionState::SynSent,
+			next_rx_seq: 0,
+			last_rx_ack: 0,
+			rx_buffer_seq: 0,
+			rx_buffer: RxBuffer::new(2*DEF_WINDOW_SIZE as usize),
+
+			rx_window_size_max: MAX_WINDOW_SIZE,	// Can be updated by the user
+			rx_window_size: DEF_WINDOW_SIZE,
+
+			last_tx_seq: sequence_number,
+			tx_buffer: RingBuf::new(2048),
+			tx_window_size: 0,//hdr.window_size as u32,
+			};
+		rv.send_packet(quad, FLAG_SYN, &[]);
+		rv
+	}
+
 	/// Handle inbound data
 	fn handle(&mut self, quad: &Quad, hdr: &PktHeader, mut pkt: ::nic::PacketReader)
 	{
@@ -564,36 +581,52 @@ impl Connection
 		}
 	}
 
-	fn send_data(&mut self, quad: &Quad, buf: &[u8]) -> Result<usize, ()>
+	fn state_to_error(&self) -> Result<(), ConnError>
+	{
+		match self.state
+		{
+		ConnectionState::SynSent => {
+			todo!("{:?} send/recv before established");
+			},
+		ConnectionState::Established => Ok( () ),
+		ConnectionState::FinWait1
+		| ConnectionState::FinWait2
+		| ConnectionState::Closing
+		| ConnectionState::TimeWait => Err( ConnError::LocalClosed ),
+
+		ConnectionState::ForceClose => Err( ConnError::RemoteReset ),
+		ConnectionState::CloseWait | ConnectionState::LastAck => Err( ConnError::RemoteClosed ),
+
+		ConnectionState::Finished => Err( ConnError::LocalClosed ),
+		}
+	}
+	fn send_data(&mut self, quad: &Quad, buf: &[u8]) -> Result<usize, ConnError>
 	{
 		// TODO: Is it valid to send before the connection is fully established?
-		if self.state != ConnectionState::Established {
-			return Err( () );
-		}
-
+		self.state_to_error()?;
 		// 1. Determine how much data we can send (based on the TX window)
 		let max_len = usize::saturating_sub(self.tx_window_size as usize, self.tx_buffer.len());
 		todo!("{:?} send_data( min({}, {}) )", quad, max_len, buf.len());
 	}
-	// TODO: Error types
-	fn recv_data(&mut self, _quad: &Quad, buf: &mut [u8]) -> Result<usize, ()>
+	fn recv_data(&mut self, _quad: &Quad, buf: &mut [u8]) -> Result<usize, ConnError>
 	{
-		match self.state
-		{
-		ConnectionState::Established => {
-			//let valid_len = self.rx_buffer.valid_len();
-			//let acked_len = u32::wrapping_sub(self.next_rx_seq, self.rx_buffer_seq);
-			//let len = usize::min(valid_len, buf.len());
-			Ok( self.rx_buffer.take(buf) )
-			},
-		_ => Err( () ),
-		}
+		self.state_to_error()?;
+		//let valid_len = self.rx_buffer.valid_len();
+		//let acked_len = u32::wrapping_sub(self.next_rx_seq, self.rx_buffer_seq);
+		//let len = usize::min(valid_len, buf.len());
+		Ok( self.rx_buffer.take(buf) )
 	}
 
+	fn send_packet(&mut self, quad: &Quad, flags: u8, data: &[u8])
+	{
+		todo!("{:?} send_packet({:02x} {}b)", quad, flags, data.len());
+	}
 	fn send_ack(&mut self, quad: &Quad, msg: &str)
 	{
-		// - Cancel any pending ACK
-		todo!("{:?} send_ack({:?})", quad, msg);
+		log_debug!("{:?} send_ack({:?})", quad, msg);
+		// - TODO: Cancel any pending ACK
+		// - Send a new ACK
+		self.send_packet(quad, FLAG_ACK, &[]);
 	}
 }
 
@@ -624,9 +657,40 @@ struct Server
 
 pub struct ConnectionHandle(Quad);
 
+pub enum ConnError
+{
+	NoRoute,
+	LocalClosed,
+	RemoteRefused,
+	RemoteClosed,
+	RemoteReset,
+	NoPortAvailable,
+}
+
 impl ConnectionHandle
 {
-	pub fn send_data(&self, buf: &[u8]) -> Result<usize, ()>
+	pub fn connect(addr: Address, port: u16) -> Result<ConnectionHandle, ConnError>
+	{
+		// 1. Determine the local address for this remote address
+		let local_addr = match get_outbound_ip_for(&addr)
+			{
+			Some(a) => a,
+			None => return Err(ConnError::NoRoute),
+			};
+		// 2. Pick a local port
+		let local_port = match allocate_port(&local_addr)
+			{
+			Some(p) => p,
+			None => return Err(ConnError::NoPortAvailable),
+			};
+		// 3. Create the quad and allocate the connection structure
+		let quad = Quad::new(addr, port, local_addr, local_port);
+		// 4. Send the opening SYN (by creating the outbound connection structure)
+		let conn = Connection::new_outbound(&quad, 0x10000u32);
+		CONNECTIONS.insert(quad, Mutex::new(conn));
+		Ok( ConnectionHandle(quad) )
+	}
+	pub fn send_data(&self, buf: &[u8]) -> Result<usize, ConnError>
 	{
 		match CONNECTIONS.get(&self.0)
 		{
@@ -635,7 +699,7 @@ impl ConnectionHandle
 		}
 	}
 
-	pub fn recv_data(&self, buf: &mut [u8]) -> Result<usize, ()>
+	pub fn recv_data(&self, buf: &mut [u8]) -> Result<usize, ConnError>
 	{
 		match CONNECTIONS.get(&self.0)
 		{
