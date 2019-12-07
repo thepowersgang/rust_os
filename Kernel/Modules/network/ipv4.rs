@@ -10,6 +10,12 @@ use kernel::sync::RwLock;
 static PROTOCOLS: RwLock<Vec<(u8, ProtoHandler)>> = RwLock::new(Vec::new_const());
 static INTERFACES: RwLock<Vec<Interface>> = RwLock::new(Vec::new_const());
 
+#[cfg(DISABLED)]
+// NOTE: uses mac address to identify interface
+pub fn add_interface(local_mac: [u8; 6], addr: Address)
+{
+}
+
 pub fn register_handler(proto: u8, handler: fn(&Interface, Address, ::nic::PacketReader)) -> Result<(), ()>
 {
 	let mut lh = PROTOCOLS.write();
@@ -36,27 +42,36 @@ pub fn handle_rx_ethernet(_physical_interface: &dyn crate::nic::Interface, _sour
 	
 	if hdr.ver_and_len >> 4 != 4 {
 		// Malformed packet, bad IP version
+		log_warning!("Malformed packet: version isn't 4 - ver_and_len={:02x}", hdr.ver_and_len);
 		return Err( () );
 	}
 	let hdr_len = hdr.get_header_length();
-	if hdr_len < pre_header_reader.remain()
+	if hdr_len > pre_header_reader.remain()
 	{
-		// Malformed packet, header size too small
+		// Malformed packet, header's reported size is larger than the buffer
+		log_warning!("Malformed packet: header over-sized ({} > {})", hdr_len, pre_header_reader.remain());
 		return Err( () );
 	}
 	
-	while reader.remain() > pre_header_reader.remain() - hdr_len
+	if reader.remain() > pre_header_reader.remain() - hdr_len
 	{
-		// TODO: options!
-		match reader.read_u8()?
+		// Consume bytes out of the buffer until the end of the header is reached
+		// - I.e. the remaning byte count equals the number of bytes after the header 
+		let n_bytes_after_header = pre_header_reader.remain() - hdr_len;
+		while reader.remain() > n_bytes_after_header
 		{
-		_ => {},
+			// TODO: options!
+			match reader.read_u8()?
+			{
+			_ => {},
+			}
 		}
 	}
 	
 	// Validate checksum: Sum all of the bytes
 	{
-		let sum = calculate_checksum( (0 .. hdr_len/2).map(|_| reader.read_u16n().unwrap()) );
+		let mut reader2 = pre_header_reader.clone();
+		let sum = calculate_checksum( (0 .. hdr_len/2).map(|_| reader2.read_u16n().unwrap()) );
 		if sum != 0 {
 			log_warning!("IP Checksum failure - sum is {:#x}, not zero", sum);
 		}
@@ -104,6 +119,7 @@ pub fn handle_rx_ethernet(_physical_interface: &dyn crate::nic::Interface, _sour
 	{
 		// Routing.
 		// For now, just drop it
+		log_debug!("TODO: Packet didn't match any interfaces (A={:?}), try routing?", hdr.destination);
 	}
 	
 	Ok( () )

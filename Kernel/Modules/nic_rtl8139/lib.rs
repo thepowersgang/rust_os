@@ -358,6 +358,10 @@ impl nic::Interface for Card
 	fn rx_wait_register(&self, channel: &::kernel::threads::SleepObject) {
 		*self.waiter_handle.lock() = Some(channel.get_ref());
 	}
+	fn rx_wait_unregister(&self, _channel: &::kernel::threads::SleepObject) {
+		// TODO: Check that the input matches the current
+		self.waiter_handle.lock().take();
+	}
 	fn rx_packet(&self) -> Result<nic::PacketHandle, nic::Error> {
 		struct RxPacketHandle<'a> {
 			card: &'a Card,

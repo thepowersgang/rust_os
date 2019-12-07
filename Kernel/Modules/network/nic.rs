@@ -7,6 +7,7 @@ use kernel::prelude::*;
 use kernel::lib::mem::aref::{Aref,ArefBorrow};
 use kernel::sync::Mutex;
 use kernel::_async3 as async;
+use core::sync::atomic::{Ordering,AtomicBool};
 
 #[derive(Debug)]
 pub enum Error
@@ -170,6 +171,7 @@ pub trait Interface: 'static + Send + Sync
 
 	/// Called once to allow the interface to get an object to signal a new packet arrival
 	fn rx_wait_register(&self, channel: &::kernel::threads::SleepObject);
+	fn rx_wait_unregister(&self, channel: &::kernel::threads::SleepObject);
 	
 	/// Obtain a packet from the interface (or `Err(Error::NoPacket)` if there is none)
 	/// - Non-blocking
@@ -178,27 +180,35 @@ pub trait Interface: 'static + Send + Sync
 
 struct InterfaceData
 {
+	stop_flag: AtomicBool,
 	#[allow(dead_code)]	// Never read, just exists to hold the handle
-	base_interface: Aref<dyn Interface+'static>,
-	// TODO: Metadata?
+	base_interface: ArefBorrow<dyn Interface+'static>,
+
+	sleep_object_ref: Mutex<Option<kernel::threads::SleepObjectRef>>,
+}
+struct InterfaceListEnt
+{
+	data: kernel::lib::mem::Arc<InterfaceData>,
 	thread: ::kernel::threads::WorkerThread,
 }
 
-static INTERFACES_LIST: Mutex<Vec< Option<InterfaceData> >> = Mutex::new(Vec::new_const());
+static INTERFACES_LIST: Mutex<Vec< Option<InterfaceListEnt> >> = Mutex::new(Vec::new_const());
 
 /// Handle to a registered interface
 pub struct Registration<T> {
 	// Logically owns the `T`
 	pd: ::core::marker::PhantomData<T>,
 	index: usize,
-	ptr: ArefBorrow<T>,
+	ptr: Aref<T>,
 }
 impl<T> Drop for Registration<T> {
 	fn drop(&mut self) {
+		log_notice!("Dropping interface {:p}", &*self.ptr);
 		let mut lh = INTERFACES_LIST.lock();
 		assert!( self.index < lh.len() );
-		if let Some(ref int_ent) = lh[self.index] {
-			//int_ent.stop_signal.set();
+		if let Some(ref mut int_ent) = lh[self.index] {
+			int_ent.data.stop_flag.store(true, Ordering::SeqCst);
+			int_ent.data.sleep_object_ref.lock().take().unwrap().signal();
 			int_ent.thread.wait().expect("Couldn't wait for NIC worker to terminate");
 			// TODO: Inform the rest of the stack that this interface is gone?
 		}
@@ -216,10 +226,11 @@ impl<T> ::core::ops::Deref for Registration<T> {
 }
 
 pub fn register<T: Interface>(mac_addr: [u8; 6], int: T) -> Registration<T> {
-	let reg = Aref::new(int);
+	let int_ptr = Aref::new(int);
 
 	// HACK: Send a dummy packet
 	// - An ICMP Echo request to qemu's user network router (10.0.2.2 from 10.0.2.15)
+	if false
 	{
 		// TODO: Make this a ARP lookup instead.
 		let mut pkt = 
@@ -232,12 +243,12 @@ pub fn register<T: Interface>(mac_addr: [u8; 6], int: T) -> Registration<T> {
 
 		// Blocking
 		log_debug!("TESTING - Tx Blocking");
-		reg.tx_raw(SparsePacket { head: &pkt, next: None });
+		int_ptr.tx_raw(SparsePacket { head: &pkt, next: None });
 
 		// Async
 		log_debug!("TESTING - Tx Async");
 		let mut o: async::Object = Default::default();
-		reg.tx_async(o.get_handle(), o.get_stack(), SparsePacket { head: &pkt, next: None }).expect("Failed tx_async in testing");
+		int_ptr.tx_async(o.get_handle(), o.get_stack(), SparsePacket { head: &pkt, next: None }).expect("Failed tx_async in testing");
 		let h = [&o];
 		{
 			let w = async::Waiter::new(&h);
@@ -246,11 +257,14 @@ pub fn register<T: Interface>(mac_addr: [u8; 6], int: T) -> Registration<T> {
 		log_debug!("TESTING - Tx Complete");
 	}
 
-	let worker_reg_handle = reg.borrow();
-	let rv_reg_handle = reg.borrow();
-	let reg = InterfaceData {
-		thread: ::kernel::threads::WorkerThread::new("Network Rx", move || rx_thread(&*worker_reg_handle)),
-		base_interface: reg,
+	let int_data = kernel::lib::mem::Arc::new(InterfaceData {
+		stop_flag: Default::default(),
+		sleep_object_ref: Default::default(),
+		base_interface: int_ptr.borrow(),
+		});
+	let reg = InterfaceListEnt {
+		data: int_data.clone(),
+		thread: ::kernel::threads::WorkerThread::new("Network Rx", move || rx_thread(&int_data)),
 		};
 
 	fn insert_opt<T>(list: &mut Vec<Option<T>>, val: T) -> usize {
@@ -268,18 +282,19 @@ pub fn register<T: Interface>(mac_addr: [u8; 6], int: T) -> Registration<T> {
 	Registration {
 		pd: ::core::marker::PhantomData,
 		index: idx,
-		ptr: rv_reg_handle,
+		ptr: int_ptr,
 		}
 }
 
-fn rx_thread(int: &dyn Interface)
+fn rx_thread(int_data: &InterfaceData)
 {
-	::kernel::threads::SleepObject::with_new("rx_thread",|so| {
-		int.rx_wait_register(&so);
-		loop
+	::kernel::threads::SleepObject::with_new("rx_thread", |so| {
+		*int_data.sleep_object_ref.lock() = Some(so.get_ref());
+		int_data.base_interface.rx_wait_register(&so);
+		while !int_data.stop_flag.load(Ordering::SeqCst)
 		{
 			so.wait();
-			match int.rx_packet()
+			match int_data.base_interface.rx_packet()
 			{
 			Ok(pkt) => {
 				log_notice!("Received packet, len={} (chunks={})", pkt.len(), pkt.num_regions());
@@ -307,7 +322,7 @@ fn rx_thread(int: &dyn Interface)
 				let ether_ty = r.read_u16n().unwrap();
 				match ether_ty
 				{
-				0x0800 => match ::ipv4::handle_rx_ethernet(int, src_mac, r)
+				0x0800 => match ::ipv4::handle_rx_ethernet(&*int_data.base_interface, src_mac, r)
 					{
 					Ok( () ) => {},
 					Err(e) => {
@@ -351,6 +366,11 @@ fn rx_thread(int: &dyn Interface)
 			Err(e) => todo!("{:?}", e),
 			}
 		}
+		log_debug!("Worker termination requested");
+		int_data.base_interface.rx_wait_unregister(&so);
+		// NOTE: Lock the reference slot, so the reference is deleted before the sleep object quits
+		let lh = int_data.sleep_object_ref.lock();
+		assert!(lh.is_none());
 		});
 }
 
