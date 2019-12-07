@@ -1,12 +1,18 @@
-
-pub unsafe fn alloc<T>(_v: T) -> *mut T {
-	todo!("heap::alloc");
+// "Tifflin" Kernel
+// - By John Hodge (thePowersGang)
+//
+// Core/memory/heap-test.rs
+//! - Simple copy of the `heap` module that wraps libstd
+pub unsafe fn alloc<T>(v: T) -> *mut T {
+	let p = std::alloc::alloc(std::alloc::Layout::for_value(&v)) as *mut T;
+	core::ptr::write(p, v);
+	p
 }
-pub unsafe fn alloc_raw(_size: usize, _align: usize) -> *mut () {
-	todo!("heap::alloc_raw");
+pub unsafe fn alloc_raw(size: usize, align: usize) -> *mut () {
+	std::alloc::alloc(std::alloc::Layout::from_size_align(size,align).unwrap()) as *mut ()
 }
-pub unsafe fn dealloc_raw(_ptr: *mut (), _size: usize, _align: usize) {
-	todo!("heap::dealloc_raw");
+pub unsafe fn dealloc_raw(ptr: *mut (), size: usize, align: usize) {
+	std::alloc::dealloc(ptr as *mut u8, std::alloc::Layout::from_size_align(size,align).unwrap());
 }
 
 

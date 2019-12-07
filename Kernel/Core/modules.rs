@@ -23,6 +23,14 @@ enum ModuleState
 	Initialised,
 }
 
+#[cfg(feature="test")]
+mod _test {
+	#[no_mangle]
+	static modules_base: () = ();
+	#[no_mangle]
+	static modules_end: () = ();
+}
+
 extern "C" {
 	static modules_base: ::Void;
 	static modules_end: ::Void;

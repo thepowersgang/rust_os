@@ -443,6 +443,17 @@ pub fn start_memory_sink() {
 	}
 }
 
+#[repr(C)]
+struct LogCfgEnt {
+	name_ptr: *const u8,
+	name_len: u16,
+	level: u16,
+	#[cfg(target_pointer_width="64")]
+	_pad: u32,
+}
+// SAFE: Pointer is read-only
+unsafe impl Sync for LogCfgEnt {}
+
 #[doc(hidden)]
 /// Returns true if the passed combination of module and level is enabled
 pub fn enabled(level: Level, modname: &str) -> bool
@@ -451,15 +462,13 @@ pub fn enabled(level: Level, modname: &str) -> bool
 		return true;
 	}
 
-	#[repr(C)]
-	struct LogCfgEnt {
-		name_ptr: *const u8,
-		name_len: u16,
-		level: u16,
-		#[cfg(target_pointer_width="64")]
-		_pad: u32,
+	#[cfg(feature="test")]
+	mod _test_log {
+		#[no_mangle]
+		static log_cfg: [super::LogCfgEnt; 0] = [];
+		#[no_mangle]
+		static log_cfg_end: [super::LogCfgEnt; 0] = [];
 	}
-	#[cfg(not(any(test,test_shim)))]
 	let log_ents = {
 		extern "C" {
 			static log_cfg: [LogCfgEnt; 0];
@@ -470,8 +479,7 @@ pub fn enabled(level: Level, modname: &str) -> bool
 		// SAFE: Assembly defines these symbols, and I hope it gets the format right
 		unsafe { ::core::slice::from_raw_parts(log_cfg.as_ptr(), log_ent_count) }
 		};
-	#[cfg(any(test,test_shim))]
-	let log_ents: &[LogCfgEnt] = &[];
+
 	for ent in log_ents {
 		// SAFE: They're UTF-8 strings from assembly.
 		let ent_modname = unsafe { ::core::str::from_utf8_unchecked( ::core::slice::from_raw_parts(ent.name_ptr, ent.name_len as usize) ) };

@@ -57,6 +57,7 @@ struct SharedBlock
 	name: String,
 	tid: ThreadID,
 	process: Arc<Process>,
+	complete: crate::sync::EventChannel,
 }
 
 /// An owning thread handle
@@ -279,7 +280,11 @@ impl ThreadHandle
 		let handle = ThreadHandle {
 			block: thread.block.clone(),
 			};
-		::arch::threads::start_thread(&mut thread, fcn);
+		let block = thread.block.clone();
+		::arch::threads::start_thread(&mut thread, move || {
+			fcn();
+			block.complete.post();
+			});
 		
 		// Yield to this thread
 		super::yield_to(thread);
@@ -297,7 +302,8 @@ impl ::core::fmt::Debug for ThreadHandle
 impl ::core::ops::Drop for ThreadHandle
 {
 	fn drop(&mut self) {
-		panic!("TODO: Wait for thread to terminate when handle is dropped");
+		super::yield_time();
+		self.block.complete.sleep();
 	}
 }
 
@@ -373,7 +379,12 @@ impl Thread
 	{
 		let rv = box Thread {
 			cpu_state: process.empty_cpu_state(),
-			block: Arc::new( SharedBlock { tid: tid, name: name.into(), process: process } ),
+			block: Arc::new(SharedBlock {
+				tid: tid,
+				name: name.into(),
+				process: process,
+				complete: crate::sync::EventChannel::new(),
+				}),
 			run_state: RunState::Runnable,
 			next: None,
 			};

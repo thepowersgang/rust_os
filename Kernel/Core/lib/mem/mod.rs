@@ -5,18 +5,24 @@
 //! Memory allocation types
 pub use self::rc::Rc;
 pub use self::arc::Arc;
-#[cfg(not(any(test,test_shim)))]
 pub use self::boxed::Box;
-#[cfg(any(test,test_shim))]
-pub use std::boxed::Box;
 
 mod grc;
 pub mod rc;
 pub mod arc;
 
 pub mod aref;
-#[cfg(not(any(test,test_shim)))]
-pub mod boxed;
+
+cfg_if::cfg_if! {
+	if #[cfg(feature="test")] {
+		pub mod boxed {
+			pub use std::boxed::Box;
+		}
+	}
+	else {
+		pub mod boxed;
+	}
+}
 
 
 #[allow(improper_ctypes)]

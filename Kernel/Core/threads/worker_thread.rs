@@ -22,7 +22,12 @@ impl WorkerThread
 	// TODO: Allow the worker to return a value?
 	pub fn wait(&self) -> Result<(),()>
 	{
-		todo!("Wait for worker thread to terminate");
+		if ! cfg!(feature="test") {
+			todo!("Wait for worker thread to terminate");
+		}
+		else {
+			Ok( () )
+		}
 	}
 }
 

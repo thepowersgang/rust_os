@@ -20,13 +20,13 @@
 #![feature(dropck_eyepatch)]
 #![feature(panic_info_message)]
 
-#![cfg_attr(not(any(test,test_shim)),no_std)]
+#![cfg_attr(not(feature="test"),no_std)]
 
 //#![deny(not_tagged_safe)]
 //#![feature(plugin)]
 //#![plugin(tag_safe)]
 
-#[cfg(any(test,test_shim))]
+#[cfg(feature="test")]
 extern crate core;
 
 #[allow(unused_imports)]
@@ -53,7 +53,7 @@ pub mod prelude;
 #[macro_use]
 pub mod lib;	// Clone of libstd
 
-#[cfg(not(any(test,test_shim)))]
+#[cfg(not(feature="test"))]
 mod symbols;
 
 /// Heavy synchronisation primitives (Mutex, Semaphore, RWLock, ...)
@@ -102,10 +102,16 @@ mod hw;
 /// Achitecture-specific code
 pub mod arch;
 
-/// Kernel version (with build number)
-pub const VERSION_STRING: &'static str = concat!("Tifflin Kernel v", env!("TK_VERSION"), " build ", env!("TK_BUILD"));
-/// Kernel build information (git hash and compiler)
-pub const BUILD_STRING: &'static str = concat!("Git state : ", env!("TK_GITSPEC"), ", Built with ", env!("RUST_VERSION"));
+cfg_if::cfg_if!{
+    if #[cfg(feature="test")] {
+    }
+    else {
+        /// Kernel version (with build number)
+        pub const VERSION_STRING: &'static str = concat!("Tifflin Kernel v", env!("TK_VERSION"), " build ", env!("TK_BUILD"));
+        /// Kernel build information (git hash and compiler)
+        pub const BUILD_STRING: &'static str = concat!("Git state : ", env!("TK_GITSPEC"), ", Built with ", env!("RUST_VERSION"));
+    }
+}
 
 // vim: ft=rust
 

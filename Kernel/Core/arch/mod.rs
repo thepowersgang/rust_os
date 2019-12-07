@@ -3,17 +3,26 @@
 //
 //! Achitecture-specific code
 
-#[macro_use]
-#[cfg_attr(arch="amd64", path="amd64/mod.rs")]
-#[cfg_attr(target_arch="x86_64", path="amd64/mod.rs")]
-#[cfg_attr(arch="armv7", path="armv7/mod.rs")]
-#[cfg_attr(arch="armv8", path="armv8/mod.rs")]
-#[cfg_attr(test, path="imp-test.rs")]
-#[cfg_attr(test_shim, path="imp-test.rs")]
-#[doc(hidden)]
-pub mod imp;	// Needs to be pub for exports to be avaliable
+cfg_if::cfg_if!{
+	if #[cfg(feature="test")] {
+		#[macro_use]
+		#[path="imp-test.rs"]
+		#[doc(hidden)]
+		pub mod imp;
+	}
+	else {
+		#[macro_use]
+		//#[cfg_attr(arch="amd64", path="amd64/mod.rs")]
+		#[cfg_attr(target_arch="x86_64", path="amd64/mod.rs")]
+		#[cfg_attr(arch="armv7", path="armv7/mod.rs")]
+		#[cfg_attr(arch="armv8", path="armv8/mod.rs")]
+		#[doc(hidden)]
+		pub mod imp;	// Needs to be pub for exports to be avaliable
+	}
+}
 
 // If on x86/amd64, import ACPI
+#[cfg(not(feature="test"))]
 #[cfg(any(arch="amd64", target_arch="x86_64"))]
 pub use self::imp::acpi;
 
