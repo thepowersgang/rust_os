@@ -10,7 +10,7 @@ all:
 	@echo ">>> $@: Usermode"
 	@+make -C Usermode/ xargo --no-print-directory
 	@echo ">>> $@: Kernel"
-	@+make -C Kernel/ -f Makefile-xargo all --no-print-directory
+	@+make -C Kernel/ all --no-print-directory
 
 clean:
 	@echo ">>> $@: Usermode"
