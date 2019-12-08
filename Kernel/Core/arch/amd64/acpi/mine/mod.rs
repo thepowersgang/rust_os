@@ -79,7 +79,7 @@ pub fn init()
 		};
 	log_debug!("RSDP = {:p} {{ oemid = {:?}, revision = {:#x}, rsdt_address = {:#x} }}",
 		rsdp,
-		::core::str::from_utf8(&rsdp.oemid), rsdp.revision, rsdp.rsdt_address);
+		::core::str::from_utf8(&rsdp.oemid), rsdp.revision, {rsdp.rsdt_address});
 	
 	// Determine the top-level SDT type
 	// SAFE: The addresses are valid (well, they should be, the checksums passed)

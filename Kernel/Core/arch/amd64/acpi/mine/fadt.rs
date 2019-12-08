@@ -33,7 +33,7 @@ pub fn parse_fadt()
 {
 	let fadt = super::find_table::<Fadt>("FACP", 0).unwrap();
 	
-	log_debug!("DSDT: {:#x}", fadt.data().dsdt_addr);
+	log_debug!("DSDT: {:#x}", {fadt.data().dsdt_addr});
 	
 	let dsdt_paddr = fadt.data().dsdt_addr as ::memory::PAddr;
 	
