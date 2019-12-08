@@ -1,3 +1,8 @@
+// "Tifflin" Kernel Tests (network)
+// - By John Hodge (Mutabah)
+//
+// tests/network/tcp.rs
+//! TCP tests and infrastructure
 
 use crate::ipv4::Addr as IpAddr4;
 
@@ -36,7 +41,11 @@ fn send_packet_raw(fw: &crate::TestFramework, src: IpAddr4, dst: IpAddr4, header
     assert!(options.len() & 3 == 0);
     let tcp_hdr = header.encode();
     let tcp_len = tcp_hdr.len() + options.len() + data.len();
-    let ip_hdr = crate::ipv4::Header::new_simple(src, dst, 6, tcp_len).encode();
+    let ip_hdr = {
+		let mut h = crate::ipv4::Header::new_simple(src, dst, 6, tcp_len);
+		h.set_checksum();
+		h.encode()
+		};
     fw.send_ethernet_direct(0x0800, &[&ip_hdr, &tcp_hdr, options, data]);
 }
 struct TcpConn<'a>
@@ -75,6 +84,10 @@ impl TcpConn<'_>
             Some(v) => v,
             None => panic!("No packet recieved"),
             };
+		// 1. Check the ethernet header
+		// 2. Check the IPv4 header
+		// 3. Check the TCP header (incl flags)
+		// 4. Check the data
     }
 }
 

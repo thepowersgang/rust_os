@@ -1,18 +1,31 @@
 /*!
  * Network stack wrapper
  */
-use std::io::Read;
-
 struct Args
 {
+	master_ip: std::net::IpAddr,
+
+	sim_ip: network::ipv4::Address,
 }
 
 fn main()
 {
     kernel::threads::init();
-    network::init();
+	(network::S_MODULE.init)();
 
-    let stream = match std::net::TcpStream::connect("127.0.0.1:1234")
+	let args = {
+		let mut it = std::env::args();
+		Args {
+			master_ip: it.next().unwrap().parse().unwrap(),
+			sim_ip: {
+				let std_ip: std::net::Ipv4Addr = it.next().unwrap().parse().unwrap();
+				let o = std_ip.octets();
+				network::ipv4::Address::new(o[0], o[1], o[2], o[3])
+				},
+			}
+		};
+
+    let stream = match std::net::UdpSocket::bind( (args.master_ip, 1234) )
         {
         Ok(v) => v,
         Err(e) => {
@@ -23,44 +36,36 @@ fn main()
     let mac = *b"RSK\x12\x34\x56";
     let nic_handle = network::nic::register(mac, TestNic::new(stream));
 
-    network::ipv4::add_interface(mac, network::ipv4::Address::new(192,168,1,1));
+    network::ipv4::add_interface(mac, args.sim_ip/*, 24*/);
 
     loop
     {
-        fn read_u16_be(mut r: impl Read) -> Option<u16>
-        {
-            let mut buf = [0; 2];
-            match r.read_exact(&mut buf)
-            {
-            Ok(_) => Some( (buf[0] as u16) << 8 | (buf[1] as u16) ),
-            Err(e) => {
-                println!("Error reading: {:?}", e);
-                None
-                },
-            }
-        }
-        
-        let len = match read_u16_be(&nic_handle.stream)
-            {
-            Some(v) => v as usize,
-            None => break,
-            };
-        let mut buf = Vec::with_capacity(len as usize);
-        buf.resize(len, 0);
-        (&nic_handle.stream).read_exact(&mut buf).expect("Read error in packet");
+		const MTU: usize = 1560;
 
-        nic_handle.packets.lock().unwrap().push_back( buf );
-        match *nic_handle.waiter.lock().unwrap()
-        {
-        Some(ref v) => v.signal(),
-        None => println!("No registered waiter yet?"),
-        }
+		let mut buf = [0; MTU];
+
+		match nic_handle.stream.recv(&mut buf)
+		{
+		Ok(len) => {
+			let buf = buf[..len].to_owned();
+			nic_handle.packets.lock().unwrap().push_back( buf );
+			match *nic_handle.waiter.lock().unwrap()
+			{
+			Some(ref v) => v.signal(),
+			None => println!("No registered waiter yet?"),
+			}
+			},
+		Err(e) => {
+			println!("Error reading: {:?}", e);
+			break;
+			},
+		}
     }
 }
 
 struct TestNic
 {
-    stream: std::net::TcpStream,
+    stream: std::net::UdpSocket,
     waiter: std::sync::Mutex< Option<kernel::threads::SleepObjectRef> >,
     // NOTE: Kernel sync queue
     packets: std::sync::Mutex< std::collections::VecDeque< Vec<u8> > >,
@@ -68,7 +73,7 @@ struct TestNic
 
 impl TestNic
 {
-    fn new(stream: std::net::TcpStream) -> Self
+    fn new(stream: std::net::UdpSocket) -> Self
     {
         TestNic {
             stream,
