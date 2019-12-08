@@ -116,14 +116,14 @@ impl RxBuffer
 		self.size = new_size;
 	}
 	/// Remove all data
-	pub fn clear(&mut self)
-	{
-		self.read_pos = 0;
-		for v in &mut self.data[self.size ..]
-		{
-			*v = 0;
-		}
-	}
+	//pub fn clear(&mut self)
+	//{
+	//	self.read_pos = 0;
+	//	for v in &mut self.data[self.size ..]
+	//	{
+	//		*v = 0;
+	//	}
+	//}
 	/// Compact the current state so read_pos=0
 	fn compact(&mut self)
 	{

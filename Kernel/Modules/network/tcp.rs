@@ -131,7 +131,7 @@ fn rx_handler(src_addr: Address, dest_addr: Address, mut pkt: ::nic::PacketReade
 		}
 	}
 	// If none found, look for servers on the destination (if SYN)
-	else if hdr.flags == FLAG_SYN
+	else if hdr.flags & !FLAG_ACK == FLAG_SYN
 	{
 		if let Some(s) = Option::or( SERVERS.get( &(Some(dest_addr), hdr.dest_port) ), SERVERS.get( &(None, hdr.dest_port) ) )
 		{
@@ -151,7 +151,7 @@ fn rx_handler(src_addr: Address, dest_addr: Address, mut pkt: ::nic::PacketReade
 		else
 		{
 			// Send a RST
-			quad.send_packet(hdr.acknowledgement_number, hdr.sequence_number, FLAG_RST, 0, &[]);
+			quad.send_packet(hdr.acknowledgement_number, hdr.sequence_number, FLAG_RST|(!hdr.flags & FLAG_ACK), 0, &[]);
 		}
 	}
 	// Otherwise, drop
@@ -628,6 +628,41 @@ impl Connection
 		// - Send a new ACK
 		self.send_packet(quad, FLAG_ACK, &[]);
 	}
+	fn close(&mut self, quad: &Quad) -> Result<(), ConnError>
+	{
+		let new_state = match self.state
+			{
+			ConnectionState::SynSent => {
+				todo!("{:?} send/recv before established");
+				},
+			ConnectionState::FinWait1
+			| ConnectionState::FinWait2
+			| ConnectionState::Closing
+			| ConnectionState::TimeWait => return Err( ConnError::LocalClosed ),
+
+			ConnectionState::LastAck => return Err( ConnError::RemoteClosed ),
+
+			ConnectionState::Finished => return Err( ConnError::LocalClosed ),
+
+			ConnectionState::CloseWait => {
+				self.send_packet(quad, FLAG_FIN|FLAG_ACK, &[]);
+				ConnectionState::LastAck
+				},
+			ConnectionState::ForceClose => {
+				ConnectionState::Finished
+				},
+			ConnectionState::Established => {
+				self.send_packet(quad, FLAG_FIN, &[]);
+				ConnectionState::FinWait1
+				},
+			};
+		if self.state != new_state
+		{
+			log_trace!("{:?} {:?} -> {:?}", quad, self.state, new_state);
+			self.state = new_state;
+		}
+		Ok( () )
+	}
 }
 
 struct ProtoConnection
@@ -705,6 +740,15 @@ impl ConnectionHandle
 		{
 		None => panic!("Connection {:?} removed before handle dropped", self.0),
 		Some(v) => v.lock().recv_data(&self.0, buf),
+		}
+	}
+
+	pub fn close(&mut self) -> Result<(), ConnError>
+	{
+		match CONNECTIONS.get(&self.0)
+		{
+		None => panic!("Connection {:?} removed before handle dropped", self.0),
+		Some(v) => v.lock().close(&self.0),
 		}
 	}
 }
