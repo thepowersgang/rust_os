@@ -1,31 +1,42 @@
 /*!
  * Network stack wrapper
  */
+#[macro_use]
+extern crate kernel;
+
 struct Args
 {
-	master_ip: std::net::IpAddr,
+	master_addr: std::net::SocketAddr,
 
 	sim_ip: network::ipv4::Address,
 }
 
 fn main()
 {
-    kernel::threads::init();
-	(network::S_MODULE.init)();
-
 	let args = {
-		let mut it = std::env::args();
+        let mut it = std::env::args();
+        it.next().unwrap();
 		Args {
-			master_ip: it.next().unwrap().parse().unwrap(),
+            master_addr: {
+                let a = it.next().unwrap();
+                match std::net::ToSocketAddrs::to_socket_addrs(&a)
+                {
+                Err(e) => panic!("Unable to parse '{}' as a socket addr: {}", a, e),
+                Ok(mut v) => v.next().unwrap(),
+                }
+                },
 			sim_ip: {
 				let std_ip: std::net::Ipv4Addr = it.next().unwrap().parse().unwrap();
 				let o = std_ip.octets();
 				network::ipv4::Address::new(o[0], o[1], o[2], o[3])
 				},
 			}
-		};
-
-    let stream = match std::net::UdpSocket::bind( (args.master_ip, 1234) )
+        };
+    
+    kernel::threads::init();
+    (network::S_MODULE.init)();
+        
+    let stream = match std::net::UdpSocket::bind("0.0.0.0:0")
         {
         Ok(v) => v,
         Err(e) => {
@@ -33,20 +44,26 @@ fn main()
             return
             },
         };
+    stream.connect( args.master_addr ).expect("Unable to connect");
+    stream.send(&[0]).expect("Unable to send marker to server");
+    
     let mac = *b"RSK\x12\x34\x56";
     let nic_handle = network::nic::register(mac, TestNic::new(stream));
 
     network::ipv4::add_interface(mac, args.sim_ip/*, 24*/);
 
+    kernel::arch::imp::threads::test_unlock_thread();
+
     loop
     {
+        // TODO: Also monitor stdin for commands
 		const MTU: usize = 1560;
 
 		let mut buf = [0; MTU];
-
 		match nic_handle.stream.recv(&mut buf)
 		{
 		Ok(len) => {
+            //println!("Got {} byte packet", len);
 			let buf = buf[..len].to_owned();
 			nic_handle.packets.lock().unwrap().push_back( buf );
 			match *nic_handle.waiter.lock().unwrap()
@@ -84,8 +101,9 @@ impl TestNic
 }
 impl network::nic::Interface for TestNic
 {
-    fn tx_raw(&self, _: network::nic::SparsePacket<'_>) {
-        todo!("TestNic::tx_raw")
+    fn tx_raw(&self, pkt: network::nic::SparsePacket<'_>) {
+        let buf: Vec<u8> = pkt.into_iter().flat_map(|v| v.iter()).copied().collect();
+        self.stream.send(&buf).unwrap();
     }
     fn tx_async<'a,'s>(&'s self, _: kernel::_async3::ObjectHandle, _: kernel::_async3::StackPush<'a, 's>, _: network::nic::SparsePacket<'_>) -> Result<(), network::nic::Error> {
         todo!("TestNic::tx_async")

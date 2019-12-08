@@ -2,25 +2,37 @@
 use std::io::Cursor;
 use std::mem::size_of;
 
-#[derive(Copy,Clone)]
+#[derive(Copy,Clone,PartialEq)]
 pub struct Addr(pub [u8; 4]);
+impl ::core::fmt::Debug for Addr {
+	fn fmt(&self, f: &mut ::core::fmt::Formatter) -> ::core::fmt::Result {
+		write!(f, "{}.{}.{}.{}", self.0[0], self.0[1], self.0[2], self.0[3])
+	}
+}
 
 #[derive(serde_derive::Deserialize,serde_derive::Serialize)]
 pub struct Header
 {
-	version_and_len: u8,
-	differentiated_services: u8,
-	total_legnth: u16,
-	identification: u16,
-	fragment_info: u16,
-	ttl: u8,
-	protocol: u8,
-	header_checksum: u16,
-	src_addr: [u8; 4],
-	dst_addr: [u8; 4],
+	pub version_and_len: u8,
+	pub differentiated_services: u8,
+	pub total_legnth: u16,
+	pub identification: u16,
+	pub fragment_info: u16,
+	pub ttl: u8,
+	pub protocol: u8,
+	pub header_checksum: u16,
+	pub src_addr: [u8; 4],
+	pub dst_addr: [u8; 4],
 }
 impl Header
 {
+    pub fn parse(mut buf: &[u8]) -> (Self, &[u8], &[u8]) {
+        let rv: Self = bincode::config().big_endian().deserialize_from(&mut buf).expect("Failed to parse IPv4 header");
+        assert_eq!(rv.version_and_len >> 4, 4, "Bad IP version");
+        assert!(rv.version_and_len & 0xF >= 20/4, "Bad IP header length");
+        let option_len = ((rv.version_and_len & 0xF) * 4 - 20) as usize;
+        (rv, &buf[..option_len], &buf[option_len..])
+    }
 	pub fn new_simple(src: Addr, dst: Addr, proto: u8, data_len: usize) -> Self
 	{
 		Header {

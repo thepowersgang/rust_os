@@ -1,169 +1,109 @@
 /*!
  */
-#[macro_use]
-extern crate kernel;
 use std::time::Duration;
 
 const REMOTE_MAC: [u8; 6] = *b"RSK\x12\x34\x56";
 const LOCAL_MAC: [u8; 6] = *b"RSK\xFE\xFE\xFE";
 
-mod tcp;
-mod ipv4;
-
-#[derive(serde_derive::Deserialize,serde_derive::Serialize)]
-struct EthernetHeader
-{
-    dst: [u8; 6],
-    src: [u8; 6],
-    proto: u16,
-}
-impl EthernetHeader
-{
-    fn encode(&self) -> [u8; 6+6+2] {
-        let mut rv = [0; 14];
-        {
-            let mut c = std::io::Cursor::new(&mut rv[..]);
-            bincode::config().big_endian().serialize_into(&mut c, self).unwrap();
-            assert!(c.position() == 14);
-        }
-        rv
-    }
-}
+pub mod tcp;
+pub mod ipv4;
+pub mod ethernet;
 
 pub struct TestFramework {
-    nic: network::nic::Registration<TestNic>,
+    socket: std::net::UdpSocket,
+    remote_addr: std::net::SocketAddr,
+    process: std::process::Child,
+    logfile: std::path::PathBuf,
 }
 impl TestFramework
 {
-    pub fn new() -> TestFramework
+    pub fn new(name: &str) -> TestFramework
     {
-        ensure_setup();    
+        let logfile: std::path::PathBuf = format!("{}.txt", name).into();
+        let port = 1234;
+
+        match std::process::Command::new( env!("CARGO") )
+            .arg("build").arg("--bin").arg("host")
+            .spawn().unwrap().wait()
+        {
+        Ok(status) if status.success() => {},
+        Ok(rc) => panic!("Building helper failed: Non-zero exit status - {}", rc),
+        Err(e) => panic!("Building helper failed: {}", e),
+        }
+
+
+        let socket = std::net::UdpSocket::bind( ("127.0.0.1", port) ).expect("Unable to bind socket");
+        println!("Spawning child");
+        let mut child = std::process::Command::new( env!("CARGO") )
+            .arg("run").arg("--quiet").arg("--bin").arg("host")
+            .arg("--")
+            .arg(format!("127.0.0.1:{}", port))
+            .arg("192.168.1.1")// /24")
+            .stdout(std::fs::File::create(&logfile).unwrap())
+            //.stderr(std::fs::File::create("stderr.txt").unwrap())
+            .spawn()
+            .expect("Can't spawn child")
+            ;
+        println!("Waiting for child");
+        socket.set_read_timeout(Some(Duration::from_millis(200))).unwrap();
+        let addr = match socket.recv_from(&mut [0])
+            {
+            Ok( (_len, v) ) => v,
+            Err(e) => {
+                match child.try_wait()
+                {
+                Ok(_) => {},
+                Err(_) => child.kill().expect("Unable to terminate child"),
+                }
+                panic!("Child didn't connect: {}", e)
+                },
+            };
+
         TestFramework {
-            nic: network::nic::register(REMOTE_MAC, TestNic::new()),
+            socket: socket,
+            remote_addr: addr,
+            process: child,
+            logfile: logfile,
         }
     }
 
     /// Encode+send an ethernet frame to the virtualised NIC (addressed correctly)
     pub fn send_ethernet_direct(&self, proto: u16, buffers: &[ &[u8] ])
     {
-        let ethernet_hdr = EthernetHeader { dst: REMOTE_MAC, src: LOCAL_MAC, proto: proto, }.encode();
+        let ethernet_hdr = crate::ethernet::EthernetHeader { dst: REMOTE_MAC, src: LOCAL_MAC, proto: proto, }.encode();
         let buf: Vec<u8> = Iterator::chain([&ethernet_hdr as &[u8]].iter(), buffers.iter())
             .flat_map(|v| v.iter())
             .copied()
             .collect()
             ;
-        self.nic.send_packet(buf);
+        self.socket.send_to(&buf, self.remote_addr).expect("Failed to send to child");
     }
 
-    fn wait_packet(&self, timeout: Duration) -> Option<Vec<u8>>
+    pub fn wait_packet(&self, timeout: Duration) -> Option<Vec<u8>>
     {
-        self.nic.wait_packet(timeout)
-    }
-}
-
-pub struct TestNic
-{
-    rx: std::sync::Mutex<TestNicRx>,
-    tx_sender: std::sync::Mutex<std::sync::mpsc::Sender< Vec<u8> > >,
-    tx_receiver: std::sync::Mutex<std::sync::mpsc::Receiver< Vec<u8> > >,
-}
-#[derive(Default)]
-pub struct TestNicRx
-{
-    waiter_handle: Option<kernel::threads::SleepObjectRef>,
-    queue: std::collections::VecDeque< Vec<u8> >,
-}
-impl TestNic
-{
-    fn new() -> Self
-    {
-        let (tx_sender, tx_receiver) = std::sync::mpsc::channel();
-        TestNic {
-            rx: Default::default(),
-            tx_sender: std::sync::Mutex::new(tx_sender),
-            tx_receiver: std::sync::Mutex::new(tx_receiver),
-            }
-    }
-
-    fn send_packet(&self, buf: Vec<u8>)
-    {
-        let mut lh = self.rx.lock().expect("Poisoned");
-        lh.queue.push_back( buf );
-        lh.waiter_handle.as_ref().expect("No connected waiter").signal();
-    }
-    fn wait_packet(&self, timeout: Duration) -> Option<Vec<u8>>
-    {
-        kernel::threads::yield_time();
-        let /*mut*/ lh = self.tx_receiver.lock().expect("TX poisoned");
-        match lh.recv_timeout(timeout)
-        {
-        Ok(v) => Some(v),
-        Err(_e) => {
-            log_debug!("TestNic::wait_packet: err {:?}", _e);
-            None
-            },
+        self.socket.set_read_timeout(Some(timeout)).expect("Zero timeout requested");
+        let mut buf = vec![0; 1560];
+        let (len, addr) = match self.socket.recv_from(&mut buf)
+            {
+            Ok(v) => v,
+            Err(e) if e.kind() == std::io::ErrorKind::TimedOut => return None,
+            Err(e) => panic!("wait_packet: Error {}", e),
+            };
+        if addr != self.remote_addr {
+            // Hmm...
         }
-    }
-}
-impl network::nic::Interface for TestNic
-{
-    fn tx_raw(&self, pkt: network::nic::SparsePacket<'_>) {
-        let buf: Vec<u8> = pkt.into_iter().flat_map(|v| v.iter()).copied().collect();
-        self.tx_sender.lock().unwrap().send(buf);
-    }
-    fn tx_async<'a,'s>(&'s self, _: kernel::_async3::ObjectHandle, _: kernel::_async3::StackPush<'a, 's>, _: network::nic::SparsePacket<'_>) -> Result<(), network::nic::Error> {
-        todo!("TestNic::tx_async")
-    }
-    fn rx_wait_register(&self, channel: &kernel::threads::SleepObject<'_>) {
-        self.rx.lock().unwrap().waiter_handle = Some(channel.get_ref());
-    }
-	fn rx_wait_unregister(&self, channel: &kernel::threads::SleepObject) {
-        self.rx.lock().unwrap().waiter_handle = None;
-    }
-
-    fn rx_packet(&self) -> Result<network::nic::PacketHandle, network::nic::Error> {
-        let mut lh = self.rx.lock().expect("RX poisoned");
-        if let Some(v) = lh.queue.pop_front()
-        {
-            struct RxPacketHandle(Vec<u8>);
-            impl<'a> network::nic::RxPacket for RxPacketHandle {
-                fn len(&self) -> usize {
-                    self.0 .len()
-                }
-                fn num_regions(&self) -> usize {
-                    1
-                }
-                fn get_region(&self, idx: usize) -> &[u8] {
-                    assert!(idx == 0);
-                    &self.0
-                }
-                fn get_slice(&self, range: ::core::ops::Range<usize>) -> Option<&[u8]> {
-                    let b = self.get_region(0);
-                    b.get(range)
-                }
-            }
-
-            Ok(network::nic::PacketHandle::new(RxPacketHandle(v)).ok().unwrap())
-        }
-        else
-        {
-            Err(network::nic::Error::NoPacket)
-        }
+        buf.truncate(len);
+        Some(buf)
     }
 }
 
-fn ensure_setup()
+impl Drop for TestFramework
 {
-    use std::sync::atomic::{Ordering, AtomicUsize};
-    static STARTED: AtomicUsize = AtomicUsize::new(0);
-    if STARTED.compare_and_swap(0, 1, Ordering::SeqCst) == 0 {
-        kernel::threads::init();
-        (network::S_MODULE.init)();
-        STARTED.store(2, Ordering::SeqCst);
-    }
-    else {
-        while STARTED.load(Ordering::SeqCst) == 1 {
-            // Spin!
+    fn drop(&mut self)
+    {
+        self.process.kill().expect("Cannot terminate child");
+        if std::thread::panicking() {
+            println!("See {} for worker log", self.logfile.display());
         }
     }
 }
