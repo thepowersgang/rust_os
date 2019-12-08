@@ -46,10 +46,10 @@ impl<T> ArrayAlloc<T>
 		todo!("ArrayAlloc::into_raw");
 	}
 
-	pub fn expand(&mut self, new_size: usize) -> bool {
+	pub fn expand(&mut self, _new_size: usize) -> bool {
 		false
 	}
-	pub fn shrink(&mut self, new_size: usize) {
+	pub fn shrink(&mut self, _new_size: usize) {
 	}
 
 	pub fn count(&self) -> usize {

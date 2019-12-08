@@ -235,17 +235,18 @@ pub mod threads {
 	impl StateInner
 	{
 		fn sleep(&self, t: ::threads::ThreadPtr) {
-			let lh = SWITCH_LOCK.lock().unwrap();
+			let mut lh = SWITCH_LOCK.lock().unwrap();
 			t.cpu_state.inner.running.store(true, Ordering::SeqCst);	// Avoids a startup race
 			t.cpu_state.inner.condvar.notify_one();
 			if !self.complete.load(Ordering::SeqCst) {
 				//log_trace!("{:p} sleeping", self);
-				self.condvar.wait(lh).expect("Condvar wait failed");
+				lh = self.condvar.wait(lh).expect("Condvar wait failed");
 			}
 			else {
 				//log_trace!("{:p} complete", self);
 			}
 			core::mem::forget(t);
+			drop(lh);
 		}
 	}
 
@@ -300,14 +301,19 @@ pub mod threads {
 
 	pub fn idle() {
 		// Timed sleep?
+		std::thread::sleep(std::time::Duration::from_millis(50));
 	}
 	pub fn get_idle_thread() -> ::threads::ThreadPtr {
-		todo!("get_idle_thread");
+		lazy_static::lazy_static! {
+			static ref TS_ZERO: usize = crate::threads::new_idle_thread(0).into_usize();
+		}
+		// SAFE: Same as `get_thread_ptr`, doesn't actually own the result
+		unsafe { std::mem::transmute(*TS_ZERO) }
 	}
 	pub fn switch_to(t: ::threads::ThreadPtr) {
 		THIS_THREAD_STATE.with(|v| {
 			let h = v.borrow();
-			assert!( h.ptr_moved );
+			//assert!( h.ptr_moved );
 			match h.this_state
 			{
 			None => panic!("Current thread not initialised"),
@@ -320,19 +326,38 @@ pub mod threads {
 		});
 		THIS_THREAD_STATE.with(|v| {
 			let mut h = v.borrow_mut();
-			assert!(h.ptr_moved);
+			//assert!(h.ptr_moved);
 			h.ptr_moved = false;
 		});
+	}
+
+	/// Test hack: Releases the current thread from scheduling
+	pub fn test_unlock_thread() {
+		// - Hold switching lock until function returns
+		// Mark as complete to cause the thread to not sleep on next yield
+		THIS_THREAD_STATE.with(|v| {
+			let h = v.borrow();
+			h.this_state.as_ref().unwrap().complete.store(true, Ordering::SeqCst);
+			});
+		let lock = crate::sync::RwLock::new( () );
+		log_notice!("Thread no longer in scheduling flow");
+		// Acquire a lock
+		std::mem::forget( lock.write() );
+		// - Trigger a deadlock (which will sleep, but not block due to above flag)
+		std::mem::forget( lock.read() );
+		// Forget the lock to completely forget the thread
+		std::mem::forget( lock );
+		println!("> Bye");
 	}
 
 	pub fn start_thread<F: FnOnce()+Send+'static>(thread: &mut ::threads::Thread, code: F) {
 		// Set thread state's join handle to a thread with a pause point
 		let inner_handle = thread.cpu_state.inner.clone();
 		log_trace!("start_thread: {:p}", inner_handle);
-		let name = "unk";
+		let name = std::format!("{:p}", inner_handle);
 		let ptr = thread as *mut _ as usize;
 		let th = std::thread::Builder::new()
-			.name(name.into())
+			.name(name)
 			.spawn(move || {
 				// Initialise the thread-local structures
 				THIS_THREAD_STATE.with(|v| {
@@ -341,13 +366,11 @@ pub mod threads {
 					h.this_state = Some(inner_handle.clone());
 					});
 				// Wait for the first yield
-				let lh = SWITCH_LOCK.lock().unwrap();
+				let mut lh = SWITCH_LOCK.lock().unwrap();
 				if ! inner_handle.running.load(Ordering::SeqCst) {
-					inner_handle.condvar.wait(lh).expect("Condvar wait failed");
+					lh = inner_handle.condvar.wait(lh).expect("Condvar wait failed");
 				}
-				else {
-					drop(lh);
-				}
+				drop(lh);
 				// Run "user" code
 				log_trace!("Thread started");
 				(code)();
@@ -381,7 +404,11 @@ pub fn puth(v: u64) {
 	print!("{:08x}", v);
 }
 pub fn cur_timestamp() -> u64 {
-	0
+	lazy_static::lazy_static! {
+		static ref TS_ZERO: std::time::Instant = std::time::Instant::now();
+	}
+	let ts0 = *TS_ZERO;
+	(std::time::Instant::now() - ts0).as_millis() as u64
 }
 pub fn print_backtrace() {
 }
