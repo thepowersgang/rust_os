@@ -210,6 +210,7 @@ pub mod threads {
 	struct StateInner {
 		condvar: std::sync::Condvar,
 		complete: AtomicBool,
+		running: AtomicBool,
 	}
 	pub struct State {
 		thread_handle: Option<std::thread::JoinHandle<()>>,
@@ -223,6 +224,7 @@ pub mod threads {
 				inner: Arc::new(StateInner {
 					condvar: Default::default(),
 					complete: Default::default(),
+					running: Default::default(),
 				})
 			}
 		}
@@ -234,9 +236,14 @@ pub mod threads {
 	{
 		fn sleep(&self, t: ::threads::ThreadPtr) {
 			let lh = SWITCH_LOCK.lock().unwrap();
+			t.cpu_state.inner.running.store(true, Ordering::SeqCst);	// Avoids a startup race
 			t.cpu_state.inner.condvar.notify_one();
 			if !self.complete.load(Ordering::SeqCst) {
-				self.condvar.wait(lh);
+				//log_trace!("{:p} sleeping", self);
+				self.condvar.wait(lh).expect("Condvar wait failed");
+			}
+			else {
+				//log_trace!("{:p} complete", self);
 			}
 			core::mem::forget(t);
 		}
@@ -278,6 +285,7 @@ pub mod threads {
 			}
 			else {
 				h.ptr_moved = true;
+				// SAFE: Pointer to pointer
 				Some(unsafe { std::mem::transmute(h.ptr) })
 			}
 		})
@@ -304,8 +312,9 @@ pub mod threads {
 			{
 			None => panic!("Current thread not initialised"),
 			Some(ref v) => {
-				log_trace!("switch_to: {:p} from {:p}", *v, t.cpu_state.inner);
-				v.sleep(t)
+				log_trace!("switch_to: {:p} to {:p}", *v, t.cpu_state.inner);
+				v.sleep(t);
+				//log_trace!("switch_to: {:p} awake", *v);
 				},
 			}
 		});
@@ -333,7 +342,12 @@ pub mod threads {
 					});
 				// Wait for the first yield
 				let lh = SWITCH_LOCK.lock().unwrap();
-				inner_handle.condvar.wait(lh);
+				if ! inner_handle.running.load(Ordering::SeqCst) {
+					inner_handle.condvar.wait(lh).expect("Condvar wait failed");
+				}
+				else {
+					drop(lh);
+				}
 				// Run "user" code
 				log_trace!("Thread started");
 				(code)();

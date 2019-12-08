@@ -103,14 +103,14 @@ mod hw;
 pub mod arch;
 
 cfg_if::cfg_if!{
-    if #[cfg(feature="test")] {
-    }
-    else {
-        /// Kernel version (with build number)
-        pub const VERSION_STRING: &'static str = concat!("Tifflin Kernel v", env!("TK_VERSION"), " build ", env!("TK_BUILD"));
-        /// Kernel build information (git hash and compiler)
-        pub const BUILD_STRING: &'static str = concat!("Git state : ", env!("TK_GITSPEC"), ", Built with ", env!("RUST_VERSION"));
-    }
+	if #[cfg(feature="test")] {
+	}
+	else {
+		/// Kernel version (with build number)
+		pub const VERSION_STRING: &'static str = concat!("Tifflin Kernel v", env!("TK_VERSION"), " build ", env!("TK_BUILD"));
+		/// Kernel build information (git hash and compiler)
+		pub const BUILD_STRING: &'static str = concat!("Git state : ", env!("TK_GITSPEC"), ", Built with ", env!("RUST_VERSION"));
+	}
 }
 
 // vim: ft=rust
