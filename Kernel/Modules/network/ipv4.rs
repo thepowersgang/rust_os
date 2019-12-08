@@ -177,7 +177,11 @@ pub fn send_packet(source: Address, dest: Address, proto: u8, pkt: crate::nic::S
 		None => return,	// TODO: Error - No route to host
 		};
 	// 2. ARP (what if ARP has to wait?)
-	let dest_mac = crate::arp::lookup_v4(next_hop);
+	let dest_mac = match crate::arp::lookup_v4(next_hop)
+		{
+		Some(v) => v,
+		None => return,	// TODO: Error - No route to host
+		};
 	// 3. Send
 	let mut hdr = Ipv4Header {
 		ver_and_len: 0x40 | 20/4,
@@ -194,7 +198,7 @@ pub fn send_packet(source: Address, dest: Address, proto: u8, pkt: crate::nic::S
 		};
 	hdr.set_checksum();
 	let hdr_bytes = hdr.encode();
-	crate::nic::send_from(interface_mac, crate::nic::SparsePacket::new_chained(&hdr_bytes, &pkt));
+	crate::nic::send_from(interface_mac, dest_mac, 0x0800, crate::nic::SparsePacket::new_chained(&hdr_bytes, &pkt));
 }
 
 #[allow(dead_code)]
@@ -232,7 +236,7 @@ impl Ipv4Header
 	fn set_checksum(&mut self)
 	{
 		self.hdr_checksum = 0;
-		self.hdr_checksum = calculate_checksum(self.encode().chunks(2).map(|v| (v[1] as u16) << 8 | v[0] as u16));
+		self.hdr_checksum = calculate_checksum(self.encode().chunks(2).map(|v| (v[0] as u16) << 8 | v[1] as u16));
 	}
 	fn read(reader: &mut ::nic::PacketReader) -> Result<Self, ()>
 	{

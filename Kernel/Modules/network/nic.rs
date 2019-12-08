@@ -196,14 +196,14 @@ struct InterfaceListEnt
 
 static INTERFACES_LIST: Mutex<Vec< Option<InterfaceListEnt> >> = Mutex::new(Vec::new_const());
 
-pub fn send_from(addr: MacAddr, pkt: SparsePacket)
+pub fn send_from(local_addr: MacAddr, dest_addr: MacAddr, ether_ty: u16, pkt: SparsePacket)
 {
 	let mut int = None;
 	for i in INTERFACES_LIST.lock().iter()
 	{
 		if let Some(v) = i
 		{
-			if v.data.addr == addr
+			if v.data.addr == local_addr
 			{
 				int = Some(v.data.clone());
 			}
@@ -211,7 +211,12 @@ pub fn send_from(addr: MacAddr, pkt: SparsePacket)
 	}
 	if let Some(i) = int
 	{
-		i.base_interface.tx_raw(pkt);
+		let buf = [
+			local_addr[0], local_addr[1], local_addr[2], local_addr[3], local_addr[4], local_addr[5],
+			dest_addr[0], dest_addr[1], dest_addr[2], dest_addr[3], dest_addr[4], dest_addr[5],
+			(ether_ty >> 8) as u8, ether_ty as u8,
+			];
+		i.base_interface.tx_raw(SparsePacket::new_chained(&buf, &pkt));
 	}
 }
 
