@@ -37,7 +37,7 @@ pub use syscalls::gui::Event as InputEvent;
 pub use syscalls::gui::KeyCode as KeyCode;
 pub use window::Modifier as ModifierKey;
 
-pub type WithEleAtPosCb<'a> = &'a mut FnMut(&::Element, ::geom::PxPos) -> bool;
+pub type WithEleAtPosCb<'a> = &'a mut dyn FnMut(&dyn Element, ::geom::PxPos) -> bool;
 
 /// Common trait for window elements
 pub trait Element
@@ -46,7 +46,7 @@ pub trait Element
 	fn focus_change(&self, _have: bool) {
 	}
 	/// Called when an event fires. Keyboard events are controlled by focus, mouse via the render tree
-	fn handle_event(&self, _ev: ::InputEvent, _win: &mut ::window::WindowTrait) -> bool {
+	fn handle_event(&self, _ev: ::InputEvent, _win: &mut dyn crate::window::WindowTrait) -> bool {
 		false
 	}
 
@@ -64,7 +64,7 @@ pub trait Element
 macro_rules! dispatch_ele {
 	($self_:ident, $inner:expr) => {
 		fn focus_change(&$self_, have: bool) { $inner.focus_change(have) }
-		fn handle_event(&$self_, ev: ::InputEvent, win: &mut ::window::WindowTrait) -> bool { $inner.handle_event(ev, win) }
+		fn handle_event(&$self_, ev: ::InputEvent, win: &mut dyn crate::window::WindowTrait) -> bool { $inner.handle_event(ev, win) }
 
 		fn render(&$self_, surface: ::surface::SurfaceView, force: bool) { $inner.render(surface, force) }
 		fn resize(&$self_, w: u32, h: u32) { $inner.resize(w, h) }
@@ -85,7 +85,7 @@ impl<T: Element> Element for ::std::cell::RefCell<T>
 impl Element for ()
 {
 	fn focus_change(&self, _have: bool) { }
-	fn handle_event(&self, _ev: ::InputEvent, _win: &mut ::window::WindowTrait) -> bool { false }
+	fn handle_event(&self, _ev: ::InputEvent, _win: &mut dyn crate::window::WindowTrait) -> bool { false }
 	fn render(&self, _surface: ::surface::SurfaceView, _force: bool) { }
 	fn resize(&self, _w: u32, _h: u32) { }
 	fn with_element_at_pos(&self, pos: ::geom::PxPos, _dims: ::geom::PxDims, f: ::WithEleAtPosCb) -> bool { f(self, pos) }

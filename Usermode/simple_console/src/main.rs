@@ -281,11 +281,11 @@ impl UnicodeCombining for char
 		match *self as u32
 		{
 		// Ranges from wikipedia:Combining_Character
-		0x0300 ... 0x036F => true,
-		0x1AB0 ... 0x1AFF => true,
-		0x1DC0 ... 0x1DFF => true,
-		0x20D0 ... 0x20FF => true,
-		0xFE20 ... 0xFE2F => true,
+		0x0300 ..= 0x036F => true,
+		0x1AB0 ..= 0x1AFF => true,
+		0x1DC0 ..= 0x1DFF => true,
+		0x20D0 ..= 0x20FF => true,
+		0xFE20 ..= 0xFE2F => true,
 		_ => false,
 		}
 	}

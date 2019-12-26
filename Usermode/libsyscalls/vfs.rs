@@ -93,7 +93,7 @@ impl File
 	/// Read bytes at the cursor (incrementing)
 	#[inline]
 	pub fn read(&mut self, data: &mut [u8]) -> Result<usize,Error> {
-		let count = try!( self.read_at(self.1, data) );
+		let count = self.read_at(self.1, data)?;
 		self.1 += count as u64;
 		Ok(count)
 	}
@@ -194,7 +194,7 @@ impl DirIter
 	#[inline]
 	pub fn read_ent<'a>(&mut self, namebuf: &'a mut [u8]) -> Result<Option<&'a [u8]>, Error> {
 		// SAFE: Syscall
-		let len = try!(to_result(unsafe { self.0.call_2(::values::VFS_DIRITER_READENT, namebuf.as_ptr() as usize, namebuf.len()) } as usize ));
+		let len = to_result(unsafe { self.0.call_2(::values::VFS_DIRITER_READENT, namebuf.as_ptr() as usize, namebuf.len()) } as usize )?;
 		if len > 0 {
 			Ok( Some( &namebuf[ .. len as usize] ) )
 		}
@@ -225,7 +225,7 @@ impl Symlink
 	#[inline]
 	pub fn read_target<'a>(&self, buf: &'a mut [u8]) -> Result<&'a [u8], Error> {
 		// SAFE: Syscall with correct args
-		let len = try!(to_result( unsafe { self.0.call_2(::values::VFS_LINK_READ, buf.as_mut_ptr() as usize, buf.len()) } as usize ));
+		let len = to_result( unsafe { self.0.call_2(::values::VFS_LINK_READ, buf.as_mut_ptr() as usize, buf.len()) } as usize )?;
 		Ok( &buf[ .. len as usize] )
 	}
 }

@@ -13,7 +13,7 @@ pub trait Decorator
 	fn render(&self, surface: SurfaceView, full_redraw: bool);
 	fn client_rect(&self) -> (Dims<Px>,Dims<Px>);
 
-	fn handle_event(&self, ev: ::InputEvent, win: &::window::WindowTrait) -> EventHandled;
+	fn handle_event(&self, ev: ::InputEvent, win: &dyn crate::window::WindowTrait) -> EventHandled;
 }
 #[derive(Copy,Clone,Default)]
 pub struct EventHandled
@@ -33,7 +33,7 @@ impl Decorator for ()
 		(Dims::new(0,0), Dims::new(0,0))
 	}
 
-	fn handle_event(&self, _ev: ::InputEvent, _win: &::window::WindowTrait) -> EventHandled {
+	fn handle_event(&self, _ev: ::InputEvent, _win: &dyn crate::window::WindowTrait) -> EventHandled {
 		Default::default()
 	}
 }
@@ -59,7 +59,7 @@ impl<D: Decorator> Decorator for Option<D>
 		}
 	}
 
-	fn handle_event(&self, ev: ::InputEvent, win: &::window::WindowTrait) -> EventHandled {
+	fn handle_event(&self, ev: ::InputEvent, win: &dyn crate::window::WindowTrait) -> EventHandled {
 		match self
 		{
 		&Some(ref x) => x.handle_event(ev, win),
@@ -286,7 +286,7 @@ impl Decorator for Standard
 			)
 	}
 
-	fn handle_event(&self, ev: ::InputEvent, win: &::window::WindowTrait) -> EventHandled {
+	fn handle_event(&self, ev: ::InputEvent, win: &dyn crate::window::WindowTrait) -> EventHandled {
 		let modifiers = win.get_modifiers();
 		let (w, h) = win.get_full_dims();
 		match ev

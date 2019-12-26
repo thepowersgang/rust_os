@@ -45,7 +45,7 @@ pub fn load_executable(mut fh: File) -> Result<ElfModuleHandle<File>,Error>
 	// 1. Open file
 	let elf_ident = {
 		let mut hdr: [u8; 16] = [0; 16];
-		if try!(fh.read(&mut hdr)) != 16 {
+		if fh.read(&mut hdr)? != 16 {
 			return Err(Error::NotElf);
 		}
 		hdr
@@ -56,7 +56,7 @@ pub fn load_executable(mut fh: File) -> Result<ElfModuleHandle<File>,Error>
 	
 	// 2. Read header
 	::syscalls::log_write("Reading header");
-	let hdr = try!( Header::parse_partial(&elf_ident, &mut fh) );
+	let hdr = Header::parse_partial(&elf_ident, &mut fh)?;
 	::syscalls::log_write("Header read");
 	kernel_log!("Text only");
 	kernel_log!("elf_ident = {:?}", elf_ident);
@@ -150,12 +150,12 @@ impl<R: Read+Seek> ElfModuleHandle<R>
 		kernel_log!("symtab_ofs = {:?}, strtab_ofs = {:?}", symtab_addr, strtab_addr);
 		// SAFE: (well, as can be) These addresses should be pointing to within the program's image
 		let (strtab, symtab, rel, rela, plt) = unsafe {
-			let strtab = try!(StringTable::new(strtab_addr,strtab_len));
+			let strtab = StringTable::new(strtab_addr,strtab_len)?;
 			// TODO: Check assumption that symtab_addr < strtab_addr
-			let symtab = try!(SymbolTable::new(self.header.get_format(), symtab_addr, strtab_addr.map(|x| x as usize - symtab_addr.unwrap_or(x as *const _) as usize), symtab_esz));
-			let rel  = try!(RelocTable::new(self.header.get_format(), rel_addr , rel_sz , rel_esz , RelocType::Rel ));
-			let rela = try!(RelocTable::new(self.header.get_format(), rela_addr, rela_sz, rela_esz, RelocType::RelA));
-			let plt  = try!(RelocTable::new(self.header.get_format(), plt_addr, plt_sz, None, plt_type));
+			let symtab = SymbolTable::new(self.header.get_format(), symtab_addr, strtab_addr.map(|x| x as usize - symtab_addr.unwrap_or(x as *const _) as usize), symtab_esz)?;
+			let rel  = RelocTable::new(self.header.get_format(), rel_addr , rel_sz , rel_esz , RelocType::Rel )?;
+			let rela = RelocTable::new(self.header.get_format(), rela_addr, rela_sz, rela_esz, RelocType::RelA)?;
+			let plt  = RelocTable::new(self.header.get_format(), plt_addr, plt_sz, None, plt_type)?;
 			(strtab, symtab, rel, rela, plt)
 			};
 		
@@ -203,7 +203,7 @@ impl<R: Read+Seek> ElfModuleHandle<R>
 				strtab: strtab,
 				symtab: symtab,
 				};
-			try!( rs.apply_relocs( rel.iter().chain(rela.iter()).chain(plt.iter()) ) );
+			rs.apply_relocs( rel.iter().chain(rela.iter()).chain(plt.iter()) )?;
 		}
 		
 		Ok( () )
@@ -224,8 +224,8 @@ impl<'a> RelocationState<'a>
 	{
 		match self.machine
 		{
-		Machine::X8664 => for r in iter { try!(self.apply_reloc_x86_64(r)); },
-		Machine::ARM => for r in iter { try!(self.apply_reloc_arm(r)); },
+		Machine::X8664 => for r in iter { self.apply_reloc_x86_64(r)?; },
+		Machine::ARM => for r in iter { self.apply_reloc_arm(r)?; },
 		_ => todo!("apply_reloc - Machine {:?}", self.machine),
 		}
 		Ok( () )
@@ -238,7 +238,7 @@ impl<'a> RelocationState<'a>
 		{
 		R_ARM_NONE => {},
 		R_ARM_JUMP_SLOT => {
-			let (addr,_size) = try!( self.get_symbol_r(r.sym as usize) );
+			let (addr,_size) = self.get_symbol_r(r.sym as usize)?;
 			self.relocate_32(r.addr, |_val| addr as u32);
 			},
 		v @ _ => todo!("apply_reloc_arm - ty={}", v),
@@ -261,22 +261,22 @@ impl<'a> RelocationState<'a>
 		{
 		R_X86_64_NONE => {},
 		R_X86_64_64 => {
-			let (addr,_size) = try!( self.get_symbol_r(r.sym as usize) );
+			let (addr,_size) = self.get_symbol_r(r.sym as usize)?;
 			self.relocate_64(r.addr, |val| (addr + r.addend.unwrap_or(val as usize)) as u64);
 			},
 		R_X86_64_PC32 => {
-			let (addr,_size) = try!( self.get_symbol_r(r.sym as usize) );
+			let (addr,_size) = self.get_symbol_r(r.sym as usize)?;
 			self.relocate_32(r.addr, |val| (addr + r.addend.unwrap_or(val as usize) - r.addr) as u32);
 			},
 		R_X86_64_GOT32 => todo!("apply_reloc_x86_64 - GOT32"),
 		R_X86_64_PLT32 => todo!("apply_reloc_x86_64 - PLT32"),
 		R_X86_64_COPY => todo!("apply_reloc_x86_64 - COPY"),
 		R_X86_64_GLOB_DAT => {
-			let (addr,_size) = try!( self.get_symbol_r(r.sym as usize) );
+			let (addr,_size) = self.get_symbol_r(r.sym as usize)?;
 			self.relocate_64(r.addr, |_val| addr as u64);
 			},
 		R_X86_64_JUMP_SLOT => {
-			let (addr,_size) = try!( self.get_symbol_r(r.sym as usize) );
+			let (addr,_size) = self.get_symbol_r(r.sym as usize)?;
 			self.relocate_64(r.addr, |_val| addr as u64);
 			},
 		R_X86_64_RELATIVE => {
@@ -394,28 +394,28 @@ impl PHEnt
 	{
 		use byteorder::{ReadBytesExt,LittleEndian};
 		Ok(PHEnt {
-			p_type:  try!(file.read_u32::<LittleEndian>()),
-			p_flags: try!(file.read_u32::<LittleEndian>()),
-			p_offset: try!(file.read_u64::<LittleEndian>()),
-			p_vaddr: try!(file.read_u64::<LittleEndian>()) as usize,
-			p_paddr: try!(file.read_u64::<LittleEndian>()) as usize,
-			p_filesz: try!(file.read_u64::<LittleEndian>()) as usize,
-			p_memsz: try!(file.read_u64::<LittleEndian>()) as usize,
-			p_align: try!(file.read_u64::<LittleEndian>()) as usize,
+			p_type:   file.read_u32::<LittleEndian>()?,
+			p_flags:  file.read_u32::<LittleEndian>()?,
+			p_offset: file.read_u64::<LittleEndian>()?,
+			p_vaddr:  file.read_u64::<LittleEndian>()? as usize,
+			p_paddr:  file.read_u64::<LittleEndian>()? as usize,
+			p_filesz: file.read_u64::<LittleEndian>()? as usize,
+			p_memsz:  file.read_u64::<LittleEndian>()? as usize,
+			p_align:  file.read_u64::<LittleEndian>()? as usize,
 			})
 	}
 	fn parse_32<R: Read>(file: &mut R) -> Result<PHEnt,Error>
 	{
 		use byteorder::{ReadBytesExt,LittleEndian};
 		Ok(PHEnt {
-			p_type:  try!(file.read_u32::<LittleEndian>()),
-			p_offset: try!(file.read_u32::<LittleEndian>()) as u64,
-			p_vaddr: try!(file.read_u32::<LittleEndian>()) as usize,
-			p_paddr: try!(file.read_u32::<LittleEndian>()) as usize,
-			p_filesz: try!(file.read_u32::<LittleEndian>()) as usize,
-			p_memsz: try!(file.read_u32::<LittleEndian>()) as usize,
-			p_flags: try!(file.read_u32::<LittleEndian>()),
-			p_align: try!(file.read_u32::<LittleEndian>()) as usize,
+			p_type:   file.read_u32::<LittleEndian>()?,
+			p_offset: file.read_u32::<LittleEndian>()? as u64,
+			p_vaddr:  file.read_u32::<LittleEndian>()? as usize,
+			p_paddr:  file.read_u32::<LittleEndian>()? as usize,
+			p_filesz: file.read_u32::<LittleEndian>()? as usize,
+			p_memsz:  file.read_u32::<LittleEndian>()? as usize,
+			p_flags:  file.read_u32::<LittleEndian>()?,
+			p_align:  file.read_u32::<LittleEndian>()? as usize,
 			})
 	}
 }
@@ -431,7 +431,7 @@ impl<'a, R: 'a+Read>  PhEntIterator<'a, R> {
 		let mut data = [0; 64];
 		assert!(self.entry_size as usize <= data.len(), "Allocation {} insufficent for {}", data.len(), self.entry_size);
 		let data = &mut data[.. self.entry_size as usize];
-		if try!(self.file.read(data)) != self.entry_size as usize {
+		if self.file.read(data)? != self.entry_size as usize {
 			panic!("TODO");
 		}
 		else {
@@ -522,22 +522,22 @@ impl<'a, R: 'a+Read> DtEntIterator<'a, R> {
 		{
 		Size::Elf32 => {
 			let mut d = [0; 4*2];
-			if try!(self.file.read(&mut d)) != d.len() {
+			if self.file.read(&mut d)? != d.len() {
 				return Err( Error::Malformed );
 			}
 			else {
 				let mut p = &d[..];
-				[ try!(p.read_u32::<LittleEndian>()) as u64, try!(p.read_u32::<LittleEndian>()) as u64 ]
+				[ p.read_u32::<LittleEndian>()? as u64, p.read_u32::<LittleEndian>()? as u64 ]
 			}
 			},
 		Size::Elf64 => {
 			let mut d = [0; 8*2];
-			if try!(self.file.read(&mut d)) != d.len() {
+			if self.file.read(&mut d)? != d.len() {
 				return Err( Error::Malformed );
 			}
 			else {
 				let mut p = &d[..];
-				[ try!(p.read_u64::<LittleEndian>()), try!(p.read_u64::<LittleEndian>()) ]
+				[ p.read_u64::<LittleEndian>()?, p.read_u64::<LittleEndian>()? ]
 			}
 			},
 		})
@@ -655,24 +655,24 @@ impl<'a> SymbolTable<'a>
 	fn read_sym32(&self, mut slice: &[u8]) -> Result<Symbol,Error> {
 		use byteorder::{ReadBytesExt,LittleEndian};
 		Ok(Symbol {
-			st_name:  try!(slice.read_u32::<LittleEndian>()) as usize,
-			st_value: try!(slice.read_u32::<LittleEndian>()) as usize,
-			st_size:  try!(slice.read_u32::<LittleEndian>()) as usize,
-			st_info:  try!(slice.read_u8()),
-			st_other: try!(slice.read_u8()),
-			st_shndx: try!(slice.read_u16::<LittleEndian>()),
+			st_name:  slice.read_u32::<LittleEndian>()? as usize,
+			st_value: slice.read_u32::<LittleEndian>()? as usize,
+			st_size:  slice.read_u32::<LittleEndian>()? as usize,
+			st_info:  slice.read_u8()?,
+			st_other: slice.read_u8()?,
+			st_shndx: slice.read_u16::<LittleEndian>()?,
 			})
 		
 	}
 	fn read_sym64(&self, mut slice: &[u8]) -> Result<Symbol,Error> {
 		use byteorder::{ReadBytesExt,LittleEndian};
 		Ok(Symbol {
-			st_name:  try!(slice.read_u32::<LittleEndian>()) as usize,
-			st_info:  try!(slice.read_u8()),
-			st_other: try!(slice.read_u8()),
-			st_shndx: try!(slice.read_u16::<LittleEndian>()),
-			st_value: try!(slice.read_u64::<LittleEndian>()) as usize,
-			st_size:  try!(slice.read_u64::<LittleEndian>()) as usize,
+			st_name:  slice.read_u32::<LittleEndian>()? as usize,
+			st_info:  slice.read_u8()?,
+			st_other: slice.read_u8()?,
+			st_shndx: slice.read_u16::<LittleEndian>()?,
+			st_value: slice.read_u64::<LittleEndian>()? as usize,
+			st_size:  slice.read_u64::<LittleEndian>()? as usize,
 			})
 	}
 	fn get(&self, idx: usize) -> Option<Symbol> {
@@ -916,14 +916,14 @@ struct Format
 }
 impl Format
 {
-	fn read_u64(&self, buf: &mut Read) -> u64 {
+	fn read_u64(&self, buf: &mut dyn Read) -> u64 {
 		use byteorder::{ReadBytesExt,LittleEndian,BigEndian};
 		match self.endian {
 		Endian::Little => buf.read_u64::<LittleEndian>().unwrap(),
 		Endian::Big    => buf.read_u64::<BigEndian>().unwrap(),
 		}
 	}
-	fn read_u32(&self, buf: &mut Read) -> u32 {
+	fn read_u32(&self, buf: &mut dyn Read) -> u32 {
 		use byteorder::{ReadBytesExt,LittleEndian,BigEndian};
 		match self.endian {
 		Endian::Little => buf.read_u32::<LittleEndian>().unwrap(),
@@ -967,26 +967,26 @@ impl Header
 		match objsize
 		{
 		Size::Elf32 => {
-			let data = { let mut d = [0; 36]; try!(file.read(&mut d)); d };
+			let data = { let mut d = [0; 36]; file.read(&mut d)?; d };
 			let mut data = &data[..];
 
-			let objtype = ObjectType::from( try!(data.read_u16::<LittleEndian>()) );
-			let machine = Machine::from( try!(data.read_u16::<LittleEndian>()) );
-			let version = try!(data.read_u32::<LittleEndian>());
+			let objtype = ObjectType::from( data.read_u16::<LittleEndian>()? );
+			let machine = Machine::from( data.read_u16::<LittleEndian>()? );
+			let version = data.read_u32::<LittleEndian>()?;
 			if version != 1 {
 				kernel_log!("Unknown elf version: {}", version);
 				return Err(Error::Unsupported);
 			}
-			let e_entry = try!(data.read_u32::<LittleEndian>());
-			let e_phoff = try!(data.read_u32::<LittleEndian>());
-			let _e_shoff = try!(data.read_u32::<LittleEndian>());
-			let _e_flags = try!(data.read_u32::<LittleEndian>());
-			let _e_ehsize = try!(data.read_u16::<LittleEndian>());
-			let e_phentsize = try!(data.read_u16::<LittleEndian>());
-			let e_phnum     = try!(data.read_u16::<LittleEndian>());
-			let _e_shentsize = try!(data.read_u16::<LittleEndian>());
-			let _e_shnum     = try!(data.read_u16::<LittleEndian>());
-			let _e_shstrndx  = try!(data.read_u16::<LittleEndian>());
+			let e_entry = data.read_u32::<LittleEndian>()?;
+			let e_phoff = data.read_u32::<LittleEndian>()?;
+			let _e_shoff = data.read_u32::<LittleEndian>()?;
+			let _e_flags = data.read_u32::<LittleEndian>()?;
+			let _e_ehsize = data.read_u16::<LittleEndian>()?;
+			let e_phentsize = data.read_u16::<LittleEndian>()?;
+			let e_phnum     = data.read_u16::<LittleEndian>()?;
+			let _e_shentsize = data.read_u16::<LittleEndian>()?;
+			let _e_shnum     = data.read_u16::<LittleEndian>()?;
+			let _e_shstrndx  = data.read_u16::<LittleEndian>()?;
 			Ok( Header {
 				object_size: Size::Elf32, endian: endian,
 				object_type: objtype,
@@ -999,26 +999,26 @@ impl Header
 				})
 			},
 		Size::Elf64 => {
-			let data = { let mut d = [0; 48]; try!(file.read(&mut d)); d };
+			let data = { let mut d = [0; 48]; file.read(&mut d)?; d };
 			let mut data = &data[..];
 
-			let objtype = ObjectType::from( try!(data.read_u16::<LittleEndian>()) );
-			let machine = Machine::from( try!(data.read_u16::<LittleEndian>()) );
-			let version = try!(data.read_u32::<LittleEndian>());
+			let objtype = ObjectType::from( data.read_u16::<LittleEndian>()? );
+			let machine = Machine::from( data.read_u16::<LittleEndian>()? );
+			let version = data.read_u32::<LittleEndian>()?;
 			if version != 1 {
 				kernel_log!("Unknown elf version: {}", version);
 				return Err(Error::Unsupported);
 			}
-			let e_entry = try!(data.read_u64::<LittleEndian>());
-			let e_phoff = try!(data.read_u64::<LittleEndian>());
-			let _e_shoff = try!(data.read_u64::<LittleEndian>());
-			let _e_flags = try!(data.read_u32::<LittleEndian>());
-			let _e_ehsize = try!(data.read_u16::<LittleEndian>());
-			let e_phentsize = try!(data.read_u16::<LittleEndian>());
-			let e_phnum     = try!(data.read_u16::<LittleEndian>());
-			let _e_shentsize = try!(data.read_u16::<LittleEndian>());
-			let _e_shnum     = try!(data.read_u16::<LittleEndian>());
-			let _e_shstrndx  = try!(data.read_u16::<LittleEndian>());
+			let e_entry = data.read_u64::<LittleEndian>()?;
+			let e_phoff = data.read_u64::<LittleEndian>()?;
+			let _e_shoff = data.read_u64::<LittleEndian>()?;
+			let _e_flags = data.read_u32::<LittleEndian>()?;
+			let _e_ehsize = data.read_u16::<LittleEndian>()?;
+			let e_phentsize = data.read_u16::<LittleEndian>()?;
+			let e_phnum     = data.read_u16::<LittleEndian>()?;
+			let _e_shentsize = data.read_u16::<LittleEndian>()?;
+			let _e_shnum     = data.read_u16::<LittleEndian>()?;
+			let _e_shstrndx  = data.read_u16::<LittleEndian>()?;
 			Ok( Header {
 				object_size: Size::Elf64, endian: endian,
 				object_type: objtype,

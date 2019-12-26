@@ -12,7 +12,7 @@ pub struct TextInput<'a>
 	state: ::std::cell::RefCell<State>,
 	shadow: String,
 	obscure_char: Option<char>,
-	submit_cb: Option< Box<Fn(&TextInput<'a>, &mut ::window::WindowTrait)+'a> >,
+	submit_cb: Option< Box<dyn Fn(&TextInput<'a>, &mut dyn crate::window::WindowTrait)+'a> >,
 }
 
 #[derive(Default)]
@@ -47,7 +47,7 @@ impl<'a> TextInput<'a>
 	/// 
 	/// Closure is passed a shared handle to this widget, and a mutable handle to the owning
 	/// window.
-	pub fn bind_submit<F: Fn(&Self, &mut ::window::WindowTrait)+'a>(&mut self, cb: F) {
+	pub fn bind_submit<F: Fn(&Self, &mut dyn crate::window::WindowTrait)+'a>(&mut self, cb: F) {
 		self.submit_cb = Some( Box::new(cb) );
 	}
 
@@ -126,7 +126,7 @@ impl<'a> ::Element for TextInput<'a>
 	fn resize(&self, _w: u32, _h: u32) {
 	}
 
-	fn handle_event(&self, ev: ::InputEvent, win: &mut ::window::WindowTrait) -> bool {
+	fn handle_event(&self, ev: ::InputEvent, win: &mut dyn crate::window::WindowTrait) -> bool {
 		match ev
 		{
 		::InputEvent::Text(v) => {

@@ -58,7 +58,7 @@ impl ThisProcess
 			match super::ObjectHandle::new( unsafe { obj.call_2l(::values::CORE_THISPROCESS_RECVOBJ, ::values::FixedStr8::from(tag).into(), T::class() as usize) } as usize )
 			{
 			Ok(v) => Ok(T::from_handle(v)),
-			Err(e @ 0 ... 0xFFFF) => Err( RecvObjectError::ClassMismatch(e as u16) ),
+			Err(e @ 0 ..= 0xFFFF) => Err( RecvObjectError::ClassMismatch(e as u16) ),
 			Err(0x1_0000) => Err( RecvObjectError::NoObject ),
 			Err(e) => panic!("receive_object error {:#x}", e),
 			}

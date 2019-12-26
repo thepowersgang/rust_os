@@ -1,7 +1,6 @@
 #![feature(start)]
 #![no_std]
 
-#[macro_use]
 extern crate syscalls;
 extern crate std_rt;
 

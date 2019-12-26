@@ -74,8 +74,7 @@ macro_rules! impl_from {
 }
 
 pub fn type_name<T: ?::core::marker::Sized>() -> &'static str {
-	// SAFE: Intrinsic with no sideeffect
-	unsafe { ::core::intrinsics::type_name::<T>() }
+	::core::intrinsics::type_name::<T>()
 }
 #[macro_export]
 macro_rules! type_name {

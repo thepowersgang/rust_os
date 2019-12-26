@@ -6,7 +6,7 @@ use std::cell::RefCell;
 pub struct Button<T, F>
 where
 	T: ::Element,
-	F: Fn(&ButtonInner<T>, &mut ::window::WindowTrait)
+	F: Fn(&ButtonInner<T>, &mut dyn crate::window::WindowTrait)
 {
 	click_cb: F,
 	inner: ButtonInner<T>,
@@ -22,30 +22,30 @@ where
 pub type ButtonBcb<'a, T> = Button<T, BoxCb<'a, T>>;
 
 /// Wrapper around a Box<Fn> that allows a `Button` to be stored in a struct
-pub struct BoxCb<'a, T: 'a + ::Element>(Box<Fn(&ButtonInner<T>, &mut ::window::WindowTrait)+'a>);
+pub struct BoxCb<'a, T: 'a + ::Element>(Box<dyn Fn(&ButtonInner<T>, &mut dyn crate::window::WindowTrait)+'a>);
 
-impl<'a, 'b1, 'b2, 'b3, T> ::std::ops::Fn<(&'b1 ButtonInner<T>, &'b2 mut (::window::WindowTrait<'b3> + 'b2))> for BoxCb<'a, T>
+impl<'a, 'b1, 'b2, 'b3, T> ::std::ops::Fn<(&'b1 ButtonInner<T>, &'b2 mut (dyn crate::window::WindowTrait<'b3> + 'b2))> for BoxCb<'a, T>
 where
 	T: 'a + ::Element
 {
-	extern "rust-call" fn call(&self, args: (&'b1 ButtonInner<T>, &'b2 mut (::window::WindowTrait<'b3> + 'b2))) {
+	extern "rust-call" fn call(&self, args: (&'b1 ButtonInner<T>, &'b2 mut (dyn crate::window::WindowTrait<'b3> + 'b2))) {
 		self.0.call(args)
 	}
 }
-impl<'a, 'b1, 'b2, 'b3, T> ::std::ops::FnMut<(&'b1 ButtonInner<T>, &'b2 mut (::window::WindowTrait<'b3> + 'b2))> for BoxCb<'a, T>
+impl<'a, 'b1, 'b2, 'b3, T> ::std::ops::FnMut<(&'b1 ButtonInner<T>, &'b2 mut (dyn crate::window::WindowTrait<'b3> + 'b2))> for BoxCb<'a, T>
 where
 	T: 'a + ::Element
 {
-	extern "rust-call" fn call_mut(&mut self, args: (&'b1 ButtonInner<T>, &'b2 mut (::window::WindowTrait<'b3> + 'b2))) {
+	extern "rust-call" fn call_mut(&mut self, args: (&'b1 ButtonInner<T>, &'b2 mut (dyn crate::window::WindowTrait<'b3> + 'b2))) {
 		self.call(args)
 	}
 }
-impl<'a, 'b1, 'b2, 'b3, T> ::std::ops::FnOnce<(&'b1 ButtonInner<T>, &'b2 mut (::window::WindowTrait<'b3> + 'b2))> for BoxCb<'a, T>
+impl<'a, 'b1, 'b2, 'b3, T> ::std::ops::FnOnce<(&'b1 ButtonInner<T>, &'b2 mut (dyn crate::window::WindowTrait<'b3> + 'b2))> for BoxCb<'a, T>
 where
 	T: 'a + ::Element
 {
 	type Output = ();
-	extern "rust-call" fn call_once(self, args: (&'b1 ButtonInner<T>, &'b2 mut (::window::WindowTrait<'b3> + 'b2))) {
+	extern "rust-call" fn call_once(self, args: (&'b1 ButtonInner<T>, &'b2 mut (dyn crate::window::WindowTrait<'b3> + 'b2))) {
 		self.call(args)
 	}
 }
@@ -62,7 +62,7 @@ struct State
 impl<T, F> Button<T, F>
 where
 	T: ::Element,
-	F: Fn(&ButtonInner<T>, &mut ::window::WindowTrait)
+	F: Fn(&ButtonInner<T>, &mut dyn crate::window::WindowTrait)
 {
 	pub fn new(ele: T, cb: F) -> Button<T, F> {
 		Button {
@@ -80,7 +80,7 @@ where
 {
 	pub fn new_boxfn<F2>(ele: T, cb: F2) -> Self
 	where
-		F2: 'a + Fn(&ButtonInner<T>, &mut ::window::WindowTrait)
+		F2: 'a + Fn(&ButtonInner<T>, &mut dyn crate::window::WindowTrait)
 	{
 		Button::new(ele, BoxCb(Box::new(cb)))
 	}
@@ -89,7 +89,7 @@ where
 impl<T, F> ::std::ops::Deref for Button<T, F>
 where
 	T: ::Element,
-	F: Fn(&ButtonInner<T>, &mut ::window::WindowTrait)
+	F: Fn(&ButtonInner<T>, &mut dyn crate::window::WindowTrait)
 {
 	type Target = ButtonInner<T>;
 	fn deref(&self) -> &Self::Target {
@@ -119,7 +119,7 @@ where
 impl<T, F> ::Element for Button<T,F>
 where
 	T: ::Element,
-	F: Fn(&ButtonInner<T>, &mut ::window::WindowTrait)
+	F: Fn(&ButtonInner<T>, &mut dyn crate::window::WindowTrait)
 {
 	fn focus_change(&self, have: bool) {
 		let mut st = self.state.borrow_mut();
@@ -127,7 +127,7 @@ where
 		st.is_dirty = true;
 	}
 
-	fn handle_event(&self, ev: ::InputEvent, win: &mut ::window::WindowTrait) -> bool {
+	fn handle_event(&self, ev: ::InputEvent, win: &mut dyn crate::window::WindowTrait) -> bool {
 		match ev
 		{
 		::InputEvent::MouseDown(_x,_y,0) => self.downstate_change(true),

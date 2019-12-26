@@ -11,12 +11,12 @@ extern crate syscalls;
 pub trait WaitController
 {
 	fn get_count(&self) -> usize;
-	fn populate(&self, cb: &mut FnMut(::syscalls::WaitItem));
+	fn populate(&self, cb: &mut dyn FnMut(::syscalls::WaitItem));
 	fn handle(&mut self, events: &[::syscalls::WaitItem]);
 }
 
 /// Idle, handling events on each WaitController passed
-pub fn idle_loop<'a,'b,'c>(items: &'a mut [&'b mut (WaitController+'c)])
+pub fn idle_loop<'a,'b,'c>(items: &'a mut [&'b mut (dyn WaitController+'c)])
 {
 	let mut objects = Vec::new();
 	loop {

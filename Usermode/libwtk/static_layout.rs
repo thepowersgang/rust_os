@@ -97,7 +97,7 @@ impl<S: BoxEleSet> Box<S>
 }
 impl<S: BoxEleSet> super::Element for Box<S>
 {
-	fn handle_event(&self, _ev: ::InputEvent, _win: &mut ::window::WindowTrait) -> bool {
+	fn handle_event(&self, _ev: ::InputEvent, _win: &mut dyn crate::window::WindowTrait) -> bool {
 		false
 	}
 

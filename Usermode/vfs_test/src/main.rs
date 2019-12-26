@@ -25,7 +25,7 @@ struct Repeat<T>(usize, T);
 impl<T: ::std::fmt::Display> ::std::fmt::Display for Repeat<T> {
 	fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
 		for _ in 0 .. self.0 {
-			try!( self.1.fmt(f) );
+			self.1.fmt(f)?;
 		}
 		Ok( () )
 	}

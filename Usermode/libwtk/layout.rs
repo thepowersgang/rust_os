@@ -30,7 +30,7 @@ pub struct Size(u32);
 pub struct Box<'a>
 {
 	direction: Direction,
-	items: Vec< (Option<&'a mut Element>, Option<Size>) >,
+	items: Vec< (Option<&'a mut dyn Element>, Option<Size>) >,
 	sizes: ::std::cell::RefCell<SizeState>,
 	size_changed: ::std::cell::Cell<bool>,
 }
@@ -54,7 +54,7 @@ impl<'a> Box<'a>
 	}
 
 	/// Add an item to the box, optionally a fixed size
-	pub fn add(&mut self, item: &'a mut Element, size: Option<u32>) {
+	pub fn add(&mut self, item: &'a mut dyn Element, size: Option<u32>) {
 		self.items.push( (Some(item), size.map(|v| Size(v))) );
 	}
 	/// Add a spacer to the box, of an optional size
@@ -91,7 +91,7 @@ impl<'a> Box<'a>
 
 impl<'a> super::Element for Box<'a>
 {
-	fn handle_event(&self, _ev: ::InputEvent, _win: &mut ::window::WindowTrait) -> bool {
+	fn handle_event(&self, _ev: ::InputEvent, _win: &mut dyn crate::window::WindowTrait) -> bool {
 		false
 	}
 
@@ -219,7 +219,7 @@ impl<E: ::Element> Frame<E>
 
 impl<E: ::Element> ::Element for Frame<E>
 {
-	fn handle_event(&self, ev: ::InputEvent, win: &mut ::window::WindowTrait) -> bool {
+	fn handle_event(&self, ev: ::InputEvent, win: &mut dyn crate::window::WindowTrait) -> bool {
 		// TODO: For mouse events, clip to display region
 		//
 		self.item.handle_event(ev, win)

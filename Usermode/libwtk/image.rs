@@ -77,7 +77,7 @@ impl<T: Buffer> ::Element for Image<T>
 		// Don't care
 	}
 
-	fn handle_event(&self, _ev: ::InputEvent, _win: &mut ::window::WindowTrait) -> bool {
+	fn handle_event(&self, _ev: ::InputEvent, _win: &mut dyn crate::window::WindowTrait) -> bool {
 		// Don't care
 		false
 	}

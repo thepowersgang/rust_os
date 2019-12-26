@@ -40,14 +40,14 @@ impl Widget
 	/// Update content
 	pub fn populate<F: ::std::io::Read+::std::io::Seek>(&self, mut f: F) -> ::std::io::Result<()> {
 		let mut st = self.state.borrow_mut();
-		st.view_start = try!(f.seek(::std::io::SeekFrom::Current(0)));
+		st.view_start = f.seek(::std::io::SeekFrom::Current(0))?;
 		//st.data = Vec::with_capacity( CHUNK_SIZE * self.view_size );
 		st.data.clear();
 		for i in 0 .. st.view_size
 		{
 			let ofs = i * CHUNK_SIZE;
 			st.data.extend( ::std::iter::repeat(0).take(CHUNK_SIZE) );
-			let count = try!(f.read(&mut st.data[ofs ..]));
+			let count = f.read(&mut st.data[ofs ..])?;
 			if count < CHUNK_SIZE {
 				st.data.truncate(ofs + count);
 				break ;
@@ -108,13 +108,13 @@ impl<'a> ::std::fmt::LowerHex for Seg<'a>
 	fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
 		for i in 0 .. 8 {
 			if i > 0 {
-				try!(f.write_str(" "));
+				f.write_str(" ")?;
 			}
 			if let Some(e) = self.0.get(i) {
-				try!( write!(f, "{:02x}", *e) );
+				write!(f, "{:02x}", *e)?;
 			}
 			else {
-				try!( f.write_str("  ") );
+				f.write_str("  ")?;
 			}
 		}
 		Ok( () )
@@ -126,14 +126,14 @@ impl<'a> ::std::fmt::Display for Seg<'a>
 		for i in 0 .. 8 {
 			if let Some(&v) = self.0.get(i) {
 				if 0x20 <= v && v <= 0x7F {
-					try!( ::std::fmt::Write::write_char(f, v as char) );
+					::std::fmt::Write::write_char(f, v as char)?;
 				}
 				else {
-					try!( f.write_str(".") );
+					f.write_str(".")?;
 				}
 			}
 			else {
-				try!( f.write_str(" ") );
+				f.write_str(" ")?;
 			}
 		}
 		Ok( () )

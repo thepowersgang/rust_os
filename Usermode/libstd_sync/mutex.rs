@@ -27,7 +27,7 @@ impl<T> Mutex<T>
 {
 	pub const fn new(val: T) -> Mutex<T> {
 		Mutex {
-			locked: ::core::sync::atomic::ATOMIC_USIZE_INIT,
+			locked: AtomicUsize::new(0),
 			data: UnsafeCell::new(val),
 		}
 	}

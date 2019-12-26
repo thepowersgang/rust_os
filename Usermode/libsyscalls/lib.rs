@@ -13,12 +13,8 @@ mod std {
 	pub use core::fmt;
 }
 
-fn type_name<T:?Sized>() -> &'static str {
-	// SAFE: type_name intrinsic
-	unsafe { ::core::intrinsics::type_name::<T>() }
-}
 macro_rules! type_name {
-	($t:ty) => {::type_name::<$t>()};
+	($t:ty) => {::core::intrinsics::type_name::<$t>()};
 }
 
 macro_rules! syscall {

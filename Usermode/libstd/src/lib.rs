@@ -12,7 +12,7 @@
 #![feature(box_syntax)]
 #![feature(raw)]
 #![feature(slice_concat_ext)]
-#![feature(alloc,allocator_api)]
+#![feature(allocator_api)]
 #![feature(allocator_internals)]
 #![feature(core_panic_info)]	// Needed because of import of `panic` macro bringin in the module too
 #![feature(test,custom_test_frameworks)]	// used for macro import
@@ -31,6 +31,7 @@ extern crate alloc_system;
 //extern crate loader;
 // Macros
 pub use alloc::{/*vec, */format};
+#[allow(deprecated)]
 pub use core::{try, assert, assert_eq, panic, write, unreachable, unimplemented};
 pub use core::{file, line};
 //pub use core::{deriving_Debug};

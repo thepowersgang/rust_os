@@ -11,8 +11,8 @@ use wtk::WindowTrait;
 pub struct FileList<'a>
 {
 	root: &'a ::syscalls::vfs::Dir,
-	on_open: Box<Fn(&mut WindowTrait, &Path, ::syscalls::vfs::Node) + 'a>,
-	on_chdir: Box<Fn(&mut WindowTrait, &Path) + 'a>,
+	on_open: Box<dyn Fn(&mut dyn WindowTrait, &Path, ::syscalls::vfs::Node) + 'a>,
+	on_chdir: Box<dyn Fn(&mut dyn WindowTrait, &Path) + 'a>,
 
 	cur_paths: RefCell<Vec<OsString>>,
 	
@@ -50,7 +50,7 @@ impl<'a> FileList<'a>
 	/// Bind to "Opening" a file (double-click or select+enter)
 	pub fn on_open<F: 'a>(&mut self, f: F)
 	where
-		F: Fn(&mut ::wtk::WindowTrait, &Path, ::syscalls::vfs::Node)
+		F: Fn(&mut dyn wtk::WindowTrait, &Path, ::syscalls::vfs::Node)
 	{
 		self.on_open = Box::new(f);
 	}
@@ -58,7 +58,7 @@ impl<'a> FileList<'a>
 	/// Bind to changing directory
 	pub fn on_chdir<F: 'a>(&mut self, f: F)
 	where
-		F: Fn(&mut ::wtk::WindowTrait, &Path)
+		F: Fn(&mut dyn wtk::WindowTrait, &Path)
 	{
 		self.on_chdir = Box::new(f);
 	}
@@ -73,7 +73,7 @@ impl<'a> ::wtk::Element for FileList<'a>
 		// Sizes itself on render
 		//self.list.resize(w, h);
 	}
-	fn handle_event(&self, ev: ::wtk::InputEvent, win: &mut ::wtk::WindowTrait) -> bool {
+	fn handle_event(&self, ev: ::wtk::InputEvent, win: &mut dyn wtk::WindowTrait) -> bool {
 		self.list.handle_event(
 			ev,
 			|ent| {

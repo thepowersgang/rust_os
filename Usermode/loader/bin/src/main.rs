@@ -3,9 +3,11 @@
 //
 // This program is both the initial entrypoint for the userland, and the default dynamic linker.
 #![feature(const_fn)]
+#![feature(maybe_uninit_ref)]
 //#![crate_type="lib"]
 #![no_main]
 
+use std::mem::MaybeUninit;
 use cmdline_words_parser::StrExt as CmdlineStrExt;
 
 use load::SegmentIterator;
@@ -83,12 +85,12 @@ pub extern "C" fn loader_main(cmdline: *mut u8, cmdline_len: usize) -> !
 
 struct FixedVec<T> {
 	size: usize,
-	data: [T; 16],
+	data: MaybeUninit<[T; 16]>,
 }
 impl<T> FixedVec<T> {
 	fn new() -> FixedVec<T> {
 		// SAFE: Won't be read until written to
-		FixedVec { size: 0, data: unsafe { ::std::mem::uninitialized() } }
+		FixedVec { size: 0, data: MaybeUninit::uninit(), }
 	}
 	fn push(&mut self, v: T) -> Result<(),T> {
 		if self.size == 16 {
@@ -96,7 +98,7 @@ impl<T> FixedVec<T> {
 		}
 		else {
 			// SAFE: Writing to newly made-valid cell
-			unsafe { ::std::ptr::write( &mut self.data[self.size], v ) };
+			unsafe { ::std::ptr::write( (self.data.as_mut_ptr() as *mut T).offset(self.size as isize), v ) };
 			self.size += 1;
 			Ok( () )
 		}
@@ -105,12 +107,14 @@ impl<T> FixedVec<T> {
 impl<T> ::std::ops::Deref for FixedVec<T> {
 	type Target = [T];
 	fn deref(&self) -> &[T] {
-		&self.data[..self.size]
+		// SAFE: Initialised region
+		unsafe { &self.data.get_ref()[..self.size] }
 	}
 }
 impl<T> ::std::ops::DerefMut for FixedVec<T> {
 	fn deref_mut(&mut self) -> &mut [T] {
-		&mut self.data[..self.size]
+		// SAFE: Initialised region
+		unsafe { &mut self.data.get_mut()[..self.size] }
 	}
 }
 

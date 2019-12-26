@@ -52,10 +52,10 @@ impl Widget
 				else {
 					lines[lines.len()-1].file_offset
 				};
-			try!( file.seek( ::std::io::SeekFrom::Start(offset) ) );
+			file.seek( ::std::io::SeekFrom::Start(offset) )?;
 			while lines.len() < cached_line_count
 			{
-				lines.push( try!(Line::new(&mut file)) );
+				lines.push( Line::new(&mut file)? );
 			}
 		}
 		else {
@@ -100,11 +100,11 @@ impl Line
 	where
 		R: ::std::io::Read + ::std::io::Seek
 	{
-		let start = try!(file.seek( ::std::io::SeekFrom::Current(0) ));
+		let start = file.seek( ::std::io::SeekFrom::Current(0) )?;
 		let bytes = {
 			let mut bytes = Vec::new();
 			let mut b = [0];
-			while try!(file.read(&mut b)) == 1 && b[0] != b'\n' {
+			while file.read(&mut b)? == 1 && b[0] != b'\n' {
 				bytes.push( b[0] );
 			}
 			bytes

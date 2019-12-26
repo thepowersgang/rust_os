@@ -126,7 +126,7 @@ impl<'a, I: 'a + MenuItems> ::async::WaitController for WaitWrapper<'a, I>
 	fn get_count(&self) -> usize {
 		1
 	}
-	fn populate(&self, cb: &mut FnMut(::syscalls::WaitItem)) {
+	fn populate(&self, cb: &mut dyn FnMut(::syscalls::WaitItem)) {
 		use syscalls::Object;
 		cb( self.0.window.get_wait( ::syscalls::gui::WindowWaits::new().input() ) )
 	}
@@ -359,7 +359,7 @@ impl ItemDims {
 pub enum AnyItem<'a> {
 	Spacer(Spacer),
 	Label(Label),
-	Entry(Entry<&'a Fn()>),
+	Entry(Entry<&'a dyn Fn()>),
 }
 impl<'a> MenuItem for AnyItem<'a> {
 	fn dims(&self) -> ItemDims {

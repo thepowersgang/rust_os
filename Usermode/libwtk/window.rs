@@ -32,7 +32,7 @@ pub trait WindowTrait<'a>
 	/// 
 	/// NOTE: Undefined things happen if this element isn't within this window's 
 	///       render tree.
-	fn focus(&mut self, ele: &'a ::Element);
+	fn focus(&mut self, ele: &'a dyn crate::Element);
 	/// Clear focus
 	fn clear_focus(&mut self);
 	/// Move to the specified location in the tab order (using the index passed to `taborder_add`)
@@ -51,32 +51,32 @@ pub struct Window<'a, D: 'a/* = ::decorator::Standard*/>
 	surface: ::surface::Surface,
 
 	needs_force_rerender: bool,
-	focus: Option<&'a ::Element>,
+	focus: Option<&'a dyn crate::Element>,
 	taborder_pos: usize,
-	taborder: Vec<(usize, &'a ::Element)>,
+	taborder: Vec<(usize, &'a dyn crate::Element)>,
 
 	// Keyboard shortcuts
 	modifier_states: ModifierStates,
 	//shortcuts: ::std::collections::HashMap< (KeyCode,Modifiers), Box<FnMut()+'a> >,
-	shortcuts: Vec< ( (KeyCode,Modifiers), Box<FnMut()+'a> ) >,
-	shortcuts_0: Vec<(KeyCode, Box<FnMut()+'a>)>,
+	shortcuts: Vec< ( (KeyCode,Modifiers), Box<dyn FnMut()+'a> ) >,
+	shortcuts_0: Vec<(KeyCode, Box<dyn FnMut()+'a>)>,
 
 	// Rendering information
 	background: ::surface::Colour,
-	root: &'a ::Element,
+	root: &'a dyn crate::Element,
 	pub decorator: D,
 }
 
 impl<'a> Window<'a, ::decorator::Standard>
 {
-	pub fn new_def(debug_name: &str, ele: &'a ::Element) -> Result<Self, Error> {
+	pub fn new_def(debug_name: &str, ele: &'a dyn crate::Element) -> Result<Self, Error> {
 		Window::new(debug_name, ele, ::surface::Colour::from_argb32(0), ::decorator::Standard::default())
 	}
 }
 impl<'a, D: 'a + Decorator> Window<'a, D>
 {
 	/// Create a new window containing the provided element
-	pub fn new(debug_name: &str, ele: &'a ::Element, background: ::surface::Colour, decorator: D) -> Result<Window<'a, D>, Error> {
+	pub fn new(debug_name: &str, ele: &'a dyn crate::Element, background: ::surface::Colour, decorator: D) -> Result<Window<'a, D>, Error> {
 		let w = match ::syscalls::gui::Window::new(debug_name)
 			{
 			Ok(w) => w,
@@ -101,7 +101,7 @@ impl<'a, D: 'a + Decorator> Window<'a, D>
 	}
 
 	/// Add the specified element to the tab order. Index uniquely identifies this element in the order
-	pub fn taborder_add(&mut self, idx: usize, ele: &'a ::Element) {
+	pub fn taborder_add(&mut self, idx: usize, ele: &'a dyn crate::Element) {
 		match self.taborder.binary_search_by(|v| ::std::cmp::Ord::cmp(&v.0, &idx))
 		{
 		Ok(_i) => {
@@ -158,7 +158,7 @@ impl<'a, D: 'a + Decorator> Window<'a, D>
 		WindowTrait::hide(self)
 	}
 	/// Set the currently focussed element to an arbitary element)
-	pub fn focus(&mut self, ele: &'a ::Element) {
+	pub fn focus(&mut self, ele: &'a dyn crate::Element) {
 		WindowTrait::focus(self, ele)
 	}
 	/// Clear focus
@@ -234,7 +234,7 @@ impl<'a, D: 'a + Decorator> WindowTrait<'a> for Window<'a, D>
 	/// 
 	/// NOTE: Undefined things happen if this element isn't within this window's 
 	///       render tree.
-	fn focus(&mut self, ele: &'a ::Element) {
+	fn focus(&mut self, ele: &'a dyn crate::Element) {
 		self.focus.map(|e| e.focus_change(false));
 		self.focus = Some(ele);
 		ele.focus_change(true);
@@ -404,7 +404,7 @@ impl<'a, D: Decorator> ::async::WaitController for Window<'a, D>
 	fn get_count(&self) -> usize {
 		1
 	}
-	fn populate(&self, cb: &mut FnMut(::syscalls::WaitItem)) {
+	fn populate(&self, cb: &mut dyn FnMut(::syscalls::WaitItem)) {
 		cb( self.win.get_wait( ::syscalls::gui::WindowWaits::new().input() ) )
 	}
 	fn handle(&mut self, events: &[::syscalls::WaitItem]) {

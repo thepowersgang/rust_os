@@ -3,7 +3,6 @@
 //
 //! libstd's IO support
 #![no_std]
-#![feature(alloc)]	// goddamnit
 use core::fmt;
 
 #[macro_use]
