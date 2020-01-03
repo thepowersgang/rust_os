@@ -63,7 +63,30 @@ pub fn print_backtrace()
 	let cur_bp: u64;
 	// SAFE: Reads from bp
 	unsafe{ asm!("mov %rbp, $0" : "=r" (cur_bp)); }
+	#[cfg(_false)]
 	log_notice!("Backtrace: {}", Backtrace(cur_bp as usize));
+	#[cfg(not(_false))]
+	{
+		let mut bp = cur_bp as u64;
+		while let Option::Some((newbp, ip)) = cpu_faults::backtrace(bp)
+		{
+			log_notice!("> {}", SymPrint(ip as usize));
+			bp = newbp;
+		}
+	}
+}
+// TODO: Put this somewhere common (in `symbols` maybe?)
+struct SymPrint(usize);
+impl ::core::fmt::Display for SymPrint
+{
+	fn fmt(&self, f: &mut ::core::fmt::Formatter) -> ::core::fmt::Result {
+		let ip = self.0;
+		try!(write!(f, "{:#x}", ip));
+		if let Some( (name, ofs) ) = ::symbols::get_symbol_for_addr(ip as usize - 1) {
+			try!(write!(f, "({}+{:#x})", ::symbols::Demangle(name), ofs + 1));
+		}
+		Ok( () )
+	}
 }
 pub struct Backtrace(usize);
 impl ::core::fmt::Display for Backtrace {
@@ -71,10 +94,7 @@ impl ::core::fmt::Display for Backtrace {
 		let mut bp = self.0 as u64;
 		while let Option::Some((newbp, ip)) = cpu_faults::backtrace(bp)
 		{
-			try!(write!(f, " > {:#x}", ip));
-			if let Some( (name, ofs) ) = ::symbols::get_symbol_for_addr(ip as usize - 1) {
-				try!(write!(f, "({}+{:#x})", ::symbols::Demangle(name), ofs + 1));
-			}
+			try!(write!(f, " > {}", SymPrint(ip as usize)));
 			bp = newbp;
 		}
 		Ok( () )
