@@ -11,6 +11,8 @@ TARGET_DIR := $(abspath target/$(TARGET_NAME)/release)/
 
 OBJS := $(TARGET_DIR)libbootloader_uefi.a .obj/libstubs.a
 
+.PHONY: all clean empty
+
 all: $(BIN)
 
 clean:
@@ -21,7 +23,7 @@ clean:
 	@echo [LD] -o $@
 	$Vx86_64-efi-pe-ld -g -r -o $@ -e efi_main $(OBJS) --strip-discarded --gc-sections --allow-multiple-definition
 
-$(TARGET_DIR)libbootloader_uefi.a: .obj/libstubs.a $(TARGET_FILE) .PHONY
+$(TARGET_DIR)libbootloader_uefi.a: .obj/libstubs.a $(TARGET_FILE) empty
 	@echo [XARGO] build
 	$VRUSTFLAGS="$(RUSTFLAGS)" RUST_TARGET_PATH=$(abspath .) $(XARGO) build --target=$(TARGET_NAME) --release 
 

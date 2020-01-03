@@ -6,7 +6,7 @@
 	"target-pointer-width": "64",
 	"target-word-size": "64",
 	"target-c-int-width": "32",
-	"os": "tifflin",
+	"os": "uefi",
 	"arch": "x86_64",
 		"pre-link-args": {},
 		"no-compiler-rt": true,
