@@ -87,9 +87,13 @@ fn sysinit()
 	use kernel::metadevs::storage::VolumeHandle;
 	use kernel::vfs::{mount,handle};
 	use kernel::vfs::Path;
+	use kernel::config::{get_string, Value};
 
-	// TODO: Should I automount at startup, then use chroot magic?
-	//automount();
+	let test_flags = get_string(Value::TestFlags);
+	if test_flags.split(',').any(|v| v == "noinit")
+	{
+		panic!("Stopping at sysinit")
+	}
 	
 	// 1. Mount /system to the specified volume
 	let sysdisk = ::kernel::config::get_string(::kernel::config::Value::SysDisk);
