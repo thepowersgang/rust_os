@@ -20,6 +20,11 @@ impl<T> Box<T>
 	pub fn new(v: T) -> Box<T> {
 		box v
 	}
+
+	pub fn pin(v: T) -> core::pin::Pin<Box<T>> {
+		// SAFE: Contents of a box don't move as the box moves
+		unsafe { core::pin::Pin::new_unchecked(box v) }
+	}
 }
 impl<T: ?Sized> Box<T>
 {
@@ -138,4 +143,5 @@ unsafe impl<#[may_dangle] T: ?Sized> ops::Drop for Box<T> {
 	fn drop(&mut self) {
 	}
 }
+
 

@@ -69,6 +69,7 @@ pub mod sync;
 pub mod async;
 #[path="async-v3/mod.rs"]
 pub mod _async3;
+pub mod futures;
 
 /// Logging framework
 pub mod logging;

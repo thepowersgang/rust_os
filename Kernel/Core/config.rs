@@ -80,7 +80,7 @@ macro_rules! def_config_set {
 
 def_config_set! {
 	Value in Config: {
-//		/// VFS - Volume to mount as the 'system' disk
+		/// VFS - Volume to mount as the 'system' disk
 		SysDisk @ "SYSDISK" = "ATA0p0",
 //		/// VFS - Path relative to the root of SysDisk where Tifflin was installed
 		SysRoot @ "SYSROOT" = "/system/Tifflin",
@@ -88,6 +88,7 @@ def_config_set! {
 		Loader @ "LOADER" = "/sysroot/bin/loader",
 //		/// Startup - Init executable (first userland process)
 		Init @ "INIT" = "/sysroot/bin/init",
+		TestFlags @ "TEST" = "",
 	}
 }
 

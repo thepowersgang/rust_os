@@ -144,6 +144,12 @@ impl<T: ?Sized + Any> ArefBorrow<T> {
 		}
 	}
 }
+impl<T: ?Sized> Clone for ArefBorrow<T>
+{
+	fn clone(&self) -> Self {
+		self.reborrow()
+	}
+}
 impl<T: ?Sized> ops::Deref for ArefBorrow<T>
 {
 	type Target = T;

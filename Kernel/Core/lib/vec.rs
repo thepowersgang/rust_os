@@ -173,6 +173,22 @@ impl<T> Vec<T>
 		}
 	}
 
+	pub fn resize_with<F>(&mut self, new_len: usize, mut cb: F)
+	where
+		F: FnMut() -> T
+	{
+		if self.len() > new_len {
+			self.truncate(new_len);
+		}
+		else {
+			self.reserve_cap(new_len);
+			for _ in self.size .. new_len {
+				self.push(cb());
+			}
+		}
+	}
+	
+
 	/// Insert an item at the specified index (moving subsequent items up)	
 	pub fn insert(&mut self, pos: usize, value: T)
 	{
