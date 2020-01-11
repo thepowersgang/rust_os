@@ -290,8 +290,17 @@ impl ControlEndpoint
 		todo!("")
 	}
 
-	pub async fn send_request(&self,  request_type: u8, request_idx: u8, value: u16, index: u16, data: &[u8])
+	pub async fn send_request(&self,  request_type: u8, request_num: u8, value: u16, index: u16, data: &[u8])
 	{
+		let hdr = hw_decls::DeviceRequest {
+			req_type: request_type,
+			req_num: request_num,
+			value: value,
+			index: index,
+			length: data.len() as u16,
+			};
+		//let hdr = hdr.to_bytes();
+		//self.inner.out_only(&hdr, data).await;
 		todo!("send_request");
 	}
 }

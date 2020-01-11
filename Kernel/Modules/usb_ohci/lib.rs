@@ -862,6 +862,69 @@ struct ControlEndpointHandle {
 }
 impl ControlEndpoint for ControlEndpointHandle
 {
+	#[cfg(_false)]
+	fn out_only<'a>(&'a self, setup_data: &'a [u8], out_data: &'a [u8]) -> stack_dst::ValueA<dyn Future<Output=usize> + 'a, [usize; 5]>
+	{
+		enum FutureState<'a> {
+			Init {
+				setup_data: &'a [u8],
+				out_data: &'a [u8],
+				},
+			Started {
+				bb_setup: Option<::kernel::memory::virt::AllocHandle>,
+				bb_data: Option<::kernel::memory::virt::AllocHandle>,
+				td: TransferDescriptorId,
+				},
+		}
+		struct Future<'a> {
+			self_: &'a Self,
+			state: FutureState<'a>,
+		}
+		impl<'a> core::future::Future for Future<'a> {
+			type Output = usize;
+			fn poll(self: core::pin::Pin<&mut Self>, cx: &mut core::task::Context) -> core::task::Poll {
+				match self.state
+				{
+				FutureState::Init { setup_data, out_data } => {
+					// Get (potentially bounced) data handles
+					let (setup_buf, setup_first_phys, setup_last_phys) = self.controller.get_dma_todev(setup_data);
+					let (out_buf, out_first_phys, out_last_phys) = self.controller.get_dma_todev(out_data);
+
+					// TODO: This isn't 100% safe, as the future _could_ be leaked before completion
+					// SAFE: Requires that we're not dropped while operations are in progress (Pin requires this)
+					let td = unsafe {
+						self.self_.controller.push_td( &self.id, (0b00 << 19) /* setup */ | (7 << 21) /* no int */, setup_first_phys, setup_last_phys, ::kernel::futures::null_waker() );
+						self.self_.controller.push_td( &self.id, (0b01 << 19) /* out */ | (0 << 21) /* immediate int */, out_first_phys, out_last_phys, cx.waker().clone() )
+						};
+					self.state = FutureState::Started {
+						bb_setup: setup_buf.into_option_handle(),
+						bb_data: out_buf.into_option_handle(),
+						td
+						};
+					core::task::Poll::Pending
+					},
+				FutureState::Started { ref td, .. } => {
+					if let Some(datasize) = self.self_.controller.td_complete(td) {
+						core::task::Poll::Ready(datasize)
+					}
+					else {
+						self.self_.controller.td_update_waker(td, cx.waker());
+						core::task::Poll::Pending
+					}
+					},
+				}
+			}
+		}
+		stack_dst::ValueA::new(Future {
+			self_: self,
+			state: FutureState::Init {
+				setup_data,
+				out_data,
+				}
+			})
+			.or_else(|v| tack_dst::ValueA::new(Box::new(v)))
+			.expect("Box doesn't fit in alloc")
+	}
 	fn out_only<'a, 's>(&'s self, async: async::ObjectHandle, mut stack: async::StackPush<'a, 's>, setup_data: async::WriteBufferHandle<'s, '_>, out_data: async::WriteBufferHandle<'s, '_>)
 	{
 		// Get (potentially bounced) data handles

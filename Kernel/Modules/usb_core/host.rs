@@ -38,7 +38,7 @@ pub trait InterruptEndpoint: Send + Sync
 //	fn tx_async<'a, 's>(&'s self, async_obj: kasync::ObjectHandle, stack: kasync::StackPush<'a, 's>, pkt: SparsePacket) -> Result<(), Error>;
 pub trait ControlEndpoint: Send + Sync
 {
-	//fn out_only<'a, 'b>(&self, async_pool: &'a kasync::Pool, setup_data: kasync::WriteBuffer<'b>) -> kasync::Alloc<'a, dyn Future<Output=usize> + 'b>;
+	//fn out_only(&self, setup_data: &'a [u8], out_data: &'a [u8]) -> stack_dst::ValueA<dyn Future<Output=usize> + 'a, [usize; 3]>;
 	fn out_only<'a, 's>(&'s self, async_obj: kasync::ObjectHandle, stack: kasync::StackPush<'a, 's>, setup_data: kasync::WriteBufferHandle<'s, '_>, out_data: kasync::WriteBufferHandle<'s, '_>);
 	fn in_only<'a, 's>(&'s self, async_obj: kasync::ObjectHandle, stack: kasync::StackPush<'a, 's>, setup_data: kasync::WriteBufferHandle<'s, '_>, in_buf: &'s mut [u8]);
 	// The following are more interesting, `out/in` works, but `in/out` has ordering problems...
