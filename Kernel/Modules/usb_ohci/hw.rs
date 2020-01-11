@@ -93,6 +93,8 @@ impl Endpoint
 {
 	/// (AVAIL) Lock bit
 	pub const FLAG_LOCKED: u32 = (1 << 31);
+	/// (AVAIL) Allocated bit
+	pub const FLAG_ALLOC: u32 = (1 << 30);
 
 	pub fn atomic_flags(s: *const Self) -> *const core::sync::atomic::AtomicU32 {
 		// NOTE: flags is the first field

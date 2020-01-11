@@ -10,4 +10,5 @@ path = "lib.rs"
 kernel = { path = "../../Core" }
 stack_dst = { path = "../../../externals/crates.io/stack_dst", default-features = false }
 
+core = { package = "core-futures-tls", version = "0.1.0" }
 

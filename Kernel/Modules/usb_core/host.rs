@@ -36,7 +36,7 @@ pub trait InterruptEndpoint: Send + Sync
 	fn get_data(&self) -> Handle<dyn crate::handle::RemoteBuffer>;
 }
 //	fn tx_async<'a, 's>(&'s self, async_obj: kasync::ObjectHandle, stack: kasync::StackPush<'a, 's>, pkt: SparsePacket) -> Result<(), Error>;
-pub trait ControlEndpoint
+pub trait ControlEndpoint: Send + Sync
 {
 	//fn out_only<'a, 'b>(&self, async_pool: &'a kasync::Pool, setup_data: kasync::WriteBuffer<'b>) -> kasync::Alloc<'a, dyn Future<Output=usize> + 'b>;
 	fn out_only<'a, 's>(&'s self, async_obj: kasync::ObjectHandle, stack: kasync::StackPush<'a, 's>, setup_data: kasync::WriteBufferHandle<'s, '_>, out_data: kasync::WriteBufferHandle<'s, '_>);
@@ -62,6 +62,7 @@ pub trait BulkEndpoint: Send + Sync
 	fn recv<'a, 's>(&self, async_obj: kasync::ObjectHandle, stack: kasync::StackPush<'a, 's>, buffer: &'a mut [u8]);
 }
 
+pub type AsyncWaitRoot = stack_dst::ValueA<dyn core::future::Future<Output=usize>, [usize; 3]>;
 pub trait HostController: Send + Sync
 {
 	///// Obtain a handle to endpoint zero
@@ -82,7 +83,6 @@ pub trait HostController: Send + Sync
 	fn clear_port_feature(&self, port: usize, feature: PortFeature);
 	fn get_port_feature(&self, port: usize, feature: PortFeature) -> bool;
 
-	/// Register a queue of (my_idx,port_num) pairs for changes to the root hub
-	fn set_root_waiter(&mut self, waiter: &'static ::kernel::sync::Queue<(usize,usize)>, my_idx: usize);
+	fn async_wait_root(&self) -> AsyncWaitRoot;
 }
 

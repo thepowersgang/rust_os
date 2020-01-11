@@ -5,7 +5,7 @@
 use kernel::prelude::*;
 use kernel::_async3 as async;
 use kernel::lib::mem::aref::{Aref,ArefBorrow};
-use core::sync::atomic::{AtomicPtr,AtomicUsize,Ordering};
+use core::sync::atomic::{AtomicU32,AtomicPtr,AtomicUsize,Ordering};
 use core::mem::size_of;
 
 #[macro_use]
@@ -39,9 +39,12 @@ struct HostInner
 	irq_handle: Option<::kernel::irqs::ObjectHandle>,
 	hcca_handle: ::kernel::memory::virt::AllocHandle,
 	nports: u8,
-	waiter_idx: AtomicUsize,
-	waiter_ptr: AtomicPtr<::kernel::sync::Queue<(usize,usize)>>,
 
+	control_list_lock: ::kernel::sync::Spinlock<()>,
+
+	// - Async support
+	waker: kernel::sync::Spinlock<core::task::Waker>,
+	port_update: AtomicU32,
 	/// Table containing metadata for each of the entries in the interrupt table (in the HCCA)
 	int_table_meta: [InterruptSlotMeta; MAX_INT_PERIOD_MS*2 - 1],
 }
@@ -158,7 +161,7 @@ impl HostInner
 		// The following page contains:
 		// -  256 byte HCCA
 		// -  512 bytes for interupt graph
-		// - 1280 bytes for 16+48 endpoints
+		// - 1280 bytes for 16+48 endpoints (general use)
 		// - 2048 bytes for 64 transfer descriptors (with 16 bytes of metadata)
 		let mut handle_hcca = ::kernel::memory::virt::alloc_dma(32, 1, "usb_ohci")?;
 		let stop_endpoint_phys;
@@ -259,9 +262,14 @@ impl HostInner
 			io: io,
 			hcca_handle: handle_hcca,
 			nports: nports,
+
 			irq_handle: None,	// Filled below, once the allocation is made
-			waiter_idx: Default::default(),
-			waiter_ptr: Default::default(),
+
+			control_list_lock: Default::default(),
+
+			port_update: AtomicU32::new(0),
+			waker: kernel::sync::Spinlock::new(kernel::futures::null_waker()),
+
 			int_table_meta: Default::default(),
 			});
 		
@@ -273,8 +281,16 @@ impl HostInner
 			// SAFE: Pointer _should_ be valid as long as this IRQ binding exists
 			Aref::get_mut(&mut inner_aref).unwrap().irq_handle = Some(::kernel::irqs::bind_object(irq, Box::new(move || unsafe { (*ret_raw.0).handle_irq() } )));
 		}
+		// Populate `port_update` (could dupicate work from the interrupt, but won't miss anything)
+		for i in 0 .. nports as usize
+		{
+			let v = inner_aref.io.read_reg(inner_aref.get_port_reg(i));
+			if v & 0x1 != 0 {	// Is there anything connected?
+				inner_aref.port_update.fetch_or(1 << i, Ordering::SeqCst);
+			}
+		}
 
-		::usb_core::register_host(Box::new(UsbHost { host: inner_aref.borrow() }));
+		::usb_core::register_host(Box::new(UsbHost { host: inner_aref.borrow() }), nports);
 		Ok(inner_aref)
 	}
 
@@ -325,10 +341,10 @@ impl HostInner
 					let v = self.io.read_reg(self.get_port_reg(i as usize));
 					if v & 0xFFFF_0000 != 0 {
 						log_debug!("Status change on port {} = {:#x}", i, v);
-						let host_idx = self.waiter_idx.load(Ordering::Relaxed);
-						let queue_ptr = self.waiter_ptr.load(Ordering::Relaxed);
-						// SAFE: If this is set, it's to a &'static
-						unsafe { (*queue_ptr).push( (host_idx, i as usize) ); }
+
+						// - async
+						self.waker.lock().wake_by_ref();
+						self.port_update.fetch_or(1 << i, Ordering::SeqCst);
 					}
 				}
 			}
@@ -344,9 +360,29 @@ impl HostInner
 		}
 	}
 
-	fn allocate_endpoint(&self, flags: u32) -> EndpointId {
-		todo!("allocate_endpoint: flags={:#x}", flags)
+	/// Allocate a new endpoint
+	fn allocate_endpoint(&self, flags: u32) -> EndpointId
+	{
+		// 1. Iterate all group 0 endpoints and look for one not marked as allocated
+		// - Free pool starts at 256 + 512 (HCCA + interrupts)
+		for i in (256 + 512) / 16 .. 2048 / 16
+		{
+			let ep_id = EndpointId { group: 0, idx: i as u8 };
+			let ptr = self.get_ed_pointer(&ep_id);
+			// SAFE: Pointer is valid (we just got it from get_ed_pointer)
+			let flags_atomic = unsafe { &*hw::Endpoint::atomic_flags(ptr) };
+			let fv = flags_atomic.load(Ordering::SeqCst);
+			if fv & hw::Endpoint::FLAG_ALLOC == 0 {
+				if flags_atomic.compare_and_swap(fv, flags | hw::Endpoint::FLAG_ALLOC, Ordering::SeqCst) == fv {
+					return ep_id;
+				}
+			}
+		}
+		// 2. Look through already-existing endpoint pages
+		todo!("allocate_endpoint: flags={:#x} (hcca page full)", flags)
 	}
+	/// Obtain a pointer to the specified endpoint descriptor
+	// NOTE: Returns a raw pointer because it's possibly being mutated
 	fn get_ed_pointer(&self, id: &EndpointId) -> *const hw::Endpoint {
 		if id.group == 0 {
 			let ofs = (id.idx as usize) * size_of::<hw::Endpoint>();
@@ -432,7 +468,20 @@ impl HostInner
 	fn register_control_ed(&self, flags: u32) -> EndpointId
 	{
 		let ep = self.allocate_endpoint(flags);
-		todo!("register_control_ed: {:?}", ep);
+
+		// SAFE: Pointer valid, register access controlled
+		unsafe {
+			let ptr = self.get_ed_pointer(&ep) as *mut hw::Endpoint;
+			let paddr = ::kernel::memory::virt::get_phys(ptr) as u32;
+
+			// Lock list
+			let _lh = self.control_list_lock.lock();
+			// Get existing head pointer, store in newly created ED, update register
+			let existing = self.io.read_reg(hw::Regs::HcControlHeadED);
+			(*ptr).next_ed = existing;
+			self.io.write_reg(hw::Regs::HcControlHeadED, paddr);
+		}
+		ep
 	}
 	/// Register a general-purpose endpoint descriptor and add it to the bulk queue
 	fn register_bulk_ed(&self, flags: u32) -> EndpointId
@@ -443,7 +492,6 @@ impl HostInner
 	/// Allocate a new TD
 	fn allocate_td(&self, flags: u32) -> TransferDescriptorId
 	{
-		use core::sync::atomic::AtomicU32;
 		// Iterate over all avaliable pools
 		const SIZE: usize = size_of::<hw::GeneralTD>();
 		for i in (2048 / SIZE) .. (4096 / SIZE)
@@ -778,20 +826,34 @@ impl ::usb_core::host::HostController for UsbHost
 			};
 		v & mask != 0
 	}
-	fn set_root_waiter(&mut self, waiter: &'static ::kernel::sync::Queue<(usize,usize)>, my_idx: usize) {
-		// 1. Store the waiter pointer
-		self.host.waiter_idx.store(my_idx, Ordering::SeqCst);
-		self.host.waiter_ptr.store(waiter as *const _ as *mut _, Ordering::SeqCst);
-		// 2. For each connected port, push an event/item
-		// - Don't worry about duplicates from interrupts...
-		for i in 0 .. self.host.nports as usize
-		{
-			let v = self.host.io.read_reg(self.host.get_port_reg(i));
-			log_debug!("set_root_waiter: Port {} - v={:#x}", i, v);
-			if v & 0x1 != 0 {
-				waiter.push( (my_idx, i) );
+
+	fn async_wait_root(&self) -> usb_core::host::AsyncWaitRoot {
+		struct Foo {
+			host: ArefBorrow<HostInner>,
+		}
+		impl core::future::Future for Foo {
+			type Output = usize;
+			fn poll(mut self: core::pin::Pin<&mut Self>, cx: &mut core::task::Context) -> core::task::Poll<Self::Output> {
+				let v = self.host.port_update.load(Ordering::SeqCst);
+				log_debug!("UsbHost::Foo::poll: v = {:#x}", v);
+				if v != 0
+				{
+					for i in 0 .. self.host.nports as usize
+					{
+						let bit = 1 << i;
+						if v & bit != 0 {
+							self.host.port_update.fetch_and(!bit, Ordering::SeqCst);
+							return core::task::Poll::Ready(i);
+						}
+					}
+				}
+				*self.host.waker.lock() = cx.waker().clone();
+				core::task::Poll::Pending
 			}
 		}
+		usb_core::host::AsyncWaitRoot::new(Foo {
+			host: self.host.reborrow(),
+			}).ok().expect("Over-size task in")
 	}
 }
 struct ControlEndpointHandle {
