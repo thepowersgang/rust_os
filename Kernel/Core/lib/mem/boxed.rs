@@ -139,6 +139,19 @@ impl<T: ?Sized> ops::DerefMut for Box<T> {
 	}
 }
 
+impl<T: ?Sized> ::core::marker::Unpin for Box<T> { }
+
+impl<T: ?Sized> ::core::future::Future for Box<T>
+where
+	T: ::core::future::Future,
+	T: ::core::marker::Unpin,
+{
+	type Output = T::Output;
+	fn poll(mut self: core::pin::Pin<&mut Self>, cx: &mut core::task::Context<'_>) -> core::task::Poll<Self::Output> {
+		T::poll(::core::pin::Pin::new(&mut *self), cx)
+	}
+}
+
 unsafe impl<#[may_dangle] T: ?Sized> ops::Drop for Box<T> {
 	fn drop(&mut self) {
 	}
