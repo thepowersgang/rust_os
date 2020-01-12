@@ -43,3 +43,15 @@ pub struct DeviceRequest
 	pub index: u16,
 	pub length: u16,
 }
+impl DeviceRequest
+{
+	pub fn to_bytes(&self) -> [u8; 8] {
+		[
+			self.req_type,
+			self.req_num,
+			(self.value >> 0) as u8, (self.value >> 8) as u8,
+			(self.index >> 0) as u8, (self.index >> 8) as u8,
+			(self.length >> 0) as u8, (self.length >> 8) as u8,
+			]
+	}
+}

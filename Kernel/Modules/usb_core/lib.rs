@@ -299,9 +299,9 @@ impl ControlEndpoint
 			index: index,
 			length: data.len() as u16,
 			};
-		//let hdr = hdr.to_bytes();
-		//self.inner.out_only(&hdr, data).await;
-		todo!("send_request");
+		let hdr = hdr.to_bytes();
+		let sent_len = self.inner.out_only(&hdr, data).await;
+		assert_eq!(sent_len, data.len());
 	}
 }
 

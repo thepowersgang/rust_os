@@ -36,11 +36,11 @@ pub trait InterruptEndpoint: Send + Sync
 	fn get_data(&self) -> Handle<dyn crate::handle::RemoteBuffer>;
 }
 //	fn tx_async<'a, 's>(&'s self, async_obj: kasync::ObjectHandle, stack: kasync::StackPush<'a, 's>, pkt: SparsePacket) -> Result<(), Error>;
+pub type AsyncWaitIo<'a> = stack_dst::ValueA<dyn core::future::Future<Output=usize> + Send + 'a, [usize; 3]>;
 pub trait ControlEndpoint: Send + Sync
 {
-	//fn out_only(&self, setup_data: &'a [u8], out_data: &'a [u8]) -> stack_dst::ValueA<dyn Future<Output=usize> + 'a, [usize; 3]>;
-	fn out_only<'a, 's>(&'s self, async_obj: kasync::ObjectHandle, stack: kasync::StackPush<'a, 's>, setup_data: kasync::WriteBufferHandle<'s, '_>, out_data: kasync::WriteBufferHandle<'s, '_>);
-	fn in_only<'a, 's>(&'s self, async_obj: kasync::ObjectHandle, stack: kasync::StackPush<'a, 's>, setup_data: kasync::WriteBufferHandle<'s, '_>, in_buf: &'s mut [u8]);
+	fn out_only<'a>(&'a self, setup_data: &'a [u8], out_data: &'a [u8]) -> AsyncWaitIo<'a>;
+	fn in_only<'a>(&'a self, setup_data: &'a [u8], out_data: &'a mut [u8]) -> AsyncWaitIo<'a>;
 	// The following are more interesting, `out/in` works, but `in/out` has ordering problems...
 	// - Thankfully, these patterns aren't needed?
 	//fn out_in(&self, waiter: kasync::WaiterHandle, out_data: kasync::WriteBufferHandle, in_buf: kasync::ReadBufferHandle);

@@ -47,6 +47,8 @@ struct HostInner
 	port_update: AtomicU32,
 	/// Table containing metadata for each of the entries in the interrupt table (in the HCCA)
 	int_table_meta: [InterruptSlotMeta; MAX_INT_PERIOD_MS*2 - 1],
+	/// Table of TD metadata (for group 0)
+	endpoint_metadata_group0: Vec<EndpointMetadata>,
 }
 struct IoWrapper(::kernel::device_manager::IOBinding);
 #[derive(Default)]
@@ -73,18 +75,22 @@ struct TransferDescriptorId {
 	group: u8,
 	idx: u8,
 }
+impl TransferDescriptorId {
+	fn from_u16(v: u16) -> TransferDescriptorId {
+		TransferDescriptorId {
+			group: (v >> 8) as u8,
+			idx: (v >> 0) as u8,
+			}
+	}
+	fn to_u16(self) -> u16 {
+		(self.group as u16) << 8 | (self.idx as u16) << 0
+	}
+}
+#[derive(Default)]
 struct EndpointMetadata {
-	tail: AtomicPtr<hw::GeneralTD>,
+	tail_td: core::sync::atomic::AtomicU16,
 }
 
-
-enum BounceBufferHandle<'a> {
-	Direct(&'a [u8]),
-	Bounced {
-		orig_buf: Option<&'a mut [u8]>,
-		bounce_buf: ::kernel::memory::virt::AllocHandle,
-		},
-}
 
 impl BusDev
 {
@@ -109,9 +115,9 @@ impl HostInner
 {
 	fn new_aref(irq: u32, io: ::kernel::device_manager::IOBinding) -> Result<Aref<HostInner>, &'static str>
 	{
-		// SAFE: No side-effects
-		log_notice!("Card {:?} version is {:#x}", io, unsafe { io.read_32(hw::Regs::HcRevision as usize * 4) });
 		let io = IoWrapper(io);
+		let revision = io.read_reg(hw::Regs::HcRevision);
+		log_notice!("Card {:?} version is {:#x}", io.0, revision);
 		
 		let fm_interval_val = io.read_reg(hw::Regs::HcFmInterval);
 		let frame_interval = fm_interval_val & 0x3FFF;
@@ -146,13 +152,14 @@ impl HostInner
 		// Trigger a reset
 		// SAFE: No memory addresses in this one.
 		unsafe {
-			io.write_reg(hw::Regs::HcCommandStatus, io.read_reg(hw::Regs::HcCommandStatus) | (1 << 0));
+			io.write_reg(hw::Regs::HcCommandStatus, hw::HCCMDSTATUS_HCR);
 			// TODO: Wait for 10us
 			//::kernel::time::wait_busy_microseconds(10);
 			// - Restore the HcFmInterval value
 			io.write_reg(hw::Regs::HcFmInterval, fm_interval_val);
 			// - Set the bus back to UsbOperational
-			io.write_reg(hw::Regs::HcControl, io.read_reg(hw::Regs::HcControl) & !0xC0 | 0x40);
+			io.write_reg(hw::Regs::HcControl, io.read_reg(hw::Regs::HcControl) & !0xC0);
+			io.write_reg(hw::Regs::HcControl, io.read_reg(hw::Regs::HcControl) | 0x40);
 		}
 
 
@@ -245,7 +252,7 @@ impl HostInner
 			// - 10: RemoteWakeupEnable (DISABLED)
 			// - 9: RemoteWakeupConnected (DISABLED)
 			// - 8: InterruptRouting (DISABLED)
-			// - 7/6: HostControllerFunctionalState (=01 UsbOperational)
+			// - 7/6: HostControllerFunctionalState (=10 UsbOperational)
 			// - 5: BulkListEnable
 			// - 4: ControlListEnable
 			// - 3: IsochronousEnable
@@ -271,6 +278,7 @@ impl HostInner
 			waker: kernel::sync::Spinlock::new(kernel::futures::null_waker()),
 
 			int_table_meta: Default::default(),
+			endpoint_metadata_group0: Vec::from_fn((1024+256) / 16, |_| Default::default()),
 			});
 		
 		// Bind interrupt
@@ -309,8 +317,20 @@ impl HostInner
 			// WritebackDoneHead
 			if v & 0x02 != 0
 			{
-				log_debug!("WritebackDoneHead - ");
-				// TODO: Clear the contents of HccaDoneHead, releasing and completing those TDs
+				// Clear the contents of HccaDoneHead, releasing and completing those TDs
+				let mut phys = self.hcca_handle.as_ref::<hw::Hcca>(0).done_head & !0xF;
+				while phys != 0
+				{
+					log_debug!("WritebackDoneHead - {:#x}", phys);
+					let td_id = self.get_general_td_from_phys(phys).expect("WritebackDoneHead");
+					let ptr = self.get_general_td_pointer(&td_id);
+					// SAFE: Valid pointer, uncontended read
+					phys = unsafe { (*ptr).next_td };
+
+					// TODO: Poke the waker
+					// TODO: Mark as complete? (or release)
+				}
+				log_debug!("WritebackDoneHead - {:#x}", phys);
 			}
 			// StartofFrame (disabled)
 			if v & 0x04 != 0
@@ -363,23 +383,40 @@ impl HostInner
 	/// Allocate a new endpoint
 	fn allocate_endpoint(&self, flags: u32) -> EndpointId
 	{
-		// 1. Iterate all group 0 endpoints and look for one not marked as allocated
-		// - Free pool starts at 256 + 512 (HCCA + interrupts)
-		for i in (256 + 512) / 16 .. 2048 / 16
-		{
-			let ep_id = EndpointId { group: 0, idx: i as u8 };
-			let ptr = self.get_ed_pointer(&ep_id);
-			// SAFE: Pointer is valid (we just got it from get_ed_pointer)
-			let flags_atomic = unsafe { &*hw::Endpoint::atomic_flags(ptr) };
-			let fv = flags_atomic.load(Ordering::SeqCst);
-			if fv & hw::Endpoint::FLAG_ALLOC == 0 {
-				if flags_atomic.compare_and_swap(fv, flags | hw::Endpoint::FLAG_ALLOC, Ordering::SeqCst) == fv {
-					return ep_id;
+		let ep_id = (|| {
+			// 1. Iterate all group 0 endpoints and look for one not marked as allocated
+			// - Free pool starts at 256 + 512 (HCCA + interrupts)
+			for i in (256 + 512) / 16 .. 2048 / 16
+			{
+				let ep_id = EndpointId { group: 0, idx: i as u8 };
+				let ptr = self.get_ed_pointer(&ep_id);
+				// SAFE: Pointer is valid (we just got it from get_ed_pointer)
+				let flags_atomic = unsafe { &*hw::Endpoint::atomic_flags(ptr) };
+				let fv = flags_atomic.load(Ordering::SeqCst);
+				if fv & hw::Endpoint::FLAG_ALLOC == 0 {
+					if flags_atomic.compare_and_swap(fv, flags | hw::Endpoint::FLAG_ALLOC, Ordering::SeqCst) == fv {
+						return ep_id;
+					}
 				}
 			}
+			// 2. Look through already-existing endpoint pages
+			todo!("allocate_endpoint: flags={:#x} (hcca page full)", flags)
+			})();
+		log_debug!("allocate_endpoint(flags={:#x}): ptr={:#x}", flags, kernel::memory::virt::get_phys(self.get_ed_pointer(&ep_id)));
+		// - Populate metadata and initialise them
+		let meta = self.get_endpoint_meta(&ep_id);
+		let new_tail = self.allocate_td(0);
+		let mut h = self.get_ed_locked(&ep_id);
+		// SAFE: Locked
+		unsafe {
+			let tp = kernel::memory::virt::get_phys( self.get_general_td_pointer(&new_tail) ) as u32;
+			h.set_head_ptr( tp );
+			h.set_tail_ptr( tp );
+			h.set_next_ed(0);
 		}
-		// 2. Look through already-existing endpoint pages
-		todo!("allocate_endpoint: flags={:#x} (hcca page full)", flags)
+		meta.tail_td.store( new_tail.to_u16(), Ordering::SeqCst );
+
+		ep_id
 	}
 	/// Obtain a pointer to the specified endpoint descriptor
 	// NOTE: Returns a raw pointer because it's possibly being mutated
@@ -394,12 +431,25 @@ impl HostInner
 			todo!("get_ed_pointer: Alternate pools for endpoint descriptors");
 		}
 	}
+
 	/// Obtain a lock handle for a given endpoint descriptor
 	fn get_ed_locked(&self, id: &EndpointId) -> LockedEndpoint {
 		// SAFE: Pointer is valid
 		unsafe {
 			LockedEndpoint::new(self.get_ed_pointer(id) as *mut hw::Endpoint)
 		}
+	}
+
+
+
+	fn get_general_td_from_phys(&self, addr: u32) -> Option<TransferDescriptorId> {
+		let hcca_page = ::kernel::memory::virt::get_phys(self.hcca_handle.as_ref::<()>(0)) as u32;
+		if addr & !0xFFF == hcca_page {
+			let ofs = (addr - hcca_page) as usize;
+			assert!(ofs % size_of::<hw::GeneralTD>() == 0);
+			return Some(TransferDescriptorId { group: 0, idx: (ofs / size_of::<hw::GeneralTD>()) as u8 });
+		}
+		None
 	}
 	fn get_general_td_pointer(&self, id: &TransferDescriptorId) -> *const hw::GeneralTD {
 		if id.group == 0 {
@@ -413,8 +463,15 @@ impl HostInner
 		}
 	}
 
+	/// Obtain metadata for the specified endpoint
 	fn get_endpoint_meta(&self, id: &EndpointId) -> &EndpointMetadata {
-		todo!("get_endpoint_meta({:?})", id);
+		// TODO: Find a place where the metadata can be stored
+		if id.group == 0 {
+			&self.endpoint_metadata_group0[id.idx as usize]
+		}
+		else {
+			todo!("get_endpoint_meta({:?})", id);
+		}
 	}
 
 	/// Register an interrupt endpoint
@@ -489,6 +546,7 @@ impl HostInner
 		let ep = self.allocate_endpoint(flags);
 		todo!("register_bulk_ed: {:?}", ep);
 	}
+
 	/// Allocate a new TD
 	fn allocate_td(&self, flags: u32) -> TransferDescriptorId
 	{
@@ -508,84 +566,86 @@ impl HostInner
 		}
 		todo!("allocate_td - alternate pools, main is exhausted");
 	}
-	unsafe fn push_td(&self, ep: &EndpointId, flags: u32, first_byte: u32, last_byte: u32, async_handle: async::ObjectHandle) -> TransferDescriptorId
+	unsafe fn push_td(&self, ep: &EndpointId, flags: u32, first_byte: u32, last_byte: u32, waker: ::core::task::Waker) -> TransferDescriptorId
 	{
-		// 1. Allocate a new transfer descriptor
-		let td_handle = self.allocate_td(flags);
-		let td_ptr: *mut hw::GeneralTD = self.get_general_td_pointer(&td_handle) as *mut _;
-		// - Fill it
-		//td_ptr.fill(first_byte, last_byte, ::core::mem::transmute::<_, usize>(async_handle) as u64);
-		{
-			::core::ptr::write(&mut (*td_ptr).cbp, first_byte);
-			::core::ptr::write(&mut (*td_ptr).buffer_end, last_byte);
-			// - Store the (single pointer) async handle in the 64-bit meta field
-			::core::ptr::write(&mut (*td_ptr).meta_async_handle, ::core::mem::transmute::<_, usize>(async_handle) as u64);
-		}
-		// 2. Add to the end of the endpoint's queue.
+		log_debug!("push_td({:?}, {:#x}, {:#x}-{:#x})", ep, flags, first_byte, last_byte);
+		// 1. Allocate a new transfer descriptor (to be used as the new tail)
+		let new_tail_td = self.allocate_td(0);
+		let new_tail_phys = ::kernel::memory::virt::get_phys( self.get_general_td_pointer(&new_tail_td) ) as u32;
+		// 2. Lock the endpoint (makes sure that there's no contention software-side)
 		// TODO: Could the metadata be locked to the endpoint handle?
 		let mut ed = self.get_ed_locked(ep);
 		let epm = self.get_endpoint_meta(ep);
-		// - If the NextP is 0, set NextP = phys(td)
-		// > TODO: Atomic compare_and_swap
-		if ed.head_ptr() == 0 {
-			ed.set_head_ptr( ::kernel::memory::virt::get_phys(td_ptr) as u32 );
-			epm.tail.store(td_ptr, Ordering::SeqCst);
-		}
-		// - Else, set EP_Meta.tail.NextP = phys(td)
-		else {
-			// TODO: Possible race, if hardware is processing the TDs and is about to write back NextP between the above read and the write here.
-			let prev_tail = epm.tail.swap(td_ptr, Ordering::SeqCst);
-			(*prev_tail).next_td = ::kernel::memory::virt::get_phys(td_ptr) as u32;
-		}
-		// TODO: What about the tail? Anything special needed there?
-		ed.set_tail_ptr( ::kernel::memory::virt::get_phys(td_ptr) as u32 );
+		// - Update the tail in metadata (swap for the newly allocated one)
+		let td_handle = TransferDescriptorId::from_u16( epm.tail_td.swap(new_tail_td.to_u16(), Ordering::SeqCst) );
+		// - Obtain pointer to the old tail
+		let td_ptr: *mut hw::GeneralTD = self.get_general_td_pointer(&td_handle) as *mut _;
+		let td_phys = ::kernel::memory::virt::get_phys(td_ptr) as u32;
+		// - Fill the old tail with our data (and the new tail paddr)
+		hw::GeneralTD::init(td_ptr, flags, first_byte, last_byte, new_tail_phys, waker);
+		// - Update the tail pointer
+		ed.set_tail_ptr( new_tail_phys );
 
 		td_handle
 	}
 
-	// Get a handle for a DMA output
-	fn get_dma_todev<'long,'short>(&self, buffer: async::WriteBufferHandle<'long,'short>) -> (BounceBufferHandle<'long>, u32, u32)
+	// Kick the controller and make it run the control list
+	fn kick_control(&self)
 	{
-		match buffer
-		{
-		async::WriteBufferHandle::Long(p) => {
-			let start_phys = ::kernel::memory::virt::get_phys(p.as_ptr());
-			let last_phys = ::kernel::memory::virt::get_phys(&p[p.len()-1]);
-			if start_phys > 0xFFFF_FFFF || last_phys > 0xFFFF_FFFF {
-				// An address is more than 32-bits, bounce
-			}
-			else if start_phys & !0xFFF != last_phys & !0xFFF && (0x1000 - (start_phys & 0xFFF) + last_phys & 0xFFF) as usize != p.len() {
-				// The buffer spans more than two pages, bounce
-			}
-			else {
-				// Good
-				return ( BounceBufferHandle::Direct(p), start_phys as u32, last_phys as u32);
-			}
-			todo!("Bounce buffer - long lifetime");
-			},
-		async::WriteBufferHandle::Short(_p) => {
-			todo!("Bounce buffer - short lifetime");
-			},
+		// SAFE: No memory impact
+		unsafe {
+			self.io.write_reg(hw::Regs::HcCommandStatus, hw::HCCMDSTATUS_CLF);
 		}
 	}
-	// Get a handle for a DMA input
-	fn get_dma_fromdev<'a>(&self, p: &'a mut [u8]) -> (BounceBufferHandle<'a>, u32, u32)
+
+	fn td_update_waker(&self, td: &TransferDescriptorId, waker: &::core::task::Waker)
 	{
-		{
-			let start_phys = ::kernel::memory::virt::get_phys(p.as_ptr());
-			let last_phys = ::kernel::memory::virt::get_phys(&p[p.len()-1]);
-			if start_phys > 0xFFFF_FFFF || last_phys > 0xFFFF_FFFF {
-				// An address is more than 32-bits, bounce
-			}
-			else if start_phys & !0xFFF != last_phys & !0xFFF && (0x1000 - (start_phys & 0xFFF) + last_phys & 0xFFF) as usize != p.len() {
-				// The buffer spans more than two pages, bounce
-			}
-			else {
-				// Good
-				return ( BounceBufferHandle::Direct(p), start_phys as u32, last_phys as u32);
-			}
-			todo!("Bounce buffer for read");
+		let td_ptr: *mut hw::GeneralTD = self.get_general_td_pointer(td) as *mut _;
+		// SAFE: (TODO) What if it's just been woken?
+		unsafe { hw::GeneralTD::update_waker(td_ptr, waker); }
+	}
+	fn td_complete(&self, td: &TransferDescriptorId) -> Option<usize> {
+		//todo!("td_complete");
+		None
+	}
+
+	// Get a handle for a DMA output
+	fn get_dma_todev(&self, p: &[u8]) -> (Option<::kernel::memory::virt::AllocHandle>, u32, u32)
+	{
+		log_debug!("get_dma_todev({:p})", p);
+		if p.len() == 0 {
+			return (None, 1 as u32, 1 as u32);
 		}
+		let start_phys = ::kernel::memory::virt::get_phys(p.as_ptr());
+		let last_phys = ::kernel::memory::virt::get_phys(&p[p.len()-1]);
+		if start_phys > 0xFFFF_FFFF || last_phys > 0xFFFF_FFFF {
+			// An address is more than 32-bits, bounce
+		}
+		else if start_phys & !0xFFF != last_phys & !0xFFF && (0x1000 - (start_phys & 0xFFF) + last_phys & 0xFFF) as usize != p.len() {
+			// The buffer spans more than two pages, bounce
+		}
+		else {
+			// Good
+			return (None, start_phys as u32, last_phys as u32);
+		}
+		todo!("Bounce buffer - long lifetime");
+	}
+	// Get a handle for a DMA input
+	fn get_dma_fromdev<'a>(&self, p: &'a mut [u8]) -> (Option<::kernel::memory::virt::AllocHandle>, u32, u32)
+	{
+		let start_phys = ::kernel::memory::virt::get_phys(p.as_ptr());
+		let last_phys = ::kernel::memory::virt::get_phys(&p[p.len()-1]);
+		if start_phys > 0xFFFF_FFFF || last_phys > 0xFFFF_FFFF {
+			// An address is more than 32-bits, bounce
+		}
+		else if start_phys & !0xFFF != last_phys & !0xFFF && (0x1000 - (start_phys & 0xFFF) + last_phys & 0xFFF) as usize != p.len() {
+			// The buffer spans more than two pages, bounce
+		}
+		else {
+			// Good
+			return (None, start_phys as u32, last_phys as u32);
+		}
+		todo!("Bounce buffer for read");
 	}
 
 	fn get_port_reg(&self, port: usize) -> hw::Regs
@@ -708,7 +768,7 @@ impl Iterator for UpstreamIntSlots
 	}
 }
 
-use ::usb_core::host::{EndpointAddr, PortFeature, Handle};
+use ::usb_core::host::{self, EndpointAddr, PortFeature, Handle};
 use ::usb_core::host::{InterruptEndpoint, IsochEndpoint, ControlEndpoint, BulkEndpoint};
 impl ::usb_core::host::HostController for UsbHost
 {
@@ -860,10 +920,9 @@ struct ControlEndpointHandle {
 	controller: ArefBorrow<HostInner>,
 	id: EndpointId,
 }
-impl ControlEndpoint for ControlEndpointHandle
+impl host::ControlEndpoint for ControlEndpointHandle
 {
-	#[cfg(_false)]
-	fn out_only<'a>(&'a self, setup_data: &'a [u8], out_data: &'a [u8]) -> stack_dst::ValueA<dyn Future<Output=usize> + 'a, [usize; 5]>
+	fn out_only<'a>(&'a self, setup_data: &'a [u8], out_data: &'a [u8]) -> host::AsyncWaitIo<'a>
 	{
 		enum FutureState<'a> {
 			Init {
@@ -871,99 +930,173 @@ impl ControlEndpoint for ControlEndpointHandle
 				out_data: &'a [u8],
 				},
 			Started {
-				bb_setup: Option<::kernel::memory::virt::AllocHandle>,
-				bb_data: Option<::kernel::memory::virt::AllocHandle>,
-				td: TransferDescriptorId,
+				_bb_setup: Option<::kernel::memory::virt::AllocHandle>,
+				_bb_data: Option<::kernel::memory::virt::AllocHandle>,
+				td_setup: TransferDescriptorId,
+				td_data: TransferDescriptorId,
 				},
+			Complete,
 		}
 		struct Future<'a> {
-			self_: &'a Self,
+			self_: &'a ControlEndpointHandle,
 			state: FutureState<'a>,
 		}
 		impl<'a> core::future::Future for Future<'a> {
 			type Output = usize;
-			fn poll(self: core::pin::Pin<&mut Self>, cx: &mut core::task::Context) -> core::task::Poll {
+			fn poll(mut self: core::pin::Pin<&mut Self>, cx: &mut core::task::Context) -> core::task::Poll<Self::Output> {
+				let parent = self.self_;
 				match self.state
 				{
 				FutureState::Init { setup_data, out_data } => {
+					log_debug!("out_only - init");
 					// Get (potentially bounced) data handles
-					let (setup_buf, setup_first_phys, setup_last_phys) = self.controller.get_dma_todev(setup_data);
-					let (out_buf, out_first_phys, out_last_phys) = self.controller.get_dma_todev(out_data);
+					let (setup_buf, setup_first_phys, setup_last_phys) = parent.controller.get_dma_todev(setup_data);
+					let (out_buf, out_first_phys, out_last_phys) = parent.controller.get_dma_todev(out_data);
 
 					// TODO: This isn't 100% safe, as the future _could_ be leaked before completion
-					// SAFE: Requires that we're not dropped while operations are in progress (Pin requires this)
-					let td = unsafe {
-						self.self_.controller.push_td( &self.id, (0b00 << 19) /* setup */ | (7 << 21) /* no int */, setup_first_phys, setup_last_phys, ::kernel::futures::null_waker() );
-						self.self_.controller.push_td( &self.id, (0b01 << 19) /* out */ | (0 << 21) /* immediate int */, out_first_phys, out_last_phys, cx.waker().clone() )
-						};
-					self.state = FutureState::Started {
-						bb_setup: setup_buf.into_option_handle(),
-						bb_data: out_buf.into_option_handle(),
-						td
-						};
+					// SAFE: Requires that the future isn't leaked
+					unsafe {
+						let td_setup = parent.controller.push_td( &parent.id, (0b00 << 19) /*setup*/ | (7 << 21) /*no int*/, setup_first_phys, setup_last_phys, ::kernel::futures::null_waker() );
+						let td_data  = parent.controller.push_td( &parent.id, (0b01 << 19) /*out*/ | (0 << 21) /*immediate int*/, out_first_phys, out_last_phys, cx.waker().clone() );
+						// TODO: Status TD?
+						parent.controller.kick_control();
+						self.state = FutureState::Started {
+							_bb_setup: setup_buf,
+							_bb_data: out_buf,
+							td_setup,
+							td_data,
+							};
+					}
 					core::task::Poll::Pending
 					},
-				FutureState::Started { ref td, .. } => {
-					if let Some(datasize) = self.self_.controller.td_complete(td) {
+				FutureState::Started { ref td_data, .. } => {
+					log_debug!("out_only - started");
+					if let Some(datasize) = parent.controller.td_complete(td_data) {
+						self.state = FutureState::Complete;
 						core::task::Poll::Ready(datasize)
 					}
 					else {
-						self.self_.controller.td_update_waker(td, cx.waker());
+						parent.controller.td_update_waker(td_data, cx.waker());
 						core::task::Poll::Pending
 					}
 					},
+				FutureState::Complete => panic!("Completed future polled"),
 				}
 			}
 		}
-		stack_dst::ValueA::new(Future {
+		impl<'a> core::ops::Drop for Future<'a> {
+			fn drop(&mut self)
+			{
+				match self.state
+				{
+				FutureState::Init { .. } => {},
+				FutureState::Started { ref td_setup, ref td_data, .. } => {
+					// TODO: Force termination of the transfers
+					//self.self_.controller.stop_td(td_setup);
+					//self.self_.controller.stop_td(td_data);
+					}
+				FutureState::Complete => {},
+				}
+			}
+		}
+		host::AsyncWaitIo::new(Future {
 			self_: self,
 			state: FutureState::Init {
 				setup_data,
 				out_data,
 				}
 			})
-			.or_else(|v| tack_dst::ValueA::new(Box::new(v)))
-			.expect("Box doesn't fit in alloc")
+			.or_else(|v| host::AsyncWaitIo::new(Box::new(v)))
+			.ok().expect("Box doesn't fit in alloc")
 	}
-	fn out_only<'a, 's>(&'s self, async: async::ObjectHandle, mut stack: async::StackPush<'a, 's>, setup_data: async::WriteBufferHandle<'s, '_>, out_data: async::WriteBufferHandle<'s, '_>)
+	fn in_only<'a>(&'a self, setup_data: &'a [u8], in_data: &'a mut [u8]) -> ::usb_core::host::AsyncWaitIo<'a>
 	{
-		// Get (potentially bounced) data handles
-		let (setup_buf, setup_first_phys, setup_last_phys) = self.controller.get_dma_todev(setup_data);
-		let (out_buf, out_first_phys, out_last_phys) = self.controller.get_dma_todev(out_data);
+		enum FutureState<'a> {
+			Init {
+				setup_data: &'a [u8],
+				in_data: &'a mut [u8],
+				},
+			Started {
+				_bb_setup: Option<::kernel::memory::virt::AllocHandle>,
+				bb_data: Option<::kernel::memory::virt::AllocHandle>,
+				in_data: &'a mut [u8],
+				td_setup: TransferDescriptorId,
+				td_data: TransferDescriptorId,
+				},
+			Complete,
+		}
+		struct Future<'a> {
+			self_: &'a ControlEndpointHandle,
+			state: FutureState<'a>,
+		}
+		impl<'a> core::future::Future for Future<'a> {
+			type Output = usize;
+			fn poll(mut self: core::pin::Pin<&mut Self>, cx: &mut core::task::Context) -> core::task::Poll<usize> {
+				let parent = self.self_;
+				match self.state
+				{
+				FutureState::Init { setup_data, ref mut in_data } => {
+					let in_data = ::core::mem::replace(in_data, &mut []);
+					// Get (potentially bounced) data handles
+					let (setup_buf, setup_first_phys, setup_last_phys) = parent.controller.get_dma_todev(setup_data);
+					let (in_buf, in_first_phys, in_last_phys) = parent.controller.get_dma_fromdev(in_data);
 
-		// SAFE: The buffers stay valid because the handles are moved into the async closure.
-		unsafe {
-			self.controller.push_td( &self.id, (0b00 << 19) /* setup */ | (7 << 21) /* no int */, setup_first_phys, setup_last_phys, async.clone() );
-			self.controller.push_td( &self.id, (0b01 << 19) /* out */ | (0 << 21) /* immediate int */, out_first_phys, out_last_phys, async.clone() );
-		}
-		stack.push_closure(move |_async, _stack, out_bytes| {
-			// - Capture buffer handles so they stay valid
-			let _ = setup_buf;
-			let _ = out_buf;
-			// - Pass the result down the chain.
-			Some(out_bytes)
-			}).expect("Stack exhaustion in ohci::ControlEndpointHandle::out_only");
-	}
-	fn in_only<'a, 's>(&'s self, async: async::ObjectHandle, mut stack: async::StackPush<'a, 's>, setup_data: async::WriteBufferHandle<'s, '_>, in_buf: &'s mut [u8])
-	{
-		// Get (potentially bounced) data handles
-		let (setup_buf, setup_first_phys, setup_last_phys) = self.controller.get_dma_todev(setup_data);
-		let (data_buf, data_first_phys, data_last_phys) = self.controller.get_dma_fromdev(in_buf);
-		// SAFE: The buffers stay valid because they're moved into the async closure.
-		unsafe {
-			self.controller.push_td( &self.id, (0b00 << 19) /* setup */ | (7 << 21) /* no int */, setup_first_phys, setup_last_phys, async.clone() );
-			self.controller.push_td( &self.id, (0b10 << 19) /* in */ | (0 << 21) /* immediate int */, data_first_phys, data_last_phys, async.clone() );
-		}
-		stack.push_closure(move |_async, _stack, out_bytes| {
-			// - Capture buffer handles so they stay valid
-			let _ = setup_buf;
-			let _ = data_buf;
-			if let BounceBufferHandle::Bounced { ref orig_buf, ref bounce_buf } = data_buf {
-				todo!("Copy data back out of the bounce buffer - {:?} -> {:p}", bounce_buf, orig_buf);
+					// TODO: This isn't 100% safe, as the future _could_ be leaked before completion
+					// SAFE: Requires that the future isn't leaked
+					unsafe {
+						let td_setup = parent.controller.push_td( &parent.id, (0b00 << 19) /*setup*/ | (7 << 21) /*no int*/, setup_first_phys, setup_last_phys, ::kernel::futures::null_waker() );
+						let td_data  = parent.controller.push_td( &parent.id, (0b10 << 19) /*in*/ | (0 << 21) /*immediate int*/, in_first_phys, in_last_phys, cx.waker().clone() );
+						// TODO: Status TD?
+						self.state = FutureState::Started {
+							_bb_setup: setup_buf,
+							bb_data: in_buf,
+							in_data: in_data,
+							td_setup,
+							td_data,
+							};
+					}
+					core::task::Poll::Pending
+					},
+				FutureState::Started { ref td_data, ref bb_data, ref mut in_data, .. } => {
+					if let Some(datasize) = parent.controller.td_complete(td_data) {
+						if let Some(r) = bb_data {
+							in_data.copy_from_slice( r.as_slice(0, in_data.len()) );
+						}
+						self.state = FutureState::Complete {};
+						core::task::Poll::Ready(datasize)
+					}
+					else {
+						parent.controller.td_update_waker(td_data, cx.waker());
+						core::task::Poll::Pending
+					}
+					},
+				FutureState::Complete => panic!("Complete"),
+				}
 			}
-			// - Pass the result down the chain.
-			Some(out_bytes)
-			}).expect("Stack exhaustion in ohci::ControlEndpointHandle::in_only");
+		}
+		impl<'a> core::ops::Drop for Future<'a> {
+			fn drop(&mut self)
+			{
+				match self.state
+				{
+				FutureState::Init { .. } => {},
+				FutureState::Started { ref td_setup, ref td_data, .. } => {
+					// TODO: Force termination of the transfers
+					todo!("Terminate transfers on drop");
+					}
+				FutureState::Complete => {},
+				}
+			}
+		}
+		host::AsyncWaitIo::new(Future {
+			self_: self,
+			state: FutureState::Init {
+				setup_data,
+				in_data,
+				}
+			})
+			.or_else(|v| host::AsyncWaitIo::new(Box::new(v)))
+			.ok().expect("Box doesn't fit in alloc")
 	}
 }
 

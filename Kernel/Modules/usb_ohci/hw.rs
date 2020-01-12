@@ -49,6 +49,11 @@ pub enum Regs
 	HcRhPortStatus15,
 }
 
+pub const HCCMDSTATUS_HCR: u32 = 1 << 0;	// "HostControllerReset"
+pub const HCCMDSTATUS_CLF: u32 = 1 << 1;	// "ControlListFilled"
+pub const HCCMDSTATUS_BLF: u32 = 1 << 1;	// "BulkListFilled"
+pub const HCCMDSTATUS_OCR: u32 = 1 << 1;	// "OwnershipChangeRequest"
+
 // Host Controller Communication Area
 // 256 bytes total
 #[repr(C)]
@@ -127,15 +132,27 @@ pub struct GeneralTD
 	// - Note, this can be in a different page to the base address to a maximum of two
 	pub buffer_end: u32,
 
-	// -- Acess Information
-	pub meta_async_handle: u64,
-	_meta_unused: u64,
+	// -- Metadata
+	pub meta_async_waker: [u64; 2],
 }
 impl GeneralTD
 {
 	pub fn atomic_flags(s: *const Self) -> *const core::sync::atomic::AtomicU32 {
 		// NOTE: flags is the first field
 		s as *const core::sync::atomic::AtomicU32
+	}
+
+	pub unsafe fn init(s: *mut Self, flags: u32, first_byte: u32, last_byte: u32, next_td: u32, waker: ::core::task::Waker)
+	{
+		::core::ptr::write(&mut (*s).flags, flags | 1);
+		::core::ptr::write(&mut (*s).cbp, first_byte);
+		::core::ptr::write(&mut (*s).buffer_end, last_byte);
+		::core::ptr::write(&mut (*s).next_td, next_td);
+		// - Store the (single pointer) async handle in the 64-bit meta field
+		::core::ptr::write(&mut (*s).meta_async_waker as *mut _ as *mut _, waker);
+	}
+	pub unsafe fn update_waker(s: *mut Self, waker: &::core::task::Waker)
+	{
 	}
 }
 
