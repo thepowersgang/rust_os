@@ -10,6 +10,7 @@ use kernel::sync::Mutex;
 #[macro_use]
 extern crate kernel;
 extern crate stack_dst;
+extern crate utf16;
 
 module_define!{usb_core, [], init}
 
@@ -250,11 +251,16 @@ impl PortDev
 
 	async fn enumerate(&self, ep0: ControlEndpoint) -> Result<(), &'static str>
 	{
-		let dev_descr: hw_decls::DeviceDescriptor = ep0.read_descriptor(/*index*/0).await?;
-		//log_debug!("dev_descr = {:?}", dev_descr);
-		//log_debug!("dev_descr.manufacturer_str = {}", ep0.read_string(dev_descr.manufacturer_str).await?);
-		//log_debug!("dev_descr.product_str = {}", ep0.read_string(dev_descr.product_str).await?);
-		//log_debug!("dev_descr.serial_number_str = {}", ep0.read_string(dev_descr.serial_number_str).await?);
+		let dev_descr: hw_decls::Descriptor_Device = ep0.read_descriptor(/*index*/0).await?;
+		log_debug!("dev_descr = {:?}", dev_descr);
+		log_debug!("dev_descr.usb_version = {:x}", dev_descr.usb_version);
+		log_debug!("dev_descr.vendor_id/device_id = {:04x}:{:04}", dev_descr.vendor_id, dev_descr.device_id);
+		let mfg_str = ep0.read_string(dev_descr.manufacturer_str).await?;
+		let prod_str = ep0.read_string(dev_descr.product_str).await?;
+		let ser_str = ep0.read_string(dev_descr.serial_number_str).await?;
+		log_debug!("dev_descr.manufacturer_str = {}", mfg_str);
+		log_debug!("dev_descr.product_str = {}", prod_str);
+		log_debug!("dev_descr.serial_number_str = {}", ser_str);
 		Ok( () )
 	}
 
@@ -283,11 +289,42 @@ impl ControlEndpoint
 			inner: host.driver.init_control(crate::host::EndpointAddr::new(addr, ep_num), max_packet_size),
 			}
 	}
-	pub async fn read_descriptor<T>(&self, index: usize) -> Result<T,&'static str>
+	pub async fn read_descriptor<T>(&self, index: u8) -> Result<T,&'static str>
 	where
 		T: hw_decls::Descriptor
 	{
-		todo!("")
+		let exp_length = ::core::mem::size_of::<T>();
+		let ty = T::TYPE;
+		let hdr = hw_decls::DeviceRequest {
+			req_type: 0x80 | ((ty >> 8) as u8 & 0x3) << 5 | (ty >> 12) as u8 & 3,
+			req_num: 6,	// GET_DESCRIPTOR
+			value: (ty << 8) | index as u16,
+			index: 0,	// TODO: language ID
+			length: exp_length as u16,
+			};
+		let hdr = hdr.to_bytes();
+		let mut out_data = [0; 64];
+		let res_len = self.inner.in_only(&hdr, &mut out_data).await;
+
+		match T::from_bytes(&out_data[..res_len])
+		{
+		Some(v) => Ok(v),
+		None => Err("parse"),
+		}
+	}
+
+	// TODO: Better return type?
+	pub async fn read_string(&self, index: u8) -> Result<String,&'static str>
+	{
+		if index == 0 {
+			return Ok(String::new());
+		}
+		let desc: hw_decls::Descriptor_String = self.read_descriptor(index).await?;
+		match ::utf16::Str16::new(&desc.utf16[..desc.length as usize / 2 - 1])
+		{
+		Some(v) => Ok( format!("{}", v) ),
+		None => Err("BadStr"),
+		}
 	}
 
 	pub async fn send_request(&self,  request_type: u8, request_num: u8, value: u16, index: u16, data: &[u8])

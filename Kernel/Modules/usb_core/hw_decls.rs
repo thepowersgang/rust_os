@@ -6,7 +6,8 @@ pub trait Descriptor
 }
 
 #[repr(C)]
-pub struct DeviceDescriptor
+#[derive(Debug)]
+pub struct Descriptor_Device
 {
 	pub length: u8,
 	pub desc_type: u8,
@@ -26,11 +27,43 @@ pub struct DeviceDescriptor
 
 	pub num_configurations: u8,
 }
-impl Descriptor for DeviceDescriptor
+impl Descriptor for Descriptor_Device
 {
 	const TYPE: u16 = 1;
-	fn from_bytes(_: &[u8]) -> Option<Self> {
-		None
+	fn from_bytes(b: &[u8]) -> Option<Self> {
+		if b.len() != core::mem::size_of::<Self>() {
+			None
+		}
+		else {
+			use ::kernel::lib::PodHelpers;
+			let mut rv: Self = PodHelpers::zeroed();
+			rv.as_byte_slice_mut().copy_from_slice( b );
+			Some(rv)
+		}
+	}
+}
+
+#[repr(C)]
+pub struct Descriptor_String
+{
+	pub length: u8,
+	pub desc_type: u8,	// = 3
+
+	pub utf16: [u16; 127],
+}
+impl Descriptor for Descriptor_String
+{
+	const TYPE: u16 = 3;
+	fn from_bytes(b: &[u8]) -> Option<Self> {
+		if b.len() < 4 || b.len() % 2 != 0 {
+			None
+		}
+		else {
+			use ::kernel::lib::PodHelpers;
+			let mut rv: Self = PodHelpers::zeroed();
+			rv.as_byte_slice_mut()[..b.len()].copy_from_slice( b );
+			Some(rv)
+		}
 	}
 }
 
