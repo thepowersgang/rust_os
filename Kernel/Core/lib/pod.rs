@@ -15,7 +15,9 @@ impl<T> !POD for *const T {}
 impl<T> !POD for *mut T {}
 impl<'a, T> !POD for &'a T {}
 impl<'a, T> !POD for &'a mut T {}
+
 // TODO: Can there be an impl for the atomics?
+unsafe impl POD for ::core::sync::atomic::AtomicU32 {}
 
 pub fn as_byte_slice<T: ?Sized + POD>(s: &T) -> &[u8] {
 	// SAFE: Plain-old-data

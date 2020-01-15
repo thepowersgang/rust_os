@@ -1,4 +1,6 @@
 // 
+//
+//
 //! Open Host Controller Interface (OHCI) driver
 #![no_std]
 #![feature(linkage)]	// for module_define!
@@ -324,11 +326,19 @@ impl HostInner
 					log_debug!("WritebackDoneHead - {:#x}", phys);
 					let td_id = self.get_general_td_from_phys(phys).expect("WritebackDoneHead");
 					let ptr = self.get_general_td_pointer(&td_id);
-					// SAFE: Valid pointer, uncontended read
-					phys = unsafe { (*ptr).next_td };
+					phys = ptr.get_next();
 
-					// TODO: Poke the waker
-					// TODO: Mark as complete? (or release)
+					// Read waker out (TODO: Contention on updates?)
+					let waker = ptr.take_waker();
+
+					// Mark as complete (and release if FLAG_AUTOFREE)
+					if ptr.mark_complete()
+					{
+						ptr.mark_free();
+					}
+
+					// Poke the waker
+					waker.wake();
 				}
 				log_debug!("WritebackDoneHead - {:#x}", phys);
 			}
@@ -363,9 +373,12 @@ impl HostInner
 						log_debug!("Status change on port {} = {:#x}", i, v);
 
 						// - async
-						self.waker.lock().wake_by_ref();
 						self.port_update.fetch_or(1 << i, Ordering::SeqCst);
 					}
+				}
+				if self.port_update.load(Ordering::SeqCst) != 0
+				{
+					self.waker.lock().wake_by_ref();
 				}
 			}
 
@@ -405,7 +418,7 @@ impl HostInner
 		log_debug!("allocate_endpoint(flags={:#x}): ptr={:#x}", flags, kernel::memory::virt::get_phys(self.get_ed_pointer(&ep_id)));
 		// - Populate metadata and initialise them
 		let meta = self.get_endpoint_meta(&ep_id);
-		let new_tail = self.allocate_td(0);
+		let new_tail = self.allocate_td();
 		let mut h = self.get_ed_locked(&ep_id);
 		// SAFE: Locked
 		unsafe {
@@ -451,12 +464,13 @@ impl HostInner
 		}
 		None
 	}
-	fn get_general_td_pointer(&self, id: &TransferDescriptorId) -> *const hw::GeneralTD {
+	fn get_general_td_pointer(&self, id: &TransferDescriptorId) -> &hw::GeneralTD {
 		if id.group == 0 {
 			let ofs = (id.idx as usize) * size_of::<hw::GeneralTD>();
 			assert!(ofs >= 2048);
 			assert!(ofs < 4096);
-			self.hcca_handle.as_ref(ofs)
+			// SAFE: Aligned, in range, and that's what's in this region
+			unsafe { &*(self.hcca_handle.as_ref::<u8>(ofs) as *const _ as *const hw::GeneralTD) }
 		}
 		else {
 			todo!("get_general_td_pointer: Alternate pools for transfer descriptors");
@@ -548,20 +562,17 @@ impl HostInner
 	}
 
 	/// Allocate a new TD
-	fn allocate_td(&self, flags: u32) -> TransferDescriptorId
+	fn allocate_td(&self) -> TransferDescriptorId
 	{
 		// Iterate over all avaliable pools
 		const SIZE: usize = size_of::<hw::GeneralTD>();
 		for i in (2048 / SIZE) .. (4096 / SIZE)
 		{
-			let ofs = i * SIZE;
-			log_debug!("allocate_td: i={} ofs={}", i, ofs);
-			// Do a compare+set of the flags field with the new value (with some masking)
-			// SAFE: I assume so? (TODO: Check)
-			let flags_ptr: &AtomicU32 = unsafe { &*hw::GeneralTD::atomic_flags(self.hcca_handle.as_ref(ofs)) };
-			if flags_ptr.compare_and_swap(0, flags | 1, Ordering::SeqCst) == 0
+			let rv = TransferDescriptorId { group: 0, idx: i as u8 };
+			if self.get_general_td_pointer(&rv).maybe_alloc()
 			{
-				return TransferDescriptorId { group: 0, idx: i as u8 };
+				//log_debug!("allocate_td: group 0, idx {}", i);
+				return rv;
 			}
 		}
 		todo!("allocate_td - alternate pools, main is exhausted");
@@ -570,7 +581,7 @@ impl HostInner
 	{
 		log_debug!("push_td({:?}, {:#x}, {:#x}-{:#x})", ep, flags, first_byte, last_byte);
 		// 1. Allocate a new transfer descriptor (to be used as the new tail)
-		let new_tail_td = self.allocate_td(0);
+		let new_tail_td = self.allocate_td();
 		let new_tail_phys = ::kernel::memory::virt::get_phys( self.get_general_td_pointer(&new_tail_td) ) as u32;
 		// 2. Lock the endpoint (makes sure that there's no contention software-side)
 		// TODO: Could the metadata be locked to the endpoint handle?
@@ -579,14 +590,18 @@ impl HostInner
 		// - Update the tail in metadata (swap for the newly allocated one)
 		let td_handle = TransferDescriptorId::from_u16( epm.tail_td.swap(new_tail_td.to_u16(), Ordering::SeqCst) );
 		// - Obtain pointer to the old tail
-		let td_ptr: *mut hw::GeneralTD = self.get_general_td_pointer(&td_handle) as *mut _;
+		let td_ptr = self.get_general_td_pointer(&td_handle);
 		let td_phys = ::kernel::memory::virt::get_phys(td_ptr) as u32;
 		// - Fill the old tail with our data (and the new tail paddr)
-		hw::GeneralTD::init(td_ptr, flags, first_byte, last_byte, new_tail_phys, waker);
+		hw::GeneralTD::init(td_ptr as *const _ as *mut _, flags, first_byte, last_byte, new_tail_phys, waker);
 		// - Update the tail pointer
 		ed.set_tail_ptr( new_tail_phys );
 
 		td_handle
+	}
+	pub fn release_td(&self, td: TransferDescriptorId)
+	{
+		(*self.get_general_td_pointer(&td)).mark_free();
 	}
 
 	// Kick the controller and make it run the control list
@@ -600,13 +615,10 @@ impl HostInner
 
 	fn td_update_waker(&self, td: &TransferDescriptorId, waker: &::core::task::Waker)
 	{
-		let td_ptr: *mut hw::GeneralTD = self.get_general_td_pointer(td) as *mut _;
-		// SAFE: (TODO) What if it's just been woken?
-		unsafe { hw::GeneralTD::update_waker(td_ptr, waker); }
+		self.get_general_td_pointer(td).update_waker(waker)
 	}
 	fn td_complete(&self, td: &TransferDescriptorId) -> Option<usize> {
-		//todo!("td_complete");
-		None
+		self.get_general_td_pointer(td).is_complete()
 	}
 
 	// Get a handle for a DMA output
@@ -614,7 +626,7 @@ impl HostInner
 	{
 		log_debug!("get_dma_todev({:p})", p);
 		if p.len() == 0 {
-			return (None, 1 as u32, 1 as u32);
+			return (None, 0 as u32, 0 as u32);
 		}
 		let start_phys = ::kernel::memory::virt::get_phys(p.as_ptr());
 		let last_phys = ::kernel::memory::virt::get_phys(&p[p.len()-1]);
@@ -695,10 +707,10 @@ impl<'a> LockedEndpoint<'a>
 	// SAFE: Read-only, locked
 	pub fn flags   (&self) -> u32 { unsafe { (*self.ptr).flags    } }
 	// SAFE: Read-only, locked
-	pub fn tail_ptr(&self) -> u32 { unsafe { (*self.ptr).tail_ptr } }
+	//pub fn tail_ptr(&self) -> u32 { unsafe { (*self.ptr).tail_ptr } }
 	// NOTE: The controller can write to this value, so use read_volatile
 	// SAFE: Read-only, locked
-	pub fn head_ptr(&self) -> u32 { unsafe { core::ptr::read_volatile(&(*self.ptr).head_ptr) } }
+	//pub fn head_ptr(&self) -> u32 { unsafe { core::ptr::read_volatile(&(*self.ptr).head_ptr) } }
 	// SAFE: Read-only, locked
 	pub fn next_ed (&self) -> u32 { unsafe { (*self.ptr).next_ed  } }
 
@@ -888,14 +900,14 @@ impl ::usb_core::host::HostController for UsbHost
 	}
 
 	fn async_wait_root(&self) -> usb_core::host::AsyncWaitRoot {
-		struct Foo {
+		struct AsyncWaitRoot {
 			host: ArefBorrow<HostInner>,
 		}
-		impl core::future::Future for Foo {
+		impl core::future::Future for AsyncWaitRoot {
 			type Output = usize;
 			fn poll(mut self: core::pin::Pin<&mut Self>, cx: &mut core::task::Context) -> core::task::Poll<Self::Output> {
 				let v = self.host.port_update.load(Ordering::SeqCst);
-				log_debug!("UsbHost::Foo::poll: v = {:#x}", v);
+				log_debug!("UsbHost::AsyncWaitRoot::poll: v = {:#x}", v);
 				if v != 0
 				{
 					for i in 0 .. self.host.nports as usize
@@ -911,7 +923,7 @@ impl ::usb_core::host::HostController for UsbHost
 				core::task::Poll::Pending
 			}
 		}
-		usb_core::host::AsyncWaitRoot::new(Foo {
+		usb_core::host::AsyncWaitRoot::new(AsyncWaitRoot {
 			host: self.host.reborrow(),
 			}).ok().expect("Over-size task in")
 	}
@@ -932,8 +944,10 @@ impl host::ControlEndpoint for ControlEndpointHandle
 			Started {
 				_bb_setup: Option<::kernel::memory::virt::AllocHandle>,
 				_bb_data: Option<::kernel::memory::virt::AllocHandle>,
+				out_data_len: usize,
 				td_setup: TransferDescriptorId,
 				td_data: TransferDescriptorId,
+				td_status: TransferDescriptorId,
 				},
 			Complete,
 		}
@@ -956,29 +970,43 @@ impl host::ControlEndpoint for ControlEndpointHandle
 					// TODO: This isn't 100% safe, as the future _could_ be leaked before completion
 					// SAFE: Requires that the future isn't leaked
 					unsafe {
-						let td_setup = parent.controller.push_td( &parent.id, (0b00 << 19) /*setup*/ | (7 << 21) /*no int*/, setup_first_phys, setup_last_phys, ::kernel::futures::null_waker() );
-						let td_data  = parent.controller.push_td( &parent.id, (0b01 << 19) /*out*/ | (0 << 21) /*immediate int*/, out_first_phys, out_last_phys, cx.waker().clone() );
-						// TODO: Status TD?
+						use kernel::futures::null_waker;
+						let td_setup = parent.controller.push_td( &parent.id, (0b00 << 19) /*setup*/ | hw::GeneralTD::FLAG_AUTOFREE | (7 << 21) /*no int*/, setup_first_phys, setup_last_phys, null_waker() );
+						let td_data  = parent.controller.push_td( &parent.id, (0b01 << 19) /*out*/ | (7 << 21) /*no int*/, out_first_phys, out_last_phys, null_waker() );
+						let td_status= parent.controller.push_td( &parent.id, (0b10 << 19) /*in*/ | (0 << 21) /*immediate int*/, 0, 0, cx.waker().clone() );
 						parent.controller.kick_control();
 						self.state = FutureState::Started {
 							_bb_setup: setup_buf,
 							_bb_data: out_buf,
+							out_data_len: out_data.len(),
 							td_setup,
 							td_data,
+							td_status,
 							};
 					}
 					core::task::Poll::Pending
 					},
-				FutureState::Started { ref td_data, .. } => {
-					log_debug!("out_only - started");
-					if let Some(datasize) = parent.controller.td_complete(td_data) {
-						self.state = FutureState::Complete;
-						core::task::Poll::Ready(datasize)
+				FutureState::Started { ref td_status, .. } =>
+					if parent.controller.td_complete(td_status).is_some()
+					{
+						log_debug!("out_only - Started -> complete");
+						match core::mem::replace(&mut self.state, FutureState::Complete)
+						{
+						FutureState::Started { td_data, td_status, out_data_len, .. } => {
+							let spare_size = parent.controller.td_complete(&td_data).unwrap();
+							log_debug!("out_only - out_data_len={}, spare_size={}", out_data_len, spare_size);
+							parent.controller.release_td(td_data);
+							parent.controller.release_td(td_status);
+							core::task::Poll::Ready(out_data_len)
+							},
+						_ => panic!(),
+						}
 					}
-					else {
-						parent.controller.td_update_waker(td_data, cx.waker());
+					else
+					{
+						log_debug!("out_only - Started -> pending");
+						parent.controller.td_update_waker(td_status, cx.waker());
 						core::task::Poll::Pending
-					}
 					},
 				FutureState::Complete => panic!("Completed future polled"),
 				}
@@ -1022,6 +1050,7 @@ impl host::ControlEndpoint for ControlEndpointHandle
 				in_data: &'a mut [u8],
 				td_setup: TransferDescriptorId,
 				td_data: TransferDescriptorId,
+				td_status: TransferDescriptorId,
 				},
 			Complete,
 		}
@@ -1036,6 +1065,7 @@ impl host::ControlEndpoint for ControlEndpointHandle
 				match self.state
 				{
 				FutureState::Init { setup_data, ref mut in_data } => {
+					log_debug!("in_only - init");
 					let in_data = ::core::mem::replace(in_data, &mut []);
 					// Get (potentially bounced) data handles
 					let (setup_buf, setup_first_phys, setup_last_phys) = parent.controller.get_dma_todev(setup_data);
@@ -1044,31 +1074,47 @@ impl host::ControlEndpoint for ControlEndpointHandle
 					// TODO: This isn't 100% safe, as the future _could_ be leaked before completion
 					// SAFE: Requires that the future isn't leaked
 					unsafe {
-						let td_setup = parent.controller.push_td( &parent.id, (0b00 << 19) /*setup*/ | (7 << 21) /*no int*/, setup_first_phys, setup_last_phys, ::kernel::futures::null_waker() );
-						let td_data  = parent.controller.push_td( &parent.id, (0b10 << 19) /*in*/ | (0 << 21) /*immediate int*/, in_first_phys, in_last_phys, cx.waker().clone() );
-						// TODO: Status TD?
+						use kernel::futures::null_waker;
+						let td_setup = parent.controller.push_td( &parent.id, (0b00 << 19) /*setup*/ | hw::GeneralTD::FLAG_AUTOFREE | (7 << 21) /*no int*/, setup_first_phys, setup_last_phys, null_waker() );
+						let td_data  = parent.controller.push_td( &parent.id, (0b10 << 19) /*in*/ | (7 << 21) /*no int*/ | (1 << 18), in_first_phys, in_last_phys, null_waker() );
+						let td_status= parent.controller.push_td( &parent.id, (0b01 << 19) /*out*/ | (0 << 21) /*immediate int*/, 0, 0, cx.waker().clone() );
+						parent.controller.kick_control();
 						self.state = FutureState::Started {
 							_bb_setup: setup_buf,
 							bb_data: in_buf,
 							in_data: in_data,
 							td_setup,
 							td_data,
+							td_status,
 							};
 					}
 					core::task::Poll::Pending
 					},
-				FutureState::Started { ref td_data, ref bb_data, ref mut in_data, .. } => {
-					if let Some(datasize) = parent.controller.td_complete(td_data) {
-						if let Some(r) = bb_data {
-							in_data.copy_from_slice( r.as_slice(0, in_data.len()) );
+				FutureState::Started { ref td_status, .. } =>
+					if parent.controller.td_complete(td_status).is_some()
+					{
+						match core::mem::replace(&mut self.state, FutureState::Complete)
+						{
+						FutureState::Started { td_data, td_status, bb_data, in_data, .. } => {
+							let rem_size = parent.controller.td_complete(&td_data).unwrap();
+							let read_len = if rem_size == in_data.len() { in_data.len() } else { in_data.len() - rem_size };
+							log_debug!("in_only - completed {} (read {})", rem_size, read_len);
+							if let Some(r) = bb_data {
+								in_data.copy_from_slice( r.as_slice(0, in_data.len()) );
+							}
+
+							parent.controller.release_td(td_data);
+							parent.controller.release_td(td_status);
+							core::task::Poll::Ready(read_len)
+							},
+						_ => panic!(""),
 						}
-						self.state = FutureState::Complete {};
-						core::task::Poll::Ready(datasize)
 					}
-					else {
-						parent.controller.td_update_waker(td_data, cx.waker());
+					else
+					{
+						log_debug!("in_only - pending");
+						parent.controller.td_update_waker(td_status, cx.waker());
 						core::task::Poll::Pending
-					}
 					},
 				FutureState::Complete => panic!("Complete"),
 				}

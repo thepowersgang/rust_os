@@ -1,5 +1,6 @@
 //
 //!
+use core::sync::atomic::{Ordering};
 
 #[repr(usize)]
 #[allow(dead_code)]
@@ -114,45 +115,134 @@ pub struct GeneralTD
 	/// Flags
 	//  0:17 = AVAIL
 	//       > 0: Allocated bit (1 when allocated)
+	//       > 1: Auto-free (release once complete)
+	//       > 2: Complete
 	// 18    = Buffer Rounding (Allow an undersized packet)
 	// 19:20 = Direction (SETUP, OUT, IN, Resvd)
 	// 21:23 = Delay Interrupt (Frame count, 7 = no int)
 	// 24:25 = Data Toggle (ToggleCarry, ToggleCarry, 0, 1)
 	// 26:27 = Error Count
 	// 28:31 = Condition Code
-	pub flags: u32,
+	flags: ::core::sync::atomic::AtomicU32,
 
 	// Base address of packet (or current when being read)
-	pub cbp: u32,
+	// - NOTE: This updates if IN didn't use all of the buffer
+	cbp: u32,
 
 	/// Next transfer descriptor in the chain
-	pub next_td: u32,
+	next_td: u32,
 
 	/// Address of final byte in buffer
 	// - Note, this can be in a different page to the base address to a maximum of two
-	pub buffer_end: u32,
+	buffer_end: u32,
 
 	// -- Metadata
-	pub meta_async_waker: [u64; 2],
+	meta_async_waker: ::core::cell::UnsafeCell<[u64; 2]>,
 }
 impl GeneralTD
 {
-	pub fn atomic_flags(s: *const Self) -> *const core::sync::atomic::AtomicU32 {
-		// NOTE: flags is the first field
-		s as *const core::sync::atomic::AtomicU32
-	}
+	pub const FLAG_ALLOCATED: u32 = 1 << 0;
+	pub const FLAG_INIT: u32 = 1 << 1;
+	pub const FLAG_AUTOFREE: u32 = 1 << 2;
+	pub const FLAG_COMPLETE: u32 = 1 << 3;
+	pub const FLAG_LOCKED: u32 = 1 << 4;
+	//pub const FLAG_ROUNDING: u32 = 1 << 18;
 
+	pub fn maybe_alloc(&self) -> bool
+	{
+		self.flags.compare_and_swap(0, Self::FLAG_ALLOCATED, Ordering::SeqCst) == 0
+	}
+	/// UNSAFE: Addresses in `first_byte`, `last_byte`, and `next_td` are passed to hardware
 	pub unsafe fn init(s: *mut Self, flags: u32, first_byte: u32, last_byte: u32, next_td: u32, waker: ::core::task::Waker)
 	{
-		::core::ptr::write(&mut (*s).flags, flags | 1);
+		// If the flags are just allocated, then this is not initialised (so should be unique)
+		assert!( (*s).flags.load(Ordering::SeqCst) == Self::FLAG_ALLOCATED );
+		(*s).flags.store(flags | Self::FLAG_ALLOCATED | Self::FLAG_INIT, Ordering::SeqCst);
 		::core::ptr::write(&mut (*s).cbp, first_byte);
 		::core::ptr::write(&mut (*s).buffer_end, last_byte);
 		::core::ptr::write(&mut (*s).next_td, next_td);
 		// - Store the (single pointer) async handle in the 64-bit meta field
-		::core::ptr::write(&mut (*s).meta_async_waker as *mut _ as *mut _, waker);
+		::core::ptr::write((*s).meta_async_waker.get() as *mut _, waker);
 	}
-	pub unsafe fn update_waker(s: *mut Self, waker: &::core::task::Waker)
+	pub fn mark_free(&self)
 	{
+		assert!(self.flags.load(Ordering::SeqCst) & Self::FLAG_INIT != 0);
+		let _lh = self.take_waker_lock();
+		self.flags.store(Self::FLAG_LOCKED, Ordering::SeqCst);
+	}
+	pub fn mark_complete(&self) -> bool
+	{
+		assert!(self.flags.load(Ordering::SeqCst) & Self::FLAG_INIT != 0);
+		self.flags.fetch_or(Self::FLAG_COMPLETE, Ordering::SeqCst) & Self::FLAG_AUTOFREE != 0
+	}
+	pub fn get_next(&self) -> u32
+	{
+		assert!(self.flags.load(Ordering::Acquire) & Self::FLAG_INIT != 0);
+		self.next_td
+	}
+	pub fn is_complete(&self) -> Option<usize>
+	{
+		assert!(self.flags.load(Ordering::Acquire) & Self::FLAG_INIT != 0);
+		if self.flags.load(Ordering::SeqCst) & Self::FLAG_COMPLETE != 0
+		{
+			let cbp = self.cbp;
+			let end = self.buffer_end;
+
+			log_debug!("get_unused_len: {:#x} -- {:#x}", cbp, end);
+			if cbp & !0xFFF == end & !0xFFF {
+				Some( (end - cbp) as usize + 1 )
+			}
+			else {
+				Some( ((0x1000 - (cbp & 0xFFF)) + (end & 0xFFF)) as usize + 1 )
+			}
+		}
+		else
+		{
+			None
+		}
+	}
+
+	fn take_waker_lock(&self) -> GeneralTdLockedWaker
+	{
+		let int_lh = ::kernel::arch::sync::hold_interrupts();
+		loop
+		{
+			let flags = self.flags.load(Ordering::SeqCst) & !Self::FLAG_LOCKED;
+			if self.flags.compare_and_swap(flags, flags | Self::FLAG_LOCKED, Ordering::Acquire) == flags
+			{
+				return GeneralTdLockedWaker {
+					flags: &self.flags,
+					// SAFE: Access controlled via the above locks
+					waker: unsafe { &mut *(self.meta_async_waker.get() as *mut ::core::task::Waker) },
+					_ints: int_lh,
+					};
+			}
+		}
+	}
+	pub fn take_waker(&self) -> ::core::task::Waker
+	{
+		let mut waker_lh = self.take_waker_lock();
+		::core::mem::replace(&mut waker_lh.waker, ::kernel::futures::null_waker())
+	}
+	pub fn update_waker(&self, waker: &::core::task::Waker)
+	{
+		let waker_lh = self.take_waker_lock();
+		if !waker_lh.waker.will_wake(waker)
+		{
+			*waker_lh.waker = waker.clone();
+		}
+	}
+}
+struct GeneralTdLockedWaker<'a>
+{
+	flags: &'a ::core::sync::atomic::AtomicU32,
+	waker: &'a mut ::core::task::Waker,
+	_ints: ::kernel::arch::sync::HeldInterrupts,
+}
+impl<'a> ::core::ops::Drop for GeneralTdLockedWaker<'a>
+{
+	fn drop(&mut self) {
+		assert!( self.flags.fetch_and(!GeneralTD::FLAG_LOCKED, Ordering::Release) & GeneralTD::FLAG_LOCKED != 0 );
 	}
 }
 
