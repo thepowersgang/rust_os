@@ -1097,6 +1097,7 @@ impl host::ControlEndpoint for ControlEndpointHandle
 						{
 						FutureState::Started { td_data, td_status, bb_data, in_data, .. } => {
 							let rem_size = parent.controller.td_complete(&td_data).unwrap();
+							assert!(rem_size <= in_data.len(), "{} <= {}", rem_size, in_data.len());
 							let read_len = if rem_size == in_data.len() { in_data.len() } else { in_data.len() - rem_size };
 							log_debug!("in_only - completed {} (read {})", rem_size, read_len);
 							if let Some(r) = bb_data {

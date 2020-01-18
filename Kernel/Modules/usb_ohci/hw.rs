@@ -180,6 +180,7 @@ impl GeneralTD
 		assert!(self.flags.load(Ordering::Acquire) & Self::FLAG_INIT != 0);
 		self.next_td
 	}
+	/// Returns `Some(unused_space)`
 	pub fn is_complete(&self) -> Option<usize>
 	{
 		assert!(self.flags.load(Ordering::Acquire) & Self::FLAG_INIT != 0);
@@ -188,12 +189,20 @@ impl GeneralTD
 			let cbp = self.cbp;
 			let end = self.buffer_end;
 
-			log_debug!("get_unused_len: {:#x} -- {:#x}", cbp, end);
-			if cbp & !0xFFF == end & !0xFFF {
+			log_debug!("is_complete({:#x}): {:#x} -- {:#x}", ::kernel::memory::virt::get_phys(self), cbp, end);
+			if cbp == 0 {	// When complete, zero is written to CBP
+				Some( 0 )
+			}
+			// Same page, simple subtraction
+			else if cbp & !0xFFF == end & !0xFFF {
 				Some( (end - cbp) as usize + 1 )
 			}
+			// Different page
 			else {
-				Some( ((0x1000 - (cbp & 0xFFF)) + (end & 0xFFF)) as usize + 1 )
+				let rem1 = 0x1000 - (cbp & 0xFFF);
+				let rem2 = end & 0xFFF;
+				//log_trace!("is_complete: {:#x} + {:#x}", rem1, rem2);
+				Some( (rem1 + rem2) as usize + 1 )
 			}
 		}
 		else
