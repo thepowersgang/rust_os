@@ -77,6 +77,11 @@ struct TransferDescriptorId {
 	group: u8,
 	idx: u8,
 }
+impl_fmt! {
+	Debug(self, f) for TransferDescriptorId {
+		write!(f, "TransferDescriptorId({}/{})", self.group, self.idx)
+	}
+}
 impl TransferDescriptorId {
 	fn from_u16(v: u16) -> TransferDescriptorId {
 		TransferDescriptorId {
@@ -599,6 +604,10 @@ impl HostInner
 
 		td_handle
 	}
+	pub fn stop_td(&self, td: &TransferDescriptorId)
+	{
+		todo!("stop_td({:?})", td);
+	}
 	pub fn release_td(&self, td: TransferDescriptorId)
 	{
 		(*self.get_general_td_pointer(&td)).mark_free();
@@ -784,8 +793,7 @@ use ::usb_core::host::{self, EndpointAddr, PortFeature, Handle};
 use ::usb_core::host::{InterruptEndpoint, IsochEndpoint, ControlEndpoint, BulkEndpoint};
 impl ::usb_core::host::HostController for UsbHost
 {
-	/// Begin polling an endpoint at the given rate (buffer used is allocated by the driver to be the interrupt endpoint's size)
-	fn init_interrupt(&self, endpoint: EndpointAddr, period_ms: usize, _waiter: async::ObjectHandle) -> Handle<dyn InterruptEndpoint> {
+	fn init_interrupt(&self, endpoint: EndpointAddr, period_ms: usize, max_packet_size: usize) -> Handle<dyn InterruptEndpoint> {
 		// NOTE: This rounds down (so 3 = 2^1)
 		let period_pow_2 = if period_ms == 0 { 0 } else { 32-1 - (period_ms as u32).leading_zeros()};
 		let ptr = self.host.register_interrupt_ed(period_pow_2 as usize,
@@ -797,7 +805,12 @@ impl ::usb_core::host::HostController for UsbHost
 			| (0b0 << 15)	// Format - 0=control/bulk/int
 			// TODO: max packet size?
 			);
-		todo!("init_interrupt({:?}, period_ms={}): ptr={:?}", endpoint, period_ms, ptr);
+		// TODO: Allocate a pair of buffers (in DMA memory) of `max_packet_size`, use double buffering for them
+		// NOTE: Don't add TDs until `wait` call
+		Handle::new(InterruptEndpointHandle {
+			controller: self.host.reborrow(),
+			id: ptr,
+			}).ok().unwrap()
 	}
 	fn init_isoch(&self, endpoint: EndpointAddr, max_packet_size: usize) -> Handle<dyn IsochEndpoint> {
 		todo!("init_isoch({:?}, max_packet_size={})", endpoint, max_packet_size);
@@ -1020,8 +1033,8 @@ impl host::ControlEndpoint for ControlEndpointHandle
 				FutureState::Init { .. } => {},
 				FutureState::Started { ref td_setup, ref td_data, .. } => {
 					// TODO: Force termination of the transfers
-					//self.self_.controller.stop_td(td_setup);
-					//self.self_.controller.stop_td(td_data);
+					self.self_.controller.stop_td(td_setup);
+					self.self_.controller.stop_td(td_data);
 					}
 				FutureState::Complete => {},
 				}
@@ -1129,7 +1142,8 @@ impl host::ControlEndpoint for ControlEndpointHandle
 				FutureState::Init { .. } => {},
 				FutureState::Started { ref td_setup, ref td_data, .. } => {
 					// TODO: Force termination of the transfers
-					todo!("Terminate transfers on drop");
+					self.self_.controller.stop_td(td_setup);
+					self.self_.controller.stop_td(td_data);
 					}
 				FutureState::Complete => {},
 				}
@@ -1144,6 +1158,22 @@ impl host::ControlEndpoint for ControlEndpointHandle
 			})
 			.or_else(|v| host::AsyncWaitIo::new(Box::new(v)))
 			.ok().expect("Box doesn't fit in alloc")
+	}
+}
+
+struct InterruptEndpointHandle {
+	controller: ArefBorrow<HostInner>,
+	id: EndpointId,
+}
+impl host::InterruptEndpoint for InterruptEndpointHandle
+{
+	fn get_data(&self) -> Handle<dyn usb_core::handle::RemoteBuffer>
+	{
+		todo!("");
+	}
+	fn wait<'a>(&'a self) -> ::usb_core::host::AsyncWaitIo<'a>
+	{
+		todo!("");
 	}
 }
 

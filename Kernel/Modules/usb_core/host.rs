@@ -31,20 +31,17 @@ impl ::core::fmt::Debug for EndpointAddr
 	}
 }
 
+pub type AsyncWaitIo<'a> = stack_dst::ValueA<dyn core::future::Future<Output=usize> + Send + 'a, [usize; 3]>;
 pub trait InterruptEndpoint: Send + Sync
 {
 	fn get_data(&self) -> Handle<dyn crate::handle::RemoteBuffer>;
+	fn wait<'a>(&'a self) -> AsyncWaitIo<'a>;
 }
 //	fn tx_async<'a, 's>(&'s self, async_obj: kasync::ObjectHandle, stack: kasync::StackPush<'a, 's>, pkt: SparsePacket) -> Result<(), Error>;
-pub type AsyncWaitIo<'a> = stack_dst::ValueA<dyn core::future::Future<Output=usize> + Send + 'a, [usize; 3]>;
 pub trait ControlEndpoint: Send + Sync
 {
 	fn out_only<'a>(&'a self, setup_data: &'a [u8], out_data: &'a [u8]) -> AsyncWaitIo<'a>;
 	fn in_only<'a>(&'a self, setup_data: &'a [u8], out_data: &'a mut [u8]) -> AsyncWaitIo<'a>;
-	// The following are more interesting, `out/in` works, but `in/out` has ordering problems...
-	// - Thankfully, these patterns aren't needed?
-	//fn out_in(&self, waiter: kasync::WaiterHandle, out_data: kasync::WriteBufferHandle, in_buf: kasync::ReadBufferHandle);
-	//fn in_out(&self, waiter: kasync::WaiterHandle, in_buf: kasync::ReadBufferHandle, out_data: kasync::WriteBufferHandle);
 }
 pub trait IsochEndpoint: Send + Sync
 {
@@ -58,8 +55,8 @@ pub trait IsochEndpoint: Send + Sync
 pub trait BulkEndpoint: Send + Sync
 {
 	// Start a send operation of the passed buffers
-	fn send<'a, 's>(&self, async_obj: kasync::ObjectHandle, stack: kasync::StackPush<'a, 's>, buffer: kasync::WriteBufferHandle<'a, '_>);
-	fn recv<'a, 's>(&self, async_obj: kasync::ObjectHandle, stack: kasync::StackPush<'a, 's>, buffer: &'a mut [u8]);
+	fn send<'a>(&'a self, buffer: &'a [u8]) -> AsyncWaitIo<'a>;
+	fn recv<'a>(&'a self, buffer: &'a mut [u8]) -> AsyncWaitIo<'a>;
 }
 
 pub type AsyncWaitRoot = stack_dst::ValueA<dyn core::future::Future<Output=usize>, [usize; 3]>;
@@ -68,7 +65,7 @@ pub trait HostController: Send + Sync
 	///// Obtain a handle to endpoint zero
 	//fn get_control_zero(&self) -> Handle<dyn ControlEndpoint>;
 	/// Begin polling an endpoint at the given rate (buffer used is allocated by the driver to be the interrupt endpoint's size)
-	fn init_interrupt(&self, endpoint: EndpointAddr, period_ms: usize, waiter: kasync::ObjectHandle) -> Handle<dyn InterruptEndpoint>;
+	fn init_interrupt(&self, endpoint: EndpointAddr, max_packet_size: usize, period_ms: usize) -> Handle<dyn InterruptEndpoint>;
 	/// Initialise an ichronous endpoint
 	fn init_isoch(&self, endpoint: EndpointAddr, max_packet_size: usize) -> Handle<dyn IsochEndpoint>;
 	/// Initialise a control endpoint

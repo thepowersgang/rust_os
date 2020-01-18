@@ -197,20 +197,22 @@ impl PortState
 
 	fn signal_connected(&self, hub: HubRef, port_idx: u8)
 	{
-		hub.clone().host().add_device(move |addr| PortDev::new(hub, port_idx).worker(addr));
+		hub.clone().host().add_device(move |addr| PortDev::new(hub, port_idx, addr).worker());
 	}
 }
 struct PortDev
 {
 	hub: HubRef,
 	port_idx: u8,
+	addr: u8,
 }
 impl PortDev
 {
-	pub fn new(hub: HubRef, port_idx: u8) -> PortDev {
+	pub fn new(hub: HubRef, port_idx: u8, addr: u8) -> PortDev {
 		PortDev {
 			hub,
 			port_idx,
+			addr,
 			}
 	}
 	fn host(&self) -> &Host {
@@ -296,8 +298,8 @@ impl PortDev
 				log_debug!("Interface string '{}'", s);
 				if let Some( (v,start) ) = last_int.take()
 				{
-					let endpoint_list = &start[..start.len() - it.0 .len() - 9];
-					// Look for a driver, and spin it up
+					// Note: minus 9 so it excludes the current iteration's interface
+					let endpoint_list = &start[..start.len() - it.0.len() - 9];
 					self.spawn_interface(&ep0, &v, endpoint_list);
 				}
 				last_int = Some( (v, it.0) );
@@ -305,8 +307,7 @@ impl PortDev
 		}
 		if let Some( (v,start) ) = last_int.take()
 		{
-			let endpoint_list = &start[..start.len() - it.0 .len() - 9];
-			// Look for a driver, and spin it up
+			let endpoint_list = &start[..start.len() - it.0.len()];
 			self.spawn_interface(&ep0, &v, endpoint_list);
 		}
 		Ok( () )
@@ -319,23 +320,81 @@ impl PortDev
 			| (int_desc.interface_sub_class as u32) << 8
 			| (int_desc.interface_protocol as u32) << 0
 			;
-		log_notice!("TODO: Spawn interface driver for {:06x}", full_class);
 		// - Look up using the interface class specs
 		//  > May also want specialised drivers?
 		// - If a driver can't be found, what do?
+
+		// Idea:
+		// - Each interface is constructed as-is according to the descriptors
+		// - Store the interfaces in `self` (or return from `enumerate`)
+		// - Assign a driver to the constructed interface
+		let mut endpts = Vec::with_capacity(int_desc.num_endpoints as usize);
+		for desc in hw_decls::IterDescriptors(descriptors)
+		{
+			if let Ok(hw_decls::DescriptorAny::Endpoint(ep_desc)) = desc
+			{
+				let ep_num = ep_desc.address & 0xF;
+				let ep_dir_in = (ep_desc.address & 0x80 != 0);
+				let ep_type = (ep_desc.attributes & 0x3) >> 0;
+				let max_packet_size = (ep_desc.max_packet_size.0 as u16) | (ep_desc.max_packet_size.1 as u16 & 0x03) << 8;
+				let poll_period = ep_desc.max_polling_interval;
+				log_debug!("EP {} {} {} MPS={}",
+					ep_num,
+					["OUT","IN"][ep_dir_in as usize],
+					["Control","Isoch","Bulk","Interrupt"][ep_type as usize],
+					max_packet_size,
+					);
+				endpts.push(match ep_type
+					{
+					0 => Endpoint::Control(ControlEndpoint::new(self.host(), self.addr, ep_num, max_packet_size as usize)),
+					1 => todo!("Isoch endpoint"),//Endpoint::Isoch(IsochEndpoint::new(self.host(), self.addr, ep_num, max_packet_size, ep_dir_in, ...)),
+					2 => Endpoint::Bulk(BulkEndpoint::new(self.host(), self.addr, ep_num, ep_dir_in, max_packet_size as usize)),
+					3 => if ep_dir_in {
+							Endpoint::Interrupt(InterruptEndpoint::new(self.host(), self.addr, ep_num, max_packet_size as usize, poll_period as usize))
+						}
+						else {
+							todo!("Out interrupt endpoint?");
+						},
+					_ => unreachable!("endpoint type"),
+					});
+			}
+		}
+
+		// TODO: Locate a suitable driver
+		log_notice!("TODO: Spawn interface driver for {:06x} (descriptors={})", full_class, descriptors.len());
 	}
 
-	async fn worker(self, addr: u8)
+	async fn worker(self)
 	{
-		self.initialise_port(addr).await;
+		self.initialise_port(self.addr).await;
 		
-		let ep0 = ControlEndpoint::new(self.host(), addr, /*ep_num=*/0, /*max_packet_size=*/64);
+		let ep0 = ControlEndpoint::new(self.host(), self.addr, /*ep_num=*/0, /*max_packet_size=*/64);
 		// Enumerate device
 		match self.enumerate(ep0).await
 		{
 		Ok(_) => {},
 		Err(e) => panic!("{}", e),
 		}
+	}
+}
+
+enum Endpoint
+{
+	Control(ControlEndpoint),
+	Interrupt(InterruptEndpoint),
+	Bulk(BulkEndpoint),
+}
+
+struct InterruptEndpoint
+{
+	inner: crate::host::Handle<dyn crate::host::InterruptEndpoint>,
+}
+impl InterruptEndpoint
+{
+	pub fn new(host: &Host, addr: u8, ep_num: u8, max_packet_size: usize, polling_interval: usize) -> Self {
+		Self {
+			inner: host.driver.init_interrupt(crate::host::EndpointAddr::new(addr, ep_num), max_packet_size, polling_interval),
+			}
 	}
 }
 
@@ -409,6 +468,21 @@ impl ControlEndpoint
 		let hdr = hdr.to_bytes();
 		let sent_len = self.inner.out_only(&hdr, data).await;
 		assert_eq!(sent_len, data.len());
+	}
+}
+
+struct BulkEndpoint
+{
+	inner: crate::host::Handle<dyn crate::host::BulkEndpoint>,
+	dir_is_in: bool,
+}
+impl BulkEndpoint
+{
+	pub fn new(host: &Host, addr: u8, ep_num: u8, dir_is_in: bool, max_packet_size: usize) -> Self {
+		Self {
+			dir_is_in: dir_is_in,
+			inner: host.driver.init_bulk(crate::host::EndpointAddr::new(addr, ep_num), max_packet_size),
+			}
 	}
 }
 

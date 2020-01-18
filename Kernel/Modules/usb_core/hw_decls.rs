@@ -168,9 +168,23 @@ pub struct Descriptor_Endpoint
 	pub length: u8,
 	pub desc_type: u8,	// = 5
 
+	/// Endpoint address
+	/// 0-3: Endpoint number
+	/// 4-6: Reserved (zero)
+	/// 7- Direction (0: OUT, 1: IN, x: Control)
 	pub address: u8,
+	/// 0-1: Transfer type (00: Control, 01: Isoch, 10: Bulk, 11: Interrupt)
+	/// 2-3: Synchonosiation type (00: None, 01: Asynch, 10: Adaptive, 11: Synch)
+	/// 4-5: Usage type (00: Data, 01: Feedback, 10: "Implicit feedback Data", 11: reserved)
+	/// 7-7: reserved (zero)
 	pub attributes: u8,
+	/// Maximum packet size (little endian u16)
+	/// 0-10: Packet size (in bytes)
+	/// 11-12: (Isoch) extra transaction chances (00: 1 transaction/uFrame, 01: 2, 10: 3, 11: reserved)
+	/// 13-15: reserved (zero)
 	pub max_packet_size: (u8, u8),	// Avoid needing 2 byte alignment
+	/// Max polling interval (frames, or uFrames - depends on device speed)
+	/// NOTE: Encoding depends on endpoint type and device speed
 	pub max_polling_interval: u8,
 }
 pod_descriptor!{ Descriptor_Endpoint, 5 }
