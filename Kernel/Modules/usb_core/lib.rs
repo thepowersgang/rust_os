@@ -258,10 +258,71 @@ impl PortDev
 		let mfg_str = ep0.read_string(dev_descr.manufacturer_str).await?;
 		let prod_str = ep0.read_string(dev_descr.product_str).await?;
 		let ser_str = ep0.read_string(dev_descr.serial_number_str).await?;
-		log_debug!("dev_descr.manufacturer_str = {}", mfg_str);
-		log_debug!("dev_descr.product_str = {}", prod_str);
-		log_debug!("dev_descr.serial_number_str = {}", ser_str);
+		log_debug!("dev_descr.manufacturer_str = #{} {}", dev_descr.manufacturer_str, mfg_str);
+		log_debug!("dev_descr.product_str = #{} {}", dev_descr.product_str, prod_str);
+		log_debug!("dev_descr.serial_number_str = #{} {}", dev_descr.serial_number_str, ser_str);
+
+		// Enumerate all configurations
+		for idx in 0 .. dev_descr.num_configurations
+		{
+			let base_cfg: hw_decls::Descriptor_Configuration = ep0.read_descriptor(idx).await?;
+			let cfg_str = ep0.read_string(base_cfg.configuration_str).await?;
+			log_debug!("cfg[{}] = {:?} ({:?})", idx, cfg_str, base_cfg);
+		}
+
+		if dev_descr.num_configurations > 1 {
+			// TODO: Pick an alternative configuration (if there's more than 1)
+			// - Pick the first one that finds a driver?
+		}
+
+		// Just hard-code configuration 0 for now
+		self.set_configuration(ep0, 0).await
+	}
+
+	async fn set_configuration(&self, ep0: ControlEndpoint, idx: u8) -> Result<(), &'static str>
+	{
+		let base_cfg: hw_decls::Descriptor_Configuration = ep0.read_descriptor(idx).await?;
+		let mut cfg_buf = vec![0; base_cfg.total_length as usize];
+		ep0.read_descriptor_raw(<hw_decls::Descriptor_Configuration as hw_decls::Descriptor>::TYPE, idx, &mut cfg_buf).await?;
+
+		// - Iterate descriptors
+		let mut it = hw_decls::IterDescriptors(&cfg_buf[base_cfg.length as usize..]);
+		let mut last_int: Option<(hw_decls::Descriptor_Interface, &[u8],)> = None;
+		while let Some(desc) = it.next()
+		{
+			if let Ok(hw_decls::DescriptorAny::Interface(v)) = desc
+			{
+				let s = ep0.read_string(v.interface_str).await?;
+				log_debug!("Interface string '{}'", s);
+				if let Some( (v,start) ) = last_int.take()
+				{
+					let endpoint_list = &start[..start.len() - it.0 .len() - 9];
+					// Look for a driver, and spin it up
+					self.spawn_interface(&ep0, &v, endpoint_list);
+				}
+				last_int = Some( (v, it.0) );
+			}
+		}
+		if let Some( (v,start) ) = last_int.take()
+		{
+			let endpoint_list = &start[..start.len() - it.0 .len() - 9];
+			// Look for a driver, and spin it up
+			self.spawn_interface(&ep0, &v, endpoint_list);
+		}
 		Ok( () )
+	}
+
+	fn spawn_interface(&self, endpoint_0: &ControlEndpoint, int_desc: &hw_decls::Descriptor_Interface, descriptors: &[u8])
+	{
+		let full_class
+			= (int_desc.interface_class as u32) << 16
+			| (int_desc.interface_sub_class as u32) << 8
+			| (int_desc.interface_protocol as u32) << 0
+			;
+		log_notice!("TODO: Spawn interface driver for {:06x}", full_class);
+		// - Look up using the interface class specs
+		//  > May also want specialised drivers?
+		// - If a driver can't be found, what do?
 	}
 
 	async fn worker(self, addr: u8)
@@ -269,7 +330,7 @@ impl PortDev
 		self.initialise_port(addr).await;
 		
 		let ep0 = ControlEndpoint::new(self.host(), addr, /*ep_num=*/0, /*max_packet_size=*/64);
-		//// Enumerate device
+		// Enumerate device
 		match self.enumerate(ep0).await
 		{
 		Ok(_) => {},
@@ -289,13 +350,12 @@ impl ControlEndpoint
 			inner: host.driver.init_control(crate::host::EndpointAddr::new(addr, ep_num), max_packet_size),
 			}
 	}
-	pub async fn read_descriptor<T>(&self, index: u8) -> Result<T,&'static str>
-	where
-		T: hw_decls::Descriptor
+	pub async fn read_descriptor_raw(&self, ty: u16, index: u8, buf: &mut [u8]) -> Result<usize,&'static str>
 	{
-		let exp_length = ::core::mem::size_of::<T>();
-		let ty = T::TYPE;
+		//log_trace!("read_descriptor_raw: (ty={:#x}, index={}, buf={}b)", ty, index, buf.len());
+		let exp_length = buf.len();
 		let hdr = hw_decls::DeviceRequest {
+			// TODO: These high bits of `ty` aren't present in the returned structure - what are they again?
 			req_type: 0x80 | ((ty >> 8) as u8 & 0x3) << 5 | (ty >> 12) as u8 & 3,
 			req_num: 6,	// GET_DESCRIPTOR
 			value: (ty << 8) | index as u16,
@@ -303,13 +363,23 @@ impl ControlEndpoint
 			length: exp_length as u16,
 			};
 		let hdr = hdr.to_bytes();
-		let mut out_data = [0; 64];
-		let res_len = self.inner.in_only(&hdr, &mut out_data).await;
+		let res_len = self.inner.in_only(&hdr, buf).await;
+
+		Ok(res_len)
+	}
+	pub async fn read_descriptor<T>(&self, index: u8) -> Result<T,&'static str>
+	where
+		T: hw_decls::Descriptor
+	{
+		let exp_length = ::core::mem::size_of::<T>();
+		//log_trace!("read_descriptor: (index={}): exp_length={}", index, exp_length);
+		let mut out_data = [0u8; 256];
+		let res_len = self.read_descriptor_raw(T::TYPE, index, &mut out_data[..exp_length]).await?;
 
 		match T::from_bytes(&out_data[..res_len])
 		{
-		Some(v) => Ok(v),
-		None => Err("parse"),
+		Ok(v) => Ok(v),
+		Err(hw_decls::ParseError) => Err("parse"),
 		}
 	}
 
