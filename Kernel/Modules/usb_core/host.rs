@@ -31,17 +31,16 @@ impl ::core::fmt::Debug for EndpointAddr
 	}
 }
 
-pub type AsyncWaitIo<'a> = stack_dst::ValueA<dyn core::future::Future<Output=usize> + Send + 'a, [usize; 3]>;
+pub type AsyncWaitIo<'a, T> = stack_dst::ValueA<dyn core::future::Future<Output=T> + Sync + Send + 'a, [usize; 3]>;
 pub trait InterruptEndpoint: Send + Sync
 {
-	fn get_data(&self) -> Handle<dyn crate::handle::RemoteBuffer>;
-	fn wait<'a>(&'a self) -> AsyncWaitIo<'a>;
+	fn wait<'a>(&'a self) -> AsyncWaitIo<'a, Handle<dyn crate::handle::RemoteBuffer>>;
 }
 //	fn tx_async<'a, 's>(&'s self, async_obj: kasync::ObjectHandle, stack: kasync::StackPush<'a, 's>, pkt: SparsePacket) -> Result<(), Error>;
 pub trait ControlEndpoint: Send + Sync
 {
-	fn out_only<'a>(&'a self, setup_data: &'a [u8], out_data: &'a [u8]) -> AsyncWaitIo<'a>;
-	fn in_only<'a>(&'a self, setup_data: &'a [u8], out_data: &'a mut [u8]) -> AsyncWaitIo<'a>;
+	fn out_only<'a>(&'a self, setup_data: &'a [u8], out_data: &'a [u8]) -> AsyncWaitIo<'a, usize>;
+	fn in_only<'a>(&'a self, setup_data: &'a [u8], out_data: &'a mut [u8]) -> AsyncWaitIo<'a, usize>;
 }
 pub trait IsochEndpoint: Send + Sync
 {
@@ -55,8 +54,8 @@ pub trait IsochEndpoint: Send + Sync
 pub trait BulkEndpoint: Send + Sync
 {
 	// Start a send operation of the passed buffers
-	fn send<'a>(&'a self, buffer: &'a [u8]) -> AsyncWaitIo<'a>;
-	fn recv<'a>(&'a self, buffer: &'a mut [u8]) -> AsyncWaitIo<'a>;
+	fn send<'a>(&'a self, buffer: &'a [u8]) -> AsyncWaitIo<'a, usize>;
+	fn recv<'a>(&'a self, buffer: &'a mut [u8]) -> AsyncWaitIo<'a, usize>;
 }
 
 pub type AsyncWaitRoot = stack_dst::ValueA<dyn core::future::Future<Output=usize>, [usize; 3]>;

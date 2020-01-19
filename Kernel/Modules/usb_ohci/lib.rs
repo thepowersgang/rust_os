@@ -5,9 +5,8 @@
 #![no_std]
 #![feature(linkage)]	// for module_define!
 use kernel::prelude::*;
-use kernel::_async3 as async;
 use kernel::lib::mem::aref::{Aref,ArefBorrow};
-use core::sync::atomic::{AtomicU32,AtomicPtr,AtomicUsize,Ordering};
+use core::sync::atomic::{AtomicU32,AtomicUsize,Ordering};
 use core::mem::size_of;
 
 #[macro_use]
@@ -596,7 +595,6 @@ impl HostInner
 		let td_handle = TransferDescriptorId::from_u16( epm.tail_td.swap(new_tail_td.to_u16(), Ordering::SeqCst) );
 		// - Obtain pointer to the old tail
 		let td_ptr = self.get_general_td_pointer(&td_handle);
-		let td_phys = ::kernel::memory::virt::get_phys(td_ptr) as u32;
 		// - Fill the old tail with our data (and the new tail paddr)
 		hw::GeneralTD::init(td_ptr as *const _ as *mut _, flags, first_byte, last_byte, new_tail_phys, waker);
 		// - Update the tail pointer
@@ -947,7 +945,7 @@ struct ControlEndpointHandle {
 }
 impl host::ControlEndpoint for ControlEndpointHandle
 {
-	fn out_only<'a>(&'a self, setup_data: &'a [u8], out_data: &'a [u8]) -> host::AsyncWaitIo<'a>
+	fn out_only<'a>(&'a self, setup_data: &'a [u8], out_data: &'a [u8]) -> host::AsyncWaitIo<'a, usize>
 	{
 		enum FutureState<'a> {
 			Init {
@@ -1050,7 +1048,7 @@ impl host::ControlEndpoint for ControlEndpointHandle
 			.or_else(|v| host::AsyncWaitIo::new(Box::new(v)))
 			.ok().expect("Box doesn't fit in alloc")
 	}
-	fn in_only<'a>(&'a self, setup_data: &'a [u8], in_data: &'a mut [u8]) -> ::usb_core::host::AsyncWaitIo<'a>
+	fn in_only<'a>(&'a self, setup_data: &'a [u8], in_data: &'a mut [u8]) -> ::usb_core::host::AsyncWaitIo<'a, usize>
 	{
 		enum FutureState<'a> {
 			Init {
@@ -1167,13 +1165,11 @@ struct InterruptEndpointHandle {
 }
 impl host::InterruptEndpoint for InterruptEndpointHandle
 {
-	fn get_data(&self) -> Handle<dyn usb_core::handle::RemoteBuffer>
+	fn wait<'a>(&'a self) -> ::usb_core::host::AsyncWaitIo<'a, Handle<dyn usb_core::handle::RemoteBuffer> >
 	{
-		todo!("");
-	}
-	fn wait<'a>(&'a self) -> ::usb_core::host::AsyncWaitIo<'a>
-	{
-		todo!("");
+		// 1. If the TD isn't scheduled, schedule now
+		// 2. Check state of current leader
+		todo!("InterruptEndpointHandle::wait");
 	}
 }
 

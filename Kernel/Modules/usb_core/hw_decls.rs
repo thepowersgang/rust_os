@@ -33,7 +33,7 @@ macro_rules! pod_descriptor {
 pub struct IterDescriptors<'a>(pub &'a [u8]);
 impl<'a> Iterator for IterDescriptors<'a>
 {
-	type Item = Result<DescriptorAny<'a>, ParseError>;
+	type Item = &'a [u8];
 	fn next(&mut self) -> Option<Self::Item>
 	{
 		if self.0 .len() == 0 {
@@ -46,7 +46,7 @@ impl<'a> Iterator for IterDescriptors<'a>
 			}
 			let rv = &self.0[..len];
 			self.0 = &self.0[len..];
-			Some(DescriptorAny::from_bytes(rv))
+			Some(rv)
 		}
 	}
 }
@@ -60,7 +60,7 @@ pub enum DescriptorAny<'a>
 }
 impl<'a> DescriptorAny<'a>
 {
-	fn from_bytes(b: &'a [u8]) -> Result<Self, ParseError> {
+	pub fn from_bytes(b: &'a [u8]) -> Result<Self, ParseError> {
 		if b.len() < 2 {
 			return Err(ParseError);
 		}

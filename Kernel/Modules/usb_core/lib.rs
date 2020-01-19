@@ -22,7 +22,7 @@ mod hub;
 pub mod host;
 pub mod device;
 pub mod handle;
-mod hw_decls;
+pub mod hw_decls;
 
 /// Reference to a hub
 #[derive(Clone)]
@@ -252,7 +252,7 @@ impl PortDev
 		addr0_handle.send_setup_address(address).await;
 	}
 
-	async fn enumerate(&self, ep0: ControlEndpoint) -> Result<Vec<Interface>, &'static str>
+	async fn enumerate<'a>(&self, ep0: &'a ControlEndpoint) -> Result<Vec<Interface<'a>>, &'static str>
 	{
 		let dev_descr: hw_decls::Descriptor_Device = ep0.read_descriptor(/*index*/0).await?;
 		log_debug!("dev_descr = {:?}", dev_descr);
@@ -282,7 +282,7 @@ impl PortDev
 		self.set_configuration(ep0, 0).await
 	}
 
-	async fn set_configuration(&self, ep0: ControlEndpoint, idx: u8) -> Result<Vec<Interface>, &'static str>
+	async fn set_configuration<'a>(&self, ep0: &'a ControlEndpoint, idx: u8) -> Result<Vec<Interface<'a>>, &'static str>
 	{
 		// Get the base configuration descriptor
 		let base_cfg: hw_decls::Descriptor_Configuration = ep0.read_descriptor(idx).await?;
@@ -293,6 +293,7 @@ impl PortDev
 
 		// Count the number of interfaces and pre-allocate the return list
 		let n_ints = hw_decls::IterDescriptors(other_descriptors)
+			.map(hw_decls::DescriptorAny::from_bytes)
 			.filter(|v| is!(v, Ok(hw_decls::DescriptorAny::Interface(..))))
 			.count();
 		let mut interfaces = Vec::with_capacity(n_ints);
@@ -303,6 +304,7 @@ impl PortDev
 		let mut last_int: Option<(hw_decls::Descriptor_Interface, &[u8],)> = None;
 		while let Some(desc) = it.next()
 		{
+			let desc = hw_decls::DescriptorAny::from_bytes(desc);
 			if let Ok(hw_decls::DescriptorAny::Interface(v)) = desc
 			{
 				let s = ep0.read_string(v.interface_str).await?;
@@ -324,7 +326,7 @@ impl PortDev
 		Ok(interfaces)
 	}
 
-	fn spawn_interface(&self, endpoint_0: &ControlEndpoint, int_desc: &hw_decls::Descriptor_Interface, descriptors: &[u8]) -> Interface
+	fn spawn_interface<'a>(&self, endpoint_0: &'a ControlEndpoint, int_desc: &hw_decls::Descriptor_Interface, descriptors: &[u8]) -> Interface<'a>
 	{
 		let full_class
 			= (int_desc.interface_class as u32) << 16
@@ -340,7 +342,7 @@ impl PortDev
 		// - Store the interfaces in `self` (or return from `enumerate`)
 		// - Assign a driver to the constructed interface
 		let mut endpts = Vec::with_capacity(int_desc.num_endpoints as usize);
-		for desc in hw_decls::IterDescriptors(descriptors)
+		for desc in hw_decls::IterDescriptors(descriptors).map(hw_decls::DescriptorAny::from_bytes)
 		{
 			if let Ok(hw_decls::DescriptorAny::Endpoint(ep_desc)) = desc
 			{
@@ -376,7 +378,7 @@ impl PortDev
 		{
 		Some(d) => {
 			// Start the device
-			Interface::Bound(d.start_device(endpts, descriptors).into())
+			Interface::Bound(d.start_device(endpoint_0, endpts, descriptors).into())
 			},
 		None => {
 			use ::kernel::lib::borrow::ToOwned;;
@@ -393,7 +395,7 @@ impl PortDev
 		
 		let ep0 = ControlEndpoint::new(self.host(), self.addr, /*ep_num=*/0, /*max_packet_size=*/64);
 		// Enumerate device
-		let interfaces = match self.enumerate(ep0).await
+		let interfaces = match self.enumerate(&ep0).await
 			{
 			Ok(v) => v,
 			Err(e) => panic!("{}", e),
@@ -401,8 +403,8 @@ impl PortDev
 
 		log_debug!("{} interfaces", interfaces.len());
 		// Await on a wrapper of the interfaces
-		struct FutureVec(Vec<Interface>);
-		impl ::core::future::Future for FutureVec
+		struct FutureVec<'a>(Vec<Interface<'a>>);
+		impl<'a> ::core::future::Future for FutureVec<'a>
 		{
 			type Output = ();
 			fn poll(mut self: ::core::pin::Pin<&mut Self>, cx: &mut ::core::task::Context<'_>) -> ::core::task::Poll<()> {
@@ -428,12 +430,12 @@ impl PortDev
 }
 
 /// Representation of an active device interface
-enum Interface
+enum Interface<'a>
 {
 	/// No fitting driver (yet) - save the endpoints and descriptor data
 	Unknown(Vec<Endpoint>, Vec<u8>),
 	/// Started driver
-	Bound(::core::pin::Pin<crate::device::Instance>),
+	Bound(::core::pin::Pin<crate::device::Instance<'a>>),
 }
 
 pub enum Endpoint
@@ -453,6 +455,22 @@ impl InterruptEndpoint
 		Self {
 			inner: host.driver.init_interrupt(crate::host::EndpointAddr::new(addr, ep_num), max_packet_size, polling_interval),
 			}
+	}
+
+	pub async fn wait(&self) -> InterruptBuffer {
+		InterruptBuffer {
+			inner: self.inner.wait().await,
+			}
+	}
+}
+pub struct InterruptBuffer
+{
+	inner: crate::host::Handle<dyn crate::handle::RemoteBuffer>,
+}
+impl ::core::ops::Deref for InterruptBuffer {
+	type Target = [u8];
+	fn deref(&self) -> &[u8] {
+		self.inner.get()
 	}
 }
 
@@ -682,12 +700,12 @@ impl AddressPool
 
 impl HubDevice
 {
-	fn handle_int(&self, _size: usize)
-	{
-		let data_handle = self.int_ep.get_data();
-		let data = data_handle.get();
-		todo!("Process interrupt bytes from host - {:?}", ::kernel::logging::HexDump(data));
-	}
+	//fn handle_int(&self, _size: usize)
+	//{
+	//	let data_handle = self.int_ep.get_data();
+	//	let data = data_handle.get();
+	//	todo!("Process interrupt bytes from host - {:?}", ::kernel::logging::HexDump(data));
+	//}
 
 	async fn set_port_feature(&self, port_idx: usize, feat: host::PortFeature) {
 		todo!("HubDevice::set_port_feature({}, {:?})", port_idx, feat)

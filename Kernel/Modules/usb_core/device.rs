@@ -16,14 +16,14 @@ pub enum MatchLevel
 	Precise,	// Matched on VID/DID
 }
 
-pub type Instance = Box<dyn ::core::future::Future<Output=()> + Send + Sync>;
+pub type Instance<'a> = Box<dyn ::core::future::Future<Output=()> + Send + Sync + 'a>;
 
 /// Driver for an interface
 pub trait Driver: Sync
 {
 	fn name(&self) -> &str;
 	fn matches(&self, vendor_id: u16, device_id: u16, class_code: u32) -> MatchLevel;
-	fn start_device(&self, endpoints: Vec<super::Endpoint>, descriptors: &[u8]) -> Instance;
+	fn start_device<'a>(&self, ep0: &'a super::ControlEndpoint, endpoints: Vec<super::Endpoint>, descriptors: &[u8]) -> Instance<'a>;
 }
 
 static S_DRIVERS: Mutex<Vec<&'static dyn Driver>> = Mutex::new(Vec::new_const());
