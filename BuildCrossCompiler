@@ -2,8 +2,8 @@
 set -e
 set -x
 
-BINUTILS=binutils-2.25
-GCC=gcc-4.9.3
+BINUTILS=binutils-2.33.1
+GCC=gcc-6.5.0
 
 
 if [[ ${ARCH} == "amd64" ]] ; then
@@ -25,11 +25,14 @@ fi
 mkdir -p .cross_build
 cd .cross_build
 
-test -e ${BINUTILS}.tar.bz2 || wget http://ftp.gnu.org/gnu/binutils/${BINUTILS}.tar.bz2
-test -e ${GCC}.tar.bz2 || wget http://ftp.gnu.org/gnu/gcc/${GCC}/${GCC}.tar.bz2
+BINUTILS_FNAME=${BINUTILS}.tar.bz2
+GCC_FNAME=${GCC}.tar.xz
 
-test -e ${BINUTILS}/configure || tar -xf ${BINUTILS}.tar.bz2
-test -e ${GCC}/configure || tar -xf ${GCC}.tar.bz2
+test -e ${BINUTILS}.tar.bz2 || wget http://ftp.gnu.org/gnu/binutils/${BINUTILS_FNAME}
+test -e ${GCC_FNAME} || wget http://ftp.gnu.org/gnu/gcc/${GCC}/${GCC_FNAME}
+
+test -e ${BINUTILS}/configure || tar -xf ${BINUTILS_FNAME}
+test -e ${GCC}/configure || tar -xf ${GCC_FNAME}
 cd ${GCC}
 test -e mpfr || ./contrib/download_prerequisites
 cd ..
