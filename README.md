@@ -37,6 +37,7 @@ Mostly the architecture is being designed as I go along, but it will be written 
 
 ## Build Dependencies
 - `nasm`
-- `imagemagick` (for graphics)
 - GNU Binutils (cross-compiled)
 - GCC (for ACPICA)
+- `pxelinux`
+- `libguestfs-tools` (for creating disk images)
