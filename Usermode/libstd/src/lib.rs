@@ -14,7 +14,6 @@
 #![feature(slice_concat_ext)]
 #![feature(allocator_api)]
 #![feature(allocator_internals)]
-#![feature(core_panic_info)]	// Needed because of import of `panic` macro bringin in the module too
 #![feature(test,custom_test_frameworks)]	// used for macro import
 #![feature(asm,global_asm,concat_idents,format_args_nl,log_syntax)]
 #![default_lib_allocator]
