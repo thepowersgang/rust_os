@@ -71,18 +71,10 @@ pub extern "C" fn kmain()
 	
 	// Run system init
 	sysinit();
-	
-	// Thread 0 idle loop
-	log_info!("Entering idle");
-	loop
-	{
-		log_trace!("TID0 napping");
-		::kernel::threads::yield_time();
-	}
 }
 
 // Initialise the system once drivers are up
-fn sysinit()
+fn sysinit() -> !
 {
 	use kernel::metadevs::storage::VolumeHandle;
 	use kernel::vfs::{mount,handle};
@@ -92,7 +84,10 @@ fn sysinit()
 	let test_flags = get_string(Value::TestFlags);
 	if test_flags.split(',').any(|v| v == "noinit")
 	{
-		panic!("Stopping at sysinit")
+		log_error!("Stopping at sysinit");
+		loop {
+			::kernel::threads::yield_time();
+		}
 	}
 	
 	// 1. Mount /system to the specified volume
