@@ -376,7 +376,7 @@ impl PortDev
 		{
 		Some(d) => {
 			// Start the device
-			Interface::Bound(d.start_device(endpts, descriptors))
+			Interface::Bound(d.start_device(endpts, descriptors).into())
 			},
 		None => {
 			use ::kernel::lib::borrow::ToOwned;;
@@ -393,13 +393,37 @@ impl PortDev
 		
 		let ep0 = ControlEndpoint::new(self.host(), self.addr, /*ep_num=*/0, /*max_packet_size=*/64);
 		// Enumerate device
-		match self.enumerate(ep0).await
+		let interfaces = match self.enumerate(ep0).await
+			{
+			Ok(v) => v,
+			Err(e) => panic!("{}", e),
+			};
+
+		log_debug!("{} interfaces", interfaces.len());
+		// Await on a wrapper of the interfaces
+		struct FutureVec(Vec<Interface>);
+		impl ::core::future::Future for FutureVec
 		{
-		Ok(interfaces) => {
-			log_debug!("{} interfaces", interfaces.len())
-			},
-		Err(e) => panic!("{}", e),
+			type Output = ();
+			fn poll(mut self: ::core::pin::Pin<&mut Self>, cx: &mut ::core::task::Context<'_>) -> ::core::task::Poll<()> {
+				for (i,v) in Iterator::enumerate(self.0.iter_mut()) {
+					match v
+					{
+					Interface::Unknown(..) => {
+						log_debug!("interface {} unknown", i);
+						},
+					Interface::Bound(ref mut inst) =>
+						match inst.as_mut().poll(cx)
+						{
+						::core::task::Poll::Pending => {},
+						::core::task::Poll::Ready( () ) => todo!("Handle device future completing"),
+						},
+					}
+				}
+				::core::task::Poll::Pending
+			}
 		}
+		FutureVec(interfaces).await;
 	}
 }
 
@@ -409,7 +433,7 @@ enum Interface
 	/// No fitting driver (yet) - save the endpoints and descriptor data
 	Unknown(Vec<Endpoint>, Vec<u8>),
 	/// Started driver
-	Bound(crate::device::Instance),
+	Bound(::core::pin::Pin<crate::device::Instance>),
 }
 
 pub enum Endpoint
