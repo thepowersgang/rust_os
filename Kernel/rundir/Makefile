@@ -30,6 +30,9 @@ CMDLINE := SYSROOT=/system/Tifflin
 ifneq ($(TIFFLIN_INIT),)
 	CMDLINE += INIT=$(TIFFLIN_INIT)
 endif
+ifneq ($(TIFFLIN_TESTS),)
+	CMDLINE += TEST=$(TIFFLIN_TESTS)
+endif
 
 
 ifeq ($(NOTEE),)
