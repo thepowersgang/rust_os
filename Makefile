@@ -8,7 +8,7 @@ all:
 	@echo ">>> $@: Graphics"
 	@make -C Graphics/ all
 	@echo ">>> $@: Usermode"
-	@+make -C Usermode/ xargo --no-print-directory
+	@+make -C Usermode/ --no-print-directory
 	@echo ">>> $@: Kernel"
 	@+make -C Kernel/ all --no-print-directory
 

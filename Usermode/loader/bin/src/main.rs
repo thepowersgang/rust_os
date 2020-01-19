@@ -4,8 +4,7 @@
 // This program is both the initial entrypoint for the userland, and the default dynamic linker.
 #![feature(const_fn)]
 #![feature(maybe_uninit_ref)]
-//#![crate_type="lib"]
-#![no_main]
+//#![crate_type="staticlib"]	// Linked by the makefile
 
 use std::mem::MaybeUninit;
 use cmdline_words_parser::StrExt as CmdlineStrExt;

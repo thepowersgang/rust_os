@@ -1,7 +1,7 @@
 [workspace]
 members = [
 	"loader/bin",
-	#"init",	# handled by makefile
+	"init",
 	"login",
 	"handle_server",
 	"simple_console", "shell",

@@ -1,6 +1,11 @@
 [package]
 name = "loader-binary"
 version = "0.0.0"
+autobins = false
+
+[lib]
+crate-type = ["staticlib"]
+path = "src/main.rs"
 
 #[bin]
 #path = "src/main.rs"

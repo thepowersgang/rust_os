@@ -1,5 +1,5 @@
 [package]
-name = "hello_word"
+name = "hello_world"
 version = "0.0.1"
 
 [dependencies]
