@@ -44,6 +44,13 @@ impl<T: ?Sized> Box<T>
 		}
 	}
 
+	pub fn into_pin(this: Self) -> ::core::pin::Pin<Self> {
+		// SAFE: Box<T> is Unpin
+		unsafe {
+			::core::pin::Pin::new_unchecked(this)
+		}
+	}
+
 	pub fn shallow_drop(mut this: Self) {
 		// TODO: Is this valid if the inner value has been dropped?
 		let size = ::core::mem::size_of_val(&*this);
@@ -158,3 +165,8 @@ unsafe impl<#[may_dangle] T: ?Sized> ops::Drop for Box<T> {
 }
 
 
+impl<T: ?Sized> From<Box<T>> for ::core::pin::Pin<Box<T>> {
+	fn from(boxed: Box<T>) -> Self {
+		Box::into_pin(boxed)
+	}
+}
