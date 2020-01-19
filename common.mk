@@ -27,6 +27,11 @@ else
  RUSTC_SRC_URL := https://static.rust-lang.org/dist/$(RUSTC_DATE)/rustc-nightly-src.tar.gz
 endif
 
+ROOTDIR := $(dir $(lastword $(MAKEFILE_LIST)))
+PREFIX := $(ROOTDIR).prefix/
+
+PATH := $(PATH):$(PREFIX)bin
+
 CC := $(TRIPLE)-gcc
 LD := $(TRIPLE)-ld
 AS := $(TRIPLE)-as
@@ -34,9 +39,6 @@ OBJDUMP := $(TRIPLE)-objdump
 OBJCOPY := $(TRIPLE)-objcopy
 STRIP := $(TRIPLE)-strip
 
-ROOTDIR := $(dir $(lastword $(MAKEFILE_LIST)))
-
-PREFIX := $(ROOTDIR).prefix/
 
 fn_getdeps = $(shell cat $1 | sed -nr 's/.*extern crate ([a-zA-Z_0-9]+)( as .*)?;.*/\1/p' | tr '\n' ' ')
 fn_rustcmd = RUSTUP_HOME=$(abspath $(PREFIX)) CARGO_HOME=$(abspath $(PREFIX)) $(abspath $(PREFIX)bin/$1)
