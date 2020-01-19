@@ -11,5 +11,5 @@ kernel = { path = "../../Core" }
 utf16 = { path = "../utf16" }
 stack_dst = { path = "../../../externals/crates.io/stack_dst", default-features = false }
 
-core = { package = "core-futures-tls", version = "0.1.0" }
+core = { path = "../../core-futures" }
 

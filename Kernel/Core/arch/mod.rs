@@ -284,6 +284,10 @@ pub mod threads {
 		imp::borrow_thread()
 	}
 
+	pub fn set_tls_futures_context(p: *mut ()) -> *mut () {
+		imp::set_tls_futures_context(p)
+	}
+
 	#[inline]
 	pub fn idle() {
 		imp::idle()
