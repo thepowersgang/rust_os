@@ -14,7 +14,7 @@ PXELINUX_DIR=/usr/lib/syslinux/
 rm -rf .pxe/
 mkdir -p .pxe/pxelinux.cfg
 if [ -e ${PXELINUX_DIR}pxelinux.0 ]; then
-	cp ${PXELINUX_DIR}pxelinux.0 ${PXELINUX_DIR}mboot.c32 .pxe/
+	cp ${PXELINUX_DIR}{pxelinux.0,mboot.c32,ldlinux.c32,libcom32.c32} .pxe/
 else
 	cp /usr/lib/PXELINUX/pxelinux.0 .pxe/
 	cp /usr/lib/syslinux/modules/bios/mboot.c32 .pxe/
