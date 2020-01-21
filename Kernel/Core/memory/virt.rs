@@ -48,9 +48,10 @@ impl_from! {
 /// A handle to an arbitary owned memory allocation.
 pub struct AllocHandle
 {
-	addr: *const (),
-	count: usize,
-	mode: ProtectionMode,
+	value: usize,
+	//addr: *const (),
+	//count: usize,
+	//mode: ProtectionMode,
 }
 unsafe impl Send for AllocHandle {}	// AllocHandle is sendable
 unsafe impl Sync for AllocHandle {}	// &AllocHandle is safe
@@ -356,10 +357,11 @@ pub unsafe fn map_mmio(phys: PAddr, size: usize) -> Result<MmioHandle,MapError> 
 	assert!(size < (1 << 16), "map_mmio size {:#x} too large (must be below 16-bits)", size);
 
 	let (phys_page, phys_ofs) = (phys & !(PAGE_MASK as PAddr), phys & PAGE_MASK as PAddr);
-	let mut ah = try!(map_hw(phys_page, (size + phys_ofs as usize + ::PAGE_SIZE - 1) / ::PAGE_SIZE, false, "MMIO"));
+	let ah = try!(map_hw(phys_page, (size + phys_ofs as usize + ::PAGE_SIZE - 1) / ::PAGE_SIZE, false, "MMIO"));
 
-	ah.count = 0;	// HACK: Set count to zero to prevent `ah` from deallocating the memory
-	Ok(MmioHandle( ah.addr as *mut ::Void, phys_ofs as u16, size as u16 ))
+	let rv = MmioHandle( ah.addr() as *mut ::Void, phys_ofs as u16, size as u16 );
+	::core::mem::forget(ah);
+	Ok(rv)
 }
 impl MmioHandle
 {
@@ -447,11 +449,7 @@ unsafe fn map_hw(phys: PAddr, count: usize, readonly: bool, _module: &'static st
 	if let Some(v) = ::arch::memory::virt::fixed_alloc(phys, count)
 	{
 		log_trace!("map_hw: Fixed allocation {:#x} => {:p}", phys, v as *const ());
-		return Ok( AllocHandle {
-			addr: v as *const _,
-			count: count,
-			mode: mode,
-			} );
+		return Ok( AllocHandle::new(v as usize, count, mode) );
 	}
 	else
 	{
@@ -482,11 +480,7 @@ unsafe fn map_hw(phys: PAddr, count: usize, readonly: bool, _module: &'static st
 		}
 		log_trace!("map_hw: Dynamic allocation {:#x} => {:p}", phys, pos as *const ());
 		// 3. Return a handle representing this area
-		Ok( AllocHandle {
-			addr: pos as *const _,
-			count: count,
-			mode: mode,
-			} )
+		Ok( AllocHandle::new(pos, count, mode) )
 	}
 }
 
@@ -589,11 +583,7 @@ pub fn alloc_stack() -> AllocHandle
 				::memory::phys::allocate( (pos + ofs) as *mut () );
 			}
 			// 3. Return a handle representing this area
-			return AllocHandle {
-				addr: (pos + ::PAGE_SIZE) as *const _,
-				count: count-1,
-				mode: ProtectionMode::KernelRW,
-				};
+			return AllocHandle::new( pos + ::PAGE_SIZE, count-1, ProtectionMode::KernelRW );
 		}
 		pos += addresses::STACK_SIZE;
 	}
@@ -619,16 +609,30 @@ impl fmt::Display for MapError
 impl Default for AllocHandle {
 	fn default() -> AllocHandle {
 		AllocHandle {
-			addr: ::core::ptr::null(),
-			mode: ProtectionMode::Unmapped,
-			count: 0,
+			value: 0,
 			}
 	}
 }
 impl AllocHandle
 {
+	pub fn new(addr: usize, count: usize, mode: ProtectionMode) -> AllocHandle {
+		assert!(addr & (::PAGE_SIZE - 1) == 0, "Non-aligned value for AllocHandle : {:#x}", addr);
+		assert!(count < ::PAGE_SIZE / 2, "Over-sized allocation in AllocHandle : {} >= {}", count, ::PAGE_SIZE/2);
+		AllocHandle {
+			value: addr | (count << 1) | (mode == ProtectionMode::KernelRW) as usize
+			}
+	}
+	fn addr(&self) -> *const () {
+		(self.value & !(::PAGE_SIZE - 1)) as *const ()
+	}
+	pub fn is_mutable(&self) -> bool {
+		(self.value & 1) != 0
+	}
 	pub fn count(&self) -> usize {
-		self.count
+		(self.value & (::PAGE_SIZE - 1)) >> 1
+	}
+	pub fn len(&self) -> usize {
+		self.count() * ::PAGE_SIZE
 	}
 	
 	/// Borrow as T
@@ -649,29 +653,31 @@ impl AllocHandle
 	/// Forget the allocation and return a static reference to the data
 	pub fn make_static<T: ::lib::POD>(mut self, ofs: usize) -> &'static mut T
 	{
-		assert!(super::buf_valid(self.addr, self.count * ::PAGE_SIZE));
+		assert!(super::buf_valid(self.addr(), self.len()));
 		assert!(ofs % ::core::mem::align_of::<T>() == 0);
-		assert!(ofs + ::core::mem::size_of::<T>() <= self.count * ::PAGE_SIZE);
-		self.count = 0;
+		assert!(ofs + ::core::mem::size_of::<T>() <= self.len());
+		assert!(self.is_mutable());
+		let rv_ptr = (self.addr() as usize + ofs) as *mut T;
+		self.value = 0;
 		// SAFE: owned and Plain-old-data (setting count above to 0 ensures no deallocation)
-		unsafe{ &mut *((self.addr as usize + ofs) as *mut T) }
+		unsafe{ &mut *rv_ptr }
 	}
 
 	fn as_raw_ptr_slice<T>(&self, ofs: usize, count: usize) -> *mut [T]
 	{
 		use core::mem::{align_of,size_of};
-		assert!(super::buf_valid(self.addr, self.count * ::PAGE_SIZE));
+		assert!(super::buf_valid(self.addr(), self.len()));
 		assert!( ofs % align_of::<T>() == 0,
 			"Offset {:#x} not aligned to {} bytes (T={})", ofs, align_of::<T>(), type_name!(T));
-		assert!( ofs <= self.count * ::PAGE_SIZE,
-			"Slice offset {} outside alloc of {} bytes", ofs, self.count*::PAGE_SIZE );
-		assert!( count * size_of::<T>() <= self.count * ::PAGE_SIZE,
-			"Entry count exceeds allocation ({} > {})", count * size_of::<T>(), self.count*::PAGE_SIZE);
-		assert!( ofs + count * size_of::<T>() <= self.count * ::PAGE_SIZE,
-			"Sliced region exceeds bounds {}+{}*{} {} > {}", ofs, count, size_of::<T>(), ofs+count*size_of::<T>(), self.count*::PAGE_SIZE);
+		assert!( ofs <= self.len(),
+			"Slice offset {} outside alloc of {} bytes", ofs, self.len() );
+		assert!( count * size_of::<T>() <= self.count() * ::PAGE_SIZE,
+			"Entry count exceeds allocation ({} > {})", count * size_of::<T>(), self.len());
+		assert!( ofs + count * size_of::<T>() <= self.len(),
+			"Sliced region exceeds bounds {}+{}*{} {} > {}", ofs, count, size_of::<T>(), ofs+count*size_of::<T>(), self.len());
 		// SAFE: Doesn't ensure lack of aliasing, but the address is valid. Immediately coerced to a raw pointer, so aliasing is OK
 		unsafe {
-			::core::slice::from_raw_parts_mut( (self.addr as usize + ofs) as *mut T, count )
+			::core::slice::from_raw_parts_mut( (self.addr() as usize + ofs) as *mut T, count )
 		}
 	}
 	pub fn as_slice<T: ::lib::POD>(&self, ofs: usize, count: usize) -> &[T]
@@ -683,14 +689,14 @@ impl AllocHandle
 	}
 	pub unsafe fn as_int_mut_slice<T: ::lib::POD>(&self, ofs: usize, count: usize) -> &mut [T]
 	{
-		assert!( self.mode == ProtectionMode::KernelRW,
-			"Calling as_int_mut_slice<{}> on non-writable memory ({:?})", type_name!(T), self.mode );
+		assert!(self.is_mutable(),
+			"Calling as_int_mut_slice<{}> on non-writable memory", type_name!(T));
 		&mut (*self.as_raw_ptr_slice(ofs, count))[..]
 	}
 	pub fn as_mut_slice<T: ::lib::POD>(&mut self, ofs: usize, count: usize) -> &mut [T]
 	{
-		assert!( self.mode == ProtectionMode::KernelRW,
-			"Calling as_mut_slice<{}> on non-writable memory ({:?})", type_name!(T), self.mode );
+		assert!( self.is_mutable(),
+			"Calling as_mut_slice<{}> on non-writable memory", type_name!(T) );
 		// SAFE: &mut and Plain-old-data
 		unsafe {
 			self.as_int_mut_slice(ofs, count)
@@ -715,18 +721,18 @@ impl ::core::fmt::Debug for AllocHandle
 {
 	fn fmt(&self, f: &mut ::core::fmt::Formatter) -> ::core::fmt::Result
 	{
-		write!(f, "{:p}+{}pg ({:?})", self.addr, self.count, self.mode)
+		write!(f, "{:p}+{}pg ({})", self.addr(), self.count(), if self.is_mutable() { "mut" } else { "ro" })
 	}
 }
 impl Drop for AllocHandle
 {
 	fn drop(&mut self)
 	{
-		if self.count > 0
+		if self.count() > 0
 		{
 			// SAFE: Dropping an allocation controlled by this object
-			unsafe { unmap(self.addr as *mut (), self.count); }
-			self.count = 0;
+			unsafe { unmap(self.addr() as *mut (), self.count()); }
+			self.value = 0;
 		}
 	}
 }
@@ -783,7 +789,7 @@ impl<T: ::lib::POD> ::core::ops::Deref for SliceAllocHandle<T>
 impl<T: ::lib::POD> ArrayHandle<T>
 {
 	pub fn len(&self) -> usize {
-		self.alloc.count * ::PAGE_SIZE / ::core::mem::size_of::<T>()
+		self.alloc.len() / ::core::mem::size_of::<T>()
 	}
 }
 impl<T: ::lib::POD> ::core::ops::Deref for ArrayHandle<T>
