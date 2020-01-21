@@ -1,5 +1,6 @@
 
 -include ../../common.mk
+V ?= @
 
 .PHONY: run all images
 
@@ -103,52 +104,53 @@ run: $(IMGDIR)hda.img
 	qemu-system-aarch64 -cpu cortex-a57 -machine $(MACHINE_TYPE) $(QEMU_ARGS) -kernel ../../Bootloaders/aarch64/loader-$(MACHINE_TYPE).bin -append "$(CMDLINE)" $(TEE)
 endif
 
+.DELETE_ON_ERROR:
+
 $(IMGDIR)test.iso: $(wildcard ../../Usermode/.output/$(ARCH)/bin/*) Makefile
 	@mkdir -p $(dir $@)
 	@echo "[mkisofs] -o $@"
-	@mkisofs -o $@ -r -graft-points -q /Tifflin/bin=../../Usermode/.output/$(ARCH)/bin /Tifflin/shared/images=../../Graphics/.output/shared
+	$Vmkisofs -input-charset utf-8 -quiet -o $@ -r -graft-points /Tifflin/bin=../../Usermode/.output/$(ARCH)/bin /Tifflin/shared/images=../../Graphics/.output/shared
 $(IMGDIR)hd%_0.img:
 	@mkdir -p $(dir $@)
 	@echo "[MkDisk] ZERO 1MB $@"
 	@# - 1MB of blank space 
-	@dd if=/dev/zero of=$@ bs=1M count=1 status=noxfer
+	$Vdd if=/dev/zero of=$@ bs=1M count=1 status=noxfer
 $(IMGDIR)hda_1.img: $(wildcard ../../Usermode/.output/$(ARCH)/bin/*) Makefile $(wildcard ../../Graphics/.output/shared/*)
 	@mkdir -p $(dir $@)
 	@echo "[MkDisk] FAT 32MB $@"
 	@# - 32MB FAT? partition on disk 0
-	@dd if=/dev/zero of=$@ bs=1M count=32 status=noxfer
-	@/sbin/mkfs.vfat $@
-	@mmd -i $@ ::/Tifflin
-	@mmd -i $@ ::/Tifflin/shared
-	@mmd -i $@ ::/Tifflin/shared/images
-	@mcopy -s -D o -i $@ ../../Usermode/.output/$(ARCH)/bin ::/Tifflin/bin
-	@mcopy -s -D o -i $@ ../../Graphics/.output/shared/* ::/Tifflin/shared/images/
-	@echo "Test content" | mcopy -i $@ - ::/1.txt
+	$Vdd if=/dev/zero of=$@ bs=1M count=32 status=noxfer
+	$V/sbin/mkfs.vfat $@
+	$Vmmd -i $@ ::/Tifflin
+	$Vmmd -i $@ ::/Tifflin/shared
+	$Vmmd -i $@ ::/Tifflin/shared/images
+	$Vmcopy -s -D o -i $@ ../../Usermode/.output/$(ARCH)/bin ::/Tifflin/bin
+	$Vmcopy -s -D o -i $@ ../../Graphics/.output/shared/* ::/Tifflin/shared/images/
+	$Vecho "Test content" | mcopy -i $@ - ::/1.txt
 $(IMGDIR)hda_2.img:
 	@mkdir -p $(dir $@)
 	@echo "[MkDisk] ext2 16MB $@"
 	@# - a 16MB ext2 partition on disk 0
-	@#genext2fs -d ../../Usermode/.output/amd64 -b $((16*1024)) $(IMGDIR)hda_2.img 
-	@dd if=/dev/zero of=$@ bs=1M count=16 status=noxfer
-	@/sbin/mkfs.ext2 -q -F $@
+	$Vdd if=/dev/zero of=$@ bs=1M count=16 status=noxfer
+	$V/sbin/mkfs.ext2 -q -F $@
 $(IMGDIR)hda.img: Makefile $(IMGDIR)hda_0.img $(IMGDIR)hda_1.img $(IMGDIR)hda_2.img
 	@mkdir -p $(dir $@)
 	@echo "[MkDisk] mbr $@"
 	@# - Commit
-	@cat $(IMGDIR)hda_0.img $(IMGDIR)hda_1.img $(IMGDIR)hda_2.img > $(IMGDIR)hda.img
-	@echo -e "$(shell echo $$((1*1024*2)),$$((32*1024*2)),0x83)\n$(shell echo $$((33*1024*2)),+,0x7)" | /sbin/sfdisk --no-reread $(IMGDIR)hda.img -u S -f -q > /dev/null
-#	@echo "$(shell echo $$((1*1024*2)),$$((32*1024*2)),0x83)\n$(shell echo $$((33*1024*2)),+,0x7)" | /sbin/sfdisk --no-reread $(IMGDIR)hda.img -C $$((1+32+16)) -H 4 -S 32 -u S -f -q > /dev/null
+	$Vcat $(IMGDIR)hda_0.img $(IMGDIR)hda_1.img $(IMGDIR)hda_2.img > $@
+	$Vprintf "$(shell echo $$((1*1024*2)),$$((32*1024*2)),0x83)\n$(shell echo $$((33*1024*2)),+,0x7)" | /sbin/sfdisk --no-reread $@ -u S -f -q > /dev/null
 
 $(IMGDIR)hdb_1.img: $(wildcard ../../Usermode/.output/$(ARCH)/*) Makefile
-	dd if=/dev/zero of=$@ bs=1M count=32
-	/sbin/mkfs.ext2 $@
-	guestfish -a $@ launch : mount /dev/sda / : mkdir /Tifflin : copy-in ../../Usermode/.output/$(ARCH)/bin /Tifflin/
+	@echo "[MkDisk] ext2 $@"
+	$Vdd if=/dev/zero of=$@ bs=1M count=32
+	$V/sbin/mkfs.ext2 $@
+	$Vguestfish -a $@ launch : mount /dev/sda / : mkdir /Tifflin : copy-in ../../Usermode/.output/$(ARCH)/bin /Tifflin/
 $(IMGDIR)hdb.img: Makefile $(IMGDIR)hdb_0.img $(IMGDIR)hdb_1.img
 	@mkdir -p $(dir $@)
 	@echo "[MkDisk] mbr $@"
 	@# - Commit
-	@cat $(IMGDIR)hdb_0.img $(IMGDIR)hdb_1.img > $@
-	@echo "$(shell echo $$((1*1024*2)),+,0x83)" | /sbin/sfdisk --no-reread $@ -u S -f -q > /dev/null
+	$Vcat $(IMGDIR)hdb_0.img $(IMGDIR)hdb_1.img > $@
+	$Vecho "$(shell echo $$((1*1024*2)),+,0x83)" | /sbin/sfdisk --no-reread $@ -u S -f -q > /dev/null
 
 .qemu_trace: Makefile
 	echo "" > $@
