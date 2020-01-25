@@ -142,6 +142,7 @@ impl_fmt!{
 		write!(f, "{:09b}", self.0)
 	}
 }
+#[allow(dead_code)]
 impl InputFlags
 {
 	pub fn is_constant(&self) -> bool {

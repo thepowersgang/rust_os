@@ -81,9 +81,9 @@ mod collection_parse
 		fn parent(&self) -> &'static dyn Handler;
 		fn child(&self, state: &ParseState, num: u32) -> Option<&'static dyn Handler>;
 
-		fn input(&self, _sinks: &mut super::Sinks, _state: &ParseState, _bits: crate::report_parser::InputFlags) { }
-		fn output(&self, _sinks: &mut super::Sinks, _state: &ParseState, _bits: u32) { }
-		fn feature(&self, _sinks: &mut super::Sinks, _state: &ParseState, _bits: u32) { }
+		fn input(&self, _sinks: &mut super::sinks::Group, _state: &ParseState, _bits: crate::report_parser::InputFlags) { }
+		fn output(&self, _sinks: &mut super::sinks::Group, _state: &ParseState, _bits: u32) { }
+		fn feature(&self, _sinks: &mut super::sinks::Group, _state: &ParseState, _bits: u32) { }
 	}
 	struct Root;
 	impl Handler for Root
@@ -122,8 +122,12 @@ mod collection_parse
 		fn child(&self, _state: &ParseState, _num: u32) -> Option<&'static dyn Handler> {
 			None
 		}
-		fn input(&self, _sinks: &mut super::Sinks, _state: &ParseState, bits: crate::report_parser::InputFlags) {
+		fn input(&self, sinks: &mut super::sinks::Group, _state: &ParseState, bits: crate::report_parser::InputFlags) {
 			log_debug!("Mouse Input {:?} ({:?})", bits, _state);
+			if sinks.mouse.is_none() {
+				sinks.mouse = Some(super::sinks::Mouse::new());
+			}
+			// TODO: determine if relative/absolute, and if scroll wheel is present (and button count?)
 		}
 	}
 
@@ -134,102 +138,227 @@ mod collection_parse
 		fn child(&self, _state: &ParseState, _num: u32) -> Option<&'static dyn Handler> {
 			None
 		}
-		fn input(&self, sinks: &mut super::Sinks, _state: &ParseState, bits: crate::report_parser::InputFlags) {
+		fn input(&self, sinks: &mut super::sinks::Group, _state: &ParseState, bits: crate::report_parser::InputFlags) {
 			log_debug!("Keyboard Input {:?} ({:?})", bits, _state);
 			if sinks.keyboard.is_none() {
-				sinks.keyboard = Some(super::SinkKeyboard::new());
+				sinks.keyboard = Some(super::sinks::Keyboard::new());
 			}
 		}
 	}
 }
 
-#[derive(Default)]
-struct Sinks
+mod sinks
 {
-	keyboard: Option<SinkKeyboard>,
-}
-struct SinkKeyboard
-{
-	cur_state: BitSet256,
-	last_state: BitSet256,
-	gui_handle: ::gui::input::keyboard::Instance,
-}
-impl SinkKeyboard
-{
-	pub fn new() -> Self {
-		SinkKeyboard {
-			cur_state: BitSet256::new(),
-			last_state: BitSet256::new(),
-			gui_handle: ::gui::input::keyboard::Instance::new(),
-			}
-	}
-	pub fn updated(&mut self) {
-		for i in 0 .. 256
-		{
-			let cur = self.cur_state.get(i);
-			let prev = self.cur_state.get(i);
-
-			if cur != prev
-			{
-				let k = match ::gui::input::keyboard::KeyCode::try_from( i as u8 )
-					{
-					Some(k) => k,
-					None => {
-						log_notice!("Bad key code: {:02x}", i);
-						continue
-						},
-					};
-
-				if cur {
-					self.gui_handle.press_key(k);
-				}
-				else {
-					self.gui_handle.release_key(k);
-				}
-			}
-		}
-		self.last_state = ::core::mem::replace(&mut self.cur_state, BitSet256::new());
-	}
-}
-struct BitSet256([u8; 256/8]);
-impl BitSet256
-{
-	pub fn new() -> Self {
-		BitSet256([0; 256/8])
-	}
-	pub fn get(&self, i: usize) -> bool {
-		if i >= 256 {
-			return false;
-		}
-		self.0[i / 8] & 1 << (i%8) != 0
-	}
-	pub fn set(&mut self, i: usize) {
-		if i < 256 {
-			self.0[i / 8] |= 1 << (i%8);
-		}
-	}
-	pub fn clr(&mut self, i: usize) {
-		if i < 256 {
-			self.0[i / 8] &= !(1 << (i%8));
-		}
-	}
-}
-impl ::core::ops::BitXor for &'_ BitSet256
-{
-	type Output = BitSet256;
-	fn bitxor(self, other: &BitSet256) -> BitSet256
+	#[derive(Default)]
+	pub struct Group
 	{
-		let mut rv = BitSet256::new();
-		for (d,(a,b)) in Iterator::zip( rv.0.iter_mut(), Iterator::zip(self.0.iter(), other.0.iter()) )
-		{
-			*d = *a ^ *b;
-		}
-		rv
+		pub keyboard: Option<Keyboard>,
+		pub mouse: Option<Mouse>,
 	}
+	pub struct Keyboard
+	{
+		cur_state: BitSet256,
+		last_state: BitSet256,
+		gui_handle: ::gui::input::keyboard::Instance,
+	}
+	impl Keyboard
+	{
+		pub fn new() -> Self {
+			Keyboard {
+				cur_state: BitSet256::new(),
+				last_state: BitSet256::new(),
+				gui_handle: ::gui::input::keyboard::Instance::new(),
+				}
+		}
+		pub fn set_key(&mut self, k: u8)
+		{
+			self.cur_state.set( k as usize );
+		}
+		pub fn updated(&mut self) {
+			for i in 0 .. 256
+			{
+				let cur = self.cur_state.get(i);
+				let prev = self.last_state.get(i);
+
+				if cur != prev
+				{
+					let k = match ::gui::input::keyboard::KeyCode::try_from( i as u8 )
+						{
+						Some(k) => k,
+						None => {
+							log_notice!("Bad key code: {:02x}", i);
+							continue
+							},
+						};
+
+					if cur {
+						self.gui_handle.press_key(k);
+					}
+					else {
+						self.gui_handle.release_key(k);
+					}
+				}
+			}
+			self.last_state = ::core::mem::replace(&mut self.cur_state, BitSet256::new());
+		}
+	}
+	struct BitSet256([u8; 256/8]);
+	#[allow(dead_code)]
+	impl BitSet256
+	{
+		pub fn new() -> Self {
+			BitSet256([0; 256/8])
+		}
+		pub fn get(&self, i: usize) -> bool {
+			if i >= 256 {
+				return false;
+			}
+			self.0[i / 8] & 1 << (i%8) != 0
+		}
+		pub fn set(&mut self, i: usize) {
+			if i < 256 {
+				self.0[i / 8] |= 1 << (i%8);
+			}
+		}
+		pub fn clr(&mut self, i: usize) {
+			if i < 256 {
+				self.0[i / 8] &= !(1 << (i%8));
+			}
+		}
+	}
+	impl ::core::ops::BitXor for &'_ BitSet256
+	{
+		type Output = BitSet256;
+		fn bitxor(self, other: &BitSet256) -> BitSet256
+		{
+			let mut rv = BitSet256::new();
+			for (d,(a,b)) in Iterator::zip( rv.0.iter_mut(), Iterator::zip(self.0.iter(), other.0.iter()) )
+			{
+				*d = *a ^ *b;
+			}
+			rv
+		}
+	}
+
+	pub struct Mouse
+	{
+		// Store x/y values (relative/absolute)
+		is_relative: bool,
+		x_value: u16,
+		y_value: u16,
+
+		// Button states
+		cur_buttons: u16,
+		prev_buttons: u16,
+
+		gui_handle: ::gui::input::mouse::Instance,
+	}
+	impl Mouse
+	{
+		pub fn new() -> Mouse
+		{
+			Mouse {
+				is_relative: false,
+				x_value: 0, y_value: 0,
+				cur_buttons: 0,
+				prev_buttons: 0,
+				gui_handle: ::gui::input::mouse::Instance::new(),
+				}
+		}
+
+		pub fn set_button(&mut self, idx: usize, is_pressed: bool) {
+			if is_pressed && idx < 16 {
+				self.cur_buttons |= 1 << idx;
+			}
+		}
+
+		pub fn updated(&mut self) {
+			// Update positions
+			if self.is_relative {
+				self.gui_handle.move_cursor(self.x_value as i16, self.y_value as i16);
+			}
+			else {
+				self.gui_handle.set_cursor(self.x_value, self.y_value);
+			}
+			// Update buttons
+			for i in 0 .. 16
+			{
+				let cur  = (self.cur_buttons  & 1 << i) != 0;
+				let prev = (self.prev_buttons & 1 << i) != 0;
+
+				if cur != prev
+				{
+					if cur {
+						self.gui_handle.press_button(i);
+					}
+					else {
+						self.gui_handle.release_button(i);
+					}
+				}
+			}
+			self.prev_buttons = self.cur_buttons;
+			self.cur_buttons = 0;
+		}
+	}
+	
 }
 
 impl Driver
 {
+	fn prepare_sinks(buf: &[u8]) -> sinks::Group {
+		let mut sinks = sinks::Group::default();
+
+		let mut collection = collection_parse::root();
+		let mut collection_depth = 0;
+		let mut state = report_parser::ParseState::default();
+		for (id, val) in report_parser::IterRaw(&buf)
+		{
+			let op = report_parser::Op::from_pair(id, val);
+			log_debug!("> {:?}", op);
+			match op
+			{
+			report_parser::Op::Collection(num) => {
+				// Check the current collection state.
+				match collection.child(&state, num)
+				{
+				// if this number is known, update current state
+				Some(v) => collection = v,
+				// else, increment depth
+				None => collection_depth += 1,
+				}
+				},
+			report_parser::Op::EndCollection => {
+				// If depth is non-zero, decrement
+				if collection_depth > 0 {
+					collection_depth -= 1;
+				}
+				// else, go to current collection parent
+				else {
+					collection = collection.parent();
+				}
+				},
+			report_parser::Op::Input(v) => {
+				if collection_depth == 0 {
+					collection.input(&mut sinks, &state, v);
+				}
+				else {
+					log_debug!("> INPUT {:?} {:?}", v, state);
+				}
+				},
+			report_parser::Op::Output(v) => {
+				log_debug!("> OUTPUT {:09b} {:?}", v, state);
+				},
+			report_parser::Op::Feature(v) => {
+				log_debug!("> FEATURE {:09b} {:?}", v, state);
+				},
+			_ => {},
+			}
+			state.update(op);
+		}
+
+		sinks
+	}
+
 	async fn start_device_inner(ep0: &::usb_core::ControlEndpoint, endpoints: Vec<::usb_core::Endpoint>, report_desc_len: u16)
 	{
 		// 1. Request that descriptor from the device
@@ -239,56 +368,7 @@ impl Driver
 
 		// 2. Parse the report descriptor, and locate collections of known usage
 		// - Use collections to determine what bindings to set up
-		let mut sinks = Sinks::default();
-		{
-			let mut collection = collection_parse::root();
-			let mut collection_depth = 0;
-			let mut state = report_parser::ParseState::default();
-			for (id, val) in report_parser::IterRaw(&buf)
-			{
-				let op = report_parser::Op::from_pair(id, val);
-				log_debug!("> {:?}", op);
-				match op
-				{
-				report_parser::Op::Collection(num) => {
-					// Check the current collection state.
-					match collection.child(&state, num)
-					{
-					// if this number is known, update current state
-					Some(v) => collection = v,
-					// else, increment depth
-					None => collection_depth += 1,
-					}
-					},
-				report_parser::Op::EndCollection => {
-					// If depth is non-zero, decrement
-					if collection_depth > 0 {
-						collection_depth -= 1;
-					}
-					// else, go to current collection parent
-					else {
-						collection = collection.parent();
-					}
-					},
-				report_parser::Op::Input(v) => {
-					if collection_depth == 0 {
-						collection.input(&mut sinks, &state, v);
-					}
-					else {
-						log_debug!("> INPUT {:?} {:?}", v, state);
-					}
-					},
-				report_parser::Op::Output(v) => {
-					log_debug!("> OUTPUT {:09b} {:?}", v, state);
-					},
-				report_parser::Op::Feature(v) => {
-					log_debug!("> FEATURE {:09b} {:?}", v, state);
-					},
-				_ => {},
-				}
-				state.update(op);
-			}
-		}
+		let mut sinks = Self::prepare_sinks(&buf);
 
 		let mut int_endpoint = None;
 		for ep in endpoints
@@ -327,7 +407,7 @@ impl Driver
 						0x7_0000 ..= 0x7_00FF => {
 							log_debug!("{:x} (key) = {}", usage, (val != 0));
 							if val != 0 {
-								sinks.keyboard.as_mut().unwrap().cur_state.set( (usage & 0xFF) as usize );
+								sinks.keyboard.as_mut().unwrap().set_key( (usage & 0xFF) as u8 );
 							}
 							},
 						// Mouse coords (relative or absolute)
@@ -338,6 +418,7 @@ impl Driver
 							}
 							else {
 								log_debug!("{:x} X = {}", usage, val);
+								// TODO: Normalise into `0 ..= 0xFFFF` ? Or just pass the min/max to the GUI
 							}
 							},
 						0x1_0031 => {
@@ -350,10 +431,12 @@ impl Driver
 								//sinks.mouse.as_mut().unwrap().set_y(val);
 							}
 							},
-						// Buttons
-						0x9_0001 => log_debug!("{:x} Mouse 1 = {}", val),
-						0x9_0002 => log_debug!("{:x} Mouse 2 = {}", val),
-						0x9_0003 => log_debug!("{:x} Mouse 3 = {}", val),
+						// Buttons (are these just mouse?)
+						0x9_0001 ..= 0x9_0005 => {
+							let num = (usage - 0x9_0001) as usize;
+							log_debug!("{:x} Button {} = {}", usage, num, val);
+							sinks.mouse.as_mut().unwrap().set_button(num-1, val != 0);
+							},
 						_ => {
 							log_debug!("{:x} +{} ={:x}", usage, state.report_size, val);
 							},
@@ -367,6 +450,9 @@ impl Driver
 
 			if let Some(ref mut k) = sinks.keyboard {
 				k.updated();
+			}
+			if let Some(ref mut s) = sinks.mouse {
+				s.updated();
 			}
 		}
 	}
