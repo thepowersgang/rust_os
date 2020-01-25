@@ -162,25 +162,33 @@ impl KeyCode
 		_ => false,
 		}
 	}
-}
 
-impl ::core::convert::From<u8> for KeyCode
-{
-	fn from(v: u8) -> KeyCode {
+	pub fn try_from(v: u8) -> Option<KeyCode> {
 		// SAFE: Bounds checks performed internally.
 		unsafe {
 			if v <= KeyCode::Oper as u8 {
 				::core::mem::transmute(v as u8)
 			}
 			else if v < 0xE0 {
-				panic!("KeyCode::from - Out of range");
+				None
 			}
 			else if v <= KeyCode::RightGui as u8 {
 				::core::mem::transmute(v as u8)
 			}
 			else {
-				panic!("KeyCode::from - Out of range");
+				None
 			}
+		}
+	}
+}
+
+impl ::core::convert::From<u8> for KeyCode
+{
+	fn from(v: u8) -> KeyCode {
+		match Self::try_from(v)
+		{
+		Some(v) => v,
+		None => panic!("KeyCode::from({:#x}) - Out of range", v),
 		}
 	}
 }
