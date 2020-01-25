@@ -1,5 +1,8 @@
-// 
-//! USB Core
+// "Tifflin" Kernel - USB interface core
+// - By John Hodge (Mutabah / thePowersGang)
+//
+// Modules/usb_core/lib.rs
+//! USB Core library (provides interfaces between device and host drivers)
 #![no_std]
 #![feature(linkage)]	// for module_define!
 #![feature(try_blocks)]
@@ -33,16 +36,24 @@ enum HubRef
 	Device(ArefBorrow<HubDevice>),
 }
 
+/// A reference to a host
 #[derive(Clone)]
 struct HostRef(*const Host);
 unsafe impl Send for HostRef where Host: Sync {
 }
 unsafe impl Sync for HostRef where Host: Sync {
 }
+impl HostRef
+{
+	// UNSAFE: Caller must ensure that pointed-to host outlives the HostRef
+	pub unsafe fn new(p: *const Host) -> Self {
+		HostRef(p)
+	}
+}
 impl core::ops::Deref for HostRef {
 	type Target = Host;
 	fn deref(&self) -> &Host {
-		// SAFE: TODO - Enforce safety
+		// SAFE: Contract in `HostRef::new`
 		unsafe { &*self.0 }
 	}
 }
@@ -610,8 +621,8 @@ impl Host
 			self.driver.clear_port_feature(port_idx, host::PortFeature::CConnection);
 			if self.driver.get_port_feature(port_idx, host::PortFeature::Connection)
 			{
-				// TODO: This should be unsafe (relies on self being pinned). It's sound... for now
-				let hubref = HubRef::Root(HostRef(self));
+				// SAFE: (TODO: unenforced) Requires that `self` is stable in memory
+				let hubref = HubRef::Root(unsafe { HostRef::new(self) });
 				self.root_ports[port_idx].signal_connected(hubref, port_idx as u8);
 			}
 			else

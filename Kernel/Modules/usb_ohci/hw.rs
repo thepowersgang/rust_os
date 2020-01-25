@@ -1,5 +1,8 @@
+// "Tifflin" Kernel - OHCI USB driver
+// - By John Hodge (Mutabah / thePowersGang)
 //
-//!
+// Modules/usb_ohci/hw.rs
+//! Hardware definitions (data structures, registers, and bit values
 use core::sync::atomic::{Ordering};
 
 #[repr(usize)]

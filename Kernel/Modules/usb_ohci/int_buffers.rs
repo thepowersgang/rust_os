@@ -1,12 +1,15 @@
+// "Tifflin" Kernel - OHCI USB driver
+// - By John Hodge (Mutabah / thePowersGang)
 //
-//
-//
+// Modules/usb_ohci/int_buffers.rs
 //! Buffer pool for interrupt endpoints
 use ::core::sync::atomic::{Ordering, AtomicU32};
 
 /// A single page used as a pool of interrupt transfer buffers
 pub struct InterruptBuffers
 {
+	// TODO: Re-write this to have a fixed unit size and be shared across devices
+	// 4096 bytes w/ 64 buffers (and overhead) = 63 bytes per alloc max
 	page: ::kernel::memory::virt::AllocHandle,
 	max_packet_size: usize,
 }
@@ -44,7 +47,7 @@ impl InterruptBuffers
 			let mask = 1 << i;
 			assert!(v & mask == 0, "{:x} & {:x}", v, mask);
 			if bitset.compare_and_swap(v, v | mask, Ordering::SeqCst) == v {
-				log_debug!("{:p}: Alloc {}", self.page.as_ref(0) as *const u8, i);
+				//log_debug!("{:p}: Alloc {}", self.page.as_ref(0) as *const u8, i);
 				return Some(FillingHandle {
 					ptr: self.page.as_ref(i * self.max_packet_size) as *const u8,
 					cap: self.max_packet_size,
@@ -62,7 +65,7 @@ impl InterruptBuffers
 			};
 		let idx = (ptr as usize - page_base) / size;
 		let mask = 1 << idx;
-		log_debug!("{:p}: Free {}", page_base as *const u8, idx);
+		//log_debug!("{:p}: Free {}", page_base as *const u8, idx);
 		bitset.fetch_and(!mask, Ordering::SeqCst);
 	}
 }
