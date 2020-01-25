@@ -43,7 +43,7 @@ impl<'a> Iterator for IterRaw<'a>
 pub enum Op
 {
 	// --- (x0)
-	Input(u32),
+	Input(InputFlags),
 	Output(u32),
 	Collection(u32),
 	Feature(u32),
@@ -97,7 +97,7 @@ impl Op
 		match id & 0xFC
 		{
 		// --- (x0)
-		0x80 => Op::Input(val),
+		0x80 => Op::Input( InputFlags(val) ),
 		0x90 => Op::Output(val),
 		0xA0 => Op::Collection(val),
 		0xB0 => Op::Feature(val),
@@ -135,6 +135,29 @@ impl Op
 	}
 }
 
+#[derive(Copy,Clone)]
+pub struct InputFlags(u32);
+impl_fmt!{
+	Debug(self, f) for InputFlags {
+		write!(f, "{:09b}", self.0)
+	}
+}
+impl InputFlags
+{
+	pub fn is_constant(&self) -> bool {
+		(self.0 & (1 << 0)) != 0
+	}
+	pub fn is_variable(&self) -> bool {
+		(self.0 & (1 << 1)) != 0
+	}
+	pub fn is_relative(&self) -> bool {
+		(self.0 & (1 << 2)) != 0
+	}
+	pub fn is_wrap(&self) -> bool {
+		(self.0 & (1 << 3)) != 0
+	}
+}
+
 #[derive(Default,Debug)]
 pub struct ParseState
 {
@@ -158,7 +181,8 @@ pub struct ParseState
 pub enum List
 {
 	Unset,
-	Single(u32),
+	Single(u32),	// TODO: What if there's multiple?
+	Double([u32; 2]),
 	ProtoRange(u32),
 	Range(u32, u32),
 }
@@ -168,7 +192,14 @@ impl Default for List {
 impl List
 {
 	fn set_single(&mut self, v: u32) {
-		*self = List::Single(v);
+		match *self
+		{
+		List::Unset => *self = List::Single(v),
+		List::Single(p) => {
+			*self = List::Double([p, v]);
+			},
+		_ => {},
+		}
 	}
 	fn set_start(&mut self, v: u32) {
 		*self = List::ProtoRange(v);
@@ -190,6 +221,7 @@ impl List
 		{
 		List::Unset => 0,
 		List::Single(v) => v,
+		List::Double(l) => l[::core::cmp::min(1, idx)],
 		List::ProtoRange(_v) => 0,
 		List::Range(s,e) => {
 			if idx <= (e - s) as usize {

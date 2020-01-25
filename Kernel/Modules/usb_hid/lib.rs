@@ -10,10 +10,11 @@ use kernel::prelude::*;
 #[macro_use]
 extern crate kernel;
 extern crate usb_core;
+extern crate gui;
 
 mod report_parser;
 
-module_define!{usb_hid, [usb_core], init}
+module_define!{usb_hid, [usb_core, GUI], init}
 
 fn init()
 {
@@ -80,9 +81,9 @@ mod collection_parse
 		fn parent(&self) -> &'static dyn Handler;
 		fn child(&self, state: &ParseState, num: u32) -> Option<&'static dyn Handler>;
 
-		fn input(&self, _state: &ParseState, _bits: u32) { }
-		fn output(&self, _state: &ParseState, _bits: u32) { }
-		fn feature(&self, _state: &ParseState, _bits: u32) { }
+		fn input(&self, _sinks: &mut super::Sinks, _state: &ParseState, _bits: crate::report_parser::InputFlags) { }
+		fn output(&self, _sinks: &mut super::Sinks, _state: &ParseState, _bits: u32) { }
+		fn feature(&self, _sinks: &mut super::Sinks, _state: &ParseState, _bits: u32) { }
 	}
 	struct Root;
 	impl Handler for Root
@@ -97,7 +98,7 @@ mod collection_parse
 				0x0001_0002 => Some(&Mouse),	// "General Desktop" -> Mouse
 				0x0001_0004 => None,	// "General Desktop" -> Joystick
 				0x0001_0005 => None,	// "General Desktop" -> Game Pad
-				0x0001_0006 => None,	// "General Desktop" -> Keyboard
+				0x0001_0006 => Some(&Keyboard),	// "General Desktop" -> Keyboard
 				0x0007_0000 ..= 0x0007_FFFF => None,	// Keyboard/Keypad
 				_ => None,
 				},
@@ -121,9 +122,109 @@ mod collection_parse
 		fn child(&self, _state: &ParseState, _num: u32) -> Option<&'static dyn Handler> {
 			None
 		}
-		fn input(&self, _state: &ParseState, bits: u32) {
-			log_debug!("Mouse Input {:b} ({:?})", bits, _state);
+		fn input(&self, _sinks: &mut super::Sinks, _state: &ParseState, bits: crate::report_parser::InputFlags) {
+			log_debug!("Mouse Input {:?} ({:?})", bits, _state);
 		}
+	}
+
+	struct Keyboard;
+	impl Handler for Keyboard
+	{
+		fn parent(&self) -> &'static dyn Handler { &Root }
+		fn child(&self, _state: &ParseState, _num: u32) -> Option<&'static dyn Handler> {
+			None
+		}
+		fn input(&self, sinks: &mut super::Sinks, _state: &ParseState, bits: crate::report_parser::InputFlags) {
+			log_debug!("Keyboard Input {:?} ({:?})", bits, _state);
+			if sinks.keyboard.is_none() {
+				sinks.keyboard = Some(super::SinkKeyboard::new());
+			}
+		}
+	}
+}
+
+#[derive(Default)]
+struct Sinks
+{
+	keyboard: Option<SinkKeyboard>,
+}
+struct SinkKeyboard
+{
+	cur_state: BitSet256,
+	last_state: BitSet256,
+	gui_handle: ::gui::input::keyboard::Instance,
+}
+impl SinkKeyboard
+{
+	pub fn new() -> Self {
+		SinkKeyboard {
+			cur_state: BitSet256::new(),
+			last_state: BitSet256::new(),
+			gui_handle: ::gui::input::keyboard::Instance::new(),
+			}
+	}
+	pub fn updated(&mut self) {
+		for i in 0 .. 256
+		{
+			let cur = self.cur_state.get(i);
+			let prev = self.cur_state.get(i);
+
+			if cur != prev
+			{
+				let k = match ::gui::input::keyboard::KeyCode::try_from( i as u8 )
+					{
+					Some(k) => k,
+					None => {
+						log_notice!("Bad key code: {:02x}", i);
+						continue
+						},
+					};
+
+				if cur {
+					self.gui_handle.press_key(k);
+				}
+				else {
+					self.gui_handle.release_key(k);
+				}
+			}
+		}
+		self.last_state = ::core::mem::replace(&mut self.cur_state, BitSet256::new());
+	}
+}
+struct BitSet256([u8; 256/8]);
+impl BitSet256
+{
+	pub fn new() -> Self {
+		BitSet256([0; 256/8])
+	}
+	pub fn get(&self, i: usize) -> bool {
+		if i >= 256 {
+			return false;
+		}
+		self.0[i / 8] & 1 << (i%8) != 0
+	}
+	pub fn set(&mut self, i: usize) {
+		if i < 256 {
+			self.0[i / 8] |= 1 << (i%8);
+		}
+	}
+	pub fn clr(&mut self, i: usize) {
+		if i < 256 {
+			self.0[i / 8] &= !(1 << (i%8));
+		}
+	}
+}
+impl ::core::ops::BitXor for &'_ BitSet256
+{
+	type Output = BitSet256;
+	fn bitxor(self, other: &BitSet256) -> BitSet256
+	{
+		let mut rv = BitSet256::new();
+		for (d,(a,b)) in Iterator::zip( rv.0.iter_mut(), Iterator::zip(self.0.iter(), other.0.iter()) )
+		{
+			*d = *a ^ *b;
+		}
+		rv
 	}
 }
 
@@ -138,6 +239,7 @@ impl Driver
 
 		// 2. Parse the report descriptor, and locate collections of known usage
 		// - Use collections to determine what bindings to set up
+		let mut sinks = Sinks::default();
 		{
 			let mut collection = collection_parse::root();
 			let mut collection_depth = 0;
@@ -170,10 +272,10 @@ impl Driver
 					},
 				report_parser::Op::Input(v) => {
 					if collection_depth == 0 {
-						collection.input(&state, v);
+						collection.input(&mut sinks, &state, v);
 					}
 					else {
-						log_debug!("> INPUT {:09b} {:?}", v, state);
+						log_debug!("> INPUT {:?} {:?}", v, state);
 					}
 					},
 				report_parser::Op::Output(v) => {
@@ -213,12 +315,49 @@ impl Driver
 				let op = report_parser::Op::from_pair(id, val);
 				match op
 				{
-				report_parser::Op::Input(_v) => {
+				report_parser::Op::Input(flags) => {
 					for i in 0 .. state.report_count as usize
 					{
-						let usage = state.usage.get(i);
+						// If the input is an array, then the value gives you the usage
 						let val = bs.get_u32(state.report_size as usize).unwrap_or(0);
-						log_debug!("{:x} +{} ={:x}", usage, state.report_size, val);
+						let usage = state.usage.get(if flags.is_variable() { i } else { val as usize });
+						match usage
+						{
+						// Keyboard
+						0x7_0000 ..= 0x7_00FF => {
+							log_debug!("{:x} (key) = {}", usage, (val != 0));
+							if val != 0 {
+								sinks.keyboard.as_mut().unwrap().cur_state.set( (usage & 0xFF) as usize );
+							}
+							},
+						// Mouse coords (relative or absolute)
+						// "Generic Desktop" "X"/"Y"
+						0x1_0030 => {
+							if flags.is_relative() {
+								log_debug!("{:x} dX = {}", usage, val);
+							}
+							else {
+								log_debug!("{:x} X = {}", usage, val);
+							}
+							},
+						0x1_0031 => {
+							if flags.is_relative() {
+								log_debug!("{:x} dY = {}", usage, val);
+								//sinks.mouse.as_mut().unwrap().move_y(val);
+							}
+							else {
+								log_debug!("{:x} Y = {}", usage, val);
+								//sinks.mouse.as_mut().unwrap().set_y(val);
+							}
+							},
+						// Buttons
+						0x9_0001 => log_debug!("{:x} Mouse 1 = {}", val),
+						0x9_0002 => log_debug!("{:x} Mouse 2 = {}", val),
+						0x9_0003 => log_debug!("{:x} Mouse 3 = {}", val),
+						_ => {
+							log_debug!("{:x} +{} ={:x}", usage, state.report_size, val);
+							},
+						}
 					}
 					},
 				_ => {},
@@ -226,6 +365,9 @@ impl Driver
 				state.update(op);
 			}
 
+			if let Some(ref mut k) = sinks.keyboard {
+				k.updated();
+			}
 		}
 	}
 }
