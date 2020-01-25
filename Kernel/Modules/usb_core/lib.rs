@@ -457,17 +457,17 @@ impl InterruptEndpoint
 			}
 	}
 
-	pub async fn wait(&self) -> InterruptBuffer {
+	pub async fn wait<'a>(&'a self) -> InterruptBuffer<'a> {
 		InterruptBuffer {
 			inner: self.inner.wait().await,
 			}
 	}
 }
-pub struct InterruptBuffer
+pub struct InterruptBuffer<'a>
 {
-	inner: crate::host::Handle<dyn crate::handle::RemoteBuffer>,
+	inner: crate::host::Handle<dyn crate::handle::RemoteBuffer +'a>,
 }
-impl ::core::ops::Deref for InterruptBuffer {
+impl<'a> ::core::ops::Deref for InterruptBuffer<'a> {
 	type Target = [u8];
 	fn deref(&self) -> &[u8] {
 		self.inner.get()

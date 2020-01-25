@@ -146,11 +146,14 @@ impl GeneralTD
 	pub const FLAG_AUTOFREE: u32 = 1 << 2;
 	pub const FLAG_COMPLETE: u32 = 1 << 3;
 	pub const FLAG_LOCKED: u32 = 1 << 4;
-	//pub const FLAG_ROUNDING: u32 = 1 << 18;
+	pub const FLAG_ROUNDING: u32 = 1 << 18;
 
 	pub fn maybe_alloc(&self) -> bool
 	{
 		self.flags.compare_and_swap(0, Self::FLAG_ALLOCATED, Ordering::SeqCst) == 0
+	}
+	pub fn read_flags(&self) -> GeneralTdFlags {
+		GeneralTdFlags( self.flags.load(Ordering::Relaxed) )
 	}
 	/// UNSAFE: Addresses in `first_byte`, `last_byte`, and `next_td` are passed to hardware
 	pub unsafe fn init(s: *mut Self, flags: u32, first_byte: u32, last_byte: u32, next_td: u32, waker: ::core::task::Waker)
@@ -242,6 +245,59 @@ impl GeneralTD
 		}
 	}
 }
+#[derive(Copy,Clone)]
+pub struct GeneralTdFlags(u32);
+impl GeneralTdFlags
+{
+	pub fn new_setup() -> Self {
+		GeneralTdFlags(0b00 << 19)
+	}
+	pub fn new_out() -> Self {
+		GeneralTdFlags(0b01 << 19)
+	}
+	pub fn new_in() -> Self {
+		GeneralTdFlags(0b10 << 19)
+	}
+
+	pub fn delay_int(self, frames: u32) -> Self {
+		debug_assert!(frames < 7);
+		GeneralTdFlags(self.0 | (frames&7) << 21)
+	}
+	pub fn no_int(self) -> Self {
+		GeneralTdFlags(self.0 | (7 << 21))
+	}
+	pub fn autofree(self) -> Self {
+		GeneralTdFlags(self.0 | GeneralTD::FLAG_AUTOFREE)
+	}
+	pub fn rounding(self) -> Self {
+		GeneralTdFlags(self.0 | GeneralTD::FLAG_ROUNDING)
+	}
+	
+	pub fn get_cc(&self) -> u32 {
+		self.0 >> 28
+	}
+}
+impl ::core::fmt::Debug for GeneralTdFlags
+{
+	fn fmt(&self, f: &mut ::core::fmt::Formatter) -> ::core::fmt::Result {
+		f.write_str(match (self.0 >> 19) & 3 {
+			0b00 => "setup",
+			0b01 => "out",
+			0b10 => "in",
+			_ => "?",
+			})?;
+		if self.0 & GeneralTD::FLAG_AUTOFREE != 0 {
+			f.write_str(",autofree")?;
+		}
+		Ok( () )
+	}
+}
+impl From<GeneralTdFlags> for u32 {
+	fn from(v: GeneralTdFlags) -> u32 {
+		v.0
+	}
+}
+
 struct GeneralTdLockedWaker<'a>
 {
 	flags: &'a ::core::sync::atomic::AtomicU32,

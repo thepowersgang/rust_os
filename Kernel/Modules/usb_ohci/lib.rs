@@ -16,6 +16,8 @@ extern crate usb_core;
 mod hw;
 mod pci;
 
+mod int_buffers;
+
 module_define!{usb_ohci, [usb_core], init}
 
 fn init()
@@ -134,7 +136,11 @@ impl HostInner
 		let hc_control = io.read_reg(hw::Regs::HcControl);
 		if hc_control & 0x100 != 0
 		{
-			// SMM emulation
+			// SMM emulation currently controls the host
+			// SAFE: No memory access
+			unsafe {
+				io.write_reg(hw::Regs::HcCommandStatus, hw::HCCMDSTATUS_OCR);
+			}
 			todo!("Request device from SMM");
 		}
 		else
@@ -332,7 +338,12 @@ impl HostInner
 					let ptr = self.get_general_td_pointer(&td_id);
 					phys = ptr.get_next();
 
-					// Read waker out (TODO: Contention on updates?)
+					let cc = ptr.read_flags().get_cc();
+					if cc != 0 {
+						log_debug!("WritebackDoneHead: {:?} cc={}", td_id, cc);
+					}
+
+					// Read waker out
 					let waker = ptr.take_waker();
 
 					// Mark as complete (and release if FLAG_AUTOFREE)
@@ -471,7 +482,7 @@ impl HostInner
 	fn get_general_td_pointer(&self, id: &TransferDescriptorId) -> &hw::GeneralTD {
 		if id.group == 0 {
 			let ofs = (id.idx as usize) * size_of::<hw::GeneralTD>();
-			assert!(ofs >= 2048);
+			assert!(ofs >= 2048, "TD {:?} invalid", id);
 			assert!(ofs < 4096);
 			// SAFE: Aligned, in range, and that's what's in this region
 			unsafe { &*(self.hcca_handle.as_ref::<u8>(ofs) as *const _ as *const hw::GeneralTD) }
@@ -536,6 +547,18 @@ impl HostInner
 		else {
 			// - Otherwise use the placeholder
 			placeholder_ed.set_flags(flags);
+
+			let meta = self.get_endpoint_meta(&placeholder_ed_id);
+			let new_tail = self.allocate_td();
+			// SAFE: Locked
+			unsafe {
+				let tp = kernel::memory::virt::get_phys( self.get_general_td_pointer(&new_tail) ) as u32;
+				placeholder_ed.set_head_ptr( tp );
+				placeholder_ed.set_tail_ptr( tp );
+				placeholder_ed.set_next_ed(0);
+			}
+			meta.tail_td.store( new_tail.to_u16(), Ordering::SeqCst );
+
 			placeholder_ed_id
 		}
 	}
@@ -611,12 +634,20 @@ impl HostInner
 		(*self.get_general_td_pointer(&td)).mark_free();
 	}
 
-	// Kick the controller and make it run the control list
+	/// Kick the controller and make it run the control list
 	fn kick_control(&self)
 	{
 		// SAFE: No memory impact
 		unsafe {
 			self.io.write_reg(hw::Regs::HcCommandStatus, hw::HCCMDSTATUS_CLF);
+		}
+	}
+	/// Kick the controller and make it run the bulk list
+	fn kick_bulk(&self)
+	{
+		// SAFE: No memory impact
+		unsafe {
+			self.io.write_reg(hw::Regs::HcCommandStatus, hw::HCCMDSTATUS_BLF);
 		}
 	}
 
@@ -792,23 +823,9 @@ use ::usb_core::host::{InterruptEndpoint, IsochEndpoint, ControlEndpoint, BulkEn
 impl ::usb_core::host::HostController for UsbHost
 {
 	fn init_interrupt(&self, endpoint: EndpointAddr, period_ms: usize, max_packet_size: usize) -> Handle<dyn InterruptEndpoint> {
-		// NOTE: This rounds down (so 3 = 2^1)
-		let period_pow_2 = if period_ms == 0 { 0 } else { 32-1 - (period_ms as u32).leading_zeros()};
-		let ptr = self.host.register_interrupt_ed(period_pow_2 as usize,
-			  (endpoint.dev_addr() & 0x7F) as u32
-			| ((endpoint.endpt() & 0xF) << 7) as u32
-			| (0b00 << 11)	// Direction - Use TD
-			| (0b0 << 13)	// Speed (TODO)
-			| (0b0 << 14)	// Skip - clear
-			| (0b0 << 15)	// Format - 0=control/bulk/int
-			// TODO: max packet size?
-			);
-		// TODO: Allocate a pair of buffers (in DMA memory) of `max_packet_size`, use double buffering for them
-		// NOTE: Don't add TDs until `wait` call
-		Handle::new(InterruptEndpointHandle {
-			controller: self.host.reborrow(),
-			id: ptr,
-			}).ok().unwrap()
+		Handle::new(InterruptEndpointHandle::new(self.host.reborrow(), endpoint, period_ms, max_packet_size))
+			.or_else(|v| Handle::new(Box::new(v)))
+			.ok().expect("Box doesn't fit in alloc")
 	}
 	fn init_isoch(&self, endpoint: EndpointAddr, max_packet_size: usize) -> Handle<dyn IsochEndpoint> {
 		todo!("init_isoch({:?}, max_packet_size={})", endpoint, max_packet_size);
@@ -982,9 +999,9 @@ impl host::ControlEndpoint for ControlEndpointHandle
 					// SAFE: Requires that the future isn't leaked
 					unsafe {
 						use kernel::futures::null_waker;
-						let td_setup = parent.controller.push_td( &parent.id, (0b00 << 19) /*setup*/ | hw::GeneralTD::FLAG_AUTOFREE | (7 << 21) /*no int*/, setup_first_phys, setup_last_phys, null_waker() );
-						let td_data  = parent.controller.push_td( &parent.id, (0b01 << 19) /*out*/ | (7 << 21) /*no int*/, out_first_phys, out_last_phys, null_waker() );
-						let td_status= parent.controller.push_td( &parent.id, (0b10 << 19) /*in*/ | (0 << 21) /*immediate int*/, 0, 0, cx.waker().clone() );
+						let td_setup = parent.controller.push_td( &parent.id, hw::GeneralTdFlags::new_setup().autofree().no_int().into(), setup_first_phys, setup_last_phys, null_waker() );
+						let td_data  = parent.controller.push_td( &parent.id, hw::GeneralTdFlags::new_out().no_int().into(), out_first_phys, out_last_phys, null_waker() );
+						let td_status= parent.controller.push_td( &parent.id, hw::GeneralTdFlags::new_in().into(), 0, 0, cx.waker().clone() );
 						parent.controller.kick_control();
 						self.state = FutureState::Started {
 							_bb_setup: setup_buf,
@@ -1086,9 +1103,9 @@ impl host::ControlEndpoint for ControlEndpointHandle
 					// SAFE: Requires that the future isn't leaked
 					unsafe {
 						use kernel::futures::null_waker;
-						let td_setup = parent.controller.push_td( &parent.id, (0b00 << 19) /*setup*/ | hw::GeneralTD::FLAG_AUTOFREE | (7 << 21) /*no int*/, setup_first_phys, setup_last_phys, null_waker() );
-						let td_data  = parent.controller.push_td( &parent.id, (0b10 << 19) /*in*/ | (7 << 21) /*no int*/ | (1 << 18), in_first_phys, in_last_phys, null_waker() );
-						let td_status= parent.controller.push_td( &parent.id, (0b01 << 19) /*out*/ | (0 << 21) /*immediate int*/, 0, 0, cx.waker().clone() );
+						let td_setup = parent.controller.push_td( &parent.id, hw::GeneralTdFlags::new_setup().autofree().no_int().into(), setup_first_phys, setup_last_phys, null_waker() );
+						let td_data  = parent.controller.push_td( &parent.id, hw::GeneralTdFlags::new_in().no_int().rounding().into(), in_first_phys, in_last_phys, null_waker() );
+						let td_status= parent.controller.push_td( &parent.id, hw::GeneralTdFlags::new_out().into(), 0, 0, cx.waker().clone() );
 						parent.controller.kick_control();
 						self.state = FutureState::Started {
 							_bb_setup: setup_buf,
@@ -1162,16 +1179,98 @@ impl host::ControlEndpoint for ControlEndpointHandle
 struct InterruptEndpointHandle {
 	controller: ArefBorrow<HostInner>,
 	id: EndpointId,
+	current_td: ::kernel::sync::Spinlock< Option< (TransferDescriptorId, int_buffers::FillingHandle, )> >,
+	buffers: int_buffers::InterruptBuffers,
+}
+impl InterruptEndpointHandle
+{
+	fn new(host: ArefBorrow<HostInner>, endpoint: EndpointAddr, period_ms: usize, max_packet_size: usize) -> Self
+	{
+		// NOTE: This rounds down (so 3 = 2^1)
+		let period_pow_2 = if period_ms == 0 { 0 } else { 32-1 - (period_ms as u32).leading_zeros()};
+		let ptr = host.register_interrupt_ed(period_pow_2 as usize,
+			  (endpoint.dev_addr() & 0x7F) as u32
+			| ((endpoint.endpt() & 0xF) << 7) as u32
+			| (0b00 << 11)	// Direction - Use TD
+			| (0b0 << 13)	// Speed (TODO)
+			| (0b0 << 14)	// Skip - clear
+			| (0b0 << 15)	// Format - 0=control/bulk/int
+			// TODO: max packet size?
+			);
+		// Allocate a pair of buffers (in DMA memory) of `max_packet_size`, use double buffering for them
+		// NOTE: Lazy option: Allocate a whole page (a pool would be better/more efficient)
+		// NOTE: Don't add TDs until `wait` is called, ensures that the first packet after wait is for the wait
+		InterruptEndpointHandle {
+			controller: host,
+			id: ptr,
+			buffers: int_buffers::InterruptBuffers::new(max_packet_size),
+			current_td: Default::default(),
+			}
+	}
+
+	// UNSAFE: Must ensure that the buffer TD is stopped before the buffer handle is dropped
+	unsafe fn push_td(&self) -> (TransferDescriptorId, int_buffers::FillingHandle) {
+		let buf = self.buffers.get_buffer().expect("Unable to allocate interrupt buffer");
+		let (first, last) = buf.get_phys_range();
+		let td = self.controller.push_td( &self.id, hw::GeneralTdFlags::new_in().rounding().into(), first, last, ::kernel::futures::null_waker() );
+		(td, buf)
+	}
+
+	fn poll_future(&self, cx: &mut ::core::task::Context) -> ::core::task::Poll< Handle<dyn usb_core::handle::RemoteBuffer> >
+	{
+		// 1. If the TD isn't scheduled, schedule now
+		let mut lh = self.current_td.lock();
+		if lh.is_none() {
+			// SAFE: Saving the buffer handle in the endpoint structure
+			*lh = Some(unsafe { self.push_td() });
+		}
+		// 2. Check state of current leader
+		if let Some(remaining) = self.controller.td_complete(&lh.as_ref().unwrap().0)
+		{
+			// SAFE: Saving the buffer handle in the endpoint structure.
+			let (td, buf_handle,) = ::core::mem::replace(&mut *lh, Some(unsafe { self.push_td() })).unwrap();
+			self.controller.release_td(td);
+			let valid_len = self.buffers.max_packet_size() - remaining;
+			// SAFE: Hardware is no longer accessing the buffer
+			let filled_buffer = unsafe { buf_handle.filled(valid_len) };
+			let rv = Handle::new(filled_buffer)
+				.ok().expect("OHCI interrupt buffer handle doesn't fit");
+			::core::task::Poll::Ready(rv)
+		}
+		else
+		{
+			self.controller.td_update_waker(&lh.as_ref().unwrap().0, cx.waker());
+			::core::task::Poll::Pending
+		}
+	}
+}
+impl ::core::ops::Drop for InterruptEndpointHandle
+{
+	fn drop(&mut self)
+	{
+		if let Some( (td_id, _buf_handle,) ) = self.current_td.get_mut().take()
+		{
+			todo!("Stop transfer {:?}", td_id);
+		}
+	}
 }
 impl host::InterruptEndpoint for InterruptEndpointHandle
 {
-	fn wait<'a>(&'a self) -> ::usb_core::host::AsyncWaitIo<'a, Handle<dyn usb_core::handle::RemoteBuffer> >
+	fn wait<'a>(&'a self) -> ::usb_core::host::AsyncWaitIo<'a, Handle<dyn usb_core::handle::RemoteBuffer + 'a> >
 	{
-		// 1. If the TD isn't scheduled, schedule now
-		// 2. Check state of current leader
-		todo!("InterruptEndpointHandle::wait");
+		struct Future<'a>(&'a InterruptEndpointHandle);
+		impl ::core::future::Future for Future<'_>
+		{
+			type Output = Handle<dyn usb_core::handle::RemoteBuffer>;
+			fn poll(self: core::pin::Pin<&mut Self>, cx: &mut core::task::Context) -> core::task::Poll<Self::Output> {
+				self.0.poll_future(cx)
+			}
+		}
+		host::AsyncWaitIo::new(Future(self))
+			.ok().expect("InterruptEndpointHandle::Future doesn't fit")
 	}
 }
+
 
 impl ::kernel::device_manager::DriverInstance for BusDev
 {

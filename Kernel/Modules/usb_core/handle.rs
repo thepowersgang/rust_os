@@ -1,7 +1,7 @@
 //! Handles that manage their own deallocation
 use core::ops;
 
-pub trait RemoteBuffer: RemoteFree
+pub trait RemoteBuffer//: RemoteFree
 {
 	fn get(&self) -> &[u8];
 }
