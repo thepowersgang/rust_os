@@ -1,6 +1,7 @@
-// 
+// "Tifflin" Kernel - USB HID driver
+// - By John Hodge (Mutabah / thePowersGang)
 //
-//
+// Modules/usb_hid/lib.rs
 //! USB HID (Human Interface Device) driver
 #![no_std]
 #![feature(linkage)]	// for module_define!
@@ -28,7 +29,7 @@ impl ::usb_core::device::Driver for Driver
 	}
 	fn matches(&self, _vendor_id: u16, _device_id: u16, class_code: u32) -> ::usb_core::device::MatchLevel {
 		use ::usb_core::device::MatchLevel;
-		if class_code == 0x03_00_00 {
+		if class_code & 0x03_00_00 == 0x03_00_00 {
 			MatchLevel::Generic
 		}
 		else {
@@ -203,7 +204,7 @@ impl Driver
 		loop
 		{
 			let d = int_endpoint.wait().await;
-			//let mut bs = BitStream::new(&d);
+			let mut bs = BitStream::new(&d);
 
 			// Decode input using the report descriptor
 			let mut state = report_parser::ParseState::default();
@@ -212,17 +213,78 @@ impl Driver
 				let op = report_parser::Op::from_pair(id, val);
 				match op
 				{
-				report_parser::Op::Input(_v) =>
+				report_parser::Op::Input(_v) => {
 					for i in 0 .. state.report_count as usize
 					{
 						let usage = state.usage.get(i);
-						log_debug!("{:x} +{}", usage, state.report_size);
+						let val = bs.get_u32(state.report_size as usize).unwrap_or(0);
+						log_debug!("{:x} +{} ={:x}", usage, state.report_size, val);
+					}
 					},
 				_ => {},
 				}
 				state.update(op);
 			}
 
+		}
+	}
+}
+
+struct BitStream<'a>(&'a [u8], usize);
+impl<'a> BitStream<'a>
+{
+	fn new(d: &[u8]) -> BitStream {
+		BitStream(d, 0)
+	}
+	fn get_bit(&mut self) -> Option<bool> {
+		if self.0.len() == 0 {
+			None
+		}
+		else {
+			let rv = (self.0[0] >> self.1) & 1;
+			self.1 += 1;
+			if self.1 == 8 {
+				self.0 = &self.0[1..];
+				self.1 = 0;
+			}
+			Some( rv == 1 )
+		}
+	}
+	fn get_u32_expensive(&mut self, bits: usize) -> Option<u32> {
+		let mut rv = 0;
+		for i in 0 .. bits {
+			if self.get_bit()? {
+				rv |= 1 << i;
+			}
+		}
+		Some(rv)
+	}
+	fn get_u32(&mut self, bits: usize) -> Option<u32> {
+		if self.0.len() == 0 {
+			None
+		}
+		else if self.1 == 0 {
+			if bits == 8 {
+				let rv = self.0[0];
+				self.0 = &self.0[1..];
+				Some(rv as u32)
+			}
+			else if bits == 16 {
+				let rv = self.0[0] as u32 | (*self.0.get(1)? as u32) << 8;
+				self.0 = &self.0[2..];
+				Some(rv)
+			}
+			else if bits < 8 {
+				let rv = self.0[0] & ((1 << bits) - 1);
+				self.1 += bits;
+				Some(rv as u32)
+			}
+			else {
+				self.get_u32_expensive(bits)
+			}
+		}
+		else {
+			self.get_u32_expensive(bits)
 		}
 	}
 }

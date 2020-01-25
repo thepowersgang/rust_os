@@ -1,3 +1,8 @@
+// "Tifflin" Kernel - USB HID driver
+// - By John Hodge (Mutabah / thePowersGang)
+//
+// Modules/usb_hid/report_parser.rs
+//! Parser for USB HID report descriptors
 
 /// Iterate over raw entries in a report descriptor
 pub struct IterRaw<'a>(pub &'a [u8]);
@@ -25,6 +30,7 @@ impl<'a> Iterator for IterRaw<'a>
 				_ => unreachable!(),
 				};
 			if op_byte == 0xFC|2 {
+				todo!("Handle long entries");
 			}
 			self.0 = &self.0[len..];
 			Some( (op_byte, val) )
@@ -32,6 +38,7 @@ impl<'a> Iterator for IterRaw<'a>
 	}
 }
 
+/// A parsed operator in a report descriptor
 #[derive(Debug)]
 pub enum Op
 {
@@ -74,8 +81,10 @@ pub enum Op
 }
 impl Op
 {
+	/// Parse a pair of ID and value into an `Op`
 	pub fn from_pair(id: u8, val: u32) -> Op
 	{
+		/// Get a sign-extended i32
 		fn i32_se(v: u32, sz: u8) -> i32 {
 			let sign_bits = match sz
 				{
@@ -173,14 +182,17 @@ impl List
 		_ => {},
 		}
 	}
-	pub fn get(&self, idx: usize) -> u32 {
+	
+	/// Get value for the specified index
+	pub fn get(&self, idx: usize) -> u32
+	{
 		match *self
 		{
 		List::Unset => 0,
 		List::Single(v) => v,
 		List::ProtoRange(_v) => 0,
 		List::Range(s,e) => {
-			if (e - s) as usize <= idx {
+			if idx <= (e - s) as usize {
 				s + idx as u32
 			}
 			else {
@@ -198,6 +210,7 @@ impl ParseState
 		self.designator = Default::default();
 		self.string = Default::default();
 	}
+	/// Update state using the provided operation
 	pub fn update(&mut self, op: Op)
 	{
 		match op
