@@ -858,13 +858,13 @@ impl ::usb_core::host::HostController for UsbHost
 	fn init_control(&self, endpoint: EndpointAddr, max_packet_size: usize) -> Handle<dyn ControlEndpoint> {
 		// Allocate an endpoint
 		let ptr = self.host.register_control_ed(
-			  (endpoint.dev_addr() & 0x7F) as u32
+			  (endpoint.dev_addr() as u32 & 0x7F) << 0
 			| ((endpoint.endpt() & 0xF) << 7) as u32
 			| (0b00 << 11)	// Direction - Use TD
 			| (0b0 << 13)	// Speed (TODO)
 			| (0b0 << 14)	// Skip - clear
 			| (0b0 << 15)	// Format - 0=control/bulk/int
-			| ((max_packet_size & 0xFFFF) << 16) as u32
+			| (max_packet_size as u32 & 0xFFFF) << 16
 			);
 
 		Handle::new(ControlEndpointHandle {
@@ -874,13 +874,13 @@ impl ::usb_core::host::HostController for UsbHost
 	}
 	fn init_bulk_out(&self, endpoint: EndpointAddr, max_packet_size: usize) -> Handle<dyn host::BulkEndpointOut> {
 		let ptr = self.host.register_bulk_ed(
-			  (endpoint.dev_addr() & 0x7F) as u32
-			| ((endpoint.endpt() & 0xF) << 7) as u32
+			  (endpoint.dev_addr() as u32 & 0x7F) << 0
+			| (endpoint.endpt() as u32 & 0xF) << 7
 			| (0b01 << 11)	// Direction - OUT
 			| (0b0 << 13)	// Speed (TODO)
 			| (0b0 << 14)	// Skip - clear
 			| (0b0 << 15)	// Format - 0=control/bulk/int
-			| ((max_packet_size & 0xFFFF) << 16) as u32
+			| (max_packet_size as u32 & 0xFFFF) << 16
 			);
 		Handle::new(BulkEndpointOut {
 			controller: self.host.reborrow(),
@@ -889,13 +889,13 @@ impl ::usb_core::host::HostController for UsbHost
 	}
 	fn init_bulk_in(&self, endpoint: EndpointAddr, max_packet_size: usize) -> Handle<dyn host::BulkEndpointIn> {
 		let ptr = self.host.register_bulk_ed(
-			  (endpoint.dev_addr() & 0x7F) as u32
-			| ((endpoint.endpt() & 0xF) << 7) as u32
+			  (endpoint.dev_addr() as u32 & 0x7F) << 0
+			| (endpoint.endpt() as u32 & 0xF) << 7
 			| (0b10 << 11)	// Direction - IN
 			| (0b0 << 13)	// Speed (TODO)
 			| (0b0 << 14)	// Skip - clear
 			| (0b0 << 15)	// Format - 0=control/bulk/int
-			| ((max_packet_size & 0xFFFF) << 16) as u32
+			| (max_packet_size as u32 & 0xFFFF) << 16
 			);
 		Handle::new(BulkEndpointIn {
 			controller: self.host.reborrow(),
@@ -1344,17 +1344,19 @@ impl host::BulkEndpointOut for BulkEndpointOut
 			_bb_data: bounce_buf,
 			td_data: td,
 			len: buffer.len() as u16,
-			}).ok().expect("BulkEndpointOut::Future doesn't fit");
+			}).unwrap_or_else(|e| host::AsyncWaitIo::new(Box::new(e)).ok().unwrap());
 		impl ::core::future::Future for Future<'_>
 		{
 			type Output = usize;
 			fn poll(self: core::pin::Pin<&mut Self>, cx: &mut core::task::Context) -> core::task::Poll<Self::Output> {
 				if let Some(rem) = self.ep.controller.td_complete(&self.td_data)
 				{
+					log_debug!("Polling BulkEndpointOut::Future {:?}: Complete", self.td_data);
 					::core::task::Poll::Ready(self.len as usize - rem)
 				}
 				else
 				{
+					log_debug!("Polling BulkEndpointOut::Future {:?}: Pending", self.td_data);
 					self.ep.controller.td_update_waker(&self.td_data, cx.waker());
 					::core::task::Poll::Pending
 				}
@@ -1364,6 +1366,7 @@ impl host::BulkEndpointOut for BulkEndpointOut
 		{
 			fn drop(&mut self)
 			{
+				log_debug!("Dropping BulkEndpointOut::Future {:?}", self.td_data);
 				if self.ep.controller.td_complete(&self.td_data).is_none()
 				{
 					self.ep.controller.stop_td(&self.td_data);
@@ -1402,7 +1405,7 @@ impl host::BulkEndpointIn for BulkEndpointIn
 			_bb_data: bounce_buf,
 			td_data: td,
 			len: buffer.len() as u16,
-			}).ok().expect("BulkEndpointIn::Future doesn't fit");
+			}).unwrap_or_else(|e| host::AsyncWaitIo::new(Box::new(e)).ok().unwrap());
 
 		impl ::core::future::Future for Future<'_>
 		{
@@ -1423,6 +1426,7 @@ impl host::BulkEndpointIn for BulkEndpointIn
 		{
 			fn drop(&mut self)
 			{
+				log_debug!("Dropping BulkEndpointIn::Future {:?}", self.td_data);
 				if self.ep.controller.td_complete(&self.td_data).is_none()
 				{
 					self.ep.controller.stop_td(&self.td_data);

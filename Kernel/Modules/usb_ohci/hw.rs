@@ -55,8 +55,8 @@ pub enum Regs
 
 pub const HCCMDSTATUS_HCR: u32 = 1 << 0;	// "HostControllerReset"
 pub const HCCMDSTATUS_CLF: u32 = 1 << 1;	// "ControlListFilled"
-pub const HCCMDSTATUS_BLF: u32 = 1 << 1;	// "BulkListFilled"
-pub const HCCMDSTATUS_OCR: u32 = 1 << 1;	// "OwnershipChangeRequest"
+pub const HCCMDSTATUS_BLF: u32 = 1 << 2;	// "BulkListFilled"
+pub const HCCMDSTATUS_OCR: u32 = 1 << 3;	// "OwnershipChangeRequest"
 
 // Host Controller Communication Area
 // 256 bytes total
