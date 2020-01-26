@@ -45,6 +45,7 @@ struct HostInner
 	nports: u8,
 
 	control_list_lock: ::kernel::sync::Spinlock<()>,
+	bulk_list_lock: ::kernel::sync::Spinlock<()>,
 
 	// - Async support
 	waker: kernel::sync::Spinlock<core::task::Waker>,
@@ -93,6 +94,14 @@ impl TransferDescriptorId {
 	}
 	fn to_u16(self) -> u16 {
 		(self.group as u16) << 8 | (self.idx as u16) << 0
+	}
+
+	// NOTE: Expect panics if this descriptor is used for anything
+	fn null() -> TransferDescriptorId {
+		TransferDescriptorId {
+			group: 0,
+			idx: 0,
+			}
 	}
 }
 #[derive(Default)]
@@ -286,6 +295,7 @@ impl HostInner
 			irq_handle: None,	// Filled below, once the allocation is made
 
 			control_list_lock: Default::default(),
+			bulk_list_lock: Default::default(),
 
 			port_update: AtomicU32::new(0),
 			waker: kernel::sync::Spinlock::new(kernel::futures::null_waker()),
@@ -586,7 +596,20 @@ impl HostInner
 	fn register_bulk_ed(&self, flags: u32) -> EndpointId
 	{
 		let ep = self.allocate_endpoint(flags);
-		todo!("register_bulk_ed: {:?}", ep);
+
+		// SAFE: Pointer valid, register access controlled
+		unsafe {
+			let ptr = self.get_ed_pointer(&ep) as *mut hw::Endpoint;
+			let paddr = ::kernel::memory::virt::get_phys(ptr) as u32;
+
+			// Lock list
+			let _lh = self.bulk_list_lock.lock();
+			// Get existing head pointer, store in newly created ED, update register
+			let existing = self.io.read_reg(hw::Regs::HcBulkHeadED);
+			(*ptr).next_ed = existing;
+			self.io.write_reg(hw::Regs::HcBulkHeadED, paddr);
+		}
+		ep
 	}
 
 	/// Allocate a new TD
@@ -820,7 +843,8 @@ impl Iterator for UpstreamIntSlots
 }
 
 use ::usb_core::host::{self, EndpointAddr, PortFeature, Handle};
-use ::usb_core::host::{InterruptEndpoint, IsochEndpoint, ControlEndpoint, BulkEndpoint};
+use ::usb_core::host::{InterruptEndpoint, IsochEndpoint, ControlEndpoint};
+
 impl ::usb_core::host::HostController for UsbHost
 {
 	fn init_interrupt(&self, endpoint: EndpointAddr, period_ms: usize, max_packet_size: usize) -> Handle<dyn InterruptEndpoint> {
@@ -848,17 +872,35 @@ impl ::usb_core::host::HostController for UsbHost
 			id: ptr,
 			}).ok().unwrap()
 	}
-	fn init_bulk(&self, endpoint: EndpointAddr, max_packet_size: usize) -> Handle<dyn BulkEndpoint> {
+	fn init_bulk_out(&self, endpoint: EndpointAddr, max_packet_size: usize) -> Handle<dyn host::BulkEndpointOut> {
 		let ptr = self.host.register_bulk_ed(
 			  (endpoint.dev_addr() & 0x7F) as u32
 			| ((endpoint.endpt() & 0xF) << 7) as u32
-			| (0b00 << 11)	// Direction - Use TD
+			| (0b01 << 11)	// Direction - OUT
 			| (0b0 << 13)	// Speed (TODO)
 			| (0b0 << 14)	// Skip - clear
 			| (0b0 << 15)	// Format - 0=control/bulk/int
 			| ((max_packet_size & 0xFFFF) << 16) as u32
 			);
-		todo!("init_bulk({:?}, max_packet_size={}): {:?}", endpoint, max_packet_size, ptr);
+		Handle::new(BulkEndpointOut {
+			controller: self.host.reborrow(),
+			id: ptr,
+			}).ok().unwrap()
+	}
+	fn init_bulk_in(&self, endpoint: EndpointAddr, max_packet_size: usize) -> Handle<dyn host::BulkEndpointIn> {
+		let ptr = self.host.register_bulk_ed(
+			  (endpoint.dev_addr() & 0x7F) as u32
+			| ((endpoint.endpt() & 0xF) << 7) as u32
+			| (0b10 << 11)	// Direction - IN
+			| (0b0 << 13)	// Speed (TODO)
+			| (0b0 << 14)	// Skip - clear
+			| (0b0 << 15)	// Format - 0=control/bulk/int
+			| ((max_packet_size & 0xFFFF) << 16) as u32
+			);
+		Handle::new(BulkEndpointIn {
+			controller: self.host.reborrow(),
+			id: ptr,
+			}).ok().unwrap()
 	}
 
 
@@ -1272,6 +1314,124 @@ impl host::InterruptEndpoint for InterruptEndpointHandle
 	}
 }
 
+
+struct BulkEndpointOut
+{
+	controller: ArefBorrow<HostInner>,
+	id: EndpointId,
+}
+impl host::BulkEndpointOut for BulkEndpointOut
+{
+	fn send<'a>(&'a self, buffer: &'a [u8]) -> host::AsyncWaitIo<'a, usize>
+	{
+		struct Future<'a> {
+			ep: &'a BulkEndpointOut,
+			_bb_data: Option<::kernel::memory::virt::AllocHandle>,
+			td_data: TransferDescriptorId,
+			len: u16,
+		}
+
+		// SAFE: Bounce buffer is stored (TODO: Same as the control versions, this is slightly unsound with leaks)
+		let (bounce_buf, td) = unsafe {
+			let (bounce_buf, out_first_phys, out_last_phys) = self.controller.get_dma_todev(buffer);
+			let td = self.controller.push_td( &self.id, hw::GeneralTdFlags::new_out().into(), out_first_phys, out_last_phys, ::kernel::futures::null_waker() );
+			self.controller.kick_bulk();
+			(bounce_buf, td)
+			};
+
+		return host::AsyncWaitIo::new(Future {
+			ep: self,
+			_bb_data: bounce_buf,
+			td_data: td,
+			len: buffer.len() as u16,
+			}).ok().expect("BulkEndpointOut::Future doesn't fit");
+		impl ::core::future::Future for Future<'_>
+		{
+			type Output = usize;
+			fn poll(self: core::pin::Pin<&mut Self>, cx: &mut core::task::Context) -> core::task::Poll<Self::Output> {
+				if let Some(rem) = self.ep.controller.td_complete(&self.td_data)
+				{
+					::core::task::Poll::Ready(self.len as usize - rem)
+				}
+				else
+				{
+					self.ep.controller.td_update_waker(&self.td_data, cx.waker());
+					::core::task::Poll::Pending
+				}
+			}
+		}
+		impl ::core::ops::Drop for Future<'_>
+		{
+			fn drop(&mut self)
+			{
+				if self.ep.controller.td_complete(&self.td_data).is_none()
+				{
+					self.ep.controller.stop_td(&self.td_data);
+				}
+				self.ep.controller.release_td( ::core::mem::replace(&mut self.td_data, TransferDescriptorId::null()) );
+			}
+		}
+	}
+}
+struct BulkEndpointIn
+{
+	controller: ArefBorrow<HostInner>,
+	id: EndpointId,
+}
+impl host::BulkEndpointIn for BulkEndpointIn
+{
+	fn recv<'a>(&'a self, buffer: &'a mut [u8]) -> host::AsyncWaitIo<'a, usize>
+	{
+		struct Future<'a> {
+			ep: &'a BulkEndpointIn,
+			_bb_data: Option<::kernel::memory::virt::AllocHandle>,
+			td_data: TransferDescriptorId,
+			len: u16,
+		}
+
+		// SAFE: Bounce buffer is stored (TODO: Same as the control versions, this is slightly unsound with leaks)
+		let (bounce_buf, td) = unsafe {
+			let (bounce_buf, out_first_phys, out_last_phys) = self.controller.get_dma_fromdev(buffer);
+			let td = self.controller.push_td( &self.id, hw::GeneralTdFlags::new_in().into(), out_first_phys, out_last_phys, ::kernel::futures::null_waker() );
+			self.controller.kick_bulk();
+			(bounce_buf, td)
+			};
+
+		return host::AsyncWaitIo::new(Future {
+			ep: self,
+			_bb_data: bounce_buf,
+			td_data: td,
+			len: buffer.len() as u16,
+			}).ok().expect("BulkEndpointIn::Future doesn't fit");
+
+		impl ::core::future::Future for Future<'_>
+		{
+			type Output = usize;
+			fn poll(self: core::pin::Pin<&mut Self>, cx: &mut core::task::Context) -> core::task::Poll<Self::Output> {
+				if let Some(rem) = self.ep.controller.td_complete(&self.td_data)
+				{
+					::core::task::Poll::Ready(self.len as usize - rem)
+				}
+				else
+				{
+					self.ep.controller.td_update_waker(&self.td_data, cx.waker());
+					::core::task::Poll::Pending
+				}
+			}
+		}
+		impl ::core::ops::Drop for Future<'_>
+		{
+			fn drop(&mut self)
+			{
+				if self.ep.controller.td_complete(&self.td_data).is_none()
+				{
+					self.ep.controller.stop_td(&self.td_data);
+				}
+				self.ep.controller.release_td( ::core::mem::replace(&mut self.td_data, TransferDescriptorId::null()) );
+			}
+		}
+	}
+}
 
 impl ::kernel::device_manager::DriverInstance for BusDev
 {

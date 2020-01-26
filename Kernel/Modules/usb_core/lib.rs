@@ -372,7 +372,12 @@ impl PortDev
 					{
 					0 => Endpoint::Control(ControlEndpoint::new(self.host(), self.addr, ep_num, max_packet_size as usize)),
 					1 => todo!("Isoch endpoint"),//Endpoint::Isoch(IsochEndpoint::new(self.host(), self.addr, ep_num, max_packet_size, ep_dir_in, ...)),
-					2 => Endpoint::Bulk(BulkEndpoint::new(self.host(), self.addr, ep_num, ep_dir_in, max_packet_size as usize)),
+					2 => if ep_dir_in {
+							Endpoint::BulkIn(BulkEndpointIn::new(self.host(), self.addr, ep_num, max_packet_size as usize))
+						}
+						else {
+							Endpoint::BulkOut(BulkEndpointOut::new(self.host(), self.addr, ep_num, max_packet_size as usize))
+						},
 					3 => if ep_dir_in {
 							Endpoint::Interrupt(InterruptEndpoint::new(self.host(), self.addr, ep_num, max_packet_size as usize, poll_period as usize))
 						}
@@ -453,7 +458,8 @@ pub enum Endpoint
 {
 	Control(ControlEndpoint),
 	Interrupt(InterruptEndpoint),
-	Bulk(BulkEndpoint),
+	BulkIn(BulkEndpointIn),
+	BulkOut(BulkEndpointOut),
 }
 
 pub struct InterruptEndpoint
@@ -558,18 +564,39 @@ impl ControlEndpoint
 	}
 }
 
-pub struct BulkEndpoint
+pub struct BulkEndpointOut
 {
-	inner: crate::host::Handle<dyn crate::host::BulkEndpoint>,
-	dir_is_in: bool,
+	inner: crate::host::Handle<dyn crate::host::BulkEndpointOut>,
 }
-impl BulkEndpoint
+impl BulkEndpointOut
 {
-	fn new(host: &Host, addr: u8, ep_num: u8, dir_is_in: bool, max_packet_size: usize) -> Self {
+	fn new(host: &Host, addr: u8, ep_num: u8, max_packet_size: usize) -> Self {
 		Self {
-			dir_is_in: dir_is_in,
-			inner: host.driver.init_bulk(crate::host::EndpointAddr::new(addr, ep_num), max_packet_size),
+			inner: host.driver.init_bulk_out(crate::host::EndpointAddr::new(addr, ep_num), max_packet_size),
 			}
+	}
+
+	pub async fn send(&self, data: &[u8])
+	{
+		self.inner.send(data).await;
+	}
+}
+
+pub struct BulkEndpointIn
+{
+	inner: crate::host::Handle<dyn crate::host::BulkEndpointIn>,
+}
+impl BulkEndpointIn
+{
+	fn new(host: &Host, addr: u8, ep_num: u8, max_packet_size: usize) -> Self {
+		Self {
+			inner: host.driver.init_bulk_in(crate::host::EndpointAddr::new(addr, ep_num), max_packet_size),
+			}
+	}
+
+	pub async fn recv(&self, data: &mut [u8])
+	{
+		self.inner.recv(data).await;
 	}
 }
 

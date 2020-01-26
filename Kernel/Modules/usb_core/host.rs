@@ -57,10 +57,12 @@ pub trait IsochEndpoint: Send + Sync
 	/// Prepare a receive to complete in the specified frame.
 	fn recv_at<'a, 's>(&'s self, async_obj: kasync::ObjectHandle, stack: kasync::StackPush<'a, 's>, buffer: &'a mut [u8], abs_frame: u32);
 }
-pub trait BulkEndpoint: Send + Sync
+pub trait BulkEndpointOut: Send + Sync
 {
-	// Start a send operation of the passed buffers
 	fn send<'a>(&'a self, buffer: &'a [u8]) -> AsyncWaitIo<'a, usize>;
+}
+pub trait BulkEndpointIn: Send + Sync
+{
 	fn recv<'a>(&'a self, buffer: &'a mut [u8]) -> AsyncWaitIo<'a, usize>;
 }
 
@@ -75,8 +77,10 @@ pub trait HostController: Send + Sync
 	fn init_isoch(&self, endpoint: EndpointAddr, max_packet_size: usize) -> Handle<dyn IsochEndpoint>;
 	/// Initialise a control endpoint
 	fn init_control(&self, endpoint: EndpointAddr, max_packet_size: usize) -> Handle<dyn ControlEndpoint>;
-	/// Initialise a bulk endpoint
-	fn init_bulk(&self, endpoint: EndpointAddr, max_packet_size: usize) -> Handle<dyn BulkEndpoint>;
+	/// Initialise a bulk endpoint for OUT
+	fn init_bulk_out(&self, endpoint: EndpointAddr, max_packet_size: usize) -> Handle<dyn BulkEndpointOut>;
+	/// Initialise a bulk endpoint for IN
+	fn init_bulk_in(&self, endpoint: EndpointAddr, max_packet_size: usize) -> Handle<dyn BulkEndpointIn>;
 
 
 	// Root hub maintainence
