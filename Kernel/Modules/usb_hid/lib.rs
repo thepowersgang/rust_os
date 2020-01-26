@@ -266,6 +266,23 @@ mod sinks
 				}
 		}
 
+		pub fn abs_x(&mut self, v: u16) {
+			self.x_value = v;
+			self.is_relative = false;
+		}
+		pub fn abs_y(&mut self, v: u16) {
+			self.y_value = v;
+			self.is_relative = false;
+		}
+		pub fn rel_x(&mut self, d: i16) {
+			self.x_value = d as u16;
+			self.is_relative = true;
+		}
+		pub fn rel_y(&mut self, d: i16) {
+			self.y_value = d as u16;
+			self.is_relative = true;
+		}
+
 		pub fn set_button(&mut self, idx: usize, is_pressed: bool) {
 			if is_pressed && idx < 16 {
 				self.cur_buttons |= 1 << idx;
@@ -278,6 +295,7 @@ mod sinks
 				self.gui_handle.move_cursor(self.x_value as i16, self.y_value as i16);
 			}
 			else {
+				// NOTE: Should already be normalised
 				self.gui_handle.set_cursor(self.x_value, self.y_value);
 			}
 			// Update buttons
@@ -399,7 +417,7 @@ impl Driver
 					for i in 0 .. state.report_count as usize
 					{
 						// If the input is an array, then the value gives you the usage
-						let val = bs.get_u32(state.report_size as usize).unwrap_or(0);
+						let val = bs.get_i32(state.report_size as usize).unwrap_or(0);
 						let usage = state.usage.get(if flags.is_variable() { i } else { val as usize });
 						match usage
 						{
@@ -412,25 +430,36 @@ impl Driver
 							},
 						// Mouse coords (relative or absolute)
 						// "Generic Desktop" "X"/"Y"
-						0x1_0030 => {
+						0x1_0030 ..= 0x1_0031 => {
+							let is_x = usage & 1 == 0;
+							let n = if is_x { "X" } else { "Y" };
+							let mouse_sink = sinks.mouse.as_mut().unwrap();
 							if flags.is_relative() {
-								log_debug!("{:x} dX = {}", usage, val);
+								log_debug!("{:x} d{} = {}", usage, n, val);
+								if is_x {
+									mouse_sink.rel_x(val as i16);
+								}
+								else {
+									mouse_sink.rel_y(val as i16);
+								}
 							}
 							else {
-								log_debug!("{:x} X = {}", usage, val);
-								// TODO: Normalise into `0 ..= 0xFFFF` ? Or just pass the min/max to the GUI
+								// Normalise into `0 ..= 0xFFFF`
+								let lmin = state.logical_range.0.unwrap_or(0) as i32;
+								let lmax = state.logical_range.1.unwrap_or(lmin + 1) as i32;
+								let norm = (((val - lmin) as u64 * 0xFFFF) / (lmax - lmin) as u64) as u16;
+								log_debug!("{:x} {} = {:#x} (raw = {:#x})", usage, n, norm, val);
+								if is_x {
+									mouse_sink.abs_x(norm);
+								}
+								else {
+									mouse_sink.abs_y(norm);
+								}
 							}
 							},
-						0x1_0031 => {
-							if flags.is_relative() {
-								log_debug!("{:x} dY = {}", usage, val);
-								//sinks.mouse.as_mut().unwrap().move_y(val);
-							}
-							else {
-								log_debug!("{:x} Y = {}", usage, val);
-								//sinks.mouse.as_mut().unwrap().set_y(val);
-							}
-							},
+						// Scroll wheel? Pressure?
+						//0x1_0038 => {
+						//	},
 						// Buttons (are these just mouse?)
 						0x9_0001 ..= 0x9_0005 => {
 							let num = (usage - 0x9_0001) as usize;
@@ -514,6 +543,14 @@ impl<'a> BitStream<'a>
 		else {
 			self.get_u32_expensive(bits)
 		}
+	}
+	fn get_i32(&mut self, bits: usize) -> Option<i32> {
+		let mut u = self.get_u32(bits)?;
+		let sgn_bit = 1 << (bits-1);
+		if u & sgn_bit != 0 {
+			u |= !(sgn_bit - 1);
+		}
+		Some(u as i32)
 	}
 }
 
