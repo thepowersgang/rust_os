@@ -457,9 +457,10 @@ impl Driver
 								}
 							}
 							},
-						// Scroll wheel? Pressure?
-						//0x1_0038 => {
-						//	},
+						// Scroll wheel
+						0x1_0038 => {
+							log_debug!("{:?} Scroll = {}", usage, val);
+							},
 						// Buttons (are these just mouse?)
 						0x9_0001 ..= 0x9_0005 => {
 							let num = (usage - 0x9_0001) as usize;
