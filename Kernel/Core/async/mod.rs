@@ -265,7 +265,7 @@ enum FutureWrapperInner<F>
 where
 	F: ::core::future::Future
 {
-	Running(F),
+	Running(::core::pin::Pin<Box<F>>),
 	Complete(F::Output),
 	Consumed,
 }
@@ -275,7 +275,27 @@ where
 {
 	pub fn new(fut: F) -> Self
 	{
-		todo!("FutureWrapper::new");
+		FutureWrapper {
+			inner: FutureWrapperInner::Running(Box::pin(fut)),
+			}
+	}
+
+	fn poll_with_waker(&mut self, waker: ::core::task::Waker)
+	{
+		match self.inner
+		{
+		FutureWrapperInner::Running(ref mut fut) => {
+			let mut context = ::core::task::Context::from_waker(&waker);
+			match fut.as_mut().poll(&mut context)
+			{
+			::core::task::Poll::Ready(rv) => {
+				self.inner = FutureWrapperInner::Complete(rv);
+				},
+			::core::task::Poll::Pending => {},
+			}
+			},
+		_ => {},
+		}
 	}
 }
 impl<F> ::core::fmt::Debug for FutureWrapper<F>
@@ -291,19 +311,71 @@ where
 		}
 	}
 }
-impl<F> Waiter for FutureWrapper<F>
+impl<F> PrimitiveWaiter for FutureWrapper<F>
 where
 	F: ::core::future::Future
 {
 	fn is_complete(&self) -> bool {
-		todo!("FutureWrapper::is_complete");
+		match self.inner
+		{
+		FutureWrapperInner::Running(_) => false,
+		_ => true,
+		}
 	}
-	fn get_waiter(&mut self) -> &mut dyn PrimitiveWaiter {
-		todo!("FutureWrapper::get_waiter");
+	fn poll(&self) -> bool {
+		PrimitiveWaiter::is_complete(self)
 	}
-	fn complete(&mut self) -> bool {
-		// Poll
-		todo!("FutureWrapper::complete");
+	fn run_completion(&mut self) {
+	}
+	fn bind_signal(&mut self, sleeper: &mut ::threads::SleepObject) -> bool {
+
+		// NOTE: This function converts a SleepObjectRef into a RawWaker (they both have a single pointer of data)
+
+		fn sleep_object_raw_waker(so: &crate::threads::SleepObject) -> ::core::task::RawWaker
+		{
+			unsafe fn rw_clone(raw_self: *const ()) -> ::core::task::RawWaker
+			{
+				// Cast pointer to the input pointer into a pointer to a SleepObjectRef
+				let sor = &*(&raw_self as *const _ as *const ::threads::SleepObjectRef);
+				sleep_object_raw_waker(sor)
+			}
+			unsafe fn rw_wake(raw_self: *const ())
+			{
+				let sor: crate::threads::SleepObjectRef = ::core::mem::transmute(raw_self);
+				sor.signal();
+			}
+			unsafe fn rw_wake_by_ref(raw_self: *const ())
+			{
+				let sor = &*(&raw_self as *const _ as *const ::threads::SleepObjectRef);
+				sor.signal();
+			}
+			unsafe fn rw_drop(raw_self: *const ())
+			{
+				let sor: crate::threads::SleepObjectRef = ::core::mem::transmute(raw_self);
+				::core::mem::drop(sor);
+			}
+			static VTABLE: ::core::task::RawWakerVTable = ::core::task::RawWakerVTable::new(
+				/*clone:*/ rw_clone,
+				/*wake:*/ rw_wake,
+				/*wake_by_ref:*/ rw_wake_by_ref,
+				/*drop:*/ rw_drop,
+				);
+			// SAFE: Storing the single-pointer SleepObjectRef in a pointer
+			unsafe {
+				::core::task::RawWaker::new(::core::mem::transmute(so.get_ref()), &VTABLE)
+			}
+		}
+
+		// Call future poll with the provided sleep object
+		// - Expose a SleepObjectRef from Context
+		// SAFE: Doesn't outlive the sleeper
+		let waker = unsafe { ::core::task::Waker::from_raw(sleep_object_raw_waker(sleeper)) };
+		self.poll_with_waker(waker);
+		true	// binding always suceeds
+	}
+	fn unbind_signal(&mut self) {
+		// Poll again (with a null waker)
+		self.poll_with_waker( crate::futures::null_waker() );
 	}
 }
 impl<F> ResultWaiter for FutureWrapper<F>
