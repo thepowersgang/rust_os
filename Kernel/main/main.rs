@@ -85,9 +85,7 @@ fn sysinit() -> !
 	if test_flags.split(',').any(|v| v == "noinit")
 	{
 		log_error!("Stopping at sysinit");
-		loop {
-			::kernel::threads::yield_time();
-		}
+		::kernel::threads::SleepObject::with_new("noinit", |so| so.wait());
 	}
 	
 	// 1. Mount /system to the specified volume
