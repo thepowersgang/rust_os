@@ -15,8 +15,7 @@ impl Instance
 	
 	// Provide an absolute cursor position (between 0 and 0xFFFF)
 	pub fn set_cursor(&self, x: u16, y: u16) {
-		// TODO: Hand to parent
-		//super::get_channel_by_index(0).handle_mouse_set(x, y);
+		super::get_channel_by_index(0).handle_mouse_set(x, y);
 	}
 	pub fn move_cursor(&self, dx: i16, dy: i16) {
 		super::get_channel_by_index(0).handle_mouse_move(dx, dy);

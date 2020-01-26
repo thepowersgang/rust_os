@@ -172,6 +172,14 @@ impl InputChannel
 		}
 	}
 	
+	pub fn handle_mouse_set(&self, norm_x: u16, norm_y: u16)
+	{
+		// Mouse movement, update cursor
+		let (dx,dy) = self.cursor.set_pos(norm_x, norm_y);
+		let (x,y) = self.cursor.pos();
+		self.double_click_info.lock().clear();
+		super::windows::handle_input(/*self, */Event::MouseMove(x, y, dx as i16, dy as i16));
+	}
 	pub fn handle_mouse_move(&self, dx: i16, dy: i16)
 	{
 		// Mouse movement, update cursor
@@ -309,6 +317,26 @@ impl MouseCursor {
 		else {
 			u32::saturating_add(cur, d as u32)
 		}
+	}
+
+	/// Set cursor position to normalised coordinates
+	fn set_pos(&self, norm_x: u16, norm_y: u16) -> (i32, i32) {
+		let mut lh = self.graphics_cursor.lock();
+		let pos = lh.get_pos();
+		let rect = match ::kernel::metadevs::video::get_display_for_pos(pos)
+			{
+			Ok(v) => v,
+			Err(v) => v,
+			};
+		let new_pos = ::kernel::metadevs::video::Pos {
+			x: rect.x() + ((rect.w() as u64 * norm_x as u64) >> 16) as u32,
+			y: rect.y() + ((rect.h() as u64 * norm_y as u64) >> 16) as u32,
+			};
+		lh.set_pos(new_pos);
+		(
+			(new_pos.x - pos.x) as i32,
+			(new_pos.y - pos.y) as i32,
+			)
 	}
 	fn move_pos(&self, dx: i32, dy: i32) {
 		let mut lh = self.graphics_cursor.lock();
