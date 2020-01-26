@@ -255,3 +255,79 @@ pub fn wait_on_list(waiters: &mut [&mut dyn Waiter], timeout: Option<u64>) -> Op
 	Some( n_complete )
 }
 
+pub struct FutureWrapper<F>
+where
+	F: ::core::future::Future
+{
+	inner: FutureWrapperInner<F>,
+}
+enum FutureWrapperInner<F>
+where
+	F: ::core::future::Future
+{
+	Running(F),
+	Complete(F::Output),
+	Consumed,
+}
+impl<F> FutureWrapper<F>
+where
+	F: ::core::future::Future
+{
+	pub fn new(fut: F) -> Self
+	{
+		todo!("FutureWrapper::new");
+	}
+}
+impl<F> ::core::fmt::Debug for FutureWrapper<F>
+where
+	F: ::core::future::Future
+{
+	fn fmt(&self, f: &mut ::core::fmt::Formatter) -> ::core::fmt::Result {
+		match self.inner
+		{
+		FutureWrapperInner::Running(_) => f.write_str("Running"),
+		FutureWrapperInner::Complete(_) => f.write_str("Complete"),
+		FutureWrapperInner::Consumed => f.write_str("Consumed"),
+		}
+	}
+}
+impl<F> Waiter for FutureWrapper<F>
+where
+	F: ::core::future::Future
+{
+	fn is_complete(&self) -> bool {
+		todo!("FutureWrapper::is_complete");
+	}
+	fn get_waiter(&mut self) -> &mut dyn PrimitiveWaiter {
+		todo!("FutureWrapper::get_waiter");
+	}
+	fn complete(&mut self) -> bool {
+		// Poll
+		todo!("FutureWrapper::complete");
+	}
+}
+impl<F> ResultWaiter for FutureWrapper<F>
+where
+	F: ::core::future::Future
+{
+	type Result = F::Output;
+
+	fn get_result(&mut self) -> Option<Self::Result> {
+		match self.inner
+		{
+		FutureWrapperInner::Running(_) => None,
+		FutureWrapperInner::Complete(_) => {
+			let v = match ::core::mem::replace(&mut self.inner, FutureWrapperInner::Consumed)
+				{
+				FutureWrapperInner::Complete(v) => v,
+				_ => unreachable!(),
+				};
+			Some(v)
+			},
+		FutureWrapperInner::Consumed => None,
+		}
+	}
+	
+	fn as_waiter(&mut self) -> &mut dyn Waiter { self }
+}
+
