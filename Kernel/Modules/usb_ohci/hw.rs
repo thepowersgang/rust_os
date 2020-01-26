@@ -195,7 +195,7 @@ impl GeneralTD
 			let cbp = self.cbp;
 			let end = self.buffer_end;
 
-			log_debug!("is_complete({:#x}): {:#x} -- {:#x}", ::kernel::memory::virt::get_phys(self), cbp, end);
+			//log_debug!("is_complete({:#x}): {:#x} -- {:#x}", ::kernel::memory::virt::get_phys(self), cbp, end);
 			if cbp == 0 {	// When complete, zero is written to CBP
 				Some( 0 )
 			}
@@ -310,7 +310,8 @@ struct GeneralTdLockedWaker<'a>
 impl<'a> ::core::ops::Drop for GeneralTdLockedWaker<'a>
 {
 	fn drop(&mut self) {
-		assert!( self.flags.fetch_and(!GeneralTD::FLAG_LOCKED, Ordering::Release) & GeneralTD::FLAG_LOCKED != 0 );
+		let flags = self.flags.fetch_and(!GeneralTD::FLAG_LOCKED, Ordering::Release);
+		assert!( flags & GeneralTD::FLAG_LOCKED != 0, "Lock flag already clear when dropping lock handle {:#x}", flags );
 	}
 }
 

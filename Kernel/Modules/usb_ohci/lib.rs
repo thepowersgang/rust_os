@@ -1351,12 +1351,12 @@ impl host::BulkEndpointOut for BulkEndpointOut
 			fn poll(self: core::pin::Pin<&mut Self>, cx: &mut core::task::Context) -> core::task::Poll<Self::Output> {
 				if let Some(rem) = self.ep.controller.td_complete(&self.td_data)
 				{
-					log_debug!("Polling BulkEndpointOut::Future {:?}: Complete", self.td_data);
+					//log_debug!("Polling BulkEndpointOut::Future {:?}: Complete", self.td_data);
 					::core::task::Poll::Ready(self.len as usize - rem)
 				}
 				else
 				{
-					log_debug!("Polling BulkEndpointOut::Future {:?}: Pending", self.td_data);
+					//log_debug!("Polling BulkEndpointOut::Future {:?}: Pending", self.td_data);
 					self.ep.controller.td_update_waker(&self.td_data, cx.waker());
 					::core::task::Poll::Pending
 				}
@@ -1366,7 +1366,7 @@ impl host::BulkEndpointOut for BulkEndpointOut
 		{
 			fn drop(&mut self)
 			{
-				log_debug!("Dropping BulkEndpointOut::Future {:?}", self.td_data);
+				//log_debug!("Dropping BulkEndpointOut::Future {:?}", self.td_data);
 				if self.ep.controller.td_complete(&self.td_data).is_none()
 				{
 					self.ep.controller.stop_td(&self.td_data);
@@ -1426,7 +1426,7 @@ impl host::BulkEndpointIn for BulkEndpointIn
 		{
 			fn drop(&mut self)
 			{
-				log_debug!("Dropping BulkEndpointIn::Future {:?}", self.td_data);
+				//log_debug!("Dropping BulkEndpointIn::Future {:?}", self.td_data);
 				if self.ep.controller.td_complete(&self.td_data).is_none()
 				{
 					self.ep.controller.stop_td(&self.td_data);
