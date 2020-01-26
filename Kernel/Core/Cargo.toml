@@ -12,6 +12,6 @@ test = ["lazy_static"]
 [dependencies]
 cfg-if = "0.1"
 lazy_static = { version = "1.4", optional = true }
-stack_dst = { path = "../../externals/crates.io/stack_dst", default-features = false }
+stack_dst = { path = "../../externals/crates.io/stack_dst", default-features = false, features = ["unsize"] }
 #tag_safe = "0.2"
 va_list = { version = "0.1", default-features = false, features = ["no_std"], optional = true }

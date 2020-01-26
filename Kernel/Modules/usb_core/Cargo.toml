@@ -9,7 +9,7 @@ path = "lib.rs"
 [dependencies]
 kernel = { path = "../../Core" }
 utf16 = { path = "../utf16" }
-stack_dst = { path = "../../../externals/crates.io/stack_dst", default-features = false }
+stack_dst = { path = "../../../externals/crates.io/stack_dst", default-features = false, features = ["unsize"] }
 
 core = { path = "../../core-futures" }
 
