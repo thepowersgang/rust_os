@@ -1259,7 +1259,7 @@ impl InterruptEndpointHandle
 		(td, buf)
 	}
 
-	fn poll_future(&self, cx: &mut ::core::task::Context) -> ::core::task::Poll< Handle<dyn usb_core::handle::RemoteBuffer> >
+	fn poll_future(&self, cx: &mut ::core::task::Context) -> ::core::task::Poll< host::IntBuffer<'static> >
 	{
 		// 1. If the TD isn't scheduled, schedule now
 		let mut lh = self.current_td.lock();
@@ -1276,7 +1276,7 @@ impl InterruptEndpointHandle
 			let valid_len = self.buffers.max_packet_size() - remaining;
 			// SAFE: Hardware is no longer accessing the buffer
 			let filled_buffer = unsafe { buf_handle.filled(valid_len) };
-			let rv = Handle::new(filled_buffer)
+			let rv = host::IntBuffer::new(filled_buffer)
 				.ok().expect("OHCI interrupt buffer handle doesn't fit");
 			::core::task::Poll::Ready(rv)
 		}
@@ -1299,12 +1299,12 @@ impl ::core::ops::Drop for InterruptEndpointHandle
 }
 impl host::InterruptEndpoint for InterruptEndpointHandle
 {
-	fn wait<'a>(&'a self) -> ::usb_core::host::AsyncWaitIo<'a, Handle<dyn usb_core::handle::RemoteBuffer + 'a> >
+	fn wait<'a>(&'a self) -> host::AsyncWaitIo<'a, host::IntBuffer<'a>>
 	{
 		struct Future<'a>(&'a InterruptEndpointHandle);
 		impl ::core::future::Future for Future<'_>
 		{
-			type Output = Handle<dyn usb_core::handle::RemoteBuffer>;
+			type Output = host::IntBuffer<'static>;
 			fn poll(self: core::pin::Pin<&mut Self>, cx: &mut core::task::Context) -> core::task::Poll<Self::Output> {
 				self.0.poll_future(cx)
 			}

@@ -55,7 +55,6 @@ pub(crate) fn find_driver(vendor_id: u16, device_id: u16, class_code: u32) -> Op
 				best = Some( (ml, d) );
 			}
 			},
-		_ => {},
 		}
 	}
 	best.map(|v| v.1)

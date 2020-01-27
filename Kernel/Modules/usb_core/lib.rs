@@ -83,8 +83,8 @@ struct Host
 }
 struct HubDevice
 {
-	host: ArefBorrow<Host>,
-	int_ep: host::Handle<dyn host::InterruptEndpoint>,
+	host: HostRef,
+	ports: Vec<PortState>,
 }
 struct HostEnt
 {
@@ -95,7 +95,7 @@ struct HostEnt
 static HOST_LIST: Mutex<Vec<HostEnt>> = ::kernel::sync::Mutex::new(Vec::new_const());
 
 /// Add a new host controller/bus to the system
-pub fn register_host(mut driver: Box<dyn host::HostController>, nports: u8)
+pub fn register_host(driver: Box<dyn host::HostController>, nports: u8)
 {
 	let host = Aref::new(Host {
 		addresses: ::kernel::sync::Mutex::new(AddressPool {
@@ -137,7 +137,7 @@ fn host_worker(host: ArefBorrow<Host>)
 		use core::future::Future;
 		match host_async.as_mut().poll(context)
 		{
-		core::task::Poll::Ready(v) => panic!("Host root task completed"),
+		core::task::Poll::Ready(_v) => panic!("Host root task completed"),
 		core::task::Poll::Pending => {},
 		}
 		// Have a list of port workers
@@ -163,11 +163,11 @@ fn host_worker(host: ArefBorrow<Host>)
 
 impl HubRef
 {
-	fn host(&self) -> &Host {
+	fn host(&self) -> &HostRef {
 		match self
 		{
 		&HubRef::Root  (ref h) => h,
-		&HubRef::Device(ref h) => todo!("get host - hub"),
+		&HubRef::Device(ref h) => &h.host,
 		}
 	}
 
@@ -227,7 +227,7 @@ impl PortDev
 			addr,
 			}
 	}
-	fn host(&self) -> &Host {
+	fn host(&self) -> &HostRef {
 		self.hub.host()
 	}
 
@@ -275,6 +275,11 @@ impl PortDev
 		log_debug!("dev_descr.manufacturer_str = #{} {}", dev_descr.manufacturer_str, mfg_str);
 		log_debug!("dev_descr.product_str = #{} {}", dev_descr.product_str, prod_str);
 		log_debug!("dev_descr.serial_number_str = #{} {}", dev_descr.serial_number_str, ser_str);
+
+		log_notice!("DEVICE {:04x}:{:04x} \"{}\" \"{}\" SN \"{}\"",
+			dev_descr.vendor_id, dev_descr.device_id,
+			mfg_str, prod_str, ser_str,
+			);
 
 		// Enumerate all configurations
 		for idx in 0 .. dev_descr.num_configurations
@@ -358,7 +363,7 @@ impl PortDev
 			if let Ok(hw_decls::DescriptorAny::Endpoint(ep_desc)) = desc
 			{
 				let ep_num = ep_desc.address & 0xF;
-				let ep_dir_in = (ep_desc.address & 0x80 != 0);
+				let ep_dir_in = ep_desc.address & 0x80 != 0;
 				let ep_type = (ep_desc.attributes & 0x3) >> 0;
 				let max_packet_size = (ep_desc.max_packet_size.0 as u16) | (ep_desc.max_packet_size.1 as u16 & 0x03) << 8;
 				let poll_period = ep_desc.max_polling_interval;
@@ -389,6 +394,10 @@ impl PortDev
 			}
 		}
 
+		// NOTE: Hubs need the host reference, so have explicit code
+		if full_class & 0xFF0000 == 0x090000 {
+			return Interface::Bound(hub::start_device(self.host().clone(), endpoint_0, endpts).into())
+		}
 		// Locate a suitable driver
 		match crate::device::find_driver(0,0, full_class)
 		{
@@ -482,7 +491,7 @@ impl InterruptEndpoint
 }
 pub struct InterruptBuffer<'a>
 {
-	inner: crate::host::Handle<dyn crate::handle::RemoteBuffer +'a>,
+	inner: crate::host::IntBuffer<'a>,
 }
 impl<'a> ::core::ops::Deref for InterruptBuffer<'a> {
 	type Target = [u8];
@@ -501,6 +510,19 @@ impl ControlEndpoint
 		ControlEndpoint {
 			inner: host.driver.init_control(crate::host::EndpointAddr::new(addr, ep_num), max_packet_size),
 			}
+	}
+	pub async fn read_request(&self, request_type: u8, request_num: u8, value: u16, index: u16, buf: &mut [u8])
+	{
+		let hdr = hw_decls::DeviceRequest {
+			req_type: request_type,
+			req_num: request_num,
+			value: value,
+			index: index,
+			length: buf.len() as u16,
+			};
+		let hdr = hdr.to_bytes();
+		let read_len = self.inner.in_only(&hdr, buf).await;
+		assert_eq!(read_len, buf.len());
 	}
 	pub async fn read_descriptor_raw(&self, ty: u16, index: u8, buf: &mut [u8]) -> Result<usize,&'static str>
 	{
@@ -611,6 +633,7 @@ impl Host
 		match self.addresses.lock().allocate()
 		{
 		Some(v) => {
+			log_notice!("New USB device - alloc address {}", v);
 			assert!(v != 0);
 			// Create async task for the device
 			let cb = Box::pin(make_worker(v));
@@ -738,12 +761,26 @@ impl AddressPool
 
 impl HubDevice
 {
-	//fn handle_int(&self, _size: usize)
-	//{
-	//	let data_handle = self.int_ep.get_data();
-	//	let data = data_handle.get();
-	//	todo!("Process interrupt bytes from host - {:?}", ::kernel::logging::HexDump(data));
-	//}
+	fn new(host: HostRef, nports: usize) -> Self
+	{
+		Self {
+			host: host,
+			ports: {
+				let mut v = Vec::new();
+				v.resize_with(nports as usize, || PortState::new());
+				v
+				},
+			}
+	}
+	fn port_connected(this: ArefBorrow<HubDevice>, port_idx: usize)
+	{
+		let hubref = HubRef::Device(this.reborrow());
+		this.ports[port_idx].signal_connected(hubref, port_idx as u8);
+	}
+	fn port_disconnected(this: ArefBorrow<HubDevice>, _port_idx: usize)
+	{
+		todo!("Handle port disconnection");
+	}
 
 	async fn set_port_feature(&self, port_idx: usize, feat: host::PortFeature) {
 		todo!("HubDevice::set_port_feature({}, {:?})", port_idx, feat)

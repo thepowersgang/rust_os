@@ -32,13 +32,14 @@ impl ::core::fmt::Debug for EndpointAddr
 }
 
 pub type AsyncWaitIo<'a, T> = stack_dst::ValueA<dyn core::future::Future<Output=T> + Sync + Send + 'a, [usize; 3]>;
+pub type IntBuffer<'a> = Handle<dyn crate::handle::RemoteBuffer + Send + Sync + 'a>;
 //#[smart_ptr(::kernel::lib::mem::Box)]
 pub trait InterruptEndpoint: Send + Sync
 {
-	fn wait<'a>(&'a self) -> AsyncWaitIo<'a, Handle<dyn crate::handle::RemoteBuffer + 'a>>;
+	fn wait<'a>(&'a self) -> AsyncWaitIo<'a, IntBuffer<'a>>;
 }
 impl<T: ?Sized + InterruptEndpoint> InterruptEndpoint for ::kernel::lib::mem::Box<T> {
-	fn wait<'a>(&'a self) -> AsyncWaitIo<'a, Handle<dyn crate::handle::RemoteBuffer + 'a>> {
+	fn wait<'a>(&'a self) -> AsyncWaitIo<'a, IntBuffer<'a>> {
 		(**self).wait()
 	}
 }
