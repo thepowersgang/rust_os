@@ -344,14 +344,19 @@ impl HostInner
 				let mut phys = self.hcca_handle.as_ref::<hw::Hcca>(0).done_head & !0xF;
 				while phys != 0
 				{
-					log_debug!("WritebackDoneHead - {:#x}", phys);
-					let td_id = self.get_general_td_from_phys(phys).expect("WritebackDoneHead");
+					let td_id = match self.get_general_td_from_phys(phys)
+						{
+						Some(id) => id,
+						None => panic!("WritebackDoneHead: {:#x}", phys),
+						};
+					log_debug!("WritebackDoneHead - {:?}", td_id);
 					let ptr = self.get_general_td_pointer(&td_id);
 					phys = ptr.get_next();
 
 					let cc = ptr.read_flags().get_cc();
-					if cc != 0 {
-						log_debug!("WritebackDoneHead: {:?} cc={}", td_id, cc);
+					if cc != hw::CompletionCode::NoError {
+						log_debug!("WritebackDoneHead: {:?} cc={:?}", td_id, cc);
+						panic!("Handle non-zero condition code: {:?} cc={:?}", td_id, cc);
 					}
 
 					// Read waker out
@@ -630,7 +635,7 @@ impl HostInner
 	}
 	unsafe fn push_td(&self, ep: &EndpointId, flags: u32, first_byte: u32, last_byte: u32, waker: ::core::task::Waker) -> TransferDescriptorId
 	{
-		log_debug!("push_td({:?}, {:#x}, {:#x}-{:#x})", ep, flags, first_byte, last_byte);
+		//log_debug!("push_td({:?}, {:#x}, {:#x}-{:#x})", ep, flags, first_byte, last_byte);
 		// 1. Allocate a new transfer descriptor (to be used as the new tail)
 		let new_tail_td = self.allocate_td();
 		let new_tail_phys = ::kernel::memory::virt::get_phys( self.get_general_td_pointer(&new_tail_td) ) as u32;
@@ -640,6 +645,7 @@ impl HostInner
 		let epm = self.get_endpoint_meta(ep);
 		// - Update the tail in metadata (swap for the newly allocated one)
 		let td_handle = TransferDescriptorId::from_u16( epm.tail_td.swap(new_tail_td.to_u16(), Ordering::SeqCst) );
+		log_debug!("push_td({:?}, {:#x}, {:#x}-{:#x}): {:?}", ep, flags, first_byte, last_byte, td_handle);
 		// - Obtain pointer to the old tail
 		let td_ptr = self.get_general_td_pointer(&td_handle);
 		// - Fill the old tail with our data (and the new tail paddr)
@@ -866,7 +872,7 @@ impl ::usb_core::host::HostController for UsbHost
 			| (0b0 << 15)	// Format - 0=control/bulk/int
 			| (max_packet_size as u32 & 0xFFFF) << 16
 			);
-
+		log_debug!("init_control({:?}): {:?}", endpoint, ptr);
 		Handle::new(ControlEndpointHandle {
 			controller: self.host.reborrow(),
 			id: ptr,
@@ -882,6 +888,7 @@ impl ::usb_core::host::HostController for UsbHost
 			| (0b0 << 15)	// Format - 0=control/bulk/int
 			| (max_packet_size as u32 & 0xFFFF) << 16
 			);
+		log_debug!("init_bulk_out({:?}): {:?}", endpoint, ptr);
 		Handle::new(BulkEndpointOut {
 			controller: self.host.reborrow(),
 			id: ptr,
@@ -897,6 +904,7 @@ impl ::usb_core::host::HostController for UsbHost
 			| (0b0 << 15)	// Format - 0=control/bulk/int
 			| (max_packet_size as u32 & 0xFFFF) << 16
 			);
+		log_debug!("init_bulk_int({:?}): {:?}", endpoint, ptr);
 		Handle::new(BulkEndpointIn {
 			controller: self.host.reborrow(),
 			id: ptr,
@@ -1240,6 +1248,7 @@ impl InterruptEndpointHandle
 			| (0b0 << 15)	// Format - 0=control/bulk/int
 			// TODO: max packet size?
 			);
+		log_debug!("init_interrupt({:?}): {:?}", endpoint, ptr);
 		// Allocate a pair of buffers (in DMA memory) of `max_packet_size`, use double buffering for them
 		// NOTE: Lazy option: Allocate a whole page (a pool would be better/more efficient)
 		// NOTE: Don't add TDs until `wait` is called, ensures that the first packet after wait is for the wait
@@ -1272,8 +1281,9 @@ impl InterruptEndpointHandle
 		{
 			// SAFE: Saving the buffer handle in the endpoint structure.
 			let (td, buf_handle,) = ::core::mem::replace(&mut *lh, Some(unsafe { self.push_td() })).unwrap();
-			self.controller.release_td(td);
 			let valid_len = self.buffers.max_packet_size() - remaining;
+			log_debug!("Interrupt {:?}: {} bytes", td, valid_len);
+			self.controller.release_td(td);
 			// SAFE: Hardware is no longer accessing the buffer
 			let filled_buffer = unsafe { buf_handle.filled(valid_len) };
 			let rv = host::IntBuffer::new(filled_buffer)

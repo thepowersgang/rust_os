@@ -6,6 +6,7 @@
 #![no_std]
 #![feature(linkage)]	// for module_define!
 #![feature(try_blocks)]
+#![feature(arbitrary_self_types)]
 use kernel::prelude::*;
 use kernel::lib::mem::aref::{Aref,ArefBorrow};
 use kernel::sync::Mutex;
@@ -33,7 +34,7 @@ enum HubRef
 {
 	//Root(ArefBorrow<Host>),
 	Root(HostRef),
-	Device(ArefBorrow<HubDevice>),
+	Device(ArefBorrow<hub::HubDevice<'static>>),
 }
 
 /// A reference to a host
@@ -81,14 +82,9 @@ struct Host
 	//device_workers: [Mutex<Option<core::pin::Pin<Box<dyn core::future::Future<Output=()> + Send>>>>; 255],
 	device_workers: Vec< Mutex<Option<core::pin::Pin<Box<dyn core::future::Future<Output=()> + Send>>>> >,
 }
-struct HubDevice
-{
-	host: HostRef,
-	ports: Vec<PortState>,
-}
 struct HostEnt
 {
-	host: Aref<Host>,
+	_host: Aref<Host>,
 	_worker: kernel::threads::WorkerThread,
 }
 
@@ -123,7 +119,7 @@ pub fn register_host(driver: Box<dyn host::HostController>, nports: u8)
 	let hb = host.borrow();
 	let mut lh = HOST_LIST.lock();
 	lh.push(HostEnt {
-		host,
+		_host: host,
 		_worker: ::kernel::threads::WorkerThread::new("USB Host", move || host_worker(hb)),
 		});
 }
@@ -257,9 +253,14 @@ impl PortDev
 		}
 		self.set_port_feature(host::PortFeature::Reset).await;
 		kernel::futures::msleep(50).await;
-		self.clear_port_feature(host::PortFeature::Reset).await;
-		kernel::futures::msleep(2).await;
-		self.set_port_feature(host::PortFeature::Enable).await;
+		// TODO: Wait for CReset on the port instead of a hard-coded wait?
+		if self.get_port_feature(host::PortFeature::Reset).await {
+			self.clear_port_feature(host::PortFeature::Reset).await;
+			kernel::futures::msleep(2).await;
+		}
+		if ! self.get_port_feature(host::PortFeature::Enable).await {
+			self.set_port_feature(host::PortFeature::Enable).await;
+		}
 		addr0_handle.send_setup_address(address).await;
 	}
 
@@ -758,40 +759,4 @@ impl AddressPool
 		None
 	}
 }
-
-impl HubDevice
-{
-	fn new(host: HostRef, nports: usize) -> Self
-	{
-		Self {
-			host: host,
-			ports: {
-				let mut v = Vec::new();
-				v.resize_with(nports as usize, || PortState::new());
-				v
-				},
-			}
-	}
-	fn port_connected(this: ArefBorrow<HubDevice>, port_idx: usize)
-	{
-		let hubref = HubRef::Device(this.reborrow());
-		this.ports[port_idx].signal_connected(hubref, port_idx as u8);
-	}
-	fn port_disconnected(this: ArefBorrow<HubDevice>, _port_idx: usize)
-	{
-		todo!("Handle port disconnection");
-	}
-
-	async fn set_port_feature(&self, port_idx: usize, feat: host::PortFeature) {
-		todo!("HubDevice::set_port_feature({}, {:?})", port_idx, feat)
-	}
-	async fn clear_port_feature(&self, port_idx: usize, feat: host::PortFeature) {
-		todo!("HubDevice::clear_port_feature({}, {:?})", port_idx, feat)
-	}
-	async fn get_port_feature(&self, port_idx: usize, feat: host::PortFeature) -> bool {
-		todo!("HubDevice::get_port_feature({}, {:?})", port_idx, feat)
-	}
-
-}
-
 

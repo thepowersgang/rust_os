@@ -53,6 +53,42 @@ pub enum Regs
 	HcRhPortStatus15,
 }
 
+#[derive(Debug,PartialEq,Copy,Clone)]
+#[repr(u8)]
+pub enum CompletionCode
+{
+	NoError,
+	/// "Last data packet from endpoint contained a CRC error."
+	CRC,
+	/// "Last data packet from endpoint contained a bit stuffing violation"
+	BitStuffing,
+	/// "Last packet from endpoint had data toggle PID that did not match the expected value."
+	DataToggleMismatch,
+	/// "TD was moved to the Done Queue because the endpoint returned a STALL PID"
+	Stall,
+	/// "Device did not respond to token (IN) or did not provide a handshake (OUT)"
+	DeviceNotResponding,
+	/// "Check bits on PID from endpoint failed on data PID (IN) or handshake (OUT)"
+	PidCheckFailure,
+	/// "Receive PID was not valid when encountered or PID value is not defined."
+	UnexpectedPid,
+	/// "The amount of data returned by the endpoint exceeded either the size of
+	///  the maximum data packet allowed from the endpoint (found in MaximumPacketSize
+	///  field of ED) or the remaining buffer size."
+	DataOverrun,
+	/// "The endpoint returned less than MaximumPacketSize and that amount was not
+	/// sufficient to fill the specified buffer"
+	DataUnderrun,
+	_Reserved10,
+	_Reserved11,
+	/// "During an IN, HC received data from endpoint faster than it could be written to system memory"
+	BufferOverrun,
+	/// "During an OUT, HC could not retrieve data from system memory fast enough to keep up with data USB data rate."
+	BufferUnderrun,
+	_NotAccessed0,
+	_NotAccessed1,
+}
+
 pub const HCCMDSTATUS_HCR: u32 = 1 << 0;	// "HostControllerReset"
 pub const HCCMDSTATUS_CLF: u32 = 1 << 1;	// "ControlListFilled"
 pub const HCCMDSTATUS_BLF: u32 = 1 << 2;	// "BulkListFilled"
@@ -276,8 +312,27 @@ impl GeneralTdFlags
 		GeneralTdFlags(self.0 | GeneralTD::FLAG_ROUNDING)
 	}
 	
-	pub fn get_cc(&self) -> u32 {
-		self.0 >> 28
+	pub fn get_cc(&self) -> CompletionCode {
+		match self.0 >> 28
+		{
+		0x0 => CompletionCode::NoError,
+		0x1 => CompletionCode::CRC,
+		0x2 => CompletionCode::BitStuffing,
+		0x3 => CompletionCode::DataToggleMismatch,
+		0x4 => CompletionCode::Stall,
+		0x5 => CompletionCode::DeviceNotResponding,
+		0x6 => CompletionCode::PidCheckFailure,
+		0x7 => CompletionCode::UnexpectedPid,
+		0x8 => CompletionCode::DataOverrun,
+		0x9 => CompletionCode::DataUnderrun,
+		0xa => CompletionCode::_Reserved10,
+		0xb => CompletionCode::_Reserved11,
+		0xc => CompletionCode::BufferOverrun,
+		0xd => CompletionCode::BufferUnderrun,
+		0xe => CompletionCode::_NotAccessed0,
+		0xf => CompletionCode::_NotAccessed1,
+		_ => unreachable!(),
+		}
 	}
 }
 impl ::core::fmt::Debug for GeneralTdFlags

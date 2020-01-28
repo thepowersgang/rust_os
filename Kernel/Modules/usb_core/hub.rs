@@ -1,10 +1,11 @@
 
 use ::kernel::lib::mem::Box;
 use ::kernel::lib::Vec;
-use ::kernel::lib::mem::aref::{Aref};
+use ::kernel::lib::mem::aref::{Aref,ArefBorrow};
 
 
 #[derive(Debug)]
+#[derive(Copy,Clone)]
 #[repr(u8)]
 pub enum PortFeature
 {
@@ -46,12 +47,19 @@ pub(crate) fn start_device<'a>(host: super::HostRef, ep0: &'a super::ControlEndp
 			HubDescriptor::from_bytes(&hub_desc_raw[..l])
 			};
 
-		let mut dev = HubDevice {
+		let dev = Aref::new(HubDevice {
 			ep0,
 			int_ep,
-			parent: Aref::new(super::HubDevice::new(host, hub_desc.num_ports as usize)),
+
+			host: host,
+
+			ports: {
+				let mut v = Vec::new();
+				v.resize_with(hub_desc.num_ports as usize, || super::PortState::new());
+				v
+				},
 			hub_desc,
-			};
+			});
 		// 1. Watch for requests to update features?
 		// 2. Check for updates on the interrupt endpoint
 		loop
@@ -61,17 +69,27 @@ pub(crate) fn start_device<'a>(host: super::HostRef, ep0: &'a super::ControlEndp
 		})
 }
 
-struct HubDevice<'a>
+pub(crate) struct HubDevice<'a>
 {
 	ep0: &'a crate::ControlEndpoint,
 	int_ep: crate::InterruptEndpoint,
 	hub_desc: HubDescriptor,
 
-	parent: Aref<super::HubDevice>,
+	pub host: super::HostRef,
+	ports: Vec<super::PortState>,
 }
 impl HubDevice<'_>
 {
-	async fn check_interrupt(&mut self)
+	fn static_borrow(self: &Aref<Self>) -> ArefBorrow<HubDevice<'static>> {
+		// SAFE: This class doesn't expose `ep0` (which is the borrowed field), so it can't be leaked.
+		// SAFE: The Aref structure ensures that the borrow can't be used once Aref is dropped
+		unsafe {
+			let b: ArefBorrow<Self> = self.borrow();
+			::core::mem::transmute(b)
+		}
+	}
+
+	async fn check_interrupt(self: &Aref<Self>)
 	{
 		let d = self.int_ep.wait().await;
 		for i in 0 .. self.hub_desc.num_ports as usize
@@ -79,32 +97,75 @@ impl HubDevice<'_>
 			let byte_idx = i/8;
 			if byte_idx < d.len() && d[byte_idx] & 1 << i%8 != 0
 			{
-				log_notice!("Port change: {}", i);
 				self.check_port(i).await;
 			}
 		}
 	}
 
-	async fn check_port(&self, idx: usize)
+	async fn check_port(self: &Aref<Self>, idx: usize)
 	{
 		// Request the changeset
-		let status = {
-			let mut status_raw = [0; 4];
-			self.ep0.read_request(/*type=*/0xA3, /*req_num=*/0/*GET_STATUS*/, /*value=*/0, /*port=*/idx as u16, &mut status_raw).await;
-			(status_raw[0] as u32) << 0 | (status_raw[1] as u32) << 8 | (status_raw[2] as u32) << 16 | (status_raw[3] as u32) << 24
-			};
-		log_debug!("port {}: status={:08x}", idx, status);
+		let status = self.get_status(idx).await;
+		log_notice!("Hub port {}: status={:08x}", idx, status);
+
 		if status & 1 << PortFeature::CConnection as u8 != 0 {
-			if status & 1 << PortFeature::Connection as u8 != 0 {
+			let connected = status & 1 << PortFeature::Connection as u8 != 0; 
+			log_debug!("Conection change: {}", connected);
+			self.clear_port_feature(idx, PortFeature::CConnection).await;
+			if connected {
 				// Newly connected
 				// - Hand off to parent's port init code
-				super::HubDevice::port_connected(self.parent.borrow(), idx);
+				let hubref = super::HubRef::Device(self.static_borrow());
+				self.ports[idx].signal_connected(hubref, idx as u8);
 			}
 			else {
 				// Disconnected
-				super::HubDevice::port_disconnected(self.parent.borrow(), idx);
+				todo!("Handle port disconnection");
 			}
 		}
+		if status & 1 << PortFeature::CEnable as u8 != 0 {
+			let val = status & 1 << PortFeature::Enable as u8 != 0; 
+			log_debug!("Enable change: {}", val);
+			self.clear_port_feature(idx, PortFeature::CEnable).await;
+		}
+		if status & 1 << PortFeature::CSuspend as u8 != 0 {
+			let val = status & 1 << PortFeature::Suspend as u8 != 0; 
+			log_debug!("Suspend change: {}", val);
+			self.clear_port_feature(idx, PortFeature::CSuspend).await;
+		}
+		if status & 1 << PortFeature::COverCurrent as u8 != 0 {
+			let val = status & 1 << PortFeature::OverCurrent as u8 != 0; 
+			log_debug!("OverCurrent change: {}", val);
+			self.clear_port_feature(idx, PortFeature::COverCurrent).await;
+		}
+		if status & 1 << PortFeature::CReset as u8 != 0 {
+			let val = status & 1 << PortFeature::Reset as u8 != 0; 
+			log_debug!("Reset change: {}", val);
+			self.clear_port_feature(idx, PortFeature::CReset).await;
+		}
+	}
+
+	pub async fn set_port_feature(&self, port_idx: usize, feat: PortFeature) {
+		log_debug!("set_port_feature({}, {:?})", port_idx, feat);
+		self.ep0.send_request(/*type=*/0x23, /*req_num=*/3/*SET_FEATURE*/, /*value=*/feat as u8 as u16, /*index=*/port_idx as u16, &[]).await;
+	}
+	pub async fn clear_port_feature(&self, port_idx: usize, feat: PortFeature) {
+		log_debug!("clear_port_feature({}, {:?})", port_idx, feat);
+		self.ep0.send_request(/*type=*/0x23, /*req_num=*/1/*CLEAR_FEATURE*/, /*value=*/feat as u8 as u16, /*index=*/port_idx as u16, &[]).await;
+	}
+	pub async fn get_port_feature(&self, port_idx: usize, feat: PortFeature) -> bool {
+		log_trace!("get_port_feature({}, {:?})", port_idx, feat);
+		let rv = self.get_status(port_idx).await & (1 << feat as u8) != 0;
+		log_debug!("get_port_feature({}, {:?}): {}", port_idx, feat, rv);
+		rv
+	}
+
+	async fn get_status(&self, idx: usize) -> u32
+	{
+		log_trace!("get_status({})", idx);
+		let mut status_raw = [0; 4];
+		self.ep0.read_request(/*type=*/0xA3, /*req_num=*/0/*GET_STATUS*/, /*value=*/0, /*port=*/idx as u16, &mut status_raw).await;
+		(status_raw[0] as u32) << 0 | (status_raw[1] as u32) << 8 | (status_raw[2] as u32) << 16 | (status_raw[3] as u32) << 24
 	}
 }
 
