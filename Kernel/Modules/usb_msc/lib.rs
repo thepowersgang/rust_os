@@ -81,6 +81,7 @@ impl ::core::future::Future for DeviceInstance
 
 struct ScsiInterface
 {
+	name: String,
 	//inner: ::kernel::futures::Mutex<ScsiInterfaceInner>,
 	inner: ::kernel::sync::Mutex<ScsiInterfaceInner>,
 }
@@ -88,14 +89,20 @@ impl ScsiInterface
 {
 	fn new(ep_in: ::usb_core::BulkEndpointIn, ep_out: ::usb_core::BulkEndpointOut) -> Self
 	{
+		use ::core::sync::atomic::{AtomicUsize,Ordering};
+		// TODO: Allow freeing of indexes? Or get the device ID?
+		static INDEX: AtomicUsize = AtomicUsize::new(0);
 		ScsiInterface {
+			name: format!("usb{}", INDEX.fetch_add(1, Ordering::SeqCst)),
 			inner: ::kernel::sync::Mutex::new(ScsiInterfaceInner { next_tag: 0, ep_in, ep_out }),
 			}
 	}
 }
 impl ::storage_scsi::ScsiInterface for ScsiInterface
 {
-	fn name(&self) -> &str { "usb-msc" }
+	fn name(&self) -> &str {
+		&self.name
+	}
 	fn send<'a>(&'a self, command: &[u8], data: &'a [u8]) -> ::kernel::metadevs::storage::AsyncIoResult<'a,()> {
 		assert!( command.len() < 16 );
 		let len = command.len();
