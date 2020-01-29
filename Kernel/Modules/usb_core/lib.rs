@@ -230,6 +230,7 @@ impl PortDev
 	fn set_port_feature(&self, feat: host::PortFeature) -> impl core::future::Future<Output=()> + '_ {
 		self.hub.set_port_feature(self.port_idx as usize, feat)
 	}
+	#[allow(dead_code)]
 	fn clear_port_feature(&self, feat: host::PortFeature) -> impl core::future::Future<Output=()> + '_ {
 		self.hub.clear_port_feature(self.port_idx as usize, feat)
 	}
@@ -254,10 +255,11 @@ impl PortDev
 		self.set_port_feature(host::PortFeature::Reset).await;
 		kernel::futures::msleep(50).await;
 		// TODO: Wait for CReset on the port instead of a hard-coded wait?
-		if self.get_port_feature(host::PortFeature::Reset).await {
-			self.clear_port_feature(host::PortFeature::Reset).await;
+		while self.get_port_feature(host::PortFeature::Reset).await {
 			kernel::futures::msleep(2).await;
 		}
+		kernel::futures::msleep(2).await;
+		// Enable the port if the hub hasn't done that for us
 		if ! self.get_port_feature(host::PortFeature::Enable).await {
 			self.set_port_feature(host::PortFeature::Enable).await;
 		}
