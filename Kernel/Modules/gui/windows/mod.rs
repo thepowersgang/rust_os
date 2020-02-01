@@ -127,9 +127,14 @@ pub fn update_dims()
 					// TODO: Crop window's display area to fit on-screen?
 					log_debug!("Check {:?} vs {:?}", *pos, r);
 					},
-				// TODO: If now off-screen, warp to a visible position (with ~20px leeway)
+				// If now off-screen, warp to a visible position (with ~20px leeway)
 				Err(r) => {
-					todo!("update_dims: Handle window moving off display area - {:?} - {:?}", *pos, r)
+					const MIN_VISIBLE: u32 = 20;
+					log_debug!("update_dims: Warping window from {:?} to 20px within {:?}", *pos, r);
+					pos.x = ::core::cmp::min(pos.x, r.right() - MIN_VISIBLE);
+					pos.x = ::core::cmp::max(pos.x, r.left());
+					pos.y = ::core::cmp::min(pos.y, r.bottom() - MIN_VISIBLE);
+					pos.y = ::core::cmp::max(pos.y, r.top());
 					},
 				}
 			}
@@ -140,6 +145,11 @@ pub fn update_dims()
 	}
 	
 	// TODO: Poke registered callbacks and tell them that the dimensions have changed
+
+	// Force a full redraw
+	S_RENDER_NEEDED.store(true, atomic::Ordering::Relaxed);
+	S_FULL_REDRAW.store(true, atomic::Ordering::Relaxed);
+	S_RENDER_REQUEST.post();
 }
 
 /// Handle an input event

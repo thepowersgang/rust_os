@@ -23,8 +23,8 @@ pub fn new_boxed<T: Interface+Send+Sync+'static>(dev_id: u32, int: T) -> Box<dyn
 		}
 	2 => Box::new( block::BlockDevice::new(int) ),	// 2 = Block device
 	// DISABLED: Changing video modes breaks stuff currently...
-	16 => if false { 	// 16 = Graphics Adapter
-		Box::new( video::VideoDevice::new(int) )
+	16 => if true { 	// 16 = Graphics Adapter
+			Box::new( video::VideoDevice::new(int) )
 		}
 		else {
 			Box::new(NullDevice)

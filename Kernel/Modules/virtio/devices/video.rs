@@ -52,6 +52,8 @@ where
 {
 	dev: ArefBorrow<DeviceCore<I>>,
 	idx: u32,
+	bpp: u8,
+	width: u32,
 }
 
 impl<I> VideoDevice<I>
@@ -68,7 +70,7 @@ where
 			cursorq: int.get_queue(1, 0).expect("Queue #1 'cursorq' missing on virtio gpu device"),
 			scanouts: Mutex::new(Vec::from_fn(num_scanouts, |_| None)),
 			interface: int,
-			next_resource_id: Default::default(),
+			next_resource_id: ::core::sync::atomic::AtomicU32::new(1),
 			});
 
 		let di = core.get_display_info();
@@ -76,7 +78,7 @@ where
 		{
 			if screen.enabled != 0
 			{
-				log_debug!("Scanout #{} enabled: {:?} flags={:#x}", i, screen.r, screen.flags);
+				log_log!("Scanout #{} enabled: {:?} flags={:#x}", i, screen.r, screen.flags);
 				core.scanouts.lock()[i] = Some(video::add_output( Box::new(Framebuffer::new(core.borrow(), i, screen)) ));
 			}
 		}
@@ -125,7 +127,8 @@ where
 	{
 		self.next_resource_id.fetch_add(1, ::core::sync::atomic::Ordering::SeqCst)
 	}
-	fn send_cmd<T: kernel::lib::POD>(&self, hdr: &hw::CtrlHeader, cmd: &T) -> hw::CtrlHeader {
+	fn send_cmd<T: kernel::lib::POD + ::core::fmt::Debug>(&self, hdr: &hw::CtrlHeader, cmd: &T) -> hw::CtrlHeader {
+		log_trace!("send_cmd(hdr={:?}, cmd={:?}", hdr, cmd);
 		self.send_cmd_raw(hdr, ::kernel::lib::as_byte_slice(cmd))
 	}
 	fn send_cmd_raw(&self, hdr: &hw::CtrlHeader, cmd: &[u8]) -> hw::CtrlHeader {
@@ -160,6 +163,12 @@ where
 
 		Resource2D {
 			dev: self.reborrow(),
+			bpp: match format
+				{
+				hw::VIRTIO_GPU_FORMAT_B8G8R8X8_UNORM => 4,
+				_ => todo!(""),
+				},
+			width: width,
 			idx: res_id,
 			}
 	}
@@ -249,7 +258,8 @@ where
 	fn blit_ext(&mut self, _dst: video::Rect, _src: video::Rect, _srf: &dyn video::Framebuffer) -> bool {
 		false
 	}
-	fn blit_buf(&mut self, dst: video::Rect, buf: &[u32]) {
+	fn blit_buf(&mut self, dst: video::Rect, buf: video::StrideBuf<'_, u32>) {
+		log_trace!("blit_buf({:?}, len={},{})", dst, buf.stride(), buf.count());
 		// Iterate rows of the input
 		let src_pitch = dst.w() as usize;
 		for (row,src) in kernel::lib::ExactZip::new( dst.top() .. dst.bottom(), buf.chunks(src_pitch) )
@@ -317,9 +327,10 @@ where
 			entries[n_ents].length = cur_len as u32;
 			n_ents += 1;
 		}
+		log_debug!("Resource2D::attach_backing(self=#{}): entries={:?}", self.idx, &entries[..n_ents]);
 
 		let hdr = hw::CtrlHeader {
-			type_: hw::VIRTIO_GPU_CMD_TRANSFER_TO_HOST_2D as u32,
+			type_: hw::VIRTIO_GPU_CMD_RESOURCE_ATTACH_BACKING as u32,
 			flags: 0,
 			fence_id: 0,
 			ctx_id: 0,
@@ -343,6 +354,7 @@ where
 	}
 	pub fn transfer_to_host(&self, rect: video::Rect)
 	{
+		log_trace!("Resource2D::transfer_to_host(self=#{}, rect={:?})", self.idx, rect);
 		self.dev.send_cmd(&hw::CtrlHeader {
 				type_: hw::VIRTIO_GPU_CMD_TRANSFER_TO_HOST_2D as u32,
 				flags: 0,
@@ -352,13 +364,14 @@ where
 				},
 			&hw::TransferToHost {
 				r: rect.into(),
-				offset: 0,
+				offset: (rect.x() + rect.y() * self.width) as u64 * self.bpp as u64,
 				resource_id: self.idx,
 				_padding: 0,
 				});
 	}
 	pub fn flush(&self, rect: video::Rect)
 	{
+		log_trace!("Resource2D::flush(self=#{}, rect={:?})", self.idx, rect);
 		let hdr = hw::CtrlHeader {
 			type_: hw::VIRTIO_GPU_CMD_RESOURCE_FLUSH as u32,
 			flags: 0,
@@ -485,6 +498,7 @@ mod hw
 		pub height: u32,
 	}
 	#[allow(non_camel_case_types,dead_code)]
+	#[derive(Copy,Clone,Debug)]
 	pub enum virtio_gpu_formats
 	{
 		VIRTIO_GPU_FORMAT_B8G8R8A8_UNORM  = 1,

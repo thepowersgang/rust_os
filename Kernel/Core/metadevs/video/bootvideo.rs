@@ -178,7 +178,7 @@ impl super::Framebuffer for Framebuffer
 	fn blit_ext(&mut self, _dst: Rect, _src: Rect, _srf: &dyn super::Framebuffer) -> bool {
 		false
 	}
-	fn blit_buf(&mut self, dst: Rect, buf: &[u32]) {
+	fn blit_buf(&mut self, dst: Rect, buf: super::StrideBuf<'_, u32>) {
 		let redraw_cursor = self.clobber_cursor(dst);
 
 		//log_trace!("Framebuffer::blit_buf(dst={})", dst);
@@ -190,8 +190,7 @@ impl super::Framebuffer for Framebuffer
 		assert!(dst.top()    <  self.buffer.mode.height as u32);
 		assert!(dst.bottom() <= self.buffer.mode.height as u32);
 		
-		assert!(buf.len() >= src_pitch);
-		assert!(buf.len() % src_pitch == 0);
+		assert!(buf.is_round(src_pitch));
 
 		let bpp = output_fmt.bytes_per_pixel();
 		// Iterate across destination row nums and source rows

@@ -109,7 +109,7 @@ impl Queue
 
 	pub fn check_interrupt(&self) {
 		while self.last_seen_used.load(Ordering::Relaxed) as u16 != self.used_ring().idx {
-			let idx = self.last_seen_used.fetch_add(1, Ordering::Relaxed) & 0xFFFF;
+			let idx = (self.last_seen_used.fetch_add(1, Ordering::Relaxed) & 0xFFFF) % self.size;
 			log_debug!("idx={}, desc={:?}", idx, self.used_ring().ents[idx]);
 			let UsedElem { id, len } = self.used_ring().ents[idx];
 
@@ -162,7 +162,7 @@ impl Queue
 				desc.length = len;
 				desc.flags = (if next.is_some() { VRING_DESC_F_NEXT } else { 0 }) | (if write { VRING_DESC_F_WRITE } else { 0 });
 				desc.next = match next { Some(v) => v.idx, None => 0 };
-				log_trace!("Desc {}: {:#x}+{}", idx, phys, len);
+				//log_trace!("Desc {}: {:#x}+{}", idx, phys, len);
 				return DescriptorHandle { pd: ::core::marker::PhantomData, idx: idx as u16 };
 			}
 		}
@@ -294,7 +294,7 @@ impl<'a> ::core::ops::Drop for Request<'a>
 		let mut idx = self.first_desc as usize;
 		loop
 		{
-			log_trace!("- Desc {}: Release", idx);
+			//log_trace!("Desc {}: Release", idx);
 			d[idx].length = 0;
 			if d[idx].flags & VRING_DESC_F_NEXT == 0 {
 				break ;

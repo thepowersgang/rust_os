@@ -48,12 +48,84 @@ pub trait Framebuffer: 'static + Send
 	
 	fn blit_inner(&mut self, dst: Rect, src: Rect);
 	fn blit_ext(&mut self, dst: Rect, src: Rect, srf: &dyn Framebuffer) -> bool;
-	fn blit_buf(&mut self, dst: Rect, buf: &[u32]);
+	// NOTE: Takes a buffer with stride to allow blitting from a source rect
+	fn blit_buf(&mut self, dst: Rect, buf: StrideBuf<'_,u32>);
 	fn fill(&mut self, dst: Rect, colour: u32);
 	
 	fn move_cursor(&mut self, p: Option<Pos>);
 	//fn set_cursor(&mut self, size: Dims, data: &[u32]);
 	// TODO: Handle 3D units
+}
+
+/// Wrapper around a buffer that includes a stride (width between contiguious segments)
+pub struct StrideBuf<'a, T: 'a>
+{
+	buf: &'a [T],
+	stride: usize,
+}
+impl<'a, T: 'a> StrideBuf<'a, T>
+{
+	pub fn new(buf: &[T], stride: usize) -> StrideBuf<T> {
+		StrideBuf {
+			buf, stride
+			}
+	}
+
+	pub fn stride(&self) -> usize {
+		self.stride
+	}
+	pub fn tail_width(&self) -> usize {
+		let rem = self.buf.len() % self.stride;
+		if rem == 0 {
+			self.stride
+		}
+		else {
+			rem
+		}
+	}
+	pub fn count(&self) -> usize {
+		(self.buf.len() + self.stride - 1) / self.stride
+	}
+
+	/// Checks that the size of the last chunk is divisible by the given divisor
+	pub fn is_round(&self, divisor: usize) -> bool
+	{
+		self.stride >= divisor && self.buf.len() % self.stride % divisor == 0
+	}
+	/// Return chunks of the given width
+	pub fn chunks(&self, w: usize) -> impl ::core::iter::ExactSizeIterator<Item=&'a [T]>
+	{
+		assert!(w <= self.stride);
+		self.buf.chunks(self.stride).map(move |v| if v.len() < w { v } else { &v[..w] })
+	}
+
+	/// Take a sub-rect with the given x/y as the left/top
+	pub fn offset(&self, x: usize, y: usize) -> StrideBuf<'a, T>
+	{
+		let ofs = x + y * self.stride;
+		StrideBuf {
+			buf: &self.buf[ofs..],
+			stride: self.stride,
+			}
+	}
+	pub fn clip(&self, w: usize, h: usize) -> StrideBuf<'a, T>
+	{
+		assert!(w <= self.stride);
+		assert!(h >= 1);
+		// The last line has to be `w` lines long
+		let new_len = (h-1) * self.stride + w;
+		StrideBuf {
+			buf: &self.buf[..new_len],
+			stride: self.stride,
+			}
+	}
+}
+impl<'a, T: 'a> ::core::fmt::Pointer for StrideBuf<'a, T>
+{
+	fn fmt(&self, f: &mut ::core::fmt::Formatter) -> ::core::fmt::Result
+	{
+		write!(f, "StrideBuf({:p} w={},h={}, s={})", self.buf.as_ptr(), self.tail_width(), self.count(), self.stride())
+	}
 }
 
 struct DisplaySurface
@@ -123,7 +195,7 @@ pub fn set_panic(file: &str, line: usize, message: &::core::fmt::Arguments)
 				row.decompress(row_buf);
 				let p = p.offset(0,y as i32);
 				let r = Rect::new_pd(p, Dims::new(PANIC_IMAGE_DIMS.0, 1));
-				surf.fb.blit_buf(r, row_buf);
+				surf.fb.blit_buf(r, StrideBuf::new(row_buf, PANIC_IMAGE_DIMS.0 as usize));
 			}
 		}
 		// 3. Render message to top-left
@@ -173,7 +245,10 @@ pub fn set_panic(file: &str, line: usize, message: &::core::fmt::Arguments)
 	impl<'a> PanicWriterOut<'a>
 	{
 		fn putc(&mut self, data: &[u32; 8*16]) {
-			self.fb.blit_buf(Rect::new(self.x as u32, self.y as u32,  8, 16), data);
+			self.fb.blit_buf(
+				Rect::new(self.x as u32, self.y as u32,  8, 16),
+				StrideBuf::new(data, 8)
+				);
 			self.x += 8;
 			if self.x == self.w {
 				self.y += 16;
@@ -296,6 +371,7 @@ pub fn get_display_for_pos(pos: Pos) -> Result<Rect,Rect>
 /// Write part of a single scanline to the screen
 ///
 /// Unsafe because it (eventually) will be able to cause multiple writers
+// TODO: Why is this unsafe?
 pub unsafe fn write_line(pos: Pos, data: &[u32])
 {
 	let rect = Rect { pos: pos, dims: Dims::new(data.len() as u32, 1) };
@@ -307,7 +383,25 @@ pub unsafe fn write_line(pos: Pos, data: &[u32])
 			let ofs_l = sub_rect.left() - rect.left();
 			let ofs_r = sub_rect.right() - rect.left();
 			// 2. Blit to it
-			surf.fb.blit_buf(sub_rect, &data[ofs_l as usize .. ofs_r as usize]);
+			let buf = StrideBuf::new(&data[ofs_l as usize .. ofs_r as usize], (ofs_r - ofs_l) as usize);
+			surf.fb.blit_buf(sub_rect, buf);
+		}
+	}
+}
+pub /*unsafe*/ fn write_buf(pos: Pos, data: StrideBuf<'_, u32>)
+{
+	let rect = Rect { pos: pos, dims: Dims::new(data.tail_width() as u32, data.count() as u32) };
+	// 1. Locate surface
+	for surf in S_DISPLAY_SURFACES.lock().iter_mut()
+	{
+		if let Some(sub_rect) = surf.region.intersect(&rect)
+		{
+			let ofs_l = (sub_rect.left() - rect.left()) as usize;
+			let ofs_t = (sub_rect.top() - rect.top()) as usize;
+			// Get sub-slice
+			let buf = data.offset(ofs_l, ofs_t).clip(sub_rect.w() as usize, sub_rect.h() as usize);
+			// 2. Blit to it
+			surf.fb.blit_buf(sub_rect, buf);
 		}
 	}
 }

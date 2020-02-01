@@ -54,6 +54,8 @@ impl WinBuf
 	{
 		let px_count = newsize.width() as usize * newsize.height() as usize;
 		log_trace!("WinBuf::resize({:?}) px_count = {}", newsize, px_count);
+		let old_w = self.dims.width();
+		let new_w = newsize.width();
 		self.dims = newsize;
 		
 		//let val = (self as *const _ as usize & 0xFFFF) as u32 * (256+9);
@@ -61,7 +63,26 @@ impl WinBuf
 		
 		// SAFE: This is the only place where a resize can happen, and self is &mut
 		unsafe {
-			(*self.data.get()).resize(px_count, val);
+			let buf = &mut *self.data.get();
+			if new_w < old_w {
+				for r in 0 .. self.dims.height()
+				{
+					// Copy from the old start to the new start
+					let src_ofs = (old_w * r) as usize;
+					let dst_ofs = (new_w * r) as usize;
+					buf.copy_within(src_ofs .. src_ofs + new_w as usize, dst_ofs);
+				}
+			}
+			buf.resize(px_count, val);
+			if new_w > old_w {
+				for r in 0 .. self.dims.height()
+				{
+					// Copy from the old start to the new start
+					let src_ofs = (old_w * r) as usize;
+					let dst_ofs = (new_w * r) as usize;
+					buf.copy_within(src_ofs .. src_ofs + old_w as usize, dst_ofs);
+				}
+			}
 		}
 	}
 	
@@ -107,30 +128,18 @@ impl WinBuf
 	pub fn blit(&self, winpos: Pos, rgn: Rect)
 	{
 		log_trace!("WinBuf::blit(winpos={:?},rgn={:?})", winpos, rgn);
-		// TODO: Call a block blit instead?
-		for row in rgn.top() .. rgn.bottom()
-		{
-			self.blit_scanline(
-				winpos,
-				row as usize,
-				rgn.left() as usize,
-				rgn.dims().width() as usize
-				);
-		}
-	}
-	fn blit_scanline(&self, winpos: Pos, line: usize, ofs: usize, len: usize)
-	{
-		// TODO: Assert that current thread is from/controlled-by the compositor
-		// TODO: Should this be an unsafe operation? It isn't memory unsafe, but
-		//       care should be taken to not call this outside the compositor thread.
-		// SAFE: (uncheckable) Can't violate memory unsafety... I think
-		unsafe {
-			let pos = Pos::new(
-				winpos.x + ofs as u32,
-				winpos.y + line as u32
-				);
-			::kernel::metadevs::video::write_line(pos, self.scanline_rgn(line, ofs, len));
-		}
+
+		let pos = Pos::new(
+			winpos.x + rgn.left(),
+			winpos.y + rgn.top(),
+			);
+		let buf = ::kernel::metadevs::video::StrideBuf::new(self.slice(), self.dims.width() as usize);
+		log_trace!("> {:p} (base)", buf);
+		let buf = buf.offset(rgn.left() as usize, rgn.top() as usize);
+		log_trace!("> {:p} (ofs)", buf);
+		let buf = buf.clip(rgn.w() as usize, rgn.h() as usize);
+		log_trace!("> {:p} (clip)", buf);
+		::kernel::metadevs::video::write_buf(pos, buf);
 	}
 	
 	pub fn fill_scanline(&self, line: usize, ofs: usize, len: usize, value: Colour)
