@@ -30,6 +30,7 @@ where
 	cursorq: Queue,
 
 	scanouts: Mutex<Vec<Option<video::FramebufferRegistration>>>,
+	cursors: Mutex<Vec<Cursor<I>>>,
 	next_resource_id: ::core::sync::atomic::AtomicU32,
 }
 
@@ -38,11 +39,21 @@ struct Framebuffer<I>
 where
 	I: Interface + Send + Sync
 {
-	_scanout_idx: usize,
+	scanout_idx: usize,
 	dims: (u32, u32,),
 
 	backing_alloc: ::kernel::memory::virt::AllocHandle,
 	backing_res: Resource2D<I>,
+}
+
+/// Cursor
+struct Cursor<I>
+where
+	I: Interface + Send + Sync
+{
+	_backing_alloc: ::kernel::memory::virt::AllocHandle,
+	backing_res: Resource2D<I>,
+	hot_pos: (u32, u32,)
 }
 
 /// 2D Resource
@@ -70,6 +81,7 @@ where
 			cursorq: int.get_queue(1, 0).expect("Queue #1 'cursorq' missing on virtio gpu device"),
 			scanouts: Mutex::new(Vec::from_fn(num_scanouts, |_| None)),
 			interface: int,
+			cursors: Mutex::new(Vec::new()),
 			next_resource_id: ::core::sync::atomic::AtomicU32::new(1),
 			});
 
@@ -82,6 +94,35 @@ where
 				core.scanouts.lock()[i] = Some(video::add_output( Box::new(Framebuffer::new(core.borrow(), i, screen)) ));
 			}
 		}
+
+		// Setup the cursor
+		// - Allocate a resource
+		// - Populate with a suitable cursor
+		{
+			let mut cursor_list = core.cursors.lock();
+			// Create a standard arrow cursor (TODO: Have a standard set in metadevs::video)
+			cursor_list.push( Cursor::new(core.borrow(), &[
+				0x7F,0x00,0x00,0x00, 0x00,0x00,0x00,0x00,
+				0x7F,0x7F,0x00,0x00, 0x00,0x00,0x00,0x00,
+				0x7F,0xFF,0x7F,0x00, 0x00,0x00,0x00,0x00,
+				0x7F,0xFF,0xFF,0x7F, 0x00,0x00,0x00,0x00,
+				0x7F,0xFF,0xFF,0xFF, 0x7F,0x00,0x00,0x00,
+				0x7F,0xFF,0xFF,0xFF, 0xFF,0x7F,0x00,0x00,
+				0x7F,0xFF,0xFF,0xFF, 0xFF,0xFF,0x7F,0x00,
+				0x7F,0xFF,0xFF,0xFF, 0xFF,0x7F,0x7F,0x7F,
+
+				0x7F,0xFF,0xFF,0xFF, 0x7F,0x00,0x00,0x00,
+				0x7F,0xFF,0x7F,0xFF, 0x7F,0x00,0x00,0x00,
+				0x7F,0x7F,0x00,0x7F, 0xFF,0x7F,0x00,0x00,
+				0x00,0x00,0x00,0x7F, 0xFF,0x7F,0x00,0x00,
+				0x00,0x00,0x00,0x7F, 0xFF,0x7F,0x00,0x00,
+				0x00,0x00,0x00,0x7F, 0xFF,0xFF,0x7F,0x00,
+				0x00,0x00,0x00,0x00, 0x7F,0xFF,0x7F,0x00,
+				0x00,0x00,0x00,0x00, 0x7F,0x7F,0x7F,0x00
+				], 8,  0,0) );
+		}
+		// - Update the cursor
+		core.set_cursor(/*index=*/0,  /*scanout=*/0, video::Pos::new(!0,!0));
 
 		VideoDevice {
 			_core: core,
@@ -166,6 +207,7 @@ where
 			bpp: match format
 				{
 				hw::VIRTIO_GPU_FORMAT_B8G8R8X8_UNORM => 4,
+				hw::VIRTIO_GPU_FORMAT_B8G8R8A8_UNORM => 4,
 				_ => todo!(""),
 				},
 			width: width,
@@ -198,6 +240,62 @@ where
 			h.wait_for_completion().expect("")
 			};
 	}
+
+	fn set_cursor(&self, cursor_index: usize, scanout: usize, pos: video::Pos)
+	{
+		log_trace!("set_cursor(#{}, {}, {:?})", cursor_index, scanout, pos);
+		let hdr = hw::CtrlHeader {
+			type_: hw::VIRTIO_GPU_CMD_UPDATE_CURSOR as u32,
+			flags: 0,
+			fence_id: 0,
+			ctx_id: 0,
+			_padding: 0,
+			};
+		let cmd = self.cursors.lock()[cursor_index].get_update(scanout, pos);
+		let mut ret_hdr: hw::CtrlHeader = ::kernel::lib::PodHelpers::zeroed();
+
+		let _rv = {
+			let h = self.cursorq.send_buffers(&self.interface, &mut [
+				Buffer::Read(::kernel::lib::as_byte_slice(&hdr)),
+				Buffer::Read(::kernel::lib::as_byte_slice(&cmd)),
+				Buffer::Write(::kernel::lib::as_byte_slice_mut(&mut ret_hdr)),
+				]);
+			h.wait_for_completion().expect("Error setting cursor")
+			};
+	}
+	fn move_cursor(&self, scanout: usize, pos: video::Pos)
+	{
+		log_trace!("move_cursor({}, {:?})", scanout, pos);
+		let hdr = hw::CtrlHeader {
+			type_: hw::VIRTIO_GPU_CMD_MOVE_CURSOR as u32,
+			flags: 0,
+			fence_id: 0,
+			ctx_id: 0,
+			_padding: 0,
+			};
+		let cmd = hw::UpdateCursor {
+			pos: hw::CursorPos {
+				scanout_id: scanout as u32,
+				x: pos.x,
+				y: pos.y,
+				_padding: 0,
+				},
+			resource_id: 1,	// has to be non-zero
+			hot_x: 0,
+			hot_y: 0,
+			_padding: 0,
+			};
+		let mut ret_hdr: hw::CtrlHeader = ::kernel::lib::PodHelpers::zeroed();
+
+		let _rv = {
+			let h = self.cursorq.send_buffers(&self.interface, &mut [
+				Buffer::Read(::kernel::lib::as_byte_slice(&hdr)),
+				Buffer::Read(::kernel::lib::as_byte_slice(&cmd)),
+				Buffer::Write(::kernel::lib::as_byte_slice_mut(&mut ret_hdr)),
+				]);
+			h.wait_for_completion().expect("Error setting cursor")
+			};
+	}
 }
 
 impl<I> Framebuffer<I>
@@ -213,11 +311,12 @@ where
 		unsafe {
 			// - Bind framebuffer to it
 			res.attach_backing(fb.as_slice(0,(info.r.width * info.r.height) as usize));
-			// - Set scanout's backing to that resource
-			dev.set_scanout_backing(scanout_idx, info.r, &res);
 		}
+		// - Set scanout's backing to that resource
+		dev.set_scanout_backing(scanout_idx, info.r, &res);
+
 		Framebuffer {
-			_scanout_idx: scanout_idx,
+			scanout_idx: scanout_idx,
 			dims: (info.r.width, info.r.height,),
 			backing_alloc: fb,
 			backing_res: res,
@@ -275,9 +374,67 @@ where
 	fn fill(&mut self, dst: video::Rect, colour: u32) {
 		todo!("fill({:?}, {:06x})", dst, colour);
 	}
-	fn move_cursor(&mut self, _p: Option<video::Pos>) {
-		todo!("move_cursor");
-		// VIRTIO_GPU_CMD_MOVE_CURSOR
+	fn move_cursor(&mut self, p: Option<video::Pos>)
+	{
+		match p
+		{
+		Some(p) => self.backing_res.dev.move_cursor(self.scanout_idx, p),
+		// TODO: Determine if the cursor is being moved between framebuffers?
+		None => self.backing_res.dev.move_cursor(self.scanout_idx, video::Pos::new(!0,!0)),
+		}
+	}
+}
+
+impl<I> Cursor<I>
+where
+	I: 'static + Interface + Send + Sync
+{
+	fn new(dev: ArefBorrow<DeviceCore<I>>, data: &[u8], width: usize, hot_x: u32, hot_y: u32) -> Self
+	{
+		const W: u32 = 64;
+		const H: u32 = 64;
+		let mut fb = ::kernel::memory::virt::alloc_dma(64, ::kernel::lib::num::div_up((W*H*4) as usize, ::kernel::PAGE_SIZE), "virtio-video").expect("");
+		for (d,s) in Iterator::zip( fb.as_mut_slice::<u32>(0, (W*H) as usize).chunks_mut(W as usize), data.chunks(width) )
+		{
+			for (d,s) in Iterator::zip( d.iter_mut(), s.iter() )
+			{
+				let alpha = (*s & 0x7F) << 1 | (*s & 0x1);
+				*d = (alpha as u32) << 24 | (if *s & 0x80 != 0 { 0xFFFFFF } else { 0x000000 });
+			}
+		}
+		let mut res = dev.allocate_resource(hw::VIRTIO_GPU_FORMAT_B8G8R8A8_UNORM, 64, 64);
+		//let mut res = dev.allocate_resource(hw::VIRTIO_GPU_FORMAT_B8G8R8X8_UNORM, 64, 64);
+		// SAFE: We'e ensuring that both the backing memory and the resource are kept as long as they're in use
+		unsafe {
+			res.attach_backing(fb.as_slice(0, (W*H) as usize));
+			res.transfer_to_host(video::Rect::new(0, 0, W, H));
+			res.flush(video::Rect::new(0, 0, W, H));
+		}
+		Cursor {
+			_backing_alloc: fb,
+			backing_res: res,
+			hot_pos: (hot_x, hot_y,),
+			}
+	}
+}
+impl<I> Cursor<I>
+where
+	I: Interface + Send + Sync
+{
+	pub fn get_update(&self, scanout: usize, pos: video::Pos) -> hw::UpdateCursor
+	{
+		hw::UpdateCursor {
+			pos: hw::CursorPos {
+				scanout_id: scanout as u32,
+				x: pos.x,
+				y: pos.y,
+				_padding: 0,
+				},
+			resource_id: self.backing_res.idx,
+			hot_x: self.hot_pos.0,
+			hot_y: self.hot_pos.1,
+			_padding: 0,
+			}
 	}
 }
 
@@ -562,6 +719,26 @@ mod hw
 	{
 		pub r: Rect,
 		pub resource_id: u32,
+		pub _padding: u32,
+	}
+
+	#[repr(C)]
+	#[derive(Debug)]
+	pub struct CursorPos
+	{
+		pub scanout_id: u32,
+		pub x: u32,
+		pub y: u32,
+		pub _padding: u32,
+	}
+	#[repr(C)]
+	#[derive(Debug)]
+	pub struct UpdateCursor
+	{
+		pub pos: CursorPos,
+		pub resource_id: u32,
+		pub hot_x: u32,
+		pub hot_y: u32,
 		pub _padding: u32,
 	}
 }

@@ -134,11 +134,11 @@ impl WinBuf
 			winpos.y + rgn.top(),
 			);
 		let buf = ::kernel::metadevs::video::StrideBuf::new(self.slice(), self.dims.width() as usize);
-		log_trace!("> {:p} (base)", buf);
+		//log_trace!("> {:p} (base)", buf);
 		let buf = buf.offset(rgn.left() as usize, rgn.top() as usize);
-		log_trace!("> {:p} (ofs)", buf);
+		//log_trace!("> {:p} (ofs)", buf);
 		let buf = buf.clip(rgn.w() as usize, rgn.h() as usize);
-		log_trace!("> {:p} (clip)", buf);
+		//log_trace!("> {:p} (clip)", buf);
 		::kernel::metadevs::video::write_buf(pos, buf);
 	}
 	

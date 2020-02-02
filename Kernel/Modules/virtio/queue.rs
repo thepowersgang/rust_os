@@ -103,17 +103,16 @@ impl Queue
 
 			last_seen_used: AtomicUsize::new(0),
 			interrupt_flag: ::kernel::sync::Semaphore::new(0, count as isize),
-			avail_ring_res: (0..count).map(|_| AtomicUsize::new(0)).collect(),
+			avail_ring_res: (0..count).map(|_| AtomicUsize::new(!0)).collect(),
 			}
 	}
 
 	pub fn check_interrupt(&self) {
 		while self.last_seen_used.load(Ordering::Relaxed) as u16 != self.used_ring().idx {
 			let idx = (self.last_seen_used.fetch_add(1, Ordering::Relaxed) & 0xFFFF) % self.size;
-			log_debug!("idx={}, desc={:?}", idx, self.used_ring().ents[idx]);
+			log_debug!("[queue {}] idx={}, desc={:?}", self.idx, idx, self.used_ring().ents[idx]);
 			let UsedElem { id, len } = self.used_ring().ents[idx];
 
-			assert!(len > 0, "Used entry {} returned a zero length (id={})", idx, id);
 			self.avail_ring_res[id as usize].store(len as usize, Ordering::Release);
 			self.interrupt_flag.release();
 		}
@@ -270,14 +269,14 @@ impl<'a> Request<'a>
 {
 	pub fn wait_for_completion(&self) -> Result<usize,()> {
 		// XXX: HACK! No interrupts... yet
-		while self.queue.avail_ring_res[self.first_desc as usize].load(Ordering::Relaxed) == 0 {
+		while self.queue.avail_ring_res[self.first_desc as usize].load(Ordering::Relaxed) == !0 {
 			self.queue.check_interrupt();
 		}
 		self.queue.interrupt_flag.acquire();
 		loop
 		{
-			let v = self.queue.avail_ring_res[self.first_desc as usize].swap(0, Ordering::Acquire);
-			if v != 0 {
+			let v = self.queue.avail_ring_res[self.first_desc as usize].swap(!0, Ordering::Acquire);
+			if v != !0 {
 				return Ok(v);
 			}
 			self.queue.interrupt_flag.release();
