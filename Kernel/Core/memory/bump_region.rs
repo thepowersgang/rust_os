@@ -12,6 +12,7 @@ pub struct Error;
 
 pub fn delegate(num_pages: usize) -> Result<*mut (), Error>
 {
+	#[cfg(not(feature="test"))]
 	loop
 	{
 		let cur = CURPOS.load(Ordering::Acquire);
@@ -24,6 +25,12 @@ pub fn delegate(num_pages: usize) -> Result<*mut (), Error>
 		if cur == CURPOS.compare_and_swap(cur, new, Ordering::Acquire) {
 			return Ok(cur as *mut _);
 		}
+	}
+	#[cfg(feature="test")]
+	unsafe
+	{
+		let ptr = ::std::alloc::alloc(::std::alloc::Layout::from_size_align(crate::PAGE_SIZE * num_pages, crate::PAGE_SIZE).unwrap());
+		Ok(ptr as *mut ())
 	}
 }
 

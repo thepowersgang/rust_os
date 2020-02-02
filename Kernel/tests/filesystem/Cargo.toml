@@ -1,0 +1,15 @@
+[package]
+name = "kernel-test-filesystem"
+version = "0.1.0"
+authors = ["John Hodge <tpg@mutabah.net>"]
+edition = "2018"
+
+#[lib]
+#doctest = false
+
+[dependencies]
+kernel = { path = "../../Core", features = ["test"] }
+fs_extN = { path = "../../Modules/fs_extN" }
+fs_fat = { path = "../../Modules/fs_fat" }
+
+cmdline_words_parser = { path = "../../../externals/crates.io/cmdline_words_parser" }

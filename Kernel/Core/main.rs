@@ -104,13 +104,20 @@ pub mod unwind;
 pub mod irqs;
 
 /// Built-in device drivers
-mod hw;
+pub mod hw;
 
 /// Achitecture-specific code
 pub mod arch;
 
 cfg_if::cfg_if!{
 	if #[cfg(feature="test")] {
+	}
+	// HACK: This should only be set when building for RLS/analyser
+	else if #[cfg(windows)] {
+		/// Kernel version (with build number)
+		pub const VERSION_STRING: &'static str = "";
+		/// Kernel build information (git hash and compiler)
+		pub const BUILD_STRING: &'static str = "";
 	}
 	else {
 		/// Kernel version (with build number)

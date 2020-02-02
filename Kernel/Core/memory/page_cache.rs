@@ -121,6 +121,7 @@ impl PageCache
 	{
 		self.get_free_ent(|idx| {
 			let addr = self.addr(idx);
+			#[cfg(not(feature="test"))]
 			try!(::memory::virt::allocate(addr as *mut (), 1));
 			// SAFE: Non-null pointer
 			Ok( CachedPage(unsafe { NonNull::new_unchecked(addr as *mut _) }) )

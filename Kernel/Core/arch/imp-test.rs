@@ -175,7 +175,14 @@ pub mod boot {
 		None
 	}
 	pub fn get_memory_map() -> &'static [::memory::MemoryMapEnt] {
-		&[]
+		&[
+			::memory::MemoryMapEnt {
+				start: 0,
+				size: 0 ,
+				state: crate::memory::MemoryState::Free,
+				domain: 0,
+				}
+		]
 	}
 }
 pub mod pci {
@@ -298,6 +305,12 @@ pub mod threads {
 			h.ptr
 		})
 	}
+	pub fn set_tls_futures_context(p: *mut ()) -> *mut () {
+		thread_local! {
+			static CTX: ::std::cell::RefCell<*mut ()> = ::std::cell::RefCell::new( ::core::ptr::null_mut() );
+		}
+		CTX.with(|r| (*r).replace(p))
+	}
 
 	pub fn idle() {
 		// Timed sleep?
@@ -347,7 +360,6 @@ pub mod threads {
 		std::mem::forget( lock.read() );
 		// Forget the lock to completely forget the thread
 		std::mem::forget( lock );
-		println!("> Bye");
 	}
 
 	pub fn start_thread<F: FnOnce()+Send+'static>(thread: &mut ::threads::Thread, code: F) {
