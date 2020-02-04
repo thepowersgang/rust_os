@@ -34,7 +34,7 @@ pub fn oom() {
 pub struct Allocator;
 pub const ALLOCATOR: &Allocator = &Allocator;
 
-unsafe impl ::core::alloc::Alloc for &'static Allocator
+unsafe impl ::core::alloc::AllocRef for &'static Allocator
 {
 	unsafe fn alloc(&mut self, layout: Layout) -> Result<NonNull<u8>, AllocErr>
 	{
