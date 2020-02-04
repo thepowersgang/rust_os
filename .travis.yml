@@ -4,6 +4,9 @@ addons:
     packages:
     - nasm
     - qemu
+language: rust
+rust:
+  - nightly
 # - Can't install without sudo?
 #    - libguestfs-tools
 env:
