@@ -36,7 +36,7 @@ pub const ALLOCATOR: &Allocator = &Allocator;
 
 unsafe impl ::core::alloc::AllocRef for &'static Allocator
 {
-	unsafe fn alloc(&mut self, layout: Layout) -> Result<NonNull<u8>, AllocErr>
+	unsafe fn alloc(&mut self, layout: Layout) -> Result<(NonNull<u8>,usize), AllocErr>
 	{
 		let rv = heap::allocate(layout.size(), layout.align());
 		if rv == ::core::ptr::null_mut()
@@ -45,7 +45,7 @@ unsafe impl ::core::alloc::AllocRef for &'static Allocator
 		}
 		else
 		{
-			Ok(NonNull::new_unchecked(rv as *mut u8))
+			Ok( (NonNull::new_unchecked(rv as *mut u8), usable_size(&layout),) )
 		}
 	}
 	unsafe fn dealloc(&mut self, ptr: NonNull<u8>, layout: Layout)
@@ -53,12 +53,7 @@ unsafe impl ::core::alloc::AllocRef for &'static Allocator
 		heap::deallocate(ptr.as_ptr() as *mut u8, layout.size(), layout.align())
 	}
 
-	fn usable_size(&self, layout: &Layout) -> (usize, usize)
-	{
-		heap::get_usable_size(layout.size(), layout.align())
-	}
-
-	unsafe fn realloc(&mut self, ptr: NonNull<u8>, layout: Layout, new_size: usize) -> Result<NonNull<u8>, AllocErr>
+	unsafe fn realloc(&mut self, ptr: NonNull<u8>, layout: Layout, new_size: usize) -> Result< (NonNull<u8>,usize), AllocErr>
 	{
 		let rv = heap::reallocate(ptr.as_ptr() as *mut u8, layout.size(), layout.align(), new_size);
 		if rv == ::core::ptr::null_mut()
@@ -67,11 +62,11 @@ unsafe impl ::core::alloc::AllocRef for &'static Allocator
 		}
 		else
 		{
-			Ok(NonNull::new_unchecked(rv as *mut u8))
+			Ok( (NonNull::new_unchecked(rv as *mut u8), usable_size(&layout),) )
 		}
 	}
 	// TODO: alloc_excess
-	unsafe fn grow_in_place(&mut self, ptr: NonNull<u8>, layout: Layout, new_size: usize) -> Result<(), CannotReallocInPlace>
+	unsafe fn grow_in_place(&mut self, ptr: NonNull<u8>, layout: Layout, new_size: usize) -> Result<usize, CannotReallocInPlace>
 	{
 		let rv = heap::reallocate_inplace(ptr.as_ptr() as *mut u8, layout.size(), layout.align(), new_size);
 		if rv != new_size
@@ -80,8 +75,13 @@ unsafe impl ::core::alloc::AllocRef for &'static Allocator
 		}
 		else
 		{
-			Ok( () )
+			Ok( usable_size(&layout) )
 		}
 	}
 	// TODO: shrink_in_place
+}
+
+fn usable_size(layout: &Layout) -> usize
+{
+	heap::get_usable_size(layout.size(), layout.align()).0
 }
