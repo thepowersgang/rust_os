@@ -36,7 +36,7 @@ pub const ALLOCATOR: &Allocator = &Allocator;
 
 unsafe impl ::core::alloc::AllocRef for &'static Allocator
 {
-	unsafe fn alloc(&mut self, layout: Layout) -> Result<(NonNull<u8>,usize), AllocErr>
+	fn alloc(&mut self, layout: Layout) -> Result<(NonNull<u8>,usize), AllocErr>
 	{
 		let rv = heap::allocate(layout.size(), layout.align());
 		if rv == ::core::ptr::null_mut()
@@ -45,7 +45,8 @@ unsafe impl ::core::alloc::AllocRef for &'static Allocator
 		}
 		else
 		{
-			Ok( (NonNull::new_unchecked(rv as *mut u8), usable_size(&layout),) )
+			// SAFE: Non-zero pointer
+			Ok( (unsafe { NonNull::new_unchecked(rv as *mut u8) }, usable_size(&layout),) )
 		}
 	}
 	unsafe fn dealloc(&mut self, ptr: NonNull<u8>, layout: Layout)
