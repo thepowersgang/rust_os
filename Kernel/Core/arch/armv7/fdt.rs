@@ -1,6 +1,7 @@
 //
 //
 //
+//! "FDT" (Flattended Device Tree) parser
 use ::lib::byteorder::{ByteOrder,BigEndian};
 
 pub struct FDTRoot<'a>

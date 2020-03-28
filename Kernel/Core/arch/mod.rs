@@ -36,7 +36,7 @@ pub mod memory {
 	/// Size of a page/frame in bytes (always a power of two)
 	pub const PAGE_SIZE: usize = ::arch::imp::memory::PAGE_SIZE;
 	/// Offset mask for a page
-	pub const PAGE_MASK: usize = (PAGE_SIZE-1);
+	pub const PAGE_MASK: usize = PAGE_SIZE-1;
 
 	/// Address space layout
 	pub mod addresses {

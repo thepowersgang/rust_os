@@ -17,7 +17,7 @@ const FLAG_W:   u64 = 2;
 const FLAG_U:   u64 = 4;
 const FLAG_G:   u64 = 0x100;
 const FLAG_COW: u64 = 0x200;	// free bit, overloaded as COW
-const FLAG_NX:  u64 = (1<<63);
+const FLAG_NX:  u64 = 1<<63;
 
 const FAULT_LOCKED: u32 = 1;
 const FAULT_WRITE:  u32 = 2;

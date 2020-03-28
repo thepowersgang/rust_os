@@ -10,16 +10,16 @@ pub const REG_IS : usize = 0x08;
 pub const REG_PI : usize = 0x0C;
 pub const REG_Px : usize = 0x100;
 
-pub const CAP_S64A: u32 = (1 << 31);	// Supports 64-bit addressing
-pub const CAP_SNCQ: u32 = (1 << 30);	// Supports Native Command Queuing
-pub const CAP_NCS : u32 = (31 << 8);	// Number of command slots (mask)
+pub const CAP_S64A: u32 = 1 << 31;	// Supports 64-bit addressing
+pub const CAP_SNCQ: u32 = 1 << 30;	// Supports Native Command Queuing
+pub const CAP_NCS : u32 = 31 << 8;	// Number of command slots (mask)
 pub const CAP_NCS_ofs: usize = 8;   	//                         (offset)
-pub const CAP_SXS : u32 = (1 <<  5);	// Support External SATA
+pub const CAP_SXS : u32 = 1 <<  5;	// Support External SATA
 
-pub const GHC_AE  : u32 = (1 << 31);	// AHCI Enable
-pub const GHC_MRSM: u32 = (1 << 2);	// MSI Revert to Single Message
-pub const GHC_IE  : u32 = (1 << 1);	// Interrupt Enable
-pub const GHC_HR  : u32 = (1 << 0);	// HBA Reset (Clears once complete)
+pub const GHC_AE  : u32 = 1 << 31;	// AHCI Enable
+pub const GHC_MRSM: u32 = 1 << 2;	// MSI Revert to Single Message
+pub const GHC_IE  : u32 = 1 << 1;	// Interrupt Enable
+pub const GHC_HR  : u32 = 1 << 0;	// HBA Reset (Clears once complete)
 
 
 pub const REG_PxCLB : usize = 0x00;	// Command List Base Address
@@ -40,58 +40,58 @@ pub const REG_PxSNTF: usize = 0x3C;	// Serial ATA Notification
 pub const REG_PxFBS : usize = 0x40;	// FIS-based Switching Control
 //pub const REG_PxVS0 : usize = 0x70;	// 4x Vendor-Specific
 
-pub const PxIS_CPDS: u32 = (1 << 31);	// Cold Port Detect Status
-pub const PxIS_TFES: u32 = (1 << 30);	// Task File Error Status
-pub const PxIS_HBFS: u32 = (1 << 29);	// Host Bus Fatal error Status
-pub const PxIS_HBDS: u32 = (1 << 28);	// Host Bus Data error Status
-pub const PxIS_IFS : u32 = (1 << 27);	// Interface Fatal error Status
-pub const PxIS_INFS: u32 = (1 << 26);	// Interface Non-Fatal error status
-pub const PxIS_OFS : u32 = (1 << 24);	// OverFlow Status
-pub const PxIS_IPMS: u32 = (1 << 23);	// Incorrect Port Multipier Status
-pub const PxIS_PRCS: u32 = (1 << 22);	// PhyRdy Change Status
-pub const PxIS_DMPS: u32 = (1 <<  7);	// Device Mechanical Presence Status
-pub const PxIS_PCS : u32 = (1 <<  6);	// Port Connect change Status
-pub const PxIS_DPS : u32 = (1 <<  5);	// Descriptor Processed
-pub const PxIS_UFI : u32 = (1 <<  4);	// Unknown FIS Interrupt
-pub const PxIS_SDBS: u32 = (1 <<  3);	// Set Device Bits Interrupt
-pub const PxIS_DSS : u32 = (1 <<  2);	// DMA Setup FIS Interrupt
-pub const PxIS_PSS : u32 = (1 <<  1);	// PIO Setup FIS Interrupt
-pub const PxIS_DHRS: u32 = (1 <<  0);	// Device to Host Register FIS Interrupt
+pub const PxIS_CPDS: u32 = 1 << 31;	// Cold Port Detect Status
+pub const PxIS_TFES: u32 = 1 << 30;	// Task File Error Status
+pub const PxIS_HBFS: u32 = 1 << 29;	// Host Bus Fatal error Status
+pub const PxIS_HBDS: u32 = 1 << 28;	// Host Bus Data error Status
+pub const PxIS_IFS : u32 = 1 << 27;	// Interface Fatal error Status
+pub const PxIS_INFS: u32 = 1 << 26;	// Interface Non-Fatal error status
+pub const PxIS_OFS : u32 = 1 << 24;	// OverFlow Status
+pub const PxIS_IPMS: u32 = 1 << 23;	// Incorrect Port Multipier Status
+pub const PxIS_PRCS: u32 = 1 << 22;	// PhyRdy Change Status
+pub const PxIS_DMPS: u32 = 1 <<  7;	// Device Mechanical Presence Status
+pub const PxIS_PCS : u32 = 1 <<  6;	// Port Connect change Status
+pub const PxIS_DPS : u32 = 1 <<  5;	// Descriptor Processed
+pub const PxIS_UFI : u32 = 1 <<  4;	// Unknown FIS Interrupt
+pub const PxIS_SDBS: u32 = 1 <<  3;	// Set Device Bits Interrupt
+pub const PxIS_DSS : u32 = 1 <<  2;	// DMA Setup FIS Interrupt
+pub const PxIS_PSS : u32 = 1 <<  1;	// PIO Setup FIS Interrupt
+pub const PxIS_DHRS: u32 = 1 <<  0;	// Device to Host Register FIS Interrupt
 
-pub const PxCMD_ICC  : u32 = (15 << 28);	// Interface Communication Control (mask)
-pub const PxCMD_ASP  : u32 = (1 << 27);	// Agressive Slumber / Partial
-pub const PxCMD_ALPE : u32 = (1 << 26);	// Agressive Link Power Management Enable
-pub const PxCMD_DLAE : u32 = (1 << 25);	// Drive LED on ATAPI Enable
-pub const PxCMD_ATAPI: u32 = (1 << 24);	// Device is ATAPI
-pub const PxCMD_APSTE: u32 = (1 << 23);	// Automatic Partial to Slumber Transitions Enabled
-pub const PxCMD_FBSCP: u32 = (1 << 22);	// FIS-based Switching Capable Port
-pub const PxCMD_ESP  : u32 = (1 << 21);	// External SATA Port
-pub const PxCMD_CPD  : u32 = (1 << 20);	// Cold Presence Detection
-pub const PxCMD_MPSP : u32 = (1 << 19);	// Mechanical Presence Switch attached to Port
-pub const PxCMD_HPCP : u32 = (1 << 18);	// Hot Plut Capable Port
-pub const PxCMD_PMA  : u32 = (1 << 17);	// Port Multiplier Attached
-pub const PxCMD_CPS  : u32 = (1 << 16);	// Cold Presence State
-pub const PxCMD_CR   : u32 = (1 << 15);	// Command List Running
-pub const PxCMD_FR   : u32 = (1 << 14);	// FIS Receive Running
-pub const PxCMD_MPSS : u32 = (1 << 13);	// Mechanical Presence Switch State
-pub const PxCMD_CCS  : u32 = (31 << 8);	// Current Command Slot (mask)
-pub const PxCMD_FRE  : u32 = (1 << 4);	// FIS Receive Enable
-pub const PxCMD_CLO  : u32 = (1 << 3);	// Command List Override
-pub const PxCMD_POD  : u32 = (1 << 2);	// Power On Device
-pub const PxCMD_SUD  : u32 = (1 << 1);	// Spin-Up Device
-pub const PxCMD_ST   : u32 = (1 << 0);	// Start
+pub const PxCMD_ICC  : u32 = 15 << 28;	// Interface Communication Control (mask)
+pub const PxCMD_ASP  : u32 = 1 << 27;	// Agressive Slumber / Partial
+pub const PxCMD_ALPE : u32 = 1 << 26;	// Agressive Link Power Management Enable
+pub const PxCMD_DLAE : u32 = 1 << 25;	// Drive LED on ATAPI Enable
+pub const PxCMD_ATAPI: u32 = 1 << 24;	// Device is ATAPI
+pub const PxCMD_APSTE: u32 = 1 << 23;	// Automatic Partial to Slumber Transitions Enabled
+pub const PxCMD_FBSCP: u32 = 1 << 22;	// FIS-based Switching Capable Port
+pub const PxCMD_ESP  : u32 = 1 << 21;	// External SATA Port
+pub const PxCMD_CPD  : u32 = 1 << 20;	// Cold Presence Detection
+pub const PxCMD_MPSP : u32 = 1 << 19;	// Mechanical Presence Switch attached to Port
+pub const PxCMD_HPCP : u32 = 1 << 18;	// Hot Plut Capable Port
+pub const PxCMD_PMA  : u32 = 1 << 17;	// Port Multiplier Attached
+pub const PxCMD_CPS  : u32 = 1 << 16;	// Cold Presence State
+pub const PxCMD_CR   : u32 = 1 << 15;	// Command List Running
+pub const PxCMD_FR   : u32 = 1 << 14;	// FIS Receive Running
+pub const PxCMD_MPSS : u32 = 1 << 13;	// Mechanical Presence Switch State
+pub const PxCMD_CCS  : u32 = 31 << 8;	// Current Command Slot (mask)
+pub const PxCMD_FRE  : u32 = 1 << 4;	// FIS Receive Enable
+pub const PxCMD_CLO  : u32 = 1 << 3;	// Command List Override
+pub const PxCMD_POD  : u32 = 1 << 2;	// Power On Device
+pub const PxCMD_SUD  : u32 = 1 << 1;	// Spin-Up Device
+pub const PxCMD_ST   : u32 = 1 << 0;	// Start
 
-pub const PxTFD_ERR: u32 = (255 << 8);
-pub const PxTFD_STS: u32 = (255 << 0);	// Status (latest copy of task file status register)
-pub const PxTFD_STS_BSY: u32 = (1 << 7);	// Interface is busy
-pub const PxTFD_STS_DRQ: u32 = (1 << 3);	// Data transfer requested
-pub const PxTFD_STS_ERR: u32 = (1 << 0);	// Error during transfer
+pub const PxTFD_ERR: u32 = 255 << 8;
+pub const PxTFD_STS: u32 = 255 << 0;	// Status (latest copy of task file status register)
+pub const PxTFD_STS_BSY: u32 = 1 << 7;	// Interface is busy
+pub const PxTFD_STS_DRQ: u32 = 1 << 3;	// Data transfer requested
+pub const PxTFD_STS_ERR: u32 = 1 << 0;	// Error during transfer
 
-pub const PxSSTS_IPM: u32 = (15 << 8);	// Interface Power Management (0=NP,1=Active,2=Partial,6=Slumber)
+pub const PxSSTS_IPM: u32 = 15 << 8;	// Interface Power Management (0=NP,1=Active,2=Partial,6=Slumber)
 pub const PxSSTS_IPM_ofs: usize = 8;
-pub const PxSSTS_SPD: u32 = (15 << 4);	// Current Interface Speed (0=NP,Generation n)
+pub const PxSSTS_SPD: u32 = 15 << 4;	// Current Interface Speed (0=NP,Generation n)
 pub const PxSSTS_SPD_ofs: usize = 4;
-pub const PxSSTS_DET: u32 = (15 << 0);	// Device Detection (0: None, 1: Present but no PHY yet, 3: Present and PHY, 4: offline)
+pub const PxSSTS_DET: u32 = 15 << 0;	// Device Detection (0: None, 1: Present but no PHY yet, 3: Present and PHY, 4: offline)
 pub const PxSSTS_DET_ofs: usize = 0;
 
 #[repr(C)]

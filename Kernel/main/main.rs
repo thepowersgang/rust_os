@@ -6,7 +6,7 @@
 #![crate_name="main"]
 #![crate_type="rlib"]
 #![no_std]
-#![feature(optin_builtin_traits)]	// Used for !Send on LoaderHeader (for pedantic safety)
+#![feature(negative_impls)]	// Used for !Send on LoaderHeader (for pedantic safety)
 #![feature(asm)]
 
 #[macro_use]

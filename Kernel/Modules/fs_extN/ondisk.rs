@@ -5,7 +5,7 @@
 //! On-disk structures
 #![allow(dead_code)]
 
-pub const S_MAGIC_OFS: usize = (3*4*4 + 2*4);
+pub const S_MAGIC_OFS: usize = 3*4*4 + 2*4;
 
 macro_rules! pod_impls {
 	($t:ty) => {
@@ -240,16 +240,16 @@ def_bitset! {
 	13 => FEAT_RO_COMPAT_PROJECT,
 }
 
-pub const FEAT_COMPAT_DIR_PREALLOCT: u32 = (1 << 0);	// Directory Preallocation
-pub const FEAT_COMPAT_IMAGIC_INODES: u32 = (1 << 1);	// ?
-pub const FEAT_COMPAT_HAS_JOURNAL  : u32 = (1 << 2);
-pub const FEAT_COMPAT_EXT_ATTR     : u32 = (1 << 3);	// Extended attributes
-pub const FEAT_COMPAT_RESIZE_INODE : u32 = (1 << 4);	// Reserved GDT blocks for expansion
-pub const FEAT_COMPAT_DIR_INDEX    : u32 = (1 << 5);	// Directory indicies [?]
-pub const FEAT_COMPAT_LAZY_BG      : u32 = (1 << 6);
-pub const FEAT_COMPAT_EXCLUDE_INODE: u32 = (1 << 7);
-pub const FEAT_COMPAT_EXCLUDE_BITMAP:u32 = (1 << 8);
-pub const FEAT_COMPAT_SPARSE_SUPER2: u32 = (1 << 9);
+pub const FEAT_COMPAT_DIR_PREALLOCT: u32 = 1 << 0;	// Directory Preallocation
+pub const FEAT_COMPAT_IMAGIC_INODES: u32 = 1 << 1;	// ?
+pub const FEAT_COMPAT_HAS_JOURNAL  : u32 = 1 << 2;
+pub const FEAT_COMPAT_EXT_ATTR     : u32 = 1 << 3;	// Extended attributes
+pub const FEAT_COMPAT_RESIZE_INODE : u32 = 1 << 4;	// Reserved GDT blocks for expansion
+pub const FEAT_COMPAT_DIR_INDEX    : u32 = 1 << 5;	// Directory indicies [?]
+pub const FEAT_COMPAT_LAZY_BG      : u32 = 1 << 6;
+pub const FEAT_COMPAT_EXCLUDE_INODE: u32 = 1 << 7;
+pub const FEAT_COMPAT_EXCLUDE_BITMAP:u32 = 1 << 8;
+pub const FEAT_COMPAT_SPARSE_SUPER2: u32 = 1 << 9;
 
 #[repr(C)]
 #[derive(Debug)]

@@ -27,6 +27,7 @@ pub fn delegate(num_pages: usize) -> Result<*mut (), Error>
 		}
 	}
 	#[cfg(feature="test")]
+	// SAFE: Why is alloc unafe?
 	unsafe
 	{
 		let ptr = ::std::alloc::alloc(::std::alloc::Layout::from_size_align(crate::PAGE_SIZE * num_pages, crate::PAGE_SIZE).unwrap());

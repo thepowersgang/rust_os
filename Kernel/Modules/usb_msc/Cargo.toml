@@ -9,7 +9,6 @@ path = "lib.rs"
 [dependencies]
 kernel = { path = "../../Core" }
 usb-core = { path = "../usb_core" }
-core = { path = "../../core-futures" }
 
 storage-scsi = { path = "../storage_scsi" }
 

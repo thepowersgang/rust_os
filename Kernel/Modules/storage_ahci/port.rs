@@ -470,7 +470,7 @@ impl Port
 		{
 			let base_phys = get_phys(va as *const u8);
 			let mut seglen = ::kernel::PAGE_SIZE - base_phys as usize % ::kernel::PAGE_SIZE;
-			const MAX_SEG_LEN: usize = (1 << 22);
+			const MAX_SEG_LEN: usize = 1 << 22;
 			// Each entry must be contigious, and not >4MB
 			while seglen < len && seglen <= MAX_SEG_LEN && get_phys( (va + seglen-1) as *const u8 ) == base_phys + (seglen-1) as ::kernel::memory::PAddr
 			{
