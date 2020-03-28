@@ -76,6 +76,7 @@ impl TestFramework
             .copied()
             .collect()
             ;
+		println!("TX {:?}", HexDump(&buf));
         self.socket.send_to(&buf, self.remote_addr).expect("Failed to send to child");
     }
 
@@ -83,17 +84,23 @@ impl TestFramework
     {
         self.socket.set_read_timeout(Some(timeout)).expect("Zero timeout requested");
         let mut buf = vec![0; 1560];
-        let (len, addr) = match self.socket.recv_from(&mut buf)
-            {
-            Ok(v) => v,
-            Err(e) if e.kind() == std::io::ErrorKind::TimedOut => return None,
-            Err(e) => panic!("wait_packet: Error {}", e),
-            };
-        if addr != self.remote_addr {
-            // Hmm...
-        }
-        buf.truncate(len);
-        Some(buf)
+		loop
+		{
+			let (len, addr) = match self.socket.recv_from(&mut buf)
+				{
+				Ok(v) => v,
+				Err(e) if e.kind() == std::io::ErrorKind::TimedOut => return None,
+				Err(e) if e.kind() == std::io::ErrorKind::WouldBlock => return None,
+				Err(e) if e.kind() == std::io::ErrorKind::Interrupted => continue,
+				Err(e) => panic!("wait_packet: Error {} (Kind = {:?})", e, e.kind()),
+				};
+			if addr != self.remote_addr {
+				// Hmm...
+			}
+			buf.truncate(len);
+			println!("RX {:?}", HexDump(&buf));
+			return Some(buf);
+		}
     }
 }
 
@@ -106,4 +113,29 @@ impl Drop for TestFramework
             println!("See {} for worker log", self.logfile.display());
         }
     }
+}
+
+
+/// Wrapper around a &-ptr that prints a hexdump of the passed data.
+pub struct HexDump<'a>(pub &'a [u8]);
+
+impl<'a> HexDump<'a>
+{
+}
+
+impl<'a> ::std::fmt::Debug for HexDump<'a>
+{
+	fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result
+	{
+		let slice = self.0;
+		write!(f, "{} bytes: ", slice.len())?;
+		for (idx,v) in slice.iter().enumerate()
+		{
+			write!(f, "{:02x} ", *v)?;
+			if idx % 16 == 15 {
+				write!(f, "| ")?;
+			}
+		}
+		Ok( () )
+	}
 }

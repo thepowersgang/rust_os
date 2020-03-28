@@ -10,3 +10,4 @@ kernel = { path = "../../Core", features = ["test"] }
 serde = "1.0"
 serde_derive = "1.0"
 bincode = "1.2"
+cmdline_words_parser = { path = "../../../externals/crates.io/cmdline_words_parser", default-features = false }

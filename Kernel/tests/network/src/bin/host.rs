@@ -52,30 +52,59 @@ fn main()
 
     network::ipv4::add_interface(mac, args.sim_ip/*, 24*/);
 
+	const MTU: usize = 1560;
+
+	std::thread::spawn(move || loop {
+			let mut buf = [0; MTU];
+			match nic_handle.stream.recv(&mut buf)
+			{
+			Ok(len) => {
+				let buf = buf[..len].to_owned();
+				nic_handle.packets.lock().unwrap().push_back( buf );
+				match *nic_handle.waiter.lock().unwrap()
+				{
+				Some(ref v) => v.signal(),
+				None => println!("No registered waiter yet?"),
+				}
+				},
+			Err(e) => {
+				println!("Error reading: {:?}", e);
+				break;
+				},
+			}
+		});
+
     kernel::arch::imp::threads::test_unlock_thread();
 
+
+	// Monitor stdin for commands
     loop
     {
-        // TODO: Also monitor stdin for commands
-		const MTU: usize = 1560;
-
-		let mut buf = [0; MTU];
-		match nic_handle.stream.recv(&mut buf)
+		std::thread::sleep(std::time::Duration::new(1,0) );
+		let mut line = String::new();
+		std::io::stdin().read_line(&mut line).expect("Reading command");
+		let mut it = ::cmdline_words_parser::parse_posix(&mut line[..]);
+		let cmd = it.next().unwrap();
+		match cmd
 		{
-		Ok(len) => {
-            //println!("Got {} byte packet", len);
-			let buf = buf[..len].to_owned();
-			nic_handle.packets.lock().unwrap().push_back( buf );
-			match *nic_handle.waiter.lock().unwrap()
-			{
-			Some(ref v) => v.signal(),
-			None => println!("No registered waiter yet?"),
-			}
+		"" => {},
+		"exit" => break,
+		"ipv4-add" => {
 			},
-		Err(e) => {
-			println!("Error reading: {:?}", e);
-			break;
+		// Close a TCP connection (includes listening)
+		"tcp-close" => {
 			},
+		// Listen on a port/interface
+		"tcp-listen" => {
+			},
+		// Make a connection
+		"tcp-connect" => {
+			},
+		"tcp-send" => {
+			},
+		"tcp-recv" => {
+			},
+		_ => eprintln!("ERROR: Unknown command '{}'", cmd),
 		}
     }
 }
