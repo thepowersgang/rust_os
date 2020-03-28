@@ -7,8 +7,6 @@
 //#![crate_type="staticlib"]	// Linked by the makefile
 
 use std::mem::MaybeUninit;
-use cmdline_words_parser::StrExt as CmdlineStrExt;
-
 use load::SegmentIterator;
 
 #[link(name="loader_start")]
@@ -56,7 +54,7 @@ pub extern "C" fn loader_main(cmdline: *mut u8, cmdline_len: usize) -> !
 	kernel_log!("- cmdline={:?}", cmdline);
 	
 	// 2. Parse 'cmdline' into the init path and arguments.
-	let mut arg_iter = cmdline.parse_cmdline_words();
+	let mut arg_iter = ::cmdline_words_parser::parse_posix(cmdline);
 	let init_path = arg_iter.next().expect("Init path is empty");
 	kernel_log!("- init_path={:?}", init_path);
 	

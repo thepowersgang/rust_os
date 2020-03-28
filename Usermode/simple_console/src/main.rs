@@ -153,8 +153,7 @@ impl ShellState
 	/// Handle a command
 	pub fn handle_command<T: Terminal>(&mut self, term: &T, mut cmdline: String)
 	{
-		use cmdline_words_parser::StrExt;
-		let mut args = cmdline.parse_cmdline_words();
+		let mut args = cmdline_words_parser::parse_posix(&mut cmdline);
 		match args.next()
 		{
 		None => {},
