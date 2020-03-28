@@ -334,9 +334,11 @@ EXPORT drop_to_user
 ; RAX, RDI, RSI, RDX, [RCX/R10], R8, R9
 EXPORT syscall_handler
 	; RCX = RIP, R11 = EFLAGS
-	; NOTE: We're FUCKED if an interrupt happens before the new stack is up
-	; - Thankfully, only an NMI can cause that
-	; - Also, the NMI should use a separate stack (thanks to the IST)
+
+	; NOTE: If an interrupt happens between here and the load of `RSP`,
+	; there can be state corruption.
+	; - RFLAGS has IF cleared (loaded state)
+	; - An NMI ignores that, but _should_ be using its own stack
 	; TODO TODO TODO Actually use the IST for NMI
 	
 	; >>> Switch to kernel stack
