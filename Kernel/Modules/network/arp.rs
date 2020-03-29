@@ -54,4 +54,6 @@ pub fn lookup_v4(addr: crate::ipv4::Address) -> Option<MacAddr>
 	None => {},
 	}
 	todo!("ARP request {}", addr);
+	// - Send request packet
+	// - Wait until the cache has the requested host in it (with timeout)
 }

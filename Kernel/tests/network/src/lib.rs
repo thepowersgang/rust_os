@@ -14,13 +14,17 @@ pub struct TestFramework {
     remote_addr: std::net::SocketAddr,
     process: std::process::Child,
     logfile: std::path::PathBuf,
+
+	child_stdin: std::sync::Mutex<std::process::ChildStdin>,
 }
 impl TestFramework
 {
     pub fn new(name: &str) -> TestFramework
     {
         let logfile: std::path::PathBuf = format!("{}.txt", name).into();
-        let port = 1234;
+		// NOTE: Ports allocated seqentially to avoid collisions between threaded tests
+		static NEXT_PORT: std::sync::atomic::AtomicU16 = std::sync::atomic::AtomicU16::new(12340);
+        let port = NEXT_PORT.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
 
         match std::process::Command::new( env!("CARGO") )
             .arg("build").arg("--bin").arg("host")
@@ -39,6 +43,7 @@ impl TestFramework
             .arg("--")
             .arg(format!("127.0.0.1:{}", port))
             .arg("192.168.1.1")// /24")
+			.stdin( std::process::Stdio::piped() )
             .stdout(std::fs::File::create(&logfile).unwrap())
             //.stderr(std::fs::File::create("stderr.txt").unwrap())
             .spawn()
@@ -62,10 +67,19 @@ impl TestFramework
         TestFramework {
             socket: socket,
             remote_addr: addr,
+			child_stdin: ::std::sync::Mutex::new( child.stdin.take().unwrap() ),
             process: child,
             logfile: logfile,
         }
     }
+
+	pub fn send_command(&self, s: &str)
+	{
+		use ::std::io::Write;
+		let mut stdin = self.child_stdin.lock().expect("send_command");
+		stdin.write(s.as_bytes()).expect("Host stdin fail");
+		stdin.write(b"\n").expect("Host stdin fail");
+	}
 
     /// Encode+send an ethernet frame to the virtualised NIC (addressed correctly)
     pub fn send_ethernet_direct(&self, proto: u16, buffers: &[ &[u8] ])

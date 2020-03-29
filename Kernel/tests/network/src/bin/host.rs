@@ -50,7 +50,7 @@ fn main()
     let mac = *b"RSK\x12\x34\x56";
     let nic_handle = network::nic::register(mac, TestNic::new(stream));
 
-    network::ipv4::add_interface(mac, args.sim_ip/*, 24*/);
+    network::ipv4::add_interface(mac, args.sim_ip, 24);
 
 	const MTU: usize = 1560;
 
@@ -78,6 +78,7 @@ fn main()
 
 
 	// Monitor stdin for commands
+	let mut tcp_conn_handles = ::std::collections::HashMap::new();
     loop
     {
 		std::thread::sleep(std::time::Duration::new(1,0) );
@@ -91,14 +92,21 @@ fn main()
 		"exit" => break,
 		"ipv4-add" => {
 			},
-		// Close a TCP connection (includes listening)
-		"tcp-close" => {
-			},
 		// Listen on a port/interface
-		"tcp-listen" => {
-			},
+		//"tcp-listen" => {
+		//	},
 		// Make a connection
 		"tcp-connect" => {
+			// Get dest ip & dest port
+			let index: usize = it.next().unwrap().parse().unwrap();
+			let ip: ::network::Address = parse_addr(it.next().expect("Missing IP")).unwrap();
+			let port: u16 = it.next().unwrap().parse().unwrap();
+			log_notice!("tcp-connect {} = {:?}:{}", index, ip, port);
+			tcp_conn_handles.insert(index, ::network::tcp::ConnectionHandle::connect(ip, port));
+			println!("OK");
+			},
+		// Close a TCP connection
+		"tcp-close" => {
 			},
 		"tcp-send" => {
 			},
@@ -107,6 +115,24 @@ fn main()
 		_ => eprintln!("ERROR: Unknown command '{}'", cmd),
 		}
     }
+}
+
+fn parse_addr(s: &str) -> Option<::network::Address>
+{
+	if s.contains(".") {
+		let mut it = s.split('.');
+		let b1 = it.next()?.parse().ok()?;
+		let b2 = it.next()?.parse().ok()?;
+		let b3 = it.next()?.parse().ok()?;
+		let b4 = it.next()?.parse().ok()?;
+		if it.next().is_some() {
+			return None;
+		}
+		Some( ::network::Address::Ipv4(::network::ipv4::Address::new(b1, b2, b3, b4)) )
+	}
+	else {
+		None
+	}
 }
 
 struct TestNic

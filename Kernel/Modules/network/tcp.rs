@@ -30,15 +30,22 @@ static CONNECTIONS: SharedMap<Quad, Mutex<Connection>> = SharedMap::new();
 static PROTO_CONNECTIONS: SharedMap<Quad, ProtoConnection> = SharedMap::new();
 static SERVERS: SharedMap<(Option<Address>,u16), Server> = SharedMap::new();
 
+static S_PORTS: Mutex<PortPool> = Mutex::new(PortPool::new());
+
 /// Find the local source address for the given remote address
+// TODO: Shouldn't this get an interface handle instead?
 fn get_outbound_ip_for(addr: &Address) -> Option<Address>
 {
-	todo!("Query routing table (in the relevant IP module) and find the local interface (addr = {:?})", addr);
+	match addr
+	{
+	Address::Ipv4(addr) => crate::ipv4::route_lookup(crate::ipv4::Address::zero(), *addr).map(|(laddr, _, _)| Address::Ipv4(laddr)),
+	}
 }
 /// Allocate a port for the given local address
-fn allocate_port(addr: &Address) -> Option<u16>
+fn allocate_port(_addr: &Address) -> Option<u16>
 {
-	todo!("Check bitmap of used ports (for this interface), jumping randomly beween them (addr = {:?})", addr);
+	// TODO: Could store bitmap against the interface (having a separate bitmap for each interface)
+	S_PORTS.lock().allocate()
 }
 
 fn rx_handler_v4(int: &::ipv4::Interface, src_addr: ::ipv4::Address, pkt: ::nic::PacketReader)
@@ -157,13 +164,19 @@ fn rx_handler(src_addr: Address, dest_addr: Address, mut pkt: ::nic::PacketReade
 	// Otherwise, drop
 }
 
-#[derive(Copy,Clone,PartialOrd,PartialEq,Ord,Eq,Debug)]
+#[derive(Copy,Clone,PartialOrd,PartialEq,Ord,Eq)]
 struct Quad
 {
 	local_addr: Address,
 	local_port: u16,
 	remote_addr: Address,
 	remote_port: u16,
+}
+impl ::core::fmt::Debug for Quad
+{
+	fn fmt(&self, f: &mut ::core::fmt::Formatter) -> ::core::fmt::Result {
+		write!(f, "Quad({:?}:{} -> {:?}:{})", self.local_addr, self.local_port, self.remote_addr, self.remote_port)
+	}
 }
 impl Quad
 {
@@ -370,6 +383,7 @@ impl Connection
 
 	fn new_outbound(quad: &Quad, sequence_number: u32) -> Self
 	{
+		log_trace!("Connection::new_outbound({:?}, {:#x})", quad, sequence_number);
 		let mut rv = Connection {
 			state: ConnectionState::SynSent,
 			next_rx_seq: 0,
@@ -619,7 +633,8 @@ impl Connection
 
 	fn send_packet(&mut self, quad: &Quad, flags: u8, data: &[u8])
 	{
-		todo!("{:?} send_packet({:02x} {}b)", quad, flags, data.len());
+		log_debug!("{:?} send_packet({:02x} {}b)", quad, flags, data.len());
+		quad.send_packet(self.last_tx_seq, self.next_rx_seq, flags, self.rx_window_size as u16, data);
 	}
 	fn send_ack(&mut self, quad: &Quad, msg: &str)
 	{
@@ -706,6 +721,7 @@ impl ConnectionHandle
 {
 	pub fn connect(addr: Address, port: u16) -> Result<ConnectionHandle, ConnError>
 	{
+		log_trace!("ConnectionHandle::connect({:?}, {})", addr, port);
 		// 1. Determine the local address for this remote address
 		let local_addr = match get_outbound_ip_for(&addr)
 			{
@@ -719,7 +735,8 @@ impl ConnectionHandle
 			None => return Err(ConnError::NoPortAvailable),
 			};
 		// 3. Create the quad and allocate the connection structure
-		let quad = Quad::new(addr, port, local_addr, local_port);
+		let quad = Quad::new(local_addr, local_port,  addr, port, );
+		log_trace!("ConnectionHandle::connect: quad={:?}", quad);
 		// 4. Send the opening SYN (by creating the outbound connection structure)
 		let conn = Connection::new_outbound(&quad, 0x10000u32);
 		CONNECTIONS.insert(quad, Mutex::new(conn));
@@ -752,3 +769,83 @@ impl ConnectionHandle
 		}
 	}
 }
+
+
+const MIN_DYN_PORT: u16 = 0xC000;
+const N_DYN_PORTS: usize = (1<<16) - MIN_DYN_PORT as usize;
+struct PortPool {
+	bitmap: [u32; N_DYN_PORTS / 32],
+	//n_free_ports: u16,
+	next_port: u16,
+}
+impl PortPool
+{
+	const fn new() -> PortPool
+	{
+		PortPool {
+			bitmap: [0; N_DYN_PORTS / 32],
+			//n_free_ports: N_DYN_PORTS as u16,
+			next_port: MIN_DYN_PORT,
+			}
+	}
+
+	fn ofs_mask(idx: u16) -> Option<(usize, u32)>
+	{
+		if idx >= MIN_DYN_PORT
+		{
+			let ofs = (idx - MIN_DYN_PORT) as usize / 32;
+			let mask  = 1 << (idx % 32);
+			Some( (ofs, mask) )
+		}
+		else
+		{
+			None
+		}
+	}
+	fn take(&mut self, idx: u16) -> Result<(),()>
+	{
+		let (ofs,mask) = match Self::ofs_mask(idx)
+			{
+			Some(v) => v,
+			None => return Ok(()),
+			};
+		if self.bitmap[ofs] & mask != 0 {
+			Err( () )
+		}
+		else {
+			self.bitmap[ofs] |= mask;
+			Ok( () )
+		}
+	}
+	fn release(&mut self, idx: u16)
+	{
+		let (ofs,mask) = match Self::ofs_mask(idx)
+			{
+			Some(v) => v,
+			None => return,
+			};
+		self.bitmap[ofs] &= !mask;
+	}
+	fn allocate(&mut self) -> Option<u16>
+	{
+		// Strategy: Linear ('cos it's easy)
+		for idx in self.next_port ..= 0xFFFF
+		{
+			match self.take(idx)
+			{
+			Ok(_) => { self.next_port = idx; return Some(idx); },
+			_ => {},
+			}
+		}
+		for idx in MIN_DYN_PORT .. self.next_port
+		{
+			match self.take(idx)
+			{
+			Ok(_) => { self.next_port = idx; return Some(idx); },
+			_ => {},
+			}
+		}
+		None
+	}
+}
+

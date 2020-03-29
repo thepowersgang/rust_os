@@ -89,13 +89,18 @@ pub fn send_packet_raw(fw: &crate::TestFramework, src: IpAddr4, dst: IpAddr4, mu
 		};
     fw.send_ethernet_direct(0x0800, &[&ip_hdr, &tcp_hdr, options, data]);
 }
+/// NOTE: "local" means framework
 pub struct TcpConn<'a>
 {
     pub fw: &'a crate::TestFramework,
+	/// Framework address, testee address
     addrs: (crate::ipv4::Addr, crate::ipv4::Addr),
+	/// Testee port
     remote_port: u16, 
+	/// Framework port
     local_port: u16,
 
+	/// Framework's RX window
     pub rx_window: u16,
 
     pub local_seq: u32,
@@ -139,6 +144,8 @@ impl TcpConn<'_>
         let (tcp_hdr,tcp_options, tail) = crate::tcp::Header::parse(tail);
         assert_eq!(tcp_options.len(), 0);
         assert_eq!(tcp_hdr.flags, flags);
+        assert_eq!(tcp_hdr.dst_port, self.local_port);
+        assert_eq!(tcp_hdr.src_port, self.remote_port);
         // 4. Check the data
         assert_eq!(tail, data, "Data mismatch");
     }
@@ -150,6 +157,43 @@ impl TcpConn<'_>
         None => {},
         }
     }
+
+	pub fn from_rx_conn(fw: &crate::TestFramework, lport: u16, laddr: crate::ipv4::Addr) -> TcpConn
+	{
+        let data_handle = match fw.wait_packet(std::time::Duration::from_millis(1000))
+            {
+            Some(v) => v,
+            None => panic!("No connection packet recieved"),
+            };
+        let tail = &data_handle[..];
+        // 1. Check the ethernet header
+        let (ether_hdr, tail) = crate::ethernet::EthernetHeader::parse(tail);
+        assert_eq!(ether_hdr.proto, 0x0800, "Incorrect ethernet protocol value: {:04x}", ether_hdr.proto);
+        // 2. Check the IPv4 header
+        let (ip_hdr,ip_options, tail) = crate::ipv4::Header::parse(tail);
+        assert_eq!(ip_hdr.protocol, 6);
+        //assert_eq!(crate::ipv4::Addr(ip_hdr.src_addr), self.addrs.1);
+        assert_eq!(crate::ipv4::Addr(ip_hdr.dst_addr), laddr);
+        assert_eq!(ip_options.len(), 0);
+		// 3. Check the TCP header (incl flags)
+        let (tcp_hdr,tcp_options, tail) = crate::tcp::Header::parse(tail);
+        assert_eq!(tcp_options.len(), 0);
+        assert_eq!(tcp_hdr.flags, TCP_SYN);
+        assert_eq!(tcp_hdr.dst_port, lport);
+        // 4. Check the data
+        assert_eq!(tail, &[], "Data mismatch");
+		TcpConn {
+			fw: fw,
+			addrs: (laddr, crate::ipv4::Addr(ip_hdr.dst_addr)),
+			remote_port: tcp_hdr.src_port, 
+			local_port: lport,
+
+			rx_window: 0x1000,
+
+			local_seq: 0x10000,
+			remote_seq: tcp_hdr.seq,
+			}
+	}
 }
 
 /// Check that RST is sent when communicating with a closed port
@@ -187,4 +231,14 @@ fn resets()
     // RST,ACK to anything
     conn.raw_send_packet(TCP_RST|TCP_ACK, &[], &[]);
     conn.wait_rx_none();
+}
+
+#[test]
+fn client()
+{
+    let fw = crate::TestFramework::new("tcp_client");
+	fw.send_command("tcp-connect 0 192.168.1.2 80");
+	let conn = TcpConn::from_rx_conn(&fw, 80, IpAddr4([192,168,1,2]));
+	conn.raw_send_packet(TCP_SYN|TCP_ACK, &[], &[]);
+    conn.wait_rx_check(TCP_ACK, &[]);
 }
