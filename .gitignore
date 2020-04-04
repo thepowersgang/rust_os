@@ -53,7 +53,8 @@ Kernel/rundir/*.iso
 Kernel/rundir/arm_bootloader/Core/
 Kernel/rundir/test-*/
 
-/Kernel/tests/network/target
+/Kernel/tests/network/target/
+/Kernel/tests/network/*.txt
 /Kernel/tests/filesystem/target
 
 # The bootloaders usually use the Kernel's libcore, so need an equivalent path to the target spec
