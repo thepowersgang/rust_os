@@ -588,10 +588,18 @@ impl Connection
 		ConnectionState::Finished => return,
 		};
 
+		self.state_update(quad, new_state);
+	}
+
+	fn state_update(&mut self, quad: &Quad, new_state: ConnectionState)
+	{
 		if self.state != new_state
 		{
 			log_trace!("{:?} {:?} -> {:?}", quad, self.state, new_state);
 			self.state = new_state;
+
+			// TODO: If transitioning to `Finished`, release the local port?
+			// - Only for client connections.
 		}
 	}
 
@@ -671,11 +679,7 @@ impl Connection
 				ConnectionState::FinWait1
 				},
 			};
-		if self.state != new_state
-		{
-			log_trace!("{:?} {:?} -> {:?}", quad, self.state, new_state);
-			self.state = new_state;
-		}
+		self.state_update(quad, new_state);
 		Ok( () )
 	}
 }
@@ -767,6 +771,13 @@ impl ConnectionHandle
 		None => panic!("Connection {:?} removed before handle dropped", self.0),
 		Some(v) => v.lock().close(&self.0),
 		}
+	}
+}
+impl ::core::ops::Drop for ConnectionHandle
+{
+	fn drop(&mut self)
+	{
+		// Mark the connection to close
 	}
 }
 

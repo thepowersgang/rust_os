@@ -184,7 +184,7 @@ impl TcpConn<'_>
         assert_eq!(tail, &[], "Data mismatch");
 		TcpConn {
 			fw: fw,
-			addrs: (laddr, crate::ipv4::Addr(ip_hdr.dst_addr)),
+			addrs: (laddr, crate::ipv4::Addr(ip_hdr.src_addr)),
 			remote_port: tcp_hdr.src_port, 
 			local_port: lport,
 
@@ -236,7 +236,19 @@ fn resets()
 #[test]
 fn client()
 {
+
     let fw = crate::TestFramework::new("tcp_client");
+	{
+		let src = IpAddr4([192,168,1,2]);
+		let dst = IpAddr4([192,168,1,1]);
+		let ip_hdr = {
+			let mut h = crate::ipv4::Header::new_simple(src, dst, 0, 0);
+			h.set_checksum();
+			h.encode()
+			};
+		fw.send_ethernet_direct(0x0800, &[&ip_hdr, &[]]);
+	}
+
 	fw.send_command("tcp-connect 0 192.168.1.2 80");
 	let conn = TcpConn::from_rx_conn(&fw, 80, IpAddr4([192,168,1,2]));
 	conn.raw_send_packet(TCP_SYN|TCP_ACK, &[], &[]);

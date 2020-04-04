@@ -174,17 +174,24 @@ pub fn route_lookup(source: Address, dest: Address) -> Option<(Address, MacAddr,
 
 pub fn send_packet(source: Address, dest: Address, proto: u8, pkt: crate::nic::SparsePacket)
 {
+	log_trace!("send_packet({:?} -> {:?} 0x{:02x})", source, dest, proto);
 	// 1. Look up routing table for destination IP and interface
 	let (_, interface_mac, next_hop) = match route_lookup(source, dest)
 		{
 		Some(v) => v,
-		None => return,	// TODO: Error - No route to host
+		None => {
+			log_notice!("Unable to send to {:?}: No route", dest);
+			return	// TODO: Error - No route to host
+			},
 		};
 	// 2. ARP (what if ARP has to wait?)
 	let dest_mac = match crate::arp::lookup_v4(next_hop)
 		{
 		Some(v) => v,
-		None => return,	// TODO: Error - No route to host
+		None => {
+			log_notice!("Unable to send to {:?}: No ARP", dest);
+			return
+			},	// TODO: Error - No route to host
 		};
 	// 3. Send
 	let mut hdr = Ipv4Header {

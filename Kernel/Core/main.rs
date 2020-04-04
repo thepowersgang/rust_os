@@ -21,6 +21,7 @@
 #![feature(panic_info_message)]
 
 #![cfg_attr(not(feature="test"),no_std)]
+#![cfg_attr(feature="test",allow(dead_code,unused_imports))]
 
 //#![deny(not_tagged_safe)]
 //#![feature(plugin)]
