@@ -22,7 +22,7 @@ UPDATE:
 	@echo ">>> Updating rustc and libcore"
 	@mkdir -p .prefix
 	curl https://static.rust-lang.org/rustup/rustup-init.sh -sSf | RUSTUP_HOME=$(abspath .prefix) CARGO_HOME=$(abspath .prefix) sh -s -- --default-toolchain none --no-modify-path -y
-	$(call fn_rustcmd,rustup) update $(RUSTUP_VER)
+	$(call fn_rustcmd,rustup) update $(RUSTUP_VER) --force
 	$(call fn_rustcmd,rustup) default $(RUSTUP_VER)
 	$(call fn_rustcmd,rustup) component add rust-src
 	$(CARGO) install xargo --git https://github.com/thepowersgang/xargo --force
