@@ -11,7 +11,7 @@
 #![feature(allocator_api)]
 #![no_std]
 
-use core::alloc::{Layout,AllocErr,CannotReallocInPlace};
+use core::alloc::{self,Layout,AllocErr,MemoryBlock};
 use core::ptr::NonNull;
 
 #[macro_use]
@@ -36,7 +36,7 @@ pub const ALLOCATOR: &Allocator = &Allocator;
 
 unsafe impl ::core::alloc::AllocRef for &'static Allocator
 {
-	fn alloc(&mut self, layout: Layout) -> Result<(NonNull<u8>,usize), AllocErr>
+	fn alloc(&mut self, layout: Layout, init: alloc::AllocInit) -> Result<MemoryBlock, AllocErr>
 	{
 		let rv = heap::allocate(layout.size(), layout.align());
 		if rv == ::core::ptr::null_mut()
@@ -45,8 +45,17 @@ unsafe impl ::core::alloc::AllocRef for &'static Allocator
 		}
 		else
 		{
-			// SAFE: Non-zero pointer
-			Ok( (unsafe { NonNull::new_unchecked(rv as *mut u8) }, usable_size(&layout),) )
+			match init
+			{
+			alloc::AllocInit::Uninitialized => {},
+			// SAFE: Valid pointer to owned memory
+			alloc::AllocInit::Zeroed => unsafe { ::core::ptr::write_bytes(rv, 0, layout.size()) },
+			}
+			Ok(MemoryBlock {
+				// SAFE: Non-zero pointer
+				ptr: unsafe { NonNull::new_unchecked(rv as *mut u8) },
+				size: usable_size(&layout),
+			})
 		}
 	}
 	unsafe fn dealloc(&mut self, ptr: NonNull<u8>, layout: Layout)
@@ -54,19 +63,13 @@ unsafe impl ::core::alloc::AllocRef for &'static Allocator
 		heap::deallocate(ptr.as_ptr() as *mut u8, layout.size(), layout.align())
 	}
 
-	unsafe fn realloc(&mut self, ptr: NonNull<u8>, layout: Layout, new_size: usize) -> Result< (NonNull<u8>,usize), AllocErr>
-	{
-		let rv = heap::reallocate(ptr.as_ptr() as *mut u8, layout.size(), layout.align(), new_size);
-		if rv == ::core::ptr::null_mut()
-		{
-			Err(AllocErr)
-		}
-		else
-		{
-			Ok( (NonNull::new_unchecked(rv as *mut u8), usable_size(&layout),) )
-		}
-	}
-	// TODO: alloc_excess
+	//unsafe fn grow(&mut self, ptr: NonNull<u8>, layout: Layout, new_size: usize, placement: alloc::ReallocPlacement, init: alloc::AllocInit) -> Result<MemoryBlock, AllocErr>
+	//unsafe fn shrink(&mut self, ptr: NonNull<u8>, layout: Layout, new_size: usize, placement: alloc::ReallocPlacement) -> Result<MemoryBlock, AllocErr>
+
+	// TODO: grow
+	// TODO: shrink
+	
+#[cfg(FALSE)]
 	unsafe fn grow_in_place(&mut self, ptr: NonNull<u8>, layout: Layout, new_size: usize) -> Result<usize, CannotReallocInPlace>
 	{
 		let rv = heap::reallocate_inplace(ptr.as_ptr() as *mut u8, layout.size(), layout.align(), new_size);
@@ -79,7 +82,6 @@ unsafe impl ::core::alloc::AllocRef for &'static Allocator
 			Ok( usable_size(&layout) )
 		}
 	}
-	// TODO: shrink_in_place
 }
 
 fn usable_size(layout: &Layout) -> usize

@@ -3,7 +3,7 @@
 //!
 use core::ptr;
 use core::ptr::NonNull;
-use core::alloc::{Layout,AllocRef,AllocErr};
+use core::alloc::{self, Layout,AllocRef,AllocErr};
 
 use alloc_system::ALLOCATOR as System;
 
@@ -12,8 +12,8 @@ pub unsafe extern fn __rdl_alloc(size: usize,
 								 align: usize,
 								 err: *mut u8) -> *mut u8 {
 	let layout = Layout::from_size_align_unchecked(size, align);
-	match System.alloc(layout) {
-		Ok( (p,_sz) ) => p.as_ptr() as *mut u8,
+	match System.alloc(layout, ::core::alloc::AllocInit::Uninitialized) {
+		Ok(blk) => blk.ptr.as_ptr() as *mut u8,
 		Err(e) => {
 			ptr::write(err as *mut AllocErr, e);
 			0 as *mut u8
@@ -51,8 +51,14 @@ pub unsafe extern fn __rdl_realloc(ptr: *mut u8,
 								   new_size: usize,
 								   err: *mut u8) -> *mut u8 {
 	let old_layout = Layout::from_size_align_unchecked(old_size, old_align);
-	match System.realloc(NonNull::new_unchecked(ptr as *mut _), old_layout, new_size) {
-		Ok((p, _sz)) => p.as_ptr() as *mut u8,
+	let rv = if old_size < new_size {
+			System.grow(NonNull::new_unchecked(ptr as *mut _), old_layout, new_size, alloc::ReallocPlacement::MayMove, alloc::AllocInit::Uninitialized)
+		}
+		else {
+			System.shrink(NonNull::new_unchecked(ptr as *mut _), old_layout, new_size, alloc::ReallocPlacement::MayMove)
+		};
+	match rv {
+		Ok(blk) => blk.ptr.as_ptr() as *mut u8,
 		Err(e) => {
 			ptr::write(err as *mut AllocErr, e);
 			0 as *mut u8
@@ -65,78 +71,12 @@ pub unsafe extern fn __rdl_alloc_zeroed(size: usize,
 										align: usize,
 										err: *mut u8) -> *mut u8 {
 	let layout = Layout::from_size_align_unchecked(size, align);
-	match System.alloc_zeroed(layout) {
-		Ok((p,sz)) => p.as_ptr() as *mut u8,
+	match System.alloc(layout, ::core::alloc::AllocInit::Zeroed) {
+		Ok(blk) => blk.ptr.as_ptr() as *mut u8,
 		Err(e) => {
 			ptr::write(err as *mut AllocErr, e);
 			0 as *mut u8
 		}
-	}
-}
-
-#[no_mangle]
-#[cfg(_false)]
-pub unsafe extern fn __rdl_alloc_excess(size: usize,
-										align: usize,
-										excess: *mut usize,
-										err: *mut u8) -> *mut u8 {
-	let layout = Layout::from_size_align_unchecked(size, align);
-	match System.alloc_excess(layout) {
-		Ok((p, _sz)) => {
-			*excess = p.1;
-			p.0.as_ptr() as *mut u8
-		}
-		Err(e) => {
-			ptr::write(err as *mut AllocErr, e);
-			0 as *mut u8
-		}
-	}
-}
-
-#[no_mangle]
-#[cfg(_false)]
-pub unsafe extern fn __rdl_realloc_excess(ptr: *mut u8,
-										  old_size: usize,
-										  old_align: usize,
-										  new_size: usize,
-										  excess: *mut usize,
-										  err: *mut u8) -> *mut u8 {
-	let old_layout = Layout::from_size_align_unchecked(old_size, old_align);
-	match System.realloc_excess(NonNull::new_unchecked(ptr as *mut _), old_layout, new_size) {
-		Ok((p, _sz)) => {
-			*excess = p.1;
-			p.0.as_ptr() as *mut u8
-		}
-		Err(e) => {
-			ptr::write(err as *mut AllocErr, e);
-			0 as *mut u8
-		}
-	}
-}
-
-#[no_mangle]
-pub unsafe extern fn __rdl_grow_in_place(ptr: *mut u8,
-										 old_size: usize,
-										 old_align: usize,
-										 new_size: usize,
-										 ) -> u8 {
-	let old_layout = Layout::from_size_align_unchecked(old_size, old_align);
-	match System.grow_in_place(NonNull::new_unchecked(ptr as *mut _), old_layout, new_size) {
-		Ok(_) => 1,
-		Err(_) => 0,
-	}
-}
-
-#[no_mangle]
-pub unsafe extern fn __rdl_shrink_in_place(ptr: *mut u8,
-										   old_size: usize,
-										   old_align: usize,
-										   new_size: usize,
-										   ) -> u8 {
-	let old_layout = Layout::from_size_align_unchecked(old_size, old_align);
-	match System.shrink_in_place(NonNull::new_unchecked(ptr as *mut _), old_layout, new_size) {
-		Ok(_) => 1,
-		Err(_) => 0,
 	}
 }
 
