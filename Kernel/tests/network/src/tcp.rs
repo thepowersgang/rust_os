@@ -160,10 +160,11 @@ impl TcpConn<'_>
 
 	pub fn from_rx_conn(fw: &crate::TestFramework, lport: u16, laddr: crate::ipv4::Addr) -> TcpConn
 	{
+		let t = std::time::Instant::now();
         let data_handle = match fw.wait_packet(std::time::Duration::from_millis(1000))
             {
             Some(v) => v,
-            None => panic!("No connection packet recieved"),
+            None => panic!("No connection packet recieved {:?}", std::time::Instant::now() - t),
             };
         let tail = &data_handle[..];
         // 1. Check the ethernet header
@@ -238,19 +239,24 @@ fn client()
 {
 
     let fw = crate::TestFramework::new("tcp_client");
-	{
-		let src = IpAddr4([192,168,1,2]);
-		let dst = IpAddr4([192,168,1,1]);
-		let ip_hdr = {
-			let mut h = crate::ipv4::Header::new_simple(src, dst, 0, 0);
-			h.set_checksum();
-			h.encode()
-			};
-		fw.send_ethernet_direct(0x0800, &[&ip_hdr, &[]]);
-	}
+	prime_arp(&fw, /*dst=*/IpAddr4([192,168,1,1]), /*src=*/IpAddr4([192,168,1,2]));
 
 	fw.send_command("tcp-connect 0 192.168.1.2 80");
 	let conn = TcpConn::from_rx_conn(&fw, 80, IpAddr4([192,168,1,2]));
 	conn.raw_send_packet(TCP_SYN|TCP_ACK, &[], &[]);
     conn.wait_rx_check(TCP_ACK, &[]);
+}
+
+#[cfg(test)]
+fn prime_arp(fw: &crate::TestFramework, dst: IpAddr4, src: IpAddr4)
+{
+	let ip_hdr = {
+		let mut h = crate::ipv4::Header::new_simple(src, dst, 0, 0);
+		h.set_checksum();
+		h.encode()
+		};
+	fw.send_ethernet_direct(0x0800, &[&ip_hdr, &[]]);
+	// TODO: Send a TCP packet that would always trigger a response
+	// Short sleep for processing
+	::std::thread::sleep(::std::time::Duration::new(0,250*1000));
 }

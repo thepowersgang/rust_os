@@ -14,8 +14,6 @@ pub struct TestFramework {
     remote_addr: std::net::SocketAddr,
     process: std::process::Child,
     logfile: std::path::PathBuf,
-
-	child_stdin: std::sync::Mutex<std::process::ChildStdin>,
 }
 impl TestFramework
 {
@@ -38,12 +36,11 @@ impl TestFramework
 
         let socket = std::net::UdpSocket::bind( ("127.0.0.1", port) ).expect("Unable to bind socket");
         println!("Spawning child");
-        let mut child = std::process::Command::new( env!("CARGO") )
-            .arg("run").arg("--quiet").arg("--bin").arg("host")
-            .arg("--")
+        let mut child = std::process::Command::new( env!("CARGO") ).arg("run").arg("--quiet").arg("--bin").arg("host").arg("--")
+        //let mut child = std::process::Command::new("target/debug/host")
             .arg(format!("127.0.0.1:{}", port))
             .arg("192.168.1.1")// /24")
-			.stdin( std::process::Stdio::piped() )
+			//.stdin( std::process::Stdio::piped() )
             .stdout(std::fs::File::create(&logfile).unwrap())
             //.stderr(std::fs::File::create("stderr.txt").unwrap())
             .spawn()
@@ -67,7 +64,6 @@ impl TestFramework
         TestFramework {
             socket: socket,
             remote_addr: addr,
-			child_stdin: ::std::sync::Mutex::new( child.stdin.take().unwrap() ),
             process: child,
             logfile: logfile,
         }
@@ -75,17 +71,16 @@ impl TestFramework
 
 	pub fn send_command(&self, s: &str)
 	{
-		use ::std::io::Write;
-		let mut stdin = self.child_stdin.lock().expect("send_command");
-		stdin.write(s.as_bytes()).expect("Host stdin fail");
-		stdin.write(b"\n").expect("Host stdin fail");
+		let mut msg_buf = [0; 4 + 1500];
+		msg_buf[4..][..s.len()].copy_from_slice( s.as_bytes() );
+		self.socket.send_to(&msg_buf[.. 4 + s.len()], self.remote_addr).expect("Failed to send to child");
 	}
 
     /// Encode+send an ethernet frame to the virtualised NIC (addressed correctly)
     pub fn send_ethernet_direct(&self, proto: u16, buffers: &[ &[u8] ])
     {
         let ethernet_hdr = crate::ethernet::EthernetHeader { dst: REMOTE_MAC, src: LOCAL_MAC, proto: proto, }.encode();
-        let buf: Vec<u8> = Iterator::chain([&ethernet_hdr as &[u8]].iter(), buffers.iter())
+        let buf: Vec<u8> = Iterator::chain([&[1,0,0,0], &ethernet_hdr as &[u8]].iter(), buffers.iter())
             .flat_map(|v| v.iter())
             .copied()
             .collect()
@@ -122,7 +117,15 @@ impl Drop for TestFramework
 {
     fn drop(&mut self)
     {
-        self.process.kill().expect("Cannot terminate child");
+		if self.process.try_wait().is_err()
+		{
+			self.send_command("exit");
+			std::thread::sleep(std::time::Duration::new(0,500*1000) );
+		}
+		if self.process.try_wait().is_err()
+		{
+			self.process.kill().expect("Cannot terminate child");
+		}
         if std::thread::panicking() {
             println!("See {} for worker log", self.logfile.display());
         }

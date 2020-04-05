@@ -3,6 +3,7 @@
  */
 #[macro_use]
 extern crate kernel;
+use std::sync::Arc;
 
 struct Args
 {
@@ -45,34 +46,13 @@ fn main()
             },
         };
     stream.connect( args.master_addr ).expect("Unable to connect");
+	let stream = Arc::new(stream);
     stream.send(&[0]).expect("Unable to send marker to server");
     
     let mac = *b"RSK\x12\x34\x56";
-    let nic_handle = network::nic::register(mac, TestNic::new(stream));
+    let nic_handle = network::nic::register(mac, TestNic::new(stream.clone()));
 
     network::ipv4::add_interface(mac, args.sim_ip, 24);
-
-	const MTU: usize = 1560;
-
-	std::thread::spawn(move || loop {
-			let mut buf = [0; MTU];
-			match nic_handle.stream.recv(&mut buf)
-			{
-			Ok(len) => {
-				let buf = buf[..len].to_owned();
-				nic_handle.packets.lock().unwrap().push_back( buf );
-				match *nic_handle.waiter.lock().unwrap()
-				{
-				Some(ref v) => v.signal(),
-				None => println!("No registered waiter yet?"),
-				}
-				},
-			Err(e) => {
-				println!("Error reading: {:?}", e);
-				break;
-				},
-			}
-		});
 
     kernel::arch::imp::threads::test_unlock_thread();
 
@@ -81,38 +61,88 @@ fn main()
 	let mut tcp_conn_handles = ::std::collections::HashMap::new();
     loop
     {
-		std::thread::sleep(std::time::Duration::new(1,0) );
-		let mut line = String::new();
-		std::io::stdin().read_line(&mut line).expect("Reading command");
-		let mut it = ::cmdline_words_parser::parse_posix(&mut line[..]);
-		let cmd = it.next().unwrap();
-		match cmd
+		const MTU: usize = 1560;
+		let mut buf = [0; 4 + MTU];
+		let len = match nic_handle.stream.recv(&mut buf)
+			{
+			Ok(len) => len,
+			Err(e) => {
+				println!("Error receiving packet: {:?}", e);
+				break;
+				},
+			};
+		println!("RX {:?}", ::kernel::logging::HexDump(&buf[..len]));
+		if len == 0 {
+			println!("ERROR: Zero-sized packet?");
+			break;
+		}
+		if len < 4 {
+			println!("ERROR: Runt packet");
+			break;
+		}
+		let id = buf[0] as u32 | (buf[1] as u32) << 8
+			| (buf[2] as u32) << 16 | (buf[3] as u32) << 24
+			;
+		let data = &mut buf[4..len];
+		if id == 0
 		{
-		"" => {},
-		"exit" => break,
-		"ipv4-add" => {
-			},
-		// Listen on a port/interface
-		//"tcp-listen" => {
-		//	},
-		// Make a connection
-		"tcp-connect" => {
-			// Get dest ip & dest port
-			let index: usize = it.next().unwrap().parse().unwrap();
-			let ip: ::network::Address = parse_addr(it.next().expect("Missing IP")).unwrap();
-			let port: u16 = it.next().unwrap().parse().unwrap();
-			log_notice!("tcp-connect {} = {:?}:{}", index, ip, port);
-			tcp_conn_handles.insert(index, ::network::tcp::ConnectionHandle::connect(ip, port));
-			println!("OK");
-			},
-		// Close a TCP connection
-		"tcp-close" => {
-			},
-		"tcp-send" => {
-			},
-		"tcp-recv" => {
-			},
-		_ => eprintln!("ERROR: Unknown command '{}'", cmd),
+			let line = std::str::from_utf8_mut(data).expect("Bad UTF-8 from server");
+			let mut it = ::cmdline_words_parser::parse_posix(line);
+			let cmd = match it.next()
+				{
+				Some(c) => c,
+				None => {
+					log_notice!("stdin empty");
+					break
+					},
+				};
+			match cmd
+			{
+			"" => {},
+			"exit" => {
+				log_notice!("exit command");
+				break
+				},
+			"ipv4-add" => {
+				},
+			// Listen on a port/interface
+			//"tcp-listen" => {
+			//	},
+			// Make a connection
+			"tcp-connect" => {
+				// Get dest ip & dest port
+				let index: usize = it.next().unwrap().parse().unwrap();
+				let ip: ::network::Address = parse_addr(it.next().expect("Missing IP")).unwrap();
+				let port: u16 = it.next().unwrap().parse().unwrap();
+				log_notice!("tcp-connect {} = {:?}:{}", index, ip, port);
+				tcp_conn_handles.insert(index, ::network::tcp::ConnectionHandle::connect(ip, port));
+				println!("OK");
+				},
+			// Close a TCP connection
+			"tcp-close" => {
+				},
+			"tcp-send" => {
+				},
+			"tcp-recv" => {
+				},
+			_ => eprintln!("ERROR: Unknown command '{}'", cmd),
+			}
+		}
+		else
+		{
+			let buf = data.to_owned();
+			let nic = match id
+				{
+				0 => unreachable!(),
+				1 => &nic_handle,
+				_ => panic!("Unknown NIC ID {}", id),
+				};
+			nic.packets.lock().unwrap().push_back( buf );
+			match *nic.waiter.lock().unwrap()
+			{
+			Some(ref v) => v.signal(),
+			None => println!("No registered waiter yet?"),
+			}
 		}
     }
 }
@@ -121,10 +151,10 @@ fn parse_addr(s: &str) -> Option<::network::Address>
 {
 	if s.contains(".") {
 		let mut it = s.split('.');
-		let b1 = it.next()?.parse().ok()?;
-		let b2 = it.next()?.parse().ok()?;
-		let b3 = it.next()?.parse().ok()?;
-		let b4 = it.next()?.parse().ok()?;
+		let b1: u8 = it.next()?.parse().ok()?;
+		let b2: u8 = it.next()?.parse().ok()?;
+		let b3: u8 = it.next()?.parse().ok()?;
+		let b4: u8 = it.next()?.parse().ok()?;
 		if it.next().is_some() {
 			return None;
 		}
@@ -137,7 +167,7 @@ fn parse_addr(s: &str) -> Option<::network::Address>
 
 struct TestNic
 {
-    stream: std::net::UdpSocket,
+    stream: Arc<std::net::UdpSocket>,
     waiter: std::sync::Mutex< Option<kernel::threads::SleepObjectRef> >,
     // NOTE: Kernel sync queue
     packets: std::sync::Mutex< std::collections::VecDeque< Vec<u8> > >,
@@ -145,7 +175,7 @@ struct TestNic
 
 impl TestNic
 {
-    fn new(stream: std::net::UdpSocket) -> Self
+    fn new(stream: Arc<std::net::UdpSocket>) -> TestNic
     {
         TestNic {
             stream,
