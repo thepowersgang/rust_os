@@ -95,66 +95,118 @@ pub mod memory {
 pub mod sync {
 	use core::sync::atomic::Ordering;
 
-	// TODO: use a mutex instead? (simulating a single-core machine really)
 	#[derive(Default)]
-	pub struct Spinlock<T>(::core::sync::atomic::AtomicBool, ::core::cell::UnsafeCell<T>);
+	pub struct Spinlock<T> {
+		// Stores a std mutex using a manually-managed pointer
+		std: ::core::sync::atomic::AtomicPtr<std::sync::Mutex<()>>,
+		tid: ::core::sync::atomic::AtomicU32,
+		data: ::core::cell::UnsafeCell<T>,
+	}
 	unsafe impl<T: Send> Sync for Spinlock<T> {}
 	impl<T> Spinlock<T> {
 		pub const fn new(v: T) -> Spinlock<T> {
-			Spinlock( ::core::sync::atomic::AtomicBool::new(false), ::core::cell::UnsafeCell::new(v) )
+			Spinlock {
+				std: ::core::sync::atomic::AtomicPtr::new(0 as *mut _),
+				tid: ::core::sync::atomic::AtomicU32::new(0),
+				data: ::core::cell::UnsafeCell::new(v),
+			}
 		}
 		pub fn get_mut(&mut self) -> &mut T {
 			// SAFE: Mutable access
-			unsafe { &mut *self.1.get() }
+			unsafe { &mut *self.data.get() }
+		}
+		fn get_std(&self) -> &::std::sync::Mutex<()> {
+			let p = self.std.load(Ordering::Relaxed);
+			let p = if p.is_null() {
+					let v = Box::new( ::std::sync::Mutex::new( () ) );
+					let p = Box::leak(v) as *mut _;
+					let old = self.std.compare_and_swap(::core::ptr::null_mut(), p, Ordering::Relaxed);
+					if !old.is_null() {
+						// SAFE: Only just created, and not stored
+						let _ = unsafe { Box::from_raw(p) };
+						old
+					}
+					else {
+						p
+					}
+				}
+				else {
+					p
+				};
+			// SAFE: Valid pointer
+			unsafe { &*p }
 		}
 		pub fn try_lock_cpu(&self) -> Option<HeldSpinlock<T>> {
-			if self.0.compare_and_swap(false, true, Ordering::Acquire) {
-				panic!("TODO: Spinlock::try_lock - already locked (need to check CPU)");
-			}
-			else {
-				//println!("{:p} lock (try_lock_cpu)", self);
-				Some(HeldSpinlock(self))
-			}
+			panic!("try_lock_cpu not valid in test code");
 		}
 		pub fn lock(&self) -> HeldSpinlock<T> {
-			if self.0.compare_and_swap(false, true, Ordering::Acquire) {
-				panic!("TODO: Spinlock::lock - already locked");
-			}
-			else {
-				//println!("{:p} lock", self);
-				HeldSpinlock(self)
+			//println!("Spinlock<{}>({:p}) lock", ::core::any::type_name::<T>(), self);
+			let lh = self.get_std().lock().expect("Spinlock");
+			self.tid.store(crate::threads::get_thread_id(), Ordering::SeqCst);
+			HeldSpinlock(self, lh)
+		}
+	}
+	impl<T> ::core::ops::Drop for Spinlock<T>
+	{
+		fn drop(&mut self)
+		{
+			let p = self.std.load(Ordering::Relaxed);
+			if !p.is_null()
+			{
+				// SAFE: Valid pointer, no other handles
+				let _ = unsafe { Box::from_raw(p) };
 			}
 		}
 	}
-	pub struct HeldSpinlock<'a, T: 'a>( &'a Spinlock<T> );
+	pub struct HeldSpinlock<'a, T: 'a>( &'a Spinlock<T>, std::sync::MutexGuard<'a, ()>);
 	impl<'a, T: 'a> ::core::ops::Deref for HeldSpinlock<'a, T> {
 		type Target = T;
 		fn deref(&self) -> &T {
 			// SAFE: Locked
-			unsafe { &*self.0 .1.get() }
+			unsafe { &*self.0.data.get() }
 		}
 	}
 	impl<'a, T: 'a> ::core::ops::DerefMut for HeldSpinlock<'a, T> {
 		fn deref_mut(&mut self) -> &mut T {
 			// SAFE: Locked
-			unsafe { &mut *self.0 .1.get() }
+			unsafe { &mut *self.0.data.get() }
 		}
 	}
 	impl<'a, T: 'a> ::core::ops::Drop for HeldSpinlock<'a, T> {
 		fn drop(&mut self) {
-			assert!( self.0 .0.swap(false, Ordering::Release), "HeldSpinlock released on unlocked spinlock" );
-			//println!("{:p} unlock", self.0);
+			//assert!( self.0.locked.swap(false, Ordering::Release), "HeldSpinlock released on unlocked spinlock" );
+			//println!("Spinlock<{}>({:p}) unlock", ::core::any::type_name::<T>(), self.0);
 		}
 	}
-	pub struct HeldInterrupts;
+
+	//struct HeldIntState {
+	//	is_held: bool,
+	//	count: usize,
+	//}
+	lazy_static::lazy_static! {
+		static ref IRQ_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new( () );
+		//static ref IRQ_LOCK_HANDLE: std::sync::Mutex< Option<std::sync::MutexGuard<'static, ()>> > = std::sync::Mutex::new( None );
+	}
+	pub struct HeldInterrupts(Option<std::sync::MutexGuard<'static, ()>>);
 
 	pub fn hold_interrupts() -> HeldInterrupts {
-		HeldInterrupts
+		//println!("hold_interrupts()");
+		// TODO: Implement this with an optional guard and count for the current thread
+		//HeldInterrupts(Some(IRQ_LOCK.lock().unwrap()))
+		HeldInterrupts(None)
+	}
+	impl ::core::ops::Drop for HeldInterrupts {
+		fn drop(&mut self) {
+			//println!("~hold_interrupts()");
+		}
 	}
 
 	pub unsafe fn stop_interrupts() {
+		//todo!("stop_interrupts");
+		//*IRQ_LOCK_HANDLE.lock().unwrap() = Some( IRQ_LOCK.lock().unwrap() );
 	}
 	pub unsafe fn start_interrupts() {
+		//*IRQ_LOCK_HANDLE.lock().unwrap() = None;
 	}
 }
 pub mod interrupts {
