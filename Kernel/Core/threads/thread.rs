@@ -406,9 +406,14 @@ impl Thread
 	
 	/// Assert that this thread is runnable
 	pub fn assert_active(&self) {
-		assert!( !is!(self.run_state, RunState::Sleep(_)) );
-		assert!( !is!(self.run_state, RunState::ListWait(_)) );
-		assert!( is!(self.run_state, RunState::Runnable) );
+		match self.run_state
+		{
+		RunState::Dead(_) => panic!("Thread:assert_active - Dead"),
+		RunState::Sleep(_) => panic!("Thread:assert_active - Sleeping"),
+		RunState::ListWait(_) => panic!("Thread:assert_active - ListWait"),
+		RunState::Runnable => {},
+		//_ => panic!("Thread::assert_active - Other"),
+		}
 	}
 	
 	pub fn get_process_info(&self) -> &Process {

@@ -136,8 +136,16 @@ pub mod sync {
 			// SAFE: Valid pointer
 			unsafe { &*p }
 		}
+		/// Attempt to lock, returns `None` if held by the current CPU (waits otherwise)
 		pub fn try_lock_cpu(&self) -> Option<HeldSpinlock<T>> {
-			panic!("try_lock_cpu not valid in test code");
+			let lh = match self.get_std().try_lock()
+				{
+				Ok(v) => v,
+				Err(std::sync::TryLockError::WouldBlock) => return None,
+				Err(std::sync::TryLockError::Poisoned(e)) => panic!("Poisoned spinlock mutex: {:?}", e),
+				};
+			self.tid.store(crate::threads::get_thread_id(), Ordering::SeqCst);
+			Some( HeldSpinlock(self, lh) )
 		}
 		pub fn lock(&self) -> HeldSpinlock<T> {
 			//println!("Spinlock<{}>({:p}) lock", ::core::any::type_name::<T>(), self);
