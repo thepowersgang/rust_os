@@ -434,6 +434,10 @@ impl Connection
 			}
 		}
 
+		// Update the window size if it changes
+		if self.tx_window_size != hdr.window_size as u32 {
+			self.tx_window_size = hdr.window_size as u32;
+		}
 		
 		let new_state = match self.state
 		{
@@ -711,6 +715,7 @@ struct Server
 
 pub struct ConnectionHandle(Quad);
 
+#[derive(Debug)]
 pub enum ConnError
 {
 	NoRoute,
