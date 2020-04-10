@@ -83,24 +83,24 @@ pub fn send_packet_raw(fw: &crate::TestFramework, src: IpAddr4, dst: IpAddr4, mu
     let tcp_hdr = header.encode();
     let tcp_len = tcp_hdr.len() + options.len() + data.len();
     let ip_hdr = {
-		let mut h = crate::ipv4::Header::new_simple(src, dst, 6, tcp_len);
-		h.set_checksum();
-		h.encode()
-		};
+        let mut h = crate::ipv4::Header::new_simple(src, dst, 6, tcp_len);
+        h.set_checksum();
+        h.encode()
+        };
     fw.send_ethernet_direct(0x0800, &[&ip_hdr, &tcp_hdr, options, data]);
 }
 /// NOTE: "local" means framework
 pub struct TcpConn<'a>
 {
     pub fw: &'a crate::TestFramework,
-	/// Framework address, testee address
+    /// Framework address, testee address
     addrs: (crate::ipv4::Addr, crate::ipv4::Addr),
-	/// Testee port
+    /// Testee port
     remote_port: u16, 
-	/// Framework port
+    /// Framework port
     local_port: u16,
 
-	/// Framework's RX window
+    /// Framework's RX window
     pub rx_window: u16,
 
     pub local_seq: u32,
@@ -140,7 +140,7 @@ impl TcpConn<'_>
         assert_eq!(crate::ipv4::Addr(ip_hdr.src_addr), self.addrs.1);
         assert_eq!(crate::ipv4::Addr(ip_hdr.dst_addr), self.addrs.0);
         assert_eq!(ip_options.len(), 0);
-		// 3. Check the TCP header (incl flags)
+        // 3. Check the TCP header (incl flags)
         let (tcp_hdr,tcp_options, tail) = crate::tcp::Header::parse(tail);
         assert_eq!(tcp_options.len(), 0);
         assert_eq!(tcp_hdr.flags, flags);
@@ -158,9 +158,9 @@ impl TcpConn<'_>
         }
     }
 
-	pub fn from_rx_conn(fw: &crate::TestFramework, lport: u16, laddr: crate::ipv4::Addr) -> TcpConn
-	{
-		let t = std::time::Instant::now();
+    pub fn from_rx_conn(fw: &crate::TestFramework, lport: u16, laddr: crate::ipv4::Addr) -> TcpConn
+    {
+        let t = std::time::Instant::now();
         let data_handle = match fw.wait_packet(std::time::Duration::from_millis(1000))
             {
             Some(v) => v,
@@ -176,25 +176,25 @@ impl TcpConn<'_>
         //assert_eq!(crate::ipv4::Addr(ip_hdr.src_addr), self.addrs.1);
         assert_eq!(crate::ipv4::Addr(ip_hdr.dst_addr), laddr);
         assert_eq!(ip_options.len(), 0);
-		// 3. Check the TCP header (incl flags)
+        // 3. Check the TCP header (incl flags)
         let (tcp_hdr,tcp_options, tail) = crate::tcp::Header::parse(tail);
         assert_eq!(tcp_options.len(), 0);
         assert_eq!(tcp_hdr.flags, TCP_SYN);
         assert_eq!(tcp_hdr.dst_port, lport);
         // 4. Check the data
         assert_eq!(tail, &[], "Data mismatch");
-		TcpConn {
-			fw: fw,
-			addrs: (laddr, crate::ipv4::Addr(ip_hdr.src_addr)),
-			remote_port: tcp_hdr.src_port, 
-			local_port: lport,
+        TcpConn {
+            fw: fw,
+            addrs: (laddr, crate::ipv4::Addr(ip_hdr.src_addr)),
+            remote_port: tcp_hdr.src_port, 
+            local_port: lport,
 
-			rx_window: 0x1000,
+            rx_window: 0x1000,
 
-			local_seq: 0x10000,
-			remote_seq: tcp_hdr.seq,
-			}
-	}
+            local_seq: 0x10000,
+            remote_seq: tcp_hdr.seq,
+            }
+    }
 }
 
 /// Check that RST is sent when communicating with a closed port
@@ -239,30 +239,30 @@ fn client()
 {
 
     let fw = crate::TestFramework::new("tcp_client");
-	prime_arp(&fw, /*dst=*/IpAddr4([192,168,1,1]), /*src=*/IpAddr4([192,168,1,2]));
+    prime_arp(&fw, /*dst=*/IpAddr4([192,168,1,1]), /*src=*/IpAddr4([192,168,1,2]));
 
-	fw.send_command("tcp-connect 0 192.168.1.2 80");
-	// Expects the SYN
-	let conn = TcpConn::from_rx_conn(&fw, 80, IpAddr4([192,168,1,2]));
-	// Send SYN,ACK
-	conn.raw_send_packet(TCP_SYN|TCP_ACK, &[], &[]);
-	// Expect ACK
+    fw.send_command("tcp-connect 0 192.168.1.2 80");
+    // Expects the SYN
+    let conn = TcpConn::from_rx_conn(&fw, 80, IpAddr4([192,168,1,2]));
+    // Send SYN,ACK
+    conn.raw_send_packet(TCP_SYN|TCP_ACK, &[], &[]);
+    // Expect ACK
     conn.wait_rx_check(TCP_ACK, &[]);
-	// Get the client to send data
-	fw.send_command("tcp-send 0 \"00 01 02 03\"");
+    // Get the client to send data
+    fw.send_command("tcp-send 0 \"00 01 02 03\"");
     conn.wait_rx_check(0, &[0,1,2,3]);
 }
 
 #[cfg(test)]
 fn prime_arp(fw: &crate::TestFramework, dst: IpAddr4, src: IpAddr4)
 {
-	let ip_hdr = {
-		let mut h = crate::ipv4::Header::new_simple(src, dst, 0, 0);
-		h.set_checksum();
-		h.encode()
-		};
-	fw.send_ethernet_direct(0x0800, &[&ip_hdr, &[]]);
-	// TODO: Send a TCP packet that would always trigger a response
-	// Short sleep for processing
-	::std::thread::sleep(::std::time::Duration::new(0,250*1000));
+    let ip_hdr = {
+        let mut h = crate::ipv4::Header::new_simple(src, dst, 0, 0);
+        h.set_checksum();
+        h.encode()
+        };
+    fw.send_ethernet_direct(0x0800, &[&ip_hdr, &[]]);
+    // TODO: Send a TCP packet that would always trigger a response
+    // Short sleep for processing
+    ::std::thread::sleep(::std::time::Duration::new(0,250*1000));
 }
