@@ -242,9 +242,15 @@ fn client()
 	prime_arp(&fw, /*dst=*/IpAddr4([192,168,1,1]), /*src=*/IpAddr4([192,168,1,2]));
 
 	fw.send_command("tcp-connect 0 192.168.1.2 80");
+	// Expects the SYN
 	let conn = TcpConn::from_rx_conn(&fw, 80, IpAddr4([192,168,1,2]));
+	// Send SYN,ACK
 	conn.raw_send_packet(TCP_SYN|TCP_ACK, &[], &[]);
+	// Expect ACK
     conn.wait_rx_check(TCP_ACK, &[]);
+	// Get the client to send data
+	fw.send_command("tcp-send 0 \"00 01 02 03\"");
+    conn.wait_rx_check(0, &[0,1,2,3]);
 }
 
 #[cfg(test)]

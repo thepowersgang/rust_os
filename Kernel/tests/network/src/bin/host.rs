@@ -52,6 +52,7 @@ fn main()
     let mac = *b"RSK\x12\x34\x56";
     let nic_handle = network::nic::register(mac, TestNic::new(stream.clone()));
 
+	// TODO: Make this a command instead
     network::ipv4::add_interface(mac, args.sim_ip, 24);
 
     kernel::arch::imp::threads::test_unlock_thread();
@@ -115,15 +116,28 @@ fn main()
 				let ip: ::network::Address = parse_addr(it.next().expect("Missing IP")).unwrap();
 				let port: u16 = it.next().unwrap().parse().unwrap();
 				log_notice!("tcp-connect {} = {:?}:{}", index, ip, port);
-				tcp_conn_handles.insert(index, ::network::tcp::ConnectionHandle::connect(ip, port));
+				tcp_conn_handles.insert(index, ::network::tcp::ConnectionHandle::connect(ip, port).unwrap());
 				println!("OK");
 				},
 			// Close a TCP connection
 			"tcp-close" => {
+				let index: usize = it.next().unwrap().parse().unwrap();
+				todo!("tcp-close {}", index);
 				},
 			"tcp-send" => {
+				let index: usize = it.next().unwrap().parse().unwrap();
+				let bytes = parse_hex_bytes(it.next().unwrap()).unwrap();
+				let h = &tcp_conn_handles[&index];
+				log_notice!("tcp-send {} {:?}", index, bytes);
+				h.send_data(&bytes).unwrap();
 				},
 			"tcp-recv" => {
+				let index: usize = it.next().unwrap().parse().unwrap();
+				let read_size: usize = it.next().unwrap().parse().unwrap();
+				let bytes = parse_hex_bytes(it.next().unwrap()).unwrap();
+				// - Receive bytes, check that they equal an expected value
+				// NOTE: No wait
+				todo!("tcp-recv {} {} {:?}", index, read_size, bytes);
 				},
 			_ => eprintln!("ERROR: Unknown command '{}'", cmd),
 			}
@@ -145,6 +159,36 @@ fn main()
 			}
 		}
     }
+}
+
+fn parse_hex_bytes(s: &str) -> Option<Vec<u8>>
+{
+	let mut nibble = 0;
+	let mut cur_byte = 0;
+	let mut rv = Vec::new();
+	for c in s.chars()
+	{
+		if c.is_whitespace() {
+			continue ;
+		}
+		let d = c.to_digit(16)?;
+
+		cur_byte |= d << (4 * (1 - nibble));
+		nibble += 1;
+
+		if nibble == 2 {
+			rv.push(cur_byte as u8);
+			cur_byte = 0;
+			nibble = 0;
+		}
+	}
+
+	if nibble != 0 {
+		None
+	}
+	else {
+		Some(rv)
+	}
 }
 
 fn parse_addr(s: &str) -> Option<::network::Address>
