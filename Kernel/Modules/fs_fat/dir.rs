@@ -117,7 +117,7 @@ enum DirEnt {
 }
 struct DirEntShort {
 	/// NUL-padded string with extention joined
-	name: [u8; 11+1],
+	name: [u8; 8+1+3],
 	cluster: u32,
 	size: u32,
 	attributes: u8,
@@ -198,7 +198,7 @@ impl<'a> ::core::iter::Iterator for DirEnts<'a> {
 				let lower_ext  = (ent.lcase & on_disk::CASE_LOWER_EXT ) != 0;
 				// 1. Decode name into a NUL-padded string
 				let (outname, _) = {
-					let (mut outname, mut oidx) =  ([0u8; 8+1+3], 0);
+					let (mut outname, mut oidx) =  ([0u8; 12/*8+1+3*/], 0);
 					for iidx in 0 .. 8 {
 						if ent.name[iidx] != b' ' {
 							outname[oidx] = ent.name[iidx];
