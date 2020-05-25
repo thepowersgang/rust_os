@@ -8,39 +8,39 @@
 #[inline]
 pub unsafe fn inb(port: u16) -> u8 {
 	let ret : u8;
-	asm!("inb $1, $0" : "={ax}"(ret) : "{dx}N"(port) : : "volatile");
+	asm!("in al, dx", out("al") ret, in("dx") port, options(preserves_flags, nomem, nostack));
 	return ret;
 }
 /// Write a single byte
 #[inline]
 pub unsafe fn outb(port: u16, val: u8) {
-	asm!("outb $1, $0" : : "{dx}N"(port), "{al}"(val) : : "volatile");
+	asm!("out dx, al", in("dx") port, in("al") val, options(preserves_flags, nomem, nostack));
 }
 
 /// Read a 16-bit word
 #[inline]
 pub unsafe fn inw(port: u16) -> u16 {
 	let ret : u16;
-	asm!("inw $1, $0" : "={ax}"(ret) : "{dx}N"(port) : : "volatile");
+	asm!("in ax, dx", out("ax") ret, in("dx") port, options(preserves_flags, nomem, nostack));
 	return ret;
 }
 /// Write a 16-bit word
 #[inline]
 pub unsafe fn outw(port: u16, val: u16) {
-	asm!("outw %ax, $0" : : "{dx}N"(port), "{ax}"(val) : : "volatile");
+	asm!("out dx, ax", in("dx") port, in("ax") val, options(preserves_flags, nomem, nostack));
 }
 
 /// Read a 32-bit long/double-word
 #[inline]
 pub unsafe fn inl(port: u16) -> u32 {
 	let ret : u32;
-	asm!("inl $1, $0" : "={eax}"(ret) : "{dx}N"(port) : : "volatile");
+	asm!("in eax, dx", out("eax") ret, in("dx") port, options(preserves_flags, nomem, nostack));
 	return ret;
 }
 /// Write a 32-bit long/double-word
 #[inline]
 pub unsafe fn outl(port: u16, val: u32) {
-	asm!("outl %eax, $0" : : "{dx}N"(port), "{eax}"(val) : : "volatile");
+	asm!("out dx, eax", in("dx") port, in("eax") val, options(preserves_flags, nomem, nostack));
 }
 
 // vim: ft=rust

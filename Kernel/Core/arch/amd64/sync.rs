@@ -137,7 +137,7 @@ pub fn hold_interrupts() -> HeldInterrupts
 	// SAFE: Correct inline assembly
 	let if_set = unsafe {
 		let flags: u64;
-		asm!("pushf; pop $0; cli" : "=r" (flags) : : "memory" : "volatile");
+		asm!("pushf; pop {}; cli", out(reg) flags);	// touches stack
 		(flags & 0x200) != 0
 		};
 	
@@ -167,16 +167,16 @@ impl ::core::ops::Drop for HeldInterrupts
 		
 		if self.0 {
 			// SAFE: Just re-enables interrupts
-			unsafe { asm!("sti" : : : "memory" : "volatile"); }
+			unsafe { asm!("sti", options(nomem, nostack)); }
 		}
 	}
 }
 
 pub unsafe fn stop_interrupts() {
-	asm!("cli" : : : : "volatile");
+	asm!("cli", options(nomem, nostack));
 }
 pub unsafe fn start_interrupts() {
-	asm!("sti" : : : : "volatile");
+	asm!("sti", options(nomem, nostack));
 }
 
 // vim: ft=rust

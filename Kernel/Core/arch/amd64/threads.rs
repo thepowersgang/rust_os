@@ -90,11 +90,11 @@ pub fn idle()
 {
 	//if true {
 	//	// SAFE: Just pulls rflags
-	//	let flags = unsafe { let v: u64; asm!("pushf; pop $0" : "=r" (v)); v };
+	//	let flags = unsafe { let v: u64; asm!("pushf; pop {}", out(reg) v); v };
 	//	assert!(flags & 0x200 != 0, "idle() with IF clear, RFLAGS = {:#x}", flags);
 	//}
 	// SAFE: Safe assembly, just halts
-	unsafe { asm!("sti;hlt" : : : : "volatile"); }
+	unsafe { asm!("sti;hlt"); }
 }
 
 /// Prepares the TLS block at the stop of a kernel stack
@@ -212,7 +212,7 @@ pub fn switch_to(newthread: ::threads::ThreadPtr)
 	{
 		if true && S_IRQS_ENABLED.load(::core::sync::atomic::Ordering::Relaxed) {
 			// SAFE: Just pulls rflags
-			let flags = unsafe { let v: u64; asm!("pushf; pop $0" : "=r" (v)); v };
+			let flags = unsafe { let v: u64; asm!("pushf; pop {}", out(reg) v); v };
 			assert!(flags & 0x200 != 0, "switch_to() with IF clear, RFLAGS = {:#x}", flags);
 		}
 		const EAGER_SSE_ENABLE: bool = false;
@@ -274,7 +274,7 @@ pub fn switch_to(newthread: ::threads::ThreadPtr)
 fn get_tls_ptr() -> *mut TLSData {
 	let ret;
 	// SAFE: Just obtains the pointer from %gs
-	unsafe { asm!("mov %gs:(0), $0" : "=r" (ret) ) }
+	unsafe { asm!("mov {}, gs:[0]", out(reg) ret) }
 	assert!(ret != 0 as *mut _);
 	ret
 }
@@ -388,7 +388,7 @@ mod sse
 		unsafe {
 			let ts_state: usize;
 			// Load CR0, bit test+clear RFLAGS.TS, save CR0, set output to 0 iff TS was clear
-			asm!("mov %cr0, $0; btc $$3, $0; mov $0, %cr0; sbb $0, $0" : "=r" (ts_state) : : "rflags");
+			asm!("mov {}, cr0; btc {0}, 3; mov cr0, {0}; sbb {0}, {0}", out(reg) ts_state);
 			// If TS was clear, return true
 			ts_state == 0
 		}
@@ -397,7 +397,7 @@ mod sse
 	{
 		// SAFE: CR0 manipulation has been checked
 		unsafe {
-			asm!("mov %cr0, %rax ; or $$8, %rax ; mov %rax, %cr0" : : : "%rax" : "volatile");
+			asm!("mov {}, cr0; or {0}, 0x8; mov cr0, {0}", out(reg) _);
 		}
 	}
 	pub fn is_enabled() -> bool
@@ -405,7 +405,7 @@ mod sse
 		// SAFE: Read-only
 		unsafe {
 			let cr0: usize;
-			asm!("mov %cr0, $0" : "=r" (cr0));
+			asm!("mov {}, cr0", out(reg) cr0, options(nomem, nostack, preserves_flags, pure));
 			// If TS was clear, return true
 			cr0 & 8 == 0
 		}
@@ -415,7 +415,7 @@ mod sse
 		// TODO: What if SSE isn't on?
 		// SAFE: Right type
 		unsafe {
-			asm!("fxsave ($0)" : : "r" (ptr) : "memory" : "volatile");
+			asm!("fxsave [{}]", in(reg) ptr, options(nostack));
 		}
 	}
 	fn restore_from(ptr: &SSERegisters)
@@ -423,7 +423,7 @@ mod sse
 		// TODO: What if SSE isn't on?
 		// SAFE: Right type
 		unsafe {
-			asm!("fxrstor ($0)" : : "r" (ptr) : : "volatile");
+			asm!("fxrstor [{}]", in(reg) ptr, options(nostack));
 		}
 	}
 

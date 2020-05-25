@@ -112,7 +112,7 @@ impl LAPIC
 		let oldaddr = unsafe{
 			let a: u32;
 			let d: u32;
-			asm!("rdmsr" : "={eax}" (a), "={edx}" (d) : "{ecx}" (0x1Bu32) : "rdx");
+			asm!("rdmsr", lateout("eax") a, lateout("edx") d, in("ecx") 0x1Bu32, options(pure, readonly));
 			(d as u64) << 32 | a as u64
 			};
 		log_debug!("oldaddr = {:#x}", oldaddr);
@@ -142,12 +142,7 @@ impl LAPIC
 		self.eoi(0);
 		// SAFE: Write MSR, values should be correct
 		unsafe {
-			asm!("wrmsr\nsti"
-				: /* no out */
-				: "{ecx}" (0x1Bu32), "{edx}" (self.paddr >> 32), "{eax}" (self.paddr | is_bsp | 0x800)
-				: /* no clobbers */
-				: "volatile"
-				);
+			asm!("wrmsr", in("ecx") 0x1Bu32, in("edx") self.paddr >> 32, in("eax") (self.paddr | is_bsp | 0x800), options(nomem));
 			
 			// Quick debug
 			//let ef: u64; asm!("pushf\npop $0" : "=r" (ef)); log_debug!("EFLAGS = {:#x}", ef);

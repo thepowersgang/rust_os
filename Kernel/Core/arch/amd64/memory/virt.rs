@@ -253,7 +253,7 @@ pub fn get_info<T>(addr: *const T) -> Option<(PAddr,ProtectionMode)>
 fn invlpg(addr: *mut ()) {
 	// SAFE: Cannot cause memory unsafety
 	unsafe {
-		asm!("invlpg ($0)" : : "r" (addr) : "memory" : "volatile");
+		asm!("invlpg [{}]", in(reg) addr);
 	}
 }
 

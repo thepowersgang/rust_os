@@ -16,7 +16,7 @@ extern crate syscalls;
 #[cfg(not(target))]
 pub mod modules {
 	fn use_mod(m: &::kernel::modules::ModuleInfo) {
-		unsafe { asm!("" : : "r" (m)) }
+		unsafe { asm!("xchg {0}, {0}", in(reg) m); }
 	}
 	pub fn use_mods() -> usize {
 		let mut rv = 0;

@@ -47,7 +47,7 @@ fn init()
 	
 	// SAFE: Just setting the task register
 	unsafe {
-		asm!("ltr %cx" : : "{ecx}" (7*8) );
+		asm!("ltr {:x}", in(reg) 7*8_u16);
 	}
 }
 

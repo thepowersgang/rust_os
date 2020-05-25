@@ -38,12 +38,12 @@ fn init()
 #[inline(always)]
 pub fn checkmark() {
 	// SAFE: nop ASM
-	unsafe { asm!("xchg %bx, %bx" : : : "memory" : "volatile"); }
+	unsafe { asm!("xchg bx, bx", options(nostack)); }
 }
 #[inline(always)]
 pub fn checkmark_val<T>(v: *const T) {
 	// SAFE: nop ASM (TODO: Ensure)
-	unsafe { asm!("xchg %bx, %bx; mov $0,$0" : : "r"(v) : "memory" : "volatile"); }
+	unsafe { asm!("xchg bx, bx; mov {0},{0}", in(reg) v, options(nostack)); }
 }
 
 #[allow(improper_ctypes)]
@@ -62,7 +62,7 @@ pub fn print_backtrace()
 {
 	let cur_bp: u64;
 	// SAFE: Reads from bp
-	unsafe{ asm!("mov %rbp, $0" : "=r" (cur_bp)); }
+	unsafe{ asm!("mov {}, rbp", out(reg) cur_bp); }
 	#[cfg(_false)]
 	log_notice!("Backtrace: {}", Backtrace(cur_bp as usize));
 	#[cfg(not(_false))]
