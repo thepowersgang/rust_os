@@ -458,11 +458,3 @@ impl ::core::ops::Drop for Thread
 	}
 }
 
-#[no_mangle]
-/// Function called by `core-futures` to allow a generator to have access to the futures context
-pub extern "C" fn set_tls_futures_context(p: *mut u8) -> *mut u8 {
-	//log_debug!("set_tls_futures_context: {:?}", p);
-	::arch::threads::set_tls_futures_context(p as *mut ()) as *mut u8
-}
-
-

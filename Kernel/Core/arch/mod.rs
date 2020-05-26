@@ -15,6 +15,7 @@ cfg_if::cfg_if!{
 		//#[cfg_attr(arch="amd64", path="amd64/mod.rs")]
 		#[cfg_attr(target_arch="x86_64", path="amd64/mod.rs")]
 		#[cfg_attr(arch="armv7", path="armv7/mod.rs")]
+		#[cfg_attr(target_arch="aarch64", path="armv8/mod.rs")]
 		#[cfg_attr(arch="armv8", path="armv8/mod.rs")]
 		#[doc(hidden)]
 		pub mod imp;	// Needs to be pub for exports to be avaliable
@@ -200,9 +201,104 @@ pub mod memory {
 pub mod sync {
 	use super::imp::sync as imp;
 
-	/// Busy-waiting spin-lock type
-	pub type Spinlock<T> = imp::Spinlock<T>;
-	pub type HeldSpinlock<'a, T/*: 'a*/> = imp::HeldSpinlock<'a, T>;
+	/// Lightweight protecting spinlock
+	pub struct Spinlock<T>
+	{
+		#[doc(hidden)]
+		/*pub*/ lock: imp::SpinlockInner,
+		#[doc(hidden)]
+		pub value: ::core::cell::UnsafeCell<T>,
+	}
+	unsafe impl<T: Send> Sync for Spinlock<T> {}
+
+
+	impl<T> Spinlock<T>
+	{
+		/// Create a new spinning lock
+		pub const fn new(val: T) -> Spinlock<T> {
+			Spinlock {
+				lock: imp::SpinlockInner::new(),
+				value: ::core::cell::UnsafeCell::new(val),
+			}
+		}
+		pub fn get_mut(&mut self) -> &mut T {
+			// SAFE: &mut to lock
+			unsafe { &mut *self.value.get() }
+		}
+		
+		/// Lock this spinning lock
+		//#[not_safe(irq)]
+		pub fn lock(&self) -> HeldSpinlock<T>
+		{
+			self.lock.inner_lock();
+			HeldSpinlock { lock: self }
+		}
+
+		/// Lock this spinning lock (accepting risk of panick/deadlock from IRQs)
+		//#[is_safe(irq)]
+		pub fn lock_irqsafe(&self) -> HeldSpinlock<T> {
+			self.lock.inner_lock();
+			HeldSpinlock { lock: self }
+		}
+		/// Attempt to acquire the lock, returning None if it is already held by this CPU
+		//#[is_safe(irq)]
+		pub fn try_lock_cpu(&self) -> Option<HeldSpinlock<T>>
+		{
+			if self.lock.try_inner_lock_cpu()
+			{
+				Some( HeldSpinlock { lock: self } )
+			}
+			else
+			{
+				None
+			}
+		}
+	}
+	// Some special functions on non-wrapping spinlocks
+	impl Spinlock<()>
+	{
+		pub unsafe fn unguarded_lock(&self) {
+			self.lock.inner_lock()
+		}
+		pub unsafe fn unguarded_release(&self) {
+			self.lock.inner_release()
+		}
+	}
+	impl<T: Default> Default for Spinlock<T>
+	{
+		fn default() -> Self {
+			Spinlock::new(Default::default())
+		}
+	}
+
+	pub struct HeldSpinlock<'lock, T: 'lock>
+	{
+		lock: &'lock Spinlock<T>,
+	}
+	impl<'lock,T> ::core::ops::Drop for HeldSpinlock<'lock, T>
+	{
+		fn drop(&mut self)
+		{
+			self.lock.lock.inner_release();
+		}
+	}
+
+	impl<'lock,T> ::core::ops::Deref for HeldSpinlock<'lock, T>
+	{
+		type Target = T;
+		fn deref(&self) -> &T {
+			// SAFE: & to handle makes & to value valid
+			unsafe { &*self.lock.value.get() }
+		}
+	}
+	impl<'lock,T> ::core::ops::DerefMut for HeldSpinlock<'lock, T>
+	{
+		fn deref_mut(&mut self) -> &mut T {
+			// SAFE: &mut to handle makes &mut to value valid
+			unsafe { &mut *self.lock.value.get() }
+		}
+	}
+
 	pub type HeldInterrupts = imp::HeldInterrupts;
 
 	#[inline]
@@ -282,10 +378,6 @@ pub mod threads {
 	#[inline]
 	pub fn borrow_thread() -> *const ::threads::Thread {
 		imp::borrow_thread()
-	}
-
-	pub fn set_tls_futures_context(p: *mut ()) -> *mut () {
-		imp::set_tls_futures_context(p)
 	}
 
 	#[inline]

@@ -365,12 +365,6 @@ pub mod threads {
 			h.ptr
 		})
 	}
-	pub fn set_tls_futures_context(p: *mut ()) -> *mut () {
-		thread_local! {
-			static CTX: ::std::cell::RefCell<*mut ()> = ::std::cell::RefCell::new( ::core::ptr::null_mut() );
-		}
-		CTX.with(|r| (*r).replace(p))
-	}
 
 	pub fn idle() {
 		// Timed sleep?

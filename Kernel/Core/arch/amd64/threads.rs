@@ -49,8 +49,6 @@ struct TLSData {
 	thread_ptr: *mut ::threads::Thread,
 	thread_ptr_lent: bool,
 
-	futures_context: *mut (), //::core::task::Context<'static>,
-	
 	sse_registers: Option<Box<SSERegisters>>,
 }
 
@@ -117,7 +115,6 @@ pub unsafe extern "C" fn prep_tls(top: usize, _bottom: usize, thread_ptr: *mut :
 		
 		thread_ptr: thread_ptr,
 		thread_ptr_lent: false,
-		futures_context: ::core::ptr::null_mut(),
 		sse_registers: None,
 		});
 	
@@ -317,14 +314,6 @@ pub fn set_thread_ptr(ptr: ::threads::ThreadPtr)
 		}
 		//log_debug!("Receive");
 		info.thread_ptr_lent = false;
-	}
-}
-
-pub fn set_tls_futures_context(p: *mut ()) -> *mut ()
-{
-	// SAFE: TLS pointer: valid and uncontended
-	unsafe {
-		::core::mem::replace(&mut (*get_tls_ptr()).futures_context, p)
 	}
 }
 

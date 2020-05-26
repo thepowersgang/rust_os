@@ -9,19 +9,44 @@ const TRACE_IF: bool = false;
 //const TRACE_IF: bool = true;
 
 /// Lightweight protecting spinlock
-pub struct Spinlock<T>
+pub struct SpinlockInner
 {
 	#[doc(hidden)]
-	pub lock: AtomicBool,
-	#[doc(hidden)]
-	pub value: ::core::cell::UnsafeCell<T>,
+	lock: AtomicBool,
 }
-unsafe impl<T: Send> Sync for Spinlock<T> {}
 
-/// Handle to the held spinlock
-pub struct HeldSpinlock<'lock,T:'lock>
+impl SpinlockInner
 {
-	lock: &'lock Spinlock<T>,
+	pub const fn new() -> Self {
+		SpinlockInner {
+			lock: AtomicBool::new(false),
+		}
+	}
+	
+	pub fn try_inner_lock_cpu(&self) -> bool
+	{
+		//if self.lock.compare_and_swap(0, cpu_num()+1, Ordering::Acquire) == 0
+		if self.lock.compare_and_swap(false, true, Ordering::Acquire) == false
+		{
+			true
+		}
+		else
+		{
+			false
+		}
+	}
+	pub fn inner_lock(&self) {
+		//while self.lock.compare_and_swap(0, cpu_num()+1, Ordering::Acquire) != 0
+		while self.lock.compare_and_swap(false, true, Ordering::Acquire) == true
+		{
+		}
+		::core::sync::atomic::fence(Ordering::Acquire);
+	}
+	pub fn inner_release(&self) {
+		//::arch::puts("Spinlock::release()\n");
+		::core::sync::atomic::fence(Ordering::Release);
+		self.lock.store(false, Ordering::Release);
+	}
 }
 
 /// A handle for frozen interrupts
@@ -34,102 +59,6 @@ pub struct HeldInterrupts(bool);
 //	irqs: HeldInterrupts,
 //}
 
-impl<T> Spinlock<T>
-{
-	/// Create a new spinning lock
-	pub const fn new(val: T) -> Spinlock<T> {
-		Spinlock {
-			lock: AtomicBool::new(false),
-			value: ::core::cell::UnsafeCell::new(val),
-		}
-	}
-	pub fn get_mut(&mut self) -> &mut T {
-		// SAFE: &mut to lock
-		unsafe { &mut *self.value.get() }
-	}
-	
-	/// Lock this spinning lock
-	//#[not_safe(irq)]
-	pub fn lock(&self) -> HeldSpinlock<T>
-	{
-		self.inner_lock();
-		HeldSpinlock { lock: self }
-	}
-
-	/// Lock this spinning lock (accepting risk of panick/deadlock from IRQs)
-	//#[is_safe(irq)]
-	pub fn lock_irqsafe(&self) -> HeldSpinlock<T> {
-		self.inner_lock();
-		HeldSpinlock { lock: self }
-	}
-	/// Attempt to acquire the lock, returning None if it is already held by this CPU
-	//#[is_safe(irq)]
-	pub fn try_lock_cpu(&self) -> Option<HeldSpinlock<T>>
-	{
-		//if self.lock.compare_and_swap(0, cpu_num()+1, Ordering::Acquire) == 0
-		if self.lock.compare_and_swap(false, true, Ordering::Acquire) == false
-		{
-			Some( HeldSpinlock { lock: self } )
-		}
-		else
-		{
-			None
-		}
-	}
-	
-	fn inner_lock(&self) {
-		//while self.lock.compare_and_swap(0, cpu_num()+1, Ordering::Acquire) != 0
-		while self.lock.compare_and_swap(false, true, Ordering::Acquire) == true
-		{
-		}
-		::core::sync::atomic::fence(Ordering::Acquire);
-	}
-	fn inner_release(&self) {
-		//::arch::puts("Spinlock::release()\n");
-		::core::sync::atomic::fence(Ordering::Release);
-		self.lock.store(false, Ordering::Release);
-	}
-}
-// Some special functions on non-wrapping spinlocks
-impl Spinlock<()>
-{
-	pub unsafe fn unguarded_lock(&self) {
-		self.inner_lock()
-	}
-	pub unsafe fn unguarded_release(&self) {
-		self.inner_release()
-	}
-}
-impl<T: Default> Default for Spinlock<T>
-{
-	fn default() -> Self {
-		Spinlock::new(Default::default())
-	}
-}
-
-impl<'lock,T> ::core::ops::Drop for HeldSpinlock<'lock, T>
-{
-	fn drop(&mut self)
-	{
-		self.lock.inner_release();
-	}
-}
-
-impl<'lock,T> ::core::ops::Deref for HeldSpinlock<'lock, T>
-{
-	type Target = T;
-	fn deref(&self) -> &T {
-		// SAFE: & to handle makes & to value valid
-		unsafe { &*self.lock.value.get() }
-	}
-}
-impl<'lock,T> ::core::ops::DerefMut for HeldSpinlock<'lock, T>
-{
-	fn deref_mut(&mut self) -> &mut T {
-		// SAFE: &mut to handle makes &mut to value valid
-		unsafe { &mut *self.lock.value.get() }
-	}
-}
 
 /// Prevent interrupts from firing until return value is dropped
 pub fn hold_interrupts() -> HeldInterrupts
