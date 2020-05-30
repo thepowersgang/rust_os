@@ -38,7 +38,7 @@ impl SpinlockInner
 			false
 		}
 	}
-	pub fn inner_release(&self)
+	pub unsafe fn inner_release(&self)
 	{
 		self.flag.store(0, Ordering::Release)
 	}
@@ -61,6 +61,10 @@ pub fn hold_interrupts() -> HeldInterrupts {
 		stop_interrupts();
 	}
 	HeldInterrupts
+}
+
+pub unsafe fn test_and_stop_interrupts() -> bool {
+	false
 }
 pub unsafe fn stop_interrupts() {
 }

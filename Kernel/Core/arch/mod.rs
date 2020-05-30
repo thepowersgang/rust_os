@@ -279,7 +279,10 @@ pub mod sync {
 	{
 		fn drop(&mut self)
 		{
-			self.lock.lock.inner_release();
+			// SAFE: This is the RAII handle for the lock
+			unsafe {
+				self.lock.lock.inner_release();
+			}
 		}
 	}
 

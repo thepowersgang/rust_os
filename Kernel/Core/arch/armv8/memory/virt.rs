@@ -79,7 +79,7 @@ fn get_phys_raw<T>(addr: *const T) -> Option<u64> {
 	// SAFE: Queries an interface that cannot cause an exception (and won't induce memory unsafety)
 	let v = unsafe {
 		let ret: usize;
-		asm!("AT S1E1R, $1; mrs $0, PAR_EL1" : "=r"(ret) : "r"(addr));
+		asm!("AT S1E1R, {1}; mrs {0}, PAR_EL1", out(reg) ret, in(reg) addr, options(pure, readonly, nostack));
 		ret
 		};
 	if v & 1 != 0 {
@@ -175,7 +175,7 @@ pub unsafe fn map(addr: *const (), phys: u64, prot: ProtectionMode)
 	// SAFE: Safe assembly
 	//unsafe {
 		let MASK: usize = ((1 << 43)-1) & !3;	// 43 bits of address (after shifting by 12)
-		asm!("TLBI ALLE1 $0" : : "r"( (addr as usize >> 12) & MASK ));
+		asm!("TLBI VAE1, {}", in(reg) (addr as usize >> 12) & MASK);
 	//}
 }
 pub unsafe fn reprotect(addr: *const (), prot: ProtectionMode)

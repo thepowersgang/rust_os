@@ -54,7 +54,7 @@ fn init()
 	mod i8042;
 	i8042::init();
 }
-#[cfg(any(arch="armv7",arch="armv8"))]
+#[cfg(any(arch="armv7",target_arch="aarch64"))]
 fn init()
 {
 	#[path="pl050.rs"]

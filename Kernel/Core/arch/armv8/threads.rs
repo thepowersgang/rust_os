@@ -38,14 +38,14 @@ pub fn get_idle_thread() -> ::threads::ThreadPtr {
 pub fn set_thread_ptr(thread: ::threads::ThreadPtr) {
 	// SAFE: Write to per-CPU register
 	unsafe {
-		asm!("msr TPIDR_EL1, $0" : : "r"(thread.into_usize()));
+		asm!("msr TPIDR_EL1, {}", in(reg) thread.into_usize());
 	}
 }
 pub fn get_thread_ptr() -> Option<::threads::ThreadPtr> {
 	let ret: usize;
 	// SAFE: Read-only access to a per-cpu register
 	unsafe {
-		asm!("mrs $0, TPIDR_EL1" : "=r"(ret));
+		asm!("mrs {}, TPIDR_EL1", out(reg) ret, options(nomem, pure));
 	}
 	if ret == 0 {
 		None
@@ -61,7 +61,7 @@ fn borrow_thread_mut() -> *mut ::threads::Thread {
 	let ret;
 	// SAFE: Read-only access to a per-cpu register
 	unsafe {
-		asm!("mrs $0, TPIDR_EL1" : "=r"(ret));
+		asm!("mrs {}, TPIDR_EL1", out(reg) ret, options(nomem, nostack, pure));
 	}
 	ret
 }
@@ -87,7 +87,7 @@ pub fn idle() {
 	log_trace!("idle");
 	// SAFE: Calls 'wait for interrupt'
 	unsafe {
-		asm!("wfi" : : : : "volatile");
+		asm!("wfi");
 	}
 }
 

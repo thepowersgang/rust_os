@@ -21,7 +21,7 @@ fn init()
 pub fn print_backtrace() {
 	let mut fp: *const FrameEntry;
 	// SAFE: Just loads the frame pointer
-	unsafe { asm!("mov $0, fp" : "=r"(fp)); }
+	unsafe { asm!("mov {}, fp", out(reg) fp); }
 
 	#[repr(C)]
 	struct FrameEntry {

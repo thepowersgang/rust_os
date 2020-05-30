@@ -11,7 +11,6 @@ const TRACE_IF: bool = false;
 /// Lightweight protecting spinlock
 pub struct SpinlockInner
 {
-	#[doc(hidden)]
 	lock: AtomicBool,
 }
 
@@ -42,8 +41,7 @@ impl SpinlockInner
 		}
 		::core::sync::atomic::fence(Ordering::Acquire);
 	}
-	pub fn inner_release(&self) {
-		//::arch::puts("Spinlock::release()\n");
+	pub unsafe fn inner_release(&self) {
 		::core::sync::atomic::fence(Ordering::Release);
 		self.lock.store(false, Ordering::Release);
 	}
@@ -61,14 +59,17 @@ pub struct HeldInterrupts(bool);
 
 
 /// Prevent interrupts from firing until return value is dropped
+// TODO: What if there's two instances created, with different lifetimes?
+// ```
+// let a = hold_interrupts();
+// let b = hold_interrupts();
+// drop(a);	// <-- Enables interrupts
+// drop(b);
+// ```
 pub fn hold_interrupts() -> HeldInterrupts
 {
 	// SAFE: Correct inline assembly
-	let if_set = unsafe {
-		let flags: u64;
-		asm!("pushf; pop {}; cli", out(reg) flags);	// touches stack
-		(flags & 0x200) != 0
-		};
+	let if_set = unsafe { test_and_stop_interrupts() };
 	
 	if TRACE_IF {
 		if if_set {
@@ -96,11 +97,16 @@ impl ::core::ops::Drop for HeldInterrupts
 		
 		if self.0 {
 			// SAFE: Just re-enables interrupts
-			unsafe { asm!("sti", options(nomem, nostack)); }
+			unsafe { start_interrupts() }
 		}
 	}
 }
 
+pub unsafe fn test_and_stop_interrupts() -> bool {
+	let flags: u64;
+	asm!("pushf; pop {}; cli", out(reg) flags);	// touches stack
+	(flags & 0x200) != 0
+}
 pub unsafe fn stop_interrupts() {
 	asm!("cli", options(nomem, nostack));
 }
