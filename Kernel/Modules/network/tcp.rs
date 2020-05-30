@@ -47,6 +47,10 @@ fn allocate_port(_addr: &Address) -> Option<u16>
 	// TODO: Could store bitmap against the interface (having a separate bitmap for each interface)
 	S_PORTS.lock().allocate()
 }
+fn release_port(_addr: &Address, idx: u16)
+{
+	S_PORTS.lock().release(idx)
+}
 
 fn rx_handler_v4(int: &::ipv4::Interface, src_addr: ::ipv4::Address, pkt: ::nic::PacketReader)
 {
@@ -143,7 +147,7 @@ fn rx_handler(src_addr: Address, dest_addr: Address, mut pkt: ::nic::PacketReade
 		if let Some(s) = Option::or( SERVERS.get( &(Some(dest_addr), hdr.dest_port) ), SERVERS.get( &(None, hdr.dest_port) ) )
 		{
 			// Decrement the server's accept space
-			if s.accept_space.fetch_update(|v| if v == 0 { None } else { Some(v - 1) }, Ordering::SeqCst, Ordering::SeqCst).is_err() { 
+			if s.accept_space.fetch_update(Ordering::SeqCst, Ordering::SeqCst, |v| if v == 0 { None } else { Some(v - 1) }).is_err() { 
 				// Reject if no space
 				// - Send a RST
 				quad.send_packet(hdr.acknowledgement_number, hdr.sequence_number, FLAG_RST, 0, &[]);
@@ -336,6 +340,8 @@ struct Connection
 	last_tx_seq: u32,
 	/// Buffer of transmitted but not ACKed bytes
 	tx_buffer: RingBuf<u8>,
+	/// Offset of bytes actually sent (not just buffered)
+	tx_bytes_sent: usize,
 	/// Last received transmit window size
 	tx_window_size: u32,
 }
@@ -377,6 +383,7 @@ impl Connection
 
 			last_tx_seq: hdr.acknowledgement_number,
 			tx_buffer: RingBuf::new(2048),//hdr.window_size as usize),
+			tx_bytes_sent: 0,
 			tx_window_size: hdr.window_size as u32,
 			}
 	}
@@ -396,6 +403,7 @@ impl Connection
 
 			last_tx_seq: sequence_number,
 			tx_buffer: RingBuf::new(2048),
+			tx_bytes_sent: 0,
 			tx_window_size: 0,//hdr.window_size as u32,
 			};
 		rv.send_packet(quad, FLAG_SYN, &[]);
@@ -604,6 +612,10 @@ impl Connection
 
 			// TODO: If transitioning to `Finished`, release the local port?
 			// - Only for client connections.
+			if let ConnectionState::Finished = self.state
+			{
+				release_port(&quad.local_addr, quad.local_port);
+			}
 		}
 	}
 
@@ -632,7 +644,37 @@ impl Connection
 		self.state_to_error()?;
 		// 1. Determine how much data we can send (based on the TX window)
 		let max_len = usize::saturating_sub(self.tx_window_size as usize, self.tx_buffer.len());
-		todo!("{:?} send_data( min({}, {}) )", quad, max_len, buf.len());
+		let rv = ::core::cmp::min(buf.len(), max_len);
+		// Add the data to the TX buffer
+		for &b in buf {
+			self.tx_buffer.push_back(b);
+		}
+		// If the buffer is full enough, do a send
+		if self.tx_buffer.len() - self.tx_bytes_sent > 1400 /*|| self.first_tx_time.map(|t| now() - t > MAX_TX_DELAY).unwrap_or(false)*/
+		{
+			// Trigger a TX
+			self.flush_send(quad);
+		}
+		else
+		{
+			// Kick a short timer, which will send data after it expires
+			// - Keep kicking the timer as data flows through
+			// - Have a maximum elapsed time with no packet sent.
+			//if self.tx_timer.reset(MIN_TX_DELAY) == timer::ResetResult::WasStopped
+			//{
+			//	self.first_tx_time = Some(now());
+			//}
+		}
+		todo!("{:?} send_data( min({}, {})={} )", quad, max_len, buf.len(), rv);
+	}
+	fn flush_send(&mut self, quad: &Quad)
+	{
+		loop
+		{
+			let nbytes = self.tx_buffer.len() - self.tx_bytes_sent;
+			todo!("{:?} tx {}", quad, nbytes);
+		}
+		//self.first_tx_time = None;
 	}
 	fn recv_data(&mut self, _quad: &Quad, buf: &mut [u8]) -> Result<usize, ConnError>
 	{
