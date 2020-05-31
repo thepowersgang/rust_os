@@ -96,24 +96,20 @@ pub mod sync {
 	use core::sync::atomic::Ordering;
 
 	#[derive(Default)]
-	pub struct Spinlock<T> {
+	pub struct SpinlockInner {
 		// Stores a std mutex using a manually-managed pointer
 		std: ::core::sync::atomic::AtomicPtr<std::sync::Mutex<()>>,
 		tid: ::core::sync::atomic::AtomicU32,
-		data: ::core::cell::UnsafeCell<T>,
+		handle: ::core::sync::atomic::AtomicUsize,
 	}
-	unsafe impl<T: Send> Sync for Spinlock<T> {}
-	impl<T> Spinlock<T> {
-		pub const fn new(v: T) -> Spinlock<T> {
-			Spinlock {
+	impl SpinlockInner
+	{
+		pub const fn new() -> Self {
+			SpinlockInner {
 				std: ::core::sync::atomic::AtomicPtr::new(0 as *mut _),
 				tid: ::core::sync::atomic::AtomicU32::new(0),
-				data: ::core::cell::UnsafeCell::new(v),
+				handle: ::core::sync::atomic::AtomicUsize::new(0),
 			}
-		}
-		pub fn get_mut(&mut self) -> &mut T {
-			// SAFE: Mutable access
-			unsafe { &mut *self.data.get() }
 		}
 		fn get_std(&self) -> &::std::sync::Mutex<()> {
 			let p = self.std.load(Ordering::Relaxed);
@@ -136,54 +132,27 @@ pub mod sync {
 			// SAFE: Valid pointer
 			unsafe { &*p }
 		}
-		/// Attempt to lock, returns `None` if held by the current CPU (waits otherwise)
-		pub fn try_lock_cpu(&self) -> Option<HeldSpinlock<T>> {
+		pub fn try_inner_lock_cpu(&self) -> bool {
 			let lh = match self.get_std().try_lock()
 				{
 				Ok(v) => v,
-				Err(std::sync::TryLockError::WouldBlock) => return None,
+				Err(std::sync::TryLockError::WouldBlock) => return false,
 				Err(std::sync::TryLockError::Poisoned(e)) => panic!("Poisoned spinlock mutex: {:?}", e),
 				};
 			self.tid.store(crate::threads::get_thread_id(), Ordering::SeqCst);
-			Some( HeldSpinlock(self, lh) )
+			self.handle.store( Box::into_raw(Box::new(lh)) as usize, Ordering::SeqCst );
+			return true;
 		}
-		pub fn lock(&self) -> HeldSpinlock<T> {
-			//println!("Spinlock<{}>({:p}) lock", ::core::any::type_name::<T>(), self);
+		pub fn inner_lock(&self) {
 			let lh = self.get_std().lock().expect("Spinlock");
 			self.tid.store(crate::threads::get_thread_id(), Ordering::SeqCst);
-			HeldSpinlock(self, lh)
+			self.handle.store( Box::into_raw(Box::new(lh)) as usize, Ordering::SeqCst );
 		}
-	}
-	impl<T> ::core::ops::Drop for Spinlock<T>
-	{
-		fn drop(&mut self)
-		{
-			let p = self.std.load(Ordering::Relaxed);
-			if !p.is_null()
-			{
-				// SAFE: Valid pointer, no other handles
-				let _ = unsafe { Box::from_raw(p) };
-			}
-		}
-	}
-	pub struct HeldSpinlock<'a, T: 'a>( &'a Spinlock<T>, std::sync::MutexGuard<'a, ()>);
-	impl<'a, T: 'a> ::core::ops::Deref for HeldSpinlock<'a, T> {
-		type Target = T;
-		fn deref(&self) -> &T {
-			// SAFE: Locked
-			unsafe { &*self.0.data.get() }
-		}
-	}
-	impl<'a, T: 'a> ::core::ops::DerefMut for HeldSpinlock<'a, T> {
-		fn deref_mut(&mut self) -> &mut T {
-			// SAFE: Locked
-			unsafe { &mut *self.0.data.get() }
-		}
-	}
-	impl<'a, T: 'a> ::core::ops::Drop for HeldSpinlock<'a, T> {
-		fn drop(&mut self) {
-			//assert!( self.0.locked.swap(false, Ordering::Release), "HeldSpinlock released on unlocked spinlock" );
-			//println!("Spinlock<{}>({:p}) unlock", ::core::any::type_name::<T>(), self.0);
+		pub unsafe fn inner_release(&self) {
+			assert!(self.tid.load(Ordering::SeqCst) == crate::threads::get_thread_id());
+			let p = self.handle.swap(0, Ordering::SeqCst) as *mut std::sync::MutexGuard<()>;
+			assert!(!p.is_null());
+			let _ = Box::from_raw(p);
 		}
 	}
 
