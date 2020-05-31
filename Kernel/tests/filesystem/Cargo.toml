@@ -8,6 +8,7 @@ edition = "2018"
 #doctest = false
 
 [dependencies]
+bitvec = "0.17"
 kernel = { path = "../../Core", features = ["test"] }
 fs_extN = { path = "../../Modules/fs_extN" }
 fs_fat = { path = "../../Modules/fs_fat" }

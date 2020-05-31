@@ -67,3 +67,4 @@ Bootloaders/*.pe
 
 Usermode/doc/
 Usermode/target/
+/Kernel/tests/filesystem/data

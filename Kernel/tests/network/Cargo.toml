@@ -4,6 +4,9 @@ version = "0.1.0"
 authors = ["John Hodge <tpg@mutabah.net>"]
 edition = "2018"
 
+[lib]
+doctest = false
+
 [dependencies]
 network = { path = "../../Modules/network" }
 kernel = { path = "../../Core", features = ["test"] }

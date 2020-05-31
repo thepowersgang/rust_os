@@ -1,5 +1,5 @@
 
-use ::kernel::{log,log_error};
+use ::kernel::{log,log_error,log_log};
 
 mod virt_storage;
 
@@ -15,18 +15,21 @@ fn main()
     (::fs_fat::S_MODULE.init)();
     (::fs_extN::S_MODULE.init)();
     
+    // 1. Load disks (physical volumes)
     let disks: [(&str, &::std::path::Path); 1] = [
         ("virt0", "data/hda.img".as_ref()),
         ];
+    let mut volumes = vec![];
     for (name, disk) in disks.iter()
     {
-        match crate::virt_storage::add_volume(name, disk)
+        match crate::virt_storage::add_volume(name, disk, virt_storage::OverlayType::None)
         {
-        Ok( () ) => (),
+        Ok(h) => volumes.push(h),
         Err(e) => panic!("Unable to open {} as {}: {:?}", disk.display(), name, e),
         }
     }
 
+    // 2. Mount
     let volumes: [(&str, &str, &str, &[&str]); 1] = [
         ("/system", "virt0p0", "", &[]),
         ];
@@ -48,7 +51,8 @@ fn main()
         }
     }
 
-    let mut cmd_stream = ::std::io::stdin();
+    // 3. Run commands
+    let cmd_stream = ::std::io::stdin();
     loop
     {
         let mut s = String::new();
@@ -59,13 +63,15 @@ fn main()
         let cmd = match args.next()
             {
             None => break,
-            Some("") => break,
+            Some("") => break,  // Blank means a space? (or a leading space)
             Some(v) => v,
             };
         match cmd
         {
+        // List directory
         "ls" => {
             let dir = ::kernel::vfs::Path::new( args.next().expect("ls dir") );
+            log_log!("COMMAND: ls {:?}", dir);
             match ::kernel::vfs::handle::Dir::open(dir)
             {
             Err(e) => log_error!("'{:?}' cannot be opened: {:?}", dir, e),
@@ -75,7 +81,28 @@ fn main()
                 },
             }
             },
-        _ => todo!("Command {}", cmd),
+        // Create a directory
+        "mkdir" => {
+            let dir = ::kernel::vfs::Path::new( args.next().expect("mkdir dir") );
+            let dirname = args.next().expect("mkdir newname");
+            log_log!("COMMAND: mkdir {:?} {:?}", dir, dirname);
+            let h = match ::kernel::vfs::handle::Dir::open(dir)
+                {
+                Ok(h) => h,
+                Err(e) => {
+                    log_error!("'{:?}' cannot be opened: {:?}", dir, e);
+                    continue
+                    },
+                };
+            match h.mkdir(dirname)
+            {
+            Ok(_) => {},
+            Err(e) => log_error!("cannot create {:?} in '{:?}': {:?}", dirname, dir, e),
+            }
+            },
+        cmd => todo!("Command {}", cmd),
         }
     }
+
+    // TODO: Unmount all volumes
 }
