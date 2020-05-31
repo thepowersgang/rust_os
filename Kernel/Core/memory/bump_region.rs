@@ -2,6 +2,7 @@
 //
 //
 //! Controls a region of memory with a bump allocator, for runtime delegaion of address space
+#![cfg_attr(feature="test", allow(dead_code,unused_imports))]
 use arch::memory::addresses::{BUMP_START, BUMP_END};
 use core::sync::atomic::{AtomicUsize, Ordering};
 
