@@ -363,7 +363,10 @@ impl node::Dir for DirNode {
 		Ok( cur_ofs )
 	}
 	fn create(&self, name: &ByteStr, nodetype: node::NodeType) -> node::Result<node::InodeId> {
-		todo!("DirNode::create('{:?}', {:?})", name, nodetype);
+		// File cluster for the dir's data
+		let new_cluster = self.fs.alloc_cluster( self.start_cluster )?;
+		// Add entries to the end of the dir
+		todo!("DirNode::create('{:?}', {:?}): dir_cluster={:#x}", name, nodetype, new_cluster);
 	}
 	fn link(&self, name: &ByteStr, node: &dyn node::NodeBase) -> node::Result<()> {
 		todo!("DirNode::link('{:?}', {:#x})", name, node.get_id());

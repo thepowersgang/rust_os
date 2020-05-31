@@ -303,6 +303,10 @@ impl FilesystemInner
 			},
 		})
 	}
+
+	fn alloc_cluster(&self, prev_cluster: u32) -> Result< u32, storage::IoError > {
+		todo!("alloc_cluster(prev={:#x})", prev_cluster)
+	}
 }
 
 impl mount::Filesystem for Filesystem
