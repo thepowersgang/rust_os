@@ -192,15 +192,14 @@ impl<'a, T: Send+Sync> ops::Drop for Read<'a, T>
 		assert!(lh.reader_count > 0, "Dropping 'Read' for RwLock, but no read locks active");
 		lh.reader_count -= 1;
 		if lh.reader_count > 0 {
-			// Threads are still active
+			// Reader threads are still active
 			log_trace!("Read<{}>::drop({:p}) - Readers active", type_name!(T), self._lock);
 		}
-		else if lh.writer_queue.has_waiter() {
-			log_trace!("Read<{}>::drop({:p}) - Yielding to writer", type_name!(T), self._lock);
-			assert!(lh.reader_count == 0);
+		else if let Some(tid) = lh.writer_queue.wake_one() {
 			// There's a writer waiting, yeild to it
+			log_trace!("Read<{}>::drop({:p}) - Yielding to writer (TID{})", type_name!(T), self._lock, tid);
+			assert!(lh.reader_count == 0);
 			lh.reader_count = -1;
-			lh.writer_queue.wake_one();
 			// - Woken writer takes logical ownership of the write handle
 		}
 		else {
@@ -228,20 +227,17 @@ impl<'a, T: Send+Sync> ops::Drop for Write<'a, T>
 	{
 		let mut lh = self._lock.inner.lock();
 		assert!(lh.reader_count == -1, "Dropping 'Write' for RwLock, but no write lock active (reader_count={})", lh.reader_count);
-		if lh.writer_queue.has_waiter()
+		if let Some(tid) = lh.writer_queue.wake_one()
 		{
-			log_trace!("Write<{}>::drop({:p}) - Yielding to other writer", type_name!(T), self._lock);
-			//lh.reader_count = -1;
-			lh.writer_queue.wake_one()
+			log_trace!("Write<{}>::drop({:p}) - Yielding to other writer (TID{})", type_name!(T), self._lock, tid);
 			// - Woken writer takes logical ownership of the write handle
 		}
 		else if lh.reader_queue.has_waiter()
 		{
 			log_trace!("Write<{}>::drop({:p}) - Waking readers", type_name!(T), self._lock);
 			lh.reader_count = 0;
-			while lh.reader_queue.has_waiter() {
+			while let Some(_) = lh.reader_queue.wake_one() {
 				lh.reader_count += 1;
-				lh.reader_queue.wake_one();
 			}
 			// - Woken readers assume that the count has been incremented, and we did
 		}

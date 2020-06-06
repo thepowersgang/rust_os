@@ -15,7 +15,7 @@ pub struct Mutex<T: Send>
 }
 
 #[doc(hidden)]
-pub struct MutexInner
+struct MutexInner
 {
 	held: bool,
 	holder: ::threads::ThreadID,
@@ -45,7 +45,7 @@ impl<T: Send> Mutex<T>
 		Mutex {
 			inner: ::sync::Spinlock::new(MutexInner {
 				held: false,
-				holder: 0,
+				holder: !0,
 				queue: ::threads::WaitQueue::new(),
 				}),
 			val: ::core::cell::UnsafeCell::new(val),
@@ -55,6 +55,7 @@ impl<T: Send> Mutex<T>
 	/// Lock the mutex, blocking the current thread
 	#[inline(never)]
 	pub fn lock(&self) -> HeldMutex<T> {
+		Self::trace("lock");
 		{
 			// Check the held status of the mutex
 			// - Spinlock protected variable
@@ -63,10 +64,10 @@ impl<T: Send> Mutex<T>
 			{
 				assert!(lh.holder != ::threads::get_thread_id(), "Recursive lock of {}", type_name!(Self));
 				// If mutex is locked, then wait for it to be unlocked
-				// - ThreadList::wait will release the passed spinlock
+				// - ThreadList::wait will release the passed spinlock before sleeping. NOTE: It doesn't re-acquire the lock
 				waitqueue_wait_ext!(lh, .queue);
-				// lh.queue.wait(lh);	// << Trips borrowck
-				self.inner.lock().holder = ::threads::get_thread_id();
+				lh = self.inner.lock();
+				assert!(lh.holder == ::threads::get_thread_id(), "Invalid wakeup in lock of {}", type_name!(Self));
 			}
 			else
 			{
@@ -74,21 +75,33 @@ impl<T: Send> Mutex<T>
 				lh.holder = ::threads::get_thread_id();
 			}
 		}
+		Self::trace("lock - acquired");
 		::core::sync::atomic::fence(::core::sync::atomic::Ordering::Acquire);
 		return HeldMutex { lock: self };
 	}
 	/// Release the mutex
 	fn unlock(&self) {
+		Self::trace("unlock");
 		::core::sync::atomic::fence(::core::sync::atomic::Ordering::Release);
 		let mut lh = self.inner.lock();
-		if lh.queue.has_waiter()
+		if let Some(tid) = lh.queue.wake_one()
 		{
-			lh.queue.wake_one();
+			lh.holder = tid;
 			// *held is still true, as the newly woken thread now owns the mutex
 		}
 		else
 		{
 			lh.held = false;
+		}
+	}
+
+	fn trace(action: &str)
+	{
+		match type_name!(Self)
+		{
+		n @ "kernel::sync::mutex::Mutex<core::option::Option<kernel::lib::collections::vec_map::VecMap<usize, kernel::metadevs::storage::PhysicalVolumeInfo>>>"
+			=> log_trace!("Mutex<{}>::{}", n, action),
+		_ => {},
 		}
 	}
 }

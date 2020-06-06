@@ -70,17 +70,19 @@ impl WaitQueue
 		! self.list.empty()
 	}
 	/// Wake a single thread waiting on this queue
-	pub fn wake_one(&mut self)
+	pub fn wake_one(&mut self) -> Option<super::ThreadID>
 	{
-		log_trace!("WaitQueue::wake_one()");
 		match self.list.pop()
 		{
 		Some(mut t) => {
+			let tid = t.get_tid();
+			log_trace!("WaitQueue::wake_one(): Waking TID{}", tid);
 			t.set_state( RunState::Runnable );
-						let _irq_lock = ::arch::sync::hold_interrupts();
+			let _irq_lock = ::arch::sync::hold_interrupts();
 			s_runnable_threads.lock().push(t);
+			Some(tid)
 			},
-		None => {}
+		None => None,
 		}
 	}
 }
