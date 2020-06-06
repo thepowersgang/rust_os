@@ -10,8 +10,14 @@ use core::ops;
 /// A standard mutex (blocks the current thread when contended)
 pub struct Mutex<T: Send>
 {
-	inner: ::sync::Spinlock<MutexInner>,
+	inner: UnitMutex,
 	val: ::core::cell::UnsafeCell<T>,
+}
+
+/// A mutex that controls no data (used as the non-generic portion of `Mutex<T>`)
+struct UnitMutex
+{
+	inner: ::sync::Spinlock<MutexInner>,
 }
 
 #[doc(hidden)]
@@ -38,36 +44,33 @@ pub struct LazyMutex<T: Send>(Mutex<Option<T>>);
 /// Wrapper handle for a held LazyMutex
 pub struct HeldLazyMutex<'a, T: Send+'a>( HeldMutex<'a, Option<T>> );
 
-impl<T: Send> Mutex<T>
+impl UnitMutex
 {
-	/// Construct a new mutex-protected value
-	pub const fn new(val: T) -> Mutex<T> {
-		Mutex {
+	pub const fn new() -> UnitMutex {
+		UnitMutex {
 			inner: ::sync::Spinlock::new(MutexInner {
 				held: false,
 				holder: !0,
 				queue: ::threads::WaitQueue::new(),
 				}),
-			val: ::core::cell::UnsafeCell::new(val),
-		}
+			}
 	}
-	
-	/// Lock the mutex, blocking the current thread
-	#[inline(never)]
-	pub fn lock(&self) -> HeldMutex<T> {
-		Self::trace("lock");
+
+	#[inline(never)]	// These are nice debugging points
+	pub fn lock(&self, ty_name: &'static str) {
+		Self::trace(ty_name, "lock");
 		{
 			// Check the held status of the mutex
 			// - Spinlock protected variable
 			let mut lh = self.inner.lock();
 			if lh.held != false
 			{
-				assert!(lh.holder != ::threads::get_thread_id(), "Recursive lock of {}", type_name!(Self));
+				assert!(lh.holder != ::threads::get_thread_id(), "Recursive lock of {}", ty_name);
 				// If mutex is locked, then wait for it to be unlocked
 				// - ThreadList::wait will release the passed spinlock before sleeping. NOTE: It doesn't re-acquire the lock
 				waitqueue_wait_ext!(lh, .queue);
 				lh = self.inner.lock();
-				assert!(lh.holder == ::threads::get_thread_id(), "Invalid wakeup in lock of {}", type_name!(Self));
+				assert!(lh.holder == ::threads::get_thread_id(), "Invalid wakeup in lock of {}", ty_name);
 			}
 			else
 			{
@@ -75,13 +78,14 @@ impl<T: Send> Mutex<T>
 				lh.holder = ::threads::get_thread_id();
 			}
 		}
-		Self::trace("lock - acquired");
+		Self::trace(ty_name, "lock - acquired");
 		::core::sync::atomic::fence(::core::sync::atomic::Ordering::Acquire);
-		return HeldMutex { lock: self };
 	}
-	/// Release the mutex
-	fn unlock(&self) {
-		Self::trace("unlock");
+
+	/// UNSAFE: Must only be called when the controlled resoure is being released
+	#[inline(never)]	// These are nice debugging points
+	pub unsafe fn unlock(&self, ty_name: &'static str) {
+		Self::trace(ty_name, "unlock");
 		::core::sync::atomic::fence(::core::sync::atomic::Ordering::Release);
 		let mut lh = self.inner.lock();
 		if let Some(tid) = lh.queue.wake_one()
@@ -95,14 +99,32 @@ impl<T: Send> Mutex<T>
 		}
 	}
 
-	fn trace(action: &str)
+	fn trace(ty_name: &'static str, action: &str)
 	{
-		match type_name!(Self)
+		match ty_name
 		{
-		n @ "kernel::sync::mutex::Mutex<core::option::Option<kernel::lib::collections::vec_map::VecMap<usize, kernel::metadevs::storage::PhysicalVolumeInfo>>>"
-			=> log_trace!("Mutex<{}>::{}", n, action),
+		""
+		//| "kernel::sync::mutex::Mutex<core::option::Option<kernel::lib::collections::vec_map::VecMap<usize, kernel::metadevs::storage::PhysicalVolumeInfo>>>"
+			=> log_trace!("{}::{}", ty_name, action),
 		_ => {},
 		}
+	}
+}
+
+impl<T: Send> Mutex<T>
+{
+	/// Construct a new mutex-protected value
+	pub const fn new(val: T) -> Mutex<T> {
+		Mutex {
+			inner: UnitMutex::new(),
+			val: ::core::cell::UnsafeCell::new(val),
+		}
+	}
+	
+	/// Lock the mutex, blocking the current thread
+	pub fn lock(&self) -> HeldMutex<T> {
+		self.inner.lock(type_name!(Self));
+		return HeldMutex { lock: self };
 	}
 }
 
@@ -148,11 +170,14 @@ impl<T: Send> LazyMutex<T>
 	}
 }
 
+/// Unlock on drop of HeldMutex
 impl<'lock,T:Send> ops::Drop for HeldMutex<'lock,T>
 {
-	/// Unlock on drop of HeldMutex
 	fn drop(&mut self) {
-		self.lock.unlock();
+		// SAFE: This type controls the lock
+		unsafe {
+			self.lock.inner.unlock(type_name!(Mutex<T>));
+		}
 	}
 }
 impl<'lock,T:Send> ops::Deref for HeldMutex<'lock,T>
