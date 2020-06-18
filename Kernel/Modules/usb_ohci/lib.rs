@@ -645,7 +645,7 @@ impl HostInner
 		let epm = self.get_endpoint_meta(ep);
 		// - Update the tail in metadata (swap for the newly allocated one)
 		let td_handle = TransferDescriptorId::from_u16( epm.tail_td.swap(new_tail_td.to_u16(), Ordering::SeqCst) );
-		log_debug!("push_td({:?}, {:#x}, {:#x}-{:#x}): {:?}", ep, flags, first_byte, last_byte, td_handle);
+		log_trace!("push_td({:?}, {:#x}, {:#x}-{:#x}): {:?}", ep, flags, first_byte, last_byte, td_handle);
 		// - Obtain pointer to the old tail
 		let td_ptr = self.get_general_td_pointer(&td_handle);
 		// - Fill the old tail with our data (and the new tail paddr)
@@ -1312,14 +1312,14 @@ impl host::InterruptEndpoint for InterruptEndpointHandle
 	fn wait<'a>(&'a self) -> host::AsyncWaitIo<'a, host::IntBuffer<'a>>
 	{
 		struct Future<'a>(&'a InterruptEndpointHandle);
-		impl ::core::future::Future for Future<'_>
+		impl<'a> ::core::future::Future for Future<'a>
 		{
-			type Output = host::IntBuffer<'static>;
+			type Output = host::IntBuffer<'a>;
 			fn poll(self: core::pin::Pin<&mut Self>, cx: &mut core::task::Context) -> core::task::Poll<Self::Output> {
 				self.0.poll_future(cx)
 			}
 		}
-		host::AsyncWaitIo::new(Future(self))
+		host::AsyncWaitIo::<'a, _>::new(Future(self))
 			.ok().expect("InterruptEndpointHandle::Future doesn't fit")
 	}
 }
