@@ -59,9 +59,9 @@ class Instance:
     
     def wait_for_line(self, regex, timeout):
         self.lastlog = []
-        now = time.time()
+        end_time = time.time() + timeout
         while True:
-            line = self._cmd.get_line(timeout=timeout)
+            line = self._cmd.get_line(timeout=end_time - time.time())
             if line == None:
                 return False
             if line != "":
@@ -74,11 +74,19 @@ class Instance:
                 if rv != None:
                     return rv
                 self.lastlog.append( line )
-            if time.time() - now > timeout:
+            if time.time() > end_time:
                 return False
     
-    def wait_for_idle(self, timeout=1.0):
-        return self.wait_for_line('\d+t \d+\[kernel::threads\] - L\d+: reschedule\(\) - No active threads, idling', timeout)
+    def wait_for_idle(self, timeout=1.0, idle_time=0.5):
+        end_time = time.time() + timeout
+        # TODO: Ensure that it's idle for at least `n` seconds?
+        while True:
+            if time.time() > end_time:
+                return False
+            if not self.wait_for_line('\d+t \d+\[kernel::threads\] - L\d+: reschedule\(\) - No active threads, idling', end_time - time.time()):
+                return False
+            if False == self.wait_for_line('', idle_time):
+                return True
     
 
     def match_line(self, name, pattern, matches, timeout=5):
