@@ -394,7 +394,7 @@ mod sse
 		// SAFE: Read-only
 		unsafe {
 			let cr0: usize;
-			asm!("mov {}, cr0", out(reg) cr0, options(nomem, nostack, preserves_flags, pure));
+			asm!("mov {}, cr0", out(reg) cr0, options(nomem, nostack, preserves_flags));	// NOTE: Relies on other side-effects
 			// If TS was clear, return true
 			cr0 & 8 == 0
 		}
