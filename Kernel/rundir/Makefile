@@ -8,8 +8,9 @@ all: run
 
 QEMU_ARGS := -s -no-reboot
 ifeq ($(ENABLE_VIDEO),)
-  QEMU_ARGS += -nographic
+  #QEMU_ARGS += -nographic
   QEMU_ARGS += -vnc 127.0.0.1:99
+  QEMU_ARGS += -serial mon:stdio
 else
   QEMU_ARGS += -serial stdio
 endif
@@ -17,7 +18,12 @@ ifeq ($(ENABLE_USB),)
 else
   QEMU_ARGS += -usb
   QEMU_ARGS += -device pci-ohci,id=ohci
-  QEMU_ARGS += -device usb-tablet,bus=ohci.0
+  QEMU_ARGS += -drive if=none,id=usbdisk,file=DiskImages/$(ARCH)/$(IMGDIR)usb.img,format=raw
+  QEMU_ARGS += -device usb-hub,bus=ohci.0,port=1
+  QEMU_ARGS += -device usb-storage,bus=ohci.0,port=1.1,drive=usbdisk
+images: DiskImages/$(ARCH)/$(IMGDIR)usb.img
+  QEMU_ARGS += -device usb-tablet,bus=ohci.0,port=2
+#  QEMU_ARGS += -device usb-kbd,bus=ohci.0
 endif
 QEMU_ARGS += -d int,guest_errors -D qemu_int_log.txt
 #QEMU_ARGS += -d int,guest_errors,exec -D qemu_int_log.txt
@@ -110,6 +116,10 @@ $(IMGDIR)test.iso: $(wildcard ../../Usermode/.output/$(ARCH)/bin/*) Makefile
 	@mkdir -p $(dir $@)
 	@echo "[mkisofs] -o $@"
 	$Vmkisofs -input-charset utf-8 -quiet -o $@ -r -graft-points /Tifflin/bin=../../Usermode/.output/$(ARCH)/bin /Tifflin/shared/images=../../Graphics/.output/shared
+$(IMGDIR)usb.img:
+	@mkdir -p $(dir $@)
+	@echo "[MkDisk] ZERO 1MB $@"
+	$Vdd if=/dev/zero of=$@ bs=1M count=1 status=noxfer
 $(IMGDIR)hd%_0.img:
 	@mkdir -p $(dir $@)
 	@echo "[MkDisk] ZERO 1MB $@"
@@ -154,8 +164,9 @@ $(IMGDIR)hdb.img: Makefile $(IMGDIR)hdb_0.img $(IMGDIR)hdb_1.img
 
 .qemu_trace: Makefile
 	echo "" > $@
-	echo pci_* >> $@
+	#echo pci_* >> $@
 	echo virtio_* >> $@
-	echo virtqueue_* >> $@
+	#echo virtqueue_* >> $@
+	#echo usb_* >> $@
 
 

@@ -29,3 +29,4 @@ label testkern
 EOF
 
 qemu-system-x86_64 $QEMU_OPTS
+# | tail -n +2
