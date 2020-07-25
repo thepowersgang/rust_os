@@ -70,6 +70,8 @@ pub trait BulkEndpointIn: Send + Sync
 pub type AsyncWaitRoot = stack_dst::ValueA<dyn core::future::Future<Output=usize>, [usize; 3]>;
 pub trait HostController: Send + Sync
 {
+	// TODO: xHCI allocates the addresses itself
+
 	///// Obtain a handle to endpoint zero
 	//fn get_control_zero(&self) -> Handle<dyn ControlEndpoint>;
 	/// Begin polling an endpoint at the given rate (buffer used is allocated by the driver to be the interrupt endpoint's size)
@@ -89,6 +91,9 @@ pub trait HostController: Send + Sync
 	fn set_port_feature(&self, port: usize, feature: PortFeature);
 	fn clear_port_feature(&self, port: usize, feature: PortFeature);
 	fn get_port_feature(&self, port: usize, feature: PortFeature) -> bool;
+
+	//fn assign_device_address(&self) -> Option<u8>;
+	//fn release_device_address(&self, addr: u8);
 
 	fn async_wait_root(&self) -> AsyncWaitRoot;
 }

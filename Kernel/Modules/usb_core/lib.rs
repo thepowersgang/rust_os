@@ -137,7 +137,7 @@ fn host_worker(host: ArefBorrow<Host>)
 		core::task::Poll::Pending => {},
 		}
 		// Have a list of port workers
-		// TODO: A hub updating might lead t a new entry being added here
+		// TODO: A hub updating might lead to a new entry being added here
 		for p in host.device_workers.iter()
 		{
 			let mut p = p.lock();
