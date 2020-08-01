@@ -127,7 +127,7 @@ impl Drop for TestFramework
 			self.process.kill().expect("Cannot terminate child");
 		}
         if std::thread::panicking() {
-            println!("See {} for worker log", self.logfile.display());
+            println!("See {} for worker log", self.logfile.canonicalize().unwrap().display());
         }
     }
 }

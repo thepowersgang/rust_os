@@ -45,7 +45,9 @@ fn main()
             return
             },
         };
-    stream.connect( args.master_addr ).expect("Unable to connect");
+	stream.connect( args.master_addr ).expect("Unable to connect");
+	// - Set a timeout, in case the parent fails
+	stream.set_read_timeout(Some(::std::time::Duration::from_secs(1))).expect("Unable to set read timeout");
 	let stream = Arc::new(stream);
     stream.send(&[0]).expect("Unable to send marker to server");
     
@@ -64,7 +66,7 @@ fn main()
     {
 		const MTU: usize = 1560;
 		let mut buf = [0; 4 + MTU];
-		let len = match nic_handle.stream.recv(&mut buf)
+		let len = match stream.recv(&mut buf)
 			{
 			Ok(len) => len,
 			Err(e) => {
