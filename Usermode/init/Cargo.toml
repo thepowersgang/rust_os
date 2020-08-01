@@ -2,3 +2,7 @@
 name = "init"
 version = "0.0.0"
 
+[dependencies]
+std = { path = "../libstd" }
+syscalls = { path = "../libsyscalls" }
+loader = { path = "../loader/lib" }

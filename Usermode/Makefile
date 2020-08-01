@@ -29,17 +29,15 @@ TARGET_SPEC := target-$(ARCH).json
 RUST_COMMON_FLAGS := --target=$(TARGET_SPEC) --cfg 'arch="$(ARCH)"' --cfg nightly
 RUST_COMMON_FLAGS += -L $(LIBDIR)
 
-XARGO := RUST_TARGET_PATH=$(dir $(abspath $(TARGET_SPEC))) $(XARGO)
-XARGO_TARGET := target-$(ARCH)
-XARGO_PROFILE := release
-XARGO_FLAGS := --target $(XARGO_TARGET)
-ifeq ($(XARGO_PROFILE),debug)
-else ifeq ($(XARGO_PROFILE),release)
-  XARGO_FLAGS += --release
+CARGO_PROFILE := release
+CARGO_FLAGS := --target $(TARGET_SPEC)
+ifeq ($(CARGO_PROFILE),debug)
+else ifeq ($(CARGO_PROFILE),release)
+  CARGO_FLAGS += --release
 else
-  $(error Unknown xargo profile $(XARGO_PROFILE))
+  $(error Unknown xargo profile $(CARGO_PROFILE))
 endif
-XARGO_OUTDIR := target/$(XARGO_TARGET)/$(XARGO_PROFILE)/
+CARGO_OUTDIR := target/target-$(ARCH)/$(CARGO_PROFILE)/
 
 RUSTFLAGS := $(RUST_COMMON_FLAGS)
 RUSTFLAGS += -O
@@ -73,7 +71,7 @@ makefile_deps =
 all: $(APPS:%=$(BINDIR)%)
 $(BINDIR)%: xargo
 	@mkdir -p $(dir $@)
-	@if test -e $(XARGO_OUTDIR)$*; then cp $(XARGO_OUTDIR)$* $@; else cp $(XARGO_OUTDIR)$*-bin $@; fi
+	@if test -e $(CARGO_OUTDIR)$*; then cp $(CARGO_OUTDIR)$* $@; else cp $(CARGO_OUTDIR)$*-bin $@; fi
 
 # Delete all artifacts
 clean:
@@ -92,7 +90,7 @@ docs: $(patsubst lib%/,.docs/%/index.html,$(wildcard lib*/))
 # > Requires an assembly stub
 # > Linking is done in two steps so that --gc-sections works fully
 # > The main body of the code is in `libloader_binary.a`, build by xargo
-LOADER_OBJS := $(OBJDIR)rustrt0.o $(OBJDIR)loader/bin/start.ao $(XARGO_OUTDIR)libloader_binary.a
+LOADER_OBJS := $(OBJDIR)rustrt0.o $(OBJDIR)loader/bin/start.ao $(CARGO_OUTDIR)libloader_binary.a
 $(BINDIR)loader: loader/bin/link.ld $(LOADER_OBJS)
 	@mkdir -p $(dir $@)
 	@echo [LD] $@
@@ -101,11 +99,11 @@ $(BINDIR)loader: loader/bin/link.ld $(LOADER_OBJS)
 	$V$(OBJCOPY) $(OBJDIR)loader.elf -O binary $@
 	$V$(OBJDUMP) -CS $(OBJDIR)loader.elf > $(OBJDIR)loader.dsm
 # xargo portion of loader
-$(XARGO_OUTDIR)libloader_binary.a: xargo
+$(CARGO_OUTDIR)libloader_binary.a: xargo
 
 .PHONY: xargo
 xargo: $(OBJDIR)rustrt0.o $(LIBDIR)libloader_dyn.so	# Referenced by link-$(TARGET).ld
-	$(XARGO) build $(XARGO_FLAGS)
+	$(CARGO) -Z build-std=core,alloc build $(CARGO_FLAGS)
 # Ensure that all external crates are checked out
 xargo: $(patsubst %,../externals/crates.io/%/src/lib.rs,cmdline_words_parser stack_dst utf16_literal va_list)
 # Low-level loader dummy dynamic library

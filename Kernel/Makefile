@@ -39,7 +39,6 @@ ifeq ($(USE_ACPICA),1)
   CARGO_FEATURES += kernel/acpica
 endif
 
-XARGO := RUST_TARGET_PATH=$(abspath targets) $(XARGO)
 
 .PHONY: all dsm PHONY
 
@@ -75,8 +74,8 @@ endif
 # - This includes all modules enabled in ./Cargo.toml
 #
 $(OBJDIR)libmain.a: PHONY targets/target-k-$(ARCH).json $(IMGDIR)logo.rs $(IMGDIR)panic.rs
-	@echo "[XARGO] . > $@"
-	$V$(ENV) $(XARGO) build --target=target-k-$(ARCH) --release --features "$(CARGO_FEATURES)"
+	@echo "[CARGO] . > $@"
+	$V$(ENV) $(CARGO) build -Z build-std=core --target=targets/target-k-$(ARCH).json --release --features "$(CARGO_FEATURES)" -j 1
 	@mkdir -p $(dir $@)
 	@cp target/target-k-$(ARCH)/release/libmain.a $@
 $(patsubst %,$(OBJDIR)lib%.a,$(MODS)): $(OBJDIR)libmain.a

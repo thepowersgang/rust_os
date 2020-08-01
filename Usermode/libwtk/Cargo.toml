@@ -10,5 +10,5 @@ macros = { path = "../libmacros" }
 async = { path = "../libasync" }
 byteorder = { path = "../libbyteorder" }
 
-#std = { path = "../libstd" }
-#syscalls = { path = "../libsyscalls" }
+std = { path = "../libstd" }
+syscalls = { path = "../libsyscalls" }

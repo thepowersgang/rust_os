@@ -6,4 +6,4 @@ version = "0.0.1"
 path = "lib.rs"
 
 [dependencies]
-#std = { path = "../libstd" }
+std = { path = "../libstd" }

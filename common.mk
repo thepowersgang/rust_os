@@ -46,7 +46,7 @@ fn_rustcmd = RUSTUP_HOME=$(abspath $(PREFIX)) CARGO_HOME=$(abspath $(PREFIX)) $(
 RUSTC := $(call fn_rustcmd,rustc)
 RUSTDOC := $(call fn_rustcmd,rustdoc)
 CARGO := $(call fn_rustcmd,cargo)
-XARGO := XARGO_HOME=$(abspath $(PREFIX)xargo) $(call fn_rustcmd,xargo)
+#XARGO := XARGO_HOME=$(abspath $(PREFIX)xargo) $(call fn_rustcmd,xargo)
 
 # NOTE: rustc-src doesn't contain compiler_builtins (which is a crates.io package)
 #RUSTUP_SRC_DIR = $(firstword $(wildcard $(PREFIX)toolchains/nightly-*/lib/rustlib/src/rust/src))/

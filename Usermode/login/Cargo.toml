@@ -7,5 +7,6 @@ wtk = { path = "../libwtk" }
 async = { path = "../libasync" }
 lazy_static = { path = "../liblazy_static" }
 
-#syscalls = { path = "../libsyscalls" }
-#loader = { path = "../loader/lib" }
+std = { path = "../libstd" }
+syscalls = { path = "../libsyscalls" }
+loader = { path = "../loader/lib" }

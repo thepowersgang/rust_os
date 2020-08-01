@@ -6,3 +6,6 @@ version = "0.0.1"
 #syscalls = { path = "../libsyscalls" }
 wtk = { path = "../libwtk" }
 
+std = { path = "../libstd" }
+syscalls = { path = "../libsyscalls" }
+

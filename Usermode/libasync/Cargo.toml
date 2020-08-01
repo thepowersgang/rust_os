@@ -6,5 +6,5 @@ version = "0.0.1"
 path = "lib.rs"
 
 [dependencies]
-#std = { path = "../libstd" }
-#syscalls = { path = "../libsyscalls" }
+std = { path = "../libstd" }
+syscalls = { path = "../libsyscalls" }

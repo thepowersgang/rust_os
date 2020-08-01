@@ -38,8 +38,10 @@ const PAGE_SIZE: usize = 0x1000;
 pub extern "C" fn loader_main(cmdline: *mut u8, cmdline_len: usize) -> !
 {
 	kernel_log!("loader_main({:p}, {})", cmdline, cmdline_len);
+	// SAFE: (barring bugs in caller)
+	let cmdline: &mut [u8] = unsafe { ::std::slice::from_raw_parts_mut(cmdline, cmdline_len) };
 	// SAFE: (barring bugs in caller) Transmute just keeps 'mut' on the OsStr
-	let cmdline: &mut ::std::ffi::OsStr = unsafe { ::std::mem::transmute( ::std::slice::from_raw_parts_mut(cmdline, cmdline_len) ) };
+	//let cmdline: &mut ::std::ffi::OsStr = unsafe { ::std::mem::transmute( ::std::slice::from_raw_parts_mut(cmdline, cmdline_len) ) };
 
 	// 0. Generate a guard page (by deallocating a special guard page just before the stack)
 	// SAFE: The memory freed is reserved explicitly for use as a guard page
@@ -51,10 +53,10 @@ pub extern "C" fn loader_main(cmdline: *mut u8, cmdline_len: usize) -> !
 	//}
 	
 	// 1. Print the INIT parameter from the kernel
-	kernel_log!("- cmdline={:?}", cmdline);
+	kernel_log!("- cmdline={:?}", ::std::ffi::OsStr::new(&cmdline));
 	
 	// 2. Parse 'cmdline' into the init path and arguments.
-	let mut arg_iter = ::cmdline_words_parser::parse_posix(cmdline);
+	let mut arg_iter = ::cmdline_words_parser::parse_posix(cmdline).map(|v| ::std::ffi::OsStr::new(v));
 	let init_path = arg_iter.next().expect("Init path is empty");
 	kernel_log!("- init_path={:?}", init_path);
 	

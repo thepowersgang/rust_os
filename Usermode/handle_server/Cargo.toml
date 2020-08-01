@@ -6,6 +6,7 @@ version = "0.0.1"
 handle_server = { path = "../libhandle_server" }
 
 # Sysroot crates
-#syscalls = { path = "../libsyscalls" }
-#loader = { path = "../loader/lib" }
+std = { path = "../libstd" }
+syscalls = { path = "../libsyscalls" }
+loader = { path = "../loader/lib" }
 

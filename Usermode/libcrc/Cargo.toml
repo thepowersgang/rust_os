@@ -4,3 +4,6 @@ version = "0.0.0"
 
 [lib]
 path = "lib.rs"
+
+[dependencies]
+std = { path = "../libstd" }
