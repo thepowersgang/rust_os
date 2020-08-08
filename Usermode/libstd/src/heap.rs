@@ -12,8 +12,8 @@ pub unsafe extern fn __rdl_alloc(size: usize,
 								 align: usize,
 								 err: *mut u8) -> *mut u8 {
 	let layout = Layout::from_size_align_unchecked(size, align);
-	match System.alloc(layout, ::core::alloc::AllocInit::Uninitialized) {
-		Ok(blk) => blk.ptr.as_ptr() as *mut u8,
+	match System.alloc(layout) {
+		Ok(blk) => blk.as_ptr() as *mut u8,
 		Err(e) => {
 			ptr::write(err as *mut AllocErr, e);
 			0 as *mut u8
@@ -52,13 +52,13 @@ pub unsafe extern fn __rdl_realloc(ptr: *mut u8,
 								   err: *mut u8) -> *mut u8 {
 	let old_layout = Layout::from_size_align_unchecked(old_size, old_align);
 	let rv = if old_size < new_size {
-			System.grow(NonNull::new_unchecked(ptr as *mut _), old_layout, new_size, alloc::ReallocPlacement::MayMove, alloc::AllocInit::Uninitialized)
+			System.grow(NonNull::new_unchecked(ptr as *mut _), old_layout, new_size)
 		}
 		else {
-			System.shrink(NonNull::new_unchecked(ptr as *mut _), old_layout, new_size, alloc::ReallocPlacement::MayMove)
+			System.shrink(NonNull::new_unchecked(ptr as *mut _), old_layout, new_size)
 		};
 	match rv {
-		Ok(blk) => blk.ptr.as_ptr() as *mut u8,
+		Ok(blk) => blk.as_ptr() as *mut u8,
 		Err(e) => {
 			ptr::write(err as *mut AllocErr, e);
 			0 as *mut u8
@@ -71,8 +71,10 @@ pub unsafe extern fn __rdl_alloc_zeroed(size: usize,
 										align: usize,
 										err: *mut u8) -> *mut u8 {
 	let layout = Layout::from_size_align_unchecked(size, align);
-	match System.alloc(layout, ::core::alloc::AllocInit::Zeroed) {
-		Ok(blk) => blk.ptr.as_ptr() as *mut u8,
+	match System.alloc_zeroed(layout) {
+		Ok(blk) => {
+			blk.as_ptr() as *mut u8
+			},
 		Err(e) => {
 			ptr::write(err as *mut AllocErr, e);
 			0 as *mut u8
