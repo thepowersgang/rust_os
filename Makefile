@@ -25,8 +25,6 @@ UPDATE:
 	$(call fn_rustcmd,rustup) update $(RUSTUP_VER) --force
 	$(call fn_rustcmd,rustup) default $(RUSTUP_VER)
 	$(call fn_rustcmd,rustup) component add rust-src
-	$(CARGO) install xargo --git https://github.com/thepowersgang/xargo --force
-	#cd Kernel && $(XARGO) update
 fn_checkout = (test -e "$1" || git clone `cat "$1.repo"` "$1")
 EXTERNALS:
 	cd externals/crates.io && $(call fn_checkout,stack_dst)
