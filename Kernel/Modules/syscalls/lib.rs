@@ -336,12 +336,15 @@ fn syscall_core_textinfo(group: u32, id: usize, buf: &mut [u8]) -> usize
 {
 	match group
 	{
-	::values::TEXTINFO_KERNEL =>
-		match id
-		{
-		0 => { buf.clone_from_slice( ::kernel::VERSION_STRING.as_bytes() ); ::kernel::VERSION_STRING.len() },
-		1 => { buf.clone_from_slice( ::kernel::BUILD_STRING.as_bytes() ); ::kernel::BUILD_STRING.len() },
-		_ => 0,
+	::values::TEXTINFO_KERNEL => {
+		let s = match id
+			{
+			0 => ::kernel::build_info::version_string(),
+			1 => ::kernel::build_info::build_string(),
+			_ => "",
+			};
+		buf.clone_from_slice(s.as_bytes());
+		s.len()
 		},
 	_ => 0,
 	}

@@ -64,8 +64,8 @@ pub fn init()
 
 	{
 		use core::fmt::Write;
-		write!(&mut LogWriter::new(Colour::def_green() ), "{}", ::kernel::VERSION_STRING).unwrap();
-		write!(&mut LogWriter::new(Colour::def_yellow()), "> {}", ::kernel::BUILD_STRING).unwrap();
+		write!(&mut LogWriter::new(Colour::def_green() ), "{}", ::kernel::build_info::version_string()).unwrap();
+		write!(&mut LogWriter::new(Colour::def_yellow()), "> {}", ::kernel::build_info::build_string()).unwrap();
 	}
 	
 	// Populate kernel logging window with accumulated logs

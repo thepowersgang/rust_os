@@ -35,8 +35,8 @@ pub mod modules {
 #[no_mangle]
 pub extern "C" fn kmain()
 {
-	log_notice!("{} starting", ::kernel::VERSION_STRING);
-	log_notice!("> {}", ::kernel::BUILD_STRING);
+	log_notice!("{} starting", ::kernel::build_info::version_string());
+	log_notice!("> {}", ::kernel::build_info::build_string());
 	log_notice!("{} compiled-in modules", modules::use_mods());
 	
 	// Initialise core services before attempting modules
