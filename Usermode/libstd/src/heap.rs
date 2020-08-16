@@ -1,28 +1,25 @@
 //! 
 //!
 //!
-use core::ptr;
 use core::ptr::NonNull;
-use core::alloc::{self, Layout,AllocRef,AllocErr};
+use core::alloc::{Layout,AllocRef,AllocErr};
 
 use alloc_system::ALLOCATOR as System;
 
 #[no_mangle]
-pub unsafe extern fn __rdl_alloc(size: usize,
-								 align: usize,
-								 err: *mut u8) -> *mut u8 {
+pub unsafe extern fn __rdl_alloc(size: usize, align: usize) -> *mut u8
+{
 	let layout = Layout::from_size_align_unchecked(size, align);
 	match System.alloc(layout) {
 		Ok(blk) => blk.as_ptr() as *mut u8,
-		Err(e) => {
-			ptr::write(err as *mut AllocErr, e);
+		Err(AllocErr) => {
 			0 as *mut u8
 		}
 	}
 }
 
-#[lang="oom"]
-pub unsafe extern fn __rdl_oom(_layout: Layout) -> ! {
+#[alloc_error_handler]
+pub fn rust_oom(_layout: Layout) -> ! {
 	//System.oom()
 	panic!("OOM");
 }
@@ -45,11 +42,8 @@ pub unsafe extern fn __rdl_usable_size(layout: *const u8,
 }
 
 #[no_mangle]
-pub unsafe extern fn __rdl_realloc(ptr: *mut u8,
-								   old_size: usize,
-								   old_align: usize,
-								   new_size: usize,
-								   err: *mut u8) -> *mut u8 {
+pub unsafe extern fn __rdl_realloc(ptr: *mut u8, old_size: usize, old_align: usize, new_size: usize, ) -> *mut u8
+{
 	let old_layout = Layout::from_size_align_unchecked(old_size, old_align);
 	let rv = if old_size < new_size {
 			System.grow(NonNull::new_unchecked(ptr as *mut _), old_layout, new_size)
@@ -59,24 +53,20 @@ pub unsafe extern fn __rdl_realloc(ptr: *mut u8,
 		};
 	match rv {
 		Ok(blk) => blk.as_ptr() as *mut u8,
-		Err(e) => {
-			ptr::write(err as *mut AllocErr, e);
+		Err(AllocErr) => {
 			0 as *mut u8
 		}
 	}
 }
 
 #[no_mangle]
-pub unsafe extern fn __rdl_alloc_zeroed(size: usize,
-										align: usize,
-										err: *mut u8) -> *mut u8 {
+pub unsafe extern fn __rdl_alloc_zeroed(size: usize, align: usize,) -> *mut u8 {
 	let layout = Layout::from_size_align_unchecked(size, align);
 	match System.alloc_zeroed(layout) {
 		Ok(blk) => {
 			blk.as_ptr() as *mut u8
 			},
-		Err(e) => {
-			ptr::write(err as *mut AllocErr, e);
+		Err(AllocErr) => {
 			0 as *mut u8
 		}
 	}

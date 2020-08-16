@@ -16,6 +16,7 @@
 #![feature(allocator_internals)]
 #![feature(test,custom_test_frameworks)]	// used for macro import
 #![feature(asm,global_asm,concat_idents,format_args_nl,log_syntax)]
+#![feature(alloc_error_handler)]
 #![default_lib_allocator]
 #![no_std]
 

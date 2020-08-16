@@ -471,6 +471,11 @@ impl<A: Fn()> MenuItem for Entry<A> {
 				Colour::theme_text()
 			};
 		surf.draw_text(Rect::new(1,1,!0,!0), self.label.chars(), fg);
+		if false {
+			let ofs = crate::surface::SurfaceView::size_text(self.label[..self.accel_ofs].chars()).0;
+			//let len = surf.size_text(self.label[self.accel_ofs..].chars().take(1)).0;
+			surf.draw_text(Rect::new(1+ofs,1,!0,!0), "_".chars(), fg);
+		}
 
 		let total_w = surf.width();
 		surf.draw_text(Rect::new(total_w - self.altlabel_width - 1, 1, !0,!0), self.altlabel.chars(), fg);

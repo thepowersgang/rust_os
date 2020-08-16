@@ -57,6 +57,14 @@ impl<T: Send+Sync> RwLock<T>
 			data: UnsafeCell::new(data),
 		}
 	}
+
+	/// Obtain `&mut` to the contained data
+	pub fn get_mut(&mut self) -> &mut T {
+		// SAFE: Have exclusive access (`&mut self`)
+		unsafe {
+			&mut *self.data.get()
+		}
+	}
 	
 	/// Obtain a read handle to the lock
 	pub fn read<'a>(&'a self) -> Read<'a, T> {

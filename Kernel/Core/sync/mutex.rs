@@ -126,6 +126,14 @@ impl<T: Send> Mutex<T>
 		self.inner.lock(type_name!(Self));
 		return HeldMutex { lock: self };
 	}
+
+	/// Obtain `&mut` to the contained data
+	pub fn get_mut(&mut self) -> &mut T {
+		// SAFE: Have exclusive access (`&mut self`)
+		unsafe {
+			&mut *self.val.get()
+		}
+	}
 }
 
 impl<T: Send+Default> Default for Mutex<T> {

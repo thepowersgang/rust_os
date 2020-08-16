@@ -122,7 +122,7 @@ impl ObjectHandle
 	}
 	#[inline]
 	fn call_value(&self, call: u16) -> u32 {
-		(1 << 31 | self.0 | (call as u32) << 20)
+		(1 << 31) | self.0 | (call as u32) << 20
 	}
 	
 	#[inline]
@@ -295,7 +295,7 @@ pub fn object_from_raw<T: Object>(handle: u32) -> Result<T,::FromRawError> {
 
 #[inline]
 fn to_result(val: usize) -> Result<u32,u32> {
-	const SIGNAL_VAL: usize = (1 << 31);
+	const SIGNAL_VAL: usize = 1 << 31;
 	if val < SIGNAL_VAL {
 		Ok(val as u32)
 	}

@@ -34,27 +34,41 @@ pub fn oom() {
 pub struct Allocator;
 pub const ALLOCATOR: &Allocator = &Allocator;
 
-unsafe impl ::core::alloc::AllocRef for &'static Allocator
+unsafe impl alloc::AllocRef for &'static Allocator
 {
 	fn alloc(&mut self, layout: Layout) -> Result<NonNull<[u8]>, AllocErr>
 	{
-		let rv = heap::allocate(layout.size(), layout.align());
-		if rv == ::core::ptr::null_mut()
+		match heap::S_GLOBAL_HEAP.lock().allocate(layout.size(), layout.align())
 		{
-			Err(AllocErr)
-		}
-		else
-		{
+		Ok(rv) => {
 			// SAFE: Non-zero pointer
 			Ok(unsafe { NonNull::new_unchecked(::core::slice::from_raw_parts_mut(rv as *mut u8, usable_size(&layout))) })
+			},
+		Err( () ) => {
+			Err(AllocErr)
+			}
 		}
 	}
 	unsafe fn dealloc(&mut self, ptr: NonNull<u8>, layout: Layout)
 	{
-		heap::deallocate(ptr.as_ptr() as *mut u8, layout.size(), layout.align())
+		heap::S_GLOBAL_HEAP.lock().deallocate(ptr.as_ptr() as *mut (), /*layout.size(),*/ layout.align());
 	}
 
-	//unsafe fn grow(&mut self, ptr: NonNull<u8>, layout: Layout, new_size: usize) -> Result<MemoryBlock, AllocErr>
+	unsafe fn grow(&mut self, ptr: NonNull<u8>, layout: Layout, new_size: usize) -> Result<NonNull<[u8]>, AllocErr>
+	{
+		let mut lh = heap::S_GLOBAL_HEAP.lock();
+		match lh.try_expand(ptr.as_ptr() as *mut (), new_size, layout.align())
+		{
+		Ok( () ) => {
+			let true_new_size = heap::get_usable_size(new_size, layout.align()).0;
+			// SAFE: Non-zero pointer
+			Ok(/*unsafe {*/ NonNull::new_unchecked(::core::slice::from_raw_parts_mut(ptr.as_ptr(), true_new_size)) /*}*/)
+			},
+		Err( () ) => {
+			Err(AllocErr)
+			}
+		}
+	}
 	//unsafe fn shrink(&mut self, ptr: NonNull<u8>, layout: Layout, new_size: usize) -> Result<MemoryBlock, AllocErr>
 }
 
