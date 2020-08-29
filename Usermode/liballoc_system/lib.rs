@@ -54,13 +54,13 @@ unsafe impl alloc::AllocRef for &'static Allocator
 		heap::S_GLOBAL_HEAP.lock().deallocate(ptr.as_ptr() as *mut (), /*layout.size(),*/ layout.align());
 	}
 
-	unsafe fn grow(&mut self, ptr: NonNull<u8>, layout: Layout, new_size: usize) -> Result<NonNull<[u8]>, AllocErr>
+	unsafe fn grow(&mut self, ptr: NonNull<u8>, layout: Layout, new_layout: Layout) -> Result<NonNull<[u8]>, AllocErr>
 	{
 		let mut lh = heap::S_GLOBAL_HEAP.lock();
-		match lh.try_expand(ptr.as_ptr() as *mut (), new_size, layout.align())
+		match lh.try_expand(ptr.as_ptr() as *mut (), new_layout.size(), layout.align())
 		{
 		Ok( () ) => {
-			let true_new_size = heap::get_usable_size(new_size, layout.align()).0;
+			let true_new_size = heap::get_usable_size(new_layout.size(), layout.align()).0;
 			// SAFE: Non-zero pointer
 			Ok(/*unsafe {*/ NonNull::new_unchecked(::core::slice::from_raw_parts_mut(ptr.as_ptr(), true_new_size)) /*}*/)
 			},
