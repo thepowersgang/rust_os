@@ -11,7 +11,7 @@
 #![feature(allocator_api)]
 #![no_std]
 
-use core::alloc::{self,Layout,AllocErr,MemoryBlock};
+use core::alloc::{self,Layout,AllocErr};
 use core::ptr::NonNull;
 
 #[macro_use]
@@ -34,54 +34,42 @@ pub fn oom() {
 pub struct Allocator;
 pub const ALLOCATOR: &Allocator = &Allocator;
 
-unsafe impl ::core::alloc::AllocRef for &'static Allocator
+unsafe impl alloc::AllocRef for &'static Allocator
 {
-	fn alloc(&mut self, layout: Layout, init: alloc::AllocInit) -> Result<MemoryBlock, AllocErr>
+	fn alloc(&mut self, layout: Layout) -> Result<NonNull<[u8]>, AllocErr>
 	{
-		let rv = heap::allocate(layout.size(), layout.align());
-		if rv == ::core::ptr::null_mut()
+		match heap::S_GLOBAL_HEAP.lock().allocate(layout.size(), layout.align())
 		{
+		Ok(rv) => {
+			// SAFE: Non-zero pointer
+			Ok(unsafe { NonNull::new_unchecked(::core::slice::from_raw_parts_mut(rv as *mut u8, usable_size(&layout))) })
+			},
+		Err( () ) => {
 			Err(AllocErr)
-		}
-		else
-		{
-			match init
-			{
-			alloc::AllocInit::Uninitialized => {},
-			// SAFE: Valid pointer to owned memory
-			alloc::AllocInit::Zeroed => unsafe { ::core::ptr::write_bytes(rv, 0, layout.size()) },
 			}
-			Ok(MemoryBlock {
-				// SAFE: Non-zero pointer
-				ptr: unsafe { NonNull::new_unchecked(rv as *mut u8) },
-				size: usable_size(&layout),
-			})
 		}
 	}
 	unsafe fn dealloc(&mut self, ptr: NonNull<u8>, layout: Layout)
 	{
-		heap::deallocate(ptr.as_ptr() as *mut u8, layout.size(), layout.align())
+		heap::S_GLOBAL_HEAP.lock().deallocate(ptr.as_ptr() as *mut (), /*layout.size(),*/ layout.align());
 	}
 
-	//unsafe fn grow(&mut self, ptr: NonNull<u8>, layout: Layout, new_size: usize, placement: alloc::ReallocPlacement, init: alloc::AllocInit) -> Result<MemoryBlock, AllocErr>
-	//unsafe fn shrink(&mut self, ptr: NonNull<u8>, layout: Layout, new_size: usize, placement: alloc::ReallocPlacement) -> Result<MemoryBlock, AllocErr>
-
-	// TODO: grow
-	// TODO: shrink
-	
-#[cfg(FALSE)]
-	unsafe fn grow_in_place(&mut self, ptr: NonNull<u8>, layout: Layout, new_size: usize) -> Result<usize, CannotReallocInPlace>
+	unsafe fn grow(&mut self, ptr: NonNull<u8>, layout: Layout, new_layout: Layout) -> Result<NonNull<[u8]>, AllocErr>
 	{
-		let rv = heap::reallocate_inplace(ptr.as_ptr() as *mut u8, layout.size(), layout.align(), new_size);
-		if rv != new_size
+		let mut lh = heap::S_GLOBAL_HEAP.lock();
+		match lh.try_expand(ptr.as_ptr() as *mut (), new_layout.size(), layout.align())
 		{
-			Err(CannotReallocInPlace)
-		}
-		else
-		{
-			Ok( usable_size(&layout) )
+		Ok( () ) => {
+			let true_new_size = heap::get_usable_size(new_layout.size(), layout.align()).0;
+			// SAFE: Non-zero pointer
+			Ok(/*unsafe {*/ NonNull::new_unchecked(::core::slice::from_raw_parts_mut(ptr.as_ptr(), true_new_size)) /*}*/)
+			},
+		Err( () ) => {
+			Err(AllocErr)
+			}
 		}
 	}
+	//unsafe fn shrink(&mut self, ptr: NonNull<u8>, layout: Layout, new_size: usize) -> Result<MemoryBlock, AllocErr>
 }
 
 fn usable_size(layout: &Layout) -> usize

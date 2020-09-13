@@ -107,13 +107,13 @@ impl<T> ::std::ops::Deref for FixedVec<T> {
 	type Target = [T];
 	fn deref(&self) -> &[T] {
 		// SAFE: Initialised region
-		unsafe { &self.data.get_ref()[..self.size] }
+		unsafe { &(*self.data.as_ptr())[..self.size] }
 	}
 }
 impl<T> ::std::ops::DerefMut for FixedVec<T> {
 	fn deref_mut(&mut self) -> &mut [T] {
 		// SAFE: Initialised region
-		unsafe { &mut self.data.get_mut()[..self.size] }
+		unsafe { &mut (*self.data.as_mut_ptr())[..self.size] }
 	}
 }
 

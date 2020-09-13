@@ -18,14 +18,10 @@ endif
 BUILDNUM ?= 1
 
 OBJDIR := .obj/$(ARCH)/
-OBJS := $(addprefix $(OBJDIR),start.ao log_cfg.ao libmain.a)
+OBJS := $(addprefix $(OBJDIR),start.ao log_cfg.ao libmain.a build_info.ao)
 IMGDIR := ../Graphics/.output/shared/
 
 CARGO_FEATURES :=
-ENV := RUST_VERSION="$(shell $(RUSTC) --version)"
-ENV += TK_GITSPEC="$(shell git log -n 1 | head -n 1 | awk '{print $$2}')"
-ENV += TK_VERSION="0.1"
-ENV += TK_BUILD="$(shell hostname --fqdn):$(BUILDNUM)"
 
 LINKFLAGS := -T Core/arch/$(ARCH)/link.ld -Map $(OBJDIR)map.txt -g
 LINKFLAGS += -z max-page-size=0x1000	# Reduces binary size
@@ -44,6 +40,9 @@ endif
 
 all: bin/kernel-$(ARCH).bin
 dsm: bin/kernel-$(ARCH).bin.dsm
+
+clean:
+	rm -rf target/ bin/ .obj
 
 # 
 # Final linking stage
@@ -73,16 +72,26 @@ endif
 # Invoke xargo to build the main part of the kernel
 # - This includes all modules enabled in ./Cargo.toml
 #
-$(OBJDIR)libmain.a: PHONY targets/target-k-$(ARCH).json $(IMGDIR)logo.rs $(IMGDIR)panic.rs
+$(OBJDIR)libmain.a: PHONY targets/kernel-$(ARCH).json $(IMGDIR)logo.rs $(IMGDIR)panic.rs
 	@echo "[CARGO] . > $@"
-	$V$(ENV) $(CARGO) build -Z build-std=core --target=targets/target-k-$(ARCH).json --release --features "$(CARGO_FEATURES)" -j 1
+	$V$(CARGO) build -Z build-std=core --target=targets/kernel-$(ARCH).json --release --features "$(CARGO_FEATURES)" -j 1
 	@mkdir -p $(dir $@)
-	@cp target/target-k-$(ARCH)/release/libmain.a $@
+	@if test ! -e $@ || test target/kernel-$(ARCH)/release/libmain.a -nt $@; then cp target/kernel-$(ARCH)/release/libmain.a $@; fi
 $(patsubst %,$(OBJDIR)lib%.a,$(MODS)): $(OBJDIR)libmain.a
 
-targets/target-k-$(ARCH).json: Core/arch/$(ARCH)/target.json
+targets/kernel-$(ARCH).json: Core/arch/$(ARCH)/target.json
 	@mkdir -p $(dir $@)
 	$Vcp $< $@
+
+# Build information (should be rebuilt if anything changes)
+$(OBJDIR)build_info.ao: Core/build_info.S $(filter-out $(OBJDIR)build_info.ao, $(OBJS)) Makefile
+	@echo [AS] -o $@
+	@mkdir -p $(dir $@)
+	$V$(CC) -o $@ -c $< \
+		-D 'TK_BUILD="$(shell hostname --fqdn):$(BUILDNUM)"' \
+		-D 'RUST_VERSION="$(shell $(RUSTC) --version)"' \
+		-D 'TK_GITSPEC="$(shell git log -n 1 | head -n 1 | awk '{print $$2}')"' \
+		-D 'TK_VERSION="0.1"'
 
 # ACPICA
 $(OBJDIR)libacpica.a: ../acpica/Makefile $(wildcard ../acpica/patches/source/include/platform/*)

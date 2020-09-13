@@ -147,7 +147,7 @@ impl ShellState
 	pub fn new() -> ShellState {
 		ShellState {
 			cwd_rel: Default::default(),
-			root_handle: panic!("TODO: Open/acquire the root directory"),
+			root_handle: ::syscalls::vfs::ROOT.clone(),
 			}
 	}
 	/// Handle a command

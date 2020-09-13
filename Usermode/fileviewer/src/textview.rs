@@ -19,7 +19,7 @@ pub struct Widget
 struct Line
 {
 	file_offset: u64,
-	file_size: usize,	// May be != data.len() if the line wasn't valid UTF-8
+	//file_size: usize,	// May be != data.len() if the line wasn't valid UTF-8
 	// TODO: Use ByteString or other - and do box-chars for invalid codepoints?
 	data: String,
 }
@@ -110,7 +110,7 @@ impl Line
 			bytes
 			};
 
-		let byte_len = bytes.len();
+		//let byte_len = bytes.len();
 		let s = match String::from_utf8(bytes)
 			{
 			Ok(v) => v,
@@ -125,7 +125,7 @@ impl Line
 			};
 		Ok(Line {
 			file_offset: start,
-			file_size: byte_len,
+			//file_size: byte_len,
 			data: s,
 			})
 	}

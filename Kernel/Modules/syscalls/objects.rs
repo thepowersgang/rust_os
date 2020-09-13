@@ -107,7 +107,7 @@ impl ProcessObjects {
 				given: Mutex::new( Vec::new() ),
 			};
 		// Object 0 is fixed to be "this process" (and is not droppable)
-		*ret.objs[0].write() = Some(UserObject::new(::threads::CurProcess));
+		*ret.objs[0].get_mut() = Some(UserObject::new(::threads::CurProcess));
 		ret
 	}
 

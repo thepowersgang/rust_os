@@ -646,8 +646,8 @@ impl Connection
 		let max_len = usize::saturating_sub(self.tx_window_size as usize, self.tx_buffer.len());
 		let rv = ::core::cmp::min(buf.len(), max_len);
 		// Add the data to the TX buffer
-		for &b in buf {
-			self.tx_buffer.push_back(b);
+		for &b in &buf[..rv] {
+			self.tx_buffer.push_back(b).expect("Incorrectly calculated `max_len` in tcp::Connection::send_data");
 		}
 		// If the buffer is full enough, do a send
 		if self.tx_buffer.len() - self.tx_bytes_sent > 1400 /*|| self.first_tx_time.map(|t| now() - t > MAX_TX_DELAY).unwrap_or(false)*/

@@ -14,7 +14,7 @@ use core::mem::{align_of,size_of};
 
 pub const EMPTY: *mut u8 = 1 as *mut u8;
 
-static S_GLOBAL_HEAP: Mutex<AllocState> = Mutex::new(AllocState { start: 0 as *mut _, past_end: 0 as *mut _ } );
+pub static S_GLOBAL_HEAP: Mutex<AllocState> = Mutex::new(AllocState { start: 0 as *mut _, past_end: 0 as *mut _ } );
 
 #[cfg(target_pointer_width="64")]
 const PTR_SIZE: usize = 8;
@@ -24,55 +24,12 @@ const PTR_SIZE: usize = 4;
 const MIN_BLOCK_SIZE: usize = 8 * PTR_SIZE;
 const BLOCK_ALIGN: usize = 2 * PTR_SIZE;
 
-pub fn allocate(size: usize, align: usize) -> *mut u8
-{
-	match S_GLOBAL_HEAP.lock().allocate(size, align)
-	{
-	Ok(x) => x as *mut u8,
-	Err(_) => panic!("alloc_raw({}, {}) out of memory", size, align),
-	}
-}
-pub unsafe fn deallocate(ptr: *mut u8, _size: usize, align: usize)
-{
-	S_GLOBAL_HEAP.lock().deallocate(ptr as *mut (), /*size,*/ align)
-}
-pub unsafe fn reallocate(ptr: *mut u8, old_size: usize, align: usize, new_size: usize) -> *mut u8
-{
-	let mut lh = S_GLOBAL_HEAP.lock();
-	if lh.try_expand(ptr as *mut (), new_size, align)
-	{
-		ptr
-	}
-	else
-	{
-		let new_ptr = match lh.allocate(new_size, align)
-			{
-			Ok(x) => x as *mut u8,
-			Err(_) => return ::core::ptr::null_mut(),
-			};
-		::core::ptr::copy_nonoverlapping(ptr, new_ptr, old_size);
-		lh.deallocate(ptr as *mut (), /*size,*/ align);
-		new_ptr
-	}
-}
-pub unsafe fn reallocate_inplace(ptr: *mut u8, old_size: usize, align: usize, new_size: usize) -> usize
-{
-	let mut lh = S_GLOBAL_HEAP.lock();
-	if lh.try_expand(ptr as *mut (), new_size, align)
-	{
-		new_size
-	}
-	else
-	{
-		old_size
-	}
-}
 pub fn get_usable_size(size: usize, _align: usize) -> (usize, usize)
 {
 	(size, size)
 }
 
-struct AllocState
+pub struct AllocState
 {
 	start: *mut Block,
 	past_end: *mut Block,
@@ -134,13 +91,13 @@ impl AllocState
 		return Ok( rv );
 	}
 	/// Returns 'true' if expanding succeeded
-	pub unsafe fn try_expand(&mut self, ptr: *mut (), size: usize, align: usize) -> bool {
+	pub unsafe fn try_expand(&mut self, ptr: *mut (), size: usize, align: usize) -> Result<(),()> {
 		if size == 0 {
 			// TODO: Resize down to 0?
-			true
+			Ok( () )
 		}
-		else if ptr == 1 as *mut () {
-			false
+		else if ptr == EMPTY as *mut () {
+			Err( () )
 		}
 		else {
 			let bp = Block::ptr_from_ptr(ptr, align);
@@ -148,12 +105,12 @@ impl AllocState
 			if bp.capacity(align) > size {
 				bp.state = BlockState::Used( size );
 				kernel_log!("expand(bp={:p}, {}, {}) = true", bp, size, align);
-				true
+				Ok( () )
 			}
 			else {
 				let n = bp.next();
 				if n == self.past_end {
-					false
+					Err( () )
 				}
 				else if let Some(v) = (*n).self_free() {
 					if bp.capacity(align) + v.size > size
@@ -166,16 +123,16 @@ impl AllocState
 						bp.allocate( size, align );
 						kernel_log!("expand(bp={:p}, {}, {}) = true", bp, size, align);
 
-						true
+						Ok( () )
 					}
 					else
 					{
 						// Insufficient space in the next block
-						false
+						Err( () )
 					}
 				}
 				else {
-					false
+					Err( () )
 				}
 			}
 		}

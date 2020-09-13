@@ -110,21 +110,45 @@ pub mod hw;
 /// Achitecture-specific code
 pub mod arch;
 
-cfg_if::cfg_if!{
-	if #[cfg(feature="test")] {
+pub mod build_info {
+	#[repr(C)]
+	struct Str {
+		len: u16,
+		bytes: [u8; 0],
 	}
+	impl Str {
+		// UNSAFE: Caller must ensure that the source is trusted
+		unsafe fn get_str(&self) -> &str {
+			let len = self.len as usize;
+			let ptr = self.bytes.as_ptr();
+			core::str::from_utf8_unchecked( core::slice::from_raw_parts(ptr, len) )
+		}
+	}
+	extern "C" {
+		static BUILD_STRING: Str;
+		static VERSION_STRING: Str;
+	}
+
+	pub fn build_string() -> &'static str {
+		// SAFE: Valid string
+		unsafe {
+			BUILD_STRING.get_str()
+		}
+	}
+	pub fn version_string() -> &'static str {
+		// SAFE: Valid string
+		unsafe {
+			VERSION_STRING.get_str()
+		}
+	}
+
 	// HACK: This should only be set when building for RLS/analyser
-	else if #[cfg(windows)] {
-		/// Kernel version (with build number)
-		pub const VERSION_STRING: &'static str = "";
-		/// Kernel build information (git hash and compiler)
-		pub const BUILD_STRING: &'static str = "";
-	}
-	else {
-		/// Kernel version (with build number)
-		pub const VERSION_STRING: &'static str = concat!("Tifflin Kernel v", env!("TK_VERSION"), " build ", env!("TK_BUILD"));
-		/// Kernel build information (git hash and compiler)
-		pub const BUILD_STRING: &'static str = concat!("Git state : ", env!("TK_GITSPEC"), ", Built with ", env!("RUST_VERSION"));
+	#[cfg(any(feature="test", windows))]
+	pub mod _test {
+		#[no_mangle]
+		pub static BUILD_STRING: Str = Str { len: 0, bytes: [] };
+		#[no_mangle]
+		pub static VERSION_STRING: Str = Str { len: 0, bytes: [] };
 	}
 }
 

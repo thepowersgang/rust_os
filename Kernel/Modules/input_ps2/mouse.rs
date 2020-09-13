@@ -112,7 +112,7 @@ impl Dev
 				256
 			}
 			else {
-				(val as i16)
+				val as i16
 			}
 		}
 	}

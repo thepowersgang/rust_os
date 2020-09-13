@@ -16,6 +16,10 @@ pub fn try_login(username: &str, password: &str) -> Result<UserInfo, Error>
 	{
 		Ok(UserInfo {})
 	}
+	else if username == "guest"
+	{
+		Err(Error::Disabled)
+	}
 	else
 	{
 		Err(Error::InvalidAuthentication)

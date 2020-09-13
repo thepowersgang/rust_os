@@ -984,7 +984,7 @@ impl ::usb_core::host::HostController for UsbHost
 		}
 		impl core::future::Future for AsyncWaitRoot {
 			type Output = usize;
-			fn poll(mut self: core::pin::Pin<&mut Self>, cx: &mut core::task::Context) -> core::task::Poll<Self::Output> {
+			fn poll(self: core::pin::Pin<&mut Self>, cx: &mut core::task::Context) -> core::task::Poll<Self::Output> {
 				let v = self.host.port_update.load(Ordering::SeqCst);
 				log_debug!("UsbHost::AsyncWaitRoot::poll: v = {:#x}", v);
 				if v != 0
