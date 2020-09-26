@@ -36,7 +36,7 @@ pub const ALLOCATOR: &Allocator = &Allocator;
 
 unsafe impl alloc::AllocRef for &'static Allocator
 {
-	fn alloc(&mut self, layout: Layout) -> Result<NonNull<[u8]>, AllocErr>
+	fn alloc(&self, layout: Layout) -> Result<NonNull<[u8]>, AllocErr>
 	{
 		match heap::S_GLOBAL_HEAP.lock().allocate(layout.size(), layout.align())
 		{
@@ -49,12 +49,12 @@ unsafe impl alloc::AllocRef for &'static Allocator
 			}
 		}
 	}
-	unsafe fn dealloc(&mut self, ptr: NonNull<u8>, layout: Layout)
+	unsafe fn dealloc(&self, ptr: NonNull<u8>, layout: Layout)
 	{
 		heap::S_GLOBAL_HEAP.lock().deallocate(ptr.as_ptr() as *mut (), /*layout.size(),*/ layout.align());
 	}
 
-	unsafe fn grow(&mut self, ptr: NonNull<u8>, layout: Layout, new_layout: Layout) -> Result<NonNull<[u8]>, AllocErr>
+	unsafe fn grow(&self, ptr: NonNull<u8>, layout: Layout, new_layout: Layout) -> Result<NonNull<[u8]>, AllocErr>
 	{
 		let mut lh = heap::S_GLOBAL_HEAP.lock();
 		match lh.try_expand(ptr.as_ptr() as *mut (), new_layout.size(), layout.align())
