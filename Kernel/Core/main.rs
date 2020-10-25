@@ -145,10 +145,11 @@ pub mod build_info {
 	// HACK: This should only be set when building for RLS/analyser
 	#[cfg(any(feature="test", windows))]
 	pub mod _test {
+		use super::Str;
 		#[no_mangle]
-		pub static BUILD_STRING: Str = Str { len: 0, bytes: [] };
+		static BUILD_STRING: Str = Str { len: 0, bytes: [] };
 		#[no_mangle]
-		pub static VERSION_STRING: Str = Str { len: 0, bytes: [] };
+		static VERSION_STRING: Str = Str { len: 0, bytes: [] };
 	}
 }
 

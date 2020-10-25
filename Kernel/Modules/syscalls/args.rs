@@ -33,6 +33,12 @@ unsafe impl Pod for ::values::WaitItem {}
 unsafe impl Pod for ::values::GuiEvent {}	// Kinda lies, but meh
 unsafe impl Pod for ::values::RpcMessage {}
 
+
+#[cfg(feature="native")]
+extern "Rust" {
+	fn native_map_syscall_pointer(ptr: *const u8, len: usize, is_mut: bool) -> *const u8;
+}
+
 impl<T: Pod> SyscallArg for Freeze<T>
 {
 	fn get_arg(args: &mut &[usize]) -> Result<Self, ::Error> {
@@ -52,6 +58,7 @@ impl<T: Pod> SyscallArg for Freeze<[T]>
 		}
 		let ptr = args[0] as *const T;
 		let len = args[1];
+		let blen = len * ::core::mem::size_of::<T>();
 		*args = &args[2..];
 		// SAFE: Performs data validation, and only accepts user pointers (which are checkable)
 		unsafe {
@@ -59,10 +66,14 @@ impl<T: Pod> SyscallArg for Freeze<[T]>
 			// TODO: ^^^
 			// 2. Ensure that the pointed slice is valid (overlaps checks by Freeze, but gives a better error)
 			// TODO: Replace this check with mapping FreezeError
-			let bs = if let Some(v) = ::kernel::memory::buf_to_slice(ptr, len) {
+			#[cfg(feature="native")]
+			let ptr_real = native_map_syscall_pointer(ptr as *const u8, blen, false) as *const T;
+			#[cfg(not(feature="native"))]
+			let ptr_real = ptr;
+			let bs = if let Some(v) = ::kernel::memory::buf_to_slice(ptr_real, len) {
 					v
 				} else {
-					return Err( ::Error::InvalidBuffer(ptr as *const (), len) );
+					return Err( ::Error::InvalidBuffer(ptr as *const (), blen) );
 				};
 			// 3. Create a freeze on that memory (ensuring that it's not unmapped until the Freeze object drops)
 			Ok( try!(Freeze::new(bs)) )
@@ -86,11 +97,21 @@ impl<T: Pod> SyscallArg for FreezeMut<T>
 			return Err( ::Error::TooManyArgs );
 		}
 		let ptr = args[0] as *mut T;
+		let blen = ::core::mem::size_of::<T>();
 
 		// SAFE: Performs data validation, and only accepts user pointers (which are checkable)
 		unsafe { 
+			#[cfg(feature="native")]
+			let ptr_real = native_map_syscall_pointer(ptr as *const u8, blen, false) as *mut T;
+			#[cfg(not(feature="native"))]
+			let ptr_real = ptr;
+			let bs = if let Some(v) = ::kernel::memory::buf_to_slice_mut(ptr_real, 1) {
+					v
+				} else {
+					return Err( ::Error::InvalidBuffer(ptr as *const (), blen) );
+				};
 			// 3. Create a freeze on that memory (ensuring that it's not unmapped until the Freeze object drops)
-			Ok( try!(FreezeMut::new(&mut *ptr)) )
+			Ok( try!(FreezeMut::new(&mut *ptr_real)) )
 		}
 	}
 }
@@ -102,6 +123,7 @@ impl<T: Pod> SyscallArg for FreezeMut<[T]>
 		}
 		let ptr = args[0] as *mut T;
 		let len = args[1];
+		let blen = len * ::core::mem::size_of::<T>();
 		*args = &args[2..];
 		// SAFE: Performs data validation, and only accepts user pointers (which are checkable)
 		unsafe { 
@@ -109,10 +131,14 @@ impl<T: Pod> SyscallArg for FreezeMut<[T]>
 			// TODO: ^^^
 			// 2. Ensure that the pointed slice is valid (overlaps checks by Freeze, but gives a better error)
 			// TODO: Replace this check with mapping FreezeError
-			let bs =  if let Some(v) = ::kernel::memory::buf_to_slice_mut(ptr, len) {	
+			#[cfg(feature="native")]
+			let ptr_real = native_map_syscall_pointer(ptr as *const u8, blen, false) as *mut T;
+			#[cfg(not(feature="native"))]
+			let ptr_real = ptr;
+			let bs = if let Some(v) = ::kernel::memory::buf_to_slice_mut(ptr_real, len) {
 					v
 				} else {
-					return Err( ::Error::InvalidBuffer(ptr as *const (), len) );
+					return Err( ::Error::InvalidBuffer(ptr as *const (), blen) );
 				};
 			// 3. Create a freeze on that memory (ensuring that it's not unmapped until the Freeze object drops)
 			Ok( try!(FreezeMut::new(bs)) )

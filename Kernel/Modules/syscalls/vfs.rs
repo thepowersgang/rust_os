@@ -73,10 +73,7 @@ fn to_result<T>(r: Result<T, ::kernel::vfs::Error>) -> Result<T, u32> {
 	r.map_err( |e| Into::into( <::values::VFSError as From<_>>::from(e) ) )
 }
 
-pub fn init_handles(loader_handle: ::kernel::vfs::handle::File, init_handle: ::kernel::vfs::handle::File) {
-	// - Forget the loader (no need)
-	::core::mem::forget(loader_handle);
-
+pub fn init_handles(init_handle: ::kernel::vfs::handle::File) {
 	// #1: Initial file handle
 	::objects::new_object( File(init_handle) );
 	// #2: Read-only root
@@ -226,6 +223,13 @@ impl objects::Object for File
 	}
 	fn bind_wait(&self, _flags: u32, _obj: &mut ::kernel::threads::SleepObject) -> u32 { 0 }
 	fn clear_wait(&self, _flags: u32, _obj: &mut ::kernel::threads::SleepObject) -> u32 { 0 }
+}
+
+#[cfg(feature="native")]
+/// Used by the native "kernel" to get a file object for `new_process`
+pub fn get_file_handle(obj: u32) -> Result<::kernel::vfs::handle::File, crate::Error> {
+	crate::objects::take_object::<crate::vfs::File>(obj)
+		.map(|f| f.0)
 }
 
 

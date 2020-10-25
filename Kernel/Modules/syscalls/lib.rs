@@ -65,8 +65,8 @@ impl ::core::fmt::Display for Error {
 }
 
 /// Initialise PID0's handles
-pub fn init(loader_handle: ::kernel::vfs::handle::File, init_handle: ::kernel::vfs::handle::File) {
-	vfs::init_handles(loader_handle, init_handle);
+pub fn init(init_handle: ::kernel::vfs::handle::File) {
+	vfs::init_handles(init_handle);
 }
 
 #[no_mangle]
@@ -112,8 +112,31 @@ fn from_result<O: Into<u32>, E: Into<u32>>(r: Result<O,E>) -> u64 {
 }
 
 use self::values::*;
+
 #[path="../../../syscalls.inc.rs"]
 mod values;
+
+#[cfg(feature="native")]
+pub mod native_exports {
+	pub use args::Args;
+	pub mod values {
+		pub use crate::values::*;
+	}
+	pub fn from_result<O: Into<u32>, E: Into<u32>>(r: Result<O,E>) -> u64 {
+		crate::from_result(r)
+	}
+	pub fn get_file_handle(obj: u32) -> Result<::kernel::vfs::handle::File, crate::Error> {
+		crate::vfs::get_file_handle(obj)
+	}
+	pub use crate::args::SyscallArg;
+	
+	pub use crate::objects::Object;
+	pub use crate::objects::new_object;
+	pub use crate::objects::give_object;
+	pub use crate::objects::object_has_no_such_method_ref;
+	pub use crate::objects::object_has_no_such_method_val;
+}
+
 
 #[inline(never)]
 fn invoke_int(call_id: u32, args: &mut Args) -> Result<u64,Error>

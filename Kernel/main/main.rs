@@ -109,9 +109,9 @@ fn sysinit() -> !
 	log_debug!("sysroot = \"{}\"", sysroot);
 	handle::Dir::open(Path::new("/")).unwrap()
 		.symlink("sysroot", Path::new(&sysroot[..])).unwrap();
-	
-	vfs_test();
-	
+
+	automount();	
+
 	// 3. Start 'init' (root process) using the userland loader
 	let loader = ::kernel::config::get_string(::kernel::config::Value::Loader);
 	let init = ::kernel::config::get_string(::kernel::config::Value::Init);
@@ -122,49 +122,6 @@ fn sysinit() -> !
 	}
 }
 
-//#[cfg(DISABLED)]
-fn vfs_test()
-{
-	use kernel::vfs::handle;
-	use kernel::vfs::Path;
-	
-	fn ls(p: &Path) {
-		// - Iterate root dir
-		log_log!("ls({:?})", p);
-		match handle::Dir::open(p)
-		{
-		Err(e) => log_warning!("'{:?}' cannot be opened: {:?}", p, e),
-		Ok(h) =>
-			for name in h.iter() {
-				log_log!("{:?}", name);
-			},
-		}
-	}
-
-	// *. Testing: open a file known to exist on the testing disk	
-	if false
-	{
-		match handle::File::open( Path::new("/system/1.TXT"), handle::FileOpenMode::SharedRO )
-		{
-		Err(e) => log_warning!("VFS test file can't be opened: {:?}", e),
-		Ok(h) => {
-			log_debug!("VFS open test = {:?}", h);
-			let mut buf = [0; 16];
-			let sz = h.read(0, &mut buf).unwrap();
-			log_debug!("- Contents: {:?}", ::kernel::lib::RawString(&buf[..sz]));
-			},
-		}
-		
-		ls(Path::new("/"));
-		ls(Path::new("/system"));
-	}
-	
-	// *. TEST Automount
-	// - Probably shouldn't be included in the final version, but works for testing filesystem and storage drivers
-	automount();
-
-	ls(Path::new("/mount/ahci?-0p0"));
-}
 fn automount()
 {
 	use kernel::metadevs::storage::VolumeHandle;
@@ -243,7 +200,10 @@ fn spawn_init(loader_path: &str, init_cmdline: &str) -> Result<::kernel::Void, &
 		return Err("Loader invalid");
 	}
 	
-	::syscalls::init(loader, init);
+	// Forget the loader handle (keeps it locked/open)
+	::core::mem::forget(loader);
+	// Pass the `init` executable handle to the loader
+	::syscalls::init(init);
 	
 	log_notice!("Entering userland at {:#x} '{}' '{}'", header_ptr.entrypoint, loader_path, init_cmdline);
 	// SAFE: This pointer is as validated as it can be...
