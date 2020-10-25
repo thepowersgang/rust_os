@@ -14,6 +14,8 @@ else ifeq ($(ARCH),armv7)
   TRIPLE ?= arm-elf-eabi
 else ifeq ($(ARCH),armv8)
   TRIPLE ?= aarch64-none-elf
+else ifeq ($(ARCH),native)
+  TRIPLE ?= 
 else
   $(error Unknown architecture $(ARCH) in common.mk)
 endif

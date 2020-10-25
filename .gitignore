@@ -67,4 +67,8 @@ Bootloaders/*.pe
 
 Usermode/doc/
 Usermode/target/
+/Usermode/loader/native/target/
+
+/NativeKernel/target/
+
 /Kernel/tests/filesystem/data

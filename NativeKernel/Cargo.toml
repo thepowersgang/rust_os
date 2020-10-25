@@ -1,0 +1,11 @@
+[package]
+name = "native_kernel"
+version = "0.0.0"
+edition = "2018"
+
+[dependencies]
+kernel = { path = "../Kernel/Core", features = ["test"] }
+syscalls = { path = "../Kernel/Modules/syscalls", features = ["native"] }
+gui = { path = "../Kernel/Modules/gui", features = [] }
+
+process-memory = "0.4"
