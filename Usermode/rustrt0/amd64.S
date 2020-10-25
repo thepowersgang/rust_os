@@ -15,7 +15,7 @@ start:
 	
 	// Save return value for EXITPROCESS call
 	mov %rax, %rdi
-	mov $2, %rax
+	mov $CORE_EXIT, %rax
 	syscall
 	ud2
 start_ra: .quad register_arguments
