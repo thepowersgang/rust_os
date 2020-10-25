@@ -106,7 +106,7 @@ fn allocate_tid() -> ThreadID
 	(rv + 1) as ThreadID
 }
 
-fn allocate_pid() -> u32
+fn allocate_pid() -> ProcessID
 {
 	// Preemptively prevent rollover
 	if S_LAST_PID.load(::core::sync::atomic::Ordering::Relaxed) == C_MAX_PID - 1 {
@@ -118,7 +118,7 @@ fn allocate_pid() -> u32
 		panic!("TODO: Handle PID exhaustion by searching for free (raced)");
 	}
 	
-	(rv + 1) as u32
+	(rv + 1) as ProcessID
 }
 
 impl Process
@@ -172,8 +172,9 @@ impl ProcessHandle
 		ProcessHandle( Process::new(name, ::memory::virt::AddressSpace::new(clone_start, clone_end).expect("ProcessHandle::new - OOM")) )
 	}
 	
+	#[cfg(not(feature="test"))]
 	pub fn start_root_thread(&mut self, ip: usize, sp: usize) {
-		log_trace!("start_thread(self={:?}, ip={:#x}, sp={:#x})", self, ip, sp);
+		log_trace!("start_root_thread(self={:?}, ip={:#x}, sp={:#x})", self, ip, sp);
 		assert!( Arc::get_mut(&mut self.0).is_some() );
 		
 		let mut thread = Thread::new_boxed(allocate_tid(), format!("{}#1", self.0.name), self.0.clone());
@@ -182,6 +183,21 @@ impl ProcessHandle
 			move || unsafe {
 					log_debug!("Dropping to {:#x} SP={:#x}", ip, sp);
 					::arch::drop_to_user(ip, sp, 0)
+				}
+			);
+		super::yield_to(thread);
+	}
+	#[cfg(feature="test")]
+	pub fn start_root_thread(&mut self, cb: impl FnOnce()+Send+'static) {
+		log_trace!("start_root_thread(self={:?}, ...)", self);
+		assert!( Arc::get_mut(&mut self.0).is_some() );
+		
+		let mut thread = Thread::new_boxed(allocate_tid(), format!("{}#1", self.0.name), self.0.clone());
+		::arch::threads::start_thread( &mut thread,
+			// SAFE: Well... trusting caller to give us sane addresses etc, but that's the user's problem
+			move || {
+				cb();
+				panic!("Thread end reached");
 				}
 			);
 		super::yield_to(thread);
@@ -264,6 +280,12 @@ impl ProcessHandle
 
 	pub fn get_exit_status(&self) -> Option<u32> {
 		self.0.exit_status.lock().0
+	}
+}
+impl ::core::ops::Deref for ProcessHandle {
+	type Target = Process;
+	fn deref(&self) -> &Process {
+		&*self.0
 	}
 }
 impl ::core::ops::Drop for ProcessHandle {

@@ -9,6 +9,7 @@ static mut S_ARGUMENTS: &'static [OsString] = &[];
 #[no_mangle]
 #[linkage="external"]
 #[allow(dead_code)]
+#[allow(improper_ctypes_definitions)]	//< The target is rust code too
 extern "C" fn register_arguments(args: &[&::ffi::OsStr]) {
 	kernel_log!("register_arguments(args={:?})", args);
 	let args: Vec<_> = args.iter().map(|&a| OsString::from(a)).collect();

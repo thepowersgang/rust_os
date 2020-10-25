@@ -33,7 +33,9 @@ pub mod memory {
 				AddressSpace
 			}
 			pub fn new(_cstart: usize, _cend: usize) -> Result<AddressSpace,()> {
-				todo!("AddressSpace::new");
+				//#[cfg(feature="native")]
+				return Ok(AddressSpace);
+				//todo!("AddressSpace::new");
 			}
 		}
 
@@ -50,7 +52,7 @@ pub mod memory {
 			0
 		}
 		pub fn is_reserved<T>(_p: *const T) -> bool {
-			false
+			true	// NOTE: Assume all memory is valid
 		}
 		pub fn get_info<T>(_p: *const T) -> Option<(::memory::PAddr,::memory::virt::ProtectionMode)> {
 			None
@@ -270,10 +272,13 @@ pub mod threads {
 	}
 	impl StateInner
 	{
-		fn sleep(&self, t: ::threads::ThreadPtr) {
+		fn sleep(&self, t: Option<::threads::ThreadPtr>) {
 			let mut lh = SWITCH_LOCK.lock().unwrap();
-			t.cpu_state.inner.running.store(true, Ordering::SeqCst);	// Avoids a startup race
-			t.cpu_state.inner.condvar.notify_one();
+			if let Some(ref t) = t
+			{
+				t.cpu_state.inner.running.store(true, Ordering::SeqCst);	// Avoids a startup race
+				t.cpu_state.inner.condvar.notify_one();
+			}
 			if !self.complete.load(Ordering::SeqCst) {
 				//log_trace!("{:p} sleeping", self);
 				lh = self.condvar.wait(lh).expect("Condvar wait failed");
@@ -355,7 +360,7 @@ pub mod threads {
 			None => panic!("Current thread not initialised"),
 			Some(ref v) => {
 				log_trace!("switch_to: {:p} to {:p}", *v, t.cpu_state.inner);
-				v.sleep(t);
+				v.sleep(Some(t));
 				//log_trace!("switch_to: {:p} awake", *v);
 				},
 			}
@@ -383,6 +388,56 @@ pub mod threads {
 		std::mem::forget( lock.read() );
 		// Forget the lock to completely forget the thread
 		std::mem::forget( lock );
+	}
+
+	/// Test hack: Take the current thread out of the kernel's scheduling while running a closure
+	///
+	/// Useful for running a native function that will block for a significant period
+	pub fn test_pause_thread<F,T>(f: F) -> T
+	where
+		F: FnOnce()->T
+	{
+		// - Hold switching lock until function returns
+		// Mark as complete to cause the thread to not sleep on next yield
+		THIS_THREAD_STATE.with(|v| {
+			let h = v.borrow();
+			h.this_state.as_ref().unwrap().complete.store(true, Ordering::SeqCst);
+			});
+		let lock = crate::sync::RwLock::new( () );
+		log_debug!("Paused thread");
+		// Acquire a lock
+		let wl = lock.write();
+		// - Trigger a deadlock (which will sleep, but not block due to above flag)
+		let rl = lock.read();
+
+		let rv = f();
+
+		// Clear `complete`
+		THIS_THREAD_STATE.with(|v| {
+			let h = v.borrow();
+			h.this_state.as_ref().unwrap().complete.store(false, Ordering::SeqCst);
+			});
+		// Release the write lock (will wake with the read lock)
+		drop(wl);
+		// And then release the read lock
+		drop(rl);
+		log_debug!("Unpausing thread");
+
+		// Wait until scheduled
+		THIS_THREAD_STATE.with(|v| {
+			let h = v.borrow();
+			//assert!( h.ptr_moved );
+			match h.this_state
+			{
+			None => panic!("Current thread not initialised"),
+			Some(ref v) => {
+				//log_trace!("switch_to: {:p} to {:p}", *v, t.cpu_state.inner);
+				v.sleep(None);
+				//log_trace!("switch_to: {:p} awake", *v);
+				},
+			}
+		});
+		rv
 	}
 
 	pub fn start_thread<F: FnOnce()+Send+'static>(thread: &mut ::threads::Thread, code: F) {

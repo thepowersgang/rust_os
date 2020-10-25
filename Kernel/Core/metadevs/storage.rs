@@ -173,6 +173,7 @@ fn init()
 	
 	// Default mapper just exposes the PV as a single LV
 	//S_MAPPERS.lock().push_back(&default_mapper::Mapper);
+	::core::mem::forget( register_pv(Box::new(null_volume::NullVolume)) );
 }
 
 /// Register a physical volume
@@ -634,6 +635,28 @@ mod default_mapper
 				new_volume_cb(format!("{}w", pv.name()), 0, cap );
 			}
 			Ok( () )
+		}
+	}
+}
+
+mod null_volume
+{
+	use crate::prelude::*;
+	pub struct NullVolume;
+	impl super::PhysicalVolume for NullVolume {
+
+		fn name(&self) -> &str { "null" }
+		fn blocksize(&self) -> usize { 512 }
+		fn capacity(&self) -> Option<u64> { Some(0) }
+		
+		fn read<'a>(&'a self, _prio: u8, _blockidx: u64, _count: usize, _dst: &'a mut [u8]) -> super::AsyncIoResult<'a, usize> {
+			Box::new(crate::async::NullResultWaiter::new(|| Ok(0)))
+		}
+		fn write<'a>(&'a self, _prio: u8, _blockidx: u64, _count: usize, _src: &'a [u8]) -> super::AsyncIoResult<'a, usize> {
+			Box::new(crate::async::NullResultWaiter::new(|| Ok(0)))
+		}
+		fn wipe<'a>(&'a self, _blockidx: u64, _count: usize) -> super::AsyncIoResult<'a,()> {
+			Box::new(crate::async::NullResultWaiter::new(|| Ok(())))
 		}
 	}
 }

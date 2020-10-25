@@ -50,17 +50,17 @@ macro_rules! def_groups {
 def_groups! {
 	/// Core system calls, mostly thread management
 	=0: GROUP_CORE = {
-		/// Write a logging message
-		=0: CORE_LOGWRITE,
-		/// Write a hex value and string
-		=1: CORE_DBGVALUE,
 		/// Terminate the current process
-		// NOTE: '2' is hard-coded in rustrt0
-		=2: CORE_EXITPROCESS,
-		/// Request a text string from the kernel
-		=3: CORE_TEXTINFO,
+		// NOTE: '0' is hard-coded in rustrt0/common.S
+		=0: CORE_EXITPROCESS,
 		/// Terminate the current thread
-		=4: CORE_EXITTHREAD,
+		=1: CORE_EXITTHREAD,
+		/// Write a logging message
+		=2: CORE_LOGWRITE,
+		/// Write a hex value and string
+		=3: CORE_DBGVALUE,
+		/// Request a text string from the kernel
+		=4: CORE_TEXTINFO,
 		/// Start a new process (loader only, use loader API instead)
 		=5: CORE_STARTPROCESS,
 		/// Start a new thread in the current process

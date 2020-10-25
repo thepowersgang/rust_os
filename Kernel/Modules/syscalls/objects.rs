@@ -49,7 +49,8 @@ impl<T: Object> Object for Box<T> {
 		// SAFE: Valid pointer, forgotten by caller
 		let mut this: Box<T> = unsafe { ::core::ptr::read(&mut *self) };
 		let rv = (*this).handle_syscall_val(call, args);
-		Box::shallow_drop(this);
+		//Box::shallow_drop(this);
+		::core::mem::forget(*this);
 		rv
 	}
 	fn bind_wait(&self, flags: u32, obj: &mut ::kernel::threads::SleepObject) -> u32 {

@@ -19,7 +19,7 @@ extern crate syscalls;
 extern crate byteorder;
 extern crate cmdline_words_parser;
 
-#[macro_use(impl_from, impl_fmt, try, todo)]
+#[macro_use(impl_from, impl_fmt, todo)]
 extern crate macros;
 
 mod elf;

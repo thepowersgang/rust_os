@@ -267,6 +267,11 @@ impl Card
 			}
 		}
 		
+		if status & hw::FLAG_ISR_RXOVW != 0
+		{
+			log_error!("{} RX buffer overflow", self.io_base);
+			status_clear |= hw::FLAG_ISR_RXOVW;
+		}
 
 		if status & !status_clear != 0
 		{

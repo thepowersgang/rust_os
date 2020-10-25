@@ -26,38 +26,33 @@ OBJDIR := .objs/$(ARCH)/
 # Rust compilation flags
 TARGET_SPEC := target-$(ARCH).json
 
-RUST_COMMON_FLAGS := --target=$(TARGET_SPEC) --cfg 'arch="$(ARCH)"' --cfg nightly
-RUST_COMMON_FLAGS += -L $(LIBDIR)
+# - Environment variable read by cargo
+RUSTFLAGS :=
+RUSTFLAGS += --cfg arch="$(ARCH)"
+RUSTFLAGS += -L $(LIBDIR)
 
 CARGO_PROFILE := release
-CARGO_FLAGS := --target $(TARGET_SPEC)
+CARGO_FLAGS :=
+ifneq ($(ARCH),native)
+  CARGO_FLAGS += --target $(TARGET_SPEC)
+  CARGO_FLAGS += -Z build-std=core,alloc
+else
+  CARGO_PROFILE := debug
+endif
 ifeq ($(CARGO_PROFILE),debug)
+  # No --release
 else ifeq ($(CARGO_PROFILE),release)
   CARGO_FLAGS += --release
 else
   $(error Unknown xargo profile $(CARGO_PROFILE))
 endif
 CARGO_OUTDIR := target/target-$(ARCH)/$(CARGO_PROFILE)/
-
-RUSTFLAGS := $(RUST_COMMON_FLAGS)
-RUSTFLAGS += -O
-#RUSTFLAGS += -C llvm-args=-Os
-RUSTFLAGS += -g
-RUSTFLAGS += --cfg disable_float
-RUSTFLAGS += -Z force-overflow-checks=yes
-RUSTFLAGS += -Z no-landing-pads
-# - This feels bad, sure it's valid, but...
-ifeq ($(ARCH),armv7)
-  RUSTFLAGS += -C relocation-model=static
+ifeq ($(ARCH),native)
+CARGO_OUTDIR := target/$(CARGO_PROFILE)/
 endif
-BIN_RUSTFLAGS := 
-#BIN_RUSTFLAGS += -C lto
-
-RUSTFLAGS_compiler_builtins = --cfg feature=\"compiler-builtins\" --cfg stage0
-RUSTFLAGS_alloc = --edition 2018
 
 # - List non-file targets
-.PHONY: all clean
+.PHONY: all clean docs
 # - Don't delete intermediate targets
 .SECONDARY:
 # - (debugging) Remove most default targets
@@ -77,19 +72,14 @@ $(BINDIR)%: xargo
 clean:
 	$(RM) -rf $(OUTDIR) $(OBJDIR) .docs target
 
-docs: $(patsubst lib%/,.docs/%/index.html,$(wildcard lib*/))
-
-.docs/%/index.html: lib%/lib.rs $(LIBDIR)lib%.rlib
-	@echo [RUSTDOC] -o $@
-	$V$(RUSTDOC) -o .docs $< --crate-name $* $(RUST_COMMON_FLAGS)
-.docs/%/index.html: lib%/src/lib.rs $(LIBDIR)lib%.rlib
-	@echo "[RUSTDOC] -o $@"
-	$V$(RUSTDOC) -o .docs $< --crate-name $* $(RUST_COMMON_FLAGS)
+docs:
+	$(CARGO) -Z build-std=core,alloc doc $(CARGO_FLAGS)
 
 # Most binary targets are handled directly by `xargo`, but the loader is special
 # > Requires an assembly stub
 # > Linking is done in two steps so that --gc-sections works fully
 # > The main body of the code is in `libloader_binary.a`, build by xargo
+ifneq ($(ARCH),native)
 LOADER_OBJS := $(OBJDIR)rustrt0.o $(OBJDIR)loader/bin/start.ao $(CARGO_OUTDIR)libloader_binary.a
 $(BINDIR)loader: loader/bin/link.ld $(LOADER_OBJS)
 	@mkdir -p $(dir $@)
@@ -100,19 +90,26 @@ $(BINDIR)loader: loader/bin/link.ld $(LOADER_OBJS)
 	$V$(OBJDUMP) -CS $(OBJDIR)loader.elf > $(OBJDIR)loader.dsm
 # xargo portion of loader
 $(CARGO_OUTDIR)libloader_binary.a: xargo
+else
+$(BINDIR)loader: xargo
+	@mkdir -p $(dir $@)
+	RUSTFLAGS='$(RUSTFLAGS)' $(CARGO) build $(CARGO_FLAGS) --manifest-path loader/native/Cargo.toml
+	cp loader/native/$(CARGO_OUTDIR)libloader_dyn.so $(dir $@)
+	touch $@
+endif
 
 .PHONY: xargo
 xargo: $(OBJDIR)rustrt0.o $(LIBDIR)libloader_dyn.so	# Referenced by link-$(TARGET).ld
-	$(CARGO) -Z build-std=core,alloc build $(CARGO_FLAGS)
+	RUSTFLAGS='$(RUSTFLAGS)' $(CARGO) build $(CARGO_FLAGS)
 # Ensure that all external crates are checked out
 xargo: $(patsubst %,../externals/crates.io/%/src/lib.rs,cmdline_words_parser stack_dst utf16_literal va_list)
 # Low-level loader dummy dynamic library
 # - Used to tell ld that `loader`'s exported symbols actually exist
-$(LIBDIR)libloader_dyn.so: loader/bin/lib.S	$(makefile_deps)
+$(LIBDIR)libloader_dyn.so: loader/bin/lib.S	$(makefile_deps) Makefile
 	@mkdir -p $(dir $@)
 	@echo [CC] $@
-	$V$(CC) -o $@.o -c $< -fPIC -D ARCH_$(ARCH)
-	$V$(LD) -o $@ $@.o -shared -soname=libloader_dyn.so
+	$V$(CC) -o $@.o -c $< -fPIC -D ARCH_$(ARCH) -g
+	$V$(LD) -o $@ $@.o -shared -soname=libloader_dyn.so -g
 
 # - Assembly objects (loader)
 $(OBJDIR)%.ao: %.S $(makefile_deps)

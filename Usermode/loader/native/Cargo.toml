@@ -1,0 +1,10 @@
+[package]
+name = "loader_dyn"
+version = "0.0.0"
+edition = "2018"
+
+[lib]
+crate_type = ["cdylib"]
+
+[dependencies]
+syscalls = { path = "../../libsyscalls" }

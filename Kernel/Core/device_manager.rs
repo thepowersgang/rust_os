@@ -367,6 +367,15 @@ impl IOBinding
 	}
 }
 
+impl_fmt! {
+	Display(self, f) for IOBinding {
+		match *self
+		{
+		IOBinding::Memory(ref m) => write!(f, "0x{:08x}", m.phys(), ),
+		IOBinding::IO(base, lim) => write!(f, "IO:0x{:04x}+{:x}", base, lim),
+		}
+	}
+}
 impl ::core::fmt::Debug for IOBinding
 {
 	fn fmt(&self, f: &mut ::core::fmt::Formatter) -> ::core::fmt::Result {

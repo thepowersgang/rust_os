@@ -5,6 +5,9 @@ version = "0.0.0"
 [lib]
 path = "lib.rs"
 
+[features]
+native = []
+
 [dependencies]
 stack_dst = { path = "../../../externals/crates.io/stack_dst", default-features = false }
 kernel = { path = "../../Core" }

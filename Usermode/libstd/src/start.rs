@@ -11,6 +11,10 @@ pub trait Termination
 
 #[lang="start"]
 fn lang_start<T: Termination+'static>(main: fn()->T, argc: isize, argv: *const *const u8) -> isize {
+	#[cfg(arch="native")]
+	{
+		::syscalls::raw::native_init(32245);
+	}
 	kernel_log!("lang_start(main={:p}, argc={}, argv={:p})", main, argc, argv);
 	
 	main().report() as isize

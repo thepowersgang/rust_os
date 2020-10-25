@@ -1,0 +1,55 @@
+
+#[link(name="loader_dyn")]
+extern "C" {
+	fn rustos_native_init(port: u16);
+	fn rustos_native_syscall(id: u32, opts: &[usize]) -> u64;
+}
+#[link(name="gcc_s")]
+extern "C" {
+}
+#[link(name="c")]
+extern "C" {
+}
+
+
+pub fn native_init(port: u16) {
+	// SAFE: Called once
+	unsafe {
+		rustos_native_init(port);
+	}
+}
+
+unsafe fn syscall(id: u32, opts: &[usize]) -> u64 {
+	rustos_native_syscall(id, opts)
+}
+
+// SAVE rdi, rsi, rdx, r10, r8, r9
+#[inline]
+pub unsafe fn syscall_0(id: u32) -> u64 {
+	syscall(id, &[])
+}
+#[inline]
+pub unsafe fn syscall_1(id: u32, a1: usize) -> u64 {
+	syscall(id, &[a1])
+}
+#[inline]
+pub unsafe fn syscall_2(id: u32, a1: usize, a2: usize) -> u64 {
+	syscall(id, &[a1, a2])
+}
+#[inline]
+pub unsafe fn syscall_3(id: u32, a1: usize, a2: usize, a3: usize) -> u64 {
+	syscall(id, &[a1, a2, a3])
+}
+#[inline]
+pub unsafe fn syscall_4(id: u32, a1: usize, a2: usize, a3: usize, a4: usize) -> u64 {
+	syscall(id, &[a1, a2, a3, a4])
+}
+#[inline]
+pub unsafe fn syscall_5(id: u32, a1: usize, a2: usize, a3: usize, a4: usize, a5: usize) -> u64 {
+	syscall(id, &[a1, a2, a3, a4, a5])
+}
+#[inline]
+pub unsafe fn syscall_6(id: u32, a1: usize, a2: usize, a3: usize, a4: usize, a5: usize, a6: usize) -> u64 {
+	syscall(id, &[a1, a2, a3, a4, a5, a6])
+}
+

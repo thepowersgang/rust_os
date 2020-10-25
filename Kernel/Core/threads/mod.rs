@@ -12,7 +12,7 @@ mod worker_thread;
 
 mod sleep_object;
 
-pub use self::thread::{Thread,ThreadPtr,ThreadID};
+pub use self::thread::{Thread,ThreadPtr,ThreadID,ProcessID};
 pub use self::thread::{ThreadHandle,ProcessHandle};
 pub use self::thread::new_idle_thread;
 

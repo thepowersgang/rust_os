@@ -14,6 +14,6 @@ ENTRY(start)
 	bl register_arguments
 	bl main
 	
-	mov r12, #2
-	svc #2
+	mov r12, #CORE_EXIT
+	svc #CORE_EXIT
 

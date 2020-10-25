@@ -169,7 +169,6 @@ pub type ACPI_OBJECT_HANDLER = extern "C" fn (Object: ACPI_HANDLE, Data: *const 
 /// Interface to the user function that is invoked from AcpiWalkNamespace.
 pub type ACPI_WALK_CALLBACK = extern "C" fn (Object: ACPI_HANDLE, NestingLevel: u32, Context: *const Void, ReturnValue: *mut *const Void);
 
-#[no_mangle]
 extern "C" {
 	// 8.1 ACPICA Subsystem Initialization and Control
 	/// Initialize all ACPICA globals and sub-components.
@@ -194,13 +193,11 @@ extern "C" {
 	/// Copy the root ACPI information table into dynamic memory.
 	pub fn AcpiReallocateRootTable() -> ACPI_STATUS;
 }
-#[no_mangle]
 #[allow(improper_ctypes)]
 extern "C" {
 	/// Locate the RSDP via memory scan (IA-32).
 	pub fn AcpiFindRootPointer(TableAddress: *mut ACPI_SIZE) -> ACPI_STATUS;
 }
-#[no_mangle]
 extern "C" {
 	/// Early installation of a single host-provided ACPI table.
 	pub fn AcpiInstallTable(Address: ACPI_PHYSICAL_ADDRESS, Physical: bool) -> ACPI_STATUS;

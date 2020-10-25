@@ -395,6 +395,10 @@ impl MmioHandle
 	{
 		&mut self.as_int_mut_slice(ofs, 1)[0]
 	}
+
+	pub fn phys(&self) -> PAddr {
+		get_phys(self.base())
+	}
 }
 impl ops::Drop for MmioHandle
 {
