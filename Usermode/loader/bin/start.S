@@ -177,6 +177,9 @@ bad_location:
 	b .
 
 #include "../rustrt0/armv8-helpers.S"
+#elif defined(ARCH_native)
+// Ignore
+# define DEFPTR	.quad
 #else
 /*
 =======================================================================

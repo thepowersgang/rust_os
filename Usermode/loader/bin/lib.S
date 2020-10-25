@@ -16,6 +16,9 @@ _start:
 	b .
 _start:
 	b .
+#elif defined(ARCH_native)
+_start:
+	ud2
 #else
 # error "Unknown architecture in Usermode/loader/lib.S"
 #endif

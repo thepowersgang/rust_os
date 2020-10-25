@@ -15,3 +15,8 @@ pub extern "C" fn register_arguments() {
 	// Does nothing
 }
 
+//#[no_mangle]
+//pub extern "C" fn _Unwind_Resume() {
+//	// Does nothing
+//}
+

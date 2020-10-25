@@ -9,3 +9,4 @@ members = [
 	"vfs_test",
 	"hello_world",
 	]
+exclude = ["loader/native"]

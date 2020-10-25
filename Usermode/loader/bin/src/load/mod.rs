@@ -50,7 +50,9 @@ impl_fmt! {
 pub fn lookup_symbol(name: &::std::ffi::OsStr) -> Option<(usize, usize)> {
 	match name.as_bytes()
 	{
+ 	#[cfg(not(arch="native"))]
 	b"new_process" => Some( (::interface::new_process as usize, 0) ),
+ 	#[cfg(not(arch="native"))]
 	b"start_process" => Some( (::interface::start_process as usize, 0) ),
 	_ => todo!("lookup_symbol({:?})", name),
 	}

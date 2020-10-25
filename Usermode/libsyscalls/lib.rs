@@ -6,6 +6,7 @@
 #![feature(asm)]
 #![feature(thread_local,const_fn)]
 #![feature(stmt_expr_attributes)]
+#![cfg_attr(arch="native", feature(rustc_private))]	// libc
 #![no_std]
 
 mod std {
@@ -62,16 +63,24 @@ macro_rules! define_waits {
 }
 
 // File in the root of the repo
+#[cfg(not(arch="native"))]
 #[path="../../syscalls.inc.rs"]
 mod values;
 
+#[cfg(arch="native")]
+#[path="../../syscalls.inc.rs"]
+pub mod values;
+
 pub enum Void {}
 
-#[cfg(target_arch="x86_64")] #[path="raw-amd64.rs"]
-mod raw;
-#[cfg(target_arch="arm")] #[path="raw-armv7.rs"]
-mod raw;
-#[cfg(target_arch="aarch64")] #[path="raw-armv8.rs"]
+#[cfg(arch="native")]
+#[path="raw-native.rs"]
+pub mod raw;
+
+#[cfg(not(arch="native"))]
+#[cfg_attr(target_arch="x86_64", path="raw-amd64.rs")]
+#[cfg_attr(target_arch="arm", path="raw-armv7.rs")]
+#[cfg_attr(target_arch="aarch64", path="raw-armv8.rs")]
 mod raw;
 
 #[macro_use]

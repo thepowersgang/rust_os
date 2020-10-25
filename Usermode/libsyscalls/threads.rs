@@ -82,6 +82,7 @@ impl ::Object for ThisProcess {
 }
 
 
+#[cfg(not(arch="native"))]
 #[inline]
 pub fn start_process(name: &str,  clone_start: usize, clone_end: usize) -> Result<ProtoProcess,()> {
 	// SAFE: Syscall
@@ -90,6 +91,18 @@ pub fn start_process(name: &str,  clone_start: usize, clone_end: usize) -> Resul
 	{
 	Ok(v) => Ok( ProtoProcess(v) ),
 	Err(_e) => Err( () ),
+	}
+}
+#[cfg(arch="native")]
+#[inline]
+pub fn start_process(handle: crate::vfs::File, name: &str, args_nul: &[u8]) -> Result<ProtoProcess,u32> {
+	use crate::Object;
+	// SAFE: Syscall
+	let rv = unsafe { syscall!(CORE_STARTPROCESS, handle.into_handle().into_raw() as usize, name.as_ptr() as usize, name.len(), args_nul.as_ptr() as usize, args_nul.len()) };
+	match ::ObjectHandle::new(rv as usize)
+	{
+	Ok(v) => Ok( ProtoProcess(v) ),
+	Err(e) => Err( e ),
 	}
 }
 

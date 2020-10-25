@@ -23,6 +23,7 @@ impl_from! {
 
 #[no_mangle]
 #[allow(improper_ctypes_definitions)]
+#[cfg(not(arch="native"))]	// Implemented elsewhere for native
 /// Spawn a new process using the provided binary and arguments
 pub extern "C" fn new_process(executable_handle: ::syscalls::vfs::File, process_name: &[u8], args: &[&[u8]]) -> Result<::syscalls::threads::ProtoProcess,loader::Error>
 {
@@ -53,9 +54,9 @@ pub extern "C" fn new_process(executable_handle: ::syscalls::vfs::File, process_
 			::std::slice::from_raw_parts_mut(buf_start as *mut u8, len)
 			};
 		let mut builder = NullStringBuilder( buf );
-		try!( builder.push( process_name ) );
+		builder.push( process_name )?;
 		for arg in args {
-			try!( builder.push(arg) );
+			builder.push(arg)?;
 		}
 		
 		let name = ::std::str::from_utf8(process_name).unwrap_or("BADSTR");
@@ -80,6 +81,7 @@ pub extern "C" fn new_process(executable_handle: ::syscalls::vfs::File, process_
 }
 #[no_mangle]
 #[allow(improper_ctypes_definitions)]
+#[cfg(not(arch="native"))]	// Implemented elsewhere for native
 pub extern "C" fn start_process(pp: ::syscalls::threads::ProtoProcess) -> ::syscalls::threads::Process {
 	extern "C" {
 		static init_stack_end: [u8; 0];
