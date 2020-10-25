@@ -16,7 +16,7 @@ impl Display
         Display {
             size: video::Dims::new(640, 480),
 			// TODO: Use minifb? or a raw bitmap?
-        }   
+        }
     }
 }
 impl video::Framebuffer for Display

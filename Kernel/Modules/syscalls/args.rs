@@ -111,7 +111,7 @@ impl<T: Pod> SyscallArg for FreezeMut<T>
 					return Err( ::Error::InvalidBuffer(ptr as *const (), blen) );
 				};
 			// 3. Create a freeze on that memory (ensuring that it's not unmapped until the Freeze object drops)
-			Ok( try!(FreezeMut::new(&mut *ptr_real)) )
+			Ok( try!(FreezeMut::new(&mut bs[0])) )
 		}
 	}
 }
@@ -132,7 +132,7 @@ impl<T: Pod> SyscallArg for FreezeMut<[T]>
 			// 2. Ensure that the pointed slice is valid (overlaps checks by Freeze, but gives a better error)
 			// TODO: Replace this check with mapping FreezeError
 			#[cfg(feature="native")]
-			let ptr_real = native_map_syscall_pointer(ptr as *const u8, blen, false) as *mut T;
+			let ptr_real = native_map_syscall_pointer(ptr as *const u8, blen, /*is_mut*/true) as *mut T;
 			#[cfg(not(feature="native"))]
 			let ptr_real = ptr;
 			let bs = if let Some(v) = ::kernel::memory::buf_to_slice_mut(ptr_real, len) {

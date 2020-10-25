@@ -127,7 +127,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>>
 		},
 	}
 	::kernel::vfs::handle::Dir::open(::kernel::vfs::Path::new("/")).unwrap()
-		.symlink("sysroot", ::kernel::vfs::Path::new("/system"))
+		.symlink("sysroot", ::kernel::vfs::Path::new("/system/Tifflin"))
 		.unwrap()
 		;
 
@@ -215,7 +215,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>>
 					break
 					},
 				}
-				log_debug!("PID{}: request: {:x?}", pid, req);
+				log_log!("PID{}: request: {:x?}", pid, req);
 
 				THREAD_CURRENT_INFO.with(|f| {
 					*f.borrow_mut() = Some(ThreadSyscallInfo::new(gs.lock().unwrap().get_process(pid)));
@@ -408,12 +408,27 @@ fn start_process(gs: &GlobalStateRef, mut args: &[usize]) -> Result<u32, ::sysca
 		}
 
 		/// Return: Number of wakeup events bound
-		fn bind_wait(&self, _flags: u32, _obj: &mut ::kernel::threads::SleepObject) -> u32 {
-			0
+		fn bind_wait(&self, flags: u32, obj: &mut ::kernel::threads::SleepObject) -> u32 {
+			let mut ret = 0;
+			// Wait for child process to terminate
+			if flags & ::syscalls::native_exports::values::EV_PROCESS_TERMINATED != 0 {
+				let lh = self.gs.lock().unwrap();
+				lh.process_handles[&self.pid].bind_wait_terminate(obj);
+				ret += 1;
+			}
+			ret
 		}
 		/// Return: Number of wakeup events fired
-		fn clear_wait(&self, _flags: u32, _obj: &mut ::kernel::threads::SleepObject) -> u32 {
-			0
+		fn clear_wait(&self, flags: u32, obj: &mut ::kernel::threads::SleepObject) -> u32 {
+			let mut ret = 0;
+			// Wait for child process to terminate
+			if flags & ::syscalls::native_exports::values::EV_PROCESS_TERMINATED != 0 {
+				let lh = self.gs.lock().unwrap();
+				if lh.process_handles[&self.pid].clear_wait_terminate(obj) {
+					ret |= ::syscalls::native_exports::values::EV_PROCESS_TERMINATED;
+				}
+			}
+			ret
 		}
 	}
 }
@@ -435,7 +450,13 @@ impl ThreadSyscallInfo
 			if b.writeback
 			{
 				use ::process_memory::PutAddress;
-				match self.process_handle.put_address(b.writeback_addr.0, unsafe { ::std::slice::from_raw_parts(b.buffer.as_ptr() as *const u8, b.writeback_addr.1) })
+				// SAFE: Just reintepreting u64 as u8
+				let slice = unsafe { ::std::slice::from_raw_parts(b.buffer.as_ptr() as *const u8, b.writeback_addr.1) };
+				log_debug!("Writing back data to {:#x}+{}: {:?}",
+					b.writeback_addr.0, b.writeback_addr.1,
+					::kernel::lib::byte_str::ByteStr::new(slice)
+					);
+				match self.process_handle.put_address(b.writeback_addr.0, slice)
 				{
 				Ok(_) => {},
 				Err(e) => {
@@ -464,7 +485,7 @@ pub extern "Rust" fn native_map_syscall_pointer(ptr: *const u8, len: usize, is_m
 		Ok( () ) => {},
 		Err(_) => return ::std::ptr::null(),
 		}
-		log_debug!("Read from {:p}+{}: {:?} ({:p})", ptr, len, ::kernel::lib::byte_str::ByteStr::new(buf_u8), buf_u8.as_ptr());
+		//log_debug!("Read from {:p}+{}: {:?} ({:p})", ptr, len, ::kernel::lib::byte_str::ByteStr::new(buf_u8), buf_u8.as_ptr());
 		// Save for writeback if `is_mut` is true
 		let rv = buf.as_ptr() as *const u8;
 		info.buffers.push(SyscallBuffer {

@@ -17,6 +17,10 @@ _start:
 _start:
 	b .
 #elif defined(ARCH_native)
+.globl rustos_native_init
+.globl rustos_native_syscall
+rustos_native_init:
+rustos_native_syscall:
 _start:
 	ud2
 #else

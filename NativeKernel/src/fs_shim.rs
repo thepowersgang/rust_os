@@ -39,7 +39,7 @@ impl mount::Driver for NativeFsDriver
         Ok(0)
     }
 	fn mount(&self, vol: VolumeHandle, handle: mount::SelfHandle) -> vfs::Result<Box<dyn mount::Filesystem>> {
-        let root_path: PathBuf = "../Usermode/.output/native".into();
+        let root_path: PathBuf = "../Usermode/.native_fs".into();
         let mut rv = NativeFs::default();
         rv.inner.get_mut().unwrap().inodes.insert(0, Box::new(EntData::Dir(DirData{ path: root_path })));
         Ok(Box::new(FsInstance(Aref::new(rv))))
@@ -52,6 +52,13 @@ impl NativeFs
         match **self.inner.lock().unwrap().inodes.get(&inode_id).expect("")
         {
         EntData::Dir(ref r) => unsafe { &*(r as *const _) },
+        _ => panic!(""),
+        }
+    }
+    fn get_file(&self, inode_id: InodeId) -> &FileData {
+        match **self.inner.lock().unwrap().inodes.get(&inode_id).expect("")
+        {
+        EntData::File(ref r) => unsafe { &*(r as *const _) },
         _ => panic!(""),
         }
     }
@@ -109,7 +116,7 @@ impl vfs::node::Dir for DirNodeRef
                     })
             }
             else {
-                todo!("lookup({:?}): {:?}", name, path);
+                return Err(vfs::Error::NotFound)
             }))
     }
 	
@@ -158,19 +165,28 @@ impl vfs::node::File for FileNodeRef
         todo!("size")
     }
 	/// Update the size of the file (zero padding or truncating)
-	fn truncate(&self, newsize: u64) -> vfs::node::Result<u64> {
+	fn truncate(&self, _newsize: u64) -> vfs::node::Result<u64> {
         todo!("truncate")
     }
 	/// Clear the specified range of the file (replace with zeroes)
-	fn clear(&self, ofs: u64, size: u64) -> vfs::node::Result<()> {
+	fn clear(&self, _ofs: u64, _size: u64) -> vfs::node::Result<()> {
         todo!("clear")
     }
 	/// Read data from the file
 	fn read(&self, ofs: u64, buf: &mut [u8]) -> vfs::node::Result<usize> {
-        todo!("read")
+        log_debug!("FileNodeRef::read(ofs={:#x}, buf={})", ofs, buf.len());
+        use std::io::{Read,Seek,SeekFrom};
+        let file_info = self.0.get_file(self.1);
+        let mut fp = ::std::fs::File::open(&file_info.path).unwrap();
+        fp.seek(SeekFrom::Start(ofs)).map_err(map_err)?;
+        Ok( fp.read(buf).map_err(map_err)? )
     }
 	/// Write data to the file, can only grow the file if ofs==size
-    fn write(&self, ofs: u64, buf: &[u8]) -> vfs::node::Result<usize> {
+    fn write(&self, _ofs: u64, _buf: &[u8]) -> vfs::node::Result<usize> {
         todo!("write")
     }
+}
+
+fn map_err(e: ::std::io::Error) -> vfs::Error {
+    todo!("Transform error {:?}", e)
 }

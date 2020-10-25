@@ -465,7 +465,14 @@ pub fn enabled(level: Level, modname: &str) -> bool
 	#[cfg(feature="test")]
 	mod _test_log {
 		#[no_mangle]
-		static log_cfg: [super::LogCfgEnt; 0] = [];
+		static log_cfg: [super::LogCfgEnt; 0] = [
+			//super::LogCfgEnt {
+			//	name_ptr: "kernel::sync::rwlock".as_ptr(),
+			//	name_len: "kernel::sync::rwlock".len() as u16,
+			//	level: super::Level::LevelDebug as u16,
+			//	_pad: 0,
+			//	}
+			];
 		#[no_mangle]
 		static log_cfg_end: [super::LogCfgEnt; 0] = [];
 	}
