@@ -56,12 +56,14 @@ pub unsafe extern "C" fn rustos_native_init(port: u16)
 }
 
 fn get_pid() -> u32 {
+	// SAFE: Written once
 	unsafe { RUSTOS_PID }
 }
 fn log(args: ::core::fmt::Arguments) {
 	let mut buf = [0; 128];
 	let mut c = ::std::io::Cursor::new(&mut buf[..]);
-	::std::io::Write::write_fmt(&mut c, args);
+	let _ = ::std::io::Write::write_fmt(&mut c, args);
+	// SAFE: Valid syscall arguments
 	unsafe {
 		rustos_native_syscall(::syscalls::values::CORE_LOGWRITE, &[
 			c.get_ref().as_ptr() as usize,
@@ -219,27 +221,45 @@ mod mini_std {
 
 	#[cfg(unix)]
 	pub fn mmap_alloc(addr: *mut u8, page_count: usize) -> Result<(),Errno> {
-		let rv = libc::mmap(
-			addr,
+		// SAFE: We're just allocating memory
+		let rv = unsafe { libc::mmap(
+			addr as *mut _,
 			page_count * 0x1000,
 			libc::PROT_READ | libc::PROT_WRITE,
 			libc::MAP_ANONYMOUS | libc::MAP_PRIVATE | libc::MAP_FIXED | libc::MAP_FIXED_NOREPLACE,
 			/*fd=*/0,
 			/*offset=*/0
-			);
+			) };
 		if rv == libc::MAP_FAILED {
-			Err(mini_std::Errno::get())
+			Err(Errno::get())
 		}
-		else if rv != addr {
+		else if rv != addr as *mut _ {
 			todo!("MEM_ALLOCATE({:p}, {}p): failed {:p}", addr, page_count, rv);
 		}
 		else {
 			Ok( () )
 		}		
 	}
+
+	#[cfg(windows)]
+	struct WinapiError(u32);
+	#[cfg(windows)]
+	impl WinapiError {
+		fn get() -> WinapiError {
+			// SAFE: Function has no side-effects
+			WinapiError(unsafe { ::winapi::um::errhandlingapi::GetLastError() })
+		}
+	}
+	#[cfg(windows)]
+	impl ::core::fmt::Display for WinapiError {
+		fn fmt(&self, f: &mut ::core::fmt::Formatter) -> ::core::fmt::Result {
+			write!("{:#x}", self.0)
+		}
+	}
 	#[cfg(windows)]
 	pub fn mmap_alloc(addr: *mut u8, page_count: usize) -> Result<(),Errno> {
 		let mut si: ::winapi::um::sysinfoapi::SYSTEM_INFO;
+		// SAFE: Type is POD, valid call to GetSystemInfo
 		unsafe {
 			si = ::core::mem::zeroed();
 			::winapi::um::sysinfoapi::GetSystemInfo(&mut si);
@@ -247,6 +267,7 @@ mod mini_std {
 			println!("si.dwAllocationGranularity = {:#x}", si.dwAllocationGranularity);
 		}
 		fn dump_info(addr: *mut u8) {
+			// SAFE: Valid pointers
 			unsafe {
 				let mut b: ::winapi::um::winnt::MEMORY_BASIC_INFORMATION = ::core::mem::zeroed();
 				::winapi::um::memoryapi::VirtualQuery(addr as *const _, &mut b, ::core::mem::size_of_val(&b));
@@ -273,6 +294,7 @@ mod mini_std {
 			{
 				let resv_base = resv_base + i * si.dwAllocationGranularity as usize;
 				println!("MEM_RESERVE {:p}", resv_base as *mut u8);
+				// SAFE: We're just allocating memory
 				let rv = unsafe { ::winapi::um::memoryapi::VirtualAlloc(
 					resv_base as *mut _,
 					si.dwAllocationGranularity as usize,
@@ -280,8 +302,7 @@ mod mini_std {
 					PAGE_READWRITE
 					) };
 				if rv == ::core::ptr::null_mut() {
-					let e = unsafe { ::winapi::um::errhandlingapi::GetLastError() };
-					println!("MEM_RESERVE: error {:#x}", e);
+					println!("MEM_RESERVE: error {}", WinapiError::get());
 				}
 
 			}
@@ -289,6 +310,7 @@ mod mini_std {
 
 		for p in 0 .. page_count
 		{
+			// SAFE: We're just allocating memory
 			let rv = unsafe { ::winapi::um::memoryapi::VirtualAlloc(
 				(addr as usize + p * 0x1000) as *mut _,
 				0x1000,
@@ -296,39 +318,17 @@ mod mini_std {
 				PAGE_READWRITE
 				) };
 			if rv == ::core::ptr::null_mut() {
-				let e = unsafe { ::winapi::um::errhandlingapi::GetLastError() };
+				let e = WinapiError::get();
 				dump_info((addr as usize - 0x1000) as *mut _);
 				dump_info(addr);
 				dump_info((addr as usize + 0x1000) as *mut _);
-				todo!("mmap_alloc: error {:#x}", e);
+				todo!("mmap_alloc: error {}", e);
 			}
 		}
-
-		/*
-		println!("nbytes = {:#x}", page_count * 0x1000);
-		let rv = unsafe { ::winapi::um::memoryapi::VirtualAlloc(
-			addr as *mut _,
-			page_count * 0x1000,
-			MEM_COMMIT /*| MEM_RESERVE*/,
-			PAGE_READWRITE
-			) };
-		if rv == ::core::ptr::null_mut() {
-			let e = unsafe { ::winapi::um::errhandlingapi::GetLastError() };
-			dump_info((addr as usize - 0x1000) as *mut _);
-			dump_info(addr);
-			dump_info((addr as usize + 0x1000) as *mut _);
-			todo!("mmap_alloc: error {:#x}", e);
-		}
-		else if rv != addr as *mut _ {
-			todo!("MEM_ALLOCATE({:p}, {}p): failed {:p}", addr, page_count, rv);
-		}
-		else {*/
-			dump_info(addr);
-			Ok( () )
-		//}
+		dump_info(addr);
+		Ok( () )
 	}
 	
-	#[cfg(windows)]
 	pub struct Socket(Option<::std::net::TcpStream>);
 	impl Socket {
 		pub const fn null() -> Socket {

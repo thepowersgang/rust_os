@@ -33,7 +33,7 @@
 .extern loader_main
 .globl start
 /* RAX = Argument length */
-.def
+//.def start
 start:
 	mov %rax, %rsi	/* Save arg length in ARG2 */
 	/* 0. ASSERT that the loader was loaded to the correct location */
@@ -59,48 +59,8 @@ start:
 .loop:
 	jmp .loop
 //.type start, "function"
-.endef
+//.enddef
 
-/*
-// RDI = Address
-// RSI = Value
-// RDX = Count
-.def memset
-ENTRY(memset)
-	mov %rsi, %rax
-	mov %rdx, %rcx
-	mov %rdi, %rdx // Save RDI
-	rep stosb
-	mov %rdx, %rax // because it's the return value
-	ret
-.enddef
-// RDI = Destination
-// RSI = Source
-// RDX = Count
-ENTRY(memcpy)
-	mov %rdx, %rcx
-	mov %rdi, %rax // Prepare to return RDI
-	rep movsb
-	ret
-;; RDI = A
-;; RSI = B
-;; RDX = Count
-ENTRY(memcmp)
-	mov %rdx, %rcx
-	rep cmpsb
-	mov $0, %rax
-	ja .pos
-	jb .neg
-	ret
-.pos:
-	dec %rax
-	ret
-.neg:
-	inc %rax
-	ret
-ENTRY(_Unwind_Resume)
-	jmp .
-*/
 
 #elif defined(ARCH_armv7)
 # define DEFPTR	.long
@@ -223,5 +183,5 @@ GLOBAL(arg_count)	.space 4
 GLOBAL(init_path)	.space 1024
 GLOBAL(init_path_end)
 
-/* vim: ft=gas
+/* vim: ft=c
  */

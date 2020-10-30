@@ -111,10 +111,10 @@ xargo: $(patsubst %,../externals/crates.io/%/src/lib.rs,cmdline_words_parser sta
 
 # Low-level loader dummy dynamic library
 # - Used to tell ld that `loader`'s exported symbols actually exist
-$(LIBDIR)libloader_dyn.so: loader/bin/placeholder_lib.rs	$(makefile_deps) Makefile
+$(LIBDIR)libloader_dyn.so: loader/bin/placeholder_lib.rs $(makefile_deps) Makefile
 	@mkdir -p $(dir $@)
 	@echo [RUSTC] $@
-	$V$(RUSTC) --crate-type=cdylib --crate-name loader_dyn loader/bin/placeholder_lib.rs --out-dir $(LIBDIR) --cfg 'arch="$(ARCH)"'
+	$V$(RUSTC) --crate-type=cdylib --crate-name loader_dyn loader/bin/placeholder_lib.rs --out-dir $(LIBDIR) --cfg 'arch="$(ARCH)"' -C panic=abort
 	if [ -e $(LIBDIR)loader_dyn.dll.lib ]; then cp $(LIBDIR)loader_dyn.dll.lib $(LIBDIR)loader_dyn.lib; fi
 
 # - Assembly objects (loader)
