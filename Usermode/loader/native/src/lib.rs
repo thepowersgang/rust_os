@@ -42,62 +42,60 @@ pub extern "C" fn start_process(handle: ::syscalls::threads::ProtoProcess) -> ::
 	handle.start(0,0)
 }
 
-static mut RUSTOS_NATIVE_SOCKET: i32 = 3;
+static mut RUSTOS_NATIVE_SOCKET: mini_std::Socket = mini_std::Socket::null();
+static mut RUSTOS_PID: u32 = 0;
 const MAX_THREADS: usize = 16;
 
 #[no_mangle]
 pub unsafe extern "C" fn rustos_native_init(port: u16)
 {
 	// SAFE: Called once
+	RUSTOS_NATIVE_SOCKET = mini_std::tcp_connect_localhost(port).unwrap();
+	let pid: u32 = mini_std::tcp_recv(&RUSTOS_NATIVE_SOCKET).unwrap();
+	RUSTOS_PID = pid;
+}
+
+fn get_pid() -> u32 {
+	unsafe { RUSTOS_PID }
+}
+fn log(args: ::core::fmt::Arguments) {
+	let mut buf = [0; 128];
+	let mut c = ::std::io::Cursor::new(&mut buf[..]);
+	::std::io::Write::write_fmt(&mut c, args);
 	unsafe {
-		RUSTOS_NATIVE_SOCKET = mini_std::tcp_connect_localhost(port).unwrap();
-		let _v: u32 = mini_std::tcp_recv(RUSTOS_NATIVE_SOCKET).unwrap();
+		rustos_native_syscall(::syscalls::values::CORE_LOGWRITE, &[
+			c.get_ref().as_ptr() as usize,
+			c.position() as usize,
+		]);
+	}
+}
+macro_rules! log {
+	( $($tt:tt)* ) => {
+		log(format_args!($($tt)*))
 	}
 }
 
 // TODO: use this for sending syscalls
 #[no_mangle]
-#[allow(improper_ctypes)]
+#[allow(improper_ctypes_definitions)]
 pub unsafe extern "C" fn rustos_native_syscall(id: u32, opts: &[usize]) -> u64 {
 	use ::syscalls::values::*;
 	match id
 	{
-	// Process-related core functions
-	//CORE_LOGWRITE => {
-	//	let ptr = ::core::slice::from_raw_parts(opts[0] as *const u8, opts[1]);
-	//	println!("LOGWRITE: {}", String::from_utf8_lossy(ptr));
-	//	0
-	//	},
-	//CORE_DBGVALUE => {
-	//	let ptr = ::core::slice::from_raw_parts(opts[0] as *const u8, opts[1]);
-	//	let val = opts[2];
-	//	println!("LOGWRITE: {}: {:#x}", String::from_utf8_lossy(ptr), val);
-	//	0
-	//	},
 	CORE_EXITPROCESS => {
+		log!("CORE_EXITPROCESS({} {:#x})", get_pid(), opts[0]);
 		::std::process::exit(opts[0] as i32)
 		},
 	// Memory, wrap mmap
 	MEM_ALLOCATE => {
-		let addr = opts[0] as *mut _;
-		let page_count = opts[1];
-		let rv = libc::mmap(
-			addr,
-			page_count * 0x1000,
-			libc::PROT_READ | libc::PROT_WRITE,
-			libc::MAP_ANONYMOUS | libc::MAP_PRIVATE | libc::MAP_FIXED | libc::MAP_FIXED_NOREPLACE,
-			/*fd=*/0,
-			/*offset=*/0
-			);
-		if rv == libc::MAP_FAILED {
-			println!("errno={}", mini_std::Errno::get());
+		println!("MEM_ALLOCATE({} {:#x}, {})", get_pid(), opts[0], opts[1]);
+		match mini_std::mmap_alloc(opts[0] as *mut _, opts[1])
+		{
+		Err(e) => {
+			println!("MEM_ALLOCATE errno={}", e);
 			(1 << 32) | 0
-		}
-		else if rv != addr {
-			todo!("MEM_ALLOCATE({:p}, {}p): failed {:p}", addr, page_count, rv);
-		}
-		else {
-			0
+			},
+		Ok(_) => 0,
 		}
 		},
 	MEM_REPROTECT => {
@@ -132,9 +130,8 @@ pub unsafe extern "C" fn rustos_native_syscall(id: u32, opts: &[usize]) -> u64 {
 			rv: u64,
 		}
 
-		//mini_std::write_stdout(b"Sending syscall req\n");
 		let this_tid = 0;
-		mini_std::tcp_send(RUSTOS_NATIVE_SOCKET, Msg {
+		mini_std::tcp_send(&RUSTOS_NATIVE_SOCKET, Msg {
 			tid: this_tid,
 			call: id,
 			args: {
@@ -162,7 +159,7 @@ pub unsafe extern "C" fn rustos_native_syscall(id: u32, opts: &[usize]) -> u64 {
 				return resp.rv;
 			}
 			// Read a response
-			let resp: Resp = mini_std::tcp_recv(RUSTOS_NATIVE_SOCKET).unwrap();
+			let resp: Resp = mini_std::tcp_recv(&RUSTOS_NATIVE_SOCKET).unwrap();
 			if resp.tid == this_tid {
 				assert!(resp.call == id);
 				return resp.rv;
@@ -170,7 +167,6 @@ pub unsafe extern "C" fn rustos_native_syscall(id: u32, opts: &[usize]) -> u64 {
 			// Place in the thread's entry in the wait queue
 			todo!("Multi-threaded syscalls");
 		}
-		0
 		},
 	}
 }
@@ -201,6 +197,7 @@ mod mini_std {
 		}
 	}
 	pub struct Errno(i32);
+	#[cfg(unix)]
 	impl Errno
 	{
 		pub fn get() -> Errno {
@@ -217,79 +214,145 @@ mod mini_std {
 		}
 	}
 
-	//extern crate std;
-	mod imp {
-		#[link(name="c")]
-		extern "C" {
-			pub fn write(fd: i32, buf: *const u8, len: usize) -> i32;
-
-			pub fn recv(fd: i32, buf: *mut u8, len: usize, flags: u32) -> i32;
-			pub fn send(fd: i32, buf: *const u8, len: usize, flags: u32) -> i32;
-			pub fn exit(val: i32) -> !;
-		}
-	}
+	#[cfg(unix)]
 	extern crate libc;
 
-	pub fn tcp_connect_localhost(port: u16) -> Result<i32, &'static str> {
-		// SAFE: Valid libc calls
-		unsafe {	
-			let sock = libc::socket(libc::AF_INET, libc::SOCK_STREAM, 0);
-			if sock < 0 {
-				return Err("socket failed");
-			}
-			
-			let addr = libc::sockaddr_in {
-				sin_family: libc::AF_INET as u16,
-				sin_port: port.swap_bytes(),
-				sin_addr: libc::in_addr { s_addr: 0x7F_00_00_01u32.swap_bytes(), },
-				sin_zero: [0; 8],
-				};
-			let rv = libc::connect(sock, &addr as *const _ as *const _, ::core::mem::size_of::<libc::sockaddr>() as u32);
-			if rv < 0 {
-				return Err("connect failed");
-			}
-
-			Ok(sock)
+	#[cfg(unix)]
+	pub fn mmap_alloc(addr: *mut u8, page_count: usize) -> Result<(),Errno> {
+		let rv = libc::mmap(
+			addr,
+			page_count * 0x1000,
+			libc::PROT_READ | libc::PROT_WRITE,
+			libc::MAP_ANONYMOUS | libc::MAP_PRIVATE | libc::MAP_FIXED | libc::MAP_FIXED_NOREPLACE,
+			/*fd=*/0,
+			/*offset=*/0
+			);
+		if rv == libc::MAP_FAILED {
+			Err(mini_std::Errno::get())
 		}
-	}
-	pub fn tcp_recv<T: Pod>(sock: i32) -> Result<T,&'static str> {
-		let mut rv = T::default();
-		// SAFE: Correct pointers, an invalid socket will error, and data is POD
-		let resp = unsafe { imp::recv(sock, &mut rv as *mut _ as *mut u8, ::core::mem::size_of::<T>(), 0) };
-		if resp < 0 {
-			Err("Error reported")
-		}
-		else if resp == 0 {
-			Err("EOF")
-		}
-		else if resp as usize != ::core::mem::size_of::<T>() {
-			Err("Incomplete")
-		}
-		else {
-			Ok(rv)
-		}
-	}
-	pub fn tcp_send<T: Pod>(sock: i32, val: T) -> Result<(), &'static str> {
-		// SAFE: Correct pointers, an invalid socket will error, and data is POD
-		let resp = unsafe { imp::send(sock, &val as *const _ as *const u8, ::core::mem::size_of::<T>(), 0) };
-		if resp < 0 {
-			Err("Error reported")
-		}
-		else if resp as usize != ::core::mem::size_of::<T>() {
-			Err("Incomplete")
+		else if rv != addr {
+			todo!("MEM_ALLOCATE({:p}, {}p): failed {:p}", addr, page_count, rv);
 		}
 		else {
 			Ok( () )
+		}		
+	}
+	#[cfg(windows)]
+	pub fn mmap_alloc(addr: *mut u8, page_count: usize) -> Result<(),Errno> {
+		let mut si: ::winapi::um::sysinfoapi::SYSTEM_INFO;
+		unsafe {
+			si = ::core::mem::zeroed();
+			::winapi::um::sysinfoapi::GetSystemInfo(&mut si);
+			println!("si.dwPageSize = {:#x}", si.dwPageSize);
+			println!("si.dwAllocationGranularity = {:#x}", si.dwAllocationGranularity);
+		}
+		fn dump_info(addr: *mut u8) {
+			unsafe {
+				let mut b: ::winapi::um::winnt::MEMORY_BASIC_INFORMATION = ::core::mem::zeroed();
+				::winapi::um::memoryapi::VirtualQuery(addr as *const _, &mut b, ::core::mem::size_of_val(&b));
+				println!("MEMORY_BASIC_INFORMATION {{ BaseAddress: {:p}, AllocationBase: {:p}, AllocationProtect: {}, RegionSize: {:#x}, State: {:#x}, Protect: {}, Type: {:#x} }}",
+					b.BaseAddress,
+					b.AllocationBase,
+					b.AllocationProtect,
+					b.RegionSize,
+					b.State,
+					b.Protect,
+					b.Type,
+					);
+			}
+		}
+
+		use ::winapi::um::winnt::*;
+		{
+			let resv_base = addr as usize & !(si.dwAllocationGranularity as usize - 1);
+			let resv_extra = addr as usize - resv_base;
+			let resv_bytes = resv_extra + (page_count * 0x1000);
+			let resv_bytes = (resv_bytes + (si.dwAllocationGranularity as usize - 1)) & !(si.dwAllocationGranularity as usize - 1);
+			let resv_count = resv_bytes / si.dwAllocationGranularity as usize;
+			for i in 0 .. resv_count
+			{
+				let resv_base = resv_base + i * si.dwAllocationGranularity as usize;
+				println!("MEM_RESERVE {:p}", resv_base as *mut u8);
+				let rv = unsafe { ::winapi::um::memoryapi::VirtualAlloc(
+					resv_base as *mut _,
+					si.dwAllocationGranularity as usize,
+					MEM_RESERVE,
+					PAGE_READWRITE
+					) };
+				if rv == ::core::ptr::null_mut() {
+					let e = unsafe { ::winapi::um::errhandlingapi::GetLastError() };
+					println!("MEM_RESERVE: error {:#x}", e);
+				}
+
+			}
+		}
+
+		for p in 0 .. page_count
+		{
+			let rv = unsafe { ::winapi::um::memoryapi::VirtualAlloc(
+				(addr as usize + p * 0x1000) as *mut _,
+				0x1000,
+				MEM_COMMIT /*| MEM_RESERVE*/,
+				PAGE_READWRITE
+				) };
+			if rv == ::core::ptr::null_mut() {
+				let e = unsafe { ::winapi::um::errhandlingapi::GetLastError() };
+				dump_info((addr as usize - 0x1000) as *mut _);
+				dump_info(addr);
+				dump_info((addr as usize + 0x1000) as *mut _);
+				todo!("mmap_alloc: error {:#x}", e);
+			}
+		}
+
+		/*
+		println!("nbytes = {:#x}", page_count * 0x1000);
+		let rv = unsafe { ::winapi::um::memoryapi::VirtualAlloc(
+			addr as *mut _,
+			page_count * 0x1000,
+			MEM_COMMIT /*| MEM_RESERVE*/,
+			PAGE_READWRITE
+			) };
+		if rv == ::core::ptr::null_mut() {
+			let e = unsafe { ::winapi::um::errhandlingapi::GetLastError() };
+			dump_info((addr as usize - 0x1000) as *mut _);
+			dump_info(addr);
+			dump_info((addr as usize + 0x1000) as *mut _);
+			todo!("mmap_alloc: error {:#x}", e);
+		}
+		else if rv != addr as *mut _ {
+			todo!("MEM_ALLOCATE({:p}, {}p): failed {:p}", addr, page_count, rv);
+		}
+		else {*/
+			dump_info(addr);
+			Ok( () )
+		//}
+	}
+	
+	#[cfg(windows)]
+	pub struct Socket(Option<::std::net::TcpStream>);
+	impl Socket {
+		pub const fn null() -> Socket {
+			Socket(None)
 		}
 	}
 
-	pub fn exit(val: i32) -> ! {
-		// SAFE: Diverging
-		unsafe { imp::exit(val) }
+	pub fn tcp_connect_localhost(port: u16) -> Result<Socket, &'static str> {
+		Ok(Socket(Some(::std::net::TcpStream::connect( ("127.0.0.1", port) ).map_err(|_| "connect failed")?)))
 	}
-	pub fn write_stdout(s: &[u8]) {
-		// SAFE: Valid pointer
-		unsafe { imp::write(1, s.as_ptr(), s.len()); }
+	pub fn tcp_recv<T: Pod>(sock: &Socket) -> Result<T,&'static str> {
+		use std::io::Read;
+		let mut rv = T::default();
+		// SAFE: Correct pointers, data is POD
+		let slice = unsafe { ::std::slice::from_raw_parts_mut(&mut rv as *mut _ as *mut u8, ::core::mem::size_of::<T>()) };
+		sock.0.as_ref().unwrap().read_exact(slice).map_err(|_| "Error reported")?;
+		Ok(rv)
+	}
+	pub fn tcp_send<T: Pod>(sock: &Socket, val: T) -> Result<(), &'static str> {
+		use std::io::Write;
+		// SAFE: Correct pointers, and data is POD
+		let slice = unsafe { ::std::slice::from_raw_parts(&val as *const _ as *const u8, ::core::mem::size_of::<T>()) };
+		sock.0.as_ref().unwrap().write_all(slice).map_err(|_| "Error reported")?;
+		Ok( () )
 	}
 
 	pub struct Mutex<T>

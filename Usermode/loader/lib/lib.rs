@@ -27,7 +27,7 @@ pub struct ProtoProcess( ::syscalls::threads::ProtoProcess );
 mod int {
 	use core::result::Result;
 	#[allow(improper_ctypes)]
-	#[link(name="loader_dyn")]
+	#[link(name="loader_dyn",kind="dylib")]
 	extern "C"
 	{
 		// NOTES:

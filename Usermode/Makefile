@@ -94,22 +94,28 @@ else
 $(BINDIR)loader: xargo
 	@mkdir -p $(dir $@)
 	RUSTFLAGS='$(RUSTFLAGS)' $(CARGO) build $(CARGO_FLAGS) --manifest-path loader/native/Cargo.toml
+ifeq ($(OS),Windows_NT)
+	cp loader/native/$(CARGO_OUTDIR)loader_dyn.dll $(dir $@)
+else
 	cp loader/native/$(CARGO_OUTDIR)libloader_dyn.so $(dir $@)
+endif
 	touch $@
 endif
 
 .PHONY: xargo
 xargo: $(OBJDIR)rustrt0.o $(LIBDIR)libloader_dyn.so	# Referenced by link-$(TARGET).ld
 	RUSTFLAGS='$(RUSTFLAGS)' $(CARGO) build $(CARGO_FLAGS)
+
 # Ensure that all external crates are checked out
 xargo: $(patsubst %,../externals/crates.io/%/src/lib.rs,cmdline_words_parser stack_dst utf16_literal va_list)
+
 # Low-level loader dummy dynamic library
 # - Used to tell ld that `loader`'s exported symbols actually exist
-$(LIBDIR)libloader_dyn.so: loader/bin/lib.S	$(makefile_deps) Makefile
+$(LIBDIR)libloader_dyn.so: loader/bin/placeholder_lib.rs	$(makefile_deps) Makefile
 	@mkdir -p $(dir $@)
-	@echo [CC] $@
-	$V$(CC) -o $@.o -c $< -fPIC -D ARCH_$(ARCH) -g
-	$V$(LD) -o $@ $@.o -shared -soname=libloader_dyn.so -g
+	@echo [RUSTC] $@
+	$V$(RUSTC) --crate-type=cdylib --crate-name loader_dyn loader/bin/placeholder_lib.rs --out-dir $(LIBDIR) --cfg 'arch="$(ARCH)"'
+	if [ -e $(LIBDIR)loader_dyn.dll.lib ]; then cp $(LIBDIR)loader_dyn.dll.lib $(LIBDIR)loader_dyn.lib; fi
 
 # - Assembly objects (loader)
 $(OBJDIR)%.ao: %.S $(makefile_deps)

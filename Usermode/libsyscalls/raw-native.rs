@@ -1,16 +1,16 @@
 
-#[link(name="loader_dyn")]
+#[cfg_attr(not(feature="native_nolink"), link(name="loader_dyn",kind="dylib"))]
+#[allow(improper_ctypes)]
 extern "C" {
 	fn rustos_native_init(port: u16);
 	fn rustos_native_syscall(id: u32, opts: &[usize]) -> u64;
 }
+#[cfg(not(windows))]
 #[link(name="gcc_s")]
 extern "C" {
 }
-#[link(name="c")]
-extern "C" {
-}
 
+extern crate libc;
 
 pub fn native_init(port: u16) {
 	// SAFE: Called once

@@ -6,6 +6,7 @@
 #![feature(asm)]
 #![feature(thread_local,const_fn)]
 #![feature(stmt_expr_attributes)]
+#![cfg_attr(arch="native",feature(rustc_private))]
 #![no_std]
 
 mod std {

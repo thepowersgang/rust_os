@@ -7,4 +7,7 @@ edition = "2018"
 crate_type = ["cdylib"]
 
 [dependencies]
-syscalls = { path = "../../libsyscalls" }
+syscalls = { path = "../../libsyscalls", features=["native_nolink"] }
+
+[target.'cfg(windows)'.dependencies]
+winapi = { version = "0.3", features=["winnt", "memoryapi", "errhandlingapi", "sysinfoapi"] }

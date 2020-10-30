@@ -39,7 +39,7 @@ impl mount::Driver for NativeFsDriver
         Ok(0)
     }
 	fn mount(&self, vol: VolumeHandle, handle: mount::SelfHandle) -> vfs::Result<Box<dyn mount::Filesystem>> {
-        let root_path: PathBuf = "../Usermode/.native_fs".into();
+        let root_path: PathBuf = ".native_fs".into();
         let mut rv = NativeFs::default();
         rv.inner.get_mut().unwrap().inodes.insert(0, Box::new(EntData::Dir(DirData{ path: root_path })));
         Ok(Box::new(FsInstance(Aref::new(rv))))
@@ -103,8 +103,17 @@ impl vfs::node::Dir for DirNodeRef
 	fn lookup(&self, name: &ByteStr) -> vfs::node::Result<InodeId> {
         let dir_info = self.0.get_dir(self.1);
         let name = std::str::from_utf8(name.as_bytes()).unwrap();
-        let path: PathBuf = [&dir_info.path, Path::new(name)].iter().collect();
+        let mut path: PathBuf = [&dir_info.path, Path::new(name)].iter().collect();
         log_debug!("path = {:?}", path);
+        #[cfg(windows)]
+        if !path.exists()
+        {
+            let mut p2 = path.clone();
+            p2.set_extension("exe");
+            if p2.is_file() {
+                path = p2;
+            }
+        }
         Ok(self.0.allocate_inode(if path.is_dir() {
                 EntData::Dir(DirData {
                     path,

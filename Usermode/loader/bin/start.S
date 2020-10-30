@@ -31,8 +31,10 @@
 
 .section .text
 .extern loader_main
+.globl start
 /* RAX = Argument length */
-ENTRY(start)
+.def
+start:
 	mov %rax, %rsi	/* Save arg length in ARG2 */
 	/* 0. ASSERT that the loader was loaded to the correct location */
 	mov $BASE, %rax
@@ -56,11 +58,14 @@ ENTRY(start)
 	syscall
 .loop:
 	jmp .loop
+//.type start, "function"
+.endef
 
 /*
 // RDI = Address
 // RSI = Value
 // RDX = Count
+.def memset
 ENTRY(memset)
 	mov %rsi, %rax
 	mov %rdx, %rcx
@@ -68,6 +73,7 @@ ENTRY(memset)
 	rep stosb
 	mov %rdx, %rax // because it's the return value
 	ret
+.enddef
 // RDI = Destination
 // RSI = Source
 // RDX = Count

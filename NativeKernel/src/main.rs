@@ -95,7 +95,7 @@ impl ::std::ops::Drop for GlobalState
 }
 type GlobalStateRef = ::std::sync::Arc<::std::sync::Mutex<GlobalState>>;
 
-fn main() -> Result<(), Box<dyn std::error::Error>>
+fn main()// -> Result<(), Box<dyn std::error::Error>>
 {
 	::kernel::threads::init();
 	::kernel::memory::phys::init();
@@ -131,7 +131,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>>
 		.unwrap()
 		;
 
-	let server = ::std::net::TcpListener::bind("127.0.0.1:32245")?;
+	let server = match ::std::net::TcpListener::bind( ("127.0.0.1", 32245) )
+		{
+		Ok(v) => v,
+		Err(e) => panic!("bind() failed: {}", e),
+		};
 
 
 	let init_fh = ::kernel::vfs::handle::File::open(
@@ -141,13 +145,21 @@ fn main() -> Result<(), Box<dyn std::error::Error>>
 		.unwrap();
 	::syscalls::init(init_fh);
 
+	#[cfg(not(windows))]
+	let init_path = ".native_fs/Tifflin/bin/init";
+	#[cfg(windows)]
+	let init_path = ".native_fs/Tifflin/bin/init.exe";
 	let gs_root = ::std::sync::Arc::new(::std::sync::Mutex::new(
-			GlobalState::new( ::std::process::Command::new("../Usermode/.output/native/bin/init").spawn()? )
+			GlobalState::new( ::std::process::Command::new(init_path).spawn().expect("Failed to spawn init") )
 		));
 
 	loop
 	{
-		let (sock, addr) = test_pause_thread(|| server.accept())?;
+		let (sock, addr) = match test_pause_thread(|| server.accept())
+			{
+			Ok(v) => v,
+			Err(e) => panic!("accept() failed: {}", e),
+			};
 		log_debug!("Client connection from {:?}", addr);
 		let gs = gs_root.clone();
 		// NOTE: This lock must be released before the thread is started
@@ -288,6 +300,8 @@ fn start_process(gs: &GlobalStateRef, mut args: &[usize]) -> Result<u32, ::sysca
 	}
 	let path = &proc_name[8..];
 	let path = ["../Usermode/.output/native", path].concat();
+	#[cfg(windows)]
+	let path = path + ".exe";
 
 	if proc_args.len() > 0 {
 		todo!("");
