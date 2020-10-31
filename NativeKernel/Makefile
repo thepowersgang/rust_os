@@ -35,4 +35,4 @@ run: all
 	@cp -r ../Usermode/.output/native/bin .native_fs/Tifflin
 	@mkdir -p .native_fs/Tifflin/shared/images
 	cp ../Graphics/.output/shared/*.r8 .native_fs/Tifflin/shared/images/
-	$(CARGO) run
+	LD_LIBRARY_PATH=../Usermode/.output/native/bin $(CARGO) run | tee log.txt

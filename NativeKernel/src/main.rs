@@ -104,7 +104,9 @@ fn main()// -> Result<(), Box<dyn std::error::Error>>
 	(::kernel::metadevs::storage::S_MODULE.init)();
 	(::kernel::metadevs::video::S_MODULE.init)();
 	(::kernel::vfs::S_MODULE.init)();
-	::core::mem::forget( ::kernel::metadevs::video::add_output(Box::new(video_shim::Display::new())) );
+	// TODO: Add a minifb backed KB/Mouse too
+	let console = video_shim::Console::new();
+	::core::mem::forget( ::kernel::metadevs::video::add_output(Box::new(console.get_display())) );
 	(::gui::S_MODULE.init)();
 
 	::core::mem::forget( ::kernel::vfs::mount::DriverRegistration::new("native", &fs_shim::NativeFsDriver) );

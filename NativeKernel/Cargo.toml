@@ -9,3 +9,4 @@ syscalls = { path = "../Kernel/Modules/syscalls", features = ["native"] }
 gui = { path = "../Kernel/Modules/gui", features = [] }
 
 process-memory = "0.4"
+minifb = "0.19"
