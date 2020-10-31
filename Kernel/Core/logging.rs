@@ -118,13 +118,13 @@ mod serial
 		pub fn set_colour(&self, colour: Colour) {
 			match colour
 			{
-			Colour::Default => ::arch::puts("\x1b[0m"),
-			Colour::Red	 => ::arch::puts("\x1b[31m"),
-			Colour::Green   => ::arch::puts("\x1b[32m"),
-			Colour::Yellow  => ::arch::puts("\x1b[33m"),
-			Colour::Blue	=> ::arch::puts("\x1b[34m"),
-			Colour::Purple  => ::arch::puts("\x1b[35m"),
-			Colour::Grey	=> ::arch::puts("\x1b[1;30m"),
+			Colour::Default => ::arch::puts("\x1b[0000m"),
+			Colour::Red     => ::arch::puts("\x1b[0031m"),
+			Colour::Green   => ::arch::puts("\x1b[0032m"),
+			Colour::Yellow  => ::arch::puts("\x1b[0033m"),
+			Colour::Blue    => ::arch::puts("\x1b[0034m"),
+			Colour::Purple  => ::arch::puts("\x1b[0035m"),
+			Colour::Grey    => ::arch::puts("\x1b[1;30m"),
 			}
 		}
 	}
