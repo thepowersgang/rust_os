@@ -50,6 +50,7 @@ pub fn init()
 	::arch::threads::set_thread_ptr( tid0 );
 }
 
+/// Returns `true` if a thread was reaped
 fn reap_threads() -> bool
 {
 	let mut rv = false;

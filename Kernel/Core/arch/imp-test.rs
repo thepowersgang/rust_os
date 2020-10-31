@@ -319,7 +319,7 @@ pub mod threads {
 	}
 	pub fn get_thread_ptr() -> Option<::threads::ThreadPtr> {
 		THIS_THREAD_STATE.with(|v| {
-			log_trace!("get_thread_ptr: {:p}", v);
+			//log_trace!("get_thread_ptr: {:p}", v);
 			let mut h = v.borrow_mut();
 			assert!(!h.ptr_moved);
 			if h.ptr.is_null() {
@@ -404,13 +404,15 @@ pub mod threads {
 			h.this_state.as_ref().unwrap().complete.store(true, Ordering::SeqCst);
 			});
 		let lock = crate::sync::RwLock::new( () );
-		log_debug!("Paused thread");
+		log_debug!("Pausing thread");
 		// Acquire a lock
 		let wl = lock.write();
 		// - Trigger a deadlock (which will sleep, but not block due to above flag)
 		let rl = lock.read();
 
+		log_debug!("Paused thread");
 		let rv = f();
+		log_debug!("Unpausing thread");
 
 		// Clear `complete`
 		THIS_THREAD_STATE.with(|v| {
@@ -421,7 +423,7 @@ pub mod threads {
 		drop(wl);
 		// And then release the read lock
 		drop(rl);
-		log_debug!("Unpausing thread");
+		log_debug!("Unpaused thread");
 
 		// Wait until scheduled
 		THIS_THREAD_STATE.with(|v| {
