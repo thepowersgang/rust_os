@@ -102,7 +102,7 @@ impl<T: Pod> SyscallArg for FreezeMut<T>
 		// SAFE: Performs data validation, and only accepts user pointers (which are checkable)
 		unsafe { 
 			#[cfg(feature="native")]
-			let ptr_real = native_map_syscall_pointer(ptr as *const u8, blen, false) as *mut T;
+			let ptr_real = native_map_syscall_pointer(ptr as *const u8, blen, /*is_mut*/true) as *mut T;
 			#[cfg(not(feature="native"))]
 			let ptr_real = ptr;
 			let bs = if let Some(v) = ::kernel::memory::buf_to_slice_mut(ptr_real, 1) {
