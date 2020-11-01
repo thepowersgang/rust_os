@@ -19,7 +19,19 @@ pub use ::values::VFSNodeType as NodeType;
 pub use ::values::VFSFileOpenMode as FileOpenMode;
 pub use ::values::VFSMemoryMapMode as MemoryMapMode;
 
-pub static ROOT: Dir = Dir( ::ObjectHandle(2) );
+pub fn root() -> &'static Dir {
+	use ::core::sync::atomic::{Ordering,AtomicBool};
+	static mut ROOT: Option<Dir> = None;
+	static ROOT_SETTING: AtomicBool = AtomicBool::new(false);
+	// SAFE: Single-write (enforced by the atomic)
+	unsafe {
+		if ROOT.is_none() {
+			assert!( ROOT_SETTING.swap(true, Ordering::SeqCst) == false, "TODO: Race in initialising root handle" );
+			ROOT = Some(crate::object_from_raw(1).expect("Bad RO root handle"));
+		}
+		ROOT.as_ref().unwrap()
+	}
+}
 
 
 #[inline]

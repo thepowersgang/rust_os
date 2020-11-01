@@ -22,7 +22,7 @@ fn main()
 {
 	::wtk::initialise();
 
-	let root_handle: ::syscalls::vfs::Dir = ::syscalls::threads::S_THIS_PROCESS.receive_object("ro:/").expect("No FS root handle passed");
+	let root_handle: ::syscalls::vfs::Dir = ::syscalls::vfs::root().clone();
 	//let root_handle = ::syscalls::vfs::Dir::open("/").unwrap();
 
 	let mut fl = ::filelist::FileList::new(&root_handle);
@@ -43,7 +43,7 @@ fn main()
 fn get_app_exe(name: &[u8]) -> Result<::syscalls::vfs::File, ()> {
 	match name
 	{
-	b"fileviewer" => Ok( ::syscalls::vfs::ROOT.open_child_path("/sysroot/bin/fileviewer").unwrap().into_file(::syscalls::vfs::FileOpenMode::Execute).unwrap() ),
+	b"fileviewer" => Ok( ::syscalls::vfs::root().open_child_path("/sysroot/bin/fileviewer").unwrap().into_file(::syscalls::vfs::FileOpenMode::Execute).unwrap() ),
 	_ => Err( () ),
 	}
 }

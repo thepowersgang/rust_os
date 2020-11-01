@@ -62,7 +62,7 @@ pub extern "C" fn loader_main(cmdline: *mut u8, cmdline_len: usize) -> !
 	
 	
 	// 3. Spin up init
-	let fh: ::syscalls::vfs::File = ::syscalls::object_from_raw(1).expect("Unable to open object #1 as init");
+	let fh: ::syscalls::vfs::File = ::syscalls::object_from_raw(2).expect("Unable to open object #2 as init");
 	let entrypoint = load_binary(init_path, fh);
 	
 	// Populate arguments

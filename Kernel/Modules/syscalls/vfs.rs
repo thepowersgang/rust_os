@@ -74,17 +74,16 @@ fn to_result<T>(r: Result<T, ::kernel::vfs::Error>) -> Result<T, u32> {
 }
 
 pub fn init_handles(init_handle: ::kernel::vfs::handle::File) {
-	// #1: Initial file handle
-	::objects::new_object( File(init_handle) );
-	// #2: Read-only root
-	::objects::new_object(Dir::new( {
+	// #1: Read-only root
+	::objects::push_as_unclaimed("ro:/", ::objects::new_object(Dir::new( {
 		let root = handle::Dir::open(Path::new("/")).unwrap();
 		//root.set_permissions( handle::Perms::readonly() );
 		root
-		}));
+		})) );
+	// #2: Initial file handle
+	::objects::new_object( File(init_handle) );
 
 	// - Read-write handle to /
-	//::objects::push_as_unclaimed( ::objects::new_object( Dir::new( handle::Dir::open(Path::new("/")).unwrap() ) ) );
 	::objects::push_as_unclaimed("RwRoot", ::objects::new_object( Dir::new( handle::Dir::open(Path::new("/")).unwrap() ) ) );
 }
 

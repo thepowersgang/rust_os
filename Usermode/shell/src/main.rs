@@ -19,17 +19,17 @@ macro_rules! imgpath {
 
 fn start_app_console() {
 	start_app(&["/sysroot/bin/simple_console", "--windowed"], |_app| {
-		//app.send_obj( "vfs", ::syscalls::vfs::ROOT.clone() );
+		//app.send_obj( "vfs", ::syscalls::vfs::root().clone() );
 		});
 }
 fn start_app_filebrowser() {
 	start_app(&["/sysroot/bin/filebrowser"], |app| {
-		app.send_obj( "ro:/", ::syscalls::vfs::ROOT.clone() );
+		app.send_obj( "ro:/", ::syscalls::vfs::root().clone() );
 		});
 }
 fn start_app_editor() {
 	let path = "/system/1.txt";
-	let f = ::syscalls::vfs::ROOT.open_child_path(path.as_bytes()).expect("Couldn't open editor executable file")
+	let f = ::syscalls::vfs::root().open_child_path(path.as_bytes()).expect("Couldn't open editor executable file")
 		.into_file(::syscalls::vfs::FileOpenMode::ReadOnly).expect("Couldn't open file as readonly");
 	start_app(&["/sysroot/bin/fileviewer", path], |app| {
 		app.send_obj( "file", f );
@@ -152,7 +152,7 @@ where
 
 fn open_exec(path: &str) -> ::syscalls::vfs::File
 {
-	match ::syscalls::vfs::ROOT.open_child_path(path.as_bytes())
+	match ::syscalls::vfs::root().open_child_path(path.as_bytes())
 	{
 	Ok(v) => match v.into_file(::syscalls::vfs::FileOpenMode::Execute)
 		{

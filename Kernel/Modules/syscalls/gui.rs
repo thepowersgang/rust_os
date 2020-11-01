@@ -240,6 +240,7 @@ impl objects::Object for Window
 }
 
 #[derive(Default)]
+/// Process-local group (a Group handle used for the entire process)
 struct PLWindowGroup( Mutex<Option< ::gui::WindowGroupHandle >> );
 impl PLWindowGroup {
 	fn with<O, F: FnOnce(&mut ::gui::WindowGroupHandle)->O>(&self, f: F) -> Result<O,u32> {

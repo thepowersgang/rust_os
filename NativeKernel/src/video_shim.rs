@@ -74,8 +74,7 @@ impl Console
 					{
 						if keys != prev_keys
 						{
-							log_debug!("prev_keys = {:?}", prev_keys);
-							log_debug!("keys = {:?}", keys);
+							log_debug!("keys = {:?} -> {:?}", prev_keys, keys);
 						}
 
 						fn translate_keycode(k: &::minifb::Key) -> KeyCode {

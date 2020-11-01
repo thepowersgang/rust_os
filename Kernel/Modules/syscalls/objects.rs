@@ -147,6 +147,8 @@ impl ProcessObjects {
 			// NOTE: Move out of the collection before calling, to allow reusing the slot
 			let v = h.write().take();
 			if let Some(mut obj) = v {
+				let name = obj.data.type_name();
+				log_debug!("Object by-value #{}: {}", handle, name);
 				let rv = fcn(&mut *obj.data);
 				::core::mem::forget(obj);
 				rv
@@ -167,6 +169,8 @@ impl ProcessObjects {
 			if let Some(mut lh) = h.try_write()
 			{
 				if let Some(obj) = lh.take() {
+					let name = obj.data.type_name();
+					log_debug!("Object removed #{}: {}", handle, name);
 					Ok( obj.data )
 				}
 				else {
@@ -204,6 +208,7 @@ impl ProcessObjects {
 
 	fn push_given(&self, handle: u32, tag: &str)
 	{
+		log_debug!("Push {} = {}", tag, handle);
 		let mut lh = self.given.lock();
 		lh.push( (tag.into(), handle as u16) );
 	}
@@ -261,6 +266,7 @@ fn get_unclaimed_int(class: u16, tag: &str) -> Result<u32,u32>
 			Err(0x1_0000)
 		}
 		else if lh.as_ref().map(|x| x.data.class()) == Some(class) {
+			log_debug!("get_unclaimed({}) - Returned {}", tag, id);
 			Ok(id as u32)
 		}
 		else {
@@ -278,7 +284,7 @@ fn get_unclaimed_int(class: u16, tag: &str) -> Result<u32,u32>
 		}
 	}
 	else {
-		log_notice!("get_unclaimed() - No object in queue");
+		log_notice!("get_unclaimed({}) - No object in queue", tag);
 		Err(0x1_0000)
 	}
 }
@@ -329,15 +335,15 @@ pub fn clear_wait(handle: u32, mask: u32, sleeper: &mut ::kernel::threads::Sleep
 
 /// Give the target process the object specified by `handle`
 pub fn give_object(target: &::kernel::threads::ProcessHandle, tag: &str, handle: u32) -> Result<(),super::Error> {
-	log_debug!("give_object(target={:?}, handle={:?})", target, handle);
+	log_trace!("give_object(target={:?}, handle={:?})", target, handle);
 	let target_list = target.get_process_local_alloc::<ProcessObjects>();
 	let obj = try!(get_process_local::<ProcessObjects>().take_object(handle));
 	let class_id = obj.class();
 	let id = try!( target_list.find_and_fill_slot(|| UserObject { data: obj }) );
 	
-	log_trace!("- Giving object {} ({} {}) as '{}' (handle {})",
+	log_debug!("- Giving object {} ({} {}) as '{}' to {:?} (handle {})",
 		handle, class_id, ::values::get_class_name(class_id),
-		tag, id
+		tag, target, id
 		);
 	target_list.push_given( id, tag );
 

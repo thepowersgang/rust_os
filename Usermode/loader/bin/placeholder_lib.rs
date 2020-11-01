@@ -15,3 +15,8 @@ pub mod _foo {
 fn panic_handler(_: &::core::panic::PanicInfo) -> ! {
 	loop {}
 }
+
+#[cfg(windows)]
+#[no_mangle]
+pub extern "system" fn _DllMainCRTStartup() {
+}

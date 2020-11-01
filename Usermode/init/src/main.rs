@@ -53,7 +53,7 @@ fn get_handle<T: ::syscalls::Object>(desc: &str, tag: &str) -> T
 
 fn open_exec(path: &str) -> ::syscalls::vfs::File
 {
-	match ::syscalls::vfs::ROOT.open_child_path(path.as_bytes())
+	match ::syscalls::vfs::root().open_child_path(path.as_bytes())
 	{
 	Ok(v) => match v.into_file(::syscalls::vfs::FileOpenMode::Execute)
 		{

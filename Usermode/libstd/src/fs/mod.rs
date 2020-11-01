@@ -24,7 +24,7 @@ impl Node
 			// If the path DOESN't start with /: - hand off to root
 			if pb.len() > 0 && pb[0] != b':' {
 				// - Fully absolute path (open readonly relative to the program's root)
-				let n = try!( ::syscalls::vfs::ROOT.open_child_path(path) );
+				let n = try!( ::syscalls::vfs::root().open_child_path(path) );
 				Ok(Node( n ))
 			}
 			else {

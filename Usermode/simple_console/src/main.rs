@@ -147,7 +147,7 @@ impl ShellState
 	pub fn new() -> ShellState {
 		ShellState {
 			cwd_rel: Default::default(),
-			root_handle: ::syscalls::vfs::ROOT.clone(),
+			root_handle: ::syscalls::vfs::root().clone(),
 			}
 	}
 	/// Handle a command

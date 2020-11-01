@@ -228,7 +228,7 @@ pub mod threads {
 	use std::cell::RefCell;
 	use std::sync::atomic::{Ordering,AtomicBool};
 	lazy_static::lazy_static! {
-		static ref SWITCH_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new( () );
+		static ref SWITCH_LOCK: std::sync::Mutex<usize> = std::sync::Mutex::new( 0 );
 	}
 
 	#[derive(Debug)]
@@ -277,11 +277,17 @@ pub mod threads {
 			if let Some(ref t) = t
 			{
 				t.cpu_state.inner.running.store(true, Ordering::SeqCst);	// Avoids a startup race
+				*lh = &*t.cpu_state.inner as *const _ as usize;
 				t.cpu_state.inner.condvar.notify_one();
 			}
+			// TODO: State enum? (PreStart, Running, Sleeping, Paused, Dead)
 			if !self.complete.load(Ordering::SeqCst) {
-				//log_trace!("{:p} sleeping", self);
-				lh = self.condvar.wait(lh).expect("Condvar wait failed");
+				while *lh != self as *const _ as usize
+				{
+					log_trace!("{:p} sleeping (current {:#x})", self, *lh);
+					lh = self.condvar.wait(lh).expect("Condvar wait failed");
+					log_trace!("{:p} awake (current {:#x})", self, *lh);
+				}
 			}
 			else {
 				//log_trace!("{:p} complete", self);
@@ -390,6 +396,75 @@ pub mod threads {
 		std::mem::forget( lock );
 	}
 
+	pub struct ThreadPauser {
+		lock: crate::sync::RwLock<()>,
+	}
+	pub struct PausedThread<'a> {
+		wl: Option<crate::sync::rwlock::Write<'a, ()>>,
+		rl: Option<crate::sync::rwlock::Read<'a, ()>>,
+	}
+	impl ThreadPauser {
+		pub fn new() -> Self {
+			ThreadPauser {
+				lock: crate::sync::RwLock::new( () ),
+			}
+		}
+		pub fn pause(&self) -> PausedThread {
+			// - Hold switching lock until function returns
+			// Mark as complete to cause the thread to not sleep on next yield
+			THIS_THREAD_STATE.with(|v| {
+				let h = v.borrow();
+				h.this_state.as_ref().unwrap().complete.store(true, Ordering::SeqCst);
+				});
+			log_debug!("Pausing thread");
+			// Acquire a lock
+			let wl = self.lock.write();
+			// - Trigger a deadlock (which will sleep, but not block due to above flag)
+			let rl = self.lock.read();
+
+			log_debug!("Paused thread");
+			PausedThread {
+				wl: Some(wl),
+				rl: Some(rl),
+			}
+		}
+	}
+	impl ::core::ops::Drop for PausedThread<'_> {
+		fn drop(&mut self)
+		{
+			log_debug!("Unpausing thread");
+	
+			// Clear `complete`
+			let p = THIS_THREAD_STATE.with(|v| {
+				let h = v.borrow();
+				let state = h.this_state.as_ref().unwrap();
+				state.complete.store(false, Ordering::SeqCst);
+				state as *const _
+				});
+			// Release the write lock (will wake with the read lock)
+			drop(self.wl.take());
+			// And then release the read lock
+			drop(self.rl.take());
+			log_debug!("Unpaused thread {:p}", p);
+	
+			// Wait until scheduled
+			// TODO: Only wait if not the current thread
+			THIS_THREAD_STATE.with(|v| {
+				let h = v.borrow();
+				//assert!( h.ptr_moved );
+				match h.this_state
+				{
+				None => panic!("Current thread not initialised"),
+				Some(ref v) => {
+					//log_trace!("switch_to: {:p} to {:p}", *v, t.cpu_state.inner);
+					v.sleep(None);
+					log_trace!("test_pause_thread: {:p} awake", *v);
+					},
+				}
+			});
+		}
+	}
+
 	/// Test hack: Take the current thread out of the kernel's scheduling while running a closure
 	///
 	/// Useful for running a native function that will block for a significant period
@@ -397,48 +472,12 @@ pub mod threads {
 	where
 		F: FnOnce()->T
 	{
-		// - Hold switching lock until function returns
-		// Mark as complete to cause the thread to not sleep on next yield
-		THIS_THREAD_STATE.with(|v| {
-			let h = v.borrow();
-			h.this_state.as_ref().unwrap().complete.store(true, Ordering::SeqCst);
-			});
-		let lock = crate::sync::RwLock::new( () );
-		log_debug!("Pausing thread");
-		// Acquire a lock
-		let wl = lock.write();
-		// - Trigger a deadlock (which will sleep, but not block due to above flag)
-		let rl = lock.read();
+		let pauser = ThreadPauser::new();
 
-		log_debug!("Paused thread");
+		let handle = pauser.pause();
+
 		let rv = f();
-		log_debug!("Unpausing thread");
-
-		// Clear `complete`
-		THIS_THREAD_STATE.with(|v| {
-			let h = v.borrow();
-			h.this_state.as_ref().unwrap().complete.store(false, Ordering::SeqCst);
-			});
-		// Release the write lock (will wake with the read lock)
-		drop(wl);
-		// And then release the read lock
-		drop(rl);
-		log_debug!("Unpaused thread");
-
-		// Wait until scheduled
-		THIS_THREAD_STATE.with(|v| {
-			let h = v.borrow();
-			//assert!( h.ptr_moved );
-			match h.this_state
-			{
-			None => panic!("Current thread not initialised"),
-			Some(ref v) => {
-				//log_trace!("switch_to: {:p} to {:p}", *v, t.cpu_state.inner);
-				v.sleep(None);
-				//log_trace!("switch_to: {:p} awake", *v);
-				},
-			}
-		});
+		drop(handle);
 		rv
 	}
 

@@ -72,9 +72,9 @@ pub extern "C" fn new_process(executable_handle: ::syscalls::vfs::File, process_
 		};
 	
 	// Send the executable handle
-	kernel_log!("- Sending executable handle");
+	kernel_log!("- Sending root and executable handle");
+	proto_proc.send_obj( "ro:/", ::syscalls::vfs::root().clone() );	// Must be first object created (name is not actually used)
 	proto_proc.send_obj( "exec", executable_handle );
-	proto_proc.send_obj( "ro:/", ::syscalls::vfs::ROOT.clone() );
 
 	kernel_log!("- Returning ProtoProcess");
 	Ok(proto_proc)
@@ -121,8 +121,7 @@ fn new_process_entry() -> !
 	
 	
 	let fh: ::syscalls::vfs::File = ::syscalls::threads::S_THIS_PROCESS.receive_object("exec").expect("Could not receive the executable vfs::File object");
-	let root: ::syscalls::vfs::Dir = ::syscalls::threads::S_THIS_PROCESS.receive_object("ro:/").expect("Could not receive the root");
-	::std::mem::forget(root);
+	::syscalls::vfs::root();	// Fetches the root handle too
 	let entrypoint = ::load_binary(process_name, fh);
 	
 	// TODO: Coordinate with the parent process and receive an initial set of objects (e.g. WM root)?

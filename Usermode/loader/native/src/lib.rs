@@ -30,7 +30,10 @@ pub extern "C" fn new_process(executable_handle: ::syscalls::vfs::File, process_
 
 	match ::syscalls::threads::start_process(executable_handle, name, &args_packed)
 	{
-	Ok(h) => Ok(h),
+	Ok(h) => {
+		h.send_obj( "ro:/", ::syscalls::vfs::root().clone() );
+		Ok(h)
+		},
 	Err(e) => todo!("loader native new_process: error={}", e),
 	}
 }
@@ -253,7 +256,7 @@ mod mini_std {
 	#[cfg(windows)]
 	impl ::core::fmt::Display for WinapiError {
 		fn fmt(&self, f: &mut ::core::fmt::Formatter) -> ::core::fmt::Result {
-			write!("{:#x}", self.0)
+			write!(f, "{:#x}", self.0)
 		}
 	}
 	#[cfg(windows)]

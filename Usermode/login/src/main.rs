@@ -138,7 +138,7 @@ fn try_login(username: &str, password: &str) -> Result<(), &'static str>
 }
 
 fn open_exe(path: &str) -> Result<::syscalls::vfs::File, ::syscalls::vfs::Error> {
-	match ::syscalls::vfs::ROOT.open_child_path(path.as_bytes())
+	match ::syscalls::vfs::root().open_child_path(path.as_bytes())
 	{
 	Ok(v) => v.into_file(::syscalls::vfs::FileOpenMode::Execute),
 	Err(e) => Err(e),

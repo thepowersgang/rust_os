@@ -28,9 +28,15 @@ thread_local! {
 	static THREAD_CURRENT_INFO: ::std::cell::RefCell<Option<ThreadSyscallInfo>> = ::std::cell::RefCell::new(None);
 }
 
+#[derive(PartialOrd,PartialEq,Debug)]
 enum PreStartState {
+	/// Process has spawned, but the worker hasn't started
 	Spawned,
-	Waiting,
+	/// Worker started, waiting 
+	WaitingAck,
+	/// Process is now tracked in `process_handles`
+	WaitingTracked,
+	/// Process has been started by parent
 	Running,
 }
 impl Default for PreStartState { fn default() -> Self { PreStartState::Spawned } }
@@ -170,8 +176,27 @@ fn main()// -> Result<(), Box<dyn std::error::Error>>
 		{
 			let pid = h.get_pid();
 			log_debug!("{:?} = PID {}", addr, pid);
+			// NOTE: Can't have the lock held, as `start_root_thread` attempts to switch to the new thread
 			h.start_root_thread(move || process_worker(gs, pid, sock, addr));
+
+			let psp = gs_root.lock().unwrap().pre_start_processes[&pid].clone();
+
+			// Wait until the worker starts
+			{
+				let mut lh = test_pause_thread(|| psp.mutex.lock().unwrap());
+				while *lh < PreStartState::WaitingAck
+				{
+					lh = test_pause_thread(|| psp.condvar.wait(lh).expect("Process start condvar wait failed"));
+				}
+			}
+			// Push the process to the main list	
 			gs_root.lock().unwrap().push_process(h);
+			// Let the worker continue (and inform a possibly-waiting sender that it's running)
+			{
+				let mut lh = test_pause_thread(|| psp.mutex.lock().unwrap());
+				*lh = PreStartState::WaitingTracked;
+				psp.condvar.notify_all();
+			}
 		}
 		else
 		{
@@ -185,9 +210,10 @@ fn main()// -> Result<(), Box<dyn std::error::Error>>
 			if pid != 0 {
 				let e = gs.lock().unwrap().pre_start_processes[&pid].clone();
 				let mut lh = e.mutex.lock().unwrap();
-				*lh = PreStartState::Waiting;
+				*lh = PreStartState::WaitingAck;
 				e.condvar.notify_all();
-				while let PreStartState::Waiting = *lh
+				// Wait until requested to start
+				while *lh < PreStartState::Running
 				{
 					lh = test_pause_thread(|| e.condvar.wait(lh).expect("Process start condvar wait failed"));
 				}
@@ -203,6 +229,8 @@ fn main()// -> Result<(), Box<dyn std::error::Error>>
 				},
 			}
 			
+			let pauser = ::kernel::arch::imp::threads::ThreadPauser::new();
+			let mut pause_handle = pauser.pause();
 			loop
 			{
 				#[repr(C)]
@@ -221,7 +249,7 @@ fn main()// -> Result<(), Box<dyn std::error::Error>>
 				}
 
 				let mut req = Msg::default();
-				match test_pause_thread(|| sock.read_exact( unsafe { ::std::slice::from_raw_parts_mut(&mut req as *mut _ as *mut u8, ::std::mem::size_of::<Msg>()) }))
+				match /*test_pause_thread(||*/ sock.read_exact( unsafe { ::std::slice::from_raw_parts_mut(&mut req as *mut _ as *mut u8, ::std::mem::size_of::<Msg>()) })/*)*/
 				{
 				Ok(_) => {},
 				Err(e) => {
@@ -229,6 +257,7 @@ fn main()// -> Result<(), Box<dyn std::error::Error>>
 					break
 					},
 				}
+				drop(pause_handle);
 				log_log!("PID{}: request: {:x?}", pid, req);
 
 				THREAD_CURRENT_INFO.with(|f| {
@@ -269,7 +298,8 @@ fn main()// -> Result<(), Box<dyn std::error::Error>>
 					call: req.call,
 					rv: res_val,
 					};
-				match test_pause_thread(|| sock.write(unsafe { ::std::slice::from_raw_parts(&res as *const _ as *const u8, ::std::mem::size_of::<Resp>()) }))
+				pause_handle = pauser.pause();
+				match /*test_pause_thread(|| */sock.write(unsafe { ::std::slice::from_raw_parts(&res as *const _ as *const u8, ::std::mem::size_of::<Resp>()) })/*)*/
 				{
 				Ok(_) => {},
 				Err(e) => { log_error!("Failed to send syscall response"); return },
@@ -347,17 +377,20 @@ fn start_process(gs: &GlobalStateRef, mut args: &[usize]) -> Result<u32, ::sysca
 				let handle: u32 = args.get()?;
 				log_debug!("CORE_PROTOPROCESS_SENDOBJ: tag={:?} handle={}", tag, handle);
 				// Wait until the process is started (and thus in the handles pool)
-				match { self.gs.lock().unwrap().pre_start_processes.get(&self.pid).cloned() }
+				let psp = self.gs.lock().unwrap().pre_start_processes.get(&self.pid).cloned();
+				match psp
 				{
 				Some(e) => {
-					let mut lh = e.mutex.lock().unwrap();
-					while let PreStartState::Spawned = *lh
+					let mut lh = test_pause_thread(|| e.mutex.lock().unwrap());
+					while *lh < PreStartState::WaitingTracked
 					{
+						log_debug!("Process state {:?}, waiting for at least WaitingTracked", *lh);
 						lh = test_pause_thread(|| e.condvar.wait(lh).expect("Pre-start wait failed"));
 					}
 					},
 				None => {},
 				}
+				// TODO: This PID may not be in `process_handles` yet (added when main thread starts)
 				let lh = self.gs.lock().unwrap();
 				::syscalls::native_exports::give_object(&lh.process_handles[&self.pid], &tag, handle).map(|_| 0)
 				},
