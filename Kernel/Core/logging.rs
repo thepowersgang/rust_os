@@ -464,27 +464,36 @@ pub fn enabled(level: Level, modname: &str) -> bool
 
 	#[cfg(feature="test")]
 	mod _test_log {
-		#[no_mangle]
-		static log_cfg: [super::LogCfgEnt; 0] = [
-			//super::LogCfgEnt {
-			//	name_ptr: "kernel::sync::rwlock".as_ptr(),
-			//	name_len: "kernel::sync::rwlock".len() as u16,
-			//	level: super::Level::LevelDebug as u16,
-			//	_pad: 0,
-			//	}
-			];
-		#[no_mangle]
-		static log_cfg_end: [super::LogCfgEnt; 0] = [];
+		macro_rules! def_filters {
+			( $($s:literal >= $level:ident,)* ) => {
+				#[no_mangle]
+				static log_cfg_data: [super::LogCfgEnt; def_filters!(@count $($level)*)] = [
+					$(
+					super::LogCfgEnt {
+						name_ptr: $s.as_ptr(),
+						name_len: $s.len() as u16,
+						level: super::Level::$level as u16,
+						#[cfg(target_pointer_width="64")]
+						_pad: 0,
+						},
+					)*
+					];
+				#[no_mangle]
+				static log_cfg_count: usize = def_filters!(@count $($level)*);
+			};
+			(@count $($level:ident)*) => { 0 + $({ let $level = (); 1})* };
+		}
+		def_filters! {
+			"kernel::sync::rwlock" >= LevelDebug,
+		}
 	}
 	let log_ents = {
 		extern "C" {
-			static log_cfg: [LogCfgEnt; 0];
-			static log_cfg_end: [LogCfgEnt; 0];
+			static log_cfg_data: [LogCfgEnt; 0];
+			static log_cfg_count: usize;
 		}
-		// SAFE: This data doesn't change (only does pointers)
-		let log_ent_count = (unsafe { log_cfg_end.as_ptr() as usize - log_cfg.as_ptr() as usize }) / ::core::mem::size_of::<LogCfgEnt>();
 		// SAFE: Assembly defines these symbols, and I hope it gets the format right
-		unsafe { ::core::slice::from_raw_parts(log_cfg.as_ptr(), log_ent_count) }
+		unsafe { ::core::slice::from_raw_parts(log_cfg_data.as_ptr(), log_cfg_count) }
 		};
 
 	for ent in log_ents {
