@@ -24,8 +24,8 @@
 	.section .rodata.logcfg
 
 .section .rodata.logcfg
-.globl log_cfg_ents
-log_cfg_ents:
+.globl log_cfg_data
+log_cfg_data:
 	LOG_CFG_ENT("kernel::memory::heap::heapdef", LEVEL_DEBUG)	// Heap only prints higher than debug
 	LOG_CFG_ENT("kernel::memory::phys"         , LEVEL_TRACE)	// PMM only prints >Trace
 	//LOG_CFG_ENT("kernel::metadevs::storage", LEVEL_TRACE)
@@ -38,5 +38,5 @@ log_cfg_ents:
 	LOG_CFG_ENT("input_ps2::i8042", LEVEL_TRACE)
 	LOG_CFG_ENT("syscalls::gui_calls", LEVEL_DEBUG)
 .globl log_cfg_count
-log_cfg_count:	DEF_PTR( (log_cfg_count - log_cfg_ents) / (8+4+4) )
+log_cfg_count:	DEF_PTR( (log_cfg_count - log_cfg_data) / (8+4+4) )
 
