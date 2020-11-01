@@ -2,21 +2,21 @@
 -include common.mk
 
 run: all
-	make -C Kernel/rundir run
+	$(MAKE) -C Kernel/rundir run
 
 all:
 	@echo ">>> $@: Graphics"
-	@make -C Graphics/ all
+	@$(MAKE) -C Graphics/ all
 	@echo ">>> $@: Usermode"
-	@+make -C Usermode/ --no-print-directory
+	@+$(MAKE) -C Usermode/ xargo --no-print-directory
 	@echo ">>> $@: Kernel"
-	@+make -C Kernel/ all --no-print-directory
+	@+$(MAKE) -C Kernel/ all --no-print-directory
 
 clean:
 	@echo ">>> $@: Usermode"
-	@+make -C Usermode/ $@ --no-print-directory
+	@+$(MAKE) -C Usermode/ $@ --no-print-directory
 	@echo ">>> $@: Kernel"
-	@+make -C Kernel/ $@ --no-print-directory
+	@+$(MAKE) -C Kernel/ $@ --no-print-directory
 
 UPDATE:
 	@echo ">>> Updating rustc and libcore"
