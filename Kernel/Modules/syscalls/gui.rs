@@ -90,6 +90,19 @@ impl objects::Object for Group
 				Ok(1)
 			}
 			},
+		values::GUI_GRP_TOTALOUTPUTS => {
+			log_debug!("GUI_GRP_TOTALOUTPUTS()");
+			let d = ::kernel::metadevs::video::get_display_for_pos(Default::default()).unwrap();
+
+			let n_displays = 1;
+			let total_w = d.dims.w;
+			let total_h = d.dims.h;
+			Ok(0
+				| (total_w as u64) << 0
+				| (total_h as u64) << 24
+				| (n_displays as u64) << 48
+				)
+			},
 		_ => ::objects::object_has_no_such_method_ref("gui::Group", call),
 		}
 	}

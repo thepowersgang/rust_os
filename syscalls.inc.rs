@@ -249,6 +249,27 @@ def_classes! {
 	=8: CLASS_GUI_GROUP = {
 		/// Force this group to be the active one (requires permission)
 		=0: GUI_GRP_FORCEACTIVE,
+		/// Get the count and extent of display surfaces
+		/// Arguments: None
+		/// Returns: Packed integers
+		/// -  0..24(24): Total width
+		/// - 24..48(24): Total height
+		/// - 48..56( 8): Display count
+		=1: GUI_GRP_TOTALOUTPUTS,
+		/// Obtain the dimensions of the output
+		/// Arguments:
+		/// - Display index
+		/// Returns: Packed integers
+		/// -  0..16(16): Width
+		/// - 16..32(16): Height
+		=2: GUI_GRP_GETDIMS,
+		/// Get the intended viewport (i.e. ignoring global toolbars)
+		/// Returns: Packed integers
+		/// -  0..16(16): Width
+		/// - 16..32(16): Height
+		/// - 32..48(16): X
+		/// - 48..64(16): Y
+		=3: GUI_GRP_GETVIEWPORT,
 		--
 	}|{
 		/// Fires when the group is shown/hidden

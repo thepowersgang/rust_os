@@ -26,9 +26,10 @@ impl Console
 {
     pub fn new() -> Arc<Self>
 	{
+		let size = video::Dims::new(1280, 768);
 		let state = Arc::new(Mutex::new(State {
-			size: video::Dims::new(640, 480),
-			backbuffer: ::std::vec![ 0u32; 640 * 480 ],
+			size: size,
+			backbuffer: ::std::vec![ 0u32; size.w as usize * size.h as usize ],
 			dirty: true,
 			}));
 
@@ -185,10 +186,10 @@ impl video::Framebuffer for Display
     }
 	
 	fn blit_inner(&mut self, dst: video::Rect, src: video::Rect) {
-        todo!("")
+        todo!("blit_inner({:?}, {:?})", dst, src)
     }
 	fn blit_ext(&mut self, dst: video::Rect, src: video::Rect, srf: &dyn video::Framebuffer) -> bool {
-        todo!("")
+        todo!("blit_ext({:?}, {:?}, srf={:p})", dst, src, srf)
     }
 	fn blit_buf(&mut self, dst: video::Rect, buf: video::StrideBuf<'_,u32>) {
 		let mut lh = self.state.lock().unwrap();
@@ -206,6 +207,6 @@ impl video::Framebuffer for Display
     }
 	
 	fn move_cursor(&mut self, p: Option<video::Pos>) {
-        todo!("")
+        todo!("move_cursor({:?})", p)
     }
 }

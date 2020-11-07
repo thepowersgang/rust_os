@@ -56,8 +56,26 @@ impl Group
 		Err(_) => Err( () ),
 		}
 	}
-
 }
+
+pub struct DisplayInfo
+{
+	pub num_outputs: u8,
+	pub total_width: u32,
+	pub total_height: u32,
+}
+impl Group
+{
+	pub fn get_display_info(&self) -> DisplayInfo {
+		let enc = unsafe { self.0.call_0(::values::GUI_GRP_TOTALOUTPUTS) };
+		DisplayInfo {
+			total_width: (enc >> 0) as u32 & 0xFF_FFFF,
+			total_height: (enc >> 24) as u32 & 0xFF_FFFF,
+			num_outputs: (enc >> 48) as u8,
+			}
+	}
+}
+
 impl ::Object for Group
 {
 	const CLASS: u16 = ::values::CLASS_GUI_GROUP;

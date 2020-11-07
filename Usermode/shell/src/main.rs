@@ -100,7 +100,8 @@ fn main()
 	let mut win_menu = {
 		let mut win = ::wtk::Window::new("SystemBar", &menubar, ::wtk::Colour::theme_text_bg(), ()).unwrap();
 		win.set_pos(0, 0);
-		win.set_dims(1920,20);
+		let di = ::syscalls::gui::clone_group_handle().get_display_info();
+		win.set_dims(di.total_width, 20);
 		//win.taborder_add(0, &menubar.inner().0);
 		//win.taborder_add(1, &menubar.inner().3);
 		win
