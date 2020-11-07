@@ -3,6 +3,7 @@
 //!
 use ::kernel::metadevs::video;
 use ::gui::input::keyboard as gui_keyboard;
+use ::gui::input::mouse as gui_mouse;
 use ::gui::input::keyboard::KeyCode;
 use ::std::sync::Arc;
 use ::std::sync::Mutex;
@@ -33,19 +34,29 @@ impl Console
 			dirty: true,
 			}));
 
-		let (input_tx, input_rx) = ::std::sync::mpsc::channel::<(bool,KeyCode,)>();
+		enum InputEvent {
+			KeyDown(KeyCode),
+			KeyUp(KeyCode),
+			MousePos(u16,u16),
+			MouseDown(u8),
+			MouseUp(u8),
+		}
+
+		let (input_tx, input_rx) = ::std::sync::mpsc::channel::<InputEvent>();
 		// A kernel thread to handle sending keystrokes to the GUI
 		let input_worker = ::kernel::threads::WorkerThread::new("GUI Input", move || {
 			let gui_keyboard = gui_keyboard::Instance::new();
+			let gui_mouse = gui_mouse::Instance::new();
 			loop
 			{
-				let (is_release, key) = ::kernel::arch::imp::threads::test_pause_thread(|| input_rx.recv().expect("Input sender dropped") );
-
-				if is_release {
-					gui_keyboard.release_key(key);
-				}
-				else {
-					gui_keyboard.press_key(key);
+				let ev = ::kernel::arch::imp::threads::test_pause_thread(|| input_rx.recv().expect("Input sender dropped") );
+				match ev
+				{
+				InputEvent::KeyDown(key) => gui_keyboard.press_key(key),
+				InputEvent::KeyUp(key) => gui_keyboard.release_key(key),
+				InputEvent::MousePos(x,y) => gui_mouse.set_cursor(x, y),
+				InputEvent::MouseDown(btn) => gui_mouse.press_button(btn),
+				InputEvent::MouseUp(btn) => gui_mouse.release_button(btn),
 				}
 			}
 			});
@@ -59,6 +70,8 @@ impl Console
 
 				window.limit_update_rate(Some(::std::time::Duration::from_millis(16)));
 				let mut prev_keys = ::std::vec![];
+				let mut prev_pos = (0,0);
+				let mut prev_mouse = [false; 3];
 				loop {
 					window.update();
 
@@ -70,6 +83,22 @@ impl Console
 					}
 
 					// TODO: Mouse handling
+					if let Some( p ) = window.get_mouse_pos(::minifb::MouseMode::Discard)
+					{
+						let x = (p.0 / size.w as f32 * 0xFFFF as f32) as u16;
+						let y = (p.1 / size.h as f32 * 0xFFFF as f32) as u16;
+						if (x,y) != prev_pos {
+							prev_pos = (x,y);
+							input_tx.send(InputEvent::MousePos(x, y)).expect("Input worker quit");
+						}
+						for (i,&b) in [::minifb::MouseButton::Left, ::minifb::MouseButton::Middle, ::minifb::MouseButton::Right].iter().enumerate() {
+							let s = window.get_mouse_down(b);
+							if prev_mouse[i] != s {
+								prev_mouse[i] = s;
+								input_tx.send(if s { InputEvent::MouseDown(i as u8) } else { InputEvent::MouseUp(i as u8) }).expect("Input worker quit");
+							}
+						}
+					}
 
 					if let Some(mut keys) = window.get_keys()
 					{
@@ -94,8 +123,19 @@ impl Console
 							keymap!(
 								A, B, C, D, E, F, G, H, I, J, K, L, M,
 								N, O, P, Q, R, S, T, U, V, W, X, Y, Z,
+								Tab,
 								Enter => Return,
+								Escape => Esc,
+								LeftShift,
+								RightShift,
 								LeftCtrl,
+								RightCtrl,
+								LeftAlt,
+								RightAlt,
+								Up => UpArrow,
+								Down => DownArrow,
+								Left => LeftArrow,
+								Right => RightArrow,
 								)
 						}
 
@@ -145,7 +185,7 @@ impl Console
 								log_notice!("No translation for minifb::Key::{:?} -> gui::KeyCode", minifb_key)
 							}
 							else {
-								input_tx.send( (is_release, key) ).expect("Input worker quit");
+								input_tx.send( if is_release { InputEvent::KeyUp(key) } else { InputEvent::KeyDown(key) } ).expect("Input worker quit");
 							}
 						}
 						
@@ -206,7 +246,7 @@ impl video::Framebuffer for Display
         todo!("fill({:?}, {:#x})", dst, colour)
     }
 	
-	fn move_cursor(&mut self, p: Option<video::Pos>) {
-        todo!("move_cursor({:?})", p)
+	fn move_cursor(&mut self, _p: Option<video::Pos>) {
+        //todo!("move_cursor({:?})", p)
     }
 }

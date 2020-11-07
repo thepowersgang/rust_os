@@ -1,0 +1,21 @@
+{
+	"folders": [
+		{
+			"path": "Graphics"
+		},
+		{
+			"path": "Bootloaders"
+		},
+		{
+			"path": "Usermode"
+		},
+		{
+			"path": "Kernel"
+		},
+		{
+			"path": "NativeKernel"
+		}
+	],
+	"settings": {
+	}
+}

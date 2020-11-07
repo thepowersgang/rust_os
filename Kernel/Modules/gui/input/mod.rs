@@ -334,8 +334,8 @@ impl MouseCursor {
 			};
 		lh.set_pos(new_pos);
 		(
-			(new_pos.x - pos.x) as i32,
-			(new_pos.y - pos.y) as i32,
+			(new_pos.x as i32 - pos.x as i32) as i32,
+			(new_pos.y as i32 - pos.y as i32) as i32,
 			)
 	}
 	fn move_pos(&self, dx: i32, dy: i32) {

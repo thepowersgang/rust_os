@@ -73,5 +73,6 @@ Usermode/target/
 /Helpers/make_elf_stub/target/
 
 /NativeKernel/target/
+/NativeKernel/log.txt
 
 /Kernel/tests/filesystem/data
