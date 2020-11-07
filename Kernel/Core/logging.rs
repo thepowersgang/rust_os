@@ -481,10 +481,12 @@ pub fn enabled(level: Level, modname: &str) -> bool
 				#[no_mangle]
 				static log_cfg_count: usize = def_filters!(@count $($level)*);
 			};
-			(@count $($level:ident)*) => { 0 + $({ let $level = (); 1})* };
+			(@count $($level:ident)*) => { 0 $(+ { let _ = super::Level::$level; 1})* };
 		}
 		def_filters! {
 			"kernel::sync::rwlock" >= LevelDebug,
+			"kernel::arch::imp::threads" >= LevelLog,
+			"kernel::threads::wait_queue" >= LevelDebug,
 		}
 	}
 	let log_ents = {
