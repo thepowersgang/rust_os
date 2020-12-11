@@ -2,7 +2,7 @@
 //!
 //!
 use core::ptr::NonNull;
-use core::alloc::{Layout,AllocRef,AllocError};
+use core::alloc::{Layout,Allocator,AllocError};
 
 use alloc_system::ALLOCATOR as System;
 
@@ -10,7 +10,7 @@ use alloc_system::ALLOCATOR as System;
 pub unsafe extern fn __rdl_alloc(size: usize, align: usize) -> *mut u8
 {
 	let layout = Layout::from_size_align_unchecked(size, align);
-	match System.alloc(layout) {
+	match System.allocate(layout) {
 		Ok(blk) => blk.as_ptr() as *mut u8,
 		Err(AllocError) => {
 			0 as *mut u8
@@ -28,7 +28,7 @@ pub fn rust_oom(_layout: Layout) -> ! {
 pub unsafe extern fn __rdl_dealloc(ptr: *mut u8,
 								   size: usize,
 								   align: usize) {
-	System.dealloc(NonNull::new_unchecked(ptr as *mut _), Layout::from_size_align_unchecked(size, align))
+	System.deallocate(NonNull::new_unchecked(ptr as *mut _), Layout::from_size_align_unchecked(size, align))
 }
 
 #[no_mangle]
@@ -63,7 +63,7 @@ pub unsafe extern fn __rdl_realloc(ptr: *mut u8, old_size: usize, old_align: usi
 #[no_mangle]
 pub unsafe extern fn __rdl_alloc_zeroed(size: usize, align: usize,) -> *mut u8 {
 	let layout = Layout::from_size_align_unchecked(size, align);
-	match System.alloc_zeroed(layout) {
+	match System.allocate_zeroed(layout) {
 		Ok(blk) => {
 			blk.as_ptr() as *mut u8
 			},

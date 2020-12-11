@@ -32,11 +32,11 @@ pub fn oom() {
 
 
 pub struct Allocator;
-pub const ALLOCATOR: &Allocator = &Allocator;
+pub const ALLOCATOR: Allocator = Allocator;
 
-unsafe impl alloc::AllocRef for &'static Allocator
+unsafe impl alloc::Allocator for Allocator
 {
-	fn alloc(&self, layout: Layout) -> Result<NonNull<[u8]>, AllocError>
+	fn allocate(&self, layout: Layout) -> Result<NonNull<[u8]>, AllocError>
 	{
 		match heap::S_GLOBAL_HEAP.lock().allocate(layout.size(), layout.align())
 		{
@@ -49,7 +49,7 @@ unsafe impl alloc::AllocRef for &'static Allocator
 			}
 		}
 	}
-	unsafe fn dealloc(&self, ptr: NonNull<u8>, layout: Layout)
+	unsafe fn deallocate(&self, ptr: NonNull<u8>, layout: Layout)
 	{
 		heap::S_GLOBAL_HEAP.lock().deallocate(ptr.as_ptr() as *mut (), /*layout.size(),*/ layout.align());
 	}
