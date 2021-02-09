@@ -127,6 +127,7 @@ pub mod prelude {
 			option_env,
 			stringify,
 			//trace_macros,
+			derive,
 			};
 	}
 }
