@@ -118,14 +118,16 @@ pub mod sync {
 			let p = if p.is_null() {
 					let v = Box::new( ::std::sync::Mutex::new( () ) );
 					let p = Box::leak(v) as *mut _;
-					let old = self.std.compare_and_swap(::core::ptr::null_mut(), p, Ordering::Relaxed);
-					if !old.is_null() {
+					match self.std.compare_exchange(::core::ptr::null_mut(), p, Ordering::Relaxed, Ordering::Relaxed)
+					{
+					Ok(_) => {	// Originally was NULL, now `p` has been stored
+						p
+						},
+					Err(old) => {	// `p` was NOT stored, return the original value
 						// SAFE: Only just created, and not stored
 						let _ = unsafe { Box::from_raw(p) };
 						old
-					}
-					else {
-						p
+						}
 					}
 				}
 				else {
