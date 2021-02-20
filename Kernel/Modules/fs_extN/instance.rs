@@ -109,8 +109,7 @@ impl Instance
 		// - This always resides immediately after the superblock
 		let group_descs = {
 			use kernel::lib::{as_byte_slice_mut,as_byte_slice};
-			#[allow(non_snake_case)]
-			let GROUP_DESC_SIZE = ::core::mem::size_of::<::ondisk::GroupDesc>();
+			const GROUP_DESC_SIZE: usize = ::core::mem::size_of::<::ondisk::GroupDesc>();
 
 			let groups_per_vol_block = vol_bs / GROUP_DESC_SIZE;
 
