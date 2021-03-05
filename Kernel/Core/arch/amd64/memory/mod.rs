@@ -53,12 +53,12 @@ pub mod addresses
 	
 	pub const STACK_SIZE: usize = 0x8000;   // 4pg allocation was overflowed, 8 works
 	
-	#[doc(hiddden)]
+	#[doc(hidden)]
 	/// Start of the fractal mapping
 	pub const FRACTAL_BASE:    usize = 0xFFFFFE00_00000000;	// PML4[508]
-	#[doc(hiddden)]
+	#[doc(hidden)]
 	pub const IDENT_START:    usize = 0xFFFFFFFF_80000000;	// PML4[511] (plus some)
-	#[doc(hiddden)]
+	#[doc(hidden)]
 	pub const IDENT_END:      usize = IDENT_START + 0x400000;	// 4MiB
 	
 	/// 
