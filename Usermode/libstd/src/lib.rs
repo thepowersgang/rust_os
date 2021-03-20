@@ -66,6 +66,9 @@ mod std {
 
 /// Prelude
 pub mod prelude {
+	pub mod rust_2015 { pub use super::v1::*; }
+	pub mod rust_2018 { pub use super::v1::*; }
+	pub mod rust_2021 { pub use super::v1::*; }
 	pub mod v1 {
 		pub use core::marker::{/*Copy,*/Send,Sync,Sized};
 		pub use core::ops::{Drop,Fn,FnMut,FnOnce};
