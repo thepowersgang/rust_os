@@ -261,8 +261,8 @@ impl<'a, 'h, 'ha: 'h> HandleSleepReg<'a, 'h, 'ha>
 		// Try to register, returning Err(index) if it fails
 		for (i,h) in handles.iter().enumerate()
 		{
-			let ex = h.inner.waiter.compare_and_swap(::core::ptr::null_mut(), so as *const _ as *mut _, Ordering::SeqCst);
-			if ex != ::core::ptr::null_mut()
+			let ex = h.inner.waiter.compare_exchange(::core::ptr::null_mut(), so as *const _ as *mut _, Ordering::SeqCst, Ordering::Relaxed);
+			if let Err(ex) = ex
 			{
 				// Uh-oh, something else is waiting on this?
 				log_error!("HandleSleepReg::new - Entry {} {:p} was already registered with {:p}, this is trying {:p}",
@@ -280,7 +280,7 @@ impl<'a, 'h, 'ha: 'h> ::core::ops::Drop for HandleSleepReg<'a, 'h, 'ha>
 		// Deregister all handles (if they're set to this object)
 		for h in self.handles
 		{
-			h.inner.waiter.compare_and_swap(self.so as *const _ as *mut _, ::core::ptr::null_mut(), Ordering::SeqCst);
+			h.inner.waiter.compare_exchange(self.so as *const _ as *mut _, ::core::ptr::null_mut(), Ordering::SeqCst, Ordering::Relaxed);
 		}
 	}
 }

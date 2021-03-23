@@ -25,7 +25,7 @@ impl SpinlockInner
 	pub fn try_inner_lock_cpu(&self) -> bool
 	{
 		//if self.lock.compare_and_swap(0, cpu_num()+1, Ordering::Acquire) == 0
-		if self.lock.compare_and_swap(false, true, Ordering::Acquire) == false
+		if self.lock.compare_exchange(false, true, Ordering::Acquire, Ordering::Relaxed).is_ok()
 		{
 			true
 		}
@@ -36,7 +36,7 @@ impl SpinlockInner
 	}
 	pub fn inner_lock(&self) {
 		//while self.lock.compare_and_swap(0, cpu_num()+1, Ordering::Acquire) != 0
-		while self.lock.compare_and_swap(false, true, Ordering::Acquire) == true
+		while self.lock.compare_exchange(false, true, Ordering::Acquire, Ordering::Relaxed).is_ok()
 		{
 		}
 		::core::sync::atomic::fence(Ordering::Acquire);

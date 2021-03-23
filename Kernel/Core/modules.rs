@@ -32,8 +32,9 @@ mod _test {
 }
 
 extern "C" {
-	static modules_base: ::Void;
-	static modules_end: ::Void;
+	type Opaque;
+	static modules_base: Opaque;
+	static modules_end: Opaque;
 }
 
 /// Initialise statically linked modules

@@ -382,7 +382,7 @@ impl CacheHandle
 		match self.as_ref()
 		{
 		&CacheNodeInt::Dir { ref mountpoint, .. } => {
-			mountpoint.compare_and_swap(0, filesystem_id, atomic::Ordering::Relaxed) == 0
+			mountpoint.compare_exchange(0, filesystem_id, atomic::Ordering::Relaxed, atomic::Ordering::Relaxed).is_ok()
 			},
 		_ => false,
 		}

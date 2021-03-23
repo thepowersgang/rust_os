@@ -19,6 +19,7 @@
 //#![feature(integer_atomics)]	// AtomicU8
 #![feature(dropck_eyepatch)]
 #![feature(panic_info_message)]
+#![feature(extern_types)]
 
 #![cfg_attr(not(feature="test"),no_std)]
 #![cfg_attr(feature="test",allow(dead_code,unused_imports))]

@@ -167,7 +167,7 @@ impl<C: Counter, T: ?Sized> ops::Drop for Grc<C, T>
 		// SAFE: Correct pointer accesses, only deallocs if this was last reference
 		unsafe
 		{
-			use core::intrinsics::drop_in_place;
+			use core::ptr::drop_in_place;
 			use core::mem::{size_of_val,align_of_val};
 			let ptr = self.ptr.as_ptr();
 				

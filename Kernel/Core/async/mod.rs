@@ -169,7 +169,7 @@ impl<'a,T> dyn ResultWaiter<Result=T>+'a
 	/// Wait for the waiter to complete, then return the result
 	pub fn wait(&mut self) -> T
 	{
-		Waiter::wait(self.as_waiter());
+		<dyn Waiter>::wait(self.as_waiter());
 		self.get_result().expect("Waiter complete, but no result")
 	}
 }

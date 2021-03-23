@@ -23,7 +23,7 @@ pub fn delegate(num_pages: usize) -> Result<*mut (), Error>
 			return Err(Error);
 		}
 		
-		if cur == CURPOS.compare_and_swap(cur, new, Ordering::Acquire) {
+		if CURPOS.compare_exchange(cur, new, Ordering::Acquire, Ordering::Relaxed).is_ok() {
 			return Ok(cur as *mut _);
 		}
 	}
