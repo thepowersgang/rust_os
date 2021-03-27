@@ -16,7 +16,8 @@ extern crate syscalls;
 #[cfg(not(target))]
 pub mod modules {
 	fn use_mod(m: &::kernel::modules::ModuleInfo) {
-		unsafe { asm!("mov {0}, {0}", in(reg) m); }
+		//unsafe { asm!("mov {0}, {0}", in(reg) m); }
+		unsafe { asm!("/* {0} */", in(reg) m); }
 	}
 	pub fn use_mods() -> usize {
 		let mut rv = 0;
@@ -292,6 +293,7 @@ enum ArchValues {
 	AMD64 = 2,
 	ARMv7 = 3,
 	ARMv8 = 4,
+	RiscV = 5,
 }
 #[cfg(any(arch="amd64",target_arch="x86_64"))]	const ARCH: ArchValues = ArchValues::AMD64;
 #[cfg(any(arch="amd64",target_arch="x86_64"))]	const LOAD_MAX: usize = 1 << 47;
@@ -299,6 +301,9 @@ enum ArchValues {
 #[cfg(arch="armv7")]	const LOAD_MAX: usize = (1 << 31) - (4 << 20);	// Leave 4MB for the kernel to control within the user table
 #[cfg(target_arch="aarch64")]	const ARCH: ArchValues = ArchValues::ARMv8;
 #[cfg(target_arch="aarch64")]	const LOAD_MAX: usize = (1 << 48) - (64 << 30);	// Leave 64GB for the kernel to control within the user table
+#[cfg(target_arch="riscv64")]	const ARCH: ArchValues = ArchValues::RiscV;
+#[cfg(target_arch="riscv64")]	const LOAD_MAX: usize = 1 << 47;
+
 #[cfg(target_pointer_width="64")]	const USIZE_BYTES: u32 = 8;
 #[cfg(target_pointer_width="32")]	const USIZE_BYTES: u32 = 4;
 const MAGIC: u32 = 0x71FF1013;

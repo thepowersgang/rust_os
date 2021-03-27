@@ -5,6 +5,7 @@
 #define HDR_ARCH_amd64	2
 #define HDR_ARCH_arm32	3
 #define HDR_ARCH_arm64	4
+#define HDR_ARCH_riscv64	5
 
 #define ENTRY(v)	.globl v; .type v, "function"; v:
 #define GLOBAL(v)	.globl v; v:
@@ -31,10 +32,10 @@
 
 .section .text
 .extern loader_main
-.globl start
+.globl loader_start
 /* RAX = Argument length */
-//.def start
-start:
+//.def loader_start
+loader_start:
 	mov %rax, %rsi	/* Save arg length in ARG2 */
 	/* 0. ASSERT that the loader was loaded to the correct location */
 	mov $BASE, %rax
@@ -58,7 +59,7 @@ start:
 	syscall
 .loop:
 	jmp .loop
-//.type start, "function"
+//.type loader_start, "function"
 //.enddef
 
 
@@ -77,10 +78,10 @@ start:
 .set PAGE_SIZE, 0x2000
 
 .section .text
-.globl start
+.globl loader_start
 .extern loader_main
 /* R0 = Argument length */
-start:
+loader_start:
 	@ 0. ASSERT that the loader was loaded to the correct location
 	ldr r1, =BASE
 	sub r1, r1, pc
@@ -117,10 +118,10 @@ bad_location:
 .set PAGE_SIZE, 0x4000
 .section .text
 
-.globl start
+.globl loader_start
 .extern loader_main
 /* X0 = Argument length */
-start:
+loader_start:
 	// 0. ASSERT that the loader was loaded to the correct location
 	//ldr x1, =BASE
 	//sub x1, x1, pc
@@ -143,6 +144,21 @@ bad_location:
 	b .
 
 #include "../rustrt0/armv8-helpers.S"
+#elif defined(ARCH_riscv64)
+# define DEFPTR	.quad
+# define PTR_SIZE	8
+# define HDR_ARCH HDR_ARCH_riscv64
+.set LIMIT, (0x0000800000000000 - 64*1024*1024*1024)
+.set BASE,  LIMIT - 4*64*1024	/* 0x00007fffFFFE0000 */
+.set PAGE_SIZE, 0x1000
+.section .text
+
+.globl loader_start
+.extern loader_main
+/* A0 = Argument length */
+loader_start:
+	la sp, init_stack_end
+	j loader_main
 #elif defined(ARCH_native)
 // Ignore
 # define DEFPTR	.quad
@@ -166,7 +182,7 @@ GLOBAL(image_header)
 	.long imagesize
 	.long init_path_ofs
 	.long init_path_end - init_path
-	DEFPTR start
+	DEFPTR loader_start
 
 .section .data
 GLOBAL(limit_and_base)

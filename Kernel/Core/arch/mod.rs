@@ -17,6 +17,7 @@ cfg_if::cfg_if!{
 		#[cfg_attr(arch="armv7", path="armv7/mod.rs")]
 		#[cfg_attr(target_arch="aarch64", path="armv8/mod.rs")]
 		#[cfg_attr(arch="armv8", path="armv8/mod.rs")]
+		#[cfg_attr(target_arch="riscv64", path="riscv64/mod.rs")]
 		#[doc(hidden)]
 		pub mod imp;	// Needs to be pub for exports to be avaliable
 	}

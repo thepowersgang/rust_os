@@ -14,6 +14,8 @@ else ifeq ($(ARCH),armv7)
   TRIPLE ?= arm-elf-eabi
 else ifeq ($(ARCH),armv8)
   TRIPLE ?= aarch64-none-elf
+else ifeq ($(ARCH),riscv64)
+  TRIPLE ?= riscv64-unknown-elf
 else ifeq ($(ARCH),native)
   TRIPLE ?= 
 else
@@ -23,10 +25,8 @@ endif
 
 ifeq ($(RUSTC_DATE),)
  RUSTUP_VER := nightly
- RUSTC_SRC_URL := https://static.rust-lang.org/dist/rustc-nightly-src.tar.gz
 else
  RUSTUP_VER := nightly-$(RUSTC_DATE)
- RUSTC_SRC_URL := https://static.rust-lang.org/dist/$(RUSTC_DATE)/rustc-nightly-src.tar.gz
 endif
 
 ROOTDIR := $(dir $(lastword $(MAKEFILE_LIST)))
@@ -35,7 +35,7 @@ PREFIX := $(ROOTDIR).prefix/
 PATH := $(PATH):$(PREFIX)bin
 
 CC := $(TRIPLE)-gcc
-LD ?= $(TRIPLE)-ld
+LD := $(TRIPLE)-ld
 AS := $(TRIPLE)-as
 OBJDUMP := $(TRIPLE)-objdump
 OBJCOPY := $(TRIPLE)-objcopy

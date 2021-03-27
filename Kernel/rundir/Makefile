@@ -98,6 +98,9 @@ run: $(IMGDIR)hda.img
 	make -C arm_bootloader PLATFORM=$(MACHINE_TYPE) CMDLINE="$(CMDLINE)"
 	qemu-system-arm -machine $(MACHINE_TYPE) $(QEMU_ARGS) -kernel arm_bootloader/loader-$(MACHINE_TYPE).bin -append "$(CMDLINE)" $(TEE)
 images: $(IMGDIR)hda.img
+# ---
+# ARM 64
+# ---
 else ifeq ($(ARCH),armv8)
 MACHINE_TYPE ?= virt
 CMDLINE += SYSDISK=virtio0p0
@@ -108,6 +111,21 @@ QEMU_ARGS += -drive if=none,id=hda,index=0,file=$(IMGDIR)hda.img,format=raw
 run: $(IMGDIR)hda.img
 	make -C ../../Bootloaders/aarch64 PLATFORM=$(MACHINE_TYPE) CMDLINE="$(CMDLINE)" KERNEL=../../Kernel/bin/kernel-armv8.bin
 	qemu-system-aarch64 -cpu cortex-a57 -machine $(MACHINE_TYPE) $(QEMU_ARGS) -kernel ../../Bootloaders/aarch64/loader-$(MACHINE_TYPE).bin -append "$(CMDLINE)" $(TEE)
+# ---
+# RISC-V 64
+# ---
+else ifeq ($(ARCH),riscv64)
+CMDLINE += SYSDISK=virtio0p0
+QEMU_ARGS += -device virtio-blk-device,drive=hda
+QEMU_ARGS += -device virtio-gpu-device
+QEMU_ARGS += -device virtio-net-device
+QEMU_ARGS += -drive if=none,id=hda,index=0,file=$(IMGDIR)hda.img,format=raw
+QEMU_ARGS += -smp 4
+
+run: $(IMGDIR)hda.img
+	qemu-system-riscv64 -machine virt -cpu rv64 -m 64M $(QEMU_ARGS) -bios none -kernel ../../Kernel/bin/kernel-riscv64.bin -append "$(CMDLINE)" $(TEE)
+else
+  $(error Unknown architecture in Kernel/rundir/Makefile)
 endif
 
 .DELETE_ON_ERROR:
@@ -154,7 +172,7 @@ $(IMGDIR)hdb_1.img: $(wildcard ../../Usermode/.output/$(ARCH)/*) Makefile
 	@echo "[MkDisk] ext2 $@"
 	$Vdd if=/dev/zero of=$@ bs=1M count=32
 	$V/sbin/mkfs.ext2 $@
-	$Vguestfish -a $@ launch : mount /dev/sda / : mkdir /Tifflin : copy-in ../../Usermode/.output/$(ARCH)/bin /Tifflin/
+	$Vsudo guestfish -a $@ launch : mount /dev/sda / : mkdir /Tifflin : copy-in ../../Usermode/.output/$(ARCH)/bin /Tifflin/
 $(IMGDIR)hdb.img: Makefile $(IMGDIR)hdb_0.img $(IMGDIR)hdb_1.img
 	@mkdir -p $(dir $@)
 	@echo "[MkDisk] mbr $@"

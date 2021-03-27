@@ -1,4 +1,4 @@
-ENTRY(start)
+ENTRY(loader_start)
 
 SECTIONS {
 	. = BASE;

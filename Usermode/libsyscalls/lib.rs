@@ -81,6 +81,7 @@ pub mod raw;
 #[cfg_attr(target_arch="x86_64", path="raw-amd64.rs")]
 #[cfg_attr(target_arch="arm", path="raw-armv7.rs")]
 #[cfg_attr(target_arch="aarch64", path="raw-armv8.rs")]
+#[cfg_attr(target_arch="riscv64", path="raw-riscv64.rs")]
 mod raw;
 
 #[macro_use]

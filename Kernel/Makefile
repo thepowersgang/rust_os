@@ -14,6 +14,10 @@ else
  USE_ACPICA = 0
 endif
 
+ifeq ($(ARCH),riscv64)
+ ASFLAGS += -mabi=lp64
+endif
+
 -include BuildNum.$(ARCH).mk
 BUILDNUM ?= 1
 
@@ -87,7 +91,7 @@ targets/kernel-$(ARCH).json: Core/arch/$(ARCH)/target.json
 $(OBJDIR)build_info.ao: Core/build_info.S $(filter-out $(OBJDIR)build_info.ao, $(OBJS)) Makefile
 	@echo [AS] -o $@
 	@mkdir -p $(dir $@)
-	$V$(CC) -o $@ -c $< \
+	$V$(CC) $(ASFLAGS) -o $@ -c $< \
 		-D 'TK_BUILD="$(shell hostname --fqdn):$(BUILDNUM)"' \
 		-D 'RUST_VERSION="$(shell $(RUSTC) --version)"' \
 		-D 'TK_GITSPEC="$(shell git log -n 1 | head -n 1 | awk '{print $$2}')"' \
@@ -106,12 +110,12 @@ $(OBJDIR)%.ao: Core/arch/$(ARCH)/%.asm
 $(OBJDIR)%.ao: Core/arch/$(ARCH)/%.S
 	@echo [AS] -o $@
 	@mkdir -p $(dir $@)
-	$V$(CC) -o $@ -c $<
+	$V$(CC) $(ASFLAGS) -o $@ -c $<
 # Log configuration
 $(OBJDIR)log_cfg.ao: Core/log_cfg.S
 	@echo [AS] -o $@
 	@mkdir -p $(dir $@)
-	$V$(CC) -o $@ -c $<
+	$V$(CC) $(ASFLAGS) -o $@ -c $<
 
 $(IMGDIR)%.rs: ../Graphics/Makefile
 	cd ../Graphics && make $(@:../Graphics/%=%)

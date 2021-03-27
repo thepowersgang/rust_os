@@ -51,6 +51,10 @@ ifeq ($(ARCH),native)
 CARGO_OUTDIR := target/$(CARGO_PROFILE)/
 endif
 
+ifeq ($(ARCH),riscv64)
+ ASFLAGS += -mabi=lp64
+endif
+
 # - List non-file targets
 .PHONY: all clean docs
 # - Don't delete intermediate targets
@@ -84,7 +88,7 @@ LOADER_OBJS := $(OBJDIR)rustrt0.o $(OBJDIR)loader/bin/start.ao $(CARGO_OUTDIR)li
 $(BINDIR)loader: loader/bin/link.ld $(LOADER_OBJS)
 	@mkdir -p $(dir $@)
 	@echo [LD] $@
-	$V$(LD) -r --gc-sections --undefined image_header --entry start -o $(OBJDIR)loader.o  $(LOADER_OBJS)
+	$V$(LD) -r --gc-sections --undefined image_header --entry loader_start -o $(OBJDIR)loader.o  $(LOADER_OBJS)
 	$V$(LD) -o $(OBJDIR)loader.elf -T loader/bin/link.ld $(OBJDIR)loader.o -Map $(OBJDIR)loader_map.txt
 	$V$(OBJCOPY) $(OBJDIR)loader.elf -O binary $@
 	$V$(OBJDUMP) -CS $(OBJDIR)loader.elf > $(OBJDIR)loader.dsm
@@ -109,24 +113,31 @@ xargo: $(OBJDIR)rustrt0.o $(LIBDIR)libloader_dyn.so	# Referenced by link-$(TARGE
 # Ensure that all external crates are checked out
 xargo: $(patsubst %,../externals/crates.io/%/src/lib.rs,cmdline_words_parser stack_dst utf16_literal va_list)
 
+ifeq (,)
+$(LIBDIR)libloader_dyn.so: loader/bin/placeholder_lib.S $(makefile_deps) Makefile
+	@mkdir -p $(dir $@)
+	@echo [AS] $@
+	$V$(CC) $(ASFLAGS) -o $@ -c $< -D ARCH_$(ARCH) -MMD -MF $@.d -shared
+else
 # Low-level loader dummy dynamic library
 # - Used to tell ld that `loader`'s exported symbols actually exist
 $(LIBDIR)libloader_dyn.so: loader/bin/placeholder_lib.rs $(makefile_deps) Makefile
 	@mkdir -p $(dir $@)
 	@echo [RUSTC] $@
-	$V$(RUSTC) --crate-type=cdylib --crate-name loader_dyn loader/bin/placeholder_lib.rs --out-dir $(LIBDIR) --cfg 'arch="$(ARCH)"' -C panic=abort
+	$V$(RUSTC)  --target $(TARGET_SPEC) -L target/target-$(ARCH)/release/deps/ --crate-type=cdylib --crate-name loader_dyn loader/bin/placeholder_lib.rs --out-dir $(LIBDIR) --cfg 'arch="$(ARCH)"' -C panic=abort
 	if [ -e $(LIBDIR)loader_dyn.dll.lib ]; then cp $(LIBDIR)loader_dyn.dll.lib $(LIBDIR)loader_dyn.lib; fi
+endif
 
 # - Assembly objects (loader)
 $(OBJDIR)%.ao: %.S $(makefile_deps)
 	@mkdir -p $(dir $@)
 	@echo [AS] $@
-	$V$(CC) -o $@ -c $< -D ARCH_$(ARCH) -MMD -MF $@.d
+	$V$(CC) $(ASFLAGS) -o $@ -c $< -D ARCH_$(ARCH) -MMD -MF $@.d
 # - Base runtime
 $(OBJDIR)rustrt0.o: rustrt0/$(ARCH).S $(makefile_deps)
 	@mkdir -p $(dir $@)
 	@echo [AS] $@
-	$V$(CC) -o $@ -c $< -D ARCH_$(ARCH) -fPIC -MMD -MF $@.d
+	$V$(CC) $(ASFLAGS) -o $@ -c $< -D ARCH_$(ARCH) -fPIC -MMD -MF $@.d
 
 DEPFILES := 
 DEPFILES += $(OBJDIR)loader/bin/start.ao.d $(OBJDIR)rustrt0.o.d

@@ -61,6 +61,11 @@ fn init()
 	mod pl050;
 	pl050::init();
 }
+#[cfg(any(target_arch="riscv64"))]
+fn init()
+{
+	// Is there a PS/2 controller
+}
 
 impl PS2Dev
 {

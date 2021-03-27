@@ -39,6 +39,7 @@ mod memory {
 #[cfg_attr(target_arch="x86_64", path="arch-x86_64.rs")]
 #[cfg_attr(target_arch="arm", path="arch-armv7.rs")]
 #[cfg_attr(target_arch="aarch64", path="arch-armv8.rs")]
+#[cfg_attr(target_arch="riscv64", path="arch-riscv64.rs")]
 mod arch;
 
 fn begin_panic_fmt(msg: &::core::fmt::Arguments, file_line: (&str, u32)) -> ! {
