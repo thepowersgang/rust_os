@@ -3,11 +3,19 @@
 //
 // Core/lib/lazy_static.rs
 //! 
+use ::core::sync::atomic;
 
 /// A lazily initialised value (for `static`s)
-pub struct LazyStatic<T: Send+Sync>(pub ::core::cell::UnsafeCell<Option<T>>);
+pub struct LazyStatic<T: Send+Sync>(atomic::AtomicU8, ::core::cell::UnsafeCell<::core::mem::MaybeUninit<T>>);
 unsafe impl<T: Send+Sync> Sync for LazyStatic<T> {}	// Barring the unsafe "prep" call, is Sync
 unsafe impl<T: Send+Sync> Send for LazyStatic<T> {}	// Sendable because inner is sendable
+
+#[repr(u8)]
+enum State {
+	Uninit,
+	Initialising,
+	Init,
+}
 
 #[macro_export]
 macro_rules! lazystatic_init {
@@ -17,44 +25,47 @@ macro_rules! lazystatic_init {
 impl<T: Send+Sync> LazyStatic<T>
 {
 	pub const fn new() -> Self {
-		LazyStatic ( ::core::cell::UnsafeCell::new(None) )
+		LazyStatic(atomic::AtomicU8::new(State::Uninit as u8), ::core::cell::UnsafeCell::new(::core::mem::MaybeUninit::uninit()) )
 	}
 	
 	/// (unsafe) Prepare the value using the passed function
 	///
 	/// Unsafe because it must NOT be called where anything else is accessing the LazyStatic.
-	pub unsafe fn prep<Fcn: FnOnce()->T>(&self, fcn: Fcn) {
-		let r = &mut *self.0.get();
-		assert!(r.is_none(), "LazyStatic<{}> initialised multiple times", type_name!(T));
-		if r.is_none() {
-			*r = Some(fcn());
+	pub fn prep<Fcn: FnOnce()->T>(&self, fcn: Fcn) {
+		match self.0.compare_exchange(State::Uninit as u8, State::Initialising as u8, atomic::Ordering::SeqCst, atomic::Ordering::SeqCst)
+		{
+		Ok(_) => {
+			// SAFE: Protected by atomic wrapper flag
+			unsafe {
+				::core::ptr::write( (*self.1.get()).as_mut_ptr(), fcn() );
+			}
+			self.0.compare_exchange(State::Initialising as u8, State::Init as u8, atomic::Ordering::SeqCst, atomic::Ordering::SeqCst).expect("BUG: LazyStatic state error");
+			}
+		Err(s) if s == State::Init as u8 => { },
+		Err(_) => panic!("Racy initialisation of LazyStatic<{}>", type_name!(T)),
 		}
 	}
 	/// Returns true if the static has been initialised
 	pub fn ls_is_valid(&self) -> bool {
-		// SAFE: No aliasing possible unless 'prep' is called in a racy manner
-		unsafe {
-			(*self.0.get()).is_some()
-		}
+		self.0.load(atomic::Ordering::SeqCst) == State::Init as u8
 	}
 	/// (unsafe) Obtain a mutable reference to the interior
 	pub unsafe fn ls_unsafe_mut(&self) -> &mut T {
-		match *self.0.get()
-		{
-		Some(ref mut v) => v,
-		None => panic!("Dereferencing LazyStatic<{}> without initialising", type_name!(T))
-		}
+		&mut *self.get()
+	}
+
+	fn get(&self) -> *mut T {
+		assert_eq!(self.0.load(atomic::Ordering::SeqCst), State::Init as u8, "Dereferencing LazyStatic<{}> without initialising", type_name!(T));
+		// SAFE: Usage of UnsafeCell protected by atomic
+		unsafe { (*self.1.get()).as_mut_ptr() }
 	}
 }
 impl<T: Send+Sync> ::core::ops::Deref for LazyStatic<T>
 {
 	type Target = T;
 	fn deref(&self) -> &T {
-		// SAFE: No aliasing possible unless 'prep' is called in a racy manner
-		match unsafe { (&*self.0.get()).as_ref() } {
-		Some(v) => v,
-		None => panic!("Dereferencing LazyStatic<{}> without initialising", type_name!(T))
-		}
+		// SAFE: No aliasing possible without calling an `unsafe` function incorrectly
+		unsafe { & *self.get() }
 	}
 }
 
