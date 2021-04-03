@@ -41,10 +41,9 @@ static S_TO_REAP_THREADS: ::sync::Spinlock<ThreadList> = ::sync::Spinlock::new(T
 /// Initialise the threading subsystem
 pub fn init()
 {
-	// SAFE: Runs before any form of multi-threading starts
-	unsafe {
-		S_PID0.prep( || thread::Process::new_pid0() )
-	}
+	assert!(!S_PID0.ls_is_valid());
+	S_PID0.prep( || thread::Process::new_pid0() );
+
 	let mut tid0 = Thread::new_boxed(0, "ThreadZero", S_PID0.clone());
 	tid0.cpu_state = ::arch::threads::init_tid0_state();
 	::arch::threads::set_thread_ptr( tid0 );

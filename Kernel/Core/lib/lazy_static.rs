@@ -28,10 +28,9 @@ impl<T: Send+Sync> LazyStatic<T>
 		LazyStatic(atomic::AtomicU8::new(State::Uninit as u8), ::core::cell::UnsafeCell::new(::core::mem::MaybeUninit::uninit()) )
 	}
 	
-	/// (unsafe) Prepare the value using the passed function
-	///
-	/// Unsafe because it must NOT be called where anything else is accessing the LazyStatic.
-	pub fn prep<Fcn: FnOnce()->T>(&self, fcn: Fcn) {
+	/// Prepare the value using the passed function, panics if a race occurs and returns without doing anything if the value is already initialised
+	pub fn prep<Fcn: FnOnce()->T>(&self, fcn: Fcn) -> &T
+	{
 		match self.0.compare_exchange(State::Uninit as u8, State::Initialising as u8, atomic::Ordering::SeqCst, atomic::Ordering::SeqCst)
 		{
 		Ok(_) => {
@@ -41,9 +40,11 @@ impl<T: Send+Sync> LazyStatic<T>
 			}
 			self.0.compare_exchange(State::Initialising as u8, State::Init as u8, atomic::Ordering::SeqCst, atomic::Ordering::SeqCst).expect("BUG: LazyStatic state error");
 			}
-		Err(s) if s == State::Init as u8 => { },
+		Err(s) if s == State::Init as u8 => {},
 		Err(_) => panic!("Racy initialisation of LazyStatic<{}>", type_name!(T)),
 		}
+		// SAFE: Reports as initailised
+		unsafe { &*self.get() }
 	}
 	/// Returns true if the static has been initialised
 	pub fn ls_is_valid(&self) -> bool {
