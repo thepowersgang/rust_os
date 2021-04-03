@@ -42,12 +42,18 @@ impl<'a> FDTRoot<'a>
 		}
 	}
 
+	pub fn phys(&self) -> crate::memory::PAddr {
+		crate::memory::virt::get_phys(self.buffer.as_ptr())
+	}
 	pub fn size(&self) -> usize {
 		self.buffer.len()
 	}
 
 	pub fn dump_nodes(&self) {
+		struct Indent(usize);
+		impl ::core::fmt::Display for Indent { fn fmt(&self, f: &mut ::core::fmt::Formatter)->::core::fmt::Result { for _ in 0..self.0 { f.write_str(" ")?; } Ok(()) } }
 		let mut ofs = 0;
+		let mut indent = Indent(0);
 		loop
 		{
 			let (tag, new_ofs) = self.next_tag(ofs);
@@ -55,8 +61,14 @@ impl<'a> FDTRoot<'a>
 			ofs = new_ofs;
 			match tag
 			{
-			Tag::BeginNode(name) => log_debug!("<{}>", name),
-			Tag::EndNode => log_debug!("</>"),
+			Tag::BeginNode(name) => {
+				log_debug!("{}<{}>", indent, name);
+				indent.0 += 1;
+				},
+			Tag::EndNode => {
+				indent.0 -= 1;
+				log_debug!("{}</>", indent);
+				},
 			Tag::Prop(name, data) => match name
 				{
 				"bootargs" |
@@ -65,7 +77,7 @@ impl<'a> FDTRoot<'a>
 				"clock-names" |
 				"label" |
 				"compatible"
-					=> log_debug!(".{} = {:?}", name, ::core::str::from_utf8(data)),
+					=> log_debug!("{}.{} = {:?}", indent, name, ::core::str::from_utf8(data)),
 				"reg" |
 				"interrupts"
 					=> if data.len() == 8+4 {
@@ -73,19 +85,19 @@ impl<'a> FDTRoot<'a>
 						let mut bytes = data;
 						let a = bytes.read_u64::<BigEndian>().unwrap();
 						let s = bytes.read_u32::<BigEndian>().unwrap();
-						log_debug!(".{} = {:#x}+{:#x}", name, a, s);
+						log_debug!("{}.{} = {:#x}+{:#x}", indent, name, a, s);
 					}
 					else if data.len() == 8+8 {
 						use lib::byteorder::{ReadBytesExt,BigEndian};
 						let mut bytes = data;
 						let a = bytes.read_u64::<BigEndian>().unwrap();
 						let s = bytes.read_u64::<BigEndian>().unwrap();
-						log_debug!(".{} = {:#x}+{:#x}", name, a, s);
+						log_debug!("{}.{} = {:#x}+{:#x}", indent, name, a, s);
 					}
 					else {
-						log_debug!(".{} = {:?}", name, data)
+						log_debug!("{}.{} = {:?}", indent, name, data)
 					},
-				_ => log_debug!(".{} = {:?}", name, data),
+				_ => log_debug!("{}.{} = {:?}", indent, name, data),
 				},
 			Tag::End => break,
 			_ => {},
@@ -104,14 +116,17 @@ impl<'a> FDTRoot<'a>
 		}
 	}
 	/// Return all properties matching the passed path
-	pub fn get_props<'s,'p>(&'s self, path: &'p [&'p str]) -> PropsIter<'s, 'a, 'p> {
-		PropsIter {
-			fdt: self,
-			path: path,
-			offset: 0,
-			path_depth: 0,
-			cur_depth: 0,
-		}
+	pub fn get_props<'s,'p>(&'s self, path: &'p [&'p str]) -> PropsIterCb<'s, 'a, impl FnMut(usize, bool, &str)->bool + 'p> {
+		PropsIterCb::new(self, move |ofs, is_leaf, name| ofs < path.len() && name == path[ofs] && is_leaf == (ofs == path.len() - 1))
+	}
+	/// Return all properties matching the provided callback
+	/// 
+	/// The callback recieves:
+	/// - Current tree depth
+	/// - If the checked node is a branch or a leaf
+	/// - The node name
+	pub fn get_props_cb<'s, F: FnMut(usize, bool, &str)->bool>(&'s self, cb: F) -> PropsIterCb<'s, 'a, F> {
+		PropsIterCb::new(self, cb)
 	}
 }
 
@@ -125,7 +140,6 @@ impl<'a> FDTRoot<'a>
 	}
 
 	fn next_tag(&self, ofs: usize) -> (Tag<'a>, usize) {
-		//log_debug!("FDTRoot::next_tag(ofs={}) len={}", ofs, self.buffer.len());
 		assert!(ofs % 4 == 0);
 		let data = &self.buffer[self.off_dt_struct() + ofs .. ];
 		let tag = BigEndian::read_u32(data);
@@ -136,9 +150,8 @@ impl<'a> FDTRoot<'a>
 		{
 		0x1 => {	// FDT_BEGIN_NODE
 			// NUL-terminated name follows
-			let slen = data[..256].iter().position(|x| *x == 0).expect("TODO: Handle unexpeted end in FDT");
-			let s = ::core::str::from_utf8( &data[..slen] ).expect("TODO: Handle bad UTF-8 in FDT");
-			(Tag::BeginNode(s), ofs + 4 + align_to_tag(slen + 1))
+			let s = Self::get_nul_string(data);
+			(Tag::BeginNode(s), ofs + 4 + align_to_tag(s.len()+ 1))
 			},
 		0x2 => {	// FDT_END_NODE
 			(Tag::EndNode, ofs + 4)
@@ -146,10 +159,7 @@ impl<'a> FDTRoot<'a>
 		0x3 => {	// FDT_PROP
 			let len = BigEndian::read_u32(data) as usize;
 			let name_ofs = BigEndian::read_u32(&data[4..]) as usize;
-			//log_trace!("len = {}, name_ofs = {}", len, name_ofs);
-			let name_base = &self.buffer[self.off_dt_strings() + name_ofs..];
-			let name_len = name_base[..256].iter().position(|x| *x == 0).expect("TODO: Handle unexpeted end in FDT");
-			let name = ::core::str::from_utf8( &name_base[..name_len] ).expect("TODO: Handle bad UTF-8 in FDT");
+			let name = Self::get_nul_string(&self.buffer[self.off_dt_strings() + name_ofs..]);
 			(Tag::Prop(name, &data[2*4..][..len]), ofs + 3 * 4 + align_to_tag(len))
 			},
 		0x4 => {	// FDT_NOP
@@ -161,9 +171,15 @@ impl<'a> FDTRoot<'a>
 		_ => panic!("Unknown tag value {}", tag),
 		}
 	}
+
+	fn get_nul_string(data: &[u8]) -> &str {
+		let slen = data/*[..usize::min(data.len(), 256)]*/.iter().position(|x| *x == 0).expect("TODO: Handle unexpeted end in FDT");
+		let s = ::core::str::from_utf8( &data[..slen] ).expect("TODO: Handle bad UTF-8 in FDT");
+		s
+	}
 }
 
-
+/// Iterate a FDT using a fixed path
 pub struct PropsIter<'a,'fdt: 'a,'b> {
 	fdt: &'a FDTRoot<'fdt>,
 	path: &'b [&'b str],
@@ -186,9 +202,8 @@ impl<'a,'fdt, 'b> Iterator for PropsIter<'a, 'fdt, 'b>
 			match tag
 			{
 			Tag::BeginNode(name) => {
-				//log_trace!("BeginNode name = '{}' ({},{}) < {}", name, self.path_depth, self.cur_depth, path_nodes_len);
 				if self.path_depth == self.cur_depth && self.path_depth < path_nodes_len {
-					//log_trace!(" - '{}' == '{}'", name, self.path[self.path_depth as usize]);
+					// TODO: Pattern matching to handle `memory` and `memory@foo`
 					if name == self.path[self.path_depth as usize] {
 						// Increment both path and cur depth
 						self.path_depth += 1;
@@ -205,13 +220,74 @@ impl<'a,'fdt, 'b> Iterator for PropsIter<'a, 'fdt, 'b>
 				self.cur_depth -= 1;
 				},
 			Tag::Prop(name, data) => {
-				//log_trace!("Prop name = '{}' ({},{}) == {}", name, self.path_depth, self.cur_depth, path_nodes_len);
 				if self.path_depth == self.cur_depth && self.path_depth == path_nodes_len {
-					//log_trace!(" - '{}' == '{}'", name, self.path[self.path_depth as usize]);
-					if name == self.path[path_nodes_len as usize] {
+					if name == self.path[self.path_depth as usize] {
 						// Desired property
 						return Some(data);
 					}
+				}
+				},
+			Tag::End => return None,
+			Tag::Nop => {},
+			}
+		}
+	}
+}
+
+/// Iterate a FDT using a checking callback
+pub struct PropsIterCb<'a,'fdt: 'a, F> {
+	fdt: &'a FDTRoot<'fdt>,
+	offset: usize,
+	cur_depth: u8,
+	path_depth: u8,
+	cb: F,
+}
+impl<'a, 'fdt: 'a, F> PropsIterCb<'a, 'fdt, F>
+where
+	F: FnMut(usize, bool, &str) -> bool,
+{
+	pub fn new(fdt: &'a FDTRoot<'fdt>, cb: F) -> Self
+	{
+		PropsIterCb {
+			fdt,
+			offset: 0,
+			cur_depth: 0,
+			path_depth: 0,
+			cb
+			}
+	}
+}
+impl<'a, 'fdt: 'a, F> Iterator for PropsIterCb<'a, 'fdt, F>
+where
+	F: FnMut(usize, bool, &str) -> bool,
+{
+	type Item = &'fdt [u8];
+	fn next(&mut self) -> Option<Self::Item>
+	{
+		loop
+		{
+			let (tag, next_ofs) = self.fdt.next_tag(self.offset);
+			self.offset = next_ofs;
+			match tag
+			{
+			Tag::BeginNode(name) => {
+				if self.path_depth == self.cur_depth && (self.cb)(self.path_depth as usize, false, name) {
+					// Increment both path and cur depth
+					self.path_depth += 1;
+				}
+				self.cur_depth += 1;
+				},
+			Tag::EndNode => {
+				if self.path_depth == self.cur_depth {
+					assert!(self.path_depth > 0);
+					self.path_depth -= 1;
+				}
+				self.cur_depth -= 1;
+				},
+			Tag::Prop(name, data) => {
+				if self.path_depth == self.cur_depth && (self.cb)(self.path_depth as usize, true, name) {
+					// Desired property
+					return Some(data);
 				}
 				},
 			Tag::End => return None,

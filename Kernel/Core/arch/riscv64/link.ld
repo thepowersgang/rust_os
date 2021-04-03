@@ -5,21 +5,16 @@
  * arch/riscv64/link.ld
  * - RISC-V 64-bit (General, Compressed) linker script 
  */
-_kernel_base = 0xFFFFFFFF80000000;
-_phys_base = 0x80000000;
+_kernel_base = 0xFFFFFFFF80200000;
+_phys_base = 0x80200000;
 
 OUTPUT_FORMAT(elf64-littleriscv)
 ENTRY(start)
 
-/*MEMORY
-{
-  ram   (wxa!ri) : ORIGIN = 0x80000000, LENGTH = 128M
-}*/
-
 SECTIONS {
 	. = _phys_base;
 	gKernelBase = .;
-	/* . += SIZEOF_HEADERS; */
+	. += SIZEOF_HEADERS;
 	__load_addr = .;
 	
 	/* Boot data */
@@ -73,11 +68,12 @@ SECTIONS {
 	/DISCARD/ : { *(.tbss) }
 
 	ap_wait_target_LOW = ap_wait_target - _kernel_base + _phys_base;
+	fdt_phys_addr_PHYS = fdt_phys_addr - _kernel_base + _phys_base;
 	boot_pt_lvl3_0_PHYS = boot_pt_lvl3_0 - _kernel_base + _phys_base;
 	boot_pt_lvl3_0_PHYS_PG = boot_pt_lvl3_0_PHYS >> 12;
 
 	/* For the boot page table */
-	_phys_base_DIV4 = _phys_base >> 2;
+	_phys_base_DIV4 = (_phys_base >> 2) & 0xFFFFFFFF30000000;
 	boot_pt_lvl2_hwmaps_PHYS_DIV4 = (boot_pt_lvl2_hwmaps - _kernel_base + _phys_base) >> 2;
 	boot_pt_lvl1_hwmaps_PHYS_DIV4 = (boot_pt_lvl1_hwmaps - _kernel_base + _phys_base) >> 2;
 }
