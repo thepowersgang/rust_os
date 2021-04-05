@@ -83,7 +83,10 @@ impl Drop for FrameHandle
 {
 	fn drop(&mut self)
 	{
-		deref_frame(self.0)
+		// SAFE: This handle owns the allocation, and the backing mapping will be freed with the TempHandle free
+		unsafe {
+			deref_frame(self.0)
+		}
 	}
 }
 
@@ -109,6 +112,7 @@ fn is_ram(phys: PAddr) -> bool
 	false
 }
 
+// TODO: Why does this take `page` instead of calling `get_phys`
 pub fn make_unique(page: PAddr, virt_addr: &[u8; ::PAGE_SIZE]) -> PAddr
 {
 	if !is_ram(page) {
@@ -271,7 +275,8 @@ pub fn ref_frame(paddr: PAddr)
 		::arch::memory::phys::ref_frame(paddr as u64 / ::PAGE_SIZE as u64);
 	}
 }
-pub fn deref_frame(paddr: PAddr)
+// UNSAFE: This frees memory, so can cause use-after-free
+pub unsafe fn deref_frame(paddr: PAddr)
 {
 	if ! is_ram(paddr) {
 		// NOTE: Don't bother logging, as this can be called when unmapping hardware mappings

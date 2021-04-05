@@ -68,6 +68,8 @@ impl<'buf> MemoryMapBuilder<'buf>
 	
 	pub fn append(&mut self, base: u64, size: u64, state: MemoryState, domain: u16)
 	{
+		log_debug!("append(base={:#x}, size={:#x}, state={:?}, domain={})",
+			base, size, state, domain);
 		self.slots[self.size] = MemoryMapEnt {
 			start: base,
 			size: size,

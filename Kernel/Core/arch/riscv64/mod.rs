@@ -89,7 +89,18 @@ pub mod threads {
 		}
 	}
 	pub fn get_thread_ptr() -> Option<::threads::ThreadPtr> {
-		todo!("");
+		let ret: usize;
+		// SAFE: Atomic read from a per-CPU scratch register
+		unsafe { asm!("csrr {}, sscratch", out(reg) ret, options(nomem, pure)); }
+		if ret == 0 {
+			None
+		}
+		else {
+			// SAFE: Stored value assumed to be valid
+			unsafe {
+				Some(crate::threads::ThreadPtr::from_usize(ret))
+			}
+		}
 	}
 	pub fn borrow_thread() -> *const ::threads::Thread {
 		let rv: *const ::threads::Thread;

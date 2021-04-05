@@ -126,7 +126,7 @@ boot_pt_lvl3_0:
 	.quad	boot_pt_lvl2_hwmaps_PHYS_DIV4 + (1 << 0)
 	# NOTE: Fractal mapping doesn't work (needs permissions bits on the bottom layer)
 	.quad	_phys_base_DIV4 + (3 << 6) + (7 << 1) + (1 << 0)	# Kernel at -2GB, 1GB map RWX
-	.quad	0	# Final entry unset
+	.quad	boot_lt_lvl2_final_PHYS_DIV4 + (1 << 0)
 # 1GB coverage, 2MiB per slot
 .global boot_pt_lvl2_hwmaps
 .extern boot_pt_lvl1_hwmaps_PHYS_DIV4
@@ -140,6 +140,19 @@ boot_pt_lvl2_hwmaps:
 boot_pt_lvl1_hwmaps:
 	.quad	(0x10000000)/4 + (3 << 6)+(3<<1)+(1<<0)	# qemu UART
 	.rept 512-1
+	.quad	0
+	.endr
+.global boot_lt_lvl2_final
+boot_lt_lvl2_final:
+	.rept 512-2
+	.quad	0
+	.endr
+	.quad	boot_pt_lvl1_temp_PHYS_DIV4 + (1 << 0)
+	.quad	0	# Last 2MiB is unmapped
+# @0xFFFFFFFF_FFC00000 : Temporary mappings
+.global boot_pt_lvl1_temp
+boot_pt_lvl1_temp:
+	.rept 512
 	.quad	0
 	.endr
 	

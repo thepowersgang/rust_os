@@ -150,6 +150,7 @@ pub mod memory {
 
 		#[inline]
 		/// Returns `true` if the provided address can have `map` called on without needing memory allocation
+		// Used in physical memory allocation to avoid recursion
 		pub fn can_map_without_alloc(a: *mut ()) -> bool {
 			imp::can_map_without_alloc(a)
 		}
