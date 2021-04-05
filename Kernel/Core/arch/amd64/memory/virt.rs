@@ -708,7 +708,10 @@ impl ::core::ops::Drop for AddressSpace {
 							});
 					}
 				}
-				::memory::phys::deref_frame( addr );
+				// SAFE: Memory no longer referenced
+				unsafe {
+					::memory::phys::deref_frame( addr );
+				}
 			}
 			*table_ent = 0;
 		}

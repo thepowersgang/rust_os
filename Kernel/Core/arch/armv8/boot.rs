@@ -44,11 +44,7 @@ pub fn get_fdt() -> Option<&'static FDTRoot<'static>> {
 }
 
 fn get_boot_info() -> &'static BootInfo {
-	if ! S_BOOT_INFO.ls_is_valid() {
-		// SAFE: Shouldn't be called in a racy manner
-		unsafe { S_BOOT_INFO.prep(|| BootInfo::new()) }
-	}
-	&S_BOOT_INFO
+	S_BOOT_INFO.prep(|| BootInfo::new())
 }
 
 impl BootInfo
