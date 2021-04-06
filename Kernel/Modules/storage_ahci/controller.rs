@@ -14,6 +14,7 @@ pub struct Controller
 {
 	inner: ArefInner<ControllerInner>,
 	ports: Vec<Port>,
+	#[allow(dead_code)]
 	irq_handle: Option<::kernel::irqs::ObjectHandle>,
 }
 pub struct ControllerInner

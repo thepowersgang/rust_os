@@ -40,6 +40,7 @@ const MAX_INT_PERIOD_MS: usize = 16;
 struct HostInner
 {
 	io: IoWrapper,
+	#[allow(dead_code)]
 	irq_handle: Option<::kernel::irqs::ObjectHandle>,
 	hcca_handle: ::kernel::memory::virt::AllocHandle,
 	nports: u8,
