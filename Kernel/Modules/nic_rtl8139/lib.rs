@@ -215,9 +215,13 @@ impl Card
 				}
 				else {
 					// Activated and complete (and now marked as inactive), release it to the pool
-					// SAFE: This descriptor can only have been activated if ownership was passed to the card, so it's safe to release.
-					unsafe { self.tx_slots.release(idx); }
-					// TODO: signal waiter.
+					// SAFE: Index is corret and active
+					let mut slot = unsafe { self.tx_slots.handle_from_async(idx) };
+					if let Some(s) = slot.async.take()
+					{
+						s.signal(0);
+					}
+					self.tx_slots.release(slot);
 				}
 				log_trace!("handle_irq: TOK {}", idx);
 			}

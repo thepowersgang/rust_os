@@ -103,8 +103,12 @@ impl<S: Storage> BufferRing<S>
 			idx: index,
 			}
 	}
-	/// Release an object by index
-	pub unsafe fn release(&self, index: usize) {
+
+	/// Release an object
+	pub fn release(&self, handle: Handle<S>) {
+		assert!(handle.bs as *const _ == self as *const _);
+		let index = handle.idx;
+		::core::mem::forget(handle);
 		let mut lh = self.inner.lock();
 		assert_eq!(index, lh.first_used as usize);
 		lh.first_used = (lh.first_used + 1) % S::len() as u16;
