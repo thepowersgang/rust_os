@@ -189,7 +189,7 @@ impl GeneralTD
 
 	pub fn maybe_alloc(&self) -> bool
 	{
-		self.flags.compare_and_swap(0, Self::FLAG_ALLOCATED, Ordering::SeqCst) == 0
+		self.flags.compare_exchange(0, Self::FLAG_ALLOCATED, Ordering::SeqCst, Ordering::SeqCst).is_ok()
 	}
 	pub fn read_flags(&self) -> GeneralTdFlags {
 		GeneralTdFlags( self.flags.load(Ordering::Relaxed) )
@@ -259,7 +259,7 @@ impl GeneralTD
 		loop
 		{
 			let flags = self.flags.load(Ordering::SeqCst) & !Self::FLAG_LOCKED;
-			if self.flags.compare_and_swap(flags, flags | Self::FLAG_LOCKED, Ordering::Acquire) == flags
+			if self.flags.compare_exchange(flags, flags | Self::FLAG_LOCKED, Ordering::Acquire, Ordering::Relaxed).is_ok()
 			{
 				return GeneralTdLockedWaker {
 					flags: &self.flags,

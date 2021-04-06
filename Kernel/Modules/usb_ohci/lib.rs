@@ -439,7 +439,7 @@ impl HostInner
 				let flags_atomic = unsafe { &*hw::Endpoint::atomic_flags(ptr) };
 				let fv = flags_atomic.load(Ordering::SeqCst);
 				if fv & hw::Endpoint::FLAG_ALLOC == 0 {
-					if flags_atomic.compare_and_swap(fv, flags | hw::Endpoint::FLAG_ALLOC, Ordering::SeqCst) == fv {
+					if flags_atomic.compare_exchange(fv, flags | hw::Endpoint::FLAG_ALLOC, Ordering::SeqCst, Ordering::SeqCst).is_ok() {
 						return ep_id;
 					}
 				}
@@ -757,7 +757,7 @@ impl<'a> LockedEndpoint<'a>
 		loop {
 			let v = flags_atomic.load(Ordering::Acquire) & !hw::Endpoint::FLAG_LOCKED;
 
-			if flags_atomic.compare_and_swap(v, v | hw::Endpoint::FLAG_LOCKED, Ordering::Acquire) == v {
+			if flags_atomic.compare_exchange(v, v | hw::Endpoint::FLAG_LOCKED, Ordering::Acquire, Ordering::Relaxed).is_ok() {
 				break;
 			}
 		}

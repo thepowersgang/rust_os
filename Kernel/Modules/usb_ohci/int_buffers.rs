@@ -46,7 +46,7 @@ impl InterruptBuffers
 			}
 			let mask = 1 << i;
 			assert!(v & mask == 0, "{:x} & {:x}", v, mask);
-			if bitset.compare_and_swap(v, v | mask, Ordering::SeqCst) == v {
+			if bitset.compare_exchange(v, v | mask, Ordering::SeqCst, Ordering::SeqCst).is_ok() {
 				//log_debug!("{:p}: Alloc {}", self.page.as_ref(0) as *const u8, i);
 				return Some(FillingHandle {
 					ptr: self.page.as_ref(i * self.max_packet_size) as *const u8,
