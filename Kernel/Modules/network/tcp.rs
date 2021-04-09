@@ -624,7 +624,7 @@ impl Connection
 		match self.state
 		{
 		ConnectionState::SynSent => {
-			todo!("{:?} send/recv before established");
+			todo!("send/recv before established");
 			},
 		ConnectionState::Established => Ok( () ),
 		ConnectionState::FinWait1
@@ -702,7 +702,7 @@ impl Connection
 		let new_state = match self.state
 			{
 			ConnectionState::SynSent => {
-				todo!("{:?} send/recv before established");
+				todo!("{:?} close before established", quad);
 				},
 			ConnectionState::FinWait1
 			| ConnectionState::FinWait2

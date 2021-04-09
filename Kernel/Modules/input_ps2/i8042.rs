@@ -17,7 +17,9 @@ struct Port
 #[derive(Default)]
 struct Ctrlr8042
 {
+	#[allow(dead_code)]
 	port1: Option< irqs::ObjectHandle >,
+	#[allow(dead_code)]
 	port2: Option< irqs::ObjectHandle >,
 }
 

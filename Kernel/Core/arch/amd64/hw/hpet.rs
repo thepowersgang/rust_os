@@ -12,6 +12,7 @@ module_define!{HPET, [APIC, ACPI], init}
 struct HPET
 {
 	mapping_handle: ::memory::virt::AllocHandle,
+	#[allow(dead_code)]
 	irq_handle: ::arch::imp::hw::apic::IRQHandle,
 	period: u64,
 }

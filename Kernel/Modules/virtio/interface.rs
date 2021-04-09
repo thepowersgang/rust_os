@@ -55,6 +55,7 @@ pub struct Pci {
 	bars: PciRegions,
 
 	irq_gsi: u32,
+	#[allow(dead_code)]
 	irq_handle: Option<::kernel::irqs::ObjectHandle>,
 
 	queue_notify_offsets: Vec<u32>,
@@ -173,6 +174,7 @@ impl Interface for Pci
 pub struct Mmio {
 	io: IOBinding,
 	irq_gsi: u32,
+	#[allow(dead_code)]
 	irq_handle: Option<::kernel::irqs::ObjectHandle>,
 }
 impl Mmio

@@ -280,7 +280,11 @@ impl<'a, 'h, 'ha: 'h> ::core::ops::Drop for HandleSleepReg<'a, 'h, 'ha>
 		// Deregister all handles (if they're set to this object)
 		for h in self.handles
 		{
-			h.inner.waiter.compare_exchange(self.so as *const _ as *mut _, ::core::ptr::null_mut(), Ordering::SeqCst, Ordering::Relaxed);
+			match h.inner.waiter.compare_exchange(self.so as *const _ as *mut _, ::core::ptr::null_mut(), Ordering::SeqCst, Ordering::Relaxed)
+			{
+			Ok(_) => {},
+			Err(_) => {},	// Could be NULL, or maybe it was another registration?
+			}
 		}
 	}
 }

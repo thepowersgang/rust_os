@@ -65,6 +65,13 @@ fn init()
 fn init()
 {
 	// Is there a PS/2 controller
+	
+	// Minimal usage of the driver interfaces to prevent warnings
+	#[allow(dead_code)]
+	fn unused() {
+		let mut dev = PS2Dev::None;
+		dev.recv_byte(0);
+	}
 }
 
 impl PS2Dev

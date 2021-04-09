@@ -1,5 +1,5 @@
 [package]
-name = "fs_extN"
+name = "fs_ext_n"
 version = "0.0.0"
 
 [lib]

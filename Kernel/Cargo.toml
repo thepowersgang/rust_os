@@ -17,7 +17,7 @@ usb-core = { path = "Modules/usb_core" }
 
 fs_fat = { path = "Modules/fs_fat" }
 fs_iso9660 = { path = "Modules/fs_iso9660" }
-fs_extN = { path = "Modules/fs_extN" }
+fs_ext_n = { path = "Modules/fs_extN" }
 
 virtio = { path = "Modules/virtio" }
 storage-ata = { path = "Modules/storage_ata" }

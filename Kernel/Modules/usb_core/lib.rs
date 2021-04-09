@@ -409,7 +409,7 @@ impl PortDev
 			Interface::Bound(d.start_device(endpoint_0, endpts, descriptors).into())
 			},
 		None => {
-			use ::kernel::lib::borrow::ToOwned;;
+			use ::kernel::lib::borrow::ToOwned;
 			log_notice!("No driver for class={:06x}", full_class);
 			// If a driver can't be found, save the endpoints for later (and the descriptor data)
 			Interface::Unknown(endpts, descriptors.to_owned())

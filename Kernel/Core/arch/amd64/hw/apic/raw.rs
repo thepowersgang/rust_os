@@ -11,6 +11,7 @@ pub struct LAPIC
 {
 	paddr: u64,
 	mapping: ::memory::virt::AllocHandle,
+	#[allow(dead_code)]
 	timer_isr: ::arch::imp::interrupts::ISRHandle,
 }
 

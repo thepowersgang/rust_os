@@ -30,10 +30,8 @@ pub struct FrameHandle(PAddr);
 pub fn init()
 {
 	// 1. Acquire a memory map from the architecture code and save for use later
-	// SAFE: Called in a true single-threaded context
-	unsafe {
-		S_MEM_MAP.prep(|| ::arch::boot::get_memory_map());
-	}
+	assert!(!S_MEM_MAP.ls_is_valid(), "Double-call of init()");
+	S_MEM_MAP.prep(|| ::arch::boot::get_memory_map());
 	
 	log_log!("Memory Map:");
 	let map = get_memory_map();
@@ -288,11 +286,9 @@ pub unsafe fn deref_frame(paddr: PAddr)
 		if ::arch::memory::phys::mark_free(paddr as u64 / ::PAGE_SIZE as u64) == true {
 			// Release frame back into the pool
 			// SAFE: This frame is unaliased
-			unsafe {
-				let mut h = S_FREE_STACK.lock();
-				::memory::virt::with_temp(paddr, |page| *(&mut page[0] as *mut u8 as *mut PAddr) = *h);
-				*h = paddr;
-			}
+			let mut h = S_FREE_STACK.lock();
+			::memory::virt::with_temp(paddr, |page| *(&mut page[0] as *mut u8 as *mut PAddr) = *h);
+			*h = paddr;
 		}
 		else {
 			// Page was either not allocated (oops) or is not managed

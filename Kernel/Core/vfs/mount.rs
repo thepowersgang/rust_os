@@ -69,11 +69,8 @@ static S_ROOT_VOLUME: RwLock<Option<Box<dyn Filesystem>>> = RwLock::new(None);
 
 pub fn init()
 {
-	// SAFE: Running in a single-threaded context
-	unsafe {
-		S_DRIVERS.prep( || Default::default() );
-		S_VOLUMES.prep( || Default::default() );
-	}
+	S_DRIVERS.prep( || Default::default() );
+	S_VOLUMES.prep( || Default::default() );
 }
 
 /// Mount a volume at the provided location

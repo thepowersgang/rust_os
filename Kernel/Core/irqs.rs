@@ -23,6 +23,7 @@ struct BindingHandle(u32, u32);
 #[derive(Default)]
 struct IRQBinding
 {
+	#[allow(dead_code)]
 	arch_handle: interrupts::IRQHandle,
 	has_fired: AtomicBool,	// Set to true if the IRQ fires while the lock is held by this CPU
 	//handlers: Spinlock<Queue<Handler>>,
