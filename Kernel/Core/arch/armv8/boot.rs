@@ -3,8 +3,8 @@
 //
 // Core/arch/armv8/boot.rs
 // - ARMv8 (AArch64) Boot Information
-use lib::lazy_static::LazyStatic;
-use super::fdt::FDTRoot;
+use crate::lib::lazy_static::LazyStatic;
+use crate::lib::fdt::FDTRoot;
 use super::memory::addresses::{IDENT_SIZE,IDENT_START};
 
 #[repr(C)]
@@ -82,7 +82,7 @@ impl BootInfo
 			
 			// SAFE: Memory is valid (mapped above), and is immutable
 			unsafe {
-				BootInfo::FDT( super::fdt::FDTRoot::new_raw( (super::memory::addresses::HARDWARE_BASE + 0x4000 + (dt_phys_base & 0x3FFF) as usize) as *const u8 ) )
+				BootInfo::FDT( FDTRoot::new_raw( (super::memory::addresses::HARDWARE_BASE + 0x4000 + (dt_phys_base & 0x3FFF) as usize) as *const u8 ) )
 			}
 		}
 	}

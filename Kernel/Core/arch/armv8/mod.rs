@@ -10,9 +10,6 @@ pub mod threads;
 pub mod boot;
 pub mod interrupts;
 
-#[path="../armv7/fdt.rs"]
-mod fdt;
-
 module_define!{arch, [], init}
 fn init()
 {

@@ -2,7 +2,7 @@
 //
 //
 use lib::lazy_static::LazyStatic;
-use super::fdt::FDTRoot;
+use crate::lib::fdt::FDTRoot;
 use super::memory::addresses::IDENT_SIZE;
 
 #[repr(C)]
@@ -84,7 +84,7 @@ impl BootInfo
 			
 			// SAFE: Memory is valid, and is immutable
 			unsafe {
-				BootInfo::FDT( super::fdt::FDTRoot::new_raw(0xFFFFD000 as *const u8) )
+				BootInfo::FDT( FDTRoot::new_raw(0xFFFFD000 as *const u8) )
 			}
 		}
 	}

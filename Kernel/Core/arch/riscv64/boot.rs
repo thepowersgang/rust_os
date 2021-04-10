@@ -6,7 +6,7 @@
 // TODO: This is almost idential to ARMv8
 
 use crate::lib::lazy_static::LazyStatic;
-use super::fdt::FDTRoot;
+use crate::lib::fdt::FDTRoot;
 
 fn get_fdt() -> &'static FDTRoot<'static>
 {

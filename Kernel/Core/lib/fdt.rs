@@ -1,9 +1,11 @@
+// "Tifflin" Kernel
+// - By John Hodge (thePowersGang)
 //
-//
-//
+// Core/lib/fdt.rs
 //! "FDT" (Flattended Device Tree) parser
-use ::lib::byteorder::{ByteOrder,BigEndian};
+use ::lib::byteorder::{ReadBytesExt,ByteOrder,BigEndian};
 
+/// FDT parser/decoder structure
 pub struct FDTRoot<'a>
 {
 	buffer: &'a [u8],
@@ -25,15 +27,18 @@ fn align_to_tag(v: usize) -> usize {
 
 impl<'a> FDTRoot<'a>
 {
+	/// Create a new FDT parser from a raw pointer to a FDT blob
 	pub unsafe fn new_raw(base: *const u8) -> FDTRoot<'static> {
 		log_trace!("FDTRoot::new_raw({:p})", base);
 		let minbuf = ::core::slice::from_raw_parts(base, 8);
 		let magic = BigEndian::read_u32(&minbuf[..4]);
+		// TODO: Check magic value
 		let len = BigEndian::read_u32(&minbuf[4..]);
 		log_debug!("magic = {:#x}, len={:#x}", magic, len);
 		
 		Self::new_buf(::core::slice::from_raw_parts(base, len as usize))
 	}
+	/// Create a new FDT parser from a known slice of memory
 	pub fn new_buf<'b>(buf: &'b [u8]) -> FDTRoot<'b> {
 		let magic = BigEndian::read_u32(buf);
 		assert_eq!(magic, 0xd00dfeed, "FDT magic mismatc - Expected 0xd00dfeed, got 0x{:8x}", magic);
@@ -42,6 +47,7 @@ impl<'a> FDTRoot<'a>
 		}
 	}
 
+	/// Shortcut for the physical address of the first page of the blocb
 	pub fn phys(&self) -> crate::memory::PAddr {
 		crate::memory::virt::get_phys(self.buffer.as_ptr())
 	}
@@ -49,6 +55,7 @@ impl<'a> FDTRoot<'a>
 		self.buffer.len()
 	}
 
+	/// Dump the entire parsed tree to the logging stream
 	pub fn dump_nodes(&self) {
 		struct Indent(usize);
 		impl ::core::fmt::Display for Indent { fn fmt(&self, f: &mut ::core::fmt::Formatter)->::core::fmt::Result { for _ in 0..self.0 { f.write_str(" ")?; } Ok(()) } }
@@ -81,14 +88,12 @@ impl<'a> FDTRoot<'a>
 				"reg" |
 				"interrupts"
 					=> if data.len() == 8+4 {
-						use lib::byteorder::{ReadBytesExt,BigEndian};
 						let mut bytes = data;
 						let a = bytes.read_u64::<BigEndian>().unwrap();
 						let s = bytes.read_u32::<BigEndian>().unwrap();
 						log_debug!("{}.{} = {:#x}+{:#x}", indent, name, a, s);
 					}
 					else if data.len() == 8+8 {
-						use lib::byteorder::{ReadBytesExt,BigEndian};
 						let mut bytes = data;
 						let a = bytes.read_u64::<BigEndian>().unwrap();
 						let s = bytes.read_u64::<BigEndian>().unwrap();
@@ -130,6 +135,7 @@ impl<'a> FDTRoot<'a>
 	}
 }
 
+// Internal helper methods
 impl<'a> FDTRoot<'a>
 {
 	fn off_dt_struct(&self) -> usize {
@@ -179,62 +185,7 @@ impl<'a> FDTRoot<'a>
 	}
 }
 
-/// Iterate a FDT using a fixed path
-pub struct PropsIter<'a,'fdt: 'a,'b> {
-	fdt: &'a FDTRoot<'fdt>,
-	path: &'b [&'b str],
-	offset: usize,
-	path_depth: u8,
-	cur_depth: u8,
-}
-impl<'a,'fdt, 'b> Iterator for PropsIter<'a, 'fdt, 'b>
-{
-	type Item = &'fdt [u8];
-	fn next(&mut self) -> Option<Self::Item>
-	{
-		// Last item in self.path is the property name
-		let path_nodes_len = (self.path.len() - 1) as u8;
-
-		loop
-		{
-			let (tag, next_ofs) = self.fdt.next_tag(self.offset);
-			self.offset = next_ofs;
-			match tag
-			{
-			Tag::BeginNode(name) => {
-				if self.path_depth == self.cur_depth && self.path_depth < path_nodes_len {
-					// TODO: Pattern matching to handle `memory` and `memory@foo`
-					if name == self.path[self.path_depth as usize] {
-						// Increment both path and cur depth
-						self.path_depth += 1;
-					}
-				}
-				self.cur_depth += 1;
-				},
-			Tag::EndNode => {
-				//log_trace!("EndNode ({},{})", self.path_depth, self.cur_depth);
-				if self.path_depth == self.cur_depth {
-					assert!(self.path_depth > 0);
-					self.path_depth -= 1;
-				}
-				self.cur_depth -= 1;
-				},
-			Tag::Prop(name, data) => {
-				if self.path_depth == self.cur_depth && self.path_depth == path_nodes_len {
-					if name == self.path[self.path_depth as usize] {
-						// Desired property
-						return Some(data);
-					}
-				}
-				},
-			Tag::End => return None,
-			Tag::Nop => {},
-			}
-		}
-	}
-}
-
-/// Iterate a FDT using a checking callback
+/// Iterator over a FDT using a checking callback
 pub struct PropsIterCb<'a,'fdt: 'a, F> {
 	fdt: &'a FDTRoot<'fdt>,
 	offset: usize,
@@ -297,6 +248,7 @@ where
 	}
 }
 
+/// Iterator over a FDT's node using a fixed path
 pub struct NodesIter<'a,'fdt: 'a,'b> {
 	fdt: &'a FDTRoot<'fdt>,
 	path: &'b [&'b str],
@@ -348,6 +300,7 @@ impl<'a,'fdt, 'b> Iterator for NodesIter<'a, 'fdt, 'b>
 	}
 }
 
+/// A single FDT node
 pub struct Node<'a, 'fdt: 'a>
 {
 	fdt: &'a FDTRoot<'fdt>,
@@ -377,6 +330,7 @@ pub enum Item<'a, 'fdt: 'a> {
 	Node(Node<'a, 'fdt>),
 	Prop(&'fdt [u8]),
 }
+/// Iterator over sub-nodes of a FDT
 pub struct SubNodes<'a, 'fdt: 'a>
 {
 	fdt: &'a FDTRoot<'fdt>,

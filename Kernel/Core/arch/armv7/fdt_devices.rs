@@ -2,7 +2,7 @@
 //
 //
 use prelude::*;
-use super::fdt;
+use crate::lib::fdt;
 
 module_define!{FDTDevices, [], init}
 

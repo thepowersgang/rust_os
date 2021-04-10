@@ -46,6 +46,8 @@ pub mod byte_str;
 
 pub mod ring_buffer;
 
+pub mod fdt;
+
 pub extern crate stack_dst;
 
 pub mod io;

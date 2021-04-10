@@ -157,9 +157,6 @@ fn putb(v: u8) {
 	}
 }
 
-#[path="../armv7/fdt.rs"]
-mod fdt;
-
 pub fn print_backtrace() {
 }
 
