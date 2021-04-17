@@ -42,11 +42,7 @@ pub fn get_fdt() -> Option<&'static FDTRoot<'static>> {
 }
 
 fn get_boot_info() -> &'static BootInfo {
-	if ! S_FDT.ls_is_valid() {
-		// SAFE: Shouldn't be called in a racy manner
-		unsafe { S_FDT.prep(|| BootInfo::new()) }
-	}
-	&S_FDT
+	S_FDT.prep(|| BootInfo::new())
 }
 
 impl BootInfo
@@ -117,7 +113,13 @@ pub fn get_memory_map() -> &'static [::memory::MemoryMapEnt] {
 		&BootInfo::FDT(ref fdt) => {
 			// FDT Present, need to locate all memory nodes
 			fdt.dump_nodes();
-			for prop in fdt.get_props(&["","memory","reg"])
+			for prop in fdt.get_props_cb(|idx,leaf,name| match (idx,leaf)
+				{
+				(0,false) => name == "",
+				(1,false) => name == "memory" || name.starts_with("memory@"),
+				(2,true) => name == "reg",
+				_ => false,
+				})
 			{
 				use lib::byteorder::{ReadBytesExt,BigEndian};
 				let mut p = prop;
@@ -135,7 +137,7 @@ pub fn get_memory_map() -> &'static [::memory::MemoryMapEnt] {
 		unsafe { 
 			if kernel_phys_start != 0 {
 				// 2. Clobber out kernel, modules, and strings
-				mapbuilder.set_range( kernel_phys_start as u64, (&v_kernel_end as *const _ as u64 - 0x80000000), ::memory::MemoryState::Used, 0 ).unwrap();
+				mapbuilder.set_range( kernel_phys_start as u64, &v_kernel_end as *const _ as u64 - 0x80000000, ::memory::MemoryState::Used, 0 ).unwrap();
 			}
 			if ram_first_free != 0 {
 				mapbuilder.set_range( kernel_phys_start as u64, (ram_first_free - kernel_phys_start) as u64, ::memory::MemoryState::Used, 0 ).unwrap();

@@ -115,7 +115,13 @@ pub fn get_memory_map() -> &'static [::memory::MemoryMapEnt] {
 		&BootInfo::FDT(ref fdt) => {
 			//fdt.dump_nodes();
 			// FDT Present, need to locate all memory nodes
-			for prop in fdt.get_props(&["","memory","reg"])
+			for prop in fdt.get_props_cb(|idx,leaf,name| match (idx,leaf)
+				{
+				(0,false) => name == "",
+				(1,false) => name == "memory" || name.starts_with("memory@"),
+				(2,true) => name == "reg",
+				_ => false,
+				})
 			{
 				use lib::byteorder::{ReadBytesExt,BigEndian};
 				let mut p = prop;

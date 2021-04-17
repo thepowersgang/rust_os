@@ -432,7 +432,8 @@ fn get_table_addr<T>(vaddr: *const T, alloc: bool) -> Option< (TableRef, usize) 
 			let frame = handle.phys_addr();
 			let ent_v = ent_r[0].compare_and_swap(0, frame + 0x1, Ordering::Acquire);
 			if ent_v != 0 {
-				::memory::phys::deref_frame(frame);
+				// SAFE: Frame is owned by this function, and is umapped just after this
+				unsafe { ::memory::phys::deref_frame(frame); }
 				drop(handle);
 				// SAFE: Address is correct, and immutable
 				let ret_handle = unsafe { TempHandle::new(ent_v & !PAGE_MASK_U32) };
@@ -507,11 +508,11 @@ fn get_phys_opt<T>(addr: *const T) -> Option<::arch::memory::PAddr> {
 	unsafe {
 		// TODO: Disable interrupts during this operation
 		asm!("
-			mcr p15,0, $1, c7,c8,0;
+			mcr p15,0, {1}, c7,c8,0;
 			isb;
-			mrc p15,0, $0, c7,c4,0
-			"
-			: "=r" (res) : "r" (addr)
+			mrc p15,0, {0}, c7,c4,0
+			",
+			lateout(reg) res, in(reg) addr
 			);
 	};
 
@@ -541,7 +542,7 @@ pub fn get_info<T>(addr: *const T) -> Option<(::arch::memory::PAddr, ::memory::v
 fn tlbimva(a: *mut ()) {
 	// SAFE: TLB invalidation is not the unsafe part :)
 	unsafe {
-		asm!("mcr p15,0, $0, c8,c7,1 ; dsb ; isb" : : "r" ( (a as usize & !PAGE_MASK) | 1 ) : "memory" : "volatile")
+		asm!("mcr p15,0, {0}, c8,c7,1 ; dsb ; isb", in(reg) ((a as usize & !PAGE_MASK) | 1 ), options(nostack));
 	}
 }
 ///// Data Cache Clean by Modified Virtual Address (to PoC)

@@ -80,6 +80,7 @@ impl Pci
 			irq_handle: None,
 			queue_notify_offsets: queue_notify_offsets,
 			};
+
 		// SAFE: Unique access
 		unsafe {
 			rv.set_device_status(0x0);	// Reset
@@ -153,7 +154,7 @@ impl Interface for Pci
 	}
 	
 	fn notify_queue(&self, idx: usize) {
-		log_trace!("notify_queue({})", idx);
+		log_trace!("PCI: notify_queue({})", idx);
 		// SAFE: Atomic write
 		unsafe {
 			self.bars.notify.write_16(self.queue_notify_offsets[idx] as usize, idx as u16)

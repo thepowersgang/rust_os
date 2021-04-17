@@ -6,6 +6,7 @@
 #![feature(panic_info_message)]
 #![feature(asm)]	// Used by backtrace code
 #![feature(const_fn)]	// HACK For debugging ARM unwind
+#![cfg_attr(target_arch="arm", feature(extern_types))]	// Used for ARM unwind
 #![no_std]
 
 #[macro_use]
@@ -17,8 +18,6 @@ mod std {
 	pub use core::fmt;
 }
 
-#[cfg(target_arch="arm")]
-enum Void {}
 #[cfg(target_arch="arm")]
 mod memory {
 	pub mod virt {

@@ -23,7 +23,7 @@ fn init() {
 		let (scells,) = decode_value(&root_node, "#size-cells", (1,)).unwrap_or( (0,) );
 		let (acells,) = decode_value(&root_node, "#address-cells", (1,)).unwrap_or( (0,) );
 
-		let mut devices: Vec<Box<dyn ::device_manager::BusDevice>> = Vec::new();
+		let mut devices: Vec<Box<dyn crate::device_manager::BusDevice>> = Vec::new();
 		for dev in fdt.get_nodes(&[""])
 		{
 			if let Some(compat) = dev.items().filter_map(|r| match r { ("compatible", fdt::Item::Prop(v)) => Some(v), _ => None }).next()
@@ -67,25 +67,32 @@ impl ::device_manager::BusDevice for BusDev
 	fn addr(&self) -> u32 {
 		self.node.offset() as u32
 	}
-	fn get_attr(&self, name: &str) -> ::device_manager::AttrValue {
+	fn get_attr_idx(&self, name: &str, idx: usize) -> ::device_manager::AttrValue {
 		use device_manager::AttrValue;
 		match name
 		{
-		"compatible" => {
+		"compatible" if idx == 0 => {
 			let v = self.node.get_prop("compatible").map(|v| ::core::str::from_utf8(v).unwrap_or("INVALID")).unwrap_or("");
 			AttrValue::String( v )
 			},
 		_ => AttrValue::None,
 		}
 	}
-	fn set_attr(&mut self, _name: &str, _value: ::device_manager::AttrValue) {
+	fn set_attr_idx(&mut self, _name: &str, _idx: usize, _value: ::device_manager::AttrValue) {
 	}
 	fn set_power(&mut self, _state: bool) {
 	}
-	fn bind_io(&mut self, block_id: usize) -> ::device_manager::IOBinding {
+	fn bind_io_slice(&mut self, block_id: usize, slice: Option<(usize,usize)>) -> crate::device_manager::IOBinding {
 		match block_id
 		{
-		0 => if let Some((base, size)) = self.mmio {
+		0 => if let Some((mut base, mut size)) = self.mmio {
+				if let Some( (ofs, subsize) ) = slice {
+					assert!(ofs < size as usize, "");
+					assert!(ofs + subsize <= size as usize);
+
+					base += ofs as u64;
+					size = subsize as u32;
+				}
 				// TODO: Ensure safety
 				// SAFE: Can't easily prove
 				let ah = unsafe { ::memory::virt::map_mmio(base as ::memory::PAddr, size as usize).unwrap() };
@@ -94,7 +101,7 @@ impl ::device_manager::BusDevice for BusDev
 			else {
 				panic!("No MMIO block");
 			},
-		_ => panic!("Unknown block_id {} for fdt_devices::BusDev::bind_io", block_id),
+		_ => panic!("Unknown block_id {} for fdt_devices::BusDev::bind_io_slice", block_id),
 		}
 	}
 	fn get_irq(&mut self, idx: usize) -> u32 {
@@ -106,7 +113,7 @@ impl ::device_manager::BusDevice for BusDev
 	}
 }
 
-fn decode_value<T: Tuple<u64>>(dev: &super::fdt::Node, name: &str, cells: T) -> Option<T>
+fn decode_value<T: Tuple<u64>>(dev: &fdt::Node, name: &str, cells: T) -> Option<T>
 {
 	use lib::byteorder::{ReadBytesExt,BigEndian};
 

@@ -292,7 +292,7 @@ impl MultibootParsed
 				};
 			for shent in shtab
 			{
-				log_trace!("shent = {:?}", shent);
+				//log_trace!("shent = {:?}", shent);
 				if shent.sh_type == 2
 				{
 					let count = shent.sh_size as usize / ::core::mem::size_of::<::symbols::Elf32_Sym>();

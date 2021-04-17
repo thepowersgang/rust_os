@@ -423,6 +423,7 @@ ENTRY(__aeabi_unwind_cpp_pr1)
 	b .
 
 
+#if 0
 ENTRY(__aeabi_dcmplt)
 ENTRY(__aeabi_dcmple)
 ENTRY(__aeabi_dcmpeq)
@@ -435,7 +436,11 @@ ENTRY(__aeabi_fcmpeq)
 ENTRY(__aeabi_fcmpge)
 ENTRY(__aeabi_fcmpgt)
 	b .
+#endif
 EXIDX __aeabi_unwind_cpp_pr0, 0x1
+
+ENTRY(_Unwind_Resume)
+	b .
 
 .section .rodata
 data_abort_message:	.ascii "Data Abort: "

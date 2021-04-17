@@ -365,7 +365,7 @@ pub fn get_display_for_pos(pos: Pos) -> Result<Rect,Rect>
 {
 	with_display_at_pos(pos, |s| s.region)
 	// If the position is outside of any displays, return the closest display to it
-		.ok_or_else( || with_display_at_pos(get_closest_visible_pos(pos), |s| s.region).unwrap() )
+		.ok_or_else( || with_display_at_pos(get_closest_visible_pos(pos), |s| s.region).unwrap_or(Rect::default()) )
 }
 
 /// Write part of a single scanline to the screen

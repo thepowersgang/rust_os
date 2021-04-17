@@ -23,12 +23,12 @@ mod aeabi_unwind;
 #[inline(always)]
 pub fn checkmark() {
 	// SAFE: nop ASM
-	unsafe { asm!("mov r1, r1" : : : "memory" : "volatile"); }
+	unsafe { asm!("mov r1, r1"); }
 }
 #[inline(always)]
 pub fn checkmark_val<T>(v: *const T) {
 	// SAFE: nop ASM
-	unsafe { asm!("mov r1, r1; mov $0,$0" : : "r"(v) : "memory" : "volatile"); }
+	unsafe { asm!("mov r1, r1; mov {0},{0}", in(reg) v); }
 }
 
 #[allow(improper_ctypes)]
@@ -155,7 +155,6 @@ pub mod x86_io {
 
 
 
-#[allow(private_no_mangle_fns)]
 #[allow(dead_code)]
 #[cfg(no)]
 mod helpers

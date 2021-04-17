@@ -139,6 +139,9 @@ impl device_manager::Driver for Pci
 			}
 		}
 
+		// TODO: Enable PCI bus mastering
+		bus_dev.set_attr("bus_master", ::kernel::device_manager::AttrValue::U32(1));
+
 		match (common_bar, device_cfg_bar, notify_bar)
 		{
 		( Some(common), Some(dev_cfg), Some( (notify, notify_mult) ) ) => {

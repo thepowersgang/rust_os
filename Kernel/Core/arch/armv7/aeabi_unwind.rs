@@ -15,7 +15,7 @@ pub enum Error
 }
 
 macro_rules! getreg {
-	($r:ident) => {{ let v; asm!( concat!("mov $0, ", stringify!($r)) : "=r"(v)); v }};
+	($r:ident) => {{ let v; asm!( concat!("mov {0}, ", stringify!($r)), out(reg) v); v }};
 }
 
 //const TRACE_OPS: bool = true;
@@ -42,7 +42,7 @@ impl UnwindState {
 					getreg!(r8), getreg!(r9), getreg!(r10), getreg!(r11),
 					getreg!(r12), getreg!(sp), getreg!(lr), getreg!(pc),
 					],
-				vsp: { let v; asm!("mov $0, sp" : "=r" (v)); v },
+				vsp: { let v; asm!("mov {}, sp", lateout(reg) v); v },
 			}
 		}
 	}
@@ -159,14 +159,14 @@ impl UnwindState {
 	{
 		match byte >> 4
 		{
-		0x0 ... 0x3 => {	// ARM_EXIDX_CMD_DATA_POP
+		0x0 ..= 0x3 => {	// ARM_EXIDX_CMD_DATA_POP
 			let count = (byte & 0x3F) as u32 * 4 + 4;
 			if TRACE_OPS {
 				log_debug!("VSP += {:#x}*4+4 ({})", byte & 0x3F, count);
 			}
 			self.vsp += count;
 			},
-		0x4 ... 0x7 => {	// ARM_EXIDX_CMD_DATA_PUSH
+		0x4 ..= 0x7 => {	// ARM_EXIDX_CMD_DATA_PUSH
 			let count = (byte & 0x3F) as u32 * 4 + 4;
 			if TRACE_OPS {
 				log_debug!("VSP -= {:#x}*4+4 ({})", byte & 0x3F, count);
@@ -308,8 +308,9 @@ impl ::core::iter::Iterator for WordBytesLE {
 pub fn get_unwind_info_for(addr: usize) -> Option<(usize, &'static u32)>
 {
 	extern "C" {
+		type Sym;
 		static __exidx_start: [u32; 2];
-		static __exidx_end: ::Void;
+		static __exidx_end: Sym;
 	}
 
 	// SAFE: Data at `__exidx_start` doesn't change
@@ -322,7 +323,7 @@ pub fn get_unwind_info_for(addr: usize) -> Option<(usize, &'static u32)>
 	for (i,e) in exidx_tab.iter().enumerate() {
 		assert!(e[0] < 0x8000_0000);
 		
-		let fcn_start = usize::wrapping_add( (e[0] as usize + 0x8000_0000), (&e[0] as *const _ as usize) );
+		let fcn_start = usize::wrapping_add( e[0] as usize + 0x8000_0000, &e[0] as *const _ as usize );
 		// If before the address, but after the previous closest
 		if fcn_start < addr && fcn_start > best.0 {
 			// then use it

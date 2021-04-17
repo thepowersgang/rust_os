@@ -86,6 +86,7 @@ where
 			});
 
 		let di = core.get_display_info();
+		log_debug!("di = {:?}", di);
 		for (i,screen) in Iterator::enumerate( di[..num_scanouts].iter() )
 		{
 			if screen.enabled != 0
@@ -137,6 +138,7 @@ where
 
 	fn get_display_info(&self) -> /*SmallVec<*/[hw::DisplayOne; 16]//>
 	{
+		log_trace!("get_display_info()");
 		let hdr = hw::CtrlHeader {
 			type_: hw::VIRTIO_GPU_CMD_GET_DISPLAY_INFO as u32,
 			flags: hw::VIRTIO_GPU_FLAG_FENCE,
@@ -454,21 +456,21 @@ where
 				let base_ofs = (base as usize) % PAGE_SIZE;
 				let max_len = PAGE_SIZE - base_ofs;
 				if max_len > len {
-					cb(kernel::memory::virt::get_phys(base), len);
+					cb(kernel::memory::virt::get_phys(base) as u64, len);
 					return ;
 				}
 
-				cb(kernel::memory::virt::get_phys(base), max_len);
+				cb(kernel::memory::virt::get_phys(base) as u64, max_len);
 				len -= max_len;
 				base = (base as usize + max_len) as *const u8;
 				while len > PAGE_SIZE {
-					cb(kernel::memory::virt::get_phys(base), PAGE_SIZE);
+					cb(kernel::memory::virt::get_phys(base) as u64, PAGE_SIZE);
 					len -= PAGE_SIZE;
 					base = (base as usize + PAGE_SIZE) as *const u8;
 				}
-				cb(kernel::memory::virt::get_phys(base), len);
+				cb(kernel::memory::virt::get_phys(base) as u64, len);
 			}
-			let mut exp_phys = kernel::memory::virt::get_phys(buffer.as_ptr());
+			let mut exp_phys = kernel::memory::virt::get_phys(buffer.as_ptr()) as u64;
 			entries[0].addr = exp_phys;
 			let mut cur_len = 0;
 			iter_pages(buffer.as_ptr() as *const u8, buffer.len() * 4, |phys, len| {

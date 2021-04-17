@@ -18,6 +18,7 @@ impl<'a, T> !POD for &'a mut T {}
 
 // TODO: Can there be an impl for the atomics?
 unsafe impl POD for ::core::sync::atomic::AtomicU32 {}
+#[cfg(target_has_atomic="64")]
 unsafe impl POD for ::core::sync::atomic::AtomicU64 {}
 
 pub fn as_byte_slice<T: ?Sized + POD>(s: &T) -> &[u8] {

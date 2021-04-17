@@ -102,7 +102,7 @@ bad_location:
 	svc #2	@ Call ID too (TODO: Actually use this in kernel-land)
 	b .
 
-#include "../rustrt0/armv7-helpers.S"
+//#include "../../rustrt0/armv7-helpers.S"
 
 #elif defined(ARCH_armv8)
 # define DEFPTR	.quad
@@ -143,7 +143,7 @@ bad_location:
 	svc #2	// Call ID too (TODO: Actually use this in kernel-land)
 	b .
 
-#include "../rustrt0/armv8-helpers.S"
+//#include "../../rustrt0/armv8-helpers.S"
 #elif defined(ARCH_riscv64)
 # define DEFPTR	.quad
 # define PTR_SIZE	8

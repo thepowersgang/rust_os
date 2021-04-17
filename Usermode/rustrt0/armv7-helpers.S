@@ -350,6 +350,7 @@ ENTRY_(__aeabi_unwind_cpp_pr1)
 	b .
 
 
+#if 0
 TODO_STUB __aeabi_dcmplt
 TODO_STUB __aeabi_dcmple
 TODO_STUB __aeabi_dcmpeq
@@ -361,6 +362,7 @@ TODO_STUB __aeabi_fcmpeq
 TODO_STUB __aeabi_fcmpge
 TODO_STUB __aeabi_fcmpgt
 	b .
+#endif
 EXIDX __aeabi_unwind_cpp_pr0, 0x1
 
 ENTRY(_Unwind_Resume)

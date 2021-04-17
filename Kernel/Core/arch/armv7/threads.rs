@@ -36,7 +36,7 @@ pub fn set_thread_ptr(thread: ::threads::ThreadPtr) {
 	let real = borrow_thread_mut();
 	if real.is_null() {
 		// SAFE: Valid ASM
-		unsafe { asm!("mcr p15,0, $0, c13,c0,4" : : "r" (thread.into_usize())); }
+		unsafe { asm!("mcr p15,0, {0}, c13,c0,4", in(reg) thread.into_usize(), options(nomem, nostack, preserves_flags)); }
 	}
 	else if real as *const _ == &*thread {
 		// Convert and discard
@@ -50,7 +50,7 @@ pub fn get_thread_ptr() -> Option<::threads::ThreadPtr> {
 	// SAFE: Thread pointer should either be valid, or NULL
 	unsafe {
 		let cur: usize;
-		asm!("mrc p15,0, $0, c13,c0,4" : "=r" (cur));
+		asm!("mrc p15,0, {0}, c13,c0,4", lateout(reg) cur, options(pure, nomem, nostack, preserves_flags));
 		if cur == 0 {
 			None
 		}
@@ -63,7 +63,7 @@ fn borrow_thread_mut() -> *mut ::threads::Thread {
 	// SAFE: Read-only access to the thread-local word
 	unsafe {
 		let ptr: usize;
-		asm!("mrc p15,0, $0, c13,c0,4" : "=r" (ptr));
+		asm!("mrc p15,0, {0}, c13,c0,4", lateout(reg) ptr, options(pure, nomem, nostack, preserves_flags));
 		(ptr & !1) as *mut _
 	}
 }
@@ -89,7 +89,7 @@ pub fn idle() {
 	log_trace!("idle");
 	// SAFE: Calls 'wait for interrupt'
 	unsafe {
-		asm!("wfi" : : : : "volatile");
+		asm!("wfi");
 	}
 }
 
