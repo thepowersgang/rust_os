@@ -50,13 +50,16 @@ CARGO_OUTDIR := target/target-$(ARCH)/$(CARGO_PROFILE)/
 ifeq ($(ARCH),native)
 CARGO_OUTDIR := target/$(CARGO_PROFILE)/
 endif
+ifeq ($V,)
+ CARGO_FLAGS += -v
+endif
 
 ifeq ($(ARCH),riscv64)
  ASFLAGS += -mabi=lp64
 endif
 
 # - List non-file targets
-.PHONY: all clean docs
+.PHONY: all clean docs xargo
 # - Don't delete intermediate targets
 .SECONDARY:
 # - (debugging) Remove most default targets
@@ -65,12 +68,11 @@ endif
 #makefile_deps = Makefile
 makefile_deps = 
 
-
 # DEFAULT: Compile all applications
 all: $(APPS:%=$(BINDIR)%)
 $(BINDIR)%: xargo
 	@mkdir -p $(dir $@)
-	@if test -e $(CARGO_OUTDIR)$*; then cp $(CARGO_OUTDIR)$* $@; else cp $(CARGO_OUTDIR)$*-bin $@; fi
+	$Vif test -e $(CARGO_OUTDIR)$*; then cp $(CARGO_OUTDIR)$* $@; else cp $(CARGO_OUTDIR)$*-bin $@; fi
 
 # Delete all artifacts
 clean:
@@ -109,24 +111,14 @@ endif
 .PHONY: xargo
 xargo: $(OBJDIR)rustrt0.o $(LIBDIR)libloader_dyn.so	# Referenced by link-$(TARGET).ld
 	RUSTFLAGS='$(RUSTFLAGS)' $(CARGO) build $(CARGO_FLAGS)
+#	$(foreach app,$(APPS), cp $(CARGO_OUTDIR)$(app) $(BINDIR)$(app);)
 
 # Ensure that all external crates are checked out
 xargo: $(patsubst %,../externals/crates.io/%/src/lib.rs,cmdline_words_parser stack_dst utf16_literal va_list)
 
-ifeq (,)
-$(LIBDIR)libloader_dyn.so: loader/bin/placeholder_lib.S $(makefile_deps) Makefile
+$(LIBDIR)libloader_dyn.so: $(makefile_deps) Makefile
 	@mkdir -p $(dir $@)
-	@echo [AS] $@
-	$V$(CC) $(ASFLAGS) -o $@ -c $< -D ARCH_$(ARCH) -MMD -MF $@.d -shared
-else
-# Low-level loader dummy dynamic library
-# - Used to tell ld that `loader`'s exported symbols actually exist
-$(LIBDIR)libloader_dyn.so: loader/bin/placeholder_lib.rs $(makefile_deps) Makefile
-	@mkdir -p $(dir $@)
-	@echo [RUSTC] $@
-	$V$(RUSTC)  --target $(TARGET_SPEC) -L target/target-$(ARCH)/release/deps/ --crate-type=cdylib --crate-name loader_dyn loader/bin/placeholder_lib.rs --out-dir $(LIBDIR) --cfg 'arch="$(ARCH)"' -C panic=abort
-	if [ -e $(LIBDIR)loader_dyn.dll.lib ]; then cp $(LIBDIR)loader_dyn.dll.lib $(LIBDIR)loader_dyn.lib; fi
-endif
+	$V$(CARGO) run --manifest-path ../Helpers/make_elf_stub/Cargo.toml -- -a $(ARCH) -o $@ new_process start_process
 
 # - Assembly objects (loader)
 $(OBJDIR)%.ao: %.S $(makefile_deps)
@@ -137,7 +129,7 @@ $(OBJDIR)%.ao: %.S $(makefile_deps)
 $(OBJDIR)rustrt0.o: rustrt0/$(ARCH).S $(makefile_deps)
 	@mkdir -p $(dir $@)
 	@echo [AS] $@
-	$V$(CC) $(ASFLAGS) -o $@ -c $< -D ARCH_$(ARCH) -fPIC -MMD -MF $@.d
+	$V$(CC) $(ASFLAGS) -o $@ -c $< -D ARCH_$(ARCH) -MMD -MF $@.d
 
 DEPFILES := 
 DEPFILES += $(OBJDIR)loader/bin/start.ao.d $(OBJDIR)rustrt0.o.d
