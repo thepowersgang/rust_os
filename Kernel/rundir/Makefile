@@ -51,6 +51,7 @@ endif
 IMGDIR := DiskImages/$(ARCH)/
 
 ifneq ($(ENABLE_TRACE),)
+  # qemu-source/scripts/simpletrace.py qemu-build/trace/trace-events qemu_trace_events
   QEMU_ARGS += --trace events=.qemu_trace,file=qemu_trace_events
 endif
 
@@ -95,8 +96,8 @@ QEMU_ARGS += -drive if=none,id=hda,index=0,file=$(IMGDIR)hda.img,format=raw
 #QEMU_ARGS += -device virtio-gpu-device
 
 run: $(IMGDIR)hda.img
-	make -C arm_bootloader PLATFORM=$(MACHINE_TYPE) CMDLINE="$(CMDLINE)"
-	qemu-system-arm -machine $(MACHINE_TYPE) $(QEMU_ARGS) -kernel arm_bootloader/loader-$(MACHINE_TYPE).bin -append "$(CMDLINE)" $(TEE)
+	make -C ../../Bootloaders/arm PLATFORM=$(MACHINE_TYPE) CMDLINE="$(CMDLINE)"
+	qemu-system-arm -machine $(MACHINE_TYPE) $(QEMU_ARGS) -kernel ../../Bootloaders/arm/loader-$(MACHINE_TYPE).bin -append "$(CMDLINE)" $(TEE)
 images: $(IMGDIR)hda.img
 # ---
 # ARM 64
@@ -121,9 +122,10 @@ QEMU_ARGS += -device virtio-gpu-device
 QEMU_ARGS += -device virtio-net-device
 QEMU_ARGS += -drive if=none,id=hda,index=0,file=$(IMGDIR)hda.img,format=raw
 QEMU_ARGS += -smp 4
+#QEMU_ARGS += -bios none
 
 run: $(IMGDIR)hda.img
-	qemu-system-riscv64 -machine virt -cpu rv64 -m 64M $(QEMU_ARGS) -bios none -kernel ../../Kernel/bin/kernel-riscv64.bin -append "$(CMDLINE)" $(TEE)
+	qemu-system-riscv64 -machine virt -cpu rv64 -m 64M $(QEMU_ARGS) -kernel ../../Kernel/bin/kernel-riscv64.bin -append "$(CMDLINE)" $(TEE)
 else
   $(error Unknown architecture in Kernel/rundir/Makefile)
 endif

@@ -64,6 +64,8 @@ Bootloaders/uefi/target
 Bootloaders/uefi/Cargo.lock
 Bootloaders/libuefi/target/
 Bootloaders/*.pe
+Bootloaders/aarch64/target
+Bootloaders/arm/target
 
 Usermode/doc/
 Usermode/target/

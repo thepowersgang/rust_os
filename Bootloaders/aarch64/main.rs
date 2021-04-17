@@ -3,6 +3,7 @@
 //
 #![no_std]
 #![feature(lang_items)]
+#![feature(panic_info_message)]
 
 mod elf_fmt;
 
@@ -222,11 +223,30 @@ fn eh_personality() -> ! {
 	puts("UNWIND");
 	loop {}
 }
-#[lang="panic_fmt"]
-fn panic_fmt(msg: &::core::fmt::Arguments, file: &'static str, line: u32) -> ! {
-	puts("PANIC @ "); puts(file); puts("\n");
-	log!("panic: {}:{}: {}\n", file, line, msg);
+fn begin_panic_fmt(msg: &::core::fmt::Arguments, file_line: (&str, u32)) -> ! {
+	puts("PANIC @ "); puts(file_line.0); puts("\n");
+	log!("panic: {}:{}: {}\n", file_line.0, file_line.1, msg);
 	loop {}
+}
+#[panic_handler]
+fn panic_handler(info: &::core::panic::PanicInfo) -> ! {
+	let file_line = match info.location()
+		{
+		Some(v) => (v.file(), v.line()),
+		None => ("", 0),
+		};
+	if let Some(m) = info.payload().downcast_ref::<::core::fmt::Arguments>() {
+		begin_panic_fmt(m, file_line)
+	}
+	else if let Some(m) = info.payload().downcast_ref::<&str>() {
+		begin_panic_fmt(&format_args!("{}", m), file_line)
+	}
+	else if let Some(m) = info.message() {
+		begin_panic_fmt(m, file_line)
+	}
+	else {
+		begin_panic_fmt(&format_args!("Unknown"), file_line)
+	}
 }
 
 

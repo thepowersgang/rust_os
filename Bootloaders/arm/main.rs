@@ -2,7 +2,7 @@
 //
 //
 #![no_std]
-#![feature(panic_implementation)]
+#![feature(lang_items)]
 
 /// Stub logging macro
 macro_rules! log{
@@ -41,7 +41,12 @@ pub extern "C" fn elf_load_symbols(file_base: &elf::ElfFile, output: &mut elf::S
 //
 //
 
-#[panic_implementation]
+#[lang="eh_personality"]
+fn eh_personality() -> ! {
+	puts("UNWIND");
+	loop {}
+}
+#[panic_handler]
 fn panic_fmt(_: &::core::panic::PanicInfo) -> ! {
 	puts("PANIC");
 	loop {}
