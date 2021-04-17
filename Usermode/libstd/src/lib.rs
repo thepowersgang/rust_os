@@ -91,6 +91,7 @@ pub mod prelude {
 		pub use alloc::vec::Vec;
 
 		// Macro imports?
+		#[allow(deprecated)]
 		pub use core::prelude::v1::{
 			Clone,
 			Copy,

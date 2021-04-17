@@ -39,6 +39,9 @@ extern crate stack_dst;
 
 //#[repr(C)]	// (not needed)
 pub enum Void {}
+extern "C" {
+	type Extern;
+}
 
 pub use arch::memory::PAGE_SIZE;
 

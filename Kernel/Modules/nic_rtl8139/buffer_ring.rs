@@ -29,7 +29,7 @@ pub trait Storage
 {
 	type Inner;
 	fn len() -> usize;
-	unsafe fn get(&self, usize)->*mut Self::Inner;
+	unsafe fn get(&self, idx: usize) -> *mut Self::Inner;
 }
 
 impl<S: Storage> BufferRing<S>

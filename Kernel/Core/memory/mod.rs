@@ -25,6 +25,7 @@ pub mod page_cache;
 pub mod page_array;
 
 pub use arch::memory::PAddr;
+
 /*
 #[derive(Copy,Clone,Debug)]
 pub struct PAddr(::arch::memory::PAddrRaw);

@@ -24,10 +24,7 @@ pub fn init() {
 	// TODO: Interrogate the FDT to discover the IRQ controller layout
 	//::arch::int::boot::get_fdt().get_props(&["","intc"])
 
-	// SAFE: Called in a single-threaded context
-	unsafe {
-		S_IRQS.prep(|| Vec::from_fn(32, |_| Default::default()));
-	}
+	S_IRQS.prep(|| Vec::from_fn(32, |_| Default::default()));
 }
 
 #[linkage="external"]

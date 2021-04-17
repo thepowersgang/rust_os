@@ -311,7 +311,7 @@ mod pl_temp
 		let val = paddr as u32 | 0x13;
 
 		// SAFE: Only used locally
-		let md = unsafe { MetaData::get() };
+		let md = /*unsafe*/ { MetaData::get() };
 		md.free.acquire();
 		let mut lh = md.lock.lock();
 
@@ -424,7 +424,7 @@ fn get_table_addr<T>(vaddr: *const T, alloc: bool) -> Option< (TableRef, usize) 
 			let mut handle: TempHandle<u32> = match ::memory::phys::allocate_bare()
 				{
 				Ok(v) => v.into(),
-				Err(e) => todo!("get_table_addr - alloc failed")
+				Err(e) => todo!("get_table_addr - alloc failed {:?}", e)
 				};
 			for v in handle.iter_mut() { *v = 0; }
 			//::memory::virt::with_temp(|frame: &[AtomicU32]| for v in frame.iter { v.store(0) });
@@ -498,9 +498,8 @@ pub fn is_reserved<T>(addr: *const T) -> bool {
 	get_phys_opt(addr).is_some()
 	//PageEntry::get(addr as *const ()).is_reserved()
 }
-pub fn get_phys<T>(addr: *const T) -> ::arch::memory::PAddr {
-	get_phys_opt(addr).unwrap_or(0)
-	//PageEntry::get(addr as *const ()).phys_addr()
+pub fn get_phys<T: ?Sized>(addr: *const T) -> ::arch::memory::PAddr {
+	get_phys_opt(addr as *const ()).unwrap_or(0)
 }
 fn get_phys_opt<T>(addr: *const T) -> Option<::arch::memory::PAddr> {
 	let res: u32;
@@ -623,7 +622,7 @@ impl AddressSpace
 {
 	pub fn pid0() -> AddressSpace {
 		extern "C" {
-			static kernel_table0: ::Void;
+			static kernel_table0: crate::Extern;
 		}
 		// SAFE: Static.
 		AddressSpace( get_phys( unsafe { &kernel_table0 } ) )

@@ -11,6 +11,7 @@
 
 #[macro_use]
 extern crate syscalls;
+#[allow(unused_imports)]
 #[macro_use]
 extern crate macros;
 
@@ -18,10 +19,11 @@ mod std {
 	pub use core::fmt;
 }
 
+/// Helpers so ARM can include the kernel's backtrace code
 #[cfg(target_arch="arm")]
 mod memory {
 	pub mod virt {
-		pub fn is_reserved<T>(p: *const T) -> bool {
+		pub fn is_reserved<T>(_p: *const T) -> bool {
 			true
 		}
 	}

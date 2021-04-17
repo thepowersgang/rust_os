@@ -4,6 +4,7 @@
 pub struct State {
 	sp: usize,
 	ttbr0: u32,
+	#[allow(dead_code)]
 	stack_handle: Option< ::memory::virt::ArrayHandle<u8> >,
 }
 
@@ -20,7 +21,7 @@ impl State
 
 pub fn init_tid0_state() -> State {
 	extern "C" {
-		static kernel_table0: ::Void;
+		static kernel_table0: ::Extern;
 	}
 	State {
 		// SAFE: Just gets the address

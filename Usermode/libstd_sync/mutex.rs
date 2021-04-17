@@ -34,10 +34,11 @@ impl<T> Mutex<T>
 
 	pub fn lock(&self) -> HeldMutex<T> {
 		// If existing value is UNLOCKED, then set to UNCONTENDED locked
-		let mut cur = self.locked.compare_and_swap(STATE_UNLOCKED, STATE_UNCONTENDED, Ordering::Acquire);
-		// If it wasn't locked, contention has happened. Do a contented acquire
-		if cur != STATE_UNLOCKED
+		match self.locked.compare_exchange(STATE_UNLOCKED, STATE_UNCONTENDED, Ordering::Acquire, Ordering::SeqCst)
 		{
+		Ok(_) => {},
+		// If it wasn't locked, contention has happened. Do a contented acquire
+		Err(mut cur) => {
 			// If the lock was uncontended
 			if cur != STATE_CONTENDED {
 				// Mark it as contended
@@ -49,6 +50,7 @@ impl<T> Mutex<T>
 				::syscalls::sync::futex_wait(&self.locked, STATE_CONTENDED);
 				cur = self.locked.swap(STATE_CONTENDED, Ordering::Acquire)
 			}
+			},
 		}
 		HeldMutex { ptr: self }
 	}

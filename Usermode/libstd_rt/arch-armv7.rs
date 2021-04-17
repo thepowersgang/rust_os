@@ -19,6 +19,7 @@ macro_rules! log_debug {
 		}
 		};
 }
+#[allow(dead_code)]	// Internally defines functions that we don't use
 #[path="../../Kernel/Core/arch/armv7/aeabi_unwind.rs"]
 mod aeabi_unwind;
 

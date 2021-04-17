@@ -283,7 +283,7 @@ impl UnwindState {
 		}
 		Ok( () )
 	}
-	pub fn unwind_long32(&mut self, instrs: u32, extra: &[u32]) -> Result<(), Error> {
+	pub fn unwind_long32(&mut self, _instrs: u32, _extra: &[u32]) -> Result<(), Error> {
 		log_error!("TODO: unwind_long32");
 		Err( Error::Todo )
 	}

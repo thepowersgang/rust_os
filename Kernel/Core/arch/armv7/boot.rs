@@ -20,7 +20,7 @@ extern "C" {
 	static symbol_info_phys: u32;
 	static ram_first_free: u32;
 	static mut kernel_exception_map: [u32; 1024];
-	static v_kernel_end: ::Void;
+	static v_kernel_end: ::Extern;
 }
 
 enum BootInfo

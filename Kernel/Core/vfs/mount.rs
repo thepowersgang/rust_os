@@ -34,7 +34,7 @@ pub trait Filesystem:
 	Send + Sync
 {
 	fn root_inode(&self) -> InodeId;
-	fn get_node_by_inode(&self, InodeId) -> Option<Node>;
+	fn get_node_by_inode(&self, _: InodeId) -> Option<Node>;
 }
 
 struct NullFs;

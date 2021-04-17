@@ -13,6 +13,7 @@ pub struct State
 	rsp: u64,
 	tlsbase: u64,
 	// Not strictly part of the CPU state, but it prevents this thread's stack from disappearing
+	#[allow(dead_code)]
 	stack_handle: Option< ::memory::virt::ArrayHandle<u8> >,
 	// TODO: SSE state 
 	// TODO: Usermode TLS bsae

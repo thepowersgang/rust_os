@@ -128,8 +128,8 @@ pub mod memory {
 		}
 
 		#[inline]
-		pub fn get_phys<T>(p: *const T) -> ::memory::PAddr {
-			imp::get_phys(p)
+		pub fn get_phys<T: ?Sized>(p: *const T) -> ::memory::PAddr {
+			imp::get_phys(p as *const ())
 		}
 		#[inline]
 		pub fn is_reserved<T>(p: *const T) -> bool {

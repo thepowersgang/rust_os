@@ -71,7 +71,7 @@ enum ApicReg
 	TmrDivide = 0x3E,
 }
 
-#[repr(C,packed)]
+#[repr(C)]
 struct APICReg
 {
 	data: u32,
