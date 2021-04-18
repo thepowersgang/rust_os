@@ -6,6 +6,9 @@ version = "0.0.0"
 path = "main/main.rs"
 crate-type = ["staticlib"]
 
+[profile.release]
+panic = "abort"
+
 [features]
 acpica = [ "kernel/acpica" ]
 
