@@ -18,6 +18,11 @@ OBJ_MAIN := target/target/release/libmain.a
 KERNEL := ../../Kernel/bin/kernel-$(ARCH).bin
 TARGET := ../../Kernel/Core/arch/$(ARCH)/target.json
 
+FDT_FILE :=
+ifneq ($(wildcard fdt-$(PLATFORM).dts),)
+ FDT_FILE := fdt-$(PLATFORM).dtb
+endif
+
 .PHONY: all clean
 
 all: loader-$(PLATFORM).bin
@@ -25,9 +30,9 @@ all: loader-$(PLATFORM).bin
 clean:
 	rm -r loader-$(PLATFORM).bin $(OBJDIR)start-$(PLATFORM).ao $(dir $(OBJ_MAIN))
 
-loader-$(PLATFORM).bin: $(OBJDIR)start.ao $(OBJ_MAIN) $(KERNEL)
+loader-$(PLATFORM).bin: $(OBJDIR)start.ao $(OBJ_MAIN) $(KERNEL) $(FDT_FILE)
 	@echo "[LD] -o $@"
-	$Varm-elf-eabi-ld -e start -o $@ $(OBJDIR)start.ao $(OBJ_MAIN) --format binary $(KERNEL) -Map $(OBJDIR)map.txt --gc-sections
+	$Varm-elf-eabi-ld -e start -o $@ $(OBJDIR)start.ao $(OBJ_MAIN) --format binary $(KERNEL) $(FDT_FILE) -Map $(OBJDIR)map.txt --gc-sections
 
 # Assembly source for bootloader
 $(OBJDIR)start.ao: start-$(PLATFORM).S platform-$(PLATFORM).h

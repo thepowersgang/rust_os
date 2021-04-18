@@ -89,8 +89,10 @@ MACHINE_TYPE ?= virt
 #MACHINE_TYPE ?= realview-pb-a8
 
 CMDLINE += SYSDISK=virtio0p0
+ifeq ($(MACHINE_TYPE),virt)
 QEMU_ARGS += -device virtio-net-device
 QEMU_ARGS += -device virtio-blk-device,drive=hda
+endif
 QEMU_ARGS += -drive if=none,id=hda,index=0,file=$(IMGDIR)hda.img,format=raw
 #QEMU_ARGS += -device pl110
 #QEMU_ARGS += -device virtio-gpu-device

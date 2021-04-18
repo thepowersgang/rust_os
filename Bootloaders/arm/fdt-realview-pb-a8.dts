@@ -81,7 +81,7 @@
 			device_type = "misc";
 			compatible = "zero";
 		};
-
+		*/
 		kmi0 {
 			manifest_type = "virtual";
 			address_type = "memory";
@@ -101,7 +101,7 @@
 			compatible = "primecell,arm,pl050,mouse";
 			interrupts = <53>;
 		};
-
+/*
 		uart0 {
 		};
 

@@ -15,7 +15,7 @@
 	b .
 ENTRY(start)
 	mov sp, #STACK_TOP
-	mov r0, #UART_BASE
+	ldr r0, =UART_BASE
 	push {r0}
 	
 	ldr r8, =_binary_______Kernel_bin_kernel_armv7_bin_start
