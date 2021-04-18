@@ -8,6 +8,8 @@ crate-type = ["staticlib"]
 
 [profile.release]
 panic = "abort"
+incremental = true
+debug_info = true
 
 [features]
 acpica = [ "kernel/acpica" ]
