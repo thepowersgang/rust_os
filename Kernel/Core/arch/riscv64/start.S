@@ -95,9 +95,11 @@ boot_pt_lvl3_0_PHYS_ptr:	.quad boot_pt_lvl3_0 - KERNEL_BASE
 .section .text
 
 .globl trap_vector
+.extern trap_vector_rs
 trap_vector:
-	wfi
-	j trap_vector
+	#wfi
+	#j trap_vector
+	j trap_vector_rs
 
 #include "../../../../Usermode/rustrt0/riscv64-helpers.S"
 
@@ -161,3 +163,4 @@ boot_pt_lvl1_temp:
 # TODO: Replace this with KSTACK_BASE
 	.space 4096, 0
 init_stack:
+

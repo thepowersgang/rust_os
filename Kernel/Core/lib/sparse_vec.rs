@@ -34,7 +34,7 @@ pub struct IterMut<'a,T: 'a>
 
 impl<T> SparseVec<T>
 {
-	pub fn new() -> SparseVec<T> {
+	pub const fn new() -> SparseVec<T> {
 		SparseVec { data: Vec::new(), count: 0 }
 	}
 

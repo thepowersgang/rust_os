@@ -22,6 +22,8 @@
 #![feature(extern_types)]
 #![feature(cfg_target_has_atomic)]	// #[cfg(target_has_atomic="64")]
 
+//#![cfg_attr(target_arch="riscv64",feature(const_raw_ptr_to_usize_cast))]
+
 #![cfg_attr(not(feature="test"),no_std)]
 #![cfg_attr(feature="test",allow(dead_code,unused_imports))]
 

@@ -135,7 +135,7 @@ struct DisplaySurface
 }
 
 /// Sparse list of registered display devices
-static S_DISPLAY_SURFACES: LazyMutex<SparseVec<DisplaySurface>> = lazymutex_init!( );
+static S_DISPLAY_SURFACES: Mutex<SparseVec<DisplaySurface>> = Mutex::new(SparseVec::new());
 /// Boot video mode
 static S_BOOT_MODE: Mutex<Option<bootvideo::VideoMode>> = Mutex::new(None);
 /// Function called when display geometry changes
@@ -143,8 +143,6 @@ static S_GEOM_UPDATE_SIGNAL: Mutex<Option<fn(new_total: Rect)>> = Mutex::new(Non
 
 fn init()
 {
-	S_DISPLAY_SURFACES.init( || SparseVec::new() );
-	
 	if let Some(mode) = S_BOOT_MODE.lock().as_ref()
 	{
 		log_notice!("Using boot video mode {:?}", mode);
@@ -276,7 +274,7 @@ pub fn register_geom_update(fcn: fn(new_total: Rect))
 	*lh = Some(fcn);
 }
 
-fn signal_geom_update(surfs: ::sync::mutex::HeldLazyMutex<SparseVec<DisplaySurface>>)
+fn signal_geom_update(surfs: ::sync::mutex::HeldMutex<SparseVec<DisplaySurface>>)
 {
 	// API Requirements
 	// - New surface added (with location)

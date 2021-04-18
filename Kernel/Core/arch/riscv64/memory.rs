@@ -161,7 +161,7 @@ pub mod virt
 			Ok(_) => {
 				let addr = super::addresses::TEMP_BASE + super::PAGE_SIZE * i;
 				invalidate_cache(addr);
-				//log_debug!("temp_map({:#x}) {:#x} = {:#x}", pa, addr, pte);
+				log_debug!("temp_map({:#x}) {:#x} = {:#x}", pa, addr, pte);
 				return addr as *mut T;
 				},
 			Err(_) => {},
@@ -171,6 +171,7 @@ pub mod virt
 	}
 	pub unsafe fn temp_unmap<T>(a: *mut T)
 	{
+		log_debug!("temp_unmap({:p})", a);
 		assert!(a as usize >= super::addresses::TEMP_BASE);
 		let slot = (a as usize - super::addresses::TEMP_BASE) / super::PAGE_SIZE;
 		assert!(slot < boot_pt_lvl1_temp.len());
@@ -185,6 +186,7 @@ pub mod virt
 		F: FnOnce(&T) -> R
 	{
 		assert!(::core::mem::size_of::<T>() <= super::PAGE_SIZE);
+		log_trace!("with_temp_map::<T={},F={}>({:#x})", type_name!(T), type_name!(F), pa);
 		let p: *mut T = temp_map(pa);
 		let rv = cb(&*p);
 		temp_unmap(p);
@@ -205,6 +207,15 @@ pub mod virt
 		fn phys_mask(&self) -> u64 { self.level.mask() }
 		fn permissions(&self) -> u64 { (self.pte >> 1) & 0xF }
 	}
+	fn get_root_table_phys() -> u64 {
+		// SAFE: asm reading a register
+		unsafe {
+			let v: u64;
+			asm!("csrr {}, satp", out(reg) v, options(nomem, pure));
+			let ppn = v & ((1 << 60)-1);
+			ppn << 12
+		}
+	}
 	fn page_walk(addr: usize, max_level: PageLevel) -> Option<PageWalkRes> {
 		let max_addr_size = PageLevel::iter().next().unwrap().ofs() + 9;
 		let top_bits = addr >> (max_addr_size - 1);
@@ -213,13 +224,7 @@ pub mod virt
 			return None;
 		}
 
-		// SAFE: asm reading a register
-		let mut table_base = unsafe {
-			let v: u64;
-			asm!("csrr {}, satp", out(reg) v, options(nomem, pure));
-			let ppn = v & ((1 << 60)-1);
-			ppn << 12
-			};
+		let mut table_base = get_root_table_phys();
 		for lvl in PageLevel::iter()
 		{
 			let vpn = (addr >> lvl.ofs()) & (512-1);
@@ -286,25 +291,22 @@ pub mod virt
 		}
 
 		// SAFE: asm reading a register
-		let mut table_base = unsafe {
-			let v: u64;
-			asm!("csrr {}, satp", out(reg) v, options(nomem, pure));
-			let ppn = v & ((1 << 60)-1);
-			ppn << 12
-			};
+		let mut table_base = get_root_table_phys();
 		for lvl in PageLevel::iter()
 		{
 			if lvl == target_level {
 				break;
 			}
 			let vpn = (addr >> lvl.ofs()) & (512-1);
+			log_trace!("{:#x} {:?} table_base={:#x} vpn={}", addr, lvl, table_base, vpn);
 			// SAFE: Address should be valid and non-conflicted, accessing atomically
 			let pte = unsafe { with_temp_map(table_base, |ptr: &PageTable| {
 				let rv = ptr[vpn].load(Ordering::Relaxed);
 				if rv & 1 == 0 && allocate {
 					assert!(rv == 0, "Unexpected populated but not valid non-leaf PTE: {:#x}", rv);
 					let p = crate::memory::phys::allocate_bare().expect("TODO: Handle allocation errors in `virt::map`");
-					let new_rv = p.phys_addr() | 1;
+					let new_rv = (p.phys_addr() >> 2) | 1;
+					log_trace!("{:#x} {:?} Allocate PT pte={:#x}", addr, lvl, new_rv);
 					match ptr[vpn].compare_exchange(0, new_rv, Ordering::SeqCst, Ordering::SeqCst)
 					{
 					Ok(_) => { new_rv },	// Cool
@@ -319,6 +321,7 @@ pub mod virt
 					rv
 				}
 				}) };
+			log_trace!("{:#x} {:?} pte={:#x}", addr, lvl, pte);
 			let rv = PageWalkRes { pte, level: lvl };
 			// Unmapped (V=0) - should be impossible
 			if !rv.is_valid() {

@@ -27,9 +27,12 @@ pub struct MoveItems<T>
 impl<T> Vec<T>
 {
 	/// Create a new vector
-	pub fn new() -> Vec<T>
+	pub const fn new() -> Vec<T>
 	{
-		Vec::with_capacity(0)
+		Vec {
+			data: ArrayAlloc::empty(),
+			size: 0,
+			}
 	}
 
 	/// Create a new vector (constant)

@@ -61,7 +61,7 @@ pub mod threads {
 	impl State
 	{
 		pub fn new(a: &super::memory::virt::AddressSpace) -> State {
-			todo!("");
+			todo!("State::new");
 		}
 	}
 	pub fn init_tid0_state() -> State {
@@ -166,4 +166,48 @@ pub fn cur_timestamp() -> u64 {
 
 pub fn drop_to_user(entry: usize, stack: usize, args_len: usize) -> ! {
 	loop {}
+}
+
+#[repr(C)]
+struct FaultRegs
+{
+}
+#[no_mangle]
+fn trap_vector_rs(state: &FaultRegs) -> !
+{
+	// SAFE: Just reads CSRs
+	let (cause, pc, value) = unsafe {
+		let v: u64; asm!("csrr {}, stval", out(reg) v);
+		let p: u64; asm!("csrr {}, sepc", out(reg) p);
+		let c: u64; asm!("csrr {}, scause", out(reg) c);
+		(c, p, v)
+		};
+	let reason = match cause
+		{
+		0 => "Instruction address misaligned",
+		1 => "Instruction access fault",
+		2 => "Illegal instruction",
+		3 => "Breakpoint",
+		4 => "Load address misaligned",
+		5 => "Load access fault",
+		6 => "Store/AMO address misaligned",
+		7 => "Store/AMO access fault",
+		8 => "Environment call from U-mode",
+		9 => "Environment call from S-mode",
+		10 => "/Reserved for future standard use/",
+		11 => "/Reserved for future standard use/",
+		12 => "Instruction page fault",
+		13 => "Load page fault",
+		15 => "Store/AMO page fault",
+		16..=23 => "/Reserved for future standard use/",
+		24..=31 => "/Reserved for future custom use/",
+		32..=47 => "/Reserved for future standard use/",
+		48..=63 => "/Reserved for future custom use/",
+		_ => "/Reserved for future standard use/",
+		};
+	log_error!("FAULT: {:#x} {} at {:#x} stval={:#x}", cause, reason, pc, value);
+	loop {
+		// SAFE: No side-effects to WFI
+		unsafe { asm!("wfi"); }
+	}
 }
