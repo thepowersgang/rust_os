@@ -1,9 +1,28 @@
+//! ARM EABI unwind table parsing
+// See: ARM Doc IHI0038
 
 #[derive(Clone)]
 pub struct UnwindState {
 	regs: [u32; 16],
 	vsp: u32,
 }
+
+//#[repr(C)]
+//enum _Unwind_Reason_Code
+//{
+//	_URC_OK = 0,
+//	_URC_FOREIGN_EXCEPTION_CAUGHT = 1,
+//	_URC_HANDLER_FOUND = 6,
+//	_URC_INSTALL_CONTEXT = 7,
+//	_URC_CONTINUE_UNWIND = 8,
+//	_URC_FAILURE = 9,
+//}
+//#[repr(C)]
+//struct _Unwind_Control_Block
+//{
+//	exception_class: [u8; 8],
+//	exception_cleanup: extern "C" fn(_Unwind_Reason_Code
+//}
 
 #[derive(Debug)]
 pub enum Error
@@ -56,10 +75,11 @@ impl UnwindState {
 	pub fn get_ip(&self) -> u32 { self.regs[15] }
 	pub fn get_lr(&self) -> u32 { self.regs[14] }
 	
+	/// Update the unwind state using the tables
 	pub fn unwind_step(&mut self, info: &u32) -> Result<(),Error> {
 		let base = info as *const _ as usize;
 		let info = *info;
-		if info == 0x1 {
+		if info == 0x1 /*EXIDX_CANTUNWIND*/ {
 			// Can't unwind
 			return Err( Error::Refuse );
 		}
@@ -72,18 +92,17 @@ impl UnwindState {
 			try!( self.unwind_short16(info) );
 		}
 		else {
-			// Indirect pointer
-			let ofs = (info | (1 << 31)) as usize;
-			let ptr = usize::wrapping_add(base, ofs) as *const u32;
-			//log_debug!("ptr = {:#x} + {:#x} = {:p}", base, ofs, ptr);
+			// Indirect pointer (31-bit relative address)
+			let ptr = prel31(base, info) as *const u32;
 			// SAFE: Validity checked
 			let word = unsafe {
-				if ! ::memory::virt::is_reserved(ptr) {
+				if ptr as usize & 3 != 0 || ! ::memory::virt::is_reserved(ptr) {
 					log_error!("BUG: Malformed entry at {:#x} - ptr={:p}", base+4, ptr);
 					return Err( Error::Malformed );
 				}
 				*ptr
 				};
+
 			if word & 0x8000_0000 != 0 {
 				if (word >> 28) & 0xF != 0x8 {
 					log_error!("BUG: Malformed entry at {:p}: SBZ bits set 0x{:x} != 0x8", ptr, word >> 28);
@@ -126,9 +145,12 @@ impl UnwindState {
 					},
 				}
 			}
+			// Top bit unset: A custom personality routine 
 			else {
 				let addr = prel31(ptr as usize, word);
-				log_error!("TODO: Custom exception routine? word={:#x} - addr={:#x}", word, addr);
+				log_error!("TODO: Custom exception routine? word={:#x} - fcn={:#x}", word, addr);
+				// TODO: Call the handling routine
+				//let cb: extern"C" fn ()->_Unwind_Reason_Code = ::core::mem::transmute(addr);
 				return Err( Error::Todo );
 			}
 		}
@@ -305,6 +327,11 @@ impl ::core::iter::Iterator for WordBytesLE {
 }
 
 
+/// Look up unwind information for the given address
+///
+/// Returns: 
+/// - Function (or unwind span?) base address
+/// - Pointer to the unwind information slot (needed for relative lookups)
 pub fn get_unwind_info_for(addr: usize) -> Option<(usize, &'static u32)>
 {
 	extern "C" {
@@ -320,7 +347,8 @@ pub fn get_unwind_info_for(addr: usize) -> Option<(usize, &'static u32)>
 
 	let mut best = (0,0);
 	// Locate the closest entry before the return address
-	for (i,e) in exidx_tab.iter().enumerate() {
+	for (i,e) in exidx_tab.iter().enumerate()
+	{
 		assert!(e[0] < 0x8000_0000);
 		
 		let fcn_start = usize::wrapping_add( e[0] as usize + 0x8000_0000, &e[0] as *const _ as usize );

@@ -30,8 +30,11 @@ pub use arch::memory::PAddr;
 #[derive(Copy,Clone,Debug)]
 pub struct PAddr(::arch::memory::PAddrRaw);
 impl PAddr {
-	fn as_inner() -> ::arch::memory::PAddrRaw {
+	pub fn as_inner(self) -> ::arch::memory::PAddrRaw {
 		self.0
+	}
+	pub fn to_u32(&self) -> Option<u32> {
+		self.0.try_into()
 	}
 }
 impl ::core::ops::Add<usize> for PAddr

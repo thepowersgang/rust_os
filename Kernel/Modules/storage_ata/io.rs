@@ -262,9 +262,8 @@ impl AtaRegs
 						};
 					let ent_bytes = if bytes >= 0x1_0000 { 0xFFFF } else { bytes };
 
-					assert!(paddr <= 0xFFFF_FFFF);
 					prd_ent.bytes = ent_bytes as u16;
-					prd_ent.addr = paddr as u32;
+					prd_ent.addr = ::core::convert::TryFrom::try_from(paddr).expect("Physical address out of range for 32-bit PRDT");
 					prd_ent.flags = 0;
 					count += 1;
 					

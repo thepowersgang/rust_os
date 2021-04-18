@@ -23,13 +23,15 @@ pub fn init()
 {
 	let mut lh = S_PORTS.lock_init(|| Default::default());
 
-	// SAFE: Assumes the input addresses are sane
-	unsafe {
-		// Realview PB's keyboard port
-		let mut port = Port::new(0x10006000).expect("PB PS/2 #1 binding failed");
-		lh.push( irqs::bind_object(20, Box::new(move || port.handle_irq()) ) );
-		let mut port = Port::new(0x10007000).expect("PB PS/2 #2 binding failed");
-		lh.push( irqs::bind_object(21, Box::new(move || port.handle_irq()) ) );
+	if false {
+		// SAFE: Assumes the input addresses are sane
+		unsafe {
+			// Realview PB's keyboard port
+			let mut port = Port::new(0x10006000).expect("PB PS/2 #1 binding failed");
+			lh.push( irqs::bind_object(20, Box::new(move || port.handle_irq()) ) );
+			let mut port = Port::new(0x10007000).expect("PB PS/2 #2 binding failed");
+			lh.push( irqs::bind_object(21, Box::new(move || port.handle_irq()) ) );
+		}
 	}
 }
 
@@ -37,13 +39,17 @@ impl Port
 {
 	#[inline(never)]
 	unsafe fn new(addr: ::kernel::memory::PAddr) -> Result<Port, ::kernel::memory::virt::MapError> {
-		let mut p = Port {
-			base: try!( ::kernel::memory::virt::map_hw_rw(addr, 1, "PL050") ),
+		let p = Port {
+			base: ::kernel::memory::virt::map_hw_rw(addr, 1, "PL050")?,
 			dev: super::PS2Dev::None,
 			};
+		log_debug!("p.base = {:?}", p.base);
 
 		// TODO: Unknown what this does, Acess did it.
-		p.base.as_mut_slice(0, 4)[0] = 0x10;
+		//  According to the qemu source, this enables interrupts
+		p.get_regs()[0] = 0x10u32;
+
+		log_debug!("p.base = {:?}", p.base);
 
 		Ok(p)
 	}

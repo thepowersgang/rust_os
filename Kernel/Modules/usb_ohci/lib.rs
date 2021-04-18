@@ -9,6 +9,7 @@ use kernel::prelude::*;
 use kernel::lib::mem::aref::{Aref,ArefBorrow};
 use core::sync::atomic::{AtomicU32,AtomicUsize,Ordering};
 use core::mem::size_of;
+use ::core::convert::TryFrom;
 
 #[macro_use]
 extern crate kernel;
@@ -699,15 +700,20 @@ impl HostInner
 		}
 		let start_phys = ::kernel::memory::virt::get_phys(p.as_ptr());
 		let last_phys = ::kernel::memory::virt::get_phys(&p[p.len()-1]);
-		if start_phys > 0xFFFF_FFFF || last_phys > 0xFFFF_FFFF {
+
+		match (u32::try_from(start_phys), u32::try_from(last_phys))
+		{
+		(Ok(start_phys), Ok(last_phys)) => 
+			if start_phys & !0xFFF != last_phys & !0xFFF && (0x1000 - (start_phys & 0xFFF) + last_phys & 0xFFF) as usize != p.len() {
+				// The buffer spans more than two pages, bounce
+			}
+			else {
+				// Good
+				return (None, start_phys, last_phys);
+			},
+		_ => {
 			// An address is more than 32-bits, bounce
-		}
-		else if start_phys & !0xFFF != last_phys & !0xFFF && (0x1000 - (start_phys & 0xFFF) + last_phys & 0xFFF) as usize != p.len() {
-			// The buffer spans more than two pages, bounce
-		}
-		else {
-			// Good
-			return (None, start_phys as u32, last_phys as u32);
+			}
 		}
 		todo!("Bounce buffer - long lifetime");
 	}
@@ -716,15 +722,19 @@ impl HostInner
 	{
 		let start_phys = ::kernel::memory::virt::get_phys(p.as_ptr());
 		let last_phys = ::kernel::memory::virt::get_phys(&p[p.len()-1]);
-		if start_phys > 0xFFFF_FFFF || last_phys > 0xFFFF_FFFF {
+		match (u32::try_from(start_phys), u32::try_from(last_phys))
+		{
+		(Ok(start_phys), Ok(last_phys)) => 
+			if start_phys & !0xFFF != last_phys & !0xFFF && (0x1000 - (start_phys & 0xFFF) + last_phys & 0xFFF) as usize != p.len() {
+				// The buffer spans more than two pages, bounce
+			}
+			else {
+				// Good
+				return (None, start_phys, last_phys);
+			}
+		_ => {
 			// An address is more than 32-bits, bounce
-		}
-		else if start_phys & !0xFFF != last_phys & !0xFFF && (0x1000 - (start_phys & 0xFFF) + last_phys & 0xFFF) as usize != p.len() {
-			// The buffer spans more than two pages, bounce
-		}
-		else {
-			// Good
-			return (None, start_phys as u32, last_phys as u32);
+			}
 		}
 		todo!("Bounce buffer for read");
 	}

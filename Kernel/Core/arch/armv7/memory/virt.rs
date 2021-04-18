@@ -269,6 +269,9 @@ impl_fmt! {
 	}
 }
 
+
+#[allow(dead_code)]
+/// Process-local temporary mappings
 mod pl_temp
 {
 	use super::{USER_TEMP_BASE,USER_TEMP_COUNT};
@@ -380,10 +383,14 @@ mod pl_temp
 	}
 }
 
+/// Reference to a page table
 enum TableRef {
+	/// Statically allocated table (e.g. kernel root)
 	Static(&'static [AtomicU32; 0x800]),
+	/// 
 	Dynamic(TempHandle<AtomicU32>),
-	DynamicPL(pl_temp::ProcTempMapping),
+	/////Process-local temporary
+	//DynamicPL(pl_temp::ProcTempMapping),
 }
 impl ::core::ops::Deref for TableRef {
 	type Target = [AtomicU32];
@@ -392,12 +399,14 @@ impl ::core::ops::Deref for TableRef {
 		{
 		&TableRef::Static(ref v) => &v[..],
 		&TableRef::Dynamic(ref v) => &v[..],
-		&TableRef::DynamicPL(ref v) => v.get_slice(),
+		//&TableRef::DynamicPL(ref v) => v.get_slice(),
 		}
 	}
 }
 
 /// Returns the physical address of the table controlling `vaddr`. If `alloc` is true, a new table will be allocated if needed.
+/// 
+/// Return value is a reference to the able, and the index of the address within the table
 fn get_table_addr<T>(vaddr: *const T, alloc: bool) -> Option< (TableRef, usize) > {
 	let addr = vaddr as usize & !PAGE_MASK;
 	let page = addr >> 12;	// NOTE: 12 as each entry in the table services 4KB
@@ -750,6 +759,8 @@ fn fsr_name(ifsr: u32) -> &'static str {
 	0x00B => "Domain fault lvl2",
 	0x00D => "Permissions fault lvl1",
 	0x00F => "Permissions fault lvl2",
+	0x002 => "Debug event",
+	0x008 => "Synchronous external abort",
 	_ => "undefined",
 	}
 }
