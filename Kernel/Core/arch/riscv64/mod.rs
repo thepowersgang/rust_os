@@ -4,6 +4,9 @@
 // Core/arch/riscv64/main.rs
 //! RISC-V architecture bindings
 
+module_define!{ arch, [], init }
+fn init() {}
+
 pub mod memory;
 
 pub mod sync {
@@ -56,59 +59,7 @@ pub mod pci {
 	}
 }
 
-pub mod threads {
-	pub struct State;
-	impl State
-	{
-		pub fn new(a: &super::memory::virt::AddressSpace) -> State {
-			todo!("State::new");
-		}
-	}
-	pub fn init_tid0_state() -> State {
-		State
-	}
-	pub fn start_thread<F: FnOnce()+Send+'static>(thread: &crate::threads::Thread, code: F)
-	{
-	}
-
-	pub fn idle() {
-		// SAFE: Just waits for an interrupt
-		unsafe { asm!("wfi") }
-	}
-	pub fn switch_to(t: ::threads::ThreadPtr) {
-	}
-
-	pub fn get_idle_thread() -> crate::threads::ThreadPtr {
-		todo!("");
-	}
-
-	pub fn set_thread_ptr(t: ::threads::ThreadPtr) {
-		// SAFE: Atomic write to a per-CPU scratch register
-		unsafe {
-			asm!("csrw sscratch, {}", in(reg) t.into_usize());
-		}
-	}
-	pub fn get_thread_ptr() -> Option<::threads::ThreadPtr> {
-		let ret: usize;
-		// SAFE: Atomic read from a per-CPU scratch register
-		unsafe { asm!("csrr {}, sscratch", out(reg) ret, options(nomem, pure)); }
-		if ret == 0 {
-			None
-		}
-		else {
-			// SAFE: Stored value assumed to be valid
-			unsafe {
-				Some(crate::threads::ThreadPtr::from_usize(ret))
-			}
-		}
-	}
-	pub fn borrow_thread() -> *const ::threads::Thread {
-		let rv: *const ::threads::Thread;
-		// SAFE: Atomic read from a per-CPU scratch register
-		unsafe { asm!("csrr {}, sscratch", out(reg) rv, options(nomem, pure)); }
-		rv
-	}
-}
+pub mod threads;
 
 pub mod x86_io {
 	pub unsafe fn inb(_p: u16) -> u8 { panic!("calling inb on non-x86") }

@@ -31,7 +31,8 @@ pub fn get_boot_string() -> &'static str {
 	static S_BOOT_STRING: LazyStatic<&'static str> = LazyStatic::new();
 	*S_BOOT_STRING.prep(|| {
 		let fdt = get_fdt();
-		fdt.get_props(&["chosen", "bootargs"]).next()
+		fdt.get_props(&["", "chosen", "bootargs"]).next()
+			.map(|v| if v.last() == Some(&0) { &v[..v.len()-1] } else { v })	// Should be NUL terminated
 			.map(|v| ::core::str::from_utf8(v).expect("Boot arguments not valid UTF-8"))
 			.unwrap_or("")
 		})

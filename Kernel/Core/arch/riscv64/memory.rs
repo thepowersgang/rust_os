@@ -74,14 +74,19 @@ pub mod virt
 	use ::core::sync::atomic::AtomicU64;
 	use crate::memory::virt::ProtectionMode;
 
-	pub struct AddressSpace;
+	pub struct AddressSpace(u64);
 	impl AddressSpace
 	{
 		pub fn pid0() -> AddressSpace {
-			AddressSpace
+			// SAFE: Just getting the address of a static
+			AddressSpace( crate::memory::virt::get_phys(unsafe { extern "C" { static boot_pt_lvl3_0: crate::Extern; } &boot_pt_lvl3_0 }) )
 		}
 		pub fn new(_cstart: usize, _cend: usize) -> Result<AddressSpace,()> {
-			return Ok(AddressSpace);
+			todo!("AddressSpace::new");
+			//return Ok(AddressSpace);
+		}
+		pub(in crate::arch::imp) fn as_phys(&self) -> u64 {
+			self.0
 		}
 	}
 
@@ -161,7 +166,7 @@ pub mod virt
 			Ok(_) => {
 				let addr = super::addresses::TEMP_BASE + super::PAGE_SIZE * i;
 				invalidate_cache(addr);
-				log_debug!("temp_map({:#x}) {:#x} = {:#x}", pa, addr, pte);
+				//log_debug!("temp_map({:#x}) {:#x} = {:#x}", pa, addr, pte);
 				return addr as *mut T;
 				},
 			Err(_) => {},
@@ -171,7 +176,7 @@ pub mod virt
 	}
 	pub unsafe fn temp_unmap<T>(a: *mut T)
 	{
-		log_debug!("temp_unmap({:p})", a);
+		//log_debug!("temp_unmap({:p})", a);
 		assert!(a as usize >= super::addresses::TEMP_BASE);
 		let slot = (a as usize - super::addresses::TEMP_BASE) / super::PAGE_SIZE;
 		assert!(slot < boot_pt_lvl1_temp.len());
@@ -186,7 +191,7 @@ pub mod virt
 		F: FnOnce(&T) -> R
 	{
 		assert!(::core::mem::size_of::<T>() <= super::PAGE_SIZE);
-		log_trace!("with_temp_map::<T={},F={}>({:#x})", type_name!(T), type_name!(F), pa);
+		//log_trace!("with_temp_map::<T={},F={}>({:#x})", type_name!(T), type_name!(F), pa);
 		let p: *mut T = temp_map(pa);
 		let rv = cb(&*p);
 		temp_unmap(p);
@@ -298,7 +303,7 @@ pub mod virt
 				break;
 			}
 			let vpn = (addr >> lvl.ofs()) & (512-1);
-			log_trace!("{:#x} {:?} table_base={:#x} vpn={}", addr, lvl, table_base, vpn);
+			//log_trace!("{:#x} {:?} table_base={:#x} vpn={}", addr, lvl, table_base, vpn);
 			// SAFE: Address should be valid and non-conflicted, accessing atomically
 			let pte = unsafe { with_temp_map(table_base, |ptr: &PageTable| {
 				let rv = ptr[vpn].load(Ordering::Relaxed);
@@ -306,7 +311,7 @@ pub mod virt
 					assert!(rv == 0, "Unexpected populated but not valid non-leaf PTE: {:#x}", rv);
 					let p = crate::memory::phys::allocate_bare().expect("TODO: Handle allocation errors in `virt::map`");
 					let new_rv = (p.phys_addr() >> 2) | 1;
-					log_trace!("{:#x} {:?} Allocate PT pte={:#x}", addr, lvl, new_rv);
+					log_debug!("{:#x} {:?} Allocate PT pte={:#x}", addr, lvl, new_rv);
 					match ptr[vpn].compare_exchange(0, new_rv, Ordering::SeqCst, Ordering::SeqCst)
 					{
 					Ok(_) => { new_rv },	// Cool
@@ -321,7 +326,7 @@ pub mod virt
 					rv
 				}
 				}) };
-			log_trace!("{:#x} {:?} pte={:#x}", addr, lvl, pte);
+			//log_trace!("{:#x} {:?} pte={:#x}", addr, lvl, pte);
 			let rv = PageWalkRes { pte, level: lvl };
 			// Unmapped (V=0) - should be impossible
 			if !rv.is_valid() {

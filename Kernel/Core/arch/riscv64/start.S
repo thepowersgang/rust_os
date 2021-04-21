@@ -103,6 +103,68 @@ trap_vector:
 
 #include "../../../../Usermode/rustrt0/riscv64-helpers.S"
 
+#
+# See arch::threads::start_thread
+#
+.global thread_trampoline
+thread_trampoline:
+	ld t0, 0(sp)	# pop the body shim
+	ld a0, 8(sp)	# Pop the data pointer
+	add sp, sp, 16
+	jalr t0
+	j .
+# ARGS:
+# - a0: old sp destination
+# - a1: new sp
+# - a2: new satp
+# - a3: new thread pointer
+.global task_switch
+task_switch:
+	add sp, sp, -15*8
+	sd ra, 14*8(sp)
+	sd gp, 13*8(sp)
+	sd tp, 12*8(sp)
+	sd s0, 0*8(sp)
+	sd s1, 1*8(sp)
+	sd s2, 2*8(sp)
+	sd s3, 3*8(sp)
+	sd s4, 4*8(sp)
+	sd s5, 5*8(sp)
+	sd s6, 6*8(sp)
+	sd s7, 7*8(sp)
+	sd s8, 8*8(sp)
+	sd s9, 9*8(sp)
+	sd s10, 10*8(sp)
+	sd s11, 11*8(sp)
+	# Disable interrupts (clear SIE)
+	csrci sstatus, 0x2
+	# Save SP, get new SP, switch SATP
+	sd sp, (a0)
+	mv sp, a1
+	csrw satp, a2
+	csrw sscratch, a3
+	# Re-enable interrupts (set SIE)
+	csrsi sstatus, 0x2
+	# Pop state
+	ld ra, 14*8(sp)
+	ld gp, 13*8(sp)
+	ld tp, 12*8(sp)
+	ld s0, 0*8(sp)
+	ld s1, 1*8(sp)
+	ld s2, 2*8(sp)
+	ld s3, 3*8(sp)
+	ld s4, 4*8(sp)
+	ld s5, 5*8(sp)
+	ld s6, 6*8(sp)
+	ld s7, 7*8(sp)
+	ld s8, 8*8(sp)
+	ld s9, 9*8(sp)
+	ld s10, 10*8(sp)
+	ld s11, 11*8(sp)
+	add sp, sp, 15*8
+	# Return
+	ret
+
 .section .data
 .global ap_wait_target
 ap_wait_target:	.quad	ap_wait
