@@ -11,7 +11,7 @@ OBJDIR := .obj/$(TRIPLE)/
 
 SRCS := $(wildcard $(SRCDIR)components/*/*.c)
 SRCS := $(filter-out $(SRCDIR)components/disassembler/%,$(SRCS))
-SRCS += $(SRCDIR)components/hardware/hwacpi.c
+#SRCS += $(SRCDIR)components/hardware/hwacpi.c
 #SRCS += $(SRCDIR)common/ahuuids.c $(SRCDIR)common/ahids.c
 #SRCS += $(SRCDIR)compiler/aslmapenter.c
 OBJS := $(SRCS:$(SRCDIR)%.c=$(OBJDIR)%.o)

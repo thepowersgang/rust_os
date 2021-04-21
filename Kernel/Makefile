@@ -36,12 +36,13 @@ LINKFLAGS := -T Core/arch/$(ARCH)/link.ld -Map $(OBJDIR)map.txt -g
 LINKFLAGS += -z max-page-size=0x1000	# Reduces binary size
 LINKFLAGS += --gc-sections	# Prevents complaining about floating point methods
 #LINKFLAGS += --print-gc-sections
+#LINKFLAGS += --verbose
 
 EXCLUDE_FEATURES :=
 
 ifeq ($(USE_ACPICA),1)
   OBJS += $(OBJDIR)libacpica.a
-  CARGO_FEATURES += kernel/acpica
+  CARGO_FEATURES += acpica
 endif
 
 
@@ -60,7 +61,7 @@ clean:
 bin/kernel-$(ARCH).bin: $(OBJS) Core/arch/$(ARCH)/link.ld
 	@mkdir -p bin/
 	@echo [LD] -o $@
-	$V$(LD) -o $@ $(OBJS) --no-whole-archive $(LINKFLAGS)
+	$V$(LD) -o $@ --whole-archive $(OBJS) --no-whole-archive $(LINKFLAGS)
 ifeq ($(ARCH),amd64)
 	$Vobjcopy $@ --only-keep-debug $@.debug
 	$Vobjcopy $@ -F elf32-i386 $@.elf32
