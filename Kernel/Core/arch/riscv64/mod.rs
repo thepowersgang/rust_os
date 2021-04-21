@@ -7,21 +7,46 @@
 module_define!{ arch, [], init }
 fn init() {}
 
+#[path="../armv7/fdt_devices.rs"]
+mod fdt_devices;
+
 pub mod memory;
 
 pub mod sync {
-	pub struct SpinlockInner(());
+	use ::core::sync::atomic::{AtomicBool, Ordering};
+	pub struct SpinlockInner
+	{
+		flag: AtomicBool,
+	}
 	impl SpinlockInner
 	{
 		pub const fn new() -> SpinlockInner {
-			SpinlockInner( () )
+			SpinlockInner { flag: AtomicBool::new(false) }
 		}
-		pub fn inner_lock(&self) {
+
+		pub fn inner_lock(&self)
+		{
+			while self.flag.swap(true, Ordering::Acquire) {
+				// TODO: Once SMP is a thing, this should spin.
+				super::puts("Contented lock!");
+				loop {}
+			}
 		}
-		pub fn try_inner_lock_cpu(&self) -> bool {
-			false
+		pub unsafe fn inner_release(&self)
+		{
+			assert!( self.flag.load(Ordering::Relaxed) );
+			self.flag.store(false, Ordering::Release);
 		}
-		pub fn inner_release(&self) {
+
+		pub fn try_inner_lock_cpu(&self) -> bool
+		{
+			// TODO: Ensure that this CPU isn't holding the lock
+			if self.flag.swap(true, Ordering::Acquire) == false {
+				true
+			}
+			else {
+				false
+			}
 		}
 	}
 
@@ -51,10 +76,10 @@ pub mod interrupts {
 pub mod boot;
 
 pub mod pci {
-	pub fn read(addr: u32) -> u32 {
+	pub fn read(_addr: u32) -> u32 {
 		!0
 	}
-	pub fn write(addr: u32, val: u32) {
+	pub fn write(_addr: u32, _val: u32) {
 		todo!("pci::write");
 	}
 }

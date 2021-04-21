@@ -8,7 +8,10 @@
 use crate::lib::lazy_static::LazyStatic;
 use crate::lib::fdt::FDTRoot;
 
-fn get_fdt() -> &'static FDTRoot<'static>
+pub fn get_fdt() -> Option<&'static FDTRoot<'static>> {
+	Some(get_fdt_real())
+}
+fn get_fdt_real() -> &'static FDTRoot<'static>
 {
 	static S_FDT: LazyStatic<FDTRoot<'static>> = LazyStatic::new();
 	// SAFE: Correct accesses to extern data, correct ue of FDTRoot::new_raw
@@ -30,7 +33,7 @@ fn get_fdt() -> &'static FDTRoot<'static>
 pub fn get_boot_string() -> &'static str {
 	static S_BOOT_STRING: LazyStatic<&'static str> = LazyStatic::new();
 	*S_BOOT_STRING.prep(|| {
-		let fdt = get_fdt();
+		let fdt = get_fdt_real();
 		fdt.get_props(&["", "chosen", "bootargs"]).next()
 			.map(|v| if v.last() == Some(&0) { &v[..v.len()-1] } else { v })	// Should be NUL terminated
 			.map(|v| ::core::str::from_utf8(v).expect("Boot arguments not valid UTF-8"))
@@ -51,7 +54,7 @@ pub fn get_memory_map() -> &'static [::memory::MemoryMapEnt]
 		let mut buf = [::memory::MAP_PAD; 10];
 
 		let mut mapbuilder = ::memory::MemoryMapBuilder::new(&mut buf);
-		let fdt = get_fdt();
+		let fdt = get_fdt_real();
 
 		// Build a map using RAM entries from the FDT
 		for prop in fdt.get_props_cb(|idx,leaf,name| match (idx,leaf)

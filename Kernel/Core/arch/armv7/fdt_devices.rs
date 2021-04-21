@@ -24,7 +24,7 @@ fn init() {
 		let (acells,) = decode_value(&root_node, "#address-cells", (1,)).unwrap_or( (0,) );
 
 		let mut devices: Vec<Box<dyn crate::device_manager::BusDevice>> = Vec::new();
-		for dev in fdt.get_nodes(&[""])
+		for dev in Iterator::chain( fdt.get_nodes(&[""]), fdt.get_nodes(&["", "soc"]) )
 		{
 			if let Some(compat) = dev.items().filter_map(|r| match r { ("compatible", fdt::Item::Prop(v)) => Some(v), _ => None }).next()
 			{
@@ -71,10 +71,7 @@ impl ::device_manager::BusDevice for BusDev
 		use device_manager::AttrValue;
 		match name
 		{
-		"compatible" if idx == 0 => {
-			let v = self.node.get_prop("compatible").map(|v| ::core::str::from_utf8(v).unwrap_or("INVALID")).unwrap_or("");
-			AttrValue::String( v )
-			},
+		"compatible" if idx == 0 => AttrValue::String(self.compat),
 		_ => AttrValue::None,
 		}
 	}
