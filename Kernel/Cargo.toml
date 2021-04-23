@@ -7,9 +7,8 @@ path = "main/main.rs"
 crate-type = ["staticlib"]
 
 [profile.release]
-panic = "abort"
 incremental = true
-debug_info = true
+debug = true
 
 [features]
 acpica = [ "kernel/acpica" ]
