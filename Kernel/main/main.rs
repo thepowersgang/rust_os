@@ -47,7 +47,7 @@ pub extern "C" fn kmain()
 	::kernel::memory::page_cache::init();
 	::kernel::threads::init();
 	
-	log_log!("Command line = '{}'", ::kernel::arch::boot::get_boot_string());
+	log_log!("Command line = {:?}", ::kernel::arch::boot::get_boot_string());
 	::kernel::config::init( ::kernel::arch::boot::get_boot_string() );
 	
 	// Dump active video mode
