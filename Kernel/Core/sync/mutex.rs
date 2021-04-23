@@ -58,7 +58,7 @@ impl UnitMutex
 
 	#[inline(never)]	// These are nice debugging points
 	pub fn lock(&self, ty_name: &'static str) {
-		Self::trace(ty_name, "lock");
+		Self::trace(self, ty_name, "lock");
 		{
 			// Check the held status of the mutex
 			// - Spinlock protected variable
@@ -78,14 +78,14 @@ impl UnitMutex
 				lh.holder = ::threads::get_thread_id();
 			}
 		}
-		Self::trace(ty_name, "lock - acquired");
+		Self::trace(self, ty_name, "lock - acquired");
 		::core::sync::atomic::fence(::core::sync::atomic::Ordering::Acquire);
 	}
 
 	/// UNSAFE: Must only be called when the controlled resoure is being released
 	#[inline(never)]	// These are nice debugging points
 	pub unsafe fn unlock(&self, ty_name: &'static str) {
-		Self::trace(ty_name, "unlock");
+		Self::trace(self, ty_name, "unlock");
 		::core::sync::atomic::fence(::core::sync::atomic::Ordering::Release);
 		let mut lh = self.inner.lock();
 		if let Some(tid) = lh.queue.wake_one()
@@ -99,13 +99,13 @@ impl UnitMutex
 		}
 	}
 
-	fn trace(ty_name: &'static str, action: &str)
+	fn trace(ptr: *const UnitMutex, ty_name: &'static str, action: &str)
 	{
 		match ty_name
 		{
 		""
 		//| "kernel::sync::mutex::Mutex<core::option::Option<kernel::lib::collections::vec_map::VecMap<usize, kernel::metadevs::storage::PhysicalVolumeInfo>>>"
-			=> log_trace!("{}::{}", ty_name, action),
+			=> log_trace!("{}({:?})::{}", ty_name, ptr, action),
 		_ => {},
 		}
 	}
