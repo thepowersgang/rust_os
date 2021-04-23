@@ -28,7 +28,7 @@ impl WaitQueue
 	//#[not_safe(irq,taskswitch)]
 	pub fn wait_int(&mut self) -> ::arch::sync::HeldInterrupts
 	{
-		log_trace!("WaitQueue::wait(...)");
+		log_trace!("WaitQueue::wait({:p})", self);
 		
 		// - Prevent interrupts from firing while we mess with the thread
 		let irq_lock = ::arch::sync::hold_interrupts();
@@ -76,7 +76,7 @@ impl WaitQueue
 		{
 		Some(mut t) => {
 			let tid = t.get_tid();
-			log_trace!("WaitQueue::wake_one(): Waking TID{}", tid);
+			log_trace!("WaitQueue::wake_one({:p}): Waking TID{}", self, tid);
 			t.set_state( RunState::Runnable );
 			let _irq_lock = ::arch::sync::hold_interrupts();
 			s_runnable_threads.lock().push(t);
