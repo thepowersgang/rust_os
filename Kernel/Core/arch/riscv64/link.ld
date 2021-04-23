@@ -49,6 +49,11 @@ SECTIONS {
 		KEEP( *(.MODULE_LIST) )
 		modules_end = .;
 	}
+	.eh_frame : AT(ADDR(.eh_frame) - _kernel_base + _phys_base) {
+		eh_frame_base = .;
+		KEEP( *(.eh_frame .eh_frame.*) )
+		eh_frame_end = .;
+	}
 	
 	.data ALIGN (0x1000) : AT(ADDR(.data) - _kernel_base + _phys_base) {
 		*(.padata)
@@ -74,9 +79,13 @@ SECTIONS {
 
 	/* For the boot page table */
 	_phys_base_DIV4 = (_phys_base >> 2) & 0xFFFFFFFF30000000;
+	boot_pt_lvl2_stacks_PHYS_DIV4 = (boot_pt_lvl2_stacks - _kernel_base + _phys_base) >> 2;
+	boot_pt_lvl1_stacks_PHYS_DIV4 = (boot_pt_lvl1_stacks - _kernel_base + _phys_base) >> 2;
 	boot_pt_lvl2_hwmaps_PHYS_DIV4 = (boot_pt_lvl2_hwmaps - _kernel_base + _phys_base) >> 2;
 	boot_pt_lvl1_hwmaps_PHYS_DIV4 = (boot_pt_lvl1_hwmaps - _kernel_base + _phys_base) >> 2;
 	boot_lt_lvl2_final_PHYS_DIV4 = (boot_lt_lvl2_final - _kernel_base + _phys_base) >> 2;
 	boot_pt_lvl1_temp_PHYS_DIV4 = (boot_pt_lvl1_temp - _kernel_base + _phys_base) >> 2;
+
+	init_stack_PHYS_DIV4 = (init_stack - _kernel_base + _phys_base) >> 2;
 }
 

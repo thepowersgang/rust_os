@@ -39,7 +39,7 @@ start:
 	bltu	a0, a1, 1b
 2:
 	# -- Prepare the stack
-	la	sp, init_stack
+	li	sp, (0xFFFFFFE000000000 + 4*0x1000)
 	# -- Set up paging (39 bit, ASID=0)
 .extern boot_pt_lvl3_0_PHYS_PG
 	la	a0, boot_pt_lvl3_0_PHYS_PG
@@ -93,6 +93,10 @@ boot_pt_lvl3_0_PHYS_ptr:	.quad boot_pt_lvl3_0 - KERNEL_BASE
 //
 //
 .section .text
+
+.globl _Unwind_Resume
+_Unwind_Resume:
+	j .
 
 .globl trap_vector
 .extern trap_vector_rs
@@ -182,15 +186,48 @@ fdt_phys_addr:	.quad 0
 # - 6: Accessed
 # - 7: Written
 .global boot_pt_lvl3_0
-.extern boot_pt_lvl2_hwmaps_PHYS_DIV4
 boot_pt_lvl3_0:
-	.rept 512-3
-	.quad	0
+.extern boot_pt_lvl2_stacks_PHYS_DIV4
+.extern boot_pt_lvl2_hwmaps_PHYS_DIV4
+.extern boot_pt_lvl2_final_PHYS_DIV4
+	.rept 256
+	 .quad 0
 	.endr
+	# 0x00000040_00000000
+	# 0xFFFFFFC0_00000000
+	.rept 128
+	 .quad 0
+	.endr
+	# 0xFFFFFFE0_00000000: Stacks base
+	.quad boot_pt_lvl2_stacks_PHYS_DIV4 + (1 << 0)
+	.rept 128-(1+3)
+	 .quad	0
+	.endr
+	# 0xFFFFFFFF_40000000
 	.quad	boot_pt_lvl2_hwmaps_PHYS_DIV4 + (1 << 0)
 	# NOTE: Fractal mapping doesn't work (needs permissions bits on the bottom layer)
 	.quad	_phys_base_DIV4 + (3 << 6) + (7 << 1) + (1 << 0)	# Kernel at -2GB, 1GB map RWX
 	.quad	boot_lt_lvl2_final_PHYS_DIV4 + (1 << 0)
+# --- Kernel Stacks (prepared with a 3 page boot stack) ---
+# 1GB coverage, 2MiB per slot
+.global boot_pt_lvl2_stacks
+boot_pt_lvl2_stacks:
+.extern boot_pt_lvl1_stacks_PHYS_DIV4
+	.quad	boot_pt_lvl1_stacks_PHYS_DIV4 + (1 << 0)
+	.rept 512-1
+	 .quad	0
+	.endr
+.global boot_pt_lvl1_stacks
+boot_pt_lvl1_stacks:
+.extern init_stack_PHYS_DIV4
+	.quad	0
+	.quad init_stack_PHYS_DIV4 + (0*0x1000/4) + (3 << 1) + (1 << 0)
+	.quad init_stack_PHYS_DIV4 + (1*0x1000/4) + (3 << 1) + (1 << 0)
+	.quad init_stack_PHYS_DIV4 + (2*0x1000/4) + (3 << 1) + (1 << 0)
+	.rept 512-4
+	.quad	0
+	.endr
+# --- Hardware mappings (prepared with UART) ---
 # 1GB coverage, 2MiB per slot
 .global boot_pt_lvl2_hwmaps
 .extern boot_pt_lvl1_hwmaps_PHYS_DIV4
@@ -206,6 +243,7 @@ boot_pt_lvl1_hwmaps:
 	.rept 512-1
 	.quad	0
 	.endr
+# --- Final table (includes temporary mappings, must always be present) ---
 .global boot_lt_lvl2_final
 boot_lt_lvl2_final:
 	.rept 512-2
@@ -219,10 +257,8 @@ boot_pt_lvl1_temp:
 	.rept 512
 	.quad	0
 	.endr
-	
 
-.section .bss
-# TODO: Replace this with KSTACK_BASE
-	.space 4096, 0
+.global init_stack
 init_stack:
+	.space 4096*3, 0
 

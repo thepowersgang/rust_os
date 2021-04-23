@@ -29,13 +29,14 @@ pub mod sync {
 			while self.flag.swap(true, Ordering::Acquire) {
 				// TODO: Once SMP is a thing, this should spin.
 				super::puts("Contented lock!");
-				loop {}
+				panic!("Contended {:p}", self);
+				//loop {}
 			}
 		}
 		pub unsafe fn inner_release(&self)
 		{
-			assert!( self.flag.load(Ordering::Relaxed) );
-			self.flag.store(false, Ordering::Release);
+			assert!( self.flag.swap(false, Ordering::Release) == true, "Releasing an unlocked spinlock?" );
+			assert!( self.flag.load(Ordering::Relaxed) == false );
 		}
 
 		pub fn try_inner_lock_cpu(&self) -> bool
@@ -57,8 +58,10 @@ pub mod sync {
 	}
 
 	pub unsafe fn start_interrupts() {
+		asm!("csrsi sstatus, 0x2");
 	}
 	pub unsafe fn stop_interrupts() {
+		asm!("csrci sstatus, 0x2");
 	}
 }
 pub mod interrupts {
@@ -69,6 +72,7 @@ pub mod interrupts {
 
 	pub fn bind_gsi(gsi: usize, handler: fn(*const ()), info: *const ()) -> Result<IRQHandle, BindError>
 	{
+		todo!("bind_gsi({}, handler={:p}, info={:p})", gsi, handler, info);
 		Err(BindError)
 	}
 }

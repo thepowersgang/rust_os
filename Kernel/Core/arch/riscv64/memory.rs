@@ -22,6 +22,7 @@ pub mod addresses {
 	pub const MODULES_END:    usize = 0xFFFFFFD8_00000000;
 	
 	/// Start of the stacks region
+	// NOTE: Hard-coded in start.S too
 	pub const STACKS_BASE:    usize = MODULES_END;
 	/// End of the stacks region
 	pub const STACKS_END:     usize = 0xFFFFFFE0_00000000;
