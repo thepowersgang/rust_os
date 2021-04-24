@@ -7,6 +7,7 @@ use prelude::*;
 use lib::borrow::Borrow;
 
 /// Primitive key-value map backed by a sorted vector
+#[derive(Debug)]
 pub struct VecMap<K: Ord,V>
 {
 	ents: Vec<(K,V)>,

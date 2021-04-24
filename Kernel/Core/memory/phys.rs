@@ -171,7 +171,8 @@ pub fn allocate_range(count: usize) -> PAddr
 	let rv = addr;
 	let shift = (count * ::PAGE_SIZE) as PAddr;
 	if addr + shift > map[i].end() as PAddr {
-		todo!("Handle allocating from ahead in map ({:#x} + {:#x} > {:#x}, start={:#x})", addr, shift, map[i].end(), map[i].start);
+		let n_free = (map[i].end() as PAddr - rv) / (::PAGE_SIZE as PAddr);
+		todo!("Handle allocating from ahead in map ({:#x} + {:#x} > {:#x}, start={:#x}) - nfree={} < count={}", addr, shift, map[i].end(), map[i].start, n_free, count);
 		// TODO: If the shift pushes this allocation over the edge of a map entry, stick the remaining entries onto the free stack and move to the next free block
 	}
 	addr += shift;

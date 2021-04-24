@@ -49,7 +49,8 @@ pub static S_PAGE_CACHE: PageCache = PageCache::new();
 
 pub fn init()
 {
-	S_PAGE_CACHE.cache_start.store( super::bump_region::delegate(MAX_ENTS).expect("page_cache init") as *mut Page, Ordering::Release ); 
+	S_PAGE_CACHE.cache_start.store( super::bump_region::delegate(MAX_ENTS).expect("page_cache init") as *mut Page, Ordering::Relaxed ); 
+	log_debug!("init: S_PAGE_CACHE.cache_start={:p}", S_PAGE_CACHE.cache_start.load(Ordering::Relaxed));
 }
 
 impl PageCache
@@ -70,7 +71,7 @@ impl PageCache
 
 	fn addr(&self, idx: usize) -> *mut Page {
 		let base = self.cache_start.load(Ordering::Acquire);
-		assert!( ! base.is_null() );
+		assert!( ! base.is_null(), "Cache not yet initialised? self={:p}", self );
 		(base as usize + idx * PAGE_SIZE) as *mut Page
 	}
 

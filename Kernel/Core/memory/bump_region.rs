@@ -17,6 +17,7 @@ pub fn delegate(num_pages: usize) -> Result<*mut (), Error>
 	loop
 	{
 		let cur = CURPOS.load(Ordering::Acquire);
+		assert!(cur != 0);
 		let new = cur + num_pages * ::PAGE_SIZE;
 		assert!(new >= cur);
 		if new > BUMP_END {
