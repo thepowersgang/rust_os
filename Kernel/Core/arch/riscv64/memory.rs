@@ -26,6 +26,7 @@ pub mod addresses {
 	pub const STACKS_BASE:    usize = MODULES_END;
 	/// End of the stacks region
 	pub const STACKS_END:     usize = 0xFFFFFFE0_00000000;
+	pub const STACK_SIZE: usize = 0x4000;
 	
 	/// Start of the hardware mapping region
 	pub const HARDWARE_BASE:  usize = STACKS_END;
@@ -43,7 +44,6 @@ pub mod addresses {
 //		
 	pub const BUMP_START:	usize = 0xFFFFFFF0_00000000;
 	pub const BUMP_END  :	usize = 0xFFFFFFF8_00000000;
-	pub const STACK_SIZE: usize = 0x4000;
 	
 	#[doc(hidden)]
 	pub const IDENT_START:    usize = 0xFFFFFFFF_80000000;
@@ -225,7 +225,7 @@ pub mod virt
 	fn page_walk(addr: usize, max_level: PageLevel) -> Option<PageWalkRes> {
 		let max_addr_size = PageLevel::iter().next().unwrap().ofs() + 9;
 		let top_bits = addr >> (max_addr_size - 1);
-		if top_bits & (top_bits + 1) != 0 {
+		if top_bits != [0,!0 >> (max_addr_size-1)][top_bits & 1] {
 			log_error!("page_walk({:#x}): Non-canonical - addr[{}:]={:#x}", addr, max_addr_size-1, top_bits);
 			return None;
 		}
@@ -291,7 +291,7 @@ pub mod virt
 		// Do a page walk to a maximum level, allocating as we go
 		let max_addr_size = PageLevel::iter().next().unwrap().ofs() + 9;
 		let top_bits = addr >> (max_addr_size - 1);
-		if top_bits & (top_bits + 1) != 0 {
+		if top_bits != [0,!0 >> (max_addr_size-1)][top_bits & 1] {
 			log_error!("with_pte_inner({:#x}): Non-canonical - addr[{}:]={:#x}", addr, max_addr_size-1, top_bits);
 			return ;
 		}
@@ -366,16 +366,34 @@ pub mod virt
 			{
 			Ok(_) => { },	// Cool
 			Err(existing) => {
-				panic!("TODO: Handle mapping collision in `virt::map`");
+				panic!("TODO: Handle mapping collision in `virt::map` - {:#x}", existing);
 				}
 			}
 			});
 	}
-	pub unsafe fn reprotect(_a: *mut (), _mode: ::memory::virt::ProtectionMode) {
-		todo!("reprotect");
+	pub unsafe fn reprotect(a: *mut (), mode: ::memory::virt::ProtectionMode) {
+		with_pte(a as usize, PageLevel::Leaf4K, /*allocate*/true, |pte| {
+			let old_pte = pte.load(Ordering::SeqCst);
+			let new_pte = make_pte(PageWalkRes { pte: old_pte, level: PageLevel::Leaf4K }.phys_base(), PageLevel::Leaf4K, mode);
+			match pte.compare_exchange(old_pte, new_pte,  Ordering::SeqCst, Ordering::SeqCst)
+			{
+			Ok(_) => { },	// Cool
+			Err(existing) => {
+				panic!("TODO: Handle mapping collision in `virt::reprotect` - {:#x} != {:#x}", existing, old_pte);
+				}
+			}
+			});
 	}
-	pub unsafe fn unmap(_a: *mut ()) -> Option<::memory::PAddr> {
-		todo!("unwrap");
+	pub unsafe fn unmap(a: *mut ()) -> Option<::memory::PAddr> {
+		let mut rv = None;
+		with_pte(a as usize, PageLevel::Leaf4K, /*allocate*/false, |pte| {
+			let v = pte.swap(0, Ordering::SeqCst);
+			if v != 0
+			{
+				rv = Some(PageWalkRes { pte: v, level: PageLevel::Leaf4K }.phys_base());
+			}
+			});
+		rv
 	}
 }
 pub mod phys {

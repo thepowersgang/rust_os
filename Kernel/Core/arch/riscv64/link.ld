@@ -18,8 +18,10 @@ SECTIONS {
 	__load_addr = .;
 	
 	/* Boot data */
-	.init : AT(ADDR(.init)) {
+	.text.init : AT(ADDR(.text.init)) {
 		*(.text.init)
+	}
+	.data.init : AT(ADDR(.data.init)) {
 		. = ALIGN(8);
 		*(.initdata)
 	}
@@ -57,17 +59,18 @@ SECTIONS {
 	
 	.data ALIGN (0x1000) : AT(ADDR(.data) - _kernel_base + _phys_base) {
 		*(.padata)
+		*(.sdata .sdata*)
 		*(.data)
 		*(.data.*)
 	}
 
-	__bss_start_LOW = . - _kernel_base + _phys_base;
 	.bss : AT(ADDR(.bss) - _kernel_base + _phys_base) {
+		__bss_start_LOW = . - _kernel_base + _phys_base;
 		*(COMMON)
 		*(.bss)
 		*(.bss.*)
+		__bss_end_LOW = . - _kernel_base + _phys_base;
 	}
-	__bss_end_LOW = . - _kernel_base + _phys_base;
 	v_kernel_end = (. + 0xFFF)&0xFFFFFFFFFFFFF000;
 	
 	/DISCARD/ : { *(.tbss) }

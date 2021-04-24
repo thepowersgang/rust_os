@@ -5,7 +5,10 @@
 //! RISC-V architecture bindings
 
 module_define!{ arch, [], init }
-fn init() {}
+fn init()
+{
+	// TODO: Register a driver for "riscv,plic0"
+}
 
 #[path="../armv7/fdt_devices.rs"]
 mod fdt_devices;
@@ -65,15 +68,51 @@ pub mod sync {
 	}
 }
 pub mod interrupts {
+	use ::core::sync::atomic::{Ordering, AtomicUsize};
 	#[derive(Default)]
-	pub struct IRQHandle;
+	pub struct IRQHandle(usize);
 	#[derive(Debug)]
 	pub struct BindError;
 
+	macro_rules! array_1024 {
+		($e:expr) => { array_1024!(@1 $e, $e) };
+		(@1 $($e:tt)*) => { array_1024!(@2 $($e)*, $($e)*) };
+		(@2 $($e:tt)*) => { array_1024!(@3 $($e)*, $($e)*) };
+		(@3 $($e:tt)*) => { array_1024!(@4 $($e)*, $($e)*) };
+		(@4 $($e:tt)*) => { array_1024!(@5 $($e)*, $($e)*) };
+		(@5 $($e:tt)*) => { array_1024!(@6 $($e)*, $($e)*) };
+		(@6 $($e:tt)*) => { array_1024!(@7 $($e)*, $($e)*) };
+		(@7 $($e:tt)*) => { array_1024!(@8 $($e)*, $($e)*) };
+		(@8 $($e:tt)*) => { array_1024!(@e $($e)*, $($e)*) };
+		(@e $($e:tt)*) => { [ $($e)*, $($e)* ] };
+	}
+	static INTERRUPT_HANDLES: [ (AtomicUsize, AtomicUsize); 1024 ] = array_1024!( (AtomicUsize::new(0), AtomicUsize::new(0)) );
+
 	pub fn bind_gsi(gsi: usize, handler: fn(*const ()), info: *const ()) -> Result<IRQHandle, BindError>
 	{
-		todo!("bind_gsi({}, handler={:p}, info={:p})", gsi, handler, info);
-		Err(BindError)
+		let slot = &INTERRUPT_HANDLES[gsi];
+		match slot.0.compare_exchange(0, 1, Ordering::SeqCst, Ordering::Relaxed)
+		{
+		Ok(_) => {
+			slot.1.store(info as usize, Ordering::Relaxed);
+			slot.0.store(handler as usize, Ordering::Relaxed);
+			Ok( IRQHandle(gsi+1) )
+			},
+		Err(_) => {
+			Err(BindError)
+			},
+		}
+	}
+
+	impl ::core::ops::Drop for IRQHandle {
+		fn drop(&mut self)
+		{
+			if self.0 > 0
+			{
+				let slot = &INTERRUPT_HANDLES[self.0 - 1];
+				assert!( slot.0.swap(0, Ordering::SeqCst) > 1, "Unbinding IRQ handle that is already empty - gsi={}", self.0-1);
+			}
+		}
 	}
 }
 
@@ -145,7 +184,7 @@ pub fn cur_timestamp() -> u64 {
 }
 
 pub fn drop_to_user(entry: usize, stack: usize, args_len: usize) -> ! {
-	loop {}
+	todo!("drop_to_user");
 }
 
 #[repr(C)]

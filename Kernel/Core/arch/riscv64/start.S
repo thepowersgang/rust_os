@@ -50,10 +50,12 @@ start:
 
 	# -- Prepare an exception frame from which to `mret`
 #if SBI_BOOT
-	li	t0, (1 << 8) | (1 << 5) | (1 << 1)	# SPP[8]=1 ([11:12]=1), Interrupts on (SPIE[5]=1, SIE[1]=1)
+	# SPP = Supervisor Previous Permission (Set to 1 to stay in supervisor mode)
+	# SPIE = Supervisor Previous Interurpt Enable (enable interrupts on mret/sret)
+	li	t0, (1 << 18) | (1 << 8) | (1 << 5)	# SUM=0, SPP[8]=1, Interrupts on (SPIE[5]=1)
 	csrw	sstatus, t0
 #else
-	li	t0, (0b01 << 11) | (1 << 7) | (1 << 3)	# "Supervisor mode" ([11:12]=1), Interrupts on (MPIE, MIE:3=1)
+	li	t0, (1 << 18) + (0b01 << 11) + (1 << 7) + (1 << 3)	# "Supervisor mode" ([11:12]=1), Interrupts on (MPIE, MIE:3=1)
 	csrw	mstatus, t0
 #endif
 	li	t0, 3
@@ -190,7 +192,10 @@ boot_pt_lvl3_0:
 .extern boot_pt_lvl2_stacks_PHYS_DIV4
 .extern boot_pt_lvl2_hwmaps_PHYS_DIV4
 .extern boot_pt_lvl2_final_PHYS_DIV4
-	.rept 256
+	.quad 0
+	.quad 0
+	.quad	_phys_base_DIV4 + (3 << 6) + (7 << 1) + (1 << 0)	# Kernel at 2GB, 1GB map RWX (identity)
+	.rept 256-3
 	 .quad 0
 	.endr
 	# 0x00000040_00000000
