@@ -1,7 +1,9 @@
 //! RISCV thread handling
+use ::core::sync::atomic::Ordering;
 
 pub struct State {
 	pt_root: u64,
+	kernel_base_sp: usize,
 	sp: usize,
 	#[allow(dead_code)]
 	stack_handle: Option< ::memory::virt::ArrayHandle<u8> >,
@@ -12,6 +14,7 @@ impl State
 		State {
 			pt_root: a.as_phys(),
 			sp: 0,
+			kernel_base_sp: 0,
 			stack_handle: None,	// Initialised on thread start
 		}
 	}
@@ -20,6 +23,7 @@ pub fn init_tid0_state() -> State {
 	State {
 		pt_root: super::memory::virt::AddressSpace::pid0().as_phys(),
 		sp: 0,
+		kernel_base_sp: super::memory::addresses::STACK0_BASE,
 		stack_handle: None,
 	}
 }
@@ -46,6 +50,7 @@ pub fn start_thread<F: FnOnce()+Send+'static>(thread: &mut crate::threads::Threa
 	// Apply newly updated state
 	let (stack_handle, stack_pos) = stack.unwrap();
 	thread.cpu_state.sp = stack_pos;
+	thread.cpu_state.kernel_base_sp = stack_pos;	// TODO: End of the stack alloc instead?
 	thread.cpu_state.stack_handle = Some(stack_handle);
 
 	return ;
@@ -108,7 +113,7 @@ pub fn idle() {
 pub fn switch_to(thread: ::threads::ThreadPtr) {
 	#[allow(improper_ctypes)]
 	extern "C" {
-		fn task_switch(old_sp: &mut usize, new_sp: usize, satp: u64, thread_ptr: usize);
+		fn task_switch(old_sp: &mut usize, new_sp: usize, satp: u64);
 	}
 	// SAFE: Pointer access is valid, task_switch should be too
 	unsafe
@@ -116,8 +121,13 @@ pub fn switch_to(thread: ::threads::ThreadPtr) {
 		let outstate = &mut (*(borrow_thread() as *mut crate::threads::Thread)).cpu_state;
 		let new_sp = thread.cpu_state.sp;
 		let new_satp = (thread.cpu_state.pt_root >> 12) | (8 << 60);
+		{
+			let hart_state = super::HartState::get_current();
+			hart_state.kernel_base_sp.store(thread.cpu_state.kernel_base_sp, Ordering::SeqCst);
+			hart_state.current_thread.store(thread.into_usize(), Ordering::SeqCst);
+		}
 		log_trace!("Switching to SP={:#x},SATP={:#x}", new_sp, new_satp);
-		task_switch(&mut outstate.sp, new_sp, new_satp, thread.into_usize());
+		task_switch(&mut outstate.sp, new_sp, new_satp);
 	}
 }
 
@@ -126,15 +136,10 @@ pub fn get_idle_thread() -> crate::threads::ThreadPtr {
 }
 
 pub fn set_thread_ptr(t: ::threads::ThreadPtr) {
-	// SAFE: Atomic write to a per-CPU scratch register
-	unsafe {
-		asm!("csrw sscratch, {}", in(reg) t.into_usize());
-	}
+	super::HartState::get_current().current_thread.store(t.into_usize(), Ordering::SeqCst);
 }
 pub fn get_thread_ptr() -> Option<::threads::ThreadPtr> {
-	let ret: usize;
-	// SAFE: Atomic read from a per-CPU scratch register
-	unsafe { asm!("csrr {}, sscratch", out(reg) ret, options(nomem, pure)); }
+	let ret = super::HartState::get_current().current_thread.load(Ordering::SeqCst) as usize;
 	//use super::{puts,puth}; puts("get_thread_ptr: 0x"); puth(ret as u64); puts("\n");
 	if ret == 0 {
 		None
@@ -147,9 +152,6 @@ pub fn get_thread_ptr() -> Option<::threads::ThreadPtr> {
 	}
 }
 pub fn borrow_thread() -> *const ::threads::Thread {
-	let rv: *const ::threads::Thread;
-	// SAFE: Atomic read from a per-CPU scratch register
-	unsafe { asm!("csrr {}, sscratch", out(reg) rv, options(nomem, pure)); }
-	//use super::{puts,puth}; puts("borrow_thread: 0x"); puth(rv as usize as u64); puts("\n");
-	rv
+	let ret = super::HartState::get_current().current_thread.load(Ordering::SeqCst) as usize;
+	ret as *const crate::threads::Thread
 }

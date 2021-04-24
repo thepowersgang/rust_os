@@ -27,6 +27,7 @@ pub mod addresses {
 	/// End of the stacks region
 	pub const STACKS_END:     usize = 0xFFFFFFE0_00000000;
 	pub const STACK_SIZE: usize = 0x4000;
+	pub(in crate::arch) const STACK0_BASE: usize = STACKS_BASE + STACK_SIZE;
 	
 	/// Start of the hardware mapping region
 	pub const HARDWARE_BASE:  usize = STACKS_END;

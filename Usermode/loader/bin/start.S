@@ -158,6 +158,8 @@ bad_location:
 /* A0 = Argument length */
 loader_start:
 	la sp, init_stack_end
+	mv a1, a0
+	la a0, init_path
 	j loader_main
 #elif defined(ARCH_native)
 // Ignore

@@ -24,6 +24,7 @@ SECTIONS {
 	.data.init : AT(ADDR(.data.init)) {
 		. = ALIGN(8);
 		*(.initdata)
+		*(.data.init)
 	}
 	
 	. += _kernel_base - _phys_base;

@@ -3,6 +3,7 @@
 //
 // Core/arch/riscv64/main.rs
 //! RISC-V architecture bindings
+use ::core::sync::atomic::{Ordering,AtomicPtr,AtomicUsize};
 
 module_define!{ arch, [], init }
 fn init()
@@ -31,7 +32,7 @@ pub mod sync {
 		{
 			while self.flag.swap(true, Ordering::Acquire) {
 				// TODO: Once SMP is a thing, this should spin.
-				super::puts("Contented lock!");
+				super::puts("Contented lock!"); super::puth(self as *const _ as usize as u64);
 				panic!("Contended {:p}", self);
 				//loop {}
 			}
@@ -184,24 +185,107 @@ pub fn cur_timestamp() -> u64 {
 }
 
 pub fn drop_to_user(entry: usize, stack: usize, args_len: usize) -> ! {
-	todo!("drop_to_user");
+	// Create an exception frame
+	// SAFE: Validated 
+	unsafe {
+		asm!("
+			csrc sstatus,{3}
+			csrs sstatus,{4}
+			csrw sepc, {0}
+			mv sp, {1}
+			mv a0, {2}
+			sret
+			",
+			in(reg) entry, in(reg) stack, in(reg) args_len,
+			in(reg) /*mask*/0x142,	// SPP, SPIE, SIE
+			in(reg) /*new */0x040,	// SPIE
+			options(noreturn)
+			);
+	}
+}
+
+#[repr(C)]
+struct HartState
+{
+	scratch_t1: u64,	// Actually mutated by the assembly stub
+	kernel_base_sp: AtomicUsize,	// Read by assembly stub
+	current_thread: AtomicUsize,
+}
+#[no_mangle]
+static HART0_STATE: HartState = HartState {
+	scratch_t1: 0,
+	kernel_base_sp: AtomicUsize::new(memory::addresses::STACK0_BASE),
+	current_thread: AtomicUsize::new(0),
+	};
+impl HartState
+{
+	fn get_current() -> &'static HartState {
+		// SAFE: Reads a valid CSR, the pointer contained within should be valid
+		unsafe {
+			let ptr: *const HartState;
+			asm!("csrr {}, sscratch", out(reg) ptr);
+			&*ptr
+		}
+	}
 }
 
 #[repr(C)]
 struct FaultRegs
 {
+	sstatus: u64,
+	stval: u64,
+	sepc: u64,
+	scause: u64,
+	regs: [u64; 31],
 }
+static REG_NAMES: [&'static str; 31] = [
+	"RA",
+	"SP",
+	"GP",
+	"TP",
+	"T0",
+	"T1",
+	"T2",
+	"S0",
+	"S1",
+	"A0",
+	"A1",
+	"A2",
+	"A3",
+	"A4",
+	"A5",
+	"A6",
+	"A7",
+	"S2",
+	"S3",
+	"S4",
+	"S5",
+	"S6",
+	"S7",
+	"S8",
+	"S9",
+	"S10",
+	"S11",
+	"T3",
+	"T4",
+	"T5",
+	"T6",
+	];
 #[no_mangle]
-fn trap_vector_rs(state: &FaultRegs) -> !
+extern "C" fn trap_vector_rs(state: &mut FaultRegs)
 {
-	// SAFE: Just reads CSRs
-	let (cause, pc, value) = unsafe {
-		let v: u64; asm!("csrr {}, stval", out(reg) v);
-		let p: u64; asm!("csrr {}, sepc", out(reg) p);
-		let c: u64; asm!("csrr {}, scause", out(reg) c);
-		(c, p, v)
-		};
-	let reason = match cause
+	if state.scause == 8 {
+		extern "C" {
+			fn syscalls_handler(id: u32, first_arg: *const usize, count: u32) -> u64;
+		}
+		// SAFE: Correct inputs
+		unsafe {
+			state.regs[10-1] = syscalls_handler(state.regs[10-1] as u32, &state.regs[11-1] as *const u64 as *const usize, 7-1);
+		}
+		state.sepc += 4;	// ECALL doesn't have a compressed format
+		return ;
+	}
+	let reason = match state.scause
 		{
 		0 => "Instruction address misaligned",
 		1 => "Instruction access fault",
@@ -224,7 +308,15 @@ fn trap_vector_rs(state: &FaultRegs) -> !
 		48..=63 => "/Reserved for future custom use/",
 		_ => "/Reserved for future standard use/",
 		};
-	log_error!("FAULT: {:#x} {} at {:#x} stval={:#x}", cause, reason, pc, value);
+	log_error!("FAULT: {:#x} {} at {:#x} stval={:#x}", state.scause, reason, state.sepc, state.stval);
+	let mut it = Iterator::chain( [(&"r0",&0)].iter().copied(), Iterator::zip( REG_NAMES.iter(), state.regs.iter() ));
+	for _ in 0..32/4 {
+		let (r1,v1) = it.next().unwrap();
+		let (r2,v2) = it.next().unwrap();
+		let (r3,v3) = it.next().unwrap();
+		let (r4,v4) = it.next().unwrap();
+		log_error!("{:3}={:16x} {:3}={:16x} {:3}={:16x} {:3}={:16x}", r1,v1, r2,v2, r3,v3, r4,v4);
+	}
 	loop {
 		// SAFE: No side-effects to WFI
 		unsafe { asm!("wfi"); }

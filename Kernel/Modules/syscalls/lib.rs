@@ -73,8 +73,9 @@ pub fn init(init_handle: ::kernel::vfs::handle::File) {
 /// Method called from architectue-specific (assembly) code
 pub unsafe extern "C" fn syscalls_handler(id: u32, first_arg: *const usize, count: u32) -> u64
 {
-	//log_debug!("syscalls_handler({}, {:p}+{})", id, first_arg, count);
-	invoke(id, ::core::slice::from_raw_parts(first_arg, count as usize))
+	let args = ::core::slice::from_raw_parts(first_arg, count as usize);
+	//log_debug!("syscalls_handler({}, {:x?})", id, args);
+	invoke(id, args)
 }
 
 fn invoke(call_id: u32, args: &[usize]) -> u64 {

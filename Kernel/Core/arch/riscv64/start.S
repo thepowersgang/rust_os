@@ -68,6 +68,8 @@ start:
 #endif
 	la	t0, trap_vector	# Supervisor-level error handler
 	csrw	stvec, t0
+	la	t0, HART0_STATE
+	csrw	sscratch, t0
 	la	ra, 1f	# Set a return address for `kmain`... just in case
 #if SBI_BOOT
 	sret	// Supervisor interrupt return
@@ -86,9 +88,11 @@ ap_wait:
 	jr a0
 
 .section .initdata
-# > Reference the from `.data` and `.padata`
+# > Reference these from `.data` and `.padata`
 ap_wait_target_ptr: .quad ap_wait_target - KERNEL_BASE
 boot_pt_lvl3_0_PHYS_ptr:	.quad boot_pt_lvl3_0 - KERNEL_BASE
+#
+
 
 
 //
@@ -100,12 +104,95 @@ boot_pt_lvl3_0_PHYS_ptr:	.quad boot_pt_lvl3_0 - KERNEL_BASE
 _Unwind_Resume:
 	j .
 
+
+.macro dumpregs op=sd, i=1
+	\op x31, -1*8(sp)	# T6
+	\op x30, -2*8(sp)	# T5
+	\op x29, -3*8(sp)	# T4
+	\op x28, -4*8(sp)	# T3
+	\op x27, -5*8(sp)	# S11
+	\op x26, -6*8(sp)	# S10
+	\op x25, -7*8(sp)	# S9
+	\op x24, -8*8(sp)	# S8
+	\op x23, -9*8(sp)	# S7
+	\op x22, -10*8(sp)	# S6
+	\op x21, -11*8(sp)	# S5
+	\op x20, -12*8(sp)	# S4
+	\op x19, -13*8(sp)	# S3
+	\op x18, -14*8(sp)	# S2
+	\op x17, -15*8(sp)	# A7
+	\op x16, -16*8(sp)	# A6
+	\op x15, -17*8(sp)	# A5
+	\op x14, -18*8(sp)	# A4
+	\op x13, -19*8(sp)	# A3
+	\op x12, -20*8(sp)	# A2
+	\op x11, -21*8(sp)	# A1
+	\op x10, -22*8(sp)	# A0
+	\op x9, -23*8(sp)	# S1
+	\op x8, -24*8(sp)	# S0
+	\op x7, -25*8(sp)	# T2
+	\op x6, -26*8(sp)	# T1
+	\op x5, -27*8(sp)	# T0
+	\op x4, -28*8(sp)	# TP
+	\op x3, -29*8(sp)	# GP
+	#\op x2, -30*8(sp)	# SP
+	\op x1, -31*8(sp)	# RA
+.endm
+
+#define SSTAUS_OFS_SCRATCH	0
+#define SSTAUS_OFS_SVZ_SP	8
 .globl trap_vector
 .extern trap_vector_rs
 trap_vector:
-	#wfi
-	#j trap_vector
-	j trap_vector_rs
+	# Step 1: Save a scratch register to CPU-local storage
+	csrrw t0,sscratch,t0	# Swap T0 into sscratch
+	sd t1, SSTAUS_OFS_SCRATCH(t0)	# Store T1 at that address
+	# Step 2: Determine if the trap as from within the kernel (supervisor mode)
+	csrr t1, sstatus	# Read SStatus
+	andi t1, t1, 0x100	# Check SPP (bit 8)
+	bnez t1, 1f	# If nonzero (was in kernel), then don't update the stack
+
+	# Step 3a: From usermode, load the kernel stack
+	# Load kernel stack
+	ld t1, SSTAUS_OFS_SVZ_SP(t0)
+	sd sp, -30*8(t1)	# Save user's SP
+	mv sp, t1
+	# Jump to common code
+	j 2f
+1:
+	# In kerenel - check for stack overflow (SP == STVAL)
+	csrr t1, stval
+	beq sp, t1, 3f
+	sd sp, -30*8(sp)	# SP, not saved by dumpregs
+2:
+	# Restore T1 and T0 now that we can use SP
+	ld t1, SSTAUS_OFS_SCRATCH(t0)
+	csrrw t0,sscratch,t0
+	# Save all GPRs
+	dumpregs sd
+	add sp, sp, -31*8
+	# Save various CSRs
+	csrr t0, sstatus; sd t0, -4*8(sp)
+	csrr t0, stval  ; sd t0, -3*8(sp)
+	csrr t0, sepc   ; sd t0, -2*8(sp)
+	csrr t0, scause ; sd t0, -1*8(sp)
+	add sp, sp, -4*8
+	# Call handler
+	mv a0, sp
+	jal trap_vector_rs
+	add sp, sp, 4*8
+	# Restore CSRs that it makes sense to have been modified
+	ld t0, -4*8(sp); csrw sstatus, t0
+	ld t0, -2*8(sp); csrw sepc, t0
+	add sp, sp, 31*8
+	dumpregs ld
+	ld sp, -30*8(sp)	# Also undoes the add
+
+	sret
+3:
+	# Kernel faulted with STVAL=SP, assume a stack overflow
+	# TODO: Switch to a different kernel stack, and enter a kernel panic
+	j .
 
 #include "../../../../Usermode/rustrt0/riscv64-helpers.S"
 
@@ -148,7 +235,6 @@ task_switch:
 	sd sp, (a0)
 	mv sp, a1
 	csrw satp, a2
-	csrw sscratch, a3
 	# Re-enable interrupts (set SIE)
 	csrsi sstatus, 0x2
 	# Pop state
