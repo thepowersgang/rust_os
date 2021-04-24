@@ -15,7 +15,7 @@ else
 endif
 
 ifeq ($(ARCH),riscv64)
- ASFLAGS += -mabi=lp64
+ ASFLAGS += -mabi=lp64 -march=rv64gc
 endif
 
 -include BuildNum.$(ARCH).mk
@@ -116,7 +116,7 @@ $(OBJDIR)%.ao: Core/arch/$(ARCH)/%.asm
 $(OBJDIR)%.ao: Core/arch/$(ARCH)/%.S
 	@echo [AS] -o $@
 	@mkdir -p $(dir $@)
-	$V$(CC) $(ASFLAGS) -o $@ -c $<
+	$V$(CC) $(ASFLAGS) -o $@ -c $< -Wp,-MMD,$@.d -Wp,-MT,$@ -Wp,-MP
 # Log configuration
 $(OBJDIR)log_cfg.ao: Core/log_cfg.S
 	@echo [AS] -o $@
@@ -125,3 +125,5 @@ $(OBJDIR)log_cfg.ao: Core/log_cfg.S
 
 $(IMGDIR)%.rs: ../Graphics/Makefile
 	cd ../Graphics && make $(@:../Graphics/%=%)
+
+-include $(patsubst %,%.d,$(OBJS))
