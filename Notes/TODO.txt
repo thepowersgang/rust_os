@@ -15,11 +15,15 @@
  - Downside: Kernel log is verbose, this will slow down most operations (on render)
  - Having an aliased buffer containing the messages would be better (render in thread)
 - Kernel panic messages rendered to display
+  - Mostly done.
 - User panic messages rendered to a kernel-owned window
  - This same infrastructure can be used for blocked windows/processes
 
 # Syscalls #
 Named object handles (or just named VFS roots?)
+
+# Userland
+- AcessNative-esque test suite?
 
 # Filesystem #
 - Strict file/object permissions via handle permissions
