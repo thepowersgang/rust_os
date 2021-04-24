@@ -7,7 +7,7 @@ path = "main/main.rs"
 crate-type = ["staticlib"]
 
 [profile.release]
-incremental = true
+#incremental = true
 debug = true
 
 [features]
