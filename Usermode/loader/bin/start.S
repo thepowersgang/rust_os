@@ -148,7 +148,7 @@ bad_location:
 # define DEFPTR	.quad
 # define PTR_SIZE	8
 # define HDR_ARCH HDR_ARCH_riscv64
-.set LIMIT, (0x0000800000000000 - 64*1024*1024*1024)
+.set LIMIT, (1 << (39-1))
 .set BASE,  LIMIT - 4*64*1024	/* 0x00007fffFFFE0000 */
 .set PAGE_SIZE, 0x1000
 .section .text

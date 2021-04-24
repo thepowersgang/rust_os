@@ -77,6 +77,7 @@ pub extern "C" fn kmain()
 // Initialise the system once drivers are up
 fn sysinit() -> !
 {
+	log_notice!("--- kernel sysinit ---");
 	use kernel::metadevs::storage::VolumeHandle;
 	use kernel::vfs::{mount,handle};
 	use kernel::vfs::Path;
@@ -90,6 +91,7 @@ fn sysinit() -> !
 	}
 	
 	// 1. Mount /system to the specified volume
+	// - Folder is created in `vfs/mod.rs`
 	let sysdisk = ::kernel::config::get_string(::kernel::config::Value::SysDisk);
 	match VolumeHandle::open_named(sysdisk)
 	{
@@ -302,7 +304,7 @@ enum ArchValues {
 #[cfg(target_arch="aarch64")]	const ARCH: ArchValues = ArchValues::ARMv8;
 #[cfg(target_arch="aarch64")]	const LOAD_MAX: usize = (1 << 48) - (64 << 30);	// Leave 64GB for the kernel to control within the user table
 #[cfg(target_arch="riscv64")]	const ARCH: ArchValues = ArchValues::RiscV;
-#[cfg(target_arch="riscv64")]	const LOAD_MAX: usize = 1 << 47;
+#[cfg(target_arch="riscv64")]	const LOAD_MAX: usize = 1 << 38;
 
 #[cfg(target_pointer_width="64")]	const USIZE_BYTES: u32 = 8;
 #[cfg(target_pointer_width="32")]	const USIZE_BYTES: u32 = 4;

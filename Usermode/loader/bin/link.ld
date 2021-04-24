@@ -12,6 +12,12 @@ SECTIONS {
 	}
 	/* ARM unwind tables (not present) */
 	/DISCARD/ : { *(.ARM.extab.init .ARM.exidx.init) }
+	.eh_frame : {
+		*(.eh_frame)
+	}
+	.eh_frame_hdr : {
+		*(.eh_frame_hdr)
+	}
 	.ARM.extab : {
 		*(.ARM.extab* .gnu.linkonce.armextab.*)
 	}
@@ -29,12 +35,15 @@ SECTIONS {
 	codesize = . - BASE;
 	.data ALIGN(PAGE_SIZE): {
 		data_start = .;
+		*(.sdata .sdata.*)
 		*(.data .data.*)
 		*(.got .got.*)
 		. = ALIGN(PAGE_SIZE);
 	} = 0x0000
+	. = ALIGN(PAGE_SIZE);
 	.bss ALIGN(PAGE_SIZE) : {
 		bss_start = .;
+		*(.sbss .sbss.*)
 		*(.bss .bss.*)
 		bss_end = .;
 	}
