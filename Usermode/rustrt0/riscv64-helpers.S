@@ -50,14 +50,14 @@ memmove:
 	j 1b
 2:
 	ret
-# memcmp
+# memcmp(p1, p2, n)
 .globl memcmp
 memcmp:
-	add a2, a0, a2
+	add a2, a0, a2	# p1_end = p1 + n
 1:
-	bgeu a0, a2, 2f
-	lb a3, (a1)
-	lb a4, (a0)
+	bgeu a0, a2, 2f	# if p1 >= p1_end: 2f
+	lb a3, (a0)
+	lb a4, (a1)
 	addi a0, a0, 1
 	addi a1, a1, 1
 	bgtu a3,a4, 3f
@@ -68,6 +68,7 @@ memcmp:
 	ret
 3:
 	li a0, 1
+	ret
 4:
 	li a0, -1
 	ret
