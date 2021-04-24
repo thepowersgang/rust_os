@@ -50,9 +50,10 @@ endif
 
 IMGDIR := DiskImages/$(ARCH)/
 
+QEMU_TRACE_SPEC := .qemu_trace_spec
 ifneq ($(ENABLE_TRACE),)
-  # qemu-source/scripts/simpletrace.py qemu-build/trace/trace-events qemu_trace_events
-  QEMU_ARGS += --trace events=.qemu_trace,file=qemu_trace_events
+  # qemu-source/scripts/simpletrace.py qemu-build/trace/trace-events qemu_trace_output
+  QEMU_ARGS += --trace events=$(QEMU_TRACE_SPEC),file=qemu_trace_output
 endif
 
 #
@@ -78,7 +79,7 @@ else
 	SCRIPT := RunQemuPXE
 endif
 
-run: .qemu_trace images
+run: $(QEMU_TRACE_SPEC) images
 	./$(SCRIPT) ../bin/kernel-amd64.bin.elf32 "$(CMDLINE)" "$(QEMU_ARGS)" $(TEE)
 images: $(IMGDIR)hda.img $(IMGDIR)hdb.img $(IMGDIR)test.iso
 #
@@ -184,7 +185,7 @@ $(IMGDIR)hdb.img: Makefile $(IMGDIR)hdb_0.img $(IMGDIR)hdb_1.img
 	$Vcat $(IMGDIR)hdb_0.img $(IMGDIR)hdb_1.img > $@
 	$Vecho "$(shell echo $$((1*1024*2)),+,0x83)" | /sbin/sfdisk --no-reread $@ -u S -f -q > /dev/null
 
-.qemu_trace: Makefile
+$(QEMU_TRACE_SPEC): Makefile
 	echo "" > $@
 	#echo pci_* >> $@
 	echo virtio_* >> $@

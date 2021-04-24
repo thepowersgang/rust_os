@@ -41,7 +41,7 @@ Kernel/rundir/bochsout.txt
 Kernel/rundir/bochsdbg.txt
 Kernel/rundir/serial.txt
 Kernel/rundir/QemuLog.txt
-Kernel/rundir/qemu_trace
+Kernel/rundir/qemu_trace_output
 Kernel/rundir/qemu_int_log.txt
 Kernel/rundir/*.ppm
 Kernel/rundir/*.png
@@ -57,8 +57,6 @@ Kernel/rundir/test-*/
 /Kernel/tests/network/*.txt
 /Kernel/tests/filesystem/target
 
-# The bootloaders usually use the Kernel's libcore, so need an equivalent path to the target spec
-Bootloaders/*/Core/arch/*/target.json
 Bootloaders/uefi/*.txt
 Bootloaders/uefi/target
 Bootloaders/uefi/Cargo.lock
@@ -66,6 +64,7 @@ Bootloaders/libuefi/target/
 Bootloaders/*.pe
 Bootloaders/aarch64/target
 Bootloaders/arm/target
+Bootloaders/arm/*.dtb
 
 Usermode/doc/
 Usermode/target/
