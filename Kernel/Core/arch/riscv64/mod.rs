@@ -212,15 +212,21 @@ pub fn drop_to_user(entry: usize, stack: usize, args_len: usize) -> ! {
 #[repr(C)]
 struct HartState
 {
+	/// Scratch space used to store `t1` during trap handler
 	scratch_t1: u64,	// Actually mutated by the assembly stub
+	/// Kernel's base SP value (loaded when entering from usermode)
 	kernel_base_sp: AtomicUsize,	// Read by assembly stub
+	/// Currently executing thread
 	current_thread: AtomicUsize,
+	/// This CPU's idle thread
+	idle_thread: AtomicUsize,
 }
 #[no_mangle]
 static HART0_STATE: HartState = HartState {
 	scratch_t1: 0,
 	kernel_base_sp: AtomicUsize::new(memory::addresses::STACK0_BASE),
 	current_thread: AtomicUsize::new(0),
+	idle_thread: AtomicUsize::new(0),
 	};
 impl HartState
 {

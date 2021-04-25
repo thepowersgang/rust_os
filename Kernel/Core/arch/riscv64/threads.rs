@@ -132,8 +132,20 @@ pub fn switch_to(thread: ::threads::ThreadPtr) {
 	}
 }
 
+// Get the idle thread for this HART
 pub fn get_idle_thread() -> crate::threads::ThreadPtr {
-	todo!("get_idle_thread");
+	// SAFE: Valid transmutes
+	unsafe
+	{
+		let state = super::HartState::get_current();
+		let mut ptr = state.idle_thread.load(Ordering::Relaxed);
+		if ptr == 0
+		{
+			ptr = ::core::mem::transmute( ::threads::new_idle_thread(0) );
+			state.idle_thread.store(ptr, Ordering::Relaxed);
+		}
+		::core::mem::transmute(ptr)
+	}
 }
 
 pub fn set_thread_ptr(t: ::threads::ThreadPtr) {
