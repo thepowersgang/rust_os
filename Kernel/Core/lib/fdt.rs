@@ -100,9 +100,18 @@ impl<'a> FDTRoot<'a>
 						log_debug!("{}.{} = {:#x}+{:#x}", indent, name, a, s);
 					}
 					else {
-						log_debug!("{}.{} = {:?}", indent, name, data)
+						log_debug!("{}.{} = {:x?}", indent, name, data)
 					},
-				_ => log_debug!("{}.{} = {:?}", indent, name, data),
+				"timebase-frequency"
+					=> if data.len() == 4 {
+						let mut bytes = data;
+						let f = bytes.read_u32::<BigEndian>().unwrap();
+						log_debug!("{}.{} = {}", indent, name, f);
+					}
+					else {
+						log_debug!("{}.{} = 0x{:x?}", indent, name, data)
+					},
+				_ => log_debug!("{}.{} = 0x{:x?}", indent, name, data),
 				},
 			Tag::End => break,
 			_ => {},
