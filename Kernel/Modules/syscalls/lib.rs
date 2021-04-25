@@ -235,6 +235,9 @@ fn invoke_int(call_id: u32, args: &mut Args) -> Result<u64,Error>
 			let addr: usize = try!(args.get());
 			let count: usize = try!(args.get());
 			log_debug!("MEM_ALLOCATE({:#x},{})", addr, count);
+			if addr & (::kernel::PAGE_SIZE-1) != 0 {
+				return Err(Error::BadValue);
+			}
 			match ::kernel::memory::virt::allocate_user(addr as *mut (), count)
 			{
 			Ok(_) => 0,
@@ -245,6 +248,9 @@ fn invoke_int(call_id: u32, args: &mut Args) -> Result<u64,Error>
 			let addr: usize = try!(args.get());
 			let mode: u8 = try!(args.get());
 			log_debug!("MEM_REPROTECT({:#x},{})", addr, mode);
+			if addr & (::kernel::PAGE_SIZE-1) != 0 {
+				return Err(Error::BadValue);
+			}
 			let mode = match mode
 				{
 				0 => ::kernel::memory::virt::ProtectionMode::UserRO,
