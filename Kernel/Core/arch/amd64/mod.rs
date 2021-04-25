@@ -27,8 +27,7 @@ pub mod pci;
 
 extern "C"
 {
-	type Void;
-	static v_kernel_end: Void;
+	static v_kernel_end: crate::Extern;
 }
 
 fn init()

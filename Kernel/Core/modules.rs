@@ -32,9 +32,8 @@ mod _test {
 }
 
 extern "C" {
-	type Opaque;
-	static modules_base: Opaque;
-	static modules_end: Opaque;
+	static modules_base: crate::Extern;
+	static modules_end: crate::Extern;
 }
 
 /// Initialise statically linked modules

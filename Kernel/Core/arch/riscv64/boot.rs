@@ -85,10 +85,9 @@ pub fn get_memory_map() -> &'static [::memory::MemoryMapEnt]
 
 		// -- Kernel image (TODO: Can this be non-hard-coded too?)
 		extern "C" {
-			type Sym;
-			static _phys_base: Sym;
-			static _kernel_base: Sym;
-			static v_kernel_end: Sym;
+			static _phys_base: crate::Extern;
+			static _kernel_base: crate::Extern;
+			static v_kernel_end: crate::Extern;
 		}
 		// SAFE: Taking the address only
 		let (kernel_phys, kernel_len) = unsafe {

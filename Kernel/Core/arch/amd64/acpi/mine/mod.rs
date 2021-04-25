@@ -104,10 +104,7 @@ pub fn init()
 	// Obtain list of SDTs (signatures only)
 	let names = (0 .. tl.len()).map( |i| tl.get::<SDTHeader>(i).raw_signature() ).collect();
 	
-	// SAFE: Called in a single-threaded context
-	unsafe {
-		S_ACPI_STATE.prep(|| ACPI { top_sdt: tl, names: names, });
-	}
+	S_ACPI_STATE.prep(|| ACPI { top_sdt: tl, names: names, });
 	
 	
 	// Poke sub-enumerators
