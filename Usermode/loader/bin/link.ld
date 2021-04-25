@@ -43,8 +43,8 @@ SECTIONS {
 	. = ALIGN(PAGE_SIZE);
 	.bss ALIGN(PAGE_SIZE) : {
 		bss_start = .;
-		*(.sbss .sbss.*)
 		*(.bss .bss.*)
+		*(.sbss .sbss.*)
 		bss_end = .;
 	}
 	imagesize = . - BASE;
