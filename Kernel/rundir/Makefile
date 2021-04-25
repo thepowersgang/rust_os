@@ -124,7 +124,7 @@ QEMU_ARGS += -device virtio-blk-device,drive=hda
 QEMU_ARGS += -device virtio-gpu-device
 QEMU_ARGS += -device virtio-net-device
 QEMU_ARGS += -drive if=none,id=hda,index=0,file=$(IMGDIR)hda.img,format=raw
-QEMU_ARGS += -smp 4
+#QEMU_ARGS += -smp 4
 #QEMU_ARGS += -bios none
 
 run: $(IMGDIR)hda.img

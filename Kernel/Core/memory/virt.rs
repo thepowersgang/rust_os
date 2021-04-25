@@ -123,8 +123,7 @@ pub fn with_lock<F>(addr: usize, fcn: F)
 where
 	F: FnOnce()
 {
-	// TODO: Lock
-	log_notice!("TODO: with_lock(addr={:#x})", addr);
+	let _lh = if crate::arch::memory::addresses::is_global(addr) { s_kernelspace_lock.lock() } else { s_userspace_lock.lock() };
 	fcn();
 }
 

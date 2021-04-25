@@ -83,9 +83,127 @@ pub mod virt
 			// SAFE: Just getting the address of a static
 			AddressSpace( crate::memory::virt::get_phys(unsafe { extern "C" { static boot_pt_lvl3_0: crate::Extern; } &boot_pt_lvl3_0 }) )
 		}
-		pub fn new(_cstart: usize, _cend: usize) -> Result<AddressSpace,()> {
-			todo!("AddressSpace::new");
-			//return Ok(AddressSpace);
+		pub fn new(clone_start: usize, clone_end: usize) -> Result<AddressSpace,crate::memory::virt::MapError>
+		{
+			use crate::memory::virt::MapError;
+
+			struct NewTable(crate::arch::memory::virt::TempHandle<u64>, /** Level for the contained items */PageLevel);
+			impl NewTable {
+				fn new(level: PageLevel) -> Result<NewTable,MapError> {
+					match ::memory::phys::allocate_bare()
+					{
+					Err(::memory::phys::Error) => Err( MapError::OutOfMemory ),
+					Ok(temp_handle) => Ok( NewTable( temp_handle.into(), level ) ),
+					}
+				}
+				fn into_frame(self) -> super::PAddr {
+					let rv = self.0.phys_addr();
+					::core::mem::forget(self);
+					rv
+				}
+			}
+			impl ::core::ops::Drop for NewTable {
+				fn drop(&mut self) {
+					// TODO: This method needs to recursively free paging structures held by it.
+					todo!("NewTable::drop");
+				}
+			}
+			impl ::core::ops::Deref for NewTable { type Target = [u64]; fn deref(&self) -> &[u64] { &self.0 } }
+			impl ::core::ops::DerefMut for NewTable { fn deref_mut(&mut self) -> &mut [u64] { &mut self.0 } }
+
+			/// Clone an entire table, returns the new PTE
+			fn opt_clone_table(table_level: PageLevel, base_addr: usize, clone_start: usize, clone_end: usize, prev_table_pte: u64) -> Result<u64, MapError>
+			{
+				// Zero = unmapped, return without logging
+				if prev_table_pte == 0
+				{
+					return Ok(0);
+				}
+				log_trace!("opt_clone_table({:?} @ {:#x}, {:#x}--{:#x} from {:#x})", table_level, base_addr, clone_start, clone_end, prev_table_pte);
+				// Check range
+				if clone_end <= base_addr
+				{
+					Ok(0)
+				}
+				else if clone_start >= base_addr + (1 << table_level.ofs())
+				{
+					Ok(0)
+				}
+				// If the bottom 4 bits are 1, it's a sub-table
+				// - Recurse into it
+				else
+				{
+					let ent = Pte(prev_table_pte);
+					if prev_table_pte & 0xF == 1
+					{
+						let item_level = match table_level.down()
+							{
+							Some(v) => v,
+							None => panic!("opt_clone_table({:?} @ {:#x} from {:#x}) - Reached 4K but still recursing", table_level, base_addr, prev_table_pte),
+							};
+						let mut table = NewTable::new(item_level)?;
+						// SAFE: Valid and unaliased physical memory
+						unsafe {
+							with_temp_map(ent.phys_base(), |ptr: &PageTable|->Result<(),MapError> {
+								for i in 0 .. 512
+								{
+									table[i] = opt_clone_table(item_level, base_addr + (i << item_level.ofs()), clone_start, clone_end, ptr[i].load(Ordering::Relaxed))?;
+								}
+								Ok( () )
+								})?;
+						}
+						Ok( (table.into_frame() >> 12 << 10) + 1 )
+					}
+					// Otherwise, it's data
+					else
+					{
+						let perms = ent.get_perms();
+						let frame = match perms
+							{
+							ProtectionMode::UserRX | ProtectionMode::UserCOW => {
+								let addr = ent.phys_base();
+								::memory::phys::ref_frame( addr );
+								addr
+								},
+							ProtectionMode::UserRWX | ProtectionMode::UserRW => {
+								// SAFE: We've just determined that this page is mapped in, so we won't crash. Any race is the user's fault (and shouldn't impact the kernel)
+								let src = unsafe { ::core::slice::from_raw_parts(base_addr as *const u8, ::PAGE_SIZE) };
+								let mut newpg = ::memory::virt::alloc_free()?;
+								for (d,s) in Iterator::zip( newpg.iter_mut(), src.iter() ) {
+									*d = *s;
+								}
+								newpg.into_frame().into_addr()
+								},
+							v @ _ => todo!("opt_clone_page - Mode {:?}", v),
+							};
+						Ok( make_pte(frame, table_level, perms) )
+					}
+				}
+			}
+
+			// TODO: This could suffer from the dining philosophers problem
+			// Could run out of temporary slots if multiple processes try to fork at once
+
+			// Create a new root table
+			let root_granuality = PageLevel::Leaf1G;
+			let mut table = NewTable::new(root_granuality)?;
+			// SAFE: Valid physical address, never gets `&mut`
+			unsafe { with_temp_map(get_root_table_phys(), |ptr: &PageTable|->Result<(),MapError> {
+				// Recursively copy the user clone region
+				for i in 0 .. 256
+				{
+					table[i] = opt_clone_table(root_granuality, i << root_granuality.ofs(), clone_start, clone_end, ptr[i].load(Ordering::Relaxed))?;
+				}
+				// Shallow copy all kernel top-level entries
+				for i in 256 .. 512
+				{
+					// SAFE: Atomic operations
+					table[i] = ptr[i].load(Ordering::Relaxed);
+				}
+				Ok( () )
+				})? };
+
+			Ok(AddressSpace(table.into_frame()))
 		}
 		pub(in crate::arch::imp) fn as_phys(&self) -> u64 {
 			self.0
@@ -110,6 +228,15 @@ pub mod virt
 				it.next();
 			}
 			it
+		}
+		fn down(&self) -> Option<PageLevel> {
+			match self
+			{
+			PageLevel::Leaf4K => None,
+			PageLevel::Leaf2M => Some(PageLevel::Leaf4K),
+			PageLevel::Leaf1G => Some(PageLevel::Leaf2M),
+			PageLevel::Leaf512G => Some(PageLevel::Leaf1G),
+			}
 		}
 		fn ofs(&self) -> u32 {
 			match self
@@ -203,16 +330,46 @@ pub mod virt
 	// ---
 	// Mapping lookups
 	// ---
+	struct Pte(u64);
+	impl Pte {
+		fn is_valid(&self) -> bool { self.0 & 1 != 0 }
+		fn ppn(&self) -> u64 { (self.0 & ((1 << 54)-1) ) >> 10 }
+		fn phys_base(&self) -> u64 { self.ppn() << 12 }
+		fn permissions(&self) -> u64 { (self.0 >> 1) & 0xF }
+
+		fn is_read(&self) -> bool { self.permissions() & 1 != 0 }
+		fn is_write(&self) -> bool { self.permissions() & 2 != 0 }
+		fn is_exec(&self) -> bool { self.permissions() & 4 != 0 }
+		fn is_user(&self) -> bool { self.permissions() & 8 != 0 }
+		fn is_cow(&self) -> bool { (self.0 >> 8) & 1 != 0 }
+
+		fn get_perms(&self) -> ProtectionMode {
+			match self.permissions()
+			{
+			0x1 => ProtectionMode::KernelRO,
+			0x3 => ProtectionMode::KernelRW,
+			0x5 => ProtectionMode::KernelRX,
+			//0x7 => ProtectionMode::KernelRWX,
+			0b1001 if self.is_cow() => ProtectionMode::UserCOW,
+			0b1001 => ProtectionMode::UserRO,
+			0b1011 => ProtectionMode::UserRW,
+			0b1101 => ProtectionMode::UserRX,
+			0b1111 => ProtectionMode::UserRWX,
+			v => todo!("get_perms(): {:#x}", v),
+			}
+		}
+	}
 	struct PageWalkRes {
-		pte: u64,
+		pte: Pte,
 		level: PageLevel,
 	}
 	impl PageWalkRes {
-		fn is_valid(&self) -> bool { self.pte & 1 != 0 }
-		fn ppn(&self) -> u64 { (self.pte & ((1 << 54)-1) ) >> 10 }
-		fn phys_base(&self) -> u64 { self.ppn() << 12 }
 		fn phys_mask(&self) -> u64 { self.level.mask() }
-		fn permissions(&self) -> u64 { (self.pte >> 1) & 0xF }
+	}
+	impl_fmt!{
+		Debug(self, f) for PageWalkRes {
+			write!(f, "PageWalkRes({:?} {:#x} )", self.level, self.pte.0)
+		}
 	}
 	fn get_root_table_phys() -> u64 {
 		// SAFE: asm reading a register
@@ -239,14 +396,14 @@ pub mod virt
 			let pte = unsafe { with_temp_map(table_base, |ptr: &PageTable| {
 				ptr[vpn].load(Ordering::Relaxed)
 				}) };
-			let rv = PageWalkRes { pte, level: lvl };
+			let rv = PageWalkRes { pte: Pte(pte), level: lvl };
 			// Unmapped (V=0)
 			// Leaf node (has permissions bits set)
 			// Maximum level reached
-			if !rv.is_valid() || rv.permissions() != 0 || lvl == max_level {
+			if !rv.pte.is_valid() || rv.pte.permissions() != 0 || lvl == max_level {
 				return Some(rv);
 			}
-			table_base = rv.phys_base();
+			table_base = rv.pte.phys_base();
 		}
 		panic!("page_walk({:#x}): {:#x} - Unexpected nested", addr, table_base);
 	}
@@ -254,13 +411,13 @@ pub mod virt
 	pub fn get_phys<T>(p: *const T) -> ::memory::PAddr {
 		match page_walk(p as usize, PageLevel::Leaf4K)
 		{
-		Some(r) if r.is_valid() => r.phys_base() + (p as usize as u64 & r.phys_mask()),
+		Some(r) if r.pte.is_valid() => r.pte.phys_base() + (p as usize as u64 & r.level.mask()),
 		_ => 0,
 		}
 	}
 	#[inline]
 	pub fn is_reserved<T>(p: *const T) -> bool {
-		page_walk(p as usize, PageLevel::Leaf4K).map(|v| v.is_valid()).unwrap_or(false)
+		page_walk(p as usize, PageLevel::Leaf4K).map(|v| v.pte.is_valid()).unwrap_or(false)
 	}
 	pub fn get_info<T>(_p: *const T) -> Option<(::memory::PAddr,::memory::virt::ProtectionMode)> {
 		todo!("get_info");
@@ -279,7 +436,7 @@ pub mod virt
 
 	pub fn can_map_without_alloc(a: *mut ()) -> bool {
 		// Do a page walk to a maximum level
-		page_walk(a as usize, PageLevel::Leaf2M).map(|v| v.is_valid()).unwrap_or(false)
+		page_walk(a as usize, PageLevel::Leaf2M).map(|v| v.pte.is_valid()).unwrap_or(false)
 	}
 
 	//enum PageWalkError {
@@ -329,7 +486,7 @@ pub mod virt
 				}
 				}) };
 			//log_trace!("{:#x} {:?} pte={:#x}", addr, lvl, pte);
-			let rv = PageWalkRes { pte, level: lvl };
+			let rv = Pte(pte);
 			// Unmapped (V=0) - should be impossible
 			if !rv.is_valid() {
 				assert!(!allocate);
@@ -361,6 +518,7 @@ pub mod virt
 	}
 
 	pub unsafe fn map(a: *mut (), p: ::memory::PAddr, mode: ::memory::virt::ProtectionMode) {
+		//log_trace!("map({:p}, {:#x}, mode={:?})", a, p, mode);
 		let new_pte = make_pte(p, PageLevel::Leaf4K, mode);
 		with_pte(a as usize, PageLevel::Leaf4K, /*allocate*/true, |pte| {
 			match pte.compare_exchange(0, new_pte, Ordering::SeqCst, Ordering::SeqCst)
@@ -375,7 +533,7 @@ pub mod virt
 	pub unsafe fn reprotect(a: *mut (), mode: ::memory::virt::ProtectionMode) {
 		with_pte(a as usize, PageLevel::Leaf4K, /*allocate*/true, |pte| {
 			let old_pte = pte.load(Ordering::SeqCst);
-			let new_pte = make_pte(PageWalkRes { pte: old_pte, level: PageLevel::Leaf4K }.phys_base(), PageLevel::Leaf4K, mode);
+			let new_pte = make_pte(Pte(old_pte).phys_base(), PageLevel::Leaf4K, mode);
 			match pte.compare_exchange(old_pte, new_pte,  Ordering::SeqCst, Ordering::SeqCst)
 			{
 			Ok(_) => { },	// Cool
@@ -391,10 +549,66 @@ pub mod virt
 			let v = pte.swap(0, Ordering::SeqCst);
 			if v != 0
 			{
-				rv = Some(PageWalkRes { pte: v, level: PageLevel::Leaf4K }.phys_base());
+				rv = Some(Pte(v).phys_base());
 			}
 			});
 		rv
+	}
+
+
+	/// Handle a page (memory access) fault
+	///
+	/// Returns `true` if the fault was resolved (e.g. CoW copied, or paged-out memory returned)
+	pub fn page_fault(a: usize, is_write: bool) -> bool
+	{
+		let PageWalkRes { pte: r, level } = match page_walk(a, PageLevel::Leaf4K)
+			{
+			Some(v) => v,
+			None => return false,
+			};
+
+		if r.is_valid()
+		{
+			// Check for CoW
+			if r.is_cow() {
+				assert!(r.is_user(), "COW mapping for non-user");
+				assert!(r.is_read(), "COW mapping not readable?");
+				assert!(!r.is_exec(), "COW mapping executable?");
+				assert!(!r.is_write(), "COW mapping writeable?");
+				assert!(is_write, "COW mapping access failure not a write");
+				assert!(level == PageLevel::Leaf4K, "COW mapping not 4K?");
+
+				// 1. Lock (relevant) address space
+				// SAFE: Changes to address space are transparent
+				::memory::virt::with_lock(a, || unsafe {
+					let frame = r.phys_base();
+					let pgaddr = a & !(::PAGE_SIZE - 1);
+					// 2. Get the PMM to provide us with a unique copy of that frame (can return the same addr)
+					// - This borrow is valid, as the page is read-only (for now)
+					let newframe = ::memory::phys::make_unique( frame, &*(pgaddr as *const [u8; ::PAGE_SIZE]) );
+					// 3. Remap to this page as UserRW (because COW is user-only atm)
+					let new_pte = make_pte(newframe, PageLevel::Leaf4K, ProtectionMode::UserRW);
+					with_pte(a, PageLevel::Leaf4K, /*allocate*/false, |pte| {
+						match pte.compare_exchange(r.0, new_pte, Ordering::SeqCst, Ordering::SeqCst)
+						{
+						Ok(_) => {},
+						Err(other_pte) => todo!("Contented CoW clone? - {:#x} != {:#x}", other_pte, r.0),
+						}
+						});
+					invalidate_cache(a);
+					});
+				return true;
+			}
+			false
+		}
+		else
+		{
+			// Memory is not valid, might be paged out?
+			if r.0 != 0 {
+				todo!("Handle invalid but non-zero mappings: {:#x}", r.0);
+			}
+			false
+		}
 	}
 }
 pub mod phys {

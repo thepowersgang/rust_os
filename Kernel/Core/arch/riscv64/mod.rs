@@ -3,7 +3,7 @@
 //
 // Core/arch/riscv64/main.rs
 //! RISC-V architecture bindings
-use ::core::sync::atomic::{Ordering,AtomicPtr,AtomicUsize};
+use ::core::sync::atomic::{AtomicUsize};
 
 module_define!{ arch, [], init }
 fn init()
@@ -13,6 +13,8 @@ fn init()
 
 #[path="../armv7/fdt_devices.rs"]
 mod fdt_devices;
+
+//mod backtrace_dwarf;
 
 pub mod memory;
 
@@ -274,6 +276,7 @@ static REG_NAMES: [&'static str; 31] = [
 #[no_mangle]
 extern "C" fn trap_vector_rs(state: &mut FaultRegs)
 {
+	// Environemnt call from U-mode
 	if state.scause == 8 {
 		extern "C" {
 			fn syscalls_handler(id: u32, first_arg: *const usize, count: u32) -> u64;
@@ -285,6 +288,18 @@ extern "C" fn trap_vector_rs(state: &mut FaultRegs)
 		state.sepc += 4;	// ECALL doesn't have a compressed format
 		return ;
 	}
+
+	// Page fault (write)
+	if state.scause == 15
+	{
+		// Check for a CoW page
+		if memory::virt::page_fault(state.stval as usize, /*is_write*/state.scause == 15)
+		{
+			// If successful, repeat the instruction
+			return ;
+		}
+	}
+
 	let reason = match state.scause
 		{
 		0 => "Instruction address misaligned",

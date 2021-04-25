@@ -85,6 +85,7 @@ endif
 $(OBJDIR)libmain.a: PHONY targets/kernel-$(ARCH).json $(IMGDIR)logo.rs $(IMGDIR)panic.rs
 	@echo "[CARGO] . > $@"
 	$V$(CARGO) build -Z build-std=core --target=targets/kernel-$(ARCH).json --release --features "$(CARGO_FEATURES)" -j 1 $(CARGO_V)
+#	$V$(CARGO) build -Z build-std=core --target=targets/kernel-$(ARCH).json --features "$(CARGO_FEATURES)" -j 1 $(CARGO_V)
 	@mkdir -p $(dir $@)
 	@if test ! -e $@ || test target/kernel-$(ARCH)/release/libmain.a -nt $@; then cp target/kernel-$(ARCH)/release/libmain.a $@; fi
 $(patsubst %,$(OBJDIR)lib%.a,$(MODS)): $(OBJDIR)libmain.a
