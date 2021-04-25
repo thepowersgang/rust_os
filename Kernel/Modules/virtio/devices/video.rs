@@ -365,6 +365,7 @@ where
 		let src_pitch = dst.w() as usize;
 		for (row,src) in kernel::lib::ExactZip::new( dst.top() .. dst.bottom(), buf.chunks(src_pitch) )
 		{
+			//log_trace!("> {}: {:p}", row, src);
 			let out_row = self.get_scanline_mut(row);
 			out_row[dst.left() as usize .. dst.right() as usize].copy_from_slice(src);
 		}

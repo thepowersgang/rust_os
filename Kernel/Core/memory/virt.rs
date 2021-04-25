@@ -370,7 +370,7 @@ impl MmioHandle
 	fn as_raw_ptr_slice<T>(&self, ofs: usize, count: usize) -> *mut [T]
 	{
 		use core::mem::{align_of,size_of};
-		assert!(super::buf_valid(self.base() as *const (), self.2 as usize));
+		debug_assert!(super::buf_valid(self.base() as *const (), self.2 as usize));
 		assert!( ofs % align_of::<T>() == 0,
 			"Offset {:#x} not aligned to {} bytes (T={})", ofs, align_of::<T>(), type_name!(T));
 		assert!( ofs <= self.2 as usize,
@@ -656,7 +656,7 @@ impl AllocHandle
 	/// Forget the allocation and return a static reference to the data
 	pub fn make_static<T: ::lib::POD>(mut self, ofs: usize) -> &'static mut T
 	{
-		assert!(super::buf_valid(self.addr(), self.len()));
+		debug_assert!(super::buf_valid(self.addr(), self.len()));
 		assert!(ofs % ::core::mem::align_of::<T>() == 0);
 		assert!(ofs + ::core::mem::size_of::<T>() <= self.len());
 		assert!(self.is_mutable());
@@ -669,7 +669,7 @@ impl AllocHandle
 	fn as_raw_ptr_slice<T>(&self, ofs: usize, count: usize) -> *mut [T]
 	{
 		use core::mem::{align_of,size_of};
-		assert!(super::buf_valid(self.addr(), self.len()));
+		debug_assert!(super::buf_valid(self.addr(), self.len()));
 		assert!( ofs % align_of::<T>() == 0,
 			"Offset {:#x} not aligned to {} bytes (T={})", ofs, align_of::<T>(), type_name!(T));
 		assert!( ofs <= self.len(),

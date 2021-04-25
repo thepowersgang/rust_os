@@ -417,6 +417,7 @@ pub mod virt
 	}
 	#[inline]
 	pub fn is_reserved<T>(p: *const T) -> bool {
+		// TODO: Poke the PF handler for this HART, read the memory, then check the flag
 		page_walk(p as usize, PageLevel::Leaf4K).map(|v| v.pte.is_valid()).unwrap_or(false)
 	}
 	pub fn get_info<T>(_p: *const T) -> Option<(::memory::PAddr,::memory::virt::ProtectionMode)> {
