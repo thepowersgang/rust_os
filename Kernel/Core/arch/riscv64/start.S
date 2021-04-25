@@ -255,6 +255,8 @@ task_switch:
 	ld s11, 11*8(sp)
 	add sp, sp, 15*8
 	# Return
+.globl task_switch.resume
+task_switch.resume:
 	ret
 
 .section .data

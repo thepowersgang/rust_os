@@ -37,9 +37,9 @@ pub fn start_thread<F: FnOnce()+Send+'static>(thread: &mut crate::threads::Threa
 	stack.push(a);	// Data pointer
 	stack.push(thread_root::<F> as usize);
 	// - ra, gp, tp
-	stack.push(thread_trampoline as usize);	// An assembly trampoline that pops the above two words and calls `thread_root`
-	stack.push(0);	// GP
-	stack.push(0);	// TP
+	stack.push(thread_trampoline as usize);	// RA = An assembly trampoline that pops the above two words and calls `thread_root`
+	stack.push(0usize);	// GP
+	stack.push(0usize);	// TP
 	// - s0-s11
 	stack.push([0usize; 12]);
 	// - fs0-fs11
@@ -90,6 +90,7 @@ pub fn start_thread<F: FnOnce()+Send+'static>(thread: &mut crate::threads::Threa
 			// SAFE: Pointer is valid and data is of correct lifetime
 			unsafe {
 				::core::ptr::write(p as *mut T, v);
+				//log_trace!("push() {:p} = {:x?}", p as *mut T, ::core::slice::from_raw_parts(p as *const u8, ::core::mem::size_of::<T>()));
 			}
 			self.top = p;
 		}
