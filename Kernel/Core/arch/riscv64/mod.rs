@@ -183,7 +183,10 @@ pub fn print_backtrace() {
 }
 
 pub fn cur_timestamp() -> u64 {
-	0
+	let v: u64;
+	// SAFE: Reading a CSR with no side-effects
+	unsafe { asm!("rdtime {}", lateout(reg) v); }
+	v / 10000//_000	// FDT: "" "cpus" ".timebase-frequency"
 }
 
 pub fn drop_to_user(entry: usize, stack: usize, args_len: usize) -> ! {
