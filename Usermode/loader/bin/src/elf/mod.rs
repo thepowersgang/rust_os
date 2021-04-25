@@ -199,6 +199,7 @@ impl<R: Read+Seek> ElfModuleHandle<R>
 		{
 			let rs = RelocationState {
 				base: 0,
+				format: self.header.get_format(),
 				machine: self.header.machine,
 				strtab: strtab,
 				symtab: symtab,
@@ -213,6 +214,7 @@ impl<R: Read+Seek> ElfModuleHandle<R>
 struct RelocationState<'a>
 {
 	base: usize,
+	format: Format,
 	machine: Machine,
 	symtab: SymbolTable<'a>,
 	strtab: StringTable<'a>,
@@ -226,6 +228,7 @@ impl<'a> RelocationState<'a>
 		{
 		Machine::X8664 => for r in iter { self.apply_reloc_x86_64(r)?; },
 		Machine::ARM => for r in iter { self.apply_reloc_arm(r)?; },
+		Machine::Riscv => for r in iter { self.apply_reloc_riscv(r)?; },
 		_ => todo!("apply_reloc - Machine {:?}", self.machine),
 		}
 		Ok( () )
@@ -245,7 +248,7 @@ impl<'a> RelocationState<'a>
 		}
 		Ok( () )
 	}
-	
+
 	fn apply_reloc_x86_64(&self, r: Reloc) -> Result<(), Error> {
 		const R_X86_64_NONE : u16 = 0;
 		const R_X86_64_64   : u16 = 1;	// 64, S + A
@@ -286,6 +289,33 @@ impl<'a> RelocationState<'a>
 		}
 		Ok( () )
 	}
+
+	fn apply_reloc_riscv(&self, r: Reloc) -> Result<(), Error> {
+		const R_RISCV_NONE: u16 = 0;
+		match r.ty
+		{
+		R_RISCV_NONE => {},
+		1 /*R_RISCV_32*/ =>  {
+			let (addr,_size) = self.get_symbol_r(r.sym as usize)?;
+			self.relocate_32(r.addr, |val| (addr + r.addend.unwrap_or(val as usize)) as u32);
+			},
+		2 /*R_RISCV_64*/ => {
+			let (addr,_size) = self.get_symbol_r(r.sym as usize)?;
+			self.relocate_64(r.addr, |val| (addr + r.addend.unwrap_or(val as usize)) as u64);
+			},
+		5 /*R_RISCV_JUMP_SLOT*/ => {
+			let (addr,_size) = self.get_symbol_r(r.sym as usize)?;
+			match self.format.size
+			{
+			Size::Elf32 => self.relocate_32(r.addr, |_val| addr as u32),
+			Size::Elf64 => self.relocate_64(r.addr, |_val| addr as u64),
+			}
+			},
+		v @ _ => todo!("apply_reloc_riscv64 - ty={}", v),
+		}
+		Ok( () )
+	}
+	
 	
 	fn get_symbol(&self, idx: usize) -> Option<(usize, usize)> {
 		if let Some(sym) = self.symtab.get(idx)
@@ -883,6 +913,7 @@ enum Machine {
 	I386,
 	ARM,
 	X8664,
+	Riscv,
 	Unk(u16)
 }
 impl_from! {
@@ -904,6 +935,7 @@ impl_from! {
 		3 => Machine::I386,
 		40 => Machine::ARM,
 		62 => Machine::X8664,
+		243 => Machine::Riscv,
 		_ => Machine::Unk(v),
 		}
 	}

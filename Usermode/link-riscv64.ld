@@ -1,6 +1,6 @@
 ENTRY(start)
 
-STARTUP( .objs/armv8/rustrt0.o )
+STARTUP( .objs/riscv64/rustrt0.o )
 
 PHDRS {
 	SegRX PT_LOAD;
@@ -11,7 +11,7 @@ PHDRS {
 
 SECTIONS {
 	. = 0x200000;
-
+	
 	.text : {
 		*(.text .text.*)
 	} :SegRX
@@ -19,20 +19,9 @@ SECTIONS {
 		*(.plt)
 	} :SegRX
 
-	.rodata ALIGN(0x4000): {
+	.rodata ALIGN(0x1000): {
 		*(.rodata .rodata.*)
 	} :SegR
-	
-	/* ARM unwind tables */
-	/DISCARD/ : { *(.ARM.extab.init .ARM.exidx.init) }
-	.ARM.extab : {
-		*(.ARM.extab* .gnu.linkonce.armextab.*)
-	} :SegR
-	PROVIDE_HIDDEN ( __exidx_start = . );
-	.ARM.exidx : {
-		*(.ARM.exidx* .gnu.linkonce.armexidx.*)
-	} :SegR
-	PROVIDE_HIDDEN ( __exidx_end = . );
 	
 	/* Dynamic linking info */
 	.dynamic : { *(.dynamic) } :SegDYN :SegR
@@ -41,16 +30,14 @@ SECTIONS {
 	.rela.got : { *(.rela.got) } :SegDYN :SegR
 	.rela.dyn : { *(.rela.dyn) } :SegDYN :SegR
 	.rel.dyn : { *(.rel.dyn) } :SegDYN :SegR
-	.rel.plt : { *(.rel.plt) } :SegDYN :SegR
-	
-	. = ALIGN(0x4000);
-	.data : {
+
+	. = ALIGN(0x1000);
+	.data ALIGN(0x1000): {
 		*(.data .data.*)
 	} :SegRW
-	/* . = ALIGN(0x4000);	/* File must be page-aligned */
-	.bss : {
+	.bss ALIGN(0x1000) : {
 		*(.bss .bss.*)
 	} :SegRW
-	. = ALIGN(0x4000);
 }
+
 

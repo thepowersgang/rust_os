@@ -34,7 +34,7 @@ impl<T> Mutex<T>
 
 	pub fn lock(&self) -> HeldMutex<T> {
 		// If existing value is UNLOCKED, then set to UNCONTENDED locked
-		match self.locked.compare_exchange(STATE_UNLOCKED, STATE_UNCONTENDED, Ordering::Acquire, Ordering::SeqCst)
+		match self.locked.compare_exchange(STATE_UNLOCKED, STATE_UNCONTENDED, Ordering::Acquire, Ordering::Relaxed)
 		{
 		Ok(_) => {},
 		// If it wasn't locked, contention has happened. Do a contented acquire

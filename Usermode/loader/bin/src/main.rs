@@ -146,6 +146,7 @@ fn load_binary(path: &::std::ffi::OsStr, fh: ::syscalls::vfs::File) -> usize
 			if segment.load_addr <= entrypoint && entrypoint < segment.load_addr + segment.mem_size {
 				found_segment_for_entry = true;
 			}
+			assert!(segment.load_addr & (PAGE_SIZE -1) == 0, "Unaligned segment base {:?}", segment);
 			
 			assert!(segment.file_size <= segment.mem_size);
 			// Split the segment into three regions: (reverse)
@@ -173,6 +174,7 @@ fn load_binary(path: &::std::ffi::OsStr, fh: ::syscalls::vfs::File) -> usize
 				::std::mem::forget(mm);
 			}
 			if tail > 0 {
+				assert!(aligned % PAGE_SIZE == 0);
 				// SAFE: Trusing addresses to be valid
 				unsafe {
 					let destslice = ::std::slice::from_raw_parts_mut((segment.load_addr + aligned) as *mut u8, tail);
@@ -187,7 +189,7 @@ fn load_binary(path: &::std::ffi::OsStr, fh: ::syscalls::vfs::File) -> usize
 				}
 			}
 			if extra > PAGE_SIZE - tail {
-				let addr = segment.load_addr + aligned + PAGE_SIZE;
+				let addr = (segment.load_addr + aligned + PAGE_SIZE) & !(PAGE_SIZE-1);
 				let pages = (extra - (PAGE_SIZE - tail) + PAGE_SIZE-1) / PAGE_SIZE;
 				// SAFE: Just allocating at a known free place
 				unsafe { ::syscalls::memory::allocate(addr, pages).expect("extra alloc"); }

@@ -86,7 +86,7 @@ docs:
 # > Linking is done in two steps so that --gc-sections works fully
 # > The main body of the code is in `libloader_binary.a`, build by xargo
 ifneq ($(ARCH),native)
-LOADER_OBJS := $(OBJDIR)rustrt0.o $(OBJDIR)loader/bin/start.ao $(CARGO_OUTDIR)libloader_binary.a
+LOADER_OBJS := $(OBJDIR)rustrt0.o $(OBJDIR)loader/bin/start.ao $(abspath $(CARGO_OUTDIR)libloader_binary.a)
 $(BINDIR)loader: loader/bin/link.ld $(LOADER_OBJS)
 	@mkdir -p $(dir $@)
 	@echo [LD] $@
@@ -95,7 +95,8 @@ $(BINDIR)loader: loader/bin/link.ld $(LOADER_OBJS)
 	$V$(OBJCOPY) $(OBJDIR)loader.elf -O binary $@
 	$V$(OBJDUMP) -CS $(OBJDIR)loader.elf > $(OBJDIR)loader.dsm
 # xargo portion of loader
-$(CARGO_OUTDIR)libloader_binary.a: xargo
+$(abspath $(CARGO_OUTDIR)libloader_binary.a): xargo
+	#
 else
 $(BINDIR)loader: xargo
 	@mkdir -p $(dir $@)
@@ -133,4 +134,8 @@ $(OBJDIR)rustrt0.o: rustrt0/$(ARCH).S $(makefile_deps)
 
 DEPFILES := 
 DEPFILES += $(OBJDIR)loader/bin/start.ao.d $(OBJDIR)rustrt0.o.d
+#DEPFILES += $(CARGO_OUTDIR)libloader_binary.d
 -include $(DEPFILES)
+
+# Cargo emits `build.rs` as a dependency for everything
+#.PHONY: build.rs

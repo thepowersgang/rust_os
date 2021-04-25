@@ -12,6 +12,8 @@
   "is-builtin": true,
 		"linker": "riscv64-unknown-elf-ld",
 		"linker-flavor": "ld",
+		"pre-link-args": { "ld": ["-T", "link-riscv64.ld", "-z","max-page-size=4096", "--gc-sections", "--start-group"] },
+		"post-link-args": { "ld": ["--end-group" ] },
   "llvm-target": "riscv64",
   "max-atomic-width": 64,
   "os": "none",
