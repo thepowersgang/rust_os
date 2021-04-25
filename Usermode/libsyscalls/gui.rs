@@ -67,6 +67,7 @@ pub struct DisplayInfo
 impl Group
 {
 	pub fn get_display_info(&self) -> DisplayInfo {
+		// SAFE: Syscall
 		let enc = unsafe { self.0.call_0(::values::GUI_GRP_TOTALOUTPUTS) };
 		DisplayInfo {
 			total_width: (enc >> 0) as u32 & 0xFF_FFFF,
