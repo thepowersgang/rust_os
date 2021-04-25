@@ -41,11 +41,12 @@ pub fn peek_v4(mac: MacAddr, ip: crate::ipv4::Address)
 	if CACHE.read().get(&ip).is_none()
 	{
 		let mut lh = CACHE.write();
+		log_debug!("ARP snoop: {:?} = {:x?}", ip, mac);
 		lh.insert(ip, Some(mac));
 	}
 }
 
-pub fn lookup_v4(addr: crate::ipv4::Address) -> Option<MacAddr>
+pub fn lookup_v4(interface_mac: crate::nic::MacAddr, addr: crate::ipv4::Address) -> Option<MacAddr>
 {
 	match CACHE.read().get(&addr)
 	{
@@ -53,7 +54,17 @@ pub fn lookup_v4(addr: crate::ipv4::Address) -> Option<MacAddr>
 	Some(None) => {},
 	None => {},
 	}
-	todo!("ARP request {}", addr);
 	// - Send request packet
+	let dest_mac = [0xFF; 6];
+	let request = [
+		0x00,0x01,	// Ethernet
+		0x08,0x00,	// IPv4
+		6, 4,
+		1,
+		interface_mac[0], interface_mac[1], interface_mac[2], interface_mac[3], interface_mac[4], interface_mac[5],
+		addr.0[0], addr.0[1], addr.0[2], addr.0[3],
+		];
+	crate::nic::send_from(interface_mac, dest_mac, 0x0806, crate::nic::SparsePacket::new_root(&request));
 	// - Wait until the cache has the requested host in it (with timeout)
+	todo!("ARP request {}", addr);
 }

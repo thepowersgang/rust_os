@@ -185,7 +185,7 @@ pub fn send_packet(source: Address, dest: Address, proto: u8, pkt: crate::nic::S
 			},
 		};
 	// 2. ARP (what if ARP has to wait?)
-	let dest_mac = match crate::arp::lookup_v4(next_hop)
+	let dest_mac = match crate::arp::lookup_v4(interface_mac, next_hop)
 		{
 		Some(v) => v,
 		None => {
@@ -303,7 +303,7 @@ impl ProtoHandler
 }
 
 #[derive(Copy,Clone,Default,PartialEq,PartialOrd,Eq,Ord)]
-pub struct Address([u8; 4]);
+pub struct Address(pub [u8; 4]);
 impl ::core::fmt::Display for Address
 {
 	fn fmt(&self, f: &mut ::core::fmt::Formatter) -> ::core::fmt::Result
