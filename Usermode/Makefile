@@ -70,9 +70,12 @@ makefile_deps =
 
 # DEFAULT: Compile all applications
 all: $(APPS:%=$(BINDIR)%)
+$(BINDIR)handle_server: xargo
+	@mkdir -p $(dir $@)
+	$Vcp $(CARGO_OUTDIR)handle_server-bin $@
 $(BINDIR)%: xargo
 	@mkdir -p $(dir $@)
-	$Vif test -e $(CARGO_OUTDIR)$*; then cp $(CARGO_OUTDIR)$* $@; else cp $(CARGO_OUTDIR)$*-bin $@; fi
+	$Vcp $(CARGO_OUTDIR)$* $@
 
 # Delete all artifacts
 clean:
