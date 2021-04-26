@@ -144,6 +144,7 @@ _Unwind_Resume:
 .globl trap_vector
 .extern trap_vector_rs
 trap_vector:
+	# NOTE: SIE is cleared by the CPU upon entry
 	# Step 1: Save a scratch register to CPU-local storage
 	csrrw t0,sscratch,t0	# Swap T0 into sscratch
 	sd t1, SSTAUS_OFS_SCRATCH(t0)	# Store T1 at that address
@@ -162,7 +163,7 @@ trap_vector:
 1:
 	# In kerenel - check for stack overflow (SP == STVAL)
 	csrr t1, stval
-	beq sp, t1, 3f
+	beq sp, t1, trap_vector.stack_overflow
 	sd sp, -30*8(sp)	# SP, not saved by dumpregs
 2:
 	# Restore T1 and T0 now that we can use SP
@@ -172,11 +173,16 @@ trap_vector:
 	dumpregs sd
 	add sp, sp, -31*8
 	# Save various CSRs
-	csrr t0, sstatus; sd t0, -4*8(sp)
+	csrr t1, sstatus; sd t1, -4*8(sp)
 	csrr t0, stval  ; sd t0, -3*8(sp)
 	csrr t0, sepc   ; sd t0, -2*8(sp)
 	csrr t0, scause ; sd t0, -1*8(sp)
 	add sp, sp, -4*8
+	# If SPIE is set, set SIE (now that everything's saved)
+	and t1, t1, (1<<5)
+	beqz t1, 1f
+	csrsi sstatus, 0x2
+1:
 	# Call handler
 	mv a0, sp
 	jal trap_vector_rs
@@ -189,7 +195,7 @@ trap_vector:
 	ld sp, -30*8(sp)	# Also undoes the add
 
 	sret
-3:
+trap_vector.stack_overflow:
 	# Kernel faulted with STVAL=SP, assume a stack overflow
 	# TODO: Switch to a different kernel stack, and enter a kernel panic
 	j .
