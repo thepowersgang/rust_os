@@ -84,34 +84,6 @@ impl ::device_manager::BusManager for PCIBusManager
 	}
 }
 
-// Hacky dynamic cast that compares to a known vtable
-fn dynamic_cast_pcidev(dev: &dyn crate::device_manager::BusDevice) -> Option<&PCIDev>
-{
-	// Get a fat pointer with the correct vtable
-	let stub: *const dyn crate::device_manager::BusDevice = ::core::ptr::null::<PCIDev>();
-	let dev_raw: *const dyn crate::device_manager::BusDevice = dev;
-	// SAFE: Valid transmute for reading from the pointer
-	let words_s: [usize; 2] = unsafe { ::core::mem::transmute(stub) };
-	// SAFE: Valid transmute for reading from the pointer
-	let words_d: [usize; 2] = unsafe { ::core::mem::transmute(dev_raw) };
-	// Compare words from both pointers
-	for (&s,&d) in Iterator::zip( words_s.iter(), words_d.iter() )
-	{
-		// First word should be zero
-		if s == 0 {
-			assert!(d == dev_raw as *const () as usize);
-		}
-		else {
-			// Any difference that isn't in the known pointer value, return None
-			if s != d {
-				return None;
-			}
-		}
-	}
-	// SAFE: The above code has established that the vtable matches
-	Some(unsafe { &*(dev_raw as *const PCIDev) })
-}
-
 impl ::device_manager::Driver for PCIChildBusDriver
 {
 	fn name(&self) -> &str {
@@ -122,7 +94,7 @@ impl ::device_manager::Driver for PCIChildBusDriver
 	}
 	fn handles(&self, bus_dev: &dyn crate::device_manager::BusDevice) -> u32
 	{
-		let d = dynamic_cast_pcidev(bus_dev).expect("Not a PCI dev?");
+	let d = bus_dev.downcast_ref::<PCIDev>().expect("Not a PCI dev?");
 		let bridge_type = (d.config[3] >> 16) & 0x7F;
 		// 0x00 == Normal device, 0x01 = PCI-PCI Bridge
 		// -> There should only be one PCI bridge handler, but bind low just in case
@@ -130,7 +102,7 @@ impl ::device_manager::Driver for PCIChildBusDriver
 	}
 	fn bind(&self, bus_dev: &mut dyn crate::device_manager::BusDevice) -> Box<dyn (::device_manager::DriverInstance)>
 	{
-		let d = dynamic_cast_pcidev(bus_dev).expect("Not a PCI dev?");
+		let d = bus_dev.downcast_ref::<PCIDev>().expect("Not a PCI dev?");
 		let bridge_type = (d.config[3] >> 16) & 0x7F;
 		assert!(bridge_type == 0x01, "PCIChildBusDriver::bind on a device were `handles` should have failed");
 		// Get sub-bus number
@@ -143,6 +115,9 @@ impl ::device_manager::Driver for PCIChildBusDriver
 
 impl ::device_manager::BusDevice for PCIDev
 {
+	fn type_id(&self) -> ::core::any::TypeId {
+		::core::any::TypeId::of::<Self>()
+	}
 	fn addr(&self) -> u32 {
 		self.addr as u32
 	}
@@ -387,7 +362,7 @@ impl ::core::fmt::Debug for PCIDev
 {
 	fn fmt(&self, f: &mut ::core::fmt::Formatter) -> ::core::result::Result<(),::core::fmt::Error>
 	{
-		write!(f, "{:#04x} Ven:{:04x} Dev:{:04x} Class {:08x}", self.addr, self.vendor, self.device, self.class)
+		write!(f, "{:#04x} Ven:{:04x} Dev:{:04x} Class {:08x} Hdr={:02x}", self.addr, self.vendor, self.device, self.class, (self.config[3] >> 16) & 0xFF)
 	}
 }
 

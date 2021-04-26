@@ -66,6 +66,7 @@ impl<'a> AttrValue<'a> {
 pub trait BusDevice:
 	Send
 {
+	fn type_id(&self) -> ::core::any::TypeId;
 	/// Returns the device's address on the parent bus
 	fn addr(&self) -> u32;
 	/// Returns the specified attribute (or 0, if invalid)
@@ -87,6 +88,19 @@ pub trait BusDevice:
 	fn bind_io_slice(&mut self, block_id: usize, slice: Option<(usize,usize)>) -> IOBinding;
 	/// Obtain the specified interrupt vector
 	fn get_irq(&mut self, idx: usize) -> u32;
+}
+impl<'a> dyn BusDevice + 'a
+{
+	pub fn downcast_ref<T: 'static + BusDevice>(&self) -> Option<&T>
+	{
+		if self.type_id() == ::core::any::TypeId::of::<T>() {
+			// SAFE: The above code has established that the type matches
+			Some(unsafe { &*(self as *const _ as *const T) })
+		}
+		else {
+			None
+		}
+	}
 }
 
 /// Abstract driver for a device (creates instances when passed a device)

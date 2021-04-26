@@ -28,7 +28,7 @@ impl device_manager::Driver for FdtMmioDriver
 	}
 	fn handles(&self, bus_dev: &dyn device_manager::BusDevice) -> u32
 	{
-		if bus_dev.get_attr("compatible").unwrap_str() == "virtio,mmio\0" {
+		if bus_dev.get_attr("compatible").unwrap_str() == "virtio,mmio" {
 			1
 		}
 		else {

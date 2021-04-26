@@ -16,7 +16,8 @@ struct BusDev
 	irq_gsi: Option<u32>,
 }
 
-fn init() {
+fn init()
+{
 	if let Some(fdt) = super::boot::get_fdt()
 	{
 		let root_node = fdt.get_nodes(&[]).next().unwrap();
@@ -28,9 +29,9 @@ fn init() {
 		{
 			if let Some(compat) = dev.items().filter_map(|r| match r { ("compatible", fdt::Item::Prop(v)) => Some(v), _ => None }).next()
 			{
-				let compat = ::core::str::from_utf8(compat).unwrap_or("");
+				let compat = ::core::str::from_utf8(&compat[..compat.len()-1]).unwrap_or("");
 				
-				log_debug!("dev '{}' compat = '{}'", dev.name(), compat);
+				log_debug!("fdt:{:x} = dev '{}' compat = '{}'", dev.offset(), dev.name(), compat);
 				let mmio = if let Some( (io_base, io_size) ) = decode_value(&dev, "reg", (acells, scells)) {
 						log_debug!("- IO {:#x}+{:#x}", io_base, io_size);
 						Some( (io_base, io_size as u32) )
@@ -49,6 +50,8 @@ fn init() {
 		}
 
 
+		::device_manager::register_driver(&PciDriver);
+		//::device_manager::register_driver(&SubBus);
 		::device_manager::register_bus(&S_BUS_MANAGER, devices);
 	}
 }
@@ -64,6 +67,9 @@ impl ::device_manager::BusManager for BusManager
 }
 impl ::device_manager::BusDevice for BusDev
 {
+	fn type_id(&self) -> ::core::any::TypeId {
+		::core::any::TypeId::of::<Self>()
+	}
 	fn addr(&self) -> u32 {
 		self.node.offset() as u32
 	}
@@ -144,3 +150,125 @@ impl<T> Tuple<T> for (T,T,) {
 	}
 }
 
+struct SubBus;
+impl crate::device_manager::Driver for SubBus
+{
+	fn name(&self) -> &str {
+		"fdt:simple-bus"
+	}
+	fn bus_type(&self) -> &str {
+		"fdt"
+	}
+	fn handles(&self, bus_dev: &dyn crate::device_manager::BusDevice) -> u32
+	{
+		let d = bus_dev.downcast_ref::<BusDev>().expect("Not a FDT device?");
+		log_trace!("SubBus - {}", d.compat);
+		match d.compat
+		{
+		"simple-bus" => 1,
+		_ => 0,
+		}
+	}
+	fn bind(&self, bus_dev: &mut dyn crate::device_manager::BusDevice) -> Box<dyn (::device_manager::DriverInstance)>
+	{
+		assert!(self.handles(&*bus_dev) > 0);
+		//let d = bus_dev.downcast_ref::<BusDev>().expect("Not a FDT device?");
+		
+		todo!("SubBus::bind");
+	}
+}
+
+struct PciDriver;
+impl ::device_manager::Driver for PciDriver
+{
+	fn name(&self) -> &str {
+		"fdt:pci"
+	}
+	fn bus_type(&self) -> &str {
+		"fdt"
+	}
+	fn handles(&self, bus_dev: &dyn crate::device_manager::BusDevice) -> u32
+	{
+		let d = bus_dev.downcast_ref::<BusDev>().expect("Not a FDT device?");
+		match d.compat
+		{
+		"pci-host-ecam-generic" => 1,
+		_ => 0,
+		}
+	}
+	fn bind(&self, bus_dev: &mut dyn crate::device_manager::BusDevice) -> Box<dyn (::device_manager::DriverInstance)>
+	{
+		assert!(self.handles(&*bus_dev) > 0);
+		let d = bus_dev.downcast_ref::<BusDev>().expect("Not a FDT device?");
+		
+		use crate::lib::mem::aref::Aref;
+		use crate::hw::bus_pci;
+		use crate::memory::PAddr;
+		use ::core::ptr::{read_volatile,write_volatile};
+		struct Inner
+		{
+			base: u32,
+			mapping: crate::memory::virt::AllocHandle,
+		}
+		struct Interface
+		{
+			mmio: (u64, u32),
+			lock: crate::sync::Mutex<Inner>,
+		}
+		impl Interface
+		{
+			fn locked<T>(&self, bus_addr: u16, word_idx: u8, cb: impl FnOnce(*mut u32)->T) -> T
+			{
+				let addr = ((bus_addr as u32) << 8) | ((word_idx as u32) << 2);
+				assert!(addr < self.mmio.1);
+				let mut lh = self.lock.lock();
+				let base = addr & !(::PAGE_SIZE - 1) as u32;
+				let ofs  = addr &  (::PAGE_SIZE - 1) as u32;
+				if lh.base != base {
+					// SAFE: Owned MMIO memory from device
+					lh.mapping = unsafe { crate::memory::virt::map_hw_rw(self.mmio.0 as PAddr + base as PAddr, 1, "fdt_pci").expect("Unable to map PCI") };
+					lh.base = base;
+				}
+				cb( lh.mapping.as_ref::<u32>(ofs as usize) as *const _ as *mut _ )
+			}
+		}
+		impl bus_pci::PciInterface for Interface
+		{
+			fn read_word(&self, bus_addr: u16, word_idx: u8) -> u32 {
+				// SAFE: Reading the PCI config space is safe
+				self.locked(bus_addr, word_idx, |ptr| unsafe { read_volatile(ptr) })
+			}
+			unsafe fn write_word(&self, bus_addr: u16, word_idx: u8, val: u32) {
+				self.locked(bus_addr, word_idx, |ptr| write_volatile(ptr, val))
+			}
+			unsafe fn get_mask(&self, bus_addr: u16, word_idx: u8, in_mask: u32) -> (u32, u32) {
+				self.locked(bus_addr, word_idx, |ptr| {
+					let old_value = read_volatile(ptr);
+					write_volatile(ptr, in_mask);
+					let new_value = read_volatile(ptr);
+					write_volatile(ptr, old_value);
+					(old_value, new_value)
+					})
+			}
+		}
+		let int = Aref::new(Interface {
+			mmio: d.mmio.unwrap(),
+			lock: crate::sync::Mutex::new(Inner {
+				base: 0,
+				// SAFE: Owned MMIO memory from device
+				mapping: unsafe { crate::memory::virt::map_hw_rw(d.mmio.unwrap().0 as PAddr, 1, "fdt_pci").expect("Unable to map PCI") },
+				}),
+			});
+		log_debug!("FDT PCI: {:x?}", int.mmio);
+		// Enumerate the bus
+		bus_pci::register_bus(int.borrow());
+		struct Instance
+		{
+			_int: Aref<Interface>,
+		}
+		impl crate::device_manager::DriverInstance for Instance
+		{
+		}
+		Box::new(Instance { _int: int, })
+	}
+}
