@@ -68,7 +68,7 @@ def _mouseclick(instance, name, btn):
 #
 #
 def test(instance):
-    test_assert("Kernel image start timed out", instance.wait_for_line("OK43e6H", timeout=10))
+    test_assert("Kernel image start timed out", instance.wait_for_line("OK43e6H", timeout=30))
     instance.start_capture()
     test_assert("Init load timed out", instance.wait_for_line("Entering userland at 0x[0-9a-f]+ '/sysroot/bin/loader' '/sysroot/bin/init'", timeout=10))
     _startapp(instance, "/sysroot/bin/login", timeout=5)
