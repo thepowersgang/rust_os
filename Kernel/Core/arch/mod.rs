@@ -351,18 +351,6 @@ pub mod boot {
 		imp::get_memory_map()
 	}
 }
-pub mod pci {
-	use super::imp::pci as imp;
-
-	#[inline]
-	pub fn read(a: u32) -> u32 {
-		imp::read(a)
-	}
-	#[inline]
-	pub fn write(a: u32, v: u32) {
-		imp::write(a, v)
-	}
-}
 pub mod threads {
 	use super::imp::threads as imp;
 

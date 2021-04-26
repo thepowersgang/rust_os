@@ -32,7 +32,7 @@ extern "C"
 
 fn init()
 {
-	// None needed, just dependencies
+	pci::init();
 }
 
 #[inline(always)]

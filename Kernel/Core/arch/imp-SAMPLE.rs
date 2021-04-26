@@ -183,14 +183,6 @@ pub mod boot {
 		&[]
 	}
 }
-pub mod pci {
-	pub fn read(addr: u32) -> u32 {
-		!0
-	}
-	pub fn write(addr: u32, val: u32) {
-		todo!("pci::write");
-	}
-}
 
 pub mod threads {
 	pub struct State;

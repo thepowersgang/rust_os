@@ -121,15 +121,6 @@ pub mod interrupts {
 
 pub mod boot;
 
-pub mod pci {
-	pub fn read(_addr: u32) -> u32 {
-		!0
-	}
-	pub fn write(_addr: u32, _val: u32) {
-		todo!("pci::write");
-	}
-}
-
 pub mod threads;
 
 pub mod x86_io {

@@ -218,13 +218,6 @@ pub mod boot {
 		]
 	}
 }
-pub mod pci {
-	pub fn read(_a: u32) -> u32 {
-		0
-	}
-	pub fn write(_a: u32, _v: u32) {
-	}
-}
 pub mod threads {
 	use std::sync::Arc;
 	use std::cell::RefCell;

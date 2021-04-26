@@ -4,7 +4,6 @@
 // Core/arch/armv8/mod.rs
 // - ARMv8 (AArch64) interface
 pub mod memory;
-pub mod pci;
 pub mod sync;
 pub mod threads;
 pub mod boot;

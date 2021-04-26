@@ -12,8 +12,6 @@ pub mod interrupts;
 
 pub mod boot;
 
-pub mod pci;
-
 pub mod threads;
 
 mod fdt_devices;
