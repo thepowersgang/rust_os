@@ -363,9 +363,6 @@ pub mod virt
 		pte: Pte,
 		level: PageLevel,
 	}
-	impl PageWalkRes {
-		fn phys_mask(&self) -> u64 { self.level.mask() }
-	}
 	impl_fmt!{
 		Debug(self, f) for PageWalkRes {
 			write!(f, "PageWalkRes({:?} {:#x} )", self.level, self.pte.0)
