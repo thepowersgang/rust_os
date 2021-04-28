@@ -179,13 +179,17 @@ trap_vector:
 	csrr t0, sepc   ; sd t0, -2*8(sp)
 	csrr t0, scause ; sd t0, -1*8(sp)
 	add sp, sp, -4*8
-	# If SPIE is set, set SIE (now that everything's saved)
-	and t1, t1, (1<<5)
-	beqz t1, 1f
 	# Check top bit of scause, if set also skip setting SIE
 	srli t0, t0, 63
-	bnez t1, 1f
+	bnez t0, 1f
+	# If from userland, set SIE
+	#and t2, t1, (1<<8)
+	#beqz t2, 2f
+	# If SPIE is set, set SIE (now that everything's saved)
+	and t2, t1, (1<<5)
+	beqz t2, 1f
 	# If safe to be reentrant (SPIE set and not servicing an interrupt) then set SIE
+2:
 	csrsi sstatus, 0x2
 1:
 	# Call handler

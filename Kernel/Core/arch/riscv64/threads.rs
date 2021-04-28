@@ -108,8 +108,8 @@ pub fn start_thread<F: FnOnce()+Send+'static>(thread: &mut crate::threads::Threa
 
 
 pub fn idle() {
-	// SAFE: Just waits for an interrupt
-	unsafe { asm!("wfi") }
+	// Idling done in th IRQ module, so it can handle the driver not yet being up
+	super::interrupts::wait_for_interrupt();
 }
 pub fn switch_to(thread: ::threads::ThreadPtr) {
 	#[allow(improper_ctypes)]

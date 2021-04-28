@@ -8,7 +8,8 @@ use ::core::sync::atomic::{AtomicUsize};
 module_define!{ arch, [], init }
 fn init()
 {
-	// TODO: Register a driver for "riscv,plic0"
+	// Register a driver for fdt[compatible="riscv,plic0"]
+	interrupts::init();
 }
 
 #[path="../armv7/fdt_devices.rs"]
@@ -58,9 +59,23 @@ pub mod sync {
 	}
 
 
-	pub struct HeldInterrupts;
+	pub struct HeldInterrupts(u64);
 	pub fn hold_interrupts() -> HeldInterrupts {
-		HeldInterrupts
+		// SAFE: Only reads from a CSR
+		unsafe {
+			let v: u64;
+			asm!("csrrci {}, sstatus, 0x2", lateout(reg) v);	// Clear SIE and return the original contents
+			HeldInterrupts(v & 0x2)
+		}
+	}
+	impl ::core::ops::Drop for HeldInterrupts {
+		fn drop(&mut self) {
+			// SAFE: Only sets SIE (restoring it to previous state)
+			unsafe {
+				assert!(self.0 & !0x2 == 0);	// only SIE (bit 2) should be set
+				asm!("csrs sstatus, {}", in(reg) self.0);
+			}
+		}
 	}
 
 	pub unsafe fn start_interrupts() {
@@ -70,12 +85,72 @@ pub mod sync {
 		asm!("csrci sstatus, 0x2");
 	}
 }
-pub mod interrupts {
+
+
+mod plic;
+
+pub mod interrupts
+{
 	use ::core::sync::atomic::{Ordering, AtomicUsize};
+	use super::plic::PlicInstance;
+
 	#[derive(Default)]
 	pub struct IRQHandle(usize);
 	#[derive(Debug)]
 	pub struct BindError;
+
+	pub(super) fn init()
+	{
+		crate::device_manager::register_driver(&PlicDriver);
+	}
+	struct PlicDriver;
+	impl crate::device_manager::Driver for PlicDriver
+	{
+		fn name(&self) -> &str {
+			"fdt:riscv,plic"
+		}
+		fn bus_type(&self) -> &str {
+			"fdt"
+		}
+		fn handles(&self, bus_dev: &dyn crate::device_manager::BusDevice) -> u32
+		{
+			if bus_dev.get_attr("compatible").unwrap_str() == "riscv,plic0" {
+				1
+			}
+			else {
+				0
+			}
+		}
+		fn bind(&self, bus_dev: &mut dyn crate::device_manager::BusDevice) -> crate::prelude::Box<dyn (::device_manager::DriverInstance)>
+		{
+			assert!(self.handles(&*bus_dev) > 0);
+			
+			let ah = match bus_dev.bind_io(0)
+				{
+				crate::device_manager::IOBinding::Memory(ah) => ah,
+				_ => panic!(""),
+				};
+			PLIC.init(ah);
+
+			// Enable all interrupts
+			for (i,slot) in INTERRUPT_HANDLES.iter().enumerate()
+			{
+				let cb = slot.0.load(Ordering::SeqCst);
+				// If >1 it's already been initialised (if 1, then it's currently being initialised - so will be enabled by `bind_gsi`
+				if cb > 1
+				{
+					PLIC.set_enable(i, true);
+				}
+			}
+			// Handle any pending ones
+			self::handle();
+
+			// Return a stub instance
+			struct Instance;
+			impl crate::device_manager::DriverInstance for Instance {}
+			crate::prelude::Box::new( Instance )
+		}
+	}
 
 	macro_rules! array_1024 {
 		($e:expr) => { array_1024!(@1 $e, $e) };
@@ -90,6 +165,7 @@ pub mod interrupts {
 		(@e $($e:tt)*) => { [ $($e)*, $($e)* ] };
 	}
 	static INTERRUPT_HANDLES: [ (AtomicUsize, AtomicUsize); 1024 ] = array_1024!( (AtomicUsize::new(0), AtomicUsize::new(0)) );
+	static PLIC: PlicInstance = PlicInstance::new_uninit();
 
 	pub fn bind_gsi(gsi: usize, handler: fn(*const ()), info: *const ()) -> Result<IRQHandle, BindError>
 	{
@@ -97,11 +173,16 @@ pub mod interrupts {
 		match slot.0.compare_exchange(0, 1, Ordering::SeqCst, Ordering::Relaxed)
 		{
 		Ok(_) => {
+			log_debug!("bind_gsi({}) = {:p} {:p}", gsi, handler, info);
 			slot.1.store(info as usize, Ordering::Relaxed);
 			slot.0.store(handler as usize, Ordering::Relaxed);
+			if PLIC.is_init() {
+				PLIC.set_enable(gsi, true);
+			}
 			Ok( IRQHandle(gsi+1) )
 			},
-		Err(_) => {
+		Err(existing) => {
+			log_warning!("bind_gsi({}) = CONFLICT {:#x}", gsi, existing);
 			Err(BindError)
 			},
 		}
@@ -112,9 +193,62 @@ pub mod interrupts {
 		{
 			if self.0 > 0
 			{
-				let slot = &INTERRUPT_HANDLES[self.0 - 1];
-				assert!( slot.0.swap(0, Ordering::SeqCst) > 1, "Unbinding IRQ handle that is already empty - gsi={}", self.0-1);
+				let gsi = self.0 - 1;
+				let slot = &INTERRUPT_HANDLES[gsi];
+				assert!( slot.0.swap(0, Ordering::SeqCst) > 1, "Unbinding IRQ handle that is already empty - gsi={}", gsi);
+				if PLIC.is_init() {
+					PLIC.set_enable(gsi, false);
+				}
 			}
+		}
+	}
+
+	pub(super) fn handle()
+	{
+		assert!(PLIC.is_init());
+		PLIC.claim_complete_cycle(|idx| {
+			let slot = &INTERRUPT_HANDLES[idx];
+			log_debug!("IRQ{}", idx);
+			let info = slot.1.load(Ordering::SeqCst);
+			let cb = slot.0.load(Ordering::SeqCst);
+			if cb > 1 {
+				// SAFE: Correct type, pointer set by `bind_gsi` above
+				let cb: fn(*const ()) = unsafe { ::core::mem::transmute(cb) };
+				cb(info as *const ());
+			}
+			else if cb == 1 {
+			}
+			else {
+			}
+			});
+	}
+
+	pub(super) fn wait_for_interrupt()
+	{
+		if PLIC.is_init()
+		{
+			//super::puts("WFI\n");
+			// SAFE: Just waits for an interrupt
+			unsafe { asm!("wfi; csrsi sstatus, 0x2") }
+		}
+		else
+		{
+			// While the PLIC is initialising, busy trigger all registered IRQ handlers to force polling
+			for slot in INTERRUPT_HANDLES.iter()
+			{
+				let info = slot.1.load(Ordering::SeqCst);
+				let cb = slot.0.load(Ordering::SeqCst);
+				if cb > 1 {
+					// SAFE: Correct type, pointer set by `bind_gsi` above
+					let cb: fn(*const ()) = unsafe { ::core::mem::transmute(cb) };
+					cb(info as *const ());
+				}
+				else if cb == 1 {
+				}
+				else {
+				}
+			}
+			// TODO: Set timer interrupt and wait for that? (to reduce CPU load)
 		}
 	}
 }
@@ -194,7 +328,7 @@ pub fn drop_to_user(entry: usize, stack: usize, args_len: usize) -> ! {
 			",
 			in(reg) entry, in(reg) stack, in(reg) args_len,
 			in(reg) /*mask*/0x142,	// SPP, SPIE, SIE
-			in(reg) /*new */0x040,	// SPIE
+			in(reg) /*new */0x040,	// SPIE (keep interrupts disabled until sret completes)
 			options(noreturn)
 			);
 	}
@@ -276,6 +410,17 @@ static REG_NAMES: [&'static str; 31] = [
 #[no_mangle]
 extern "C" fn trap_vector_rs(state: &mut FaultRegs)
 {
+	if state.scause >> 63 != 0 {
+		// IRQ
+		match state.scause & !0 >> 1
+		{
+		// Software
+		// Timer
+		// External
+		8|9|10|11 => return interrupts::handle(),
+		_ => {},
+		}
+	}
 	// Environemnt call from U-mode
 	if state.scause == 8 {
 		extern "C" {
