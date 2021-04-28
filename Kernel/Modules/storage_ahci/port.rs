@@ -45,7 +45,7 @@ pub struct Port
 	// - <16KB (32*256 bytes) of command tables
 	// Contains the "Command List" (a 1KB aligned block of memory containing commands)
 	command_list_alloc: AllocHandle,
-	command_tables: [AllocHandle; 4],
+	command_tables: [Option<AllocHandle>; 4],
 
 	command_events: Vec<::kernel::sync::EventChannel>,
 
@@ -145,7 +145,7 @@ impl Port
 			})
 	}
 	
-	fn allocate_memory(controller: &::controller::ControllerInner) -> Result< (AllocHandle, [AllocHandle; 4]), device_manager::DriverBindError >
+	fn allocate_memory(controller: &::controller::ControllerInner) -> Result< (AllocHandle, [Option<AllocHandle>; 4]), device_manager::DriverBindError >
 	{
 		use core::mem::size_of;
 		let max_commands = controller.max_commands as usize;
@@ -167,12 +167,12 @@ impl Port
 			}
 			else {
 				// Individual pages for the command table, but the RcvdFis and CL share
-				let mut tab_pages: [AllocHandle; 4] = Default::default();
+				let mut tab_pages: [Option<AllocHandle>; 4] = Default::default();
 				let n_pages = (max_commands - MAX_COMMANDS_FOR_SHARE + CMDS_PER_PAGE-1) / CMDS_PER_PAGE;
 				assert!(n_pages < 4);
 				for i in 0 .. n_pages
 				{
-					tab_pages[i] = try!( ::kernel::memory::virt::alloc_dma(64, 1, "AHCI") );
+					tab_pages[i] = Some( ::kernel::memory::virt::alloc_dma(64, 1, "AHCI")? );
 				}
 				tab_pages
 			};
@@ -272,7 +272,7 @@ impl Port
 		self.command_list_alloc.as_ref::<hw::RcvdFis>( ::kernel::PAGE_SIZE - ::core::mem::size_of::<hw::RcvdFis>() )
 	}
 
-	fn cmdidx_to_ref<'a>(cl_page: &'a AllocHandle, cl_size: usize, cmdtab_pages: &'a [AllocHandle], i: usize) -> &'a hw::CmdTable {
+	fn cmdidx_to_ref<'a>(cl_page: &'a AllocHandle, cl_size: usize, cmdtab_pages: &'a [Option<AllocHandle>], i: usize) -> &'a hw::CmdTable {
 		//let cl_size = max_commands * size_of::<hw::CmdHeader>();
 		let n_shared = (::kernel::PAGE_SIZE - cl_size) / 0x100 - 1;
 		if i < n_shared {
@@ -281,7 +281,7 @@ impl Port
 		else {
 			let i = i - n_shared;
 			let (pg,ofs) = (i / CMDS_PER_PAGE, i % CMDS_PER_PAGE);
-			&cmdtab_pages[pg].as_slice(0, CMDS_PER_PAGE)[ofs]
+			&cmdtab_pages[pg].as_ref().expect("Index above shared threshold, but not present").as_slice(0, CMDS_PER_PAGE)[ofs]
 		}
 	}
 	fn get_cmdtab_ptr(&self, idx: usize) -> *mut hw::CmdTable
