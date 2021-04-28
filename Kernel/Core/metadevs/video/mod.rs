@@ -4,7 +4,7 @@
 // Core/metadevs/video/mod.rs
 ///! Video (Display) management
 use prelude::*;
-use sync::mutex::{Mutex,LazyMutex};
+use sync::mutex::Mutex;
 use lib::sparse_vec::SparseVec;
 
 pub use self::geom::{Pos,Dims,Rect};
