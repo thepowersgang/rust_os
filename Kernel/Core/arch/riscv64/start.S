@@ -39,7 +39,7 @@ start:
 	bltu	a0, a1, 1b
 2:
 	# -- Prepare the stack
-	li	sp, (0xFFFFFFE000000000 + 4*0x1000)
+	li	sp, (0xFFFFFFD800000000 + 4*0x1000)
 	# -- Set up paging (39 bit, ASID=0)
 .extern boot_pt_lvl3_0_PHYS_PG
 	la	a0, boot_pt_lvl3_0_PHYS_PG
@@ -55,10 +55,10 @@ start:
 	li	t0, (1 << 18) | (1 << 8) | (1 << 5)	# SUM=0, SPP[8]=1, Interrupts on (SPIE[5]=1)
 	csrw	sstatus, t0
 #else
-	li	t0, (1 << 18) + (0b01 << 11) + (1 << 7) + (1 << 3)	# "Supervisor mode" ([11:12]=1), Interrupts on (MPIE, MIE:3=1)
+	li	t0, (1 << 18) + (0b01 << 11) + (1 << 7) + (1 << 3)	# "Supervisor mode" (MPP[11:12]=1), Interrupts on (MPIE, MIE:3=1)
 	csrw	mstatus, t0
 #endif
-	li	t0, 3
+	li	t0, 0x203	# Supervisor External (0x200), (Svz timer [0x20] off), Supervisor+User Software (0x3)
 	csrw	sie, t0
 	la	t0, kmain	# Common entrypoint, store in `mret`'s target
 #if SBI_BOOT
@@ -71,6 +71,7 @@ start:
 	la	t0, HART0_STATE
 	csrw	sscratch, t0
 	la	ra, 1f	# Set a return address for `kmain`... just in case
+start.pre_kmain:	# Symbol for easy breakpoint
 #if SBI_BOOT
 	sret	// Supervisor interrupt return
 #else
@@ -181,6 +182,10 @@ trap_vector:
 	# If SPIE is set, set SIE (now that everything's saved)
 	and t1, t1, (1<<5)
 	beqz t1, 1f
+	# Check top bit of scause, if set also skip setting SIE
+	srli t0, t0, 63
+	bnez t1, 1f
+	# If safe to be reentrant (SPIE set and not servicing an interrupt) then set SIE
 	csrsi sstatus, 0x2
 1:
 	# Call handler
@@ -294,12 +299,16 @@ boot_pt_lvl3_0:
 	.endr
 	# 0x00000040_00000000
 	# 0xFFFFFFC0_00000000
-	.rept 128
+	.rept 128-(8*4)
 	 .quad 0
 	.endr
-	# 0xFFFFFFE0_00000000: Stacks base
+	# 0xFFFFFFD8_00000000: Stacks base
 	.quad boot_pt_lvl2_stacks_PHYS_DIV4 + (1 << 0)
-	.rept 128-(1+3)
+	.rept (8*4-1)
+	 .quad 0
+	.endr
+	# 0xFFFFFFE0_00000000: Stacks end
+	.rept 128-3
 	 .quad	0
 	.endr
 	# 0xFFFFFFFF_40000000
