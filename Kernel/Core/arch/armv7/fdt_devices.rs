@@ -39,12 +39,13 @@ fn init()
 					else {
 						None
 					};
+				let irq = decode_value(&dev, "interrupts", (1,)).map(|v| v.0 as u32);
 
 				devices.push( Box::new(BusDev {
 					node: dev,
 					compat: compat,
 					mmio: mmio,
-					irq_gsi: None,
+					irq_gsi: irq,
 					}) );
 			}
 		}
