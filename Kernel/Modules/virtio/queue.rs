@@ -4,7 +4,8 @@
 //!
 use kernel::prelude::*;
 use interface::Interface;
-use core::sync::atomic::{AtomicUsize,Ordering};
+use kernel::lib::mem::aref::{Aref,ArefBorrow};
+use core::sync::atomic::{AtomicUsize,AtomicU16,Ordering};
 
 pub struct Queue {
 	idx: usize,
@@ -12,11 +13,17 @@ pub struct Queue {
 	buffer: ::kernel::memory::virt::AllocHandle,
 	descriptors_lock: ::kernel::sync::Mutex<()>,
 	avail_ring_lock: ::kernel::sync::Mutex<()>,
-
-	last_seen_used: AtomicUsize,
+	
+	int_state: Aref<QueueIntState>,
+}
+pub struct QueueIntState {
+	used_ring: *const UsedRing,
+	last_seen_used: AtomicU16,
 	interrupt_flag: ::kernel::sync::Semaphore,
 	avail_ring_res: Vec<AtomicUsize>,
 }
+unsafe impl Send for QueueIntState { }
+unsafe impl Sync for QueueIntState { }
 
 pub enum Buffer<'a> {
 	Read(&'a [u8]),
@@ -62,7 +69,6 @@ struct AvailRing {
 	//used_event: u16,
 }
 #[repr(C)]
-#[derive(Debug)]
 struct UsedRing {
 	flags: u16,
 	idx: u16,
@@ -70,7 +76,6 @@ struct UsedRing {
 	//avail_event: u16,
 }
 #[repr(C)]
-#[derive(Debug)]
 struct UsedElem {
 	id: u32,
 	len: u32,
@@ -94,28 +99,32 @@ impl Queue
 	{
 		let n_pages = Self::get_alloc_size(count) / ::kernel::PAGE_SIZE;
 		assert!(n_pages > 0);
+		let buffer = ::kernel::memory::virt::alloc_dma(32+12, n_pages, "VirtIO").expect("TODO: Handle alloc failure VirtIO queue");
+		let int_state = QueueIntState {
+			used_ring: Self::used_ring(&buffer, count),
+			last_seen_used: Default::default(),
+			interrupt_flag: ::kernel::sync::Semaphore::new(0, count as isize),
+			avail_ring_res: (0..count).map(|_| AtomicUsize::new(!0)).collect(),
+			};
 		Queue {
 			idx: idx,
 			size: count,
-			buffer: ::kernel::memory::virt::alloc_dma(32+12, n_pages, "VirtIO").expect("TODO: Handle alloc failure VirtIO queue"),
+			buffer: buffer,
 			descriptors_lock: Default::default(),
 			avail_ring_lock: Default::default(),
 
-			last_seen_used: AtomicUsize::new(0),
-			interrupt_flag: ::kernel::sync::Semaphore::new(0, count as isize),
-			avail_ring_res: (0..count).map(|_| AtomicUsize::new(!0)).collect(),
+			int_state: Aref::new(int_state),
 			}
 	}
 
-	pub fn check_interrupt(&self) {
-		while self.last_seen_used.load(Ordering::Relaxed) as u16 != self.used_ring().idx {
-			let idx = (self.last_seen_used.fetch_add(1, Ordering::Relaxed) & 0xFFFF) % self.size;
-			log_debug!("[queue {}] idx={}, desc={:?}", self.idx, idx, self.used_ring().ents[idx]);
-			let UsedElem { id, len } = self.used_ring().ents[idx];
+	pub fn get_int_state(&self) -> ArefBorrow<QueueIntState> {
+		self.int_state.borrow()
+	}
 
-			self.avail_ring_res[id as usize].store(len as usize, Ordering::Release);
-			self.interrupt_flag.release();
-		}
+	pub fn check_interrupt_fn(&self) -> impl Fn() {
+		let is = self.int_state.borrow();
+		let idx = self.idx;
+		move || { is.check_interrupt(idx); }
 	}
 
 	pub fn phys_addr_desctab(&self) -> u64 {
@@ -125,10 +134,13 @@ impl Queue
 		::kernel::memory::virt::get_phys(&self.avail_ring().flags) as u64
 	}
 	pub fn phys_addr_used(&self) -> u64 {
-		::kernel::memory::virt::get_phys(&self.used_ring().flags) as u64
+		::kernel::memory::virt::get_phys(Self::used_ring(&self.buffer, self.size) as *const _) as u64
 	}
 
-	pub fn send_buffers<'a, I: Interface>(&'a self, interface: &I, buffers: &mut [Buffer<'a>]) -> Request<'a> {
+	/// Send/receive to/from the device using caller-provided buffers
+	///
+	/// TODO: Could UAF if the request is leaked and `Buffer`'s backing goes out of scope
+	pub fn send_buffers_blocking<'a, I: Interface>(&'a self, interface: &I, buffers: &mut [Buffer<'a>]) -> Result<usize,()> {
 		assert!(buffers.len() > 0);
 
 		// Allocate a descriptor for each buffer (backwards to build up linked list)
@@ -140,7 +152,36 @@ impl Queue
 		}
 
 		// Add to the active queue
-		self.dispatch_descriptor(interface, descriptor)
+		self.dispatch_descriptor(interface, descriptor).busy_wait_for_completion()
+	}
+
+	/// Convert the queue into a stream (internally allocating a buffer and enqueing those items)
+	pub fn into_stream<I: Interface>(self, int: &I, item_size: usize, buffer_len: usize, mut cb: impl FnMut(&[u8]))
+	{
+		// Allocate buffers
+		let size = item_size * buffer_len;
+		let mut data = vec![0u8; size];
+		let mut slots = Vec::with_capacity(buffer_len);
+
+		for i in 0 .. item_size
+		{
+			let d = self.allocate_descriptor(None, &mut Buffer::Write(&mut data[i*item_size..][..item_size]));
+			self.avail_ring().push(d.idx);
+			slots.push(d.idx);
+		}
+		int.notify_queue(self.idx);
+		loop
+		{
+			for (i,idx) in slots.iter().copied().enumerate()
+			{
+				self.int_state.interrupt_flag.acquire();
+
+				let len = self.int_state.avail_ring_res[idx as usize].swap(!0, Ordering::Relaxed);
+				assert!(len != !0, "Interrupt flag set, but slot not populated");
+				cb(&data[i*item_size..][..len]);
+				self.avail_ring().push(idx);
+			}
+		}
 	}
 
 	fn allocate_descriptor<'a>(&self, mut next: Option<DescriptorHandle<'a>>, buffer: &mut Buffer<'a>) -> DescriptorHandle<'a> {
@@ -185,19 +226,20 @@ impl Queue
 			_lh: self.avail_ring_lock.lock(),
 			// SAFE: Locked
 			ptr: unsafe { 
-				let base_ptr: *const u16 = self.buffer.as_int_mut(SIZEOF_VRING_DESC * self.size);
+				let base_ptr: *mut u16 = self.buffer.as_int_mut(SIZEOF_VRING_DESC * self.size);
 				// NOTE: Constructing an unsized struct pointer
-				let ptr: &mut AvailRing = ::core::mem::transmute( (base_ptr, self.size) );
+				let ptr: &mut AvailRing = ::core::mem::transmute(::core::slice::from_raw_parts_mut(base_ptr, self.size));
 				assert_eq!(&ptr.flags as *const _, base_ptr);
 				ptr
 				},
 		}
 	}
-	fn used_ring(&self) -> &UsedRing {
+	/// Returns a fat pointer to the (device-managed) used ring buffer
+	fn used_ring(buffer: &::kernel::memory::virt::AllocHandle, size: usize) -> *const UsedRing {
 		// SAFE: Unaliased memory
 		unsafe {
-			let ptr: *const () = self.buffer.as_ref( Self::get_first_size(self.size) );
-			let rv: &UsedRing = ::core::mem::transmute(::core::slice::from_raw_parts(ptr, self.size));
+			let ptr: *const () = buffer.as_ref( Self::get_first_size(size) );
+			let rv: &UsedRing = ::core::mem::transmute(::core::slice::from_raw_parts(ptr, size));
 			assert_eq!(&rv.flags as *const _, ptr as *const u16);
 			rv
 		}
@@ -211,6 +253,24 @@ impl Queue
 			slice: unsafe { self.buffer.as_int_mut_slice(0, self.size) },
 		}
 	}
+}
+
+impl QueueIntState
+{
+	/// Check for changes in `used_ring` by the hardware
+	pub fn check_interrupt(&self, queue_idx: usize) {
+		// SAFE: Valid pointer (enforced by `Aref<QueueIntState>` stored within the `Queue`)
+		while self.last_seen_used.load(Ordering::Relaxed) as u16 != unsafe { ::core::ptr::read_volatile(&(*self.used_ring).idx) } {
+			let idx = self.last_seen_used.fetch_add(1, Ordering::Relaxed) as usize % self.avail_ring_res.len();
+			// SAFE: Valid pointer (enforced by `Aref<QueueIntState>` stored within the `Queue`)
+			let UsedElem { id, len }  = unsafe { ::core::ptr::read_volatile(&(*self.used_ring).ents[idx] ) };
+			log_debug!("[queue {}] idx={}, ID={},len={}", queue_idx, idx, id, len);
+
+			self.avail_ring_res[id as usize].store(len as usize, Ordering::Release);
+			self.interrupt_flag.release();
+		}
+	}
+
 }
 
 struct LockedAvailRing<'a> {
@@ -267,22 +327,25 @@ pub struct Request<'a>
 }
 impl<'a> Request<'a>
 {
-	pub fn wait_for_completion(&self) -> Result<usize,()> {
+	pub fn busy_wait_for_completion(&self) -> Result<usize,()> {
 		// XXX: HACK! No interrupts... yet
-		while self.queue.avail_ring_res[self.first_desc as usize].load(Ordering::Relaxed) == !0 {
-			self.queue.check_interrupt();
+		while self.queue.int_state.avail_ring_res[self.first_desc as usize].load(Ordering::Relaxed) == !0 {
+			self.queue.int_state.check_interrupt(self.queue.idx);
 		}
-		self.queue.interrupt_flag.acquire();
+		self.wait_for_completion()
+	}
+	pub fn wait_for_completion(&self) -> Result<usize,()> {
+		self.queue.int_state.interrupt_flag.acquire();
 		loop
 		{
-			let v = self.queue.avail_ring_res[self.first_desc as usize].swap(!0, Ordering::Acquire);
+			let v = self.queue.int_state.avail_ring_res[self.first_desc as usize].swap(!0, Ordering::Acquire);
 			if v != !0 {
 				return Ok(v);
 			}
-			self.queue.interrupt_flag.release();
+			self.queue.int_state.interrupt_flag.release();
 			// HACK: Yield here to prevent this wait from instantly waking
 			::kernel::threads::yield_time();
-			self.queue.interrupt_flag.acquire();
+			self.queue.int_state.interrupt_flag.acquire();
 		}
 	}
 }

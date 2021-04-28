@@ -7,4 +7,5 @@ path = "lib.rs"
 
 [dependencies]
 kernel = { path = "../../Core" }
+gui = { path = "../gui" }
 

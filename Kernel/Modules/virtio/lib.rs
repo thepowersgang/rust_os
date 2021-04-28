@@ -8,6 +8,7 @@
 #![feature(arbitrary_self_types)]
 
 #[macro_use] extern crate kernel;
+extern crate gui;
 
 module_define!{VirtIO, [DeviceManager, Storage], init}
 

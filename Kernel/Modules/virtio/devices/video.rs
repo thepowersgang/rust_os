@@ -148,14 +148,11 @@ where
 			};
 		let mut ret_hdr: hw::CtrlHeader = ::kernel::lib::PodHelpers::zeroed();
 		let mut ret_info: [hw::DisplayOne; 16] = ::kernel::lib::PodHelpers::zeroed();
-		let rv = {
-			let h = self.controlq.send_buffers(&self.interface, &mut [
+		let rv = self.controlq.send_buffers_blocking(&self.interface, &mut [
 				Buffer::Read(::kernel::lib::as_byte_slice(&hdr)),
 				Buffer::Write(::kernel::lib::as_byte_slice_mut(&mut ret_hdr)),
 				Buffer::Write(::kernel::lib::as_byte_slice_mut(&mut ret_info)),
-				]);
-			h.wait_for_completion()
-			};
+			]);
 		match rv
 		{
 		Ok(bytes) => {
@@ -176,14 +173,11 @@ where
 	}
 	fn send_cmd_raw(&self, hdr: &hw::CtrlHeader, cmd: &[u8]) -> hw::CtrlHeader {
 		let mut ret_hdr: hw::CtrlHeader = ::kernel::lib::PodHelpers::zeroed();
-		let _rv = {
-			let h = self.controlq.send_buffers(&self.interface, &mut [
+		let _rv = self.controlq.send_buffers_blocking(&self.interface, &mut [
 				Buffer::Read(::kernel::lib::as_byte_slice(hdr)),
 				Buffer::Read(cmd),
 				Buffer::Write(::kernel::lib::as_byte_slice_mut(&mut ret_hdr)),
-				]);
-			h.wait_for_completion().expect("")
-			};
+			]).expect("");
 		ret_hdr
 	}
 	fn allocate_resource(self: &ArefBorrow<Self>, format: hw::virtio_gpu_formats, width: u32, height: u32) -> Resource2D<I>
@@ -233,14 +227,11 @@ where
 			};
 		let mut ret_hdr: hw::CtrlHeader = ::kernel::lib::PodHelpers::zeroed();
 
-		let _rv = {
-			let h = self.controlq.send_buffers(&self.interface, &mut [
+		let _rv = self.controlq.send_buffers_blocking(&self.interface, &mut [
 				Buffer::Read(::kernel::lib::as_byte_slice(&hdr)),
 				Buffer::Read(::kernel::lib::as_byte_slice(&cmd)),
 				Buffer::Write(::kernel::lib::as_byte_slice_mut(&mut ret_hdr)),
-				]);
-			h.wait_for_completion().expect("")
-			};
+			]).expect("");
 	}
 
 	fn set_cursor(&self, cursor_index: usize, scanout: usize, pos: video::Pos)
@@ -256,14 +247,11 @@ where
 		let cmd = self.cursors.lock()[cursor_index].get_update(scanout, pos);
 		let mut ret_hdr: hw::CtrlHeader = ::kernel::lib::PodHelpers::zeroed();
 
-		let _rv = {
-			let h = self.cursorq.send_buffers(&self.interface, &mut [
+		let _rv = self.cursorq.send_buffers_blocking(&self.interface, &mut [
 				Buffer::Read(::kernel::lib::as_byte_slice(&hdr)),
 				Buffer::Read(::kernel::lib::as_byte_slice(&cmd)),
 				Buffer::Write(::kernel::lib::as_byte_slice_mut(&mut ret_hdr)),
-				]);
-			h.wait_for_completion().expect("Error setting cursor")
-			};
+			]).expect("Error setting cursor");
 	}
 	fn move_cursor(&self, scanout: usize, pos: video::Pos)
 	{
@@ -289,14 +277,11 @@ where
 			};
 		let mut ret_hdr: hw::CtrlHeader = ::kernel::lib::PodHelpers::zeroed();
 
-		let _rv = {
-			let h = self.cursorq.send_buffers(&self.interface, &mut [
+		let _rv = self.cursorq.send_buffers_blocking(&self.interface, &mut [
 				Buffer::Read(::kernel::lib::as_byte_slice(&hdr)),
 				Buffer::Read(::kernel::lib::as_byte_slice(&cmd)),
 				Buffer::Write(::kernel::lib::as_byte_slice_mut(&mut ret_hdr)),
-				]);
-			h.wait_for_completion().expect("Error setting cursor")
-			};
+			]).expect("Error setting cursor");
 	}
 }
 
@@ -502,15 +487,12 @@ where
 			};
 
 		let mut ret_hdr: hw::CtrlHeader = ::kernel::lib::PodHelpers::zeroed();
-		let _rv = {
-			let h = self.dev.controlq.send_buffers(&self.dev.interface, &mut [
+		let _rv = self.dev.controlq.send_buffers_blocking(&self.dev.interface, &mut [
 				Buffer::Read(::kernel::lib::as_byte_slice(&hdr)),
 				Buffer::Read(::kernel::lib::as_byte_slice(&cmd)),
 				Buffer::Read(::kernel::lib::as_byte_slice(&entries[..n_ents])),
 				Buffer::Write(::kernel::lib::as_byte_slice_mut(&mut ret_hdr)),
-				]);
-			h.wait_for_completion().expect("")
-			};
+			]).expect("");
 	}
 	pub fn transfer_to_host(&self, rect: video::Rect)
 	{

@@ -53,11 +53,8 @@ impl BlockDevice
 			interface: int,
 			});
 
-		struct SPtr<T>(*const T);
-		unsafe impl<T> Send for SPtr<T> {}
-		let sp = SPtr(&*vol);
-		// SAFE: Now boxed, won't be invalidated until after Drop is called
-		vol.interface.bind_interrupt( Box::new(move || unsafe { (*sp.0).requestq.check_interrupt(); true }) );
+		let is = vol.requestq.get_int_state();
+		vol.interface.bind_interrupt( Box::new(move || { is.check_interrupt(0); true }) );
 
 		BlockDevice {
 			_pv_handle: storage::register_pv(vol),
@@ -94,17 +91,14 @@ impl<I: Interface+Send+'static> storage::PhysicalVolume for Volume<I>
 			};
 		let mut status = 0u8;
 
-		let rv = {
-			let h = self.requestq.send_buffers(&self.interface, &mut[
+		let rv = match self.requestq.send_buffers_blocking(&self.interface, &mut[
 				Buffer::Read( ::kernel::lib::as_byte_slice(&cmd) ),
 				Buffer::Write(dst),
 				Buffer::Write( ::kernel::lib::as_byte_slice_mut(&mut status) )
-				]);
-			match h.wait_for_completion()
-				{
-				Ok(bytes) => Ok( bytes / BLOCK_SIZE ),
-				Err( () ) => Err( storage::IoError::Unknown("VirtIO") ),
-				}
+				])
+			{
+			Ok(bytes) => Ok( bytes / BLOCK_SIZE ),
+			Err( () ) => Err( storage::IoError::Unknown("VirtIO") ),
 			};
 		
 		//log_debug!("read block {}", idx);
@@ -122,12 +116,11 @@ impl<I: Interface+Send+'static> storage::PhysicalVolume for Volume<I>
 			};
 		let mut status = 0u8;
 
-		let h = self.requestq.send_buffers(&self.interface, &mut[
-			Buffer::Read( ::kernel::lib::as_byte_slice(&cmd) ),
-			Buffer::Read( src ),
-			Buffer::Write( ::kernel::lib::as_byte_slice_mut(&mut status) )
-			]);
-		let rv = match h.wait_for_completion()
+		let rv = match self.requestq.send_buffers_blocking(&self.interface, &mut[
+				Buffer::Read( ::kernel::lib::as_byte_slice(&cmd) ),
+				Buffer::Read( src ),
+				Buffer::Write( ::kernel::lib::as_byte_slice_mut(&mut status) )
+				])
 			{
 			Ok(bytes) => Ok( bytes / BLOCK_SIZE ),
 			Err( () ) => Err( storage::IoError::Unknown("VirtIO") ),

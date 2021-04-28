@@ -7,6 +7,7 @@ use kernel::prelude::*;
 use kernel::device_manager::IOBinding;
 use queue::Queue;
 
+/// A virtio interface (PCI or MMIO)
 pub trait Interface
 {
 	fn bind_interrupt(&mut self, cb: Box<dyn FnMut()->bool + Send + 'static>);
@@ -17,10 +18,10 @@ pub trait Interface
 
 	fn notify_queue(&self, idx: usize);
 
-	//fn cfg_read_8(&self, ofs: usize) -> u8;
+	unsafe fn cfg_read_8(&self, ofs: usize) -> u8;
 	//fn cfg_read_16(&self, ofs: usize) -> u16;
 	unsafe fn cfg_read_32(&self, ofs: usize) -> u32;
-	//fn cfg_write_8(&self, ofs: usize) -> u8;
+	unsafe fn cfg_write_8(&self, ofs: usize, v: u8);
 	//fn cfg_write_16(&self, ofs: usize) -> u16;
 	unsafe fn cfg_write_32(&self, ofs: usize, v: u32);
 }
@@ -161,9 +162,17 @@ impl Interface for Pci
 		}
 	}
 
+	unsafe fn cfg_read_8(&self, ofs: usize) -> u8 {
+		assert!(ofs + 1 <= 0x100);
+		self.bars.dev_cfg.read_8(ofs)
+	}
 	unsafe fn cfg_read_32(&self, ofs: usize) -> u32 {
 		assert!(ofs + 4 <= 0x100);
 		self.bars.dev_cfg.read_32(ofs)
+	}
+	unsafe fn cfg_write_8(&self, ofs: usize, v: u8) {
+		assert!(ofs + 1 <= 0x100);
+		self.bars.dev_cfg.write_8(ofs, v);
 	}
 	unsafe fn cfg_write_32(&self, ofs: usize, v: u32) {
 		assert!(ofs + 4 <= 0x100);
@@ -256,9 +265,17 @@ impl Interface for Mmio
 		}
 	}
 
+	unsafe fn cfg_read_8(&self, ofs: usize) -> u8 {
+		assert!(ofs + 1 <= 0x100);
+		self.io.read_8(0x100 + ofs)
+	}
 	unsafe fn cfg_read_32(&self, ofs: usize) -> u32 {
 		assert!(ofs + 4 <= 0x100);
 		self.io.read_32(0x100 + ofs)
+	}
+	unsafe fn cfg_write_8(&self, ofs: usize, v: u8) {
+		assert!(ofs + 1 <= 0x100);
+		self.io.write_8(0x100 + ofs, v);
 	}
 	unsafe fn cfg_write_32(&self, ofs: usize, v: u32) {
 		assert!(ofs + 4 <= 0x100);

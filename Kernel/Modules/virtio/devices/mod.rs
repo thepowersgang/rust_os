@@ -9,6 +9,7 @@ use interface::Interface;
 mod block;
 mod video;
 //mod network;
+mod input;
 
 pub fn new_boxed<T: Interface+Send+Sync+'static>(dev_id: u32, int: T) -> Box<dyn device_manager::DriverInstance>
 {
@@ -29,6 +30,7 @@ pub fn new_boxed<T: Interface+Send+Sync+'static>(dev_id: u32, int: T) -> Box<dyn
 		else {
 			Box::new(NullDevice)
 		},
+	18 => Box::new(input::InputDevice::new(int)),
 	dev @ _ => {
 		log_error!("VirtIO device has unknown device ID {:#x}", dev);
 		Box::new(NullDevice)
