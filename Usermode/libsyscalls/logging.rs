@@ -14,8 +14,21 @@ impl FixedBuf {
 		self.len = 0;
 	}
 	fn push_back(&mut self, data: &[u8]) {
-		assert!( data.len() <= self.data.len() - self.len, "Pushed too much to FixedBuf" );
-		self.data[self.len..][..data.len()].clone_from_slice( data );
+		let buf = &mut self.data[self.len..];
+		if data.len() >= buf.len()
+		{
+			// Fill to max, then silently truncate
+			if buf.len() > 0
+			{
+				let ncopy = buf.len() - 1;
+				buf[..ncopy].clone_from_slice(&data[..ncopy]);
+				buf[ncopy] = b'$';
+				self.len = self.data.len();
+				::log_write("Pushed too much to FixedBuf" );
+			}
+			return ;
+		}
+		buf[..data.len()].clone_from_slice( data );
 		self.len += data.len();
 	}
 }
@@ -25,9 +38,6 @@ impl ::core::ops::Deref for FixedBuf {
 		&self.data[..self.len]
 	}
 }
-
-//#[thread_local]
-static mut T_LOG_BUFFER: FixedBuf = FixedBuf::new();
 
 // A simple writer that uses the kernel-provided per-thread logging channel
 pub struct ThreadLogWriter<'a>(&'a mut FixedBuf);
@@ -52,8 +62,8 @@ impl<'a> ::core::ops::Drop for ThreadLogWriter<'a> {
 #[inline(never)]
 #[doc(hidden)]
 pub fn write<F: ::core::ops::FnOnce(&mut ::logging::ThreadLogWriter)->::core::fmt::Result>(fcn: F) {
-	// SAFE: Thread-local
-	let _ = fcn(&mut ::logging::ThreadLogWriter(unsafe { &mut T_LOG_BUFFER }));
+	let mut buffer = FixedBuf::new();
+	let _ = fcn(&mut ::logging::ThreadLogWriter(&mut buffer));
 }
 
 // NOTE: Calls the above function with a closure to prevent the caller's stack frame from balooning with the formatting junk
