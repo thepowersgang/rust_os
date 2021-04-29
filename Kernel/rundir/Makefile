@@ -53,7 +53,7 @@ IMGDIR := DiskImages/$(ARCH)/
 QEMU_TRACE_SPEC := .qemu_trace_spec
 ifneq ($(ENABLE_TRACE),)
   # qemu-source/scripts/simpletrace.py qemu-build/trace/trace-events qemu_trace_output
-  QEMU_ARGS += --trace events=$(QEMU_TRACE_SPEC),file=qemu_trace_output
+  QEMU_ARGS += -trace events=$(QEMU_TRACE_SPEC),file=qemu_trace_output
 endif
 
 #
@@ -123,6 +123,8 @@ CMDLINE += SYSDISK=virtio0p0
 QEMU_ARGS += -device virtio-blk-device,drive=hda
 QEMU_ARGS += -device virtio-gpu-device
 QEMU_ARGS += -device virtio-net-device
+QEMU_ARGS += -device virtio-keyboard-device
+QEMU_ARGS += -device virtio-tablet-device
 QEMU_ARGS += -drive if=none,id=hda,index=0,file=$(IMGDIR)hda.img,format=raw
 #QEMU_ARGS += -smp 4
 #QEMU_ARGS += -bios none
