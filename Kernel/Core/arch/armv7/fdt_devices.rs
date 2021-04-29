@@ -3,6 +3,7 @@
 //
 use prelude::*;
 use crate::lib::fdt;
+use core::convert::TryFrom;
 
 module_define!{FDTDevices, [], init}
 
@@ -12,7 +13,7 @@ struct BusDev
 {
 	node: fdt::Node<'static, 'static>,
 	compat: &'static str,
-	mmio: Option< (u64, u32) >,
+	mmio: Option< (crate::memory::PAddr, u32) >,
 	irq_gsi: Option<u32>,
 }
 
@@ -33,8 +34,24 @@ fn init()
 				
 				log_debug!("fdt:{:x} = dev '{}' compat = '{}'", dev.offset(), dev.name(), compat);
 				let mmio = if let Some( (io_base, io_size) ) = decode_value(&dev, "reg", (acells, scells)) {
-						log_debug!("- IO {:#x}+{:#x}", io_base, io_size);
-						Some( (io_base, io_size as u32) )
+						match crate::memory::PAddr::try_from(io_base)
+						{
+						Err(_) => {
+							log_error!("- IO out of range {:#x}+{:#x}", io_base, io_size);
+							continue
+							},
+						Ok(io_base) => match crate::memory::PAddr::try_from(io_base as u64 + io_size as u64 - 1)
+							{
+							Err(_) => {
+								log_error!("- IO out of range {:#x}+{:#x}", io_base, io_size);
+								continue
+								},
+							Ok(_) => {
+								log_debug!("- IO {:#x}+{:#x}", io_base, io_size);
+								Some( (io_base, io_size as u32) )
+								}
+							},
+						}
 					}
 					else {
 						None
@@ -94,12 +111,12 @@ impl ::device_manager::BusDevice for BusDev
 					assert!(ofs < size as usize, "");
 					assert!(ofs + subsize <= size as usize);
 
-					base += ofs as u64;
+					base += ofs as crate::memory::PAddr;
 					size = subsize as u32;
 				}
 				// TODO: Ensure safety
 				// SAFE: Can't easily prove
-				let ah = unsafe { ::memory::virt::map_mmio(base as ::memory::PAddr, size as usize).unwrap() };
+				let ah = unsafe { ::memory::virt::map_mmio(base, size as usize).unwrap() };
 				::device_manager::IOBinding::Memory( ah )
 			}
 			else {
@@ -213,7 +230,7 @@ impl ::device_manager::Driver for PciDriver
 		}
 		struct Interface
 		{
-			mmio: (u64, u32),
+			mmio: (crate::memory::PAddr, u32),
 			lock: crate::sync::Mutex<Inner>,
 		}
 		impl Interface
@@ -227,7 +244,7 @@ impl ::device_manager::Driver for PciDriver
 				let ofs  = addr &  (::PAGE_SIZE - 1) as u32;
 				if lh.base != base {
 					// SAFE: Owned MMIO memory from device
-					lh.mapping = unsafe { crate::memory::virt::map_hw_rw(self.mmio.0 as PAddr + base as PAddr, 1, "fdt_pci").expect("Unable to map PCI") };
+					lh.mapping = unsafe { crate::memory::virt::map_hw_rw(self.mmio.0 + base as PAddr, 1, "fdt_pci").expect("Unable to map PCI") };
 					lh.base = base;
 				}
 				cb( lh.mapping.as_ref::<u32>(ofs as usize) as *const _ as *mut _ )
