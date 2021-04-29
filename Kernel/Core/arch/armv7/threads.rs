@@ -29,8 +29,24 @@ pub fn init_tid0_state() -> State {
 		..State::default()
 		}
 }
+// TODO: Returning an "owned" pointer here feels dirty (BUT - dropping ThreadPtr is a bug)
 pub fn get_idle_thread() -> ::threads::ThreadPtr {
-	todo!("get_idle_thread");
+	use ::core::sync::atomic::{Ordering,AtomicUsize};
+	// Get the per-CPU idle thread
+	// HACK: Single-CPU for now (should really store a per-CPU struct in TPIDRPRW[c13,c0,4]
+	static IDLE_THREAD: AtomicUsize = AtomicUsize::new(0);
+	let slot = &IDLE_THREAD;
+	// SAFE: Valid transmutes
+	unsafe
+	{
+		let mut ptr = slot.load(Ordering::Relaxed);
+		if ptr == 0
+		{
+			ptr = ::core::mem::transmute( ::threads::new_idle_thread(0) );
+			slot.store(ptr, Ordering::Relaxed);
+		}
+		::core::mem::transmute(ptr)
+	}
 }
 
 pub fn set_thread_ptr(thread: ::threads::ThreadPtr) {
