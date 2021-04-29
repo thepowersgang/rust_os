@@ -40,28 +40,50 @@ pub fn post_init() {
 
 fn dump_tables() {
 	let mut start = 0;
-	let mut exp = get_phys_opt(0 as *const u8);
+	// Uses get_phys_opt becuase it doesn't need to update mappings
+	let mut exp = get(0);
 	for page in 1 .. 0xFFFF_F {
+		if let Some(ref mut v) = exp {
+			*v += 0x1000;
+		}
 		let addr = page * 0x1000;
-		let v = get_phys_opt( addr as *const u8 );
+		let v = get( addr );
 		if v != exp {
 			print(start, addr-1, exp);
 			start = addr;
 			exp = v;
 		}
-		if let Some(ref mut v) = exp {
-			*v += 0x1000;
-		}
 	}
 	print(start, !0, exp);
 
+	fn get(addr: usize) -> Option<u32> {
+		// SAFE: Correct register accesses
+		unsafe {
+			// TODO: Disable interrupts during this operation
+			let mut res: u32;
+			asm!("mcr p15,0, {1}, c7,c8,0; isb; mrc p15,0, {0}, c7,c4,0 ", lateout(reg) res, in(reg) addr);
+			if res & 1 == 1 {
+				return None;
+			}
+			let paddr = res & !0xFFF;
+			// Try a kernel write to test writiable
+			asm!("mcr p15,0, {1}, c7,c8,1; isb; mrc p15,0, {0}, c7,c4,0 ", lateout(reg) res, in(reg) addr);
+			let is_kwrite = res & 1 == 0;
+			// Try a user read to test readable
+			asm!("mcr p15,0, {1}, c7,c8,2; isb; mrc p15,0, {0}, c7,c4,0 ", lateout(reg) res, in(reg) addr);
+			let is_uread = res & 1 == 0;
+
+			Some(paddr | 1*(is_kwrite as u32) | 2*(is_uread as u32))
+		}
+	}
 	fn print(start: usize, end: usize, exp_val: Option<u32>) {
 		match exp_val
 		{
 		None    => log_trace!("{:08x}-{:08x} --", start, end),
 		Some(e) => {
 			let (paddr, flags) = (e & !0xFFF, e & 0xFFF);
-			log_trace!("{:08x}-{:08x} = {:08x}-{:08x} {:03x}", start, end, paddr as usize - (end-start+1), paddr-1, flags);
+			// NOTE: Flags aren't available
+			log_trace!("{:08x}-{:08x} = {:08x}-{:08x} {}", start, end, paddr as usize - (end-start+1), paddr-1, flags);
 			},
 		}
 	}
@@ -248,6 +270,7 @@ impl PageEntry
 		&mut PageEntry::Page { ref mapping, idx, .. } => {
 			let flags = prot_mode_to_flags(mode);
 			let old = mapping[idx & 0x3FF].swap( (addr as u32) | flags, Ordering::SeqCst );
+			log_debug!("set(): {:#x} -> {:#x}", old, (addr as u32) | flags);
 			if old & PAGE_MASK_U32 == 0 {
 				None
 			}
@@ -515,13 +538,7 @@ fn get_phys_opt<T>(addr: *const T) -> Option<::arch::memory::PAddr> {
 	// SAFE: Correct register accesses
 	unsafe {
 		// TODO: Disable interrupts during this operation
-		asm!("
-			mcr p15,0, {1}, c7,c8,0;
-			isb;
-			mrc p15,0, {0}, c7,c4,0
-			",
-			lateout(reg) res, in(reg) addr
-			);
+		asm!("mcr p15,0, {1}, c7,c8,0; isb; mrc p15,0, {0}, c7,c4,0 ", lateout(reg) res, in(reg) addr);
 	};
 
 	match res & 3 {
@@ -707,28 +724,35 @@ pub struct AbortRegs
 #[no_mangle]
 pub fn data_abort_handler(pc: u32, reg_state: &AbortRegs, dfar: u32, dfsr: u32) {
 
-	log_warning!("Data abort by {:#x} address {:#x} status {:#x} ({})", pc, dfar, dfsr, fsr_name(dfsr));
-	dump_tables();
+	log_warning!("Data abort by {:#x} address {:#x} status {:#x} ({}), LR={:#x}", pc, dfar, dfsr, fsr_name(dfsr), reg_state.lr);
 	//log_debug!("Registers:");
 	//log_debug!("R 0 {:08x}  R 1 {:08x}  R 2 {:08x}  R 3 {:08x}  R 4 {:08x}  R 5 {:08x}}  R 6 {:08x}", reg_state.gprs[0]);
 	
-	let mut ent = PageEntry::get(dfar as usize as *const ());
+	let pg_base = (dfar as usize) & !PAGE_MASK;
+	let mut ent = PageEntry::get(pg_base as *const ());
 	if ent.mode() == ProtectionMode::UserCOW {
+		dump_tables();
 		// 1. Lock (relevant) address space
 		// SAFE: Changes to address space are transparent
 		::memory::virt::with_lock(dfar as usize, || unsafe {
-			let frame = ent.phys_addr();
+			let frame = ent.phys_addr() & !PAGE_MASK as u32;
 			// 2. Get the PMM to provide us with a unique copy of that frame (can return the same addr)
-			let newframe = ::memory::phys::make_unique( frame, &*(((dfar as usize) & !PAGE_MASK) as *const [u8; PAGE_SIZE]) );
+			let newframe = ::memory::phys::make_unique( frame, &*(pg_base as *const [u8; PAGE_SIZE]) );
 			// 3. Remap to this page as UserRW (because COW is user-only atm)
 			ent.set(newframe, ProtectionMode::UserRW);
+			let pg_base2 = pg_base + 0x1_000;
+			PageEntry::get(pg_base2 as *const ()).set(newframe + 0x1_000, ProtectionMode::UserRW);
+			tlbimva(pg_base  as *mut _);
+			tlbimva(pg_base2 as *mut _);
 			log_debug!("- COW frame copied");
 			});
-
+		dump_tables();
 		return ;
 	}
+	dump_tables();
 	
 	if pc < 0x8000_0000 {
+		log_error!("User fault - Infinite spin (TODO: Handle)");
 		loop {}
 	}
 	else {
