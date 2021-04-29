@@ -74,7 +74,7 @@ pub fn init(init_handle: ::kernel::vfs::handle::File) {
 pub unsafe extern "C" fn syscalls_handler(id: u32, first_arg: *const usize, count: u32) -> u64
 {
 	let args = ::core::slice::from_raw_parts(first_arg, count as usize);
-	log_debug!("syscalls_handler({}, {:x?})", id, args);
+	//log_debug!("syscalls_handler({}, {:x?})", id, args);
 	invoke(id, args)
 }
 
