@@ -5,24 +5,67 @@
 pub struct UnwindState {
 	regs: [u32; 16],
 	vsp: u32,
+
+	ucb: _Unwind_Control_Block,
+}
+extern "C" {
+	type _Unwind_Context;
 }
 
-//#[repr(C)]
-//enum _Unwind_Reason_Code
-//{
-//	_URC_OK = 0,
-//	_URC_FOREIGN_EXCEPTION_CAUGHT = 1,
-//	_URC_HANDLER_FOUND = 6,
-//	_URC_INSTALL_CONTEXT = 7,
-//	_URC_CONTINUE_UNWIND = 8,
-//	_URC_FAILURE = 9,
-//}
-//#[repr(C)]
-//struct _Unwind_Control_Block
-//{
-//	exception_class: [u8; 8],
-//	exception_cleanup: extern "C" fn(_Unwind_Reason_Code
-//}
+#[allow(dead_code,non_camel_case_types)]
+mod enums {
+	pub type _Unwind_Reason_Code = i32;
+	pub const _URC_OK                      : _Unwind_Reason_Code = 0;
+	pub const _URC_FOREIGN_EXCEPTION_CAUGHT: _Unwind_Reason_Code = 1;
+	pub const _URC_HANDLER_FOUND           : _Unwind_Reason_Code = 6;
+	pub const _URC_INSTALL_CONTEXT         : _Unwind_Reason_Code = 7;
+	pub const _URC_CONTINUE_UNWIND         : _Unwind_Reason_Code = 8;
+	pub const _URC_FAILURE                 : _Unwind_Reason_Code = 9;
+	pub type _Unwind_State = i32;
+	pub const _US_VIRTUAL_UNWIND_FRAME : _Unwind_State = 0;
+	pub const _US_UNWIND_FRAME_STARTING: _Unwind_State = 1;
+	pub const _US_UNWIND_FRAME_RESUME  : _Unwind_State = 2;
+}
+use self::enums::*;
+#[repr(C)]
+#[derive(Clone)]
+struct _Unwind_Control_Block
+{
+	exception_class: [u8; 8],
+	exception_cleanup: extern "C" fn(_Unwind_Reason_Code, *mut _Unwind_Control_Block),
+	unwinder_cache: [u32; 5],
+	barrier_cache: [u32; 6],
+	cleanup_cache: [u32; 4],
+	pr_cache: _Unwind_Control_Block__PrCache,
+}
+impl Default for _Unwind_Control_Block {
+	fn default() -> _Unwind_Control_Block {
+		_Unwind_Control_Block {
+			exception_class: [0; 8],
+			exception_cleanup: { extern "C" fn cleanup(_: _Unwind_Reason_Code, _: *mut _Unwind_Control_Block) {} cleanup },
+			unwinder_cache: Default::default(),
+			barrier_cache: Default::default(),
+			cleanup_cache: Default::default(),
+			pr_cache: _Unwind_Control_Block__PrCache {
+				fnstart: 0,
+				ehtp: 0 as *mut _,
+				additional: 0,
+				_reserved: 0,
+				},
+		}
+	}
+}
+#[repr(C)]
+#[derive(Clone)]
+struct _Unwind_Control_Block__PrCache
+{
+	fnstart: u32,
+	ehtp: *mut _Unwind_EHT_Header,
+	additional: u32,
+	_reserved: u32,
+}
+#[allow(non_camel_case_types)]
+type _Unwind_EHT_Header = u32;
 
 #[derive(Debug)]
 pub enum Error
@@ -62,6 +105,7 @@ impl UnwindState {
 					getreg!(r12), getreg!(sp), getreg!(lr), getreg!(pc),
 					],
 				vsp: { let v; asm!("mov {}, sp", lateout(reg) v); v },
+				ucb: Default::default(),
 			}
 		}
 	}
@@ -69,9 +113,11 @@ impl UnwindState {
 		UnwindState {
 			regs: regs,
 			vsp: regs[13],
+			ucb: Default::default(),
 		}
 	}
 
+	#[allow(dead_code)]	// Unused in kernel, used by userland
 	pub fn get_ip(&self) -> u32 { self.regs[15] }
 	pub fn get_lr(&self) -> u32 { self.regs[14] }
 	
@@ -148,10 +194,65 @@ impl UnwindState {
 			// Top bit unset: A custom personality routine 
 			else {
 				let addr = prel31(ptr as usize, word);
-				log_error!("TODO: Custom exception routine? word={:#x} - fcn={:#x}", word, addr);
-				// TODO: Call the handling routine
-				//let cb: extern"C" fn ()->_Unwind_Reason_Code = ::core::mem::transmute(addr);
-				return Err( Error::Todo );
+				//// Call the handling routine
+				//// SAFE: Trusting the tables
+				//let cb: extern"C" fn( _Unwind_State, *mut _Unwind_Control_Block, *mut _Unwind_Context )->_Unwind_Reason_Code = unsafe { ::core::mem::transmute(addr) };
+				//match cb(_US_VIRTUAL_UNWIND_FRAME, &mut self.ucb as *mut _, &mut self.regs as *mut _ as *mut _)
+				//{
+				//_URC_CONTINUE_UNWIND => {
+				//	},
+				//_URC_HANDLER_FOUND => { log_error!("Found a `catch`?"); return Err(Error::Todo); },
+				//_URC_FAILURE => { log_error!("PR failure"); return Err(Error::Malformed); }
+				//_ => return Err(Error::Malformed),
+				//}
+				extern "C" {
+					fn rust_eh_personality();
+				}
+				// __gnu_unwind frame is called by libstd's rust_eh_personality impl
+				// - This in turn is just a simple wrapper around the ARM format
+				if addr == rust_eh_personality as usize {
+					// Run the GNU unwinder
+					// See gcc/libgcc/config/arm/pr-support.c
+					struct GnuUnwind<'a> {
+						data: u32,
+						bytes_left: u8,
+						next: &'a [u32],
+					}
+					impl<'a> GnuUnwind<'a> {
+						fn getb(&mut self) -> Option<u8> {
+							if self.bytes_left == 0 {
+								let (d, n) = self.next.split_first()?;
+								self.data = *d;
+								self.next = n;
+								self.bytes_left = 3;
+							}
+							else {
+								self.bytes_left -= 1;
+							}
+							let rv = (self.data >> 24) as u8;
+							self.data <<= 8;
+							//log_debug!("getb=0x{:02x}", rv);
+							Some(rv)
+						}
+					}
+					// SAFE: Trusting the compiler here
+					let mut gnu = unsafe {
+						let ptr = ptr.offset(1);	// Skip the personality function pointer
+						GnuUnwind {
+							data: *ptr << 8,
+							bytes_left: 3,
+							next: ::core::slice::from_raw_parts(ptr.offset(1), (*ptr >> 24) as usize),
+							}
+						};
+					
+					while self.unwind_instr(gnu.getb().unwrap_or(0xB0), || gnu.getb().ok_or(Error::Malformed))? == false
+					{
+					}
+				}
+				else {
+					log_error!("TODO: Properly call the handler routine (seems to directly call ::unwind::rust_eh_personality? - {:#x}", addr);
+					return Err(Error::Todo);
+				}
 			}
 		}
 
