@@ -22,7 +22,19 @@ static S_IRQS: LazyStatic<Vec< Spinlock<Option<Binding>> >> = lazystatic_init!()
 
 pub fn init() {
 	// TODO: Interrogate the FDT to discover the IRQ controller layout
-	//::arch::int::boot::get_fdt().get_props(&["","intc"])
+	if let Some(fdt) = ::arch::imp::boot::get_fdt()
+	{
+		for p in fdt.get_props_cb(|idx,leaf,name| match (idx,leaf)
+			{
+			(0,false) => name == "",
+			(1,false) => name == "intc" || name.starts_with("intc@"),
+			(2,true) => name == "reg",
+			_ => false,
+			})
+		{
+			log_debug!("INTC {:x?}", p);
+		}
+	}
 
 	S_IRQS.prep(|| Vec::from_fn(32, |_| Default::default()));
 }
