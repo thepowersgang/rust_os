@@ -76,7 +76,7 @@ impl objects::Object for Group
 	fn try_clone(&self) -> Option<u32> {
 		Some( ::objects::new_object( Group(self.0.clone()) ) )
 	}
-	fn handle_syscall_ref(&self, call: u16, _args: &mut Args) -> Result<u64,Error>
+	fn handle_syscall_ref(&self, call: u16, args: &mut Args) -> Result<u64,Error>
 	{
 		match call
 		{
@@ -102,6 +102,39 @@ impl objects::Object for Group
 				| (total_h as u64) << 24
 				| (n_displays as u64) << 48
 				)
+			},
+		values::GUI_GRP_GETDIMS => {
+			let index = args.get::<u32>()?;
+			log_debug!("GUI_GRP_GETDIMS({})", index);
+			if index != 0 {
+				Err(Error::BadValue)
+			}
+			else {
+				let d = ::kernel::metadevs::video::get_display_for_pos(Default::default()).unwrap();
+				Ok( 0
+					| (d.dims.w as u64) << 0
+					| (d.dims.h as u64) << 16
+					| (d.pos.x as u64) << 32
+					| (d.pos.y as u64) << 48
+					)
+			}
+			},
+		values::GUI_GRP_GETVIEWPORT => {
+			let index = args.get::<u32>()?;
+			log_debug!("GUI_GRP_GETVIEWPORT({})", index);
+			if index != 0 {
+				Err(Error::BadValue)
+			}
+			else {
+				let d = ::kernel::metadevs::video::get_display_for_pos(Default::default()).unwrap();
+				// Note: Viewport != offset
+				Ok( 0
+					| (d.dims.w as u64) << 0
+					| (d.dims.h as u64) << 16
+					| (0 as u64) << 32
+					| (0 as u64) << 48
+					)
+			}
 			},
 		_ => ::objects::object_has_no_such_method_ref("gui::Group", call),
 		}

@@ -5,7 +5,7 @@ impl Backtrace {
 	}
 }
 impl ::core::fmt::Debug for Backtrace {
-	fn fmt(&self, f: &mut ::core::fmt::Formatter) -> ::core::fmt::Result {
+	fn fmt(&self, _f: &mut ::core::fmt::Formatter) -> ::core::fmt::Result {
 		Ok( () )
 	}
 }

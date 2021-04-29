@@ -19,6 +19,7 @@ impl PlicInstance
 			::core::mem::forget(ah);
 			},
 		Err(other) => {
+			log_error!("Multiple PLICs registered? - {:#x} and {:#x}", other, ptr as usize);
 			}
 		}
 	}
@@ -68,9 +69,9 @@ impl PlicInstance
 	fn get_prio_map(&self) -> &[AtomicU32; 1024] {
 		self.get_ref(0)
 	}
-	fn get_pending_bits(&self) -> &[AtomicU32; 1024/32] {
-		self.get_ref(0x1000)
-	}
+	//fn get_pending_bits(&self) -> &[AtomicU32; 1024/32] {
+	//	self.get_ref(0x1000)
+	//}
 	fn get_enable_bits(&self, context: usize) -> &[AtomicU32; 1024/32] {
 		self.get_ref(0x002000 + context * (1024/8))
 	}

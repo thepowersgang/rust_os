@@ -241,6 +241,7 @@ def_classes! {
 	},
 	/// Opened symbolic link
 	=7: CLASS_VFS_LINK = {
+		/// Read the destination path of the link
 		=0: VFS_LINK_READ,
 		--
 	}|{
@@ -256,19 +257,21 @@ def_classes! {
 		/// - 24..48(24): Total height
 		/// - 48..56( 8): Display count
 		=1: GUI_GRP_TOTALOUTPUTS,
-		/// Obtain the dimensions of the output
+		/// Obtain the dimensions (and position) of an output
 		/// Arguments:
 		/// - Display index
 		/// Returns: Packed integers
 		/// -  0..16(16): Width
 		/// - 16..32(16): Height
+		/// - 32..48(16): X
+		/// - 48..64(16): Y
 		=2: GUI_GRP_GETDIMS,
 		/// Get the intended viewport (i.e. ignoring global toolbars)
 		/// Returns: Packed integers
 		/// -  0..16(16): Width
 		/// - 16..32(16): Height
-		/// - 32..48(16): X
-		/// - 48..64(16): Y
+		/// - 32..48(16): RelX
+		/// - 48..64(16): RelY
 		=3: GUI_GRP_GETVIEWPORT,
 		--
 	}|{

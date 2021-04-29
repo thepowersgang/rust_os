@@ -106,7 +106,7 @@ pub enum KeyCode
 	LogkingNum,
 	LogkingScroll,
 	KpComma,
-	KpEqual,
+	KpEqual,	// Duplicate of KpEquals?
 	KbInt1,
 	KbInt2,
 	KbInt3,

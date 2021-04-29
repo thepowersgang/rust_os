@@ -75,6 +75,37 @@ impl Group
 			num_outputs: (enc >> 48) as u8,
 			}
 	}
+
+	/// Returns the full size and virtual position of a display
+	pub fn get_display_dims(&self, index: usize) -> Rect {
+		// SAFE: Readonly syscall
+		let enc = unsafe { self.0.call_1(::values::GUI_GRP_GETDIMS, index) };
+		Rect {
+			d: Dims {
+				w: (enc >>  0) as u32 & 0xFFFF,
+				h: (enc >> 16) as u32 & 0xFFFF,
+				},
+			p: Pos { 
+				x: (enc >> 32) as u32 & 0xFFFF,
+				y: (enc >> 48) as u32 & 0xFFFF,
+				}
+			}
+	}
+	/// Returns the display-relative viewport (region of the display not covered by permanent toolbars
+	pub fn get_display_viewport(&self, index: usize) -> Rect {
+		// SAFE: Readonly syscall
+		let enc = unsafe { self.0.call_1(::values::GUI_GRP_GETVIEWPORT, index) };
+		Rect {
+			d: Dims {
+				w: (enc >>  0) as u32 & 0xFFFF,
+				h: (enc >> 16) as u32 & 0xFFFF,
+				},
+			p: Pos { 
+				x: (enc >> 32) as u32 & 0xFFFF,
+				y: (enc >> 48) as u32 & 0xFFFF,
+				}
+			}
+	}
 }
 
 impl ::Object for Group

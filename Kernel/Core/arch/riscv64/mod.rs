@@ -415,9 +415,11 @@ extern "C" fn trap_vector_rs(state: &mut FaultRegs)
 		match state.scause & !0 >> 1
 		{
 		// Software
+		0..=3 => {},
 		// Timer
+		4..=7 => {},
 		// External
-		8|9|10|11 => return interrupts::handle(),
+		8..=11 => return interrupts::handle(),
 		_ => {},
 		}
 	}
