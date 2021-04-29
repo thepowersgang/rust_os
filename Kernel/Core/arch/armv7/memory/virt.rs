@@ -367,7 +367,6 @@ mod pl_temp
 
 				let addr = USER_TEMP_BASE + i*PAGE_SIZE;
 				super::tlbimva( addr as *mut () );
-				super::tlbimva( (addr + 0x1000) as *mut () );
 				return ProcTempMapping( addr as *const _ );
 			}
 		}
@@ -380,7 +379,6 @@ mod pl_temp
 
 				let addr = USER_TEMP_BASE + i*PAGE_SIZE;
 				super::tlbimva( addr as *mut () );
-				super::tlbimva( (addr + 0x1000) as *mut () );
 				return ProcTempMapping( (USER_TEMP_BASE + i*PAGE_SIZE) as *const _ );
 			}
 		}
@@ -507,7 +505,7 @@ pub unsafe fn temp_map<T>(phys: ::arch::memory::PAddr) -> *mut T {
 			//log_trace!("- Addr = {:p}", addr);
 			// - Set the next node and check that it's zero
 			assert!( ents[1].swap(val+0x1000, Ordering::Acquire) == 0 );
-			tlbimva(addr as *mut ());
+			tlbimva( addr as *mut () );
 			return addr;
 		}
 	}
@@ -567,7 +565,9 @@ pub fn get_info<T>(addr: *const T) -> Option<(::arch::memory::PAddr, ::memory::v
 fn tlbimva(a: *mut ()) {
 	// SAFE: TLB invalidation is not the unsafe part :)
 	unsafe {
+		// Note: since PAGE_SIZE is 0x2000, needs to be called twice
 		asm!("mcr p15,0, {0}, c8,c7,1 ; dsb ; isb", in(reg) ((a as usize & !PAGE_MASK) | 1 ), options(nostack));
+		asm!("mcr p15,0, {0}, c8,c7,1 ; dsb ; isb", in(reg) ((a as usize & !PAGE_MASK) | 0x1000 | 1 ), options(nostack));
 	}
 }
 ///// Data Cache Clean by Modified Virtual Address (to PoC)
@@ -595,7 +595,6 @@ pub unsafe fn map(a: *mut (), p: PAddr, mode: ProtectionMode) {
 		assert!(old == 0, "map() called over existing allocation: a={:p}, old={:#x}", a, old);
 		mh[idx+1].swap(p + 0x1000 + mode_flags, Ordering::SeqCst);
 		tlbimva(a);
-		tlbimva( (a as usize + 0x1000) as *mut () );
 	}
 }
 pub unsafe fn reprotect(a: *mut (), mode: ProtectionMode) {
@@ -617,7 +616,6 @@ pub unsafe fn reprotect(a: *mut (), mode: ProtectionMode) {
 		assert!(old == v, "reprotect() called in a racy manner: a={:p} old({:#x}) != v({:#x})", a, old, v);
 		mh[idx+1].swap( (p + 0x1000) | mode_flags, Ordering::SeqCst);
 		tlbimva( a );
-		tlbimva( (a as usize + 0x1000) as *mut () );
 	}
 }
 pub unsafe fn unmap(a: *mut ()) -> Option<PAddr> {
@@ -632,7 +630,6 @@ pub unsafe fn unmap(a: *mut ()) -> Option<PAddr> {
 		let old = mh[idx+0].swap(0, Ordering::SeqCst);
 		mh[idx+1].store(0, Ordering::SeqCst);
 		tlbimva(a);
-		tlbimva( (a as usize + 0x1000) as *mut () );
 		if old & 3 == 0 {
 			None
 		}
@@ -743,7 +740,6 @@ pub fn data_abort_handler(pc: u32, reg_state: &AbortRegs, dfar: u32, dfsr: u32) 
 			let pg_base2 = pg_base + 0x1_000;
 			PageEntry::get(pg_base2 as *const ()).set(newframe + 0x1_000, ProtectionMode::UserRW);
 			tlbimva(pg_base  as *mut _);
-			tlbimva(pg_base2 as *mut _);
 			log_debug!("- COW frame copied");
 			});
 		dump_tables();
