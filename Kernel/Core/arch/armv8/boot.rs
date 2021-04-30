@@ -22,7 +22,7 @@ extern "C" {
 	static symbol_info_phys: u64;
 	static ram_first_free: u64;
 	static mut kernel_hwmap_level3: [u64; 2048];
-	static v_kernel_end: ::Void;
+	static v_kernel_end: ::Extern;
 }
 
 enum BootInfo
@@ -139,7 +139,7 @@ pub fn get_memory_map() -> &'static [::memory::MemoryMapEnt] {
 		unsafe {
 			if kernel_phys_start != 0 {
 				// 2. Clobber out kernel, modules, and strings
-				mapbuilder.set_range( kernel_phys_start as u64, (&v_kernel_end as *const _ as u64 - IDENT_START as u64), ::memory::MemoryState::Used, 0 ).unwrap();
+				mapbuilder.set_range( kernel_phys_start as u64, &v_kernel_end as *const _ as u64 - IDENT_START as u64, ::memory::MemoryState::Used, 0 ).unwrap();
 			}
 			if ram_first_free != 0 {
 				mapbuilder.set_range( kernel_phys_start as u64, (ram_first_free - kernel_phys_start) as u64, ::memory::MemoryState::Used, 0 ).unwrap();
