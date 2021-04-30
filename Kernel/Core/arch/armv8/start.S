@@ -173,6 +173,10 @@ prep_page_tables:
 	add x5, x4, #3	// Valid, Table, Kernel RWX
 	str x5, [x3,x6,LSL 3]
 	str x1, [x4,x2,LSL 3]
+	// Set user fractal mapping
+	add x5, x3, 0x403	// Magic bit pattern that works as Kernel RW and as a table
+	ldr x6, =1023
+	str x5, [x3,x6,LSL 3]
 	
 	// X0: Physical address of kernel_root
 	// X3: Physical address of user0_root
@@ -181,14 +185,14 @@ vmsa_setup:
 	msr TTBR1_EL1, x0
 	// Translation Control Register
 	// 34:32 - IPS = 5 (48 bits)
-	// 31:30 - TG1 = 1 (16KB)
+	// 31:30 - TG1 = 1 (16KB Pages for TTBR1)
 	// 29:28 - SH1 = 0 (Non-sharable)
 	// 27:26 - ORGN1 = 0
 	// 25:24 - IRGN1 = 0
 	// 23    - EPD1 = 0 (enabled)
 	// 22    - A1 = 0 (TTBR0 gives ASID)
 	// 21:16 - T1SZ = 17 (47 bits)
-	// 15:14 - TG0 = 2 (16KB)
+	// 15:14 - TG0 = 2 (16KB pages for TTBR0)
 	// 13:12 - SH0 = 0 (non-sharable)
 	// 11:10 - ORGN0 = 0
 	//  9: 8 - IRGN0 = 0
@@ -205,7 +209,7 @@ vmsa_setup:
 	add x1, x1, x12
 	str x0, [x1]
 	
-	ldr x0, =init_stack
+	ldr x0, =0xFFFFFFB000000000 + 2*0x4000
 	mov sp, x0
 	ldr x0, =kmain
 
@@ -319,12 +323,12 @@ GLOBAL(ram_first_free)	.quad	0
 GLOBAL(symbol_info_phys).quad	0
 
 .section .bss
-init_stack_base:
-	.space 0x20000, 0
-init_stack:
 	.space 0x1000, 0
 abort_stack:
 .section .pabss, "aw", @nobits
+.globl user0_root
+init_stack_base:
+	.space 0x4000, 0	// 1 page = 16K
 user0_root:
 	.space 0x4000, 0
 user0_tab2:
@@ -340,16 +344,23 @@ kernel_maps_start:
 .globl kernel_root
 kernel_root:
 	.quad (kernel_image_level2-KERNEL_BASE)+0x403
-	.rept 2048-1-4
+	.rept 2048-1-5
 		.quad 0
 	.endr
-	.quad (kernel_hwmap_level2-KERNEL_BASE)+0x403	// 0xFFFF_FFC0_0000_0000
-	.quad 0                                    	// 0xFFFF_FFD0_0000_0000
-	.quad (kernel_root-KERNEL_BASE)+0x403    	// 0xFFFF_FFE0_0000_0000
+	.quad (kernel_stack_level2-KERNEL_BASE)+0x403	// 0xFFFF_FFB0_0000_0000 - Stacks
+	.quad (kernel_hwmap_level2-KERNEL_BASE)+0x403	// 0xFFFF_FFC0_0000_0000 - Hardware
+	.quad 0                                    	// 0xFFFF_FFD0_0000_0000 - UNUSED
+	.quad (kernel_root-KERNEL_BASE)+0x403    	// 0xFFFF_FFE0_0000_0000 - Fractal
 	.quad 0
 // - Level 2 table for kernel image, 32MB per entry
 kernel_image_level2:
 	.quad 0+0x401	// Kernel image "identity" map, Priv RW only
+	.rept 2048-1
+		.quad 0
+	.endr
+// - Level 2 table for the kernel stack
+kernel_stack_level2:
+	.quad (kernel_stack_level3-KERNEL_BASE)+0x403
 	.rept 2048-1
 		.quad 0
 	.endr
@@ -359,6 +370,14 @@ kernel_hwmap_level2:
 	.rept 2048-1
 		.quad 0
 	.endr
+// - Level 3 table for kernel stacks
+kernel_stack_level3:
+	.quad 0
+	.quad (init_stack_base-KERNEL_BASE)+0*0x4000+0x403
+	.rept 2048-2
+		.quad 0
+	.endr
+// - Level 3 table for hardware mappings
 .globl kernel_hwmap_level3
 kernel_hwmap_level3:
 	.rept 2048
