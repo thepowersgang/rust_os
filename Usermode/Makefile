@@ -32,7 +32,7 @@ RUSTFLAGS += --cfg arch="$(ARCH)"
 RUSTFLAGS += -L $(LIBDIR)
 
 CARGO_PROFILE := release
-CARGO_FLAGS :=
+CARGO_FLAGS ?=
 ifneq ($(ARCH),native)
   CARGO_FLAGS += --target $(TARGET_SPEC)
   CARGO_FLAGS += -Z build-std=core,alloc

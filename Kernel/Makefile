@@ -26,10 +26,11 @@ OBJS := $(addprefix $(OBJDIR),start.ao log_cfg.ao libmain.a build_info.ao)
 IMGDIR := ../Graphics/.output/shared/
 
 CARGO_FEATURES :=
+# Allow caller to add extra cargo flags (e.g. --offline)
+CARGO_FLAGS ?=
+# - V is empty (i.e. it's not '@', then tell cargo to be verbose)
 ifeq ($(V),)
-CARGO_V := -v
-else
-CARGO_V :=
+CARGO_FLAGS += -v
 endif
 
 LINKFLAGS := -T Core/arch/$(ARCH)/link.ld -Map $(OBJDIR)map.txt -g
@@ -84,7 +85,7 @@ endif
 #
 $(OBJDIR)libmain.a: PHONY targets/kernel-$(ARCH).json $(IMGDIR)logo.rs $(IMGDIR)panic.rs
 	@echo "[CARGO] . > $@"
-	$V$(CARGO) build -Z build-std=core --target=targets/kernel-$(ARCH).json --release --features "$(CARGO_FEATURES)" -j 1 $(CARGO_V)
+	$V$(CARGO) build -Z build-std=core --target=targets/kernel-$(ARCH).json --release --features "$(CARGO_FEATURES)" -j 1 $(CARGO_FLAGS)
 #	$V$(CARGO) build -Z build-std=core --target=targets/kernel-$(ARCH).json --features "$(CARGO_FEATURES)" -j 1 $(CARGO_V)
 	@mkdir -p $(dir $@)
 	@if test ! -e $@ || test target/kernel-$(ARCH)/release/libmain.a -nt $@; then cp target/kernel-$(ARCH)/release/libmain.a $@; fi
