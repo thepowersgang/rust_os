@@ -14,6 +14,9 @@ fn init()
 {
 }
 
+#[path="../armv7/fdt_devices.rs"]
+mod fdt_devices;
+
 pub fn print_backtrace() {
 	let mut fp: *const FrameEntry;
 	// SAFE: Just loads the frame pointer
