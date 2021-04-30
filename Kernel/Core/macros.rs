@@ -8,6 +8,12 @@ macro_rules! is
 	($val:expr, $p:pat) => ( match $val { $p => true, _ => false } );
 }
 
+/// Asserts a constant condition at compile-time
+#[macro_export]
+macro_rules! static_assert {
+	($cnd:expr) => { static _STATIC_ASSERT: [(); ($cnd) as usize] = [()]; }
+}
+
 #[doc(hidden)]
 #[macro_export]
 macro_rules! _count
