@@ -8,7 +8,8 @@ pub struct State
 {
 	sp: usize,
 	ttbr0: u64,
-	stack_handle: Option< ::memory::virt::ArrayHandle<u8> >,
+	// Just here to ensure it stays allocated
+	_stack_handle: Option< ::memory::virt::ArrayHandle<u8> >,
 }
 
 pub fn init_tid0_state() -> State
@@ -16,7 +17,7 @@ pub fn init_tid0_state() -> State
 	State {
 		sp: 0,
 		ttbr0: super::memory::virt::AddressSpace::pid0().as_phys(),
-		stack_handle: None,
+		_stack_handle: None,
 		}
 }
 
@@ -26,7 +27,7 @@ impl State
 		State {
 			sp: 0,
 			ttbr0: addr_space.as_phys(),
-			stack_handle: None,
+			_stack_handle: None,
 			}
 	}
 }
@@ -119,7 +120,7 @@ pub fn start_thread<F: FnOnce()+Send+'static>(thread: &mut ::threads::Thread, co
 	// 4. Apply newly updated state
 	let (stack_handle, stack_pos) = stack.unwrap();
 	thread.cpu_state.sp = stack_pos;
-	thread.cpu_state.stack_handle = Some(stack_handle);
+	thread.cpu_state._stack_handle = Some(stack_handle);
 
 	// END: Parent function will run this thread for us
 	
