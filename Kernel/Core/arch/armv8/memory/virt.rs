@@ -1,9 +1,12 @@
+// "Tifflin" Kernel
+// - By John Hodge (thePowersGang)
 //
-//
-//
-//!
+// Core/arch/armv8/memory/virt.rs
+//! Virtual memory interface
+// NOTE NOTE: Page size on ARMv8 (this config) is 0x4000 (16K, 2<<14) - Keeps things interesting
 use memory::virt::ProtectionMode;
 use PAGE_SIZE;
+use super::addresses;
 use core::sync::atomic::{Ordering,AtomicU64};
 
 const KERNEL_FRACTAL_BASE: usize = 0xFFFF_FFE0_0000_0000;
@@ -14,6 +17,7 @@ pub struct AddressSpace(u64);
 
 pub fn post_init()
 {
+	// No changes needed after init
 }
 
 fn prot_mode_to_attrs(prot: ProtectionMode) -> u64
@@ -86,7 +90,7 @@ fn get_phys_raw<T>(addr: *const T) -> Option<u64> {
 		None
 	}
 	else {
-		Some( ((v & 0x0000FFFF_FFFFF000) + (addr as usize % PAGE_SIZE)) as u64 )
+		Some( ((v & 0x0000FFFF_FFFFF000) + (addr as usize & 0xFFF)) as u64 )
 	}
 }
 
@@ -137,26 +141,38 @@ pub unsafe fn map(addr: *const (), phys: u64, prot: ProtectionMode)
 {
 	log_debug!("map({:p} = {:#x}, {:?})", addr, phys, prot);
 
-	let page = addr as usize / PAGE_SIZE;
-	if page >> (48-14) > 0
+	const USER_SIZE: usize = 1 << 47;
+	const PAGE_MASK: usize = (USER_SIZE / PAGE_SIZE) - 1;
+	let page = (addr as usize / PAGE_SIZE) & PAGE_MASK;
+	let sign_bits = addr as usize >> 48;
+	let kernel_bit = (addr as usize >> 47) & 1;
+	assert!(sign_bits == [0,0xFFFF][kernel_bit], "Non-canonical address {:p} ({:#x})", addr, sign_bits);
+	//log_trace!("page = {}:{:#x}", b"UK"[is_kernel as usize], page);
+	// If the address is above the 48-bit user-kernel split
+	if kernel_bit != 0
 	{
 		// Kernel AS doesn't need a deletion lock, as it's never pruned
 		// Mutation lock also not needed (but is provided in VMM)
-		
-		let mask = (1 << 33)-1;
-		let page = page & mask;
-		//log_trace!("page = {:#x}", page);
+
+		// 0x4000 / 8 = 0x800 = 11 bits
+
 		// 1. Ensure that top-level region is valid.
 		with_entry(Level::Root, page >> 22, |e| {
 			if e.load(Ordering::Relaxed) == 0 {
+				log_debug!("Allocate Level2 @ {:#x}", page >> 22);
 				::memory::phys::allocate( get_entry_addr(Level::Middle, page >> 22 << 11) as *mut () );
+				assert!(e.load(Ordering::Relaxed) != 0);
 			}
+			log_debug!("map: Root[{:#x}]={:#x}", page >> 22, e.load(Ordering::Relaxed));
 			});
 		// 2. Ensure that level2 is valid
 		with_entry(Level::Middle, page >> 11, |e| {
 			if e.load(Ordering::Relaxed) == 0 {
+				log_debug!("Allocate Level3 @ {:#x}", page >> 11);
 				::memory::phys::allocate( get_entry_addr(Level::Bottom, page >> 11 << 11) as *mut () );
+				assert!(e.load(Ordering::Relaxed) != 0);
 			}
+			log_debug!("map: Middle[{:#x}]={:#x}", page >> 11, e.load(Ordering::Relaxed));
 			});
 		// 3. Set mapping in level3
 		let val = phys | prot_mode_to_attrs(prot) | 0x403;
@@ -172,11 +188,11 @@ pub unsafe fn map(addr: *const (), phys: u64, prot: ProtectionMode)
 		todo!("map - user");
 	}
 	// Invalidate TLB for this address
-	// SAFE: Safe assembly
-	//unsafe {
-		let MASK: usize = ((1 << 43)-1) & !3;	// 43 bits of address (after shifting by 12)
-		asm!("TLBI VAE1, {}", in(reg) (addr as usize >> 12) & MASK);
-	//}
+	tlbi(addr);
+	{
+		let readback = get_phys(addr);
+		assert!(readback == phys, "{:p} readback {:#x} != set {:#x}", addr, readback, phys);
+	}
 }
 pub unsafe fn reprotect(addr: *const (), prot: ProtectionMode)
 {
@@ -186,6 +202,15 @@ pub unsafe fn unmap(addr: *const ()) -> Option<u64>
 {
 	None
 }
+/// Invalidate the TLB entries associated with the specified address
+fn tlbi(addr: *const ()) {
+	// SAFE: TLBI can't cause unsafety
+	unsafe {
+		static_assert!(PAGE_SIZE == 1 << (12+2));
+		const MASK: usize = ((1 << 43)-1) & !3;	// 43 bits of address (after shifting by 12), mask out bottom two bits for 14bit page size
+		asm!("TLBI VAE1, {}", in(reg) (addr as usize >> 12) & MASK);
+	}
+}
 
 
 pub unsafe fn fixed_alloc(phys: u64, count: usize) -> Option<*mut ()>
@@ -194,6 +219,9 @@ pub unsafe fn fixed_alloc(phys: u64, count: usize) -> Option<*mut ()>
 }
 pub fn is_fixed_alloc(addr: *const (), count: usize) -> bool
 {
+	if addresses::IDENT_START <= addr as usize && addr as usize + count * PAGE_SIZE <= (addresses::IDENT_START + addresses::IDENT_SIZE) {
+		return true;
+	}
 	false
 }
 
@@ -213,14 +241,14 @@ impl AddressSpace
 	pub fn pid0() -> AddressSpace
 	{
 		extern "C" {
-			static kernel_root: [u64; 2048];
+			static user0_root: ::Extern;
 		}
-		// SAFE: Constant value
-		AddressSpace(unsafe { kernel_root[2048-2] & !0x3FFF })
+		// SAFE: Just need the address
+		AddressSpace(get_phys(unsafe { &user0_root as *const _ as *const () }))
 	}
 	pub fn new(start: usize, end: usize) -> Result<AddressSpace,()>
 	{
-		todo!("");
+		todo!("AddressSpace::new");
 	}
 
 	pub fn as_phys(&self) -> u64 {
