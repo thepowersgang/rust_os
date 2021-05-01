@@ -29,10 +29,11 @@ pub mod addresses {
 	pub const BUMP_END  : usize = 0xFFFF_FFB0_0000_0000;
 	pub const STACKS_BASE: usize = 0xFFFF_FFB0_0000_0000;
 	pub const STACKS_END : usize = 0xFFFF_FFC0_0000_0000;
+	pub const STACK_SIZE: usize = 0x8000;	// one page data, one page guard
 	pub const HARDWARE_BASE: usize = 0xFFFF_FFC0_0000_0000;
 	pub const HARDWARE_END : usize = 0xFFFF_FFD0_0000_0000;
 
-	pub const STACK_SIZE: usize = 0x8000;
+	pub const KERNEL_FRACTAL_BASE: usize = 0xFFFF_FFE0_0000_0000;
 
 	pub fn is_global(addr: usize) -> bool {
 		addr >= 0xFFFF_0000_0000_0000

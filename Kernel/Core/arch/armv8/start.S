@@ -147,7 +147,8 @@ prep_page_tables:
 	add x0, x0, x12
 
 	// - Mutate all populated fields in the tables - offset by RAM base
-	mov x4, x0
+	ldr x4, =(kernel_maps_start-KERNEL_BASE)
+	add x4, x4, x12
 	ldr x5, =kernel_maps_len
 1:
 	ldr x3, [x4], #8
@@ -173,10 +174,6 @@ prep_page_tables:
 	add x5, x4, #3	// Valid, Table, Kernel RWX
 	str x5, [x3,x6,LSL 3]
 	str x1, [x4,x2,LSL 3]
-	// Set user fractal mapping
-	add x5, x3, 0x403	// Magic bit pattern that works as Kernel RW and as a table
-	ldr x6, =1023
-	str x5, [x3,x6,LSL 3]
 	
 	// X0: Physical address of kernel_root
 	// X3: Physical address of user0_root
@@ -326,11 +323,8 @@ GLOBAL(symbol_info_phys).quad	0
 	.space 0x1000, 0
 abort_stack:
 .section .pabss, "aw", @nobits
-.globl user0_root
 init_stack_base:
 	.space 0x4000, 0	// 1 page = 16K
-user0_root:
-	.space 0x4000, 0
 user0_tab2:
 	.space 0x4000, 0
 
@@ -341,6 +335,12 @@ user0_tab2:
 // > 47 bits total
 .globl kernel_maps_start
 kernel_maps_start:
+.globl user0_root
+user0_root:
+	.rept 2048-1
+		.quad 0
+	.endr
+	.quad (user0_root-KERNEL_BASE)+0x403    	// 0x0000_7FF0_0000_0000 - Fractal
 .globl kernel_root
 kernel_root:
 	.quad (kernel_image_level2-KERNEL_BASE)+0x403
