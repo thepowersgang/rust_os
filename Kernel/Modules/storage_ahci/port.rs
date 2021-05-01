@@ -3,8 +3,7 @@
 //
 //! 
 use kernel::prelude::*;
-use core::sync::atomic::Ordering;
-use kernel::sync::atomic::AtomicU32;
+use core::sync::atomic::{Ordering,AtomicU32};
 use kernel::sync::Mutex;
 use kernel::metadevs::storage::{self, DataPtr};
 use kernel::memory::virt::AllocHandle;
@@ -530,29 +529,28 @@ impl Port
 			assert!(avail < self.ctrlr.max_commands as usize);
 
 			// 3. Try and commit
+			// - Can't use `fetch_or` because that wouldn't spot races
 			let try_new_val = cur_used_commands | (1 << avail);
-			let newval = self.used_commands.compare_and_swap(cur_used_commands, try_new_val, Ordering::Acquire);
-
-			if newval == cur_used_commands
+			if let Err(newval) = self.used_commands.compare_exchange(cur_used_commands, try_new_val, Ordering::Acquire, Ordering::Relaxed)
 			{
-				// If successful, return
-				// SAFE: Exclusive access
-				let (tab, hdr) = unsafe {
-					(
-						&mut *self.get_cmdtab_ptr(avail),
-						&mut self.command_list_alloc.as_int_mut_slice(0, max_commands)[avail],
-						)
-					};
-				return CommandSlot {
-					idx: avail as u8,
-					port: self,
-					data: tab,
-					hdr: hdr,
-					event: &self.command_events[avail],
-					};
+				cur_used_commands = newval;
+				continue ;
 			}
-
-			cur_used_commands = newval;
+			// If successful, return
+			// SAFE: Exclusive access
+			let (tab, hdr) = unsafe {
+				(
+					&mut *self.get_cmdtab_ptr(avail),
+					&mut self.command_list_alloc.as_int_mut_slice(0, max_commands)[avail],
+					)
+				};
+			return CommandSlot {
+				idx: avail as u8,
+				port: self,
+				data: tab,
+				hdr: hdr,
+				event: &self.command_events[avail],
+				};
 		}
 	}
 }
@@ -637,14 +635,7 @@ impl<'a> ::core::ops::Drop for CommandSlot<'a>
 		}
 		
 		// Release into the pool
-		loop
-		{
-			let cur = self.port.used_commands.load(Ordering::Relaxed);
-			let new = self.port.used_commands.compare_and_swap(cur, cur & !mask, Ordering::Release);
-			if new == cur {
-				break ;
-			}
-		}
+		self.port.used_commands.fetch_and(!mask, Ordering::Release);
 		self.port.used_commands_sem.release();
 	}
 }

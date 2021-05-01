@@ -7,11 +7,8 @@
 //! Handles reference counting and allocation bitmaps
 use arch::imp::memory::addresses::{PMEMREF_BASE,PMEMREF_END,PMEMBM_BASE,PMEMBM_END};
 use sync::RwLock;
-use core::sync::atomic::{Ordering};
-use sync::AtomicU32;
+use core::sync::atomic::{Ordering,AtomicU32};
 use memory::page_array::{PageArray};
-
-// TODO: Move all of this into `Core/memory/phys` instead of being in arch
 
 // 1. Reference counts are maintained as a region of address space containing the reference counts
 // 2. Bitmap (maybe?) maintained 
@@ -65,35 +62,15 @@ pub fn get_multiref_count(frame_idx: u64) -> u32 {
 pub fn mark_free(frame_idx: u64) -> bool {
 	let mask = 1 << ((frame_idx % 32) as usize);
 	with_bm( (frame_idx / 32) as usize, |c| {
-		let mut old = c.load(Ordering::Relaxed);
-		if old & mask == 0
-		{
-			// Bit was clear, frame was already free?
-			false
-		}
-		else {
-			// Bit set, loop until a compare+swap succeeds
-			loop
-			{
-				let new_old = c.compare_and_swap(old, old & !mask, Ordering::Relaxed);
-				if old == new_old {
-					break ;
-				}
-				old = new_old;
-			}
-			true
-		}
+		// Clear the masked bit, return true if it was set in the output
+		(c.fetch_and(!mask, Ordering::Relaxed) & mask) != 0
 		}).unwrap_or(false)
 }
 pub fn mark_used(frame_idx: u64) {
 	let mask = 1 << ((frame_idx % 32) as usize);
 	with_bm_alloc( (frame_idx / 32) as usize, |c| {
-		// Should always succeed due to write lock in `with_bm_alloc`
-		let old = c.load(Ordering::Relaxed);
-		let new_old = c.compare_and_swap(old, old | mask, Ordering::Relaxed);
-		assert_eq!(new_old, old);
+		c.fetch_or(mask, Ordering::Relaxed);
 		})
 }
-
 
 

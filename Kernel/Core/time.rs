@@ -3,7 +3,8 @@
 //
 // Core/time.rs
 //! Kernel timing and timers
-//use ::core::sync::atomic::{Ordering,AtomicU64};
+#[cfg(target_has_atomic="64")]
+use ::core::sync::atomic::{Ordering,AtomicU64};
 
 /// Timer ticks (ms)
 pub type TickCount = u64;
@@ -37,20 +38,37 @@ impl_fmt! {
 
 
 // TODO: Use AtomicU64 if availble, otherwise use a spinlock protected u32 pair
-pub struct CacheTimer(::sync::atomic::AtomicValue<TickCount>);
+pub struct CacheTimer(
+	#[cfg(target_has_atomic="64")]
+	AtomicU64,
+	#[cfg(not(target_has_atomic="64"))]
+	::sync::Spinlock<u64>,
+	);
 impl Default for CacheTimer {
 	fn default() -> Self {
 		CacheTimer::new()
 	}
 }
+#[cfg(target_has_atomic="64")]
 impl CacheTimer
 {
 	pub fn new() -> Self {
-		CacheTimer( ::sync::atomic::AtomicValue::new(ticks()) )
+		CacheTimer( AtomicU64::new(ticks()) )
 	}
 
 	pub fn bump(&self) {
-		self.0.store(ticks(), ::core::sync::atomic::Ordering::SeqCst)
+		self.0.store(ticks(), Ordering::SeqCst)
+	}
+}
+#[cfg(not(target_has_atomic="64"))]
+impl CacheTimer
+{
+	pub fn new() -> Self {
+		CacheTimer( ::sync::Spinlock::new(ticks()) )
+	}
+
+	pub fn bump(&self) {
+		*self.0.lock() = ticks();
 	}
 }
 

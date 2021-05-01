@@ -7,8 +7,8 @@
 //! Handles reference counting and allocation bitmaps
 //use prelude::*;
 use arch::imp::memory::addresses::{PMEMREF_BASE,PMEMREF_END/*,PMEMBM_BASE,PMEMBM_END*/};
-use sync::{RwLock,AtomicU32};
-use core::sync::atomic::Ordering;
+use sync::RwLock;
+use core::sync::atomic::{Ordering,AtomicU32};
 use memory::page_array::PageArray;
 
 static S_REFCOUNT_ARRAY: RwLock<PageArray<AtomicU32>> = RwLock::new( PageArray::new(PMEMREF_BASE, PMEMREF_END) );

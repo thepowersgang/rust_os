@@ -6,7 +6,7 @@ use memory::virt::ProtectionMode;
 use arch::memory::PAddr;
 use arch::memory::{PAGE_SIZE, PAGE_MASK};
 use arch::memory::virt::TempHandle;
-use core::sync::atomic::Ordering;
+use core::sync::atomic::{Ordering,AtomicU32};
 
 extern "C" {
 	static kernel_table0: [AtomicU32; 0x800*2];
@@ -137,9 +137,6 @@ fn flags_to_prot_mode(flags: u32) -> ProtectionMode {
 	v @ _ => todo!("Unknown mode value {:#x}", v),
 	}
 }
-
-/// Atomic 32-bit integer, used for table entries
-type AtomicU32 = ::sync::atomic::AtomicValue<u32>;
 
 pub fn is_fixed_alloc<T>(addr: *const T, size: usize) -> bool {
 	const BASE: usize = super::addresses::KERNEL_BASE;
@@ -361,7 +358,7 @@ mod pl_temp
 		}
 		for i in 0 .. USER_TEMP_COUNT
 		{
-			if lh.mappings()[i*2].compare_and_swap(0, val, Ordering::Relaxed) == 0 {
+			if let Ok(_) = lh.mappings()[i*2].compare_exchange(0, val, Ordering::Relaxed, Ordering::Relaxed) {
 				lh.mappings()[i*2+1].store(val + 0x1000, Ordering::Relaxed);
 				lh.counts[i] += 1;
 
@@ -460,21 +457,23 @@ fn get_table_addr<T>(vaddr: *const T, alloc: bool) -> Option< (TableRef, usize) 
 			//::memory::virt::with_temp(|frame: &[AtomicU32]| for v in frame.iter { v.store(0) });
 
 			let frame = handle.phys_addr();
-			let ent_v = ent_r[0].compare_and_swap(0, frame + 0x1, Ordering::Acquire);
-			if ent_v != 0 {
+			match ent_r[0].compare_exchange(0, frame + 0x1, Ordering::Acquire, Ordering::Relaxed)
+			{
+			Err(ent_v) => {
 				// SAFE: Frame is owned by this function, and is umapped just after this
 				unsafe { ::memory::phys::deref_frame(frame); }
 				drop(handle);
 				// SAFE: Address is correct, and immutable
 				let ret_handle = unsafe { TempHandle::new(ent_v & !PAGE_MASK_U32) };
 				Some( (TableRef::Dynamic( ret_handle ), tab_idx) )
-			}
-			else {
+				},
+			Ok(_/*0*/) => {
 				for i in 1 .. ENTS_PER_ALLOC as u32 {
 					assert!( ent_r[i as usize].load(Ordering::Relaxed) == 0 );
 					ent_r[i as usize].store(frame + i*0x400 + 0x1, Ordering::SeqCst);
 				}
 				Some( (TableRef::Dynamic(handle.into()), tab_idx) )
+				},
 			}
 		}
 		else {
@@ -500,7 +499,7 @@ pub unsafe fn temp_map<T>(phys: ::arch::memory::PAddr) -> *mut T {
 	S_TEMP_MAP_SEMAPHORE.acquire();
 	for i in 0 .. KERNEL_TEMP_COUNT {
 		let ents = &kernel_exception_map[i*2 ..][.. 2];
-		if ents[0].compare_and_swap(0, val, Ordering::Acquire) == 0 {
+		if let Ok(_) = ents[0].compare_exchange(0, val, Ordering::Acquire, Ordering::Relaxed) {
 			let addr = (KERNEL_TEMP_BASE + i * ::PAGE_SIZE) as *mut _;
 			//log_trace!("- Addr = {:p}", addr);
 			// - Set the next node and check that it's zero
@@ -591,8 +590,9 @@ pub unsafe fn map(a: *mut (), p: PAddr, mode: ProtectionMode) {
 
 		// 2. Insert
 		let mode_flags = prot_mode_to_flags(mode);
-		let old = mh[idx+0].compare_and_swap(0, p + mode_flags, Ordering::SeqCst);
-		assert!(old == 0, "map() called over existing allocation: a={:p}, old={:#x}", a, old);
+		if let Err(old) = mh[idx+0].compare_exchange(0, p + mode_flags, Ordering::SeqCst, Ordering::Relaxed) {
+			panic!("map() called over existing allocation: a={:p}, old={:#x}", a, old);
+		}
 		mh[idx+1].swap(p + 0x1000 + mode_flags, Ordering::SeqCst);
 		tlbimva(a);
 	}
@@ -612,8 +612,9 @@ pub unsafe fn reprotect(a: *mut (), mode: ProtectionMode) {
 		let v = mh[idx].load(Ordering::SeqCst);
 		assert!(v != 0, "reprotect() called on an unmapped location: a={:p}", a);
 		let p = v & !PAGE_MASK_U32;
-		let old = mh[idx+0].compare_and_swap(v, p | mode_flags, Ordering::SeqCst);
-		assert!(old == v, "reprotect() called in a racy manner: a={:p} old({:#x}) != v({:#x})", a, old, v);
+		if let Err(old) = mh[idx+0].compare_exchange(v, p | mode_flags, Ordering::SeqCst, Ordering::Relaxed) {
+			panic!("reprotect() called in a racy manner: a={:p} old({:#x}) != v({:#x})", a, old, v);
+		}
 		mh[idx+1].swap( (p + 0x1000) | mode_flags, Ordering::SeqCst);
 		tlbimva( a );
 	}

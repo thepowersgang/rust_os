@@ -6,8 +6,7 @@
 #[allow(unused_imports)]
 use kernel::prelude::*;
 use self::keyboard::KeyCode;
-use core::sync::atomic::{AtomicUsize,Ordering};
-use kernel::sync::atomic::AtomicValue;
+use core::sync::atomic::{Ordering,AtomicUsize,AtomicU8};
 use kernel::sync::Mutex;
 
 pub mod keyboard;
@@ -41,7 +40,7 @@ struct InputChannel
 	alt_held: ModKeyPair,
 	//altgr: ModKeyPair,	// AltGr is usually just one... but meh
 	
-	last_key_pressed: AtomicValue<u8>,
+	last_key_pressed: AtomicU8,
 	//active_repeat: AtomicValue<u8>,
 	//repeat_start: Timestamp,
 	
@@ -89,7 +88,7 @@ impl InputChannel
 			//altgr: ModKeyPair::new(),
 			cursor: MouseCursor::new(),
 			
-			last_key_pressed: AtomicValue::new(KeyCode::None as u8),
+			last_key_pressed: AtomicU8::new(KeyCode::None as u8),
 			double_click_info: Mutex::new(MouseClickInfo::new()),
 			}
 	}
