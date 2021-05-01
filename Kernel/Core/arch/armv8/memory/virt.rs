@@ -24,15 +24,18 @@ fn prot_mode_to_attrs(prot: ProtectionMode) -> u64
 {
 	match prot
 	{
+	ProtectionMode::Unmapped => 0,
 	//ProtectionMode::KernelRWX=> (0x00<<56) | (0x00<<2),
-	//ProtectionMode::UserRWX  => (0x00<<56) | (0x40<<2),
+	ProtectionMode::UserRWX  => (0x00<<56) | (0x40),
+
 	ProtectionMode::KernelRX => (0x00<<56) | (0x80),
 	ProtectionMode::UserRX   => (0x00<<56) | (0xC0),
 	ProtectionMode::KernelRW => (0x10<<56) | (0x00),
 	ProtectionMode::UserRW   => (0x10<<56) | (0x40),
 	ProtectionMode::KernelRO => (0x10<<56) | (0x80),
 	ProtectionMode::UserRO   => (0x10<<56) | (0xC0),
-	_ => 0,
+	ProtectionMode::UserCOW  => (0x11<<56) | (0xC0),
+	//_ => 0,
 	}
 }
 fn attrs_to_prot_mode(attrs: u64) -> ProtectionMode
