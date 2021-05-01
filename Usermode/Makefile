@@ -72,10 +72,10 @@ makefile_deps =
 all: $(APPS:%=$(BINDIR)%)
 $(BINDIR)handle_server: xargo
 	@mkdir -p $(dir $@)
-	$Vcp $(CARGO_OUTDIR)handle_server-bin $@
+	$V$(STRIP) $(CARGO_OUTDIR)handle_server-bin -o $@
 $(BINDIR)%: xargo
 	@mkdir -p $(dir $@)
-	$Vcp $(CARGO_OUTDIR)$* $@
+	$V$(STRIP) $(CARGO_OUTDIR)$* -p $@
 
 # Delete all artifacts
 clean:
@@ -120,9 +120,14 @@ xargo: $(OBJDIR)rustrt0.o $(LIBDIR)libloader_dyn.so	# Referenced by link-$(TARGE
 # Ensure that all external crates are checked out
 xargo: $(patsubst %,../externals/crates.io/%/src/lib.rs,cmdline_words_parser stack_dst utf16_literal va_list)
 
+ifneq ($(ARCH),native)
 $(LIBDIR)libloader_dyn.so: $(makefile_deps) Makefile
 	@mkdir -p $(dir $@)
 	$V$(CARGO) run --manifest-path ../Helpers/make_elf_stub/Cargo.toml -- -a $(ARCH) -o $@ new_process start_process
+else
+$(LIBDIR)libloader_dyn.so: $(makefile_deps) Makefile
+	$V$(RUSTC) loader/bin/placeholder_lib.rs -o $@ --crate-type cdylib --crate-name loader -C panic=abort --cfg arch=\"native\"
+endif
 
 # - Assembly objects (loader)
 $(OBJDIR)%.ao: %.S $(makefile_deps)
