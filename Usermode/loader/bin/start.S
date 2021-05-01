@@ -192,7 +192,7 @@ GLOBAL(limit_and_base)
 	.quad	LIMIT
 
 .section .bss
-	.space 0x1000	/* Guard page */
+	.space PAGE_SIZE	/* Guard page */
 GLOBAL(init_stack_base)
 	.space 0x8000
 GLOBAL(init_stack_end)
