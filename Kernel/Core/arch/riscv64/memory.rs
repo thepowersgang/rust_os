@@ -33,18 +33,19 @@ pub mod addresses {
 	pub const HARDWARE_BASE:  usize = STACKS_END;
 	/// End of the hardware mapping region
 	pub const HARDWARE_END:   usize = 0xFFFFFFF0_00000000;
-//
-//	// Physical memory reference counting base:
-//	//  - D-C = 1<<(32+12) = (1 << 44)
-//	//  - / 4 = (1 << 42) frames, = 4 trillion = 16PB RAM
-//	pub const PMEMREF_BASE:   usize = HARDWARE_END;
-//	pub const PMEMREF_END:    usize = 0xFFFF_D000_00000000;
-//	const MAX_FRAME_IDX: usize = (PMEMREF_END - PMEMREF_BASE) / 4;	// 32-bit integer each
-//	pub const PMEMBM_BASE:	  usize = PMEMREF_END;
-//	pub const PMEMBM_END:     usize = PMEMBM_BASE + MAX_FRAME_IDX / 8;	// 8 bits per byte in bitmap
-//		
+		
 	pub const BUMP_START:	usize = 0xFFFFFFF0_00000000;
 	pub const BUMP_END  :	usize = 0xFFFFFFF8_00000000;
+
+	// Physical memory reference counting base:
+	//  - F-8 = 7<<32 = 28G
+	//  - / 4 = (7 << 20) frames, = 7 billion = 28TB RAM
+	pub const PMEMREF_BASE:   usize = BUMP_END;
+	pub const PMEMREF_END:    usize = 0xFFFFFFFF_00000000;
+	const MAX_FRAME_IDX: usize = (PMEMREF_END - PMEMREF_BASE) / 4;	// 32-bit integer each
+	pub const PMEMBM_BASE:	  usize = PMEMREF_END;
+	pub const PMEMBM_END:     usize = PMEMBM_BASE + MAX_FRAME_IDX / 8;	// 8 bits per byte in bitmap
+	static_assert!(PMEMBM_END <= IDENT_START);
 	
 	#[doc(hidden)]
 	pub const IDENT_START:    usize = 0xFFFFFFFF_80000000;
@@ -607,22 +608,6 @@ pub mod virt
 			}
 			false
 		}
-	}
-}
-pub mod phys {
-	pub fn ref_frame(_frame_idx: u64) {
-	}
-	pub fn deref_frame(_frame_idx: u64) -> u32 {
-		1
-	}
-	pub fn get_multiref_count(_frame_idx: u64) -> u32 {
-		0
-	}
-
-	pub fn mark_free(_frame_idx: u64) -> bool {
-		false
-	}
-	pub fn mark_used(_frame_idx: u64) {
 	}
 }
 

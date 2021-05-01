@@ -8,6 +8,8 @@ pub use self::memorymap::{MAP_PAD, MemoryMapEnt, MemoryMapBuilder};
 pub use self::memorymap::MemoryState;
 
 pub mod phys;
+mod phys_track;
+
 pub mod virt;
 #[cfg_attr(feature="test", path="heap-test.rs")]
 pub mod heap;

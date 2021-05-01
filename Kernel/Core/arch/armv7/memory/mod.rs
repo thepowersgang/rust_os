@@ -10,7 +10,6 @@ pub type VAddr = usize;
 pub const PAGE_SIZE: usize = 0x2000;
 
 pub mod virt;
-pub mod phys;
 
 pub mod addresses {
 	pub fn is_global(addr: usize) -> bool {
@@ -34,6 +33,8 @@ pub mod addresses {
 	const MAX_RAM_BYTES: usize = 2*1024*1024*1024;
 	pub const PMEMREF_BASE: usize = 0xB00_00000;
 	pub const PMEMREF_END : usize = PMEMREF_BASE + MAX_RAM_BYTES / ::PAGE_SIZE * 4;	// 4 bytes / 8KB frame = 1MB?
+	pub const PMEMBM_BASE: usize = PMEMREF_END;
+	pub const PMEMBM_END : usize = PMEMBM_BASE + MAX_RAM_BYTES / ::PAGE_SIZE / 8;	// One bit per page
 	
 
 	pub const TEMP_BASE: usize = 0xEFF_00000;

@@ -1,14 +1,14 @@
 // "Tifflin" Kernel
 // - By John Hodge (thePowersGang)
 //
-// arch/amd64/memory/phys.rs
+// memory/phys_track.rs
 //! Physical address space managment
 //!
 //! Handles reference counting and allocation bitmaps
-use arch::imp::memory::addresses::{PMEMREF_BASE,PMEMREF_END,PMEMBM_BASE,PMEMBM_END};
-use sync::RwLock;
-use core::sync::atomic::{Ordering,AtomicU32};
-use memory::page_array::{PageArray};
+use ::core::sync::atomic::{Ordering,AtomicU32};
+use crate::arch::memory::addresses::{PMEMREF_BASE,PMEMREF_END,PMEMBM_BASE,PMEMBM_END};
+use crate::sync::RwLock;
+use crate::memory::page_array::{PageArray};
 
 // 1. Reference counts are maintained as a region of address space containing the reference counts
 // 2. Bitmap (maybe?) maintained 
@@ -44,6 +44,7 @@ fn with_bm_alloc<U, F: FnOnce(&AtomicU32)->U>(ofs: usize, fcn: F) -> U
 pub fn ref_frame(frame_idx: u64) {
 	with_ref_alloc( frame_idx, |r| r.fetch_add(1, Ordering::Acquire) );
 }
+/// Decrement the "multi-reference" count associated with a frame, returning the previous value.
 pub fn deref_frame(frame_idx: u64) -> u32 {
 	with_ref(frame_idx, |r|
 		if r.load(Ordering::Relaxed) != 0 {
@@ -66,12 +67,11 @@ pub fn mark_free(frame_idx: u64) -> bool {
 		(c.fetch_and(!mask, Ordering::Relaxed) & mask) != 0
 		}).unwrap_or(false)
 }
+/// Mark a frame as "allocated"
 pub fn mark_used(frame_idx: u64) {
 	let mask = 1 << ((frame_idx % 32) as usize);
 	with_bm_alloc( (frame_idx / 32) as usize, |c| {
 		c.fetch_or(mask, Ordering::Relaxed);
 		})
 }
-
-
 

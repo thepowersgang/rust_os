@@ -24,6 +24,11 @@ pub mod memory {
 
 		pub const BUMP_START: usize = 0;
 		pub const BUMP_END  : usize = 0;
+
+		pub const PMEMREF_BASE: usize = 0;
+		pub const PMEMREF_END : usize = 0;
+		pub const PMEMBM_BASE: usize = 0;
+		pub const PMEMBM_END : usize = 0;
 	}
 	pub mod virt {
 		pub struct AddressSpace;
@@ -75,22 +80,6 @@ pub mod memory {
 		}
 		pub unsafe fn unmap(_a: *mut ()) -> Option<::memory::PAddr> {
 			None
-		}
-	}
-	pub mod phys {
-		pub fn ref_frame(_frame_idx: u64) {
-		}
-		pub fn deref_frame(_frame_idx: u64) -> u32 {
-			1
-		}
-		pub fn get_multiref_count(_frame_idx: u64) -> u32 {
-			0
-		}
-
-		pub fn mark_free(_frame_idx: u64) -> bool {
-			false
-		}
-		pub fn mark_used(_frame_idx: u64) {
 		}
 	}
 }

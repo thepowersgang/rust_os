@@ -7,6 +7,7 @@
 use prelude::*;
 use arch::memory::PAddr;
 use arch::memory::virt::TempHandle;
+use crate::memory::phys_track;
 
 pub const NOPAGE : PAddr = 1;
 
@@ -93,38 +94,49 @@ fn get_memory_map() -> &'static [::memory::MemoryMapEnt]
 	&*S_MEM_MAP
 }
 
-fn is_ram(phys: PAddr) -> bool
+fn phys_to_ram_frame(phys: PAddr) -> Option<u64>
 {
 	for e in S_MEM_MAP.iter()
 	{
 		if e.start as PAddr <= phys && phys < (e.start + e.size) as PAddr
 		{
-			return match e.state
+			let is_ram = match e.state
 				{
 				::memory::memorymap::MemoryState::Free => true,
 				::memory::memorymap::MemoryState::Used => true,
 				_ => false,
 				};
+			return if is_ram {
+					// TODO: Pack RAM (skipping holes)
+					Some(phys as u64 / ::PAGE_SIZE as u64)
+				}
+				else {
+					None
+				};
 		}
 	}
-	false
+	None
 }
 
 // TODO: Why does this take `page` instead of calling `get_phys`
 pub fn make_unique(page: PAddr, virt_addr: &[u8; ::PAGE_SIZE]) -> PAddr
 {
-	if !is_ram(page) {
-		panic!("Calling 'make_unique' on non-RAM page");
+	if let Some(frame) = phys_to_ram_frame(page)
+	{
+		if phys_track::get_multiref_count(frame) == 0 {
+			page
+		}
+		else {
+			// 1. Allocate a new frame in temp region
+			let mut new_frame = ::memory::virt::alloc_free().expect("TODO: handle OOM in make_unique");
+			// 2. Copy in content of old frame
+			new_frame.clone_from_slice( virt_addr );
+			new_frame.into_frame().into_addr()
+		}
 	}
-	else if ::arch::memory::phys::get_multiref_count(page as u64 / ::PAGE_SIZE as u64) == 0 {
+	else
+	{
 		page
-	}
-	else {
-		// 1. Allocate a new frame in temp region
-		let mut new_frame = ::memory::virt::alloc_free().expect("TODO: handle OOM in make_unique");
-		// 2. Copy in content of old frame
-		new_frame.clone_from_slice( virt_addr );
-		new_frame.into_frame().into_addr()
 	}
 }
 
@@ -267,44 +279,51 @@ fn allocate_int( address: Option<*mut ()> ) -> Result<Option<TempHandle<u8>>, Er
 
 pub fn ref_frame(paddr: PAddr)
 {
-	if ! is_ram(paddr) {
-		
+	if let Some(frame) = phys_to_ram_frame(paddr) {
+		phys_track::ref_frame(frame);
 	}
 	else {
-		::arch::memory::phys::ref_frame(paddr as u64 / ::PAGE_SIZE as u64);
+		// Ignore non-RAM frame
 	}
 }
 // UNSAFE: This frees memory, so can cause use-after-free
 pub unsafe fn deref_frame(paddr: PAddr)
 {
-	if ! is_ram(paddr) {
-		// NOTE: Don't bother logging, as this can be called when unmapping hardware mappings
-		//log_log!("Calling deref_frame on non-RAM {:#x}", paddr);
-	}
-	// Dereference page (returns prevous value, zero meaning page was not multi-referenced)
-	else if ::arch::memory::phys::deref_frame(paddr as u64 / ::PAGE_SIZE as u64) == 0 {
-		// - This page is the only reference.
-		if ::arch::memory::phys::mark_free(paddr as u64 / ::PAGE_SIZE as u64) == true {
-			// Release frame back into the pool
-			// SAFE: This frame is unaliased
-			let mut h = S_FREE_STACK.lock();
-			::memory::virt::with_temp(paddr, |page| *(&mut page[0] as *mut u8 as *mut PAddr) = *h);
-			*h = paddr;
+	if let Some(frame) = phys_to_ram_frame(paddr) {
+		// Dereference page (returns prevous value, zero meaning page was not multi-referenced)
+		if phys_track::deref_frame(frame) == 0 {
+			// - This page is the only reference.
+			if phys_track::mark_free(frame) == true {
+				// Release frame back into the pool
+				// SAFE: This frame is unaliased
+				let mut h = S_FREE_STACK.lock();
+				::memory::virt::with_temp(paddr, |page| *(&mut page[0] as *mut u8 as *mut PAddr) = *h);
+				*h = paddr;
+			}
+			else {
+				// Page was either not allocated (oops) or is not managed
+				// - Either way, ignore
+				// TODO: Should an attempted free of a non-allocated frame trigger a panic/error/warning?
+			}
 		}
 		else {
-			// Page was either not allocated (oops) or is not managed
-			// - Either way, ignore
+			// References still exist
 		}
 	}
 	else {
-		// References still exist
+		// NOTE: Don't bother logging, as this can be called when unmapping hardware mappings
+		//log_log!("Calling deref_frame on non-RAM {:#x}", paddr);
 	}
 }
 
-fn mark_used(_paddr: PAddr)
+fn mark_used(paddr: PAddr)
 {
-	// TODO: This causes a double-lock in the PMM
-	//::arch::memory::phys::mark_used(paddr / ::PAGE_SIZE as PAddr)
+	// TODO: This causes a double-lock in the PMM (when the `phys_track` module tries to allocate
+	if false {
+		if let Some(frame) = phys_to_ram_frame(paddr) {
+			phys_track::mark_used(frame);
+		}
+	}
 }
 
 // vim: ft=rust

@@ -74,6 +74,11 @@ pub mod memory {
 
 		pub const BUMP_START: usize = imp::BUMP_START;
 		pub const BUMP_END: usize = imp::BUMP_END;
+
+		pub const PMEMREF_BASE: usize = imp::PMEMREF_BASE;
+		pub const PMEMREF_END : usize = imp::PMEMREF_END;
+		pub const PMEMBM_BASE: usize = imp::PMEMBM_BASE;
+		pub const PMEMBM_END : usize = imp::PMEMBM_END;
 	}
 	/// Virtual memory manipulation
 	pub mod virt {
@@ -167,35 +172,6 @@ pub mod memory {
 		#[inline]
 		pub unsafe fn unmap(a: *mut ()) -> Option<::memory::PAddr> {
 			imp::unmap(a)
-		}
-	}
-	/// Physical memory state tracking
-	pub mod phys {
-		use arch::imp::memory::phys as imp;
-
-		#[inline]
-		pub fn ref_frame(frame_idx: u64) {
-			imp::ref_frame(frame_idx)
-		}
-		#[inline]
-		/// Decrement the "multi-reference" count associated with a frame, returning the previous value.
-		pub fn deref_frame(frame_idx: u64) -> u32 {
-			imp::deref_frame(frame_idx)
-		}
-		#[inline]
-		pub fn get_multiref_count(frame_idx: u64) -> u32 {
-			imp::get_multiref_count(frame_idx)
-		}
-
-		#[inline]
-		/// Returns true if the frame was marked as allocated
-		pub fn mark_free(frame_idx: u64) -> bool {
-			imp::mark_free(frame_idx)
-		}
-		#[inline]
-		/// Mark a frame as "allocated"
-		pub fn mark_used(frame_idx: u64) {
-			imp::mark_used(frame_idx)
 		}
 	}
 }
