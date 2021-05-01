@@ -13,8 +13,7 @@
 		"pre-link-args": {"ld": ["-T","link-armv8.ld", "-z","max-page-size=0x4000", "--gc-sections", "--start-group"] },
 		"post-link-args": {"ld": ["--end-group"]},
 		"no-compiler-rt": true,
-		"__features": "+v7", "_comment": "TODO: Enable all the fun features, but that requires kernel suppport",
-		"features": "",
+		"features": "-neon,-fp-armv8", "_comment": "TODO: Enable all the fun features, but that requires kernel suppport",
 		"executables": true,
 		"dynamic-linking": true,
 	"morestack": false
