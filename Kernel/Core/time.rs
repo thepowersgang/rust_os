@@ -3,6 +3,7 @@
 //
 // Core/time.rs
 //! Kernel timing and timers
+//use ::core::sync::atomic::{Ordering,AtomicU64};
 
 /// Timer ticks (ms)
 pub type TickCount = u64;
@@ -35,6 +36,7 @@ impl_fmt! {
 }
 
 
+// TODO: Use AtomicU64 if availble, otherwise use a spinlock protected u32 pair
 pub struct CacheTimer(::sync::atomic::AtomicValue<TickCount>);
 impl Default for CacheTimer {
 	fn default() -> Self {

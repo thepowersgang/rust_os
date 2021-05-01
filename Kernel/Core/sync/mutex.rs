@@ -8,7 +8,7 @@ use prelude::*;
 use core::ops;
 
 /// A standard mutex (blocks the current thread when contended)
-pub struct Mutex<T: Send>
+pub struct Mutex<T>
 {
 	inner: UnitMutex,
 	val: ::core::cell::UnsafeCell<T>,
@@ -39,7 +39,7 @@ pub struct HeldMutex<'lock,T:'lock+Send>
 }
 
 /// A lazily populated mutex (must be initialised on/before first lock)
-pub struct LazyMutex<T: Send>(Mutex<Option<T>>);
+pub struct LazyMutex<T>(Mutex<Option<T>>);
 
 /// Wrapper handle for a held LazyMutex
 pub struct HeldLazyMutex<'a, T: Send+'a>( HeldMutex<'a, Option<T>> );
@@ -111,7 +111,7 @@ impl UnitMutex
 	}
 }
 
-impl<T: Send> Mutex<T>
+impl<T> Mutex<T>
 {
 	/// Construct a new mutex-protected value
 	pub const fn new(val: T) -> Mutex<T> {
@@ -120,7 +120,10 @@ impl<T: Send> Mutex<T>
 			val: ::core::cell::UnsafeCell::new(val),
 		}
 	}
+}
 	
+impl<T: Send> Mutex<T>
+{
 	/// Lock the mutex, blocking the current thread
 	pub fn lock(&self) -> HeldMutex<T> {
 		self.inner.lock(type_name!(Self));
@@ -142,12 +145,15 @@ impl<T: Send+Default> Default for Mutex<T> {
 	}
 }
 
-impl<T: Send> LazyMutex<T>
+impl<T> LazyMutex<T>
 {
 	pub const fn new() -> LazyMutex<T> {
 		LazyMutex( Mutex::new(None) )
 	}
+}
 	
+impl<T: Send> LazyMutex<T>
+{
 	/// Lock and (if required) initialise using init_fcn
 	pub fn lock_init<Fcn: FnOnce()->T>(&self, init_fcn: Fcn) -> HeldLazyMutex<T>
 	{

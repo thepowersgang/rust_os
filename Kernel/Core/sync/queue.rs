@@ -10,7 +10,7 @@ use core::cell::UnsafeCell;
 use sync::Mutex;
 use lib::VecDeque;
 
-pub struct Queue<T: Send>
+pub struct Queue<T>
 {
 	lock: Spinlock<bool>,
 	// Separate from the lock because WaitQueue::wait() takes a bool lock
@@ -23,7 +23,7 @@ unsafe impl<T: Send> Sync for Queue<T> {
 unsafe impl<T: Send> Send for Queue<T> {
 }
 
-impl<T: Send> Queue<T>
+impl<T> Queue<T>
 {
 	pub const fn new_const() -> Self
 	{
@@ -33,7 +33,10 @@ impl<T: Send> Queue<T>
 			data: Mutex::new(VecDeque::new_const()),
 			}
 	}
+}
 
+impl<T: Send> Queue<T>
+{
 	pub fn push(&self, v: T) {
 		// 1. Push the value.
 		self.data.lock().push_back(v);

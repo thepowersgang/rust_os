@@ -11,22 +11,25 @@ use kernel::sync::rwlock::{RwLock, self};
 
 extern crate kernel;
 
-pub struct SharedMap<K: Send+Sync+Ord,V: Send+Sync>
+pub struct SharedMap<K,V>
 {
 	lock: RwLock<SharedMapInner<K,V,>>,
 }
-struct SharedMapInner<K: Send+Sync+Ord, V: Send+Sync>
+struct SharedMapInner<K, V>
 {
 	m: ::kernel::lib::collections::VecMap<K,V>,
 }
 
-impl<K: Send+Sync+Ord, V: Send+Sync> SharedMap<K,V>
+impl<K, V> SharedMap<K,V>
 {
 	pub const fn new() -> Self {
 		SharedMap {
 			lock: RwLock::new(SharedMapInner { m: ::kernel::lib::collections::VecMap::new_const() }),
 			}
 	}
+}
+impl<K: Send+Sync+Ord, V: Send+Sync> SharedMap<K,V>
+{
 	pub fn get(&self, k: &K) -> Option<Handle<K,V>> {
 		let lh = self.lock.read();
 		let p = lh.m.get(k).map(|r| r as *const _);

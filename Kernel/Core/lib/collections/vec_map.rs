@@ -8,7 +8,7 @@ use lib::borrow::Borrow;
 
 /// Primitive key-value map backed by a sorted vector
 #[derive(Debug)]
-pub struct VecMap<K: Ord,V>
+pub struct VecMap<K,V>
 {
 	ents: Vec<(K,V)>,
 }
@@ -45,7 +45,7 @@ pub struct VacantEntry<'a, K: 'a + Ord, V: 'a>
 	key: K,
 }
 
-impl<K: Ord, V> VecMap<K,V>
+impl<K, V> VecMap<K,V>
 {
 	pub const fn new_const() -> VecMap<K,V> {
 		VecMap {
@@ -55,6 +55,9 @@ impl<K: Ord, V> VecMap<K,V>
 			//ents: Vec::new(),
 		}
 	}
+}
+impl<K: Ord, V> VecMap<K,V>
+{
 	/// Create a new (empty) VecMap
 	pub fn new() -> VecMap<K,V> {
 		VecMap {

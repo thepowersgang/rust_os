@@ -47,6 +47,7 @@ pub use core::convert;
 pub use core::intrinsics;
 pub use core::marker;
 pub use core::num;
+#[allow(deprecated)]
 pub use core::raw;
 
 // Crate re-exports

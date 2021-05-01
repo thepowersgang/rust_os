@@ -11,10 +11,8 @@
 use core::ptr::NonNull;
 use PAGE_SIZE;
 use memory::phys::FrameHandle;
-use core::sync::atomic::{AtomicPtr, Ordering};
+use core::sync::atomic::{Ordering, AtomicPtr, AtomicU32};
 use memory::virt::ProtectionMode;
-
-type AtomicU32 = ::sync::atomic::AtomicValue<u32>;
 
 /// Error returned by mapping functions
 #[derive(Debug)]
@@ -92,7 +90,7 @@ impl PageCache
 
 				let i = (!cur).trailing_zeros() as usize;
 				
-				if cur == e.compare_and_swap(cur, cur | (1 << i), Ordering::Acquire) {
+				if let Ok(_) = e.compare_exchange(cur, cur | (1 << i), Ordering::Acquire, Ordering::Relaxed) {
 					return cb( blk * 32 + i );
 				}
 			}
@@ -148,7 +146,7 @@ impl PageCache
 		loop
 		{
 			let cur = e.load(Ordering::Acquire);
-			if cur == e.compare_and_swap(cur, cur & !mask, Ordering::Release) {
+			if let Ok(_) = e.compare_exchange(cur, cur & !mask, Ordering::Release, Ordering::Relaxed) {
 				break ;
 			}
 		}

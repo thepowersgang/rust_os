@@ -6,7 +6,7 @@
 use ::core::sync::atomic;
 
 /// A lazily initialised value (for `static`s)
-pub struct LazyStatic<T: Send+Sync>(atomic::AtomicU8, ::core::cell::UnsafeCell<::core::mem::MaybeUninit<T>>);
+pub struct LazyStatic<T>(atomic::AtomicU8, ::core::cell::UnsafeCell<::core::mem::MaybeUninit<T>>);
 unsafe impl<T: Send+Sync> Sync for LazyStatic<T> {}	// Barring the unsafe "prep" call, is Sync
 unsafe impl<T: Send+Sync> Send for LazyStatic<T> {}	// Sendable because inner is sendable
 
@@ -22,12 +22,15 @@ macro_rules! lazystatic_init {
 	() => ( $crate::lib::LazyStatic::new() );
 }
 
-impl<T: Send+Sync> LazyStatic<T>
+impl<T> LazyStatic<T>
 {
 	pub const fn new() -> Self {
 		LazyStatic(atomic::AtomicU8::new(State::Uninit as u8), ::core::cell::UnsafeCell::new(::core::mem::MaybeUninit::uninit()) )
 	}
+}
 	
+impl<T: Send+Sync> LazyStatic<T>
+{
 	/// Prepare the value using the passed function, panics if a race occurs and returns without doing anything if the value is already initialised
 	pub fn prep<Fcn: FnOnce()->T>(&self, fcn: Fcn) -> &T
 	{

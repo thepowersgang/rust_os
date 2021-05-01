@@ -13,7 +13,7 @@ macro_rules! trace_type {
 }
 
 /// Reader-writer lock
-pub struct RwLock<T: Send+Sync>
+pub struct RwLock<T>
 {
 	inner: ::sync::Spinlock<RwLockInner>,
 	data: UnsafeCell<T>,
@@ -43,7 +43,7 @@ pub struct ReadAsWrite<'a,T:'a+Send+Sync>
 	_lock: &'a RwLock<T>,
 }
 
-impl<T: Send+Sync> RwLock<T>
+impl<T> RwLock<T>
 {
 	/// Construct a new Read-write lock wrapping the passed data
 	pub const fn new(data: T) -> RwLock<T>
@@ -65,7 +65,10 @@ impl<T: Send+Sync> RwLock<T>
 			&mut *self.data.get()
 		}
 	}
+}
 	
+impl<T: Send+Sync> RwLock<T>
+{
 	/// Obtain a read handle to the lock
 	pub fn read<'a>(&'a self) -> Read<'a, T> {
 		let mut lh = self.inner.lock();
