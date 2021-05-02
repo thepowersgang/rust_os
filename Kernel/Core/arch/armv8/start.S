@@ -236,9 +236,10 @@ prep_page_tables:
 	// - Set entries in the top and next level of the low mappings
 	ldr x3, =(user0_root-KERNEL_BASE) ; add x3, x3, x12
 	ldr x4, =(user0_tab2-KERNEL_BASE) ; add x4, x4, x12
-	add x5, x4, #3	// Valid, Table, Kernel RWX
+	add x5, x4, #0x403	// Valid, Table, Kernel RWX
 	str x5, [x3,x6,LSL 3]
 	str x1, [x4,x2,LSL 3]
+	// NOTE: x2 kept for clearing after vmsa_setup
 	
 	// X0: Physical address of kernel_root
 	// X3: Physical address of user0_root
@@ -263,6 +264,7 @@ vmsa_setup:
 	ldr x1, =0x540118011
 	msr TCR_EL1, x1
 	isb
+	
 
 	// Populate the first HWMapping address with the UART's base
 	orr x0, x9, #0x3
@@ -283,6 +285,13 @@ vmsa_setup:
 	ldr x1, =0x1B
 	msr SCTLR_EL1, x1
 	isb
+	// --- Virtual memory is now enabled! ---
+
+	// Clear the identity mapping in user0_tab2 (x2 is still the index)
+	ldr x4, =user0_tab2
+	mov x1, 0
+	str x1, [x4, x2, LSL 3]
+
 	ldr x1, =(vector_cur_sp0_sync)
 	msr VBAR_EL1, x1
 	mov x29, #0	// Clear FP so kernel backtrace code knows to terminate cleanly
@@ -390,6 +399,7 @@ abort_stack:
 .section .pabss, "aw", @nobits
 init_stack_base:
 	.space 0x4000, 0	// 1 page = 16K
+.globl user0_tab2
 user0_tab2:
 	.space 0x4000, 0
 
