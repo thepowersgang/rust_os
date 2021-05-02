@@ -226,10 +226,12 @@ impl<'a> RelocationState<'a>
 	{
 		match self.machine
 		{
+		Machine::I386 => todo!("apply_relocs - Machine {:?}", self.machine),
 		Machine::X8664 => for r in iter { self.apply_reloc_x86_64(r)?; },
 		Machine::ARM => for r in iter { self.apply_reloc_arm(r)?; },
 		Machine::Riscv => for r in iter { self.apply_reloc_riscv(r)?; },
-		_ => todo!("apply_reloc - Machine {:?}", self.machine),
+		Machine::Aarch64 => for r in iter { self.apply_reloc_aarch64(r)?; },
+		_ => todo!("apply_relocs - Machine {:?}", self.machine),
 		}
 		Ok( () )
 	}
@@ -312,6 +314,23 @@ impl<'a> RelocationState<'a>
 			}
 			},
 		v @ _ => todo!("apply_reloc_riscv64 - ty={}", v),
+		}
+		Ok( () )
+	}
+	fn apply_reloc_aarch64(&self, r: Reloc) -> Result<(), Error> {
+		match r.ty
+		{
+		0 => {},
+		1024 /* R_AARCH64_COPY */  => todo!("apply_reloc_aarch64 - COPY"),
+		1025 /* R_AARCH64_GLOB_DAT */ => {
+			let (addr,_size) = self.get_symbol_r(r.sym as usize)?;
+			self.relocate_64(r.addr, |_val| addr as u64);
+			},
+		1026 /* R_AARCH64_JUMP_SLOT */ => {
+			let (addr,_size) = self.get_symbol_r(r.sym as usize)?;
+			self.relocate_64(r.addr, |_val| addr as u64);
+			},
+		v @ _ => todo!("apply_reloc_aarch64 - ty={}", v),
 		}
 		Ok( () )
 	}
@@ -913,6 +932,7 @@ enum Machine {
 	I386,
 	ARM,
 	X8664,
+	Aarch64,
 	Riscv,
 	Unk(u16)
 }
@@ -935,6 +955,7 @@ impl_from! {
 		3 => Machine::I386,
 		40 => Machine::ARM,
 		62 => Machine::X8664,
+		183 => Machine::Aarch64,
 		243 => Machine::Riscv,
 		_ => Machine::Unk(v),
 		}
