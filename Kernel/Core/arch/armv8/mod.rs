@@ -30,9 +30,9 @@ pub fn print_backtrace() {
 	puts("Backtrace:");
 	while ! fp.is_null()
 	{
-		//if ! ::memory::virt::is_reserved(data_ptr) {
-		//	break;
-		//}
+		if ! ::memory::virt::is_reserved(fp) {
+			break;
+		}
 		// SAFE: Checked by above
 		let data = unsafe { &*fp };
 		puts(" -> "); puth(data.ret_addr as u64);
