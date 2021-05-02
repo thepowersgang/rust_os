@@ -101,3 +101,46 @@ pub fn puth(v: u64) {
 	}
 }
 
+ 
+#[repr(C)]
+struct Regs
+{
+	elr: u64,
+	/// Caller-saved registers
+	saved: [u64; 18],
+	fp: u64,
+	lr: u64,
+}
+
+#[no_mangle]
+extern "C" fn vector_handler_irq()
+{
+	todo!("vector_handler_irq");
+}
+#[no_mangle]
+extern "C" fn vector_handler_fiq()
+{
+	todo!("vector_handler_fiq");
+}
+#[no_mangle]
+extern "C" fn vector_handler_sync_u64(esr: u64, regs: &mut Regs)
+{
+	match (esr >> 26) & 0x3F
+	{
+	0x15 => {	// SVC from AArch64 state
+		extern "C" {
+			fn syscalls_handler(id: u32, first_arg: *const usize, count: u32) -> u64;
+		}
+		// SAFE: Correct FFI signature for Modules/syscalls
+		regs.saved[0] = unsafe { syscalls_handler(regs.saved[12] as u32, regs.saved.as_ptr() as *const usize, 6) };
+		},
+	ec @ _ => todo!("vector_handler_sync_u64: EC=0x{:x}", ec),
+	}
+}
+#[no_mangle]
+extern "C" fn vector_handler_sync_k(esr: u64, regs: &mut Regs)
+{
+	puts("vector_handler_sync_k: esr="); puth(esr); puts(" ELR="); puth(regs.elr); puts("\n");
+	todo!("vector_handler_sync_k");
+}
+

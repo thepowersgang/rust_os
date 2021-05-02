@@ -143,7 +143,6 @@ fn get_entry_addr(space: Space, level: Level, index: usize) -> *const AtomicU64
 			index
 			}
 		};
-	log_debug!("{} {:#x}", fidx, ofs);
 	(base + ofs) as *const _
 }
 
@@ -204,7 +203,7 @@ fn with_leaf_entry_inner(addr: *const(), alloc: bool, fcn: dyn FnOnce(&AtomicU64
 				return true;
 			}
 		}
-		log_debug!("map: Root[{:#x}]={:#x}", page >> 22, e.load(Ordering::Relaxed));
+		//log_debug!("map: Root[{:#x}]={:#x}", page >> 22, e.load(Ordering::Relaxed));
 		false
 		})
 	{
@@ -224,7 +223,7 @@ fn with_leaf_entry_inner(addr: *const(), alloc: bool, fcn: dyn FnOnce(&AtomicU64
 				return true;
 			}
 		}
-		log_debug!("map: Middle[{:#x}]={:#x}", page >> 11, e.load(Ordering::Relaxed));
+		//log_debug!("map: Middle[{:#x}]={:#x}", page >> 11, e.load(Ordering::Relaxed));
 		false
 		})
 	{

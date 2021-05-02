@@ -8,86 +8,151 @@
 
 #define PUSH(_t1,_t2)	stp _t1,_t2, [sp, #-16]!
 #define POP(_t1,_t2)	ldp _t1,_t2, [sp], #16
+#define PUSHA()	 \
+	PUSH(x29,x30); /* FP and LR */ \
+	PUSH(x16,x17); \
+	PUSH(x14,x15); \
+	PUSH(x12,x13); \
+	PUSH(x10,x11); \
+	PUSH(x8,x9); \
+	PUSH(x6,x7); \
+	PUSH(x4,x5); \
+	PUSH(x2,x3); \
+	PUSH(x0,x1); \
+	mrs x0, ELR_EL1; str x0, [sp, #-8]!
+#define POPA()	\
+	ldr x0, [sp], #8; msr ELR_EL1, x0; \
+	POP(x0,x1);\
+	POP(x2,x3);\
+	POP(x4,x5);\
+	POP(x6,x7);\
+	POP(x8,x9);\
+	POP(x10,x11);\
+	POP(x12,x13);\
+	POP(x14,x15);\
+	POP(x16,x17);\
+	POP(x29,x30)	// FP and LR
 
+.macro pad len, sym
+  .rept (len-(.-sym))/4
+	b .
+  .endr
+.endm
+
+.extern vector_handler_irq
+.extern vector_handler_fiq
+.extern vector_handler_sync_u64
 .section VECTORS
+// 4x handlers for the current mode (supervisor), but SP_EL0 is active
 vector_cur_sp0_sync:
 	b .
-	.rept 64/4-1
+	.rept (0x80-(.-vector_cur_sp0_sync))/4
 		b .
 	.endr
 vector_cur_sp0_irq:
 	b .
-	.rept 64/4-1
+	.rept (0x80-(.-vector_cur_sp0_irq))/4
 		b .
 	.endr
 vector_cur_sp0_fiq:
 	b .
-	.rept 64/4-1
+	.rept (0x80-(.-vector_cur_sp0_fiq))/4
 		b .
 	.endr
 vector_cur_sp0_serror:
 	b .
-	.rept 64/4-1
+	.rept (0x80-(.-vector_cur_sp0_serror))/4
 		b .
 	.endr
+// 4x handlers for the current mode (supervisor)
 vector_cur_sync:
-	b .
-	.rept 64/4-1
+	PUSHA()
+	mrs x0, ESR_EL1
+	mov x1, sp
+	bl vector_handler_sync_k
+	POPA()
+	.rept (0x80-(.-vector_cur_sync))/4
 		b .
 	.endr
 vector_cur_irq:
-	b .
-	.rept 64/4-1
+	PUSHA()
+	bl vector_handler_irq
+	POPA()
+	eret
+	.rept (0x80-(.-vector_cur_irq))/4
 		b .
 	.endr
 vector_cur_fiq:
-	b .
-	.rept 64/4-1
+	PUSHA()
+	bl vector_handler_fiq
+	POPA()
+	eret
+	.rept (0x80-(.-vector_cur_fiq))/4
 		b .
 	.endr
 vector_cur_serror:
 	b .
-	.rept 64/4-1
+	.rept (0x80-(.-vector_cur_serror))/4
 		b .
 	.endr
+// 4x handlers for a lower mode (user), AArch64
 vector_lower64_sync:
-	b .
-	.rept 64/4-1
+	// Save caller-save state
+	PUSHA()
+	mrs x0, ESR_EL1
+	mov x1, sp
+	bl vector_handler_sync_u64
+	POPA()
+	eret
+	.rept (0x80-(.-vector_lower64_sync))/4
 		b .
 	.endr
 vector_lower64_irq:
-	b .
-	.rept 64/4-1
+	PUSHA()
+	bl vector_handler_irq
+	POPA()
+	eret
+	.rept (0x80-(.-vector_lower64_irq))/4
 		b .
 	.endr
 vector_lower64_fiq:
-	b .
-	.rept 64/4-1
+	PUSHA()
+	bl vector_handler_fiq
+	POPA()
+	eret
+	.rept (0x80-(.-vector_lower64_fiq))/4
 		b .
 	.endr
 vector_lower64_serror:
 	b .
-	.rept 64/4-1
+	.rept (0x80-(.-vector_lower64_serror))/4
 		b .
 	.endr
+// 4x handlers for a lower mode (user), AArch32
 vector_lower32_sync:
 	b .
-	.rept 64/4-1
+	.rept (0x80-(.-vector_lower32_sync))/4
 		b .
 	.endr
 vector_lower32_irq:
-	b .
-	.rept 64/4-1
+	PUSHA()
+	bl vector_handler_irq
+	POPA()
+	eret
+	.rept (0x80-(.-vector_lower32_irq))/4
 		b .
 	.endr
 vector_lower32_fiq:
-	b .
-	.rept 64/4-1
+	PUSHA()
+	bl vector_handler_fiq
+	POPA()
+	eret
+	.rept (0x80-(.-vector_lower32_fiq))/4
 		b .
 	.endr
 vector_lower32_serror:
 	b .
-	.rept 64/4-1
+	.rept (0x80-(.-vector_lower32_serror))/4
 		b .
 	.endr
 
