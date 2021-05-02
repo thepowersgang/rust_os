@@ -300,11 +300,11 @@ pub fn is_fixed_alloc(addr: *const (), count: usize) -> bool
 
 pub unsafe fn temp_map<T>(phys: u64) -> *mut T
 {
-	todo!("");
+	todo!("temp_map");
 }
 pub unsafe fn temp_unmap<T>(addr: *mut T)
 {
-	todo!("");
+	todo!("temp_unmap");
 }
 
 
@@ -318,9 +318,71 @@ impl AddressSpace
 		// SAFE: Just need the address
 		AddressSpace(get_phys(unsafe { &user0_root as *const _ as *const () }))
 	}
-	pub fn new(start: usize, end: usize) -> Result<AddressSpace,()>
+	pub fn new(clone_start: usize, clone_end: usize) -> Result<AddressSpace,crate::memory::virt::MapError>
 	{
-		todo!("AddressSpace::new");
+		use crate::memory::virt::MapError;
+
+		// TODO: Make this more common between architectures (a generic bound for `Level`)?
+		struct NewTable(crate::arch::memory::virt::TempHandle<u64>, /** Level for the contained items */Level);
+		impl NewTable {
+			fn new(level: Level) -> Result<NewTable,MapError> {
+				match ::memory::phys::allocate_bare()
+				{
+				Err(::memory::phys::Error) => Err( MapError::OutOfMemory ),
+				Ok(temp_handle) => Ok( NewTable( temp_handle.into(), level ) ),
+				}
+			}
+			fn phys(&self) -> super::PAddr {
+				self.0.phys_addr()
+			}
+			fn into_frame(self) -> super::PAddr {
+				let rv = self.0.phys_addr();
+				::core::mem::forget(self);
+				rv
+			}
+		}
+		impl ::core::ops::Drop for NewTable {
+			fn drop(&mut self) {
+				// TODO: This method needs to recursively free paging structures held by it.
+				todo!("NewTable::drop");
+			}
+		}
+		impl ::core::ops::Deref for NewTable { type Target = [u64]; fn deref(&self) -> &[u64] { &self.0 } }
+		impl ::core::ops::DerefMut for NewTable { fn deref_mut(&mut self) -> &mut [u64] { &mut self.0 } }
+
+		fn opt_clone_table_ent(table_level: Level, base_addr: usize, clone_start: usize, clone_end: usize, prev_table_pte: u64) -> Result<u64, MapError>
+		{
+			let (next,size) = match table_level
+				{
+				Level::Root   => (Some(Level::Middle), 1 << (11+11+14)),
+				Level::Middle => (Some(Level::Bottom), 1 << (11+14)),
+				Level::Bottom => (None, 1 << 14),
+				};
+			if prev_table_pte == 0
+			{
+				Ok(0)
+			}
+			else if clone_end <= base_addr || base_addr + size <= clone_start
+			{
+				Ok(0)
+			}
+			else
+			{
+				todo!("{:#x} {:#x} {:#x}", size, base_addr, prev_table_pte);
+			}
+		}
+		let mut table = NewTable::new(Level::Root)?;
+		for i in 0 .. (2048-1)
+		{
+			let a = i << (11+11+14);
+			// SAFE: Entry is available, only read
+			unsafe { with_entry(Space::User, Level::Root, i, |e|->Result<(),MapError> {
+				table[i] = opt_clone_table_ent(Level::Root, a, clone_start, clone_end, e.load(Ordering::Relaxed))?;
+				Ok(())
+				})? };
+		}
+		table[2047] = table.phys() | 0x403;
+		Ok(AddressSpace(table.into_frame()))
 	}
 
 	pub fn as_phys(&self) -> u64 {
