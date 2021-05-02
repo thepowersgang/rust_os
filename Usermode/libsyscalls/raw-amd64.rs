@@ -1,4 +1,6 @@
 
+pub const PAGE_SIZE: usize = 0x1000;
+
 	macro_rules! syscall_a {
 		($id:expr, $( $reg:tt = $val:expr),*) => {{
 			let rv;

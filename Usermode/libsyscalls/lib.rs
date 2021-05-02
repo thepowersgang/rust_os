@@ -84,6 +84,9 @@ pub mod raw;
 #[cfg_attr(target_arch="riscv64", path="raw-riscv64.rs")]
 mod raw;
 
+/// Archtecture's page size (minimum allocation granuality)
+pub const PAGE_SIZE: usize = self::raw::PAGE_SIZE;
+
 #[macro_use]
 pub mod logging;
 

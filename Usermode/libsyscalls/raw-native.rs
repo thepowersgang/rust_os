@@ -1,4 +1,7 @@
 
+// MOST OSes have a 4K page size
+pub const PAGE_SIZE: usize = 0x1000;
+
 #[cfg_attr(not(feature="native_nolink"), link(name="loader_dyn",kind="dylib"))]
 #[allow(improper_ctypes)]
 extern "C" {

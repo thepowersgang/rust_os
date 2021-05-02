@@ -4,14 +4,11 @@
 use sync::Mutex;
 use core::mem::{align_of,size_of};
 
+use ::syscalls::PAGE_SIZE;
 #[cfg(target_arch="x86_64")] const HEAP_LIMITS: (usize,usize) = (0x1000_0000_0000, 0x7000_0000_0000);
-#[cfg(target_arch="x86_64")] const PAGE_SIZE: usize = 0x1000;
 #[cfg(target_arch="arm")] const HEAP_LIMITS: (usize,usize) = (0x1000_0000, 0x7000_0000);
-#[cfg(target_arch="arm")] const PAGE_SIZE: usize = 0x2000;
 #[cfg(target_arch="aarch64")] const HEAP_LIMITS: (usize,usize) = (0x1000_0000, 0x7000_0000);
-#[cfg(target_arch="aarch64")] const PAGE_SIZE: usize = 0x4000;
 #[cfg(target_arch="riscv64")] const HEAP_LIMITS: (usize,usize) = (0x10_0000_0000, 0x38_0000_0000);
-#[cfg(target_arch="riscv64")] const PAGE_SIZE: usize = 0x1000;
 
 
 pub const EMPTY: *mut u8 = 1 as *mut u8;

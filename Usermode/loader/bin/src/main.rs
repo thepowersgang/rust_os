@@ -26,10 +26,7 @@ mod elf;
 pub mod interface;
 mod load;
 
-#[cfg(arch="armv7")]
-const PAGE_SIZE: usize = 0x2000;
-#[cfg(not(arch="armv7"))]
-const PAGE_SIZE: usize = 0x1000;
+use ::syscalls::PAGE_SIZE;
 
 // Main: This is the initial boot entrypoint
 // NOTE: If you're looking for the new process entrypoint, see interface.rs
