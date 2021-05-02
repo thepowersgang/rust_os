@@ -134,6 +134,15 @@ extern "C" fn vector_handler_sync_u64(esr: u64, regs: &mut Regs)
 		// SAFE: Correct FFI signature for Modules/syscalls
 		regs.saved[0] = unsafe { syscalls_handler(regs.saved[12] as u32, regs.saved.as_ptr() as *const usize, 6) };
 		},
+	0x24 => {	// Data abort from lower exception level
+		// SAFE: Reads a non-sideeffect register
+		let far = unsafe { let v: u64; asm!("mrs {}, FAR_EL1", lateout(reg) v); v };
+		if self::memory::virt::data_abort(esr & ((1<<25)-1), far as usize)
+		{
+			return ;
+		}
+		todo!("vector_handler_sync_u64: Data abort {:#x} unhandled", far);
+		},
 	ec @ _ => todo!("vector_handler_sync_u64: EC=0x{:x}", ec),
 	}
 }

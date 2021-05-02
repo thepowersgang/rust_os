@@ -40,7 +40,7 @@ fn prot_mode_to_attrs(prot: ProtectionMode) -> u64
 }
 fn attrs_to_prot_mode(attrs: u64) -> ProtectionMode
 {
-	let v = (((attrs >> 56) & 0xFF) << 8) | ((attrs >> 2) & 0xFF);
+	let v = (((attrs >> 56) & 0xFF) << 8) | (attrs & 0xFC);
 	match v
 	{
 	0x00_00 => ProtectionMode::KernelRW,	// RWX
@@ -51,6 +51,7 @@ fn attrs_to_prot_mode(attrs: u64) -> ProtectionMode
 	0x20_40 => ProtectionMode::UserRW,
 	0x20_80 => ProtectionMode::KernelRO,
 	0x20_C0 => ProtectionMode::UserRO,
+	0x11_C0 => ProtectionMode::UserCOW,
 	_ => todo!("Unknown attributes - 0x{:04x}", v),
 	}
 }
@@ -77,12 +78,13 @@ pub fn get_info<T>(addr: *const T) -> Option<(u64, ProtectionMode)>
 			else {
 				return None;
 			};
-		let a = with_entry(space, Level::Middle, masked >> (14+11), |e| {
+		// SAFE: Read-only
+		let a = unsafe { with_entry(space, Level::Middle, masked >> (14+11), |e| {
 			let v = e.load(Ordering::Relaxed);
 			if v & 3 == 3 { None } else { Some(v) }
 			})
 			.unwrap_or_else(|| with_entry(space, Level::Bottom, masked >> 14, |e| e.load(Ordering::Relaxed)))
-			;
+			};
 		let prot = attrs_to_prot_mode(a & 0xFF000000_000003FC);
 		Some( (paddr, prot) )
 	}
@@ -146,7 +148,7 @@ fn get_entry_addr(space: Space, level: Level, index: usize) -> *const AtomicU64
 	(base + ofs) as *const _
 }
 
-fn with_entry<F, R>(space: Space, level: Level, index: usize, fcn: F) -> R
+unsafe fn with_entry<F, R>(space: Space, level: Level, index: usize, fcn: F) -> R
 where
 	F: FnOnce(&AtomicU64)->R
 {
@@ -155,9 +157,9 @@ where
 	//log_trace!("with_entry({:?}, {}): ptr={:p}", level, index, ptr);
 	
 	// SAFE: Pointer is asserted to be valid above
-	fcn( unsafe { &*ptr } )
+	fcn( /*unsafe*/ { &*ptr } )
 }
-fn with_leaf_entry<F, R>(addr: *const(), alloc: bool, fcn: F) -> Option<R>
+unsafe fn with_leaf_entry<F, R>(addr: *const(), alloc: bool, fcn: F) -> Option<R>
 where
 	F: FnOnce(&AtomicU64)->R
 {
@@ -325,3 +327,34 @@ impl AddressSpace
 		self.0
 	}
 }
+
+pub fn data_abort(_esr: u64, far: usize) -> bool
+{
+	if let Some( (phys, ProtectionMode::UserCOW) ) = get_info(far as *const ())
+	{
+		// Ensure lock is held before manipulation
+		// SAFE: Correct PTE manipulation
+		::memory::virt::with_lock(far, || unsafe {
+			with_leaf_entry(far as *const (), false, |e| {
+				let v = e.load(Ordering::SeqCst);
+				if attrs_to_prot_mode(v) == ProtectionMode::UserCOW
+				{
+					let frame = phys & !(::PAGE_SIZE as u64 - 1);
+					let pgaddr = far & !(::PAGE_SIZE - 1);
+					// 2. Get the PMM to provide us with a unique copy of that frame (can return the same addr)
+					// - This borrow is valid, as the page is read-only (for now)
+					let newframe = ::memory::phys::make_unique( frame, &*(pgaddr as *const [u8; ::PAGE_SIZE]) );
+					let new_val = newframe | prot_mode_to_attrs(ProtectionMode::UserRW) | 0x403;
+					
+					if let Err(_) = e.compare_exchange(v, new_val, Ordering::SeqCst, Ordering::Relaxed)
+					{
+						todo!("data_abort: Contention for COW");
+					}
+				}
+				});
+			});
+		return true;
+	}
+	false
+}
+
