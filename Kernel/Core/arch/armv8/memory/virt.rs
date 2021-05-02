@@ -203,7 +203,7 @@ fn with_leaf_entry_inner(addr: *const(), alloc: bool, fcn: dyn FnOnce(&AtomicU64
 				return true;
 			}
 		}
-		//log_debug!("map: Root[{:#x}]={:#x}", page >> 22, e.load(Ordering::Relaxed));
+		//log_debug!("with_leaf_entry: Root[{:#x}]={:#x}", page >> 22, e.load(Ordering::Relaxed));
 		false
 		})
 	{
@@ -223,7 +223,7 @@ fn with_leaf_entry_inner(addr: *const(), alloc: bool, fcn: dyn FnOnce(&AtomicU64
 				return true;
 			}
 		}
-		//log_debug!("map: Middle[{:#x}]={:#x}", page >> 11, e.load(Ordering::Relaxed));
+		//log_debug!("with_leaf_entry: Middle[{:#x}]={:#x}", page >> 11, e.load(Ordering::Relaxed));
 		false
 		})
 	{
