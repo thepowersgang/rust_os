@@ -334,6 +334,8 @@ ENTRY(task_switch)
 
 	// Update VMM root
 	msr TTBR0_EL1, x2
+	ldr x0, =(0 << 48)
+	tlbi ASIDE1, x0	// TODO: Check if this ignores globals?
 	// Set new thread pointer
 	msr TPIDR_EL1, x3
 
@@ -402,6 +404,9 @@ init_stack_base:
 .globl user0_tab2
 user0_tab2:
 	.space 0x4000, 0
+.globl kernel_temp_mappings
+kernel_temp_mappings:
+	.space 0x4000, 0
 
 
 // Page Aligned data
@@ -426,7 +431,7 @@ kernel_root:
 	.quad (kernel_hwmap_level2-KERNEL_BASE)+0x403	// 0xFFFF_FFC0_0000_0000 - Hardware
 	.quad 0                                    	// 0xFFFF_FFD0_0000_0000 - UNUSED
 	.quad (kernel_root-KERNEL_BASE)+0x403    	// 0xFFFF_FFE0_0000_0000 - Fractal
-	.quad 0
+	.quad (kernel_temp_level2-KERNEL_BASE)+0x403	// 0xFFFF_FFF0_0000_0000 - Temp
 // - Level 2 table for kernel image, 32MB per entry
 kernel_image_level2:
 	.quad 0+0x401	// Kernel image "identity" map, Priv RW only
@@ -443,6 +448,12 @@ kernel_stack_level2:
 kernel_hwmap_level2:
 	.quad (kernel_hwmap_level3-KERNEL_BASE)+0x403
 	.rept 2048-1
+		.quad 0
+	.endr
+// - Level 2 table for temporary mappings
+kernel_temp_level2:
+	.quad (kernel_temp_mappings-KERNEL_BASE)+0x403	// 0xFFFF_FFF0_0000_0000
+	.rept 2048-1	// 0xFFFF_FFF0_0200_0000+ - Unused
 		.quad 0
 	.endr
 // - Level 3 table for kernel stacks
