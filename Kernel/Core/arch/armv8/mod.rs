@@ -48,8 +48,12 @@ pub fn cur_timestamp() -> u64 {
 	0
 }
 
-extern "C" {
-	pub fn drop_to_user(entry: usize, stack: usize, args_len: usize) -> !;
+pub unsafe fn drop_to_user(entry: usize, stack: usize, args_len: usize) -> ! {
+	extern "C" {
+		fn drop_to_user(entry: usize, stack: usize, args_len: usize) -> !;
+	}
+	//crate::logging::hex_dump("drop_to_user", ::core::slice::from_raw_parts(0x7feffffd23a1 as *const u8, 11));
+	drop_to_user(entry, stack, args_len);
 }
 
 
@@ -143,6 +147,7 @@ extern "C" fn vector_handler_sync_u64(esr: u64, regs: &mut Regs)
 		}
 		todo!("vector_handler_sync_u64: Data abort {:#x} unhandled", far);
 		},
+	0x3c => todo!("vector_handler_sync_u64: User BRK instruction: {:#x}", regs.elr),
 	ec @ _ => todo!("vector_handler_sync_u64: EC=0x{:x}", ec),
 	}
 }

@@ -47,10 +47,10 @@ fn attrs_to_prot_mode(attrs: u64) -> ProtectionMode
 	0x00_40 => ProtectionMode::UserRW,	// RWX
 	0x00_80 => ProtectionMode::KernelRX,
 	0x00_C0 => ProtectionMode::UserRX,
-	0x20_00 => ProtectionMode::KernelRW,
-	0x20_40 => ProtectionMode::UserRW,
-	0x20_80 => ProtectionMode::KernelRO,
-	0x20_C0 => ProtectionMode::UserRO,
+	0x10_00 => ProtectionMode::KernelRW,
+	0x10_40 => ProtectionMode::UserRW,
+	0x10_80 => ProtectionMode::KernelRO,
+	0x10_C0 => ProtectionMode::UserRO,
 	0x11_C0 => ProtectionMode::UserCOW,
 	_ => todo!("Unknown attributes - 0x{:04x}", v),
 	}
@@ -157,7 +157,7 @@ where
 	//log_trace!("with_entry({:?}, {}): ptr={:p}", level, index, ptr);
 	
 	// SAFE: Pointer is asserted to be valid above
-	fcn( /*unsafe*/ { &*ptr } )
+	fcn( /*unsafe {*/ &*ptr /*}*/ )
 }
 unsafe fn with_leaf_entry<F, R>(addr: *const(), alloc: bool, fcn: F) -> Option<R>
 where
@@ -298,13 +298,34 @@ pub fn is_fixed_alloc(addr: *const (), count: usize) -> bool
 }
 
 
+static S_TEMP_MAP_SEM: ::sync::Semaphore = ::sync::Semaphore::new(2048, 2048);
+extern "C" {
+	static kernel_temp_mappings: [AtomicU64; 2048];
+}
 pub unsafe fn temp_map<T>(phys: u64) -> *mut T
 {
-	todo!("temp_map");
+	let v = phys | prot_mode_to_attrs(ProtectionMode::KernelRW) | 0x403;
+	S_TEMP_MAP_SEM.acquire();
+	for i in 0 .. 2048
+	{
+		if let Ok(_) = kernel_temp_mappings[i].compare_exchange(0, v, Ordering::SeqCst, Ordering::Relaxed)
+		{
+			let addr = addresses::TEMP_BASE + i * PAGE_SIZE;
+			tlbi(addr as *const _);
+			return addr as *mut _;
+		}
+	}
+	panic!("temp_map: Semaphore returned ok but no mappings");
 }
 pub unsafe fn temp_unmap<T>(addr: *mut T)
 {
-	todo!("temp_unmap");
+	assert!(addresses::TEMP_BASE <= addr as usize);
+	let i = (addr as usize - addresses::TEMP_BASE) / PAGE_SIZE;
+	assert!(i < 2048);
+	let v = kernel_temp_mappings[i].swap(0, Ordering::SeqCst);
+	assert!(v != 0);
+	tlbi(addr as *const ());
+	S_TEMP_MAP_SEM.release();
 }
 
 
@@ -366,9 +387,49 @@ impl AddressSpace
 			{
 				Ok(0)
 			}
+			else if next.is_none() || prev_table_pte & 3 == 1 {
+				assert!(size == PAGE_SIZE, "TODO: Large blocks in clone region");
+				const PADDR_MASK: u64 = 0x0000FFFF_FFFFF000;
+				const ATTR_MASK: u64 = !PADDR_MASK;
+				let paddr = prev_table_pte & PADDR_MASK;
+				let paddr = match attrs_to_prot_mode(prev_table_pte)
+					{
+					ProtectionMode::UserRX | ProtectionMode::UserCOW => {
+						::memory::phys::ref_frame( paddr );
+						paddr
+						},
+					ProtectionMode::UserRWX | ProtectionMode::UserRW => {
+						// SAFE: We've just determined that this page is mapped in, so we won't crash. Any race is the user's fault (and shouldn't impact the kernel)
+						let src = unsafe { ::core::slice::from_raw_parts(base_addr as *const u8, ::PAGE_SIZE) };
+						let mut newpg = ::memory::virt::alloc_free()?;
+						newpg.copy_from_slice(src);
+						newpg.into_frame().into_addr()
+						}
+					v @ _ => todo!("opt_clone_table_ent - Mode {:?}", v),
+					};
+				let rv = paddr | (prev_table_pte & ATTR_MASK);
+				//log_debug!("opt_clone_table_ent: {:#x} {:#x} -> {:#x}", base_addr, prev_table_pte, rv);
+				Ok( rv )
+			}
 			else
 			{
-				todo!("{:#x} {:#x} {:#x}", size, base_addr, prev_table_pte);
+				let next = next.unwrap();	// None checked above
+				let slot_base = (base_addr / size) << 11;
+				let mut table = NewTable::new(next)?;
+				for i in 0 .. 2048
+				{
+					let slot = slot_base + i;
+					let a = slot * (size >> 11);
+					// SAFE: Read-only access
+					unsafe {
+						table[i] = with_entry(Space::User, next, slot, |e| {
+							opt_clone_table_ent(next, a, clone_start, clone_end, e.load(Ordering::Relaxed))
+							})?;
+					}
+				}
+				let rv = table.into_frame() | 0x403;
+				//log_debug!("opt_clone_table_ent: > {:?} {:#x} {:#x} -> {:#x}", table_level, base_addr, prev_table_pte, rv);
+				Ok( rv )
 			}
 		}
 		let mut table = NewTable::new(Level::Root)?;

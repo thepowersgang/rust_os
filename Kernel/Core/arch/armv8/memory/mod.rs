@@ -35,6 +35,9 @@ pub mod addresses {
 
 	pub const KERNEL_FRACTAL_BASE: usize = 0xFFFF_FFE0_0000_0000;
 
+	pub const TEMP_BASE: usize = 0xFFFF_FFF0_0000_0000;
+	pub const TEMP_END: usize = 0xFFFF_FFF0_0200_0000;	// 2048 (0x800) slots = 0x4*0x8*0x1000*0x100 = 0x20_000_00
+
 	pub fn is_global(addr: usize) -> bool {
 		addr >= 0xFFFF_0000_0000_0000
 	}
