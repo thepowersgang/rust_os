@@ -75,7 +75,7 @@ $(BINDIR)handle_server: xargo
 	$V$(STRIP) $(CARGO_OUTDIR)handle_server-bin -o $@
 $(BINDIR)%: xargo
 	@mkdir -p $(dir $@)
-	$V$(STRIP) $(CARGO_OUTDIR)$* -p $@
+	$V$(STRIP) $(CARGO_OUTDIR)$* -o $@
 
 # Delete all artifacts
 clean:
