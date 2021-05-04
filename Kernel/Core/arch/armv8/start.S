@@ -277,6 +277,9 @@ vmsa_setup:
 	mov sp, x0
 	ldr x0, =kmain
 
+	ldr x1, =CPU0_STATE
+	msr TPIDR_EL1, x1
+
 	//  4 - SA0 = 1 (SP alignment check)
 	//  3 - SA = 1 (SP alignment check)
 	//  2 - C = 0
@@ -305,11 +308,10 @@ ENTRY(thread_trampoline)
 	POP(x1, x0)	// X1: "thread_root" (generic over closure type), X0: Pop pointer to the closure
 	br x1
 	//.fnend
-// pub fn task_switch(old_stack: &mut usize, new_stack: usize, new_ttbr0: usize, new_tp: usize);
+// pub fn task_switch(old_stack: &mut usize, new_stack: usize, new_ttbr0: usize);
 // R0: Old stack save location
 // R1: New stack
 // R2: New TTBR0
-// R3: New Thread pointer
 ENTRY(task_switch)
 	//.fnstart
 	//.cantunwind
@@ -336,8 +338,6 @@ ENTRY(task_switch)
 	msr TTBR0_EL1, x2
 	ldr x0, =(0 << 48)
 	tlbi ASIDE1, x0	// TODO: Check if this ignores globals?
-	// Set new thread pointer
-	msr TPIDR_EL1, x3
 
 	// Set new SP
 	mov sp, x1

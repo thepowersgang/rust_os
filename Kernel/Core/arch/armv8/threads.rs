@@ -3,6 +3,7 @@
 //
 // Core/arch/armv8/threads.rs
 // - ARMv8 (AArch64) interface
+use ::core::sync::atomic::{Ordering};
 
 pub struct State
 {
@@ -32,22 +33,27 @@ impl State
 	}
 }
 
+// TODO: Returning an "owned" pointer here feels dirty (BUT - dropping ThreadPtr is a bug)
 pub fn get_idle_thread() -> ::threads::ThreadPtr {
-	todo!("get_idle_thread");
+	let slot = &super::CpuState::cur().idle_thread;
+	// SAFE: Valid transmutes
+	unsafe
+	{
+		let mut ptr = slot.load(Ordering::Relaxed);
+		if ptr == 0
+		{
+			ptr = ::core::mem::transmute( ::threads::new_idle_thread(0) );
+			slot.store(ptr, Ordering::Relaxed);
+		}
+		::core::mem::transmute(ptr)
+	}
 }
 
 pub fn set_thread_ptr(thread: ::threads::ThreadPtr) {
-	// SAFE: Write to per-CPU register
-	unsafe {
-		asm!("msr TPIDR_EL1, {}", in(reg) thread.into_usize());
-	}
+	super::CpuState::cur().current_thread.store(thread.into_usize(), Ordering::Relaxed)
 }
 pub fn get_thread_ptr() -> Option<::threads::ThreadPtr> {
-	let ret: usize;
-	// SAFE: Read-only access to a per-cpu register
-	unsafe {
-		asm!("mrs {}, TPIDR_EL1", out(reg) ret, options(nomem, pure));
-	}
+	let ret = super::CpuState::cur().current_thread.load(Ordering::Relaxed);
 	if ret == 0 {
 		None
 	}
@@ -59,20 +65,15 @@ pub fn get_thread_ptr() -> Option<::threads::ThreadPtr> {
 	}
 }
 fn borrow_thread_mut() -> *mut ::threads::Thread {
-	let ret;
-	// SAFE: Read-only access to a per-cpu register
-	unsafe {
-		asm!("mrs {}, TPIDR_EL1", out(reg) ret, options(nomem, nostack, pure));
-	}
-	ret
+	super::CpuState::cur().current_thread.load(Ordering::Relaxed) as *mut _
 }
 pub fn borrow_thread() -> *const ::threads::Thread {
-	borrow_thread_mut() as *const _
+	super::CpuState::cur().current_thread.load(Ordering::Relaxed) as *const _
 }
 pub fn switch_to(thread: ::threads::ThreadPtr) {
 	#[allow(improper_ctypes)]
 	extern "C" {
-		fn task_switch(old_sp: &mut usize, new_sp: usize, ttbr0: u64, thread_ptr: usize);
+		fn task_switch(old_sp: &mut usize, new_sp: usize, ttbr0: u64);
 	}
 	// SAFE: Pointer access is valid, task_switch should be too
 	unsafe
@@ -81,7 +82,8 @@ pub fn switch_to(thread: ::threads::ThreadPtr) {
 		let new_sp = thread.cpu_state.sp;
 		let new_ttbr0 = thread.cpu_state.ttbr0;
 		log_trace!("Switching to SP={:#x},TTBR0={:#x}", new_sp, new_ttbr0);
-		task_switch(&mut outstate.sp, new_sp, new_ttbr0, thread.into_usize());
+		super::CpuState::cur().current_thread.store(thread.into_usize(), Ordering::Relaxed);
+		task_switch(&mut outstate.sp, new_sp, new_ttbr0);
 	}
 }
 pub fn idle() {

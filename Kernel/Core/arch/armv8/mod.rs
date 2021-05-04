@@ -3,6 +3,8 @@
 //
 // Core/arch/armv8/mod.rs
 // - ARMv8 (AArch64) interface
+use ::core::sync::atomic::{AtomicUsize};
+
 pub mod memory;
 pub mod sync;
 pub mod threads;
@@ -16,6 +18,28 @@ fn init()
 
 #[path="../armv7/fdt_devices.rs"]
 mod fdt_devices;
+
+#[no_mangle]
+static CPU0_STATE: CpuState = CpuState {
+	current_thread: AtomicUsize::new(0),
+	idle_thread: AtomicUsize::new(0),
+	};
+struct CpuState
+{
+	current_thread: AtomicUsize,
+	idle_thread: AtomicUsize,
+}
+impl CpuState
+{
+	fn cur() -> &'static CpuState {
+		// SAFE: Reads a register
+		unsafe {
+			let ret: *const CpuState;
+			asm!("mrs {}, TPIDR_EL1", out(reg) ret, options(nomem, pure));
+			&*ret
+		}
+	}
+}
 
 pub fn print_backtrace() {
 	let mut fp: *const FrameEntry;
