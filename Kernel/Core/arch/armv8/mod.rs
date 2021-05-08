@@ -136,6 +136,7 @@ pub fn puth(v: u64) {
 struct Regs
 {
 	elr: u64,
+	spsr: u64,
 	/// Caller-saved registers
 	saved: [u64; 18],
 	fp: u64,
@@ -145,7 +146,7 @@ struct Regs
 #[no_mangle]
 extern "C" fn vector_handler_irq()
 {
-	todo!("vector_handler_irq");
+	interrupts::handle();
 }
 #[no_mangle]
 extern "C" fn vector_handler_fiq()
@@ -181,6 +182,9 @@ extern "C" fn vector_handler_sync_u64(esr: u64, regs: &mut Regs)
 extern "C" fn vector_handler_sync_k(esr: u64, regs: &mut Regs)
 {
 	puts("vector_handler_sync_k: esr="); puth(esr); puts(" ELR="); puth(regs.elr); puts("\n");
-	todo!("vector_handler_sync_k");
+	match (esr >> 26) & 0x3F
+	{
+	ec @ _ => todo!("vector_handler_sync_k: EC=0x{:x} ELR={:#x}", ec, regs.elr),
+	}
 }
 

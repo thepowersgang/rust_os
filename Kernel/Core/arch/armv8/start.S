@@ -19,9 +19,11 @@
 	PUSH(x4,x5); \
 	PUSH(x2,x3); \
 	PUSH(x0,x1); \
+	mrs x0, SPSR_EL1; str x0, [sp, #-8]!; \
 	mrs x0, ELR_EL1; str x0, [sp, #-8]!
 #define POPA()	\
 	ldr x0, [sp], #8; msr ELR_EL1, x0; \
+	ldr x0, [sp], #8; msr SPSR_EL1, x0; \
 	POP(x0,x1);\
 	POP(x2,x3);\
 	POP(x4,x5);\
@@ -371,6 +373,8 @@ ENTRY(drop_to_user)
 	mov sp, x1
 	msr SPSel, #1
 	msr ELR_EL1, x0
+	mov x1, #0	// SPSR initialisation
+	msr SPSR_EL1, x1
 	mov x0, x2	// Set R0 = commandline length
 	eret
 	//.fnend

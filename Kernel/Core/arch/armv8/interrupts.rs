@@ -17,6 +17,11 @@ static INTERRUPT_HANDLES: [ (AtomicUsize, AtomicUsize); 1024 ] = array!(@1024 (A
 
 #[derive(Default)]
 pub struct IRQHandle(usize);
+impl IRQHandle {
+	pub fn num(&self) -> usize {
+		self.0 - 1
+	}
+}
 #[derive(Debug)]
 pub struct BindError;
 
@@ -141,15 +146,15 @@ pub(super) fn get_intc(compat: fdt_devices::Compat, reg: fdt_devices::Reg) -> Op
 use self::gic::GicInstance;
 static GIC: GicInstance = GicInstance::new_uninit();
 
-fn handle()
+pub(super) fn handle()
 {
 	if GIC.is_init()
 	{
 		GIC.get_pending_interrupts(|idx| {
 			let slot = &INTERRUPT_HANDLES[idx];
-			log_debug!("IRQ{}", idx);
 			let info = slot.1.load(Ordering::SeqCst);
 			let cb = slot.0.load(Ordering::SeqCst);
+			log_debug!("IRQ{}: {:#x} {:#x}", idx, cb, info);
 			if cb > 1 {
 				// SAFE: Correct type, pointer set by `bind_gsi` above
 				let cb: fn(*const ()) = unsafe { ::core::mem::transmute(cb) };

@@ -35,7 +35,7 @@ impl SpinlockInner
 		else {
 			while self.flag.compare_exchange(0, my_id, Ordering::Acquire, Ordering::Acquire).is_err() {
 			}
-			false
+			true
 		}
 	}
 	pub unsafe fn inner_release(&self)
