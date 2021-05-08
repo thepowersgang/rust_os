@@ -48,6 +48,8 @@ pub mod ring_buffer;
 
 pub mod fdt;
 
+pub mod hwreg;
+
 pub extern crate stack_dst;
 
 pub mod io;

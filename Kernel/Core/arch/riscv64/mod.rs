@@ -8,8 +8,8 @@ use ::core::sync::atomic::{AtomicUsize};
 module_define!{ arch, [], init }
 fn init()
 {
-	// Register a driver for fdt[compatible="riscv,plic0"]
-	interrupts::init();
+	// Start the FDT bus enumeration, informing it of the interrupt controller
+	fdt_devices::init(interrupts::get_intc);
 }
 
 #[path="../armv7/fdt_devices.rs"]
@@ -93,43 +93,26 @@ pub mod interrupts
 {
 	use ::core::sync::atomic::{Ordering, AtomicUsize};
 	use super::plic::PlicInstance;
+	use super::fdt_devices;
 
 	#[derive(Default)]
 	pub struct IRQHandle(usize);
 	#[derive(Debug)]
 	pub struct BindError;
 
-	pub(super) fn init()
+	pub(super) fn get_intc(compat: fdt_devices::Compat, reg: fdt_devices::Reg)->Option<&'static dyn fdt_devices::IntController>
 	{
-		crate::device_manager::register_driver(&PlicDriver);
-	}
-	struct PlicDriver;
-	impl crate::device_manager::Driver for PlicDriver
-	{
-		fn name(&self) -> &str {
-			"fdt:riscv,plic"
-		}
-		fn bus_type(&self) -> &str {
-			"fdt"
-		}
-		fn handles(&self, bus_dev: &dyn crate::device_manager::BusDevice) -> u32
+		if compat.matches("riscv,plic0")
 		{
-			if bus_dev.get_attr("compatible").unwrap_str() == "riscv,plic0" {
-				1
+			if PLIC.is_init() {
+				log_error!("Two PLIC instances?");
+				return None;
 			}
-			else {
-				0
-			}
-		}
-		fn bind(&self, bus_dev: &mut dyn crate::device_manager::BusDevice) -> crate::prelude::Box<dyn (::device_manager::DriverInstance)>
-		{
-			assert!(self.handles(&*bus_dev) > 0);
-			
-			let ah = match bus_dev.bind_io(0)
-				{
-				crate::device_manager::IOBinding::Memory(ah) => ah,
-				_ => panic!(""),
-				};
+			let ah = reg.iter_paddr()
+				// SAFE: Trusting the FDT
+				.map(|r| unsafe { let (base,size) = r.expect("PLIC MMIO out of PAddr range"); ::memory::virt::map_mmio(base, size).expect("PLIC MMIO map failed") })
+				.next().expect("PLIC had no MMIO ranges in FDT?")
+				;
 			PLIC.init(ah);
 
 			// Enable all interrupts
@@ -147,8 +130,16 @@ pub mod interrupts
 
 			// Return a stub instance
 			struct Instance;
-			impl crate::device_manager::DriverInstance for Instance {}
-			crate::prelude::Box::new( Instance )
+			impl fdt_devices::IntController for Instance {
+				fn get_gsi(&self, mut cells: fdt_devices::Cells) -> Option<u32> {
+					cells.read_1()
+				}
+			}
+			Some(&Instance)
+		}
+		else
+		{
+			None
 		}
 	}
 

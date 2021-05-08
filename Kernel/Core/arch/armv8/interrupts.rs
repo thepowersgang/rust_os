@@ -1,4 +1,5 @@
 use ::core::sync::atomic::{AtomicUsize,Ordering};
+use super::fdt_devices;
 
 macro_rules! array {
 	(@1024 $($e:tt)*) => { array!(@512 $($e)*, $($e)*) };
@@ -54,45 +55,20 @@ impl ::core::ops::Drop for IRQHandle {
 	}
 }
 
-pub(super) fn init()
+pub(super) fn get_intc(compat: fdt_devices::Compat, reg: fdt_devices::Reg) -> Option<&'static dyn fdt_devices::IntController>
 {
-	crate::device_manager::register_driver(&GicDriver);
-}
-
-use self::gic::GicInstance;
-static GIC: GicInstance = GicInstance::new_uninit();
-
-struct GicDriver;
-impl crate::device_manager::Driver for GicDriver
-{
-	fn name(&self) -> &str {
-		"fdt:riscv,gic"
-	}
-	fn bus_type(&self) -> &str {
-		"fdt"
-	}
-	fn handles(&self, bus_dev: &dyn crate::device_manager::BusDevice) -> u32
+	if compat.matches_any(&[ "arm,cortex-a15-gic" ])
 	{
-		match bus_dev.get_attr("compatible").unwrap_str()
-		{
-		"arm,cortex-a15-gic" => 1,
-		_ => 0,
+		if GIC.is_init() {
+			log_error!("Two GIC instances?");
+			return None;
 		}
-	}
-	fn bind(&self, bus_dev: &mut dyn crate::device_manager::BusDevice) -> crate::prelude::Box<dyn (::device_manager::DriverInstance)>
-	{
-		assert!(self.handles(&*bus_dev) > 0);
-		
-		let ah_dist = match bus_dev.bind_io(0)
-			{
-			crate::device_manager::IOBinding::Memory(ah) => ah,
-			_ => panic!(""),
-			};
-		let ah_cpu = match bus_dev.bind_io(1)
-			{
-			crate::device_manager::IOBinding::Memory(ah) => ah,
-			_ => panic!(""),
-			};
+
+		// SAFE: Trusting the FDT
+		let mut ah_iter = reg.iter_paddr().map(|r| unsafe { let (base,size) = r.expect("GIC MMIO out of PAddr range"); ::memory::virt::map_mmio(base, size).expect("GIC MMIO map failed") });
+		let ah_dist = ah_iter.next().expect("GIC missing distributor range in FDT?");
+		let ah_cpu  = ah_iter.next().expect("GIC missing CPU range in FDT?");
+
 		GIC.init(ah_dist, ah_cpu);
 
 		// Enable all interrupts
@@ -113,10 +89,57 @@ impl crate::device_manager::Driver for GicDriver
 
 		// Return a stub instance
 		struct Instance;
-		impl crate::device_manager::DriverInstance for Instance {}
-		crate::prelude::Box::new( Instance )
+		impl fdt_devices::IntController for Instance {
+			fn get_gsi(&self, mut cells: fdt_devices::Cells) -> Option<u32> {
+				let ty = cells.read_1()?;
+				let num = cells.read_1()?;
+				let flags = cells.read_1()?;
+				match ty
+				{
+				0 => {
+					if num >= 1024-32 {
+						log_error!("SPI index out of range {} >= 1024-32", num);
+						return None;
+					}
+					// "SPI" interrupts are offset by 32 entries
+					let num = num + 32;
+					GIC.set_mode(num as usize, match flags & 0xF
+						{
+						1 /*GIC_FDT_IRQ_FLAGS_EDGE_LO_HI*/ => gic::Mode::Rising,
+						4 /*GIC_FDT_IRQ_FLAGS_LEVEL_HI*/ => gic::Mode::LevelHi,
+						_ => {
+							log_error!("TODO: Unuspported interrupt flags - {:#x}", flags);
+							return None;
+							}
+						});
+					Some( num )
+					},
+				1 => {
+					if num >= 16 {
+						log_error!("PPI index out of range {} >= 16", num);
+						return None;
+					}
+					let num = 16 + num;
+					log_notice!("TODO: Support PPI interrupts (#{})", num);
+					None
+					}
+				_ => {
+					log_error!("Support interrupt types other than `SPI` - {}", ty);
+					None
+					}
+				}
+			}
+		}
+		Some(&Instance)
+	}
+	else
+	{
+		None
 	}
 }
+
+use self::gic::GicInstance;
+static GIC: GicInstance = GicInstance::new_uninit();
 
 fn handle()
 {
@@ -200,10 +223,19 @@ mod gic {
 
 		pub fn set_enable(&self, idx: usize, enable: bool) {
 			if enable {
-				self.reg_dist(GICD_ISENABLERn(idx/332)).store(1 << (idx%32), Ordering::Relaxed);
+				self.reg_dist(GICD_ISENABLERn(idx/32)).store(1 << (idx%32), Ordering::Relaxed);
 			}
 			else {
-				self.reg_dist(GICD_ICENABLERn(idx/332)).store(1 << (idx%32), Ordering::Relaxed);
+				self.reg_dist(GICD_ICENABLERn(idx/32)).store(1 << (idx%32), Ordering::Relaxed);
+			}
+		}
+		pub fn set_mode(&self, idx: usize, mode: Mode) {
+			let reg = self.reg_dist(GICD_ICFGRn(idx / 16));
+			let ofs = (idx % 16) * 2;
+			match mode
+			{
+			Mode::LevelHi => { reg.fetch_and(!(2 << ofs), Ordering::Relaxed); }
+			Mode::Rising  => { reg.fetch_or(2 << ofs, Ordering::Relaxed); }
 			}
 		}
 
@@ -232,6 +264,11 @@ mod gic {
 			// SAFE: No register can cause memory unsafety
 			unsafe { &*self.get_ref_dist(reg.0) }
 		}
+	}
+
+	pub enum Mode {
+		LevelHi,
+		Rising,
 	}
 
 	#[repr(usize)]
@@ -266,6 +303,12 @@ mod gic {
 	}
 	#[allow(non_snake_case)]
 	fn GICD_ITARGETSRn(n: usize)->DistRegister {
+		assert!(n < 32);
 		DistRegister(0x800 + n)
+	}
+	#[allow(non_snake_case)]
+	fn GICD_ICFGRn(n: usize)->DistRegister {
+		assert!(n < 0x100/4);
+		DistRegister(0xC00 + n*4)
 	}
 }

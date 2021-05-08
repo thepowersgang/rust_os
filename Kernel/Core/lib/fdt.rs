@@ -85,8 +85,7 @@ impl<'a> FDTRoot<'a>
 				"label" |
 				"compatible"
 					=> log_debug!("{}.{} = {:?}", indent, name, ::core::str::from_utf8(data)),
-				"reg" |
-				"interrupts"
+				"reg"
 					=> if data.len() == 8+4 {
 						let mut bytes = data;
 						let a = bytes.read_u64::<BigEndian>().unwrap();
@@ -101,6 +100,15 @@ impl<'a> FDTRoot<'a>
 					}
 					else {
 						log_debug!("{}.{} = {:x?}", indent, name, data)
+					},
+				"phandle" | "interrupt-parent"
+					=> if data.len() == 4 {
+						let mut bytes = data;
+						let v = bytes.read_u32::<BigEndian>().unwrap();
+						log_debug!("{}.{} = {:#x}", indent, name, v);
+					}
+					else {
+						log_debug!("{}.{} = 0x{:x?}", indent, name, data)
 					},
 				"timebase-frequency"
 					=> if data.len() == 4 {
@@ -117,6 +125,13 @@ impl<'a> FDTRoot<'a>
 			_ => {},
 			}
 		}
+	}
+
+	pub fn items(&self) -> SubNodes {
+		SubNodes {
+			fdt: self,
+			offset: 0,
+			}
 	}
 
 	/// Return all immediate child nodes of the passed path
@@ -142,6 +157,35 @@ impl<'a> FDTRoot<'a>
 	pub fn get_props_cb<'s, F: FnMut(usize, bool, &str)->bool>(&'s self, cb: F) -> PropsIterCb<'s, 'a, F> {
 		PropsIterCb::new(self, cb)
 	}
+
+	#[cfg(false_)]
+	pub fn walk(&self, mut w: impl Walker<'a>)
+	{
+		let mut ofs = 0;
+		loop
+		{
+			let (tag, new_ofs) = self.next_tag(ofs);
+			assert!(ofs < new_ofs);
+			ofs = new_ofs;
+			match tag
+			{
+			Tag::Nop => {},
+			Tag::BeginNode(name) => w.enter(Node { fdt: self, offset: ofs, name }),
+			Tag::EndNode => w.leave(),
+			Tag::Prop(name, data) => w.prop(name, data),
+			Tag::End => break,
+			}
+		}
+	}
+}
+
+#[cfg(false_)]
+/// Trait allowing easy recursive traversal of the tree
+pub trait Walker<'a>
+{
+	fn enter(&mut self, node: Node<'_, 'a>);
+	fn leave(&mut self);
+	fn prop(&mut self, name: &'a str, value: &'a [u8]);
 }
 
 // Internal helper methods

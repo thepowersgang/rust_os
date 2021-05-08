@@ -14,7 +14,8 @@ pub mod interrupts;
 module_define!{arch, [], init}
 fn init()
 {
-	interrupts::init();
+	// Start the FDT bus enumeration, informing it of the interrupt controller
+	fdt_devices::init(interrupts::get_intc);
 }
 
 #[path="../armv7/fdt_devices.rs"]

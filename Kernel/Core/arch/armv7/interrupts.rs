@@ -4,6 +4,7 @@
 use lib::Vec;
 use sync::Spinlock;
 use lib::LazyStatic;
+use super::fdt_devices;
 
 pub type BindError = ();
 
@@ -20,22 +21,16 @@ unsafe impl Send for Binding {}
 
 static S_IRQS: LazyStatic<Vec< Spinlock<Option<Binding>> >> = lazystatic_init!();
 
-pub fn init() {
-	// TODO: Interrogate the FDT to discover the IRQ controller layout
-	if let Some(fdt) = ::arch::imp::boot::get_fdt()
-	{
-		for p in fdt.get_props_cb(|idx,leaf,name| match (idx,leaf)
-			{
-			(0,false) => name == "",
-			(1,false) => name == "intc" || name.starts_with("intc@"),
-			(2,true) => name == "reg",
-			_ => false,
-			})
-		{
-			log_debug!("INTC {:x?}", p);
-		}
-	}
-
+pub(super) fn get_intc(compat: fdt_devices::Compat, reg: fdt_devices::Reg) -> Option<&'static dyn fdt_devices::IntController>
+{
+	//if compat.matches_any(&[ "arm,cortex-a15-gic" ])
+	//{
+	//}
+	log_error!("TODO: get_intc - {:?}", compat);
+	None
+}
+pub(super) fn init()
+{
 	S_IRQS.prep(|| Vec::from_fn(32, |_| Default::default()));
 }
 

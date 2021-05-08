@@ -37,6 +37,8 @@ extern "C" {
 fn init()
 {
 	interrupts::init();
+	// Start the FDT bus enumeration, informing it of the interrupt controller
+	fdt_devices::init(interrupts::get_intc);
 }
 
 #[no_mangle]
