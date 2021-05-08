@@ -14,6 +14,7 @@ pub mod interrupts;
 module_define!{arch, [], init}
 fn init()
 {
+	interrupts::init();
 }
 
 #[path="../armv7/fdt_devices.rs"]

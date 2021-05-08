@@ -113,7 +113,7 @@ pub fn get_memory_map() -> &'static [::memory::MemoryMapEnt] {
 		//	mapbuilder.append( ram_base as u64, ram_len as u64, ::memory::MemoryState::Free, 0 );
 		//	},
 		&BootInfo::FDT(ref fdt) => {
-			//fdt.dump_nodes();
+			fdt.dump_nodes();
 			// FDT Present, need to locate all memory nodes
 			for prop in fdt.get_props_cb(|idx,leaf,name| match (idx,leaf)
 				{

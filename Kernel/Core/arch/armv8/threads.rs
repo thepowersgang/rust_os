@@ -90,6 +90,7 @@ pub fn idle() {
 	log_trace!("idle");
 	// SAFE: Calls 'wait for interrupt'
 	unsafe {
+		crate::arch::sync::start_interrupts();
 		asm!("wfi");
 	}
 }
