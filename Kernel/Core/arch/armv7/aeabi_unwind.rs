@@ -359,6 +359,18 @@ impl UnwindState {
 					if extra & 0x8 != 0 { self.regs[3] = try!(self.pop()); }	// R3
 				}
 				},
+			2 => {	// vsp = vsp + 0x204 + (uleb128 << 2)
+				let mut v = 0;
+				loop {
+					let b = getb()?;
+					v <<= 7;
+					v |= (b as u32) & 0x7F;
+					if v & 0x80 == 0 {
+						break;
+					}
+				}
+				self.vsp += 0x204 + v * 4;
+				},
 			_ => {
 				log_error!("TODO: EXIDX opcode {:#02x}", byte);
 				return Err( Error::Todo );
