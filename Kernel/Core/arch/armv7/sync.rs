@@ -47,7 +47,11 @@ impl ::core::ops::Drop for HeldInterrupts {
 	}
 }
 pub fn stop_interrupts() {
+	// SAFE: Correct inline assembly
+	unsafe { asm!("cpsid if"); }
 }
 pub fn start_interrupts() {
+	// SAFE: Correct inline assembly
+	unsafe { asm!("cpsie if"); }
 }
 

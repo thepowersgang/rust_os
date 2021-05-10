@@ -1,6 +1,8 @@
+// "Tifflin" Kernel
+// - By John Hodge (Mutabah/thePowersGang)
 //
-//
-//
+// Core/arch/armv7/mod.rs
+/// ARMv7-A architecture bindings
 
 module_define!{arch, [], init}
 
@@ -14,6 +16,7 @@ pub mod boot;
 
 pub mod threads;
 
+mod gic;
 mod fdt_devices;
 
 mod aeabi_unwind;
@@ -36,6 +39,7 @@ extern "C" {
 
 fn init()
 {
+	// Init interrupts before the GIC to ensure mappings are enabled
 	interrupts::init();
 	// Start the FDT bus enumeration, informing it of the interrupt controller
 	fdt_devices::init(interrupts::get_intc);

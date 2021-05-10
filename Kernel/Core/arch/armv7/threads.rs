@@ -106,6 +106,7 @@ pub fn idle() {
 	log_trace!("idle");
 	// SAFE: Calls 'wait for interrupt'
 	unsafe {
+		super::sync::start_interrupts();
 		asm!("wfi");
 	}
 }

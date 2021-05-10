@@ -21,8 +21,8 @@ ivt_svc:        ldr pc, =svc_handler	@ 0x08 SVC (used to be called SWI)
 ivt_prefetch:   ldr pc, =prefetch_abort	@ 0x0C Prefetch abort
 ivt_data:       ldr pc, =data_abort	@ 0x10 Data abort
 ivt_unused:     b .	@ 0x14 Not Used
-ivt_irq:        b .	@ 0x18 IRQ
-ivt_fiq:        b .	@ 0x1C FIQ (Fast interrupt)
+ivt_irq:        ldr pc, =irq_handler	@ 0x18 IRQ
+ivt_fiq:        ldr pc, =fiq_handler	@ 0x1C FIQ (Fast interrupt)
 
 rst_start:
 	ldr pc, = start-KERNEL_BASE
@@ -339,7 +339,7 @@ get_abort_sp_lr:
 ENTRY(svc_handler)
 	.fnstart
 	.cantunwind
-	srsfd sp!, #19  @ Save state to stack
+	srsfd sp!, #0x13  @ Save state to stack
 	push {r0-r5}
 	
 	mov r0, r12	@ R12 is the call ID
@@ -349,6 +349,33 @@ ENTRY(svc_handler)
 	@ r0,r1 return value
 	
 	add sp, #6*4
+	rfefd sp!
+	.fnend
+
+ENTRY(irq_handler)
+	.fnstart
+	.cantunwind
+	srsfd sp!, #0x13 @ Save state to supervisor stack
+	cps #0x13
+	push {r0-r12}
+	
+	mov r0, sp
+	bl interrupt_handler
+	
+	pop {r0-r12}
+	rfefd sp!
+	.fnend
+ENTRY(fiq_handler)
+	.fnstart
+	.cantunwind
+	srsfd sp!, #0x13 @ Save state to supervisor stack
+	cps #0x13
+	push {r0-r7}
+	
+	mov r0, sp
+	bl interrupt_handler
+	
+	pop {r0-r7}
 	rfefd sp!
 	.fnend
 
