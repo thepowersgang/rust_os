@@ -18,6 +18,8 @@ fn init()
 	fdt_devices::init(interrupts::get_intc);
 }
 
+#[path="../armv7/gic.rs"]
+mod gic;
 #[path="../armv7/fdt_devices.rs"]
 mod fdt_devices;
 
