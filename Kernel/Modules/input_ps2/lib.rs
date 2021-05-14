@@ -4,7 +4,6 @@
 // Modules/input_ps2/lib.rs
 //! PS2 Keyboard/Mouse controller
 #![feature(linkage)]
-#![feature(const_fn)]	// needed for lazystatic_init
 #![no_std]
 
 #[macro_use]

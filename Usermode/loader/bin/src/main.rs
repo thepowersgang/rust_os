@@ -2,7 +2,6 @@
 // - By John Hodge (thePowersGang)
 //
 // This program is both the initial entrypoint for the userland, and the default dynamic linker.
-#![feature(const_fn)]
 #![feature(maybe_uninit_ref)]
 //#![crate_type="staticlib"]	// Linked by the makefile
 

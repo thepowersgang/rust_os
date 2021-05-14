@@ -2,7 +2,6 @@
 //
 //
 //! Tifflin window toolkit
-#![feature(const_fn)]
 #![feature(unboxed_closures,fn_traits)]
 
 extern crate async;

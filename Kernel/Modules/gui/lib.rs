@@ -13,7 +13,7 @@
 //!  - This allows the leader to switch to a lock screen
 //! - All windows are backed by a framebuffer in this code
 //!  - Kernel log is provided by a builtin text renderer
-#![feature(linkage,const_fn)]
+#![feature(linkage)]
 #![no_std]
 
 //#![feature(plugin)]

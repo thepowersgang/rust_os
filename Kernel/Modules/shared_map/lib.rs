@@ -6,7 +6,6 @@
 //!
 //! A wrapper around RwLock<VecMap>
 #![no_std]
-#![feature(const_fn)]
 use kernel::sync::rwlock::{RwLock, self};
 
 extern crate kernel;

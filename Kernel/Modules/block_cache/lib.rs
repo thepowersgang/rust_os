@@ -5,8 +5,6 @@
 //! System-gobal block cache (for filesystem metadata)
 #![no_std]
 
-#![feature(const_fn)]
-
 use kernel::prelude::*;
 use kernel::PAGE_SIZE;
 use core::sync::atomic::{AtomicBool, AtomicUsize, Ordering};

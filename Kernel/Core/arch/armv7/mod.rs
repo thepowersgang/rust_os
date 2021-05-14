@@ -2,7 +2,7 @@
 // - By John Hodge (Mutabah/thePowersGang)
 //
 // Core/arch/armv7/mod.rs
-/// ARMv7-A architecture bindings
+//! ARMv7-A architecture bindings
 
 module_define!{arch, [], init}
 

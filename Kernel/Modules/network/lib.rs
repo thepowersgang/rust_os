@@ -5,7 +5,6 @@
 //! Networking stack
 #![no_std]
 #![feature(linkage)]
-#![feature(const_fn)] 
 
 #[cfg(test)] #[macro_use] extern crate /**/ std;
 

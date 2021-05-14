@@ -2,8 +2,6 @@
 // - By John Hodge (thePowersGang)
 //
 // Simplistic console, used as a quick test case (fullscreen window)
-#![feature(const_fn)]
-
 #[macro_use]
 extern crate syscalls;
 

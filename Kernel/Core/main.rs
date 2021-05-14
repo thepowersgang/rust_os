@@ -15,7 +15,6 @@
 #![feature(auto_traits)]	// POD trait
 #![feature(negative_impls)]	// Negative impls
 #![feature(linkage)]	// allows using #[linkage="external"]
-#![feature(const_fn)]	// Allows defining `const fn`
 //#![feature(integer_atomics)]	// AtomicU8
 #![feature(dropck_eyepatch)]
 #![feature(panic_info_message)]

@@ -4,7 +4,6 @@
 #![crate_type="rlib"]
 #![crate_name="alloc_system"]
 #![feature(lang_items)]	// Allow definition of lang_items
-#![feature(const_fn)]
 #![feature(box_syntax)]
 //#![feature(optin_builtin_traits)]	// For !Send
 #![feature(unboxed_closures)]

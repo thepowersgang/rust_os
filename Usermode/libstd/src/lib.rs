@@ -8,7 +8,6 @@
 #![feature(lang_items)]	// Allow definition of lang_items
 #![feature(linkage)]	// Used for low-level runtime
 #![feature(core_intrinsics)]
-#![feature(const_fn)]
 #![feature(box_syntax)]
 #![feature(raw)]
 #![feature(slice_concat_ext)]

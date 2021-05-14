@@ -2,7 +2,6 @@
 // - By John Hodge (thePowersGang)
 //
 //! Usermode synchronisation primitives
-#![feature(const_fn)]
 #![no_std]
 
 extern crate syscalls;

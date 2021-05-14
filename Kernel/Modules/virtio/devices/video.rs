@@ -1,5 +1,7 @@
-/*
- */
+//
+//
+//
+/// VirtIO GPU/Video driver
 use kernel::prelude::*;
 use kernel::metadevs::video;
 use interface::Interface;
@@ -562,6 +564,7 @@ where
 	}
 }
 
+/// Hardware type/enum definitions
 mod hw
 {
 	#[repr(u32)]
