@@ -60,7 +60,6 @@ impl GicInstance
 		loop
 		{
 			let v = self.reg_cpu(GICC_IAR).load(Ordering::Relaxed);
-			log_trace!("v = {}", v);
 			if v == 1023 {
 				break;
 			}
@@ -87,6 +86,14 @@ impl GicInstance
 		Mode::LevelHi => { reg.fetch_and(!(2 << ofs), Ordering::Relaxed); }
 		Mode::Rising  => { reg.fetch_or(2 << ofs, Ordering::Relaxed); }
 		}
+	}
+	/// Send a Software Generated Interrupt to this core
+	pub fn trigger_sgi_self(&self, id: u8) {
+		self.reg_dist(GICD_SGIR).store(0b10 << 24 | ((id & 0xF) as u32), Ordering::Relaxed);
+	}
+	/// Send a Software Generated Interrupt to all other cores
+	pub fn trigger_sgi_others(&self, id: u8) {
+		self.reg_dist(GICD_SGIR).store(0b01 << 24 | ((id & 0xF) as u32), Ordering::Relaxed);
 	}
 
 	fn get_ref_dist<T: crate::lib::POD>(&self, ofs: usize) -> *const T {
@@ -133,7 +140,8 @@ enum CpuRegister
 }
 use self::CpuRegister::*;
 struct DistRegister(usize);
-const GICD_CTLR: DistRegister = DistRegister(0x00);
+const GICD_CTLR: DistRegister = DistRegister(0x__0);
+const GICD_SGIR: DistRegister = DistRegister(0xF00);
 //const GICD_TYPER: DistRegister = DistRegister(0x04);
 //const GICD_ISPENDR0: DistRegister = DistRegister(0x200);
 #[allow(non_snake_case)]

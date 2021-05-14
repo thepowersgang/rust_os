@@ -355,13 +355,20 @@ ENTRY(svc_handler)
 ENTRY(irq_handler)
 	.fnstart
 	.cantunwind
+	sub lr, #4	@ Adjust LR to the correct value
 	srsfd sp!, #0x13 @ Save state to supervisor stack
-	cps #0x13
-	push {r0-r12}
+	cps #0x13	@ TODO: Check if IRQs are still off aftert this
+	push {r0-r12}	@ Save GPRs
+	push {r0,r14}	@ Save kernel LR (and r0 again for alignment)
+	sub sp, #8
+	stm sp, {sp,lr}^	@ Save userland banked registers (can't write back)
 	
 	mov r0, sp
 	bl interrupt_handler
-	
+
+	ldmfd sp, {sp,lr}^	 @ Note: doesn't support write-back
+	add sp, #8
+	pop {r0,r14}
 	pop {r0-r12}
 	rfefd sp!
 	.fnend
@@ -370,12 +377,12 @@ ENTRY(fiq_handler)
 	.cantunwind
 	srsfd sp!, #0x13 @ Save state to supervisor stack
 	cps #0x13
-	push {r0-r7}
+	push {r0-r12}
 	
 	mov r0, sp
 	bl interrupt_handler
 	
-	pop {r0-r7}
+	pop {r0-r12}
 	rfefd sp!
 	.fnend
 

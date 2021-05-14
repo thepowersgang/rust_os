@@ -49,6 +49,7 @@ pub(super) fn get_intc(compat: fdt_devices::Compat, reg: fdt_devices::Reg) -> Op
 		// Enable interrupts (clear masking)
 		// SAFE: We're all good to start them
 		unsafe { crate::arch::sync::start_interrupts(); }
+		GIC.trigger_sgi_self(0);
 		// Handle any pending ones
 		self::handle();
 
@@ -111,9 +112,9 @@ static GIC: gic::GicInstance = gic::GicInstance::new_uninit();
 
 #[linkage="external"]
 #[no_mangle]
-pub extern "C" fn interrupt_handler(regs: &[u32; 13+2])
+pub extern "C" fn interrupt_handler(regs: &[u32; 4+13+2])
 {
-	log_debug!("interrupt_handler(PC={:#x}, SPSR={:#x})", regs[13], regs[14]);
+	log_debug!("interrupt_handler(PC={:#x}, SPSR={:#x})", regs[4+13], regs[4+14]);
 	handle();
 }
 fn handle()

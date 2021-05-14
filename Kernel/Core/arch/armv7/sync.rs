@@ -38,12 +38,20 @@ impl SpinlockInner
 	}
 }
 
-pub struct HeldInterrupts;
+pub struct HeldInterrupts(bool);
 pub fn hold_interrupts() -> HeldInterrupts {
-	HeldInterrupts
+	// SAFE: Correct inline assembly
+	HeldInterrupts(unsafe {
+		let v: u32;
+		asm!("mrs {}, cpsr; cpsid if", out(reg) v);
+		v & 0x80 == 0	// if I is clear, assume interrupts are enabled
+		})
 }
 impl ::core::ops::Drop for HeldInterrupts {
 	fn drop(&mut self) {
+		if self.0 {
+			start_interrupts();
+		}
 	}
 }
 pub fn stop_interrupts() {
