@@ -53,7 +53,7 @@ all: bin/kernel-$(ARCH).bin
 dsm: bin/kernel-$(ARCH).bin.dsm
 
 clean:
-	rm -rf target/ bin/ .obj
+	rm -rf target/kernel-$(ARCH) bin/ .obj
 
 # 
 # Final linking stage
