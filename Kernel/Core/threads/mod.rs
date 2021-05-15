@@ -72,17 +72,14 @@ pub fn idle_thread()
 	{
 		if ! reap_threads()
 		{
-			// SAFE: I know what I'm doing, and we trust idle() to re-enable them
-			unsafe { ::arch::sync::stop_interrupts(); }
+			let held_ints = ::arch::sync::hold_interrupts();
 			if let Some(thread) = get_thread_to_run() {
-				// SAFE: We turned them off, we turn them back on
-				unsafe { ::arch::sync::start_interrupts(); }
 				log_debug!("Idle task switch to {:?}", thread);
+				drop(held_ints);
 				::arch::threads::switch_to(thread);
 			}
 			else {
-				// NOTE: Idle _must_ re-enable interrupts
-				::arch::threads::idle();
+				::arch::threads::idle(held_ints);
 			}
 		}
 		else
@@ -234,7 +231,7 @@ pub fn reschedule()
 			{
 				log_debug!("Task switch to self, idle");
 				::arch::threads::switch_to(thread);
-				::arch::threads::idle();
+				::arch::threads::idle(::arch::sync::hold_interrupts());
 			}
 			else
 			{

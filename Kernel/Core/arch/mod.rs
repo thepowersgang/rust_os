@@ -351,8 +351,8 @@ pub mod threads {
 	}
 
 	#[inline]
-	pub fn idle() {
-		imp::idle()
+	pub fn idle(held_interrupts: super::sync::HeldInterrupts) {
+		imp::idle(held_interrupts)
 	}
 	#[inline]
 	pub fn get_idle_thread() -> ::threads::ThreadPtr {

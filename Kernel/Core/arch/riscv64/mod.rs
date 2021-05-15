@@ -218,7 +218,6 @@ pub mod interrupts
 	{
 		if PLIC.is_init()
 		{
-			//super::puts("WFI\n");
 			// SAFE: Just waits for an interrupt
 			unsafe { asm!("wfi; csrsi sstatus, 0x2") }
 		}
@@ -240,6 +239,8 @@ pub mod interrupts
 				}
 			}
 			// TODO: Set timer interrupt and wait for that? (to reduce CPU load)
+			// - Might work without the PLIC?
+			// This codepath shouldn't really be run anymore (was needed before FDT was reworked) to use get_intc
 		}
 	}
 }

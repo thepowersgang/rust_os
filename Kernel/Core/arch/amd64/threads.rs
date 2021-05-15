@@ -85,8 +85,9 @@ impl State
 }
 
 /// Idle for a short period, called when the CPU has nothing else to do
-pub fn idle()
+pub fn idle(held_interrupts: ::arch::sync::HeldInterrupts)
 {
+	::core::mem::forget(held_interrupts);
 	//if true {
 	//	// SAFE: Just pulls rflags
 	//	let flags = unsafe { let v: u64; asm!("pushf; pop {}", out(reg) v); v };

@@ -107,7 +107,9 @@ pub fn start_thread<F: FnOnce()+Send+'static>(thread: &mut crate::threads::Threa
 
 
 
-pub fn idle() {
+pub fn idle(held_interrupts: ::arch::sync::HeldInterrupts) {
+	// wait_for_interrupt ensures that interrupts are enabled
+	::core::mem::forget(held_interrupts);
 	// Idling done in th IRQ module, so it can handle the driver not yet being up
 	super::interrupts::wait_for_interrupt();
 }

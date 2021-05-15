@@ -102,10 +102,12 @@ pub fn switch_to(thread: ::threads::ThreadPtr) {
 		task_switch(&mut outstate.sp, new_sp, new_ttbr0, thread.into_usize());
 	}
 }
-pub fn idle() {
+pub fn idle(held_interrupts: ::arch::sync::HeldInterrupts)
+{
 	log_trace!("idle");
 	// SAFE: Calls 'wait for interrupt'
 	unsafe {
+		::core::mem::forget(held_interrupts);
 		super::sync::start_interrupts();
 		asm!("wfi");
 	}
