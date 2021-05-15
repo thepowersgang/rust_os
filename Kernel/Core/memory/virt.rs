@@ -428,6 +428,10 @@ impl MmioHandle
 	{
 		&mut self.as_int_mut_slice(ofs, 1)[0]
 	}
+	/// Return a mutable pointer to the content
+	pub fn as_mut_ptr<T: ::lib::POD>(&self, ofs: usize) -> *mut T {
+		self.as_raw_ptr_slice::<T>(ofs, 1) as *mut T
+	}
 
 	pub fn phys(&self) -> PAddr {
 		get_phys(self.base())
