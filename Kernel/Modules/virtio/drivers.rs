@@ -94,9 +94,15 @@ impl device_manager::Driver for Pci
 			v @ _ => panic!("BUGCHECK: Binding with unexpected PCI device id {:#x}", v),
 			};
 
-		let mut common_bar = None;
-		let mut device_cfg_bar = None;
-		let mut notify_bar = None;
+		type IO = (usize,usize,usize);
+		#[derive(Default,Debug)]
+		struct ProtoBars {
+			common : Option<IO>,
+			dev_cfg: Option<IO>,
+			notify : Option<(IO,u32,)>,
+			isr    : Option<IO>,
+		}
+		let mut pbars = ProtoBars::default();
 		for cap in pci_helpers::CapabilityIter::new(&*bus_dev)
 		{
 			match cap.id
@@ -105,31 +111,25 @@ impl device_manager::Driver for Pci
 				let bar = cap.read_32(1) as usize;
 				let ofs = cap.read_32(2) as usize;
 				let len = cap.read_32(3) as usize;
+				let io = (bar, ofs, len);
 				match cap.byte0
 				{
 				1 => {
 					log_debug!("Common: BAR{} {:#x}+{:#x}", bar, ofs, len);
-					let io = (bar, ofs, len);
-					if common_bar.is_none() {
-						common_bar = Some(io);
-					}
+					pbars.common.get_or_insert(io);
 					},
 				2 => {
 					log_debug!("Notify: BAR{} {:#x}+{:#x}", bar, ofs, len);
-					let io = (bar, ofs, len);
 					let mult = cap.read_32(4);
-
-					if notify_bar.is_none() {
-						notify_bar = Some( (io, mult,) );
-					}
+					pbars.notify.get_or_insert( (io, mult,) );
 					},
-				3 => log_debug!("Isr: BAR{} {:#x}+{:#x}", bar, ofs, len),
+				3 => {
+					log_debug!("Isr: BAR{} {:#x}+{:#x}", bar, ofs, len);
+					pbars.isr.get_or_insert(io);
+					},
 				4 => {
 					log_debug!("Device Config: BAR{} {:#x}+{:#x}", bar, ofs, len);
-					let io = (bar, ofs, len);
-					if device_cfg_bar.is_none() {
-						device_cfg_bar = Some(io);
-					}
+					pbars.dev_cfg.get_or_insert(io);
 					},
 				5 => log_debug!("PCI CFG: BAR{} {:#x}+{:#x}", bar, ofs, len),
 				_ => {},
@@ -139,22 +139,26 @@ impl device_manager::Driver for Pci
 			}
 		}
 
-		// TODO: Enable PCI bus mastering
-		bus_dev.set_attr("bus_master", ::kernel::device_manager::AttrValue::U32(1));
-
-		match (common_bar, device_cfg_bar, notify_bar)
+		match pbars
 		{
-		( Some(common), Some(dev_cfg), Some( (notify, notify_mult) ) ) => {
+		ProtoBars { common: Some(common), dev_cfg: Some(dev_cfg), notify: Some( (notify, notify_mult) ), isr: Some(isr), } => {
+			// Enable PCI bus mastering
+			bus_dev.set_attr("bus_master", ::kernel::device_manager::AttrValue::U32(1));
+
+			let mut get_io = |io: IO| {
+				bus_dev.bind_io_slice( io.0, Some((io.1, io.2)) )
+				};
 			let io = ::interface::PciRegions {
-				common: bus_dev.bind_io_slice( common.0, Some((common.1, common.2)) ),
-				notify: bus_dev.bind_io_slice( notify.0, Some((notify.1, notify.2)) ),
+				common: get_io(common),
+				notify: get_io(notify),
+				isr: get_io(isr),
 				notify_off_mult: notify_mult,
-				dev_cfg: bus_dev.bind_io_slice( dev_cfg.0, Some((dev_cfg.1, dev_cfg.2)) ),
+				dev_cfg: get_io(dev_cfg),
 				};
 			::devices::new_boxed(dev, ::interface::Pci::new(io, irq))
 			},
-		(common_bar, device_cfg_bar, notify_bar,) => {
-			log_error!("VirtIO PCI device doesn't have a full set of capabilities - common={:?} dev_cfg={:?} notify={:?}", common_bar, device_cfg_bar, notify_bar);
+		_ => {
+			log_error!("VirtIO PCI device doesn't have a full set of capabilities - {:?}", pbars);
 			return Box::new( NullDevice );
 			},
 		}

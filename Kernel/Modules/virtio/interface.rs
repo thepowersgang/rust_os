@@ -10,7 +10,7 @@ use queue::Queue;
 /// A virtio interface (PCI or MMIO)
 pub trait Interface
 {
-	fn bind_interrupt(&mut self, cb: Box<dyn FnMut()->bool + Send + 'static>);
+	fn bind_interrupt<Cb>(&mut self, cb: Cb) where Cb: FnMut() + Send + 'static;
 
 	fn negotiate_features(&mut self, supported: u32) -> u32;
 	fn get_queue(&mut self, idx: usize, size: usize) -> Option<Queue>;
@@ -27,9 +27,12 @@ pub trait Interface
 }
 
 pub struct PciRegions {
+	// TODO: Avoid duplicated IO bindings (use references into a pool)
 	pub common: IOBinding,
 	pub notify: IOBinding,
 	pub notify_off_mult: u32,
+	/// Interrupt Status Register
+	pub isr: IOBinding,
 	pub dev_cfg: IOBinding,
 }
 #[repr(usize)]
@@ -95,8 +98,8 @@ impl Pci
 }
 impl Interface for Pci
 {
-	fn bind_interrupt(&mut self, cb: Box<dyn FnMut()->bool + Send + 'static>) {
-		self.irq_handle = Some( ::kernel::irqs::bind_object(self.irq_gsi, cb) );
+	fn bind_interrupt<Cb>(&mut self, mut cb: Cb) where Cb: FnMut() + Send + 'static {
+		self.irq_handle = Some( ::kernel::irqs::bind_object(self.irq_gsi, Box::new(move || { cb(); true })) );
 	}
 
 	fn negotiate_features(&mut self, supported: u32) -> u32 {
@@ -182,10 +185,11 @@ impl Interface for Pci
 
 /// Memory-Mapped IO binding
 pub struct Mmio {
-	io: IOBinding,
-	irq_gsi: u32,
+	// Note: First so it gets dropped first (before the IO binding it might be referencing)
 	#[allow(dead_code)]
 	irq_handle: Option<::kernel::irqs::ObjectHandle>,
+	io: IOBinding,
+	irq_gsi: u32,
 }
 impl Mmio
 {
@@ -209,8 +213,32 @@ impl Mmio
 }
 impl Interface for Mmio
 {
-	fn bind_interrupt(&mut self, cb: Box<dyn FnMut()->bool + Send + 'static>) {
-		self.irq_handle = Some( ::kernel::irqs::bind_object(self.irq_gsi, cb) );
+	fn bind_interrupt<Cb>(&mut self, mut cb: Cb) where Cb: FnMut() + Send + 'static {
+		struct IntIo(*mut u32);
+		unsafe impl Send for IntIo {}
+		impl IntIo {
+			unsafe fn status(&self) -> u32 { ::core::ptr::read_volatile(self.0.offset(0)) }
+			unsafe fn ack(&mut self, v: u32) { ::core::ptr::write_volatile(self.0.offset(1), v); }
+		}
+		let mut io = IntIo(match self.io
+			{
+			IOBinding::Memory(ref ah) => ah.as_mut_ptr::<[u32; 2]>(0x60) as *mut _,	// 0x60=InterruptStatus, 0x64=InterruptACK
+			_ => panic!(""),
+			});
+		// SAFE: Since this callback is tied to the interrupt handle, and `irq_handle` is never cleared - the IO binding will be maintained
+		let int_handler = move || unsafe {
+			let v = io.status();
+			if v & 1 != 0 {
+				// Queue update
+				cb();
+			}
+			if v & 2 != 0 {
+				// Configuration change
+			}
+			io.ack(v);
+			v != 0
+			};
+		self.irq_handle = Some( ::kernel::irqs::bind_object(self.irq_gsi, Box::new(int_handler)) );
 	}
 
 	fn negotiate_features(&mut self, supported: u32) -> u32 {

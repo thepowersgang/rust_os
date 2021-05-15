@@ -180,6 +180,7 @@ impl Queue
 				assert!(len != !0, "Interrupt flag set, but slot not populated");
 				cb(&data[i*item_size..][..len]);
 				self.avail_ring().push(idx);
+				int.notify_queue(self.idx);
 			}
 		}
 	}
@@ -264,7 +265,7 @@ impl QueueIntState
 			let idx = self.last_seen_used.fetch_add(1, Ordering::Relaxed) as usize % self.avail_ring_res.len();
 			// SAFE: Valid pointer (enforced by `Aref<QueueIntState>` stored within the `Queue`)
 			let UsedElem { id, len }  = unsafe { ::core::ptr::read_volatile(&(*self.used_ring).ents[idx] ) };
-			log_debug!("[queue {}] idx={}, ID={},len={}", queue_idx, idx, id, len);
+			log_debug!("[INT queue {} {:p}] idx={}, ID={},len={}", queue_idx, self.used_ring, idx, id, len);
 
 			self.avail_ring_res[id as usize].store(len as usize, Ordering::Release);
 			self.interrupt_flag.release();

@@ -39,10 +39,10 @@ where
 
 		let guidev = gui_keyboard::Instance::new();
 		let eventq = int.get_queue(0, 0).expect("Queue #0 'eventq' missing on virtio input device");
-		int.bind_interrupt({ let cb = eventq.check_interrupt_fn(); Box::new(move || { (cb)(); true }) });
+		int.bind_interrupt(eventq.check_interrupt_fn());
 		//let statusq = int.get_queue(1, 0).expect("Queue #1 'statusq' missing on virtio input device");
 		let worker = WorkerThread::new("virtio-input", move || {
-			eventq.into_stream(&int, 8, 16, |ev| {
+			eventq.into_stream(&int, /*item_size*/8, /*count*/16, |ev| {
 				log_debug!("ev = {:x?}", ev);
 				let ty    = u16::from_le_bytes([ev[0], ev[1]]);
 				let code  = u16::from_le_bytes([ev[2], ev[3]]);

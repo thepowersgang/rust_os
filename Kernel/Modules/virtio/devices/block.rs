@@ -53,8 +53,7 @@ impl BlockDevice
 			interface: int,
 			});
 
-		let is = vol.requestq.get_int_state();
-		vol.interface.bind_interrupt( Box::new(move || { is.check_interrupt(0); true }) );
+		vol.interface.bind_interrupt(vol.requestq.check_interrupt_fn());
 
 		BlockDevice {
 			_pv_handle: storage::register_pv(vol),
