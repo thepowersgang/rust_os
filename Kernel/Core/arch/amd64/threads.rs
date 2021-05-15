@@ -79,7 +79,7 @@ impl State
 	pub fn new(address_space: &::memory::virt::AddressSpace) -> State {
 		log_trace!("State::new({:?})", address_space);
 		let mut rv = State::default();
-		rv.cr3 = address_space.get_cr3();
+		rv.cr3 = address_space.inner().get_cr3();
 		rv
 	}
 }

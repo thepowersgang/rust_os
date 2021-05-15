@@ -84,8 +84,21 @@ pub mod memory {
 	pub mod virt {
 		use arch::imp::memory::virt as imp;
 		
-		/// TODO: Wrap this to ensure a consistent API
-		pub type AddressSpace = imp::AddressSpace;
+		/// Handle to an address space
+		#[derive(Debug)]
+		pub struct AddressSpace(imp::AddressSpace);
+		impl AddressSpace
+		{
+			pub fn new(clone_start: usize, clone_end: usize) -> Result<AddressSpace,::memory::virt::MapError> {
+				imp::AddressSpace::new(clone_start, clone_end).map(AddressSpace)
+			}
+			pub fn pid0() -> AddressSpace {
+				AddressSpace(imp::AddressSpace::pid0())
+			}
+			pub fn inner(&self) -> &imp::AddressSpace {
+				&self.0
+			}
+		}
 
 		/// A handle to a temproarily mapped frame containing instances of 'T'
 		// TODO: TempHandle doens't own the mapped frame - It probably should
@@ -302,13 +315,25 @@ pub mod sync {
 pub mod interrupts {
 	use super::imp::interrupts as imp;
 
+	/// Architecture-specific IRQ binding error type
 	pub type BindError = imp::BindError;
-	pub type IRQHandle = imp::IRQHandle;
 
+	/// IRQ handle (unbinds the IRQ when dropped)
+	#[derive(Default)]
+	pub struct IRQHandle(imp::IRQHandle);
+	impl IRQHandle {
+		///// Disable/mask-off this IRQ (for when processing is scheduled)
+		//pub fn disable(&self) {
+		//}
+		///// Enable/mask-on this IRQ (for when processing is complete)
+		//pub fn enable(&self) {
+		//}
+	}
 	
 	#[inline]
+	/// Attach a callback to an IRQ/interrupt
 	pub fn bind_gsi(gsi: usize, handler: fn(*const()), info: *const ()) -> Result<IRQHandle, BindError> {
-		imp::bind_gsi(gsi, handler, info)
+		imp::bind_gsi(gsi, handler, info).map(|v| IRQHandle(v))
 	}
 }
 pub mod boot {

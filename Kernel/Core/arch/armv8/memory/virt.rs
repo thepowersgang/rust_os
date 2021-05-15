@@ -14,6 +14,9 @@ const USER_SIZE: usize = 1 << 47;
 const KERNEL_BASE: usize = !(USER_SIZE - 1);
 
 pub struct AddressSpace(u64);
+impl_fmt! {
+	Debug(self,f) for AddressSpace { write!(f, "AddressSpace({:#x})", self.0) }
+}
 
 pub fn post_init()
 {

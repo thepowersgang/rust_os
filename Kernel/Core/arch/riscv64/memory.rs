@@ -78,6 +78,9 @@ pub mod virt
 	use crate::memory::virt::ProtectionMode;
 
 	pub struct AddressSpace(u64);
+	impl_fmt! {
+		Debug(self,f) for AddressSpace { write!(f, "AddressSpace({:#x})", self.0) }
+	}
 	impl AddressSpace
 	{
 		pub fn pid0() -> AddressSpace {

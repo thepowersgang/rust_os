@@ -13,7 +13,7 @@ impl State
 	pub fn new(address_space: &::memory::virt::AddressSpace) -> State {
 		State {
 			sp: 0,
-			ttbr0: address_space.get_ttbr0(),
+			ttbr0: address_space.inner().get_ttbr0(),
 			stack_handle: None,
 		}
 	}

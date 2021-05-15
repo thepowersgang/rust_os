@@ -10,9 +10,9 @@ pub struct State {
 }
 impl State
 {
-	pub fn new(a: &super::memory::virt::AddressSpace) -> State {
+	pub fn new(a: &crate::arch::memory::virt::AddressSpace) -> State {
 		State {
-			pt_root: a.as_phys(),
+			pt_root: a.inner().as_phys(),
 			sp: 0,
 			kernel_base_sp: 0,
 			stack_handle: None,	// Initialised on thread start

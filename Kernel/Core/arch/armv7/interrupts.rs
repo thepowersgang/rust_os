@@ -9,6 +9,7 @@ use super::gic;
 
 pub type BindError = ();
 
+#[derive(Debug)]
 pub struct IRQHandle(u32);
 impl Default for IRQHandle {
 	fn default() -> IRQHandle { IRQHandle(!0) }

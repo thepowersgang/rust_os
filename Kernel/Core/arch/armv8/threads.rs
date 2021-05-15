@@ -27,7 +27,7 @@ impl State
 	pub fn new(addr_space: &::memory::virt::AddressSpace) -> State {
 		State {
 			sp: 0,
-			ttbr0: addr_space.as_phys(),
+			ttbr0: addr_space.inner().as_phys(),
 			_stack_handle: None,
 			}
 	}
