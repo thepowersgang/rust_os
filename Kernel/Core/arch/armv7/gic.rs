@@ -5,7 +5,8 @@
 //! ARM GIC (Generic Interrupt Controller) driver
 // REFERENCE ARM IHI 0048
 // NOTE: This is shared by both armv7 and armv8
-use ::core::sync::atomic::{Ordering,AtomicUsize,AtomicU32};
+use ::core::sync::atomic::{Ordering,AtomicUsize};
+use crate::lib::hwreg;
 
 /// Lazy initialised GIC instance (suitable for storage in static memory)
 pub struct GicInstance {
@@ -37,10 +38,10 @@ impl GicInstance
 		Ok(_) => {
 			self.cpu.store(ptr_cpu as usize, Ordering::SeqCst);
 
-			self.reg_cpu(GICC_CTLR).store(0, Ordering::Relaxed);	// Disable interface
-			self.reg_cpu(GICC_PMR).store(0xFF, Ordering::Relaxed);	// Enable all priorities
-			self.reg_cpu(GICC_CTLR).store(1, Ordering::Relaxed);	// Enable interface
-			self.reg_dist(GICD_CTLR).store(1, Ordering::Relaxed);	// Enable distributor
+			self.reg_cpu(GICC_CTLR).store(0x00);	// Disable interface
+			self.reg_cpu(GICC_PMR ).store(0xFF);	// Enable all priorities
+			self.reg_cpu(GICC_CTLR).store(0x01);	// Enable interface
+			self.reg_dist(GICD_CTLR).store(1);	// Enable distributor
 
 			::core::mem::forget(ah_dist);
 			::core::mem::forget(ah_cpu);
@@ -59,22 +60,22 @@ impl GicInstance
 	pub fn get_pending_interrupts(&self, mut cb: impl FnMut(usize)) {
 		loop
 		{
-			let v = self.reg_cpu(GICC_IAR).load(Ordering::Relaxed);
+			let v = self.reg_cpu(GICC_IAR).load();
 			if v == 1023 {
 				break;
 			}
 			cb(v as usize);
-			self.reg_cpu(GICC_EOIR).store(v, Ordering::Relaxed);
+			self.reg_cpu(GICC_EOIR).store(v);
 		}
 	}
 
 	/// Enable/disable the specified interrupt
 	pub fn set_enable(&self, idx: usize, enable: bool) {
 		if enable {
-			self.reg_dist(GICD_ISENABLERn(idx/32)).store(1 << (idx%32), Ordering::Relaxed);
+			self.reg_dist(GICD_ISENABLERn(idx/32)).store(1 << (idx%32));
 		}
 		else {
-			self.reg_dist(GICD_ICENABLERn(idx/32)).store(1 << (idx%32), Ordering::Relaxed);
+			self.reg_dist(GICD_ICENABLERn(idx/32)).store(1 << (idx%32));
 		}
 	}
 	/// Modify the mode (level or edge) of the specified interrupt
@@ -83,17 +84,17 @@ impl GicInstance
 		let ofs = (idx % 16) * 2;
 		match mode
 		{
-		Mode::LevelHi => { reg.fetch_and(!(2 << ofs), Ordering::Relaxed); }
-		Mode::Rising  => { reg.fetch_or(2 << ofs, Ordering::Relaxed); }
+		Mode::LevelHi => { reg.fetch_and(!(2 << ofs)); }
+		Mode::Rising  => { reg.fetch_or(   2 << ofs ); }
 		}
 	}
 	/// Send a Software Generated Interrupt to this core
 	pub fn trigger_sgi_self(&self, id: u8) {
-		self.reg_dist(GICD_SGIR).store(0b10 << 24 | ((id & 0xF) as u32), Ordering::Relaxed);
+		self.reg_dist(GICD_SGIR).store(0b10 << 24 | ((id & 0xF) as u32));
 	}
 	/// Send a Software Generated Interrupt to all other cores
 	pub fn trigger_sgi_others(&self, id: u8) {
-		self.reg_dist(GICD_SGIR).store(0b01 << 24 | ((id & 0xF) as u32), Ordering::Relaxed);
+		self.reg_dist(GICD_SGIR).store(0b01 << 24 | ((id & 0xF) as u32));
 	}
 
 	fn get_ref_dist<T: crate::lib::POD>(&self, ofs: usize) -> *const T {
@@ -110,15 +111,15 @@ impl GicInstance
 		(base + ofs) as *const T
 	}
 
-	fn reg_cpu(&self, reg: CpuRegister) -> &AtomicU32
+	fn reg_cpu(&self, reg: CpuRegister) -> hwreg::SafeRW<u32>
 	{
 		// SAFE: No register can cause memory unsafety
-		unsafe { &*self.get_ref_cpu(reg as usize) }
+		unsafe { hwreg::Reg::from_ptr(self.get_ref_cpu(reg as usize)) }
 	}
-	fn reg_dist(&self, reg: DistRegister) -> &AtomicU32
+	fn reg_dist(&self, reg: DistRegister) -> hwreg::SafeRW<u32>
 	{
 		// SAFE: No register can cause memory unsafety
-		unsafe { &*self.get_ref_dist(reg.0) }
+		unsafe { hwreg::Reg::from_ptr(self.get_ref_dist(reg.0)) }
 	}
 }
 
