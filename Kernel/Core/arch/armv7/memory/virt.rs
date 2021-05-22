@@ -492,7 +492,7 @@ fn get_table_addr<T>(vaddr: *const T, alloc: bool) -> Option< (TableRef, usize) 
 /// Temporarily map a frame into memory
 /// UNSAFE: User to ensure that the passed address doesn't alias
 pub unsafe fn temp_map<T>(phys: ::arch::memory::PAddr) -> *mut T {
-	log_trace!("temp_map<{}>({:#x})", type_name!(T), phys);
+	//log_trace!("temp_map<{}>({:#x})", type_name!(T), phys);
 	assert!(phys as u32 % PAGE_SIZE as u32 == 0);
 	let val = (phys as u32) + 0x13;	
 	
@@ -510,10 +510,10 @@ pub unsafe fn temp_map<T>(phys: ::arch::memory::PAddr) -> *mut T {
 	}
 	panic!("No free temp mappings");
 }
-// UNSAFE: Can cause use-after-free if address is invalid
+/// UNSAFE: Can cause use-after-free if address is used after call
 pub unsafe fn temp_unmap<T>(addr: *mut T)
 {
-	log_trace!("temp_unmap<{}>({:p})", type_name!(T), addr);
+	//log_trace!("temp_unmap<{}>({:p})", type_name!(T), addr);
 	assert!(addr as usize >= KERNEL_TEMP_BASE);
 	let i = (addr as usize - KERNEL_TEMP_BASE) / ::PAGE_SIZE;
 	assert!(i < KERNEL_TEMP_COUNT);
@@ -578,7 +578,7 @@ pub fn can_map_without_alloc(a: *mut ()) -> bool {
 }
 
 pub unsafe fn map(a: *mut (), p: PAddr, mode: ProtectionMode) {
-	log_debug!("map({:p} = {:#x}, {:?})", a, p, mode);
+	//log_debug!("map({:p} = {:#x}, {:?})", a, p, mode);
 	return map_int(a,p,mode);
 	
 	// "Safe" helper to constrain interior unsafety
@@ -598,7 +598,7 @@ pub unsafe fn map(a: *mut (), p: PAddr, mode: ProtectionMode) {
 	}
 }
 pub unsafe fn reprotect(a: *mut (), mode: ProtectionMode) {
-	log_debug!("reprotect({:p}, {:?})", a, mode);
+	//log_debug!("reprotect({:p}, {:?})", a, mode);
 	return reprotect_int(a, mode);
 
 	fn reprotect_int(a: *mut (), mode: ProtectionMode) {
@@ -722,14 +722,9 @@ pub struct AbortRegs
 #[no_mangle]
 pub fn data_abort_handler(pc: u32, reg_state: &AbortRegs, dfar: u32, dfsr: u32) {
 
-	log_warning!("Data abort by {:#x} address {:#x} status {:#x} ({}), LR={:#x}", pc, dfar, dfsr, fsr_name(dfsr), reg_state.lr);
-	//log_debug!("Registers:");
-	//log_debug!("R 0 {:08x}  R 1 {:08x}  R 2 {:08x}  R 3 {:08x}  R 4 {:08x}  R 5 {:08x}}  R 6 {:08x}", reg_state.gprs[0]);
-	
 	let pg_base = (dfar as usize) & !PAGE_MASK;
 	let mut ent = PageEntry::get(pg_base as *const ());
 	if ent.mode() == ProtectionMode::UserCOW {
-		dump_tables();
 		// 1. Lock (relevant) address space
 		// SAFE: Changes to address space are transparent
 		::memory::virt::with_lock(dfar as usize, || unsafe {
@@ -743,10 +738,14 @@ pub fn data_abort_handler(pc: u32, reg_state: &AbortRegs, dfar: u32, dfsr: u32) 
 			tlbimva(pg_base  as *mut _);
 			log_debug!("- COW frame copied");
 			});
-		dump_tables();
 		return ;
 	}
+
+	log_warning!("Data abort by {:#x} address {:#x} status {:#x} ({}), LR={:#x}", pc, dfar, dfsr, fsr_name(dfsr), reg_state.lr);
+	//log_debug!("Registers:");
+	//log_debug!("R 0 {:08x}  R 1 {:08x}  R 2 {:08x}  R 3 {:08x}  R 4 {:08x}  R 5 {:08x}}  R 6 {:08x}", reg_state.gprs[0]);
 	dump_tables();
+	
 	
 	if pc < 0x8000_0000 {
 		log_error!("User fault - Infinite spin (TODO: Handle)");
