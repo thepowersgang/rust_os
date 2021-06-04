@@ -152,21 +152,14 @@ trap_vector:
 	# Step 2: Determine if the trap as from within the kernel (supervisor mode)
 	csrr t1, sstatus	# Read SStatus
 	andi t1, t1, 0x100	# Check SPP (bit 8)
-	bnez t1, 1f	# If nonzero (was in kernel), then don't update the stack
+	bnez t1, .Lkernel_sp	# If nonzero (was in kernel), then don't update the stack
 
 	# Step 3a: From usermode, load the kernel stack
 	# Load kernel stack
 	ld t1, SSTAUS_OFS_SVZ_SP(t0)
 	sd sp, -30*8(t1)	# Save user's SP
 	mv sp, t1
-	# Jump to common code
-	j 2f
-1:
-	# In kerenel - check for stack overflow (SP == STVAL)
-	csrr t1, stval
-	beq sp, t1, trap_vector.stack_overflow
-	sd sp, -30*8(sp)	# SP, not saved by dumpregs
-2:
+.Lcommon:
 	# Restore T1 and T0 now that we can use SP
 	ld t1, SSTAUS_OFS_SCRATCH(t0)
 	csrrw t0,sscratch,t0
@@ -204,6 +197,15 @@ trap_vector:
 	ld sp, -30*8(sp)	# Also undoes the add
 
 	sret
+
+.Lkernel_sp:
+	# - Separate code block to improve userland->kernel prefetch performance
+	# In kernel - check for stack overflow (SP == STVAL)
+	csrr t1, stval
+	beq sp, t1, trap_vector.stack_overflow
+	sd sp, -30*8(sp)	# SP, not saved by dumpregs
+	# Jump to common code
+	j .Lcommon
 trap_vector.stack_overflow:
 	# Kernel faulted with STVAL=SP, assume a stack overflow
 	# TODO: Switch to a different kernel stack, and enter a kernel panic
