@@ -31,13 +31,14 @@ pub mod memory {
 		pub const PMEMBM_END : usize = 0;
 	}
 	pub mod virt {
+		#[derive(Debug)]
 		pub struct AddressSpace;
 		impl AddressSpace
 		{
 			pub fn pid0() -> AddressSpace {
 				AddressSpace
 			}
-			pub fn new(_cstart: usize, _cend: usize) -> Result<AddressSpace,()> {
+			pub fn new(_cstart: usize, _cend: usize) -> Result<AddressSpace,::memory::virt::MapError> {
 				//#[cfg(feature="native")]
 				return Ok(AddressSpace);
 				//todo!("AddressSpace::new");
@@ -330,7 +331,8 @@ pub mod threads {
 		})
 	}
 
-	pub fn idle() {
+	pub fn idle(held_interrupts: super::sync::HeldInterrupts) {
+		drop(held_interrupts);
 		// Timed sleep?
 		std::thread::sleep(std::time::Duration::from_millis(50));
 	}

@@ -46,9 +46,10 @@ else ifeq ($(CARGO_PROFILE),release)
 else
   $(error Unknown xargo profile $(CARGO_PROFILE))
 endif
-CARGO_OUTDIR := target/target-$(ARCH)/$(CARGO_PROFILE)/
-ifeq ($(ARCH),native)
-CARGO_OUTDIR := target/$(CARGO_PROFILE)/
+ifneq ($(ARCH),native)
+ CARGO_OUTDIR := target/target-$(ARCH)/$(CARGO_PROFILE)/
+else
+ CARGO_OUTDIR := target/$(CARGO_PROFILE)/
 endif
 ifeq ($V,)
  CARGO_FLAGS += -v

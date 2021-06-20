@@ -24,6 +24,7 @@ pub enum Error
 /// Process still being initialised (not yet running)
 pub struct ProtoProcess( ::syscalls::threads::ProtoProcess );
 
+#[cfg(not(test))]
 mod int {
 	use core::result::Result;
 	#[allow(improper_ctypes)]
@@ -39,6 +40,15 @@ mod int {
 		pub fn new_process(executable_handle: ::syscalls::vfs::File, process_name: &[u8], args: &[&[u8]]) -> Result<::syscalls::threads::ProtoProcess,super::Error>;
 
 		pub fn start_process(handle: ::syscalls::threads::ProtoProcess) -> ::syscalls::threads::Process;
+	}
+}
+#[cfg(test)]
+mod int {
+	pub fn new_process(executable_handle: ::syscalls::vfs::File, process_name: &[u8], args: &[&[u8]]) -> Result<::syscalls::threads::ProtoProcess,super::Error> {
+		todo!("new_process");
+	}
+	pub fn start_process(handle: ::syscalls::threads::ProtoProcess) -> ::syscalls::threads::Process {
+		todo!("start_process");
 	}
 }
 
