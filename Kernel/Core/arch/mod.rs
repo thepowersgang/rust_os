@@ -363,6 +363,12 @@ pub mod threads {
 	}
 
 	#[inline]
+	/// Called once SMP is "safe" to start
+	pub fn init_smp() {
+		imp::init_smp()
+	}
+
+	#[inline]
 	pub fn set_thread_ptr(t: ::threads::ThreadPtr) {
 		imp::set_thread_ptr(t)
 	}

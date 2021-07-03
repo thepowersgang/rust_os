@@ -73,6 +73,10 @@ pub fn init_tid0_state() -> State
 		}
 }
 
+pub fn init_smp() {
+	// TODO: Query ACPI to get available cores
+}
+
 impl State
 {
 	/// Construct a new empty CPU state using the provided address space

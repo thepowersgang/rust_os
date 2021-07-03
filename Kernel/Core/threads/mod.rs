@@ -47,6 +47,9 @@ pub fn init()
 	let mut tid0 = Thread::new_boxed(0, "ThreadZero", S_PID0.clone());
 	tid0.cpu_state = ::arch::threads::init_tid0_state();
 	::arch::threads::set_thread_ptr( tid0 );
+
+	// Start SMP here (by poking arch)
+	::arch::threads::init_smp();
 }
 
 /// Returns `true` if a thread was reaped

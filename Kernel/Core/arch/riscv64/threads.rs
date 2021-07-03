@@ -27,6 +27,9 @@ pub fn init_tid0_state() -> State {
 		stack_handle: None,
 	}
 }
+pub fn init_smp() {
+	// TODO: Check for other cores in the FDT and use SBI to start them
+}
 pub fn start_thread<F: FnOnce()+Send+'static>(thread: &mut crate::threads::Thread, code: F)
 {
 	// Prepare a stack that matches the layout expected by `switch_to`

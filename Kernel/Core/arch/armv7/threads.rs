@@ -29,6 +29,11 @@ pub fn init_tid0_state() -> State {
 		..State::default()
 		}
 }
+
+pub fn init_smp() {
+	// TODO: Check for other cores in the FDT
+}
+
 // TODO: Returning an "owned" pointer here feels dirty (BUT - dropping ThreadPtr is a bug)
 pub fn get_idle_thread() -> ::threads::ThreadPtr {
 	use ::core::sync::atomic::{Ordering,AtomicUsize};

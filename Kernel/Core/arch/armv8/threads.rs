@@ -49,6 +49,10 @@ pub fn get_idle_thread() -> ::threads::ThreadPtr {
 	}
 }
 
+pub fn init_smp() {
+	// TODO: Check for other cores in the FDT
+}
+
 pub fn set_thread_ptr(thread: ::threads::ThreadPtr) {
 	super::CpuState::cur().current_thread.store(thread.into_usize(), Ordering::Relaxed)
 }

@@ -293,6 +293,10 @@ pub mod threads {
 			});
 		rv
 	}
+
+	pub fn init_smp() {
+	}
+
 	pub fn set_thread_ptr(t: ::threads::ThreadPtr) {
 		THIS_THREAD_STATE.with(|v| {
 			log_trace!("set_thread_ptr");
