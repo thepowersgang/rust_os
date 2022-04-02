@@ -335,10 +335,31 @@ pub mod threads {
 		})
 	}
 
+	struct IdleState {
+		mutex: ::std::sync::Mutex<()>,
+		cv: ::std::sync::Condvar,
+	}
+	impl IdleState {
+		fn new() -> Self {
+			IdleState {
+				mutex: Default::default(),
+				cv: Default::default(),
+			}
+		}
+		fn idle(&self) {
+			let lh = self.mutex.lock().unwrap();
+			let (lh, _) = self.cv.wait_timeout(lh, ::std::time::Duration::from_millis(500)).unwrap();
+		}
+		fn wake(&self) {
+			self.cv.notify_one();
+		}
+	}
+	lazy_static::lazy_static! {
+		static ref IDLE_STATE: IdleState = IdleState::new();
+	}
 	pub fn idle(held_interrupts: super::sync::HeldInterrupts) {
 		drop(held_interrupts);
-		// Timed sleep?
-		std::thread::sleep(std::time::Duration::from_millis(50));
+		IDLE_STATE.idle();
 	}
 	pub fn get_idle_thread() -> ::threads::ThreadPtr {
 		lazy_static::lazy_static! {
@@ -438,6 +459,8 @@ pub mod threads {
 			log_debug!("Unpaused thread {:p}", p);
 	
 			// Wait until scheduled
+			// TODO: Flag so `idle` wakes immediately
+			IDLE_STATE.wake();
 			// TODO: Only wait if not the current thread
 			THIS_THREAD_STATE.with(|v| {
 				let h = v.borrow();

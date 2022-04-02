@@ -340,7 +340,9 @@ mod mini_std {
 	}
 
 	pub fn tcp_connect_localhost(port: u16) -> Result<Socket, &'static str> {
-		Ok(Socket(Some(::std::net::TcpStream::connect( ("127.0.0.1", port) ).map_err(|_| "connect failed")?)))
+		let sock = ::std::net::TcpStream::connect( ("127.0.0.1", port) ).map_err(|_| "connect failed")?;
+		sock.set_nodelay(true).expect("failed to set TCP_NODELAY");	// Used to ensure that syscall latency is low
+		Ok(Socket(Some(sock)))
 	}
 	pub fn tcp_recv<T: Pod>(sock: &Socket) -> Result<T,&'static str> {
 		use std::io::Read;

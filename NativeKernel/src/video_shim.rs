@@ -73,6 +73,7 @@ impl Console
 				let mut prev_pos = (0,0);
 				let mut prev_mouse = [false; 3];
 				loop {
+					// NOTE: This should limit its update rate (if no events are present, waits for 16ms)
 					window.update();
 
 					{
@@ -177,6 +178,7 @@ impl Console
 									(false, n)
 									},
 
+								// Still pressed, don't send an event
 								(Some(p), Some(n)) => {
 									assert!( p == n );
 									cur_p = it_p.next();
@@ -184,6 +186,7 @@ impl Console
 									continue ;
 									},
 
+								// End of both lists, stop
 								(None, None) => break,
 								};
 							let key = translate_keycode(minifb_key);

@@ -164,6 +164,7 @@ fn main()// -> Result<(), Box<dyn std::error::Error>>
 			GlobalState::new( ::std::process::Command::new(init_path).spawn().expect("Failed to spawn init") )
 		));
 
+	// Run a thread that monitors for closed tasks.
 	{
 		let gs_root = gs_root.clone();
 		::std::thread::spawn(move || {
@@ -192,6 +193,7 @@ fn main()// -> Result<(), Box<dyn std::error::Error>>
 		});
 	}
 
+	// Main thread: Wait for incoming connections
 	loop
 	{
 		let (sock, addr) = match test_pause_thread(|| server.accept())
@@ -199,6 +201,7 @@ fn main()// -> Result<(), Box<dyn std::error::Error>>
 			Ok(v) => v,
 			Err(e) => panic!("accept() failed: {}", e),
 			};
+		sock.set_nodelay(true).expect("failed to set TCP_NODELAY");	// Used to ensure that syscall latency is low
 		log_debug!("Client connection from {:?}", addr);
 		let gs = gs_root.clone();
 		// NOTE: This lock must be released before the thread is started
