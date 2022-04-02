@@ -28,7 +28,7 @@ struct GDTEnt(u32,u32);
 
 extern "C" {
 	static mut GDT: [GDTEnt; 7+MAX_CPUS*2];
-	static mut TSSes: [TSS; 4];
+	static mut TSSes: [TSS; MAX_CPUS];
 	
 	static s_tid0_tls_base: u64;
 }
