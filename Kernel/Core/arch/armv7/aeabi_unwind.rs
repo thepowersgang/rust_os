@@ -77,7 +77,7 @@ pub enum Error
 }
 
 macro_rules! getreg {
-	($r:ident) => {{ let v; asm!( concat!("mov {0}, ", stringify!($r)), out(reg) v); v }};
+	($r:ident) => {{ let v; ::core::arch::asm!( concat!("mov {0}, ", stringify!($r)), out(reg) v); v }};
 }
 
 //const TRACE_OPS: bool = true;
@@ -104,7 +104,7 @@ impl UnwindState {
 					getreg!(r8), getreg!(r9), getreg!(r10), getreg!(r11),
 					getreg!(r12), getreg!(sp), getreg!(lr), getreg!(pc),
 					],
-				vsp: { let v; asm!("mov {}, sp", lateout(reg) v); v },
+				vsp: { let v; ::core::arch::asm!("mov {}, sp", lateout(reg) v); v },
 				ucb: Default::default(),
 			}
 		}

@@ -30,6 +30,9 @@ QEMU_ARGS += -d int,guest_errors -D qemu_int_log.txt
 ifneq ($(QEMU_STALL),)
 	QEMU_ARGS += -S
 endif
+ifneq ($(QEMU_REPLAY),)
+QEMU_ARGS += -icount shift=7,rr=$(QEMU_REPLAY),rrfile=replay.bin
+endif
 CMDLINE := SYSROOT=/system/Tifflin
 
 #QEMU_ARGS += -tcg-plugin $(shell dirname $(shell type -P qemu-system-x86_64))/../libexec/tcg-plugin-oprofile.so -singlestep
@@ -52,8 +55,9 @@ IMGDIR := DiskImages/$(ARCH)/
 
 QEMU_TRACE_SPEC := .qemu_trace_spec
 ifneq ($(ENABLE_TRACE),)
-  # qemu-source/scripts/simpletrace.py qemu-build/trace/trace-events qemu_trace_output
-  QEMU_ARGS += -trace events=$(QEMU_TRACE_SPEC),file=qemu_trace_output
+  # qemu-source/scripts/simpletrace.py qemu-build/trace/trace-events trace-XXXXXX
+  QEMU_ARGS += -trace events=$(QEMU_TRACE_SPEC)
+#,file=qemu_trace_output	# < Doesn't work :(
 endif
 
 #
@@ -93,10 +97,12 @@ CMDLINE += SYSDISK=virtio0p0
 ifeq ($(MACHINE_TYPE),virt)
 QEMU_ARGS += -device virtio-net-device
 QEMU_ARGS += -device virtio-blk-device,drive=hda
+QEMU_ARGS += -device virtio-keyboard-device
+QEMU_ARGS += -device virtio-gpu-device
 endif
 QEMU_ARGS += -drive if=none,id=hda,index=0,file=$(IMGDIR)hda.img,format=raw
 #QEMU_ARGS += -device pl110
-#QEMU_ARGS += -device virtio-gpu-device
+
 
 run: $(IMGDIR)hda.img
 	make -C ../../Bootloaders/arm PLATFORM=$(MACHINE_TYPE) CMDLINE="$(CMDLINE)"
@@ -110,6 +116,7 @@ MACHINE_TYPE ?= virt
 CMDLINE += SYSDISK=virtio0p0
 QEMU_ARGS += -device virtio-net-device
 QEMU_ARGS += -device virtio-blk-device,drive=hda
+QEMU_ARGS += -device virtio-keyboard-device
 QEMU_ARGS += -drive if=none,id=hda,index=0,file=$(IMGDIR)hda.img,format=raw
 
 run: $(IMGDIR)hda.img

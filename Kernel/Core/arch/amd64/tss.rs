@@ -47,7 +47,7 @@ fn init()
 	
 	// SAFE: Just setting the task register
 	unsafe {
-		asm!("ltr {:x}", in(reg) 7*8_u16);
+		::core::arch::asm!("ltr {:x}", in(reg) 7*8_u16);
 	}
 }
 

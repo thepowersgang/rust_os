@@ -61,6 +61,29 @@ ENTRY(memmove)
 	BNE 1b
 	BX lr
 
+ENTRY(memset)
+	.fnstart
+	movs r2, r2
+	beq 2f
+1:
+	strb r1, [r0], #1
+	subs r2, #1
+	bne 1b
+2:
+	bx lr
+	.fnend
+
+#if 1
+ENTRY(memcpy)
+	movs r2, r2
+	bxeq lr
+1:
+	LDRB r3, [r1], #1
+	STRB r3, [r0], #1
+	SUBS r2, r2, #1
+	BGT 1b
+	BX lr
+#else
 ENTRY(__aeabi_memcpy4)
 ENTRY_(__aeabi_memcpy8)
 	movs r2, r2
@@ -121,17 +144,6 @@ ENTRY(__aeabi_memset)
 ENTRY(__aeabi_memclr)
 	MOV r2, #0
 	b __aeabi_memset
-ENTRY(memset)
-	.fnstart
-	movs r2, r2
-	beq 2f
-1:
-	strb r1, [r0], #1
-	subs r2, #1
-	bne 1b
-2:
-	bx lr
-	.fnend
 
 
 @ 64-bit divide/modulo
@@ -322,6 +334,8 @@ ENTRY(__aeabi_idivmod)
 @	bl __aeabi_idivmod
 @	mov r0, r1
 @	pop {pc}
+
+#endif
 
 // A, B, num
 ENTRY(memcmp)

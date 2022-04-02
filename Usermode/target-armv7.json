@@ -4,7 +4,6 @@
 	"llvm-target": "arm-unknown-none-gnueabi",
 	"target-endian": "little",
 	"target-pointer-width": "32",
-	"target-word-size": "32",
 	"target-c-int-width": "32",
 	"os": "tifflin",
 	"arch": "arm",
@@ -12,10 +11,7 @@
 		"linker": "arm-elf-eabi-ld",
 		"pre-link-args": { "ld": ["-T", "link-armv7.ld", "-z","max-page-size=8192", "--gc-sections", "--start-group"] },
 		"post-link-args": { "ld": ["--end-group"] },
-		"no-compiler-rt": true,
-		"__features": "+v7", "_comment": "TODO: Enable all the fun features, but that requires kernel suppport",
 		"features": "+v7,+db,-neon,-vfp2,-vfp3,-vfp4,-fp16,+soft-float",
 		"executables": true,
-		"dynamic-linking": true,
-	"morestack": false
+		"dynamic-linking": true
 }

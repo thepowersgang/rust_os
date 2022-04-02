@@ -7,7 +7,6 @@
 #![crate_type="rlib"]
 #![no_std]
 #![feature(negative_impls)]	// Used for !Send on LoaderHeader (for pedantic safety)
-#![feature(asm)]
 
 #[macro_use]
 extern crate kernel;
@@ -16,8 +15,8 @@ extern crate syscalls;
 #[cfg(not(target))]
 pub mod modules {
 	fn use_mod(m: &::kernel::modules::ModuleInfo) {
-		//unsafe { asm!("mov {0}, {0}", in(reg) m); }
-		unsafe { asm!("/* {0} */", in(reg) m); }
+		//unsafe { ::core::arch::asm!("mov {0}, {0}", in(reg) m); }
+		unsafe { ::core::arch::asm!("/* {0} */", in(reg) m); }
 	}
 	pub fn use_mods() -> usize {
 		let mut rv = 0;

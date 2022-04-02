@@ -33,7 +33,7 @@ pub struct Symlink {
 #[derive(Debug,Clone)]
 /// Special file (?API exposed)
 pub struct Special {
-	node: CacheHandle,
+	_node: CacheHandle,
 }
 
 #[derive(Debug,Clone)]
@@ -393,3 +393,4 @@ impl Symlink
 		self.node.get_target()
 	}
 }
+

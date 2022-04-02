@@ -7,7 +7,6 @@
 #![crate_type="lib"]
 #![feature(unsize,coerce_unsized)]	// For DST smart pointers
 #![feature(core_intrinsics)]	// Intrinsics
-#![feature(asm)]	// Enables the asm! syntax extension
 #![feature(box_syntax)]	// Enables 'box' syntax
 #![feature(box_patterns)]	// Used in boxed::unwrap
 #![feature(thread_local)]	// Allows use of thread_local
@@ -20,6 +19,7 @@
 #![feature(panic_info_message)]
 #![feature(extern_types)]
 #![feature(cfg_target_has_atomic)]	// #[cfg(target_has_atomic="64")]
+#![feature(alloc_error_handler)]	// #[alloc_error_handler]
 
 //#![cfg_attr(target_arch="riscv64",feature(const_raw_ptr_to_usize_cast))]
 
@@ -32,6 +32,7 @@
 
 #[cfg(feature="test")]
 extern crate core;
+extern crate alloc;
 
 #[allow(unused_imports)]
 use prelude::*;

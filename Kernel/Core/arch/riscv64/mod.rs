@@ -15,6 +15,8 @@ fn init()
 #[path="../armv7/fdt_devices.rs"]
 mod fdt_devices;
 
+mod sbi;
+
 //mod backtrace_dwarf;
 
 pub mod memory;
@@ -64,7 +66,7 @@ pub mod sync {
 		// SAFE: Only reads from a CSR
 		unsafe {
 			let v: u64;
-			asm!("csrrci {}, sstatus, 0x2", lateout(reg) v);	// Clear SIE and return the original contents
+			::core::arch::asm!("csrrci {}, sstatus, 0x2", lateout(reg) v);	// Clear SIE and return the original contents
 			HeldInterrupts(v & 0x2)
 		}
 	}
@@ -73,16 +75,16 @@ pub mod sync {
 			// SAFE: Only sets SIE (restoring it to previous state)
 			unsafe {
 				assert!(self.0 & !0x2 == 0);	// only SIE (bit 2) should be set
-				asm!("csrs sstatus, {}", in(reg) self.0);
+				::core::arch::asm!("csrs sstatus, {}", in(reg) self.0);
 			}
 		}
 	}
 
 	pub unsafe fn start_interrupts() {
-		asm!("csrsi sstatus, 0x2");
+		::core::arch::asm!("csrsi sstatus, 0x2");
 	}
 	pub unsafe fn stop_interrupts() {
-		asm!("csrci sstatus, 0x2");
+		::core::arch::asm!("csrci sstatus, 0x2");
 	}
 }
 
@@ -219,7 +221,7 @@ pub mod interrupts
 		if PLIC.is_init()
 		{
 			// SAFE: Just waits for an interrupt
-			unsafe { asm!("wfi; csrsi sstatus, 0x2") }
+			unsafe { ::core::arch::asm!("wfi; csrsi sstatus, 0x2") }
 		}
 		else
 		{
@@ -302,7 +304,7 @@ pub fn print_backtrace() {
 pub fn cur_timestamp() -> u64 {
 	let v: u64;
 	// SAFE: Reading a CSR with no side-effects
-	unsafe { asm!("rdtime {}", lateout(reg) v); }
+	unsafe { ::core::arch::asm!("rdtime {}", lateout(reg) v); }
 	v / 10000//_000	// FDT: "" "cpus" ".timebase-frequency"
 }
 
@@ -310,7 +312,7 @@ pub fn drop_to_user(entry: usize, stack: usize, args_len: usize) -> ! {
 	// Create an exception frame
 	// SAFE: Validated 
 	unsafe {
-		asm!("
+		::core::arch::asm!("
 			csrc sstatus,{3}
 			csrs sstatus,{4}
 			csrw sepc, {0}
@@ -351,7 +353,7 @@ impl HartState
 		// SAFE: Reads a valid CSR, the pointer contained within should be valid
 		unsafe {
 			let ptr: *const HartState;
-			asm!("csrr {}, sscratch", out(reg) ptr);
+			::core::arch::asm!("csrr {}, sscratch", out(reg) ptr);
 			&*ptr
 		}
 	}
@@ -473,6 +475,6 @@ extern "C" fn trap_vector_rs(state: &mut FaultRegs)
 	}
 	loop {
 		// SAFE: No side-effects to WFI
-		unsafe { asm!("wfi"); }
+		unsafe { ::core::arch::asm!("wfi"); }
 	}
 }

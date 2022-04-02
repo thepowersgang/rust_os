@@ -4,6 +4,7 @@
 // Core/arch/amd64/threads.rs
 //! Architecture-level thread handling (helpers for ::threads).
 use prelude::*;
+use ::core::arch::asm;
 
 #[derive(Default)]//,Copy,Clone)]
 /// Low-level thread state
@@ -375,6 +376,7 @@ fn disable_sse_and_save()
 
 mod sse
 {
+	use ::core::arch::asm;
 	use super::get_tls_ptr;
 	use super::SSERegisters;
 	pub fn enable() -> bool

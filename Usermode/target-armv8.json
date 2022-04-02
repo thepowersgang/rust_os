@@ -4,7 +4,6 @@
 	"llvm-target": "aarch64-none-elf",
 	"target-endian": "little",
 	"target-pointer-width": "64",
-	"target-word-size": "64",
 	"target-c-int-width": "32",
 	"os": "tifflin",
 	"arch": "aarch64",
@@ -12,9 +11,7 @@
 		"linker": "aarch64-none-elf-ld",
 		"pre-link-args": {"ld": ["-T","link-armv8.ld", "-z","max-page-size=0x4000", "--gc-sections", "--start-group"] },
 		"post-link-args": {"ld": ["--end-group"]},
-		"no-compiler-rt": true,
-		"features": "-neon,-fp-armv8", "_comment": "TODO: Enable all the fun features, but that requires kernel suppport",
+		"features": "-neon,-fp-armv8",
 		"executables": true,
-		"dynamic-linking": true,
-	"morestack": false
+		"dynamic-linking": true
 }

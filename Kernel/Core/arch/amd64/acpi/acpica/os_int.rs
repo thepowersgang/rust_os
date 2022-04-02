@@ -210,7 +210,7 @@ extern "C" fn AcpiOsCreateLock(OutHandle: *mut ACPI_SPINLOCK) -> ACPI_STATUS {
 	// SAFE: Transmutes Box to *mut to forget the box. Will be recreated to drop
 	unsafe {
 		let mutex = ::sync::Spinlock::<()>::new( () );
-		*OutHandle = Box::new(mutex).into_ptr();
+		*OutHandle = Box::into_raw(Box::new(mutex));
 		AE_OK
 	}
 }

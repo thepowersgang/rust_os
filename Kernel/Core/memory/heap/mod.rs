@@ -60,26 +60,28 @@ pub fn init()
 {
 }
 
-// Used by Box<T>
 #[cfg(all(not(test),not(test_shim)))]
-#[lang="exchange_malloc"]
-#[inline]
-unsafe fn exchange_malloc(size: usize, align: usize) -> *mut u8
-{
-	match allocate(HeapId::Global, size, align)
-	{
-	Some(x) => x as *mut u8,
-	None => panic!("exchange_malloc({}, {}) out of memory", size, align),
+mod _allocator {
+	#[global_allocator]
+	static GLOBAL_ALLOC: Allocator = Allocator;
+
+	struct Allocator;
+	unsafe impl ::alloc::alloc::GlobalAlloc for Allocator {
+		unsafe fn alloc(&self, layout: ::alloc::alloc::Layout) -> *mut u8 {
+			match super::allocate(super::HeapId::Global, layout.size(), layout.align())
+			{
+			Some(x) => x as *mut u8,
+			None => ::core::ptr::null_mut(),
+			}
+		}
+	    unsafe fn dealloc(&self, ptr: *mut u8, layout: ::alloc::alloc::Layout) {
+			super::S_GLOBAL_HEAP.lock().deallocate(ptr as *mut (), layout.size(), layout.align());
+		}
 	}
-}
-#[lang = "box_free"]
-#[cfg(all(not(test),not(test_shim)))]
-#[inline]
-unsafe fn box_free<T: ?Sized>(ptr: *mut T) {
-	let size = ::core::mem::size_of_val(&*ptr);
-	let align = ::core::mem::align_of_val(&*ptr);
-	if size != 0 {
-		S_GLOBAL_HEAP.lock().deallocate(ptr as *mut (), size, align);
+
+	#[alloc_error_handler]
+	fn error_handler(layout: core::alloc::Layout) -> ! {
+		panic!("Alloc error: {:?}", layout);
 	}
 }
 

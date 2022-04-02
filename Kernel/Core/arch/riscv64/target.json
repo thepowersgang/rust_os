@@ -8,7 +8,6 @@
   "env": "",
   "executables": true,
   "features": "+m,+a,+f,+d,+c",
-  "is-builtin": true,
   "linker": "rust-lld",
   "linker-flavor": "ld.lld",
   "llvm-target": "riscv64",
@@ -19,20 +18,6 @@
   "target-c-int-width": "32",
   "target-endian": "little",
   "target-pointer-width": "64",
-  "unsupported-abis": [
-    "cdecl",
-    "stdcall",
-    "fastcall",
-    "vectorcall",
-    "thiscall",
-    "aapcs",
-    "win64",
-    "sysv64",
-    "ptx-kernel",
-    "msp430-interrupt",
-    "x86-interrupt",
-    "amdgpu-kernel"
-  ],
   "vendor": "unknown"
 }
 

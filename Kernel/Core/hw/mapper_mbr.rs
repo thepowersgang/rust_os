@@ -21,7 +21,7 @@ struct Mapper;
 #[derive(Debug)]
 struct Entry
 {
-	bootable: bool,
+	_bootable: bool,
 	system_id: u8,
 	lba_start: u64,
 	lba_count: u64,
@@ -108,7 +108,7 @@ impl Entry
 			};
 		
 		Some(Entry {
-			bootable: (data[0] & 0x80) != 0,
+			_bootable: (data[0] & 0x80) != 0,
 			system_id: data[4],
 			lba_start: base,
 			lba_count: len,

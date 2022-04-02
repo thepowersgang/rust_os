@@ -6,7 +6,7 @@
 use core::{ops,fmt,marker};
 
 #[lang = "owned_box"]
-pub struct Box<T: ?Sized>(::core::ptr::NonNull<T>);
+pub struct Box<T: ?Sized, A = ()>(::core::ptr::NonNull<T>, A);
 
 impl<T: ?Sized + marker::Unsize<U>, U: ?Sized> ops::CoerceUnsized<Box<U>> for Box<T> { }
 unsafe impl<T: ?Sized + Send> Send for Box<T> {
@@ -146,9 +146,9 @@ impl<T: ?Sized> ops::DerefMut for Box<T> {
 	}
 }
 
-impl<T: ?Sized> ::core::marker::Unpin for Box<T> { }
+impl<T: ?Sized, A> ::core::marker::Unpin for Box<T, A> { }
 
-impl<T: ?Sized> ::core::future::Future for Box<T>
+impl<T: ?Sized, A> ::core::future::Future for Box<T, A>
 where
 	T: ::core::future::Future,
 	T: ::core::marker::Unpin,
@@ -159,7 +159,7 @@ where
 	}
 }
 
-unsafe impl<#[may_dangle] T: ?Sized> ops::Drop for Box<T> {
+unsafe impl<#[may_dangle] T: ?Sized, A> ops::Drop for Box<T, A> {
 	fn drop(&mut self) {
 	}
 }

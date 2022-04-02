@@ -9,7 +9,6 @@
   "executables": true,
 		"dynamic-linking": true,
   "features": "+m,+a,+f,+d,+c",
-  "is-builtin": true,
 		"linker": "riscv64-unknown-elf-ld",
 		"linker-flavor": "ld",
 		"pre-link-args": { "ld": ["-T", "link-riscv64.ld", "-z","max-page-size=4096", "--gc-sections", "--start-group"] },
@@ -22,19 +21,5 @@
   "target-c-int-width": "32",
   "target-endian": "little",
   "target-pointer-width": "64",
-  "unsupported-abis": [
-    "cdecl",
-    "stdcall",
-    "fastcall",
-    "vectorcall",
-    "thiscall",
-    "aapcs",
-    "win64",
-    "sysv64",
-    "ptx-kernel",
-    "msp430-interrupt",
-    "x86-interrupt",
-    "amdgpu-kernel"
-  ],
   "vendor": "unknown"
 }

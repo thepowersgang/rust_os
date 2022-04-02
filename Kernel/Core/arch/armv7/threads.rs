@@ -58,7 +58,7 @@ pub fn set_thread_ptr(thread: ::threads::ThreadPtr) {
 	let real = borrow_thread_mut();
 	if real.is_null() {
 		// SAFE: Valid ASM
-		unsafe { asm!("mcr p15,0, {0}, c13,c0,4", in(reg) thread.into_usize(), options(nomem, nostack, preserves_flags)); }
+		unsafe { ::core::arch::asm!("mcr p15,0, {0}, c13,c0,4", in(reg) thread.into_usize(), options(nomem, nostack, preserves_flags)); }
 	}
 	else if real as *const _ == &*thread {
 		// Convert and discard
@@ -72,7 +72,7 @@ pub fn get_thread_ptr() -> Option<::threads::ThreadPtr> {
 	// SAFE: Thread pointer should either be valid, or NULL
 	unsafe {
 		let cur: usize;
-		asm!("mrc p15,0, {0}, c13,c0,4", lateout(reg) cur, options(pure, nomem, nostack, preserves_flags));
+		::core::arch::asm!("mrc p15,0, {0}, c13,c0,4", lateout(reg) cur, options(pure, nomem, nostack, preserves_flags));
 		if cur == 0 {
 			None
 		}
@@ -85,7 +85,7 @@ fn borrow_thread_mut() -> *mut ::threads::Thread {
 	// SAFE: Read-only access to the thread-local word
 	unsafe {
 		let ptr: usize;
-		asm!("mrc p15,0, {0}, c13,c0,4", lateout(reg) ptr, options(pure, nomem, nostack, preserves_flags));
+		::core::arch::asm!("mrc p15,0, {0}, c13,c0,4", lateout(reg) ptr, options(pure, nomem, nostack, preserves_flags));
 		(ptr & !1) as *mut _
 	}
 }
@@ -114,7 +114,7 @@ pub fn idle(held_interrupts: ::arch::sync::HeldInterrupts)
 	unsafe {
 		::core::mem::forget(held_interrupts);
 		super::sync::start_interrupts();
-		asm!("wfi");
+		::core::arch::asm!("wfi");
 	}
 }
 

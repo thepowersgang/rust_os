@@ -4,7 +4,7 @@ pub const PAGE_SIZE: usize = 0x2000;
 		($id:expr, $( $reg:tt = $val:expr),*) => {{
 			let rv_l: usize;
 			let rv_h: usize;
-			asm!("swi #0"
+			::core::arch::asm!("swi #0"
 				, lateout("r0") rv_l, lateout("r1") rv_h
 				, lateout("r2") _, lateout("r3") _
 				, in("r12") $id as usize $(, in($reg) $val as usize)*

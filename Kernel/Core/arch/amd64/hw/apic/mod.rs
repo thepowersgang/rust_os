@@ -89,7 +89,7 @@ fn init()
 	// TODO: Does S_IRQS_ENABLED ever get read?
 	::arch::imp::threads::S_IRQS_ENABLED.store(true, ::core::sync::atomic::Ordering::Relaxed);
 	// SAFE: Just STI, nothing to worry about
-	unsafe { asm!("sti"); }
+	unsafe { ::core::arch::asm!("sti"); }
 }
 
 fn get_ioapic(interrupt: usize) -> Option<(&'static raw::IOAPIC, usize)>

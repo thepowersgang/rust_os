@@ -29,6 +29,25 @@ pub fn init_tid0_state() -> State {
 }
 pub fn init_smp() {
 	// TODO: Check for other cores in the FDT and use SBI to start them
+	super::sbi::dump_sbi_info();
+
+	//crate::device_manager::register_driver();
+	if let Some(fdt) = super::boot::get_fdt()
+	{
+		for cpu in fdt.get_props_cb(|ofs,_leaf,name| {
+			match ofs
+			{
+			0 => name == "cpus",
+			1 => name == "cpu" || name.starts_with("cpu@"),
+			2 => name == "reg",
+			_ => false,
+			}
+			})
+		{
+			log_debug!("cpu = {:?}", cpu);
+			//super::sbi::hart_management::start();
+		}
+	}
 }
 pub fn start_thread<F: FnOnce()+Send+'static>(thread: &mut crate::threads::Thread, code: F)
 {

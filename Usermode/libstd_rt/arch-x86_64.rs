@@ -5,7 +5,7 @@ impl Backtrace {
 		// SAFE: Just loads bp
 		let bp = unsafe { 
 			let bp: usize;
-			asm!("mov {0}, rbp", lateout(reg) bp);
+			::core::arch::asm!("mov {0}, rbp", lateout(reg) bp);
 			bp
 			};
 		Backtrace(bp)

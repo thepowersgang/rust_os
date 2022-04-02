@@ -6,6 +6,6 @@
 
 /// Emits a distinctive instruction (with no effect)
 // SAFE: No-op
-macro_rules! CHECKMARK{ () => (unsafe { asm!("xchg cx, cx", options(nostack));}); }
+macro_rules! CHECKMARK{ () => (unsafe { ::core::arch::asm!("xchg cx, cx", options(nostack));}); }
 
 // vim: ft=rust

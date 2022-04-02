@@ -12,7 +12,10 @@ macro_rules! log{ ($lvl:expr, $modname:expr, $($arg:tt)*) => (
 	if $crate::logging::enabled($lvl, $modname)
 	{
 		// NOTE: Keeps the logging out of the main path by using a closure
-		$crate::logmacros::write($lvl, $modname, |s| { use core::fmt::Write; write!(s, $($arg)*) });
+		match format_args!($($arg)*)
+		{
+		args => $crate::logmacros::write($lvl, $modname, |s| { use core::fmt::Write; s.write_fmt(args) }),
+		}
 	}
 	)}
 /// Log a panic-level message (kernel intents to halt immediately after printing)

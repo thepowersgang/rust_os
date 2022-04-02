@@ -24,12 +24,12 @@ mod aeabi_unwind;
 #[inline(always)]
 pub fn checkmark() {
 	// SAFE: nop ASM
-	unsafe { asm!("mov r1, r1"); }
+	unsafe { ::core::arch::asm!("mov r1, r1"); }
 }
 #[inline(always)]
 pub fn checkmark_val<T>(v: *const T) {
 	// SAFE: nop ASM
-	unsafe { asm!("mov r1, r1; mov {0},{0}", in(reg) v); }
+	unsafe { ::core::arch::asm!("mov r1, r1; mov {0},{0}", in(reg) v); }
 }
 
 #[allow(improper_ctypes)]

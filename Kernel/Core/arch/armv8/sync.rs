@@ -67,9 +67,9 @@ pub unsafe fn test_and_stop_interrupts() -> bool {
 	false
 }
 pub unsafe fn stop_interrupts() {
-	asm!("msr DAIFSet, #0x7");
+	::core::arch::asm!("msr DAIFSet, #0x7");
 }
 pub unsafe fn start_interrupts() {
-	asm!("msr DAIFClr, #0x7");
+	::core::arch::asm!("msr DAIFClr, #0x7");
 }
 

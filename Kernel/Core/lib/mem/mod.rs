@@ -13,17 +13,9 @@ pub mod arc;
 
 pub mod aref;
 
-cfg_if::cfg_if! {
-	if #[cfg(feature="test")] {
-		pub mod boxed {
-			pub use std::boxed::Box;
-		}
-	}
-	else {
-		pub mod boxed;
-	}
+pub mod boxed {
+	pub use alloc::boxed::Box;
 }
-
 
 #[allow(improper_ctypes)]
 extern "C" {

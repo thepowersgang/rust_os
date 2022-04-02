@@ -104,14 +104,14 @@ impl ::core::ops::Drop for HeldInterrupts
 
 pub unsafe fn test_and_stop_interrupts() -> bool {
 	let flags: u64;
-	asm!("pushf; pop {}; cli", out(reg) flags);	// touches stack
+	::core::arch::asm!("pushf; pop {}; cli", out(reg) flags);	// touches stack
 	(flags & 0x200) != 0
 }
 pub unsafe fn stop_interrupts() {
-	asm!("cli", options(nomem, nostack));
+	::core::arch::asm!("cli", options(nomem, nostack));
 }
 pub unsafe fn start_interrupts() {
-	asm!("sti", options(nomem, nostack));
+	::core::arch::asm!("sti", options(nomem, nostack));
 }
 
 // vim: ft=rust

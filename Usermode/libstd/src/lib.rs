@@ -9,12 +9,11 @@
 #![feature(linkage)]	// Used for low-level runtime
 #![feature(core_intrinsics)]
 #![feature(box_syntax)]
-#![feature(raw)]
 #![feature(slice_concat_ext)]
 #![feature(allocator_api)]
 #![feature(allocator_internals)]
 #![feature(test,custom_test_frameworks)]	// used for macro import
-#![feature(asm,global_asm,concat_idents,format_args_nl,log_syntax)]
+#![feature(concat_idents,format_args_nl,log_syntax)]
 #![feature(alloc_error_handler)]
 #![default_lib_allocator]
 #![no_std]
@@ -46,8 +45,6 @@ pub use core::convert;
 pub use core::intrinsics;
 pub use core::marker;
 pub use core::num;
-#[allow(deprecated)]
-pub use core::raw;
 
 // Crate re-exports
 pub use alloc::{rc,boxed};
@@ -110,7 +107,6 @@ pub mod prelude {
 			test_case,
 			};
 		pub use core::prelude::v1::{
-			asm,
 			assert,
 			cfg,
 			column,
@@ -121,7 +117,6 @@ pub mod prelude {
 			file,
 			format_args,
 			format_args_nl,
-			global_asm,
 			include,
 			include_bytes,
 			include_str,
@@ -152,6 +147,8 @@ pub mod env;
 pub extern crate std_io as io;
 pub extern crate std_rt as rt;
 pub extern crate std_sync as sync;
+
+pub use core::arch;
 
 pub mod fs;
 

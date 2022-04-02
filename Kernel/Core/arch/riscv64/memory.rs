@@ -276,7 +276,7 @@ pub mod virt
 	fn invalidate_cache(va: super::VAddr)
 	{
 		// SAFE: This can only cause performance issues
-		unsafe { asm!("SFENCE.VMA {}", in(reg) va); }
+		unsafe { ::core::arch::asm!("SFENCE.VMA {}", in(reg) va); }
 	}
 	const N_PAGETABLE_ENTS: usize = 512;
 	type PageTable = [AtomicU64; N_PAGETABLE_ENTS];
@@ -376,7 +376,7 @@ pub mod virt
 		// SAFE: asm reading a register
 		unsafe {
 			let v: u64;
-			asm!("csrr {}, satp", out(reg) v, options(nomem, pure));
+			::core::arch::asm!("csrr {}, satp", out(reg) v, options(nomem, pure));
 			let ppn = v & ((1 << 60)-1);
 			ppn << 12
 		}

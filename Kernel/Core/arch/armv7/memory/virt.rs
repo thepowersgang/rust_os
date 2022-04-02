@@ -61,16 +61,16 @@ fn dump_tables() {
 		unsafe {
 			// TODO: Disable interrupts during this operation
 			let mut res: u32;
-			asm!("mcr p15,0, {1}, c7,c8,0; isb; mrc p15,0, {0}, c7,c4,0 ", lateout(reg) res, in(reg) addr);
+			::core::arch::asm!("mcr p15,0, {1}, c7,c8,0; isb; mrc p15,0, {0}, c7,c4,0 ", lateout(reg) res, in(reg) addr);
 			if res & 1 == 1 {
 				return None;
 			}
 			let paddr = res & !0xFFF;
 			// Try a kernel write to test writiable
-			asm!("mcr p15,0, {1}, c7,c8,1; isb; mrc p15,0, {0}, c7,c4,0 ", lateout(reg) res, in(reg) addr);
+			::core::arch::asm!("mcr p15,0, {1}, c7,c8,1; isb; mrc p15,0, {0}, c7,c4,0 ", lateout(reg) res, in(reg) addr);
 			let is_kwrite = res & 1 == 0;
 			// Try a user read to test readable
-			asm!("mcr p15,0, {1}, c7,c8,2; isb; mrc p15,0, {0}, c7,c4,0 ", lateout(reg) res, in(reg) addr);
+			::core::arch::asm!("mcr p15,0, {1}, c7,c8,2; isb; mrc p15,0, {0}, c7,c4,0 ", lateout(reg) res, in(reg) addr);
 			let is_uread = res & 1 == 0;
 
 			Some(paddr | 1*(is_kwrite as u32) | 2*(is_uread as u32))
@@ -535,7 +535,7 @@ fn get_phys_opt<T>(addr: *const T) -> Option<::arch::memory::PAddr> {
 	// SAFE: Correct register accesses
 	unsafe {
 		// TODO: Disable interrupts during this operation
-		asm!("mcr p15,0, {1}, c7,c8,0; isb; mrc p15,0, {0}, c7,c4,0 ", lateout(reg) res, in(reg) addr);
+		::core::arch::asm!("mcr p15,0, {1}, c7,c8,0; isb; mrc p15,0, {0}, c7,c4,0 ", lateout(reg) res, in(reg) addr);
 	};
 
 	match res & 3 {
@@ -565,8 +565,8 @@ fn tlbimva(a: *mut ()) {
 	// SAFE: TLB invalidation is not the unsafe part :)
 	unsafe {
 		// Note: since PAGE_SIZE is 0x2000, needs to be called twice
-		asm!("mcr p15,0, {0}, c8,c7,1 ; dsb ; isb", in(reg) ((a as usize & !PAGE_MASK) | 1 ), options(nostack));
-		asm!("mcr p15,0, {0}, c8,c7,1 ; dsb ; isb", in(reg) ((a as usize & !PAGE_MASK) | 0x1000 | 1 ), options(nostack));
+		::core::arch::asm!("mcr p15,0, {0}, c8,c7,1 ; dsb ; isb", in(reg) ((a as usize & !PAGE_MASK) | 1 ), options(nostack));
+		::core::arch::asm!("mcr p15,0, {0}, c8,c7,1 ; dsb ; isb", in(reg) ((a as usize & !PAGE_MASK) | 0x1000 | 1 ), options(nostack));
 	}
 }
 ///// Data Cache Clean by Modified Virtual Address (to PoC)

@@ -4,7 +4,7 @@ pub const PAGE_SIZE: usize = 0x4000;
 	macro_rules! syscall_a {
 		($id:expr, $( $reg:tt = $val:expr),*) => {{
 			let rv: usize;
-			asm!("svc #0",
+			::core::arch::asm!("svc #0",
 				lateout("x0") rv,
 				in("x12") ($id as usize) $(, in($reg) ($val as usize))*,
 				lateout("x1") _, lateout("x2") _, lateout("x3") _, lateout("x4") _, lateout("x5") _, lateout("x6") _, lateout("x7") _

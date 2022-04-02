@@ -122,7 +122,7 @@ fn get_cr2() -> u64
 	// SAFE: Just reads CR2, no sideeffect
 	unsafe {
 		let cr2: u64;
-		asm!("mov {}, cr2", out(reg) cr2, options(nomem, nostack, pure, preserves_flags));
+		::core::arch::asm!("mov {}, cr2", out(reg) cr2, options(nomem, nostack, pure, preserves_flags));
 		cr2
 	}
 }

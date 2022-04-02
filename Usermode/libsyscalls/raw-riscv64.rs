@@ -3,7 +3,7 @@ pub const PAGE_SIZE: usize = 0x1000;
 macro_rules! syscall_a {
 	($id:expr, $( $reg:tt = $val:expr),*) => {{
 		let rv;
-		asm!("ecall",
+		::core::arch::asm!("ecall",
 			lateout("a0") rv,
 			in("a0") ($id as usize) $(, in($reg) ($val as usize))*,
 			options(nostack)

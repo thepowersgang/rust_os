@@ -1,7 +1,7 @@
 /*
  * VirtIO input device support
  */
-use kernel::prelude::*;
+//use kernel::prelude::*;
 use crate::interface::Interface;
 use kernel::threads::WorkerThread;
 use kernel::lib::byte_str::ByteStr;

@@ -100,7 +100,7 @@ fn get_phys_raw<T>(addr: *const T) -> Option<u64> {
 	// SAFE: Queries an interface that cannot cause an exception (and won't induce memory unsafety)
 	let v = unsafe {
 		let ret: usize;
-		asm!("AT S1E1R, {1}; mrs {0}, PAR_EL1", out(reg) ret, in(reg) addr, options(pure, readonly, nostack));
+		::core::arch::asm!("AT S1E1R, {1}; mrs {0}, PAR_EL1", out(reg) ret, in(reg) addr, options(pure, readonly, nostack));
 		ret
 		};
 	if v & 1 != 0 {
@@ -283,7 +283,7 @@ fn tlbi(addr: *const ()) {
 	unsafe {
 		static_assert!(PAGE_SIZE == 1 << (12+2));
 		const MASK: usize = ((1 << 43)-1) & !3;	// 43 bits of address (after shifting by 12), mask out bottom two bits for 14bit page size
-		asm!("TLBI VAE1, {}", in(reg) (addr as usize >> 12) & MASK);
+		::core::arch::asm!("TLBI VAE1, {}", in(reg) (addr as usize >> 12) & MASK);
 	}
 }
 

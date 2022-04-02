@@ -39,7 +39,7 @@ impl CpuState
 		// SAFE: Reads a register
 		unsafe {
 			let ret: *const CpuState;
-			asm!("mrs {}, TPIDR_EL1", out(reg) ret, options(nomem, pure));
+			::core::arch::asm!("mrs {}, TPIDR_EL1", out(reg) ret, options(nomem, pure));
 			&*ret
 		}
 	}
@@ -48,7 +48,7 @@ impl CpuState
 pub fn print_backtrace() {
 	let mut fp: *const FrameEntry;
 	// SAFE: Just loads the frame pointer
-	unsafe { asm!("mov {}, fp", out(reg) fp); }
+	unsafe { ::core::arch::asm!("mov {}, fp", out(reg) fp); }
 
 	#[repr(C)]
 	struct FrameEntry {
@@ -169,7 +169,7 @@ extern "C" fn vector_handler_sync_u64(esr: u64, regs: &mut Regs)
 		},
 	0x24 => {	// Data abort from lower exception level
 		// SAFE: Reads a non-sideeffect register
-		let far = unsafe { let v: u64; asm!("mrs {}, FAR_EL1", lateout(reg) v); v };
+		let far = unsafe { let v: u64; ::core::arch::asm!("mrs {}, FAR_EL1", lateout(reg) v); v };
 		if self::memory::virt::data_abort(esr & ((1<<25)-1), far as usize)
 		{
 			return ;

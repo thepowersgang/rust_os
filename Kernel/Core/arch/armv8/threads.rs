@@ -96,7 +96,7 @@ pub fn idle(held_interrupts: ::arch::sync::HeldInterrupts) {
 	unsafe {
 		::core::mem::forget(held_interrupts);
 		crate::arch::sync::start_interrupts();
-		asm!("wfi");
+		::core::arch::asm!("wfi");
 	}
 }
 

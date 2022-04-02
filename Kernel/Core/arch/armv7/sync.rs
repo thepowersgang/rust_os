@@ -43,7 +43,7 @@ pub fn hold_interrupts() -> HeldInterrupts {
 	// SAFE: Correct inline assembly
 	HeldInterrupts(unsafe {
 		let v: u32;
-		asm!("mrs {}, cpsr; cpsid if", out(reg) v);
+		::core::arch::asm!("mrs {}, cpsr; cpsid if", out(reg) v);
 		v & 0x80 == 0	// if I is clear, assume interrupts are enabled
 		})
 }
@@ -56,10 +56,10 @@ impl ::core::ops::Drop for HeldInterrupts {
 }
 pub fn stop_interrupts() {
 	// SAFE: Correct inline assembly
-	unsafe { asm!("cpsid if"); }
+	unsafe { ::core::arch::asm!("cpsid if"); }
 }
 pub fn start_interrupts() {
 	// SAFE: Correct inline assembly
-	unsafe { asm!("cpsie if"); }
+	unsafe { ::core::arch::asm!("cpsie if"); }
 }
 

@@ -53,7 +53,9 @@ all: bin/kernel-$(ARCH).bin
 dsm: bin/kernel-$(ARCH).bin.dsm
 
 clean:
-	rm -rf target/kernel-$(ARCH) bin/ .obj
+	rm -rf bin/kernel-$(ARCH).bin* .obj/$(ARCH)
+	$(CARGO) clean --target=targets/kernel-$(ARCH).json --release
+
 
 # 
 # Final linking stage
@@ -85,8 +87,7 @@ endif
 #
 $(OBJDIR)libmain.a: PHONY targets/kernel-$(ARCH).json $(IMGDIR)logo.rs $(IMGDIR)panic.rs
 	@echo "[CARGO] . > $@"
-	$V$(CARGO) build -Z build-std=core --target=targets/kernel-$(ARCH).json --release --features "$(CARGO_FEATURES)" -j 1 $(CARGO_FLAGS)
-#	$V$(CARGO) build -Z build-std=core --target=targets/kernel-$(ARCH).json --features "$(CARGO_FEATURES)" -j 1 $(CARGO_V)
+	$V$(CARGO) build -Z build-std=core,alloc --target=targets/kernel-$(ARCH).json --release --features "$(CARGO_FEATURES)" -j 1 $(CARGO_FLAGS)
 	@mkdir -p $(dir $@)
 	@if test ! -e $@ || test target/kernel-$(ARCH)/release/libmain.a -nt $@; then cp target/kernel-$(ARCH)/release/libmain.a $@; fi
 $(patsubst %,$(OBJDIR)lib%.a,$(MODS)): $(OBJDIR)libmain.a
