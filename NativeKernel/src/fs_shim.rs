@@ -35,10 +35,11 @@ struct FileData
 
 impl mount::Driver for NativeFsDriver
 {
-	fn detect(&self, vol: &VolumeHandle) -> vfs::Result<usize> {
+	fn detect(&self, _vol: &VolumeHandle) -> vfs::Result<usize> {
         Ok(0)
     }
-	fn mount(&self, vol: VolumeHandle, handle: mount::SelfHandle) -> vfs::Result<Box<dyn mount::Filesystem>> {
+	fn mount(&self, _vol: VolumeHandle, _handle: mount::SelfHandle) -> vfs::Result<Box<dyn mount::Filesystem>> {
+        // TODO: Can this get the path from the volume handle?
         let root_path: PathBuf = ".native_fs".into();
         let mut rv = NativeFs::default();
         rv.inner.get_mut().unwrap().inodes.insert(0, Box::new(EntData::Dir(DirData{ path: root_path })));
@@ -79,8 +80,8 @@ impl mount::Filesystem for FsInstance
 	fn get_node_by_inode(&self, n: InodeId) -> Option<vfs::node::Node> {
         Some(match &**self.0.inner.lock().unwrap().inodes.get(&n)?
         {
-        EntData::Dir(r) => vfs::node::Node::Dir(Box::new(DirNodeRef( self.0.borrow(), n ))),
-        EntData::File(r) => vfs::node::Node::File(Box::new(FileNodeRef( self.0.borrow(), n ))),
+        EntData::Dir(_r) => vfs::node::Node::Dir(Box::new(DirNodeRef( self.0.borrow(), n ))),
+        EntData::File(_r) => vfs::node::Node::File(Box::new(FileNodeRef( self.0.borrow(), n ))),
         })
     }
 }
@@ -135,7 +136,36 @@ impl vfs::node::Dir for DirNodeRef
 	/// - Ok(Next Offset)
 	/// - Err(e) : Any error
 	fn read(&self, start_ofs: usize, callback: &mut vfs::node::ReadDirCallback) -> vfs::node::Result<usize> {
-        todo!("read")
+        let dir_info = self.0.get_dir(self.1);
+        let read_dir = match ::std::fs::read_dir(&dir_info.path)
+            {
+            Err(e) => todo!("DirNodeRef::read - read_dir failed {:?}", e),
+            Ok(v) => v,
+            };
+        match read_dir.skip(start_ofs).next()
+        {
+        None => Err(vfs::Error::NotFound),
+        Some(Err(e)) => todo!("DirNodeRef::read - read_dir.next failed {:?}", e),
+        Some(Ok(ent)) => {
+            let path = ent.path();
+            let node_id = self.0.allocate_inode(if path.is_dir() {
+                    EntData::Dir(DirData {
+                        path,
+                        })
+                }
+                else if path.is_file() {
+                    EntData::File(FileData {
+                        path,
+                        })
+                }
+                else {
+                    log_error!("Non dir/file encountered?");
+                    return Err(vfs::Error::NotFound)
+                });
+            (callback)(node_id, &mut ent.file_name().to_str().ok_or(vfs::Error::InconsistentFilesystem)?.as_bytes().iter().copied());
+            Ok(start_ofs + 1)
+            }
+        }
     }
 	
 	/// Create a new file in this directory

@@ -76,3 +76,8 @@ Usermode/target/
 /NativeKernel/log.txt
 
 /Kernel/tests/filesystem/data
+
+# Folders made by RA
+/Kernel/Core/target
+/Kernel/Modules/*/target
+/Usermode/*/target

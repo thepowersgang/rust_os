@@ -46,9 +46,13 @@ struct PreStartProcess {
 	condvar: ::std::sync::Condvar,
 }
 struct GlobalState {
-	processes: ::std::collections::HashMap<::kernel::threads::ProcessID, ::std::sync::Arc<::std::process::Child>>,
+	/// OS handles for each process
+	processes: ::std::collections::HashMap<::kernel::threads::ProcessID, ::std::process::Child>,
+	/// Internal handles for each running process
 	process_handles: ::std::collections::HashMap<::kernel::threads::ProcessID, ::kernel::threads::ProcessHandle>,
+	/// Internal information for processes that haven't yet fully spawned
 	pre_start_processes: ::std::collections::HashMap<::kernel::threads::ProcessID, ::std::sync::Arc<PreStartProcess>>,
+	/// The current process that is still-to-be claimed
 	to_be_claimed: Option< Option<::kernel::threads::ProcessHandle> >,
 	//pid0_worker: 
 }
@@ -57,7 +61,7 @@ impl GlobalState
 	fn new(proc_0: ::std::process::Child) -> GlobalState
 	{
 		GlobalState {
-			processes: ::std::iter::once( (0, ::std::sync::Arc::new(proc_0)) ).collect(),
+			processes: ::std::iter::once( (0, proc_0) ).collect(),
 			process_handles: Default::default(),
 			pre_start_processes: Default::default(),
 			to_be_claimed: Some(None),
@@ -67,7 +71,7 @@ impl GlobalState
 	{
 		let handle = ::kernel::threads::ProcessHandle::new(name, 0,0);
 		let pid = handle.get_pid();
-		self.processes.insert(pid, ::std::sync::Arc::new(proc));
+		self.processes.insert(pid, proc);
 		self.to_be_claimed = Some( Some(handle) );
 		self.pre_start_processes.insert(pid, Default::default());
 		pid
@@ -90,11 +94,10 @@ impl ::std::ops::Drop for GlobalState
 	fn drop(&mut self)
 	{
 		for (_pid, child) in &mut self.processes {
-			match ::std::sync::Arc::get_mut(child).map(|v| v.kill())
+			match child.kill()
 			{
-			Some(Ok(_)) => {},
-			Some(Err(e)) => log_warning!("Failed to kill child {:?}: {:?}", child, e),
-			None => log_warning!("Failed to kill child {:?}: In use", child),
+			Ok(_) => {},
+			Err(e) => log_warning!("Failed to kill child {:?}: {:?}", child, e),
 			}
 		}
 	}
@@ -160,6 +163,34 @@ fn main()// -> Result<(), Box<dyn std::error::Error>>
 	let gs_root = ::std::sync::Arc::new(::std::sync::Mutex::new(
 			GlobalState::new( ::std::process::Command::new(init_path).spawn().expect("Failed to spawn init") )
 		));
+
+	{
+		let gs_root = gs_root.clone();
+		::std::thread::spawn(move || {
+			loop
+			{
+				let mut lh = gs_root.lock().unwrap();
+				
+				for (id, proc) in &mut lh.processes {
+					match proc.try_wait()
+					{
+					Ok(None) => {},
+					Ok(Some(status)) => {
+						log_error!("Process #{} exited: {}", id, status);
+						todo!("Handle process exit (inform threading module)");
+						},
+					Err(e) => {
+						panic!("Failed to poll status of process #{}: {:?}", id, e);
+						},
+					}
+				}
+				drop(lh);
+				
+				// Sleep for a short period before checking for exit again
+				std::thread::sleep(std::time::Duration::from_millis(100));
+			}
+		});
+	}
 
 	loop
 	{
@@ -302,7 +333,7 @@ fn main()// -> Result<(), Box<dyn std::error::Error>>
 				match /*test_pause_thread(|| */sock.write(unsafe { ::std::slice::from_raw_parts(&res as *const _ as *const u8, ::std::mem::size_of::<Resp>()) })/*)*/
 				{
 				Ok(_) => {},
-				Err(e) => { log_error!("Failed to send syscall response"); return },
+				Err(e) => { log_error!("Failed to send syscall response: {:?}", e); return },
 				}
 			}
 		}
@@ -339,7 +370,7 @@ fn start_process(gs: &GlobalStateRef, mut args: &[usize]) -> Result<u32, ::sysca
 		todo!("");
 	}
 
-	let newproc = match ::std::process::Command::new(&path).spawn()
+	let mut newproc = match ::std::process::Command::new(&path).spawn()
 		{
 		Ok(c) => c,
 		Err(e) => {
@@ -347,6 +378,11 @@ fn start_process(gs: &GlobalStateRef, mut args: &[usize]) -> Result<u32, ::sysca
 			return Ok((1 << 31) | 0);
 			}
 		};
+	::std::thread::sleep(::std::time::Duration::from_millis(100));
+	if let Some(status) = newproc.try_wait().expect("Pre-start try_wait") {
+		log_error!("Spwaning of {:?} failed: exited {}", path, status);
+		return Err(::syscalls::Error::BadValue);
+	}
 	return Ok( ::syscalls::native_exports::new_object(ProtoProcess {
 		pid: gs.lock().unwrap().add_process(proc_name, newproc),
 		gs: gs.clone(),
@@ -449,9 +485,10 @@ fn start_process(gs: &GlobalStateRef, mut args: &[usize]) -> Result<u32, ::sysca
 		}
 
 		/// Return: Return value or argument error
-		fn handle_syscall_ref(&self, call: u16, args: &mut ::syscalls::native_exports::Args) -> Result<u64,::syscalls::Error> {
+		fn handle_syscall_ref(&self, call: u16, _args: &mut ::syscalls::native_exports::Args) -> Result<u64,::syscalls::Error> {
 			match call
 			{
+			::syscalls::native_exports::values::CORE_PROCESS_KILL => todo!("CORE_PROCESS_KILL"),
 			_ => ::syscalls::native_exports::object_has_no_such_method_ref("Process", call),
 			}
 		}

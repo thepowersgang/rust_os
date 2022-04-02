@@ -5,6 +5,13 @@
 
 V ?= @
 
+ifeq ($(OS), Windows_NT)
+ ifeq ($(ARCH),native)
+  EXESUF := .exe
+ endif
+endif
+EXESUF ?= 
+
 # List of root-level applications to build
 APPS := loader init login
 APPS += handle_server
@@ -12,6 +19,8 @@ APPS += simple_console shell
 APPS += filebrowser fileviewer
 APPS += vfs_test
 APPS += hello_world
+
+APPS := $(addsuffix $(EXESUF),$(APPS))
 
 # Build directories
 # - Distribution output root
@@ -71,7 +80,7 @@ makefile_deps =
 
 # DEFAULT: Compile all applications
 all: $(APPS:%=$(BINDIR)%)
-$(BINDIR)handle_server: xargo
+$(BINDIR)handle_server$(EXESUF): xargo
 	@mkdir -p $(dir $@)
 	$V$(STRIP) $(CARGO_OUTDIR)handle_server-bin -o $@
 $(BINDIR)%: xargo
@@ -102,7 +111,7 @@ $(BINDIR)loader: loader/bin/link.ld $(LOADER_OBJS)
 $(abspath $(CARGO_OUTDIR)libloader_binary.a): xargo
 	#
 else
-$(BINDIR)loader: xargo
+$(BINDIR)loader$(EXESUF): xargo
 	@mkdir -p $(dir $@)
 	RUSTFLAGS='$(RUSTFLAGS)' $(CARGO) build $(CARGO_FLAGS) --manifest-path loader/native/Cargo.toml
 ifeq ($(OS),Windows_NT)
@@ -127,6 +136,7 @@ $(LIBDIR)libloader_dyn.so: $(makefile_deps) Makefile
 	$V$(CARGO) run --manifest-path ../Helpers/make_elf_stub/Cargo.toml -- -a $(ARCH) -o $@ new_process start_process
 else
 $(LIBDIR)libloader_dyn.so: $(makefile_deps) Makefile
+	@mkdir -p $(dir $@)
 	$V$(RUSTC) loader/bin/placeholder_lib.rs -o $@ --crate-type cdylib --crate-name loader -C panic=abort --cfg arch=\"native\"
 endif
 

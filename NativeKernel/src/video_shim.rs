@@ -78,8 +78,14 @@ impl Console
 					{
 						let mut lh = state.lock().unwrap();
 						if ::std::mem::replace(&mut lh.dirty, false) {
-							window.update_with_buffer(&lh.backbuffer, lh.size.width() as usize, lh.size.height() as usize);
+							window.update_with_buffer(&lh.backbuffer, lh.size.width() as usize, lh.size.height() as usize)
+								.expect("Failed to update window buffer contents");
 						}
+					}
+
+					if ! window.is_open() {
+						eprintln!("GUI window closed, exiting immediately");
+						std::process::exit(0);
 					}
 
 					// TODO: Mouse handling
