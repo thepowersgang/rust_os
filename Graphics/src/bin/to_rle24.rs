@@ -21,7 +21,7 @@ fn main()
 	let args = Args::from_args();
 	
 	let im = image::open(&args.infile).expect("Can't open input file");
-	let im = im.to_rgba();
+	let im = im.into_rgba8();
 	
 	let width = im.width();
 	let height = im.height();
