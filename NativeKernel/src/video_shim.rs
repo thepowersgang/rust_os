@@ -130,19 +130,67 @@ impl Console
 							keymap!(
 								A, B, C, D, E, F, G, H, I, J, K, L, M,
 								N, O, P, Q, R, S, T, U, V, W, X, Y, Z,
+								Backquote => GraveTilde,
+								Key1 => Kb1,
+								Key2 => Kb2,
+								Key3 => Kb3,
+								Key4 => Kb4,
+								Key5 => Kb5,
+								Key6 => Kb6,
+								Key7 => Kb7,
+								Key8 => Kb8,
+								Key9 => Kb9,
+								Key0 => Kb0,
+								Minus, Equal => Equals,
+								LeftBracket => SquareOpen, RightBracket => SquareClose,
+								Semicolon, Apostrophe => Quote,
+								Comma, Period, Slash,
+								Space,
+								F1, F2, F3, F4,
+								F5, F6, F7, F8,
+								F9, F10, F11, F12,
+								F13, F14, F15,
+								// keycodes.inc.rs goes to F24, minifb only to F15
+
 								Tab,
 								Enter => Return,
+								Backspace => Backsp,
 								Escape => Esc,
+
+								// Modifiers
 								LeftShift,
 								RightShift,
 								LeftCtrl,
 								RightCtrl,
 								LeftAlt,
 								RightAlt,
+								
+								Insert, Home, PageUp => PgUp,
+								Delete, End, PageDown => PgDn,
+								// Arrows etc
 								Up => UpArrow,
 								Down => DownArrow,
 								Left => LeftArrow,
 								Right => RightArrow,
+
+								// Numpad
+								NumLock => Numlock,
+								NumPadSlash => KpSlash, 
+								NumPadAsterisk => KpStar,
+								NumPadMinus => KpMinus,
+								NumPadPlus => KpPlus,
+								NumPadEnter => KpEnter,
+								NumPadDot => KpPeriod,
+								NumPad0 => Kp0,
+								NumPad1 => Kp1,
+								NumPad2 => Kp2,
+								NumPad3 => Kp3,
+								NumPad4 => Kp4,
+								NumPad5 => Kp5,
+								NumPad6 => Kp6,
+								NumPad7 => Kp7,
+								NumPad8 => Kp8,
+								NumPad9 => Kp9,
 								)
 						}
 
