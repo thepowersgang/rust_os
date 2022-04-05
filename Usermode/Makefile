@@ -94,6 +94,12 @@ clean:
 docs:
 	$(CARGO) -Z build-std=core,alloc doc $(CARGO_FLAGS)
 
+ifeq ($(OS) $(ARCH),Windows_NT native)
+  LIBLOADER_BIN := $(LIBDIR)loader_dyn.dll
+else
+  LIBLOADER_BIN := $(LIBDIR)libloader_dyn.so
+endif
+
 # Most binary targets are handled directly by `xargo`, but the loader is special
 # > Requires an assembly stub
 # > Linking is done in two steps so that --gc-sections works fully
@@ -123,7 +129,7 @@ endif
 endif
 
 .PHONY: xargo
-xargo: $(OBJDIR)rustrt0.o $(LIBDIR)libloader_dyn.so	# Referenced by link-$(TARGET).ld
+xargo: $(OBJDIR)rustrt0.o $(LIBLOADER_BIN)	# Referenced by link-$(TARGET).ld
 	RUSTFLAGS='$(RUSTFLAGS)' $(CARGO) build $(CARGO_FLAGS)
 #	$(foreach app,$(APPS), cp $(CARGO_OUTDIR)$(app) $(BINDIR)$(app);)
 
@@ -135,9 +141,12 @@ $(LIBDIR)libloader_dyn.so: $(makefile_deps) Makefile
 	@mkdir -p $(dir $@)
 	$V$(CARGO) run --manifest-path ../Helpers/make_elf_stub/Cargo.toml -- -a $(ARCH) -o $@ new_process start_process
 else
-$(LIBDIR)libloader_dyn.so: $(makefile_deps) Makefile
+$(LIBLOADER_BIN): $(makefile_deps) Makefile
 	@mkdir -p $(dir $@)
 	$V$(RUSTC) loader/bin/placeholder_lib.rs -o $@ --crate-type cdylib --crate-name loader -C panic=abort --cfg arch=\"native\"
+ ifeq ($(OS),Windows_NT)
+	cp $@.lib $(@:%.dll=%.lib)
+ endif
 endif
 
 # - Assembly objects (loader)
