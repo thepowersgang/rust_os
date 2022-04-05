@@ -14,6 +14,11 @@ fn lang_start<T: Termination+'static>(main: fn()->T, argc: isize, argv: *const *
 	#[cfg(arch="native")]
 	{
 		::syscalls::raw::native_init(32245);
+		// SAFE: This is single-threaded, and trusts its inputs
+		unsafe {
+			let args_ptr = core::slice::from_raw_parts(argv, argc as usize);
+			crate::env::register_arguments_native(args_ptr);
+		}
 	}
 	kernel_log!("lang_start(main={:p}, argc={}, argv={:p})", main, argc, argv);
 	

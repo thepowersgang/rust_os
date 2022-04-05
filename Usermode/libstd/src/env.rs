@@ -15,10 +15,24 @@ extern "C" fn register_arguments(args: &[&::ffi::OsStr]) {
 	let args: Vec<_> = args.iter().map(|&a| OsString::from(a)).collect();
 	// SAFE: Runs in a single-threaded context
 	unsafe {
-		//S_ARGUMENTS = args.into_static();
-		S_ARGUMENTS = &*(&args[..] as *const [_]);
-		::core::mem::forget(args);
+		S_ARGUMENTS = ::alloc::boxed::Box::leak(args.into_boxed_slice());
 	}
+}
+
+#[cfg(arch="native")]
+pub(crate) unsafe fn register_arguments_native(args: &[*const u8]) {
+	extern "C" {
+		fn memchr(buf: *const u8, val: u8, size: usize) -> *const u8;
+	}
+	kernel_log!("register_arguments_native(args={:?})", args);
+	let args: Vec<_> = args.iter()
+		.map(|&ptr| (ptr, memchr(ptr, 0, usize::MAX)))
+		.map(|(ptr,end)| ::core::slice::from_raw_parts(ptr, end.offset_from(ptr) as usize))
+		.map(|v| crate::ffi::OsStr::new(v))
+		.map(|a| OsString::from(a))
+		.collect();
+	kernel_log!("- register_arguments_native: {:?}", args);
+	S_ARGUMENTS = ::alloc::boxed::Box::leak(args.into_boxed_slice());
 }
 
 pub struct ArgsOs(usize);
