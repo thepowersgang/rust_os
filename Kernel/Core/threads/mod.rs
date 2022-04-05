@@ -110,8 +110,14 @@ pub fn yield_to(thread: ThreadPtr)
 	::arch::threads::switch_to( thread );
 }
 
-pub fn terminate_thread() -> !
-{
+#[cfg(feature="test")]
+pub(crate) fn terminate_thread_nowait() {
+	// SAFE: When running in test mode, this is safe
+	unsafe {
+		terminate_thread_inner();
+	}
+}
+unsafe fn terminate_thread_inner() {
 	// NOTE: If TID0 (aka init's main thread) terminates, panic the kernel
 	if with_cur_thread(|cur| cur.get_tid() == 0) {
 		panic!("TID 0 terminated");
@@ -124,9 +130,18 @@ pub fn terminate_thread() -> !
 	let mut this_thread = get_cur_thread();
 	this_thread.set_state( thread::RunState::Dead(0) );
 	S_TO_REAP_THREADS.lock().push( this_thread );
+	
 	// Reschedule
-	// - The idle thread will handle reaping?
+	// - The idle thread will handle reaping.
 	reschedule();
+}
+
+pub fn terminate_thread() -> !
+{
+	// SAFE: We reschedule right after this
+	unsafe {
+		terminate_thread_inner();
+	}
 	unreachable!();
 }
 
@@ -232,6 +247,12 @@ pub fn reschedule()
 		{
 			if &*thread as *const _ == ::arch::threads::borrow_thread() as *const _
 			{
+				// If running in test mode, this is a bug.
+				if cfg!(feature="test") {
+					::core::mem::forget(thread);	// prevent a double-panic
+					panic!("Task switch to self!");
+				}
+
 				log_debug!("Task switch to self, idle");
 				::arch::threads::switch_to(thread);
 				::arch::threads::idle(::arch::sync::hold_interrupts());

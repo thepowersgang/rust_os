@@ -373,7 +373,8 @@ fn syscall_core_textinfo(group: u32, id: usize, buf: &mut [u8]) -> usize
 			1 => ::kernel::build_info::build_string(),
 			_ => "",
 			};
-		buf.clone_from_slice(s.as_bytes());
+		let len = usize::min( s.len(), buf.len() );
+		buf[..len].clone_from_slice(&s.as_bytes()[..len]);
 		s.len()
 		},
 	_ => 0,

@@ -348,7 +348,7 @@ pub mod threads {
 		}
 		fn idle(&self) {
 			let lh = self.mutex.lock().unwrap();
-			let (lh, _) = self.cv.wait_timeout(lh, ::std::time::Duration::from_millis(500)).unwrap();
+			let (_lh, _) = self.cv.wait_timeout(lh, ::std::time::Duration::from_millis(500)).unwrap();
 		}
 		fn wake(&self) {
 			self.cv.notify_one();
@@ -521,8 +521,8 @@ pub mod threads {
 				log_trace!("Thread complete");
 				// Mark the thread as being complete
 				inner_handle.complete.store(true, Ordering::SeqCst);
-				// Yield (which will start the next thread)
-				crate::threads::yield_time();
+
+				crate::threads::terminate_thread_nowait();
 				})
 			.unwrap()
 			;

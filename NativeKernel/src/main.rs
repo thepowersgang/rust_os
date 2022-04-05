@@ -1,6 +1,6 @@
+// NativeKernel - the rust_os/tifflin kernel running as a userland process
 //
-//
-//
+// See `README.md` for more details
 use ::std::io::Read;
 use ::std::io::Write;
 use ::kernel::arch::imp::threads::test_pause_thread;
@@ -41,20 +41,24 @@ enum PreStartState {
 }
 impl Default for PreStartState { fn default() -> Self { PreStartState::Spawned } }
 #[derive(Default)]
+/// A process that is still being set up
 struct PreStartProcess {
 	mutex: ::std::sync::Mutex<PreStartState>,
 	condvar: ::std::sync::Condvar,
 }
+
+/// Global state for the syscall interface
 struct GlobalState {
-	/// OS handles for each process
+	/// OS handles for each process, removed when the child exits
 	processes: ::std::collections::HashMap<::kernel::threads::ProcessID, ::std::process::Child>,
-	/// Internal handles for each running process
+	/// Internal handles for each running process (pushed when the native process connects)
+	/// - Kept in this list so the root thread can be started
 	process_handles: ::std::collections::HashMap<::kernel::threads::ProcessID, ::kernel::threads::ProcessHandle>,
-	/// Internal information for processes that haven't yet fully spawned
+	/// Internal information for processes that haven't yet fully spawned (removed when the worker is started)
 	pre_start_processes: ::std::collections::HashMap<::kernel::threads::ProcessID, ::std::sync::Arc<PreStartProcess>>,
-	/// The current process that is still-to-be claimed
+	/// The current process that is still-to-be claimed (i.e. the most recently spawned native process)
+	/// `Some(None)` is used for PID0 (which doesn't have a handle)
 	to_be_claimed: Option< Option<::kernel::threads::ProcessHandle> >,
-	//pid0_worker: 
 }
 impl GlobalState
 {
@@ -67,20 +71,23 @@ impl GlobalState
 			to_be_claimed: Some(None),
 		}
 	}
+	/// Called when a process is created
 	fn add_process(&mut self, name: &str, proc: ::std::process::Child) -> ::kernel::threads::ProcessID
 	{
 		let handle = ::kernel::threads::ProcessHandle::new(name, 0,0);
 		let pid = handle.get_pid();
 		self.processes.insert(pid, proc);
+		assert!(self.to_be_claimed.is_none());
 		self.to_be_claimed = Some( Some(handle) );
 		self.pre_start_processes.insert(pid, Default::default());
 		pid
 	}
-	fn claim_process(&mut self) -> Option<::kernel::threads::ProcessHandle>
-	{
+	/// Called when a new client connects
+	fn claim_process(&mut self) -> Option<::kernel::threads::ProcessHandle> {
 		self.to_be_claimed.take().expect("Nothing to be claimed?")
 	}
 
+	/// Called once the kernel worker for a process is started
 	fn push_process(&mut self, handle: ::kernel::threads::ProcessHandle) {
 		let pid = handle.get_pid();
 		self.process_handles.insert(pid, handle);
@@ -106,6 +113,7 @@ type GlobalStateRef = ::std::sync::Arc<::std::sync::Mutex<GlobalState>>;
 
 fn main()// -> Result<(), Box<dyn std::error::Error>>
 {
+	// Initialise the kernel (very similar to logic in `Kernel/main/main.rs`)
 	::kernel::threads::init();
 	::kernel::memory::phys::init();
 	::kernel::memory::page_cache::init();
@@ -165,6 +173,7 @@ fn main()// -> Result<(), Box<dyn std::error::Error>>
 		));
 
 	// Run a thread that monitors for closed tasks.
+	if false
 	{
 		let gs_root = gs_root.clone();
 		::std::thread::spawn(move || {
@@ -236,9 +245,9 @@ fn main()// -> Result<(), Box<dyn std::error::Error>>
 		{
 			let pid = 0;
 			log_debug!("{:?} = PID {}", addr, pid);
-			::std::mem::forget( ::kernel::threads::WorkerThread::new("PID0 Rx Worker", move || process_worker(gs, pid, sock, addr)) );
+			::std::mem::forget( ::kernel::threads::WorkerThread::new("PID0 Rx Worker", move || { process_worker(gs, pid, sock, addr); }) );
 		}
-		fn process_worker(gs: GlobalStateRef, pid: ::kernel::threads::ProcessID, mut sock: ::std::net::TcpStream, addr: ::std::net::SocketAddr)
+		fn process_worker(gs: GlobalStateRef, pid: ::kernel::threads::ProcessID, mut sock: ::std::net::TcpStream, addr: ::std::net::SocketAddr) -> u32
 		{
 			// Wait until the process should start
 			if pid != 0 {
@@ -283,7 +292,11 @@ fn main()// -> Result<(), Box<dyn std::error::Error>>
 				}
 
 				let mut req = Msg::default();
-				match /*test_pause_thread(||*/ sock.read_exact( unsafe { ::std::slice::from_raw_parts_mut(&mut req as *mut _ as *mut u8, ::std::mem::size_of::<Msg>()) })/*)*/
+				match {
+					let v = sock.read_exact( unsafe { ::std::slice::from_raw_parts_mut(&mut req as *mut _ as *mut u8, ::std::mem::size_of::<Msg>()) });
+					drop(pause_handle);
+					v
+					}
 				{
 				Ok(_) => {},
 				Err(e) => {
@@ -291,7 +304,6 @@ fn main()// -> Result<(), Box<dyn std::error::Error>>
 					break
 					},
 				}
-				drop(pause_handle);
 				log_log!("PID{}: request: {:x?}", pid, req);
 
 				THREAD_CURRENT_INFO.with(|f| {
@@ -336,8 +348,30 @@ fn main()// -> Result<(), Box<dyn std::error::Error>>
 				match /*test_pause_thread(|| */sock.write(unsafe { ::std::slice::from_raw_parts(&res as *const _ as *const u8, ::std::mem::size_of::<Resp>()) })/*)*/
 				{
 				Ok(_) => {},
-				Err(e) => { log_error!("Failed to send syscall response: {:?}", e); return },
+				Err(e) => { log_error!("Failed to send syscall response: {:?}", e); break },
 				}
+			}
+
+			pause_handle = pauser.pause();
+
+			// Drop the socket so the child will definitely quit
+			drop(sock);
+			// Clean up the process (wait for the child to terminate)
+			match gs.lock().unwrap().processes.get_mut(&pid).map(|v| v.wait())
+			{
+			None => panic!("PID #{} not in the process list", pid),
+			Some(Ok(status)) => {
+				if status.success() {
+					0
+				}
+				else if let Some(s) = status.code() {
+					s as u32
+				}
+				else {
+					u32::MAX
+				}
+			},
+			Some(Err(e)) => panic!("Failed to wait for PID #{}: {:?}", pid, e),
 			}
 		}
 	}
@@ -369,11 +403,27 @@ fn start_process(gs: &GlobalStateRef, mut args: &[usize]) -> Result<u32, ::sysca
 	#[cfg(windows)]
 	let path = path + ".exe";
 
-	if proc_args.len() > 0 {
-		todo!("");
+	fn byte_slice_to_osstr(v: &[u8])->&::std::ffi::OsStr {
+		// Windows: Check that the string data is valid WTF-8
+		#[cfg(windows)]
+		let rv = match std::str::from_utf8(v)
+			{
+			Ok(v) => v.as_ref(),
+			// TODO: Find a better way to encode on windows that handles arbitrary bytes
+			Err(e) => todo!("Handle malformed UTF-8 in arguments: {:?}", e),
+			};
+		// UNIX: All bytes are valid
+		#[cfg(unix)]
+		let rv = std::os::unix::ffi::OsStrExt::from_bytes(v);
+		rv
 	}
 
-	let mut newproc = match ::std::process::Command::new(&path).spawn()
+	let mut lh = gs.lock().unwrap();	// Lock before spawning, so when the worker calls `claim_process` it waits for this to push
+	let mut newproc = match ::std::process::Command::new(&path)
+			.args(proc_args.split(|&v| v == 0)
+				.map(|v| byte_slice_to_osstr(v))
+				)
+			.spawn()
 		{
 		Ok(c) => c,
 		Err(e) => {
@@ -381,13 +431,15 @@ fn start_process(gs: &GlobalStateRef, mut args: &[usize]) -> Result<u32, ::sysca
 			return Ok((1 << 31) | 0);
 			}
 		};
+	// Sleep for a short period, giving the application time to start and connect to the server
 	::std::thread::sleep(::std::time::Duration::from_millis(100));
+	// If the process quits within the first 100ms, exit.
 	if let Some(status) = newproc.try_wait().expect("Pre-start try_wait") {
 		log_error!("Spwaning of {:?} failed: exited {}", path, status);
 		return Err(::syscalls::Error::BadValue);
 	}
 	return Ok( ::syscalls::native_exports::new_object(ProtoProcess {
-		pid: gs.lock().unwrap().add_process(proc_name, newproc),
+		pid: lh.add_process(proc_name, newproc),
 		gs: gs.clone(),
 		}) );
 
@@ -395,6 +447,35 @@ fn start_process(gs: &GlobalStateRef, mut args: &[usize]) -> Result<u32, ::sysca
 	{
 		gs: GlobalStateRef,
 		pid: ::kernel::threads::ProcessID,
+	}
+	impl ::std::ops::Drop for ProtoProcess
+	{
+		fn drop(&mut self) {
+			// TODO: Mark the process handle as needing to be released
+			let _psp = self.wait_until_tracked();
+			self.gs.lock().unwrap().process_handles.remove(&self.pid);
+			//*psp.mutex.lock().unwrap() = PreStartState::Dropped;
+			todo!("ProtoProcess dropped, need to tell the worker to close");
+		}
+	}
+	impl ProtoProcess
+	{
+		fn wait_until_tracked(&self) -> ::std::sync::Arc<PreStartProcess>
+		{
+			// Wait until the process is started (and thus in the handles pool)
+			let e = self.gs.lock().unwrap().pre_start_processes.get(&self.pid).expect("Process not in start list?!").clone();
+
+			{
+				let mut lh = test_pause_thread(|| e.mutex.lock().unwrap());
+				while *lh < PreStartState::WaitingTracked
+				{
+					log_debug!("Process state {:?}, waiting for at least WaitingTracked", *lh);
+					lh = test_pause_thread(|| e.condvar.wait(lh).expect("Pre-start wait failed"));
+				}
+			}
+
+			e
+		}
 	}
 	impl ::syscalls::native_exports::Object for ProtoProcess
 	{
@@ -416,20 +497,7 @@ fn start_process(gs: &GlobalStateRef, mut args: &[usize]) -> Result<u32, ::sysca
 				let handle: u32 = args.get()?;
 				log_debug!("CORE_PROTOPROCESS_SENDOBJ: tag={:?} handle={}", tag, handle);
 				// Wait until the process is started (and thus in the handles pool)
-				let psp = self.gs.lock().unwrap().pre_start_processes.get(&self.pid).cloned();
-				match psp
-				{
-				Some(e) => {
-					let mut lh = test_pause_thread(|| e.mutex.lock().unwrap());
-					while *lh < PreStartState::WaitingTracked
-					{
-						log_debug!("Process state {:?}, waiting for at least WaitingTracked", *lh);
-						lh = test_pause_thread(|| e.condvar.wait(lh).expect("Pre-start wait failed"));
-					}
-					},
-				None => {},
-				}
-				// TODO: This PID may not be in `process_handles` yet (added when main thread starts)
+				self.wait_until_tracked();
 				let lh = self.gs.lock().unwrap();
 				::syscalls::native_exports::give_object(&lh.process_handles[&self.pid], &tag, handle).map(|_| 0)
 				},
@@ -442,17 +510,13 @@ fn start_process(gs: &GlobalStateRef, mut args: &[usize]) -> Result<u32, ::sysca
 			match call
 			{
 			::syscalls::native_exports::values::CORE_PROTOPROCESS_START => {
-				let e = self.gs.lock().unwrap().pre_start_processes.get(&self.pid).expect("Process not in start list?!").clone();
+				let e = self.wait_until_tracked();
 				let mut lh = e.mutex.lock().unwrap();
-				while let PreStartState::Spawned = *lh
-				{
-					lh = test_pause_thread(|| e.condvar.wait(lh).expect("Pre-start wait failed"));
-				}
 				*lh = PreStartState::Running;
 				e.condvar.notify_all();
 
-				Ok( ::syscalls::native_exports::new_object(ProtoProcess {
-					pid: self.pid,
+				Ok( ::syscalls::native_exports::new_object(Process {
+					handle: self.gs.lock().unwrap().process_handles.remove(&self.pid).expect("Process handle not in list?"),
 					// SAFE: Caller will forget `self`
 					gs: unsafe { ::core::ptr::read(&self.gs) },
 					}) as u64 )
@@ -474,7 +538,7 @@ fn start_process(gs: &GlobalStateRef, mut args: &[usize]) -> Result<u32, ::sysca
 	struct Process
 	{
 		gs: GlobalStateRef,
-		pid: ::kernel::threads::ProcessID,
+		handle: ::kernel::threads::ProcessHandle,
 	}
 	impl ::syscalls::native_exports::Object for Process
 	{
@@ -501,8 +565,7 @@ fn start_process(gs: &GlobalStateRef, mut args: &[usize]) -> Result<u32, ::sysca
 			let mut ret = 0;
 			// Wait for child process to terminate
 			if flags & ::syscalls::native_exports::values::EV_PROCESS_TERMINATED != 0 {
-				let lh = self.gs.lock().unwrap();
-				lh.process_handles[&self.pid].bind_wait_terminate(obj);
+				self.handle.bind_wait_terminate(obj);
 				ret += 1;
 			}
 			ret
@@ -512,8 +575,7 @@ fn start_process(gs: &GlobalStateRef, mut args: &[usize]) -> Result<u32, ::sysca
 			let mut ret = 0;
 			// Wait for child process to terminate
 			if flags & ::syscalls::native_exports::values::EV_PROCESS_TERMINATED != 0 {
-				let lh = self.gs.lock().unwrap();
-				if lh.process_handles[&self.pid].clear_wait_terminate(obj) {
+				if self.handle.clear_wait_terminate(obj) {
 					ret |= ::syscalls::native_exports::values::EV_PROCESS_TERMINATED;
 				}
 			}

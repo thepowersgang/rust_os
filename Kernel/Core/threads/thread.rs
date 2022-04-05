@@ -187,17 +187,22 @@ impl ProcessHandle
 			);
 		super::yield_to(thread);
 	}
+
 	#[cfg(feature="test")]
-	pub fn start_root_thread(&mut self, cb: impl FnOnce()+Send+'static) {
+	/// Start a process's root thread (unit test / NativeKernel)
+	/// 
+	/// `cb` returns the process's exit status
+	pub fn start_root_thread(&mut self, cb: impl FnOnce()->u32 + Send + 'static) {
 		log_trace!("start_root_thread(self={:?}, ...)", self);
 		assert!( Arc::get_mut(&mut self.0).is_some() );
 		
 		let mut thread = Thread::new_boxed(allocate_tid(), format!("{}#1", self.0.name), self.0.clone());
+		let proc = self.0.clone();
 		::arch::threads::start_thread( &mut thread,
-			// SAFE: Well... trusting caller to give us sane addresses etc, but that's the user's problem
 			move || {
-				cb();
-				panic!("Thread end reached");
+				let status = cb();
+				log_trace!("status = {:#x}", status);
+				proc.mark_exit(status).expect("Double-exit of process?");
 				}
 			);
 		super::yield_to(thread);

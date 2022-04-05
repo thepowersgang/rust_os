@@ -112,6 +112,15 @@ pub unsafe extern "C" fn rustos_native_syscall(id: u32, opts: &[usize]) -> u64 {
 		let addr = opts[0];
 		todo!("MEM_DEALLOCATE({:#x})", addr);
 		},
+	// User logging messages, avoids the mess from IPC for each log message
+	CORE_LOGWRITE => {
+		let addr = opts[0];
+		let size = opts[1];
+		let msg = std::slice::from_raw_parts(addr as *const u8, size);
+		let msg = std::str::from_utf8(msg).unwrap_or("BADTEXT");
+		println!("USER{}> {}", get_pid(), msg);
+		0
+		},
 	_ => {
 		#[repr(C)]
 		#[derive(Default)]
