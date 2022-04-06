@@ -35,6 +35,10 @@ mod memory {
 	}
 }
 
+#[cfg(arch="native")]
+#[path="arch-native.rs"]
+mod arch;
+#[cfg(not(arch="native"))]
 #[cfg_attr(target_arch="x86_64", path="arch-x86_64.rs")]
 #[cfg_attr(target_arch="arm", path="arch-armv7.rs")]
 #[cfg_attr(target_arch="aarch64", path="arch-armv8.rs")]

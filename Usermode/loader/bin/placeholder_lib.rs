@@ -9,6 +9,7 @@
 pub mod _foo {
 	#[no_mangle] pub extern "C" fn rustos_native_init() { loop {} }
 	#[no_mangle] pub extern "C" fn rustos_native_syscall() { loop {} }
+	#[no_mangle] pub extern "C" fn rustos_native_panic() -> ! { loop {} }
 }
 
 #[panic_handler]

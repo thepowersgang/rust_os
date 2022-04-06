@@ -6,6 +6,7 @@ pub const PAGE_SIZE: usize = 0x1000;
 #[allow(improper_ctypes)]
 extern "C" {
 	fn rustos_native_init(port: u16);
+	fn rustos_native_panic() -> !;
 	fn rustos_native_syscall(id: u32, opts: &[usize]) -> u64;
 }
 #[cfg(not(windows))]
@@ -19,6 +20,13 @@ pub fn native_init(port: u16) {
 	// SAFE: Called once
 	unsafe {
 		rustos_native_init(port);
+	}
+}
+
+pub fn trigger_panic() -> ! {
+	// SAFE: Safe call
+	unsafe {
+		rustos_native_panic()
 	}
 }
 

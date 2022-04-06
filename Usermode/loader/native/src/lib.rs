@@ -58,6 +58,12 @@ pub unsafe extern "C" fn rustos_native_init(port: u16)
 	RUSTOS_PID = pid;
 }
 
+#[no_mangle]
+pub extern "C" fn rustos_native_panic() -> !
+{
+	panic!("NativeKernel user panic")
+}
+
 fn get_pid() -> u32 {
 	// SAFE: Written once
 	unsafe { RUSTOS_PID }
