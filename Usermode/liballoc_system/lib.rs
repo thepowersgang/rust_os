@@ -56,15 +56,25 @@ unsafe impl alloc::Allocator for Allocator
 	unsafe fn grow(&self, ptr: NonNull<u8>, layout: Layout, new_layout: Layout) -> Result<NonNull<[u8]>, AllocError>
 	{
 		let mut lh = heap::S_GLOBAL_HEAP.lock();
+		assert!(layout.size() <= new_layout.size());
+		assert!(layout.align() == new_layout.align());
 		match lh.try_expand(ptr.as_ptr() as *mut (), new_layout.size(), layout.align())
 		{
 		Ok( () ) => {
 			let true_new_size = heap::get_usable_size(new_layout.size(), layout.align()).0;
-			// SAFE: Non-zero pointer
-			Ok(/*unsafe {*/ NonNull::new_unchecked(::core::slice::from_raw_parts_mut(ptr.as_ptr(), true_new_size)) /*}*/)
+			Ok( NonNull::new_unchecked(::core::slice::from_raw_parts_mut(ptr.as_ptr(), true_new_size)) )
 			},
 		Err( () ) => {
-			Err(AllocError)
+			// Can't just expand the current alloc, so need to allocate a new buffer and copy
+			// - Allocate
+			let new_alloc = lh.allocate(new_layout.size(), layout.align()).map_err(|_| AllocError)? as *mut u8;
+			// - Copy
+			::core::ptr::copy_nonoverlapping(ptr.as_ptr(), new_alloc, layout.size());
+			// - Free the original
+			lh.deallocate(ptr.as_ptr() as *mut (), layout.align());
+			// Return
+			let true_new_size = heap::get_usable_size(new_layout.size(), layout.align()).0;
+			Ok( NonNull::new_unchecked(::core::slice::from_raw_parts_mut(new_alloc, true_new_size)) )
 			}
 		}
 	}

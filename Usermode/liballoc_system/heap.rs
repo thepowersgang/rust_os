@@ -57,6 +57,7 @@ impl AllocState
 {
 	pub fn allocate(&mut self, size: usize, align: usize) -> Result<*mut (), ()>
 	{
+		kernel_log!("allocate");
 		if size == 0 {
 			kernel_log!("allocate({}, {}) = {:p}", size, align, EMPTY);
 			return Ok( EMPTY as *mut () );

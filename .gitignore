@@ -69,6 +69,7 @@ Bootloaders/arm/*.dtb
 Usermode/doc/
 Usermode/target/
 /Usermode/loader/native/target/
+/Usermode/loader/bin/target/
 
 /Helpers/make_elf_stub/target/
 
