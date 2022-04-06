@@ -141,7 +141,7 @@ $(LIBDIR)libloader_dyn.so: $(makefile_deps) Makefile
 	@mkdir -p $(dir $@)
 	$V$(CARGO) run --manifest-path ../Helpers/make_elf_stub/Cargo.toml -- -a $(ARCH) -o $@ new_process start_process
 else
-$(LIBLOADER_BIN): $(makefile_deps) Makefile
+$(LIBLOADER_BIN): $(makefile_deps) loader/bin/placeholder_lib.rs Makefile
 	@mkdir -p $(dir $@)
 	$V$(RUSTC) loader/bin/placeholder_lib.rs -o $@ --crate-type cdylib --crate-name loader -C panic=abort --cfg arch=\"native\"
  ifeq ($(OS),Windows_NT)
