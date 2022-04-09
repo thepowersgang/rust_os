@@ -323,13 +323,15 @@ fn main()// -> Result<(), Box<dyn std::error::Error>>
 				}
 				let res_val = match req.call
 					{
+					// Locally handle the `CORE_STARTPROCESS` call
 					::syscalls::native_exports::values::CORE_STARTPROCESS => {
 						match start_process(&gs, &args_usize[..])
 						{
-						Ok( rv ) => { rv as u64 },
-						Err(_) => {error_code(0)},
+						Ok( rv ) => rv as u64,
+						Err(_) => error_code(0),
 						}
 						},
+					// Defer everything else to the syscall module
 					_ => unsafe { ::syscalls::syscalls_handler(req.call, args_usize.as_ptr(), args_usize.len() as u32) },
 					};
 				let res = THREAD_CURRENT_INFO.with(|f| {
@@ -337,6 +339,7 @@ fn main()// -> Result<(), Box<dyn std::error::Error>>
 				});
 				if res.is_err() {
 					// TODO: Change the response
+					todo!("Error in writing back syscall results");
 				}
 
 				let res = Resp {
@@ -594,6 +597,31 @@ impl ThreadSyscallInfo
 			buffers: Vec::new(),
 		}
 	}
+
+	/// Register a child pointer for reading/writing
+	fn register(&mut self, ptr: *const u8, len: usize, is_mut: bool) -> *const u8
+	{
+		use ::process_memory::CopyAddress;
+		let mut buf = ::std::vec![0u64; (len + 8-1) / 8];
+		// SAFE: Just reinterpeting `u64` as `u8`
+		let buf_u8 = unsafe { ::std::slice::from_raw_parts_mut(buf.as_mut_ptr() as *mut u8, len) };
+		// Use debug hooks to read from the processes' address space
+		match self.process_handle.copy_address(ptr as usize, buf_u8)
+		{
+		Ok( () ) => {},
+		Err(_) => return ::std::ptr::null(),
+		}
+		//log_debug!("Read from {:p}+{}: {:?} ({:p})", ptr, len, ::kernel::lib::byte_str::ByteStr::new(buf_u8), buf_u8.as_ptr());
+		let rv = buf.as_ptr() as *const u8;
+		// Save the buffer, and include the writeback flag
+		self.buffers.push(SyscallBuffer {
+			buffer: buf,
+			writeback: is_mut,
+			writeback_addr: (ptr as usize, len),
+			});
+		rv
+	}
+
 	fn writeback(self) -> Result<(),()>
 	{
 		for b in self.buffers
@@ -621,29 +649,15 @@ impl ThreadSyscallInfo
 	}
 }
 
+/// Called by `Kernel/Modules/syscalls/args.rs`'s `Freeze` handling
+/// 
+/// Copies memory from the child process, and add it to a writeback list
 #[no_mangle]
 pub extern "Rust" fn native_map_syscall_pointer(ptr: *const u8, len: usize, is_mut: bool) -> *const u8
 {
-	use ::process_memory::CopyAddress;
 	THREAD_CURRENT_INFO.with(|info| {
 		let mut info = info.borrow_mut();
-		let info = info.as_mut().unwrap();
-		let mut buf = ::std::vec![0u64; (len + 8-1) / 8];
-		// Use debug hooks to read from the processes' address space
-		let buf_u8 = unsafe { ::std::slice::from_raw_parts_mut(buf.as_mut_ptr() as *mut u8, len) };
-		match info.process_handle.copy_address(ptr as usize, buf_u8)
-		{
-		Ok( () ) => {},
-		Err(_) => return ::std::ptr::null(),
-		}
-		//log_debug!("Read from {:p}+{}: {:?} ({:p})", ptr, len, ::kernel::lib::byte_str::ByteStr::new(buf_u8), buf_u8.as_ptr());
-		// Save for writeback if `is_mut` is true
-		let rv = buf.as_ptr() as *const u8;
-		info.buffers.push(SyscallBuffer {
-			buffer: buf,
-			writeback: is_mut,
-			writeback_addr: (ptr as usize, len),
-			});
-		rv
+		let info = info.as_mut().expect("native_map_syscall_pointer called with no current userspace thread");
+		info.register(ptr, len, is_mut)
 	})
 }

@@ -172,15 +172,15 @@ impl vfs::node::Dir for DirNodeRef
 	/// 
 	/// Returns the newly created node
 	fn create(&self, name: &ByteStr, nodetype: vfs::node::NodeType) -> vfs::node::Result<InodeId> {
-        todo!("create")
+        todo!("create({:?}, {:?})", name, nodetype)
     }
 	/// Create a new name for the provided inode
 	fn link(&self, name: &ByteStr, inode: &dyn vfs::node::NodeBase) -> vfs::node::Result<()> {
-        todo!("link")
+        todo!("link({:?}, {:?})", name, inode.get_id())
     }
 	/// Remove the specified name
 	fn unlink(&self, name: &ByteStr) -> vfs::node::Result<()> {
-        todo!("unlink")
+        todo!("unlink({:?})", name)
     }
 }
 
