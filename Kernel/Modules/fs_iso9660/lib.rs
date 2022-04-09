@@ -497,6 +497,7 @@ impl<'a> DirSector<'a>
 struct SuspIterator<'a>(&'a [u8]);
 
 #[derive(Debug)]
+#[allow(dead_code)]
 enum SuspItem<'a>
 {
 	// SUSP Base

@@ -42,7 +42,7 @@ enum Init
 #[derive(Debug)]
 pub struct Dev
 {
-	ty: Type,
+	_ty: Type,
 	state: State,
 	guidev: gui_keyboard::Instance,
 }
@@ -61,12 +61,12 @@ impl Dev
 		//	},
 		Type::MF2Emul => {
 			log_warning!("Unexpected emulation enabled MF2");
-			return (None, Dev { ty: ty, state: State::Disabled, guidev: Default::default() });
+			return (None, Dev { _ty: ty, state: State::Disabled, guidev: Default::default() });
 			},
 		Type::MF2 => {
 			// 1. Request scancode set
 			(Some(0xF0), Dev {
-				ty: ty,
+				_ty: ty,
 				state: State::Init(Init::ReqScancodeSetAck),
 				guidev: gui_keyboard::Instance::new(),
 				})
