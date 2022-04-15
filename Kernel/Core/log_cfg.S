@@ -12,6 +12,7 @@
 #endif
 
 #define LOG_CFG_ENT(str, level) \
+	.set log_cfg_count_inner, log_cfg_count_inner + 1 ; \
 	.section .rodata.logcfg ;\
 	DEF_PTR(1f) ; \
 	.short 2f-1f ; \
@@ -23,7 +24,9 @@
 2: ;\
 	.section .rodata.logcfg
 
+.set log_cfg_count_inner, 0
 .section .rodata.logcfg
+.align 16
 .globl log_cfg_data
 log_cfg_data:
 	LOG_CFG_ENT("kernel::memory::heap::heapdef", LEVEL_DEBUG)	// Heap only prints higher than debug
@@ -38,5 +41,6 @@ log_cfg_data:
 	LOG_CFG_ENT("input_ps2::i8042", LEVEL_TRACE)
 	LOG_CFG_ENT("syscalls::gui_calls", LEVEL_DEBUG)
 .globl log_cfg_count
-log_cfg_count:	DEF_PTR( (log_cfg_count - log_cfg_data) / (8+4+4) )
+#log_cfg_count:	DEF_PTR( (log_cfg_count - log_cfg_data)/(8+4+4) )
+log_cfg_count:	DEF_PTR( log_cfg_count_inner )
 

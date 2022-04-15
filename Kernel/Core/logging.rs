@@ -489,13 +489,13 @@ pub fn enabled(level: Level, modname: &str) -> bool
 			"kernel::threads::wait_queue" >= LevelDebug,
 		}
 	}
-	let log_ents = {
+	// SAFE: Assembly defines these symbols, and I hope it gets the format right
+	let log_ents = unsafe {
 		extern "C" {
 			static log_cfg_data: [LogCfgEnt; 0];
 			static log_cfg_count: usize;
 		}
-		// SAFE: Assembly defines these symbols, and I hope it gets the format right
-		unsafe { ::core::slice::from_raw_parts(log_cfg_data.as_ptr(), log_cfg_count) }
+		::core::slice::from_raw_parts(log_cfg_data.as_ptr(), log_cfg_count)
 		};
 
 	for ent in log_ents {
