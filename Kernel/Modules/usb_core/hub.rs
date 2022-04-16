@@ -175,19 +175,34 @@ impl HubDevice<'_>
 }
 
 #[derive(Debug)]
+#[allow(dead_code)]
 struct HubDescriptor
 {
 	desc_len: u8,
-	desc_ty: u8,
+	desc_ty: u8,	// = 0x29
 
 	num_ports: u8,
+	/// - `1:0` = Logical Power Switching Mode
+	///   - `00` = Ganged (all ports at once)
+	///   - `01` = Indivdual ports
+	///   - `1X` = Reserved
+	/// - `2` = Compound device?
+	/// - `4:3` = Over-current protection mode
+	///   - `00` = Global (all ports at once)
+	///   - `01` = Individual ports
+	///   - `1X` = None
+	/// - `6:5` = "TT Think Time" (units of 8 FS bit times)
+	/// - `7` = Port Indicators Supported
 	hub_characteristics: u16,
-	power_on_to_power_good: u8,	// 2ms intervals
-	hub_control_current: u8,	// Max controllable current
+	/// Time between turning on power and it stabilising, in 2ms intervals
+	power_on_to_power_good: u8,
+	/// "Maximum current requirements of the Hub Controller electronics in mA."
+	hub_control_current: u8,
 	device_removable: [u8; 32],
 }
 impl HubDescriptor
 {
+	const DESC_TY: u8 = 0x29;
 	fn from_bytes(b: &[u8]) -> Self {
 		let base_size = 2+5;
 		assert!(b.len() >= base_size);
@@ -203,6 +218,9 @@ impl HubDescriptor
 			};
 		if rv.desc_len as usize > b.len() {
 			log_error!("Reported descriptor length is longer than buffer");
+		}
+		if rv.desc_ty != Self::DESC_TY {
+			log_error!("Reported descriptor type isn't as expected: {:#x} != exp {:#x}",  rv.desc_ty, Self::DESC_TY);
 		}
 		let l = ::core::cmp::min(b.len() - base_size, 32);
 		rv.device_removable[..l].copy_from_slice(&b[base_size..][..l]);

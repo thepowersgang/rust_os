@@ -6,7 +6,7 @@
 
 use super::super::Fadt;
 
-struct FadtExtra
+struct _FadtExtra
 {
 	orig: Fadt,
  
