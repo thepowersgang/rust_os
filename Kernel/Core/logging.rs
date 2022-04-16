@@ -16,30 +16,30 @@ use core::fmt;
 use arch::sync::Spinlock;
 
 /// Log level, ranging from a kernel panic down to tracing
+/// NOTE: Numbers must match what's used in `log_cfg.S`
 #[repr(u16)]
 #[derive(PartialEq,PartialOrd,Copy,Clone)]
 pub enum Level
 {
 	/// Everything broke
-	LevelPanic = 0,
+	Panic = 0,
 	/// Something broke
-	LevelError = 1,
+	Error = 1,
 	/// Recoverable
-	LevelWarning = 2,
+	Warning = 2,
  	/// Odd
-	LevelNotice = 3,
+	Notice = 3,
    	/// Interesting (least important for the user)
-	LevelInfo = 4,
+	Info = 4,
 	/// General (highest developer-only level)
-	LevelLog = 5,
+	Log = 5,
    	/// What
-	LevelDebug = 6,
+	Debug = 6,
   	/// Where
-	LevelTrace = 7,
+	Trace = 7,
 }
 
-#[doc(hidden)]
-pub enum Colour
+enum Colour
 {
 	Default,
 	Red,
@@ -115,7 +115,7 @@ mod serial
 	impl Sink
 	{
 		/// Set the output colour of the formatter
-		pub fn set_colour(&self, colour: Colour) {
+		pub(super) fn set_colour(&self, colour: Colour) {
 			match colour
 			{
 			Colour::Default => ::arch::puts("\x1b[0000m"),
@@ -229,27 +229,28 @@ impl Level
 	{
 		match *self
 		{
-		Level::LevelPanic   => 'k',
-		Level::LevelError   => 'e',
-		Level::LevelWarning => 'w',
-		Level::LevelNotice  => 'n',
-		Level::LevelInfo	=> 'i',
-		Level::LevelLog	 => 'l',
-		Level::LevelDebug   => 'd',
-		Level::LevelTrace   => 't',
+		Level::Panic   => 'k',
+		Level::Error   => 'e',
+		Level::Warning => 'w',
+		Level::Notice  => 'n',
+		Level::Info	=> 'i',
+		Level::Log	 => 'l',
+		Level::Debug   => 'd',
+		Level::Trace   => 't',
 		}
 	}
 	fn to_colour(&self) -> Colour
 	{
 		match *self
 		{
-		Level::LevelPanic   => Colour::Purple,
-		Level::LevelError   => Colour::Red,
-		Level::LevelWarning => Colour::Yellow,
-		Level::LevelNotice  => Colour::Green,
-		Level::LevelLog	 => Colour::Blue,
-		Level::LevelTrace   => Colour::Grey,
-		_ => Colour::Default,
+		Level::Panic   => Colour::Purple,
+		Level::Error   => Colour::Red,
+		Level::Warning => Colour::Yellow,
+		Level::Notice  => Colour::Green,
+		Level::Info    => Colour::Blue,
+		Level::Log	    => Colour::Default,
+		Level::Debug   => Colour::Default,
+		Level::Trace   => Colour::Grey,
 		}
 	}
 }
@@ -320,12 +321,12 @@ impl<'a, T: ?Sized + 'a> fmt::Debug for HexDump<'a,T>
 	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result
 	{
 		let slice = self.byteslice();
-		try!(write!(f, "{} bytes: ", slice.len()));
+		write!(f, "{} bytes: ", slice.len())?;
 		for (idx,v) in slice.iter().enumerate()
 		{
-			try!(write!(f, "{:02x} ", *v));
+			write!(f, "{:02x} ", *v)?;
 			if idx % 16 == 15 {
-				try!(write!(f, "| "));
+				write!(f, "| ")?;
 			}
 		}
 		Ok( () )
@@ -335,19 +336,19 @@ impl<'a, T: ?Sized + 'a> fmt::Debug for HexDump<'a,T>
 impl<'a> fmt::Debug for RawString<'a>
 {
 	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-		try!(write!(f, "b\""));
+		write!(f, "b\"")?;
 		for &b in self.0 {
 			match b
 			{
-			b'\t' => try!(write!(f, "\\t")),
-			b'\n' => try!(write!(f, "\\n")),
-			b'\\' => try!(write!(f, "\\\\")),
-			b'"' => try!(write!(f, "\\\"")),
-			32 ..= 0x7E => try!(write!(f, "{}", b as char)),
-			_ => try!(write!(f, "\\x{:02x}", b)),
+			b'\t' => write!(f, "\\t")?,
+			b'\n' => write!(f, "\\n")?,
+			b'\\' => write!(f, "\\\\")?,
+			b'"'  => write!(f, "\\\"")?,
+			32 ..= 0x7E => write!(f, "{}", b as char)?,
+			_ => write!(f, "\\x{:02x}", b)?,
 			}
 		}
-		try!(write!(f, "\""));
+		write!(f, "\"")?;
 		Ok( () )
 	}
 }
@@ -361,32 +362,33 @@ impl<'a> fmt::Display for HexDumpBlk<'a>
 		for i in 0 .. 16
 		{
 			if i == 8 {
-				try!(write!(f, " "));
+				write!(f, " ")?;
 			}
+
 			if i < self.0.len() {
-				try!(write!(f, "{:02x} ", self.0[i]));
+				write!(f, "{:02x} ", self.0[i])?;
 			}
 			else {
-				try!(write!(f, "   "));
+				write!(f, "   ")?;
 			}
 			
 		}
-		try!(write!(f, "|"));
+		write!(f, "|")?;
 		for i in 0 .. 16
 		{
 			if i < self.0.len() {
-				try!(write!(f, "{}",
+				write!(f, "{}",
 					match self.0[i]
 					{
 					v @ 32 ..= 0x7E => v as char,
 					_ => '.',
-					}));
+					})?;
 			}
 			else {
-				try!(write!(f, " "));
+				write!(f, " ")?;
 			}
 		}
-		try!(write!(f, "|"));
+		write!(f, "|")?;
 		Ok( () )
 	}
 }
@@ -414,16 +416,16 @@ macro_rules! print_iter_def {
 		{
 			fn fmt(&self, f: &mut ::core::fmt::Formatter) -> ::core::fmt::Result {
 				let mut i = self.0.borrow_mut().take().unwrap();
-				try!(write!(f, "["));
+				write!(f, "[")?;
 				if let Some(v) = i.next()
 				{
-					try!(v.fmt(f));
+					v.fmt(f)?;
 					for v in i {
-						try!(write!(f, ","));
-						try!(v.fmt(f));
+						write!(f, ",")?;
+						v.fmt(f)?;
 					}
 				}
-				try!(write!(f, "]"));
+				write!(f, "]")?;
 				Ok( () )
 			}
 		})*
@@ -484,9 +486,9 @@ pub fn enabled(level: Level, modname: &str) -> bool
 			(@count $($level:ident)*) => { 0 $(+ { let _ = super::Level::$level; 1})* };
 		}
 		def_filters! {
-			"kernel::sync::rwlock" >= LevelDebug,
-			"kernel::arch::imp::threads" >= LevelLog,
-			"kernel::threads::wait_queue" >= LevelDebug,
+			"kernel::sync::rwlock" >= Debug,
+			"kernel::arch::imp::threads" >= Log,
+			"kernel::threads::wait_queue" >= Debug,
 		}
 	}
 	// SAFE: Assembly defines these symbols, and I hope it gets the format right
