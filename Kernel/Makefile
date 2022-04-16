@@ -115,7 +115,7 @@ $(OBJDIR)libacpica.a: ../acpica/Makefile $(wildcard ../acpica/patches/source/inc
 $(OBJDIR)%.ao: Core/arch/$(ARCH)/%.asm
 	@echo [AS] -o $@
 	@mkdir -p $(dir $@)
-	$Vnasm -o $@ $< -f elf64 -MD $@.d -MP
+	$Vnasm -o $@ $< -f elf64 -MD $@.d -MP -F dwarf -g
 $(OBJDIR)%.ao: Core/arch/$(ARCH)/%.S
 	@echo [AS] -o $@
 	@mkdir -p $(dir $@)
