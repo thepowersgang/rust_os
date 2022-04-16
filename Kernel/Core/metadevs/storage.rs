@@ -11,7 +11,7 @@ use lib::mem::Arc;
 
 module_define!{Storage, [], init}
 
-pub type AsyncIoResult<'a, T> = ::async::BoxAsyncResult<'a, T, IoError>;
+pub type AsyncIoResult<'a, T> = ::r#async::BoxAsyncResult<'a, T, IoError>;
 
 /// A unique handle to a storage volume (logical)
 pub struct VolumeHandle
@@ -650,13 +650,13 @@ mod null_volume
 		fn capacity(&self) -> Option<u64> { Some(0) }
 		
 		fn read<'a>(&'a self, _prio: u8, _blockidx: u64, _count: usize, _dst: &'a mut [u8]) -> super::AsyncIoResult<'a, usize> {
-			Box::new(crate::async::NullResultWaiter::new(|| Ok(0)))
+			Box::new(crate::r#async::NullResultWaiter::new(|| Ok(0)))
 		}
 		fn write<'a>(&'a self, _prio: u8, _blockidx: u64, _count: usize, _src: &'a [u8]) -> super::AsyncIoResult<'a, usize> {
-			Box::new(crate::async::NullResultWaiter::new(|| Ok(0)))
+			Box::new(crate::r#async::NullResultWaiter::new(|| Ok(0)))
 		}
 		fn wipe<'a>(&'a self, _blockidx: u64, _count: usize) -> super::AsyncIoResult<'a,()> {
-			Box::new(crate::async::NullResultWaiter::new(|| Ok(())))
+			Box::new(crate::r#async::NullResultWaiter::new(|| Ok(())))
 		}
 	}
 }

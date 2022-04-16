@@ -145,6 +145,11 @@ impl HubDevice<'_>
 		}
 	}
 
+	/// Time between setting the `Power` feature and the power being stable
+	pub fn power_stable_time_ms(&self) -> u32 {
+		self.hub_desc.power_on_to_power_good as u32 * 2
+	}
+
 	pub async fn set_port_feature(&self, port_idx: usize, feat: PortFeature) {
 		log_debug!("set_port_feature({}, {:?})", port_idx, feat);
 		self.ep0.send_request(/*type=*/0x23, /*req_num=*/3/*SET_FEATURE*/, /*value=*/feat as u8 as u16, /*index=*/port_idx as u16, &[]).await;
@@ -196,6 +201,9 @@ impl HubDescriptor
 			hub_control_current: b[6],
 			device_removable: [0; 32],
 			};
+		if rv.desc_len as usize > b.len() {
+			log_error!("Reported descriptor length is longer than buffer");
+		}
 		let l = ::core::cmp::min(b.len() - base_size, 32);
 		rv.device_removable[..l].copy_from_slice(&b[base_size..][..l]);
 		rv

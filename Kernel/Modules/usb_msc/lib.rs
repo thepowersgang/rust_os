@@ -90,7 +90,7 @@ impl ScsiInterface
 	fn new(ep_in: ::usb_core::BulkEndpointIn, ep_out: ::usb_core::BulkEndpointOut) -> Self
 	{
 		use ::core::sync::atomic::{AtomicUsize,Ordering};
-		// TODO: Allow freeing of indexes? Or get the device ID?
+		// TODO: Allow freeing of indexes? Or get the device ID? (hub and device)
 		static INDEX: AtomicUsize = AtomicUsize::new(0);
 		ScsiInterface {
 			name: format!("usb{}", INDEX.fetch_add(1, Ordering::SeqCst)),
@@ -105,23 +105,31 @@ impl ::storage_scsi::ScsiInterface for ScsiInterface
 	}
 	fn send<'a>(&'a self, command: &[u8], data: &'a [u8]) -> ::kernel::metadevs::storage::AsyncIoResult<'a,()> {
 		assert!( command.len() < 16 );
-		let len = command.len();
-		let bytes = Cbw::slice_to_array(command);
+		let cmd_len = command.len();
+		let cmd_bytes = Cbw::slice_to_array(command);
 		Box::new( ::kernel::r#async::FutureWrapper::new(async move {
 			let mut lh = self.inner.lock();//.await;
-			lh.send_data(0, &bytes[..len], data).await;
-			Ok( () )
+			match lh.send_data(0, &cmd_bytes[..cmd_len], data).await
+			{
+			Ok(rx_len) if rx_len == data.len() => Ok( () ),
+			Ok(_rx_len) => Err(::kernel::metadevs::storage::IoError::Unknown("Undersized USB read")),
+			Err(_) => Err(::kernel::metadevs::storage::IoError::Unknown("USB error")),
+			}
 			}) )
 	}
 	fn recv<'a>(&'a self, command: &[u8], data: &'a mut [u8]) -> ::kernel::metadevs::storage::AsyncIoResult<'a,()>  {
 		assert!( command.len() < 16 );
-		let len = command.len();
-		let bytes = Cbw::slice_to_array(command);
+		let cmd_len = command.len();
+		let cmd_bytes = Cbw::slice_to_array(command);
 		// TODO: Rewrite kernel async layer to use futures.
 		Box::new( ::kernel::r#async::FutureWrapper::new(async move {
 			let mut lh = self.inner.lock();//.await;
-			lh.recv_data(0, &bytes[..len], data).await;
-			Ok( () )
+			match lh.recv_data(0, &cmd_bytes[..cmd_len], data).await
+			{
+			Ok(tx_len) if tx_len == data.len() => Ok( () ),
+			Ok(_tx_len) => Err(::kernel::metadevs::storage::IoError::Unknown("Undersized USB write")),
+			Err(_) => Err(::kernel::metadevs::storage::IoError::Unknown("USB error")),
+			}
 			}) )
 	}
 }
@@ -133,7 +141,7 @@ struct ScsiInterfaceInner
 }
 impl ScsiInterfaceInner
 {
-	async fn recv_data(&mut self, lun: u8, cmd: &[u8], buf: &mut [u8])
+	async fn recv_data(&mut self, lun: u8, cmd: &[u8], buf: &mut [u8]) -> Result<usize, ()>
 	{
 		let tag = self.next_tag;
 		self.next_tag += 1;
@@ -160,12 +168,20 @@ impl ScsiInterfaceInner
 		let mut csw_bytes = [0; 12+1];
 		self.ep_in.recv(&mut csw_bytes).await;
 		let csw = Csw::from_bytes(csw_bytes);
+		// Check result
 		assert!(csw.sig == Csw::SIG, "CSW signature error: {:08x}", csw.sig);
 		assert!(csw.tag == tag, "CSW tag mismatch: {} != tag {}", csw.tag, tag);
+		assert!(csw.data_residue <= buf.len() as u32, "CSW reported a too-large residue: {} > {}", csw.data_residue, buf.len());
 		log_notice!("recv_data: csw = {:?}", csw);
-		// TODO: error return
+		if csw.status != 0 {
+			log_error!("recv_data: Non-zero status 0x{:02x}", csw.status);
+			Err( () )
+		}
+		else {
+			Ok( buf.len() - csw.data_residue as usize )
+		}
 	}
-	async fn send_data(&mut self, lun: u8, cmd: &[u8], buf: &[u8])
+	async fn send_data(&mut self, lun: u8, cmd: &[u8], buf: &[u8]) -> Result<usize, ()>
 	{
 		let tag = self.next_tag;
 		self.next_tag += 1;
@@ -191,10 +207,15 @@ impl ScsiInterfaceInner
 		let csw = Csw::from_bytes(csw_bytes);
 		assert!(csw.sig == Csw::SIG, "CSW signature error: {:08x}", csw.sig);
 		assert!(csw.tag == tag, "CSW tag mismatch: {} != tag {}", csw.tag, tag);
-		if csw.data_residue != 0 {
-		}
+		assert!(csw.data_residue <= buf.len() as u32, "CSW reported a too-large residue: {} > {}", csw.data_residue, buf.len());
 		log_notice!("send_data: csw = {:?}", csw);
-		// TODO: error return
+		if csw.status != 0 {
+			log_error!("recv_data: Non-zero status 0x{:02x}", csw.status);
+			Err( () )
+		}
+		else {
+			Ok( buf.len() - csw.data_residue as usize )
+		}
 	}
 }
 
@@ -239,10 +260,15 @@ impl Cbw
 #[derive(Debug)]
 struct Csw
 {
-	pub sig: u32,
-	pub tag: u32,
-	pub data_residue: u32,
+	pub sig: u32,	// Self::SIG 'USBS'
+	pub tag: u32,	// Tag value from the CBW
+	pub data_residue: u32,	// Amount of data not processed
 
+	/// Status value
+	/// 
+	/// - 0x00: Command Passed "good status"
+	/// - 0x01: Command Failed
+	/// - 0x02: Phase Error
 	pub status: u8,
 }
 impl Csw

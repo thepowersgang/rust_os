@@ -167,6 +167,15 @@ impl HubRef
 		}
 	}
 
+	fn power_stable_time_ms(&self) -> u32
+	{
+		match self
+		{
+		&HubRef::Root  (ref _h) => todo!("power_stable_time_ms for root"),
+		&HubRef::Device(ref h) => h.power_stable_time_ms(),
+		}
+
+	}
 	async fn set_port_feature(&self, port_idx: usize, feat: host::PortFeature)
 	{
 		match self
@@ -250,7 +259,10 @@ impl PortDev
 		let addr0_handle = self.host().get_address_zero().await;
 		if ! self.get_port_feature(host::PortFeature::Power).await
 		{
-			todo!("Power on a newly connected port");
+			// Set power
+			self.set_port_feature(host::PortFeature::Power).await;
+			// Wait for the hub-provided stable time
+			kernel::futures::msleep( self.hub.power_stable_time_ms() as usize ).await;
 		}
 		self.set_port_feature(host::PortFeature::Reset).await;
 		kernel::futures::msleep(50).await;

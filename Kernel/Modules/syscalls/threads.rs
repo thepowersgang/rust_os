@@ -134,6 +134,12 @@ impl ::objects::Object for ProtoProcess
 			inner.start_root_thread(ip, sp);
 			Ok( ::objects::new_object( Process(inner) ) as u64 )
 			},
+		#[cfg(feature="native")]	// Not used in native mode
+		values::CORE_PROTOPROCESS_START => {
+			let _ = this;
+			let _ = args;
+			panic!("CORE_PROTOPROCESS_START should have already been handled");
+			}
 		_ => ::objects::object_has_no_such_method_val("threads::ProtoProcess", call)
 		}
 	}

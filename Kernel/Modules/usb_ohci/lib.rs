@@ -322,6 +322,8 @@ impl HostInner
 				inner_aref.port_update.fetch_or(1 << i, Ordering::SeqCst);
 			}
 		}
+		// Pretend there was just an interrupt (causes a read of the interrupt status)
+		inner_aref.handle_irq();
 
 		::usb_core::register_host(Box::new(UsbHost { host: inner_aref.borrow() }), nports);
 		Ok(inner_aref)
@@ -333,7 +335,7 @@ impl HostInner
 		if v != 0
 		{
 			log_trace!("handle_irq: {:#x}", v);
-
+			
 			// SchedulingOverrun
 			if v & 0x01 != 0
 			{
@@ -1372,12 +1374,12 @@ impl host::BulkEndpointOut for BulkEndpointOut
 			fn poll(self: core::pin::Pin<&mut Self>, cx: &mut core::task::Context) -> core::task::Poll<Self::Output> {
 				if let Some(rem) = self.ep.controller.td_complete(&self.td_data)
 				{
-					//log_debug!("Polling BulkEndpointOut::Future {:?}: Complete", self.td_data);
+					log_trace!("Polling BulkEndpointOut::Future {:?}: Complete", self.td_data);
 					::core::task::Poll::Ready(self.len as usize - rem)
 				}
 				else
 				{
-					//log_debug!("Polling BulkEndpointOut::Future {:?}: Pending", self.td_data);
+					log_trace!("Polling BulkEndpointOut::Future {:?}: Pending", self.td_data);
 					self.ep.controller.td_update_waker(&self.td_data, cx.waker());
 					::core::task::Poll::Pending
 				}
@@ -1387,7 +1389,7 @@ impl host::BulkEndpointOut for BulkEndpointOut
 		{
 			fn drop(&mut self)
 			{
-				//log_debug!("Dropping BulkEndpointOut::Future {:?}", self.td_data);
+				log_trace!("Dropping BulkEndpointOut::Future {:?}", self.td_data);
 				if self.ep.controller.td_complete(&self.td_data).is_none()
 				{
 					self.ep.controller.stop_td(&self.td_data);

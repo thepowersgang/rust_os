@@ -4,7 +4,7 @@
 //!
 use kernel::prelude::*;
 use interface::Interface;
-use kernel::lib::mem::aref::{Aref,ArefBorrow};
+use kernel::lib::mem::aref::{Aref/*,ArefBorrow*/};
 use core::sync::atomic::{AtomicUsize,AtomicU16,Ordering};
 
 pub struct Queue {
@@ -117,9 +117,9 @@ impl Queue
 			}
 	}
 
-	pub fn get_int_state(&self) -> ArefBorrow<QueueIntState> {
-		self.int_state.borrow()
-	}
+	//pub fn get_int_state(&self) -> ArefBorrow<QueueIntState> {
+	//	self.int_state.borrow()
+	//}
 
 	pub fn check_interrupt_fn(&self) -> impl Fn() {
 		let is = self.int_state.borrow();
