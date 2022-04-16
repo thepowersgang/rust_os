@@ -73,6 +73,50 @@ struc ErrorRegs
 	.cs: resq 1
 endstruc
 
+%if 0
+; Doesn't work, nasm makes its own empty `debug_frame` section
+[section .debug_frame]
+dwunwind_ErrorCommon_cie:
+	dd (.end - $) - 4; length (not including the length field)
+	;dq 0xffffffffffffffff ; CIE_id
+	dd 0xffffffff ; CIE_id
+	db 4	; version
+	db 0	; Augmentation, NUL terminated string
+	db 8	; address_size
+	db 0	; segment_size
+	db 1	; code_alignment_factor
+	db 8	; data_alignment_factor
+	db 16	; return_address_register
+	; Initial instructions (assuming CFA == base_rsp)
+	db (2<<6)|0, 0	; DW_CFA_offset 0, 0	# RAX
+	db (2<<6)|2, 1	; DW_CFA_offset 2, 1	# RCX
+	db (2<<6)|1, 2	; DW_CFA_offset 1, 2	# RDX
+	;	; `pusha` RSP is useless
+	db (2<<6)|3, 3	; DW_CFA_offset 3, 3	# RBX
+	db (2<<6)|6, 5	; DW_CFA_offset 6, 5	# RBP
+	db (2<<6)|4, 6	; DW_CFA_offset 4, 6	# RSI
+	db (2<<6)|5, 7	; DW_CFA_offset 5, 7	# RDI
+	db (2<<6)|8, 8	; DW_CFA_offset 8, 8	# R8
+	db (2<<6)|9, 9	; DW_CFA_offset 9, 9	# R9
+	db (2<<6)|10, 10	; DW_CFA_offset 10, 10	# R10
+	db (2<<6)|11, 11	; DW_CFA_offset 11, 11	# R11
+	db (2<<6)|12, 12	; DW_CFA_offset 12, 12	# R12
+	db (2<<6)|13, 13	; DW_CFA_offset 13, 13	# R13
+	db (2<<6)|14, 14	; DW_CFA_offset 14, 14	# R14
+	db (2<<6)|15, 15	; DW_CFA_offset 15, 15	# R15
+	db (2<<6)|16, 17	; DW_CFA_offset 16, 17	# RIP
+	db 0x0e, 20     	; DW_CFA_def_cfa_sf 7, 20	# Set CFA to be RSP, read from RSP[20]
+	times (8 - ($ - dwunwind_ErrorCommon_cie) % 8)	db	0
+.end:
+dwunwind_ErrorCommon_fde:
+	dd (.end - $) - 4; length (not including the length field)
+	dq dwunwind_ErrorCommon_cie
+	dq ErrorCommon
+	dq (ErrorCommon.popstate - ErrorCommon)
+.end:
+[section .text]
+%endif
+
 ErrorCommon:
 	PUSH_GPR
 	
