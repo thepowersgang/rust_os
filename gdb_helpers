@@ -1,0 +1,26 @@
+define amd64_bt
+  set $$base = $rsp + 0x40
+  # GPRs, then exception frame
+  set $rax = ($$base as *const usize)[ 0]
+  set $rcx = ($$base as *const usize)[ 1]
+  set $rdx = ($$base as *const usize)[ 2]
+  set $rvx = ($$base as *const usize)[ 3]
+  # Skip RSP
+  set $rbp = ($$base as *const usize)[ 5]
+  set $rsi = ($$base as *const usize)[ 6]
+  set $rdi = ($$base as *const usize)[ 7]
+  set $r8  = ($$base as *const usize)[ 8]
+  set $r9  = ($$base as *const usize)[ 9]
+  set $r10 = ($$base as *const usize)[10]
+  set $r11 = ($$base as *const usize)[11]
+  set $r12 = ($$base as *const usize)[12]
+  set $r13 = ($$base as *const usize)[13]
+  set $r14 = ($$base as *const usize)[14]
+  set $r15 = ($$base as *const usize)[15]
+  # intnum = 16
+  # err_code = 17
+  set $rip = ($$base as *const usize)[17]
+  # cs = 19
+  # rflags = 20
+  set $rsp = ($$base as *const usize)[20]
+end
