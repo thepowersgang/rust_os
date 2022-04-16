@@ -6,6 +6,7 @@ use core::alloc::{Layout,Allocator,AllocError};
 
 use alloc_system::ALLOCATOR as System;
 
+#[cfg(not(test))]
 #[alloc_error_handler]
 pub fn rust_oom(layout: Layout) -> ! {
 	//System.oom()

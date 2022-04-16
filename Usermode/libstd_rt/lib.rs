@@ -45,6 +45,7 @@ mod arch;
 #[cfg_attr(target_arch="riscv64", path="arch-riscv64.rs")]
 mod arch;
 
+#[cfg_attr(test,allow(dead_code))]
 fn begin_panic_fmt(msg: &::core::fmt::Arguments, file_line: (&str, u32)) -> ! {
 	// Spit out that log
 	kernel_log!("PANIC: {}:{}: {}", file_line.0, file_line.1, msg);
@@ -56,6 +57,7 @@ fn begin_panic_fmt(msg: &::core::fmt::Arguments, file_line: (&str, u32)) -> ! {
 }
 
 #[panic_handler]
+#[cfg(not(test))]
 pub extern fn rust_begin_unwind(info: &::core::panic::PanicInfo) -> ! {
 	let file_line = match info.location()
 		{
@@ -76,6 +78,7 @@ pub extern fn rust_begin_unwind(info: &::core::panic::PanicInfo) -> ! {
 	}
 }
 #[lang="eh_personality"]
+#[cfg(not(test))]
 fn rust_eh_personality(
 	//version: isize, _actions: _Unwind_Action, _exception_class: u64,
 	//_exception_object: &_Unwind_Exception, _context: &_Unwind_Context

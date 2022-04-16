@@ -44,10 +44,10 @@ mod int {
 }
 #[cfg(test)]
 mod int {
-	pub fn new_process(executable_handle: ::syscalls::vfs::File, process_name: &[u8], args: &[&[u8]]) -> Result<::syscalls::threads::ProtoProcess,super::Error> {
+	pub unsafe fn new_process(_executable_handle: ::syscalls::vfs::File, _process_name: &[u8], _args: &[&[u8]]) -> Result<::syscalls::threads::ProtoProcess,super::Error> {
 		todo!("new_process");
 	}
-	pub fn start_process(handle: ::syscalls::threads::ProtoProcess) -> ::syscalls::threads::Process {
+	pub unsafe fn start_process(_handle: ::syscalls::threads::ProtoProcess) -> ::syscalls::threads::Process {
 		todo!("start_process");
 	}
 }

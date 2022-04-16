@@ -646,6 +646,7 @@ impl<'a, R: 'a+Read> ::std::iter::Iterator for LoadSegments<'a, R> {
 }
 
 #[derive(Debug)]
+#[allow(dead_code)]
 struct Symbol
 {
 	st_name: usize,	// Offset in string table

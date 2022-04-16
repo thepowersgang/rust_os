@@ -11,6 +11,12 @@ extern crate loader;
 
 fn main()
 {
+	for a in ::std::env::args_os()
+	{
+	}
+	let root_app = "/sysroot/bin/login";
+	let root_args = [];
+
 	kernel_log!("Tifflin (rust_os) userland started");
 
 	let rw_root: ::syscalls::vfs::Dir = get_handle("RW VFS Root", "RwRoot");
@@ -19,7 +25,8 @@ fn main()
 	//let shells = Vec::new();
 
 	let session_root = {
-		let pp = loader::new_process(open_exec("/sysroot/bin/login"), b"/sysroot/bin/login", &[]).expect("Could not start login");
+		let pp = loader::new_process(open_exec(root_app), root_app.as_bytes(), &root_args)
+			.expect("Could not start root process");
 
 		pp.send_obj("guigrp", {
 			let wingrp = syscalls::gui::Group::new("Session 1").unwrap();

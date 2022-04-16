@@ -2,6 +2,7 @@
 //
 //
 //! Language entrypoint
+#![cfg(not(test))]
 
 #[lang="termination"]
 pub trait Termination
