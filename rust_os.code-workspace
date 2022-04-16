@@ -1,5 +1,5 @@
 {
-	"folders": [ {"path": "."} ]
+	"folders": [ {"path": "."} ],
 	"settings": {
 		"rust-analyzer.server.extraEnv": { "ARCH": "native", "RUSTFLAGS": "--cfg arch=\"native\"" }
 	}
