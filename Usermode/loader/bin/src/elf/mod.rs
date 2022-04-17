@@ -987,6 +987,7 @@ impl Format
 }
 
 #[derive(Debug)]
+#[allow(dead_code)]
 struct Header
 {
 	object_size: Size,

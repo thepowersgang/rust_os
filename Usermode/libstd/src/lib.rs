@@ -30,7 +30,7 @@ extern crate alloc_system;
 // Macros
 pub use alloc::{/*vec, */format};
 #[allow(deprecated)]
-pub use core::{try, assert, assert_eq, panic, write, unreachable, unimplemented};
+pub use core::{r#try, assert, assert_eq, panic, write, unreachable, unimplemented};
 pub use core::{file, line};
 //pub use core::{deriving_Debug};
 

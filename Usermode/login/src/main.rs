@@ -5,7 +5,7 @@
 
 use lazy_static::LazyStatic;
 
-extern crate async;
+extern crate r#async;
 extern crate lazy_static;
 extern crate loader;
 extern crate wtk;
@@ -114,7 +114,7 @@ fn main()
 
 	win.show();
 
-	::async::idle_loop(&mut [
+	::r#async::idle_loop(&mut [
 		&mut win,
 		&mut power_menu.waiter(),
 		]);

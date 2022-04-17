@@ -4,7 +4,7 @@
 //! Tifflin window toolkit
 #![feature(unboxed_closures,fn_traits)]
 
-extern crate async;
+extern crate r#async;
 extern crate byteorder;
 
 #[macro_use]

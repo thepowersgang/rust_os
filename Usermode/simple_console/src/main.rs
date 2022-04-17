@@ -8,7 +8,7 @@ extern crate syscalls;
 extern crate cmdline_words_parser;
 
 extern crate wtk;
-extern crate async;
+extern crate r#async;
 
 use wtk::Colour;
 
@@ -108,7 +108,7 @@ fn main()
 	window.focus(&term_ele);
 	window.show();
 
-	::async::idle_loop(&mut [
+	::r#async::idle_loop(&mut [
 		&mut window,
 		]);
 }

@@ -4,7 +4,7 @@
 // Graphical user session root - Provides background, taskbar and menus
 
 extern crate wtk;
-extern crate async;
+extern crate r#async;
 #[macro_use]
 extern crate syscalls;
 
@@ -123,7 +123,7 @@ fn main()
 	//		Some(cur_time % time::Interval::minute(1) + time::Interval::minute(1))
 	//		});
 
-	::async::idle_loop(&mut [
+	::r#async::idle_loop(&mut [
 		&mut win_background,
 		&mut win_menu,
 		&mut system_menu.waiter(),

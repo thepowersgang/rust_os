@@ -128,7 +128,7 @@ impl<'a, D: 'a + Decorator> Window<'a, D>
 	}
 
 	pub fn idle_loop(&mut self) {
-		::async::idle_loop(&mut [ self ]);
+		::r#async::idle_loop(&mut [ self ]);
 	}
 }
 
@@ -399,7 +399,7 @@ impl<'a, D: Decorator> Window<'a, D>
 	}
 }
 
-impl<'a, D: Decorator> ::async::WaitController for Window<'a, D>
+impl<'a, D: Decorator> ::r#async::WaitController for Window<'a, D>
 {
 	fn get_count(&self) -> usize {
 		1
