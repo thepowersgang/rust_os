@@ -23,7 +23,6 @@ impl_from! {
 
 #[no_mangle]
 #[allow(improper_ctypes_definitions)]
-#[cfg(not(arch="native"))]	// Implemented elsewhere for native
 /// Spawn a new process using the provided binary and arguments
 pub extern "C" fn new_process(executable_handle: ::syscalls::vfs::File, process_name: &[u8], args: &[&[u8]]) -> Result<::syscalls::threads::ProtoProcess,loader::Error>
 {
@@ -81,7 +80,6 @@ pub extern "C" fn new_process(executable_handle: ::syscalls::vfs::File, process_
 }
 #[no_mangle]
 #[allow(improper_ctypes_definitions)]
-#[cfg(not(arch="native"))]	// Implemented elsewhere for native
 pub extern "C" fn start_process(pp: ::syscalls::threads::ProtoProcess) -> ::syscalls::threads::Process {
 	extern "C" {
 		static init_stack_end: [u8; 0];

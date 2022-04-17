@@ -3,7 +3,6 @@
 //
 // This program is both the initial entrypoint for the userland, and the default dynamic linker.
 
-use std::mem::MaybeUninit;
 use load::SegmentIterator;
 
 #[link(name="loader_start")]
@@ -19,10 +18,14 @@ extern crate cmdline_words_parser;
 #[macro_use(impl_from, impl_fmt, todo)]
 extern crate macros;
 
-mod elf;
+#[cfg(not(arch="native"))]	// Implemented elsewhere for native
 pub mod interface;
-mod load;
 
+mod elf;
+mod load;
+mod fixed_vec;
+
+use self::fixed_vec::FixedVec;
 use ::syscalls::PAGE_SIZE;
 
 // Main: This is the initial boot entrypoint
@@ -34,17 +37,16 @@ pub extern "C" fn loader_main(cmdline: *mut u8, cmdline_len: usize) -> !
 	kernel_log!("loader_main({:p}, {})", cmdline, cmdline_len);
 	// SAFE: (barring bugs in caller)
 	let cmdline: &mut [u8] = unsafe { ::std::slice::from_raw_parts_mut(cmdline, cmdline_len) };
-	// SAFE: (barring bugs in caller) Transmute just keeps 'mut' on the OsStr
-	//let cmdline: &mut ::std::ffi::OsStr = unsafe { ::std::mem::transmute( ::std::slice::from_raw_parts_mut(cmdline, cmdline_len) ) };
 
 	// 0. Generate a guard page (by deallocating a special guard page just before the stack)
 	// SAFE: The memory freed is reserved explicitly for use as a guard page
-	//unsafe {
-	//	extern "C" {
-	//		static init_stack_base: [u8; 0];
-	//	}
-	//	let _ = ::syscalls::memory::deallocate( (init_stack_base.as_ptr() as usize) - ::PAGE_SIZE );
-	//}
+	/*unsafe {
+		extern "C" {
+			static init_stack_base: [u8; 0];
+		}
+		let _ = ::syscalls::memory::deallocate( (init_stack_base.as_ptr() as usize) - ::PAGE_SIZE );
+	}
+	*/
 	
 	// 1. Print the INIT parameter from the kernel
 	kernel_log!("- cmdline={:?}", ::std::ffi::OsStr::new(&cmdline));
@@ -74,41 +76,6 @@ pub extern "C" fn loader_main(cmdline: *mut u8, cmdline_len: usize) -> !
 	ep(&args);
 	kernel_log!("User entrypoint returned");
 	::syscalls::threads::exit(!0);
-}
-
-struct FixedVec<T> {
-	size: usize,
-	data: MaybeUninit<[T; 16]>,
-}
-impl<T> FixedVec<T> {
-	fn new() -> FixedVec<T> {
-		// SAFE: Won't be read until written to
-		FixedVec { size: 0, data: MaybeUninit::uninit(), }
-	}
-	fn push(&mut self, v: T) -> Result<(),T> {
-		if self.size == 16 {
-			Err(v)
-		}
-		else {
-			// SAFE: Writing to newly made-valid cell
-			unsafe { ::std::ptr::write( (self.data.as_mut_ptr() as *mut T).offset(self.size as isize), v ) };
-			self.size += 1;
-			Ok( () )
-		}
-	}
-}
-impl<T> ::std::ops::Deref for FixedVec<T> {
-	type Target = [T];
-	fn deref(&self) -> &[T] {
-		// SAFE: Initialised region
-		unsafe { &(*self.data.as_ptr())[..self.size] }
-	}
-}
-impl<T> ::std::ops::DerefMut for FixedVec<T> {
-	fn deref_mut(&mut self) -> &mut [T] {
-		// SAFE: Initialised region
-		unsafe { &mut (*self.data.as_mut_ptr())[..self.size] }
-	}
 }
 
 /// Panics if it fails to load, returns the entrypoint
