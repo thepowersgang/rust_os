@@ -11,15 +11,7 @@ extern crate syscalls;
 
 use core::result::Result;
 
-#[derive(Debug)]
-pub enum Error
-{
-	NotFound,
-	NotExecutable,
-	BadFormat,
-	CorruptExecutable,
-	BadArguments,
-}
+include!("../common.inc.rs");
 
 /// Process still being initialised (not yet running)
 pub struct ProtoProcess( ::syscalls::threads::ProtoProcess );
