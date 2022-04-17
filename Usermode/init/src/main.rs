@@ -11,9 +11,6 @@ extern crate loader;
 
 fn main()
 {
-	for a in ::std::env::args_os()
-	{
-	}
 	let root_app = "/sysroot/bin/login";
 	let root_args = [];
 
