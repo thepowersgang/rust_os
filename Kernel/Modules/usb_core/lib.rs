@@ -154,6 +154,7 @@ fn host_worker(host: ArefBorrow<Host>)
 				*p = None;
 			}
 		}
+		None::<()>
 	});
 }
 

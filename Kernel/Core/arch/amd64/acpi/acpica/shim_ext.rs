@@ -7,18 +7,18 @@
 #![allow(dead_code)]	// API, may not be used
 use core::fmt;
 
-use Void;
+use crate::Void;
 
 pub type ACPI_SIZE = usize;
-pub type ACPI_PHYSICAL_ADDRESS = ::memory::PAddr;
+pub type ACPI_PHYSICAL_ADDRESS = crate::memory::PAddr;
 pub type ACPI_IO_ADDRESS = u16;
 
 pub type ACPI_PCI_ID = u32;
 
 pub type ACPI_CPU_FLAGS = u32;
-pub type ACPI_SPINLOCK = *const ::sync::Spinlock<()>;
-pub type ACPI_MUTEX = *const ::sync::Mutex<()>;
-pub type ACPI_SEMAPHORE = *const ::sync::Semaphore;
+pub type ACPI_SPINLOCK = *const crate::sync::Spinlock<()>;
+pub type ACPI_MUTEX = *const crate::sync::Mutex<()>;
+pub type ACPI_SEMAPHORE = *const crate::sync::Semaphore;
 
 #[repr(C)]
 pub enum ACPI_EXECUTE_TYPE
@@ -110,7 +110,7 @@ pub const AE_NOT_IMPLEMENTED: ACPI_STATUS = ACPI_STATUS(AE_CODE_ENVIRONMENTAL|14
 pub const AE_BAD_PARAMETER: ACPI_STATUS = ACPI_STATUS(AE_CODE_PROGRAMMER|1);
 
 #[repr(C)]
-pub struct ACPI_TABLE_DESC(::Void);
+pub struct ACPI_TABLE_DESC(crate::Void);
 
 pub type ACPI_TABLE_HEADER = super::super::SDTHeader;
 

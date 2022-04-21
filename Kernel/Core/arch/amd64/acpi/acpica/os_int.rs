@@ -5,7 +5,7 @@
 //! ACPICA OS bindings
 #![allow(non_snake_case)]
 #![allow(dead_code,unused_variables)]
-use prelude::*;
+use crate::prelude::*;
 use super::shim_ext::*;
 use super::va_list::VaList;
 
@@ -62,7 +62,7 @@ extern "C" fn AcpiOsMapMemory(PhysicalAddress: ACPI_PHYSICAL_ADDRESS, Length: AC
 	
 	// SAFE: Trusting ACPI not to do anything stupid
 	unsafe {
-		let mut handle = match ::memory::virt::map_hw_rw(phys_page, npages, module_path!())
+		let mut handle = match crate::memory::virt::map_hw_rw(phys_page, npages, module_path!())
 			{
 			Ok(h) => h,
 			Err(e) => return 0 as *mut _,
@@ -82,7 +82,7 @@ extern "C" fn AcpiOsUnmapMemory(LogicalAddress: *mut (), Length: ACPI_SIZE) {
 	let npages = (ofs + Length + 0xFFF) / 0x1000;
 	// SAFE: Trusting ACPICA not to pass us a bad pointer
 	unsafe {
-		::memory::virt::unmap( ((LogicalAddress as usize) - ofs) as *mut (), npages );
+		crate::memory::virt::unmap( ((LogicalAddress as usize) - ofs) as *mut (), npages );
 	}
 }
 #[no_mangle] #[linkage="external"]
@@ -93,12 +93,12 @@ extern "C" fn AcpiOsGetPhysicalAddress(LogicalAddress: *const (), PhysicalAddres
 #[no_mangle] #[linkage="external"]
 extern "C" fn AcpiOsAllocate(Size: ACPI_SIZE) -> *mut () {
 	// SAFE: (called from external, trust it)
-	unsafe { ::memory::heap::malloc(Size) }
+	unsafe { crate::memory::heap::malloc(Size) }
 }
 #[no_mangle] #[linkage="external"]
 extern "C" fn AcpiOsFree(Memory: *mut ()) {
 	// SAFE: (called from external, trust it)
-	unsafe { ::memory::heap::free(Memory) }
+	unsafe { crate::memory::heap::free(Memory) }
 }
 
 #[no_mangle] #[linkage="external"]
@@ -117,7 +117,7 @@ extern "C" fn AcpiOsWritable(Memory: *const (), Length: ACPI_SIZE) -> bool {
 extern "C" fn AcpiOsGetThreadId() -> ACPI_THREAD_ID {
 	// 0 is special to ACPICA, so offset by one
 	// - This is just used by ACPICA, so offsetting by one is safe
-	(::threads::get_thread_id() + 1) as ACPI_THREAD_ID
+	(crate::threads::get_thread_id() + 1) as ACPI_THREAD_ID
 }
 #[no_mangle] #[linkage="external"]
 extern "C" fn AcpiOsExecute(Type: ACPI_EXECUTE_TYPE, Function: ACPI_OSD_EXEC_CALLBACK, Context: *const ()) -> ACPI_STATUS {
@@ -143,7 +143,7 @@ extern "C" fn AcpiOsWaitEventsComplete() {
 extern "C" fn AcpiOsCreateMutex(OutHandle: *mut ACPI_MUTEX) -> ACPI_STATUS {
 	// SAFE: Transmutes Box to *mut to forget the box. Will be recreated to drop
 	unsafe {
-		let mutex = ::sync::Mutex::<()>::new( () );
+		let mutex = crate::sync::Mutex::<()>::new( () );
 		*OutHandle = Box::into_raw(Box::new(mutex));
 		AE_OK
 	}
@@ -165,7 +165,7 @@ extern "C" fn AcpiOsReleaseMutex(Handle: ACPI_MUTEX) {
 extern "C" fn AcpiOsCreateSemaphore(MaxUnits: u32, InitialUnits: u32, OutHandle: *mut ACPI_SEMAPHORE) -> ACPI_STATUS {
 	// SAFE: Transmutes Box to *mut to forget the box. Will be recreated to drop
 	unsafe {
-		let sem = ::sync::Semaphore::new(InitialUnits as isize, MaxUnits as isize);
+		let sem = crate::sync::Semaphore::new(InitialUnits as isize, MaxUnits as isize);
 		*OutHandle = Box::into_raw(Box::new(sem));
 		AE_OK
 	}
@@ -174,7 +174,7 @@ extern "C" fn AcpiOsCreateSemaphore(MaxUnits: u32, InitialUnits: u32, OutHandle:
 extern "C" fn AcpiOsDeleteSemaphore(Handle: ACPI_SEMAPHORE) -> ACPI_STATUS {
 	assert!( !Handle.is_null() );
 	// SAFE: ACPICA should pass us a valid handle
-	let boxed: Box<::sync::Semaphore> = unsafe { Box::from_raw(Handle as *mut _)};
+	let boxed: Box<crate::sync::Semaphore> = unsafe { Box::from_raw(Handle as *mut _)};
 	::core::mem::drop(boxed);
 	AE_OK
 }
@@ -209,7 +209,7 @@ extern "C" fn AcpiOsSignalSemaphore(Handle: ACPI_SEMAPHORE, Units: u32) -> ACPI_
 extern "C" fn AcpiOsCreateLock(OutHandle: *mut ACPI_SPINLOCK) -> ACPI_STATUS {
 	// SAFE: Transmutes Box to *mut to forget the box. Will be recreated to drop
 	unsafe {
-		let mutex = ::sync::Spinlock::<()>::new( () );
+		let mutex = crate::sync::Spinlock::<()>::new( () );
 		*OutHandle = Box::into_raw(Box::new(mutex));
 		AE_OK
 	}
@@ -274,15 +274,15 @@ extern "C" fn AcpiOsReadPort(Address: ACPI_IO_ADDRESS, Value: &mut u32, Width: u
 		match Width
 		{
 		 8 => {
-			*Value = ::arch::x86_io::inb(Address as u16) as u32;
+			*Value = crate::arch::x86_io::inb(Address as u16) as u32;
 			},
 		16 => {
 			assert!(Address % 2 == 0);
-			*Value = ::arch::x86_io::inw(Address as u16) as u32;
+			*Value = crate::arch::x86_io::inw(Address as u16) as u32;
 			},
 		32 => {
 			assert!(Address % 4 == 0);
-			*Value = ::arch::x86_io::inl(Address as u16);
+			*Value = crate::arch::x86_io::inl(Address as u16);
 			},
 		_ => return AE_NOT_IMPLEMENTED,
 		}
@@ -300,15 +300,15 @@ extern "C" fn AcpiOsWritePort(Address: ACPI_IO_ADDRESS, Value: u32, Width: u32) 
 		match Width
 		{
 		 8 => {
-			::arch::x86_io::outb(Address as u16, Value as u8);
+			crate::arch::x86_io::outb(Address as u16, Value as u8);
 			},
 		16 => {
 			assert!(Address % 2 == 0);
-			::arch::x86_io::outw(Address as u16, Value as u16);
+			crate::arch::x86_io::outw(Address as u16, Value as u16);
 			},
 		32 => {
 			assert!(Address % 4 == 0);
-			::arch::x86_io::outl(Address as u16, Value as u32);
+			crate::arch::x86_io::outl(Address as u16, Value as u32);
 			},
 		_ => return AE_NOT_IMPLEMENTED,
 		}
@@ -334,7 +334,7 @@ extern "C" fn AcpiOsWritePciConfiguration(PciId: ACPI_PCI_ID, Register: u32, Val
 }
 
 unsafe fn c_string_to_str<'a>(c_str: *const i8) -> &'a str {
-	::core::str::from_utf8( ::memory::c_string_as_byte_slice(c_str).unwrap_or(b"INVALID") ).unwrap_or("UTF-8")
+	::core::str::from_utf8( crate::memory::c_string_as_byte_slice(c_str).unwrap_or(b"INVALID") ).unwrap_or("UTF-8")
 }
 fn get_uint(Args: &mut VaList, size: usize) -> u64 {
 	// (uncheckable) SAFE: Could over-read from stack, returning junk
@@ -369,7 +369,7 @@ fn get_int(Args: &mut VaList, size: usize) -> i64 {
 #[allow(dead_code)]
 extern "C" fn AcpiOsVprintf(Format: *const i8, mut Args: VaList)
 {
-	use sync::mutex::LazyMutex;
+	use crate::sync::mutex::LazyMutex;
 	struct Buf([u8; 256]);
 	impl Buf {
 		fn new() -> Self {
@@ -379,12 +379,12 @@ extern "C" fn AcpiOsVprintf(Format: *const i8, mut Args: VaList)
 	}
 	impl AsMut<[u8]> for Buf { fn as_mut(&mut self) -> &mut [u8] { &mut self.0 } }
 	impl AsRef<[u8]> for Buf { fn as_ref(&self) -> &[u8] { &self.0 } }
-	static TEMP_BUFFER: LazyMutex<::lib::string::FixedString<Buf>> = LazyMutex::new();
+	static TEMP_BUFFER: LazyMutex<crate::lib::string::FixedString<Buf>> = LazyMutex::new();
 
 	// Acquire input and lock	
 	// SAFE: Format string is valid for function
 	let fmt = unsafe { c_string_to_str(Format) };
-	let mut lh = TEMP_BUFFER.lock_init(|| ::lib::string::FixedString::new(Buf::new()));
+	let mut lh = TEMP_BUFFER.lock_init(|| crate::lib::string::FixedString::new(Buf::new()));
 	
 	// Expand format string
 	let mut it = fmt.chars();
@@ -506,7 +506,7 @@ extern "C" fn AcpiOsRedirectOutput(Destination: *const ())
 // -------------------
 #[no_mangle] #[linkage="external"]
 extern "C" fn AcpiOsGetTimer() -> u64 {
-	::time::ticks() * 10 * 1000
+	crate::time::ticks() * 10 * 1000
 }
 
 #[no_mangle] #[linkage="external"]

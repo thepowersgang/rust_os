@@ -4,7 +4,7 @@
 // arch/amd64/acpi/mod_acpica.rs
 //! ACPI Component Architecture binding
 #[allow(unused_imports)]
-use prelude::*;
+use crate::prelude::*;
 use core::ops;
 use self::shim_ext::*;
 
@@ -58,7 +58,7 @@ pub fn find_table<T:'static>(req_name: &str, idx: usize) -> Option<SDTHandle<T>>
 		{
 		shim_ext::AE_OK => {
 			log_debug!("AcpiGetTable: out_ptr = {:p}", out_ptr);
-			::logging::hex_dump_t("AcpiGetTable", &*out_ptr);
+			crate::logging::hex_dump_t("AcpiGetTable", &*out_ptr);
 			let handle = SDTHandle(&*(out_ptr as *const super::SDT<T>));
 			if handle.raw_signature() != req_name.as_bytes() {
 				log_warning!("AcpiGetTable: Signature mismatch {:?} != exp {:?}", handle.raw_signature(), req_name.as_bytes());
