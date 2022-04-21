@@ -106,7 +106,7 @@ pub mod vfs;
 pub mod config;
 
 /// Stack unwinding (panic) handling
-#[cfg(not(feature="test"))]
+#[cfg(not(any(feature="test",test)))]
 pub mod unwind;
 
 pub mod irqs;
