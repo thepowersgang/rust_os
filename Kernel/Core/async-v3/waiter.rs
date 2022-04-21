@@ -11,11 +11,11 @@
 //! intermediate data for when an async operation requres mutiple sub-operations (e.g. acquiring
 //! a mutex then performing hardware IO)
 #[allow(unused_imports)]
-use prelude::*;
-use threads::SleepObject;
+use crate::prelude::*;
+use crate::threads::SleepObject;
 use core::sync::atomic::{self, Ordering};
 use core::marker::PhantomData;
-use sync::Spinlock;
+use crate::sync::Spinlock;
 
 /// Trait representing a saved piece of async state
 pub trait Layer

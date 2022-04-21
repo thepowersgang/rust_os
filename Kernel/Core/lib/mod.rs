@@ -96,22 +96,22 @@ impl<'a> ::core::fmt::Debug for RawString<'a>
 {
 	fn fmt(&self, f: &mut ::core::fmt::Formatter) -> ::core::fmt::Result
 	{
-		try!(write!(f, "b\""));
+		write!(f, "b\"")?;
 		for &b in self.0
 		{
 			match b
 			{
-			b'\\' => try!(write!(f, "\\\\")),
-			b'\n' => try!(write!(f, "\\n")),
-			b'\r' => try!(write!(f, "\\r")),
-			b'"' => try!(write!(f, "\\\"")),
-			b'\0' => try!(write!(f, "\\0")),
+			b'\\' => write!(f, "\\\\")?,
+			b'\n' => write!(f, "\\n")?,
+			b'\r' => write!(f, "\\r")?,
+			b'"'  => write!(f, "\\\"")?,
+			b'\0' => write!(f, "\\0")?,
 			// ASCII printable characters
-			32..=127 => try!(write!(f, "{}", b as char)),
-			_ => try!(write!(f, "\\x{:02x}", b)),
+			32..=127 => write!(f, "{}", b as char)?,
+			_ => write!(f, "\\x{:02x}", b)?,
 			}
 		}
-		try!(write!(f, "\""));
+		write!(f, "\"")?;
 		::core::result::Result::Ok( () )
 	}
 }
@@ -126,10 +126,10 @@ impl<'a, T: 'a + ::core::fmt::LowerHex> ::core::fmt::LowerHex for FmtSlice<'a, T
 			self.0[0].fmt(f)
 		}
 		else {
-			try!( self.0[0].fmt(f) );
+			self.0[0].fmt(f)?;
 			for e in &self.0[1..] {
-				try!( f.write_str(",") );
-				try!( e.fmt(f) );
+				f.write_str(",")?;
+				e.fmt(f)?;
 			}
 			Ok( () )
 		}

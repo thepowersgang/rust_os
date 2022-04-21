@@ -4,7 +4,7 @@
 // Core/modules.rs
 // - Runtime-initialised modules (handling load order deps)
 #[allow(unused_imports)]
-use prelude::*;
+use crate::prelude::*;
 
 #[repr(C)]
 pub struct ModuleInfo

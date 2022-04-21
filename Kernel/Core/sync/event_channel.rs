@@ -4,9 +4,9 @@
 // Core/sync/event_channel.rs
 //! Sleeping primitive for that wakes a thread when signalled
 #[allow(unused_imports)]
-use prelude::*;
-use sync::Spinlock;
-use threads::WaitQueue;
+use crate::prelude::*;
+use crate::sync::Spinlock;
+use crate::threads::WaitQueue;
 use core::cell::UnsafeCell;
 use core::sync::atomic::Ordering;
 

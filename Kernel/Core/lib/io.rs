@@ -4,7 +4,7 @@
 // Core/lib/io.rs
 /// A clone of ::std::io
 #[allow(unused_imports)]
-use prelude::*;
+use crate::prelude::*;
 
 /// Shorthand result type
 pub type Result<T> = ::core::result::Result<T,Error>;

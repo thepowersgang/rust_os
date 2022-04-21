@@ -3,7 +3,7 @@
 //
 // Core/lib/vec_deque.rs
 //! Dynamic array backed dequeue
-use memory::heap::ArrayAlloc;
+use crate::memory::heap::ArrayAlloc;
 
 pub struct VecDeque<T>
 {
@@ -24,7 +24,7 @@ impl<T> VecDeque<T>
 
 	fn reserve_cap(&mut self, size: usize) {
 		let usize_bits: u32 = (::core::mem::size_of::<usize>() * 8) as u32;
-		let newcap = ::lib::num::round_up(size, 1 << (usize_bits - size.leading_zeros()));
+		let newcap = crate::lib::num::round_up(size, 1 << (usize_bits - size.leading_zeros()));
 		if newcap > self.data.count()
 		{
 			let orig_cap = self.data.count();

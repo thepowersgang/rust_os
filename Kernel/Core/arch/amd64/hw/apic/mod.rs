@@ -4,7 +4,7 @@
 // arch/amd64/hw/apic/mod.rs
 //! x86 APIC (Advanced Programmable Interrupt Controller) Driver.
 // mod.rs -- Core API / init
-use prelude::*;
+use crate::prelude::*;
 
 module_define!{APIC, [ACPI], init}
 
@@ -17,26 +17,26 @@ pub type IRQHandler = fn(info: *const ());
 pub struct IRQHandle
 {
 	num: usize,
-	isr_handle: ::arch::imp::interrupts::ISRHandle,
+	isr_handle: crate::arch::imp::interrupts::ISRHandle,
 }
 
 #[derive(Debug,Copy,Clone)]
 pub enum IrqError
 {
 	BadIndex,
-	BindFail(::arch::imp::interrupts::BindISRError),
+	BindFail(crate::arch::imp::interrupts::BindISRError),
 }
 
 //#[link_section="processor_local"]
 //static s_lapic_lock: ::sync::Mutex<()> = mutex_init!( () );
 #[allow(non_upper_case_globals)]
-static s_lapic: ::lib::LazyStatic<raw::LAPIC> = lazystatic_init!();
+static s_lapic: crate::lib::LazyStatic<raw::LAPIC> = lazystatic_init!();
 #[allow(non_upper_case_globals)]
-static s_ioapics: ::lib::LazyStatic<Vec<raw::IOAPIC>> = lazystatic_init!();
+static s_ioapics: crate::lib::LazyStatic<Vec<raw::IOAPIC>> = lazystatic_init!();
 
 fn init()
 {
-	let madt = match ::arch::acpi::find::<init::ACPI_MADT>("APIC", 0)
+	let madt = match crate::arch::acpi::find::<init::ACPI_MADT>("APIC", 0)
 		{
 		None => {
 			log_warning!("No MADT ('APIC') table in ACPI");
@@ -53,8 +53,8 @@ fn init()
 		// Disable legacy PIC by masking all interrupts off
 		// SAFE: Only code to access the PIC
 		unsafe {
-			::arch::x86_io::outb(0xA1, 0xFF);	// Disable slave
-			::arch::x86_io::outb(0x21, 0xFF);	// Disable master
+			crate::arch::x86_io::outb(0xA1, 0xFF);	// Disable slave
+			crate::arch::x86_io::outb(0x21, 0xFF);	// Disable master
 		}
 	}
 	
@@ -87,7 +87,7 @@ fn init()
 	
 	// Enable interupts
 	// TODO: Does S_IRQS_ENABLED ever get read?
-	::arch::imp::threads::S_IRQS_ENABLED.store(true, ::core::sync::atomic::Ordering::Relaxed);
+	crate::arch::imp::threads::S_IRQS_ENABLED.store(true, ::core::sync::atomic::Ordering::Relaxed);
 	// SAFE: Just STI, nothing to worry about
 	unsafe { ::core::arch::asm!("sti"); }
 }
@@ -153,7 +153,7 @@ pub fn register_irq(global_num: usize, callback: IRQHandler, info: *const() ) ->
 	// Bind ISR
 	// TODO: Pick a suitable processor, and maybe have separate IDTs (and hence separate ISR lists)
 	let lapic_id = 0u32;
-	let isr_handle = match ::arch::imp::interrupts::bind_free_isr(lapic_irq_handler, info, global_num)
+	let isr_handle = match crate::arch::imp::interrupts::bind_free_isr(lapic_irq_handler, info, global_num)
 		{
 		Ok(v) => v,
 		Err(e) => return Err(IrqError::BindFail(e)),

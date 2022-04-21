@@ -6,9 +6,9 @@
 //!
 //! Parsing and exposure of the bootloader-provided data
 #[allow(unused_imports)]
-use prelude::*;
+use crate::prelude::*;
 use super::memory::addresses::{IDENT_START, IDENT_END};
-use metadevs::video::bootvideo::{VideoMode,VideoFormat};
+use crate::metadevs::video::bootvideo::{VideoMode,VideoFormat};
 
 #[path="../../../../Bootloaders/uefi_proto.rs"]
 mod uefi_proto;
@@ -97,14 +97,14 @@ struct MultibootParsed
 {
 	cmdline: &'static str,
 	vidmode: Option<VideoMode>,
-	memmap: &'static [::memory::MemoryMapEnt],
+	memmap: &'static [crate::memory::MemoryMapEnt],
 	symbol_info: SymbolInfo,
 }
 struct UefiParsed
 {
 	cmdline: &'static str,
 	vidmode: Option<VideoMode>,
-	memmap: &'static [::memory::MemoryMapEnt],
+	memmap: &'static [crate::memory::MemoryMapEnt],
 }
 
 enum BootInfo
@@ -118,16 +118,16 @@ enum BootInfo
 enum SymbolInfo
 {
 	None,
-	Elf32( &'static [::symbols::Elf32_Sym], &'static [u8] ),
+	Elf32( &'static [crate::symbols::Elf32_Sym], &'static [u8] ),
 }
 
 
 extern "C"
 {
 	static s_multiboot_signature : u32;
-	static s_multiboot_pointer : *const ::Void;
+	static s_multiboot_pointer : *const crate::Void;
 }
-static mut S_MEMMAP_DATA: [::memory::MemoryMapEnt; 16] = [::memory::MAP_PAD; 16];
+static mut S_MEMMAP_DATA: [crate::memory::MemoryMapEnt; 16] = [crate::memory::MAP_PAD; 16];
 static mut S_BOOTINFO: BootInfo = BootInfo::Uninit;
 
 fn get_bootinfo() -> &'static BootInfo
@@ -187,7 +187,7 @@ impl BootInfo
 		BootInfo::Uefi(ref i) => i.vidmode,
 		}
 	}
-	pub fn memmap(&self) -> &'static[::memory::MemoryMapEnt]
+	pub fn memmap(&self) -> &'static[crate::memory::MemoryMapEnt]
 	{
 		match *self
 		{
@@ -201,7 +201,7 @@ impl BootInfo
 
 unsafe fn valid_c_str_to_slice(ptr: *const i8) -> Option<&'static str>
 {
-	if let Some(s) = ::memory::c_string_as_byte_slice(ptr) {
+	if let Some(s) = crate::memory::c_string_as_byte_slice(ptr) {
 		::core::str::from_utf8(s).ok()
 	}
 	else {
@@ -253,7 +253,7 @@ impl MultibootParsed
 			SymbolInfo::None
 			},
 		2 => {
-			use memory::PAddr;
+			use crate::memory::PAddr;
 
 			let [num, size, addr, shndx] = info.syminfo;
 			log_debug!("Symbols ELF - num={}, size={}, addr={:#x}, shndx={}", num, size, addr, shndx);
@@ -285,7 +285,7 @@ impl MultibootParsed
 			}
 			assert_eq!( ::core::mem::size_of::<ShEnt>(), size as usize );
 			// SAFE: No aliasing
-			let shtab: &'static [ShEnt] = match unsafe { ::memory::virt::map_static_slice(addr as PAddr, num as usize) }
+			let shtab: &'static [ShEnt] = match unsafe { crate::memory::virt::map_static_slice(addr as PAddr, num as usize) }
 				{
 				Ok(v) => v,
 				Err(_) => &[],
@@ -295,23 +295,23 @@ impl MultibootParsed
 				//log_trace!("shent = {:?}", shent);
 				if shent.sh_type == 2
 				{
-					let count = shent.sh_size as usize / ::core::mem::size_of::<::symbols::Elf32_Sym>();
+					let count = shent.sh_size as usize / ::core::mem::size_of::<crate::symbols::Elf32_Sym>();
 					// SAFE: Un-aliased
-					let ents: &'static [_] = match unsafe { ::memory::virt::map_static_slice(shent.sh_addr as PAddr, count) }
+					let ents: &'static [_] = match unsafe { crate::memory::virt::map_static_slice(shent.sh_addr as PAddr, count) }
 						{
 						Ok(v) => v,
 						Err(_) => break,
 						};
 					let strtab_ent = &shtab[shent.sh_link as usize];
 					// SAFE: Un-aliased
-					let strtab: &'static [u8] = match unsafe { ::memory::virt::map_static_slice(strtab_ent.sh_addr as PAddr, strtab_ent.sh_size as usize) }
+					let strtab: &'static [u8] = match unsafe { crate::memory::virt::map_static_slice(strtab_ent.sh_addr as PAddr, strtab_ent.sh_size as usize) }
 						{
 						Ok(v) => v,
 						Err(_) => break,
 						};
 					//log_debug!("ents = {:p}+{}, strtab={:?}", ents.as_ptr(), count, ::core::str::from_utf8_unchecked(strtab) );
 					// SAFE: Called in single-threaded context
-					unsafe { ::symbols::set_symtab(ents, strtab, 0xFFFFFFFF_00000000); }
+					unsafe { crate::symbols::set_symtab(ents, strtab, 0xFFFFFFFF_00000000); }
 					return SymbolInfo::Elf32(ents, strtab);
 				}
 			}
@@ -383,13 +383,13 @@ impl MultibootParsed
 			height: info.y_res,
 			fmt: fmt,
 			pitch: info.pitch as usize,
-			base: info.physbase as ::arch::memory::PAddr,
+			base: info.physbase as crate::arch::memory::PAddr,
 			})
 	}
-	fn _memmap<'a>(&self, info: &MultibootInfo, buf: &'a mut[::memory::MemoryMapEnt]) -> &'a [::memory::MemoryMapEnt]
+	fn _memmap<'a>(&self, info: &MultibootInfo, buf: &'a mut [crate::memory::MemoryMapEnt]) -> &'a [crate::memory::MemoryMapEnt]
 	{
 		let size = {
-			let mut mapbuilder = ::memory::MemoryMapBuilder::new(buf);
+			let mut mapbuilder = crate::memory::MemoryMapBuilder::new(buf);
 			// 1. Get raw map
 			if false && (info.flags & 1 << 6) != 0 {
 				// Full memory map
@@ -402,9 +402,9 @@ impl MultibootParsed
 				assert!(info.lomem >= 625);
 				assert!(info.lomem <= 640);
 				let top_lowmem = info.lomem as u64 * 1024;
-				mapbuilder.append( 0x1000, top_lowmem - 0x1000, ::memory::MemoryState::Free, 0 );
+				mapbuilder.append( 0x1000, top_lowmem - 0x1000, crate::memory::MemoryState::Free, 0 );
 				// - High memory (above 1MiB)
-				mapbuilder.append( 0x100000, info.himem as u64 * 1024, ::memory::MemoryState::Free, 0 );
+				mapbuilder.append( 0x100000, info.himem as u64 * 1024, crate::memory::MemoryState::Free, 0 );
 			}
 			else {
 				// No memory map
@@ -417,21 +417,21 @@ impl MultibootParsed
 			// 2. Clobber out boot info
 			// - Kernel
 			// SAFE: Just taking the address
-			let kernel_start = unsafe { &::arch::imp::v_kernel_end as *const _ as u64 - IDENT_START as u64 };
+			let kernel_start = unsafe { &crate::arch::imp::v_kernel_end as *const _ as u64 - IDENT_START as u64 };
 			mapbuilder.set_range( 0x100000, kernel_start - 0x10000,
-				::memory::MemoryState::Used, 0 ).ok().unwrap();
+				crate::memory::MemoryState::Used, 0 ).ok().unwrap();
 			// - Command line string
 			mapbuilder.set_range( self.cmdline.as_ptr() as u64 - IDENT_START as u64, self.cmdline.len() as u64,
-				::memory::MemoryState::Used, 0 ).ok().unwrap();
+			crate::memory::MemoryState::Used, 0 ).ok().unwrap();
 			// - Symbol information
 			match self.symbol_info
 			{
 			SymbolInfo::None => {},
 			SymbolInfo::Elf32(sym, str) => {
-				mapbuilder.set_range( ::memory::virt::get_phys(sym.as_ptr()), (sym.len() * ::core::mem::size_of::<::symbols::Elf32_Sym>()) as u64,
-					::memory::MemoryState::Used, 0).ok().unwrap();
-				mapbuilder.set_range( ::memory::virt::get_phys(str.as_ptr()), str.len() as u64,
-					::memory::MemoryState::Used, 0).ok().unwrap();
+				mapbuilder.set_range( crate::memory::virt::get_phys(sym.as_ptr()), (sym.len() * ::core::mem::size_of::<crate::symbols::Elf32_Sym>()) as u64,
+					crate::memory::MemoryState::Used, 0).ok().unwrap();
+				mapbuilder.set_range( crate::memory::virt::get_phys(str.as_ptr()), str.len() as u64,
+					crate::memory::MemoryState::Used, 0).ok().unwrap();
 				},
 			}
 			
@@ -466,7 +466,7 @@ impl UefiParsed
 			::core::str::from_utf8( ::core::slice::from_raw_parts(info.cmdline_ptr, info.cmdline_len) ).expect("UefiParsed::_cmdline")
 		}
 	}
-	fn _memmap<'a>(&self, info: &uefi_proto::Info, buf: &'a mut[::memory::MemoryMapEnt]) -> &'a [::memory::MemoryMapEnt] {
+	fn _memmap<'a>(&self, info: &uefi_proto::Info, buf: &'a mut [crate::memory::MemoryMapEnt]) -> &'a [crate::memory::MemoryMapEnt] {
 		// TODO: Put this elsewhere
 		struct StrideSlice<T> {
 			ptr: *const T,
@@ -503,7 +503,7 @@ impl UefiParsed
 		}
 
 		let size = {
-			let /*mut*/ mapbuilder = ::memory::MemoryMapBuilder::new(buf);
+			let /*mut*/ mapbuilder = crate::memory::MemoryMapBuilder::new(buf);
 			// SAFE: Trusting the bootloader
 			for ent in unsafe { StrideSlice::new(info.map_addr as *const uefi_proto::MemoryDescriptor, info.map_entnum as usize, info.map_entsz as usize) }
 			{
@@ -529,7 +529,7 @@ pub fn get_video_mode() -> Option<VideoMode>
 }
 
 /// Obtain the memory map
-pub fn get_memory_map() -> &'static[::memory::MemoryMapEnt]
+pub fn get_memory_map() -> &'static[crate::memory::MemoryMapEnt]
 {
 	get_bootinfo().memmap()
 }

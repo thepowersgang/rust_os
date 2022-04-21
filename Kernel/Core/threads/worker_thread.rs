@@ -4,7 +4,7 @@
 // Core/threads/worker_thread.rs
 //! Management of kernel worker threads (short or long)
 #[allow(unused_imports)]
-use prelude::*;
+use crate::prelude::*;
 
 
 pub struct WorkerThread(super::thread::ThreadHandle);

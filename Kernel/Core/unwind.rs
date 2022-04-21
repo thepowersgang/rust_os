@@ -75,18 +75,18 @@ pub extern fn rust_begin_unwind(info: &::core::panic::PanicInfo) -> ! {
 fn begin_panic_fmt(msg: &::core::fmt::Arguments, (file, line): (&str, u32)) -> !
 {
 	static NESTED: ::core::sync::atomic::AtomicBool = ::core::sync::atomic::AtomicBool::new(false);
-	::arch::puts("\nERROR: rust_begin_unwind: ");
-	::arch::puts(file);
-	::arch::puts(":");
-	::arch::puth(line as u64);
-	::arch::puts("\n");
+	crate::arch::puts("\nERROR: rust_begin_unwind: ");
+	crate::arch::puts(file);
+	crate::arch::puts(":");
+	crate::arch::puth(line as u64);
+	crate::arch::puts("\n");
 	if NESTED.swap(true, ::core::sync::atomic::Ordering::SeqCst) {
-		::arch::puts("NESTED!\n");
+		crate::arch::puts("NESTED!\n");
 		loop {}
 	}
-	::arch::print_backtrace();
+	crate::arch::print_backtrace();
 	log_panic!("{}:{}: Panicked \"{:?}\"", file, line, msg);
-	::metadevs::video::set_panic(file, line as usize, msg);
+	crate::metadevs::video::set_panic(file, line as usize, msg);
 	loop{}
 }
 #[lang="eh_personality"]
@@ -106,8 +106,8 @@ fn rust_eh_personality(
 
 #[no_mangle] pub extern "C" fn abort() -> !
 {
-	::arch::puts("\nABORT ABORT ABORT\n");
-	::arch::print_backtrace();
+	crate::arch::puts("\nABORT ABORT ABORT\n");
+	crate::arch::print_backtrace();
 	loop {}
 }
 

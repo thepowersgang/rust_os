@@ -4,7 +4,7 @@
 // Core/sync/semaphore.rs
 //! Thread blocking semaphore type
 //use prelude::*;
-use sync::Spinlock;
+use crate::sync::Spinlock;
 
 /// Semaphore
 pub struct Semaphore
@@ -17,7 +17,7 @@ pub struct Semaphore
 struct Inner
 {
 	value: isize,
-	wait_queue: ::threads::WaitQueue,
+	wait_queue: crate::threads::WaitQueue,
 	//signal_queue: ::threads::WaitQueue,
 }
 
@@ -30,8 +30,8 @@ impl Semaphore
 			max_value: max_val,
 			internals: Spinlock::new( Inner {
 				value: init_val,
-				wait_queue: ::threads::WaitQueue::new(),
-				//signal_queue: ::threads::WaitQueue::new(),
+				wait_queue: crate::threads::WaitQueue::new(),
+				//signal_queue: crate::threads::WaitQueue::new(),
 				} ),
 		}
 	}

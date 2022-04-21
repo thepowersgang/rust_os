@@ -4,17 +4,17 @@
 // Core/sync/queue.rs
 //! Thread-safe (optionally unbounded) generic queue
 #[allow(unused_imports)]
-use prelude::*;
-use sync::Spinlock;
+use crate::prelude::*;
+use crate::sync::Spinlock;
 use core::cell::UnsafeCell;
-use sync::Mutex;
-use lib::VecDeque;
+use crate::sync::Mutex;
+use crate::lib::VecDeque;
 
 pub struct Queue<T>
 {
 	lock: Spinlock<bool>,
 	// Separate from the lock because WaitQueue::wait() takes a bool lock
-	queue: UnsafeCell< ::threads::WaitQueue >,
+	queue: UnsafeCell< crate::threads::WaitQueue >,
 	data: Mutex<VecDeque<T>>,
 }
 
@@ -29,7 +29,7 @@ impl<T> Queue<T>
 	{
 		Queue {
 			lock: Spinlock::new(false),
-			queue: UnsafeCell::new(::threads::WaitQueue::new()),
+			queue: UnsafeCell::new(crate::threads::WaitQueue::new()),
 			data: Mutex::new(VecDeque::new_const()),
 			}
 	}

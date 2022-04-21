@@ -4,7 +4,7 @@
 // arch/amd64/hw/apic/init.rs
 // - x86 APIC Initialisation (ACPI parsing)
 #[allow(unused_imports)]
-use prelude::*;
+use crate::prelude::*;
 
 #[repr(C,packed)]
 //#[derive(FromPacked)]

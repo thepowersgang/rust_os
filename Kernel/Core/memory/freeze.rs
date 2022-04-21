@@ -10,7 +10,7 @@
 //!
 //! The page-fault handler should handle the case of a user PF on a frozen page by sleeping that thread until the page is unfrozen.
 #[allow(unused_imports)]
-use prelude::*;
+use crate::prelude::*;
 
 
 #[derive(Debug)]

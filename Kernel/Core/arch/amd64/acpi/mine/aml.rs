@@ -44,20 +44,20 @@ impl<'a> AmlStream<'a>
 		}
 	}
 	fn take(&mut self, size: usize) -> Result<AmlStream<'a>,Error> {
-		Ok( AmlStream::new( try!(self.slice(size)) ) )
+		Ok( AmlStream::new( self.slice(size)? ) )
 	}
 	fn read_byte(&mut self) -> Result<u8,Error> {
-		Ok( try!(self.slice(1))[0] )
+		Ok( self.slice(1)?[0] )
 	}
 	fn read_pkglength(&mut self) -> Result<usize,Error> {
-		let lead = try!(self.read_byte());
+		let lead = self.read_byte()?;
 		match lead >> 6
 		{
 		0 => Ok(lead as usize),
 		count @ 1 ..= 3 => {
 			let mut rv = lead as usize & 0xF;
 			for ofs in 0 .. count {
-				let b = try!(self.read_byte()) as usize;
+				let b = self.read_byte()? as usize;
 				rv |= b << (4 + ofs*8);
 			}
 			Ok( rv )
@@ -97,7 +97,7 @@ impl<'a> AmlStream<'a>
 			v @ _ => todo!("read_namestring - non-trivial path types ({:#02x})", v),
 			};
 		
-		try!(self.slice(len));
+		self.slice(len)?;
 		
 		let rv_bytes = &base[0 .. len-(if ignore_last { 1 } else { 0 })];
 		Ok( ::core::str::from_utf8(rv_bytes).unwrap() )
@@ -106,13 +106,13 @@ impl<'a> AmlStream<'a>
 	fn read_uint(&mut self, bytes: usize) -> Result<u64, Error> {
 		let mut rv = 0;
 		for i in 0 .. bytes {
-			rv |= (try!(self.read_byte()) as u64) << i*8;
+			rv |= (self.read_byte()? as u64) << i*8;
 		}
 		Ok( rv )
 	}
 	
 	pub fn read_termarg(&mut self) -> Result<u64, Error> {
-		match try!(self.read_byte())
+		match self.read_byte()?
 		{
 		// Type2Opcode
 		0x00 => Ok( 0 ),
@@ -120,7 +120,7 @@ impl<'a> AmlStream<'a>
 		// Data Object
 		// - ComputationalData
 		//  - ByteConst
-		0x0A => Ok( try!(self.read_byte()) as u64 ), 
+		0x0A => Ok( self.read_byte()? as u64 ), 
 		0x0B => self.read_uint(2),
 		0x0C => self.read_uint(4),
 		0x0D => todo!("read_termarg - string"),
@@ -153,58 +153,58 @@ impl<'a> AmlStream<'a>
 
 fn dump_aml_termobj(data: &mut AmlStream) -> Result<usize,Error>
 {
-	match try!(data.read_byte())
+	match data.read_byte()?
 	{
 	// TermObj
 	// -> NameSpaceModifierObj
 	//  -> DefAlias
 	0x06 => {
-		let dst = try!(data.read_namestring());
-		let src = try!(data.read_namestring());
+		let dst = data.read_namestring()?;
+		let src = data.read_namestring()?;
 		log_trace!("DefAlias {} {}", dst, src);
 		},
 	//  -> DefName
 	0x08 => {
 		// NameString
-		let name = try!(data.read_namestring());
+		let name = data.read_namestring()?;
 		// DataRefObject
 		todo!("DefName DataRefObject (name={})", name);
 		},
 	//  -> DefScope
 	0x10 => {
-		let pkg_length = try!(data.read_pkglength());
-		let name_string = try!(data.read_namestring());
+		let pkg_length = data.read_pkglength()?;
+		let name_string = data.read_namestring()?;
 		log_trace!("Node '{}' ({} bytes)", name_string, pkg_length);
 		// TermList
-		let mut subdata = try!(data.take(pkg_length));
+		let mut subdata = data.take(pkg_length)?;
 		while !subdata.empty()
 		{
-			try!(dump_aml_termobj(&mut subdata));
+			dump_aml_termobj(&mut subdata)?;
 		}
 		log_trace!("CLOSE '{}'", name_string);
 		},
 	// -> NamedObj, -> Type1Opcode, -> Type2Opcode
-	0x5B => match try!(data.read_byte())
+	0x5B => match data.read_byte()?
 		{
 		// -> DefOpRegion
 		0x80 => {
-			let name = try!(data.read_namestring());
-			let space = try!(data.read_byte());
-			let ofs = try!(data.read_termarg());
-			let len = try!(data.read_termarg());
+			let name = data.read_namestring()?;
+			let space = data.read_byte()?;
+			let ofs = data.read_termarg()?;
+			let len = data.read_termarg()?;
 			log_debug!("Region '{}' {} {:#x}+{}", name, space, ofs, len);
 			},
 		// -> DefField
 		0x81 => {
-			let len = try!(data.read_pkglength());
-			let name = try!(data.read_namestring());
-			let flags = try!(data.read_byte());	// FieldFlags
+			let len = data.read_pkglength()?;
+			let name = data.read_namestring()?;
+			let flags = data.read_byte()?;	// FieldFlags
 			log_debug!("Field '{}' flags={:#x}", name, flags);
 			// FieldList
-			let mut subdata = try!(data.take(len));
+			let mut subdata = data.take(len)?;
 			while !subdata.empty()
 			{
-				let e = try!(subdata.read_fieldelement());
+				let e = subdata.read_fieldelement()?;
 				log_debug!("- {:?}", e);
 			}
 			},
@@ -224,7 +224,7 @@ fn dump_aml_termobj(data: &mut AmlStream) -> Result<usize,Error>
 
 pub fn dump_aml(data: &[u8])
 {
-	::logging::hex_dump( "AML", data );
+	crate::logging::hex_dump( "AML", data );
 	
 	match dump_aml_termobj( &mut AmlStream::new(data) )
 	{

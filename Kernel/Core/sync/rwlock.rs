@@ -15,7 +15,7 @@ macro_rules! trace_type {
 /// Reader-writer lock
 pub struct RwLock<T>
 {
-	inner: ::sync::Spinlock<RwLockInner>,
+	inner: crate::sync::Spinlock<RwLockInner>,
 	data: UnsafeCell<T>,
 }
 unsafe impl<T: Send+Sync> Sync for RwLock<T> { }
@@ -23,8 +23,8 @@ unsafe impl<T: Send+Sync> Send for RwLock<T> { }
 struct RwLockInner
 {
 	reader_count: i32,
-	reader_queue: ::threads::WaitQueue,
-	writer_queue: ::threads::WaitQueue,
+	reader_queue: crate::threads::WaitQueue,
+	writer_queue: crate::threads::WaitQueue,
 }
 
 /// Read-write lock - Read handle
@@ -49,10 +49,10 @@ impl<T> RwLock<T>
 	pub const fn new(data: T) -> RwLock<T>
 	{
 		RwLock {
-			inner: ::sync::Spinlock::new(RwLockInner {
+			inner: crate::sync::Spinlock::new(RwLockInner {
 				reader_count: 0,
-				reader_queue: ::threads::WaitQueue::new(),
-				writer_queue: ::threads::WaitQueue::new(),
+				reader_queue: crate::threads::WaitQueue::new(),
+				writer_queue: crate::threads::WaitQueue::new(),
 				}),
 			data: UnsafeCell::new(data),
 		}

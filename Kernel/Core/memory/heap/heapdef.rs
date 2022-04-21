@@ -3,7 +3,7 @@
 //
 //! 
 use super::{ZERO_ALLOC, Error};
-use arch::memory::addresses;
+use crate::arch::memory::addresses;
 
 // Curse no CTFE
 //const HEADERS_SIZE: usize = ::core::mem::size_of::<HeapHead>() + ::core::mem::size_of::<HeapFoot>();
@@ -70,7 +70,7 @@ impl HeapDef
 		let headers_size = ::core::mem::size_of::<HeapHead>() + ::core::mem::size_of::<HeapFoot>();
 		
 		// 1. Round size up to closest heap block size
-		let blocksize = ::lib::num::round_up(size + headers_size, 32);
+		let blocksize = crate::lib::num::round_up(size + headers_size, 32);
 		log_debug!("allocate(size={},align={}) blocksize={}", size, align, blocksize);
 
 		// 2. Locate a free location
@@ -143,7 +143,7 @@ impl HeapDef
 		// Fall through: No free blocks would fit the allocation
 		
 		// 3. If none, allocate more space
-		let block_ptr = try!( self.expand(blocksize) );
+		let block_ptr = self.expand(blocksize)?;
 		let block = &mut *block_ptr;
 		// > Split returned block into a block of required size and a free block
 		if block.size() > blocksize
@@ -300,7 +300,7 @@ impl HeapDef
 		
 		
 		// 1. Allocate at least one page at the end of the heap
-		let n_pages = ::lib::num::round_up(alloc_size, ::PAGE_SIZE) / ::PAGE_SIZE;
+		let n_pages = crate::lib::num::round_up(alloc_size, crate::PAGE_SIZE) / crate::PAGE_SIZE;
 		//log_debug!("HeapDef.expand(min_size={}), alloc_size={}, n_pages={}", min_size, alloc_size, n_pages);
 		//log_trace!("last_foot = {:p}", self.last_foot);
 		assert!(n_pages > 0);
@@ -308,15 +308,15 @@ impl HeapDef
 		if last_foot.next_head() as usize == addresses::HEAP_END {
 			return Err( Error::OutOfReservation );
 		}
-		if last_foot.next_head() as usize + n_pages * ::PAGE_SIZE > addresses::HEAP_END {
+		if last_foot.next_head() as usize + n_pages * crate::PAGE_SIZE > addresses::HEAP_END {
 			return Err( Error::OutOfReservation );
 		}
 
 		// Allocate memory into the new region
-		match ::memory::virt::allocate(last_foot.next_head() as *mut(), n_pages)
+		match crate::memory::virt::allocate(last_foot.next_head() as *mut(), n_pages)
 		{
 		Ok(_) => {},
-		Err(::memory::virt::MapError::OutOfMemory) => return Err(Error::OutOfMemory),
+		Err(crate::memory::virt::MapError::OutOfMemory) => return Err(Error::OutOfMemory),
 		Err(e @ _) => panic!("Unknown error from VMM: {:?}", e),
 		}
 
@@ -325,7 +325,7 @@ impl HeapDef
 			{
 				let block = &mut *last_foot.head;
 				log_debug!("HeapDef.expand: (prev) &block={:p}", block);
-				let newsize = block.size() + n_pages * ::PAGE_SIZE;
+				let newsize = block.size() + n_pages * crate::PAGE_SIZE;
 				block.resize(newsize);
 				
 				block
@@ -335,7 +335,7 @@ impl HeapDef
 				let block = &mut *last_foot.next_head();
 
 				log_debug!("HeapDef.expand: (new) &block={:p}", block);
-				(*block).initialise( n_pages * ::PAGE_SIZE, HeapState::Free(0 as *mut _) );
+				(*block).initialise( n_pages * crate::PAGE_SIZE, HeapState::Free(0 as *mut _) );
 				
 				block
 			};

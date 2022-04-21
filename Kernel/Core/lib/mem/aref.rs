@@ -9,7 +9,7 @@
 //! This type is designed to be used where there is a definitive owner of a peice of memory (e.g. a box)
 //! but you also want to lend pointers to that memory out (where the pointers should never outlive the 
 //! original memory).
-use prelude::*;
+use crate::prelude::*;
 use core::sync::atomic::{AtomicUsize,Ordering};
 use core::ptr::NonNull;
 use core::{ops, fmt};

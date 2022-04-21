@@ -13,7 +13,7 @@ pub(super) fn init()
 	crate::hw::bus_pci::register_bus( S_BUILTIN_INTERFACE.prep(|| Aref::new(BuiltinInterface)).borrow() );
 }
 
-static S_PCI_LOCK: ::sync::Spinlock<PCICfgSpace> = ::sync::Spinlock::new(PCICfgSpace);
+static S_PCI_LOCK: crate::sync::Spinlock<PCICfgSpace> = crate::sync::Spinlock::new(PCICfgSpace);
 
 struct PCICfgSpace;
 impl PCICfgSpace
@@ -21,15 +21,15 @@ impl PCICfgSpace
 	fn read(&mut self, addr: u32) -> u32 {
 		// SAFE: (from accessing the wrong place)
 		unsafe {
-			::arch::x86_io::outl(0xCF8, 0x80000000 | addr);
-			::arch::x86_io::inl(0xCFC)
+			crate::arch::x86_io::outl(0xCF8, 0x80000000 | addr);
+			crate::arch::x86_io::inl(0xCFC)
 		}
 	}
 	fn write(&mut self, addr: u32, val: u32) {
 		// SAFE: (from accessing the wrong place)
 		unsafe {
-			::arch::x86_io::outl(0xCF8, 0x80000000 | addr);
-			::arch::x86_io::outl(0xCFC, val)
+			crate::arch::x86_io::outl(0xCF8, 0x80000000 | addr);
+			crate::arch::x86_io::outl(0xCFC, val)
 		}
 	}
 }

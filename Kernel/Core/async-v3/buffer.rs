@@ -18,9 +18,9 @@ pub struct ReadBufferHandle<'a> {
 }
 */
 
-pub enum WriteBufferHandle<'async: 'local,'local> {
+pub enum WriteBufferHandle<'async_: 'local,'local> {
 	/// Buffer that outlives the async stack
-	Long(&'async mut [u8]),
+	Long(&'async_ mut [u8]),
 	/// A buffer that doesn't outlive the async stack (and will have to be buffered by something)
 	Short(&'local mut [u8]),
 	///// A buffer with ownership being passed in.

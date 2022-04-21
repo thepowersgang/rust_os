@@ -17,7 +17,7 @@ pub struct Waiter<'a>(Option<&'a Source>);
 pub struct Source
 {
 	// TODO: Have a local SleepObjectRef to avoid malloc on single-wait case
-	waiters: ::sync::mutex::Mutex< ::lib::Queue<::threads::SleepObjectRef> >,
+	waiters: crate::sync::mutex::Mutex< crate::lib::Queue<crate::threads::SleepObjectRef> >,
 }
 
 
@@ -27,7 +27,7 @@ impl Source
 	pub const fn new() -> Source
 	{
 		Source {
-			waiters: ::sync::mutex::Mutex::new(::lib::Queue::new()),
+			waiters: crate::sync::mutex::Mutex::new(crate::lib::Queue::new()),
 		}
 	}
 	
@@ -41,11 +41,11 @@ impl Source
 		unimplemented!();
 	}
 
-	pub fn wait_upon(&self, waiter: &mut ::threads::SleepObject) {
+	pub fn wait_upon(&self, waiter: &mut crate::threads::SleepObject) {
 		let mut wh = self.waiters.lock();
 		wh.push( waiter.get_ref() );
 	}
-	pub fn clear_wait(&self, waiter: &mut ::threads::SleepObject) {
+	pub fn clear_wait(&self, waiter: &mut crate::threads::SleepObject) {
 		self.waiters.lock().filter_out(|ent| ent.is_from(waiter));
 	}
 	
@@ -61,6 +61,15 @@ impl Source
 		else
 		{
 			false
+		}
+	}
+
+	/// Wake all waiting threads
+	pub fn wake_all(&self)
+	{
+		let mut lh = self.waiters.lock();
+		while let Some(waiter) = lh.pop() {
+			waiter.signal();
 		}
 	}
 }
@@ -82,7 +91,7 @@ impl<'a> super::PrimitiveWaiter for Waiter<'a>
 	fn run_completion(&mut self) {
 		unimplemented!();
 	}
-	fn bind_signal(&mut self, _sleeper: &mut ::threads::SleepObject) -> bool {
+	fn bind_signal(&mut self, _sleeper: &mut crate::threads::SleepObject) -> bool {
 		unimplemented!();
 	}
 	fn unbind_signal(&mut self) {

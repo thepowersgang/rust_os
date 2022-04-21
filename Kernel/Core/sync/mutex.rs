@@ -4,7 +4,7 @@
 // Core/sync/mutex.rs
 //! Thread blocking Mutex type
 #[allow(unused_imports)]
-use prelude::*;
+use crate::prelude::*;
 use core::ops;
 
 /// A standard mutex (blocks the current thread when contended)
@@ -17,15 +17,15 @@ pub struct Mutex<T>
 /// A mutex that controls no data (used as the non-generic portion of `Mutex<T>`)
 struct UnitMutex
 {
-	inner: ::sync::Spinlock<MutexInner>,
+	inner: crate::sync::Spinlock<MutexInner>,
 }
 
 #[doc(hidden)]
 struct MutexInner
 {
 	held: bool,
-	holder: ::threads::ThreadID,
-	queue: ::threads::WaitQueue,
+	holder: crate::threads::ThreadID,
+	queue: crate::threads::WaitQueue,
 }
 
 // Mutexes are inherently sync
@@ -48,10 +48,10 @@ impl UnitMutex
 {
 	pub const fn new() -> UnitMutex {
 		UnitMutex {
-			inner: ::sync::Spinlock::new(MutexInner {
+			inner: crate::sync::Spinlock::new(MutexInner {
 				held: false,
 				holder: !0,
-				queue: ::threads::WaitQueue::new(),
+				queue: crate::threads::WaitQueue::new(),
 				}),
 			}
 	}
@@ -65,17 +65,17 @@ impl UnitMutex
 			let mut lh = self.inner.lock();
 			if lh.held != false
 			{
-				assert!(lh.holder != ::threads::get_thread_id(), "Recursive lock of {}", ty_name);
+				assert!(lh.holder != crate::threads::get_thread_id(), "Recursive lock of {}", ty_name);
 				// If mutex is locked, then wait for it to be unlocked
 				// - ThreadList::wait will release the passed spinlock before sleeping. NOTE: It doesn't re-acquire the lock
 				waitqueue_wait_ext!(lh, .queue);
 				lh = self.inner.lock();
-				assert!(lh.holder == ::threads::get_thread_id(), "Invalid wakeup in lock of {}", ty_name);
+				assert!(lh.holder == crate::threads::get_thread_id(), "Invalid wakeup in lock of {}", ty_name);
 			}
 			else
 			{
 				lh.held = true;
-				lh.holder = ::threads::get_thread_id();
+				lh.holder = crate::threads::get_thread_id();
 			}
 		}
 		Self::trace(self, ty_name, "lock - acquired");

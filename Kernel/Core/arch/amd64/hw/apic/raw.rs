@@ -3,29 +3,29 @@
 //
 // arch/amd64/hw/apic/raw.rs
 // - x86 APIC Raw hardware API
-use prelude::*;
+use crate::prelude::*;
 
 static TIMER_VEC: u8 = 0x7E;
 
 pub struct LAPIC
 {
 	paddr: u64,
-	mapping: ::memory::virt::AllocHandle,
+	mapping: crate::memory::virt::AllocHandle,
 	#[allow(dead_code)]
-	timer_isr: ::arch::imp::interrupts::ISRHandle,
+	timer_isr: crate::arch::imp::interrupts::ISRHandle,
 }
 
 pub struct IOAPIC
 {
-	regs: ::sync::Mutex<IOAPICRegs>,
+	regs: crate::sync::Mutex<IOAPICRegs>,
 	num_lines: usize,
 	first_irq: usize,
-	handlers: ::sync::Spinlock< Vec< Option<super::IRQHandler> > >,
+	handlers: crate::sync::Spinlock< Vec< Option<super::IRQHandler> > >,
 }
 
 struct IOAPICRegs
 {
-	mapping: ::memory::virt::AllocHandle,
+	mapping: crate::memory::virt::AllocHandle,
 }
 
 #[allow(dead_code)]
@@ -85,7 +85,7 @@ impl LAPIC
 		let ret = LAPIC {
 			paddr: paddr,
 			// Assume SAFE: Shouldn't be aliasing
-			mapping: unsafe { ::memory::virt::map_hw_rw(paddr, 1, "APIC").unwrap() },
+			mapping: unsafe { crate::memory::virt::map_hw_rw(paddr, 1, "APIC").unwrap() },
 			timer_isr: Default::default(),
 			};
 		
@@ -100,7 +100,7 @@ impl LAPIC
 	/// Initialise the LAPIC structures once self is in its final location
 	pub fn global_init(&mut self)
 	{
-		self.timer_isr = match ::arch::imp::interrupts::bind_isr(TIMER_VEC, lapic_timer, self as *mut _ as *const (), 0)
+		self.timer_isr = match crate::arch::imp::interrupts::bind_isr(TIMER_VEC, lapic_timer, self as *mut _ as *const (), 0)
 			{
 			Ok(v) => v,
 			Err(e) => panic!("Unable to bind LAPIC timer: {:?}", e),
@@ -232,10 +232,10 @@ impl IOAPIC
 		
 		log_debug!("IOAPIC: {{ {:#x} - {} + {} }}", paddr, base, num_lines);
 		IOAPIC {
-			regs: ::sync::Mutex::new( regs ),
+			regs: crate::sync::Mutex::new( regs ),
 			num_lines: num_lines,
 			first_irq: base,
-			handlers: ::sync::Spinlock::new( Vec::from_fn(num_lines, |_| None) ),
+			handlers: crate::sync::Spinlock::new( Vec::from_fn(num_lines, |_| None) ),
 			}
 	}
 	
@@ -248,7 +248,7 @@ impl IOAPIC
 	//#[is_safe(irq)]	// Holds interrupts before lock
 	pub fn get_callback(&self, idx: usize) -> Option<super::IRQHandler> {
 		assert!( idx < self.num_lines );
-		let _irql = ::sync::hold_interrupts();
+		let _irql = crate::sync::hold_interrupts();
 		self.handlers.lock()[idx]
 	}
 	
@@ -263,7 +263,7 @@ impl IOAPIC
 
 		// Unsynchronised write. Need to use Spinlock (with IRQ hold)?
 		{
-			let _irql = ::sync::hold_interrupts();
+			let _irql = crate::sync::hold_interrupts();
 			self.handlers.lock()[idx] = Some( cb );
 		}
 		let flags: u32 = match mode {
@@ -298,7 +298,7 @@ impl IOAPICRegs
 	fn new( paddr: u64 ) -> IOAPICRegs
 	{
 		// Assume SAFE: Should not end up with aliasing
-		let mapping = unsafe { ::memory::virt::map_hw_rw(paddr, 1, "IOAPIC").unwrap() };
+		let mapping = unsafe { crate::memory::virt::map_hw_rw(paddr, 1, "IOAPIC").unwrap() };
 		IOAPICRegs {
 			mapping: mapping
 		}

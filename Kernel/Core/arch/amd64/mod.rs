@@ -81,9 +81,9 @@ impl ::core::fmt::Display for SymPrint
 {
 	fn fmt(&self, f: &mut ::core::fmt::Formatter) -> ::core::fmt::Result {
 		let ip = self.0;
-		try!(write!(f, "{:#x}", ip));
-		if let Some( (name, ofs) ) = ::symbols::get_symbol_for_addr(ip as usize - 1) {
-			try!(write!(f, "({}+{:#x})", ::symbols::Demangle(name), ofs + 1));
+		write!(f, "{:#x}", ip)?;
+		if let Some( (name, ofs) ) = crate::symbols::get_symbol_for_addr(ip as usize - 1) {
+			write!(f, "({}+{:#x})", crate::symbols::Demangle(name), ofs + 1)?;
 		}
 		Ok( () )
 	}
@@ -94,7 +94,7 @@ impl ::core::fmt::Display for Backtrace {
 		let mut bp = self.0 as u64;
 		while let Option::Some((newbp, ip)) = cpu_faults::backtrace(bp)
 		{
-			try!(write!(f, " > {}", SymPrint(ip as usize)));
+			write!(f, " > {}", SymPrint(ip as usize))?;
 			bp = newbp;
 		}
 		Ok( () )

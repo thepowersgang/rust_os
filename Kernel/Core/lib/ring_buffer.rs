@@ -6,10 +6,10 @@
 //!
 //! Provides a fixed-capacity ring buffer
 #[allow(unused_imports)]
-use prelude::*;
-use memory::heap::ArrayAlloc;
+use crate::prelude::*;
+use crate::memory::heap::ArrayAlloc;
 use core::sync::atomic::{AtomicUsize,Ordering};
-use sync::Spinlock;
+use crate::sync::Spinlock;
 
 /// Fixed-size ring buffer type
 pub struct RingBuf<T>
@@ -128,7 +128,7 @@ impl<T: Send> AtomicRingBuf<T>
 	/// Pop an item from the ring buffer
 	pub fn pop(&self) -> Option<T>
 	{
-		let _irql = ::sync::hold_interrupts();
+		let _irql = crate::sync::hold_interrupts();
 		let _lh = self.read_protector.lock();
 		
 		let idx = self.start.load(Ordering::Relaxed);
@@ -150,7 +150,7 @@ impl<T: Send> AtomicRingBuf<T>
 	/// Push onto the end, returning Err(val) if full
 	pub fn push(&self, val: T) -> Result<(),T>
 	{
-		let _irql = ::sync::hold_interrupts();
+		let _irql = crate::sync::hold_interrupts();
 		let _lh = self.write_protector.lock();
 		
 		let pos = self.end.load(Ordering::Relaxed);

@@ -3,18 +3,18 @@
 //
 // Core/irqs.rs
 //! Core IRQ Abstraction
-use prelude::*;
+use crate::prelude::*;
 use core::sync::atomic::AtomicBool;
-use arch::sync::Spinlock;
-use arch::interrupts;
-use lib::{VecMap};
-use lib::mem::Arc;
+use crate::arch::sync::Spinlock;
+use crate::arch::interrupts;
+use crate::lib::{VecMap};
+use crate::lib::mem::Arc;
 
 /// A handle for an IRQ binding that pokes an async event when the IRQ fires
 pub struct EventHandle
 {
 	_binding: BindingHandle,
-	event: Arc<::async::event::Source>,
+	event: Arc<crate::r#async::event::Source>,
 }
 pub struct ObjectHandle( BindingHandle );
 
@@ -41,17 +41,17 @@ struct Bindings
 // - Hand out 'Handle' structures containing a pointer to the handler on that queue?
 // - Per IRQ queue of
 /// Map of IRQ numbers to core's dispatcher bindings. Bindings are boxed so the address is known in the constructor
-static S_IRQ_BINDINGS: ::sync::mutex::LazyMutex<Bindings> = lazymutex_init!();
+static S_IRQ_BINDINGS: crate::sync::mutex::LazyMutex<Bindings> = lazymutex_init!();
 
-static S_IRQ_WORKER_SIGNAL: ::lib::LazyStatic<::threads::SleepObject<'static>> = lazystatic_init!();
-static S_IRQ_WORKER: ::lib::LazyStatic<::threads::WorkerThread> = lazystatic_init!();
+static S_IRQ_WORKER_SIGNAL: crate::lib::LazyStatic<crate::threads::SleepObject<'static>> = lazystatic_init!();
+static S_IRQ_WORKER: crate::lib::LazyStatic<crate::threads::WorkerThread> = lazystatic_init!();
 
 pub fn init() {
 	// SAFE: Called in a single-threaded context? (Not fully conttrolled)
 	unsafe {
 		// SAFE: The SleepObject here is static, so is never invalidated
-		S_IRQ_WORKER_SIGNAL.prep(|| /*unsafe*/ { ::threads::SleepObject::new("IRQ Worker") });
-		S_IRQ_WORKER.prep(|| ::threads::WorkerThread::new("IRQ Worker", irq_worker));
+		S_IRQ_WORKER_SIGNAL.prep(|| /*unsafe*/ { crate::threads::SleepObject::new("IRQ Worker") });
+		S_IRQ_WORKER.prep(|| crate::threads::WorkerThread::new("IRQ Worker", irq_worker));
 	}
 }
 
@@ -64,9 +64,9 @@ fn bind(num: u32, obj: Box<dyn FnMut()->bool + Send>) -> BindingHandle
 	map_lh.next_index += 1;
 	let binding = match map_lh.mapping.entry(num)
 		{
-		::lib::vec_map::Entry::Occupied(e) => e.into_mut(),
+		crate::lib::vec_map::Entry::Occupied(e) => e.into_mut(),
 		// - Vacant, create new binding (pokes arch IRQ clode)
-		::lib::vec_map::Entry::Vacant(e) => e.insert( IRQBinding::new_boxed(num) ),
+		crate::lib::vec_map::Entry::Vacant(e) => e.insert( IRQBinding::new_boxed(num) ),
 		};
 	// 2. Add this handler to the meta-handler
 	binding.handlers.lock().push( obj );
@@ -103,7 +103,7 @@ fn irq_worker()
 /// Bind an event waiter to an interrupt
 pub fn bind_event(num: u32) -> EventHandle
 {
-	let ev = Arc::new( ::async::event::Source::new() );
+	let ev = Arc::new( crate::r#async::event::Source::new() );
 	EventHandle {
 		event: ev.clone(),
 		_binding: bind(num, Box::new(move || { ev.trigger(); true })),
@@ -155,7 +155,7 @@ impl IRQBinding
 
 impl EventHandle
 {
-	pub fn get_event(&self) -> &::async::event::Source
+	pub fn get_event(&self) -> &crate::r#async::event::Source
 	{
 		&*self.event
 	}

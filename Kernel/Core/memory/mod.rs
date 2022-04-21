@@ -1,7 +1,7 @@
 //
 //
 //
-use arch::memory::{VAddr};
+use crate::arch::memory::{VAddr};
 use core::option::Option::{self,None,Some};
 
 pub use self::memorymap::{MAP_PAD, MemoryMapEnt, MemoryMapBuilder};
@@ -26,7 +26,7 @@ pub mod bump_region;
 pub mod page_cache;
 pub mod page_array;
 
-pub use arch::memory::PAddr;
+pub use crate::arch::memory::PAddr;
 
 /*
 #[derive(Copy,Clone,Debug)]
@@ -61,7 +61,7 @@ impl ::core::ops::Sub<PAddr> for PAddr {
 pub unsafe fn c_string_as_byte_slice<'a>(c_str: *const i8) -> Option<&'a [u8]>
 {
 	// 1. Check first page
-	if ! ::arch::memory::virt::is_reserved(c_str) {
+	if ! crate::arch::memory::virt::is_reserved(c_str) {
 		return None;
 	}
 	
@@ -69,9 +69,9 @@ pub unsafe fn c_string_as_byte_slice<'a>(c_str: *const i8) -> Option<&'a [u8]>
 	while *ptr != 0
 	{
 		ptr = ptr.offset(1);
-		if ptr as usize % ::PAGE_SIZE == 0
+		if ptr as usize % crate::PAGE_SIZE == 0
 		{
-			if ! ::arch::memory::virt::is_reserved(ptr) {
+			if ! crate::arch::memory::virt::is_reserved(ptr) {
 				return None;
 			}
 		}
@@ -126,10 +126,10 @@ pub fn buf_valid(ptr: *const (), mut size: usize) -> bool
 			return true;
 		}
 	}
-	else if ! ::arch::memory::virt::is_reserved(ptr) {
+	else if ! crate::arch::memory::virt::is_reserved(ptr) {
 		return false;
 	}
-	let rem_ofs = ::PAGE_SIZE - addr % ::PAGE_SIZE;
+	let rem_ofs = crate::PAGE_SIZE - addr % crate::PAGE_SIZE;
 	
 	if size > rem_ofs
 	{
@@ -137,12 +137,12 @@ pub fn buf_valid(ptr: *const (), mut size: usize) -> bool
 		size -= rem_ofs;
 		while size != 0
 		{
-			if ! ::arch::memory::virt::is_reserved(addr as *const ()) {
+			if ! crate::arch::memory::virt::is_reserved(addr as *const ()) {
 				return false;
 			}
-			if size > ::PAGE_SIZE {
-				size -= ::PAGE_SIZE;
-				addr += ::PAGE_SIZE;
+			if size > crate::PAGE_SIZE {
+				size -= crate::PAGE_SIZE;
+				addr += crate::PAGE_SIZE;
 			}
 			else {
 				break;

@@ -4,10 +4,11 @@
 // Core/vfs/handle.rs
 //! Opened file interface
 #[allow(unused_imports)]
-use prelude::*;
+use crate::prelude::*;
 use super::node::{CacheHandle,NodeType};
-use lib::byte_str::{ByteStr,ByteString};
+use crate::lib::byte_str::{ByteStr,ByteString};
 use super::Path;
+use crate::PAGE_SIZE;
 
 #[derive(Debug,Clone)]
 /// Open without caring what the file type is (e.g. enumeration)
@@ -83,7 +84,7 @@ impl Any
 	/// Open the specified path (not caring what the actual type is)
 	pub fn open(path: &Path) -> super::Result<Any> {
 		log_trace!("Any::open({:?})", path);
-		let node = try!(CacheHandle::from_path(path));
+		let node = CacheHandle::from_path(path)?;
 		Ok(Any { node: node })
 	}
 
@@ -131,7 +132,7 @@ impl File
 {
 	/// Open the specified path as a file
 	pub fn open(path: &Path, mode: FileOpenMode) -> super::Result<File> {
-		let node = try!(CacheHandle::from_path(path));
+		let node = CacheHandle::from_path(path)?;
 		Self::from_node(node, mode)
 	}
 
@@ -213,16 +214,16 @@ impl File
 		// - Depends on several qirks:
 		//  > Unaligned address could write to an existing page (converting it to a private) - But how would that interact with existing mappings?
 		//  > Unaligned sizes would usually cause a new anon mapping, but if its unaligned becuase of EOF, it should just be COW as usual
-		assert!(address % ::PAGE_SIZE == 0, "TODO: Unaligned memory_map (address={})", address);
-		assert!(size % ::PAGE_SIZE == 0, "TODO: Unaligned memory_map (size={})", size);
-		if address % ::PAGE_SIZE != (ofs % ::PAGE_SIZE as u64) as usize {
+		assert!(address % PAGE_SIZE == 0, "TODO: Unaligned memory_map (address={})", address);
+		assert!(size % PAGE_SIZE == 0, "TODO: Unaligned memory_map (size={})", size);
+		if address % PAGE_SIZE != (ofs % PAGE_SIZE as u64) as usize {
 			return Err( super::Error::Unknown("memory_map alignment mismatch") );
 		}
 		// - Limit checking (ofs + size must be within size of the file)
 		// TODO: Limit checking
 		// - Reserve the region to be mapped (reserve sticks a zero page in)
-		let page_count = size / ::PAGE_SIZE;
-		let mut resv = match ::memory::virt::reserve(address as *mut (), page_count)
+		let page_count = size / PAGE_SIZE;
+		let mut resv = match crate::memory::virt::reserve(address as *mut (), page_count)
 			{
 			Ok(v) => v,
 			Err(e) => {
@@ -232,13 +233,13 @@ impl File
 			};
 		// - Obtain handles to each cached page, and map into the reservation
 		for i in 0 .. page_count {
-			let page = ofs / ::PAGE_SIZE as u64 + i as u64;
+			let page = ofs / PAGE_SIZE as u64 + i as u64;
 			// 1. Search the node for this particular page
 			//let lh = self.page_cache.read();
 			//  - If found, map over region
 			// 2. Drop lock, read data from file, and try again
 			//drop(lh)
-			try!( self.node.read(page * ::PAGE_SIZE as u64, resv.get_mut_page(i)) );
+			self.node.read(page * PAGE_SIZE as u64, resv.get_mut_page(i))?;
 			// 3. Acquire write on lock, and attempt to insert a handle to this page
 			//let lh = self.page_cache.write();
 			//match lh.try_insert(pag, self.get_page_handle(i))
@@ -251,17 +252,17 @@ impl File
 		}
 		resv.finalise( match mode
 			{
-			MemoryMapMode::ReadOnly  => ::memory::virt::ProtectionMode::UserRO,
-			MemoryMapMode::Execute   => ::memory::virt::ProtectionMode::UserRX,
-			MemoryMapMode::COW       => ::memory::virt::ProtectionMode::UserCOW,
-			MemoryMapMode::WriteBack => ::memory::virt::ProtectionMode::UserRW,
+			MemoryMapMode::ReadOnly  => crate::memory::virt::ProtectionMode::UserRO,
+			MemoryMapMode::Execute   => crate::memory::virt::ProtectionMode::UserRX,
+			MemoryMapMode::COW       => crate::memory::virt::ProtectionMode::UserCOW,
+			MemoryMapMode::WriteBack => crate::memory::virt::ProtectionMode::UserRW,
 			})
 			.unwrap();
-		log_debug!("- Mapped at {:p} + {:#x}", address as *mut (), page_count * ::PAGE_SIZE);
+		log_debug!("- Mapped at {:p} + {:#x}", address as *mut (), page_count * PAGE_SIZE);
 		Ok(MemoryMapHandle {
 			handle: self,
 			base: address as *mut (),
-			len: page_count * ::PAGE_SIZE,
+			len: page_count * PAGE_SIZE,
 			})
 	}
 }
@@ -283,12 +284,12 @@ impl<'a> Drop for MemoryMapHandle<'a>
 	fn drop(&mut self)
 	{
 		let _ = self.handle;
-		assert_eq!(self.len % ::PAGE_SIZE, 0, "TODO: Handle unaligned lengths in MemoryMapHandle::drop");
-		assert_eq!(self.base as usize % ::PAGE_SIZE, 0, "TODO: Handle unaligned addresses in MemoryMapHandle::drop");
-		let npages = self.len / ::PAGE_SIZE;
+		assert_eq!(self.len % PAGE_SIZE, 0, "TODO: Handle unaligned lengths in MemoryMapHandle::drop");
+		assert_eq!(self.base as usize % PAGE_SIZE, 0, "TODO: Handle unaligned addresses in MemoryMapHandle::drop");
+		let npages = self.len / PAGE_SIZE;
 		// SAFE: This is a uniquely owned handle
 		unsafe {
-			::memory::virt::unmap(self.base, npages);
+			crate::memory::virt::unmap(self.base, npages);
 		}
 	}
 }
@@ -297,7 +298,7 @@ impl Dir
 {
 	/// Open a provided path as a directory
 	pub fn open(path: &Path) -> super::Result<Dir> {
-		try!(Any::open(path)).to_dir()
+		Any::open(path)?.to_dir()
 	}
 	
 	pub fn iter(&self) -> DirIter {
@@ -315,24 +316,24 @@ impl Dir
 	
 	/// Create a new directory
 	pub fn mkdir(&self, name: &str) -> super::Result<Dir> {
-		let node = try!(self.node.create(name.as_ref(), NodeType::Dir));
+		let node = self.node.create(name.as_ref(), NodeType::Dir)?;
 		assert!(node.is_dir());
 		Ok( Dir { node: node } )
 	}
 	/// Create a new symbolic link
 	pub fn symlink(&self, name: &str, target: &Path) -> super::Result<()> {
-		try!(self.node.create(name.as_ref(), NodeType::Symlink(target)));
+		self.node.create(name.as_ref(), NodeType::Symlink(target))?;
 		Ok( () )
 	}
 
 	/// Open a child of this node
 	pub fn open_child(&self, name: &ByteStr) -> super::Result<Any> {
-		let node = try!(self.node.open_child(name));
+		let node = self.node.open_child(name)?;
 		Ok(Any { node: node })
 	}
 
 	pub fn open_child_path(&self, path: &Path) -> super::Result<Any> {
-		let node = try!(CacheHandle::from_path_at_node(self.node.clone(), path));
+		let node = CacheHandle::from_path_at_node(self.node.clone(), path)?;
 		Ok(Any{ node: node })
 	}
 
@@ -387,7 +388,7 @@ impl<'a> ::core::iter::Iterator for DirIter<'a> {
 impl Symlink
 {
 	pub fn open(path: &Path) -> super::Result<Symlink> {
-		try!(Any::open(path)).to_symlink()
+		Any::open(path)?.to_symlink()
 	}
 	pub fn get_target(&self) -> super::Result<ByteString> {
 		self.node.get_target()

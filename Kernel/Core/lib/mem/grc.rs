@@ -174,7 +174,7 @@ impl<C: Counter, T: ?Sized> ops::Drop for Grc<C, T>
 			if (*ptr).strong.dec() // && (*ptr).weak.is_zero()
 			{
 				drop_in_place( &mut (*ptr).val );
-				::memory::heap::dealloc_raw(ptr as *mut (), size_of_val(&*ptr), align_of_val(&*ptr));
+				crate::memory::heap::dealloc_raw(ptr as *mut (), size_of_val(&*ptr), align_of_val(&*ptr));
 			}
 		}
 	}
@@ -186,7 +186,7 @@ impl<C: Counter, T> GrcInner<C, T>
 	{
 		// SAFE: Correct call to alloc (TODO: Why is alloc unsafe?)
 		unsafe {
-			::memory::heap::alloc( GrcInner {
+			crate::memory::heap::alloc( GrcInner {
 				strong: C::one(),
 				//weak: C::zero(),
 				val: value,
@@ -221,7 +221,7 @@ impl<C: Counter, U> Grc<C, [U]>
 		
 		// SAFE: No mut aliasing, no read from undefined, hopefull correct behavior
 		unsafe {
-			let ptr = ::memory::heap::alloc_raw(size, align);
+			let ptr = crate::memory::heap::alloc_raw(size, align);
 			let inner = Self::rcinner_ptr(len, ptr);
 			::core::ptr::write( &mut (*inner).strong, C::one() );
 			for i in 0 .. len {

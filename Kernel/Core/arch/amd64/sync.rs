@@ -73,10 +73,10 @@ pub fn hold_interrupts() -> HeldInterrupts
 	
 	if TRACE_IF {
 		if if_set {
-			::arch::puts("hold_interrupts() - IF cleared\n");
+			crate::arch::puts("hold_interrupts() - IF cleared\n");
 		}
 		else {
-			::arch::puts("hold_interrupts() - IF maintained\n");
+			crate::arch::puts("hold_interrupts() - IF maintained\n");
 		}
 	}
 	HeldInterrupts(if_set)
@@ -88,10 +88,10 @@ impl ::core::ops::Drop for HeldInterrupts
 	{
 		if TRACE_IF {
 			if self.0 {
-				::arch::puts("HeldInterrupts::drop() - IF set\n");
+				crate::arch::puts("HeldInterrupts::drop() - IF set\n");
 			}
 			else {
-				::arch::puts("HeldInterrupts::drop() - IF maintained\n");
+				crate::arch::puts("HeldInterrupts::drop() - IF maintained\n");
 			}
 		}
 		

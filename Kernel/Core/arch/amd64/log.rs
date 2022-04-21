@@ -4,7 +4,7 @@
 // arch/amd64/log.rs
 //! RS232 logging output
 #[allow(unused_imports)]
-use prelude::*;
+use crate::prelude::*;
 
 use super::x86_io;
 

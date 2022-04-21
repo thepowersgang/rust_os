@@ -3,13 +3,13 @@
 //
 // Core/sync/mod.rs
 // - Blocking synchronisation primitives
-pub use arch::sync::Spinlock;
-pub use arch::sync::hold_interrupts;
+pub use crate::arch::sync::Spinlock;
+pub use crate::arch::sync::hold_interrupts;
 
-pub use sync::mutex::Mutex;
-pub use sync::semaphore::Semaphore;
-pub use sync::rwlock::RwLock;
-pub use sync::event_channel::EventChannel;
+pub use crate::sync::mutex::Mutex;
+pub use crate::sync::semaphore::Semaphore;
+pub use crate::sync::rwlock::RwLock;
+pub use crate::sync::event_channel::EventChannel;
 pub use self::queue::Queue;
 
 #[macro_use]

@@ -4,17 +4,17 @@
 // Core/lib/byteorder.rs
 /// A local version of the byteorder crates.io crate.
 #[allow(unused_imports)]
-use prelude::*;
+use crate::prelude::*;
 
 pub type Result<T> = ::core::result::Result<T,Error>;
 #[derive(Debug)]
 pub enum Error
 {
 	UnexpectedEOF,
-	Io(::lib::io::Error),
+	Io(crate::lib::io::Error),
 }
-impl From<::lib::io::Error> for Error {
-	fn from(e: ::lib::io::Error) -> Error {
+impl From<crate::lib::io::Error> for Error {
+	fn from(e: crate::lib::io::Error) -> Error {
 		Error::Io(e)
 	}
 }
@@ -150,11 +150,11 @@ impl ByteOrder for BigEndian
 }
 
 pub trait ReadBytesExt:
-	::lib::io::Read
+	crate::lib::io::Read
 {
 	#[doc(hidden)]
 	fn read_exact(&mut self, dst: &mut [u8]) -> Result<()> {
-		if try!(self.read(dst).map_err(|e| Error::from(e))) != dst.len() {
+		if self.read(dst).map_err(|e| Error::from(e))? != dst.len() {
 			Err( Error::UnexpectedEOF )
 		}
 		else {
@@ -164,52 +164,52 @@ pub trait ReadBytesExt:
 	
 	fn read_u8(&mut self) -> Result<u8> {
 		let mut buf = [0; 1];
-		try!( self.read_exact(&mut buf) );
+		self.read_exact(&mut buf)?;
 		Ok( buf[0] )
 	}
 	fn read_i8(&mut self) -> Result<i8> {
-		Ok( read_signed!(i8, 8, try!(self.read_u8())) )
+		Ok( read_signed!(i8, 8, self.read_u8()?) )
 	}
 	fn read_u16<T: ByteOrder>(&mut self) -> Result<u16> {
 		let mut buf = [0; 2];
-		try!( self.read_exact(&mut buf) );
+		self.read_exact(&mut buf)?;
 		Ok( T::read_u16(&buf) )
 	}
 	fn read_i16<T: ByteOrder>(&mut self) -> Result<i16> {
 		let mut buf = [0; 2];
-		try!( self.read_exact(&mut buf) );
+		self.read_exact(&mut buf)?;
 		Ok( T::read_i16(&buf) )
 	}
 	fn read_u32<T: ByteOrder>(&mut self) -> Result<u32> {
 		let mut buf = [0; 4];
-		try!( self.read_exact(&mut buf) );
+		self.read_exact(&mut buf)?;
 		Ok( T::read_u32(&buf) )
 	}
 	fn read_i32<T: ByteOrder>(&mut self) -> Result<i32> {
 		let mut buf = [0; 4];
-		try!( self.read_exact(&mut buf) );
+		self.read_exact(&mut buf)?;
 		Ok( T::read_i32(&buf) )
 	}
 	fn read_u64<T: ByteOrder>(&mut self) -> Result<u64> {
 		let mut buf = [0; 8];
-		try!( self.read_exact(&mut buf) );
+		self.read_exact(&mut buf)?;
 		Ok( T::read_u64(&buf) )
 	}
 	fn read_i64<T: ByteOrder>(&mut self) -> Result<i64> {
 		let mut buf = [0; 8];
-		try!( self.read_exact(&mut buf) );
+		self.read_exact(&mut buf)?;
 		Ok( T::read_i64(&buf) )
 	}
 	fn read_uint<T: ByteOrder>(&mut self, nbytes: usize) -> Result<u64> {
 		assert!(nbytes <= 8);
 		let mut buf = [0; 8];
-		try!( self.read_exact(&mut buf) );
+		self.read_exact(&mut buf)?;
 		Ok( T::read_uint(&buf, nbytes) )
 	}
 	fn read_int<T: ByteOrder>(&mut self, nbytes: usize) -> Result<i64> {
 		assert!(nbytes <= 8);
 		let mut buf = [0; 8];
-		try!( self.read_exact(&mut buf) );
+		self.read_exact(&mut buf)?;
 		Ok( T::read_int(&buf, nbytes) )
 	}
 	//fn read_f32<T: ByteOrder>(&mut self) -> Result<f32> {
@@ -217,6 +217,6 @@ pub trait ReadBytesExt:
 	//fn read_f64<T: ByteOrder>(&mut self) -> Result<f64> {
 	//}
 }
-impl<T: ::lib::io::Read + ?Sized> ReadBytesExt for T {
+impl<T: crate::lib::io::Read + ?Sized> ReadBytesExt for T {
 }
 

@@ -4,9 +4,9 @@
 // Core/device_manager.rs
 // - Core device manager
 
-use prelude::*;
-use sync::Mutex;
-use lib::Queue;
+use crate::prelude::*;
+use crate::sync::Mutex;
+use crate::lib::Queue;
 
 module_define!{DeviceManager, [arch], init}
 
@@ -17,7 +17,7 @@ pub type DriverHandleLevel = u32;
 pub enum IOBinding
 {
 	/// Memory-mapped IO space
-	Memory(::memory::virt::MmioHandle),
+	Memory(crate::memory::virt::MmioHandle),
 	/// x86 IO bus (Base and offset)
 	IO(u16,u16),
 }
@@ -124,11 +124,11 @@ pub enum DriverBindError
 	Bug(&'static str),
 }
 impl_from! {
-	From<::memory::virt::MapError>(v) for DriverBindError {
+	From<crate::memory::virt::MapError>(v) for DriverBindError {
 		match v
 		{
-		::memory::virt::MapError::OutOfMemory => DriverBindError::OutOfMemory,
-		::memory::virt::MapError::RangeInUse => DriverBindError::Bug("Memory map range collision"),
+		crate::memory::virt::MapError::OutOfMemory => DriverBindError::OutOfMemory,
+		crate::memory::virt::MapError::RangeInUse => DriverBindError::Bug("Memory map range collision"),
 		}
 	}
 }
@@ -292,7 +292,7 @@ impl IOBinding
 		{
 		IOBinding::IO(base, s) => {
 			assert!( ofs+1 <= s as usize, "read_u8(IO addr {:#x}+1 > {:#x})", ofs, s );
-			::arch::x86_io::inb(base + ofs as u16)
+			crate::arch::x86_io::inb(base + ofs as u16)
 			},
 		IOBinding::Memory(ref h) => {
 			::core::intrinsics::volatile_load( h.as_int_mut::<u8>(ofs) )
@@ -308,7 +308,7 @@ impl IOBinding
 		{
 		IOBinding::IO(base, s) => {
 			assert!( ofs+2 <= s as usize, "read_u16(IO addr {:#x}+2 > {:#x})", ofs, s );
-			::arch::x86_io::inw(base + ofs as u16)
+			crate::arch::x86_io::inw(base + ofs as u16)
 			},
 		IOBinding::Memory(ref h) => {
 			::core::intrinsics::volatile_load( h.as_int_mut::<u16>(ofs) )
@@ -324,7 +324,7 @@ impl IOBinding
 		{
 		IOBinding::IO(base, s) => {
 			assert!( ofs+4 <= s as usize, "read_u32(IO addr {:#x}+4 > {:#x})", ofs, s );
-			::arch::x86_io::inl(base + ofs as u16)
+			crate::arch::x86_io::inl(base + ofs as u16)
 			},
 		IOBinding::Memory(ref h) => {
 			::core::intrinsics::volatile_load( h.as_int_mut::<u32>(ofs) )
@@ -340,7 +340,7 @@ impl IOBinding
 		{
 		IOBinding::IO(base, s) => {
 			assert!( ofs+1 <= s as usize, "write_8(IO addr {:#x}+1 > {:#x})", ofs, s );
-			::arch::x86_io::outb(base + ofs as u16, val);
+			crate::arch::x86_io::outb(base + ofs as u16, val);
 			},
 		IOBinding::Memory(ref h) => {
 			::core::intrinsics::volatile_store( h.as_int_mut::<u8>(ofs), val );
@@ -356,7 +356,7 @@ impl IOBinding
 		{
 		IOBinding::IO(base, s) => {
 			assert!(ofs+2 <= s as usize, "write_16(IO addr {:#x}+4 > {:#x})", ofs, s);
-			::arch::x86_io::outw(base + ofs as u16, val);
+			crate::arch::x86_io::outw(base + ofs as u16, val);
 			},
 		IOBinding::Memory(ref h) => {
 			::core::intrinsics::volatile_store( h.as_int_mut::<u16>(ofs), val );
@@ -372,7 +372,7 @@ impl IOBinding
 		{
 		IOBinding::IO(base, s) => {
 			assert!(ofs+4 <= s as usize, "write_32(IO addr {:#x}+4 > {:#x})", ofs, s);
-			::arch::x86_io::outl(base + ofs as u16, val);
+			crate::arch::x86_io::outl(base + ofs as u16, val);
 			},
 		IOBinding::Memory(ref h) => {
 			::core::intrinsics::volatile_store( h.as_int_mut::<u32>(ofs), val );

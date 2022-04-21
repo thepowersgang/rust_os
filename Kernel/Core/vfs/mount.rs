@@ -3,13 +3,13 @@
 //
 // Core/vfs/mount.rs
 //! Mountpoint managment
-use prelude::*;
+use crate::prelude::*;
 use super::path::Path;
 use super::node::{InodeId,Node,CacheHandle};
-use sync::RwLock;
-use lib::{LazyStatic,SparseVec,VecMap};
+use crate::sync::RwLock;
+use crate::lib::{LazyStatic,SparseVec,VecMap};
 
-use metadevs::storage::VolumeHandle;
+use crate::metadevs::storage::VolumeHandle;
 
 /// A handle to a mounted filesystem
 /// 
@@ -181,11 +181,11 @@ impl DriverRegistration
 	pub fn new(name: &'static str, fs: &'static dyn Driver) -> Option<DriverRegistration> {
 		match S_DRIVERS.write().entry(name)
 		{
-		::lib::vec_map::Entry::Vacant(e) => {
+		crate::lib::vec_map::Entry::Vacant(e) => {
 			e.insert(fs);
 			Some(DriverRegistration(name))
 			},
-		::lib::vec_map::Entry::Occupied(_) => None,
+		crate::lib::vec_map::Entry::Occupied(_) => None,
 		}
 	}
 }

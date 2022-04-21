@@ -5,7 +5,7 @@
 //! Dynamically-allocated string type
 //!
 //! Acts every similarly to the rust std's String type.
-use prelude::*;
+use crate::prelude::*;
 use core::{ops,cmp,fmt};
 
 /// String type

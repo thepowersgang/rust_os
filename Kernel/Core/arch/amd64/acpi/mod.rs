@@ -6,7 +6,7 @@
 //!
 //! Provides access to the ACPI tables
 #[allow(unused_imports)]
-use prelude::*;
+use crate::prelude::*;
 
 module_define!{ACPI, [], init}
 
@@ -119,7 +119,7 @@ pub struct SDT<T:'static>
 	header: SDTHeader,
 	data: T
 }
-unsafe impl<T: ::lib::POD> ::lib::POD for SDT<T> {}
+unsafe impl<T: crate::lib::POD> crate::lib::POD for SDT<T> {}
 
 fn init()
 {
@@ -129,7 +129,7 @@ fn init()
 
 use self::internal::SDTHandle;
 
-pub fn find<T: ::lib::POD>(name: &str, idx: usize) -> Option<SDTHandle<T>> {
+pub fn find<T: crate::lib::POD>(name: &str, idx: usize) -> Option<SDTHandle<T>> {
 	internal::find_table(name, idx)
 }
 pub fn count(name: &str) -> usize {
@@ -145,7 +145,7 @@ impl<T> SDT<T>
 			log_notice!("SDT size mismatch {} != sizeof({}) {}",
 				self.header.length, type_name!(SDT<T>), ::core::mem::size_of::<Self>());
 		}
-		if ! ::memory::buf_valid(self as *const _ as *const (), self.header.length as usize) {
+		if ! crate::memory::buf_valid(self as *const _ as *const (), self.header.length as usize) {
 			log_warning!("SDT<{}> ({} bytes reported) not all in valid memory", type_name!(T), self.header.length);
 			false
 		}

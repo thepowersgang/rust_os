@@ -33,7 +33,7 @@ impl<T> PageArray<T>
 			// SAFE: Pointer is in range, and validity is checked. Lifetime valid due to self owning area
 			unsafe {
 				let ptr = self.start.offset(idx as isize);
-				if ::memory::virt::is_reserved(ptr) {
+				if crate::memory::virt::is_reserved(ptr) {
 					Some(&*ptr)
 				}
 				else {
@@ -47,14 +47,14 @@ impl<T> PageArray<T>
 	where
 		T: Default
 	{
-		let per_page = ::PAGE_SIZE / ::core::mem::size_of::<T>();
+		let per_page = crate::PAGE_SIZE / ::core::mem::size_of::<T>();
 		let pgidx = idx / per_page;
 		let pgofs = idx % per_page;
-		let page = (self.start as usize + pgidx * ::PAGE_SIZE) as *mut T;
-		if ! ::memory::virt::is_reserved( page )
+		let page = (self.start as usize + pgidx * crate::PAGE_SIZE) as *mut T;
+		if ! crate::memory::virt::is_reserved( page )
 		{
 			// TODO: Handle OOM gracefully
-			::memory::virt::allocate( page as *mut (), 1 ).expect("Failed to allocate memory for PageArray");
+			crate::memory::virt::allocate( page as *mut (), 1 ).expect("Failed to allocate memory for PageArray");
 
 			// SAFE: Newly allocated, and nothing valid in it
 			unsafe {

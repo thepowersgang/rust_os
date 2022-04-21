@@ -3,7 +3,7 @@
 //
 // Core/lib/fdt.rs
 //! "FDT" (Flattended Device Tree) parser
-use ::lib::byteorder::{ReadBytesExt,ByteOrder,BigEndian};
+use crate::lib::byteorder::{ReadBytesExt,ByteOrder,BigEndian};
 
 /// FDT parser/decoder structure
 pub struct FDTRoot<'a>

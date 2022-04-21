@@ -3,20 +3,20 @@
 //
 // Core/metadevs/storage.rs
 // - Storage (block device) subsystem
-use prelude::*;
+use crate::prelude::*;
 use core::sync::atomic::{AtomicUsize};
-use sync::mutex::LazyMutex;
-use lib::{VecMap};
-use lib::mem::Arc;
+use crate::sync::mutex::LazyMutex;
+use crate::lib::{VecMap};
+use crate::lib::mem::Arc;
 
 module_define!{Storage, [], init}
 
-pub type AsyncIoResult<'a, T> = ::r#async::BoxAsyncResult<'a, T, IoError>;
+pub type AsyncIoResult<'a, T> = crate::r#async::BoxAsyncResult<'a, T, IoError>;
 
 /// A unique handle to a storage volume (logical)
 pub struct VolumeHandle
 {
-	handle: ::lib::mem::Arc<LogicalVolume>,
+	handle: crate::lib::mem::Arc<LogicalVolume>,
 	// TODO: Store within this a single block cache? Or store on the LV?
 }
 
@@ -472,7 +472,7 @@ impl VolumeHandle
 			assert!(count <= rem);
 			let bofs = blk as usize * self.block_size();
 			let dst = &mut dst[bofs .. bofs + count * self.block_size()];
-			try!( S_PHYSICAL_VOLUMES.lock().get(&pv).expect("Volume missing").read(ofs, dst) );
+			S_PHYSICAL_VOLUMES.lock().get(&pv).expect("Volume missing").read(ofs, dst)?;
 			blk += count;
 			rem -= count;
 		}
@@ -501,7 +501,7 @@ impl VolumeHandle
 			assert!(count <= rem);
 			let bofs = blk as usize * self.block_size();
 			let dst = &dst[bofs .. bofs + count * self.block_size()];
-			try!( S_PHYSICAL_VOLUMES.lock().get(&pv).unwrap().write(ofs, dst) );
+			S_PHYSICAL_VOLUMES.lock().get(&pv).unwrap().write(ofs, dst)?;
 			blk += count;
 			rem -= count;
 		}
@@ -617,14 +617,14 @@ impl ::core::fmt::Display for SizePrinter
 
 mod default_mapper
 {
-	use prelude::*;
-	use metadevs::storage;
+	use crate::prelude::*;
+	use crate::metadevs::storage;
 	
 	pub struct Mapper;
 	
 	pub static S_MAPPER: Mapper = Mapper;
 	
-	impl ::metadevs::storage::Mapper for Mapper {
+	impl crate::metadevs::storage::Mapper for Mapper {
 		fn name(&self) -> &str { "fallback" }
 		fn handles_pv(&self, _pv: &dyn storage::PhysicalVolume) -> Result<usize,super::IoError> {
 			// The fallback mapper never explicitly handles

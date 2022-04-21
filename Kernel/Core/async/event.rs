@@ -4,7 +4,7 @@
 // Core/async/event.rs
 //! Asynchronous event waiter
 #[allow(unused_imports)]
-use prelude::*;
+use crate::prelude::*;
 use core::sync::atomic::{AtomicBool,Ordering};
 use core::fmt;
 
@@ -17,7 +17,7 @@ use core::fmt;
 pub struct Source
 {
 	flag: AtomicBool,
-	waiter: ::sync::mutex::Mutex<Option<::threads::SleepObjectRef>>
+	waiter: crate::sync::mutex::Mutex<Option<crate::threads::SleepObjectRef>>
 }
 
 /// An event structure that allows multiple waiters
@@ -43,7 +43,7 @@ impl Source
 	{
 		Source {
 			flag: AtomicBool::new(false),
-			waiter: ::sync::mutex::Mutex::new(None),
+			waiter: crate::sync::mutex::Mutex::new(None),
 		}
 	}
 	/// Return a wait handle for this event source
@@ -63,7 +63,7 @@ impl Source
 
 
 	/// Register to wake the specified sleep object
-	pub fn wait_upon(&self, waiter: &mut ::threads::SleepObject) -> bool {
+	pub fn wait_upon(&self, waiter: &mut crate::threads::SleepObject) -> bool {
 		{
 			let mut lh = self.waiter.lock();
 			assert!(lh.is_none());
@@ -71,7 +71,7 @@ impl Source
 		}
 		self.flag.load(Ordering::SeqCst)	// Release - Don't reorder anything to after this
 	}
-	pub fn clear_wait(&self, _waiter: &mut ::threads::SleepObject) {
+	pub fn clear_wait(&self, _waiter: &mut crate::threads::SleepObject) {
 		let mut lh = self.waiter.lock();
 		*lh = None;
 	}
@@ -87,7 +87,7 @@ impl ManySource
 	}
 
 	/// Register to wake the specified sleep object
-	pub fn wait_upon(&self, waiter: &mut ::threads::SleepObject) -> bool {
+	pub fn wait_upon(&self, waiter: &mut crate::threads::SleepObject) -> bool {
 		self.waiters.wait_upon(waiter);
 		if self.flag.load(Ordering::SeqCst) {	// Release - Don't reorder anything to after this
 			waiter.signal();
@@ -97,7 +97,7 @@ impl ManySource
 			false
 		}
 	}
-	pub fn clear_wait(&self, waiter: &mut ::threads::SleepObject) {
+	pub fn clear_wait(&self, waiter: &mut crate::threads::SleepObject) {
 		self.waiters.clear_wait(waiter)
 	}
 }
@@ -123,7 +123,7 @@ impl<'a> super::PrimitiveWaiter for Waiter<'a>
 		// Clear the source to mark this waiter as completed
 		self.source = None;
 	}
-	fn bind_signal(&mut self, sleeper: &mut ::threads::SleepObject) -> bool {
+	fn bind_signal(&mut self, sleeper: &mut crate::threads::SleepObject) -> bool {
 		if let Some(r) = self.source
 		{
 			// Store the sleep object reference

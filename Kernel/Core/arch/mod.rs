@@ -33,17 +33,17 @@ pub use self::imp::acpi;
 /// Memory management
 pub mod memory {
 	/// Physical address type
-	pub type PAddr = ::arch::imp::memory::PAddr;
-	pub type VAddr = ::arch::imp::memory::VAddr;
+	pub type PAddr = crate::arch::imp::memory::PAddr;
+	pub type VAddr = crate::arch::imp::memory::VAddr;
 
 	/// Size of a page/frame in bytes (always a power of two)
-	pub const PAGE_SIZE: usize = ::arch::imp::memory::PAGE_SIZE;
+	pub const PAGE_SIZE: usize = crate::arch::imp::memory::PAGE_SIZE;
 	/// Offset mask for a page
 	pub const PAGE_MASK: usize = PAGE_SIZE-1;
 
 	/// Address space layout
 	pub mod addresses {
-		use arch::imp::memory::addresses as imp;
+		use crate::arch::imp::memory::addresses as imp;
 
 		#[inline]
 		/// Returns `true` if the passed address is valid in every address space
@@ -82,14 +82,14 @@ pub mod memory {
 	}
 	/// Virtual memory manipulation
 	pub mod virt {
-		use arch::imp::memory::virt as imp;
+		use crate::arch::imp::memory::virt as imp;
 		
 		/// Handle to an address space
 		#[derive(Debug)]
 		pub struct AddressSpace(imp::AddressSpace);
 		impl AddressSpace
 		{
-			pub fn new(clone_start: usize, clone_end: usize) -> Result<AddressSpace,::memory::virt::MapError> {
+			pub fn new(clone_start: usize, clone_end: usize) -> Result<AddressSpace,crate::memory::virt::MapError> {
 				imp::AddressSpace::new(clone_start, clone_end).map(AddressSpace)
 			}
 			pub fn pid0() -> AddressSpace {
@@ -106,7 +106,7 @@ pub mod memory {
 		impl<T> TempHandle<T>
 		{
 			/// UNSAFE: User must ensure that address is valid, and that no aliasing occurs
-			pub unsafe fn new(phys: ::arch::memory::PAddr) -> TempHandle<T> {
+			pub unsafe fn new(phys: crate::arch::memory::PAddr) -> TempHandle<T> {
 				TempHandle( imp::temp_map(phys) )
 			}
 			/// Cast to another type
@@ -115,21 +115,21 @@ pub mod memory {
 				::core::mem::forget(self);
 				rv
 			}
-			pub fn phys_addr(&self) -> ::memory::PAddr {
+			pub fn phys_addr(&self) -> crate::memory::PAddr {
 				get_phys(self.0)
 			}
 		}
-		impl<T: ::lib::POD> ::core::ops::Deref for TempHandle<T> {
+		impl<T: crate::lib::POD> ::core::ops::Deref for TempHandle<T> {
 			type Target = [T];
 			fn deref(&self) -> &[T] {
 				// SAFE: We should have unique access, and data is POD
-				unsafe { ::core::slice::from_raw_parts(self.0, ::PAGE_SIZE / ::core::mem::size_of::<T>()) }
+				unsafe { ::core::slice::from_raw_parts(self.0, crate::PAGE_SIZE / ::core::mem::size_of::<T>()) }
 			}
 		}
-		impl<T: ::lib::POD> ::core::ops::DerefMut for TempHandle<T> {
+		impl<T: crate::lib::POD> ::core::ops::DerefMut for TempHandle<T> {
 			fn deref_mut(&mut self) -> &mut [T] {
 				// SAFE: We should have unique access, and data is POD
-				unsafe { ::core::slice::from_raw_parts_mut(self.0, ::PAGE_SIZE / ::core::mem::size_of::<T>()) }
+				unsafe { ::core::slice::from_raw_parts_mut(self.0, crate::PAGE_SIZE / ::core::mem::size_of::<T>()) }
 			}
 		}
 		impl<T> ::core::ops::Drop for TempHandle<T> {
@@ -146,7 +146,7 @@ pub mod memory {
 		}
 
 		#[inline]
-		pub fn get_phys<T: ?Sized>(p: *const T) -> ::memory::PAddr {
+		pub fn get_phys<T: ?Sized>(p: *const T) -> crate::memory::PAddr {
 			imp::get_phys(p as *const ())
 		}
 		#[inline]
@@ -154,7 +154,7 @@ pub mod memory {
 			imp::is_reserved(p)
 		}
 		#[inline]
-		pub fn get_info<T>(p: *const T) -> Option<(::memory::PAddr,::memory::virt::ProtectionMode)> {
+		pub fn get_info<T>(p: *const T) -> Option<(crate::memory::PAddr,crate::memory::virt::ProtectionMode)> {
 			imp::get_info(p)
 		}
 
@@ -163,7 +163,7 @@ pub mod memory {
 			imp::is_fixed_alloc(addr, size)
 		}
 		#[inline]
-		pub unsafe fn fixed_alloc(p: ::memory::PAddr, count: usize) -> Option<*mut ()> {
+		pub unsafe fn fixed_alloc(p: crate::memory::PAddr, count: usize) -> Option<*mut ()> {
 			imp::fixed_alloc(p, count)
 		}
 
@@ -175,15 +175,15 @@ pub mod memory {
 		}
 
 		#[inline]
-		pub unsafe fn map(a: *mut (), p: ::memory::PAddr, mode: ::memory::virt::ProtectionMode) {
+		pub unsafe fn map(a: *mut (), p: crate::memory::PAddr, mode: crate::memory::virt::ProtectionMode) {
 			imp::map(a, p, mode)
 		}
 		#[inline]
-		pub unsafe fn reprotect(a: *mut (), mode: ::memory::virt::ProtectionMode) {
+		pub unsafe fn reprotect(a: *mut (), mode: crate::memory::virt::ProtectionMode) {
 			imp::reprotect(a, mode)
 		}
 		#[inline]
-		pub unsafe fn unmap(a: *mut ()) -> Option<::memory::PAddr> {
+		pub unsafe fn unmap(a: *mut ()) -> Option<crate::memory::PAddr> {
 			imp::unmap(a)
 		}
 	}
@@ -344,11 +344,11 @@ pub mod boot {
 		imp::get_boot_string()
 	}
 	#[inline]
-	pub fn get_video_mode() -> Option<::metadevs::video::bootvideo::VideoMode> {
+	pub fn get_video_mode() -> Option<crate::metadevs::video::bootvideo::VideoMode> {
 		imp::get_video_mode()
 	}
 	#[inline]
-	pub fn get_memory_map() -> &'static [::memory::MemoryMapEnt] {
+	pub fn get_memory_map() -> &'static [crate::memory::MemoryMapEnt] {
 		imp::get_memory_map()
 	}
 }
@@ -369,15 +369,15 @@ pub mod threads {
 	}
 
 	#[inline]
-	pub fn set_thread_ptr(t: ::threads::ThreadPtr) {
+	pub fn set_thread_ptr(t: crate::threads::ThreadPtr) {
 		imp::set_thread_ptr(t)
 	}
 	#[inline]
-	pub fn get_thread_ptr() -> Option<::threads::ThreadPtr> {
+	pub fn get_thread_ptr() -> Option<crate::threads::ThreadPtr> {
 		imp::get_thread_ptr()
 	}
 	#[inline]
-	pub fn borrow_thread() -> *const ::threads::Thread {
+	pub fn borrow_thread() -> *const crate::threads::Thread {
 		imp::borrow_thread()
 	}
 
@@ -386,16 +386,16 @@ pub mod threads {
 		imp::idle(held_interrupts)
 	}
 	#[inline]
-	pub fn get_idle_thread() -> ::threads::ThreadPtr {
+	pub fn get_idle_thread() -> crate::threads::ThreadPtr {
 		imp::get_idle_thread()
 	}
 	#[inline]
-	pub fn switch_to(t: ::threads::ThreadPtr) {
+	pub fn switch_to(t: crate::threads::ThreadPtr) {
 		imp::switch_to(t)
 	}
 
 	#[inline]
-	pub fn start_thread<F: FnOnce()+Send+'static>(thread: &mut ::threads::Thread, code: F) {
+	pub fn start_thread<F: FnOnce()+Send+'static>(thread: &mut crate::threads::Thread, code: F) {
 		imp::start_thread(thread, code)
 	}
 }

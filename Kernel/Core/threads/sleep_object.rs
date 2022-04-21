@@ -15,7 +15,7 @@ pub struct SleepObject<'a>
 	// Type that allows `fn get_ref` to borrow self and prevent moving
 	_nomove: ::core::marker::PhantomData<&'a SleepObject<'a>>,
 	name: &'static str,
-	inner: ::sync::Spinlock< SleepObjectInner >,
+	inner: crate::sync::Spinlock< SleepObjectInner >,
 }
 impl<'a> ::core::fmt::Debug for SleepObject<'a>
 {
@@ -50,7 +50,7 @@ impl<'a> SleepObject<'a>
 		SleepObject {
 			_nomove: ::core::marker::PhantomData,
 			name: name,
-			inner: ::sync::Spinlock::new(SleepObjectInner {
+			inner: crate::sync::Spinlock::new(SleepObjectInner {
 				flag: false,
 				reference_count: 0,
 				thread: None,
@@ -72,7 +72,7 @@ impl<'a> SleepObject<'a>
 	{
 		//log_trace!("SleepObject::wait {:p} '{}'", self, self.name);
 		
-		let irql = ::sync::hold_interrupts();
+		let irql = crate::sync::hold_interrupts();
 		let mut lh = self.inner.lock();
 		assert!( lh.thread.is_none(), "A thread is already sleeping on object {:p} '{}'", self, self.name );
 		
@@ -104,7 +104,7 @@ impl<'a> SleepObject<'a>
 	{
 		//log_trace!("SleepObject::signal {:p} '{}'", self, self.name);
 		
-		let _irq_lock = ::sync::hold_interrupts();
+		let _irq_lock = crate::sync::hold_interrupts();
 		let mut lh = self.inner.lock();
 		// 1. Check for a waiter
 		if let Some(mut t) = lh.thread.take()

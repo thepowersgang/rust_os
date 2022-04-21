@@ -4,7 +4,7 @@
 // Core/memory/memorymap.rs
 //! Physical memory map type
 #[allow(unused_imports)]
-use prelude::*;
+use crate::prelude::*;
 
 #[derive(PartialEq,Debug,Copy,Clone)]
 pub enum MemoryState
@@ -52,7 +52,7 @@ impl MemoryMapEnt
 		self.limit() + 1
 	}
 	pub fn limit(&self) -> u64 {
-		self.start + (self.size & !(::arch::memory::PAGE_MASK as u64)) - 1
+		self.start + (self.size & !(crate::arch::memory::PAGE_MASK as u64)) - 1
 	}
 }
 impl ::core::fmt::Debug for MemoryMapEnt
@@ -178,7 +178,7 @@ impl<'buf> MemoryMapBuilder<'buf>
 		log_debug!("set_range(base={:#x}, size={:#x}, state={:?}, domain={})",
 			base_, size_, state, domain);
 		
-		let page_mask = ::PAGE_SIZE as u64 - 1;
+		let page_mask = crate::PAGE_SIZE as u64 - 1;
 		let ofs = base_ & page_mask;
 		let mut base = base_ - ofs;
 		let mut size = (size_ + ofs + page_mask) & !page_mask;

@@ -9,7 +9,7 @@
 
  The `wait_on_list` function is the kernel's core implementation of multiple waiters. Userland uses syscalls/threads::wait
 */
-use prelude::*;
+use crate::prelude::*;
 
 pub use self::mutex::Mutex;
 
@@ -41,7 +41,7 @@ pub trait PrimitiveWaiter:
 	/// Called before the completion handler
 	///
 	/// Returns true if the sleep object was sucessfully registered, false to force polling (e.g. if already complete)
-	fn bind_signal(&mut self, sleeper: &mut ::threads::SleepObject) -> bool;
+	fn bind_signal(&mut self, sleeper: &mut crate::threads::SleepObject) -> bool;
 	
 	/// Unbind waiters from this sleep object
 	fn unbind_signal(&mut self);
@@ -64,7 +64,7 @@ impl PrimitiveWaiter for NullWaiter {
 	fn is_complete(&self) -> bool { true }
 	fn poll(&self) -> bool { true }
 	fn run_completion(&mut self) { }
-	fn bind_signal(&mut self, _: &mut ::threads::SleepObject) -> bool { panic!("NullWaiter::bind_signal") }
+	fn bind_signal(&mut self, _: &mut crate::threads::SleepObject) -> bool { panic!("NullWaiter::bind_signal") }
 	fn unbind_signal(&mut self) { panic!("NullWaiter::unbind_signal") }
 }
 
@@ -141,7 +141,7 @@ impl<'a> dyn Waiter+'a
 		{
 			let completed = {
 				let prim = self.get_waiter();
-				::threads::SleepObject::with_new("wait_on_list", |obj_ref| {
+				crate::threads::SleepObject::with_new("wait_on_list", |obj_ref| {
 					log_trace!("- bind");
 					if prim.bind_signal( obj_ref ) {
 						obj_ref.wait();
@@ -202,7 +202,7 @@ pub fn wait_on_list(waiters: &mut [&mut dyn Waiter], timeout: Option<u64>) -> Op
 	}
 	
 	// - Create an object for them to signal
-	::threads::SleepObject::with_new("wait_on_list", |obj| {
+	crate::threads::SleepObject::with_new("wait_on_list", |obj| {
 		let force_poll = waiters.iter_mut()
 			.filter( |x| !x.is_complete() )
 			.fold(false, |v,x| v | !x.get_waiter().bind_signal(obj) )
@@ -327,7 +327,7 @@ where
 	}
 	fn run_completion(&mut self) {
 	}
-	fn bind_signal(&mut self, sleeper: &mut ::threads::SleepObject) -> bool {
+	fn bind_signal(&mut self, sleeper: &mut crate::threads::SleepObject) -> bool {
 
 		// NOTE: This function converts a SleepObjectRef into a RawWaker (they both have a single pointer of data)
 
@@ -336,7 +336,7 @@ where
 			unsafe fn rw_clone(raw_self: *const ()) -> ::core::task::RawWaker
 			{
 				// Cast pointer to the input pointer into a pointer to a SleepObjectRef
-				let sor = &*(&raw_self as *const _ as *const ::threads::SleepObjectRef);
+				let sor = &*(&raw_self as *const _ as *const crate::threads::SleepObjectRef);
 				sleep_object_raw_waker(sor)
 			}
 			unsafe fn rw_wake(raw_self: *const ())
@@ -346,7 +346,7 @@ where
 			}
 			unsafe fn rw_wake_by_ref(raw_self: *const ())
 			{
-				let sor = &*(&raw_self as *const _ as *const ::threads::SleepObjectRef);
+				let sor = &*(&raw_self as *const _ as *const crate::threads::SleepObjectRef);
 				sor.signal();
 			}
 			unsafe fn rw_drop(raw_self: *const ())

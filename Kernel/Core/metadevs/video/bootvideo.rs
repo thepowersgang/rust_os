@@ -4,7 +4,7 @@
 // Core/metadevs/video/bootvideo.rs
 //! Early-boot video support (using bootloader-provided framebuffer)
 #[allow(unused_imports)]
-use prelude::*;
+use crate::prelude::*;
 use super::{Dims, Rect, Pos};
 
 /// Bit format of the linear framebuffer, if interpreted as a n-bit little-endian number
@@ -61,7 +61,7 @@ pub struct VideoMode
 	pub height: u16,
 	pub fmt: VideoFormat,
 	pub pitch: usize,
-	pub base: ::arch::memory::PAddr,
+	pub base: crate::arch::memory::PAddr,
 }
 impl_fmt!{
 	Debug(self,f) for VideoMode {
@@ -87,7 +87,7 @@ struct CursorData
 struct Buffer
 {
 	mode: VideoMode,
-	buffer: ::memory::virt::AllocHandle,
+	buffer: crate::memory::virt::AllocHandle,
 }
 
 impl Framebuffer
@@ -105,10 +105,10 @@ impl Framebuffer
 			};
 		assert!(mode.pitch >= exp_pitch, "Framebuffer::new: Pitch {:#x} is not sane, exp >= {:#x}", mode.pitch, exp_pitch);
 		
-		let fb_size = (mode.base as usize % ::PAGE_SIZE) + mode.pitch * mode.height as usize;
-		let n_pages = (fb_size + ::PAGE_SIZE - 1) / ::PAGE_SIZE;
+		let fb_size = (mode.base as usize % crate::PAGE_SIZE) + mode.pitch * mode.height as usize;
+		let n_pages = (fb_size + crate::PAGE_SIZE - 1) / crate::PAGE_SIZE;
 		// Assuming SAFE: The framebuffer shouldn't be multiple mapped
-		let alloc = match unsafe { ::memory::virt::map_hw_rw( mode.base, n_pages, module_path!() ) }
+		let alloc = match unsafe { crate::memory::virt::map_hw_rw( mode.base, n_pages, module_path!() ) }
 			{
 			Ok(v) => v,
 			Err(e) => panic!("Failed to map boot framebuffer {:#x} {}pg - {}",
@@ -131,7 +131,7 @@ impl Buffer
 	/// Obtain the framebuffer as a byte slice
 	fn buffer(&mut self) -> &mut [u8] {
 		self.buffer.as_mut_slice(
-			self.mode.base as usize % ::PAGE_SIZE,
+			self.mode.base as usize % crate::PAGE_SIZE,
 			self.mode.pitch * self.mode.height as usize
 			)
 	}
@@ -200,17 +200,17 @@ impl super::Framebuffer for Framebuffer
 		VideoFormat::X8R8G8B8 => {
 			assert!(bpp == 4);
 			// This mode corresponds to the internal format, so can use fast operations (raw byte copy)
-			for (row,src) in ::lib::ExactZip::new( dst.top() .. dst.bottom(), buf.chunks(src_pitch) )
+			for (row,src) in crate::lib::ExactZip::new( dst.top() .. dst.bottom(), buf.chunks(src_pitch) )
 			{
 				let seg = self.buffer.scanline_slice(row as usize, dst.left() as usize, dst.right() as usize);
-				seg.copy_from_slice( ::lib::as_byte_slice(src) );
+				seg.copy_from_slice( crate::lib::as_byte_slice(src) );
 			}
 			},
 		VideoFormat::R5G6B5 =>
-			for (row,src) in ::lib::ExactZip::new( dst.top() .. dst.bottom(), buf.chunks(src_pitch) )
+			for (row,src) in crate::lib::ExactZip::new( dst.top() .. dst.bottom(), buf.chunks(src_pitch) )
 			{
 				let seg = self.buffer.scanline_slice(row as usize, dst.left() as usize, dst.right() as usize);
-				for (px,&col) in ::lib::ExactZip::new( seg.chunks_mut(bpp), src.iter() )
+				for (px,&col) in crate::lib::ExactZip::new( seg.chunks_mut(bpp), src.iter() )
 				{
 					let col16 = output_fmt.col_from_xrgb(col);
 					px[0] = ((col16 >>  0) & 0xFF) as u8;
@@ -374,7 +374,7 @@ impl CursorData
 		match format
 		{
 		VideoFormat::X8R8G8B8 => {
-			for (px, &val) in ::lib::ExactZip::new( dst.chunks_mut(bpp), data.iter() )
+			for (px, &val) in crate::lib::ExactZip::new( dst.chunks_mut(bpp), data.iter() )
 			{
 				if let Some(colour) = self.get_colour(val)
 				{
@@ -386,7 +386,7 @@ impl CursorData
 			}
 			},
 		VideoFormat::R5G6B5 => {
-			for (px, &val) in ::lib::ExactZip::new( dst.chunks_mut(bpp), data.iter() )
+			for (px, &val) in crate::lib::ExactZip::new( dst.chunks_mut(bpp), data.iter() )
 			{
 				if let Some(colour) = self.get_colour(val)
 				{

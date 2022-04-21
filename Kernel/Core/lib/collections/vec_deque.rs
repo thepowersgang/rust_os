@@ -5,7 +5,7 @@
 //! Sorted vector backed Key-Value map.
 //use prelude::*;
 //use core::{ops,fmt};
-use memory::heap::ArrayAlloc;
+use crate::memory::heap::ArrayAlloc;
 
 pub struct VecDeque<T>
 {

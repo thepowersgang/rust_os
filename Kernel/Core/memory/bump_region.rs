@@ -3,7 +3,7 @@
 //
 //! Controls a region of memory with a bump allocator, for runtime delegaion of address space
 #![cfg_attr(feature="test", allow(dead_code,unused_imports))]
-use arch::memory::addresses::{BUMP_START, BUMP_END};
+use crate::arch::memory::addresses::{BUMP_START, BUMP_END};
 use core::sync::atomic::{AtomicUsize, Ordering};
 
 static CURPOS: AtomicUsize = AtomicUsize::new( BUMP_START );
@@ -18,7 +18,7 @@ pub fn delegate(num_pages: usize) -> Result<*mut (), Error>
 	{
 		let cur = CURPOS.load(Ordering::Acquire);
 		assert!(cur != 0);
-		let new = cur + num_pages * ::PAGE_SIZE;
+		let new = cur + num_pages * crate::PAGE_SIZE;
 		assert!(new >= cur);
 		if new > BUMP_END {
 			return Err(Error);

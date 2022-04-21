@@ -1,9 +1,9 @@
 /*
  */
 ///! A pool of descriptors in DMA-able memory
-use prelude::*;
-use memory::virt::ArrayHandle;
-use lib::POD;
+use crate::prelude::*;
+use crate::memory::virt::ArrayHandle;
+use crate::lib::POD;
 
 pub struct DescriptorPool<T: POD>
 {
@@ -37,8 +37,8 @@ impl<T: POD> DescriptorPool<T>
 
 impl<T: POD> LentDescriptor<T>
 {
-	pub fn phys(&self) -> ::arch::memory::PAddr {
-		::memory::virt::get_phys( &*self )
+	pub fn phys(&self) -> crate::arch::memory::PAddr {
+		crate::memory::virt::get_phys( &*self )
 	}
 }
 

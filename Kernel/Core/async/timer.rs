@@ -18,14 +18,14 @@ impl Waiter
 	pub fn new(duration_ms: u64) -> Waiter
 	{
 		Waiter {
-			expiry_ticks: ::time::ticks() + duration_ms,
+			expiry_ticks: crate::time::ticks() + duration_ms,
 		}
 	}
 }
 
 impl super::PrimitiveWaiter for Waiter {
 	fn is_complete(&self) -> bool {
-		::time::ticks() >= self.expiry_ticks
+		crate::time::ticks() >= self.expiry_ticks
 	}
 	
 	fn poll(&self) -> bool {
@@ -34,7 +34,7 @@ impl super::PrimitiveWaiter for Waiter {
 	fn run_completion(&mut self) {
 		// no action
 	}
-	fn bind_signal(&mut self, _sleeper: &mut ::threads::SleepObject) -> bool {
+	fn bind_signal(&mut self, _sleeper: &mut crate::threads::SleepObject) -> bool {
 		todo!("timer::Waiter::bind_signal()")
 		//::time::bind_signal(_sleeper, self.expiry_ticks)
 	}

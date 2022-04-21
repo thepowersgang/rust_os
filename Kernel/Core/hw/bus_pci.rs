@@ -3,8 +3,8 @@
 //
 // Core/pci.rs
 // - PCI Bus Handling
-use prelude::*;
-use device_manager::BusDevice;
+use crate::prelude::*;
+use crate::device_manager::BusDevice;
 use crate::lib::mem::aref::ArefBorrow;
 
 const MAX_FUNC: u8 = 8;	// Address restriction
@@ -65,17 +65,17 @@ pub trait PciInterface: Send + Sync
 pub fn register_bus(interface: ArefBorrow<dyn PciInterface>)
 {
 	let devs = scan_bus(&interface, 0);
-	::device_manager::register_bus(&s_pci_bus_manager, devs);
+	crate::device_manager::register_bus(&s_pci_bus_manager, devs);
 }
 
 fn init()
 {
-	::device_manager::register_driver(&s_pci_child_bus_driver);
+	crate::device_manager::register_driver(&s_pci_child_bus_driver);
 	
 	// - All drivers that have PCI bindings should be waiting on this to load
 }
 
-impl ::device_manager::BusManager for PCIBusManager
+impl crate::device_manager::BusManager for PCIBusManager
 {
 	fn bus_type(&self) -> &str { "pci" }
 	fn get_attr_names(&self) -> &[&str]
@@ -84,7 +84,7 @@ impl ::device_manager::BusManager for PCIBusManager
 	}
 }
 
-impl ::device_manager::Driver for PCIChildBusDriver
+impl crate::device_manager::Driver for PCIChildBusDriver
 {
 	fn name(&self) -> &str {
 		"bus-pci"
@@ -100,7 +100,7 @@ impl ::device_manager::Driver for PCIChildBusDriver
 		// -> There should only be one PCI bridge handler, but bind low just in case
 		if bridge_type == 0x01 { 1 } else { 0 }
 	}
-	fn bind(&self, bus_dev: &mut dyn crate::device_manager::BusDevice) -> Box<dyn (::device_manager::DriverInstance)>
+	fn bind(&self, bus_dev: &mut dyn crate::device_manager::BusDevice) -> Box<dyn (crate::device_manager::DriverInstance)>
 	{
 		let d = bus_dev.downcast_ref::<PCIDev>().expect("Not a PCI dev?");
 		let bridge_type = (d.config[3] >> 16) & 0x7F;
@@ -113,7 +113,7 @@ impl ::device_manager::Driver for PCIChildBusDriver
 	}
 }
 
-impl ::device_manager::BusDevice for PCIDev
+impl crate::device_manager::BusDevice for PCIDev
 {
 	fn type_id(&self) -> ::core::any::TypeId {
 		::core::any::TypeId::of::<Self>()
@@ -121,8 +121,8 @@ impl ::device_manager::BusDevice for PCIDev
 	fn addr(&self) -> u32 {
 		self.addr as u32
 	}
-	fn get_attr_idx(&self, name: &str, idx: usize) -> ::device_manager::AttrValue {
-		use device_manager::AttrValue;
+	fn get_attr_idx(&self, name: &str, idx: usize) -> crate::device_manager::AttrValue {
+		use crate::device_manager::AttrValue;
 		match name
 		{
 		"vendor" => AttrValue::U32(self.vendor as u32),
@@ -143,8 +143,8 @@ impl ::device_manager::BusDevice for PCIDev
 			},
 		}
 	}
-	fn set_attr_idx(&mut self, name: &str, _idx: usize, value: ::device_manager::AttrValue) {
-		use device_manager::AttrValue;
+	fn set_attr_idx(&mut self, name: &str, _idx: usize, value: crate::device_manager::AttrValue) {
+		use crate::device_manager::AttrValue;
 		match (name,value)
 		{
 		("vendor", _)|
@@ -175,7 +175,7 @@ impl ::device_manager::BusDevice for PCIDev
 		// Nope
 		todo!("Set power state of PCI devices (state={})", state);
 	}
-	fn bind_io_slice(&mut self, block_id: usize, slice: Option<(usize,usize)>) -> ::device_manager::IOBinding
+	fn bind_io_slice(&mut self, block_id: usize, slice: Option<(usize,usize)>) -> crate::device_manager::IOBinding
 	{
 		if block_id > 6 {
 			panic!("PCI bind_io - block_id out of range (max 5, got {})", block_id);
@@ -192,25 +192,25 @@ impl ::device_manager::BusDevice for PCIDev
 		{
 		BAR::None => {
 			log_error!("PCI bind_io - Request for BAR{} of {:#x} which isn't populated", block_id, self.addr);
-			::device_manager::IOBinding::IO(0,0)
+			crate::device_manager::IOBinding::IO(0,0)
 			},
 		BAR::IO(b,s) => {
 			if let Some(slice) = slice {
 				if slice.0 >= s as usize || slice.1 + slice.0 > s as usize {
-					::device_manager::IOBinding::IO(0,0)
+					crate::device_manager::IOBinding::IO(0,0)
 				}
 				else {
-					::device_manager::IOBinding::IO(b + slice.0 as u16, slice.1 as u16)
+					crate::device_manager::IOBinding::IO(b + slice.0 as u16, slice.1 as u16)
 				}
 			}
 			else {
-				::device_manager::IOBinding::IO(b,s)
+				crate::device_manager::IOBinding::IO(b,s)
 			}
 			},
 		BAR::Mem(base, size, _prefetchable) => {
 			let (base, size) = if let Some(slice) = slice {
 					if slice.0 >= size as usize || slice.1 + slice.0 > size as usize {
-						return ::device_manager::IOBinding::IO(0,0);
+						return crate::device_manager::IOBinding::IO(0,0);
 					}
 					(base + slice.0 as u64, slice.1 as u32)
 				}
@@ -219,8 +219,8 @@ impl ::device_manager::BusDevice for PCIDev
 				};
 			// TODO: Ensure safety by preventing multiple bindings to a BAR
 			// Assume SAFE: Shouldn't be aliased
-			let ah = unsafe {::memory::virt::map_mmio(base as ::memory::PAddr, size as usize).unwrap() };
-			::device_manager::IOBinding::Memory( ah )
+			let ah = unsafe { crate::memory::virt::map_mmio(base as crate::memory::PAddr, size as usize).unwrap() };
+			crate::device_manager::IOBinding::Memory( ah )
 			}
 		}
 	}

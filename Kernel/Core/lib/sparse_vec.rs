@@ -4,7 +4,7 @@
 // Core/lib/sparse_vec.rs
 //! Sparse vector type
 //!
-use prelude::*;
+use crate::prelude::*;
 use core::ops;
 
 /// Sparse vector type

@@ -3,7 +3,7 @@
 //
 // arch/amd64/acpi/mod_mine.rs
 //! ACPI Component Architecture binding
-use prelude::*;
+use crate::prelude::*;
 use core::str::from_utf8;
 
 use self::TLSDT::{TopRSDT,TopXSDT};
@@ -16,7 +16,7 @@ mod aml;
 /// A handle to a SDT
 pub struct SDTHandle<T:'static>
 {
-	maphandle: ::memory::virt::AllocHandle,
+	maphandle: crate::memory::virt::AllocHandle,
 	ofs: usize,
 	_type: ::core::marker::PhantomData<T>,
 }
@@ -65,7 +65,7 @@ struct XSDT
 	pointers: u64,	// Rust doesn't support arbitary length arrays
 }
 
-static S_ACPI_STATE: ::lib::LazyStatic<ACPI> = lazystatic_init!();
+static S_ACPI_STATE: crate::lib::LazyStatic<ACPI> = lazystatic_init!();
 
 /// ACPI module init - Locate the [RX]SDT
 pub fn init()
@@ -112,7 +112,7 @@ pub fn init()
 }
 
 /// Find all SDTs with a given signature
-pub fn find_table<T: 'static + ::lib::POD>(req_name: &str, mut idx: usize) -> Option<SDTHandle<T>>
+pub fn find_table<T: 'static + crate::lib::POD>(req_name: &str, mut idx: usize) -> Option<SDTHandle<T>>
 {
 	log_debug!("find('{}',{})", req_name, idx);
 	assert_eq!(req_name.len(), 4);
@@ -146,11 +146,11 @@ fn get_rsdp() -> Option<&'static RSDP>
 {
 	// SAFE: Valid pointers are passed
 	unsafe {
-		let ebda_ver = locate_rsdp((::arch::imp::memory::addresses::IDENT_START + 0x9_FC00) as *const u8, 0x400);
+		let ebda_ver = locate_rsdp((crate::arch::imp::memory::addresses::IDENT_START + 0x9_FC00) as *const u8, 0x400);
 		if !ebda_ver.is_null() {
 			return ebda_ver.as_ref();
 		}
-		let bios_ver = locate_rsdp((::arch::imp::memory::addresses::IDENT_START + 0xE_0000) as *const u8, 0x2_0000);
+		let bios_ver = locate_rsdp((crate::arch::imp::memory::addresses::IDENT_START + 0xE_0000) as *const u8, 0x2_0000);
 		if !bios_ver.is_null() {
 			return bios_ver.as_ref();
 		}
@@ -178,7 +178,7 @@ unsafe fn locate_rsdp(base: *const u8, size: usize) -> *const RSDP
 }
 
 /// Caclulate the byte sum of a structure
-fn sum_struct<T: ::lib::POD>(s: &T) -> u8
+fn sum_struct<T: crate::lib::POD>(s: &T) -> u8
 {
 	// SAFE: T is POD
 	unsafe {
@@ -222,7 +222,7 @@ impl TLSDT
 	fn oemid<'self_>(&'self_ self) -> &'self_ str {
 		from_utf8(&self._header().oemid).unwrap()
 	}
-	fn get<T: ::lib::POD>(&self, idx: usize) -> SDTHandle<T> {
+	fn get<T: crate::lib::POD>(&self, idx: usize) -> SDTHandle<T> {
 		// SAFE: Immutable access, and address is as validated as can be
 		unsafe {
 			assert!(idx < self.len());
@@ -265,19 +265,19 @@ impl ::core::fmt::Debug for SDTHeader
 	}
 }
 
-impl<T: ::lib::POD> SDTHandle<T>
+impl<T: crate::lib::POD> SDTHandle<T>
 {
 	/// Map an SDT into memory, given a physical address
 	pub unsafe fn new(physaddr: u64) -> SDTHandle<T>
 	{
 		//log_trace!("new(physaddr={:#x})", physaddr);
-		let ofs = (physaddr & (::PAGE_SIZE - 1) as u64) as usize;
+		let ofs = (physaddr & (crate::PAGE_SIZE - 1) as u64) as usize;
 		
 		// Obtain length (and validate)
 		// TODO: Support the SDT header spanning acrosss two pages
-		assert!(::PAGE_SIZE - ofs >= ::core::mem::size_of::<SDTHeader>());
+		assert!(crate::PAGE_SIZE - ofs >= ::core::mem::size_of::<SDTHeader>());
 		// Map the header into memory temporarily (maybe)
-		let mut handle = match ::memory::virt::map_hw_ro(physaddr - ofs as u64, 1, "ACPI") {
+		let mut handle = match crate::memory::virt::map_hw_ro(physaddr - ofs as u64, 1, "ACPI") {
 			Ok(v) => v,
 			Err(_) => panic!("Oops, temp mapping SDT failed"),
 			};
@@ -289,11 +289,11 @@ impl<T: ::lib::POD> SDTHandle<T>
 			};
 		
 		// Map the resultant memory
-		let npages = (ofs + length + ::PAGE_SIZE - 1) / ::PAGE_SIZE;
+		let npages = (ofs + length + crate::PAGE_SIZE - 1) / crate::PAGE_SIZE;
 		log_trace!("npages = {}, ofs = {}, length = {}", npages, ofs, length);
 		if npages != 1
 		{
-			handle = match ::memory::virt::map_hw_ro(physaddr - ofs as u64, npages, "ACPI") {
+			handle = match crate::memory::virt::map_hw_ro(physaddr - ofs as u64, npages, "ACPI") {
 				Ok(x) => x,
 				Err(_) => panic!("Map fail")
 				};
@@ -311,7 +311,7 @@ impl<T: ::lib::POD> SDTHandle<T>
 	}
 }
 
-impl<T: ::lib::POD> ::core::ops::Deref for SDTHandle<T>
+impl<T: crate::lib::POD> ::core::ops::Deref for SDTHandle<T>
 {
 	type Target = SDT<T>;
 	fn deref<'s>(&'s self) -> &'s SDT<T> {

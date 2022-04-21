@@ -64,7 +64,7 @@ pub extern "C" fn error_handler(regs: &InterruptRegs)
 	14 => {
 		let cr2 = get_cr2();
 		puts("PF ("); puth(regs.errorcode); puts(") at "); puth(cr2 as u64); puts(" by "); puth(regs.rip); puts(" SP="); puth(regs.rsp); puts("\n");
-		if ::arch::imp::memory::virt::handle_page_fault(cr2 as usize, regs.errorcode as u32) {
+		if crate::arch::imp::memory::virt::handle_page_fault(cr2 as usize, regs.errorcode as u32) {
 			return ;
 		}
 		},
@@ -87,7 +87,7 @@ pub extern "C" fn error_handler(regs: &InterruptRegs)
 		puts("Stack :");
 		for i in 0 .. 4 {
 			puts(" ");
-			match ::memory::user::read::<u64>(regs.rsp as usize + i * 8)
+			match crate::memory::user::read::<u64>(regs.rsp as usize + i * 8)
 			{
 			Ok(v) => puth64(v),
 			Err(_) => puts("INVAL"),
@@ -136,7 +136,7 @@ pub fn backtrace(bp: u64) -> Option<(u64,u64)>
 	if bp % 8 != 0 {
 		return None;
 	}
-	if ! ::memory::buf_valid(bp as *const (), 16) {
+	if ! crate::memory::buf_valid(bp as *const (), 16) {
 		return None;
 	}
 	
@@ -145,7 +145,7 @@ pub fn backtrace(bp: u64) -> Option<(u64,u64)>
 	unsafe
 	{
 		let ptr: *const [u64; 2] = bp as usize as *const _;
-		if ! ::arch::memory::virt::is_reserved(ptr) {
+		if ! crate::arch::memory::virt::is_reserved(ptr) {
 			None
 		}
 		else {

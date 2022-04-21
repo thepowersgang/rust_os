@@ -25,9 +25,9 @@ pub enum Waiter<'a>
 pub struct Source
 {
 	// TODO: Have a local SleepObjectRef to avoid malloc on single-wait case
-	waiters: ::sync::Mutex< ::lib::Queue< (usize, ::threads::SleepObjectRef) > >,
+	waiters: crate::sync::Mutex< crate::lib::Queue< (usize, crate::threads::SleepObjectRef) > >,
 
-	flags: ::sync::Spinlock<Flags>,
+	flags: crate::sync::Spinlock<Flags>,
 }
 impl Default for Source {
 	fn default() -> Self {
@@ -81,8 +81,8 @@ impl Source
 	pub const fn new() -> Source
 	{
 		Source {
-			waiters: ::sync::Mutex::new(::lib::Queue::new()),
-			flags: ::sync::Spinlock::new(Flags::new()),
+			waiters: crate::sync::Mutex::new(crate::lib::Queue::new()),
+			flags: crate::sync::Spinlock::new(Flags::new()),
 		}
 	}
 	
@@ -168,7 +168,7 @@ impl<'a> super::PrimitiveWaiter for Waiter<'a>
 		}
 		*self = Waiter::Complete;
 	}
-	fn bind_signal(&mut self, sleeper: &mut ::threads::SleepObject) -> bool {
+	fn bind_signal(&mut self, sleeper: &mut crate::threads::SleepObject) -> bool {
 		match *self
 		{
 		Waiter::Complete => {

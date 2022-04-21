@@ -3,13 +3,13 @@
 //
 // Core/vfs/mod.rs
 //! Virtual File System
-use prelude::*;
-use vfs;
+use crate::prelude::*;
+use crate::vfs;
 use super::{mount, node};
-use metadevs::storage::VolumeHandle;
-use lib::{VecMap,SparseVec};
-use lib::byte_str::{ByteStr,ByteString};
-use lib::mem::aref::{Aref,ArefInner,ArefBorrow};
+use crate::metadevs::storage::VolumeHandle;
+use crate::lib::{VecMap,SparseVec};
+use crate::lib::byte_str::{ByteStr,ByteString};
+use crate::lib::mem::aref::{Aref,ArefInner,ArefBorrow};
 
 pub struct Driver;
 pub static S_DRIVER: Driver = Driver;
@@ -23,7 +23,7 @@ enum RamFile
 #[derive(Default)]
 struct RamFileDir
 {
-	ents: ::sync::RwLock<VecMap<ByteString,usize>>,
+	ents: crate::sync::RwLock<VecMap<ByteString,usize>>,
 }
 #[derive(Default)]
 struct RamFileSymlink
@@ -47,7 +47,7 @@ struct RamFSInner
 	_vh: VolumeHandle,
 	// TODO: Store as much data (and metadata) as possible on the volume
 	// - Possibly by using an allocation pool backed onto the volume
-	nodes: ::sync::Mutex< SparseVec<Aref<RamFile>> >,
+	nodes: crate::sync::Mutex< SparseVec<Aref<RamFile>> >,
 }
 
 pub fn init()
@@ -152,7 +152,7 @@ impl node::Dir for FileRef {
 	}
 	
 	fn create(&self, name: &ByteStr, nodetype: node::NodeType) -> vfs::Result<node::InodeId> {
-		use lib::vec_map::Entry;
+		use crate::lib::vec_map::Entry;
 		let mut lh = self.dir().ents.write();
 		match lh.entry(From::from(name))
 		{

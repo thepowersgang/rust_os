@@ -9,16 +9,16 @@
 //
 // TODO: Should this module handle a LRU cache of mappings (not actually unmap until needed)
 use core::ptr::NonNull;
-use PAGE_SIZE;
-use memory::phys::FrameHandle;
+use crate::PAGE_SIZE;
+use crate::memory::phys::FrameHandle;
 use core::sync::atomic::{Ordering, AtomicPtr, AtomicU32};
-use memory::virt::ProtectionMode;
+use crate::memory::virt::ProtectionMode;
 
 /// Error returned by mapping functions
 #[derive(Debug)]
 pub struct Error;
 impl_from! {
-	From<::memory::virt::MapError>(_v) for Error {
+	From<crate::memory::virt::MapError>(_v) for Error {
 		Error
 	}
 }
@@ -33,7 +33,7 @@ const MAX_ENTS: usize = 1024;	// 4MB of active cache entries.
 /// Actual cache structure
 pub struct PageCache
 {
-	avail_ents: ::sync::Semaphore,
+	avail_ents: crate::sync::Semaphore,
 	bitmap: [AtomicU32; MAX_ENTS / 32],
 	cache_start: AtomicPtr<Page>,
 }
@@ -56,7 +56,7 @@ impl PageCache
 	const fn new() -> PageCache
 	{
 		PageCache {
-			avail_ents: ::sync::Semaphore::new( MAX_ENTS as isize, MAX_ENTS as isize ),
+			avail_ents: crate::sync::Semaphore::new( MAX_ENTS as isize, MAX_ENTS as isize ),
 			bitmap: [
 				AtomicU32::new(0), AtomicU32::new(0), AtomicU32::new(0), AtomicU32::new(0),  AtomicU32::new(0), AtomicU32::new(0), AtomicU32::new(0), AtomicU32::new(0),
 				AtomicU32::new(0), AtomicU32::new(0), AtomicU32::new(0), AtomicU32::new(0),  AtomicU32::new(0), AtomicU32::new(0), AtomicU32::new(0), AtomicU32::new(0),
@@ -109,7 +109,7 @@ impl PageCache
 			assert!( !addr.is_null() );
 			// SAFE: Assuming that we're passed an unaliased handle. Address is non-zero
 			unsafe {
-				::memory::virt::map(addr as *mut (), frame_handle.clone().into_addr(), ProtectionMode::KernelRW);
+				crate::memory::virt::map(addr as *mut (), frame_handle.clone().into_addr(), ProtectionMode::KernelRW);
 				Ok( CachedPage(NonNull::new_unchecked(addr as *mut _)) )
 			}
 			})
@@ -121,7 +121,7 @@ impl PageCache
 		self.get_free_ent(|idx| {
 			let addr = self.addr(idx);
 			#[cfg(not(feature="test"))]
-			try!(::memory::virt::allocate(addr as *mut (), 1));
+			crate::memory::virt::allocate(addr as *mut (), 1)?;
 			// SAFE: Non-null pointer
 			Ok( CachedPage(unsafe { NonNull::new_unchecked(addr as *mut _) }) )
 			})
@@ -130,15 +130,15 @@ impl PageCache
 
 	fn release(&self, addr: *mut Page)
 	{
-		assert!(addr as usize % ::PAGE_SIZE == 0);
+		assert!(addr as usize % crate::PAGE_SIZE == 0);
 		let base = self.addr(0);
 		assert!(addr as usize >= base as usize);
-		let idx = (addr as usize - base as usize) / ::PAGE_SIZE;
+		let idx = (addr as usize - base as usize) / crate::PAGE_SIZE;
 		assert!(idx < MAX_ENTS);
 
 		// SAFE: Internally only called on drop of handle
 		unsafe {
-			::memory::virt::unmap(addr as *mut (), 1);
+			crate::memory::virt::unmap(addr as *mut (), 1);
 		}
 
 		let e = &self.bitmap[idx / 32];
@@ -162,7 +162,7 @@ impl CachedPage
 		// TODO: Is this actually safe? It would allow aliasing if someone maps this FrameHandle
 		// SAFE: Physical address is valid
 		unsafe {
-			FrameHandle::from_addr( ::memory::virt::get_phys(self.0.as_ptr()) )
+			FrameHandle::from_addr( crate::memory::virt::get_phys(self.0.as_ptr()) )
 		}
 	}
 	pub fn data(&self) -> &[u8] {

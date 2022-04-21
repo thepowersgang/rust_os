@@ -3,9 +3,9 @@
 //
 // Core/metadevs/video/mod.rs
 ///! Video (Display) management
-use prelude::*;
-use sync::mutex::Mutex;
-use lib::sparse_vec::SparseVec;
+use crate::prelude::*;
+use crate::sync::mutex::Mutex;
+use crate::lib::sparse_vec::SparseVec;
 
 pub use self::geom::{Pos,Dims,Rect};
 
@@ -215,7 +215,7 @@ pub fn set_panic(file: &str, line: usize, message: &::core::fmt::Arguments)
 		}
 		fn write_str(&mut self, s: &str) -> ::core::fmt::Result {
 			for c in s.chars() {
-				try!(self.write_char(c));
+				self.write_char(c)?;
 			}
 			Ok( () )
 		}
@@ -274,7 +274,7 @@ pub fn register_geom_update(fcn: fn(new_total: Rect))
 	*lh = Some(fcn);
 }
 
-fn signal_geom_update(surfs: ::sync::mutex::HeldMutex<SparseVec<DisplaySurface>>)
+fn signal_geom_update(surfs: crate::sync::mutex::HeldMutex<SparseVec<DisplaySurface>>)
 {
 	// API Requirements
 	// - New surface added (with location)

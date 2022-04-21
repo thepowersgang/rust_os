@@ -8,6 +8,19 @@ use crate::sync::EventChannel;
 use core::sync::atomic::{AtomicUsize,Ordering};
 use core::task;
 
+/// Block on a single future
+pub fn block_on<F: ::core::future::Future>(mut f: F) -> F::Output {
+	// SAFE: The memory doesn't move after this pin.
+	let mut f = unsafe { ::core::pin::Pin::new_unchecked(&mut f) };
+	runner(|c| {
+		match f.as_mut().poll(c)
+		{
+		task::Poll::Ready(v) => Some(v),
+		task::Poll::Pending => None,
+		}
+	})
+}
+
 pub fn msleep(ms: usize) -> impl core::future::Future<Output=()> {
 	struct Sleep(u64);
 	impl core::future::Future for Sleep {
@@ -46,7 +59,7 @@ pub fn null_waker() -> task::Waker
 }
 
 /// Simple async task executor
-pub fn runner(mut f: impl FnMut(&mut task::Context))
+pub fn runner<T>(mut f: impl FnMut(&mut task::Context)->Option<T>) -> T
 {
 	let waiter = SimpleWaiter::new();
 
@@ -56,7 +69,9 @@ pub fn runner(mut f: impl FnMut(&mut task::Context))
 
 	loop
 	{
-		f(&mut context);
+		if let Some(rv) = f(&mut context) {
+			return rv;
+		}
 		waiter.sleep();
 	}
 }

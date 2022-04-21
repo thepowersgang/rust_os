@@ -7,11 +7,11 @@
 //! Provides an asynchonous mutex type, for use with the async IO framework
 
 #[allow(unused_imports)]
-use prelude::*;
+use crate::prelude::*;
 use core::cell::UnsafeCell;
 use core::sync::atomic::{AtomicBool,Ordering};
 use core::fmt;
-use async::PrimitiveWaiter;
+use crate::r#async::PrimitiveWaiter;
 
 // NOTES:
 // This should support:
@@ -174,7 +174,7 @@ impl<'a, T: Send> PrimitiveWaiter for Waiter<'a,T>
 			_ => return,
 			};
 	}
-	fn bind_signal(&mut self, sleeper: &mut ::threads::SleepObject) -> bool {
+	fn bind_signal(&mut self, sleeper: &mut crate::threads::SleepObject) -> bool {
 		// If not in Sleep state, force a poll (which will complete instantly)
 		match self.state
 		{

@@ -3,7 +3,7 @@
 //
 // Core/arch/amd64/threads.rs
 //! Architecture-level thread handling (helpers for ::threads).
-use prelude::*;
+use crate::prelude::*;
 use ::core::arch::asm;
 
 #[derive(Default)]//,Copy,Clone)]
@@ -15,7 +15,7 @@ pub struct State
 	tlsbase: u64,
 	// Not strictly part of the CPU state, but it prevents this thread's stack from disappearing
 	#[allow(dead_code)]
-	stack_handle: Option< ::memory::virt::ArrayHandle<u8> >,
+	stack_handle: Option< crate::memory::virt::ArrayHandle<u8> >,
 	// TODO: SSE state 
 	// TODO: Usermode TLS bsae
 }
@@ -33,7 +33,7 @@ extern "C" {
 }
 
 pub static S_IRQS_ENABLED: ::core::sync::atomic::AtomicBool = ::core::sync::atomic::AtomicBool::new(false);
-static mut S_IDLE_THREAD: *mut ::threads::Thread = 0 as *mut _;
+static mut S_IDLE_THREAD: *mut crate::threads::Thread = 0 as *mut _;
 
 #[repr(C)]
 /// Thread-local-storage block
@@ -48,7 +48,7 @@ struct TLSData {
 	user_stack: u64,
 	
 	// Free to reorder these
-	thread_ptr: *mut ::threads::Thread,
+	thread_ptr: *mut crate::threads::Thread,
 	thread_ptr_lent: bool,
 
 	sse_registers: Option<Box<SSERegisters>>,
@@ -60,7 +60,7 @@ pub fn init_tid0_state() -> State
 {
 	// SAFE: Called in single-threaded context... hopefully (TODO)
 	unsafe {
-		S_IDLE_THREAD = ::core::mem::transmute( ::threads::new_idle_thread(0) );
+		S_IDLE_THREAD = ::core::mem::transmute( crate::threads::new_idle_thread(0) );
 	}
 	// SAFE: Just taking the address
 	let cr3 = unsafe { &InitialPML4 as *const _ as u64 - super::memory::addresses::IDENT_START as u64 };
@@ -81,7 +81,7 @@ pub fn init_smp() {
 impl State
 {
 	/// Construct a new empty CPU state using the provided address space
-	pub fn new(address_space: &::memory::virt::AddressSpace) -> State {
+	pub fn new(address_space: &crate::memory::virt::AddressSpace) -> State {
 		log_trace!("State::new({:?})", address_space);
 		let mut rv = State::default();
 		rv.cr3 = address_space.inner().get_cr3();
@@ -90,7 +90,7 @@ impl State
 }
 
 /// Idle for a short period, called when the CPU has nothing else to do
-pub fn idle(held_interrupts: ::arch::sync::HeldInterrupts)
+pub fn idle(held_interrupts: crate::arch::sync::HeldInterrupts)
 {
 	::core::mem::forget(held_interrupts);
 	//if true {
@@ -104,7 +104,7 @@ pub fn idle(held_interrupts: ::arch::sync::HeldInterrupts)
 
 /// Prepares the TLS block at the stop of a kernel stack
 #[no_mangle]
-pub unsafe extern "C" fn prep_tls(top: usize, _bottom: usize, thread_ptr: *mut ::threads::Thread) -> usize
+pub unsafe extern "C" fn prep_tls(top: usize, _bottom: usize, thread_ptr: *mut crate::threads::Thread) -> usize
 {
 	let mut pos = top;
 	
@@ -131,9 +131,9 @@ pub unsafe extern "C" fn prep_tls(top: usize, _bottom: usize, thread_ptr: *mut :
 /// Start a new thread using the provided TCB
 ///
 /// Allocates a new stack within the current address space
-pub fn start_thread<F: FnOnce()+Send>(thread: &mut ::threads::Thread, code: F)
+pub fn start_thread<F: FnOnce()+Send>(thread: &mut crate::threads::Thread, code: F)
 {
-	let stack = ::memory::virt::alloc_stack().into_array::<u8>();
+	let stack = crate::memory::virt::alloc_stack().into_array::<u8>();
 	
 	let stack_rgn_top = &stack[stack.len()-1] as *const _ as usize + 1;
 	let mut stack_top = stack_rgn_top;
@@ -193,18 +193,18 @@ pub fn start_thread<F: FnOnce()+Send>(thread: &mut ::threads::Thread, code: F)
 	}
 }
 
-pub fn get_idle_thread() -> ::threads::ThreadPtr
+pub fn get_idle_thread() -> crate::threads::ThreadPtr
 {
 	// TODO: Shared mutability shouldn't be an issue (this thread pointer should not be created twice)
 	// SAFE: Passes a static pointer. `static mut` should be initialised
 	unsafe {
 		assert!(S_IDLE_THREAD != 0 as *mut _);
-		::threads::ThreadPtr::new_static( &mut *S_IDLE_THREAD )
+		crate::threads::ThreadPtr::new_static( &mut *S_IDLE_THREAD )
 	}
 }
 
 /// Switch to the passed thread (suspending the current thread until it is rescheduled)
-pub fn switch_to(newthread: ::threads::ThreadPtr)
+pub fn switch_to(newthread: crate::threads::ThreadPtr)
 {
 	if is_task_switching_disabled()
 	{
@@ -284,7 +284,7 @@ fn get_tls_ptr() -> *mut TLSData {
 }
 
 /// Obtain the current thread's pointer (as a owned box, thread is destroyed when box is dropped)
-pub fn get_thread_ptr() -> Option<::threads::ThreadPtr>
+pub fn get_thread_ptr() -> Option<crate::threads::ThreadPtr>
 {
 	// SAFE: Safe transmutes and derefs
 	unsafe {
@@ -296,14 +296,14 @@ pub fn get_thread_ptr() -> Option<::threads::ThreadPtr>
 		::core::mem::transmute( info.thread_ptr )
 	}
 }
-pub fn borrow_thread() -> *const ::threads::Thread {
+pub fn borrow_thread() -> *const crate::threads::Thread {
 	// SAFE: Safe dereference
 	unsafe {
 		(*get_tls_ptr()).thread_ptr
 	}
 }
 /// Release or set the current thread pointer
-pub fn set_thread_ptr(ptr: ::threads::ThreadPtr)
+pub fn set_thread_ptr(ptr: crate::threads::ThreadPtr)
 {
 	// SAFE: Good transmute/derefs
 	unsafe {

@@ -4,8 +4,8 @@
 // Core/async-v3/mutex.rs
 //! Asynchonous mutex
 #[allow(unused_imports)]
-use prelude::*;
-use lib::collections::VecDeque;
+use crate::prelude::*;
+use crate::lib::collections::VecDeque;
 use core::ops;
 use core::cell::UnsafeCell;
 
@@ -23,7 +23,7 @@ pub struct MutexInner
 }
 pub struct Mutex<T>
 {
-	inner: ::sync::Mutex<MutexInner>,
+	inner: crate::sync::Mutex<MutexInner>,
 	data: UnsafeCell<T>,
 }
 
@@ -32,7 +32,7 @@ impl<T> Mutex<T>
 	/// Construct a new async mutex containing the passed value
 	pub const fn new(v: T) -> Mutex<T> {
 		Mutex {
-			inner: ::sync::Mutex::new(MutexInner {
+			inner: crate::sync::Mutex::new(MutexInner {
 				cur_index: 0,
 				sleep_queue: VecDeque::new(),
 				locked: false,

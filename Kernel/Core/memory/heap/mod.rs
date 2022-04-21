@@ -41,7 +41,7 @@ pub struct ArrayAlloc<T>
 	ptr: NonNull<T>,
 	count: usize,
 }
-impl<T> !::lib::POD for ArrayAlloc<T> {}
+impl<T> !crate::lib::POD for ArrayAlloc<T> {}
 unsafe impl<T: Sync> Sync for ArrayAlloc<T> {
 }
 unsafe impl<T: Send> Send for ArrayAlloc<T> {
@@ -51,8 +51,8 @@ unsafe impl<T: Send> Send for ArrayAlloc<T> {
 
 pub const ZERO_ALLOC: *mut () = 1 as *mut _;
 
-//static S_LOCAL_HEAP: ::sync::Mutex<HeapDef> = mutex_init!(HeapDef{head:None});
-static S_GLOBAL_HEAP: ::sync::Mutex<HeapDef> = ::sync::Mutex::new(HeapDef::new());
+//static S_LOCAL_HEAP: crate::sync::Mutex<HeapDef> = mutex_init!(HeapDef{head:None});
+static S_GLOBAL_HEAP: crate::sync::Mutex<HeapDef> = crate::sync::Mutex::new(HeapDef::new());
 
 // --------------------------------------------------------
 // Code

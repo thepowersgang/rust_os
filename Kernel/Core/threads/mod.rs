@@ -22,7 +22,7 @@ pub use self::thread_list::{ThreadList,THREADLIST_INIT};
 pub use self::sleep_object::{SleepObject,SleepObjectRef};
 pub use self::wait_queue::WaitQueue;
 
-use lib::mem::aref::{Aref,ArefBorrow};
+use crate::lib::mem::aref::{Aref,ArefBorrow};
 
 /// A bitset of wait events
 pub type EventMask = u32;
@@ -31,10 +31,10 @@ pub type EventMask = u32;
 // Statics
 //static s_all_threads:	::sync::Mutex<Map<uint,*const Thread>> = mutex_init!(Map{});
 #[allow(non_upper_case_globals)]
-static s_runnable_threads: ::sync::Spinlock<ThreadList> = ::sync::Spinlock::new(THREADLIST_INIT);
-static S_PID0: ::lib::LazyStatic<::lib::mem::Arc<thread::Process>> = ::lib::LazyStatic::new();
+static s_runnable_threads: crate::sync::Spinlock<ThreadList> = crate::sync::Spinlock::new(THREADLIST_INIT);
+static S_PID0: crate::lib::LazyStatic<crate::lib::mem::Arc<thread::Process>> = crate::lib::LazyStatic::new();
 // Spinlocked due to low contention, and because the current thread is pushed to it
-static S_TO_REAP_THREADS: ::sync::Spinlock<ThreadList> = ::sync::Spinlock::new(THREADLIST_INIT);
+static S_TO_REAP_THREADS: crate::sync::Spinlock<ThreadList> = crate::sync::Spinlock::new(THREADLIST_INIT);
 
 // ----------------------------------------------
 // Code
@@ -45,11 +45,11 @@ pub fn init()
 	S_PID0.prep( || thread::Process::new_pid0() );
 
 	let mut tid0 = Thread::new_boxed(0, "ThreadZero", S_PID0.clone());
-	tid0.cpu_state = ::arch::threads::init_tid0_state();
-	::arch::threads::set_thread_ptr( tid0 );
+	tid0.cpu_state = crate::arch::threads::init_tid0_state();
+	crate::arch::threads::set_thread_ptr( tid0 );
 
 	// Start SMP here (by poking arch)
-	::arch::threads::init_smp();
+	crate::arch::threads::init_smp();
 }
 
 /// Returns `true` if a thread was reaped
@@ -58,7 +58,7 @@ fn reap_threads() -> bool
 	let mut rv = false;
 	while let Some(thread) = S_TO_REAP_THREADS.lock().pop() {
 		log_log!("Reaping thread {:?}", thread);
-		assert!(&*thread as *const Thread != ::arch::threads::borrow_thread() as *const _, "Reaping thread from itself");
+		assert!(&*thread as *const Thread != crate::arch::threads::borrow_thread() as *const _, "Reaping thread from itself");
 		match thread.into_boxed()
 		{
 		Ok(thread) => drop(thread),
@@ -75,14 +75,14 @@ pub fn idle_thread()
 	{
 		if ! reap_threads()
 		{
-			let held_ints = ::arch::sync::hold_interrupts();
+			let held_ints = crate::arch::sync::hold_interrupts();
 			if let Some(thread) = get_thread_to_run() {
 				log_debug!("Idle task switch to {:?}", thread);
 				drop(held_ints);
-				::arch::threads::switch_to(thread);
+				crate::arch::threads::switch_to(thread);
 			}
 			else {
-				::arch::threads::idle(held_ints);
+				crate::arch::threads::idle(held_ints);
 			}
 		}
 		else
@@ -107,7 +107,7 @@ pub fn yield_to(thread: ThreadPtr)
 {
 	log_debug!("Yielding CPU to {:?}", thread);
 	s_runnable_threads.lock().push( get_cur_thread() );
-	::arch::threads::switch_to( thread );
+	crate::arch::threads::switch_to( thread );
 }
 
 #[cfg(feature="test")]
@@ -165,7 +165,7 @@ pub fn exit_process(status: u32) -> ! {
 
 pub fn get_thread_id() -> thread::ThreadID
 {
-	let p = ::arch::threads::borrow_thread();
+	let p = crate::arch::threads::borrow_thread();
 	// SAFE: Checks for NULL, and the thread should be vaild while executing
 	unsafe {
 		if p == 0 as *const _ {
@@ -179,7 +179,7 @@ pub fn get_thread_id() -> thread::ThreadID
 pub fn get_process_id() -> thread::ProcessID {
 	// SAFE: Does NULL check. TODO: _could_ cause & alias...
 	let p = unsafe {
-		let p = ::arch::threads::borrow_thread();
+		let p = crate::arch::threads::borrow_thread();
 		assert!(p != 0 as *const _);
 		&*p
 		};
@@ -190,7 +190,7 @@ fn with_cur_thread<T, F: FnOnce(&thread::Thread)->T>(fcn: F) -> T
 {
 	// SAFE: Checks for NULL, and the thread should be vaild while executing
 	let t = unsafe {
-		let tp = ::arch::threads::borrow_thread();
+		let tp = crate::arch::threads::borrow_thread();
 		assert!( !tp.is_null() );
 		&*tp
 		};
@@ -202,7 +202,7 @@ pub fn get_process_local<T: Send+Sync+::core::any::Any+Default+'static>() -> Are
 {
 	// SAFE: Checks for NULL, and the thread should be vaild while executing
 	let t = unsafe {
-		let tp = ::arch::threads::borrow_thread();
+		let tp = crate::arch::threads::borrow_thread();
 		assert!( !tp.is_null() );
 		&*tp
 		};
@@ -245,7 +245,7 @@ pub fn reschedule()
 	{
 		if let Some(thread) = get_thread_to_run()
 		{
-			if &*thread as *const _ == ::arch::threads::borrow_thread() as *const _
+			if &*thread as *const _ == crate::arch::threads::borrow_thread() as *const _
 			{
 				// If running in test mode, this is a bug.
 				if cfg!(feature="test") {
@@ -254,26 +254,26 @@ pub fn reschedule()
 				}
 
 				log_debug!("Task switch to self, idle");
-				::arch::threads::switch_to(thread);
-				::arch::threads::idle(::arch::sync::hold_interrupts());
+				crate::arch::threads::switch_to(thread);
+				crate::arch::threads::idle(crate::arch::sync::hold_interrupts());
 			}
 			else
 			{
 				log_debug!("Task switch to {:?}", thread);
-				::arch::threads::switch_to(thread);
+				crate::arch::threads::switch_to(thread);
 				//log_debug!("Awoke");
 			}
 			return ;
 		}
 		else
 		{
-			let thread = ::arch::threads::get_idle_thread();
-			if &*thread as *const _ != ::arch::threads::borrow_thread() as *const _
+			let thread = crate::arch::threads::get_idle_thread();
+			if &*thread as *const _ != crate::arch::threads::borrow_thread() as *const _
 			{
 				log_trace!("reschedule() - No active threads, idling");
 				
 				// Switch to the idle thread
-				::arch::threads::switch_to( thread );
+				crate::arch::threads::switch_to( thread );
 			}
 			else {
 				::core::mem::forget(thread);
@@ -285,11 +285,11 @@ pub fn reschedule()
 
 fn get_cur_thread() -> ThreadPtr
 {
-	::arch::threads::get_thread_ptr().expect("Current thread is None")
+	crate::arch::threads::get_thread_ptr().expect("Current thread is None")
 }
 fn rel_cur_thread(t: ThreadPtr)
 {
-	::arch::threads::set_thread_ptr(t)
+	crate::arch::threads::set_thread_ptr(t)
 }
 //fn borrow_cur_thread() -> BorrowedThread
 //{
@@ -298,7 +298,7 @@ fn rel_cur_thread(t: ThreadPtr)
 
 fn get_thread_to_run() -> Option<ThreadPtr>
 {
-	let _irq_lock = ::arch::sync::hold_interrupts();
+	let _irq_lock = crate::arch::sync::hold_interrupts();
 	let mut handle = s_runnable_threads.lock();
 	if handle.empty()
 	{

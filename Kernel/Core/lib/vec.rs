@@ -3,11 +3,11 @@
 //
 // Core/lib/vec.rs
 //! Dynamically growable vector type
-use prelude::*;
+use crate::prelude::*;
 use core::iter::{FromIterator};
 use core::{ops,fmt};
-use lib::collections::{MutableSeq};
-use memory::heap::ArrayAlloc;
+use crate::lib::collections::{MutableSeq};
+use crate::memory::heap::ArrayAlloc;
 
 /// Growable array of items
 pub struct Vec<T>
@@ -75,7 +75,7 @@ impl<T> Vec<T>
 			size: len,
 		}
 	}
-	pub fn into_boxed_slice(mut self) -> ::lib::mem::Box<[T]> {
+	pub fn into_boxed_slice(mut self) -> crate::lib::mem::Box<[T]> {
 		let len = self.len();
 		self.data.shrink( len );
 		// SAFE: (assume) Box<[T]> == *mut [T]
@@ -115,7 +115,7 @@ impl<T> Vec<T>
 	fn reserve_cap(&mut self, size: usize)
 	{
 		let usize_bits: u32 = (::core::mem::size_of::<usize>() * 8) as u32;
-		let newcap = ::lib::num::round_up(size, 1 << (usize_bits - size.leading_zeros()));
+		let newcap = crate::lib::num::round_up(size, 1 << (usize_bits - size.leading_zeros()));
 		if newcap > self.data.count()
 		{
 			if self.data.expand(newcap)

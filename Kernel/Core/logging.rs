@@ -11,9 +11,9 @@
 // > Display sink
 // > Serial sink
 #[allow(unused_imports)]
-use prelude::*;
+use crate::prelude::*;
 use core::fmt;
-use arch::sync::Spinlock;
+use crate::arch::sync::Spinlock;
 
 /// Log level, ranging from a kernel panic down to tracing
 /// NOTE: Numbers must match what's used in `log_cfg.S`
@@ -53,10 +53,10 @@ enum Colour
 #[doc(hidden)]
 pub struct LoggingFormatter<'a>
 {
-	lock_handle: ::arch::sync::HeldSpinlock<'a,Sinks>,
+	lock_handle: crate::arch::sync::HeldSpinlock<'a,Sinks>,
 	
 	// NOTE: Must be second, forcing interrupts to be reenabled after the lock is released
-	_irq_handle: ::arch::sync::HeldInterrupts,
+	_irq_handle: crate::arch::sync::HeldInterrupts,
 }
 
 /// Wrapper around a &-ptr that prints a hexdump of the passed data.
@@ -70,7 +70,7 @@ static S_LOGGING_LOCK: Spinlock<Sinks> = Spinlock::new( Sinks { serial: serial::
 trait Sink
 {
 	/// Start a new log entry
-	fn start(&mut self, timestamp: ::time::TickCount, level: Level, source: &'static str);
+	fn start(&mut self, timestamp: crate::time::TickCount, level: Level, source: &'static str);
 	/// Append data to the current log entry
 	fn write(&mut self, data: &str);
 	/// End a log entry
@@ -86,29 +86,29 @@ struct Sinks
 mod serial
 {
 	#[allow(unused_imports)]
-	use prelude::*;
+	use crate::prelude::*;
 	use super::{Level,Colour};
 	use core::fmt;
 	
 	pub struct Sink;
 	impl super::Sink for Sink
 	{
-		fn start(&mut self, timestamp: ::time::TickCount, level: Level, source: &'static str) {
+		fn start(&mut self, timestamp: crate::time::TickCount, level: Level, source: &'static str) {
 			use core::fmt::Write;
 			self.set_colour(level.to_colour());
-			write!(self, "{:6}{} {}[{}] - ", timestamp, level, ::threads::get_thread_id(), source).unwrap();
+			write!(self, "{:6}{} {}[{}] - ", timestamp, level, crate::threads::get_thread_id(), source).unwrap();
 		}
 		fn write(&mut self, s: &str) {
-			::arch::puts(s);
+			crate::arch::puts(s);
 		}
 		fn end(&mut self) {
-			::arch::puts("\x1b[0m\n");
+			crate::arch::puts("\x1b[0m\n");
 		}
 	}
 	impl fmt::Write for Sink
 	{
 		fn write_str(&mut self, s: &str) -> fmt::Result {
-			::arch::puts(s);
+			crate::arch::puts(s);
 			Ok( () )
 		}
 	}
@@ -118,13 +118,13 @@ mod serial
 		pub(super) fn set_colour(&self, colour: Colour) {
 			match colour
 			{
-			Colour::Default => ::arch::puts("\x1b[0000m"),
-			Colour::Red     => ::arch::puts("\x1b[0031m"),
-			Colour::Green   => ::arch::puts("\x1b[0032m"),
-			Colour::Yellow  => ::arch::puts("\x1b[0033m"),
-			Colour::Blue    => ::arch::puts("\x1b[0034m"),
-			Colour::Purple  => ::arch::puts("\x1b[0035m"),
-			Colour::Grey    => ::arch::puts("\x1b[1;30m"),
+			Colour::Default => crate::arch::puts("\x1b[0000m"),
+			Colour::Red     => crate::arch::puts("\x1b[0031m"),
+			Colour::Green   => crate::arch::puts("\x1b[0032m"),
+			Colour::Yellow  => crate::arch::puts("\x1b[0033m"),
+			Colour::Blue    => crate::arch::puts("\x1b[0034m"),
+			Colour::Purple  => crate::arch::puts("\x1b[0035m"),
+			Colour::Grey    => crate::arch::puts("\x1b[1;30m"),
 			}
 		}
 	}
@@ -133,12 +133,12 @@ mod serial
 mod memory
 {
 	#[allow(unused_imports)]
-	use prelude::*;
+	use crate::prelude::*;
 	use super::Level;
 	
 	pub struct Sink
 	{
-		lines: ::lib::ring_buffer::RingBuf<LogMessage>,
+		lines: crate::lib::ring_buffer::RingBuf<LogMessage>,
 	}
 	// Buffer for log data
 	// Temp hack until type-level ints are avaliable
@@ -158,25 +158,25 @@ mod memory
 	#[allow(dead_code)]	// Allow unread fields
 	struct LogMessage
 	{
-		time: ::time::TickCount,
+		time: crate::time::TickCount,
 		level: Level,
 		source: &'static str,
-		data: ::lib::string::FixedString<LogDataBuf>,
+		data: crate::lib::string::FixedString<LogDataBuf>,
 	}
 	impl Sink
 	{
 		pub fn new() -> Sink {
 			Sink {
-				lines: ::lib::ring_buffer::RingBuf::new(256),	// 256 log of scrollback
+				lines: crate::lib::ring_buffer::RingBuf::new(256),	// 256 log of scrollback
 			}
 		}
 	}
 	impl super::Sink for Sink
 	{
-		fn start(&mut self, timestamp: ::time::TickCount, level: Level, source: &'static str) {
+		fn start(&mut self, timestamp: crate::time::TickCount, level: Level, source: &'static str) {
 			let new_line = LogMessage {
 				time: timestamp, level: level, source: source,
-				data: ::lib::string::FixedString::new(LogDataBuf::new())
+				data: crate::lib::string::FixedString::new(LogDataBuf::new())
 				};
 			match self.lines.push_back( new_line )
 			{
@@ -204,7 +204,7 @@ mod video
 	
 	impl super::Sink for Sink
 	{
-		fn start(&mut self, timestamp: ::time::TickCount, level: Level, source: &'static str) {
+		fn start(&mut self, timestamp: crate::time::TickCount, level: Level, source: &'static str) {
 			// Acquire a writer from the GUI
 			// - TODO: requires acquiring the lock on the kernel log, which is a Mutex, and may already be held.
 			// - What about having the kernel log write methods be unsafe, then they can assume that they're called in logging
@@ -280,10 +280,10 @@ impl<'a> LoggingFormatter<'a>
 	{
 		// TODO: if S_LOGGING_LOCK is held by the current CPU, error.
 		let mut rv = LoggingFormatter {
-				_irq_handle: ::arch::sync::hold_interrupts(),
+				_irq_handle: crate::arch::sync::hold_interrupts(),
 				lock_handle: S_LOGGING_LOCK.lock()
 			};
-		let ts = ::time::ticks();
+		let ts = crate::time::ticks();
 		rv.lock_handle.foreach_mut(|x| x.start(ts, level, modname));
 		rv
 	}
@@ -436,7 +436,7 @@ print_iter_def! { LowerHex }
 pub fn start_memory_sink() {
 	let sink = memory::Sink::new();
 	
-	let _irq = ::arch::sync::hold_interrupts();
+	let _irq = crate::arch::sync::hold_interrupts();
 	let mut lh = S_LOGGING_LOCK.lock();
 	
 	if lh.memory.is_none()

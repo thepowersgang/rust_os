@@ -38,7 +38,7 @@ pub mod memory {
 			pub fn pid0() -> AddressSpace {
 				AddressSpace
 			}
-			pub fn new(_cstart: usize, _cend: usize) -> Result<AddressSpace,::memory::virt::MapError> {
+			pub fn new(_cstart: usize, _cend: usize) -> Result<AddressSpace,crate::memory::virt::MapError> {
 				//#[cfg(feature="native")]
 				return Ok(AddressSpace);
 				//todo!("AddressSpace::new");
@@ -54,20 +54,20 @@ pub mod memory {
 		pub unsafe fn temp_unmap<T>(_a: *mut T) {
 		}
 
-		pub fn get_phys<T>(_p: *const T) -> ::memory::PAddr {
+		pub fn get_phys<T>(_p: *const T) -> crate::memory::PAddr {
 			0
 		}
 		pub fn is_reserved<T>(_p: *const T) -> bool {
 			true	// NOTE: Assume all memory is valid
 		}
-		pub fn get_info<T>(_p: *const T) -> Option<(::memory::PAddr,::memory::virt::ProtectionMode)> {
+		pub fn get_info<T>(_p: *const T) -> Option<(crate::memory::PAddr,crate::memory::virt::ProtectionMode)> {
 			None
 		}
 
 		pub fn is_fixed_alloc(_addr: *const (), _size: usize) -> bool {
 			false
 		}
-		pub unsafe fn fixed_alloc(_p: ::memory::PAddr, _count: usize) -> Option<*mut ()> {
+		pub unsafe fn fixed_alloc(_p: crate::memory::PAddr, _count: usize) -> Option<*mut ()> {
 			None
 		}
 
@@ -75,11 +75,11 @@ pub mod memory {
 			false
 		}
 
-		pub unsafe fn map(_a: *mut (), _p: ::memory::PAddr, _mode: ::memory::virt::ProtectionMode) {
+		pub unsafe fn map(_a: *mut (), _p: crate::memory::PAddr, _mode: crate::memory::virt::ProtectionMode) {
 		}
-		pub unsafe fn reprotect(_a: *mut (), _mode: ::memory::virt::ProtectionMode) {
+		pub unsafe fn reprotect(_a: *mut (), _mode: crate::memory::virt::ProtectionMode) {
 		}
-		pub unsafe fn unmap(_a: *mut ()) -> Option<::memory::PAddr> {
+		pub unsafe fn unmap(_a: *mut ()) -> Option<crate::memory::PAddr> {
 			None
 		}
 	}
@@ -194,12 +194,12 @@ pub mod boot {
 	pub fn get_boot_string() -> &'static str {
 		""
 	}
-	pub fn get_video_mode() -> Option<::metadevs::video::bootvideo::VideoMode> {
+	pub fn get_video_mode() -> Option<crate::metadevs::video::bootvideo::VideoMode> {
 		None
 	}
-	pub fn get_memory_map() -> &'static [::memory::MemoryMapEnt] {
+	pub fn get_memory_map() -> &'static [crate::memory::MemoryMapEnt] {
 		&[
-			::memory::MemoryMapEnt {
+			crate::memory::MemoryMapEnt {
 				start: 0,
 				size: 0 ,
 				state: crate::memory::MemoryState::Free,
@@ -218,7 +218,7 @@ pub mod threads {
 
 	#[derive(Debug)]
 	struct ThreadLocalState {
-		ptr: *mut ::threads::Thread,
+		ptr: *mut crate::threads::Thread,
 		ptr_moved: bool,
 		this_state: Option<Arc<StateInner>>,
 	}
@@ -251,13 +251,13 @@ pub mod threads {
 				})
 			}
 		}
-		pub fn new(_as: &::arch::memory::virt::AddressSpace) -> State {
+		pub fn new(_as: &crate::arch::memory::virt::AddressSpace) -> State {
 			Self::new_priv()
 		}
 	}
 	impl StateInner
 	{
-		fn sleep(&self, t: Option<::threads::ThreadPtr>) {
+		fn sleep(&self, t: Option<crate::threads::ThreadPtr>) {
 			let mut lh = SWITCH_LOCK.lock().unwrap();
 			if let Some(ref t) = t
 			{
@@ -297,7 +297,7 @@ pub mod threads {
 	pub fn init_smp() {
 	}
 
-	pub fn set_thread_ptr(t: ::threads::ThreadPtr) {
+	pub fn set_thread_ptr(t: crate::threads::ThreadPtr) {
 		THIS_THREAD_STATE.with(|v| {
 			log_trace!("set_thread_ptr");
 			let mut h = v.borrow_mut();
@@ -312,7 +312,7 @@ pub mod threads {
 			}
 		})
 	}
-	pub fn get_thread_ptr() -> Option<::threads::ThreadPtr> {
+	pub fn get_thread_ptr() -> Option<crate::threads::ThreadPtr> {
 		THIS_THREAD_STATE.with(|v| {
 			//log_trace!("get_thread_ptr: {:p}", v);
 			let mut h = v.borrow_mut();
@@ -327,7 +327,7 @@ pub mod threads {
 			}
 		})
 	}
-	pub fn borrow_thread() -> *const ::threads::Thread {
+	pub fn borrow_thread() -> *const crate::threads::Thread {
 		THIS_THREAD_STATE.with(|v| {
 			let h = v.borrow();
 			// NOTE: Doesn't care if the pointer is "owned"
@@ -361,14 +361,14 @@ pub mod threads {
 		drop(held_interrupts);
 		IDLE_STATE.idle();
 	}
-	pub fn get_idle_thread() -> ::threads::ThreadPtr {
+	pub fn get_idle_thread() -> crate::threads::ThreadPtr {
 		lazy_static::lazy_static! {
 			static ref TS_ZERO: usize = crate::threads::new_idle_thread(0).into_usize();
 		}
 		// SAFE: Same as `get_thread_ptr`, doesn't actually own the result
 		unsafe { std::mem::transmute(*TS_ZERO) }
 	}
-	pub fn switch_to(t: ::threads::ThreadPtr) {
+	pub fn switch_to(t: crate::threads::ThreadPtr) {
 		THIS_THREAD_STATE.with(|v| {
 			let h = v.borrow();
 			//assert!( h.ptr_moved );
@@ -494,7 +494,7 @@ pub mod threads {
 		rv
 	}
 
-	pub fn start_thread<F: FnOnce()+Send+'static>(thread: &mut ::threads::Thread, code: F) {
+	pub fn start_thread<F: FnOnce()+Send+'static>(thread: &mut crate::threads::Thread, code: F) {
 		// Set thread state's join handle to a thread with a pause point
 		let inner_handle = thread.cpu_state.inner.clone();
 		log_trace!("start_thread: {:p}", inner_handle);

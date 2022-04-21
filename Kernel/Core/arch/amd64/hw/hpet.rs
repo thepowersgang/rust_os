@@ -4,16 +4,16 @@
 // arch/amd64/hw/hpet.rs
 // - x86 High Precision Event Timer
 #[allow(unused_imports)]
-use prelude::*;
-use arch::imp::acpi::AddressSpaceID;
+use crate::prelude::*;
+use crate::arch::imp::acpi::AddressSpaceID;
 
 module_define!{HPET, [APIC, ACPI], init}
 
 struct HPET
 {
-	mapping_handle: ::memory::virt::AllocHandle,
+	mapping_handle: crate::memory::virt::AllocHandle,
 	#[allow(dead_code)]
-	irq_handle: ::arch::imp::hw::apic::IRQHandle,
+	irq_handle: crate::arch::imp::hw::apic::IRQHandle,
 	period: u64,
 }
 
@@ -23,7 +23,7 @@ struct ACPI_HPET
 	hw_rev_id: u8,
 	flags: u8,
 	pci_vendor: u16,
-	addr: ::arch::imp::acpi::GAS,
+	addr: crate::arch::imp::acpi::GAS,
 	hpet_num: u8,
 	mintick: [u8; 2],	// 16-bit word
 	page_protection: u8,
@@ -38,7 +38,7 @@ enum HPETReg
 	Timer0  = 0x10,
 }
 
-static S_INSTANCE: ::lib::LazyStatic<HPET> = lazystatic_init!();
+static S_INSTANCE: crate::lib::LazyStatic<HPET> = lazystatic_init!();
 
 /// Reutrns the current system timestamp, in miliseconds since an arbitary point (usually power-on)
 pub fn get_timestamp() -> u64
@@ -54,7 +54,7 @@ pub fn get_timestamp() -> u64
 fn init()
 {
 	log_trace!("init()");
-	let hpet = match ::arch::imp::acpi::find::<ACPI_HPET>("HPET", 0)
+	let hpet = match crate::arch::imp::acpi::find::<ACPI_HPET>("HPET", 0)
 		{
 		None => {
 			log_error!("No HPET, in ACPI, no timing avaliable");
@@ -65,18 +65,18 @@ fn init()
 
 	let info = hpet.data();
 	assert!(info.addr.asid == AddressSpaceID::Memory as u8);
-	assert!(info.addr.address % ::PAGE_SIZE as u64 == 0, "Address {:#x} not page aligned", { info.addr.address });
+	assert!(info.addr.address % crate::PAGE_SIZE as u64 == 0, "Address {:#x} not page aligned", { info.addr.address });
 	// Assume SAFE: Shouldn't be sharing paddrs
-	let mapping = unsafe { ::memory::virt::map_hw_rw(info.addr.address, 1, "HPET").unwrap() };
+	let mapping = unsafe { crate::memory::virt::map_hw_rw(info.addr.address, 1, "HPET").unwrap() };
 
 	// HACK! Disable the PIT
 	// - This should really be done by the ACPI code (after it determines the PIT exists)
 	// SAFE: Nothing else attacks the PIT
 	unsafe {
-		::arch::x86_io::outb(0x43, 0<<7|3<<4|0);
-		::arch::x86_io::outb(0x43, 1<<7|3<<4|0);
-		::arch::x86_io::outb(0x43, 2<<7|3<<4|0);
-		::arch::x86_io::outb(0x43, 3<<7|3<<4|0);
+		crate::arch::x86_io::outb(0x43, 0<<7|3<<4|0);
+		crate::arch::x86_io::outb(0x43, 1<<7|3<<4|0);
+		crate::arch::x86_io::outb(0x43, 2<<7|3<<4|0);
+		crate::arch::x86_io::outb(0x43, 3<<7|3<<4|0);
 	}
 
 	// SAFE: 'init' is called in a single-threaded context
@@ -91,7 +91,7 @@ fn init()
 
 impl HPET
 {
-	pub fn new(mapping: ::memory::virt::AllocHandle) -> HPET
+	pub fn new(mapping: crate::memory::virt::AllocHandle) -> HPET
 	{
 		let mut rv = HPET {
 			mapping_handle: mapping,
@@ -105,7 +105,7 @@ impl HPET
 	}
 	pub fn bind_irq(&mut self)
 	{
-		self.irq_handle = ::arch::imp::hw::apic::register_irq(2, HPET::irq, self as *mut _ as *const _).unwrap();
+		self.irq_handle = crate::arch::imp::hw::apic::register_irq(2, HPET::irq, self as *mut _ as *const _).unwrap();
 	}
 	pub fn ticks_per_ms(&self) -> u64
 	{

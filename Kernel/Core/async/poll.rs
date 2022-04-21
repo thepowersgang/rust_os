@@ -3,7 +3,7 @@
 //
 // Core/async/poll.rs
 //! Polling async waiter
-use prelude::*;
+use crate::prelude::*;
 use core::cell::RefCell;
 use core::fmt;
 
@@ -64,7 +64,7 @@ impl<'a> super::PrimitiveWaiter for Waiter<'a>
 			},
 		}
 	}
-	fn bind_signal(&mut self, _sleeper: &mut ::threads::SleepObject) -> bool {
+	fn bind_signal(&mut self, _sleeper: &mut crate::threads::SleepObject) -> bool {
 		false
 	}
 	fn unbind_signal(&mut self) {

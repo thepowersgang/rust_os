@@ -4,7 +4,7 @@
 // Core/lib/byte_str.rs
 //! Byte strings (used for the VFS, and other places where UTF-8 can't be enforced)
 #[allow(unused_imports)]
-use prelude::*;
+use crate::prelude::*;
 use core::{cmp,ops};
 
 #[derive(PartialOrd,Ord,PartialEq,Eq)]
@@ -29,22 +29,22 @@ impl AsRef<ByteStr> for str {
 }
 impl_fmt! {
 	Debug(self,f) for ByteStr {{
-		try!(write!(f, "b\""));
+		write!(f, "b\"")?;
 		for &b in &self.0
 		{
 			match b
 			{
-			b'\\' => try!(write!(f, "\\\\")),
-			b'\n' => try!(write!(f, "\\n")),
-			b'\r' => try!(write!(f, "\\r")),
-			b'"' => try!(write!(f, "\\\"")),
-			b'\0' => try!(write!(f, "\\0")),
+			b'\\' => write!(f, "\\\\")?,
+			b'\n' => write!(f, "\\n")?,
+			b'\r' => write!(f, "\\r")?,
+			b'"'  => write!(f, "\\\"")?,
+			b'\0' => write!(f, "\\0")?,
 			// ASCII printable characters
-			32..=127 => try!(write!(f, "{}", b as char)),
-			_ => try!(write!(f, "\\x{:02x}", b)),
+			32..=127 => write!(f, "{}", b as char)?,
+			_ => write!(f, "\\x{:02x}", b)?,
 			}
 		}
-		try!(write!(f, "\""));
+		write!(f, "\"")?;
 		Ok( () )
 	}}
 	Debug(self,f) for ByteString {
@@ -78,7 +78,7 @@ impl cmp::PartialEq<[u8]> for ByteStr {
 		cmp::PartialEq::eq(&self.0, v)
 	}
 }
-impl ::lib::borrow::ToOwned for ByteStr {
+impl crate::lib::borrow::ToOwned for ByteStr {
 	type Owned = ByteString;
 	fn to_owned(&self) -> ByteString {
 		ByteString::from(self)
@@ -123,7 +123,7 @@ impl AsRef<[u8]> for ByteString {
 		&self.0
 	}
 }
-impl ::lib::borrow::Borrow<ByteStr> for ByteString {
+impl crate::lib::borrow::Borrow<ByteStr> for ByteString {
 	fn borrow(&self) -> &ByteStr {
 		&**self
 	}

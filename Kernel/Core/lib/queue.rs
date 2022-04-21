@@ -5,7 +5,7 @@
 //! A FIFO queue type
 //!
 //! Current implementation is a linked list, but could be backed to Vec if required.
-use prelude::*;
+use crate::prelude::*;
 
 /// A basic linked-list queue
 pub struct Queue<T>

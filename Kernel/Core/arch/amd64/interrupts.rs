@@ -26,7 +26,7 @@ pub struct ISRHandle
 	idx: usize,
 }
 
-static S_IRQ_HANDLERS_LOCK: ::sync::Spinlock<[IRQHandlersEnt; 256]> = ::sync::Spinlock::new( [IRQHandlersEnt{
+static S_IRQ_HANDLERS_LOCK: crate::sync::Spinlock<[IRQHandlersEnt; 256]> = crate::sync::Spinlock::new( [IRQHandlersEnt{
 	handler: None,
 	info: 0 as *const _,
 	idx: 0
@@ -63,7 +63,7 @@ pub fn bind_isr(isr: u8, callback: ISRHandler, info: *const(), idx: usize) -> Re
 		isr, callback as *const u8, info, idx);
 	// TODO: Validate if the requested ISR slot is valid (i.e. it's one of the allocatable ones)
 	// 1. Check that this ISR slot on this CPU isn't taken
-	let _irq_hold = ::arch::sync::hold_interrupts();
+	let _irq_hold = crate::arch::sync::hold_interrupts();
 	let mut mh = S_IRQ_HANDLERS_LOCK.lock();
 	let h = &mut mh[isr as usize];
 	log_trace!("&h = {:p}", h);
@@ -89,7 +89,7 @@ pub fn bind_free_isr(callback: ISRHandler, info: *const(), idx: usize) -> Result
 {
 	log_trace!("bind_free_isr(callback={:?},info={:?},idx={})", callback as *const u8, info, idx);
 	
-	let _irq_hold = ::arch::sync::hold_interrupts();
+	let _irq_hold = crate::arch::sync::hold_interrupts();
 	let mut lh = S_IRQ_HANDLERS_LOCK.lock();
 	for i in 32 .. lh.len()
 	{
@@ -127,7 +127,7 @@ impl ::core::ops::Drop for ISRHandle
 	{
 		if self.idx < 256
 		{
-			let _irq_hold = ::arch::sync::hold_interrupts();
+			let _irq_hold = crate::arch::sync::hold_interrupts();
 			let mut mh = S_IRQ_HANDLERS_LOCK.lock();
 			let h = &mut mh[self.idx];
 			h.handler = None;

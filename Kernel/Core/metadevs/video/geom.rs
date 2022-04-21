@@ -4,7 +4,7 @@
 // Core/metadevs/video/mod.rs
 /// Geometry types
 #[allow(unused_imports)]
-use prelude::*;
+use crate::prelude::*;
 
 #[derive(Copy,Clone,PartialEq,Default)]
 pub struct Pos

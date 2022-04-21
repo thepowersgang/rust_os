@@ -41,7 +41,7 @@ impl<'a> ::core::fmt::Display for Demangle<'a> {
 			{
 				let n = s.read_num();
 				if n == 0 { break ; }
-				try!(write!(f, "::{}", &s[..n]));
+				write!(f, "::{}", &s[..n])?;
 				s = &s[n..];
 			}
 			write!(f, "::{}", s)

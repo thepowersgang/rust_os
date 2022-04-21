@@ -3,10 +3,10 @@
 //
 // Core/vfs/node.rs
 //! VFS vode management
-use prelude::*;
+use crate::prelude::*;
 use super::Path;
-use sync::mutex::LazyMutex;
-use lib::byte_str::{ByteStr,ByteString};
+use crate::sync::mutex::LazyMutex;
+use crate::lib::byte_str::{ByteStr,ByteString};
 use core::sync::atomic::{self,AtomicUsize};
 
 pub type InodeId = u64;
@@ -145,7 +145,7 @@ pub struct CacheHandle
 unsafe impl Sync for CacheHandle {}
 unsafe impl Send for CacheHandle {}
 
-static S_NODE_CACHE: LazyMutex<::lib::VecMap<(usize,InodeId),Box<CachedNode>>> = lazymutex_init!();
+static S_NODE_CACHE: LazyMutex<crate::lib::VecMap<(usize,InodeId),Box<CachedNode>>> = lazymutex_init!();
 
 pub fn init()
 {
@@ -178,7 +178,7 @@ impl CacheHandle
 	/// Obtain a node handle using a mountpoint ID and inode number
 	pub fn from_ids(mountpoint: usize, inode: InodeId) -> super::Result<CacheHandle>
 	{
-		use lib::vec_map::Entry;
+		use crate::lib::vec_map::Entry;
 		// TODO: Use a hashmap of some form and use a fixed-range allocation (same as VMM code)
 		let ptr: *const _ = &**match S_NODE_CACHE.lock().entry( (mountpoint, inode) )
 			{
@@ -227,7 +227,7 @@ impl CacheHandle
 	{
 		log_function!("CacheHandle::from_path_at_node(node_h={:?}, {:?})", node_h, path);
 		let path = if path.is_absolute() {
-				try!(path.split_off_first().ok_or(super::Error::MalformedPath)).1
+				path.split_off_first().ok_or(super::Error::MalformedPath)?.1
 			}
 			else {
 				path
@@ -244,7 +244,7 @@ impl CacheHandle
 					//log_debug!("- seg={:?} : SYMLINK {:?}", seg, name);
 					let linkpath = Path::new(&target);
 					if linkpath.is_absolute() {
-						try!(CacheHandle::from_path(linkpath))
+						CacheHandle::from_path(linkpath)?
 					}
 					else {
 						//TODO: To make this work (or any path-relative symlink), the current position in
@@ -276,7 +276,7 @@ impl CacheHandle
 						Ok(v) => v,
 						Err(_) => return Err(super::Error::NotFound),
 						};
-					try!(CacheHandle::from_ids( node_h.mountpt, next_id ))
+					CacheHandle::from_ids( node_h.mountpt, next_id )?
 					},
 				_ => return Err(super::Error::NonDirComponent),
 				};
@@ -293,14 +293,14 @@ impl CacheHandle
 		
 		// - Remove the leading / from the absolute path
 		//  > Also checks that it's actually abolsute
-		let (first_comp, path) = try!( path.split_off_first().ok_or(super::Error::MalformedPath) );
+		let (first_comp, path) = path.split_off_first().ok_or(super::Error::MalformedPath)?;
 		if first_comp.len() != 0 {
 			return Err(super::Error::MalformedPath);
 		}
 
 		// Acquire the root vnode
 		let mph = super::mount::Handle::from_id(0);
-		let node_h = try!(CacheHandle::from_ids( mph.id(), mph.root_inode() ));
+		let node_h = CacheHandle::from_ids( mph.id(), mph.root_inode() )?;
 
 		CacheHandle::from_path_at_node(node_h, path)
 	}
@@ -341,8 +341,8 @@ impl CacheHandle
 		match self.as_ref()
 		{
 		&CacheNodeInt::Dir { ref fsnode, .. } => {
-			let inode = try!(fsnode.create(name, ty));
-			Ok( try!(CacheHandle::from_ids(self.mountpt, inode)) )
+			let inode = fsnode.create(name, ty)?;
+			Ok( CacheHandle::from_ids(self.mountpt, inode)? )
 			},
 		_ => Err( super::Error::Unknown("Calling create on non-directory") ),
 		}
@@ -350,7 +350,7 @@ impl CacheHandle
 	pub fn read_dir(&self, ofs: usize, items: &mut ReadDirCallback) -> super::Result<usize> {
 		match self.as_ref()
 		{
-		&CacheNodeInt::Dir { ref fsnode, .. } => Ok( try!(fsnode.read(ofs, items)) ),
+		&CacheNodeInt::Dir { ref fsnode, .. } => Ok( fsnode.read(ofs, items)? ),
 		_ => Err( super::Error::Unknown("Calling read_dir on non-directory") ),
 		}
 	}
@@ -358,8 +358,8 @@ impl CacheHandle
 		match self.as_ref()
 		{
 		&CacheNodeInt::Dir { ref fsnode, .. } => {
-			let inode = try!(fsnode.lookup(name));
-			Ok( try!(CacheHandle::from_ids(self.mountpt, inode)) )
+			let inode = fsnode.lookup(name)?;
+			Ok( CacheHandle::from_ids(self.mountpt, inode)? )
 			},
 		_ => Err( super::Error::Unknown("Calling open_child on non-directory") ),
 		}
@@ -402,7 +402,7 @@ impl CacheHandle
 	pub fn read(&self, ofs: u64, dst: &mut [u8]) -> super::Result<usize> {
 		match self.as_ref()
 		{
-		&CacheNodeInt::File { ref fsnode, .. } => Ok( try!(fsnode.read(ofs, dst)) ),
+		&CacheNodeInt::File { ref fsnode, .. } => Ok( fsnode.read(ofs, dst)? ),
 		_ => Err( super::Error::Unknown("Calling read on non-file") ),
 		}
 	}
