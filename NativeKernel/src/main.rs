@@ -273,7 +273,7 @@ fn main()// -> Result<(), Box<dyn std::error::Error>>
 			}
 			
 			let pauser = ::kernel::arch::imp::threads::ThreadPauser::new();
-			let mut pause_handle = pauser.pause();
+			let mut _pause_handle = pauser.pause();
 			loop
 			{
 				#[repr(C)]
@@ -294,7 +294,7 @@ fn main()// -> Result<(), Box<dyn std::error::Error>>
 				let mut req = Msg::default();
 				match {
 					let v = sock.read_exact( unsafe { ::std::slice::from_raw_parts_mut(&mut req as *mut _ as *mut u8, ::std::mem::size_of::<Msg>()) });
-					drop(pause_handle);
+					drop(_pause_handle);
 					v
 					}
 				{
@@ -347,7 +347,7 @@ fn main()// -> Result<(), Box<dyn std::error::Error>>
 					call: req.call,
 					rv: res_val,
 					};
-				pause_handle = pauser.pause();
+				_pause_handle = pauser.pause();
 				match /*test_pause_thread(|| */sock.write(unsafe { ::std::slice::from_raw_parts(&res as *const _ as *const u8, ::std::mem::size_of::<Resp>()) })/*)*/
 				{
 				Ok(_) => {},
@@ -355,7 +355,8 @@ fn main()// -> Result<(), Box<dyn std::error::Error>>
 				}
 			}
 
-			pause_handle = pauser.pause();
+			
+			_pause_handle = pauser.pause();
 
 			// Drop the socket so the child will definitely quit
 			drop(sock);
@@ -521,7 +522,7 @@ fn start_process(gs: &GlobalStateRef, mut args: &[usize]) -> Result<u32, ::sysca
 				Ok( ::syscalls::native_exports::new_object(Process {
 					handle: self.gs.lock().unwrap().process_handles.remove(&self.pid).expect("Process handle not in list?"),
 					// SAFE: Caller will forget `self`
-					gs: unsafe { ::core::ptr::read(&self.gs) },
+					_gs: unsafe { ::core::ptr::read(&self.gs) },
 					}) as u64 )
 				},
 			_ => ::syscalls::native_exports::object_has_no_such_method_val("ProtoProcess", call),
@@ -540,7 +541,7 @@ fn start_process(gs: &GlobalStateRef, mut args: &[usize]) -> Result<u32, ::sysca
 
 	struct Process
 	{
-		gs: GlobalStateRef,
+		_gs: GlobalStateRef,
 		handle: ::kernel::threads::ProcessHandle,
 	}
 	impl ::syscalls::native_exports::Object for Process
