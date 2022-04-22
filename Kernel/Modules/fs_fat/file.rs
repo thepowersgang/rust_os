@@ -75,7 +75,7 @@ impl node::File for FileNode {
 					None => return Err( ERROR_SHORTCHAIN ),
 					};
 				let short_count = ::core::cmp::min(self.fs.cluster_size-ofs, buf.len());
-				let c = try!(self.fs.load_cluster(cluster));
+				let c = self.fs.load_cluster(cluster)?;
 				buf[..short_count].clone_from_slice( &c[ofs..][..short_count] );
 				
 				cur_read_ofs += short_count;
@@ -99,7 +99,7 @@ impl node::File for FileNode {
 				};
 			let bytes = count * self.fs.cluster_size;
 			log_trace!("- Read cluster {}+{}", cluster, count);
-			try!(self.fs.read_clusters(cluster, &mut dst[..bytes]));
+			::kernel::futures::block_on(self.fs.read_clusters(cluster, &mut dst[..bytes]));
 			cur_read_ofs += bytes;
 		}
 		//#[cfg(DISABLED)]
@@ -114,7 +114,7 @@ impl node::File for FileNode {
 					return Err(ERROR_SHORTCHAIN);
 					},
 				};
-			let c = try!(self.fs.load_cluster(cluster));
+			let c = self.fs.load_cluster(cluster)?;
 			let bytes = dst.len();
 			dst.clone_from_slice( &c[..bytes] );
 		}

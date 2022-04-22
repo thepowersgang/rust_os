@@ -14,7 +14,7 @@ use utf16::Str16;
 
 pub struct DirNode
 {
-	fs: ArefBorrow<::FilesystemInner>,
+	fs: ArefBorrow<crate::FilesystemInner>,
 	start_cluster: u32,
 	// - Uses the cluster chain
 }
@@ -300,7 +300,7 @@ impl node::Dir for DirNode {
 		let mut lfn = LFN::new();
 		for c in self.clusters()
 		{
-			let cluster = try!(self.fs.load_cluster(c));
+			let cluster = self.fs.load_cluster(c)?;
 			for ent in DirEnts::new(&cluster)
 			{
 				match ent {
@@ -329,7 +329,7 @@ impl node::Dir for DirNode {
 		let mut cur_ofs = ofs;
 		for c in self.clusters().skip(cluster_idx)
 		{
-			let cluster = try!(self.fs.load_cluster(c));
+			let cluster = self.fs.load_cluster(c)?;
 			for ent in DirEnts::new(&cluster).skip(c_ofs)
 			{
 				cur_ofs += 1;

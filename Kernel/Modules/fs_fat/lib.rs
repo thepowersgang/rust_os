@@ -208,11 +208,11 @@ type Cluster = Arc<[u8]>;
 impl FilesystemInner
 {
 	/// Load a cluster from disk
-	fn read_cluster(&self, cluster: u32, dst: &mut [u8]) -> Result<(), storage::IoError> {
+	async fn read_cluster(&self, cluster: u32, dst: &mut [u8]) -> Result<(), storage::IoError> {
 		assert_eq!(dst.len(), self.cluster_size);
-		self.read_clusters(cluster, dst)
+		self.read_clusters(cluster, dst).await
 	}
-	fn read_clusters(&self, cluster: u32, dst: &mut [u8]) -> Result<(), storage::IoError> {
+	async fn read_clusters(&self, cluster: u32, dst: &mut [u8]) -> Result<(), storage::IoError> {
 		log_trace!("Filesystem::read_clusters({:#x}, {})", cluster, dst.len() / self.cluster_size);
 		assert_eq!(dst.len() % self.cluster_size, 0);
 		// For now, just read the bytes, screw caching
@@ -230,7 +230,7 @@ impl FilesystemInner
 				self.first_data_sector as u64 + (cluster as u64 - 2) * self.spc as u64
 			};
 		log_debug!("read_clusters: cluster = {:#x}, sector = 0x{:x}", cluster, sector);
-		::kernel::futures::block_on(self.vh.read_blocks(sector, dst))?;
+		self.vh.read_blocks(sector, dst).await?;
 		//::kernel::logging::hex_dump("FAT Cluster", &buf);
 		Ok( () )
 	}
@@ -245,7 +245,7 @@ impl FilesystemInner
 			|_| {
 				log_debug!("load_cluster: miss {}", cluster);
 				let mut buf: Cluster = Arc::from_iter( (0..self.spc * self.vh.block_size()).map(|_| 0) );
-				self.read_cluster( cluster, Arc::get_mut(&mut buf).unwrap() )?;
+				::kernel::futures::block_on( self.read_cluster( cluster, Arc::get_mut(&mut buf).unwrap() ) )?;
 				Ok( buf )
 			})
 	}

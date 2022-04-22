@@ -73,8 +73,8 @@ impl<S: Storage> BufferRing<S>
 			idx: idx,
 			}
 	}
+	/*
 	/// Acquire in an async manner
-	#[cfg(false_)]
 	pub fn acquire_async(&self, async: async::ObjectHandle, _stack: async::StackPush) {
 		let mut lh = self.inner.lock();
 		if (lh.next_free + 1) % S::len() as u16 == lh.first_used {
@@ -86,6 +86,7 @@ impl<S: Storage> BufferRing<S>
 			lh.next_free = (lh.next_free + 1) % S::len() as u16;
 		}
 	}
+	*/
 	
 	pub fn get_first_used(&self) -> Option<usize> {
 		let lh = self.inner.lock();
