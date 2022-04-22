@@ -1,6 +1,5 @@
 /*
  */
-use kernel::_async3 as kasync;
 
 //use handle::{Handle,RemoteFree};
 
@@ -51,12 +50,12 @@ pub trait ControlEndpoint: Send + Sync
 }
 pub trait IsochEndpoint: Send + Sync
 {
-	/// Returns the current controller frame number (for timing) and the matching system time
-	fn get_current_frame_and_time(&self) -> (u32, ::kernel::time::TickCount);
-	/// Start a send to be sent at the specified frame (relative to controller's arbtiary basis)
-	fn send_at<'a, 's>(&'s self, async_obj: kasync::ObjectHandle, stack: kasync::StackPush<'a, 's>, buffer: kasync::WriteBufferHandle<'a, '_>, abs_frame: u32);
-	/// Prepare a receive to complete in the specified frame.
-	fn recv_at<'a, 's>(&'s self, async_obj: kasync::ObjectHandle, stack: kasync::StackPush<'a, 's>, buffer: &'a mut [u8], abs_frame: u32);
+	// /// Returns the current controller frame number (for timing) and the matching system time
+	// fn get_current_frame_and_time(&self) -> (u32, ::kernel::time::TickCount);
+	// /// Start a send to be sent at the specified frame (relative to controller's arbtiary basis)
+	// fn send_at<'a, 's>(&'s self, async_obj: kasync::ObjectHandle, stack: kasync::StackPush<'a, 's>, buffer: kasync::WriteBufferHandle<'a, '_>, abs_frame: u32);
+	// /// Prepare a receive to complete in the specified frame.
+	// fn recv_at<'a, 's>(&'s self, async_obj: kasync::ObjectHandle, stack: kasync::StackPush<'a, 's>, buffer: &'a mut [u8], abs_frame: u32);
 }
 pub trait BulkEndpointOut: Send + Sync
 {

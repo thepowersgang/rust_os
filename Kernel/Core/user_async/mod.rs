@@ -20,6 +20,8 @@ pub mod queue;
 pub mod sequential_queue;
 pub mod poll;
 
+pub use self::queue::Queue;
+
 /// A boxed ResultWaiter that resturns a Result
 pub type BoxAsyncResult<'a,T,E> = Box<dyn ResultWaiter<Result=Result<T,E>>+'a>;
 

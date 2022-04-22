@@ -6,15 +6,15 @@
 
 use kernel::prelude::*;
 
-use ObjectHandle;
-use Error;
-use values;
-use args::Args;
+use crate::ObjectHandle;
+use crate::Error;
+use crate::values;
+use crate::args::Args;
 //use kernel::threads::get_process_local;
 
 /// Current process type (provides an object handle for IPC)
 pub struct CurProcess;
-impl ::objects::Object for CurProcess
+impl crate::objects::Object for CurProcess
 {
 	fn class(&self) -> u16 { values::CLASS_CORE_THISPROCESS }
 	fn as_any(&self) -> &dyn Any { self }
@@ -26,11 +26,11 @@ impl ::objects::Object for CurProcess
 		match call
 		{
 		values::CORE_THISPROCESS_RECVOBJ => {
-			let tag: ::values::FixedStr8 = try!(args.get());
-			let class: u16 = try!(args.get());
-			Ok( ::objects::get_unclaimed(class, &tag) )
+			let tag: crate::values::FixedStr8 = args.get()?;
+			let class: u16 = args.get()?;
+			Ok( crate::objects::get_unclaimed(class, &tag) )
 			},
-		_ => ::objects::object_has_no_such_method_ref("threads::CurProcess", call),
+		_ => crate::objects::object_has_no_such_method_ref("threads::CurProcess", call),
 		}
 	}
 	//fn handle_syscall_val(self, call: u16, _args: &mut Args) -> Result<u64,Error> {
@@ -61,7 +61,7 @@ pub fn newprocess(name: &str,  clone_start: usize, clone_end: usize) -> ObjectHa
 	// 1. Create a new process image (virtual address space)
 	let process = ::kernel::threads::ProcessHandle::new(name, clone_start, clone_end);
 	
-	::objects::new_object( ProtoProcess(process) )
+	crate::objects::new_object( ProtoProcess(process) )
 }
 
 // ret: number of events triggered
@@ -71,7 +71,7 @@ pub fn wait(events: &mut [values::WaitItem], wake_time_mono: u64) -> Result<u32,
 	::kernel::threads::SleepObject::with_new("wait", |waiter: &mut _| {
 		let mut num_bound = 0;
 		for ev in events.iter() {
-			num_bound += try!(::objects::wait_on_object(ev.object, ev.flags, waiter));
+			num_bound += crate::objects::wait_on_object(ev.object, ev.flags, waiter)?;
 		}
 
 		if num_bound == 0 && wake_time_mono == !0 {
@@ -93,12 +93,12 @@ pub fn wait(events: &mut [values::WaitItem], wake_time_mono: u64) -> Result<u32,
 			}
 		}
 
-		Ok( events.iter_mut().fold(0, |total,ev| total + ::objects::clear_wait(ev.object, ev.flags, waiter).unwrap()) )
+		Ok( events.iter_mut().fold(0, |total,ev| total + crate::objects::clear_wait(ev.object, ev.flags, waiter).unwrap()) )
 		})
 }
 
 pub struct ProtoProcess(::kernel::threads::ProcessHandle);
-impl ::objects::Object for ProtoProcess
+impl crate::objects::Object for ProtoProcess
 {
 	fn class(&self) -> u16 { values::CLASS_CORE_PROTOPROCESS }
 	fn as_any(&self) -> &dyn Any { self }
@@ -111,11 +111,11 @@ impl ::objects::Object for ProtoProcess
 		{
 		// Request termination of child process
 		values::CORE_PROTOPROCESS_SENDOBJ => {
-			let tag: ::values::FixedStr8 = try!(args.get());
-			let handle: u32 = try!(args.get());
-			::objects::give_object(&self.0, &tag, handle).map(|_| 0)
+			let tag: crate::values::FixedStr8 = args.get()?;
+			let handle: u32 = args.get()?;
+			crate::objects::give_object(&self.0, &tag, handle).map(|_| 0)
 			}
-		_ => ::objects::object_has_no_such_method_ref("threads::ProtoProcess", call),
+		_ => crate::objects::object_has_no_such_method_ref("threads::ProtoProcess", call),
 		}
 	}
 	fn handle_syscall_val(&mut self, call: u16, args: &mut Args) -> Result<u64,Error> {
@@ -125,14 +125,14 @@ impl ::objects::Object for ProtoProcess
 		{
 		#[cfg(not(feature="native"))]	// Not used in native mode
 		values::CORE_PROTOPROCESS_START => {
-			let ip: usize = try!(args.get());
-			let sp: usize = try!(args.get());
+			let ip: usize = args.get()?;
+			let sp: usize = args.get()?;
 			
 			let mut inner = this.0;
 
 			// NOTE: Don't need to validate these values, as they're used only in user-space
 			inner.start_root_thread(ip, sp);
-			Ok( ::objects::new_object( Process(inner) ) as u64 )
+			Ok( crate::objects::new_object( Process(inner) ) as u64 )
 			},
 		#[cfg(feature="native")]	// Not used in native mode
 		values::CORE_PROTOPROCESS_START => {
@@ -140,9 +140,10 @@ impl ::objects::Object for ProtoProcess
 			let _ = args;
 			panic!("CORE_PROTOPROCESS_START should have already been handled");
 			}
-		_ => ::objects::object_has_no_such_method_val("threads::ProtoProcess", call)
+		_ => crate::objects::object_has_no_such_method_val("threads::ProtoProcess", call)
 		}
 	}
+	
 	fn bind_wait(&self, _flags: u32, _obj: &mut ::kernel::threads::SleepObject) -> u32 {
 		0
 	}
@@ -152,7 +153,7 @@ impl ::objects::Object for ProtoProcess
 }
 
 pub struct Process(::kernel::threads::ProcessHandle);
-impl ::objects::Object for Process
+impl crate::objects::Object for Process
 {
 	fn class(&self) -> u16 { values::CLASS_CORE_PROCESS }
 	fn as_any(&self) -> &dyn Any { self }
@@ -165,11 +166,11 @@ impl ::objects::Object for Process
 		{
 		// Request termination of child process
 		values::CORE_PROCESS_KILL => todo!("CORE_PROCESS_KILL"),
-		_ => ::objects::object_has_no_such_method_ref("threads::Process", call),
+		_ => crate::objects::object_has_no_such_method_ref("threads::Process", call),
 		}
 	}
 	//fn handle_syscall_val(self, call: u16, _args: &mut Args) -> Result<u64,Error> {
-	//	::objects::object_has_no_such_method_val("threads::process", call)
+	//	crate::objects::object_has_no_such_method_val("threads::process", call)
 	//}
 	fn bind_wait(&self, flags: u32, obj: &mut ::kernel::threads::SleepObject) -> u32 {
 		let mut ret = 0;

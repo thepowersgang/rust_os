@@ -8,7 +8,6 @@
 #[allow(unused_imports)]
 use kernel::prelude::*;
 
-use kernel::async;
 use kernel::metadevs::storage;
 
 pub mod proto;
@@ -52,11 +51,7 @@ impl<I: ScsiInterface> Volume<I>
 		}
 
 		let _size = {
-			let mut v = int.recv(cmd, data);
-			while !v.is_complete() {
-				::kernel::async::wait_on_list(&mut [v.as_waiter()], None);
-			}
-			try!(v.get_result().unwrap())
+			::kernel::futures::block_on(int.recv(cmd, data))?
 			};
 		Ok( () )
 	}
@@ -64,7 +59,7 @@ impl<I: ScsiInterface> Volume<I>
 		// 1. Request device type (INQUIRY)
 		let (class, removable) = {
 			let mut inq_data = proto::InquiryRsp::new();
-			try!( Self::recv_cmd(&int, proto::Inquiry::new(inq_data.len() as u16).as_ref(), inq_data.as_mut()) );
+			Self::recv_cmd(&int, proto::Inquiry::new(inq_data.len() as u16).as_ref(), inq_data.as_mut())?;
 			log_debug!("Type: {:#x}", inq_data.prehipheral_type());
 			
 			let class = match inq_data.prehipheral_type()
@@ -127,6 +122,7 @@ impl<I: ScsiInterface> storage::PhysicalVolume for Volume<I>
 	
 	fn read<'a>(&'a self, _prio: u8, idx: u64, num: usize, dst: &'a mut [u8]) -> storage::AsyncIoResult<'a,usize>
 	{
+		Box::pin(async move {
 		// NOTE: Read6 commented out, as qemu's CD code doesn't support it
 		let rv = /*if idx < (1<<24) && num < (1 << 8) {
 				log_trace!("SCSI Read6");
@@ -143,32 +139,21 @@ impl<I: ScsiInterface> storage::PhysicalVolume for Volume<I>
 			else {
 				todo!("SCSI read out of range");
 			};
-		
-		#[derive(Debug)]
-		struct Wrapper<'a>(storage::AsyncIoResult<'a,()>, usize);
-		impl<'a> async::Waiter for Wrapper<'a> {
-			fn is_complete(&self) -> bool { self.0.is_complete() }
-			fn get_waiter(&mut self) -> &mut dyn async::PrimitiveWaiter { self.0.get_waiter() }
-			fn complete(&mut self) -> bool { self.0.complete() }
-		}
-		impl<'a> async::ResultWaiter for Wrapper<'a> {
-			type Result = Result<usize, ::kernel::metadevs::storage::IoError>;
-			fn get_result(&mut self) -> Option<Self::Result> { self.0.get_result().map(|v| v.map(|_| self.1)) }
-			fn as_waiter(&mut self) -> &mut dyn async::Waiter { self.0.as_waiter() }
-		}
-		Box::new( Wrapper(rv, num) )
-
-		//rv
+		rv.await.map(|()| num)	
+		})
 	}
 	fn write<'s>(&'s self, _prio: u8, idx: u64, num: usize, src: &'s [u8]) -> storage::AsyncIoResult<'s,usize> {
-		match self.class
-		{
-		VolumeClass::CdDvd => Box::new(async::NullResultWaiter::new( || Err(storage::IoError::ReadOnly) )),
-		VolumeClass::DirectAccessBlock => {
-			todo!("Volume::write(idx={},num={},len={})", idx, num, src.len());
-			},
-		_ => Box::new(async::NullResultWaiter::new( || Err(storage::IoError::Unknown("TODO: Write support")) )),
-		}
+		Box::pin(async move {
+				
+			match self.class
+			{
+			VolumeClass::CdDvd => Err(storage::IoError::ReadOnly),
+			VolumeClass::DirectAccessBlock => {
+				todo!("Volume::write(idx={},num={},len={})", idx, num, src.len());
+				},
+			_ => Err(storage::IoError::Unknown("TODO: Write support")),
+			}
+		})
 	}
 	
 	fn wipe<'a>(&'a self, _blockidx: u64, _count: usize) -> storage::AsyncIoResult<'a,()>

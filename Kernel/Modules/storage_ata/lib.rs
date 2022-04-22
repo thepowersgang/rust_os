@@ -14,7 +14,6 @@ use kernel::lib::mem::Arc;
 
 use kernel::device_manager;
 use kernel::metadevs::storage;
-use kernel::async;
 
 module_define!{ATA, [DeviceManager, Storage], init}
 
@@ -97,19 +96,19 @@ impl Default for AtaIdentifyData {
 impl ::core::fmt::Debug for AtaIdentifyData {
 	fn fmt(&self, f: &mut ::core::fmt::Formatter) -> ::core::fmt::Result
 	{
-		try!(write!(f, "AtaIdentifyData {{"));
-		try!(write!(f, " flags: {:#x}", self.flags));
-		try!(write!(f, " serial_number: {:?}", ::kernel::lib::RawString(&self.serial_number)));
-		try!(write!(f, " firmware_ver: {:?}", ::kernel::lib::RawString(&self.firmware_ver)));
-		try!(write!(f, " model_number: {:?}", ::kernel::lib::RawString(&self.model_number)));
-		try!(write!(f, " sect_per_int: {}", self.sect_per_int & 0xFF));
-		try!(write!(f, " capabilities: [{:#x},{:#x}]", self.capabilities[0], self.capabilities[1]));
-		try!(write!(f, " valid_ext_data: {}", self.valid_ext_data));
-		try!(write!(f, " size_of_rw_multiple: {}", self.size_of_rw_multiple));
-		try!(write!(f, " sector_count_28: {:#x}", self.sector_count_28));
-		try!(write!(f, " sector_count_48: {:#x}", self.sector_count_48));
-		try!(write!(f, " words_per_logical_sector: {}", self.words_per_logical_sector));
-		try!(write!(f, "}}"));
+		write!(f, "AtaIdentifyData {{")?;
+		write!(f, " flags: {:#x}", self.flags)?;
+		write!(f, " serial_number: {:?}", ::kernel::lib::RawString(&self.serial_number))?;
+		write!(f, " firmware_ver: {:?}", ::kernel::lib::RawString(&self.firmware_ver))?;
+		write!(f, " model_number: {:?}", ::kernel::lib::RawString(&self.model_number))?;
+		write!(f, " sect_per_int: {}", self.sect_per_int & 0xFF)?;
+		write!(f, " capabilities: [{:#x},{:#x}]", self.capabilities[0], self.capabilities[1])?;
+		write!(f, " valid_ext_data: {}", self.valid_ext_data)?;
+		write!(f, " size_of_rw_multiple: {}", self.size_of_rw_multiple)?;
+		write!(f, " sector_count_28: {:#x}", self.sector_count_28)?;
+		write!(f, " sector_count_48: {:#x}", self.sector_count_48)?;
+		write!(f, " words_per_logical_sector: {}", self.words_per_logical_sector)?;
+		write!(f, "}}")?;
 		Ok( () )
 	}
 }
@@ -153,7 +152,7 @@ impl ::kernel::metadevs::storage::PhysicalVolume for AtaVolume
 	fn wipe<'a>(&'a self, _blockidx: u64, _count: usize) -> storage::AsyncIoResult<'a,()>
 	{
 		// Do nothing, no support for TRIM
-		Box::new(async::NullResultWaiter::new( || Ok( () ) ))
+		Box::pin(async move { Ok(()) })
 	}
 	
 }
@@ -227,17 +226,14 @@ impl ControllerRoot
 			// Perform IDENTIFY requests, both controllers in pararllel
 			// TODO: Include a timeout to prevent a misbehaving controller from halting the system.
 			{
-				use kernel::async::Waiter;
-				
-				let mut wh_pri = ctrlr_pri.ata_identify(i, &mut identify_pri, &mut type_pri);
-				let mut wh_sec = ctrlr_sec.ata_identify(i, &mut identify_sec, &mut type_sec);
+				let wh_pri = ctrlr_pri.ata_identify(i, &mut identify_pri, &mut type_pri);
+				let wh_sec = ctrlr_sec.ata_identify(i, &mut identify_sec, &mut type_sec);
 				//let mut wh_timer = ::kernel::async::timer::Waiter::new(2*1000);
 				
 				// Loop until timer fires, or both disks have read
-				while /* !wh_timer.is_complete() &&*/ !(wh_pri.is_complete() && wh_sec.is_complete())
-				{
-					::kernel::async::wait_on_list(&mut [&mut wh_pri, &mut wh_sec/*, &mut wh_timer*/], None);
-				}
+				::kernel::futures::block_on(
+					::kernel::futures::join::JoinBoth::new(wh_pri, wh_sec)
+				);
 			}
 			
 			// (ugly) Handle the relevant disk types, creating devices

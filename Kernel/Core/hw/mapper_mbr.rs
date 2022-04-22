@@ -39,7 +39,7 @@ impl storage::Mapper for Mapper
 		
 		// SAFE: Plain old data
 		let mut block: [u8; 512] = unsafe { ::core::mem::zeroed() };
-		pv.read(0, 0, 1, &mut block).wait()?;
+		crate::futures::block_on( pv.read(0, 0, 1, &mut block) )?;
 		
 		log_debug!("PV '{}' boot sig {:02x} {:02x}", pv.name(), block[0x1FE], block[0x1FF]);
 		if block[0x1FE] == 0x55 && block[0x1FE+1] == 0xAA {
@@ -50,14 +50,15 @@ impl storage::Mapper for Mapper
 		}
 	}
 	
-	fn enum_volumes(&self, pv: &dyn crate::metadevs::storage::PhysicalVolume, new_volume_cb: &mut dyn FnMut(String, u64, u64)) -> Result<(),storage::IoError> {
+	fn enum_volumes(&self, pv: &dyn crate::metadevs::storage::PhysicalVolume, new_volume_cb: &mut dyn FnMut(String, u64, u64)) -> Result<(),storage::IoError>
+	{
 		if !(pv.blocksize() == 512) {
 			return Err( storage::IoError::InvalidParameter );
 		}
 		
 		// SAFE: Plain old data
 		let mut block: [u8; 512] = unsafe { ::core::mem::zeroed() };
-		pv.read(0, 0, 1, &mut block).wait()?;
+		crate::futures::block_on( pv.read(0, 0, 1, &mut block) )?;
 		if !(block[510] == 0x55 && block[511] == 0xAA) {
 			return Err( storage::IoError::InvalidParameter );
 		}

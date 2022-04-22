@@ -693,23 +693,24 @@ impl ::storage_scsi::ScsiInterface for Interface
 	fn send<'a>(&'a self, command: &[u8], data: &'a [u8]) -> storage::AsyncIoResult<'a,()>
 	{
 		use storage_scsi::proto::SenseKey;
-		use kernel::async::NullResultWaiter;
-		match self.port().request_atapi(0, command, DataPtr::Send(data))
-		{
-		Ok(_) => Box::new( NullResultWaiter::new(|| Ok( () )) ),
-		Err(Error::Atapi { sense_key: SenseKey::NotReady, .. }) => Box::new(NullResultWaiter::new(|| Err(storage::IoError::NoMedium))),
-		Err(_) => Box::new(NullResultWaiter::new(|| Err(storage::IoError::Unknown(""))))
-		}
+		Box::pin(::core::future::ready(
+			match self.port().request_atapi(0, command, DataPtr::Send(data))
+			{
+			Ok(_) => Ok( () ),
+			Err(Error::Atapi { sense_key: SenseKey::NotReady, .. }) => Err(storage::IoError::NoMedium),
+			Err(_) => Err(storage::IoError::Unknown(""))
+			}))
 	}
 	fn recv<'a>(&'a self, command: &[u8], data: &'a mut [u8]) -> storage::AsyncIoResult<'a,()>
 	{
 		use storage_scsi::proto::SenseKey;
-		use kernel::async::NullResultWaiter;
-		match self.port().request_atapi(0, command, DataPtr::Recv(data))
-		{
-		Ok(_) => Box::new( NullResultWaiter::new(|| Ok( () )) ),
-		Err(Error::Atapi { sense_key: SenseKey::NotReady, .. }) => Box::new(NullResultWaiter::new(|| Err(storage::IoError::NoMedium))),
-		Err(_) => Box::new(NullResultWaiter::new(|| Err(storage::IoError::Unknown(""))))
-		}
+		
+		Box::pin(::core::future::ready(
+			match self.port().request_atapi(0, command, DataPtr::Recv(data))
+			{
+			Ok(_) => Ok( () ),
+			Err(Error::Atapi { sense_key: SenseKey::NotReady, .. }) => Err(storage::IoError::NoMedium),
+			Err(_) => Err(storage::IoError::Unknown(""))
+			}))
 	}
 }

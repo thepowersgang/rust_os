@@ -1,9 +1,8 @@
 
 use kernel::prelude::*;
 use kernel::metadevs::storage;
-use kernel::async;
-use interface::Interface;
-use queue::{Queue,Buffer};
+use crate::interface::Interface;
+use crate::queue::{Queue,Buffer};
 
 #[allow(dead_code)]
 mod defs {
@@ -103,7 +102,7 @@ impl<I: Interface+Send+'static> storage::PhysicalVolume for Volume<I>
 		//log_debug!("read block {}", idx);
 		//::kernel::logging::hex_dump("VirtIO block data", dst);
 		
-		Box::new(async::NullResultWaiter::new( move || rv ))
+		Box::pin(async move { rv })
 	}
 	fn write<'a>(&'a self, prio: u8, idx: u64, num: usize, src: &'a [u8]) -> storage::AsyncIoResult<'a, usize>
 	{
@@ -125,13 +124,13 @@ impl<I: Interface+Send+'static> storage::PhysicalVolume for Volume<I>
 			Err( () ) => Err( storage::IoError::Unknown("VirtIO") ),
 			};
 
-		Box::new(async::NullResultWaiter::new( move || rv ))
+		Box::pin(async move { rv })
 	}
 	
 	fn wipe<'a>(&'a self, _blockidx: u64, _count: usize) -> storage::AsyncIoResult<'a,()>
 	{
 		// Do nothing, no support for TRIM
-		Box::new(async::NullResultWaiter::new( || Ok( () ) ))
+		Box::pin(async move { Ok(()) })
 	}
 
 }

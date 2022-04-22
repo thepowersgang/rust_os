@@ -4,7 +4,7 @@
 //! Device manager "drivers"
 use kernel::prelude::*;
 use kernel::device_manager;
-use devices::NullDevice;
+use crate::devices::NullDevice;
 
 
 static S_PCI_DRIVER: Pci = Pci;
@@ -49,7 +49,7 @@ impl device_manager::Driver for FdtMmioDriver
 			return Box::new( NullDevice );
 		}
 
-		::devices::new_boxed(dev, ::interface::Mmio::new(io, bus_dev.get_irq(0)))
+		crate::devices::new_boxed(dev, crate::interface::Mmio::new(io, bus_dev.get_irq(0)))
 	}
 }
 
@@ -148,14 +148,14 @@ impl device_manager::Driver for Pci
 			let mut get_io = |io: IO| {
 				bus_dev.bind_io_slice( io.0, Some((io.1, io.2)) )
 				};
-			let io = ::interface::PciRegions {
+			let io = crate::interface::PciRegions {
 				common: get_io(common),
 				notify: get_io(notify),
 				isr: get_io(isr),
 				notify_off_mult: notify_mult,
 				dev_cfg: get_io(dev_cfg),
 				};
-			::devices::new_boxed(dev, ::interface::Pci::new(io, irq))
+				crate::devices::new_boxed(dev, crate::interface::Pci::new(io, irq))
 			},
 		_ => {
 			log_error!("VirtIO PCI device doesn't have a full set of capabilities - {:?}", pbars);

@@ -4,7 +4,7 @@
 //!
 use kernel::prelude::*;
 use kernel::device_manager;
-use interface::Interface;
+use crate::interface::Interface;
 
 mod block;
 mod video;

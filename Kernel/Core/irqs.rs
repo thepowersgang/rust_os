@@ -14,7 +14,7 @@ use crate::lib::mem::Arc;
 pub struct EventHandle
 {
 	_binding: BindingHandle,
-	event: Arc<crate::r#async::event::Source>,
+	event: Arc<crate::futures::flag::SingleFlag>,
 }
 pub struct ObjectHandle( BindingHandle );
 
@@ -103,7 +103,7 @@ fn irq_worker()
 /// Bind an event waiter to an interrupt
 pub fn bind_event(num: u32) -> EventHandle
 {
-	let ev = Arc::new( crate::r#async::event::Source::new() );
+	let ev = Arc::new( crate::futures::flag::SingleFlag::new() );
 	EventHandle {
 		event: ev.clone(),
 		_binding: bind(num, Box::new(move || { ev.trigger(); true })),
@@ -155,7 +155,7 @@ impl IRQBinding
 
 impl EventHandle
 {
-	pub fn get_event(&self) -> &crate::r#async::event::Source
+	pub fn get_event(&self) -> &crate::futures::flag::SingleFlag
 	{
 		&*self.event
 	}

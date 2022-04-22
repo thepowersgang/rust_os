@@ -3,9 +3,8 @@
 //
 // Modules/storage_ata/volume.rs
 //! Generic ATA volume support
-use kernel::prelude::*;
-use kernel::metadevs::storage::{self, DataPtr};
-use kernel::async;
+use ::kernel::prelude::*;
+use ::kernel::metadevs::storage::{self, DataPtr};
 
 pub struct Error(u8);
 impl From<Error> for storage::IoError
@@ -48,7 +47,7 @@ impl<I: Interface> AtaVolume<I>
 {
 	pub fn new_boxed(int: I) -> Result<Box<Self>, storage::IoError>
 	{
-		let ident_data = try!(int.ata_identify());
+		let ident_data = int.ata_identify()?;
 
 		let block_size = if ident_data.words_per_logical_sector == 0 { 512 } else { ident_data.words_per_logical_sector as u32 * 2 };
 		let block_count = if ident_data.sector_count_28 == 0 { ident_data.sector_count_48 } else { ident_data.sector_count_28 as u64 };
@@ -84,7 +83,7 @@ impl<I: Interface + Send + 'static> storage::PhysicalVolume for AtaVolume<I>
 			};
 		let ret = ret.map_err(|e| e.into());
 
-		Box::new( ::kernel::async::NullResultWaiter::new( move || ret ) )
+		Box::pin(async move { ret })
 	}
 	fn write<'a>(&'a self, _prio: u8, idx: u64, num: usize, src: &'a [u8]) -> storage::AsyncIoResult<'a,usize>
 	{
@@ -100,13 +99,13 @@ impl<I: Interface + Send + 'static> storage::PhysicalVolume for AtaVolume<I>
 			};
 		let ret = ret.map_err(|e| e.into());
 
-		Box::new( ::kernel::async::NullResultWaiter::new( move || ret ) )
+		Box::pin(async move { ret })
 	}
 	
 	fn wipe<'a>(&'a self, _blockidx: u64, _count: usize) -> storage::AsyncIoResult<'a,()>
 	{
 		// Do nothing, no support for TRIM
-		Box::new(async::NullResultWaiter::new( || Ok( () ) ))
+		Box::pin(async move { Ok(()) })
 	}
 	
 }

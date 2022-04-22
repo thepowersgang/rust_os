@@ -5,13 +5,12 @@
 //! Realtek 8139 driver
 #![no_std]
 #![feature(linkage)]	// for module_define!
-use kernel::prelude::*;
-use kernel::sync::Mutex;
-use kernel::device_manager;
-use kernel::_async3 as async;
-use core::sync::atomic::{Ordering,AtomicU8,AtomicU16,AtomicBool};
-use network::nic;
-use hw::Regs;
+use ::kernel::prelude::*;
+use ::kernel::sync::Mutex;
+use ::kernel::device_manager;
+use ::core::sync::atomic::{Ordering,AtomicU8,AtomicU16,AtomicBool};
+use ::network::nic;
+use crate::hw::Regs;
 
 #[macro_use]
 extern crate kernel;
@@ -54,7 +53,7 @@ struct Card
 struct TxSlot
 {
 	buffer: *mut [u8],
-	async: Option<async::ObjectHandle>,
+	//async: Option<async::ObjectHandle>,
 }
 unsafe impl Send for TxSlot {}
 impl TxSlot
@@ -92,10 +91,10 @@ impl BusDev
 			::kernel::memory::virt::alloc_dma(32, 1, "rtl8139")?.into_array(),
 			];
 		let tx_slots = [
-			TxSlot { buffer: &mut tx_buffer_handles[0][..0x800], async: None, },
-			TxSlot { buffer: &mut tx_buffer_handles[0][0x800..], async: None, },
-			TxSlot { buffer: &mut tx_buffer_handles[1][..0x800], async: None, },
-			TxSlot { buffer: &mut tx_buffer_handles[1][0x800..], async: None, },
+			TxSlot { buffer: &mut tx_buffer_handles[0][..0x800], /* async: None, */ },
+			TxSlot { buffer: &mut tx_buffer_handles[0][0x800..], /* async: None, */ },
+			TxSlot { buffer: &mut tx_buffer_handles[1][..0x800], /* async: None, */ },
+			TxSlot { buffer: &mut tx_buffer_handles[1][0x800..], /* async: None, */ },
 			];
 
 		let rx_buffer = ::kernel::memory::virt::alloc_dma(32, 3, "rtl8139")?.into_array();
@@ -217,10 +216,9 @@ impl Card
 					// Activated and complete (and now marked as inactive), release it to the pool
 					// SAFE: Index is corret and active
 					let mut slot = unsafe { self.tx_slots.handle_from_async(idx) };
-					if let Some(s) = slot.async.take()
-					{
-						s.signal(0);
-					}
+					//if let Some(s) = slot.async.take() {
+					//	s.signal(0);
+					//}
 					self.tx_slots.release(slot);
 				}
 				log_trace!("handle_irq: TOK {}", idx);
@@ -315,12 +313,13 @@ impl nic::Interface for Card
 			buf.fill(span, total_len).expect("TODO: Error when packet TX overflows buffer");
 			total_len += span.len();
 		}
-		buf.async = None;
+		//buf.async = None;
 
 		self.start_tx(buf, total_len);
 		// - No need to wait.
 	}
 
+	/*
 	fn tx_async<'a, 's>(&'s self, async: async::ObjectHandle, mut stack: async::StackPush<'a, 's>, pkt: nic::SparsePacket) -> Result<(), nic::Error> {
 		log_trace!("tx_async()");
 		// If there's an immediately-avaliable slot, take it
@@ -363,6 +362,7 @@ impl nic::Interface for Card
 		
 		Ok( () )
 	}
+	*/
 	
 	fn rx_wait_register(&self, channel: &::kernel::threads::SleepObject) {
 		*self.waiter_handle.lock() = Some(channel.get_ref());

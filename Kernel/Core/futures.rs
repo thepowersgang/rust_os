@@ -7,6 +7,24 @@
 use crate::sync::EventChannel;
 use core::sync::atomic::{AtomicUsize,Ordering};
 use core::task;
+//use core::pin::Pin;
+
+pub mod flag;
+pub mod condvar;
+pub mod mutex;
+/// Helper to wait on multiple futures at once
+pub mod join;
+
+pub use self::mutex::Mutex;
+
+mod helpers {
+	mod waker_queue;
+	pub use self::waker_queue::WakerQueue;
+}
+
+pub fn join_one<F1, F2>(a: F1, b: F2) -> join::JoinOne<F1,F2> {
+	join::JoinOne::new(a, b)
+}
 
 /// Block on a single future
 pub fn block_on<F: ::core::future::Future>(mut f: F) -> F::Output {
@@ -21,6 +39,7 @@ pub fn block_on<F: ::core::future::Future>(mut f: F) -> F::Output {
 	})
 }
 
+/// Sleep as a future for a given number of milisecond
 pub fn msleep(ms: usize) -> impl core::future::Future<Output=()> {
 	struct Sleep(u64);
 	impl core::future::Future for Sleep {

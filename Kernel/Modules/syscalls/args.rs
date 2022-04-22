@@ -6,7 +6,7 @@
 use kernel::memory::freeze::{Freeze,FreezeMut};
 
 pub trait SyscallArg: Sized {
-	fn get_arg(args: &mut &[usize]) -> Result<Self,::Error>;
+	fn get_arg(args: &mut &[usize]) -> Result<Self, crate::Error>;
 }
 
 pub struct Args<'a>(&'a [usize]);
@@ -15,7 +15,7 @@ impl<'a> Args<'a>
 	pub fn new(v: &[usize]) -> Args {
 		Args(v)
 	}
-	pub fn get<T: SyscallArg>(&mut self) -> Result<T, ::Error> {
+	pub fn get<T: SyscallArg>(&mut self) -> Result<T, crate::Error> {
 		T::get_arg(&mut self.0)
 	}
 }
@@ -29,9 +29,9 @@ impl<'a> ::core::fmt::Debug for Args<'a> {
 pub unsafe trait Pod { }
 unsafe impl Pod for u8 {}
 unsafe impl Pod for u32 {}
-unsafe impl Pod for ::values::WaitItem {}
-unsafe impl Pod for ::values::GuiEvent {}	// Kinda lies, but meh
-unsafe impl Pod for ::values::RpcMessage {}
+unsafe impl Pod for crate::values::WaitItem {}
+unsafe impl Pod for crate::values::GuiEvent {}	// Kinda lies, but meh
+unsafe impl Pod for crate::values::RpcMessage {}
 
 
 #[cfg(feature="native")]
@@ -41,9 +41,9 @@ extern "Rust" {
 
 impl<T: Pod> SyscallArg for Freeze<T>
 {
-	fn get_arg(args: &mut &[usize]) -> Result<Self, ::Error> {
+	fn get_arg(args: &mut &[usize]) -> Result<Self, crate::Error> {
 		if args.len() < 1 {
-			return Err( ::Error::TooManyArgs );
+			return Err( crate::Error::TooManyArgs );
 		}
 		let ptr = args[0] as *const T;
 		*args = &args[2..];
@@ -52,9 +52,9 @@ impl<T: Pod> SyscallArg for Freeze<T>
 }
 impl<T: Pod> SyscallArg for Freeze<[T]>
 {
-	fn get_arg(args: &mut &[usize]) -> Result<Self, ::Error> {
+	fn get_arg(args: &mut &[usize]) -> Result<Self, crate::Error> {
 		if args.len() < 2 {
-			return Err( ::Error::TooManyArgs );
+			return Err( crate::Error::TooManyArgs );
 		}
 		let ptr = args[0] as *const T;
 		let len = args[1];
@@ -73,28 +73,28 @@ impl<T: Pod> SyscallArg for Freeze<[T]>
 			let bs = if let Some(v) = ::kernel::memory::buf_to_slice(ptr_real, len) {
 					v
 				} else {
-					return Err( ::Error::InvalidBuffer(ptr as *const (), blen) );
+					return Err( crate::Error::InvalidBuffer(ptr as *const (), blen) );
 				};
 			// 3. Create a freeze on that memory (ensuring that it's not unmapped until the Freeze object drops)
-			Ok( try!(Freeze::new(bs)) )
+			Ok( Freeze::new(bs)? )
 		}
 	}
 }
 impl SyscallArg for Freeze<str> {
-	fn get_arg(args: &mut &[usize]) -> Result<Self, ::Error> {
-		let ret = try!(Freeze::<[u8]>::get_arg(args));
+	fn get_arg(args: &mut &[usize]) -> Result<Self, crate::Error> {
+		let ret = Freeze::<[u8]>::get_arg(args)?;
 		// SAFE: Transmuting [u8] to str is valid if the str is valid UTF-8
 		unsafe { 
-			try!( ::core::str::from_utf8(&ret) );
+			::core::str::from_utf8(&ret)?;
 			Ok(::core::mem::transmute(ret))
 		}
 	}
 }
 impl<T: Pod> SyscallArg for FreezeMut<T>
 {
-	fn get_arg(args: &mut &[usize]) -> Result<Self, ::Error> {
+	fn get_arg(args: &mut &[usize]) -> Result<Self, crate::Error> {
 		if args.len() < 1 {
-			return Err( ::Error::TooManyArgs );
+			return Err( crate::Error::TooManyArgs );
 		}
 		let ptr = args[0] as *mut T;
 		let blen = ::core::mem::size_of::<T>();
@@ -108,18 +108,18 @@ impl<T: Pod> SyscallArg for FreezeMut<T>
 			let bs = if let Some(v) = ::kernel::memory::buf_to_slice_mut(ptr_real, 1) {
 					v
 				} else {
-					return Err( ::Error::InvalidBuffer(ptr as *const (), blen) );
+					return Err( crate::Error::InvalidBuffer(ptr as *const (), blen) );
 				};
 			// 3. Create a freeze on that memory (ensuring that it's not unmapped until the Freeze object drops)
-			Ok( try!(FreezeMut::new(&mut bs[0])) )
+			Ok( FreezeMut::new(&mut bs[0])? )
 		}
 	}
 }
 impl<T: Pod> SyscallArg for FreezeMut<[T]>
 {
-	fn get_arg(args: &mut &[usize]) -> Result<Self, ::Error> {
+	fn get_arg(args: &mut &[usize]) -> Result<Self, crate::Error> {
 		if args.len() < 2 {
-			return Err( ::Error::TooManyArgs );
+			return Err( crate::Error::TooManyArgs );
 		}
 		let ptr = args[0] as *mut T;
 		let len = args[1];
@@ -138,20 +138,20 @@ impl<T: Pod> SyscallArg for FreezeMut<[T]>
 			let bs = if let Some(v) = ::kernel::memory::buf_to_slice_mut(ptr_real, len) {
 					v
 				} else {
-					return Err( ::Error::InvalidBuffer(ptr as *const (), blen) );
+					return Err( crate::Error::InvalidBuffer(ptr as *const (), blen) );
 				};
 			// 3. Create a freeze on that memory (ensuring that it's not unmapped until the Freeze object drops)
-			Ok( try!(FreezeMut::new(bs)) )
+			Ok( FreezeMut::new(bs)? )
 		}
 	}
 }
 
-impl SyscallArg for ::values::FixedStr8
+impl SyscallArg for crate::values::FixedStr8
 {
-	fn get_arg(args: &mut &[usize]) -> Result<Self, ::Error> {
+	fn get_arg(args: &mut &[usize]) -> Result<Self, crate::Error> {
 		let count = 8 / ::core::mem::size_of::<usize>();
 		if args.len() < count {
-			return Err( ::Error::TooManyArgs );
+			return Err( crate::Error::TooManyArgs );
 		}
 		let mut rv_bytes = [0; 8];
 		if count == 2 {
@@ -166,15 +166,15 @@ impl SyscallArg for ::values::FixedStr8
 			rv_bytes.copy_from_slice( ::kernel::lib::as_byte_slice(&v) );
 			*args = &args[1..];
 		}
-		Ok( ::values::FixedStr8::from(rv_bytes) )
+		Ok( crate::values::FixedStr8::from(rv_bytes) )
 	}
 }
-impl SyscallArg for ::values::FixedStr6
+impl SyscallArg for crate::values::FixedStr6
 {
-	fn get_arg(args: &mut &[usize]) -> Result<Self, ::Error> {
+	fn get_arg(args: &mut &[usize]) -> Result<Self, crate::Error> {
 		let count = (6 + ::core::mem::size_of::<usize>() - 1) / ::core::mem::size_of::<usize>();
 		if args.len() < count {
-			return Err( ::Error::TooManyArgs );
+			return Err( crate::Error::TooManyArgs );
 		}
 		let mut rv_bytes = [0; 6];
 		if count == 2 {
@@ -189,14 +189,14 @@ impl SyscallArg for ::values::FixedStr6
 			rv_bytes.copy_from_slice( &::kernel::lib::as_byte_slice(&v)[..6] );
 			*args = &args[1..];
 		}
-		Ok( ::values::FixedStr6::from(rv_bytes) )
+		Ok( crate::values::FixedStr6::from(rv_bytes) )
 	}
 }
 
 impl SyscallArg for usize {
-	fn get_arg(args: &mut &[usize]) -> Result<Self, ::Error> {
+	fn get_arg(args: &mut &[usize]) -> Result<Self, crate::Error> {
 		if args.len() < 1 {
-			return Err( ::Error::TooManyArgs );
+			return Err( crate::Error::TooManyArgs );
 		}
 		let rv = args[0];
 		*args = &args[1..];
@@ -205,9 +205,9 @@ impl SyscallArg for usize {
 }
 #[cfg(target_pointer_width="64")]
 impl SyscallArg for u64 {
-	fn get_arg(args: &mut &[usize]) -> Result<Self, ::Error> {
+	fn get_arg(args: &mut &[usize]) -> Result<Self, crate::Error> {
 		if args.len() < 1 {
-			return Err( ::Error::TooManyArgs );
+			return Err( crate::Error::TooManyArgs );
 		}
 		let rv = args[0] as u64;
 		*args = &args[1..];
@@ -216,9 +216,9 @@ impl SyscallArg for u64 {
 }
 #[cfg(target_pointer_width="32")]
 impl SyscallArg for u64 {
-	fn get_arg(args: &mut &[usize]) -> Result<Self, ::Error> {
+	fn get_arg(args: &mut &[usize]) -> Result<Self, crate::Error> {
 		if args.len() < 2 {
-			return Err( ::Error::TooManyArgs );
+			return Err( crate::Error::TooManyArgs );
 		}
 		let rv = args[0] as u64 | (args[1] as u64) << 32;
 		*args = &args[2..];
@@ -227,9 +227,9 @@ impl SyscallArg for u64 {
 }
 
 impl SyscallArg for u32 {
-	fn get_arg(args: &mut &[usize]) -> Result<Self, ::Error> {
+	fn get_arg(args: &mut &[usize]) -> Result<Self, crate::Error> {
 		if args.len() < 1 {
-			return Err( ::Error::TooManyArgs );
+			return Err( crate::Error::TooManyArgs );
 		}
 		let rv = args[0] as u32;
 		*args = &args[1..];
@@ -237,9 +237,9 @@ impl SyscallArg for u32 {
 	}
 }
 impl SyscallArg for u16 {
-	fn get_arg(args: &mut &[usize]) -> Result<Self, ::Error> {
+	fn get_arg(args: &mut &[usize]) -> Result<Self, crate::Error> {
 		if args.len() < 1 {
-			return Err( ::Error::TooManyArgs );
+			return Err( crate::Error::TooManyArgs );
 		}
 		let rv = args[0] as u16;
 		*args = &args[1..];
@@ -247,9 +247,9 @@ impl SyscallArg for u16 {
 	}
 }
 impl SyscallArg for u8 {
-	fn get_arg(args: &mut &[usize]) -> Result<Self, ::Error> {
+	fn get_arg(args: &mut &[usize]) -> Result<Self, crate::Error> {
 		if args.len() < 1 {
-			return Err( ::Error::TooManyArgs );
+			return Err( crate::Error::TooManyArgs );
 		}
 		let rv = args[0] as u8;
 		*args = &args[1..];
@@ -257,9 +257,9 @@ impl SyscallArg for u8 {
 	}
 }
 impl SyscallArg for bool {
-	fn get_arg(args: &mut &[usize]) -> Result<Self, ::Error> {
+	fn get_arg(args: &mut &[usize]) -> Result<Self, crate::Error> {
 		if args.len() < 1 {
-			return Err( ::Error::TooManyArgs );
+			return Err( crate::Error::TooManyArgs );
 		}
 		let rv = (args[0] as u8) != 0;
 		*args = &args[1..];

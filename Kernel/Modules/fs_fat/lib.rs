@@ -110,7 +110,7 @@ impl mount::Driver for Driver
 	fn detect(&self, vol: &VolumeHandle) -> vfs::Result<usize> {
 		let bs = {
 			let mut bs = [0u8; 512];
-			try!( vol.read_blocks(0, &mut bs) );
+			::kernel::futures::block_on( vol.read_blocks(0, &mut bs) )?;
 			on_disk::BootSect::read(&bs)
 			};
 		
@@ -130,7 +130,7 @@ impl mount::Driver for Driver
 
 		// Read the bootsector
 		let bs = {
-			let blk = try!(vol.get_block(0));
+			let blk = ::kernel::futures::block_on(vol.get_block(0))?;
 			on_disk::BootSect::read(&mut &blk.data()[..512])
 			};
 		let bs_c = bs.common();
@@ -230,7 +230,7 @@ impl FilesystemInner
 				self.first_data_sector as u64 + (cluster as u64 - 2) * self.spc as u64
 			};
 		log_debug!("read_clusters: cluster = {:#x}, sector = 0x{:x}", cluster, sector);
-		try!(self.vh.read_blocks(sector, dst));
+		::kernel::futures::block_on(self.vh.read_blocks(sector, dst))?;
 		//::kernel::logging::hex_dump("FAT Cluster", &buf);
 		Ok( () )
 	}
@@ -245,7 +245,7 @@ impl FilesystemInner
 			|_| {
 				log_debug!("load_cluster: miss {}", cluster);
 				let mut buf: Cluster = Arc::from_iter( (0..self.spc * self.vh.block_size()).map(|_| 0) );
-				try!(self.read_cluster( cluster, Arc::get_mut(&mut buf).unwrap() ));
+				self.read_cluster( cluster, Arc::get_mut(&mut buf).unwrap() )?;
 				Ok( buf )
 			})
 	}
@@ -273,7 +273,7 @@ impl FilesystemInner
 
 		// - Read a single sector from the FAT
 		let sector_idx = (self.first_fat_sector + fat_sector) as u64;
-		let sector_data_blk = try!(self.vh.get_block( sector_idx ));
+		let sector_data_blk = ::kernel::futures::block_on(self.vh.get_block( sector_idx ))?;
 		let start_ofs = (sector_idx - sector_data_blk.index()) as usize * bs;
 		let sector_data = &sector_data_blk.data()[start_ofs .. ];
 		//log_debug!("Sector {} accessed via cached block at sector {}", sector_idx, sector_data_blk.index());

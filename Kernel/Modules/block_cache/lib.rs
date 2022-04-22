@@ -90,20 +90,20 @@ impl CacheHandle
 	pub fn block_size(&self) -> usize {
 		self.vh.block_size()
 	}
-	pub fn read_blocks(&self, block: u64, data: &mut [u8]) -> Result<(), IoError>
+	pub async fn read_blocks(&self, block: u64, data: &mut [u8]) -> Result<(), IoError>
 	{
-		self.vh.read_blocks(block, data)
+		self.vh.read_blocks(block, data).await
 	}
-	pub fn write_blocks(&self, block: u64, data: &[u8]) -> Result<(), IoError>
+	pub async fn write_blocks(&self, block: u64, data: &[u8]) -> Result<(), IoError>
 	{
-		self.vh.write_blocks(block, data)
+		self.vh.write_blocks(block, data).await
 	}
 }
 
 /// Cached accesses
 impl CacheHandle
 {
-	fn get_block_meta(&self, block: u64) -> Result<MetaBlockHandle, IoError>
+	async fn get_block_meta(&self, block: u64) -> Result<MetaBlockHandle<'_>, IoError>
 	{
 		let cache_block = block - block % self.blocks_per_page();
 		let handle = {
@@ -112,7 +112,7 @@ impl CacheHandle
 			let handle = match lh.map.entry( (self.vh.idx(), cache_block) )
 				{
 				Entry::Occupied(v) => v.into_mut().borrow(),
-				Entry::Vacant(v) => v.insert( Box::new( try!(CachedBlock::new(&self.vh, cache_block)) ) ).borrow(),
+				Entry::Vacant(v) => v.insert( Box::new( CachedBlock::new(&self.vh, cache_block).await? ) ).borrow(),
 				};
 			// SAFE: 1. The internal data is boxed, 2. The box won't be dropped while a borrow exists.
 			unsafe { ::core::mem::transmute::<MetaBlockHandle, MetaBlockHandle>(handle) }
@@ -122,15 +122,15 @@ impl CacheHandle
 
 	/// Obtain a handle to a cached block.
 	/// NOTE: The returned handle will point to the start of the cache block, which may be larger than the disk block. Remember to check the returned block index.
-	pub fn get_block(&self, block: u64) -> Result<CachedBlockHandle, IoError>
+	pub async fn get_block(&self, block: u64) -> Result<CachedBlockHandle<'_>, IoError>
 	{
-		Ok( try!(self.get_block_meta(block)).into_ro() )
+		Ok( self.get_block_meta(block).await?.into_ro() )
 	}
 
 	/// Read out of a cached block
-	pub fn read_inner(&self, block: u64, offset: usize, data: &mut [u8]) -> Result<(),IoError>
+	pub async fn read_inner(&self, block: u64, offset: usize, data: &mut [u8]) -> Result<(),IoError>
 	{
-		let cached_block = try!(self.get_block(block));
+		let cached_block = self.get_block(block).await?;
 		let blk_ofs = (block - cached_block.index()) as usize * self.block_size();
 
 		if offset >= self.block_size() {
@@ -145,9 +145,9 @@ impl CacheHandle
 		Ok( () )
 	}
 	/// Write into a cached block
-	pub fn write_inner(&self, block: u64, offset: usize, data: &[u8]) -> Result<(), IoError>
+	pub async fn write_inner(&self, block: u64, offset: usize, data: &[u8]) -> Result<(), IoError>
 	{
-		let cached_block = try!(self.get_block_meta(block));
+		let cached_block = self.get_block_meta(block).await?;
 		let blk_ofs = (block - cached_block.index()) as usize * self.block_size();
 
 		if offset >= self.block_size() {
@@ -163,9 +163,9 @@ impl CacheHandle
 			})
 	}
 	/// Edit block
-	pub fn edit<F: FnOnce(&mut [u8])->R,R>(&self, block: u64, count: usize, f: F) -> Result<R, IoError>
+	pub async fn edit<F: FnOnce(&mut [u8])->R,R>(&self, block: u64, count: usize, f: F) -> Result<R, IoError>
 	{
-		let cached_block = try!(self.get_block_meta(block));
+		let cached_block = self.get_block_meta(block).await?;
 		let blk_ofs = (block - cached_block.index()) as usize * self.block_size();
 
 		if (block - cached_block.index()) as usize + count > self.blocks_per_page() as usize {
@@ -176,7 +176,7 @@ impl CacheHandle
 			f( &mut block_data[blk_ofs ..][ .. count * self.block_size()] )
 			});
 
-		try!(cached_block.0.flush(&self.vh));
+		cached_block.0.flush(&self.vh).await?;
 
 		Ok( rv )
 	}
@@ -192,12 +192,12 @@ fn map_cached_frame(frame: &::kernel::memory::phys::FrameHandle) -> ::kernel::me
 // --------------------------------------------------------------------
 impl CachedBlock
 {
-	fn new(vol: &VolumeHandle, first_block: u64) -> Result<CachedBlock, IoError>
+	async fn new(vol: &VolumeHandle, first_block: u64) -> Result<CachedBlock, IoError>
 	{
-		let mut mapping = try!(::kernel::memory::page_cache::S_PAGE_CACHE.create().map_err(|_| IoError::Unknown("OOM")));
+		let mut mapping = ::kernel::memory::page_cache::S_PAGE_CACHE.create().map_err(|_| IoError::Unknown("OOM"))?;
 
 		// TODO: Defer disk read until after the cache entry is created
-		try!( vol.read_blocks(first_block, mapping.data_mut()) );
+		vol.read_blocks(first_block, mapping.data_mut()).await?;
 		
 		Ok(CachedBlock {
 			index: first_block,
@@ -211,12 +211,12 @@ impl CachedBlock
 	}
 	
 	/// Write a modified block back to disk
-	fn flush(&self, vol: &VolumeHandle) -> Result<(), IoError>
+	async fn flush(&self, vol: &VolumeHandle) -> Result<(), IoError>
 	{
 		let lh = self.mapping.read();
 		if self.is_dirty.swap(false, Ordering::Acquire)
 		{
-			try!( vol.write_blocks(self.index, lh.as_ref().expect("CachedBlock::flush - None mapping").data()) );
+			vol.write_blocks(self.index, lh.as_ref().expect("CachedBlock::flush - None mapping").data()).await?;
 		}
 		Ok( () )
 	}

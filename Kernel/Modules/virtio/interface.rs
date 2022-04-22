@@ -5,7 +5,7 @@
 //! VirtualIO Interface (bus binding)
 use kernel::prelude::*;
 use kernel::device_manager::IOBinding;
-use queue::Queue;
+use crate::queue::Queue;
 
 /// A virtio interface (PCI or MMIO)
 pub trait Interface

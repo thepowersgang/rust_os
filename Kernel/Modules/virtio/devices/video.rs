@@ -4,8 +4,8 @@
 /// VirtIO GPU/Video driver
 use kernel::prelude::*;
 use kernel::metadevs::video;
-use interface::Interface;
-use queue::{Queue,Buffer};
+use crate::interface::Interface;
+use crate::queue::{Queue,Buffer};
 use kernel::lib::mem::aref::{Aref,ArefBorrow};
 use kernel::sync::Mutex;
 

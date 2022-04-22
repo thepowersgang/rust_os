@@ -44,7 +44,7 @@ impl device_manager::Driver for PciLegacyDriver
 	{
 		let bm_io = bus_dev.bind_io(4);
 		bus_dev.set_attr("bus_master", device_manager::AttrValue::U32(1));
-		Box::new( ::ControllerRoot::new(0x1F0, 0x3F6, 14,  0x170, 0x376, 15,  bm_io) )
+		Box::new( crate::ControllerRoot::new(0x1F0, 0x3F6, 14,  0x170, 0x376, 15,  bm_io) )
 	}
 }
 
@@ -76,7 +76,7 @@ impl device_manager::Driver for PciNativeDriver
 		let io_sec = bus_dev.bind_io(2).io_base();
 		let st_sec = bus_dev.bind_io(3).io_base() + 2;
 		let bm_io = bus_dev.bind_io(4);
-		Box::new( ::ControllerRoot::new(io_pri, st_pri, irq,  io_sec, st_sec, irq,  bm_io) )
+		Box::new( crate::ControllerRoot::new(io_pri, st_pri, irq,  io_sec, st_sec, irq,  bm_io) )
 	}
 }
 

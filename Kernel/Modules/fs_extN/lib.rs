@@ -58,7 +58,7 @@ impl vfs::mount::Driver for Driver
 
 		let blk = {
 			let mut block: Vec<u32> = vec![0; (::core::cmp::max(1024, bs) / 4) as usize];
-			try!(vol.read_blocks(superblock_idx, ::kernel::lib::as_byte_slice_mut(&mut block[..])));
+			::kernel::futures::block_on(vol.read_blocks(superblock_idx, ::kernel::lib::as_byte_slice_mut(&mut block[..])))?;
 			block
 			};
 		let sb = &::ondisk::Superblock::from_slice(&blk[superblock_ofs / 4 ..][..1024/4]);

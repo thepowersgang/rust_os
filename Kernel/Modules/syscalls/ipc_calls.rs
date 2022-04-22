@@ -3,10 +3,10 @@
 //
 // Core/syscalls/ipc_calls.rs
 //! Userland interface to IPC channels
-use args::Args;
-use kernel::memory::freeze::{Freeze,FreezeMut};
-use core::sync::atomic::{AtomicU8,Ordering};
-use values::RpcMessage;
+use crate::args::Args;
+use ::kernel::memory::freeze::{Freeze,FreezeMut};
+use ::core::sync::atomic::{AtomicU8,Ordering};
+use crate::values::RpcMessage;
 
 struct SyncChannel {
 	// TODO: NonZero?
@@ -17,24 +17,24 @@ struct SyncChannel {
 unsafe impl Sync for SyncChannel {}
 unsafe impl Send for SyncChannel {}
 
-impl ::objects::Object for SyncChannel
+impl crate::objects::Object for SyncChannel
 {
-	fn class(&self) -> u16 { ::values::CLASS_IPC_RPC }
+	fn class(&self) -> u16 { crate::values::CLASS_IPC_RPC }
 	fn as_any(&self) -> &dyn core::any::Any { self }
 	fn try_clone(&self) -> Option<u32> {
 		None
 		//Some( ::objects::new_object( Node(self.0.clone()) ) )
 	}
-	fn handle_syscall_ref(&self, call: u16, args: &mut Args) -> Result<u64,::Error> {
+	fn handle_syscall_ref(&self, call: u16, args: &mut Args) -> Result<u64,crate::Error> {
 		match call
 		{
-		::values::IPC_RPC_SEND => {
-			let data: Freeze<::values::RpcMessage> = try!(args.get());
-			let obj: u32 = try!(args.get());
+		crate::values::IPC_RPC_SEND => {
+			let data: Freeze<crate::values::RpcMessage> = args.get()?;
+			let obj: u32 = args.get()?;
 			todo!("IPC_RPC_SEND({:p}, {})", &*data, obj);
 			},
-		::values::IPC_RPC_RECV => {
-			let _data: FreezeMut<::values::RpcMessage> = try!(args.get());
+		crate::values::IPC_RPC_RECV => {
+			let _data: FreezeMut<crate::values::RpcMessage> = args.get()?;
 
 			if let Some(msg) = self.take_message()
 			{
@@ -45,25 +45,25 @@ impl ::objects::Object for SyncChannel
 				Ok( 0x1000 )
 			}
 			},
-		_ => ::objects::object_has_no_such_method_ref("ipc_calls::SyncChannel", call),
+		_ => crate::objects::object_has_no_such_method_ref("ipc_calls::SyncChannel", call),
 		}
 	}
-	fn handle_syscall_val(&mut self, call: u16, _args: &mut Args) -> Result<u64,::Error> {
+	fn handle_syscall_val(&mut self, call: u16, _args: &mut Args) -> Result<u64,crate::Error> {
 		// SAFE: Valid pointer which is forgotten after call
 		let _ = unsafe { ::core::ptr::read(self) };
-		::objects::object_has_no_such_method_val("ipc_calls::SyncChannel", call)
+		crate::objects::object_has_no_such_method_val("ipc_calls::SyncChannel", call)
 	}
 	fn bind_wait(&self, flags: u32, obj: &mut ::kernel::threads::SleepObject) -> u32 {
 		let mut ret = 0;
-		if flags & ::values::EV_IPC_RPC_RECV != 0 {
+		if flags & crate::values::EV_IPC_RPC_RECV != 0 {
 			self.wait_upon(obj);
-			ret |= ::values::EV_IPC_RPC_RECV;
+			ret |= crate::values::EV_IPC_RPC_RECV;
 		}
 		ret
 	}
 	fn clear_wait(&self, flags: u32, obj: &mut ::kernel::threads::SleepObject) -> u32 {
 		let mut ret = 0;
-		if flags & ::values::EV_IPC_RPC_RECV != 0 {
+		if flags & crate::values::EV_IPC_RPC_RECV != 0 {
 			self.clear_wait(obj);
 			if self.has_message() {
 				ret += 1;
@@ -77,14 +77,14 @@ pub fn new_pair() -> Result< (u32,u32), () >
 {
 	let (a_obj, b_obj) = SyncChannel::new_pair();
 
-	let a = ::objects::new_object(a_obj);
+	let a = crate::objects::new_object(a_obj);
 	if a == !0 {
 		return Err( () );
 	}
 
-	let b = ::objects::new_object(b_obj);
+	let b = crate::objects::new_object(b_obj);
 	if b == !0 {
-		::objects::drop_object(a);
+		crate::objects::drop_object(a);
 		return Err( () );
 	}
 
@@ -102,7 +102,7 @@ struct SyncChannelBack
 struct SyncChannelSide
 {
 	message: ::kernel::sync::Spinlock<Option<RpcMessage>>,
-	queue: ::kernel::async::queue::Source,
+	queue: ::kernel::user_async::Queue,
 }
 
 impl SyncChannel

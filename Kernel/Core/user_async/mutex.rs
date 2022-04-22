@@ -11,7 +11,7 @@ use crate::prelude::*;
 use core::cell::UnsafeCell;
 use core::sync::atomic::{AtomicBool,Ordering};
 use core::fmt;
-use crate::r#async::PrimitiveWaiter;
+use super::PrimitiveWaiter;
 
 // NOTES:
 // This should support:

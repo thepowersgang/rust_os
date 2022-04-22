@@ -3,7 +3,7 @@
 //
 //! Container for a ring buffer of pooled objects
 use core::ops;
-use kernel::_async3 as async;
+//use kernel::_async3 as async;
 
 pub type BufferRing4<V> = BufferRing<[V; 4]>;
 
@@ -74,6 +74,7 @@ impl<S: Storage> BufferRing<S>
 			}
 	}
 	/// Acquire in an async manner
+	#[cfg(false_)]
 	pub fn acquire_async(&self, async: async::ObjectHandle, _stack: async::StackPush) {
 		let mut lh = self.inner.lock();
 		if (lh.next_free + 1) % S::len() as u16 == lh.first_used {

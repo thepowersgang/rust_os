@@ -6,7 +6,7 @@
 use kernel::prelude::*;
 use kernel::lib::mem::aref::{Aref,ArefBorrow};
 use kernel::sync::Mutex;
-use kernel::_async3 as async;
+//use kernel::_async3 as async;
 use core::sync::atomic::{Ordering,AtomicBool};
 
 pub type MacAddr = [u8; 6];
@@ -169,7 +169,7 @@ pub trait Interface: 'static + Send + Sync
 
 	/// The input buffer can be a mix of `> 'stack` and `< 'stack` buffers. This function should collapse shorter lifetime
 	/// buffers into an internal buffer that lives long enough.
-	fn tx_async<'a, 's>(&'s self, async: async::ObjectHandle, stack: async::StackPush<'a, 's>, pkt: SparsePacket) -> Result<(), Error>;
+	//fn tx_async<'a, 's>(&'s self, async: async::ObjectHandle, stack: async::StackPush<'a, 's>, pkt: SparsePacket) -> Result<(), Error>;
 
 	/// Called once to allow the interface to get an object to signal a new packet arrival
 	fn rx_wait_register(&self, channel: &::kernel::threads::SleepObject);
@@ -271,6 +271,7 @@ pub fn register<T: Interface>(mac_addr: [u8; 6], int: T) -> Registration<T> {
 		log_debug!("TESTING - Tx Blocking");
 		int_ptr.tx_raw(SparsePacket { head: &pkt, next: None });
 
+	/*
 		// Async
 		log_debug!("TESTING - Tx Async");
 		let mut o: async::Object = Default::default();
@@ -280,6 +281,7 @@ pub fn register<T: Interface>(mac_addr: [u8; 6], int: T) -> Registration<T> {
 			let w = async::Waiter::new(&h);
 			w.wait_one();
 		}
+	*/
 		log_debug!("TESTING - Tx Complete");
 	}
 

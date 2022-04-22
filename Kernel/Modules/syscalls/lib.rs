@@ -119,7 +119,7 @@ mod values;
 
 #[cfg(feature="native")]
 pub mod native_exports {
-	pub use args::Args;
+	pub use crate::args::Args;
 	pub mod values {
 		pub use crate::values::*;
 	}
@@ -151,24 +151,24 @@ fn invoke_int(call_id: u32, args: &mut Args) -> Result<u64,Error>
 		// === 0: Threads and core
 		// - 0/0: Userland log
 		CORE_LOGWRITE => {
-			let msg: Freeze<[u8]> = try!(args.get());
+			let msg: Freeze<[u8]> = args.get()?;
 			syscall_core_log(&msg); 0
 			},
 		// - Userland debug
 		CORE_DBGVALUE => {
-			let msg: Freeze<[u8]> = try!(args.get());
-			let val: usize = try!(args.get());
+			let msg: Freeze<[u8]> = args.get()?;
+			let val: usize = args.get()?;
 			syscall_core_dbgvalue(&msg, val); 0
 			},
 		// - 0/2: Exit process
 		CORE_EXITPROCESS => {
-			let status: u32 = try!(args.get());
+			let status: u32 = args.get()?;
 			threads::exit(status); 0
 			},
 		CORE_TEXTINFO => {
-			let group: u32 = try!(args.get());
-			let id: usize = try!(args.get());
-			let mut buf: FreezeMut<[u8]> = try!(args.get());
+			let group: u32 = args.get()?;
+			let id: usize = args.get()?;
+			let mut buf: FreezeMut<[u8]> = args.get()?;
 			// TODO: Use a Result here
 			syscall_core_textinfo(group, id, &mut buf) as u64
 			},
@@ -178,9 +178,9 @@ fn invoke_int(call_id: u32, args: &mut Args) -> Result<u64,Error>
 			},
 		// - 0/3: Start process
 		CORE_STARTPROCESS => {
-			let name: Freeze<str>  = try!(args.get());
-			let start: usize = try!(args.get());
-			let end  : usize = try!(args.get());
+			let name: Freeze<str>  = args.get()?;
+			let start: usize = args.get()?;
+			let end  : usize = args.get()?;
 			if start > end || end > ::kernel::arch::memory::addresses::USER_END {
 				log_log!("CORE_STARTPROCESS - {:#x}--{:#x} invalid", start, end);
 				return Err( Error::BadValue );
@@ -189,15 +189,15 @@ fn invoke_int(call_id: u32, args: &mut Args) -> Result<u64,Error>
 			},
 		// - 0/4: Start thread
 		CORE_STARTTHREAD => {
-			let ip: usize = try!(args.get());
-			let sp: usize = try!(args.get());
+			let ip: usize = args.get()?;
+			let sp: usize = args.get()?;
 			threads::newthread(sp, ip) as u64
 			},
 		// - 0/5: Wait for event
 		CORE_WAIT => {
-			let mut events: FreezeMut<[WaitItem]> = try!(args.get());
-			let timeout: u64 = try!(args.get());
-			try!(threads::wait(&mut events, timeout)) as u64
+			let mut events: FreezeMut<[WaitItem]> = args.get()?;
+			let timeout: u64 = args.get()?;
+			threads::wait(&mut events, timeout)? as u64
 			},
 		CORE_FUTEX_SLEEP => {
 			todo!("FUTEX_SLEEP");
@@ -208,13 +208,13 @@ fn invoke_int(call_id: u32, args: &mut Args) -> Result<u64,Error>
 		// === 1: Window Manager / GUI
 		// - 1/0: New group (requires permission, has other restrictions)
 		GUI_NEWGROUP => {
-			let name: Freeze<str> = try!(args.get());
+			let name: Freeze<str> = args.get()?;
 			from_result(gui_calls::newgroup(&name))
 			},
 		// - 1/1: Bind group
 		GUI_BINDGROUP => {
-			let obj: u32 = try!(args.get());
-			if try!(gui_calls::bind_group(obj)) {
+			let obj: u32 = args.get()?;
+			if gui_calls::bind_group(obj)? {
 				1
 			}
 			else {
@@ -227,13 +227,13 @@ fn invoke_int(call_id: u32, args: &mut Args) -> Result<u64,Error>
 			},
 		// - 1/3: New window
 		GUI_NEWWINDOW => {
-			let name: Freeze<str> = try!(args.get());
+			let name: Freeze<str> = args.get()?;
 			from_result(gui_calls::newwindow(&name))
 			},
 		// === 2: Memory Mangement
 		MEM_ALLOCATE => {
-			let addr: usize = try!(args.get());
-			let count: usize = try!(args.get());
+			let addr: usize = args.get()?;
+			let count: usize = args.get()?;
 			log_debug!("MEM_ALLOCATE({:#x},{})", addr, count);
 			if addr & (::kernel::PAGE_SIZE-1) != 0 {
 				return Err(Error::BadValue);
@@ -245,8 +245,8 @@ fn invoke_int(call_id: u32, args: &mut Args) -> Result<u64,Error>
 			}
 			},
 		MEM_REPROTECT => {
-			let addr: usize = try!(args.get());
-			let mode: u8 = try!(args.get());
+			let addr: usize = args.get()?;
+			let mode: u8 = args.get()?;
 			log_debug!("MEM_REPROTECT({:#x},{})", addr, mode);
 			if addr & (::kernel::PAGE_SIZE-1) != 0 {
 				return Err(Error::BadValue);
@@ -267,7 +267,7 @@ fn invoke_int(call_id: u32, args: &mut Args) -> Result<u64,Error>
 			}
 			},
 		MEM_DEALLOCATE => {
-			let addr: usize = try!(args.get());
+			let addr: usize = args.get()?;
 			// SAFE: This internally does checks, but is marked as unsafe as a signal
 			match unsafe { ::kernel::memory::virt::reprotect_user(addr as *mut (), ::kernel::memory::virt::ProtectionMode::Unmapped) }
 			{
@@ -288,7 +288,7 @@ fn invoke_int(call_id: u32, args: &mut Args) -> Result<u64,Error>
 			todo!("NET_CONNECT");
 			},
 		NET_LISTEN => {
-			let local: ::values::SocketAddress = { let p: Freeze<_> = try!(args.get()); *p };
+			let local: crate::values::SocketAddress = { let p: Freeze<_> = args.get()?; *p };
 			match network_calls::new_server(local)
 			{
 			Ok(v) => v as u64,
@@ -296,8 +296,8 @@ fn invoke_int(call_id: u32, args: &mut Args) -> Result<u64,Error>
 			}
 			},
 		NET_BIND => {
-			let local: ::values::SocketAddress = { let p: Freeze<_> = try!(args.get()); *p };
-			let remote: ::values::MaskedSocketAddress = { let p: Freeze<_> = try!(args.get()); *p };
+			let local: crate::values::SocketAddress = { let p: Freeze<_> = args.get()?; *p };
+			let remote: crate::values::MaskedSocketAddress = { let p: Freeze<_> = args.get()?; *p };
 			match network_calls::new_free_socket(local, remote)
 			{
 			Ok(v) => v as u64,
@@ -325,18 +325,18 @@ fn invoke_int(call_id: u32, args: &mut Args) -> Result<u64,Error>
 		0 ..= 0x3FD => {
 			objects::call_object_ref(handle_id, call_id as u16, args)
 			},
-		::values::OBJECT_CLONE => {
+		crate::values::OBJECT_CLONE => {
 			objects::clone_object(handle_id)
 			},
-		::values::OBJECT_GETCLASS => {
+		crate::values::OBJECT_GETCLASS => {
 			objects::get_class(handle_id)
 			},
 		0x400 ..= 0x7FE => {
 			// Call a method defined for the object class.
 			objects::call_object_val(handle_id, call_id as u16, args)
 			},
-		//::values::OBJECT_FORGET => objects::forget_object(handle_id),
-		::values::OBJECT_DROP => {
+		//crate::values::OBJECT_FORGET => objects::forget_object(handle_id),
+		crate::values::OBJECT_DROP => {
 			// Destroy object
 			objects::drop_object(handle_id);
 			Ok(0)
@@ -366,7 +366,7 @@ fn syscall_core_textinfo(group: u32, id: usize, buf: &mut [u8]) -> usize
 {
 	match group
 	{
-	::values::TEXTINFO_KERNEL => {
+	crate::values::TEXTINFO_KERNEL => {
 		let s = match id
 			{
 			0 => ::kernel::build_info::version_string(),

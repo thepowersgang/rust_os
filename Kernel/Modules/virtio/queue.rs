@@ -2,10 +2,10 @@
 //
 //
 //!
-use kernel::prelude::*;
-use interface::Interface;
-use kernel::lib::mem::aref::{Aref/*,ArefBorrow*/};
-use core::sync::atomic::{AtomicUsize,AtomicU16,Ordering};
+use ::core::sync::atomic::{AtomicUsize,AtomicU16,Ordering};
+use ::kernel::prelude::*;
+use ::kernel::lib::mem::aref::{Aref/*,ArefBorrow*/};
+use crate::interface::Interface;
 
 pub struct Queue {
 	idx: usize,

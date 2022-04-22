@@ -666,8 +666,8 @@ impl WindowHandle
 	pub fn pop_event(&self) -> Option<super::input::Event> {
 		self.get_win().input.pop_event()
 	}
-	pub fn wait_input(&self, obj: &mut ::kernel::threads::SleepObject) {
-		self.get_win().input.wait(obj);
+	pub fn bind_wait_input(&self, obj: &mut ::kernel::threads::SleepObject) {
+		self.get_win().input.bind_wait(obj);
 	}
 	pub fn clear_wait_input(&self, obj: &mut ::kernel::threads::SleepObject) {
 		self.get_win().input.clear_wait(obj);

@@ -53,7 +53,7 @@ impl mount::Driver for Driver
 		let bs = vol.block_size() as u64;
 		let blk = {
 			let mut block: Vec<_> = (0 .. bs).map(|_|0).collect();
-			try!(vol.read_blocks(32*1024 / bs, &mut block));
+			::kernel::futures::block_on(vol.read_blocks(32*1024 / bs, &mut block))?;
 			block
 			};
 		if &blk[1..6] == b"CD001" {
@@ -75,7 +75,7 @@ impl mount::Driver for Driver
 		let mut block = vec![0u8; 2048];
 		for sector in 16 .. 
 		{
-			try!(vol.read_blocks((sector*scale) as u64, &mut block));
+			::kernel::futures::block_on(vol.read_blocks((sector*scale) as u64, &mut block))?;
 			if &block[1..6] != b"CD001" {
 				return Err( vfs::Error::Unknown("Invalid volume descriptor present") );
 			}
@@ -112,8 +112,8 @@ impl mount::Driver for Driver
 
 		// Determine if SUSP is in use (used for RockRidge extensions)
 		inner.susp_len_skip = {
-			let mut it = DirSector::new(&inner, try!(inner.get_sector(root_lba)), 0 );
-			let first_ent = match try!(it.next())
+			let mut it = DirSector::new(&inner, ::kernel::futures::block_on(inner.get_sector(root_lba))?, 0 );
+			let first_ent = match it.next()?
 				{
 				None => return Err(vfs::Error::InconsistentFilesystem),
 				Some(v) => v,
@@ -143,7 +143,7 @@ impl mount::Filesystem for Instance
 		else {
 			// Look up (or read) parent directory to obtain the info
 			let (sector, ofs) = ::kernel::lib::num::div_rem(id as u64, self.lb_size as u64);
-			let blk = match self.get_sector(sector as u32)
+			let blk = match ::kernel::futures::block_on(self.get_sector(sector as u32))
 				{
 				Ok(v) => v,
 				Err(_) => return None,
@@ -186,20 +186,20 @@ impl<'a> ::core::ops::Deref for Sector<'a> {
 impl InstanceInner
 {
 	/// Read a sector from the disk into the provided buffer
-	fn read_sector(&self, sector: u32, buf: &mut [u8]) -> Result<(), storage::IoError> {
+	async fn read_sector(&self, sector: u32, buf: &mut [u8]) -> Result<(), storage::IoError> {
 		assert_eq!(buf.len() % self.lb_size, 0);
 		// - Will be round, Driver::mount() ensures this
 		let hwsects_per_lb = self.lb_size / self.vh.block_size();
 		let hwsector = sector as usize * hwsects_per_lb;
-		try!( self.vh.read_blocks( hwsector as u64, buf) );
+		self.vh.read_blocks( hwsector as u64, buf).await?;
 		Ok( () )
 		
 	}
 	/// Read a metadata sector via a cache
-	fn get_sector(&self, sector: u32) -> Result<Sector, storage::IoError> {
+	async fn get_sector(&self, sector: u32) -> Result<Sector<'_>, storage::IoError> {
 		assert!(sector > 0);
 		
-		let blk = try!(self.vh.get_block(sector as u64));
+		let blk = self.vh.get_block(sector as u64).await?;
 		let ofs = (sector as u64 - blk.index()) as usize * self.vh.block_size();
 		Ok( Sector(blk, ofs as u16, self.vh.block_size() as u16) )
 	}
@@ -258,7 +258,7 @@ impl node::File for File
 			if ofs > 0 {
 				log_trace!("ofs {} > 0, reading partial at {}", ofs, sector);
 				let mut tmp = vec![0u8; self.fs.lb_size];
-				try!(self.fs.read_sector(self.first_lba + sector, &mut tmp));
+				::kernel::futures::block_on(self.fs.read_sector(self.first_lba + sector, &mut tmp))?;
 
 				assert!(ofs < self.fs.lb_size);
 				sector += 1;
@@ -271,7 +271,7 @@ impl node::File for File
 				let sector_count = (len - read) / self.fs.lb_size;
 				log_trace!("reading {} sectors worth of data at {} (len = {}, read = {})", sector_count, sector, len, read);
 				let bytes = sector_count * self.fs.lb_size;
-				try!(self.fs.read_sector(self.first_lba + sector, &mut buf[read..][..bytes]));
+				::kernel::futures::block_on(self.fs.read_sector(self.first_lba + sector, &mut buf[read..][..bytes]))?;
 				sector += sector_count as u32;
 				read += bytes;
 			}
@@ -280,7 +280,7 @@ impl node::File for File
 			if read < len {
 				log_trace!("reading {} bytes trailing at {}", len - read, sector);
 				let mut tmp = vec![0; self.fs.lb_size];
-				try!(self.fs.read_sector(self.first_lba + sector, &mut tmp));
+				::kernel::futures::block_on(self.fs.read_sector(self.first_lba + sector, &mut tmp))?;
 
 				buf[read..].clone_from_slice(&tmp);
 			}
@@ -326,9 +326,9 @@ impl node::Dir for Dir
 	{
 		for sector in 0 .. ::kernel::lib::num::div_up(self.size, self.fs.lb_size as u32)
 		{
-			let mut it = DirSector::new(&self.fs, try!(self.fs.get_sector(self.first_lba + sector)), 0); 
+			let mut it = DirSector::new(&self.fs, ::kernel::futures::block_on(self.fs.get_sector(self.first_lba + sector))?, 0); 
 
-			while let Some(ent) = try!(it.next())
+			while let Some(ent) = it.next()?
 			{
 				if ent.name == name.as_bytes()
 				{
@@ -349,10 +349,10 @@ impl node::Dir for Dir
 		
 		for sector in sector as u32 .. max_sectors
 		{
-			let mut it = DirSector::new(&self.fs, try!(self.fs.get_sector(self.first_lba + sector)),  ofs );
+			let mut it = DirSector::new(&self.fs, ::kernel::futures::block_on(self.fs.get_sector(self.first_lba + sector))?,  ofs );
 			ofs = 0;
 
-			while let Some(ent) = try!(it.next())
+			while let Some(ent) = it.next()?
 			{
 				if ent.name.len() > 0 && ent.name != b"\0" && ent.name != b"\x01"
 				{

@@ -8,25 +8,25 @@
 #[allow(dead_code)]
 use core::fmt;
 
-pub struct Waiter<'a>(Option<&'a Source>);
+pub struct Waiter<'a>(Option<&'a Queue>);
 
 /// A wait queue
 ///
 /// Allows a list of threads to wait on a single object (e.g. a Mutex)
 #[derive(Default)]
-pub struct Source
+pub struct Queue
 {
 	// TODO: Have a local SleepObjectRef to avoid malloc on single-wait case
 	waiters: crate::sync::mutex::Mutex< crate::lib::Queue<crate::threads::SleepObjectRef> >,
 }
 
 
-impl Source
+impl Queue
 {
 	/// Create a new queue source
-	pub const fn new() -> Source
+	pub const fn new() -> Queue
 	{
-		Source {
+		Queue {
 			waiters: crate::sync::mutex::Mutex::new(crate::lib::Queue::new()),
 		}
 	}

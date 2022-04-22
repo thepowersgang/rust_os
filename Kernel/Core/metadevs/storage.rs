@@ -11,7 +11,7 @@ use crate::lib::mem::Arc;
 
 module_define!{Storage, [], init}
 
-pub type AsyncIoResult<'a, T> = crate::r#async::BoxAsyncResult<'a, T, IoError>;
+pub type AsyncIoResult<'a, T> = ::core::pin::Pin<Box<dyn ::core::future::Future<Output=Result<T, IoError>> + 'a>>;
 
 /// A unique handle to a storage volume (logical)
 pub struct VolumeHandle
@@ -450,7 +450,8 @@ impl VolumeHandle
 	/// Read a series of blocks from the volume into the provided buffer.
 	/// 
 	/// The buffer must be a multiple of the logical block size
-	pub fn read_blocks(&self, idx: u64, dst: &mut [u8]) -> Result<(),IoError> {
+	pub async fn read_blocks(&self, idx: u64, dst: &mut [u8]) -> Result<(),IoError>
+	{
 		log_trace!("VolumeHandle::read_blocks(idx={}, dst={{len={}}})", idx, dst.len());
 		if dst.len() % self.block_size() != 0 {
 			log_warning!("Read size {} not a multiple of {} bytes", dst.len(), self.block_size());
@@ -472,14 +473,15 @@ impl VolumeHandle
 			assert!(count <= rem);
 			let bofs = blk as usize * self.block_size();
 			let dst = &mut dst[bofs .. bofs + count * self.block_size()];
-			S_PHYSICAL_VOLUMES.lock().get(&pv).expect("Volume missing").read(ofs, dst)?;
+			S_PHYSICAL_VOLUMES.lock().get(&pv).expect("Volume missing").read(ofs, dst).await?;
 			blk += count;
 			rem -= count;
 		}
 		Ok( () )
 	}
 
-	pub fn write_blocks(&self, idx: u64, dst: &[u8]) -> Result<(),IoError> {
+	pub async fn write_blocks(&self, idx: u64, dst: &[u8]) -> Result<(),IoError>
+	{
 		log_trace!("VolumeHandle::write_blocks(idx={}, dst={{len={}}})", idx, dst.len());
 		if dst.len() % self.block_size() != 0 {
 			log_warning!("Write size {} not a multiple of {} bytes", dst.len(), self.block_size());
@@ -501,7 +503,7 @@ impl VolumeHandle
 			assert!(count <= rem);
 			let bofs = blk as usize * self.block_size();
 			let dst = &dst[bofs .. bofs + count * self.block_size()];
-			S_PHYSICAL_VOLUMES.lock().get(&pv).unwrap().write(ofs, dst)?;
+			S_PHYSICAL_VOLUMES.lock().get(&pv).unwrap().write(ofs, dst).await?;
 			blk += count;
 			rem -= count;
 		}
@@ -518,7 +520,7 @@ impl PhysicalVolumeInfo
 	}
 	
 	/// Read blocks from the device
-	pub fn read(&self, first: u64, dst: &mut [u8]) -> Result<usize,IoError>
+	pub async fn read(&self, first: u64, dst: &mut [u8]) -> Result<usize,IoError>
 	{
 		log_trace!("PhysicalVolumeInfo::read(first={},{} bytes)", first, dst.len());
 		let block_size = self.dev.blocksize();
@@ -535,7 +537,7 @@ impl PhysicalVolumeInfo
 				let blocks = buf.len() / block_size;
 				
 				// TODO: Async! (maybe return a composite read handle?)
-				let real_count = match self.dev.read(prio, blk_id, blocks, buf).wait()
+				let real_count = match self.dev.read(prio, blk_id, blocks, buf).await
 					{
 					Ok(v) => v,
 					Err(e) => todo!("Error when PV fails to read: {:?}", e),
@@ -553,7 +555,7 @@ impl PhysicalVolumeInfo
 	}
 	
 	/// Write blocks from the device
-	pub fn write(&self, first: u64, dst: &[u8]) -> Result<usize,IoError>
+	pub async fn write(&self, first: u64, dst: &[u8]) -> Result<usize,IoError>
 	{
 		log_trace!("PhysicalVolumeInfo::write(first={},{} bytes)", first, dst.len());
 		let block_step = self.max_blocks_per_read();
@@ -568,7 +570,7 @@ impl PhysicalVolumeInfo
 				let blocks = buf.len() / block_size;
 				
 				// TODO: Async! (maybe return a composite read handle?)
-				match self.dev.write(prio, blk_id, blocks, buf).wait()
+				match self.dev.write(prio, blk_id, blocks, buf).await
 				{
 				Ok(real_count) => { assert!(real_count == blocks, "TODO: Handle incomplete writes"); },
 				Err(e) => todo!("Error when PV fails to write: {:?}", e),
@@ -650,13 +652,13 @@ mod null_volume
 		fn capacity(&self) -> Option<u64> { Some(0) }
 		
 		fn read<'a>(&'a self, _prio: u8, _blockidx: u64, _count: usize, _dst: &'a mut [u8]) -> super::AsyncIoResult<'a, usize> {
-			Box::new(crate::r#async::NullResultWaiter::new(|| Ok(0)))
+			Box::pin(async { Ok(0) })
 		}
 		fn write<'a>(&'a self, _prio: u8, _blockidx: u64, _count: usize, _src: &'a [u8]) -> super::AsyncIoResult<'a, usize> {
-			Box::new(crate::r#async::NullResultWaiter::new(|| Ok(0)))
+			Box::pin(async { Ok(0) })
 		}
 		fn wipe<'a>(&'a self, _blockidx: u64, _count: usize) -> super::AsyncIoResult<'a,()> {
-			Box::new(crate::r#async::NullResultWaiter::new(|| Ok(())))
+			Box::pin(async { Ok(()) })
 		}
 	}
 }

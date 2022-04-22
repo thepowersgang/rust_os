@@ -24,7 +24,7 @@ pub struct Source
 pub struct ManySource
 {
 	flag: AtomicBool,
-	waiters: super::queue::Source,
+	waiters: super::Queue,
 }
 
 /// Event waiter
@@ -82,7 +82,7 @@ impl ManySource
 	pub const fn new() -> ManySource {
 		ManySource {
 			flag: AtomicBool::new(false),
-			waiters: super::queue::Source::new(),
+			waiters: super::Queue::new(),
 		}
 	}
 

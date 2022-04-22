@@ -6,10 +6,12 @@
 use kernel::prelude::*;
 
 use kernel::sync::{RwLock,Mutex};
-use args::Args;
-use values::FixedStr6;
+use crate::args::Args;
+use crate::values::FixedStr6;
 
 use kernel::threads::get_process_local;
+
+//pub type WaitHandle<'a> = ::stack_dst::ValueA<dyn ::core::future::Future<Output=u32> + 'a, [usize; 4]>;
 
 /// A system-call object
 pub trait Object: Send + Sync + ::core::any::Any
@@ -27,13 +29,17 @@ pub trait Object: Send + Sync + ::core::any::Any
 	/// Return: Return value or argument error
 	//fn handle_syscall_val(self, call: u16, args: &mut Args) -> Result<u64,super::Error>;
 	fn handle_syscall_val(&mut self, call: u16, _args: &mut Args) -> Result<u64,super::Error> {
-		::objects::object_has_no_such_method_val(self.type_name(), call)
+		crate::objects::object_has_no_such_method_val(self.type_name(), call)
 	}
 
 	/// Return: Number of wakeup events bound
 	fn bind_wait(&self, flags: u32, obj: &mut ::kernel::threads::SleepObject) -> u32;
 	/// Return: Number of wakeup events fired
 	fn clear_wait(&self, flags: u32, obj: &mut ::kernel::threads::SleepObject) -> u32;
+
+	// fn wait(&self, flags: u32) -> WaitHandle<'_> {
+	// 	crate::objects::WaitHandle::new(async move { 0 }).map_err(|_|()).unwrap()
+	// }
 }
 impl<T: Object> Object for Box<T> {
 	fn type_name(&self) -> &str { (**self).type_name() }
@@ -108,7 +114,7 @@ impl ProcessObjects {
 				given: Mutex::new( Vec::new() ),
 			};
 		// Object 0 is fixed to be "this process" (and is not droppable)
-		*ret.objs[0].get_mut() = Some(UserObject::new(::threads::CurProcess));
+		*ret.objs[0].get_mut() = Some(UserObject::new(crate::threads::CurProcess));
 		ret
 	}
 
@@ -274,8 +280,8 @@ fn get_unclaimed_int(class: u16, tag: &str) -> Result<u32,u32>
 				let o = lh.as_ref().unwrap();
 				log_notice!("get_unclaimed({}) - Object popped ({}) was the wrong class (wanted {} [{} ?], but got {} [{} {}])",
 					tag, id,
-					class, ::values::get_class_name(class),
-					o.data.class(), ::values::get_class_name(o.data.class()), o.data.type_name()
+					class, crate::values::get_class_name(class),
+					o.data.class(), crate::values::get_class_name(o.data.class()), o.data.type_name()
 					);
 				o.data.class()
 				};
@@ -337,12 +343,12 @@ pub fn clear_wait(handle: u32, mask: u32, sleeper: &mut ::kernel::threads::Sleep
 pub fn give_object(target: &::kernel::threads::ProcessHandle, tag: &str, handle: u32) -> Result<(),super::Error> {
 	log_trace!("give_object(target={:?}, handle={:?})", target, handle);
 	let target_list = target.get_process_local_alloc::<ProcessObjects>();
-	let obj = try!(get_process_local::<ProcessObjects>().take_object(handle));
+	let obj = get_process_local::<ProcessObjects>().take_object(handle)?;
 	let class_id = obj.class();
-	let id = try!( target_list.find_and_fill_slot(|| UserObject { data: obj }) );
+	let id = target_list.find_and_fill_slot(|| UserObject { data: obj })?;
 	
 	log_debug!("- Giving object {} ({} {}) as '{}' to {:?} (handle {})",
-		handle, class_id, ::values::get_class_name(class_id),
+		handle, class_id, crate::values::get_class_name(class_id),
 		tag, target, id
 		);
 	target_list.push_given( id, tag );
@@ -351,7 +357,7 @@ pub fn give_object(target: &::kernel::threads::ProcessHandle, tag: &str, handle:
 }
 
 pub fn take_object<T: Object+'static>(handle: u32) -> Result<T,super::Error> {
-	let obj = try!(get_process_local::<ProcessObjects>().take_object(handle));
+	let obj = get_process_local::<ProcessObjects>().take_object(handle)?;
 	// SAFE: ptr::read is called on a pointer to a value that is subsequently forgotten
 	unsafe {
 		let rv = {
@@ -384,22 +390,22 @@ pub fn drop_object(handle: u32)
 
 
 
-pub fn object_has_no_such_method_val(name: &str, call: u16) -> Result<u64,::Error> {
+pub fn object_has_no_such_method_val(name: &str, call: u16) -> Result<u64,crate::Error> {
 	if call < 0x400 {
 		panic!("BUGCHECK: Call ID {:#x} < 0x400 invoked by-value call on {}", call, name);
 	}
 	else {
 		log_notice!("User called non-existent mathod (by-value) {} on {}", call-0x400, name);
 	}
-	Err( ::Error::UnknownCall )
+	Err( crate::Error::UnknownCall )
 }
-pub fn object_has_no_such_method_ref(name: &str, call: u16) -> Result<u64,::Error> {
+pub fn object_has_no_such_method_ref(name: &str, call: u16) -> Result<u64,crate::Error> {
 	if call >= 0x400 {
 		panic!("BUGCHECK: Call ID {:#x} > 0x400 invoked by-ref call on {}", call, name);
 	}
 	else {
 		log_notice!("User called non-existent mathod (by-ref) {} on {}", call, name);
 	}
-	Err( ::Error::UnknownCall )
+	Err( crate::Error::UnknownCall )
 }
 

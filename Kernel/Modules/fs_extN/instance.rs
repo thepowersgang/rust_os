@@ -74,7 +74,7 @@ impl Instance
 
 		let (superblock, first_block) = {
 			let mut first_block: Vec<u32> = vec![0; ::core::cmp::max(1024, vol_bs)/4];
-			try!(vol.read_blocks(superblock_idx, ::kernel::lib::as_byte_slice_mut(&mut first_block[..])));
+			::kernel::futures::block_on(vol.read_blocks(superblock_idx, ::kernel::lib::as_byte_slice_mut(&mut first_block[..])))?;
 			assert!(superblock_ofs % 4 == 0);
 			(
 				*::ondisk::Superblock::from_slice(&first_block[superblock_ofs/4 ..][..1024/4]),
@@ -139,7 +139,7 @@ impl Instance
 
 			if body_count > 0 
 			{
-				try!(vol.read_blocks(block, as_byte_slice_mut(&mut gds[n_skip .. ][ .. body_count])));
+				::kernel::futures::block_on(vol.read_blocks(block, as_byte_slice_mut(&mut gds[n_skip .. ][ .. body_count])))?;
 				block += (body_count / groups_per_vol_block) as u64;
 			}
 
@@ -148,7 +148,7 @@ impl Instance
 				let ofs = n_skip + body_count;
 				// Read a single volume block into a buffer, then populate from that
 				let mut buf: Vec<u8> = vec![0; vol_bs];
-				try!(vol.read_blocks(block, &mut buf));
+				::kernel::futures::block_on(vol.read_blocks(block, &mut buf))?;
 				let n_bytes = (gds.len() - ofs) * GROUP_DESC_SIZE;
 				as_byte_slice_mut(&mut gds[ofs ..]).clone_from_slice( &buf[..n_bytes] );
 			}
@@ -249,7 +249,7 @@ impl InstanceInner
 		log_trace!("get_block({})", block);
 		let sector = block as u64 * self.vol_blocks_per_fs_block();
 
-		let ch = try!(self.vol.get_block(sector));
+		let ch = ::kernel::futures::block_on(self.vol.get_block(sector))?;
 		let ofs = (sector - ch.index()) as usize * self.vol.block_size();
 		Ok( Block(ch, ofs as u16, self.fs_block_size as u16) )
 	}
@@ -267,14 +267,14 @@ impl InstanceInner
 		log_trace!("get_block({})", block);
 		let sector = block as u64 * self.vol_blocks_per_fs_block();
 
-		try!(self.vol.edit(sector, self.vol_blocks_per_fs_block() as usize, |data| {
+		::kernel::futures::block_on(self.vol.edit(sector, self.vol_blocks_per_fs_block() as usize, |data| {
 			// SAFE: Alignment checked, range valid
 			let slice_u32: &mut [u32] = unsafe {
 				assert!(&data[0] as *const _ as usize % 4 == 0);
 				::core::slice::from_raw_parts_mut(data.as_mut_ptr() as *mut u32, data.len() / 4)
 				};
 			f(slice_u32)
-			}))
+			}))?
 	}
 
 	/// Obtain a block (uncached)
@@ -285,14 +285,14 @@ impl InstanceInner
 	{                                                                                              
 		log_trace!("get_block_uncached({})", block);                                                    
 		let mut rv = vec![0u32; self.fs_block_size / 4].into_boxed_slice();                    
-		try!( self.read_blocks( block, ::kernel::lib::as_byte_slice_mut(&mut rv[..]) ) );      
+		self.read_blocks( block, ::kernel::lib::as_byte_slice_mut(&mut rv[..]) )?;
 		Ok(rv)                                                                                 
 	}                
 
 	/// Read a sequence of blocks into a user-provided buffer
 	pub fn read_blocks(&self, first_block: u32, data: &mut [u8]) -> vfs::node::Result<()>
 	{
-		try!( self.vol.read_blocks( first_block as u64 * self.vol_blocks_per_fs_block(), data) );
+		::kernel::futures::block_on( self.vol.read_blocks( first_block as u64 * self.vol_blocks_per_fs_block(), data) )?;
 		Ok( () )
 	}
 
@@ -300,7 +300,7 @@ impl InstanceInner
 	pub fn write_blocks(&self, first_block: u32, data: &[u8]) -> vfs::node::Result<()>
 	{
 		// TODO: Requires maybe interfacing with the cache used by get_block?
-		try!( self.vol.write_blocks( first_block as u64 * self.vol_blocks_per_fs_block(), data) );
+		::kernel::futures::block_on( self.vol.write_blocks( first_block as u64 * self.vol_blocks_per_fs_block(), data) )?;
 		Ok( () )
 	}
 }
@@ -372,7 +372,7 @@ impl InstanceInner
 		{
 			// NOTE: Unused fields in the inode are zero
 			let slice = &mut ::kernel::lib::as_byte_slice_mut(&mut rv)[.. self.s_inode_size()];
-			try!( self.vol.read_inner(vol_block, blk_ofs, slice) );
+			::kernel::futures::block_on( self.vol.read_inner(vol_block, blk_ofs, slice) )?;
 		}
 		log_trace!("- rv={:?}", rv);
 		Ok( rv )
@@ -383,7 +383,7 @@ impl InstanceInner
 		let (vol_block, blk_ofs) = self.get_inode_pos(inode_num);
 		
 		let slice = &::kernel::lib::as_byte_slice(inode_data)[.. self.s_inode_size()];
-		try!( self.vol.write_inner(vol_block, blk_ofs, slice) );
+		::kernel::futures::block_on(self.vol.write_inner(vol_block, blk_ofs, slice))?;
 
 		Ok( () )
 	}

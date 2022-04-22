@@ -47,7 +47,7 @@ impl_fmt! {
 pub struct WindowInput {
 	queue: Mutex<RingBuf<input::Event>>,
 	cursor: Mutex<super::CursorPos>,
-	waiters: ::kernel::async::queue::Source,
+	waiters: ::kernel::user_async::Queue,
 }
 
 #[derive(Default)]
@@ -251,7 +251,7 @@ impl WindowInput
 				.map( |(x,y, dx,dy)| input::Event::MouseMove(x, y, dx, dy) )
 		}
 	}
-	pub fn wait(&self, obj: &mut ::kernel::threads::SleepObject) {
+	pub fn bind_wait(&self, obj: &mut ::kernel::threads::SleepObject) {
 		self.waiters.wait_upon(obj);
 		if ! self.queue.lock().is_empty() || self.cursor.lock().is_dirty() {
 			obj.signal()

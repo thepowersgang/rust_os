@@ -107,7 +107,7 @@ impl ::storage_scsi::ScsiInterface for ScsiInterface
 		assert!( command.len() < 16 );
 		let cmd_len = command.len();
 		let cmd_bytes = Cbw::slice_to_array(command);
-		Box::new( ::kernel::r#async::FutureWrapper::new(async move {
+		Box::pin( async move {
 			let mut lh = self.inner.lock();//.await;
 			match lh.send_data(0, &cmd_bytes[..cmd_len], data).await
 			{
@@ -115,14 +115,14 @@ impl ::storage_scsi::ScsiInterface for ScsiInterface
 			Ok(_rx_len) => Err(::kernel::metadevs::storage::IoError::Unknown("Undersized USB read")),
 			Err(_) => Err(::kernel::metadevs::storage::IoError::Unknown("USB error")),
 			}
-			}) )
+			} )
 	}
 	fn recv<'a>(&'a self, command: &[u8], data: &'a mut [u8]) -> ::kernel::metadevs::storage::AsyncIoResult<'a,()>  {
 		assert!( command.len() < 16 );
 		let cmd_len = command.len();
 		let cmd_bytes = Cbw::slice_to_array(command);
 		// TODO: Rewrite kernel async layer to use futures.
-		Box::new( ::kernel::r#async::FutureWrapper::new(async move {
+		Box::pin( async move {
 			let mut lh = self.inner.lock();//.await;
 			match lh.recv_data(0, &cmd_bytes[..cmd_len], data).await
 			{
@@ -130,7 +130,7 @@ impl ::storage_scsi::ScsiInterface for ScsiInterface
 			Ok(_tx_len) => Err(::kernel::metadevs::storage::IoError::Unknown("Undersized USB write")),
 			Err(_) => Err(::kernel::metadevs::storage::IoError::Unknown("USB error")),
 			}
-			}) )
+			} )
 	}
 }
 struct ScsiInterfaceInner

@@ -74,9 +74,9 @@ mod symbols;
 pub mod sync;
 
 /// Asynchrnous wait support
-pub mod r#async;
-#[path="async-v3/mod.rs"]
-pub mod _async3;
+pub mod user_async;
+//#[path="async-v3/mod.rs"]
+//pub mod _async3;
 pub mod futures;
 
 /// Logging framework
