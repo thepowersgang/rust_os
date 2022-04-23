@@ -99,7 +99,7 @@ impl node::File for FileNode {
 				};
 			let bytes = count * self.fs.cluster_size;
 			log_trace!("- Read cluster {}+{}", cluster, count);
-			::kernel::futures::block_on(self.fs.read_clusters(cluster, &mut dst[..bytes]));
+			::kernel::futures::block_on(self.fs.read_clusters(cluster, &mut dst[..bytes]))?;
 			cur_read_ofs += bytes;
 		}
 		//#[cfg(DISABLED)]
