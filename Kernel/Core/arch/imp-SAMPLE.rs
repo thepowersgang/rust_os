@@ -229,15 +229,20 @@ pub mod x86_io {
 	pub unsafe fn outl(_p: u16, _v: u32) {}
 }
 
+pub mod time {
+	pub fn cur_timestamp() -> u64 {
+		0
+	}
+	pub fn request_tick(_target_time: u64) {
+		todo!("")
+	}
+}
+
 pub fn puts(s: &str) {
 }
 pub fn puth(v: u64) {
 }
 pub fn print_backtrace() {
-}
-
-pub fn cur_timestamp() -> u64 {
-	0
 }
 
 pub fn drop_to_user(entry: usize, stack: usize, args_len: usize) -> ! {

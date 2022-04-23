@@ -72,8 +72,10 @@ pub fn print_backtrace() {
 	puts("\n");
 }
 
-pub fn cur_timestamp() -> u64 {
-	0
+pub mod time {
+	pub fn cur_timestamp() -> u64 {
+		0
+	}
 }
 
 pub unsafe fn drop_to_user(entry: usize, stack: usize, args_len: usize) -> ! {

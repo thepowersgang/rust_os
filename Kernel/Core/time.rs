@@ -12,9 +12,25 @@ pub type TickCount = u64;
 /// Obtain the number of timer ticks since an arbitary point (system startup)
 pub fn ticks() -> u64
 {
-	crate::arch::cur_timestamp()
+	crate::arch::time::cur_timestamp()
 }
 
+/// Function called by the arch code when the main system timer ticks
+pub(super) fn time_tick()
+{
+	super::futures::time_tick();
+	//super::user_async::time_tick();
+	//super::threads::time_tick();
+}
+
+/// Requests that an interrupt be raised around this target time (could be earlier or later)
+/// 
+/// - Earlier if there's already an earlier interrupt requested
+/// - Later if the system timer rate doesn't allow that exact point
+pub fn request_interrupt(ticks: TickCount)
+{
+	crate::arch::time::request_tick(ticks);
+}
 
 /// Records the current time on construction, and prints the elapsed time with {:?} / {}
 pub struct ElapsedLogger(TickCount);

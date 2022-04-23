@@ -41,17 +41,26 @@ pub fn block_on<F: ::core::future::Future>(mut f: F) -> F::Output {
 	})
 }
 
+static TIME_WAKEUPS: crate::sync::Mutex<helpers::WakerQueue>	= crate::sync::Mutex::new( helpers::WakerQueue::new() );
+
+pub(super) fn time_tick() {
+	TIME_WAKEUPS.lock().wake_all();
+}
+
 /// Sleep as a future for a given number of milisecond
 pub fn msleep(ms: usize) -> impl core::future::Future<Output=()> {
 	struct Sleep(u64);
 	impl core::future::Future for Sleep {
 		type Output = ();
-		fn poll(self: core::pin::Pin<&mut Self>, _cx: &mut task::Context) -> task::Poll<Self::Output> {
+		fn poll(self: core::pin::Pin<&mut Self>, cx: &mut task::Context) -> task::Poll<Self::Output> {
 			if self.0 < crate::time::ticks() {
-				todo!("msleep - {} < {}", self.0, crate::time::ticks());
+				task::Poll::Ready( () )
 			}
 			else {
-				task::Poll::Ready( () )
+				// Set the next wakeup
+				TIME_WAKEUPS.lock().push(cx.waker());
+				crate::time::request_interrupt(self.0);
+				task::Poll::Pending
 			}
 		}
 	}

@@ -51,10 +51,17 @@ extern "C" {
 	pub fn drop_to_user(entry: usize, stack: usize, cmdline_len: usize) -> !;
 }
 
-/// Return the system timestamp (miliseconds since an arbitary point)
-pub fn cur_timestamp() -> u64
-{
-	hw::hpet::get_timestamp()
+pub mod time {
+	/// Return the system timestamp (miliseconds since an arbitary point)
+	pub fn cur_timestamp() -> u64
+	{
+		super::hw::hpet::get_timestamp()
+	}
+	
+	pub fn request_tick(_target_time: u64)
+	{
+		todo!("request_tick")
+	}
 }
 
 /// Print a backtrace, starting at the current location.

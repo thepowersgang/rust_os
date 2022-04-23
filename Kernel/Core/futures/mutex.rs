@@ -23,7 +23,7 @@ unsafe impl<T: Send> Sync for Mutex<T> {}
 unsafe impl<T: Send> Send for Mutex<T> {}
 
 
-impl<T: Send> Mutex<T>
+impl<T> Mutex<T>
 {
 	/// Construct a new unsafe mutex
 	pub const fn new(data: T) -> Mutex<T>
@@ -40,7 +40,10 @@ impl<T: Send> Mutex<T>
 			data: UnsafeCell::new(data),
 		}
 	}
-	
+}
+
+impl<T: Send> Mutex<T>
+{
 	/// Attempt to lock the mutex (returning None on failure)
 	pub fn try_lock(&self) -> Option<HeldMutex<T>>
 	{

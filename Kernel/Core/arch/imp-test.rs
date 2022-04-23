@@ -529,6 +529,71 @@ pub mod threads {
 		thread.cpu_state.thread_handle = Some(th);
 	}
 }
+pub mod time {
+	pub fn request_tick(target_time: u64) {
+		use ::std::sync::RwLock;
+		use ::std::sync::Mutex;
+		use ::std::sync::Condvar;
+		lazy_static::lazy_static! {
+			static ref THREAD_TIMER: RwLock<Option<crate::threads::WorkerThread>> = RwLock::new(None);
+			static ref NEXT_TICK: Mutex<u64> = Mutex::new(0);
+			static ref CV: Condvar = Condvar::new();
+		}
+
+		// If the thread isn't spawned, spawn it
+		if THREAD_TIMER.read().unwrap().is_none() {
+			let mut lh = THREAD_TIMER.write().unwrap();
+			if lh.is_none() {
+				*lh = Some(crate::threads::WorkerThread::new("ArchTest Timer", || {
+					let mut next_tick = NEXT_TICK.lock().unwrap();
+					loop {
+						if *next_tick == !0 {
+							// Wait on a condvar
+							next_tick = super::threads::test_pause_thread(move || {
+								CV.wait(next_tick).unwrap()
+								});
+						}
+						else {
+							match u64::checked_sub(*next_tick, cur_timestamp())
+							{
+							// `None` means that the current time is after the target, so tick.
+							None => {
+								// - Set the next tick timer to near-infinite
+								*next_tick = !0;
+								// - Call the callback.
+								drop(next_tick);
+								crate::time::time_tick();
+								next_tick = NEXT_TICK.lock().unwrap();
+								},
+							// `Some` means that we need to sleep for some time.
+							Some(dt_ms) => {
+								next_tick = super::threads::test_pause_thread(|| {
+									CV.wait_timeout(next_tick, ::std::time::Duration::from_millis(dt_ms)).unwrap().0
+									});
+								},
+							}
+						}
+					}
+				}));
+			}
+		}
+
+		// Prod the timer thread to wake and update its sleep
+		let mut lh = NEXT_TICK.lock().expect("Poisoned");
+		if *lh > target_time {
+			*lh = target_time;
+			CV.notify_one();
+		}
+	}
+
+	pub fn cur_timestamp() -> u64 {
+		lazy_static::lazy_static! {
+			static ref TS_ZERO: std::time::Instant = std::time::Instant::now();
+		}
+		let ts0 = *TS_ZERO;
+		(std::time::Instant::now() - ts0).as_millis() as u64
+	}
+}
 pub mod x86_io {
 	pub unsafe fn inb(_p: u16) -> u8 { 0 }
 	pub unsafe fn inw(_p: u16) -> u16 { 0 }
@@ -546,13 +611,6 @@ pub fn puts(s: &str) {
 }
 pub fn puth(v: u64) {
 	print!("{:08x}", v);
-}
-pub fn cur_timestamp() -> u64 {
-	lazy_static::lazy_static! {
-		static ref TS_ZERO: std::time::Instant = std::time::Instant::now();
-	}
-	let ts0 = *TS_ZERO;
-	(std::time::Instant::now() - ts0).as_millis() as u64
 }
 pub fn print_backtrace() {
 }

@@ -418,6 +418,19 @@ pub mod x86_io {
 	pub unsafe fn outl(p: u16, v: u32) { imp::outl(p, v) }
 }
 
+pub mod time {
+	use crate::arch::imp::time as imp;
+
+	#[inline]
+	pub fn request_tick(target_time: u64) {
+		imp::request_tick(target_time)
+	}
+
+	#[inline]
+	pub fn cur_timestamp() -> u64 {
+		imp::cur_timestamp()
+	}
+}
 
 #[inline]
 pub fn puts(s: &str) {
@@ -428,10 +441,6 @@ pub fn puth(v: u64) {
 	imp::puth(v)
 }
 
-#[inline]
-pub fn cur_timestamp() -> u64 {
-	imp::cur_timestamp()
-}
 #[inline]
 pub fn print_backtrace() {
 	imp::print_backtrace()

@@ -98,7 +98,7 @@ pub async fn lookup_v4(interface_mac: crate::nic::MacAddr, addr: crate::ipv4::Ad
 		_ => {},
 		}
 		// Sleep up to the timeout.
-		let sleep_duration = match timeout_time.checked_sub(timeout_time)
+		let sleep_duration = match timeout_time.checked_sub(::kernel::time::ticks())
 			{
 			None => return None,
 			Some(v) => v,

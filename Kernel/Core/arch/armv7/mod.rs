@@ -109,8 +109,10 @@ pub fn puth(v: u64) {
 	}
 }
 
-pub fn cur_timestamp() -> u64 {
-	0
+pub mod time {
+	pub fn cur_timestamp() -> u64 {
+		0
+	}
 }
 
 pub fn print_backtrace() {

@@ -1,4 +1,4 @@
-
+///! Future wrappers that wait on multiple futures at the same time
 
 use ::core::task;
 use ::core::pin::Pin;
@@ -18,6 +18,21 @@ impl<F1, F2> JoinOne<F1, F2> {
             f2: Some(f2),
         }
     }
+
+    /// Get the non-completed future (still pinned)
+    pub fn get_unfinished(self: Pin<&mut Self>) -> Option<JoinOneRes<Pin<&mut F1>, Pin<&mut F2>>> {
+        unsafe {
+            if self.f1.is_some() && self.f1.is_some() {
+                None
+            }
+            else if self.f1.is_some() {
+                Some(JoinOneRes::One( self.map_unchecked_mut(|v| v.f1.as_mut().unwrap()) ) )
+            }
+            else {
+                Some(JoinOneRes::Two( self.map_unchecked_mut(|v| v.f2.as_mut().unwrap()) ))
+            }
+        }
+    }
 }
 impl<F1,F2> Future for JoinOne<F1,F2>
 where
@@ -29,8 +44,8 @@ where
         // SAFE: No item will be moved (just either replaced or re-pinned)
         let s = unsafe { self.get_unchecked_mut() };
         match (&s.f1, &s.f2) {
-        (Some(_), Some(_)) => panic!("Being polled after completion"),
-        _ => {},
+        (Some(_), Some(_)) => {},
+        _ => panic!("Being polled after completion"),
         }
         // SAFE: Item won't be moved
         match unsafe { Pin::new_unchecked(s.f1.as_mut().unwrap()) }.poll(cx)
