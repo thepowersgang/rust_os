@@ -29,11 +29,11 @@ fn init()
 #[derive(Copy,Clone,PartialOrd,PartialEq,Ord,Eq,Debug)]
 pub enum Address
 {
-	Ipv4(::ipv4::Address),
+	Ipv4(crate::ipv4::Address),
 }
 impl Address
 {
-	fn unwrap_ipv4(&self) -> ::ipv4::Address {
+	fn unwrap_ipv4(&self) -> crate::ipv4::Address {
 		match self {
 		&Address::Ipv4(v) => v,
 		}

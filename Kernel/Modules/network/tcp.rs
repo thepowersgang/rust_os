@@ -16,7 +16,7 @@ const DEF_WINDOW_SIZE: u32 = 0x4000;	// 16KiB
 
 pub fn init()
 {
-	::ipv4::register_handler(IPV4_PROTO_TCP, rx_handler_v4).unwrap();
+	crate::ipv4::register_handler(IPV4_PROTO_TCP, rx_handler_v4).unwrap();
 }
 
 #[path="tcp-lib/"]
@@ -52,11 +52,11 @@ fn release_port(_addr: &Address, idx: u16)
 	S_PORTS.lock().release(idx)
 }
 
-fn rx_handler_v4(int: &::ipv4::Interface, src_addr: ::ipv4::Address, pkt: ::nic::PacketReader)
+fn rx_handler_v4(int: &crate::ipv4::Interface, src_addr: crate::ipv4::Address, pkt: crate::nic::PacketReader)
 {
 	rx_handler(Address::Ipv4(src_addr), Address::Ipv4(int.addr()), pkt)
 }
-fn rx_handler(src_addr: Address, dest_addr: Address, mut pkt: ::nic::PacketReader)
+fn rx_handler(src_addr: Address, dest_addr: Address, mut pkt: crate::nic::PacketReader)
 {
 	let pre_header_reader = pkt.clone();
 	let hdr = match PktHeader::read(&mut pkt)
@@ -74,14 +74,16 @@ fn rx_handler(src_addr: Address, dest_addr: Address, mut pkt: ::nic::PacketReade
 		return ;
 	}
 
-	// TODO: Validate checksum.
+	// Validate checksum.
 	{
+		use crate::ipv4::calculate_checksum;
+
 		let packet_len = pre_header_reader.remain();
 		// Pseudo header for checksum
 		let sum_pseudo = match (src_addr,dest_addr)
 			{
 			(Address::Ipv4(s), Address::Ipv4(d)) =>
-				::ipv4::calculate_checksum([
+				calculate_checksum([
 					// Big endian stores MSB first, so write the high word first
 					(s.as_u32() >> 16) as u16, (s.as_u32() >> 0) as u16,
 					(d.as_u32() >> 16) as u16, (d.as_u32() >> 0) as u16,
@@ -91,16 +93,15 @@ fn rx_handler(src_addr: Address, dest_addr: Address, mut pkt: ::nic::PacketReade
 		let sum_header = hdr.checksum();
 		let sum_options_and_data = {
 			let mut pkt = pkt.clone();
-			let psum_whole = !::ipv4::calculate_checksum( (0 .. (pre_header_reader.remain() - hdr_len) / 2).map(|_| pkt.read_u16n().unwrap()) );
+			let psum_whole = !calculate_checksum( (0 .. (pre_header_reader.remain() - hdr_len) / 2).map(|_| pkt.read_u16n().unwrap()) );
 			// Final byte is decoded as if there was a zero after it (so as 0x??00)
 			let psum_partial = if pkt.remain() > 0 { (pkt.read_u8().unwrap() as u16) << 8} else { 0 };
-			::ipv4::calculate_checksum([psum_whole, psum_partial].iter().copied())
+			calculate_checksum([psum_whole, psum_partial].iter().copied())
 			};
-		let sum_total = ::ipv4::calculate_checksum([
-			!sum_pseudo, !sum_header, !sum_options_and_data
-			].iter().copied());
+		let sum_total = calculate_checksum([ !sum_pseudo, !sum_header, !sum_options_and_data ].iter().copied());
 		if sum_total != 0 {
 			log_error!("Incorrect checksum: 0x{:04x} != 0", sum_total);
+			// TODO: Discard the packet.
 		}
 	}
 
@@ -257,7 +258,7 @@ const FLAG_PSH: u8 = 1 << 3;
 const FLAG_ACK: u8 = 1 << 4;
 impl PktHeader
 {
-	fn read(reader: &mut ::nic::PacketReader) -> Result<Self, ()>
+	fn read(reader: &mut crate::nic::PacketReader) -> Result<Self, ()>
 	{
 		Ok(PktHeader {
 			source_port: reader.read_u16n()?,
@@ -316,7 +317,7 @@ impl PktHeader
 			]
 	}
 	fn checksum(&self) -> u16 {
-		::ipv4::calculate_checksum(self.as_u16s().iter().cloned())
+		crate::ipv4::calculate_checksum(self.as_u16s().iter().cloned())
 	}
 }
 
@@ -411,7 +412,7 @@ impl Connection
 	}
 
 	/// Handle inbound data
-	fn handle(&mut self, quad: &Quad, hdr: &PktHeader, mut pkt: ::nic::PacketReader)
+	fn handle(&mut self, quad: &Quad, hdr: &PktHeader, mut pkt: crate::nic::PacketReader)
 	{
 		match self.state
 		{

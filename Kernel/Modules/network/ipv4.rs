@@ -6,6 +6,7 @@
 use kernel::lib::Vec;
 use kernel::sync::RwLock;
 use crate::nic::MacAddr;
+use crate::nic::PacketReader;
 
 // List of protocol numbers and handlers
 static PROTOCOLS: RwLock<Vec<(u8, ProtoHandler)>> = RwLock::new(Vec::new_const());
@@ -31,7 +32,7 @@ pub fn add_interface(local_mac: [u8; 6], addr: Address, mask_bits: u8)
 		});
 }
 
-pub fn register_handler(proto: u8, handler: fn(&Interface, Address, ::nic::PacketReader)) -> Result<(), ()>
+pub fn register_handler(proto: u8, handler: fn(&Interface, Address, PacketReader)) -> Result<(), ()>
 {
 	let mut lh = PROTOCOLS.write();
 	for &(p, _) in lh.iter()
@@ -43,7 +44,7 @@ pub fn register_handler(proto: u8, handler: fn(&Interface, Address, ::nic::Packe
 	lh.push( (proto, ProtoHandler::DirectKernel(handler),) );
 	Ok( () )
 }
-pub fn handle_rx_ethernet(_physical_interface: &dyn crate::nic::Interface, source_mac: [u8; 6], mut reader: ::nic::PacketReader) -> Result<(), ()>
+pub fn handle_rx_ethernet(_physical_interface: &dyn crate::nic::Interface, source_mac: [u8; 6], mut reader: PacketReader) -> Result<(), ()>
 {
 	let pre_header_reader = reader.clone();
 	let hdr = match Ipv4Header::read(&mut reader)
@@ -249,7 +250,7 @@ impl Ipv4Header
 		self.hdr_checksum = 0;
 		self.hdr_checksum = calculate_checksum(self.encode().chunks(2).map(|v| (v[0] as u16) << 8 | v[1] as u16));
 	}
-	fn read(reader: &mut ::nic::PacketReader) -> Result<Self, ()>
+	fn read(reader: &mut PacketReader) -> Result<Self, ()>
 	{
 		Ok(Ipv4Header {
 			ver_and_len: reader.read_u8()?,
@@ -284,7 +285,7 @@ impl Ipv4Header
 enum ProtoHandler
 {
 	/// Direct in-kernel handling (e.g. TCP)
-	DirectKernel(fn(&Interface, Address, ::nic::PacketReader)),
+	DirectKernel(fn(&Interface, Address, PacketReader)),
 	/// Indirect user handling (pushes onto a buffer for the user to read from)
 	// Ooh, another use for stack_dst, a DST queue!
 	#[allow(dead_code)]
@@ -292,7 +293,7 @@ enum ProtoHandler
 }
 impl ProtoHandler
 {
-	fn dispatch(&self, i: &Interface, src: Address, _dest: Address, r: ::nic::PacketReader)
+	fn dispatch(&self, i: &Interface, src: Address, _dest: Address, r: PacketReader)
 	{
 		match *self
 		{

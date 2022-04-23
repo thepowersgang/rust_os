@@ -351,7 +351,7 @@ fn rx_thread(int_data: &InterfaceData)
 				let ether_ty = r.read_u16n().unwrap();
 				match ether_ty
 				{
-				0x0800 => match ::ipv4::handle_rx_ethernet(&*int_data.base_interface, src_mac, r)
+				0x0800 => match crate::ipv4::handle_rx_ethernet(&*int_data.base_interface, src_mac, r)
 					{
 					Ok( () ) => {},
 					Err(e) => {
