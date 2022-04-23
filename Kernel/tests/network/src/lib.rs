@@ -10,6 +10,7 @@ pub mod ipv4;
 pub mod ethernet;
 
 pub struct TestFramework {
+    _lh: Option<::std::sync::MutexGuard<'static, ()>>,
     socket: std::net::UdpSocket,
     remote_addr: std::net::SocketAddr,
     process: std::process::Child,
@@ -19,6 +20,12 @@ impl TestFramework
 {
     pub fn new(name: &str) -> TestFramework
     {
+        ::lazy_static::lazy_static! {
+            static ref LOCK: ::std::sync::Mutex<()> = ::std::sync::Mutex::new( () );
+        }
+
+        let lh = Some( LOCK.lock().unwrap_or_else(|v| v.into_inner()) );
+
         let logfile: std::path::PathBuf = format!("{}.txt", name).into();
 		// NOTE: Ports allocated seqentially to avoid collisions between threaded tests
 		static NEXT_PORT: std::sync::atomic::AtomicU16 = std::sync::atomic::AtomicU16::new(12340);
@@ -26,6 +33,7 @@ impl TestFramework
 
         match std::process::Command::new( env!("CARGO") )
             .arg("build").arg("--bin").arg("host")
+            .arg("--quiet")
             .spawn().unwrap().wait()
         {
         Ok(status) if status.success() => {},
@@ -62,6 +70,7 @@ impl TestFramework
             };
 
         TestFramework {
+            _lh: lh,
             socket: socket,
             remote_addr: addr,
             process: child,

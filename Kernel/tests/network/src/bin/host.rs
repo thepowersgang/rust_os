@@ -57,16 +57,13 @@ fn main()
 	// TODO: Make this a command instead
     network::ipv4::add_interface(mac, args.sim_ip, 24);
 
-    kernel::arch::imp::threads::test_unlock_thread();
-
-
 	// Monitor stdin for commands
 	let mut tcp_conn_handles = ::std::collections::HashMap::new();
     loop
     {
 		const MTU: usize = 1560;
 		let mut buf = [0; 4 + MTU];
-		let len = match stream.recv(&mut buf)
+		let len = match ::kernel::arch::imp::threads::test_pause_thread(|| stream.recv(&mut buf))
 			{
 			Ok(len) => len,
 			Err(e) => {
@@ -236,9 +233,9 @@ impl network::nic::Interface for TestNic
         let buf: Vec<u8> = pkt.into_iter().flat_map(|v| v.iter()).copied().collect();
         self.stream.send(&buf).unwrap();
     }
-    fn tx_async<'a,'s>(&'s self, _: kernel::_async3::ObjectHandle, _: kernel::_async3::StackPush<'a, 's>, _: network::nic::SparsePacket<'_>) -> Result<(), network::nic::Error> {
-        todo!("TestNic::tx_async")
-    }
+    //fn tx_async<'a,'s>(&'s self, _: kernel::_async3::ObjectHandle, _: kernel::_async3::StackPush<'a, 's>, _: network::nic::SparsePacket<'_>) -> Result<(), network::nic::Error> {
+    //    todo!("TestNic::tx_async")
+    //}
     fn rx_wait_register(&self, channel: &kernel::threads::SleepObject<'_>) {
         *self.waiter.lock().unwrap() = Some(channel.get_ref());
     }
