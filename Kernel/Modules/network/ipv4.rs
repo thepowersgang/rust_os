@@ -117,7 +117,7 @@ pub fn handle_rx_ethernet(_physical_interface: &dyn crate::nic::Interface, sourc
 			// TODO: Should there be per-interface handlers?
 
 			// TODO: Check if the source address is from the same subnet, and only cache in ARP if it is
-			crate::arp::peek_v4(source_mac, hdr.source);
+			crate::arp::snoop_v4(source_mac, hdr.source);
 
 			// Figure out which sub-protocol to send this packet to
 			// - Should there be alternate handlers for 
@@ -173,7 +173,7 @@ pub fn route_lookup(source: Address, dest: Address) -> Option<(Address, MacAddr,
 	None
 }
 
-pub fn send_packet(source: Address, dest: Address, proto: u8, pkt: crate::nic::SparsePacket)
+pub async fn send_packet(source: Address, dest: Address, proto: u8, pkt: crate::nic::SparsePacket<'_>)
 {
 	log_trace!("send_packet({:?} -> {:?} 0x{:02x})", source, dest, proto);
 	// 1. Look up routing table for destination IP and interface
@@ -186,7 +186,7 @@ pub fn send_packet(source: Address, dest: Address, proto: u8, pkt: crate::nic::S
 			},
 		};
 	// 2. ARP (what if ARP has to wait?)
-	let dest_mac = match crate::arp::lookup_v4(interface_mac, next_hop)
+	let dest_mac = match crate::arp::lookup_v4(interface_mac, next_hop).await
 		{
 		Some(v) => v,
 		None => {

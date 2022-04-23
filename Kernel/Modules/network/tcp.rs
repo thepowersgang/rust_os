@@ -9,6 +9,7 @@ use kernel::lib::ring_buffer::{RingBuf,AtomicRingBuf};
 use core::sync::atomic::{AtomicUsize, Ordering};
 use crate::nic::SparsePacket;
 use crate::Address;
+use kernel::futures::block_on;
 
 const IPV4_PROTO_TCP: u8 = 6;
 const MAX_WINDOW_SIZE: u32 = 0x100000;	// 4MiB
@@ -151,19 +152,20 @@ fn rx_handler(src_addr: Address, dest_addr: Address, mut pkt: crate::nic::Packet
 			if s.accept_space.fetch_update(Ordering::SeqCst, Ordering::SeqCst, |v| if v == 0 { None } else { Some(v - 1) }).is_err() { 
 				// Reject if no space
 				// - Send a RST
-				quad.send_packet(hdr.acknowledgement_number, hdr.sequence_number, FLAG_RST, 0, &[]);
+				// TODO: Queue a packet instead of blocking here
+				block_on(quad.send_packet(hdr.acknowledgement_number, hdr.sequence_number, FLAG_RST, 0, &[]));
 			}
 			else {
 				// - Add the quad as a proto-connection and send the SYN-ACK
 				let pc = ProtoConnection::new(hdr.sequence_number);
-				quad.send_packet(pc.sent_seq, pc.seen_seq, FLAG_SYN|FLAG_ACK, hdr.window_size, &[]);
+				block_on(quad.send_packet(pc.sent_seq, pc.seen_seq, FLAG_SYN|FLAG_ACK, hdr.window_size, &[]));
 				PROTO_CONNECTIONS.insert(quad, pc);
 			}
 		}
 		else
 		{
 			// Send a RST
-			quad.send_packet(hdr.acknowledgement_number, hdr.sequence_number, FLAG_RST|(!hdr.flags & FLAG_ACK), 0, &[]);
+			block_on(quad.send_packet(hdr.acknowledgement_number, hdr.sequence_number, FLAG_RST|(!hdr.flags & FLAG_ACK), 0, &[]));
 		}
 	}
 	// Otherwise, drop
@@ -191,7 +193,7 @@ impl Quad
 			local_addr, local_port, remote_addr, remote_port
 			}
 	}
-	fn send_packet(&self, seq: u32, ack: u32, flags: u8, window_size: u16, data: &[u8])
+	async fn send_packet(&self, seq: u32, ack: u32, flags: u8, window_size: u16, data: &[u8])
 	{
 		// Make a header
 		// TODO: Any options required?
@@ -220,7 +222,7 @@ impl Quad
 		// Pass packet downstream
 		match self.local_addr
 		{
-		Address::Ipv4(a) => crate::ipv4::send_packet(a, self.remote_addr.unwrap_ipv4(), IPV4_PROTO_TCP, hdr_pkt),
+		Address::Ipv4(a) => crate::ipv4::send_packet(a, self.remote_addr.unwrap_ipv4(), IPV4_PROTO_TCP, hdr_pkt).await,
 		}
 	}
 }
@@ -689,7 +691,8 @@ impl Connection
 	fn send_packet(&mut self, quad: &Quad, flags: u8, data: &[u8])
 	{
 		log_debug!("{:?} send_packet({:02x} {}b)", quad, flags, data.len());
-		quad.send_packet(self.last_tx_seq, self.next_rx_seq, flags, self.rx_window_size as u16, data);
+		// TODO: Enqueue instead of blocking?
+		block_on(quad.send_packet(self.last_tx_seq, self.next_rx_seq, flags, self.rx_window_size as u16, data));
 	}
 	fn send_ack(&mut self, quad: &Quad, msg: &str)
 	{

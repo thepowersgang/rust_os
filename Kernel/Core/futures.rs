@@ -15,6 +15,7 @@ pub mod mutex;
 /// Helper to wait on multiple futures at once
 pub mod join;
 
+pub use self::condvar::Condvar;
 pub use self::mutex::Mutex;
 
 mod helpers {
@@ -22,6 +23,7 @@ mod helpers {
 	pub use self::waker_queue::WakerQueue;
 }
 
+/// Wait on two futures, returning only one result
 pub fn join_one<F1, F2>(a: F1, b: F2) -> join::JoinOne<F1,F2> {
 	join::JoinOne::new(a, b)
 }

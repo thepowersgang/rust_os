@@ -3,15 +3,14 @@ use ::core::task;
 use ::core::sync::atomic::Ordering;
 use super::helpers::WakerQueue;
 
-/// An async wait queue
-///
-/// Allows a list of threads to wait on a single object (e.g. a Mutex)
+/// An async condvar-alike, used to wait for an external event
 #[derive(Default)]
 pub struct Condvar
 {
 	key: ::core::sync::atomic::AtomicUsize,
 	waiters: crate::sync::mutex::Mutex< WakerQueue >,
 }
+pub struct Key(usize);
 
 impl Condvar
 {
@@ -24,18 +23,16 @@ impl Condvar
 		}
 	}
 	
-	/// Create a waiter for this queue
+	/// Create a waiter for this type
 	///
 	/// The passed handler is called with None to poll the state.
-	// TODO: Race conditions between 'Source::wait_on' and 'wait_on_list'.
-	pub fn wait(&self) -> impl ::core::future::Future<Output=()> + '_ {
+	pub fn wait(&self, key: Key) -> impl ::core::future::Future<Output=()> + '_ {
         struct Waiter<'a>(&'a Condvar, usize);
         impl<'a> ::core::future::Future for Waiter<'a> {
             type Output = ();
             fn poll(self: ::core::pin::Pin<&mut Self>, cx: &mut task::Context) -> task::Poll<()> {
-				let s = self.into_ref().get_ref();
-                let cv = s.0;
-				if s.1 != cv.key.load(Ordering::Relaxed) {
+                let cv = self.0;
+				if self.1 != cv.key.load(Ordering::Relaxed) {
 					task::Poll::Ready(())
 				}
 				else {
@@ -44,12 +41,19 @@ impl Condvar
 				}
             }
         }
-        Waiter(self, self.key.load(Ordering::SeqCst))
+        Waiter(self, key.0)
+	}
+
+	/// Obtain the current internal "key" (a counter incremented on every wake call)
+	pub fn get_key(&self) -> Key {
+		Key(self.key.load(Ordering::SeqCst))
 	}
 
 	/// Wake a single waiting thread
 	pub fn wake_one(&self) -> bool
 	{
+		self.key.fetch_add(1, Ordering::SeqCst);
+
 		let mut lh = self.waiters.lock();
 		if let Some(waiter) = lh.pop() {
 			waiter.wake();
@@ -63,6 +67,8 @@ impl Condvar
 	/// Wake all waiting threads
 	pub fn wake_all(&self)
 	{
+		self.key.fetch_add(1, Ordering::SeqCst);
+
 		let mut lh = self.waiters.lock();
 		while let Some(waiter) = lh.pop() {
 			waiter.wake();

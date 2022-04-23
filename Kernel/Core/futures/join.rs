@@ -4,6 +4,9 @@ use ::core::task;
 use ::core::pin::Pin;
 use ::core::future::Future;
 
+/// A future wrapper that waits on both futures and returns the first future to complete
+/// 
+/// Once complete, the other future will be dropped.
 pub struct JoinOne<F1, F2> {
     f1: Option<F1>,
     f2: Option<F2>,
@@ -12,7 +15,7 @@ impl<F1, F2> JoinOne<F1, F2> {
     pub fn new(f1: F1, f2: F2) -> Self {
         JoinOne {
             f1: Some(f1),
-            f2: Some(f2,)
+            f2: Some(f2),
         }
     }
 }
@@ -44,8 +47,12 @@ where
         task::Poll::Pending
     }
 }
+
+/// Result type for a [JoinOne] future wrapper
 pub enum JoinOneRes<F1,F2> {
+    /// The first future completed
     One(F1),
+    /// The second future completed
     Two(F2),
 }
 
