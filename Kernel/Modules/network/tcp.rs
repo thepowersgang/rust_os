@@ -15,9 +15,53 @@ const IPV4_PROTO_TCP: u8 = 6;
 const MAX_WINDOW_SIZE: u32 = 0x100000;	// 4MiB
 const DEF_WINDOW_SIZE: u32 = 0x4000;	// 16KiB
 
+const DEFAULT_TX_WINDOW_SIZE: u32 = 0x1000;
+
+/// Base timeout between attempting to send a packet and the first retransmit attempt
+const RETRANSMIT_TIMEOUT_MS: usize = 200;
+/// Maximum segment size (i.e. the largest amount of data in a single IP frame)
+const MSS: usize = 1400;
+
+fn earliest_timestamp(dst: &mut Option<::kernel::time::TickCount>, src: Option<::kernel::time::TickCount>) {
+	match src
+	{
+	Some(ts) => match *dst
+		{
+		Some(t2) if t2 < ts => {},
+		_ => *dst = Some(ts),
+		},
+	None => {},
+	}
+}
+
 pub fn init()
 {
 	crate::ipv4::register_handler(IPV4_PROTO_TCP, rx_handler_v4).unwrap();
+
+	// TODO: Spawn a worker that waits on all the TX timers and handles sending packets
+	::core::mem::forget(::kernel::threads::WorkerThread::new("TCP Worker", || {
+		// Check/advance all connections, also getting the timeout for the sleep
+		loop
+		{
+			let key = WORKER_CV.get_key();
+			let mut wakeup_time = None;
+			for (quad, conn) in CONNECTIONS.iter()
+			{
+				earliest_timestamp(&mut wakeup_time, conn.lock().run_tasks(quad));
+			}
+			// Wait on a condvar with a timeout (based)
+			// - This condvar will be poked when an incoming packet wants to trigger an action
+			if let Some(wakeup_time) = wakeup_time {
+				::kernel::futures::block_on(::kernel::futures::join_one(
+					WORKER_CV.wait(key),
+					::kernel::futures::msleep( (wakeup_time - ::kernel::time::ticks()) as usize )
+					));
+			}
+			else {
+				::kernel::futures::block_on(WORKER_CV.wait(key));
+			}
+		}
+		}));
 }
 
 #[path="tcp-lib/"]
@@ -30,6 +74,7 @@ use self::lib::rx_buffer::RxBuffer;
 static CONNECTIONS: SharedMap<Quad, Mutex<Connection>> = SharedMap::new();
 static PROTO_CONNECTIONS: SharedMap<Quad, ProtoConnection> = SharedMap::new();
 static SERVERS: SharedMap<(Option<Address>,u16), Server> = SharedMap::new();
+static WORKER_CV: ::kernel::futures::Condvar = ::kernel::futures::Condvar::new();
 
 static S_PORTS: Mutex<PortPool> = Mutex::new(PortPool::new());
 
@@ -153,19 +198,19 @@ fn rx_handler(src_addr: Address, dest_addr: Address, mut pkt: crate::nic::Packet
 				// Reject if no space
 				// - Send a RST
 				// TODO: Queue a packet instead of blocking here
-				block_on(quad.send_packet(hdr.acknowledgement_number, hdr.sequence_number, FLAG_RST, 0, &[]));
+				block_on(quad.send_packet(hdr.acknowledgement_number, hdr.sequence_number, FLAG_RST, 0, &[], &[]));
 			}
 			else {
 				// - Add the quad as a proto-connection and send the SYN-ACK
 				let pc = ProtoConnection::new(hdr.sequence_number);
-				block_on(quad.send_packet(pc.sent_seq, pc.seen_seq, FLAG_SYN|FLAG_ACK, hdr.window_size, &[]));
+				block_on(quad.send_packet(pc.sent_seq, pc.seen_seq, FLAG_SYN|FLAG_ACK, hdr.window_size, &[], &[]));
 				PROTO_CONNECTIONS.insert(quad, pc);
 			}
 		}
 		else
 		{
 			// Send a RST
-			block_on(quad.send_packet(hdr.acknowledgement_number, hdr.sequence_number, FLAG_RST|(!hdr.flags & FLAG_ACK), 0, &[]));
+			block_on(quad.send_packet(hdr.acknowledgement_number, hdr.sequence_number, FLAG_RST|(!hdr.flags & FLAG_ACK), 0, &[], &[]));
 		}
 	}
 	// Otherwise, drop
@@ -193,7 +238,7 @@ impl Quad
 			local_addr, local_port, remote_addr, remote_port
 			}
 	}
-	async fn send_packet(&self, seq: u32, ack: u32, flags: u8, window_size: u16, data: &[u8])
+	async fn send_packet(&self, seq: u32, ack: u32, flags: u8, window_size: u16, data1: &[u8], data2: &[u8])
 	{
 		// Make a header
 		// TODO: Any options required?
@@ -213,7 +258,8 @@ impl Quad
 		// Calculate checksum
 
 		// Create sparse packet chain
-		let data_pkt = SparsePacket::new_root(data);
+		let data_pkt = SparsePacket::new_root(data2);
+		let data_pkt = SparsePacket::new_chained(data1, &data_pkt);
 		// - Padding required to make the header a multiple of 4 bytes long
 		let opt_pad_pkt = SparsePacket::new_chained(&[0; 3][.. opts_len_rounded - options_bytes.len()], &data_pkt);
 		let opt_pkt = SparsePacket::new_chained(options_bytes, &opt_pad_pkt);
@@ -339,14 +385,46 @@ struct Connection
 	rx_window_size_max: u32,
 	rx_window_size: u32,
 
-	/// Sequence number of last transmitted byte
-	last_tx_seq: u32,
-	/// Buffer of transmitted but not ACKed bytes
-	tx_buffer: RingBuf<u8>,
-	/// Offset of bytes actually sent (not just buffered)
-	tx_bytes_sent: usize,
-	/// Last received transmit window size
-	tx_window_size: u32,
+	tx_state: ConnectionTxState,
+}
+struct ConnectionTxState {
+	/// Buffer of outbound bytes (data pending an incoming ACK)
+	buffer: RingBuf<u8>,
+	/// Sequence number of the next byte to be sent
+	next_tx_seq: u32,
+	
+	/// Number of bytes that have been sent, but not ACKed
+	sent_bytes: usize,
+
+	/// Last received TX window size
+	max_tx_window_size: u32,
+	/// Current TX window size (can be reduced if packet loss is seen)
+	cur_tx_window_size: u32,
+
+	// TODO: Pending flags?
+
+	// -- Timers and state for transmit
+	/// Timer use to ensure that we get ACKs in a suitable time.
+	retransmit_timer: ::kernel::time::Timer,
+	/// Flag that forces a TX on the next opportunity (e.g. the buffer has a packet worth of data, or a flush was requested)
+	force_tx: bool,
+	/// Send an ACK in the next opportunity
+	pending_ack: bool,
+}
+impl ConnectionTxState {
+	fn new(tx_seq: u32, init_window_size: u32) -> Self {
+		ConnectionTxState {
+			buffer: RingBuf::new(DEF_WINDOW_SIZE as usize),
+			next_tx_seq: tx_seq,
+
+			sent_bytes: 0,
+			max_tx_window_size: init_window_size,
+			cur_tx_window_size: init_window_size,
+			retransmit_timer: ::kernel::time::Timer::new(),
+			force_tx: false,
+			pending_ack: false,
+		}
+	}
 }
 #[derive(Copy,Clone,Debug,PartialEq)]
 enum ConnectionState
@@ -384,10 +462,7 @@ impl Connection
 			rx_window_size_max: MAX_WINDOW_SIZE,	// Can be updated by the user
 			rx_window_size: DEF_WINDOW_SIZE,
 
-			last_tx_seq: hdr.acknowledgement_number,
-			tx_buffer: RingBuf::new(2048),//hdr.window_size as usize),
-			tx_bytes_sent: 0,
-			tx_window_size: hdr.window_size as u32,
+			tx_state: ConnectionTxState::new(hdr.acknowledgement_number, hdr.window_size as u32),
 			}
 	}
 
@@ -404,12 +479,9 @@ impl Connection
 			rx_window_size_max: MAX_WINDOW_SIZE,	// Can be updated by the user
 			rx_window_size: DEF_WINDOW_SIZE,
 
-			last_tx_seq: sequence_number,
-			tx_buffer: RingBuf::new(2048),
-			tx_bytes_sent: 0,
-			tx_window_size: 0,//hdr.window_size as u32,
+			tx_state: ConnectionTxState::new(sequence_number, DEFAULT_TX_WINDOW_SIZE),
 			};
-		rv.send_packet(quad, FLAG_SYN, &[]);
+		rv.send_empty_packet(quad, FLAG_SYN);
 		rv
 	}
 
@@ -432,22 +504,39 @@ impl Connection
 		}
 		// ACK of sent data
 		if hdr.flags & FLAG_ACK != 0 {
-			let in_flight = (self.last_tx_seq - hdr.acknowledgement_number) as usize;
-			if in_flight > self.tx_buffer.len() {
+			let in_flight = self.tx_state.next_tx_seq.wrapping_sub(1).wrapping_sub(hdr.acknowledgement_number) as usize;
+			if in_flight > self.tx_state.buffer.len() {
 				// TODO: Error, something funky has happened
 			}
 			else {
-				let n_bytes = self.tx_buffer.len() - in_flight;
+				let n_bytes = self.tx_state.buffer.len() - in_flight;
 				log_debug!("{:?} ACQ {} bytes", quad, n_bytes);
 				for _ in 0 .. n_bytes {
-					self.tx_buffer.pop_front();
+					self.tx_state.buffer.pop_front();
+					self.tx_state.sent_bytes -= 1;
+				}
+				// If there are no un-acked bytes, and there's pending bytes. Trigger a re-send
+				if self.tx_state.sent_bytes == 0 && self.tx_state.buffer.len() > 0 {
+					self.tx_state.force_tx = true;
+					WORKER_CV.wake_one();
+				}
+				else {
+					// Since we've seen an ACK, reset the retransmit time
+					if self.tx_state.sent_bytes == 0 {
+						self.tx_state.retransmit_timer.clear();
+					}
+					else {
+						// TODO: Maintain a retransmit timer and double it each time we need to retransmit
+						self.tx_state.retransmit_timer.reset(RETRANSMIT_TIMEOUT_MS as u64);
+					}
 				}
 			}
 		}
 
 		// Update the window size if it changes
-		if self.tx_window_size != hdr.window_size as u32 {
-			self.tx_window_size = hdr.window_size as u32;
+		if self.tx_state.max_tx_window_size != hdr.window_size as u32 {
+			log_debug!("{:?} Max TX window changed: {} -> {}", quad, self.tx_state.max_tx_window_size, hdr.window_size);
+			self.tx_state.max_tx_window_size = hdr.window_size as u32;
 		}
 		
 		let new_state = match self.state
@@ -641,43 +730,37 @@ impl Connection
 		ConnectionState::Finished => Err( ConnError::LocalClosed ),
 		}
 	}
-	fn send_data(&mut self, quad: &Quad, buf: &[u8]) -> Result<usize, ConnError>
+	fn send_data(&mut self, _quad: &Quad, buf: &[u8]) -> Result<usize, ConnError>
 	{
 		// TODO: Is it valid to send before the connection is fully established?
 		self.state_to_error()?;
 		// 1. Determine how much data we can send (based on the TX window)
-		let max_len = usize::saturating_sub(self.tx_window_size as usize, self.tx_buffer.len());
+		let max_len = usize::saturating_sub(self.tx_state.cur_tx_window_size as usize, self.tx_state.buffer.len());
 		let rv = ::core::cmp::min(buf.len(), max_len);
+		log_debug!("{:?} send_data({}/{})", _quad, rv, buf.len());
 		// Add the data to the TX buffer
 		for &b in &buf[..rv] {
-			self.tx_buffer.push_back(b).expect("Incorrectly calculated `max_len` in tcp::Connection::send_data");
+			self.tx_state.buffer.push_back(b).expect("Incorrectly calculated `max_len` in tcp::Connection::send_data");
 		}
-		// If the buffer is full enough, do a send
-		if self.tx_buffer.len() - self.tx_bytes_sent > 1400 /*|| self.first_tx_time.map(|t| now() - t > MAX_TX_DELAY).unwrap_or(false)*/
+		
+		// Nagle algorithm!
+		// Only send if:
+		// - There's no unsent data in the buffer, OR
+		// - There's more than 1MSS unsent in the buffer
+		if self.tx_state.sent_bytes == 0 || self.tx_state.buffer.len() - self.tx_state.sent_bytes >= MSS
 		{
-			// Trigger a TX
-			self.flush_send(quad);
+			log_trace!("{:?} forcing a send", _quad);
+			// Force a TX
+			self.tx_state.force_tx = true;
+			WORKER_CV.wake_one();
+			//self.flush_send(quad);
 		}
 		else
 		{
-			// Kick a short timer, which will send data after it expires
-			// - Keep kicking the timer as data flows through
-			// - Have a maximum elapsed time with no packet sent.
-			//if self.tx_timer.reset(MIN_TX_DELAY) == timer::ResetResult::WasStopped
-			//{
-			//	self.first_tx_time = Some(now());
-			//}
+			// Just enqueue the data, the RX logic will trigger a re-send on ACK
+			log_trace!("{:?} waiting for nagle", _quad);
 		}
-		todo!("{:?} send_data( min({}, {})={} )", quad, max_len, buf.len(), rv);
-	}
-	fn flush_send(&mut self, quad: &Quad)
-	{
-		loop
-		{
-			let nbytes = self.tx_buffer.len() - self.tx_bytes_sent;
-			todo!("{:?} tx {}", quad, nbytes);
-		}
-		//self.first_tx_time = None;
+		Ok(rv)
 	}
 	fn recv_data(&mut self, _quad: &Quad, buf: &mut [u8]) -> Result<usize, ConnError>
 	{
@@ -688,18 +771,64 @@ impl Connection
 		Ok( self.rx_buffer.take(buf) )
 	}
 
-	fn send_packet(&mut self, quad: &Quad, flags: u8, data: &[u8])
+	fn run_tasks(&mut self, quad: &Quad) -> Option<::kernel::time::TickCount>
 	{
-		log_debug!("{:?} send_packet({:02x} {}b)", quad, flags, data.len());
+		let flags = {
+			let mut flags = 0u8;
+			if ::core::mem::replace(&mut self.tx_state.pending_ack, false) {
+				flags |= FLAG_ACK;
+			}
+			flags
+			};
+
+		if self.tx_state.retransmit_timer.is_expired() {
+			// Re-send any pending data (and reduce our TX window size?)
+			let len = self.tx_state.buffer.len().min(MSS);
+			log_trace!("{:?} Retransmit {:#x} {} bytes", quad, flags, len);
+			let data = self.tx_state.buffer.get_slices(0..len);
+			// `next_tx_seq` is the sequence number of the next new byte to be sent
+			// - I.e. the byte at `buffer[sent_bytes]`
+			// - So, we want to subtract the number of bytes between `data.len()` and `sent_bytes`
+			let seq_ofs = (self.tx_state.sent_bytes as u32).wrapping_sub(len as u32);
+			let seq = self.tx_state.next_tx_seq.wrapping_sub(seq_ofs);
+			block_on(quad.send_packet(seq, self.next_rx_seq, flags, self.rx_window_size as u16, data.0, data.1));
+			// TODO: Double this timer each time we need to resend (and halve it on successful reception)
+			self.tx_state.retransmit_timer.reset(RETRANSMIT_TIMEOUT_MS as u64);
+		}
+		else if ::core::mem::replace(&mut self.tx_state.force_tx, false) {
+			// Send the new data
+			let nbytes = self.tx_state.buffer.len() - self.tx_state.sent_bytes;
+			let nbytes = nbytes.min(MSS);
+			let data = self.tx_state.buffer.get_slices(self.tx_state.sent_bytes .. self.tx_state.sent_bytes + nbytes);
+			let seq = self.tx_state.next_tx_seq;
+			log_trace!("{:?} TX forced {:#x} {} bytes", quad, flags, nbytes);
+			block_on(quad.send_packet(seq, self.next_rx_seq, flags, self.rx_window_size as u16, data.0, data.1));
+			// TODO: Some flags act as a pseudo-byte if in an empty packet
+			self.tx_state.next_tx_seq = self.tx_state.next_tx_seq.wrapping_add( nbytes as u32 );
+		}
+		else {
+			// Nothing to do.
+		}
+
+		let mut rv = None;
+		earliest_timestamp(&mut rv, self.tx_state.retransmit_timer.get_expiry());
+		rv
+	}
+
+	fn send_empty_packet(&mut self, quad: &Quad, flags: u8)
+	{
+		log_debug!("{:?} send_packet({:02x})", quad, flags);
 		// TODO: Enqueue instead of blocking?
-		block_on(quad.send_packet(self.last_tx_seq, self.next_rx_seq, flags, self.rx_window_size as u16, data));
+		block_on(quad.send_packet(self.tx_state.next_tx_seq, self.next_rx_seq, flags, self.rx_window_size as u16, &[], &[]));
 	}
 	fn send_ack(&mut self, quad: &Quad, msg: &str)
 	{
 		log_debug!("{:?} send_ack({:?})", quad, msg);
 		// - TODO: Cancel any pending ACK
 		// - Send a new ACK
-		self.send_packet(quad, FLAG_ACK, &[]);
+		self.tx_state.pending_ack = true;
+		self.tx_state.force_tx = true;
+		WORKER_CV.wake_one();
 	}
 	fn close(&mut self, quad: &Quad) -> Result<(), ConnError>
 	{
@@ -718,14 +847,14 @@ impl Connection
 			ConnectionState::Finished => return Err( ConnError::LocalClosed ),
 
 			ConnectionState::CloseWait => {
-				self.send_packet(quad, FLAG_FIN|FLAG_ACK, &[]);
+				self.send_empty_packet(quad, FLAG_FIN|FLAG_ACK);
 				ConnectionState::LastAck
 				},
 			ConnectionState::ForceClose => {
 				ConnectionState::Finished
 				},
 			ConnectionState::Established => {
-				self.send_packet(quad, FLAG_FIN, &[]);
+				self.send_empty_packet(quad, FLAG_FIN);
 				ConnectionState::FinWait1
 				},
 			};

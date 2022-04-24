@@ -6,7 +6,8 @@
 //!
 //! A wrapper around RwLock<VecMap>
 #![no_std]
-use kernel::sync::rwlock::{RwLock, self};
+use ::kernel::sync::rwlock::{RwLock, self};
+use ::kernel::lib::collections::VecMap;
 
 extern crate kernel;
 
@@ -16,14 +17,14 @@ pub struct SharedMap<K,V>
 }
 struct SharedMapInner<K, V>
 {
-	m: ::kernel::lib::collections::VecMap<K,V>,
+	m: VecMap<K,V>,
 }
 
 impl<K, V> SharedMap<K,V>
 {
 	pub const fn new() -> Self {
 		SharedMap {
-			lock: RwLock::new(SharedMapInner { m: ::kernel::lib::collections::VecMap::new_const() }),
+			lock: RwLock::new(SharedMapInner { m: VecMap::new_const() }),
 			}
 	}
 }
@@ -46,7 +47,30 @@ impl<K: Send+Sync+Ord, V: Send+Sync> SharedMap<K,V>
 		let mut lh = self.lock.write();
 		lh.m.insert(k, v);
 	}
+
+	/// Obtain the outer lock and iterate
+	pub fn iter(&self) -> impl Iterator<Item=(&'_ K, &'_ V,)> {
+		let lh = self.lock.read();
+		Iter {
+			// SAFE: This pointer won't outlive the lock handle it came from, and the pointer is stable
+			iter: unsafe { (*(&lh.m as *const VecMap<_,_>)).iter() },
+			_ref_handle: lh,
+		}
+	}
 }
+pub struct Iter<'a, K: 'a + Send+Sync+Ord, V: 'a + Send+Sync>
+{
+	_ref_handle: rwlock::Read<'a, SharedMapInner<K,V>>,
+	iter: ::kernel::lib::collections::vec_map::Iter<'a, K, V>,
+}
+impl<'a, K: 'a + Send+Sync+Ord, V: 'a + Send+Sync> Iterator for Iter<'a, K, V>
+{
+	type Item = (&'a K, &'a V,);
+	fn next(&mut self) -> Option<Self::Item> {
+		self.iter.next()
+	}
+}
+
 pub struct Handle<'a, K: 'a + Send+Sync+Ord, V: 'a + Send+Sync>
 {
 	_ref_handle: rwlock::Read<'a, SharedMapInner<K,V>>,

@@ -237,7 +237,6 @@ fn resets()
 #[test]
 fn client()
 {
-
     let fw = crate::TestFramework::new("tcp_client");
     prime_arp(&fw, /*dst=*/IpAddr4([192,168,1,1]), /*src=*/IpAddr4([192,168,1,2]));
 

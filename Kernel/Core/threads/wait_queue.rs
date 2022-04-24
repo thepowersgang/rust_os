@@ -64,6 +64,7 @@ impl WaitQueue
 		cur.assert_active();
 		rel_cur_thread(cur);
 	}
+
 	/// Returns true if there is a thread waiting on the list
 	pub fn has_waiter(&self) -> bool
 	{

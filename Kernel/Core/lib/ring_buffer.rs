@@ -57,6 +57,37 @@ impl<T> RingBuf<T>
 		self.len
 	}
 
+	/// Obtain a contigious slice of data from this buffer
+	pub fn get_slices(&mut self, range: ::core::ops::Range<usize>) -> (&[T], &[T]) {
+		// SAFE: Correct pointer accesses to initialised data
+		unsafe {
+			assert!(range.start <= self.len);
+			assert!(range.end <= self.len);
+			let len = range.len();
+			assert!(len <= self.len);
+			let tail_space = self.data.count() - self.start;
+			let head = self.len.saturating_sub(tail_space);
+			if range.start < tail_space {
+				if range.end < tail_space {
+					let s1 = ::core::slice::from_raw_parts(self.data.get_ptr(self.start + range.start), len);
+					let s2 = &[];
+					(s1, s2)
+				}
+				else {
+					let s1 = ::core::slice::from_raw_parts(self.data.get_ptr(self.start + range.start), tail_space);
+					let s2 = ::core::slice::from_raw_parts(self.data.get_ptr(0), len - tail_space);
+					(s1, s2)
+				}
+			}
+			else {
+				assert!(len < head);
+				let s1 = ::core::slice::from_raw_parts(self.data.get_ptr(range.start - tail_space), len);
+				let s2 = &[];
+				(s1,s2)
+			}
+		}
+	}
+
 	/// Push an item to the end of the buffer
 	pub fn push_back(&mut self, val: T) -> Result<(),T>
 	{

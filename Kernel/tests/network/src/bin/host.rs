@@ -231,6 +231,7 @@ impl network::nic::Interface for TestNic
 {
     fn tx_raw(&self, pkt: network::nic::SparsePacket<'_>) {
         let buf: Vec<u8> = pkt.into_iter().flat_map(|v| v.iter()).copied().collect();
+		println!("TX {:?}", ::kernel::logging::HexDump(&buf));
         self.stream.send(&buf).unwrap();
     }
     //fn tx_async<'a,'s>(&'s self, _: kernel::_async3::ObjectHandle, _: kernel::_async3::StackPush<'a, 's>, _: network::nic::SparsePacket<'_>) -> Result<(), network::nic::Error> {

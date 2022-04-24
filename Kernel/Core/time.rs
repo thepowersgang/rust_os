@@ -52,8 +52,47 @@ impl_fmt! {
 	//}
 }
 
+pub struct Timer
+{
+	expiry_time: TickCount,
+}
+impl Default for Timer {
+	fn default() -> Self {
+		Self::new()
+	}
+}
+impl Timer
+{
+	pub const fn new() -> Self {
+		Timer {
+			expiry_time: !0,
+		}
+	}
+	/// Returns `None` if the timer is expired, and `Some(tickcount)` if it's still to fire
+	pub fn get_expiry(&self) -> Option<TickCount> {
+		(self.expiry_time < ticks()).then(|| self.expiry_time)
+	}
+	pub fn is_expired(&self) -> bool {
+		self.expiry_time < ticks()
+	}
+	/// Reset the timer to the given duration
+	pub fn reset(&mut self, duration: u64) -> bool {
+		let rv = self.expiry_time < ticks() || self.expiry_time == !0;
+		self.expiry_time = ticks() + duration;
+		rv
+	}
+	pub fn clear(&mut self) -> bool {
+		let rv = self.expiry_time < ticks();
+		self.expiry_time = !0;
+		rv
+	}
+	//pub fn wait(&self) -> impl ::core::future::Future<Output=()> {
+	//	
+	//}
+}
 
 // TODO: Use AtomicU64 if availble, otherwise use a spinlock protected u32 pair
+/// A timer used to track the last access time of a field
 pub struct CacheTimer(
 	#[cfg(target_has_atomic="64")]
 	AtomicU64,
