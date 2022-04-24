@@ -10,7 +10,7 @@ edition = "2018"
 [dependencies]
 bitvec = "0.17"
 kernel = { path = "../../Core", features = ["test"] }
-fs_extN = { path = "../../Modules/fs_extN" }
+fs_ext_n = { path = "../../Modules/fs_extN" }
 fs_fat = { path = "../../Modules/fs_fat" }
 
 cmdline_words_parser = { path = "../../../externals/crates.io/cmdline_words_parser" }

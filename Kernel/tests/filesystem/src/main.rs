@@ -13,7 +13,7 @@ fn main()
     (::kernel::vfs::S_MODULE.init)();
 
     (::fs_fat::S_MODULE.init)();
-    (::fs_extN::S_MODULE.init)();
+    (::fs_ext_n::S_MODULE.init)();
     
     // 1. Load disks (physical volumes)
     let disks: [(&str, &::std::path::Path); 1] = [
@@ -59,7 +59,7 @@ fn main()
         cmd_stream.read_line(&mut s).expect("Reading user input");
 
         // Parse using cmdline_words_parser
-        let mut args = ::cmdline_words_parser::StrExt::parse_cmdline_words(&mut s);
+        let mut args = ::cmdline_words_parser::parse_posix(&mut s);
         let cmd = match args.next()
             {
             None => break,

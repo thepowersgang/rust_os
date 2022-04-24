@@ -174,20 +174,21 @@ impl storage::PhysicalVolume for Volume
         assert_eq!( dst.len(), num * self.block_size );
         let ret = self.read_inner(idx, dst).map_err(cvt_err);
 
-		Box::new( ::kernel::r#async::NullResultWaiter::new( move || ret ) )
+		Box::pin( ::core::future::ready(ret) )
 	}
 	fn write<'a>(&'a self, _prio: u8, idx: u64, num: usize, src: &'a [u8]) -> storage::AsyncIoResult<'a,usize>
 	{
         assert_eq!( src.len(), num * self.block_size );
         let ret = self.write_inner(idx, src).map_err(cvt_err);
 
-		Box::new( ::kernel::r#async::NullResultWaiter::new( move || ret ) )
+		Box::pin( ::core::future::ready(ret) )
 	}
 	
 	fn wipe<'a>(&'a self, _blockidx: u64, _count: usize) -> storage::AsyncIoResult<'a,()>
 	{
 		// Do nothing, no support for TRIM
-		Box::new( ::kernel::r#async::NullResultWaiter::new( || Ok( () ) ))
+        let ret = Ok(());
+		Box::pin( ::core::future::ready(ret) )
 	}
 	
 }
