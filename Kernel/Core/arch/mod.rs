@@ -11,6 +11,10 @@ cfg_if::cfg_if!{
 		pub use self::test as imp;
 	}
 	else {
+		// It would be nice to have all architectures built when running
+		// in the IDE, but there's conflicts getting access to the thread
+		// state.
+		// Also, inline assembly.
 		#[cfg(any(/* in_ide, */target_arch="x86_64" ))] pub mod amd64;
 		#[cfg(any(/* in_ide, */target_arch="arm"    ))] pub mod armv7;
 		#[cfg(any(/* in_ide, */target_arch="aarch64"))] pub mod armv8;
