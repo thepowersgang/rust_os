@@ -6,7 +6,7 @@ pub struct State {
 	kernel_base_sp: usize,
 	sp: usize,
 	#[allow(dead_code)]
-	stack_handle: Option< ::memory::virt::ArrayHandle<u8> >,
+	stack_handle: Option< crate::memory::virt::ArrayHandle<u8> >,
 }
 impl State
 {
@@ -89,18 +89,18 @@ pub fn start_thread<F: FnOnce()+Send+'static>(thread: &mut crate::threads::Threa
 	}
 
 	struct StackInit {
-		alloc: ::memory::virt::ArrayHandle<u8>,
+		alloc: crate::memory::virt::ArrayHandle<u8>,
 		top: usize,
 	}
 	impl StackInit {
 		fn new() -> StackInit {
-			let ah = ::memory::virt::alloc_stack().into_array::<u8>();
+			let ah = crate::memory::virt::alloc_stack().into_array::<u8>();
 			StackInit {
 				top: &ah[ah.len()-1] as *const _ as usize + 1,
 				alloc: ah,
 			}
 		}
-		fn unwrap(self) -> (::memory::virt::ArrayHandle<u8>, usize) {
+		fn unwrap(self) -> (crate::memory::virt::ArrayHandle<u8>, usize) {
 			(self.alloc, self.top)
 		}
 		fn push<T: 'static>(&mut self, v: T) {
@@ -129,13 +129,13 @@ pub fn start_thread<F: FnOnce()+Send+'static>(thread: &mut crate::threads::Threa
 
 
 
-pub fn idle(held_interrupts: ::arch::sync::HeldInterrupts) {
+pub fn idle(held_interrupts: crate::arch::sync::HeldInterrupts) {
 	// wait_for_interrupt ensures that interrupts are enabled
 	::core::mem::forget(held_interrupts);
 	// Idling done in th IRQ module, so it can handle the driver not yet being up
 	super::interrupts::wait_for_interrupt();
 }
-pub fn switch_to(thread: ::threads::ThreadPtr) {
+pub fn switch_to(thread: crate::threads::ThreadPtr) {
 	#[allow(improper_ctypes)]
 	extern "C" {
 		fn task_switch(old_sp: &mut usize, new_sp: usize, satp: u64);
@@ -165,17 +165,17 @@ pub fn get_idle_thread() -> crate::threads::ThreadPtr {
 		let mut ptr = state.idle_thread.load(Ordering::Relaxed);
 		if ptr == 0
 		{
-			ptr = ::core::mem::transmute( ::threads::new_idle_thread(0) );
+			ptr = ::core::mem::transmute( crate::threads::new_idle_thread(0) );
 			state.idle_thread.store(ptr, Ordering::Relaxed);
 		}
 		::core::mem::transmute(ptr)
 	}
 }
 
-pub fn set_thread_ptr(t: ::threads::ThreadPtr) {
+pub fn set_thread_ptr(t: crate::threads::ThreadPtr) {
 	super::HartState::get_current().current_thread.store(t.into_usize(), Ordering::SeqCst);
 }
-pub fn get_thread_ptr() -> Option<::threads::ThreadPtr> {
+pub fn get_thread_ptr() -> Option<crate::threads::ThreadPtr> {
 	let ret = super::HartState::get_current().current_thread.load(Ordering::SeqCst) as usize;
 	//use super::{puts,puth}; puts("get_thread_ptr: 0x"); puth(ret as u64); puts("\n");
 	if ret == 0 {
@@ -188,7 +188,7 @@ pub fn get_thread_ptr() -> Option<::threads::ThreadPtr> {
 		}
 	}
 }
-pub fn borrow_thread() -> *const ::threads::Thread {
+pub fn borrow_thread() -> *const crate::threads::Thread {
 	let ret = super::HartState::get_current().current_thread.load(Ordering::SeqCst) as usize;
 	ret as *const crate::threads::Thread
 }

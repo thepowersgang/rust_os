@@ -41,19 +41,19 @@ pub fn get_boot_string() -> &'static str {
 		})
 }
 /// qemu virt platform doesn't have a boot video mode
-pub fn get_video_mode() -> Option<::metadevs::video::bootvideo::VideoMode> {
+pub fn get_video_mode() -> Option<crate::metadevs::video::bootvideo::VideoMode> {
 	None
 }
 /// Obtain/generate memory map
-pub fn get_memory_map() -> &'static [::memory::MemoryMapEnt]
+pub fn get_memory_map() -> &'static [crate::memory::MemoryMapEnt]
 {
 	// Statically allocated memory for the memory map
-	static S_MEMORY_MAP: LazyStatic<(usize, [::memory::MemoryMapEnt; 10])> = LazyStatic::new();
+	static S_MEMORY_MAP: LazyStatic<(usize, [crate::memory::MemoryMapEnt; 10])> = LazyStatic::new();
 
 	let (len, ref mm) = *S_MEMORY_MAP.prep(|| {
-		let mut buf = [::memory::MAP_PAD; 10];
+		let mut buf = [crate::memory::MAP_PAD; 10];
 
-		let mut mapbuilder = ::memory::MemoryMapBuilder::new(&mut buf);
+		let mut mapbuilder = crate::memory::MemoryMapBuilder::new(&mut buf);
 		let fdt = get_fdt_real();
 
 		// Build a map using RAM entries from the FDT
@@ -65,12 +65,12 @@ pub fn get_memory_map() -> &'static [::memory::MemoryMapEnt]
 			_ => false,
 			})
 		{
-			use lib::byteorder::{ReadBytesExt,BigEndian};
+			use crate::lib::byteorder::{ReadBytesExt,BigEndian};
 			let mut p = prop;
 			let base = p.read_u64::<BigEndian>().unwrap();
 			let size = p.read_u64::<BigEndian>().unwrap();
 			log_debug!("base = {:#x}, size = {:#x}", base, size);
-			mapbuilder.append( base, size, ::memory::MemoryState::Free, 0 );
+			mapbuilder.append( base, size, crate::memory::MemoryState::Free, 0 );
 		}
 		// Mask out known-used areas
 		// -- FDT
@@ -78,10 +78,10 @@ pub fn get_memory_map() -> &'static [::memory::MemoryMapEnt]
 			static fdt_phys_addr: u64;
 		}
 		// SAFE: Immutable static
-		mapbuilder.set_range( unsafe { fdt_phys_addr }, fdt.size() as u64, ::memory::MemoryState::Used, 0 ).unwrap();
+		mapbuilder.set_range( unsafe { fdt_phys_addr }, fdt.size() as u64, crate::memory::MemoryState::Used, 0 ).unwrap();
 
 		// -- SBI image (TODO: Don't hard-code this)
-		mapbuilder.set_range(0x8000_0000, 0x0020_0000, ::memory::MemoryState::Used, 0).unwrap();
+		mapbuilder.set_range(0x8000_0000, 0x0020_0000, crate::memory::MemoryState::Used, 0).unwrap();
 
 		// -- Kernel image (TODO: Can this be non-hard-coded too?)
 		extern "C" {
@@ -94,7 +94,7 @@ pub fn get_memory_map() -> &'static [::memory::MemoryMapEnt]
 			//(&_phys_base as *const _ as usize as u64, &v_kernel_end as *const _ as usize - &_kernel_base as *const _ as usize)
 			(0x8000_0000 + 0x0020_0000, &v_kernel_end as *const _ as usize - &_kernel_base as *const _ as usize)
 			};
-		mapbuilder.set_range(kernel_phys, kernel_len as u64, ::memory::MemoryState::Used, 0).unwrap();
+		mapbuilder.set_range(kernel_phys, kernel_len as u64, crate::memory::MemoryState::Used, 0).unwrap();
 
 		let len = mapbuilder.size();
 		(len, buf)

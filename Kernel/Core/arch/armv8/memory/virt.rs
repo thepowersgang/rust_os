@@ -4,10 +4,10 @@
 // Core/arch/armv8/memory/virt.rs
 //! Virtual memory interface
 // NOTE NOTE: Page size on ARMv8 (this config) is 0x4000 (16K, 2<<14) - Keeps things interesting
-use memory::virt::ProtectionMode;
-use PAGE_SIZE;
+use ::core::sync::atomic::{Ordering,AtomicU64};
+use crate::memory::virt::ProtectionMode;
+use crate::PAGE_SIZE;
 use super::addresses;
-use core::sync::atomic::{Ordering,AtomicU64};
 use super::addresses::{USER_FRACTAL_BASE,KERNEL_FRACTAL_BASE};
 
 const USER_SIZE: usize = 1 << 47;
@@ -199,7 +199,7 @@ fn with_leaf_entry_inner(addr: *const(), alloc: bool, fcn: dyn FnOnce(&AtomicU64
 		if e.load(Ordering::Relaxed) == 0 {
 			if alloc {
 				log_debug!("Allocate Level2 @ {:#x}", page >> 22);
-				::memory::phys::allocate( get_entry_addr(space, Level::Middle, page >> 22 << 11) as *mut () );
+				crate::memory::phys::allocate( get_entry_addr(space, Level::Middle, page >> 22 << 11) as *mut () );
 				assert!(e.load(Ordering::Relaxed) != 0);
 				// Clear NX (as it infects lower levels)
 				e.fetch_and(!(0x10 << 56), Ordering::Relaxed);
@@ -219,7 +219,7 @@ fn with_leaf_entry_inner(addr: *const(), alloc: bool, fcn: dyn FnOnce(&AtomicU64
 		if e.load(Ordering::Relaxed) == 0 {
 			if alloc {
 				log_debug!("Allocate Level3 @ {:#x}", page >> 11);
-				::memory::phys::allocate( get_entry_addr(space, Level::Bottom, page >> 11 << 11) as *mut () );
+				crate::memory::phys::allocate( get_entry_addr(space, Level::Bottom, page >> 11 << 11) as *mut () );
 				assert!(e.load(Ordering::Relaxed) != 0);
 				// Clear NX (as it infects lower levels)
 				e.fetch_and(!(0x10 << 56), Ordering::Relaxed);
@@ -301,7 +301,7 @@ pub fn is_fixed_alloc(addr: *const (), count: usize) -> bool
 }
 
 
-static S_TEMP_MAP_SEM: ::sync::Semaphore = ::sync::Semaphore::new(2048, 2048);
+static S_TEMP_MAP_SEM: crate::sync::Semaphore = crate::sync::Semaphore::new(2048, 2048);
 extern "C" {
 	static kernel_temp_mappings: [AtomicU64; 2048];
 }
@@ -337,7 +337,7 @@ impl AddressSpace
 	pub fn pid0() -> AddressSpace
 	{
 		extern "C" {
-			static user0_root: ::Extern;
+			static user0_root: crate::Extern;
 		}
 		// SAFE: Just need the address
 		AddressSpace(get_phys(unsafe { &user0_root as *const _ as *const () }))
@@ -350,9 +350,9 @@ impl AddressSpace
 		struct NewTable(crate::arch::memory::virt::TempHandle<u64>, /** Level for the contained items */Level);
 		impl NewTable {
 			fn new(level: Level) -> Result<NewTable,MapError> {
-				match ::memory::phys::allocate_bare()
+				match crate::memory::phys::allocate_bare()
 				{
-				Err(::memory::phys::Error) => Err( MapError::OutOfMemory ),
+				Err(crate::memory::phys::Error) => Err( MapError::OutOfMemory ),
 				Ok(temp_handle) => Ok( NewTable( temp_handle.into(), level ) ),
 				}
 			}
@@ -398,13 +398,13 @@ impl AddressSpace
 				let paddr = match attrs_to_prot_mode(prev_table_pte)
 					{
 					ProtectionMode::UserRX | ProtectionMode::UserCOW => {
-						::memory::phys::ref_frame( paddr );
+						crate::memory::phys::ref_frame( paddr );
 						paddr
 						},
 					ProtectionMode::UserRWX | ProtectionMode::UserRW => {
 						// SAFE: We've just determined that this page is mapped in, so we won't crash. Any race is the user's fault (and shouldn't impact the kernel)
-						let src = unsafe { ::core::slice::from_raw_parts(base_addr as *const u8, ::PAGE_SIZE) };
-						let mut newpg = ::memory::virt::alloc_free()?;
+						let src = unsafe { ::core::slice::from_raw_parts(base_addr as *const u8, PAGE_SIZE) };
+						let mut newpg = crate::memory::virt::alloc_free()?;
 						newpg.copy_from_slice(src);
 						newpg.into_frame().into_addr()
 						}
@@ -460,16 +460,16 @@ pub fn data_abort(_esr: u64, far: usize) -> bool
 	{
 		// Ensure lock is held before manipulation
 		// SAFE: Correct PTE manipulation
-		::memory::virt::with_lock(far, || unsafe {
+		crate::memory::virt::with_lock(far, || unsafe {
 			with_leaf_entry(far as *const (), false, |e| {
 				let v = e.load(Ordering::SeqCst);
 				if attrs_to_prot_mode(v) == ProtectionMode::UserCOW
 				{
-					let frame = phys & !(::PAGE_SIZE as u64 - 1);
-					let pgaddr = far & !(::PAGE_SIZE - 1);
+					let frame = phys & !(PAGE_SIZE as u64 - 1);
+					let pgaddr = far & !(PAGE_SIZE - 1);
 					// 2. Get the PMM to provide us with a unique copy of that frame (can return the same addr)
 					// - This borrow is valid, as the page is read-only (for now)
-					let newframe = ::memory::phys::make_unique( frame, &*(pgaddr as *const [u8; ::PAGE_SIZE]) );
+					let newframe = crate::memory::phys::make_unique( frame, &*(pgaddr as *const [u8; PAGE_SIZE]) );
 					let new_val = newframe | prot_mode_to_attrs(ProtectionMode::UserRW) | 0x403;
 					
 					if let Err(_) = e.compare_exchange(v, new_val, Ordering::SeqCst, Ordering::Relaxed)

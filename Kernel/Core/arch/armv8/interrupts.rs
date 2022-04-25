@@ -71,7 +71,7 @@ pub(super) fn get_intc(compat: fdt_devices::Compat, reg: fdt_devices::Reg) -> Op
 		}
 
 		// SAFE: Trusting the FDT
-		let mut ah_iter = reg.iter_paddr().map(|r| unsafe { let (base,size) = r.expect("GIC MMIO out of PAddr range"); ::memory::virt::map_mmio(base, size).expect("GIC MMIO map failed") });
+		let mut ah_iter = reg.iter_paddr().map(|r| unsafe { let (base,size) = r.expect("GIC MMIO out of PAddr range"); crate::memory::virt::map_mmio(base, size).expect("GIC MMIO map failed") });
 		let ah_dist = ah_iter.next().expect("GIC missing distributor range in FDT?");
 		let ah_cpu  = ah_iter.next().expect("GIC missing CPU range in FDT?");
 

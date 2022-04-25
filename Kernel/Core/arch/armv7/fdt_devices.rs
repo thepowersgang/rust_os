@@ -1,10 +1,11 @@
 //
 //
 //
-use prelude::*;
+use crate::prelude::*;
 use crate::lib::fdt;
 use crate::memory::PAddr;
 use core::convert::TryFrom;
+use crate::PAGE_SIZE;
 
 struct BusManager;
 static S_BUS_MANAGER: BusManager = BusManager;
@@ -198,8 +199,8 @@ pub fn init(make_intc: fn(Compat, Reg)->Option<&'static dyn IntController>)
 		});
 
 
-		::device_manager::register_driver(&PciDriver);
-		::device_manager::register_bus(&S_BUS_MANAGER, devices);
+		crate::device_manager::register_driver(&PciDriver);
+		crate::device_manager::register_bus(&S_BUS_MANAGER, devices);
 	}
 }
 
@@ -257,7 +258,7 @@ fn walk_tree_inner<'a, 'fdt: 'a>(fdt: &fdt::Node<'a, 'fdt>, state: State, cb: &m
 	}
 }
 
-impl ::device_manager::BusManager for BusManager
+impl crate::device_manager::BusManager for BusManager
 {
 	fn bus_type(&self) -> &str { "fdt" }
 	fn get_attr_names(&self) -> &[&str]
@@ -282,7 +283,7 @@ impl BusDev
 		}
 	}
 }
-impl ::device_manager::BusDevice for BusDev
+impl crate::device_manager::BusDevice for BusDev
 {
 	fn type_id(&self) -> ::core::any::TypeId {
 		::core::any::TypeId::of::<Self>()
@@ -290,15 +291,15 @@ impl ::device_manager::BusDevice for BusDev
 	fn addr(&self) -> u32 {
 		self.node.offset() as u32
 	}
-	fn get_attr_idx(&self, name: &str, idx: usize) -> ::device_manager::AttrValue {
-		use device_manager::AttrValue;
+	fn get_attr_idx(&self, name: &str, idx: usize) -> crate::device_manager::AttrValue {
+		use crate::device_manager::AttrValue;
 		match name
 		{
 		"compatible" if idx == 0 => AttrValue::String(self.compat),
 		_ => AttrValue::None,
 		}
 	}
-	fn set_attr_idx(&mut self, _name: &str, _idx: usize, _value: ::device_manager::AttrValue) {
+	fn set_attr_idx(&mut self, _name: &str, _idx: usize, _value: crate::device_manager::AttrValue) {
 	}
 	fn set_power(&mut self, _state: bool) {
 	}
@@ -314,8 +315,8 @@ impl ::device_manager::BusDevice for BusDev
 			}
 			// TODO: Ensure safety
 			// SAFE: Can't easily prove
-			let ah = unsafe { ::memory::virt::map_mmio(base, size).unwrap() };
-			::device_manager::IOBinding::Memory( ah )
+			let ah = unsafe { crate::memory::virt::map_mmio(base, size).unwrap() };
+			crate::device_manager::IOBinding::Memory( ah )
 		}
 		else
 		{
@@ -333,7 +334,7 @@ impl ::device_manager::BusDevice for BusDev
 
 fn read_v(bytes: &mut &[u8], size: u64) -> Option<u64>
 {
-	use lib::byteorder::{ReadBytesExt,BigEndian};
+	use crate::lib::byteorder::{ReadBytesExt,BigEndian};
 
 	Some(match size
 	{
@@ -386,7 +387,7 @@ impl<T> Tuple<T> for (T,T,) {
 
 
 struct PciDriver;
-impl ::device_manager::Driver for PciDriver
+impl crate::device_manager::Driver for PciDriver
 {
 	fn name(&self) -> &str {
 		"fdt:pci"
@@ -403,7 +404,7 @@ impl ::device_manager::Driver for PciDriver
 		_ => 0,
 		}
 	}
-	fn bind(&self, bus_dev: &mut dyn crate::device_manager::BusDevice) -> Box<dyn (::device_manager::DriverInstance)>
+	fn bind(&self, bus_dev: &mut dyn crate::device_manager::BusDevice) -> Box<dyn crate::device_manager::DriverInstance>
 	{
 		assert!(self.handles(&*bus_dev) > 0);
 		let d = bus_dev.downcast_ref::<BusDev>().expect("Not a FDT device?");
@@ -429,8 +430,8 @@ impl ::device_manager::Driver for PciDriver
 				let addr = ((bus_addr as u32) << 8) | ((word_idx as u32) << 2);
 				assert!(addr < self.mmio.1 as u32);
 				let mut lh = self.lock.lock();
-				let base = addr & !(::PAGE_SIZE - 1) as u32;
-				let ofs  = addr &  (::PAGE_SIZE - 1) as u32;
+				let base = addr & !(PAGE_SIZE - 1) as u32;
+				let ofs  = addr &  (PAGE_SIZE - 1) as u32;
 				if lh.base != base {
 					// SAFE: Owned MMIO memory from device
 					lh.mapping = unsafe { crate::memory::virt::map_hw_rw(self.mmio.0 + base as PAddr, 1, "fdt_pci").expect("Unable to map PCI") };

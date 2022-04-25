@@ -30,8 +30,8 @@ impl GicInstance
 		// SAFE: Access is currently unique
 		let ptr_cpu : *mut () = unsafe { ah_cpu .as_int_mut(0) };
 		log_debug!("GIC Dist @ {:p} = {:#x}  CPU @ {:p} = {:#x}",
-			ptr_dist, ::memory::virt::get_phys(ptr_dist),
-			ptr_cpu , ::memory::virt::get_phys(ptr_cpu ),
+			ptr_dist, crate::memory::virt::get_phys(ptr_dist),
+			ptr_cpu , crate::memory::virt::get_phys(ptr_cpu ),
 			);
 		match self.dist.compare_exchange(0, ptr_dist as usize, Ordering::SeqCst, Ordering::Relaxed)
 		{

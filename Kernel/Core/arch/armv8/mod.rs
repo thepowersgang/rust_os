@@ -58,13 +58,13 @@ pub fn print_backtrace() {
 	puts("Backtrace:");
 	while ! fp.is_null()
 	{
-		if ! ::memory::virt::is_reserved(fp) {
+		if ! crate::memory::virt::is_reserved(fp) {
 			break;
 		}
 		// SAFE: Checked by above
 		let data = unsafe { &*fp };
 		puts(" -> "); puth(data.ret_addr as u64);
-		if let Some( (name,ofs) ) = ::symbols::get_symbol_for_addr(data.ret_addr) {
+		if let Some( (name,ofs) ) = crate::symbols::get_symbol_for_addr(data.ret_addr) {
 			puts("("); puts(name); puts("+"); puth(ofs as u64); puts(")");
 		}
 		fp = data.next;
@@ -75,6 +75,9 @@ pub fn print_backtrace() {
 pub mod time {
 	pub fn cur_timestamp() -> u64 {
 		0
+	}
+	pub fn request_tick(time: u64) {
+		todo!("request_tick");
 	}
 }
 

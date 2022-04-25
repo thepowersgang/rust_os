@@ -10,7 +10,7 @@ pub struct State
 	sp: usize,
 	ttbr0: u64,
 	// Just here to ensure it stays allocated
-	_stack_handle: Option< ::memory::virt::ArrayHandle<u8> >,
+	_stack_handle: Option< crate::memory::virt::ArrayHandle<u8> >,
 }
 
 pub fn init_tid0_state() -> State
@@ -24,7 +24,7 @@ pub fn init_tid0_state() -> State
 
 impl State
 {
-	pub fn new(addr_space: &::memory::virt::AddressSpace) -> State {
+	pub fn new(addr_space: &crate::memory::virt::AddressSpace) -> State {
 		State {
 			sp: 0,
 			ttbr0: addr_space.inner().as_phys(),
@@ -34,7 +34,7 @@ impl State
 }
 
 // TODO: Returning an "owned" pointer here feels dirty (BUT - dropping ThreadPtr is a bug)
-pub fn get_idle_thread() -> ::threads::ThreadPtr {
+pub fn get_idle_thread() -> crate::threads::ThreadPtr {
 	let slot = &super::CpuState::cur().idle_thread;
 	// SAFE: Valid transmutes
 	unsafe
@@ -42,7 +42,7 @@ pub fn get_idle_thread() -> ::threads::ThreadPtr {
 		let mut ptr = slot.load(Ordering::Relaxed);
 		if ptr == 0
 		{
-			ptr = ::core::mem::transmute( ::threads::new_idle_thread(0) );
+			ptr = ::core::mem::transmute( crate::threads::new_idle_thread(0) );
 			slot.store(ptr, Ordering::Relaxed);
 		}
 		::core::mem::transmute(ptr)
@@ -53,10 +53,10 @@ pub fn init_smp() {
 	// TODO: Check for other cores in the FDT
 }
 
-pub fn set_thread_ptr(thread: ::threads::ThreadPtr) {
+pub fn set_thread_ptr(thread: crate::threads::ThreadPtr) {
 	super::CpuState::cur().current_thread.store(thread.into_usize(), Ordering::Relaxed)
 }
-pub fn get_thread_ptr() -> Option<::threads::ThreadPtr> {
+pub fn get_thread_ptr() -> Option<crate::threads::ThreadPtr> {
 	let ret = super::CpuState::cur().current_thread.load(Ordering::Relaxed);
 	if ret == 0 {
 		None
@@ -64,17 +64,17 @@ pub fn get_thread_ptr() -> Option<::threads::ThreadPtr> {
 	else {
 		// SAFE: Stored value assumed to be valid
 		unsafe {
-			Some(::threads::ThreadPtr::from_usize(ret))
+			Some(crate::threads::ThreadPtr::from_usize(ret))
 		}
 	}
 }
-fn borrow_thread_mut() -> *mut ::threads::Thread {
+fn borrow_thread_mut() -> *mut crate::threads::Thread {
 	super::CpuState::cur().current_thread.load(Ordering::Relaxed) as *mut _
 }
-pub fn borrow_thread() -> *const ::threads::Thread {
+pub fn borrow_thread() -> *const crate::threads::Thread {
 	super::CpuState::cur().current_thread.load(Ordering::Relaxed) as *const _
 }
-pub fn switch_to(thread: ::threads::ThreadPtr) {
+pub fn switch_to(thread: crate::threads::ThreadPtr) {
 	#[allow(improper_ctypes)]
 	extern "C" {
 		fn task_switch(old_sp: &mut usize, new_sp: usize, ttbr0: u64);
@@ -90,7 +90,7 @@ pub fn switch_to(thread: ::threads::ThreadPtr) {
 		task_switch(&mut outstate.sp, new_sp, new_ttbr0);
 	}
 }
-pub fn idle(held_interrupts: ::arch::sync::HeldInterrupts) {
+pub fn idle(held_interrupts: crate::arch::sync::HeldInterrupts) {
 	log_trace!("idle");
 	// SAFE: Calls 'wait for interrupt'
 	unsafe {
@@ -100,7 +100,7 @@ pub fn idle(held_interrupts: ::arch::sync::HeldInterrupts) {
 	}
 }
 
-pub fn start_thread<F: FnOnce()+Send+'static>(thread: &mut ::threads::Thread, code: F) {
+pub fn start_thread<F: FnOnce()+Send+'static>(thread: &mut crate::threads::Thread, code: F) {
 	let mut stack = StackInit::new();
 
 	// 2. Populate stack with `code`
@@ -145,18 +145,18 @@ pub fn start_thread<F: FnOnce()+Send+'static>(thread: &mut ::threads::Thread, co
 }
 
 struct StackInit {
-	alloc: ::memory::virt::ArrayHandle<u8>,
+	alloc: crate::memory::virt::ArrayHandle<u8>,
 	top: usize,
 }
 impl StackInit {
 	fn new() -> StackInit {
-		let ah = ::memory::virt::alloc_stack().into_array::<u8>();
+		let ah = crate::memory::virt::alloc_stack().into_array::<u8>();
 		StackInit {
 			top: &ah[ah.len()-1] as *const _ as usize + 1,
 			alloc: ah,
 		}
 	}
-	fn unwrap(self) -> (::memory::virt::ArrayHandle<u8>, usize) {
+	fn unwrap(self) -> (crate::memory::virt::ArrayHandle<u8>, usize) {
 		(self.alloc, self.top)
 	}
 	fn push<T: 'static>(&mut self, v: T) {

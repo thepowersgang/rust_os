@@ -22,7 +22,7 @@ extern "C" {
 	static symbol_info_phys: u64;
 	static ram_first_free: u64;
 	static mut kernel_hwmap_level3: [u64; 2048];
-	static v_kernel_end: ::Extern;
+	static v_kernel_end: crate::Extern;
 }
 
 enum BootInfo
@@ -33,7 +33,7 @@ enum BootInfo
 }
 
 static S_BOOT_INFO: LazyStatic<BootInfo> = LazyStatic::new();
-static mut S_MEMMAP_DATA: [::memory::MemoryMapEnt; 16] = [::memory::MAP_PAD; 16];
+static mut S_MEMMAP_DATA: [crate::memory::MemoryMapEnt; 16] = [crate::memory::MAP_PAD; 16];
 
 pub fn get_fdt() -> Option<&'static FDTRoot<'static>> {
 	match get_boot_info()
@@ -74,9 +74,9 @@ impl BootInfo
 					assert!(syms_addr < IDENT_SIZE);
 					assert!(strs_addr < IDENT_SIZE);
 					log_trace!("syms_addr={:#x}, strs_addr={:#x}", syms_addr, strs_addr);
-					let syms = ::core::slice::from_raw_parts( (syms_addr + IDENT_START) as *const ::symbols::Elf32_Sym, info.count as usize);
+					let syms = ::core::slice::from_raw_parts( (syms_addr + IDENT_START) as *const crate::symbols::Elf32_Sym, info.count as usize);
 					let strs = ::core::slice::from_raw_parts( (strs_addr + IDENT_START) as *const u8, info.strtab_len as usize);
-					::symbols::set_symtab(syms, strs, IDENT_START);
+					crate::symbols::set_symtab(syms, strs, IDENT_START);
 				}
 			}
 			
@@ -88,7 +88,7 @@ impl BootInfo
 	}
 }
 
-pub fn get_video_mode() -> Option<::metadevs::video::bootvideo::VideoMode> {
+pub fn get_video_mode() -> Option<crate::metadevs::video::bootvideo::VideoMode> {
 	None
 }
 
@@ -100,17 +100,17 @@ pub fn get_boot_string() -> &'static str {
 	}
 }
 
-pub fn get_memory_map() -> &'static [::memory::MemoryMapEnt] {
+pub fn get_memory_map() -> &'static [crate::memory::MemoryMapEnt] {
 	// TODO: Assert that this is only ever called once
 	// SAFE: Assuming this function is called only once (which it is)
 	let buf: &mut [_] = unsafe { &mut S_MEMMAP_DATA };
 	let len = {
-		let mut mapbuilder = ::memory::MemoryMapBuilder::new(buf);
+		let mut mapbuilder = crate::memory::MemoryMapBuilder::new(buf);
 		match get_boot_info()
 		{
 		&BootInfo::None => {},
 		//&BootInfo::Basic(ram_base, ram_len) => {
-		//	mapbuilder.append( ram_base as u64, ram_len as u64, ::memory::MemoryState::Free, 0 );
+		//	mapbuilder.append( ram_base as u64, ram_len as u64, crate::memory::MemoryState::Free, 0 );
 		//	},
 		&BootInfo::FDT(ref fdt) => {
 			fdt.dump_nodes();
@@ -123,15 +123,15 @@ pub fn get_memory_map() -> &'static [::memory::MemoryMapEnt] {
 				_ => false,
 				})
 			{
-				use lib::byteorder::{ReadBytesExt,BigEndian};
+				use crate::lib::byteorder::{ReadBytesExt,BigEndian};
 				let mut p = prop;
 				let base = p.read_u64::<BigEndian>().unwrap();
 				let size = p.read_u64::<BigEndian>().unwrap();
 				log_debug!("base = {:#x}, size = {:#x}", base, size);
-				mapbuilder.append( base, size, ::memory::MemoryState::Free, 0 );
+				mapbuilder.append( base, size, crate::memory::MemoryState::Free, 0 );
 			}
 			// SAFE: Accesses sane extern static
-			mapbuilder.set_range( unsafe { dt_phys_base } as u64, fdt.size() as u64, ::memory::MemoryState::Used, 0 ).unwrap();
+			mapbuilder.set_range( unsafe { dt_phys_base } as u64, fdt.size() as u64, crate::memory::MemoryState::Used, 0 ).unwrap();
 			},
 		}
 
@@ -139,10 +139,10 @@ pub fn get_memory_map() -> &'static [::memory::MemoryMapEnt] {
 		unsafe {
 			if kernel_phys_start != 0 {
 				// 2. Clobber out kernel, modules, and strings
-				mapbuilder.set_range( kernel_phys_start as u64, &v_kernel_end as *const _ as u64 - IDENT_START as u64, ::memory::MemoryState::Used, 0 ).unwrap();
+				mapbuilder.set_range( kernel_phys_start as u64, &v_kernel_end as *const _ as u64 - IDENT_START as u64, crate::memory::MemoryState::Used, 0 ).unwrap();
 			}
 			if ram_first_free != 0 {
-				mapbuilder.set_range( kernel_phys_start as u64, (ram_first_free - kernel_phys_start) as u64, ::memory::MemoryState::Used, 0 ).unwrap();
+				mapbuilder.set_range( kernel_phys_start as u64, (ram_first_free - kernel_phys_start) as u64, crate::memory::MemoryState::Used, 0 ).unwrap();
 			}
 		}
 		

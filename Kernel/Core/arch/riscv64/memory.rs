@@ -94,9 +94,9 @@ pub mod virt
 			struct NewTable(crate::arch::memory::virt::TempHandle<u64>, /** Level for the contained items */PageLevel);
 			impl NewTable {
 				fn new(level: PageLevel) -> Result<NewTable,MapError> {
-					match ::memory::phys::allocate_bare()
+					match crate::memory::phys::allocate_bare()
 					{
-					Err(::memory::phys::Error) => Err( MapError::OutOfMemory ),
+					Err(crate::memory::phys::Error) => Err( MapError::OutOfMemory ),
 					Ok(temp_handle) => Ok( NewTable( temp_handle.into(), level ) ),
 					}
 				}
@@ -166,13 +166,13 @@ pub mod virt
 							{
 							ProtectionMode::UserRX | ProtectionMode::UserCOW => {
 								let addr = ent.phys_base();
-								::memory::phys::ref_frame( addr );
+								crate::memory::phys::ref_frame( addr );
 								addr
 								},
 							ProtectionMode::UserRWX | ProtectionMode::UserRW => {
 								// SAFE: We've just determined that this page is mapped in, so we won't crash. Any race is the user's fault (and shouldn't impact the kernel)
-								let src = unsafe { ::core::slice::from_raw_parts(base_addr as *const u8, ::PAGE_SIZE) };
-								let mut newpg = ::memory::virt::alloc_free()?;
+								let src = unsafe { ::core::slice::from_raw_parts(base_addr as *const u8, super::PAGE_SIZE) };
+								let mut newpg = crate::memory::virt::alloc_free()?;
 								for (d,s) in Iterator::zip( newpg.iter_mut(), src.iter() ) {
 									*d = *s;
 								}
@@ -409,7 +409,7 @@ pub mod virt
 		panic!("page_walk({:#x}): {:#x} - Unexpected nested", addr, table_base);
 	}
 	#[inline]
-	pub fn get_phys<T>(p: *const T) -> ::memory::PAddr {
+	pub fn get_phys<T>(p: *const T) -> crate::memory::PAddr {
 		match page_walk(p as usize, PageLevel::Leaf4K)
 		{
 		Some(r) if r.pte.is_valid() => r.pte.phys_base() + (p as usize as u64 & r.level.mask()),
@@ -421,7 +421,7 @@ pub mod virt
 		// TODO: Poke the PF handler for this HART, read the memory, then check the flag
 		page_walk(p as usize, PageLevel::Leaf4K).map(|v| v.pte.is_valid()).unwrap_or(false)
 	}
-	pub fn get_info<T>(_p: *const T) -> Option<(::memory::PAddr,::memory::virt::ProtectionMode)> {
+	pub fn get_info<T>(_p: *const T) -> Option<(crate::memory::PAddr,crate::memory::virt::ProtectionMode)> {
 		todo!("get_info");
 	}
 
@@ -431,7 +431,7 @@ pub mod virt
 		// If this is within 0x...F_80000000 to 0x...F_BFFFFFFF
 		FIXED_START <= addr as usize && addr as usize + size <= FIXED_END
 	}
-	pub unsafe fn fixed_alloc(_p: ::memory::PAddr, _count: usize) -> Option<*mut ()> {
+	pub unsafe fn fixed_alloc(_p: crate::memory::PAddr, _count: usize) -> Option<*mut ()> {
 		// Check if it's within 1GB of the start of RAM
 		None
 	}
@@ -519,7 +519,7 @@ pub mod virt
 		rv
 	}
 
-	pub unsafe fn map(a: *mut (), p: ::memory::PAddr, mode: ::memory::virt::ProtectionMode) {
+	pub unsafe fn map(a: *mut (), p: crate::memory::PAddr, mode: crate::memory::virt::ProtectionMode) {
 		//log_trace!("map({:p}, {:#x}, mode={:?})", a, p, mode);
 		let new_pte = make_pte(p, PageLevel::Leaf4K, mode);
 		with_pte(a as usize, PageLevel::Leaf4K, /*allocate*/true, |pte| {
@@ -532,7 +532,7 @@ pub mod virt
 			}
 			});
 	}
-	pub unsafe fn reprotect(a: *mut (), mode: ::memory::virt::ProtectionMode) {
+	pub unsafe fn reprotect(a: *mut (), mode: crate::memory::virt::ProtectionMode) {
 		with_pte(a as usize, PageLevel::Leaf4K, /*allocate*/true, |pte| {
 			let old_pte = pte.load(Ordering::SeqCst);
 			let new_pte = make_pte(Pte(old_pte).phys_base(), PageLevel::Leaf4K, mode);
@@ -545,7 +545,7 @@ pub mod virt
 			}
 			});
 	}
-	pub unsafe fn unmap(a: *mut ()) -> Option<::memory::PAddr> {
+	pub unsafe fn unmap(a: *mut ()) -> Option<crate::memory::PAddr> {
 		let mut rv = None;
 		with_pte(a as usize, PageLevel::Leaf4K, /*allocate*/false, |pte| {
 			let v = pte.swap(0, Ordering::SeqCst);
@@ -582,12 +582,12 @@ pub mod virt
 
 				// 1. Lock (relevant) address space
 				// SAFE: Changes to address space are transparent
-				::memory::virt::with_lock(a, || unsafe {
+				crate::memory::virt::with_lock(a, || unsafe {
 					let frame = r.phys_base();
-					let pgaddr = a & !(::PAGE_SIZE - 1);
+					let pgaddr = a & !(super::PAGE_SIZE - 1);
 					// 2. Get the PMM to provide us with a unique copy of that frame (can return the same addr)
 					// - This borrow is valid, as the page is read-only (for now)
-					let newframe = ::memory::phys::make_unique( frame, &*(pgaddr as *const [u8; ::PAGE_SIZE]) );
+					let newframe = crate::memory::phys::make_unique( frame, &*(pgaddr as *const [u8; super::PAGE_SIZE]) );
 					// 3. Remap to this page as UserRW (because COW is user-only atm)
 					let new_pte = make_pte(newframe, PageLevel::Leaf4K, ProtectionMode::UserRW);
 					with_pte(a, PageLevel::Leaf4K, /*allocate*/false, |pte| {

@@ -112,7 +112,7 @@ pub mod interrupts
 			}
 			let ah = reg.iter_paddr()
 				// SAFE: Trusting the FDT
-				.map(|r| unsafe { let (base,size) = r.expect("PLIC MMIO out of PAddr range"); ::memory::virt::map_mmio(base, size).expect("PLIC MMIO map failed") })
+				.map(|r| unsafe { let (base,size) = r.expect("PLIC MMIO out of PAddr range"); crate::memory::virt::map_mmio(base, size).expect("PLIC MMIO map failed") })
 				.next().expect("PLIC had no MMIO ranges in FDT?")
 				;
 			PLIC.init(ah);
@@ -307,6 +307,9 @@ pub mod time {
 		// SAFE: Reading a CSR with no side-effects
 		unsafe { ::core::arch::asm!("rdtime {}", lateout(reg) v); }
 		v / 10000//_000	// FDT: "" "cpus" ".timebase-frequency"
+	}
+
+	pub fn request_tick(time: u64) {
 	}
 }
 
