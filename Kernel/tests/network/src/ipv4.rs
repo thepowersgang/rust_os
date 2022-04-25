@@ -79,3 +79,15 @@ pub fn calculate_ip_checksum(words: impl Iterator<Item=u16>) -> u16
 }
 
 
+pub fn prime_arp(fw: &crate::TestFramework, dst: Addr, src: Addr)
+{
+    let ip_hdr = {
+        let mut h = Header::new_simple(src, dst, 0, 0);
+        h.set_checksum();
+        h.encode()
+        };
+    fw.send_ethernet_direct(0x0800, &[&ip_hdr, &[]]);
+    // TODO: Send a TCP packet that would always trigger a response (and wait for that response)
+    // Short sleep for processing
+    ::std::thread::sleep(::std::time::Duration::new(0,250*1000));
+}

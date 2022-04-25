@@ -3,8 +3,10 @@
 //
 // tests/network/tcp.rs
 //! TCP tests and infrastructure
-
 use crate::ipv4::Addr as IpAddr4;
+
+#[cfg(test)]
+mod tests;
 
 #[derive(Copy,Clone)]
 #[derive(Debug)]
@@ -141,7 +143,7 @@ impl TcpConn<'_>
         assert_eq!(crate::ipv4::Addr(ip_hdr.dst_addr), self.addrs.0);
         assert_eq!(ip_options.len(), 0);
         // 3. Check the TCP header (incl flags)
-        let (tcp_hdr,tcp_options, tail) = crate::tcp::Header::parse(tail);
+        let (tcp_hdr,tcp_options, tail) = Header::parse(tail);
         assert_eq!(tcp_options.len(), 0);
         assert_eq!(tcp_hdr.flags, flags);
         assert_eq!(tcp_hdr.dst_port, self.local_port);
@@ -177,7 +179,7 @@ impl TcpConn<'_>
         assert_eq!(crate::ipv4::Addr(ip_hdr.dst_addr), laddr);
         assert_eq!(ip_options.len(), 0);
         // 3. Check the TCP header (incl flags)
-        let (tcp_hdr,tcp_options, tail) = crate::tcp::Header::parse(tail);
+        let (tcp_hdr,tcp_options, tail) = Header::parse(tail);
         assert_eq!(tcp_options.len(), 0);
         assert_eq!(tcp_hdr.flags, TCP_SYN);
         assert_eq!(tcp_hdr.dst_port, lport);
@@ -195,73 +197,4 @@ impl TcpConn<'_>
             remote_seq: tcp_hdr.seq,
             }
     }
-}
-
-/// Check that RST is sent when communicating with a closed port
-#[test]
-fn resets()
-{
-    const REMOTE_ADDR: IpAddr4 = IpAddr4([192,168,1,1]);
-    const LOCAL_ADDR: IpAddr4 = IpAddr4([192,168,1,2]);
-
-    let fw = crate::TestFramework::new("tcp_resets");
-    let conn = TcpConn {
-        fw: &fw,
-        addrs: (LOCAL_ADDR, REMOTE_ADDR),
-        remote_port: 80,
-        local_port: 11200,
-
-        rx_window: 0x1000,
-
-        local_seq: 0x1000,
-        remote_seq: 0x1000,
-        };
-
-    // SYN to closed port
-    conn.raw_send_packet(TCP_SYN, &[], &[]);
-    conn.wait_rx_check(TCP_RST|TCP_ACK, &[]);
-
-    // SYN,ACK to closed port
-    conn.raw_send_packet(TCP_SYN|TCP_ACK, &[], &[]);
-    conn.wait_rx_check(TCP_RST, &[]);
-    
-    // RST to anything
-    conn.raw_send_packet(TCP_RST, &[], &[]);
-    conn.wait_rx_none();
-    
-    // RST,ACK to anything
-    conn.raw_send_packet(TCP_RST|TCP_ACK, &[], &[]);
-    conn.wait_rx_none();
-}
-
-#[test]
-fn client()
-{
-    let fw = crate::TestFramework::new("tcp_client");
-    prime_arp(&fw, /*dst=*/IpAddr4([192,168,1,1]), /*src=*/IpAddr4([192,168,1,2]));
-
-    fw.send_command("tcp-connect 0 192.168.1.2 80");
-    // Expects the SYN
-    let conn = TcpConn::from_rx_conn(&fw, 80, IpAddr4([192,168,1,2]));
-    // Send SYN,ACK
-    conn.raw_send_packet(TCP_SYN|TCP_ACK, &[], &[]);
-    // Expect ACK
-    conn.wait_rx_check(TCP_ACK, &[]);
-    // Get the client to send data
-    fw.send_command("tcp-send 0 \"00 01 02 03\"");
-    conn.wait_rx_check(0, &[0,1,2,3]);
-}
-
-#[cfg(test)]
-fn prime_arp(fw: &crate::TestFramework, dst: IpAddr4, src: IpAddr4)
-{
-    let ip_hdr = {
-        let mut h = crate::ipv4::Header::new_simple(src, dst, 0, 0);
-        h.set_checksum();
-        h.encode()
-        };
-    fw.send_ethernet_direct(0x0800, &[&ip_hdr, &[]]);
-    // TODO: Send a TCP packet that would always trigger a response (and wait for that response)
-    // Short sleep for processing
-    ::std::thread::sleep(::std::time::Duration::new(0,250*1000));
 }
