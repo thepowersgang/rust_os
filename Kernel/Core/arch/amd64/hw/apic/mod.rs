@@ -17,14 +17,14 @@ pub type IRQHandler = fn(info: *const ());
 pub struct IRQHandle
 {
 	num: usize,
-	isr_handle: crate::arch::imp::interrupts::ISRHandle,
+	isr_handle: crate::arch::amd64::interrupts::ISRHandle,
 }
 
 #[derive(Debug,Copy,Clone)]
 pub enum IrqError
 {
 	BadIndex,
-	BindFail(crate::arch::imp::interrupts::BindISRError),
+	BindFail(crate::arch::amd64::interrupts::BindISRError),
 }
 
 //#[link_section="processor_local"]
@@ -36,7 +36,7 @@ static s_ioapics: crate::lib::LazyStatic<Vec<raw::IOAPIC>> = lazystatic_init!();
 
 fn init()
 {
-	let madt = match crate::arch::acpi::find::<init::ACPI_MADT>("APIC", 0)
+	let madt = match crate::arch::amd64::acpi::find::<init::ACPI_MADT>("APIC", 0)
 		{
 		None => {
 			log_warning!("No MADT ('APIC') table in ACPI");
@@ -87,7 +87,7 @@ fn init()
 	
 	// Enable interupts
 	// TODO: Does S_IRQS_ENABLED ever get read?
-	crate::arch::imp::threads::S_IRQS_ENABLED.store(true, ::core::sync::atomic::Ordering::Relaxed);
+	crate::arch::amd64::threads::S_IRQS_ENABLED.store(true, ::core::sync::atomic::Ordering::Relaxed);
 	// SAFE: Just STI, nothing to worry about
 	unsafe { ::core::arch::asm!("sti"); }
 }
@@ -153,7 +153,7 @@ pub fn register_irq(global_num: usize, callback: IRQHandler, info: *const() ) ->
 	// Bind ISR
 	// TODO: Pick a suitable processor, and maybe have separate IDTs (and hence separate ISR lists)
 	let lapic_id = 0u32;
-	let isr_handle = match crate::arch::imp::interrupts::bind_free_isr(lapic_irq_handler, info, global_num)
+	let isr_handle = match crate::arch::amd64::interrupts::bind_free_isr(lapic_irq_handler, info, global_num)
 		{
 		Ok(v) => v,
 		Err(e) => return Err(IrqError::BindFail(e)),

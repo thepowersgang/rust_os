@@ -5,7 +5,7 @@
 //! x86 PS/2 controller (intel 8042)
 use kernel::prelude::*;
 
-use kernel::arch::{acpi,x86_io};
+use kernel::arch::{amd64::acpi,x86_io};
 use kernel::irqs;
 
 struct Port

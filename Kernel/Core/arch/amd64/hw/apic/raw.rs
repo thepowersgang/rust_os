@@ -12,7 +12,7 @@ pub struct LAPIC
 	paddr: u64,
 	mapping: crate::memory::virt::AllocHandle,
 	#[allow(dead_code)]
-	timer_isr: crate::arch::imp::interrupts::ISRHandle,
+	timer_isr: crate::arch::amd64::interrupts::ISRHandle,
 }
 
 pub struct IOAPIC

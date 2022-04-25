@@ -146,11 +146,11 @@ fn get_rsdp() -> Option<&'static RSDP>
 {
 	// SAFE: Valid pointers are passed
 	unsafe {
-		let ebda_ver = locate_rsdp((crate::arch::imp::memory::addresses::IDENT_START + 0x9_FC00) as *const u8, 0x400);
+		let ebda_ver = locate_rsdp((crate::arch::amd64::memory::addresses::IDENT_START + 0x9_FC00) as *const u8, 0x400);
 		if !ebda_ver.is_null() {
 			return ebda_ver.as_ref();
 		}
-		let bios_ver = locate_rsdp((crate::arch::imp::memory::addresses::IDENT_START + 0xE_0000) as *const u8, 0x2_0000);
+		let bios_ver = locate_rsdp((crate::arch::amd64::memory::addresses::IDENT_START + 0xE_0000) as *const u8, 0x2_0000);
 		if !bios_ver.is_null() {
 			return bios_ver.as_ref();
 		}
