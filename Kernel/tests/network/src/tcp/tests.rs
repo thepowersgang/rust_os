@@ -1,7 +1,9 @@
 //! TCP tests
-use super::TcpConn;
 use crate::ipv4::Addr as IpAddr4;
+use super::*;
 
+/// TCP State CLOSED
+/// 
 /// Check that RST is sent when communicating with a closed port
 #[test]
 fn resets()
@@ -37,6 +39,61 @@ fn resets()
     // RST,ACK to anything
     conn.raw_send_packet(TCP_RST|TCP_ACK, &[], &[]);
     conn.wait_rx_none();
+}
+
+/// TCP State LISTEN
+#[test]
+fn server()
+{
+    const REMOTE_ADDR: IpAddr4 = IpAddr4([192,168,1,1]);
+    const LOCAL_ADDR: IpAddr4 = IpAddr4([192,168,1,2]);
+
+    let fw = crate::TestFramework::new("tcp_server");
+    fw.send_command("tcp-server-echo 80");
+
+    let mut conn = TcpConn {
+        fw: &fw,
+        addrs: (LOCAL_ADDR, REMOTE_ADDR),
+        remote_port: 80,
+        local_port: 11200,
+
+        rx_window: 0x1000,
+
+        local_seq: 0x1000,
+        remote_seq: 0x1000,
+        };
+
+    // >> STATE: LISTEN
+
+    // Send RST, expect no response
+    conn.raw_send_packet(TCP_RST, &[], &[]);
+    conn.wait_rx_none();
+    
+    // Send an ACK, expect RST
+    conn.raw_send_packet(TCP_ACK, &[], &[]);
+    conn.wait_rx_check(TCP_RST, &[]);
+
+    // --- Begin connection handshake --
+    // - Send SYN, expect SYN,ACK
+    conn.raw_send_packet(TCP_SYN, &[], &[]);
+    conn.local_seq += 1;
+    conn.wait_rx_check(TCP_SYN|TCP_ACK, &[]);
+    conn.remote_seq += 1;
+
+    // >> STATE: SYN-RECEIVED
+
+    // - Send ACK
+    conn.raw_send_packet(TCP_ACK, &[], &[]);
+    conn.wait_rx_none();
+
+    // >>> STATE: ESTABLISHED
+
+    // Send a blob of test data
+    let testblob = b"HelloWorld, this is some random testing data for TCP\xFF\x00\x66\x12\x12.";
+    conn.raw_send_packet(TCP_ACK|TCP_PSH, &[], testblob);
+    conn.local_seq += testblob.len() as u32;
+    conn.wait_rx_check(TCP_ACK|TCP_PSH, testblob);
+    conn.remote_seq += testblob.len() as u32;
 }
 
 #[test]

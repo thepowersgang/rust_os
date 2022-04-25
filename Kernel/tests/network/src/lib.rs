@@ -9,6 +9,16 @@ pub mod tcp;
 pub mod ipv4;
 pub mod ethernet;
 
+
+fn des_be<T: for<'a> ::serde::Deserialize<'a>>(reader: &mut impl ::std::io::Read) -> ::bincode::Result<T> {
+	use ::bincode::Options;
+	::bincode::options().with_big_endian().deserialize_from(reader)
+}
+fn ser_be<T: ::serde::Serialize>(writer: &mut impl ::std::io::Write, v: &T) {
+    use ::bincode::Options;
+    ::bincode::options().with_big_endian().serialize_into(writer, v).unwrap();
+}
+
 pub struct TestFramework {
     _lh: Option<::std::sync::MutexGuard<'static, ()>>,
     socket: std::net::UdpSocket,

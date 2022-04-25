@@ -27,7 +27,7 @@ pub struct Header
 impl Header
 {
     pub fn parse(mut buf: &[u8]) -> (Self, &[u8], &[u8]) {
-        let rv: Self = bincode::config().big_endian().deserialize_from(&mut buf).expect("Failed to parse IPv4 header");
+        let rv: Self = crate::des_be(&mut buf).expect("Failed to parse IPv4 header");
         assert_eq!(rv.version_and_len >> 4, 4, "Bad IP version");
         assert!(rv.version_and_len & 0xF >= 20/4, "Bad IP header length");
         let option_len = ((rv.version_and_len & 0xF) * 4 - 20) as usize;
@@ -59,7 +59,7 @@ impl Header
 	pub fn encode(&self) -> [u8; 20]
 	{
 		let mut buf = [0; 20];
-		bincode::config().big_endian().serialize_into(Cursor::new(&mut buf[..]), self).unwrap();
+		crate::ser_be(&mut Cursor::new(&mut buf[..]), self);
 		buf
 	}
 }

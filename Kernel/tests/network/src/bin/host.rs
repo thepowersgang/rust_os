@@ -106,8 +106,12 @@ fn main()
 			"ipv4-add" => {
 				},
 			// Listen on a port/interface
-			//"tcp-listen" => {
-			//	},
+			"tcp-server-echo" => {
+				//let index: usize = it.next().unwrap().parse().unwrap();
+				//let port : u16   = it.next().unwrap().parse().unwrap();
+				todo!("Create TCP server");
+				//::network::tcp::
+				},
 			// Make a connection
 			"tcp-connect" => {
 				// Get dest ip & dest port

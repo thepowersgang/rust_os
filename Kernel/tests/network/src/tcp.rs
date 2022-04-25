@@ -27,7 +27,7 @@ impl Header
 {
     /// Parse a TCP header, returning the options and data
     pub fn parse(mut buf: &[u8]) -> (Self, &[u8], &[u8]) {
-        let rv: Self = bincode::config().big_endian().deserialize_from(&mut buf).expect("Failed to parse TCP header");
+        let rv: Self = crate::des_be(&mut buf).expect("Failed to parse TCP header");
         println!("Header: {:?}", rv);
         assert!((rv.data_ofs >> 4) >= 20/4, "Bad TCP header length");
         let option_len = (rv.data_ofs >> 4) as usize * 4 - 20;
@@ -39,7 +39,7 @@ impl Header
         let mut rv = [0; 5*4];
         {
             let mut c = std::io::Cursor::new(&mut rv[..]);
-            bincode::config().big_endian().serialize_into(&mut c, self).unwrap();
+            crate::ser_be(&mut c, self);
             assert!(c.position() == 5*4);
         }
         rv
