@@ -209,7 +209,7 @@ pub mod virt
 
 			Ok(AddressSpace(table.into_frame()))
 		}
-		pub(in crate::arch::imp) fn as_phys(&self) -> u64 {
+		pub(in crate::arch::riscv64) fn as_phys(&self) -> u64 {
 			self.0
 		}
 	}

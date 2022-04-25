@@ -5,22 +5,25 @@
 
 cfg_if::cfg_if!{
 	if #[cfg(feature="test")] {
-		#[macro_use]
 		#[path="imp-test.rs"]
-		#[doc(hidden)]
-		pub mod imp;
+		pub mod test;
+
+		pub use self::test as imp;
 	}
 	else {
-		#[macro_use]
-		//#[cfg_attr(arch="amd64", path="amd64/mod.rs")]
-		#[cfg_attr(target_arch="x86_64", path="amd64/mod.rs")]
-		#[cfg_attr(arch="armv7", path="armv7/mod.rs")]
-		#[cfg_attr(target_arch="arm", path="armv7/mod.rs")]
-		#[cfg_attr(target_arch="aarch64", path="armv8/mod.rs")]
-		#[cfg_attr(arch="armv8", path="armv8/mod.rs")]
-		#[cfg_attr(target_arch="riscv64", path="riscv64/mod.rs")]
-		#[doc(hidden)]
-		pub mod imp;	// Needs to be pub for exports to be avaliable
+		#[cfg(any(/* in_ide, */target_arch="x86_64" ))] pub mod amd64;
+		#[cfg(any(/* in_ide, */target_arch="arm"    ))] pub mod armv7;
+		#[cfg(any(/* in_ide, */target_arch="aarch64"))] pub mod armv8;
+		#[cfg(any(/* in_ide, */target_arch="riscv64"))] pub mod riscv64;
+
+		#[cfg(target_arch="x86_64")]
+		pub use self::amd64 as imp;
+		#[cfg(target_arch="arm")]
+		pub use self::armv7 as imp;
+		#[cfg(target_arch="aarch64")]
+		pub use self::armv8 as imp;
+		#[cfg(target_arch="riscv64")]
+		pub use self::riscv64 as imp;
 	}
 }
 

@@ -64,7 +64,7 @@ pub extern "C" fn error_handler(regs: &InterruptRegs)
 	14 => {
 		let cr2 = get_cr2();
 		puts("PF ("); puth(regs.errorcode); puts(") at "); puth(cr2 as u64); puts(" by "); puth(regs.rip); puts(" SP="); puth(regs.rsp); puts("\n");
-		if crate::arch::imp::memory::virt::handle_page_fault(cr2 as usize, regs.errorcode as u32) {
+		if crate::arch::amd64::memory::virt::handle_page_fault(cr2 as usize, regs.errorcode as u32) {
 			return ;
 		}
 		},

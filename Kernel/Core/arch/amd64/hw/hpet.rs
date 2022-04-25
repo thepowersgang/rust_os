@@ -5,7 +5,7 @@
 // - x86 High Precision Event Timer
 #[allow(unused_imports)]
 use crate::prelude::*;
-use crate::arch::imp::acpi::AddressSpaceID;
+use crate::arch::amd64::acpi::AddressSpaceID;
 
 module_define!{HPET, [APIC, ACPI], init}
 
@@ -13,7 +13,7 @@ struct HPET
 {
 	mapping_handle: crate::memory::virt::AllocHandle,
 	#[allow(dead_code)]
-	irq_handle: crate::arch::imp::hw::apic::IRQHandle,
+	irq_handle: crate::arch::amd64::hw::apic::IRQHandle,
 	period: u64,
 }
 
@@ -23,7 +23,7 @@ struct ACPI_HPET
 	hw_rev_id: u8,
 	flags: u8,
 	pci_vendor: u16,
-	addr: crate::arch::imp::acpi::GAS,
+	addr: crate::arch::amd64::acpi::GAS,
 	hpet_num: u8,
 	mintick: [u8; 2],	// 16-bit word
 	page_protection: u8,
@@ -54,7 +54,7 @@ pub fn get_timestamp() -> u64
 fn init()
 {
 	log_trace!("init()");
-	let hpet = match crate::arch::imp::acpi::find::<ACPI_HPET>("HPET", 0)
+	let hpet = match crate::arch::amd64::acpi::find::<ACPI_HPET>("HPET", 0)
 		{
 		None => {
 			log_error!("No HPET, in ACPI, no timing avaliable");
@@ -105,7 +105,7 @@ impl HPET
 	}
 	pub fn bind_irq(&mut self)
 	{
-		self.irq_handle = crate::arch::imp::hw::apic::register_irq(2, HPET::irq, self as *mut _ as *const _).unwrap();
+		self.irq_handle = crate::arch::amd64::hw::apic::register_irq(2, HPET::irq, self as *mut _ as *const _).unwrap();
 	}
 	pub fn ticks_per_ms(&self) -> u64
 	{

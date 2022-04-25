@@ -160,7 +160,7 @@ impl<T> SDT<T>
 	#[allow(dead_code)]
 	fn raw_signature(&self) -> [u8; 4]
 	{
-		CHECKMARK!();
+		crate::arch::amd64::checkmark();
 		self.header.signature
 	}
 	pub fn data_len(&self) -> usize
