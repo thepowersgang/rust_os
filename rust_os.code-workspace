@@ -1,6 +1,8 @@
 {
 	"folders": [ {"path": "."} ],
 	"settings": {
-		"rust-analyzer.server.extraEnv": { "ARCH": "native", "RUSTFLAGS": "--cfg arch=\"native\"" }
+		"editor.useTabStops": true,
+		"editor.tabSize": 4,
+		"rust-analyzer.server.extraEnv": { "ARCH": "native", "RUSTFLAGS": "--cfg arch=\"native\" --cfg in_ide" }
 	}
 }
