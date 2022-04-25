@@ -2,11 +2,11 @@
 //
 //
 
-use memory::virt::ProtectionMode;
-use arch::memory::PAddr;
-use arch::memory::{PAGE_SIZE, PAGE_MASK};
-use arch::memory::virt::TempHandle;
-use core::sync::atomic::{Ordering,AtomicU32};
+use crate::memory::virt::ProtectionMode;
+use crate::arch::memory::PAddr;
+use crate::arch::memory::{PAGE_SIZE, PAGE_MASK};
+use crate::arch::memory::virt::TempHandle;
+use ::core::sync::atomic::{Ordering,AtomicU32};
 
 extern "C" {
 	static kernel_table0: [AtomicU32; 0x800*2];
@@ -24,7 +24,7 @@ const USER_BASE_TABLE: usize = 0x7FFF_E000;	// 2GB - 0x800 * 4 = 0x2000
 const PAGE_MASK_U32: u32 = PAGE_MASK as u32;
 
 // TODO: Why is this -1 here?
-static S_TEMP_MAP_SEMAPHORE: ::sync::Semaphore = ::sync::Semaphore::new(KERNEL_TEMP_COUNT as isize - 1, KERNEL_TEMP_COUNT as isize);
+static S_TEMP_MAP_SEMAPHORE: crate::sync::Semaphore = crate::sync::Semaphore::new(KERNEL_TEMP_COUNT as isize - 1, KERNEL_TEMP_COUNT as isize);
 
 pub fn post_init() {
 	// SAFE: Atomic
@@ -32,7 +32,7 @@ pub fn post_init() {
 
 	// SAFE: Valid memory passed to init_at
 	unsafe {
-		::memory::virt::allocate(USER_TEMP_MDATA as *mut (), 1).expect("Couldn't allocate space for user temp metadat");
+		crate::memory::virt::allocate(USER_TEMP_MDATA as *mut (), 1).expect("Couldn't allocate space for user temp metadat");
 		pl_temp::init_at(USER_TEMP_MDATA as *mut ());
 	}
 	//dump_tables();
@@ -295,7 +295,7 @@ impl_fmt! {
 mod pl_temp
 {
 	use super::{USER_TEMP_BASE,USER_TEMP_COUNT};
-	use PAGE_SIZE;
+	use crate::PAGE_SIZE;
 	use core::sync::atomic::Ordering;
 
 	struct MetaDataInner {
@@ -307,8 +307,8 @@ mod pl_temp
 		}
 	}
 	struct MetaData {
-		free: ::sync::Semaphore,
-		lock: ::sync::Mutex<MetaDataInner>,
+		free: crate::sync::Semaphore,
+		lock: crate::sync::Mutex<MetaDataInner>,
 	}
 	impl MetaData {
 		// UNSAFE: User must not leak this pointer across process boundaries
@@ -322,15 +322,15 @@ mod pl_temp
 	pub unsafe fn init_at(addr: *mut ()) {
 		let addr = addr as *mut MetaData;
 		*addr = MetaData {
-			free: ::sync::Semaphore::new(USER_TEMP_COUNT as isize, USER_TEMP_COUNT as isize),
-			lock: ::sync::Mutex::new(MetaDataInner {
+			free: crate::sync::Semaphore::new(USER_TEMP_COUNT as isize, USER_TEMP_COUNT as isize),
+			lock: crate::sync::Mutex::new(MetaDataInner {
 				counts: [0; USER_TEMP_COUNT],
 				}),
 			};
 	}
 
 	// UNSAFE: Can cause aliasing
-	pub unsafe fn map_temp(paddr: ::memory::PAddr) -> ProcTempMapping {
+	pub unsafe fn map_temp(paddr: crate::memory::PAddr) -> ProcTempMapping {
 		let val = paddr as u32 | 0x13;
 
 		// SAFE: Only used locally
@@ -383,7 +383,7 @@ mod pl_temp
 	}
 	pub struct ProcTempMapping(*const [u8; PAGE_SIZE]);
 	impl ProcTempMapping {
-		pub fn get_slice<T: ::lib::POD>(&self) -> &[T] {
+		pub fn get_slice<T: crate::lib::POD>(&self) -> &[T] {
 			// SAFE: POD and alignment is always < 1 page
 			unsafe {
 				::core::slice::from_raw_parts( self.0 as *const T, PAGE_SIZE / ::core::mem::size_of::<T>() )
@@ -448,20 +448,20 @@ fn get_table_addr<T>(vaddr: *const T, alloc: bool) -> Option< (TableRef, usize) 
 	{
 	0 => if alloc {
 			log_debug!("New table for {:#x}", ttbr_ofs << (11+12));
-			let mut handle: TempHandle<u32> = match ::memory::phys::allocate_bare()
+			let mut handle: TempHandle<u32> = match crate::memory::phys::allocate_bare()
 				{
 				Ok(v) => v.into(),
 				Err(e) => todo!("get_table_addr - alloc failed {:?}", e)
 				};
 			for v in handle.iter_mut() { *v = 0; }
-			//::memory::virt::with_temp(|frame: &[AtomicU32]| for v in frame.iter { v.store(0) });
+			//crate::memory::virt::with_temp(|frame: &[AtomicU32]| for v in frame.iter { v.store(0) });
 
 			let frame = handle.phys_addr();
 			match ent_r[0].compare_exchange(0, frame + 0x1, Ordering::Acquire, Ordering::Relaxed)
 			{
 			Err(ent_v) => {
 				// SAFE: Frame is owned by this function, and is umapped just after this
-				unsafe { ::memory::phys::deref_frame(frame); }
+				unsafe { crate::memory::phys::deref_frame(frame); }
 				drop(handle);
 				// SAFE: Address is correct, and immutable
 				let ret_handle = unsafe { TempHandle::new(ent_v & !PAGE_MASK_U32) };
@@ -491,7 +491,7 @@ fn get_table_addr<T>(vaddr: *const T, alloc: bool) -> Option< (TableRef, usize) 
 
 /// Temporarily map a frame into memory
 /// UNSAFE: User to ensure that the passed address doesn't alias
-pub unsafe fn temp_map<T>(phys: ::arch::memory::PAddr) -> *mut T {
+pub unsafe fn temp_map<T>(phys: crate::arch::memory::PAddr) -> *mut T {
 	//log_trace!("temp_map<{}>({:#x})", type_name!(T), phys);
 	assert!(phys as u32 % PAGE_SIZE as u32 == 0);
 	let val = (phys as u32) + 0x13;	
@@ -500,7 +500,7 @@ pub unsafe fn temp_map<T>(phys: ::arch::memory::PAddr) -> *mut T {
 	for i in 0 .. KERNEL_TEMP_COUNT {
 		let ents = &kernel_exception_map[i*2 ..][.. 2];
 		if let Ok(_) = ents[0].compare_exchange(0, val, Ordering::Acquire, Ordering::Relaxed) {
-			let addr = (KERNEL_TEMP_BASE + i * ::PAGE_SIZE) as *mut _;
+			let addr = (KERNEL_TEMP_BASE + i * crate::PAGE_SIZE) as *mut _;
 			//log_trace!("- Addr = {:p}", addr);
 			// - Set the next node and check that it's zero
 			assert!( ents[1].swap(val+0x1000, Ordering::Acquire) == 0 );
@@ -515,7 +515,7 @@ pub unsafe fn temp_unmap<T>(addr: *mut T)
 {
 	//log_trace!("temp_unmap<{}>({:p})", type_name!(T), addr);
 	assert!(addr as usize >= KERNEL_TEMP_BASE);
-	let i = (addr as usize - KERNEL_TEMP_BASE) / ::PAGE_SIZE;
+	let i = (addr as usize - KERNEL_TEMP_BASE) / crate::PAGE_SIZE;
 	assert!(i < KERNEL_TEMP_COUNT);
 	// - Clear in reverse order to avoid racing between the +1 release and +0's acquire
 	kernel_exception_map[i*2+1].store(0, Ordering::Release);
@@ -527,10 +527,10 @@ pub fn is_reserved<T>(addr: *const T) -> bool {
 	get_phys_opt(addr).is_some()
 	//PageEntry::get(addr as *const ()).is_reserved()
 }
-pub fn get_phys<T: ?Sized>(addr: *const T) -> ::arch::memory::PAddr {
+pub fn get_phys<T: ?Sized>(addr: *const T) -> crate::arch::memory::PAddr {
 	get_phys_opt(addr as *const ()).unwrap_or(0)
 }
-fn get_phys_opt<T>(addr: *const T) -> Option<::arch::memory::PAddr> {
+fn get_phys_opt<T>(addr: *const T) -> Option<crate::arch::memory::PAddr> {
 	let res: u32;
 	// SAFE: Correct register accesses
 	unsafe {
@@ -550,7 +550,7 @@ fn get_phys_opt<T>(addr: *const T) -> Option<::arch::memory::PAddr> {
 	}
 }
 
-pub fn get_info<T>(addr: *const T) -> Option<(::arch::memory::PAddr, ::memory::virt::ProtectionMode)> {
+pub fn get_info<T>(addr: *const T) -> Option<(crate::arch::memory::PAddr, crate::memory::virt::ProtectionMode)> {
 	let pe = PageEntry::get(addr as *const ());
 	if pe.is_reserved() {
 		Some( (pe.phys_addr(), pe.mode()) )
@@ -651,13 +651,13 @@ impl AddressSpace
 		// SAFE: Static.
 		AddressSpace( get_phys( unsafe { &kernel_table0 } ) )
 	}
-	pub fn new(clone_start: usize, clone_end: usize) -> Result<AddressSpace,::memory::virt::MapError> {
-		assert!( clone_start % ::PAGE_SIZE == 0 );
-		assert!( clone_end % ::PAGE_SIZE == 0 );
+	pub fn new(clone_start: usize, clone_end: usize) -> Result<AddressSpace,crate::memory::virt::MapError> {
+		assert!( clone_start % crate::PAGE_SIZE == 0 );
+		assert!( clone_end % crate::PAGE_SIZE == 0 );
 		// 1. Allocate a new root-level table for the user code
-		let mut new_root: TempHandle<u32> = try!( ::memory::phys::allocate_bare() ).into();
+		let mut new_root: TempHandle<u32> = crate::memory::phys::allocate_bare()?.into();
 		// 2. Allocate the final table (for fractal)
-		let mut last_tab: TempHandle<u32> = try!( ::memory::phys::allocate_bare() ).into();
+		let mut last_tab: TempHandle<u32> = crate::memory::phys::allocate_bare()?.into();
 		last_tab[2044] = (last_tab.phys_addr() as u32 + 0x0000) | 0x13;
 		last_tab[2045] = (last_tab.phys_addr() as u32 + 0x1000) | 0x13;
 		last_tab[2046] = (new_root.phys_addr() as u32 + 0x0000) | 0x13;
@@ -669,8 +669,8 @@ impl AddressSpace
 		if clone_start >> 20 < 2040 {
 			todo!("Allocate extra tables for AddressSpace::new");
 		}
-		let start_pidx = clone_start / ::PAGE_SIZE;
-		let end_pidx = clone_end / ::PAGE_SIZE;
+		let start_pidx = clone_start / crate::PAGE_SIZE;
+		let end_pidx = clone_end / crate::PAGE_SIZE;
 		
 		for page in start_pidx .. end_pidx
 		{
@@ -684,10 +684,10 @@ impl AddressSpace
 			ProtectionMode::Unmapped => {},
 			ProtectionMode::UserCOW => todo!("Clone when COW"),
 			ProtectionMode::UserRW | ProtectionMode::UserRO | ProtectionMode::UserRX => {
-				let src_ptr = (page * ::PAGE_SIZE) as *const u8;
+				let src_ptr = (page * crate::PAGE_SIZE) as *const u8;
 				// SAFE: Memory is valid (TODO: What if this changes? Shouldn't cause errors, just inconsistent user data)
-				let src = unsafe { ::core::slice::from_raw_parts(src_ptr, ::PAGE_SIZE) };
-				let mut data = try!( ::memory::phys::allocate_bare() );
+				let src = unsafe { ::core::slice::from_raw_parts(src_ptr, crate::PAGE_SIZE) };
+				let mut data = crate::memory::phys::allocate_bare()?;
 				data.copy_from_slice(src);
 				dst_slots[0] = (data.phys_addr() as u32 + 0x0000) | mode_flags;
 				dst_slots[1] = (data.phys_addr() as u32 + 0x1000) | mode_flags;
@@ -727,10 +727,10 @@ pub fn data_abort_handler(pc: u32, reg_state: &AbortRegs, dfar: u32, dfsr: u32) 
 	if ent.mode() == ProtectionMode::UserCOW {
 		// 1. Lock (relevant) address space
 		// SAFE: Changes to address space are transparent
-		::memory::virt::with_lock(dfar as usize, || unsafe {
+		crate::memory::virt::with_lock(dfar as usize, || unsafe {
 			let frame = ent.phys_addr() & !PAGE_MASK as u32;
 			// 2. Get the PMM to provide us with a unique copy of that frame (can return the same addr)
-			let newframe = ::memory::phys::make_unique( frame, &*(pg_base as *const [u8; PAGE_SIZE]) );
+			let newframe = crate::memory::phys::make_unique( frame, &*(pg_base as *const [u8; PAGE_SIZE]) );
 			// 3. Remap to this page as UserRW (because COW is user-only atm)
 			ent.set(newframe, ProtectionMode::UserRW);
 			let pg_base2 = pg_base + 0x1_000;
@@ -752,13 +752,13 @@ pub fn data_abort_handler(pc: u32, reg_state: &AbortRegs, dfar: u32, dfsr: u32) 
 		loop {}
 	}
 	else {
-		let rs = ::arch::imp::aeabi_unwind::UnwindState::from_regs([
+		let rs = crate::arch::imp::aeabi_unwind::UnwindState::from_regs([
 			reg_state.gprs[0], reg_state.gprs[1], reg_state.gprs[ 2], reg_state.gprs[3],
 			reg_state.gprs[4], reg_state.gprs[5], reg_state.gprs[ 6], reg_state.gprs[7],
 			reg_state.gprs[8], reg_state.gprs[9], reg_state.gprs[10], reg_state.gprs[11],
 			reg_state.gprs[12], reg_state.sp, reg_state.lr, reg_state.ret_pc,
 			]);
-		::arch::imp::print_backtrace_unwindstate(rs, pc as usize);
+		crate::arch::imp::print_backtrace_unwindstate(rs, pc as usize);
 		panic!("Kernel data abort by {:#x} at {:#x}", pc, dfar);
 	}
 }
@@ -797,25 +797,25 @@ pub fn prefetch_abort_handler(pc: u32, reg_state: &AbortRegs, ifsr: u32) {
 	//log_debug!("Registers:");
 	//log_debug!("R 0 {:08x}  R 1 {:08x}  R 2 {:08x}  R 3 {:08x}  R 4 {:08x}  R 5 {:08x}}  R 6 {:08x}", reg_state.gprs[0]);
 	
-	let rs = ::arch::imp::aeabi_unwind::UnwindState::from_regs([
+	let rs = crate::arch::imp::aeabi_unwind::UnwindState::from_regs([
 		reg_state.gprs[ 0], reg_state.gprs[1], reg_state.gprs[ 2], reg_state.gprs[ 3],
 		reg_state.gprs[ 4], reg_state.gprs[5], reg_state.gprs[ 6], reg_state.gprs[ 7],
 		reg_state.gprs[ 8], reg_state.gprs[9], reg_state.gprs[10], reg_state.gprs[11],
 		reg_state.gprs[12], reg_state.sp, reg_state.lr, reg_state.ret_pc,
 		]);
-	::arch::imp::print_backtrace_unwindstate(rs, pc as usize);
+	crate::arch::imp::print_backtrace_unwindstate(rs, pc as usize);
 	loop {}
 }
 #[no_mangle]
 pub fn ud_abort_handler(pc: u32, reg_state: &AbortRegs) {
 	log_warning!("Undefined instruction abort at {:#x} - LR={:#x}", pc, reg_state.lr);
 		
-	let rs = ::arch::imp::aeabi_unwind::UnwindState::from_regs([
+	let rs = crate::arch::imp::aeabi_unwind::UnwindState::from_regs([
 		reg_state.gprs[ 0], reg_state.gprs[1], reg_state.gprs[ 2], reg_state.gprs[ 3],
 		reg_state.gprs[ 4], reg_state.gprs[5], reg_state.gprs[ 6], reg_state.gprs[ 7],
 		reg_state.gprs[ 8], reg_state.gprs[9], reg_state.gprs[10], reg_state.gprs[11],
 		reg_state.gprs[12], reg_state.sp, reg_state.lr, reg_state.ret_pc,
 		]);
-	::arch::imp::print_backtrace_unwindstate(rs, pc as usize);
+	crate::arch::imp::print_backtrace_unwindstate(rs, pc as usize);
 	loop {}
 }

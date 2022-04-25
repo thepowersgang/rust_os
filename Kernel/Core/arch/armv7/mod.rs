@@ -113,6 +113,9 @@ pub mod time {
 	pub fn cur_timestamp() -> u64 {
 		0
 	}
+	pub fn request_tick(time: u64) {
+		todo!("request_tick");
+	}
 }
 
 pub fn print_backtrace() {
@@ -126,9 +129,9 @@ fn print_backtrace_unwindstate(mut rs: aeabi_unwind::UnwindState, mut addr: usiz
 	{
 		//log_debug!("addr={:#x} fcn={:#x}, info={:#x}", addr, info.0, info.1);
 		// - Subtract 1 to avoid 'bl' at the end of a function tricking the resolution
-		match ::symbols::get_symbol_for_addr(addr-1)
+		match crate::symbols::get_symbol_for_addr(addr-1)
 		{
-		Some( (name,ofs) ) => log_debug!("> {:#x} {}+{:#x}", addr, ::symbols::Demangle(name), ofs+1),
+		Some( (name,ofs) ) => log_debug!("> {:#x} {}+{:#x}", addr, crate::symbols::Demangle(name), ofs+1),
 		None => log_debug!("> {:#x}", addr),
 		}
 		match rs.unwind_step(info.1)

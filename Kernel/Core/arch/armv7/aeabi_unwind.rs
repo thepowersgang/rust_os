@@ -135,14 +135,14 @@ impl UnwindState {
 				log_error!("BUG: Malformed entry at {:#x}: SBZ bits set 0x{:x} != 0x8", base+4, info >> 24);
 				return Err( Error::Malformed );
 			}
-			try!( self.unwind_short16(info) );
+			self.unwind_short16(info)?;
 		}
 		else {
 			// Indirect pointer (31-bit relative address)
 			let ptr = prel31(base, info) as *const u32;
 			// SAFE: Validity checked
 			let word = unsafe {
-				if ptr as usize & 3 != 0 || ! ::memory::virt::is_reserved(ptr) {
+				if ptr as usize & 3 != 0 || ! crate::memory::virt::is_reserved(ptr) {
 					log_error!("BUG: Malformed entry at {:#x} - ptr={:p}", base+4, ptr);
 					return Err( Error::Malformed );
 				}
@@ -160,7 +160,7 @@ impl UnwindState {
 						// SAFE: Will be checked
 						let words_ptr = unsafe { ptr.offset(1) };
 						// SAFE: Lifetime is 'static, data is POD
-						match unsafe { ::memory::buf_to_slice(words_ptr, word_count as usize) }
+						match unsafe { crate::memory::buf_to_slice(words_ptr, word_count as usize) }
 						{
 						Some(b) => b,
 						None => {
@@ -176,14 +176,13 @@ impl UnwindState {
 				match personality
 				{
 				0 => {
-					try!( self.unwind_short16(word) );
+					self.unwind_short16(word)?;
 					},
 				1 => {
-					try!( self.unwind_long16(word, words) );
+					self.unwind_long16(word, words)?;
 					},
 				2 => {
-					// SAFE: Lifetime is 'static, data is POD
-					try!( self.unwind_long32(word, words) );
+					self.unwind_long32(word, words)?;
 					},
 				v @ _ => {
 					log_error!("TODO: Handle extra-word compact v={}", v);
@@ -263,7 +262,7 @@ impl UnwindState {
 		// SAFE: Memory is present
 		let v = unsafe {
 			let ptr = self.vsp as *const u32;
-			if ! ::memory::virt::is_reserved(ptr) {
+			if ! crate::memory::virt::is_reserved(ptr) {
 				log_error!("BUG: Stack pointer {:p} invalid", ptr);
 				return Err( Error::BadPointer(ptr as *const (), 4) );
 			}
@@ -297,7 +296,7 @@ impl UnwindState {
 			self.vsp -= count;
 			},
 		0x8 => {	// ARM_EXIDX_CMD_REG_POP
-			let extra = try!( getb() );
+			let extra = getb()?;
 			if byte == 0x80 && extra == 0x00 {
 				// Refuse to unwind
 				return Err( Error::Refuse );
@@ -307,18 +306,18 @@ impl UnwindState {
 			}
 	
 			// Lowest register at lowest stack
-			if extra & 0x01 != 0 { self.regs[4] = try!(self.pop()); }	// R4
-			if extra & 0x02 != 0 { self.regs[5] = try!(self.pop()); }	// R5
-			if extra & 0x04 != 0 { self.regs[6] = try!(self.pop()); }	// R6
-			if extra & 0x08 != 0 { self.regs[7] = try!(self.pop()); }	// R7
-			if extra & 0x10 != 0 { self.regs[8] = try!(self.pop()); }	// R8
-			if extra & 0x20 != 0 { self.regs[9] = try!(self.pop()); }	// R9
-			if extra & 0x40 != 0 { self.regs[10] = try!(self.pop()); }	// R10
-			if extra & 0x80 != 0 { self.regs[11] = try!(self.pop()); }	// R11
-			if byte & 0x1 != 0 { self.regs[12] = try!(self.pop()); }	// R12
-			if byte & 0x2 != 0 { self.regs[13] = try!(self.pop()); }	// R13
-			if byte & 0x4 != 0 { self.regs[14] = try!(self.pop()); }	// R14
-			if byte & 0x8 != 0 { self.regs[15] = try!(self.pop()); }	// R15
+			if extra & 0x01 != 0 { self.regs[ 4] = self.pop()?; }	// R4
+			if extra & 0x02 != 0 { self.regs[ 5] = self.pop()?; }	// R5
+			if extra & 0x04 != 0 { self.regs[ 6] = self.pop()?; }	// R6
+			if extra & 0x08 != 0 { self.regs[ 7] = self.pop()?; }	// R7
+			if extra & 0x10 != 0 { self.regs[ 8] = self.pop()?; }	// R8
+			if extra & 0x20 != 0 { self.regs[ 9] = self.pop()?; }	// R9
+			if extra & 0x40 != 0 { self.regs[10] = self.pop()?; }	// R10
+			if extra & 0x80 != 0 { self.regs[11] = self.pop()?; }	// R11
+			if byte  &  0x1 != 0 { self.regs[12] = self.pop()?; }	// R12
+			if byte  &  0x2 != 0 { self.regs[13] = self.pop()?; }	// R13
+			if byte  &  0x4 != 0 { self.regs[14] = self.pop()?; }	// R14
+			if byte  &  0x8 != 0 { self.regs[15] = self.pop()?; }	// R15
 			},
 		0x9 => {	// ARM_EXIDX_CMD_REG_TO_SP
 			if TRACE_OPS {
@@ -333,15 +332,15 @@ impl UnwindState {
 				log_debug!("POP {{r4-r{}{}}}", 4 + count, if pop_lr { ",lr" } else { "" });
 			}
 			for r in 4 .. 4 + count + 1 {
-				self.regs[r] = try!(self.pop());
+				self.regs[r] = self.pop()?;
 			}
-			if pop_lr { self.regs[14] = try!(self.pop()); }
+			if pop_lr { self.regs[14] = self.pop()?; }
 			},
 		0xB => match byte & 0xF
 			{
 			0 => return Ok(true),	// ARM_EXIDX_CMD_FINISH
 			1 => {
-				let extra = try!( getb() );
+				let extra = getb()?;
 				if extra == 0 {
 					log_error!("EXIDX opcode 0xB1 {:#02x} listed as Spare", extra);
 				}
@@ -353,10 +352,10 @@ impl UnwindState {
 					if TRACE_OPS {
 						log_debug!("POP mask 0-3 {:#x}", extra & 0xFF);
 					}
-					if extra & 0x1 != 0 { self.regs[0] = try!(self.pop()); }	// R0
-					if extra & 0x2 != 0 { self.regs[1] = try!(self.pop()); }	// R1
-					if extra & 0x4 != 0 { self.regs[2] = try!(self.pop()); }	// R2
-					if extra & 0x8 != 0 { self.regs[3] = try!(self.pop()); }	// R3
+					if extra & 0x1 != 0 { self.regs[0] = self.pop()?; }	// R0
+					if extra & 0x2 != 0 { self.regs[1] = self.pop()?; }	// R1
+					if extra & 0x4 != 0 { self.regs[2] = self.pop()?; }	// R2
+					if extra & 0x8 != 0 { self.regs[3] = self.pop()?; }	// R3
 				}
 				},
 			2 => {	// vsp = vsp + 0x204 + (uleb128 << 2)
@@ -402,7 +401,7 @@ impl UnwindState {
 		let mut it = WordBytesLE(instrs, 3);
 		while let Some(b) = it.next()
 		{
-			if try!( self.unwind_instr(b, || Self::getb(&mut it)) ) {
+			if self.unwind_instr(b, || Self::getb(&mut it))? {
 				break ;
 			}
 		}
@@ -412,7 +411,7 @@ impl UnwindState {
 		let mut it = WordBytesLE(instrs, 2).chain( extra.iter().flat_map(|w| WordBytesLE(*w, 4)) );
 		while let Some(b) = it.next()
 		{
-			if try!( self.unwind_instr(b, || Self::getb(&mut it)) ) {
+			if self.unwind_instr(b, || Self::getb(&mut it))? {
 				break ;
 			}
 		}

@@ -97,7 +97,7 @@ pub struct CacheTimer(
 	#[cfg(target_has_atomic="64")]
 	AtomicU64,
 	#[cfg(not(target_has_atomic="64"))]
-	::sync::Spinlock<u64>,
+	crate::sync::Spinlock<u64>,
 	);
 impl Default for CacheTimer {
 	fn default() -> Self {
@@ -119,7 +119,7 @@ impl CacheTimer
 impl CacheTimer
 {
 	pub fn new() -> Self {
-		CacheTimer( ::sync::Spinlock::new(ticks()) )
+		CacheTimer( crate::sync::Spinlock::new(ticks()) )
 	}
 
 	pub fn bump(&self) {
