@@ -26,7 +26,7 @@
 
 .set log_cfg_count_inner, 0
 .section .rodata.logcfg
-.align 16
+.align 8
 .globl log_cfg_data
 log_cfg_data:
 	LOG_CFG_ENT("kernel::memory::heap::heapdef", LEVEL_DEBUG)	// Heap only prints higher than debug
