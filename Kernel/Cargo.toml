@@ -38,3 +38,9 @@ usb-msc = { path = "Modules/usb_msc" }
 
 [build_dependencies]
 my_dependencies = { git = "https://github.com/thepowersgang/my-dependencies-rs.git" }
+
+# Workspace members for the tests (so they work within VSCode)
+[workspace]
+members = [
+    "tests/network",
+]
