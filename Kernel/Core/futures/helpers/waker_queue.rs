@@ -54,19 +54,19 @@ impl WakerQueue
 		}
 	}
 	/// Wake the oldest addition to this list
-    pub fn wake_one(&mut self) -> bool {
-        if let Some(w) = self.pop() {
-            w.wake();
-            true
-        }
-        else {
-            false
-        }
-    }
+	pub fn wake_one(&mut self) -> bool {
+		if let Some(w) = self.pop() {
+			w.wake();
+			true
+		}
+		else {
+			false
+		}
+	}
 	/// Wake all wakers in this list
-    pub fn wake_all(&mut self) {
+	pub fn wake_all(&mut self) {
 		while let Some(w) = self.pop() {
-            w.wake();
-        }
-    }
+			w.wake();
+		}
+	}
 }

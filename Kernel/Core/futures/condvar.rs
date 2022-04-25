@@ -27,11 +27,11 @@ impl Condvar
 	///
 	/// The passed handler is called with None to poll the state.
 	pub fn wait(&self, key: Key) -> impl ::core::future::Future<Output=()> + '_ {
-        struct Waiter<'a>(&'a Condvar, usize);
-        impl<'a> ::core::future::Future for Waiter<'a> {
-            type Output = ();
-            fn poll(self: ::core::pin::Pin<&mut Self>, cx: &mut task::Context) -> task::Poll<()> {
-                let cv = self.0;
+		struct Waiter<'a>(&'a Condvar, usize);
+		impl<'a> ::core::future::Future for Waiter<'a> {
+			type Output = ();
+			fn poll(self: ::core::pin::Pin<&mut Self>, cx: &mut task::Context) -> task::Poll<()> {
+				let cv = self.0;
 				if self.1 != cv.key.load(Ordering::Relaxed) {
 					task::Poll::Ready(())
 				}
@@ -39,9 +39,9 @@ impl Condvar
 					cv.waiters.lock().push(cx.waker());
 					task::Poll::Pending
 				}
-            }
-        }
-        Waiter(self, key.0)
+			}
+		}
+		Waiter(self, key.0)
 	}
 
 	/// Obtain the current internal "key" (a counter incremented on every wake call)
