@@ -43,9 +43,23 @@ impl<K: Send+Sync+Ord, V: Send+Sync> SharedMap<K,V>
 		let mut lh = self.lock.write();
 		lh.m.remove(k)
 	}
-	pub fn insert(&self, k: K, v: V) {
+	pub fn insert(&self, k: K, v: V) -> Result<(), V> {
+		use ::kernel::lib::collections::vec_map::Entry;
 		let mut lh = self.lock.write();
-		lh.m.insert(k, v);
+		match lh.m.entry(k)
+		{
+		Entry::Vacant(e) => { e.insert(v); Ok(()) },
+		Entry::Occupied(_) => { Err(v) }
+		}
+	}
+	pub fn replace(&self, k: K, v: V) -> Option<V> {
+		use ::kernel::lib::collections::vec_map::Entry;
+		let mut lh = self.lock.write();
+		match lh.m.entry(k)
+		{
+		Entry::Vacant(_) => { None },
+		Entry::Occupied(mut e) => { Some( ::core::mem::replace(e.get_mut(), v) ) }
+		}
 	}
 
 	/// Obtain the outer lock and iterate

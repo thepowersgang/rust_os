@@ -73,7 +73,7 @@ use self::lib::rx_buffer::RxBuffer;
 
 static CONNECTIONS: SharedMap<Quad, Mutex<Connection>> = SharedMap::new();
 static PROTO_CONNECTIONS: SharedMap<Quad, ProtoConnection> = SharedMap::new();
-static SERVERS: SharedMap<(Option<Address>,u16), Server> = SharedMap::new();
+static SERVERS: SharedMap<ListenPair, Server> = SharedMap::new();
 static WORKER_CV: ::kernel::futures::Condvar = ::kernel::futures::Condvar::new();
 
 static S_PORTS: Mutex<PortPool> = Mutex::new(PortPool::new());
@@ -160,6 +160,10 @@ fn rx_handler(src_addr: Address, dest_addr: Address, mut pkt: crate::nic::Packet
 		}
 	}
 	
+	let get_server = ||->Option<_> {
+		Option::or( SERVERS.get( &ListenPair::fixed(dest_addr, hdr.dest_port) ), SERVERS.get( &ListenPair::any(hdr.dest_port) ) )
+		};
+
 	let quad = Quad::new(dest_addr, hdr.dest_port, src_addr, hdr.source_port);
 	// Search for active connections with this quad
 	if let Some(c) = CONNECTIONS.get(&quad)
@@ -176,22 +180,27 @@ fn rx_handler(src_addr: Address, dest_addr: Address, mut pkt: crate::nic::Packet
 			if hdr.sequence_number == c.seen_seq + 1 && hdr.acknowledgement_number == c.sent_seq
 			{
 				// Make the full connection struct
-				CONNECTIONS.insert(quad, Mutex::new(Connection::new_inbound(&hdr)));
-				// Add the connection onto the server's accept queue
-				let server = Option::or( SERVERS.get( &(Some(dest_addr), hdr.dest_port) ), SERVERS.get( &(None, hdr.dest_port) ) ).expect("Can't find server");
-				server.accept_queue.push(quad).expect("Acceped connection with full accept queue");
+				match CONNECTIONS.insert(quad, Mutex::new(Connection::new_inbound(&hdr)))
+				{
+				Ok(()) => {
+					// Add the connection onto the server's accept queue
+					let server = get_server().expect("Can't find server for proto connection");
+					server.accept_queue.push(quad).expect("Acceped connection with full accept queue");
+					},
+				Err(_) => log_warning!("Conflicting connection?"),	// TODO: What do to if there's a second connection for the quad?
+				}
 			}
 			else
 			{
 				// - Bad ACK, put the proto connection back into the list
-				PROTO_CONNECTIONS.insert(quad, c);
+				let _ = PROTO_CONNECTIONS.insert(quad, c);
 			}
 		}
 	}
 	// If none found, look for servers on the destination (if SYN)
 	else if hdr.flags & !FLAG_ACK == FLAG_SYN
 	{
-		if let Some(s) = Option::or( SERVERS.get( &(Some(dest_addr), hdr.dest_port) ), SERVERS.get( &(None, hdr.dest_port) ) )
+		if let Some(s) = get_server()
 		{
 			// Decrement the server's accept space
 			if s.accept_space.fetch_update(Ordering::SeqCst, Ordering::SeqCst, |v| if v == 0 { None } else { Some(v - 1) }).is_err() { 
@@ -204,7 +213,7 @@ fn rx_handler(src_addr: Address, dest_addr: Address, mut pkt: crate::nic::Packet
 				// - Add the quad as a proto-connection and send the SYN-ACK
 				let pc = ProtoConnection::new(hdr.sequence_number);
 				block_on(quad.send_packet(pc.sent_seq, pc.seen_seq, FLAG_SYN|FLAG_ACK, hdr.window_size, &[], &[]));
-				PROTO_CONNECTIONS.insert(quad, pc);
+				let _ = PROTO_CONNECTIONS.replace(quad, pc);	// Insert without replacing
 			}
 		}
 		else
@@ -214,6 +223,31 @@ fn rx_handler(src_addr: Address, dest_addr: Address, mut pkt: crate::nic::Packet
 		}
 	}
 	// Otherwise, drop
+}
+
+#[derive(Copy,Clone,PartialEq,PartialOrd,Eq,Ord)]
+struct ListenPair(Option<Address>, u16);
+impl ::core::fmt::Debug for ListenPair
+{
+	fn fmt(&self, f: &mut ::core::fmt::Formatter) -> ::core::fmt::Result {
+		f.write_str("Pair(")?;
+		if let Some(ref a) = self.0 {
+			a.fmt(f)?;
+		}
+		else {
+			f.write_str("*")?;
+		}
+		write!(f, ":{})", self.1)
+	}
+}
+impl ListenPair
+{
+	pub fn any(port: u16) -> ListenPair {
+		ListenPair(None, port)
+	}
+	pub fn fixed(addr: Address, port: u16) -> ListenPair {
+		ListenPair(Some(addr), port)
+	}
 }
 
 #[derive(Copy,Clone,PartialOrd,PartialEq,Ord,Eq)]
@@ -887,7 +921,30 @@ struct Server
 	accept_queue: AtomicRingBuf<Quad>,
 }
 
+#[derive(Debug)]
+pub enum ListenError
+{
+	SocketInUse,
+}
 
+/// A handle to a LISTEN socket
+pub struct ServerHandle(ListenPair);
+impl ServerHandle
+{
+	pub fn listen(port: u16) -> Result<ServerHandle,ListenError>
+	{
+		let p = ListenPair::any(port);
+		SERVERS.insert(p, Server {
+			accept_space: AtomicUsize::new(10),
+			accept_queue: AtomicRingBuf::new(10),
+			}).map_err(|_| ListenError::SocketInUse)?;
+		Ok( ServerHandle(p) )
+	}
+}
+
+/// Handle to an open (or partially-open) connection
+/// 
+/// Can be directly constructed (for an outgoing/client connection), or returned from a server
 pub struct ConnectionHandle(Quad);
 
 #[derive(Debug)]
@@ -923,7 +980,7 @@ impl ConnectionHandle
 		log_trace!("ConnectionHandle::connect: quad={:?}", quad);
 		// 4. Send the opening SYN (by creating the outbound connection structure)
 		let conn = Connection::new_outbound(&quad, 0x10000u32);
-		CONNECTIONS.insert(quad, Mutex::new(conn));
+		CONNECTIONS.insert(quad, Mutex::new(conn)).map_err(|_| ()).expect("Our unqiue port wasn't unique");
 		Ok( ConnectionHandle(quad) )
 	}
 	pub fn send_data(&self, buf: &[u8]) -> Result<usize, ConnError>
