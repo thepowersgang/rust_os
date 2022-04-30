@@ -49,7 +49,7 @@ fn server()
     const LOCAL_ADDR: IpAddr4 = IpAddr4([192,168,1,2]);
 
     let fw = crate::TestFramework::new("tcp_server");
-    fw.send_command("tcp-server-echo 80");
+    fw.send_command("tcp-listen 0 80");
 
     let mut conn = TcpConn {
         fw: &fw,
@@ -76,15 +76,17 @@ fn server()
     // --- Begin connection handshake --
     // - Send SYN, expect SYN,ACK
     conn.raw_send_packet(TCP_SYN, &[], &[]);
-    conn.local_seq += 1;
-    conn.wait_rx_check(TCP_SYN|TCP_ACK, &[]);
-    conn.remote_seq += 1;
+    conn.local_seq = conn.local_seq.wrapping_add(1);
+    let hdr = conn.wait_rx_check(TCP_SYN|TCP_ACK, &[]);
+    assert_eq!(hdr.ack, conn.local_seq.wrapping_sub(1));
+    conn.remote_seq = hdr.seq;//.wrapping_add(1);
 
     // >> STATE: SYN-RECEIVED
 
     // - Send ACK
     conn.raw_send_packet(TCP_ACK, &[], &[]);
     conn.wait_rx_none();
+    fw.send_command("tcp-accept 0 0");
 
     // >>> STATE: ESTABLISHED
 
@@ -92,7 +94,10 @@ fn server()
     let testblob = b"HelloWorld, this is some random testing data for TCP\xFF\x00\x66\x12\x12.";
     conn.raw_send_packet(TCP_ACK|TCP_PSH, &[], testblob);
     conn.local_seq += testblob.len() as u32;
-    conn.wait_rx_check(TCP_ACK|TCP_PSH, testblob);
+    fw.send_command( &format!("tcp-recv-assert 0 {} {}", testblob.len(), HexString(testblob)) );
+
+    fw.send_command( &format!("tcp-send 0 {}", HexString(testblob)) );
+    conn.wait_rx_check(TCP_ACK/*|TCP_PSH*/, testblob);
     conn.remote_seq += testblob.len() as u32;
 }
 
@@ -112,4 +117,15 @@ fn client()
     // Get the client to send data
     fw.send_command("tcp-send 0 \"00 01 02 03\"");
     conn.wait_rx_check(0, &[0,1,2,3]);
+}
+
+/// Helper to create a string of hex-encoded bytes
+struct HexString<'a>(&'a [u8]);
+impl ::std::fmt::Display for HexString<'_> {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
+        for b in self.0 {
+            write!(f, "{:02x}", b)?;
+        }
+        Ok(())
+    }
 }

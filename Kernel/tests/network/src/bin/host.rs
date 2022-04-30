@@ -52,13 +52,14 @@ fn main()
     stream.send(&[0]).expect("Unable to send marker to server");
     
     let mac = *b"RSK\x12\x34\x56";
-    let nic_handle = network::nic::register(mac, TestNic::new(stream.clone()));
+    let nic_handle = network::nic::register(mac, TestNic::new(1, stream.clone()));
 
 	// TODO: Make this a command instead
     network::ipv4::add_interface(mac, args.sim_ip, 24);
 
 	// Monitor stdin for commands
 	let mut tcp_conn_handles = ::std::collections::HashMap::new();
+	let mut tcp_server_handles = ::std::collections::HashMap::new();
     loop
     {
 		const MTU: usize = 1560;
@@ -71,7 +72,6 @@ fn main()
 				break;
 				},
 			};
-		println!("RX {:?}", ::kernel::logging::HexDump(&buf[..len]));
 		if len == 0 {
 			println!("ERROR: Zero-sized packet?");
 			break;
@@ -87,6 +87,7 @@ fn main()
 		if id == 0
 		{
 			let line = std::str::from_utf8_mut(data).expect("Bad UTF-8 from server");
+			println!("Command {:?}", line);
 			let mut it = ::cmdline_words_parser::parse_posix(line);
 			let cmd = match it.next()
 				{
@@ -106,11 +107,20 @@ fn main()
 			"ipv4-add" => {
 				},
 			// Listen on a port/interface
-			"tcp-server-echo" => {
-				//let index: usize = it.next().unwrap().parse().unwrap();
-				//let port : u16   = it.next().unwrap().parse().unwrap();
-				todo!("Create TCP server");
-				//::network::tcp::
+			"tcp-listen" => {
+				let index: usize = it.next().unwrap().parse().unwrap();
+				let port : u16   = it.next().unwrap().parse().unwrap();
+				log_notice!("tcp-listen {} = *:{}", index, port);
+				tcp_server_handles.insert(index, ::network::tcp::ServerHandle::listen(port).unwrap());
+				println!("OK");
+				},
+			"tcp-accept" => {
+				let c_index: usize = it.next().unwrap().parse().unwrap();
+				let s_index: usize = it.next().unwrap().parse().unwrap();
+				log_notice!("tcp-accept {} = [{}]", c_index, s_index);
+				let s = tcp_server_handles.get_mut(&s_index).expect("BUG: Bad server index");
+				tcp_conn_handles.insert(c_index, s.accept().expect("No waiting connection"));
+				println!("OK");
 				},
 			// Make a connection
 			"tcp-connect" => {
@@ -133,20 +143,28 @@ fn main()
 				let h = &tcp_conn_handles[&index];
 				log_notice!("tcp-send {} {:?}", index, bytes);
 				h.send_data(&bytes).unwrap();
+				println!("OK");
 				},
-			"tcp-recv" => {
+			"tcp-recv-assert" => {
 				let index: usize = it.next().unwrap().parse().unwrap();
 				let read_size: usize = it.next().unwrap().parse().unwrap();
-				let bytes = parse_hex_bytes(it.next().unwrap()).unwrap();
+				let exp_bytes = parse_hex_bytes(it.next().unwrap()).unwrap();
 				// - Receive bytes, check that they equal an expected value
 				// NOTE: No wait
-				todo!("tcp-recv {} {} {:?}", index, read_size, bytes);
+				log_notice!("tcp-recv-assert {} {} == {:?}", index, read_size, exp_bytes);
+				let h = &tcp_conn_handles[&index];
+
+				let mut buf = vec![0; read_size];
+				let len = h.recv_data(&mut buf).unwrap();
+				assert_eq!(&buf[..len], &exp_bytes[..]);
+				println!("OK");
 				},
-			_ => eprintln!("ERROR: Unknown command '{}'", cmd),
+			_ => panic!("ERROR: Unknown command '{}'", cmd),
 			}
 		}
 		else
 		{
+			println!("RX {:?}", ::kernel::logging::HexDump(data));
 			let buf = data.to_owned();
 			let nic = match id
 				{
@@ -214,6 +232,7 @@ fn parse_addr(s: &str) -> Option<::network::Address>
 
 struct TestNic
 {
+	number: u32,
     stream: Arc<std::net::UdpSocket>,
     waiter: std::sync::Mutex< Option<kernel::threads::SleepObjectRef> >,
     // NOTE: Kernel sync queue
@@ -222,9 +241,10 @@ struct TestNic
 
 impl TestNic
 {
-    fn new(stream: Arc<std::net::UdpSocket>) -> TestNic
+    fn new(number: u32, stream: Arc<std::net::UdpSocket>) -> TestNic
     {
         TestNic {
+			number,
             stream,
             waiter: Default::default(),
             packets: Default::default(),
@@ -234,7 +254,10 @@ impl TestNic
 impl network::nic::Interface for TestNic
 {
     fn tx_raw(&self, pkt: network::nic::SparsePacket<'_>) {
-        let buf: Vec<u8> = pkt.into_iter().flat_map(|v| v.iter()).copied().collect();
+		let it = pkt.into_iter().flat_map(|v| v.iter());
+		let num_enc = self.number.to_le_bytes();
+		let it = Iterator::chain( num_enc.iter(), it );
+        let buf: Vec<u8> = it.copied().collect();
 		println!("TX {:?}", ::kernel::logging::HexDump(&buf));
         self.stream.send(&buf).unwrap();
     }

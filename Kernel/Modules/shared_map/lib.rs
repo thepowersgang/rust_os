@@ -57,7 +57,7 @@ impl<K: Send+Sync+Ord, V: Send+Sync> SharedMap<K,V>
 		let mut lh = self.lock.write();
 		match lh.m.entry(k)
 		{
-		Entry::Vacant(_) => { None },
+		Entry::Vacant(e) => { e.insert(v); None },
 		Entry::Occupied(mut e) => { Some( ::core::mem::replace(e.get_mut(), v) ) }
 		}
 	}

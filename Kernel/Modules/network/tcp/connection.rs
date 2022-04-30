@@ -262,6 +262,7 @@ impl Connection
 					// Once the window point reaches 25% of the window from the ACK point
 					if start_ofs == 0 {
 						self.next_rx_seq += ofs as u32;
+
 						// Calculate a maximum window size based on how much space is left in the buffer
 						let buffered_len = self.next_rx_seq - self.rx_buffer_seq;	// How much data the user has buffered
 						let cur_max_window = 2*self.rx_window_size_max - buffered_len;	// NOTE: 2* for some flex so the window can stay at max size
@@ -278,6 +279,8 @@ impl Connection
 						}
 						else {
 							// TODO: Schedule an ACK in a few hundred milliseconds
+							// - Just set a flag so the next outbound packet ACKs
+							self.tx_state.pending_ack = true;
 						}
 					}
 
@@ -375,7 +378,7 @@ impl Connection
 		ConnectionState::Finished => Err( ConnError::LocalClosed ),
 		}
 	}
-    /// Enqueue data to be sent
+	/// Enqueue data to be sent
 	pub(super) fn send_data(&mut self, _quad: &Quad, buf: &[u8]) -> Result<usize, ConnError>
 	{
 		// TODO: Is it valid to send before the connection is fully established?
@@ -408,7 +411,7 @@ impl Connection
 		}
 		Ok(rv)
 	}
-    /// Pull data from the received buffer
+	/// Pull data from the received buffer
 	pub(super) fn recv_data(&mut self, _quad: &Quad, buf: &mut [u8]) -> Result<usize, ConnError>
 	{
 		self.state_to_error()?;
@@ -418,15 +421,19 @@ impl Connection
 		Ok( self.rx_buffer.take(buf) )
 	}
 
-    /// Run TX tasks (from the TX worker)
+	/// Run TX tasks (from the TX worker)
 	pub(super) fn run_tasks(&mut self, quad: &Quad) -> Option<::kernel::time::TickCount>
 	{
-        use ::kernel::futures::block_on;
+		use ::kernel::futures::block_on;
 
 		let flags = {
 			let mut flags = 0u8;
 			if ::core::mem::replace(&mut self.tx_state.pending_ack, false) {
 				flags |= FLAG_ACK;
+			}
+			// TODO: Use a better method of picking when to PSH
+			if false && self.tx_state.force_tx {
+				flags |= FLAG_PSH;
 			}
 			flags
 			};
@@ -481,7 +488,7 @@ impl Connection
 		WORKER_CV.wake_one();
 	}
 
-    /// User requests the connection be closed
+	/// User requests the connection be closed
 	pub(super) fn close(&mut self, quad: &Quad) -> Result<(), ConnError>
 	{
 		let new_state = match self.state

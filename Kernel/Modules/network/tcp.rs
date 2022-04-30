@@ -109,7 +109,7 @@ fn rx_handler(src_addr: Address, dest_addr: Address, mut pkt: crate::nic::Packet
 		};
 	log_debug!("hdr = {:?}", hdr);
 	let hdr_len = hdr.get_header_size();
-	if hdr_len < pre_header_reader.remain() {
+	if hdr_len > pre_header_reader.remain() {
 		log_error!("Undersized or invalid packet: Header length is {} but packet length is {}", hdr_len, pre_header_reader.remain());
 		return ;
 	}
@@ -177,18 +177,29 @@ fn rx_handler(src_addr: Address, dest_addr: Address, mut pkt: crate::nic::Packet
 				match CONNECTIONS.insert(quad, Mutex::new(Connection::new_inbound(&hdr)))
 				{
 				Ok(()) => {
+					log_debug!("Final ACK of a handshake: {:?}", quad);
 					// Add the connection onto the server's accept queue
 					let server = get_server().expect("Can't find server for proto connection");
 					server.accept_queue.push(quad).expect("Acceped connection with full accept queue");
+					// TODO: Signal a waiter too
 					},
 				Err(_) => log_warning!("Conflicting connection?"),	// TODO: What do to if there's a second connection for the quad?
 				}
 			}
 			else
 			{
+				log_debug!("Bad ACK of a handshake: {:?} - SEQ {} != {} || ACK {} != {}", quad,
+					hdr.sequence_number, c.seen_seq + 1,
+					hdr.acknowledgement_number, c.sent_seq,
+					);
 				// - Bad ACK, put the proto connection back into the list
 				let _ = PROTO_CONNECTIONS.insert(quad, c);
 			}
+		}
+		else {
+			// No proto connection - RST?
+			log_debug!("Unexpected ACK: {:?}", quad);
+			block_on(quad.send_packet(hdr.acknowledgement_number, hdr.sequence_number, FLAG_RST, 0, &[], &[]));
 		}
 	}
 	// If none found, look for servers on the destination (if SYN)
@@ -198,12 +209,14 @@ fn rx_handler(src_addr: Address, dest_addr: Address, mut pkt: crate::nic::Packet
 		{
 			// Decrement the server's accept space
 			if s.accept_space.fetch_update(Ordering::SeqCst, Ordering::SeqCst, |v| if v == 0 { None } else { Some(v - 1) }).is_err() { 
+				log_debug!("Start of incoming handshake: {:?} - Dropped, queue full", quad);
 				// Reject if no space
 				// - Send a RST
 				// TODO: Queue a packet instead of blocking here
 				block_on(quad.send_packet(hdr.acknowledgement_number, hdr.sequence_number, FLAG_RST, 0, &[], &[]));
 			}
 			else {
+				log_debug!("Start of incoming handshake: {:?}", quad);
 				// - Add the quad as a proto-connection and send the SYN-ACK
 				let pc = ProtoConnection::new(hdr.sequence_number);
 				block_on(quad.send_packet(pc.sent_seq, pc.seen_seq, FLAG_SYN|FLAG_ACK, hdr.window_size, &[], &[]));
@@ -213,6 +226,7 @@ fn rx_handler(src_addr: Address, dest_addr: Address, mut pkt: crate::nic::Packet
 		else
 		{
 			// Send a RST
+			log_debug!("SYN to closed port: {:?}", quad);
 			block_on(quad.send_packet(hdr.acknowledgement_number, hdr.sequence_number, FLAG_RST|(!hdr.flags & FLAG_ACK), 0, &[], &[]));
 		}
 	}
@@ -441,6 +455,16 @@ impl ServerHandle
 			}).map_err(|_| ListenError::SocketInUse)?;
 		Ok( ServerHandle(p) )
 	}
+
+	/// Accept a new incoming connection
+	pub fn accept(&mut self) -> Option<ConnectionHandle>
+	{
+		let s = SERVERS.get(&self.0).expect("Server entry missing while handle still exists");
+		let rv_quad = s.accept_queue.pop()?;
+		Some( ConnectionHandle(rv_quad) )
+	}
+
+	//pub fn wait_accept(&mut self)
 }
 
 /// Handle to an open (or partially-open) connection
@@ -501,6 +525,7 @@ impl ConnectionHandle
 		Some(v) => v.lock().recv_data(&self.0, buf),
 		}
 	}
+	//pub fn wait_recv()
 
 	pub fn close(&mut self) -> Result<(), ConnError>
 	{

@@ -40,7 +40,7 @@ impl Header
         {
             let mut c = std::io::Cursor::new(&mut rv[..]);
             crate::ser_be(&mut c, self);
-            assert!(c.position() == 5*4);
+            assert_eq!(c.position(), 5*4, "Encoding of TCP header failed?");
         }
         rv
     }
@@ -125,7 +125,7 @@ impl TcpConn<'_>
             };
         send_packet_raw(self.fw, self.addrs.0, self.addrs.1, hdr, options, data);
     }
-    pub fn wait_rx_check(&self, flags: u8, data: &[u8])
+    pub fn wait_rx_check(&self, flags: u8, data: &[u8]) -> Header
     {
         let data_handle = match self.fw.wait_packet(std::time::Duration::from_millis(1000))
             {
@@ -150,6 +150,7 @@ impl TcpConn<'_>
         assert_eq!(tcp_hdr.src_port, self.remote_port);
         // 4. Check the data
         assert_eq!(tail, data, "Data mismatch");
+        tcp_hdr
     }
     pub fn wait_rx_none(&self)
     {

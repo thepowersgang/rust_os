@@ -9,14 +9,18 @@ pub mod tcp;
 pub mod ipv4;
 pub mod ethernet;
 
-
+fn bc_opts() -> impl ::bincode::Options {
+	use ::bincode::Options;
+    ::bincode::options().with_big_endian().allow_trailing_bytes().with_fixint_encoding()
+}
 fn des_be<T: for<'a> ::serde::Deserialize<'a>>(reader: &mut impl ::std::io::Read) -> ::bincode::Result<T> {
 	use ::bincode::Options;
-	::bincode::options().with_big_endian().deserialize_from(reader)
+	bc_opts().deserialize_from(reader)
 }
-fn ser_be<T: ::serde::Serialize>(writer: &mut impl ::std::io::Write, v: &T) {
+fn ser_be<T: ::serde::Serialize>(mut writer: impl ::std::io::Write, v: &T) {
     use ::bincode::Options;
-    ::bincode::options().with_big_endian().serialize_into(writer, v).unwrap();
+    bc_opts().serialize_into(&mut writer, v).unwrap();
+    //::bincode::config().big_endian().serialize_into(&mut writer, v).unwrap();
 }
 
 pub struct TestFramework {
@@ -25,6 +29,13 @@ pub struct TestFramework {
     remote_addr: std::net::SocketAddr,
     process: std::process::Child,
     logfile: std::path::PathBuf,
+
+    cache: ::std::cell::RefCell<Cache>,
+}
+#[derive(Default)]
+struct Cache {
+    cmd_message: Option<Vec<u8>>,
+    packets: ::std::collections::VecDeque< Vec<u8> >,
 }
 impl TestFramework
 {
@@ -85,6 +96,8 @@ impl TestFramework
             remote_addr: addr,
             process: child,
             logfile: logfile,
+
+            cache: Default::default(),
         }
     }
 
@@ -93,13 +106,12 @@ impl TestFramework
 		let mut msg_buf = [0; 4 + 1500];
 		msg_buf[4..][..s.len()].copy_from_slice( s.as_bytes() );
 		self.socket.send_to(&msg_buf[.. 4 + s.len()], self.remote_addr).expect("Failed to send to child");
+
 	}
 
-    /// Encode+send an ethernet frame to the virtualised NIC (addressed correctly)
-    pub fn send_ethernet_direct(&self, proto: u16, buffers: &[ &[u8] ])
+    fn send_packet(&self, nic: usize, ethernet_hdr: &[u8], buffers: &[ &[u8] ])
     {
-        let ethernet_hdr = crate::ethernet::EthernetHeader { dst: REMOTE_MAC, src: LOCAL_MAC, proto: proto, }.encode();
-        let buf: Vec<u8> = Iterator::chain([&[1,0,0,0], &ethernet_hdr as &[u8]].iter(), buffers.iter())
+        let buf: Vec<u8> = Iterator::chain([&u32::to_le_bytes(nic as u32)[..], ethernet_hdr].iter(), buffers.iter())
             .flat_map(|v| v.iter())
             .copied()
             .collect()
@@ -108,27 +120,70 @@ impl TestFramework
         self.socket.send_to(&buf, self.remote_addr).expect("Failed to send to child");
     }
 
+    /// Encode+send an ethernet frame to the virtualised NIC (addressed correctly)
+    pub fn send_ethernet_direct(&self, proto: u16, buffers: &[ &[u8] ])
+    {
+        let ethernet_hdr = crate::ethernet::EthernetHeader { dst: REMOTE_MAC, src: LOCAL_MAC, proto: proto, }.encode();
+        self.send_packet(1, &ethernet_hdr, buffers);
+    }
+
+    pub fn check_messages(&self, timeout: ::std::time::Instant) -> Option<()> {
+        match timeout.checked_duration_since(::std::time::Instant::now()) {
+        None => None,
+        Some(d) => {
+            self.socket.set_read_timeout(Some(d)).expect("Zero timeout requested");
+
+            let mut buf = vec![0; 1560];
+            loop
+            {
+                let (len, addr) = match self.socket.recv_from(&mut buf)
+                    {
+                    Ok(v) => v,
+                    Err(e) if e.kind() == std::io::ErrorKind::TimedOut => return None,
+                    Err(e) if e.kind() == std::io::ErrorKind::WouldBlock => return None,
+                    Err(e) if e.kind() == std::io::ErrorKind::Interrupted => continue,
+                    Err(e) => panic!("wait_packet: Error {} (Kind = {:?})", e, e.kind()),
+                    };
+                if addr != self.remote_addr {
+                    // Hmm...
+                    panic!("");
+                }
+                if len < 4 {
+                    panic!("");
+                }
+                buf.truncate(len);
+
+                let idx = u32::from_le_bytes(::std::convert::TryInto::try_into(&buf[..4]).unwrap());
+                let mut c = self.cache.borrow_mut();
+                match idx
+                {
+                0 => {
+                    c.cmd_message = Some(buf);
+                    },
+                1 => {
+                    buf.drain(0..4);
+                    println!("RX {:?}", HexDump(&buf));
+                    c.packets.push_back(buf);
+                    },
+                _ => panic!(),
+                }
+                return Some(());
+            }
+            }
+        }
+    }
+
     pub fn wait_packet(&self, timeout: Duration) -> Option<Vec<u8>>
     {
-        self.socket.set_read_timeout(Some(timeout)).expect("Zero timeout requested");
-        let mut buf = vec![0; 1560];
-		loop
-		{
-			let (len, addr) = match self.socket.recv_from(&mut buf)
-				{
-				Ok(v) => v,
-				Err(e) if e.kind() == std::io::ErrorKind::TimedOut => return None,
-				Err(e) if e.kind() == std::io::ErrorKind::WouldBlock => return None,
-				Err(e) if e.kind() == std::io::ErrorKind::Interrupted => continue,
-				Err(e) => panic!("wait_packet: Error {} (Kind = {:?})", e, e.kind()),
-				};
-			if addr != self.remote_addr {
-				// Hmm...
-			}
-			buf.truncate(len);
-			println!("RX {:?}", HexDump(&buf));
-			return Some(buf);
-		}
+        let stop = ::std::time::Instant::now() + timeout;
+        loop {
+            if let Some(p) = self.cache.borrow_mut().packets.pop_front() {
+                return Some(p);
+            }
+            if let None = self.check_messages(stop) {
+                return None;
+            }
+        }
     }
 }
 
