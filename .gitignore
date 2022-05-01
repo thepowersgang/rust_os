@@ -53,9 +53,8 @@ Kernel/rundir/*.iso
 Kernel/rundir/arm_bootloader/Core/
 Kernel/rundir/test-*/
 
-/Kernel/tests/network/target/
+/Kernel/tests/**/target
 /Kernel/tests/network/*.txt
-/Kernel/tests/filesystem/target
 
 Bootloaders/uefi/*.txt
 Bootloaders/uefi/target
