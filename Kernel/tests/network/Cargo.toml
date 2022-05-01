@@ -4,6 +4,9 @@ version = "0.1.0"
 authors = ["John Hodge <tpg@mutabah.net>"]
 edition = "2018"
 
+[features]
+#default = ["lwip"]
+
 [lib]
 doctest = false
 
@@ -15,3 +18,4 @@ serde_derive = "1.0"
 bincode = "1.2"
 cmdline_words_parser = { path = "../../../externals/crates.io/cmdline_words_parser", default-features = false }
 lazy_static = "1.4"
+lwip = { path = "lwip", optional = true }
