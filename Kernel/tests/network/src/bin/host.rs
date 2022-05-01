@@ -3,6 +3,7 @@
  */
 #[macro_use]
 extern crate kernel;
+use ::kernel_test_network::HexDump;
 use std::sync::Arc;
 
 struct Args
@@ -53,131 +54,140 @@ fn main()
     
     let mac = *b"RSK\x12\x34\x56";
     let nic_handle = network::nic::register(mac, TestNic::new(1, stream.clone()));
-
 	// TODO: Make this a command instead
     network::ipv4::add_interface(mac, args.sim_ip, 24);
+
+    let (tx,rx) = ::std::sync::mpsc::channel();
+    ::std::thread::spawn(move || {
+        loop
+        {
+            const MTU: usize = 1560;
+            let mut buf = [0; 4 + MTU];
+            let len = match stream.recv(&mut buf)
+                {
+                Ok(len) => len,
+                Err(e) => {
+                    println!("Error receiving packet: {:?}", e);
+                    break;
+                    },
+                };
+            if len == 0 {
+                println!("ERROR: Zero-sized packet?");
+                break;
+            }
+            if len < 4 {
+                println!("ERROR: Runt packet {:?}", HexDump(&buf[..len]));
+                break;
+            }
+            let id = u32::from_le_bytes(std::convert::TryInto::try_into(&buf[..4]).unwrap());
+            let data = &mut buf[4..len];
+            if id == 0
+            {
+                let line = match std::str::from_utf8(data)
+                    {
+                    Ok(v) => v,
+                    Err(e) => panic!("Bad UTF-8 from server: {:?} - {:?}", e, HexDump(&data)),
+                    };
+                println!("COMMAND {:?}", line);
+
+                tx.send(line.to_owned()).expect("Failed to send command to main thread");
+            }
+            else
+            {
+                let buf = data.to_owned();
+                log_notice!("RX #{} {:?}", id, HexDump(data));
+                let nic = match id
+                    {
+                    0 => unreachable!(),
+                    1 => &nic_handle,
+                    _ => panic!("Unknown NIC ID {}", id),
+                    };
+                nic.packet_received(buf);
+            }
+        }
+        });
+
 
 	// Monitor stdin for commands
 	let mut tcp_conn_handles = ::std::collections::HashMap::new();
 	let mut tcp_server_handles = ::std::collections::HashMap::new();
+	
     loop
     {
-		const MTU: usize = 1560;
-		let mut buf = [0; 4 + MTU];
-		let len = match ::kernel::arch::imp::threads::test_pause_thread(|| stream.recv(&mut buf))
+		let mut line = ::kernel::arch::imp::threads::test_pause_thread(|| rx.recv()).unwrap();
+
+		let mut it = ::cmdline_words_parser::parse_posix(&mut line[..]);
+		let cmd = match it.next()
 			{
-			Ok(len) => len,
-			Err(e) => {
-				println!("Error receiving packet: {:?}", e);
-				break;
-				},
-			};
-		if len == 0 {
-			println!("ERROR: Zero-sized packet?");
-			break;
-		}
-		if len < 4 {
-			println!("ERROR: Runt packet");
-			break;
-		}
-		let id = buf[0] as u32 | (buf[1] as u32) << 8
-			| (buf[2] as u32) << 16 | (buf[3] as u32) << 24
-			;
-		let data = &mut buf[4..len];
-		if id == 0
-		{
-			let line = std::str::from_utf8_mut(data).expect("Bad UTF-8 from server");
-			println!("Command {:?}", line);
-			let mut it = ::cmdline_words_parser::parse_posix(line);
-			let cmd = match it.next()
-				{
-				Some(c) => c,
-				None => {
-					log_notice!("stdin empty");
-					break
-					},
-				};
-			match cmd
-			{
-			"" => {},
-			"exit" => {
-				log_notice!("exit command");
+			Some(c) => c,
+			None => {
+				log_notice!("stdin empty");
 				break
 				},
-			"ipv4-add" => {
-				},
-			// Listen on a port/interface
-			"tcp-listen" => {
-				let index: usize = it.next().unwrap().parse().unwrap();
-				let port : u16   = it.next().unwrap().parse().unwrap();
-				log_notice!("tcp-listen {} = *:{}", index, port);
-				tcp_server_handles.insert(index, ::network::tcp::ServerHandle::listen(port).unwrap());
-				println!("OK");
-				},
-			"tcp-accept" => {
-				let c_index: usize = it.next().unwrap().parse().unwrap();
-				let s_index: usize = it.next().unwrap().parse().unwrap();
-				log_notice!("tcp-accept {} = [{}]", c_index, s_index);
-				let s = tcp_server_handles.get_mut(&s_index).expect("BUG: Bad server index");
-				tcp_conn_handles.insert(c_index, s.accept().expect("No waiting connection"));
-				println!("OK");
-				},
-			// Make a connection
-			"tcp-connect" => {
-				// Get dest ip & dest port
-				let index: usize = it.next().unwrap().parse().unwrap();
-				let ip: ::network::Address = parse_addr(it.next().expect("Missing IP")).unwrap();
-				let port: u16 = it.next().unwrap().parse().unwrap();
-				log_notice!("tcp-connect {} = {:?}:{}", index, ip, port);
-				tcp_conn_handles.insert(index, ::network::tcp::ConnectionHandle::connect(ip, port).unwrap());
-				println!("OK");
-				},
-			// Close a TCP connection
-			"tcp-close" => {
-				let index: usize = it.next().unwrap().parse().unwrap();
-				todo!("tcp-close {}", index);
-				},
-			"tcp-send" => {
-				let index: usize = it.next().unwrap().parse().unwrap();
-				let bytes = parse_hex_bytes(it.next().unwrap()).unwrap();
-				let h = &tcp_conn_handles[&index];
-				log_notice!("tcp-send {} {:?}", index, bytes);
-				h.send_data(&bytes).unwrap();
-				println!("OK");
-				},
-			"tcp-recv-assert" => {
-				let index: usize = it.next().unwrap().parse().unwrap();
-				let read_size: usize = it.next().unwrap().parse().unwrap();
-				let exp_bytes = parse_hex_bytes(it.next().unwrap()).unwrap();
-				// - Receive bytes, check that they equal an expected value
-				// NOTE: No wait
-				log_notice!("tcp-recv-assert {} {} == {:?}", index, read_size, exp_bytes);
-				let h = &tcp_conn_handles[&index];
-
-				let mut buf = vec![0; read_size];
-				let len = h.recv_data(&mut buf).unwrap();
-				assert_eq!(&buf[..len], &exp_bytes[..]);
-				println!("OK");
-				},
-			_ => panic!("ERROR: Unknown command '{}'", cmd),
-			}
-		}
-		else
+			};
+		match cmd
 		{
-			println!("RX {:?}", ::kernel::logging::HexDump(data));
-			let buf = data.to_owned();
-			let nic = match id
-				{
-				0 => unreachable!(),
-				1 => &nic_handle,
-				_ => panic!("Unknown NIC ID {}", id),
-				};
-			nic.packets.lock().unwrap().push_back( buf );
-			match *nic.waiter.lock().unwrap()
-			{
-			Some(ref v) => v.signal(),
-			None => println!("No registered waiter yet?"),
-			}
+		"" => {},
+		"exit" => {
+			log_notice!("exit command");
+			break
+			},
+		"ipv4-add" => {
+			},
+		// Listen on a port/interface
+		"tcp-listen" => {
+			let index: usize = it.next().unwrap().parse().unwrap();
+			let port : u16   = it.next().unwrap().parse().unwrap();
+			log_notice!("tcp-listen {} = *:{}", index, port);
+			tcp_server_handles.insert(index, ::network::tcp::ServerHandle::listen(port).unwrap());
+			println!("OK");
+			},
+		"tcp-accept" => {
+			let c_index: usize = it.next().unwrap().parse().unwrap();
+			let s_index: usize = it.next().unwrap().parse().unwrap();
+			log_notice!("tcp-accept {} = [{}]", c_index, s_index);
+			let s = tcp_server_handles.get_mut(&s_index).expect("BUG: Bad server index");
+			tcp_conn_handles.insert(c_index, s.accept().expect("No waiting connection"));
+			println!("OK");
+			},
+		// Make a connection
+		"tcp-connect" => {
+			// Get dest ip & dest port
+			let index: usize = it.next().unwrap().parse().unwrap();
+			let ip: ::network::Address = parse_addr(it.next().expect("Missing IP")).unwrap();
+			let port: u16 = it.next().unwrap().parse().unwrap();
+			log_notice!("tcp-connect {} = {:?}:{}", index, ip, port);
+			tcp_conn_handles.insert(index, ::network::tcp::ConnectionHandle::connect(ip, port).unwrap());
+			println!("OK");
+			},
+		// Close a TCP connection
+		"tcp-close" => {
+			let index: usize = it.next().unwrap().parse().unwrap();
+			todo!("tcp-close {}", index);
+			},
+		"tcp-send" => {
+			let index: usize = it.next().unwrap().parse().unwrap();
+			let bytes = parse_hex_bytes(it.next().unwrap()).unwrap();
+			let h = &tcp_conn_handles[&index];
+			log_notice!("tcp-send {} {:?}", index, bytes);
+			h.send_data(&bytes).unwrap();
+			println!("OK");
+			},
+		"tcp-recv-assert" => {
+			let index: usize = it.next().unwrap().parse().unwrap();
+			let read_size: usize = it.next().unwrap().parse().unwrap();
+			let exp_bytes = parse_hex_bytes(it.next().unwrap()).unwrap();
+			// - Receive bytes, check that they equal an expected value
+			// NOTE: No wait
+			log_notice!("tcp-recv-assert {} {} == {:?}", index, read_size, exp_bytes);
+			let h = &tcp_conn_handles[&index];
+
+			let mut buf = vec![0; read_size];
+			let len = h.recv_data(&mut buf).unwrap();
+			assert_eq!(&buf[..len], &exp_bytes[..]);
+			println!("OK");
+			},
+		_ => panic!("ERROR: Unknown command '{}'", cmd),
 		}
     }
 }
@@ -250,6 +260,16 @@ impl TestNic
             packets: Default::default(),
             }
     }
+
+	fn packet_received(&self, buf: Vec<u8>)
+	{	
+		self.packets.lock().unwrap().push_back( buf );
+		match *self.waiter.lock().unwrap()
+		{
+		Some(ref v) => v.signal(),
+		None => println!("No registered waiter yet?"),
+		}
+	}
 }
 impl network::nic::Interface for TestNic
 {
@@ -258,7 +278,7 @@ impl network::nic::Interface for TestNic
 		let num_enc = self.number.to_le_bytes();
 		let it = Iterator::chain( num_enc.iter(), it );
         let buf: Vec<u8> = it.copied().collect();
-		println!("TX {:?}", ::kernel::logging::HexDump(&buf));
+		log_notice!("TX {:?}", HexDump(&buf));
         self.stream.send(&buf).unwrap();
     }
     //fn tx_async<'a,'s>(&'s self, _: kernel::_async3::ObjectHandle, _: kernel::_async3::StackPush<'a, 's>, _: network::nic::SparsePacket<'_>) -> Result<(), network::nic::Error> {

@@ -104,10 +104,18 @@ fn server()
 #[test]
 fn client()
 {
-    let fw = crate::TestFramework::new("tcp_client");
-    crate::ipv4::prime_arp(&fw, /*dst=*/IpAddr4([192,168,1,1]), /*src=*/IpAddr4([192,168,1,2]));
+    let my_ip = IpAddr4([192,168,1,2]);
+    
+    let fw = {
+        let mut fw = crate::TestFramework::new("tcp_client");
+        fw.add_handler(crate::arp::ArpHandler::new(my_ip));
+        fw
+        };
+    //crate::ipv4::prime_arp(&fw, /*dst=*/IpAddr4([192,168,1,1]), /*src=*/my_ip);
 
-    fw.send_command("tcp-connect 0 192.168.1.2 80");
+    fw.send_command(&format!("tcp-connect 0 {my_ip} 80"));
+    // TODO: Expect an ARP request?
+
     // Expects the SYN
     let conn = TcpConn::from_rx_conn(&fw, 80, IpAddr4([192,168,1,2]));
     // Send SYN,ACK

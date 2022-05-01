@@ -32,7 +32,9 @@ impl Header
         assert!((rv.data_ofs >> 4) >= 20/4, "Bad TCP header length");
         let option_len = (rv.data_ofs >> 4) as usize * 4 - 20;
         assert!(option_len <= buf.len(), "Bad TCP data offset: 20+{}", option_len);
-        (rv, &buf[..option_len], &buf[option_len..])
+        let options = &buf[..option_len];
+        println!("Options: {:x?}", options);
+        (rv, options, &buf[option_len..])
     }
     fn encode(&self) -> [u8; 5*4]
     {
@@ -181,7 +183,8 @@ impl TcpConn<'_>
         assert_eq!(ip_options.len(), 0);
         // 3. Check the TCP header (incl flags)
         let (tcp_hdr,tcp_options, tail) = Header::parse(tail);
-        assert_eq!(tcp_options.len(), 0);
+        //assert_eq!(tcp_options.len(), 0);
+        let _ = tcp_options;
         assert_eq!(tcp_hdr.flags, TCP_SYN);
         assert_eq!(tcp_hdr.dst_port, lport);
         // 4. Check the data

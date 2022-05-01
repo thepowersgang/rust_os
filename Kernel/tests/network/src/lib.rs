@@ -8,6 +8,7 @@ const LOCAL_MAC: [u8; 6] = *b"RSK\xFE\xFE\xFE";
 pub mod tcp;
 pub mod ipv4;
 pub mod ethernet;
+pub mod arp;
 
 fn bc_opts() -> impl ::bincode::Options {
 	use ::bincode::Options;
@@ -27,15 +28,20 @@ pub struct TestFramework {
     _lh: Option<::std::sync::MutexGuard<'static, ()>>,
     socket: std::net::UdpSocket,
     remote_addr: std::net::SocketAddr,
-    process: std::process::Child,
+    process: Option<::std::process::Child>,
     logfile: std::path::PathBuf,
 
     cache: ::std::cell::RefCell<Cache>,
+}
+pub trait PacketHandler {
+    /// Returns `true` is the packet was handled by the handler
+    fn check_packet(&mut self, fw: &TestFramework, data: &[u8]) -> bool;
 }
 #[derive(Default)]
 struct Cache {
     cmd_message: Option<Vec<u8>>,
     packets: ::std::collections::VecDeque< Vec<u8> >,
+    handlers: Vec<Box<dyn PacketHandler>>,
 }
 impl TestFramework
 {
@@ -46,48 +52,76 @@ impl TestFramework
         }
 
         let lh = Some( LOCK.lock().unwrap_or_else(|v| v.into_inner()) );
-
-        let logfile: std::path::PathBuf = format!("{}.txt", name).into();
+        
 		// NOTE: Ports allocated seqentially to avoid collisions between threaded tests
 		static NEXT_PORT: std::sync::atomic::AtomicU16 = std::sync::atomic::AtomicU16::new(12340);
         let port = NEXT_PORT.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        let socket = std::net::UdpSocket::bind( ("127.0.0.1", port) ).expect("Unable to bind socket");
+        let socket_str = format!("127.0.0.1:{}", port);
+        
+        let remote_ip = "192.168.1.1";
+        let logfile: std::path::PathBuf = format!("{}.txt", name).into();
 
-        match std::process::Command::new( env!("CARGO") )
-            .arg("build").arg("--bin").arg("host")
-            .arg("--quiet")
-            .spawn().unwrap().wait()
+        fn spawn_host(logfile: &::std::path::Path, socket_addr: &str, remote_ip: &str, socket: &::std::net::UdpSocket, host_binname: &str) -> (Option<::std::process::Child>, ::std::net::SocketAddr)
         {
-        Ok(status) if status.success() => {},
-        Ok(rc) => panic!("Building helper failed: Non-zero exit status - {}", rc),
-        Err(e) => panic!("Building helper failed: {}", e),
+
+            match std::process::Command::new( env!("CARGO") )
+                .arg("build").arg("--bin").arg(host_binname)
+                .arg("--quiet")
+                .spawn().unwrap().wait()
+            {
+            Ok(status) if status.success() => {},
+            Ok(rc) => panic!("Building helper failed: Non-zero exit status - {}", rc),
+            Err(e) => panic!("Building helper failed: {}", e),
+            }
+    
+            println!("Spawning child");
+            let mut child = std::process::Command::new( env!("CARGO") ).arg("run").arg("--quiet").arg("--bin").arg(host_binname).arg("--")
+            //let mut child = std::process::Command::new("target/debug/host")
+                .arg(socket_addr)
+                .arg(remote_ip)// /24")
+                //.stdin( std::process::Stdio::piped() )
+                .stdout(std::fs::File::create(&logfile).unwrap())
+                //.stderr(std::fs::File::create("stderr.txt").unwrap())
+                .spawn()
+                .expect("Can't spawn child")
+                ;
+            println!("Waiting for child");
+            socket.set_read_timeout(Some(Duration::from_millis(200))).unwrap();
+            let addr = match socket.recv_from(&mut [0])
+                {
+                Ok( (_len, v) ) => v,
+                Err(e) => {
+                    match child.try_wait()
+                    {
+                    Ok(_) => {},
+                    Err(_) => child.kill().expect("Unable to terminate child"),
+                    }
+                    panic!("Child didn't connect: {}", e)
+                    },
+                };
+            (Some(child), addr)
         }
 
 
-        let socket = std::net::UdpSocket::bind( ("127.0.0.1", port) ).expect("Unable to bind socket");
-        println!("Spawning child");
-        let mut child = std::process::Command::new( env!("CARGO") ).arg("run").arg("--quiet").arg("--bin").arg("host").arg("--")
-        //let mut child = std::process::Command::new("target/debug/host")
-            .arg(format!("127.0.0.1:{}", port))
-            .arg("192.168.1.1")// /24")
-			//.stdin( std::process::Stdio::piped() )
-            .stdout(std::fs::File::create(&logfile).unwrap())
-            //.stderr(std::fs::File::create("stderr.txt").unwrap())
-            .spawn()
-            .expect("Can't spawn child")
-            ;
-        println!("Waiting for child");
-        socket.set_read_timeout(Some(Duration::from_millis(200))).unwrap();
-        let addr = match socket.recv_from(&mut [0])
+        let (child, addr) = match ::std::env::var("KNTEST_HOST").as_deref()
             {
-            Ok( (_len, v) ) => v,
-            Err(e) => {
-                match child.try_wait()
-                {
-                Ok(_) => {},
-                Err(_) => child.kill().expect("Unable to terminate child"),
+            Ok("")
+            | Err(_)
+            => spawn_host(&logfile, &socket_str, remote_ip, &socket, "host"),
+            Ok("lwip")
+            => spawn_host(&logfile, &socket_str, remote_ip, &socket, "host_lwip"),
+            Ok("none") => {
+                println!("{:?}", socket_str);
+                socket.set_read_timeout(None).unwrap();
+                let addr = match socket.recv_from(&mut [0])
+                    {
+                    Ok( (_len, v) ) => v,
+                    Err(e) => panic!("Child didn't connect: {}", e),
+                    };
+                (None, addr)
                 }
-                panic!("Child didn't connect: {}", e)
-                },
+            Ok(_) => panic!("Unknown host binary name"),
             };
 
         TestFramework {
@@ -101,12 +135,15 @@ impl TestFramework
         }
     }
 
+    pub fn add_handler(&mut self, h: impl PacketHandler + 'static) {
+        self.cache.get_mut().handlers.push(Box::new(h));
+    }
+
 	pub fn send_command(&self, s: &str)
 	{
 		let mut msg_buf = [0; 4 + 1500];
 		msg_buf[4..][..s.len()].copy_from_slice( s.as_bytes() );
 		self.socket.send_to(&msg_buf[.. 4 + s.len()], self.remote_addr).expect("Failed to send to child");
-
 	}
 
     fn send_packet(&self, nic: usize, ethernet_hdr: &[u8], buffers: &[ &[u8] ])
@@ -116,7 +153,7 @@ impl TestFramework
             .copied()
             .collect()
             ;
-		println!("TX {:?}", HexDump(&buf));
+		println!("TX #{} {:?}", nic, HexDump(&buf[4..]));
         self.socket.send_to(&buf, self.remote_addr).expect("Failed to send to child");
     }
 
@@ -162,10 +199,10 @@ impl TestFramework
                     },
                 1 => {
                     buf.drain(0..4);
-                    println!("RX {:?}", HexDump(&buf));
+                    println!("RX #{} {:?}", idx, HexDump(&buf));
                     c.packets.push_back(buf);
                     },
-                _ => panic!(),
+                _ => panic!("Unknown interface number: {}", idx),
                 }
                 return Some(());
             }
@@ -177,9 +214,17 @@ impl TestFramework
     {
         let stop = ::std::time::Instant::now() + timeout;
         loop {
-            if let Some(p) = self.cache.borrow_mut().packets.pop_front() {
-                return Some(p);
+            let mut bh = self.cache.borrow_mut();
+            if let Some(p) = bh.packets.pop_front() {
+                // If none of the handlers consumed the packet, return it
+                if !bh.handlers.iter_mut()
+                    .any(|h| h.check_packet(self, &p))
+                {
+                    return Some(p);
+                }
             }
+            drop(bh);
+            
             if let None = self.check_messages(stop) {
                 return None;
             }
@@ -191,15 +236,23 @@ impl Drop for TestFramework
 {
     fn drop(&mut self)
     {
-		if self.process.try_wait().is_err()
-		{
-			self.send_command("exit");
-			std::thread::sleep(std::time::Duration::new(0,500*1000) );
-		}
-		if self.process.try_wait().is_err()
-		{
-			self.process.kill().expect("Cannot terminate child");
-		}
+        if let Some(mut process) = self.process.take()
+        {
+            if process.try_wait().is_err()
+            {
+                self.send_command("exit");
+                let stop_time = ::std::time::Instant::now() + std::time::Duration::from_millis(500); // 500ms
+                while process.try_wait().is_err() && ::std::time::Instant::now() < stop_time {
+                    std::thread::sleep(std::time::Duration::from_millis(50) );
+                }
+            }
+            if process.try_wait().is_err()
+            {
+                println!("- Child didn't respond to `exit` command, killing");
+                process.kill().expect("Cannot terminate child");
+            }
+            process.wait().expect("Failed to wait for child");
+        }
         if std::thread::panicking() {
             println!("See {} for worker log", self.logfile.canonicalize().unwrap().display());
         }
@@ -229,4 +282,35 @@ impl<'a> ::std::fmt::Debug for HexDump<'a>
 		}
 		Ok( () )
 	}
+}
+
+
+
+pub struct ArrayBuf<const N: usize> {
+    len: usize,
+    inner: [u8; N],
+}
+impl<const N: usize> ArrayBuf<N> {
+    pub fn new() -> Self {
+        ArrayBuf {
+            len: 0,
+            inner: [0; N],
+        }
+    }
+    pub fn extend(&mut self, i: impl IntoIterator<Item=u8>) {
+        for v in i {
+            self.push(v);
+        }
+    }
+    pub fn push(&mut self, v: u8) {
+        assert!(self.len < N);
+        self.inner[self.len] = v;
+        self.len += 1;
+    }
+}
+impl<const N: usize> ::core::ops::Deref for ArrayBuf<N> {
+    type Target = [u8];
+    fn deref(&self) -> &[u8] {
+        &self.inner[..self.len]
+    }
 }

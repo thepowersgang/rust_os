@@ -6,6 +6,11 @@ use std::mem::size_of;
 pub struct Addr(pub [u8; 4]);
 impl ::core::fmt::Debug for Addr {
 	fn fmt(&self, f: &mut ::core::fmt::Formatter) -> ::core::fmt::Result {
+		::std::fmt::Display::fmt(self, f)
+	}
+}
+impl ::core::fmt::Display for Addr {
+	fn fmt(&self, f: &mut ::core::fmt::Formatter) -> ::core::fmt::Result {
 		write!(f, "{}.{}.{}.{}", self.0[0], self.0[1], self.0[2], self.0[3])
 	}
 }
@@ -81,13 +86,18 @@ pub fn calculate_ip_checksum(words: impl Iterator<Item=u16>) -> u16
 
 pub fn prime_arp(fw: &crate::TestFramework, dst: Addr, src: Addr)
 {
-    let ip_hdr = {
-        let mut h = Header::new_simple(src, dst, 0, 0);
-        h.set_checksum();
-        h.encode()
-        };
-    fw.send_ethernet_direct(0x0800, &[&ip_hdr, &[]]);
-    // TODO: Send a TCP packet that would always trigger a response (and wait for that response)
+	let arp_msg = [
+		0x00, 0x01,	// Hardware type 1
+		0x08, 0x00,	// Protocol type 0x0800
+		6,4,	// Sizes
+		0,2,	// Code 2: Response
+		crate::LOCAL_MAC[0], crate::LOCAL_MAC[1], crate::LOCAL_MAC[2], crate::LOCAL_MAC[3], crate::LOCAL_MAC[4], crate::LOCAL_MAC[0],
+		src.0[0], src.0[1], src.0[2], src.0[3],
+		0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,
+		dst.0[0], dst.0[1], dst.0[2], dst.0[3],
+		];
+    fw.send_ethernet_direct(0x0806, &[&arp_msg, &[]]);
+    // TODO: Send a TCP packet that would always trigger a response (and wait for that response)?
     // Short sleep for processing
     ::std::thread::sleep(::std::time::Duration::new(0,250*1000));
 }
