@@ -1,0 +1,5 @@
+[package]
+name = "lwip-sys"
+version = "0.1.0"
+authors = ["John Hodge <tpg@mutabah.net>"]
+edition = "2018"

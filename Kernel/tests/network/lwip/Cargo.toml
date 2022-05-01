@@ -1,0 +1,8 @@
+[package]
+name = "lwip"
+version = "0.1.0"
+authors = ["John Hodge <tpg@mutabah.net>"]
+edition = "2018"
+
+[dependencies]
+lwip-sys = { path = "lwip-sys" }
