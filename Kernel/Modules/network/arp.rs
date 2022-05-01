@@ -78,9 +78,11 @@ pub async fn lookup_v4(interface_mac: crate::nic::MacAddr, addr: crate::ipv4::Ad
 	let request = [
 		0x00,0x01,	// Ethernet
 		0x08,0x00,	// IPv4
-		6, 4,
-		1,
+		6, 4,	// hwsize, swsize
+		0, 1,	// operation
 		interface_mac[0], interface_mac[1], interface_mac[2], interface_mac[3], interface_mac[4], interface_mac[5],
+		0,0,0,0,
+		0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,
 		addr.0[0], addr.0[1], addr.0[2], addr.0[3],
 		];
 	crate::nic::send_from(interface_mac, dest_mac, 0x0806, crate::nic::SparsePacket::new_root(&request));
