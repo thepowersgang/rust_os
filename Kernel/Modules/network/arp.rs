@@ -73,6 +73,7 @@ pub async fn lookup_v4(interface_mac: crate::nic::MacAddr, addr: crate::ipv4::Ad
 	Some(None) => {},
 	None => {},
 	}
+	log_debug!("Sending ARP request for {} from {:?}", addr, interface_mac);
 	// - Send request packet
 	let dest_mac = [0xFF; 6];
 	let request = [
