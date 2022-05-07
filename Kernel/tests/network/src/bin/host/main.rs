@@ -7,9 +7,14 @@ extern crate kernel;
 use ::kernel_test_network::HexDump;
 use std::sync::Arc;
 
+#[cfg(not(feature="lwip"))]
 mod backend_kernel;
-
+#[cfg(not(feature="lwip"))]
 use self::backend_kernel as backend;
+#[cfg(feature="lwip")]
+mod backend_lwip;
+#[cfg(feature="lwip")]
+use self::backend_lwip as backend;
 
 struct Args
 {
@@ -32,7 +37,7 @@ fn main()
                 Ok(mut v) => v.next().unwrap(),
                 }
                 },
-			sim_ip: backend::ip_from_std( &it.next().unwrap().parse().unwrap() ),
+			sim_ip: backend::parse_addr( &it.next().unwrap() ).unwrap(),
 			}
         };
     
@@ -51,11 +56,11 @@ fn main()
 	stream.set_read_timeout(Some(::std::time::Duration::from_secs(10))).expect("Unable to set read timeout");
 	let stream = Arc::new(stream);
     stream.send(&[0]).expect("Unable to send marker to server");
-    
-	let nic_handle = backend::create_interface(stream.clone(), 1, *b"RSK\x12\x34\x56", args.sim_ip);
 
     let (tx,rx) = ::std::sync::mpsc::channel();
 	backend::spawn_thread(move || {
+		let nic_handle = backend::create_interface(stream.clone(), 1, *b"RSK\x12\x34\x56", args.sim_ip);
+		
         loop
         {
             const MTU: usize = 1560;
@@ -89,13 +94,12 @@ fn main()
             else
             {
                 let buf = data.to_owned();
-                let nic = match id
-                    {
-                    0 => unreachable!(),
-                    1 => &mut *nic_handle,
-                    _ => panic!("Unknown NIC ID {}", id),
-                    };
-                nic.packet_received(buf);
+                match id
+				{
+				0 => unreachable!(),
+				1 => nic_handle.packet_received(buf),
+				_ => panic!("Unknown NIC ID {}", id),
+				}
             }
         }
         });
@@ -132,7 +136,7 @@ fn main()
 			let index: usize = it.next().unwrap().parse().unwrap();
 			let port : u16   = it.next().unwrap().parse().unwrap();
 			log_notice!("tcp-listen {} = *:{}", index, port);
-			tcp_server_handles.insert(index, ::network::tcp::ServerHandle::listen(port).unwrap());
+			tcp_server_handles.insert(index, backend::tcp_listen(port));
 			println!("OK");
 			},
 		"tcp-accept" => {
@@ -147,10 +151,10 @@ fn main()
 		"tcp-connect" => {
 			// Get dest ip & dest port
 			let index: usize = it.next().unwrap().parse().unwrap();
-			let ip: ::network::Address = parse_addr(it.next().expect("Missing IP")).unwrap();
+			let ip = backend::parse_addr(it.next().expect("Missing IP")).unwrap();
 			let port: u16 = it.next().unwrap().parse().unwrap();
 			log_notice!("tcp-connect {} = {:?}:{}", index, ip, port);
-			tcp_conn_handles.insert(index, ::network::tcp::ConnectionHandle::connect(ip, port).unwrap());
+			tcp_conn_handles.insert(index, backend::tcp_connect(ip, port));
 			println!("OK");
 			},
 		// Close a TCP connection
@@ -173,7 +177,7 @@ fn main()
 			// - Receive bytes, check that they equal an expected value
 			// NOTE: No wait
 			log_notice!("tcp-recv-assert {} {} == {:?}", index, read_size, exp_bytes);
-			let h = &tcp_conn_handles[&index];
+			let h = tcp_conn_handles.get_mut(&index).unwrap();
 
 			let mut buf = vec![0; read_size];
 			let len = h.recv_data(&mut buf).unwrap();
@@ -212,23 +216,5 @@ fn parse_hex_bytes(s: &str) -> Option<Vec<u8>>
 	}
 	else {
 		Some(rv)
-	}
-}
-
-fn parse_addr(s: &str) -> Option<::network::Address>
-{
-	if s.contains(".") {
-		let mut it = s.split('.');
-		let b1: u8 = it.next()?.parse().ok()?;
-		let b2: u8 = it.next()?.parse().ok()?;
-		let b3: u8 = it.next()?.parse().ok()?;
-		let b4: u8 = it.next()?.parse().ok()?;
-		if it.next().is_some() {
-			return None;
-		}
-		Some( ::network::Address::Ipv4(::network::ipv4::Address::new(b1, b2, b3, b4)) )
-	}
-	else {
-		None
 	}
 }

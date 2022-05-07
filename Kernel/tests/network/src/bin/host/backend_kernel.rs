@@ -6,9 +6,22 @@ use ::std::sync::Arc;
 
 pub type IpAddr = ::network::ipv4::Address;
 
-pub fn ip_from_std(std_ip: &::std::net::Ipv4Addr) -> IpAddr {
-    let o = std_ip.octets();
-    network::ipv4::Address::new(o[0], o[1], o[2], o[3])
+pub fn parse_addr(s: &str) -> Option<IpAddr>
+{
+	if s.contains(".") {
+		let mut it = s.split('.');
+		let b1: u8 = it.next()?.parse().ok()?;
+		let b2: u8 = it.next()?.parse().ok()?;
+		let b3: u8 = it.next()?.parse().ok()?;
+		let b4: u8 = it.next()?.parse().ok()?;
+		if it.next().is_some() {
+			return None;
+		}
+		Some( ::network::ipv4::Address::new(b1, b2, b3, b4) )
+	}
+	else {
+		None
+	}
 }
 
 pub fn init() {
@@ -29,6 +42,13 @@ pub fn spawn_thread(f: impl FnOnce() + Send + 'static) {
 }
 pub fn run_blocking<T>(f: impl FnOnce()->T) -> T {
     ::kernel::arch::imp::threads::test_pause_thread(f)
+}
+
+pub fn tcp_connect(ip: IpAddr, port: u16) -> ::network::tcp::ConnectionHandle {
+    ::network::tcp::ConnectionHandle::connect(::network::Address::Ipv4(ip), port).unwrap()
+}
+pub fn tcp_listen(port: u16) -> ::network::tcp::ServerHandle {
+    ::network::tcp::ServerHandle::listen(port).unwrap()
 }
 
 

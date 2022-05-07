@@ -67,10 +67,15 @@ impl TestFramework
 
         fn spawn_host(logfile: &::std::path::Path, socket_addr: &str, remote_ip: &str, socket: &::std::net::UdpSocket, host_binname: &str) -> (Option<::std::process::Child>, ::std::net::SocketAddr)
         {
-
+            let logfile = ::std::fs::File::create(&logfile).unwrap();
+            // /*
+            let args = [
+                "--bin", &host_binname,
+                "--quiet",
+                "--features", if cfg!(feature="lwip") { "lwip" } else { "" },
+                ];
             match std::process::Command::new( env!("CARGO") )
-                .arg("build").arg("--bin").arg(host_binname)
-                .arg("--quiet")
+                .arg("build").args(args)
                 .spawn().unwrap().wait()
             {
             Ok(status) if status.success() => {},
@@ -78,10 +83,11 @@ impl TestFramework
             Err(e) => panic!("Building helper failed: {}", e),
             }
     
-            println!("Spawning child");
-            let logfile = ::std::fs::File::create(&logfile).unwrap();
-            let mut child = std::process::Command::new( env!("CARGO") ).arg("run").arg("--quiet").arg("--bin").arg(host_binname).arg("--")
-            //let mut child = std::process::Command::new("target/debug/host")
+            println!("Spawning child w/ {:?}", args);
+            let mut child = std::process::Command::new( env!("CARGO") ).arg("run").args(args).arg("--")
+            // */
+            //let mut child = std::process::Command::new( env!("CARGO_BIN_EXE_host") )
+            //let mut child = std::process::Command::new( format!("../../target/debug/{host_binname}") )
                 .arg(socket_addr)
                 .arg(remote_ip)// /24")
                 //.stdin( std::process::Stdio::piped() )

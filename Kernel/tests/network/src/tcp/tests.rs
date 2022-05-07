@@ -11,7 +11,12 @@ fn resets()
     const REMOTE_ADDR: IpAddr4 = IpAddr4([192,168,1,1]);
     const LOCAL_ADDR: IpAddr4 = IpAddr4([192,168,1,2]);
 
-    let fw = crate::TestFramework::new("tcp_resets");
+    let fw = {
+        let mut fw = crate::TestFramework::new("tcp_resets");
+        fw.add_handler(crate::arp::ArpHandler::new(LOCAL_ADDR));
+        fw
+        };
+    
     let conn = TcpConn {
         fw: &fw,
         addrs: (LOCAL_ADDR, REMOTE_ADDR),
@@ -30,7 +35,7 @@ fn resets()
 
     // SYN,ACK to closed port
     conn.raw_send_packet(TCP_SYN|TCP_ACK, &[], &[]);
-    conn.wait_rx_check(TCP_RST, &[]);
+    conn.wait_rx_check(TCP_ACK|TCP_RST, &[]);
     
     // RST to anything
     conn.raw_send_packet(TCP_RST, &[], &[]);
@@ -48,7 +53,11 @@ fn server()
     const REMOTE_ADDR: IpAddr4 = IpAddr4([192,168,1,1]);
     const LOCAL_ADDR: IpAddr4 = IpAddr4([192,168,1,2]);
 
-    let fw = crate::TestFramework::new("tcp_server");
+    let fw = {
+        let mut fw = crate::TestFramework::new("tcp_server");
+        fw.add_handler(crate::arp::ArpHandler::new(LOCAL_ADDR));
+        fw
+        };
     fw.send_command("tcp-listen 0 80");
 
     let mut conn = TcpConn {
@@ -71,14 +80,14 @@ fn server()
     
     // Send an ACK, expect RST
     conn.raw_send_packet(TCP_ACK, &[], &[]);
-    conn.wait_rx_check(TCP_RST, &[]);
+    conn.wait_rx_check(TCP_ACK|TCP_RST, &[]);
 
     // --- Begin connection handshake --
     // - Send SYN, expect SYN,ACK
     conn.raw_send_packet(TCP_SYN, &[], &[]);
     conn.local_seq = conn.local_seq.wrapping_add(1);
     let hdr = conn.wait_rx_check(TCP_SYN|TCP_ACK, &[]);
-    assert_eq!(hdr.ack, conn.local_seq.wrapping_sub(1));
+    assert_eq!(hdr.ack, conn.local_seq, "ACK number doens't match expected");
     conn.remote_seq = hdr.seq;//.wrapping_add(1);
 
     // >> STATE: SYN-RECEIVED
@@ -117,14 +126,15 @@ fn client()
     // TODO: Expect an ARP request?
 
     // Expects the SYN
-    let conn = TcpConn::from_rx_conn(&fw, 80, IpAddr4([192,168,1,2]));
+    let mut conn = TcpConn::from_rx_conn(&fw, 80, IpAddr4([192,168,1,2]));
     // Send SYN,ACK
     conn.raw_send_packet(TCP_SYN|TCP_ACK, &[], &[]);
+    conn.local_seq += 1;
     // Expect ACK
     conn.wait_rx_check(TCP_ACK, &[]);
     // Get the client to send data
     fw.send_command("tcp-send 0 \"00 01 02 03\"");
-    conn.wait_rx_check(0, &[0,1,2,3]);
+    conn.wait_rx_check(if cfg!(feature="lwip") { TCP_ACK|TCP_PSH } else { 0 }, &[0,1,2,3]);
 }
 
 /// Helper to create a string of hex-encoded bytes

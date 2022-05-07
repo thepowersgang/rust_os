@@ -127,6 +127,7 @@ impl TcpConn<'_>
             };
         send_packet_raw(self.fw, self.addrs.0, self.addrs.1, hdr, options, data);
     }
+    #[track_caller]
     pub fn wait_rx_check(&self, flags: u8, data: &[u8]) -> Header
     {
         let data_handle = match self.fw.wait_packet(std::time::Duration::from_millis(1000))
@@ -146,14 +147,16 @@ impl TcpConn<'_>
         assert_eq!(ip_options.len(), 0);
         // 3. Check the TCP header (incl flags)
         let (tcp_hdr,tcp_options, tail) = Header::parse(tail);
-        assert_eq!(tcp_options.len(), 0);
-        assert_eq!(tcp_hdr.flags, flags);
-        assert_eq!(tcp_hdr.dst_port, self.local_port);
-        assert_eq!(tcp_hdr.src_port, self.remote_port);
+        assert!(tcp_hdr.dst_port == self.local_port, "TCP destination port mismatch: Exp {} got {}", tcp_hdr.dst_port, self.local_port);
+        assert!(tcp_hdr.src_port == self.remote_port, "TCP source port mismatch: Exp {} got {}", tcp_hdr.src_port, self.remote_port);
+        //assert!(tcp_options.len() == 0, "Expected no TCP options, got {:?}", tcp_options);
+        let _ = tcp_options;
+        assert!(tcp_hdr.flags == flags, "Header flags mismatch: Expected {:#x} got {:#x}", flags, tcp_hdr.flags);
         // 4. Check the data
         assert_eq!(tail, data, "Data mismatch");
         tcp_hdr
     }
+    #[track_caller]
     pub fn wait_rx_none(&self)
     {
         match self.fw.wait_packet(std::time::Duration::from_millis(100))
@@ -198,7 +201,7 @@ impl TcpConn<'_>
             rx_window: 0x1000,
 
             local_seq: 0x10000,
-            remote_seq: tcp_hdr.seq,
+            remote_seq: tcp_hdr.seq + 1,
             }
     }
 }
