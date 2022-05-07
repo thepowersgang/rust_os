@@ -423,17 +423,19 @@ pub mod threads {
 		pub fn pause(&self) -> PausedThread {
 			// - Hold switching lock until function returns
 			// Mark as complete to cause the thread to not sleep on next yield
-			THIS_THREAD_STATE.with(|v| {
+			let p = THIS_THREAD_STATE.with(|v| {
 				let h = v.borrow();
-				h.this_state.as_ref().unwrap().complete.store(true, Ordering::SeqCst);
+				let state = h.this_state.as_ref().unwrap();
+				state.complete.store(true, Ordering::SeqCst);
+				state as *const _
 				});
-			log_debug!("Pausing thread");
+			log_debug!("Pausing thread {:p}", p);
 			// Acquire a lock
 			let wl = self.lock.write();
 			// - Trigger a deadlock (which will sleep, but not block due to above flag)
 			let rl = self.lock.read();
 
-			log_debug!("Paused thread");
+			log_debug!("Paused thread {:p}", p);
 			PausedThread {
 				wl: Some(wl),
 				rl: Some(rl),
@@ -545,12 +547,12 @@ pub mod time {
 			let mut lh = THREAD_TIMER.write().unwrap();
 			if lh.is_none() {
 				*lh = Some(crate::threads::WorkerThread::new("ArchTest Timer", || {
-					let mut next_tick = NEXT_TICK.lock().unwrap();
 					loop {
+						let mut next_tick = NEXT_TICK.lock().unwrap();
 						if *next_tick == !0 {
 							// Wait on a condvar
-							next_tick = super::threads::test_pause_thread(move || {
-								CV.wait(next_tick).unwrap()
+							super::threads::test_pause_thread(move || {
+								let _ = CV.wait(next_tick).unwrap();
 								});
 						}
 						else {
@@ -563,12 +565,11 @@ pub mod time {
 								// - Call the callback.
 								drop(next_tick);
 								crate::time::time_tick();
-								next_tick = NEXT_TICK.lock().unwrap();
 								},
 							// `Some` means that we need to sleep for some time.
 							Some(dt_ms) => {
-								next_tick = super::threads::test_pause_thread(|| {
-									CV.wait_timeout(next_tick, ::std::time::Duration::from_millis(dt_ms)).unwrap().0
+								super::threads::test_pause_thread(|| {
+									let _ = CV.wait_timeout(next_tick, ::std::time::Duration::from_millis(dt_ms)).unwrap().0;
 									});
 								},
 							}
