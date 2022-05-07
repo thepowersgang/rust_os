@@ -9,6 +9,7 @@ pub mod tcp;
 pub mod ipv4;
 pub mod ethernet;
 pub mod arp;
+pub mod pcap_writer;
 
 fn bc_opts() -> impl ::bincode::Options {
 	use ::bincode::Options;
@@ -30,6 +31,7 @@ pub struct TestFramework {
     remote_addr: std::net::SocketAddr,
     process: Option<::std::process::Child>,
     logfile: std::path::PathBuf,
+    pcap: ::std::cell::RefCell< pcap_writer::PcapWriter<::std::io::BufWriter<::std::fs::File>> >,
 
     cache: ::std::cell::RefCell<Cache>,
 }
@@ -61,6 +63,7 @@ impl TestFramework
         
         let remote_ip = "192.168.1.1";
         let logfile: std::path::PathBuf = format!("{}.txt", name).into();
+        let pcapfile: std::path::PathBuf = format!("{}.pcap", name).into();
 
         fn spawn_host(logfile: &::std::path::Path, socket_addr: &str, remote_ip: &str, socket: &::std::net::UdpSocket, host_binname: &str) -> (Option<::std::process::Child>, ::std::net::SocketAddr)
         {
@@ -76,12 +79,14 @@ impl TestFramework
             }
     
             println!("Spawning child");
+            let logfile = ::std::fs::File::create(&logfile).unwrap();
             let mut child = std::process::Command::new( env!("CARGO") ).arg("run").arg("--quiet").arg("--bin").arg(host_binname).arg("--")
             //let mut child = std::process::Command::new("target/debug/host")
                 .arg(socket_addr)
                 .arg(remote_ip)// /24")
                 //.stdin( std::process::Stdio::piped() )
-                .stdout(std::fs::File::create(&logfile).unwrap())
+                .stderr( logfile.try_clone().unwrap() )
+                .stdout(logfile)
                 //.stderr(std::fs::File::create("stderr.txt").unwrap())
                 .spawn()
                 .expect("Can't spawn child")
@@ -124,12 +129,16 @@ impl TestFramework
             Ok(_) => panic!("Unknown host binary name"),
             };
 
+        let pcap = ::std::fs::File::create(pcapfile).expect("Unable to open packet dump");
+        let pcap = pcap_writer::PcapWriter::new(::std::io::BufWriter::new( pcap )).expect("Unable to write pcap header");
+
         TestFramework {
             _lh: lh,
             socket: socket,
             remote_addr: addr,
             process: child,
             logfile: logfile,
+            pcap: ::std::cell::RefCell::new(pcap),
 
             cache: Default::default(),
         }
@@ -146,14 +155,21 @@ impl TestFramework
 		self.socket.send_to(&msg_buf[.. 4 + s.len()], self.remote_addr).expect("Failed to send to child");
 	}
 
-    fn send_packet(&self, nic: usize, ethernet_hdr: &[u8], buffers: &[ &[u8] ])
+    fn dump_packet(&self, is_tx: bool, nic: u32, data: &[u8])
+    {
+		println!("{} #{} {:?}", (if is_tx { "TX" } else { "RX" }), nic, HexDump(data));
+        self.pcap.borrow_mut().push_packet(data)
+            .expect("Unable to write to pcap file");
+    }
+
+    fn send_packet(&self, nic: u32, ethernet_hdr: &[u8], buffers: &[ &[u8] ])
     {
         let buf: Vec<u8> = Iterator::chain([&u32::to_le_bytes(nic as u32)[..], ethernet_hdr].iter(), buffers.iter())
             .flat_map(|v| v.iter())
             .copied()
             .collect()
             ;
-		println!("TX #{} {:?}", nic, HexDump(&buf[4..]));
+        self.dump_packet(true, nic, &buf[4..]);
         self.socket.send_to(&buf, self.remote_addr).expect("Failed to send to child");
     }
 
@@ -164,6 +180,7 @@ impl TestFramework
         self.send_packet(1, &ethernet_hdr, buffers);
     }
 
+    /// 
     pub fn check_messages(&self, timeout: ::std::time::Instant) -> Option<()> {
         match timeout.checked_duration_since(::std::time::Instant::now()) {
         None => None,
@@ -198,8 +215,9 @@ impl TestFramework
                     c.cmd_message = Some(buf);
                     },
                 1 => {
+                    self.dump_packet(false, idx, &buf[4..]);
+
                     buf.drain(0..4);
-                    println!("RX #{} {:?}", idx, HexDump(&buf));
                     c.packets.push_back(buf);
                     },
                 _ => panic!("Unknown interface number: {}", idx),
@@ -230,28 +248,47 @@ impl TestFramework
             }
         }
     }
+
+    fn stop_child(&mut self, mut process: ::std::process::Child)
+    {
+        match process.try_wait().unwrap()
+        {
+        Some(_) => {
+            println!("Child process was already terminated");
+            return
+            },
+        None => {},
+        }
+
+        self.send_command("exit");
+        let timeout = std::time::Duration::from_millis(500);
+        let stop_time = ::std::time::Instant::now() + timeout;
+        while ::std::time::Instant::now() < stop_time {
+            match process.try_wait().unwrap()
+            {
+            Some(_) => {
+                println!("Child process closed using the `exit` command");
+                return
+                },
+            None => {},
+            }
+            std::thread::sleep(std::time::Duration::from_millis(50) );
+        }
+
+        println!("- Child didn't respond to `exit` command in {:?}, killing", timeout);
+        process.kill().expect("Cannot terminate child");
+
+        process.wait().expect("Failed to wait for child");
+    }
 }
 
 impl Drop for TestFramework
 {
     fn drop(&mut self)
     {
-        if let Some(mut process) = self.process.take()
+        if let Some(process) = self.process.take()
         {
-            if process.try_wait().is_err()
-            {
-                self.send_command("exit");
-                let stop_time = ::std::time::Instant::now() + std::time::Duration::from_millis(500); // 500ms
-                while process.try_wait().is_err() && ::std::time::Instant::now() < stop_time {
-                    std::thread::sleep(std::time::Duration::from_millis(50) );
-                }
-            }
-            if process.try_wait().is_err()
-            {
-                println!("- Child didn't respond to `exit` command, killing");
-                process.kill().expect("Cannot terminate child");
-            }
-            process.wait().expect("Failed to wait for child");
+            self.stop_child(process);
         }
         if std::thread::panicking() {
             println!("See {} for worker log", self.logfile.canonicalize().unwrap().display());
