@@ -38,16 +38,17 @@ impl EventChannel
 	
 	/// Sleep until an event
 	pub fn sleep(&self) {
-		log_trace!("EventChannel::sleep()");
 		// SAFE: Queue is only accessed with the lock held
 		unsafe {
 			let mut lh = self.lock.lock();
 			// If an event has fired, clear it and don't sleep.
 			if *lh == true {
+				log_trace!("EventChannel::sleep() - ready");
 				*lh = false;
 			}
 			// Otherwise, sleep until after event
 			else {
+				log_trace!("EventChannel::sleep() - wait");
 				(*self.queue.get()).wait(lh);
 			}
 		}
