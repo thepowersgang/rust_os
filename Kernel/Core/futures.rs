@@ -15,6 +15,9 @@ pub mod mutex;
 /// Helper to wait on multiple futures at once
 pub mod join;
 
+mod simple_waiter;
+use self::simple_waiter::SimpleWaiter;
+
 pub use self::condvar::Condvar;
 pub use self::mutex::Mutex;
 
@@ -41,7 +44,7 @@ pub fn block_on<F: ::core::future::Future>(mut f: F) -> F::Output {
 	})
 }
 
-static TIME_WAKEUPS: crate::sync::Mutex<helpers::WakerQueue>	= crate::sync::Mutex::new( helpers::WakerQueue::new() );
+static TIME_WAKEUPS: crate::sync::Mutex<helpers::WakerQueue> = crate::sync::Mutex::new( helpers::WakerQueue::new() );
 
 pub(super) fn time_tick() {
 	TIME_WAKEUPS.lock().wake_all();
@@ -103,59 +106,5 @@ pub fn runner<T>(mut f: impl FnMut(&mut task::Context)->Option<T>) -> T
 			return rv;
 		}
 		waiter.sleep();
-	}
-}
-
-struct SimpleWaiter
-{
-	ref_count: AtomicUsize,
-	ec: EventChannel,
-}
-
-impl SimpleWaiter
-{
-	fn new() -> SimpleWaiter {
-		SimpleWaiter {
-			ref_count: Default::default(),
-			ec: Default::default(),
-		}
-	}
-
-	fn sleep(&self) {
-		self.ec.sleep();
-	}
-
-	fn raw_waker(&self) -> task::RawWaker {
-		static VTABLE: task::RawWakerVTable = task::RawWakerVTable::new(
-			/*clone:*/ SimpleWaiter::rw_clone,
-			/*wake:*/ SimpleWaiter::rw_wake,
-			/*wake_by_ref:*/ SimpleWaiter::rw_wake_by_ref,
-			/*drop:*/ SimpleWaiter::rw_drop,
-			);
-		self.ref_count.fetch_add(1, Ordering::SeqCst);
-		task::RawWaker::new(self as *const _ as *const (), &VTABLE)
-	}
-	unsafe fn raw_self(raw_self: &*const ()) -> &Self {
-		&*(*raw_self as *const Self)
-	}
-	unsafe fn rw_clone(raw_self: *const ()) -> task::RawWaker {
-		Self::raw_self(&raw_self).raw_waker()
-	}
-	unsafe fn rw_wake(raw_self: *const ()) {
-		Self::rw_wake_by_ref(raw_self);
-		Self::rw_drop(raw_self);
-	}
-	unsafe fn rw_wake_by_ref(raw_self: *const ()) {
-		// Poke sleeping thread
-		Self::raw_self(&raw_self).ec.post();
-	}
-	unsafe fn rw_drop(raw_self: *const ()) {
-		// Decrement reference count
-		Self::raw_self(&raw_self).ref_count.fetch_sub(1, Ordering::SeqCst);
-	}
-}
-impl core::ops::Drop for SimpleWaiter {
-	fn drop(&mut self) {
-		assert!(*self.ref_count.get_mut() == 0, "References left when waker dropped");
 	}
 }
