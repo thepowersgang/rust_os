@@ -130,23 +130,22 @@ fn host_worker(host: ArefBorrow<Host>)
 	// SAFE: Not moved until it's dropped
 	let mut host_async = unsafe { core::pin::Pin::new_unchecked(&mut host_async) };
 	kernel::futures::runner(|context| {
-		use core::future::Future;
+		use ::core::future::Future;
+		use ::core::task::Poll;
 		match host_async.as_mut().poll(context)
 		{
-		core::task::Poll::Ready(_v) => panic!("Host root task completed"),
-		core::task::Poll::Pending => {},
+		Poll::Ready( () ) => panic!("Host root task completed"),
+		Poll::Pending => {},
 		}
-		// Have a list of port workers
-		// TODO: A hub updating might lead to a new entry being added here
+		// The following list has a fixed number of entries (255), each with its own lock
+		// Added devices will just claim an unused entry, which won't be locked (as the worker only has the hub locked)
 		for p in host.device_workers.iter()
 		{
 			let mut p = p.lock();
-			let done = if let Some(ref mut p) = *p
-				{
-					p.as_mut().poll(context).is_ready()
+			let done = if let Some(ref mut p) = *p {
+					matches!(p.as_mut().poll(context), Poll::Ready(()))
 				}
-				else
-				{
+				else {
 					false
 				};
 			if done {

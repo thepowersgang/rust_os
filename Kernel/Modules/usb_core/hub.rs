@@ -3,7 +3,7 @@ use ::kernel::lib::mem::Box;
 use ::kernel::lib::Vec;
 use ::kernel::lib::mem::aref::{Aref,ArefBorrow};
 
-
+/// A feature on a hub port
 #[derive(Debug)]
 #[derive(Copy,Clone)]
 #[repr(u8)]
@@ -51,7 +51,7 @@ pub(crate) fn start_device<'a>(host: super::HostRef, ep0: &'a super::ControlEndp
 			ep0,
 			int_ep,
 
-			host: host,
+			host,
 
 			ports: {
 				let mut v = Vec::new();
@@ -89,6 +89,7 @@ impl HubDevice<'_>
 		}
 	}
 
+	/// Wait for an interrupt transaction and handle the changes to the ports
 	async fn check_interrupt(self: &Aref<Self>)
 	{
 		let d = self.int_ep.wait().await;
@@ -102,6 +103,7 @@ impl HubDevice<'_>
 		}
 	}
 
+	/// Check for status changes to the given port
 	async fn check_port(self: &Aref<Self>, idx: usize)
 	{
 		// Request the changeset
