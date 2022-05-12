@@ -42,6 +42,7 @@ impl<S: Storage> BufferRing<S>
 	}
 	
 	/// Acquire if possible
+	#[allow(dead_code)]
 	pub fn try_acquire(&self) -> Option<Handle<S>> {
 		let mut lh = self.inner.lock();
 		if (lh.next_free + 1) % S::len() as u16 == lh.first_used {

@@ -215,7 +215,7 @@ impl Card
 				else {
 					// Activated and complete (and now marked as inactive), release it to the pool
 					// SAFE: Index is corret and active
-					let mut slot = unsafe { self.tx_slots.handle_from_async(idx) };
+					let /*mut*/ slot = unsafe { self.tx_slots.handle_from_async(idx) };
 					//if let Some(s) = slot.async.take() {
 					//	s.signal(0);
 					//}
