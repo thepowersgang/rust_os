@@ -3,9 +3,6 @@
 //
 // Core/futures.rs
 //! Helpers for standard library futures/async
-
-use crate::sync::EventChannel;
-use core::sync::atomic::{AtomicUsize,Ordering};
 use core::task;
 //use core::pin::Pin;
 

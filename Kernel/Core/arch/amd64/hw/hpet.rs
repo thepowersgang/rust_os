@@ -57,7 +57,7 @@ fn init()
 	let hpet = match crate::arch::amd64::acpi::find::<ACPI_HPET>("HPET", 0)
 		{
 		None => {
-			log_error!("No HPET, in ACPI, no timing avaliable");
+			log_error!("No HPET in ACPI, no timing avaliable");
 			return ;
 			},
 		Some(v) => v,
@@ -73,10 +73,7 @@ fn init()
 	// - This should really be done by the ACPI code (after it determines the PIT exists)
 	// SAFE: Nothing else attacks the PIT
 	unsafe {
-		crate::arch::x86_io::outb(0x43, 0<<7|3<<4|0);
-		crate::arch::x86_io::outb(0x43, 1<<7|3<<4|0);
-		crate::arch::x86_io::outb(0x43, 2<<7|3<<4|0);
-		crate::arch::x86_io::outb(0x43, 3<<7|3<<4|0);
+		super::pit::disable();
 	}
 
 	// SAFE: 'init' is called in a single-threaded context
@@ -121,7 +118,9 @@ impl HPET
 		let s = unsafe{ &*(sp as *const HPET) };
 		s.write_reg(HPETReg::ISR as usize, s.read_reg(HPETReg::ISR as usize));
 		
-		s.oneshot(0, s.current() + 100*1000 );
+		crate::time::time_tick();
+
+		s.oneshot(0, s.current() + 10*s.ticks_per_ms() );
 	}
 	
 	fn read_reg(&self, reg: usize) -> u64 {
