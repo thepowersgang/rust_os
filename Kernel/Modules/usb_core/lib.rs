@@ -75,6 +75,7 @@ struct Host
 	//// If true, EP0 is currently being enumerated
 	//endpoint_zero_state: bool,
 	endpoint_zero_handle: ControlEndpoint,
+	endpoint_zero_lock: ::kernel::futures::Mutex<()>,
 	
 	//root_ports: OnceCell<Vec<Port>>,
 	root_ports: Vec<PortState>,
@@ -101,6 +102,7 @@ pub fn register_host(driver: Box<dyn host::HostController>, nports: u8)
 		endpoint_zero_handle: ControlEndpoint {
 			inner: driver.init_control(crate::host::EndpointAddr::new(0, 0), 64),
 			},
+		endpoint_zero_lock: Default::default(),
 		root_ports: {
 			let mut v = Vec::new();
 			v.resize_with(nports as usize, || PortState::new());
@@ -256,9 +258,11 @@ impl PortDev
 
 	async fn initialise_port(&self, address: u8)
 	{
+		log_debug!("initialise_port({address})");
 		let addr0_handle = self.host().get_address_zero().await;
 		if ! self.get_port_feature(host::PortFeature::Power).await
 		{
+			log_debug!("initialise_port({address}): Turning on power");
 			// Set power
 			self.set_port_feature(host::PortFeature::Power).await;
 			// Wait for the hub-provided stable time
@@ -270,12 +274,15 @@ impl PortDev
 		while self.get_port_feature(host::PortFeature::Reset).await {
 			kernel::futures::msleep(2).await;
 		}
+		// TODO: Why is there another sleep here?
 		kernel::futures::msleep(2).await;
 		// Enable the port if the hub hasn't done that for us
 		if ! self.get_port_feature(host::PortFeature::Enable).await {
+			log_debug!("initialise_port({address}): Enabling");
 			self.set_port_feature(host::PortFeature::Enable).await;
 		}
 		addr0_handle.send_setup_address(address).await;
+		log_debug!("initialise_port({address}): Done");
 	}
 
 	async fn enumerate<'a>(&self, ep0: &'a ControlEndpoint) -> Result<Vec<Interface<'a>>, &'static str>
@@ -657,7 +664,7 @@ impl Host
 			assert!( lh.is_none(), "Address already allocated?" );
 			*lh = Some(cb);
 			},
-		None => {},
+		None => log_error!("Out of USB addresses on bus"),
 		}
 	}
 
@@ -665,6 +672,7 @@ impl Host
 	{
 		AddressZeroHandle {
 			host: self,
+			_lh: self.endpoint_zero_lock.async_lock().await,
 			}
 	}
 
@@ -686,6 +694,7 @@ impl Host
 			self.driver.clear_port_feature(port_idx, host::PortFeature::CConnection);
 			if self.driver.get_port_feature(port_idx, host::PortFeature::Connection)
 			{
+				log_debug!("Connection detected, signalling");
 				// SAFE: (TODO: unenforced) Requires that `self` is stable in memory
 				let hubref = HubRef::Root(unsafe { HostRef::new(self) });
 				self.root_ports[port_idx].signal_connected(hubref, port_idx as u8);
@@ -731,18 +740,13 @@ impl Host
 
 struct AddressZeroHandle<'a> {
 	host: &'a Host,
+	_lh: ::kernel::futures::mutex::HeldMutex<'a, ()>,
 }
 impl<'a> AddressZeroHandle<'a>
 {
 	async fn send_setup_address(&self, addr: u8) {
 		// Send a request with type=0x00, request=5,  value=addr, index=0, and no data
 		self.host.endpoint_zero_handle.send_request(0x00, 5, addr as u16, 0, &[]).await
-	}
-}
-impl<'a> ::core::ops::Drop for AddressZeroHandle<'a>
-{
-	fn drop(&mut self)
-	{
 	}
 }
 

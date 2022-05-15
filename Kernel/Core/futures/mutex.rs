@@ -22,7 +22,6 @@ struct WaitState {
 unsafe impl<T: Send> Sync for Mutex<T> {}
 unsafe impl<T: Send> Send for Mutex<T> {}
 
-
 impl<T> Mutex<T>
 {
 	/// Construct a new unsafe mutex
@@ -39,6 +38,11 @@ impl<T> Mutex<T>
 				}),
 			data: UnsafeCell::new(data),
 		}
+	}
+}
+impl<T: Default> Default for Mutex<T> {
+	fn default() -> Self {
+		Self::new(T::default())
 	}
 }
 
