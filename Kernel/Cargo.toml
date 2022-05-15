@@ -43,4 +43,5 @@ my_dependencies = { git = "https://github.com/thepowersgang/my-dependencies-rs.g
 [workspace]
 members = [
     "tests/network",
+    "tests/filesystem",
 ]
