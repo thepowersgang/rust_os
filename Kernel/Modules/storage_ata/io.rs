@@ -652,68 +652,63 @@ impl AtaController
 	pub async fn ata_identify<'a>(&'a self, disk: u8, data: &'a mut crate::AtaIdentifyData, class: &'a mut crate::AtaClass)
 	{
 		// - Cast 'data' to a u16 slice
-		// SAFE: AtaIdentifyData should be POD
+		// SAFE: AtaIdentifyData should be POD, and has at least `u16` alignment
 		let data: &mut [u16; 256] = unsafe { ::core::mem::transmute(data) };
-		if let Some(mut buslock) = self.regs.try_lock()
+		let mut buslock = self.regs.async_lock().await;
+	
+		log_debug!("ata_identify: (disk={}), base={:#x}", disk, buslock.ata_base);
+		// SAFE: Called holding lock, and performs correct actions
+		let status = unsafe {
+			buslock.out_8(6, 0xA0 | (disk << 4) );
+			buslock.out_8(2, 0);
+			buslock.out_8(3, 0);
+			buslock.out_8(4, 0);
+			buslock.out_8(5, 0);
+			buslock.out_8(7, HDD_IDENTIFY);
+			buslock.in_8(7)
+			};
+		
+		log_debug!("ata_identify: status = {:#02x}", status);
+		if status == 0
 		{
-			log_debug!("ata_identify: (disk={}), base={:#x}", disk, buslock.ata_base);
-			// SAFE: Called holding lock, and performs correct actions
-			let status = unsafe {
-				buslock.out_8(6, 0xA0 | (disk << 4) );
-				buslock.out_8(2, 0);
-				buslock.out_8(3, 0);
-				buslock.out_8(4, 0);
-				buslock.out_8(5, 0);
-				buslock.out_8(7, HDD_IDENTIFY);
-				buslock.in_8(7)
-				};
-			
-			log_debug!("ata_identify: status = {:#02x}", status);
-			if status == 0
-			{
-				log_debug!("Disk {} on {:#x} not present", disk, buslock.ata_base);
-				// Drive does not exist, zero data and return a null wait
-				*class = crate::AtaClass::None;
-				// SAFE: Plain old data
-				*data = unsafe { ::core::mem::zeroed() };
-			}
-			else
-			{
-				// Block until BSY clears
-				// TODO: Timeout?
-				while buslock.in_sts() & AtaStatusVal::BSY != 0 { }
-				
-				while buslock.in_sts() & (AtaStatusVal::DRQ | AtaStatusVal::ERR) == 0 {
-					::kernel::futures::msleep(1).await;
-				}
-
-				if buslock.in_sts() & 1 == 1 {
-					// - Error, clear and return
-					// SAFE: Called holding the lock
-					let (f4, f5) = unsafe { (buslock.in_8(4), buslock.in_8(5)) };
-					// SAFE: Plain old data
-					*data = unsafe { ::core::mem::zeroed() };
-					if f4 == 0x14 && f5 == 0xEB {
-						// Device is ATAPI
-						log_debug!("ata_identify: Disk {:#x}/{} is ATAPI", buslock.ata_base, disk);
-						*class = crate::AtaClass::ATAPI;
-					}
-					else {
-						log_debug!("ata_identify: Disk {:#x}/{} errored (f4,f5 = {:#02x},{:#02x})", buslock.ata_base, disk, f4, f5);
-						*class = crate::AtaClass::Unknown(f4, f5);
-					}
-				}
-				else {
-					// Success, perform IO
-					buslock.read_sector(data);
-					log_debug!("ata_identify: Disk {:#x}/{} IDENTIFY complete", buslock.ata_base, disk);
-					*class = crate::AtaClass::Native;
-				}
-			}
+			log_debug!("Disk {} on {:#x} not present", disk, buslock.ata_base);
+			// Drive does not exist, zero data and return a null wait
+			*class = crate::AtaClass::None;
+			// SAFE: Plain old data
+			*data = unsafe { ::core::mem::zeroed() };
 		}
 		else
 		{
-			panic!("Sending ATA identify while controller is in use");
+			// Block until BSY clears
+			// TODO: Timeout?
+			while buslock.in_sts() & AtaStatusVal::BSY != 0 { }
+			
+			while buslock.in_sts() & (AtaStatusVal::DRQ | AtaStatusVal::ERR) == 0 {
+				::kernel::futures::msleep(1).await;
+			}
+
+			if buslock.in_sts() & 1 == 1 {
+				// - Error, clear and return
+				// SAFE: Called holding the lock
+				let (f4, f5) = unsafe { (buslock.in_8(4), buslock.in_8(5)) };
+				// SAFE: Plain old data
+				*data = unsafe { ::core::mem::zeroed() };
+				if f4 == 0x14 && f5 == 0xEB {
+					// Device is ATAPI
+					log_debug!("ata_identify: Disk {:#x}/{} is ATAPI", buslock.ata_base, disk);
+					*class = crate::AtaClass::ATAPI;
+				}
+				else {
+					log_debug!("ata_identify: Disk {:#x}/{} errored (f4,f5 = {:#02x},{:#02x})", buslock.ata_base, disk, f4, f5);
+					*class = crate::AtaClass::Unknown(f4, f5);
+				}
+			}
+			else {
+				// Success, perform IO
+				buslock.read_sector(data);
+				log_debug!("ata_identify: Disk {:#x}/{} IDENTIFY complete", buslock.ata_base, disk);
+				*class = crate::AtaClass::Native;
+			}
 		}
 	}
 }
