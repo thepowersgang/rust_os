@@ -160,12 +160,15 @@ pub fn register_irq(global_num: usize, callback: IRQHandler, info: *const() ) ->
 		};
 
 	// Enable the relevant IRQ on the LAPIC and IOAPIC
-	ioapic.set_irq(ofs, isr_handle.idx() as u8, lapic_id, raw::TriggerMode::EdgeHi, callback);
-	//ioapic.set_irq(ofs, isr_handle.idx() as u8, lapic_id, raw::TriggerMode::LevelHi, callback);
+	// - Uses edge triggering so the handler can signal to the downstream
+	// - Works (at least with qemu) even if the source is level-triggered
+	let mode = raw::TriggerMode::EdgeHi;
+	//let mode = raw::TriggerMode::LevelHi;
+	ioapic.set_irq(ofs, isr_handle.idx() as u8, lapic_id, mode, callback);
 	
 	Ok( IRQHandle {
 		num: global_num,
-		isr_handle: isr_handle,
+		isr_handle,
 		} )
 }
 

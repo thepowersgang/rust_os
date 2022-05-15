@@ -58,9 +58,9 @@ pub mod time {
 		super::hw::hpet::get_timestamp()
 	}
 	
-	pub fn request_tick(_target_time: u64)
+	pub fn request_tick(target_time: u64)
 	{
-		todo!("request_tick")
+		super::hw::hpet::request_tick(target_time)
 	}
 }
 

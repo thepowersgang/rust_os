@@ -44,6 +44,7 @@ struct Bindings
 static S_IRQ_BINDINGS: crate::sync::mutex::LazyMutex<Bindings> = lazymutex_init!();
 
 static S_IRQ_WORKER_SIGNAL: crate::lib::LazyStatic<crate::threads::SleepObject<'static>> = lazystatic_init!();
+static S_TIMER_PENDING: AtomicBool = AtomicBool::new(false);
 static S_IRQ_WORKER: crate::lib::LazyStatic<crate::threads::WorkerThread> = lazystatic_init!();
 
 pub fn init() {
@@ -97,7 +98,19 @@ fn irq_worker()
 				log_trace!("irq_worker: IRQ{} fired", irqnum);
 			}
 		}
+		if S_TIMER_PENDING.swap(false, ::core::sync::atomic::Ordering::SeqCst)
+		{
+			crate::time::time_tick();
+		}
 	}
+}
+
+/// Function called by the architecture's timer irq (which will be off the worker) to trigger an IRQ
+pub(super) fn timer_trigger()
+{
+	log_trace!("timer_trigger");
+	S_TIMER_PENDING.store(true, ::core::sync::atomic::Ordering::SeqCst);
+	S_IRQ_WORKER_SIGNAL.signal();
 }
 
 /// Bind an event waiter to an interrupt
