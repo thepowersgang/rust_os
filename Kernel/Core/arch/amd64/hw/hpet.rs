@@ -74,7 +74,8 @@ pub fn request_tick(target_time: u64)
 		let cur_value = S_INSTANCE.current();
 		if new_target < cur_value {
 			// The new target is in the past!
-			log_warning!("Requesting a tick in the past");
+			log_warning!("Requesting a tick in the past {:#x} < {:#x}", new_target, cur_value);
+			crate::irqs::timer_trigger();
 		}
 		// If the current target is in the past (i.e. it's already triggered), or the new target is earlier than the current
 		else if cur_value > cur_target || new_target < cur_target {
