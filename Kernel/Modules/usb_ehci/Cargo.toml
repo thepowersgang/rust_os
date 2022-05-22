@@ -1,0 +1,11 @@
+[package]
+name = "usb-ehci"
+version = "0.0.0"
+edition = "2018"
+
+[lib]
+path = "lib.rs"
+
+[dependencies]
+kernel = { path = "../../Core" }
+usb-core = { path = "../usb_core" }
