@@ -25,7 +25,7 @@ impl device_manager::Driver for PciDriver {
 		let irq = bus_dev.get_irq(0);
 		let base = bus_dev.bind_io(0);
 
-		::BusDev::new_boxed(irq, base).expect("ohci")
+		crate::BusDev::new_boxed(irq, base).expect("ohci")
 	}
 }
 

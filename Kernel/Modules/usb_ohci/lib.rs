@@ -968,7 +968,6 @@ impl ::usb_core::host::HostController for UsbHost
 		}
 	}
 	fn get_port_feature(&self, port: usize, feature: PortFeature) -> bool {
-		log_trace!("get_port_feature({}, {:?})", port, feature);
 		let r = self.host.get_port_reg(port);
 		let v = self.host.io.read_reg(r);
 		let mask = match feature
@@ -988,7 +987,9 @@ impl ::usb_core::host::HostController for UsbHost
 			PortFeature::Test        => return false,
 			PortFeature::Indicator   => return false,
 			};
-		v & mask != 0
+		let rv = v & mask != 0;
+		log_trace!("get_port_feature({}, {:?}) = {}", port, feature, rv);
+		rv
 	}
 
 	fn async_wait_root(&self) -> usb_core::host::AsyncWaitRoot {
