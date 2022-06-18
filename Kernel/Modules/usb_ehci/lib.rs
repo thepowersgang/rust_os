@@ -5,6 +5,7 @@
 //! Extensible Host Controller Interface (EHCI) driver
 #![no_std]
 #![feature(linkage)]	// for module_define!
+#![feature(ptr_metadata)]    // for hackery in `UsbHost::set_hub_port_speed`
 #[macro_use]
 extern crate kernel;
 
@@ -17,6 +18,9 @@ mod hw_structs;
 mod pci;
 mod usb_host;
 mod desc_pools;
+
+mod host_queuemgmt;
+use self::host_queuemgmt::HostHeldQh;
 
 ::kernel::module_define!{usb_ehci, [usb_core], init}
 
@@ -56,10 +60,17 @@ struct HostInner
     periodic_queue: ::kernel::memory::virt::ArrayHandle<u32>,
     td_pool: desc_pools::TdPool,
     qh_pool: desc_pools::QhPool,
-    
+    async_head_td: ::kernel::sync::Spinlock<desc_pools::QhHandle>,
+
+    //
+    async_run_request: ::core::sync::atomic::AtomicBool,
+
 	// - Async support
-	waker: kernel::sync::Spinlock<core::task::Waker>,
+	waker: ::kernel::sync::Spinlock<core::task::Waker>,
 	port_update: AtomicU32,
+
+    // - Split transations/USB1
+    usb1: ::kernel::sync::Mutex<Vec<Option<usb_host::Usb1>>>,
 }
 impl HostInner
 {
@@ -78,16 +89,15 @@ impl HostInner
 
         // Initialise TransferDescriptor pool, and make a placeholder for dead slots
         let td_pool = desc_pools::TdPool::new()?;
-        let dead_td = td_pool.alloc(hw_structs::TransferDesc {
-            link: 1,
-            link2: 1,
-            token: hw_structs::QTD_TOKEN_STS_HALT,
-            pages: [0; 5],
-            });
+        let dead_td = {
+            let mut dead_td = td_pool.alloc(hw_structs::Pid::Out, &[], None);
+            td_pool.get_data_mut(&mut dead_td).token = hw_structs::QTD_TOKEN_STS_HALT;
+            dead_td
+            };
 
         // Initialise QueueHeader pool, and make a placeholder for dead slots
         let qh_pool = desc_pools::QhPool::new()?;
-        let mut dead_qh = qh_pool.alloc(hw_structs::QueueHead {
+        let mut dead_qh = qh_pool.alloc_raw(hw_structs::QueueHead {
             hlink: 2,
             endpoint: hw_structs::QH_ENDPT_H,
             endpoint_ext: 0,
@@ -120,8 +130,13 @@ impl HostInner
             periodic_queue,
             td_pool,
             qh_pool,
-            waker: kernel::sync::Spinlock::new(kernel::futures::null_waker()),
+
+            async_head_td: ::kernel::sync::Spinlock::new(dead_qh),
+            async_run_request: Default::default(),
+
+            waker: ::kernel::sync::Spinlock::new(kernel::futures::null_waker()),
             port_update: Default::default(),
+            usb1: Default::default(),
             });
         
 		// Bind interrupt
@@ -150,25 +165,39 @@ impl HostInner
             let mut chk = |bit: u32| { let rv = sts & bit != 0; sts &= !bit; rv };
             if chk(hw_regs::USBINTR_IOC) {
                 // Interrupt-on-completion
-                //EHCI_int_CheckInterruptQHs
-                //EHCI_int_RetireQHs
+                // - Run through the async list, and check for completed
+                // > Completed means that the `Active` bit in the overlay is clear
+                // SAFE: Called with the async lock
+                unsafe {
+                    self.qh_pool.check_completion(&self.async_head_td.lock());
+                }
             }
+            // Async queue has advanced (i.e. OpReg::AsyncListAddr has updated)
             if chk(hw_regs::USBINTR_IntrAsyncAdvance) {
-                // 
-                //EHCI_int_ReclaimQHs
+                unsafe {
+                    let mut async_head_td = self.async_head_td.lock();
+                    // Inform the QH queue that it can now GC
+                    self.qh_pool.trigger_gc();
+                    // If there's a need to re-start the queue? (if this is now stopped, restart)
+                    if self.async_run_request.load(Ordering::SeqCst) {
+                        self.start_async_queue(&mut async_head_td);
+                    }   
+                }
             }
             // Port change, determine what port and poke helper thread
             if chk(hw_regs::USBINTR_PortChange) {
                 for i in 0 .. self.nports() {
                     let sts = self.regs.read_port_sc(i);
-                    unsafe { self.regs.write_port_sc(i, sts) };
+                    //unsafe { self.regs.write_port_sc(i, sts) };
 
                     if sts & (hw_regs::PORTSC_ConnectStatusChange|hw_regs::PORTSC_PortEnableChange|hw_regs::PORTSC_OvercurrentChange) != 0 {
                         // Over-current detected on the port? (well, a change in it)
                         self.port_update.fetch_or(1 << i, Ordering::SeqCst);
                     }
                 }
-				if self.port_update.load(Ordering::SeqCst) != 0 {
+                let pu = self.port_update.load(Ordering::SeqCst);
+                log_debug!("handle_irq: PortChange {pu:#x}");
+				if pu != 0 {
 					self.waker.lock().wake_by_ref();
 				}
             }
@@ -183,6 +212,25 @@ impl HostInner
         }
         else {
             false
+        }
+    }
+}
+
+/// Handling for USB1.0 devices (split transactions)
+impl HostInner
+{
+    fn set_usb1(&self, dev_id: u8, usb1: Option<usb_host::Usb1>) {
+        let mut lh = self.usb1.lock();
+        while dev_id as usize >= lh.len() {
+            lh.push(None);
+        }
+        lh[dev_id as usize] = usb1;
+    }
+    fn get_usb1(&self, dev_id: u8) -> Option<usb_host::Usb1> {
+        match self.usb1.lock().get(dev_id as usize)
+        {
+        Some(&v) => v,
+        None => None,
         }
     }
 }

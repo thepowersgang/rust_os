@@ -72,6 +72,9 @@ pub enum OpReg {
     /// Periodic Frame List Base Address Register
     PeriodicListBase,
     /// Current Asynchronous List Address Register
+    /// 
+    /// - This is updated by the hardware when the list advances.
+    /// - Should only be written by software when the list is disabled (see `UsbCmd` bit 5 and `USBSTS_AsyncEnabled`)
     AsyncListAddr,
     /// Configure Flag Register
     ConfigFlag = 0x40 / 4,
@@ -127,15 +130,28 @@ pub const USBCMD_Run            : u32 = 0x0001;
 pub const USBCMD_HCReset        : u32 = 0x0002;
 pub const USBCMD_PeriodicEnable : u32 = 0x0010;
 pub const USBCMD_AsyncEnable    : u32 = 0x0020;
+/// Interrupt on Async Advance Doorbell
+/// 
+/// Requests `USBINTR_IntrAsyncAdvance` for the next time the async queue advances
 pub const USBCMD_IAAD           : u32 = 0x0040;
 
-
+/// Interrupt on completion (also for USBSTS)
 pub const USBINTR_IOC               : u32 = 0x0001;
+/// A bus error has been detected
 pub const USBINTR_Error             : u32 = 0x0002;
 pub const USBINTR_PortChange        : u32 = 0x0004;
 pub const USBINTR_FrameRollover     : u32 = 0x0008;
 pub const USBINTR_HostSystemError   : u32 = 0x0010;
 pub const USBINTR_IntrAsyncAdvance  : u32 = 0x0020;
+
+/// The host controller is halted
+pub const USBSTS_HcHalted        : u32 = 0x1000;
+/// The async queue is empty
+pub const USBSTS_Reclamation     : u32 = 0x2000;
+/// 
+pub const USBSTS_PeriodicEnabled : u32 = 0x4000;
+/// 
+pub const USBSTS_AsyncEnabled    : u32 = 0x4000;
 
 
 pub const PORTSC_CurrentConnectStatus: u32 = 0x0001;
