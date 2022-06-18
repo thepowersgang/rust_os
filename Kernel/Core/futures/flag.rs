@@ -13,6 +13,11 @@ pub struct SingleFlag
 	// TODO: Use a wait queue structure instead? Or a general async condvar
 	waiter: crate::sync::mutex::Mutex<Option< task::Waker >>
 }
+impl Default for SingleFlag {
+	fn default() -> Self {
+		Self::new()
+	}
+}
 
 impl SingleFlag
 {
@@ -23,6 +28,10 @@ impl SingleFlag
 			flag: AtomicBool::new(false),
 			waiter: crate::sync::mutex::Mutex::new(None),
 		}
+	}
+	/// Resets the flag
+	pub fn reset(&self) {
+		self.flag.store(false, Ordering::SeqCst);
 	}
 	/// Return a wait handle for this event source
 	pub fn wait(&self) -> impl Future<Output=()> + '_
@@ -43,7 +52,7 @@ impl SingleFlag
 					{
 					None => { *lh = Some(cx.waker().clone()); }
 					Some(ref w) if cx.waker().will_wake(w) => {},
-					Some(_) => todo!("Multiple tasks waiting on the same SingleWaiter"),
+					Some(_) => todo!("Multiple tasks waiting on the same SingleFlag"),
 					}
 					task::Poll::Pending
 				}

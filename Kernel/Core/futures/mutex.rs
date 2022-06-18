@@ -48,6 +48,10 @@ impl<T: Default> Default for Mutex<T> {
 
 impl<T: Send> Mutex<T>
 {
+	pub fn into_inner(self) -> T {
+		self.data.into_inner()
+	}
+
 	/// Attempt to lock the mutex (returning None on failure)
 	pub fn try_lock(&self) -> Option<HeldMutex<T>>
 	{
