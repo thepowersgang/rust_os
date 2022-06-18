@@ -8,6 +8,7 @@ pub use crate::hub::PortFeature;
 /// A double-fat pointer (three words long)
 pub type Handle<T/*: ?Sized*/> = ::stack_dst::ValueA<T, [usize; 3]>;
 
+#[derive(Copy,Clone)]
 pub struct EndpointAddr(u16);	// 7 bit device and 4 bit endpoint (encoded together)
 impl EndpointAddr
 {
@@ -30,6 +31,16 @@ impl ::core::fmt::Debug for EndpointAddr
 	}
 }
 
+pub enum HubPortSpeed
+{
+	// USB 1.0 - 1.5Mbps
+	Low,
+	// USB 1.0 - 12Mbps
+	Full,
+	// USB 2.0 - 480Mbps
+	High,
+}
+
 pub type AsyncWaitIo<'a, T> = stack_dst::ValueA<dyn core::future::Future<Output=T> + Sync + Send + 'a, [usize; 3]>;
 pub type IntBuffer<'a> = Handle<dyn crate::handle::RemoteBuffer + Send + Sync + 'a>;
 //#[smart_ptr(::kernel::lib::mem::Box)]
@@ -47,6 +58,17 @@ pub trait ControlEndpoint: Send + Sync
 {
 	fn out_only<'a>(&'a self, setup_data: &'a [u8], out_data: &'a [u8]) -> AsyncWaitIo<'a, usize>;
 	fn in_only<'a>(&'a self, setup_data: &'a [u8], out_data: &'a mut [u8]) -> AsyncWaitIo<'a, usize>;
+}
+impl<T> ControlEndpoint for ::kernel::lib::mem::Box<T>
+where
+	T: ControlEndpoint
+{
+	fn out_only<'a>(&'a self, setup_data: &'a [u8], out_data: &'a [u8]) -> AsyncWaitIo<'a, usize> {
+		(**self).out_only(setup_data, out_data)
+	}
+	fn in_only<'a>(&'a self, setup_data: &'a [u8], out_data: &'a mut [u8]) -> AsyncWaitIo<'a, usize> {
+		(**self).in_only(setup_data, out_data)
+	}
 }
 pub trait IsochEndpoint: Send + Sync
 {
@@ -91,8 +113,14 @@ pub trait HostController: Send + Sync
 	fn clear_port_feature(&self, port: usize, feature: PortFeature);
 	fn get_port_feature(&self, port: usize, feature: PortFeature) -> bool;
 
-	//fn assign_device_address(&self) -> Option<u8>;
-	//fn release_device_address(&self, addr: u8);
+	/// Inform the driver of the speed of a port on a hub. This is called when the port becomes active (indicating the state of Dev0)
+	/// 
+	/// (This is hack for EHCI)
+	fn set_hub_port_speed(&self, hub_endpoint_zero: &dyn ControlEndpoint, port: usize, speed: HubPortSpeed) {
+		let _ = hub_endpoint_zero;
+		let _ = port;
+		let _ = speed;
+	}
 
 	fn async_wait_root(&self) -> AsyncWaitRoot;
 }

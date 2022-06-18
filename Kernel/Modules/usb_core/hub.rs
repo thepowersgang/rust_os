@@ -145,6 +145,29 @@ impl HubDevice<'_>
 			log_debug!("Reset change: {}", val);
 			self.clear_port_feature(idx, PortFeature::CReset).await;
 		}
+
+		// If Reset or Enable change, check if this port has just become active
+		if status & (1 << PortFeature::CReset as u8) != 0
+		|| status & (1 << PortFeature::CEnable as u8) != 0
+		{
+			// If not in reset, and enable is high
+			if status & (1 << PortFeature::Reset as u8) == 0 && status & (1 << PortFeature::Enable as u8) != 0
+			{
+				// This means that enumeration will soon start (Dev0 is on this port)
+
+				// Inform the driver of the port speed
+				self.host.driver.set_hub_port_speed(&*self.ep0.inner, idx, match (status >> 9) & 0b11
+					{
+					// 0bX1 = Low-speed (usb1)
+					0b01 | 0b11 => crate::host::HubPortSpeed::Low,
+					// 0b00 = Full-speed (usb1)
+					0b00 => crate::host::HubPortSpeed::Full,
+					// 0b10 = High-speed (usb2)
+					0b10 => crate::host::HubPortSpeed::High,
+					_ => unreachable!(),
+					});
+			}
+		}
 	}
 
 	/// Time between setting the `Power` feature and the power being stable

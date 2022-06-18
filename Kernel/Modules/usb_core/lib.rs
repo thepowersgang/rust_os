@@ -72,8 +72,7 @@ struct Host
 	driver: Box<dyn host::HostController>,
 	addresses: Mutex<AddressPool>,
 
-	//// If true, EP0 is currently being enumerated
-	//endpoint_zero_state: bool,
+	// TODO: EHCI needs a different endpoint handle for 1.0 devices (different speeds)
 	endpoint_zero_handle: ControlEndpoint,
 	endpoint_zero_lock: ::kernel::futures::Mutex<()>,
 	
@@ -82,6 +81,9 @@ struct Host
 	
 	//device_workers: [Mutex<Option<core::pin::Pin<Box<dyn core::future::Future<Output=()> + Send>>>>; 255],
 	device_workers: Vec< Mutex<Option<core::pin::Pin<Box<dyn core::future::Future<Output=()> + Send>>>> >,
+
+	// Hub port speed information
+	// - This is required for EHCI
 }
 struct HostEnt
 {
@@ -256,7 +258,7 @@ impl PortDev
 	//	rv
 	//}
 
-	async fn initialise_port(&self, address: u8)
+	async fn initialise_port(&self, address: u8) -> Result<(),()>
 	{
 		log_debug!("initialise_port({address})");
 		let addr0_handle = self.host().get_address_zero().await;
@@ -268,14 +270,28 @@ impl PortDev
 			// Wait for the hub-provided stable time
 			kernel::futures::msleep( self.hub.power_stable_time_ms() as usize ).await;
 		}
+
+		// Request a port reset
 		self.set_port_feature(host::PortFeature::Reset).await;
 		kernel::futures::msleep(50).await;
-		// TODO: Wait for CReset on the port instead of a hard-coded wait?
-		while self.get_port_feature(host::PortFeature::Reset).await {
-			kernel::futures::msleep(2).await;
+		// Clear `Reset` if it's not cleared on its own.
+		if self.get_port_feature(host::PortFeature::Reset).await {
+			self.clear_port_feature(host::PortFeature::Reset).await;
+			// Wait for the reset clear
+			let timeout = kernel::time::ticks() + 50;
+			while self.get_port_feature(host::PortFeature::Reset).await {
+				if kernel::time::ticks() > timeout {
+					log_error!("initialise_port({address}): Timeout waiting for reset");
+					return Err( () );
+				}
+				kernel::futures::msleep(2).await;
+			}
 		}
+		// TODO: EHCI may want to defer this to another controller
+
 		// TODO: Why is there another sleep here?
 		kernel::futures::msleep(2).await;
+		
 		// Enable the port if the hub hasn't done that for us
 		if ! self.get_port_feature(host::PortFeature::Enable).await {
 			log_debug!("initialise_port({address}): Enabling");
@@ -283,6 +299,7 @@ impl PortDev
 		}
 		addr0_handle.send_setup_address(address).await;
 		log_debug!("initialise_port({address}): Done");
+		Ok( () )
 	}
 
 	async fn enumerate<'a>(&self, ep0: &'a ControlEndpoint) -> Result<Vec<Interface<'a>>, &'static str>
@@ -438,7 +455,10 @@ impl PortDev
 
 	async fn worker(self)
 	{
-		self.initialise_port(self.addr).await;
+		match self.initialise_port(self.addr).await {
+		Ok(()) => {},
+		Err(()) => return,
+		}
 		
 		let ep0 = ControlEndpoint::new(self.host(), self.addr, /*ep_num=*/0, /*max_packet_size=*/64);
 		// Enumerate device
@@ -691,6 +711,7 @@ impl Host
 
 		if self.driver.get_port_feature(port_idx, host::PortFeature::CConnection)
 		{
+			log_trace!("CConnection");
 			self.driver.clear_port_feature(port_idx, host::PortFeature::CConnection);
 			if self.driver.get_port_feature(port_idx, host::PortFeature::Connection)
 			{
@@ -734,6 +755,7 @@ impl Host
 		*/
 		else
 		{
+			log_trace!("Nothing to do");
 		}
 	}
 }
