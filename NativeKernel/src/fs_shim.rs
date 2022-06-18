@@ -104,8 +104,10 @@ impl vfs::node::Dir for DirNodeRef
 	fn lookup(&self, name: &ByteStr) -> vfs::node::Result<InodeId> {
         let dir_info = self.0.get_dir(self.1);
         let name = std::str::from_utf8(name.as_bytes()).unwrap();
-        let mut path: PathBuf = [&dir_info.path, Path::new(name)].iter().collect();
+        let path: PathBuf = [&dir_info.path, Path::new(name)].iter().collect();
         log_debug!("path = {:?}", path);
+        #[cfg(windows)]
+        let mut path = path;
         #[cfg(windows)]
         if !path.exists()
         {
