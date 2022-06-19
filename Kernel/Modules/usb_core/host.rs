@@ -53,16 +53,14 @@ impl<T: ?Sized + InterruptEndpoint> InterruptEndpoint for ::kernel::lib::mem::Bo
 		(**self).wait()
 	}
 }
+
 //	fn tx_async<'a, 's>(&'s self, async_obj: kasync::ObjectHandle, stack: kasync::StackPush<'a, 's>, pkt: SparsePacket) -> Result<(), Error>;
 pub trait ControlEndpoint: Send + Sync
 {
 	fn out_only<'a>(&'a self, setup_data: &'a [u8], out_data: &'a [u8]) -> AsyncWaitIo<'a, usize>;
 	fn in_only<'a>(&'a self, setup_data: &'a [u8], out_data: &'a mut [u8]) -> AsyncWaitIo<'a, usize>;
 }
-impl<T> ControlEndpoint for ::kernel::lib::mem::Box<T>
-where
-	T: ControlEndpoint
-{
+impl<T: ?Sized + ControlEndpoint> ControlEndpoint for ::kernel::lib::mem::Box<T> {
 	fn out_only<'a>(&'a self, setup_data: &'a [u8], out_data: &'a [u8]) -> AsyncWaitIo<'a, usize> {
 		(**self).out_only(setup_data, out_data)
 	}
@@ -70,6 +68,7 @@ where
 		(**self).in_only(setup_data, out_data)
 	}
 }
+
 pub trait IsochEndpoint: Send + Sync
 {
 	// /// Returns the current controller frame number (for timing) and the matching system time
@@ -79,13 +78,27 @@ pub trait IsochEndpoint: Send + Sync
 	// /// Prepare a receive to complete in the specified frame.
 	// fn recv_at<'a, 's>(&'s self, async_obj: kasync::ObjectHandle, stack: kasync::StackPush<'a, 's>, buffer: &'a mut [u8], abs_frame: u32);
 }
+impl<T: ?Sized + IsochEndpoint> IsochEndpoint for ::kernel::lib::mem::Box<T> {
+}
+
 pub trait BulkEndpointOut: Send + Sync
 {
 	fn send<'a>(&'a self, buffer: &'a [u8]) -> AsyncWaitIo<'a, usize>;
 }
+impl<T: ?Sized + BulkEndpointOut> BulkEndpointOut for ::kernel::lib::mem::Box<T> {
+	fn send<'a>(&'a self, buffer: &'a [u8]) -> AsyncWaitIo<'a, usize> {
+		(**self).send(buffer)
+	}
+}
+
 pub trait BulkEndpointIn: Send + Sync
 {
 	fn recv<'a>(&'a self, buffer: &'a mut [u8]) -> AsyncWaitIo<'a, usize>;
+}
+impl<T: ?Sized + BulkEndpointIn> BulkEndpointIn for ::kernel::lib::mem::Box<T> {
+	fn recv<'a>(&'a self, buffer: &'a mut [u8]) -> AsyncWaitIo<'a, usize> {
+		(**self).recv(buffer)
+	}
 }
 
 pub type AsyncWaitRoot = stack_dst::ValueA<dyn core::future::Future<Output=usize>, [usize; 3]>;
