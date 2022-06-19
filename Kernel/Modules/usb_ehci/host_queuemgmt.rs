@@ -96,7 +96,11 @@ impl super::HostInner
         }
         // Wait for this queue to complete
         log_debug!("wait_for_async({:?}): Sleeping", qh.qh);
-        self.qh_pool.wait(&mut qh.qh).await;
+        ::kernel::futures::drop_wrapper(
+            self.qh_pool.wait(&mut qh.qh), 
+            || { todo!("Cancel EHCI future"); } // TODO: Handle cancellation
+            ).await;
+        //self.qh_pool.wait(&mut qh.qh).await;
         log_debug!("wait_for_async({:?}): Complete", qh.qh);
         // Remove the TD handle from the queue
         self.qh_pool.clear_td(&mut qh.qh).unwrap()
