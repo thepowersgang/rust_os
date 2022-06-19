@@ -15,6 +15,9 @@ pub mod join;
 mod simple_waiter;
 use self::simple_waiter::SimpleWaiter;
 
+mod drop_wrapper;
+pub use self::drop_wrapper::drop_wrapper;
+
 pub use self::condvar::Condvar;
 pub use self::mutex::Mutex;
 
