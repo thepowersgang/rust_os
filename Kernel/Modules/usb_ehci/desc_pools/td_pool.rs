@@ -27,7 +27,9 @@ impl TdPool {
         })
     }
 
-    pub fn alloc(&self, packet_id: hw_structs::Pid, data: &[u8], next: Option<TdHandle>) -> TdHandle {
+    /// UNSAFE: This will record the pointer from `data` in the buffer, and may write to it (depending on the packet type)
+    /// Callers must ensure that `data` is valid until the hardware is done with it
+    pub unsafe fn alloc(&self, packet_id: hw_structs::Pid, data: &[u8], next: Option<TdHandle>) -> TdHandle {
         assert!(data.len() < ::kernel::PAGE_SIZE);
         let phys0 = ::kernel::memory::virt::get_phys(data.as_ptr());
         let phys0_tail = (phys0 - phys0 % ::kernel::PAGE_SIZE as u64) as usize;

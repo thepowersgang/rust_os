@@ -12,7 +12,7 @@ impl ControlEndpoint
 {
     pub(super) fn new(host: crate::HostRef, endpoint: EndpointAddr, max_packet_size: usize) -> Self {
         let usb1 = host.get_usb1(endpoint.dev_addr());
-        let (endpoint_id, endpoint_ext) = super::make_endpoint_spec(endpoint, max_packet_size, usb1);
+        let (endpoint_id, endpoint_ext) = super::make_endpoint_spec(endpoint, max_packet_size, usb1, true);
         let qh = host.qh_pool.alloc(endpoint_id, endpoint_ext);
         let qh = host.add_qh_to_async(qh);
         Self {
@@ -34,7 +34,7 @@ impl ControlEndpoint
         if self.get_dev_addr() == 0 {
             let usb1 = self.host.get_usb1(0);
             let (endpoint_id, endpoint_ext) = self.host.edit_endpoint(&mut qh);
-            super::set_usb1_state(endpoint_id, endpoint_ext, usb1);
+            super::set_usb1_state(endpoint_id, endpoint_ext, usb1, true);
         }
 
         qh
@@ -43,19 +43,24 @@ impl ControlEndpoint
 impl host::ControlEndpoint for ControlEndpoint
 {
 	fn out_only<'a>(&'a self, setup_data: &'a [u8], out_data: &'a [u8]) -> host::AsyncWaitIo<'a, usize> {
-        log_debug!("ControlEndpoint::out_only({:?}): setup={:?} {}", self.endpoint, ::kernel::logging::HexDump(setup_data), out_data.len());
+        log_debug!("ControlEndpoint::out_only({:?}): setup={:?} out_data={:?}",
+            self.endpoint, ::kernel::logging::HexDump(setup_data), ::kernel::logging::HexDump(out_data));
         // Note: reverse order to set up the chaining
-        // Get a TD for the status (PID_IN)
-        let td_status = self.host.td_pool.alloc(crate::hw_structs::Pid::In, &[], None);
-        // Get a TD for the output (PID_OUT) - Optional
-        let td_data = if out_data.len() > 0 {
-                self.host.td_pool.alloc(crate::hw_structs::Pid::Out, out_data, Some(td_status))
-            }
-            else {
-                td_status
+        // SAFE: ? Data is kept valid? TODO: This could read freed data if cancelled
+        let td_setup = unsafe {
+            // Get a TD for the status (PID_IN)
+            let td_status = self.host.td_pool.alloc(crate::hw_structs::Pid::In, &[], None);
+            // Get a TD for the output (PID_OUT) - Optional
+            let td_data = if out_data.len() > 0 {
+                    self.host.td_pool.alloc(crate::hw_structs::Pid::Out, out_data, Some(td_status))
+                }
+                else {
+                    td_status
+                };
+            // Get a TD for the setup (PID_SETUP)
+            let td_setup = self.host.td_pool.alloc(crate::hw_structs::Pid::Setup, setup_data, Some(td_data));
+            td_setup
             };
-        // Get a TD for the setup (PID_SETUP)
-        let td_setup = self.host.td_pool.alloc(crate::hw_structs::Pid::Setup, setup_data, Some(td_data));
         
         super::make_asyncwaitio(async move {
             let mut qh = self.get_qh().await;
@@ -86,19 +91,23 @@ impl host::ControlEndpoint for ControlEndpoint
         })
     }
 	fn in_only<'a>(&'a self, setup_data: &'a [u8], in_buf: &'a mut [u8]) -> host::AsyncWaitIo<'a, usize> {
-        log_debug!("ControlEndpoint::in_only({:?}): setup={:?} {}", self.endpoint, ::kernel::logging::HexDump(setup_data), in_buf.len());
+        log_debug!("ControlEndpoint::in_only({:?}): setup={:?} in_buf={} b", self.endpoint, ::kernel::logging::HexDump(setup_data), in_buf.len());
         // Note: reverse order to set up the chaining
-        // Get a TD for the status (PID_IN)
-        let td_status = self.host.td_pool.alloc(crate::hw_structs::Pid::Out, &[], None);
-        // Get a TD for the output (PID_OUT)
-        let td_data = if in_buf.len() > 0 {
-                self.host.td_pool.alloc(crate::hw_structs::Pid::In, in_buf, Some(td_status))
-            }
-            else {
-                td_status
+        // SAFE: ? Data is kept valid? TODO: What if the future is cancelled? This could clobber data in that case!
+        let td_setup = unsafe {
+            // Get a TD for the status (PID_IN)
+            let td_status = self.host.td_pool.alloc(crate::hw_structs::Pid::Out, &[], None);
+            // Get a TD for the output (PID_OUT)
+            let td_data = if in_buf.len() > 0 {
+                    self.host.td_pool.alloc(crate::hw_structs::Pid::In, in_buf, Some(td_status))
+                }
+                else {
+                    td_status
+                };
+            // Get a TD for the setup (PID_SETUP)
+            let td_setup = self.host.td_pool.alloc(crate::hw_structs::Pid::Setup, setup_data, Some(td_data));
+            td_setup
             };
-        // Get a TD for the setup (PID_SETUP)
-        let td_setup = self.host.td_pool.alloc(crate::hw_structs::Pid::Setup, setup_data, Some(td_data));
         
         super::make_asyncwaitio(async move {
             let mut qh = self.get_qh().await;

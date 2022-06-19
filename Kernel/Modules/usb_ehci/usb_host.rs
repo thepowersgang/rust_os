@@ -4,7 +4,9 @@ use ::kernel::prelude::Box;
 use ::usb_core::host::{self,PortFeature,EndpointAddr,Handle};
 
 mod control_endpoint;
+mod bulk_endpoint;
 use self::control_endpoint::ControlEndpoint;
+use self::bulk_endpoint::BulkEndpoint;
 
 pub struct UsbHost
 {
@@ -24,10 +26,14 @@ impl ::usb_core::host::HostController for UsbHost
         )).ok().expect("Cannot fit Box in Handle")
 	}
 	fn init_bulk_out(&self, endpoint: EndpointAddr, max_packet_size: usize) -> Handle<dyn host::BulkEndpointOut> {
-        todo!("init_bulk_out")
+        Handle::new( Box::new(
+            BulkEndpoint::new(self.host.clone(), endpoint, max_packet_size)
+        )).ok().expect("Cannot fit Box in Handle")
 	}
 	fn init_bulk_in(&self, endpoint: EndpointAddr, max_packet_size: usize) -> Handle<dyn host::BulkEndpointIn> {
-        todo!("init_bulk_in")
+        Handle::new( Box::new(
+            BulkEndpoint::new(self.host.clone(), endpoint, max_packet_size)
+        )).ok().expect("Cannot fit Box in Handle")
 	}
 
 
@@ -175,7 +181,7 @@ pub struct Usb1 {
 }
 
 /// Create values for the `endpoint` and `endpoint_ext` fields of a queue head
-fn make_endpoint_spec(endpoint: EndpointAddr, max_packet_size: usize, usb1: Option<Usb1>) -> (u32, u32)
+fn make_endpoint_spec(endpoint: EndpointAddr, max_packet_size: usize, usb1: Option<Usb1>, is_control: bool) -> (u32, u32)
 {
     let mut endpoint_id = 0
         | (max_packet_size as u32) << 16
@@ -185,13 +191,13 @@ fn make_endpoint_spec(endpoint: EndpointAddr, max_packet_size: usize, usb1: Opti
         | (0b01 << 30)  // Bandwidth multipler
         // Low 16 bits not used for async (control/bulk) endpoints
         ;
-    set_usb1_state(&mut endpoint_id, &mut endpoint_ext, usb1);
+    set_usb1_state(&mut endpoint_id, &mut endpoint_ext, usb1, is_control);
     (endpoint_id, endpoint_ext)
 }
 /// Update endpoint description for a TD with new `Usb1` state
-fn set_usb1_state(endpoint_id: &mut u32, endpoint_ext: &mut u32, usb1: Option<Usb1>) {
+fn set_usb1_state(endpoint_id: &mut u32, endpoint_ext: &mut u32, usb1: Option<Usb1>, is_control: bool) {
     *endpoint_id = (*endpoint_id & !0x0800_3000)
-        | if let Some(_) = usb1 { 1 << 27 } else { 0 }
+        | if is_control && usb1.is_some() { 1 << 27 } else { 0 }  // Control flag
         | match usb1 {
             Some(Usb1 { is_fullspeed: true, .. }) => 0b00,   // Full speed
             Some(Usb1 { is_fullspeed: false, .. }) => 0b01,  // Low speed

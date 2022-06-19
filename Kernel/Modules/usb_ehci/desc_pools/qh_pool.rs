@@ -66,15 +66,14 @@ impl QhPool {
         lh[idx / 8] |= 1 << (idx % 8);
     }
 
+    /// Assigns a TD to the queue, and starts it executing
     pub fn assign_td(&self, handle: &mut QhHandle, td_pool: &super::TdPool, first_td: super::TdHandle) {
         let d = self.get_data_mut(handle);
         //let s = td_pool.get_data(&first_td);
         d.current_td = td_pool.get_phys(&first_td)/*| crate::hw_structs::QH*/;
         d.overlay_link = d.current_td;
-        //d.overlay_link2 = s.link2;
-        //d.overlay_pages = s.pages;
-        //d.overlay_token = s.token;
         self.get_meta_mut(handle).td = Some(first_td);
+        d.overlay_token = 0;    // Clear all data to start execution of the queue
     }
     pub fn clear_td(&self, handle: &mut QhHandle) -> Option<super::TdHandle> {
         self.get_data_mut(handle).current_td = 0;

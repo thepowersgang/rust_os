@@ -89,11 +89,12 @@ impl HostInner
 
         // Initialise TransferDescriptor pool, and make a placeholder for dead slots
         let td_pool = desc_pools::TdPool::new()?;
-        let dead_td = {
-            let mut dead_td = td_pool.alloc(hw_structs::Pid::Out, &[], None);
-            td_pool.get_data_mut(&mut dead_td).token = hw_structs::QTD_TOKEN_STS_HALT;
-            dead_td
-            };
+        //let dead_td = {
+        //    // SAFE: Zero-length
+        //    let mut dead_td = unsafe { td_pool.alloc(hw_structs::Pid::Out, &[], None) };
+        //    td_pool.get_data_mut(&mut dead_td).token = hw_structs::QTD_TOKEN_STS_HALT;
+        //    dead_td
+        //    };
 
         // Initialise QueueHeader pool, and make a placeholder for dead slots
         let qh_pool = desc_pools::QhPool::new()?;
@@ -101,10 +102,10 @@ impl HostInner
             hlink: 2,
             endpoint: hw_structs::QH_ENDPT_H,
             endpoint_ext: 0,
-            current_td: td_pool.get_phys(&dead_td),
-            overlay_link: td_pool.get_phys(&dead_td),
+            current_td: 0,//td_pool.get_phys(&dead_td),
+            overlay_link: 0,//td_pool.get_phys(&dead_td),
             overlay_link2: 0,
-            overlay_token: 0,
+            overlay_token: hw_structs::QTD_TOKEN_STS_HALT,
             overlay_pages: [0; 5],
             });
         qh_pool.get_data_mut(&mut dead_qh).hlink = qh_pool.get_phys(&dead_qh) | 2;

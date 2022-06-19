@@ -16,6 +16,9 @@ impl super::HostInner
             let mut lh = self.async_head_td.lock();
             let dead_qh_data = self.qh_pool.get_data_mut(&mut lh);
             let this_qh_data = self.qh_pool.get_data_mut(&mut qh);
+            this_qh_data.current_td = 1;    // Safety
+            this_qh_data.overlay_link = 1;  // Safety
+            this_qh_data.overlay_token = hw_structs::QTD_TOKEN_STS_HALT;    // Prevents execution of the queue
             // - `hlink` to point to the dead QH's next
             this_qh_data.hlink = dead_qh_data.hlink;
             // - Set dead QH's next to this
@@ -102,6 +105,7 @@ impl super::HostInner
             ).await;
         //self.qh_pool.wait(&mut qh.qh).await;
         log_debug!("wait_for_async({:?}): Complete", qh.qh);
+        log_debug!("wait_for_async({:?}): QH {:#x} = {:?}", qh.qh, ::kernel::memory::virt::get_phys(self.qh_pool.get_data(&qh.qh)), self.qh_pool.get_data(&qh.qh));
         // Remove the TD handle from the queue
         self.qh_pool.clear_td(&mut qh.qh).unwrap()
     }

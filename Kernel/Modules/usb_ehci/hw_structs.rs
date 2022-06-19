@@ -49,7 +49,7 @@ pub const QTD_TOKEN_STS_ACTIVE	: u32 = 1<< 7;
 pub const QTD_TOKEN_STS_HALT	: u32 = 1<< 6;
 
 #[repr(C,align(32))]
-pub struct QueueHead
+pub struct QueueHead    // sizeof = 64 = 0x40
 {
     // 16 bytes
     /// Horizontal link:
