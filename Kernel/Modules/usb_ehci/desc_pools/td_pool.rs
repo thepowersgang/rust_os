@@ -70,7 +70,8 @@ impl TdPool {
             let mut rv = TdHandle::new(i);
             log_debug!("TdPool::alloc_raw(next={:?}): {:?}", next, rv);
             self.get_meta_mut(&mut rv).next = next;
-            *self.get_data_mut(&mut rv) = v;
+            // SAFE: Trusting the caller (in the same module) to set things correctly
+            unsafe { *self.get_data_mut(&mut rv) = v; }
             rv
             },
         None => panic!("All slots are used, but semaphore was acquired"),
@@ -95,9 +96,10 @@ impl TdPool {
         // SAFE: Shared access to the handle implies shared access to the data
         unsafe { self.alloc.get(h.idx()) }
     }
-    pub fn get_data_mut(&self, h: &mut TdHandle) -> &mut hw_structs::TransferDesc {
+    /// UNSAFE: This allows manipulating the addresses and/or the data length, callers should ensure that those are kept valid.
+    pub unsafe fn get_data_mut(&self, h: &mut TdHandle) -> &mut hw_structs::TransferDesc {
         // SAFE: Mutable access to the handle implies mutable access to the data
-        unsafe { self.alloc.get_mut(h.idx()) }
+        /*unsafe {*/ self.alloc.get_mut(h.idx()) /*}*/
     }
     /*pub*/ fn get_meta_mut(&self, h: &mut TdHandle) -> &mut TdMeta {
         // SAFE: Mutable access to the handle implies mutable access to the data

@@ -6,7 +6,10 @@ impl super::HostInner
 {
     pub(crate) fn add_qh_to_interrupt(&self, mut qh: crate::desc_pools::QhHandle, period: usize, mut td: crate::desc_pools::TdHandle) -> IntHandle
     {
-        self.td_pool.get_data_mut(&mut td).token |= hw_structs::QTD_TOKEN_STS_ACTIVE | hw_structs::QTD_TOKEN_IOC;
+        // SAFE: Values written to the token are correct
+        unsafe {
+            self.td_pool.get_data_mut(&mut td).token |= hw_structs::QTD_TOKEN_STS_ACTIVE | hw_structs::QTD_TOKEN_IOC;
+        }
 
         let mut pq = self.periodic_queue.lock();
 
@@ -58,7 +61,7 @@ impl super::HostInner
         }
     }
 
-    pub(crate) fn remove_qh_from_interrupt(&self, h: IntHandle)
+    pub(crate) fn remove_qh_from_interrupt(&self, _h: IntHandle)
     {
         // Get the period
         // Determine what slots are used
@@ -70,7 +73,10 @@ impl super::HostInner
     pub(crate) async fn wait_for_interrupt(&self, h: &mut IntHandle, mut next_td: crate::desc_pools::TdHandle) -> crate::desc_pools::TdHandle
     {
         log_debug!("wait_for_interrupt({:?}): next {:?}", h.qh, next_td);
-        self.td_pool.get_data_mut(&mut next_td).token |= hw_structs::QTD_TOKEN_STS_ACTIVE | hw_structs::QTD_TOKEN_IOC;
+        // SAFE: Values written to the token are correct
+        unsafe {
+            self.td_pool.get_data_mut(&mut next_td).token |= hw_structs::QTD_TOKEN_STS_ACTIVE | hw_structs::QTD_TOKEN_IOC;
+        }
         // TODO: I'd like to append `next_td` to the currently queued one before waiting - but that's questionably safe
         //self.td_pool.set_next( self.qh_pool.get_first_td(&mut h.qh), next_td );
         // Instead, assume that the post-wait code runs soon enough that there isn't much jitter

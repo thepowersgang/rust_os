@@ -45,13 +45,22 @@ impl host::InterruptEndpoint for InterruptEndpoint
 {
 	fn wait<'a>(&'a self) -> host::AsyncWaitIo<'a, host::IntBuffer<'a>>
     {
+        let cap = self.buf.len() / 2;
+
         log_trace!("InterruptEndpoint::wait({:?})", self.endpoint);
-        let (is_second, next) = {
+        let (is_second, mut next) = {
             let mut lh = self.next_td.lock();
             let is_second = lh.0;
             lh.0 = !is_second;
             (is_second, lh.1.take().expect("BUG: `InterruptEndpoint::wait` called before previous dropped"))
             };
+        // SAFE: The length is kept correct
+        unsafe
+        {
+            let mut td = self.host.td_pool.get_data_mut(&mut next);
+            td.token = (td.token & 0x8000FFFF) | ((cap as u32) << 16);
+        }
+        
         super::make_asyncwaitio(async move {
             let mut s = self.ih.as_ref().unwrap().async_lock().await;
             let td = self.host.wait_for_interrupt(&mut s, next).await;
