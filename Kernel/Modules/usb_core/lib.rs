@@ -291,7 +291,7 @@ impl PortDev
 
 		// TODO: Why is there another sleep here?
 		kernel::futures::msleep(2).await;
-		
+
 		// Enable the port if the hub hasn't done that for us
 		if ! self.get_port_feature(host::PortFeature::Enable).await {
 			log_debug!("initialise_port({address}): Enabling");
@@ -465,7 +465,7 @@ impl PortDev
 		let interfaces = match self.enumerate(&ep0).await
 			{
 			Ok(v) => v,
-			Err(e) => panic!("{}", e),
+			Err(e) => panic!("PortDev::worker({}) Device enumeration error: {}", self.addr, e),
 			};
 
 		log_debug!("{} interfaces", interfaces.len());
@@ -595,7 +595,10 @@ impl ControlEndpoint
 		match T::from_bytes(&out_data[..res_len])
 		{
 		Ok(v) => Ok(v),
-		Err(hw_decls::ParseError) => Err("parse"),
+		Err(hw_decls::ParseError) => {
+			log_error!("read_descriptor<{}>: Parse error on descriptor #{}: {:?}", ::core::any::type_name::<T>(), index, ::kernel::logging::HexDump(&out_data[..res_len]));
+			Err("hw_decls::ParseError")
+			},
 		}
 	}
 
