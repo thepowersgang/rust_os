@@ -77,17 +77,18 @@ impl QhPool {
     }
 
     /// Assigns a TD to the queue, and starts it executing
-    /// 
-    /// UNSAFE: This function hands ownership over to the hardware
-    pub unsafe fn assign_td(&self, handle: &mut QhHandle, td_pool: &super::TdPool, first_td: super::TdHandle) {
+    pub fn assign_td(&self, handle: &mut QhHandle, td_pool: &super::TdPool, first_td: super::TdHandle) {
         let d = self.get_data_mut(handle);
-        self.mark_running(handle);
         d.current_td = td_pool.get_phys(&first_td)/*| crate::hw_structs::QH*/;
         self.get_meta_mut(handle).td = Some(first_td);
-        // Set the new link value, and clear any set `HALT` bit
-        // - As soon as both are met, the controller will start processing (next time it loops around)
-        ::core::ptr::write_volatile(&mut d.overlay_link, d.current_td);
-        ::core::ptr::write_volatile(&mut d.overlay_token, 0);
+        // SAFE: Correct ordering of operations to ensure that the hardware behaves predictably.
+        unsafe {
+            self.mark_running(handle);
+            // Set the new link value, and clear any set `HALT` bit
+            // - As soon as both are met, the controller will start processing (next time it loops around)
+            ::core::ptr::write_volatile(&mut d.overlay_link, d.current_td);
+            ::core::ptr::write_volatile(&mut d.overlay_token, 0);
+        }
         log_debug!("QH {:?} {:#x} {:?}", handle, ::kernel::memory::virt::get_phys(d), d);
     }
     /// Remove the current TD from a completed/idle QH
@@ -122,6 +123,7 @@ impl QhPool {
         unsafe { self.alloc.get_mut(h.0) }
     }
     /*pub*/ fn get_meta_mut(&'_ self, h: &'_ mut QhHandle) -> &'_ mut QhMeta {
+        self.assert_not_running(h, "get_meta_mut");
         // SAFE: Mutable access to the handle implies mutable access to the data
         unsafe { &mut *self.meta[h.0].get() }
     }

@@ -51,9 +51,8 @@ impl Inner
         self.ec.sleep();
     }
 	
-	fn rw_wake_by_ref(raw_self: *const ()) {
-        //log_trace!("wake({:p})", raw_self);
-		let v = unsafe { &*(raw_self as *const Self) };
+	unsafe fn rw_wake_by_ref(raw_self: *const ()) {
+		let v =  &*(raw_self as *const Self);
 		v.ec.post();
 	}
 }
@@ -108,23 +107,22 @@ impl SimpleWaiterRef {
 			fn make(v: Arc<Inner>) -> task::RawWaker {
 				static VTABLE: task::RawWakerVTable = task::RawWakerVTable::new(
 					/*clone:*/ rw_clone,
-					/*wake:*/ |v| { Inner::rw_wake_by_ref(v); rw_drop(v) },
+					// SAFE: Contract of RawWakerVTable
+					/*wake:*/ |v| unsafe { Inner::rw_wake_by_ref(v); rw_drop(v) },
 					/*wake_by_ref:*/ Inner::rw_wake_by_ref,
 					/*drop:*/ rw_drop,
 					);
 				let v = Arc::into_raw(v);
 				task::RawWaker::new(v as *const (), &VTABLE)
 			}
-			fn rw_clone(raw_self: *const ()) -> task::RawWaker {
-				unsafe {
-                    let raw_self = raw_self as *const Inner;
-					let r = Arc::from_raw(raw_self);
-                    Arc::increment_strong_count(raw_self);  // Effectively clone
-					make(r)
-				}
+			unsafe fn rw_clone(raw_self: *const ()) -> task::RawWaker {
+				let raw_self = raw_self as *const Inner;
+				let r = Arc::from_raw(raw_self);
+				Arc::increment_strong_count(raw_self);  // Effectively clone
+				make(r)
 			}
-			fn rw_drop(raw_self: *const ()) {
-				unsafe { Arc::from_raw(raw_self as *const Inner) };
+			unsafe fn rw_drop(raw_self: *const ()) {
+				Arc::from_raw(raw_self as *const Inner);
 			}
 			make(v.clone())
 			},
@@ -132,18 +130,19 @@ impl SimpleWaiterRef {
 			fn make(v: &'static Inner) -> task::RawWaker {
 				static VTABLE: task::RawWakerVTable = task::RawWakerVTable::new(
 					/*clone:*/ rw_clone,
-					/*wake:*/ |v| { Inner::rw_wake_by_ref(v); rw_drop(v) },
+					// SAFE: Contract of RawWakerVTable
+					/*wake:*/ |v| unsafe { Inner::rw_wake_by_ref(v); rw_drop(v) },
 					/*wake_by_ref:*/ Inner::rw_wake_by_ref,
 					/*drop:*/ rw_drop,
 					);
 				v.ref_count.fetch_add(1, Ordering::SeqCst);
 				task::RawWaker::new(v as *const _ as *const (), &VTABLE)
 			}
-			fn rw_clone(raw_self: *const ()) -> task::RawWaker {
-				make(unsafe { &*(raw_self as *const Inner) })
+			unsafe fn rw_clone(raw_self: *const ()) -> task::RawWaker {
+				make( &*(raw_self as *const Inner) )
 			}
-			fn rw_drop(raw_self: *const ()) {
-				let v = unsafe { &*(raw_self as *const Inner) };
+			unsafe fn rw_drop(raw_self: *const ()) {
+				let v = &*(raw_self as *const Inner);
 				v.ref_count.fetch_sub(1, Ordering::SeqCst);
 			}
 			make(v.0)

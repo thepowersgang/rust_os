@@ -13,6 +13,7 @@ impl super::HostInner
         let period = period.clamp(1, 1024 / 8) * 8; // The periodic array is indexed by microframes, and has 1024 entries
         // Figure out a good offset (lowest load)
         let (best_load, best_ofs) = (0 .. period).map(|o| (
+            // SAFE: Lock is held
             (0 .. 1024).step_by(period).map(|i| unsafe { self.intr_calculate_load(pq[o + i]) }).sum::<usize>(),
             o,
             )
@@ -35,10 +36,7 @@ impl super::HostInner
         }
         self.qh_pool.get_data_mut(&mut qh).hlink = next;
 
-        // SAFE: Won't be accessing after this
-        unsafe {
-            self.qh_pool.assign_td(&mut qh, &self.td_pool, td);
-        }
+        self.qh_pool.assign_td(&mut qh, &self.td_pool, td);
 
         let addr = self.qh_pool.get_phys(&qh) | (0b01 << 1);
         log_debug!("add_qh_to_interrupt({qh:?}): addr={addr:#x}");
@@ -79,10 +77,7 @@ impl super::HostInner
 
         self.qh_pool.wait(&mut h.qh).await;
         let rv = self.qh_pool.clear_td(&mut h.qh).expect("Interrupt queue head didn't already have an allocated TD");
-        // SAFE: Won't be accessing after this
-        unsafe {
-            self.qh_pool.assign_td(&mut h.qh, &self.td_pool, next_td);
-        }
+        self.qh_pool.assign_td(&mut h.qh, &self.td_pool, next_td);
         log_debug!("wait_for_interrupt({:?}): return {:?}", h.qh, rv);
         rv
     }

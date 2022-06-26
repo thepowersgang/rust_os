@@ -9,6 +9,7 @@ pub struct Regs
 }
 impl Regs
 {
+    /// UNSAFE: Caller must ensure that the IO binding is a EHCI IO binding
     pub unsafe fn new(h: ::kernel::device_manager::IOBinding) -> Self {
         let cap_length = h.read_8(0);
         Self {
@@ -25,18 +26,22 @@ impl Regs
 impl Regs
 {
     pub fn hci_version(&self) -> u16 {
+        // SAFE: Reading is safe
         unsafe { self.base.read_16(2) }
     }
     /// Structural Parameters
     pub fn hcs_params(&self) -> u32 {
+        // SAFE: Reading is safe
         unsafe { self.base.read_32(4) }
     }
     /// Capability Parameters
     pub fn hcc_params(&self) -> u32 {
+        // SAFE: Reading is safe
         unsafe { self.base.read_32(8) }
     }
     /// Companion Port Route Description
     pub fn hcs_port_route(&self) -> u64 {
+        // SAFE: Reading is safe
         unsafe { self.base.read_32(12) as u64 | (self.base.read_32(12+4) as u64) << 32 }
     }
 }
@@ -87,6 +92,7 @@ pub enum OpReg {
 impl Regs
 {
     pub fn read_op(&self, reg: OpReg) -> u32 {
+        // SAFE: Reading any operational register is safe
         unsafe { self.base.read_32(self.cap_length + reg as usize * 4) }
     }
     pub unsafe fn write_op(&self, reg: OpReg, v: u32) {
@@ -110,6 +116,7 @@ impl Regs
     pub fn read_port_sc(&self, index: u8) -> u32 {
         assert!(index < 16);
         debug_assert!(index < (self.hcs_params() & 0xF) as u8);
+        // SAFE: Reading is safe
         unsafe { self.base.read_32(self.cap_length + (OpReg::PortSc0 as usize + index as usize) * 4) }
     }
     /// (Write) Port Status and Control Register

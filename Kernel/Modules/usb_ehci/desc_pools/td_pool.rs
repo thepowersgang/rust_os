@@ -108,6 +108,7 @@ impl TdPool {
     pub fn iter_chain_mut(&self, root: &mut TdHandle, mut cb: impl FnMut(&mut hw_structs::TransferDesc/* , &mut TdMeta*/)) {
         let mut cur_idx = root.idx();
         loop {
+            // SAFE: For this to be on the chain, it's owned by the parent TD
             let (data, _meta) = unsafe {
                 (self.alloc.get_mut(cur_idx), &mut *self.meta[cur_idx].get())
             };

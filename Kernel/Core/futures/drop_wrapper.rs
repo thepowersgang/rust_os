@@ -15,6 +15,7 @@ where
 {
 	type Output = F::Output;
 	fn poll(mut self: ::core::pin::Pin<&mut Self>, c: &mut ::core::task::Context) -> ::core::task::Poll<Self::Output> {
+		// SAFE: Correct usage of `Pin`
 		let (inner, dropstate) = unsafe {
 			let s = self.as_mut().get_unchecked_mut();
 			(::core::pin::Pin::new_unchecked(&mut s.future), &mut s.dropstate)

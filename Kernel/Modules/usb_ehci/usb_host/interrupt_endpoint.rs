@@ -19,8 +19,11 @@ impl InterruptEndpoint
         let qh = host.qh_pool.alloc(endpoint_id, endpoint_ext);
 
         let buf = vec![0; max_packet_size * 2];
-        let td1 = unsafe { host.td_pool.alloc(hw_structs::Pid::In, &buf[..max_packet_size], None) };
-        let td2 = unsafe { host.td_pool.alloc(hw_structs::Pid::In, &buf[max_packet_size..], None) };
+        // SAFE: The buffer here is held for longer than the QH (and thus the TDs) lives
+        let (td1,td2) = unsafe { (
+            host.td_pool.alloc(hw_structs::Pid::In, &buf[..max_packet_size], None),
+            host.td_pool.alloc(hw_structs::Pid::In, &buf[max_packet_size..], None),
+            )};
         log_debug!("InterruptEndpoint::new: {:?} {} ms {} b - {:?} TDs={:#x} {:#x}",
             endpoint, period_ms, max_packet_size,
             qh,

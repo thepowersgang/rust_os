@@ -23,12 +23,6 @@ impl super::HostInner
             this_qh_data.hlink = dead_qh_data.hlink;
             // - Set dead QH's next to this
             dead_qh_data.hlink = self.qh_pool.get_phys(&qh) | hw_structs::QH_HLINK_TY_QH;
-
-            // - Start async operation
-            unsafe {
-                let v = self.regs.read_op(hw_regs::OpReg::UsbCmd);
-                self.regs.write_op(hw_regs::OpReg::UsbCmd, v | hw_regs::USBCMD_AsyncEnable);
-            }
         }
 
         HostHeldQh {
@@ -82,9 +76,7 @@ impl super::HostInner
             }
             });
         // Add the TD to the queue header
-        unsafe {
-            self.qh_pool.assign_td(&mut qh.qh, &self.td_pool, first_td);
-        }
+        self.qh_pool.assign_td(&mut qh.qh, &self.td_pool, first_td);
 
         // Re-start the async queue.
         // - If it's already running, flag for a restart on exhaustion?

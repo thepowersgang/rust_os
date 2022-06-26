@@ -46,6 +46,7 @@ impl ::usb_core::host::HostController for UsbHost
         if let Some(bit) = feature_bit(feature, FeatureOp::Set)  {
             log_debug!("set_port_feature({port} {feature:?}): {bit:#x}");
             let v = self.host.regs.read_port_sc(port as u8);
+            // SAFE: Correct bits written
             unsafe { self.host.regs.write_port_sc(port as u8, v | bit); }
         }
         else {
@@ -55,6 +56,7 @@ impl ::usb_core::host::HostController for UsbHost
         if let Some(bit) = feature_bit(feature, FeatureOp::Clear)  {
             log_debug!("clear_port_feature({port} {feature:?}): {bit:#x}");
             let v = self.host.regs.read_port_sc(port as u8);
+            // SAFE: Correct bits written
             unsafe { self.host.regs.write_port_sc(port as u8, v & !bit); }
         }
         else {

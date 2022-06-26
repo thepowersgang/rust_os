@@ -76,6 +76,7 @@ struct HostInner
 impl HostInner
 {
     fn new_aref(irq: u32, io: ::kernel::device_manager::IOBinding) -> Result<Aref<Self>, &'static str> {
+        // SAFE: The caller of this function (in the current module) passes the correct IO handle
         let regs = unsafe { hw_regs::Regs::new(io) };
 		let revision = regs.hci_version();
         let nports = (regs.hcs_params() & 0xF) as u8;
@@ -111,6 +112,7 @@ impl HostInner
             });
         qh_pool.get_data_mut(&mut dead_qh).hlink = qh_pool.get_phys(&dead_qh) | 2;
         
+        // SAFE: Register accesses are correct
         unsafe {
             use hw_regs::*;
             // Reset the controller
@@ -186,21 +188,25 @@ impl HostInner
             // Async queue has advanced (i.e. OpReg::AsyncListAddr has updated)
             if chk(hw_regs::USBINTR_IntrAsyncAdvance) {
                 log_trace!("handle_irq: IntrAsyncAdvance");
+                let mut async_head_td = self.async_head_td.lock();
+                // Inform the QH queue that it can now GC
+                // SAFE: Controller has just informed us of an async advance, and the lock is held (so no other mutations can happen)
                 unsafe {
-                    let mut async_head_td = self.async_head_td.lock();
-                    // Inform the QH queue that it can now GC
+                    // TODO: Is it possible that something is added to the GC queue between the interrupt and the above lock being acquired?
                     self.qh_pool.trigger_gc();
-                    // If there's a need to re-start the queue? (if this is now stopped, restart)
-                    if self.async_run_request.load(Ordering::SeqCst) {
+                }
+                // If there's a need to re-start the queue? (if this is now stopped, restart)
+                if self.async_run_request.load(Ordering::SeqCst) {
+                    // SAFE: Lock is held
+                    unsafe {
                         self.start_async_queue(&mut async_head_td);
-                    }   
+                    }
                 }
             }
             // Port change, determine what port and poke helper thread
             if chk(hw_regs::USBINTR_PortChange) {
                 for i in 0 .. self.nports() {
                     let sts = self.regs.read_port_sc(i);
-                    //unsafe { self.regs.write_port_sc(i, sts) };
 
                     if sts & (hw_regs::PORTSC_ConnectStatusChange|hw_regs::PORTSC_PortEnableChange|hw_regs::PORTSC_OvercurrentChange) != 0 {
                         // Over-current detected on the port? (well, a change in it)
@@ -219,6 +225,7 @@ impl HostInner
             if sts != 0 {
                 log_warning!("Unexpected/unhandled interrupt bits");
             }
+            // SAFE: Writing to this register does nothing but ACK the interrupt
             unsafe { self.regs.write_op(hw_regs::OpReg::UsbSts, orig_sts) };
             true
         }
