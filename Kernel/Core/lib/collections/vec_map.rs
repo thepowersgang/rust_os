@@ -59,7 +59,7 @@ impl<K, V> VecMap<K,V>
 impl<K: Ord, V> VecMap<K,V>
 {
 	/// Create a new (empty) VecMap
-	pub fn new() -> VecMap<K,V> {
+	pub const fn new() -> VecMap<K,V> {
 		VecMap {
 			ents: Vec::new(),
 		}

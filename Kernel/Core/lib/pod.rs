@@ -8,15 +8,19 @@
 pub unsafe auto trait POD {}
 
 //impl<T: ::core::ops::Drop> !POD for T {}  // - I would love this, but it collides with every other !POD impl
+/// Since POD allows safe transmutes between values, UnsafeCell isn't allowed?
 impl<T> !POD for ::core::cell::UnsafeCell<T> {}
+/// Non-null disallows zero, thus isn't POD
 impl<T> !POD for ::core::ptr::NonNull<T> {}
+/// Box does contain non-zero, but just in case
 impl<T> !POD for crate::lib::mem::boxed::Box<T> {}
-impl<T> !POD for *const T {}
-impl<T> !POD for *mut T {}
-impl<'a, T> !POD for &'a T {}
-impl<'a, T> !POD for &'a mut T {}
+impl<T: ?Sized> !POD for *const T {}
+impl<T: ?Sized> !POD for *mut T {}
+impl<'a, T: ?Sized> !POD for &'a T {}
+impl<'a, T: ?Sized> !POD for &'a mut T {}
 
 // TODO: Can there be an impl for the atomics?
+/// Atomics 
 unsafe impl POD for ::core::sync::atomic::AtomicU32 {}
 #[cfg(target_has_atomic="64")]
 unsafe impl POD for ::core::sync::atomic::AtomicU64 {}

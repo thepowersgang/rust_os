@@ -176,6 +176,7 @@ impl<T: Send> LazyMutex<T>
 		}
 	}
 	/// Lock the lazy mutex
+	#[track_caller]
 	pub fn lock(&self) -> HeldLazyMutex<T>
 	{
 		let lh = self.0.lock();
