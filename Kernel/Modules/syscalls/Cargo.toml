@@ -13,4 +13,4 @@ native = []
 stack_dst = { path = "../../../externals/crates.io/stack_dst", default-features = false }
 kernel = { path = "../../Core" }
 gui = { path = "../gui" }
-
+network = { path = "../network" }

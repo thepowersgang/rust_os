@@ -23,6 +23,9 @@ pub fn new_free_socket(local_address: crate::values::SocketAddress, remote_mask:
 		return Err(crate::values::SocketError::InvalidValue);
 	}
 	// TODO: Check that the current process is allowed to use the specified combination of port/type
+	//crate::objects::new_object(ConnSocket {
+	//	inner: ::network::tcp::ConnectionHandle::connect(remote_mask, remote_mask)?,
+	//	});
 	todo!("new_free_socket");
 }
 
@@ -40,7 +43,7 @@ impl crate::objects::Object for ConnServer
 	fn handle_syscall_ref(&self, call: u16, args: &mut Args) -> Result<u64,crate::Error> {
 		match call
 		{
-			crate::values::NET_SERVER_ACCEPT => {
+		crate::values::NET_SERVER_ACCEPT => {
 			let addr_ptr: FreezeMut<crate::values::SocketAddress> = args.get()?;
 			todo!("NET_SERVER_ACCEPT({:p})", &*addr_ptr);
 			},
@@ -62,6 +65,7 @@ impl crate::objects::Object for ConnServer
 
 struct ConnSocket
 {
+	_inner: ::network::tcp::ConnectionHandle,
 }
 impl crate::objects::Object for ConnSocket
 {
