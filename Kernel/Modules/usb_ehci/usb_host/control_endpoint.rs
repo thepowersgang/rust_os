@@ -1,6 +1,7 @@
 //!
 //! 
 use ::usb_core::host::{self,EndpointAddr};
+use crate::hw_structs;
 
 pub struct ControlEndpoint
 {
@@ -49,16 +50,16 @@ impl host::ControlEndpoint for ControlEndpoint
         // SAFE: ? Data is kept valid? TODO: This could read freed data if cancelled
         let td_setup = unsafe {
             // Get a TD for the status (PID_IN)
-            let td_status = self.host.td_pool.alloc(crate::hw_structs::Pid::In, &[], None);
+            let td_status = self.host.td_pool.alloc(hw_structs::Pid::In, &[], None);
             // Get a TD for the output (PID_OUT) - Optional
             let td_data = if out_data.len() > 0 {
-                    self.host.td_pool.alloc(crate::hw_structs::Pid::Out, out_data, Some(td_status))
+                    self.host.td_pool.alloc(hw_structs::Pid::Out, out_data, Some(td_status))
                 }
                 else {
                     td_status
                 };
             // Get a TD for the setup (PID_SETUP)
-            let td_setup = self.host.td_pool.alloc(crate::hw_structs::Pid::Setup, setup_data, Some(td_data));
+            let td_setup = self.host.td_pool.alloc(hw_structs::Pid::Setup, setup_data, Some(td_data));
             td_setup
             };
         
@@ -67,7 +68,8 @@ impl host::ControlEndpoint for ControlEndpoint
             let td_setup = self.host.wait_for_async(&mut qh, td_setup).await;
             let mut td_data = self.host.td_pool.release(td_setup).unwrap();
             
-            let unused_len = (self.host.td_pool.get_data(&mut td_data).token >> 16) & 0x7FFF;
+            let token = self.host.td_pool.get_data(&mut td_data).token;
+            let unused_len = hw_structs::TransferDesc::token_len(token);
 
             let td_status = self.host.td_pool.release(td_data);
             if let Some(td_status) = td_status {
@@ -87,7 +89,9 @@ impl host::ControlEndpoint for ControlEndpoint
                 }
             }
 
-            out_data.len() - unused_len as usize
+            let rv = out_data.len() - unused_len as usize;
+            log_debug!("ControlEndpoint::out_only({:?}): Return {} (token = {:#x})", self.endpoint, rv, token);
+            rv
         })
     }
 	fn in_only<'a>(&'a self, setup_data: &'a [u8], in_buf: &'a mut [u8]) -> host::AsyncWaitIo<'a, usize> {
@@ -96,16 +100,16 @@ impl host::ControlEndpoint for ControlEndpoint
         // SAFE: ? Data is kept valid? TODO: What if the future is cancelled? This could clobber data in that case!
         let td_setup = unsafe {
             // Get a TD for the status (PID_IN)
-            let td_status = self.host.td_pool.alloc(crate::hw_structs::Pid::Out, &[], None);
+            let td_status = self.host.td_pool.alloc(hw_structs::Pid::Out, &[], None);
             // Get a TD for the output (PID_OUT)
             let td_data = if in_buf.len() > 0 {
-                    self.host.td_pool.alloc(crate::hw_structs::Pid::In, in_buf, Some(td_status))
+                    self.host.td_pool.alloc(hw_structs::Pid::In, in_buf, Some(td_status))
                 }
                 else {
                     td_status
                 };
             // Get a TD for the setup (PID_SETUP)
-            let td_setup = self.host.td_pool.alloc(crate::hw_structs::Pid::Setup, setup_data, Some(td_data));
+            let td_setup = self.host.td_pool.alloc(hw_structs::Pid::Setup, setup_data, Some(td_data));
             td_setup
             };
         
@@ -114,14 +118,17 @@ impl host::ControlEndpoint for ControlEndpoint
 
             let td_setup = self.host.wait_for_async(&mut qh, td_setup).await;
             let mut td_data = self.host.td_pool.release(td_setup).unwrap();
-            
-            let unused_len = (self.host.td_pool.get_data(&mut td_data).token >> 16) & 0x7FFF;
+             
+            let token = self.host.td_pool.get_data(&mut td_data).token;
+            let unused_len = hw_structs::TransferDesc::token_len(token);
             let td_status = self.host.td_pool.release(td_data);
             if let Some(td_status) = td_status {
                 assert!(self.host.td_pool.release(td_status).is_none());
             }
 
-            in_buf.len() - unused_len as usize
+            let rv = in_buf.len() - unused_len as usize;
+            log_debug!("ControlEndpoint::in_only({:?}): Return {:?} (token = {:#x})", self.endpoint, ::kernel::logging::HexDump(&in_buf[..rv]), token);
+            rv
         })
     }
 }

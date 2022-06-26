@@ -6,6 +6,13 @@ use ::core::convert::TryInto;
 use crate::hw_structs;
 use super::UnsafeArrayHandle;
 
+fn set_bit(bitset: &mut [u8], idx: usize) {
+    bitset[idx / 8] |= 1 << (idx % 8);
+}
+fn get_bit(bitset: &[u8], idx: usize) -> bool {
+    bitset[idx / 8] & 1 << (idx % 8) != 0
+}
+
 /// Queue head pool
 pub struct QhPool {
     alloc: UnsafeArrayHandle<hw_structs::QueueHead>,
@@ -13,6 +20,9 @@ pub struct QhPool {
     alloced: ::kernel::sync::Spinlock<[u8; (Self::COUNT + 7) / 8]>,
     released: ::kernel::sync::Spinlock<[u8; (Self::COUNT + 7) / 8]>,
     meta: [UnsafeCell<QhMeta>; Self::COUNT],
+
+    /// Indicates that the QH "owned" by the hardware (it's a bug to access while this is set)
+    running: ::kernel::sync::Spinlock<[u8; (Self::COUNT + 7) / 8]>,
     waiters: [::kernel::futures::flag::SingleFlag; Self::COUNT],
 }
 unsafe impl Sync for QhPool {}
@@ -27,6 +37,7 @@ impl QhPool {
             alloced: ::kernel::sync::Spinlock::new( [0; (Self::COUNT + 7) / 8] ),
             released: ::kernel::sync::Spinlock::new( [0; (Self::COUNT + 7) / 8] ),
             meta: [(); Self::COUNT].map(|_| UnsafeCell::new(QhMeta { td: None })),
+            running: ::kernel::sync::Spinlock::new( [0; (Self::COUNT + 7) / 8] ),
             waiters: [(); Self::COUNT].map(|_| Default::default()),
         })
     }
@@ -47,7 +58,7 @@ impl QhPool {
     pub fn alloc_raw(&self, v: hw_structs::QueueHead) -> QhHandle {
         self.sem.acquire();
         let mut lh = self.alloced.lock();
-        match super::set_first_zero_bit(&mut lh[..])
+        match super::set_first_zero_bit(&mut lh[..], 0)
         {
         Some(i) => {
             let mut rv = QhHandle(i);
@@ -62,30 +73,38 @@ impl QhPool {
         log_debug!("QhPool::release({:?})", handle);
         let idx = handle.0;
         ::core::mem::forget(handle);
-        let mut lh = self.released.lock();
-        lh[idx / 8] |= 1 << (idx % 8);
+        set_bit(&mut self.released.lock()[..], idx);
     }
 
     /// Assigns a TD to the queue, and starts it executing
-    pub fn assign_td(&self, handle: &mut QhHandle, td_pool: &super::TdPool, first_td: super::TdHandle) {
+    /// 
+    /// UNSAFE: This function hands ownership over to the hardware
+    pub unsafe fn assign_td(&self, handle: &mut QhHandle, td_pool: &super::TdPool, first_td: super::TdHandle) {
         let d = self.get_data_mut(handle);
-        //let s = td_pool.get_data(&first_td);
+        self.mark_running(handle);
         d.current_td = td_pool.get_phys(&first_td)/*| crate::hw_structs::QH*/;
-        d.overlay_link = d.current_td;
         self.get_meta_mut(handle).td = Some(first_td);
-        d.overlay_token = 0;    // Clear all data to start execution of the queue
+        // Set the new link value, and clear any set `HALT` bit
+        // - As soon as both are met, the controller will start processing (next time it loops around)
+        ::core::ptr::write_volatile(&mut d.overlay_link, d.current_td);
+        ::core::ptr::write_volatile(&mut d.overlay_token, 0);
+        log_debug!("QH {:?} {:#x} {:?}", handle, ::kernel::memory::virt::get_phys(d), d);
     }
+    /// Remove the current TD from a completed/idle QH
     pub fn clear_td(&self, handle: &mut QhHandle) -> Option<super::TdHandle> {
+        self.assert_not_running(handle, "clear_td");
         self.get_data_mut(handle).current_td = 0;
         self.get_meta_mut(handle).td.take()
     }
 
     fn get_idx_from_phys(&self, addr: u32) -> usize {
         let phys0: u32 = self.alloc.get_phys(0).try_into().unwrap();
-        assert!(addr >= phys0);
+        assert!(addr >= phys0, "{:#x} is not a valid QH address for this pool", addr);
+        assert!(addr < phys0 + 0x1000, "{:#x} is not a valid QH address for this pool", addr);
+        assert!(addr % ::core::mem::size_of::<hw_structs::QueueHead>() as u32 == 0, "{:#x} is not a valid QH address for this pool", addr);
         let idx = (addr - phys0) / ::core::mem::size_of::<hw_structs::QueueHead>() as u32;
         let idx = idx as usize;
-        assert!(idx < Self::COUNT);
+        assert!(idx < Self::COUNT, "{:#x} is not a valid QH address for this pool", addr);
         idx
     }
 
@@ -93,10 +112,12 @@ impl QhPool {
         self.alloc.get_phys(h.0).try_into().unwrap()
     }
     pub fn get_data(&'_ self, h: &'_ QhHandle) -> &'_ hw_structs::QueueHead {
-        // SAFE: Shared access to the handle implies shared access to the data
+        self.assert_not_running(h, "get_data");
+        // SAFE: The handle is owned
         unsafe { self.alloc.get(h.0) }
     }
     pub fn get_data_mut(&'_ self, h: &'_ mut QhHandle) -> &'_ mut hw_structs::QueueHead {
+        self.assert_not_running(h, "get_data_mut");
         // SAFE: The handle is owned
         unsafe { self.alloc.get_mut(h.0) }
     }
@@ -146,40 +167,69 @@ impl QhPool {
         }
     }
 
-    /// Iterate a queue started by `first` and check for completed queues
-    /// 
-    /// UNSAFE: Caller must ensure that the 
-    pub unsafe fn check_completion(&self, first: &QhHandle) {
-        let mut cur_idx = first.0;
-        loop {
-            let cur = self.alloc.get(cur_idx);
-            let hlink = cur.hlink;
-            if hlink == 0 {
-                // Not found?
-                return ;
-            }
-            let next = self.get_idx_from_phys(hlink & !0xF);
+    #[track_caller]
+    fn assert_not_running(&self, h: &QhHandle, fcn: &str) {
+        assert!( !get_bit(&self.running.lock()[..], h.0), "TdPool::{}({:?}) with running TD", fcn, h );
+    }
+    /// Marks a QH as now controlled by the hardware - must be called for `wait` to work properly
+    /// UNSAFE: Callers cannot access the data until `wait` returns
+    unsafe fn mark_running(&self, handle: &mut QhHandle) {
+        let mut lh = self.running.lock();
+        assert!( !get_bit(&lh[..], handle.0), "mark_running({:?}) on already running QH", handle);
+        set_bit(&mut lh[..], handle.0);
+    }
 
-            if cur.overlay_token & hw_structs::QTD_TOKEN_STS_ACTIVE == 0 {
-                let meta = &*self.meta[cur_idx].get();
-                // Inactive, wake it?
-                if meta.td.is_some() {
-                    self.waiters[cur_idx].trigger();
+    /// Check completion on any running task
+    pub fn check_any_complete(&self) {
+        let mut lh = self.running.lock();
+        for idx in 0 .. Self::COUNT
+        {
+            // Is the queue running?
+            if get_bit(&lh[..], idx)
+            {
+                // SAFE: Since the bit in `running` is set, hardware (and this logic) owns the QH
+                let (token, link) = unsafe {
+                    (
+                        ::core::ptr::read(::core::ptr::addr_of!((*self.alloc.get(idx)).overlay_token)),
+                        ::core::ptr::read(::core::ptr::addr_of!((*self.alloc.get(idx)).overlay_link)),
+                        )
+                    };
+                // If the overlay's active bit is zero and there's nothing in `link`, the queue is now complete
+                if token & hw_structs::QTD_TOKEN_STS_ACTIVE == 0 && link & 1 == 1
+                {
+                    log_debug!("check_any_complete: QhHandle({}) complete (token = {:#x}, link = {:#x})", idx, token, link);
+                    // Clear the `running` bit (it should be set, because we checked above)
+                    assert!( super::get_and_clear_bit(&mut lh[..], idx), "How did this bit get unset? We're locked" );
+
+                    // NOTE: Drop and re-acquire the lock so it doesn't overlap with the mutex within the waiter
+                    drop(lh);
+                    self.waiters[idx].trigger();
+                    lh = self.running.lock();
                 }
-            }
-
-            cur_idx = next;
-            if cur_idx == first.0 {
-                // Uh-oh, we've looped. Error?
-                return ;
             }
         }
     }
 
     /// Async wait for the QH to be removed from the async queue
     pub async fn wait(&self, h: &mut QhHandle) {
+        assert!( get_bit(&self.running.lock()[..], h.0), "TdPool::wait({:?}) with non-running TD", h );
         self.waiters[h.0].wait().await
     }
+
+
+    // --- Periodic List ---
+    pub unsafe fn get_next_and_period(&self, addr: u32) -> (u32, usize)
+    {
+        let idx = self.get_idx_from_phys(addr);
+        let next = ::core::ptr::read( ::core::ptr::addr_of!( (*self.alloc.get_raw(idx)).hlink) );
+        (next, 1)
+    }
+
+    pub unsafe fn set_next(&self, ent_addr: u32, hlink: u32) {
+        let idx = self.get_idx_from_phys(ent_addr);
+        ::core::ptr::write( ::core::ptr::addr_of_mut!((*self.alloc.get_raw(idx)).hlink), hlink );
+    }
+
 }
 #[derive(Debug)]
 pub struct QhHandle(usize);

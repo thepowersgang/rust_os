@@ -5,8 +5,10 @@ use ::usb_core::host::{self,PortFeature,EndpointAddr,Handle};
 
 mod control_endpoint;
 mod bulk_endpoint;
+mod interrupt_endpoint;
 use self::control_endpoint::ControlEndpoint;
 use self::bulk_endpoint::BulkEndpoint;
+use self::interrupt_endpoint::InterruptEndpoint;
 
 pub struct UsbHost
 {
@@ -15,7 +17,9 @@ pub struct UsbHost
 impl ::usb_core::host::HostController for UsbHost
 {
 	fn init_interrupt(&self, endpoint: EndpointAddr, period_ms: usize, max_packet_size: usize) -> Handle<dyn host::InterruptEndpoint> {
-        todo!("init_interrupt")
+        Handle::new( Box::new(
+            InterruptEndpoint::new(self.host.clone(), endpoint, period_ms, max_packet_size)
+        )).ok().expect("Cannot fit Box in Handle")
 	}
 	fn init_isoch(&self, endpoint: EndpointAddr, max_packet_size: usize) -> Handle<dyn host::IsochEndpoint> {
 		todo!("init_isoch({:?}, max_packet_size={})", endpoint, max_packet_size);
@@ -58,8 +62,9 @@ impl ::usb_core::host::HostController for UsbHost
 	}
 	fn get_port_feature(&self, port: usize, feature: PortFeature) -> bool {
         if let Some(bit) = feature_bit(feature, FeatureOp::Get)  {
-            log_debug!("get_port_feature({port} {feature:?}): {bit:#x}");
-            self.host.regs.read_port_sc(port as u8) & bit != 0
+            let rv = self.host.regs.read_port_sc(port as u8) & bit != 0;
+            log_debug!("get_port_feature({port} {feature:?}): {bit:#x} = {}", rv);
+            rv
         }
         else {
             false

@@ -21,6 +21,7 @@ mod desc_pools;
 
 mod host_queuemgmt;
 use self::host_queuemgmt::HostHeldQh;
+mod host_interrupt;
 
 ::kernel::module_define!{usb_ehci, [usb_core], init}
 
@@ -57,7 +58,7 @@ struct HostInner
 
     regs: hw_regs::Regs,
     /// 
-    periodic_queue: ::kernel::memory::virt::ArrayHandle<u32>,
+    periodic_queue: ::kernel::sync::Mutex< ::kernel::memory::virt::ArrayHandle<u32> >,
     td_pool: desc_pools::TdPool,
     qh_pool: desc_pools::QhPool,
     async_head_td: ::kernel::sync::Spinlock<desc_pools::QhHandle>,
@@ -115,7 +116,11 @@ impl HostInner
             // Reset the controller
             regs.write_op(OpReg::UsbCmd, USBCMD_HCReset);
             // Set up interrupts
-            regs.write_op(OpReg::UsbIntr, USBINTR_IOC|USBINTR_PortChange|USBINTR_FrameRollover|USBINTR_IntrAsyncAdvance);
+            // - Interrupt on completion
+            // - (Root) Port status change
+            // - [DISABLED] Frame rollover (every 1024ms)
+            // - Async queue advance (only fires when requested)
+            regs.write_op(OpReg::UsbIntr, USBINTR_IOC|USBINTR_PortChange/*|USBINTR_FrameRollover*/|USBINTR_IntrAsyncAdvance);
             // Set addresses
             regs.write_op(OpReg::PeriodicListBase, ::kernel::memory::virt::get_phys(&periodic_queue[0]) as u32);
             regs.write_op(OpReg::AsyncListAddr, qh_pool.get_phys(&dead_qh));
@@ -128,7 +133,7 @@ impl HostInner
         let mut inner_aref = Aref::new(HostInner {
             _irq_handle: None,
             regs,
-            periodic_queue,
+            periodic_queue: ::kernel::sync::Mutex::new(periodic_queue),
             td_pool,
             qh_pool,
 
@@ -166,15 +171,21 @@ impl HostInner
             let mut chk = |bit: u32| { let rv = sts & bit != 0; sts &= !bit; rv };
             if chk(hw_regs::USBINTR_IOC) {
                 // Interrupt-on-completion
+                log_trace!("handle_irq: IOC");
+
                 // - Run through the async list, and check for completed
                 // > Completed means that the `Active` bit in the overlay is clear
                 // SAFE: Called with the async lock
-                unsafe {
-                    self.qh_pool.check_completion(&self.async_head_td.lock());
-                }
+                //unsafe {
+                //    self.qh_pool.check_completion(&self.async_head_td.lock());
+                //}
+
+                // TODO: Run completion on all entries? Needed for interrupt endpoints
+                self.qh_pool.check_any_complete();
             }
             // Async queue has advanced (i.e. OpReg::AsyncListAddr has updated)
             if chk(hw_regs::USBINTR_IntrAsyncAdvance) {
+                log_trace!("handle_irq: IntrAsyncAdvance");
                 unsafe {
                     let mut async_head_td = self.async_head_td.lock();
                     // Inform the QH queue that it can now GC

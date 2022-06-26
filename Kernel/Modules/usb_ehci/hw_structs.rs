@@ -7,6 +7,11 @@ pub struct TransferDesc
 	pub token: u32,
 	pub pages: [u32; 5],    //First has offset in low 12 bits
 }
+impl TransferDesc {
+    pub fn token_len(token: u32) -> usize {
+        ((token >> 16) & 0x7FFF) as usize
+    }
+}
 impl ::core::fmt::Debug for TransferDesc {
     fn fmt(&self, f: &mut ::core::fmt::Formatter) -> ::core::fmt::Result {
         struct V<'a>(&'a [u32; 5]);
@@ -30,13 +35,14 @@ impl ::core::fmt::Debug for TransferDesc {
                 self.link2 & !0xF,
                 ["","/T"][ (self.link2 & 1) as usize ]
                 ))
-            .field("token", &format_args!("{nb}b{ioc}/{c_page}/{cerr}/{pid}/{status:02x}",
+            .field("token", &format_args!("{nb}b{ioc}{dt}/{c_page}/{cerr}/{pid}/{status:02x}",
                 nb = (self.token >> 16) & 0x7FFF,
                 ioc = ["","/IOC"][ (self.token >> 15) as usize & 1 ],
                 c_page = (self.token >> 12) & 7, // C_Page
                 cerr = (self.token >> 10) & 3, // CERR
                 pid = ["OUT","IN","SETUP","resv"][ (self.token >> 8) as usize & 3 ],
                 status = self.token & 0xFF,
+                dt = if self.token & QTD_TOKEN_DATATGL != 0 { "/DT" } else { "" },
                 ))
             .field("pages", &V(&self.pages))
             .finish()
@@ -68,6 +74,7 @@ pub struct QueueHead    // sizeof = 64 = 0x40
 	pub overlay_token: u32,
 	pub overlay_pages: [u32; 5],    //First has offset in low 12 bits
     // Dead space: 16 bytes
+    // TODO: Store the interrupt metadata here
 }
 impl ::core::fmt::Debug for QueueHead {
     fn fmt(&self, f: &mut ::core::fmt::Formatter) -> ::core::fmt::Result {

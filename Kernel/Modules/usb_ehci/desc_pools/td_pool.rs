@@ -10,7 +10,7 @@ use super::UnsafeArrayHandle;
 pub struct TdPool {
     alloc: UnsafeArrayHandle<hw_structs::TransferDesc>,
     sem: ::kernel::sync::Semaphore,
-    alloced: ::kernel::sync::Spinlock<[u8; (Self::COUNT + 7) / 8]>,
+    alloced: ::kernel::sync::Spinlock<([u8; (Self::COUNT + 7) / 8], usize)>,
     meta: [UnsafeCell<TdMeta>; Self::COUNT],
 }
 unsafe impl Send for TdPool {}
@@ -22,7 +22,7 @@ impl TdPool {
         Ok(TdPool {
             alloc: UnsafeArrayHandle::new( ::kernel::memory::virt::alloc_dma(32, 1, module_path!())? ),
             sem: ::kernel::sync::Semaphore::new(Self::COUNT as isize, Self::COUNT as isize),
-            alloced: ::kernel::sync::Spinlock::new( [0; (Self::COUNT + 7) / 8] ),
+            alloced: ::kernel::sync::Spinlock::new( ([0; (Self::COUNT + 7) / 8], 0) ),
             meta: [(); Self::COUNT].map(|_| UnsafeCell::new(TdMeta { next: None })),
         })
     }
@@ -56,10 +56,18 @@ impl TdPool {
     }
     fn alloc_raw(&self, v: hw_structs::TransferDesc, next: Option<TdHandle>) -> TdHandle {
         self.sem.acquire();
-        match super::set_first_zero_bit(&mut self.alloced.lock()[..])
+        match {
+            let mut lh = self.alloced.lock();
+            let mut lh = &mut *lh;
+            let rv = super::set_first_zero_bit(&mut lh.0[..], lh.1);
+            if let Some(i) = rv {
+                lh.1 = i+1;
+            }
+            rv
+            }
         {
         Some(i) => {
-            let mut rv = TdHandle(i);
+            let mut rv = TdHandle::new(i);
             log_debug!("TdPool::alloc_raw(next={:?}): {:?}", next, rv);
             self.get_meta_mut(&mut rv).next = next;
             *self.get_data_mut(&mut rv) = v;
@@ -71,34 +79,34 @@ impl TdPool {
     pub fn release(&self, mut handle: TdHandle) -> Option<TdHandle> {
         let rv = self.get_meta_mut(&mut handle).next.take();
         log_debug!("TdPool::release({:?}): next={:?}", handle, rv);
-        let idx = handle.0;
+        let idx = handle.idx();
         ::core::mem::forget(handle);
         let mut lh = self.alloced.lock();
-        if !super::get_and_clear_bit(&mut lh[..], idx) {
+        if !super::get_and_clear_bit(&mut lh.0[..], idx) {
             panic!("Releasing an unused handle {}", idx);
         }
         self.sem.release();
         rv
     }
     pub fn get_phys(&self, h: &TdHandle) -> u32 {
-        self.alloc.get_phys(h.0).try_into().unwrap()
+        self.alloc.get_phys(h.idx()).try_into().unwrap()
     }
     pub fn get_data(&self, h: &TdHandle) -> &hw_structs::TransferDesc {
         // SAFE: Shared access to the handle implies shared access to the data
-        unsafe { self.alloc.get(h.0) }
+        unsafe { self.alloc.get(h.idx()) }
     }
     pub fn get_data_mut(&self, h: &mut TdHandle) -> &mut hw_structs::TransferDesc {
         // SAFE: Mutable access to the handle implies mutable access to the data
-        unsafe { self.alloc.get_mut(h.0) }
+        unsafe { self.alloc.get_mut(h.idx()) }
     }
     /*pub*/ fn get_meta_mut(&self, h: &mut TdHandle) -> &mut TdMeta {
         // SAFE: Mutable access to the handle implies mutable access to the data
-        unsafe { &mut *self.meta[h.0].get() }
+        unsafe { &mut *self.meta[h.idx()].get() }
     }
 
     /// Iterate through the chain of descriptors starting from `root`
     pub fn iter_chain_mut(&self, root: &mut TdHandle, mut cb: impl FnMut(&mut hw_structs::TransferDesc/* , &mut TdMeta*/)) {
-        let mut cur_idx = root.0;
+        let mut cur_idx = root.idx();
         loop {
             let (data, _meta) = unsafe {
                 (self.alloc.get_mut(cur_idx), &mut *self.meta[cur_idx].get())
@@ -123,8 +131,24 @@ impl TdPool {
         idx
     }
 }
-#[derive(Debug)]
-pub struct TdHandle(usize);
+
+/// Owned handle to a transfer descriptor
+// Encoded as a non-zero u16 (one page only needs 4096/32 = 128 entries)
+// Extra size is there for eventual expansion to multiple pages/sub-pools
+pub struct TdHandle(::core::num::NonZeroU16);
+impl ::core::fmt::Debug for TdHandle {
+    fn fmt(&self, f: &mut ::core::fmt::Formatter) -> ::core::fmt::Result {
+        write!(f, "TdHandle({})", self.idx())
+    }
+}
+impl TdHandle {
+    fn new(v: usize) -> Self {
+        TdHandle(::core::num::NonZeroU16::new( (v+1) as u16 ).unwrap())
+    }
+    fn idx(&self) -> usize {
+        self.0.get() as usize - 1
+    }
+}
 impl Drop for TdHandle {
     fn drop(&mut self) {
         log_error!("BUG: {:?} dropped, should be released back to the pool", self);

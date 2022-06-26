@@ -73,8 +73,6 @@ impl super::HostInner
         log_debug!("wait_for_async({:?}): first_td={:?}", qh, first_td);
         // REF: EHCI spec, 4.8 "Asynchronous Schedule"
 
-        log_debug!("QH = {:?}", self.qh_pool.get_data(&qh.qh));
-
         // Ensure IOC is set for the final entry in the td chain
         self.td_pool.iter_chain_mut(&mut first_td, |data/*, _meta*/| {
             log_debug!("TD {:#x} {:?}", ::kernel::memory::virt::get_phys(data), data);
@@ -84,11 +82,13 @@ impl super::HostInner
             }
             });
         // Add the TD to the queue header
-        self.qh_pool.assign_td(&mut qh.qh, &self.td_pool, first_td);
-        log_debug!("QH = {:?}", self.qh_pool.get_data(&qh.qh));
+        unsafe {
+            self.qh_pool.assign_td(&mut qh.qh, &self.td_pool, first_td);
+        }
 
         // Re-start the async queue.
         // - If it's already running, flag for a restart on exhaustion?
+        // SAFE: Called with the lock held
         unsafe
         {
             let mut async_head = self.async_head_td.lock();
@@ -108,11 +108,14 @@ impl super::HostInner
         log_debug!("wait_for_async({:?}): QH {:#x} = {:?}", qh.qh, ::kernel::memory::virt::get_phys(self.qh_pool.get_data(&qh.qh)), self.qh_pool.get_data(&qh.qh));
         // Remove the TD handle from the queue
         self.qh_pool.clear_td(&mut qh.qh).unwrap()
+
+        // TODO: Stop the async queue if nothing to do?
     }
 
     /// Re-start the stopped async queue
     /// 
     /// NOTE: Public so the parent (the interrupt code) can run it
+    /// UNSAFE: Can only be called with the async queue lock held
     pub(crate) unsafe fn start_async_queue(&self, async_head: &mut desc_pools::QhHandle)
     {
         if self.regs.read_op(hw_regs::OpReg::UsbSts) & hw_regs::USBSTS_AsyncEnabled == 0 {
