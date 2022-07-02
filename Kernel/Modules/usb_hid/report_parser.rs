@@ -164,8 +164,8 @@ pub struct ParseState
 {
 	// Global
 	pub usage_page: u32,
-	pub logical_range: (Option<i32>,Option<i32>),
-	pub physical_range: (Option<i32>,Option<i32>),
+	pub logical_range: Range,
+	pub physical_range: Range,
 	pub unit_exponent: Option<u32>,
 	pub unit: Option<u32>,
 
@@ -177,6 +177,23 @@ pub struct ParseState
 	pub usage: List,
 	pub designator: List,
 	pub string: List,
+}
+#[derive(Default)]
+pub struct Range {
+	pub min: Option<i32>,
+	pub max: Option<i32>,
+}
+impl ::core::fmt::Debug for Range {
+	fn fmt(&self, f: &mut ::core::fmt::Formatter) -> ::core::fmt::Result {
+		if let Some(v) = self.min {
+			v.fmt(f)?;
+		}
+		f.write_str("...")?;
+		if let Some(v) = self.max {
+			v.fmt(f)?;
+		}
+		Ok( () )
+	}
 }
 #[derive(Debug)]
 pub enum List
@@ -257,10 +274,10 @@ impl ParseState
 		Op::EndCollection => {},
 
 		Op::UsagePage(v) => self.usage_page = v << 16,
-		Op::LogicalMin(v) => self.logical_range.0 = Some(v),
-		Op::LogicalMax(v) => self.logical_range.1 = Some(v),
-		Op::PhysicalMin(v) => self.physical_range.0 = Some(v),
-		Op::PhysicalMax(v) => self.physical_range.1 = Some(v),
+		Op::LogicalMin(v) => self.logical_range.min = Some(v),
+		Op::LogicalMax(v) => self.logical_range.max = Some(v),
+		Op::PhysicalMin(v) => self.physical_range.min = Some(v),
+		Op::PhysicalMax(v) => self.physical_range.max = Some(v),
 		Op::UnitExponent(v) => self.unit_exponent = Some(v),
 		Op::Unit(v) => self.unit = Some(v),
 		Op::ReportSize(v) => self.report_size = v,

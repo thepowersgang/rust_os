@@ -118,9 +118,10 @@ impl Driver
 						let usage = state.usage.get(if flags.is_variable() { i } else { val as usize });
 						match usage
 						{
+						0 => {},
 						// Keyboard
 						0x7_0000 ..= 0x7_00FF => {
-							log_debug!("{:x} (key) = {}", usage, (val != 0));
+							log_debug!("Keyboard: {:x} (key) = {}", usage, (val != 0));
 							if val != 0 {
 								sinks.keyboard.as_mut().unwrap().set_key( (usage & 0xFF) as u8 );
 							}
@@ -132,7 +133,7 @@ impl Driver
 							let n = if is_x { "X" } else { "Y" };
 							let mouse_sink = sinks.mouse.as_mut().unwrap();
 							if flags.is_relative() {
-								log_debug!("{:x} d{} = {}", usage, n, val);
+								log_debug!("Mouse relative: {:x} d{} = {}", usage, n, val);
 								if is_x {
 									mouse_sink.rel_x(val as i16);
 								}
@@ -142,10 +143,10 @@ impl Driver
 							}
 							else {
 								// Normalise into `0 ..= 0xFFFF`
-								let lmin = state.logical_range.0.unwrap_or(0) as i32;
-								let lmax = state.logical_range.1.unwrap_or(lmin + 1) as i32;
+								let lmin = state.logical_range.min.unwrap_or(0) as i32;
+								let lmax = state.logical_range.max.unwrap_or(lmin + 1) as i32;
 								let norm = (((val - lmin) as u64 * 0xFFFF) / (lmax - lmin) as u64) as u16;
-								log_debug!("{:x} {} = {:#x} (raw = {:#x})", usage, n, norm, val);
+								log_debug!("Mouse absolute: {:x} {} = {:#x} (raw = {:#x})", usage, n, norm, val);
 								if is_x {
 									mouse_sink.abs_x(norm);
 								}
@@ -165,7 +166,7 @@ impl Driver
 							sinks.mouse.as_mut().unwrap().set_button(num-1, val != 0);
 							},
 						_ => {
-							log_debug!("{:x} +{} ={:x}", usage, state.report_size, val);
+							log_debug!("Unknown: {:x} +{} ={:x}", usage, state.report_size, val);
 							},
 						}
 					}
