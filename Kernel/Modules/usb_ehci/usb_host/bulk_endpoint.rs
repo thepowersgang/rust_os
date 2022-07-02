@@ -43,6 +43,7 @@ impl host::BulkEndpointOut for BulkEndpoint
         })
     }
 }
+
 impl host::BulkEndpointIn for BulkEndpoint
 {
 	fn recv<'a>(&'a self, buffer: &'a mut [u8]) -> host::AsyncWaitIo<'a, usize> {
@@ -61,5 +62,12 @@ impl host::BulkEndpointIn for BulkEndpoint
 
             buffer.len() - unused_len as usize
         })
+    }
+}
+
+impl ::core::ops::Drop for BulkEndpoint
+{
+    fn drop(&mut self) {
+        self.host.remove_qh_from_async(self.qh.take().unwrap().into_inner());
     }
 }

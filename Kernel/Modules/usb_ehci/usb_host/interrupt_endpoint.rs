@@ -81,6 +81,15 @@ impl host::InterruptEndpoint for InterruptEndpoint
 	}
 }
 
+impl ::core::ops::Drop for InterruptEndpoint
+{
+    fn drop(&mut self)
+    {
+        let ih = self.ih.take().unwrap().into_inner();
+        self.host.remove_qh_from_interrupt(ih);
+    }
+}
+
 struct IntBuffer<'a>
 {
     parent: &'a InterruptEndpoint,

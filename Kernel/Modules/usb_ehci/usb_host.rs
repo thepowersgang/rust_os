@@ -119,9 +119,9 @@ impl ::usb_core::host::HostController for UsbHost
 			type Output = usize;
 			fn poll(self: core::pin::Pin<&mut Self>, cx: &mut core::task::Context) -> core::task::Poll<Self::Output> {
 				let v = self.host.port_update.load(Ordering::SeqCst);
-				log_debug!("UsbHost::AsyncWaitRoot::poll: v = {:#x}", v);
 				if v != 0
 				{
+					log_debug!("UsbHost::AsyncWaitRoot::poll: v = {:#x}", v);
 					for i in 0 .. self.host.nports()
 					{
 						let bit = 1 << i;
