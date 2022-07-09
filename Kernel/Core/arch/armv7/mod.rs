@@ -151,18 +151,7 @@ fn print_backtrace_unwindstate(mut rs: aeabi_unwind::UnwindState, mut addr: usiz
 	log_debug!("- LR={:#x}", rs.get_lr());
 }
 
-
-
-pub mod x86_io {
-	pub unsafe fn inb(_p: u16) -> u8 { panic!("calling inb on ARM") }
-	pub unsafe fn inw(_p: u16) -> u16 { panic!("calling inw on ARM") }
-	pub unsafe fn inl(_p: u16) -> u32 { panic!("calling inl on ARM") }
-	pub unsafe fn outb(_p: u16, _v: u8) {}
-	pub unsafe fn outw(_p: u16, _v: u16) {}
-	pub unsafe fn outl(_p: u16, _v: u32) {}
-}
-
-
+pub use crate::arch::helpers::x86_io_unavailable as x86_io;
 
 #[allow(dead_code)]
 #[cfg(no)]

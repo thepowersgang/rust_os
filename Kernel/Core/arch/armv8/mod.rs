@@ -89,16 +89,7 @@ pub unsafe fn drop_to_user(entry: usize, stack: usize, args_len: usize) -> ! {
 	drop_to_user(entry, stack, args_len);
 }
 
-
-pub mod x86_io {
-	pub unsafe fn inb(_p: u16) -> u8 { panic!("calling inb on ARM") }
-	pub unsafe fn inw(_p: u16) -> u16 { panic!("calling inw on ARM") }
-	pub unsafe fn inl(_p: u16) -> u32 { panic!("calling inl on ARM") }
-	pub unsafe fn outb(_p: u16, _v: u8) {}
-	pub unsafe fn outw(_p: u16, _v: u16) {}
-	pub unsafe fn outl(_p: u16, _v: u32) {}
-}
-
+pub use crate::arch::helpers::x86_io_unavailable as x86_io;
 
 fn putb(b: u8) {
 	// SAFE: Access should be correct, and no race is possible

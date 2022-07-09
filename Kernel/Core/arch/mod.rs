@@ -36,6 +36,20 @@ cfg_if::cfg_if!{
 #[cfg(any(arch="amd64", target_arch="x86_64"))]
 pub use self::imp::acpi;
 
+#[allow(dead_code)]
+mod helpers {
+	pub mod x86_io_unavailable {
+		pub unsafe fn inb(_p: u16) -> u8 { panic!("calling inb not supported on this arch") }
+		pub unsafe fn inw(_p: u16) -> u16 { panic!("calling inw not supported on this arch") }
+		pub unsafe fn inl(_p: u16) -> u32 { panic!("calling inl not supported on this arch") }
+		pub unsafe fn inq(_p: u16) -> u64 { panic!("calling inq not supported on this arch") }
+		pub unsafe fn outb(_p: u16, _v: u8) {}
+		pub unsafe fn outw(_p: u16, _v: u16) {}
+		pub unsafe fn outl(_p: u16, _v: u32) {}
+		pub unsafe fn outq(_p: u16, _v: u64) {}
+	}
+}
+
 
 /// Memory management
 pub mod memory {
@@ -418,11 +432,15 @@ pub mod x86_io {
 	#[inline]
 	pub unsafe fn inl(p: u16) -> u32 { imp::inl(p) }
 	#[inline]
+	pub unsafe fn inq(p: u16) -> u64 { imp::inq(p) }
+	#[inline]
 	pub unsafe fn outb(p: u16, v: u8) { imp::outb(p, v) }
 	#[inline]
 	pub unsafe fn outw(p: u16, v: u16) { imp::outw(p, v) }
 	#[inline]
 	pub unsafe fn outl(p: u16, v: u32) { imp::outl(p, v) }
+	#[inline]
+	pub unsafe fn outq(p: u16, v: u64) { imp::outq(p, v) }
 }
 
 pub mod time {

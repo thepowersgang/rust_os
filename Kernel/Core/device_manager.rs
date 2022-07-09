@@ -114,6 +114,7 @@ pub trait Driver:
 	/// Return the handling level of this driver for the specified device
 	fn handles(&self, bus_dev: &dyn BusDevice) -> DriverHandleLevel;
 	/// Requests that the driver bind itself to the specified device
+	// TODO: Could this use a `stack_dst::Value` to be more efficient with pointer wrappers (e.g. Aref/Arc wrappers)
 	fn bind(&self, bus_dev: &mut dyn BusDevice) -> Box<dyn DriverInstance+'static>;
 }
 /// Error type for `Driver::bind`
@@ -331,6 +332,23 @@ impl IOBinding
 			},
 		}
 	}
+	/// Read a single u64 from the binding
+	#[inline]
+	pub unsafe fn read_64(&self, ofs: usize) -> u64
+	{
+		//log_trace!("read_64({:?}, {:#x})", self, ofs);
+		match *self
+		{
+		IOBinding::IO(base, s) => {
+			assert!( ofs+4 <= s as usize, "read_u64(IO addr {:#x}+8 > {:#x})", ofs, s );
+			crate::arch::x86_io::inq(base + ofs as u16)
+			},
+		IOBinding::Memory(ref h) => {
+			::core::intrinsics::volatile_load( h.as_int_mut::<u64>(ofs) )
+			},
+		}
+	}
+
 	/// Writes a single u8 to the binding
 	#[inline]
 	pub unsafe fn write_8(&self, ofs: usize, val: u8)
@@ -355,7 +373,7 @@ impl IOBinding
 		match *self
 		{
 		IOBinding::IO(base, s) => {
-			assert!(ofs+2 <= s as usize, "write_16(IO addr {:#x}+4 > {:#x})", ofs, s);
+			assert!(ofs+2 <= s as usize, "write_16(IO addr {:#x}+2 > {:#x})", ofs, s);
 			crate::arch::x86_io::outw(base + ofs as u16, val);
 			},
 		IOBinding::Memory(ref h) => {
@@ -376,6 +394,22 @@ impl IOBinding
 			},
 		IOBinding::Memory(ref h) => {
 			::core::intrinsics::volatile_store( h.as_int_mut::<u32>(ofs), val );
+			},
+		}
+	}
+	/// Write a single u64 to the binding
+	#[inline]
+	pub unsafe fn write_64(&self, ofs: usize, val: u64)
+	{
+		//log_trace!("write_64({:?}, {:#x}, {:#02x})", self, ofs, val);
+		match *self
+		{
+		IOBinding::IO(base, s) => {
+			assert!(ofs+4 <= s as usize, "write_64(IO addr {:#x}+8 > {:#x})", ofs, s);
+			crate::arch::x86_io::outq(base + ofs as u16, val);
+			},
+		IOBinding::Memory(ref h) => {
+			::core::intrinsics::volatile_store( h.as_int_mut::<u64>(ofs), val );
 			},
 		}
 	}

@@ -599,9 +599,11 @@ pub mod x86_io {
 	pub unsafe fn inb(_p: u16) -> u8 { 0 }
 	pub unsafe fn inw(_p: u16) -> u16 { 0 }
 	pub unsafe fn inl(_p: u16) -> u32 { 0 }
+	pub unsafe fn inq(_p: u16) -> u64 { 0 }
 	pub unsafe fn outb(_p: u16, _v: u8) { }
 	pub unsafe fn outw(_p: u16, _v: u16) { }
 	pub unsafe fn outl(_p: u16, _v: u32) { }
+	pub unsafe fn outq(_p: u16, _v: u64) { }
 }
 
 pub unsafe fn drop_to_user(_entry: usize, _stack: usize, _args_len: usize) -> ! {

@@ -42,6 +42,18 @@ pub unsafe fn inl(port: u16) -> u32 {
 pub unsafe fn outl(port: u16, val: u32) {
 	::core::arch::asm!("out dx, eax", in("dx") port, in("eax") val, options(preserves_flags, nomem, nostack));
 }
+/// Read a 64-bit quad-word
+#[inline]
+pub unsafe fn inq(port: u16) -> u64 {
+	let ret : u64;
+	::core::arch::asm!("in rax, dx", out("rax") ret, in("dx") port, options(preserves_flags, nomem, nostack));
+	return ret;
+}
+/// Write a 64-bit quad-word
+#[inline]
+pub unsafe fn outq(port: u16, val: u64) {
+	::core::arch::asm!("out dx, rax", in("dx") port, in("rax") val, options(preserves_flags, nomem, nostack));
+}
 
 // vim: ft=rust
 
