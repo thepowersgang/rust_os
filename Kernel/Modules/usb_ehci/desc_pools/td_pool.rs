@@ -32,7 +32,7 @@ impl TdPool {
     pub unsafe fn alloc(&self, packet_id: hw_structs::Pid, data: &[u8], next: Option<TdHandle>) -> TdHandle {
         assert!(data.len() < ::kernel::PAGE_SIZE);
         let phys0 = ::kernel::memory::virt::get_phys(data.as_ptr());
-        let phys0_tail = (phys0 - phys0 % ::kernel::PAGE_SIZE as u64) as usize;
+        let phys0_tail = (phys0 - phys0 % ::kernel::PAGE_SIZE as ::kernel::memory::PAddr) as usize;
         let phys1 = if data.len() < phys0_tail {
                 0
             } else {
