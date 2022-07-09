@@ -26,6 +26,11 @@ macro_rules! _count
 /// Define a kernel module (creates the module header, containg the name and dependency strings)
 ///
 /// For external modules, at the module must be defined in the root (lib.rs)
+/// 
+/// E.g.
+/// ```
+/// module_define!(foomodule, [dep1, dep2], init_fcn_name);
+/// ```
 #[macro_export]
 macro_rules! module_define
 {

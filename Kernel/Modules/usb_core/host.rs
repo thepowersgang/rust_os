@@ -54,9 +54,9 @@ impl<T: ?Sized + InterruptEndpoint> InterruptEndpoint for ::kernel::lib::mem::Bo
 	}
 }
 
-//	fn tx_async<'a, 's>(&'s self, async_obj: kasync::ObjectHandle, stack: kasync::StackPush<'a, 's>, pkt: SparsePacket) -> Result<(), Error>;
 pub trait ControlEndpoint: Send + Sync
 {
+	// TODO: Have a type that abstracts that the data will be valid even if the future is leaked
 	fn out_only<'a>(&'a self, setup_data: &'a [u8], out_data: &'a [u8]) -> AsyncWaitIo<'a, usize>;
 	fn in_only<'a>(&'a self, setup_data: &'a [u8], out_data: &'a mut [u8]) -> AsyncWaitIo<'a, usize>;
 }
