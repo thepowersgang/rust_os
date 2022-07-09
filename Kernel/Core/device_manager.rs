@@ -115,8 +115,24 @@ pub trait Driver:
 	fn handles(&self, bus_dev: &dyn BusDevice) -> DriverHandleLevel;
 	/// Requests that the driver bind itself to the specified device
 	// TODO: Could this use a `stack_dst::Value` to be more efficient with pointer wrappers (e.g. Aref/Arc wrappers)
-	fn bind(&self, bus_dev: &mut dyn BusDevice) -> Box<dyn DriverInstance+'static>;
+	fn bind(&self, bus_dev: &mut dyn BusDevice) -> DriverBindResult;
 }
+
+/// A wrapper around `stack_dst::Value` with two words of storage (allowing the driver to avoid extra allocations)
+pub struct DriverInstancePtr( ::stack_dst::ValueA<dyn DriverInstance+'static,[usize; 2]> );
+impl DriverInstancePtr {
+	pub fn new<T: DriverInstance+'static>(v: T) -> DriverInstancePtr {
+		DriverInstancePtr(
+			match ::stack_dst::ValueA::new(v)
+			{
+			Ok(rv) => rv,
+			Err(v) => ::stack_dst::ValueA::new(Box::new(v)).ok().unwrap(),
+			}
+		)
+	}
+}
+
+pub type DriverBindResult = Result<DriverInstancePtr,DriverBindError>;
 /// Error type for `Driver::bind`
 #[derive(Debug)]
 pub enum DriverBindError
@@ -132,6 +148,9 @@ impl_from! {
 		crate::memory::virt::MapError::RangeInUse => DriverBindError::Bug("Memory map range collision"),
 		}
 	}
+	From<&'static str>(v) for DriverBindError {
+		DriverBindError::Bug(v)
+	}
 }
 
 /// Driver instance (maps directly to a device)
@@ -139,12 +158,17 @@ pub trait DriverInstance:
 	Send
 {
 }
+impl<T: ?Sized> DriverInstance for Box<T>
+where
+	T: DriverInstance+'static
+{
+}
 
 /// Internal representation of a device on a bus
 struct Device
 {
 	bus_dev: Box<dyn BusDevice>,
-	driver: Option<(Box<dyn DriverInstance>, DriverHandleLevel)>,
+	driver: Option<(DriverInstancePtr, DriverHandleLevel)>,
 	//attribs: Vec<u32>,
 }
 
@@ -228,7 +252,12 @@ pub fn register_driver(driver: &'static dyn Driver)
 				else
 				{
 					// Bind new driver
-					dev.driver = Some( (driver.bind(&mut *dev.bus_dev), rank) );
+					dev.driver = Some(match driver.bind(&mut *dev.bus_dev)
+						{
+						Ok(d) => (d, rank),
+						Err(e) => todo!("Handle device initialisation failure: {} e={:?}", driver.name(), e),
+						});
+					
 				}
 			}
 		}
@@ -238,7 +267,7 @@ pub fn register_driver(driver: &'static dyn Driver)
 /**
  * Locate the best registered driver for this device and instanciate it
  */
-fn find_driver(bus: &dyn BusManager, bus_dev: &mut dyn BusDevice) -> Option<(Box<dyn DriverInstance>,DriverHandleLevel)>
+fn find_driver(bus: &dyn BusManager, bus_dev: &mut dyn BusDevice) -> Option<(DriverInstancePtr,DriverHandleLevel)>
 {
 	log_debug!("Finding driver for {}:{:x}", bus.bus_type(), bus_dev.addr());
 	let mut best_ranking = 0;
@@ -270,7 +299,16 @@ fn find_driver(bus: &dyn BusManager, bus_dev: &mut dyn BusDevice) -> Option<(Box
 			}
 		}
 	}
-	best_driver.map(|d| (d.bind(bus_dev), best_ranking))
+
+	match best_driver
+	{
+	None => None,
+	Some(d) => Some(match d.bind(bus_dev)
+		{
+		Ok(v) => (v, best_ranking),
+		Err(e) => todo!("Handle device initialisation failure: {} e={:?}", d.name(), e),
+		}),
+	}
 }
 
 impl IOBinding

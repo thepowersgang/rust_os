@@ -74,7 +74,7 @@ impl TxSlot
 
 impl BusDev
 {
-	fn new_boxed(irq: u32, io: device_manager::IOBinding) -> Result<Box<BusDev>, &'static str> {
+	fn new(irq: u32, io: device_manager::IOBinding) -> Result<Self, device_manager::DriverBindError> {
 
 		// SAFE: Just reads MAC addr
 		let mac = unsafe {[
@@ -156,7 +156,7 @@ impl BusDev
 			card_nic_reg.write_16(Regs::IMR, 0xE07F);
 		}
 
-		Ok( Box::new( BusDev(card_nic_reg, irq_handle) ) )
+		Ok( BusDev(card_nic_reg, irq_handle) )
 	}
 }
 impl device_manager::DriverInstance for BusDev
@@ -464,12 +464,12 @@ impl device_manager::Driver for PciDriver {
 			0
 		}
 	}
-	fn bind(&self, bus_dev: &mut dyn device_manager::BusDevice) -> Box<dyn device_manager::DriverInstance+'static>
+	fn bind(&self, bus_dev: &mut dyn device_manager::BusDevice) -> device_manager::DriverBindResult
 	{
 		let irq = bus_dev.get_irq(0);
 		let base = bus_dev.bind_io(0);
 
-		BusDev::new_boxed(irq, base).unwrap()
+		Ok(device_manager::DriverInstancePtr::new( BusDev::new(irq, base)? ))
 	}
 }
 

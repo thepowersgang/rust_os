@@ -3,7 +3,6 @@
 //
 // Modules/storage_ahci/bus_bindings.rs
 //! Bus drivers (e.g. PCI)
-use kernel::prelude::*;
 use kernel::device_manager;
 
 pub static S_PCI_DRIVER: PciDriver = PciDriver;
@@ -30,11 +29,11 @@ impl device_manager::Driver for PciDriver
 			0
 		}
 	}
-	fn bind(&self, bus_dev: &mut dyn device_manager::BusDevice) -> Box<dyn device_manager::DriverInstance+'static>
+	fn bind(&self, bus_dev: &mut dyn device_manager::BusDevice) -> device_manager::DriverBindResult
 	{
 		let irq = bus_dev.get_irq(0);
 		let base = bus_dev.bind_io(5);
 
-		::controller::Controller::new(irq, base).unwrap()
+		Ok(device_manager::DriverInstancePtr::new( ::controller::Controller::new(irq, base)? ))
 	}
 }

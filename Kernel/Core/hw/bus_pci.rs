@@ -100,7 +100,7 @@ impl crate::device_manager::Driver for PCIChildBusDriver
 		// -> There should only be one PCI bridge handler, but bind low just in case
 		if bridge_type == 0x01 { 1 } else { 0 }
 	}
-	fn bind(&self, bus_dev: &mut dyn crate::device_manager::BusDevice) -> Box<dyn (crate::device_manager::DriverInstance)>
+	fn bind(&self, bus_dev: &mut dyn crate::device_manager::BusDevice) -> crate::device_manager::DriverBindResult
 	{
 		let d = bus_dev.downcast_ref::<PCIDev>().expect("Not a PCI dev?");
 		let bridge_type = (d.config[3] >> 16) & 0x7F;

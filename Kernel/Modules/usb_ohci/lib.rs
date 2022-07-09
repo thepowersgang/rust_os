@@ -114,9 +114,9 @@ struct EndpointMetadata {
 
 impl BusDev
 {
-	fn new_boxed(irq: u32, io: ::kernel::device_manager::IOBinding) -> Result<Box<BusDev>, &'static str>
+	fn new_boxed(irq: u32, io: ::kernel::device_manager::IOBinding) -> ::kernel::device_manager::DriverBindResult
 	{
-		Ok(Box::new(BusDev {
+		Ok(::kernel::device_manager::DriverInstancePtr::new(BusDev {
 			_host: HostInner::new_aref(irq, io)?
 			}))
 	}
@@ -133,7 +133,7 @@ impl IoWrapper
 }
 impl HostInner
 {
-	fn new_aref(irq: u32, io: ::kernel::device_manager::IOBinding) -> Result<Aref<HostInner>, &'static str>
+	fn new_aref(irq: u32, io: ::kernel::device_manager::IOBinding) -> Result<Aref<HostInner>, ::kernel::device_manager::DriverBindError>
 	{
 		let io = IoWrapper(io);
 		let revision = io.read_reg(hw::Regs::HcRevision);

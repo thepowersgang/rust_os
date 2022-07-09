@@ -40,9 +40,9 @@ struct BusDev
 }
 impl BusDev
 {
-	fn new_boxed(irq: u32, io: ::kernel::device_manager::IOBinding) -> Result<Box<BusDev>, &'static str>
+	fn new_boxed(irq: u32, io: ::kernel::device_manager::IOBinding) -> ::kernel::device_manager::DriverBindResult
 	{
-		Ok(Box::new(BusDev {
+		Ok(::kernel::device_manager::DriverInstancePtr::new(BusDev {
 			_host: HostInner::new_aref(irq, io)?
 			}))
 	}
@@ -75,7 +75,7 @@ struct HostInner
 }
 impl HostInner
 {
-    fn new_aref(irq: u32, io: ::kernel::device_manager::IOBinding) -> Result<Aref<Self>, &'static str> {
+    fn new_aref(irq: u32, io: ::kernel::device_manager::IOBinding) -> Result<Aref<Self>, ::kernel::device_manager::DriverBindError> {
         // SAFE: The caller of this function (in the current module) passes the correct IO handle
         let regs = unsafe { hw_regs::Regs::new(io) };
 		let revision = regs.hci_version();

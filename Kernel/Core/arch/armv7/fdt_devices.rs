@@ -404,7 +404,7 @@ impl crate::device_manager::Driver for PciDriver
 		_ => 0,
 		}
 	}
-	fn bind(&self, bus_dev: &mut dyn crate::device_manager::BusDevice) -> Box<dyn crate::device_manager::DriverInstance>
+	fn bind(&self, bus_dev: &mut dyn crate::device_manager::BusDevice) -> crate::device_manager::DriverBindResult
 	{
 		assert!(self.handles(&*bus_dev) > 0);
 		let d = bus_dev.downcast_ref::<BusDev>().expect("Not a FDT device?");
@@ -459,13 +459,13 @@ impl crate::device_manager::Driver for PciDriver
 					})
 			}
 		}
-		let mmio = d.get_mmio(0).expect("No MMIO for PCI?");
+		let mmio = d.get_mmio(0).ok_or("No MMIO for PCI?")?;
 		let int = Aref::new(Interface {
 			mmio: mmio,
 			lock: crate::sync::Mutex::new(Inner {
 				base: 0,
 				// SAFE: Owned MMIO memory from device
-				mapping: unsafe { crate::memory::virt::map_hw_rw(mmio.0 as PAddr, 1, "fdt_pci").expect("Unable to map PCI") },
+				mapping: unsafe { crate::memory::virt::map_hw_rw(mmio.0 as PAddr, 1, "fdt_pci")? },
 				}),
 			});
 		log_debug!("FDT PCI: {:x?}", int.mmio);
@@ -478,6 +478,6 @@ impl crate::device_manager::Driver for PciDriver
 		impl crate::device_manager::DriverInstance for Instance
 		{
 		}
-		Box::new(Instance { _int: int, })
+		Ok(crate::device_manager::DriverInstancePtr::new(Instance { _int: int, }))
 	}
 }

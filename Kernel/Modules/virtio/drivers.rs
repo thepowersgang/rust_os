@@ -2,7 +2,6 @@
 //
 //
 //! Device manager "drivers"
-use kernel::prelude::*;
 use kernel::device_manager;
 use crate::devices::NullDevice;
 
@@ -35,7 +34,7 @@ impl device_manager::Driver for FdtMmioDriver
 			0
 		}
 	}
-	fn bind(&self, bus_dev: &mut dyn device_manager::BusDevice) -> Box<dyn device_manager::DriverInstance+'static>
+	fn bind(&self, bus_dev: &mut dyn device_manager::BusDevice) -> device_manager::DriverBindResult
 	{
 		let io = bus_dev.bind_io(0);
 		log_debug!("io = {:?}", io);
@@ -46,10 +45,10 @@ impl device_manager::Driver for FdtMmioDriver
 		const MAGIC: u32 = 0x74726976;	// "virt"
 		if magic != MAGIC {
 			log_error!("VirtIO device invalid magic {:#x} != exp {:#x}", magic, MAGIC);
-			return Box::new( NullDevice );
+			return Ok(device_manager::DriverInstancePtr::new(NullDevice));
 		}
 
-		crate::devices::new_boxed(dev, crate::interface::Mmio::new(io, bus_dev.get_irq(0)))
+		Ok(crate::devices::new_boxed(dev, crate::interface::Mmio::new(io, bus_dev.get_irq(0))))
 	}
 }
 
@@ -73,7 +72,7 @@ impl device_manager::Driver for Pci
 			0
 		}
 	}
-	fn bind(&self, bus_dev: &mut dyn device_manager::BusDevice) -> Box<dyn device_manager::DriverInstance+'static>
+	fn bind(&self, bus_dev: &mut dyn device_manager::BusDevice) -> device_manager::DriverBindResult
 	{
 		let irq = bus_dev.get_irq(0);
 		// TODO: The IO space may not be in BAR0? Instead referenced in PCI capabilities
@@ -155,11 +154,11 @@ impl device_manager::Driver for Pci
 				notify_off_mult: notify_mult,
 				dev_cfg: get_io(dev_cfg),
 				};
-				crate::devices::new_boxed(dev, crate::interface::Pci::new(io, irq))
+				Ok( crate::devices::new_boxed(dev, crate::interface::Pci::new(io, irq)) )
 			},
 		_ => {
 			log_error!("VirtIO PCI device doesn't have a full set of capabilities - {:?}", pbars);
-			return Box::new( NullDevice );
+			Ok( device_manager::DriverInstancePtr::new( NullDevice ) )
 			},
 		}
 	}
