@@ -42,10 +42,12 @@ mod helpers {
 		pub unsafe fn inb(_p: u16) -> u8 { panic!("calling inb not supported on this arch") }
 		pub unsafe fn inw(_p: u16) -> u16 { panic!("calling inw not supported on this arch") }
 		pub unsafe fn inl(_p: u16) -> u32 { panic!("calling inl not supported on this arch") }
+		#[cfg(false_)]
 		pub unsafe fn inq(_p: u16) -> u64 { panic!("calling inq not supported on this arch") }
 		pub unsafe fn outb(_p: u16, _v: u8) {}
 		pub unsafe fn outw(_p: u16, _v: u16) {}
 		pub unsafe fn outl(_p: u16, _v: u32) {}
+		#[cfg(false_)]
 		pub unsafe fn outq(_p: u16, _v: u64) {}
 	}
 }
@@ -431,7 +433,7 @@ pub mod x86_io {
 	pub unsafe fn inw(p: u16) -> u16 { imp::inw(p) }
 	#[inline]
 	pub unsafe fn inl(p: u16) -> u32 { imp::inl(p) }
-	#[inline]
+	#[inline] #[cfg(false_)]
 	pub unsafe fn inq(p: u16) -> u64 { imp::inq(p) }
 	#[inline]
 	pub unsafe fn outb(p: u16, v: u8) { imp::outb(p, v) }
@@ -439,7 +441,7 @@ pub mod x86_io {
 	pub unsafe fn outw(p: u16, v: u16) { imp::outw(p, v) }
 	#[inline]
 	pub unsafe fn outl(p: u16, v: u32) { imp::outl(p, v) }
-	#[inline]
+	#[inline] #[cfg(false_)]
 	pub unsafe fn outq(p: u16, v: u64) { imp::outq(p, v) }
 }
 

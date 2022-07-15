@@ -44,6 +44,7 @@ pub unsafe fn outl(port: u16, val: u32) {
 }
 /// Read a 64-bit quad-word
 #[inline]
+#[cfg(false_)]
 pub unsafe fn inq(port: u16) -> u64 {
 	let ret : u64;
 	::core::arch::asm!("in rax, dx", out("rax") ret, in("dx") port, options(preserves_flags, nomem, nostack));
@@ -51,6 +52,7 @@ pub unsafe fn inq(port: u16) -> u64 {
 }
 /// Write a 64-bit quad-word
 #[inline]
+#[cfg(false_)]
 pub unsafe fn outq(port: u16, val: u64) {
 	::core::arch::asm!("out dx, rax", in("dx") port, in("rax") val, options(preserves_flags, nomem, nostack));
 }

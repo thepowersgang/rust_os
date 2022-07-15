@@ -377,9 +377,10 @@ impl IOBinding
 		//log_trace!("read_64({:?}, {:#x})", self, ofs);
 		match *self
 		{
-		IOBinding::IO(base, s) => {
+		IOBinding::IO(_base, s) => {
 			assert!( ofs+4 <= s as usize, "read_u64(IO addr {:#x}+8 > {:#x})", ofs, s );
-			crate::arch::x86_io::inq(base + ofs as u16)
+			panic!("u64 read not supported with IO bus");
+			//crate::arch::x86_io::inq(base + ofs as u16)
 			},
 		IOBinding::Memory(ref h) => {
 			::core::intrinsics::volatile_load( h.as_int_mut::<u64>(ofs) )
@@ -442,9 +443,10 @@ impl IOBinding
 		//log_trace!("write_64({:?}, {:#x}, {:#02x})", self, ofs, val);
 		match *self
 		{
-		IOBinding::IO(base, s) => {
+		IOBinding::IO(_base, s) => {
 			assert!(ofs+4 <= s as usize, "write_64(IO addr {:#x}+8 > {:#x})", ofs, s);
-			crate::arch::x86_io::outq(base + ofs as u16, val);
+			panic!("u64 write not supported with IO bus")
+			//crate::arch::x86_io::outq(base + ofs as u16, val);
 			},
 		IOBinding::Memory(ref h) => {
 			::core::intrinsics::volatile_store( h.as_int_mut::<u64>(ofs), val );
