@@ -18,7 +18,18 @@ pub enum Command
 impl Command
 {
     fn to_desc(self, cycle_bit: bool) -> crate::hw::structs::Trb {
-        todo!("")
+        use crate::hw::structs::TrbType;
+        match self
+        {
+        Command::Nop => crate::hw::structs::Trb
+            {
+            word0: 0,
+            word1: 0,
+            word2: 0,
+            word3: TrbType::NoOpCommand.to_word3(cycle_bit),
+            },
+        _ => todo!("Command::to_desc"),
+        }
     }
 }
 

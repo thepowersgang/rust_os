@@ -26,6 +26,7 @@ fn init()
 	::kernel::device_manager::register_driver(&PCI_DRIVER);
 }
 
+type HostRef = ArefBorrow<HostInner>;
 struct HostInner {
     regs: hw::Regs,
     /// Device context pointers, only the first half is used (256 * 8 = 0x800). Second half is pool zero for the device contexts
@@ -33,7 +34,10 @@ struct HostInner {
     device_context_pool: [Option<::kernel::memory::virt::ArrayHandle<[u32; 0x20/4]>>; 4],
 
     command_ring: ::kernel::sync::Mutex<command_ring::CommandRing>,
-    event_ring_zero: ::kernel::sync::Mutex<event_ring::EventRing<event_ring::Zero>>,
+    event_ring_zero: event_ring::EventRing<event_ring::Zero>,
+
+    port_update: [::core::sync::atomic::AtomicU32; 256/32],
+	port_update_waker: ::kernel::sync::Spinlock<::core::task::Waker>,
 
 	_irq_handle: Option<::kernel::irqs::ObjectHandle>,
 }
@@ -44,7 +48,7 @@ impl HostInner
     {
         log_debug!("new_boxed(irq={irq}, io={io:?}");
         // SAFE: This function is only called with a valid register binding
-        let mut regs = unsafe { hw::Regs::new(io) };
+        let regs = unsafe { hw::Regs::new(io) };
 
         // Controller init
         // - Trigger a reset (via PCI?) and wait for USBSTS.NCR to become zero
@@ -81,10 +85,6 @@ impl HostInner
         let command_ring = command_ring::CommandRing::new(&regs)?;
         //   - Set up MSI-X (aka the event ring)
         let event_ring_zero = event_ring::EventRing::new_zero(&regs)?;
-        // - Set USBCMD.RUN = 1
-        unsafe {
-            regs.write_usbcmd(hw::regs::USBCMD_RS|hw::regs::USBCMD_INTE);
-        }
 
         let nports = regs.max_ports();
         let mut rv = Aref::new(HostInner {
@@ -92,10 +92,13 @@ impl HostInner
             dcbaa,
             device_context_pool: [None,None,None,None],
             command_ring: ::kernel::sync::Mutex::new(command_ring),
-            event_ring_zero: ::kernel::sync::Mutex::new(event_ring_zero),
+            event_ring_zero,
             _irq_handle: None,
+            
+            port_update_waker: ::kernel::sync::Spinlock::new(kernel::futures::null_waker()),
+            port_update: Default::default(),
             });
-        
+
         // Bind interrupt
         {
             struct RawSend<T: Send>(*const T);
@@ -105,16 +108,41 @@ impl HostInner
             let binding = ::kernel::irqs::bind_object(irq, Box::new(move || unsafe { (*ret_raw.0).handle_irq() } ));
             Aref::get_mut(&mut rv).unwrap()._irq_handle = Some(binding);
         }
+            
+        // - Set USBCMD.RUN = 1
+        log_debug!("USBSTS {:#x}", rv.regs.usbsts());
+        unsafe {
+            rv.regs.write_usbcmd(hw::regs::USBCMD_RS|hw::regs::USBCMD_INTE);
+        }
+        log_debug!("USBSTS {:#x}", rv.regs.usbsts());
+        
+        // TODO: Determine how to prepare the already-connected ports
+        // - Should they generate an interrupt when interrupts are enabled? or just pre-scan?
+        for p in 0 .. rv.regs.max_ports()
+        {
+            log_debug!("{:#x}", rv.regs.port(p).sc());
+        }
         
         ::usb_core::register_host(Box::new(usb_host::UsbHost { host: rv.borrow() }), nports);
         
+        // Test commands
+        rv.command_ring.lock().enqueue_command(&rv.regs, command_ring::Command::Nop);
+        rv.event_ring_zero.wait_sync();
+        while let Some(_v) = rv.event_ring_zero.poll() {
+        }
+
         Ok(rv)
     }
 
     fn handle_irq(&self) -> bool
     {
-        if self.regs.usbsts() & hw::regs::USBSTS_EINT != 0 {
-            todo!("USBSTS = {:#x}", self.regs.usbsts());
+        let sts = self.regs.usbsts();
+        if sts & (hw::regs::USBSTS_EINT|hw::regs::USBSTS_HCE|hw::regs::USBSTS_PCD) != 0 {
+            log_trace!("USBSTS = {:#x}", sts);
+            if sts & hw::regs::USBSTS_EINT != 0 {
+                // Signal any waiting
+                self.event_ring_zero.check_int(&self.regs);
+            }
             true
         }
         else {
@@ -123,6 +151,14 @@ impl HostInner
     }
 }
 
+/// Device enumeration handling
+impl HostInner {
+    fn set_address(&self, addr: u8) {
+        todo!("set_address")
+    }
+}
+
+/// Device contexts
 impl HostInner {
     fn alloc_device_context(&self, n_endpoints: usize) -> DeviceContextHandle {
         // Find an empty slot (bitmap? or just inspecting read-only fields from the context)

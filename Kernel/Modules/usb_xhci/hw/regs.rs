@@ -16,6 +16,7 @@ impl Regs
 		let caplength = io.read_8(0);
 		let dboff = io.read_32(0x14);
 		let rtsoff = io.read_32(0x18);
+        log_debug!("- caplength={caplength}, dboff={dboff:#x}, rtsoff={rtsoff:#x}");
 		Regs {
 			io,
 			caplength,
@@ -111,7 +112,7 @@ impl Regs
 	pub fn max_intrs(&self) -> u16 {
 		((self.hcs_params_1() >> 8) & 0x3FF) as u16
 	}
-	/// Number of ports in the root hub
+	/// Number of ports in the root hub (architectually up to 255)
 	pub fn max_ports(&self) -> u8 {
 		((self.hcs_params_1() >> 24) & 0xFF) as u8
 	}
@@ -166,16 +167,16 @@ pub const USBCMD_HCRST: u32 = 1 << 1;
 /// Interrupter Enable
 pub const USBCMD_INTE: u32 = 1 << 2;
 
-pub const USBSTS_HCH: u32 = 1 << 0;
-pub const USBSTS_HSE: u32 = 1 << 2;
+pub const USBSTS_HCH : u32 = 1 << 0;
+pub const USBSTS_HSE : u32 = 1 << 2;
 /// Event Interrupt
 pub const USBSTS_EINT: u32 = 1 << 3;
 /// Port Change Detect
-pub const USBSTS_PCD: u32 = 1 << 4;
+pub const USBSTS_PCD : u32 = 1 << 4;
 /// Controller not ready
-pub const USBSTS_CNR: u32 = 1 << 11;
+pub const USBSTS_CNR : u32 = 1 << 11;
 /// Host Controller Error
-pub const USBSTS_HCE: u32 = 1 << 12;
+pub const USBSTS_HCE : u32 = 1 << 12;
 
 /// Operational registers
 impl Regs
@@ -188,7 +189,7 @@ impl Regs
         // SAFE: Read is safe
 		unsafe { self.io.read_32(self.op_ofs(0)) }
 	}
-	pub unsafe fn write_usbcmd(&mut self, val: u32) {
+	pub unsafe fn write_usbcmd(&self, val: u32) {
 		// TODO: Check fields
 		self.io.write_32(self.op_ofs(0), val)
 	}
@@ -197,7 +198,7 @@ impl Regs
         // SAFE: Read is safe
 		unsafe { self.io.read_32(self.op_ofs(4)) }
 	}
-	pub unsafe fn write_usbsts(&mut self, val: u32) {
+	pub unsafe fn write_usbsts(&self, val: u32) {
 		// TODO: Check fields
 		self.io.write_32(self.op_ofs(4), val)
 	}
@@ -276,7 +277,10 @@ impl PortRegs<'_>
 	fn ofs(&self, ofs: usize) -> usize {
 		self.parent.caplength as usize + 0x400 + 0x10 * self.index as usize + ofs
 	}
-	/// Status and control
+	/// PORTSC: Status and control
+    /// 
+    /// - 0: Current Connect Status (CCS)
+    /// - 1: Port Enabled/Disabled (PED)
 	pub fn sc(&self) -> u32 {
 		// SAFE: Read-only register
 		unsafe { self.parent.io.read_32(self.ofs(0)) }
@@ -300,10 +304,10 @@ impl PortRegs<'_>
 
 impl Regs
 {
-    pub fn ring_doorbell(&self, index: u8, value: u8) {
+    pub fn ring_doorbell(&self, index: u8, value: u32) {
         // SAFE: Doorbells are just notifications
         unsafe {
-            self.io.write_8(self.dboff as usize + index as usize, value)
+            self.io.write_32(self.dboff as usize + index as usize * 4, value)
         }
     }
 }
@@ -336,7 +340,8 @@ pub struct Interrupter<'a>
 impl Interrupter<'_>
 {
 	fn ofs(&self, ofs: usize) -> usize {
-		self.parent.rtsoff as usize + 0x20 * self.index as usize + ofs
+        // The first 0x20 bytes just has the MFINDEX in it
+		self.parent.rtsoff as usize + 0x20 + 0x20 * self.index as usize + ofs
 	}
     /// IMAN - Interrupter management
     /// 
@@ -380,7 +385,8 @@ impl Interrupter<'_>
         unsafe { self.parent.io.read_64(self.ofs(0x10) ) }
     }
     pub unsafe fn set_erstba(&self, val: u64) {
-        self.parent.io.write_64(self.ofs(0x10), val)
+        self.parent.io.write_32(self.ofs(0x10), val as u32);
+        self.parent.io.write_32(self.ofs(0x10+4), (val >> 32) as u32);
     }
 
     /// ERDP - Event Ring Dequeue Pointer
@@ -392,7 +398,8 @@ impl Interrupter<'_>
         unsafe { self.parent.io.read_64(self.ofs(0x18) ) }
     }
     pub unsafe fn set_erdp(&self, val: u64) {
-        self.parent.io.write_64(self.ofs(0x18), val)
+        self.parent.io.write_32(self.ofs(0x18), val as u32);
+        self.parent.io.write_32(self.ofs(0x18+4), (val >> 32) as u32);
     }
 
 }
