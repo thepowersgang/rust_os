@@ -36,13 +36,75 @@ impl host::HostController for UsbHost
 
 	// Root hub maintainence
 	fn set_port_feature(&self, port: usize, feature: host::PortFeature) {
-        todo!("");
+        let p = self.host.regs.port(port as u8);
+        let mask = match feature
+            {
+            host::PortFeature::Connection => 1 << 0,
+            host::PortFeature::Enable   => 1 << 1,
+            host::PortFeature::Suspend  => return,
+            host::PortFeature::OverCurrent  => 1 << 3,
+            host::PortFeature::Reset  => 1 << 4,
+            host::PortFeature::Power  => 1 << 9,
+            host::PortFeature::LowSpeed => return,
+            host::PortFeature::CConnection => return,//1 << 17,
+            host::PortFeature::CEnable => return,//1 << 18,
+            host::PortFeature::CSuspend => return,
+            host::PortFeature::COverCurrent => return,//1 << 20,
+            host::PortFeature::CReset => return,//1 << 21,
+            host::PortFeature::Test => return,
+            host::PortFeature::Indicator => 2 << 14,
+            };
+        log_trace!("set_port_feature({},{:?}) {:#x}", port, feature, mask);
+        p.set_sc(p.sc() | mask);
 	}
 	fn clear_port_feature(&self, port: usize, feature: host::PortFeature) {
-        todo!("");
+        let p = self.host.regs.port(port as u8);
+        let mask = match feature
+            {
+            host::PortFeature::Connection => 1 << 0,
+            host::PortFeature::Enable   => 1 << 1,
+            host::PortFeature::Suspend  => return,
+            host::PortFeature::OverCurrent  => 1 << 3,
+            host::PortFeature::Reset  => 1 << 4,
+            host::PortFeature::Power  => 1 << 9,
+            host::PortFeature::LowSpeed => return,
+            host::PortFeature::CConnection => 1 << 17,
+            host::PortFeature::CEnable => 1 << 18,
+            host::PortFeature::CSuspend => return,
+            host::PortFeature::COverCurrent => 1 << 20,
+            host::PortFeature::CReset => 1 << 21,
+            host::PortFeature::Test => return,
+            host::PortFeature::Indicator => 3 << 14,
+            };
+        log_trace!("clear_port_feature({},{:?}) {:#x}", port, feature, mask);
+        p.set_sc(p.sc() & !mask);
 	}
 	fn get_port_feature(&self, port: usize, feature: host::PortFeature) -> bool {
-        todo!("");
+        let p = self.host.regs.port(port as u8);
+        let mask = match feature
+            {
+            host::PortFeature::Connection => 1 << 0,
+            host::PortFeature::Enable   => 1 << 1,
+            host::PortFeature::Suspend  => return false,
+            host::PortFeature::OverCurrent  => 1 << 3,
+            host::PortFeature::Reset  => 1 << 4,
+            host::PortFeature::Power  => 1 << 9,
+            host::PortFeature::LowSpeed =>
+                match (p.sc() >> 10) & 0xF
+                {
+                _ => return false,
+                },
+            host::PortFeature::CConnection => 1 << 17,
+            host::PortFeature::CEnable => 1 << 18,
+            host::PortFeature::CSuspend => return false,
+            host::PortFeature::COverCurrent => 1 << 20,
+            host::PortFeature::CReset => 1 << 21,
+            host::PortFeature::Test => return false,
+            host::PortFeature::Indicator => 3 << 14,
+            };
+        let rv = p.sc() & mask != 0;
+        log_trace!("get_port_feature({}, {:?}): {} ({:#x})",  port, feature, rv, mask);
+        rv
 	}
 
 	fn async_wait_root(&self) -> host::AsyncWaitRoot {
@@ -52,24 +114,13 @@ impl host::HostController for UsbHost
 		impl core::future::Future for AsyncWaitRoot {
 			type Output = usize;
 			fn poll(self: core::pin::Pin<&mut Self>, cx: &mut core::task::Context) -> core::task::Poll<Self::Output> {
-                use ::core::sync::atomic::Ordering;
-                for (j,vp) in self.host.port_update.iter().enumerate()
-                {
-                    let v = vp.load(Ordering::SeqCst);
-                    if v != 0
-                    {
-                        log_debug!("UsbHost::AsyncWaitRoot::poll: v[{}] = {:#x}", j, v);
-                        for i in 0 .. 32
-                        {
-                            let bit = 1 << i;
-                            if v & bit != 0 {
-                                vp.fetch_and(!bit, Ordering::SeqCst);
-                                return core::task::Poll::Ready(j * 32 + i);
-                            }
-                        }
-                    }
-                }
+                // Register for wake first
 				*self.host.port_update_waker.lock() = cx.waker().clone();
+                // Then check if there's a bit available
+                if let Some(idx) = self.host.port_update.get_first_set_and_clear() {
+                    //*self.host.port_update_waker.lock() = 
+                    return core::task::Poll::Ready(idx);
+                }
 				core::task::Poll::Pending
 			}
 		}

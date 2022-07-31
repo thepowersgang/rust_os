@@ -10,6 +10,7 @@ pub enum Event {
         endpoint_id: u8,
         ed: bool,
     },
+    /// Command completed
     CommandCompletion {
         trb_pointer: u64,
         completion_code: u8,
@@ -17,8 +18,12 @@ pub enum Event {
         slot_id: u8,
         vf_id: u8,
     },
+    /// Change to the status of a port
     PortStatusChange {
-
+        /// Port ID that changed
+        port_id: u8,
+        /// Completion code, should be "Success"
+        completion_code: u8,
     },
     BandwidthRequest {
 
@@ -35,10 +40,10 @@ pub enum Event {
 }
 impl Event {
     fn from_trb(trb: crate::hw::structs::Trb) -> Self {
-        // See 6.4.2.1
         use crate::hw::structs::TrbType;
         match TrbType::from_trb_word3(trb.word3)
         {
+        // See 6.4.2.1
         Ok(TrbType::TransferEvent) => Event::Transfer {
             trb_pointer: trb.word0 as u64 | (trb.word1 as u64) << 32,
             transfer_length: trb.word2 & 0xFF_FFFF,
@@ -47,6 +52,7 @@ impl Event {
             endpoint_id: (trb.word3 >> 16) as u8 & 0xF,
             ed: (trb.word3 >> 2) & 1 != 0,
             },
+        // See 6.4.2.2
         Ok(TrbType::CommandCompletionEvent) => Event::CommandCompletion {
             trb_pointer: trb.word0 as u64 | (trb.word1 as u64) << 32,
             param: trb.word2 & 0xFF_FFFF,
@@ -54,7 +60,11 @@ impl Event {
             slot_id: (trb.word3 >> 24) as u8,
             vf_id: (trb.word3 >> 16) as u8 & 0xF,
             },
-        Ok(TrbType::PortStatusChangeEvent) => Event::PortStatusChange { },
+        // See 6.4.2.3
+        Ok(TrbType::PortStatusChangeEvent) => Event::PortStatusChange { 
+            port_id: (trb.word0 >> 24) as u8,
+            completion_code: (trb.word2 >> 24) as u8,
+            },
         Ok(TrbType::BandwidthRequestEvent) => Event::BandwidthRequest { },
         Ok(TrbType::DoorbellEvent) => Event::Doorbell { },
         Ok(TrbType::HostControllerEvent) => Event::HostController { },

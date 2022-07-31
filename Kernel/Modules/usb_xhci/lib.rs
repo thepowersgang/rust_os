@@ -26,6 +26,40 @@ fn init()
 	::kernel::device_manager::register_driver(&PCI_DRIVER);
 }
 
+#[derive(Default)]
+struct AtomicBitset256([::core::sync::atomic::AtomicU32; 256/32]);
+impl AtomicBitset256 {
+    pub fn set(&self, idx: u8) {
+        use ::core::sync::atomic::Ordering;
+        self.0[idx as usize / 32].fetch_or(1 << idx%32, Ordering::SeqCst);
+    }
+    pub fn get_first_set_and_clear(&self) -> Option<usize> {
+        use ::core::sync::atomic::Ordering;
+        for (i,s) in self.0.iter().enumerate() {
+            let v = s.load(Ordering::SeqCst);
+            if v != 0 {
+                let j = v.trailing_zeros() as usize;
+                let bit = 1 << j;
+                if s.fetch_and(!bit, Ordering::SeqCst) & bit != 0 {
+                    return Some(i*32 + j);
+                }
+            }
+        }
+        None
+    }
+    #[cfg(false_)]
+    pub fn iter_set_and_clear(&self) -> impl Iterator<Item=usize> + '_ {
+        use ::core::sync::atomic::Ordering;
+        self.0.iter().enumerate()
+            // Load/clear each word
+            .map(|(i,v)| (i,v.swap(0, Ordering::SeqCst)))
+            // Convert into (Index,IsSet)
+            .flat_map(|(j,v)| (0..32).map(move |i| (j*32+i, (v >> i) & 1 != 0) ))
+            // Yield only the indexes of set bits
+            .filter_map(|(idx,isset)| if isset { Some(idx) } else { None })
+    }
+}
+
 type HostRef = ArefBorrow<HostInner>;
 struct HostInner {
     regs: hw::Regs,
@@ -36,7 +70,7 @@ struct HostInner {
     command_ring: ::kernel::sync::Mutex<command_ring::CommandRing>,
     event_ring_zero: event_ring::EventRing<event_ring::Zero>,
 
-    port_update: [::core::sync::atomic::AtomicU32; 256/32],
+    port_update: AtomicBitset256,
 	port_update_waker: ::kernel::sync::Spinlock<::core::task::Waker>,
 
 	_irq_handle: Option<::kernel::irqs::ObjectHandle>,
@@ -116,20 +150,26 @@ impl HostInner
         }
         log_debug!("USBSTS {:#x}", rv.regs.usbsts());
         
+        ::usb_core::register_host(Box::new(usb_host::UsbHost { host: rv.borrow() }), nports);
+        
+        // Test commands
+        if false {
+            rv.command_ring.lock().enqueue_command(&rv.regs, command_ring::Command::Nop);
+            rv.event_ring_zero.wait_sync();
+            while let Some(_v) = rv.event_ring_zero.poll() {
+            }
+        }
+        
         // TODO: Determine how to prepare the already-connected ports
         // - Should they generate an interrupt when interrupts are enabled? or just pre-scan?
         for p in 0 .. rv.regs.max_ports()
         {
             log_debug!("{:#x}", rv.regs.port(p).sc());
+            if rv.regs.port(p).sc() & hw::regs::PORTSC_CCS != 0 {
+                rv.port_update.set(p);
+            }
         }
-        
-        ::usb_core::register_host(Box::new(usb_host::UsbHost { host: rv.borrow() }), nports);
-        
-        // Test commands
-        rv.command_ring.lock().enqueue_command(&rv.regs, command_ring::Command::Nop);
-        rv.event_ring_zero.wait_sync();
-        while let Some(_v) = rv.event_ring_zero.poll() {
-        }
+        rv.port_update_waker.lock().wake_by_ref();
 
         Ok(rv)
     }
@@ -139,10 +179,27 @@ impl HostInner
         let sts = self.regs.usbsts();
         if sts & (hw::regs::USBSTS_EINT|hw::regs::USBSTS_HCE|hw::regs::USBSTS_PCD) != 0 {
             log_trace!("USBSTS = {:#x}", sts);
+            let mut h = 0;
             if sts & hw::regs::USBSTS_EINT != 0 {
+                h |= hw::regs::USBSTS_EINT;
                 // Signal any waiting
                 self.event_ring_zero.check_int(&self.regs);
+                while let Some(ev) = self.event_ring_zero.poll() {
+                    match ev
+                    {
+                    event_ring::Event::PortStatusChange { port_id, completion_code: _ } => {
+                        // Port IDs are indexed from 1
+                        self.port_update.set(port_id - 1);
+                        self.port_update_waker.lock().wake_by_ref();
+                        },
+                    _ => {},
+                    }
+                }
             }
+            if h != sts {
+                todo!("Unhandled interrupt bit");
+            }
+            self.regs.write_usbsts(h);
             true
         }
         else {

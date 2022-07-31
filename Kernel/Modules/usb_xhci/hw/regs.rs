@@ -198,9 +198,10 @@ impl Regs
         // SAFE: Read is safe
 		unsafe { self.io.read_32(self.op_ofs(4)) }
 	}
-	pub unsafe fn write_usbsts(&self, val: u32) {
+	pub fn write_usbsts(&self, val: u32) {
 		// TODO: Check fields
-		self.io.write_32(self.op_ofs(4), val)
+		// SAFE: Writes can't cause unsafety
+		unsafe { self.io.write_32(self.op_ofs(4), val) }
 	}
 
 	/// A bit-mask of supported page sizes, with bit 0 being 0x1000, 1 being 0x2000
@@ -285,6 +286,9 @@ impl PortRegs<'_>
 		// SAFE: Read-only register
 		unsafe { self.parent.io.read_32(self.ofs(0)) }
 	}
+	pub fn set_sc(&self, v: u32) {
+		unsafe { self.parent.io.write_32(self.ofs(0), v) }
+	}
 	/// Power management status and control
 	pub fn pmsc(&self) -> u32 {
 		// SAFE: Read-only register
@@ -301,6 +305,9 @@ impl PortRegs<'_>
 		unsafe { self.parent.io.read_32(self.ofs(12)) }
 	}
 }
+
+pub const PORTSC_CCS: u32 = 1 << 0;
+pub const PORTSC_PED: u32 = 1 << 1;
 
 impl Regs
 {
