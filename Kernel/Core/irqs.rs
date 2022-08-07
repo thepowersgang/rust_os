@@ -43,17 +43,14 @@ struct Bindings
 /// Map of IRQ numbers to core's dispatcher bindings. Bindings are boxed so the address is known in the constructor
 static S_IRQ_BINDINGS: crate::sync::mutex::Mutex<Bindings> = crate::sync::mutex::Mutex::new(Bindings { mapping: VecMap::new(), next_index: 0 } );
 
-static S_IRQ_WORKER_SIGNAL: crate::lib::LazyStatic<crate::threads::SleepObject<'static>> = lazystatic_init!();
+// SAFE: The SleepObject here is static, so is never invalidated
+static S_IRQ_WORKER_SIGNAL: crate::threads::SleepObject<'static> = unsafe { crate::threads::SleepObject::new("IRQ Worker") };
 static S_TIMER_PENDING: AtomicBool = AtomicBool::new(false);
 static S_IRQ_WORKER: crate::lib::LazyStatic<crate::threads::WorkerThread> = lazystatic_init!();
 
 pub fn init() {
 	// SAFE: Called in a single-threaded context? (Not fully conttrolled)
-	unsafe {
-		// SAFE: The SleepObject here is static, so is never invalidated
-		S_IRQ_WORKER_SIGNAL.prep(|| /*unsafe*/ { crate::threads::SleepObject::new("IRQ Worker") });
-		S_IRQ_WORKER.prep(|| crate::threads::WorkerThread::new("IRQ Worker", irq_worker));
-	}
+	S_IRQ_WORKER.prep(|| crate::threads::WorkerThread::new("IRQ Worker", irq_worker));
 }
 
 fn bind(num: u32, obj: Box<dyn FnMut()->bool + Send>) -> BindingHandle
@@ -86,16 +83,17 @@ fn irq_worker()
 {
 	loop {
 		S_IRQ_WORKER_SIGNAL.wait();
+		log_trace!("irq_worker: Wake");
 		for (irqnum,b) in S_IRQ_BINDINGS.lock().mapping.iter()
 		{
 			if b.has_fired.swap(false, ::core::sync::atomic::Ordering::Relaxed)
 			{
+				log_trace!("irq_worker({:p}): IRQ{} fired", &**b, irqnum);
 				if let Some(mut lh) = b.handlers.try_lock_cpu() {
 					for handler in &mut *lh {
 						handler();
 					}
 				}
-				log_trace!("irq_worker: IRQ{} fired", irqnum);
 			}
 		}
 		if S_TIMER_PENDING.swap(false, ::core::sync::atomic::Ordering::SeqCst)
@@ -158,10 +156,10 @@ impl IRQBinding
 	//#[req_safe(irq)]
 	fn handle(&self)
 	{
-		//log_trace!("handle() num={}", self.arch_handle.num());
 		// The CPU owns the lock, so we don't care about ordering
 		self.has_fired.store(true, ::core::sync::atomic::Ordering::Relaxed);
 		
+		// TODO: Can this force a wakeup/switch-to the IRQ worker?
 		S_IRQ_WORKER_SIGNAL.signal();
 	}
 }
