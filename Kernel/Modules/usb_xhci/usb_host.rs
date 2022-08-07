@@ -23,7 +23,7 @@ impl host::HostController for UsbHost
                 .ok().expect("Should fit")
         }
         else {
-            todo!("");
+            todo!("init_control({:?}, max_packet_size={})", endpoint, max_packet_size);
         }
 	}
 	fn init_bulk_out(&self, endpoint: EndpointAddr, max_packet_size: usize) -> Handle<dyn host::BulkEndpointOut> {

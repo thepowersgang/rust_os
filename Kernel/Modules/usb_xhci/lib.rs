@@ -73,6 +73,9 @@ struct HostInner {
     port_update: AtomicBitset256,
 	port_update_waker: ::kernel::sync::Spinlock<::core::task::Waker>,
 
+    slot_enable_ready: ::kernel::futures::flag::SingleFlag,
+    slot_enable_idx: ::core::sync::atomic::AtomicU8,
+
 	_irq_handle: Option<::kernel::irqs::ObjectHandle>,
 }
 impl HostInner
@@ -131,6 +134,9 @@ impl HostInner
             
             port_update_waker: ::kernel::sync::Spinlock::new(kernel::futures::null_waker()),
             port_update: Default::default(),
+
+            slot_enable_ready: Default::default(),
+            slot_enable_idx: Default::default(),
             });
 
         // Bind interrupt
@@ -144,27 +150,29 @@ impl HostInner
         }
             
         // - Set USBCMD.RUN = 1
-        log_debug!("USBSTS {:#x}", rv.regs.usbsts());
+        log_debug!("pre-start: USBSTS {:#x}", rv.regs.usbsts());
         unsafe {
             rv.regs.write_usbcmd(hw::regs::USBCMD_RS|hw::regs::USBCMD_INTE);
         }
-        log_debug!("USBSTS {:#x}", rv.regs.usbsts());
+        log_debug!("Post-run: USBSTS {:#x}", rv.regs.usbsts());
         
         ::usb_core::register_host(Box::new(usb_host::UsbHost { host: rv.borrow() }), nports);
-        
+
         // Test commands
-        if false {
+        if true {
+            log_debug!("--- TESTING COMMAND ---");
             rv.command_ring.lock().enqueue_command(&rv.regs, command_ring::Command::Nop);
-            rv.event_ring_zero.wait_sync();
-            while let Some(_v) = rv.event_ring_zero.poll() {
-            }
+            rv.command_ring.lock().enqueue_command(&rv.regs, command_ring::Command::Nop);
+            rv.command_ring.lock().enqueue_command(&rv.regs, command_ring::Command::Nop);
+            ::kernel::threads::yield_time();
+            log_debug!("-/- TESTING COMMAND -/-");
         }
         
         // TODO: Determine how to prepare the already-connected ports
         // - Should they generate an interrupt when interrupts are enabled? or just pre-scan?
         for p in 0 .. rv.regs.max_ports()
         {
-            log_debug!("{:#x}", rv.regs.port(p).sc());
+            log_debug!("Port Status #{}: {:#x}", 1+p, rv.regs.port(p).sc());
             if rv.regs.port(p).sc() & hw::regs::PORTSC_CCS != 0 {
                 rv.port_update.set(p);
             }
@@ -177,20 +185,35 @@ impl HostInner
     fn handle_irq(&self) -> bool
     {
         let sts = self.regs.usbsts();
+        log_trace!("USBSTS = {:#x}", sts);
         if sts & (hw::regs::USBSTS_EINT|hw::regs::USBSTS_HCE|hw::regs::USBSTS_PCD) != 0 {
-            log_trace!("USBSTS = {:#x}", sts);
             let mut h = 0;
             if sts & hw::regs::USBSTS_EINT != 0 {
                 h |= hw::regs::USBSTS_EINT;
                 // Signal any waiting
                 self.event_ring_zero.check_int(&self.regs);
-                while let Some(ev) = self.event_ring_zero.poll() {
+                while let Some(ev) = self.event_ring_zero.poll(&self.regs) {
+                    use event_ring::Event;
                     match ev
                     {
-                    event_ring::Event::PortStatusChange { port_id, completion_code: _ } => {
+                    Event::PortStatusChange { port_id, completion_code: _ } => {
                         // Port IDs are indexed from 1
                         self.port_update.set(port_id - 1);
                         self.port_update_waker.lock().wake_by_ref();
+                        },
+                    Event::CommandCompletion { trb_pointer, completion_code, param, slot_id, vf_id } => {
+                        let ty = self.command_ring.lock().get_command_type(trb_pointer);
+                        log_trace!("CommandCompletion {:#x} {:?}", trb_pointer, ty);
+                        match ty
+                        {
+                        Some(hw::structs::TrbType::NoOpCommand) => {
+                            },
+                        Some(hw::structs::TrbType::EnableSlotCommand) => {
+                            self.slot_enable_idx.store(slot_id, ::core::sync::atomic::Ordering::SeqCst);
+                            self.slot_enable_ready.trigger();
+                            },
+                        _ => {},
+                        }
                         },
                     _ => {},
                     }
@@ -210,8 +233,19 @@ impl HostInner
 
 /// Device enumeration handling
 impl HostInner {
-    fn set_address(&self, addr: u8) {
-        todo!("set_address")
+    async fn set_address(&self, address: u8) {
+        // Request the hardware allocate a slot
+        self.slot_enable_ready.reset();
+        self.command_ring.lock().enqueue_command(&self.regs, command_ring::Command::EnableSlot);
+        // Wait for the newly allocated to slot to be availble.
+        self.slot_enable_ready.wait().await;
+        // Issue the `AddressDevice` command
+        let slot_idx = self.slot_enable_idx.load(::core::sync::atomic::Ordering::SeqCst);
+        self.command_ring.lock().enqueue_command(&self.regs, command_ring::Command::AddressDevice {
+            slot_idx,
+            address
+            });
+        todo!("set_address({}): slot_idx={}", address, slot_idx);
     }
 }
 

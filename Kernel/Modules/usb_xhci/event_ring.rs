@@ -124,20 +124,20 @@ where
                 }),
         })
     }
-    pub fn poll(&self) -> Option<Event> {
-        let rv = self.state.lock().check(/*regs, self.index.into()*/);
+    pub fn poll(&self, regs: &crate::hw::Regs) -> Option<Event> {
+        let rv = self.state.lock().check(regs, self.index.into());
         if let Some(ref v) = rv {
             log_trace!("EventRing<{}>::poll: {:?}", self.index.into(), v);
         }
         rv
     }
-    pub fn wait_sync(&self) -> Event {
-        if let Some(v) = self.poll() {
+    pub fn wait_sync(&self, regs: &crate::hw::Regs) -> Event {
+        if let Some(v) = self.poll(regs) {
             return v;
         }
         loop {
             let k = self.waiter.get_key();
-            if let Some(v) = self.poll() {
+            if let Some(v) = self.poll(regs) {
                 return v;
             }
             ::kernel::futures::block_on(self.waiter.wait(k));
@@ -145,7 +145,8 @@ where
     }
     pub fn check_int(&self, regs: &crate::hw::Regs) {
         let regs = regs.interrupter(self.index.into());
-        if regs.erdp() & 1<<3 != 0 {
+        let v = regs.erdp();
+        if v & 1<<3 != 0 {
             log_trace!("EventRing<{}>::check_int: updated", self.index.into());
             self.waiter.wake_all()
         }
@@ -153,9 +154,11 @@ where
 }
 
 impl State {
-    fn check(&mut self/*, regs: &crate::hw::Regs, index: u16*/) -> Option<Event> {
+    fn check(&mut self, regs: &crate::hw::Regs, index: u16) -> Option<Event> {
+        let regs = regs.interrupter(index);
         let w3 = self.ring_page[self.read_ofs as usize].word3;
         if ((w3 & 1) == 0) != self.cycle_bit {
+            log_trace!("check: Nothing");
             return None;
         }
         let d = self.ring_page[self.read_ofs as usize];
@@ -164,6 +167,14 @@ impl State {
             self.read_ofs = 1;
             self.cycle_bit = !self.cycle_bit;
         }
-        Some( Event::from_trb(d) )
+        unsafe {
+            // Write `ERDP` with the last read address, ACKing the interrupt if needed
+            regs.set_erdp(::kernel::memory::virt::get_phys(&self.ring_page[self.read_ofs as usize]) as u64 | (1<<3));
+            // ACK the interrupt in IMAN
+            regs.set_iman(regs.iman());
+        }
+        let rv = Event::from_trb(d);
+        log_trace!("check: {:?}", rv);
+        Some( rv )
     }
 }

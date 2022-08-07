@@ -2,6 +2,7 @@
 // NOTE: device contexts are 0x40 + n*0x20
 
 #[repr(u8)]
+#[derive(Debug)]
 pub enum TrbType {
     _Reserved,
     Normal,

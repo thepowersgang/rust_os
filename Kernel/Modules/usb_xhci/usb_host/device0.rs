@@ -1,4 +1,5 @@
 use ::usb_core::host;
+use ::kernel::lib::mem::Box;
 
 pub(crate) struct Device0 {
     host: crate::HostRef,
@@ -18,15 +19,14 @@ impl host::ControlEndpoint for Device0 {
 
             // Propagate the information currently assigned to Dev0 to the new device ID
             //self.host.set_usb1(addr, self.host.get_usb1(0));
-            self.host.set_address(addr);
 
-            host::AsyncWaitIo::new(async { 0 }).ok().expect("Should fit inline")
+            host::AsyncWaitIo::new(Box::pin(async move { self.host.set_address(addr).await; 0 })).ok().expect("Should fit inline")
         }
         else {
             todo!("")
         }
     }
     fn in_only<'a>(&'a self, setup_data: &'a [u8], out_data: &'a mut [u8]) -> host::AsyncWaitIo<'a, usize> {
-        todo!("");
+        todo!("in_only");
     }
 }

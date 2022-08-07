@@ -1,4 +1,5 @@
 
+#[derive(Debug)]
 pub enum Command
 {
     Nop,
@@ -28,7 +29,14 @@ impl Command
             word2: 0,
             word3: TrbType::NoOpCommand.to_word3(cycle_bit),
             },
-        _ => todo!("Command::to_desc"),
+        Command::EnableSlot => crate::hw::structs::Trb
+            {
+            word0: 0,
+            word1: 0,
+            word2: 0,
+            word3: TrbType::EnableSlotCommand.to_word3(cycle_bit),
+            },
+        _ => todo!("Command::to_desc: {:?}", self),
         }
     }
 }
@@ -59,9 +67,11 @@ impl CommandRing
         })
     }
     pub fn enqueue_command(&mut self, regs: &crate::hw::Regs, command: Command) {
+        log_debug!("enqueue_command: {:?}", command);
         // 1. Read CRCR to ensure that the ring isn't full
         let crcr = regs.crcr();
         let ctrlr_cycle_bit = (crcr & 1) == 1;
+        // TODO: Check for full
         // 2. Write a new entry to the ring 
         let command_desc = command.to_desc(self.cycle_bit);
         self.ring_page[self.offset] = command_desc;
@@ -71,5 +81,14 @@ impl CommandRing
             self.offset = 0;
         }
         regs.ring_doorbell(0, 0);
+    }
+
+    pub fn get_command_type(&self, addr: u64) -> Option<crate::hw::structs::TrbType> {
+        let ofs = addr.checked_sub(::kernel::memory::virt::get_phys(&self.ring_page[0]) as u64)?;
+        let idx = ofs / ::core::mem::size_of::<crate::hw::structs::Trb>() as u64;
+        if idx >= self.ring_page.len() as u64 {
+            return None;
+        }
+        crate::hw::structs::TrbType::from_trb_word3(self.ring_page[idx as usize].word3).ok()
     }
 }
