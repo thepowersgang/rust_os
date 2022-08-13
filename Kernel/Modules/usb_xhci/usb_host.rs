@@ -1,6 +1,7 @@
 
 use ::usb_core::host;
 use ::usb_core::host::{Handle,EndpointAddr};
+use kernel::lib::mem::Box;
 
 mod device0;
 
@@ -37,73 +38,29 @@ impl host::HostController for UsbHost
 	// Root hub maintainence
 	fn set_port_feature(&self, port: usize, feature: host::PortFeature) {
         let p = self.host.regs.port(port as u8);
-        let mask = match feature
-            {
-            host::PortFeature::Connection => 1 << 0,
-            host::PortFeature::Enable   => 1 << 1,
-            host::PortFeature::Suspend  => return,
-            host::PortFeature::OverCurrent  => 1 << 3,
-            host::PortFeature::Reset  => 1 << 4,
-            host::PortFeature::Power  => 1 << 9,
-            host::PortFeature::LowSpeed => return,
-            host::PortFeature::CConnection => return,//1 << 17,
-            host::PortFeature::CEnable => return,//1 << 18,
-            host::PortFeature::CSuspend => return,
-            host::PortFeature::COverCurrent => return,//1 << 20,
-            host::PortFeature::CReset => return,//1 << 21,
-            host::PortFeature::Test => return,
-            host::PortFeature::Indicator => 2 << 14,
-            };
-        log_trace!("set_port_feature({},{:?}) {:#x}", port, feature, mask);
-        p.set_sc(p.sc() | mask);
+        let (mask,val) = get_feature(feature);
+        if mask == 0 { return }
+        log_trace!("set_port_feature({},{:?}) {:#x}={:#x}", port, feature, mask, val);
+        p.set_sc( (p.sc() & !mask) | val);
 	}
 	fn clear_port_feature(&self, port: usize, feature: host::PortFeature) {
         let p = self.host.regs.port(port as u8);
-        let mask = match feature
-            {
-            host::PortFeature::Connection => 1 << 0,
-            host::PortFeature::Enable   => 1 << 1,
-            host::PortFeature::Suspend  => return,
-            host::PortFeature::OverCurrent  => 1 << 3,
-            host::PortFeature::Reset  => 1 << 4,
-            host::PortFeature::Power  => 1 << 9,
-            host::PortFeature::LowSpeed => return,
-            host::PortFeature::CConnection => 1 << 17,
-            host::PortFeature::CEnable => 1 << 18,
-            host::PortFeature::CSuspend => return,
-            host::PortFeature::COverCurrent => 1 << 20,
-            host::PortFeature::CReset => 1 << 21,
-            host::PortFeature::Test => return,
-            host::PortFeature::Indicator => 3 << 14,
-            };
+        let (mask,_val) = get_feature(feature);
+        if mask == 0 { return }
         log_trace!("clear_port_feature({},{:?}) {:#x}", port, feature, mask);
         p.set_sc(p.sc() & !mask);
 	}
 	fn get_port_feature(&self, port: usize, feature: host::PortFeature) -> bool {
         let p = self.host.regs.port(port as u8);
-        let mask = match feature
-            {
-            host::PortFeature::Connection => 1 << 0,
-            host::PortFeature::Enable   => 1 << 1,
-            host::PortFeature::Suspend  => return false,
-            host::PortFeature::OverCurrent  => 1 << 3,
-            host::PortFeature::Reset  => 1 << 4,
-            host::PortFeature::Power  => 1 << 9,
-            host::PortFeature::LowSpeed =>
-                match (p.sc() >> 10) & 0xF
-                {
-                _ => return false,
-                },
-            host::PortFeature::CConnection => 1 << 17,
-            host::PortFeature::CEnable => 1 << 18,
-            host::PortFeature::CSuspend => return false,
-            host::PortFeature::COverCurrent => 1 << 20,
-            host::PortFeature::CReset => 1 << 21,
-            host::PortFeature::Test => return false,
-            host::PortFeature::Indicator => 3 << 14,
-            };
-        let rv = p.sc() & mask != 0;
-        log_trace!("get_port_feature({}, {:?}): {} ({:#x})",  port, feature, rv, mask);
+        let (mask,val) = get_feature(feature);
+        if mask == 0 { return false }
+        let rv = p.sc() & mask == val;
+        log_trace!("get_port_feature({}, {:?}): {} ({:#x}=={:#x})",  port, feature, rv, mask, val);
+        if let host::PortFeature::Enable = feature {
+            if rv {
+                self.host.set_device_info(None, port, (p.sc() >> 10) as u8 & 0xF);
+            }
+        }
         rv
 	}
 
@@ -128,6 +85,73 @@ impl host::HostController for UsbHost
 			host: self.host.reborrow(),
 			}).ok().expect("Over-size task in `async_wait_root`")
 	}
+
+	fn set_hub_port_speed(&self, hub_endpoint_zero: &dyn host::ControlEndpoint, port: usize, speed: host::HubPortSpeed) {
+        // HACK TIME! Use the pointer metadata for `Any` hackery.
+        // SAFE: Only uses the cast when the metadata matches (meaing that it's the same type)
+        let hub_endpoint_zero = unsafe {
+            let exp_meta = ::core::ptr::metadata(::core::ptr::null::<Box<ControlEndpoint>>() as *const dyn host::ControlEndpoint);
+            let have_meta = ::core::ptr::metadata(hub_endpoint_zero);
+            if exp_meta != have_meta {
+                log_error!("set_hub_port_speed: Controller passed an endpoint that wasn't our ControlEndpoint - {:?} != exp {:?}",
+                    have_meta, exp_meta,
+                    );
+                return ;
+            }
+            &**(hub_endpoint_zero as *const _ as *const () as *const Box<ControlEndpoint>)
+            };
+        // Get the route string of the parent hub, and tack this port onto it
+        let speed = match speed
+            {
+            ::usb_core::host::HubPortSpeed::Full => 1,
+            ::usb_core::host::HubPortSpeed::Low => 2,
+            ::usb_core::host::HubPortSpeed::High => 3,
+            ::usb_core::host::HubPortSpeed::Super => 4,
+            ::usb_core::host::HubPortSpeed::SuperSpeedPlusG2 => 5,
+            ::usb_core::host::HubPortSpeed::SuperSpeedPlusG1X2 => 6,
+            ::usb_core::host::HubPortSpeed::SuperSpeedPlusG2X2 => 7,
+            };
+        self.host.set_device_info(Some(&hub_endpoint_zero.device_context), port, speed);
+    }
+}
+
+struct ControlEndpoint {
+    pub(crate) host: crate::HostRef,
+    device_context: super::DeviceContextHandle,
+}
+impl host::ControlEndpoint for ControlEndpoint {
+    fn out_only<'a>(&'a self, setup_data: &'a [u8], out_data: &'a [u8]) -> host::AsyncWaitIo<'a, usize> {
+        todo!("");
+    }
+	fn in_only<'a>(&'a self, setup_data: &'a [u8], in_buf: &'a mut [u8]) -> host::AsyncWaitIo<'a, usize> {
+        todo!("");
+    }
+}
+
+fn get_feature(feature: host::PortFeature) -> (u32, u32) {
+    fn bit(i: usize) -> (u32, u32) {
+        (1 << i, 1 << i)
+    }
+    fn none() -> (u32,u32) {
+        (0,0)
+    }
+    match feature
+    {
+    host::PortFeature::Connection => bit(0),
+    host::PortFeature::Enable   => bit(1),
+    host::PortFeature::Suspend  => none(),
+    host::PortFeature::OverCurrent  => bit(3),
+    host::PortFeature::Reset  => bit(4),
+    host::PortFeature::Power  => bit(9),
+    host::PortFeature::LowSpeed => none(),//(0xF << 10, 0),  // TODO
+    host::PortFeature::CConnection => bit(17),
+    host::PortFeature::CEnable => bit(18),
+    host::PortFeature::CSuspend => none(),
+    host::PortFeature::COverCurrent => bit(20),
+    host::PortFeature::CReset => bit(21),
+    host::PortFeature::Test => none(),
+    host::PortFeature::Indicator => (3 << 14, 2 << 14),
+    }
 }
 
 /// Create an `AsyncWaitIo` instance (boxes if required)

@@ -19,8 +19,10 @@ impl host::ControlEndpoint for Device0 {
 
             // Propagate the information currently assigned to Dev0 to the new device ID
             //self.host.set_usb1(addr, self.host.get_usb1(0));
-
-            host::AsyncWaitIo::new(Box::pin(async move { self.host.set_address(addr).await; 0 })).ok().expect("Should fit inline")
+            host::AsyncWaitIo::new(Box::pin(async move {
+                self.host.set_address(addr).await;
+                0
+            })).ok().expect("Should fit inline")
         }
         else {
             todo!("")

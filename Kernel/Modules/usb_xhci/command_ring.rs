@@ -7,10 +7,14 @@ pub enum Command
     DisableSlot {
         slot_idx: u8,
     },
+    // 4.6.5 "Address Device"
     AddressDevice {
+        /// Slot to be used for this device
         slot_idx: u8,
-        address: u8,
-        // ... TODO
+        /// Pointer to the "Input Context" structure
+        input_context_pointer: u64,
+        /// Do everything BUT send the SET_ADDRESS message on the bus
+        block_set_address: bool,
     },
     ConfigureEndpoint {
         // ... TODO
@@ -29,12 +33,31 @@ impl Command
             word2: 0,
             word3: TrbType::NoOpCommand.to_word3(cycle_bit),
             },
+        // 6.4.3.2
         Command::EnableSlot => crate::hw::structs::Trb
             {
             word0: 0,
             word1: 0,
             word2: 0,
             word3: TrbType::EnableSlotCommand.to_word3(cycle_bit),
+            },
+        // 6.4.3.3
+        Command::DisableSlot { slot_idx } => crate::hw::structs::Trb
+            {
+            word0: 0,
+            word1: 0,
+            word2: 0,
+            word3: (slot_idx as u32) << 24 | TrbType::DisableSlotCommand.to_word3(cycle_bit),
+            },
+        // 6.4.3.4
+        Command::AddressDevice { slot_idx, input_context_pointer, block_set_address } => crate::hw::structs::Trb
+            {
+            word0: (input_context_pointer & 0xFFFF_FFF0) as u32,
+            word1: (input_context_pointer >> 32) as u32,
+            word2: 0,
+            word3: (slot_idx as u32) << 24
+                | if block_set_address { 1 << 9 } else { 0 }
+                | TrbType::AddressDeviceCommand.to_word3(cycle_bit),
             },
         _ => todo!("Command::to_desc: {:?}", self),
         }

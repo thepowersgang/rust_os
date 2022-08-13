@@ -39,6 +39,12 @@ pub enum HubPortSpeed
 	Full,
 	// USB 2.0 - 480Mbps
 	High,
+
+	// USB 3.0 - 5 Gb/s
+	Super,
+	SuperSpeedPlusG2,
+	SuperSpeedPlusG1X2,
+	SuperSpeedPlusG2X2,
 }
 
 pub type AsyncWaitIo<'a, T> = stack_dst::ValueA<dyn core::future::Future<Output=T> + Sync + Send + 'a, [usize; 3]>;

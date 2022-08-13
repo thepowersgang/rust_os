@@ -108,6 +108,7 @@ impl ::usb_core::host::HostController for UsbHost
                 }),
             // High speed = USB2
             host::HubPortSpeed::High => None,
+            _ => panic!("EHCI saw a USB3 device speed"),
             });
     }
 
