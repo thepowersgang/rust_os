@@ -80,6 +80,24 @@ struct HostInner {
 	_irq_handle: Option<::kernel::irqs::ObjectHandle>,
 
     enum_state: EnumState,
+    // Mapping from device address (minus 1) to device context handle
+    devices: [::kernel::sync::Mutex<Option<DeviceInfo>>; 255],
+}
+struct DeviceInfo {
+    /// Device context handle
+    dc_handle: DeviceContextHandle,
+    /// Slot index, pretty obcious
+    slot_idx: u8,
+    /// Number of outstanding references to this device (i.e. open endpoints)
+    refcount: u8,
+
+    // TODO: endpoint transfer rings?
+    // - 16 bytes per entry, and want at least 3 entries per control transaction
+    // - so, allocate 16 entries each? - OR, could just allocate a whole page per ring - sharing code with the command ring
+    // NOTE: The last entry in each must be a TR_LINK back to the start
+    endpoint_ring_allocs: [Option<::kernel::memory::virt::ArrayHandle<crate::hw::structs::Trb>>; 31],
+    endpoint_ring_offsets: [u8; 31],    // 256*16 = 4096 (aka 1 page)
+    endpoint_ring_flags: [bool; 31],
 }
 impl HostInner
 {
@@ -141,6 +159,7 @@ impl HostInner
             slot_enable_ready: Default::default(),
             slot_enable_idx: Default::default(),
             enum_state: Default::default(),
+            devices: [(); 255].map(|_| Default::default()),
             });
 
         // Bind interrupt
@@ -287,7 +306,7 @@ impl HostInner
                 (route_string, root_port, parent_info)
             }
             else {
-                (0, port as u8, 0)
+                (0, port as u8 + 1, 0)
             };
 
         *self.enum_state.info.lock() = EnumStateDeviceInfo {
@@ -297,7 +316,8 @@ impl HostInner
             speed,
             };
     }
-    async fn set_address(&self, address: u8)
+    /// Set a device address
+    async fn set_address(&self, address: u8) /*-> DeviceHandle*/
     {
         // Request the hardware allocate a slot
         self.slot_enable_ready.reset();
@@ -346,7 +366,25 @@ impl HostInner
         // Wait for a "Command Complete" event
         self.slot_enable_ready.wait().await;
         self.memory_pools.release(input_context_h);
-        todo!("set_address({}): slot_idx={} - slot_context={:?}", address, slot_idx, self.slot_context(&device_slot));
+
+        // Device is now ready, with just one endpoint initialised
+        // - Now need to monitor for the `set_configuration` command, and prepare the endpoints described within
+        // - Monitor for:
+        //   > GET_DESCRIPTOR w/ ty=2 (this is the configuration descriptor), and save the last one seen
+        //   > a SET_CONFIGURATION message (not yet sent) OR just any attempt to make a new endpoing
+        log_debug!("set_address({}): slot_idx={} - slot_context={:x?}", address, slot_idx, self.slot_context(&device_slot));
+
+        // Save the endpoint handle against the device address (against the address chosen by the caller)
+        let mut slot = self.devices[address as usize - 1].lock();
+        assert!(slot.is_none(), "`usb_core` double-allocated a device address on this bus ({})", address);
+        *slot = Some(DeviceInfo {
+            slot_idx,
+            dc_handle: device_slot,
+            refcount: 0,
+            endpoint_ring_allocs: [(); 31].map(|_| None),
+            endpoint_ring_offsets: [0; 31],
+            endpoint_ring_flags: [false; 31],
+            });
     }
 }
 
@@ -362,6 +400,14 @@ impl HostInner {
         self.memory_pools.release(h.0)
     }
 }
+
+impl DeviceInfo {
+    unsafe fn push_trb(&self, endpoint_idx: u8, trb: hw::structs::Trb) {
+        // If about to overflow, push a TR_LINK and toggle the 
+        self.endpoint_ring_allocs[endpoint_idx as usize].as_ref().unwrap();
+    }
+}
+
 /// Handle to an allocated device context on a controller
 // Device context is used by the controller to inform the driver of the state of the device.
 struct DeviceContextHandle(memory_pools::PoolHandle, u8);

@@ -161,7 +161,7 @@ pub struct EndpointContext
     /// 31:16 - Max Packet Size
     pub word1: u32,
     /// 0 - Dequeue Cycle State
-    /// 63:4 - TR Dequeue Pointer
+    /// 63:4 - TR Dequeue Pointer (or stream context array)
     pub tr_dequeue_ptr: u64,
     /// 15:0 - Average TRB Length
     /// 31:16 - Max Endpoint Service Time Interrupt Payload Low

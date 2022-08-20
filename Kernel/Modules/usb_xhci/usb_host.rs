@@ -3,7 +3,10 @@ use ::usb_core::host;
 use ::usb_core::host::{Handle,EndpointAddr};
 use kernel::lib::mem::Box;
 
+/// Device 0 (handles enumeration)
 mod device0;
+/// Endpoint 0 (special control endpoint)
+mod control;
 
 pub struct UsbHost
 {
@@ -20,7 +23,13 @@ impl host::HostController for UsbHost
 	}
 	fn init_control(&self, endpoint: EndpointAddr, max_packet_size: usize) -> Handle<dyn host::ControlEndpoint> {
         if endpoint.dev_addr() == 0 {
+            assert!( endpoint.endpt() == 0, "Creating control endpoint for device 0 not on endpoint 0" );
             Handle::new(device0::Device0::new(self.host.clone(), max_packet_size))
+                .ok().expect("Should fit")
+        }
+        else if endpoint.endpt() == 0 {
+            // Endpoint 0 needs logic to monitor for configuration changes
+            Handle::new( control::Endpoint0::new(self.host.clone(), endpoint.dev_addr(), max_packet_size))
                 .ok().expect("Should fit")
         }
         else {
