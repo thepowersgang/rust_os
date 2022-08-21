@@ -19,6 +19,8 @@ idt_init:
 	inc rsi
 	%assign i i+1
 	%endrep
+	; Fudge #8 (double-fault) to use an alternative stack
+	mov BYTE [rdi + 8*16+4], 1
 	; Install stub IRQs
 	%assign i	32
 	%rep 128-32

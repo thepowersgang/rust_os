@@ -33,6 +33,7 @@ extern "C"
 fn init()
 {
 	pci::init();
+	tss::init();
 }
 
 #[inline(always)]

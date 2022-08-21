@@ -516,6 +516,9 @@ KStackPT:	; Covers 2 MiB
 
 InitialKernelStack:
 	times 0x1000*(INITIAL_KSTACK_SIZE-1)	db 0	; 8 Pages
+[global EmergencyStack]
+	times 0x1000*(INITIAL_KSTACK_SIZE-1)	db 0	; 8 Pages
+EmergencyStack:
 
 [section .rodata]
 

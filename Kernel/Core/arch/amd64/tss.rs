@@ -4,9 +4,6 @@
 // Core/arch/amd64/tss.rs
 //! Initialisation and management of the x86 task state segment
 
-// Just a run-of-the-mill module, as it's not needed until the switch to usermode
-module_define!(TSS, [], init);
-
 // NOTE: MUST match the value in common.inc.asm
 const MAX_CPUS: usize = 1;
 
@@ -29,16 +26,18 @@ struct GDTEnt(u32,u32);
 extern "C" {
 	static mut GDT: [GDTEnt; 7+MAX_CPUS*2];
 	static mut TSSes: [TSS; MAX_CPUS];
+	static EmergencyStack: [u8; 0];
 	
 	static s_tid0_tls_base: u64;
 }
 
-fn init()
+pub fn init()
 {
 	// SAFE: Module initialisation is single-threaded.
 	unsafe {
 		for i in 0 .. MAX_CPUS
 		{
+			TSSes[i].ists[0] = &EmergencyStack as *const _ as u64;
 			GDT[7+i*2+0] = GDTEnt::tss_lower( &TSSes[i] );
 			GDT[7+i*2+1] = GDTEnt::tss_upper( &TSSes[i] );
 		}
