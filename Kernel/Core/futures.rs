@@ -12,6 +12,8 @@ pub mod mutex;
 /// Helper to wait on multiple futures at once
 pub mod join;
 
+pub mod single_channel;
+
 mod simple_waiter;
 use self::simple_waiter::SimpleWaiter;
 
