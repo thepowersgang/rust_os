@@ -23,6 +23,11 @@ impl Control
         Control { host, addr, endpoint }
     }
 }
+impl ::core::ops::Drop for Control {
+    fn drop(&mut self) {
+        //self.host.release_endpoint(self.addr, self.endpoint);
+    }
+}
 
 impl Endpoint0
 {
@@ -116,10 +121,10 @@ impl host::ControlEndpoint for Control {
             }
             if out_data.len() > 0
             {
-                if out_data.len() <= 8 {
+                if let Some(d) = hw_structs::TrbNormalData::make_inline(out_data) {
                     // SAFE: No memory accesses
                     unsafe {
-                        state.push(get_data(false, hw_structs::TrbNormalData::make_inline(out_data), out_data.len() as u32, true));
+                        state.push(get_data(false, d, out_data.len() as u32, true));
                     }
                 }
                 else {
@@ -140,8 +145,8 @@ impl host::ControlEndpoint for Control {
         let len = out_data.len();
         let f = self.host.wait_for_completion(self.addr, index);
         super::make_asyncwaitio(async move {
-            let (unused_len, completion_code, dc) = f.await;
-            log_trace!("out_only complete: {} bytes, completion_code={}, dc={}", len, completion_code, dc);
+            let (unused_len, completion_code) = f.await;
+            log_trace!("out_only complete: {} bytes, completion_code={}", len, completion_code);
             len - unused_len as usize
         })
     }
@@ -169,8 +174,8 @@ impl host::ControlEndpoint for Control {
         let len = in_data.len();
         let f = self.host.wait_for_completion(self.addr, index);
         super::make_asyncwaitio(async move {
-            let (unused_len, completion_code, dc) = f.await;
-            log_trace!("in_only complete: {} bytes, completion_code={}, dc={}", len, completion_code, dc);
+            let (unused_len, completion_code) = f.await;
+            log_trace!("in_only complete: {} bytes, completion_code={}", len, completion_code);
             len - unused_len as usize
         })
     }

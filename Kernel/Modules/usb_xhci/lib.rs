@@ -88,7 +88,7 @@ struct HostInner {
     // Mapping from device address (minus 1) to device context handle
     devices: [::kernel::sync::Mutex<Option<Box<device_state::DeviceInfo>>>; 255],
 
-    slot_events: Vec< [::kernel::futures::single_channel::SingleChannel<(u64,u32,u8,bool)>; 31] >,
+    slot_events: Vec< [::kernel::futures::single_channel::SingleChannel<(hw::structs::TrbNormalData,u32,u8)>; 31] >,
 }
 impl HostInner
 {
@@ -239,8 +239,8 @@ impl HostInner
                             log_error!("CommandCompletion {:#x} {:?}: Not success, {}", trb_pointer, ty, completion_code);
                         }
                         },
-                    Event::Transfer { trb_pointer, transfer_length, completion_code, slot_id, endpoint_id, ed } => {
-                        self.slot_events[slot_id as usize - 1][endpoint_id as usize - 1].store( (trb_pointer, transfer_length, completion_code, ed) );
+                    Event::Transfer { data, transfer_length, completion_code, slot_id, endpoint_id } => {
+                        self.slot_events[slot_id as usize - 1][endpoint_id as usize - 1].store( (data, transfer_length, completion_code) );
                         },
                     _ => {},
                     }

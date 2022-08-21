@@ -82,19 +82,41 @@ pub(crate) trait IntoTrb {
 }
 
 /// Data field of a normal TRB
-#[derive(Debug)]
 pub enum TrbNormalData {
     /// A hardware pointer
     Pointer(u64),
     // Only valid for OUT endpoints (and only when MPS>=8?)
     InlineData([u8; 8]),
 }
+impl ::core::fmt::Debug for TrbNormalData {
+    fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+        match *self {
+        TrbNormalData::Pointer(v) => write!(f, "{:#x}", v),
+        TrbNormalData::InlineData(v) =>
+            write!(f, "{:02x} {:02x} {:02x} {:02x}  {:02x} {:02x} {:02x} {:02x}",
+                v[0], v[1], v[2], v[3], v[4], v[5], v[6], v[7],
+                ),
+        }
+    }
+}
 impl TrbNormalData {
-    pub fn make_inline(input: &[u8]) -> TrbNormalData {
-        assert!(input.len() <= 8);
-        let mut data = [0; 8];
-        data[..input.len()].copy_from_slice(input);
-        TrbNormalData::InlineData(data)
+    pub fn from_words(ed: bool, word0: u32, word1: u32) -> Self {
+        if ed {
+            TrbNormalData::InlineData( ((word0 as u64) | (word1 as u64) << 32).to_le_bytes() )
+        }
+        else {
+            TrbNormalData::Pointer( (word0 as u64) | (word1 as u64) << 32 )
+        }
+    }
+    pub fn make_inline(input: &[u8]) -> Option<TrbNormalData> {
+        if input.len() <= 8 {
+            let mut data = [0; 8];
+            data[..input.len()].copy_from_slice(input);
+            Some( TrbNormalData::InlineData(data) )
+        }
+        else {
+            None
+        }
     }
     fn to_word0(&self) -> u32 {
         match *self {

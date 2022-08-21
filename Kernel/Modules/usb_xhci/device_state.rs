@@ -225,15 +225,15 @@ impl HostInner {
         assert!(dev.get_endpoint(index).is_some(), "Endpoint {} of device {} not initialised", addr, index);
         PushTrbState { host: self, lh, index, count: 0 }
     }
-    pub(crate) async fn wait_for_completion(&self, addr: u8, index: u8) -> (u32, u8, bool) {
+    pub(crate) async fn wait_for_completion(&self, addr: u8, index: u8) -> (u32, u8) {
         let slot_idx = {
             let mut lh = self.devices[addr as usize - 1].lock();
             let dev = match lh.as_mut() { Some(v) => v, _ => panic!(""), };
             dev.dc_handle.slot_idx()
             };
         
-        let (_addr, len, cc, unk) = self.slot_events[slot_idx as usize - 1][index as usize - 1].wait().await;
-        (len, cc, unk)
+        let (_addr, len, cc) = self.slot_events[slot_idx as usize - 1][index as usize - 1].wait().await;
+        (len, cc)
     }
 }
 pub struct PushTrbState<'a> {

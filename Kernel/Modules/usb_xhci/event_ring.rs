@@ -3,15 +3,14 @@
 pub enum Event {
     /// Completion status/event for a Transfer TRB
     Transfer {
-        trb_pointer: u64,
+        /// Either some inline data, or a pointer to the TRB
+        data: crate::hw::structs::TrbNormalData,
         /// Residual of the transfer length (i.e. number of bytes not transferred)
         transfer_length: u32,
         /// Completion code: 1 = Success
         completion_code: u8,
         slot_id: u8,
         endpoint_id: u8,
-        /// Indicates that `trb_pointer` is actually 8 bytes of data
-        ed: bool,
     },
     /// Command completed
     CommandCompletion {
@@ -48,12 +47,11 @@ impl Event {
         {
         // See 6.4.2.1
         Ok(TrbType::TransferEvent) => Event::Transfer {
-            trb_pointer: trb.word0 as u64 | (trb.word1 as u64) << 32,
+            data: crate::hw::structs::TrbNormalData::from_words((trb.word3 >> 2) & 1 != 0, trb.word0, trb.word1),
             transfer_length: trb.word2 & 0xFF_FFFF,
             completion_code: (trb.word2 >> 24) as u8,
             slot_id: (trb.word3 >> 24) as u8,
             endpoint_id: (trb.word3 >> 16) as u8 & 0xF,
-            ed: (trb.word3 >> 2) & 1 != 0,
             },
         // See 6.4.2.2
         Ok(TrbType::CommandCompletionEvent) => Event::CommandCompletion {
