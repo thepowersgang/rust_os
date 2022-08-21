@@ -6,10 +6,14 @@ use ::core::future::Future;
 use ::core::pin::Pin;
 
 /// A slot that can store on value and be waited upon on by one waiter
-#[derive(Default)]
 pub struct SingleChannel<T>
 {
     inner: crate::sync::Spinlock<Inner<T>>,
+}
+impl<T> Default for SingleChannel<T> {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 impl<T> SingleChannel<T>
 {
@@ -62,9 +66,3 @@ struct Inner<T>
     data: Option<T>,
     waiter: Option<task::Waker>,
 }
-impl<T> Default for Inner<T> {
-    fn default() -> Self {
-        Inner { data: None, waiter: None }
-    }
-}
-
