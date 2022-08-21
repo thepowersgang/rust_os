@@ -34,8 +34,8 @@ impl MemoryPools
         }
     }
     /// Update an entry in the DCBA
-    pub(crate) fn set_dcba(&self, handle: &super::DeviceContextHandle) {
-        self.dcbaa[handle.slot_idx() as usize].store(::kernel::memory::virt::get_phys(self.get(&handle.0)), Ordering::Relaxed);
+    pub(crate) fn set_dcba(&self, handle: &super::device_state::DeviceContextHandle) {
+        self.dcbaa[handle.slot_idx() as usize].store(::kernel::memory::virt::get_phys(self.get(handle.pool_handle())), Ordering::Relaxed);
     }
 
     pub(crate) fn alloc(&self, n_blocks: u8) -> Option<PoolHandle> {

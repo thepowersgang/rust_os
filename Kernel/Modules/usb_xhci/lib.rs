@@ -22,6 +22,8 @@ mod command_ring;
 mod event_ring;
 mod memory_pools;
 
+mod device_state;
+
 fn init()
 {
 	static PCI_DRIVER: pci::PciDriver = pci::PciDriver;
@@ -79,25 +81,14 @@ struct HostInner {
 
 	_irq_handle: Option<::kernel::irqs::ObjectHandle>,
 
-    enum_state: EnumState,
-    // Mapping from device address (minus 1) to device context handle
-    devices: [::kernel::sync::Mutex<Option<DeviceInfo>>; 255],
-}
-struct DeviceInfo {
-    /// Device context handle
-    dc_handle: DeviceContextHandle,
-    /// Slot index, pretty obcious
-    slot_idx: u8,
-    /// Number of outstanding references to this device (i.e. open endpoints)
-    refcount: u8,
+    enum_state: device_state::EnumState,
 
-    // TODO: endpoint transfer rings?
-    // - 16 bytes per entry, and want at least 3 entries per control transaction
-    // - so, allocate 16 entries each? - OR, could just allocate a whole page per ring - sharing code with the command ring
-    // NOTE: The last entry in each must be a TR_LINK back to the start
-    endpoint_ring_allocs: [Option<::kernel::memory::virt::ArrayHandle<crate::hw::structs::Trb>>; 31],
-    endpoint_ring_offsets: [u8; 31],    // 256*16 = 4096 (aka 1 page)
-    endpoint_ring_flags: [bool; 31],
+    //slot_to_address: [::core::sync::atomic::AtomicU8; 255],
+
+    // Mapping from device address (minus 1) to device context handle
+    devices: [::kernel::sync::Mutex<Option<Box<device_state::DeviceInfo>>>; 255],
+
+    slot_events: Vec< [::kernel::futures::single_channel::SingleChannel<(u64,u32,u8,bool)>; 31] >,
 }
 impl HostInner
 {
@@ -160,6 +151,8 @@ impl HostInner
             slot_enable_idx: Default::default(),
             enum_state: Default::default(),
             devices: [(); 255].map(|_| Default::default()),
+            //slot_events: [(); 255].map(|_| Default::default()),
+            slot_events: (0..255).map(|_| Default::default()).collect(),
             });
 
         // Bind interrupt
@@ -246,6 +239,9 @@ impl HostInner
                             log_error!("CommandCompletion {:#x} {:?}: Not success, {}", trb_pointer, ty, completion_code);
                         }
                         },
+                    Event::Transfer { trb_pointer, transfer_length, completion_code, slot_id, endpoint_id, ed } => {
+                        self.slot_events[slot_id as usize - 1][endpoint_id as usize - 1].store( (trb_pointer, transfer_length, completion_code, ed) );
+                        },
                     _ => {},
                     }
                 }
@@ -259,169 +255,5 @@ impl HostInner
         else {
             false
         }
-    }
-}
-
-
-#[derive(Default)]
-struct EnumState
-{
-    info: ::kernel::sync::Mutex<EnumStateDeviceInfo>,
-}
-#[derive(Default)]
-struct EnumStateDeviceInfo {
-    route_string: u32,
-    parent_info: u16,
-    speed: u8,
-    root_port: u8,
-}
-/// Device enumeration handling
-impl HostInner
-{
-    fn set_device_info(&self, hub_dev: Option<&DeviceContextHandle>, port: usize, speed: u8)
-    {
-        let (route_string, root_port, parent_info) = if let Some(v) = hub_dev
-            {
-                // Get the path from the source context
-                let parent_sc = self.slot_context(v);
-                let route_string = {
-                    let parent_rs = parent_sc.word0 & 0xF_FFFF;
-                    let shift = 32 - parent_rs.leading_zeros();
-                    parent_rs | (port << shift) as u32
-                    };
-                let root_port = (parent_sc.word1 >> 16) as u8;
-                // If the parent is USB3 and this is earlier, then set to the parent's slot ID and this port
-                let parent_info = if speed <= 3 {
-                        if (parent_sc.word0 >> 20) & 0xF > 3  {
-                            (parent_sc.word2 & 0xFFFF) as u16
-                        }
-                        else {
-                            (v.slot_idx() as u16) << 8 | port as u16
-                        }
-                    }
-                    else {
-                        // USB3+
-                        0
-                    };
-                (route_string, root_port, parent_info)
-            }
-            else {
-                (0, port as u8 + 1, 0)
-            };
-
-        *self.enum_state.info.lock() = EnumStateDeviceInfo {
-            route_string,
-            parent_info,
-            root_port,
-            speed,
-            };
-    }
-    /// Set a device address
-    async fn set_address(&self, address: u8) /*-> DeviceHandle*/
-    {
-        // Request the hardware allocate a slot
-        self.slot_enable_ready.reset();
-        self.command_ring.lock().enqueue_command(&self.regs, command_ring::Command::EnableSlot);
-        // Wait for the newly allocated to slot to be availble.
-        self.slot_enable_ready.wait().await;
-        // Get the assigned slot index (won't be clobbered, as this runs with `usb_core`'s dev0 lock)
-        let slot_idx = self.slot_enable_idx.load(::core::sync::atomic::Ordering::SeqCst);
-
-        #[repr(C)]
-        struct AddrInputContext {
-            ctrl: hw::structs::InputControlContext,
-            slot: hw::structs::SlotContext,
-            ep0: hw::structs::EndpointContext,
-        }
-        // Prepare the device slot
-        let device_slot = self.alloc_device_context(slot_idx, 1);
-        // Create an input context (6.2.2.1)
-        let input_context_h = self.memory_pools.alloc(2 + 1).expect("Out of space for input context");
-        {
-            let input_context: &mut AddrInputContext = unsafe { &mut *(self.memory_pools.get(&input_context_h) as *const _ as *mut _) };
-            let info = self.enum_state.info.lock();
-            input_context.ctrl = hw::structs::InputControlContext::zeroed();
-            input_context.ctrl.add_context_flags = 0b11;
-            input_context.slot = hw::structs::SlotContext::new([
-                0   | info.route_string  // Valid route string
-                    | (info.speed as u32) << 20 // Speed of the device
-                    | (1 << 27) // "Context Entries" = 1 (i.e. just EP0)
-                    ,
-                0   | (info.root_port as u32) << 16 // Root hub port number
-                    ,
-                0   | (info.parent_info as u32) << 0    // Slot ID and port number of the parent (USB2/3) hub
-                    ,
-                0,
-                ]);
-            input_context.ep0 = hw::structs::EndpointContext::zeroed();
-        }
-
-        // Issue the `AddressDevice` command
-        self.memory_pools.set_dcba(&device_slot);
-        self.command_ring.lock().enqueue_command(&self.regs, command_ring::Command::AddressDevice {
-            slot_idx,
-            block_set_address: false,
-            input_context_pointer: self.memory_pools.get_phys(&input_context_h),
-            });
-        // Wait for a "Command Complete" event
-        self.slot_enable_ready.wait().await;
-        self.memory_pools.release(input_context_h);
-
-        // Device is now ready, with just one endpoint initialised
-        // - Now need to monitor for the `set_configuration` command, and prepare the endpoints described within
-        // - Monitor for:
-        //   > GET_DESCRIPTOR w/ ty=2 (this is the configuration descriptor), and save the last one seen
-        //   > a SET_CONFIGURATION message (not yet sent) OR just any attempt to make a new endpoing
-        log_debug!("set_address({}): slot_idx={} - slot_context={:x?}", address, slot_idx, self.slot_context(&device_slot));
-
-        // Save the endpoint handle against the device address (against the address chosen by the caller)
-        let mut slot = self.devices[address as usize - 1].lock();
-        assert!(slot.is_none(), "`usb_core` double-allocated a device address on this bus ({})", address);
-        *slot = Some(DeviceInfo {
-            slot_idx,
-            dc_handle: device_slot,
-            refcount: 0,
-            endpoint_ring_allocs: [(); 31].map(|_| None),
-            endpoint_ring_offsets: [0; 31],
-            endpoint_ring_flags: [false; 31],
-            });
-    }
-}
-
-/// Device contexts
-impl HostInner {
-    fn alloc_device_context(&self, slot_index: u8, n_endpoints: usize) -> DeviceContextHandle {
-        use core::convert::TryInto;
-        // Find an empty slot (bitmap? or just inspecting read-only fields from the context)
-        let n_blocks = (1 + n_endpoints).try_into().expect("Too many blocks");
-        DeviceContextHandle( self.memory_pools.alloc(n_blocks).expect("Out of space for a device context"), slot_index )
-    }
-    fn release_device_context(&self, h: DeviceContextHandle) {
-        self.memory_pools.release(h.0)
-    }
-}
-
-impl DeviceInfo {
-    unsafe fn push_trb(&self, endpoint_idx: u8, trb: hw::structs::Trb) {
-        // If about to overflow, push a TR_LINK and toggle the 
-        self.endpoint_ring_allocs[endpoint_idx as usize].as_ref().unwrap();
-    }
-}
-
-/// Handle to an allocated device context on a controller
-// Device context is used by the controller to inform the driver of the state of the device.
-struct DeviceContextHandle(memory_pools::PoolHandle, u8);
-impl DeviceContextHandle {
-    fn slot_idx(&self) -> u8 { self.1 }
-}
-impl HostInner {
-    /// Slot context : Used for the controller to tell the driver about device state
-    fn slot_context<'a>(&'a self, handle: &'a DeviceContextHandle) -> &'a hw::structs::SlotContext {
-        unsafe { &*(self.memory_pools.get(&handle.0) as *const hw::structs::SlotContext) }
-    }
-    /// Endpoint context : Controls comms for the endpoint
-    fn endpoint_context<'a>(&'a self, handle: &'a DeviceContextHandle, index: u8) -> &'a hw::structs::EndpointContext {
-        assert!(1 + index < handle.0.len() as u8);
-        unsafe { &*(self.memory_pools.get(&handle.0).offset(1 + index as isize) as *const hw::structs::EndpointContext) }
     }
 }

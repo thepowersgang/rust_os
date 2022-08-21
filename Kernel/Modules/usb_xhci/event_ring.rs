@@ -4,10 +4,13 @@ pub enum Event {
     /// Completion status/event for a Transfer TRB
     Transfer {
         trb_pointer: u64,
+        /// Residual of the transfer length (i.e. number of bytes not transferred)
         transfer_length: u32,
+        /// Completion code: 1 = Success
         completion_code: u8,
         slot_id: u8,
         endpoint_id: u8,
+        /// Indicates that `trb_pointer` is actually 8 bytes of data
         ed: bool,
     },
     /// Command completed

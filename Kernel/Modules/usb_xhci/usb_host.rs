@@ -16,13 +16,14 @@ pub struct UsbHost
 impl host::HostController for UsbHost
 {
 	fn init_interrupt(&self, endpoint: EndpointAddr, period_ms: usize, max_packet_size: usize) -> Handle<dyn host::InterruptEndpoint> {
-        todo!("");
+        todo!("init_interrupt");
 	}
 	fn init_isoch(&self, endpoint: EndpointAddr, max_packet_size: usize) -> Handle<dyn host::IsochEndpoint> {
 		todo!("init_isoch({:?}, max_packet_size={})", endpoint, max_packet_size);
 	}
 	fn init_control(&self, endpoint: EndpointAddr, max_packet_size: usize) -> Handle<dyn host::ControlEndpoint> {
         if endpoint.dev_addr() == 0 {
+            // Device 0 is special
             assert!( endpoint.endpt() == 0, "Creating control endpoint for device 0 not on endpoint 0" );
             Handle::new(device0::Device0::new(self.host.clone(), max_packet_size))
                 .ok().expect("Should fit")
@@ -33,14 +34,15 @@ impl host::HostController for UsbHost
                 .ok().expect("Should fit")
         }
         else {
-            todo!("init_control({:?}, max_packet_size={})", endpoint, max_packet_size);
+            Handle::new( control::Control::new(self.host.clone(), endpoint.dev_addr(), endpoint.endpt(), max_packet_size) )
+                .ok().expect("Should fit")
         }
 	}
 	fn init_bulk_out(&self, endpoint: EndpointAddr, max_packet_size: usize) -> Handle<dyn host::BulkEndpointOut> {
-        todo!("");
+        todo!("init_bulk_out");
 	}
 	fn init_bulk_in(&self, endpoint: EndpointAddr, max_packet_size: usize) -> Handle<dyn host::BulkEndpointIn> {
-        todo!("");
+        todo!("init_bulk_in");
 	}
 
 
@@ -99,7 +101,7 @@ impl host::HostController for UsbHost
         // HACK TIME! Use the pointer metadata for `Any` hackery.
         // SAFE: Only uses the cast when the metadata matches (meaing that it's the same type)
         let hub_endpoint_zero = unsafe {
-            let exp_meta = ::core::ptr::metadata(::core::ptr::null::<Box<ControlEndpoint>>() as *const dyn host::ControlEndpoint);
+            let exp_meta = ::core::ptr::metadata(::core::ptr::null::<Box<control::Control>>() as *const dyn host::ControlEndpoint);
             let have_meta = ::core::ptr::metadata(hub_endpoint_zero);
             if exp_meta != have_meta {
                 log_error!("set_hub_port_speed: Controller passed an endpoint that wasn't our ControlEndpoint - {:?} != exp {:?}",
@@ -107,7 +109,7 @@ impl host::HostController for UsbHost
                     );
                 return ;
             }
-            &**(hub_endpoint_zero as *const _ as *const () as *const Box<ControlEndpoint>)
+            &**(hub_endpoint_zero as *const _ as *const () as *const Box<control::Control>)
             };
         // Get the route string of the parent hub, and tack this port onto it
         let speed = match speed
@@ -120,20 +122,7 @@ impl host::HostController for UsbHost
             ::usb_core::host::HubPortSpeed::SuperSpeedPlusG1X2 => 6,
             ::usb_core::host::HubPortSpeed::SuperSpeedPlusG2X2 => 7,
             };
-        self.host.set_device_info(Some(&hub_endpoint_zero.device_context), port, speed);
-    }
-}
-
-struct ControlEndpoint {
-    pub(crate) host: crate::HostRef,
-    device_context: super::DeviceContextHandle,
-}
-impl host::ControlEndpoint for ControlEndpoint {
-    fn out_only<'a>(&'a self, setup_data: &'a [u8], out_data: &'a [u8]) -> host::AsyncWaitIo<'a, usize> {
-        todo!("");
-    }
-	fn in_only<'a>(&'a self, setup_data: &'a [u8], in_buf: &'a mut [u8]) -> host::AsyncWaitIo<'a, usize> {
-        todo!("");
+        self.host.set_device_info(Some(hub_endpoint_zero.addr), port, speed);
     }
 }
 

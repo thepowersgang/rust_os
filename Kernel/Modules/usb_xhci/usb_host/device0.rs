@@ -1,11 +1,10 @@
 use ::usb_core::host;
-use ::kernel::lib::mem::Box;
 
 pub(crate) struct Device0 {
     host: crate::HostRef,
 }
 impl Device0 {
-    pub fn new(host: crate::HostRef, max_packet_size: usize) -> Self {
+    pub fn new(host: crate::HostRef, _max_packet_size: usize) -> Self {
         Device0 { host }
     }
 }
@@ -17,18 +16,14 @@ impl host::ControlEndpoint for Device0 {
             assert!(setup_data[3] == 0, "Setup data: {:?}", setup_data);
             let addr = setup_data[2];   // USB is little-endian!
 
-            // Propagate the information currently assigned to Dev0 to the new device ID
-            //self.host.set_usb1(addr, self.host.get_usb1(0));
-            host::AsyncWaitIo::new(Box::pin(async move {
-                self.host.set_address(addr).await;
-                0
-            })).ok().expect("Should fit inline")
+            let f = self.host.set_address(addr);
+            super::make_asyncwaitio(async move { f.await.expect("setting device address, TODO handle"); 0 })
         }
         else {
-            todo!("")
+            panic!("Device::out_only: Only a SET_ADDRESS is valid");
         }
     }
-    fn in_only<'a>(&'a self, setup_data: &'a [u8], out_data: &'a mut [u8]) -> host::AsyncWaitIo<'a, usize> {
-        todo!("in_only");
+    fn in_only<'a>(&'a self, _setup_data: &'a [u8], _out_data: &'a mut [u8]) -> host::AsyncWaitIo<'a, usize> {
+        panic!("in_only on Device0 - not valid");
     }
 }

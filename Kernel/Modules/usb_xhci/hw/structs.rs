@@ -7,9 +7,9 @@
 pub enum TrbType {
     _Reserved,
     Normal,
-    SetupState,
+    SetupStage,
     DataStage,
-    StatuStage,
+    StatusStage,
     Isoch,
     Link,   // Command/TR
     EventData,
@@ -58,7 +58,7 @@ impl TrbType {
     }
 }
 
-/// An 
+/// Generic TRB (Transfer Buffer)
 #[derive(Copy,Clone,Debug)]
 #[repr(C)]
 pub struct Trb
@@ -71,6 +71,228 @@ pub struct Trb
     /// - Bits 10:15 are the type
     // Contains the type, must be written last
     pub word3: u32,
+}
+impl Trb {
+    pub (crate) fn set_cycle(&mut self, cycle: bool) {
+        self.word3 = (self.word3 & !1) | (cycle as u32);
+    }
+}
+pub(crate) trait IntoTrb {
+    fn into_trb(self, cycle: bool) -> Trb;
+}
+
+/// Data field of a normal TRB
+#[derive(Debug)]
+pub enum TrbNormalData {
+    /// A hardware pointer
+    Pointer(u64),
+    // Only valid for OUT endpoints (and only when MPS>=8?)
+    InlineData([u8; 8]),
+}
+impl TrbNormalData {
+    pub fn make_inline(input: &[u8]) -> TrbNormalData {
+        assert!(input.len() <= 8);
+        let mut data = [0; 8];
+        data[..input.len()].copy_from_slice(input);
+        TrbNormalData::InlineData(data)
+    }
+    fn to_word0(&self) -> u32 {
+        match *self {
+        TrbNormalData::Pointer(v) => v as u32,
+        TrbNormalData::InlineData(v) => u32::from_le_bytes(::core::convert::TryInto::try_into(&v[..4]).unwrap()),
+        }
+    }
+    fn to_word1(&self) -> u32 {
+        match *self {
+        TrbNormalData::Pointer(v) => (v >> 32) as u32,
+        TrbNormalData::InlineData(v) => u32::from_le_bytes(::core::convert::TryInto::try_into(&v[4..]).unwrap()),
+        }
+    }
+    fn is_immediate(&self) -> bool {
+        match *self {
+        TrbNormalData::Pointer(_) => false,
+        TrbNormalData::InlineData(_) => true,
+        }
+    }
+}
+
+#[derive(Debug)]
+/// A "Normal" TRB - Used for bulk and interrupt endpoints
+pub struct TrbNormal
+{
+    pub data: TrbNormalData,
+    // Word2
+    pub transfer_length: u32,   // 17 bits
+    pub td_size: u8,    // 5 bits
+    pub interrupter_target: u16,
+    // Word3
+    /// xHC should evaluate the next TRB in the queue before saving state
+    pub evaluate_next_trb: bool,
+    /// Force an interrupt if a short packet is encountered
+    pub interrupt_on_short_packet: bool,
+    /// (TODO) Something about cache snooping
+    pub no_snoop: bool,
+    /// Associate this TRB with the next TRB in the ring (?if using this for scatter-gather?)
+    pub chain_bit: bool,
+    /// Interrupt On Completion - Generate an event when this TRB is retired
+    pub ioc: bool,
+    ///// Indicates that the `data_buffer` field is raw data, and not a pointer
+    //pub immediate_data: bool,
+    pub block_event_interrupt: bool,    
+}
+
+/// TRB for a SETUP packet
+pub struct TrbControlSetup
+{
+    // Word0
+    pub bm_request_type: u8,
+    pub b_request: u8,
+    pub w_value: u16,
+
+    // Word1
+    pub w_index: u16,
+    pub w_length: u16,
+
+    // Word2
+    pub trb_transfer_length: u32,
+    pub interupter_target: u8,
+    // Word3
+    pub ioc: bool,
+    pub idt: bool,
+    pub transfer_type: TrbControlSetupTransferType,
+}
+#[repr(u8)]
+#[derive(Debug)]
+pub enum TrbControlSetupTransferType {
+    #[allow(dead_code)]
+    NoData = 0,
+    _Reserved = 1,
+    Out = 2,
+    In = 3,
+}
+impl IntoTrb for TrbControlSetup {
+    fn into_trb(self, cycle: bool) -> Trb {
+        Trb {
+            word0: 0
+                | (self.bm_request_type as u32) << 0
+                | (self.b_request as u32) << 8
+                | (self.w_value as u32) << 16
+                ,
+            word1: 0
+                | (self.w_index as u32) << 0
+                | (self.w_length as u32) << 16
+                , 
+            word2: 0
+                | (self.trb_transfer_length as u32 & 0x1FFFF) << 0
+                | (self.interupter_target as u32) << 22
+                ,
+            word3: TrbType::SetupStage.to_word3(cycle)
+                | (self.ioc as u32) << 5
+                | (self.idt as u32) << 6
+                | (self.transfer_type as u32) << 16
+                ,
+        }
+    }
+}
+
+/// TRB for the data stage of a control transfer
+pub struct TrbControlData
+{
+    pub data: TrbNormalData,
+    /// Length of the data
+    pub trb_transfer_length: u32,   // 17 bits
+    pub td_size: u8,    // 5 bits
+    pub interrupter_target: u16,
+    
+    /// xHC should evaluate the next TRB in the queue before saving state
+    pub evaluate_next_trb: bool,
+    /// Force an interrupt if a short packet is encountered
+    pub interrupt_on_short_packet: bool,
+    /// (TODO) Something about cache snooping
+    pub no_snoop: bool,
+    /// Associate this TRB with the next TRB in the ring (?if using this for scatter-gather?)
+    pub chain_bit: bool,
+    /// Interrupt On Completion - Generate an event when this TRB is retired
+    pub ioc: bool,
+    ///// Indicates that the `data_buffer` field is raw data, and not a pointer
+    //pub immediate_data: bool,
+    /// Direction of the transfer
+    pub direction_in: bool,
+}
+impl IntoTrb for TrbControlData {
+    fn into_trb(self, cycle: bool) -> Trb {
+        Trb {
+            word0: self.data.to_word0(),
+            word1: self.data.to_word1(),
+            word2: 0
+                | (self.trb_transfer_length as u32 & 0x1FFFF) << 0
+                | (self.interrupter_target as u32) << 22
+                ,
+            word3: TrbType::DataStage.to_word3(cycle)
+                | (self.evaluate_next_trb as u32) << 1
+                | (self.interrupt_on_short_packet as u32) << 2
+                | (self.no_snoop as u32) << 3
+                | (self.chain_bit as u32) << 4
+                | (self.ioc as u32) << 5
+                | (self.data.is_immediate() as u32) << 6
+                | (self.direction_in as u32) << 16
+                ,
+        }
+    }
+}
+
+pub struct TrbControlStatus
+{
+    pub interrupter_target: u16,
+    
+    /// xHC should evaluate the next TRB in the queue before saving state
+    pub evaluate_next_trb: bool,
+    /// Interrupt On Completion - Generate an event when this TRB is retired
+    pub ioc: bool,
+    /// Direction of the transfer
+    pub direction_in: bool,
+}
+impl IntoTrb for TrbControlStatus {
+    fn into_trb(self, cycle: bool) -> Trb {
+        Trb {
+            word0: 0,
+            word1: 0,
+            word2: 0
+                | (self.interrupter_target as u32) << 22
+                ,
+            word3: TrbType::StatusStage.to_word3(cycle)
+                | (self.evaluate_next_trb as u32) << 1
+                | (self.ioc as u32) << 5
+                | (self.direction_in as u32) << 16
+                ,
+        }
+    }
+}
+
+pub struct TrbLink
+{
+    pub addr: u64,
+    pub interrupter_target: u16,
+    /// Causes the HC to switch its cycle bit
+    pub toggle_cycle: bool,
+    pub chain: bool,
+    pub ioc: bool,
+}
+impl IntoTrb for TrbLink {
+    fn into_trb(self, cycle: bool) -> Trb {
+        Trb {
+            word0: (self.addr >>  0) as u32,
+            word1: (self.addr >> 32) as u32,
+            word2: 0
+                | (self.interrupter_target as u32) << 22
+                ,
+            word3: TrbType::Link.to_word3(cycle)
+                | (self.toggle_cycle as u32) << 1
+                | (self.chain as u32) << 4
+                | (self.ioc as u32) << 5
+                ,
+        }
+    }
 }
 
 #[cfg(false_)]

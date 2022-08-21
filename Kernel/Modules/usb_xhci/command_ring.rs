@@ -17,8 +17,36 @@ pub enum Command
         block_set_address: bool,
     },
     ConfigureEndpoint {
-        // ... TODO
-    }
+        slot_idx: u8,
+        input_context_pointer: u64,
+        deconfigure: bool,
+    },
+    EvaluateContext {
+        /// Slot to be used for this device
+        slot_idx: u8,
+        /// Pointer to the "Input Context" structure
+        input_context_pointer: u64,
+    },
+    ResetEndpoint {
+        slot_idx: u8,
+        endpoint_id: u8,
+        transfer_state_preserve: bool,
+    },
+    StopEndpoint {
+        slot_idx: u8,
+        endpoint_id: u8,
+    },
+    SetTrDequeuePointer {
+        slot_idx: u8,
+        endpoint_id: u8,
+        stream_id: u16,
+        new_dequeue_pointer: u64,
+        cycle: bool,
+        stream_context_type: u8,
+    },
+    ResetDevice {
+        slot_idx: u8,
+    },
 }
 impl Command
 {
@@ -59,7 +87,69 @@ impl Command
                 | if block_set_address { 1 << 9 } else { 0 }
                 | TrbType::AddressDeviceCommand.to_word3(cycle_bit),
             },
-        _ => todo!("Command::to_desc: {:?}", self),
+        // 6.4.3.5
+        Command::ConfigureEndpoint { slot_idx, input_context_pointer, deconfigure } => crate::hw::structs::Trb
+            {
+            word0: (input_context_pointer & 0xFFFF_FFF0) as u32,
+            word1: (input_context_pointer >> 32) as u32,
+            word2: 0,
+            word3: (slot_idx as u32) << 24
+                | if deconfigure { 1 << 9 } else { 0 }
+                | TrbType::ConfigureEndpointCommand.to_word3(cycle_bit),
+            },
+        // 6.4.3.6
+        Command::EvaluateContext { slot_idx, input_context_pointer } => crate::hw::structs::Trb
+            {
+            word0: (input_context_pointer & 0xFFFF_FFF0) as u32,
+            word1: (input_context_pointer >> 32) as u32,
+            word2: 0,
+            word3: (slot_idx as u32) << 24
+                | TrbType::EvaluateContextCommand.to_word3(cycle_bit),
+            },
+        // 6.4.3.7
+        Command::ResetEndpoint { slot_idx, endpoint_id, transfer_state_preserve } => crate::hw::structs::Trb
+            {
+            word0: 0,
+            word1: 0,
+            word2: 0,
+            word3: (slot_idx as u32) << 24
+                | (endpoint_id as u32) << 16
+                | (transfer_state_preserve as u32) << 9
+                | TrbType::ResetEndpointCommand.to_word3(cycle_bit),
+            },
+        // 6.4.3.8
+        Command::StopEndpoint { slot_idx, endpoint_id } => crate::hw::structs::Trb
+            {
+            word0: 0,
+            word1: 0,
+            word2: 0,
+            word3: (slot_idx as u32) << 24
+                | (endpoint_id as u32) << 16
+                | TrbType::StopEndpointCommand.to_word3(cycle_bit),
+            },
+        // 6.4.3.9
+        Command::SetTrDequeuePointer { slot_idx, endpoint_id, stream_id, new_dequeue_pointer, cycle, stream_context_type } => crate::hw::structs::Trb
+            {
+            word0: 0
+                | (new_dequeue_pointer & 0xFFFF_FFF0) as u32
+                | (stream_context_type as u32) << 1
+                | cycle as u32
+                ,
+            word1: (new_dequeue_pointer >> 32) as u32,
+            word2: (stream_id as u32) << 16,
+            word3: (slot_idx as u32) << 24
+                | (endpoint_id as u32) << 16
+                | TrbType::SetTrDequeuePointerCommand.to_word3(cycle_bit),
+            },
+        // 6.4.3.10
+        Command::ResetDevice { slot_idx } => crate::hw::structs::Trb
+            {
+            word0: 0,
+            word1: 0,
+            word2: 0,
+            word3: (slot_idx as u32) << 24
+                | TrbType::ResetDeviceCommand.to_word3(cycle_bit),
+            },
         }
     }
 }
