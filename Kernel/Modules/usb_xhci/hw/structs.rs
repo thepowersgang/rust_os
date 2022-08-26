@@ -162,6 +162,28 @@ pub struct TrbNormal
     //pub immediate_data: bool,
     pub block_event_interrupt: bool,    
 }
+impl IntoTrb for TrbNormal {
+    fn into_trb(self, cycle: bool) -> Trb {
+        Trb {
+            word0: self.data.to_word0(),
+            word1: self.data.to_word1(),
+            word2: 0
+                | (self.transfer_length as u32 & 0x1FFFF) << 0
+                | (self.td_size as u32 & 0x1F) << 17
+                | (self.interrupter_target as u32) << 22
+                ,
+            word3: TrbType::Normal.to_word3(cycle)
+                | (self.evaluate_next_trb as u32) << 1
+                | (self.interrupt_on_short_packet as u32) << 2
+                | (self.no_snoop as u32) << 3
+                | (self.chain_bit as u32) << 4
+                | (self.ioc as u32) << 5
+                | (self.data.is_immediate() as u32) << 6
+                | (self.block_event_interrupt as u32) << 9
+                ,
+        }
+    }
+}
 
 /// TRB for a SETUP packet
 pub struct TrbControlSetup
@@ -248,6 +270,7 @@ impl IntoTrb for TrbControlData {
             word1: self.data.to_word1(),
             word2: 0
                 | (self.trb_transfer_length as u32 & 0x1FFFF) << 0
+                | (self.td_size as u32 & 0x1F) << 17
                 | (self.interrupter_target as u32) << 22
                 ,
             word3: TrbType::DataStage.to_word3(cycle)
@@ -385,12 +408,24 @@ impl SlotContext {
     }
 }
 
+#[repr(u8)]
+pub enum EndpointType {
+    IsochOut = 1,
+    BulkOut,
+    InterruptOut,
+    Control,
+    IsochIn,
+    BulkIn,
+    InterruptIn,
+}
+
 #[derive(Copy,Clone,Debug)]
 #[repr(C)]
 pub struct EndpointContext
 {
     /// 2:0 - Endpoint state
     /// 9:8 - Mult
+    /// ...
     pub word0: u32,
     /// 5:3 - Endpoint type
     /// - 0 = Not Valid
@@ -422,5 +457,9 @@ impl EndpointContext
             word4: 0,
             _resvd: [0; 3],
         }
+    }
+
+    pub fn set_word1(&mut self, ty: EndpointType, max_packet_size: u16) {
+        self.word1 = (max_packet_size as u32) << 16 | (ty as u8 as u32) << 3;
     }
 }

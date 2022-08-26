@@ -88,7 +88,12 @@ struct HostInner {
     // Mapping from device address (minus 1) to device context handle
     devices: [::kernel::sync::Mutex<Option<Box<device_state::DeviceInfo>>>; 255],
 
-    slot_events: Vec< [::kernel::futures::single_channel::SingleChannel<(hw::structs::TrbNormalData,u32,u8)>; 31] >,
+    slot_events: Vec<SlotEvents>,
+}
+#[derive(Default)]
+struct SlotEvents {
+    configure: ::kernel::sync::EventChannel,
+    endpoints: [::kernel::futures::single_channel::SingleChannel<(hw::structs::TrbNormalData,u32,u8)>; 31],
 }
 impl HostInner
 {
@@ -217,7 +222,7 @@ impl HostInner
                         self.port_update.set(port_id - 1);
                         self.port_update_waker.lock().wake_by_ref();
                         },
-                    Event::CommandCompletion { trb_pointer, completion_code, param, slot_id, vf_id } => {
+                    Event::CommandCompletion { trb_pointer, completion_code, param: _param, slot_id, vf_id: _vf_id } => {
                         let ty = self.command_ring.lock().get_command_type(trb_pointer);
                         if completion_code == 1 {
                             log_trace!("CommandCompletion {:#x} {:?}: SUCCESS", trb_pointer, ty);
@@ -232,6 +237,9 @@ impl HostInner
                             Some(hw::structs::TrbType::AddressDeviceCommand) => {
                                 self.slot_enable_ready.trigger();
                                 }
+                            Some(hw::structs::TrbType::ConfigureEndpointCommand) => {
+                                self.slot_events[slot_id as usize - 1].configure.post();
+                                },
                             _ => {},
                             }
                         }
@@ -240,14 +248,14 @@ impl HostInner
                         }
                         },
                     Event::Transfer { data, transfer_length, completion_code, slot_id, endpoint_id } => {
-                        self.slot_events[slot_id as usize - 1][endpoint_id as usize - 1].store( (data, transfer_length, completion_code) );
+                        self.slot_events[slot_id as usize - 1].endpoints[endpoint_id as usize - 1].store( (data, transfer_length, completion_code) );
                         },
                     _ => {},
                     }
                 }
             }
             if h != sts {
-                todo!("Unhandled interrupt bit");
+                todo!("Unhandled interrupt bit {:#x}", sts ^ h);
             }
             self.regs.write_usbsts(h);
             true

@@ -132,6 +132,7 @@ where
         }
         rv
     }
+    #[cfg(false_)]
     pub fn wait_sync(&self, regs: &crate::hw::Regs) -> Event {
         if let Some(v) = self.poll(regs) {
             return v;

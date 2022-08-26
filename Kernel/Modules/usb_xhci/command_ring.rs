@@ -16,6 +16,7 @@ pub enum Command
         /// Do everything BUT send the SET_ADDRESS message on the bus
         block_set_address: bool,
     },
+    // 4.6.6 "Configure Endpoint"
     ConfigureEndpoint {
         slot_idx: u8,
         input_context_pointer: u64,

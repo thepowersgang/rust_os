@@ -7,6 +7,7 @@ use kernel::lib::mem::Box;
 mod device0;
 /// Endpoint 0 (special control endpoint)
 mod control;
+mod bulk;
 
 pub struct UsbHost
 {
@@ -30,19 +31,21 @@ impl host::HostController for UsbHost
         }
         else if endpoint.endpt() == 0 {
             // Endpoint 0 needs logic to monitor for configuration changes
-            Handle::new( control::Endpoint0::new(self.host.clone(), endpoint.dev_addr(), max_packet_size))
+            Handle::new( control::Endpoint0::new(self.host.clone(), endpoint.dev_addr(), max_packet_size).expect("Endpoint0"))
                 .ok().expect("Should fit")
         }
         else {
-            Handle::new( control::Control::new(self.host.clone(), endpoint.dev_addr(), endpoint.endpt(), max_packet_size) )
+            Handle::new( control::Control::new(self.host.clone(), endpoint.dev_addr(), endpoint.endpt(), max_packet_size).expect("Control") )
                 .ok().expect("Should fit")
         }
 	}
 	fn init_bulk_out(&self, endpoint: EndpointAddr, max_packet_size: usize) -> Handle<dyn host::BulkEndpointOut> {
-        todo!("init_bulk_out");
+        Handle::new(bulk::BulkOut::new(self.host.clone(), endpoint.dev_addr(), endpoint.endpt(), max_packet_size).expect("BulkOut"))
+            .ok().expect("Should fit")
 	}
 	fn init_bulk_in(&self, endpoint: EndpointAddr, max_packet_size: usize) -> Handle<dyn host::BulkEndpointIn> {
-        todo!("init_bulk_in");
+        Handle::new(bulk::BulkIn::new(self.host.clone(), endpoint.dev_addr(), endpoint.endpt(), max_packet_size).expect("BulkIn"))
+            .ok().expect("Should fit")
 	}
 
 
@@ -158,4 +161,42 @@ fn make_asyncwaitio<'a, T>(f: impl ::core::future::Future<Output=T> + Send + Syn
         .unwrap_or_else(|v| host::AsyncWaitIo::new(
             ::kernel::lib::mem::boxed::Box::pin(v)).ok().unwrap()
             )
+}
+
+
+fn iter_contigious_phys(data: &[u8]) -> impl Iterator<Item=(u64, u16, bool)> + '_ {
+    struct V<'a> {
+        data: &'a [u8],
+        remain: usize,
+        ofs: usize,
+    }
+    impl<'a> ::core::iter::Iterator for V<'a> {
+        type Item = (u64, u16, bool);
+        fn next(&mut self) -> Option<Self::Item> {
+            use ::kernel::memory::virt::get_phys;
+            assert!(self.ofs <= self.data.len(), "{}+{} > {}", self.ofs, self.remain, self.data.len());
+            if self.ofs == self.data.len() {
+                return None;
+            }
+
+            while self.ofs+self.remain < self.data.len() && get_phys(&self.data[self.ofs+self.remain]) == get_phys(self.data.as_ptr()) + self.remain as u64 {
+                if self.ofs+self.remain + 0x1000 < self.data.len() {
+                    self.remain = self.data.len() - self.ofs;
+                }
+                else {
+                    self.remain += 0x1000;
+                }
+            }
+            let is_last = self.ofs + self.remain == self.data.len();
+            let rv = (get_phys(&self.data[self.ofs]), self.remain as _, is_last,);
+            self.ofs += self.remain;
+            self.remain = 0;
+            Some(rv)
+        }
+    }
+    V {
+        data,
+        ofs: 0,
+        remain: usize::min(0x1000 - (data.as_ptr() as usize & 0xFFF), data.len() ),
+    }
 }

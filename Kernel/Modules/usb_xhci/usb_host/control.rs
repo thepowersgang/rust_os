@@ -1,6 +1,8 @@
 use ::usb_core::host;
 use crate::hw::structs as hw_structs;
 
+type Error = ::kernel::memory::virt::MapError;
+
 pub struct Control
 {
     host: crate::HostRef,
@@ -17,22 +19,33 @@ pub struct Endpoint0
 
 impl Control
 {
-    pub(crate) fn new(host: crate::HostRef, addr: u8, endpoint: u8, max_packet_size: usize) -> Self {
-        // Need to get an endpoint handle from the host.
-        //host.claim_endpoint(addr, endpoint, max_packet_size);
-        Control { host, addr, endpoint }
+    pub(crate) fn new(host: crate::HostRef, addr: u8, endpoint: u8, max_packet_size: usize) -> Result<Self,Error> {
+        if endpoint == 0 {
+            host.claim_endpoint(addr, 1, hw_structs::EndpointType::Control, max_packet_size)?;
+        }
+        else {
+            host.claim_endpoint(addr, endpoint * 2 + 0, hw_structs::EndpointType::Control, max_packet_size)?;
+            host.claim_endpoint(addr, endpoint * 2 + 1, hw_structs::EndpointType::Control,max_packet_size)?;
+        }
+        Ok(Control { host, addr, endpoint })
     }
 }
 impl ::core::ops::Drop for Control {
     fn drop(&mut self) {
-        //self.host.release_endpoint(self.addr, self.endpoint);
+        if self.endpoint == 0 {
+            self.host.release_endpoint(self.addr, 1);
+        }
+        else {
+            self.host.release_endpoint(self.addr, self.endpoint * 2 + 0);
+            self.host.release_endpoint(self.addr, self.endpoint * 2 + 1);
+        }
     }
 }
 
 impl Endpoint0
 {
-    pub(crate) fn new(host: crate::HostRef, addr: u8, max_packet_size: usize) -> Self {
-        Endpoint0 { inner: Control::new(host, addr, 0, max_packet_size) }
+    pub(crate) fn new(host: crate::HostRef, addr: u8, max_packet_size: usize) -> Result<Self,Error> {
+        Ok(Endpoint0 { inner: Control::new(host, addr, 0, max_packet_size)? })
     }
 }
 
@@ -70,43 +83,6 @@ fn get_data(direction_in: bool, d: hw_structs::TrbNormalData, len: u32, is_last:
         }
 }
 
-fn iter_contigious_phys(data: &[u8]) -> impl Iterator<Item=(u64, u16, bool)> + '_ {
-    struct V<'a> {
-        data: &'a [u8],
-        remain: usize,
-        ofs: usize,
-    }
-    impl<'a> ::core::iter::Iterator for V<'a> {
-        type Item = (u64, u16, bool);
-        fn next(&mut self) -> Option<Self::Item> {
-            use ::kernel::memory::virt::get_phys;
-            assert!(self.ofs <= self.data.len(), "{}+{} > {}", self.ofs, self.remain, self.data.len());
-            if self.ofs == self.data.len() {
-                return None;
-            }
-
-            while self.ofs+self.remain < self.data.len() && get_phys(&self.data[self.ofs+self.remain]) == get_phys(self.data.as_ptr()) + self.remain as u64 {
-                if self.ofs+self.remain + 0x1000 < self.data.len() {
-                    self.remain = self.data.len() - self.ofs;
-                }
-                else {
-                    self.remain += 0x1000;
-                }
-            }
-            let is_last = self.ofs + self.remain == self.data.len();
-            let rv = (get_phys(&self.data[self.ofs]), self.remain as _, is_last,);
-            self.ofs += self.remain;
-            self.remain = 0;
-            Some(rv)
-        }
-    }
-    V {
-        data,
-        ofs: 0,
-        remain: usize::min(0x1000 - (data.as_ptr() as usize & 0xFFF), data.len() ),
-    }
-}
-
 impl host::ControlEndpoint for Control {
     fn out_only<'a>(&'a self, setup_data: &'a [u8], out_data: &'a [u8]) -> host::AsyncWaitIo<'a, usize> {
         log_trace!("out_only({:?}, {:?})", ::kernel::logging::HexDump(setup_data), ::kernel::logging::HexDump(out_data));
@@ -128,7 +104,7 @@ impl host::ControlEndpoint for Control {
                     }
                 }
                 else {
-                    for (paddr, len, is_last) in iter_contigious_phys(out_data) {
+                    for (paddr, len, is_last) in super::iter_contigious_phys(out_data) {
                         // SAFE: Trusting ourselves to wait until the hardware is done
                         unsafe {
                             state.push(get_data(false, hw_structs::TrbNormalData::Pointer(paddr), len as u32, is_last));
@@ -159,7 +135,7 @@ impl host::ControlEndpoint for Control {
             unsafe {
                 state.push(parse_setup(setup_data, crate::hw::structs::TrbControlSetupTransferType::In));
             }
-            for (paddr, len, is_last) in iter_contigious_phys(in_data) {
+            for (paddr, len, is_last) in super::iter_contigious_phys(in_data) {
                 // SAFE: Trusting ourselves to wait until the hardware is done
                 unsafe {
                     state.push(get_data(true, hw_structs::TrbNormalData::Pointer(paddr), len as u32, is_last));
