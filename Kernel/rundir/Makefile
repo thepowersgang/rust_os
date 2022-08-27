@@ -17,13 +17,20 @@ endif
 ifeq ($(ENABLE_USB),)
 else
   QEMU_ARGS += -usb
+ ifeq ($(ENABLE_USB),usb3)
+  QEMU_ARGS += -device qemu-xhci,id=ehci
+ else
   QEMU_ARGS += -device pci-ohci,id=ohci
+  QEMU_ARGS += -device usb-ehci,id=ehci
+ endif
   QEMU_ARGS += -drive if=none,id=usbdisk,file=DiskImages/$(ARCH)/$(IMGDIR)usb.img,format=raw
-  QEMU_ARGS += -device usb-hub,bus=ohci.0,port=1
-  QEMU_ARGS += -device usb-storage,bus=ohci.0,port=1.1,drive=usbdisk
+#  QEMU_ARGS += -device usb-hub,bus=ohci.0,port=1
+#  QEMU_ARGS += -device usb-storage,bus=ohci.0,port=1.1,drive=usbdisk
+  QEMU_ARGS += -device usb-storage,bus=ehci.0,port=1,drive=usbdisk
 images: DiskImages/$(ARCH)/$(IMGDIR)usb.img
-  QEMU_ARGS += -device usb-tablet,bus=ohci.0,port=2
-#  QEMU_ARGS += -device usb-kbd,bus=ohci.0
+#  QEMU_ARGS += -device usb-tablet,bus=ohci.0,port=2
+#  QEMU_ARGS += -device usb-tablet,bus=ehci.0,port=2
+  QEMU_ARGS += -device usb-kbd,bus=ehci.0,port=3
 endif
 QEMU_ARGS += -d int,guest_errors -D qemu_int_log.txt
 #QEMU_ARGS += -d int,guest_errors,exec -D qemu_int_log.txt
@@ -197,8 +204,9 @@ $(IMGDIR)hdb.img: Makefile $(IMGDIR)hdb_0.img $(IMGDIR)hdb_1.img
 $(QEMU_TRACE_SPEC): Makefile
 	echo "" > $@
 	#echo pci_* >> $@
-	echo virtio_* >> $@
+	#echo virtio_* >> $@
 	#echo virtqueue_* >> $@
-	#echo usb_* >> $@
+	#echo apic_* >> $@
+	echo usb_* >> $@
 
 
