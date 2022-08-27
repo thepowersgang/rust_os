@@ -625,7 +625,8 @@ pub fn alloc_stack() -> AllocHandle
 				crate::memory::phys::allocate( (pos + ofs) as *mut () );
 			}
 			// 3. Return a handle representing this area
-			return AllocHandle::new( pos + PAGE_SIZE, count-1, ProtectionMode::KernelRW );
+			// SAFE: Memory is valid and now owned by this handle
+			return unsafe { AllocHandle::new( pos + PAGE_SIZE, count-1, ProtectionMode::KernelRW ) };
 		}
 		pos += addresses::STACK_SIZE;
 	}
@@ -657,10 +658,11 @@ impl Default for AllocHandle {
 			}
 	}
 }*/
+
 impl AllocHandle
 {
 	const MAX_SIZE: usize = PAGE_SIZE * (PAGE_SIZE / 2 - 1);
-	pub fn new(addr: usize, count: usize, mode: ProtectionMode) -> AllocHandle {
+	pub unsafe fn new(addr: usize, count: usize, mode: ProtectionMode) -> AllocHandle {
 		assert!(addr != 0, "Zero pointer for AllocHandle");
 		assert!(addr & (PAGE_SIZE - 1) == 0, "Non-aligned value for AllocHandle : {:#x}", addr);
 		assert!(count < PAGE_SIZE / 2, "Over-sized allocation in AllocHandle : {} >= {}", count, PAGE_SIZE/2);
