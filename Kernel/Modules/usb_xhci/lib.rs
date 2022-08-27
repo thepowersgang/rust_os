@@ -160,9 +160,9 @@ impl HostInner
         // Test commands
         if false {
             log_debug!("--- TESTING COMMAND ---");
-            rv.command_ring.lock().enqueue_command(&rv.regs, command_ring::Command::Nop);
-            rv.command_ring.lock().enqueue_command(&rv.regs, command_ring::Command::Nop);
-            rv.command_ring.lock().enqueue_command(&rv.regs, command_ring::Command::Nop);
+            rv.command_ring.lock().enqueue_command(&rv.regs, hw::commands::Nop);
+            rv.command_ring.lock().enqueue_command(&rv.regs, hw::commands::Nop);
+            rv.command_ring.lock().enqueue_command(&rv.regs, hw::commands::Nop);
             ::kernel::threads::yield_time();
             log_debug!("-/- TESTING COMMAND -/-");
         }

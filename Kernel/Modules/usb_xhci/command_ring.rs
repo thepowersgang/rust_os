@@ -1,167 +1,6 @@
 
 use crate::hw::structs::Trb;
 
-// TODO: Move to `hw::structs` (and refactor into stucts implementing `IntoTrb`?)
-#[derive(Debug)]
-pub enum Command
-{
-    Nop,
-    EnableSlot,
-    DisableSlot {
-        slot_idx: u8,
-    },
-    // 4.6.5 "Address Device"
-    // TODO: This should be unsafe to construct, as it has a hardware pointer
-    AddressDevice {
-        /// Slot to be used for this device
-        slot_idx: u8,
-        /// Pointer to the "Input Context" structure
-        input_context_pointer: u64,
-        /// Do everything BUT send the SET_ADDRESS message on the bus
-        block_set_address: bool,
-    },
-    // 4.6.6 "Configure Endpoint"
-    // TODO: This should be unsafe to construct, as it has a hardware pointer
-    ConfigureEndpoint {
-        slot_idx: u8,
-        input_context_pointer: u64,
-        deconfigure: bool,
-    },
-    // TODO: This should be unsafe to construct, as it has a hardware pointer
-    EvaluateContext {
-        /// Slot to be used for this device
-        slot_idx: u8,
-        /// Pointer to the "Input Context" structure
-        input_context_pointer: u64,
-    },
-    ResetEndpoint {
-        slot_idx: u8,
-        endpoint_id: u8,
-        transfer_state_preserve: bool,
-    },
-    StopEndpoint {
-        slot_idx: u8,
-        endpoint_id: u8,
-    },
-    // TODO: This should be unsafe to construct, as it has a hardware pointer
-    SetTrDequeuePointer {
-        slot_idx: u8,
-        endpoint_id: u8,
-        stream_id: u16,
-        new_dequeue_pointer: u64,
-        cycle: bool,
-        stream_context_type: u8,
-    },
-    ResetDevice {
-        slot_idx: u8,
-    },
-}
-impl Command
-{
-    fn to_desc(self, cycle_bit: bool) -> Trb {
-        use crate::hw::structs::TrbType;
-        match self
-        {
-        Command::Nop => Trb
-            {
-            word0: 0,
-            word1: 0,
-            word2: 0,
-            word3: TrbType::NoOpCommand.to_word3(cycle_bit),
-            },
-        // 6.4.3.2
-        Command::EnableSlot => Trb
-            {
-            word0: 0,
-            word1: 0,
-            word2: 0,
-            word3: TrbType::EnableSlotCommand.to_word3(cycle_bit),
-            },
-        // 6.4.3.3
-        Command::DisableSlot { slot_idx } => Trb
-            {
-            word0: 0,
-            word1: 0,
-            word2: 0,
-            word3: (slot_idx as u32) << 24 | TrbType::DisableSlotCommand.to_word3(cycle_bit),
-            },
-        // 6.4.3.4
-        Command::AddressDevice { slot_idx, input_context_pointer, block_set_address } => Trb
-            {
-            word0: (input_context_pointer & 0xFFFF_FFF0) as u32,
-            word1: (input_context_pointer >> 32) as u32,
-            word2: 0,
-            word3: (slot_idx as u32) << 24
-                | if block_set_address { 1 << 9 } else { 0 }
-                | TrbType::AddressDeviceCommand.to_word3(cycle_bit),
-            },
-        // 6.4.3.5
-        Command::ConfigureEndpoint { slot_idx, input_context_pointer, deconfigure } => Trb
-            {
-            word0: (input_context_pointer & 0xFFFF_FFF0) as u32,
-            word1: (input_context_pointer >> 32) as u32,
-            word2: 0,
-            word3: (slot_idx as u32) << 24
-                | if deconfigure { 1 << 9 } else { 0 }
-                | TrbType::ConfigureEndpointCommand.to_word3(cycle_bit),
-            },
-        // 6.4.3.6
-        Command::EvaluateContext { slot_idx, input_context_pointer } => Trb
-            {
-            word0: (input_context_pointer & 0xFFFF_FFF0) as u32,
-            word1: (input_context_pointer >> 32) as u32,
-            word2: 0,
-            word3: (slot_idx as u32) << 24
-                | TrbType::EvaluateContextCommand.to_word3(cycle_bit),
-            },
-        // 6.4.3.7
-        Command::ResetEndpoint { slot_idx, endpoint_id, transfer_state_preserve } => Trb
-            {
-            word0: 0,
-            word1: 0,
-            word2: 0,
-            word3: (slot_idx as u32) << 24
-                | (endpoint_id as u32) << 16
-                | (transfer_state_preserve as u32) << 9
-                | TrbType::ResetEndpointCommand.to_word3(cycle_bit),
-            },
-        // 6.4.3.8
-        Command::StopEndpoint { slot_idx, endpoint_id } => Trb
-            {
-            word0: 0,
-            word1: 0,
-            word2: 0,
-            word3: (slot_idx as u32) << 24
-                | (endpoint_id as u32) << 16
-                | TrbType::StopEndpointCommand.to_word3(cycle_bit),
-            },
-        // 6.4.3.9
-        Command::SetTrDequeuePointer { slot_idx, endpoint_id, stream_id, new_dequeue_pointer, cycle, stream_context_type } => Trb
-            {
-            word0: 0
-                | (new_dequeue_pointer & 0xFFFF_FFF0) as u32
-                | (stream_context_type as u32) << 1
-                | cycle as u32
-                ,
-            word1: (new_dequeue_pointer >> 32) as u32,
-            word2: (stream_id as u32) << 16,
-            word3: (slot_idx as u32) << 24
-                | (endpoint_id as u32) << 16
-                | TrbType::SetTrDequeuePointerCommand.to_word3(cycle_bit),
-            },
-        // 6.4.3.10
-        Command::ResetDevice { slot_idx } => Trb
-            {
-            word0: 0,
-            word1: 0,
-            word2: 0,
-            word3: (slot_idx as u32) << 24
-                | TrbType::ResetDeviceCommand.to_word3(cycle_bit),
-            },
-        }
-    }
-}
-
 pub struct CommandRing
 {
     ring_page: ::kernel::memory::virt::AllocHandle,
@@ -236,13 +75,11 @@ impl CommandRing
             let ring = ring_page.as_mut_slice(base_offset as usize * ENT_SIZE, (::kernel::PAGE_SIZE - base_offset as usize) / 32);
             let start_addr = ::kernel::memory::virt::get_phys(ring.as_ptr()) as u64;
             log_debug!("ring = {:#x}", start_addr);
-            // - Add a LINK entry to the end
-            *ring.last_mut().unwrap() = crate::hw::structs::IntoTrb::into_trb(
-                crate::hw::structs::TrbLink { addr: start_addr, toggle_cycle: true, ioc: false, interrupter_target: 0, chain: false },
-                true
-                );
-            // sAFE: The pointer used is valid, and will stay valid as long as this structure exists
+            // SAFE: The pointer used is valid, and will stay valid as long as this structure exists
             unsafe {
+                // - Add a LINK entry to the end
+                *ring.last_mut().unwrap() = crate::hw::structs::IntoTrb::into_trb( crate::hw::structs::TrbLink::new_loopback(start_addr), true);
+                // - Store the result
                 regs.set_crcr(start_addr | 1);
             }
         }
@@ -263,8 +100,11 @@ impl CommandRing
     }
 
     /// Enqueue a command
-    pub fn enqueue_command(&mut self, regs: &crate::hw::Regs, command: Command) {
+    pub(crate) fn enqueue_command(&mut self, regs: &crate::hw::Regs, command: impl crate::hw::commands::CommandTrb) {
         log_debug!("enqueue_command: {:?}", command);
+        self.enqueue_command_inner(regs, command.into_trb(self.cycle_bit))
+    }
+    fn enqueue_command_inner(&mut self, regs: &crate::hw::Regs, command_desc: Trb) {
         // 1. Read CRCR to ensure that the ring isn't full
         {
             let crcr = regs.crcr();
@@ -288,7 +128,6 @@ impl CommandRing
         }
 
         // 2. Write a new entry to the ring 
-        let command_desc = command.to_desc(self.cycle_bit);
         let dst = self.ring_page.as_mut(self.offset as usize * ENT_SIZE);
         log_debug!("{}:{} ({:#x}) = {:?}", self.cycle_bit, self.offset, ::kernel::memory::virt::get_phys(dst), command_desc);
         *dst = command_desc;

@@ -81,6 +81,46 @@ pub(crate) trait IntoTrb {
     fn into_trb(self, cycle: bool) -> Trb;
 }
 
+/// A linking TRB - used to chain buffers together and loop a ring buffer around
+pub struct TrbLink
+{
+    /// Next base address
+    pub addr: u64,
+    /// Target for an IOC
+    pub interrupter_target: u16,
+    /// Causes the HC to switch its cycle bit
+    pub toggle_cycle: bool,
+    /// TODO? Does this do anything?
+    pub chain: bool,
+    /// Generate an interrupt when completed
+    pub ioc: bool,
+}
+impl TrbLink {
+    /// Construct a new link TRB that loops the ring buffer back around
+    pub unsafe fn new_loopback(addr: u64) -> Self {
+        TrbLink { addr, toggle_cycle: true, interrupter_target: 0, chain: false, ioc: false }
+    }
+}
+impl IntoTrb for TrbLink {
+    fn into_trb(self, cycle: bool) -> Trb {
+        Trb {
+            word0: (self.addr >>  0) as u32,
+            word1: (self.addr >> 32) as u32,
+            word2: 0
+                | (self.interrupter_target as u32) << 22
+                ,
+            word3: TrbType::Link.to_word3(cycle)
+                | (self.toggle_cycle as u32) << 1
+                | (self.chain as u32) << 4
+                | (self.ioc as u32) << 5
+                ,
+        }
+    }
+}
+
+/// Indicates that a TRB is for use on the transfer queues
+pub(crate) trait TransferTrb: IntoTrb {}
+
 /// Data field of a normal TRB
 pub enum TrbNormalData {
     /// A hardware pointer
@@ -162,6 +202,8 @@ pub struct TrbNormal
     //pub immediate_data: bool,
     pub block_event_interrupt: bool,    
 }
+impl TransferTrb for TrbNormal {
+}
 impl IntoTrb for TrbNormal {
     fn into_trb(self, cycle: bool) -> Trb {
         Trb {
@@ -214,6 +256,8 @@ pub enum TrbControlSetupTransferType {
     Out = 2,
     In = 3,
 }
+impl TransferTrb for TrbControlSetup {
+}
 impl IntoTrb for TrbControlSetup {
     fn into_trb(self, cycle: bool) -> Trb {
         Trb {
@@ -263,6 +307,8 @@ pub struct TrbControlData
     /// Direction of the transfer
     pub direction_in: bool,
 }
+impl TransferTrb for TrbControlData {
+}
 impl IntoTrb for TrbControlData {
     fn into_trb(self, cycle: bool) -> Trb {
         Trb {
@@ -297,6 +343,8 @@ pub struct TrbControlStatus
     /// Direction of the transfer
     pub direction_in: bool,
 }
+impl TransferTrb for TrbControlStatus {
+}
 impl IntoTrb for TrbControlStatus {
     fn into_trb(self, cycle: bool) -> Trb {
         Trb {
@@ -314,44 +362,22 @@ impl IntoTrb for TrbControlStatus {
     }
 }
 
-pub struct TrbLink
-{
-    pub addr: u64,
-    pub interrupter_target: u16,
-    /// Causes the HC to switch its cycle bit
-    pub toggle_cycle: bool,
-    pub chain: bool,
-    pub ioc: bool,
-}
-impl IntoTrb for TrbLink {
-    fn into_trb(self, cycle: bool) -> Trb {
-        Trb {
-            word0: (self.addr >>  0) as u32,
-            word1: (self.addr >> 32) as u32,
-            word2: 0
-                | (self.interrupter_target as u32) << 22
-                ,
-            word3: TrbType::Link.to_word3(cycle)
-                | (self.toggle_cycle as u32) << 1
-                | (self.chain as u32) << 4
-                | (self.ioc as u32) << 5
-                ,
-        }
-    }
-}
+// --------------------------------------------------------------------
+// Device context definitions
+// --------------------------------------------------------------------
 
-#[cfg(false_)]
-struct InputContext
-{
-    pub icc: InputControlContext,
-    pub slot_context: SlotContext,
-    pub ep0_context: EndpointContext,
-    pub ep_contexts: [ [EndpointContext; 2]; 15 ],
+/// Complete structure for an input context (with control, slot, and endpoints)
+#[repr(C)]
+pub struct AddrInputContext {
+    pub ctrl: InputControlContext,
+    pub slot: SlotContext,
+    pub eps: [EndpointContext; 31],
 }
 
 #[derive(Copy,Clone,Debug)]
 #[repr(C)]
 // 6.2.5.1
+/// Input control context - specifies the details of the endpoints being configured
 pub struct InputControlContext
 {
     /// Bitmap of device context entries to be disabled by this command
@@ -463,3 +489,5 @@ impl EndpointContext
         self.word1 = (max_packet_size as u32) << 16 | (ty as u8 as u32) << 3;
     }
 }
+
+

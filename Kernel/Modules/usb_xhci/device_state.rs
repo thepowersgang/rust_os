@@ -2,7 +2,6 @@
 use ::kernel::lib::mem::Box;
 use crate::HostInner;
 use crate::hw;
-use crate::command_ring;
 
 
 pub struct DeviceInfo
@@ -95,7 +94,7 @@ impl HostInner
     {
         // Request the hardware allocate a slot
         self.slot_enable_ready.reset();
-        self.command_ring.lock().enqueue_command(&self.regs, command_ring::Command::EnableSlot);
+        self.command_ring.lock().enqueue_command(&self.regs, hw::commands::EnableSlot);
         // Wait for the newly allocated to slot to be availble.
         self.slot_enable_ready.wait().await;
         // Get the assigned slot index (won't be clobbered, as this runs with `usb_core`'s dev0 lock)
@@ -133,11 +132,8 @@ impl HostInner
         }
 
         // Issue the `AddressDevice` command
-        self.command_ring.lock().enqueue_command(&self.regs, command_ring::Command::AddressDevice {
-            slot_idx,
-            block_set_address: false,
-            input_context_pointer: device_context_page.input_context_phys(),
-            });
+        // SAFE: The address is kept valid
+        self.command_ring.lock().enqueue_command(&self.regs, unsafe { hw::commands::AddressDevice::new(slot_idx, device_context_page.input_context_phys(), false) });
         // Wait for a "Command Complete" event
         self.slot_enable_ready.wait().await;
 
@@ -215,16 +211,11 @@ impl HostInner
             input_context.eps[endpoint_id as usize - 1].set_word1(endpoint_type, max_packet_size as u16);
             input_context.eps[endpoint_id as usize - 1].tr_dequeue_ptr = ::kernel::memory::virt::get_phys(&ep_queue[0]) | 1;
         }
-
-        // TODO: This should be unsafe, as we're handing out a pointer!
-        self.command_ring.lock().enqueue_command(&self.regs, command_ring::Command::ConfigureEndpoint {
-            slot_idx: dev.slot_idx,
-            input_context_pointer: dev.device_context_page.input_context_phys(),
-            deconfigure: false,
-            });
         dev.endpoint_ring_allocs[endpoint_id as usize - 1] = Some(ep_queue);
+
+        // SAFE: Pointer is kept valid and unchanging until the hardware is done with it (when the `.sleep()` below returns)
+        self.command_ring.lock().enqueue_command(&self.regs, unsafe { hw::commands::ConfigureEndpoint::new_configure(dev.slot_idx, dev.device_context_page.input_context_phys()) });
         self.slot_events[dev.slot_idx as usize - 1].configure.sleep();
-        drop(lh);
 
         Ok(())
     }
@@ -276,7 +267,7 @@ const TRBS_PER_PAGE: u8 = (0x1000/32) as u8;
 impl<'a> PushTrbState<'a>
 {
     /// UNSAFE: The caller must ensure that the TRB content is valid (as it might contain addresses for the hardware)
-    pub(crate) unsafe fn push<T: hw::structs::IntoTrb>(&mut self, v: T) {
+    pub(crate) unsafe fn push<T: hw::structs::TransferTrb>(&mut self, v: T) {
         self.push_inner(v.into_trb(false))
     }
     fn push_inner(&mut self, mut trb: hw::structs::Trb) {
@@ -335,13 +326,6 @@ use dcp::DeviceContextPage;
 mod dcp {
     use crate::hw;
 
-    #[repr(C)]
-    pub(super) struct AddrInputContext {
-        pub ctrl: hw::structs::InputControlContext,
-        pub slot: hw::structs::SlotContext,
-        pub eps: [hw::structs::EndpointContext; 31],
-    }
-
     pub(super) struct DeviceContextPage(::kernel::memory::virt::AllocHandle);
     impl DeviceContextPage {    
         pub(super) fn new() -> Result<Self,::kernel::memory::virt::MapError> {
@@ -355,10 +339,10 @@ mod dcp {
             ::kernel::memory::virt::get_phys(self.slot_context())
         }
 
-        pub fn input_context(&self) -> &AddrInputContext {
+        pub fn input_context(&self) -> &hw::structs::AddrInputContext {
             self.0.as_ref(1024)
         }
-        pub fn input_context_mut(&mut self) -> &mut AddrInputContext {
+        pub fn input_context_mut(&mut self) -> &mut hw::structs::AddrInputContext {
             self.0.as_mut(1024)
         }
         pub fn input_context_phys(&self) -> u64 {
