@@ -101,9 +101,10 @@ impl HostInner
         // Get the assigned slot index (won't be clobbered, as this runs with `usb_core`'s dev0 lock)
         let slot_idx = self.slot_enable_idx.load(::core::sync::atomic::Ordering::SeqCst);
 
+        let ep0_queue = Self::alloc_ep_queue()?;
+
         // Prepare the device slot
         let mut device_context_page = dcp::DeviceContextPage::new()?;
-        let ep0_queue = Self::alloc_ep_queue()?;
         // Create an input context (6.2.2.1)
         {
             let input_context = device_context_page.input_context_mut();
@@ -123,18 +124,18 @@ impl HostInner
                 ]);
             input_context.eps[0] = hw::structs::EndpointContext::zeroed();
             input_context.eps[0].tr_dequeue_ptr = ::kernel::memory::virt::get_phys(&ep0_queue[0]) | 1;
+            input_context.eps[0].set_word1(hw::structs::EndpointType::Control, 0);  // TODO: What's the default MPS?
         }
 
-        // TODO: Initialise the endpoints
+        // SAFE: Pointer is valid, `device_context_page` is kept as long as this struct exists
+        unsafe {
+            self.command_ring.lock().set_dcba(slot_idx, device_context_page.slot_context_phys());
+        }
 
         // Issue the `AddressDevice` command
-        unsafe {
-            self.memory_pools.set_dcba(slot_idx, device_context_page.slot_context_phys());
-        }
         self.command_ring.lock().enqueue_command(&self.regs, command_ring::Command::AddressDevice {
             slot_idx,
             block_set_address: false,
-            // TODO: This should be unsafe, as we're handing out a pointer!
             input_context_pointer: device_context_page.input_context_phys(),
             });
         // Wait for a "Command Complete" event
@@ -177,6 +178,7 @@ impl HostInner
         self.devices[addr as usize - 1].lock().as_mut().unwrap().configuration = (endpoints_in, endpoints_out);
     }
 
+    /// Allocate an endpoint queue
     fn alloc_ep_queue() -> Result< ::kernel::memory::virt::ArrayHandle<crate::hw::structs::Trb>, ::kernel::memory::virt::MapError> {
         let mut h = ::kernel::memory::virt::alloc_dma(64, 1, "usb_xhci")?.into_array();
         let trb_link = hw::structs::TrbLink { addr: ::kernel::memory::virt::get_phys(&h[0]), chain: false, interrupter_target: 0, ioc: false, toggle_cycle: true };
@@ -184,6 +186,7 @@ impl HostInner
         Ok(h)
     }
 
+    /// Claim (allocate) an endpoint
     pub fn claim_endpoint(&self, addr: u8, endpoint_id: u8, endpoint_type: hw::structs::EndpointType, max_packet_size: usize) -> Result<(),::kernel::memory::virt::MapError>
     {
         let mut lh = self.devices[addr as usize - 1].lock();
@@ -213,9 +216,9 @@ impl HostInner
             input_context.eps[endpoint_id as usize - 1].tr_dequeue_ptr = ::kernel::memory::virt::get_phys(&ep_queue[0]) | 1;
         }
 
+        // TODO: This should be unsafe, as we're handing out a pointer!
         self.command_ring.lock().enqueue_command(&self.regs, command_ring::Command::ConfigureEndpoint {
             slot_idx: dev.slot_idx,
-            // TODO: This should be unsafe, as we're handing out a pointer!
             input_context_pointer: dev.device_context_page.input_context_phys(),
             deconfigure: false,
             });
@@ -226,7 +229,9 @@ impl HostInner
         Ok(())
     }
 
-    pub fn release_endpoint(&self, addr: u8, endpoint_id: u8) {
+    /// Release/deallocate an endpoint
+    pub fn release_endpoint(&self, addr: u8, endpoint_id: u8)
+    {
         let mut dev = self.devices[addr as usize - 1].lock();
         let dev = dev.as_deref_mut().expect("release_endpoint on bad address");
         assert!(endpoint_id < 32);
@@ -238,12 +243,16 @@ impl HostInner
 }
 
 impl HostInner {    
+    /// Start pushing TRBs to an endpoint
     pub(crate) fn push_ep_trbs(&self, addr: u8, index: u8) -> PushTrbState {
         let mut lh = self.devices[addr as usize - 1].lock();
         let dev = match lh.as_mut() { Some(v) => v, _ => panic!(""), };
         assert!(dev.get_endpoint(index).is_some(), "Endpoint {} of device {} not initialised", addr, index);
+        //assert!(!self.slot_events[dev.slot_idx as usize - 1].endpoints[index as usize - 1].is_ready());
+        // TODO: Get the current read position of the ring and ensure that it's not full
         PushTrbState { host: self, lh, index, count: 0 }
     }
+    /// Wait until completion is raised on the endpoint
     pub(crate) async fn wait_for_completion(&self, addr: u8, index: u8) -> (u32, u8) {
         let slot_idx = {
             let mut lh = self.devices[addr as usize - 1].lock();
@@ -255,12 +264,14 @@ impl HostInner {
         (len, cc)
     }
 }
+
 pub struct PushTrbState<'a> {
     host: &'a HostInner,
     lh: ::kernel::sync::mutex::HeldMutex<'a, Option<Box<DeviceInfo>>>,
     index: u8,
     count: u8,
 }
+
 const TRBS_PER_PAGE: u8 = (0x1000/32) as u8;
 impl<'a> PushTrbState<'a>
 {

@@ -144,6 +144,7 @@ impl Regs
     }
 
     /// The number of scratchpad buffers required by the controller
+	/// - Max of 1024 (5+5 bits)
     pub fn max_scratchpad_buffers(&self) -> u16 {
         self.max_scratchpad_buffers_hi() << 5 | self.max_scratchpad_buffers_lo()
     }

@@ -20,7 +20,7 @@ mod hw;
 mod usb_host;
 mod command_ring;
 mod event_ring;
-mod memory_pools;
+//mod memory_pools; // TODO: Eventually use this for queues without needing a whole page
 
 mod device_state;
 
@@ -68,8 +68,6 @@ type HostRef = ArefBorrow<HostInner>;
 struct HostInner {
     regs: hw::Regs,
 
-    memory_pools: memory_pools::MemoryPools,
-
     command_ring: ::kernel::sync::Mutex<command_ring::CommandRing>,
     event_ring_zero: event_ring::EventRing<event_ring::Zero>,
 
@@ -83,16 +81,17 @@ struct HostInner {
 
     enum_state: device_state::EnumState,
 
-    //slot_to_address: [::core::sync::atomic::AtomicU8; 255],
-
-    // Mapping from device address (minus 1) to device context handle
+    /// Indexed by the `usb_core` address minus 1
     devices: [::kernel::sync::Mutex<Option<Box<device_state::DeviceInfo>>>; 255],
 
+    /// Events for a given slot (indexed by slot index minus 1)
     slot_events: Vec<SlotEvents>,
 }
 #[derive(Default)]
 struct SlotEvents {
+    /// A `ConfigureEnpoint` command has completed
     configure: ::kernel::sync::EventChannel,
+    /// Transfer completed on an endpoint
     endpoints: [::kernel::futures::single_channel::SingleChannel<(hw::structs::TrbNormalData,u32,u8)>; 31],
 }
 impl HostInner
@@ -105,49 +104,29 @@ impl HostInner
         let regs = unsafe { hw::Regs::new(io) };
 
         // Controller init
-        // - Trigger a reset (via PCI?) and wait for USBSTS.NCR to become zero
+        // - Trigger a reset and wait for USBSTS.NCR to become zero
         unsafe {
             regs.write_usbcmd(hw::regs::USBCMD_HCRST);
         }
         while regs.usbsts() & hw::regs::USBSTS_CNR != 0 {
-            //::kernel::time::
             // TODO: Sleep with timeout
+            ::kernel::futures::block_on(::kernel::futures::msleep(5));
         }
+
         // - Device init, any order:
         //   - Configure CONFIG.MaxSlotsEn to the number of device slots desired
-        let n_device_slots: u8 = 128;
-        //   - Set DCBAAP to the device context array
-        let mut dcbaa = ::kernel::memory::virt::alloc_dma(64, 1, "usb_xhci")?.into_array();
-        //     > Entry zero points to an array of scratchpad pages, see the `Max Scratchpad Buffers Hi/Lo` fields in HCSPARAMS2 TODO check s4.20 of the spec
-        if regs.max_scratchpad_buffers() > 0
-        {
-            let array = &mut dcbaa[256..];
-            let mut scratchpad_entries = Vec::with_capacity(regs.max_scratchpad_buffers() as usize);
-            for i in 0 .. regs.max_scratchpad_buffers() as usize
-            {
-                let e = ::kernel::memory::virt::alloc_dma(64, 1, "usb_xhci")?;
-                array[i] = ::kernel::memory::virt::get_phys( e.as_ref::<()>(0) ) as u64;
-                scratchpad_entries.push(e);
-            }
-            dcbaa[0] = ::kernel::memory::virt::get_phys(array) as u64;
-        }
-        unsafe {
-            regs.set_dcbaap(::kernel::memory::virt::get_phys(dcbaa.as_ptr()) as u64);
-            regs.write_config(n_device_slots as u32);
-        }
         //   - Set the command ring (Set the initial dequeue pointer?)
-        let command_ring = command_ring::CommandRing::new(&regs)?;
+        let command_ring = command_ring::CommandRing::new(&regs, 128)?;
         //   - Set up MSI-X (aka the event ring)
         let event_ring_zero = event_ring::EventRing::new_zero(&regs)?;
 
         let nports = regs.max_ports();
         let mut rv = Aref::new(HostInner {
             regs,
-            memory_pools: memory_pools::MemoryPools::new(dcbaa),
 
             command_ring: ::kernel::sync::Mutex::new(command_ring),
             event_ring_zero,
-            _irq_handle: None,
+            _irq_handle: None,  // Initialised after construction
             
             port_update_waker: ::kernel::sync::Spinlock::new(kernel::futures::null_waker()),
             port_update: Default::default(),
@@ -156,7 +135,6 @@ impl HostInner
             slot_enable_idx: Default::default(),
             enum_state: Default::default(),
             devices: [(); 255].map(|_| Default::default()),
-            //slot_events: [(); 255].map(|_| Default::default()),
             slot_events: (0..255).map(|_| Default::default()).collect(),
             });
 
@@ -209,6 +187,9 @@ impl HostInner
         log_trace!("USBSTS = {:#x}", sts);
         if sts & (hw::regs::USBSTS_EINT|hw::regs::USBSTS_HCE|hw::regs::USBSTS_PCD) != 0 {
             let mut h = 0;
+            if sts & hw::regs::USBSTS_HCE != 0 {
+                todo!("Host controller error raised!");
+            }
             if sts & hw::regs::USBSTS_EINT != 0 {
                 h |= hw::regs::USBSTS_EINT;
                 // Signal any waiting
