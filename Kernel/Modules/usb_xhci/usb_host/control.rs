@@ -21,11 +21,11 @@ impl Control
 {
     pub(crate) fn new(host: crate::HostRef, addr: u8, endpoint: u8, max_packet_size: usize) -> Result<Self,Error> {
         if endpoint == 0 {
-            host.claim_endpoint(addr, 1, hw_structs::EndpointType::Control, max_packet_size)?;
+            host.claim_endpoint(addr, 1, crate::device_state::EndpointType::Control, max_packet_size)?;
         }
         else {
-            host.claim_endpoint(addr, endpoint * 2 + 0, hw_structs::EndpointType::Control, max_packet_size)?;
-            host.claim_endpoint(addr, endpoint * 2 + 1, hw_structs::EndpointType::Control,max_packet_size)?;
+            host.claim_endpoint(addr, endpoint * 2 + 0, crate::device_state::EndpointType::Control, max_packet_size)?;
+            host.claim_endpoint(addr, endpoint * 2 + 1, crate::device_state::EndpointType::Control, max_packet_size)?;
         }
         Ok(Control { host, addr, endpoint })
     }
@@ -121,8 +121,8 @@ impl host::ControlEndpoint for Control {
         let len = out_data.len();
         let f = self.host.wait_for_completion(self.addr, index);
         super::make_asyncwaitio(async move {
-            let (unused_len, completion_code) = f.await;
-            log_trace!("out_only complete: {} bytes, completion_code={}", len, completion_code);
+            let unused_len = f.await.expect("TODO: Handle error");
+            log_trace!("out_only complete: {} bytes", len);
             len - unused_len as usize
         })
     }
@@ -150,8 +150,8 @@ impl host::ControlEndpoint for Control {
         let len = in_data.len();
         let f = self.host.wait_for_completion(self.addr, index);
         super::make_asyncwaitio(async move {
-            let (unused_len, completion_code) = f.await;
-            log_trace!("in_only complete: {} bytes, completion_code={}", len, completion_code);
+            let unused_len = f.await.expect("TODO: Handle error");
+            log_trace!("in_only complete: {} bytes", len);
             len - unused_len as usize
         })
     }

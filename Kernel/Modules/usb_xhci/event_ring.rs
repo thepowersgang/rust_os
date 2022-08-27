@@ -8,14 +8,14 @@ pub enum Event {
         /// Residual of the transfer length (i.e. number of bytes not transferred)
         transfer_length: u32,
         /// Completion code: 1 = Success
-        completion_code: u8,
+        completion_code: crate::hw::structs::TrbCompletionCode,
         slot_id: u8,
         endpoint_id: u8,
     },
     /// Command completed
     CommandCompletion {
         trb_pointer: u64,
-        completion_code: u8,
+        completion_code: crate::hw::structs::TrbCompletionCode,
         param: u32,
         slot_id: u8,
         vf_id: u8,
@@ -41,6 +41,13 @@ pub enum Event {
     Unk(crate::hw::structs::Trb),
 }
 impl Event {
+    fn get_completion_code(v: u8) -> crate::hw::structs::TrbCompletionCode {
+        crate::hw::structs::TrbCompletionCode::from_u8(v)
+                .unwrap_or_else(|v| {
+                    log_warning!("Unknown completion code: {}", v);
+                    crate::hw::structs::TrbCompletionCode::Invalid
+                })
+    }
     fn from_trb(trb: crate::hw::structs::Trb) -> Self {
         use crate::hw::structs::TrbType;
         match TrbType::from_trb_word3(trb.word3)
@@ -49,7 +56,7 @@ impl Event {
         Ok(TrbType::TransferEvent) => Event::Transfer {
             data: crate::hw::structs::TrbNormalData::from_words((trb.word3 >> 2) & 1 != 0, trb.word0, trb.word1),
             transfer_length: trb.word2 & 0xFF_FFFF,
-            completion_code: (trb.word2 >> 24) as u8,
+            completion_code: Self::get_completion_code( (trb.word2 >> 24) as u8 ),
             slot_id: (trb.word3 >> 24) as u8,
             endpoint_id: (trb.word3 >> 16) as u8 & 0xF,
             },
@@ -57,7 +64,7 @@ impl Event {
         Ok(TrbType::CommandCompletionEvent) => Event::CommandCompletion {
             trb_pointer: trb.word0 as u64 | (trb.word1 as u64) << 32,
             param: trb.word2 & 0xFF_FFFF,
-            completion_code: (trb.word2 >> 24) as u8,
+            completion_code: Self::get_completion_code( (trb.word2 >> 24) as u8 ),
             slot_id: (trb.word3 >> 24) as u8,
             vf_id: (trb.word3 >> 16) as u8 & 0xF,
             },

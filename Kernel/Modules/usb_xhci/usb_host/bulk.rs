@@ -19,7 +19,7 @@ pub struct BulkOut
 impl BulkIn {
     pub(crate) fn new(host: crate::HostRef, addr: u8, endpoint: u8, max_packet_size: usize) -> Result<Self,Error> {
         let index = endpoint * 2 + 1;
-        host.claim_endpoint(addr, index, hw_structs::EndpointType::BulkIn, max_packet_size)?;
+        host.claim_endpoint(addr, index, crate::device_state::EndpointType::BulkIn, max_packet_size)?;
         Ok(Self { host, addr, index })
     }
 }
@@ -31,7 +31,7 @@ impl ::core::ops::Drop for BulkIn {
 impl BulkOut {
     pub(crate) fn new(host: crate::HostRef, addr: u8, endpoint: u8, max_packet_size: usize) -> Result<Self,Error> {
         let index = endpoint * 2 + 0;
-        host.claim_endpoint(addr, index, hw_structs::EndpointType::BulkOut, max_packet_size)?;
+        host.claim_endpoint(addr, index, crate::device_state::EndpointType::BulkOut, max_packet_size)?;
         Ok(Self { host, addr, index })
     }
 }
@@ -78,8 +78,8 @@ impl host::BulkEndpointIn for BulkIn {
         let len = buffer.len();
         let f = self.host.wait_for_completion(self.addr, self.index);
         super::make_asyncwaitio(async move {
-            let (unused_len, completion_code) = f.await;
-            log_trace!("recv complete: {} bytes, completion_code={}", len, completion_code);
+            let unused_len = f.await.expect("TODO: Handle error");
+            log_trace!("recv complete: {} bytes", len);
             len - unused_len as usize
         })
     }
@@ -102,8 +102,8 @@ impl host::BulkEndpointOut for BulkOut {
         let len = buffer.len();
         let f = self.host.wait_for_completion(self.addr, self.index);
         super::make_asyncwaitio(async move {
-            let (unused_len, completion_code) = f.await;
-            log_trace!("send complete: {} bytes, completion_code={}", len, completion_code);
+            let unused_len = f.await.expect("TODO: Handle error");
+            log_trace!("send complete: {} bytes", len);
             len - unused_len as usize
         })
     }

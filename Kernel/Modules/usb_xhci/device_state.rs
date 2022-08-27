@@ -36,7 +36,7 @@ pub struct EnumState
 {
     info: ::kernel::sync::Mutex<EnumStateDeviceInfo>,
 }
-#[derive(Default)]
+#[derive(Default,Debug)]
 struct EnumStateDeviceInfo
 {
     route_string: u32,
@@ -50,6 +50,7 @@ impl HostInner
     /// Inform the driver of the location of the next device to be enumerated
     pub(crate) fn set_device_info(&self, hub_dev: Option<u8>, port: usize, speed: u8)
     {
+        log_trace!("set_device_info(hub_dev={:?}, port={}, speed={})", hub_dev, port, speed);
         let (route_string, root_port, parent_info) = if let Some(v) = hub_dev
             {
                 let lh = self.devices[v as usize - 1].lock();
@@ -108,6 +109,7 @@ impl HostInner
         {
             let input_context = device_context_page.input_context_mut();
             let info = self.enum_state.info.lock();
+            log_debug!("set_address({}): Slot {} - {:x?}", address, slot_idx, *info);
             input_context.ctrl = hw::structs::InputControlContext::zeroed();
             input_context.ctrl.add_context_flags = 0b11;
             input_context.slot = hw::structs::SlotContext::new([
@@ -181,9 +183,19 @@ impl HostInner
         h[TRBS_PER_PAGE as usize -1] = hw::structs::IntoTrb::into_trb(trb_link, true);
         Ok(h)
     }
+}
 
+pub(crate) enum EndpointType {
+    Control,
+    BulkIn,
+    BulkOut,
+    InterruptIn { period_128us_log2: u8 }
+}
+
+impl HostInner
+{
     /// Claim (allocate) an endpoint
-    pub fn claim_endpoint(&self, addr: u8, endpoint_id: u8, endpoint_type: hw::structs::EndpointType, max_packet_size: usize) -> Result<(),::kernel::memory::virt::MapError>
+    pub fn claim_endpoint(&self, addr: u8, endpoint_id: u8, endpoint_type: EndpointType, max_packet_size: usize) -> Result<(),::kernel::memory::virt::MapError>
     {
         let mut lh = self.devices[addr as usize - 1].lock();
         let dev = lh.as_deref_mut().expect("claim_endpoint on bad address");
@@ -208,7 +220,17 @@ impl HostInner
             let input_context = dev.device_context_page.input_context_mut();
             input_context.ctrl = hw::structs::InputControlContext::zeroed();
             input_context.ctrl.add_context_flags = (1 << endpoint_id) | 1;
-            input_context.eps[endpoint_id as usize - 1].set_word1(endpoint_type, max_packet_size as u16);
+            let endpoint_ty_val = match endpoint_type
+                {
+                EndpointType::Control => hw::structs::EndpointType::Control,
+                EndpointType::BulkIn  => hw::structs::EndpointType::BulkIn,
+                EndpointType::BulkOut => hw::structs::EndpointType::BulkOut,
+                EndpointType::InterruptIn { .. } => hw::structs::EndpointType::InterruptIn,
+                };
+            input_context.eps[endpoint_id as usize - 1].set_word1(endpoint_ty_val, max_packet_size as u16);
+            if let EndpointType::InterruptIn { period_128us_log2 } = endpoint_type {
+                input_context.eps[endpoint_id as usize - 1].word0 = (period_128us_log2 as u32) << 16;
+            }
             input_context.eps[endpoint_id as usize - 1].tr_dequeue_ptr = ::kernel::memory::virt::get_phys(&ep_queue[0]) | 1;
         }
         dev.endpoint_ring_allocs[endpoint_id as usize - 1] = Some(ep_queue);
@@ -244,7 +266,7 @@ impl HostInner {
         PushTrbState { host: self, lh, index, count: 0 }
     }
     /// Wait until completion is raised on the endpoint
-    pub(crate) async fn wait_for_completion(&self, addr: u8, index: u8) -> (u32, u8) {
+    pub(crate) async fn wait_for_completion(&self, addr: u8, index: u8) -> Result<u32, crate::hw::structs::TrbCompletionCode> {
         let slot_idx = {
             let mut lh = self.devices[addr as usize - 1].lock();
             let dev = match lh.as_mut() { Some(v) => v, _ => panic!(""), };
@@ -252,7 +274,11 @@ impl HostInner {
             };
         
         let (_addr, len, cc) = self.slot_events[slot_idx as usize - 1].endpoints[index as usize - 1].wait().await;
-        (len, cc)
+        match cc
+        {
+        crate::hw::structs::TrbCompletionCode::Success => Ok(len),
+        cc => Err(cc),
+        }
     }
 }
 

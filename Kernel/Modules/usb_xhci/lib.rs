@@ -92,7 +92,7 @@ struct SlotEvents {
     /// A `ConfigureEnpoint` command has completed
     configure: ::kernel::sync::EventChannel,
     /// Transfer completed on an endpoint
-    endpoints: [::kernel::futures::single_channel::SingleChannel<(hw::structs::TrbNormalData,u32,u8)>; 31],
+    endpoints: [::kernel::futures::single_channel::SingleChannel<(hw::structs::TrbNormalData,u32,crate::hw::structs::TrbCompletionCode,)>; 31],
 }
 impl HostInner
 {
@@ -205,7 +205,7 @@ impl HostInner
                         },
                     Event::CommandCompletion { trb_pointer, completion_code, param: _param, slot_id, vf_id: _vf_id } => {
                         let ty = self.command_ring.lock().get_command_type(trb_pointer);
-                        if completion_code == 1 {
+                        if let crate::hw::structs::TrbCompletionCode::Success = completion_code {
                             log_trace!("CommandCompletion {:#x} {:?}: SUCCESS", trb_pointer, ty);
                             match ty
                             {
@@ -225,7 +225,7 @@ impl HostInner
                             }
                         }
                         else {
-                            log_error!("CommandCompletion {:#x} {:?}: Not success, {}", trb_pointer, ty, completion_code);
+                            log_error!("CommandCompletion {:#x} {:?}: Not success, {:?}", trb_pointer, ty, completion_code);
                         }
                         },
                     Event::Transfer { data, transfer_length, completion_code, slot_id, endpoint_id } => {

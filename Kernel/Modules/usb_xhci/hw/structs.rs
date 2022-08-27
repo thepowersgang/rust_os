@@ -58,6 +58,36 @@ impl TrbType {
     }
 }
 
+#[repr(u8)]
+#[derive(Debug)]
+pub enum TrbCompletionCode {
+    Invalid,
+    Success,
+    DataBufferError,
+    BabbleDetectedError,
+    UsbTransactionError,
+    TrbError,
+    StallError,
+    ResourceError,
+    BandwidthError,
+}
+impl TrbCompletionCode {
+    pub fn from_u8(v: u8) -> Result<TrbCompletionCode,u8> {
+        match v {
+        0 => Ok(Self::Invalid),
+        1 => Ok(Self::Success),
+        2 => Ok(Self::DataBufferError),
+        3 => Ok(Self::BabbleDetectedError),
+        4 => Ok(Self::UsbTransactionError),
+        5 => Ok(Self::TrbError),
+        6 => Ok(Self::StallError),
+        7 => Ok(Self::ResourceError),
+        8 => Ok(Self::BandwidthError),
+        _ => Err(v),
+        }
+    }
+}
+
 /// Generic TRB (Transfer Buffer)
 #[derive(Copy,Clone,Debug)]
 #[repr(C)]
@@ -436,23 +466,29 @@ impl SlotContext {
 
 #[repr(u8)]
 pub enum EndpointType {
-    IsochOut = 1,
+    _Reserved,
+    IsochOut,
     BulkOut,
-    InterruptOut,
+    _InterruptOut,
     Control,
     IsochIn,
     BulkIn,
     InterruptIn,
 }
 
+// 6.2.3 "Endpoint Context"
 #[derive(Copy,Clone,Debug)]
 #[repr(C)]
 pub struct EndpointContext
 {
     /// 2:0 - Endpoint state
-    /// 9:8 - Mult
-    /// ...
+    /// 9:8 - Mult - (Isoch, iff `HCCPARAMS2.LEC`) - Number of bursts per interval
+    /// 14:10 - MaxPStreams - Number of primary streams
+    /// 15 - Linear Stream Array - Disables the use of secondary stream arrays
+    /// 23:16 - Interval - Period between successive requests, as 125us ** <value>
+    /// 31:24 - Max Endpoint Service Time Interval Payload High (see `HCCPARAMS2.LEC`)
     pub word0: u32,
+    /// 2:1 - CErr
     /// 5:3 - Endpoint type
     /// - 0 = Not Valid
     /// - 1 = Isoch Out
@@ -462,14 +498,15 @@ pub struct EndpointContext
     /// - 5 = Isoch In
     /// - 6 = Bulk In
     /// - 7 = Interrupt In
-    /// ...
+    /// 7 - Host Initiate Disable
+    /// 15:8 - Max Burst Size
     /// 31:16 - Max Packet Size
     pub word1: u32,
     /// 0 - Dequeue Cycle State
     /// 63:4 - TR Dequeue Pointer (or stream context array)
     pub tr_dequeue_ptr: u64,
     /// 15:0 - Average TRB Length
-    /// 31:16 - Max Endpoint Service Time Interrupt Payload Low
+    /// 31:16 - Max Endpoint Service Time Interval Payload Low
     pub word4: u32,
     _resvd: [u32; 3],
 }   // sizeof = 8 words
