@@ -362,7 +362,17 @@ where
 		self.backing_res.flush(dst);
 	}
 	fn fill(&mut self, dst: video::Rect, colour: u32) {
-		todo!("fill({:?}, {:06x})", dst, colour);
+		log_trace!("fill({:?}, colour={:#x})", dst, colour);
+		for row in dst.top() .. dst.bottom() {
+			let out_row = self.get_scanline_mut(row);
+			for d in out_row {
+				*d = colour;
+			}
+		}
+		// VIRTIO_GPU_CMD_TRANSFER_TO_HOST_2D
+		self.backing_res.transfer_to_host(dst);
+		// VIRTIO_GPU_CMD_RESOURCE_FLUSH
+		self.backing_res.flush(dst);
 	}
 	fn move_cursor(&mut self, p: Option<video::Pos>)
 	{
