@@ -112,6 +112,7 @@ where
 	pub fn new(regs: &crate::hw::Regs, index: Index) -> Result<Self,::kernel::device_manager::DriverBindError> {
 		let regs = regs.interrupter(index.into());
 		let mut ring_page = ::kernel::memory::virt::alloc_dma(64, 1, "usb_xhci")?.into_array();
+		// SAFE: Correct pointer manipulation, and addresses handed to hardware are also correct
 		unsafe {
 			// ERST entries are two 64-bit words (with a bunch of required zero fields)
 			let erst: &mut [u64; 2] = &mut *(&mut ring_page[0] as *mut _ as *mut _);
@@ -176,6 +177,7 @@ impl State {
 			self.read_ofs = 1;
 			self.cycle_bit = !self.cycle_bit;
 		}
+		// SAFE: Address written to hardware is correct
 		unsafe {
 			// Write `ERDP` with the last read address, ACKing the interrupt if needed
 			regs.set_erdp(::kernel::memory::virt::get_phys(&self.ring_page[self.read_ofs as usize]) as u64 | (1<<3));

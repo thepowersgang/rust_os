@@ -105,6 +105,7 @@ impl HostInner
 
 		// Controller init
 		// - Trigger a reset and wait for USBSTS.NCR to become zero
+		// SAFE: Correct write
 		unsafe {
 			regs.write_usbcmd(hw::regs::USBCMD_HCRST);
 		}
@@ -150,6 +151,7 @@ impl HostInner
 			
 		// - Set USBCMD.RUN = 1
 		log_debug!("pre-start: USBSTS {:#x}", rv.regs.usbsts());
+		// SAFE: Correct write
 		unsafe {
 			rv.regs.write_usbcmd(hw::regs::USBCMD_RS|hw::regs::USBCMD_INTE);
 		}

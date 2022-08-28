@@ -494,6 +494,7 @@ impl PortDev
 		{
 			type Output = ();
 			fn poll(self: ::core::pin::Pin<&mut Self>, cx: &mut ::core::task::Context<'_>) -> ::core::task::Poll<()> {
+				// SAFE: The `Vec` is never added to after this is called, so pinning is maintained
 				for (i,v) in Iterator::enumerate(unsafe { self.get_unchecked_mut().0.iter_mut() }) {
 					match v
 					{

@@ -48,6 +48,7 @@ impl TrbType {
 		let v = ((v >> 10) & 63) as u8;
 		Ok(match v {
 		0 ..= 25
+		// SAFE: Same repr
 		| 32 ..= 39 => unsafe { ::core::mem::transmute(v) },
 		_ => return Err(v),
 		})

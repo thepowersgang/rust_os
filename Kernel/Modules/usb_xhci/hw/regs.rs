@@ -288,6 +288,7 @@ impl PortRegs<'_>
 		unsafe { self.parent.io.read_32(self.ofs(0)) }
 	}
 	pub fn set_sc(&self, v: u32) {
+		// SAFE: No memory unsafety to PORTSC
 		unsafe { self.parent.io.write_32(self.ofs(0), v) }
 	}
 	/// Power management status and control
@@ -403,6 +404,7 @@ impl Interrupter<'_>
 	/// 3: EHB (RW1C)
 	/// 63:4: Event Ring Dequeue Pointer
 	pub fn erdp(&self) -> u64 {
+		// SAFE: Read operation is safe
 		unsafe { self.parent.io.read_64(self.ofs(0x18) ) }
 	}
 	pub unsafe fn set_erdp(&self, val: u64) {
