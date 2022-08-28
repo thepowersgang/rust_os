@@ -8,6 +8,9 @@
 	"features": "-mmx,-sse,+soft-float",
 	"os": "tifflin",
 	"arch": "x86_64",
+	
+	"frame-pointer": "non-leaf",
+
 		"linker-flavor": "ld",
 		"pre-link-args": { "ld": ["-m64"] },
 		"disable-redzone": true

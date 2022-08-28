@@ -97,24 +97,23 @@ pub extern "C" fn error_handler(regs: &InterruptRegs)
 	}
 	else
 	{
-		// Kernel fault
+		// For all other kernel-side errors, backtrace and just spin
 
-		// For all other kernel-side errors, backtrace and lock
+		log_debug!(" > {}", super::SymPrint(regs.rip as usize));
 		let mut bp = regs.rbp;
 		while let Some((newbp, ip)) = backtrace(bp)
 		{
-			puts(" > "); puth(ip);
+			log_debug!(" > {}", super::SymPrint(ip as usize));
 			bp = newbp;
 		}
-		puts("\n");
-	}
 		
-	// For interrupts 2 and 3, don't backtrace and error.
-	// - 3 = breakpoint, 2 = ? (NMI?)
-	if regs.intnum == 3 || regs.intnum == 2 {
-		return ;
+		// For interrupts 2 and 3, just resume
+		// - 3 = breakpoint, 2 = ? (NMI?)
+		if regs.intnum == 3 || regs.intnum == 2 {
+			return ;
+		}
+		loop {}
 	}
-	loop {}
 }
 
 fn get_cr2() -> u64
@@ -134,9 +133,11 @@ pub fn backtrace(bp: u64) -> Option<(u64,u64)>
 		return None;
 	}
 	if bp % 8 != 0 {
+		log_notice!("Backtrace ended: BP {:#x} unaligned", bp);
 		return None;
 	}
 	if ! crate::memory::buf_valid(bp as *const (), 16) {
+		log_notice!("Backtrace ended: {:#x}+0x10 not valid", bp);
 		return None;
 	}
 	
