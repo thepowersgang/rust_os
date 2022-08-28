@@ -18,11 +18,11 @@ pub struct Interrupt
 impl Interrupt
 {
     pub(crate) fn new(host: crate::HostRef, endpoint: ::usb_core::host::EndpointAddr, period_ms: usize, max_packet_size: usize) -> Result<Self,::kernel::memory::virt::MapError> {
-        let index = endpoint.endpt() * 2 + 0;
+        let index = endpoint.endpt() * 2 + 1;
         let period_128us_log2 = ((usize::BITS - period_ms.leading_zeros()) + 3) as u8;
         host.claim_endpoint(endpoint.dev_addr(), index, crate::device_state::EndpointType::InterruptIn { period_128us_log2 }, max_packet_size)?;
 
-        Ok(Interrupt {
+        let rv = Interrupt {
             host,
             addr: endpoint.dev_addr(),
             index,
@@ -30,7 +30,9 @@ impl Interrupt
             other_borrowed: Default::default(),
             max_packet_size,
             buffers: vec![0; max_packet_size * 2],
-        })
+        };
+        rv.enqueue();
+        Ok(rv)
     }
 
     fn get_buf(&self, idx: bool) -> &[u8] {
@@ -39,7 +41,7 @@ impl Interrupt
     fn enqueue(&self) {
         let mut state = self.host.push_ep_trbs(self.addr, self.index);
         
-        let buffer = &self.get_buf(self.cur_buffer.load(::core::sync::atomic::Ordering::SeqCst));
+        let buffer = self.get_buf(self.cur_buffer.load(::core::sync::atomic::Ordering::SeqCst));
         for (paddr, len, is_last) in super::iter_contigious_phys(buffer) {
             // SAFE: Trusting ourselves to wait until the hardware is done
             unsafe {
@@ -70,10 +72,12 @@ impl ::usb_core::host::InterruptEndpoint for Interrupt
 {
     fn wait<'a>(&'a self) -> ::usb_core::host::AsyncWaitIo<'a, ::usb_core::host::IntBuffer<'a>> {
         super::make_asyncwaitio(async move {
-            let ret_len = self.host.wait_for_completion(self.addr, self.index).await.expect("TODO");
-            self.cur_buffer.fetch_xor(true, Ordering::Relaxed);
-            assert!( !self.other_borrowed.fetch_or(true, Ordering::Relaxed), "Buffer already borrowed?");
+            let unused_len = self.host.wait_for_completion(self.addr, self.index).await.expect("TODO");
+            let ret_len = self.max_packet_size as u32 - unused_len;
+            let buf = self.cur_buffer.fetch_xor(true, Ordering::Relaxed);
+            assert!( !self.other_borrowed.swap(true, Ordering::Relaxed), "Buffer already borrowed?");
             self.enqueue();
+            log_debug!("Interrupt::wait: {} {:?}", buf, ::kernel::logging::HexDump(&self.get_buf(buf)[..ret_len as usize]));
             ::usb_core::host::IntBuffer::new(IntBuffer { src: self, len: ret_len }).ok().unwrap()
         })
     }
@@ -90,6 +94,6 @@ impl<'a> ::usb_core::handle::RemoteBuffer for IntBuffer<'a> {
 }
 impl<'a> ::core::ops::Drop for IntBuffer<'a> {
     fn drop(&mut self) {
-        self.src.other_borrowed.store(true, Ordering::Relaxed)
+        self.src.other_borrowed.store(false, Ordering::Relaxed)
     }
 }

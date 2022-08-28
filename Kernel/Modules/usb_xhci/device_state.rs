@@ -185,6 +185,7 @@ impl HostInner
     }
 }
 
+#[derive(Debug)]
 pub(crate) enum EndpointType {
     Control,
     BulkIn,
@@ -199,6 +200,7 @@ impl HostInner
     {
         let mut lh = self.devices[addr as usize - 1].lock();
         let dev = lh.as_deref_mut().expect("claim_endpoint on bad address");
+        log_debug!("claim_endpoint(addr={}, endpoint_id={}, {:?}, mps={}): slot={}", addr, endpoint_id, endpoint_type, max_packet_size, dev.slot_idx);
         assert!(endpoint_id < 32);
         assert!(dev.ref_flags & 1 << endpoint_id == 0, "Claiming claimed endpoint");
         dev.ref_flags |= 1 << endpoint_id;
