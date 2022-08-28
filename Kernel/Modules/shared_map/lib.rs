@@ -24,7 +24,7 @@ impl<K, V> SharedMap<K,V>
 {
 	pub const fn new() -> Self {
 		SharedMap {
-			lock: RwLock::new(SharedMapInner { m: VecMap::new_const() }),
+			lock: RwLock::new(SharedMapInner { m: VecMap::new() }),
 			}
 	}
 }

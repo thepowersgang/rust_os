@@ -379,12 +379,12 @@ extern "C" fn AcpiOsVprintf(Format: *const i8, mut Args: VaList)
 	}
 	impl AsMut<[u8]> for Buf { fn as_mut(&mut self) -> &mut [u8] { &mut self.0 } }
 	impl AsRef<[u8]> for Buf { fn as_ref(&self) -> &[u8] { &self.0 } }
-	static TEMP_BUFFER: LazyMutex<crate::lib::string::FixedString<Buf>> = LazyMutex::new();
+	static TEMP_BUFFER: LazyMutex<crate::lib::FixedString<Buf>> = LazyMutex::new();
 
 	// Acquire input and lock	
 	// SAFE: Format string is valid for function
 	let fmt = unsafe { c_string_to_str(Format) };
-	let mut lh = TEMP_BUFFER.lock_init(|| crate::lib::string::FixedString::new(Buf::new()));
+	let mut lh = TEMP_BUFFER.lock_init(|| crate::lib::FixedString::new(Buf::new()));
 	
 	// Expand format string
 	let mut it = fmt.chars();

@@ -73,12 +73,12 @@ fn init_modules(mods: &[ModuleInfo], requests: &[&str])
 	let mut modstates = vec![ModuleState::Uninitialised; mods.len()];
 	for req in requests
 	{
-		init_module_by_name(modstates.slice_mut(), mods, "", req);
+		init_module_by_name(&mut modstates, mods, "", req);
 	}
 	
 	for i in 0 .. mods.len()
 	{
-		init_module(modstates.slice_mut(), mods, i);
+		init_module(&mut modstates, mods, i);
 	}
 }
 

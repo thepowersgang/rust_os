@@ -303,7 +303,7 @@ impl HostInner
 			waker: kernel::sync::Spinlock::new(kernel::futures::null_waker()),
 
 			int_table_meta: Default::default(),
-			endpoint_metadata_group0: Vec::from_fn((1024+256) / 16, |_| Default::default()),
+			endpoint_metadata_group0: (0 .. (1024+256) / 16).map(|_| Default::default()).collect(),
 			});
 		
 		// Bind interrupt

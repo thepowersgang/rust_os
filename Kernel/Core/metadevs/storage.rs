@@ -350,7 +350,7 @@ fn new_simple_lv(name: String, pv_id: usize, block_size: usize, base: u64, size:
 /// Enumerate present physical volumes (returning both the identifier and name)
 pub fn enum_pvs() -> Vec<(usize,String)>
 {
-	S_PHYSICAL_VOLUMES.lock().iter().map(|(k,v)| (*k, String::from_str(v.dev.name())) ).collect()
+	S_PHYSICAL_VOLUMES.lock().iter().map(|(k,v)| (*k, v.dev.name().to_owned()) ).collect()
 }
 
 

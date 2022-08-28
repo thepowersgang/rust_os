@@ -9,8 +9,8 @@ use crate::nic::MacAddr;
 use crate::nic::PacketReader;
 
 // List of protocol numbers and handlers
-static PROTOCOLS: RwLock<Vec<(u8, ProtoHandler)>> = RwLock::new(Vec::new_const());
-static INTERFACES: RwLock<Vec<Interface>> = RwLock::new(Vec::new_const());
+static PROTOCOLS: RwLock<Vec<(u8, ProtoHandler)>> = RwLock::new(Vec::new());
+static INTERFACES: RwLock<Vec<Interface>> = RwLock::new(Vec::new());
 
 // NOTE: uses mac address to identify interface
 pub fn add_interface(local_mac: [u8; 6], addr: Address, mask_bits: u8)

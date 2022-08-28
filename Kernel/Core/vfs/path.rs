@@ -117,6 +117,11 @@ impl AsRef<Path> for str {
 		Path::new(self)
 	}
 }
+impl AsRef<Path> for String {
+	fn as_ref(&self) -> &Path {
+		Path::new(self)
+	}
+}
 
 impl PathBuf
 {

@@ -10,7 +10,7 @@ pub use core::prelude::*;
 
 pub use crate::lib::mem::boxed::Box;
 
-//pub use lib::borrow::ToOwned;
+pub use ::alloc::borrow::ToOwned;
 pub use crate::lib::vec::Vec;
 pub use crate::lib::string::String;
 

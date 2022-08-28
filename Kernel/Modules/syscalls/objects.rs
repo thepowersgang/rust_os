@@ -109,7 +109,7 @@ impl ProcessObjects {
 	pub fn new() -> ProcessObjects {
 		const MAX_OBJECTS_PER_PROC: usize = 64;
 		let mut ret = ProcessObjects {
-				objs: Vec::from_fn(MAX_OBJECTS_PER_PROC, |_| RwLock::new(None)),
+				objs: (0 .. MAX_OBJECTS_PER_PROC).map(|_| RwLock::new(None)).collect(),
 				//given: Mutex::new( GivenObjects { next: 1, total: 1 } ),
 				given: Mutex::new( Vec::new() ),
 			};

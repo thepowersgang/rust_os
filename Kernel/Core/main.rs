@@ -32,7 +32,11 @@
 
 #[cfg(feature="test")]
 extern crate core;
+#[macro_use]
 extern crate alloc;
+// HACK: This also exports the module :(
+pub use alloc::vec;
+pub use alloc::format;
 
 #[allow(unused_imports)]
 use prelude::*;

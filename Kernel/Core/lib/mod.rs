@@ -18,12 +18,15 @@ pub use self::pod::{POD, PodHelpers};
 
 pub use self::pod::{as_byte_slice, as_byte_slice_mut};
 
+pub use ::alloc::string;
+pub use ::alloc::vec;
 
 pub use self::collections::vec_map;
 pub mod collections;
 
 //pub mod thunk;
-pub mod borrow;
+//pub mod borrow;
+pub use ::alloc::borrow;
 
 pub mod ascii;
 
@@ -33,13 +36,14 @@ pub mod lazy_static;
 pub mod mem;
 #[macro_use]
 pub mod queue;
-#[macro_use]
-pub mod vec;
+//#[macro_use]
+//pub mod vec;
 pub mod sparse_vec;
 pub mod vec_deque;
 
-#[macro_use]
-pub mod string;
+//#[macro_use]
+//pub mod string;
+pub mod fixed_string; pub use self::fixed_string::FixedString;
 pub mod byte_str;
 
 //pub mod btree_map;

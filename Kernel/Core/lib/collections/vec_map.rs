@@ -47,24 +47,15 @@ pub struct VacantEntry<'a, K: 'a + Ord, V: 'a>
 
 impl<K, V> VecMap<K,V>
 {
-	pub const fn new_const() -> VecMap<K,V> {
-		VecMap {
-			//#[cfg(not(test_shim))]
-			ents: Vec::new_const(),
-			//#[cfg(test_shim)]
-			//ents: Vec::new(),
-		}
-	}
-}
-impl<K: Ord, V> VecMap<K,V>
-{
 	/// Create a new (empty) VecMap
 	pub const fn new() -> VecMap<K,V> {
 		VecMap {
 			ents: Vec::new(),
 		}
 	}
-	
+}
+impl<K: Ord, V> VecMap<K,V>
+{
 	/// Returns the previous item (replaced), if any
 	pub fn insert(&mut self, key: K, value: V) -> Option<V> {
 		match self.entry(key)

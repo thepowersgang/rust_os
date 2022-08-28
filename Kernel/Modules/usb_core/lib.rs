@@ -91,7 +91,7 @@ struct HostEnt
 	_worker: kernel::threads::WorkerThread,
 }
 
-static HOST_LIST: Mutex<Vec<HostEnt>> = ::kernel::sync::Mutex::new(Vec::new_const());
+static HOST_LIST: Mutex<Vec<HostEnt>> = ::kernel::sync::Mutex::new(Vec::new());
 
 /// Add a new host controller/bus to the system
 pub fn register_host(driver: Box<dyn host::HostController>, nports: u8)
@@ -445,7 +445,6 @@ impl PortDev
 			Interface::Bound(d.start_device(endpoint_0, endpts, descriptors).into())
 			},
 		None => {
-			use ::kernel::lib::borrow::ToOwned;
 			log_notice!("No driver for class={:06x}", full_class);
 			// If a driver can't be found, save the endpoints for later (and the descriptor data)
 			Interface::Unknown(endpts, descriptors.to_owned())
@@ -474,8 +473,8 @@ impl PortDev
 		impl<'a> ::core::future::Future for FutureVec<'a>
 		{
 			type Output = ();
-			fn poll(mut self: ::core::pin::Pin<&mut Self>, cx: &mut ::core::task::Context<'_>) -> ::core::task::Poll<()> {
-				for (i,v) in Iterator::enumerate(self.0.iter_mut()) {
+			fn poll(self: ::core::pin::Pin<&mut Self>, cx: &mut ::core::task::Context<'_>) -> ::core::task::Poll<()> {
+				for (i,v) in Iterator::enumerate(unsafe { self.get_unchecked_mut().0.iter_mut() }) {
 					match v
 					{
 					Interface::Unknown(..) => {

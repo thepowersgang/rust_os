@@ -7,7 +7,7 @@ use kernel::sync::RwLock;
 use kernel::lib::VecMap;
 use crate::nic::MacAddr;
 
-static CACHE: RwLock<VecMap<crate::ipv4::Address, Option<MacAddr>>> = RwLock::new(VecMap::new_const());
+static CACHE: RwLock<VecMap<crate::ipv4::Address, Option<MacAddr>>> = RwLock::new(VecMap::new());
 static SLEEPERS: ::kernel::futures::Condvar = ::kernel::futures::Condvar::new();
 
 pub fn handle_packet(_physical_interface: &dyn crate::nic::Interface, _source_mac: [u8; 6], mut r: crate::nic::PacketReader)

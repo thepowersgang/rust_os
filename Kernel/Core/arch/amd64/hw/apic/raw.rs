@@ -235,7 +235,7 @@ impl IOAPIC
 			regs: crate::sync::Mutex::new( regs ),
 			num_lines: num_lines,
 			first_irq: base,
-			handlers: crate::sync::Spinlock::new( Vec::from_fn(num_lines, |_| None) ),
+			handlers: crate::sync::Spinlock::new( (0..num_lines).map(|_| None).collect() ),
 			}
 	}
 	

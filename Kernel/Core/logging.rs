@@ -161,7 +161,7 @@ mod memory
 		time: crate::time::TickCount,
 		level: Level,
 		source: &'static str,
-		data: crate::lib::string::FixedString<LogDataBuf>,
+		data: crate::lib::FixedString<LogDataBuf>,
 	}
 	impl Sink
 	{
@@ -176,7 +176,7 @@ mod memory
 		fn start(&mut self, timestamp: crate::time::TickCount, level: Level, source: &'static str) {
 			let new_line = LogMessage {
 				time: timestamp, level: level, source: source,
-				data: crate::lib::string::FixedString::new(LogDataBuf::new())
+				data: crate::lib::FixedString::new(LogDataBuf::new())
 				};
 			match self.lines.push_back( new_line )
 			{

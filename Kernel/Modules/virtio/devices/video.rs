@@ -81,7 +81,7 @@ where
 		let core = Aref::new(DeviceCore {
 			controlq: int.get_queue(0, 0).expect("Queue #0 'controlq' missing on virtio gpu device"),
 			cursorq: int.get_queue(1, 0).expect("Queue #1 'cursorq' missing on virtio gpu device"),
-			scanouts: Mutex::new(Vec::from_fn(num_scanouts, |_| None)),
+			scanouts: Mutex::new((0..num_scanouts).map(|_| None).collect()),
 			interface: int,
 			cursors: Mutex::new(Vec::new()),
 			next_resource_id: ::core::sync::atomic::AtomicU32::new(1),

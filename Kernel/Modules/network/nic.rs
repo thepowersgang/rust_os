@@ -194,7 +194,7 @@ struct InterfaceListEnt
 	thread: ::kernel::threads::WorkerThread,
 }
 
-static INTERFACES_LIST: Mutex<Vec< Option<InterfaceListEnt> >> = Mutex::new(Vec::new_const());
+static INTERFACES_LIST: Mutex<Vec< Option<InterfaceListEnt> >> = Mutex::new(Vec::new());
 
 pub fn send_from(local_addr: MacAddr, dest_addr: MacAddr, ether_ty: u16, pkt: SparsePacket)
 {

@@ -26,7 +26,7 @@ pub trait Driver: Sync
 	fn start_device<'a>(&self, ep0: &'a super::ControlEndpoint, endpoints: Vec<super::Endpoint>, descriptors: &[u8]) -> Instance<'a>;
 }
 
-static S_DRIVERS: Mutex<Vec<&'static dyn Driver>> = Mutex::new(Vec::new_const());
+static S_DRIVERS: Mutex<Vec<&'static dyn Driver>> = Mutex::new(Vec::new());
 
 /// Register a new driver
 pub fn register_driver(ptr: &'static dyn Driver)
