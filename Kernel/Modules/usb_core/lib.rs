@@ -208,17 +208,25 @@ impl HubRef
 
 struct PortState
 {
+	is_connected: ::core::sync::atomic::AtomicBool,
 }
 impl PortState
 {
 	fn new() -> Self {
 		PortState {
+			is_connected: Default::default(),
 		}
 	}
 
 	fn signal_connected(&self, hub: HubRef, port_idx: u8)
 	{
-		hub.clone().host().add_device(move |addr| PortDev::new(hub, port_idx, addr).worker());
+		if self.is_connected.swap(true, ::core::sync::atomic::Ordering::Relaxed) {
+			log_notice!("signal_connected: {} connected while already connected?", port_idx);
+		}
+		else {
+			// TODO: Record the address, so it can be removed/signaled?
+			hub.clone().host().add_device(move |addr| PortDev::new(hub, port_idx, addr).worker());
+		}
 	}
 }
 struct PortDev
@@ -271,6 +279,8 @@ impl PortDev
 			kernel::futures::msleep( self.hub.power_stable_time_ms() as usize ).await;
 		}
 
+		// TODO: Resetting the port can cause the connection status to change (leading to an infinite loop)
+
 		// Request a port reset
 		self.set_port_feature(host::PortFeature::Reset).await;
 		kernel::futures::msleep(50).await;
@@ -296,6 +306,16 @@ impl PortDev
 		if ! self.get_port_feature(host::PortFeature::Enable).await {
 			log_debug!("initialise_port({address}): Enabling");
 			self.set_port_feature(host::PortFeature::Enable).await;
+			
+			// Wait for the enable to set
+			let timeout = kernel::time::ticks() + 50;
+			while !self.get_port_feature(host::PortFeature::Enable).await {
+				if kernel::time::ticks() > timeout {
+					log_error!("initialise_port({address}): Timeout waiting for enable");
+					return Err( () );
+				}
+				kernel::futures::msleep(5).await;
+			}
 		}
 		addr0_handle.send_setup_address(address).await;
 		log_debug!("initialise_port({address}): Done");
@@ -718,6 +738,7 @@ impl Host
 			if self.driver.get_port_feature(port_idx, host::PortFeature::Connection)
 			{
 				log_debug!("Connection detected, signalling");
+
 				// SAFE: (TODO: unenforced) Requires that `self` is stable in memory
 				let hubref = HubRef::Root(unsafe { HostRef::new(self) });
 				self.root_ports[port_idx].signal_connected(hubref, port_idx as u8);
