@@ -46,10 +46,10 @@ impl Inner
 		}
 	}
 
-    fn sleep(&self) {
-        //log_trace!("sleep({:p})", self);
-        self.ec.sleep();
-    }
+	fn sleep(&self) {
+		//log_trace!("sleep({:p})", self);
+		self.ec.sleep();
+	}
 	
 	unsafe fn rw_wake_by_ref(raw_self: *const ()) {
 		let v =  &*(raw_self as *const Self);
@@ -94,10 +94,10 @@ enum SimpleWaiterRef {
 impl SimpleWaiterRef {
 	fn sleep(&self) {
 		match self
-        {
-        SimpleWaiterRef::Owned(v) => v.sleep(),
-        SimpleWaiterRef::Pooled(v) => v.0.sleep(),
-        }
+		{
+		SimpleWaiterRef::Owned(v) => v.sleep(),
+		SimpleWaiterRef::Pooled(v) => v.0.sleep(),
+		}
 	}
 	fn raw_waker(&self) -> task::RawWaker {
 		match self

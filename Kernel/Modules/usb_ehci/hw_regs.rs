@@ -4,52 +4,52 @@
 
 pub struct Regs
 {
-    base: ::kernel::device_manager::IOBinding,
-    cap_length: usize,
+	base: ::kernel::device_manager::IOBinding,
+	cap_length: usize,
 }
 impl Regs
 {
-    /// UNSAFE: Caller must ensure that the IO binding is a EHCI IO binding
-    pub unsafe fn new(h: ::kernel::device_manager::IOBinding) -> Self {
-        let cap_length = h.read_8(0);
-        Self {
-            base: h,
-            cap_length: cap_length as usize,
-        }
-    }
+	/// UNSAFE: Caller must ensure that the IO binding is a EHCI IO binding
+	pub unsafe fn new(h: ::kernel::device_manager::IOBinding) -> Self {
+		let cap_length = h.read_8(0);
+		Self {
+			base: h,
+			cap_length: cap_length as usize,
+		}
+	}
 
-    pub fn get_inner(&self) -> &::kernel::device_manager::IOBinding {
-        &self.base
-    }
+	pub fn get_inner(&self) -> &::kernel::device_manager::IOBinding {
+		&self.base
+	}
 }
 /// Capability registers, read-only
 impl Regs
 {
-    pub fn hci_version(&self) -> u16 {
-        // SAFE: Reading is safe
-        unsafe { self.base.read_16(2) }
-    }
-    /// Structural Parameters
-    pub fn hcs_params(&self) -> u32 {
-        // SAFE: Reading is safe
-        unsafe { self.base.read_32(4) }
-    }
-    /// Capability Parameters
-    pub fn hcc_params(&self) -> u32 {
-        // SAFE: Reading is safe
-        unsafe { self.base.read_32(8) }
-    }
-    /// Companion Port Route Description
-    pub fn hcs_port_route(&self) -> u64 {
-        // SAFE: Reading is safe
-        unsafe { self.base.read_32(12) as u64 | (self.base.read_32(12+4) as u64) << 32 }
-    }
+	pub fn hci_version(&self) -> u16 {
+		// SAFE: Reading is safe
+		unsafe { self.base.read_16(2) }
+	}
+	/// Structural Parameters
+	pub fn hcs_params(&self) -> u32 {
+		// SAFE: Reading is safe
+		unsafe { self.base.read_32(4) }
+	}
+	/// Capability Parameters
+	pub fn hcc_params(&self) -> u32 {
+		// SAFE: Reading is safe
+		unsafe { self.base.read_32(8) }
+	}
+	/// Companion Port Route Description
+	pub fn hcs_port_route(&self) -> u64 {
+		// SAFE: Reading is safe
+		unsafe { self.base.read_32(12) as u64 | (self.base.read_32(12+4) as u64) << 32 }
+	}
 }
 
 #[repr(usize)]
 pub enum OpReg {
-    /// USB Command Register
-    /// 
+	/// USB Command Register
+	/// 
 	/// *  0    = Run/Stop (Stop, Run)
 	/// *  1    = Host Controller Reset
 	/// *  2: 3 = Frame List Size (1024 entries, 512, 256, Reserved)
@@ -63,72 +63,72 @@ pub enum OpReg {
 	/// * 12:15 = Reserved (ZERO)
 	/// * 16:23 = Interrupt Threshold Control
 	/// * 31:24 = Reserved (ZERO)
-    UsbCmd,
-    /// USB Status Register
-    UsbSts,
-    /// USB Interrupt Enable Register
-    UsbIntr,
-    /// Current microframe number (14 bits)
-    FrIndex,
-    /// Control Data Structure Segment Register
-    /// 
+	UsbCmd,
+	/// USB Status Register
+	UsbSts,
+	/// USB Interrupt Enable Register
+	UsbIntr,
+	/// Current microframe number (14 bits)
+	FrIndex,
+	/// Control Data Structure Segment Register
+	/// 
 	/// Most significant 32-bits of all addresses (only used if "64-bit addressing capability" is set)
-    CtrlDsSegment,
-    /// Periodic Frame List Base Address Register
-    PeriodicListBase,
-    /// Current Asynchronous List Address Register
-    /// 
-    /// - This is updated by the hardware when the list advances.
-    /// - Should only be written by software when the list is disabled (see `UsbCmd` bit 5 and `USBSTS_AsyncEnabled`)
-    AsyncListAddr,
-    /// Configure Flag Register
-    ConfigFlag = 0x40 / 4,
-    /// Port Status and Control Register (one per port)
-    /// NOTE: Use the [Regs::read_port_sc] and [Regs::write_port_sc] functions to access
-    PortSc0,
+	CtrlDsSegment,
+	/// Periodic Frame List Base Address Register
+	PeriodicListBase,
+	/// Current Asynchronous List Address Register
+	/// 
+	/// - This is updated by the hardware when the list advances.
+	/// - Should only be written by software when the list is disabled (see `UsbCmd` bit 5 and `USBSTS_AsyncEnabled`)
+	AsyncListAddr,
+	/// Configure Flag Register
+	ConfigFlag = 0x40 / 4,
+	/// Port Status and Control Register (one per port)
+	/// NOTE: Use the [Regs::read_port_sc] and [Regs::write_port_sc] functions to access
+	PortSc0,
 }
 
 /// Operational Registers
 impl Regs
 {
-    pub fn read_op(&self, reg: OpReg) -> u32 {
-        // SAFE: Reading any operational register is safe
-        unsafe { self.base.read_32(self.cap_length + reg as usize * 4) }
-    }
-    pub unsafe fn write_op(&self, reg: OpReg, v: u32) {
-        #[cfg(debug_assertions)]
-        match reg
-        {
-        OpReg::UsbCmd => assert!(v & 0xFF00_F400 == 0, "Reserved bits set in UsbCmd"),
-        OpReg::UsbSts => {},
-        OpReg::UsbIntr => {},
-        OpReg::FrIndex => panic!("Writing to FrIndex"),
-        OpReg::CtrlDsSegment => {},
-        OpReg::PeriodicListBase => {},
-        OpReg::AsyncListAddr => {},
-        OpReg::ConfigFlag => {},
-        OpReg::PortSc0 => panic!("Attempted to directly write PortSc0"),
-        }
-        self.base.write_32(self.cap_length + reg as usize * 4, v)
-    }
+	pub fn read_op(&self, reg: OpReg) -> u32 {
+		// SAFE: Reading any operational register is safe
+		unsafe { self.base.read_32(self.cap_length + reg as usize * 4) }
+	}
+	pub unsafe fn write_op(&self, reg: OpReg, v: u32) {
+		#[cfg(debug_assertions)]
+		match reg
+		{
+		OpReg::UsbCmd => assert!(v & 0xFF00_F400 == 0, "Reserved bits set in UsbCmd"),
+		OpReg::UsbSts => {},
+		OpReg::UsbIntr => {},
+		OpReg::FrIndex => panic!("Writing to FrIndex"),
+		OpReg::CtrlDsSegment => {},
+		OpReg::PeriodicListBase => {},
+		OpReg::AsyncListAddr => {},
+		OpReg::ConfigFlag => {},
+		OpReg::PortSc0 => panic!("Attempted to directly write PortSc0"),
+		}
+		self.base.write_32(self.cap_length + reg as usize * 4, v)
+	}
 
-    /// Port Status and Control Register
-    pub fn read_port_sc(&self, index: u8) -> u32 {
-        assert!(index < 16);
-        debug_assert!(index < (self.hcs_params() & 0xF) as u8);
-        // SAFE: Reading is safe
-        unsafe { self.base.read_32(self.cap_length + (OpReg::PortSc0 as usize + index as usize) * 4) }
-    }
-    /// (Write) Port Status and Control Register
-    pub unsafe fn write_port_sc(&self, index: u8, v: u32) {
-        assert!(index < 16);
-        debug_assert!(index < (self.hcs_params() & 0xF) as u8);
-        #[cfg(debug_assertions)]
-        {
-            // TODO: Validate written value
-        }
-        self.base.write_32(self.cap_length + (OpReg::PortSc0 as usize + index as usize) * 4, v)
-    }
+	/// Port Status and Control Register
+	pub fn read_port_sc(&self, index: u8) -> u32 {
+		assert!(index < 16);
+		debug_assert!(index < (self.hcs_params() & 0xF) as u8);
+		// SAFE: Reading is safe
+		unsafe { self.base.read_32(self.cap_length + (OpReg::PortSc0 as usize + index as usize) * 4) }
+	}
+	/// (Write) Port Status and Control Register
+	pub unsafe fn write_port_sc(&self, index: u8, v: u32) {
+		assert!(index < 16);
+		debug_assert!(index < (self.hcs_params() & 0xF) as u8);
+		#[cfg(debug_assertions)]
+		{
+			// TODO: Validate written value
+		}
+		self.base.write_32(self.cap_length + (OpReg::PortSc0 as usize + index as usize) * 4, v)
+	}
 }
 
 

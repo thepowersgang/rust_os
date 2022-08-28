@@ -11,16 +11,16 @@ pub use self::mouse::Mouse;
 #[derive(Default)]
 pub struct Group
 {
-    pub keyboard: Option<Keyboard>,
-    pub mouse: Option<Mouse>,
+	pub keyboard: Option<Keyboard>,
+	pub mouse: Option<Mouse>,
 }
 
 impl Group
 {
-    /// Populate the sink group by parsing a report specification
+	/// Populate the sink group by parsing a report specification
 	pub fn from_report_spec(buf: &[u8]) -> Group
-    {
-        use crate::report_parser;
+	{
+		use crate::report_parser;
 		let mut sinks = Group::default();
 
 		let mut collection = collection_parse::root();
