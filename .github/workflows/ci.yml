@@ -15,6 +15,11 @@ jobs:
     - uses: actions-rs/toolchain@v1
       with:
         toolchain: nightly
+    - name: fetch
+      run: |
+        mkdir -p _archives
+        (cd _archives && wget -c http://tpg.ucc.asn.au/tifflin_build_tools.tar.bz2)
+        tar -xf _archives/tifflin_build_tools.tar.bz2
     - name: init
       run: |
         make UPDATE
