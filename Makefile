@@ -27,7 +27,6 @@ UPDATE:
 	$(call fn_rustcmd,rustup) component add rust-src
 fn_checkout = (test -e "$1" || git clone `cat "$1.repo"` "$1")
 EXTERNALS:
-	cd externals/crates.io && $(call fn_checkout,stack_dst)
 	cd externals/crates.io && $(call fn_checkout,cmdline_words_parser)
 	cd externals/crates.io && $(call fn_checkout,utf16_literal)
 	cd externals/crates.io && $(call fn_checkout,va_list)
