@@ -134,7 +134,7 @@ xargo: $(OBJDIR)rustrt0.o $(LIBLOADER_BIN)	# Referenced by link-$(TARGET).ld
 #	$(foreach app,$(APPS), cp $(CARGO_OUTDIR)$(app) $(BINDIR)$(app);)
 
 # Ensure that all external crates are checked out
-xargo: $(patsubst %,../externals/crates.io/%/src/lib.rs,cmdline_words_parser stack_dst utf16_literal va_list)
+xargo: $(patsubst %,../externals/crates.io/%/src/lib.rs,cmdline_words_parser utf16_literal va_list)
 
 ifneq ($(ARCH),native)
 $(LIBDIR)libloader_dyn.so: $(makefile_deps) Makefile
