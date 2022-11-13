@@ -8,6 +8,6 @@ path = "lib.rs"
 
 [dependencies]
 kernel = { path = "../../Core" }
-stack_dst = { path = "../../../externals/crates.io/stack_dst", default-features = false }
+stack_dst = { version = "0.7.2", default-features = false }
 shared_map = { path = "../shared_map" }
 
