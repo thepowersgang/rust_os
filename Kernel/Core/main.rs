@@ -62,6 +62,7 @@ pub mod prelude;
 
 /// Library datatypes (Vec, Queue, ...)
 #[macro_use]
+#[allow(special_module_name)]
 pub mod lib;	// Clone of libstd
 
 #[cfg(not(feature="test"))]

@@ -380,7 +380,7 @@ impl PTE
 		let flags: u64 = Self::mode_to_flags(prot);
 		let v = (paddr & 0x7FFFFFFF_FFFFF000) | flags;
 		// SAFE: Atomic 64-bit and valid pointer
-		if unsafe { ::core::intrinsics::atomic_cxchg_relaxed(self.data, 0, v).0 } == 0 {
+		if unsafe { ::core::intrinsics::atomic_cxchg_release_seqcst(self.data, 0, v).0 } == 0 {
 			Ok( () )
 		}
 		else {
