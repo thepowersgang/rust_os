@@ -1,0 +1,25 @@
+#!/bin/bash
+set -e
+
+IMAGE="$1"
+ARGS="$2"
+QEMU_OPTS="$3"
+
+QEMU_OPTS=$QEMU_OPTS" -net user"
+QEMU_OPTS=$QEMU_OPTS" -bios /usr/share/qemu/OVMF.fd"
+QEMU_OPTS=$QEMU_OPTS" -fw_cfg name=etc/sercon-port,string=0"
+
+make -C ../../Bootloaders/uefi
+dd if=/dev/zero of=fat.img bs=1k count=2880
+mformat -i fat.img -f 2880 ::
+mmd -i fat.img ::/EFI
+mmd -i fat.img ::/EFI/BOOT
+mcopy -i fat.img ../../Bootloaders/bootloader-efi.pe ::/EFI/BOOT/BOOTX64.EFI
+mmd -i fat.img ::/TIFFLIN
+mcopy -i fat.img ${IMAGE} ::/TIFFLIN/KERNEL.ELF
+
+QEMU_OPTS=$QEMU_OPTS" -boot c -hda fat.img"
+#QEMU_OPTS=$QEMU_OPTS" -boot a -fda fat.img"
+
+qemu-system-x86_64 $QEMU_OPTS
+
