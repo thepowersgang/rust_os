@@ -417,13 +417,16 @@ EXPORT memcpy
 ;; RSI = Source
 ;; RDX = Count
 EXPORT memmove
+	mov rax, rdi ; Prepare to return RDI
 	cmp rdi, rsi
-	jz .ret 	; if RDI == RSI, do nothinbg
+	jz .ret 	; if RDI == RSI, do nothing
 	jb memcpy	; if RDI < RSI, it's safe to do a memcpy
-	add rsi, rdx	; RDI > RSI
-	cmp rdi, rsi
+	mov rcx, rsi
+	add rcx, rdx	; RCX = RSI + RDX
+	cmp rdi, rcx
 	jae memcpy	; if RDI >= RSI + RDX, then the two regions don't overlap, and memcpy is safe
 	; Reverse copy (add count to both addresses, and set DF)
+	add rsi, rdx
 	add rdi, rdx
 	dec rdi
 	dec rsi
