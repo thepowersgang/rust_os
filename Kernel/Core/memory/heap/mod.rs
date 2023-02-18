@@ -49,7 +49,7 @@ unsafe impl<T: Send> Send for ArrayAlloc<T> {
 
 // --------------------------------------------------------
 
-pub const ZERO_ALLOC: *mut () = 1 as *mut _;
+pub const ZERO_ALLOC: *mut () = 0x1000 as *mut _;
 
 //static S_LOCAL_HEAP: crate::sync::Mutex<HeapDef> = mutex_init!(HeapDef{head:None});
 static S_GLOBAL_HEAP: crate::sync::Mutex<HeapDef> = crate::sync::Mutex::new(HeapDef::new());

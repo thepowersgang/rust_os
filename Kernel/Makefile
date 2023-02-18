@@ -32,6 +32,12 @@ CARGO_FLAGS ?=
 ifeq ($(V),)
 CARGO_FLAGS += -v
 endif
+ifeq ($(DEBUG_BUILD),)
+CARGO_FLAGS += --release
+CARGO_PROFILE := release
+else
+CARGO_PROFILE := debug
+endif
 
 LINKFLAGS := -T Core/arch/$(ARCH)/link.ld -Map $(OBJDIR)map.txt -g
 LINKFLAGS += -z max-page-size=0x1000	# Reduces binary size
@@ -54,7 +60,7 @@ dsm: bin/kernel-$(ARCH).bin.dsm
 
 clean:
 	rm -rf bin/kernel-$(ARCH).bin* .obj/$(ARCH)
-	$(CARGO) clean --target=targets/kernel-$(ARCH).json --release
+	$(CARGO) clean --target=targets/kernel-$(ARCH).json $(CARGO_FLAGS)
 
 
 # 
@@ -87,9 +93,9 @@ endif
 #
 $(OBJDIR)libmain.a: PHONY targets/kernel-$(ARCH).json $(IMGDIR)logo.rs $(IMGDIR)panic.rs
 	@echo "[CARGO] . > $@"
-	$V$(CARGO) build -Z build-std=core,alloc --target=targets/kernel-$(ARCH).json --release --features "$(CARGO_FEATURES)" -j 1 $(CARGO_FLAGS)
+	$V$(CARGO) build -Z build-std=core,alloc --target=targets/kernel-$(ARCH).json --features "$(CARGO_FEATURES)" -j 1 $(CARGO_FLAGS)
 	@mkdir -p $(dir $@)
-	@if test ! -e $@ || test target/kernel-$(ARCH)/release/libmain.a -nt $@; then cp target/kernel-$(ARCH)/release/libmain.a $@; fi
+	@if test ! -e $@ || test target/kernel-$(ARCH)/$(CARGO_PROFILE)/libmain.a -nt $@; then cp target/kernel-$(ARCH)/$(CARGO_PROFILE)/libmain.a $@; fi
 $(patsubst %,$(OBJDIR)lib%.a,$(MODS)): $(OBJDIR)libmain.a
 
 targets/kernel-$(ARCH).json: Core/arch/$(ARCH)/target.json

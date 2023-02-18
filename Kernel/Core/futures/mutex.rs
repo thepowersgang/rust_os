@@ -167,7 +167,7 @@ impl<'a,T: Send + 'a> ::core::ops::Drop for HeldMutex<'a, T>
 		}
 		else {
 			drop(lh_l);
-			lh_w.cur_ticket += 1;
+			lh_w.cur_ticket = lh_w.cur_ticket.wrapping_add(1);
 			// If a thread was woken, they now own this lock
 			if lh_w.waiters.wake_one() {
 				log_trace!("futures::HeldMutex<{}>::drop - yield", type_name!(T));

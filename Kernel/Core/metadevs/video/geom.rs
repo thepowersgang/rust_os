@@ -34,8 +34,8 @@ impl Pos
 	}
 
 	pub fn dist_sq(&self, other: &Pos) -> u64 {
-		let dx = (self.x - other.x) as u64;
-		let dy = (self.y - other.y) as u64;
+		let dx = self.x.abs_diff(other.x) as u64;
+		let dy = self.y.abs_diff(other.y) as u64;
 		dx*dx + dy*dy
 	}
 

@@ -21,7 +21,7 @@ pub fn puts(text: &str)
 pub fn puth(val: u64) {
 	let nibbles = {
 		let mut v = 1;
-		while (val >> v*4) > 0 && v < 64/4 { v += 1 }
+		while v < 64/4 && (val >> v*4) > 0 { v += 1 }
 		v
 		};
 	puts("0x");

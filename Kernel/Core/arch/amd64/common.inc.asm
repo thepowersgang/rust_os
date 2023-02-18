@@ -1,7 +1,7 @@
 
 %define MAX_CPUS	1
 %define KSTACK_BASE	0xFFFFA00000000000
-%define INITIAL_KSTACK_SIZE	16
+%define INITIAL_KSTACK_SIZE	32
 %define KERNEL_BASE	0xFFFFFFFF80000000
 
 ; Save a list of registers to the stack
