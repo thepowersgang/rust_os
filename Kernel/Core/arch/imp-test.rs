@@ -552,7 +552,7 @@ pub mod time {
 						if *next_tick == !0 {
 							// Wait on a condvar
 							super::threads::test_pause_thread(move || {
-								let _ = CV.wait(next_tick).unwrap();
+								drop( CV.wait(next_tick).unwrap() );
 								});
 						}
 						else {
@@ -569,7 +569,7 @@ pub mod time {
 							// `Some` means that we need to sleep for some time.
 							Some(dt_ms) => {
 								super::threads::test_pause_thread(|| {
-									let _ = CV.wait_timeout(next_tick, ::std::time::Duration::from_millis(dt_ms)).unwrap().0;
+									drop( CV.wait_timeout(next_tick, ::std::time::Duration::from_millis(dt_ms)).unwrap().0 );
 									});
 								},
 							}

@@ -11,7 +11,7 @@ pub trait Termination
 }
 
 #[lang="start"]
-fn lang_start<T: Termination+'static>(main: fn()->T, argc: isize, argv: *const *const u8) -> isize {
+fn lang_start<T: Termination+'static>(main: fn()->T, argc: isize, argv: *const *const u8, _: u8) -> isize {
 	#[cfg(arch="native")]
 	{
 		::syscalls::raw::native_init(32245);
