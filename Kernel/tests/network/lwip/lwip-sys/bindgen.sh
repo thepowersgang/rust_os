@@ -5,7 +5,7 @@ ARGS=""
 ARGS=${ARGS}" --allowlist-type err_enum_t"
 # tcpip_* - Hosted/OS mode
 ARGS=${ARGS}" --allowlist-function tcpip_.*"
-# LWIP BSC socket functions
+# LWIP BSD socket functions
 ARGS=${ARGS}" --allowlist-function lwip_.* --allowlist-type lwip_.*"
 ARGS=${ARGS}" --allowlist-var SOCK_.*"
 ARGS=${ARGS}" --allowlist-var AF_.*"

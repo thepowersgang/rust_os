@@ -1,14 +1,23 @@
 /*!
- * Network stack wrapper
+ * Network stack wrapper - LWIP comparison logic
  */
+fn main() {
+	inner::main();
+}
+
+#[cfg(not(feature="lwip"))]
+mod inner {
+	pub fn main() {
+    	panic!("`lwip` feature not enabled!");
+	}
+}
 #[cfg(feature="lwip")]
+mod inner {
+
 extern crate lwip;
-#[cfg(feature="lwip")]
 use ::std::sync::Arc;
-#[cfg(feature="lwip")]
 use ::kernel_test_network::HexDump;
 
-#[cfg(feature="lwip")]
 struct Args
 {
 	master_addr: std::net::SocketAddr,
@@ -16,13 +25,7 @@ struct Args
 	sim_ip: lwip::sys::ip4_addr_t,
 }
 
-#[cfg(not(feature="lwip"))]
-fn main() {
-    panic!("`lwip` feature not enabled!");
-}
-
-#[cfg(feature="lwip")]
-fn main()
+pub fn main()
 {
 	let args = {
         let mut it = std::env::args();
@@ -201,7 +204,6 @@ fn main()
     }
 }
 
-#[cfg(feature="lwip")]
 fn parse_hex_bytes(s: &str) -> Option<Vec<u8>>
 {
 	let mut nibble = 0;
@@ -232,7 +234,6 @@ fn parse_hex_bytes(s: &str) -> Option<Vec<u8>>
 	}
 }
 
-#[cfg(feature="lwip")]
 fn parse_addr(s: &str) -> Option<::lwip::sys::ip_addr>
 {
 	if s.contains(".") {
@@ -256,7 +257,6 @@ fn parse_addr(s: &str) -> Option<::lwip::sys::ip_addr>
 	}
 }
 
-#[cfg(feature="lwip")]
 struct TestNicHandle
 {
     index: u32,
@@ -264,7 +264,6 @@ struct TestNicHandle
     mac: [u8; 6],
     netif: ::std::cell::UnsafeCell<::lwip::sys::netif>,
 }
-#[cfg(feature="lwip")]
 impl TestNicHandle
 {
     fn new(stream: Arc<std::net::UdpSocket>, mac: [u8; 6], ip: ::lwip::sys::ip4_addr_t, mask_bits: u8) -> &'static TestNicHandle {
@@ -353,13 +352,11 @@ impl TestNicHandle
 }
 
 
-#[cfg(feature="lwip")]
 struct ClientSocket {
     conn: ::lwip::netconn::TcpConnection,
     cur_buf: Option<::lwip::netconn::Netbuf>,
     cur_ofs: usize,
 }
-#[cfg(feature="lwip")]
 impl ClientSocket {
     fn from_conn(conn: ::lwip::netconn::TcpConnection) -> Self {
         ClientSocket { conn, cur_buf: None, cur_ofs: 0 }
@@ -415,3 +412,5 @@ impl ClientSocket {
         Ok(buf_ofs)
     }
 }
+
+}	// mod inner;

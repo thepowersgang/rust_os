@@ -1,4 +1,6 @@
-
+//! LWIP (Lightweight IP) bindings
+//!
+//!
 pub use lwip_sys as sys;
 
 pub mod os_mode;
@@ -8,9 +10,10 @@ pub mod pbuf {
 }
 pub mod netconn;
 
-
+/// Common LWIP error type
 pub struct Error(::lwip_sys::err_t);
 impl Error {
+	/// Convert a signed LWIP return value into a typed result
     pub fn check<T>(v: T) -> Result<T,Self>
     where
         T: Copy,
@@ -22,6 +25,7 @@ impl Error {
         Err(_) => Ok(v),
         }
     }
+	/// Convert a raw LWIP return value into a unit result
     pub fn check_unit(v: ::lwip_sys::err_t) -> Result<(),Self> {
         if v >= ::lwip_sys::err_enum_t_ERR_OK as _ {
             Ok( () )

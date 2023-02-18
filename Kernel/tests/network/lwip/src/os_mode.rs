@@ -1,11 +1,11 @@
-//! Hosted
+//! Hosted LWIP (i.e. LWIP running within another OS)
 
 /// HELPER: Create a callback function that calls the provided function
 /// 
 /// Stores the data inline in the pointer if possible, otherwise boxes
 /// 
 /// NOTE: The returned function must only ever be called once.
-pub fn create_callback<F>(callback: F) -> (extern "C" fn(*mut ::std::ffi::c_void), *mut ::std::ffi::c_void)
+pub fn create_callback<F>(callback: F) -> (unsafe extern "C" fn(*mut ::std::ffi::c_void), *mut ::std::ffi::c_void)
 where
     F: FnOnce() + 'static
 {

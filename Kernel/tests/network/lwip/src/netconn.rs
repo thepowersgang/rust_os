@@ -1,7 +1,9 @@
+//! `netconn` - LWIP's "native" network connection interface
 use ::lwip_sys::*;
 
 const TCP_DEFAULT_LISTEN_BACKLOG: u8 = 0xFF;
 
+/// A prototype TCP connection (prototype for server/socket structs)
 pub struct Tcp {
     conn: *mut ::lwip_sys::netconn,
 }
@@ -56,6 +58,7 @@ impl TcpServer {
         rv.bind(&addr, port)?;
         rv.listen_with_backlog(backlog)
     }
+	/// Accept a new connection (TODO: is this blocking/)
     pub fn accept(&self) -> Option<TcpConnection> {
         unsafe {
             let mut new_conn = ::core::ptr::null_mut();
@@ -76,6 +79,7 @@ impl ::core::ops::Drop for TcpServer {
     }
 }
 
+/// An open TCP connection (client)
 pub struct TcpConnection {
     conn: *mut ::lwip_sys::netconn,
 }
@@ -121,9 +125,11 @@ impl ::core::ops::Drop for TcpConnection {
     }
 }
 
-
+/// Blob of data owned by the LWIP stack
 pub struct Netbuf(*mut ::lwip_sys::netbuf);
 impl Netbuf {
+	/// Get a slice pointer to the data within the buffer
+	// TODO: How can this fail?
     pub fn get_slice(&self) -> Result<&[u8],crate::Error> {
         unsafe {
             let mut buf_ptr = ::core::ptr::null();
