@@ -30,7 +30,21 @@ extern "C" {
 }
 
 pub fn post_init() {
-	// TODO: Clear initial mapping
+	log_trace!("post_init: Cleaning up");
+	// SAFE: Trusting that we're called only once, and only before user is up
+	unsafe {
+		// Populate all entries
+		for i in 256..512 {
+			get_entry(3, i, true);
+		}
+
+		remove_ident_mapping();
+	}
+}
+/// UNSAFE: Should only be called by the SMP code (before userspace starts)
+pub unsafe fn remove_ident_mapping() {
+	// Clear initial mapping
+	get_entry(3, 0, false).set(0, ProtectionMode::Unmapped);
 }
 
 

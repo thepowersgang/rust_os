@@ -7,6 +7,23 @@
 
 [extern low_InitialPML4]
 
+;   [ 4] PGE (Page Global Enable)
+; + [ 5] PAE (Physical Address Extension)
+; + [ 7] PSE (Page Size Extensions)
+; + [ 9] OSFXSR (Operating System Support for FXSAVE and FXRSTOR instructions)
+; + [10] OSXMMEXCPT (Operating System Support for Unmasked SIMD Floating-Point Exceptions)
+FLAGS_CR4	equ	0x80|0x20|0x10|(1 << 9)|(1 << 10)
+;  [11] NXE (No eXecute Enable)
+;  [ 8] LME (Long Mode Enable)
+;  [ 0] SCE (?)
+FLAGS_EFER	equ	(1 << 11)|(1 << 8)|(1 << 0)	; NXE, LME, SCE
+; Set [31] PG (Paging enabled)
+; Set [16] WP (Kernel write-protect)
+; Set [ 3] TS (Enables #NM on all FPU instructions)
+; Set [ 1] MP (with TS, Enables #NM when FWAIT is used)
+; (in-code) Clear [2]EM (Disables emulation of the FPU)
+FLAGS_CR0	equ	0x80010000|(1 << 3)|(1 << 1)
+
 [section .multiboot]
 [global mboot]
 mboot:
@@ -68,32 +85,26 @@ start:
 	out dx, al
 	
 	;; 2. Switch into IA-32e mode
-	; Enable:
-	;   [4] PGE (Page Global Enable)
-	; + [5] PAE (Physical Address Extension)
-	; + [7] PSE (Page Size Extensions)
-	; + [ 9] OSFXSR (Operating System Support for FXSAVE and FXRSTOR instructions)
-	; + [10] OSXMMEXCPT (Operating System Support for Unmasked SIMD Floating-Point Exceptions)
+	; - Enable PAE and others (needed for IA-32e)
 	mov eax, cr4
-	or eax, 0x80|0x20|0x10
-        or ax, (1 << 9)|(1 << 10)
+        or ax, FLAGS_CR4
 	mov cr4, eax
 	
 	mov al, '4'
 	out dx, al
 	
-	; Load PDP4
+	; - Load PML4 address
 	mov eax, low_InitialPML4
 	mov cr3, eax
 	
 	mov al, '3'
 	out dx, al
 	
-	; Enable IA-32e mode
+	; - Enable IA-32e mode
 	; (Also enables SYSCALL and NX)
 	mov ecx, 0xC0000080
 	rdmsr
-	or eax, (1 << 11)|(1 << 8)|(1 << 0)	; NXE, LME, SCE
+	or eax, FLAGS_EFER
 	wrmsr
 	
 	mov dx, 0x3F8
@@ -102,14 +113,9 @@ start:
 
 	
 	; 3. Enable paging and enter long mode (enable SSE too)
-	; Set [31] PG (Paging enabled)
-	; Set [16] WP (Kernel write-protect)
-	; Set [3]TS (Enables #NM on all FPU instructions)
-	; Set [1]MP (with TS, Enables #NM when FWAIT is used)
-	; Clear [2]EM (Disables emulation of the FPU)
 	mov eax, cr0
-	or eax, 0x80010000|(1 << 3)|(1 << 1)	; PG & WP
-	and ax, ~(1 << 2)
+	or eax, FLAGS_CR0
+	and ax, ~(1 << 2)	; Clear [2]EM
 	mov cr0, eax
 	lgdt [GDTPtr - KERNEL_BASE]
 	jmp 0x08:start64
@@ -160,7 +166,7 @@ start_uefi:
 	or eax, (1 << 11)|(1 << 8)|(1 << 0)	; NXE, LME, SCE
 	wrmsr
 	
-	; Load PDP4
+	; Load PML4
 	mov eax, low_InitialPML4
 	mov cr3, rax
 	; 2. Enable paging and enter long mode (enable SSE too)
@@ -210,6 +216,13 @@ start64_higher:
 	mov es, ax
 	mov fs, ax
 	mov gs, ax
+
+	; Prepare for AP Init
+	mov WORD [0x467], ap_wait-0xFFFF0
+	mov WORD [0x469], 0xFFFF
+	mov BYTE [0x0], 0xEA
+	mov WORD [0x1], ap_init-0xFFFF0
+	mov WORD [0x3], 0xFFFF
 	
 	; 5. Initialise TLS for TID0
 	; - Use a temp stack for the following function
@@ -258,14 +271,105 @@ start64_higher:
 	mov ecx, 0xC0000084
 	wrmsr
 	
-	mov rax, InitialPML4
-	mov QWORD [rax], 0
 	; 7. Call rust kmain
 	call kmain
 .dead_loop:
 	cli
 	hlt
 	jmp .dead_loop
+
+;
+; Application Processor bringup code
+; - Starts in 16-bit real mode, and needs to set up proper long mode
+;
+[section .inittext.smp_init]
+[bits 16]
+EXPORT ap_wait
+.hlt:
+	hlt
+	jmp .hlt
+extern ap_entry
+EXPORT ap_init
+	; Load initial GDT
+	mov ax, cs
+	mov ds, ax
+	mov ss, ax
+	mov sp, smp_init_stack - 0xFFFF0
+	mov bp, smp_init_gdt_ptr - 0xFFFF0
+	lgdt [bp]
+	; Enable PMode in CR0
+	mov eax, cr0
+	or al, 1
+	mov cr0, eax
+	; Jump into PMode
+	mov ax, 0x10
+	mov ds, ax
+	jmp 0x08:DWORD .pmode
+[bits 32]
+.pmode:
+	; Load segment registers
+	mov ax, 0x10
+	mov ss, ax
+	mov ds, ax
+	mov es, ax
+	mov fs, ax
+	mov gs, ax
+	;; 2. Switch into IA-32e mode
+	; - Enable PAE
+	mov eax, cr4
+	or ax, FLAGS_CR4
+	mov cr4, eax
+	; - Load PML4 address
+	mov eax, low_InitialPML4
+	mov cr3, eax
+	; - Enable IA-32e mode
+	mov ecx, 0xC0000080
+	rdmsr
+	or eax, FLAGS_EFER
+	wrmsr
+	; 3. Enable paging and enter long mode (enable SSE too)
+	mov eax, cr0
+	or eax, FLAGS_CR0
+	and ax, ~(1 << 2)	; Clear [2]EM
+	mov cr0, eax
+	
+	; Switch to the main GDT (now that paging is enabled - in compat mode)
+	lgdt [GDTPtr - KERNEL_BASE]
+	jmp 0x08:.lmode
+[bits 64]
+.lmode:
+	lea rax, ap_start_high
+	jmp rax
+smp_init_gdt_ptr:
+	dw	3*8-1
+	dd	smp_init_gdt
+align 8
+smp_init_gdt:
+	dd 0x00000000, 0x00000000	; 00 NULL Entry
+	dd 0x0000FFFF, 0x00CF9A00	; 08 PL0 Code
+	dd 0x0000FFFF, 0x00CF9200	; 10 PL0 Data
+	; A stack that just needs enough space for a 32-bit far ret
+	dq	0
+smp_init_stack:
+
+[section .text.ap_start_high]
+ap_start_high:
+	;mov rax, IDTPtr
+	;lidt [rax]
+
+	mov rsp, [s_ap_stack]
+
+	; Set up FS/GS base for kernel
+	mov rax, rsp
+	mov rdx, rax
+	shr rdx, 32
+	mov ecx, 0xC0000100	; FS Base
+	wrmsr
+	mov ecx, 0xC0000101	; GS Base
+	wrmsr
+
+	; Set the stack using a value that should have been set by the AP bringup code
+	jmp ap_entry
 
 %include "Core/arch/amd64/interrupts.inc.asm"
 
@@ -287,7 +391,7 @@ EXPORT task_switch
 	
 	; Update stack top (RSP0) and TLS base (GS)
 	; TLS base and stack top are the same address.
-	; TODO: This assumes uniprocessor
+	; TODO: This assumes uniprocessor, need to use `STR` to get the current TSS
 	mov [rel TSSes+tss.rsp0], rdx
 	mov rax, rdx
 	shr rdx, 32	; EDX = High
@@ -474,7 +578,9 @@ EXPORT _Unwind_Resume
 [global InitialPML4]
 InitialPML4:	; Covers 256 TiB (Full 48-bit Virtual Address Space)
 	dd	InitialPDP - KERNEL_BASE + 3, 0	; Identity Map Low 4Mb
-	times 0xA0*2-1	dq	0
+	times 0x80*2-1	dq	0
+	; Kernel
+	times (0xA0-0x80)*2	dq	0
 	; Stacks at 0xFFFFA...
 	dd	StackPDP - KERNEL_BASE + 3, 0
 	times 512-4-($-InitialPML4)/8	dq	0	; < dq until hit 512-4
@@ -557,6 +663,10 @@ IDTPtr:
 	dw	256*16-1
 	dq	IDT
 EXPORT s_tid0_tls_base
+	dq	0
+EXPORT s_ap_cr3
+	dq	0
+EXPORT s_ap_stack
 	dq	0
 
 [section .bss]
