@@ -75,14 +75,18 @@ pub extern fn rust_begin_unwind(info: &::core::panic::PanicInfo) -> ! {
 fn begin_panic_fmt(msg: &::core::fmt::Arguments, (file, line): (&str, u32)) -> !
 {
 	static NESTED: ::core::sync::atomic::AtomicBool = ::core::sync::atomic::AtomicBool::new(false);
-	crate::arch::puts("\nERROR: rust_begin_unwind: ");
-	crate::arch::puts(file);
-	crate::arch::puts(":");
-	crate::arch::puth(line as u64);
-	crate::arch::puts("\n");
-	if NESTED.swap(true, ::core::sync::atomic::Ordering::SeqCst) {
-		crate::arch::puts("NESTED!\n");
-		loop {}
+	// TODO: Get the arch code to freze the other CPUs (using an IPI)
+	{
+		let _lh = crate::logging::acquire_lock_cpu();
+		crate::arch::puts("\nERROR: rust_begin_unwind: ");
+		crate::arch::puts(file);
+		crate::arch::puts(":");
+		crate::arch::puth(line as u64);
+		crate::arch::puts("\n");
+		if false && NESTED.swap(true, ::core::sync::atomic::Ordering::SeqCst) {
+			crate::arch::puts("NESTED!\n");
+			loop {}
+		}
 	}
 	crate::arch::print_backtrace();
 	log_panic!("{}:{}: Panicked \"{:?}\"", file, line, msg);

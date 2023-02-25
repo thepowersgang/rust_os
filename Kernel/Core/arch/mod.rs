@@ -386,12 +386,6 @@ pub mod threads {
 	}
 
 	#[inline]
-	/// Called once SMP is "safe" to start
-	pub fn init_smp() {
-		imp::init_smp()
-	}
-
-	#[inline]
 	pub fn set_thread_ptr(t: crate::threads::ThreadPtr) {
 		imp::set_thread_ptr(t)
 	}
@@ -453,6 +447,7 @@ pub mod time {
 		imp::request_tick(target_time)
 	}
 
+	/// Return the system timestamp (miliseconds since an arbitary point)
 	#[inline]
 	pub fn cur_timestamp() -> u64 {
 		imp::cur_timestamp()
@@ -461,7 +456,7 @@ pub mod time {
 
 #[inline]
 pub fn puts(s: &str) {
-	imp::puts(s);
+	imp::puts(s)
 }
 #[inline]
 pub fn puth(v: u64) {
@@ -473,8 +468,20 @@ pub fn print_backtrace() {
 	imp::print_backtrace()
 }
 
+/// Get the arbitrary index of the currently active CPU (for logging only, as CPU number can change randomly due to IRQs)
+#[inline]
+pub fn cpu_num() -> u32 {
+	imp::cpu_num()
+}
+
 #[inline]
 pub unsafe fn drop_to_user(entry: usize, stack: usize, args_len: usize) -> ! {
 	imp::drop_to_user(entry, stack, args_len)
+}
+
+/// Halt the system, for a kernel panic.
+#[inline]
+pub unsafe fn halt() -> ! {
+	imp::halt()
 }
 

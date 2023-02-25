@@ -3,7 +3,8 @@
 //
 // arch/amd64/sync.rs
 //! Low-level synchronisaion primitives
-use core::sync::atomic::{AtomicBool,Ordering};
+use core::sync::atomic::{AtomicU32,Ordering};
+use super::cpu_num;
 
 const TRACE_IF: bool = false;
 //const TRACE_IF: bool = true;
@@ -11,39 +12,35 @@ const TRACE_IF: bool = false;
 /// Lightweight protecting spinlock
 pub struct SpinlockInner
 {
-	lock: AtomicBool,
+	lock: AtomicU32,
 }
 
 impl SpinlockInner
 {
 	pub const fn new() -> Self {
 		SpinlockInner {
-			lock: AtomicBool::new(false),
+			lock: AtomicU32::new(0),
 		}
 	}
 	
 	pub fn try_inner_lock_cpu(&self) -> bool
 	{
-		//if self.lock.compare_and_swap(0, cpu_num()+1, Ordering::Acquire) == 0
-		if self.lock.compare_exchange(false, true, Ordering::Acquire, Ordering::Relaxed).is_ok()
+		match self.lock.compare_exchange(0, cpu_num()+1, Ordering::Acquire, Ordering::Relaxed)
 		{
-			true
-		}
-		else
-		{
-			false
+		Ok(_) => { ::core::sync::atomic::fence(Ordering::Acquire); true }
+		Err(x) if x == cpu_num()+1 => false,
+		Err(_) => { self.inner_lock(); true },
 		}
 	}
 	pub fn inner_lock(&self) {
-		//while self.lock.compare_and_swap(0, cpu_num()+1, Ordering::Acquire) != 0
-		while self.lock.compare_exchange(false, true, Ordering::Acquire, Ordering::Relaxed).is_ok()
+		while self.lock.compare_exchange(0, cpu_num()+1, Ordering::Acquire, Ordering::Relaxed).is_err()
 		{
 		}
 		::core::sync::atomic::fence(Ordering::Acquire);
 	}
 	pub unsafe fn inner_release(&self) {
 		::core::sync::atomic::fence(Ordering::Release);
-		self.lock.store(false, Ordering::Release);
+		self.lock.store(0, Ordering::Release);
 	}
 }
 

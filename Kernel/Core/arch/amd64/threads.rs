@@ -33,7 +33,7 @@ extern "C" {
 }
 
 pub static S_IRQS_ENABLED: ::core::sync::atomic::AtomicBool = ::core::sync::atomic::AtomicBool::new(false);
-static mut S_IDLE_THREAD: *mut crate::threads::Thread = 0 as *mut _;
+static mut S_IDLE_THREAD: [*mut crate::threads::Thread; super::MAX_CPUS] = [0 as *mut _; super::MAX_CPUS];
 
 #[repr(C)]
 /// Thread-local-storage block
@@ -60,7 +60,7 @@ pub fn init_tid0_state() -> State
 {
 	// SAFE: Called in single-threaded context... hopefully (TODO)
 	unsafe {
-		S_IDLE_THREAD = ::core::mem::transmute( crate::threads::new_idle_thread(0) );
+		S_IDLE_THREAD[0] = ::core::mem::transmute( crate::threads::new_idle_thread(0) );
 	}
 	// SAFE: Just taking the address
 	let cr3 = unsafe { &InitialPML4 as *const _ as u64 - super::memory::addresses::IDENT_START as u64 };
@@ -75,7 +75,117 @@ pub fn init_tid0_state() -> State
 }
 
 pub fn init_smp() {
-	// TODO: Query ACPI to get available cores
+	// Prepare the AP startup state
+	// - Set the "warm boot" flag in the CMOS
+	// SAFE: Correct IO port manipulation
+	unsafe {
+		crate::arch::x86_io::outb(0x70, 0x0F);
+		crate::arch::x86_io::outb(0x71, 0x0A);
+	}
+
+	if let Some(madt) = super::acpi::find::<super::acpi::tables::Madt>("APIC", 0) {
+		log_debug!("init_smp: Found MADT table");
+		// SAFE: No side-effects on this CPUID call
+		let cur_apic_id = unsafe { (::core::arch::x86_64::__cpuid(1).ebx >> 24) as u8 };
+		log_trace!("cur_apic_id = {}", cur_apic_id);
+		for ent in madt.iterate() {
+			if let super::acpi::tables::madt::MADTDevRecord::DevLAPIC(e) = ent {
+				if e.flags & 1 == 1 {
+					log_debug!("LAPIC {}: Enabled", e.apic_id);
+					if e.apic_id != cur_apic_id {
+						start_ap(e.apic_id);
+					}
+				}
+			}
+		}
+	}
+	else if let Some(mpt) = super::mptable::MPTablePointer::locate_floating() {
+		log_debug!("init_smp: Found MPTable:\n{:#x?}", mpt);
+		// Boot all CPUs
+		for ent in mpt.entries() {
+			match ent
+			{
+			super::mptable::MPTableEntry::Proc(e) => {
+				if e.cpu_flags & 2 == 0 {	// Bit 0x2 indicates the BSP
+					start_ap(e.apic_id);
+				}
+				},
+			_ => {},
+			}
+		}
+	}
+	else {
+		log_debug!("init_smp: No MADT or MP table");
+		return;
+	}
+
+	// We're done with the low identity mapping, clear it so userspace is happy
+	// SAFE: Run before user bringup, so won't be an issue
+	unsafe {
+		super::memory::virt::remove_ident_mapping();
+	}
+}
+
+static AP_STARTUP_ACTIVE: crate::sync::Semaphore = crate::sync::Semaphore::new(0, 1);
+static CUR_CPU_COUNT: core::sync::atomic::AtomicUsize = core::sync::atomic::AtomicUsize::new(1);
+fn start_ap(apic_id: u8) {
+	extern "C" {
+		static mut s_ap_stack: u64;
+		static s_max_cpus: u32;
+	}
+
+	// SAFE: Read-only external value
+	unsafe {
+		assert!(s_max_cpus as usize == super::MAX_CPUS);
+	}
+
+	let cpu_index = CUR_CPU_COUNT.fetch_add(1, ::core::sync::atomic::Ordering::SeqCst);
+	if cpu_index >= super::MAX_CPUS {
+		log_warning!("start_ap({apic_id}): Too many CPUS, max {}", super::MAX_CPUS);
+		return ;
+	}
+
+	log_debug!("start_ap({apic_id}): cpu_index={}, cur={}", cpu_index, super::cpu_num());
+
+	let thread = crate::threads::new_idle_thread(cpu_index);
+	{
+		let mut stack_top = thread.cpu_state.rsp;
+
+		// SAFE: Correct and valid memory accesses
+		unsafe {
+			// TLS Base (for GS)
+			stack_top -= 8; ::core::ptr::write(stack_top as *mut u64, thread.cpu_state.tlsbase as u64);
+			// TSS selector
+			stack_top -= 8; ::core::ptr::write(stack_top as *mut u64, 7*8 + (cpu_index as u64)*16);
+		}
+
+		// TODO: Is there a way to set this such that it doesn't need a single global (can start multiple CPUs at once)
+		// SAFE: Single-threaded operation?
+		unsafe {
+			s_ap_stack = stack_top as u64;
+			S_IDLE_THREAD[cpu_index] = ::core::mem::transmute( thread );
+		}
+	}
+
+	// SAFE: We're starting the CPU here, so we have to call these
+	unsafe {
+		// Send "Init IPI" to ensure that the CPU is booted
+		// - It'll wait in `ap_wait` after a short period
+		super::hw::apic::send_ipi_init(apic_id);
+
+		// Send StartupIP with `0x00` as the base address
+		// - This expands to `0x00_000`, where we've put a long jump to `ap_init`
+		super::hw::apic::send_ipi_startup(apic_id, 0);
+	}
+	
+	// Wait for the AP to start
+	AP_STARTUP_ACTIVE.acquire();
+}
+
+#[no_mangle]
+extern "C" fn ap_entry() {
+	//todo!("AP entry: {}", super::cpu_num());
+	AP_STARTUP_ACTIVE.release();
 }
 
 impl State
@@ -106,6 +216,7 @@ pub fn idle(held_interrupts: crate::arch::sync::HeldInterrupts)
 #[no_mangle]
 pub unsafe extern "C" fn prep_tls(top: usize, _bottom: usize, thread_ptr: *mut crate::threads::Thread) -> usize
 {
+	//log_trace!("prep_tls({:#x},{:#x},{:p})", top, _bottom, thread_ptr);
 	let mut pos = top;
 	
 	// 1. Create the TLS data block
@@ -198,8 +309,8 @@ pub fn get_idle_thread() -> crate::threads::ThreadPtr
 	// TODO: Shared mutability shouldn't be an issue (this thread pointer should not be created twice)
 	// SAFE: Passes a static pointer. `static mut` should be initialised
 	unsafe {
-		assert!(S_IDLE_THREAD != 0 as *mut _);
-		crate::threads::ThreadPtr::new_static( &mut *S_IDLE_THREAD )
+		assert!(S_IDLE_THREAD[super::cpu_num() as usize] != 0 as *mut _);
+		crate::threads::ThreadPtr::new_static( &mut *S_IDLE_THREAD[super::cpu_num() as usize] )
 	}
 }
 

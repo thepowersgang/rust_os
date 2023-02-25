@@ -10,6 +10,8 @@ fn init()
 {
 	// Start the FDT bus enumeration, informing it of the interrupt controller
 	fdt_devices::init(interrupts::get_intc);
+
+	threads::init_smp();
 }
 
 #[path="../armv7/fdt_devices.rs"]
@@ -292,6 +294,12 @@ fn putb(v: u8) {
 }
 
 pub fn print_backtrace() {
+}
+pub fn cpu_num() -> u32 {
+	0
+}
+pub fn halt() -> ! {
+	loop {}
 }
 
 pub mod time {

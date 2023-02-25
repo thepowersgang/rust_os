@@ -270,7 +270,7 @@ start64_higher:
 	mov edx, 0
 	mov ecx, 0xC0000084
 	wrmsr
-	
+
 	; 7. Call rust kmain
 	call kmain
 .dead_loop:
@@ -354,13 +354,19 @@ smp_init_stack:
 
 [section .text.ap_start_high]
 ap_start_high:
-	;mov rax, IDTPtr
-	;lidt [rax]
+	; TODO: Enable the IDT, once everything works
+	mov rax, IDTPtr
+	lidt [rax]
 
+	; Set the stack using a value that should have been set by the AP bringup code
 	mov rsp, [s_ap_stack]
 
+	; Set the TSS
+	pop rax
+	ltr ax
+
 	; Set up FS/GS base for kernel
-	mov rax, rsp
+	pop rax
 	mov rdx, rax
 	shr rdx, 32
 	mov ecx, 0xC0000100	; FS Base
@@ -368,11 +374,24 @@ ap_start_high:
 	mov ecx, 0xC0000101	; GS Base
 	wrmsr
 
-	; Set the stack using a value that should have been set by the AP bringup code
-	jmp ap_entry
+	call ap_entry
+
+	sti
+
+	; Enter the idle thread!
+	jmp task_switch.restore
 
 %include "Core/arch/amd64/interrupts.inc.asm"
 
+[section .text.get_cpu_num]
+EXPORT get_cpu_num
+	xor rax,rax
+	str ax
+	sub rax, 0x38
+	jb .ret
+	shr rax, 4
+.ret:
+	ret
 ; RDI: Save location for RSP
 ; RSI: New RSP (pointer)
 ; RDX: New FSBASE
@@ -390,14 +409,24 @@ EXPORT task_switch
 	invlpg [rsp]
 	
 	; Update stack top (RSP0) and TLS base (GS)
-	; TLS base and stack top are the same address.
-	; TODO: This assumes uniprocessor, need to use `STR` to get the current TSS
-	mov [rel TSSes+tss.rsp0], rdx
+	; - TLS base and stack top are the same address.
+	; > Save `RDX`, as it's about to be clobbered by `mul`
+	mov rdi, rdx
+	; > Calculate `get_cpu_num() * tss.SIZE`
+	call get_cpu_num
+	xor rdx, rdx
+	mov ecx, tss.SIZE
+	mul rcx
+	; > Store rsp0
+	mov [rel TSSes+tss.rsp0+rax], rdi
+	; > Store GS_BASE
+	mov rdx, rdi
 	mov rax, rdx
 	shr rdx, 32	; EDX = High
 	mov ecx, 0xC0000101	; GS Base
 	wrmsr
 	
+.restore:
 	; Restore saved registers and return
 	RESTORE rbx, r12, r13, r14, r15
 	; - For debugging, reset RBP and trigger a tracepoint
@@ -668,6 +697,8 @@ EXPORT s_ap_cr3
 	dq	0
 EXPORT s_ap_stack
 	dq	0
+EXPORT s_max_cpus
+	dd MAX_CPUS
 
 [section .bss]
 EXPORT TSSes

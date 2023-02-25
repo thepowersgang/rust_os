@@ -106,7 +106,7 @@ pub(super) fn get_intc(compat: fdt_devices::Compat, reg: fdt_devices::Reg) -> Op
 }
 pub(super) fn init()
 {
-	S_IRQS.prep(|| Vec::from_fn(1024, |_| Default::default()));
+	S_IRQS.prep(|| (0..1024).map(|_| Default::default()).collect());
 }
 
 static GIC: gic::GicInstance = gic::GicInstance::new_uninit();

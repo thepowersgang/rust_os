@@ -38,6 +38,12 @@ pub enum TriggerMode
 	EdgeLow,
 }
 
+#[repr(u8)]
+pub enum DeliveryMode {
+	InitIPI = 5,
+	StartupIPI = 6,
+}
+
 #[allow(dead_code)]
 #[repr(u8)]
 #[derive(Copy,Clone)]
@@ -59,7 +65,8 @@ enum ApicReg
 	IRR       = 0x20,	// Interrupt Request Register (1/8)
 	ErrStatus = 0x28,	// Error Status
 	LVTCMCI   = 0x2F,	// LVT CMCI Registers (?)
-	ICR       = 0x30,	// Interrupt Command Register (1/2)
+	Icr0      = 0x30,	// Interrupt Command Register (1/2)
+	Icr1      = 0x31,	// Interrupt Command Register (2/2)
 	LVTTimer  = 0x32,
 	LVTThermalSensor = 0x33,
 	LVTPermCounters  = 0x34,
@@ -150,6 +157,12 @@ impl LAPIC
 	pub fn eoi(&self, num: usize)
 	{
 		self.write_reg(ApicReg::EOI, num as u32);
+	}
+	// UNSAFE: IPIs can request ACE (via StartupIPI)
+	pub unsafe fn send_ipi(&self, apic_id: u8, vector: u8, delivery_mode: DeliveryMode) {
+		self.write_reg(ApicReg::Icr1, (apic_id as u32) << 24);
+		self.write_reg(ApicReg::Icr0, (vector as u32) | ((delivery_mode as u32) << 8) | 0xC000);
+		// TODO: Wait until listed as delivered
 	}
 	
 	fn read_reg(&self, reg: ApicReg) -> u32

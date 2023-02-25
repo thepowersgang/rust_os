@@ -129,6 +129,12 @@ pub fn puth(v: u64) {
 	}
 }
 
+pub fn cpu_num() -> u32 {
+	0
+}
+pub fn halt() -> ! {
+	loop {}
+}
  
 #[repr(C)]
 struct Regs

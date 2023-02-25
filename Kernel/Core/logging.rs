@@ -67,6 +67,10 @@ pub struct RawString<'a>(pub &'a [u8]);
 
 static S_LOGGING_LOCK: Spinlock<Sinks> = Spinlock::new( Sinks { serial: serial::Sink, memory: None, video: None } );
 
+pub fn acquire_lock_cpu() -> Option<impl Sync> {
+	S_LOGGING_LOCK.try_lock_cpu()
+}
+
 trait Sink
 {
 	/// Start a new log entry
@@ -96,7 +100,7 @@ mod serial
 		fn start(&mut self, timestamp: crate::time::TickCount, level: Level, source: &'static str) {
 			use core::fmt::Write;
 			self.set_colour(level.to_colour());
-			write!(self, "{:6}{} {}[{}] - ", timestamp, level, crate::threads::get_thread_id(), source).unwrap();
+			write!(self, "{:6}{} {}/{}[{}] - ", timestamp, level, crate::arch::cpu_num(), crate::threads::get_thread_id(), source).unwrap();
 		}
 		fn write(&mut self, s: &str) {
 			crate::arch::puts(s);
@@ -124,7 +128,8 @@ mod serial
 			Colour::Yellow  => crate::arch::puts("\x1b[0033m"),
 			Colour::Blue    => crate::arch::puts("\x1b[0034m"),
 			Colour::Purple  => crate::arch::puts("\x1b[0035m"),
-			Colour::Grey    => crate::arch::puts("\x1b[1;30m"),
+			//Colour::Grey    => crate::arch::puts("\x1b[1;30m"),
+			Colour::Grey    => crate::arch::puts("\x1b[0000m"),
 			}
 		}
 	}

@@ -421,7 +421,7 @@ impl Thread
 		
 		ThreadPtr::new( rv )
 	}
-	
+
 	pub fn get_tid(&self) -> ThreadID { self.block.tid }
 	
 	/// Set the execution state of this thread

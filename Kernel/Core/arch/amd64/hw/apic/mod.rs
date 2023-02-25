@@ -9,7 +9,6 @@ use crate::prelude::*;
 module_define!{APIC, [ACPI], init}
 
 mod raw;
-mod init;
 
 pub type IRQHandler = fn(info: *const ());
 
@@ -36,44 +35,56 @@ static s_ioapics: crate::lib::LazyStatic<Vec<raw::IOAPIC>> = lazystatic_init!();
 
 fn init()
 {
-	let madt = match crate::arch::amd64::acpi::find::<init::ACPI_MADT>("APIC", 0)
-		{
-		None => {
-			log_warning!("No MADT ('APIC') table in ACPI");
-			return ;
-			},
-		Some(v) => v,
-		};
-	
-	madt.data().dump(madt.data_len());
-	
-	// Handle legacy (8259) PIC
-	if (madt.data().flags & 1) != 0 {
-		log_notice!("Legacy PIC present, disabling");
-		// Disable legacy PIC by masking all interrupts off
-		// SAFE: Only code to access the PIC
-		unsafe {
-			crate::arch::x86_io::outb(0xA1, 0xFF);	// Disable slave
-			crate::arch::x86_io::outb(0x21, 0xFF);	// Disable master
+	let ioapics: Vec<_>;
+	let lapic_addr = if let Some(madt) = crate::arch::amd64::acpi::find::<crate::arch::amd64::acpi::tables::Madt>("APIC", 0) {
+		use crate::arch::amd64::acpi::tables::madt::MADTDevRecord;
+		madt.data().dump(madt.data_len());
+
+		// Handle legacy (8259) PIC
+		if (madt.data().flags & 1) != 0 {
+			log_notice!("Legacy PIC present, disabling");
+			// Disable legacy PIC by masking all interrupts off
+			// SAFE: Only code to access the PIC
+			unsafe {
+				crate::arch::x86_io::outb(0xA1, 0xFF);	// Disable slave
+				crate::arch::x86_io::outb(0x21, 0xFF);	// Disable master
+			}
 		}
+
+		// Find the LAPIC address
+		let mut lapic_addr = madt.data().local_controller_addr as u64;
+		for ent in madt.iterate().filter_map(
+			|r| match r { MADTDevRecord::DevLAPICAddr(x) => Some(x.address), _ => None }
+			)
+		{
+			lapic_addr = ent;
+		}
+
+		// Create instances of the IOAPIC "driver" for all present controllers
+		ioapics = madt.iterate().filter_map(
+				|r| match r {
+					MADTDevRecord::DevIOAPIC(a) => Some(raw::IOAPIC::new(a.address as u64, a.interrupt_base as usize)),
+					_ => None
+					}
+				).collect();
+		lapic_addr
 	}
-	
-	// Find the LAPIC address
-	let mut lapic_addr = madt.data().local_controller_addr as u64;
-	for ent in madt.data().records(madt.data_len()).filter_map(
-		|r| match r { init::MADTDevRecord::DevLAPICAddr(x) => Some(x.address), _ => None }
-		)
-	{
-		lapic_addr = ent;
+	else if let Some(mpt) = crate::arch::amd64::mptable::MPTablePointer::locate_floating() {
+		use crate::arch::amd64::mptable::MPTableEntry;
+		log_debug!("init_smp: Found MPTable:\n{:#x?}", mpt);
+		// CPUs (with APIC IDs)
+		// Interrupt routing rules
+		ioapics = mpt.entries().filter_map(|e| match e {
+			// TODO: Interrupt base?
+			MPTableEntry::IoApic(e) => Some(raw::IOAPIC::new(e.addr as u64, 0)),
+			_ => None,
+			}).collect();
+		mpt.lapic_paddr()
 	}
-	
-	// Create instances of the IOAPIC "driver" for all present controllers
-	let ioapics: Vec<_> = madt.data().records(madt.data_len()).filter_map(
-			|r| match r {
-				init::MADTDevRecord::DevIOAPIC(a) => Some(raw::IOAPIC::new(a.address as u64, a.interrupt_base as usize)),
-				_ => None
-				}
-			).collect();
+	else {
+		log_warning!("No MADT ('APIC') table in ACPI");
+		return ;
+	};
 	
 	// Create APIC and IOAPIC instances
 	// SAFE: Called in a single-threaded context
@@ -105,7 +116,17 @@ fn get_ioapic(interrupt: usize) -> Option<(&'static raw::IOAPIC, usize)>
 }
 fn get_lapic() -> &'static raw::LAPIC
 {
+	assert!(s_lapic.ls_is_valid(), "get_lapic called before APIC init (or with no APIC)");
 	&*s_lapic
+}
+
+/// UNSAFE: Does a warm reboot of the core
+pub unsafe fn send_ipi_init(apic_id: u8) {
+	get_lapic().send_ipi(apic_id, 0, raw::DeliveryMode::InitIPI);
+}
+/// UNSAFE: The start page is a boot address
+pub unsafe fn send_ipi_startup(apic_id: u8, start_page: u8) {
+	get_lapic().send_ipi(apic_id, start_page, raw::DeliveryMode::StartupIPI);
 }
 
 ///// Registers a message-signalled interrupt handler.

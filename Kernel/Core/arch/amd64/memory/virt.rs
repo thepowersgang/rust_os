@@ -37,8 +37,6 @@ pub fn post_init() {
 		for i in 256..512 {
 			get_entry(3, i, true);
 		}
-
-		remove_ident_mapping();
 	}
 }
 /// UNSAFE: Should only be called by the SMP code (before userspace starts)

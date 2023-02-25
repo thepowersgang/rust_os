@@ -14,6 +14,8 @@ module_define!{ACPI, [], init}
 #[cfg_attr(not(any(use_acpica,feature="acpica")), path="mine/mod.rs")]
 mod internal;
 
+pub mod tables;
+
 #[repr(u8)]
 #[derive(Copy,Clone,PartialEq)]
 /// Address space identifier
@@ -111,6 +113,12 @@ pub struct Fadt
 
 	pub flags: u32,
 }
+impl tables::Table for Fadt {
+	type Iter<'a> = ::core::iter::Empty::<()>;
+	fn iterate_subitems<'s>(&'s self, _data: &'s [u8]) -> Self::Iter<'s> {
+		::core::iter::empty()
+	}
+}
 
 #[repr(C)]
 /// A generic descriptor table
@@ -180,6 +188,8 @@ impl<T> SDT<T>
 			::core::slice::from_raw_parts(&self.data as *const _ as *const u8, self.data_len())
 		}
 	}
+
+	pub fn iterate(&self) -> T::Iter<'_> where T: tables::Table {
+		self.data.iterate_subitems(&self.data_byte_slice()[::core::mem::size_of::<Self>()..])
+	}
 }
-
-

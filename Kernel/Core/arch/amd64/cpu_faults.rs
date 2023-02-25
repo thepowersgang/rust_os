@@ -70,17 +70,20 @@ pub extern "C" fn error_handler(regs: &InterruptRegs)
 		},
 	_ => { puts("ERROR "); puth(regs.intnum); puts(" (code "); puth(regs.errorcode); puts(")\n"); },
 	}
-	puts("CS:RIP  = "); puth(regs.cs); puts(":"); puth(regs.rip); puts("\n");
-	puts("SS:RSP  = "); puth(regs.ss); puts(":"); puth(regs.rsp); puts("\n");
-	puts("CR2 = "); puth(get_cr2()); puts("\n");
-	puts("RAX "); puth64(regs.rax); puts("  RCX "); puth64(regs.rcx); puts("  ");
-	puts("RDX "); puth64(regs.rdx); puts("  RBX "); puth64(regs.rbx); puts("\n");
-	puts("RSI "); puth64(regs.rsi); puts("  RDI "); puth64(regs.rdi); puts("  ");
-	puts("RSP "); puth64(regs.rsp); puts("  RBP "); puth64(regs.rbp); puts("\n");
-	puts("R8  "); puth64(regs.r8 ); puts("  R9  "); puth64(regs.r9 ); puts("  ");
-	puts("R10 "); puth64(regs.r10); puts("  R11 "); puth64(regs.r11); puts("\n");
-	puts("R12 "); puth64(regs.r12); puts("  R13 "); puth64(regs.r13); puts("  ");
-	puts("R14 "); puth64(regs.r14); puts("  R15 "); puth64(regs.r15); puts("\n");
+	{
+		let _lh = crate::logging::acquire_lock_cpu();
+		puts("CS:RIP  = "); puth(regs.cs); puts(":"); puth(regs.rip); puts("\n");
+		puts("SS:RSP  = "); puth(regs.ss); puts(":"); puth(regs.rsp); puts("\n");
+		puts("CR2 = "); puth(get_cr2()); puts("\n");
+		puts("RAX "); puth64(regs.rax); puts("  RCX "); puth64(regs.rcx); puts("  ");
+		puts("RDX "); puth64(regs.rdx); puts("  RBX "); puth64(regs.rbx); puts("\n");
+		puts("RSI "); puth64(regs.rsi); puts("  RDI "); puth64(regs.rdi); puts("  ");
+		puts("RSP "); puth64(regs.rsp); puts("  RBP "); puth64(regs.rbp); puts("\n");
+		puts("R8  "); puth64(regs.r8 ); puts("  R9  "); puth64(regs.r9 ); puts("  ");
+		puts("R10 "); puth64(regs.r10); puts("  R11 "); puth64(regs.r11); puts("\n");
+		puts("R12 "); puth64(regs.r12); puts("  R13 "); puth64(regs.r13); puts("  ");
+		puts("R14 "); puth64(regs.r14); puts("  R15 "); puth64(regs.r15); puts("\n");
+	}
 
 	if regs.cs != 0x08 {
 		// It's a user fault, terminate that thread

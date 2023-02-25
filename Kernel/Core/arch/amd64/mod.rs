@@ -20,6 +20,7 @@ pub mod sync;
 mod tss;
 
 mod log;
+mod mptable;
 pub mod x86_io;
 pub mod hw;
 pub mod acpi;
@@ -30,10 +31,30 @@ extern "C"
 	static v_kernel_end: crate::Extern;
 }
 
+// NOTE: MUST match the value in common.inc.asm
+const MAX_CPUS: usize = 4;
+
 fn init()
 {
+	// SAFE: Read-only external value
+	unsafe {
+		extern "C" {
+			static s_max_cpus: u32;
+		}
+		assert!(s_max_cpus as usize == MAX_CPUS);
+	}
+
 	pci::init();
 	tss::init();
+	threads::init_smp();
+}
+
+pub fn cpu_num() -> u32 {
+	extern "C" {
+		fn get_cpu_num() -> u16;
+	}
+	// SAFE: No side effects to this FFI
+	unsafe { get_cpu_num() as u32 }
 }
 
 #[inline(always)]
@@ -53,7 +74,6 @@ extern "C" {
 }
 
 pub mod time {
-	/// Return the system timestamp (miliseconds since an arbitary point)
 	pub fn cur_timestamp() -> u64
 	{
 		super::hw::hpet::get_timestamp()
@@ -83,6 +103,17 @@ pub fn print_backtrace()
 		}
 	}
 }
+
+pub fn halt() -> ! {
+	// TODO: Send an IPI to halt all other processors
+	loop {
+		// SAFE: Corect inline assembly... it's going to perma-pause
+		unsafe {
+			::core::arch::asm!("cli; hlt");
+		}
+	}
+}
+
 // TODO: Put this somewhere common (in `symbols` maybe?)
 struct SymPrint(usize);
 impl ::core::fmt::Display for SymPrint

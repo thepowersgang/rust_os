@@ -3,9 +3,7 @@
 //
 // Core/arch/amd64/tss.rs
 //! Initialisation and management of the x86 task state segment
-
-// NOTE: MUST match the value in common.inc.asm
-const MAX_CPUS: usize = 1;
+use super::MAX_CPUS;
 
 #[repr(C,packed)]
 struct TSS

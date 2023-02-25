@@ -118,6 +118,13 @@ pub mod time {
 	}
 }
 
+pub fn cpu_num() -> u32 {
+	0
+}
+pub fn halt() -> ! {
+	loop {}
+}
+
 pub fn print_backtrace() {
 	let rs = aeabi_unwind::UnwindState::new_cur();
 	let addr = rs.get_lr() as usize;

@@ -72,6 +72,7 @@ endif
 #
 ifeq ($(ARCH),amd64)
 CMDLINE += SYSDISK=ATA-0p0
+QEMU_ARGS += -smp 2
 QEMU_ARGS += -vga virtio
 QEMU_ARGS += -net nic,model=rtl8139
 # -net dump
@@ -207,6 +208,7 @@ $(QEMU_TRACE_SPEC): Makefile
 	#echo virtio_* >> $@
 	#echo virtqueue_* >> $@
 	#echo apic_* >> $@
-	echo usb_* >> $@
+	echo apic_* >> $@
+	#echo usb_* >> $@
 
 
