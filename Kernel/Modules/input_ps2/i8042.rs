@@ -28,7 +28,7 @@ static S_8042_CTRLR: ::kernel::sync::mutex::LazyMutex<Ctrlr8042> = lazymutex_ini
 pub fn init()
 {
 	// 1. Check with ACPI is this machine has a PS2 controller
-	let enabled = if let Some(fadt) = acpi::find::<acpi::Fadt>("FACP", 0) {
+	let enabled = if let Some(fadt) = acpi::find::<acpi::tables::Fadt>("FACP", 0) {
 			let boot_architecture_flags = fadt.data().boot_architecture_flags;
 			if fadt.header().revision > 1 {
 				log_trace!("FADT boot_architecture_flags = {:#x}", boot_architecture_flags);
