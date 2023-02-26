@@ -173,9 +173,13 @@ fn start_ap(apic_id: u8) {
 		// - It'll wait in `ap_wait` after a short period
 		super::hw::apic::send_ipi_init(apic_id);
 
+		// TODO: Sleep for 50ms
+
 		// Send StartupIP with `0x00` as the base address
 		// - This expands to `0x00_000`, where we've put a long jump to `ap_init`
 		super::hw::apic::send_ipi_startup(apic_id, 0);
+
+		// TODO: Send a second SIPI after 200us?
 	}
 	
 	// Wait for the AP to start
@@ -184,7 +188,7 @@ fn start_ap(apic_id: u8) {
 
 #[no_mangle]
 extern "C" fn ap_entry() {
-	//todo!("AP entry: {}", super::cpu_num());
+	super::hw::apic::init_ap_lapic();
 	AP_STARTUP_ACTIVE.release();
 }
 

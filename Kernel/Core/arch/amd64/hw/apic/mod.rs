@@ -120,6 +120,10 @@ fn get_lapic() -> &'static raw::LAPIC
 	&*s_lapic
 }
 
+/// Should only (really) be called once per AP
+pub fn init_ap_lapic() {
+	s_lapic.init();
+}
 /// UNSAFE: Does a warm reboot of the core
 pub unsafe fn send_ipi_init(apic_id: u8) {
 	get_lapic().send_ipi(apic_id, 0, raw::DeliveryMode::InitIPI);

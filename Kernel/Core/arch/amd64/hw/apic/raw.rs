@@ -40,8 +40,13 @@ pub enum TriggerMode
 
 #[repr(u8)]
 pub enum DeliveryMode {
+	Normal = 0,
+	LowPriority = 1,
+	SystemManagementInterrupt = 2,
+	NonMaskableInterrupt = 4,
 	InitIPI = 5,
 	StartupIPI = 6,
+	Externl = 7,
 }
 
 #[allow(dead_code)]
@@ -162,7 +167,10 @@ impl LAPIC
 	pub unsafe fn send_ipi(&self, apic_id: u8, vector: u8, delivery_mode: DeliveryMode) {
 		self.write_reg(ApicReg::Icr1, (apic_id as u32) << 24);
 		self.write_reg(ApicReg::Icr0, (vector as u32) | ((delivery_mode as u32) << 8) | 0xC000);
-		// TODO: Wait until listed as delivered
+		// Wait until listed as delivered
+		while self.read_reg(ApicReg::Icr0) & (1 << 12) != 0 {
+			::core::hint::spin_loop();
+		}
 	}
 	
 	fn read_reg(&self, reg: ApicReg) -> u32
