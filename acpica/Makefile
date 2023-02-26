@@ -24,6 +24,7 @@ CPPFLAGS += -D ACPI_DEBUG_OUTPUT=1
 CFLAGS := -ffreestanding
 ifeq ($(ARCH),amd64)
 CFLAGS += -mcmodel=kernel -mno-red-zone
+CFLAGS += -mno-sse
 endif
 CFLAGS += -O2
 
