@@ -23,6 +23,7 @@ FLAGS_EFER	equ	(1 << 11)|(1 << 8)|(1 << 0)	; NXE, LME, SCE
 ; Set [ 1] MP (with TS, Enables #NM when FWAIT is used)
 ; (in-code) Clear [2]EM (Disables emulation of the FPU)
 FLAGS_CR0	equ	0x80010000|(1 << 3)|(1 << 1)
+FLAGS_CR0_CLR	equ	(1 << 2)
 
 [section .multiboot]
 [global mboot]
@@ -47,7 +48,7 @@ mboot:
 	; Video mode
 	dd 0	; Mode type (0: LFB)
 	;dd 0,0	; Width, Height (no preference)
-	;dd 1600,900	; Width, Height ('HD+')
+	;dd 1601,900	; Width, Height ('HD+')
 	dd 1366,768	; Width, Height ('HD+')
 	;dd 1024,768	; Width, Height ('HD+')
 	dd 32	; Depth (32-bit preferred)
@@ -115,7 +116,7 @@ start:
 	; 3. Enable paging and enter long mode (enable SSE too)
 	mov eax, cr0
 	or eax, FLAGS_CR0
-	and ax, ~(1 << 2)	; Clear [2]EM
+	and ax, ~FLAGS_CR0_CLR
 	mov cr0, eax
 	lgdt [GDTPtr - KERNEL_BASE]
 	jmp 0x08:start64
@@ -140,9 +141,15 @@ not64bitCapable:
 	hlt
 	jmp .hlt
 
+;
+; ENTRYPOINT: UEFI bootloader (detected in `start`, by checking for being in 64-bit mode)
+;
 [BITS 64]
 start_uefi:
+	; Save the boot information
+	; - ECX is the bootloader signature
 	mov [s_multiboot_signature - KERNEL_BASE], ecx
+	; - EDX is the boot information vector, mangle that to be inside the identity mapping range
 	or edx, 0x80000000
 	mov [s_multiboot_pointer - KERNEL_BASE], edx
 	mov [s_multiboot_pointer - KERNEL_BASE + 4], DWORD 0xFFFFFFFF
@@ -155,15 +162,14 @@ start_uefi:
 	; + [ 9] OSFXSR (Operating System Support for FXSAVE and FXRSTOR instructions)
 	; + [10] OSXMMEXCPT (Operating System Support for Unmasked SIMD Floating-Point Exceptions)
 	mov rax, cr4
-	or eax, 0x80|0x20|0x10
-        or ax, (1 << 9)|(1 << 10)
+	or eax, FLAGS_CR4
 	mov cr4, rax
 	
 	; Enable IA-32e mode
 	; (Also enables SYSCALL and NX)
 	mov ecx, 0xC0000080
 	rdmsr
-	or eax, (1 << 11)|(1 << 8)|(1 << 0)	; NXE, LME, SCE
+	or eax, FLAGS_EFER
 	wrmsr
 	
 	; Load PML4
@@ -176,26 +182,28 @@ start_uefi:
 	; Set [1]MP (with TS, Enables #NM when FWAIT is used)
 	; Clear [2]EM (Disables emulation of the FPU)
 	mov rax, cr0
-	or eax, 0x80010000|(1 << 3)|(1 << 1)	; PG & WP
-	and ax, ~(1 << 2)
+	or eax, FLAGS_CR0
+	and ax, ~FLAGS_CR0_CLR
 	mov cr0, rax
 	
 	lgdt [DWORD GDTPtr - KERNEL_BASE]
-	; - Far jump (indirect)
+	; - Far jump (indirect - needed to be able to long jump while in 64-bit mode)
 	jmp far [.ljmp_addr]
-
 [section .initdata]
 .ljmp_addr:
 	dq	start64
 	dw	0x08
 [section .inittext]
 
-[extern prep_tls]
+;
+; Common entrypoint
+;
 start64:
 	mov dx, 0x3F8
 	mov al, '6'
 	out dx, al
 	
+	; Jump into high memory
 	mov rax, start64_higher
 	jmp rax
 [section .initdata]
@@ -204,6 +212,7 @@ strNot64BitCapable:
 
 [section .text]
 [extern kmain]
+[extern prep_tls]
 start64_higher:
 	mov al, 'H'
 	out dx, al
@@ -218,8 +227,10 @@ start64_higher:
 	mov gs, ax
 
 	; Prepare for AP Init
+	; - Warm boot vector (long pointer at 0x467, in the BDA)
 	mov WORD [0x467], ap_wait-0xFFFF0
 	mov WORD [0x469], 0xFFFF
+	; - AP reset jump instruction. Clobber the first two entries of the IVT... but meh
 	mov BYTE [0x0], 0xEA
 	mov WORD [0x1], ap_init-0xFFFF0
 	mov WORD [0x3], 0xFFFF
@@ -330,7 +341,7 @@ EXPORT ap_init
 	; 3. Enable paging and enter long mode (enable SSE too)
 	mov eax, cr0
 	or eax, FLAGS_CR0
-	and ax, ~(1 << 2)	; Clear [2]EM
+	and ax, ~FLAGS_CR0_CLR
 	mov cr0, eax
 	
 	; Switch to the main GDT (now that paging is enabled - in compat mode)
@@ -354,9 +365,11 @@ smp_init_stack:
 
 [section .text.ap_start_high]
 ap_start_high:
-	; TODO: Enable the IDT, once everything works
+	; Enable the IDT
 	mov rax, IDTPtr
 	lidt [rax]
+	; Load the true (high memory) GDT
+	lgdt [GDTPtr2]
 
 	; Set the stack using a value that should have been set by the AP bringup code
 	mov rsp, [s_ap_stack]
