@@ -8,10 +8,9 @@
 
 pub use self::queue::Queue;
 pub use self::collections::vec_map::VecMap;
-//pub use self::btree_map::BTreeMap;
 pub use ::alloc::vec::Vec;
+pub use ::alloc::string::String;
 pub use self::sparse_vec::SparseVec;
-pub use self::string::String;
 pub use self::lazy_static::LazyStatic;
 pub use self::vec_deque::VecDeque;
 pub use self::pod::{POD, PodHelpers};
@@ -20,13 +19,10 @@ pub use self::pod::{as_byte_slice, as_byte_slice_mut};
 
 pub use ::alloc::string;
 pub use ::alloc::vec;
+pub use ::alloc::borrow;
 
 pub use self::collections::vec_map;
 pub mod collections;
-
-//pub mod thunk;
-//pub mod borrow;
-pub use ::alloc::borrow;
 
 pub mod ascii;
 
@@ -36,17 +32,11 @@ pub mod lazy_static;
 pub mod mem;
 #[macro_use]
 pub mod queue;
-//#[macro_use]
-//pub mod vec;
 pub mod sparse_vec;
 pub mod vec_deque;
 
-//#[macro_use]
-//pub mod string;
 pub mod fixed_string; pub use self::fixed_string::FixedString;
 pub mod byte_str;
-
-//pub mod btree_map;
 
 pub mod ring_buffer;
 
