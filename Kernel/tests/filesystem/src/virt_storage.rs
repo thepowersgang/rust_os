@@ -1,11 +1,18 @@
 //! 
+//! 
+//!
 use ::kernel::metadevs::storage;
 use ::kernel::{log,log_log,log_error};
 
+/// Form of disk overlay
+#[derive(Copy,Clone,Debug)]
 pub enum OverlayType
 {
+    /// No overlay, all writes go straight through
     None,
+    /// A temporary file is used for the overlay (recreated on each run)
     Temporary,
+    /// A persistent file
     Persistent,
 }
 
@@ -55,6 +62,7 @@ struct Overlay
 }
 impl Overlay
 {
+    /// Open/create a persistent overlay
     fn load(count: usize, blocksize: usize, path: &::std::path::Path) -> ::std::io::Result<Overlay>
     {
         use ::std::io::{Seek,SeekFrom,Read};
@@ -82,6 +90,7 @@ impl Overlay
             fp: ::std::sync::Mutex::new(fp),
             })
     }
+    /// Create a fresh overlay
     fn create(count: usize, blocksize: usize, path: &::std::path::Path) -> ::std::io::Result<Overlay>
     {
         let mut bmp = ::bitvec::vec::BitVec::new();
@@ -165,30 +174,30 @@ fn cvt_err(e: ::std::io::Error) -> storage::IoError
 
 impl storage::PhysicalVolume for Volume
 {
-	fn name(&self) -> &str { &self.name }
-	fn blocksize(&self) -> usize { self.block_size }
-	fn capacity(&self) -> Option<u64> { Some(self.block_count) }
-	
-	fn read<'a>(&'a self, _prio: u8, idx: u64, num: usize, dst: &'a mut [u8]) -> storage::AsyncIoResult<'a,usize>
-	{
+    fn name(&self) -> &str { &self.name }
+    fn blocksize(&self) -> usize { self.block_size }
+    fn capacity(&self) -> Option<u64> { Some(self.block_count) }
+    
+    fn read<'a>(&'a self, _prio: u8, idx: u64, num: usize, dst: &'a mut [u8]) -> storage::AsyncIoResult<'a,usize>
+    {
         assert_eq!( dst.len(), num * self.block_size );
         let ret = self.read_inner(idx, dst).map_err(cvt_err);
 
-		Box::pin( ::core::future::ready(ret) )
-	}
-	fn write<'a>(&'a self, _prio: u8, idx: u64, num: usize, src: &'a [u8]) -> storage::AsyncIoResult<'a,usize>
-	{
+        Box::pin( ::core::future::ready(ret) )
+    }
+    fn write<'a>(&'a self, _prio: u8, idx: u64, num: usize, src: &'a [u8]) -> storage::AsyncIoResult<'a,usize>
+    {
         assert_eq!( src.len(), num * self.block_size );
         let ret = self.write_inner(idx, src).map_err(cvt_err);
 
-		Box::pin( ::core::future::ready(ret) )
-	}
-	
-	fn wipe<'a>(&'a self, _blockidx: u64, _count: usize) -> storage::AsyncIoResult<'a,()>
-	{
-		// Do nothing, no support for TRIM
+        Box::pin( ::core::future::ready(ret) )
+    }
+    
+    fn wipe<'a>(&'a self, _blockidx: u64, _count: usize) -> storage::AsyncIoResult<'a,()>
+    {
+        // Do nothing, no support for TRIM
         let ret = Ok(());
-		Box::pin( ::core::future::ready(ret) )
-	}
-	
+        Box::pin( ::core::future::ready(ret) )
+    }
+    
 }
