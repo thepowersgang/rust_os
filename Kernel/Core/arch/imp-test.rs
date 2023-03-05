@@ -618,3 +618,9 @@ pub fn puth(v: u64) {
 pub fn print_backtrace() {
 }
 
+pub fn cpu_num() -> u32 {
+	0
+}
+pub fn halt() -> ! {
+	panic!("HALTED");
+}
