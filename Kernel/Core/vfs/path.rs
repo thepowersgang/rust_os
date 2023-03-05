@@ -27,11 +27,13 @@ pub struct Components<'a>(&'a Path);
 
 impl Path
 {
+	/// Create a new path from a byte string
 	pub fn new<T: ?Sized + AsRef<[u8]>>(v: &T) -> &Path {
 		// SAFE: Path is a wrapper around [u8]
 		unsafe { ::core::mem::transmute(v.as_ref()) }
 	}
 	
+	/// Determines if the path is absolute
 	pub fn is_absolute(&self) -> bool {
 		if self.0.len() > 0 {
 			self.0.as_bytes()[0] == b'/'
@@ -48,7 +50,33 @@ impl Path
 	pub fn iter(&self) -> Components {
 		Components(self)
 	}
+
+	pub fn file_name(&self) -> Option<&ByteStr> {
+		self.split_off_last().map(|(_p,f)| f)
+	}
+	pub fn parent(&self) -> Option<&Path> {
+		self.split_off_last().map(|(p,_f)| p)
+	}
 	
+	/// Return the last element of the path, and the remainder
+	pub fn split_off_last(&self) -> Option<(&Path, &ByteStr)> {
+		if self.0.len() == 0 {
+			None
+		}
+		else {
+			let mut i = self.0.as_bytes().rsplitn(2, |&c| c == b'/');
+			let filename = i.next().unwrap();
+			let parent = match i.next()
+				{
+				Some(rest) => {
+					assert!(i.next().is_none());
+					Path::new(rest)
+					},
+				None => Path::new(""),
+				};
+			Some( (parent, ByteStr::new(filename), ) )
+		}
+	}
 	/// Return the first element of the path, and the remainder
 	pub fn split_off_first(&self) -> Option<(&ByteStr, &Path)> {
 		if self.0.len() == 0 {

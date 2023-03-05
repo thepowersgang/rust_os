@@ -41,7 +41,7 @@ impl Dir
 				else if ent.d_inode == 0 {
 					return Err(vfs::Error::NotFound);
 				}
-				else if &ent.d_name == name.as_ref()
+				else if &ent.d_name == name.as_bytes()
 				{
 					return Ok( (blk_index, offset, ent.d_inode as vfs::node::InodeId) );
 				}

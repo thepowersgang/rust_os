@@ -250,7 +250,7 @@ impl CacheHandle
 						//TODO: To make this work (or any path-relative symlink), the current position in
 						//      `path` needs to be known.
 						// It can be hacked up though...
-						let parent_segs_len = seg.as_ref().as_ptr() as usize - AsRef::<[u8]>::as_ref(path).as_ptr() as usize;
+						let parent_segs_len = seg.as_bytes().as_ptr() as usize - AsRef::<[u8]>::as_ref(path).as_ptr() as usize;
 						let parent = ByteStr::new( &AsRef::<[u8]>::as_ref(path)[..parent_segs_len] );
 
 						//let segs = [ &path[..pos], &link ];
@@ -404,6 +404,13 @@ impl CacheHandle
 		{
 		&CacheNodeInt::File { ref fsnode, .. } => Ok( fsnode.read(ofs, dst)? ),
 		_ => Err( super::Error::Unknown("Calling read on non-file") ),
+		}
+	}
+	pub fn write(&self, ofs: u64, src: &[u8]) -> super::Result<usize> {
+		match self.as_ref()
+		{
+		&CacheNodeInt::File { ref fsnode, .. } => Ok( fsnode.write(ofs, src)? ),
+		_ => Err( super::Error::Unknown("Calling write on non-file") ),
 		}
 	}
 }

@@ -156,6 +156,9 @@ impl File
 	pub fn size(&self) -> u64 {
 		self.node.get_valid_size()
 	}
+	pub fn truncate(&self) {
+		todo!("Handle::truncate()");
+	}
 
 	/// Read data from the file at the specified offset
 	///
@@ -167,7 +170,15 @@ impl File
 	}
 	pub fn write(&self, ofs: u64, src: &[u8]) -> super::Result<usize> {
 		assert!(self.node.is_file());
-		todo!("Handle::write({:#x}, {:p}+{}", ofs, src.as_ptr(), src.len());
+		match self.mode
+		{
+		FileOpenMode::SharedRO => return Err(super::Error::PermissionDenied),
+		FileOpenMode::Execute => return Err(super::Error::PermissionDenied),
+		FileOpenMode::ExclRW => self.node.write(ofs, src),
+		FileOpenMode::UniqueRW => self.node.write(ofs, src),
+		FileOpenMode::Append => todo!("Handle::write(append, {:p}+{})", src.as_ptr(), src.len()),
+		FileOpenMode::Unsynch => self.node.write(ofs, src),
+		}
 	}
 
 	
@@ -315,15 +326,21 @@ impl Dir
 	}
 	
 	/// Create a new directory
-	pub fn mkdir(&self, name: &str) -> super::Result<Dir> {
+	pub fn mkdir(&self, name: impl AsRef<ByteStr>) -> super::Result<Dir> {
 		let node = self.node.create(name.as_ref(), NodeType::Dir)?;
 		assert!(node.is_dir());
 		Ok( Dir { node: node } )
 	}
 	/// Create a new symbolic link
-	pub fn symlink(&self, name: &str, target: &Path) -> super::Result<()> {
+	pub fn symlink(&self, name: impl AsRef<ByteStr>, target: &Path) -> super::Result<()> {
 		self.node.create(name.as_ref(), NodeType::Symlink(target))?;
 		Ok( () )
+	}
+	/// Create a new file (opened exclusively)
+	pub fn create_file(&self, name: impl AsRef<ByteStr>) -> super::Result<File> {
+		let node = self.node.create(name.as_ref(), NodeType::File)?;
+		assert!(node.is_file());
+		File::from_node(node, FileOpenMode::UniqueRW)
 	}
 
 	/// Open a child of this node

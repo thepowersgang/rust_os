@@ -22,9 +22,19 @@ impl ByteStr
 	pub fn len(&self) -> usize { self.0.len() }
 	pub fn as_bytes(&self) -> &[u8] { &self.0 }
 }
+impl AsRef<ByteStr> for ByteStr {
+	fn as_ref(&self) -> &ByteStr {
+		self
+	}
+}
 impl AsRef<ByteStr> for str {
 	fn as_ref(&self) -> &ByteStr {
 		ByteStr::new(self)
+	}
+}
+impl AsRef<ByteStr> for String {
+	fn as_ref(&self) -> &ByteStr {
+		ByteStr::new(&**self)
 	}
 }
 impl_fmt! {
