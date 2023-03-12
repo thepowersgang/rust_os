@@ -40,6 +40,8 @@ pub struct Special {
 #[derive(Debug,Clone)]
 pub enum FileOpenMode
 {
+	/// No access to file data (can just read the size)
+	NoDataAccess,
 	/// Shared read-only, multiple readers but no writers visible
 	///
 	/// When opened in this manner, the file contents cannot change, but it might extend
@@ -88,6 +90,7 @@ impl Any
 		Ok(Any { node: node })
 	}
 
+	/// Get the node class of the handle
 	pub fn get_class(&self) -> super::node::NodeClass {
 		self.node.get_class()
 	}
@@ -102,6 +105,7 @@ impl Any
 		}
 	}
 
+	/// Upgrade the handle to a file handle
 	pub fn to_file(self, mode: FileOpenMode) -> super::Result<File> {
 		if self.node.is_file() {
 			File::from_node(self.node, mode)
@@ -111,6 +115,7 @@ impl Any
 		}
 	}
 	
+	/// Upgrade the handle to a symlink handle
 	pub fn to_symlink(self) -> super::Result<Symlink> {
 		if self.node.is_symlink() {
 			Ok(Symlink { node: self.node })
@@ -142,12 +147,13 @@ impl File
 		}
 		match mode
 		{
-		// TODO: Mark file as shared
+		FileOpenMode::NoDataAccess => {},
 		// TODO: Check permissions (must be readable in current context)
-		FileOpenMode::SharedRO => {},
-		// TODO: Mark file as shared
+		FileOpenMode::SharedRO => { node.file_lock_shared()?; },
+		// TODO: Check permissions (must be writable in current context)
+		FileOpenMode::Append => { node.file_lock_shared()?; },
 		// TODO: Check permissions (must be executable in current context)
-		FileOpenMode::Execute => {},
+		FileOpenMode::Execute => { node.file_lock_shared()?; },
 		_ => todo!("Acquire lock depending on mode({:?})", mode),
 		}
 		Ok(File { node: node, mode: mode })
@@ -166,17 +172,23 @@ impl File
 	/// slice).
 	pub fn read(&self, ofs: u64, dst: &mut [u8]) -> super::Result<usize> {
 		assert!(self.node.is_file());
-		self.node.read(ofs, dst)
+		match self.mode
+		{
+		FileOpenMode::NoDataAccess => return Err(super::Error::PermissionDenied),
+		_ => self.node.read(ofs, dst),
+		}
 	}
+	/// Write data to the file (offset is ignored if open for appending)
 	pub fn write(&self, ofs: u64, src: &[u8]) -> super::Result<usize> {
 		assert!(self.node.is_file());
 		match self.mode
 		{
+		FileOpenMode::NoDataAccess => return Err(super::Error::PermissionDenied),
 		FileOpenMode::SharedRO => return Err(super::Error::PermissionDenied),
 		FileOpenMode::Execute => return Err(super::Error::PermissionDenied),
 		FileOpenMode::ExclRW => self.node.write(ofs, src),
 		FileOpenMode::UniqueRW => self.node.write(ofs, src),
-		FileOpenMode::Append => todo!("Handle::write(append, {:p}+{})", src.as_ptr(), src.len()),
+		FileOpenMode::Append => self.node.append(src),
 		FileOpenMode::Unsynch => self.node.write(ofs, src),
 		}
 	}
@@ -312,6 +324,7 @@ impl Dir
 		Any::open(path)?.to_dir()
 	}
 	
+	/// Iterate names within the directory
 	pub fn iter(&self) -> DirIter {
 		DirIter {
 			handle: self,

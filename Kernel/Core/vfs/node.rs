@@ -98,44 +98,65 @@ pub enum Node
 	Special(Box<dyn Special>),
 }
 
-enum CacheNodeInt
+enum CacheNodeInfo
 {
-	File {
-		fsnode: Box<dyn File>
-		
-		// File memory map data
-		//mapped_pages: HashMap<u64,FrameHandle>,
-		},
+	File(CacheNodeInfoFile),
 	Dir {
 		mountpoint: AtomicUsize,	// 0 is invalid (that's root), so means "no mount"
+		/// Filesystem's node handle
 		fsnode: Box<dyn Dir>
 		},
 	Symlink {
 		target: ByteString,
+		/// Filesystem's node handle
 		fsnode: Box<dyn Symlink>
 		},
 	Special {
+		/// Filesystem's node handle
 		fsnode: Box<dyn Special>
 		},
 }
 impl_from!{
-	From<Node>(v) for CacheNodeInt {
+	From<Node>(v) for CacheNodeInfo {
 		match v
 		{
-		Node::File(f) => CacheNodeInt::File { fsnode: f },
-		Node::Dir(f) => CacheNodeInt::Dir { fsnode: f, mountpoint: AtomicUsize::new(0) },
-		Node::Symlink(f) => CacheNodeInt::Symlink { target: f.read(), fsnode: f },
-		Node::Special(f) => CacheNodeInt::Special { fsnode: f },
+		Node::File(f) => CacheNodeInfo::File(CacheNodeInfoFile { fsnode: f, lock_info: Default::default(), append_lock: Default::default() }),
+		Node::Dir(f) => CacheNodeInfo::Dir { fsnode: f, mountpoint: AtomicUsize::new(0) },
+		Node::Symlink(f) => CacheNodeInfo::Symlink { target: f.read(), fsnode: f },
+		Node::Special(f) => CacheNodeInfo::Special { fsnode: f },
 		}
 	}
+}
+struct CacheNodeInfoFile
+{
+	fsnode: Box<dyn File>,
+	//mapped_pages: HashMap<u64,FrameHandle>,
+	lock_info: crate::sync::Mutex<CacheNodeInfoFileLock>,
+	append_lock: crate::sync::Mutex<()>,
+}
+#[derive(Default)]
+enum CacheNodeInfoFileLock {
+	/// Nothing has the file open, but references may exist (as `Any` handles)
+	#[default]
+	Unlocked,
+	/// Reader/Append, stores number of open handles
+	Shared(usize),
+	/// Unique access (only one can exist)
+	Unique,
+	/// Unsynchronised access, stores the number of open handles
+	Unsynch(usize),
 }
 
 struct CachedNode
 {
+	/// Number of outstanding references to this node
 	refcount: AtomicUsize,
-	node: CacheNodeInt,
+	/// Per-class info
+	node: CacheNodeInfo,
+	// TODO: Append lock (held while the size is being updated)
 }
 
+/// Handle to a node stored in the system's filesystem cache
 pub struct CacheHandle
 {
 	mountpt: usize,
@@ -207,7 +228,7 @@ impl CacheHandle
 			};
 
 		// If this newly opened node is actually a mountpoint
-		if let CacheNodeInt::Dir { mountpoint: ref new_mountpoint, .. } = ent_ref.node {
+		if let CacheNodeInfo::Dir { mountpoint: ref new_mountpoint, .. } = ent_ref.node {
 			let new_mountpoint = new_mountpoint.load(atomic::Ordering::Relaxed);
 			if new_mountpoint != 0 {
 				// Then recurse (hopefully only once) with the new mountpoint
@@ -240,7 +261,7 @@ impl CacheHandle
 			loop
 			{
 				// TODO: Should symlinks be handled in this function? Or should the passed path be without symlinks?
-				node_h = if let CacheNodeInt::Symlink { ref target, .. } = *node_h.as_ref() {
+				node_h = if let CacheNodeInfo::Symlink { ref target, .. } = *node_h.as_ref() {
 					//log_debug!("- seg={:?} : SYMLINK {:?}", seg, name);
 					let linkpath = Path::new(&target);
 					if linkpath.is_absolute() {
@@ -269,7 +290,7 @@ impl CacheHandle
 			// Look up this component in the current node
 			node_h = match *node_h.as_ref()
 				{
-				CacheNodeInt::Dir { fsnode: ref dir, .. } => {
+				CacheNodeInfo::Dir { fsnode: ref dir, .. } => {
 					//log_debug!("- seg={:?} : DIR", seg);
 					let next_id = match dir.lookup(seg)
 						{
@@ -308,10 +329,10 @@ impl CacheHandle
 	pub fn get_class(&self) -> NodeClass {
 		match self.as_ref()
 		{
-		&CacheNodeInt::Dir { .. } => NodeClass::Dir,
-		&CacheNodeInt::File { .. } => NodeClass::File,
-		&CacheNodeInt::Symlink { .. } => NodeClass::Symlink,
-		&CacheNodeInt::Special { .. } => NodeClass::Special,
+		&CacheNodeInfo::Dir { .. } => NodeClass::Dir,
+		&CacheNodeInfo::File { .. } => NodeClass::File,
+		&CacheNodeInfo::Symlink { .. } => NodeClass::Symlink,
+		&CacheNodeInfo::Special { .. } => NodeClass::Special,
 		}
 	}
 	pub fn is_dir(&self) -> bool {
@@ -327,10 +348,10 @@ impl CacheHandle
 	pub fn get_any(&self) -> &dyn Any {
 		match self.as_ref()
 		{
-		&CacheNodeInt::Dir { ref fsnode, .. } => fsnode.get_any(),
-		&CacheNodeInt::File { ref fsnode, .. } => fsnode.get_any(),
-		&CacheNodeInt::Special { ref fsnode, .. } => fsnode.get_any(),
-		&CacheNodeInt::Symlink { ref fsnode, .. } => fsnode.get_any(),
+		&CacheNodeInfo::Dir { ref fsnode, .. } => fsnode.get_any(),
+		&CacheNodeInfo::File(CacheNodeInfoFile { ref fsnode, .. }) => fsnode.get_any(),
+		&CacheNodeInfo::Special { ref fsnode, .. } => fsnode.get_any(),
+		&CacheNodeInfo::Symlink { ref fsnode, .. } => fsnode.get_any(),
 		}
 	}
 }
@@ -340,7 +361,7 @@ impl CacheHandle
 	pub fn create(&self, name: &ByteStr, ty: NodeType) -> super::Result<CacheHandle> {
 		match self.as_ref()
 		{
-		&CacheNodeInt::Dir { ref fsnode, .. } => {
+		&CacheNodeInfo::Dir { ref fsnode, .. } => {
 			let inode = fsnode.create(name, ty)?;
 			Ok( CacheHandle::from_ids(self.mountpt, inode)? )
 			},
@@ -350,14 +371,14 @@ impl CacheHandle
 	pub fn read_dir(&self, ofs: usize, items: &mut ReadDirCallback) -> super::Result<usize> {
 		match self.as_ref()
 		{
-		&CacheNodeInt::Dir { ref fsnode, .. } => Ok( fsnode.read(ofs, items)? ),
+		&CacheNodeInfo::Dir { ref fsnode, .. } => Ok( fsnode.read(ofs, items)? ),
 		_ => Err( super::Error::Unknown("Calling read_dir on non-directory") ),
 		}
 	}
 	pub fn open_child(&self, name: &ByteStr) -> super::Result<CacheHandle> {
 		match self.as_ref()
 		{
-		&CacheNodeInt::Dir { ref fsnode, .. } => {
+		&CacheNodeInfo::Dir { ref fsnode, .. } => {
 			let inode = fsnode.lookup(name)?;
 			Ok( CacheHandle::from_ids(self.mountpt, inode)? )
 			},
@@ -371,7 +392,7 @@ impl CacheHandle
 	pub fn is_mountpoint(&self) -> bool {
 		match self.as_ref()
 		{
-		&CacheNodeInt::Dir { ref mountpoint, .. } => {
+		&CacheNodeInfo::Dir { ref mountpoint, .. } => {
 			mountpoint.load(atomic::Ordering::Relaxed) != 0
 			},
 		_ => false,
@@ -381,7 +402,7 @@ impl CacheHandle
 	pub fn mount(&self, filesystem_id: usize) -> bool {
 		match self.as_ref()
 		{
-		&CacheNodeInt::Dir { ref mountpoint, .. } => {
+		&CacheNodeInfo::Dir { ref mountpoint, .. } => {
 			mountpoint.compare_exchange(0, filesystem_id, atomic::Ordering::Relaxed, atomic::Ordering::Relaxed).is_ok()
 			},
 		_ => false,
@@ -391,27 +412,46 @@ impl CacheHandle
 /// Normal file methods
 impl CacheHandle
 {
+	fn get_info(&self) -> super::Result<&CacheNodeInfoFile> {
+		match self.as_ref()
+		{
+		&CacheNodeInfo::File(ref rv) => Ok(rv),
+		_ => Err(super::Error::InvalidParameter),
+		}
+	}
+	/// Take out a sharable lock on the file
+	pub fn file_lock_shared(&self) -> super::Result<()> {
+		let info = self.get_info()?;
+		let mut lh = info.lock_info.lock();
+		match *lh {
+		CacheNodeInfoFileLock::Unlocked => {
+			*lh = CacheNodeInfoFileLock::Shared(1);
+			Ok( () )
+			}
+		CacheNodeInfoFileLock::Shared(ref mut count) => {
+			*count += 1;
+			Ok( () )
+			},
+		_ => Err(super::Error::Locked),
+		}
+	}
+
 	/// Valid size = maximum offset in the file
 	pub fn get_valid_size(&self) -> u64 {
-		match self.as_ref()
-		{
-		&CacheNodeInt::File { ref fsnode, .. } => fsnode.size(),
-		_ => 0,
-		}
+		self.get_info().map(|v| v.fsnode.size()).unwrap_or(0)
 	}
 	pub fn read(&self, ofs: u64, dst: &mut [u8]) -> super::Result<usize> {
-		match self.as_ref()
-		{
-		&CacheNodeInt::File { ref fsnode, .. } => Ok( fsnode.read(ofs, dst)? ),
-		_ => Err( super::Error::Unknown("Calling read on non-file") ),
-		}
+		Ok( self.get_info()?.fsnode.read(ofs, dst)? )
 	}
 	pub fn write(&self, ofs: u64, src: &[u8]) -> super::Result<usize> {
-		match self.as_ref()
-		{
-		&CacheNodeInt::File { ref fsnode, .. } => Ok( fsnode.write(ofs, src)? ),
-		_ => Err( super::Error::Unknown("Calling write on non-file") ),
-		}
+		// TODO: Ensure that the handle is writable?
+		Ok( self.get_info()?.fsnode.write(ofs, src)? )
+	}
+	pub fn append(&self, data: &[u8]) -> super::Result<usize> {
+		let info = self.get_info()?;
+		let _lh = info.append_lock.lock();
+		let ofs = info.fsnode.size();
+		Ok( info.fsnode.write(ofs, data)? )
 	}
 }
 
@@ -422,7 +462,7 @@ impl CacheHandle
 	pub fn get_target(&self) -> super::Result<ByteString> {
 		match self.as_ref()
 		{
-		&CacheNodeInt::Symlink { ref fsnode, .. } => Ok(fsnode.read()),
+		&CacheNodeInfo::Symlink { ref fsnode, .. } => Ok(fsnode.read()),
 		_ => Err( super::Error::TypeMismatch ),
 		}
 	}
@@ -430,7 +470,7 @@ impl CacheHandle
 
 impl CacheHandle
 {
-	fn as_ref(&self) -> &CacheNodeInt {
+	fn as_ref(&self) -> &CacheNodeInfo {
 		let lh = S_NODE_CACHE.lock();
 		// SAFE: While this handle is active, the box will be present
 		unsafe {
