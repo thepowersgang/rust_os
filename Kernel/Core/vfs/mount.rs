@@ -5,7 +5,8 @@
 //! Mountpoint managment
 use crate::prelude::*;
 use super::path::Path;
-use super::node::{InodeId,Node,CacheHandle};
+use super::node::{InodeId,Node};
+use super::node_cache::{CacheHandle};
 use crate::sync::RwLock;
 use crate::lib::{LazyStatic,SparseVec,VecMap};
 
@@ -24,7 +25,7 @@ pub struct SelfHandle(usize);
 /// Internal representation of a mounted volume
 struct MountedVolume
 {
-	mountpoint_node: CacheHandle,
+	mountpoint_node: super::node_cache::CacheHandleDir,
 	fs: Box<dyn Filesystem>,
 }
 
@@ -122,9 +123,7 @@ pub fn mount(location: &Path, vol: VolumeHandle, fs: &str, _options: &[&str]) ->
 			Ok(nh) => nh,
 			Err(_) => return Err(MountError::InvalidMountpoint),
 			};
-		if ! nh.is_dir() {
-			return Err(MountError::InvalidMountpoint);
-		}
+		let nh = nh.into_dir().map_err(|_| MountError::InvalidMountpoint)?;
 		if nh.is_mountpoint() {
 			return Err(MountError::MountpointUsed);
 		}
@@ -228,8 +227,8 @@ impl Handle
 
 impl SelfHandle
 {
-	pub fn get_node(&self, inode: InodeId) -> super::Result<super::node::CacheHandle> {
-		super::node::CacheHandle::from_ids(self.0, inode)
+	pub fn get_node(&self, inode: InodeId) -> super::Result<CacheHandle> {
+		CacheHandle::from_ids(self.0, inode)
 	}
 }
 

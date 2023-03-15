@@ -62,6 +62,8 @@ clean:
 	rm -rf bin/kernel-$(ARCH).bin* .obj/$(ARCH)
 	$(CARGO) clean --target=targets/kernel-$(ARCH).json $(CARGO_FLAGS)
 
+docs:
+	$(CARGO) doc --features "$(CARGO_FEATURES)"
 
 # 
 # Final linking stage

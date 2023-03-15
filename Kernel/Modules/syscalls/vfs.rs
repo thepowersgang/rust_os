@@ -10,7 +10,8 @@ use crate::objects;
 use crate::values;
 use crate::Error;
 use crate::args::Args;
-use kernel::vfs::{handle,node};
+use kernel::vfs::handle;
+use kernel::vfs::node_cache::NodeClass;
 use kernel::vfs::Path;
 
 
@@ -41,13 +42,13 @@ impl_from! {
 		_ => todo!("VFS Error - {:?}", v),
 		}
 	}}
-	From<node::NodeClass>(v) for values::VFSNodeType {
+	From<NodeClass>(v) for values::VFSNodeType {
 		match v
 		{
-		node::NodeClass::File => values::VFSNodeType::File,
-		node::NodeClass::Dir => values::VFSNodeType::Dir,
-		node::NodeClass::Symlink => values::VFSNodeType::Symlink,
-		node::NodeClass::Special => values::VFSNodeType::Special,
+		NodeClass::File => values::VFSNodeType::File,
+		NodeClass::Dir => values::VFSNodeType::Dir,
+		NodeClass::Symlink => values::VFSNodeType::Symlink,
+		NodeClass::Special => values::VFSNodeType::Special,
 		}
 	}
 
@@ -127,17 +128,17 @@ impl objects::Object for Node
 				};
 			log_debug!("VFS_NODE_TOFILE({:?})", mode);
 
-			let objres = to_result(inner.to_file(mode.into()))
+			let objres = to_result(inner.into_file(mode.into()))
 				.map( |h| objects::new_object(File(h)) );
 			Ok( super::from_result(objres) )
 			},
 		values::VFS_NODE_TODIR => {
-			let objres = to_result(inner.to_dir())
+			let objres = to_result(inner.into_dir())
 				.map( |h| objects::new_object(Dir::new(h)) );
 			Ok( super::from_result(objres) )
 			},
 		values::VFS_NODE_TOLINK => {
-			let objres = to_result(inner.to_symlink())
+			let objres = to_result(inner.into_symlink())
 				.map( |h| objects::new_object(Link(h)) );
 			Ok(super::from_result( objres ))
 			},

@@ -17,6 +17,7 @@ fn main()
     (::fs_ext_n::S_MODULE.init)();
     // --
     
+/*
     // 1. Load disks (physical volumes)
     struct DiscDesc<'a> {
         name: &'a str,
@@ -64,6 +65,7 @@ fn main()
             },
         }
     }
+*/
 
     // 3. Run commands
     let cmd_stream = ::std::io::stdin();
@@ -93,6 +95,7 @@ fn main()
                 "persistent" => virt_storage::OverlayType::Persistent,
                 _ => panic!("`add_disk`: Invalid `overlay` argument"),
                 };
+            log_log!("CMD add_disk {} {} {:?}", name, path, overlay);
             match crate::virt_storage::add_volume(name, path.as_ref(), overlay)
             {
             Ok(()) => {},
@@ -169,7 +172,7 @@ fn main()
                 Ok(h) => h,
                 Err(::kernel::vfs::Error::AlreadyExists) => match parent_handle.open_child(dst_name)
                     {
-                    Ok(h) => match h.to_file(::kernel::vfs::handle::FileOpenMode::ExclRW)
+                    Ok(h) => match h.into_file(::kernel::vfs::handle::FileOpenMode::ExclRW)
                         {
                         Ok(h) => {
                             h.truncate();

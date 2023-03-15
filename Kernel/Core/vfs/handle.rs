@@ -2,10 +2,11 @@
 // - By John Hodge (thePowersGang)
 //
 // Core/vfs/handle.rs
-//! Opened file interface
+//! Opened file interface (top level VFS interface)
 #[allow(unused_imports)]
 use crate::prelude::*;
-use super::node::{CacheHandle,NodeType};
+use super::node::{NodeType};
+use super::node_cache::{CacheHandle};
 use crate::lib::byte_str::{ByteStr,ByteString};
 use super::Path;
 use crate::PAGE_SIZE;
@@ -18,13 +19,13 @@ pub struct Any {
 #[derive(Debug,Clone)]
 /// Normal file
 pub struct File {
-	node: CacheHandle,
+	node: super::node_cache::CacheHandleFile,
 	mode: FileOpenMode,
 }
 #[derive(Debug,Clone)]
 /// Directory (for enumeration)
 pub struct Dir {
-	node: CacheHandle,
+	node: super::node_cache::CacheHandleDir,
 }
 #[derive(Debug,Clone)]
 /// Symbolic link (allows reading the link contents)
@@ -91,32 +92,22 @@ impl Any
 	}
 
 	/// Get the node class of the handle
-	pub fn get_class(&self) -> super::node::NodeClass {
+	pub fn get_class(&self) -> super::node_cache::NodeClass {
 		self.node.get_class()
 	}
 	
 	/// Upgrade the handle to a directory handle
-	pub fn to_dir(self) -> super::Result<Dir> {
-		if self.node.is_dir() {
-			Ok(Dir { node: self.node })
-		}
-		else {
-			Err(super::Error::TypeMismatch)
-		}
+	pub fn into_dir(self) -> super::Result<Dir> {
+		Ok(Dir { node: self.node.into_dir()? })
 	}
 
 	/// Upgrade the handle to a file handle
-	pub fn to_file(self, mode: FileOpenMode) -> super::Result<File> {
-		if self.node.is_file() {
-			File::from_node(self.node, mode)
-		}
-		else {
-			Err(super::Error::TypeMismatch)
-		}
+	pub fn into_file(self, mode: FileOpenMode) -> super::Result<File> {
+		Ok(File::from_node(self.node.into_file()?, mode)?)
 	}
 	
 	/// Upgrade the handle to a symlink handle
-	pub fn to_symlink(self) -> super::Result<Symlink> {
+	pub fn into_symlink(self) -> super::Result<Symlink> {
 		if self.node.is_symlink() {
 			Ok(Symlink { node: self.node })
 		}
@@ -137,14 +128,11 @@ impl File
 {
 	/// Open the specified path as a file
 	pub fn open(path: &Path, mode: FileOpenMode) -> super::Result<File> {
-		let node = CacheHandle::from_path(path)?;
+		let node = CacheHandle::from_path(path)?.into_file()?;
 		Self::from_node(node, mode)
 	}
 
-	fn from_node(node: CacheHandle, mode: FileOpenMode) -> super::Result<File> {
-		if !node.is_file() {
-			return Err(super::Error::TypeMismatch);
-		}
+	fn from_node(node: super::node_cache::CacheHandleFile, mode: FileOpenMode) -> super::Result<File> {
 		match mode
 		{
 		FileOpenMode::NoDataAccess => {},
@@ -171,7 +159,6 @@ impl File
 	/// Returns the number of read bytes (which might be less than the size of the input
 	/// slice).
 	pub fn read(&self, ofs: u64, dst: &mut [u8]) -> super::Result<usize> {
-		assert!(self.node.is_file());
 		match self.mode
 		{
 		FileOpenMode::NoDataAccess => return Err(super::Error::PermissionDenied),
@@ -180,7 +167,6 @@ impl File
 	}
 	/// Write data to the file (offset is ignored if open for appending)
 	pub fn write(&self, ofs: u64, src: &[u8]) -> super::Result<usize> {
-		assert!(self.node.is_file());
 		match self.mode
 		{
 		FileOpenMode::NoDataAccess => return Err(super::Error::PermissionDenied),
@@ -321,7 +307,7 @@ impl Dir
 {
 	/// Open a provided path as a directory
 	pub fn open(path: &Path) -> super::Result<Dir> {
-		Any::open(path)?.to_dir()
+		Any::open(path)?.into_dir()
 	}
 	
 	/// Iterate names within the directory
@@ -341,8 +327,7 @@ impl Dir
 	/// Create a new directory
 	pub fn mkdir(&self, name: impl AsRef<ByteStr>) -> super::Result<Dir> {
 		let node = self.node.create(name.as_ref(), NodeType::Dir)?;
-		assert!(node.is_dir());
-		Ok( Dir { node: node } )
+		Ok( Dir { node: node.into_dir()? } )
 	}
 	/// Create a new symbolic link
 	pub fn symlink(&self, name: impl AsRef<ByteStr>, target: &Path) -> super::Result<()> {
@@ -352,8 +337,7 @@ impl Dir
 	/// Create a new file (opened exclusively)
 	pub fn create_file(&self, name: impl AsRef<ByteStr>) -> super::Result<File> {
 		let node = self.node.create(name.as_ref(), NodeType::File)?;
-		assert!(node.is_file());
-		File::from_node(node, FileOpenMode::UniqueRW)
+		File::from_node(node.into_file()?, FileOpenMode::UniqueRW)
 	}
 
 	/// Open a child of this node
@@ -418,7 +402,7 @@ impl<'a> ::core::iter::Iterator for DirIter<'a> {
 impl Symlink
 {
 	pub fn open(path: &Path) -> super::Result<Symlink> {
-		Any::open(path)?.to_symlink()
+		Any::open(path)?.into_symlink()
 	}
 	pub fn get_target(&self) -> super::Result<ByteString> {
 		self.node.get_target()

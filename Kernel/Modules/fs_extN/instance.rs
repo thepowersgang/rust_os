@@ -336,7 +336,7 @@ impl InstanceInner
 		// - This prevents us from having to maintain our own node cache
 
 		let node = try!(self.mount_handle.get_node(inode_num as vfs::node::InodeId));
-		match node.get_any().downcast_ref()
+		match node.get_node_any().downcast_ref()
 		{
 		Some(our_in) => fcn(our_in),
 		None => Err(vfs::Error::Unknown("BUG: Node wasn't an extN inode")),

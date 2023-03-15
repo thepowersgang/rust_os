@@ -71,6 +71,7 @@ impl From<crate::metadevs::storage::IoError> for Error {
 pub use self::path::{Path,PathBuf};
 
 pub mod node;
+pub mod node_cache;
 pub mod mount;
 pub mod handle;
 mod path;
@@ -80,7 +81,7 @@ fn init()
 {
 	// 1. Initialise global structures
 	mount::init();
-	node::init();
+	node_cache::init();
 	ramfs::init();
 	// 2. Start the root/builtin filesystems
 	mount::mount("/".as_ref(), VolumeHandle::new_ramdisk(0), "ramfs", &[]).expect("Unable to mount /");
