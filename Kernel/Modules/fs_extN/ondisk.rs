@@ -41,6 +41,7 @@ macro_rules! def_from_slice {
 
 // Packed is required because the base data is an odd number of u32s long, and extension has u64s
 #[repr(packed,C)]
+#[derive(Debug)]
 pub struct Superblock
 {
 	pub data: SuperblockData,
@@ -59,6 +60,7 @@ fn _sb_size() { unsafe {
 pod_impls!{ Superblock }
 def_from_slice!{ Superblock }
 
+#[derive(Debug)]
 #[repr(C)]
 pub struct SuperblockData
 {
@@ -99,6 +101,7 @@ pub struct SuperblockData
 }
 pod_impls!{ SuperblockData }
 
+#[derive(Debug)]
 #[repr(C)]
 pub struct SuperblockDataExt
 {
@@ -206,8 +209,8 @@ macro_rules! def_bitset {
 
 def_bitset! {
 	 0 => FEAT_INCOMPAT_COMPRESSION,
-	 1 => FEAT_INCOMPAT_FILETYPE, 
-	 2 => FEAT_INCOMPAT_RECOVER, 
+	 1 => FEAT_INCOMPAT_FILETYPE,
+	 2 => FEAT_INCOMPAT_RECOVER,
 	 3 => FEAT_INCOMPAT_JOURNAL_DEV,
 	 4 => FEAT_INCOMPAT_META_BG,
 	 5 => _FEAT_INCOMPAT_UNUSED,

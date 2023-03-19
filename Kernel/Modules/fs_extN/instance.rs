@@ -82,10 +82,11 @@ impl Instance
 				)
 			};
 
-
 		if superblock.data.s_magic != 0xEF53 {
 			return Err(vfs::Error::TypeMismatch);
 		}
+		log_debug!("superblock = {:x?}", superblock);
+
 		let is_readonly = match Self::check_features(vol.name(), &superblock)
 			{
 			FeatureState::Incompatible(_) => return Err(vfs::Error::TypeMismatch),
@@ -93,7 +94,7 @@ impl Instance
 			_ => false,
 			};
 
-		// - Limit block size to 1MB each
+		// Limit filesystem block size to 1MB each, as a sanity check
 		if superblock.data.s_log_block_size > 10 {
 			return Err(vfs::Error::Unknown("extN block size out of range"));
 		}
@@ -106,21 +107,28 @@ impl Instance
 		let num_groups = ::kernel::lib::num::div_up(superblock.data.s_blocks_count, superblock.data.s_blocks_per_group);
 
 		// Read group descriptor table
-		// - This always resides immediately after the superblock
+		// - This resides in the first FS block after the superblock
 		let group_descs = {
 			use kernel::lib::{as_byte_slice_mut,as_byte_slice};
 			const GROUP_DESC_SIZE: usize = ::core::mem::size_of::<::ondisk::GroupDesc>();
 
 			let groups_per_vol_block = vol_bs / GROUP_DESC_SIZE;
+			// Group descriptors are in the first filesystem block after the superblock
+			// - So either immediately right after the superblock, or the second block (whichever is larger)
+			let byte_offset = usize::max(2*1024, fs_block_size);
+			log_trace!("Group Descs: {} groups @ byte {}, {} per volume block (vol_bs={})",
+				num_groups, byte_offset, groups_per_vol_block, vol_bs);
 
 			let mut gds: Vec<::ondisk::GroupDesc> = vec![Default::default(); num_groups as usize];
 
-			let (n_skip, mut block) = if vol_bs % (2*1024) == 0 {
-					// Volume block size is larger than the superblock
+			// The superblock is 1024 bytes at offset 1024
+			// - If the volume block size is 2K or larger, then there are some group descriptors in the first block
+			let (n_skip, mut vol_block) = if vol_bs > byte_offset {
+					// Volume block size is larger than the offset
 					// - This means that at least 2048 bytes of the group descriptors are in the same block as the superblock
-					let n_shared = (vol_bs - 2*1024) / GROUP_DESC_SIZE;
+					let n_shared = (vol_bs - byte_offset) / GROUP_DESC_SIZE;
 
-					let src = as_byte_slice(&first_block[2*1024/4..]);
+					let src = &as_byte_slice(&first_block[..])[byte_offset..];
 					let count = ::core::cmp::min(n_shared, gds.len());
 					assert_eq!(src.len(), count * GROUP_DESC_SIZE);
 					as_byte_slice_mut(&mut gds[..count]).clone_from_slice( src );
@@ -128,19 +136,21 @@ impl Instance
 				}
 				else {
 					// Volume BS <= superblock
-					(0, (2*1024 / vol_bs) as u64)
+					// - Offset of byte 2048 in the disk
+					(0, (byte_offset / vol_bs) as u64)
 				};
 
+			// Determine how many descriptors are in the subsequent volume blocks
 			let rem_count = gds.len() - n_skip;
 			let tail_count = rem_count % groups_per_vol_block;
 			let body_count = rem_count - tail_count;
-			log_trace!("n_skip={}, block={}, rem_count={},  tail_count={}, body_count={}",
-				n_skip, block, rem_count,  tail_count, body_count);
+			log_trace!("vol_block={} n_skip={} => rem_count={} (tail_count={}, body_count={})",
+				vol_block, n_skip, rem_count,  tail_count, body_count);
 
-			if body_count > 0 
+			if body_count > 0
 			{
-				::kernel::futures::block_on(vol.read_blocks(block, as_byte_slice_mut(&mut gds[n_skip .. ][ .. body_count])))?;
-				block += (body_count / groups_per_vol_block) as u64;
+				::kernel::futures::block_on(vol.read_blocks(vol_block, as_byte_slice_mut(&mut gds[n_skip .. ][ .. body_count])))?;
+				vol_block += (body_count / groups_per_vol_block) as u64;
 			}
 
 			if tail_count > 0
@@ -148,7 +158,7 @@ impl Instance
 				let ofs = n_skip + body_count;
 				// Read a single volume block into a buffer, then populate from that
 				let mut buf: Vec<u8> = vec![0; vol_bs];
-				::kernel::futures::block_on(vol.read_blocks(block, &mut buf))?;
+				::kernel::futures::block_on(vol.read_blocks(vol_block, &mut buf))?;
 				let n_bytes = (gds.len() - ofs) * GROUP_DESC_SIZE;
 				as_byte_slice_mut(&mut gds[ofs ..]).clone_from_slice( &buf[..n_bytes] );
 			}
@@ -320,10 +330,11 @@ impl InstanceInner
 		let (group, ofs) = self.get_inode_grp_id(inode_num);
 
 		let base_blk_id = self.group_descriptors[group as usize].bg_inode_table as u64 * self.vol_blocks_per_fs_block();
+		assert!(base_blk_id != 0);
 		let ofs_bytes = (ofs as usize) * self.s_inode_size();
 		let (sub_blk_id, sub_blk_ofs) = (ofs_bytes / self.vol.block_size(), ofs_bytes % self.vol.block_size());
 
-		(base_blk_id + sub_blk_id as u64,  sub_blk_ofs as usize)
+		(base_blk_id + sub_blk_id as u64, sub_blk_ofs as usize)
 	}
 
 	/// Perform an operation with a temporary handle to an inode
@@ -371,7 +382,12 @@ impl InstanceInner
 		let mut rv = ::ondisk::Inode::default();
 		{
 			// NOTE: Unused fields in the inode are zero
-			let slice = &mut ::kernel::lib::as_byte_slice_mut(&mut rv)[.. self.s_inode_size()];
+			let slice = ::kernel::lib::as_byte_slice_mut(&mut rv);
+			let slice = if slice.len() > self.s_inode_size() {
+					&mut slice[..self.s_inode_size()]
+				} else {
+					slice
+				};
 			::kernel::futures::block_on( self.vol.read_inner(vol_block, blk_ofs, slice) )?;
 		}
 		log_trace!("- rv={:?}", rv);
@@ -382,7 +398,12 @@ impl InstanceInner
 	{
 		let (vol_block, blk_ofs) = self.get_inode_pos(inode_num);
 		
-		let slice = &::kernel::lib::as_byte_slice(inode_data)[.. self.s_inode_size()];
+		let slice = ::kernel::lib::as_byte_slice(inode_data);
+		let slice = if slice.len() > self.s_inode_size() {
+				&slice[..self.s_inode_size()]
+			} else {
+				slice
+			};
 		::kernel::futures::block_on(self.vol.write_inner(vol_block, blk_ofs, slice))?;
 
 		Ok( () )
@@ -406,6 +427,16 @@ impl InstanceInner
 		}
 		else {
 			128
+		}
+	}
+
+	#[cfg(_false)]
+	fn s_group_desc_size(&self) -> usize {
+		if self.superblock.data.s_rev_level > 0 && self.superblock.ext.s_feature_incompat & ondisk::FEAT_INCOMPAT_64BIT != 0 {
+			self.superblock.ext.s_group_desc_size as usize
+		}
+		else {
+			32
 		}
 	}
 }
