@@ -12,62 +12,11 @@ fn main()
     (::kernel::hw::mapper_mbr::S_MODULE.init)();
     (::kernel::vfs::S_MODULE.init)();
 
-    // --
+    // -- TODO: use `my_dependencies`?
     (::fs_fat::S_MODULE.init)();
     (::fs_ext_n::S_MODULE.init)();
     // --
-    
-/*
-    // 1. Load disks (physical volumes)
-    struct DiscDesc<'a> {
-        name: &'a str,
-        path: &'a ::std::path::Path,
-        overlay: virt_storage::OverlayType,
-    }
-    struct VolumeDesc<'a> {
-        mountpoint: &'a str,
-        volume_name: &'a str,
-        filesystem: &'a str,
-        options: Vec<&'a str>,
-    }
-    let disk_defs = [
-        DiscDesc { name: "virt0", path: "data/hda.img".as_ref(), overlay: virt_storage::OverlayType::None },
-        ];
-    let volume_defs = [
-        VolumeDesc { mountpoint: "/system", volume_name: "virt0p0", filesystem: "", options: vec![] },
-        ];
-    
 
-    let _volume_handles: Vec<_> = disk_defs.iter()
-        .map(|d|
-            match crate::virt_storage::add_volume(d.name, d.path, d.overlay)
-            {
-            Ok(h) => h,
-            Err(e) => panic!("Unable to open {} as {}: {:?}", d.path.display(), d.name, e),
-            })
-        .collect();
-
-    // 2. Mount
-    for mount_desc in volume_defs.iter()
-    {
-        let vh = match ::kernel::metadevs::storage::VolumeHandle::open_named(mount_desc.volume_name)
-            {
-            Ok(vh) => vh,
-            Err(e) => {
-                panic!("Unable to open {}: {}", mount_desc.volume_name, e);
-                },
-            };
-        match ::kernel::vfs::mount::mount(mount_desc.mountpoint.as_ref(), vh, mount_desc.filesystem, &mount_desc.options)
-        {
-        Ok(_) => {},
-        Err(e) => {
-            panic!("Unable to mount {} from {}: {:?}", mount_desc.mountpoint, mount_desc.volume_name, e);
-            },
-        }
-    }
-*/
-
-    // 3. Run commands
     let cmd_stream = ::std::io::stdin();
     loop
     {
@@ -95,7 +44,7 @@ fn main()
                 "persistent" => virt_storage::OverlayType::Persistent,
                 _ => panic!("`add_disk`: Invalid `overlay` argument"),
                 };
-            log_log!("CMD add_disk {} {} {:?}", name, path, overlay);
+            log_log!("CMD add_disk {} := {} {:?}", name, path, overlay);
             match crate::virt_storage::add_volume(name, path.as_ref(), overlay)
             {
             Ok(()) => {},
@@ -107,6 +56,7 @@ fn main()
             let Some(volume) = args.next() else { panic!("`mount`: missing `volume` argument") };
             let filesystem = args.next().unwrap_or("");
             let options = args.next().map(|v| v.split(",").collect::<Vec<_>>()).unwrap_or_default();
+            log_log!("COMMAND: mount {mountpt:?} := {volume:?} fs={filesystem:?} options={options:?}");
 
             let vh = match ::kernel::metadevs::storage::VolumeHandle::open_named(volume)
                 {
@@ -126,9 +76,13 @@ fn main()
             match ::kernel::vfs::handle::Dir::open(dir)
             {
             Err(e) => log_error!("'{:?}' cannot be opened: {:?}", dir, e),
-            Ok(h) =>
+            Ok(h) => {
+                let mut count = 0;
                 for name in h.iter() {
                     println!("{:?}", name);
+                    count += 1;
+                }
+                println!("{:?}: {} entries", dir, count);
                 },
             }
             },
