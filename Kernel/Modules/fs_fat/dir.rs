@@ -364,7 +364,7 @@ impl node::Dir for DirNode {
 	}
 	fn create(&self, name: &ByteStr, nodetype: node::NodeType) -> node::Result<node::InodeId> {
 		// File cluster for the dir's data
-		let new_cluster = self.fs.alloc_cluster( self.start_cluster )?;
+		let new_cluster = self.fs.alloc_cluster_unchained( self.start_cluster )?;
 		// Add entries to the end of the dir
 		todo!("DirNode::create('{:?}', {:?}): dir_cluster={:#x}", name, nodetype, new_cluster);
 	}

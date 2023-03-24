@@ -26,12 +26,10 @@ const FAT32_MIN_CLUSTERS: usize = 65525;
 /// FAT Legacy (pre 32) root cluster base. Just has to be above the max cluster num for FAT16
 const FATL_ROOT_CLUSTER: u32 = 0x00FF0000;
 
-const FAT12_EOC: u16 = 0x0FFF;
-const FAT16_EOC: u16 = 0xFFFF;
-const FAT32_EOC: u32 = 0x00FFFFFF;
-
 /// on-disk structures
 mod on_disk;
+/// File-allocation-table management
+mod fat;
 /// Directory IO
 mod dir;
 /// File IO
@@ -248,64 +246,6 @@ impl FilesystemInner
 				::kernel::futures::block_on( self.read_cluster( cluster, Arc::get_mut(&mut buf).unwrap() ) )?;
 				Ok( buf )
 			})
-	}
-	
-	/// Obtain the next cluster in a chain
-	fn get_next_cluster(&self, cluster: u32) -> Result< Option<u32>, storage::IoError > {
-		use kernel::lib::byteorder::{ReadBytesExt,LittleEndian};
-		// - Determine what sector contains the requested FAT entry
-		let bs = self.vh.block_size();
-		let (fat_sector,ofs) = match self.ty
-			{
-			Size::Fat12 => {
-				let cps = bs / 3 * 2;	// 2 per 3 bytes
-				(cluster as usize / cps, (cluster as usize % cps) / 2 * 3 )
-				},
-			Size::Fat16 => {
-				let cps = bs / 2;
-				(cluster as usize / cps, (cluster as usize % cps) * 2)
-				},
-			Size::Fat32 => {
-				let cps = bs / 4;
-				(cluster as usize / cps, (cluster as usize % cps) * 2)
-				},
-			};
-
-		// - Read a single sector from the FAT
-		let sector_idx = (self.first_fat_sector + fat_sector) as u64;
-		let sector_data_blk = ::kernel::futures::block_on(self.vh.get_block( sector_idx ))?;
-		let start_ofs = (sector_idx - sector_data_blk.index()) as usize * bs;
-		let sector_data = &sector_data_blk.data()[start_ofs .. ];
-		//log_debug!("Sector {} accessed via cached block at sector {}", sector_idx, sector_data_blk.index());
-		//::kernel::logging::hex_dump("FAT FAT", &sector_data[..bs]);
-
-		// - Extract the entry
-		Ok(match self.ty
-		{
-		Size::Fat12 => {
-			// FAT12 has special handling because it packs 2 entries into 24 bytes
-			let val = {
-				let v24 = (&sector_data[ofs..]).read_uint::<LittleEndian>(3).unwrap();
-				if cluster % 2 == 0 { v24 & 0xFFF } else { v24 >> 12 }
-				} as u16;
-			if val == 0 { return Err(storage::IoError::Unknown("FAT: Zero FAT entry")); }
-			if val == FAT12_EOC { None } else { Some(val as u32) }
-			},
-		Size::Fat16 => {
-			let val = (&sector_data[ofs..]).read_u16::<LittleEndian>().unwrap();
-			if val == 0 { return Err(storage::IoError::Unknown("FAT: Zero FAT entry")); }
-			if val == FAT16_EOC { None } else { Some(val as u32) }
-			},
-		Size::Fat32 => {
-			let val = (&sector_data[ofs..]).read_u32::<LittleEndian>().unwrap();
-			if val == 0 { return Err(storage::IoError::Unknown("FAT: Zero FAT entry")); }
-			if val == FAT32_EOC { None } else { Some(val as u32) }
-			},
-		})
-	}
-
-	fn alloc_cluster(&self, prev_cluster: u32) -> Result< u32, storage::IoError > {
-		todo!("alloc_cluster(prev={:#x})", prev_cluster)
 	}
 }
 

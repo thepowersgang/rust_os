@@ -41,7 +41,22 @@ impl node::File for FileNode {
 		self.size as u64
 	}
 	fn truncate(&self, newsize: u64) -> node::Result<u64> {
-		todo!("FileNode::truncate({:#x})", newsize);
+		let newsize: u32 = ::core::convert::TryFrom::try_from(newsize).unwrap_or(!0);
+		if newsize < self.size {
+			// Update size, and then deallocate clusters
+			// - Challenge: Nothing stops the file being unlinked while it's still open. Need to ensure that this operation doesn't clobber anything
+			//   if the directory is deallocated.
+			// - Solution? Have a map controlled by `super::dir` that holds the parent cluster, allowing removal/update of the parent directory
+			//let old_size = self.size;
+			//super::dir::update_file_size(&self.fs, self.parent_dir, self.first_cluster, newsize as u32);
+			//self.size = newsize;
+			todo!("FileNode::truncate({:#x})", newsize);
+		}
+		else {
+			// Allocate new clusters, then update the size
+			// Update size iteratively, allocating clusters as needed
+			todo!("FileNode::truncate({:#x})", newsize);
+		}
 	}
 	fn clear(&self, ofs: u64, size: u64) -> node::Result<()> {
 		todo!("FileNode::clear({:#x}+{:#x}", ofs, size);
