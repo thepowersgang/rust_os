@@ -491,6 +491,7 @@ fn disable_sse_and_save()
 
 mod sse
 {
+	use crate::prelude::*;
 	use ::core::arch::asm;
 	use super::get_tls_ptr;
 	use super::SSERegisters;
@@ -545,7 +546,7 @@ mod sse
 		let regs_opt = unsafe { &mut (*get_tls_ptr()).sse_registers };
 		
 		if regs_opt.is_none() {
-			*regs_opt = Some( box SSERegisters::default() );
+			*regs_opt = Some( Box::new(SSERegisters::default()) );
 		}
 
 		restore_from( regs_opt.as_ref().unwrap() );

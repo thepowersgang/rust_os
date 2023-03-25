@@ -22,7 +22,7 @@ impl<'a> Waiter<'a>
 	where
 		F: FnMut(Option<&mut Waiter<'a>>)->bool + Send + 'a
 	{
-		Waiter( Some(RefCell::new(box f)) )
+		Waiter( Some(RefCell::new(Box::new(f))) )
 	}
 }
 

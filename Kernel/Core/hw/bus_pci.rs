@@ -249,7 +249,7 @@ fn scan_bus(interface: &ArefBorrow<dyn PciInterface>, bus_id: u8) -> Vec<Box<dyn
 			let is_multifunc = (devinfo.config[3] & 0x0080_0000) != 0;
 			log_debug!("{:?}", devinfo);
 			// Increase device count
-			ret.push(box devinfo);
+			ret.push(Box::new(devinfo));
 			// Handle multi-function devices (iterate from 1 onwards)
 			if is_multifunc
 			{
@@ -258,7 +258,7 @@ fn scan_bus(interface: &ArefBorrow<dyn PciInterface>, bus_id: u8) -> Vec<Box<dyn
 					if let Some(devinfo) = get_device(interface, bus_id, devidx, fcnidx)
 					{
 						log_debug!("{:?}", devinfo);
-						ret.push(box devinfo);
+						ret.push(Box::new(devinfo));
 					}
 				}
 			}

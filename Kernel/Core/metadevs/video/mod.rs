@@ -146,7 +146,7 @@ fn init()
 	if let Some(mode) = S_BOOT_MODE.lock().as_ref()
 	{
 		log_notice!("Using boot video mode {:?}", mode);
-		let fb = box bootvideo::Framebuffer::new(*mode) as Box<dyn Framebuffer>;
+		let fb: Box<dyn Framebuffer> = Box::new(bootvideo::Framebuffer::new(*mode));
 		let dims = fb.get_size();
 		S_DISPLAY_SURFACES.lock().insert( DisplaySurface {
 			region: Rect::new(0,0, dims.w,dims.h),

@@ -404,7 +404,7 @@ impl Thread
 	/// Create a new thread
 	pub fn new_boxed<S: Into<String>>(tid: ThreadID, name: S, process: Arc<Process>) -> ThreadPtr
 	{
-		let rv = box Thread {
+		let rv = Box::new(Thread {
 			cpu_state: process.empty_cpu_state(),
 			block: Arc::new(SharedBlock {
 				tid: tid,
@@ -414,7 +414,7 @@ impl Thread
 				}),
 			run_state: RunState::Runnable,
 			next: None,
-			};
+			});
 		
 		// TODO: Add to global list of threads (removed on destroy)
 		log_debug!("Creating thread {:?}", rv);

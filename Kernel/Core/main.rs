@@ -7,7 +7,6 @@
 #![crate_type="lib"]
 #![feature(unsize,coerce_unsized)]	// For DST smart pointers
 #![feature(core_intrinsics)]	// Intrinsics
-#![feature(box_syntax)]	// Enables 'box' syntax
 #![feature(box_patterns)]	// Used in boxed::unwrap
 #![feature(thread_local)]	// Allows use of thread_local
 #![feature(lang_items)]	// Allow definition of lang_items
