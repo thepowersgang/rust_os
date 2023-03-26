@@ -120,11 +120,13 @@ impl Volume
                 if let Some(true) = over_bm.get(idx as usize + b)
                 {
                     over_lh.seek(::std::io::SeekFrom::Start( (idx + b as u64) * self.block_size as u64 ))?;
+                    //::kernel::log_trace!("read_inner({}): overlay", idx as usize + b);
                     over_lh.read(dst)?;
                 }
                 else
                 {
                     base_lh.seek(::std::io::SeekFrom::Start( (idx + b as u64) * self.block_size as u64 ))?;
+                    //::kernel::log_trace!("read_inner({}): overlay", idx as usize + b);
                     base_lh.read(dst)?;
                 }
             }
@@ -134,6 +136,7 @@ impl Volume
         {
             let mut lh = self.fp.lock().unwrap();
             lh.seek(::std::io::SeekFrom::Start( idx * self.block_size as u64 ))?;
+            //::kernel::log_trace!("read_inner: {} bytes", dst.len());
             Ok(lh.read(dst)? / self.block_size)
         }
     }

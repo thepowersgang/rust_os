@@ -1,5 +1,6 @@
 
 use ::kernel::{log,log_error,log_log};
+use ::kernel::vfs::handle as vfs_handle;
 
 mod virt_storage;
 
@@ -73,13 +74,18 @@ fn main()
         "ls" => {
             let dir = ::kernel::vfs::Path::new( args.next().expect("ls dir") );
             log_log!("COMMAND: ls {:?}", dir);
-            match ::kernel::vfs::handle::Dir::open(dir)
+            match vfs_handle::Dir::open(dir)
             {
             Err(e) => log_error!("'{:?}' cannot be opened: {:?}", dir, e),
             Ok(h) => {
                 let mut count = 0;
                 for name in h.iter() {
-                    println!("{:?}", name);
+                    let child_h = match h.open_child(&name)
+                        {
+                        Ok(child_h) => child_h,
+                        Err(e) => panic!("`ls` failed to open child {:?} of {:?}", name, dir),
+                        };
+                    println!("{:?}: {:?}", name, child_h.get_class());
                     count += 1;
                 }
                 println!("{:?}: {} entries", dir, count);
@@ -158,6 +164,45 @@ fn main()
                     },
                 Err(e) => panic!("`store`: IO failure reading from local: {:?}", e),
                 }
+            }
+            },
+        // Read a file and check that it's identical to the on-system version
+        "readback" => {
+            let local: &::std::path::Path = args.next().expect("`readback` local").as_ref();
+            let remote: &::kernel::vfs::Path = args.next().expect("`readback` remote").as_ref();
+
+            let mut local_handle = match ::std::fs::File::open(local)
+                {
+                Ok(h) => h,
+                Err(e) => panic!("`readback`: Cannot open local file {}: {:?}", local.display(), e),
+                };
+            let mut remote_handle = match vfs_handle::File::open(remote, vfs_handle::FileOpenMode::SharedRO)
+                {
+                Ok(h) => h,
+                Err(e) => panic!("`readback`: Cannot open remote file {:?}: {:?}", remote, e),
+                };
+            let mut ofs = 0;
+            let mut buf_l = vec![0; 1024];
+            let mut buf_r = vec![0; 1024];
+            loop
+            {
+                use std::io::Read;
+                let len_l = match local_handle.read(&mut buf_l)
+                    {
+                    Ok(l) => l,
+                    Err(e) => panic!("`readback`: IO failure reading from local: {:?}", e),
+                    };
+                let len_r = match remote_handle.read(ofs, &mut buf_r)
+                    {
+                    Ok(l) => l,
+                    Err(e) => panic!("`readback`: IO failure reading from remote: {:?}", e),
+                    };
+                assert_eq!(len_l, len_r);
+                if len_l == 0 {
+                    break;
+                }
+                assert_eq!(buf_l[..len_l], buf_r[..len_r]);
+                ofs += len_l as u64;
             }
             },
         cmd => todo!("Command {}", cmd),
