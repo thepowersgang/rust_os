@@ -522,7 +522,7 @@ impl PhysicalVolumeInfo
 	/// Read blocks from the device
 	pub async fn read(&self, first: u64, dst: &mut [u8]) -> Result<usize,IoError>
 	{
-		log_trace!("PhysicalVolumeInfo::read(first={},{} bytes)", first, dst.len());
+		log_trace!("PhysicalVolumeInfo::read(block {}, {} bytes)", first, dst.len());
 		let block_size = self.dev.blocksize();
 		let total_blocks = dst.len() / block_size;
 		// Read up to 'block_step' blocks in each read call
@@ -535,10 +535,10 @@ impl PhysicalVolumeInfo
 				assert!(buf.len() % block_size == 0);
 				let prio = 0;
 				let blocks = buf.len() / block_size;
-				
-				// TODO: Async! (maybe return a composite read handle?)
+
 				let real_count = match self.dev.read(prio, blk_id, blocks, buf).await
 					{
+					Ok(0) => todo!("Error when PV reports nothing read?"),
 					Ok(v) => v,
 					Err(e) => todo!("Error when PV fails to read: {:?}", e),
 					};
@@ -551,6 +551,7 @@ impl PhysicalVolumeInfo
 			}
 		}
 
+		log_trace!("PhysicalVolumeInfo::read(): total_blocks={}", total_blocks);
 		Ok(total_blocks)
 	}
 	
