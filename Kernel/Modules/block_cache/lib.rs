@@ -90,6 +90,9 @@ impl CacheHandle
 	pub fn block_size(&self) -> usize {
 		self.vh.block_size()
 	}
+	pub fn chunk_size(&self) -> usize {
+		PAGE_SIZE
+	}
 	pub async fn read_blocks(&self, block: u64, data: &mut [u8]) -> Result<(), IoError>
 	{
 		self.vh.read_blocks(block, data).await
@@ -103,6 +106,7 @@ impl CacheHandle
 /// Cached accesses
 impl CacheHandle
 {
+	/// Obtain an unlocked block handle
 	async fn get_block_meta(&self, block: u64) -> Result<MetaBlockHandle<'_>, IoError>
 	{
 		let cache_block = block - block % self.blocks_per_page();
@@ -136,7 +140,7 @@ impl CacheHandle
 		if offset >= self.block_size() {
 			return Err(IoError::InvalidParameter);
 		}
-		if offset >= self.block_size() - blk_ofs {
+		if offset >= cached_block.data().len() - blk_ofs {
 			return Err(IoError::InvalidParameter);
 		}
 		assert!(data.len() <= self.block_size() - offset);
@@ -153,7 +157,7 @@ impl CacheHandle
 		if offset >= self.block_size() {
 			return Err(IoError::InvalidParameter);
 		}
-		if blk_ofs + offset >= self.block_size() {
+		if blk_ofs + offset >= self.chunk_size() {
 			return Err(IoError::InvalidParameter);
 		}
 
@@ -190,6 +194,7 @@ fn map_cached_frame(frame: &::kernel::memory::phys::FrameHandle) -> ::kernel::me
 }
 
 // --------------------------------------------------------------------
+/// An actual cached block
 impl CachedBlock
 {
 	async fn new(vol: &VolumeHandle, first_block: u64) -> Result<CachedBlock, IoError>
@@ -198,6 +203,7 @@ impl CachedBlock
 
 		// TODO: Defer disk read until after the cache entry is created
 		vol.read_blocks(first_block, mapping.data_mut()).await?;
+		log_trace!("Read {} block {}+{}", vol.name(), first_block, PAGE_SIZE / vol.block_size());
 		
 		Ok(CachedBlock {
 			index: first_block,
