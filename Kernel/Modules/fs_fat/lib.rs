@@ -241,7 +241,7 @@ impl FilesystemInner
 		self.metadata_block_cache.get(
 			cluster,
 			|_| {
-				log_debug!("load_cluster: miss {}", cluster);
+				log_debug!("load_cluster: miss C{:#x}", cluster);
 				let mut buf: Cluster = Arc::from_iter( (0..self.spc * self.vh.block_size()).map(|_| 0) );
 				::kernel::futures::block_on( self.read_cluster( cluster, Arc::get_mut(&mut buf).unwrap() ) )?;
 				Ok( buf )

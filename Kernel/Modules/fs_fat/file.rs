@@ -73,6 +73,7 @@ impl node::File for FileNode {
 		let maxread = (self.size as u64 - ofs) as usize;
 		let buf = if buf.len() > maxread { &mut buf[..maxread] } else { buf };
 		let read_length = buf.len();
+		log_trace!("read(@{:#x} len={:?})", ofs, read_length);
 		
 		// Seek to correct position in the cluster chain
 		let mut clusters = super::ClusterList::chained(self.fs.reborrow(), self.first_cluster);
@@ -84,12 +85,9 @@ impl node::File for FileNode {
 		// First incomplete cluster
 		let mut cur_read_ofs = 0;
 		/*let chunks = */if ofs != 0 {
-				let cluster = match clusters.next()
-					{
-					Some(v) => v,
-					None => return Err( ERROR_SHORTCHAIN ),
-					};
+				let Some(cluster) = clusters.next() else { return Err(ERROR_SHORTCHAIN); };
 				let short_count = ::core::cmp::min(self.fs.cluster_size-ofs, buf.len());
+				log_trace!("read(): Read partial head C{:#x} len={}", cluster, short_count);
 				let c = self.fs.load_cluster(cluster)?;
 				buf[..short_count].clone_from_slice( &c[ofs..][..short_count] );
 				
@@ -99,8 +97,7 @@ impl node::File for FileNode {
 			else {
 				//buf.chunks_mut(self.fs.cluster_size)
 			};
-	
-		//#[cfg(DISABLED)]
+
 		while buf.len() - cur_read_ofs >= self.fs.cluster_size
 		{
 			let dst = &mut buf[cur_read_ofs..];
@@ -113,11 +110,12 @@ impl node::File for FileNode {
 					},
 				};
 			let bytes = count * self.fs.cluster_size;
-			log_trace!("- Read cluster {}+{}", cluster, count);
+			log_trace!("read(): Read cluster extent C{:#x} + {}", cluster, count);
 			::kernel::futures::block_on(self.fs.read_clusters(cluster, &mut dst[..bytes]))?;
 			cur_read_ofs += bytes;
 		}
-		//#[cfg(DISABLED)]
+
+		// Trailing sub-cluster data
 		if buf.len() - cur_read_ofs > 0
 		{
 			let dst = &mut buf[cur_read_ofs..];
@@ -129,38 +127,13 @@ impl node::File for FileNode {
 					return Err(ERROR_SHORTCHAIN);
 					},
 				};
+			log_trace!("read(): Read partial tail C{:#x} len={}", cluster, dst.len());
 			let c = self.fs.load_cluster(cluster)?;
 			let bytes = dst.len();
 			dst.clone_from_slice( &c[..bytes] );
 		}
 
-		// The rest of the clusters
-		/*
-		for dst in chunks
-		{
-			// TODO: Cluster extents
-			let cluster = match clusters.next()
-				{
-				Some(v) => v,
-				None => {
-					log_notice!("Unexpected end of cluster chain at offset {}", cur_read_ofs);
-					return Err(ERROR_SHORTCHAIN);
-					},
-				};
-			if dst.len() == self.fs.cluster_size {
-				// Read directly
-				try!(self.fs.read_cluster(cluster, dst));
-			}
-			else {
-				// Bounce (could leave the bouncing up to read_cluster I guess...)
-				let c = try!(self.fs.load_cluster(cluster));
-				let bytes = dst.len();
-				dst.clone_from_slice( &c[..bytes] );
-			}
-			cur_read_ofs += dst.len();
-		}
-		*/
-		
+		log_trace!("read(): Complete {}", read_length);
 		Ok( read_length )
 	}
 	/// Write data to the file, can only grow the file if ofs==size
