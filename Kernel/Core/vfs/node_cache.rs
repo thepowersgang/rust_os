@@ -261,7 +261,7 @@ impl CacheHandle
 	}
 	pub fn into_file(self) -> super::Result<CacheHandleFile> {
 		match self.get_class() {
-		NodeClass::Dir => Ok(CacheHandleFile(self)),
+		NodeClass::File => Ok(CacheHandleFile(self)),
 		_ => Err(super::Error::TypeMismatch),
 		}
 	}
