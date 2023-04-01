@@ -18,6 +18,78 @@ const HI_SURR_END  : u16 = 0xDBFF;
 const LO_SURR_START: u16 = 0xDC00;
 const LO_SURR_END  : u16 = 0xDFFF;
 
+/// Convert WTF-8 into UCS2/UTF-16
+pub fn wtf8_to_utf16(input: &[u8]) -> Wtf8ToUtf16<'_> {
+	Wtf8ToUtf16(input, None)
+}
+pub struct Wtf8ToUtf16<'a>(&'a [u8], Option<u16>);
+impl Wtf8ToUtf16<'_> {
+	fn pop_front(&mut self) -> Option<u8> {
+		match self.0.split_first()
+		{
+		None => None,
+		Some((&rv, next)) => { self.0 = next; Some(rv) }
+		}
+	}
+}
+impl ::core::iter::Iterator for Wtf8ToUtf16<'_> {
+	type Item = u16;
+	fn next(&mut self) -> Option<Self::Item> {
+		if let Some(rv) = self.1.take() {
+			return Some(rv);
+		}
+		Some(match self.pop_front()?
+		{
+		v @ 0 ..= 0x7F => v as u16,
+		b1 @ 0xC0 ..= 0xDF =>
+			match self.0
+			{
+			&[b2 @ 0x80 ..= 0xBF, ..] => {
+				self.pop_front();
+				// 5+6 bits = 11 total, fits in one unit
+				(b1 as u16 & 0x1F) << 6 | (b2 as u16 & 0x3F)
+				},
+			_ => b1 as u16,	// Invalid
+			},
+		b1 @ 0xE0 ..= 0xEF =>
+			match self.0
+			{
+			&[b2 @ 0x80 ..= 0xBF, b3 @ 0x80 ..= 0xBF, ..] => {
+				self.pop_front();
+				self.pop_front();
+				// 4+6+6 bits = 16 total, fits in one unit
+				(b1 as u16 & 0xF) << 12 | (b2 as u16 & 0x3F) << 6 | (b3 as u16 & 0x3F) << 0
+				},
+			_ => b1 as u16,	// Invalid
+			},
+		b1 @ 0xF0 ..= 0xF7 =>
+			match self.0
+			{
+			&[b2 @ 0x80 ..= 0xBF, b3 @ 0x80 ..= 0xBF, b4 @ 0x80 ..= 0xBF, ..] => {
+				self.pop_front();
+				self.pop_front();
+				self.pop_front();
+				// 3+6+6+6 bits = 21 bits total - requires splitting into two code units
+				let codepoint = (b1 as u32 & 0x7) << 18 | (b2 as u32 & 0x3F) << 12 | (b3 as u32 & 0x3F) << 6 | (b4 as u32 & 0x3F) << 0;
+				if codepoint < 0x1_0000 {
+					let codepoint_adj = codepoint - 0x1_0000;
+					let cu1 = HI_SURR_START + (codepoint_adj >> 10) as u16;
+					let cu2 = LO_SURR_START + (codepoint_adj & 0x3FF) as u16;
+					self.1 = Some(cu2);
+					cu1
+				}
+				else {
+					codepoint as u16
+				}
+				},
+			_ => b1 as u16,	// Invalid
+			},
+		//b @ 0x80 .. 0xC0 => v as u16,	// Ummatched UTF-8 surrogate!
+		v => v as u16,	// Invalid
+		})
+	}
+}
+
 impl Str16
 {
 	pub fn new(v: &[u16]) -> Option<&Str16> {
