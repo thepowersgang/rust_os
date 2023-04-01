@@ -10,7 +10,7 @@ pub type InodeId = u64;
 pub type Result<T> = ::core::result::Result<T,super::Error>;
 
 /// Node type used by `Dir::create`
-#[derive(Debug,PartialEq)]
+#[derive(Debug,PartialEq,Copy,Clone)]
 pub enum NodeType<'a> {
 	File,
 	Dir,
