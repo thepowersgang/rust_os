@@ -58,7 +58,7 @@ impl ::core::ops::Deref for Filesystem {
 pub struct FilesystemInner
 {
 	//vh: VolumeHandle,
-	vh: ::block_cache::CacheHandle,
+	vh: ::block_cache::CachedVolume,
 	ty: Size,
 	
 	spc: usize,
@@ -118,7 +118,7 @@ impl mount::Driver for Driver
 		}
 	}
 	fn mount(&self, vol: VolumeHandle, _mounthandle: mount::SelfHandle) -> vfs::Result<Box<dyn mount::Filesystem>> {
-		let vol = ::block_cache::CacheHandle::new(vol);
+		let vol = ::block_cache::CachedVolume::new(vol);
 
 		// Read the bootsector
 		let bs = {
@@ -213,7 +213,7 @@ impl FilesystemInner
 		}
 	}
 	/// Load a cluster from disk
-	async fn read_clusters_uncached(&self, cluster: u32, dst: &mut [u8]) -> Result<(), storage::IoError> {
+	async fn read_clusters(&self, cluster: u32, dst: &mut [u8]) -> Result<(), storage::IoError> {
 		log_trace!("Filesystem::read_clusters({:#x}, {})", cluster, dst.len() / self.cluster_size);
 		assert_eq!(dst.len() % self.cluster_size, 0);
 		// For now, just read the bytes, screw caching

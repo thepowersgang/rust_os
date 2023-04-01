@@ -14,7 +14,7 @@ pub type InstancePtr = ArefBorrow<InstanceInner>;
 pub struct InstanceInner
 {
 	is_readonly: bool,
-	pub vol: ::block_cache::CacheHandle,
+	pub vol: ::block_cache::CachedVolume,
 	superblock: ::ondisk::Superblock,
 	pub fs_block_size: usize,
 
@@ -178,7 +178,7 @@ impl Instance
 			superblock: superblock,
 			group_descriptors: group_descs,
 			mount_handle: mount_handle,
-			vol: ::block_cache::CacheHandle::new(vol),
+			vol: ::block_cache::CachedVolume::new(vol),
 			};
 
 		// SAFE: Boxed instantly
@@ -230,7 +230,7 @@ impl InstanceInner
 }
 
 /// Structure representing a view into a BlockCache entry
-pub struct Block<'a>(::block_cache::CachedBlockHandle<'a>, u16,u16);
+pub struct Block<'a>(::block_cache::BlockHandleRead<'a>, u16,u16);
 impl<'a> ::core::ops::Deref for Block<'a>
 {
 	type Target = [u32];
@@ -302,7 +302,7 @@ impl InstanceInner
 	/// Read a sequence of blocks into a user-provided buffer
 	pub fn read_blocks(&self, first_block: u32, data: &mut [u8]) -> vfs::node::Result<()>
 	{
-		::kernel::futures::block_on( self.vol.read_blocks( first_block as u64 * self.vol_blocks_per_fs_block(), data) )?;
+		::kernel::futures::block_on( self.vol.read_blocks_uncached( first_block as u64 * self.vol_blocks_per_fs_block(), data) )?;
 		Ok( () )
 	}
 
@@ -310,7 +310,7 @@ impl InstanceInner
 	pub fn write_blocks(&self, first_block: u32, data: &[u8]) -> vfs::node::Result<()>
 	{
 		// TODO: Requires maybe interfacing with the cache used by get_block?
-		::kernel::futures::block_on( self.vol.write_blocks( first_block as u64 * self.vol_blocks_per_fs_block(), data) )?;
+		::kernel::futures::block_on( self.vol.write_blocks_uncached( first_block as u64 * self.vol_blocks_per_fs_block(), data) )?;
 		Ok( () )
 	}
 }

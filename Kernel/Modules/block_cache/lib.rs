@@ -9,7 +9,7 @@ use kernel::prelude::*;
 use kernel::PAGE_SIZE;
 use core::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use kernel::metadevs::storage::{VolumeHandle,IoError};
-use kernel::sync::{RwLock,rwlock};
+use kernel::sync::{Mutex,RwLock,rwlock};
 use kernel::sync::mutex::LazyMutex;
 
 // NOTES:
@@ -24,14 +24,15 @@ use kernel::sync::mutex::LazyMutex;
 extern crate kernel;
 
 /// A handle into the cache corresponding to a logical volume
-pub struct CacheHandle
+pub struct CachedVolume
 {
 	vh: VolumeHandle,
 }
 
-/// A handle to a block in the cache
-pub struct CachedBlockHandle<'a>(MetaBlockHandle<'a>);
+/// A read-only handle to a block in the cache
+pub struct BlockHandleRead<'a>(MetaBlockHandle<'a>);
 
+/// A not-yet-locked handle to a block in the cache
 struct MetaBlockHandle<'a>(&'a CachedBlock);
 
 /// Global cache structure
@@ -41,6 +42,7 @@ struct Cache
 	map: ::kernel::lib::VecMap< (usize, u64), Box<CachedBlock> >,
 }
 
+/// An actual cache entry
 struct CachedBlock
 {
 	// Constant:
@@ -55,20 +57,20 @@ struct CachedBlock
 }
 
 
-static S_BLOCK_CACHE: LazyMutex<Cache> = LazyMutex::new();
-//static S_BLOCK_CACHE: Mutex<Cache> = Mutex::new(Cache {
-//	map: ::kernel::lib::VecMap::new(),
-//	});
+//static S_BLOCK_CACHE: LazyMutex<Cache> = LazyMutex::new();
+static S_BLOCK_CACHE: Mutex<Cache> = Mutex::new(Cache {
+	map: ::kernel::lib::VecMap::new(),
+	});
 
-impl CacheHandle
+impl CachedVolume
 {
-	pub fn new(vol: VolumeHandle) -> CacheHandle
+	pub fn new(vol: VolumeHandle) -> CachedVolume
 	{
 		if vol.block_size() > ::kernel::PAGE_SIZE {
 			todo!("Support caching volumes with block sizes > page size");
 		}
 
-		CacheHandle {
+		CachedVolume {
 			vh: vol,
 			}
 	}
@@ -78,41 +80,51 @@ impl CacheHandle
 	}
 }
 
-/// Unbuffered IO methods. These just directly read/write from the volume.
-impl CacheHandle
+/// Constant information
+impl CachedVolume
 {
+	/// Get the inner volume name
 	pub fn name(&self) -> &str {
 		self.vh.name()
 	}
+	/// Get the inner volume index
 	pub fn idx(&self) -> usize {
 		self.vh.idx()
 	}
+	/// Get the size fo a block on the underlying volume
 	pub fn block_size(&self) -> usize {
 		self.vh.block_size()
 	}
+	/// Get the size of a cache entry
 	pub fn chunk_size(&self) -> usize {
 		PAGE_SIZE
 	}
-	pub async fn read_blocks(&self, block: u64, data: &mut [u8]) -> Result<(), IoError>
-	{
-		self.vh.read_blocks(block, data).await
-	}
-	pub async fn write_blocks(&self, block: u64, data: &[u8]) -> Result<(), IoError>
-	{
-		self.vh.write_blocks(block, data).await
-	}
 }
 
-/// Cached accesses
-impl CacheHandle
+impl CachedVolume
 {
+	fn get_block_meta_opt(&self, block: u64) -> Option<MetaBlockHandle<'_>> {
+		let cache_block = block - block % self.blocks_per_page();
+		let handle = {
+			use kernel::lib::vec_map::Entry;
+			let mut lh = S_BLOCK_CACHE.lock();
+			let handle = match lh.map.entry( (self.vh.idx(), cache_block) )
+				{
+				Entry::Occupied(v) => v.into_mut().borrow(),
+				Entry::Vacant(v) => return None,
+				};
+			// SAFE: 1. The internal data is boxed, 2. The box won't be dropped while a borrow exists.
+			unsafe { ::core::mem::transmute::<MetaBlockHandle, MetaBlockHandle>(handle) }
+			};
+		Some(handle)
+	}
 	/// Obtain an unlocked block handle
 	async fn get_block_meta(&self, block: u64) -> Result<MetaBlockHandle<'_>, IoError>
 	{
 		let cache_block = block - block % self.blocks_per_page();
 		let handle = {
 			use kernel::lib::vec_map::Entry;
-			let mut lh = S_BLOCK_CACHE.lock_init(|| Default::default());
+			let mut lh = S_BLOCK_CACHE.lock();
 			let handle = match lh.map.entry( (self.vh.idx(), cache_block) )
 				{
 				Entry::Occupied(v) => v.into_mut().borrow(),
@@ -123,10 +135,70 @@ impl CacheHandle
 			};
 		Ok(handle)
 	}
+}
 
+/// Unbuffered IO methods. These just directly read/write from the volume.
+impl CachedVolume
+{
+	/// Read blocks without populating the cache, but does check it
+	pub async fn read_blocks(&self, block: u64, data: &mut [u8]) -> Result<(), IoError> {
+		let total_blocks = (data.len() / self.block_size()) as u64;
+		let mut cur_rel_block = 0;
+		while cur_rel_block < total_blocks {
+			let nblocks = u64::max(total_blocks - cur_rel_block, self.blocks_per_page());
+			let ldata = &mut data[cur_rel_block as usize * self.block_size()..][..nblocks as usize * self.block_size()];
+			// TODO: Cache race? (if the entry is created during the read)
+			if let Some(h) = self.get_block_meta_opt(block + cur_rel_block) {
+				let begin = ((block + cur_rel_block) % self.blocks_per_page()) as usize * self.block_size();
+				ldata.copy_from_slice(&h.into_ro().data()[begin..][..ldata.len()]);
+			}
+			else {
+				self.vh.read_blocks(block + cur_rel_block, ldata).await?
+			}
+			cur_rel_block += nblocks;
+		}
+		Ok( () )
+	}
+
+	/// Write blocks without populating the cache, but does check it
+	pub async fn write_blocks(&self, block: u64, data: &[u8]) -> Result<(), IoError> {
+		let total_blocks = (data.len() / self.block_size()) as u64;
+		let mut cur_rel_block = 0;
+		while cur_rel_block < total_blocks {
+			let nblocks = u64::max(total_blocks - cur_rel_block, self.blocks_per_page());
+			let ldata = &data[cur_rel_block as usize * self.block_size()..][..nblocks as usize * self.block_size()];
+			// TODO: Cache race? (if the entry is created during the read)
+			if let Some(cached_block) = self.get_block_meta_opt(block + cur_rel_block) {
+				let begin = ((block + cur_rel_block) % self.blocks_per_page()) as usize * self.block_size();
+				cached_block.edit(|block_data| {
+					block_data[begin ..][ .. ldata.len()].copy_from_slice( ldata );
+					});
+				cached_block.0.flush(&self.vh).await?;
+			}
+			else {
+				self.vh.write_blocks(block + cur_rel_block, ldata).await?
+			}
+			cur_rel_block += nblocks;
+		}
+		Ok( () )
+	}
+
+	/// Directly read from the underlying volume (skips the cache)
+	pub async fn read_blocks_uncached(&self, block: u64, data: &mut [u8]) -> Result<(), IoError> {
+		self.vh.read_blocks(block, data).await
+	}
+	/// Directly write to the underlying volume (skips the cache)
+	pub async fn write_blocks_uncached(&self, block: u64, data: &[u8]) -> Result<(), IoError> {
+		self.vh.write_blocks(block, data).await
+	}
+}
+
+/// Cached accesses
+impl CachedVolume
+{
 	/// Obtain a handle to a cached block.
 	/// NOTE: The returned handle will point to the start of the cache block, which may be larger than the disk block. Remember to check the returned block index.
-	pub async fn get_block(&self, block: u64) -> Result<CachedBlockHandle<'_>, IoError>
+	pub async fn get_block(&self, block: u64) -> Result<BlockHandleRead<'_>, IoError>
 	{
 		Ok( self.get_block_meta(block).await?.into_ro() )
 	}
@@ -166,7 +238,7 @@ impl CacheHandle
 			Ok( () )
 			})
 	}
-	/// Edit block
+	/// Edit a cached block
 	pub async fn edit<F: FnOnce(&mut [u8])->R,R>(&self, block: u64, count: usize, f: F) -> Result<R, IoError>
 	{
 		let cached_block = self.get_block_meta(block).await?;
@@ -257,10 +329,10 @@ impl<'a> MetaBlockHandle<'a>
 		f(dataptr)
 	}
 
-	pub fn into_ro(self) -> CachedBlockHandle<'a> {
+	pub fn into_ro(self) -> BlockHandleRead<'a> {
 		let read_handle = self.0.mapping.read();
 		::core::mem::forget(read_handle);
-		CachedBlockHandle( self/*, read_handle*/ )
+		BlockHandleRead( self/*, read_handle*/ )
 	}
 }
 impl<'a> ::core::ops::Drop for MetaBlockHandle<'a>
@@ -279,7 +351,7 @@ impl<'a> ::core::ops::Drop for MetaBlockHandle<'a>
 	}
 }
 
-impl<'a> CachedBlockHandle<'a>
+impl<'a> BlockHandleRead<'a>
 {
 	fn block(&self) -> &CachedBlock {
 		self.0 .0
@@ -301,7 +373,7 @@ impl<'a> CachedBlockHandle<'a>
 		unsafe { &*rawptr }
 	}
 }
-impl<'a> Drop for CachedBlockHandle<'a>
+impl<'a> Drop for BlockHandleRead<'a>
 {
 	fn drop(&mut self)
 	{
