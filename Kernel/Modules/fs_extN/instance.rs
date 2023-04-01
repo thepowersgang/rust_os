@@ -291,13 +291,13 @@ impl InstanceInner
 	///
 	/// This is the more expensive version of `get_block`, which doesn't directly touch the block cache.
 	/// It's used to handle partial file reads (which should be cached by higher layers)
-	pub fn get_block_uncached(&self, block: u32) -> vfs::node::Result<Box<[u32]>>                           
-	{                                                                                              
-		log_trace!("get_block_uncached({})", block);                                                    
-		let mut rv = vec![0u32; self.fs_block_size / 4].into_boxed_slice();                    
+	pub fn get_block_uncached(&self, block: u32) -> vfs::node::Result<Box<[u32]>>
+	{
+		log_trace!("get_block_uncached({})", block);
+		let mut rv = vec![0u32; self.fs_block_size / 4].into_boxed_slice();
 		self.read_blocks( block, ::kernel::lib::as_byte_slice_mut(&mut rv[..]) )?;
-		Ok(rv)                                                                                 
-	}                
+		Ok(rv)
+	}
 
 	/// Read a sequence of blocks into a user-provided buffer
 	pub fn read_blocks(&self, first_block: u32, data: &mut [u8]) -> vfs::node::Result<()>
@@ -397,7 +397,7 @@ impl InstanceInner
 	pub fn write_inode(&self, inode_num: u32, inode_data: &::ondisk::Inode) -> vfs::Result< () >
 	{
 		let (vol_block, blk_ofs) = self.get_inode_pos(inode_num);
-		
+
 		let slice = ::kernel::lib::as_byte_slice(inode_data);
 		let slice = if slice.len() > self.s_inode_size() {
 				&slice[..self.s_inode_size()]
