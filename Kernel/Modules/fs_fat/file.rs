@@ -88,8 +88,9 @@ impl node::File for FileNode {
 				let Some(cluster) = clusters.next() else { return Err(ERROR_SHORTCHAIN); };
 				let short_count = ::core::cmp::min(self.fs.cluster_size-ofs, buf.len());
 				log_trace!("read(): Read partial head C{:#x} len={}", cluster, short_count);
-				let c = self.fs.load_cluster(cluster)?;
-				buf[..short_count].clone_from_slice( &c[ofs..][..short_count] );
+				::kernel::futures::block_on(self.fs.with_cluster(cluster, |c| {
+					buf[..short_count].clone_from_slice( &c[ofs..][..short_count] );
+					}))?;
 				
 				cur_read_ofs += short_count;
 				//buf[short_count..].chunks_mut(self.fs.cluster_size)
@@ -111,7 +112,7 @@ impl node::File for FileNode {
 				};
 			let bytes = count * self.fs.cluster_size;
 			log_trace!("read(): Read cluster extent C{:#x} + {}", cluster, count);
-			::kernel::futures::block_on(self.fs.read_clusters(cluster, &mut dst[..bytes]))?;
+			::kernel::futures::block_on(self.fs.read_clusters_uncached(cluster, &mut dst[..bytes]))?;
 			cur_read_ofs += bytes;
 		}
 
@@ -128,9 +129,10 @@ impl node::File for FileNode {
 					},
 				};
 			log_trace!("read(): Read partial tail C{:#x} len={}", cluster, dst.len());
-			let c = self.fs.load_cluster(cluster)?;
-			let bytes = dst.len();
-			dst.clone_from_slice( &c[..bytes] );
+			::kernel::futures::block_on(self.fs.with_cluster(cluster, |c| {
+				let bytes = dst.len();
+				dst.clone_from_slice( &c[..bytes] );
+			}))?
 		}
 
 		log_trace!("read(): Complete {}", read_length);

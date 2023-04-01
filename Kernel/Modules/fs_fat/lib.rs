@@ -15,7 +15,6 @@ use kernel::lib::mem::aref::{ArefInner,ArefBorrow};
 use kernel::lib::mem::Arc;
 
 extern crate utf16;
-extern crate blockcache;
 extern crate block_cache;
 
 module_define!{FS_FAT, [VFS], init}
@@ -71,11 +70,6 @@ pub struct FilesystemInner
 	
 	root_first_cluster: u32,
 	root_sector_count: u32,
-	
-	//fat_cache: vfs::Cache<[u32; FAT_CACHE_BLOCK_SIZE]>,
-	// XXX: Should really use the above line for this, but BlockCache exists
-	/// A cache of metadata clusters (i.e. directories)
-	metadata_block_cache: ::blockcache::BlockCache,
 }
 
 /// Inodes IDs destrucure into two 28-bit cluster IDs, and a 16-bit dir offset
@@ -192,8 +186,6 @@ impl mount::Driver for Driver
 					_ => FATL_ROOT_CLUSTER as u32,
 					},
 				root_sector_count: root_dir_sectors as u32,
-				
-				metadata_block_cache: ::blockcache::BlockCache::new(),
 
 				vh: vol,
 				}) },
@@ -205,47 +197,44 @@ type Cluster = Arc<[u8]>;
 
 impl FilesystemInner
 {
-	/// Load a cluster from disk
-	async fn read_cluster(&self, cluster: u32, dst: &mut [u8]) -> Result<(), storage::IoError> {
-		assert_eq!(dst.len(), self.cluster_size);
-		self.read_clusters(cluster, dst).await
+	fn get_sector_for_cluster(&self, cluster: u32) -> u64 {
+		if !is!(self.ty, Size::Fat32) && cluster >= FATL_ROOT_CLUSTER {
+			// Root directory (for FAT12/16, where it was not a normal file)
+			let rc = cluster - FATL_ROOT_CLUSTER;
+			assert!( (rc as u64 * self.spc as u64) < self.root_sector_count as u64);
+			(self.first_data_sector - self.root_sector_count as usize) as u64
+			+ (rc * self.spc as u32) as u64
+		}
+		else {
+			// Anything else
+			assert!(cluster >= 2);
+			assert!(cluster - 2 < self.cluster_count as u32);
+			self.first_data_sector as u64 + (cluster as u64 - 2) * self.spc as u64
+		}
 	}
-	async fn read_clusters(&self, cluster: u32, dst: &mut [u8]) -> Result<(), storage::IoError> {
+	/// Load a cluster from disk
+	async fn read_clusters_uncached(&self, cluster: u32, dst: &mut [u8]) -> Result<(), storage::IoError> {
 		log_trace!("Filesystem::read_clusters({:#x}, {})", cluster, dst.len() / self.cluster_size);
 		assert_eq!(dst.len() % self.cluster_size, 0);
 		// For now, just read the bytes, screw caching
-		let sector = if !is!(self.ty, Size::Fat32) && cluster >= FATL_ROOT_CLUSTER {
-				// Root directory (for FAT12/16, where it was not a normal file)
-				let rc = cluster - FATL_ROOT_CLUSTER;
-				assert!( (rc as u64 * self.spc as u64) < self.root_sector_count as u64);
-				(self.first_data_sector - self.root_sector_count as usize) as u64
-				+ (rc * self.spc as u32) as u64
-			}
-			else {
-				// Anything else
-				assert!(cluster >= 2);
-				assert!(cluster - 2 < self.cluster_count as u32);
-				self.first_data_sector as u64 + (cluster as u64 - 2) * self.spc as u64
-			};
+		let sector = self.get_sector_for_cluster(cluster);
 		log_debug!("read_clusters: cluster = {:#x}, sector = 0x{:x}", cluster, sector);
 		self.vh.read_blocks(sector, dst).await?;
 		//::kernel::logging::hex_dump("FAT Cluster", &buf);
 		Ok( () )
 	}
 
-	// TODO: Locking/Cache
-	// - Should this function lock the cluster somehow to prevent accidental overlap?
-	// - Could also cache somehow (with a refcount) along with the 'writing' flag
-	fn load_cluster(&self, cluster: u32) -> Result<Cluster, storage::IoError>
-	{
-		self.metadata_block_cache.get(
-			cluster,
-			|_| {
-				log_debug!("load_cluster: miss C{:#x}", cluster);
-				let mut buf: Cluster = Arc::from_iter( (0..self.spc * self.vh.block_size()).map(|_| 0) );
-				::kernel::futures::block_on( self.read_cluster( cluster, Arc::get_mut(&mut buf).unwrap() ) )?;
-				Ok( buf )
-			})
+	/// Cached cluster access
+	async fn with_cluster<T>(&self, cluster: u32, callback: impl FnOnce(&[u8])->T) -> Result<T, storage::IoError> {
+		let sector = self.get_sector_for_cluster(cluster);
+		let block = self.vh.get_block(sector).await?;
+		let ofs = sector - block.index();
+		Ok( callback(&block.data()[ofs as usize * self.vh.block_size()..]) )
+	}
+	async fn edit_cluster(&self, cluster: u32, callback: impl FnOnce(&mut [u8])) -> Result<(), storage::IoError> {
+		let sector = self.get_sector_for_cluster(cluster);
+		// TODO: What if a cluster is larger than a block?
+		self.vh.edit(sector, /*::block_cache::CacheType::Metadata,*/ self.spc, callback).await
 	}
 }
 
@@ -268,7 +257,7 @@ impl mount::Filesystem for Filesystem
 			// locate the file with cluster equal to r.first_cluster.
 			// And use that to create the node
 			let dn = dir::DirNode::new(self.inner.borrow(), r.dir_first_cluster);
-			dn.find_node(r.first_cluster)
+			dn.find_node(r.first_cluster).expect("TODO: Error for `get_node_by_inode`")
 		}
 	}
 }

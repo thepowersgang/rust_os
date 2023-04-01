@@ -45,7 +45,20 @@ fn read_arr16<T: AsMut<[u16]>>(s: &mut &[u8]) -> T {
 	}
 	v
 }
-
+fn write_u8(s: &mut &mut[u8], v: u8) {
+	write_arr(s, &v.to_le_bytes());
+}
+fn write_u16(s: &mut &mut[u8], v: u16) {
+	write_arr(s, &v.to_le_bytes());
+}
+fn write_u32(s: &mut &mut[u8], v: u32) {
+	write_arr(s, &v.to_le_bytes());
+}
+fn write_arr<const N: usize>(s: &mut &mut [u8], v: &[u8; N]) {
+	let (a,b) = ::core::mem::replace(s, &mut []).split_at_mut(N);
+	a.copy_from_slice(v);
+	*s = b;
+}
 pub enum BootSect
 {
 	Legacy(BootSect16),
@@ -197,6 +210,7 @@ impl BootSect32Info {
 pub struct DirEnt
 {
 	pub name: [u8; 11],
+	/// Attributes - see `ATTR_*` constants
 	pub attribs: u8,
 	pub lcase: u8,
 	pub creation_ds: u8,	// 10ths of a second
@@ -225,6 +239,20 @@ impl DirEnt {
 			cluster: read_u16(src),
 			size: read_u32(src),
 		}
+	}
+	pub fn write(&self, dst: &mut &mut[u8]) {
+		write_arr(dst, &self.name);
+		write_u8(dst, self.attribs);
+		write_u8(dst, self.lcase);
+		write_u8(dst, self.creation_ds);
+		write_u16(dst, self.creation_time);
+		write_u16(dst, self.creation_date);
+		write_u16(dst, self.accessed_date);
+		write_u16(dst, self.cluster_hi);
+		write_u16(dst, self.modified_time);
+		write_u16(dst, self.modified_date);
+		write_u16(dst, self.cluster);
+		write_u32(dst, self.size);
 	}
 }
 #[derive(Debug)]

@@ -268,7 +268,7 @@ impl super::FilesystemInner
 	/// * `end`: Sector-internal index of the past-end cluster to consider
 	fn find_and_alloc_cluster_in_sector(&self, base: u32, start: u32, end: u32) -> Result<Option<u32>, storage::IoError>
 	{
-		assert!(base < self.cluster_count as u32);
+		assert!(base < self.cluster_count as u32, "find_and_alloc_cluster_in_sector: base {} >= count {}", base, self.cluster_count);
 		let (sector_idx, _ofs, _ent_size, cps) = self.get_fat_addr(base);
 		assert!(base % cps == 0);
 		// Clamp the end to CPS (should be already), and to the last cluster in the volume (may not be)

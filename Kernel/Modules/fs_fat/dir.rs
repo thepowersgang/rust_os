@@ -59,10 +59,38 @@ impl DirNode {
 		}
 	}
 
+	fn iterate_ents<T>(&self, skip: usize, mut cb: impl FnMut(usize, DirEnt)->Option<T>) -> Result<Option<T>, super::storage::IoError> {
+		let ents_per_cluster = self.fs.cluster_size / 32;
+		let mut idx = skip / ents_per_cluster * ents_per_cluster;
+		for c in self.clusters().skip(skip / ents_per_cluster)
+		{
+			if let Some(rv) = ::kernel::futures::block_on(self.fs.with_cluster(c, |cluster| {
+				for ent in DirEnts::new(&cluster) {
+					let is_end = matches!(ent, DirEnt::End);
+					if idx >= skip {
+						log_trace!("{:?}", ent);
+						if let Some(rv) = cb(idx, ent) {
+							return Some(Some(rv));
+						}
+					}
+					idx += 1;
+					if is_end {
+						return Some(None);
+					}
+				}
+				None
+			}))? {
+				return Ok(rv);
+			}
+		}
+		Ok(None)
+	}
+
 	/// Locate a node in this directory by its first data cluster
-	pub fn find_node(&self, ent_cluster: u32) -> Option<node::Node>
+	pub fn find_node(&self, ent_cluster: u32) -> Result<Option<node::Node>, super::storage::IoError>
 	{
-		match self.find_ent_by_cluster(ent_cluster)
+		log_debug!("DirNode::find_node(C{:#x})", ent_cluster);
+		Ok(match self.find_ent_by_cluster(ent_cluster)?
 		{
 		None => None,
 		Some(e) =>
@@ -77,26 +105,18 @@ impl DirNode {
 					self.fs.reborrow(), self.start_cluster, ent_cluster, e.size
 					)))
 			},
-		}
+		})
 	}
 	
-	fn find_ent_by_cluster(&self, ent_cluster: u32) -> Option<DirEntShort> {
+	fn find_ent_by_cluster(&self, ent_cluster: u32) -> Result<Option<DirEntShort>, super::storage::IoError> {
 		log_trace!("find_ent_by_cluster(self={:?}, ent_cluster={})", self, ent_cluster);
-		for c in self.clusters()
-		{
-			let cluster = match self.fs.load_cluster(c) {
-				Ok(v) => v,
-				Err(_) => return None,
-				};
-			for ent in DirEnts::new(&cluster) {
-				if let DirEnt::Short(e) = ent {
-					if e.cluster == ent_cluster {
-						return Some(e);
-					}
-				}
+		self.iterate_ents(0, |_i, ent| {
+			match ent
+			{
+			DirEnt::Short(e) if e.cluster == ent_cluster => Some(e),
+			_ => None,
 			}
-		}
-		None
+		})
 	}
 }
 
@@ -114,6 +134,123 @@ enum DirEnt {
 	Empty,
 	Short(DirEntShort),
 	Long(DirEntLong),
+	Invalid(on_disk::DirEnt),
+}
+impl DirEnt {
+	fn from_raw(slice: &[u8]) -> Self {
+		// Decode the legacy format entry
+		let ent = on_disk::DirEnt::read(&mut {slice});
+		if ent.name[0] == 0 {
+			DirEnt::End
+		}
+		else if ent.name[0] == b'\xE5' {
+			DirEnt::Empty
+		}
+		else if ent.attribs == on_disk::ATTR_LFN {
+			// Long filename entry
+			let lfn = on_disk::DirEntLong::read(&mut {slice});
+			let outname = {
+				let mut outname = [0u16; 13];
+				outname[0..5].clone_from_slice(&lfn.name1);
+				outname[5..11].clone_from_slice(&lfn.name2);
+				outname[11..13].clone_from_slice(&lfn.name3);
+				outname
+				};
+			DirEnt::Long( DirEntLong{
+				id: lfn.id,
+				_type: lfn.ty,
+				chars: outname,
+				} )
+		}
+		else if ent.attribs & on_disk::ATTR_VOLUMEID != 0 {
+			// TODO: I need a better value than Empty for reserved entries
+			DirEnt::Invalid(ent)
+		}
+		else {
+			// Short entry
+			let lower_base = (ent.lcase & on_disk::CASE_LOWER_BASE) != 0;
+			let lower_ext  = (ent.lcase & on_disk::CASE_LOWER_EXT ) != 0;
+			// 1. Decode name into a NUL-padded string
+			let (outname, _) = {
+				let (mut outname, mut oidx) =  ([0u8; 12/*8+1+3*/], 0);
+				for iidx in 0 .. 8 {
+					if ent.name[iidx] != b' ' {
+						outname[oidx] = ent.name[iidx];
+						if lower_base {
+							outname[oidx] = outname[oidx].to_ascii_lowercase();
+						}
+						oidx += 1;
+					}
+				}
+				outname[oidx] = b'.';
+				oidx += 1;
+				for iidx in 8 .. 11 {
+					if ent.name[iidx] != b' ' {
+						outname[oidx] = ent.name[iidx];
+						if lower_ext {
+							outname[oidx] = outname[oidx].to_ascii_lowercase();
+						}
+						oidx += 1;
+					}
+				}
+				if outname[oidx-1] == b'.' {
+					outname[oidx-1] = 0;
+					oidx -= 1;
+				}
+				(outname, oidx)
+				};
+			// 3. Cluster, Size, Attribs
+			DirEnt::Short(DirEntShort{
+				name: outname,
+				cluster: (ent.cluster as u32) | (ent.cluster_hi as u32) << 16,
+				size: ent.size,
+				attributes: ent.attribs,
+				})
+		}
+	}
+
+	fn to_raw(&self, mut dst: &mut [u8]) {
+		match self
+		{
+		DirEnt::End => dst.copy_from_slice(&[0; 32]),
+		DirEnt::Short(v) => {
+			let mut name = [b' '; 8+3];
+			let dpos = v.name.iter().position(|&v| v == b'.');
+			let epos = v.name.iter().position(|&v| v == b'\0').unwrap_or(8+1+3);
+			let mut lcase = 0;
+			for i in 0 .. dpos.unwrap_or(epos) {
+				assert!(i < 8);
+				if v.name[i].is_ascii_lowercase() {
+					lcase |= on_disk::CASE_LOWER_BASE;
+				}
+				name[i] = v.name[i].to_ascii_uppercase();
+			}
+			if let Some(dpos) = dpos {
+				for i in dpos+1 .. epos {
+					if v.name[i].is_ascii_lowercase() {
+						lcase |= on_disk::CASE_LOWER_EXT;
+					}
+					name[8 + i - (dpos+1)] = v.name[i].to_ascii_uppercase();
+				}
+			}
+			on_disk::DirEnt {
+				name,
+				attribs: v.attributes,
+				lcase,
+				size: v.size,
+				cluster: v.cluster as u16,
+				cluster_hi: (v.cluster >> 16) as u16,
+				creation_ds: 0,
+				creation_date: 0,
+				creation_time: 0,
+				accessed_date: 0,
+				modified_date: 0,
+				modified_time: 0,
+				}.write(&mut dst);
+			},
+		_ => todo!("DirEnt::to_raw: {:?}", self),
+		}
+	}
 }
 struct DirEntShort {
 	/// NUL-padded string with extention joined
@@ -164,75 +301,7 @@ impl<'a> ::core::iter::Iterator for DirEnts<'a> {
 		else {
 			let slice = &self.cluster[self.ofs*32..];
 			self.ofs += 1;
-			// Decode the legacy format entry
-			let ent = on_disk::DirEnt::read(&mut &slice[..]);
-			if ent.name[0] == 0 {
-				Some(DirEnt::End)
-			}
-			else if ent.name[0] == b'\xE5' {
-				Some(DirEnt::Empty)
-			}
-			else if ent.attribs == on_disk::ATTR_LFN {
-				// Long filename entry
-				let lfn = on_disk::DirEntLong::read(&mut &slice[..]);
-				let outname = {
-					let mut outname = [0u16; 13];
-					outname[0..5].clone_from_slice(&lfn.name1);
-					outname[5..11].clone_from_slice(&lfn.name2);
-					outname[11..13].clone_from_slice(&lfn.name3);
-					outname
-					};
-				Some(DirEnt::Long( DirEntLong{
-					id: lfn.id,
-					_type: lfn.ty,
-					chars: outname,
-					} ))
-			}
-			else if ent.attribs & on_disk::ATTR_VOLUMEID != 0 {
-				// TODO: I need a better value than Empty for reserved entries
-				Some(DirEnt::Empty)
-			}
-			else {
-				// Short entry
-				let lower_base = (ent.lcase & on_disk::CASE_LOWER_BASE) != 0;
-				let lower_ext  = (ent.lcase & on_disk::CASE_LOWER_EXT ) != 0;
-				// 1. Decode name into a NUL-padded string
-				let (outname, _) = {
-					let (mut outname, mut oidx) =  ([0u8; 12/*8+1+3*/], 0);
-					for iidx in 0 .. 8 {
-						if ent.name[iidx] != b' ' {
-							outname[oidx] = ent.name[iidx];
-							if lower_base {
-								outname[oidx] = outname[oidx].to_ascii_lowercase();
-							}
-							oidx += 1;
-						}
-					}
-					outname[oidx] = b'.';
-					oidx += 1;
-					for iidx in 8 .. 11 {
-						if ent.name[iidx] != b' ' {
-							outname[oidx] = ent.name[iidx];
-							if lower_ext {
-								outname[oidx] = outname[oidx].to_ascii_lowercase();
-							}
-							oidx += 1;
-						}
-					}
-					if outname[oidx-1] == b'.' {
-						outname[oidx-1] = 0;
-						oidx -= 1;
-					}
-					(outname, oidx)
-					};
-				// 3. Cluster, Size, Attribs
-				Some( DirEnt::Short(DirEntShort{
-					name: outname,
-					cluster: (ent.cluster as u32) | (ent.cluster_hi as u32) << 16,
-					size: ent.size,
-					attributes: ent.attribs,
-					}) )
-			}
+			Some(DirEnt::from_raw(&slice[..32]))
 		}
 	}
 }
@@ -298,27 +367,27 @@ impl node::Dir for DirNode {
 	fn lookup(&self, name: &ByteStr) -> node::Result<node::InodeId> {
 		// For each cluster in the directory, iterate
 		let mut lfn = LFN::new();
-		for c in self.clusters()
-		{
-			let cluster = self.fs.load_cluster(c)?;
-			for ent in DirEnts::new(&cluster)
-			{
-				match ent {
-				DirEnt::End => return Err(vfs::Error::NotFound),
-				DirEnt::Short(e) => {
-					if e.name() == name || lfn.name() == name {
-						return Ok( e.inode(self.start_cluster) );
-					}
-					lfn.clear();
-					},
-				DirEnt::Long(e) => lfn.add(&e),
-				DirEnt::Empty => {
-					lfn.clear();
-					},
+		match self.iterate_ents(0, |_i, ent| {
+			match ent {
+			DirEnt::End => {},
+			DirEnt::Short(e) => {
+				if e.name() == name || lfn.name() == name {
+					return Some( e.inode(self.start_cluster) );
 				}
+				lfn.clear();
+				},
+			DirEnt::Long(e) => lfn.add(&e),
+			DirEnt::Empty => {
+				lfn.clear();
+				},
+			DirEnt::Invalid(_) => lfn.clear(),
 			}
+			None
+			})?
+		{
+		Some(v) => Ok(v),
+		None => Err(vfs::Error::NotFound)
 		}
-		Err(vfs::Error::NotFound)
 	}
 	fn read(&self, ofs: usize, callback: &mut node::ReadDirCallback) -> node::Result<usize> {
 		
@@ -327,48 +396,289 @@ impl node::Dir for DirNode {
 		
 		let mut lfn = LFN::new();
 		let mut cur_ofs = ofs;
-		for c in self.clusters().skip(cluster_idx)
-		{
-			let cluster = self.fs.load_cluster(c)?;
-			for ent in DirEnts::new(&cluster).skip(c_ofs)
+		if let Some(rv) = self.iterate_ents(ofs, |ofs, ent| {
+			cur_ofs = ofs;
+			match ent
 			{
-				cur_ofs += 1;
-				match ent
-				{
-				DirEnt::End => {
-					// On next call, we want to hit this entry (so we can return count=0)
-					return Ok(cur_ofs - 1);
-					},
-				DirEnt::Short(e) => {
-					let inode = e.inode(self.start_cluster);
-					let cont = if lfn.is_valid() {
-							callback(inode, &mut lfn.name().wtf8())
-						}
-						else {
-							callback(inode, &mut e.name().as_bytes().iter().cloned())
-						};
-					if ! cont {
-						return Ok(cur_ofs);
+			// On next call, we want to hit this entry (so we can return count=0)
+			DirEnt::End => return Some(cur_ofs),
+			DirEnt::Short(e) => {
+				let inode = e.inode(self.start_cluster);
+				let cont = if lfn.is_valid() {
+						callback(inode, &mut lfn.name().wtf8())
 					}
-					lfn.clear();
-					},
-				DirEnt::Long(e) => lfn.add(&e),
-				DirEnt::Empty => {
-					lfn.clear();
-					},
+					else {
+						callback(inode, &mut e.name().as_bytes().iter().cloned())
+					};
+				if ! cont {
+					return Some(cur_ofs+1);
 				}
+				lfn.clear();
+				},
+			DirEnt::Long(e) => lfn.add(&e),
+			DirEnt::Empty => {
+				lfn.clear();
+				},
+			DirEnt::Invalid(_) => lfn.clear(),
 			}
+			None
+		})? {
+			Ok(rv)
 		}
-		
-		Ok( cur_ofs )
+		else {
+			Ok( cur_ofs+1 )
+		}
 	}
 	fn create(&self, name: &ByteStr, nodetype: node::NodeType) -> node::Result<node::InodeId> {
 		// File cluster for the dir's data
-		let Some(new_cluster) = self.fs.alloc_cluster_unchained( self.start_cluster)? else {
+		let Some(new_cluster) = self.fs.alloc_cluster_unchained(if self.start_cluster == super::FATL_ROOT_CLUSTER { 0 } else { self.start_cluster })? else {
 			return Err(vfs::Error::OutOfSpace);
 			};
+		log_debug!("DirNode::create('{:?}', {:?}): new_cluster={:#x}", name, nodetype, new_cluster);
+		fn is_valid_short_char(b: u8) -> bool {
+			b.is_ascii_uppercase() || b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'_'
+		}
+		/// Check if the passed string is a valid short file name, and return the encoded version if it is
+		fn is_valid_short_name(name: &ByteStr) -> Option<[u8; 8+1+3]> {
+			let mut rv = [0; 8+1+3];
+			let mut dotpos = None;
+			let mut has_upper = false;
+			let mut has_lower = false;
+			for (i,&b) in name.as_bytes().iter().enumerate() {
+				if b == b'.' && i > 0 {	// leading dot isn't valid
+					dotpos = Some(i);
+					break;
+				}
+				else if i == 8 {
+					return None;
+				}
+				else if !is_valid_short_char(b) {
+					return None;
+				}
+				else {
+					rv[i] = b;
+					has_lower |= b.is_ascii_lowercase();
+					has_upper |= b.is_ascii_uppercase();
+				}
+			}
+			if has_upper && has_lower {
+				return None;
+			}
+			if let Some(dotpos) = dotpos {
+				let mut has_upper = false;
+				let mut has_lower = false;
+				rv[dotpos] = b'.';
+				for (i,&b) in name.as_bytes()[dotpos+1..].iter().enumerate() {
+					if i == 3 {
+						return None;
+					}
+					else if !is_valid_short_char(b) {
+						return None;
+					}
+					else {
+						rv[dotpos+1+i] = b;
+						has_lower |= b.is_ascii_lowercase();
+						has_upper |= b.is_ascii_uppercase();
+					}
+				}
+				if has_upper && has_lower {
+					return None;
+				}
+			}
+			Some(rv)
+		}
+		fn make_short_name(name: &ByteStr, index: u16) -> [u8; 8+1+3] {
+			let mut rv = [0; 8+1+3];
+			let mut i = 0;
+			// Strip leading invalid characters
+			let mut iter = name.as_bytes().iter().copied().peekable();
+			if iter.peek() == Some(&b'.') {
+				iter.next();
+			}
+			let mut has_ext = false;
+			while let Some(v) = iter.next() {
+				if i > 0 && v == b'.' {
+					has_ext = true;
+					break;
+				}
+				if i == 8 {
+					rv[6] = b'~';
+					rv[7] = b'1';
+					break;
+				}
+				if is_valid_short_char(v.to_ascii_uppercase()) {
+					rv[i] = v.to_ascii_uppercase();
+					i += 1;
+				}
+			}
+			if i == 0 {
+				rv[i] = b'_';
+				i += 1;
+			}
+			if has_ext && iter.peek().is_some() {
+				rv[i] = b'.';
+				i += 1;
+				while let Some(v) = iter.next() {
+					if is_valid_short_char(v.to_ascii_uppercase()) {
+						rv[i] = v.to_ascii_uppercase();
+						i += 1;
+					}
+				}
+				if rv[i-1] == b'.' {
+					rv[i] = b'_';
+				}
+			}
+
+			if index > 0 {
+				todo!("Mangle short name for de-duplication");
+			}
+
+			rv
+		}
+		let short_name;
 		// Add entries to the end of the dir
-		todo!("DirNode::create('{:?}', {:?}): dir_cluster={:#x}", name, nodetype, new_cluster);
+		// - Determine if this file can be encoded as a short filename, and if not - how many entries it will need
+		let num_entries = if let Some(sn) = is_valid_short_name(name) {
+			short_name = sn;
+			1
+		} else {
+			short_name = make_short_name(name, 0);
+			1 + (::utf16::wtf8_to_utf16(name.as_bytes()).count() + 1 + 13-1) / 13
+		};
+		// - Lock the directory, then start seeking clusters looking for a sequence of slots large enough
+		//let _lh = self.write_lock.lock();
+		let mut end_entry = None;
+		let (found_slot, short_collision, total_free_slots, end_idx) = {
+			let mut found_slot = None;
+			let mut short_collision = false;
+			let mut n_free_total = 0;
+			let mut n_free_run = 0;	// Number of free entries in a row currently seen
+			let mut lfn = LFN::new();
+			let mut idx = 0;	// Index of the directory entry
+			// TODO: `iterate_ent` doesn't return the cluster - so reimplemented here
+			for c in self.clusters()
+			{
+				if let Some(rv) = ::kernel::futures::block_on(self.fs.with_cluster(c, |cluster| {
+					for (i,ent) in DirEnts::new(&cluster).enumerate()
+					{
+						match ent {
+						DirEnt::End => {
+							end_entry = Some( (c,i) );
+							break ;
+							},
+						DirEnt::Short(ref e) => {
+							if e.name() == name || lfn.name() == name {
+								return Some(Err(vfs::Error::AlreadyExists));
+							}
+							if e.name().as_bytes() == &short_name {
+								short_collision = true;
+							}
+							lfn.clear();
+							},
+						DirEnt::Long(ref e) => lfn.add(e),
+						DirEnt::Empty => {
+							lfn.clear();
+							},
+						DirEnt::Invalid(_) => lfn.clear(),
+						}
+						if let DirEnt::Empty = ent {
+							n_free_run += 1;
+							n_free_total += 1;
+							if found_slot.is_none() && n_free_run == num_entries {
+								found_slot = Some(idx);
+							}
+						}
+						else {
+							n_free_run = 0;
+						}
+						idx += 1;
+					}
+					None
+					}))? {
+					return rv;
+				}
+				if end_entry.is_some() {
+					break;
+				}
+			}
+			(found_slot, short_collision, n_free_total, idx)
+		};
+
+		// If there was a short name collision (... which can only be flagged if LFN is used, otherwise it's an error)
+		// then re-iterate and create a list of short names
+		if short_collision
+		{
+			let mut names = vec![];
+			self.iterate_ents(0, |_i, ent| {
+				if let DirEnt::Short(e) = ent {
+					// TODO: Only push if it prefix matches the preferred name (until the `~`)
+					names.push( e.name );
+				}
+				None::<()>
+			});
+			todo!("DirNode::create(): Handle short name collision");
+		}
+
+		let mut ents_it = CreateDirents::new(nodetype, new_cluster, short_name, if num_entries == 1 { None } else {Some(name) })
+			.chain(::core::iter::once(DirEnt::End))
+			.peekable()
+			;
+
+		if let Some(pos) = found_slot {
+			// Can freely insert
+			todo!("DirNode::create('{:?}', {:?}): new_cluster={:#x}, num_entries={} - found_slot={:?}", name, nodetype, new_cluster, num_entries, found_slot);
+		}
+		else {
+			// Extend the directory
+			// - Should this also defragment?
+			if total_free_slots >= num_entries {
+				// There were enough entries - need to defragment the directory
+				todo!("DirNode::create(): Defragment directory ({} total free, needed {} contig)", total_free_slots, num_entries);
+			}
+			else {
+				// Don't bother defragmenting, just extend the length
+				// - Maybe the existing last cluster can be extended...
+
+				// NOTE: No need to update the size, as the size of a directory is always zero.
+
+				let mut clusters_it = self.clusters();
+				let mut cluster = 0;
+				let mut idx = self.fs.cluster_size / 32;	// Default to past the end
+				while let Some(c) = clusters_it.next() {
+					cluster = c;
+					if let Some((end_cluster, end_idx)) = end_entry {
+						if c == end_cluster {
+							idx = end_idx;
+							break;
+						}
+					}
+				}
+
+				while ents_it.peek().is_some()
+				{
+					assert!(idx <= self.fs.cluster_size / 32);
+					if idx == self.fs.cluster_size / 32 {
+						if let Some(next_cluster) = clusters_it.next() {
+							cluster = next_cluster;
+						}
+						else {
+							todo!("Allocate a new cluster?");
+						}
+						idx = 0;
+					}
+					::kernel::futures::block_on(self.fs.edit_cluster(cluster, |data| {
+						while idx < self.fs.cluster_size / 32 {
+							let Some(ent) = ents_it.next() else { break; };
+							log_debug!("WRITE: C{:#x} @ {} {:?}", cluster, idx*32, ent);
+							ent.to_raw(&mut data[idx*32..][..32]);
+							log_debug!("- {:x?}", &data[idx*32..][..32]);
+							idx += 1;
+						}
+						}))?;
+				}
+			}
+		}
+		Ok( super::InodeRef::new(new_cluster, self.start_cluster).to_id() )
 	}
 	fn link(&self, name: &ByteStr, node: &dyn node::NodeBase) -> node::Result<()> {
 		todo!("DirNode::link('{:?}', {:#x})", name, node.get_id());
@@ -378,3 +688,61 @@ impl node::Dir for DirNode {
 	}
 }
 
+
+// ---
+//
+// ---
+struct CreateDirents {
+	real_ent: Option<DirEntShort>,
+	long_name: ::core::iter::Rev<::kernel::lib::vec::IntoIter<DirEntLong>>,
+}
+impl CreateDirents {
+	fn new(node_type: node::NodeType, target_cluster: u32, name: [u8; 8+1+3], long_name: Option<&'_ ByteStr>) -> Self {
+		CreateDirents {
+			real_ent: Some(DirEntShort {
+				name,
+				cluster: target_cluster,
+				size: 0,
+				attributes: match node_type
+					{
+					node::NodeType::File => on_disk::ATTR_ARCHIVE,
+					node::NodeType::Dir => on_disk::ATTR_DIRECTORY,
+					node::NodeType::Symlink(_) => todo!("Symlink"),
+					},
+				}),
+			long_name: {
+				let mut it = ::utf16::wtf8_to_utf16(long_name.map(|v| v.as_bytes()).unwrap_or(&[]));
+				let mut rv = vec![];
+				while let Some(cp) = it.next() {
+					let mut seg = [0u16; 13];
+					seg[0] = cp;
+					for i in 1 .. 13 {
+						let Some(cp) = it.next() else { break; };
+						seg[i] = cp;
+					}
+					rv.push(DirEntLong {
+						id: 1 + rv.len() as u8,
+						_type: 0,	// TODO: What should this be?
+						chars: seg
+					});
+				}
+				if let Some(v) = rv.last_mut() {
+					v.id |= 0x40;
+				}
+				rv.into_iter().rev()
+				}
+		}
+	}
+}
+impl ::core::iter::Iterator for CreateDirents {
+	type Item = DirEnt;
+	fn next(&mut self) -> Option<DirEnt> {
+		if let Some(v) = self.long_name.next() {
+			return Some(DirEnt::Long(v));
+		}
+		if let Some(v) = self.real_ent.take() {
+			return Some(DirEnt::Short(v));
+		}
+		None
+	}
+}
