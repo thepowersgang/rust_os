@@ -58,6 +58,73 @@ impl CacheHandleFile
 		_ => Err(vfs::Error::Locked),
 		}
 	}
+	pub fn file_unlock_shared(&self) {
+		let info = self.get_info().expect("CacheHandleFile::file_unlock_shared get_info");
+		let mut lh = info.lock_info.lock();
+		match *lh {
+		CacheNodeInfoFileLock::Shared(count) => {
+			assert!(count >= 1);
+			*lh = if count == 1 {
+					CacheNodeInfoFileLock::Unlocked
+				} else {
+					CacheNodeInfoFileLock::Shared(count-1)
+				};
+			}
+		_ => panic!("CacheHandleFile::file_unlock_shared - Not currently locked shared"),
+		}
+	}
+	pub fn file_lock_exclusive(&self) -> vfs::Result<()> {
+		let info = self.get_info()?;
+		let mut lh = info.lock_info.lock();
+		match *lh {
+		CacheNodeInfoFileLock::Unlocked => {
+			*lh = CacheNodeInfoFileLock::Unique;
+			Ok( () )
+			}
+		_ => Err(vfs::Error::Locked),
+		}
+	}
+	pub fn file_unlock_exclusive(&self) {
+		let info = self.get_info().expect("CacheHandleFile::file_unlock_exclusive get_info");
+		let mut lh = info.lock_info.lock();
+		match *lh {
+		CacheNodeInfoFileLock::Unique => {
+			*lh = CacheNodeInfoFileLock::Unlocked;
+			}
+		_ => panic!("CacheHandleFile::file_unlock_exclusive - Not currently locked"),
+		}
+	}
+
+	pub fn file_lock_unsynch(&self) -> vfs::Result<()> {
+		let info = self.get_info()?;
+		let mut lh = info.lock_info.lock();
+		match *lh {
+		CacheNodeInfoFileLock::Unlocked => {
+			*lh = CacheNodeInfoFileLock::Unsynch(1);
+			Ok( () )
+			}
+		CacheNodeInfoFileLock::Unsynch(ref mut count) => {
+			*count += 1;
+			Ok( () )
+			},
+		_ => Err(vfs::Error::Locked),
+		}
+	}
+	pub fn file_unlock_unsync(&self) {
+		let info = self.get_info().expect("CacheHandleFile::file_unlock_unsync get_info");
+		let mut lh = info.lock_info.lock();
+		match *lh {
+		CacheNodeInfoFileLock::Unsynch(count) => {
+			assert!(count >= 1);
+			*lh = if count == 1 {
+					CacheNodeInfoFileLock::Unlocked
+				} else {
+					CacheNodeInfoFileLock::Unsynch(count-1)
+				};
+			}
+		_ => panic!("CacheHandleFile::file_unlock_unsync - Not currently locked unsynch"),
+		}
+	}
 
 	/// Valid size = maximum offset in the file
 	pub fn get_valid_size(&self) -> u64 {

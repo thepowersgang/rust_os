@@ -51,13 +51,13 @@ pub enum FileOpenMode
 	///
 	/// No file changes visible to handles, must be an executable file
 	Execute,
-	/// Eclusive read-write, denies any other opens while held (except Append)
+	/// Eclusive read-write, denies any other opens while held (TODO: except Append?)
 	///
 	/// No changes to the file will be visible to the user (as the file is locked)
 	ExclRW,
 	/// Unique read-write, does Copy-on-write to create a new file
 	///
-	/// No changes to the file will be visible to the user (as it has its own copy)
+	/// No changes to the file will be visible to any other process, and will be discarded on close
 	UniqueRW,
 	/// Append only (allows multiple readers/writers)
 	///
@@ -142,7 +142,10 @@ impl File
 		FileOpenMode::Append => { node.file_lock_shared()?; },
 		// TODO: Check permissions (must be executable in current context)
 		FileOpenMode::Execute => { node.file_lock_shared()?; },
-		_ => todo!("Acquire lock depending on mode({:?})", mode),
+		// TODO: Check permissions (must be writable in current context)
+		FileOpenMode::ExclRW => { node.file_lock_exclusive()?; }
+		FileOpenMode::Unsynch => { node.file_lock_unsynch()?; }
+		FileOpenMode::UniqueRW => todo!("UniqueRW - CoW"),
 		}
 		Ok(File { node: node, mode: mode })
 	}
@@ -172,10 +175,10 @@ impl File
 		FileOpenMode::NoDataAccess => return Err(super::Error::PermissionDenied),
 		FileOpenMode::SharedRO => return Err(super::Error::PermissionDenied),
 		FileOpenMode::Execute => return Err(super::Error::PermissionDenied),
-		FileOpenMode::ExclRW => self.node.write(ofs, src),
-		FileOpenMode::UniqueRW => self.node.write(ofs, src),
 		FileOpenMode::Append => self.node.append(src),
-		FileOpenMode::Unsynch => self.node.write(ofs, src),
+		FileOpenMode::ExclRW
+		|FileOpenMode::UniqueRW
+		|FileOpenMode::Unsynch => self.node.write(ofs, src),
 		}
 	}
 
@@ -190,8 +193,8 @@ impl File
 		// Read only - Pretty much anything
 		MemoryMapMode::ReadOnly => match self.mode
 			{
-			FileOpenMode::Execute => {},
-			FileOpenMode::SharedRO => {},
+			FileOpenMode::Execute
+			|FileOpenMode::SharedRO => {},
 			//FileOpenMode::ExclRW => /* NOTE: Needs extra checks to ensure that aliasing does not occur */
 			//FileOpenMode::UniqueRW => /* NOTE: Needs extra checks to ensure that aliasing does not occur */
 			_ => return Err(super::Error::PermissionDenied),
@@ -280,11 +283,14 @@ impl ::core::ops::Drop for File
 	fn drop(&mut self) {
 		match self.mode
 		{
-		FileOpenMode::SharedRO => {},
-		FileOpenMode::Execute => {},
-		_ => todo!("File::drop() - mode={:?}", self.mode),
+		FileOpenMode::NoDataAccess => {},
+		FileOpenMode::SharedRO
+		| FileOpenMode::Append
+		| FileOpenMode::Execute => self.node.file_unlock_shared(),
+		FileOpenMode::ExclRW => self.node.file_unlock_exclusive(),
+		FileOpenMode::Unsynch => self.node.file_unlock_unsync(),
+		FileOpenMode::UniqueRW => todo!("File::drop() - mode={:?}", self.mode),
 		}
-		// TODO: For files, we need to release the lock
 	}
 }
 
@@ -337,7 +343,7 @@ impl Dir
 	/// Create a new file (opened exclusively)
 	pub fn create_file(&self, name: impl AsRef<ByteStr>) -> super::Result<File> {
 		let node = self.node.create(name.as_ref(), NodeType::File)?;
-		File::from_node(node.into_file()?, FileOpenMode::UniqueRW)
+		File::from_node(node.into_file()?, FileOpenMode::ExclRW)
 	}
 
 	/// Open a child of this node
