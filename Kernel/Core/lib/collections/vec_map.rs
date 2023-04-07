@@ -179,6 +179,30 @@ impl<'a, K, V> ::core::iter::Iterator for IterMut<'a, K, V>
 	}
 }
 
+impl<'a, K: Ord, V> Entry<'a, K, V>
+{
+	pub fn or_insert(self, v: V) -> &'a mut V {
+		match self {
+		Entry::Occupied(e) => e.into_mut(),
+		Entry::Vacant(e) => e.insert(v),
+		}
+	}
+	pub fn or_insert_with(self, cb: impl FnOnce()->V) -> &'a mut V {
+		match self {
+		Entry::Occupied(e) => e.into_mut(),
+		Entry::Vacant(e) => e.insert(cb()),
+		}
+	}
+}
+impl<'a, K: Ord, V> Entry<'a, K, V>
+where
+	V: Default
+{
+	pub fn or_default(self) -> &'a mut V {
+		self.or_insert_with(Default::default)
+	}
+}
+
 impl<'a,K: Ord,V> OccupiedEntry<'a, K, V>
 {
 	/// Return a limited-lifetime pointer to the item

@@ -161,6 +161,15 @@ impl<T: Send+Sync + ::core::default::Default> ::core::default::Default for RwLoc
 	}
 }
 
+impl<T: Send + Sync + ::core::fmt::Debug> ::core::fmt::Debug for RwLock<T> {
+	fn fmt(&self, f: &mut ::core::fmt::Formatter) -> ::core::fmt::Result {
+		match self.try_read() {
+		Some(v) => v.fmt(f),
+		None => f.write_str("Locked"),
+		}
+	}
+}
+
 // --------------------------------------------------------------------
 
 impl<'a, T: Send+Sync> Read<'a, T>
