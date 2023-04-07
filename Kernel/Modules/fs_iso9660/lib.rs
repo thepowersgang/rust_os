@@ -32,7 +32,7 @@ impl ::core::ops::Deref for Instance {
 
 struct InstanceInner
 {
-	vh: ::block_cache::CacheHandle,
+	vh: ::block_cache::CachedVolume,
 	lb_size: usize,
 	root_lba: u32,
 	root_size: u32,
@@ -103,7 +103,7 @@ impl mount::Driver for Driver
 	
 	
 		let mut inner = InstanceInner {
-			vh: ::block_cache::CacheHandle::new(vol),
+			vh: ::block_cache::CachedVolume::new(vol),
 			lb_size: lb_size as usize,
 			root_lba: root_lba,
 			root_size: root_size,
@@ -176,7 +176,7 @@ impl mount::Filesystem for Instance
 		}
 	}
 }
-struct Sector<'a>(::block_cache::CachedBlockHandle<'a>,u16,u16);
+struct Sector<'a>(::block_cache::BlockHandleRead<'a>,u16,u16);
 impl<'a> ::core::ops::Deref for Sector<'a> {
 	type Target = [u8];
 	fn deref(&self) -> &[u8] {
