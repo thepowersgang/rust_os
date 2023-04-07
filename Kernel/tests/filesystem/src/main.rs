@@ -176,7 +176,7 @@ fn main()
                 Ok(h) => h,
                 Err(e) => panic!("`readback`: Cannot open local file {}: {:?}", local.display(), e),
                 };
-            let mut remote_handle = match vfs_handle::File::open(remote, vfs_handle::FileOpenMode::SharedRO)
+            let remote_handle = match vfs_handle::File::open(remote, vfs_handle::FileOpenMode::SharedRO)
                 {
                 Ok(h) => h,
                 Err(e) => panic!("`readback`: Cannot open remote file {:?}: {:?}", remote, e),

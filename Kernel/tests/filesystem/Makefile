@@ -10,8 +10,9 @@ run_tests: $(IMGDIR)hda.img
 	@echo "mount /fat virt0p0" >> .testcmds.txt
 	@echo "ls /fat" >> .testcmds.txt
 	@echo "readback $(TESTFILES)1.txt /fat/1.txt" >> .testcmds.txt
-	#@echo "store $(TESTFILES)1.txt /fat/2.txt" >> .testcmds.txt
-	#@echo "readback $(TESTFILES)1.txt /fat/2.txt" >> .testcmds.txt
+	@echo "store $(TESTFILES)1.txt /fat/2.txt" >> .testcmds.txt
+	@echo "readback $(TESTFILES)1.txt /fat/2.txt" >> .testcmds.txt
+	@echo "ls /fat" >> .testcmds.txt
 	cargo run < .testcmds.txt
 	rm .testcmds.txt
 	#printf "add_disk virt0 $(IMGDIR)hda.img temporary\nmkdir / ext2\nmount /ext2 virt0p1\nls /ext2" | cargo run

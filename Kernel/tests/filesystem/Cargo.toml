@@ -14,4 +14,5 @@ cmdline_words_parser = { path = "../../../externals/crates.io/cmdline_words_pars
 kernel = { path = "../../Core", features = ["test"] }
 fs_ext_n = { path = "../../Modules/fs_extN" }
 fs_fat = { path = "../../Modules/fs_fat" }
+fs_iso9660 = { path = "../../Modules/fs_iso9660" }
 #fs_ntfs = { path = "../../Modules/fs_ntfs" }
