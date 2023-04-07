@@ -12,20 +12,23 @@ const ERROR_SHORTCHAIN: vfs::Error = vfs::Error::Unknown("Cluster chain terminat
 pub struct FileNode
 {
 	fs: ArefBorrow<FilesystemInner>,
-	//parent_dir: u32,
 	first_cluster: u32,
-	size: u32,
+	size: ::kernel::sync::RwLock<u32>,
 }
 
 impl FileNode
 {
-	pub fn new_boxed(fs: ArefBorrow<FilesystemInner>, _parent: u32, first_cluster: u32, size: u32) -> Box<FileNode> {	
+	pub fn new_boxed(fs: ArefBorrow<FilesystemInner>, first_cluster: u32, size: u32) -> Box<FileNode> {
 		Box::new(FileNode {
 			fs: fs,
-			//parent_dir: parent,
 			first_cluster: first_cluster,
-			size: size,
+			size: ::kernel::sync::RwLock::new(size),
 			})
+	}
+}
+impl ::core::ops::Drop for FileNode {
+	fn drop(&mut self) {
+		//super::dir::close_file(&self.fs, self.first_cluster);
 	}
 }
 impl node::NodeBase for FileNode {
@@ -38,18 +41,16 @@ impl node::NodeBase for FileNode {
 }
 impl node::File for FileNode {
 	fn size(&self) -> u64 {
-		self.size as u64
+		*self.size.read() as u64
 	}
 	fn truncate(&self, newsize: u64) -> node::Result<u64> {
 		let newsize: u32 = ::core::convert::TryFrom::try_from(newsize).unwrap_or(!0);
-		if newsize < self.size {
+		let mut size_lh = self.size.write();
+		if newsize < *size_lh {
 			// Update size, and then deallocate clusters
-			// - Challenge: Nothing stops the file being unlinked while it's still open. Need to ensure that this operation doesn't clobber anything
-			//   if the directory is deallocated.
-			// - Solution? Have a map controlled by `super::dir` that holds the parent cluster, allowing removal/update of the parent directory
-			//let old_size = self.size;
-			//super::dir::update_file_size(&self.fs, self.parent_dir, self.first_cluster, newsize as u32);
-			//self.size = newsize;
+			let old_size = *size_lh;
+			super::dir::update_file_size(&self.fs, self.first_cluster, newsize)?;
+			*size_lh = newsize;
 			todo!("FileNode::truncate({:#x})", newsize);
 		}
 		else {
@@ -62,21 +63,24 @@ impl node::File for FileNode {
 		todo!("FileNode::clear({:#x}+{:#x}", ofs, size);
 	}
 	fn read(&self, ofs: u64, buf: &mut [u8]) -> node::Result<usize> {
-		// Sanity check and bound parameters
-		if ofs > self.size as u64 {
-			// out of range
-			return Err( vfs::Error::InvalidParameter );
-		}
-		if ofs == self.size as u64 {
-			return Ok(0);
-		}
-		let maxread = (self.size as u64 - ofs) as usize;
+		let maxread = {
+			let size_lh = self.size.read();
+			// Sanity check and bound parameters
+			if ofs > *size_lh as u64 {
+				// out of range
+				return Err( vfs::Error::InvalidParameter );
+			}
+			if ofs == *size_lh as u64 {
+				return Ok(0);
+			}
+			(*size_lh as u64 - ofs) as usize
+			};
 		let buf = if buf.len() > maxread { &mut buf[..maxread] } else { buf };
 		let read_length = buf.len();
 		log_trace!("read(@{:#x} len={:?})", ofs, read_length);
 		
 		// Seek to correct position in the cluster chain
-		let mut clusters = super::ClusterList::chained(self.fs.reborrow(), self.first_cluster);
+		let mut clusters = super::ClusterList::chained(&self.fs, self.first_cluster);
 		for _ in 0 .. (ofs/self.fs.cluster_size as u64) {
 			clusters.next();
 		}
@@ -139,8 +143,49 @@ impl node::File for FileNode {
 		Ok( read_length )
 	}
 	/// Write data to the file, can only grow the file if ofs==size
-	fn write(&self, ofs: u64, buf: &[u8]) -> node::Result<usize> {
-		todo!("FileNode::write({:#x}, {:p})", ofs, ::kernel::lib::SlicePtr(buf));
+	fn write(&self, ofs: u64, mut buf: &[u8]) -> node::Result<usize> {
+		let mut size_lh = self.size.write();
+		if ofs == *size_lh as u64 {
+			let rv = buf.len();
+			// Write data, allocating new clusters if needed
+			let mut clusters = super::ClusterList::chained(&self.fs, self.first_cluster);
+			let mut prev_cluster = self.first_cluster;
+			for _ in 0 .. (ofs/self.fs.cluster_size as u64) {
+				prev_cluster = clusters.next().ok_or(vfs::Error::InconsistentFilesystem)?;
+			}
+			let ofs = (ofs % self.fs.cluster_size as u64) as usize;
+			while buf.len() > 0
+			{
+				let cluster = if let Some(c) = clusters.next() {
+						c
+					} else {
+						// Need to allocate a new one!
+						self.fs.alloc_cluster_chained(prev_cluster)?.ok_or(vfs::Error::OutOfSpace)?
+					};
+				let len = usize::min(self.fs.cluster_size - ofs, buf.len());
+				if len == self.fs.cluster_size {
+					assert!(ofs == 0);
+					::kernel::futures::block_on(self.fs.write_clusters(cluster, &buf[..len]))?;
+				}
+				else {
+					::kernel::futures::block_on(self.fs.edit_cluster(cluster, |c| {
+						c[ofs..][..len].copy_from_slice(&buf[..len]);
+						}))?;
+				}
+				buf = &buf[len..];
+				*size_lh += len as u32;
+			}
+			// Update the size
+			super::dir::update_file_size(&self.fs, self.first_cluster, *size_lh)?;
+
+			Ok(rv)
+		}
+		else {
+			// Don't want the size to reduce while this is happening...
+			// - But it _could_ increase due to append?
+			// - or just prevent a change
+			todo!("FileNode::write({:#x}, {:p}) - inplace", ofs, ::kernel::lib::SlicePtr(buf));
+		}
 	}
 }
 

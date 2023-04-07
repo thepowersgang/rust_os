@@ -14,6 +14,7 @@ impl super::FilesystemInner
 {
 	/// Obtain the next cluster in a chain
 	pub fn get_next_cluster(&self, cluster: u32) -> Result< Option<u32>, storage::IoError > {
+		//log_trace!("get_next_cluster(C{})", cluster);
 		match self.get_fat_entry(cluster)?
 		{
 		FatEntry::Unallocated => Err(storage::IoError::Unknown("FAT: Zero FAT entry")),
@@ -45,6 +46,7 @@ impl super::FilesystemInner
 				let idx_in_sector = (prev_cluster + 1) % cps;
 				let base = prev_cluster + 1 - idx_in_sector;
 				if let Some(rv) = self.find_and_alloc_cluster_in_sector(base, idx_in_sector, cps)? {
+					assert_eq!(self.get_fat_entry(rv).unwrap(), FatEntry::EndOfChain);
 					return Ok(Some(rv));
 				}
 				base + cps
@@ -55,6 +57,7 @@ impl super::FilesystemInner
 		for base in (aligned .. self.cluster_count as u32).step_by(cps as usize)
 		{
 			if let Some(rv) = self.find_and_alloc_cluster_in_sector(base, 0, cps)? {
+				assert_eq!(self.get_fat_entry(rv).unwrap(), FatEntry::EndOfChain);
 				return Ok(Some(rv));
 			}
 		}
@@ -65,6 +68,7 @@ impl super::FilesystemInner
 			for base in (0 .. aligned - cps).step_by(cps as usize)
 			{
 				if let Some(rv) = self.find_and_alloc_cluster_in_sector(base, 0, cps)? {
+					assert_eq!(self.get_fat_entry(rv).unwrap(), FatEntry::EndOfChain);
 					return Ok(Some(rv));
 				}
 			}
@@ -74,6 +78,7 @@ impl super::FilesystemInner
 			assert!(aligned > 0);
 			let base = aligned - cps;
 			if let Some(rv) = self.find_and_alloc_cluster_in_sector(aligned - cps, 0, prev_cluster + 1 - base)? {
+				assert_eq!(self.get_fat_entry(rv).unwrap(), FatEntry::EndOfChain);
 				return Ok(Some(rv));
 			}
 		}
@@ -94,7 +99,7 @@ impl super::FilesystemInner
 	// TODO: A deallocation that chains?
 }
 
-#[derive(Copy,Clone,Debug)]
+#[derive(Copy,Clone,Debug, PartialEq)]
 enum FatEntry {
 	Unallocated,
 	EndOfChain,
@@ -179,6 +184,7 @@ impl super::FilesystemInner
 				},
 			};
 		let sector_idx = self.first_fat_sector as u64 + (cluster / cps) as u64;
+		//log_trace!("get_fat_addr({}): S {} ofs={} ent_len={} cps={}", cluster, sector_idx, ofs, ent_len, cps);
 		(sector_idx, ofs as usize, ent_len, cps)
 	}
 
@@ -195,10 +201,7 @@ impl super::FilesystemInner
 		Ok(match self.ty
 		{
 		// FAT12 has special handling because it packs 2 entries into 24 bytes
-		Size::Fat12 => FatEntry::from_fat12({
-				let v24 = buf.read_uint::<LittleEndian>(3).unwrap();
-				if cluster % 2 == 0 { v24 & 0xFFF } else { v24 >> 12 }
-				} as u16),
+		Size::Fat12 => FatEntry::from_fat12_outer(buf.read_uint::<LittleEndian>(3).unwrap() as u32, cluster % 2 == 1),
 		Size::Fat16 => FatEntry::from_fat16(buf.read_u16::<LittleEndian>().unwrap()),
 		Size::Fat32 => FatEntry::from_fat32(buf.read_u32::<LittleEndian>().unwrap()),
 		})
@@ -288,7 +291,7 @@ impl super::FilesystemInner
 				},
 			Size::Fat16 => {
 				for sub_idx in start .. end {
-					let buf = &mut data[sub_idx as usize / 2..][..2];
+					let buf = &mut data[sub_idx as usize * 2..][..2];
 					let val = {&buf[..]}.read_u16::<LittleEndian>().unwrap();
 					if let FatEntry::Unallocated = FatEntry::from_fat16(val) {
 						write_u16_le(buf, FatEntry::EndOfChain.to_fat16());
@@ -298,7 +301,7 @@ impl super::FilesystemInner
 				},
 			Size::Fat32 => {
 				for sub_idx in start .. end {
-					let buf = &mut data[sub_idx as usize / 4..][..2];
+					let buf = &mut data[sub_idx as usize * 4..][..4];
 					let val = {&buf[..]}.read_u32::<LittleEndian>().unwrap();
 					if let FatEntry::Unallocated = FatEntry::from_fat32(val) {
 						write_u32_le(buf, FatEntry::EndOfChain.to_fat32());

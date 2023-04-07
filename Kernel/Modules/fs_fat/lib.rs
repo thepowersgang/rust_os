@@ -42,6 +42,8 @@ enum Size
 	Fat32,
 }
 
+//struct ClusterNum(u32);
+
 /// Driver strucutre
 struct Driver;
 
@@ -70,6 +72,10 @@ pub struct FilesystemInner
 	
 	root_first_cluster: u32,
 	root_sector_count: u32,
+
+	// TODO: Directory handles (with the dir's lock, and the number of open handles/files)
+	dir_info: ::kernel::sync::RwLock<::kernel::lib::collections::VecMap<u32,Arc<dir::DirInfo>>>,
+	open_files: ::kernel::sync::RwLock<::kernel::lib::collections::VecMap<u32,dir::OpenFileInfo>>,
 }
 
 /// Inodes IDs destrucure into two 28-bit cluster IDs, and a 16-bit dir offset
@@ -82,9 +88,9 @@ struct InodeRef
 }
 
 /// Iterable cluster list
-enum ClusterList {
+enum ClusterList<'fs> {
 	Range(::core::ops::Range<u32>),
-	Chained(ArefBorrow<FilesystemInner>, u32),
+	Chained(&'fs FilesystemInner, u32),
 }
 
 
@@ -186,14 +192,14 @@ impl mount::Driver for Driver
 					_ => FATL_ROOT_CLUSTER as u32,
 					},
 				root_sector_count: root_dir_sectors as u32,
+				dir_info: Default::default(),
+				open_files: Default::default(),
 
 				vh: vol,
 				}) },
 			}))
 	}
 }
-
-type Cluster = Arc<[u8]>;
 
 impl FilesystemInner
 {
@@ -221,6 +227,16 @@ impl FilesystemInner
 		log_debug!("read_clusters: cluster = {:#x}, sector = 0x{:x}", cluster, sector);
 		self.vh.read_blocks(sector, dst).await?;
 		//::kernel::logging::hex_dump("FAT Cluster", &buf);
+		Ok( () )
+	}
+	/// Write to a cluster
+	async fn write_clusters(&self, cluster: u32, src: &[u8]) -> Result<(), storage::IoError> {
+		log_trace!("Filesystem::write_clusters({:#x}, {})", cluster, src.len() / self.cluster_size);
+		assert_eq!(src.len() % self.cluster_size, 0);
+		// For now, just read the bytes, screw caching
+		let sector = self.get_sector_for_cluster(cluster);
+		log_debug!("write_clusters: cluster = {:#x}, sector = 0x{:x}", cluster, sector);
+		self.vh.write_blocks(sector, src).await?;
 		Ok( () )
 	}
 
@@ -293,8 +309,8 @@ impl From<node::InodeId> for InodeRef {
 	}
 }
 
-impl ClusterList {
-	pub fn chained(fs: ArefBorrow<FilesystemInner>, start: u32) -> ClusterList {
+impl<'fs> ClusterList<'fs> {
+	pub fn chained(fs: &'fs FilesystemInner, start: u32) -> ClusterList<'fs> {
 		ClusterList::Chained(fs, start)
 	}
 
@@ -328,7 +344,7 @@ impl ClusterList {
 		}
 	}
 }
-impl ::core::iter::Iterator for ClusterList {
+impl<'fs> ::core::iter::Iterator for ClusterList<'fs> {
 	type Item = u32;
 	fn next(&mut self) -> Option<u32> {
 		match *self

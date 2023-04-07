@@ -45,18 +45,143 @@ impl node::NodeBase for DirNode {
 	}
 }
 
-impl DirNode {
-	fn is_fixed_root(&self) -> bool {
-		!is!(self.fs.ty, super::Size::Fat32) && self.start_cluster == self.fs.root_first_cluster
+#[derive(Debug)]
+pub struct OpenFileInfo
+{
+	dir_cluster: u32,
+	reference_count: u32,
+}
+impl OpenFileInfo {
+	pub fn new(dir_cluster: u32) -> OpenFileInfo {
+		OpenFileInfo {
+			dir_cluster,
+			reference_count: 0,
+		}
 	}
-	fn clusters(&self) -> ClusterList {
-		if self.is_fixed_root() {
-			let root_cluster_count = (self.fs.root_sector_count as usize + self.fs.spc-1) / self.fs.spc;
-			ClusterList::Range(self.fs.root_first_cluster .. self.fs.root_first_cluster + root_cluster_count as u32)
+	pub fn add_ref(&mut self) {
+		self.reference_count += 1;
+	}
+	/// Returns `true` if the reference count is now zero
+	pub fn sub_ref(&mut self) -> bool {
+		self.reference_count -= 1;
+		self.reference_count == 0
+	}
+}
+
+impl super::FilesystemInner {
+	fn get_dir_info(&self, cluster: u32) -> DirInfoHandle {
+		DirInfoHandle {
+			fs: self,
+			cluster,
+			info: self.dir_info.write().entry(cluster).or_default().clone(),
 		}
-		else {
-			ClusterList::Chained(self.fs.reborrow(), self.start_cluster)
+	}
+
+	pub fn close_file(&self, file_cluster: u32) {
+		let mut lh_files = self.open_files.write();
+		if lh_files.get_mut(&file_cluster).expect("close_file but not open?").sub_ref() {
+			lh_files.remove(&file_cluster);
 		}
+	}
+}
+/// Directory information (mostly just the lock)
+#[derive(Default,Debug)]
+pub struct DirInfo
+{
+	lock: ::kernel::sync::RwLock<()>,
+}
+/// A handle to a `DirInfo` from `FilesystemInner`
+struct DirInfoHandle<'a>
+{
+	fs: &'a FilesystemInner,
+	cluster: u32,
+	info: super::Arc<DirInfo>,
+}
+impl<'a> ::core::ops::Drop for DirInfoHandle<'a> {
+	fn drop(&mut self) {
+		// If the count is 2 (`self` and the `fs.dir_info` map(, then remove it from the map.
+		// - Check the count before locking the map, just in case
+		if super::Arc::strong_count(&self.info) == 2 {
+			let mut map_lh = self.fs.dir_info.write();
+			if super::Arc::strong_count(&self.info) == 2 {
+				map_lh.remove(&self.cluster);
+			}
+		}
+	}
+}
+
+fn lock_dir_read(fs: &FilesystemInner, start_cluster: u32) -> ::kernel::sync::rwlock::Read<'_,()> {
+	todo!("lock_dir_read");
+}
+fn lock_dir_write(fs: &FilesystemInner, start_cluster: u32) -> ::kernel::sync::rwlock::Write<'_,()> {
+	todo!("lock_dir_write");
+}
+pub fn update_file_size(fs: &FilesystemInner, file_cluster: u32, new_size: u32) -> Result<(), ::kernel::vfs::Error> {
+	// Get the dir info, lock it, iterate the directory looking for this file
+
+	// Challenges:
+	// - Parent directory being deleted? (can't be deleted if not empty).
+	// - File being moved to a different dir (potentially multiple times!)
+	//
+	// Solution? A map of open files, listing the relevant directory for each
+	// - Has a race between lookup of that map and the dir being deleted?
+	//   - Can't delete the dir if it's not empty, and can't remove the file while the map is open.
+	//   - But now there's a lock ordering issue (open file map and dir lock)
+	
+	// Lock the file list and get the current file
+	let lh_files = fs.open_files.read();
+	let file_info = lh_files.get(&file_cluster).ok_or(vfs::Error::Unknown("FAT: update_file_size called with file not recorded open"))?;
+	// Get/create the current directory info (shared ownership)
+	let dir_info = fs.get_dir_info(file_info.dir_cluster);
+	let _lh_dir = dir_info.info.lock.read();	// Entry count isn't changing, so can be a read lock
+
+	// Iterate the dir, find the file, update
+	for c in dir_clusters(fs, file_info.dir_cluster)
+	{
+		if let Some(found) = ::kernel::futures::block_on(fs.with_cluster(c, |cluster| {
+			for (i,ent) in DirEnts::new(&cluster).enumerate()
+			{
+				match ent {
+				DirEnt::End => return Some(None),
+				DirEnt::Short(e) if e.cluster == file_cluster => return Some(Some(i)),
+				_ => {},
+				}
+			}
+			None
+		}))? {
+			match found
+			{
+			None => break,
+			Some(idx) => 
+				return Ok( ::kernel::futures::block_on(fs.edit_cluster(c, |cluster| {
+					let data = &mut cluster[idx*32..][..32];
+					let mut ent = DirEnt::from_raw(&data[..]);
+					match ent {
+					DirEnt::Short(ref mut e) => e.size = new_size,
+					_ => unreachable!()
+					}
+					ent.to_raw(data);
+					})).map(|_| ())? )
+			}
+		}
+	}
+	Err(vfs::Error::Unknown("FAT: update_file_size didn't find entry"))
+}
+
+fn dir_clusters(fs: &super::FilesystemInner, start_cluster: u32) -> ClusterList<'_> {
+	let is_fixed_root = !is!(fs.ty, super::Size::Fat32) && start_cluster == fs.root_first_cluster;
+	if is_fixed_root {
+		let root_cluster_count = (fs.root_sector_count as usize + fs.spc-1) / fs.spc;
+		ClusterList::Range(fs.root_first_cluster .. fs.root_first_cluster + root_cluster_count as u32)
+	}
+	else {
+		ClusterList::Chained(fs, start_cluster)
+	}
+}
+
+impl DirNode {
+	fn clusters(&self) -> ClusterList<'_> {
+		dir_clusters(&self.fs, self.start_cluster)
 	}
 
 	fn iterate_ents<T>(&self, skip: usize, mut cb: impl FnMut(usize, DirEnt)->Option<T>) -> Result<Option<T>, super::storage::IoError> {
@@ -89,6 +214,10 @@ impl DirNode {
 	/// Locate a node in this directory by its first data cluster
 	pub fn find_node(&self, ent_cluster: u32) -> Result<Option<node::Node>, super::storage::IoError>
 	{
+		// Lock the file list, then the directory
+		let mut lh_files = self.fs.open_files.write();
+		let dir_info = self.fs.get_dir_info(self.start_cluster);
+		let _lh_dir = dir_info.info.lock.read();
 		log_debug!("DirNode::find_node(C{:#x})", ent_cluster);
 		Ok(match self.find_ent_by_cluster(ent_cluster)?
 		{
@@ -101,9 +230,8 @@ impl DirNode {
 				None
 			}
 			else {
-				Some(node::Node::File(FileNode::new_boxed(
-					self.fs.reborrow(), self.start_cluster, ent_cluster, e.size
-					)))
+				lh_files.entry(ent_cluster).or_insert(OpenFileInfo::new(self.start_cluster)).add_ref();
+				Some(node::Node::File(FileNode::new_boxed( self.fs.reborrow(), ent_cluster, e.size )))
 			},
 		})
 	}
@@ -365,6 +493,8 @@ impl LFN {
 
 impl node::Dir for DirNode {
 	fn lookup(&self, name: &ByteStr) -> node::Result<node::InodeId> {
+		let dir_info = self.fs.get_dir_info(self.start_cluster);
+		let _lh_dir = dir_info.info.lock.read();
 		// For each cluster in the directory, iterate
 		let mut lfn = LFN::new();
 		match self.iterate_ents(0, |_i, ent| {
@@ -390,6 +520,8 @@ impl node::Dir for DirNode {
 		}
 	}
 	fn read(&self, ofs: usize, callback: &mut node::ReadDirCallback) -> node::Result<usize> {
+		let dir_info = self.fs.get_dir_info(self.start_cluster);
+		let _lh_dir = dir_info.info.lock.read();
 		
 		let ents_per_cluster = self.fs.cluster_size / 32;
 		let (cluster_idx, c_ofs) = (ofs / ents_per_cluster, ofs % ents_per_cluster);
@@ -545,8 +677,10 @@ impl node::Dir for DirNode {
 			short_name = make_short_name(name, 0);
 			1 + (::utf16::wtf8_to_utf16(name.as_bytes()).count() + 1 + 13-1) / 13
 		};
+
+		let dir_info = self.fs.get_dir_info(self.start_cluster);
+		let _lh_dir = dir_info.info.lock.write();
 		// - Lock the directory, then start seeking clusters looking for a sequence of slots large enough
-		//let _lh = self.write_lock.lock();
 		let mut end_entry = None;
 		let (found_slot, short_collision, total_free_slots, end_idx) = {
 			let mut found_slot = None;
@@ -615,7 +749,7 @@ impl node::Dir for DirNode {
 					names.push( e.name );
 				}
 				None::<()>
-			});
+			})?;
 			todo!("DirNode::create(): Handle short name collision");
 		}
 
