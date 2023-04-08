@@ -103,7 +103,7 @@ impl<'fs> ClusterList<'fs> {
 			}
 			},
 		ClusterList::Chained(ref fs, ref mut next) =>
-			match next.take()
+			match *next
 			{
 			None => None,
 			Some(rv) => {
@@ -122,6 +122,7 @@ impl<'fs> ClusterList<'fs> {
 					next_cluster = ClusterNum::new(next_cluster.get() + 1).unwrap();
 					count += 1;
 				}
+				assert!(count > 0);
 				Some( (rv, count) )
 				}
 			},
