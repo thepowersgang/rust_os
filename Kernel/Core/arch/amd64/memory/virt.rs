@@ -380,15 +380,16 @@ impl PTE
 		}
 	}
 
-	// UNSAFE: Can invaidate virtual addresses and cause aliasing
+	/// UNSAFE: Can invaidate virtual addresses and cause aliasing
 	pub unsafe fn set(&mut self, paddr: PAddr, prot: crate::memory::virt::ProtectionMode) {
-		assert!(!self.is_null());
+		assert!(!self.is_null(), "PTE::set - PTE null");
 		let flags: u64 = Self::mode_to_flags(prot);
 		*self.data = (paddr & 0x7FFFFFFF_FFFFF000) | flags;
 	}
 	
-	pub fn set_if_unset(&mut self, paddr: PAddr, prot: crate::memory::virt::ProtectionMode) -> Result<(),()> {
-		assert!(!self.is_null());
+	/// UNSAFE: No restrictions in the physical address, so could cause aliasing
+	pub unsafe fn set_if_unset(&mut self, paddr: PAddr, prot: crate::memory::virt::ProtectionMode) -> Result<(),()> {
+		assert!(!self.is_null(), "PTE::set_if_unset - PTE null");
 		let flags: u64 = Self::mode_to_flags(prot);
 		let v = (paddr & 0x7FFFFFFF_FFFFF000) | flags;
 		// SAFE: Atomic 64-bit and valid pointer
@@ -513,7 +514,9 @@ pub unsafe fn temp_map<T>(phys: crate::arch::memory::PAddr) -> *mut T {
 	for i in 0 .. NUM_TEMP_SLOTS {
 		let addr = (addresses::TEMP_BASE + i * crate::PAGE_SIZE) as *mut ();
 
-		if get_page_ent(addr as usize, true, LargeOk::No).set_if_unset(phys, ProtectionMode::KernelRW).is_ok() {
+		let mut pte = get_page_ent(addr as usize, true, LargeOk::No);
+		assert!(!pte.is_null(), "Unable to get PTE for temporary {} ({:p})", i, addr);
+		if pte.set_if_unset(phys, ProtectionMode::KernelRW).is_ok() {
 			invlpg(addr);
 			return addr as *mut T;
 		}

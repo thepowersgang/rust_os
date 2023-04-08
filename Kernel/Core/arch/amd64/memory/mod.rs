@@ -59,7 +59,7 @@ pub mod addresses
 	#[doc(hidden)]
 	pub const IDENT_START:    usize = 0xFFFFFFFF_80000000;	// PML4[511] (plus some)
 	#[doc(hidden)]
-	pub const IDENT_END:      usize = IDENT_START + 0x400000;	// 4MiB
+	pub const IDENT_END:      usize = IDENT_START + 0x800000;	// 8MiB
 	
 	/// 
 	pub const TEMP_BASE: usize = IDENT_END;
