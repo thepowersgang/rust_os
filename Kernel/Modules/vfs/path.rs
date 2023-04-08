@@ -4,9 +4,9 @@
 // Core/vfs/path.rs
 //! `Path` type and helpers
 #[allow(unused_imports)]
-use crate::prelude::*;
-use crate::lib::byte_str::{ByteStr,ByteString};
-use crate::lib::borrow::ToOwned;
+use ::kernel::prelude::*;
+use ::kernel::lib::byte_str::{ByteStr,ByteString};
+use ::kernel::lib::borrow::ToOwned;
 
 #[derive(Eq,PartialEq,PartialOrd,Ord)]
 pub struct Path(ByteStr);
@@ -14,7 +14,7 @@ pub struct Path(ByteStr);
 #[derive(Eq,PartialEq,PartialOrd,Ord,Default)]
 pub struct PathBuf(ByteString);
 
-impl_fmt! {
+::kernel::impl_fmt! {
 	Debug(self,f) for Path {
 		write!(f, "Path({:?})", &self.0)
 	}

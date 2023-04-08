@@ -98,9 +98,6 @@ pub mod metadevs;
 /// Starts driver instances for the devices it sees
 pub mod device_manager;
 
-// Public for driver modules
-pub mod vfs;
-
 /// Kernel configuration
 pub mod config;
 

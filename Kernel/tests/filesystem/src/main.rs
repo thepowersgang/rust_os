@@ -1,6 +1,6 @@
 
 use ::kernel::{log,log_error,log_log};
-use ::kernel::vfs::handle as vfs_handle;
+use ::vfs::handle as vfs_handle;
 
 mod virt_storage;
 
@@ -11,7 +11,7 @@ fn main()
     ::kernel::memory::page_cache::init();
     (::kernel::metadevs::storage::S_MODULE.init)();
     (::kernel::hw::mapper_mbr::S_MODULE.init)();
-    (::kernel::vfs::S_MODULE.init)();
+    (::vfs::S_MODULE.init)();
 
     // -- TODO: use `my_dependencies`?
     (::fs_fat::S_MODULE.init)();
@@ -64,7 +64,7 @@ fn main()
                 Ok(vh) => vh,
                 Err(e) => panic!("`mount`: Unable to open {}: {}", volume, e),
                 };
-            match ::kernel::vfs::mount::mount(mountpt.as_ref(), vh, filesystem, &options)
+            match ::vfs::mount::mount(mountpt.as_ref(), vh, filesystem, &options)
             {
             Ok(_) => {},
             Err(e) => panic!("`mount`: Unable to mount {} from {}: {:?}", mountpt, volume, e),
@@ -72,7 +72,7 @@ fn main()
             },
         // List directory
         "ls" => {
-            let dir = ::kernel::vfs::Path::new( args.next().expect("ls dir") );
+            let dir = ::vfs::Path::new( args.next().expect("ls dir") );
             log_log!("COMMAND: ls {:?}", dir);
             match vfs_handle::Dir::open(dir)
             {
@@ -94,10 +94,10 @@ fn main()
             },
         // Create a directory
         "mkdir" => {
-            let dir = ::kernel::vfs::Path::new( args.next().expect("mkdir dir") );
+            let dir = ::vfs::Path::new( args.next().expect("mkdir dir") );
             let dirname = args.next().expect("mkdir newname");
             log_log!("COMMAND: mkdir {:?} {:?}", dir, dirname);
-            let h = match ::kernel::vfs::handle::Dir::open(dir)
+            let h = match ::vfs::handle::Dir::open(dir)
                 {
                 Ok(h) => h,
                 Err(e) => {
@@ -114,7 +114,7 @@ fn main()
         // Copy a file from local to remote
         "store" => {
             let src: &::std::path::Path = args.next().expect("`store` src").as_ref();
-            let dst: &::kernel::vfs::Path = args.next().expect("`store` dst").as_ref();
+            let dst: &::vfs::Path = args.next().expect("`store` dst").as_ref();
             let (dst_dir,dst_name) = dst.split_off_last().expect("`store` dst invalid");
 
             let mut src_handle = match ::std::fs::File::open(src)
@@ -122,7 +122,7 @@ fn main()
                 Ok(h) => h,
                 Err(e) => panic!("`store`: Cannot open source file {}: {:?}", src.display(), e),
                 };
-            let parent_handle = match ::kernel::vfs::handle::Dir::open(dst_dir)
+            let parent_handle = match ::vfs::handle::Dir::open(dst_dir)
                 {
                 Ok(h) => h,
                 Err(e) => panic!("`store`: Cannot open parent directory of {:?}: {:?}", dst, e),
@@ -130,9 +130,9 @@ fn main()
             let dst_handle = match parent_handle.create_file(dst_name)
                 {
                 Ok(h) => h,
-                Err(::kernel::vfs::Error::AlreadyExists) => match parent_handle.open_child(dst_name)
+                Err(::vfs::Error::AlreadyExists) => match parent_handle.open_child(dst_name)
                     {
-                    Ok(h) => match h.into_file(::kernel::vfs::handle::FileOpenMode::ExclRW)
+                    Ok(h) => match h.into_file(::vfs::handle::FileOpenMode::ExclRW)
                         {
                         Ok(h) => {
                             h.truncate();
@@ -169,7 +169,7 @@ fn main()
         // Read a file and check that it's identical to the on-system version
         "readback" => {
             let local: &::std::path::Path = args.next().expect("`readback` local").as_ref();
-            let remote: &::kernel::vfs::Path = args.next().expect("`readback` remote").as_ref();
+            let remote: &::vfs::Path = args.next().expect("`readback` remote").as_ref();
 
             let mut local_handle = match ::std::fs::File::open(local)
                 {

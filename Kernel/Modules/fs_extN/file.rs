@@ -3,7 +3,7 @@
 //
 // Modules/fs_extN/file.rs
 //! Regular file
-use kernel::vfs;
+use ::vfs;
 
 pub struct File
 {

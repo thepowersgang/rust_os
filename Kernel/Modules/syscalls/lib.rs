@@ -65,7 +65,7 @@ impl ::core::fmt::Display for Error {
 }
 
 /// Initialise PID0's handles
-pub fn init(init_handle: ::kernel::vfs::handle::File) {
+pub fn init(init_handle: ::vfs::handle::File) {
 	vfs::init_handles(init_handle);
 }
 
@@ -126,7 +126,7 @@ pub mod native_exports {
 	pub fn from_result<O: Into<u32>, E: Into<u32>>(r: Result<O,E>) -> u64 {
 		crate::from_result(r)
 	}
-	pub fn get_file_handle(obj: u32) -> Result<::kernel::vfs::handle::File, crate::Error> {
+	pub fn get_file_handle(obj: u32) -> Result<::vfs::handle::File, crate::Error> {
 		crate::vfs::get_file_handle(obj)
 	}
 	pub use crate::args::SyscallArg;

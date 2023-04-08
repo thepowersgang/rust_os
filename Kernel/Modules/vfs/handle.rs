@@ -4,12 +4,12 @@
 // Core/vfs/handle.rs
 //! Opened file interface (top level VFS interface)
 #[allow(unused_imports)]
-use crate::prelude::*;
+use ::kernel::prelude::*;
+use ::kernel::lib::byte_str::{ByteStr,ByteString};
+use ::kernel::PAGE_SIZE;
 use super::node::{NodeType};
 use super::node_cache::{CacheHandle};
-use crate::lib::byte_str::{ByteStr,ByteString};
 use super::Path;
-use crate::PAGE_SIZE;
 
 #[derive(Debug,Clone)]
 /// Open without caring what the file type is (e.g. enumeration)
@@ -235,7 +235,7 @@ impl File
 		// TODO: Limit checking
 		// - Reserve the region to be mapped (reserve sticks a zero page in)
 		let page_count = size / PAGE_SIZE;
-		let mut resv = match crate::memory::virt::reserve(address as *mut (), page_count)
+		let mut resv = match ::kernel::memory::virt::reserve(address as *mut (), page_count)
 			{
 			Ok(v) => v,
 			Err(e) => {
@@ -264,10 +264,10 @@ impl File
 		}
 		resv.finalise( match mode
 			{
-			MemoryMapMode::ReadOnly  => crate::memory::virt::ProtectionMode::UserRO,
-			MemoryMapMode::Execute   => crate::memory::virt::ProtectionMode::UserRX,
-			MemoryMapMode::COW       => crate::memory::virt::ProtectionMode::UserCOW,
-			MemoryMapMode::WriteBack => crate::memory::virt::ProtectionMode::UserRW,
+			MemoryMapMode::ReadOnly  => ::kernel::memory::virt::ProtectionMode::UserRO,
+			MemoryMapMode::Execute   => ::kernel::memory::virt::ProtectionMode::UserRX,
+			MemoryMapMode::COW       => ::kernel::memory::virt::ProtectionMode::UserCOW,
+			MemoryMapMode::WriteBack => ::kernel::memory::virt::ProtectionMode::UserRW,
 			})
 			.unwrap();
 		log_debug!("- Mapped at {:p} + {:#x}", address as *mut (), page_count * PAGE_SIZE);
@@ -304,7 +304,7 @@ impl<'a> Drop for MemoryMapHandle<'a>
 		let npages = self.len / PAGE_SIZE;
 		// SAFE: This is a uniquely owned handle
 		unsafe {
-			crate::memory::virt::unmap(self.base, npages);
+			::kernel::memory::virt::unmap(self.base, npages);
 		}
 	}
 }

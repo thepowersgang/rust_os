@@ -3,8 +3,8 @@
 //
 // Core/vfs/node.rs
 //! VFS node management
-use crate::prelude::*;
-use crate::lib::byte_str::{ByteStr,ByteString};
+use ::kernel::prelude::*;
+use ::kernel::lib::byte_str::{ByteStr,ByteString};
 
 pub type InodeId = u64;
 pub type Result<T> = ::core::result::Result<T,super::Error>;

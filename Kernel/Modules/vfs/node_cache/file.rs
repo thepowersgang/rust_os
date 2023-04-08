@@ -1,14 +1,14 @@
 
-use crate::prelude::*;
+use ::kernel::prelude::*;
 use super::CacheHandleFile;
-use crate::vfs;
+use crate as vfs;
 
 pub struct CacheNodeInfoFile
 {
 	pub fsnode: Box<dyn vfs::node::File>,
 	//mapped_pages: HashMap<u64,FrameHandle>,
-	lock_info: crate::sync::Mutex<CacheNodeInfoFileLock>,
-	append_lock: crate::sync::Mutex<()>,
+	lock_info: ::kernel::sync::Mutex<CacheNodeInfoFileLock>,
+	append_lock: ::kernel::sync::Mutex<()>,
 }
 impl CacheNodeInfoFile {
 	pub fn new(fsnode: Box<dyn vfs::node::File>) -> Self {

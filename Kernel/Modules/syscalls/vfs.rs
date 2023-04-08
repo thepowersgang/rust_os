@@ -10,9 +10,9 @@ use crate::objects;
 use crate::values;
 use crate::Error;
 use crate::args::Args;
-use kernel::vfs::handle;
-use kernel::vfs::node_cache::NodeClass;
-use kernel::vfs::Path;
+use ::vfs::handle;
+use ::vfs::node_cache::NodeClass;
+use ::vfs::Path;
 
 
 macro_rules! map_enums {
@@ -28,8 +28,8 @@ macro_rules! map_enums {
 }
 
 impl_from! {
-	From<::kernel::vfs::Error>(v) for values::VFSError {{
-		use ::kernel::vfs::Error;
+	From<::vfs::Error>(v) for values::VFSError {{
+		use ::vfs::Error;
 		use crate::values::VFSError;
 		match v
 		{
@@ -54,7 +54,7 @@ impl_from! {
 
 	From<values::VFSFileOpenMode>(v) for handle::FileOpenMode {{
 		use crate::values::VFSFileOpenMode;
-		use kernel::vfs::handle::FileOpenMode;
+		use ::vfs::handle::FileOpenMode;
 		map_enums!(
 			(VFSFileOpenMode, FileOpenMode)
 			match (v) {
@@ -70,11 +70,11 @@ impl_from! {
 }
 
 /// Convert a VFS result into an encoded syscall result
-fn to_result<T>(r: Result<T, ::kernel::vfs::Error>) -> Result<T, u32> {
+fn to_result<T>(r: Result<T, ::vfs::Error>) -> Result<T, u32> {
 	r.map_err( |e| Into::into( <values::VFSError as From<_>>::from(e) ) )
 }
 
-pub fn init_handles(init_handle: ::kernel::vfs::handle::File) {
+pub fn init_handles(init_handle: ::vfs::handle::File) {
 	// #1: Read-only root
 	objects::push_as_unclaimed("ro:/", objects::new_object(Dir::new( {
 		let root = handle::Dir::open(Path::new("/")).unwrap();
@@ -154,7 +154,7 @@ impl objects::Object for Node
 //
 // --------------------------------------------------------------------
 
-struct File(::kernel::vfs::handle::File);
+struct File(::vfs::handle::File);
 impl objects::Object for File
 {
 	fn class(&self) -> u16 { values::CLASS_VFS_FILE }
@@ -194,10 +194,10 @@ impl objects::Object for File
 			let addr: usize = args.get()?;
 			let mode = match args.get::<u8>()?
 				{
-				0 => ::kernel::vfs::handle::MemoryMapMode::ReadOnly,
-				1 => ::kernel::vfs::handle::MemoryMapMode::Execute,
-				2 => ::kernel::vfs::handle::MemoryMapMode::COW,
-				3 => ::kernel::vfs::handle::MemoryMapMode::WriteBack,
+				0 => ::vfs::handle::MemoryMapMode::ReadOnly,
+				1 => ::vfs::handle::MemoryMapMode::Execute,
+				2 => ::vfs::handle::MemoryMapMode::COW,
+				3 => ::vfs::handle::MemoryMapMode::WriteBack,
 				v @ _ => {
 					log_log!("VFS_FILE_MEMMAP - Bad protection mode {}", v);
 					return Err( Error::BadValue );
@@ -227,7 +227,7 @@ impl objects::Object for File
 
 #[cfg(feature="native")]
 /// Used by the native "kernel" to get a file object for `new_process`
-pub fn get_file_handle(obj: u32) -> Result<::kernel::vfs::handle::File, crate::Error> {
+pub fn get_file_handle(obj: u32) -> Result<::vfs::handle::File, crate::Error> {
 	crate::objects::take_object::<crate::vfs::File>(obj)
 		.map(|f| f.0)
 }
@@ -238,10 +238,10 @@ pub fn get_file_handle(obj: u32) -> Result<::kernel::vfs::handle::File, crate::E
 // --------------------------------------------------------------------
 
 struct Dir {
-	handle: ::kernel::vfs::handle::Dir,
+	handle: ::vfs::handle::Dir,
 }
 impl Dir {
-	fn new(handle: ::kernel::vfs::handle::Dir) -> Dir {
+	fn new(handle: ::vfs::handle::Dir) -> Dir {
 		Dir {
 			handle: handle,
 		}
@@ -293,11 +293,11 @@ impl objects::Object for Dir
 }
 
 struct DirIter {
-	handle: ::kernel::vfs::handle::Dir,
+	handle: ::vfs::handle::Dir,
 	inner: ::kernel::sync::Mutex<DirInner>,
 }
 impl DirIter {
-	fn new(handle: ::kernel::vfs::handle::Dir) -> DirIter {
+	fn new(handle: ::vfs::handle::Dir) -> DirIter {
 		DirIter {
 			handle: handle,
 			inner: ::kernel::sync::Mutex::new( DirInner {
@@ -341,7 +341,7 @@ impl objects::Object for DirIter
 	fn clear_wait(&self, _flags: u32, _obj: &mut ::kernel::threads::SleepObject) -> u32 { 0 }
 }
 
-type DirEnt = (::kernel::vfs::node::InodeId, ::kernel::lib::byte_str::ByteString);
+type DirEnt = (::vfs::node::InodeId, ::kernel::lib::byte_str::ByteString);
 
 struct DirInner {
 	lower_ofs: usize,
@@ -350,7 +350,7 @@ struct DirInner {
 }
 impl DirInner
 {
-	fn read_ent(&mut self, handle: &::kernel::vfs::handle::Dir) -> Result< Option<DirEnt>, crate::values::VFSError >
+	fn read_ent(&mut self, handle: &::vfs::handle::Dir) -> Result< Option<DirEnt>, crate::values::VFSError >
 	{
 		if let Some(e) = self.cache.next() {
 			Ok( Some(e) )
@@ -439,7 +439,7 @@ impl objects::Object for Link
 
 // -
 // -
-//impl objects::Object for ::kernel::vfs::handle::MemoryMapHandle<'a>
+//impl objects::Object for ::vfs::handle::MemoryMapHandle<'a>
 //{
 //}
 

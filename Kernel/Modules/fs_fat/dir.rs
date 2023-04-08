@@ -4,8 +4,8 @@
 // Modules/fs_fat/dir.rs
 use kernel::prelude::*;
 use kernel::lib::mem::aref::ArefBorrow;
-use kernel::vfs::{self, node};
 use kernel::lib::byte_str::ByteStr;
+use ::vfs::{self, node};
 use super::on_disk;
 use super::file::FileNode;
 use super::ClusterList;
@@ -110,7 +110,7 @@ impl<'a> ::core::ops::Drop for DirInfoHandle<'a> {
 	}
 }
 
-pub fn update_file_size(fs: &FilesystemInner, file_cluster: ClusterNum, new_size: u32) -> Result<(), ::kernel::vfs::Error> {
+pub fn update_file_size(fs: &FilesystemInner, file_cluster: ClusterNum, new_size: u32) -> Result<(), ::vfs::Error> {
 	// Get the dir info, lock it, iterate the directory looking for this file
 
 	// Challenges:

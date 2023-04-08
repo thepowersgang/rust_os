@@ -1,11 +1,10 @@
 [package]
-name = "fs_ext_n"
+name = "vfs"
 version = "0.0.0"
+edition = "2018"
 
 [lib]
 path = "lib.rs"
 
 [dependencies]
 kernel = { path = "../../Core" }
-vfs = { path = "../vfs" }
-block_cache = { path = "../block_cache" }

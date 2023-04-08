@@ -9,10 +9,10 @@
 #[macro_use] extern crate kernel;
 use kernel::prelude::*;
 
-use kernel::vfs::{self, mount, node};
 use kernel::metadevs::storage::{self,VolumeHandle,SizePrinter};
 use kernel::lib::mem::aref::{ArefInner,ArefBorrow};
 use kernel::lib::mem::Arc;
+use ::vfs::{self, mount, node};
 
 extern crate utf16;
 extern crate block_cache;
@@ -91,7 +91,7 @@ fn init()
 
 impl mount::Driver for Driver
 {
-	fn detect(&self, vol: &VolumeHandle) -> vfs::Result<usize> {
+	fn detect(&self, vol: &VolumeHandle) -> ::vfs::Result<usize> {
 		let bs = {
 			let mut bs = [0u8; 512];
 			::kernel::futures::block_on( vol.read_blocks(0, &mut bs) )?;
@@ -109,7 +109,7 @@ impl mount::Driver for Driver
 			Ok(1)
 		}
 	}
-	fn mount(&self, vol: VolumeHandle, _mounthandle: mount::SelfHandle) -> vfs::Result<Box<dyn mount::Filesystem>> {
+	fn mount(&self, vol: VolumeHandle, _mounthandle: mount::SelfHandle) -> ::vfs::Result<Box<dyn mount::Filesystem>> {
 		let vol = ::block_cache::CachedVolume::new(vol);
 
 		// Read the bootsector

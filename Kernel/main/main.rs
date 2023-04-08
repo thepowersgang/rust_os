@@ -10,6 +10,7 @@
 
 #[macro_use]
 extern crate kernel;
+extern crate vfs;
 extern crate syscalls;
 
 #[cfg(not(target))]
@@ -78,8 +79,8 @@ fn sysinit() -> !
 {
 	log_notice!("--- kernel sysinit ---");
 	use kernel::metadevs::storage::VolumeHandle;
-	use kernel::vfs::{mount,handle};
-	use kernel::vfs::Path;
+	use ::vfs::{mount,handle};
+	use ::vfs::Path;
 	use kernel::config::{get_string, Value};
 
 	let test_flags = get_string(Value::TestFlags);
@@ -127,7 +128,7 @@ fn sysinit() -> !
 fn automount()
 {
 	use kernel::metadevs::storage::VolumeHandle;
-	use kernel::vfs::{Path,mount,handle};
+	use ::vfs::{Path,mount,handle};
 
 	let mountdir = handle::Dir::open( Path::new("/") ).and_then(|h| h.mkdir("mount")).unwrap();
 	for (_,v) in ::kernel::metadevs::storage::enum_lvs()
@@ -152,8 +153,8 @@ fn automount()
 
 fn spawn_init(loader_path: &str, init_cmdline: &str) -> Result<::kernel::Void, &'static str>
 {
-	use kernel::vfs::handle;
-	use kernel::vfs::Path;
+	use ::vfs::handle;
+	use ::vfs::Path;
 	
 	
 	log_log!("Loading userland '{}' args '{}'", loader_path, init_cmdline);
@@ -214,10 +215,10 @@ fn spawn_init(loader_path: &str, init_cmdline: &str) -> Result<::kernel::Void, &
 	}
 }
 
-fn load_loader(loader: &::kernel::vfs::handle::File) -> Result<(&'static LoaderHeader, usize), &'static str>
+fn load_loader(loader: &::vfs::handle::File) -> Result<(&'static LoaderHeader, usize), &'static str>
 {
 	use core::mem::forget;
-	use kernel::vfs::handle;
+	use ::vfs::handle;
 	use kernel::PAGE_SIZE;
 
 	let ondisk_size = loader.size();

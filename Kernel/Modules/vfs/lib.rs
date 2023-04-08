@@ -3,9 +3,14 @@
 //
 // Core/vfs/mod.rs
 //! Virtual File System
+#![no_std]
+#![feature(linkage)]	// for module_define
 #[allow(unused_imports)]
-use crate::prelude::*;
-use crate::metadevs::storage::VolumeHandle;
+use ::kernel::prelude::*;
+use ::kernel::metadevs::storage::VolumeHandle;
+
+#[macro_use]
+extern crate kernel;
 
 module_define!(VFS, [], init);
 
@@ -36,7 +41,7 @@ pub enum Error
 
 
 	/// Block-level IO Error
-	BlockIoError(crate::metadevs::storage::IoError),
+	BlockIoError(::kernel::metadevs::storage::IoError),
 	/// Filesystem is read-only
 	ReadOnlyFilesystem,
 	/// Filesystem driver hit an internal consistency error
@@ -53,8 +58,8 @@ pub enum Error
 	/// Unknown (misc) error
 	Unknown(&'static str),
 }
-impl From<crate::metadevs::storage::IoError> for Error {
-	fn from(v: crate::metadevs::storage::IoError) -> Error {
+impl From<::kernel::metadevs::storage::IoError> for Error {
+	fn from(v: ::kernel::metadevs::storage::IoError) -> Error {
 		Error::BlockIoError(v)
 	}
 }

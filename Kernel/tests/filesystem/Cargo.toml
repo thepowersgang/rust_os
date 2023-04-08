@@ -12,6 +12,7 @@ bitvec = "0.17"
 cmdline_words_parser = { path = "../../../externals/crates.io/cmdline_words_parser" }
 
 kernel = { path = "../../Core", features = ["test"] }
+vfs = { path = "../../Modules/vfs" }
 fs_ext_n = { path = "../../Modules/fs_extN" }
 fs_fat = { path = "../../Modules/fs_fat" }
 fs_iso9660 = { path = "../../Modules/fs_iso9660" }

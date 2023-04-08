@@ -3,14 +3,14 @@
 //
 // Core/vfs/node_cache.rs
 //! VFS node cache
-use crate::prelude::*;
+use ::kernel::prelude::*;
 use super::Path;
 use super::node::InodeId;
-use crate::sync::mutex::LazyMutex;
-use crate::lib::byte_str::{ByteStr,ByteString};
-use core::sync::atomic::{self,AtomicUsize};
+use ::kernel::sync::mutex::LazyMutex;
+use ::kernel::lib::byte_str::{ByteStr,ByteString};
+use ::core::sync::atomic::{self,AtomicUsize};
 
-static S_NODE_CACHE: LazyMutex<crate::lib::VecMap<(usize,InodeId),Box<CachedNode>>> = lazymutex_init!();
+static S_NODE_CACHE: LazyMutex<::kernel::lib::VecMap<(usize,InodeId),Box<CachedNode>>> = lazymutex_init!();
 
 mod file;
 mod dir;
@@ -83,7 +83,7 @@ unsafe impl Sync for CacheHandle {}
 unsafe impl Send for CacheHandle {}
 
 
-impl_fmt! {
+::kernel::impl_fmt! {
 	Debug(self, f) for CacheHandle {
 		write!(f, "CacheHandle {{ {}:{:#x} {:p} }}", self.mountpt, self.inode, self.ptr)
 	}
@@ -109,7 +109,7 @@ impl CacheHandle
 	/// Obtain a node handle using a mountpoint ID and inode number
 	pub fn from_ids(mountpoint: usize, inode: InodeId) -> super::Result<CacheHandle>
 	{
-		use crate::lib::vec_map::Entry;
+		use ::kernel::lib::vec_map::Entry;
 		// TODO: Use a hashmap of some form and use a fixed-range allocation (same as VMM code)
 		let ptr: *const _ = &**match S_NODE_CACHE.lock().entry( (mountpoint, inode) )
 			{

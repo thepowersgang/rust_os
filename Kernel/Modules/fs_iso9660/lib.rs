@@ -6,7 +6,7 @@
 #![no_std]
 use kernel::prelude::*;
 
-use kernel::vfs::{self, mount, node};
+use vfs::{mount, node};
 use kernel::metadevs::storage::{self,VolumeHandle};
 use kernel::lib::mem::aref::{ArefInner,ArefBorrow};
 use kernel::lib::byteorder::{ByteOrder,LittleEndian};
@@ -15,6 +15,7 @@ use kernel::lib::byte_str::ByteStr;
 #[macro_use]
 extern crate kernel;
 
+extern crate vfs;
 extern crate block_cache;
 
 module_define!{FS_ISO9660, [VFS], init}

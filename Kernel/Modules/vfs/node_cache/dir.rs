@@ -1,9 +1,9 @@
 
-use crate::prelude::*;
+use ::kernel::prelude::*;
 use super::{CacheHandleDir};
-use crate::vfs;
-use core::sync::atomic::{self,AtomicUsize};
-use crate::lib::byte_str::{ByteStr};
+use crate as vfs;
+use ::core::sync::atomic::{self,AtomicUsize};
+use ::kernel::lib::byte_str::{ByteStr};
 
 pub struct CacheNodeInfoDir
 {

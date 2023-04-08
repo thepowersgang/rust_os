@@ -3,7 +3,6 @@
 //
 //! 
 use instance::InstancePtr;
-use kernel::vfs;
 use core::sync::atomic::{AtomicBool,Ordering};
 
 pub struct Inode
@@ -17,7 +16,7 @@ pub struct Inode
 
 impl Inode
 {
-	pub fn from_id(fs: InstancePtr, id: u32) -> vfs::Result<Inode>
+	pub fn from_id(fs: InstancePtr, id: u32) -> ::vfs::Result<Inode>
 	{
 		let od = try!( fs.read_inode(id) );
 		Ok(Inode {
@@ -240,15 +239,15 @@ pub struct Blocks<'a>
 }
 impl<'a> Blocks<'a>
 {
-	pub fn next_or_err(&mut self) -> ::kernel::vfs::Result<u32>
+	pub fn next_or_err(&mut self) -> ::vfs::Result<u32>
 	{
-		self.next().ok_or( ::kernel::vfs::Error::Unknown("Unexpected end of block list") )
+		self.next().ok_or( ::vfs::Error::Unknown("Unexpected end of block list") )
 	}
 
-	pub fn next_extent_or_err(&mut self, max: u32) -> ::kernel::vfs::Result<(u32, u32)>
+	pub fn next_extent_or_err(&mut self, max: u32) -> ::vfs::Result<(u32, u32)>
 	{
 		if self.inner_idx >= self.inode.max_blocks() {
-			Err( ::kernel::vfs::Error::Unknown("Unexpected end of block list") )
+			Err( ::vfs::Error::Unknown("Unexpected end of block list") )
 		}
 		else {
 			let max = ::core::cmp::min(self.inode.max_blocks() - self.inner_idx, max);

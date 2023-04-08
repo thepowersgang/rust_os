@@ -15,6 +15,7 @@ acpica = [ "kernel/acpica" ]
 
 [dependencies]
 kernel = { path = "Core" }
+vfs = { path = "Modules/vfs" }
 syscalls = { path = "Modules/syscalls" }
 network = { path = "Modules/network" }
 usb-core = { path = "Modules/usb_core" }

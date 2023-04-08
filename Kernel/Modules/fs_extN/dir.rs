@@ -3,8 +3,8 @@
 //
 // Modules/fs_extN/dir.rs
 //! Directory handling
-use kernel::vfs;
 use kernel::lib::byte_str::ByteStr;
+use vfs;
 
 
 pub struct Dir

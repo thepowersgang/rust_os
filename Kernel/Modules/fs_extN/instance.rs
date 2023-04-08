@@ -4,7 +4,7 @@
 // Modules/fs_extN/instance.rs
 //! Filesystem instance (representing a mounted filesystem)
 use kernel::prelude::*;
-use kernel::vfs::{self, node};
+use ::vfs::{self, node};
 use kernel::metadevs::storage::VolumeHandle;
 use kernel::lib::mem::aref::{ArefInner,ArefBorrow};
 

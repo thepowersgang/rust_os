@@ -53,14 +53,14 @@ impl InodeRef
 			dir_first_cluster: Some(dir_c),
 		}
 	}
-	pub(crate) fn to_id(&self) -> ::kernel::vfs::node::InodeId {
+	pub(crate) fn to_id(&self) -> ::vfs::node::InodeId {
 		(self.first_cluster.get() as u64)
 		| (self.dir_first_cluster.map(|v| v.get()).unwrap_or(0) as u64) << 24
 	}
 }
 
-impl From<::kernel::vfs::node::InodeId> for InodeRef {
-	fn from(v: ::kernel::vfs::node::InodeId) -> InodeRef {
+impl From<::vfs::node::InodeId> for InodeRef {
+	fn from(v: ::vfs::node::InodeId) -> InodeRef {
 		InodeRef {
 			first_cluster: ClusterNum::new( (v & 0x00FF_FFFF) as u32 ).expect("Invalid InodeID (cluster)"),
 			dir_first_cluster: {

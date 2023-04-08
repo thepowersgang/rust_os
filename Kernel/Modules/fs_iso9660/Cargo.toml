@@ -8,5 +8,6 @@ path = "lib.rs"
 
 [dependencies]
 kernel = { path = "../../Core" }
+vfs = { path = "../vfs" }
 block_cache = { path = "../block_cache" }
 

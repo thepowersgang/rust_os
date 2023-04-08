@@ -8,12 +8,12 @@
 #![no_std]
 
 use kernel::prelude::*;
-use kernel::vfs;
 use kernel::metadevs::storage::VolumeHandle;
 
 #[macro_use]
 extern crate kernel;
 
+extern crate vfs;
 extern crate block_cache;
 
 module_define!{FS_EXTN, [VFS], init}

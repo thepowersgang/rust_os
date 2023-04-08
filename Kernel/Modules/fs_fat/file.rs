@@ -4,7 +4,7 @@
 // Modules/fs_fat/dir.rs
 use kernel::prelude::*;
 use kernel::lib::mem::aref::ArefBorrow;
-use kernel::vfs::{self, node};
+use ::vfs::{self, node};
 use super::FilesystemInner;
 use super::ClusterNum;
 

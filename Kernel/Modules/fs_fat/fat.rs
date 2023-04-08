@@ -14,16 +14,16 @@ const FAT32_EOC: u32 = 0x00FFFFFF;	// FAT32 is actually FAT24...
 impl super::FilesystemInner
 {
 	/// Obtain the next cluster in a chain
-	pub fn get_next_cluster(&self, cluster: ClusterNum) -> Result< Option<ClusterNum>, ::kernel::vfs::Error > {
+	pub fn get_next_cluster(&self, cluster: ClusterNum) -> Result< Option<ClusterNum>, ::vfs::Error > {
 		//log_trace!("get_next_cluster(C{})", cluster);
 		match self.get_fat_entry(cluster)?
 		{
 		FatEntry::Unallocated => {
 			log_error!("Unallocted (zero) FAT entry in a chain");
-			Err(::kernel::vfs::Error::InconsistentFilesystem)
+			Err(::vfs::Error::InconsistentFilesystem)
 			},
 		FatEntry::EndOfChain => Ok(None),
-		FatEntry::Chain(val) => Ok(Some( ClusterNum::new(val).map_err(|()| ::kernel::vfs::Error::InconsistentFilesystem)? )),
+		FatEntry::Chain(val) => Ok(Some( ClusterNum::new(val).map_err(|()| ::vfs::Error::InconsistentFilesystem)? )),
 		}
 	}
 
