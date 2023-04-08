@@ -9,29 +9,29 @@ use kernel::lib::byte_str::ByteStr;
 use super::on_disk;
 use super::file::FileNode;
 use super::ClusterList;
+use super::ClusterNum;
 use super::FilesystemInner;
 use utf16::Str16;
 
 pub struct DirNode
 {
 	fs: ArefBorrow<crate::FilesystemInner>,
-	start_cluster: u32,
-	// - Uses the cluster chain
+	start_cluster: ClusterNum,
 }
 impl_fmt! {
 	Debug(self, f) for DirNode {
-		write!(f, "{{cluster={:#x}}}", self.start_cluster)
+		write!(f, "{{cluster={:?}}}", self.start_cluster)
 	}
 }
 
 impl DirNode {
-	pub fn new(fs: ArefBorrow<FilesystemInner>, start_cluster: u32) -> DirNode {
+	pub fn new(fs: ArefBorrow<FilesystemInner>, start_cluster: ClusterNum) -> DirNode {
 		DirNode {
 			fs: fs,
 			start_cluster: start_cluster,
 		}
 	}
-	pub fn new_boxed(fs: ArefBorrow<FilesystemInner>, start_cluster: u32) -> Box<DirNode> {
+	pub fn new_boxed(fs: ArefBorrow<FilesystemInner>, start_cluster: ClusterNum) -> Box<DirNode> {
 		Box::new(Self::new(fs, start_cluster))
 	}
 }
@@ -48,11 +48,11 @@ impl node::NodeBase for DirNode {
 #[derive(Debug)]
 pub struct OpenFileInfo
 {
-	dir_cluster: u32,
+	dir_cluster: ClusterNum,
 	reference_count: u32,
 }
 impl OpenFileInfo {
-	pub fn new(dir_cluster: u32) -> OpenFileInfo {
+	pub fn new(dir_cluster: ClusterNum) -> OpenFileInfo {
 		OpenFileInfo {
 			dir_cluster,
 			reference_count: 0,
@@ -69,7 +69,7 @@ impl OpenFileInfo {
 }
 
 impl super::FilesystemInner {
-	fn get_dir_info(&self, cluster: u32) -> DirInfoHandle {
+	fn get_dir_info(&self, cluster: ClusterNum) -> DirInfoHandle {
 		DirInfoHandle {
 			fs: self,
 			cluster,
@@ -77,7 +77,7 @@ impl super::FilesystemInner {
 		}
 	}
 
-	pub fn close_file(&self, file_cluster: u32) {
+	pub fn close_file(&self, file_cluster: ClusterNum) {
 		let mut lh_files = self.open_files.write();
 		if lh_files.get_mut(&file_cluster).expect("close_file but not open?").sub_ref() {
 			lh_files.remove(&file_cluster);
@@ -94,7 +94,7 @@ pub struct DirInfo
 struct DirInfoHandle<'a>
 {
 	fs: &'a FilesystemInner,
-	cluster: u32,
+	cluster: ClusterNum,
 	info: super::Arc<DirInfo>,
 }
 impl<'a> ::core::ops::Drop for DirInfoHandle<'a> {
@@ -110,13 +110,7 @@ impl<'a> ::core::ops::Drop for DirInfoHandle<'a> {
 	}
 }
 
-fn lock_dir_read(fs: &FilesystemInner, start_cluster: u32) -> ::kernel::sync::rwlock::Read<'_,()> {
-	todo!("lock_dir_read");
-}
-fn lock_dir_write(fs: &FilesystemInner, start_cluster: u32) -> ::kernel::sync::rwlock::Write<'_,()> {
-	todo!("lock_dir_write");
-}
-pub fn update_file_size(fs: &FilesystemInner, file_cluster: u32, new_size: u32) -> Result<(), ::kernel::vfs::Error> {
+pub fn update_file_size(fs: &FilesystemInner, file_cluster: ClusterNum, new_size: u32) -> Result<(), ::kernel::vfs::Error> {
 	// Get the dir info, lock it, iterate the directory looking for this file
 
 	// Challenges:
@@ -168,14 +162,14 @@ pub fn update_file_size(fs: &FilesystemInner, file_cluster: u32, new_size: u32) 
 	Err(vfs::Error::Unknown("FAT: update_file_size didn't find entry"))
 }
 
-fn dir_clusters(fs: &super::FilesystemInner, start_cluster: u32) -> ClusterList<'_> {
+fn dir_clusters(fs: &super::FilesystemInner, start_cluster: ClusterNum) -> ClusterList<'_> {
 	let is_fixed_root = !is!(fs.ty, super::Size::Fat32) && start_cluster == fs.root_first_cluster;
 	if is_fixed_root {
 		let root_cluster_count = (fs.root_sector_count as usize + fs.spc-1) / fs.spc;
-		ClusterList::Range(fs.root_first_cluster .. fs.root_first_cluster + root_cluster_count as u32)
+		ClusterList::range(fs.root_first_cluster, root_cluster_count as u32)
 	}
 	else {
-		ClusterList::Chained(fs, start_cluster)
+		ClusterList::chained(fs, start_cluster)
 	}
 }
 
@@ -212,13 +206,13 @@ impl DirNode {
 	}
 
 	/// Locate a node in this directory by its first data cluster
-	pub fn find_node(&self, ent_cluster: u32) -> Result<Option<node::Node>, super::storage::IoError>
+	pub fn find_node(&self, ent_cluster: ClusterNum) -> Result<Option<node::Node>, super::storage::IoError>
 	{
 		// Lock the file list, then the directory
 		let mut lh_files = self.fs.open_files.write();
 		let dir_info = self.fs.get_dir_info(self.start_cluster);
 		let _lh_dir = dir_info.info.lock.read();
-		log_debug!("DirNode::find_node(C{:#x})", ent_cluster);
+		log_debug!("DirNode::find_node({})", ent_cluster);
 		Ok(match self.find_ent_by_cluster(ent_cluster)?
 		{
 		None => None,
@@ -236,7 +230,7 @@ impl DirNode {
 		})
 	}
 	
-	fn find_ent_by_cluster(&self, ent_cluster: u32) -> Result<Option<DirEntShort>, super::storage::IoError> {
+	fn find_ent_by_cluster(&self, ent_cluster: ClusterNum) -> Result<Option<DirEntShort>, super::storage::IoError> {
 		log_trace!("find_ent_by_cluster(self={:?}, ent_cluster={})", self, ent_cluster);
 		self.iterate_ents(0, |_i, ent| {
 			match ent
@@ -330,7 +324,7 @@ impl DirEnt {
 			// 3. Cluster, Size, Attribs
 			DirEnt::Short(DirEntShort{
 				name: outname,
-				cluster: (ent.cluster as u32) | (ent.cluster_hi as u32) << 16,
+				cluster: ClusterNum::new( (ent.cluster as u32) | (ent.cluster_hi as u32) << 16 ).unwrap_or( ClusterNum::new(0xFF_FFFF).unwrap() ),
 				size: ent.size,
 				attributes: ent.attribs,
 				})
@@ -366,8 +360,8 @@ impl DirEnt {
 				attribs: v.attributes,
 				lcase,
 				size: v.size,
-				cluster: v.cluster as u16,
-				cluster_hi: (v.cluster >> 16) as u16,
+				cluster: v.cluster.get() as u16,
+				cluster_hi: (v.cluster.get() >> 16) as u16,
 				creation_ds: 0,
 				creation_date: 0,
 				creation_time: 0,
@@ -383,7 +377,7 @@ impl DirEnt {
 struct DirEntShort {
 	/// NUL-padded string with extention joined
 	name: [u8; 8+1+3],
-	cluster: u32,
+	cluster: ClusterNum,
 	size: u32,
 	attributes: u8,
 	//creation_time: ::kernel::time::Timestamp,
@@ -392,7 +386,7 @@ struct DirEntShort {
 }
 impl_fmt! {
 	Debug(self,f) for DirEntShort {
-		write!(f, "{{ attributes: {:#x}, name: {:?}, cluster: {:#x}, size: {:#x} }}",
+		write!(f, "{{ attributes: {:#x}, name: {:?}, cluster: {}, size: {:#x} }}",
 			self.attributes, ByteStr::new(&self.name.split(|x|*x==0).next().unwrap()),
 			self.cluster, self.size
 			)
@@ -437,7 +431,7 @@ impl DirEntShort {
 	fn name(&self) -> &ByteStr {
 		ByteStr::new( (&self.name).split(|&e|e==0).next().unwrap() )
 	}
-	fn inode(&self, parent_dir: u32) -> node::InodeId {
+	fn inode(&self, parent_dir: ClusterNum) -> node::InodeId {
 		super::InodeRef::new(self.cluster, parent_dir).to_id()
 	}
 }
@@ -493,6 +487,7 @@ impl LFN {
 
 impl node::Dir for DirNode {
 	fn lookup(&self, name: &ByteStr) -> node::Result<node::InodeId> {
+		log_trace!("DirNode::lookup({:?})", name);
 		let dir_info = self.fs.get_dir_info(self.start_cluster);
 		let _lh_dir = dir_info.info.lock.read();
 		// For each cluster in the directory, iterate
@@ -520,6 +515,7 @@ impl node::Dir for DirNode {
 		}
 	}
 	fn read(&self, ofs: usize, callback: &mut node::ReadDirCallback) -> node::Result<usize> {
+		log_trace!("DirNode::read(ofs={})", ofs);
 		let dir_info = self.fs.get_dir_info(self.start_cluster);
 		let _lh_dir = dir_info.info.lock.read();
 		
@@ -563,10 +559,10 @@ impl node::Dir for DirNode {
 	}
 	fn create(&self, name: &ByteStr, nodetype: node::NodeType) -> node::Result<node::InodeId> {
 		// File cluster for the dir's data
-		let Some(new_cluster) = self.fs.alloc_cluster_unchained(if self.start_cluster == super::FATL_ROOT_CLUSTER { 0 } else { self.start_cluster })? else {
+		let Some(new_cluster) = self.fs.alloc_cluster_unchained(self.start_cluster)? else {
 			return Err(vfs::Error::OutOfSpace);
 			};
-		log_debug!("DirNode::create('{:?}', {:?}): new_cluster={:#x}", name, nodetype, new_cluster);
+		log_debug!("DirNode::create('{:?}', {:?}): new_cluster={}", name, nodetype, new_cluster);
 		fn is_valid_short_char(b: u8) -> bool {
 			b.is_ascii_uppercase() || b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'_'
 		}
@@ -760,7 +756,7 @@ impl node::Dir for DirNode {
 
 		if let Some(pos) = found_slot {
 			// Can freely insert
-			todo!("DirNode::create('{:?}', {:?}): new_cluster={:#x}, num_entries={} - found_slot={:?}", name, nodetype, new_cluster, num_entries, found_slot);
+			todo!("DirNode::create('{:?}', {:?}): new_cluster={}, num_entries={} - found_slot={:?}", name, nodetype, new_cluster, num_entries, found_slot);
 		}
 		else {
 			// Extend the directory
@@ -776,7 +772,7 @@ impl node::Dir for DirNode {
 				// NOTE: No need to update the size, as the size of a directory is always zero.
 
 				let mut clusters_it = self.clusters();
-				let mut cluster = 0;
+				let mut cluster = self.start_cluster;
 				let mut idx = self.fs.cluster_size / 32;	// Default to past the end
 				while let Some(c) = clusters_it.next() {
 					cluster = c;
@@ -803,7 +799,7 @@ impl node::Dir for DirNode {
 					::kernel::futures::block_on(self.fs.edit_cluster(cluster, |data| {
 						while idx < self.fs.cluster_size / 32 {
 							let Some(ent) = ents_it.next() else { break; };
-							log_debug!("WRITE: C{:#x} @ {} {:?}", cluster, idx*32, ent);
+							log_debug!("WRITE: {} @ {} {:?}", cluster, idx*32, ent);
 							ent.to_raw(&mut data[idx*32..][..32]);
 							log_debug!("- {:x?}", &data[idx*32..][..32]);
 							idx += 1;
@@ -831,7 +827,7 @@ struct CreateDirents {
 	long_name: ::core::iter::Rev<::kernel::lib::vec::IntoIter<DirEntLong>>,
 }
 impl CreateDirents {
-	fn new(node_type: node::NodeType, target_cluster: u32, name: [u8; 8+1+3], long_name: Option<&'_ ByteStr>) -> Self {
+	fn new(node_type: node::NodeType, target_cluster: ClusterNum, name: [u8; 8+1+3], long_name: Option<&'_ ByteStr>) -> Self {
 		CreateDirents {
 			real_ent: Some(DirEntShort {
 				name,

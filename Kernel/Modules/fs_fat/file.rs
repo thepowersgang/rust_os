@@ -6,22 +6,23 @@ use kernel::prelude::*;
 use kernel::lib::mem::aref::ArefBorrow;
 use kernel::vfs::{self, node};
 use super::FilesystemInner;
+use super::ClusterNum;
 
 const ERROR_SHORTCHAIN: vfs::Error = vfs::Error::Unknown("Cluster chain terminated early");
 
 pub struct FileNode
 {
 	fs: ArefBorrow<FilesystemInner>,
-	first_cluster: u32,
+	first_cluster: ClusterNum,
 	size: ::kernel::sync::RwLock<u32>,
 }
 
 impl FileNode
 {
-	pub fn new_boxed(fs: ArefBorrow<FilesystemInner>, first_cluster: u32, size: u32) -> Box<FileNode> {
+	pub fn new_boxed(fs: ArefBorrow<FilesystemInner>, first_cluster: ClusterNum, size: u32) -> Box<FileNode> {
 		Box::new(FileNode {
 			fs: fs,
-			first_cluster: first_cluster,
+			first_cluster,
 			size: ::kernel::sync::RwLock::new(size),
 			})
 	}
@@ -91,7 +92,7 @@ impl node::File for FileNode {
 		/*let chunks = */if ofs != 0 {
 				let Some(cluster) = clusters.next() else { return Err(ERROR_SHORTCHAIN); };
 				let short_count = ::core::cmp::min(self.fs.cluster_size-ofs, buf.len());
-				log_trace!("read(): Read partial head C{:#x} len={}", cluster, short_count);
+				log_trace!("read(): Read partial head {} len={}", cluster, short_count);
 				::kernel::futures::block_on(self.fs.with_cluster(cluster, |c| {
 					buf[..short_count].clone_from_slice( &c[ofs..][..short_count] );
 					}))?;
@@ -115,7 +116,7 @@ impl node::File for FileNode {
 					},
 				};
 			let bytes = count * self.fs.cluster_size;
-			log_trace!("read(): Read cluster extent C{:#x} + {}", cluster, count);
+			log_trace!("read(): Read cluster extent {} + {}", cluster, count);
 			::kernel::futures::block_on(self.fs.read_clusters(cluster, &mut dst[..bytes]))?;
 			cur_read_ofs += bytes;
 		}
@@ -132,7 +133,7 @@ impl node::File for FileNode {
 					return Err(ERROR_SHORTCHAIN);
 					},
 				};
-			log_trace!("read(): Read partial tail C{:#x} len={}", cluster, dst.len());
+			log_trace!("read(): Read partial tail {} len={}", cluster, dst.len());
 			::kernel::futures::block_on(self.fs.with_cluster(cluster, |c| {
 				let bytes = dst.len();
 				dst.clone_from_slice( &c[..bytes] );

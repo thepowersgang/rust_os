@@ -25,6 +25,8 @@ const FAT32_MIN_CLUSTERS: usize = 65525;
 /// FAT Legacy (pre 32) root cluster base. Just has to be above the max cluster num for FAT16
 const FATL_ROOT_CLUSTER: u32 = 0x00FF0000;
 
+/// Helper data-types
+mod types;
 /// on-disk structures
 mod on_disk;
 /// File-allocation-table management
@@ -34,6 +36,8 @@ mod dir;
 /// File IO
 mod file;
 
+use types::{ClusterNum,ClusterList,InodeRef};
+
 #[derive(Copy,Clone,Debug)]
 enum Size
 {
@@ -41,8 +45,6 @@ enum Size
 	Fat16,
 	Fat32,
 }
-
-//struct ClusterNum(u32);
 
 /// Driver strucutre
 struct Driver;
@@ -56,7 +58,6 @@ impl ::core::ops::Deref for Filesystem {
 	fn deref(&self) -> &FilesystemInner { &self.inner }
 }
 
-//const FAT_CACHE_BLOCK_SIZE: usize = 512;
 pub struct FilesystemInner
 {
 	//vh: VolumeHandle,
@@ -70,27 +71,12 @@ pub struct FilesystemInner
 	first_fat_sector: usize,
 	first_data_sector: usize,
 	
-	root_first_cluster: u32,
+	root_first_cluster: ClusterNum,
 	root_sector_count: u32,
 
 	// TODO: Directory handles (with the dir's lock, and the number of open handles/files)
-	dir_info: ::kernel::sync::RwLock<::kernel::lib::collections::VecMap<u32,Arc<dir::DirInfo>>>,
-	open_files: ::kernel::sync::RwLock<::kernel::lib::collections::VecMap<u32,dir::OpenFileInfo>>,
-}
-
-/// Inodes IDs destrucure into two 28-bit cluster IDs, and a 16-bit dir offset
-#[derive(Debug)]
-struct InodeRef
-{
-	dir_first_cluster: u32,
-	dir_offset: u16,
-	first_cluster: u32,
-}
-
-/// Iterable cluster list
-enum ClusterList<'fs> {
-	Range(::core::ops::Range<u32>),
-	Chained(&'fs FilesystemInner, u32),
+	dir_info: ::kernel::sync::RwLock<::kernel::lib::collections::VecMap<ClusterNum,Arc<dir::DirInfo>>>,
+	open_files: ::kernel::sync::RwLock<::kernel::lib::collections::VecMap<ClusterNum,dir::OpenFileInfo>>,
 }
 
 
@@ -188,8 +174,12 @@ impl mount::Driver for Driver
 				first_fat_sector: bs_c.reserved_sect_count as usize,
 				first_data_sector: first_data_sector,
 				root_first_cluster: match fat_type {
-					Size::Fat32 => bs.info32().unwrap().root_cluster,
-					_ => FATL_ROOT_CLUSTER as u32,
+					Size::Fat32 => ClusterNum::new(bs.info32().unwrap().root_cluster)
+						.map_err(|()| {
+							log_error!("Invalid FAT32 bootsector: bad root_cluster");
+							vfs::Error::InconsistentFilesystem
+							})?,
+					_ => ClusterNum::new(FATL_ROOT_CLUSTER as u32).unwrap(),
 					},
 				root_sector_count: root_dir_sectors as u32,
 				dir_info: Default::default(),
@@ -203,7 +193,8 @@ impl mount::Driver for Driver
 
 impl FilesystemInner
 {
-	fn get_sector_for_cluster(&self, cluster: u32) -> u64 {
+	fn get_sector_for_cluster(&self, cluster: ClusterNum) -> u64 {
+		let cluster = cluster.get();
 		if !is!(self.ty, Size::Fat32) && cluster >= FATL_ROOT_CLUSTER {
 			// Root directory (for FAT12/16, where it was not a normal file)
 			let rc = cluster - FATL_ROOT_CLUSTER;
@@ -219,35 +210,35 @@ impl FilesystemInner
 		}
 	}
 	/// Load a cluster from disk
-	async fn read_clusters(&self, cluster: u32, dst: &mut [u8]) -> Result<(), storage::IoError> {
-		log_trace!("Filesystem::read_clusters({:#x}, {})", cluster, dst.len() / self.cluster_size);
+	async fn read_clusters(&self, cluster: ClusterNum, dst: &mut [u8]) -> Result<(), storage::IoError> {
+		log_trace!("Filesystem::read_clusters({}, {})", cluster, dst.len() / self.cluster_size);
 		assert_eq!(dst.len() % self.cluster_size, 0);
 		// For now, just read the bytes, screw caching
 		let sector = self.get_sector_for_cluster(cluster);
-		log_debug!("read_clusters: cluster = {:#x}, sector = 0x{:x}", cluster, sector);
+		log_debug!("read_clusters: cluster = {}, sector = 0x{:x}", cluster, sector);
 		self.vh.read_blocks(sector, dst).await?;
 		//::kernel::logging::hex_dump("FAT Cluster", &buf);
 		Ok( () )
 	}
 	/// Write to a cluster
-	async fn write_clusters(&self, cluster: u32, src: &[u8]) -> Result<(), storage::IoError> {
-		log_trace!("Filesystem::write_clusters({:#x}, {})", cluster, src.len() / self.cluster_size);
+	async fn write_clusters(&self, cluster: ClusterNum, src: &[u8]) -> Result<(), storage::IoError> {
+		log_trace!("Filesystem::write_clusters({}, {})", cluster, src.len() / self.cluster_size);
 		assert_eq!(src.len() % self.cluster_size, 0);
 		// For now, just read the bytes, screw caching
 		let sector = self.get_sector_for_cluster(cluster);
-		log_debug!("write_clusters: cluster = {:#x}, sector = 0x{:x}", cluster, sector);
+		log_debug!("write_clusters: cluster = {}, sector = 0x{:x}", cluster, sector);
 		self.vh.write_blocks(sector, src).await?;
 		Ok( () )
 	}
 
 	/// Cached cluster access
-	async fn with_cluster<T>(&self, cluster: u32, callback: impl FnOnce(&[u8])->T) -> Result<T, storage::IoError> {
+	async fn with_cluster<T>(&self, cluster: ClusterNum, callback: impl FnOnce(&[u8])->T) -> Result<T, storage::IoError> {
 		let sector = self.get_sector_for_cluster(cluster);
 		let block = self.vh.get_block(sector).await?;
 		let ofs = sector - block.index();
 		Ok( callback(&block.data()[ofs as usize * self.vh.block_size()..]) )
 	}
-	async fn edit_cluster(&self, cluster: u32, callback: impl FnOnce(&mut [u8])) -> Result<(), storage::IoError> {
+	async fn edit_cluster(&self, cluster: ClusterNum, callback: impl FnOnce(&mut [u8])) -> Result<(), storage::IoError> {
 		let sector = self.get_sector_for_cluster(cluster);
 		// TODO: What if a cluster is larger than a block?
 		self.vh.edit(sector, /*::block_cache::CacheType::Metadata,*/ self.spc, callback).await
@@ -257,116 +248,20 @@ impl FilesystemInner
 impl mount::Filesystem for Filesystem
 {
 	fn root_inode(&self) -> node::InodeId {
-		(InodeRef {
-			first_cluster: self.root_first_cluster,
-			dir_first_cluster: 0,
-			dir_offset: 0,
-			}).to_id()
+		InodeRef::root(self.root_first_cluster).to_id()
 	}
 	fn get_node_by_inode(&self, id: node::InodeId) -> Option<node::Node> {
 		let r = InodeRef::from(id);
-		if r.first_cluster == self.root_first_cluster {
-			Some(node::Node::Dir(dir::DirNode::new_boxed(self.inner.borrow(), r.first_cluster)))
-		}
-		else {
+		if let Some(dir) = r.dir_first_cluster {
 			// Reading from the directory starting at r.dir_first_cluster
 			// locate the file with cluster equal to r.first_cluster.
 			// And use that to create the node
-			let dn = dir::DirNode::new(self.inner.borrow(), r.dir_first_cluster);
+			let dn = dir::DirNode::new(self.inner.borrow(),dir);
 			dn.find_node(r.first_cluster).expect("TODO: Error for `get_node_by_inode`")
 		}
-	}
-}
-
-impl InodeRef
-{
-	fn new(c: u32, dir_c: u32) -> InodeRef {
-		assert!(c     <= 0x00FF_FFFF);
-		assert!(dir_c <= 0x00FF_FFFF);
-		InodeRef {
-			first_cluster: c,
-			dir_first_cluster: dir_c,
-			dir_offset: 0,
-		}
-	}
-	fn to_id(&self) -> node::InodeId {
-		assert!(self.first_cluster <= 0x00FF_FFFF);
-		assert!(self.dir_first_cluster <= 0x00FF_FFFF);
-		//assert!(v.dir_offset <= 0xFFFF);
-		(self.first_cluster as u64)
-		| (self.dir_first_cluster as u64) << 24
-		| (self.dir_offset as u64) << 48
-	}
-}
-
-impl From<node::InodeId> for InodeRef {
-	fn from(v: node::InodeId) -> InodeRef {
-		InodeRef {
-			first_cluster: (v & 0x00FF_FFFF) as u32,
-			dir_first_cluster: ((v >> 24) & 0x00FF_FFFF) as u32,
-			dir_offset: (v >> 48) as u16,
-		}
-	}
-}
-
-impl<'fs> ClusterList<'fs> {
-	pub fn chained(fs: &'fs FilesystemInner, start: u32) -> ClusterList<'fs> {
-		ClusterList::Chained(fs, start)
-	}
-
-	/// Returns an extent of at most `max_clusters` contigious clusters
-	pub fn next_extent(&mut self, max_clusters: usize) -> Option<(u32, usize)> {
-		match *self
-		{
-		ClusterList::Range(ref mut r) => r.next().map(|v| (v, 1)),
-		ClusterList::Chained(ref fs, ref mut next) =>
-			if *next == 0 {
-				None
-			}
-			else {
-				let rv = *next;
-				let mut count = 0;
-				while *next != 0 && *next == rv + count as u32 && count < max_clusters
-				{
-					*next = match fs.get_next_cluster(*next)
-						{
-						Ok(Some(v)) => v,
-						Ok(None) => 0,
-						Err(e) => {
-							log_warning!("Error when reading cluster chain - {:?}", e);
-							return None;	// Inconsistency, terminate asap
-							},
-						};
-					count += 1;
-				}
-				Some( (rv, count) )
-			},
-		}
-	}
-}
-impl<'fs> ::core::iter::Iterator for ClusterList<'fs> {
-	type Item = u32;
-	fn next(&mut self) -> Option<u32> {
-		match *self
-		{
-		ClusterList::Range(ref mut r) => r.next(),
-		ClusterList::Chained(ref fs, ref mut next) =>
-			if *next == 0 {
-				None
-			}
-			else {
-				let rv = *next;
-				*next = match fs.get_next_cluster(*next)
-					{
-					Ok(Some(v)) => v,
-					Ok(None) => 0,
-					Err(e) => {
-						log_warning!("Error when reading cluster chain - {:?}", e);
-						return None;	// Inconsistency, terminate asap
-						},
-					};
-				Some( rv )
-			},
+		else {
+			assert!(r.first_cluster == self.root_first_cluster);
+			Some(node::Node::Dir(dir::DirNode::new_boxed(self.inner.borrow(), r.first_cluster)))
 		}
 	}
 }
