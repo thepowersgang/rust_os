@@ -146,7 +146,7 @@ fn main()
                 };
 
             let mut ofs = 0;
-            let mut buf = vec![0; 1024];
+            let mut buf = vec![0; 0x2000];
             loop
             {
                 use std::io::Read;
@@ -182,8 +182,8 @@ fn main()
                 Err(e) => panic!("`readback`: Cannot open remote file {:?}: {:?}", remote, e),
                 };
             let mut ofs = 0;
-            let mut buf_l = vec![0; 1024];
-            let mut buf_r = vec![0; 1024];
+            let mut buf_l = vec![0; 0x2000];
+            let mut buf_r = vec![0; 0x2000];
             loop
             {
                 use std::io::Read;

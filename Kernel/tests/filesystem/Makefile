@@ -3,7 +3,7 @@ V ?= @
 IMGDIR := data/
 TESTFILES := $(IMGDIR)testfiles/
 
-run_tests: $(IMGDIR)hda.img
+run_tests: $(IMGDIR)hda.img $(TESTFILES)bigfile.dat
 	cargo build
 	@echo "add_disk virt0 $(IMGDIR)hda.img temporary" > .testcmds.txt
 	@echo "mkdir / fat" >> .testcmds.txt
@@ -12,6 +12,8 @@ run_tests: $(IMGDIR)hda.img
 	@echo "readback $(TESTFILES)1.txt /fat/1.txt" >> .testcmds.txt
 	@echo "store $(TESTFILES)1.txt /fat/2.txt" >> .testcmds.txt
 	@echo "readback $(TESTFILES)1.txt /fat/2.txt" >> .testcmds.txt
+	@echo "store $(TESTFILES)bigfile.dat /fat/big_file.dat" >> .testcmds.txt
+	@echo "readback $(TESTFILES)bigfile.dat /fat/big_file.dat" >> .testcmds.txt
 	@echo "ls /fat" >> .testcmds.txt
 	cargo run < .testcmds.txt
 	rm .testcmds.txt
@@ -50,3 +52,6 @@ $(IMGDIR)hda.img: Makefile $(IMGDIR)hda_0.img $(IMGDIR)hda_1.img $(IMGDIR)hda_2.
 $(TESTFILES)1.txt: Makefile
 	@mkdir -p $(dir $@)
 	echo "Test content" > $@
+$(TESTFILES)bigfile.dat: Makefile
+	@mkdir -p $(dir $@)
+	dd if=/dev/zero of=$@ bs=512 count=7
