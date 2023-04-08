@@ -145,11 +145,13 @@ impl CachedVolume
 		let total_blocks = (data.len() / self.block_size()) as u64;
 		let mut cur_rel_block = 0;
 		while cur_rel_block < total_blocks {
-			let nblocks = u64::max(total_blocks - cur_rel_block, self.blocks_per_page());
+			let chunk_ofs_blocks = (block + cur_rel_block) % self.blocks_per_page();
+			let nblocks = u64::min(total_blocks - cur_rel_block, self.blocks_per_page() - chunk_ofs_blocks);
 			let ldata = &mut data[cur_rel_block as usize * self.block_size()..][..nblocks as usize * self.block_size()];
 			// TODO: Cache race? (if the entry is created during the read)
 			if let Some(h) = self.get_block_meta_opt(block + cur_rel_block) {
-				let begin = ((block + cur_rel_block) % self.blocks_per_page()) as usize * self.block_size();
+				let begin = chunk_ofs_blocks as usize * self.block_size();
+				assert!(begin + ldata.len() <= self.chunk_size());
 				ldata.copy_from_slice(&h.into_ro().data()[begin..][..ldata.len()]);
 			}
 			else {
@@ -165,11 +167,12 @@ impl CachedVolume
 		let total_blocks = (data.len() / self.block_size()) as u64;
 		let mut cur_rel_block = 0;
 		while cur_rel_block < total_blocks {
-			let nblocks = u64::max(total_blocks - cur_rel_block, self.blocks_per_page());
+			let chunk_ofs_blocks = (block + cur_rel_block) % self.blocks_per_page();
+			let nblocks = u64::min(total_blocks - cur_rel_block, self.blocks_per_page() - chunk_ofs_blocks);
 			let ldata = &data[cur_rel_block as usize * self.block_size()..][..nblocks as usize * self.block_size()];
 			// TODO: Cache race? (if the entry is created during the read)
 			if let Some(cached_block) = self.get_block_meta_opt(block + cur_rel_block) {
-				let begin = ((block + cur_rel_block) % self.blocks_per_page()) as usize * self.block_size();
+				let begin = chunk_ofs_blocks as usize * self.block_size();
 				cached_block.edit(|block_data| {
 					block_data[begin ..][ .. ldata.len()].copy_from_slice( ldata );
 					});
