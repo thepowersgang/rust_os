@@ -52,7 +52,7 @@ impl node::File for FileNode {
 			let old_size = *size_lh;
 			super::dir::update_file_size(&self.fs, self.first_cluster, newsize)?;
 			*size_lh = newsize;
-			todo!("FileNode::truncate({:#x})", newsize);
+			todo!("FileNode::truncate({:#x}): old_size={:#x}", newsize, old_size);
 		}
 		else {
 			// Allocate new clusters, then update the size

@@ -91,7 +91,7 @@ fn main()
                     let child_h = match h.open_child(&name)
                         {
                         Ok(child_h) => child_h,
-                        Err(e) => panic!("`ls` failed to open child {:?} of {:?}", name, dir),
+                        Err(e) => panic!("`ls` failed to open child {:?} of {:?}: {:?}", name, dir, e),
                         };
                     println!("{:?}: {:?}", name, child_h.get_class());
                     count += 1;
@@ -109,7 +109,7 @@ fn main()
                 {
                 Ok(h) => h,
                 Err(e) => {
-                    log_error!("'{:?}' cannot be opened: {:?}", dir, e);
+                    log_error!("`mkdir`: {:?} cannot be opened: {:?}", dir, e);
                     continue
                     },
                 };

@@ -16,7 +16,7 @@ fn main()
 		};
 	let mut outfile = std::fs::File::create(&filename).expect("Cannot open modules.rs output file");
 	writeln!(outfile, "{{").unwrap();
-	for (dep_name, dep_info) in deps.iter()
+	for (dep_name, _dep_info) in deps.iter()
 	{
 		// Explicitly ignore `syscalls` (main already links to it)
 		if !dep_name.starts_with("fs_") {

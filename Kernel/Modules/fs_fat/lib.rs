@@ -10,7 +10,7 @@
 use kernel::prelude::*;
 
 use kernel::metadevs::storage::{self,VolumeHandle,SizePrinter};
-use kernel::lib::mem::aref::{ArefInner,ArefBorrow};
+use kernel::lib::mem::aref::{ArefInner};
 use kernel::lib::mem::Arc;
 use ::vfs::{self, mount, node};
 

@@ -541,9 +541,6 @@ impl node::Dir for DirNode {
 		let dir_info = self.fs.get_dir_info(self.start_cluster);
 		let _lh_dir = dir_info.info.lock.read();
 		
-		let ents_per_cluster = self.fs.cluster_size / 32;
-		let (cluster_idx, c_ofs) = (ofs / ents_per_cluster, ofs % ents_per_cluster);
-		
 		let mut lfn = LFN::new();
 		let mut cur_ofs = ofs;
 		if let Some(rv) = self.iterate_ents(ofs, |ofs, ent| {
@@ -707,7 +704,7 @@ impl node::Dir for DirNode {
 		let _lh_dir = dir_info.info.lock.write();
 		// - Lock the directory, then start seeking clusters looking for a sequence of slots large enough
 		let mut end_entry = None;
-		let (found_slot, short_collision, total_free_slots, end_idx) = {
+		let (found_slot, short_collision, total_free_slots) = {
 			let mut found_slot = None;
 			let mut short_collision = false;
 			let mut n_free_total = 0;
@@ -760,7 +757,7 @@ impl node::Dir for DirNode {
 					break;
 				}
 			}
-			(found_slot, short_collision, n_free_total, idx)
+			(found_slot, short_collision, n_free_total)
 		};
 
 		// If there was a short name collision (... which can only be flagged if LFN is used, otherwise it's an error)
@@ -785,7 +782,7 @@ impl node::Dir for DirNode {
 
 		if let Some(pos) = found_slot {
 			// Can freely insert
-			todo!("DirNode::create('{:?}', {:?}): new_cluster={}, num_entries={} - found_slot={:?}", name, nodetype, new_cluster, num_entries, found_slot);
+			todo!("DirNode::create('{:?}', {:?}): new_cluster={}, num_entries={} - found_slot={:?}", name, nodetype, new_cluster, num_entries, pos);
 		}
 		else {
 			// Extend the directory

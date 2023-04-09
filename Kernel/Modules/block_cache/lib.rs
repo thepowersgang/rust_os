@@ -10,7 +10,6 @@ use kernel::PAGE_SIZE;
 use core::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use kernel::metadevs::storage::{VolumeHandle,IoError};
 use kernel::sync::{Mutex,RwLock,rwlock};
-use kernel::sync::mutex::LazyMutex;
 
 // NOTES:
 // - Handles wrap logical volume handles
@@ -111,7 +110,7 @@ impl CachedVolume
 			let handle = match lh.map.entry( (self.vh.idx(), cache_block) )
 				{
 				Entry::Occupied(v) => v.into_mut().borrow(),
-				Entry::Vacant(v) => return None,
+				Entry::Vacant(_) => return None,
 				};
 			// SAFE: 1. The internal data is boxed, 2. The box won't be dropped while a borrow exists.
 			unsafe { ::core::mem::transmute::<MetaBlockHandle, MetaBlockHandle>(handle) }
