@@ -3,21 +3,38 @@ V ?= @
 IMGDIR := data/
 TESTFILES := $(IMGDIR)testfiles/
 
-run_tests: $(IMGDIR)hda.img $(TESTFILES)bigfile.dat
-	cargo build
-	@echo "add_disk virt0 $(IMGDIR)hda.img temporary" > .testcmds.txt
-	@echo "mkdir / fat" >> .testcmds.txt
-	@echo "mount /fat virt0p0" >> .testcmds.txt
-	@echo "ls /fat" >> .testcmds.txt
-	@echo "readback $(TESTFILES)1.txt /fat/1.txt" >> .testcmds.txt
-	@echo "store $(TESTFILES)1.txt /fat/2.txt" >> .testcmds.txt
-	@echo "readback $(TESTFILES)1.txt /fat/2.txt" >> .testcmds.txt
-	@echo "store $(TESTFILES)bigfile.dat /fat/big_file.dat" >> .testcmds.txt
-	@echo "readback $(TESTFILES)bigfile.dat /fat/big_file.dat" >> .testcmds.txt
-	@echo "ls /fat" >> .testcmds.txt
-	cargo run < .testcmds.txt
-	rm .testcmds.txt
+run_tests: testlog_fat.log
 	#printf "add_disk virt0 $(IMGDIR)hda.img temporary\nmkdir / ext2\nmount /ext2 virt0p1\nls /ext2" | cargo run
+
+testlog_%.log: .testcmds_%.txt ../target/debug/kernel-test-filesystem $(IMGDIR)hda.img
+	cargo run < $< | tee $@
+
+PHONY: ../target/debug/kernel-test-filesystem
+../target/debug/kernel-test-filesystem:
+	cargo build
+
+.testcmds_ext2.txt: Makefile $(TESTFILES)bigfile.dat
+	@echo "add_disk virt0 $(IMGDIR)hda.img temporary" > $@
+	@echo "mkdir /mnt" >> $@
+	@echo "mount /mnt virt0p1" >> $@
+	@echo "ls /mnt" >> $@
+#	@echo "readback $(TESTFILES)1.txt /mnt/1.txt" >> $@
+	@echo "store $(TESTFILES)1.txt /mnt/2.txt" >> $@
+	@echo "readback $(TESTFILES)1.txt /mnt/2.txt" >> $@
+	@echo "store $(TESTFILES)bigfile.dat /mnt/a_big_file.dat" >> $@
+	@echo "readback $(TESTFILES)bigfile.dat /mnt/a_big_file.dat" >> $@
+	@echo "ls /mnt" >> $@
+.testcmds_fat.txt: Makefile $(TESTFILES)bigfile.dat
+	@echo "add_disk virt0 $(IMGDIR)hda.img temporary" > $@
+	@echo "mkdir /mnt" >> $@
+	@echo "mount /mnt virt0p0" >> $@
+	@echo "ls /mnt" >> $@
+	@echo "readback $(TESTFILES)1.txt /mnt/1.txt" >> $@
+	@echo "store $(TESTFILES)1.txt /mnt/2.txt" >> $@
+	@echo "readback $(TESTFILES)1.txt /mnt/2.txt" >> $@
+	@echo "store $(TESTFILES)bigfile.dat /mnt/a_big_file.dat" >> $@
+	@echo "readback $(TESTFILES)bigfile.dat /mnt/a_big_file.dat" >> $@
+	@echo "ls /mnt" >> $@
 
 $(IMGDIR)hd%_0.img:
 	@mkdir -p $(dir $@)

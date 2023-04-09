@@ -4,6 +4,17 @@ use ::vfs::handle as vfs_handle;
 
 mod virt_storage;
 
+mod modules {
+	fn use_mod(m: &::kernel::modules::ModuleInfo) {
+        (m.init)();
+	}
+	pub fn use_mods() -> usize {
+		let mut rv = 0;
+		include!{ concat!( env!("OUT_DIR"), "/modules.rs" ) }
+		rv
+	}
+}
+
 fn main()
 {
     ::kernel::threads::init();
@@ -13,10 +24,7 @@ fn main()
     (::kernel::hw::mapper_mbr::S_MODULE.init)();
     (::vfs::S_MODULE.init)();
 
-    // -- TODO: use `my_dependencies`?
-    (::fs_fat::S_MODULE.init)();
-    (::fs_ext_n::S_MODULE.init)();
-    // --
+    modules::use_mods();
 
     let cmd_stream = ::std::io::stdin();
     loop
@@ -94,8 +102,8 @@ fn main()
             },
         // Create a directory
         "mkdir" => {
-            let dir = ::vfs::Path::new( args.next().expect("mkdir dir") );
-            let dirname = args.next().expect("mkdir newname");
+            let path = ::vfs::Path::new( args.next().expect("`mkdir` path") );
+            let (dir,dirname) = path.split_off_last().expect("`mkdir` path invalid");
             log_log!("COMMAND: mkdir {:?} {:?}", dir, dirname);
             let h = match ::vfs::handle::Dir::open(dir)
                 {

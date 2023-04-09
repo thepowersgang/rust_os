@@ -17,3 +17,6 @@ fs_ext_n = { path = "../../Modules/fs_extN" }
 fs_fat = { path = "../../Modules/fs_fat" }
 fs_iso9660 = { path = "../../Modules/fs_iso9660" }
 #fs_ntfs = { path = "../../Modules/fs_ntfs" }
+
+[build_dependencies]
+my_dependencies = { git = "https://github.com/thepowersgang/my-dependencies-rs.git" }
