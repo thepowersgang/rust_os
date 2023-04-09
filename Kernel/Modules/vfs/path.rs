@@ -68,11 +68,12 @@ impl Path
 			let filename = i.next().unwrap();
 			let parent = match i.next()
 				{
+				None => Path::new(""),
+				Some(rest) if rest == b"" => Path::new("/"),
 				Some(rest) => {
 					assert!(i.next().is_none());
 					Path::new(rest)
 					},
-				None => Path::new(""),
 				};
 			Some( (parent, ByteStr::new(filename), ) )
 		}
