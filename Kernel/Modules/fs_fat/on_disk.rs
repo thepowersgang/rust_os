@@ -59,6 +59,13 @@ fn write_arr<const N: usize>(s: &mut &mut [u8], v: &[u8; N]) {
 	a.copy_from_slice(v);
 	*s = b;
 }
+fn write_arr16<const N: usize>(s: &mut &mut [u8], v: &[u16; N]) {
+	let (mut a,b) = ::core::mem::replace(s, &mut []).split_at_mut(N * 2);
+	for s in v {
+		write_u16(&mut a, *s);
+	}
+	*s = b;
+}
 pub enum BootSect
 {
 	Legacy(BootSect16),
@@ -262,7 +269,7 @@ pub struct DirEntLong
 	pub name1: [u16; 5],
 	pub attrib: u8,	// Must be ATTR_LFN
 	pub ty: u8,	// Dunno?
-	pub checksum: u8,
+	pub short_name_checksum: u8,
 	pub name2: [u16; 6],
 	pub first_cluster: u16,
 	pub name3: [u16; 2],
@@ -274,11 +281,23 @@ impl DirEntLong {
 			name1: read_arr16(src),
 			attrib: read_u8(src),
 			ty: read_u8(src),
-			checksum: read_u8(src),
+			short_name_checksum: read_u8(src),
 			name2: read_arr16(src),
 			first_cluster: read_u16(src),
 			name3: read_arr16(src),
 		}
+	}
+	pub fn write(&self, dst: &mut &mut[u8]) {
+		let l = dst.len();
+		write_u8(dst, self.id);
+		write_arr16(dst, &self.name1);
+		write_u8(dst, self.attrib);
+		write_u8(dst, self.ty);
+		write_u8(dst, self.short_name_checksum);
+		write_arr16(dst, &self.name2);
+		write_u16(dst, self.first_cluster);
+		write_arr16(dst, &self.name3);
+		assert!(l - dst.len() == 32);
 	}
 }
 

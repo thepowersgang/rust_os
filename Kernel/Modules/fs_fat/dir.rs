@@ -278,8 +278,9 @@ impl DirEnt {
 				outname[11..13].clone_from_slice(&lfn.name3);
 				outname
 				};
-			DirEnt::Long( DirEntLong{
+			DirEnt::Long(DirEntLong {
 				id: lfn.id,
+				short_name_checksum: lfn.short_name_checksum,
 				_type: lfn.ty,
 				chars: outname,
 				} )
@@ -336,25 +337,7 @@ impl DirEnt {
 		{
 		DirEnt::End => dst.copy_from_slice(&[0; 32]),
 		DirEnt::Short(v) => {
-			let mut name = [b' '; 8+3];
-			let dpos = v.name.iter().position(|&v| v == b'.');
-			let epos = v.name.iter().position(|&v| v == b'\0').unwrap_or(8+1+3);
-			let mut lcase = 0;
-			for i in 0 .. dpos.unwrap_or(epos) {
-				assert!(i < 8);
-				if v.name[i].is_ascii_lowercase() {
-					lcase |= on_disk::CASE_LOWER_BASE;
-				}
-				name[i] = v.name[i].to_ascii_uppercase();
-			}
-			if let Some(dpos) = dpos {
-				for i in dpos+1 .. epos {
-					if v.name[i].is_ascii_lowercase() {
-						lcase |= on_disk::CASE_LOWER_EXT;
-					}
-					name[8 + i - (dpos+1)] = v.name[i].to_ascii_uppercase();
-				}
-			}
+			let (lcase, name) = v.get_encoded_name();
 			on_disk::DirEnt {
 				name,
 				attribs: v.attributes,
@@ -368,6 +351,19 @@ impl DirEnt {
 				accessed_date: 0,
 				modified_date: 0,
 				modified_time: 0,
+				}.write(&mut dst);
+			},
+		DirEnt::Long(e) => {
+			use ::core::convert::TryInto;
+			on_disk::DirEntLong {
+				attrib: on_disk::ATTR_LFN,
+				first_cluster: 0,
+				short_name_checksum: e.short_name_checksum,
+				id: e.id,
+				ty: e._type,
+				name1: e.chars[0..5 ].try_into().unwrap(),
+				name2: e.chars[5..11].try_into().unwrap(),
+				name3: e.chars[11.. ].try_into().unwrap(),
 				}.write(&mut dst);
 			},
 		_ => todo!("DirEnt::to_raw: {:?}", self),
@@ -392,15 +388,41 @@ impl_fmt! {
 			)
 	}
 }
+impl DirEntShort {
+	fn get_encoded_name(&self) -> (u8, [u8; 11]) {
+		let mut name = [b' '; 8+3];
+		let dpos = self.name.iter().position(|&v| v == b'.');
+		let epos = self.name.iter().position(|&v| v == b'\0').unwrap_or(8+1+3);
+		let mut lcase = 0;
+		for i in 0 .. dpos.unwrap_or(epos) {
+			assert!(i < 8);
+			if self.name[i].is_ascii_lowercase() {
+				lcase |= on_disk::CASE_LOWER_BASE;
+			}
+			name[i] = self.name[i].to_ascii_uppercase();
+		}
+		if let Some(dpos) = dpos {
+			for i in dpos+1 .. epos {
+				if self.name[i].is_ascii_lowercase() {
+					lcase |= on_disk::CASE_LOWER_EXT;
+				}
+				name[8 + i - (dpos+1)] = self.name[i].to_ascii_uppercase();
+			}
+		}
+		(lcase, name)
+	}
+}
+
 struct DirEntLong {
 	id: u8,
 	_type: u8,
+	short_name_checksum: u8,
 	chars: [u16; 13],
 }
 impl_fmt! {
 	Debug(self,f) for DirEntLong {
-		write!(f, "{{ id: {:#x}, _type: {:#x}, chars: {:?} }}",
-			self.id, self._type, Str16::new(self.chars.split(|x|*x==0).next().unwrap())
+		write!(f, "{{ id: {:#x}, _type: {:#x}, checksum: {:#x}, chars: {:?} }}",
+			self.id, self._type, self.short_name_checksum, Str16::new(self.chars.split(|x|*x==0).next().unwrap())
 			)
 	}
 }
@@ -632,6 +654,13 @@ impl node::Dir for DirNode {
 				if i == 8 {
 					rv[6] = b'~';
 					rv[7] = b'1';
+					// Advance until the extension
+					while let Some(v) = iter.next() {
+						if v == b'.' {
+							has_ext = true;
+							break;
+						}
+					}
 					break;
 				}
 				if is_valid_short_char(v.to_ascii_uppercase()) {
@@ -828,18 +857,22 @@ struct CreateDirents {
 }
 impl CreateDirents {
 	fn new(node_type: node::NodeType, target_cluster: ClusterNum, name: [u8; 8+1+3], long_name: Option<&'_ ByteStr>) -> Self {
+		let short_ent = DirEntShort {
+			name,
+			cluster: target_cluster,
+			size: 0,
+			attributes: match node_type
+				{
+				node::NodeType::File => on_disk::ATTR_ARCHIVE,
+				node::NodeType::Dir => on_disk::ATTR_DIRECTORY,
+				node::NodeType::Symlink(_) => todo!("Symlink"),
+				},
+			};
+		let short_name_checksum = short_ent.get_encoded_name().1.iter().copied().fold(0, |sum, b| {
+			u8::wrapping_add((sum >> 1) + (sum << 7), b)
+			});
 		CreateDirents {
-			real_ent: Some(DirEntShort {
-				name,
-				cluster: target_cluster,
-				size: 0,
-				attributes: match node_type
-					{
-					node::NodeType::File => on_disk::ATTR_ARCHIVE,
-					node::NodeType::Dir => on_disk::ATTR_DIRECTORY,
-					node::NodeType::Symlink(_) => todo!("Symlink"),
-					},
-				}),
+			real_ent: Some(short_ent),
 			long_name: {
 				let mut it = ::utf16::wtf8_to_utf16(long_name.map(|v| v.as_bytes()).unwrap_or(&[]));
 				let mut rv = vec![];
@@ -853,6 +886,7 @@ impl CreateDirents {
 					rv.push(DirEntLong {
 						id: 1 + rv.len() as u8,
 						_type: 0,	// TODO: What should this be?
+						short_name_checksum,
 						chars: seg
 					});
 				}
