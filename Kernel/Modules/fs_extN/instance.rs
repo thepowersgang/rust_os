@@ -111,6 +111,9 @@ impl Instance
 		let group_descs = {
 			use kernel::lib::{as_byte_slice_mut,as_byte_slice};
 			const GROUP_DESC_SIZE: usize = ::core::mem::size_of::<::ondisk::GroupDesc>();
+			if GROUP_DESC_SIZE != superblock.s_group_desc_size() {
+				return Err(vfs::Error::Unknown("Superblock size mismatch vs expected"));
+			}
 
 			let groups_per_vol_block = vol_bs / GROUP_DESC_SIZE;
 			// Group descriptors are in the first filesystem block after the superblock
@@ -323,7 +326,7 @@ impl InstanceInner
 		assert!(inode_num != 0);
 		let inode_num = inode_num - 1;
 
-		( inode_num / self.s_inodes_per_group(), inode_num % self.s_inodes_per_group() )
+		( inode_num / self.superblock.s_inodes_per_group(), inode_num % self.superblock.s_inodes_per_group() )
 	}
 	/// Returns (volblock, byte_ofs)
 	fn get_inode_pos(&self, inode_num: u32) -> (u64, usize) {
@@ -331,7 +334,7 @@ impl InstanceInner
 
 		let base_blk_id = self.group_descriptors[group as usize].bg_inode_table as u64 * self.vol_blocks_per_fs_block();
 		assert!(base_blk_id != 0);
-		let ofs_bytes = (ofs as usize) * self.s_inode_size();
+		let ofs_bytes = (ofs as usize) * self.superblock.s_inode_size();
 		let (sub_blk_id, sub_blk_ofs) = (ofs_bytes / self.vol.block_size(), ofs_bytes % self.vol.block_size());
 
 		(base_blk_id + sub_blk_id as u64, sub_blk_ofs as usize)
@@ -383,8 +386,8 @@ impl InstanceInner
 		{
 			// NOTE: Unused fields in the inode are zero
 			let slice = ::kernel::lib::as_byte_slice_mut(&mut rv);
-			let slice = if slice.len() > self.s_inode_size() {
-					&mut slice[..self.s_inode_size()]
+			let slice = if slice.len() > self.superblock.s_inode_size() {
+					&mut slice[..self.superblock.s_inode_size()]
 				} else {
 					slice
 				};
@@ -399,8 +402,8 @@ impl InstanceInner
 		let (vol_block, blk_ofs) = self.get_inode_pos(inode_num);
 
 		let slice = ::kernel::lib::as_byte_slice(inode_data);
-		let slice = if slice.len() > self.s_inode_size() {
-				&slice[..self.s_inode_size()]
+		let slice = if slice.len() > self.superblock.s_inode_size() {
+				&slice[..self.superblock.s_inode_size()]
 			} else {
 				slice
 			};
@@ -413,31 +416,15 @@ impl InstanceInner
 /// Superblock parameters
 impl InstanceInner
 {
-	fn s_inodes_per_group(&self) -> u32 {
-		self.superblock.data.s_inodes_per_group
-	}
-
 	fn vol_blocks_per_fs_block(&self) -> u64 {
 		(self.fs_block_size / self.vol.block_size()) as u64
 	}
 
-	fn s_inode_size(&self) -> usize {
-		if self.superblock.data.s_rev_level > 0 {
-			self.superblock.ext.s_inode_size as usize
-		}
-		else {
-			128
-		}
+	pub fn has_feature_incompat(&self, feat: u32) -> bool {
+		self.superblock.has_feature_incompat(feat)
 	}
-
-	#[cfg(_false)]
-	fn s_group_desc_size(&self) -> usize {
-		if self.superblock.data.s_rev_level > 0 && self.superblock.ext.s_feature_incompat & ondisk::FEAT_INCOMPAT_64BIT != 0 {
-			self.superblock.ext.s_group_desc_size as usize
-		}
-		else {
-			32
-		}
+	pub fn has_feature_ro_compat(&self, feat: u32) -> bool {
+		self.superblock.has_feature_ro_compat(feat)
 	}
 }
 

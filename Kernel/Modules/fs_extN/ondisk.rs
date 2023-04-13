@@ -49,6 +49,37 @@ pub struct Superblock
 	pub _s_reserved: [u32; 98],
 	pub s_checksum: u32,
 }
+impl Superblock
+{
+	pub fn s_inodes_per_group(&self) -> u32 {
+		self.data.s_inodes_per_group
+	}
+
+	pub fn s_inode_size(&self) -> usize {
+		if self.data.s_rev_level > 0 {
+			self.ext.s_inode_size as usize
+		}
+		else {
+			128
+		}
+	}
+
+	pub fn has_feature_incompat(&self, feat: u32) -> bool {
+		self.data.s_rev_level > 0 && self.ext.s_feature_incompat & feat != 0
+	}
+	pub fn has_feature_ro_compat(&self, feat: u32) -> bool {
+		self.data.s_rev_level > 0 && self.ext.s_feature_ro_compat & feat != 0
+	}
+
+	pub fn s_group_desc_size(&self) -> usize {
+		//if self.has_feature_incompat(FEAT_INCOMPAT_64BIT) {
+		//	self.ext.s_group_desc_size as usize
+		//}
+		//else {
+			32
+		//}
+	}
+}
 #[allow(dead_code)]
 // SAFE: Never called, and does POD transmutes
 fn _sb_size() { unsafe {
@@ -227,9 +258,9 @@ def_bitset! {
 }
 
 def_bitset! {
-	 0 => FEAT_RO_COMPAT_SPARSE_SUPER,
-	 1 => FEAT_RO_COMPAT_LARGE_FILE,
-	 2 => FEAT_RO_COMPAT_BTREE_DIR,
+	 0 => FEAT_RO_COMPAT_SPARSE_SUPER,	// 0x1 - ?Sparse superblock
+	 1 => FEAT_RO_COMPAT_LARGE_FILE,	// 0x2 - Large files
+	 2 => FEAT_RO_COMPAT_BTREE_DIR,		// 0x4 - Directories include a binary tree (ext3)
 	 3 => FEAT_RO_COMPAT_HUGE_FILE,
 	 4 => FEAT_RO_COMPAT_GDT_CSUM,
 	 5 => FEAT_RO_COMPAT_DIR_NLINK,
@@ -273,7 +304,7 @@ pub struct Inode
 	pub i_block: [u32; 15],	// Pointers to blocks
 	pub i_version: u32,	// File version (for NFS)
 	pub i_file_acl: u32,	// File ACL
-	pub i_dir_acl: u32,	// Directory ACL / Extended File Size
+	pub i_dir_acl: u32,	// Directory ACL / Extended File Size (for FEAT_RO_COMPAT_LARGE_FILE)
 	pub i_faddr: u32,	// Fragment address
 	pub _osd2: [u32; 3],	// OS Dependent #2 (Typically fragment info)
 }

@@ -63,7 +63,7 @@ impl Inode
 		self.ondisk.i_mode & ::ondisk::S_IFMT
 	}
 	pub fn i_size(&self) -> u64 {
-		self.ondisk.i_size as u64
+		self.ondisk.i_size as u64 | (if self.fs.has_feature_ro_compat(crate::ondisk::FEAT_RO_COMPAT_LARGE_FILE) { (self.ondisk.i_dir_acl as u64) << 32 } else { 0 })
 	}
 }
 

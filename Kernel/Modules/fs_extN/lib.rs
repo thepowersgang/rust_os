@@ -38,6 +38,7 @@ const SUPPORTED_OPT_FEATURES: u32 = 0
 /// Read-only features: Missing features stop write support
 const SUPPORTED_RDO_FEATURES: u32 = 0
 	| ::ondisk::FEAT_RO_COMPAT_SPARSE_SUPER	// Enables storing SB backups at group 0, 3^n, 5^n, and 7^n
+	| ::ondisk::FEAT_RO_COMPAT_LARGE_FILE	// 64-bit file sizes (in a separate inode field)
 	;
 /// Required Features: Missing features prevent mounting
 const SUPPORTED_REQ_FEATURES: u32 = 0
