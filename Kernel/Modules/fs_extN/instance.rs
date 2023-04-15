@@ -207,15 +207,11 @@ impl vfs::mount::Filesystem for Instance
 				return None;
 				},
 			};
-		match inode.i_mode_fmt()
+		match { let v = inode.lock_read().i_mode_fmt(); v }
 		{
 		0 => None,
-		::ondisk::S_IFREG => {
-			Some( node::Node::File( Box::new( ::file::File::new(inode) )  ) )
-			},
-		::ondisk::S_IFDIR => {
-			Some( node::Node::Dir( Box::new( ::dir::Dir::new(inode) )  ) )
-			},
+		::ondisk::S_IFREG => Some( node::Node::File( Box::new( ::file::File::new(inode) )  ) ),
+		::ondisk::S_IFDIR => Some( node::Node::Dir( Box::new( ::dir::Dir::new(inode) )  ) ),
 		v @ _ => {
 			log_warning!("TODO: Handle node format {} in extN get_node_by_inode", v >> 12);
 			None
