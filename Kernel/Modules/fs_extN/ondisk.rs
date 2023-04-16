@@ -7,41 +7,18 @@
 
 pub const S_MAGIC_OFS: usize = 3*4*4 + 2*4;
 
-macro_rules! pod_impls {
-	($t:ty) => {
-		impl Copy for $t {
-		}
-		impl Clone for $t {
-			fn clone(&self) -> Self { *self }
-		}
-		impl Default for $t {
-			fn default() -> Self {
-				// SAFE: Copy types are safe to zero... well, except &, but meh
-				unsafe { ::core::mem::zeroed() }
-			}
-		}
-	};
-}
-
 macro_rules! def_from_slice {
 	($t:ty) => {
 		impl $t {
-			#[allow(dead_code)]
-			pub fn from_slice(r: &[u32]) -> &Self {
-				assert_eq!(r.len() * 4, ::core::mem::size_of::<Self>() );
-				// SAFE: Alignment is correct, (max is u32), size checked
-				unsafe {
-					let p = r.as_ptr() as *const Self;
-					&*p
-				}
+			pub fn from_slice(mut r: &[u8]) -> Self {
+				::kernel::lib::byteorder::EncodedLE::decode(&mut r).unwrap()
 			}
 		}
 	};
 }
 
 // Packed is required because the base data is an odd number of u32s long, and extension has u64s
-#[repr(packed,C)]
-#[derive(Debug)]
+#[derive(Debug,::kernel_derives::EncodedLE)]
 pub struct Superblock
 {
 	pub data: SuperblockData,
@@ -80,19 +57,17 @@ impl Superblock
 		//}
 	}
 }
-#[allow(dead_code)]
-// SAFE: Never called, and does POD transmutes
-fn _sb_size() { unsafe {
-	use core::mem::transmute;
-	let _: [u32; 0x54/4] = transmute(SuperblockData::default());
-	let _: [u32; (0x274-0x54)/4] = transmute(SuperblockDataExt::default());
-	let _: [u32; 1024/4] = transmute(Superblock::default());
-} }
-pod_impls!{ Superblock }
 def_from_slice!{ Superblock }
+//#[allow(dead_code)]
+//// SAFE: Never called, and does POD transmutes
+//fn _sb_size() { unsafe {
+//	use core::mem::transmute;
+//	let _: [u32; 0x54/4] = transmute(SuperblockData::default());
+//	let _: [u32; (0x274-0x54)/4] = transmute(SuperblockDataExt::default());
+//	let _: [u32; 1024/4] = transmute(Superblock::default());
+//} }
 
-#[derive(Debug)]
-#[repr(C)]
+#[derive(Debug,::kernel_derives::EncodedLE)]
 pub struct SuperblockData
 {
 	pub s_inodes_count: u32,		// Inodes count
@@ -130,10 +105,8 @@ pub struct SuperblockData
 	pub s_def_resuid: u16,		// Default uid for reserved blocks
 	pub s_def_resgid: u16,		// Default gid for reserved blocks
 }
-pod_impls!{ SuperblockData }
 
-#[derive(Debug)]
-#[repr(C)]
+#[derive(Debug,::kernel_derives::EncodedLE)]
 pub struct SuperblockDataExt
 {
 	// The following fields are only valid if s_rev_level > 0
@@ -230,7 +203,6 @@ pub struct SuperblockDataExt
 	pub s_prj_quota_inum: u32,
 	pub s_checksum_seed: u32,
 }
-pod_impls!{ SuperblockDataExt }
 
 macro_rules! def_bitset {
 	( $($v:expr => $name:ident,)* ) => {
@@ -286,7 +258,7 @@ pub const FEAT_COMPAT_EXCLUDE_BITMAP:u32 = 1 << 8;
 pub const FEAT_COMPAT_SPARSE_SUPER2: u32 = 1 << 9;
 
 #[repr(C)]
-#[derive(Debug)]
+#[derive(Debug,::kernel_derives::EncodedLE)]
 pub struct Inode
 {
 	pub i_mode: u16,	// File mode
@@ -309,7 +281,7 @@ pub struct Inode
 	pub _osd2: [u32; 3],	// OS Dependent #2 (Typically fragment info)
 }
 #[repr(C)]
-#[derive(Debug)]
+#[derive(Debug,::kernel_derives::EncodedLE)]
 pub struct InodeExtra
 {
 	// FEAT_COMPAT_EXT_ATTR
@@ -323,8 +295,7 @@ pub struct InodeExtra
 	pub i_version_hi: u32,
 	pub i_projid: u32,
 }
-pod_impls!{ Inode }
-//def_from_slice!{ Inode }
+def_from_slice!{ Inode }
 
 pub const S_IFMT: u16 = 0xF000;	// Format Mask
 pub const S_IFSOCK: u16 = 0xC000;	// Socket
@@ -354,6 +325,7 @@ pub const S_IXOTH: u16 =  0o001;	// Global Execute
 pub const EXT4_INDEX_FL: u16 = 0x1000;	// i_flags: Directory uses a hashed btree
 
 #[repr(C)]
+#[derive(Default,::kernel_derives::EncodedLE)]
 pub struct GroupDesc
 {
 	pub bg_block_bitmap: u32,	// Blocks bitmap block
@@ -365,7 +337,6 @@ pub struct GroupDesc
 	pub bg_pad: u16,	// Padding
 	pub bg_reserved: [u32; 3],	// Reserved
 }
-pod_impls!{ GroupDesc }
 //def_from_slice!{ GroupDesc }
 impl_fmt! {
 	Debug(self, f) for GroupDesc {
@@ -379,6 +350,7 @@ impl_fmt! {
 
 
 #[repr(C)]
+// TODO: Endian corrections required!
 pub struct DirEnt
 {
 	/// Inode number
@@ -394,8 +366,6 @@ pub struct DirEnt
 	pub d_name: [u8],	// EXT2_NAME_LEN+1
 }
 pub const DIRENT_MIN_SIZE: usize = 8;
-
-//pod_impls!{ DirEnt }
 
 impl DirEnt
 {

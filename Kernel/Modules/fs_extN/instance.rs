@@ -19,7 +19,7 @@ pub struct InstanceInner
 	pub fs_block_size: usize,
 
 	mount_handle: vfs::mount::SelfHandle,
-	group_descriptors: Vec<::ondisk::GroupDesc>,
+	group_descriptors: ::kernel::sync::RwLock< Vec<::ondisk::GroupDesc> >,
 }
 
 pub enum FeatureState
@@ -73,11 +73,11 @@ impl Instance
 		let superblock_ofs = (1024 % vol_bs) as usize;
 
 		let (superblock, first_block) = {
-			let mut first_block: Vec<u32> = vec![0; ::core::cmp::max(1024, vol_bs)/4];
-			::kernel::futures::block_on(vol.read_blocks(superblock_idx, ::kernel::lib::as_byte_slice_mut(&mut first_block[..])))?;
+			let mut first_block: Vec<u8> = vec![0; ::core::cmp::max(1024, vol_bs)];
+			::kernel::futures::block_on(vol.read_blocks(superblock_idx, &mut first_block[..]))?;
 			assert!(superblock_ofs % 4 == 0);
 			(
-				*::ondisk::Superblock::from_slice(&first_block[superblock_ofs/4 ..][..1024/4]),
+				::ondisk::Superblock::from_slice(&first_block[superblock_ofs ..][..1024]),
 				first_block,
 				)
 			};
@@ -122,7 +122,7 @@ impl Instance
 			log_trace!("Group Descs: {} groups @ byte {}, {} per volume block (vol_bs={})",
 				num_groups, byte_offset, groups_per_vol_block, vol_bs);
 
-			let mut gds: Vec<::ondisk::GroupDesc> = vec![Default::default(); num_groups as usize];
+			let mut gds: Vec<::ondisk::GroupDesc> = (0..num_groups).map(|_| Default::default()).collect();
 
 			// The superblock is 1024 bytes at offset 1024
 			// - If the volume block size is 2K or larger, then there are some group descriptors in the first block
@@ -131,10 +131,12 @@ impl Instance
 					// - This means that at least 2048 bytes of the group descriptors are in the same block as the superblock
 					let n_shared = (vol_bs - byte_offset) / GROUP_DESC_SIZE;
 
-					let src = &as_byte_slice(&first_block[..])[byte_offset..];
+					let mut src = &first_block[byte_offset..];
 					let count = ::core::cmp::min(n_shared, gds.len());
 					assert_eq!(src.len(), count * GROUP_DESC_SIZE);
-					as_byte_slice_mut(&mut gds[..count]).clone_from_slice( src );
+					for s in &mut gds[..count] {
+						*s = ::kernel::lib::byteorder::EncodedLE::decode(&mut src).unwrap();
+					}
 					(count, 1)
 				}
 				else {
@@ -163,7 +165,10 @@ impl Instance
 				let mut buf: Vec<u8> = vec![0; vol_bs];
 				::kernel::futures::block_on(vol.read_blocks(vol_block, &mut buf))?;
 				let n_bytes = (gds.len() - ofs) * GROUP_DESC_SIZE;
-				as_byte_slice_mut(&mut gds[ofs ..]).clone_from_slice( &buf[..n_bytes] );
+				let mut src = &buf[..n_bytes];
+				for s in &mut gds[ofs..] {
+					*s = ::kernel::lib::byteorder::EncodedLE::decode(&mut src).unwrap();
+				}
 			}
 
 			gds
@@ -179,7 +184,7 @@ impl Instance
 			is_readonly: is_readonly,
 			fs_block_size: fs_block_size,
 			superblock: superblock,
-			group_descriptors: group_descs,
+			group_descriptors: ::kernel::sync::RwLock::new(group_descs),
 			mount_handle: mount_handle,
 			vol: ::block_cache::CachedVolume::new(vol),
 			};
@@ -314,6 +319,16 @@ impl InstanceInner
 	}
 }
 
+impl InstanceInner
+{
+	fn edit_superblock<R>(&self, cb: impl FnOnce(&mut crate::ondisk::Superblock)->R) -> vfs::node::Result<R> {
+		todo!("edit_superblock");
+	}
+	fn edit_block_group_header<R>(&self, idx: u32, cb: impl FnOnce(&mut crate::ondisk::GroupDesc)->R) -> vfs::node::Result<R> {
+		todo!("edit_block_group_header({})", idx);
+	}
+}
+
 /// Inode lookup and save
 impl InstanceInner
 {
@@ -328,7 +343,7 @@ impl InstanceInner
 	fn get_inode_pos(&self, inode_num: u32) -> (u64, usize) {
 		let (group, ofs) = self.get_inode_grp_id(inode_num);
 
-		let base_blk_id = self.group_descriptors[group as usize].bg_inode_table as u64 * self.vol_blocks_per_fs_block();
+		let base_blk_id = self.group_descriptors.read()[group as usize].bg_inode_table as u64 * self.vol_blocks_per_fs_block();
 		assert!(base_blk_id != 0);
 		let ofs_bytes = (ofs as usize) * self.superblock.s_inode_size();
 		let (sub_blk_id, sub_blk_ofs) = (ofs_bytes / self.vol.block_size(), ofs_bytes % self.vol.block_size());
@@ -354,22 +369,79 @@ impl InstanceInner
 	}
 
 	/// Allocate a new inode number, possibly in the same block group as `parent_inode_num`.
-	pub fn allocate_inode(&self, parent_inode_num: u32, _nodetype: vfs::node::NodeType) -> vfs::node::Result< u32 >
+	pub fn allocate_inode(&self, parent_inode_num: u32, nodetype: vfs::node::NodeType) -> vfs::node::Result< u32 >
 	{
 		let (grp, _idx) = self.get_inode_grp_id(parent_inode_num);
-		let gd = &self.group_descriptors[grp as usize];
-		if gd.bg_free_inodes_count > 0
-		{
-			todo!("InstanceInner::allocate_inode - Current BG");
+
+		// TODO: Update the superblock
+		let has_inodes = self.edit_superblock(|sb| {
+			if sb.data.s_free_inodes_count == 0 {
+				false
+			}
+			else {
+				sb.data.s_free_inodes_count -= 1;
+				true
+			}
+			})?;
+		if !has_inodes {
+			return Err(vfs::Error::OutOfSpace);
 		}
-		else if self.superblock.data.s_free_inodes_count > 0
-		{
-			todo!("InstanceInner::allocate_inode - Search for any BG");
+
+		let rv = if let Some(rv) = self.allocate_inode_in_bg(grp, nodetype)?
+			{
+				rv
+			}
+			else
+			{
+				todo!("InstanceInner::allocate_inode - Search for any BG");
+			};
+		Ok(rv)
+	}
+	fn allocate_inode_in_bg(&self, grp: u32, _nodetype: vfs::node::NodeType) -> vfs::node::Result< Option<u32> > {
+		// NOTE: Check with read-only first, and only read-modify-write if the read-only check passed
+		if self.group_descriptors.read()[grp as usize].bg_free_inodes_count == 0 {
+			return Ok(None);
 		}
-		else
-		{
-			Err(vfs::Error::OutOfSpace)
+		let Some(first_bmp_block) = self.edit_block_group_header(grp, |gd|
+			if gd.bg_free_inodes_count == 0 {
+				// This should only be hit if there is a race
+				None
+			}
+			else {
+				gd.bg_free_inodes_count -= 1;
+				Some(gd.bg_block_bitmap)
+			})? else {
+			return Ok(None);
+		};
+
+		// Start the bitmap check
+		let inodes_per_block = self.fs_block_size * 8;
+		for base in (0 .. self.superblock.s_inodes_per_group()).step_by(inodes_per_block) {
+			// Number of inodes in this bitmap block (might be fewer, if the group size is small)
+			let n_inodes = (self.superblock.s_inodes_per_group() - base).min(inodes_per_block as u32);
+			let n_words = ::kernel::lib::num::div_up(n_inodes, 32) as usize;
+			let rv = self.edit_block(first_bmp_block + base / inodes_per_block as u32, |blk_data| {
+				Ok(match blk_data[..n_words].iter().position(|&v| v != !0)
+				{
+				None => None,
+				Some(p) => {
+					let bit = blk_data[p].trailing_ones();
+					blk_data[p] |= 1 << bit;
+					Some(p as u32 * 32 + bit)
+					},
+				})
+				})?;
+			if let Some(rel_inode_id) = rv {
+				// Check for the edge case where the returned ID is outside the expected bounds (could happen if s_inodes_per_group is
+				// not a multiple of 32)
+				if rel_inode_id >= n_inodes {
+					break
+				}
+				return Ok(Some(grp * self.superblock.s_inodes_per_group() + base + rel_inode_id));
+			}
 		}
+		log_error!("allocate_inode_in_bg: Descriptor said that there were free inodes, but bitmap was full.");
+		Err(vfs::Error::InconsistentFilesystem)
 	}
 
 	/// Read an inode descriptor from the disk
@@ -378,17 +450,17 @@ impl InstanceInner
 		let (vol_block, blk_ofs) = self.get_inode_pos(inode_num);
 		log_trace!("read_inode({}) - vol_block={}, blk_ofs={}", inode_num, vol_block, blk_ofs);
 
-		let mut rv = ::ondisk::Inode::default();
-		{
+		let rv = {
 			// NOTE: Unused fields in the inode are zero
-			let slice = ::kernel::lib::as_byte_slice_mut(&mut rv);
-			let slice = if slice.len() > self.superblock.s_inode_size() {
-					&mut slice[..self.superblock.s_inode_size()]
+			let mut buf = vec![0; ::core::mem::size_of::<crate::ondisk::Inode>()];
+			let slice = if buf.len() > self.superblock.s_inode_size() {
+					&mut buf[..self.superblock.s_inode_size()]
 				} else {
-					slice
+					&mut buf
 				};
 			::kernel::futures::block_on( self.vol.read_inner(vol_block, blk_ofs, slice) )?;
-		}
+			::ondisk::Inode::from_slice(&buf[..])
+		};
 		log_trace!("- rv={:?}", rv);
 		Ok( rv )
 	}
