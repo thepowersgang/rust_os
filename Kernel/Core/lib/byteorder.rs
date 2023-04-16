@@ -33,31 +33,36 @@ macro_rules! read_signed {
 		}
 	});
 }
-//macro_rules! write_signed {
-//	($ty:ty, $bits:expr, $val:expr) => ({
-//		let v = $val;
-//		if v > 0 {
-//			v as $ty
-//		}
-//		else if v == -( (1 << ($bits-1)) as $ty ) {
-//			1 << ($bits-1)
-//		}
-//		else {
-//			!(-v as $ty + 1)
-//		}
-//	});
-//}
+macro_rules! write_signed {
+	($ty:ty, $bits:expr, $val:expr) => ({
+		let v = $val;
+		if v > 0 {
+			v as $ty
+		}
+		else if v+1 == -( ((1 << ($bits-1)) + 1) ) {
+			1 << ($bits-1)
+		}
+		else {
+			!(-v as $ty + 1)
+		}
+	});
+}
 
 pub trait ByteOrder
 {
+	fn read_u8(buf: &[u8]) -> u8;
 	fn read_u16(buf: &[u8]) -> u16;
 	fn read_u32(buf: &[u8]) -> u32;
 	fn read_u64(buf: &[u8]) -> u64;
 	fn read_uint(buf: &[u8], nbytes: usize) -> u64;
+	fn write_u8(buf: &mut [u8], n: u8);
 	fn write_u16(buf: &mut [u8], n: u16);
 	fn write_u32(buf: &mut [u8], n: u32);
 	fn write_u64(buf: &mut [u8], n: u64);
 
+	fn read_i8(buf: &[u8]) -> i8 {
+		read_signed!(i8, 8, Self::read_u8(buf))
+	}
 	fn read_i16(buf: &[u8]) -> i16 {
 		read_signed!(i16, 16, Self::read_u16(buf))
 	}
@@ -72,9 +77,10 @@ pub trait ByteOrder
 	}
 	//fn read_f32(buf: &[u8]) -> f32 { ... }
 	//fn read_f64(buf: &[u8]) -> f64 { ... }
-	//fn write_i16(buf: &mut [u8], n: i16) { Self::write_u16(buf, write_signed!(u16, 16, n)) }
-	//fn write_i32(buf: &mut [u8], n: i32) { Self::write_u32(buf, write_signed!(u32, 32, n)) }
-	//fn write_i64(buf: &mut [u8], n: i64) { Self::write_u64(buf, write_signed!(u64, 64, n)) }
+	fn write_i8 (buf: &mut [u8], n: i8 ) { Self::write_u8 (buf, write_signed!(u8 ,  8, n)) }
+	fn write_i16(buf: &mut [u8], n: i16) { Self::write_u16(buf, write_signed!(u16, 16, n)) }
+	fn write_i32(buf: &mut [u8], n: i32) { Self::write_u32(buf, write_signed!(u32, 32, n)) }
+	fn write_i64(buf: &mut [u8], n: i64) { Self::write_u64(buf, write_signed!(u64, 64, n)) }
 	//fn write_f32(buf: &mut [u8], n: f32) { ... }
 	//fn write_f64(buf: &mut [u8], n: f64) { ... }
 }
@@ -82,6 +88,9 @@ pub trait ByteOrder
 pub struct LittleEndian;
 impl ByteOrder for LittleEndian
 {
+	fn read_u8(buf: &[u8]) -> u8 {
+		buf[0]
+	}
 	fn read_u16(buf: &[u8]) -> u16 {
 		(buf[0] as u16) | (buf[1] as u16) << 8
 	}
@@ -97,6 +106,9 @@ impl ByteOrder for LittleEndian
 			rv |= (buf[i] as u64) << (8*i);
 		}
 		rv
+	}
+	fn write_u8(buf: &mut [u8], n: u8) {
+		buf[0] = n;
 	}
 	fn write_u16(buf: &mut [u8], n: u16) {
 		buf[0] = ((n >> 0) & 0xFF) as u8;
@@ -117,6 +129,9 @@ impl ByteOrder for LittleEndian
 pub struct BigEndian;
 impl ByteOrder for BigEndian
 {
+	fn read_u8(buf: &[u8]) -> u8 {
+		buf[0]
+	}
 	fn read_u16(buf: &[u8]) -> u16 {
 		(buf[0] as u16) << 8 | (buf[1] as u16) << 0
 	}
@@ -132,6 +147,9 @@ impl ByteOrder for BigEndian
 			rv |= (buf[i] as u64) << (8*(nbytes - 1 - i));
 		}
 		rv
+	}
+	fn write_u8(buf: &mut [u8], n: u8) {
+		buf[0] = n;
 	}
 	fn write_u16(buf: &mut [u8], n: u16) {
 		buf[0] = ((n >> 8) & 0xFF) as u8;
@@ -219,4 +237,106 @@ pub trait ReadBytesExt:
 }
 impl<T: crate::lib::io::Read + ?Sized> ReadBytesExt for T {
 }
+
+// TODO: A derivable trait that handles converting to/from values (for e.g. fileystem data structures)
+pub trait EncodedLE {
+	fn encode(&self, buf: &mut &mut [u8]) -> Result<()>;
+	fn decode(buf: &mut &[u8]) -> Result<Self> where Self: Sized;
+}
+pub trait EncodedBE {
+	fn encode(&self, buf: &mut &mut [u8]) -> Result<()>;
+	fn decode(buf: &mut &[u8]) -> Result<Self> where Self: Sized;
+}
+
+fn split_mut_inplace<'a>(buf: &mut &'a mut [u8], len: usize) -> Result<&'a mut [u8]> {
+	if len > buf.len() {
+		Err(Error::UnexpectedEOF)
+	}
+	else {
+		let (a,b) = ::core::mem::replace(buf, &mut []).split_at_mut(len);
+		*buf = b;
+		Ok(a)
+	}
+}
+fn split_inplace<'a>(buf: &mut &'a [u8], len: usize) -> Result<&'a [u8]> {
+	if len > buf.len() {
+		Err(Error::UnexpectedEOF)
+	}
+	else {
+		let rv = buf.split_at(len);
+		*buf = rv.1;
+		Ok(rv.0)
+	}
+}
+macro_rules! impl_encoded_prim {
+	( $t:ty => $read:ident,$write:ident) => {
+		impl EncodedLE for $t {
+			fn encode(&self, buf: &mut &mut [u8]) -> Result<()> {
+				Ok( LittleEndian::$write(split_mut_inplace(buf, ::core::mem::size_of::<$t>())?, *self) )
+			}
+			fn decode(buf: &mut &[u8]) -> Result<Self> {
+				Ok( LittleEndian::$read(split_inplace(buf, ::core::mem::size_of::<$t>())?) )
+			}
+		}
+		impl EncodedBE for $t {
+			fn encode(&self, buf: &mut &mut [u8]) -> Result<()> {
+				Ok( BigEndian::$write(split_mut_inplace(buf, ::core::mem::size_of::<$t>())?, *self) )
+			}
+			fn decode(buf: &mut &[u8]) -> Result<Self> {
+				Ok( BigEndian::$read(split_inplace(buf, ::core::mem::size_of::<$t>())?) )
+			}
+		}
+	}
+}
+macro_rules! impl_encoded_atomic {
+	( $atomic:ty => $inner:ty) => {
+		impl EncodedLE for $atomic {
+			fn encode(&self, buf: &mut &mut [u8]) -> Result<()> {
+				EncodedLE::encode( &self.load(::core::sync::atomic::Ordering::Relaxed), buf )
+			}
+			fn decode(buf: &mut &[u8]) -> Result<Self> {
+				Ok( Self::new(<$inner as EncodedLE>::decode(buf)?) )
+			}
+		}
+		impl EncodedBE for $atomic {
+			fn encode(&self, buf: &mut &mut [u8]) -> Result<()> {
+				EncodedBE::encode( &self.load(::core::sync::atomic::Ordering::Relaxed), buf )
+			}
+			fn decode(buf: &mut &[u8]) -> Result<Self> {
+				Ok( Self::new(<$inner as EncodedBE>::decode(buf)?) )
+			}
+		}
+	}
+}
+
+impl<T: EncodedLE, const N: usize> EncodedLE for [T; N] {
+	fn encode(&self, buf: &mut &mut [u8]) -> Result<()> {
+		for v in self.iter() {
+			EncodedLE::encode(v, buf)?;
+		}
+		Ok( () )
+	}
+	fn decode(buf: &mut &[u8]) -> Result<Self> {
+		// SAFE: Just making an array of uninit from an uninit
+		let mut rv: [::core::mem::MaybeUninit<T>; N] = unsafe { ::core::mem::MaybeUninit::uninit().assume_init() };
+		for v in rv.iter_mut() {
+			v.write(EncodedLE::decode(buf)?);
+		}
+		// SAFE: The value is now fully initialised
+		Ok( unsafe { ::core::mem::transmute_copy::<_, Self>(&rv) } )
+	}
+}
+
+impl_encoded_prim!( u8 => read_u8,write_u8 );
+impl_encoded_prim!( i8 => read_i8,write_i8 );
+impl_encoded_prim!( u16 => read_u16,write_u16 );
+impl_encoded_prim!( i16 => read_i16,write_i16 );
+impl_encoded_prim!( u32 => read_u32,write_u32 );
+impl_encoded_prim!( i32 => read_i32,write_i32 );
+impl_encoded_prim!( u64 => read_u64,write_u64 );
+impl_encoded_prim!( i64 => read_i64,write_i64 );
+impl_encoded_atomic!( ::core::sync::atomic::AtomicU8 => u8 );
+impl_encoded_atomic!( ::core::sync::atomic::AtomicU16 => u16 );
+impl_encoded_atomic!( ::core::sync::atomic::AtomicU32 => u32 );
+impl_encoded_atomic!( ::core::sync::atomic::AtomicU64 => u64 );
 
