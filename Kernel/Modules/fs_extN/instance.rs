@@ -15,7 +15,7 @@ pub struct InstanceInner
 {
 	is_readonly: bool,
 	pub vol: ::block_cache::CachedVolume,
-	superblock: ::ondisk::Superblock,
+	superblock: ::kernel::sync::RwLock<crate::ondisk::Superblock>,
 	pub fs_block_size: usize,
 
 	mount_handle: vfs::mount::SelfHandle,
@@ -109,7 +109,6 @@ impl Instance
 		// Read group descriptor table
 		// - This resides in the first FS block after the superblock
 		let group_descs = {
-			use kernel::lib::{as_byte_slice_mut,as_byte_slice};
 			const GROUP_DESC_SIZE: usize = ::core::mem::size_of::<::ondisk::GroupDesc>();
 			if GROUP_DESC_SIZE != superblock.s_group_desc_size() {
 				return Err(vfs::Error::Unknown("Superblock size mismatch vs expected"));
@@ -152,17 +151,23 @@ impl Instance
 			log_trace!("vol_block={} n_skip={} => rem_count={} (tail_count={}, body_count={})",
 				vol_block, n_skip, rem_count,  tail_count, body_count);
 
+			let mut buf: Vec<u8> = vec![0; vol_bs];
 			if body_count > 0
 			{
-				::kernel::futures::block_on(vol.read_blocks(vol_block, as_byte_slice_mut(&mut gds[n_skip .. ][ .. body_count])))?;
-				vol_block += (body_count / groups_per_vol_block) as u64;
+				for gds in gds[n_skip..][..body_count].chunks_mut(groups_per_vol_block) {
+					::kernel::futures::block_on(vol.read_blocks(vol_block, &mut buf))?;
+					let mut src = &buf[..];
+					for s in gds {
+						*s = ::kernel::lib::byteorder::EncodedLE::decode(&mut src).unwrap();
+					}
+					vol_block += 1;
+				}
 			}
 
 			if tail_count > 0
 			{
 				let ofs = n_skip + body_count;
 				// Read a single volume block into a buffer, then populate from that
-				let mut buf: Vec<u8> = vec![0; vol_bs];
 				::kernel::futures::block_on(vol.read_blocks(vol_block, &mut buf))?;
 				let n_bytes = (gds.len() - ofs) * GROUP_DESC_SIZE;
 				let mut src = &buf[..n_bytes];
@@ -183,7 +188,7 @@ impl Instance
 		let inner = InstanceInner {
 			is_readonly: is_readonly,
 			fs_block_size: fs_block_size,
-			superblock: superblock,
+			superblock: ::kernel::sync::RwLock::new(superblock),
 			group_descriptors: ::kernel::sync::RwLock::new(group_descs),
 			mount_handle: mount_handle,
 			vol: ::block_cache::CachedVolume::new(vol),
@@ -322,10 +327,17 @@ impl InstanceInner
 impl InstanceInner
 {
 	fn edit_superblock<R>(&self, cb: impl FnOnce(&mut crate::ondisk::Superblock)->R) -> vfs::node::Result<R> {
-		todo!("edit_superblock");
+		let mut lh = self.superblock.write();
+		let rv = cb(&mut lh);
+		// TODO: Write back right now?
+		todo!("edit_superblock - writeback?");
+		Ok(rv)
 	}
 	fn edit_block_group_header<R>(&self, idx: u32, cb: impl FnOnce(&mut crate::ondisk::GroupDesc)->R) -> vfs::node::Result<R> {
-		todo!("edit_block_group_header({})", idx);
+		let mut lh = self.group_descriptors.write();
+		let rv = cb(&mut lh[idx as usize]);
+		todo!("edit_block_group_header({}) - writeback?", idx);
+		Ok(rv)
 	}
 }
 
@@ -337,7 +349,8 @@ impl InstanceInner
 		assert!(inode_num != 0);
 		let inode_num = inode_num - 1;
 
-		( inode_num / self.superblock.s_inodes_per_group(), inode_num % self.superblock.s_inodes_per_group() )
+		let s_inodes_per_group = self.superblock.read().s_inodes_per_group();
+		( inode_num / s_inodes_per_group, inode_num % s_inodes_per_group )
 	}
 	/// Returns (volblock, byte_ofs)
 	fn get_inode_pos(&self, inode_num: u32) -> (u64, usize) {
@@ -345,7 +358,7 @@ impl InstanceInner
 
 		let base_blk_id = self.group_descriptors.read()[group as usize].bg_inode_table as u64 * self.vol_blocks_per_fs_block();
 		assert!(base_blk_id != 0);
-		let ofs_bytes = (ofs as usize) * self.superblock.s_inode_size();
+		let ofs_bytes = (ofs as usize) * self.superblock.read().s_inode_size();
 		let (sub_blk_id, sub_blk_ofs) = (ofs_bytes / self.vol.block_size(), ofs_bytes % self.vol.block_size());
 
 		(base_blk_id + sub_blk_id as u64, sub_blk_ofs as usize)
@@ -416,9 +429,10 @@ impl InstanceInner
 
 		// Start the bitmap check
 		let inodes_per_block = self.fs_block_size * 8;
-		for base in (0 .. self.superblock.s_inodes_per_group()).step_by(inodes_per_block) {
+		let s_inodes_per_group = self.superblock.read().s_inodes_per_group();
+		for base in (0 .. s_inodes_per_group).step_by(inodes_per_block) {
 			// Number of inodes in this bitmap block (might be fewer, if the group size is small)
-			let n_inodes = (self.superblock.s_inodes_per_group() - base).min(inodes_per_block as u32);
+			let n_inodes = (s_inodes_per_group - base).min(inodes_per_block as u32);
 			let n_words = ::kernel::lib::num::div_up(n_inodes, 32) as usize;
 			let rv = self.edit_block(first_bmp_block + base / inodes_per_block as u32, |blk_data| {
 				Ok(match blk_data[..n_words].iter().position(|&v| v != !0)
@@ -437,7 +451,7 @@ impl InstanceInner
 				if rel_inode_id >= n_inodes {
 					break
 				}
-				return Ok(Some(grp * self.superblock.s_inodes_per_group() + base + rel_inode_id));
+				return Ok(Some(grp * s_inodes_per_group + base + rel_inode_id));
 			}
 		}
 		log_error!("allocate_inode_in_bg: Descriptor said that there were free inodes, but bitmap was full.");
@@ -451,10 +465,11 @@ impl InstanceInner
 		log_trace!("read_inode({}) - vol_block={}, blk_ofs={}", inode_num, vol_block, blk_ofs);
 
 		let rv = {
+			let s_inode_size = self.superblock.read().s_inode_size();
 			// NOTE: Unused fields in the inode are zero
 			let mut buf = vec![0; ::core::mem::size_of::<crate::ondisk::Inode>()];
-			let slice = if buf.len() > self.superblock.s_inode_size() {
-					&mut buf[..self.superblock.s_inode_size()]
+			let slice = if buf.len() > s_inode_size {
+					&mut buf[..s_inode_size]
 				} else {
 					&mut buf
 				};
@@ -469,9 +484,10 @@ impl InstanceInner
 	{
 		let (vol_block, blk_ofs) = self.get_inode_pos(inode_num);
 
+		let s_inode_size = self.superblock.read().s_inode_size();
 		let slice = ::kernel::lib::as_byte_slice(inode_data);
-		let slice = if slice.len() > self.superblock.s_inode_size() {
-				&slice[..self.superblock.s_inode_size()]
+		let slice = if slice.len() > s_inode_size {
+				&slice[..s_inode_size]
 			} else {
 				slice
 			};
@@ -489,10 +505,10 @@ impl InstanceInner
 	}
 
 	pub fn has_feature_incompat(&self, feat: u32) -> bool {
-		self.superblock.has_feature_incompat(feat)
+		self.superblock.read().has_feature_incompat(feat)
 	}
 	pub fn has_feature_ro_compat(&self, feat: u32) -> bool {
-		self.superblock.has_feature_ro_compat(feat)
+		self.superblock.read().has_feature_ro_compat(feat)
 	}
 }
 
