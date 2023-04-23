@@ -174,8 +174,21 @@ impl<'a> InodeHandleWrite<'a> {
 	pub fn set_i_size(&mut self, new_size: u64) -> vfs::node::Result<()> {
 		self.lock.set_i_size(&self.parent.fs, new_size)
 	}
+	pub fn ensure_blocks_allocated(&mut self, block_idx: u32, num_blocks: u32) -> vfs::node::Result<()> {
+		self.lock.ensure_blocks_allocated(&self.parent.fs, self.parent.inode_idx, block_idx, num_blocks)
+	}
 }
 
+
+const SI_BLOCK: usize = 12;
+const DI_BLOCK: usize = 13;
+const TI_BLOCK: usize = 14;
+enum BlockAddrs {
+	Direct { direct_idx: usize },
+	Single { idx: usize },
+	Double { blk: usize, idx: usize },
+	Triple { blk_o: usize, blk_i: usize, idx: usize },
+}
 impl crate::ondisk::Inode
 {
 	fn i_mode_fmt(&self) -> u16 {
@@ -207,128 +220,146 @@ impl crate::ondisk::Inode
 			n_blocks as u32
 		}
 	}
-	fn get_extent_from_block(&self, fs: &InstanceInner, block_idx: u32, max_blocks: u32) -> vfs::node::Result<(u32, u32)>
-	{
+	/// Get an extent of block address locations (i.e. direct, single-indirect, ...)
+	fn get_block_addr_extent(fs: &InstanceInner, block_idx: u32, max_blocks: u32) -> (BlockAddrs, u32) {
+		// Smallest value is 256 (w/ 1024 byte block)
+		// Thus, a triple-indirect block can reference 2^24 blocks -- 2^34 bytes
 		let u32_per_fs_block = (fs.fs_block_size / ::core::mem::size_of::<u32>()) as u32;
+		let di_base = SI_BLOCK as u32 + u32_per_fs_block;
+		let ti_base = SI_BLOCK as u32 + u32_per_fs_block + u32_per_fs_block*u32_per_fs_block;
 
-		const SI_BLOCK: usize = 12;
-		const DI_BLOCK: usize = 13;
-		const TI_BLOCK: usize = 14;
-		
-		let si_base = SI_BLOCK as u32;
-		let di_base = si_base + u32_per_fs_block;
-		let ti_base = di_base + u32_per_fs_block*u32_per_fs_block;
-
-		if block_idx < si_base
-		{
-			let fs_start = self.i_block[block_idx as usize];
-			let max_blocks = ::core::cmp::min( si_base - block_idx, max_blocks );
-			for num in 1 .. max_blocks
-			{
-				if fs_start + num != self.i_block[(block_idx + num) as usize] {
-					return Ok( (fs_start, num) );
-				}
-			}
-			Ok( (fs_start, max_blocks) )
+		if block_idx < SI_BLOCK as u32 {
+			let max_blocks = ::core::cmp::min( SI_BLOCK as u32 - block_idx as u32, max_blocks );
+			(BlockAddrs::Direct { direct_idx: block_idx as usize }, max_blocks)
 		}
-		else if block_idx < di_base
-		{
-			let idx = block_idx - si_base;
-			// TODO: Have locally a mutex-protected cached filesystem block (linked to a global cache manager)
-			let si_block = try!( fs.get_block( self.i_block[SI_BLOCK] ) );
-			
-			let fs_start = si_block[idx as usize];
-			let max_blocks = ::core::cmp::min( di_base - block_idx, max_blocks );
-			for num in 1 .. max_blocks
-			{
-				if fs_start + num != si_block[ (idx + num) as usize ] {
-					return Ok( (fs_start, num) );
-				}
-			}
-			Ok( (fs_start, max_blocks) )
+		else if SI_BLOCK as u32 <= block_idx && block_idx < di_base {
+			let idx = block_idx - SI_BLOCK as u32;
+			let max_blocks = ::core::cmp::min( u32_per_fs_block - idx, max_blocks );
+			(BlockAddrs::Single { idx: idx as usize}, max_blocks)
 		}
-		else if block_idx < ti_base
-		{
+		else if di_base <= block_idx && block_idx < ti_base {
 			let idx = block_idx - di_base;
 			let (blk, idx) = (idx / u32_per_fs_block, idx % u32_per_fs_block);
-			let di_block = try!( fs.get_block( self.i_block[DI_BLOCK] ) );
-			let di_block = try!( fs.get_block( di_block[blk as usize] ) );
-
-
-			let fs_start = di_block[idx as usize];
 			let max_blocks = ::core::cmp::min( u32_per_fs_block - idx, max_blocks );
-			for num in 1 .. max_blocks
-			{
-				if fs_start + num != di_block[ (idx + num) as usize ] {
-					return Ok( (fs_start, num) );
-				}
-			}
-			Ok( (fs_start, max_blocks) )
+			(BlockAddrs::Double { blk: blk as usize, idx: idx as usize }, max_blocks)
 		}
-		else
-		{
-			// Triple-indirect block
+		else if ti_base <= block_idx {
 			let idx = block_idx - ti_base;
 			let (blk, idx) = (idx / u32_per_fs_block, idx % u32_per_fs_block);
 			let (blk_o, blk_i) = (blk / u32_per_fs_block, blk % u32_per_fs_block);
-			let ti_block = try!( fs.get_block( self.i_block[TI_BLOCK] ) );
-			let ti_block = try!( fs.get_block( ti_block[blk_o as usize] ) );
-			let ti_block = try!( fs.get_block( ti_block[blk_i as usize] ) );
-
-
-			let fs_start = ti_block[idx as usize];
 			let max_blocks = ::core::cmp::min( u32_per_fs_block - idx, max_blocks );
-			for num in 1 .. max_blocks
-			{
-				if fs_start + num != ti_block[ (idx + num) as usize ] {
+			(BlockAddrs::Triple { blk_o: blk_o as usize, blk_i: blk_i as usize, idx: idx as usize}, max_blocks)
+		}
+		else {
+			panic!("");
+		}
+	}
+	fn get_extent_from_block(&self, fs: &InstanceInner, block_idx: u32, max_blocks: u32) -> vfs::node::Result<(u32, u32)>
+	{
+		match Self::get_block_addr_extent(fs, block_idx, max_blocks)
+		{
+		(BlockAddrs::Direct { direct_idx: idx }, max_blocks) => {
+			let fs_start = self.i_block[idx];
+			for num in 1 .. max_blocks {
+				if fs_start + num != self.i_block[idx + num as usize] {
 					return Ok( (fs_start, num) );
 				}
 			}
 			Ok( (fs_start, max_blocks) )
+			},
+		(BlockAddrs::Single { idx }, max_blocks) => {
+			// TODO: Have locally a mutex-protected cached filesystem block (linked to a global cache manager)
+			let si_block = try!( fs.get_block( self.i_block[SI_BLOCK] ) );
+			
+			let fs_start = si_block[idx];
+			for num in 1 .. max_blocks {
+				if fs_start + num != si_block[ idx + num as usize ] {
+					return Ok( (fs_start, num) );
+				}
+			}
+			Ok( (fs_start, max_blocks) )
+			},
+		(BlockAddrs::Double { blk, idx }, max_blocks) => {
+			let di_block = try!( fs.get_block( self.i_block[DI_BLOCK] ) );
+			let di_block = try!( fs.get_block( di_block[blk] ) );
+
+			let fs_start = di_block[idx as usize];
+			for num in 1 .. max_blocks {
+				if fs_start + num != di_block[ idx + num as usize ] {
+					return Ok( (fs_start, num) );
+				}
+			}
+			Ok( (fs_start, max_blocks) )
+			},
+		(BlockAddrs::Triple { blk_o, blk_i, idx }, max_blocks) => {
+			// Triple-indirect block
+			let ti_block = try!( fs.get_block( self.i_block[TI_BLOCK] ) );
+			let ti_block = try!( fs.get_block( ti_block[blk_o] ) );
+			let ti_block = try!( fs.get_block( ti_block[blk_i] ) );
+
+
+			let fs_start = ti_block[idx as usize];
+			for num in 1 .. max_blocks {
+				if fs_start + num != ti_block[ idx + num as usize ] {
+					return Ok( (fs_start, num) );
+				}
+			}
+			Ok( (fs_start, max_blocks) )
+			},
 		}
 	}
 
 	pub fn get_block_addr(&self, fs: &InstanceInner, block_idx: u32) -> vfs::node::Result<u32>
 	{
-		let u32_per_fs_block = (fs.fs_block_size / ::core::mem::size_of::<u32>()) as u32;
-
-		let si_base = 12;
-		let di_base = 12 + u32_per_fs_block ;
-		let ti_base = 12 + u32_per_fs_block + u32_per_fs_block*u32_per_fs_block;
-
-		if block_idx < si_base
+		match Self::get_block_addr_extent(fs, block_idx, 1).0
 		{
-			// Direct block
-			Ok( self.i_block[block_idx as usize] )
-		}
-		else if block_idx < di_base
-		{
-			// Single-indirect block
-			let idx = block_idx - si_base;
+		BlockAddrs::Direct { direct_idx: idx } => {
+			Ok( self.i_block[idx] )
+			},
+		BlockAddrs::Single { idx } => {
 			// TODO: Have locally a mutex-protected cached filesystem block (linked to a global cache manager)
-			let si_block = try!( fs.get_block( self.i_block[12] ) );
-			Ok( si_block[ idx as usize ] )
+			let si_block = try!( fs.get_block( self.i_block[SI_BLOCK] ) );
+			Ok( si_block[ idx] )
+			},
+		BlockAddrs::Double { blk, idx } => {
+			let di_block = try!( fs.get_block( self.i_block[DI_BLOCK] ) );
+			let di_block = try!( fs.get_block( di_block[blk] ) );
+			Ok( di_block[idx] )
+			},
+		BlockAddrs::Triple { blk_o, blk_i, idx } => {
+			let ti_block = try!( fs.get_block( self.i_block[TI_BLOCK] ) );
+			let ti_block = try!( fs.get_block( ti_block[blk_o] ) );
+			let ti_block = try!( fs.get_block( ti_block[blk_i] ) );
+			Ok( ti_block[idx] )
+			},
 		}
-		else if block_idx < ti_base
+	}
+
+	fn ensure_blocks_allocated(&mut self, fs: &InstanceInner, inode_num: u32, mut block_idx: u32, mut count: u32) -> vfs::node::Result<()> {
+		let mut prev_block = 0;	// track the previous block to allow efficient allocation
+		if block_idx > 0 {
+			// TODO: Populate the previous block? What if the file is sparse?
+		}
+		while count > 0
 		{
-			// Double-indirect block
-			let idx = block_idx - di_base;
-			let (blk, idx) = (idx / u32_per_fs_block, idx % u32_per_fs_block);
-			let di_block = try!( fs.get_block( self.i_block[13] ) );
-			let di_block = try!( fs.get_block( di_block[blk as usize] ) );
-			Ok( di_block[idx as usize] )
+			let (addrs, span_count) = Self::get_block_addr_extent(fs, block_idx, count);
+			block_idx += span_count;
+			count -= span_count;
+			match addrs
+			{
+			BlockAddrs::Direct { direct_idx } => {
+				for s in &mut self.i_block[direct_idx..][.. span_count as usize] {
+					if *s == 0 {
+						*s = fs.allocate_data_block(inode_num, prev_block)?;
+					}
+					prev_block = *s;
+				}
+				},
+			// TODO: Indirect requires editing the result of `get_block`
+			_ => todo!("ensure_blocks_allocated - indirect"), 
+			}
 		}
-		else
-		{
-			// Triple-indirect block
-			let idx = block_idx - ti_base;
-			let (blk, idx) = (idx / u32_per_fs_block, idx % u32_per_fs_block);
-			let (blk_o, blk_i) = (blk / u32_per_fs_block, blk % u32_per_fs_block);
-			let ti_block = try!( fs.get_block( self.i_block[14] ) );
-			let ti_block = try!( fs.get_block( ti_block[blk_o as usize] ) );
-			let ti_block = try!( fs.get_block( ti_block[blk_i as usize] ) );
-			Ok( ti_block[idx as usize] )
-		}
+		Ok( () )
 	}
 }
 

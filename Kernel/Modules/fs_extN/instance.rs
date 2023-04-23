@@ -326,6 +326,11 @@ impl InstanceInner
 		::kernel::futures::block_on( self.vol.write_blocks_uncached( first_block as u64 * self.vol_blocks_per_fs_block(), data) )?;
 		Ok( () )
 	}
+
+	/// Allocate a new data block
+	pub fn allocate_data_block(&self, inode_num: u32, prev_block: u32) -> vfs::node::Result<u32> {
+		todo!("allocate_data_block(inode={}, prev_block={})", inode_num, prev_block);
+	}
 }
 
 impl InstanceInner

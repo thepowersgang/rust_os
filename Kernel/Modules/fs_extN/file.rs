@@ -212,7 +212,8 @@ fn iter_blocks_range(inode: &dyn super::inodes::InodeHandleTrait, ofs: u64, len:
 }
 
 fn ensure_blocks_present(fs: &super::instance::InstanceInner, lh: &mut super::inodes::InodeHandleWrite, size: u64) -> vfs::Result<()> {
-	let nblocks = size / fs.fs_block_size as u64;
-	todo!("ensure_blocks_present");
+	let nblocks = ::kernel::lib::num::div_up(size, fs.fs_block_size as u64);
+
+	lh.ensure_blocks_allocated(0, nblocks as u32)
 }
 
