@@ -219,7 +219,10 @@ impl vfs::mount::Filesystem for Instance
 			};
 		match { let v = inode.lock_read().i_mode_fmt(); v }
 		{
-		0 => None,
+		0 => {
+			log_debug!("get_node_by_inode({}): i_mode_fmt=0", id);
+			None
+			},
 		::ondisk::S_IFREG => Some( node::Node::File( Box::new( ::file::File::new(inode) )  ) ),
 		::ondisk::S_IFDIR => Some( node::Node::Dir( Box::new( ::dir::Dir::new(inode) )  ) ),
 		v @ _ => {
@@ -276,7 +279,7 @@ impl InstanceInner
 	/// Edit a block in the cache using the provided closure
 	pub fn edit_block<F,R>(&self, block: u32, f: F) -> vfs::node::Result<R>
 	where
-		F: FnOnce(&mut [u32]) -> vfs::node::Result<R>
+		F: FnOnce(&mut [u8]) -> vfs::node::Result<R>
 	{
 		if self.fs_block_size > ::kernel::PAGE_SIZE {
 			// TODO: To handle extN blocks larger than the system's page size, we'd need to start packing multiple cache handles into
@@ -287,24 +290,25 @@ impl InstanceInner
 		let sector = block as u64 * self.vol_blocks_per_fs_block();
 
 		::kernel::futures::block_on(self.vol.edit(sector, self.vol_blocks_per_fs_block() as usize, |data| {
-			// SAFE: Alignment checked, range valid
-			let slice_u32: &mut [u32] = unsafe {
-				assert!(&data[0] as *const _ as usize % 4 == 0);
-				::core::slice::from_raw_parts_mut(data.as_mut_ptr() as *mut u32, data.len() / 4)
-				};
-			f(slice_u32)
+			f(data)
 			}))?
 	}
 
+	pub fn read_blocks_inner<F,R>(&self, first_block: u32, ofs: usize, len: usize, f: F) -> vfs::node::Result<R>
+	where
+		F: FnOnce(&[u8]) -> vfs::node::Result<R>
+	{
+		todo!("");
+	}
 	/// Obtain a block (uncached)
 	///
 	/// This is the more expensive version of `get_block`, which doesn't directly touch the block cache.
 	/// It's used to handle partial file reads (which should be cached by higher layers)
-	pub fn get_block_uncached(&self, block: u32) -> vfs::node::Result<Box<[u32]>>
+	pub fn get_block_uncached(&self, block: u32) -> vfs::node::Result<Box<[u8]>>
 	{
 		log_trace!("get_block_uncached({})", block);
-		let mut rv = vec![0u32; self.fs_block_size / 4].into_boxed_slice();
-		self.read_blocks( block, ::kernel::lib::as_byte_slice_mut(&mut rv[..]) )?;
+		let mut rv = vec![0; self.fs_block_size].into_boxed_slice();
+		self.read_blocks( block, &mut rv[..] )?;
 		Ok(rv)
 	}
 
@@ -329,14 +333,27 @@ impl InstanceInner
 	fn edit_superblock<R>(&self, cb: impl FnOnce(&mut crate::ondisk::Superblock)->R) -> vfs::node::Result<R> {
 		let mut lh = self.superblock.write();
 		let rv = cb(&mut lh);
-		// TODO: Write back right now?
-		todo!("edit_superblock - writeback?");
+		if self.vol.block_size() > 1024 {
+			::kernel::futures::block_on(self.vol.edit(0, 1, |data| {
+				let data = &mut data[1024..][..1024];
+				lh.write_to_slice(data);
+				}))?;
+		}
+		else {
+			::kernel::futures::block_on(self.vol.edit(1024 / self.vol.block_size() as u64, 1024 / self.vol.block_size(), |data| {
+				lh.write_to_slice(data);
+				}))?;
+		}
 		Ok(rv)
 	}
 	fn edit_block_group_header<R>(&self, idx: u32, cb: impl FnOnce(&mut crate::ondisk::GroupDesc)->R) -> vfs::node::Result<R> {
 		let mut lh = self.group_descriptors.write();
 		let rv = cb(&mut lh[idx as usize]);
-		todo!("edit_block_group_header({}) - writeback?", idx);
+		let ofs = 1024 + idx as usize * ::core::mem::size_of::<::ondisk::GroupDesc>();
+		::kernel::futures::block_on(self.vol.edit( (ofs / self.vol.block_size()) as u64, 1, |data| {
+			let buf = &mut data[ofs % self.vol.block_size()..][..::core::mem::size_of::<::ondisk::GroupDesc>()];
+			lh[idx as usize].write_to_slice(buf);
+			}))?;
 		Ok(rv)
 	}
 }
@@ -400,14 +417,22 @@ impl InstanceInner
 			return Err(vfs::Error::OutOfSpace);
 		}
 
-		let rv = if let Some(rv) = self.allocate_inode_in_bg(grp, nodetype)?
-			{
+		let rv = if let Some(rv) = self.allocate_inode_in_bg(grp, nodetype)? {
 				rv
 			}
-			else
-			{
+			else {
 				todo!("InstanceInner::allocate_inode - Search for any BG");
 			};
+
+		self.write_inode(rv, &crate::ondisk::Inode {
+			i_mode: match nodetype
+				{
+				vfs::node::NodeType::File => ::ondisk::S_IFREG,
+				_ => todo!(""),
+				},
+			..Default::default()
+			})?;
+
 		Ok(rv)
 	}
 	fn allocate_inode_in_bg(&self, grp: u32, _nodetype: vfs::node::NodeType) -> vfs::node::Result< Option<u32> > {
@@ -485,13 +510,10 @@ impl InstanceInner
 		let (vol_block, blk_ofs) = self.get_inode_pos(inode_num);
 
 		let s_inode_size = self.superblock.read().s_inode_size();
-		let slice = ::kernel::lib::as_byte_slice(inode_data);
-		let slice = if slice.len() > s_inode_size {
-				&slice[..s_inode_size]
-			} else {
-				slice
-			};
-		::kernel::futures::block_on(self.vol.write_inner(vol_block, blk_ofs, slice))?;
+		::kernel::futures::block_on(self.vol.edit(vol_block, 1, |data| {
+			let mut slice = &mut data[blk_ofs..][..s_inode_size];
+			let _ = ::kernel::lib::byteorder::EncodedLE::encode(inode_data, &mut slice);
+			}))?;
 
 		Ok( () )
 	}

@@ -26,21 +26,25 @@ impl Dir
 	/// Returns (block_index, offset)
 	fn find_name(&self, name: &ByteStr) -> vfs::node::Result<(usize, usize, vfs::node::InodeId)>
 	{
+		log_debug!("find_name({:?})", name);
 		let inode = self.inode.lock_read();
 		// TODO: Use the B+ trees if present
 
 		// Linear search
 		for (blk_index, vol_blk) in inode.blocks().enumerate()
 		{
+			log_trace!("find_name: Block {} (vol_blk={})", blk_index, vol_blk);
 			let blk_data = try!(self.inode.fs.get_block(vol_blk));
 			
 			let mut offset = 0;
 			for ent in DirEnts(&blk_data)
 			{
 				if ent.d_rec_len == 0 {
+					log_error!("find_name: Found d_rec_len=0");
 					return Err( vfs::Error::InconsistentFilesystem );
 				}
 				else if ent.d_inode == 0 {
+					log_debug!("find_name: Found d_inode=0");
 					return Err(vfs::Error::NotFound);
 				}
 				else if &ent.d_name == name.as_bytes()
@@ -57,7 +61,12 @@ impl Dir
 
 	/// Defragment a directory block, and return the offset and length of the final free entry
 	fn defragment_block(fs: &crate::instance::InstanceInner, block: u32) -> vfs::node::Result<(usize, u16)> {
-		fs.edit_block(block, |blk_data: &mut [u32]| {
+		fs.edit_block(block, |blk_data: &mut [u8]| {
+			// SAFE: Alignment checked, range valid
+			let blk_data: &mut [u32] = unsafe {
+				assert!(&blk_data[0] as *const _ as usize % 4 == 0);
+				::core::slice::from_raw_parts_mut(blk_data.as_mut_ptr() as *mut u32, blk_data.len() / 4)
+				};
 			let mut write_u32s = 0;
 			let mut read_u32s = 0;
 			while read_u32s < blk_data.len() {
@@ -173,9 +182,15 @@ impl Dir
 
 		// 1. Find a suitable slot
 		let (blk, ofs) = try!(self.find_free(name));
+		log_debug!("add_dir_ent: Slot found: blk {blk} ofs {ofs}");
 		// 2. Fill said slot
 		let vol_blk = try!( self.inode.lock_read().blocks_from(blk as u32).next_or_err() );
 		self.inode.fs.edit_block(vol_blk, |blk_data| {
+			// SAFE: Alignment checked, range valid
+			let blk_data: &mut [u32] = unsafe {
+				assert!(&blk_data[0] as *const _ as usize % 4 == 0);
+				::core::slice::from_raw_parts_mut(blk_data.as_mut_ptr() as *mut u32, blk_data.len() / 4)
+				};
 			match ::ondisk::DirEnt::new_mut(&mut blk_data[ofs/4 ..])
 			{
 			None => return Err(vfs::Error::InconsistentFilesystem),
@@ -298,7 +313,10 @@ impl vfs::node::Dir for Dir
 
 			match self.add_dir_ent(name, ino_id)
 			{
-			Ok(()) => Ok(ino_id as vfs::node::InodeId),
+			Ok(()) => {
+				log_debug!("create: {:?} = Inode{}", name, ino_id);
+				Ok(ino_id as vfs::node::InodeId)
+				},
 			Err(e) => {
 				// Call with_inode to force the inode to be deallocated
 				let _ = self.inode.fs.with_inode(ino_id, |_| Ok(()));
@@ -351,6 +369,11 @@ impl vfs::node::Dir for Dir
 			let vol_blk = try!( inode.blocks_from(blk as u32).next_or_err() );
 
 			self.inode.fs.edit_block(vol_blk, |blk_data| {
+				// SAFE: Alignment checked, range valid
+				let blk_data: &mut [u32] = unsafe {
+					assert!(&blk_data[0] as *const _ as usize % 4 == 0);
+					::core::slice::from_raw_parts_mut(blk_data.as_mut_ptr() as *mut u32, blk_data.len() / 4)
+					};
 				match ::ondisk::DirEnt::new_mut(&mut blk_data[ofs/4 ..])
 				{
 				None => return Err(vfs::Error::InconsistentFilesystem),

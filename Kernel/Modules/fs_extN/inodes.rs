@@ -95,16 +95,45 @@ pub struct InodeHandleWrite<'a> {
 }
 macro_rules! common_methods {
 	($($(#[$attr:meta])* pub fn $name:ident(&$self:ident$(, $a:ident : $t:ty)*) -> $rv:ty $b:block)+) => {
-		impl<'a> InodeHandleRead<'a> {
+		pub trait InodeHandleTrait<'a> {
+			fn fs(&self) -> &'a crate::instance::InstanceInner;
 			$(
 			$(#[$attr])*
-			pub fn $name(&$self$(, $a : $t)*) -> $rv $b
+			fn $name(&$self$(, $a : $t)*) -> $rv;
+			)+
+		}
+		impl<'a> InodeHandleTrait<'a> for InodeHandleRead<'a> {
+			fn fs(&self) -> &'a crate::instance::InstanceInner {
+				&self.parent.fs
+			}
+			$(
+			$(#[$attr])*
+			fn $name(&$self$(, $a : $t)*) -> $rv $b
+			)+
+		}
+		impl<'a> InodeHandleRead<'a> {
+			$(
+			#[allow(dead_code)]
+			pub fn $name(&$self$(, $a : $t)*) -> $rv {
+				InodeHandleTrait::$name($self $(, $a)*)
+			}
+			)+
+		}
+		impl<'a> InodeHandleTrait<'a> for InodeHandleWrite<'a> {
+			fn fs(&self) -> &'a crate::instance::InstanceInner {
+				&self.parent.fs
+			}
+			$(
+			fn $name(&$self$(, $a : $t)*) -> $rv $b
 			)+
 		}
 		impl<'a> InodeHandleWrite<'a> {
 			$(
+			#[allow(dead_code)]
 			$(#[$attr])*
-			pub fn $name(&$self$(, $a : $t)*) -> $rv $b
+			pub fn $name(&$self$(, $a : $t)*) -> $rv {
+				InodeHandleTrait::$name($self $(, $a)*)
+			}
 			)+
 		}
 	}
@@ -141,6 +170,11 @@ common_methods! {
 			}
 	}
 }
+impl<'a> InodeHandleWrite<'a> {
+	pub fn set_i_size(&mut self, new_size: u64) -> vfs::node::Result<()> {
+		self.lock.set_i_size(&self.parent.fs, new_size)
+	}
+}
 
 impl crate::ondisk::Inode
 {
@@ -149,6 +183,19 @@ impl crate::ondisk::Inode
 	}
 	fn i_size(&self, fs: &InstanceInner) -> u64 {
 		self.i_size as u64 | (if fs.has_feature_ro_compat(crate::ondisk::FEAT_RO_COMPAT_LARGE_FILE) { (self.i_dir_acl as u64) << 32 } else { 0 })
+	}
+	fn set_i_size(&mut self, fs: &InstanceInner, s: u64) -> vfs::node::Result<()> {
+		if fs.has_feature_ro_compat(crate::ondisk::FEAT_RO_COMPAT_LARGE_FILE) {
+			self.i_dir_acl = (s >> 32) as u32;
+		}
+		else {
+			if s > u32::MAX as u64 {
+				self.i_size = u32::MAX;
+				return Err(vfs::Error::InvalidParameter);
+			}
+		}
+		self.i_size = s as u32;
+		Ok( () )
 	}
 
 	fn max_blocks(&self, fs: &InstanceInner) -> u32 {

@@ -57,78 +57,45 @@ impl vfs::node::File for File
 				buf
 			};
 
-		// 2. Get first block and offset into that block
-		let (blk_idx, blk_ofs) = ::kernel::lib::num::div_rem(ofs, self.fs_block_size() as u64);
-		let blk_ofs = blk_ofs as usize;
-
-		assert!(blk_idx <= ::core::u32::MAX as u64);
-		let mut blocks = inode.blocks_from(blk_idx as u32);
-		let mut read_bytes = 0;
-
-		// 3. Read leading partial block
-		//log_trace!("blk_ofs={} (partial)", blk_ofs);
-		if blk_ofs != 0
-		{
-			let partial_bytes = self.fs_block_size() - blk_ofs;
-			
-			let blk_data = try!(self.inode.fs.get_block_uncached( try!(blocks.next_or_err()) ));
-			let blk_data = ::kernel::lib::as_byte_slice(&blk_data[..]);
-			if buf.len() <= partial_bytes
+		iter_blocks_range(&inode, ofs, buf.len(), &mut |block_range, data_range| {
+			match block_range
 			{
-				buf.clone_from_slice( blk_data );
-				read_bytes += buf.len();
+			BlockRef::Sub(blkid, sub_range) => {
+				let blk_data = try!(self.inode.fs.get_block_uncached(blkid));
+				buf[data_range].copy_from_slice(&blk_data[sub_range]);
+				},
+			BlockRef::Range(blkid, count) => {
+				self.inode.fs.read_blocks(blkid, &mut buf[data_range])?;
+				},
 			}
-			else
-			{
-				buf[..partial_bytes].clone_from_slice(blk_data);
-				read_bytes += partial_bytes;
-			}
-		}
-
-		// 4. Read full blocks
-		//log_trace!("remain {} (bulk)", buf.len() - read_bytes);
-		while buf.len() - read_bytes >= self.fs_block_size()
-		{
-			let remain_blocks = (buf.len() - read_bytes)/self.fs_block_size();
-			let (blkid, count) = try!(blocks.next_extent_or_err( remain_blocks as u32 ));
-			let byte_count = count as usize * self.fs_block_size();
-			try!(self.inode.fs.read_blocks(blkid, &mut buf[read_bytes ..][.. byte_count]));
-			read_bytes += byte_count;
-		}
-
-		// 5. Read the trailing partial block
-		//log_trace!("remain {} (tail)", buf.len() - read_bytes);
-		if buf.len() - read_bytes > 0
-		{
-			let blk_data = try!(self.inode.fs.get_block_uncached( try!(blocks.next_or_err()) ));
-			let blk_data = ::kernel::lib::as_byte_slice(&blk_data[..]);
-			let rem_len = buf.len() - read_bytes;
-			buf[read_bytes..].clone_from_slice(&blk_data[..rem_len]);
-			read_bytes = buf.len();
-		}
-
-		// 6. Return number of bytes read (which may be smaller than the original buffer length)
-		Ok( read_bytes )
+			Ok( () )
+			})
 	}
 
-	fn truncate(&self, newsize: u64) -> vfs::node::Result<u64> {
-		let inode = self.inode.lock_write();
+	fn truncate(&self, new_size: u64) -> vfs::node::Result<u64> {
+		let mut inode = self.inode.lock_write();
 		let old_size = inode.i_size();
-		if newsize == 0
+		if new_size == 0
 		{
 			todo!("truncate - 0");
 		}
-		else if newsize == old_size
+		else if new_size == old_size
 		{
-			Ok( newsize )
+			Ok( new_size )
 		}
-		else if newsize < old_size
+		else if new_size < old_size
 		{
 			todo!("truncate - shrink");
 		}
-		else
-		{
-			todo!("truncate - grow");
+		else {
+			ensure_blocks_present(&self.inode.fs, &mut inode, new_size)?;
+			// TODO: Risky cast? If truncating to a very large size
+			iter_blocks_range(&inode, old_size, (new_size - old_size) as usize, &mut |_block_range, _data_range| {
+				// TODO: Zero the blocks?
+				Ok( () )
+				})?;
+			inode.set_i_size(new_size)?;
+			Ok( new_size )
 		}
 	}
 	fn clear(&self, ofs: u64, size: u64) -> vfs::node::Result<()> {
@@ -158,13 +125,20 @@ impl vfs::node::File for File
 		else if ofs == size
 		{
 			drop(inode);
-			let lh = self.inode.lock_write();
-			if ofs == lh.i_size() {
+			let mut inode = self.inode.lock_write();
+			if ofs == inode.i_size() {
 			}
 			else {
-				// Race! Should this be possible?
+				// Race! Should this be possible? (shouldn't the vfs layer protect that?)
 			}
-			todo!("write - extend");
+			let new_size = ofs + buf.len() as u64;
+			// Ensure that there are blocks allocated
+			ensure_blocks_present(&self.inode.fs, &mut inode, new_size)?;
+			// Write data
+			let rv = write_inner(&inode, ofs, buf)?;
+			// Extend the size
+			inode.set_i_size(ofs + rv as u64)?;
+			Ok(rv)
 		}
 		else if ofs > size || buf.len() as u64 > size || ofs + buf.len() as u64 > size {
 			Err( vfs::Error::InvalidParameter )
@@ -172,34 +146,73 @@ impl vfs::node::File for File
 		else {
 			// NOTE: In this section, we're free to read-modify-write blocks without fear, as the VFS itself handles
 			//       the file "borrow checking". A file race is the userland's problem (if a SharedRW handle is used)
-			let (blk_idx, blk_ofs) = ::kernel::lib::num::div_rem(ofs, self.fs_block_size() as u64);
-			let mut blocks = inode.blocks_from(blk_idx as u32);
-			let mut written = 0;
-			// 1. Leading partial
-			let blk_ofs = blk_ofs as usize;
-			if blk_ofs > 0
-			{
-				todo!("write - mutate - leading partial {}", blk_ofs);
-				//written += blk_ofs;
-			}
-			// 2. Inner
-			while buf.len() - written >= self.fs_block_size()
-			{
-				let remain_blocks = (buf.len() - written)/self.fs_block_size();
-				let (blkid, count) = try!(blocks.next_extent_or_err( remain_blocks as u32 ));
-				let byte_count = count as usize * self.fs_block_size();
-				try!(self.inode.fs.write_blocks(blkid, &buf[written ..][.. byte_count]));
-				written += byte_count;
-			}
-			// 3. Trailing partial
-			let trailing_bytes = buf.len() - written;
-			if trailing_bytes > 0
-			{
-				todo!("write - mutate - trailing partial {}", trailing_bytes);
-			}
-
-			Ok( written )
+			write_inner(&inode, ofs, buf)
 		}
 	}
+}
+
+fn write_inner(inode: &dyn super::inodes::InodeHandleTrait, ofs: u64, buf: &[u8]) -> vfs::Result<usize> {
+	iter_blocks_range(inode, ofs, buf.len(), &mut |block_range, data_range| {
+		match block_range
+		{
+		BlockRef::Sub(blkid, sub_range) => {
+			inode.fs().edit_block(blkid, |data| {
+				data[sub_range].copy_from_slice(&buf[data_range]);
+				Ok( () )
+				})?;
+			},
+		BlockRef::Range(blkid, count) => {
+			inode.fs().write_blocks(blkid, &buf[data_range])?;
+			},
+		}
+		Ok( () )
+		})
+}
+
+enum BlockRef {
+	Sub(u32, ::core::ops::Range<usize>),
+	Range(u32, u32),
+}
+fn iter_blocks_range(inode: &dyn super::inodes::InodeHandleTrait, ofs: u64, len: usize, cb: &mut dyn FnMut(BlockRef, ::core::ops::Range<usize>)->vfs::Result<()>) -> vfs::Result<usize>
+{
+	let fs_block_size = inode.fs().fs_block_size;
+	let (blk_idx, blk_ofs) = ::kernel::lib::num::div_rem(ofs, fs_block_size as u64);
+	let mut blocks = inode.blocks_from(blk_idx as u32);
+	let mut written = 0;
+	// 1. Leading partial
+	let blk_ofs = blk_ofs as usize;
+	if blk_ofs > 0
+	{
+		let b = blocks.next_or_err()?;
+		let len = usize::min(fs_block_size - blk_ofs, len);
+		log_trace!("iter_blocks_range: Prefix B{} {}+{}", b, blk_ofs, len);
+		cb( BlockRef::Sub(b, blk_ofs..blk_ofs+len), 0..len )?;
+		written += len;
+	}
+	// 2. Inner
+	while len - written >= fs_block_size
+	{
+		let remain_blocks = (len - written) / fs_block_size;
+		let (blkid, count) = try!(blocks.next_extent_or_err( remain_blocks as u32 ));
+		let byte_count = count as usize * fs_block_size;
+		log_trace!("iter_blocks_range: Inner B{}+{} ({})", blkid, count, byte_count);
+		cb( BlockRef::Range(blkid, count), written .. written + byte_count)?;
+		written += byte_count;
+	}
+	// 3. Trailing partial
+	let trailing_bytes = len - written;
+	if trailing_bytes > 0
+	{
+		let b = blocks.next_or_err()?;
+		log_trace!("iter_blocks_range: Suffix B{} 0+{}", b, trailing_bytes);
+		cb( BlockRef::Sub(b, 0..trailing_bytes), written..written+len )?;
+		written += trailing_bytes;
+	}
+	Ok( written )
+}
+
+fn ensure_blocks_present(fs: &super::instance::InstanceInner, lh: &mut super::inodes::InodeHandleWrite, size: u64) -> vfs::Result<()> {
+	let nblocks = size / fs.fs_block_size as u64;
+	todo!("ensure_blocks_present");
 }
 

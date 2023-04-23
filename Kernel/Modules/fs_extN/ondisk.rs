@@ -13,6 +13,9 @@ macro_rules! def_from_slice {
 			pub fn from_slice(mut r: &[u8]) -> Self {
 				::kernel::lib::byteorder::EncodedLE::decode(&mut r).unwrap()
 			}
+			pub fn write_to_slice(&self, mut r: &mut [u8]) {
+				::kernel::lib::byteorder::EncodedLE::encode(self, &mut r).unwrap()
+			}
 		}
 	};
 }
@@ -258,7 +261,7 @@ pub const FEAT_COMPAT_EXCLUDE_BITMAP:u32 = 1 << 8;
 pub const FEAT_COMPAT_SPARSE_SUPER2: u32 = 1 << 9;
 
 #[repr(C)]
-#[derive(Debug,::kernel_derives::EncodedLE)]
+#[derive(Debug,Default,::kernel_derives::EncodedLE)]
 pub struct Inode
 {
 	pub i_mode: u16,	// File mode
@@ -337,7 +340,7 @@ pub struct GroupDesc
 	pub bg_pad: u16,	// Padding
 	pub bg_reserved: [u32; 3],	// Reserved
 }
-//def_from_slice!{ GroupDesc }
+def_from_slice!{ GroupDesc }
 impl_fmt! {
 	Debug(self, f) for GroupDesc {
 		write!(f, "GroupDesc {{ addrs: (block_bm: {}, inode_bm: {}, inodes: {}), counts: (free_blk: {}, free_inodes: {}, used_dirs: {}) }}",
