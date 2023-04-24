@@ -135,6 +135,7 @@ impl Instance
 					assert_eq!(src.len(), count * GROUP_DESC_SIZE);
 					for s in &mut gds[..count] {
 						*s = ::kernel::lib::byteorder::EncodedLE::decode(&mut src).unwrap();
+						log_debug!("GROUP DESC: {:?}", s);
 					}
 					(count, 1)
 				}
@@ -159,6 +160,7 @@ impl Instance
 					let mut src = &buf[..];
 					for s in gds {
 						*s = ::kernel::lib::byteorder::EncodedLE::decode(&mut src).unwrap();
+						log_debug!("GROUP DESC: {:?}", s);
 					}
 					vol_block += 1;
 				}
@@ -173,6 +175,7 @@ impl Instance
 				let mut src = &buf[..n_bytes];
 				for s in &mut gds[ofs..] {
 					*s = ::kernel::lib::byteorder::EncodedLE::decode(&mut src).unwrap();
+					log_debug!("GROUP DESC: {:?}", s);
 				}
 			}
 
@@ -326,10 +329,136 @@ impl InstanceInner
 		::kernel::futures::block_on( self.vol.write_blocks_uncached( first_block as u64 * self.vol_blocks_per_fs_block(), data) )?;
 		Ok( () )
 	}
+}
 
+impl InstanceInner
+{
+	fn get_block_grp_id(&self, block_idx: u32) -> (u32, u32) {
+		let s_blocks_per_group = self.superblock.read().data.s_blocks_per_group;
+		(block_idx / s_blocks_per_group, block_idx % s_blocks_per_group)
+	}
 	/// Allocate a new data block
 	pub fn allocate_data_block(&self, inode_num: u32, prev_block: u32) -> vfs::node::Result<u32> {
+		log_debug!("allocate_data_block(inode_num=I{}, prev_block=B{})", inode_num, prev_block);
+		let has_blocks = self.edit_superblock(|sb| {
+			if sb.has_feature_incompat(crate::ondisk::FEAT_INCOMPAT_64BIT) {
+				if sb.data.s_free_blocks_count == 0 && sb.ext.s_free_blocks_count_hi == 0 {
+					false
+				}
+				else {
+					let (new, overflow) = sb.data.s_free_blocks_count.overflowing_sub(1);
+					if overflow {
+						sb.ext.s_free_blocks_count_hi -= 1;
+					}
+					sb.data.s_free_blocks_count = new;
+					true
+				}
+			}
+			else {
+				if sb.data.s_free_blocks_count == 0 {
+					false
+				}
+				else {
+					sb.data.s_free_blocks_count -= 1;
+					true
+				}
+			}
+			})?;
+		if !has_blocks {
+			return Err(vfs::Error::OutOfSpace);
+		}
+		if prev_block != 0 {
+			let (block_bg, block_subidx) = self.get_block_grp_id(prev_block);
+			let inode_bg = self.get_inode_grp_id(inode_num).0;
+			// 1. Check witin the same BG (telling it the previous block, so it can pick one near that)
+			if let Some(rv) = self.allocate_block_in_group(block_bg, prev_block)? {
+				return Ok(rv);
+			}
+			// 2. If the inode BG is different, then check in the inode's BG
+			if block_bg != inode_bg {
+				if let Some(rv) = self.allocate_block_in_group(inode_bg, 0)? {
+					return Ok(rv);
+				}
+			}
+		}
+		else {
+			let inode_bg = self.get_inode_grp_id(inode_num).0;
+			if let Some(rv) = self.allocate_block_in_group(inode_bg, 0)? {
+				return Ok(rv);
+			}
+		}
+		// Fallback: Otherwise, first available within the inodes BG
+		// Or, from a random block group
 		todo!("allocate_data_block(inode={}, prev_block={})", inode_num, prev_block);
+	}
+
+	fn allocate_block_in_group(&self, group: u32, prev_block: u32) -> vfs::node::Result<Option<u32>> {
+		let first_bmp_block = self.group_descriptors.read()[group as usize].bg_block_bitmap;
+		// Prefer allocating within a few blocks of the previous (ideally right after) - if non zero
+		if prev_block != 0 {
+			let next_block = prev_block + 1;
+			let (block_bg, block_subidx) = self.get_block_grp_id(next_block);
+			if block_bg == group {
+				// Edit the bitmap, check if this bit is clear
+				let bmp_mask = 1 << (block_subidx % 8);
+				let bmp_byte = block_subidx / 8;
+				let bmp_block = bmp_byte / self.fs_block_size as u32;
+				let bmp_byte = bmp_byte % self.fs_block_size as u32;
+				// If it is, then set it and decrement the (non-zero) free block count
+				if self.edit_block(first_bmp_block + bmp_block, |blk_data| {
+					if blk_data[bmp_byte as usize] & bmp_mask == 0 {
+						blk_data[bmp_byte as usize] |= bmp_mask;
+						Ok(true)
+					}
+					else {
+						Ok(false)
+					}
+					})? {
+					if !self.edit_block_group_header(block_bg, |bg| if bg.bg_free_blocks_count == 0 { false } else { bg.bg_free_blocks_count -= 1; true })? {
+						return Err(vfs::Error::InconsistentFilesystem);
+					}
+					log_debug!("allocate_block_in_group(): return next B{}", next_block);
+					return Ok(Some(next_block));
+				}
+			}
+		}
+
+		// Decrement the block count, and then find an entry
+		if !self.edit_block_group_header(group, |bg| if bg.bg_free_inodes_count == 0 { false } else { bg.bg_free_blocks_count -= 1; true })?
+		{
+			return Ok(None);
+		}
+
+		// Iterate the bitmap
+		let blocks_per_bmpblock = self.fs_block_size * 8;
+		let s_blocks_per_group = self.superblock.read().data.s_blocks_per_group;
+		for base in (0 .. s_blocks_per_group).step_by(blocks_per_bmpblock) {
+			// Number of inodes in this bitmap block (might be fewer, if the group size is small)
+			let n_blocks = (s_blocks_per_group - base).min(blocks_per_bmpblock as u32);
+			let n_bytes = ::kernel::lib::num::div_up(n_blocks, 8) as usize;
+			let rv = self.edit_block(first_bmp_block + base / blocks_per_bmpblock as u32, |blk_data| {
+				Ok(match blk_data[..n_bytes].iter().position(|&v| v != !0)
+				{
+				None => None,
+				Some(p) => {
+					let bit = blk_data[p].trailing_ones();
+					blk_data[p] |= 1 << bit;
+					Some(p as u32 * 8 + bit)
+					},
+				})
+				})?;
+			if let Some(rel_block_id) = rv {
+				// Check for the edge case where the returned ID is outside the expected bounds
+				if rel_block_id >= n_blocks {
+					break
+				}
+				let rv = group * s_blocks_per_group + base + rel_block_id;
+				log_debug!("allocate_block_in_bg({}) Allocate B{}", group, rv);
+				return Ok(Some(rv));
+			}
+		}
+		log_error!("allocate_block_in_group: Descriptor said that there were free blocks, but bitmap was full.");
+		Err(vfs::Error::InconsistentFilesystem)
 	}
 }
 
@@ -406,8 +535,6 @@ impl InstanceInner
 	/// Allocate a new inode number, possibly in the same block group as `parent_inode_num`.
 	pub fn allocate_inode(&self, parent_inode_num: u32, nodetype: vfs::node::NodeType) -> vfs::node::Result< u32 >
 	{
-		let (grp, _idx) = self.get_inode_grp_id(parent_inode_num);
-
 		// TODO: Update the superblock
 		let has_inodes = self.edit_superblock(|sb| {
 			if sb.data.s_free_inodes_count == 0 {
@@ -421,6 +548,9 @@ impl InstanceInner
 		if !has_inodes {
 			return Err(vfs::Error::OutOfSpace);
 		}
+
+		assert!(parent_inode_num != 0);	// Has to be a parent - root exists
+		let (grp, _idx) = self.get_inode_grp_id(parent_inode_num);
 
 		let rv = if let Some(rv) = self.allocate_inode_in_bg(grp, nodetype)? {
 				rv
@@ -452,7 +582,7 @@ impl InstanceInner
 			}
 			else {
 				gd.bg_free_inodes_count -= 1;
-				Some(gd.bg_block_bitmap)
+				Some(gd.bg_inode_bitmap)
 			})? else {
 			return Ok(None);
 		};
@@ -463,15 +593,15 @@ impl InstanceInner
 		for base in (0 .. s_inodes_per_group).step_by(inodes_per_block) {
 			// Number of inodes in this bitmap block (might be fewer, if the group size is small)
 			let n_inodes = (s_inodes_per_group - base).min(inodes_per_block as u32);
-			let n_words = ::kernel::lib::num::div_up(n_inodes, 32) as usize;
+			let n_bytes = ::kernel::lib::num::div_up(n_inodes, 8) as usize;
 			let rv = self.edit_block(first_bmp_block + base / inodes_per_block as u32, |blk_data| {
-				Ok(match blk_data[..n_words].iter().position(|&v| v != !0)
+				Ok(match blk_data[..n_bytes].iter().position(|&v| v != !0)
 				{
 				None => None,
 				Some(p) => {
 					let bit = blk_data[p].trailing_ones();
 					blk_data[p] |= 1 << bit;
-					Some(p as u32 * 32 + bit)
+					Some(p as u32 * 8 + bit)
 					},
 				})
 				})?;
@@ -481,7 +611,10 @@ impl InstanceInner
 				if rel_inode_id >= n_inodes {
 					break
 				}
-				return Ok(Some(grp * s_inodes_per_group + base + rel_inode_id));
+				let rv = 1 + grp * s_inodes_per_group + base + rel_inode_id;
+				log_debug!("allocate_inode_in_bg({}) Allocate I{}", grp, rv);
+				assert!(rv > 2);
+				return Ok(Some(rv));
 			}
 		}
 		log_error!("allocate_inode_in_bg: Descriptor said that there were free inodes, but bitmap was full.");

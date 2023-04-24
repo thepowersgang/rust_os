@@ -89,12 +89,12 @@ impl vfs::node::File for File
 		}
 		else {
 			ensure_blocks_present(&self.inode.fs, &mut inode, new_size)?;
+			inode.set_i_size(new_size)?;
 			// TODO: Risky cast? If truncating to a very large size
 			iter_blocks_range(&inode, old_size, (new_size - old_size) as usize, &mut |_block_range, _data_range| {
 				// TODO: Zero the blocks?
 				Ok( () )
 				})?;
-			inode.set_i_size(new_size)?;
 			Ok( new_size )
 		}
 	}
@@ -134,9 +134,10 @@ impl vfs::node::File for File
 			let new_size = ofs + buf.len() as u64;
 			// Ensure that there are blocks allocated
 			ensure_blocks_present(&self.inode.fs, &mut inode, new_size)?;
+			// Extend the size
+			inode.set_i_size(new_size)?;
 			// Write data
 			let rv = write_inner(&inode, ofs, buf)?;
-			// Extend the size
 			inode.set_i_size(ofs + rv as u64)?;
 			Ok(rv)
 		}
