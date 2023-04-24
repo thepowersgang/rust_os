@@ -95,7 +95,11 @@ impl Overlay
     {
         let mut bmp = ::bitvec::vec::BitVec::new();
         bmp.resize(count, false);
-        let fp = ::std::fs::File::create(path)?;
+        let mut fp = ::std::fs::OpenOptions::new()
+            .create(true).read(true).write(true)
+            .truncate(true)
+            .open(path)?
+            ;
         fp.set_len(count as u64 * blocksize as u64 + (count+8-1) as u64 / 8)?;
         Ok(Overlay {
             blocks: ::std::sync::Mutex::new(bmp),
@@ -126,7 +130,7 @@ impl Volume
                 else
                 {
                     base_lh.seek(::std::io::SeekFrom::Start( (idx + b as u64) * self.block_size as u64 ))?;
-                    //::kernel::log_trace!("read_inner({}): overlay", idx as usize + b);
+                    //::kernel::log_trace!("read_inner({}): base", idx as usize + b);
                     base_lh.read(dst)?;
                 }
             }
