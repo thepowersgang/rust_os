@@ -78,11 +78,6 @@ mod _allocator {
 			super::S_GLOBAL_HEAP.lock().deallocate(ptr as *mut (), layout.size(), layout.align());
 		}
 	}
-
-	#[alloc_error_handler]
-	fn error_handler(layout: core::alloc::Layout) -> ! {
-		panic!("Alloc error: {:?}", layout);
-	}
 }
 
 // Used by libgcc and ACPICA

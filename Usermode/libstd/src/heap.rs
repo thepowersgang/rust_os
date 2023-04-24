@@ -6,13 +6,6 @@ use core::alloc::{Layout,Allocator,AllocError};
 
 use alloc_system::ALLOCATOR as System;
 
-#[cfg(not(test))]
-#[alloc_error_handler]
-pub fn rust_oom(layout: Layout) -> ! {
-	//System.oom()
-	panic!("OOM allocating {:?}", layout);
-}
-
 #[no_mangle]
 pub unsafe extern fn __rdl_alloc(size: usize, align: usize) -> *mut u8
 {

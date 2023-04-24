@@ -18,7 +18,6 @@
 #![feature(panic_info_message)]
 #![feature(extern_types)]
 #![feature(cfg_target_has_atomic)]	// #[cfg(target_has_atomic="64")]
-#![feature(alloc_error_handler)]	// #[alloc_error_handler]
 
 #![allow(special_module_name)]
 
