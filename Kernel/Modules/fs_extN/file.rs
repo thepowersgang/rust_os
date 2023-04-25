@@ -19,10 +19,6 @@ impl File
 			inode: inode,
 			}
 	}
-
-	fn fs_block_size(&self) -> usize {
-		self.inode.fs.fs_block_size
-	}
 }
 
 impl vfs::node::NodeBase for File
@@ -64,7 +60,7 @@ impl vfs::node::File for File
 				let blk_data = try!(self.inode.fs.get_block_uncached(blkid));
 				buf[data_range].copy_from_slice(&blk_data[sub_range]);
 				},
-			BlockRef::Range(blkid, count) => {
+			BlockRef::Range(blkid, _count) => {
 				self.inode.fs.read_blocks(blkid, &mut buf[data_range])?;
 				},
 			}
@@ -162,7 +158,7 @@ fn write_inner(inode: &dyn super::inodes::InodeHandleTrait, ofs: u64, buf: &[u8]
 				Ok( () )
 				})?;
 			},
-		BlockRef::Range(blkid, count) => {
+		BlockRef::Range(blkid, _count) => {
 			inode.fs().write_blocks(blkid, &buf[data_range])?;
 			},
 		}

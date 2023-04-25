@@ -297,10 +297,13 @@ impl InstanceInner
 			}))?
 	}
 
+	#[cfg(false_)]	// TODO
+	/// Read from within a block
 	pub fn read_blocks_inner<F,R>(&self, first_block: u32, ofs: usize, len: usize, f: F) -> vfs::node::Result<R>
 	where
 		F: FnOnce(&[u8]) -> vfs::node::Result<R>
 	{
+		let sector = first_block as u64 * self.vol_blocks_per_fs_block();
 		todo!("");
 	}
 	/// Obtain a block (uncached)
@@ -368,7 +371,7 @@ impl InstanceInner
 			return Err(vfs::Error::OutOfSpace);
 		}
 		if prev_block != 0 {
-			let (block_bg, block_subidx) = self.get_block_grp_id(prev_block);
+			let (block_bg, _) = self.get_block_grp_id(prev_block);
 			let inode_bg = self.get_inode_grp_id(inode_num).0;
 			// 1. Check witin the same BG (telling it the previous block, so it can pick one near that)
 			if let Some(rv) = self.allocate_block_in_group(block_bg, prev_block)? {
@@ -664,6 +667,7 @@ impl InstanceInner
 		(self.fs_block_size / self.vol.block_size()) as u64
 	}
 
+	#[allow(dead_code)]
 	pub fn has_feature_incompat(&self, feat: u32) -> bool {
 		self.superblock.read().has_feature_incompat(feat)
 	}
