@@ -222,12 +222,12 @@ pub fn register_pv(dev: Box<dyn PhysicalVolume>) -> PhysicalVolumeReg
 		});
 	
 	if let Some(mapper) = best_mapper {
-		apply_mapper_to_pv(mapper, best_mapper_level, pv_id, S_PHYSICAL_VOLUMES.lock().get_mut(&pv_id).unwrap())
+		apply_mapper_to_pv(mapper, best_mapper_level, pv_id, S_PHYSICAL_VOLUMES.lock().get_mut(&pv_id).unwrap());
 	}
 	else {
-		// Apply the fallback (full volume) mapper
-		apply_mapper_to_pv(&default_mapper::S_MAPPER, 0, pv_id, S_PHYSICAL_VOLUMES.lock().get_mut(&pv_id).unwrap())
 	}
+	// Apply the fallback (full volume) mapper - always present
+	apply_mapper_to_pv(&default_mapper::S_MAPPER, 0, pv_id, S_PHYSICAL_VOLUMES.lock().get_mut(&pv_id).unwrap());
 	
 	PhysicalVolumeReg { idx: pv_id }
 }
