@@ -1,0 +1,15 @@
+[package]
+name = "fs_ntfs"
+version = "0.0.0"
+edition = "2021"
+
+[lib]
+path = "lib.rs"
+
+[dependencies]
+kernel = { path = "../../Core" }
+vfs = { path = "../vfs" }
+utf16 = { path = "../utf16" }
+block_cache = { path = "../block_cache" }
+kernel_derives = { path = "../../kernel_derives" }
+
