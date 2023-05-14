@@ -131,12 +131,12 @@ impl Str16
 	}
 	
 	/// Returns an iterator of unicode codepoints
-	pub fn chars<'a>(&'a self) -> Chars<'a> {
-		Chars(&self.0)
+	pub fn chars<'a>(&'a self) -> Chars< ::core::iter::Copied< ::core::slice::Iter<'a, u16> > > {
+		Chars(self.0.iter().copied())
 	}
 	/// An iterator that returns a series of WTF-8 codepoints (same encoding as
 	/// UTF-8, but invalid codepoints may be generated)
-	pub fn wtf8<'a>(&'a self) -> Wtf8<'a> {
+	pub fn wtf8(&self) -> Wtf8<impl Iterator<Item=char> + '_> {
 		Wtf8(self.chars(), [0; 4])
 	}
 }
@@ -204,8 +204,10 @@ impl cmp::PartialEq<str> for Str16
 /// "WTF"-8 encoding iterator
 ///
 /// WTF-8 is UTF-8 that can contain unpaired surrogate codepoints.
-pub struct Wtf8<'a>(Chars<'a>, [u8; 4]);
-impl<'a> ::core::iter::Iterator for Wtf8<'a>
+pub struct Wtf8<I>(I, [u8; 4]);
+impl<I> ::core::iter::Iterator for Wtf8<I>
+where
+	I: Iterator<Item=char>
 {
 	type Item = u8;
 	fn next(&mut self) -> Option<u8>
@@ -228,18 +230,20 @@ impl<'a> ::core::iter::Iterator for Wtf8<'a>
 }
 
 /// Iterator over characters in a UTF-16 string
-pub struct Chars<'a>(&'a [u16]);
-impl<'a> ::core::iter::Iterator for Chars<'a>
+pub struct Chars<I>(pub I);
+impl<I> ::core::iter::Iterator for Chars<I>
+where
+	I: ::core::iter::Iterator<Item=u16>
 {
 	type Item = char;
 	fn next(&mut self) -> Option<char>
 	{
-		let (cp,n) = match self.0.get(0).cloned()
+		let (cp,n) = match self.0.next()
 			{
 			None => return None,
 			// High surrogate
 			Some(v @ HI_SURR_START ..= HI_SURR_END) =>
-				match self.0.get(1).cloned()
+				match self.0.next()
 				{
 				// - Surrogate pair
 				Some(low @ LO_SURR_START ..= LO_SURR_END) => {
@@ -256,7 +260,6 @@ impl<'a> ::core::iter::Iterator for Chars<'a>
 			// - Pure codepoint
 			Some(v) => (v as u32, 1),
 			};
-		self.0 = &self.0[n..];
 		Some(::core::char::from_u32(cp).expect("UTF-16 decode error"))
 	}
 }
