@@ -13,7 +13,7 @@ macro_rules! trace_type {
 }
 
 /// Reader-writer lock
-pub struct RwLock<T>
+pub struct RwLock<T: ?Sized>
 {
 	inner: crate::sync::Spinlock<RwLockInner>,
 	data: UnsafeCell<T>,
@@ -28,20 +28,22 @@ struct RwLockInner
 }
 
 /// Read-write lock - Read handle
-pub struct Read<'a, T:Send+Sync+'a>
+pub struct Read<'a, T:?Sized+Send+Sync+'a>
 {
 	_lock: &'a RwLock<T>,
 }
 /// Read-write lock - Write handle
-pub struct Write<'a, T:Send+Sync+'a>
+pub struct Write<'a, T:?Sized+Send+Sync+'a>
 {
 	_lock: &'a RwLock<T>,
 }
+/*
 /// Read-write lock - Upgraded read handle
-pub struct ReadAsWrite<'a,T:'a+Send+Sync>
+pub struct ReadAsWrite<'a,T:?Sized+Send+Sync+'a>
 {
 	_lock: &'a RwLock<T>,
 }
+*/
 
 impl<T> RwLock<T>
 {
@@ -57,7 +59,10 @@ impl<T> RwLock<T>
 			data: UnsafeCell::new(data),
 		}
 	}
+}
 
+impl<T: ?Sized> RwLock<T>
+{
 	/// Obtain `&mut` to the contained data
 	pub fn get_mut(&mut self) -> &mut T {
 		// SAFE: Have exclusive access (`&mut self`)
@@ -67,7 +72,7 @@ impl<T> RwLock<T>
 	}
 }
 	
-impl<T: Send+Sync> RwLock<T>
+impl<T: ?Sized+Send+Sync> RwLock<T>
 {
 	/// Obtain a read handle to the lock
 	pub fn read<'a>(&'a self) -> Read<'a, T> {
@@ -154,14 +159,14 @@ impl<T: Send+Sync> RwLock<T>
 	}
 }
 
-impl<T: Send+Sync + ::core::default::Default> ::core::default::Default for RwLock<T>
+impl<T: ?Sized + Send + Sync + ::core::default::Default> ::core::default::Default for RwLock<T>
 {
 	fn default() -> RwLock<T> {
 		RwLock::new(<T as ::core::default::Default>::default())
 	}
 }
 
-impl<T: Send + Sync + ::core::fmt::Debug> ::core::fmt::Debug for RwLock<T> {
+impl<T: ?Sized + Send + Sync + ::core::fmt::Debug> ::core::fmt::Debug for RwLock<T> {
 	fn fmt(&self, f: &mut ::core::fmt::Formatter) -> ::core::fmt::Result {
 		match self.try_read() {
 		Some(v) => v.fmt(f),
@@ -172,7 +177,7 @@ impl<T: Send + Sync + ::core::fmt::Debug> ::core::fmt::Debug for RwLock<T> {
 
 // --------------------------------------------------------------------
 
-impl<'a, T: Send+Sync> Read<'a, T>
+impl<'a, T: ?Sized + Send + Sync> Read<'a, T>
 {
 	pub unsafe fn from_raw<'b>(p: &'b RwLock<T>) -> Read<'b, T> {
 		Read {
@@ -205,7 +210,7 @@ impl<'a, T: Send+Sync> Read<'a, T>
 	}
 */
 }
-impl<'a, T: Send+Sync> ops::Drop for Read<'a, T>
+impl<'a, T: ?Sized + Send+Sync> ops::Drop for Read<'a, T>
 {
 	fn drop(&mut self) {
 		let mut lh = self._lock.inner.lock();
@@ -230,7 +235,7 @@ impl<'a, T: Send+Sync> ops::Drop for Read<'a, T>
 		}
 	}
 }
-impl<'a, T: Send+Sync> ops::Deref for Read<'a, T>
+impl<'a, T: ?Sized+Send+Sync> ops::Deref for Read<'a, T>
 {
 	type Target = T;
 	fn deref(&self) -> &T {
@@ -241,7 +246,7 @@ impl<'a, T: Send+Sync> ops::Deref for Read<'a, T>
 
 // --------------------------------------------------------------------
 
-impl<'a, T: Send+Sync> ops::Drop for Write<'a, T>
+impl<'a, T: ?Sized+Send+Sync> ops::Drop for Write<'a, T>
 {
 	fn drop(&mut self)
 	{
@@ -271,7 +276,7 @@ impl<'a, T: Send+Sync> ops::Drop for Write<'a, T>
 		}
 	}
 }
-impl<'a, T: Send+Sync> ops::Deref for Write<'a, T>
+impl<'a, T: ?Sized+Send+Sync> ops::Deref for Write<'a, T>
 {
 	type Target = T;
 	fn deref(&self) -> &T {
@@ -279,7 +284,7 @@ impl<'a, T: Send+Sync> ops::Deref for Write<'a, T>
 		unsafe { &*self._lock.data.get() }
 	}
 }
-impl<'a, T: Send+Sync> ops::DerefMut for Write<'a, T>
+impl<'a, T: ?Sized+Send+Sync> ops::DerefMut for Write<'a, T>
 {
 	fn deref_mut(&mut self) -> &mut T {
 		// SAFE: &mut means that &mut to inner is valid
@@ -289,7 +294,7 @@ impl<'a, T: Send+Sync> ops::DerefMut for Write<'a, T>
 
 // --------------------------------------------------------------------
 /*
-impl<'a, T: Send+Sync> ops::Drop for ReadAsWrite<'a, T>
+impl<'a, T: ?Sized+Send+Sync> ops::Drop for ReadAsWrite<'a, T>
 {
 	fn drop(&mut self)
 	{
@@ -299,7 +304,7 @@ impl<'a, T: Send+Sync> ops::Drop for ReadAsWrite<'a, T>
 		lh.reader_count = 1;
 	}
 }
-impl<'a, T: Send+Sync> ops::Deref for ReadAsWrite<'a, T>
+impl<'a, T: ?Sized+Send+Sync> ops::Deref for ReadAsWrite<'a, T>
 {
 	type Target = T;
 	fn deref(&self) -> &T {
@@ -307,7 +312,7 @@ impl<'a, T: Send+Sync> ops::Deref for ReadAsWrite<'a, T>
 		unsafe { &*self._lock.data.get() }
 	}
 }
-impl<'a, T: Send+Sync> ops::DerefMut for ReadAsWrite<'a, T>
+impl<'a, T: ?Sized+Send+Sync> ops::DerefMut for ReadAsWrite<'a, T>
 {
 	fn deref_mut(&mut self) -> &mut T {
 		// SAFE: &mut means that &mut to inner is valid
