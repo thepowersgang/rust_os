@@ -18,8 +18,8 @@ pub struct RwLock<T: ?Sized>
 	inner: crate::sync::Spinlock<RwLockInner>,
 	data: UnsafeCell<T>,
 }
-unsafe impl<T: Send+Sync> Sync for RwLock<T> { }
-unsafe impl<T: Send+Sync> Send for RwLock<T> { }
+unsafe impl<T: ?Sized+Send+Sync> Sync for RwLock<T> { }
+unsafe impl<T: ?Sized+Send+Sync> Send for RwLock<T> { }
 struct RwLockInner
 {
 	reader_count: i32,

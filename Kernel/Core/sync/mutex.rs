@@ -8,7 +8,7 @@ use crate::prelude::*;
 use core::ops;
 
 /// A standard mutex (blocks the current thread when contended)
-pub struct Mutex<T>
+pub struct Mutex<T: ?Sized>
 {
 	inner: UnitMutex,
 	val: ::core::cell::UnsafeCell<T>,
@@ -29,11 +29,11 @@ struct MutexInner
 }
 
 // Mutexes are inherently sync
-unsafe impl<T: Send> Sync for Mutex<T> { }
-unsafe impl<T: Send> Send for Mutex<T> { }
+unsafe impl<T: ?Sized+Send> Sync for Mutex<T> { }
+unsafe impl<T: ?Sized+Send> Send for Mutex<T> { }
 
 /// Lock handle on a mutex
-pub struct HeldMutex<'lock,T:'lock+Send>
+pub struct HeldMutex<'lock,T:'lock+?Sized+Send>
 {
 	lock: &'lock Mutex<T>
 }
@@ -122,7 +122,7 @@ impl<T> Mutex<T>
 	}
 }
 	
-impl<T: Send> Mutex<T>
+impl<T: ?Sized+Send> Mutex<T>
 {
 	/// Lock the mutex, blocking the current thread
 	pub fn lock(&self) -> HeldMutex<T> {
@@ -186,7 +186,7 @@ impl<T: Send> LazyMutex<T>
 }
 
 /// Unlock on drop of HeldMutex
-impl<'lock,T:Send> ops::Drop for HeldMutex<'lock,T>
+impl<'lock,T:?Sized+Send> ops::Drop for HeldMutex<'lock,T>
 {
 	fn drop(&mut self) {
 		// SAFE: This type controls the lock
@@ -195,7 +195,7 @@ impl<'lock,T:Send> ops::Drop for HeldMutex<'lock,T>
 		}
 	}
 }
-impl<'lock,T:Send> ops::Deref for HeldMutex<'lock,T>
+impl<'lock,T:?Sized+Send> ops::Deref for HeldMutex<'lock,T>
 {
 	type Target = T;
 	fn deref<'a>(&'a self) -> &'a T {
@@ -203,7 +203,7 @@ impl<'lock,T:Send> ops::Deref for HeldMutex<'lock,T>
 		unsafe { &*self.lock.val.get() }
 	}
 }
-impl<'lock,T:Send> ops::DerefMut for HeldMutex<'lock,T>
+impl<'lock,T:?Sized+Send> ops::DerefMut for HeldMutex<'lock,T>
 {
 	fn deref_mut<'a>(&'a mut self) -> &'a mut T {
 		// SAFE: &mut to the handle, means that &mut to inner is safe
