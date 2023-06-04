@@ -3,13 +3,9 @@
 //
 // Core/lib/mem/mod.rs
 //! Memory allocation types
-pub use self::rc::Rc;
-pub use self::arc::Arc;
+pub use ::alloc::rc::Rc;
+pub use ::alloc::sync::Arc;
 pub use self::boxed::Box;
-
-mod grc;
-pub mod rc;
-pub mod arc;
 
 pub mod aref;
 
@@ -23,7 +19,7 @@ extern "C" {
 	pub fn memset(dst: *mut u8, val: u8, count: usize);
 }
 
-
+// TODO: Replace with `core::ptr::Unique`?
 pub struct Unique<T: ?Sized>
 {
 	p: ::core::ptr::NonNull<T>,
