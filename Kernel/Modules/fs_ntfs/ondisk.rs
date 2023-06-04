@@ -98,8 +98,12 @@ impl MftEntry {
 		assert!(s_s <= a_e && a_e <= s_e);
 		AttrHandle(idx, a_s - s_s, a.0.len())
 	}
+
+	pub fn get_attr(&self, handle: &AttrHandle) -> Option<&MftAttrib> {
+		MftAttrib::new_borrowed(self.0.get(handle.1..)?.get(..handle.2)?)
+	}
 }
-pub struct AttrHandle(MftEntryIdx, usize, usize);
+pub struct AttrHandle(pub MftEntryIdx, usize, usize);
 
 struct MftEntryAttribs<'a>(&'a [u8]);
 impl<'a> Iterator for MftEntryAttribs<'a> {
