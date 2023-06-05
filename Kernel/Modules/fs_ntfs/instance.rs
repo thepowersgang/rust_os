@@ -55,6 +55,10 @@ impl Instance
 		// SAFE: ArefInner::new requires a stable pointer, and the immediate boxing does that
 		Ok(unsafe { Box::new(InstanceWrapper(aref::ArefInner::new(instance))) })
 	}
+
+	fn cluster_size_bytes(&self) -> usize {
+		self.cluster_size_blocks * self.vol.block_size()
+	}
 }
 impl ::vfs::mount::Filesystem for InstanceWrapper
 {
@@ -67,15 +71,13 @@ impl ::vfs::mount::Filesystem for InstanceWrapper
 			Err(_) => return None,
 			Ok(v) => v,
 			};
+		// Create a directory node.
 		todo!("get_node_by_inode({})", inode_id)
 	}
 }
 
 /**
  * MFT entries and attributes
- */
-/*
- * TODO: Store loaded MFT entries in a pool/cache?
  */
 impl Instance
 {
@@ -163,16 +165,89 @@ impl Instance
 		Ok(rv.map(|a| (e, a)))
 	}
 
-	pub async fn attr_read(&self, mft_ent: &CachedMft, attr: &ondisk::AttrHandle, ofs: u64, dst: &mut [u8]) -> ::vfs::Result<usize> {
+	pub async fn attr_read(&self, mft_ent: &CachedMft, attr: &ondisk::AttrHandle, ofs: u64, mut dst: &mut [u8]) -> ::vfs::Result<usize> {
+		if dst.len() == 0 {
+			return Ok(0);
+		}
+
 		let mft_ent = mft_ent.inner.read();
 		let a = mft_ent.get_attr(attr).ok_or(::vfs::Error::Unknown("Stale ntfs AttrHandle"))?;
 		match a.inner()
 		{
 		ondisk::MftAttribData::Resident(r) => {
-			todo!("Instance::attr_read - resident");
+			let src = r.data();
+			if ofs > src.len() as u64 {
+				return Err(::vfs::Error::InvalidParameter);
+			}
+			let src = &src[ofs as usize..];
+			let len = usize::min( src.len(), dst.len() );
+			dst.copy_from_slice(&src[..len]);
+			Ok(len)
 			},
 		ondisk::MftAttribData::Nonresident(r) => {
-			todo!("Instance::attr_read - Non-resident");
+			log_debug!("VCNs: {} -- {}", r.starting_vcn(), r.last_vcn());
+			for run in r.data_runs() {
+				log_debug!("Data Run: {:#x} + {}", run.lcn, run.cluster_count);
+			}
+
+			// TODO: Check the valid size
+			// TODO: Clamp the data size
+
+			if r.starting_vcn() != 0 {
+				log_error!("attr_read: TODO - Handle sparse files (starting_vcn = {})", r.starting_vcn());
+				// For this, inject a run filled with zeroes?
+			}
+
+			let mut cur_vcn = ofs / (self.cluster_size_bytes() as u64);
+			let mut cur_ofs = ofs as usize % self.cluster_size_bytes();
+
+			let mut runs = r.data_runs().peekable();
+			// Seek to the run containing the first cluster
+			let mut runbase_vcn = 0;
+			while let Some(r) = runs.peek() {
+				if runbase_vcn + r.cluster_count > cur_vcn {
+					break;
+				}
+				runbase_vcn += r.cluster_count;
+				runs.next();
+			}
+			let rv = dst.len();
+			// Keep consuming runs until the destination is empty
+			while dst.len() > 0
+			{
+				let Some(cur_run) = runs.next() else {
+					// Filled with zeroes? Or invalid parameter?
+					todo!("Handle reading past the end of the populated runs");
+					};
+				// VCN within the run
+				let rel_vcn = cur_vcn - runbase_vcn;
+				// Number of clusters available in the run
+				let cluster_count = cur_run.cluster_count - rel_vcn;
+				// Number of bytes we can read in this loop
+				let len = usize::min(dst.len(), (cluster_count as usize) * self.cluster_size_bytes() - cur_ofs);
+				let buf = ::kernel::lib::split_off_front_mut(&mut dst, len).unwrap();
+				// TODO: Zero LCN means sparse?
+				if cur_run.lcn == 0 {
+					todo!("Handle zero LCN values");
+				}
+				else {
+					let lcn = cur_run.lcn + rel_vcn;
+					let block = lcn * self.cluster_size_blocks as u64 + (cur_ofs / self.vol.block_size()) as u64;
+					let block_ofs = cur_ofs % self.vol.block_size();
+					if block_ofs != 0 || buf.len() % self.vol.block_size() != 0 {
+						// TODO: Split this up? Or trust `read_inner` to do that for us?
+						self.vol.read_inner(block, block_ofs, buf).await?;
+					}
+					else {
+						self.vol.read_blocks(block, buf).await?;
+					}
+				}
+				runbase_vcn += cur_run.cluster_count;
+				cur_vcn += cur_run.cluster_count;
+				cur_ofs = 0;
+			}
+
+			Ok(rv)
 			},
 		}
 	}
@@ -180,7 +255,7 @@ impl Instance
 
 type CachedMft = ::kernel::lib::mem::Arc< MftCacheEnt<ondisk::MftEntry> >;
 
-struct MftCacheEnt<T: ?Sized> {
+pub struct MftCacheEnt<T: ?Sized> {
 	count: ::core::sync::atomic::AtomicUsize,
 	inner: ::kernel::sync::RwLock<T>,
 }

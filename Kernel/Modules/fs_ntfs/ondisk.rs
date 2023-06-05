@@ -186,5 +186,95 @@ pub enum MftAttribData<'a> {
 	Resident(&'a MftAttribDataResident),
 }
 pub struct MftAttribDataNonresident([u8]);
-pub struct MftAttribDataResident([u8]);
+impl MftAttribDataNonresident {
+	pub fn starting_vcn(&self) -> u64 { raw::MftAttrHeader_NonResident::starting_vcn(&self.0).unwrap() }
+	pub fn last_vcn(&self) -> u64 { raw::MftAttrHeader_NonResident::last_vcn(&self.0).unwrap() }
 
+	pub fn data_run_ofs(&self) -> u16 { raw::MftAttrHeader_NonResident::data_run_ofs(&self.0).unwrap() }
+	pub fn compression_unit_size(&self) -> u16 { raw::MftAttrHeader_NonResident::compression_unit_size(&self.0).unwrap() }
+	pub fn allocated_size(&self) -> u64 { raw::MftAttrHeader_NonResident::allocated_size(&self.0).unwrap() }
+	pub fn real_size(&self) -> u64 { raw::MftAttrHeader_NonResident::real_size(&self.0).unwrap() }
+	pub fn initiated_size(&self) -> u64 { raw::MftAttrHeader_NonResident::initiated_size(&self.0).unwrap() }
+
+	pub fn data_runs(&self) -> impl Iterator<Item=DataRun> + '_ {
+		struct It<'a>(&'a [u8], u64);
+		impl<'a> Iterator for It<'a> {
+			type Item = DataRun;
+			fn next(&mut self) -> Option<Self::Item> {
+				if self.0.len() == 0 {
+					None
+				}
+				else {
+					let lens = self.0[0];
+					let size_len = (lens & 0xF) as usize;
+					let size_ofs = (lens >> 4) as usize;
+					// If the size of the runlength is zero, assume end of the list
+					if size_len == 0 {
+						self.0 = &[];
+						return None;
+					}
+					let rundesc_len = 1 + size_len + size_ofs;
+					// BUGCHECK: There must be enough data
+					if self.0.len() < rundesc_len {
+						self.0 = &[];
+						return None;
+					}
+					let len = &self.0[1..][..size_len];
+					let ofs = &self.0[1+size_len..][..size_ofs];
+					// Sanity checks: Only support 64 bit offsets and 32 bit counts
+					if size_len > 8 {
+						self.0 = &[];
+						return None;
+					}
+					if size_ofs > 8 {
+						self.0 = &[];
+						return None;
+					}
+
+					fn parse_int(bytes: &[u8], sign_extend: bool) -> u64 {
+						let mut rv = 0;
+						for (i,b) in bytes.iter().enumerate() {
+							rv |= (*b as u64) << (i*8);
+						}
+						if sign_extend && bytes.len() < 8 && bytes.last().unwrap_or(&0) & 0x80 != 0 {
+							rv |= !0 << (bytes.len() * 8);
+						}
+						rv
+					}
+					let len = parse_int(len, false);
+					let ofs = parse_int(ofs, true);	// Offset is signed, it's relative to the last entry
+					let lcn = self.1 + ofs;
+					self.0 = &self.0[rundesc_len..];
+					self.1 = lcn;
+					Some(DataRun { 
+						lcn: lcn,
+						cluster_count: len,
+					})
+				}
+			}
+		}
+		// `data_run_ofs` is relative to the start of the attribute, so offset by the size of the header
+		let ofs = self.data_run_ofs() as usize;
+		let Some(ofs) = ofs.checked_sub(4*4) else { return It(&[], 0); };
+		It(&self.0[ofs..], 0)
+	}
+}
+pub struct DataRun {
+	/// Logical cluster number - i.e. cluster index relative to the start of the filesystem
+	pub lcn: u64,
+	/// Number of sequential clusters in this run
+	pub cluster_count: u64,
+}
+
+pub struct MftAttribDataResident([u8]);
+impl MftAttribDataResident {
+	pub fn indexed(&self) -> bool {
+		raw::MftAttrHeader_Resident::indexed_flag(&self.0).unwrap() != 0
+	}
+	pub fn data(&self) -> &[u8] {
+		let ofs = raw::MftAttrHeader_Resident::attrib_ofs(&self.0).unwrap();
+		let len = raw::MftAttrHeader_Resident::attrib_len(&self.0).unwrap();
+		log_debug!("MftAttrHeader_Resident: {}+{}", ofs, len);
+		&[]
+	}
+}
