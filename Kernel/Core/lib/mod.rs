@@ -64,6 +64,27 @@ pub unsafe fn unsafe_cast_slice<DstType>(src: &[u8]) -> &[DstType]
 	::core::slice::from_raw_parts(src.as_ptr() as *const DstType, newlen)
 }
 
+pub fn split_off_front_mut<'a>(buf: &mut &'a mut [u8], len: usize) -> Option<&'a mut [u8]> {
+	if len > buf.len() {
+		None
+	}
+	else {
+		let (a,b) = ::core::mem::replace(buf, &mut []).split_at_mut(len);
+		*buf = b;
+		Some(a)
+	}
+}
+pub fn split_off_front<'a>(buf: &mut &'a [u8], len: usize) -> Option<&'a [u8]> {
+	if len > buf.len() {
+		None
+	}
+	else {
+		let rv = buf.split_at(len);
+		*buf = rv.1;
+		Some(rv.0)
+	}
+}
+
 
 /// Unsiged integer bit-level access
 pub trait UintBits

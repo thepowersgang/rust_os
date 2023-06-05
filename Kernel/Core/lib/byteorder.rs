@@ -249,24 +249,10 @@ pub trait EncodedBE {
 }
 
 fn split_mut_inplace<'a>(buf: &mut &'a mut [u8], len: usize) -> Result<&'a mut [u8]> {
-	if len > buf.len() {
-		Err(Error::UnexpectedEOF)
-	}
-	else {
-		let (a,b) = ::core::mem::replace(buf, &mut []).split_at_mut(len);
-		*buf = b;
-		Ok(a)
-	}
+	super::split_off_front_mut(buf, len).ok_or(Error::UnexpectedEOF)
 }
 fn split_inplace<'a>(buf: &mut &'a [u8], len: usize) -> Result<&'a [u8]> {
-	if len > buf.len() {
-		Err(Error::UnexpectedEOF)
-	}
-	else {
-		let rv = buf.split_at(len);
-		*buf = rv.1;
-		Ok(rv.0)
-	}
+	super::split_off_front(buf, len).ok_or(Error::UnexpectedEOF)
 }
 macro_rules! impl_encoded_prim {
 	( $t:ty => $read:ident,$write:ident) => {
