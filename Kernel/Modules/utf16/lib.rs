@@ -137,7 +137,7 @@ impl Str16
 	/// An iterator that returns a series of WTF-8 codepoints (same encoding as
 	/// UTF-8, but invalid codepoints may be generated)
 	pub fn wtf8(&self) -> Wtf8<impl Iterator<Item=char> + '_> {
-		Wtf8(self.chars(), [0; 4])
+		Wtf8::new(self.chars())
 	}
 }
 
@@ -205,6 +205,14 @@ impl cmp::PartialEq<str> for Str16
 ///
 /// WTF-8 is UTF-8 that can contain unpaired surrogate codepoints.
 pub struct Wtf8<I>(I, [u8; 4]);
+impl<I> Wtf8<I>
+where
+	I: Iterator<Item=char>
+{
+	pub fn new(i: I) -> Self {
+		Wtf8(i, [0; 4])
+	}
+}
 impl<I> ::core::iter::Iterator for Wtf8<I>
 where
 	I: Iterator<Item=char>
