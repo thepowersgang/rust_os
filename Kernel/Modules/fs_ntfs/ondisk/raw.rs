@@ -186,3 +186,97 @@ pub struct MftAttrHeader_NonResident {
 	initiated_size: u64,
 	// name: [u16],
 }
+
+type Filetime = i64;
+#[derive(::kernel_derives::FieldsLE)]
+#[repr(C)]
+pub struct Attrib_Filename {
+	/// Parent directory MFT entry
+	parent_directory: u64,
+	/// Time the file was created
+	creation_time: Filetime,
+	/// Last change time for the data
+	last_data_mod_time: Filetime,
+	/// Last change time for the MFT entry
+	last_mft_mod_time: Filetime,
+	/// Last Access Time (unreliable on most systems)
+	last_access_time: Filetime,
+
+	/// Allocated data size for $DATA unnamed stream
+	allocated_size: u64,
+	/// Actual size of $DATA unnamed stream
+	data_size: u64,
+
+	/// File attribute flags
+	flags: u32,
+
+	/// Extra data, could be:
+	/// - "ExtAttrib.PackedSize" - u16
+	/// - "ReparsePoint.Tag" - u32
+	ext_attrib: u32,
+
+	filename_length: u8,	// This seems small?
+	/// Filename Namespace: DOS, Windows, Unix, ...
+	filename_namespace: u8,
+
+	//filename: [u16],
+}
+
+#[derive(::kernel_derives::FieldsLE)]
+#[repr(C)]
+pub struct Attrib_IndexRoot {
+	/// Type of indexed attribute
+	attribte_type: u32,
+	/// Sorting method
+	collation_rule: u32,
+	/// Size of an index allocation entry (bytes)
+	index_block_size: u32,
+	/// Clusters per index lock
+	clusters_per_index_block: u8,
+	_reserved1: [u8; 3],
+	// An index header follows
+}
+#[derive(::kernel_derives::FieldsLE)]
+#[repr(C)]
+pub struct Attrib_IndexHeader {
+	/// Offset of the index entries (relative to this structure's start)
+	first_entry_offset: u32,
+	/// Size of the index entries
+	index_length: u32,
+	/// Allocated size of the index entries
+	allocate_size: u32,
+	/// [0]: Has children (not leaf)
+	flags: u8,
+	_reserved2: [u8; 3],
+}
+
+#[derive(::kernel_derives::FieldsLE)]
+#[repr(C)]
+pub struct Attrib_IndexBlockHeader {
+	/// 'INDX' as little endian
+	magic: u32,
+
+	/// Offset of the "Update Sequence" (todo)
+	update_sequence_ofs: u16,
+	/// Size of the update sequence (word count)
+	update_sequence_size: u16,
+
+	/// Sequence number in `$LogFile`
+	log_file_sequence_number: u64,
+	/// VCN within the index allocation
+	this_vcn: u64,
+}
+
+
+#[derive(::kernel_derives::FieldsLE)]
+#[repr(C)]
+pub struct Attrib_IndexEntry {
+	mft_reference: u64,
+	/// Size of this index entry
+	entry_size: u16,
+	/// ?
+	message_len: u16,
+	/// Flags: [0]: Points to sub-node, [1]: Last entry in node
+	index_flags: u16,
+	_resvd: u16,
+}

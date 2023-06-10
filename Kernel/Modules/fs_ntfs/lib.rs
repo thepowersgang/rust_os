@@ -19,6 +19,7 @@ module_define! {FS_NTFS, [VFS], init}
 mod instance;
 mod helpers;
 mod ondisk;
+mod dir;
 use helpers::MftEntryIdx;
 
 fn init() {

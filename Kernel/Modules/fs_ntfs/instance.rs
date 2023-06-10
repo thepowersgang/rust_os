@@ -71,8 +71,16 @@ impl ::vfs::mount::Filesystem for InstanceWrapper
 			Err(_) => return None,
 			Ok(v) => v,
 			};
-		// Create a directory node.
-		todo!("get_node_by_inode({})", inode_id)
+		// Check the node type
+		if ent.inner.read().flags_isdir()
+		{
+			Some(::vfs::node::Node::Dir(Box::new(super::dir::Dir::new(self.0.borrow(), ent))))
+		}
+		else
+		{
+			// How are symlinks or directory junctions handled?
+			todo!("get_node_by_inode({}) - file", inode_id)
+		}
 	}
 }
 
@@ -147,22 +155,25 @@ impl Instance
 	pub async fn get_attr(&self, entry: MftEntryIdx, attr_id: ondisk::FileAttr, name: &str, index: usize) -> ::vfs::Result<Option<(CachedMft, ondisk::AttrHandle)>> {
 		// Get the MFT entry
 		let e = self.get_mft_entry(entry).await?;
-		let mft_ent = e.inner.read();
+		let rv = self.get_attr_inner(&e, attr_id, name, index);
+		Ok(rv.map(|a| (e, a)))
+	}
+
+	/// Get a hanle to an attribute within a MFT entry
+	pub fn get_attr_inner(&self, mft_ent: &CachedMft, attr_id: ondisk::FileAttr, name: &str, index: usize) -> Option<ondisk::AttrHandle> {
+		let mft_ent = mft_ent.inner.read();
 		// Iterate attributes
-		let mut rv = None;
 		let mut count = 0;
 		for attr in mft_ent.iter_attributes() {
 			log_debug!("get_attr: ty={:#x} name={:?}", attr.ty(), attr.name());
 			if attr.ty() == attr_id as u32 && attr.name() == name {
 				if count == index {
-					rv = Some(mft_ent.attr_handle(attr, entry));
-					break;
+					return Some(mft_ent.attr_handle(attr));
 				}
 				count += 1;
 			}
 		}
-		drop(mft_ent);
-		Ok(rv.map(|a| (e, a)))
+		None
 	}
 
 	pub async fn attr_read(&self, mft_ent: &CachedMft, attr: &ondisk::AttrHandle, ofs: u64, mut dst: &mut [u8]) -> ::vfs::Result<usize> {
@@ -253,7 +264,7 @@ impl Instance
 	}
 }
 
-type CachedMft = ::kernel::lib::mem::Arc< MftCacheEnt<ondisk::MftEntry> >;
+pub type CachedMft = ::kernel::lib::mem::Arc< MftCacheEnt<ondisk::MftEntry> >;
 
 pub struct MftCacheEnt<T: ?Sized> {
 	count: ::core::sync::atomic::AtomicUsize,
@@ -265,6 +276,12 @@ impl<T> MftCacheEnt<T> {
 			count: Default::default(),
 			inner: ::kernel::sync::RwLock::new(inner),
 		}
+	}
+}
+impl<T: ?Sized + Send + Sync> MftCacheEnt<T>
+{
+	pub fn read(&self) -> ::kernel::sync::rwlock::Read<'_, T> {
+		self.inner.read()
 	}
 }
 /// An evil hack to get a `Arc<Wrapper<MftEntry>>`
