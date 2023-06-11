@@ -79,7 +79,7 @@ impl ::vfs::mount::Filesystem for InstanceWrapper
 		else
 		{
 			// How are symlinks or directory junctions handled?
-			todo!("get_node_by_inode({}) - file", inode_id)
+			Some(::vfs::node::Node::File(Box::new(super::file::File::new(self.0.borrow(), ent))))
 		}
 	}
 }
@@ -106,6 +106,7 @@ impl Instance
 			Ok(rv)
 		}
 	}
+	/*
 	pub async fn with_mft_entry<R>(&self, entry: MftEntryIdx, cb: impl FnOnce(&ondisk::MftEntry)->::vfs::Result<R>) -> ::vfs::Result<R> {
 		let mut cb = Some(cb);
 		let mut rv = None;
@@ -117,6 +118,7 @@ impl Instance
 		let rv = cb(&e.inner.read());
 		rv
 	}
+	*/
 
 	/// Load a MFT entry from the disk (wrapper that avoids recursion with `attr_read`)
 	fn load_mft_entry_dyn(&self, entry_idx: MftEntryIdx) -> ::core::pin::Pin<Box< dyn ::core::future::Future<Output=::vfs::Result<CachedMft>> + '_ >> {
@@ -196,9 +198,11 @@ impl Instance
 			Ok(len)
 			},
 		ondisk::MftAttribData::Nonresident(r) => {
-			log_debug!("VCNs: {} -- {}", r.starting_vcn(), r.last_vcn());
-			for run in r.data_runs() {
-				log_debug!("Data Run: {:#x} + {}", run.lcn, run.cluster_count);
+			if false {
+				log_debug!("VCNs: {} -- {}", r.starting_vcn(), r.last_vcn());
+				for run in r.data_runs() {
+					log_debug!("Data Run: {:#x} + {}", run.lcn, run.cluster_count);
+				}
 			}
 
 			// TODO: Check the valid size
@@ -228,7 +232,8 @@ impl Instance
 			{
 				let Some(cur_run) = runs.next() else {
 					// Filled with zeroes? Or invalid parameter?
-					todo!("Handle reading past the end of the populated runs");
+					//todo!("Handle reading past the end of the populated runs");
+					return Ok(rv - dst.len());
 					};
 				// VCN within the run
 				let rel_vcn = cur_vcn - runbase_vcn;
