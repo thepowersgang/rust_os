@@ -143,7 +143,7 @@ pub struct MftEntryHeader_OsDep_All {
 
 #[derive(::kernel_derives::FieldsLE)]
 #[repr(C)]
-pub struct MftAttribHeader {
+pub struct MftAttrHeader {
 	ty: u32,	// See eNTFS_FILE_Attribs
 	size: u32,	// Includes header
 
@@ -160,7 +160,7 @@ pub struct MftAttrHeader_Resident {
 	/// Length of the attribute data in WORDS
 	attrib_len: u32,
 	// TODO: Is this relative to the start of the entry, or to the attribute?
-	attrib_ofs: u32,
+	attrib_ofs: u16,
 	indexed_flag: u8,
 	_padding: u8,
 	// name: [u16],

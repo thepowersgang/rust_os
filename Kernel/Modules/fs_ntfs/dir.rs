@@ -43,7 +43,7 @@ impl Dir
 impl ::vfs::node::NodeBase for Dir
 {
 	fn get_id(&self) -> u64 {
-		todo!("")
+		todo!("Dir::get_id")
 	}
 	fn get_any(&self) -> &(dyn ::core::any::Any + 'static) {
 		self
@@ -125,7 +125,7 @@ impl ::vfs::node::Dir for Dir
 				let Some(ent) = crate::ondisk::Attrib_IndexEntry::from_slice(data) else {
 					break
 					};
-				log_debug!("iterate_index: MFTRef={:#x} flags={:#x} data={:02x?}", ent.mft_reference(), ent.index_flags(), ent.data());
+				//log_debug!("iterate_index: MFTRef={:#x} flags={:#x} data={:02x?}", ent.mft_reference(), ent.index_flags(), ent.data());
 				// Returns `none` if this is the last entry - the last entry has no data
 				let Some(next) = ent.next() else {
 					break;
@@ -161,12 +161,12 @@ impl ::vfs::node::Dir for Dir
 				if l == 0 {
 					break;
 				}
-				log_debug!("Alloc block @{:#x}: {:?}", read_ofs, ::kernel::logging::HexDump(&buf[..128]));
+				//log_debug!("Alloc block @{:#x}: {:?}", read_ofs, ::kernel::logging::HexDump(&buf[..128]));
 				let block_hdr = crate::ondisk::Attrib_IndexBlockHeader::from_slice(&buf[..l]).ok_or(::vfs::Error::InconsistentFilesystem)?;
 				let index_hdr = block_hdr.index_header();
 
 				while let Some(v) = iterate_index(index_hdr, &mut pos) {
-					log_debug!("Indexed attribute: {:?}", ::kernel::logging::HexDump(v.data()));
+					//log_debug!("Indexed attribute: {:?}", ::kernel::logging::HexDump(v.data()));
 					let a = crate::ondisk::Attrib_Filename::from_slice(v.data()).ok_or(::vfs::Error::InconsistentFilesystem)?;
 					log_debug!("Dir::read: Found {:?}", a.filename());
 					rv += 1;
@@ -181,14 +181,14 @@ impl ::vfs::node::Dir for Dir
 
 		Ok(rv)
 	}
-	fn create(&self, name: &ByteStr, node_type: ::vfs::node::NodeType<'_>) -> Result<u64, ::vfs::Error> {
-		todo!("create")
+	fn create(&self, _name: &ByteStr, _node_type: ::vfs::node::NodeType<'_>) -> Result<u64, ::vfs::Error> {
+		Err(::vfs::Error::ReadOnlyFilesystem)
 	}
 	fn link(&self, _name: &ByteStr, _node: &dyn ::vfs::node::NodeBase) -> Result<(), ::vfs::Error> {
-		todo!("link")
+		Err(::vfs::Error::ReadOnlyFilesystem)
 	}
 	fn unlink(&self, _name: &ByteStr) -> Result<(), ::vfs::Error> {
-		todo!("unlink")
+		Err(::vfs::Error::ReadOnlyFilesystem)
 	}
 }
 

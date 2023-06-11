@@ -20,6 +20,7 @@ mod instance;
 mod helpers;
 mod ondisk;
 mod dir;
+mod file;
 use helpers::MftEntryIdx;
 
 fn init() {

@@ -1,4 +1,5 @@
 #![allow(dead_code)]
+#![allow(non_camel_case_types)]
 use crate::MftEntryIdx;
 use ::kernel::prelude::*;
 
@@ -7,11 +8,14 @@ mod raw;
 pub use self::raw::Bootsector;
 
 macro_rules! delegate {
-	($name:ident => $( $p:vis $field:ident: $t:ty ),* $(,)?) => {
+	($name:ident => $( $(#[$m:meta])* $p:vis $field:ident: $t:ty ),* $(,)?) => {
+		delegate!{$name -> $name => $( $(#[$m])* $p $field: $t),*}
+	};
+	($name:ident -> $name2:ident => $( $(#[$m:meta])* $p:vis $field:ident: $t:ty ),* $(,)?) => {
 		impl $name {
-			$($p fn $field(&self) -> $t { raw::$name::$field(&self.0).unwrap() })*
+			$( $(#[$m])* $p fn $field(&self) -> $t { raw::$name2::$field(&self.0).unwrap() })*
 		}
-	}
+	};
 }
 
 pub struct Utf16Le([u8]);	// Note: has to account for non-alignment
@@ -83,6 +87,10 @@ pub enum FileAttr {
 }
 
 pub struct MftEntry([u8]);
+delegate!{ MftEntry -> MftEntryHeader =>
+	first_attrib_ofs: u16,
+	flags: u16,
+}
 impl MftEntry {
 	pub fn new_owned(v: ::kernel::vec::Vec<u8>) -> Box<MftEntry> {
 		// SAFE: Same repr
@@ -91,14 +99,11 @@ impl MftEntry {
 		}
 	}
 
-	fn first_attrib_ofs(&self) -> u16 {
-		raw::MftEntryHeader::first_attrib_ofs(&self.0).unwrap()
-	}
 	pub fn flags_isused(&self) -> bool {
-		raw::MftEntryHeader::flags(&self.0).unwrap() & 0x1 != 0
+		self.flags() & 0x1 != 0
 	}
 	pub fn flags_isdir(&self) -> bool {
-		raw::MftEntryHeader::flags(&self.0).unwrap() & 0x2 != 0
+		self.flags() & 0x2 != 0
 	}
 
 	/// Iterate attributes
@@ -120,8 +125,10 @@ impl MftEntry {
 		MftAttrib::new_borrowed(self.0.get(handle.0..)?.get(..handle.1)?)
 	}
 }
+/// Saved handle (offset+size) to an attribute
 pub struct AttrHandle(usize, usize);
 
+/// Iterator over attributes in a MFT entry
 struct MftEntryAttribs<'a>(&'a [u8]);
 impl<'a> Iterator for MftEntryAttribs<'a> {
 	type Item = &'a MftAttrib;
@@ -135,7 +142,7 @@ impl<'a> Iterator for MftEntryAttribs<'a> {
 		}
 		let ty: u32 = EncodedLE::decode(&mut &self.0[..4]).unwrap();
 		if ty == !0 {
-			// End of attributes marker
+			// End of attributes marker - clean
 			return None;
 		}
 		if self.0.len() < 8 {
@@ -149,78 +156,113 @@ impl<'a> Iterator for MftEntryAttribs<'a> {
 		}
 
 		let rv = &self.0[..size as usize];
+		//log_debug!("MftEntryAttribs::next(): {:?}", ::kernel::logging::HexDump(rv));
 		self.0 = &self.0[size as usize..];
 		Some(MftAttrib::new_borrowed(rv)?)
 	}
 }
 
 pub struct MftAttrib([u8]);
+delegate!{MftAttrib -> MftAttrHeader =>
+	pub ty: u32,
+	size: u32,
+	nonresident_flag: u8,
+	name_length: u8,
+	name_ofs: u16,
+	pub flags: u16,
+	pub attribute_id: u16,
+}
 impl MftAttrib {
-	pub fn new_borrowed(v: &[u8]) -> Option<&MftAttrib> {
-		if v.len() < ::core::mem::size_of::<raw::MftAttribHeader>() {
+	fn size_of() -> usize {
+		::core::mem::size_of::<raw::MftAttrHeader>()
+	}
+	pub fn new_borrowed(v: &[u8]) -> Option<&Self> {
+		if v.len() < Self::size_of() {
+			log_error!("MftAttr: Too small {} < {}", v.len(), Self::size_of());
 			return None;
 		}
-		if raw::MftAttribHeader::nonresident_flag(v).unwrap() != 0 {
-			if v.len() - ::core::mem::size_of::<raw::MftAttribHeader>() < ::core::mem::size_of::<raw::MftAttrHeader_NonResident>() {
-				return None;
-			}
+		// SAFE: Same repr
+		let rv: &Self = unsafe { ::core::mem::transmute(v) };
+		if rv.name_ofs() as usize > v.len() {
+			return None;
+		}
+		if rv.name_ofs() as usize + rv.name_length() as usize * 2 > v.len() {
+			return None;
+		}
+		if rv.nonresident_flag() != 0 {
+			MftAttrHeader_NonResident::from_slice(rv.raw_data())?;
 		}
 		else {
-			if v.len() - ::core::mem::size_of::<raw::MftAttribHeader>() < ::core::mem::size_of::<raw::MftAttrHeader_Resident>() {
-				return None;
-			}
+			MftAttrHeader_Resident::from_slice(rv.raw_data())?;
 		}
-		// SAFE: Same repr
-		Some(unsafe { ::core::mem::transmute(v) })
+		Some(rv)
 	}
 
-	pub fn ty(&self) -> u32 {
-		raw::MftAttribHeader::ty(&self.0).unwrap()
-	}
 	pub fn name(&self) -> &Utf16Le {
-		let o = raw::MftAttribHeader::name_ofs(&self.0).unwrap();	// Byte offset
-		let l = raw::MftAttribHeader::name_length(&self.0).unwrap();	// Number of u16s
-		Utf16Le::new(&self.0[o as usize..][..l as usize*2])
+		let o = self.name_ofs() as usize;	// Byte offset
+		let l = self.name_length() as usize * 2;	// Number of u16s
+		Utf16Le::new(&self.0[o..][..l])
 	}
 
 	fn raw_data(&self) -> &[u8] {
-		&self.0[ ::core::mem::size_of::<raw::MftAttribHeader>()..]
+		&self.0[ Self::size_of() .. ]
 	}
 
 	pub fn inner(&self) -> MftAttribData<'_> {
-		if raw::MftAttribHeader::nonresident_flag(&self.0).unwrap() != 0 {
-			// SAFE: Same repr
-			MftAttribData::Nonresident(unsafe { ::core::mem::transmute(self.raw_data()) })
+		if self.nonresident_flag() != 0 {
+			MftAttribData::Nonresident(MftAttrHeader_NonResident::from_slice(self.raw_data()).unwrap())
 		}
 		else {
-			// SAFE: Same repr
-			MftAttribData::Resident(unsafe { ::core::mem::transmute(self.raw_data()) })
+			MftAttribData::Resident(MftAttrHeader_Resident::from_slice(self.raw_data()).unwrap())
 		}
 	}
 }
 pub enum MftAttribData<'a> {
-	Nonresident(&'a MftAttribDataNonresident),
-	Resident(&'a MftAttribDataResident),
+	Nonresident(&'a MftAttrHeader_NonResident),
+	Resident(&'a MftAttrHeader_Resident),
 }
 impl<'a> MftAttribData<'a> {
-	pub fn as_resident(&self) -> Option<&'a MftAttribDataResident> {
+	pub fn as_resident(&self) -> Option<&'a MftAttrHeader_Resident> {
 		match *self {
 		MftAttribData::Resident(v) => Some(v),
 		_ => None,
 		}
 	}
 }
-pub struct MftAttribDataNonresident([u8]);
-impl MftAttribDataNonresident {
-	pub fn starting_vcn(&self) -> u64 { raw::MftAttrHeader_NonResident::starting_vcn(&self.0).unwrap() }
-	pub fn last_vcn(&self) -> u64 { raw::MftAttrHeader_NonResident::last_vcn(&self.0).unwrap() }
-
-	pub fn data_run_ofs(&self) -> u16 { raw::MftAttrHeader_NonResident::data_run_ofs(&self.0).unwrap() }
-	pub fn compression_unit_size(&self) -> u16 { raw::MftAttrHeader_NonResident::compression_unit_size(&self.0).unwrap() }
-	pub fn allocated_size(&self) -> u64 { raw::MftAttrHeader_NonResident::allocated_size(&self.0).unwrap() }
-	pub fn real_size(&self) -> u64 { raw::MftAttrHeader_NonResident::real_size(&self.0).unwrap() }
-	pub fn initiated_size(&self) -> u64 { raw::MftAttrHeader_NonResident::initiated_size(&self.0).unwrap() }
-
+pub struct MftAttrHeader_NonResident([u8]);
+delegate!{ MftAttrHeader_NonResident =>
+	pub starting_vcn: u64,
+	pub last_vcn: u64,
+	data_run_ofs: u16,
+	/// Power-of-two number of clusters in a compression unit
+	pub compression_unit_size: u16,
+	/// Data size, rounded up to clusters
+	pub allocated_size: u64,
+	/// Size of the data (bytes)
+	pub real_size: u64,
+	/// Size of data on-disk? (is this something other than the allocated size?)
+	pub initiated_size: u64,
+}
+impl MftAttrHeader_NonResident {
+	fn size_of() -> usize {
+		::core::mem::size_of::<raw::MftAttrHeader_NonResident>()
+	}
+	fn from_slice(v: &[u8]) -> Option<&Self> {
+		if v.len() < Self::size_of() {
+			log_error!("MftAttrHeader_NonResident: Too small {} < {}", v.len(), Self::size_of());
+			return None;
+		}
+		// SAFE: Same repr
+		let rv: &Self = unsafe { ::core::mem::transmute(v) };
+		if rv.data_run_ofs() < 16 {
+			return None;
+		}
+		if rv.data_run_ofs() as usize - 16 > v.len() {
+			return None;
+		}
+		Some(rv)
+	}
+	/// Iterator over the data on-disk
 	pub fn data_runs(&self) -> impl Iterator<Item=DataRun> + '_ {
 		struct It<'a>(&'a [u8], u64);
 		impl<'a> Iterator for It<'a> {
@@ -291,16 +333,49 @@ pub struct DataRun {
 	pub cluster_count: u64,
 }
 
-pub struct MftAttribDataResident([u8]);
-impl MftAttribDataResident {
+pub struct MftAttrHeader_Resident([u8]);
+delegate!{ MftAttrHeader_Resident =>
+	attrib_len: u32,
+	attrib_ofs: u16,
+	indexed_flag: u8,
+}
+impl MftAttrHeader_Resident {
+	fn size_of() -> usize {
+		::core::mem::size_of::<raw::MftAttrHeader_Resident>()
+	}
+	fn from_slice(v: &[u8]) -> Option<&Self> {
+		if v.len() < Self::size_of() {
+			log_error!("MftAttrHeader_Resident: Too small {} < {}", v.len(), Self::size_of());
+			return None;
+		}
+		// SAFE: Same repr
+		let rv: &Self = unsafe { ::core::mem::transmute(v) };
+		//log_debug!("{}+{}", rv.attrib_ofs(), rv.attrib_len());
+		if rv.attrib_ofs() < 4*4 {
+			log_error!("MftAttrHeader_Resident: attrib_ofs({}) too small (must be at least 16)", rv.attrib_ofs());
+			return None;
+		}
+		if rv.adj_attrib_ofs() > v.len() {
+			log_error!("MftAttrHeader_Resident: adj_attrib_ofs({}) out of bounds (>{})", rv.adj_attrib_ofs(), v.len());
+			return None;
+		}
+		if rv.adj_attrib_ofs() + rv.attrib_len() as usize > v.len() {
+			log_error!("MftAttrHeader_Resident: adj_attrib_ofs({})+attrib_len({}) out of bounds (>{})", rv.adj_attrib_ofs(), rv.attrib_len(), v.len());
+			return None;
+		}
+		Some(rv)
+	}
 	pub fn indexed(&self) -> bool {
-		raw::MftAttrHeader_Resident::indexed_flag(&self.0).unwrap() != 0
+		self.indexed_flag() != 0
+	}
+	fn adj_attrib_ofs(&self) -> usize {
+		// Adjust for the size of the base header (16 bytes)
+		self.attrib_ofs() as usize - 16
 	}
 	pub fn data(&self) -> &[u8] {
-		let ofs = raw::MftAttrHeader_Resident::attrib_ofs(&self.0).unwrap() as usize;
-		let len = raw::MftAttrHeader_Resident::attrib_len(&self.0).unwrap() as usize;
-		let Some(ofs) = ofs.checked_sub(4*4) else { return &[]; };
-		self.0.get(ofs..).and_then(|v| v.get(..len)).unwrap_or(&[])
+		let ofs = self.adj_attrib_ofs();
+		let len = self.attrib_len() as usize;
+		&self.0[ofs..][..len]
 	}
 }
 
