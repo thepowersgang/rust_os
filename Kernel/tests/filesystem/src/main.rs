@@ -213,6 +213,74 @@ fn main()
                 ofs += len_l as u64;
             }
             },
+		"hexdump" => {
+            let remote: &::vfs::Path = args.next().expect("`hexdump` remote").as_ref();
+
+            let remote_handle = match vfs_handle::File::open(remote, vfs_handle::FileOpenMode::SharedRO)
+                {
+                Ok(h) => h,
+                Err(e) => panic!("`hexdump`: Cannot open remote file {:?}: {:?}", remote, e),
+                };
+			let mut buf = vec![0; 0x1000];
+			let mut ofs = 0;
+
+			fn dump_row(ofs: u64, row: &[u8]) {
+				print!("{:06x}", ofs);
+				for (i,&b) in row.iter().enumerate() {
+					if i == 8 {
+						print!(" ");
+					}
+					print!(" {:02x}", b);
+				}
+				print!(" | ");
+				for (i,&b) in row.iter().enumerate() {
+					if i == 8 {
+						print!(" ");
+					}
+					print!("{}", match b
+						{
+						0x20..=0x7F => b as char,
+						_ => '.',
+						});
+				}
+				println!("");
+			}
+			let mut last_row = [0; 16];
+			let mut in_repeat = 0;
+			loop
+			{
+                let len = match remote_handle.read(ofs, &mut buf)
+                    {
+					Ok(0) => break,
+                    Ok(l) => l,
+                    Err(e) => panic!("`hexdump`: IO failure reading from remote: {:?}", e),
+                    };
+				for (row_idx,row) in buf[..len].chunks(16).enumerate() {
+					if row == last_row && (ofs,row_idx) != (0,0) {
+						in_repeat += 1;
+						continue ;
+					}
+					if in_repeat > 0 {
+						if in_repeat > 1 {
+							println!("*");
+						}
+						dump_row(ofs + row_idx as u64 * 16 - 16, &last_row );
+						in_repeat = 0;
+					}
+					dump_row(ofs + row_idx as u64 * 16, row);
+					last_row.copy_from_slice(row);
+				}
+				ofs += len as u64;
+			}
+			if in_repeat > 0 {
+				if in_repeat > 1 {
+					println!("*");
+				}
+				assert!(ofs % 16 == 0);	// If the length isn't a multiple, then it can't be equal
+				dump_row(ofs - 16, &last_row);
+			}
+			println!("{:?}: {} bytes", remote, ofs);
+			},
         cmd => todo!("Command {}", cmd),
         }
     }
