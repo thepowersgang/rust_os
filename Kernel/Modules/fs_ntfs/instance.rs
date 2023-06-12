@@ -14,7 +14,7 @@ pub type InstanceRef = aref::ArefBorrow<Instance>;
 pub struct Instance
 {
 	vol: ::block_cache::CachedVolume,
-	mount_handle: ::vfs::mount::SelfHandle,
+	_mount_handle: ::vfs::mount::SelfHandle,
 	cluster_size_blocks: usize,
 	mft_record_size: usize,
 	mft_data_attr: Option<(CachedMft,ondisk::AttrHandle)>,
@@ -37,7 +37,7 @@ impl Instance
 		// Pre-calculate some useful values (cluster size, mft entry, ...)
 		let mut instance = Instance {
 			vol: ::block_cache::CachedVolume::new(vol),
-			mount_handle,
+			_mount_handle: mount_handle,
 			mft_data_attr: None,
 			cluster_size_blocks,
 			mft_record_size: bs.mft_record_size.get().to_bytes(cluster_size_bytes),
@@ -205,8 +205,15 @@ impl Instance
 				}
 			}
 
-			// TODO: Check the valid size
-			// TODO: Clamp the data size
+			// Check the valid size
+			if ofs > r.initiated_size() {
+				return Err(::vfs::Error::InvalidParameter)
+			}
+			// Clamp the data size
+			let space = r.initiated_size() - ofs;
+			if space < dst.len() as u64 {
+				dst = &mut dst[..space as usize];
+			}
 
 			if r.starting_vcn() != 0 {
 				log_error!("attr_read: TODO - Handle sparse files (starting_vcn = {})", r.starting_vcn());
@@ -232,8 +239,7 @@ impl Instance
 			{
 				let Some(cur_run) = runs.next() else {
 					// Filled with zeroes? Or invalid parameter?
-					//todo!("Handle reading past the end of the populated runs");
-					return Ok(rv - dst.len());
+					todo!("Handle reading past the end of the populated runs");
 					};
 				// VCN within the run
 				let rel_vcn = cur_vcn - runbase_vcn;
@@ -242,9 +248,9 @@ impl Instance
 				// Number of bytes we can read in this loop
 				let len = usize::min(dst.len(), (cluster_count as usize) * self.cluster_size_bytes() - cur_ofs);
 				let buf = ::kernel::lib::split_off_front_mut(&mut dst, len).unwrap();
-				// TODO: Zero LCN means sparse?
-				if cur_run.lcn == 0 {
-					todo!("Handle zero LCN values");
+				// TODO: Handle no offset (different to zero LCN)
+				if cur_run.lcn == 0 && false {
+					todo!("Handle zero LCN values len={}", cur_run.cluster_count);
 				}
 				else {
 					let lcn = cur_run.lcn + rel_vcn;

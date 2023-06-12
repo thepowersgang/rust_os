@@ -41,7 +41,10 @@ impl ::vfs::node::File for File
 		Err(::vfs::Error::ReadOnlyFilesystem)
 	}
 	fn read(&self, ofs: u64, dst: &mut [u8]) -> Result<usize, ::vfs::Error> {
-		todo!("File::read")
+		let Some(ref attr_data) = self.attr_data else {
+			return Ok(0);
+			};
+		Ok( ::kernel::futures::block_on(self.instance.attr_read(&self.mft_ent, attr_data, ofs, dst))? )
 	}
 	fn write(&self, _ofs: u64, _src: &[u8]) -> Result<usize, ::vfs::Error> {
 		Err(::vfs::Error::ReadOnlyFilesystem)
