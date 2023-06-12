@@ -246,7 +246,7 @@ where
 	type Item = char;
 	fn next(&mut self) -> Option<char>
 	{
-		let (cp,n) = match self.0.next()
+		let (cp,_n) = match self.0.next()
 			{
 			None => return None,
 			// High surrogate
