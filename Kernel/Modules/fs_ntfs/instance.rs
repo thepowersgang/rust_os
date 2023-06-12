@@ -201,7 +201,7 @@ impl Instance
 			if false {
 				log_debug!("VCNs: {} -- {}", r.starting_vcn(), r.last_vcn());
 				for run in r.data_runs() {
-					log_debug!("Data Run: {:#x} + {}", run.lcn, run.cluster_count);
+					log_debug!("Data Run: {:#x?} + {}", run.lcn, run.cluster_count);
 				}
 			}
 
@@ -248,12 +248,8 @@ impl Instance
 				// Number of bytes we can read in this loop
 				let len = usize::min(dst.len(), (cluster_count as usize) * self.cluster_size_bytes() - cur_ofs);
 				let buf = ::kernel::lib::split_off_front_mut(&mut dst, len).unwrap();
-				// TODO: Handle no offset (different to zero LCN)
-				if cur_run.lcn == 0 && false {
-					todo!("Handle zero LCN values len={}", cur_run.cluster_count);
-				}
-				else {
-					let lcn = cur_run.lcn + rel_vcn;
+				if let Some(run_lcn) = cur_run.lcn {
+					let lcn = run_lcn + rel_vcn;
 					let block = lcn * self.cluster_size_blocks as u64 + (cur_ofs / self.vol.block_size()) as u64;
 					let block_ofs = cur_ofs % self.vol.block_size();
 					if block_ofs != 0 || buf.len() % self.vol.block_size() != 0 {
@@ -263,6 +259,9 @@ impl Instance
 					else {
 						self.vol.read_blocks(block, buf).await?;
 					}
+				}
+				else {
+					todo!("Handle sparse run count={}", cur_run.cluster_count);
 				}
 				runbase_vcn += cur_run.cluster_count;
 				cur_vcn += cur_run.cluster_count;

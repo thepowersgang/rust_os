@@ -309,12 +309,17 @@ impl MftAttrHeader_NonResident {
 						rv
 					}
 					let len = parse_int(len, false);
-					let ofs = parse_int(ofs, true);	// Offset is signed, it's relative to the last entry
-					let lcn = self.1 + ofs;
+					let lcn = if ofs.len() > 0 {
+							let ofs = parse_int(ofs, true);
+							let lcn = self.1.wrapping_add(ofs);	// Offset is signed, it's relative to the last entry
+							self.1 = lcn;
+							Some(lcn)
+						} else {
+							None
+						};
 					self.0 = &self.0[rundesc_len..];
-					self.1 = lcn;
 					Some(DataRun { 
-						lcn: lcn,
+						lcn,
 						cluster_count: len,
 					})
 				}
@@ -328,7 +333,7 @@ impl MftAttrHeader_NonResident {
 }
 pub struct DataRun {
 	/// Logical cluster number - i.e. cluster index relative to the start of the filesystem
-	pub lcn: u64,
+	pub lcn: Option<u64>,
 	/// Number of sequential clusters in this run
 	pub cluster_count: u64,
 }
