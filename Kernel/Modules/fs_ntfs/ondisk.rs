@@ -1,7 +1,6 @@
 #![allow(dead_code)]
 #![allow(non_camel_case_types)]
 use crate::MftEntryIdx;
-use ::kernel::prelude::*;
 
 mod raw;
 
@@ -86,17 +85,67 @@ pub enum FileAttr {
 	Bitmap = 0xB0,
 }
 
+// TODO: Use the update sequence to fix loaded items (contains the actual values of each sector's last two bytes)
+pub struct UpdateSequence([u8]);
+impl UpdateSequence {
+	pub fn new_borrowed(v: &[u8]) -> Option<&Self> {
+		if v.len() < 2 {
+			return None;
+		}
+		if v.len() % 2 != 0 {
+			return None;
+		}
+		// SAFE: Same repr
+		Some(unsafe { ::core::mem::transmute(v) })
+	}
+	fn from_subslice(v: &[u8], ofs: u16, num_words: u16) -> Option<&Self> {
+		if ofs as usize >= v.len() {
+			return None;
+		}
+		let v = v.get(ofs as usize..)?;
+		let nbytes = num_words as usize * 2;
+		let v = v.get(..nbytes)?;
+		Self::new_borrowed(v)
+	}
+	pub fn sequence_number(&self) -> u16 {
+		u16::from_le_bytes([self.0[0], self.0[1]])
+	}
+	pub fn array(&self) -> impl Iterator<Item=u16>+'_ {
+		struct IterU16<'a>(&'a [u8]);
+		impl<'a> Iterator for IterU16<'a> {
+			type Item = u16;
+			fn next(&mut self) -> Option<Self::Item> {
+				match ::kernel::lib::split_off_front(&mut self.0, 2)
+				{
+				None => None,
+				Some(v) => Some( u16::from_le_bytes([v[0], v[1]]) ),
+				}
+			}
+		}
+		IterU16(&self.0[2..])
+	}
+}
+
 pub struct MftEntry([u8]);
 delegate!{ MftEntry -> MftEntryHeader =>
 	first_attrib_ofs: u16,
 	flags: u16,
+
+	update_sequence_ofs: u16,
+	update_sequence_size: u16,
 }
 impl MftEntry {
-	pub fn new_owned(v: ::kernel::vec::Vec<u8>) -> Box<MftEntry> {
-		// SAFE: Same repr
-		unsafe {
-			::core::mem::transmute(v.into_boxed_slice())
+	pub fn new_borrowed(v: &[u8]) -> Option<&Self> {
+		if v.len() < ::core::mem::size_of::<raw::MftEntryHeader>() {
+			return None;
 		}
+		// SAFE: Same repr
+		let rv: &Self = unsafe { ::core::mem::transmute(v) };
+		if rv.first_attrib_ofs() as usize >= v.len() {
+			return None;
+		}
+		UpdateSequence::from_subslice(v, rv.update_sequence_ofs(), rv.update_sequence_size())?;
+		Some(rv)
 	}
 
 	pub fn flags_isused(&self) -> bool {
@@ -123,6 +172,10 @@ impl MftEntry {
 
 	pub fn get_attr(&self, handle: &AttrHandle) -> Option<&MftAttrib> {
 		MftAttrib::new_borrowed(self.0.get(handle.0..)?.get(..handle.1)?)
+	}
+
+	pub fn update_sequence(&self) -> &UpdateSequence {
+		UpdateSequence::from_subslice(&self.0, self.update_sequence_ofs(), self.update_sequence_size()).unwrap()
 	}
 }
 /// Saved handle (offset+size) to an attribute
@@ -457,8 +510,10 @@ impl Attrib_IndexBlockHeader {
 	pub fn index_header(&self) -> &Attrib_IndexHeader {
 		Attrib_IndexHeader::from_slice(self.index_header_bytes()).unwrap()
 	}
-	//pub fn update_sequence(&self) -> &[u8] {
-	//}
+	// TODO: the update sequence handles spotting badly-written sectors
+	pub fn update_sequence(&self) -> &UpdateSequence {
+		UpdateSequence::from_subslice(&self.0, self.update_sequence_ofs(), self.update_sequence_size()).unwrap()
+	}
 }
 delegate!{ Attrib_IndexBlockHeader =>
 	magic: u32,

@@ -59,6 +59,34 @@ impl Instance
 	fn cluster_size_bytes(&self) -> usize {
 		self.cluster_size_blocks * self.vol.block_size()
 	}
+	pub fn block_size(&self) -> usize {
+		self.vol.block_size()
+	}
+
+	pub fn apply_sequence_fixups(&self, buf: &mut [u8], get_usa: &dyn Fn(&[u8])->Option<&crate::ondisk::UpdateSequence>) -> Result<(),::vfs::Error> {
+		let block_size = self.vol.block_size();
+		if buf.len() > block_size
+		{
+			let (buf1, buf2) = buf.split_at_mut(block_size);
+			let usa = (get_usa)(buf1).ok_or(::vfs::Error::InconsistentFilesystem)?;
+			let exp_val = usa.sequence_number();
+			for (sector, last_word) in Iterator::zip( buf2.chunks_mut(block_size), usa.array() )
+			{
+				let slot = &mut sector[ block_size - 2 ..];
+				let cur_val = u16::from_le_bytes([slot[0], slot[1]]);
+				if cur_val != exp_val {
+					return Err(::vfs::Error::InconsistentFilesystem);
+				}
+				slot.copy_from_slice(&last_word.to_le_bytes());
+			}
+		}
+		else
+		{
+			// Call the getter, just so the error is triggered if needed
+			(get_usa)(buf).ok_or(::vfs::Error::InconsistentFilesystem)?;
+		}
+		Ok( () )
+	}
 }
 impl ::vfs::mount::Filesystem for InstanceWrapper
 {
@@ -128,6 +156,7 @@ impl Instance
 	async fn load_mft_entry(&self, entry_idx: MftEntryIdx) -> ::vfs::Result<CachedMft> {
 		let entry_idx = entry_idx.0;
 		// TODO: Check the index range
+
 		let mut rv_bytes = new_mft_cache_ent(self.mft_record_size).expect("Unexpected record size");
 		let buf = ::kernel::lib::mem::Arc::get_mut(&mut rv_bytes).unwrap().inner.get_mut();
 		if let Some((ref mft_ent, ref e)) = self.mft_data_attr {
@@ -147,7 +176,10 @@ impl Instance
 				self.vol.read_inner(blk, ofs as usize * self.mft_record_size, buf).await?;
 			}
 		}
-		//Ok(ondisk::MftEntry::new_owned(buf))
+
+		// Apply sequence number fixups
+		self.apply_sequence_fixups(buf, &|buf1| ondisk::MftEntry::new_borrowed(buf1).map(|ent| ent.update_sequence()))?;
+
 		// SAFE: `MftEntry` and `[u8]` have the same representation
 		Ok(unsafe { ::core::mem::transmute(rv_bytes) })
 	}

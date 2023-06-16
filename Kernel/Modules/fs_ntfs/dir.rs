@@ -103,7 +103,7 @@ impl ::vfs::node::Dir for Dir
 				// Inconsistent? Off the end
 				return Err(::vfs::Error::NotFound);
 			}
-			let block_hdr = crate::ondisk::Attrib_IndexBlockHeader::from_slice(&buf[..l]).ok_or(::vfs::Error::InconsistentFilesystem)?;
+			let block_hdr = get_index_block(&self.instance, &mut buf[..l])?;
 			vcn = match btree_search(block_hdr.index_header(), cmp)
 				{
 				Ok(e) => return Ok(e.mft_reference_num()),
@@ -162,7 +162,7 @@ impl ::vfs::node::Dir for Dir
 					break;
 				}
 				//log_debug!("Alloc block @{:#x}: {:?}", read_ofs, ::kernel::logging::HexDump(&buf[..128]));
-				let block_hdr = crate::ondisk::Attrib_IndexBlockHeader::from_slice(&buf[..l]).ok_or(::vfs::Error::InconsistentFilesystem)?;
+				let block_hdr = get_index_block(&self.instance, &mut buf[..l])?;
 				let index_hdr = block_hdr.index_header();
 
 				while let Some(v) = iterate_index(index_hdr, &mut pos) {
@@ -191,4 +191,11 @@ impl ::vfs::node::Dir for Dir
 		Err(::vfs::Error::ReadOnlyFilesystem)
 	}
 }
+
+fn get_index_block<'a>(instance: &super::instance::Instance, buf: &'a mut [u8]) -> Result<&'a crate::ondisk::Attrib_IndexBlockHeader, ::vfs::Error>
+{
+	instance.apply_sequence_fixups(buf, &|buf1| crate::ondisk::Attrib_IndexBlockHeader::from_slice(buf1).map(|ent| ent.update_sequence()))?;
+	crate::ondisk::Attrib_IndexBlockHeader::from_slice(buf).ok_or(::vfs::Error::InconsistentFilesystem)
+}
+
 

@@ -120,7 +120,6 @@ pub struct MftEntryHeader {
 #[repr(C)]
 pub union MftEntryHeader_OsDep {
 	xp: MftEntryHeader_OsDep_Xp,
-	all: MftEntryHeader_OsDep_All,
 }
 
 
@@ -131,14 +130,6 @@ pub struct MftEntryHeader_OsDep_Xp {
 	align_to_4bytes: u16,
 	/// Number of this MFT Record
 	record_number: u16,
-	update_sequence_number: u16,
-	update_sequence_array: [u16; 0],
-}
-#[repr(C)]
-#[derive(Copy, Clone)]
-pub struct MftEntryHeader_OsDep_All {
-	update_sequence_number: u16,
-	update_sequence_array: [u16; 0],
 }
 
 #[derive(::kernel_derives::FieldsLE)]
