@@ -95,7 +95,7 @@ impl Overlay
     {
         let mut bmp = ::bitvec::vec::BitVec::new();
         bmp.resize(count, false);
-        let mut fp = ::std::fs::OpenOptions::new()
+        let fp = ::std::fs::OpenOptions::new()
             .create(true).read(true).write(true)
             .truncate(true)
             .open(path)?
