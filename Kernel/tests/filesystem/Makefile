@@ -1,4 +1,5 @@
 V ?= @
+D = $
 
 IMGDIR := data/
 TESTFILES := $(IMGDIR)testfiles/
@@ -6,14 +7,14 @@ TESTFILES := $(IMGDIR)testfiles/
 run_tests: testlog_fat.log
 	#printf "add_disk virt0 $(IMGDIR)hda.img temporary\nmkdir / ext2\nmount /ext2 virt0p1\nls /ext2" | cargo run
 
-testlog_%.log: .testcmds_%.txt ../target/debug/kernel-test-filesystem $(IMGDIR)hda.img
+testlog_%.log: .testcmds_%.txt ../target/debug/kernel-test-filesystem
 	cargo run < $< | tee $@
 
 PHONY: ../target/debug/kernel-test-filesystem
 ../target/debug/kernel-test-filesystem:
 	cargo build
 
-.testcmds_ext2.txt: Makefile $(TESTFILES)bigfile.dat
+.testcmds_ext2.txt: Makefile $(IMGDIR)hda.img $(TESTFILES)bigfile.dat $(TESTFILES)1.txt
 	@echo "add_disk virt0 $(IMGDIR)hda.img temporary" > $@
 	@echo "mkdir /mnt" >> $@
 	@echo "mount /mnt virt0p1" >> $@
@@ -24,7 +25,7 @@ PHONY: ../target/debug/kernel-test-filesystem
 	@echo "store $(TESTFILES)bigfile.dat /mnt/a_big_file.dat" >> $@
 	@echo "readback $(TESTFILES)bigfile.dat /mnt/a_big_file.dat" >> $@
 	@echo "ls /mnt" >> $@
-.testcmds_fat.txt: Makefile $(TESTFILES)bigfile.dat
+.testcmds_fat.txt: Makefile $(IMGDIR)hda.img $(TESTFILES)bigfile.dat $(TESTFILES)1.txt
 	@echo "add_disk virt0 $(IMGDIR)hda.img temporary" > $@
 	@echo "mkdir /mnt" >> $@
 	@echo "mount /mnt virt0p0" >> $@
@@ -35,6 +36,19 @@ PHONY: ../target/debug/kernel-test-filesystem
 	@echo "store $(TESTFILES)bigfile.dat /mnt/a_big_file.dat" >> $@
 	@echo "readback $(TESTFILES)bigfile.dat /mnt/a_big_file.dat" >> $@
 	@echo "ls /mnt" >> $@
+.testcmds_ntfs.txt: Makefile $(IMGDIR)ntfs.img
+	@echo "add_disk virt0 $(IMGDIR)ntfs.img temporary" > $@
+	@echo "mkdir /mnt" >> $@
+	@echo "mount /mnt virt0w" >> $@
+	@echo "ls /mnt" >> $@
+	@echo "hexdump /mnt/$D""Boot" >> $@
+
+$(IMGDIR)ntfs.img: Makefile
+	@mkdir -p $(dir $@)
+	@echo "[MkDisk] ZERO 1MB $@"
+	@# - 32MB FAT? partition on disk 0
+	$Vdd if=/dev/zero of=$@ bs=1M count=32 status=noxfer
+	$V/sbin/mkfs.ntfs -F -s 512 $@
 
 $(IMGDIR)hd%_0.img:
 	@mkdir -p $(dir $@)
