@@ -275,14 +275,14 @@ impl Instance
 			let mut cur_vcn = ofs / (self.cluster_size_bytes() as u64);
 			let mut cur_ofs = ofs as usize % self.cluster_size_bytes();
 
-			let mut runs = r.data_runs().peekable();
+			let mut runs = CompressionRuns::new(r.data_runs(), 1).peekable();
 			// Seek to the run containing the first cluster
 			let mut runbase_vcn = 0;
 			while let Some(r) = runs.peek() {
-				if runbase_vcn + r.cluster_count > cur_vcn {
+				if runbase_vcn + r.cluster_count() > cur_vcn {
 					break;
 				}
-				runbase_vcn += r.cluster_count;
+				runbase_vcn += r.cluster_count();
 				runs.next();
 			}
 			let rv = dst.len();
@@ -293,31 +293,71 @@ impl Instance
 					// Filled with zeroes? Or invalid parameter?
 					todo!("Handle reading past the end of the populated runs");
 					};
-				// VCN within the run
-				let rel_vcn = cur_vcn - runbase_vcn;
-				// Number of clusters available in the run
-				let cluster_count = cur_run.cluster_count - rel_vcn;
-				// Number of bytes we can read in this loop
-				let len = usize::min(dst.len(), (cluster_count as usize) * self.cluster_size_bytes() - cur_ofs);
-				let buf = ::kernel::lib::split_off_front_mut(&mut dst, len).unwrap();
-				if let Some(run_lcn) = cur_run.lcn {
-					let lcn = run_lcn + rel_vcn;
-					let block = lcn * self.cluster_size_blocks as u64 + (cur_ofs / self.vol.block_size()) as u64;
-					let block_ofs = cur_ofs % self.vol.block_size();
-					if block_ofs != 0 || buf.len() % self.vol.block_size() != 0 {
-						// TODO: Split this up? Or trust `read_inner` to do that for us?
-						self.vol.read_inner(block, block_ofs, buf).await?;
+
+				match cur_run
+				{
+				CompressionRun::Sparse(run_cluster_count) => {
+					// VCN within the run
+					let rel_vcn = cur_vcn - runbase_vcn;
+					// Number of clusters available in the run
+					let cluster_count = run_cluster_count - rel_vcn;
+					// Number of bytes we can read in this loop
+					let len = usize::min(dst.len(), (cluster_count as usize) * self.cluster_size_bytes() - cur_ofs);
+					let buf = ::kernel::lib::split_off_front_mut(&mut dst, len).unwrap();
+
+					buf.fill(0);
+
+					runbase_vcn += run_cluster_count;
+					cur_vcn += cluster_count;
+					cur_ofs = 0;
+					},
+				CompressionRun::Raw(crun_cluster_count, iter) => {
+					let mut iter = iter.peekable();
+					let mut irunbase_vcn = runbase_vcn;
+					while let Some(r) = iter.peek() {
+						if irunbase_vcn + r.cluster_count > cur_vcn {
+							break;
+						}
+						irunbase_vcn += r.cluster_count;
+						iter.next();
 					}
-					else {
-						self.vol.read_blocks(block, buf).await?;
+					while let Some(cur_run) = iter.next()
+					{
+						let run_lcn = cur_run.lcn.expect("CompressionRun::Raw with sparse run");
+
+						if dst.len() == 0 {
+							break;
+						}
+
+						// VCN within the run
+						let rel_vcn = cur_vcn - irunbase_vcn;
+						// Number of clusters available in the run
+						let cluster_count = cur_run.cluster_count - rel_vcn;
+						// Number of bytes we can read in this loop
+						let len = usize::min(dst.len(), (cluster_count as usize) * self.cluster_size_bytes() - cur_ofs);
+						let buf = ::kernel::lib::split_off_front_mut(&mut dst, len).unwrap();
+
+						let lcn = run_lcn + rel_vcn;
+						let block = lcn * self.cluster_size_blocks as u64 + (cur_ofs / self.vol.block_size()) as u64;
+						let block_ofs = cur_ofs % self.vol.block_size();
+						if block_ofs != 0 || buf.len() % self.vol.block_size() != 0 {
+							self.vol.read_inner(block, block_ofs, buf).await?;
+						}
+						else {
+							self.vol.read_blocks(block, buf).await?;
+						}
+
+						irunbase_vcn += cur_run.cluster_count;
+						cur_vcn += cluster_count;
+						cur_ofs = 0;
 					}
+					runbase_vcn += crun_cluster_count;
+					},
+				CompressionRun::Compressed(count, _iter) => {
+					todo!("Handle compressed run count={}", count);
+					// Iterate compressed blocks, and decompress into the target buffer (or a bounce buffer - if incomplete)
+					},
 				}
-				else {
-					todo!("Handle sparse run count={}", cur_run.cluster_count);
-				}
-				runbase_vcn += cur_run.cluster_count;
-				cur_vcn += cur_run.cluster_count;
-				cur_ofs = 0;
 			}
 
 			Ok(rv)
@@ -363,5 +403,132 @@ fn new_mft_cache_ent(mft_size: usize) -> Option< ::kernel::lib::mem::Arc<MftCach
 		_ => return None,
 		};
 	Some(rv)
+}
+
+struct CompressionRuns<'a> {
+	num_clusters_per_block: u64,
+	// Most recent item popped from `end`
+	cur: Option<(u64, crate::ondisk::DataRun)>,
+	// Iterator to `cur`
+	start: crate::ondisk::DataRunsIt<'a>,
+	// Iterator after `cur`
+	end: crate::ondisk::DataRunsIt<'a>,
+}
+impl<'a> CompressionRuns<'a> {
+	pub fn new(mut inner: crate::ondisk::DataRunsIt<'a>, num_clusters_per_block: u64) -> Self {
+		Self {
+			num_clusters_per_block,
+			start: inner.clone(),
+			cur: inner.next().map(|v| (0, v)),
+			end: inner,
+		}
+	}
+}
+impl<'a> Iterator for CompressionRuns<'a> {
+	type Item = CompressionRun<'a>;
+	fn next(&mut self) -> Option<CompressionRun<'a>> {
+		let Some( (ref mut ofs, ref dr) ) = self.cur else { return None; };
+		let blocks_avail = dr.cluster_count - *ofs;
+		Some(match dr.lcn
+		{
+		None => {
+			// A sparse block in `cur` just means a sparse run - doesn't indicate compression
+			self.start = self.end.clone();
+			self.cur = self.end.next().map(|v| (0, v));
+			CompressionRun::Sparse(blocks_avail)
+			},
+		Some(_lcn) if blocks_avail >= self.num_clusters_per_block => {
+			// There is a whole block left in this run
+			let block_count = blocks_avail / self.num_clusters_per_block * self.num_clusters_per_block;
+			let dri = CompressionDataRuns {
+				stream: self.start.clone(),
+				ofs: Some({ let v = *ofs; *ofs += block_count; v }),
+				run_count: 0,
+				};
+			if *ofs == dr.cluster_count {
+				self.start = self.end.clone();
+				self.cur = self.end.next().map(|v| (0, v));
+			}
+			CompressionRun::Raw(block_count, dri)
+			}
+		Some(_lcn) => {
+			let mut dri = CompressionDataRuns {
+				stream: self.start.clone(),
+				ofs: Some(*ofs),
+				run_count: 0
+				};
+			let mut blocks_avail = blocks_avail;
+			loop {
+				let new_start = self.end.clone();
+				// Partial block - get the next one from the `end`
+				match self.end.next()
+				{
+				None => {
+					// Partial block at the end - raw data
+					self.cur = None;
+					break CompressionRun::Raw(blocks_avail, dri);
+					},
+				Some(new_run) if new_run.lcn.is_none() => {
+					// Populated followed by a sparse, must be compressed
+					// - Note: Clamp is a defensive check, as this doesn't actually check for this sparse being enough to round out the block
+					let new_ofs = (self.num_clusters_per_block - blocks_avail).clamp(0, new_run.cluster_count);
+					self.cur = Some((new_ofs, new_run));
+					self.start = new_start;
+					break CompressionRun::Compressed(self.num_clusters_per_block, dri);
+					},
+				Some(new_run) if new_run.cluster_count + blocks_avail >= self.num_clusters_per_block => {
+					// Disjoint populated span
+					self.cur = Some((self.num_clusters_per_block - blocks_avail, new_run));
+					self.start = new_start;
+					break CompressionRun::Raw(self.num_clusters_per_block, dri);
+					},
+				Some(new_run) => {
+					// Not yet enough data to know if compression is present, keep track of how many populated clusters are present
+					blocks_avail += new_run.cluster_count;
+					dri.run_count += 1;
+					},
+				}
+			}
+			},
+		})
+	}
+}
+enum CompressionRun<'a> {
+	Sparse(u64),
+	Raw(u64, CompressionDataRuns<'a>),
+	// Note: The cluster count here is the UNCOMPRESSED count
+	Compressed(u64, CompressionDataRuns<'a>),
+}
+impl<'a> CompressionRun<'a> {
+	fn cluster_count(&self) -> u64 {
+		match *self {
+		CompressionRun::Sparse(c) => c,
+		CompressionRun::Raw(c, _) => c,
+		CompressionRun::Compressed(c, _) => c,
+		}
+	}
+}
+struct CompressionDataRuns<'a> {
+	stream: crate::ondisk::DataRunsIt<'a>,
+	ofs: Option<u64>,
+	run_count: usize,
+}
+impl<'a> Iterator for CompressionDataRuns<'a> {
+	type Item = crate::ondisk::DataRun;
+	fn next(&mut self) -> Option<Self::Item> {
+		if let Some(ofs) = self.ofs.take() {
+			let mut n = self.stream.next().unwrap();
+			n.cluster_count -= ofs;
+			*n.lcn.as_mut().unwrap() -= ofs;
+			Some(n)
+		}
+		else if self.run_count == 0 {
+			None
+		}
+		else {
+			self.run_count -= 1;
+			self.stream.next()
+		}
+	}
 }
 

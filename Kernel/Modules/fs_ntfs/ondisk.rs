@@ -316,72 +316,73 @@ impl MftAttrHeader_NonResident {
 		Some(rv)
 	}
 	/// Iterator over the data on-disk
-	pub fn data_runs(&self) -> impl Iterator<Item=DataRun> + '_ {
-		struct It<'a>(&'a [u8], u64);
-		impl<'a> Iterator for It<'a> {
-			type Item = DataRun;
-			fn next(&mut self) -> Option<Self::Item> {
-				if self.0.len() == 0 {
-					None
-				}
-				else {
-					let lens = self.0[0];
-					let size_len = (lens & 0xF) as usize;
-					let size_ofs = (lens >> 4) as usize;
-					// If the size of the runlength is zero, assume end of the list
-					if size_len == 0 {
-						self.0 = &[];
-						return None;
-					}
-					let rundesc_len = 1 + size_len + size_ofs;
-					// BUGCHECK: There must be enough data
-					if self.0.len() < rundesc_len {
-						self.0 = &[];
-						return None;
-					}
-					let len = &self.0[1..][..size_len];
-					let ofs = &self.0[1+size_len..][..size_ofs];
-					// Sanity checks: Only support 64 bit offsets and 32 bit counts
-					if size_len > 8 {
-						self.0 = &[];
-						return None;
-					}
-					if size_ofs > 8 {
-						self.0 = &[];
-						return None;
-					}
-
-					fn parse_int(bytes: &[u8], sign_extend: bool) -> u64 {
-						let mut rv = 0;
-						for (i,b) in bytes.iter().enumerate() {
-							rv |= (*b as u64) << (i*8);
-						}
-						if sign_extend && bytes.len() < 8 && bytes.last().unwrap_or(&0) & 0x80 != 0 {
-							rv |= !0 << (bytes.len() * 8);
-						}
-						rv
-					}
-					let len = parse_int(len, false);
-					let lcn = if ofs.len() > 0 {
-							let ofs = parse_int(ofs, true);
-							let lcn = self.1.wrapping_add(ofs);	// Offset is signed, it's relative to the last entry
-							self.1 = lcn;
-							Some(lcn)
-						} else {
-							None
-						};
-					self.0 = &self.0[rundesc_len..];
-					Some(DataRun { 
-						lcn,
-						cluster_count: len,
-					})
-				}
-			}
-		}
+	pub fn data_runs(&self) -> DataRunsIt<'_> {
 		// `data_run_ofs` is relative to the start of the attribute, so offset by the size of the header
 		let ofs = self.data_run_ofs() as usize;
-		let Some(ofs) = ofs.checked_sub(4*4) else { return It(&[], 0); };
-		It(&self.0[ofs..], 0)
+		let Some(ofs) = ofs.checked_sub(4*4) else { return DataRunsIt(&[], 0); };
+		DataRunsIt(&self.0[ofs..], 0)
+	}
+}
+#[derive(Clone)]
+pub struct DataRunsIt<'a>(&'a [u8], u64);
+impl<'a> Iterator for DataRunsIt<'a> {
+	type Item = DataRun;
+	fn next(&mut self) -> Option<Self::Item> {
+		if self.0.len() == 0 {
+			None
+		}
+		else {
+			let lens = self.0[0];
+			let size_len = (lens & 0xF) as usize;
+			let size_ofs = (lens >> 4) as usize;
+			// If the size of the runlength is zero, assume end of the list
+			if size_len == 0 {
+				self.0 = &[];
+				return None;
+			}
+			let rundesc_len = 1 + size_len + size_ofs;
+			// BUGCHECK: There must be enough data
+			if self.0.len() < rundesc_len {
+				self.0 = &[];
+				return None;
+			}
+			let len = &self.0[1..][..size_len];
+			let ofs = &self.0[1+size_len..][..size_ofs];
+			// Sanity checks: Only support 64 bit offsets and 32 bit counts
+			if size_len > 8 {
+				self.0 = &[];
+				return None;
+			}
+			if size_ofs > 8 {
+				self.0 = &[];
+				return None;
+			}
+
+			fn parse_int(bytes: &[u8], sign_extend: bool) -> u64 {
+				let mut rv = 0;
+				for (i,b) in bytes.iter().enumerate() {
+					rv |= (*b as u64) << (i*8);
+				}
+				if sign_extend && bytes.len() < 8 && bytes.last().unwrap_or(&0) & 0x80 != 0 {
+					rv |= !0 << (bytes.len() * 8);
+				}
+				rv
+			}
+			let len = parse_int(len, false);
+			let lcn = if ofs.len() > 0 {
+					let ofs = parse_int(ofs, true);
+					let lcn = self.1.wrapping_add(ofs);	// Offset is signed, it's relative to the last entry
+					self.1 = lcn;
+					Some(lcn)
+				} else {
+					None
+				};
+			self.0 = &self.0[rundesc_len..];
+			Some(DataRun { 
+				lcn,
+				cluster_count: len,
+			})
+		}
 	}
 }
 pub struct DataRun {
