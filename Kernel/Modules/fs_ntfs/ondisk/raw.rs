@@ -172,8 +172,9 @@ pub struct MftAttrHeader_NonResident {
 	/// Total size of allocated clusters (in bytes)
 	/// aka, Size on Disk
 	allocated_size: u64,
+	/// User-facing byte count
 	real_size: u64,
-	/// One assumes, amount of actual data stored
+	/// Size of the data, after compression
 	initiated_size: u64,
 	// name: [u16],
 }

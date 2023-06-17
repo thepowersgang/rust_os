@@ -3,6 +3,7 @@ use ::kernel::lib::byte_str::ByteStr;
 
 pub struct Dir {
 	instance: super::instance::InstanceRef,
+	mft_idx: u64,
 	mft_ent: super::instance::CachedMft,
 	
 	i30_root: Option<super::ondisk::AttrHandle>,
@@ -10,11 +11,12 @@ pub struct Dir {
 }
 impl Dir
 {
-	pub fn new(instance: super::instance::InstanceRef, mft_ent: super::instance::CachedMft) -> Self {
+	pub fn new(instance: super::instance::InstanceRef, mft_idx: u64, mft_ent: super::instance::CachedMft) -> Self {
 		Dir {
 			i30_root: instance.get_attr_inner(&mft_ent, crate::ondisk::FileAttr::IndexRoot, "$I30", 0),
 			i30_allocation: instance.get_attr_inner(&mft_ent, crate::ondisk::FileAttr::IndexAllocation, "$I30", 0),
 			instance,
+			mft_idx,
 			mft_ent,
 		}
 	}
@@ -43,7 +45,7 @@ impl Dir
 impl ::vfs::node::NodeBase for Dir
 {
 	fn get_id(&self) -> u64 {
-		todo!("Dir::get_id")
+		self.mft_idx
 	}
 	fn get_any(&self) -> &(dyn ::core::any::Any + 'static) {
 		self
@@ -134,7 +136,6 @@ impl ::vfs::node::Dir for Dir
 					return Some(ent);
 				}
 				*pos -= 1;
-				// Note: `unwrap` is OK, as the length is non-zero
 				data = next;
 			}
 			None

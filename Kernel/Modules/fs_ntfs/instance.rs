@@ -1,4 +1,5 @@
-/*
+/**!
+ * Core parts of a mounted NTFS volume
  */
 use ::kernel::prelude::*;
 use ::kernel::metadevs::storage::VolumeHandle;
@@ -11,6 +12,7 @@ pub struct InstanceWrapper(aref::ArefInner<Instance>);
 /// 
 pub type InstanceRef = aref::ArefBorrow<Instance>;
 
+/// An instance (common information) for a mounted volume
 pub struct Instance
 {
 	vol: ::block_cache::CachedVolume,
@@ -26,6 +28,7 @@ pub struct Instance
 
 impl Instance
 {
+	/// Construct a new instance using a bootsector (`bs`) read from a volume (`vol`)
 	pub fn new(vol: VolumeHandle, bs: ondisk::Bootsector, mount_handle: ::vfs::mount::SelfHandle) -> ::vfs::Result<Box<InstanceWrapper>> {
 
 		let cluster_size_bytes = bs.bytes_per_sector as usize * bs.sectors_per_cluster as usize;
@@ -45,6 +48,7 @@ impl Instance
 			mft_cache: Default::default(),
 			};
 		log_debug!("cluster_size_blocks = {:#x}, mft_record_size = {:#x}", instance.cluster_size_blocks, instance.mft_record_size);
+		// Check that the driver can do a kinda-evil trick to cache MFT entries efficently
 		if let None = new_mft_cache_ent(instance.mft_record_size) {
 			log_error!("Unable to mount: MFT record size too large for internal hackery ({:#x})", instance.mft_record_size);
 			return Err(::vfs::Error::InconsistentFilesystem);
@@ -59,22 +63,33 @@ impl Instance
 	fn cluster_size_bytes(&self) -> usize {
 		self.cluster_size_blocks * self.vol.block_size()
 	}
-	pub fn block_size(&self) -> usize {
-		self.vol.block_size()
-	}
 
+	/// Apply `update_sequence` fixups to a loaded metadata block
+	///
+	/// All metadata blocks (e.g. MFT entries, or index blocks) have an "update sequence" that catches sectors (volume
+	/// blocks) that didn't get written to disk correctly. Within the first sector there's a sequence number that's
+	/// incremented on every change to the block and a copy of the original/correct last two bytes of each sector.
+	///
+	/// This function takes that update sequence information, checks that the last word of each non-first sector matches
+	/// the expectation and then restores the original value.
+	///
+	/// `get_usa` is a function that gets an `UpdateSequence` from the passed first sector
 	pub fn apply_sequence_fixups(&self, buf: &mut [u8], get_usa: &dyn Fn(&[u8])->Option<&crate::ondisk::UpdateSequence>) -> Result<(),::vfs::Error> {
 		let block_size = self.vol.block_size();
 		if buf.len() > block_size
 		{
+			assert!(buf.len() % block_size == 0, "apply_sequence_fixups: Passed a buffer not a multiple of volume blocks long"); 
 			let (buf1, buf2) = buf.split_at_mut(block_size);
 			let usa = (get_usa)(buf1).ok_or(::vfs::Error::InconsistentFilesystem)?;
 			let exp_val = usa.sequence_number();
-			for (sector, last_word) in Iterator::zip( buf2.chunks_mut(block_size), usa.array() )
+			for (rel_sector_idx, (sector, last_word)) in Iterator::zip( buf2.chunks_mut(block_size), usa.array() ).enumerate()
 			{
 				let slot = &mut sector[ block_size - 2 ..];
 				let cur_val = u16::from_le_bytes([slot[0], slot[1]]);
 				if cur_val != exp_val {
+					log_error!("apply_sequence_fixups: Sequence number mismatch in sector +{}: 0x{:04x} != exp 0x{:04x}",
+						1+rel_sector_idx, cur_val, exp_val
+						);
 					return Err(::vfs::Error::InconsistentFilesystem);
 				}
 				slot.copy_from_slice(&last_word.to_le_bytes());
@@ -102,21 +117,22 @@ impl ::vfs::mount::Filesystem for InstanceWrapper
 		// Check the node type
 		if ent.inner.read().flags_isdir()
 		{
-			Some(::vfs::node::Node::Dir(Box::new(super::dir::Dir::new(self.0.borrow(), ent))))
+			Some(::vfs::node::Node::Dir(Box::new(super::dir::Dir::new(self.0.borrow(), inode_id, ent))))
 		}
 		else
 		{
 			// How are symlinks or directory junctions handled?
-			Some(::vfs::node::Node::File(Box::new(super::file::File::new(self.0.borrow(), ent))))
+			Some(::vfs::node::Node::File(Box::new(super::file::File::new(self.0.borrow(), inode_id, ent))))
 		}
 	}
 }
 
 /**
- * MFT entries and attributes
+ * MFT entries and attributes - the core of a NTFS driver
  */
 impl Instance
 {
+	/// Obtain a handle to an NTFS entry in the cache
 	pub async fn get_mft_entry(&self, entry: MftEntryIdx) -> ::vfs::Result<CachedMft> {
 		// Look up in a cache, and return `Arc<RwLock`
 		{
@@ -134,34 +150,26 @@ impl Instance
 			Ok(rv)
 		}
 	}
-	/*
-	pub async fn with_mft_entry<R>(&self, entry: MftEntryIdx, cb: impl FnOnce(&ondisk::MftEntry)->::vfs::Result<R>) -> ::vfs::Result<R> {
-		let mut cb = Some(cb);
-		let mut rv = None;
-		self.with_mft_entry_dyn(entry, &mut |e| Ok(rv = Some(cb.take().unwrap()(e)))).await?;
-		rv.take().unwrap()
-	}
-	async fn with_mft_entry_dyn(&self, entry: MftEntryIdx, cb: &mut dyn FnMut(&ondisk::MftEntry)->::vfs::Result<()>) -> ::vfs::Result<()> {
-		let e = self.get_mft_entry(entry).await?;
-		let rv = cb(&e.inner.read());
-		rv
-	}
-	*/
 
-	/// Load a MFT entry from the disk (wrapper that avoids recursion with `attr_read`)
+	/// Load a MFT entry from the disk (this is a wrapper that avoids recursion with `attr_read` by boxing an erasing the future)
 	fn load_mft_entry_dyn(&self, entry_idx: MftEntryIdx) -> ::core::pin::Pin<Box< dyn ::core::future::Future<Output=::vfs::Result<CachedMft>> + '_ >> {
 		Box::pin(self.load_mft_entry(entry_idx))
 	}
 	/// Load a MFT entry from the disk
 	async fn load_mft_entry(&self, entry_idx: MftEntryIdx) -> ::vfs::Result<CachedMft> {
 		let entry_idx = entry_idx.0;
-		// TODO: Check the index range
+		// TODO: Check that `entry_idx` is within the valid range for the MFT
 
 		let mut rv_bytes = new_mft_cache_ent(self.mft_record_size).expect("Unexpected record size");
 		let buf = ::kernel::lib::mem::Arc::get_mut(&mut rv_bytes).unwrap().inner.get_mut();
 		if let Some((ref mft_ent, ref e)) = self.mft_data_attr {
 			// Read from the attribute
-			self.attr_read(mft_ent, e, entry_idx as u64 * self.mft_record_size as u64, buf).await?;
+			let l = self.attr_read(mft_ent, e, entry_idx as u64 * self.mft_record_size as u64, buf).await?;
+			if l == 0 {
+				// Zero read length means that the read was past the end?
+				return Err(::vfs::Error::NotFound);
+			}
+			assert!(l == buf.len(), "Partial read of MFT entry? ({} != {})", l, buf.len());
 		}
 		else {
 			if self.mft_record_size > self.vol.block_size() {
@@ -210,6 +218,18 @@ impl Instance
 		None
 	}
 
+	/// Query the current size of the attribute's data
+	pub fn attr_size(&self, mft_ent: &CachedMft, attr: &ondisk::AttrHandle) -> u64 {
+		let mft_ent = mft_ent.inner.read();
+		let Ok(a) = mft_ent.get_attr(attr).ok_or(::vfs::Error::Unknown("Stale ntfs AttrHandle")) else { return 0; };
+		match a.inner()
+		{
+		ondisk::MftAttribData::Resident(r) => r.data().len() as u64,
+		ondisk::MftAttribData::Nonresident(r) => r.real_size(),
+		}
+	}
+
+	/// Read data out of an attribute (resident or non-resident)
 	pub async fn attr_read(&self, mft_ent: &CachedMft, attr: &ondisk::AttrHandle, ofs: u64, mut dst: &mut [u8]) -> ::vfs::Result<usize> {
 		if dst.len() == 0 {
 			return Ok(0);
@@ -238,11 +258,11 @@ impl Instance
 			}
 
 			// Check the valid size
-			if ofs > r.initiated_size() {
+			if ofs > r.real_size() {
 				return Err(::vfs::Error::InvalidParameter)
 			}
 			// Clamp the data size
-			let space = r.initiated_size() - ofs;
+			let space = r.real_size() - ofs;
 			if space < dst.len() as u64 {
 				dst = &mut dst[..space as usize];
 			}
@@ -309,13 +329,13 @@ impl Instance
 pub type CachedMft = ::kernel::lib::mem::Arc< MftCacheEnt<ondisk::MftEntry> >;
 
 pub struct MftCacheEnt<T: ?Sized> {
-	count: ::core::sync::atomic::AtomicUsize,
+	//count: ::core::sync::atomic::AtomicUsize,
 	inner: ::kernel::sync::RwLock<T>,
 }
 impl<T> MftCacheEnt<T> {
 	pub fn new(inner: T) -> Self {
 		Self {
-			count: Default::default(),
+			//count: Default::default(),
 			inner: ::kernel::sync::RwLock::new(inner),
 		}
 	}

@@ -4,6 +4,7 @@
 
 pub struct File {
 	instance: super::instance::InstanceRef,
+	mft_idx: u64,
 	mft_ent: super::instance::CachedMft,
 
 	attr_data: Option<super::ondisk::AttrHandle>,
@@ -11,10 +12,11 @@ pub struct File {
 
 impl File
 {
-	pub fn new(instance: super::instance::InstanceRef, mft_ent: super::instance::CachedMft) -> Self {
+	pub fn new(instance: super::instance::InstanceRef, mft_idx: u64, mft_ent: super::instance::CachedMft) -> Self {
 		File {
-			attr_data: instance.get_attr_inner(&mft_ent, crate::ondisk::FileAttr::Data, "", 0),
+			attr_data: instance.get_attr_inner(&mft_ent, crate::ondisk::FileAttr::Data, crate::ondisk::ATTRNAME_DATA, 0),
 			instance,
+			mft_idx,
 			mft_ent,
 		}
 	}
@@ -23,7 +25,7 @@ impl File
 impl ::vfs::node::NodeBase for File
 {
 	fn get_id(&self) -> u64 {
-		todo!("File::get_id")
+		self.mft_idx
 	}
 	fn get_any(&self) -> &(dyn ::core::any::Any + 'static) {
 		self
@@ -32,7 +34,10 @@ impl ::vfs::node::NodeBase for File
 impl ::vfs::node::File for File
 {
 	fn size(&self) -> u64 {
-		todo!("File::size")
+		let Some(ref attr_data) = self.attr_data else {
+			return 0;
+			};
+		self.instance.attr_size(&self.mft_ent, attr_data)
 	}
 	fn truncate(&self, _new_size: u64) -> Result<u64, ::vfs::Error> {
 		Err(::vfs::Error::ReadOnlyFilesystem)

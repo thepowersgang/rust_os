@@ -291,9 +291,9 @@ delegate!{ MftAttrHeader_NonResident =>
 	pub compression_unit_size: u16,
 	/// Data size, rounded up to clusters
 	pub allocated_size: u64,
-	/// Size of the data (bytes)
+	/// Size of the user-facing data (bytes)
 	pub real_size: u64,
-	/// Size of data on-disk? (is this something other than the allocated size?)
+	/// Size of data on-disk (taking into account compression)
 	pub initiated_size: u64,
 }
 impl MftAttrHeader_NonResident {
