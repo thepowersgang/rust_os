@@ -372,18 +372,18 @@ pub const DIRENT_MIN_SIZE: usize = 8;
 
 impl DirEnt
 {
-	pub fn new_raw(buf: &[u32], name_len: usize) -> *const DirEnt
+	pub fn new_raw(buf: *mut [u32], name_len: usize) -> *mut DirEnt
 	{
 		// SAFE: Returns a raw pointer, alignment is valid though
 		unsafe {
-			::core::slice::from_raw_parts(buf.as_ptr() as *const u8, name_len) as *const [u8] as *const DirEnt
+			::core::slice::from_raw_parts_mut(buf as *mut u8, name_len) as *mut [u8] as *mut DirEnt
 		}
 	}
 	pub fn new(buf: &[u32]) -> Option<&DirEnt>
 	{
 		assert!(buf.len() >= 8/4);
 		// SAFE: 0 name length is valid
-		let rv0: &DirEnt = unsafe { &*Self::new_raw(buf, 0) };
+		let rv0: &DirEnt = unsafe { &*Self::new_raw(buf as *const _ as *mut _, 0) };
 
 		let rec_len = rv0.d_rec_len as usize;
 		let name_len = rv0.d_name_len as usize;
@@ -398,7 +398,7 @@ impl DirEnt
 		}
 		else {
 			// SAFE: Name length has just been checked
-			let rv_n = unsafe { &*Self::new_raw(buf, name_len) };
+			let rv_n = unsafe { &*Self::new_raw(buf as *const _ as *mut _, name_len) };
 			Some(rv_n)
 		}
 	}
@@ -408,7 +408,7 @@ impl DirEnt
 		match Self::new(buf)
 		{
 		// SAFE: &mut in, &mut out
-		Some(v) => Some( unsafe { &mut *(v as *const _ as *mut _) } ),
+		Some(v) => Some(unsafe { let name_len = v.d_name.len(); &mut *Self::new_raw(buf, name_len) }),
 		None => None,
 		}
 	}
