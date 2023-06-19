@@ -353,9 +353,45 @@ impl Instance
 					}
 					runbase_vcn += crun_cluster_count;
 					},
-				CompressionRun::Compressed(count, _iter) => {
-					todo!("Handle compressed run count={}", count);
+				CompressionRun::Compressed(_/*uncompresed*/, compressed_count, iter) => {
 					// Iterate compressed blocks, and decompress into the target buffer (or a bounce buffer - if incomplete)
+					// - Load the entire compression unit? (Or, stream in pairs of 8K chunks)
+					let mut buf = vec![ 0u8; compressed_count as usize * self.cluster_size_blocks ];
+					{
+						let mut dst = &mut buf[..];
+						for cur_run in iter
+						{
+							let len = usize::min( dst.len(), cur_run.cluster_count as usize * self.cluster_size_bytes() );
+							let buf = ::kernel::lib::split_off_front_mut(&mut dst, len).unwrap();
+							let lcn = cur_run.lcn.expect("CompressionRun::Compressed with a sparse run");
+							let block = lcn * self.cluster_size_blocks as u64;
+							self.vol.read_blocks(block, buf).await?;
+						}
+					}
+					// - Iterate through compressed blocks (4K) skipping until target data
+					let mut decomp = crate::compression::Decompressor::new(&buf);
+					let rel_vcn = cur_vcn - runbase_vcn;
+					let byte_ofs = rel_vcn as usize * self.cluster_size_bytes() + cur_ofs;
+
+					let mut ofs = 0;
+					while ofs+4096 < byte_ofs
+					{
+						let len = decomp.get_block(None).ok_or(::vfs::Error::InconsistentFilesystem)?;
+						assert!(len == 4096);
+						ofs += len;
+					}
+
+					if byte_ofs % 4096 != 0 {
+						todo!("Partial read from compressed block");
+					}
+
+					while let Some(len) = decomp.get_block(Some(dst))
+					{
+						let len = usize::max(len, dst.len());
+						::kernel::lib::split_off_front_mut(&mut dst, len).unwrap();
+					}
+
+					todo!("");
 					},
 				}
 			}
@@ -474,7 +510,7 @@ impl<'a> Iterator for CompressionRuns<'a> {
 					let new_ofs = (self.num_clusters_per_block - blocks_avail).clamp(0, new_run.cluster_count);
 					self.cur = Some((new_ofs, new_run));
 					self.start = new_start;
-					break CompressionRun::Compressed(self.num_clusters_per_block, dri);
+					break CompressionRun::Compressed(self.num_clusters_per_block, blocks_avail, dri);
 					},
 				Some(new_run) if new_run.cluster_count + blocks_avail >= self.num_clusters_per_block => {
 					// Disjoint populated span
@@ -497,14 +533,14 @@ enum CompressionRun<'a> {
 	Sparse(u64),
 	Raw(u64, CompressionDataRuns<'a>),
 	// Note: The cluster count here is the UNCOMPRESSED count
-	Compressed(u64, CompressionDataRuns<'a>),
+	Compressed(u64, u64, CompressionDataRuns<'a>),
 }
 impl<'a> CompressionRun<'a> {
 	fn cluster_count(&self) -> u64 {
 		match *self {
 		CompressionRun::Sparse(c) => c,
 		CompressionRun::Raw(c, _) => c,
-		CompressionRun::Compressed(c, _) => c,
+		CompressionRun::Compressed(c, _, _) => c,
 		}
 	}
 }

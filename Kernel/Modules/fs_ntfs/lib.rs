@@ -21,6 +21,7 @@ mod helpers;
 mod ondisk;
 mod dir;
 mod file;
+mod compression;
 use helpers::MftEntryIdx;
 
 fn init() {
