@@ -226,8 +226,20 @@ pub fn register_pv(dev: Box<dyn PhysicalVolume>) -> PhysicalVolumeReg
 	}
 	else {
 	}
+
 	// Apply the fallback (full volume) mapper - always present
-	apply_mapper_to_pv(&default_mapper::S_MAPPER, 0, pv_id, S_PHYSICAL_VOLUMES.lock().get_mut(&pv_id).unwrap());
+	{
+		let mapper = &default_mapper::S_MAPPER;
+		let mut lh = S_PHYSICAL_VOLUMES.lock();
+		let pvi = lh.get_mut(&pv_id).unwrap();
+		match mapper.enum_volumes(&*pvi.dev, &mut |name, base, len| {
+			new_simple_lv(name, pv_id, pvi.dev.blocksize(), base, len);
+			})
+		{
+		Err(e) => log_error!("IO Error while enumerating {}: {:?}", pvi.dev.name(), e),
+		Ok(_) => {},
+		}
+	}
 	
 	PhysicalVolumeReg { idx: pv_id }
 }
