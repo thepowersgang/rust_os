@@ -84,6 +84,26 @@ pub enum FileAttr {
 	IndexAllocation = 0xA0,
 	Bitmap = 0xB0,
 }
+impl FileAttr {
+	pub fn fmt_val(v: u32) -> impl ::core::fmt::Display {
+		struct F(u32);
+		impl ::core::fmt::Display for F {
+			fn fmt(&self, f: &mut ::core::fmt::Formatter) -> ::core::fmt::Result {
+				match self.0
+				{
+				0x10 => f.write_str("StandardInformation"),
+				0x30 => f.write_str("FileName"),
+				0x80 => f.write_str("Data"),
+				0x90 => f.write_str("IndexRoot"),
+				0xA0 => f.write_str("IndexAllocation"),
+				0xB0 => f.write_str("Bitmap"),
+				_ => write!(f, "0x{:02x}", self.0),
+				}
+			}
+		}
+		F(v)
+	}
+}
 
 // TODO: Use the update sequence to fix loaded items (contains the actual values of each sector's last two bytes)
 pub struct UpdateSequence([u8]);

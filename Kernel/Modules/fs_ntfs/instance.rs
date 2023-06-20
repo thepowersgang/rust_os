@@ -76,24 +76,37 @@ impl Instance
 	/// `get_usa` is a function that gets an `UpdateSequence` from the passed first sector
 	pub fn apply_sequence_fixups(&self, buf: &mut [u8], get_usa: &dyn Fn(&[u8])->Option<&crate::ondisk::UpdateSequence>) -> Result<(),::vfs::Error> {
 		let block_size = self.vol.block_size();
-		if buf.len() > block_size
+		if buf.len() >= block_size
 		{
 			assert!(buf.len() % block_size == 0, "apply_sequence_fixups: Passed a buffer not a multiple of volume blocks long"); 
 			let (buf1, buf2) = buf.split_at_mut(block_size);
 			let usa = (get_usa)(buf1).ok_or(::vfs::Error::InconsistentFilesystem)?;
 			let exp_val = usa.sequence_number();
-			for (rel_sector_idx, (sector, last_word)) in Iterator::zip( buf2.chunks_mut(block_size), usa.array() ).enumerate()
-			{
+			let mut usa_it = usa.array();
+			let s0_last_word = usa_it.next().ok_or(::vfs::Error::InconsistentFilesystem)?;
+			//log_debug!("apply_sequence_fixups: {} sectors, seq={}", 1+buf2.len()/block_size, exp_val);
+
+			fn apply_fixup(sector_idx: usize, sector: &mut [u8], last_word: u16, exp_val: u16) -> Result<(),::vfs::Error> {
+				let block_size = sector.len();
 				let slot = &mut sector[ block_size - 2 ..];
 				let cur_val = u16::from_le_bytes([slot[0], slot[1]]);
+				//log_debug!("apply_sequence_fixups: +{}: 0x{:04x} -> 0x{:04x}", 1+sector_idx, cur_val, last_word);
 				if cur_val != exp_val {
 					log_error!("apply_sequence_fixups: Sequence number mismatch in sector +{}: 0x{:04x} != exp 0x{:04x}",
-						1+rel_sector_idx, cur_val, exp_val
+						1+sector_idx, cur_val, exp_val
 						);
 					return Err(::vfs::Error::InconsistentFilesystem);
 				}
 				slot.copy_from_slice(&last_word.to_le_bytes());
+				Ok( () )
 			}
+
+			for (rel_sector_idx, (sector, last_word)) in Iterator::zip( buf2.chunks_mut(block_size), usa_it ).enumerate()
+			{
+				apply_fixup(1+rel_sector_idx, sector, last_word, exp_val)?;
+			}
+
+			apply_fixup(0, &mut buf[..block_size], s0_last_word, exp_val)?;
 		}
 		else
 		{
@@ -142,6 +155,15 @@ impl Instance
 			}
 		}
 		let rv = self.load_mft_entry_dyn(entry).await?;
+		
+		{
+			log_debug!("MFT Entry #{}", entry.0);
+			let m = rv.inner.read();
+			for attr in m.iter_attributes() {
+				log_debug!("Attribute: ty={} name={:?}", crate::ondisk::FileAttr::fmt_val(attr.ty()), attr.name());
+				//log_debug!("{}", attr.name() as *const _ as *const u8 as usize - &*m as *const _ as *const () as usize);
+			}
+		}
 		{
 			let mut lh = self.mft_cache.write();
 			let rv = lh.entry(entry.0).or_insert(rv).clone();
@@ -186,7 +208,9 @@ impl Instance
 		}
 
 		// Apply sequence number fixups
+		//log_debug!("{:?}", ::kernel::logging::HexDump(&*buf));
 		self.apply_sequence_fixups(buf, &|buf1| ondisk::MftEntry::new_borrowed(buf1).map(|ent| ent.update_sequence()))?;
+		//log_debug!("{:?}", ::kernel::logging::HexDump(&*buf));
 
 		// SAFE: `MftEntry` and `[u8]` have the same representation
 		Ok(unsafe { ::core::mem::transmute(rv_bytes) })
@@ -207,7 +231,6 @@ impl Instance
 		// Iterate attributes
 		let mut count = 0;
 		for attr in mft_ent.iter_attributes() {
-			log_debug!("get_attr: ty={:#x} name={:?}", attr.ty(), attr.name());
 			if attr.ty() == attr_id as u32 && attr.name() == name {
 				if count == index {
 					return Some(mft_ent.attr_handle(attr));
