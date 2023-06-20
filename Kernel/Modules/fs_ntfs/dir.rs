@@ -85,7 +85,7 @@ impl ::vfs::node::Dir for Dir
 		
 		let cmp = |attr_data: &[u8]| {
 			let Some(a) = crate::ondisk::Attrib_Filename::from_slice(attr_data) else { return ::core::cmp::Ordering::Less };
-			Iterator::cmp( a.filename().wtf8(), name.as_bytes().iter().copied() )
+			self.instance.compare_ucs2_nocase_iter(&mut a.filename().iter_units(), &mut ::utf16::wtf8_to_utf16(name.as_bytes()))
 			};
 		let mut vcn = match btree_search(i30_root.index_header(), cmp)
 			{
@@ -143,12 +143,19 @@ impl ::vfs::node::Dir for Dir
 
 		// TODO: Have `ofs` be a byte offset (or something that doesn't require linear iteration on each run)
 		let mut pos = ofs;
-		if let Some(v) = iterate_index(i30_root.index_header(), &mut pos) {
-			let a = crate::ondisk::Attrib_Filename::from_slice(v.data()).ok_or(::vfs::Error::InconsistentFilesystem)?;
-			todo!("Dir::read: Found {:?}", a.filename());
+		let mut rv = ofs;
+		{
+			while let Some(v) = iterate_index(i30_root.index_header(), &mut pos) {
+				let a = crate::ondisk::Attrib_Filename::from_slice(v.data()).ok_or(::vfs::Error::InconsistentFilesystem)?;
+				log_debug!("Dir::read: Found (root) {:?}", a.filename());
+				rv += 1;
+				pos = rv;
+				if ! cb(v.mft_reference_num(), &mut a.filename().wtf8()) {
+					return Ok(rv);
+				}
+			}
 		}
 
-		let mut rv = ofs;
 		// If this flag is set, the index doesn't fit in the root
 		if i30_root.index_header().flags() & 0x1 != 0
 		{

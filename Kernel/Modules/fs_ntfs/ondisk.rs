@@ -70,6 +70,7 @@ impl_fmt! {
 
 pub const MFT_ENTRY_SELF: MftEntryIdx = MftEntryIdx(0);
 pub const MFT_ENTRY_ROOT: MftEntryIdx = MftEntryIdx(5);
+pub const MFT_ENTRY_UPCASE: MftEntryIdx = MftEntryIdx(10);
 
 pub const ATTRNAME_DATA: &'static str = "";
 pub const ATTRNAME_INDEXNAME: &'static str = "$I30";	// Index over attribute 0x30 (filename)

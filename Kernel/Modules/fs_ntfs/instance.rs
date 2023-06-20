@@ -20,6 +20,7 @@ pub struct Instance
 	cluster_size_blocks: usize,
 	mft_record_size: usize,
 	mft_data_attr: Option<(CachedMft,ondisk::AttrHandle)>,
+	upcase_table: Vec<u16>,
 	bs: ondisk::Bootsector,
 
 	// A cache of loaded (open and just in-cache) MFT entries
@@ -45,6 +46,7 @@ impl Instance
 			cluster_size_blocks,
 			mft_record_size: bs.mft_record_size.get().to_bytes(cluster_size_bytes),
 			bs,
+			upcase_table: Vec::new(),
 			mft_cache: Default::default(),
 			};
 		log_debug!("cluster_size_blocks = {:#x}, mft_record_size = {:#x}", instance.cluster_size_blocks, instance.mft_record_size);
@@ -55,6 +57,18 @@ impl Instance
 		}
 		// Locate the (optional) MFT entry for the MFT
 		instance.mft_data_attr = ::kernel::futures::block_on(instance.get_attr(ondisk::MFT_ENTRY_SELF, ondisk::FileAttr::Data, ondisk::ATTRNAME_DATA, /*index*/0))?;
+
+		if let Some( (upcase_ent,upcase_data) ) = ::kernel::futures::block_on(instance.get_attr(ondisk::MFT_ENTRY_UPCASE, ondisk::FileAttr::Data, ondisk::ATTRNAME_DATA, 0))?
+		{
+			instance.upcase_table = {
+				let mut upcase_table = vec![0u16; 0x10000];
+				let len = ::kernel::futures::block_on(instance.attr_read(&upcase_ent, &upcase_data, 0, ::kernel::lib::as_byte_slice_mut(&mut upcase_table[..])));
+				for e in upcase_table.iter_mut() {
+					*e = e.to_le();
+				}
+				upcase_table
+				};
+		}
 
 		// SAFE: ArefInner::new requires a stable pointer, and the immediate boxing does that
 		Ok(unsafe { Box::new(InstanceWrapper(aref::ArefInner::new(instance))) })
@@ -114,6 +128,43 @@ impl Instance
 			(get_usa)(buf).ok_or(::vfs::Error::InconsistentFilesystem)?;
 		}
 		Ok( () )
+	}
+
+	pub fn compare_ucs2_nocase(&self, a: u16, b: u16) -> ::core::cmp::Ordering {
+		// Look up $UpCase
+		if self.upcase_table.len() == 0x1_0000 {
+			let a = self.upcase_table[a as usize];
+			let b = self.upcase_table[b as usize];
+			::core::cmp::Ord::cmp(&a, &b)
+		}
+		else {
+			fn to_upper(v: u16) -> u16 {
+				match v {
+				0x61 ..= 0x7A => v - 0x20,
+				_ => v,
+				}
+			}
+			let a = to_upper(a);
+			let b = to_upper(b);
+			::core::cmp::Ord::cmp(&a, &b)
+		}
+	}
+	pub fn compare_ucs2_nocase_iter(&self, a: &mut dyn Iterator<Item=u16>, b: &mut dyn Iterator<Item=u16>) -> ::core::cmp::Ordering {
+		// TODO: Case insensitive UCS-2 comparison! - use the `$UpCase` special file to obtain the sorting rule to use
+		use ::core::cmp::Ordering;
+		loop {
+			match (a.next(), b.next())
+			{
+			(None,None) => return Ordering::Equal,
+			(None,Some(_)) => return Ordering::Less,
+			(Some(_),None) => return Ordering::Greater,
+			(Some(a),Some(b)) => match self.compare_ucs2_nocase(a,b)
+				{
+				Ordering::Equal => {},
+				v => return v,
+				},
+			}
+		}
 	}
 }
 impl ::vfs::mount::Filesystem for InstanceWrapper
