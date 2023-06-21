@@ -4,6 +4,7 @@ pub struct Decompressor<'a>(&'a [u8]);
 impl<'a> Decompressor<'a>
 {
 	pub fn new(v: &'a [u8]) -> Self {
+		log_debug!("{:?}", ::kernel::logging::HexDump(v));
 		Decompressor(v)
 	}
 	/// Decompress a block out of the stream
@@ -21,12 +22,14 @@ impl<'a> Decompressor<'a>
 			return None;
 			};
 		if hdr & 0x8000 == 0 {
+			log_debug!("Uncompressed block {:#x}", compressed_len);
 			// Uncompresed data, hopefully the length is 0x1000
 			dst.copy_from_slice(&src[..dst.len()]);
 			Some(compressed_len)
 		}
 		else {
 			let mut ofs = 0;
+			log_debug!("Compressed block {:?}", ::kernel::logging::HexDump(src));
 			// Compressed data, a sequence of token-groups preceded by a bitmap indicating the token classes
 			let mut it = Tokens::new(src);
 			while let Some(t) = it.next().expect("Malformed compressed data?")
@@ -47,6 +50,7 @@ impl<'a> Decompressor<'a>
 						return None;
 					}
 					if ofs < dst.len() {
+						log_debug!("{} += {}..{} - {:?}", ofs, ofs-dist_back, ofs-dist_back+length, ::kernel::logging::HexDump(&dst[ofs-dist_back..usize::min(ofs-dist_back+length,ofs)]));
 						for _ in 0 .. length {
 							let v = dst[ofs - dist_back];
 							dst[ofs] = v;
@@ -108,7 +112,7 @@ impl<'a> Tokens<'a> {
 				};
 			let dist_back = (token >> dshift) as usize + 1;	// A zero distance is useless.
 			let length = (token & ((1 << dshift)-1)) as usize + 3;
-			log_debug!("{:#x} = +{}+{} (dshift={})", token, dist_back, length, dshift);
+			//log_debug!("{:#x} = +{}+{} (dshift={})", token, dist_back, length, dshift);
 
 			self.ofs += length;
 			Token::Lookback(dist_back, length)

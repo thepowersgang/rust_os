@@ -320,7 +320,7 @@ impl Instance
 			}
 			let src = &src[ofs as usize..];
 			let len = usize::min( src.len(), dst.len() );
-			dst.copy_from_slice(&src[..len]);
+			dst[..len].copy_from_slice(&src[..len]);
 			Ok(len)
 			},
 		ondisk::MftAttribData::Nonresident(r) => {
@@ -349,7 +349,9 @@ impl Instance
 			let mut cur_vcn = ofs / (self.cluster_size_bytes() as u64);
 			let mut cur_ofs = ofs as usize % self.cluster_size_bytes();
 
-			let mut runs = CompressionRuns::new(r.data_runs(), 1).peekable();
+			let compression_unit_size_clusters = 1 << r.compression_unit_size();
+
+			let mut runs = CompressionRuns::new(r.data_runs(), compression_unit_size_clusters).peekable();
 			// Seek to the run containing the first cluster
 			let mut runbase_vcn = 0;
 			while let Some(r) = runs.peek() {
@@ -371,6 +373,7 @@ impl Instance
 				match cur_run
 				{
 				CompressionRun::Sparse(run_cluster_count) => {
+					log_debug!("Sparse +{}", run_cluster_count);
 					// VCN within the run
 					let rel_vcn = cur_vcn - runbase_vcn;
 					// Number of clusters available in the run
@@ -386,6 +389,7 @@ impl Instance
 					cur_ofs = 0;
 					},
 				CompressionRun::Raw(crun_cluster_count, iter) => {
+					log_debug!("Raw +{}", crun_cluster_count);
 					let mut iter = iter.peekable();
 					let mut irunbase_vcn = runbase_vcn;
 					while let Some(r) = iter.peek() {
@@ -428,9 +432,10 @@ impl Instance
 					runbase_vcn += crun_cluster_count;
 					},
 				CompressionRun::Compressed(_/*uncompresed*/, compressed_count, iter) => {
+					log_debug!("Compressed +{}", compressed_count);
 					// Iterate compressed blocks, and decompress into the target buffer (or a bounce buffer - if incomplete)
 					// - Load the entire compression unit? (Or, stream in pairs of 8K chunks)
-					let mut buf = vec![ 0u8; compressed_count as usize * self.cluster_size_blocks ];
+					let mut buf = vec![ 0u8; compressed_count as usize * self.cluster_size_bytes() ];
 					{
 						let mut dst = &mut buf[..];
 						for cur_run in iter
@@ -447,15 +452,16 @@ impl Instance
 					let rel_vcn = cur_vcn - runbase_vcn;
 					let byte_ofs = rel_vcn as usize * self.cluster_size_bytes() + cur_ofs;
 
+					const BLOCK_SIZE: usize = 0x1000;
 					let mut ofs = 0;
-					while ofs+4096 < byte_ofs
+					while ofs+BLOCK_SIZE < byte_ofs
 					{
 						let len = decomp.get_block(None).ok_or(::vfs::Error::InconsistentFilesystem)?;
-						assert!(len == 4096);
+						assert!(len == BLOCK_SIZE);
 						ofs += len;
 					}
 
-					if byte_ofs % 4096 != 0 {
+					if byte_ofs % BLOCK_SIZE != 0 || dst.len() % BLOCK_SIZE != 0 {
 						todo!("Partial read from compressed block");
 					}
 
@@ -463,9 +469,10 @@ impl Instance
 					{
 						let len = usize::max(len, dst.len());
 						::kernel::lib::split_off_front_mut(&mut dst, len).unwrap();
+						if dst.len() == 0 {
+							break;
+						}
 					}
-
-					todo!("");
 					},
 				}
 			}
