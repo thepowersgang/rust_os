@@ -4,7 +4,7 @@ pub struct Decompressor<'a>(&'a [u8]);
 impl<'a> Decompressor<'a>
 {
 	pub fn new(v: &'a [u8]) -> Self {
-		log_debug!("{:?}", ::kernel::logging::HexDump(v));
+		//log_debug!("{:?}", ::kernel::logging::HexDump(v));
 		Decompressor(v)
 	}
 	/// Decompress a block out of the stream
@@ -24,12 +24,13 @@ impl<'a> Decompressor<'a>
 		if hdr & 0x8000 == 0 {
 			log_debug!("Uncompressed block {:#x}", compressed_len);
 			// Uncompresed data, hopefully the length is 0x1000
-			dst.copy_from_slice(&src[..dst.len()]);
+			let len = usize::min(src.len(), dst.len());
+			dst[..len].copy_from_slice(&src[..len]);
 			Some(compressed_len)
 		}
 		else {
 			let mut ofs = 0;
-			log_debug!("Compressed block {:?}", ::kernel::logging::HexDump(src));
+			log_debug!("{} Compressed block {:?}", self.0.len(), ::kernel::logging::HexDump(src));
 			// Compressed data, a sequence of token-groups preceded by a bitmap indicating the token classes
 			let mut it = Tokens::new(src);
 			while let Some(t) = it.next().expect("Malformed compressed data?")

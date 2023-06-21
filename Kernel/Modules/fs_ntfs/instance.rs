@@ -350,6 +350,7 @@ impl Instance
 			let mut cur_ofs = ofs as usize % self.cluster_size_bytes();
 
 			let compression_unit_size_clusters = 1 << r.compression_unit_size();
+			log_debug!("compression_unit_size_clusters = {} ({:#x} bytes)", compression_unit_size_clusters, compression_unit_size_clusters as usize * self.cluster_size_bytes());
 
 			let mut runs = CompressionRuns::new(r.data_runs(), compression_unit_size_clusters).peekable();
 			// Seek to the run containing the first cluster
@@ -467,7 +468,7 @@ impl Instance
 
 					while let Some(len) = decomp.get_block(Some(dst))
 					{
-						let len = usize::max(len, dst.len());
+						let len = usize::min(len, dst.len());
 						::kernel::lib::split_off_front_mut(&mut dst, len).unwrap();
 						if dst.len() == 0 {
 							break;
