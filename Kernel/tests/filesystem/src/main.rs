@@ -38,6 +38,7 @@ fn main()
             {
             None => break,
             Some("") => break,  // Blank means a space? (or a leading space)
+            Some(v) if v.starts_with("#") => continue,
             Some(v) => v,
             };
         match cmd
@@ -221,7 +222,7 @@ fn main()
                 Ok(h) => h,
                 Err(e) => panic!("`hexdump`: Cannot open remote file {:?}: {:?}", remote, e),
                 };
-			let mut buf = vec![0; 0x1000];
+			let mut buf = vec![0; 0x2_0000];
 			let mut ofs = 0;
 
 			fn dump_row(ofs: u64, row: &[u8]) {
@@ -239,7 +240,7 @@ fn main()
 					}
 					print!("{}", match b
 						{
-						0x20..=0x7F => b as char,
+						0x20..=0x7E => b as char,
 						_ => '.',
 						});
 				}
