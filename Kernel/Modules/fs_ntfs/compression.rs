@@ -22,7 +22,7 @@ impl<'a> Decompressor<'a>
 			return None;
 			};
 		if hdr & 0x8000 == 0 {
-			log_debug!("Uncompressed block {:#x}", compressed_len);
+			//log_debug!("Uncompressed block {:#x}", compressed_len);
 			// Uncompresed data, hopefully the length is 0x1000
 			let len = usize::min(src.len(), dst.len());
 			dst[..len].copy_from_slice(&src[..len]);
@@ -30,7 +30,7 @@ impl<'a> Decompressor<'a>
 		}
 		else {
 			let mut ofs = 0;
-			log_debug!("{} Compressed block {:?}", self.0.len(), ::kernel::logging::HexDump(src));
+			//log_debug!("{} Compressed block {:?}", self.0.len(), ::kernel::logging::HexDump(src));
 			// Compressed data, a sequence of token-groups preceded by a bitmap indicating the token classes
 			let mut it = Tokens::new(src);
 			while let Some(t) = it.next().expect("Malformed compressed data?")
@@ -44,17 +44,19 @@ impl<'a> Decompressor<'a>
 					ofs += 1;
 					},
 				Token::Lookback(dist_back, length) => {
-					log_debug!("Token::Lookback(-{}+{})", dist_back, length);
+					//log_debug!("Token::Lookback(-{}+{})", dist_back, length);
 					if dist_back > ofs || ofs + length > 4096 {
 						log_error!("Decompressor::get_block: MALFORMED: Lookback bad (-{}+{}, ofs={})",
 							dist_back, length, ofs);
 						return None;
 					}
 					if ofs < dst.len() {
-						log_debug!("{} += {}..{} - {:?}", ofs, ofs-dist_back, ofs-dist_back+length, ::kernel::logging::HexDump(&dst[ofs-dist_back..usize::min(ofs-dist_back+length,ofs)]));
+						//log_debug!("{} += {}..{} - {:?}", ofs, ofs-dist_back, ofs-dist_back+length, ::kernel::logging::HexDump(&dst[ofs-dist_back..usize::min(ofs-dist_back+length,ofs)]));
 						for _ in 0 .. length {
-							let v = dst[ofs - dist_back];
-							dst[ofs] = v;
+							if ofs < dst.len() {
+								let v = dst[ofs - dist_back];
+								dst[ofs] = v;
+							}
 							ofs += 1;
 						}
 					}

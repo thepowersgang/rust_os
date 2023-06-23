@@ -462,7 +462,7 @@ impl Instance
 						ofs += len;
 					}
 
-					if byte_ofs % BLOCK_SIZE != 0 || dst.len() % BLOCK_SIZE != 0 {
+					if byte_ofs % BLOCK_SIZE != 0 {
 						todo!("Partial read from compressed block");
 					}
 
