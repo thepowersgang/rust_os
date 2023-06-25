@@ -406,6 +406,7 @@ impl<'a> Iterator for DataRunsIt<'a> {
 		}
 	}
 }
+#[derive(Copy,Clone,Debug)]
 pub struct DataRun {
 	/// Logical cluster number - i.e. cluster index relative to the start of the filesystem
 	pub lcn: Option<u64>,

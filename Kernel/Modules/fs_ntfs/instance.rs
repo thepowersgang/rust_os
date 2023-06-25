@@ -62,7 +62,11 @@ impl Instance
 		{
 			instance.upcase_table = {
 				let mut upcase_table = vec![0u16; 0x10000];
-				let len = ::kernel::futures::block_on(instance.attr_read(&upcase_ent, &upcase_data, 0, ::kernel::lib::as_byte_slice_mut(&mut upcase_table[..])));
+				let len = ::kernel::futures::block_on(instance.attr_read(&upcase_ent, &upcase_data, 0, ::kernel::lib::as_byte_slice_mut(&mut upcase_table[..])))?;
+				if len != 0x1_0000 * 2 {
+					log_warning!("$UpCase not large enough - Read {:#x} bytes, expected {:#x}",
+						len, upcase_table.len() * 2);
+				}
 				for e in upcase_table.iter_mut() {
 					*e = e.to_le();
 				}
@@ -325,9 +329,10 @@ impl Instance
 			},
 		ondisk::MftAttribData::Nonresident(r) => {
 			if false {
+				log_debug!("RelSize: {:#x} (ofs={:#x})", r.real_size(), ofs);
 				log_debug!("VCNs: {} -- {}", r.starting_vcn(), r.last_vcn());
 				for run in r.data_runs() {
-					log_debug!("Data Run: {:#x?} + {}", run.lcn, run.cluster_count);
+					log_debug!("Data Run: {:x?} + {}", run.lcn, run.cluster_count);
 				}
 			}
 
@@ -342,17 +347,14 @@ impl Instance
 			}
 
 			if r.starting_vcn() != 0 {
-				log_error!("attr_read: TODO - Handle sparse files (starting_vcn = {})", r.starting_vcn());
+				todo!("attr_read: TODO - Handle sparse files (starting_vcn = {})", r.starting_vcn());
 				// For this, inject a run filled with zeroes?
 			}
 
 			let mut cur_vcn = ofs / (self.cluster_size_bytes() as u64);
 			let mut cur_ofs = ofs as usize % self.cluster_size_bytes();
 
-			let compression_unit_size_clusters = 1 << r.compression_unit_size();
-			log_debug!("compression_unit_size_clusters = {} ({:#x} bytes)", compression_unit_size_clusters, compression_unit_size_clusters as usize * self.cluster_size_bytes());
-
-			let mut runs = CompressionRuns::new(r.data_runs(), compression_unit_size_clusters).peekable();
+			let mut runs = CompressionRuns::new(r.data_runs(), 1 << r.compression_unit_size()).peekable();
 			// Seek to the run containing the first cluster
 			let mut runbase_vcn = 0;
 			while let Some(r) = runs.peek() {
@@ -432,7 +434,7 @@ impl Instance
 					}
 					runbase_vcn += crun_cluster_count;
 					},
-				CompressionRun::Compressed(_/*uncompresed*/, compressed_count, iter) => {
+				CompressionRun::Compressed(uncompressed_count, compressed_count, iter) => {
 					log_debug!("Compressed +{}", compressed_count);
 					// Iterate compressed blocks, and decompress into the target buffer (or a bounce buffer - if incomplete)
 					// - Load the entire compression unit? (Or, stream in pairs of 8K chunks)
@@ -448,31 +450,73 @@ impl Instance
 							self.vol.read_blocks(block, buf).await?;
 						}
 					}
+					if false
+					{
+						let mut decomp = crate::compression::Decompressor::new(&buf);
+						while let Some(len) = decomp.get_block(None) {
+							log_debug!("get_block length: {}", len);
+						}
+					}
+
 					// - Iterate through compressed blocks (4K) skipping until target data
 					let mut decomp = crate::compression::Decompressor::new(&buf);
 					let rel_vcn = cur_vcn - runbase_vcn;
 					let byte_ofs = rel_vcn as usize * self.cluster_size_bytes() + cur_ofs;
 
+					// Ensure that `dst` here just contains the buffer to be used for this compression unit
+					// - That avoids accidentally over-reading (which could happen if there are extra compressed bytes)
+					let mut dst = {
+						let maxlen = uncompressed_count as usize * self.cluster_size_bytes() - byte_ofs;
+						let len = usize::min(dst.len(), maxlen);
+						::kernel::lib::split_off_front_mut(&mut dst, len).unwrap()
+						};
+
 					const BLOCK_SIZE: usize = 0x1000;
-					let mut ofs = 0;
-					while ofs+BLOCK_SIZE < byte_ofs
+					// Consume complete blocks until the offset is reached
+					for _ in 0 .. byte_ofs / BLOCK_SIZE
 					{
-						let len = decomp.get_block(None).ok_or(::vfs::Error::InconsistentFilesystem)?;
-						assert!(len == BLOCK_SIZE);
-						ofs += len;
+						match decomp.get_block(None)
+						{
+						Some(BLOCK_SIZE) => {},
+						v => {
+							log_error!("Inconsistent filesystem: Encountered end of compresed data while seeking to byte_ofs={}: {:?}", byte_ofs, v);
+							return Err(::vfs::Error::InconsistentFilesystem)?
+							},
+						}
 					}
 
-					if byte_ofs % BLOCK_SIZE != 0 {
-						todo!("Partial read from compressed block");
+					// If the read position ends up within a compressed block - read into a temporary buffer
+					// and then read from part of that buffer
+					if byte_ofs % BLOCK_SIZE != 0
+					{
+						let byte_ofs = byte_ofs % BLOCK_SIZE;
+						let mut uc_block = vec![0u8; BLOCK_SIZE];
+						let Some(len) = decomp.get_block(Some(&mut uc_block)) else {
+							log_error!("Inconsistent filesystem: Encountered end of compresed data while seeking to byte_ofs={}: partial block", byte_ofs);
+							return Err(::vfs::Error::InconsistentFilesystem);
+							};
+						assert!(len <= BLOCK_SIZE, "{} > {}", len, BLOCK_SIZE);
+						// This can be a partial block, if it's the final block in the file
+						if len < byte_ofs {
+							// Inconsistent: The offset is already clamped to within the valid initialised range of the file, so this shouldn't happen
+							log_error!("Inconsistent filesystem: Partial compressed chunk of {} bytes, byte_ofs={}", len, byte_ofs);
+							return Err(::vfs::Error::InconsistentFilesystem);
+						}
+
+						let len = usize::min(len - byte_ofs, dst.len());
+						let b = ::kernel::lib::split_off_front_mut(&mut dst, len).unwrap();
+						b.copy_from_slice(&uc_block[byte_ofs..][..len]);
 					}
 
-					while let Some(len) = decomp.get_block(Some(dst))
+					// Consume entire (or leading partial) compression chunks
+					while dst.len() > 0
 					{
+						let Some(len) = decomp.get_block(Some(dst)) else {
+							log_error!("Inconsistent filesystem: Unexpected end of compressed data");
+							return Err(::vfs::Error::InconsistentFilesystem);
+							};
 						let len = usize::min(len, dst.len());
 						::kernel::lib::split_off_front_mut(&mut dst, len).unwrap();
-						if dst.len() == 0 {
-							break;
-						}
 					}
 					},
 				}
@@ -546,6 +590,23 @@ impl<'a> Iterator for CompressionRuns<'a> {
 	type Item = CompressionRun<'a>;
 	fn next(&mut self) -> Option<CompressionRun<'a>> {
 		let Some( (ref mut ofs, ref dr) ) = self.cur else { return None; };
+		// If `num_clusters_per_block` is 1, then the data is uncompressed (but might still be sparse)
+		if self.num_clusters_per_block == 1 {
+			let dri = CompressionDataRuns {
+				stream: self.start.clone(),
+				ofs: Some(0),
+				run_count: 0,
+				};
+			let dr = *dr;
+			self.start = self.end.clone();
+			self.cur = self.end.next().map(|v| (0, v));
+			return Some(match dr.lcn {
+				None => CompressionRun::Sparse(dr.cluster_count),
+				Some(_lcn) => CompressionRun::Raw(dr.cluster_count, dri),
+			})
+		}
+		// Non-unit compression unit size, so need to handle compression
+		// Look for spans of `Raw(n) Sparse(num_clusters_per_block-n)` (accounting for partial spans)
 		let blocks_avail = dr.cluster_count - *ofs;
 		Some(match dr.lcn
 		{
@@ -590,12 +651,16 @@ impl<'a> Iterator for CompressionRuns<'a> {
 					// Populated followed by a sparse, must be compressed
 					// - Note: Clamp is a defensive check, as this doesn't actually check for this sparse being enough to round out the block
 					let new_ofs = (self.num_clusters_per_block - blocks_avail).clamp(0, new_run.cluster_count);
+					if new_ofs != self.num_clusters_per_block - blocks_avail {
+						// Warning? This means inconsistent filesystem state (the sparse run should be long enough)
+						// - Is `Raw(n) Sparse(1) Sparse(m)` where `n+1+m=num_clusters_per_block` valid?
+					}
 					self.cur = Some((new_ofs, new_run));
 					self.start = new_start;
 					break CompressionRun::Compressed(self.num_clusters_per_block, blocks_avail, dri);
 					},
 				Some(new_run) if new_run.cluster_count + blocks_avail >= self.num_clusters_per_block => {
-					// Disjoint populated span
+					// Disjoint uncompressed run
 					self.cur = Some((self.num_clusters_per_block - blocks_avail, new_run));
 					self.start = new_start;
 					break CompressionRun::Raw(self.num_clusters_per_block, dri);

@@ -15,9 +15,12 @@ impl<'a> Decompressor<'a>
 			return None;
 			};
 		let hdr = u16::from_le_bytes([hdr[0], hdr[1]]);
+		if hdr == 0 {
+			// This seems to indicate the end of the compressed data
+			return None;
+		}
 		let compressed_len = (hdr & 0xFFF) as usize + 1;
 		let Some(src) = ::kernel::lib::split_off_front(&mut self.0, compressed_len) else {
-			// TODO: Print an error?
 			log_error!("Decompressor::get_block: MALFORMED: Unable to obtain all of compressed data ({compressed_len} > {})", self.0.len());
 			return None;
 			};
