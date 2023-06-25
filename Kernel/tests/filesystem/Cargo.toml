@@ -9,6 +9,7 @@ edition = "2018"
 
 [dependencies]
 bitvec = "0.17"
+crc = "3"
 cmdline_words_parser = { path = "../../../externals/crates.io/cmdline_words_parser" }
 
 kernel = { path = "../../Core", features = ["test"] }

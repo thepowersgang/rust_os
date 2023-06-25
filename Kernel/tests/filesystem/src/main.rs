@@ -214,6 +214,35 @@ fn main()
                 ofs += len_l as u64;
             }
             },
+        "crc32" => {
+            let remote: &::vfs::Path = args.next().expect("`crc32` remote").as_ref();
+
+            let remote_handle = match vfs_handle::File::open(remote, vfs_handle::FileOpenMode::SharedRO)
+                {
+                Ok(h) => h,
+                Err(e) => panic!("`crc32`: Cannot open remote file {:?}: {:?}", remote, e),
+                };
+            
+            let crc = ::crc::Crc::<u32>::new(&::crc::CRC_32_ISO_HDLC);
+            let mut digest = crc.digest();
+            let mut buf = vec![0; 0x2_0000];
+            //let mut buf = vec![0; 512];
+            let mut ofs = 0;
+            loop
+            {
+                let len = match remote_handle.read(ofs, &mut buf)
+                    {
+                    Ok(0) => break,
+                    Ok(l) => l,
+                    Err(e) => panic!("`crc32`: IO failure reading from remote: {:?}", e),
+                    };
+                let buf = &buf[..len];
+                digest.update(buf);
+                ofs += len as u64;
+            }
+            let crc = digest.finalize();
+            println!("{:?}: {} bytes, CRC32={:08x}", remote, ofs, crc);
+            },
 		"hexdump" => {
             let remote: &::vfs::Path = args.next().expect("`hexdump` remote").as_ref();
 
