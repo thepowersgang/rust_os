@@ -4,7 +4,7 @@
 // arch/amd64/acpi/fadt.rs
 //! Fixed ACPI Description Table
 
-use super::super::Fadt;
+use crate::arch::acpi::tables::Fadt;
 
 struct _FadtExtra
 {
