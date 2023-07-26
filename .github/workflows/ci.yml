@@ -29,4 +29,4 @@ jobs:
         make EXTERNALS
     - name: build
       run: |
-        make all
+        make all USE_ACPICA=0
