@@ -58,7 +58,7 @@ fn begin_panic_fmt(msg: &::core::fmt::Arguments, file_line: (&str, u32)) -> ! {
 
 #[panic_handler]
 #[cfg(not(test))]
-pub extern fn rust_begin_unwind(info: &::core::panic::PanicInfo) -> ! {
+pub fn rust_begin_unwind(info: &::core::panic::PanicInfo) -> ! {
 	let file_line = match info.location()
 		{
 		Some(v) => (v.file(), v.line()),

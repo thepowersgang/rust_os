@@ -53,7 +53,7 @@ static EXCEPTION_CLASS : u64 = 0x544B3120_52757374;	// TK1 Rust (big endian)
 
 // Evil fail when doing unwind
 #[panic_handler]
-pub extern fn rust_begin_unwind(info: &::core::panic::PanicInfo) -> ! {
+pub fn rust_begin_unwind(info: &::core::panic::PanicInfo) -> ! {
 	let file_line = match info.location()
 		{
 		Some(v) => (v.file(), v.line()),
