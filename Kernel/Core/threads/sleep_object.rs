@@ -32,7 +32,7 @@ struct SleepObjectInner
 	thread: Option<ThreadPtr>,
 }
 
-/// Referece to an active sleep object
+/// Reference to an active sleep object
 pub struct SleepObjectRef
 {
 	// 'static is useful to avoid needing a lifetime param here... AND it prevents calling

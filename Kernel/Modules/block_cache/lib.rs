@@ -2,7 +2,7 @@
 // - By John Hodge (thePowersGang)
 //
 // Modules/block_cache/lib.rs
-//! System-gobal block cache (for filesystem metadata)
+//! System-global block cache (for filesystem metadata)
 #![no_std]
 
 use kernel::prelude::*;
@@ -90,7 +90,7 @@ impl CachedVolume
 	pub fn idx(&self) -> usize {
 		self.vh.idx()
 	}
-	/// Get the size fo a block on the underlying volume
+	/// Get the size for a block on the underlying volume
 	pub fn block_size(&self) -> usize {
 		self.vh.block_size()
 	}
@@ -379,7 +379,7 @@ impl<'a> Drop for BlockHandleRead<'a>
 {
 	fn drop(&mut self)
 	{
-		// SAFE: Read hanle is constructed from a read-locked RwLock
+		// SAFE: Read handle is constructed from a read-locked RwLock
 		let _ = unsafe { rwlock::Read::from_raw(&self.block().mapping) };
 	}
 }

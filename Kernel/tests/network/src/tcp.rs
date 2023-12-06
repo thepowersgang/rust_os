@@ -133,7 +133,7 @@ impl TcpConn<'_>
         let data_handle = match self.fw.wait_packet(std::time::Duration::from_millis(1000))
             {
             Some(v) => v,
-            None => panic!("No packet recieved"),
+            None => panic!("No packet received"),
             };
         let tail = &data_handle[..];
         // 1. Check the ethernet header
@@ -172,7 +172,7 @@ impl TcpConn<'_>
         let data_handle = match fw.wait_packet(std::time::Duration::from_millis(1000))
             {
             Some(v) => v,
-            None => panic!("No connection packet recieved {:?}", std::time::Instant::now() - t),
+            None => panic!("No connection packet received {:?}", std::time::Instant::now() - t),
             };
         let tail = &data_handle[..];
         // 1. Check the ethernet header

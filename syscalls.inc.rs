@@ -95,7 +95,7 @@ def_groups! {
 		=0: IPC_NEWPAIR,
 	},
 	/// Netwokring
-	=4: GROUP_NETOWRK = {
+	=4: GROUP_NETWORK = {
 		/// Connect a socket
 		=0: NET_CONNECT,
 		/// Start a socket server
@@ -339,7 +339,7 @@ def_classes! {
 	},
 	/// Free-bind socket
 	=13: CLASS_FREESOCKET = {
-		/// Receive a packet (if avaliable)
+		/// Receive a packet (if available)
 		=0: NET_FREESOCK_RECV,
 		/// Send a packet to an address
 		=1: NET_FREESOCK_SEND,

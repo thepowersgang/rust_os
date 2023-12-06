@@ -6,7 +6,7 @@
 //!
 //! Provides runtime lifetime checking (similar to how RefCell provides runtime borrow checking)
 //!
-//! This type is designed to be used where there is a definitive owner of a peice of memory (e.g. a box)
+//! This type is designed to be used where there is a definitive owner of a piece of memory (e.g. a box)
 //! but you also want to lend pointers to that memory out (where the pointers should never outlive the 
 //! original memory).
 use crate::prelude::*;
@@ -16,7 +16,7 @@ use core::{ops, fmt};
 use core::any::Any;
 
 
-/// Atomic referencable type. Panics if the type is dropped while any references are active.
+/// Atomic referenceable type. Panics if the type is dropped while any references are active.
 /// Internally uses a `Box` to contain an ArefInner
 pub struct Aref<T: ?Sized>
 {

@@ -84,7 +84,7 @@ impl PS2Dev
 		(byte, Some(PS2Dev::Keyboard(dev)))
 	}
 	
-	/// Handle a recieved byte, and optionally return a byte to be sent to the device
+	/// Handle a received byte, and optionally return a byte to be sent to the device
 	pub fn recv_byte(&mut self, byte: u8) -> Option<u8> {
 		let (rv, new_state): (Option<_>,Option<_>) = match *self
 			{
@@ -109,7 +109,7 @@ impl PS2Dev
 						(Some(0xF2), Some(PS2Dev::Enumerating(EnumWaitState::IdentAck)))
 					}
 					else if byte == 0x00 {
-						// XXX: Ignore spurrious NUL byte
+						// XXX: Ignore spurious NUL byte
 						(None, None)
 					}
 					else {

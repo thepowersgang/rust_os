@@ -2,7 +2,7 @@
 // - By John Hodge (thePowersGang)
 //
 // Core/prelude.rs
-/// Common global definitons
+/// Common global definitions
 ///
 /// All files have 'use prelude::*' as the first line, which imports the names from this module
 // Recreate std::prelude

@@ -15,7 +15,7 @@ pub struct Widget
 
 #[derive(Default)]
 struct State {
-	/// Number of lines avaliable in the view
+	/// Number of lines available in the view
 	view_size: usize,
 	/// Byte start position of the first line
 	view_start: u64,

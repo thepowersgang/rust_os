@@ -82,7 +82,7 @@ impl device_manager::Driver for Pci
 			{
 			0x1000 => 1,	// network card
 			0x1001 => 2,	// block dev
-			0x1002 => 5,	// memory baloon
+			0x1002 => 5,	// memory balloon
 			0x1003 => 3,	// console
 			0x1004 => 8,	// SCSI host
 			0x1005 => 4,	// entropy source

@@ -126,7 +126,7 @@ pub trait HostController: Send + Sync
 	fn init_bulk_in(&self, endpoint: EndpointAddr, max_packet_size: usize) -> Handle<dyn BulkEndpointIn>;
 
 
-	// Root hub maintainence
+	// Root hub maintenance
 	//fn take_port_update_mask(&self) -> u32;
 	fn set_port_feature(&self, port: usize, feature: PortFeature);
 	fn clear_port_feature(&self, port: usize, feature: PortFeature);

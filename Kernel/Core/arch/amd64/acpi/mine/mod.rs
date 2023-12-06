@@ -62,7 +62,7 @@ struct RSDT
 #[repr(C)]
 struct XSDT
 {
-	pointers: u64,	// Rust doesn't support arbitary length arrays
+	pointers: u64,	// Rust doesn't support arbitrary length arrays
 }
 
 static S_ACPI_STATE: crate::lib::LazyStatic<ACPI> = lazystatic_init!();
@@ -177,7 +177,7 @@ unsafe fn locate_rsdp(base: *const u8, size: usize) -> *const RSDP
 	::core::ptr::null()
 }
 
-/// Caclulate the byte sum of a structure
+/// Calculate the byte sum of a structure
 fn sum_struct<T: crate::lib::POD>(s: &T) -> u8
 {
 	// SAFE: T is POD
@@ -274,7 +274,7 @@ impl<T: crate::lib::POD> SDTHandle<T>
 		let ofs = (physaddr & (crate::PAGE_SIZE - 1) as u64) as usize;
 		
 		// Obtain length (and validate)
-		// TODO: Support the SDT header spanning acrosss two pages
+		// TODO: Support the SDT header spanning across two pages
 		assert!(crate::PAGE_SIZE - ofs >= ::core::mem::size_of::<SDTHeader>());
 		// Map the header into memory temporarily (maybe)
 		let mut handle = match crate::memory::virt::map_hw_ro(physaddr - ofs as u64, 1, "ACPI") {

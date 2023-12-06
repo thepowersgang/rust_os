@@ -86,7 +86,7 @@ pub fn split_off_front<'a>(buf: &mut &'a [u8], len: usize) -> Option<&'a [u8]> {
 }
 
 
-/// Unsiged integer bit-level access
+/// Unsigned integer bit-level access
 pub trait UintBits
 {
 	/// Returns the value of a single bit

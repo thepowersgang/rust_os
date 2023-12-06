@@ -9,7 +9,7 @@ Requirements:
 - Prefer no need for custom userland allocator
 - Obeys rust's memory safety rules
 - Read+Write
-- No arbitary callbacks (see memory safety)
+- No arbitrary callbacks (see memory safety)
 - Allows state continuations in kernel (e.g. VFS stalling on disk reads)
 
 
@@ -17,7 +17,7 @@ Existing Models
 ===
 
 - Windows IOCP:
- - An object that recieves messages whenever an "overlapped IO" operation completes
+ - An object that receives messages whenever an "overlapped IO" operation completes
  - RIO Extensions allow setting up re-waits automatically
 - POSIX select
  - Call that wakes when a handle is ready for IO
@@ -28,7 +28,7 @@ Existing Models
 Notes:
 ===
 
-- Has to be able to operate in parralel with a running user thread
+ - Has to be able to operate in parallel with a running user thread
  - Otherwise, if one async op completes and wakes the user, all others can't write.
  - Can state changes happen pure async? (E.g. when a lock is acquired)
 

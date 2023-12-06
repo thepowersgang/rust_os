@@ -23,7 +23,7 @@ pub enum SenseKey
 	VendorSpecific,
 	CopyAborted,
 	AbortedCommand,
-	_Obselete,
+	_Obsolete,
 	VolumeOverflow,
 	Miscompare,
 	_Reserved,

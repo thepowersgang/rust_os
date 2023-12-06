@@ -230,7 +230,7 @@ fn invoke_int(call_id: u32, args: &mut Args) -> Result<u64,Error>
 			let name: Freeze<str> = args.get()?;
 			from_result(gui_calls::newwindow(&name))
 			},
-		// === 2: Memory Mangement
+		// === 2: Memory Management
 		MEM_ALLOCATE => {
 			let addr: usize = args.get()?;
 			let count: usize = args.get()?;

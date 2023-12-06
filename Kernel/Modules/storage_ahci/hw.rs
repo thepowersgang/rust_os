@@ -59,8 +59,8 @@ pub const PxIS_PSS : u32 = 1 <<  1;	// PIO Setup FIS Interrupt
 pub const PxIS_DHRS: u32 = 1 <<  0;	// Device to Host Register FIS Interrupt
 
 pub const PxCMD_ICC  : u32 = 15 << 28;	// Interface Communication Control (mask)
-pub const PxCMD_ASP  : u32 = 1 << 27;	// Agressive Slumber / Partial
-pub const PxCMD_ALPE : u32 = 1 << 26;	// Agressive Link Power Management Enable
+pub const PxCMD_ASP  : u32 = 1 << 27;	// Aggressive Slumber / Partial
+pub const PxCMD_ALPE : u32 = 1 << 26;	// Aggressive Link Power Management Enable
 pub const PxCMD_DLAE : u32 = 1 << 25;	// Drive LED on ATAPI Enable
 pub const PxCMD_ATAPI: u32 = 1 << 24;	// Device is ATAPI
 pub const PxCMD_APSTE: u32 = 1 << 23;	// Automatic Partial to Slumber Transitions Enabled

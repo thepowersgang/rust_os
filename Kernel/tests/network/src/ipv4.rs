@@ -20,7 +20,7 @@ pub struct Header
 {
 	pub version_and_len: u8,
 	pub differentiated_services: u8,
-	pub total_legnth: u16,
+	pub total_length: u16,
 	pub identification: u16,
 	pub fragment_info: u16,
 	pub ttl: u8,
@@ -43,7 +43,7 @@ impl Header
 		Header {
 			version_and_len: (4 << 4) | (size_of::<Header>() / 4) as u8,
 			differentiated_services: 0,
-			total_legnth: size_of::<Header>() as u16 + data_len as u16,
+			total_length: size_of::<Header>() as u16 + data_len as u16,
 			identification: 0,
 			fragment_info: 0,   // No fragments
 			ttl: 18,	// Doesn't need to be high, not routed here

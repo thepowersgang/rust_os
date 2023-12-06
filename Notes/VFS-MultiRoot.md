@@ -24,7 +24,7 @@ Along with this, an application can expect other named handles depending in its 
  - TODO: `rustc` would need to be able to access above the main.rs file in some cases (see this project's `syscalls.inc.rs` file)
 - (RW) Output
 
-Applications with an "application handle" (a kernel-registered non-forgable token) can make a request from a service to open a file/folder (either named or arbitary)
+Applications with an "application handle" (a kernel-registered non-forgable token) can make a request from a service to open a file/folder (either named or arbitrary)
 - This service can prompt the user, or accept the request (if whitelisted)
 
 
@@ -36,7 +36,7 @@ Requirements
 - Not forgeable (presenting the handle via the kernel means that the communicating process was started by that program)
 - Immutable
 - Unique for each process
-- Tied to a unique or unambigious user-readable name
+- Tied to a unique or unambiguous user-readable name
 
 Ideas
 -----
@@ -72,7 +72,7 @@ The handle server could have mappings of application names to root binaries (or 
 
 Dynamic libraries (if any) are handled in a similar manner, except the loader also looks in `AppBin`
 
-NOTE: Root is _not_ avaliable unless operating in an emulation environment
+NOTE: Root is _not_ available unless operating in an emulation environment
 - Even then, it's likely a fake root
 
 
@@ -91,5 +91,5 @@ Temporaries are handled by asking the handle server for temp file or directory
 Shell Emulation
 ---------------
 
-In shell emulation cases (when running a program from the commandline program, or when invoking a compiler) just a Root handle is avalibale (exposed as /)
+In shell emulation cases (when running a program from the commandline program, or when invoking a compiler) just a Root handle is available (exposed as /)
 

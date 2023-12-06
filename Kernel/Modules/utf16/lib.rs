@@ -110,7 +110,7 @@ impl Str16
 					expect_low = true;
 				}
 				else if LO_SURR_START <= cu && cu <= LO_SURR_END {
-					// Unxpected low surrogate with no preceding high
+					// Unexpected low surrogate with no preceding high
 					return None;
 				}
 				else {

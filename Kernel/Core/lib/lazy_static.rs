@@ -46,7 +46,7 @@ impl<T: Send+Sync> LazyStatic<T>
 		Err(s) if s == State::Init as u8 => {},
 		Err(_) => panic!("Racy initialisation of LazyStatic<{}>", type_name!(T)),
 		}
-		// SAFE: Reports as initailised
+		// SAFE: Reports as initialised
 		unsafe { &*self.get() }
 	}
 	/// Returns true if the static has been initialised

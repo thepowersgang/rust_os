@@ -24,8 +24,8 @@ pub enum Regs
 	TSAD0 = 0x20,   TSAD1 = 0x24,
 	TSAD2 = 0x28,   TSAD3 = 0x2C,
 	
-	RBSTART = 0x30, // Recieve Buffer Start (DWord)
-	// Early Recieve Byte Count
+	RBSTART = 0x30, // Receive Buffer Start (DWord)
+	// Early Receive Byte Count
 	ERBCR = 0x34,   // 16-bits
 	// Early RX Status Register
 	ERSR = 0x36,
@@ -40,7 +40,7 @@ pub enum Regs
 	ISR     = 0x3E, // Interrupt status register
 	
 	TCR     = 0x40, // Transmit Configuration Register
-	RCR     = 0x44, // Recieve Configuration Register
+	RCR     = 0x44, // Receive Configuration Register
 	TCTR    = 0x48, // 32-bit timer (count)
 	MPC     = 0x4C, // Missed packet count (due to RX overflow)
 	

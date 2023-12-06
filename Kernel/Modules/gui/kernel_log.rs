@@ -70,7 +70,7 @@ pub fn init()
 	
 	// Populate kernel logging window with accumulated logs
 	// TODO: 
-	// Register to recieve logs
+	// Register to receive logs
 }
 
 impl KernelLog

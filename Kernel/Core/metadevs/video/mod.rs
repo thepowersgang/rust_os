@@ -57,7 +57,7 @@ pub trait Framebuffer: 'static + Send
 	// TODO: Handle 3D units
 }
 
-/// Wrapper around a buffer that includes a stride (width between contiguious segments)
+/// Wrapper around a buffer that includes a stride (width between contiguous segments)
 pub struct StrideBuf<'a, T: 'a>
 {
 	buf: &'a [T],

@@ -50,7 +50,7 @@ impl Instance
 			mft_cache: Default::default(),
 			};
 		log_debug!("cluster_size_blocks = {:#x}, mft_record_size = {:#x}", instance.cluster_size_blocks, instance.mft_record_size);
-		// Check that the driver can do a kinda-evil trick to cache MFT entries efficently
+		// Check that the driver can do a kinda-evil trick to cache MFT entries efficiently
 		if let None = new_mft_cache_ent(instance.mft_record_size) {
 			log_error!("Unable to mount: MFT record size too large for internal hackery ({:#x})", instance.mft_record_size);
 			return Err(::vfs::Error::InconsistentFilesystem);
@@ -270,7 +270,7 @@ impl Instance
 		// SAFE: `MftEntry` and `[u8]` have the same representation
 		Ok(unsafe { ::core::mem::transmute(rv_bytes) })
 	}
-	/// Get a hanle to an attribute within a MFT entry
+	/// Get a handle to an attribute within a MFT entry
 	// TODO: How to handle invalidation of the attribute info when the MFT entry is updated (at least, when an attribute is resized)
 	// - Could have attribute handles be indexes into a pre-populated list
 	pub async fn get_attr(&self, entry: MftEntryIdx, attr_id: ondisk::FileAttr, name: &str, index: usize) -> ::vfs::Result<Option<(CachedMft, ondisk::AttrHandle)>> {
@@ -280,7 +280,7 @@ impl Instance
 		Ok(rv.map(|a| (e, a)))
 	}
 
-	/// Get a hanle to an attribute within a MFT entry
+	/// Get a handle to an attribute within a MFT entry
 	pub fn get_attr_inner(&self, mft_ent: &CachedMft, attr_id: ondisk::FileAttr, name: &str, index: usize) -> Option<ondisk::AttrHandle> {
 		let mft_ent = mft_ent.inner.read();
 		// Iterate attributes
@@ -479,7 +479,7 @@ impl Instance
 						{
 						Some(BLOCK_SIZE) => {},
 						v => {
-							log_error!("Inconsistent filesystem: Encountered end of compresed data while seeking to byte_ofs={}: {:?}", byte_ofs, v);
+							log_error!("Inconsistent filesystem: Encountered end of compressed data while seeking to byte_ofs={}: {:?}", byte_ofs, v);
 							return Err(::vfs::Error::InconsistentFilesystem)?
 							},
 						}
@@ -492,7 +492,7 @@ impl Instance
 						let byte_ofs = byte_ofs % BLOCK_SIZE;
 						let mut uc_block = vec![0u8; BLOCK_SIZE];
 						let Some(len) = decomp.get_block(Some(&mut uc_block)) else {
-							log_error!("Inconsistent filesystem: Encountered end of compresed data while seeking to byte_ofs={}: partial block", byte_ofs);
+							log_error!("Inconsistent filesystem: Encountered end of compressed data while seeking to byte_ofs={}: partial block", byte_ofs);
 							return Err(::vfs::Error::InconsistentFilesystem);
 							};
 						assert!(len <= BLOCK_SIZE, "{} > {}", len, BLOCK_SIZE);

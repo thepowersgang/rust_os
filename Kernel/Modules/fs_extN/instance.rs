@@ -373,7 +373,7 @@ impl InstanceInner
 		if prev_block != 0 {
 			let (block_bg, _) = self.get_block_grp_id(prev_block);
 			let inode_bg = self.get_inode_grp_id(inode_num).0;
-			// 1. Check witin the same BG (telling it the previous block, so it can pick one near that)
+			// 1. Check within the same BG (telling it the previous block, so it can pick one near that)
 			if let Some(rv) = self.allocate_block_in_group(block_bg, prev_block)? {
 				return Ok(rv);
 			}

@@ -27,7 +27,7 @@ pub enum TrbType {
 	NegotiateBandwidthCommand,
 	SetLatencyToleranceValueCommand,
 	GetPortBandwidthCommand,
-	ForceHeaderCommmand,
+	ForceHeaderCommand,
 	NoOpCommand,
 	GetExtendedPropertyCommand,
 	SetExtendedPropertyCommand,

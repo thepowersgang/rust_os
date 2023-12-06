@@ -2,7 +2,7 @@
 // - By John Hodge (thePowersGang)
 //
 // Core/async-v3/mutex.rs
-//! Asynchonous mutex
+//! Asynchronous mutex
 #[allow(unused_imports)]
 use crate::prelude::*;
 use crate::lib::collections::VecDeque;

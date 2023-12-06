@@ -64,7 +64,7 @@ impl Line {
 				// Combining character, ignore
 			}
 			else if is_unicode_private(v) {
-				// Private (aka contro), ignore
+				// Private (aka control), ignore
 			}
 			else {
 				// Anything else, this is what we wanted to delete

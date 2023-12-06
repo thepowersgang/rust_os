@@ -17,7 +17,7 @@ use crate::prelude::*;
 pub enum FreezeError {
 	/// Passed object pointer was into unmapped memory
 	Unmapped,
-	/// The pased pointer was inaccessible (read-only)
+	/// The passed pointer was inaccessible (read-only)
 	Inaccessible,
 	/// Collides with an existing freeze owned by this thread
 	///

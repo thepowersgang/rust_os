@@ -48,7 +48,7 @@ impl<T> VecDeque<T>
 						}
 					}
 					else {
-						// Contigious copy
+						// contiguous copy
 						// SAFE: Meh.
 						unsafe {
 							::core::ptr::copy_nonoverlapping(self.data.get_ptr(0), self.data.get_ptr_mut(orig_cap), n_ents_to_move);
@@ -63,14 +63,14 @@ impl<T> VecDeque<T>
 				if self.len > 0
 				{
 					if self.data.count() - self.ofs < self.len {
-						// Data is contigious
+						// Data is contiguous
 						// SAFE: Copying valid data
 						unsafe {
 							::core::ptr::copy(self.data.get_ptr(self.ofs), new_alloc.get_ptr_mut(0), self.len);
 						}
 					}
 					else {
-						// Data is _not_ contigious
+						// Data is _not_ contiguous
 						let seg1_len = self.data.count() - self.ofs;
 						let seg2_len = self.len - seg1_len;
 						// SAFE: Copying valid data

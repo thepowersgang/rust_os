@@ -59,7 +59,7 @@ struct VbeModeInfo
 {
 	attributes: u16,
 	window_attrs: [u8; 2],
-	granuality: u16,
+	granularity: u16,
 	window_size: u16,
 	window_segments: [u16; 2],
 	win_pos_fcn_fptr: [u16; 2],	// Pointer to INT 10h, AX=4F05h
@@ -516,7 +516,7 @@ impl UefiParsed
 	}
 }
 
-/// Retreive the multiboot "command line" string
+/// Retrieve the multiboot "command line" string
 pub fn get_boot_string() -> &'static str
 {
 	get_bootinfo().cmdline()

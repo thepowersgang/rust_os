@@ -439,7 +439,7 @@ fn start_process(gs: &GlobalStateRef, mut args: &[usize]) -> Result<u32, ::sysca
 	::std::thread::sleep(::std::time::Duration::from_millis(100));
 	// If the process quits within the first 100ms, exit.
 	if let Some(status) = newproc.try_wait().expect("Pre-start try_wait") {
-		log_error!("Spwaning of {:?} failed: exited {}", path, status);
+		log_error!("Spawning of {:?} failed: exited {}", path, status);
 		return Err(::syscalls::Error::BadValue);
 	}
 	return Ok( ::syscalls::native_exports::new_object(ProtoProcess {

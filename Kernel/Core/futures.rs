@@ -52,7 +52,7 @@ pub(super) fn time_tick() {
 	TIME_WAKEUPS.lock().wake_all();
 }
 
-/// Sleep as a future for a given number of milisecond
+/// Sleep as a future for a given number of millisecond
 pub fn msleep(ms: usize) -> impl core::future::Future<Output=()> {
 	struct Sleep(u64);
 	impl core::future::Future for Sleep {

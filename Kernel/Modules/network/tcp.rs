@@ -505,7 +505,7 @@ impl ConnectionHandle
 		log_trace!("ConnectionHandle::connect: quad={:?}", quad);
 		// 4. Send the opening SYN (by creating the outbound connection structure)
 		let conn = Connection::new_outbound(&quad, 0x10000u32);
-		CONNECTIONS.insert(quad, Mutex::new(conn)).map_err(|_| ()).expect("Our unqiue port wasn't unique");
+		CONNECTIONS.insert(quad, Mutex::new(conn)).map_err(|_| ()).expect("Our unique port wasn't unique");
 		Ok( ConnectionHandle(quad) )
 	}
 	pub fn send_data(&self, buf: &[u8]) -> Result<usize, ConnError>

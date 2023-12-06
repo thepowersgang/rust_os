@@ -470,7 +470,7 @@ impl PHEnt
 }
 struct PhEntIterator<'a, R: 'a + Read>
 {
-	file: &'a mut R,	// File is pre-seeked to the start of the PHENT list
+	file: &'a mut R,	// File is pre-sought to the start of the PHENT list
 	object_size: Size,
 	remaining_ents: u16,
 	entry_size: u16,
@@ -478,7 +478,7 @@ struct PhEntIterator<'a, R: 'a + Read>
 impl<'a, R: 'a+Read>  PhEntIterator<'a, R> {
 	fn read_entry(&mut self) -> Result<PHEnt, Error> {
 		let mut data = [0; 64];
-		assert!(self.entry_size as usize <= data.len(), "Allocation {} insufficent for {}", data.len(), self.entry_size);
+		assert!(self.entry_size as usize <= data.len(), "Allocation {} insufficient for {}", data.len(), self.entry_size);
 		let data = &mut data[.. self.entry_size as usize];
 		if self.file.read(data)? != self.entry_size as usize {
 			panic!("TODO");

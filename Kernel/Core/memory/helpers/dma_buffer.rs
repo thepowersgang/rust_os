@@ -72,7 +72,7 @@ impl<'a> DMABuffer<'a>
 		}
 	}
 	
-	/// Creates a new DMABuffer contigious in the specified region
+	/// Creates a new DMABuffer contiguous in the specified region
 	pub fn new_contig_mut(src: &mut [u8], bits: u8) -> DMABuffer {
 		DMABuffer::new_contig(src, bits)
 	}
@@ -86,7 +86,7 @@ impl<'a> DMABuffer<'a>
 		{
 			todo!("new_contig - Bounce because not within bit range");	
 		}
-		// - Quick: If the data is smaller than a page worth, and falls on a contigious pair of pages
+		// - Quick: If the data is smaller than a page worth, and falls on a contiguous pair of pages
 		else if bytes <= PAGE_SIZE && phys + (bytes as PAddr)-1 == end_phys
 		{
 			log_debug!("phys = {:#x}, source_slice={:p}", phys, &src[0]);
@@ -103,7 +103,7 @@ impl<'a> DMABuffer<'a>
 		}
 	}
 	
-	/// Returns an iterator over contigious physical ranges
+	/// Returns an iterator over contiguous physical ranges
 	pub fn phys_ranges(&self) -> Ranges {
 		if self.phys != virt::get_phys(self.source_ptr) {
 			unimplemented!();
@@ -163,7 +163,7 @@ impl<'a> DoubleEndedIterator for Ranges<'a>
 			let mut len = ::core::cmp::min(min_len, full_len);
 			let mut paddr = virt::get_phys( &self.0[full_len - len] );
 
-			// Merge physically contigious pages
+			// Merge physically contiguous pages
 			while len < full_len && virt::get_phys(&self.0[full_len - len - 1]) == paddr - 1 {
 				if full_len - len > PAGE_SIZE {
 					paddr -= PAGE_SIZE as PAddr;

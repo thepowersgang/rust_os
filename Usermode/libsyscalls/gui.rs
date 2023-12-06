@@ -211,7 +211,7 @@ impl Window
 				} else {
 					1
 				};
-			assert!(h_calc == h, "Calculated hight disagrees with stated - calc={}, stated={}", h_calc, h);
+			assert!(h_calc == h, "Calculated height disagrees with stated - calc={}, stated={}", h_calc, h);
 		}
 
 		kernel_log!("GUI_WIN_BLITRECT");

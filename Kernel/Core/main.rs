@@ -71,7 +71,7 @@ mod symbols;
 #[macro_use]
 pub mod sync;
 
-/// Asynchrnous wait support
+/// Asynchronous wait support
 pub mod user_async;
 //#[path="async-v3/mod.rs"]
 //pub mod _async3;
@@ -109,7 +109,7 @@ pub mod irqs;
 /// Built-in device drivers
 pub mod hw;
 
-/// Achitecture-specific code
+/// Architecture-specific code
 pub mod arch;
 
 pub mod build_info {

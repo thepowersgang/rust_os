@@ -72,7 +72,7 @@ pub fn handle_rx_ethernet(_physical_interface: &dyn crate::nic::Interface, sourc
 	if reader.remain() > pre_header_reader.remain() - hdr_len
 	{
 		// Consume bytes out of the buffer until the end of the header is reached
-		// - I.e. the remaning byte count equals the number of bytes after the header 
+		// - I.e. the remaining byte count equals the number of bytes after the header 
 		let n_bytes_after_header = pre_header_reader.remain() - hdr_len;
 		while reader.remain() > n_bytes_after_header
 		{

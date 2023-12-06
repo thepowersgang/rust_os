@@ -89,7 +89,7 @@ memcmp:
 	inc %rax
 	ret
 
-// Unkown args, don't care
+// Unknown args, don't care
 .globl _Unwind_Resume
 _Unwind_Resume:
 	jmp .

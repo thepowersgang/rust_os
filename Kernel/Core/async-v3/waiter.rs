@@ -8,7 +8,7 @@
 //! async operations and allowing the owner to wait until an operation is complete.
 //!
 //! Each operation is able to utilise a fixed-size state stack (up to 256 bytes) to store
-//! intermediate data for when an async operation requres mutiple sub-operations (e.g. acquiring
+//! intermediate data for when an async operation requires multiple sub-operations (e.g. acquiring
 //! a mutex then performing hardware IO)
 #[allow(unused_imports)]
 use crate::prelude::*;

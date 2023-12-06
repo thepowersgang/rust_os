@@ -169,7 +169,7 @@ impl<'a, K, V> ::core::iter::Iterator for IterMut<'a, K, V>
 		{
 			let e: *mut _ = &mut self.ents[self.pos];
 			self.pos += 1;
-			// SAFE: Never yeilds the same element twice, so &mut alias is impossible
+			// SAFE: Never yields the same element twice, so &mut alias is impossible
 			unsafe { Some( (&(*e).0, &mut (*e).1) ) }
 		}
 		else

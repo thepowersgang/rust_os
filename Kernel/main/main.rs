@@ -60,7 +60,7 @@ pub extern "C" fn kmain()
 	None => log_debug!("No video mode present")
 	}
 	
-	// Intialise the IRQ worker
+	// Initialise the IRQ worker
 	::kernel::irqs::init();
 	
 	// Modules (dependency tree included)
@@ -246,7 +246,7 @@ fn load_loader(loader: &::vfs::handle::File) -> Result<(&'static LoaderHeader, u
 	log_debug!("Executable size: {}, rw data size: {}", codesize, datasize);
 	assert!(codesize % PAGE_SIZE == 0, "Loader code doesn't end on a page boundary - {:#x}", codesize);
 	assert!(ondisk_size as usize % PAGE_SIZE == 0, "Loader file size is not aligned to a page - {:#x}", ondisk_size);
-	assert!(datasize % PAGE_SIZE == 0, "Loader is not an integeral number of pages long - datasize={:#x}", datasize);
+	assert!(datasize % PAGE_SIZE == 0, "Loader is not an integral number of pages long - datasize={:#x}", datasize);
 	let mh_code = loader.memory_map(LOAD_BASE + PAGE_SIZE, PAGE_SIZE as u64, codesize - PAGE_SIZE,  handle::MemoryMapMode::Execute).expect("Loader code");
 	let mh_data = loader.memory_map(LOAD_BASE + codesize, codesize as u64, datasize,  handle::MemoryMapMode::COW).expect("Loader data");
 	

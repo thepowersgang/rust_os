@@ -288,7 +288,7 @@ pub mod threads {
 		log_trace!("init_tid0_state: {:p}", inner_handle);
 		THIS_THREAD_STATE.with(|v| {
 			let mut h = v.borrow_mut();
-			assert!(h.this_state.is_none(), "TID0 alread initialised");
+			assert!(h.this_state.is_none(), "TID0 already initialised");
 			h.this_state = Some(inner_handle);
 			});
 		rv

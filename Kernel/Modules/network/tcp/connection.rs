@@ -83,12 +83,12 @@ enum ConnectionState
 
 	FinWait1,	// FIN sent, waiting for reply (ACK or FIN)
 	FinWait2,	// sent FIN acked, waiting for FIN from peer 
-	Closing,	// Waiting for ACK of FIN (FIN sent and recieved)
+	Closing,	// Waiting for ACK of FIN (FIN sent and received)
 	TimeWait,	// Waiting for timeout after local close
 
-	ForceClose,	// RST recieved, waiting for user close
-	CloseWait,	// FIN recieved, waiting for user to close (error set, wait for node close)
-	LastAck,	// FIN sent and recieved, waiting for ACK
+	ForceClose,	// RST received, waiting for user close
+	CloseWait,	// FIN received, waiting for user to close (error set, wait for node close)
+	LastAck,	// FIN sent and received, waiting for ACK
 
 	Finished,
 }
@@ -142,7 +142,7 @@ impl Connection
 
 		// Synchronisation request
 		if hdr.flags & FLAG_SYN != 0 {
-			// TODO: Send an ACK of the last recieved byte (should this be conditional?)
+			// TODO: Send an ACK of the last received byte (should this be conditional?)
 			if self.last_rx_ack != self.next_rx_seq {
 			}
 			//self.next_rx_seq = hdr.sequence_number;
@@ -228,7 +228,7 @@ impl Connection
 						log_trace!("{:?} ACK only", quad);
 					}
 					else if self.next_rx_seq != hdr.sequence_number {
-						log_trace!("{:?} Empty packet, unexpected seqeunce number {:x} != {:x}", quad, hdr.sequence_number, self.next_rx_seq);
+						log_trace!("{:?} Empty packet, unexpected sequence number {:x} != {:x}", quad, hdr.sequence_number, self.next_rx_seq);
 					}
 					else {
 						// Counts as one byte
@@ -274,7 +274,7 @@ impl Connection
 							self.send_ack(quad, "Constrain window");
 						}
 						else if self.next_rx_seq - self.last_rx_ack > self.rx_window_size/2 {
-							// Send an ACK now, we've recieved a burst of data
+							// Send an ACK now, we've received a burst of data
 							self.send_ack(quad, "Data burst");
 						}
 						else {

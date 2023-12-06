@@ -18,7 +18,7 @@ pub enum Error
 	NoPacket,
 	/// An oversized packet was received
 	MtuExceeded,
-	/// Not enough space avaliable for the packet
+	/// Not enough space available for the packet
 	BufferUnderrun,
 	///// Async stack space exceeded
 	//AsyncTooDeep,
@@ -355,7 +355,7 @@ fn rx_thread(int_data: &InterfaceData)
 					{
 					Ok( () ) => {},
 					Err(e) => {
-						log_warning!("TODO: Unable to hanle IPv4 packet - {:?}", e);
+						log_warning!("TODO: Unable to handle IPv4 packet - {:?}", e);
 						},
 					}
 				// ARP

@@ -15,7 +15,7 @@ use super::winbuf::WinBuf;
 use ::{Dims,Pos,Rect,Colour};
 use input;
 
-/// A single window, an arbitarily movable on-screen region
+/// A single window, an arbitrarily movable on-screen region
 //#[derive(Default)]
 pub struct Window
 {
@@ -231,7 +231,7 @@ impl WindowInput
 			self.cursor.lock().update(x,y)
 			},
 		ev @ _ => {
-			let _ = self.queue.lock().push_back(ev);	// sliently drop extra events?
+			let _ = self.queue.lock().push_back(ev);	// silently drop extra events?
 			},
 		}
 		self.waiters.wake_one();

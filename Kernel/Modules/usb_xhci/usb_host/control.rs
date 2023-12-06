@@ -104,7 +104,7 @@ impl host::ControlEndpoint for Control {
 					}
 				}
 				else {
-					for (paddr, len, is_last) in super::iter_contigious_phys(out_data) {
+					for (paddr, len, is_last) in super::iter_contiguous_phys(out_data) {
 						// SAFE: Trusting ourselves to wait until the hardware is done
 						unsafe {
 							state.push(get_data(false, hw_structs::TrbNormalData::Pointer(paddr), len as u32, is_last));
@@ -135,7 +135,7 @@ impl host::ControlEndpoint for Control {
 			unsafe {
 				state.push(parse_setup(setup_data, crate::hw::structs::TrbControlSetupTransferType::In));
 			}
-			for (paddr, len, is_last) in super::iter_contigious_phys(in_data) {
+			for (paddr, len, is_last) in super::iter_contiguous_phys(in_data) {
 				// SAFE: Trusting ourselves to wait until the hardware is done
 				unsafe {
 					state.push(get_data(true, hw_structs::TrbNormalData::Pointer(paddr), len as u32, is_last));
@@ -179,7 +179,7 @@ impl host::ControlEndpoint for Endpoint0 {
 					let data = &in_data[..len];
 				
 					//assert!(data[0] >= );  // Length
-					assert!(data[1] == 2);  // Descriptor type: Configuraton
+					assert!(data[1] == 2);  // Descriptor type: Configuration
 					let total_length = u16::from_le_bytes(::core::convert::TryFrom::try_from(&data[2..4]).unwrap());
 					if len >= total_length as usize
 					{

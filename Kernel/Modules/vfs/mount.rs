@@ -2,7 +2,7 @@
 // - By John Hodge (thePowersGang)
 //
 // Core/vfs/mount.rs
-//! Mountpoint managment
+//! Mountpoint management
 use ::kernel::prelude::*;
 use super::path::Path;
 use super::node::{InodeId,Node};

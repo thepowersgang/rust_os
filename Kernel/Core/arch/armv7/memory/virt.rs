@@ -766,7 +766,7 @@ fn fsr_name(ifsr: u32) -> &'static str {
 	match ifsr & 0x40F
 	{
 	0x001 => "Alignment fault",
-	0x004 => "Instruction cache maintainence",
+	0x004 => "Instruction cache maintenance",
 	0x00C => "Sync Ext abort walk lvl1",
 	0x00E => "Sync Ext abort walk lvl2",
 	0x40C => "Sync Ext pairity walk lvl1",

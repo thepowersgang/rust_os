@@ -118,7 +118,7 @@ impl VgaFramebuffer
 		log_debug!("Creating VGA driver at base {:#3x}", base);
 		let rv = VgaFramebuffer {
 			io_base: base,
-			// SAFE: VGA window should be avaliable
+			// SAFE: VGA window should be available
 			window: unsafe {::kernel::memory::virt::map_hw_rw(0xA0000, (0xC0-0xA0), module_path!()).unwrap() },
 			crtc: crtc::CrtcRegs::load(base + 0x24),	// Colour CRTC regs
 			w: 320,

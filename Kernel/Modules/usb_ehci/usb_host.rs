@@ -41,7 +41,7 @@ impl ::usb_core::host::HostController for UsbHost
 	}
 
 
-	// Root hub maintainence
+	// Root hub maintenance
 	fn set_port_feature(&self, port: usize, feature: PortFeature) {
 		if let Some(bit) = feature_bit(feature, FeatureOp::Set)  {
 			log_debug!("set_port_feature({port} {feature:?}): {bit:#x}");
@@ -78,7 +78,7 @@ impl ::usb_core::host::HostController for UsbHost
 	fn set_hub_port_speed(&self, hub_endpoint_zero: &dyn host::ControlEndpoint, port: usize, speed: host::HubPortSpeed)
 	{
 		// HACK TIME! Use the pointer metadata for `Any` hackery.
-		// SAFE: Only uses the cast when the metadata matches (meaing that it's the same type)
+		// SAFE: Only uses the cast when the metadata matches (meaning that it's the same type)
 		let hub_endpoint_zero = unsafe {
 			let exp_meta = ::core::ptr::metadata(::core::ptr::null::<Box<ControlEndpoint>>() as *const dyn host::ControlEndpoint);
 			let have_meta = ::core::ptr::metadata(hub_endpoint_zero);
@@ -196,7 +196,7 @@ fn make_endpoint_spec(endpoint: EndpointAddr, max_packet_size: usize, usb1: Opti
 		| (endpoint.dev_addr() as u32)
 		| (endpoint.endpt() as u32) << 8;
 	let mut endpoint_ext = 0
-		| (0b01 << 30)  // Bandwidth multipler
+		| (0b01 << 30)  // Bandwidth multiplier
 		// Low 16 bits not used for async (control/bulk) endpoints
 		;
 	set_usb1_state(&mut endpoint_id, &mut endpoint_ext, usb1, is_control);

@@ -23,7 +23,7 @@ macro_rules! _count
 	($a:expr, $($b:expr),+) => {1+_count!($($b),+)};
 }
 
-/// Define a kernel module (creates the module header, containg the name and dependency strings)
+/// Define a kernel module (creates the module header, containing the name and dependency strings)
 ///
 /// For external modules, at the module must be defined in the root (lib.rs)
 /// 
@@ -54,7 +54,7 @@ macro_rules! module_define
 	);
 }
 
-/// Ensure that a type implments the provided trait
+/// Ensure that a type implements the provided trait
 ///
 /// Useful for "Send" and "Sync"
 #[macro_export]
@@ -90,7 +90,7 @@ macro_rules! chain
 	($a:expr, $($b:expr),+) => ( $a$(.chain($b))+ );
 }
 
-/// Provides a short and noticable "TODO: " message
+/// Provides a short and noticeable "TODO: " message
 #[macro_export]
 macro_rules! todo
 {

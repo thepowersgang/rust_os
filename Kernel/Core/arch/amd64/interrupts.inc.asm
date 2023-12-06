@@ -124,7 +124,7 @@ ErrorCommon:
 	
 	mov rax, [rsp+ErrorRegs.code]	; Grab error code
 	cmp rax, 0xffffffff80000000
-	ja .spurrious
+	ja .spurious
 
 	mov rax, [rsp+ErrorRegs.cs]
 	cmp rax, 0x08
@@ -157,10 +157,10 @@ ErrorCommon:
 .bugcheck:
 	int 3
 	jmp $
-.spurrious:
+.spurious:
 	mov rdi, rsp
-	[extern spurrious_handler]
-	call spurrious_handler
+	[extern spurious_handler]
+	call spurious_handler
 	int3
 	pop gs
 	POP_GPR

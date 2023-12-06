@@ -35,7 +35,7 @@ fn main()
 		{
 		Ok(v) => v,
 		Err(e) => {
-			kernel_log!("TOOD: Handle open error in fileviewer - {:?}", e);
+			kernel_log!("TODO: Handle open error in fileviewer - {:?}", e);
 			return ;
 			},
 		};

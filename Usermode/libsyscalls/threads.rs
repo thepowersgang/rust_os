@@ -50,7 +50,7 @@ impl ThisProcess
 		r
 	}
 	#[inline]
-	/// Obtain the 'n'th unclaimed object of the specifed type
+	/// Obtain the 'n'th unclaimed object of the specified type
 	pub fn receive_object<T: ::Object>(&self, tag: &str) -> Result<T, RecvObjectError> {
 		assert!(tag.len() <= 6);
 		self.with_obj(|obj|

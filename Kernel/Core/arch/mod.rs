@@ -1,7 +1,7 @@
 //
 //
 //
-//! Achitecture-specific code
+//! Architecture-specific code
 
 cfg_if::cfg_if!{
 	if #[cfg(feature="test")] {
@@ -123,8 +123,8 @@ pub mod memory {
 			}
 		}
 
-		/// A handle to a temproarily mapped frame containing instances of 'T'
-		// TODO: TempHandle doens't own the mapped frame - It probably should
+		/// A handle to a temporarily mapped frame containing instances of 'T'
+		// TODO: TempHandle doesn't own the mapped frame - It probably should
 		pub struct TempHandle<T>(*mut T);
 		impl<T> TempHandle<T>
 		{
@@ -447,7 +447,7 @@ pub mod time {
 		imp::request_tick(target_time)
 	}
 
-	/// Return the system timestamp (miliseconds since an arbitary point)
+	/// Return the system timestamp (milliseconds since an arbitrary point)
 	#[inline]
 	pub fn cur_timestamp() -> u64 {
 		imp::cur_timestamp()

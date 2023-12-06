@@ -56,7 +56,7 @@ impl host::HostController for UsbHost
 	}
 
 
-	// Root hub maintainence
+	// Root hub maintenance
 	fn set_port_feature(&self, port: usize, feature: host::PortFeature) {
 		let p = self.host.regs.port(port as u8);
 		let (mask,val) = get_feature(feature);
@@ -111,7 +111,7 @@ impl host::HostController for UsbHost
 
 	fn set_hub_port_speed(&self, hub_endpoint_zero: &dyn host::ControlEndpoint, port: usize, speed: host::HubPortSpeed) {
 		// HACK TIME! Use the pointer metadata for `Any` hackery.
-		// SAFE: Only uses the cast when the metadata matches (meaing that it's the same type)
+		// SAFE: Only uses the cast when the metadata matches (meaning that it's the same type)
 		let hub_endpoint_zero = unsafe {
 			let exp_meta = ::core::ptr::metadata(::core::ptr::null::<Box<control::Control>>() as *const dyn host::ControlEndpoint);
 			let have_meta = ::core::ptr::metadata(hub_endpoint_zero);
@@ -173,7 +173,7 @@ fn make_asyncwaitio<'a, T>(f: impl ::core::future::Future<Output=T> + Send + Syn
 }
 
 
-fn iter_contigious_phys(data: &[u8]) -> impl Iterator<Item=(u64, u16, bool)> + '_ {
+fn iter_contiguous_phys(data: &[u8]) -> impl Iterator<Item=(u64, u16, bool)> + '_ {
 	struct V<'a> {
 		data: &'a [u8],
 		remain: usize,

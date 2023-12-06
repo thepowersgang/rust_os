@@ -26,7 +26,7 @@ impl<'a> Decompressor<'a>
 			};
 		if hdr & 0x8000 == 0 {
 			//log_debug!("Uncompressed block {:#x}", compressed_len);
-			// Uncompresed data, hopefully the length is 0x1000
+			// Uncompressed data, hopefully the length is 0x1000
 			let len = usize::min(src.len(), dst.len());
 			dst[..len].copy_from_slice(&src[..len]);
 			Some(compressed_len)

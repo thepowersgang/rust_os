@@ -155,7 +155,7 @@ impl Queue
 		self.dispatch_descriptor(interface, descriptor).busy_wait_for_completion()
 	}
 
-	/// Convert the queue into a stream (internally allocating a buffer and enqueing those items)
+	/// Convert the queue into a stream (internally allocating a buffer and enqueuing those items)
 	pub fn into_stream<I: Interface>(self, int: &I, item_size: usize, buffer_len: usize, mut cb: impl FnMut(&[u8]))
 	{
 		// Allocate buffers
@@ -221,7 +221,7 @@ impl Queue
 			}
 	}
 
-	/// Return a lock handle to the "avaliable" ring buffer (the list of descriptors handed to the device)
+	/// Return a lock handle to the "available" ring buffer (the list of descriptors handed to the device)
 	fn avail_ring(&self) -> LockedAvailRing {
 		LockedAvailRing {
 			_lh: self.avail_ring_lock.lock(),

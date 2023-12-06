@@ -238,7 +238,7 @@ pub trait ReadBytesExt:
 impl<T: crate::lib::io::Read + ?Sized> ReadBytesExt for T {
 }
 
-// TODO: A derivable trait that handles converting to/from values (for e.g. fileystem data structures)
+// TODO: A derivable trait that handles converting to/from values (for e.g. filesystem data structures)
 pub trait EncodedLE {
 	fn encode(&self, buf: &mut &mut [u8]) -> Result<()>;
 	fn decode(buf: &mut &[u8]) -> Result<Self> where Self: Sized;

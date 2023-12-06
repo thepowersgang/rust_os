@@ -395,7 +395,7 @@ pub fn object_has_no_such_method_val(name: &str, call: u16) -> Result<u64,crate:
 		panic!("BUGCHECK: Call ID {:#x} < 0x400 invoked by-value call on {}", call, name);
 	}
 	else {
-		log_notice!("User called non-existent mathod (by-value) {} on {}", call-0x400, name);
+		log_notice!("User called non-existent method (by-value) {} on {}", call-0x400, name);
 	}
 	Err( crate::Error::UnknownCall )
 }
@@ -404,7 +404,7 @@ pub fn object_has_no_such_method_ref(name: &str, call: u16) -> Result<u64,crate:
 		panic!("BUGCHECK: Call ID {:#x} > 0x400 invoked by-ref call on {}", call, name);
 	}
 	else {
-		log_notice!("User called non-existent mathod (by-ref) {} on {}", call, name);
+		log_notice!("User called non-existent method (by-ref) {} on {}", call, name);
 	}
 	Err( crate::Error::UnknownCall )
 }

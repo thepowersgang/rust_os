@@ -150,7 +150,7 @@ impl<'a> FDTRoot<'a>
 	}
 	/// Return all properties matching the provided callback
 	/// 
-	/// The callback recieves:
+	/// The callback receives:
 	/// - Current tree depth
 	/// - If the checked node is a branch or a leaf
 	/// - The node name
@@ -232,7 +232,7 @@ impl<'a> FDTRoot<'a>
 	}
 
 	fn get_nul_string(data: &[u8]) -> &str {
-		let slen = data/*[..usize::min(data.len(), 256)]*/.iter().position(|x| *x == 0).expect("TODO: Handle unexpeted end in FDT");
+		let slen = data/*[..usize::min(data.len(), 256)]*/.iter().position(|x| *x == 0).expect("TODO: Handle unexpected end in FDT");
 		let s = ::core::str::from_utf8( &data[..slen] ).expect("TODO: Handle bad UTF-8 in FDT");
 		s
 	}

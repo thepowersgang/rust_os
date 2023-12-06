@@ -147,7 +147,7 @@ doc/$(ARCH)/core/index.html: ../libcore/lib.rs $(OBJDIR)libcore.rlib
 
 
 # ===
-# Toolchain maintainence
+# Toolchain maintenance
 # - Downloads rustc and libcore
 # ===
 .PHONY: UPDATE

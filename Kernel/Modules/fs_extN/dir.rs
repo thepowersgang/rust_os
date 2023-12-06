@@ -145,7 +145,7 @@ impl Dir
 
 			// If there wasn't a good space found yet, but this block has enough space on its own - then defragment and return
 			if rv.is_none() && block_free - 8 >= name.len() {
-				// Defragment the block, there's enough space for this name but not in a single contigous chunk.
+				// Defragment the block, there's enough space for this name but not in a single contiguous chunk.
 				drop(blk_data);
 				let (offset,rec_len) = Self::defragment_block(&self.inode.fs, vol_blk)?;
 				if rec_len - 8 >= name.len() as u16 {
@@ -156,14 +156,14 @@ impl Dir
 				}
 			}
 
-			total_free += block_free - 8;	// Calcualte total free space, accounting for the required dirent header
+			total_free += block_free - 8;	// Calculate total free space, accounting for the required dirent header
 		}
 		if let Some( (rv, _) ) = rv {
 			return Ok(rv);
 		}
 
 		if total_free >= name.len() {
-			// There is _maybe_ enough space for this name, but not in a contigious block
+			// There is _maybe_ enough space for this name, but not in a contiguous block
 			// - "maybe" because entries cannot span block boundaries, so there might be a few small free slots at the
 			//   end of blocks.
 			// Defragment blocks in overlapping pairs until there's enough free space

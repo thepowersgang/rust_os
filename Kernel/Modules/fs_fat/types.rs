@@ -87,7 +87,7 @@ impl<'fs> ClusterList<'fs> {
 		ClusterList::Chained(fs, Some(start))
 	}
 
-	/// Returns an extent of at most `max_clusters` contigious clusters
+	/// Returns an extent of at most `max_clusters` contiguous clusters
 	pub fn next_extent(&mut self, max_clusters: usize) -> Option<(ClusterNum, usize)> {
 		match *self
 		{

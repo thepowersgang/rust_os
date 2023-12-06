@@ -22,7 +22,7 @@ pub mod poll;
 
 pub use self::queue::Queue;
 
-/// A boxed ResultWaiter that resturns a Result
+/// A boxed ResultWaiter that returns a Result
 pub type BoxAsyncResult<'a,T,E> = Box<dyn ResultWaiter<Result=Result<T,E>>+'a>;
 
 /// Trait for primitive waiters
@@ -42,7 +42,7 @@ pub trait PrimitiveWaiter:
 	/// 
 	/// Called before the completion handler
 	///
-	/// Returns true if the sleep object was sucessfully registered, false to force polling (e.g. if already complete)
+	/// Returns true if the sleep object was successfully registered, false to force polling (e.g. if already complete)
 	fn bind_signal(&mut self, sleeper: &mut crate::threads::SleepObject) -> bool;
 	
 	/// Unbind waiters from this sleep object
@@ -373,7 +373,7 @@ where
 		// SAFE: Doesn't outlive the sleeper
 		let waker = unsafe { ::core::task::Waker::from_raw(sleep_object_raw_waker(sleeper)) };
 		self.poll_with_waker(waker);
-		true	// binding always suceeds
+		true	// binding always succeeds
 	}
 	fn unbind_signal(&mut self) {
 		// Poll again (with a null waker)

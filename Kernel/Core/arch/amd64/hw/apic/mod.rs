@@ -96,7 +96,7 @@ fn init()
 		};
 	s_lapic.init();
 	
-	// Enable interupts
+	// Enable interrupts
 	// TODO: Does S_IRQS_ENABLED ever get read?
 	crate::arch::amd64::threads::S_IRQS_ENABLED.store(true, ::core::sync::atomic::Ordering::Relaxed);
 	// SAFE: Just STI, nothing to worry about
