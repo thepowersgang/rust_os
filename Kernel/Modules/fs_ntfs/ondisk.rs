@@ -220,7 +220,7 @@ impl<'a> Iterator for MftEntryAttribs<'a> {
 			return None;
 		}
 		if self.0.len() < 8 {
-			// Inconsistent: Not enough space for an atribute header
+			// Inconsistent: Not enough space for an attribute header
 			return None;
 		}
 		let size: u32 = EncodedLE::decode(&mut &self.0[4..8]).unwrap();

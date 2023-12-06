@@ -4,7 +4,7 @@
 // Core/async/mutex.rs
 //! Asynchronous Mutex.
 //!
-//! Provides an asynchonous mutex type, for use with the async IO framework
+//! Provides an asynchronous mutex type, for use with the async IO framework
 
 #[allow(unused_imports)]
 use crate::prelude::*;

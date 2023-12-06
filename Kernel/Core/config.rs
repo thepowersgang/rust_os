@@ -2,7 +2,7 @@
 // - By John Hodge (thePowersGang)
 //
 // Core/config.rs
-//! Boot-time configuration managment
+//! Boot-time configuration management
 // NOTE: See the bottom of the file for the runtime configuration options
 
 pub fn init(cmdline: &'static str)

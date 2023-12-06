@@ -423,7 +423,7 @@ extern "C" fn trap_vector_rs(state: &mut FaultRegs)
 		_ => {},
 		}
 	}
-	// Environemnt call from U-mode
+	// Environment call from U-mode
 	if state.scause == 8 {
 		extern "C" {
 			fn syscalls_handler(id: u32, first_arg: *const usize, count: u32) -> u64;

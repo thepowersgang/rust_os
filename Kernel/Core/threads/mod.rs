@@ -163,7 +163,7 @@ pub fn exit_process(status: u32) -> ! {
 pub fn get_thread_id() -> thread::ThreadID
 {
 	let p = crate::arch::threads::borrow_thread();
-	// SAFE: Checks for NULL, and the thread should be vaild while executing
+	// SAFE: Checks for NULL, and the thread should be valid while executing
 	unsafe {
 		if p == 0 as *const _ {
 			0
@@ -185,7 +185,7 @@ pub fn get_process_id() -> thread::ProcessID {
 
 fn with_cur_thread<T, F: FnOnce(&thread::Thread)->T>(fcn: F) -> T
 {
-	// SAFE: Checks for NULL, and the thread should be vaild while executing
+	// SAFE: Checks for NULL, and the thread should be valid while executing
 	let t = unsafe {
 		let tp = crate::arch::threads::borrow_thread();
 		assert!( !tp.is_null() );
@@ -197,7 +197,7 @@ fn with_cur_thread<T, F: FnOnce(&thread::Thread)->T>(fcn: F) -> T
 // TODO: Prevent this pointer from being sent (which will prevent accessing of freed memory)
 pub fn get_process_local<T: Send+Sync+::core::any::Any+Default+'static>() -> ArefBorrow<T>
 {
-	// SAFE: Checks for NULL, and the thread should be vaild while executing
+	// SAFE: Checks for NULL, and the thread should be valid while executing
 	let t = unsafe {
 		let tp = crate::arch::threads::borrow_thread();
 		assert!( !tp.is_null() );

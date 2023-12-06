@@ -25,7 +25,7 @@ mod kernel_proto;
 static PATH_CONFIG: &'static [u16] = ::utf16_literal::utf16!("Tifflin\\boot.cfg\0");
 static PATH_FALLBACK_KERNEL: &'static [u16] = ::utf16_literal::utf16!("Tifflin\\kernel-amd4.bin\0");
 
-// Globals used for panic handling and loging
+// Globals used for panic handling and logging
 static mut S_CONOUT: *const ::uefi::SimpleTextOutputInterface = 1 as *const _;
 static mut S_BOOT_SERVICES: *const ::uefi::boot_services::BootServices = 0 as *const _;
 static mut S_IMAGE_HANDLE: ::uefi::Handle = 0 as *mut _;

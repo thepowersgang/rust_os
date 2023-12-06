@@ -5,7 +5,7 @@ Need an API to allow userland threads to sleep until an event occurs. Since all 
 # Existing Options
 - `select`/`epoll`
  - `epoll`'s API uses a list of objects on which to wait
- - Pretty memory efficent
+ - Pretty memory efficient
   - User provides list of object,mask, which can be turned into similar in the kernel
 - Callbacks
  - Interesting thread-wise, maybe if there's a function that is basically "wait for callback" that a thread has to run?

@@ -208,7 +208,7 @@ impl objects::Object for File
 			match self.0.memory_map(addr, ofs, size, mode)
 			{
 			Ok(h) => {
-				// TODO: I would like the map handle to be avaliable, but I'd like the user to be able to "forget" it
+				// TODO: I would like the map handle to be available, but I'd like the user to be able to "forget" it
 				// (so it becomes an indelible part of the address space).
 				// - That would likely need a new system call similar to Drop
 				// - XXX: The handle here has borrow of the file handle, so can't be stored as-is

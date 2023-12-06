@@ -83,7 +83,7 @@ pub mod raw;
 #[cfg_attr(target_arch="riscv64", path="raw-riscv64.rs")]
 mod raw;
 
-/// Archtecture's page size (minimum allocation granuality)
+/// Architecture's page size (minimum allocation granularity)
 pub const PAGE_SIZE: usize = self::raw::PAGE_SIZE;
 
 #[macro_use]
@@ -209,7 +209,7 @@ impl Drop for ObjectHandle {
 	}
 }
 
-/// Opaque representation of an arbitary syscall object
+/// Opaque representation of an arbitrary syscall object
 pub struct AnyObject(::ObjectHandle);
 impl AnyObject
 {
@@ -221,7 +221,7 @@ impl AnyObject
 			Err(self)
 		}
 	}
-	/// Cast this to the specified type, panicing on failure
+	/// Cast this to the specified type, panicking on failure
 	pub fn downcast_panic<T: ::Object>(self) -> T {
 		match self.0.get_class()
 		{

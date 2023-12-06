@@ -116,11 +116,11 @@ pub struct SystemTable<'a>
 	pub standard_error_handle: Handle,
 	pub std_err: &'a SimpleTextOutputInterface,
 
-	/// Runtime-acessible UEFI services (avaliable after `boot_services.exit_boot_services` has been called)
+	/// Runtime-accessible UEFI services (availiable after `boot_services.exit_boot_services` has been called)
 	pub runtime_services: *const runtime_services::RuntimeServices,
 	pub boot_services: &'a boot_services::BootServices,
 
-	pub configuraton_table: SizePtr<ConfigurationTable>
+	pub configuration_table: SizePtr<ConfigurationTable>
 }
 impl<'a> SystemTable<'a>
 {
@@ -152,8 +152,8 @@ impl<'a> SystemTable<'a>
 		self.boot_services
 	}
 	#[inline]
-	pub fn configuraton_table(&self) -> &[ConfigurationTable] {
-		&self.configuraton_table[..]
+	pub fn configuration_table(&self) -> &[ConfigurationTable] {
+		&self.configuration_table[..]
 	}
 }
 

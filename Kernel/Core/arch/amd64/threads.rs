@@ -298,7 +298,7 @@ pub fn start_thread<F: FnOnce()+Send>(thread: &mut crate::threads::Thread, code:
 	}
 	fn thread_root<F: FnOnce()+Send>(code_ptr: *const F) -> ! {
 		// Copy the closure locally
-		// - TODO: Find a way that avoids needing to make this unnessesary copy. By-value FnOnce is kinda undefined, sadly
+		// - TODO: Find a way that avoids needing to make this unnecessary copy. By-value FnOnce is kinda undefined, sadly
 		// SAFE: Functionally owns that pointer
 		let code = unsafe { ::core::ptr::read(code_ptr) };
 		// 1. Run closure

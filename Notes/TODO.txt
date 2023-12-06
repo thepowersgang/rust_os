@@ -8,7 +8,7 @@
  - Client sockets unrestricted? (so that a web browser isn't spammy)
 - USB Support
  - Requires API design for kernel API
- - Possibly expose a user-side API? (for arbitary drivers)
+ - Possibly expose a user-side API? (for arbitrary drivers)
 
 # Logging and Messages #
 - Kernel log rendered to its "window"
@@ -23,7 +23,7 @@
 Named object handles (or just named VFS roots?)
 
 # Userland
-- AcessNative-esque test suite?
+- AccessNative-esque test suite?
 
 # Filesystem #
 - Strict file/object permissions via handle permissions

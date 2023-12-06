@@ -99,7 +99,7 @@ impl Regs
 	}
 }
 
-/// HCSPARAMS1 - Structural parmeters 1
+/// HCSPARAMS1 - Structural parameters 1
 /// 
 /// Limits mostly.
 impl Regs
@@ -118,7 +118,7 @@ impl Regs
 	}
 }
 
-/// HCSPARAMS2 - Structural parmeters 2
+/// HCSPARAMS2 - Structural parameters 2
 impl Regs
 {
 	/// Isochronous Scheduling Threshold
@@ -150,7 +150,7 @@ impl Regs
 	}
 }
 
-/// HCSPARAMS3 - Structural parmeters 3
+/// HCSPARAMS3 - Structural parameters 3
 impl Regs
 {
 	pub fn u1_device_exit_latency(&self) -> u16 {
@@ -227,7 +227,7 @@ impl Regs
 	/// CRCR - Command Ring Control Register
 	/// 
 	/// 0: Ring Cycle State (RCS), writes are ignored unless `CCR` reads as `0`
-	/// 1: Comamnd Stop (CS) - Write a 1 to cleanly stop processing
+	/// 1: Command Stop (CS) - Write a 1 to cleanly stop processing
 	/// 2: Command Abort (CA) - Write a 1 to abort processing of the command queue
 	/// 3: Command Ring Running (CCR) - Read-Only state of the command ring processing
 	/// 6:64: Command Ring Pointer, writes are ignored unless `CCR` reads as `0`

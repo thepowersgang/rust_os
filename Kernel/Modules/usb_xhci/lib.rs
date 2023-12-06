@@ -89,7 +89,7 @@ struct HostInner {
 }
 #[derive(Default)]
 struct SlotEvents {
-	/// A `ConfigureEnpoint` command has completed
+	/// A `ConfigureEndpoint` command has completed
 	configure: ::kernel::sync::EventChannel,
 	/// Transfer completed on an endpoint
 	endpoints: [::kernel::futures::single_channel::SingleChannel<(hw::structs::TrbNormalData,u32,crate::hw::structs::TrbCompletionCode,)>; 31],

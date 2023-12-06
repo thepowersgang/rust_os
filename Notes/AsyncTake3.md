@@ -18,7 +18,7 @@ Chained Operations
 E.g.
 - Fragmented file read
   - Just keep looping at an async level, easy.
-- Meatadata lookup (acceptable for that to be done in a worker or to be blocking)
+- Metaadata lookup (acceptable for that to be done in a worker or to be blocking)
 
 Nested Operations
 -----------------
@@ -109,10 +109,10 @@ Problems
 Follow-on operations
 -------------------
 
-E.g. Filesystem metadata lookup, non-contigious/cross-device reads
+E.g. Filesystem metadata lookup, non-contiguous/cross-device reads
 
 Some file read operations (or even network operations) will result in multiple low-level operations (e.g. reading a 1MB block of a file from
-a filesystem with a 4KB block size, where the blocks are not contigious).
+a filesystem with a 4KB block size, where the blocks are not contiguous).
 
 The lazy way is to serialise the multiple operations, keeping a stack of of async scopes that will need to repeat.
 - This is the use of the `AsyncStack` type above.

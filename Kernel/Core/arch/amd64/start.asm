@@ -415,7 +415,7 @@ EXPORT task_switch
 	mov rbp, rsp
 	SAVE rbx, r12, r13, r14, r15
 	
-	; Perfom context save/restore
+	; Perform context save/restore
 	mov [rdi], rsp	; Save RSP
 	mov rsp, [rsi]	; New RSP
 	mov cr3, rcx	; New CR3

@@ -96,9 +96,9 @@ pub trait PhysicalVolume: Send + 'static
 	///
 	/// Reads `count` blocks starting with `blockidx` into the buffer `dst` (which will/should
 	/// be the size of `count` blocks). The read is performed with the provided priority, where
-	/// 0 is higest, and 255 is lowest.
+	/// 0 is highest, and 255 is lowest.
 	///
-	/// The yeilded return value is the number of blocks that were written in this request (which
+	/// The yielded return value is the number of blocks that were written in this request (which
 	/// can be less than `count`, if the underlying medium has a maximum transfer size).
 	fn read<'a>(&'a self, prio: u8, blockidx: u64, count: usize, dst: &'a mut [u8]) -> AsyncIoResult<'a, usize>;
 	/// Writer a number of blocks to the volume

@@ -19,9 +19,9 @@ impl GicInstance
 	pub const fn new_uninit() -> GicInstance {
 		GicInstance { dist: AtomicUsize::new(0), cpu: AtomicUsize::new(0) }
 	}
-	/// Initialise an uninitailised instance
-	/// - `ah_dist` is an allocation handle to the Distrubutor register block (usually early in the memory map)
-	/// - `ah_cpu` is an allocation handle to the per-CPU reigster block
+	/// Initialise an uninitialised instance
+	/// - `ah_dist` is an allocation handle to the Distributor register block (usually early in the memory map)
+	/// - `ah_cpu` is an allocation handle to the per-CPU register block
 	pub fn init(&self, ah_dist: crate::memory::virt::MmioHandle, ah_cpu: crate::memory::virt::MmioHandle)
 	{
 		// TODO: Check the allocation size
@@ -100,14 +100,14 @@ impl GicInstance
 	fn get_ref_dist<T: crate::lib::POD>(&self, ofs: usize) -> *const T {
 		assert!(ofs + ::core::mem::size_of::<T>() < 0x1_0000);
 		let base = self.dist.load(Ordering::SeqCst);
-		assert!(base != 0, "Using unintialised GicInstance");
+		assert!(base != 0, "Using uninitialised GicInstance");
 		// SAFE: Once non-zero, this pointer is always valid. Range checked above
 		(base + ofs) as *const T
 	}
 	fn get_ref_cpu<T: crate::lib::POD>(&self, ofs: usize) -> *const T {
 		assert!(ofs + ::core::mem::size_of::<T>() < 0x1_0000);
 		let base = self.cpu.load(Ordering::SeqCst);
-		assert!(base != 0, "Using unintialised GicInstance");
+		assert!(base != 0, "Using uninitialised GicInstance");
 		(base + ofs) as *const T
 	}
 

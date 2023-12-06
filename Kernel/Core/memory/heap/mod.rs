@@ -5,7 +5,7 @@
 //! Dynamic memory manager
 use core::ptr::NonNull;
 
-// TODO: Rewrite this to correctly use the size information avaliable
+// TODO: Rewrite this to correctly use the size information available
 
 use self::heapdef::HeapDef;
 

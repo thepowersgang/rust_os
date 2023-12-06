@@ -54,7 +54,7 @@ impl HeapDef
 			}
 	}
 
-	/// Allocate arbitary bytes from the heap
+	/// Allocate arbitrary bytes from the heap
 	/// 
 	// TODO: Is this actually unsafe?
 	pub unsafe fn allocate(&mut self, size: usize, align: usize) -> Result<*mut (), Error>
@@ -66,7 +66,7 @@ impl HeapDef
 			return Ok(ZERO_ALLOC);
 		}
 		
-		// This would be static, if CTFE was avalible
+		// This would be static, if CTFE was available
 		let headers_size = ::core::mem::size_of::<HeapHead>() + ::core::mem::size_of::<HeapFoot>();
 		
 		// 1. Round size up to closest heap block size
@@ -263,7 +263,7 @@ impl HeapDef
 			
 			// 2. Right
 			//if_let!( HeapState::Free(_) => 
-			// TODO: Merging right requires being able to arbitarily remove items from the free list
+			// TODO: Merging right requires being able to arbitrarily remove items from the free list
 		}
 		
 		if !no_add

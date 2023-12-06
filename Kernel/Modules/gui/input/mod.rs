@@ -2,7 +2,7 @@
 // - By John Hodge (thePowersGang)
 //
 // Core/gui/input/mod.rs
-//! GUI input managment
+//! GUI input management
 #[allow(unused_imports)]
 use kernel::prelude::*;
 use self::keyboard::KeyCode;

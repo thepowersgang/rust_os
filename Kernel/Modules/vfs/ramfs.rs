@@ -59,7 +59,7 @@ pub fn init()
 impl mount::Driver for Driver
 {
 	fn detect(&self, _vol: &VolumeHandle) -> super::Result<usize> {
-		// RAMFS should never bind to an arbitary volume
+		// RAMFS should never bind to an arbitrary volume
 		Ok(0)
 	}
 	fn mount(&self, vol: VolumeHandle, _: mount::SelfHandle) -> super::Result<Box<dyn mount::Filesystem>> {

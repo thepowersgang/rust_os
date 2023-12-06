@@ -12,14 +12,14 @@ This basically means using the select/poll model of non-blocking IO (not strictl
 Model 1: Waiter objects with boxed functions
 ---
 
-Currently implemented model (at time of writing). Uses boxed closures contained within an enum to handle arbitary waits, but appears to suffer from lifetime interaction issues when starting a new wait from a wait callback. Also has problems with heavy use of allocations (on each transition, there is usually a free+allloc).
+Currently implemented model (at time of writing). Uses boxed closures contained within an enum to handle arbitrary waits, but appears to suffer from lifetime interaction issues when starting a new wait from a wait callback. Also has problems with heavy use of allocations (on each transition, there is usually a free+allloc).
 
 Model 2: Boxed state objects
 ---
 
 A new model which will hopefully not suffer from lifetime issues, and won't churn allocations on transitions.
 
-Each IO device creates a structure that implements 'async::WaiterState' to handle state transitions used for asynchronious IO.
+Each IO device creates a structure that implements 'async::WaiterState' to handle state transitions used for asynchronous IO.
 Reading from a storage device (for example) will return a boxed trait object, allowing the user of the code to wait on the object.
 
 Async's wait method will handle asking each "channel" to wait, and sleep on the returned primitive waiter reference.

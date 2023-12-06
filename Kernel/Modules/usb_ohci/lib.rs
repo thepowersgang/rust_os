@@ -191,7 +191,7 @@ impl HostInner
 		// - Use the rest of that page as space for the interrupt structures and TDs
 		// The following page contains:
 		// -  256 byte HCCA
-		// -  512 bytes for interupt graph
+		// -  512 bytes for interrupt graph
 		// - 1280 bytes for 16+48 endpoints (general use)
 		// - 2048 bytes for 64 transfer descriptors (with 16 bytes of metadata)
 		let mut handle_hcca = ::kernel::memory::virt::alloc_dma(32, 1, "usb_ohci")?;
@@ -314,7 +314,7 @@ impl HostInner
 			// SAFE: Pointer _should_ be valid as long as this IRQ binding exists
 			Aref::get_mut(&mut inner_aref).unwrap().irq_handle = Some(::kernel::irqs::bind_object(irq, Box::new(move || unsafe { (*ret_raw.0).handle_irq() } )));
 		}
-		// Populate `port_update` (could dupicate work from the interrupt, but won't miss anything)
+		// Populate `port_update` (could duplicate work from the interrupt, but won't miss anything)
 		for i in 0 .. nports as usize
 		{
 			let v = inner_aref.io.read_reg(inner_aref.get_port_reg(i));
@@ -555,7 +555,7 @@ impl HostInner
 			// - If it is, allocate a new endpoint descriptor and put it after the placeholder
 			let new_ed_id = self.allocate_endpoint(flags);
 
-			// SAFE: Ordering ensures consistency, writing valid addreses
+			// SAFE: Ordering ensures consistency, writing valid addresses
 			unsafe {
 				let mut new_ed = self.get_ed_locked(&new_ed_id);
 				new_ed.set_next_ed( placeholder_ed.next_ed() );
@@ -624,7 +624,7 @@ impl HostInner
 	/// Allocate a new TD
 	fn allocate_td(&self) -> TransferDescriptorId
 	{
-		// Iterate over all avaliable pools
+		// Iterate over all available pools
 		const SIZE: usize = size_of::<hw::GeneralTD>();
 		for i in (2048 / SIZE) .. (4096 / SIZE)
 		{
@@ -925,7 +925,7 @@ impl ::usb_core::host::HostController for UsbHost
 	}
 
 
-	// Root hub maintainence
+	// Root hub maintenance
 	fn set_port_feature(&self, port: usize, feature: PortFeature) {
 		log_trace!("set_port_feature({}, {:?})", port, feature);
 		let r = self.host.get_port_reg(port);

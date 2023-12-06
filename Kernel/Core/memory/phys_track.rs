@@ -2,7 +2,7 @@
 // - By John Hodge (thePowersGang)
 //
 // memory/phys_track.rs
-//! Physical address space managment
+//! Physical address space management
 //!
 //! Handles reference counting and allocation bitmaps
 use ::core::sync::atomic::{Ordering,AtomicU32};

@@ -14,13 +14,13 @@ Initial userland program (basically a lightweight init) is loaded from a custom 
 The Tifflin userland starts with an executable loader with the above header (TODO: Edit that block to fit the actual format used).
 The header allows the kernel to easily load the initial loader, without needing to include an ELF loader.
 
-This loader then uses part of the kernel command line to load the real 'init' process off the disk and truly start the syste.
+This loader then uses part of the kernel command line to load the real 'init' process off the disk and truly start the system.
 
 The loader binary acts as the system's dynamic linker, and wraps process execution for the user
 
 
 
-# Intial program state by kernel
+# Initial program state by kernel
 _(Reference: `Kernel/Core/main.rs`, `Kernel/Modules/syscalls/objects.rs`)_
 - Loader in memory, passed path to init binary
 - Stack set to region specified by the loader

@@ -371,7 +371,7 @@ impl DirEnt {
 	}
 }
 struct DirEntShort {
-	/// NUL-padded string with extention joined
+	/// NUL-padded string with extension joined
 	name: [u8; 8+1+3],
 	cluster: ClusterNum,
 	size: u32,

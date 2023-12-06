@@ -13,7 +13,7 @@ pub use ::values::MaskedSocketAddress;
 pub struct Server(::ObjectHandle);
 /// Handle to an active socket connection (e.g. TCP)
 pub struct ConnectedSocket(::ObjectHandle);
-/// Handle to an acive free connection (e.g. UDP)
+/// Handle to an active free connection (e.g. UDP)
 pub struct FreeSocket(::ObjectHandle);
 
 fn to_result(val: usize) -> Result<u32, Error> {

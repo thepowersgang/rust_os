@@ -44,7 +44,7 @@ impl vfs::node::File for File
 		if ofs == inode.i_size() {
 			return Ok(0);
 		}
-		// 1. Restrict buffer size to avaiable bytes
+		// 1. Restrict buffer size to available bytes
 		let avail_bytes = inode.i_size() - ofs;
 		let buf = if buf.len() as u64 > avail_bytes {
 				&mut buf[.. avail_bytes as usize]

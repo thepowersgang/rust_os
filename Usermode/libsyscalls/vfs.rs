@@ -3,7 +3,7 @@
 //
 //! Low-level filesystem access
 
-/// Arbitary VFS node handle
+/// arbitrary VFS node handle
 pub struct Node(super::ObjectHandle);
 /// File handle (seekable buffer)
 pub struct File(super::ObjectHandle, u64);
@@ -109,7 +109,7 @@ impl File
 		self.1 += count as u64;
 		Ok(count)
 	}
-	/// Read from an arbitary location in the file
+	/// Read from an arbitrary location in the file
 	#[inline]
 	pub fn read_at(&self, ofs: u64, data: &mut [u8]) -> Result<usize,Error> {
 		// SAFE: Passes valid arguments to READAT
@@ -117,7 +117,7 @@ impl File
 			.map(|v| v as usize)
 	}
 	
-	/// Write to an arbitary location in the file
+	/// Write to an arbitrary location in the file
 	#[inline]
 	pub fn write_at(&self, ofs: u64, data: &[u8]) -> Result<usize,Error> {
 		// SAFE: All validated
@@ -125,7 +125,7 @@ impl File
 			.map(|v| v as usize)
 	}
 	
-	// Actualy safe, as it uses the aliasing restrictions from the file, and ensures that the provided address is free
+	// Actually safe, as it uses the aliasing restrictions from the file, and ensures that the provided address is free
 	/// Map a portion of this file into this process's address space.
 	#[inline]
 	pub fn memory_map(&self, ofs: u64, read_size: usize, mem_addr: *const ::Void, mode: MemoryMapMode) -> Result<(),Error> {

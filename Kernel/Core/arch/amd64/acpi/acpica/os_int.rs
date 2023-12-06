@@ -41,12 +41,12 @@ extern "C" fn AcpiOsPredefinedOverride(_PredefinedObject: *const ACPI_PREDEFINED
 	AE_OK
 }
 #[no_mangle] #[linkage="external"]
-extern "C" fn AcpiOsTableOverride(_ExisitingTable: *mut ACPI_TABLE_HEADER, NewTable: &mut *const ACPI_TABLE_HEADER) -> ACPI_STATUS {
+extern "C" fn AcpiOsTableOverride(_ExistingTable: *mut ACPI_TABLE_HEADER, NewTable: &mut *const ACPI_TABLE_HEADER) -> ACPI_STATUS {
 	*NewTable = 0 as *const _;
 	AE_OK
 }
 #[no_mangle] #[linkage="external"]
-extern "C" fn AcpiOsPhysicalTableOverride(_ExisitingTable: *mut ACPI_TABLE_HEADER, NewAddress: &mut ACPI_PHYSICAL_ADDRESS, _NewTableLength: &mut u32) -> ACPI_STATUS {
+extern "C" fn AcpiOsPhysicalTableOverride(_ExistingTable: *mut ACPI_TABLE_HEADER, NewAddress: &mut ACPI_PHYSICAL_ADDRESS, _NewTableLength: &mut u32) -> ACPI_STATUS {
 	*NewAddress = 0;
 	AE_OK
 }
@@ -111,8 +111,8 @@ extern "C" fn AcpiOsWritable(Memory: *const (), Length: ACPI_SIZE) -> bool {
 	unimplemented!();
 }
 
-// -- Thread Managment --
-// ----------------------
+// -- Thread Management --
+// -----------------------
 #[no_mangle] #[linkage="external"]
 extern "C" fn AcpiOsGetThreadId() -> ACPI_THREAD_ID {
 	// 0 is special to ACPICA, so offset by one

@@ -1,7 +1,7 @@
 //
 //
 //
-//! Synchonisation primitives
+//! Synchronisation primitives
 use core::ops;
 use core::sync::atomic::{AtomicUsize,Ordering};
 use core::cell::UnsafeCell;

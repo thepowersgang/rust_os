@@ -2,8 +2,8 @@
 Userland API Requirements/Desires
 =================================
 
-- Simple sync (or aparently synch) operations should exist
-  - This requires that the kernel API cheaply accept arbitary source/destination buffers?
+- Simple sync (or apparently synch) operations should exist
+  - This requires that the kernel API cheaply accept arbitrary source/destination buffers?
 
 - Support zero-copy operations where possible
   - Optional for the first pass
@@ -25,7 +25,7 @@ Problems / Edge-cases
 
 - Multiple semi-sequential operations
   - Reading filesystem metadata
-  - Fragmented files (multiple low-level reads required for a contigious request)
+  - Fragmented files (multiple low-level reads required for a contiguous request)
 
 - RAID/JBOD volumes
   - Multiple requests, but intended to be performed in parallel

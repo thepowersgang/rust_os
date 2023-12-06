@@ -9,7 +9,7 @@ use ::core::sync::atomic::{Ordering,AtomicU64};
 /// Timer ticks (ms)
 pub type TickCount = u64;
 
-/// Obtain the number of timer ticks since an arbitary point (system startup)
+/// Obtain the number of timer ticks since an arbitrary point (system startup)
 pub fn ticks() -> u64
 {
 	crate::arch::time::cur_timestamp()
@@ -91,7 +91,7 @@ impl Timer
 	//}
 }
 
-// TODO: Use AtomicU64 if availble, otherwise use a spinlock protected u32 pair
+// TODO: Use AtomicU64 if available, otherwise use a spinlock protected u32 pair
 /// A timer used to track the last access time of a field
 pub struct CacheTimer(
 	#[cfg(target_has_atomic="64")]

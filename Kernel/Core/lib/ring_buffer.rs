@@ -57,7 +57,7 @@ impl<T> RingBuf<T>
 		self.len
 	}
 
-	/// Obtain a contigious slice of data from this buffer
+	/// Obtain a contiguous slice of data from this buffer
 	pub fn get_slices(&mut self, range: ::core::ops::Range<usize>) -> (&[T], &[T]) {
 		// SAFE: Correct pointer accesses to initialised data
 		unsafe {
@@ -131,7 +131,7 @@ impl<T> RingBuf<T>
 		}
 		else
 		{
-			// SAFE: No data effectively forotten
+			// SAFE: No data effectively forgotten
 			unsafe {
 				let idx = self.start;
 				self.start = self.int_get_idx(1);

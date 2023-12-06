@@ -3,7 +3,7 @@
 //
 // Core/arch/riscv64/memory.rs
 //! RISC-V boot handling
-// TODO: This is almost idential to ARMv8
+// TODO: This is almost identical to ARMv8
 
 use crate::lib::lazy_static::LazyStatic;
 use crate::lib::fdt::FDTRoot;

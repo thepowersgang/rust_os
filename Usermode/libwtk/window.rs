@@ -28,7 +28,7 @@ pub trait WindowTrait<'a>
 	fn show(&mut self);
 	/// Hide the window
 	fn hide(&mut self);
-	/// Set the currently focussed element to an arbitary element)
+	/// Set the currently focussed element to an arbitrary element)
 	/// 
 	/// NOTE: Undefined things happen if this element isn't within this window's 
 	///       render tree.
@@ -157,7 +157,7 @@ impl<'a, D: 'a + Decorator> Window<'a, D>
 	pub fn hide(&mut self) {
 		WindowTrait::hide(self)
 	}
-	/// Set the currently focussed element to an arbitary element)
+	/// Set the currently focussed element to an arbitrary element)
 	pub fn focus(&mut self, ele: &'a dyn crate::Element) {
 		WindowTrait::focus(self, ele)
 	}
@@ -230,7 +230,7 @@ impl<'a, D: 'a + Decorator> WindowTrait<'a> for Window<'a, D>
 		self.win.hide();
 	}
 
-	/// Set the currently focussed element to an arbitary element)
+	/// Set the currently focussed element to an arbitrary element)
 	/// 
 	/// NOTE: Undefined things happen if this element isn't within this window's 
 	///       render tree.

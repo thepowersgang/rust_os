@@ -96,7 +96,7 @@ impl HostInner
 		// Request the hardware allocate a slot
 		self.slot_enable_ready.reset();
 		self.command_ring.lock().enqueue_command(&self.regs, hw::commands::EnableSlot);
-		// Wait for the newly allocated to slot to be availble.
+		// Wait for the newly allocated to slot to be available.
 		self.slot_enable_ready.wait().await;
 		// Get the assigned slot index (won't be clobbered, as this runs with `usb_core`'s dev0 lock)
 		let slot_idx = self.slot_enable_idx.load(::core::sync::atomic::Ordering::SeqCst);

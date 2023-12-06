@@ -37,7 +37,7 @@ struct Card
 {
 	io_base: device_manager::IOBinding,
 	
-	// Buffer: Three contigious pages
+	// Buffer: Three contiguous pages
 	rx_buffer: ::kernel::memory::virt::ArrayHandle<u8>,
 	rx_seen_ofs: AtomicU16,
 	rx_packet_out: AtomicBool,	// TODO: Support having multiple packets held by the IPStack at once?
@@ -214,7 +214,7 @@ impl Card
 				}
 				else {
 					// Activated and complete (and now marked as inactive), release it to the pool
-					// SAFE: Index is corret and active
+					// SAFE: Index is correct and active
 					let /*mut*/ slot = unsafe { self.tx_slots.handle_from_async(idx) };
 					//if let Some(s) = slot.async.take() {
 					//	s.signal(0);
@@ -322,7 +322,7 @@ impl nic::Interface for Card
 	/*
 	fn tx_async<'a, 's>(&'s self, async: async::ObjectHandle, mut stack: async::StackPush<'a, 's>, pkt: nic::SparsePacket) -> Result<(), nic::Error> {
 		log_trace!("tx_async()");
-		// If there's an immediately-avaliable slot, take it
+		// If there's an immediately-available slot, take it
 		if let Some(mut buf) = self.tx_slots.try_acquire()
 		{
 			// Populate the hardware buffer with the contents of the packet

@@ -140,7 +140,7 @@ impl Standard
 			};
 		&TEMPLATE
 	}
-	fn buttton_template(&self) -> &Template<[u32]> {
+	fn button_template(&self) -> &Template<[u32]> {
 		static TEMPLATE: Template<[u32; 5*5]> = Template {
 			w: 5, h: 5,
 			left: 2, top: 2,
@@ -168,7 +168,7 @@ impl Standard
 	fn titlebar_height(&self) -> u32 { 16 }
 
 	fn render_button_exit(&self, surface: SurfaceView) {
-		self.buttton_template().render( surface.clone() );
+		self.button_template().render( surface.clone() );
 		// Draw an X in the middle
 		// TODO: ^
 	}

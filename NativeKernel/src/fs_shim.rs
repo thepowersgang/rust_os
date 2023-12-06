@@ -93,7 +93,7 @@ impl vfs::node::NodeBase for DirNodeRef
 	fn get_id(&self) -> InodeId {
         self.1
     }
-	/// Return an &Any associated with this node (not nessesarily same as `self`, up to the driver)
+	/// Return an &Any associated with this node (not necessarily same as `self`, up to the driver)
 	fn get_any(&self) -> &dyn ::std::any::Any {
         self
     }
@@ -194,7 +194,7 @@ impl vfs::node::NodeBase for FileNodeRef
 	fn get_id(&self) -> InodeId {
         self.1
     }
-	/// Return an &Any associated with this node (not nessesarily same as `self`, up to the driver)
+	/// Return an &Any associated with this node (not necesssarily same as `self`, up to the driver)
 	fn get_any(&self) -> &dyn ::std::any::Any {
         self
     }

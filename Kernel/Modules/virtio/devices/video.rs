@@ -158,7 +158,7 @@ where
 		match rv
 		{
 		Ok(bytes) => {
-			assert_eq!(bytes, ::core::mem::size_of_val(&ret_hdr) + ::core::mem::size_of_val(&ret_info), "Mismatched respose size");
+			assert_eq!(bytes, ::core::mem::size_of_val(&ret_hdr) + ::core::mem::size_of_val(&ret_info), "Mismatched response size");
 			ret_info
 			},
 		Err( () ) => panic!("TODO: Handle error waiting for VIRTIO_GPU_CMD_GET_DISPLAY_INFO response"),
@@ -445,7 +445,7 @@ where
 	/// Attach a buffer to this resource
 	pub unsafe fn attach_backing(&mut self, buffer: &[u32])
 	{
-		// 1. Enumerate contigious sections
+		// 1. Enumerate contiguous sections
 		let mut entries: [hw::MemEntry; 16] = ::kernel::lib::PodHelpers::zeroed();
 		let mut n_ents = 0;
 		{

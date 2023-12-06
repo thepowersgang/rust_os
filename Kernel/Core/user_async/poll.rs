@@ -47,7 +47,7 @@ impl<'a> super::PrimitiveWaiter for Waiter<'a>
 		Some(ref cb) => {
 			let mut b = cb.borrow_mut();
 			let rb = &mut **b;
-			// Call poll hander with 'None' to ask it to poll
+			// Call poll handler with 'None' to ask it to poll
 			rb(None)
 			},
 		None => true,

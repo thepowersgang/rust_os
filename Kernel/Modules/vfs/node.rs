@@ -21,7 +21,7 @@ pub enum NodeType<'a> {
 pub trait NodeBase: Send {
 	/// Return the volume's inode number
 	fn get_id(&self) -> InodeId;
-	/// Return an &Any associated with this node (not nessesarily same as `self`, up to the driver)
+	/// Return an &Any associated with this node (not necessarily same as `self`, up to the driver)
 	fn get_any(&self) -> &dyn Any;
 }
 /// Trait for "File" nodes

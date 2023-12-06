@@ -32,7 +32,7 @@ pub trait BusManager:
 	fn get_attr_names(&self) -> &[&str];
 }
 
-/// Attrbute on a bus device
+/// Attribute on a bus device
 #[derive(Debug)]
 pub enum AttrValue<'a>
 {
@@ -194,7 +194,7 @@ fn init()
 
 /// Register a bus with the device manager
 ///
-/// Creates a new internal representation of the bus, containg the passed set of devices.
+/// Creates a new internal representation of the bus, containing the passed set of devices.
 pub fn register_bus(manager: &'static dyn BusManager, devices: Vec<Box<dyn BusDevice>>) //-> BusHandle
 {
 	let bus = Bus {
@@ -265,7 +265,7 @@ pub fn register_driver(driver: &'static dyn Driver)
 }
 
 /**
- * Locate the best registered driver for this device and instanciate it
+ * Locate the best registered driver for this device and instantiate it
  */
 fn find_driver(bus: &dyn BusManager, bus_dev: &mut dyn BusDevice) -> Option<(DriverInstancePtr,DriverHandleLevel)>
 {

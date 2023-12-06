@@ -58,7 +58,7 @@ impl<S: Storage> BufferRing<S>
 				})
 		}
 	}
-	/// Aquire with a blocking wait
+	/// Acquire with a blocking wait
 	pub fn acquire_wait(&self) -> Handle<S> {
 		let mut lh = self.inner.lock();
 		while (lh.next_free + 1) % S::len() as u16 == lh.first_used {

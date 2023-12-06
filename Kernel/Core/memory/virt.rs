@@ -2,7 +2,7 @@
 // - By John Hodge (thePowersGang)
 //
 // Core/memory/virt.rs
-//! Virtual memory management - DMA and temprory mappings
+//! Virtual memory management - DMA and temporary mappings
 use core::fmt;
 use core::ops;
 use crate::arch::memory::addresses;
@@ -46,7 +46,7 @@ impl_from! {
 	}
 }
 
-/// A handle to an arbitary owned memory allocation.
+/// A handle to an arbitrary owned memory allocation.
 pub struct AllocHandle
 {
 	value: ::core::num::NonZeroUsize,
@@ -128,7 +128,7 @@ where
 	fcn();
 }
 
-/// Ensure that the provded pages are valid (i.e. backed by memory)
+/// Ensure that the provided pages are valid (i.e. backed by memory)
 pub fn allocate(addr: *mut (), page_count: usize) -> Result<(), MapError> {
 	allocate_int(addr, page_count, false)
 }
@@ -152,7 +152,7 @@ fn allocate_int(addr: *mut (), page_count: usize, is_user: bool) -> Result<(), M
 			return Err(MapError::RangeInUse);
 		}
 	}
-	// 3. do `page_count` single arbitary allocations
+	// 3. do `page_count` single arbitrary allocations
 	for pgptr in Pages(addr, page_count) {
 		if ! crate::memory::phys::allocate( pgptr ) {
 			// Allocation error!
@@ -202,7 +202,7 @@ pub fn reserve(addr: *mut (), page_count: usize) -> Result<Reservation, ()>
 			return Err( () );
 		}
 	}
-	// 3. do `page_count` single arbitary allocations
+	// 3. do `page_count` single arbitrary allocations
 	for pgptr in Pages(addr, page_count)
 	{
 		// TODO: Instead map in COW zero pages
@@ -442,7 +442,7 @@ impl ops::Drop for MmioHandle
 {
 	fn drop(&mut self)
 	{
-		// SAFE: Owned allocaton
+		// SAFE: Owned allocation
 		unsafe {
 			unmap(self.0.as_ptr() as *mut (), (self.size() + PAGE_SIZE - 1) / PAGE_SIZE);
 		}

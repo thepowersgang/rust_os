@@ -120,7 +120,7 @@ impl Dev
 					None
 					},
 				_ => {
-					log_warning!("Unkown scancode set reponse {:#02x}", byte);
+					log_warning!("Unknown scancode set response {:#02x}", byte);
 					self.state = State::Disabled;
 					None
 					},
@@ -133,7 +133,7 @@ impl Dev
 					None
 					},
 				_ => {
-					log_warning!("Unkown scancode set reponse {:#02x}", byte);
+					log_warning!("Unknown scancode set response {:#02x}", byte);
 					self.state = State::Disabled;
 					None
 					},

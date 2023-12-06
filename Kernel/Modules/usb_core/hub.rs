@@ -112,7 +112,7 @@ impl HubDevice<'_>
 
 		if status & 1 << PortFeature::CConnection as u8 != 0 {
 			let connected = status & 1 << PortFeature::Connection as u8 != 0; 
-			log_debug!("Conection change: {}", connected);
+			log_debug!("Connection change: {}", connected);
 			self.clear_port_feature(idx, PortFeature::CConnection).await;
 			if connected {
 				// Newly connected
@@ -209,7 +209,7 @@ struct HubDescriptor
 	num_ports: u8,
 	/// - `1:0` = Logical Power Switching Mode
 	///   - `00` = Ganged (all ports at once)
-	///   - `01` = Indivdual ports
+	///   - `01` = Individual ports
 	///   - `1X` = Reserved
 	/// - `2` = Compound device?
 	/// - `4:3` = Over-current protection mode

@@ -14,10 +14,10 @@ Ideas
  - Simplest option, and can be made async (by having only one outstanding request per channel)
  - Also fits main usecase.
 - Single-message async (each channel can have one outstanding message)
-- Arbitary-length message queue
+- Arbitrary-length message queue
 
 
-Semi-Syncronous Message Passing (RPC)
+Semi-Synchronous Message Passing (RPC)
 ====================================
 
 - Uni-directional channels (single message/object buffer)

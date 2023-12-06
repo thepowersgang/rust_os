@@ -53,7 +53,7 @@ enum HPETCompReg
 static S_INSTANCE: crate::lib::LazyStatic<HPET> = lazystatic_init!();
 static S_LOCK: crate::sync::Spinlock<()> = crate::sync::Spinlock::new( () );
 
-/// Reutrns the current system timestamp, in miliseconds since an arbitary point (usually power-on)
+/// Returns the current system timestamp, in milliseconds since an arbitrary point (usually power-on)
 pub fn get_timestamp() -> u64
 {
 	if S_INSTANCE.ls_is_valid() {
@@ -99,7 +99,7 @@ fn init()
 	let hpet = match crate::arch::amd64::acpi::find::<ACPI_HPET>("HPET", 0)
 		{
 		None => {
-			log_error!("No HPET in ACPI, no timing avaliable");
+			log_error!("No HPET in ACPI, no timing available");
 			return ;
 			},
 		Some(v) => v,
@@ -143,10 +143,10 @@ impl HPET
 		let caps_id = rv.read_reg(HPETReg::CapsID as usize);
 		log_debug!("Capabilities/ID: {caps_id:#x}");
 		rv.period = caps_id >> 32;
-		for comparitor in 0..rv.num_comparitors() {
-			let comp_reg = HPETReg::Timer0 as usize + comparitor*4;
+		for comparator in 0..rv.num_comparators() {
+			let comp_reg = HPETReg::Timer0 as usize + comparator*4;
 			let v = rv.read_reg(comp_reg);
-			log_debug!("Comp {comparitor}: {v:#x}");
+			log_debug!("Comp {comparator}: {v:#x}");
 		}
 		rv
 	}
@@ -198,30 +198,30 @@ impl HPET
 		// SAFE: Coerces to raw pointer instantly
 		unsafe { self.mapping_handle.as_int_mut(0) }
 	}
-	fn num_comparitors(&self) -> usize {
+	fn num_comparators(&self) -> usize {
 		((self.read_reg(HPETReg::CapsID as usize) >> 8) & 0x1F) as usize + 1
 	}
 	
 	fn current(&self) -> u64 {
 		self.read_reg(HPETReg::MainCtr as usize)
 	}
-	fn comparitor(&self, idx: usize) -> Comparitor<'_> {
-		assert!(idx < self.num_comparitors());
-		Comparitor { parent: self, idx }
+	fn comparator(&self, idx: usize) -> Comparator<'_> {
+		assert!(idx < self.num_comparators());
+		Comparator { parent: self, idx }
 	}
-	fn oneshot(&self, comparitor: usize, value: u64) {
-		self.comparitor(comparitor).set_oneshot(value);
+	fn oneshot(&self, comparator: usize, value: u64) {
+		self.comparator(comparator).set_oneshot(value);
 	}
-	fn get_target(&self, comparitor: usize) -> u64 {
-		self.comparitor(comparitor).get_target()
+	fn get_target(&self, comparator: usize) -> u64 {
+		self.comparator(comparator).get_target()
 	}
 }
-struct Comparitor<'a>
+struct Comparator<'a>
 {
 	parent: &'a HPET,
 	idx: usize,
 }
-impl Comparitor<'_>
+impl Comparator<'_>
 {
 	#[track_caller]
 	fn reg(&self, index: HPETCompReg) -> usize {
@@ -239,10 +239,10 @@ impl Comparitor<'_>
 
 	fn set_oneshot(&self, target: u64) {
 		log_debug!("[{}] set_oneshot({:#x})", self.idx, target);
-		// Set comparitor value
+		// Set comparator value
 		self.write_reg(HPETCompReg::Value, target);
 		// HACK: Wire to APIC interrupt 2
-		// IRQ2, Interrups Enabled, Level Triggered
+		// IRQ2, Interrupts Enabled, Level Triggered
 		self.write_reg(HPETCompReg::ConfigCaps, (2 << 9)|(1<<2)|(1<<1));
 	}
 	fn get_target(&self) -> u64 {

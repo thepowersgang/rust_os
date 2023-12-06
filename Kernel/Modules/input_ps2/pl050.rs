@@ -45,7 +45,7 @@ impl Port
 			};
 		log_debug!("p.base = {:?}", p.base);
 
-		// TODO: Unknown what this does, Acess did it.
+		// TODO: Unknown what this does, Access did it.
 		//  According to the qemu source, this enables interrupts
 		p.get_regs()[0] = 0x10u32;
 

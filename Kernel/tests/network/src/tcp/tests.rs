@@ -87,7 +87,7 @@ fn server()
     conn.raw_send_packet(TCP_SYN, &[], &[]);
     conn.local_seq = conn.local_seq.wrapping_add(1);
     let hdr = conn.wait_rx_check(TCP_SYN|TCP_ACK, &[]);
-    assert_eq!(hdr.ack, conn.local_seq, "ACK number doens't match expected");
+    assert_eq!(hdr.ack, conn.local_seq, "ACK number doesn't match expected");
     conn.remote_seq = hdr.seq;//.wrapping_add(1);
 
     // >> STATE: SYN-RECEIVED

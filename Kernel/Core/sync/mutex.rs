@@ -82,7 +82,7 @@ impl UnitMutex
 		::core::sync::atomic::fence(::core::sync::atomic::Ordering::Acquire);
 	}
 
-	/// UNSAFE: Must only be called when the controlled resoure is being released
+	/// UNSAFE: Must only be called when the controlled resource is being released
 	#[inline(never)]	// These are nice debugging points
 	pub unsafe fn unlock(&self, ty_name: &'static str) {
 		Self::trace(self, ty_name, "unlock");
@@ -215,13 +215,13 @@ impl<'l,T:Send> ops::Deref for HeldLazyMutex<'l,T>
 {
 	type Target = T;
 	fn deref(&self) -> &T {
-		self.0.as_ref().expect("Derefencing an uninitialised LazyMutex")
+		self.0.as_ref().expect("Dereferencing an uninitialised LazyMutex")
 	}
 }
 impl<'l,T:Send> ops::DerefMut for HeldLazyMutex<'l,T>
 {
 	fn deref_mut(&mut self) -> &mut T {
-		self.0.as_mut().expect("Derefencing an uninitialised LazyMutex")
+		self.0.as_mut().expect("Dereferencing an uninitialised LazyMutex")
 	}
 }
 

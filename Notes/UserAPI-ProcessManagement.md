@@ -16,7 +16,7 @@ To start execution, the `_START` call is used, which takes the initial IP and SP
 
 Child Object Passing
 ====================
-The parent can transfer an arbitary number of objects to the child process before it begins execution. These are popped by the child in a FIFO fashion.
+The parent can transfer an arbitrary number of objects to the child process before it begins execution. These are popped by the child in a FIFO fashion.
 
 The loader uses this to send the executable handle (and currently, the root handle as well).
 

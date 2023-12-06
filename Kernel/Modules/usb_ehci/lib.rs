@@ -127,7 +127,7 @@ impl HostInner
 			regs.write_op(OpReg::PeriodicListBase, ::kernel::memory::virt::get_phys(&periodic_queue[0]) as u32);
 			regs.write_op(OpReg::AsyncListAddr, qh_pool.get_phys(&dead_qh));
 			// Enable controller
-			regs.write_op(OpReg::UsbCmd, /*interupt threshold*/ (0x40 << 16) | USBCMD_PeriodicEnable | USBCMD_AsyncEnable | USBCMD_Run);
+			regs.write_op(OpReg::UsbCmd, /*interrupt threshold*/ (0x40 << 16) | USBCMD_PeriodicEnable | USBCMD_AsyncEnable | USBCMD_Run);
 			// Route all ports to the controller
 			regs.write_op(OpReg::ConfigFlag, 1);
 		}

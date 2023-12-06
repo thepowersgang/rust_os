@@ -107,7 +107,7 @@ pub fn print_backtrace()
 pub fn halt() -> ! {
 	// TODO: Send an IPI to halt all other processors
 	loop {
-		// SAFE: Corect inline assembly... it's going to perma-pause
+		// SAFE: Correct inline assembly... it's going to perma-pause
 		unsafe {
 			::core::arch::asm!("cli; hlt");
 		}

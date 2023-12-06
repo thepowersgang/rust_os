@@ -1,5 +1,5 @@
 
-// Idea on a method to allow hardware (e.g. network cards) to recieve pointers into the stack without them being invalidated during semi-async DMA
+// Idea on a method to allow hardware (e.g. network cards) to receive pointers into the stack without them being invalidated during semi-async DMA
 
 struct DelayDrop<T>
 {

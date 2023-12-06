@@ -504,7 +504,7 @@ enum SuspItem<'a>
 	// SUSP Base
 	ContinuationEntry(u32, u32, u32),
 	Pad(&'a [u8]),
-	Identifer,
+	Identifier,
 	//End,
 	
 	// RockRidge
@@ -554,7 +554,7 @@ impl<'a> Iterator for SuspIterator<'a>
 			Some(match &tag[..]
 				{
 				b"ST" => return None,	// Terminated
-				b"SP" => SuspItem::Identifer,
+				b"SP" => SuspItem::Identifier,
 				b"PD" => SuspItem::Pad(data),
 				b"CE" => {
 					if data.len() < 3*8 { return None; }

@@ -28,9 +28,9 @@ pub struct InterruptRegs
 #[no_mangle]
 #[doc(hidden)]
 /// Error handler called by assembly
-pub extern "C" fn spurrious_handler(regs: &InterruptRegs)
+pub extern "C" fn spurious_handler(regs: &InterruptRegs)
 {
-	panic!("Spurrious interrupt: v={} @ ip={:#x}", regs.intnum, regs.errorcode);
+	panic!("Spurious interrupt: v={} @ ip={:#x}", regs.intnum, regs.errorcode);
 }
 
 #[no_mangle]

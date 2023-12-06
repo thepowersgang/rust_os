@@ -218,7 +218,7 @@ pub struct Attrib_Filename {
 #[repr(C)]
 pub struct Attrib_IndexRoot {
 	/// Type of indexed attribute
-	attribte_type: u32,
+	attribute_type: u32,
 	/// Sorting method
 	collation_rule: u32,
 	/// Size of an index allocation entry (bytes)

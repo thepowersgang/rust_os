@@ -61,7 +61,7 @@ impl PlicInstance
 	fn get_ref<T: crate::lib::POD>(&self, ofs: usize) -> &T {
 		assert!(ofs + ::core::mem::size_of::<T>() < 0x4_000_000);
 		let base = self.0.load(Ordering::SeqCst);
-		assert!(base != 0, "Using unintialised PlicInstance");
+		assert!(base != 0, "Using uninitialised PlicInstance");
 		// SAFE: Once non-zero, this pointer is always valid. Range checked above
 		unsafe { &*( (base + ofs) as *const T ) }
 	}

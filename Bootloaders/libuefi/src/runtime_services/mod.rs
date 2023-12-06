@@ -270,7 +270,7 @@ impl VariableAttributes
 }
 pub struct VariableInfo
 {
-	/// Maximum amount of space (in storage) for variables of the specified atribute mask
+	/// Maximum amount of space (in storage) for variables of the specified attribute mask
 	pub maximum_variable_storage_size: u64,
 	/// Remaining free space for variable storage
 	pub remaining_variable_storage_size: u64,

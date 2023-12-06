@@ -54,7 +54,7 @@ pub trait PciInterface: Send + Sync
 	/// - Write the provided mask
 	/// - Read new value
 	/// - Restore original value
-	/// Used to get the changable bits from a BAR
+	/// Used to get the changeable bits from a BAR
 	///
 	/// Returns (`original`, `masked`)
 	///
@@ -138,7 +138,7 @@ impl crate::device_manager::BusDevice for PCIDev
 			}
 			},
 		_ => {
-			log_warning!("Request for non-existant attr '{}' on device 0x{:05x}", name, self.addr);
+			log_warning!("Request for non-existent attr '{}' on device 0x{:05x}", name, self.addr);
 			AttrValue::None
 			},
 		}
@@ -166,7 +166,7 @@ impl crate::device_manager::BusDevice for PCIDev
 			}
 			},
 		_ => {
-			log_warning!("Attempting to set non-existant attr '{}' on device 0x{:05x}", name, self.addr);
+			log_warning!("Attempting to set non-existent attr '{}' on device 0x{:05x}", name, self.addr);
 			},
 		}
 	}

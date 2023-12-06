@@ -189,14 +189,14 @@ pub mod virt
 			// Could run out of temporary slots if multiple processes try to fork at once
 
 			// Create a new root table
-			let root_granuality = PageLevel::Leaf1G;
-			let mut table = NewTable::new(root_granuality)?;
+			let root_granularity = PageLevel::Leaf1G;
+			let mut table = NewTable::new(root_granularity)?;
 			// SAFE: Valid physical address, never gets `&mut`
 			unsafe { with_temp_map(get_root_table_phys(), |ptr: &PageTable|->Result<(),MapError> {
 				// Recursively copy the user clone region
 				for i in 0 .. 256
 				{
-					table[i] = opt_clone_table(root_granuality, i << root_granuality.ofs(), clone_start, clone_end, ptr[i].load(Ordering::Relaxed))?;
+					table[i] = opt_clone_table(root_granularity, i << root_granularity.ofs(), clone_start, clone_end, ptr[i].load(Ordering::Relaxed))?;
 				}
 				// Shallow copy all kernel top-level entries
 				for i in 256 .. 512
@@ -305,7 +305,7 @@ pub mod virt
 			Err(_) => {},
 			}
 		}
-		panic!("BUG: Semaphore aquire worked, but no free slots in temporary mappings");
+		panic!("BUG: Semaphore acquire worked, but no free slots in temporary mappings");
 	}
 	pub unsafe fn temp_unmap<T>(a: *mut T)
 	{

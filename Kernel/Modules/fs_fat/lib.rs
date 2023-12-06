@@ -46,7 +46,7 @@ enum Size
 	Fat32,
 }
 
-/// Driver strucutre
+/// Driver structure
 struct Driver;
 
 struct Filesystem
@@ -144,7 +144,7 @@ impl mount::Driver for Driver
 				bs_c.total_sectors_32 as usize
 			};
 		
-		// Calcualte some quantities
+		// Calculate some quantities
 		let spare_fat_sectors = (bs_c.fat_count as usize - 1) * fat_size;
 		let first_data_sector = bs_c.reserved_sect_count as usize
 			+ fat_size + spare_fat_sectors

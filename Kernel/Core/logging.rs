@@ -146,7 +146,7 @@ mod memory
 		lines: crate::lib::ring_buffer::RingBuf<LogMessage>,
 	}
 	// Buffer for log data
-	// Temp hack until type-level ints are avaliable
+	// Temp hack until type-level ints are available
 	struct LogDataBuf([u8;160]);
 	impl LogDataBuf {
 		fn new() -> LogDataBuf {

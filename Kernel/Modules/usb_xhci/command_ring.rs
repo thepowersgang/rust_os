@@ -40,7 +40,7 @@ impl CommandRing
 		if num_scratchpad_buffers > 0
 		{
 			// Max of 1023 buffers to be requested, which will require 8KB for the list
-			// - If fewer than 128 buffers requred, then stick after the dcbaa (leaving 31 command slots)
+			// - If fewer than 128 buffers required, then stick after the dcbaa (leaving 31 command slots)
 			// - Otherwise, they need to go in a separate page
 			let array = if num_scratchpad_buffers < 128 {
 					base_offset = (((256 + num_scratchpad_buffers as usize) * 8  + ENT_SIZE-1) / ENT_SIZE) as u8;
@@ -147,15 +147,15 @@ impl CommandRing
 		let ofs = match addr.checked_sub(base_addr)
 			{
 			Some(v) if v < ::kernel::PAGE_SIZE as u64 => v,
-			Some(_) => { log_warning!("Bad CommandRing addres: {:#x} - well above the ring base {:#x}", addr, base_addr); return None; }
-			None => { log_warning!("Bad CommandRing addres: {:#x} - below the ring base {:#x}", addr, base_addr); return None; }
+			Some(_) => { log_warning!("Bad CommandRing address: {:#x} - well above the ring base {:#x}", addr, base_addr); return None; }
+			None => { log_warning!("Bad CommandRing address: {:#x} - below the ring base {:#x}", addr, base_addr); return None; }
 			};
 		let idx = (ofs / ENT_SIZE as u64) as u8;
 		if self.base_offset <= idx && idx <= MAX_OFFSET {
 			Some(idx as u8)
 		}
 		else {
-			log_warning!("Bad CommandRing addres: {:#x} => {} - outside of valid range", addr, idx);
+			log_warning!("Bad CommandRing address: {:#x} => {} - outside of valid range", addr, idx);
 			None
 		}
 	}

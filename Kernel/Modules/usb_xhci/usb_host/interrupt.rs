@@ -42,7 +42,7 @@ impl Interrupt
 		let mut state = self.host.push_ep_trbs(self.addr, self.index);
 		
 		let buffer = self.get_buf(self.cur_buffer.load(::core::sync::atomic::Ordering::SeqCst));
-		for (paddr, len, is_last) in super::iter_contigious_phys(buffer) {
+		for (paddr, len, is_last) in super::iter_contiguous_phys(buffer) {
 			// SAFE: Trusting ourselves to wait until the hardware is done
 			unsafe {
 				let (data,transfer_length) = (crate::hw::structs::TrbNormalData::Pointer(paddr), len as u32);

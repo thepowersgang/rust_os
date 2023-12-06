@@ -221,7 +221,7 @@ impl<'a, T: ?Sized + Send+Sync> ops::Drop for Read<'a, T>
 			log_trace!("Read<{}>::drop({:p}) - Readers active", type_name!(T), self._lock);
 		}
 		else if let Some(tid) = lh.writer_queue.wake_one() {
-			// There's a writer waiting, yeild to it
+			// There's a writer waiting, yield to it
 			log_trace!("Read<{}>::drop({:p}) - Yielding to writer (TID{})", type_name!(T), self._lock, tid);
 			assert!(lh.reader_count == 0);
 			lh.reader_count = -1;

@@ -169,7 +169,7 @@ impl AllocState
 		let npages = (required_space + size_of::<Block>() + size_of::<BlockTail>() + PAGE_SIZE-1) / PAGE_SIZE;
 		assert!(npages > 0);
 		assert!(self.past_end != HEAP_LIMITS.1 as *mut Block);
-		assert!(self.past_end as usize + (npages * PAGE_SIZE) <= HEAP_LIMITS.1);	// TODO: This isn't an assert conditon, it's an OOM
+		assert!(self.past_end as usize + (npages * PAGE_SIZE) <= HEAP_LIMITS.1);	// TODO: This isn't an assert condition, it's an OOM
 		if self.start.is_null() {
 			self.start = HEAP_LIMITS.0 as *mut Block;
 			self.past_end = HEAP_LIMITS.0 as *mut Block;

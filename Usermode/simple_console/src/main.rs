@@ -190,7 +190,7 @@ impl ShellState
 			print!(term, "Builtins: pwd, cd, ls, cat, help, echo");
 			},
 		Some(cmd @_) => {
-			print!(term, "Unkown command '{}'", cmd);
+			print!(term, "Unkownn command '{}'", cmd);
 			},
 		}
 	}

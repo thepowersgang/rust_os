@@ -196,7 +196,7 @@ pub fn allocate_range(count: usize) -> PAddr
 	return rv;
 }
 
-/// Allocate a page with no fixed alocation, returns a temporary handle to it
+/// Allocate a page with no fixed allocation, returns a temporary handle to it
 pub fn allocate_bare() -> Result<TempHandle<u8>, Error> {
 	allocate_int(None).map(|x| x.expect("Ok(None) from allocate_int when None passed"))
 }
@@ -292,7 +292,7 @@ pub fn ref_frame(paddr: PAddr)
 pub unsafe fn deref_frame(paddr: PAddr)
 {
 	if let Some(frame) = phys_to_ram_frame(paddr) {
-		// Dereference page (returns prevous value, zero meaning page was not multi-referenced)
+		// Dereference page (returns previous value, zero meaning page was not multi-referenced)
 		if phys_track::deref_frame(frame) == 0 {
 			// - This page is the only reference.
 			if phys_track::mark_free(frame) == true {

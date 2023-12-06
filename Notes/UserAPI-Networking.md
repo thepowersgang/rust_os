@@ -21,7 +21,7 @@ Requirements
 
 - Socket Addressing:
  1. Assume IPv6/IPv4 only and use ::192.168.1.1 style encoding
- 2. Use the Acess model of type+address
+ 2. Use the Access model of type+address
   * Maybe extend with type+size+address?
 
 - Network management:

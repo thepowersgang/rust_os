@@ -101,7 +101,7 @@ impl Controller
 		// SAFE: Exclusive access to these registers
 		unsafe {
 			ret.inner.io_base.write_32(hw::REG_IS, !0);
-			// TODO: What else shoud be set?
+			// TODO: What else should be set?
 			ret.inner.io_base.write_32(hw::REG_GHC, hw::GHC_AE|hw::GHC_IE);
 		}
 		
