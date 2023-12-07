@@ -90,7 +90,7 @@ impl CachedVolume
 	pub fn idx(&self) -> usize {
 		self.vh.idx()
 	}
-	/// Get the size for a block on the underlying volume
+	/// Get the size of a block on the underlying volume
 	pub fn block_size(&self) -> usize {
 		self.vh.block_size()
 	}
