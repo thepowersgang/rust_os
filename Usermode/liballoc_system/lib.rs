@@ -4,7 +4,7 @@
 #![crate_type="rlib"]
 #![crate_name="alloc_system"]
 #![feature(lang_items)]	// Allow definition of lang_items
-//#![feature(option_builtin_traits)] // For !Send
+//#![feature(optin_builtin_traits)] // For !Send
 #![feature(unboxed_closures)]
 #![feature(allocator_api)]
 #![no_std]

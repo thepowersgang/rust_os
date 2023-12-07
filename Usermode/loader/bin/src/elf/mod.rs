@@ -470,7 +470,7 @@ impl PHEnt
 }
 struct PhEntIterator<'a, R: 'a + Read>
 {
-	file: &'a mut R,	// File is pre-sought to the start of the PHENT list
+	file: &'a mut R,	// File is pre-seeked to the start of the PHENT list
 	object_size: Size,
 	remaining_ents: u16,
 	entry_size: u16,

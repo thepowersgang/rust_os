@@ -23,7 +23,7 @@
 Named object handles (or just named VFS roots?)
 
 # Userland
-- AccessNative-esque test suite?
+- AcessNative-esque test suite?
 
 # Filesystem #
 - Strict file/object permissions via handle permissions

@@ -99,7 +99,7 @@ impl<T> ops::BoxPlace<T> for IntermediateBox<T> {
 				::memory::heap::ZERO_ALLOC as *mut u8
 			}
 			else {
-				// SAFE: Tell me again, why is allow unsafe?
+				// SAFE: Tell me again, why is alloc unsafe?
 				unsafe { ::memory::heap::alloc_raw(size, align) as *mut u8 }
 			};
 

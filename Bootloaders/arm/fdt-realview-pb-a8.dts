@@ -321,7 +321,7 @@
 			address_type = "memory";
 			guest_physical_addr = <0x40000000>;
 			physical_size = <0x01000000>;
-			device_type = "allocated_rom";
+			device_type = "alloced_rom";
 			align_order = <21>; /* Align alloced memory to 2MB * /
 		};
 

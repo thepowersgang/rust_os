@@ -18,7 +18,7 @@ Chained Operations
 E.g.
 - Fragmented file read
   - Just keep looping at an async level, easy.
-- Metaadata lookup (acceptable for that to be done in a worker or to be blocking)
+- Metadata lookup (acceptable for that to be done in a worker or to be blocking)
 
 Nested Operations
 -----------------
