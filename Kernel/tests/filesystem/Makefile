@@ -3,15 +3,18 @@ D = $
 
 IMGDIR := data/
 TESTFILES := $(IMGDIR)testfiles/
+BIN := ../target/debug/kernel-test-filesystem
 
+.PHONY: build run_tests
 run_tests: testlog_fat.log
 	#printf "add_disk virt0 $(IMGDIR)hda.img temporary\nmkdir / ext2\nmount /ext2 virt0p1\nls /ext2" | cargo run
+build: $(BIN)
 
-testlog_%.log: .testcmds_%.txt ../target/debug/kernel-test-filesystem
+testlog_%.log: .testcmds_%.txt $(BIN)
 	cargo run < $< | tee $@
 
-PHONY: ../target/debug/kernel-test-filesystem
-../target/debug/kernel-test-filesystem:
+.PHONY: $(BIN)
+$(BIN):
 	cargo build
 
 .testcmds_ext2.txt: Makefile $(IMGDIR)hda.img $(TESTFILES)bigfile.dat $(TESTFILES)1.txt

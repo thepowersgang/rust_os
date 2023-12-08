@@ -9,6 +9,7 @@
 use crate::prelude::*;
 use super::memory::addresses::{IDENT_START, IDENT_END};
 use crate::metadevs::video::bootvideo::{VideoMode,VideoFormat};
+use crate::symbols::Elf32_Sym;
 
 #[path="../../../../Bootloaders/uefi_proto.rs"]
 mod uefi_proto;
@@ -118,7 +119,7 @@ enum BootInfo
 enum SymbolInfo
 {
 	None,
-	Elf32( &'static [crate::symbols::Elf32_Sym], &'static [u8] ),
+	Elf32( &'static [Elf32_Sym], &'static [u8] ),
 }
 
 
@@ -295,7 +296,7 @@ impl MultibootParsed
 				//log_trace!("shent = {:?}", shent);
 				if shent.sh_type == 2
 				{
-					let count = shent.sh_size as usize / ::core::mem::size_of::<crate::symbols::Elf32_Sym>();
+					let count = shent.sh_size as usize / ::core::mem::size_of::<Elf32_Sym>();
 					// SAFE: Un-aliased
 					let ents: &'static [_] = match unsafe { crate::memory::virt::map_static_slice(shent.sh_addr as PAddr, count) }
 						{
@@ -417,7 +418,7 @@ impl MultibootParsed
 			// 2. Clobber out boot info
 			// - Kernel
 			// SAFE: Just taking the address
-			let kernel_start = unsafe { &crate::arch::imp::v_kernel_end as *const _ as u64 - IDENT_START as u64 };
+			let kernel_start = unsafe { &super::v_kernel_end as *const _ as u64 - IDENT_START as u64 };
 			mapbuilder.set_range( 0x100000, kernel_start - 0x10000,
 				crate::memory::MemoryState::Used, 0 ).ok().unwrap();
 			// - Command line string
@@ -428,7 +429,7 @@ impl MultibootParsed
 			{
 			SymbolInfo::None => {},
 			SymbolInfo::Elf32(sym, str) => {
-				mapbuilder.set_range( crate::memory::virt::get_phys(sym.as_ptr()), (sym.len() * ::core::mem::size_of::<crate::symbols::Elf32_Sym>()) as u64,
+				mapbuilder.set_range( crate::memory::virt::get_phys(sym.as_ptr()), (sym.len() * ::core::mem::size_of::<Elf32_Sym>()) as u64,
 					crate::memory::MemoryState::Used, 0).ok().unwrap();
 				mapbuilder.set_range( crate::memory::virt::get_phys(str.as_ptr()), str.len() as u64,
 					crate::memory::MemoryState::Used, 0).ok().unwrap();

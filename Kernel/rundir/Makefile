@@ -194,7 +194,7 @@ $(IMGDIR)hdb_1.img: $(wildcard ../../Usermode/.output/$(ARCH)/*) Makefile
 	@echo "[MkDisk] ext2 $@"
 	$Vdd if=/dev/zero of=$@ bs=1M count=32
 	$V/sbin/mkfs.ext2 $@
-	$Vsudo guestfish -a $@ launch : mount /dev/sda / : mkdir /Tifflin : copy-in ../../Usermode/.output/$(ARCH)/bin /Tifflin/
+	$Vguestfish -a $@ launch : mount /dev/sda / : mkdir /Tifflin : copy-in ../../Usermode/.output/$(ARCH)/bin /Tifflin/
 $(IMGDIR)hdb.img: Makefile $(IMGDIR)hdb_0.img $(IMGDIR)hdb_1.img
 	@mkdir -p $(dir $@)
 	@echo "[MkDisk] mbr $@"

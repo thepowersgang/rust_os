@@ -9,6 +9,9 @@ cfg_if::cfg_if!{
 		pub mod test;
 
 		pub use self::test as imp;
+
+		// TODO: Include all architectures here, with tricks so they compile (for testing/IDE)
+		//mod amd64;
 	}
 	else {
 		// It would be nice to have all architectures built when running

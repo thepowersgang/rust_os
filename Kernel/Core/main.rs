@@ -65,7 +65,6 @@ pub mod prelude;
 #[macro_use]
 pub mod lib;	// Clone of libstd
 
-#[cfg(not(feature="test"))]
 mod symbols;
 
 /// Heavy synchronisation primitives (Mutex, Semaphore, RWLock, ...)
