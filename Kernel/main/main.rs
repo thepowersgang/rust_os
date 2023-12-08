@@ -253,7 +253,7 @@ fn load_loader(loader: &::vfs::handle::File) -> Result<(&'static LoaderHeader, u
 	// - 4. Allocate the loaders's BSS
 	let pages = (bss_size + PAGE_SIZE-1) / PAGE_SIZE;
 	let bss_start = (LOAD_BASE + ondisk_size as usize) as *mut ();
-	let ah_bss = ::kernel::memory::virt::allocate_user(bss_start, pages);
+	let ah_bss = ::kernel::memory::virt::allocate_user(bss_start, pages).expect("Loader BSS");
 	
 	// - 5. Write loader arguments
 	//   > Target buffer should be outside of the code region, and within the reserved region
@@ -270,7 +270,8 @@ fn load_loader(loader: &::vfs::handle::File) -> Result<(&'static LoaderHeader, u
 	forget(mh_firstpage);
 	forget(mh_code);
 	forget(mh_data);
-	forget(ah_bss);
+	let () = ah_bss;
+	//forget(ah_bss);
 
 
 	Ok( (header_ptr, memsize) )
