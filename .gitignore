@@ -56,6 +56,10 @@ Kernel/rundir/test-*/
 /Kernel/tests/**/target
 /Kernel/tests/network/*.txt
 /Kernel/tests/network/*.pcap
+/Kernel/tests/network/lwip/lwip-sys/src/bindgen.rs
+
+/Kernel/tests/filesystem/data
+/Kernel/tests/filesystem/*.log
 
 Bootloaders/uefi/*.txt
 Bootloaders/uefi/target
@@ -75,8 +79,6 @@ Usermode/target/
 
 /NativeKernel/target/
 /NativeKernel/log.txt
-
-/Kernel/tests/filesystem/data
 
 # Folders made by RA
 /Kernel/Core/target
