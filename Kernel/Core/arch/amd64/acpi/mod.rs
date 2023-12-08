@@ -7,6 +7,7 @@
 //! Provides access to the ACPI tables
 #[allow(unused_imports)]
 use crate::prelude::*;
+use crate::lib::byte_str::ByteStr;
 
 module_define!{ACPI, [], init}
 
@@ -58,6 +59,16 @@ pub struct SDTHeader
 	pub oem_revision: u32,
 	pub creator_id: u32,
 	pub creator_revision: u32,
+}
+impl ::core::fmt::Debug for SDTHeader
+{
+	fn fmt(&self, f: &mut ::core::fmt::Formatter) -> ::core::fmt::Result
+	{
+		write!(f, "SDTHeader = {{ sig:{:?},length='{}',rev={},checksum={},  oemid={:?},oem_table_id={:?},oem_revision={}, creator_id={:#x}, creator_revision={} }}",
+			ByteStr::new(&self.signature), self.length, self.revision, self.checksum,
+			ByteStr::new(&self.oemid), ByteStr::new(&self.oem_table_id), self.oem_revision,
+			self.creator_id, self.creator_revision)
+	}
 }
 
 #[repr(C)]

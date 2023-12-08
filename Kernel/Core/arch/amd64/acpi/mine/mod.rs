@@ -4,7 +4,7 @@
 // arch/amd64/acpi/mod_mine.rs
 //! ACPI Component Architecture binding
 use crate::prelude::*;
-use core::str::from_utf8;
+use crate::lib::byte_str::ByteStr;
 
 use self::TLSDT::{TopRSDT,TopXSDT};
 use super::{SDT,SDTHeader};
@@ -12,14 +12,9 @@ pub use super::GAS;
 
 mod fadt;
 mod aml;
+mod sdt_handle;
 
-/// A handle to a SDT
-pub struct SDTHandle<T:'static>
-{
-	maphandle: crate::memory::virt::AllocHandle,
-	ofs: usize,
-	_type: ::core::marker::PhantomData<T>,
-}
+pub use self::sdt_handle::SDTHandle;
 
 struct ACPI
 {
@@ -95,7 +90,7 @@ pub fn init()
 				TopXSDT( SDTHandle::<XSDT>::new( v2.xsdt_address ).make_static() )
 			}
 		};
-	log_debug!("*SDT = {{ signature = {}, oemid = '{}' }}", tl.signature(), tl.oemid());
+	log_debug!("*SDT = {{ signature = {:?}, oemid = {:?} }}", tl.signature(), tl.oemid());
 	if !tl.validate() {
 		log_error!("Root SDT failed validation");
 		return ;
@@ -104,7 +99,7 @@ pub fn init()
 	// Obtain list of SDTs (signatures only)
 	let names = (0 .. tl.len()).map( |i| tl.get::<SDTHeader>(i).raw_signature() ).collect();
 	
-	S_ACPI_STATE.prep(|| ACPI { top_sdt: tl, names: names, });
+	S_ACPI_STATE.prep(|| ACPI { top_sdt: tl, names, });
 	
 	
 	// Poke sub-enumerators
@@ -190,13 +185,13 @@ fn sum_struct<T: crate::lib::POD>(s: &T) -> u8
 
 impl TLSDT
 {
-	fn _header<'self_>(&'self_ self) -> &'self_ SDTHeader {
+	fn header(&self) -> &SDTHeader {
 		match self {
 		&TopRSDT(sdt) => &(*sdt).header,
 		&TopXSDT(sdt) => &(*sdt).header,
 		}
 	}
-	unsafe fn _getaddr(&self, idx: usize) -> u64 {
+	unsafe fn getaddr(&self, idx: usize) -> u64 {
 		match self {
 		&TopRSDT(sdt) => (*sdt).getptr(idx),
 		&TopXSDT(sdt) => (*sdt).getptr(idx),
@@ -210,23 +205,23 @@ impl TLSDT
 	}
 	
 	fn len(&self) -> usize {
-		(self._header().length as usize - ::core::mem::size_of::<SDTHeader>()) / match self {
+		(self.header().length as usize - ::core::mem::size_of::<SDTHeader>()) / match self {
 			&TopRSDT(_) => 4,
 			&TopXSDT(_) => 8,
 			}
 	}
 	
-	fn signature<'self_>(&'self_ self) -> &'self_ str {
-		from_utf8(&self._header().signature).unwrap()
+	fn signature(&self) -> &ByteStr {
+		ByteStr::new(&self.header().signature)
 	}
-	fn oemid<'self_>(&'self_ self) -> &'self_ str {
-		from_utf8(&self._header().oemid).unwrap()
+	fn oemid(&self) -> &ByteStr {
+		ByteStr::new(&self.header().oemid)
 	}
 	fn get<T: crate::lib::POD>(&self, idx: usize) -> SDTHandle<T> {
 		// SAFE: Immutable access, and address is as validated as can be
 		unsafe {
 			assert!(idx < self.len());
-			SDTHandle::<T>::new(self._getaddr(idx))
+			SDTHandle::<T>::new(self.getaddr(idx))
 		}
 	}
 }
@@ -254,69 +249,5 @@ impl RSDTTrait for SDT<XSDT>
 	}
 }
 
-impl ::core::fmt::Debug for SDTHeader
-{
-	fn fmt(&self, f: &mut ::core::fmt::Formatter) -> ::core::fmt::Result
-	{
-		write!(f, "SDTHeader = {{ sig:{:?},length='{}',rev={},checksum={},  oemid={:?},oem_table_id={:?},oem_revision={}, creator_id={:#x}, creator_revision={} }}",
-			from_utf8(&self.signature), self.length, self.revision, self.checksum,
-			from_utf8(&self.oemid), from_utf8(&self.oem_table_id), self.oem_revision,
-			self.creator_id, self.creator_revision)
-	}
-}
-
-impl<T: crate::lib::POD> SDTHandle<T>
-{
-	/// Map an SDT into memory, given a physical address
-	pub unsafe fn new(physaddr: u64) -> SDTHandle<T>
-	{
-		//log_trace!("new(physaddr={:#x})", physaddr);
-		let ofs = (physaddr & (crate::PAGE_SIZE - 1) as u64) as usize;
-		
-		// Obtain length (and validate)
-		// TODO: Support the SDT header spanning across two pages
-		assert!(crate::PAGE_SIZE - ofs >= ::core::mem::size_of::<SDTHeader>());
-		// Map the header into memory temporarily (maybe)
-		let mut handle = match crate::memory::virt::map_hw_ro(physaddr - ofs as u64, 1, "ACPI") {
-			Ok(v) => v,
-			Err(_) => panic!("Oops, temp mapping SDT failed"),
-			};
-		let (length,) = {
-			let hdr = handle.as_ref::<SDTHeader>(ofs);
-			
-			// Get the length
-			(hdr.length as usize,)
-			};
-		
-		// Map the resultant memory
-		let npages = (ofs + length + crate::PAGE_SIZE - 1) / crate::PAGE_SIZE;
-		log_trace!("npages = {}, ofs = {}, length = {}", npages, ofs, length);
-		if npages != 1
-		{
-			handle = match crate::memory::virt::map_hw_ro(physaddr - ofs as u64, npages, "ACPI") {
-				Ok(x) => x,
-				Err(_) => panic!("Map fail")
-				};
-		}
-		SDTHandle {
-			maphandle: handle,
-			ofs: ofs,
-			_type: ::core::marker::PhantomData,
-			}
-	}
-	
-	pub fn make_static(self) -> &'static SDT<T>
-	{
-		self.maphandle.make_static::<SDT<T>>(self.ofs)
-	}
-}
-
-impl<T: crate::lib::POD> ::core::ops::Deref for SDTHandle<T>
-{
-	type Target = SDT<T>;
-	fn deref<'s>(&'s self) -> &'s SDT<T> {
-		self.maphandle.as_ref(self.ofs)
-	}
-}
 
 // vim: ft=rust
