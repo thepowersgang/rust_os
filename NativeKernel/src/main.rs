@@ -9,6 +9,7 @@ extern crate core;
 #[macro_use]
 extern crate kernel;
 extern crate syscalls;
+extern crate vfs;
 
 mod fs_shim;
 mod video_shim;
@@ -120,13 +121,13 @@ fn main()// -> Result<(), Box<dyn std::error::Error>>
 	
 	(::kernel::metadevs::storage::S_MODULE.init)();
 	(::kernel::metadevs::video::S_MODULE.init)();
-	(::kernel::vfs::S_MODULE.init)();
+	(::vfs::S_MODULE.init)();
 	// TODO: Add a minifb backed KB/Mouse too
 	let console = video_shim::Console::new();
 	::core::mem::forget( ::kernel::metadevs::video::add_output(Box::new(console.get_display())) );
 	(::gui::S_MODULE.init)();
 
-	::core::mem::forget( ::kernel::vfs::mount::DriverRegistration::new("native", &fs_shim::NativeFsDriver) );
+	::core::mem::forget( ::vfs::mount::DriverRegistration::new("native", &fs_shim::NativeFsDriver) );
 
 	//(::fs_fat::S_MODULE.init)();
 	//(::fs_extN::S_MODULE.init)();
@@ -137,7 +138,7 @@ fn main()// -> Result<(), Box<dyn std::error::Error>>
 	Err(e) => {
 		panic!("Unable to open /system volume {}: {}", sysdisk, e);
 		},
-	Ok(vh) => match ::kernel::vfs::mount::mount("/system".as_ref(), vh, "native", &[])
+	Ok(vh) => match ::vfs::mount::mount("/system".as_ref(), vh, "native", &[])
 		{
 		Ok(_) => {},
 		Err(e) => {
@@ -145,8 +146,8 @@ fn main()// -> Result<(), Box<dyn std::error::Error>>
 			},
 		},
 	}
-	::kernel::vfs::handle::Dir::open(::kernel::vfs::Path::new("/")).unwrap()
-		.symlink("sysroot", ::kernel::vfs::Path::new("/system/Tifflin"))
+	::vfs::handle::Dir::open(::vfs::Path::new("/")).unwrap()
+		.symlink("sysroot", ::vfs::Path::new("/system/Tifflin"))
 		.unwrap()
 		;
 
@@ -157,9 +158,9 @@ fn main()// -> Result<(), Box<dyn std::error::Error>>
 		};
 
 
-	let init_fh = ::kernel::vfs::handle::File::open(
-			::kernel::vfs::Path::new("/sysroot/bin/init"),
-			::kernel::vfs::handle::FileOpenMode::Execute
+	let init_fh = ::vfs::handle::File::open(
+			::vfs::Path::new("/sysroot/bin/init"),
+			::vfs::handle::FileOpenMode::Execute
 		)
 		.unwrap();
 	::syscalls::init(init_fh);

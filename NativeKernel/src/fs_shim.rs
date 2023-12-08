@@ -1,6 +1,5 @@
-use ::kernel::vfs::mount;
-use ::kernel::vfs::node::InodeId;
-use ::kernel::vfs;
+use ::vfs::mount;
+use ::vfs::node::InodeId;
 use ::kernel::metadevs::storage::VolumeHandle;
 use ::std::path::{Path,PathBuf};
 use ::kernel::lib::byte_str::{ByteStr/*,ByteString*/};
@@ -35,10 +34,10 @@ struct FileData
 
 impl mount::Driver for NativeFsDriver
 {
-	fn detect(&self, _vol: &VolumeHandle) -> vfs::Result<usize> {
+	fn detect(&self, _vol: &VolumeHandle) -> ::vfs::Result<usize> {
         Ok(0)
     }
-	fn mount(&self, _vol: VolumeHandle, _handle: mount::SelfHandle) -> vfs::Result<Box<dyn mount::Filesystem>> {
+	fn mount(&self, _vol: VolumeHandle, _handle: mount::SelfHandle) -> ::vfs::Result<Box<dyn mount::Filesystem>> {
         // TODO: Can this get the path from the volume handle?
         let root_path: PathBuf = ".native_fs".into();
         let mut rv = NativeFs::default();
@@ -77,17 +76,17 @@ impl mount::Filesystem for FsInstance
 	fn root_inode(&self) -> InodeId {
         0
     }
-	fn get_node_by_inode(&self, n: InodeId) -> Option<vfs::node::Node> {
+	fn get_node_by_inode(&self, n: InodeId) -> Option<::vfs::node::Node> {
         Some(match &**self.0.inner.lock().unwrap().inodes.get(&n)?
         {
-        EntData::Dir(_r) => vfs::node::Node::Dir(Box::new(DirNodeRef( self.0.borrow(), n ))),
-        EntData::File(_r) => vfs::node::Node::File(Box::new(FileNodeRef( self.0.borrow(), n ))),
+        EntData::Dir(_r) => ::vfs::node::Node::Dir(Box::new(DirNodeRef( self.0.borrow(), n ))),
+        EntData::File(_r) => ::vfs::node::Node::File(Box::new(FileNodeRef( self.0.borrow(), n ))),
         })
     }
 }
 #[derive(Clone)]
 struct DirNodeRef(ArefBorrow<NativeFs>, InodeId);
-impl vfs::node::NodeBase for DirNodeRef
+impl ::vfs::node::NodeBase for DirNodeRef
 {
 	/// Return the volume's inode number
 	fn get_id(&self) -> InodeId {
@@ -98,10 +97,10 @@ impl vfs::node::NodeBase for DirNodeRef
         self
     }
 }
-impl vfs::node::Dir for DirNodeRef
+impl ::vfs::node::Dir for DirNodeRef
 {
 	/// Acquire a node given the name
-	fn lookup(&self, name: &ByteStr) -> vfs::node::Result<InodeId> {
+	fn lookup(&self, name: &ByteStr) -> ::vfs::node::Result<InodeId> {
         let dir_info = self.0.get_dir(self.1);
         let name = std::str::from_utf8(name.as_bytes()).unwrap();
         let path: PathBuf = [&dir_info.path, Path::new(name)].iter().collect();
@@ -128,7 +127,7 @@ impl vfs::node::Dir for DirNodeRef
                     })
             }
             else {
-                return Err(vfs::Error::NotFound)
+                return Err(::vfs::Error::NotFound)
             }))
     }
 	
@@ -137,7 +136,7 @@ impl vfs::node::Dir for DirNodeRef
 	/// Returns:
 	/// - Ok(Next Offset)
 	/// - Err(e) : Any error
-	fn read(&self, start_ofs: usize, callback: &mut vfs::node::ReadDirCallback) -> vfs::node::Result<usize> {
+	fn read(&self, start_ofs: usize, callback: &mut ::vfs::node::ReadDirCallback) -> vfs::node::Result<usize> {
         let dir_info = self.0.get_dir(self.1);
         let read_dir = match ::std::fs::read_dir(&dir_info.path)
             {
