@@ -1,5 +1,5 @@
 //! Vector backed ring buffer
-#![feature(raw_vec_internals)]
+//#![feature(raw_vec_internals)]
 
 extern crate alloc;
 use alloc::collections::vec_deque::{self, VecDeque};

@@ -4,6 +4,7 @@
 // A clone of rust's libstd customised to work correctly on Tifflin
 #![crate_type="rlib"]
 #![crate_name="std"]
+#![allow(internal_features)]
 //#![feature(staged_api)]	// stability
 #![feature(lang_items)]	// Allow definition of lang_items
 #![feature(linkage)]	// Used for low-level runtime
@@ -50,12 +51,12 @@ pub use alloc::slice;
 pub use alloc::fmt;
 
 mod std {
-	pub use core::{option, result};
+	//pub use core::{option, result};
 	pub use fmt;
-	pub use core::iter;
-	pub use core::{mem, cmp, ops};
-	pub use core::{str};
-	pub use core::convert;
+	//pub use core::iter;
+	//pub use core::{mem, cmp, ops};
+	pub use core::str;
+	//pub use core::convert;
 	pub use ffi;
 }
 

@@ -5,6 +5,7 @@
 // - Kernel library root
 #![crate_name="kernel"]
 #![crate_type="lib"]
+#![allow(internal_features)]	// For `lang_items`
 #![feature(unsize,coerce_unsized)]	// For DST smart pointers
 #![feature(core_intrinsics)]	// Intrinsics
 #![feature(box_patterns)]	// Used in boxed::unwrap

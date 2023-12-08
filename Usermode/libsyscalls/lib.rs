@@ -2,19 +2,19 @@
 // - By John Hodge (thePowersGang)
 //
 //! Provides wrappers around most system calls
-#![feature(core_intrinsics)]
+//#![feature(core_intrinsics)]
 #![feature(thread_local)]
 #![feature(stmt_expr_attributes)]
 #![cfg_attr(arch="native",feature(rustc_private))]
 #![no_std]
 
 mod std {
-	pub use core::convert;
+	//pub use core::convert;
 	pub use core::fmt;
 }
 
 macro_rules! type_name {
-	($t:ty) => {::core::intrinsics::type_name::<$t>()};
+	($t:ty) => {::core::any::type_name::<$t>()};
 }
 
 macro_rules! syscall {

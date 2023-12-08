@@ -39,6 +39,7 @@ pub enum TriggerMode
 }
 
 #[repr(u8)]
+#[allow(dead_code)]
 pub enum DeliveryMode {
 	Normal = 0,
 	LowPriority = 1,
@@ -46,7 +47,7 @@ pub enum DeliveryMode {
 	NonMaskableInterrupt = 4,
 	InitIPI = 5,
 	StartupIPI = 6,
-	Externl = 7,
+	External = 7,
 }
 
 #[allow(dead_code)]

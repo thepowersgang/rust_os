@@ -2,6 +2,7 @@
 // - By John Hodge (thePowersGang)
 //
 // Standard Library - Runtime support (aka unwind and panic)
+#![allow(internal_features)]
 #![feature(lang_items)]	// Allow definition of lang_items
 #![feature(panic_info_message)]
 #![cfg_attr(target_arch="arm", feature(extern_types))]	// Used for ARM unwind

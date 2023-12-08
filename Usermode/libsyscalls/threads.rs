@@ -28,7 +28,7 @@ pub fn exit_thread() -> ! {
 	// SAFE: Syscall
 	unsafe {
 		syscall!(CORE_EXITTHREAD);
-		::core::intrinsics::unreachable();
+		::core::hint::unreachable_unchecked()
 	}
 }
 
@@ -174,7 +174,7 @@ pub fn exit(code: u32) -> ! {
 	// SAFE: Syscall
 	unsafe {
 		syscall!(CORE_EXITPROCESS, code as usize);
-		::core::intrinsics::unreachable();
+		::core::hint::unreachable_unchecked()
 	}
 }
 

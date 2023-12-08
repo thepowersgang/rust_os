@@ -15,7 +15,7 @@ pub mod prelude {
 	pub use super::{Read, Write, BufRead, Seek};
 }
 mod std {
-	pub use core::{fmt, convert};
+	pub use core::convert;
 }
 
 mod buf_reader;
