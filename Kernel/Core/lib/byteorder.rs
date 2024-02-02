@@ -324,5 +324,6 @@ impl_encoded_prim!( i64 => read_i64,write_i64 );
 impl_encoded_atomic!( ::core::sync::atomic::AtomicU8 => u8 );
 impl_encoded_atomic!( ::core::sync::atomic::AtomicU16 => u16 );
 impl_encoded_atomic!( ::core::sync::atomic::AtomicU32 => u32 );
+#[cfg(target_atomic="64")]
 impl_encoded_atomic!( ::core::sync::atomic::AtomicU64 => u64 );
 
