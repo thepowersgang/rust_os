@@ -4,8 +4,6 @@
 // Modules/fs_extN/dir.rs
 //! Directory handling
 use kernel::lib::byte_str::ByteStr;
-use vfs;
-
 
 pub struct Dir
 {
@@ -24,7 +22,7 @@ impl Dir
 
 
 	/// Returns (block_index, offset)
-	fn find_name(&self, name: &ByteStr) -> vfs::node::Result<(usize, usize, vfs::node::InodeId)>
+	fn find_name(&self, name: &ByteStr) -> ::vfs::node::Result<(usize, usize, ::vfs::node::InodeId)>
 	{
 		log_debug!("find_name({:?})", name);
 		let inode = self.inode.lock_read();
@@ -41,26 +39,26 @@ impl Dir
 			{
 				if ent.d_rec_len == 0 {
 					log_error!("find_name: Found d_rec_len=0");
-					return Err( vfs::Error::InconsistentFilesystem );
+					return Err( ::vfs::Error::InconsistentFilesystem );
 				}
 				else if ent.d_inode == 0 {
 					log_debug!("find_name: Found d_inode=0");
-					return Err(vfs::Error::NotFound);
+					return Err( :: vfs::Error::NotFound );
 				}
 				else if &ent.d_name == name.as_bytes()
 				{
-					return Ok( (blk_index, offset, ent.d_inode as vfs::node::InodeId) );
+					return Ok( (blk_index, offset, ent.d_inode as ::vfs::node::InodeId) );
 				}
 				else {
 					offset += ent.u32_len() * 4;
 				}
 			}
 		}
-		Err(vfs::Error::NotFound)
+		Err( ::vfs::Error::NotFound )
 	}
 
 	/// Defragment a directory block, and return the offset and length of the final free entry
-	fn defragment_block(fs: &crate::instance::InstanceInner, block: u32) -> vfs::node::Result<(usize, u16)> {
+	fn defragment_block(fs: &crate::instance::InstanceInner, block: u32) -> ::vfs::node::Result<(usize, u16)> {
 		fs.edit_block(block, |blk_data: &mut [u8]| {
 			// SAFE: Alignment checked, range valid
 			let blk_data: &mut [u32] = unsafe {
@@ -71,12 +69,12 @@ impl Dir
 			let mut read_u32s = 0;
 			while read_u32s < blk_data.len() {
 				if read_u32s + 1 == blk_data.len() {
-					return Err(vfs::Error::InconsistentFilesystem);
+					return Err(::vfs::Error::InconsistentFilesystem);
 				}
 				let rec_len = (u32::from_le(blk_data[read_u32s+1]) & 0xFFFF) as u16;
 				let rec_len_u32s = ((rec_len + 4-1) / 4) as usize;
 				if read_u32s + rec_len_u32s > blk_data.len() {
-					return Err(vfs::Error::InconsistentFilesystem);
+					return Err(::vfs::Error::InconsistentFilesystem);
 				}
 				if blk_data[read_u32s] == 0 {
 					// Entry is free, don't update the write position
@@ -103,7 +101,7 @@ impl Dir
 	}
 
 	/// Locate a entry in the directory, also checking for duplicates
-	fn find_free(&self, name: &ByteStr) -> vfs::node::Result<(u32, usize)>
+	fn find_free(&self, name: &ByteStr) -> ::vfs::node::Result<(u32, usize)>
 	{
 		let inode = self.inode.lock_read();
 		// Linear search
@@ -121,12 +119,12 @@ impl Dir
 			for ent in DirEnts(&blk_data)
 			{
 				if ent.d_rec_len == 0 {
-					return Err( vfs::Error::InconsistentFilesystem );
+					return Err( ::vfs::Error::InconsistentFilesystem );
 				}
 				
 				if ent.d_inode == 0 {
 					if &ent.d_name == name.as_bytes() {
-						return Err( vfs::Error::AlreadyExists );
+						return Err( ::vfs::Error::AlreadyExists );
 					}
 				}
 				else {
@@ -173,10 +171,10 @@ impl Dir
 	}
 
 	/// Add an entry to the directory, checking for duplicates
-	fn add_dir_ent(&self, name: &ByteStr, inode: u32/*, d_type: u8*/) -> Result<(), vfs::Error>
+	fn add_dir_ent(&self, name: &ByteStr, inode: u32/*, d_type: u8*/) -> Result<(), ::vfs::Error>
 	{
 		if !(name.len() <= 255) {
-			return Err(vfs::Error::InvalidParameter);
+			return Err(::vfs::Error::InvalidParameter);
 		}
 		let _lh_write = self.inode.lock_dir();
 
@@ -193,7 +191,7 @@ impl Dir
 				};
 			match ::ondisk::DirEnt::new_mut(&mut blk_data[ofs/4 ..])
 			{
-			None => return Err(vfs::Error::InconsistentFilesystem),
+			None => return Err(::vfs::Error::InconsistentFilesystem),
 			Some(ent) => {
 				ent.d_name_len = name.len() as u8;
 				ent.d_inode = inode as u32;
@@ -211,28 +209,28 @@ impl Dir
 	}
 }
 
-impl vfs::node::NodeBase for Dir
+impl ::vfs::node::NodeBase for Dir
 {
-	fn get_id(&self) -> vfs::node::InodeId {
+	fn get_id(&self) -> ::vfs::node::InodeId {
 		self.inode.get_id()
 	}
 	fn get_any(&self) -> &dyn core::any::Any {
 		self
 	}
 }
-impl vfs::node::Dir for Dir
+impl ::vfs::node::Dir for Dir
 {
-	fn lookup(&self, name: &ByteStr) -> vfs::Result<vfs::node::InodeId>
+	fn lookup(&self, name: &ByteStr) -> ::vfs::Result<::vfs::node::InodeId>
 	{
 		if name.len() == 0 {
-			Err(vfs::Error::NotFound)
+			Err(::vfs::Error::NotFound)
 		}
 		else {
 			let (_, _, rv) = try!(self.find_name(name));
 			Ok( rv )
 		}
 	}
-	fn read(&self, start_ofs: usize, callback: &mut vfs::node::ReadDirCallback) -> vfs::Result<usize>
+	fn read(&self, start_ofs: usize, callback: &mut ::vfs::node::ReadDirCallback) -> ::vfs::Result<usize>
 	{
 		log_trace!("read(start_ofs={}, ...)", start_ofs);
 		let (blk_idx, ofs) = ::kernel::lib::num::div_rem(start_ofs, self.inode.fs.fs_block_size);
@@ -274,7 +272,7 @@ impl vfs::node::Dir for Dir
 		// -----
 
 		// Helper: Returns Some(blk_ofs) when a zero-length record is hit
-		fn read_from_block(mut cur_ofs: usize, data: &[u32], callback: &mut vfs::node::ReadDirCallback) -> Option<usize>
+		fn read_from_block(mut cur_ofs: usize, data: &[u32], callback: &mut ::vfs::node::ReadDirCallback) -> Option<usize>
 		{
 			for ent in DirEnts(&data[cur_ofs / 4..])
 			{
@@ -290,7 +288,7 @@ impl vfs::node::Dir for Dir
 				else if &ent.d_name == b"." || &ent.d_name == b".." {
 				}
 				else {
-					if callback(ent.d_inode as vfs::node::InodeId, &mut ent.d_name.iter().cloned()) == false {
+					if callback(ent.d_inode as ::vfs::node::InodeId, &mut ent.d_name.iter().cloned()) == false {
 						return Some(cur_ofs);
 					}
 				}
@@ -302,10 +300,10 @@ impl vfs::node::Dir for Dir
 		}
 	}
 
-	fn create(&self, name: &ByteStr, nodetype: vfs::node::NodeType) -> vfs::node::Result<vfs::node::InodeId> {
+	fn create(&self, name: &ByteStr, nodetype: ::vfs::node::NodeType) -> ::vfs::node::Result<::vfs::node::InodeId> {
 		if self.inode.fs.is_readonly()
 		{
-			Err( vfs::Error::ReadOnlyFilesystem )
+			Err( ::vfs::Error::ReadOnlyFilesystem )
 		}
 		else
 		{
@@ -315,7 +313,7 @@ impl vfs::node::Dir for Dir
 			{
 			Ok(()) => {
 				log_debug!("create: {:?} = Inode{}", name, ino_id);
-				Ok(ino_id as vfs::node::InodeId)
+				Ok(ino_id as ::vfs::node::InodeId)
 				},
 			Err(e) => {
 				// Call with_inode to force the inode to be deallocated
@@ -325,18 +323,18 @@ impl vfs::node::Dir for Dir
 			}
 		}
 	}
-	fn link(&self, name: &ByteStr, node: &dyn vfs::node::NodeBase) -> vfs::node::Result<()> {
+	fn link(&self, name: &ByteStr, node: &dyn (::vfs::node::NodeBase)) -> ::vfs::node::Result<()> {
 		if self.inode.fs.is_readonly()
 		{
-			Err( vfs::Error::ReadOnlyFilesystem )
+			Err( ::vfs::Error::ReadOnlyFilesystem )
 		}
 		else if name == ""
 		{
-			Err(vfs::Error::InvalidParameter)
+			Err(::vfs::Error::InvalidParameter)
 		}
 		else if name.len() > 255
 		{
-			Err(vfs::Error::Unknown("Filename too long"))
+			Err(::vfs::Error::Unknown("Filename too long"))
 		}
 		else
 		{
@@ -352,14 +350,14 @@ impl vfs::node::Dir for Dir
 			todo!("link(name={:?}, inode={:?})", name, inode);
 		}
 	}
-	fn unlink(&self, name: &ByteStr) -> vfs::node::Result<()> {
+	fn unlink(&self, name: &ByteStr) -> ::vfs::node::Result<()> {
 		if self.inode.fs.is_readonly()
 		{
-			Err( vfs::Error::ReadOnlyFilesystem )
+			Err( ::vfs::Error::ReadOnlyFilesystem )
 		}
 		else if name == ""
 		{
-			Err( vfs::Error::InvalidParameter )
+			Err( ::vfs::Error::InvalidParameter )
 		}
 		else
 		{
@@ -376,7 +374,7 @@ impl vfs::node::Dir for Dir
 					};
 				match ::ondisk::DirEnt::new_mut(&mut blk_data[ofs/4 ..])
 				{
-				None => return Err(vfs::Error::InconsistentFilesystem),
+				None => return Err(::vfs::Error::InconsistentFilesystem),
 				Some(ent) => {
 					// Clear name length
 					ent.d_name_len = 0;

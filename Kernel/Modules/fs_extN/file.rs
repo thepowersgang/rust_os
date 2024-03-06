@@ -3,8 +3,6 @@
 //
 // Modules/fs_extN/file.rs
 //! Regular file
-use ::vfs;
-
 pub struct File
 {
 	inode: ::inodes::Inode,

@@ -5,7 +5,7 @@
 use kernel::prelude::*;
 use kernel::lib::mem::aref::ArefBorrow;
 use kernel::lib::byte_str::ByteStr;
-use ::vfs::{self, node};
+use vfs::node;
 use super::on_disk;
 use super::file::FileNode;
 use super::ClusterList;
@@ -124,7 +124,7 @@ pub fn update_file_size(fs: &FilesystemInner, file_cluster: ClusterNum, new_size
 	
 	// Lock the file list and get the current file
 	let lh_files = fs.open_files.read();
-	let file_info = lh_files.get(&file_cluster).ok_or(vfs::Error::Unknown("FAT: update_file_size called with file not recorded open"))?;
+	let file_info = lh_files.get(&file_cluster).ok_or(::vfs::Error::Unknown("FAT: update_file_size called with file not recorded open"))?;
 	// Get/create the current directory info (shared ownership)
 	let dir_info = fs.get_dir_info(file_info.dir_cluster);
 	let _lh_dir = dir_info.info.lock.read();	// Entry count isn't changing, so can be a read lock
@@ -159,7 +159,7 @@ pub fn update_file_size(fs: &FilesystemInner, file_cluster: ClusterNum, new_size
 			}
 		}
 	}
-	Err(vfs::Error::Unknown("FAT: update_file_size didn't find entry"))
+	Err(::vfs::Error::Unknown("FAT: update_file_size didn't find entry"))
 }
 
 fn dir_clusters(fs: &super::FilesystemInner, start_cluster: ClusterNum) -> ClusterList<'_> {
@@ -533,7 +533,7 @@ impl node::Dir for DirNode {
 			})?
 		{
 		Some(v) => Ok(v),
-		None => Err(vfs::Error::NotFound)
+		None => Err(::vfs::Error::NotFound)
 		}
 	}
 	fn read(&self, ofs: usize, callback: &mut node::ReadDirCallback) -> node::Result<usize> {
@@ -579,7 +579,7 @@ impl node::Dir for DirNode {
 	fn create(&self, name: &ByteStr, nodetype: node::NodeType) -> node::Result<node::InodeId> {
 		// File cluster for the dir's data
 		let Some(new_cluster) = self.fs.alloc_cluster_unchained(self.start_cluster)? else {
-			return Err(vfs::Error::OutOfSpace);
+			return Err(::vfs::Error::OutOfSpace);
 			};
 		log_debug!("DirNode::create('{:?}', {:?}): new_cluster={}", name, nodetype, new_cluster);
 		fn is_valid_short_char(b: u8) -> bool {
@@ -724,7 +724,7 @@ impl node::Dir for DirNode {
 							},
 						DirEnt::Short(ref e) => {
 							if e.name() == name || lfn.name() == name {
-								return Some(Err(vfs::Error::AlreadyExists));
+								return Some(Err(::vfs::Error::AlreadyExists));
 							}
 							if e.name().as_bytes() == &short_name {
 								short_collision = true;

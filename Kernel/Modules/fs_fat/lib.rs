@@ -12,7 +12,7 @@ use kernel::prelude::*;
 use kernel::metadevs::storage::{self,VolumeHandle,SizePrinter};
 use kernel::lib::mem::aref::{ArefInner};
 use kernel::lib::mem::Arc;
-use ::vfs::{self, mount, node};
+use ::vfs::{mount, node};
 
 extern crate utf16;
 extern crate block_cache;
@@ -119,10 +119,10 @@ impl mount::Driver for Driver
 			};
 		let bs_c = bs.common();
 		if bs_c.bps != 512 {
-			return Err(vfs::Error::Unknown("TODO: non 512-byte sector FAT"))
+			return Err(::vfs::Error::Unknown("TODO: non 512-byte sector FAT"))
 		}
 		if bs_c.fat_count == 0 {
-			return Err(vfs::Error::Unknown("FAT Count is 0"));
+			return Err(::vfs::Error::Unknown("FAT Count is 0"));
 		}
 		
 		log_debug!("Label: {:?}", ::kernel::lib::RawString(&bs.tail_common().label));
@@ -177,7 +177,7 @@ impl mount::Driver for Driver
 					Size::Fat32 => ClusterNum::new(bs.info32().unwrap().root_cluster)
 						.map_err(|()| {
 							log_error!("Invalid FAT32 bootsector: bad root_cluster");
-							vfs::Error::InconsistentFilesystem
+							::vfs::Error::InconsistentFilesystem
 							})?,
 					_ => ClusterNum::new(FATL_ROOT_CLUSTER as u32).unwrap(),
 					},

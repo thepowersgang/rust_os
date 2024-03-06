@@ -4,7 +4,7 @@
 // Modules/fs_extN/instance.rs
 //! Filesystem instance (representing a mounted filesystem)
 use kernel::prelude::*;
-use ::vfs::{self, node};
+use vfs::node;
 use kernel::metadevs::storage::VolumeHandle;
 use kernel::lib::mem::aref::{ArefInner,ArefBorrow};
 
@@ -18,7 +18,7 @@ pub struct InstanceInner
 	superblock: ::kernel::sync::RwLock<crate::ondisk::Superblock>,
 	pub fs_block_size: usize,
 
-	mount_handle: vfs::mount::SelfHandle,
+	mount_handle: ::vfs::mount::SelfHandle,
 	group_descriptors: ::kernel::sync::RwLock< Vec<::ondisk::GroupDesc> >,
 }
 
@@ -64,7 +64,7 @@ impl Instance
 		}
 	}
 
-	pub fn new_boxed(vol: VolumeHandle, mount_handle: vfs::mount::SelfHandle) -> vfs::Result<Box<Instance>>
+	pub fn new_boxed(vol: VolumeHandle, mount_handle: ::vfs::mount::SelfHandle) -> ::vfs::Result<Box<Instance>>
 	{
 		let vol_bs = vol.block_size();
 
@@ -83,26 +83,26 @@ impl Instance
 			};
 
 		if superblock.data.s_magic != 0xEF53 {
-			return Err(vfs::Error::TypeMismatch);
+			return Err(::vfs::Error::TypeMismatch);
 		}
 		log_debug!("superblock = {:x?}", superblock);
 
 		let is_readonly = match Self::check_features(vol.name(), &superblock)
 			{
-			FeatureState::Incompatible(_) => return Err(vfs::Error::TypeMismatch),
+			FeatureState::Incompatible(_) => return Err(::vfs::Error::TypeMismatch),
 			FeatureState::ReadOnly(_) => true,
 			_ => false,
 			};
 
 		// Limit filesystem block size to 1MB each, as a sanity check
 		if superblock.data.s_log_block_size > 10 {
-			return Err(vfs::Error::Unknown("extN block size out of range"));
+			return Err(::vfs::Error::Unknown("extN block size out of range"));
 		}
 
 		let fs_block_size = 1024 << superblock.data.s_log_block_size as usize;
 		if fs_block_size % vol_bs != 0 {
 			log_warning!("ExtN TODO: Handle filesystem block size smaller than disk block size?");
-			return Err(vfs::Error::InconsistentFilesystem);
+			return Err(::vfs::Error::InconsistentFilesystem);
 		}
 		let num_groups = ::kernel::lib::num::div_up(superblock.data.s_blocks_count, superblock.data.s_blocks_per_group);
 
@@ -111,7 +111,7 @@ impl Instance
 		let group_descs = {
 			const GROUP_DESC_SIZE: usize = ::core::mem::size_of::<::ondisk::GroupDesc>();
 			if GROUP_DESC_SIZE != superblock.s_group_desc_size() {
-				return Err(vfs::Error::Unknown("Superblock size mismatch vs expected"));
+				return Err(::vfs::Error::Unknown("Superblock size mismatch vs expected"));
 			}
 
 			let groups_per_vol_block = vol_bs / GROUP_DESC_SIZE;
@@ -204,7 +204,7 @@ impl Instance
 	}
 }
 
-impl vfs::mount::Filesystem for Instance
+impl ::vfs::mount::Filesystem for Instance
 {
 	fn root_inode(&self) -> node::InodeId {
 		// ext* uses inode 2 as the root
@@ -264,7 +264,7 @@ impl<'a> ::core::ops::Deref for Block<'a>
 impl InstanceInner
 {
 	/// Obtain a block (using the block cache)
-	pub fn get_block(&self, block: u32) -> vfs::node::Result<Block>
+	pub fn get_block(&self, block: u32) -> ::vfs::node::Result<Block>
 	{
 		if self.fs_block_size > ::kernel::PAGE_SIZE {
 			// TODO: To handle extN blocks larger than the system's page size, we'd need to start packing multiple cache handles into
@@ -280,9 +280,9 @@ impl InstanceInner
 	}
 
 	/// Edit a block in the cache using the provided closure
-	pub fn edit_block<F,R>(&self, block: u32, f: F) -> vfs::node::Result<R>
+	pub fn edit_block<F,R>(&self, block: u32, f: F) -> ::vfs::node::Result<R>
 	where
-		F: FnOnce(&mut [u8]) -> vfs::node::Result<R>
+		F: FnOnce(&mut [u8]) -> ::vfs::node::Result<R>
 	{
 		if self.fs_block_size > ::kernel::PAGE_SIZE {
 			// TODO: To handle extN blocks larger than the system's page size, we'd need to start packing multiple cache handles into
@@ -299,9 +299,9 @@ impl InstanceInner
 
 	#[cfg(false_)]	// TODO
 	/// Read from within a block
-	pub fn read_blocks_inner<F,R>(&self, first_block: u32, ofs: usize, len: usize, f: F) -> vfs::node::Result<R>
+	pub fn read_blocks_inner<F,R>(&self, first_block: u32, ofs: usize, len: usize, f: F) -> ::vfs::node::Result<R>
 	where
-		F: FnOnce(&[u8]) -> vfs::node::Result<R>
+		F: FnOnce(&[u8]) -> ::vfs::node::Result<R>
 	{
 		let sector = first_block as u64 * self.vol_blocks_per_fs_block();
 		todo!("");
@@ -310,7 +310,7 @@ impl InstanceInner
 	///
 	/// This is the more expensive version of `get_block`, which doesn't directly touch the block cache.
 	/// It's used to handle partial file reads (which should be cached by higher layers)
-	pub fn get_block_uncached(&self, block: u32) -> vfs::node::Result<Box<[u8]>>
+	pub fn get_block_uncached(&self, block: u32) -> ::vfs::node::Result<Box<[u8]>>
 	{
 		log_trace!("get_block_uncached({})", block);
 		let mut rv = vec![0; self.fs_block_size].into_boxed_slice();
@@ -319,14 +319,14 @@ impl InstanceInner
 	}
 
 	/// Read a sequence of blocks into a user-provided buffer
-	pub fn read_blocks(&self, first_block: u32, data: &mut [u8]) -> vfs::node::Result<()>
+	pub fn read_blocks(&self, first_block: u32, data: &mut [u8]) -> ::vfs::node::Result<()>
 	{
 		::kernel::futures::block_on( self.vol.read_blocks_uncached( first_block as u64 * self.vol_blocks_per_fs_block(), data) )?;
 		Ok( () )
 	}
 
 	/// Write a sequence of blocks from a user-provided buffer
-	pub fn write_blocks(&self, first_block: u32, data: &[u8]) -> vfs::node::Result<()>
+	pub fn write_blocks(&self, first_block: u32, data: &[u8]) -> ::vfs::node::Result<()>
 	{
 		// TODO: Requires maybe interfacing with the cache used by get_block?
 		::kernel::futures::block_on( self.vol.write_blocks_uncached( first_block as u64 * self.vol_blocks_per_fs_block(), data) )?;
@@ -341,7 +341,7 @@ impl InstanceInner
 		(block_idx / s_blocks_per_group, block_idx % s_blocks_per_group)
 	}
 	/// Allocate a new data block
-	pub fn allocate_data_block(&self, inode_num: u32, prev_block: u32) -> vfs::node::Result<u32> {
+	pub fn allocate_data_block(&self, inode_num: u32, prev_block: u32) -> ::vfs::node::Result<u32> {
 		log_debug!("allocate_data_block(inode_num=I{}, prev_block=B{})", inode_num, prev_block);
 		let has_blocks = self.edit_superblock(|sb| {
 			if sb.has_feature_incompat(crate::ondisk::FEAT_INCOMPAT_64BIT) {
@@ -368,7 +368,7 @@ impl InstanceInner
 			}
 			})?;
 		if !has_blocks {
-			return Err(vfs::Error::OutOfSpace);
+			return Err(::vfs::Error::OutOfSpace);
 		}
 		if prev_block != 0 {
 			let (block_bg, _) = self.get_block_grp_id(prev_block);
@@ -395,7 +395,7 @@ impl InstanceInner
 		todo!("allocate_data_block(inode={}, prev_block={})", inode_num, prev_block);
 	}
 
-	fn allocate_block_in_group(&self, group: u32, prev_block: u32) -> vfs::node::Result<Option<u32>> {
+	fn allocate_block_in_group(&self, group: u32, prev_block: u32) -> ::vfs::node::Result<Option<u32>> {
 		let first_bmp_block = self.group_descriptors.read()[group as usize].bg_block_bitmap;
 		// Prefer allocating within a few blocks of the previous (ideally right after) - if non zero
 		if prev_block != 0 {
@@ -418,7 +418,7 @@ impl InstanceInner
 					}
 					})? {
 					if !self.edit_block_group_header(block_bg, |bg| if bg.bg_free_blocks_count == 0 { false } else { bg.bg_free_blocks_count -= 1; true })? {
-						return Err(vfs::Error::InconsistentFilesystem);
+						return Err(::vfs::Error::InconsistentFilesystem);
 					}
 					log_debug!("allocate_block_in_group(): return next B{}", next_block);
 					return Ok(Some(next_block));
@@ -461,13 +461,13 @@ impl InstanceInner
 			}
 		}
 		log_error!("allocate_block_in_group: Descriptor said that there were free blocks, but bitmap was full.");
-		Err(vfs::Error::InconsistentFilesystem)
+		Err(::vfs::Error::InconsistentFilesystem)
 	}
 }
 
 impl InstanceInner
 {
-	fn edit_superblock<R>(&self, cb: impl FnOnce(&mut crate::ondisk::Superblock)->R) -> vfs::node::Result<R> {
+	fn edit_superblock<R>(&self, cb: impl FnOnce(&mut crate::ondisk::Superblock)->R) -> ::vfs::node::Result<R> {
 		let mut lh = self.superblock.write();
 		let rv = cb(&mut lh);
 		if self.vol.block_size() > 1024 {
@@ -483,7 +483,7 @@ impl InstanceInner
 		}
 		Ok(rv)
 	}
-	fn edit_block_group_header<R>(&self, idx: u32, cb: impl FnOnce(&mut crate::ondisk::GroupDesc)->R) -> vfs::node::Result<R> {
+	fn edit_block_group_header<R>(&self, idx: u32, cb: impl FnOnce(&mut crate::ondisk::GroupDesc)->R) -> ::vfs::node::Result<R> {
 		let mut lh = self.group_descriptors.write();
 		let rv = cb(&mut lh[idx as usize]);
 		let ofs = 1024 + idx as usize * ::core::mem::size_of::<::ondisk::GroupDesc>();
@@ -519,24 +519,24 @@ impl InstanceInner
 	}
 
 	/// Perform an operation with a temporary handle to an inode
-	pub fn with_inode<F,R>(&self, inode_num: u32, fcn: F) -> vfs::node::Result<R>
+	pub fn with_inode<F,R>(&self, inode_num: u32, fcn: F) -> ::vfs::node::Result<R>
 	where
-		F: FnOnce(&::inodes::Inode) -> vfs::node::Result<R>
+		F: FnOnce(&::inodes::Inode) -> ::vfs::node::Result<R>
 	{
 		// TODO: Hook into the VFS's node cache somehow (we'd need to know our mount ID) and
 		//       obtain a reference to a cached inode.
 		// - This prevents us from having to maintain our own node cache
 
-		let node = try!(self.mount_handle.get_node(inode_num as vfs::node::InodeId));
+		let node = try!(self.mount_handle.get_node(inode_num as ::vfs::node::InodeId));
 		match node.get_node_any().downcast_ref()
 		{
 		Some(our_in) => fcn(our_in),
-		None => Err(vfs::Error::Unknown("BUG: Node wasn't an extN inode")),
+		None => Err(::vfs::Error::Unknown("BUG: Node wasn't an extN inode")),
 		}
 	}
 
 	/// Allocate a new inode number, possibly in the same block group as `parent_inode_num`.
-	pub fn allocate_inode(&self, parent_inode_num: u32, nodetype: vfs::node::NodeType) -> vfs::node::Result< u32 >
+	pub fn allocate_inode(&self, parent_inode_num: u32, nodetype: ::vfs::node::NodeType) -> ::vfs::node::Result< u32 >
 	{
 		// TODO: Update the superblock
 		let has_inodes = self.edit_superblock(|sb| {
@@ -549,7 +549,7 @@ impl InstanceInner
 			}
 			})?;
 		if !has_inodes {
-			return Err(vfs::Error::OutOfSpace);
+			return Err(::vfs::Error::OutOfSpace);
 		}
 
 		assert!(parent_inode_num != 0);	// Has to be a parent - root exists
@@ -565,7 +565,7 @@ impl InstanceInner
 		self.write_inode(rv, &crate::ondisk::Inode {
 			i_mode: match nodetype
 				{
-				vfs::node::NodeType::File => ::ondisk::S_IFREG,
+				::vfs::node::NodeType::File => ::ondisk::S_IFREG,
 				_ => todo!(""),
 				},
 			..Default::default()
@@ -573,7 +573,7 @@ impl InstanceInner
 
 		Ok(rv)
 	}
-	fn allocate_inode_in_bg(&self, grp: u32, _nodetype: vfs::node::NodeType) -> vfs::node::Result< Option<u32> > {
+	fn allocate_inode_in_bg(&self, grp: u32, _nodetype: ::vfs::node::NodeType) -> ::vfs::node::Result< Option<u32> > {
 		// NOTE: Check with read-only first, and only read-modify-write if the read-only check passed
 		if self.group_descriptors.read()[grp as usize].bg_free_inodes_count == 0 {
 			return Ok(None);
@@ -621,11 +621,11 @@ impl InstanceInner
 			}
 		}
 		log_error!("allocate_inode_in_bg: Descriptor said that there were free inodes, but bitmap was full.");
-		Err(vfs::Error::InconsistentFilesystem)
+		Err(::vfs::Error::InconsistentFilesystem)
 	}
 
 	/// Read an inode descriptor from the disk
-	pub fn read_inode(&self, inode_num: u32) -> vfs::Result< ::ondisk::Inode >
+	pub fn read_inode(&self, inode_num: u32) -> ::vfs::Result< ::ondisk::Inode >
 	{
 		let (vol_block, blk_ofs) = self.get_inode_pos(inode_num);
 		log_trace!("read_inode({}) - vol_block={}, blk_ofs={}", inode_num, vol_block, blk_ofs);
@@ -646,7 +646,7 @@ impl InstanceInner
 		Ok( rv )
 	}
 	/// Write an inode descriptor back to the disk
-	pub fn write_inode(&self, inode_num: u32, inode_data: &::ondisk::Inode) -> vfs::Result< () >
+	pub fn write_inode(&self, inode_num: u32, inode_data: &::ondisk::Inode) -> ::vfs::Result< () >
 	{
 		let (vol_block, blk_ofs) = self.get_inode_pos(inode_num);
 

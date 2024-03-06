@@ -4,11 +4,11 @@
 // Modules/fs_fat/dir.rs
 use kernel::prelude::*;
 use kernel::lib::mem::aref::ArefBorrow;
-use ::vfs::{self, node};
+use ::vfs::node;
 use super::FilesystemInner;
 use super::ClusterNum;
 
-const ERROR_SHORTCHAIN: vfs::Error = vfs::Error::Unknown("Cluster chain terminated early");
+const ERROR_SHORTCHAIN: ::vfs::Error = ::vfs::Error::Unknown("Cluster chain terminated early");
 
 pub struct FileNode
 {
@@ -69,7 +69,7 @@ impl node::File for FileNode {
 			// Sanity check and bound parameters
 			if ofs > *size_lh as u64 {
 				// out of range
-				return Err( vfs::Error::InvalidParameter );
+				return Err( ::vfs::Error::InvalidParameter );
 			}
 			if ofs == *size_lh as u64 {
 				return Ok(0);
