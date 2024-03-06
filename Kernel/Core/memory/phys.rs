@@ -299,7 +299,7 @@ pub unsafe fn deref_frame(paddr: PAddr)
 				// Release frame back into the pool
 				// SAFE: This frame is unaliased
 				let mut h = S_FREE_STACK.lock();
-				virt::with_temp(paddr, |page| *(&mut page[0] as *mut u8 as *mut PAddr) = *h);
+				virt::with_temp(paddr, |page| *(page.as_mut_ptr() as *mut PAddr) = *h);
 				*h = paddr;
 			}
 			else {
