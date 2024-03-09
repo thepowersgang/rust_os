@@ -22,7 +22,7 @@ pub trait ScsiInterface: Sync + Send + 'static
 #[derive(Debug)]
 enum VolumeClass
 {
-	Unknown(u8),
+	Unknown(#[allow(dead_code)] u8),
 	DirectAccessBlock,
 	Sequential,
 	CdDvd,

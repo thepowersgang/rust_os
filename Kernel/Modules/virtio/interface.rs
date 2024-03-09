@@ -19,10 +19,11 @@ pub trait Interface
 	fn notify_queue(&self, idx: usize);
 
 	unsafe fn cfg_read_8(&self, ofs: usize) -> u8;
-	//fn cfg_read_16(&self, ofs: usize) -> u16;
+	//unsafe fn cfg_read_16(&self, ofs: usize) -> u16;
 	unsafe fn cfg_read_32(&self, ofs: usize) -> u32;
 	unsafe fn cfg_write_8(&self, ofs: usize, v: u8);
-	//fn cfg_write_16(&self, ofs: usize) -> u16;
+	//unsafe fn cfg_write_16(&self, ofs: usize) -> u16;
+	#[allow(dead_code)]
 	unsafe fn cfg_write_32(&self, ofs: usize, v: u32);
 }
 

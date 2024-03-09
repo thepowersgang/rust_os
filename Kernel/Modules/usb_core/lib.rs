@@ -520,6 +520,7 @@ impl PortDev
 enum Interface<'a>
 {
 	/// No fitting driver (yet) - save the endpoints and descriptor data
+	#[allow(dead_code)]	// Dead for now, as there aren't dynamic drivers yet
 	Unknown(Vec<Endpoint>, Vec<u8>),
 	/// Started driver
 	Bound(::core::pin::Pin<crate::device::Instance<'a>>),

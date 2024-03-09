@@ -189,6 +189,11 @@ impl DriverRegistration
 		}
 	}
 }
+impl Drop for DriverRegistration {
+	fn drop(&mut self) {
+		log_error!("TODO: De-register VFS driver {:?}", self.0);
+	}
+}
 
 impl Handle
 {

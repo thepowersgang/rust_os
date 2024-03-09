@@ -13,8 +13,6 @@ use crate::prelude::*;
 use core::sync::atomic::{AtomicUsize,Ordering};
 use core::ptr::NonNull;
 use core::{ops, fmt};
-use core::any::Any;
-
 
 /// Atomic referenceable type. Panics if the type is dropped while any references are active.
 /// Internally uses a `Box` to contain an ArefInner

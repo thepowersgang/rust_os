@@ -6,7 +6,6 @@
 #[allow(unused_imports)]
 use ::kernel::prelude::*;
 use ::kernel::lib::byte_str::{ByteStr,ByteString};
-use ::kernel::lib::borrow::ToOwned;
 
 #[derive(Eq,PartialEq,PartialOrd,Ord)]
 pub struct Path(ByteStr);

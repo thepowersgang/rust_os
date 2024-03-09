@@ -6,7 +6,7 @@
 use ::kernel::prelude::*;
 use ::kernel::metadevs::storage::{self, DataPtr};
 
-pub struct Error(u8);
+pub struct Error(#[allow(dead_code)] u8);
 impl From<Error> for storage::IoError
 {
 	fn from(_v: Error) -> storage::IoError

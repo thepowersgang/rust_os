@@ -5,7 +5,10 @@
 //! Legacy Multi-Processor Tables
 
 #[derive(Debug)]
-pub struct MPTablePointer(&'static MPInfo, &'static MPTable);
+pub struct MPTablePointer {
+	_info: &'static MPInfo,
+	table: &'static MPTable,
+}
 
 #[repr(C)]
 pub struct ArrayStr<const N: usize>([u8; N]);
@@ -42,10 +45,10 @@ impl MPTablePointer
 	}
 
 	pub fn lapic_paddr(&self) -> u64 {
-		self.1.local_apic_memory_map as u64
+		self.table.local_apic_memory_map as u64
 	}
 	pub fn entries(&self) -> impl Iterator<Item=MPTableEntry>+'_ {
-		self.1.entries()
+		self.table.entries()
 	}
 }
 impl MPTablePointer
@@ -66,7 +69,7 @@ impl MPTablePointer
 						for e in mpt.entries() {
 							log_debug!("MPTable Ent: {:x?}", e);
 						}
-						return Some(MPTablePointer(v, mpt));
+						return Some(MPTablePointer { _info: v, table: mpt });
 					}
 				}
 			}

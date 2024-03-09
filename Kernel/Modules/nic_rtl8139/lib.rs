@@ -32,7 +32,10 @@ fn init()
 const RX_BUFFER_LENGTH: usize = 0x2000+16;
 const RX_BUFFER_LIMIT : usize = 0x3000;
 
-struct BusDev( nic::Registration<Card>, ::kernel::irqs::ObjectHandle );
+struct BusDev {
+	_nic_registration: nic::Registration<Card>,
+	_irq_handle: ::kernel::irqs::ObjectHandle,
+}
 struct Card
 {
 	io_base: device_manager::IOBinding,
@@ -156,7 +159,10 @@ impl BusDev
 			card_nic_reg.write_16(Regs::IMR, 0xE07F);
 		}
 
-		Ok( BusDev(card_nic_reg, irq_handle) )
+		Ok(BusDev {
+			_nic_registration: card_nic_reg,
+			_irq_handle: irq_handle
+		})
 	}
 }
 impl device_manager::DriverInstance for BusDev

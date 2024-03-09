@@ -256,7 +256,7 @@ enum DirEnt {
 	Empty,
 	Short(DirEntShort),
 	Long(DirEntLong),
-	Invalid(on_disk::DirEnt),
+	Invalid(#[allow(dead_code)] on_disk::DirEnt),
 }
 impl DirEnt {
 	fn from_raw(slice: &[u8]) -> Self {

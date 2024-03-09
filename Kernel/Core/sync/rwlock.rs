@@ -4,7 +4,6 @@
 // Core/sync/rwlock.rs
 //! Reader-writer lock
 use core::cell::UnsafeCell;
-use core::marker::{Send,Sync};
 use core::ops;
 
 macro_rules! trace_type {

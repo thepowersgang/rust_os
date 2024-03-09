@@ -61,10 +61,20 @@ impl Group
 				}
 				},
 			report_parser::Op::Output(v) => {
-				log_debug!("> OUTPUT {:09b} {:?}", v, state);
+				if collection_depth == 0 {
+					collection.output(&mut sinks, &state, v);
+				}
+				else {
+					log_debug!("> OUTPUT {:09b} {:?}", v, state);
+				}
 				},
 			report_parser::Op::Feature(v) => {
-				log_debug!("> FEATURE {:09b} {:?}", v, state);
+				if collection_depth == 0 {
+					collection.feature(&mut sinks, &state, v);
+				}
+				else {
+					log_debug!("> FEATURE {:09b} {:?}", v, state);
+				}
 				},
 			_ => {},
 			}

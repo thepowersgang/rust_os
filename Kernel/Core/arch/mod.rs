@@ -346,7 +346,7 @@ pub mod interrupts {
 
 	/// IRQ handle (unbinds the IRQ when dropped)
 	#[derive(Default)]
-	pub struct IRQHandle(imp::IRQHandle);
+	pub struct IRQHandle(#[allow(dead_code)] imp::IRQHandle);
 	impl IRQHandle {
 		///// Disable/mask-off this IRQ (for when processing is scheduled)
 		//pub fn disable(&self) {

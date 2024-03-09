@@ -10,14 +10,14 @@ pub struct Instance(usize);
 impl Instance
 {
 	pub fn new() -> Instance {
-		Instance(1)
+		Instance(0)
 	}
 	
 	pub fn press_key(&self, key: KeyCode) {
-		super::get_channel_by_index(0).handle_key(key, false);
+		super::get_channel_by_index(self.0).handle_key(key, false);
 	}
 	pub fn release_key(&self, key: KeyCode) {
-		super::get_channel_by_index(0).handle_key(key, true);
+		super::get_channel_by_index(self.0).handle_key(key, true);
 	}
 }
 
