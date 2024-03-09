@@ -7,7 +7,7 @@
 use crate::prelude::*;
 
 
-pub struct WorkerThread(super::thread::ThreadHandle);
+pub struct WorkerThread(#[allow(dead_code)] super::thread::ThreadHandle);
 
 impl WorkerThread
 {

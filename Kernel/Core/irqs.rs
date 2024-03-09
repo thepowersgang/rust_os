@@ -16,7 +16,7 @@ pub struct EventHandle
 	_binding: BindingHandle,
 	event: Arc<crate::futures::flag::SingleFlag>,
 }
-pub struct ObjectHandle( BindingHandle );
+pub struct ObjectHandle( #[allow(dead_code)] BindingHandle );
 
 struct BindingHandle(u32, u32);
 

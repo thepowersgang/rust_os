@@ -21,7 +21,7 @@ pub struct State
 }
 
 #[repr(align(16))]
-struct SSERegisters([u64; 512/8]);
+struct SSERegisters(#[allow(dead_code)] [u64; 512/8]);
 impl Default for SSERegisters {
 	fn default() -> Self { SSERegisters([0; 512/8]) }
 }
