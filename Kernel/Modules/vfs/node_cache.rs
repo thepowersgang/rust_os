@@ -67,10 +67,10 @@ struct CachedNode
 pub struct CacheHandleFile(CacheHandle);
 #[derive(Debug,Clone)]
 pub struct CacheHandleDir(CacheHandle);
-#[derive(Debug,Clone)]
-pub struct CacheHandleSymlink(CacheHandle);
-#[derive(Debug,Clone)]
-pub struct CacheHandleSpecial(CacheHandle);
+//#[derive(Debug,Clone)]
+//pub struct CacheHandleSymlink(CacheHandle);
+//#[derive(Debug,Clone)]
+//pub struct CacheHandleSpecial(CacheHandle);
 
 /// Handle to a node stored in the system's filesystem cache
 pub struct CacheHandle

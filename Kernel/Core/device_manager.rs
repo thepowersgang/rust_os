@@ -119,7 +119,7 @@ pub trait Driver:
 }
 
 /// A wrapper around `stack_dst::Value` with two words of storage (allowing the driver to avoid extra allocations)
-pub struct DriverInstancePtr( ::stack_dst::ValueA<dyn DriverInstance+'static,[usize; 2]> );
+pub struct DriverInstancePtr( #[allow(dead_code)] ::stack_dst::ValueA<dyn DriverInstance+'static,[usize; 2]> );
 impl DriverInstancePtr {
 	pub fn new<T: DriverInstance+'static>(v: T) -> DriverInstancePtr {
 		DriverInstancePtr(

@@ -110,7 +110,6 @@ struct UefiParsed
 
 enum BootInfo
 {
-	Uninit,
 	Invalid,
 	Multiboot(MultibootParsed),
 	Uefi(UefiParsed),
@@ -128,41 +127,34 @@ extern "C"
 	static s_multiboot_signature : u32;
 	static s_multiboot_pointer : *const crate::Void;
 }
-static mut S_MEMMAP_DATA: [crate::memory::MemoryMapEnt; 16] = [crate::memory::MAP_PAD; 16];
-static mut S_BOOTINFO: BootInfo = BootInfo::Uninit;
 
+#[allow(static_mut_refs)]	// Used in a safe manner, and I CBF wrapping it up
 fn get_bootinfo() -> &'static BootInfo
 {
-	// SAFE: Assumes all bootloader-provided pointers are valid, `static mut` write valid
-	unsafe
-	{
-		match S_BOOTINFO
+	static S_BOOTINFO: crate::lib::LazyStatic<BootInfo> = crate::lib::LazyStatic::new();
+	static mut S_MEMMAP_DATA: [crate::memory::MemoryMapEnt; 16] = [crate::memory::MAP_PAD; 16];
+	// SAFE: Correct use of `extern static` (data is read-only once out of assembly stub)
+	// SAFE: `static mut` is only referenced here, inside a concurrency-protected function
+	S_BOOTINFO.prep(|| unsafe {
+		match s_multiboot_signature
 		{
-		BootInfo::Uninit => {
-			S_BOOTINFO = match s_multiboot_signature
-				{
-				0x2BADB002 =>
-					if let Some(mbi) = MultibootParsed::new( &*(s_multiboot_pointer as *const MultibootInfo) ) {
-						BootInfo::Multiboot(mbi)
-					}
-					else {
-						BootInfo::Invalid
-					},
-				0x71FF0EF1 =>
-					if let Some(i) = UefiParsed::new( &*(s_multiboot_pointer as *const uefi_proto::Info) ) {
-						BootInfo::Uefi(i)
-					}
-					else {
-						BootInfo::Invalid
-					},
-				_ => BootInfo::Invalid,
-				};
+		0x2BADB002 =>
+			if let Some(mbi) = MultibootParsed::new( &*(s_multiboot_pointer as *const MultibootInfo), &mut S_MEMMAP_DATA ) {
+				BootInfo::Multiboot(mbi)
+			}
+			else {
+				BootInfo::Invalid
 			},
-		_ => {}
+		0x71FF0EF1 =>
+			if let Some(i) = UefiParsed::new( &*(s_multiboot_pointer as *const uefi_proto::Info), &mut S_MEMMAP_DATA ) {
+				BootInfo::Uefi(i)
+			}
+			else {
+				BootInfo::Invalid
+			},
+		_ => BootInfo::Invalid,
 		}
-		
-		&S_BOOTINFO
-	}
+		})
 }
 
 impl BootInfo
@@ -171,7 +163,6 @@ impl BootInfo
 	{
 		match *self
 		{
-		BootInfo::Uninit => "",
 		BootInfo::Invalid => "",
 		BootInfo::Multiboot(ref i) => i.cmdline,
 		BootInfo::Uefi(ref i) => i.cmdline,
@@ -182,7 +173,6 @@ impl BootInfo
 	{
 		match *self
 		{
-		BootInfo::Uninit => None,
 		BootInfo::Invalid => None,
 		BootInfo::Multiboot(ref i) => i.vidmode,
 		BootInfo::Uefi(ref i) => i.vidmode,
@@ -192,7 +182,6 @@ impl BootInfo
 	{
 		match *self
 		{
-		BootInfo::Uninit => &[],
 		BootInfo::Invalid => &[],
 		BootInfo::Multiboot(ref i) => i.memmap,
 		BootInfo::Uefi(ref i) => i.memmap,
@@ -212,7 +201,7 @@ unsafe fn valid_c_str_to_slice(ptr: *const i8) -> Option<&'static str>
 
 impl MultibootParsed
 {
-	pub fn new(info: &MultibootInfo) -> Option<MultibootParsed>
+	pub fn new(info: &MultibootInfo, mmap_buf: &'static mut [crate::memory::MemoryMapEnt]) -> Option<MultibootParsed>
 	{
 		//if info.flags & !0xFFF != 0 {
 		//	log_error!("Multiboot header malformed (reserved flag bits set {:#x})", info.flags);
@@ -236,8 +225,7 @@ impl MultibootParsed
 				symbol_info: MultibootParsed::_syminfo(info),
 				memmap: &[],
 			};
-		// SAFE: Should only be called before threading is initialised, so no race
-		ret.memmap = unsafe { ret._memmap(info, &mut S_MEMMAP_DATA) };
+		ret.memmap = ret.fill_memmap(info, mmap_buf);
 		Some( ret )
 	}
 
@@ -387,7 +375,7 @@ impl MultibootParsed
 			base: info.physbase as crate::arch::memory::PAddr,
 			})
 	}
-	fn _memmap<'a>(&self, info: &MultibootInfo, buf: &'a mut [crate::memory::MemoryMapEnt]) -> &'a [crate::memory::MemoryMapEnt]
+	fn fill_memmap<'a>(&self, info: &MultibootInfo, buf: &'a mut [crate::memory::MemoryMapEnt]) -> &'a [crate::memory::MemoryMapEnt]
 	{
 		let size = {
 			let mut mapbuilder = crate::memory::MemoryMapBuilder::new(buf);
@@ -446,7 +434,7 @@ impl MultibootParsed
 
 impl UefiParsed
 {
-	pub fn new(info: &uefi_proto::Info) -> Option<Self>
+	pub fn new(info: &uefi_proto::Info, mmap_buf: &'static mut [crate::memory::MemoryMapEnt]) -> Option<Self>
 	{
 		log_trace!("info = {:p}", info);
 		let mut ret = UefiParsed {
@@ -456,8 +444,7 @@ impl UefiParsed
 				memmap: &[],
 			};
 		// - Memory map is initialised afterwards so it gets easy access to used addresses
-		// SAFE: Should only be called before threading is initialised, so no race
-		ret.memmap = unsafe { ret._memmap(info, &mut S_MEMMAP_DATA) };
+		ret.memmap = ret.fill_memmap(info, mmap_buf);
 		Some( ret )
 	}
 
@@ -467,7 +454,7 @@ impl UefiParsed
 			::core::str::from_utf8( ::core::slice::from_raw_parts(info.cmdline_ptr, info.cmdline_len) ).expect("UefiParsed::_cmdline")
 		}
 	}
-	fn _memmap<'a>(&self, info: &uefi_proto::Info, buf: &'a mut [crate::memory::MemoryMapEnt]) -> &'a [crate::memory::MemoryMapEnt] {
+	fn fill_memmap<'a>(&self, info: &uefi_proto::Info, buf: &'a mut [crate::memory::MemoryMapEnt]) -> &'a [crate::memory::MemoryMapEnt] {
 		// TODO: Put this elsewhere
 		struct StrideSlice<T> {
 			ptr: *const T,
