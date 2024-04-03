@@ -512,7 +512,9 @@ enum DtEnt {
 	Needed(usize),
 	Plt(*const u8), PltRelSz(usize),
 	PltRel(usize),
+	#[allow(dead_code)]
 	PltGot(*const u8),
+	#[allow(dead_code)]
 	Hash(usize),
 	StrTab(*const u8),
 	SymTab(*const Symbol),
@@ -520,7 +522,7 @@ enum DtEnt {
 	StrSz(usize),
 	SymEntSz(usize),
 	Rel(*const u8), RelSz(usize), RelEnt(usize),
-	Unknown(u8, u64),
+	Unknown(#[allow(dead_code)] u8, #[allow(dead_code)] u64),
 }
 impl_from! {
 	From<[u32; 2]>(v) for DtEnt {
@@ -926,7 +928,7 @@ enum Size { Elf32, Elf64 }
 #[derive(Copy,Clone,PartialEq,Debug)]
 enum Endian { Little, Big }
 #[derive(Copy,Clone,Debug)]
-enum ObjectType { None, Reloc, Exec, Dyn, Core, Unk(u16) }
+enum ObjectType { None, Reloc, Exec, Dyn, Core, Unk(#[allow(dead_code)] u16) }
 #[derive(Copy,Clone,Debug)]
 enum Machine {
 	None,
@@ -935,7 +937,7 @@ enum Machine {
 	X8664,
 	Aarch64,
 	Riscv,
-	Unk(u16)
+	Unk(#[allow(dead_code)] u16)
 }
 impl_from! {
 	From<u16>(v) for ObjectType {

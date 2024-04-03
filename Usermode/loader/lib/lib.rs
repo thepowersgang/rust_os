@@ -9,8 +9,6 @@
 //extern crate std_rt;
 extern crate syscalls;
 
-use core::result::Result;
-
 include!("../common.inc.rs");
 
 /// Process still being initialised (not yet running)
@@ -18,7 +16,6 @@ pub struct ProtoProcess( ::syscalls::threads::ProtoProcess );
 
 #[cfg(not(test))]
 mod int {
-	use core::result::Result;
 	#[allow(improper_ctypes)]
 	#[link(name="loader_dyn",kind="dylib")]
 	extern "C"

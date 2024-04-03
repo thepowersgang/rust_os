@@ -35,6 +35,19 @@ enum ErrorInner
 	//Interrupted,
 	VFS(::syscalls::vfs::Error),
 }
+impl ::core::fmt::Display for Error {
+	fn fmt(&self, f: &mut ::core::fmt::Formatter) -> ::core::fmt::Result {
+		match self.0 {
+		ErrorInner::Misc => f.write_str("Unknown/misc error"),
+		ErrorInner::VFS(::syscalls::vfs::Error::FileNotFound) => f.write_str("File not found"),
+		ErrorInner::VFS(::syscalls::vfs::Error::TypeError   ) => f.write_str("Incorrect file type for operation"),
+		ErrorInner::VFS(::syscalls::vfs::Error::PermissionDenied) => f.write_str("Permission denied"),
+		ErrorInner::VFS(::syscalls::vfs::Error::FileLocked) => f.write_str("File is locked"),
+		ErrorInner::VFS(::syscalls::vfs::Error::MalformedPath) => f.write_str("Malformed path"),
+		//ErrorInner::VFS(ref e) => write!(f, "Unknown VFS error {:?}", e),
+		}
+	}
+}
 
 impl_conv! {
 	From<::syscalls::vfs::Error>(v) for Error {
