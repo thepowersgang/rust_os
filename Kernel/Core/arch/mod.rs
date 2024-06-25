@@ -11,7 +11,7 @@ cfg_if::cfg_if!{
 		pub use self::test as imp;
 
 		// TODO: Include all architectures here, with tricks so they compile (for testing/IDE)
-		//mod amd64;
+		#[cfg(any(/* in_ide, */target_arch="x86_64" ))] pub mod amd64;
 	}
 	else {
 		// It would be nice to have all architectures built when running

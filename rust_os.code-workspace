@@ -3,6 +3,9 @@
 	"settings": {
 		"editor.useTabStops": true,
 		"editor.tabSize": 4,
+		"rust-analyzer.cargo.cfgs": {
+			"in_ide": "",
+		},
 		"rust-analyzer.server.extraEnv": { "ARCH": "native", "RUSTFLAGS": "--cfg arch=\"native\" --cfg in_ide" }
 	}
 }

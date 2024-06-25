@@ -63,16 +63,13 @@ pub fn rust_begin_unwind(info: &::core::panic::PanicInfo) -> ! {
 		begin_panic_fmt(m, file_line)
 	}
 	else if let Some(m) = info.payload().downcast_ref::<&str>() {
-		begin_panic_fmt(&format_args!("{}", m), file_line)
-	}
-	else if let Some(m) = info.message() {
-		begin_panic_fmt(m, file_line)
+		begin_panic_fmt(&m, file_line)
 	}
 	else {
-		begin_panic_fmt(&format_args!("Unknown"), file_line)
+		begin_panic_fmt(&info.message(), file_line)
 	}
 }
-fn begin_panic_fmt(msg: &::core::fmt::Arguments, (file, line): (&str, u32)) -> !
+fn begin_panic_fmt(msg: &impl ::core::fmt::Display, (file,line): (&str, u32)) -> !
 {
 	static NESTED: ::core::sync::atomic::AtomicBool = ::core::sync::atomic::AtomicBool::new(false);
 	// TODO: Get the arch code to freeze the other CPUs (using an IPI)
@@ -89,8 +86,8 @@ fn begin_panic_fmt(msg: &::core::fmt::Arguments, (file, line): (&str, u32)) -> !
 		}
 	}
 	crate::arch::print_backtrace();
-	log_panic!("{}:{}: Panicked \"{:?}\"", file, line, msg);
-	crate::metadevs::video::set_panic(file, line as usize, msg);
+	log_panic!("{}:{}: Panicked \"{}\"", file, line, msg);
+	crate::metadevs::video::set_panic(file, line as usize, &format_args!("{}", msg));
 	loop{}
 }
 #[lang="eh_personality"]

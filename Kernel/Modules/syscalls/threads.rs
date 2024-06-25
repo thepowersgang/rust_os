@@ -123,7 +123,7 @@ impl crate::objects::Object for ProtoProcess
 		let this = unsafe { ::core::ptr::read(self) };
 		match call
 		{
-		#[cfg(not(feature="native"))]	// Not used in native mode
+		#[cfg(not(any(in_ide,feature="native")))]	// Not used in native mode
 		values::CORE_PROTOPROCESS_START => {
 			let ip: usize = args.get()?;
 			let sp: usize = args.get()?;

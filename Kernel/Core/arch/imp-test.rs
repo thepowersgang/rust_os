@@ -44,6 +44,15 @@ pub mod memory {
 				//todo!("AddressSpace::new");
 			}
 		}
+		// HACK: Deref to the architecture-specific version
+		impl ::core::ops::Deref for AddressSpace {
+			#[cfg(target_arch="x86_64")]
+			type Target = crate::arch::amd64::memory::virt::AddressSpace;
+			fn deref(&self) -> &Self::Target { unreachable!() }
+		}
+		impl ::core::ops::DerefMut for AddressSpace {
+			fn deref_mut(&mut self) -> &mut Self::Target { unreachable!() }
+		}
 
 		pub fn post_init() {
 		}
@@ -238,6 +247,16 @@ pub mod threads {
 	pub struct State {
 		thread_handle: Option<std::thread::JoinHandle<()>>,
 		inner: Arc<StateInner>,
+	}
+	// HACK: Deref to the architecture-specific thread state
+	// - This allows the IDE to show annotations for at least the current arch
+	impl ::core::ops::Deref for State {
+		#[cfg(target_arch="x86_64")]
+		type Target = crate::arch::amd64::threads::State;
+		fn deref(&self) -> &Self::Target { unreachable!() }
+	}
+	impl ::core::ops::DerefMut for State {
+		fn deref_mut(&mut self) -> &mut Self::Target { unreachable!() }
 	}
 	impl State
 	{

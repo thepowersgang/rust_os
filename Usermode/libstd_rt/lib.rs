@@ -47,7 +47,7 @@ mod arch;
 mod arch;
 
 #[cfg_attr(test,allow(dead_code))]
-fn begin_panic_fmt(msg: &::core::fmt::Arguments, file_line: (&str, u32)) -> ! {
+fn begin_panic_fmt(msg: &impl ::core::fmt::Display, file_line: (&str, u32)) -> ! {
 	// Spit out that log
 	kernel_log!("PANIC: {}:{}: {}", file_line.0, file_line.1, msg);
 	// - Backtrace
@@ -69,13 +69,10 @@ pub fn rust_begin_unwind(info: &::core::panic::PanicInfo) -> ! {
 		begin_panic_fmt(m, file_line)
 	}
 	else if let Some(m) = info.payload().downcast_ref::<&str>() {
-		begin_panic_fmt(&format_args!("{}", m), file_line)
-	}
-	else if let Some(m) = info.message() {
-		begin_panic_fmt(m, file_line)
+		begin_panic_fmt(&m, file_line)
 	}
 	else {
-		begin_panic_fmt(&format_args!("Unknown"), file_line)
+		begin_panic_fmt(&info.message(), file_line)
 	}
 }
 #[lang="eh_personality"]
