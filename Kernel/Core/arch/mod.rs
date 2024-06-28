@@ -36,7 +36,7 @@ cfg_if::cfg_if!{
 
 // If on x86/amd64, import ACPI
 #[cfg(not(feature="test"))]
-#[cfg(any(arch="amd64", target_arch="x86_64"))]
+#[cfg(any(target_arch="x86_64"))]
 pub use self::imp::acpi;
 
 #[allow(dead_code)]

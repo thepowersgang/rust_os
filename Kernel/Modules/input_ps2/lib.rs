@@ -17,7 +17,7 @@ use kernel::prelude::*;
 // HACK: Requires USB to be active to ensure that emulation is off
 module_define!{PS2, [
 	DeviceManager,
-	#[cfg(any(arch="x86",arch="amd64",target_arch="x86",target_arch="x86_64"))]
+	#[cfg(any(target_arch="x86",target_arch="x86_64"))]
 	ACPI,
 	GUI
 	/*, USB*/
@@ -46,7 +46,7 @@ enum EnumWaitState
 mod keyboard;
 mod mouse;
 
-#[cfg(any(arch="x86",arch="amd64",target_arch="x86",target_arch="x86_64"))]
+#[cfg(any(target_arch="x86",target_arch="x86_64"))]
 fn init()
 {
 	#[path="i8042.rs"]

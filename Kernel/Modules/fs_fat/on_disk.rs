@@ -118,6 +118,7 @@ impl BootSect {
 	}
 }
 
+#[allow(dead_code)]	// Not all fields are needed to be read
 pub struct BootSectInfo
 {
 	pub _jump: [u8; 3],
@@ -162,6 +163,7 @@ pub struct BootSect16
 	common: BootSectInfo,
 	info: BootSect16Info,
 }
+#[allow(dead_code)]	// Not all fields are needed to be read
 pub struct BootSect16Info
 {
 	pub drive_num: u8,
@@ -189,6 +191,7 @@ pub struct BootSect32
 	info32: BootSect32Info,
 	info16: BootSect16Info,
 }
+#[allow(dead_code)]	// Not all fields are needed to be read
 pub struct BootSect32Info
 {
 	pub fat_size_32: u32,

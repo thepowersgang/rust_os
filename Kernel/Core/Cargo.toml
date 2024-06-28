@@ -16,3 +16,6 @@ lazy_static = { version = "1.4", optional = true }
 stack_dst = { version = "0.7.2", default-features = false, features = ["unsize"] }
 #tag_safe = "0.2"
 va_list = { version = "0.1", default-features = false, features = ["no_std"], optional = true }
+
+[lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(use_acpica)', 'cfg(test_shim)', 'cfg(_false)', 'cfg(false_)'] }

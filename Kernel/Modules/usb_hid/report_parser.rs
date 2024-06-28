@@ -40,6 +40,7 @@ impl<'a> Iterator for IterRaw<'a>
 
 /// A parsed operator in a report descriptor
 #[derive(Debug)]
+#[allow(dead_code)]
 pub enum Op
 {
 	// --- (x0)

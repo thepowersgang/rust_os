@@ -298,8 +298,8 @@ enum ArchValues {
 	ARMv8 = 4,
 	RiscV = 5,
 }
-#[cfg(any(arch="amd64",target_arch="x86_64"))]	const ARCH: ArchValues = ArchValues::AMD64;
-#[cfg(any(arch="amd64",target_arch="x86_64"))]	const LOAD_MAX: usize = 1 << 47;
+#[cfg(target_arch="x86_64")]	const ARCH: ArchValues = ArchValues::AMD64;
+#[cfg(target_arch="x86_64")]	const LOAD_MAX: usize = 1 << 47;
 #[cfg(target_arch="arm")]	const ARCH: ArchValues = ArchValues::ARMv7;
 #[cfg(target_arch="arm")]	const LOAD_MAX: usize = (1 << 31) - (4 << 20);	// Leave 4MB for the kernel to control within the user table
 #[cfg(target_arch="aarch64")]	const ARCH: ArchValues = ArchValues::ARMv8;

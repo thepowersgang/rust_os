@@ -48,3 +48,6 @@ members = [
     "tests/network",
     "tests/filesystem",
 ]
+
+[lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(_false)', 'cfg(false_)', 'cfg(target)'] }

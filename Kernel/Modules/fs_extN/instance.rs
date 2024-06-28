@@ -297,7 +297,7 @@ impl InstanceInner
 			}))?
 	}
 
-	#[cfg(false_)]	// TODO
+	#[cfg(any())]	// TODO
 	/// Read from within a block
 	pub fn read_blocks_inner<F,R>(&self, first_block: u32, ofs: usize, len: usize, f: F) -> ::vfs::node::Result<R>
 	where
