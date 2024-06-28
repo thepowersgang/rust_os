@@ -285,24 +285,17 @@ fn invoke_int(call_id: u32, args: &mut Args) -> Result<u64,Error>
 			},
 		// === 4: Networking
 		NET_CONNECT => {
-			todo!("NET_CONNECT");
+			let local: crate::values::SocketAddress = { let p: Freeze<_> = args.get()?; *p };
+			from_result(network_calls::new_client(local))
 			},
 		NET_LISTEN => {
 			let local: crate::values::SocketAddress = { let p: Freeze<_> = args.get()?; *p };
-			match network_calls::new_server(local)
-			{
-			Ok(v) => v as u64,
-			Err(e) => e as u8 as u64,
-			}
+			from_result(network_calls::new_server(local))
 			},
 		NET_BIND => {
 			let local: crate::values::SocketAddress = { let p: Freeze<_> = args.get()?; *p };
 			let remote: crate::values::MaskedSocketAddress = { let p: Freeze<_> = args.get()?; *p };
-			match network_calls::new_free_socket(local, remote)
-			{
-			Ok(v) => v as u64,
-			Err(e) => e as u8 as u64,
-			}
+			from_result(network_calls::new_free_socket(local, remote))
 			},
 		// === *: Default
 		_ => {

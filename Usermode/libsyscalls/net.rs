@@ -17,7 +17,7 @@ pub struct ConnectedSocket(::ObjectHandle);
 pub struct FreeSocket(::ObjectHandle);
 
 fn to_result(val: usize) -> Result<u32, Error> {
-	::to_result(val).map_err(|e| Error::try_from(e as u8).unwrap())
+	::to_result(val).map_err(|e| Error::try_from(e).unwrap())
 }
 
 // --------------------------------------------------------------------
@@ -43,7 +43,7 @@ impl Server
 		let addr = addr.into();
 		// SAFE: Syscall
 		::ObjectHandle::new(unsafe { syscall!(NET_LISTEN, &addr as *const _ as usize) as usize })
-			.map_err(|e| Error::try_from(e as u8).unwrap() )
+			.map_err(|e| Error::try_from(e).unwrap() )
 			.map(|v| Server(v))
 	}
 
@@ -51,7 +51,7 @@ impl Server
 		let mut sa = SocketAddress::default();
 		// SAFE: Syscall
 		::ObjectHandle::new(unsafe { self.0.call_1(::values::NET_SERVER_ACCEPT, &mut sa as *mut _ as usize) as usize })
-			.map_err(|e| Error::try_from(e as u8).unwrap() )
+			.map_err(|e| Error::try_from(e).unwrap() )
 			.map( |v| (ConnectedSocket(v), sa,) )
 	}
 }
@@ -78,7 +78,7 @@ impl ConnectedSocket
 		let addr = addr.into();
 		// SAFE: Syscall
 		::ObjectHandle::new(unsafe{ syscall!(NET_CONNECT, &addr as *const _ as usize) as usize })
-			.map_err(|e| Error::try_from(e as u8).unwrap())
+			.map_err(|e| Error::try_from(e).unwrap())
 			.map(|v| ConnectedSocket(v))
 	}
 	pub fn shutdown(&self, what: ShutdownSide) -> Result<(), Error> {
@@ -136,7 +136,7 @@ impl FreeSocket
 	pub fn create(local: SocketAddress, remote: MaskedSocketAddress) -> Result<FreeSocket, Error> {
 		// SAFE: Syscall
 		::ObjectHandle::new( unsafe { syscall!(NET_BIND, &local as *const _ as usize, &remote as *const _ as usize) as usize } )
-			.map_err(|e| Error::try_from(e as u8).unwrap())
+			.map_err(|e| Error::try_from(e).unwrap())
 			.map(|v| FreeSocket(v))
 	}
 

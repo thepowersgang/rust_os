@@ -545,7 +545,7 @@ pub type RpcMessage = [u8; 32];
 // --------------------------------------------------------------------
 // Network
 // --------------------------------------------------------------------
-enum_to_from!{ SocketError => u8:
+enum_to_from!{ SocketError => u32:
 	/// No data waiting/avaliable
 	NoData = 0,
 	/// An invalid value was passed to the call
