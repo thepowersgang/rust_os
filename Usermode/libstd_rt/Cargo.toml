@@ -10,3 +10,6 @@ path = "lib.rs"
 syscalls = { path = "../libsyscalls" }
 macros = { path = "../libmacros" }
 
+[lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(arch, values("native"))'] }
+

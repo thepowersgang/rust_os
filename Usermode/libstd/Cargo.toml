@@ -12,3 +12,6 @@ macros = { path = "../libmacros" }
 alloc_system = { path = "../liballoc_system" }
 
 loader = { path = "../loader/lib" }
+
+[lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(arch, values("native"))'] }

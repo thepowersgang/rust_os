@@ -39,7 +39,7 @@ usb-msc = { path = "Modules/usb_msc" }
 [target.'cfg(target_arch = "x86_64")'.dependencies]
 #video-vga = { path = "Modules/video_vga" }
 
-[build_dependencies]
+[build-dependencies]
 my_dependencies = { git = "https://github.com/thepowersgang/my-dependencies-rs.git" }
 
 # Workspace members for the tests (so they work within VSCode)

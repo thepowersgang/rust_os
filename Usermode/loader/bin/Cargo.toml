@@ -20,3 +20,6 @@ cmdline_words_parser = { path = "../../../externals/crates.io/cmdline_words_pars
 std = { path = "../../libstd" }
 syscalls = { path = "../../libsyscalls" }
 loader = { path = "../lib" }
+
+[lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(arch, values("native"))'] }

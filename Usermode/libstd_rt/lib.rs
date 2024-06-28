@@ -65,15 +65,7 @@ pub fn rust_begin_unwind(info: &::core::panic::PanicInfo) -> ! {
 		Some(v) => (v.file(), v.line()),
 		None => ("", 0),
 		};
-	if let Some(m) = info.payload().downcast_ref::<::core::fmt::Arguments>() {
-		begin_panic_fmt(m, file_line)
-	}
-	else if let Some(m) = info.payload().downcast_ref::<&str>() {
-		begin_panic_fmt(&m, file_line)
-	}
-	else {
-		begin_panic_fmt(&info.message(), file_line)
-	}
+	begin_panic_fmt(&info.message(), file_line)
 }
 #[lang="eh_personality"]
 #[cfg(not(test))]
