@@ -12,6 +12,7 @@ use std::io::{Read,Seek,SeekFrom};
 use load::{Segment,SegmentProt};
 
 #[derive(Debug)]
+#[allow(dead_code)]	// Ignore non-use of the variant members
 pub enum Error
 {
 	NotElf,

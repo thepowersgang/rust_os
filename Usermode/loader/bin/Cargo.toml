@@ -22,4 +22,4 @@ syscalls = { path = "../../libsyscalls" }
 loader = { path = "../lib" }
 
 [lints.rust]
-unexpected_cfgs = { level = "warn", check-cfg = ['cfg(arch, values("native"))'] }
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(arch, values("native"))', 'cfg(building_loader_lib)'] }

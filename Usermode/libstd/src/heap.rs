@@ -26,16 +26,6 @@ pub unsafe extern fn __rdl_dealloc(ptr: *mut u8,
 }
 
 #[no_mangle]
-#[cfg(_false)]
-pub unsafe extern fn __rdl_usable_size(layout: *const u8,
-									   min: *mut usize,
-									   max: *mut usize) {
-	let pair = System.usable_size(&*(layout as *const Layout));
-	*min = pair.0;
-	*max = pair.1;
-}
-
-#[no_mangle]
 pub unsafe extern fn __rdl_realloc(ptr: *mut u8, old_size: usize, old_align: usize, new_size: usize, ) -> *mut u8
 {
 	let old_layout = Layout::from_size_align_unchecked(old_size, old_align);
