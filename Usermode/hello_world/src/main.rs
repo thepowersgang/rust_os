@@ -1,11 +1,11 @@
-#![feature(start)]
 #![no_std]
+#![no_main]
 
 extern crate syscalls;
 extern crate std_rt;
 
-#[start]
-fn main(_: isize, _: *const *const u8) -> isize {
+#[no_mangle]
+extern "C" fn main(_: isize, _: *const *const u8) -> isize {
 	::syscalls::log_write("Hello World!");
 	0
 }
