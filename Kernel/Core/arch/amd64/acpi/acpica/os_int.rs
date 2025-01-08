@@ -479,7 +479,13 @@ extern "C" fn AcpiOsVprintf(Format: *const i8, mut Args: VaList)
 				// SAFE: Does as much validation as possible, if ACPICA misbehaves... well, we're in trouble
 				let slice = unsafe {
 					let ptr = Args.get::<*const u8>();
-					if precision < !0 {
+					if precision == 0 {
+						""
+					}
+					else if ptr.is_null() || (ptr as usize) >> 48 != 0xFFFF {
+						"<badptr>"
+					}
+					else if precision < !0 {
 						::core::str::from_utf8(::core::slice::from_raw_parts(ptr, precision as usize)).unwrap_or("")
 					}
 					else {
