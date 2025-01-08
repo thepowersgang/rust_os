@@ -636,6 +636,7 @@ impl<'a, R: 'a+Read> ::std::iter::Iterator for LoadSegments<'a, R> {
 					mem_size: e.p_memsz,
 					protection: match e.p_flags & 7
 						{
+						0 => continue,
 						0x4 => SegmentProt::ReadOnly,
 						0x5 => SegmentProt::Execute,
 						0x6 => SegmentProt::ReadWrite,

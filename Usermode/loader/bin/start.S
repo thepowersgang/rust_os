@@ -51,7 +51,8 @@ loader_start:
 	/* 3. Call into rust */
 	lea init_path(%rip), %rdi
 	/* RSI = Initial RAX */
-	jmp loader_main
+	/* Note: This uses `call` to maintain stack alignment */
+	call loader_main
 .bad_location:
 	// Incorrect location, bail hard
 	mov $-2, %rdi
