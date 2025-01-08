@@ -539,6 +539,8 @@ EXPORT memset
 	mov rax, rsi
 	mov rcx, rdx
 	rep stosb
+	mov rax, rdi
+	sub rax, rdx
 	ret
 ;; RDI = Destination
 ;; RSI = Source
