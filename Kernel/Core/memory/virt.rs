@@ -665,7 +665,7 @@ impl AllocHandle
 	pub unsafe fn new(addr: usize, count: usize, mode: ProtectionMode) -> AllocHandle {
 		assert!(addr != 0, "Zero pointer for AllocHandle");
 		assert!(addr & (PAGE_SIZE - 1) == 0, "Non-aligned value for AllocHandle : {:#x}", addr);
-		assert!(count < PAGE_SIZE / 2, "Over-sized allocation in AllocHandle : {} >= {}", count, PAGE_SIZE/2);
+		assert!(count < PAGE_SIZE / 2, "Over-sized allocation in AllocHandle : {} pages >= {} pages", count, PAGE_SIZE/2);
 		AllocHandle {
 			value: ::core::num::NonZeroUsize::new(addr | (count << 1) | (mode == ProtectionMode::KernelRW) as usize).unwrap(),
 			}
