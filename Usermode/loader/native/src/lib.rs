@@ -46,8 +46,8 @@ const MAX_THREADS: usize = 16;
 pub unsafe extern "C" fn rustos_native_init(port: u16)
 {
 	// SAFE: Called once
-	RUSTOS_NATIVE_SOCKET = mini_std::Socket::connect_localhost(port).unwrap();
-	let pid: u32 = RUSTOS_NATIVE_SOCKET.recv().unwrap();
+	RUSTOS_NATIVE_SOCKET = mini_std::Socket::connect_localhost(port).expect("Error connecting to server");
+	let pid: u32 = RUSTOS_NATIVE_SOCKET.recv().expect("Error getting the socket");
 	RUSTOS_PID = pid;
 }
 
@@ -157,7 +157,7 @@ pub unsafe extern "C" fn rustos_native_syscall(id: u32, opts: &[usize]) -> u64 {
 					it.next().unwrap_or(!0),
 					it.next().unwrap_or(!0),
 					]}
-			}).unwrap();
+			}).expect("Syscall send failed");
 		loop
 		{
 			static THREAD_INFO: mini_std::Mutex<[ThreadResp; MAX_THREADS]> = mini_std::Mutex::new([ ThreadResp { call: CORE_EXITPROCESS, rv: 0 }; MAX_THREADS ]);
@@ -172,7 +172,7 @@ pub unsafe extern "C" fn rustos_native_syscall(id: u32, opts: &[usize]) -> u64 {
 				return resp.rv;
 			}
 			// Read a response
-			let resp: Resp = RUSTOS_NATIVE_SOCKET.recv().unwrap();
+			let resp: Resp = RUSTOS_NATIVE_SOCKET.recv().expect("Error reciving syscall response");
 			if resp.tid == this_tid {
 				assert!(resp.call == id);
 				return resp.rv;

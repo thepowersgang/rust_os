@@ -176,21 +176,29 @@ impl Socket {
 		Ok(Socket(Some(sock)))
 	}
 	/// Reeive a POD structure
-	pub fn recv<T: Pod>(&self) -> Result<T,&'static str> {
+	pub fn recv<T: Pod>(&self) -> Result<T, ::std::io::Error> {
 		use std::io::Read;
 		let mut rv = T::default();
 		// SAFE: Correct pointers, data is POD
 		let slice = unsafe { ::std::slice::from_raw_parts_mut(&mut rv as *mut _ as *mut u8, ::core::mem::size_of::<T>()) };
-		self.0.as_ref().unwrap().read_exact(slice).map_err(|_| "Error reported")?;
-		Ok(rv)
+		match self.0.as_ref().unwrap().read_exact(slice)
+		{
+		Ok(v) => Ok(v),
+		Err(e) if e.kind() == ErrorKind::UnexpectedEof => ::std::process::exit(0),
+		Err(e) => Err(e),
+		}
 	}
 	/// Send a POD structure
-	pub fn send<T: Pod>(&self, val: T) -> Result<(), &'static str> {
+	pub fn send<T: Pod>(&self, val: T) -> Result<(), ::std::io::Error> {
 		use std::io::Write;
 		// SAFE: Correct pointers, and data is POD
 		let slice = unsafe { ::std::slice::from_raw_parts(&val as *const _ as *const u8, ::core::mem::size_of::<T>()) };
-		self.0.as_ref().unwrap().write_all(slice).map_err(|_| "Error reported")?;
-		Ok( () )
+		match self.0.as_ref().unwrap().write_all(slice)
+		{
+		Ok(v) => Ok(v),
+		Err(e) if e.kind() == ErrorKind::UnexpectedEof => ::std::process::exit(0),
+		Err(e) => Err(e),
+		}
 	}
 }
 

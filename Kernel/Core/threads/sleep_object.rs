@@ -45,7 +45,7 @@ impl<'a> SleepObject<'a>
 {
 	/// Create a new sleep object
 	/// UNSAFE: The caller must ensure that this type's destructor is called (maintaining the correctness of obtained SleepObjectRef instances)
-	pub const unsafe fn new(name: &'static str) -> SleepObject
+	pub const unsafe fn new(name: &'static str) -> SleepObject<'static>
 	{
 		SleepObject {
 			_nomove: ::core::marker::PhantomData,

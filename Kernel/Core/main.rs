@@ -16,7 +16,6 @@
 #![feature(linkage)]	// allows using #[linkage="external"]
 //#![feature(integer_atomics)]	// AtomicU8
 #![feature(dropck_eyepatch)]
-#![feature(panic_info_message)]
 #![feature(extern_types)]
 #![feature(cfg_target_has_atomic)]	// #[cfg(target_has_atomic="64")]
 

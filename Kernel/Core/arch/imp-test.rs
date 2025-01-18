@@ -45,11 +45,13 @@ pub mod memory {
 			}
 		}
 		// HACK: Deref to the architecture-specific version
+		#[cfg(in_ide)]
 		impl ::core::ops::Deref for AddressSpace {
 			#[cfg(target_arch="x86_64")]
 			type Target = crate::arch::amd64::memory::virt::AddressSpace;
 			fn deref(&self) -> &Self::Target { unreachable!() }
 		}
+		#[cfg(in_ide)]
 		impl ::core::ops::DerefMut for AddressSpace {
 			fn deref_mut(&mut self) -> &mut Self::Target { unreachable!() }
 		}
@@ -250,11 +252,13 @@ pub mod threads {
 	}
 	// HACK: Deref to the architecture-specific thread state
 	// - This allows the IDE to show annotations for at least the current arch
+	#[cfg(in_ide)]
 	impl ::core::ops::Deref for State {
 		#[cfg(target_arch="x86_64")]
 		type Target = crate::arch::amd64::threads::State;
 		fn deref(&self) -> &Self::Target { unreachable!() }
 	}
+	#[cfg(in_ide)]
 	impl ::core::ops::DerefMut for State {
 		fn deref_mut(&mut self) -> &mut Self::Target { unreachable!() }
 	}

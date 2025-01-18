@@ -14,8 +14,6 @@ extern "C" {
 extern "C" {
 }
 
-extern crate libc;
-
 pub fn native_init(port: u16) {
 	// SAFE: Called once
 	unsafe {
