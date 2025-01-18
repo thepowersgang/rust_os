@@ -87,7 +87,7 @@ impl Source
 	}
 	
 	/// Create a waiter for this queue
-	pub fn wait_on<'a>(&'a self) -> Waiter
+	pub fn wait_on<'a>(&'a self) -> Waiter<'a>
 	{
 		// Allocate a flag and return an active waiter for this flag
 		let flag = self.flags.lock().alloc();

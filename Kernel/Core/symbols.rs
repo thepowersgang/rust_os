@@ -26,6 +26,7 @@ static mut S_SYMS: State = State { symtab: &[], strtab: &[], addr_offset: 0 };
 
 /// UNSAFE: Should only ever be called once, and before multithreading
 pub unsafe fn set_symtab(symtab: &'static [Elf32_Sym], strtab: &'static [u8], offset: usize) {
+	#![allow(static_mut_refs)]
 	assert!(S_SYMS.symtab.len() == 0, "Setting symbol table twice");
 	S_SYMS = State {
 		symtab,

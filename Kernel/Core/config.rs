@@ -4,15 +4,17 @@
 // Core/config.rs
 //! Boot-time configuration management
 // NOTE: See the bottom of the file for the runtime configuration options
+#![allow(static_mut_refs)]
 
-pub fn init(cmdline: &'static str)
+/// Initialise the kerel config from a command-line string.
+/// 
+/// UNSAFE: Needs to be called in a single-threaded context, as it mutates a `static mut``
+pub unsafe fn init(cmdline: &'static str)
 {
-	// SAFE: Called in a single-threaded context
-	unsafe {
-		S_CONFIG.init(cmdline);
-	}
+	S_CONFIG.init(cmdline);
 }
 
+/// Get a configuration parameter from the kernel config
 pub fn get_string(val: Value) -> &'static str
 {
 	// SAFE: No mutation should happen when get_string is being called

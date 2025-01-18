@@ -231,12 +231,12 @@ fn wrapping()
 {
 	let mut buf = RxBuffer::new(16);
 	// Insert 8 bytes, then remove them
-	buf.insert(0, &[0; 8]);
+	buf.insert(0, &[0; 8]).unwrap();
 	//println!("PI {:?}", buf);
 	{ let mut b = [0; 8]; buf.take(&mut b); }
 	//println!("PT {:?}", buf);
 	assert_eq!(buf.valid_len(), 0);
-	buf.insert(0, &[0xFF; 12]);
+	buf.insert(0, &[0xFF; 12]).unwrap();
 	//println!("PI2 {:?}", buf);
 	assert_eq!(buf.valid_len(), 12);
 	{ let mut b = [0; 12]; buf.take(&mut b); assert_eq!(b, [0xFF; 12]); }

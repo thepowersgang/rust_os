@@ -35,7 +35,7 @@ impl Queue
 	///
 	/// The passed handler is called with None to poll the state.
 	// TODO: Race conditions between 'Source::wait_on' and 'wait_on_list'.
-	pub fn wait_on<'a>(&'a self) -> Waiter
+	pub fn wait_on<'a>(&'a self) -> Waiter<'a>
 	{
 		// TODO: Requires a queue wait variant
 		unimplemented!();

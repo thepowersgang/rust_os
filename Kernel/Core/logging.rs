@@ -474,6 +474,7 @@ pub fn enabled(level: Level, modname: &str) -> bool
 		macro_rules! def_filters {
 			( $($s:literal >= $level:ident,)* ) => {
 				#[no_mangle]
+				#[allow(non_upper_case_globals)]
 				static log_cfg_data: [super::LogCfgEnt; def_filters!(@count $($level)*)] = [
 					$(
 					super::LogCfgEnt {
@@ -486,13 +487,14 @@ pub fn enabled(level: Level, modname: &str) -> bool
 					)*
 					];
 				#[no_mangle]
+				#[allow(non_upper_case_globals)]
 				static log_cfg_count: usize = def_filters!(@count $($level)*);
 			};
 			(@count $($level:ident)*) => { 0 $(+ { let _ = super::Level::$level; 1})* };
 		}
 		def_filters! {
 			"kernel::sync::rwlock" >= Debug,
-			"kernel::arch::imp::threads" >= Log,
+			"kernel::arch::test::threads" >= Log,
 			"kernel::threads::wait_queue" >= Debug,
 		}
 	}
@@ -518,7 +520,7 @@ pub fn enabled(level: Level, modname: &str) -> bool
 
 #[doc(hidden)]
 /// Returns a logging formatter
-pub fn getstream(level: Level, modname: &'static str) -> LoggingFormatter
+pub fn getstream(level: Level, modname: &'static str) -> LoggingFormatter<'static>
 {
 	assert!( enabled(level, modname) );
 	LoggingFormatter::new(level, modname)

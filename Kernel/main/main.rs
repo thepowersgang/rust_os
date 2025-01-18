@@ -48,8 +48,11 @@ pub extern "C" fn kmain()
 	::kernel::threads::init();
 	
 	log_log!("Command line = {:?}", ::kernel::arch::boot::get_boot_string());
-	::kernel::config::init( ::kernel::arch::boot::get_boot_string() );
-	
+	// SAFE: Single-threaded context
+	unsafe {
+		::kernel::config::init( ::kernel::arch::boot::get_boot_string() );
+	}
+
 	// Dump active video mode
 	let vidmode = ::kernel::arch::boot::get_video_mode();
 	match vidmode {

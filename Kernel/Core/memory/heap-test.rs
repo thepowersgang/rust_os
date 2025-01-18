@@ -15,6 +15,9 @@ pub unsafe fn dealloc_raw(ptr: *mut (), size: usize, align: usize) {
 	std::alloc::dealloc(ptr as *mut u8, std::alloc::Layout::from_size_align(size,align).unwrap());
 }
 
+pub fn init() {
+	// No-op, just exists to make IDE happy with `main.rs`
+}
 
 pub struct ArrayAlloc<T>
 {
