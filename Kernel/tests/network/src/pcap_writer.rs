@@ -5,7 +5,7 @@ pub struct PcapWriter<W>
     start_time_i: ::std::time::Instant,
 }
 
-#[derive(::serde_derive::Serialize)]
+#[derive(::serde::Serialize)]
 struct FileHeader
 {
     magic_number: u32,
@@ -16,7 +16,7 @@ struct FileHeader
     snaplen: u32,
     network: i32,
 }
-#[derive(::serde_derive::Serialize)]
+#[derive(::serde::Serialize)]
 struct PacketHeader
 {
     timestamp_utc_s: u32,

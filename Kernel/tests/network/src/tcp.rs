@@ -10,7 +10,7 @@ mod tests;
 
 #[derive(Copy,Clone)]
 #[derive(Debug)]
-#[derive(serde_derive::Deserialize,serde_derive::Serialize)]
+#[derive(::serde::Deserialize,::serde::Serialize)]
 pub struct Header
 {
     pub src_port: u16,

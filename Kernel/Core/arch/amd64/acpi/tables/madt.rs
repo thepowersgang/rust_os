@@ -3,6 +3,7 @@
 //
 // arch/amd64/hw/apic/init.rs
 // - x86 APIC Initialisation (ACPI parsing)
+#![allow(non_camel_case_types)]	// Because I'm lazy
 #[allow(unused_imports)]
 use crate::prelude::*;
 
@@ -113,7 +114,7 @@ impl Madt
 		}
 	}
 	
-	unsafe fn get_record<'s>(&'s self, limit: usize, pos: usize) -> (usize, MADTDevRecord)
+	unsafe fn get_record<'s>(&'s self, limit: usize, pos: usize) -> (usize, MADTDevRecord<'s>,)
 	{
 		assert!(pos < limit);
 		assert!(pos + ::core::mem::size_of::<MADT_DevHeader>() <= limit);
