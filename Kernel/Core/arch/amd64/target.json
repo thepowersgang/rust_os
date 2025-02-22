@@ -6,12 +6,13 @@
 	"target-pointer-width": "64",
 	"target-c-int-width": "32",
 	"features": "-mmx,-sse,+soft-float",
+	"rustc-abi": "x86-softfloat",
 	"os": "tifflin",
 	"arch": "x86_64",
 	
 	"frame-pointer": "non-leaf",
 
-		"linker-flavor": "ld",
-		"pre-link-args": { "ld": ["-m64"] },
-		"disable-redzone": true
+	"linker-flavor": "ld",
+	"pre-link-args": { "ld": ["-m64"] },
+	"disable-redzone": true
 }
