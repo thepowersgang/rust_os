@@ -56,6 +56,7 @@ Kernel/rundir/test-*/
 /Kernel/tests/**/target
 /Kernel/tests/network/*.txt
 /Kernel/tests/network/*.pcap
+/Kernel/tests/network/lwip/lwip-sys/lwip-src/lwip-2.2.0
 /Kernel/tests/network/lwip/lwip-sys/src/bindgen.rs
 
 /Kernel/tests/filesystem/data
