@@ -18,7 +18,7 @@ pub enum OverlayType
 
 pub fn add_volume(name: &str, path: &::std::path::Path, overlay_ty: OverlayType) -> Result<()/*::kernel::metadevs::storage::PhysicalVolumeReg*/, ::std::io::Error>
 {
-    use ::std::io::{Seek};
+    use ::std::io::Seek;
     let block_size = 512;
 
     let name = name.to_owned();
@@ -38,8 +38,8 @@ pub fn add_volume(name: &str, path: &::std::path::Path, overlay_ty: OverlayType)
 
     let h = storage::register_pv( Box::new(Volume {
         name: name.clone(),
-        block_size: block_size,
-        block_count: block_count,
+        block_size,
+        block_count,
         fp: ::std::sync::Mutex::new(fp),
         write_overlay: overlay,
         }) );
@@ -206,5 +206,4 @@ impl storage::PhysicalVolume for Volume
         let ret = Ok(());
         Box::pin( ::core::future::ready(ret) )
     }
-    
 }
