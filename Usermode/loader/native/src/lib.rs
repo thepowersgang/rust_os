@@ -1,6 +1,8 @@
 #![crate_type="cdylib"]
 #![feature(rustc_private)]	// libc
+#![allow(static_mut_refs)]	// This code uses them in a safe manner
 
+#[cfg(unix)]
 extern crate libc;
 
 mod mini_std;

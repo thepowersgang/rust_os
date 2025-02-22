@@ -9,9 +9,9 @@ pub unsafe trait Pod: Default {}
 unsafe impl Pod for u32 {}
 
 /// Formattable wrapper around a NUL terminated C string
-pub struct CStrPtr(*const libc::c_char);
+pub struct CStrPtr(*const std::ffi::c_char);
 impl CStrPtr {
-	pub unsafe fn new(p: *const libc::c_char) -> CStrPtr {
+	pub unsafe fn new(p: *const std::ffi::c_char) -> CStrPtr {
 		CStrPtr(p)
 	}
 }
@@ -30,6 +30,7 @@ impl ::core::fmt::Display for CStrPtr {
 	}
 }
 
+#[cfg(unix)]
 /// Representation of libc's errno
 pub struct Errno(i32);
 #[cfg(unix)]
@@ -42,6 +43,7 @@ impl Errno
 		}
 	}
 }
+#[cfg(unix)]
 impl ::core::fmt::Display for Errno {
 	fn fmt(&self, f: &mut ::core::fmt::Formatter) -> ::core::fmt::Result {
 		// SAFE: Trusting strerror
@@ -75,7 +77,7 @@ pub fn mmap_alloc(addr: *mut u8, page_count: usize) -> Result<(),Errno> {
 }
 
 #[cfg(windows)]
-struct WinapiError(u32);
+pub struct WinapiError(u32);
 #[cfg(windows)]
 impl WinapiError {
 	fn get() -> WinapiError {
@@ -90,7 +92,7 @@ impl ::core::fmt::Display for WinapiError {
 	}
 }
 #[cfg(windows)]
-pub fn mmap_alloc(addr: *mut u8, page_count: usize) -> Result<(),Errno> {
+pub fn mmap_alloc(addr: *mut u8, page_count: usize) -> Result<(),WinapiError> {
 	let mut si: ::winapi::um::sysinfoapi::SYSTEM_INFO;
 	// SAFE: Type is POD, valid call to GetSystemInfo
 	unsafe {
@@ -183,8 +185,8 @@ impl Socket {
 		let slice = unsafe { ::std::slice::from_raw_parts_mut(&mut rv as *mut _ as *mut u8, ::core::mem::size_of::<T>()) };
 		match self.0.as_ref().unwrap().read_exact(slice)
 		{
-		Ok(v) => Ok(v),
-		Err(e) if e.kind() == ErrorKind::UnexpectedEof => ::std::process::exit(0),
+		Ok(()) => Ok(rv),
+		Err(e) if e.kind() == ::std::io::ErrorKind::UnexpectedEof => ::std::process::exit(0),
 		Err(e) => Err(e),
 		}
 	}
@@ -195,8 +197,8 @@ impl Socket {
 		let slice = unsafe { ::std::slice::from_raw_parts(&val as *const _ as *const u8, ::core::mem::size_of::<T>()) };
 		match self.0.as_ref().unwrap().write_all(slice)
 		{
-		Ok(v) => Ok(v),
-		Err(e) if e.kind() == ErrorKind::UnexpectedEof => ::std::process::exit(0),
+		Ok(()) => Ok(()),
+		Err(e) if e.kind() == ::std::io::ErrorKind::UnexpectedEof => ::std::process::exit(0),
 		Err(e) => Err(e),
 		}
 	}
