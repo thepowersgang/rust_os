@@ -4,9 +4,9 @@
 // Core/metadevs/storage.rs
 // - Storage (block device) subsystem
 use crate::prelude::*;
-use core::sync::atomic::{AtomicUsize};
+use core::sync::atomic::AtomicUsize;
 use crate::sync::mutex::LazyMutex;
-use crate::lib::{VecMap};
+use crate::lib::VecMap;
 use crate::lib::mem::Arc;
 
 module_define!{Storage, [], init}

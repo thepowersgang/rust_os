@@ -154,7 +154,7 @@ impl Port
 		// - Command list first (32 * max_commands)
 		// - Up to MAX_COMMANDS_FOR_SHARE in 1024 -- 4096-256
 		// - RcvdFis last
-		let cl_page = try!( ::kernel::memory::virt::alloc_dma(64, 1, "AHCI") );
+		let cl_page = try!( ::kernel::memory::virt::alloc_dma(controller.supported_bits(), 1, "AHCI") );
 
 		// Allocate pages for the command table
 		// TODO: Delay allocating memory until a device is detected on this port
@@ -171,7 +171,7 @@ impl Port
 				assert!(n_pages < 4);
 				for i in 0 .. n_pages
 				{
-					tab_pages[i] = Some( ::kernel::memory::virt::alloc_dma(64, 1, "AHCI")? );
+					tab_pages[i] = Some( ::kernel::memory::virt::alloc_dma(controller.supported_bits(), 1, "AHCI")? );
 				}
 				tab_pages
 			};
@@ -477,6 +477,11 @@ impl Port
 			}
 			let seglen = ::core::cmp::min(len, seglen);
 			let seglen = ::core::cmp::min(MAX_SEG_LEN, seglen);
+			if ! self.ctrlr.supports_64bit {
+				if base_phys >> 32 != 0 || (base_phys + (seglen-1) as ::kernel::memory::PAddr) >> 32 != 0 {
+					todo!("AHCI Port::do_fis - Use a bounce buffer due to large pointer");
+				}
+			}
 			if base_phys % 4 != 0 || seglen % 2 != 0 {
 				todo!("AHCI Port::do_fis - Use a bounce buffer if alignment requirements are not met");
 			}

@@ -134,7 +134,7 @@ impl crate::objects::Object for ProtoProcess
 			inner.start_root_thread(ip, sp);
 			Ok( crate::objects::new_object( Process(inner) ) as u64 )
 			},
-		#[cfg(feature="native")]	// Not used in native mode
+		#[cfg(any(in_ide,feature="native"))]	// Not used in native mode
 		values::CORE_PROTOPROCESS_START => {
 			let _ = this;
 			let _ = args;

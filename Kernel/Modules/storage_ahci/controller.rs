@@ -150,3 +150,9 @@ impl device_manager::DriverInstance for Controller
 {
 
 }
+impl ControllerInner
+{
+	pub(crate) fn supported_bits(&self) -> u8 {
+		if self.supports_64bit { 64 } else { 32 }
+	}
+}

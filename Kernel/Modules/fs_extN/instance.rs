@@ -22,6 +22,7 @@ pub struct InstanceInner
 	group_descriptors: ::kernel::sync::RwLock< Vec<::ondisk::GroupDesc> >,
 }
 
+#[allow(dead_code)]
 pub enum FeatureState
 {
 	AllOk,
