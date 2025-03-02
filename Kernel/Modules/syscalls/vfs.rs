@@ -14,64 +14,35 @@ use ::vfs::handle;
 use ::vfs::node_cache::NodeClass;
 use ::vfs::Path;
 
-
-macro_rules! map_enums {
-	( ($a:ident, $b:ident) match ($v:expr) { $( ($l:ident $($extra:tt)*), )* } ) => {
-		match $v
-		{
-		$( $a::$l => map_enums!(@arm $b $l : $($extra)*) ),*
-		}
-		};
-	(@arm $b:ident $l:ident : => @$r:ident) => { ($b::$r)  };
-	(@arm $b:ident $l:ident : => $v:expr) => { $v };
-	(@arm $b:ident $l:ident : ) => { ($b::$l) };
-}
-
-impl_from! {
-	From<::vfs::Error>(v) for values::VFSError {{
-		use ::vfs::Error;
-		use crate::values::VFSError;
-		match v
-		{
-		Error::NotFound     => VFSError::FileNotFound,
-		Error::TypeMismatch => VFSError::TypeError,
-		Error::PermissionDenied => VFSError::PermissionDenied,
-		Error::Locked => VFSError::FileLocked,
-		Error::MalformedPath => VFSError::MalformedPath,
-		Error::Unknown(reason) => todo!("VFS Error Unknown - '{}'", reason),
-		_ => todo!("VFS Error - {:?}", v),
-		}
-	}}
-	From<NodeClass>(v) for values::VFSNodeType {
-		match v
-		{
-		NodeClass::File => values::VFSNodeType::File,
-		NodeClass::Dir => values::VFSNodeType::Dir,
-		NodeClass::Symlink => values::VFSNodeType::Symlink,
-		NodeClass::Special => values::VFSNodeType::Special,
-		}
+fn map_open_mode(v: values::VFSFileOpenMode) -> handle::FileOpenMode {
+	use crate::values::VFSFileOpenMode;
+	use ::vfs::handle::FileOpenMode;
+	match v {
+	VFSFileOpenMode::ReadOnly => FileOpenMode::SharedRO,
+	VFSFileOpenMode::Execute  => FileOpenMode::Execute,
+	VFSFileOpenMode::ExclRW   => FileOpenMode::ExclRW,
+	VFSFileOpenMode::UniqueRW => FileOpenMode::UniqueRW,
+	VFSFileOpenMode::Append   => FileOpenMode::Append,
+	VFSFileOpenMode::Unsynch  => FileOpenMode::Unsynch,
 	}
-
-	From<values::VFSFileOpenMode>(v) for handle::FileOpenMode {{
-		use crate::values::VFSFileOpenMode;
-		use ::vfs::handle::FileOpenMode;
-		map_enums!(
-			(VFSFileOpenMode, FileOpenMode)
-			match (v) {
-				(ReadOnly => @SharedRO),
-				(Execute),
-				(ExclRW),
-				(UniqueRW),
-				(Append),
-				(Unsynch),
-			}
-		)
-	}}
 }
 
 /// Convert a VFS result into an encoded syscall result
 fn to_result<T>(r: Result<T, ::vfs::Error>) -> Result<T, u32> {
-	r.map_err( |e| Into::into( <values::VFSError as From<_>>::from(e) ) )
+	r.map_err( |e| Into::into({
+		use ::vfs::Error;
+		use crate::values::VFSError;
+		match e
+		{
+		Error::NotFound     => VFSError::FileNotFound,
+		Error::TypeMismatch => VFSError::TypeError,
+		Error::PermissionDenied => VFSError::PermissionDenied,
+		Error::Locked        => VFSError::FileLocked,
+		Error::MalformedPath => VFSError::MalformedPath,
+		Error::Unknown(reason) => todo!("VFS Error Unknown - '{}'", reason),
+		_ => todo!("VFS Error - {:?}", e),
+		}
+	}) )
 }
 
 pub fn init_handles(init_handle: ::vfs::handle::File) {
@@ -106,7 +77,13 @@ impl objects::Object for Node
 		{
 		values::VFS_NODE_GETTYPE => {
 			log_debug!("VFS_NODE_GETTYPE()");
-			let v32: u32 = values::VFSNodeType::from( self.0.get_class() ).into();
+			let v32: u32 = match self.0.get_class()
+				{
+				NodeClass::File => values::VFSNodeType::File,
+				NodeClass::Dir => values::VFSNodeType::Dir,
+				NodeClass::Symlink => values::VFSNodeType::Symlink,
+				NodeClass::Special => values::VFSNodeType::Special,
+				}.into();
 			Ok( v32 as u64 )
 			},
 		_ => objects::object_has_no_such_method_ref("vfs::Node", call),
@@ -128,7 +105,7 @@ impl objects::Object for Node
 				};
 			log_debug!("VFS_NODE_TOFILE({:?})", mode);
 
-			let objres = to_result(inner.into_file(mode.into()))
+			let objres = to_result(inner.into_file(map_open_mode(mode)))
 				.map( |h| objects::new_object(File(h)) );
 			Ok( super::from_result(objres) )
 			},
@@ -321,7 +298,7 @@ impl objects::Object for DirIter
 			let mut name: FreezeMut<[u8]> = args.get()?;
 			log_debug!("VFS_DIRITER_READENT({:p}+{})", name.as_ptr(), name.len());
 
-			super::from_result( match self.inner.lock().read_ent(&self.handle)
+			super::from_result(to_result( match self.inner.lock().read_ent(&self.handle)
 				{
 				Err(e) => Err(e),
 				Ok(None) => Ok(0),
@@ -329,7 +306,7 @@ impl objects::Object for DirIter
 					name[.. s.len()].clone_from_slice( s.as_bytes() );
 					Ok(s.len() as u32)
 					},
-				})
+				}))
 			},
 		_ => return crate::objects::object_has_no_such_method_ref("vfs::Dir", call),
 		})
@@ -350,7 +327,7 @@ struct DirInner {
 }
 impl DirInner
 {
-	fn read_ent(&mut self, handle: &::vfs::handle::Dir) -> Result< Option<DirEnt>, crate::values::VFSError >
+	fn read_ent(&mut self, handle: &::vfs::handle::Dir) -> Result< Option<DirEnt>, vfs::Error >
 	{
 		if let Some(e) = self.cache.next() {
 			Ok( Some(e) )

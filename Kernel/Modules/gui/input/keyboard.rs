@@ -21,5 +21,5 @@ impl Instance
 	}
 }
 
-include!("../../../../keycodes.inc.rs");
+pub use ::key_codes::KeyCode;
 

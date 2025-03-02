@@ -21,6 +21,7 @@
 
 #[macro_use]
 extern crate kernel;
+extern crate key_codes;
 
 module_define!{GUI, [Video], init}
 

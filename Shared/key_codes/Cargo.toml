@@ -1,0 +1,5 @@
+[package]
+name = "key_codes"
+version = "0.0.0"
+[lib]
+path = "keycodes.rs"

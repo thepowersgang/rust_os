@@ -6,33 +6,12 @@
 use kernel::prelude::*;
 
 use kernel::memory::freeze::{Freeze,FreezeMut};
-use gui::{Rect};
+use gui::Rect;
 use kernel::sync::Mutex;
 
 use super::{values,objects};
 use super::{Error,ObjectHandle};
 use crate::args::Args;
-
-impl ::core::convert::Into<values::GuiEvent> for ::gui::input::Event {
-	fn into(self) -> values::GuiEvent {
-		use gui::input::Event;
-		match self
-		{
-		Event::KeyUp  (kc)  => values::GuiEvent::KeyUp  (From::from(kc as u8)),
-		Event::KeyDown(kc)  => values::GuiEvent::KeyDown(From::from(kc as u8)),
-		Event::KeyFire(kc)  => values::GuiEvent::KeyFire(From::from(kc as u8)),
-		Event::Text   (buf) => values::GuiEvent::Text   (From::from(buf)),
-		Event::MouseMove(x,y, dx,dy) => values::GuiEvent::MouseMove(x,y, dx,dy),
-		Event::MouseUp  (x,y,btn) => values::GuiEvent::MouseUp  (x,y,btn),
-		Event::MouseDown(x,y,btn) => values::GuiEvent::MouseDown(x,y,btn),
-		Event::MouseClick(x,y,btn,1) => values::GuiEvent::MouseClick(x,y,btn),
-		Event::MouseClick(x,y,btn,2) => values::GuiEvent::MouseDblClick(x,y,btn),
-		Event::MouseClick(x,y,btn,3) => values::GuiEvent::MouseTriClick(x,y,btn),
-		Event::MouseClick(x,y,btn,_) => values::GuiEvent::MouseClick(x,y,btn),
-		}
-	}
-}
-
 
 #[inline(never)]
 pub fn newgroup(name: &str) -> Result<ObjectHandle,u32> {
@@ -220,7 +199,21 @@ impl objects::Object for Window
 			match self.0.lock().pop_event()
 			{
 			Some(ev) => {
-				*ev_ptr = ev.into();
+				use gui::input::Event;
+				*ev_ptr = match ev
+					{
+					Event::KeyUp  (kc)  => values::GuiEvent::KeyUp  (From::from(kc as u8)),
+					Event::KeyDown(kc)  => values::GuiEvent::KeyDown(From::from(kc as u8)),
+					Event::KeyFire(kc)  => values::GuiEvent::KeyFire(From::from(kc as u8)),
+					Event::Text   (buf) => values::GuiEvent::Text   (From::from(buf)),
+					Event::MouseMove(x,y, dx,dy) => values::GuiEvent::MouseMove(x,y, dx,dy),
+					Event::MouseUp  (x,y,btn) => values::GuiEvent::MouseUp  (x,y,btn),
+					Event::MouseDown(x,y,btn) => values::GuiEvent::MouseDown(x,y,btn),
+					Event::MouseClick(x,y,btn,1) => values::GuiEvent::MouseClick(x,y,btn),
+					Event::MouseClick(x,y,btn,2) => values::GuiEvent::MouseDblClick(x,y,btn),
+					Event::MouseClick(x,y,btn,3) => values::GuiEvent::MouseTriClick(x,y,btn),
+					Event::MouseClick(x,y,btn,_) => values::GuiEvent::MouseClick(x,y,btn),
+					};
 				log_debug!("GUI_WIN_GETEVENT() = {:?}", *ev_ptr);
 				Ok(0)
 				},

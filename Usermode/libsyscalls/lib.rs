@@ -8,6 +8,8 @@
 #![cfg_attr(arch="native",feature(rustc_private))]
 #![no_std]
 
+pub extern crate syscall_values as values;
+
 mod std {
 	//pub use core::convert;
 	pub use core::fmt;
@@ -60,15 +62,6 @@ macro_rules! define_waits {
 		}
 	};
 }
-
-// File in the root of the repo
-#[cfg(not(arch="native"))]
-#[path="../../syscalls.inc.rs"]
-mod values;
-
-#[cfg(arch="native")]
-#[path="../../syscalls.inc.rs"]
-pub mod values;
 
 pub enum Void {}
 

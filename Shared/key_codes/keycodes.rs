@@ -1,3 +1,4 @@
+#![no_std]
 
 #[derive(Copy,Clone,Debug,PartialEq)]
 #[repr(u8)]

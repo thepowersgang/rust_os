@@ -15,6 +15,8 @@ use args::Args;
 extern crate kernel;
 extern crate gui;
 extern crate stack_dst;
+extern crate syscall_values as values;
+use values::*;
 
 mod objects;
 mod args;
@@ -112,16 +114,11 @@ fn from_result<O: Into<u32>, E: Into<u32>>(r: Result<O,E>) -> u64 {
 	}
 }
 
-use self::values::*;
-
-#[path="../../../syscalls.inc.rs"]
-mod values;
-
 #[cfg(feature="native")]
 pub mod native_exports {
 	pub use crate::args::Args;
 	pub mod values {
-		pub use crate::values::*;
+		pub use ::syscall_values::*;
 	}
 	pub fn from_result<O: Into<u32>, E: Into<u32>>(r: Result<O,E>) -> u64 {
 		crate::from_result(r)
@@ -285,16 +282,16 @@ fn invoke_int(call_id: u32, args: &mut Args) -> Result<u64,Error>
 			},
 		// === 4: Networking
 		NET_CONNECT => {
-			let local: crate::values::SocketAddress = { let p: Freeze<_> = args.get()?; *p };
+			let local: ::syscall_values::SocketAddress = { let p: Freeze<_> = args.get()?; *p };
 			from_result(network_calls::new_client(local))
 			},
 		NET_LISTEN => {
-			let local: crate::values::SocketAddress = { let p: Freeze<_> = args.get()?; *p };
+			let local: ::syscall_values::SocketAddress = { let p: Freeze<_> = args.get()?; *p };
 			from_result(network_calls::new_server(local))
 			},
 		NET_BIND => {
-			let local: crate::values::SocketAddress = { let p: Freeze<_> = args.get()?; *p };
-			let remote: crate::values::MaskedSocketAddress = { let p: Freeze<_> = args.get()?; *p };
+			let local: ::syscall_values::SocketAddress = { let p: Freeze<_> = args.get()?; *p };
+			let remote: ::syscall_values::MaskedSocketAddress = { let p: Freeze<_> = args.get()?; *p };
 			from_result(network_calls::new_free_socket(local, remote))
 			},
 		// === *: Default
@@ -318,18 +315,18 @@ fn invoke_int(call_id: u32, args: &mut Args) -> Result<u64,Error>
 		0 ..= 0x3FD => {
 			objects::call_object_ref(handle_id, call_id as u16, args)
 			},
-		crate::values::OBJECT_CLONE => {
+		::syscall_values::OBJECT_CLONE => {
 			objects::clone_object(handle_id)
 			},
-		crate::values::OBJECT_GETCLASS => {
+		::syscall_values::OBJECT_GETCLASS => {
 			objects::get_class(handle_id)
 			},
 		0x400 ..= 0x7FE => {
 			// Call a method defined for the object class.
 			objects::call_object_val(handle_id, call_id as u16, args)
 			},
-		//crate::values::OBJECT_FORGET => objects::forget_object(handle_id),
-		crate::values::OBJECT_DROP => {
+		//::syscall_values::OBJECT_FORGET => objects::forget_object(handle_id),
+		::syscall_values::OBJECT_DROP => {
 			// Destroy object
 			objects::drop_object(handle_id);
 			Ok(0)
@@ -359,7 +356,7 @@ fn syscall_core_textinfo(group: u32, id: usize, buf: &mut [u8]) -> usize
 {
 	match group
 	{
-	crate::values::TEXTINFO_KERNEL => {
+	::syscall_values::TEXTINFO_KERNEL => {
 		let s = match id
 			{
 			0 => ::kernel::build_info::version_string(),

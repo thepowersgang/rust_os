@@ -6,6 +6,9 @@ edition = "2015"
 [lib]
 path = "lib.rs"
 
+[dependencies]
+syscall_values = { path = "../../Shared/syscall_values" }
+
 [features]
 native_nolink = []
 

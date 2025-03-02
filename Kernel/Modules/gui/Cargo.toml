@@ -8,5 +8,6 @@ path = "lib.rs"
 
 [dependencies]
 kernel = { path = "../../Core" }
+key_codes = { path = "../../../Shared/key_codes" }
 #tag_safe = "*"
 

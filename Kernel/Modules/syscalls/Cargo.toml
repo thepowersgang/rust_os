@@ -15,6 +15,7 @@ kernel = { path = "../../Core" }
 vfs = { path = "../vfs" }
 gui = { path = "../gui" }
 network = { path = "../network" }
+syscall_values = { path = "../../../Shared/syscall_values" }
 
 [lints.rust]
 unexpected_cfgs = { level = "warn", check-cfg = ['cfg(in_ide)'] }

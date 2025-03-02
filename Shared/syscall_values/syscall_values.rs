@@ -10,6 +10,10 @@
 //! There are two broad types of system calls: free calls and object calls.
 //! 
 //! Free calls either construct a new object instance, or directly manipulate/query state.
+#![no_std]
+
+extern crate key_codes;
+pub use key_codes::KeyCode;
 
 pub const GRP_OFS: usize = 16;
 
@@ -437,7 +441,7 @@ enum_to_from!{ GuiWinFlag => u8:
 	Maximised = 1,
 }
 
-include!("keycodes.inc.rs");
+//include!("keycodes.inc.rs");
 
 /// Fixed-capacity string buffer (6 bytes)
 #[derive(Copy,Clone)]

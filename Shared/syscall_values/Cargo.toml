@@ -1,0 +1,9 @@
+[package]
+name = "syscall_values"
+version = "0.0.0"
+
+[lib]
+path = "syscall_values.rs"
+
+[dependencies]
+key_codes = { path = "../key_codes" }
