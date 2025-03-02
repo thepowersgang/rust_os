@@ -234,7 +234,7 @@ fn invoke_int(call_id: u32, args: &mut Args) -> Result<u64,Error>
 		MEM_ALLOCATE => {
 			let addr: usize = args.get()?;
 			let count: usize = args.get()?;
-			log_debug!("MEM_ALLOCATE({:#x},{})", addr, count);
+			log_debug!("MEM_ALLOCATE(@{:#x},{} pg)", addr, count);
 			if addr & (::kernel::PAGE_SIZE-1) != 0 {
 				return Err(Error::BadValue);
 			}
