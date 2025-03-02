@@ -7,7 +7,9 @@
 .extern register_arguments
 
 .weak start
+// Arguments: A `&[&CStr]` in RDI, RSI
 start:
+	add $8, %rsp	// Stack is currently off-alignment, so restore alignment before doing any HLL calls
 	call *start_ra(%rip)
 	mov $0, %rdi
 	mov $0, %rsi

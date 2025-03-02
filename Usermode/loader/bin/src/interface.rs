@@ -84,8 +84,11 @@ pub extern "C" fn start_process(pp: ::syscalls::threads::ProtoProcess) -> ::sysc
 	extern "C" {
 		static init_stack_end: [u8; 0];
 	}
+	// On amd64/x86_64 the stack is expected to be at *16+8 alignment when a function is entered
+	// - So, need to adjust the stack sligtly
+	let stack_adj = if cfg!(target_arch="x86_64") { 8 } else { 0 };
 	// SAFE: Just takes the address
-	pp.start( new_process_entry as usize, unsafe { init_stack_end.as_ptr() as usize } )
+	pp.start( new_process_entry as usize, unsafe { init_stack_end.as_ptr() as usize } - stack_adj )
 }
 
 /// Entrypoint for new processes, runs with a clean stack
