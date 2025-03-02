@@ -49,8 +49,8 @@ mboot:
 	dd 0	; Mode type (0: LFB)
 	;dd 0,0	; Width, Height (no preference)
 	;dd 1601,900	; Width, Height ('HD+')
-	dd 1366,768	; Width, Height ('HD+')
-	;dd 1024,768	; Width, Height ('HD+')
+	;dd 1366,768	; Width, Height ('HD+')
+	dd 1024,768	; Width, Height ('HD+')
 	dd 32	; Depth (32-bit preferred)
 
 [section .inittext]
