@@ -4,12 +4,7 @@
 
 SHARED_DIR := .output/shared/
 
-all: $(addprefix $(SHARED_DIR),power.r8 options.r8 background.r24 menu.r8 panic.rs logo.rs)
-
-$(SHARED_DIR)logo.rs: TifflinLogoV1-128.png Makefile
-	@$(CARGO) run --bin to_32bpp_rs -- $< $@ S_LOGO
-$(SHARED_DIR)panic.rs: PanicImageNA.png Makefile
-	@$(CARGO) run --bin to_rle32_rs -- $< $@ PANIC_IMAGE
+all: $(addprefix $(SHARED_DIR),power.r8 options.r8 background.r24 menu.r8)
 
 %.r8:
 	@mkdir -p $(dir $@)

@@ -6,6 +6,7 @@
 
 extern crate r#async;
 extern crate byteorder;
+extern crate embedded_images;
 
 #[macro_use]
 extern crate macros;

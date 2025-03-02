@@ -9,5 +9,6 @@ path = "lib.rs"
 [dependencies]
 kernel = { path = "../../Core" }
 key_codes = { path = "../../../Shared/key_codes" }
+embedded-images = { path = "../../../Graphics/embedded" }
 #tag_safe = "*"
 

@@ -286,7 +286,7 @@ impl MonoFont {
 	}
 }
 
-include!("../../Graphics/font_cp437_8x16.rs");
+use embedded_images::font_cp437_8x16::{S_FONTDATA,unicode_to_cp437};
 
 struct MonoFontRender {
 	buffer: [u32; 8*16],

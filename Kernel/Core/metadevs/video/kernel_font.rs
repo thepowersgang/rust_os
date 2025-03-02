@@ -1,7 +1,7 @@
 
 
 // Bitmap font used by this module is in another file
-include!("../../../../Graphics/font_cp437_8x16.rs");
+use ::embedded_images::font_cp437_8x16::{S_FONTDATA,unicode_to_cp437};
 
 pub struct KernelFont([u32; 8*16], u32);
 

@@ -93,7 +93,7 @@ endif
 # Invoke xargo to build the main part of the kernel
 # - This includes all modules enabled in ./Cargo.toml
 #
-$(OBJDIR)libmain.a: PHONY targets/kernel-$(ARCH).json $(IMGDIR)logo.rs $(IMGDIR)panic.rs
+$(OBJDIR)libmain.a: PHONY targets/kernel-$(ARCH).json
 	@echo "[CARGO] . > $@"
 	$V$(CARGO) build -Z build-std=core,alloc --target=targets/kernel-$(ARCH).json --features "$(CARGO_FEATURES)" -j 1 $(CARGO_FLAGS)
 	@mkdir -p $(dir $@)
@@ -133,8 +133,5 @@ $(OBJDIR)log_cfg.ao: Core/log_cfg.S
 	@echo [AS] -o $@
 	@mkdir -p $(dir $@)
 	$V$(CC) $(ASFLAGS) -o $@ -c $<
-
-$(IMGDIR)%.rs: ../Graphics/Makefile
-	cd ../Graphics && make $(@:../Graphics/%=%)
 
 -include $(patsubst %,%.d,$(OBJS))

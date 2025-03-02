@@ -263,7 +263,7 @@ pub static S_FONTDATA: [ [u8; 16]; 256 ] = [
 	];
 
 // Helper method that converts a unicode codepoint into a character in the above bitmap
-fn unicode_to_cp437(c: char) -> u8
+pub fn unicode_to_cp437(c: char) -> u8
 {
 	match c
 	{

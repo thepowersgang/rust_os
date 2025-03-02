@@ -13,3 +13,5 @@ byteorder = { path = "../libbyteorder" }
 
 std = { path = "../libstd" }
 syscalls = { path = "../libsyscalls" }
+
+embedded-images = { path = "../../Graphics/embedded" }

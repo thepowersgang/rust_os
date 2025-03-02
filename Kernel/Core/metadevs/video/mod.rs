@@ -161,8 +161,9 @@ fn init()
 
 
 // A picture of a sad ferris the crab
-// TODO: Move to a crate instead of using `include`
-include!{"../../../../Graphics/.output/shared/panic.rs"}
+// TODO: Move to a crate instead of using `include` (to make R-A happy)
+use ::embedded_images::panic as panic_image;
+
 #[allow(static_mut_refs)]	// Used in a safe manner, and I CBF wrapping it up
 pub fn set_panic(file: &str, line: usize, message: &::core::fmt::Arguments)
 {
@@ -176,13 +177,13 @@ pub fn set_panic(file: &str, line: usize, message: &::core::fmt::Arguments)
 	const PANIC_TEXT_COLOUR: u32 = 0xFFFFFF;
 	// A large-ish buffer... but it's in `.bss` so doesn't increase the size of the kernel image
 	// Originally, this code uses just one scanline, but that was SLOW with virtio, and induced a lot of log spam
-	static mut PANIC_IMG_BUF: [u32; PANIC_IMAGE_DIMS.0 as usize * PANIC_IMAGE_DIMS.1 as usize] = [0; PANIC_IMAGE_DIMS.0 as usize * PANIC_IMAGE_DIMS.1 as usize];
+	static mut PANIC_IMG_BUF: [u32; panic_image::DIMS.0 as usize * panic_image::DIMS.1 as usize] = [0; panic_image::DIMS.0 as usize * panic_image::DIMS.1 as usize];
 
 	// SAFE: `LOOP_PREVENT` prevents this code from running over itself
 	let img_buf = unsafe { &mut PANIC_IMG_BUF };
 
-	for (y,row) in PANIC_IMAGE_DATA.iter().enumerate() {
-		row.decompress(&mut img_buf[y * PANIC_IMAGE_DIMS.0 as usize..][..PANIC_IMAGE_DIMS.0 as usize]);
+	for (y,row) in panic_image::DATA.iter().enumerate() {
+		row.decompress(&mut img_buf[y * panic_image::DIMS.0 as usize..][..panic_image::DIMS.0 as usize]);
 	}
 
 	for surf in S_DISPLAY_SURFACES.lock().iter_mut()
@@ -192,14 +193,14 @@ pub fn set_panic(file: &str, line: usize, message: &::core::fmt::Arguments)
 		// 1. Fill
 		surf.fb.fill(Rect::new_pd(Pos::new(0,0), dims), PANIC_COLOUR);
 		// 2. Draw a sad ferris
-		if dims.w >= PANIC_IMAGE_DIMS.0 && dims.h >= PANIC_IMAGE_DIMS.1 {
+		if dims.w >= panic_image::DIMS.0 && dims.h >= panic_image::DIMS.1 {
 			let p = Pos::new(
-				(dims.w - PANIC_IMAGE_DIMS.0) / 2,
-				(dims.h - PANIC_IMAGE_DIMS.1) / 2,
+				(dims.w - panic_image::DIMS.0) / 2,
+				(dims.h - panic_image::DIMS.1) / 2,
 				);
 			surf.fb.blit_buf(
-				Rect::new_pd(p, Dims::new(PANIC_IMAGE_DIMS.0, PANIC_IMAGE_DIMS.1)),
-				StrideBuf::new(img_buf,PANIC_IMAGE_DIMS.0 as usize)
+				Rect::new_pd(p, Dims::new(panic_image::DIMS.0, panic_image::DIMS.1)),
+				StrideBuf::new(img_buf,panic_image::DIMS.0 as usize)
 			);
 		}
 		// 3. Render message to top-left

@@ -18,10 +18,10 @@ use core::fmt;
 use kernel::sync::mutex::{LazyMutex,HeldLazyMutex};
 
 // Bitmap font used by this module is in another file
-include!("../../../Graphics/font_cp437_8x16.rs");
+use ::embedded_images::font_cp437_8x16::{S_FONTDATA,unicode_to_cp437};
 
 // Raw bitmap logo (already encoded with dims and as a rust array)
-include!("../../../Graphics/.output/shared/logo.rs");
+use ::embedded_images::logo;
 
 struct KernelLog
 {
@@ -136,13 +136,13 @@ impl KernelLog
 		let log_buf_handle = wh.get_buffer();
 		
 		// - Fancy logo window
-		let dims = Dims::new(S_LOGO_DIMS.0,S_LOGO_DIMS.1);
+		let dims = Dims::new(logo::DIMS.0,logo::DIMS.1);
 		let mut logo_wh = wgh.create_window("Logo");
 		if max_dims != Dims::new(0,0)
 		{
 			logo_wh.set_pos(Pos::new(max_dims.w-dims.w, 0));
 			logo_wh.resize(dims);
-			logo_wh.blit_rect( Rect::new_pd(Pos::new(0,0),dims), &S_LOGO_DATA, dims.w as usize );
+			logo_wh.blit_rect( Rect::new_pd(Pos::new(0,0),dims), &logo::DATA, dims.w as usize );
 		}
 			
 		if max_dims != Dims::new(0,0)
