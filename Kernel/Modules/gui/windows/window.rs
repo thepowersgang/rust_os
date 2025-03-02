@@ -215,7 +215,7 @@ impl Window
 
 
 	pub fn blit_rgn_to_screen(&self, pos: Pos, rgn: Rect) {
-		self.buf.read().blit(pos, rgn);
+		self.buf.read().blit_to_display(pos, rgn);
 	}
 }
 

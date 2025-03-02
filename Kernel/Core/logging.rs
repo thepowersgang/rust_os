@@ -53,7 +53,7 @@ enum Colour
 #[doc(hidden)]
 pub struct LoggingFormatter<'a>
 {
-	lock_handle: crate::arch::sync::HeldSpinlock<'a,Sinks>,
+	lock_handle: Option<crate::arch::sync::HeldSpinlock<'a,Sinks>>,
 	
 	// NOTE: Must be second, forcing interrupts to be reenabled after the lock is released
 	_irq_handle: crate::arch::sync::HeldInterrupts,
@@ -70,8 +70,11 @@ static S_LOGGING_LOCK: Spinlock<Sinks> = Spinlock::new( Sinks { serial: serial::
 pub fn acquire_lock_cpu() -> Option<impl Sync> {
 	S_LOGGING_LOCK.try_lock_cpu()
 }
+pub fn register_gui(v: impl Sink+Send+Sync+'static) {
+	S_LOGGING_LOCK.lock().video = Some(video::Sink::new(v));
+}
 
-trait Sink
+pub trait Sink
 {
 	/// Start a new log entry
 	fn start(&mut self, timestamp: crate::time::TickCount, level: Level, source: &'static str);
@@ -200,30 +203,33 @@ mod memory
 	}
 }
 
-mod video
+pub mod video
 {
 	//use prelude::*;
 	use super::Level;
 	
-	pub struct Sink;
+	pub(super) struct Sink {
+		inner: ::stack_dst::ValueA<dyn super::Sink + Send + Sync, [usize; 8]>,
+	}
 	
+	impl Sink
+	{
+		pub fn new(v: impl super::Sink + Send + Sync + 'static) -> Sink {
+			Sink {
+			inner: ::stack_dst::ValueA::new(v).ok().expect("video::SinkInner was too big"),
+			}
+		}
+	}
 	impl super::Sink for Sink
 	{
 		fn start(&mut self, timestamp: crate::time::TickCount, level: Level, source: &'static str) {
-			// Acquire a writer from the GUI
-			// - TODO: requires acquiring the lock on the kernel log, which is a Mutex, and may already be held.
-			// - What about having the kernel log write methods be unsafe, then they can assume that they're called in logging
-			//   context (which is unique already)
-			// Write header
-			todo!("VideoSink - {} {} {}", timestamp, level, source);
+			self.inner.start(timestamp, level, source)
 		}
-		fn write(&mut self, s: &str) {
-			// Pass through
-			todo!("video::Sink::write - '{}'", s);
+		fn write(&mut self, data: &str) {
+			self.inner.write(data);
 		}
 		fn end(&mut self) {
-			// Drop writer (replace with None)
-			unimplemented!();
+			self.inner.end();
 		}
 	}
 }
@@ -283,13 +289,17 @@ impl<'a> LoggingFormatter<'a>
 	//#[is_safe(irq)]	// SAFE: This lock holds interrupts, so can't interrupt itself.
 	pub fn new(level: Level, modname: &'static str) -> LoggingFormatter<'static>
 	{
-		// TODO: if S_LOGGING_LOCK is held by the current CPU, error.
+		// TODO: if S_LOGGING_LOCK is held by the current CPU, error (or just flag such that only serial can be used)
 		let mut rv = LoggingFormatter {
 				_irq_handle: crate::arch::sync::hold_interrupts(),
-				lock_handle: S_LOGGING_LOCK.lock()
+				lock_handle: S_LOGGING_LOCK.try_lock_cpu()
 			};
 		let ts = crate::time::ticks();
-		rv.lock_handle.foreach_mut(|x| x.start(ts, level, modname));
+		match rv.lock_handle
+		{
+		Some(ref mut v) => v.foreach_mut(|x| x.start(ts, level, modname)),
+		None => serial::Sink.start(ts, level, modname),
+		}
 		rv
 	}
 }
@@ -298,7 +308,10 @@ impl<'a> fmt::Write for LoggingFormatter<'a>
 {
 	fn write_str(&mut self, s: &str) -> fmt::Result
 	{
-		self.lock_handle.foreach_mut(|x| x.write(s));
+		match self.lock_handle {
+		Some(ref mut v) => v.foreach_mut(|x| x.write(s)),
+		None => serial::Sink.write(s),
+		}
 		Ok( () )
 	}
 }
@@ -306,7 +319,10 @@ impl<'a> ::core::ops::Drop for LoggingFormatter<'a>
 {
 	fn drop(&mut self)
 	{
-		self.lock_handle.foreach_mut(|x| x.end());
+		match self.lock_handle {
+		Some(ref mut v) => v.foreach_mut(|x| x.end()),
+		None => serial::Sink.end(),
+		}
 	}
 }
 

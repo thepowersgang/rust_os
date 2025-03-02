@@ -34,6 +34,7 @@ struct KernelLog
 }
 
 /// Character position
+/// NOTE: This is `(y,x)`
 #[derive(Copy,Clone,Debug)]
 struct CharPos(u32,u32);
 
@@ -42,6 +43,7 @@ struct LogWriter
 	log: HeldLazyMutex<'static,KernelLog>,
 	pos: CharPos,
 	colour: Colour,
+	no_flush: bool,
 }
 
 /// Trait to provde 'is_combining', used by render code
@@ -68,9 +70,44 @@ pub fn init()
 		write!(&mut LogWriter::new(Colour::def_yellow()), "> {}", ::kernel::build_info::build_string()).unwrap();
 	}
 	
-	// Populate kernel logging window with accumulated logs
-	// TODO: 
+	// TODO: Populate kernel logging window with accumulated logs
+
 	// Register to receive logs
+	::kernel::logging::register_gui(LogHandler::default());
+}
+
+#[derive(Default)]
+struct LogHandler
+{
+	inner: Option<LogWriter>,
+}
+impl ::kernel::logging::Sink for LogHandler {
+	fn start(&mut self, timestamp: kernel::time::TickCount, level: kernel::logging::Level, source: &'static str) {
+		use ::kernel::logging::Level;
+		let c = match level {
+			Level::Panic   => Colour(0xFF00FF),
+			Level::Error   => Colour::def_red(),
+			Level::Warning => Colour::def_yellow(),
+			Level::Notice  => Colour::def_green(),
+			Level::Info    => Colour::def_blue(),
+			Level::Log	    => Colour::def_white(),
+			Level::Debug   => Colour::def_white(),
+			Level::Trace   => Colour::def_gray(),
+			};
+		self.inner = Some(LogWriter::new(c));
+		let i = self.inner.as_mut().unwrap();
+		use ::core::fmt::Write;
+		i.no_flush = source.starts_with("gui::");
+		write!(i, "{:6}{} {}/{}[{}] - ", timestamp, level, ::kernel::arch::cpu_num(), ::kernel::threads::get_thread_id(), source).unwrap();
+	}
+
+	fn write(&mut self, data: &str) {
+		let _ = ::core::fmt::Write::write_str(self.inner.as_mut().unwrap(), data);
+	}
+
+	fn end(&mut self) {
+		self.inner = None;
+	}
 }
 
 impl KernelLog
@@ -118,7 +155,7 @@ impl KernelLog
 		// Return struct populated with above handles	
 		KernelLog {
 			_wgh: wgh,
-			wh: wh,
+			wh,
 			_logo_wh: logo_wh,
 			cur_line: 0,
 			buffer_handle: log_buf_handle,
@@ -129,6 +166,16 @@ impl KernelLog
 	fn scroll_up(&mut self)
 	{
 		self.cur_line += 1;
+		if self.cur_line == self.buffer_handle.dims().h / C_CELL_DIMS.h {
+			let n_rows = 1;
+			let scroll_px = (n_rows * C_CELL_DIMS.h) as usize;
+			let h = self.buffer_handle.dims().h as usize;
+			self.buffer_handle.copy_internal(0, scroll_px, 0, 0, self.buffer_handle.dims().w as usize, h - scroll_px);
+			for line in h - scroll_px .. h {
+				self.buffer_handle.fill_scanline(line, 0, self.buffer_handle.dims().w as usize, Colour::def_black());
+			}
+			self.cur_line -= n_rows;
+		}
 	}
 	
 	/// Write a string to the log display (at the given character position)
@@ -137,10 +184,15 @@ impl KernelLog
 		if self.buffer_handle.dims().w == 0 || self.buffer_handle.dims().h == 0 {
 			return pos;
 		}
+		//log_trace!("row = {}, H={}", pos.0, self.buffer_handle.dims().h / C_CELL_DIMS.h);
 		for c in text.chars()
 		{
-			if self.putc(pos, colour, c)
-			{
+			// Refuse to print if the print would go out of bounds
+			if pos.0 >= self.buffer_handle.dims().h / C_CELL_DIMS.h || pos.1 >= self.buffer_handle.dims().w / C_CELL_DIMS.w {
+				return pos;
+			}
+
+			if self.putc(pos, colour, c) {
 				pos = pos.next();
 			}
 		}
@@ -150,8 +202,9 @@ impl KernelLog
 	//#[req_safe(taskswitch)]	//< Must be safe to call from within a spinlock
 	fn flush(&self)
 	{
-		// Poke the WM and tell it to reblit us
-		self.wh.redraw();
+		// Poke the WM and tell it to reblit us (when it's able to)
+		// - This version is safe to call with a spinlock held
+		self.wh.redraw_lazy();
 	}
 	
 	/// Writes a single codepoint to the display
@@ -234,8 +287,9 @@ impl LogWriter
 		log.scroll_up();
 		LogWriter {
 			pos: CharPos(log.cur_line-1,0),
-			colour: colour,
-			log: log,
+			colour,
+			log,
+			no_flush: false,
 		}
 	}
 }
@@ -251,7 +305,9 @@ impl ::core::ops::Drop for LogWriter
 {
 	fn drop(&mut self)
 	{
-		self.log.flush();
+		if !self.no_flush {
+			self.log.flush();
+		}
 	}
 }
 

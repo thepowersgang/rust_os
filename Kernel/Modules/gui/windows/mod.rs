@@ -89,6 +89,15 @@ pub fn init()
 	// Create render thread
 	S_EVENT_QUEUE.prep(|| ::kernel::lib::ring_buffer::AtomicRingBuf::new(32));
 	S_RENDER_THREAD.init( || ::kernel::threads::WorkerThread::new("GUI Compositor", render_thread) );
+	
+	// HACK! Every 200ms, poke the render
+	static S_RENDER_TIMER: LazyMutex<::kernel::threads::WorkerThread> = lazymutex_init!();
+	S_RENDER_TIMER.init( || ::kernel::threads::WorkerThread::new("GUI Timer", || {
+		loop {
+			::kernel::futures::block_on( ::kernel::futures::msleep(200) );
+			S_RENDER_REQUEST.post();
+		}
+	}) );
 }
 
 
@@ -234,7 +243,7 @@ fn render_thread()
 		
 		if S_RENDER_NEEDED.swap(false, atomic::Ordering::Relaxed)
 		{
-			log_debug!("render_thread: Rendering WG {} '{}'", grp_idx, grp_ref.lock().name);
+			//log_debug!("render_thread: Rendering WG {} '{}'", grp_idx, grp_ref.lock().name);
 			grp_ref.lock().redraw( S_FULL_REDRAW.swap(false, atomic::Ordering::Relaxed) );
 		}
 	}
@@ -279,7 +288,7 @@ impl WindowGroup
 	/// Re-draw this window group
 	fn redraw(&mut self, full: bool)
 	{
-		log_trace!("WindowGroup::redraw: render_order={:?}", self.render_order);
+		//log_trace!("WindowGroup::redraw: render_order={:?}", self.render_order);
 		for &(winidx,ref vis) in &self.render_order
 		{
 			let vis = &vis[..];
@@ -294,7 +303,7 @@ impl WindowGroup
 				let dirty_vec = win.take_dirty_rects();
 				// - Get a slice of it (OR, if doing a full re-render, get a wildcard region)
 				let dirty = if full { &FULL_RECT[..] } else { &dirty_vec[..] };
-				log_trace!("WindowGroup::redraw: {} '{}' dirty={:?}, vis={:?}", winidx, win.name(), dirty, vis);
+				//log_trace!("WindowGroup::redraw: {} '{}' dirty={:?}, vis={:?}", winidx, win.name(), dirty, vis);
 				// - Iterate all visible dirty regions and re-draw
 				for rgn in Rect::list_intersect(vis, dirty)
 				{
@@ -608,12 +617,22 @@ impl WindowHandle
 	/// Redraw the window (mark for re-blitting)
 	pub fn redraw(&self)
 	{
+		self.redraw_lazy();
+		if self.grp_id as usize == S_CURRENT_GROUP.load(atomic::Ordering::Relaxed)
+		{
+			S_RENDER_REQUEST.post();
+		}
+	}
+	/// Redraw the window (mark for re-blitting) - but don't immediately request the render
+	/// 
+	/// NOTE: This is safe to call with a spinlock held, it only sets atomics
+	pub fn redraw_lazy(&self)
+	{
+		self.get_win().mark_dirty();
 		// if shown, mark self as requiring reblit and poke group
 		if self.grp_id as usize == S_CURRENT_GROUP.load(atomic::Ordering::Relaxed)
 		{
-			self.get_win().mark_dirty();
 			S_RENDER_NEEDED.store(true, atomic::Ordering::Relaxed);
-			S_RENDER_REQUEST.post();
 		}
 	}
 	

@@ -65,10 +65,15 @@ impl_fmt!{
 impl Colour
 {
 	pub fn def_black() -> Colour { Colour(0x00_00_00) }
+	pub fn def_gray () -> Colour { Colour(0xAA_AA_AA) }
 	pub fn def_white() -> Colour { Colour(0xFF_FF_FF) }
 	
-	pub fn def_yellow() -> Colour { Colour(0xFF_FF_00) }
+	pub fn def_blue () -> Colour { Colour(0x00_00_FF) }
 	pub fn def_green() -> Colour { Colour(0x00_FF_00) }
+	pub fn def_red  () -> Colour { Colour(0xFF_00_00) }
+
+	pub fn def_yellow() -> Colour { Colour(0xFF_FF_00) }
+	pub fn def_purple() -> Colour { Colour(0xFF_00_FF) }
 	
 	pub fn as_argb32(&self) -> u32 { self.0 }
 	pub fn from_argb32(v: u32) -> Self { Colour(v) }

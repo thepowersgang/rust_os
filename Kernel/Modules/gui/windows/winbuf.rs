@@ -97,6 +97,7 @@ impl WinBuf
 	}
 	
 	/// Obtain a Range<usize> given a scanline reference
+	#[track_caller]
 	fn scanline_range(&self, line: usize, ofs: usize, len: usize) -> ::core::ops::Range<usize>
 	{
 		if self.dims.width() == 0 {
@@ -125,7 +126,7 @@ impl WinBuf
 	}
 
 	/// Render this window buffer at the provided position
-	pub fn blit(&self, winpos: Pos, rgn: Rect)
+	pub fn blit_to_display(&self, winpos: Pos, rgn: Rect)
 	{
 		log_trace!("WinBuf::blit(winpos={:?},rgn={:?})", winpos, rgn);
 
@@ -165,6 +166,29 @@ impl WinBuf
 		for (d,s) in rgn.iter_mut().zip( data.iter() )
 		{
 			*d = *s;
+		}
+	}
+
+	/// Copy from one part of the buffer to another (e.g. for scrolling)
+	pub fn copy_internal(&self, sx: usize, sy: usize, dx: usize, dy: usize, w: usize, h: usize)
+	{
+		// TODO: Range checks?
+
+		let d = self.slice_mut();
+		if sx == 0 && dx == 0 && w == self.dims.w as usize {
+			// This is a contigious copy
+			let dst_px = dy * self.dims.w as usize;
+			let src_px = sy * self.dims.w as usize;
+			let npx = h * self.dims.w as usize;
+			d.copy_within(src_px .. src_px + npx, dst_px);
+		}
+		else {
+			// Non-contigious regions
+			for row in 0 .. h {
+				let dst_px = (dy + row) * self.dims.w as usize + dx;
+				let src_px = (sy + row) * self.dims.w as usize + sx;
+				d.copy_within(src_px .. src_px + w, dst_px);
+			}
 		}
 	}
 }
