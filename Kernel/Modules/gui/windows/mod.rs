@@ -90,12 +90,15 @@ pub fn init()
 	S_EVENT_QUEUE.prep(|| ::kernel::lib::ring_buffer::AtomicRingBuf::new(32));
 	S_RENDER_THREAD.init( || ::kernel::threads::WorkerThread::new("GUI Compositor", render_thread) );
 	
-	// HACK! Every 200ms, poke the render
+	// HACK! Every 200ms, poke the render if there's a render request waiting
+	// - This is for the kernel log, which can't request a render itself due to lock ordering
 	static S_RENDER_TIMER: LazyMutex<::kernel::threads::WorkerThread> = lazymutex_init!();
 	S_RENDER_TIMER.init( || ::kernel::threads::WorkerThread::new("GUI Timer", || {
 		loop {
 			::kernel::futures::block_on( ::kernel::futures::msleep(200) );
-			S_RENDER_REQUEST.post();
+			if S_RENDER_NEEDED.load(atomic::Ordering::Relaxed) {
+				S_RENDER_REQUEST.post();
+			}
 		}
 	}) );
 }
