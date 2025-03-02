@@ -161,6 +161,7 @@ fn init()
 
 
 // A picture of a sad ferris the crab
+// TODO: Move to a crate instead of using `include`
 include!{"../../../../Graphics/.output/shared/panic.rs"}
 #[allow(static_mut_refs)]	// Used in a safe manner, and I CBF wrapping it up
 pub fn set_panic(file: &str, line: usize, message: &::core::fmt::Arguments)
@@ -168,14 +169,21 @@ pub fn set_panic(file: &str, line: usize, message: &::core::fmt::Arguments)
 	use core::sync::atomic::{AtomicBool, Ordering};
 	static LOOP_PREVENT: AtomicBool = AtomicBool::new(false);
 	if LOOP_PREVENT.swap(true, Ordering::Relaxed) {
+		// If there's a recursive panic, then return early.
 		return ;
 	}
 	const PANIC_COLOUR: u32 = 0x01346B;
 	const PANIC_TEXT_COLOUR: u32 = 0xFFFFFF;
-	static mut PANIC_IMG_ROW_BUF: [u32; PANIC_IMAGE_DIMS.0 as usize] = [0; PANIC_IMAGE_DIMS.0 as usize];
+	// A large-ish buffer... but it's in `.bss` so doesn't increase the size of the kernel image
+	// Originally, this code uses just one scanline, but that was SLOW with virtio, and induced a lot of log spam
+	static mut PANIC_IMG_BUF: [u32; PANIC_IMAGE_DIMS.0 as usize * PANIC_IMAGE_DIMS.1 as usize] = [0; PANIC_IMAGE_DIMS.0 as usize * PANIC_IMAGE_DIMS.1 as usize];
 
 	// SAFE: `LOOP_PREVENT` prevents this code from running over itself
-	let row_buf = unsafe { &mut PANIC_IMG_ROW_BUF };
+	let img_buf = unsafe { &mut PANIC_IMG_BUF };
+
+	for (y,row) in PANIC_IMAGE_DATA.iter().enumerate() {
+		row.decompress(&mut img_buf[y * PANIC_IMAGE_DIMS.0 as usize..][..PANIC_IMAGE_DIMS.0 as usize]);
+	}
 
 	for surf in S_DISPLAY_SURFACES.lock().iter_mut()
 	{
@@ -189,16 +197,14 @@ pub fn set_panic(file: &str, line: usize, message: &::core::fmt::Arguments)
 				(dims.w - PANIC_IMAGE_DIMS.0) / 2,
 				(dims.h - PANIC_IMAGE_DIMS.1) / 2,
 				);
-			for (y,row) in PANIC_IMAGE_DATA.iter().enumerate() {
-				row.decompress(row_buf);
-				let p = p.offset(0,y as i32);
-				let r = Rect::new_pd(p, Dims::new(PANIC_IMAGE_DIMS.0, 1));
-				surf.fb.blit_buf(r, StrideBuf::new(row_buf, PANIC_IMAGE_DIMS.0 as usize));
-			}
+			surf.fb.blit_buf(
+				Rect::new_pd(p, Dims::new(PANIC_IMAGE_DIMS.0, PANIC_IMAGE_DIMS.1)),
+				StrideBuf::new(img_buf,PANIC_IMAGE_DIMS.0 as usize)
+			);
 		}
 		// 3. Render message to top-left
-		let _ = write!(&mut PanicWriter::new(&mut *surf.fb, 0, 0 , dims.w as u16), "Panic at {}:{}", file, line);
-		let _ = write!(&mut PanicWriter::new(&mut *surf.fb, 0, 16, dims.w as u16), "- {}", message);
+		let _ = write!(&mut PanicWriter::new(&mut *surf.fb, img_buf, 0, 0 , dims.w as u16), "Panic at {}:{}", file, line);
+		let _ = write!(&mut PanicWriter::new(&mut *surf.fb, img_buf, 0, 16, dims.w as u16), "- {}", message);
 	}
 
 	return ;
@@ -221,12 +227,13 @@ pub fn set_panic(file: &str, line: usize, message: &::core::fmt::Arguments)
 		}
 	}
 	impl<'a> PanicWriter<'a> {
-		fn new<'b>(fb: &'b mut dyn Framebuffer, x: u16, y: u16, w: u16) -> PanicWriter<'b> {
+		fn new<'b>(fb: &'b mut dyn Framebuffer, buffer: &'b mut [u32], x: u16, y: u16, w: u16) -> PanicWriter<'b> {
 			PanicWriter {
 				font: kernel_font::KernelFont::new(PANIC_COLOUR),
 				out: PanicWriterOut {
-					fb: fb,
-					x: x, y: y, w: w,
+					fb,
+					buffer,
+					x, y, w,
 					},
 				}
 		}
@@ -238,11 +245,14 @@ pub fn set_panic(file: &str, line: usize, message: &::core::fmt::Arguments)
 	}
 	struct PanicWriterOut<'a> {
 		fb: &'a mut dyn Framebuffer,
+		buffer: &'a mut [u32],
 		x: u16, y: u16, w: u16,
 	}
 	impl<'a> PanicWriterOut<'a>
 	{
 		fn putc(&mut self, data: &[u32; 8*16]) {
+			// TODO: Use the image buffer to be able to blit write entire lines at a time
+			// - Reduces log spam from each call to `blit_buf`
 			self.fb.blit_buf(
 				Rect::new(self.x as u32, self.y as u32,  8, 16),
 				StrideBuf::new(data, 8)
