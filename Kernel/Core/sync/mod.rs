@@ -11,6 +11,7 @@ pub use crate::sync::semaphore::Semaphore;
 pub use crate::sync::rwlock::RwLock;
 pub use crate::sync::event_channel::EventChannel;
 pub use self::queue::Queue;
+pub use self::once::OnceCell;
 
 #[macro_use]
 pub mod mutex;
@@ -21,6 +22,8 @@ pub mod rwlock;
 
 pub mod event_channel;
 pub mod queue;
+
+pub mod once;
 
 // vim: ft=rust
 
