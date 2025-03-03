@@ -202,6 +202,7 @@ impl objects::Object for Window
 				use gui::input::Event;
 				*ev_ptr = match ev
 					{
+					Event::Resize => todo!("Pass resize event to user"),
 					Event::KeyUp  (kc)  => values::GuiEvent::KeyUp  (From::from(kc as u8)),
 					Event::KeyDown(kc)  => values::GuiEvent::KeyDown(From::from(kc as u8)),
 					Event::KeyFire(kc)  => values::GuiEvent::KeyFire(From::from(kc as u8)),

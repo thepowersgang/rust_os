@@ -90,12 +90,12 @@ pub fn init()
 	S_EVENT_QUEUE.prep(|| ::kernel::lib::ring_buffer::AtomicRingBuf::new(32));
 	S_RENDER_THREAD.init( || ::kernel::threads::WorkerThread::new("GUI Compositor", render_thread) );
 	
-	// HACK! Every 200ms, poke the render if there's a render request waiting
+	// HACK! Every 2s, poke the render if there's a render request waiting
 	// - This is for the kernel log, which can't request a render itself due to lock ordering
 	static S_RENDER_TIMER: LazyMutex<::kernel::threads::WorkerThread> = lazymutex_init!();
 	S_RENDER_TIMER.init( || ::kernel::threads::WorkerThread::new("GUI Timer", || {
 		loop {
-			::kernel::futures::block_on( ::kernel::futures::msleep(200) );
+			::kernel::futures::block_on( ::kernel::futures::msleep(2000) );
 			if S_RENDER_NEEDED.load(atomic::Ordering::Relaxed) {
 				S_RENDER_REQUEST.post();
 			}
@@ -246,7 +246,7 @@ fn render_thread()
 		
 		if S_RENDER_NEEDED.swap(false, atomic::Ordering::Relaxed)
 		{
-			//log_debug!("render_thread: Rendering WG {} '{}'", grp_idx, grp_ref.lock().name);
+			log_debug!("render_thread: Rendering WG {} '{}'", grp_idx, grp_ref.lock().name);
 			grp_ref.lock().redraw( S_FULL_REDRAW.swap(false, atomic::Ordering::Relaxed) );
 		}
 	}
@@ -305,7 +305,7 @@ impl WindowGroup
 				// - Switch the dirty rect out with an empty Vec
 				let dirty_vec = win.take_dirty_rects();
 				// - Get a slice of it (OR, if doing a full re-render, get a wildcard region)
-				let dirty = if full { &FULL_RECT[..] } else { &dirty_vec[..] };
+				let dirty = if full || dirty_vec.is_empty() { &FULL_RECT[..] } else { &dirty_vec[..] };
 				//log_trace!("WindowGroup::redraw: {} '{}' dirty={:?}, vis={:?}", winidx, win.name(), dirty, vis);
 				// - Iterate all visible dirty regions and re-draw
 				for rgn in Rect::list_intersect(vis, dirty)
@@ -340,6 +340,7 @@ impl WindowGroup
 		use super::input::Event;
 		match ev
 		{
+		Event::Resize => {},
 		Event::KeyDown(..) | Event::KeyUp(..) | Event::KeyFire(..) | Event::Text(..) => {
 			// - Apply shortcuts defined by the current session (TODO)
 			// - Pass events to the current window
@@ -644,7 +645,7 @@ impl WindowHandle
 		self.get_win().resize(dim);
 		self.grp.lock().recalc_vis(self.win_id);
 	}
-	pub fn set_pos(&mut self, pos: Pos) {
+	pub fn set_pos(&self, pos: Pos) {
 		self.grp.lock().move_window(self.win_id, pos);
 	}
 

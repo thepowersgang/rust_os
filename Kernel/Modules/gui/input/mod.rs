@@ -15,6 +15,8 @@ pub mod mouse;
 #[derive(Debug)]
 pub enum Event
 {
+	/// Window has been resized
+	Resize,
 	KeyDown(keyboard::KeyCode),
 	KeyUp(keyboard::KeyCode),
 	KeyFire(keyboard::KeyCode),
