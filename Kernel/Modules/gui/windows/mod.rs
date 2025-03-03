@@ -18,9 +18,6 @@ pub use self::winbuf::WinBuf;
 type WinId = u16;
 type GrpId = u16;
 
-/// Handle to the backing buffer of a window
-pub type BufHandle = Arc<WinBuf>;
-
 mod window;
 mod winbuf;
 

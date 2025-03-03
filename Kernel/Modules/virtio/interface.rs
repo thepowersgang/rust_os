@@ -33,6 +33,7 @@ pub struct PciRegions {
 	pub notify: IOBinding,
 	pub notify_off_mult: u32,
 	/// Interrupt Status Register
+	#[allow(dead_code)]
 	pub isr: IOBinding,
 	pub dev_cfg: IOBinding,
 }

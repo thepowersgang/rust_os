@@ -8,11 +8,11 @@ use kernel::prelude::*;
 use kernel::sync::rwlock::RwLock;
 use kernel::sync::mutex::Mutex;
 use kernel::lib::mem::Arc;
-use kernel::lib::ring_buffer::{RingBuf};
+use kernel::lib::ring_buffer::RingBuf;
 use core::sync::atomic;
 
 use super::winbuf::WinBuf;
-use ::{Dims,Pos,Rect,Colour};
+use crate::{Dims,Pos,Rect,Colour};
 use input;
 
 /// A single window, an arbitrarily movable on-screen region
@@ -62,7 +62,7 @@ impl Window
 {
 	pub fn new(name: String) -> Window {
 		Window {
-			name: name,
+			name,
 			buf: Default::default(),
 			dirty_rects: Default::default(),
 			is_dirty: atomic::AtomicBool::new(false),

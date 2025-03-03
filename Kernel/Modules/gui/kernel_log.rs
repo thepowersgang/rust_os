@@ -331,7 +331,7 @@ impl LogWriter
 		// Subtract one, because the above has already added one
 		let pos = CharPos(S_CURRENT_LINE.load(Ordering::Relaxed)-1,0);
 
-		let bh = S_BUFFER_HANDLE.get().unwrap();
+		//let bh = S_BUFFER_HANDLE.get().unwrap();
 		//log_trace!("bh = {:p}, pos={:?}, H={} {:?}", bh, pos, bh.dims().h / C_CELL_DIMS.h, pos.to_pixels());
 
 		LogWriter {
