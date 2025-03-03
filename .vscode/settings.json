@@ -2,5 +2,6 @@
     "editor.insertSpaces": false,
     "rust-analyzer.check.extraEnv": {
         "RUSTFLAGS": "--cfg in_ide"
-    }
+    },
+    "makefile.configureOnOpen": false
 }
