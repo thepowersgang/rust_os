@@ -60,7 +60,7 @@ impl Dims
 {
 	/// Construct a new `Dims` struct
 	pub const fn new(w: u32, h: u32) -> Dims {
-		Dims { w: w, h: h }
+		Dims { w, h }
 	}
 
 	/// Return the height

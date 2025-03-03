@@ -175,7 +175,7 @@ mod memory
 	{
 		pub fn new() -> Sink {
 			Sink {
-				lines: crate::lib::ring_buffer::RingBuf::new(256),	// 256 log of scrollback
+				lines: crate::lib::ring_buffer::RingBuf::new(256),	// 256 lines of scrollback
 			}
 		}
 	}
