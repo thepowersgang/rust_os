@@ -40,6 +40,14 @@ pub enum Regs
 	MTPS = 0xEC,
 }
 
+pub const ISR_ROK: u16 = 0x01;
+pub const ISR_TOK: u16 = 0x02;
+
+pub const DESC0_LS: u32 = 1 << 28;
+pub const DESC0_FS: u32 = 1 << 29;
+pub const DESC0_EOR: u32 = 1 << 30;
+pub const DESC0_OWN: u32 = 1 << 31;
+
 /// Card-Owned Rx descriptor
 pub struct RxDescOwn
 {
@@ -56,11 +64,26 @@ impl RxDescOwn
 	}
 	pub fn into_array(self) -> [u32; 4] {
 		[
-			(self.buffer_length as u32),
+			(self.buffer_length as u32) | DESC0_OWN,
 			0,
 			self.rx_buffer_addr as u32,
 			(self.rx_buffer_addr >> 32) as u32,
 		]
+	}
+}
+
+pub struct RxDesc
+{
+	pub rx_buffer_addr: u64,
+	pub buffer_length: u16,
+}
+impl RxDesc
+{
+	pub fn from_array(a: [u32; 4]) -> Self {
+		Self {
+			rx_buffer_addr: (a[3] as u64) << 32 | (a[2] as u64),
+			buffer_length: a[0] as u16,
+		}
 	}
 }
 
@@ -69,7 +92,7 @@ pub struct TxDesc
 {
 	pub tx_buffer_addr: u64,
 	pub frame_length: u16,
-	flags3: u8,
+	pub flags3: u8,
 	pub vlan_info: u16,
 }
 impl TxDesc
