@@ -37,7 +37,7 @@ pub struct SleepObjectRef
 {
 	// 'static is useful to avoid needing a lifetime param here... AND it prevents calling
 	// get_ref again
-	obj: *const SleepObject<'static>,
+	obj: ::core::ptr::NonNull<SleepObject<'static>>,
 }
 unsafe impl ::core::marker::Send for SleepObjectRef {}
 
@@ -124,7 +124,8 @@ impl<'a> SleepObject<'a>
 	pub fn get_ref(&'a self) -> SleepObjectRef {
 		self.inner.lock().reference_count += 1;
 		SleepObjectRef {
-			obj: self as *const _ as *const () as *const _,
+			// SAFE: not null
+			obj: unsafe { ::core::ptr::NonNull::new_unchecked(self as *const _ as *const () as *mut _) },
 		}
 	}
 }
@@ -142,7 +143,7 @@ impl SleepObjectRef
 {
 	/// Checks if this reference points to the passed object
 	pub fn is_from(&self, obj: &SleepObject) -> bool {
-		self.obj == obj as *const _ as *const () as *const SleepObject<'static>
+		self.obj.as_ptr() == obj as *const _ as *const () as *mut SleepObject<'static>
 	}
 }
 impl ops::Deref for SleepObjectRef
@@ -151,7 +152,7 @@ impl ops::Deref for SleepObjectRef
 	
 	fn deref(&self) -> &SleepObject<'static> {
 		// SAFE: Reference counting ensures that this pointer is valid.
-		unsafe { &*self.obj }   // > ASSUMPTION: The SleepObject doesn't move after it's borrowed
+		unsafe { &*self.obj.as_ptr() }   // > ASSUMPTION: The SleepObject doesn't move after it's borrowed
 	}
 }
 
@@ -160,7 +161,7 @@ impl ops::Drop for SleepObjectRef
 	fn drop(&mut self)
 	{
 		// SAFE: Should still be valid
-		let mut lh = unsafe { (*self.obj).inner.lock() };
+		let mut lh = unsafe { (*self.obj.as_ptr()).inner.lock() };
 		assert!(lh.reference_count > 0, "Sleep object's reference count is zero when dropping a reference");
 		lh.reference_count -= 1;
 	}
