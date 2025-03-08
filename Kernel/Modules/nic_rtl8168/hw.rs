@@ -1,5 +1,6 @@
 //! Hardware structure definitions
 //! 
+use ::core::sync::atomic::Ordering;
 
 #[repr(u8)]
 #[derive(Copy, Clone)]
@@ -48,6 +49,8 @@ pub const DESC0_FS: u32 = 1 << 29;
 pub const DESC0_EOR: u32 = 1 << 30;
 pub const DESC0_OWN: u32 = 1 << 31;
 
+pub type DescArray = [::core::sync::atomic::AtomicU32; 4];
+
 /// Card-Owned Rx descriptor
 pub struct RxDescOwn
 {
@@ -79,11 +82,8 @@ pub struct RxDesc
 }
 impl RxDesc
 {
-	pub fn from_array(a: [u32; 4]) -> Self {
-		Self {
-			rx_buffer_addr: (a[3] as u64) << 32 | (a[2] as u64),
-			buffer_length: a[0] as u16,
-		}
+	pub fn get_len(a: &DescArray) -> usize {
+		(a[0].load(Ordering::Relaxed) & 0xFFFF) as usize
 	}
 }
 

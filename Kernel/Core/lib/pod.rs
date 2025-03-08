@@ -8,8 +8,10 @@
 pub unsafe auto trait POD {}
 
 //impl<T: ::core::ops::Drop> !POD for T {}  // - I would love this, but it collides with every other !POD impl
-/// Since POD allows safe transmutes between values, UnsafeCell isn't allowed?
-impl<T> !POD for ::core::cell::UnsafeCell<T> {}
+///// Since POD allows safe transmutes between values, UnsafeCell isn't allowed?
+///// 
+///// With `POD`, it's possible to get `&T` and `&UnsafeCell<T>` at the same time... but wouldn't it be UC's unsafe job to avoid that?
+//impl<T> !POD for ::core::cell::UnsafeCell<T> {}
 /// Non-null disallows zero, thus isn't POD
 impl<T> !POD for ::core::ptr::NonNull<T> {}
 /// Box does contain non-zero, but just in case

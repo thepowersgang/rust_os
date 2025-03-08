@@ -41,6 +41,31 @@ pub struct SleepObjectRef
 }
 unsafe impl ::core::marker::Send for SleepObjectRef {}
 
+#[derive(Default)]
+pub struct AtomicSleepObjectRef {
+	ptr: ::core::sync::atomic::AtomicPtr<SleepObject<'static>>,
+}
+impl AtomicSleepObjectRef {
+	pub const fn new() -> Self {
+		AtomicSleepObjectRef {
+			ptr: ::core::sync::atomic::AtomicPtr::new(::core::ptr::null_mut())
+		}
+	}
+	pub fn take(&self) -> Option<SleepObjectRef> {
+		let p = self.ptr.swap(::core::ptr::null_mut(), ::core::sync::atomic::Ordering::Relaxed);
+		::core::ptr::NonNull::new(p).map(|obj| SleepObjectRef { obj })
+	}
+	pub fn set(&self, r: SleepObjectRef) {
+		self.ptr.store(r.obj.as_ptr(), ::core::sync::atomic::Ordering::Relaxed);
+		::core::mem::forget(r);;
+	}
+}
+impl ::core::ops::Drop for AtomicSleepObjectRef {
+	fn drop(&mut self) {
+		drop(self.take());
+	}
+}
+
 impl<'a> SleepObject<'a>
 {
 	/// Create a new sleep object
