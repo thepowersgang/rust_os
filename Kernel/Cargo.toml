@@ -30,7 +30,9 @@ virtio = { path = "Modules/virtio" }
 storage-ata = { path = "Modules/storage_ata" }
 storage-ahci = { path = "Modules/storage_ahci" }
 input_ps2 = { path = "Modules/input_ps2" }
+
 nic-rtl8139 = { path = "Modules/nic_rtl8139" }
+nic-rtl8168 = { path = "Modules/nic_rtl8168" }
 
 usb-ohci = { path = "Modules/usb_ohci" }
 usb-hid = { path = "Modules/usb_hid" }
