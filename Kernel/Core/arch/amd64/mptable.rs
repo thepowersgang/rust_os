@@ -118,6 +118,7 @@ struct MPTable
 }
 
 #[derive(Debug)]
+#[allow(dead_code)]
 pub enum MPTableEntry<'a> {
 	Unknown(u8),
 	Proc(&'a MPTableEntry_Proc),
@@ -129,6 +130,7 @@ pub enum MPTableEntry<'a> {
 }
 #[repr(C)]
 #[derive(Debug)]
+#[allow(non_camel_case_types)]
 pub struct MPTableEntry_Proc {
 	pub tag: u8,	// 0x00
 	pub apic_id: u8,
@@ -140,6 +142,7 @@ pub struct MPTableEntry_Proc {
 }
 #[repr(C)]
 #[derive(Debug)]
+#[allow(non_camel_case_types)]
 pub struct MPTableEntry_Bus {
 	pub tag: u8,	// 0x01
 	pub id: u8,
@@ -147,6 +150,7 @@ pub struct MPTableEntry_Bus {
 }
 #[repr(C)]
 #[derive(Debug)]
+#[allow(non_camel_case_types)]
 pub struct MPTableEntry_IoApic {
 	pub tag: u8,	// 0x02
 	pub id: u8,
@@ -156,6 +160,7 @@ pub struct MPTableEntry_IoApic {
 }
 #[repr(C)]
 #[derive(Debug)]
+#[allow(non_camel_case_types)]
 pub struct MPTableEntry_IoIntAssign {
 	pub tag: u8,	// 0x01
 	pub int_type: u8,
@@ -168,6 +173,7 @@ pub struct MPTableEntry_IoIntAssign {
 }
 #[repr(C)]
 #[derive(Debug)]
+#[allow(non_camel_case_types)]
 pub struct MPTableEntry_LocalIntAssign {
 	pub tag: u8,	// 0x01
 	pub int_type: u8,
