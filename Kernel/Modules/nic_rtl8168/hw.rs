@@ -4,6 +4,7 @@ use ::core::sync::atomic::Ordering;
 
 #[repr(u8)]
 #[derive(Copy, Clone)]
+#[allow(dead_code)]
 pub enum Regs
 {
 	ID0, ID1, ID2,
@@ -17,6 +18,9 @@ pub enum Regs
 	MAR2,
 	MAR1,
 	MAR0,
+	/// Write a 64-bit value here to get the hardware to dump its tally registers to a 64-byte (size and align) memory range
+	/// 
+	/// Set bit 3 to start the dump, it's cleared once complete
 	DTCCR = 0x10,
 	/// Transmit Normal Priority Descriptors: Start address (64-bit). (256-byte alignment)
 	TNPDS = 0x20,
@@ -32,6 +36,7 @@ pub enum Regs
 	/// 32-bit counter, 8ns (125MHz) ticks
 	TCTR = 0x48,
 
+	/// Triggers an interrupt when [Regs::TCTR] reaches this value
 	TimerInt = 0x58,
 
 	/// Receive (Rx) Packet Maximum Size
@@ -77,8 +82,6 @@ impl RxDescOwn
 
 pub struct RxDesc
 {
-	pub rx_buffer_addr: u64,
-	pub buffer_length: u16,
 }
 impl RxDesc
 {

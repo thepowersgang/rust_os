@@ -30,8 +30,8 @@ impl BusDev
 	{
 		// SAFE: Just reads MAC addr
 		let mac_addr = unsafe {[
-			io.read_8(0), io.read_8(1), io.read_8(2),
-			io.read_8(3), io.read_8(4), io.read_8(5),
+			io.read_8(Regs::ID0 as _), io.read_8(Regs::ID1 as _), io.read_8(Regs::ID2 as _),
+			io.read_8(Regs::ID3 as _), io.read_8(Regs::ID4 as _), io.read_8(Regs::ID5 as _),
 			]};
 		log_notice!("RTL8168 {:?} IRQ={} MAC={:02x}:{:02x}:{:02x}:{:02x}:{:02x}:{:02x}",
 				io, irq_num,

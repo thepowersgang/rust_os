@@ -82,7 +82,9 @@ impl Card
 			// Set the descriptor pool addresses
 			card.write_64_pair(Regs::RDSAR, get_phys(card.rx_descs.as_ptr()));
 			card.write_64_pair(Regs::TNPDS, get_phys(card.tx_descs.as_ptr()));
-			// TODO: Set RCR
+			// Set RCR and TCR
+			card.write_32(Regs::RCR, 0x0000_820E);	// RCR: DMA after 256, 64 burst, accept all addressed packets
+			card.write_32(Regs::TCR, 0x3000_0000);	// TCR: DMA 64 burst
 			// RMS and MTPS have to be set to non-zero for things to work
 			card.write_16(Regs::RMS, 9000);	// Jumbo frames!
 			card.write_16(Regs::MTPS, 9000);	// Jumbo frames!
@@ -244,9 +246,9 @@ impl Card
 	pub unsafe fn write_16(&self, reg: Regs, val: u16) {
 		self.io.write_16(reg as u8 as usize, val);
 	}
-	//pub unsafe fn write_32(&self, reg: Regs, val: u32) {
-	//	self.io.write_32(reg as u8 as usize, val);
-	//}
+	pub unsafe fn write_32(&self, reg: Regs, val: u32) {
+		self.io.write_32(reg as u8 as usize, val);
+	}
 	pub unsafe fn write_64_pair(&self, reg: Regs, val: u64) {
 		self.io.write_32(reg as u8 as usize + 0, val as u32);
 		self.io.write_32(reg as u8 as usize + 4, (val >> 32) as u32);
