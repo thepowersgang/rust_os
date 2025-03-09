@@ -283,7 +283,7 @@ fn invoke_int(call_id: u32, args: &mut Args) -> Result<u64,Error>
 		// === 4: Networking
 		NET_CONNECT => {
 			let local: ::syscall_values::SocketAddress = { let p: Freeze<_> = args.get()?; *p };
-			from_result(network_calls::new_client(local))
+			network_calls::new_client(local)?
 			},
 		NET_LISTEN => {
 			let local: ::syscall_values::SocketAddress = { let p: Freeze<_> = args.get()?; *p };

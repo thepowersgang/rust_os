@@ -5,7 +5,7 @@
 //! Transmission Control Protocol (Layer 4)
 use shared_map::SharedMap;
 use kernel::sync::Mutex;
-use kernel::lib::ring_buffer::{AtomicRingBuf};
+use kernel::lib::ring_buffer::AtomicRingBuf;
 use core::sync::atomic::{AtomicUsize, Ordering};
 use crate::nic::SparsePacket;
 use crate::Address;
@@ -457,7 +457,7 @@ impl ServerHandle
 	}
 
 	/// Accept a new incoming connection
-	pub fn accept(&mut self) -> Option<ConnectionHandle>
+	pub fn accept(&self) -> Option<ConnectionHandle>
 	{
 		let s = SERVERS.get(&self.0).expect("Server entry missing while handle still exists");
 		let rv_quad = s.accept_queue.pop()?;
@@ -508,6 +508,11 @@ impl ConnectionHandle
 		CONNECTIONS.insert(quad, Mutex::new(conn)).map_err(|_| ()).expect("Our unique port wasn't unique");
 		Ok( ConnectionHandle(quad) )
 	}
+
+	pub fn remote_addr(&self) -> (super::Address, u16) {
+		(self.0.remote_addr, self.0.remote_port)
+	}
+
 	pub fn send_data(&self, buf: &[u8]) -> Result<usize, ConnError>
 	{
 		match CONNECTIONS.get(&self.0)

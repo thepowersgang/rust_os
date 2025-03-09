@@ -20,14 +20,43 @@ fn from_tcp_result(r: Result<usize, ::network::tcp::ConnError>) -> u64 {
 pub fn new_server(local_address: crate::values::SocketAddress) -> Result<u32, crate::values::SocketError>
 {
 	Ok(crate::objects::new_object(ConnServer {
-		inner: todo!("new_server({:?}", local_address),
+		inner: if local_address.addr == [0; 16] {
+				match ::network::tcp::ServerHandle::listen(local_address.port)
+				{
+				Ok(v) => v,
+				Err(e) => match e {
+					::network::tcp::ListenError::SocketInUse => return Err(::syscall_values::SocketError::AlreadyInUse),
+					},
+				}
+			}
+			else {
+				todo!("new_server({:?}", local_address)
+			}
 		}))
 }
-pub fn new_client(remote_address: crate::values::SocketAddress) -> Result<u32, crate::values::SocketError>
+pub fn new_client(remote_address: crate::values::SocketAddress) -> Result<u64, super::Error>
 {
-	Ok(crate::objects::new_object(ConnSocket {
-		inner: todo!("new_client({:?}", remote_address),	//::network::tcp::ConnectionHandle::connect(remote_mask, remote_mask)?,
-		}))
+	let a = match crate::values::SocketAddressType::try_from(remote_address.addr_ty) {
+		Err(_) => return Err(super::Error::BadValue),
+		Ok(crate::values::SocketAddressType::Ipv4) => ::network::Address::Ipv4(::network::ipv4::Address(
+			[remote_address.addr[0], remote_address.addr[1], remote_address.addr[2], remote_address.addr[3]]
+			)),
+		_ => todo!(""),
+		};
+	let o = match crate::values::SocketPortType::try_from(remote_address.port_ty).map_err(|_| super::Error::BadValue)?
+		{
+		crate::values::SocketPortType::Tcp => {
+			crate::objects::new_object(ConnSocket {
+				inner: match ::network::tcp::ConnectionHandle::connect(a, remote_address.port)
+					{
+					Ok(v) => v,
+					Err(e) => todo!("{:?}", e),
+					}
+				})
+			},
+		t => todo!("Socket type: {:?}", t),
+		};
+	Ok(super::from_result::<_,::syscall_values::SocketError>(Ok( o )))
 }
 
 /// Create a UDP socket
@@ -47,7 +76,7 @@ pub fn new_free_socket(local_address: crate::values::SocketAddress, remote_mask:
 
 struct ConnServer
 {
-	inner: (),
+	inner: ::network::tcp::ServerHandle,
 }
 impl crate::objects::Object for ConnServer
 {
@@ -61,8 +90,23 @@ impl crate::objects::Object for ConnServer
 		match call
 		{
 		crate::values::NET_SERVER_ACCEPT => {
-			let addr_ptr: FreezeMut<crate::values::SocketAddress> = args.get()?;
-			todo!("NET_SERVER_ACCEPT({:p})", &*addr_ptr);
+			let mut addr_ptr: FreezeMut<crate::values::SocketAddress> = args.get()?;
+			match self.inner.accept()
+			{
+			Some(v) => {
+				let (a,p) = v.remote_addr();
+				match a {
+				network::Address::Ipv4(a) => {
+					addr_ptr.addr_ty = ::syscall_values::SocketAddressType::Ipv4 as _;
+					addr_ptr.addr[..4].copy_from_slice(&a.0);
+					},
+				}
+				addr_ptr.port_ty = ::syscall_values::SocketPortType::Tcp as _;
+				addr_ptr.port = p;
+				Ok(super::objects::new_object(ConnSocket { inner: v }) as u64)
+				},
+			None => Ok(0),
+			}
 			},
 		_ => crate::objects::object_has_no_such_method_ref("network_calls::ConnServer", call),
 		}

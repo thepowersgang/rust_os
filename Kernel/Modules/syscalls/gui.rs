@@ -250,7 +250,7 @@ impl objects::Object for Window
 			let y: u32 = args.get()?;
 			log_debug!("GUI_WIN_SETPOS({},{})", x,y);
 			let p = {
-				let mut lh = self.0.lock();
+				let lh = self.0.lock();
 				lh.set_pos( ::gui::Pos::new(x, y) );
 				lh.get_pos()
 				};

@@ -57,7 +57,7 @@ impl AtomicSleepObjectRef {
 	}
 	pub fn set(&self, r: SleepObjectRef) {
 		self.ptr.store(r.obj.as_ptr(), ::core::sync::atomic::Ordering::Relaxed);
-		::core::mem::forget(r);;
+		::core::mem::forget(r);
 	}
 }
 impl ::core::ops::Drop for AtomicSleepObjectRef {
