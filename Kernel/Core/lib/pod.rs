@@ -13,9 +13,9 @@ pub unsafe auto trait POD {}
 ///// With `POD`, it's possible to get `&T` and `&UnsafeCell<T>` at the same time... but wouldn't it be UC's unsafe job to avoid that?
 //impl<T> !POD for ::core::cell::UnsafeCell<T> {}
 /// Non-null disallows zero, thus isn't POD
-impl<T> !POD for ::core::ptr::NonNull<T> {}
+impl<T: ?Sized> !POD for ::core::ptr::NonNull<T> {}
 /// Box does contain non-zero, but just in case
-impl<T> !POD for crate::lib::mem::boxed::Box<T> {}
+impl<T: ?Sized, A> !POD for crate::lib::mem::boxed::Box<T,A> {}
 impl<T: ?Sized> !POD for *const T {}
 impl<T: ?Sized> !POD for *mut T {}
 impl<'a, T: ?Sized> !POD for &'a T {}
