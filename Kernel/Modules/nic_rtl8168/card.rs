@@ -1,11 +1,15 @@
-use ::core::sync::atomic::{Ordering, AtomicU16};
+use ::core::sync::atomic::AtomicU16;
 
 use crate::hw;
 use crate::hw::Regs;
 
+mod tx;
+mod rx;
+
 const DESC_COUNT: usize = ::kernel::PAGE_SIZE / 16;
 const RX_BUF_PER_PAGE: usize = 4;
 const BYTES_PER_RX_BUF: usize = ::kernel::PAGE_SIZE / RX_BUF_PER_PAGE;
+
 pub struct Card
 {
 	io: ::kernel::device_manager::IOBinding,
@@ -116,118 +120,6 @@ impl Card
 
 		isr != 0
 	}
-
-	fn update_rx_queue(&self) {
-		// Just update `rx_desc_head_hw`
-		let init_pos = RxDescIdx(self.rx_desc_head_hw.load(Ordering::Relaxed));
-		let mut looped = false;
-		let mut pos = init_pos;
-		loop {
-			if self.rx_descs[pos.0 as usize][0].load(Ordering::Relaxed) & hw::DESC0_OWN != 0 {
-				break;
-			}
-			looped = true;
-			pos = pos.next();
-			if pos == init_pos {
-				// Stops an infinite loop
-				break;
-			}
-		}
-		self.rx_desc_head_hw.store(pos.0, Ordering::Relaxed);
-		if looped {
-			if let Some(ref v) = *self.rx_waiter_handle.lock() {
-				v.signal();
-			}
-		}
-	}
-	fn update_tx_queue(&self) {
-		let init_pos = TxDescIdx(self.tx_desc_head_hw.load(Ordering::Relaxed));
-		let mut pos = init_pos;
-		loop {
-			if self.tx_descs[pos.0 as usize][0].load(Ordering::Relaxed) & hw::DESC0_OWN != 0 {
-				break;
-			}
-
-			// Inform senders of the status
-			if let Some(v) = self.tx_sleepers[pos.0 as usize].take() {
-				v.signal();
-			}
-
-			pos = pos.next();
-			if pos == init_pos {
-				// Stops an infinite loop
-				break;
-			}
-		}
-		self.tx_desc_head_hw.store(pos.0, Ordering::Relaxed);
-	}
-}
-
-/// Descriptor queue handling
-impl Card
-{
-	/// Release a Rx descriptor back to the card
-	/// - UNSAFE: Caller must "own" the specified descriptor
-	unsafe fn release_rx_desc(&self, idx: RxDescIdx) {
-		// Rewrite the first word, resetting the buffer size and handing ownership back to the hardware
-		let v = hw::DESC0_OWN | (if idx.0 == DESC_COUNT as u16-1 { hw::DESC0_EOR } else { 0 }) | (BYTES_PER_RX_BUF as u32);
-		self.rx_descs[idx.0 as usize][0].store(v, Ordering::Relaxed);
-	}
-
-	/// Fill a TX descriptor with the contents of a structure
-	/// 
-	/// - NOTE: This clears the OWN/FS/LS bits, those will be set when [Card::activate_tx_descs] is called
-	/// - UNSAFE: Caller must ensure that the buffers pointed in `info` are valid and written used until the card indicates it is done.
-	unsafe fn fill_tx_desc(&self, idx: TxDescIdx, mut info: hw::TxDesc) {
-		info.flags3 &= 0x3F;
-		for (a,b) in Iterator::zip(self.tx_descs[idx.0 as usize].iter(), info.into_array())
-		{
-			a.store(b, Ordering::Relaxed);
-		}
-	}
-	/// Hand a range of TX descriptors over to the hardware
-	unsafe fn activate_tx_descs(&self, first: TxDescIdx, last: TxDescIdx) {
-		// TODO: Since this is shared with the hardware, would want to ensure that all of these sync.
-		self.tx_descs[last.0 as usize][0].fetch_or(hw::DESC0_LS, Ordering::Relaxed);
-		self.tx_descs[first.0 as usize][0].fetch_or(hw::DESC0_FS, Ordering::Relaxed);
-		// - Set OWN, working backwards
-		let mut cur = last;
-		while cur != first {
-			self.tx_descs[cur.0 as usize][0].fetch_or(hw::DESC0_OWN, Ordering::SeqCst);
-			cur = cur.prev();
-		}
-		::core::sync::atomic::fence(Ordering::SeqCst);
-	}
-}
-
-#[derive(Copy, Clone, PartialEq)]
-struct RxDescIdx(u16);
-impl RxDescIdx {
-	fn next(self) -> Self {
-		RxDescIdx(if self.0 == DESC_COUNT as u16 - 1 { 0 } else { self.0 + 1 })
-	}
-	//fn prev(self) -> Self {
-	//	RxDescIdx(if self.0 == 0 { DESC_COUNT as u16 - 1 } else { self.0 - 1 })
-	//}
-
-	fn ofs(self, v: usize) -> Self {
-		let n = self.0 + v as u16;
-		RxDescIdx(n % DESC_COUNT as u16)
-	}
-	/// Descriptor indexes between these two, increasing from `self` to `other`
-	fn dist_to(self, other: RxDescIdx) -> usize {
-		((other.0 + DESC_COUNT as u16 - self.0) % DESC_COUNT as u16) as usize
-	}
-}
-#[derive(Copy, Clone, PartialEq)]
-struct TxDescIdx(u16);
-impl TxDescIdx {
-	fn next(self) -> Self {
-		TxDescIdx(if self.0 == DESC_COUNT as u16 - 1 { 0 } else { self.0 + 1 })
-	}
-	fn prev(self) -> Self {
-		TxDescIdx(if self.0 == 0 { DESC_COUNT as u16 - 1 } else { self.0 - 1 })
-	}
 }
 
 impl Card 
@@ -255,119 +147,9 @@ impl Card
 	}
 }
 
-struct IterPhysExtents<'a> {
-	remain: &'a [u8],
-}
-impl IterPhysExtents<'_> {
-	fn new(v: &[u8]) -> IterPhysExtents {
-		IterPhysExtents { remain: v }
-	}
-}
-impl Iterator for IterPhysExtents<'_> {
-	type Item = (u64,u16);
-	fn next(&mut self) -> Option<Self::Item> {
-		use ::kernel::memory::virt::get_phys;
-		if self.remain.is_empty() {
-			None
-		}
-		else {
-			let a = get_phys(self.remain.as_ptr());
-			let space = ::kernel::PAGE_SIZE - (a as usize) % ::kernel::PAGE_SIZE;
-			if space >= self.remain.len() {
-				self.remain = &[];
-				Some((a, self.remain.len() as u16))
-			}
-			else {
-				let mut rv_len = space as u16;
-				self.remain = &self.remain[space..];
-				while !self.remain.is_empty() && rv_len < u16::MAX && a + rv_len as u64 == get_phys(self.remain.as_ptr()) {
-					// Contigious physical, so can advance rv.1
-					let space = ::kernel::PAGE_SIZE;
-					let space = space.min( (u16::MAX - rv_len) as usize );
-					let space = space.min( self.remain.len() );
-					self.remain = &self.remain[space..];
-					rv_len += space as u16;
-				}
-				Some((a, rv_len))
-			}
-		}
-	}
-}
 impl ::network::nic::Interface for Card {
 	fn tx_raw(&self, pkt: network::nic::SparsePacket) {
-		// Count how many descriptors are needed
-		let n_desc = {
-			let mut n_desc = 0;
-			for extent in &pkt {
-				for _ in IterPhysExtents::new(extent) {
-					n_desc += 1;
-				}
-			}
-			n_desc
-		};
-		if n_desc > 0 {
-			// Obtain that many from the pool
-			let first_desc = {
-				let mut p1 = self.tx_desc_head_os.load(Ordering::Relaxed);
-				loop {
-					let p2 = self.tx_desc_head_hw.load(Ordering::Relaxed);
-					let space = if p1 == p2 {
-							if self.tx_descs[p1 as usize][0].load(Ordering::Relaxed) & hw::DESC0_OWN != 0 {
-								// Full, need to wait
-								todo!("TX buffers exhausted - wait for more?")
-							}
-							else {
-								// Empty
-								DESC_COUNT
-							}
-						}
-						else {
-							(p2 + DESC_COUNT as u16 - p1) as usize % DESC_COUNT
-						};
-					if space < n_desc {
-						todo!("Not enough buffers, use a bounce buffer")
-					}
-					else {
-						let new_end = (p1 + n_desc as u16) % DESC_COUNT as u16;
-						match self.tx_desc_head_os.compare_exchange(p1, new_end, Ordering::Relaxed, Ordering::Relaxed) {
-						Ok(_) => break TxDescIdx(p1),
-						Err(v) => p1 = v,
-						}
-					}
-				}
-			};
-			// SAFE: Destructor will be called
-			let so = unsafe { ::kernel::threads::SleepObject::new("rtl8168 tx") };
-			self.tx_sleepers[first_desc.0 as usize].set(so.get_ref());
-			// SAFE: Buffer addresses are correct, and we will wait until the hardware releases
-			unsafe {
-				let mut cur_desc = first_desc;
-				// - Fill buffer addresses
-				for extent in &pkt {
-					for (paddr,len) in IterPhysExtents::new(extent) {
-						self.fill_tx_desc(cur_desc, hw::TxDesc {
-								tx_buffer_addr: paddr,
-								frame_length: len,
-								flags3: 0,
-								vlan_info: 0,
-							});
-						cur_desc = cur_desc.next();
-					}
-				}
-				// - Set FS/LS
-				self.activate_tx_descs(first_desc, cur_desc.prev());
-			}
-
-			// Set TPPoll.NPQ to inform the card that there's data here
-			// SAFE: Just a flag to the device
-			unsafe {
-				self.write_8(Regs::TPPoll, 0x40);
-			}
-			// Wait until TX is complete
-			// NOTE: This can't wake unless someone explicitly wakes the object?
-			so.wait();
-			// TODO: Get TX status? Hard to do, as that would require this code to release the tx descs
-		}
+		self.tx_raw_inner(pkt)
 	}
 
 	fn rx_wait_register(&self, channel: &kernel::threads::SleepObject) {
@@ -383,89 +165,10 @@ impl ::network::nic::Interface for Card {
 	}
 
 	fn rx_packet(&self) -> Result<network::nic::PacketHandle<'_>, network::nic::Error> {
-		let pos = self.rx_desc_head_os.load(Ordering::Relaxed);
-		let end = self.rx_desc_head_hw.load(Ordering::Relaxed);
-		if pos != end {
-			// Seek forwards until DESC0_LS is set
-			let mut last = RxDescIdx(pos);
-			while self.rx_descs[last.0 as usize][0].load(Ordering::Relaxed) & hw::DESC0_LS == 0 {
-				last = last.next();
-			}
-			// Put that packet into a handle
-			Ok(::network::nic::PacketHandle::new(PacketHandle {
-				card: self,
-				first_desc: RxDescIdx(pos),
-				last_desc: last,
-			}).ok().unwrap())
-		}
-		else {
-			Err(::network::nic::Error::NoPacket)
-		}
-	}
-}
-
-struct PacketHandle<'a> {
-	card: &'a Card,
-	first_desc: RxDescIdx,
-	last_desc: RxDescIdx,
-}
-impl ::network::nic::RxPacket for PacketHandle<'_> {
-	fn len(&self) -> usize {
-		let mut len = 0;
-		let mut pos = self.first_desc;
-		while pos != self.last_desc {
-			len += hw::RxDesc::get_len(&self.card.rx_descs[pos.0 as usize]);
-			pos = pos.next();
-		}
-		len
-	}
-
-	fn num_regions(&self) -> usize {
-		self.first_desc.dist_to(self.last_desc) + 1
-	}
-
-	fn get_region(&self, idx: usize) -> &[u8] {
-		let pos = self.first_desc.ofs(idx);
-		let len = hw::RxDesc::get_len(&self.card.rx_descs[pos.0 as usize]);
-		let ofs = BYTES_PER_RX_BUF * (pos.0 as usize % RX_BUF_PER_PAGE);
-		&self.card.rx_buffers[pos.0 as usize / RX_BUF_PER_PAGE][ofs..][..len]
-	}
-
-	fn get_slice(&self, range: ::core::ops::Range<usize>) -> Option<&[u8]> {
-		let mut ofs = range.start;
-		let mut pos = self.first_desc;
-		while pos != self.last_desc {
-			let len = hw::RxDesc::get_len(&self.card.rx_descs[pos.0 as usize]);
-			if ofs >= len {
-				ofs -= len;
-			}
-			else {
-				let des_len = range.end - range.start;
-				if des_len > len || ofs + des_len > len {
-					return None
-				}
-				else {
-					let buf = {
-						let ofs = BYTES_PER_RX_BUF * (pos.0 as usize % RX_BUF_PER_PAGE);
-						&self.card.rx_buffers[pos.0 as usize / RX_BUF_PER_PAGE][ofs..][..len]
-						};
-					return Some(&buf[ofs..][..des_len])
-				}
-			}
-			pos = pos.next();
-		}
-		None
-	}
-}
-impl Drop for PacketHandle<'_> {
-	fn drop(&mut self) {
-		let mut pos = self.first_desc;
-		while pos != self.last_desc {
-			// SAFE: This handle owns the descriptor, and won't use it again
-			unsafe {
-				self.card.release_rx_desc(pos);
-			}
-			pos = pos.next();
+		match self.rx_packet_inner()
+		{
+		Some(v) => Ok(::network::nic::PacketHandle::new(v).ok().expect("Cannot fit PacketHandle")),
+		None => Err(::network::nic::Error::NoPacket),
 		}
 	}
 }
