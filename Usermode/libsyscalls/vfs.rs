@@ -23,6 +23,7 @@ pub fn root() -> &'static Dir {
 	use ::core::sync::atomic::{Ordering,AtomicBool};
 	static mut ROOT: Option<Dir> = None;
 	static ROOT_SETTING: AtomicBool = AtomicBool::new(false);
+	#[allow(static_mut_refs)]
 	// SAFE: Single-write (enforced by the atomic)
 	unsafe {
 		if ROOT.is_none() {

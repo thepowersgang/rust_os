@@ -42,6 +42,7 @@ pub fn args_os() -> ArgsOs {
 impl Iterator for ArgsOs {
 	type Item = OsString;
 	fn next(&mut self) -> Option<OsString> {
+		#[allow(static_mut_refs)]
 		// SAFE: The S_ARGUMENTS array is only ever altered at startup
 		unsafe {
 			if self.0 == S_ARGUMENTS.len() {
