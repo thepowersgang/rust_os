@@ -76,6 +76,7 @@ pub fn init()
 		S_WORKER.init( || ::kernel::threads::WorkerThread::new("GUI KernelLog", || {
 			// SAFE: This object outlives anything that borrows it
 			let mut so = unsafe { ::kernel::threads::SleepObject::new("GUI KernelLog") };
+			let mut cmd = ::kernel::lib::FixedString::new([0; 64]);
 			let kl = S_KERNEL_LOG.get();
 			loop {
 				kl.main_wh.bind_wait_input(&mut so);
@@ -90,6 +91,7 @@ pub fn init()
 						let max_dims = bh.dims();
 						S_BUFFER_HANDLE.set( bh );
 						kl.logo_wh.set_pos(Pos::new(max_dims.w-kl.logo_wh.get_dims().w, 0));
+						commands::redraw(&cmd);
 					},
 					Event::KeyDown(_) => {},
 					Event::KeyUp(_) => {},
@@ -97,12 +99,19 @@ pub fn init()
 						use ::key_codes::KeyCode;
 						// TODO: Take actions (e.g. scrolling view)
 						match key_code {
-						KeyCode::Return => {},
+						KeyCode::Return => {
+							commands::process(&cmd);
+							cmd.clear();
+							commands::redraw(&cmd);
+						},
+						KeyCode::Backsp => {
+						},
 						_ => {},
 						}
 					},
 					Event::Text(translated_key) => {
-						// TODO: Put into a kernel prompt
+						cmd.push_str(::core::str::from_utf8(&translated_key).unwrap_or(""));
+						commands::redraw(&cmd);
 					},
 					Event::MouseMove(_, _, _, _)
 					|Event::MouseDown(_, _, _)
@@ -126,6 +135,50 @@ pub fn init()
 
 	// Register to receive logs
 	::kernel::logging::register_gui(LogHandler::default());
+}
+
+mod commands {
+	use super::{S_BUFFER_HANDLE,C_CELL_DIMS,Colour,CharPos,KernelLog};
+	use super::UnicodeCombining;
+	pub(super) fn redraw(cmd: &str)
+	{
+		let Some(bh) = S_BUFFER_HANDLE.get() else { return };
+		let cell_h = C_CELL_DIMS.h as usize;
+		let h = bh.dims().h as usize;
+		for line in h - cell_h .. h {
+			bh.fill_scanline(line, 0, bh.dims().w as usize, Colour::def_gray());
+		}
+
+		let mut pos = CharPos( (h / cell_h - 1) as u32, 0 );
+		let colour = Colour::def_white();
+		for c in cmd.chars() {
+			// If the character was a combining AND it's not at the start of a line,
+			// render atop the previous cell
+			if c.is_combining() && pos.col() > 0 {
+				KernelLog::render_char(&bh, pos.prev(), colour, c);
+			}
+			// Otherwise, wipe the cell and render into it
+			else {
+				KernelLog::render_char(&bh, pos, colour, c);
+				pos = pos.next();
+			}
+		}
+	}
+
+	pub(super) fn process(cmd: &str)
+	{
+		let mut it = cmd.split_whitespace();
+		let op = it.next().unwrap();
+		match op {
+		"reboot" => {
+			// SAFE: yes, we intend to reboot
+			unsafe { ::kernel::arch::reboot(); }
+		},
+		_ => {
+			log_error!("Unknown kernel command {op:?}");
+		},
+		}
+	}
 }
 
 #[derive(Default)]
@@ -209,7 +262,8 @@ impl KernelLog
 		let Some(bh) = S_BUFFER_HANDLE.get() else { return };
 		let mut line_no = S_CURRENT_LINE.fetch_add(1, Ordering::Relaxed);
 		// NOTE: This should be safe, as this function is only called with the global logging lock held
-		while line_no >= bh.dims().h / C_CELL_DIMS.h {
+		// NOTE: The -1 is because the final row is the prompt
+		while line_no >= bh.dims().h / C_CELL_DIMS.h - 1 {
 			let n_rows = 1;
 			let scroll_px = (n_rows * C_CELL_DIMS.h) as usize;
 			let h = bh.dims().h as usize;
@@ -259,13 +313,13 @@ impl KernelLog
 		// If the character was a combining AND it's not at the start of a line,
 		// render atop the previous cell
 		if c.is_combining() && pos.col() > 0 {
-			self.render_char(bh, pos.prev(), colour, c);
+			KernelLog::render_char(bh, pos.prev(), colour, c);
 			false
 		}
 		// Otherwise, wipe the cell and render into it
 		else {
 			self.clear_cell(bh, pos);
-			self.render_char(bh, pos, colour, c);
+			KernelLog::render_char(bh, pos, colour, c);
 			true
 		}
 	}
@@ -286,7 +340,7 @@ impl KernelLog
 	}
 	/// Actually does the rendering
 	//#[req_safe(taskswitch)]	//< Must be safe to call from within a spinlock
-	fn render_char(&self, bh: &crate::windows::WinBuf, pos: CharPos, colour: Colour, cp: char)
+	fn render_char(bh: &crate::windows::WinBuf, pos: CharPos, colour: Colour, cp: char)
 	{
 		if bh.dims().width() == 0 {
 			return ;
