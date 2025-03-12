@@ -74,9 +74,9 @@ impl Window
 				},
 		}
 	}
-	pub fn name(&self) -> &str {
-		&self.name
-	}
+	//pub fn name(&self) -> &str {
+	//	&self.name
+	//}
 	pub fn dims(&self) -> Dims {
 		self.buf.read().dims()
 	}
