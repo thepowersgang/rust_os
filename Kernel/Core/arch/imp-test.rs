@@ -647,3 +647,6 @@ pub fn cpu_num() -> u32 {
 pub fn halt() -> ! {
 	panic!("HALTED");
 }
+pub fn reboot() -> ! {
+	panic!("REBOOT");
+}

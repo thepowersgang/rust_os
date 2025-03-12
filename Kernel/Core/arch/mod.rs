@@ -488,3 +488,9 @@ pub unsafe fn halt() -> ! {
 	imp::halt()
 }
 
+/// Trigger a reboot
+#[inline]
+pub unsafe fn reboot() -> ! {
+	imp::reboot()
+}
+

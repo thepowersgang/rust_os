@@ -113,6 +113,19 @@ pub fn halt() -> ! {
 		}
 	}
 }
+/// Trigger a reboot using a triple-fault
+pub fn reboot() -> ! {
+	// SAFE: Correct?
+	unsafe {
+		#[repr(C, packed)]
+		struct GdtPtr {
+			base: u64,
+			limit: u16,
+		}
+		static NULL_GDTPTR: GdtPtr = GdtPtr { base: 0, limit: 0 };
+		::core::arch::asm!("lgdt [{}] ; mov ax, 0x10 ; mov ds, ax ; mov al, [0] ; cli; hlt ", sym NULL_GDTPTR, options(noreturn))
+	}
+}
 
 // TODO: Put this somewhere common (in `symbols` maybe?)
 struct SymPrint(usize);
