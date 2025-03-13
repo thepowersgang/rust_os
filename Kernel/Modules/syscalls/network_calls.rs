@@ -5,8 +5,9 @@
 //! Userland interface to the network stack
 use crate::args::Args;
 use kernel::memory::freeze::{Freeze,FreezeMut};
+use ::syscall_values::{SocketAddress, SocketAddressType, SocketPortType};
 
-unsafe impl crate::args::Pod for crate::values::SocketAddress { }
+unsafe impl crate::args::Pod for SocketAddress { }
 unsafe impl crate::args::Pod for crate::values::MaskedSocketAddress { }
 
 fn from_tcp_result(r: Result<usize, ::network::tcp::ConnError>) -> u64 {
@@ -17,7 +18,13 @@ fn from_tcp_result(r: Result<usize, ::network::tcp::ConnError>) -> u64 {
 		})
 }
 
-pub fn new_server(local_address: crate::values::SocketAddress) -> Result<u32, crate::values::SocketError>
+fn make_ipv4(addr: &[u8; 16]) -> ::network::ipv4::Address {
+	::network::ipv4::Address(
+		[addr[0], addr[1], addr[2], addr[3]]
+		)
+}
+
+pub fn new_server(local_address: SocketAddress) -> Result<u32, crate::values::SocketError>
 {
 	Ok(crate::objects::new_object(ConnServer {
 		inner: if local_address.addr == [0; 16] {
@@ -34,13 +41,11 @@ pub fn new_server(local_address: crate::values::SocketAddress) -> Result<u32, cr
 			}
 		}))
 }
-pub fn new_client(remote_address: crate::values::SocketAddress) -> Result<u64, super::Error>
+pub fn new_client(remote_address: SocketAddress) -> Result<u64, super::Error>
 {
-	let a = match crate::values::SocketAddressType::try_from(remote_address.addr_ty) {
+	let a = match SocketAddressType::try_from(remote_address.addr_ty) {
 		Err(_) => return Err(super::Error::BadValue),
-		Ok(crate::values::SocketAddressType::Ipv4) => ::network::Address::Ipv4(::network::ipv4::Address(
-			[remote_address.addr[0], remote_address.addr[1], remote_address.addr[2], remote_address.addr[3]]
-			)),
+		Ok(SocketAddressType::Ipv4) => ::network::Address::Ipv4(make_ipv4(&remote_address.addr)),
 		_ => todo!(""),
 		};
 	let o = match crate::values::SocketPortType::try_from(remote_address.port_ty).map_err(|_| super::Error::BadValue)?
@@ -60,18 +65,40 @@ pub fn new_client(remote_address: crate::values::SocketAddress) -> Result<u64, s
 }
 
 /// Create a UDP socket
-pub fn new_free_socket(local_address: crate::values::SocketAddress, remote_mask: crate::values::MaskedSocketAddress) -> Result<u32, crate::values::SocketError>
+pub fn new_free_socket(local_address: SocketAddress, remote_mask: crate::values::MaskedSocketAddress) -> Result<u64, super::Error>
 {
-	if local_address.port_ty != remote_mask.addr.port_ty {
-		return Err(crate::values::SocketError::InvalidValue);
-	}
-	if local_address.addr_ty != remote_mask.addr.addr_ty {
-		return Err(crate::values::SocketError::InvalidValue);
-	}
-	// TODO: Check that the current process is allowed to use the specified combination of port/type
-	Ok(crate::objects::new_object(FreeSocket {
-		inner: todo!("new_free_socket"),
-		}))
+	let r = {
+		if local_address.port_ty != remote_mask.addr.port_ty {
+			Err(crate::values::SocketError::InvalidValue)
+		}
+		else if local_address.addr_ty != remote_mask.addr.addr_ty {
+			Err(crate::values::SocketError::InvalidValue)
+		}
+		else {
+			let port_ty = SocketPortType::try_from(local_address.port_ty).map_err(|_| super::Error::BadValue)?;
+			let addr_ty = SocketAddressType::try_from(local_address.addr_ty).map_err(|_| super::Error::BadValue)?;
+			// TODO: Check that the current process is allowed to use the specified combination of port/type
+
+			match port_ty
+			{
+			SocketPortType::Raw => match addr_ty
+				{
+				SocketAddressType::Ipv4 => {
+					let source = make_ipv4(&local_address.addr);
+					Ok(crate::objects::new_object(RawIpv4 {
+						source,
+						proto: local_address.port as u8,
+						//handle: ::network::ipv4::listen_raw(source, make_ipv4(&remote_mask.addr), remote_mask.mask),
+						}))
+					},
+				_ => todo!("Handle other address types"),
+				},
+			SocketPortType::Udp => Err(crate::values::SocketError::InvalidValue),
+			_ => todo!("Handle other socket types"),
+			}
+		}
+		};
+	Ok(super::from_result::<_,::syscall_values::SocketError>(r))
 }
 
 struct ConnServer
@@ -90,7 +117,7 @@ impl crate::objects::Object for ConnServer
 		match call
 		{
 		crate::values::NET_SERVER_ACCEPT => {
-			let mut addr_ptr: FreezeMut<crate::values::SocketAddress> = args.get()?;
+			let mut addr_ptr: FreezeMut<SocketAddress> = args.get()?;
 			match self.inner.accept()
 			{
 			Some(v) => {
@@ -167,12 +194,13 @@ impl crate::objects::Object for ConnSocket
 	}
 }
 
-struct FreeSocket
+struct RawIpv4
 {
-	inner: (),
+	source: ::network::ipv4::Address,
+	proto: u8,
 }
 
-impl crate::objects::Object for FreeSocket
+impl crate::objects::Object for RawIpv4
 {
 	fn class(&self) -> u16 { crate::values::CLASS_FREESOCKET }
 	fn as_any(&self) -> &dyn core::any::Any { self }
@@ -183,13 +211,23 @@ impl crate::objects::Object for FreeSocket
 	fn handle_syscall_ref(&self, call: u16, args: &mut Args) -> Result<u64, crate::Error> {
 		match call
 		{
-		crate::values::NET_FREESOCK_SEND => {
+		crate::values::NET_FREESOCK_SENDTO => {
 			let data: Freeze<[u8]> = args.get()?;
-			todo!("NET_FREESOCK_SEND({:p})", &*data);
+			let addr: Freeze<SocketAddress> = args.get()?;
+			if addr.addr_ty != SocketAddressType::Ipv4 as u8 {
+				return Err(crate::Error::BadValue);
+			}
+			let dest = make_ipv4(&addr.addr);
+			::kernel::futures::block_on(
+				::network::ipv4::send_packet(self.source, dest, self.proto, ::network::nic::SparsePacket::new_root(&data))
+				);
+			Ok(0)
 			},
-		crate::values::NET_FREESOCK_RECV => {
+		crate::values::NET_FREESOCK_RECVFROM => {
 			let data: FreezeMut<[u8]> = args.get()?;
-			todo!("NET_FREESOCK_RECV({:p})", &*data);
+			let mut addr: FreezeMut<SocketAddress> = args.get()?;
+			addr.addr_ty = SocketAddressType::Ipv4 as u8;
+			todo!("NET_FREESOCK_RECV({:p}, {:p})", &*data, &*addr);
 			},
 		_ => crate::objects::object_has_no_such_method_ref("network_calls::FreeSocket", call),
 		}

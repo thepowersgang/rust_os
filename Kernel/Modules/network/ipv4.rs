@@ -32,6 +32,11 @@ pub fn add_interface(local_mac: [u8; 6], addr: Address, mask_bits: u8)
 		});
 }
 
+#[cfg(any())]
+pub fn listen_raw(local_addr: Address, proto: u8, remote_mask: (Address, u8)) -> RawListenHandle
+{
+}
+
 pub fn register_handler(proto: u8, handler: fn(&Interface, Address, PacketReader)) -> Result<(), ()>
 {
 	let mut lh = PROTOCOLS.write();
@@ -118,6 +123,8 @@ pub fn handle_rx_ethernet(_physical_interface: &dyn crate::nic::Interface, sourc
 
 			// TODO: Check if the source address is from the same subnet, and only cache in ARP if it is
 			crate::arp::snoop_v4(source_mac, hdr.source);
+
+			// TODO: Support raw socket Rx
 
 			// Figure out which sub-protocol to send this packet to
 			// - Should there be alternate handlers for 

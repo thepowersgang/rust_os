@@ -344,9 +344,9 @@ def_classes! {
 	/// Free-bind socket
 	=13: CLASS_FREESOCKET = {
 		/// Receive a packet (if available)
-		=0: NET_FREESOCK_RECV,
+		=0: NET_FREESOCK_RECVFROM,
 		/// Send a packet to an address
-		=1: NET_FREESOCK_SEND,
+		=1: NET_FREESOCK_SENDTO,
 	--
 	}|{
 	},
