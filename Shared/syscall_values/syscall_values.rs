@@ -521,6 +521,10 @@ pub enum GuiEvent
 	#[allow(dead_code)]
 	/// Placeholder empty event
 	None,
+	
+	/// Window size changed
+	Resize,
+
 	/// Key released
 	KeyUp(KeyCode),
 	/// Key pressed
