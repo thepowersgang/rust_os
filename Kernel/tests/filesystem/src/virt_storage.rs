@@ -23,7 +23,11 @@ pub fn add_volume(name: &str, path: &::std::path::Path, overlay_ty: OverlayType)
 
     let name = name.to_owned();
 
-    let mut fp = ::std::fs::File::open(path)?;
+    let mut fp = if path.extension() == Some("zdisk".as_ref()) {
+        BackingStorage::Compressed(::compressed_file::Reader::new(::std::fs::File::open(path)?)?)
+    } else {
+        BackingStorage::FlatFile(::std::fs::File::open(path)?)
+    };
     let byte_count = fp.seek(::std::io::SeekFrom::End(0))?;
     let block_count = byte_count / block_size as u64;
 
@@ -52,8 +56,44 @@ struct Volume
     name: String,
     block_size: usize,
     block_count: u64,
-    fp: ::std::sync::Mutex< ::std::fs::File>,
+    fp: ::std::sync::Mutex<BackingStorage>,
     write_overlay: Option<Overlay>,
+}
+enum BackingStorage {
+    FlatFile(::std::fs::File),
+    Compressed(::compressed_file::Reader),
+}
+impl ::std::io::Read for BackingStorage {
+    fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+        match self {
+        BackingStorage::FlatFile(f) => f.read(buf),
+        BackingStorage::Compressed(f) => f.read(buf),
+        }
+    }
+}
+impl ::std::io::Write for BackingStorage {
+    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+        match self {
+        BackingStorage::FlatFile(f) => f.write(buf),
+        BackingStorage::Compressed(_) => panic!("Writing to compressed file not allowed"),
+        }
+    }
+    
+    fn flush(&mut self) -> std::io::Result<()> {
+        match self {
+        BackingStorage::FlatFile(f) => f.flush(),
+        BackingStorage::Compressed(_) => panic!("Writing to compressed file not allowed"),
+        }
+    }
+    
+}
+impl ::std::io::Seek for BackingStorage {
+    fn seek(&mut self, pos: std::io::SeekFrom) -> std::io::Result<u64> {
+        match self {
+        BackingStorage::FlatFile(f) => f.seek(pos),
+        BackingStorage::Compressed(f) => f.seek(pos),
+        }
+    }
 }
 struct Overlay
 {
@@ -134,6 +174,7 @@ impl Volume
                     base_lh.read(dst)?;
                 }
             }
+            //println!("read_inner({}): {:?}", idx, ::kernel::logging::HexDump(dst));
             Ok( dst.len() / self.block_size )
         }
         else
@@ -147,24 +188,25 @@ impl Volume
     fn write_inner(&self, idx: u64, src: &[u8]) -> ::std::io::Result<usize>
     {
         // Optional write overlay?
-        use ::std::io::{Seek,Write};
-        let mut lh = if let Some(ref overlay) = self.write_overlay
-            {
-                let nblks = src.len() / self.block_size;
-                let mut over_bm = overlay.blocks.lock().unwrap();
-                if (over_bm.len() as u64) < idx + nblks as u64 {
-                    assert!( (idx + nblks as u64) < usize::max_value() as u64 );
-                    over_bm.resize( idx as usize + nblks, false );
-                }
-                over_bm[idx as usize..][..nblks].set_all(true);
-                overlay.fp.lock().unwrap()
+        if let Some(ref overlay) = self.write_overlay
+        {
+            let nblks = src.len() / self.block_size;
+            let mut over_bm = overlay.blocks.lock().unwrap();
+            if (over_bm.len() as u64) < idx + nblks as u64 {
+                assert!( (idx + nblks as u64) < usize::max_value() as u64 );
+                over_bm.resize( idx as usize + nblks, false );
             }
-            else
-            {
-                self.fp.lock().unwrap()
-            };
-        lh.seek(::std::io::SeekFrom::Start( idx * self.block_size as u64 ))?;
-        Ok(lh.write(src)? / self.block_size)
+            over_bm[idx as usize..][..nblks].set_all(true);
+            self.write_raw(&mut *overlay.fp.lock().unwrap(), idx, src)
+        }
+        else
+        {
+            self.write_raw(&mut *self.fp.lock().unwrap(), idx, src)
+        }
+    }
+    fn write_raw(&self, mut f: impl ::std::io::Seek+::std::io::Write, idx: u64, src: &[u8]) -> ::std::io::Result<usize> {
+        f.seek(::std::io::SeekFrom::Start( idx * self.block_size as u64 ))?;
+        Ok(f.write(src)? / self.block_size)
     }
 }
 

@@ -1,50 +1,33 @@
+#
+#
+#
 V ?= @
 D = $
 
 IMGDIR := data/
 TESTFILES := $(IMGDIR)testfiles/
-BIN := ../target/debug/kernel-test-filesystem
+BIN := ../../target/debug/kernel-test-filesystem
 
 .PHONY: build run_tests
-run_tests: testlog_fat.log
-	#printf "add_disk virt0 $(IMGDIR)hda.img temporary\nmkdir / ext2\nmount /ext2 virt0p1\nls /ext2" | cargo run
+run_tests: testlog_fat.log testlog_ext2.log testlog_ntfs.log
+run_tests: testlog_ntfs-2.log
 build: $(BIN)
 
 testlog_%.log: .testcmds_%.txt $(BIN)
-	cargo run < $< | tee $@
-
+	$(BIN) < $< >$@ 2>&1
+#	$(BIN) < $< | tee $@
+	
 .PHONY: $(BIN)
 $(BIN):
 	cargo build
 
+
+.testcmds_%.txt: test_files/%.txt Makefile
+	@cat $< | sed 's~%IMGDIR%~$(IMGDIR)~g' | sed 's~%TESTFILES%~$(TESTFILES)~g' > $@
+
+.testcmds_ntfs-2.txt: Makefile data/ntfs2.zdisk
 .testcmds_ext2.txt: Makefile $(IMGDIR)hda.img $(TESTFILES)bigfile.dat $(TESTFILES)1.txt
-	@echo "add_disk virt0 $(IMGDIR)hda.img temporary" > $@
-	@echo "mkdir /mnt" >> $@
-	@echo "mount /mnt virt0p1" >> $@
-	@echo "ls /mnt" >> $@
-	@echo "readback $(TESTFILES)1.txt /mnt/1.txt" >> $@
-	@echo "store $(TESTFILES)1.txt /mnt/2.txt" >> $@
-	@echo "readback $(TESTFILES)1.txt /mnt/2.txt" >> $@
-	@echo "store $(TESTFILES)bigfile.dat /mnt/a_big_file.dat" >> $@
-	@echo "readback $(TESTFILES)bigfile.dat /mnt/a_big_file.dat" >> $@
-	@echo "ls /mnt" >> $@
-.testcmds_fat.txt: Makefile $(IMGDIR)hda.img $(TESTFILES)bigfile.dat $(TESTFILES)1.txt
-	@echo "add_disk virt0 $(IMGDIR)hda.img temporary" > $@
-	@echo "mkdir /mnt" >> $@
-	@echo "mount /mnt virt0p0" >> $@
-	@echo "ls /mnt" >> $@
-	@echo "readback $(TESTFILES)1.txt /mnt/1.txt" >> $@
-	@echo "store $(TESTFILES)1.txt /mnt/2.txt" >> $@
-	@echo "readback $(TESTFILES)1.txt /mnt/2.txt" >> $@
-	@echo "store $(TESTFILES)bigfile.dat /mnt/a_big_file.dat" >> $@
-	@echo "readback $(TESTFILES)bigfile.dat /mnt/a_big_file.dat" >> $@
-	@echo "ls /mnt" >> $@
-.testcmds_ntfs.txt: Makefile $(IMGDIR)ntfs.img
-	@echo "add_disk virt0 $(IMGDIR)ntfs.img temporary" > $@
-	@echo "mkdir /mnt" >> $@
-	@echo "mount /mnt virt0w" >> $@
-	@echo "ls /mnt" >> $@
-	@echo "hexdump /mnt/$D""Boot" >> $@
+.testcmds_fat.txt: $(TESTFILES)bigfile.dat $(TESTFILES)1.txt
 
 $(IMGDIR)ntfs.img: Makefile
 	@mkdir -p $(dir $@)
@@ -88,7 +71,7 @@ $(IMGDIR)hda.img: Makefile $(IMGDIR)hda_0.img $(IMGDIR)hda_1.img $(IMGDIR)hda_2.
 # Files for extra testing
 $(TESTFILES)1.txt: Makefile
 	@mkdir -p $(dir $@)
-	echo "Test content" > $@
+	$Vecho "Test content" > $@
 $(TESTFILES)bigfile.dat: Makefile
 	@mkdir -p $(dir $@)
-	dd if=/dev/zero of=$@ bs=512 count=7
+	$Vdd if=/dev/zero of=$@ bs=512 count=7

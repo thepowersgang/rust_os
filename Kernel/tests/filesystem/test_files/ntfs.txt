@@ -1,0 +1,5 @@
+add_disk virt0 %IMGDIR%ntfs.img temporary
+mkdir /mnt
+mount /mnt virt0w
+ls /mnt
+hexdump /mnt/$Boot

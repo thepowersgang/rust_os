@@ -1,0 +1,11 @@
+add_disk TEST data/ntfs2.zdisk transient
+mkdir /foo
+mount /foo TESTp0
+ls /foo
+ls /foo/Folder1
+ls /foo/Folder2
+#hexdump /foo/Folder2/test_file.bin
+#hexdump /foo/Folder1/codegen_c.cpp
+hexdump /foo/Folder1/CompressedFile.txt
+crc32 /foo/Folder2/test_file.bin
+crc32 /foo/Folder1/codegen_c.cpp

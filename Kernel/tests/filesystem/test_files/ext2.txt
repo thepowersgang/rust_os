@@ -1,0 +1,10 @@
+add_disk virt0 %IMGDIR%hda.img temporary
+mkdir /mnt
+mount /mnt virt0p1
+ls /mnt
+readback %TESTFILES%1.txt /mnt/1.txt
+store    %TESTFILES%1.txt /mnt/2.txt
+readback %TESTFILES%1.txt /mnt/2.txt
+store    %TESTFILES%bigfile.dat /mnt/a_big_file.dat
+readback %TESTFILES%bigfile.dat /mnt/a_big_file.dat
+ls /mnt

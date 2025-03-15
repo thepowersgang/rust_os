@@ -1,0 +1,1 @@
+- `ntfs2.zdisk` A compressed 1GB NTFS volume created on Windows 7, contains a compressed file and some other random files
