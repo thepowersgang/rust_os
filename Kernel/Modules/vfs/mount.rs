@@ -6,7 +6,7 @@
 use ::kernel::prelude::*;
 use super::path::Path;
 use super::node::{InodeId,Node};
-use super::node_cache::{CacheHandle};
+use super::node_cache::CacheHandle;
 use ::kernel::sync::RwLock;
 use ::kernel::lib::{LazyStatic,SparseVec,VecMap};
 
@@ -106,7 +106,10 @@ pub fn mount(location: &Path, vol: VolumeHandle, fs: &str, _options: &[&str]) ->
 		let fs: Box<_> = match driver.mount(vol, SelfHandle(0))
 			{
 			Ok(v) => v,
-			Err(_) => return Err(MountError::CallFailed),
+			Err(e) => {
+				log_error!("Mount failure: {:?}", e);
+				return Err(MountError::CallFailed)
+				},
 			};
 		let mut lh = S_ROOT_VOLUME.write();
 		if lh.is_some() {
@@ -136,7 +139,10 @@ pub fn mount(location: &Path, vol: VolumeHandle, fs: &str, _options: &[&str]) ->
 		let fs = match driver.mount(vol, SelfHandle(vidx))
 			{
 			Ok(v) => v,
-			Err(_) => return Err(MountError::CallFailed),
+			Err(e) => {
+				log_error!("Mount failure: {:?}", e);
+				return Err(MountError::CallFailed)
+				},
 			};
 
 		// 5. Store and bind to mountpoint

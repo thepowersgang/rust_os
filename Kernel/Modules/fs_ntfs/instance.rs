@@ -98,7 +98,7 @@ impl Instance
 		{
 			assert!(buf.len() % block_size == 0, "apply_sequence_fixups: Passed a buffer not a multiple of volume blocks long"); 
 			let (buf1, buf2) = buf.split_at_mut(block_size);
-			let usa = (get_usa)(buf1).ok_or(::vfs::Error::InconsistentFilesystem)?;
+			let usa = (get_usa)(buf1).ok_or_else(|| { log_error!("get_usa failed"); ::vfs::Error::InconsistentFilesystem })?;
 			let exp_val = usa.sequence_number();
 			let mut usa_it = usa.array();
 			let s0_last_word = usa_it.next().ok_or(::vfs::Error::InconsistentFilesystem)?;
@@ -129,7 +129,13 @@ impl Instance
 		else
 		{
 			// Call the getter, just so the error is triggered if needed
-			(get_usa)(buf).ok_or(::vfs::Error::InconsistentFilesystem)?;
+			match (get_usa)(buf) {
+			Some(_) => {},
+			None => {
+				log_error!("apply_sequence_fixups: `get_usa` failed");
+				return Err(::vfs::Error::InconsistentFilesystem);
+				}
+			};
 		}
 		Ok( () )
 	}
@@ -264,7 +270,9 @@ impl Instance
 
 		// Apply sequence number fixups
 		//log_debug!("{:?}", ::kernel::logging::HexDump(&*buf));
-		self.apply_sequence_fixups(buf, &|buf1| ondisk::MftEntry::new_borrowed(buf1).map(|ent| ent.update_sequence()))?;
+		self.apply_sequence_fixups(buf, &|buf1| {
+			ondisk::MftEntry::new_borrowed(buf1).map(|ent| ent.update_sequence())
+			})?;
 		//log_debug!("{:?}", ::kernel::logging::HexDump(&*buf));
 
 		// SAFE: `MftEntry` and `[u8]` have the same representation

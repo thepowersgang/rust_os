@@ -59,7 +59,7 @@ impl storage::Mapper for Mapper
 		// SAFE: Plain old data
 		let mut block: [u8; 512] = unsafe { ::core::mem::zeroed() };
 		crate::futures::block_on( pv.read(0, 0, 1, &mut block) )?;
-		if !(block[510] == 0x55 && block[511] == 0xAA) {
+		if !(block[0x1FE] == 0x55 && block[0x1FE+1] == 0xAA) {
 			return Err( storage::IoError::InvalidParameter );
 		}
 		

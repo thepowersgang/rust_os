@@ -121,6 +121,7 @@ impl UpdateSequence {
 	}
 	fn from_subslice(v: &[u8], ofs: u16, num_words: u16) -> Option<&Self> {
 		if ofs as usize >= v.len() {
+			log_warning!("UpdateSequence::from_subslice: Offset {} >= len {}", ofs, v.len());
 			return None;
 		}
 		let v = v.get(ofs as usize..)?;
@@ -158,11 +159,13 @@ delegate!{ MftEntry -> MftEntryHeader =>
 impl MftEntry {
 	pub fn new_borrowed(v: &[u8]) -> Option<&Self> {
 		if v.len() < ::core::mem::size_of::<raw::MftEntryHeader>() {
+			log_warning!("MftEntry::new_borrowed: Under-sized {} < {}", v.len(), ::core::mem::size_of::<raw::MftEntryHeader>());
 			return None;
 		}
 		// SAFE: Same repr
 		let rv: &Self = unsafe { ::core::mem::transmute(v) };
 		if rv.first_attrib_ofs() as usize >= v.len() {
+			log_warning!("MftEntry::new_borrowed: Malformed - first_attrib_ofs={} >= {}", rv.first_attrib_ofs(), v.len());
 			return None;
 		}
 		UpdateSequence::from_subslice(v, rv.update_sequence_ofs(), rv.update_sequence_size())?;
