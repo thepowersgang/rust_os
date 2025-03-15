@@ -41,6 +41,8 @@ impl BusDev
 		let card = card::Card::new(io)?;
 		
 		let card_nic_reg = ::network::nic::register(mac_addr, card);
+		// SAFE: Will not outlive... because there's never a NIC unregistration
+		let log_sink = unsafe { card::log_sink::LogHandler::new(&card_nic_reg) };
 		let irq_handle = {
 			struct RawSend<T: Send>(*const T);
 			unsafe impl<T: Send> Send for RawSend<T> {}
@@ -58,6 +60,9 @@ impl BusDev
 			card_nic_reg.write_8(Regs::CR, 0x0C);
 		}
 
+
+		::kernel::logging::register_net(log_sink);
+
 		Ok(BusDev {
 			_nic_registration: card_nic_reg,
 			_irq_handle: irq_handle
@@ -66,4 +71,9 @@ impl BusDev
 }
 impl ::kernel::device_manager::DriverInstance for BusDev
 {
+}
+impl Drop for BusDev {
+	fn drop(&mut self) {
+		todo!("Unregister from network")
+	}
 }

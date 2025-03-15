@@ -65,13 +65,34 @@ pub struct HexDump<'a,T: ?Sized + 'a>(pub &'a T);
 /// Wrapper around a `&[u8]` to print it as an escaped byte string
 pub struct RawString<'a>(pub &'a [u8]);
 
-static S_LOGGING_LOCK: Spinlock<Sinks> = Spinlock::new( Sinks { serial: serial::Sink, memory: None, video: None } );
+static S_LOGGING_LOCK: Spinlock<Sinks> = Spinlock::new( Sinks {
+	serial: serial::Sink,
+	memory: None,
+	video: None,
+	network: [const { None }; 4],
+} );
 
 pub fn acquire_lock_cpu() -> Option<impl Sync> {
 	S_LOGGING_LOCK.try_lock_cpu()
 }
 pub fn register_gui(v: impl Sink+Send+Sync+'static) {
 	S_LOGGING_LOCK.lock().video = Some(video::Sink::new(v));
+}
+pub fn register_net(v: impl Sink+Send+Sync+'static) {
+	let Ok(v) = ::stack_dst::ValueA::new(v) else {
+		log_error!("register_net: Failure - doesn't fit in StackDST");
+		return ;
+	};
+	{
+		let mut lh = S_LOGGING_LOCK.lock();
+		for s in &mut lh.network {
+			if s.is_none() {
+				*s = Some(v);
+				return;
+			}
+		}
+	}
+	log_error!("register_net: Failure - no slots");
 }
 
 pub trait Sink
@@ -88,6 +109,7 @@ struct Sinks
 	serial: serial::Sink,
 	memory: Option<memory::Sink>,
 	video: Option<video::Sink>,
+	network: [Option<::stack_dst::ValueA<dyn Sink + Send+Sync, [usize; 3]>>; 4],
 }
 
 mod serial
@@ -109,31 +131,31 @@ mod serial
 			crate::arch::puts(s);
 		}
 		fn end(&mut self) {
-			crate::arch::puts("\x1b[0m\n");
+			self.write("\x1b[0m\n");
 		}
 	}
 	impl fmt::Write for Sink
 	{
 		fn write_str(&mut self, s: &str) -> fmt::Result {
-			crate::arch::puts(s);
+			super::Sink::write(self, s);
 			Ok( () )
 		}
 	}
 	impl Sink
 	{
 		/// Set the output colour of the formatter
-		pub(super) fn set_colour(&self, colour: Colour) {
-			match colour
-			{
-			Colour::Default => crate::arch::puts("\x1b[0000m"),
-			Colour::Red     => crate::arch::puts("\x1b[0031m"),
-			Colour::Green   => crate::arch::puts("\x1b[0032m"),
-			Colour::Yellow  => crate::arch::puts("\x1b[0033m"),
-			Colour::Blue    => crate::arch::puts("\x1b[0034m"),
-			Colour::Purple  => crate::arch::puts("\x1b[0035m"),
-			//Colour::Grey    => crate::arch::puts("\x1b[1;30m"),
-			Colour::Grey    => crate::arch::puts("\x1b[0000m"),
-			}
+		pub(super) fn set_colour(&mut self, colour: Colour) {
+			super::Sink::write(self, match colour
+				{
+				Colour::Default => "\x1b[0000m",
+				Colour::Red     => "\x1b[0031m",
+				Colour::Green   => "\x1b[0032m",
+				Colour::Yellow  => "\x1b[0033m",
+				Colour::Blue    => "\x1b[0034m",
+				Colour::Purple  => "\x1b[0035m",
+				//Colour::Grey    => "\x1b[1;30m",
+				Colour::Grey    => "\x1b[0000m",
+				});
 		}
 	}
 }

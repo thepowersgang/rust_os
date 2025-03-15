@@ -44,7 +44,7 @@ impl super::Card
 		}
 		self.rx_desc_head_hw.store(pos.0, Ordering::Relaxed);
 		if looped {
-			if let Some(ref v) = *self.rx_waiter_handle.lock() {
+			if let Some(ref v) = self.rx_waiter_handle.take() {
 				v.signal();
 			}
 		}

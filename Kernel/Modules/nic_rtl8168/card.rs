@@ -5,6 +5,7 @@ use crate::hw::Regs;
 
 mod tx;
 mod rx;
+pub(crate) mod log_sink;
 
 const DESC_COUNT: usize = ::kernel::PAGE_SIZE / 16;
 const RX_BUF_PER_PAGE: usize = 4;
@@ -23,9 +24,16 @@ pub struct Card
 	/// TX descriptors
 	tx_descs: ::kernel::memory::virt::ArrayHandle<[::core::sync::atomic::AtomicU32; 4]>,
 
+	/// Logging TX buffer/descs
+	log_page: ::kernel::memory::virt::AllocHandle,
+	/// Current logging desc/buffer index
+	log_cur_buf: ::core::sync::atomic::AtomicU8,
+
+	/// Sleep object handles for each TX descriptor
 	tx_sleepers: [::kernel::threads::AtomicSleepObjectRef; DESC_COUNT],
 
-	rx_waiter_handle: ::kernel::sync::Spinlock<Option<::kernel::threads::SleepObjectRef>>,
+	/// Sleep object reference for the network stack's sleeper
+	rx_waiter_handle: ::kernel::threads::AtomicSleepObjectRef,
 	/// Next descriptor to be used by the hardware
 	/// 
 	/// Updated by the interrupt handler
@@ -56,8 +64,10 @@ impl Card
 			rx_desc_head_hw: AtomicU16::new(0),
 			tx_desc_head_hw: AtomicU16::new(0),
 			tx_desc_head_os: AtomicU16::new(0),
-			rx_waiter_handle: ::kernel::sync::Spinlock::new(None),
+			rx_waiter_handle: ::kernel::threads::AtomicSleepObjectRef::new(),
 			tx_sleepers: [const { ::kernel::threads::AtomicSleepObjectRef::new() }; DESC_COUNT],
+			log_page: ::kernel::memory::virt::alloc_dma(64, 1, "nic_rtl8168")?,
+			log_cur_buf: Default::default(),
 			};
 		
 		// Fill the Rx descriptors with buffer addresses
@@ -153,13 +163,14 @@ impl ::network::nic::Interface for Card {
 	}
 
 	fn rx_wait_register(&self, channel: &kernel::threads::SleepObject) {
-		*self.rx_waiter_handle.lock() = Some(channel.get_ref());
+		self.rx_waiter_handle.set(channel.get_ref());
 	}
 
 	fn rx_wait_unregister(&self, channel: &kernel::threads::SleepObject) {
-		let mut lh = self.rx_waiter_handle.lock();
-		match *lh {
-		Some(ref v) if v.is_from(channel) => *lh = None,
+		let lh = self.rx_waiter_handle.take();
+		match lh {
+		Some(ref v) if v.is_from(channel) => {},
+		Some(v) => self.rx_waiter_handle.set(v),
 		_ => {},
 		}
 	}
