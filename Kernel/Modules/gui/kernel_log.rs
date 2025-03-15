@@ -91,7 +91,7 @@ pub fn init()
 						let max_dims = bh.dims();
 						S_BUFFER_HANDLE.set( bh );
 						kl.logo_wh.set_pos(Pos::new(max_dims.w-kl.logo_wh.get_dims().w, 0));
-						commands::redraw(&cmd);
+						commands::redraw(&kl.main_wh, &cmd);
 					},
 					Event::KeyDown(_) => {},
 					Event::KeyUp(_) => {},
@@ -102,7 +102,7 @@ pub fn init()
 						KeyCode::Return => {
 							commands::process(&cmd);
 							cmd.clear();
-							commands::redraw(&cmd);
+							commands::redraw(&kl.main_wh, &cmd);
 						},
 						KeyCode::Backsp => {
 						},
@@ -110,8 +110,9 @@ pub fn init()
 						}
 					},
 					Event::Text(translated_key) => {
-						cmd.push_str(::core::str::from_utf8(&translated_key).unwrap_or(""));
-						commands::redraw(&cmd);
+						let len = translated_key.iter().position(|v| *v==0).unwrap_or(translated_key.len());
+						cmd.push_str(::core::str::from_utf8(&translated_key[..len]).unwrap_or(""));
+						commands::redraw(&kl.main_wh, &cmd);
 					},
 					Event::MouseMove(_, _, _, _)
 					|Event::MouseDown(_, _, _)
@@ -140,17 +141,19 @@ pub fn init()
 mod commands {
 	use super::{S_BUFFER_HANDLE,C_CELL_DIMS,Colour,CharPos,KernelLog};
 	use super::UnicodeCombining;
-	pub(super) fn redraw(cmd: &str)
+	pub(super) fn redraw(main_wh: &crate::windows::WindowHandle, cmd: &str)
 	{
 		let Some(bh) = S_BUFFER_HANDLE.get() else { return };
 		let cell_h = C_CELL_DIMS.h as usize;
 		let h = bh.dims().h as usize;
 		for line in h - cell_h .. h {
-			bh.fill_scanline(line, 0, bh.dims().w as usize, Colour::def_gray());
+			bh.fill_scanline(line, 0, bh.dims().w as usize, Colour::def_black());
 		}
 
 		let mut pos = CharPos( (h / cell_h - 1) as u32, 0 );
 		let colour = Colour::def_white();
+		KernelLog::render_char(&bh, pos, colour, '>'); pos = pos.next();
+		KernelLog::render_char(&bh, pos, colour, ' '); pos = pos.next();
 		for c in cmd.chars() {
 			// If the character was a combining AND it's not at the start of a line,
 			// render atop the previous cell
@@ -163,6 +166,7 @@ mod commands {
 				pos = pos.next();
 			}
 		}
+		main_wh.redraw_lazy();
 	}
 
 	pub(super) fn process(cmd: &str)
@@ -263,13 +267,14 @@ impl KernelLog
 		let mut line_no = S_CURRENT_LINE.fetch_add(1, Ordering::Relaxed);
 		// NOTE: This should be safe, as this function is only called with the global logging lock held
 		// NOTE: The -1 is because the final row is the prompt
-		while line_no >= bh.dims().h / C_CELL_DIMS.h - 1 {
+		let scroll_bot_cells = (bh.dims().h / C_CELL_DIMS.h) - 1;
+		let scroll_bot = scroll_bot_cells as usize * C_CELL_DIMS.h as usize;
+		while line_no >= scroll_bot_cells {
 			let n_rows = 1;
 			let scroll_px = (n_rows * C_CELL_DIMS.h) as usize;
-			let h = bh.dims().h as usize;
-			bh.copy_internal(0, scroll_px, 0, 0, bh.dims().w as usize, h - scroll_px);
-			for line in h - scroll_px .. h {
-				bh.fill_scanline(line, 0, bh.dims().w as usize, Colour::def_gray());
+			bh.copy_internal(0, scroll_px, 0, 0, bh.dims().w as usize, scroll_bot - scroll_px);
+			for line in scroll_bot - scroll_px .. scroll_bot {
+				bh.fill_scanline(line, 0, bh.dims().w as usize, Colour::def_black());
 			}
 			line_no = S_CURRENT_LINE.fetch_sub(n_rows, Ordering::Relaxed) - n_rows;
 		}
