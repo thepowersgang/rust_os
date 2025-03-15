@@ -376,6 +376,7 @@ impl Instance
 			// Keep consuming runs until the destination is empty
 			while dst.len() > 0
 			{
+				assert!(cur_vcn >= runbase_vcn, "cur_vcn({}) >= runbase_vcn({})", cur_vcn, runbase_vcn);
 				let Some(cur_run) = runs.next() else {
 					// Filled with zeroes? Or invalid parameter?
 					todo!("Handle reading past the end of the populated runs");
@@ -415,10 +416,11 @@ impl Instance
 						let run_lcn = cur_run.lcn.expect("CompressionRun::Raw with sparse run");
 
 						if dst.len() == 0 {
-							break;
+							break ;
 						}
 
 						// VCN within the run
+						assert!(cur_vcn >= irunbase_vcn, "cur_vcn({}) >= irunbase_vcn({})", cur_vcn, irunbase_vcn);
 						let rel_vcn = cur_vcn - irunbase_vcn;
 						// Number of clusters available in the run
 						let cluster_count = cur_run.cluster_count - rel_vcn;
@@ -438,9 +440,21 @@ impl Instance
 
 						irunbase_vcn += cur_run.cluster_count;
 						cur_vcn += cluster_count;
+						assert!(cur_vcn == irunbase_vcn);
 						cur_ofs = 0;
 					}
+					let n_zeroes = crun_cluster_count - (irunbase_vcn - runbase_vcn);
+					if n_zeroes > 0 {
+						for _ in 0 .. n_zeroes {
+							let len = self.cluster_size_bytes();
+							let buf = ::kernel::lib::split_off_front_mut(&mut dst, len).unwrap();
+							buf.fill(0);
+							cur_vcn += 1;
+							irunbase_vcn += 1;
+						}
+					}
 					runbase_vcn += crun_cluster_count;
+					assert!(cur_vcn == runbase_vcn, "{cur_vcn} != {runbase_vcn}, len={}", dst.len());
 					},
 				CompressionRun::Compressed(uncompressed_count, compressed_count, iter) => {
 					log_debug!("Compressed +{}", compressed_count);
@@ -559,17 +573,19 @@ impl<T: ?Sized + Send + Sync> MftCacheEnt<T>
 /// An evil hack to get a `Arc<Wrapper<MftEntry>>`
 fn new_mft_cache_ent(mft_size: usize) -> Option< ::kernel::lib::mem::Arc<MftCacheEnt<[u8]>> > {
 	use ::kernel::lib::mem::Arc;
-	type I = Arc<MftCacheEnt<[u8]>>;
+	fn new_ce<const N: usize>() -> Arc<MftCacheEnt<[u8]>> {
+		Arc::new(MftCacheEnt::new([0u8; N]))
+	}
 	let rv = match mft_size.next_power_of_two().ilog2()
 		{
 		0 ..= 4 |
-		5  => { Arc::new(MftCacheEnt::new([0u8; 1<< 5])) as I },	// 32
-		6  => { Arc::new(MftCacheEnt::new([0u8; 1<< 6])) as I },
-		7  => { Arc::new(MftCacheEnt::new([0u8; 1<< 7])) as I },
-		8  => { Arc::new(MftCacheEnt::new([0u8; 1<< 8])) as I },
-		9  => { Arc::new(MftCacheEnt::new([0u8; 1<< 9])) as I },	// 512
-		10 => { Arc::new(MftCacheEnt::new([0u8; 1<<10])) as I },
-		11 => { Arc::new(MftCacheEnt::new([0u8; 1<<11])) as I },	// 2048
+		5  => new_ce::<{1<< 5}>(),	// 32
+		6  => new_ce::<{1<< 6}>(),
+		7  => new_ce::<{1<< 7}>(),
+		8  => new_ce::<{1<< 8}>(),
+		9  => new_ce::<{1<< 9}>(),	// 512
+		10 => new_ce::<{1<<10}>(),
+		11 => new_ce::<{1<<11}>(),	// 2048
 		_ => return None,
 		};
 	Some(rv)
