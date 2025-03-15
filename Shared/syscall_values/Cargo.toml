@@ -1,6 +1,7 @@
 [package]
 name = "syscall_values"
 version = "0.0.0"
+edition = "2015"
 
 [lib]
 path = "syscall_values.rs"
