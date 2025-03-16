@@ -126,7 +126,7 @@ impl LogHandler {
 		// Update the hardware
 		// SAFE: Just a flag to the device
 		unsafe {
-			c.write_8(crate::hw::Regs::TPPoll, 0x40);
+			c.write_8(crate::hw::Regs::TPPoll, 1<<7);	// TPPoll.HPQ
 		}
 	}
 }
