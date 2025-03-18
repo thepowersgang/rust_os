@@ -1,3 +1,4 @@
+/// Implementation of the `HostController` trait for XHCI
 
 use ::usb_core::host;
 use ::usb_core::host::{Handle,EndpointAddr};
@@ -172,40 +173,3 @@ fn make_asyncwaitio<'a, T>(f: impl ::core::future::Future<Output=T> + Send + Syn
 			)
 }
 
-
-fn iter_contiguous_phys(data: &[u8]) -> impl Iterator<Item=(u64, u16, bool)> + '_ {
-	struct V<'a> {
-		data: &'a [u8],
-		remain: usize,
-		ofs: usize,
-	}
-	impl<'a> ::core::iter::Iterator for V<'a> {
-		type Item = (u64, u16, bool);
-		fn next(&mut self) -> Option<Self::Item> {
-			use ::kernel::memory::virt::get_phys;
-			assert!(self.ofs <= self.data.len(), "{}+{} > {}", self.ofs, self.remain, self.data.len());
-			if self.ofs == self.data.len() {
-				return None;
-			}
-
-			while self.ofs+self.remain < self.data.len() && get_phys(&self.data[self.ofs+self.remain]) == get_phys(self.data.as_ptr()) + self.remain as u64 {
-				if self.ofs+self.remain + 0x1000 < self.data.len() {
-					self.remain = self.data.len() - self.ofs;
-				}
-				else {
-					self.remain += 0x1000;
-				}
-			}
-			let is_last = self.ofs + self.remain == self.data.len();
-			let rv = (get_phys(&self.data[self.ofs]), self.remain as _, is_last,);
-			self.ofs += self.remain;
-			self.remain = 0;
-			Some(rv)
-		}
-	}
-	V {
-		data,
-		ofs: 0,
-		remain: usize::min(0x1000 - (data.as_ptr() as usize & 0xFFF), data.len() ),
-	}
-}

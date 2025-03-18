@@ -1,5 +1,6 @@
 use ::usb_core::host;
 
+/// Device0 - A special ControlEndpoint for device ID0 (uninitialised device)
 pub(crate) struct Device0 {
 	host: crate::HostRef,
 }

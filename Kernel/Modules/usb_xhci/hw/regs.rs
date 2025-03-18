@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 
 /// Controller registers
 pub struct Regs
@@ -69,14 +70,14 @@ impl Regs
 
 	/// Offset of the doorbell registers (relative to base)
 	/// NOTE: The value is 4 byte aligned
-	#[cfg(false_)]	// Already read
+	#[cfg(any())]	// Already read
 	pub fn dboff(&self) -> u32 {
 		// SAFE: Read-only register
 		unsafe { self.io.read_32(0x14) }
 	}
 	/// Offset of the Runtime Registers (relative to base)
 	/// NOTE: The value is 32-byte aligned
-	#[cfg(false_)]	// Already read
+	#[cfg(any())]	// Already read
 	pub fn rtsoff(&self) -> u32 {
 		// SAFE: Read-only register
 		unsafe { self.io.read_32(0x18) }

@@ -38,6 +38,7 @@ pub enum Event {
 	},
 	MfindexWrap {
 	},
+	#[allow(dead_code)]
 	Unk(crate::hw::structs::Trb),
 }
 impl Event {
@@ -140,7 +141,7 @@ where
 		}
 		rv
 	}
-	#[cfg(false_)]
+	#[cfg(any())]
 	pub fn wait_sync(&self, regs: &crate::hw::Regs) -> Event {
 		if let Some(v) = self.poll(regs) {
 			return v;

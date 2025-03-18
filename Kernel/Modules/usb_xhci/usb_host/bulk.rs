@@ -1,5 +1,6 @@
 use ::usb_core::host;
 use crate::hw::structs as hw_structs;
+use ::kernel::memory::helpers::iter_contiguous_phys;
 
 type Error = ::kernel::memory::virt::MapError;
 
@@ -67,7 +68,7 @@ impl host::BulkEndpointIn for BulkIn {
 		{
 			let mut state = self.host.push_ep_trbs(self.addr, self.index);
 			
-			for (paddr, len, is_last) in super::iter_contiguous_phys(buffer) {
+			for (paddr, len, is_last) in iter_contiguous_phys(buffer) {
 				// SAFE: Trusting ourselves to wait until the hardware is done
 				unsafe {
 					state.push(get_data(true, hw_structs::TrbNormalData::Pointer(paddr), len as u32, is_last));
@@ -91,7 +92,7 @@ impl host::BulkEndpointOut for BulkOut {
 			let mut state = self.host.push_ep_trbs(self.addr, self.index);
 			
 			// TODO: Try to use inline? Probably not worth it on bulk
-			for (paddr, len, is_last) in super::iter_contiguous_phys(buffer) {
+			for (paddr, len, is_last) in iter_contiguous_phys(buffer) {
 				// SAFE: Trusting ourselves to wait until the hardware is done
 				unsafe {
 					state.push(get_data(false, hw_structs::TrbNormalData::Pointer(paddr), len as u32, is_last));

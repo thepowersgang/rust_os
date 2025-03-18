@@ -30,11 +30,13 @@ impl device_manager::Driver for PciDriver {
 }
 
 
-struct BusDev(::kernel::lib::mem::aref::Aref<super::HostInner>);
+struct BusDev {
+	_inner: ::kernel::lib::mem::aref::Aref<super::HostInner>,
+}
 impl BusDev
 {
 	fn new(irq: u32, io: ::kernel::device_manager::IOBinding) -> Result<Self, ::kernel::device_manager::DriverBindError> {
-		Ok(BusDev(super::HostInner::new_aref(irq, io)?))
+		Ok(BusDev { _inner: super::HostInner::new_aref(irq, io)? })
 	}
 }
 impl ::kernel::device_manager::DriverInstance for BusDev

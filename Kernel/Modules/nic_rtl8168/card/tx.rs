@@ -10,7 +10,7 @@ impl super::Card {
 		let n_desc = {
 			let mut n_desc = 0;
 			for extent in &pkt {
-				for _ in IterPhysExtents::new(extent) {
+				for _ in ::kernel::memory::helpers::iter_contiguous_phys(extent) {
 					n_desc += 1;
 				}
 			}
@@ -55,10 +55,11 @@ impl super::Card {
 				let mut cur_desc = first_desc;
 				// - Fill buffer addresses
 				for extent in &pkt {
-					for (paddr,len) in IterPhysExtents::new(extent) {
+					for (paddr,len, _is_last) in ::kernel::memory::helpers::iter_contiguous_phys(extent) {
+						assert!(len <= u16::MAX as u32);
 						self.fill_tx_desc(cur_desc, hw::TxDesc {
 								tx_buffer_addr: paddr,
-								frame_length: len,
+								frame_length: len as u16,
 								flags3: 0,
 								vlan_info: 0,
 							});
@@ -138,44 +139,5 @@ impl TxDescIdx {
 	}
 	fn prev(self) -> Self {
 		TxDescIdx(if self.0 == 0 { DESC_COUNT as u16 - 1 } else { self.0 - 1 })
-	}
-}
-
-struct IterPhysExtents<'a> {
-	remain: &'a [u8],
-}
-impl IterPhysExtents<'_> {
-	fn new(v: &[u8]) -> IterPhysExtents {
-		IterPhysExtents { remain: v }
-	}
-}
-impl Iterator for IterPhysExtents<'_> {
-	type Item = (u64,u16);
-	fn next(&mut self) -> Option<Self::Item> {
-		use ::kernel::memory::virt::get_phys;
-		if self.remain.is_empty() {
-			None
-		}
-		else {
-			let a = get_phys(self.remain.as_ptr());
-			let space = ::kernel::PAGE_SIZE - (a as usize) % ::kernel::PAGE_SIZE;
-			if space >= self.remain.len() {
-				self.remain = &[];
-				Some((a, self.remain.len() as u16))
-			}
-			else {
-				let mut rv_len = space as u16;
-				self.remain = &self.remain[space..];
-				while !self.remain.is_empty() && rv_len < u16::MAX && a + rv_len as u64 == get_phys(self.remain.as_ptr()) {
-					// Contigious physical, so can advance rv.1
-					let space = ::kernel::PAGE_SIZE;
-					let space = space.min( (u16::MAX - rv_len) as usize );
-					let space = space.min( self.remain.len() );
-					self.remain = &self.remain[space..];
-					rv_len += space as u16;
-				}
-				Some((a, rv_len))
-			}
-		}
 	}
 }

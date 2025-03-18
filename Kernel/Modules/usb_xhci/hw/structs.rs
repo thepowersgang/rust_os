@@ -90,7 +90,7 @@ impl TrbCompletionCode {
 }
 
 /// Generic TRB (Transfer Buffer)
-#[derive(Copy,Clone,Debug)]
+#[derive(Copy,Clone)]
 #[repr(C)]
 pub struct Trb
 {
@@ -102,6 +102,12 @@ pub struct Trb
 	/// - Bits 10:15 are the type
 	// Contains the type, must be written last
 	pub word3: u32,
+}
+impl ::core::fmt::Debug for Trb {
+	fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+		write!(f, "Trb {{ {:#x} / {:#x} / {:#x} / {:#x}  }}",
+			self.word0, self.word1, self.word2, self.word3)
+	}
 }
 impl Trb {
 	pub (crate) fn set_cycle(&mut self, cycle: bool) {
@@ -466,6 +472,7 @@ impl SlotContext {
 }
 
 #[repr(u8)]
+#[allow(dead_code)]
 pub enum EndpointType {
 	_Reserved,
 	IsochOut,

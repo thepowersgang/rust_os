@@ -30,40 +30,6 @@ fn init()
 	::kernel::device_manager::register_driver(&PCI_DRIVER);
 }
 
-#[derive(Default)]
-struct AtomicBitset256([::core::sync::atomic::AtomicU32; 256/32]);
-impl AtomicBitset256 {
-	pub fn set(&self, idx: u8) {
-		use ::core::sync::atomic::Ordering;
-		self.0[idx as usize / 32].fetch_or(1 << idx%32, Ordering::SeqCst);
-	}
-	pub fn get_first_set_and_clear(&self) -> Option<usize> {
-		use ::core::sync::atomic::Ordering;
-		for (i,s) in self.0.iter().enumerate() {
-			let v = s.load(Ordering::SeqCst);
-			if v != 0 {
-				let j = v.trailing_zeros() as usize;
-				let bit = 1 << j;
-				if s.fetch_and(!bit, Ordering::SeqCst) & bit != 0 {
-					return Some(i*32 + j);
-				}
-			}
-		}
-		None
-	}
-	#[cfg(false_)]
-	pub fn iter_set_and_clear(&self) -> impl Iterator<Item=usize> + '_ {
-		use ::core::sync::atomic::Ordering;
-		self.0.iter().enumerate()
-			// Load/clear each word
-			.map(|(i,v)| (i,v.swap(0, Ordering::SeqCst)))
-			// Convert into (Index,IsSet)
-			.flat_map(|(j,v)| (0..32).map(move |i| (j*32+i, (v >> i) & 1 != 0) ))
-			// Yield only the indexes of set bits
-			.filter_map(|(idx,isset)| if isset { Some(idx) } else { None })
-	}
-}
-
 type HostRef = ArefBorrow<HostInner>;
 struct HostInner {
 	regs: hw::Regs,
@@ -99,7 +65,7 @@ impl HostInner
 	/// Construct a new instance
 	fn new_aref(irq: u32, io: ::kernel::device_manager::IOBinding) -> Result<Aref<Self>, ::kernel::device_manager::DriverBindError>
 	{
-		log_debug!("new_boxed(irq={irq}, io={io:?}");
+		log_debug!("new_aref(irq={irq}, io={io:?}");
 		// SAFE: This function is only called with a valid register binding
 		let regs = unsafe { hw::Regs::new(io) };
 
@@ -109,8 +75,8 @@ impl HostInner
 		unsafe {
 			regs.write_usbcmd(hw::regs::USBCMD_HCRST);
 		}
+		// TODO: Sleep with timeout
 		while regs.usbsts() & hw::regs::USBSTS_CNR != 0 {
-			// TODO: Sleep with timeout
 			::kernel::futures::block_on(::kernel::futures::msleep(5));
 		}
 
@@ -169,8 +135,7 @@ impl HostInner
 			log_debug!("-/- TESTING COMMAND -/-");
 		}
 		
-		// TODO: Determine how to prepare the already-connected ports
-		// - Should they generate an interrupt when interrupts are enabled? or just pre-scan?
+		// Enumerate ports and if they're connected (CCS set) then flag for update.
 		for p in 0 .. rv.regs.max_ports()
 		{
 			log_debug!("Port Status #{}: {:#x}", 1+p, rv.regs.port(p).sc());
@@ -192,50 +157,12 @@ impl HostInner
 			if sts & hw::regs::USBSTS_HCE != 0 {
 				todo!("Host controller error raised!");
 			}
+			if sts & hw::regs::USBSTS_PCD != 0 {
+				todo!("Port change detect");
+			}
 			if sts & hw::regs::USBSTS_EINT != 0 {
 				h |= hw::regs::USBSTS_EINT;
-				// Signal any waiting
-				self.event_ring_zero.check_int(&self.regs);
-				while let Some(ev) = self.event_ring_zero.poll(&self.regs) {
-					use event_ring::Event;
-					match ev
-					{
-					Event::PortStatusChange { port_id, completion_code: _ } => {
-						// Port IDs are indexed from 1
-						self.port_update.set(port_id - 1);
-						self.port_update_waker.lock().wake_by_ref();
-						},
-					Event::CommandCompletion { trb_pointer, completion_code, param: _param, slot_id, vf_id: _vf_id } => {
-						let ty = self.command_ring.lock().get_command_type(trb_pointer);
-						if let crate::hw::structs::TrbCompletionCode::Success = completion_code {
-							log_trace!("CommandCompletion {:#x} {:?}: SUCCESS", trb_pointer, ty);
-							match ty
-							{
-							Some(hw::structs::TrbType::NoOpCommand) => {
-								},
-							Some(hw::structs::TrbType::EnableSlotCommand) => {
-								self.slot_enable_idx.store(slot_id, ::core::sync::atomic::Ordering::SeqCst);
-								self.slot_enable_ready.trigger();
-								},
-							Some(hw::structs::TrbType::AddressDeviceCommand) => {
-								self.slot_enable_ready.trigger();
-								}
-							Some(hw::structs::TrbType::ConfigureEndpointCommand) => {
-								self.slot_events[slot_id as usize - 1].configure.post();
-								},
-							_ => {},
-							}
-						}
-						else {
-							log_error!("CommandCompletion {:#x} {:?}: Not success, {:?}", trb_pointer, ty, completion_code);
-						}
-						},
-					Event::Transfer { data, transfer_length, completion_code, slot_id, endpoint_id } => {
-						self.slot_events[slot_id as usize - 1].endpoints[endpoint_id as usize - 1].store( (data, transfer_length, completion_code) );
-						},
-					_ => {},
-					}
-				}
+				self.handle_irq_eint();
 			}
 			if h != sts {
 				todo!("Unhandled interrupt bit {:#x}", sts ^ h);
@@ -246,5 +173,89 @@ impl HostInner
 		else {
 			false
 		}
+	}
+
+	/// Handle a USBSTS_EINT interrupt
+	fn handle_irq_eint(&self)
+	{
+		self.event_ring_zero.check_int(&self.regs);
+		while let Some(ev) = self.event_ring_zero.poll(&self.regs) {
+			use event_ring::Event;
+			match ev
+			{
+			Event::PortStatusChange { port_id, completion_code } => {
+				if completion_code != 1 {
+					// Huh, it should be set to SUCCESS
+				}
+				// Port IDs are indexed from 1
+				self.port_update.set(port_id - 1);
+				self.port_update_waker.lock().wake_by_ref();
+				},
+			Event::CommandCompletion { trb_pointer, completion_code, param: _param, slot_id, vf_id: _vf_id } => {
+				let ty = self.command_ring.lock().get_command_type(trb_pointer);
+				if let crate::hw::structs::TrbCompletionCode::Success = completion_code {
+					log_trace!("CommandCompletion {:#x} {:?}: SUCCESS", trb_pointer, ty);
+					match ty
+					{
+					Some(hw::structs::TrbType::NoOpCommand) => {
+						},
+					Some(hw::structs::TrbType::EnableSlotCommand) => {
+						self.slot_enable_idx.store(slot_id, ::core::sync::atomic::Ordering::SeqCst);
+						self.slot_enable_ready.trigger();
+						},
+					Some(hw::structs::TrbType::AddressDeviceCommand) => {
+						self.slot_enable_ready.trigger();
+						}
+					Some(hw::structs::TrbType::ConfigureEndpointCommand) => {
+						self.slot_events[slot_id as usize - 1].configure.post();
+						},
+					_ => {},
+					}
+				}
+				else {
+					log_error!("CommandCompletion {:#x} {:?}: Not success, {:?}", trb_pointer, ty, completion_code);
+				}
+				},
+			Event::Transfer { data, transfer_length, completion_code, slot_id, endpoint_id } => {
+				self.slot_events[slot_id as usize - 1].endpoints[endpoint_id as usize - 1].store( (data, transfer_length, completion_code) );
+				},
+			_ => {},
+			}
+		}
+	}
+}
+
+
+#[derive(Default)]
+struct AtomicBitset256([::core::sync::atomic::AtomicU32; 256/32]);
+impl AtomicBitset256 {
+	pub fn set(&self, idx: u8) {
+		use ::core::sync::atomic::Ordering;
+		self.0[idx as usize / 32].fetch_or(1 << idx%32, Ordering::SeqCst);
+	}
+	pub fn get_first_set_and_clear(&self) -> Option<usize> {
+		use ::core::sync::atomic::Ordering;
+		for (i,s) in self.0.iter().enumerate() {
+			let v = s.load(Ordering::SeqCst);
+			if v != 0 {
+				let j = v.trailing_zeros() as usize;
+				let bit = 1 << j;
+				if s.fetch_and(!bit, Ordering::SeqCst) & bit != 0 {
+					return Some(i*32 + j);
+				}
+			}
+		}
+		None
+	}
+	#[cfg(any())]
+	pub fn iter_set_and_clear(&self) -> impl Iterator<Item=usize> + '_ {
+		use ::core::sync::atomic::Ordering;
+		self.0.iter().enumerate()
+			// Load/clear each word
+			.map(|(i,v)| (i,v.swap(0, Ordering::SeqCst)))
+			// Convert into (Index,IsSet)
+			.flat_map(|(j,v)| (0..32).map(move |i| (j*32+i, (v >> i) & 1 != 0) ))
+			// Yield only the indexes of set bits
+			.filter_map(|(idx,isset)| if isset { Some(idx) } else { None })
 	}
 }

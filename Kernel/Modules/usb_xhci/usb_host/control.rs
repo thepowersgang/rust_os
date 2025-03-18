@@ -1,8 +1,10 @@
 use ::usb_core::host;
 use crate::hw::structs as hw_structs;
+use ::kernel::memory::helpers::iter_contiguous_phys;
 
 type Error = ::kernel::memory::virt::MapError;
 
+/// A control endpoint
 pub struct Control
 {
 	host: crate::HostRef,
@@ -12,6 +14,9 @@ pub struct Control
 	// And the endpoint number
 	// TODO: Does this need the rings (or should they be controlled by the host)
 }
+/// Wrapper around a control endpoint for use with ep0, which needs special handling
+/// 
+/// Configuration updates/requests need to be reflected on the controller.
 pub struct Endpoint0
 {
 	inner: Control,
@@ -49,6 +54,7 @@ impl Endpoint0
 	}
 }
 
+/// Parse a setup data blob and convert to the hardware's format
 fn parse_setup(setup_data: &[u8], transfer_type: hw_structs::TrbControlSetupTransferType) -> hw_structs::TrbControlSetup {
 	use core::convert::TryInto;
 	hw_structs::TrbControlSetup {
@@ -104,7 +110,7 @@ impl host::ControlEndpoint for Control {
 					}
 				}
 				else {
-					for (paddr, len, is_last) in super::iter_contiguous_phys(out_data) {
+					for (paddr, len, is_last) in iter_contiguous_phys(out_data) {
 						// SAFE: Trusting ourselves to wait until the hardware is done
 						unsafe {
 							state.push(get_data(false, hw_structs::TrbNormalData::Pointer(paddr), len as u32, is_last));
@@ -135,7 +141,7 @@ impl host::ControlEndpoint for Control {
 			unsafe {
 				state.push(parse_setup(setup_data, crate::hw::structs::TrbControlSetupTransferType::In));
 			}
-			for (paddr, len, is_last) in super::iter_contiguous_phys(in_data) {
+			for (paddr, len, is_last) in iter_contiguous_phys(in_data) {
 				// SAFE: Trusting ourselves to wait until the hardware is done
 				unsafe {
 					state.push(get_data(true, hw_structs::TrbNormalData::Pointer(paddr), len as u32, is_last));
