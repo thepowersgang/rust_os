@@ -35,6 +35,7 @@ nic-rtl8139 = { path = "Modules/nic_rtl8139" }
 nic-rtl8168 = { path = "Modules/nic_rtl8168" }
 
 usb-ohci = { path = "Modules/usb_ohci" }
+usb-xhci = { path = "Modules/usb_xhci" }
 usb-hid = { path = "Modules/usb_hid" }
 usb-msc = { path = "Modules/usb_msc" }
 
