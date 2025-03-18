@@ -16,9 +16,12 @@ use kernel::threads::get_process_local;
 /// A system-call object
 pub trait Object: Send + Sync + ::core::any::Any
 {
+	/// Underlying type name
 	fn type_name(&self) -> &str { type_name!(Self) }
 	fn as_any(&self) -> &dyn Any;
-	/// Object class code (values::CLASS_*)
+	/// Object class code (values::CLASS_*) - defines the interface exposed by `handle_syscall_ref` and `handle_syscall_val`
+	/// 
+	/// Different implementations can use the same class code
 	fn class(&self) -> u16;
 
 	fn try_clone(&self) -> Option<u32>;

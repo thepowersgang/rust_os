@@ -176,6 +176,7 @@ macro_rules! def_classes {
 		};
 }
 
+// Object classes define the syscall interface followed by the object
 def_classes! {
 	/// Handle to a spawned process, used to communicate with it
 	=0: CLASS_CORE_PROTOPROCESS = {
