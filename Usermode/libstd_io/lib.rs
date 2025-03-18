@@ -34,6 +34,7 @@ enum ErrorInner
 	Misc,
 	//Interrupted,
 	VFS(::syscalls::vfs::Error),
+	Net(::syscalls::net::Error),
 }
 impl ::core::fmt::Display for Error {
 	fn fmt(&self, f: &mut ::core::fmt::Formatter) -> ::core::fmt::Result {
@@ -45,6 +46,9 @@ impl ::core::fmt::Display for Error {
 		ErrorInner::VFS(::syscalls::vfs::Error::FileLocked) => f.write_str("File is locked"),
 		ErrorInner::VFS(::syscalls::vfs::Error::MalformedPath) => f.write_str("Malformed path"),
 		//ErrorInner::VFS(ref e) => write!(f, "Unknown VFS error {:?}", e),
+		ErrorInner::Net(::syscalls::net::Error::AlreadyInUse) => f.write_str("Address already in use"),
+		ErrorInner::Net(::syscalls::net::Error::InvalidValue) => f.write_str("Invalid parameter value"),
+		ErrorInner::Net(::syscalls::net::Error::NoData) => f.write_str("No data available"),
 		}
 	}
 }
@@ -52,6 +56,9 @@ impl ::core::fmt::Display for Error {
 impl_conv! {
 	From<::syscalls::vfs::Error>(v) for Error {
 		Error( ErrorInner::VFS(v) )
+	}
+	From<::syscalls::net::Error>(v) for Error {
+		Error( ErrorInner::Net(v) )
 	}
 }
 
