@@ -5,19 +5,17 @@
   "data-layout": "e-m:e-p:64:64-i64:64-i128:128-n32:64-S128",
   "eh-frame-header": true,
   "emit-debug-gdb-scripts": false,
-  "env": "",
   "executables": true,
   "features": "+m,+a,+f,+d,+c",
   "linker": "rust-lld",
   "linker-flavor": "ld.lld",
+  "llvm-abiname": "lp64d",
   "llvm-target": "riscv64",
   "max-atomic-width": 64,
-  "os": "none",
   "panic-strategy": "unwind",
   "relocation-model": "static",
   "target-c-int-width": "32",
   "target-endian": "little",
-  "target-pointer-width": "64",
-  "vendor": "unknown"
+  "target-pointer-width": "64"
+  
 }
-

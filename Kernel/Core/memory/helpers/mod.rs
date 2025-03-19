@@ -14,7 +14,7 @@ pub fn iter_contiguous_phys(data: &[u8]) -> impl Iterator<Item=(super::PAddr, u3
 		ofs: usize,
 	}
 	impl<'a> ::core::iter::Iterator for V<'a> {
-		type Item = (u64, u32, bool);
+		type Item = (super::PAddr, u32, bool);
 		fn next(&mut self) -> Option<Self::Item> {
 			use crate::memory::virt::get_phys;
 			assert!(self.ofs <= self.data.len(), "{}+{} > {}", self.ofs, self.remain, self.data.len());
@@ -23,7 +23,7 @@ pub fn iter_contiguous_phys(data: &[u8]) -> impl Iterator<Item=(super::PAddr, u3
 			}
 
 			while self.ofs+self.remain < self.data.len()
-				&& get_phys(&self.data[self.ofs+self.remain]) == get_phys(self.data.as_ptr()) + self.remain as u64
+				&& get_phys(&self.data[self.ofs+self.remain]) == get_phys(self.data.as_ptr()) + self.remain as super::PAddr
 			{
 				if self.ofs+self.remain + crate::PAGE_SIZE < self.data.len() {
 					self.remain = self.data.len() - self.ofs;

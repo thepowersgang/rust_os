@@ -135,6 +135,9 @@ pub fn cpu_num() -> u32 {
 pub fn halt() -> ! {
 	loop {}
 }
+pub fn reboot() -> ! {
+	loop {}
+}
  
 #[repr(C)]
 struct Regs

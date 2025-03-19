@@ -33,7 +33,6 @@ enum BootInfo
 }
 
 static S_BOOT_INFO: LazyStatic<BootInfo> = LazyStatic::new();
-static mut S_MEMMAP_DATA: [crate::memory::MemoryMapEnt; 16] = [crate::memory::MAP_PAD; 16];
 
 pub fn get_fdt() -> Option<&'static FDTRoot<'static>> {
 	match get_boot_info()
@@ -101,9 +100,14 @@ pub fn get_boot_string() -> &'static str {
 }
 
 pub fn get_memory_map() -> &'static [crate::memory::MemoryMapEnt] {
-	// TODO: Assert that this is only ever called once
 	// SAFE: Assuming this function is called only once (which it is)
-	let buf: &mut [_] = unsafe { &mut S_MEMMAP_DATA };
+	let buf: &mut [_] = unsafe {
+		static S_ONCE: ::core::sync::atomic::AtomicBool = ::core::sync::atomic::AtomicBool::new(false);
+		assert!(S_ONCE.swap(true, ::core::sync::atomic::Ordering::SeqCst) == false);
+		static mut S_MEMMAP_DATA: [crate::memory::MemoryMapEnt; 16] = [crate::memory::MAP_PAD; 16];
+		#[allow(static_mut_refs)]
+		&mut S_MEMMAP_DATA
+		};
 	let len = {
 		let mut mapbuilder = crate::memory::MemoryMapBuilder::new(buf);
 		match get_boot_info()

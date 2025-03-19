@@ -124,6 +124,9 @@ pub fn cpu_num() -> u32 {
 pub fn halt() -> ! {
 	loop {}
 }
+pub fn reboot() -> ! {
+	loop {}
+}
 
 pub fn print_backtrace() {
 	let rs = aeabi_unwind::UnwindState::new_cur();

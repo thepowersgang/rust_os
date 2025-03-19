@@ -301,6 +301,9 @@ pub fn cpu_num() -> u32 {
 pub fn halt() -> ! {
 	loop {}
 }
+pub fn reboot() -> ! {
+	loop {}
+}
 
 pub mod time {
 	pub fn cur_timestamp() -> u64 {
