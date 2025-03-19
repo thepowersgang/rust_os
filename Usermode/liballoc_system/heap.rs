@@ -23,11 +23,6 @@ const PTR_SIZE: usize = 4;
 const MIN_BLOCK_SIZE: usize = 8 * PTR_SIZE;
 const BLOCK_ALIGN: usize = 2 * PTR_SIZE;
 
-pub fn get_usable_size(size: usize, _align: usize) -> (usize, usize)
-{
-	(size, size)
-}
-
 pub struct AllocState
 {
 	start: *mut Block,

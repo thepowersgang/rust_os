@@ -1,6 +1,7 @@
 //! 
 //!
 //!
+#![cfg(any())]
 use core::ptr::NonNull;
 use core::alloc::{Layout,Allocator,AllocError};
 
