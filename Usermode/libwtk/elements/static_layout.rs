@@ -1,6 +1,7 @@
+//! Statically-defined window layout
 
-use super::Element;
-use geom::Rect;
+use crate::Element;
+use crate::geom::Rect;
 
 #[derive(PartialEq,Debug,Copy,Clone)]
 enum Direction { Vertical, Horizontal }
@@ -16,7 +17,7 @@ impl Direction {
 	}
 }
 #[derive(Copy,Clone)]
-pub struct Size(u32);
+/*pub*/ struct Size(u32);
 
 pub struct Box<S: BoxEleSet> {
 	direction: Direction,
@@ -95,7 +96,7 @@ impl<S: BoxEleSet> Box<S>
 		}
 	}
 }
-impl<S: BoxEleSet> super::Element for Box<S>
+impl<S: BoxEleSet> Element for Box<S>
 {
 	fn handle_event(&self, _ev: ::InputEvent, _win: &mut dyn crate::window::WindowTrait) -> bool {
 		false

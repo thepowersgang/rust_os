@@ -3,9 +3,8 @@
 //
 // libwtk/menu.rs
 //! Pop-up menu support
-use geom::Rect;
-use surface::Colour;
-use surface::{SurfaceView};
+use crate::geom::Rect;
+use crate::surface::{Colour,SurfaceView};
 
 pub struct Menu<I: MenuItems>
 {

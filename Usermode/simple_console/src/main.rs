@@ -56,7 +56,7 @@ fn main()
 
 	let mut shell = ShellState::new();
 	let mut input = input::InputStack::new();
-	let term_ele = ::terminal_element::TerminalElement::new(
+	let term_ele = terminal_element::TerminalElement::new(
 		|_window, term, ev|
 		if let Some(buf) = input.handle_event(ev, |a| render_input(term, a))
 		{

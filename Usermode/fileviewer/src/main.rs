@@ -17,11 +17,11 @@ struct Viewer<'a>
 	file: ::std::cell::RefCell<&'a mut ::syscalls::vfs::File>,
 	mode: ViewerMode,
 
-	vscroll: ::wtk::ScrollbarV,
-	hscroll: ::wtk::ScrollbarH,
+	vscroll: ::wtk::elements::controls::ScrollbarV,
+	hscroll: ::wtk::elements::controls::ScrollbarH,
 	hex: ::hexview::Widget,
 	text: ::textview::Widget,
-	toggle_button: ::wtk::ButtonBcb<'static, ::wtk::Colour>,
+	toggle_button: ::wtk::elements::controls::ButtonBcb<'static, ::wtk::Colour>,
 }
 enum ViewerMode {
 	Hex,
@@ -79,9 +79,9 @@ impl<'a> Viewer<'a>
 			hex: ::hexview::Widget::new(),
 			text: ::textview::Widget::new(),
 
-			vscroll: ::wtk::ScrollbarV::new(),
-			hscroll: ::wtk::ScrollbarH::new(),
-			toggle_button: ::wtk::Button::new_boxfn( ::wtk::Colour::theme_body_bg(), |_,_| {} ),
+			vscroll: ::wtk::elements::controls::ScrollbarV::new(),
+			hscroll: ::wtk::elements::controls::ScrollbarH::new(),
+			toggle_button: ::wtk::elements::controls::Button::new_boxfn( ::wtk::Colour::theme_body_bg(), |_,_| {} ),
 			};
 
 		if init_use_hex {

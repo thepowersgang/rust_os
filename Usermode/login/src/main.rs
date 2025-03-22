@@ -39,26 +39,28 @@ fn main()
 		};
 	//power_menu.set_pos(, MENU_BTN_WIDTH);
 
+	use ::wtk::elements::display::image::{Image, RasterMonoA};
+	use ::wtk::elements::static_layout::{Box as StaticLayout, BoxEle as LayoutEle};
 	// Menu bar
 	// - Two buttons: Options and power
-	let options_icon = ::wtk::image::RasterMonoA::new(imgpath!("options.r8"), ::wtk::Colour::theme_text_bg()).unwrap();
-	let power_icon   = ::wtk::image::RasterMonoA::new(imgpath!("power.r8"  ), ::wtk::Colour::theme_text_bg()).unwrap();
-	let options_button = ::wtk::Button::new( ::wtk::Image::new(options_icon), |_btn,_win| () );
-	let power_button = ::wtk::Button::new(
-		::wtk::Image::new(power_icon),
+	let options_icon = RasterMonoA::new(imgpath!("options.r8"), ::wtk::Colour::theme_text_bg()).unwrap();
+	let power_icon   = RasterMonoA::new(imgpath!("power.r8"  ), ::wtk::Colour::theme_text_bg()).unwrap();
+	let options_button = ::wtk::elements::controls::Button::new( Image::new(options_icon), |_btn,_win| () );
+	let power_button = ::wtk::elements::controls::Button::new(
+		Image::new(power_icon),
 		|_btn,_win| power_menu.show()
 		);
-	let menubar = ::wtk::StaticBox::new_horiz( (
-		::wtk::BoxEle::fixed(MENU_BTN_WIDTH, options_button),
-		::wtk::BoxEle::expand( () ),
-		::wtk::BoxEle::fixed(MENU_BTN_WIDTH, power_button),
+	let menubar = StaticLayout::new_horiz( (
+		LayoutEle::fixed(MENU_BTN_WIDTH, options_button),
+		LayoutEle::expand( () ),
+		LayoutEle::fixed(MENU_BTN_WIDTH, power_button),
 		));
 
 	// Login box (vertially stacked, centered)
-	let mut username = ::wtk::TextInput::new();
+	let mut username = ::wtk::elements::input::TextInput::new();
 	username.set_shadow("Username");
 	
-	let mut password = ::wtk::TextInput::new();
+	let mut password = ::wtk::elements::input::TextInput::new();
 	password.set_shadow("Password");
 	password.set_obscured('\u{2022}');	// Bullet
 
@@ -80,26 +82,26 @@ fn main()
 		//win.show();
 		});
 
-	let loginbox = ::wtk::Frame::new_fat( ::wtk::StaticBox::new_vert((
-		::wtk::BoxEle::expand( () ),
-		::wtk::BoxEle::fixed( TEXTBOX_HEIGHT, &username ),
-		::wtk::BoxEle::fixed( 1, () ),	// <-- Padding
-		::wtk::BoxEle::fixed( TEXTBOX_HEIGHT, &password ),
-		::wtk::BoxEle::expand( () ),
+	let loginbox = ::wtk::elements::separators::Frame::new_fat( StaticLayout::new_vert((
+		LayoutEle::expand( () ),
+		LayoutEle::fixed( TEXTBOX_HEIGHT, &username ),
+		LayoutEle::fixed( 1, () ),	// <-- Padding
+		LayoutEle::fixed( TEXTBOX_HEIGHT, &password ),
+		LayoutEle::expand( () ),
 		)) );
 
-	let hbox = ::wtk::StaticBox::new_horiz((
-		::wtk::BoxEle::expand( () ),
-		::wtk::BoxEle::fixed(120, &loginbox),
-		::wtk::BoxEle::expand( () ),
+	let hbox = StaticLayout::new_horiz((
+		LayoutEle::expand( () ),
+		LayoutEle::fixed(120, &loginbox),
+		LayoutEle::expand( () ),
 		));
 
-	let vbox = ::wtk::StaticBox::new_vert((
-		::wtk::BoxEle::fixed( MENU_HEIGHT, &menubar),
-		::wtk::BoxEle::expand( () ),
-		::wtk::BoxEle::fixed(ENTRY_FRAME_HEIGHT, &hbox),
-		::wtk::BoxEle::expand( () ),
-		::wtk::BoxEle::fixed( MENU_HEIGHT, () ),
+	let vbox = StaticLayout::new_vert((
+		LayoutEle::fixed( MENU_HEIGHT, &menubar),
+		LayoutEle::expand( () ),
+		LayoutEle::fixed(ENTRY_FRAME_HEIGHT, &hbox),
+		LayoutEle::expand( () ),
+		LayoutEle::fixed( MENU_HEIGHT, () ),
 		));
 
 	let mut win = ::wtk::Window::new( "Login", &vbox, ::wtk::Colour::theme_body_bg(), () ).expect("Cannot create login window");

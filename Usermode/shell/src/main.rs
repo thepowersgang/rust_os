@@ -65,7 +65,7 @@ fn main()
 	
 	let background = {
 		// Background image is "Ferris the crab" - credit to rustacean.net
-		let img = ::wtk::image::RasterRGB::new_img(imgpath!("background.r24")).expect("Cannot load background");
+		let img = ::wtk::elements::display::image::RasterRGB::new_img(imgpath!("background.r24")).expect("Cannot load background");
 		img
 		};
 	let mut win_background = {
@@ -75,26 +75,30 @@ fn main()
 		};
 	
 	let menubar = {
-		let logo_button = ::wtk::Button::new(
-			::wtk::image::RasterMonoA::new_img(imgpath!("menu.r8"), ::wtk::Colour::theme_text()).expect("Error loading menu icon"),
+		use ::wtk::elements::controls::Button;
+		use ::wtk::elements::display::text::OwnedLabel;
+		use ::wtk::elements::display::image::RasterMonoA;
+		use ::wtk::elements::static_layout::{Box as StaticBox, BoxEle};
+		let logo_button = Button::new(
+			RasterMonoA::new_img(imgpath!("menu.r8"), ::wtk::Colour::theme_text()).expect("Error loading menu icon"),
 			|_,_| system_menu.show()
 			);
 		let taskbar = ();
-		let clock_widget = ::std::cell::RefCell::new(::wtk::OwnedLabel::new("12:34".to_owned(), ::wtk::Colour::theme_text()));
-		let power_button = ::wtk::Button::new(
-			::wtk::image::RasterMonoA::new_img(imgpath!("power.r8"), ::wtk::Colour::theme_text()).expect("Error loading power icon"),
+		let clock_widget = ::std::cell::RefCell::new(OwnedLabel::new("12:34".to_owned(), ::wtk::Colour::theme_text()));
+		let power_button = Button::new(
+			RasterMonoA::new_img(imgpath!("power.r8"), ::wtk::Colour::theme_text()).expect("Error loading power icon"),
 			|_button, _window| power_menu.show()
 			);
-		let options_button = ::wtk::Button::new(
-			::wtk::image::RasterMonoA::new_img(imgpath!("options.r8"), ::wtk::Colour::theme_text()).expect("Error loading options icon"),
+		let options_button = Button::new(
+			RasterMonoA::new_img(imgpath!("options.r8"), ::wtk::Colour::theme_text()).expect("Error loading options icon"),
 			|_button, _window| {}
 			);
-		::wtk::StaticBox::new_horiz((
-			::wtk::BoxEle::fixed(20, logo_button),
-			::wtk::BoxEle::expand(taskbar),
-			::wtk::BoxEle::fixed(50, clock_widget),
-			::wtk::BoxEle::fixed(20, power_button),
-			::wtk::BoxEle::fixed(20, options_button),
+		StaticBox::new_horiz((
+			BoxEle::fixed(20, logo_button),
+			BoxEle::expand(taskbar),
+			BoxEle::fixed(50, clock_widget),
+			BoxEle::fixed(20, power_button),
+			BoxEle::fixed(20, options_button),
 			))
 		};
 	let mut win_menu = {

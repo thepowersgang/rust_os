@@ -4,7 +4,7 @@
 //! Layout widgets
 
 use surface::Colour;
-use super::Element;
+use crate::Element;
 use geom::Rect;
 
 #[derive(PartialEq,Debug,Copy,Clone)]
@@ -23,7 +23,7 @@ impl Direction {
 }
 
 #[derive(Copy,Clone)]
-pub struct Size(u32);
+struct Size(u32);
 
 /// Box containing multiple elements, handles auto-sizing of elements
 #[derive(Default)]
@@ -89,7 +89,7 @@ impl<'a> Box<'a>
 	}
 }
 
-impl<'a> super::Element for Box<'a>
+impl<'a> Element for Box<'a>
 {
 	fn handle_event(&self, _ev: ::InputEvent, _win: &mut dyn crate::window::WindowTrait) -> bool {
 		false
@@ -217,7 +217,7 @@ impl<E: ::Element> Frame<E>
 	pub fn inner_mut(&mut self) -> &mut E { &mut self.item }
 }
 
-impl<E: ::Element> ::Element for Frame<E>
+impl<E: Element> Element for Frame<E>
 {
 	fn handle_event(&self, ev: ::InputEvent, win: &mut dyn crate::window::WindowTrait) -> bool {
 		// TODO: For mouse events, clip to display region

@@ -13,6 +13,7 @@ pub struct Error;
 // TODO: I would _love_ to make Window generic over the root element, but due to the borrows in `focus`,`taborder`, and `shortcuts_0`, this is nigh-on-impossible
 // - Especially if you want &mut to the root
 
+/// Helper trait implemented for all windows, use to hide the generic decorator of a Window
 pub trait WindowTrait<'a>
 {
 	fn set_title(&mut self, title: String);
@@ -69,6 +70,7 @@ pub struct Window<'a, D: 'a/* = ::decorator::Standard*/>
 
 impl<'a> Window<'a, ::decorator::Standard>
 {
+	/// Create a new window with the default decorator
 	pub fn new_def(debug_name: &str, ele: &'a dyn crate::Element) -> Result<Self, Error> {
 		Window::new(debug_name, ele, ::surface::Colour::from_argb32(0), ::decorator::Standard::default())
 	}

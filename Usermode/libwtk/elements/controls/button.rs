@@ -19,6 +19,7 @@ where
 	state: RefCell<State>,
 }
 
+/// A button using a boxed callback, return type of [Button::new_boxfn]
 pub type ButtonBcb<'a, T> = Button<T, BoxCb<'a, T>>;
 
 /// Wrapper around a Box<Fn> that allows a `Button` to be stored in a struct
