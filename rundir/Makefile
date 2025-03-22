@@ -1,5 +1,5 @@
 
--include ../../common.mk
+-include ../common.mk
 V ?= @
 
 .PHONY: run all images
@@ -92,7 +92,7 @@ else
 endif
 
 run: $(QEMU_TRACE_SPEC) images
-	./$(SCRIPT) ../bin/kernel-amd64.bin.elf32 "$(CMDLINE)" "$(QEMU_ARGS)" $(TEE)
+	./$(SCRIPT) ../Kernel/bin/kernel-amd64.bin.elf32 "$(CMDLINE)" "$(QEMU_ARGS)" $(TEE)
 images: $(IMGDIR)hda.img $(IMGDIR)hdb.img $(IMGDIR)test.iso
 #
 # --- ARMv7 ---
@@ -113,8 +113,8 @@ QEMU_ARGS += -drive if=none,id=hda,index=0,file=$(IMGDIR)hda.img,format=raw
 
 
 run: $(IMGDIR)hda.img
-	make -C ../../Bootloaders/arm PLATFORM=$(MACHINE_TYPE) CMDLINE="$(CMDLINE)"
-	qemu-system-arm -machine $(MACHINE_TYPE) $(QEMU_ARGS) -kernel ../../Bootloaders/arm/loader-$(MACHINE_TYPE).bin -append "$(CMDLINE)" $(TEE)
+	make -C ../Bootloaders/arm PLATFORM=$(MACHINE_TYPE) CMDLINE="$(CMDLINE)"
+	qemu-system-arm -machine $(MACHINE_TYPE) $(QEMU_ARGS) -kernel ../Bootloaders/arm/loader-$(MACHINE_TYPE).bin -append "$(CMDLINE)" $(TEE)
 images: $(IMGDIR)hda.img
 # ---
 # ARM 64
@@ -128,8 +128,8 @@ QEMU_ARGS += -device virtio-keyboard-device
 QEMU_ARGS += -drive if=none,id=hda,index=0,file=$(IMGDIR)hda.img,format=raw
 
 run: $(IMGDIR)hda.img
-	make -C ../../Bootloaders/aarch64 PLATFORM=$(MACHINE_TYPE) CMDLINE="$(CMDLINE)" KERNEL=../../Kernel/bin/kernel-armv8.bin
-	qemu-system-aarch64 -cpu cortex-a57 -machine $(MACHINE_TYPE) $(QEMU_ARGS) -kernel ../../Bootloaders/aarch64/loader-$(MACHINE_TYPE).bin -append "$(CMDLINE)" $(TEE)
+	make -C ../Bootloaders/aarch64 PLATFORM=$(MACHINE_TYPE) CMDLINE="$(CMDLINE)" KERNEL=../Kernel/bin/kernel-armv8.bin
+	qemu-system-aarch64 -cpu cortex-a57 -machine $(MACHINE_TYPE) $(QEMU_ARGS) -kernel ../Bootloaders/aarch64/loader-$(MACHINE_TYPE).bin -append "$(CMDLINE)" $(TEE)
 # ---
 # RISC-V 64
 # ---
@@ -145,17 +145,17 @@ QEMU_ARGS += -drive if=none,id=hda,index=0,file=$(IMGDIR)hda.img,format=raw
 #QEMU_ARGS += -bios none
 
 run: $(IMGDIR)hda.img
-	qemu-system-riscv64 -machine virt -cpu rv64 -m 64M $(QEMU_ARGS) -kernel ../../Kernel/bin/kernel-riscv64.bin -append "$(CMDLINE)" $(TEE)
+	qemu-system-riscv64 -machine virt -cpu rv64 -m 64M $(QEMU_ARGS) -kernel ../Kernel/bin/kernel-riscv64.bin -append "$(CMDLINE)" $(TEE)
 else
   $(error Unknown architecture in Kernel/rundir/Makefile)
 endif
 
 .DELETE_ON_ERROR:
 
-$(IMGDIR)test.iso: $(wildcard ../../Usermode/.output/$(ARCH)/bin/*) Makefile
+$(IMGDIR)test.iso: $(wildcard ../Usermode/.output/$(ARCH)/bin/*) Makefile
 	@mkdir -p $(dir $@)
 	@echo "[mkisofs] -o $@"
-	$Vmkisofs -input-charset utf-8 -quiet -o $@ -r -graft-points /Tifflin/bin=../../Usermode/.output/$(ARCH)/bin /Tifflin/shared/images=../../Graphics/.output/shared
+	$Vmkisofs -input-charset utf-8 -quiet -o $@ -r -graft-points /Tifflin/bin=../Usermode/.output/$(ARCH)/bin /Tifflin/shared/images=../Graphics/.output/shared
 $(IMGDIR)usb.img:
 	@mkdir -p $(dir $@)
 	@echo "[MkDisk] ZERO 1MB $@"
@@ -165,7 +165,7 @@ $(IMGDIR)hd%_0.img:
 	@echo "[MkDisk] ZERO 1MB $@"
 	@# - 1MB of blank space 
 	$Vdd if=/dev/zero of=$@ bs=1M count=1 status=noxfer
-$(IMGDIR)hda_1.img: $(wildcard ../../Usermode/.output/$(ARCH)/bin/*) Makefile $(wildcard ../../Graphics/.output/shared/*)
+$(IMGDIR)hda_1.img: $(wildcard ../Usermode/.output/$(ARCH)/bin/*) Makefile $(wildcard ../Graphics/.output/shared/*)
 	@mkdir -p $(dir $@)
 	@echo "[MkDisk] FAT 32MB $@"
 	@# - 32MB FAT? partition on disk 0
@@ -174,8 +174,8 @@ $(IMGDIR)hda_1.img: $(wildcard ../../Usermode/.output/$(ARCH)/bin/*) Makefile $(
 	$Vmmd -i $@ ::/Tifflin
 	$Vmmd -i $@ ::/Tifflin/shared
 	$Vmmd -i $@ ::/Tifflin/shared/images
-	$Vmcopy -s -D o -i $@ ../../Usermode/.output/$(ARCH)/bin ::/Tifflin/bin
-	$Vmcopy -s -D o -i $@ ../../Graphics/.output/shared/* ::/Tifflin/shared/images/
+	$Vmcopy -s -D o -i $@ ../Usermode/.output/$(ARCH)/bin ::/Tifflin/bin
+	$Vmcopy -s -D o -i $@ ../Graphics/.output/shared/* ::/Tifflin/shared/images/
 	$Vecho "Test content" | mcopy -i $@ - ::/1.txt
 $(IMGDIR)hda_2.img:
 	@mkdir -p $(dir $@)
@@ -190,11 +190,11 @@ $(IMGDIR)hda.img: Makefile $(IMGDIR)hda_0.img $(IMGDIR)hda_1.img $(IMGDIR)hda_2.
 	$Vcat $(IMGDIR)hda_0.img $(IMGDIR)hda_1.img $(IMGDIR)hda_2.img > $@
 	$Vprintf "$(shell echo $$((1*1024*2)),$$((32*1024*2)),0x83)\n$(shell echo $$((33*1024*2)),+,0x7)" | /sbin/sfdisk --no-reread $@ -u S -f -q > /dev/null
 
-$(IMGDIR)hdb_1.img: $(wildcard ../../Usermode/.output/$(ARCH)/*) Makefile
+$(IMGDIR)hdb_1.img: $(wildcard ../Usermode/.output/$(ARCH)/*) Makefile
 	@echo "[MkDisk] ext2 $@"
 	$Vdd if=/dev/zero of=$@ bs=1M count=32
 	$V/sbin/mkfs.ext2 $@
-	$Vguestfish -a $@ launch : mount /dev/sda / : mkdir /Tifflin : copy-in ../../Usermode/.output/$(ARCH)/bin /Tifflin/
+	$Vguestfish -a $@ launch : mount /dev/sda / : mkdir /Tifflin : copy-in ../Usermode/.output/$(ARCH)/bin /Tifflin/
 $(IMGDIR)hdb.img: Makefile $(IMGDIR)hdb_0.img $(IMGDIR)hdb_1.img
 	@mkdir -p $(dir $@)
 	@echo "[MkDisk] mbr $@"
