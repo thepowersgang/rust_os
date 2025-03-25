@@ -263,28 +263,3 @@ fn command_ls<T: ::Terminal>(term: &T, root: &::syscalls::vfs::Dir, path: &str)
 		print!(term, "\n");
 	}
 }
-
-
-/// Trait to provde 'is_combining', used by render code
-pub trait UnicodeCombining
-{
-	fn is_combining(&self) -> bool;
-}
-
-impl UnicodeCombining for char
-{
-	fn is_combining(&self) -> bool
-	{
-		match *self as u32
-		{
-		// Ranges from wikipedia:Combining_Character
-		0x0300 ..= 0x036F => true,
-		0x1AB0 ..= 0x1AFF => true,
-		0x1DC0 ..= 0x1DFF => true,
-		0x20D0 ..= 0x20FF => true,
-		0xFE20 ..= 0xFE2F => true,
-		_ => false,
-		}
-	}
-}
-

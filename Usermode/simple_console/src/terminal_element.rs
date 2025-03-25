@@ -3,8 +3,9 @@
 //
 // terminal_element.rs
 //! Text terminal as a WTK element
-use wtk::Colour;
-use wtk::geom::Rect;
+use ::wtk::Colour;
+use ::wtk::geom::Rect;
+use ::wtk::surface::UnicodeCombining;
 use std::cell::RefCell;
 
 const BACKGROUND_COLOUR: u32 = 0x33_00_00;	// An ochre red
@@ -59,7 +60,6 @@ impl Line {
 	fn delete_cell(&mut self) {
 		while let Some(v) = self.0.pop()
 		{
-			use ::UnicodeCombining;
 			if v.is_combining() {
 				// Combining character, ignore
 			}
@@ -86,7 +86,6 @@ impl Line {
 		rv
 	}
 	fn num_cells(&self) -> usize {
-		use ::UnicodeCombining;
 		let mut rv = 0;
 		for seg in self.segs(0)
 		{

@@ -373,7 +373,7 @@ impl MonoFontRender
 }
 
 /// Trait to provde 'is_combining', used by render code
-trait UnicodeCombining
+pub trait UnicodeCombining
 {
 	fn is_combining(&self) -> bool;
 }
