@@ -1,0 +1,9 @@
+[package]
+name = "gui_irc"
+version = "0.0.0"
+
+[dependencies]
+wtk = { path = "../libwtk" }
+async = { path = "../libasync" }
+std = { path = "../libstd" }
+syscalls = { path = "../libsyscalls" }
