@@ -14,8 +14,19 @@ impl ServerState {
 			windows: Default::default(),
 		}
 	}
+	pub fn name(&self) -> &str {
+		&self.server_name
+	}
+
 	fn get_window(&mut self, name: &[u8]) -> Option<&ChannelWindow> {
 		self.windows.get(name)
+	}
+	pub fn send_message(&mut self, mut conn: &::std::net::TcpStream,  channel_name: &str, message: &str) -> ::std::io::Result<()> {
+		if let Some(v) = self.get_window(channel_name.as_bytes()) {
+			v.append_message(b"-ME-", message.as_bytes());
+			::std::io::Write::write_all(&mut conn, format!("PRIVMSG {} :{}\r\n", channel_name, message).as_bytes())?
+		}
+		Ok( () )
 	}
 	pub fn handle_line(&mut self, mut line: &[u8]) {
 		if line.starts_with(b":") {

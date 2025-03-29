@@ -1,28 +1,36 @@
 use crate::server_state::ServerState;
 
-pub struct ServerManager {
+pub struct ServerManager<'a> {
 	status_window: crate::window_types::StatusWindow,
+	input: &'a crate::Input,
+	tabs: &'a crate::Tabs,
+	// Mapping from tab index (minus 1, for the status window) to server channels
+	windows: Vec<(usize, String)>,
 	servers: Vec<ServerConnection>,
 }
 struct ServerConnection {
 	stream: AsyncLineStream,
 	protocol: ServerState,
 }
-impl ServerManager {
-	pub fn new(status_window: crate::window_types::StatusWindow) -> Self {
+impl<'a> ServerManager<'a> {
+	pub fn new(status_window: crate::window_types::StatusWindow, input: &'a crate::Input, tabs: &'a crate::Tabs) -> Self {
 		ServerManager {
 			status_window,
+			input,
+			tabs,
+			windows: Vec::new(),
 			servers: Vec::new(),
 		}
 	}
-	pub fn open_connection(&mut self, server_name: String, addr: ::std::net::IpAddr, port: u16) {
+	pub fn open_connection(&mut self, server_name: String, addr: ::std::net::IpAddr, port: u16) -> ::std::io::Result<()> {
 		self.servers.push(ServerConnection {
-			stream: AsyncLineStream::new(::std::net::TcpStream::connect(addr, port).unwrap()),
+			stream: AsyncLineStream::new(::std::net::TcpStream::connect(addr, port)?),
 			protocol: ServerState::new(server_name, self.status_window.clone()),
 		});
+		Ok( () )
 	}
 }
-impl ::r#async::WaitController for ServerManager {
+impl<'a> ::r#async::WaitController for ServerManager<'a> {
 	fn get_count(&self) -> usize {
 		self.servers.len()
 	}
@@ -41,6 +49,92 @@ impl ::r#async::WaitController for ServerManager {
 			Err(_) => {},
 			}
 		}
+		if let Some(text) = self.input.take() {
+			// Get the current tab
+			let cur_tab = self.tabs.borrow().selected_idx();
+			// Map to a server and channel
+			let win = if cur_tab == 0 {
+				None
+			} else {
+				Some(&self.windows[cur_tab-1])
+			};
+
+			if text.starts_with("/") {
+				match text.split_once(" ").unwrap_or((&text,"")) {
+				("/quit", _message) => {},
+				("/leave", _message) => {},
+				("/join", _channel) => {
+					// Create a window, then tell the client logic to issue a join command
+				},
+				("/nick", _nickname) => {},
+				("/connect",args) => match self.command_connect(args)
+					{
+					Ok(()) => {},
+					Err(e) => self.status_window.print_error("<input>", format_args!("/connect: {}", e))
+					},
+				(cmd,_) => self.status_window.print_error("<input>", format_args!("Unknown command {:?}", cmd)),
+				}
+			}
+			else {
+				// Deliver message to server, and render locally
+				if let Some((server_idx,channel_name)) = win {
+					let s = &mut self.servers[*server_idx];
+					match s.protocol.send_message( s.stream.connection.get_ref(), channel_name, &text) {
+					Ok(()) => {},
+					Err(e) => self.status_window.print_error(s.protocol.name(), format_args!("Network Error: {:?}", e)),
+					}
+				}
+				else {
+					// Just ignore
+				}
+			}
+		}
+	}
+}
+impl<'a> ServerManager<'a> {
+	fn command_connect(&mut self, args: &str) -> Result<(),String> {
+		let mut addr = None;
+		let mut port = None;
+		let mut name = None;
+		let mut args = args.split(" ");
+		while let Some(a) = args.next() {
+			if a.starts_with("-") {
+				match a {
+				"-name" => name = args.next(),
+				_ => {},
+				}
+			}
+			else {
+				if addr.is_none() {
+					addr = Some(a);
+				}
+				else if port.is_none() {
+					port = Some(a);
+				}
+				else {
+				}
+			}
+		}
+		let Some(addr) = addr else {
+			return Err("Requires an address".to_owned());
+		};
+		let server_name = name.unwrap_or(addr);
+		let addr = match addr.parse()
+			{
+			Ok(v) => v,
+			Err(e) => return Err(format!("Malformed address: {:?}", e)),
+			};
+		let port: u16 = match port.unwrap_or("6667").parse()
+			{
+			Ok(v) => v,
+			Err(e) => return Err(format!("Malformed port: {:?}", e)),
+			};
+		match self.open_connection(server_name.to_owned(), addr, port)
+		{
+		Ok(()) => {},
+		Err(e) => return Err(format!("Unable to connect to server: {:?}", e)),
+		}
+		Ok( () )
 	}
 }
 
