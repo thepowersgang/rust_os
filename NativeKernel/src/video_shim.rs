@@ -29,7 +29,7 @@ impl Console
 	{
 		let size = video::Dims::new(1280, 768);
 		let state = Arc::new(Mutex::new(State {
-			size: size,
+			size,
 			backbuffer: ::std::vec![ 0u32; size.w as usize * size.h as usize ],
 			dirty: true,
 			}));

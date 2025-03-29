@@ -6,3 +6,8 @@ impl Backtrace {
 		::syscalls::raw::trigger_panic()
 	}
 }
+
+
+#[link(name="c")]
+extern "C" {
+}

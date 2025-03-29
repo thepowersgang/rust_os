@@ -157,20 +157,22 @@ fn main()// -> Result<(), Box<dyn std::error::Error>>
 		Err(e) => panic!("bind() failed: {}", e),
 		};
 
-
+	let init = "/bin/init";
+	let init_args: Vec<_> = ::std::env::args().skip(1).collect();
+	
 	let init_fh = ::vfs::handle::File::open(
-			::vfs::Path::new("/sysroot/bin/init"),
+			::vfs::Path::new(&format!("/sysroot{init}")),
 			::vfs::handle::FileOpenMode::Execute
 		)
 		.unwrap();
 	::syscalls::init(init_fh);
 
-	#[cfg(not(windows))]
-	let init_path = ".native_fs/Tifflin/bin/init";
-	#[cfg(windows)]
-	let init_path = ".native_fs/Tifflin/bin/init.exe";
+	let init_path = format!(".native_fs/Tifflin{init}{suf}", suf=if cfg!(windows) {".exe"} else {""});
+	let init_proc = ::std::process::Command::new(init_path)
+		.args(init_args)
+		.spawn().expect("Failed to spawn init");
 	let gs_root = ::std::sync::Arc::new(::std::sync::Mutex::new(
-			GlobalState::new( ::std::process::Command::new(init_path).spawn().expect("Failed to spawn init") )
+			GlobalState::new( init_proc )
 		));
 
 	// Run a thread that monitors for closed tasks.
@@ -248,141 +250,151 @@ fn main()// -> Result<(), Box<dyn std::error::Error>>
 			log_debug!("{:?} = PID {}", addr, pid);
 			::std::mem::forget( ::kernel::threads::WorkerThread::new("PID0 Rx Worker", move || { process_worker(gs, pid, sock, addr); }) );
 		}
-		fn process_worker(gs: GlobalStateRef, pid: ::kernel::threads::ProcessID, mut sock: ::std::net::TcpStream, addr: ::std::net::SocketAddr) -> u32
-		{
-			// Wait until the process should start
-			if pid != 0 {
-				let e = gs.lock().unwrap().pre_start_processes[&pid].clone();
-				let mut lh = e.mutex.lock().unwrap();
-				*lh = PreStartState::WaitingAck;
-				e.condvar.notify_all();
-				// Wait until requested to start
-				while *lh < PreStartState::Running
-				{
-					lh = test_pause_thread(|| e.condvar.wait(lh).expect("Process start condvar wait failed"));
-				}
-				// Remove from the pre-start list
-				gs.lock().unwrap().pre_start_processes.remove(&pid);
-			}
-			let buf = pid.to_le_bytes();
-			match sock.write_all(&buf)
-			{
-			Ok(_) => {},
-			Err(e) => {
-				panic!("Unable to initialise process: {:?}", e);
-				},
-			}
-			
-			let pauser = ::kernel::arch::imp::threads::ThreadPauser::new();
-			let mut _pause_handle = pauser.pause();
-			loop
-			{
-				#[repr(C)]
-				#[derive(Default,Debug)]
-				struct Msg {
-					tid: u32,
-					call: u32,
-					args: [u64; 6],
-				}
-				#[repr(C)]
-				#[derive(Default)]
-				struct Resp {
-					tid: u32,
-					call: u32,
-					rv: u64,
-				}
-
-				let mut req = Msg::default();
-				match {
-					let v = sock.read_exact( unsafe { ::std::slice::from_raw_parts_mut(&mut req as *mut _ as *mut u8, ::std::mem::size_of::<Msg>()) });
-					drop(_pause_handle);
-					v
-					}
-				{
-				Ok(_) => {},
-				Err(e) => {
-					log_error!("Failed to read syscall request from {:?}: {:?}", addr, e);
-					break
-					},
-				}
-				log_log!("PID{}: request: {:x?}", pid, req);
-
-				THREAD_CURRENT_INFO.with(|f| {
-					*f.borrow_mut() = Some(ThreadSyscallInfo::new(gs.lock().unwrap().get_process(pid)));
-					});
-				let args_usize = [
-					req.args[0] as usize,
-					req.args[1] as usize,
-					req.args[2] as usize,
-					req.args[3] as usize,
-					req.args[4] as usize,
-					req.args[5] as usize,
-					];
-
-				fn error_code(value: u32) -> u64 {
-					value as u64 | (1 << 31)
-				}
-				let res_val = match req.call
-					{
-					// Locally handle the `CORE_STARTPROCESS` call
-					::syscalls::native_exports::values::CORE_STARTPROCESS => {
-						match start_process(&gs, &args_usize[..])
-						{
-						Ok( rv ) => rv as u64,
-						Err(_) => error_code(0),
-						}
-						},
-					// Defer everything else to the syscall module
-					_ => unsafe { ::syscalls::syscalls_handler(req.call, args_usize.as_ptr(), args_usize.len() as u32) },
-					};
-				let res = THREAD_CURRENT_INFO.with(|f| {
-					f.borrow_mut().take().unwrap().writeback()
-				});
-				if res.is_err() {
-					// TODO: Change the response
-					todo!("Error in writing back syscall results");
-				}
-
-				let res = Resp {
-					tid: req.tid,
-					call: req.call,
-					rv: res_val,
-					};
-				_pause_handle = pauser.pause();
-				match /*test_pause_thread(|| */sock.write(unsafe { ::std::slice::from_raw_parts(&res as *const _ as *const u8, ::std::mem::size_of::<Resp>()) })/*)*/
-				{
-				Ok(_) => {},
-				Err(e) => { log_error!("Failed to send syscall response: {:?}", e); break },
-				}
-			}
-
-			
-			_pause_handle = pauser.pause();
-
-			// Drop the socket so the child will definitely quit
-			drop(sock);
-			// Clean up the process (wait for the child to terminate)
-			match gs.lock().unwrap().processes.get_mut(&pid).map(|v| v.wait())
-			{
-			None => panic!("PID #{} not in the process list", pid),
-			Some(Ok(status)) => {
-				if status.success() {
-					0
-				}
-				else if let Some(s) = status.code() {
-					s as u32
-				}
-				else {
-					u32::MAX
-				}
-			},
-			Some(Err(e)) => panic!("Failed to wait for PID #{}: {:?}", pid, e),
-			}
-		}
 	}
 }
 
-fn start_process(gs: &GlobalStateRef, mut args: &[usize]) -> Result<u32, ::syscalls::Error>
+/// Code for per-process worker threads
+fn process_worker(
+	gs: GlobalStateRef,
+	pid: ::kernel::threads::ProcessID,
+	mut sock: ::std::net::TcpStream,
+	addr: ::std::net::SocketAddr
+) -> u32
+{
+	// Wait until the process is cleared to start running
+	// - Only applies to PIDs other than #0
+	if pid != 0 {
+		let e = gs.lock().unwrap().pre_start_processes[&pid].clone();
+		let mut lh = e.mutex.lock().unwrap();
+		*lh = PreStartState::WaitingAck;
+		e.condvar.notify_all();
+		// Wait until requested to start
+		while *lh < PreStartState::Running
+		{
+			lh = test_pause_thread(|| e.condvar.wait(lh).expect("Process start condvar wait failed"));
+		}
+		// Remove from the pre-start list
+		gs.lock().unwrap().pre_start_processes.remove(&pid);
+	}
+	// Inform the client of its simulated PID (releasing it to start running)
+	let buf = pid.to_le_bytes();
+	match sock.write_all(&buf)
+	{
+	Ok(_) => {},
+	Err(e) => {
+		panic!("Unable to initialise process: {:?}", e);
+		},
+	}
+	
+	let pauser = ::kernel::arch::imp::threads::ThreadPauser::new();
+	let mut _pause_handle = pauser.pause();
+	loop
+	{
+		#[repr(C)]
+		#[derive(Default,Debug)]
+		struct Msg {
+			tid: u32,
+			call: u32,
+			args: [u64; 6],
+		}
+		#[repr(C)]
+		#[derive(Default)]
+		struct Resp {
+			tid: u32,
+			call: u32,
+			rv: u64,
+		}
+
+		let mut req = Msg::default();
+		match {
+			let v = sock.read_exact( unsafe { ::std::slice::from_raw_parts_mut(&mut req as *mut _ as *mut u8, ::std::mem::size_of::<Msg>()) });
+			drop(_pause_handle);
+			v
+			}
+		{
+		Ok(_) => {},
+		Err(e) => {
+			log_error!("Failed to read syscall request from {:?}: {:?}", addr, e);
+			break
+			},
+		}
+		log_log!("PID{}: request: {:x?}", pid, req);
+
+		THREAD_CURRENT_INFO.with(|f| {
+			*f.borrow_mut() = Some(ThreadSyscallInfo::new(gs.lock().unwrap().get_process(pid)));
+			});
+		let args_usize = [
+			req.args[0] as usize,
+			req.args[1] as usize,
+			req.args[2] as usize,
+			req.args[3] as usize,
+			req.args[4] as usize,
+			req.args[5] as usize,
+			];
+
+		fn error_code(value: u32) -> u64 {
+			value as u64 | (1 << 31)
+		}
+		let res_val = match req.call
+			{
+			// Locally handle the `CORE_STARTPROCESS` call
+			::syscalls::native_exports::values::CORE_STARTPROCESS => {
+				match handle_syscall_start_process(&gs, &args_usize[..])
+				{
+				Ok( rv ) => rv as u64,
+				Err(_) => error_code(0),
+				}
+				},
+			// Defer everything else to the syscall module
+			_ => unsafe { ::syscalls::syscalls_handler(req.call, args_usize.as_ptr(), args_usize.len() as u32) },
+			};
+		let res = THREAD_CURRENT_INFO.with(|f| {
+			f.borrow_mut().take().unwrap().writeback()
+		});
+		if res.is_err() {
+			// TODO: Change the response
+			todo!("Error in writing back syscall results");
+		}
+
+		let res = Resp {
+			tid: req.tid,
+			call: req.call,
+			rv: res_val,
+			};
+		_pause_handle = pauser.pause();
+		match /*test_pause_thread(|| */sock.write(unsafe { ::std::slice::from_raw_parts(&res as *const _ as *const u8, ::std::mem::size_of::<Resp>()) })/*)*/
+		{
+		Ok(_) => {},
+		Err(e) => { log_error!("Failed to send syscall response: {:?}", e); break },
+		}
+	}
+
+	
+	_pause_handle = pauser.pause();
+
+	// Drop the socket so the child will definitely quit
+	drop(sock);
+	// Clean up the process (wait for the child to terminate)
+	match gs.lock().unwrap().processes.get_mut(&pid).map(|v| v.wait())
+	{
+	None => panic!("PID #{} not in the process list", pid),
+	Some(Ok(status)) => {
+		if status.success() {
+			0
+		}
+		else if let Some(s) = status.code() {
+			s as u32
+		}
+		else {
+			u32::MAX
+		}
+	},
+	Some(Err(e)) => panic!("Failed to wait for PID #{}: {:?}", pid, e),
+	}
+}
+
+/// Handle the `CORE_STARTPROCESS` syscall with some special logic
+fn handle_syscall_start_process(gs: &GlobalStateRef, mut args: &[usize]) -> Result<u32, ::syscalls::Error>
 {
 	use ::kernel::memory::freeze::Freeze;
 	use ::syscalls::native_exports::SyscallArg;

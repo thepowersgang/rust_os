@@ -5,6 +5,7 @@
 
 CARGO_PROFILE ?= debug
 CARGO_FLAGS :=
+ARGS ?= 
 
 ifeq ($(CARGO_PROFILE),debug)
   # No --release
@@ -36,4 +37,4 @@ run: all
 	@mkdir -p .native_fs/Tifflin/shared/images
 	cp ../Graphics/.output/shared/*.r8 .native_fs/Tifflin/shared/images/
 	cp ../Graphics/.output/shared/*.r24 .native_fs/Tifflin/shared/images/
-	LD_LIBRARY_PATH=../Usermode/.output/native/bin $(CARGO) run | tee log.txt
+	LD_LIBRARY_PATH=../Usermode/.output/native/bin $(CARGO) run -- $(ARGS) | tee log.txt
