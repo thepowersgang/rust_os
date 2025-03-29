@@ -19,6 +19,7 @@ APPS += simple_console shell
 APPS += filebrowser fileviewer
 APPS += vfs_test
 APPS += hello_world
+APPS += gui_irc
 
 APPS := $(addsuffix $(EXESUF),$(APPS))
 

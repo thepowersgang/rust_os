@@ -8,8 +8,8 @@ members = [
 	"filebrowser", "fileviewer",
 	"vfs_test",
 	"hello_world",
-
-	#"gui_irc",
+	
+	"gui_irc",
 	]
 exclude = ["loader/native"]
 

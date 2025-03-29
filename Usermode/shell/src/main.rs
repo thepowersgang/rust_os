@@ -22,6 +22,11 @@ fn start_app_console() {
 		//app.send_obj( "vfs", ::syscalls::vfs::root().clone() );
 		});
 }
+fn start_app_irc() {
+	start_app(&["/sysroot/bin/gui_irc"], |_app| {
+		//app.send_obj( "vfs", ::syscalls::vfs::root().clone() );
+		});
+}
 fn start_app_filebrowser() {
 	start_app(&["/sysroot/bin/filebrowser"], |app| {
 		app.send_obj( "ro:/", ::syscalls::vfs::root().clone() );
@@ -56,6 +61,7 @@ fn main()
 		use wtk::menu::{Menu,Entry,Spacer};
 		Menu::new("System Menu", (
 			Entry::new("CLI", 0, "Win-T", || start_app_console()),
+			Entry::new("IRC", 0, "", || start_app_irc()),
 			Spacer,
 			Entry::new("Filesystem", 0, "Win-E", || start_app_filebrowser()),
 			Entry::new("Text Editor", 5, "", || start_app_editor()),
