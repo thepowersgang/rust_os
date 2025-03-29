@@ -52,6 +52,7 @@ impl<'a> ::r#async::WaitController for ServerManager<'a> {
 			}
 		}
 		if let Some(text) = self.input.take() {
+			::syscalls::kernel_log!("Input {:?}", text);
 			// Get the current tab
 			let cur_tab = self.tabs.selected_idx();
 			// Map to a server and channel

@@ -23,10 +23,11 @@ fn main()
 		use ::wtk::elements::static_layout::{Box,BoxEle};
 		Box::new_vert((
 			BoxEle::expand(&tabs),
-			BoxEle::fixed(32, {
+			BoxEle::fixed(20, {
 				let mut e = ::wtk::elements::input::TextInput::new();
 				e.bind_submit(|input_ele,_win| {
 					*input.0.borrow_mut() = input_ele.get_content().to_owned();
+					input_ele.clear();
 				});
 				e
 			}),
@@ -35,6 +36,7 @@ fn main()
 
 	let mut win_main = {
 		let mut win = ::wtk::Window::new("IRC", &ele_win_main, ::wtk::Colour::from_argb32(0xAAA_AAA), ()).unwrap();
+		win.maximise();
 		win.focus(ele_win_main.inner().1.inner());
 		win
 	};
