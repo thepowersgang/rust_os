@@ -46,8 +46,26 @@ impl<T: Pod> SyscallArg for Freeze<T>
 			return Err( crate::Error::TooManyArgs );
 		}
 		let ptr = args[0] as *const T;
-		*args = &args[2..];
-		todo!("Freeze {:p}", ptr);
+		let blen = ::core::mem::size_of::<T>();
+		*args = &args[1..];
+		// SAFE: Performs data validation, and only accepts user pointers (which are checkable)
+		unsafe {
+			// 1. Check if the pointer is into user memory
+			// TODO: ^^^
+			// 2. Ensure that the pointed slice is valid (overlaps checks by Freeze, but gives a better error)
+			// TODO: Replace this check with mapping FreezeError
+			#[cfg(feature="native")]
+			let ptr_real = native_map_syscall_pointer(ptr as *const u8, blen, false) as *const T;
+			#[cfg(not(feature="native"))]
+			let ptr_real = ptr;
+			let bs = if let Some(v) = ::kernel::memory::buf_to_slice(ptr_real, 1) {
+					&v[0]
+				} else {
+					return Err( crate::Error::InvalidBuffer(ptr as *const (), blen) );
+				};
+			// 3. Create a freeze on that memory (ensuring that it's not unmapped until the Freeze object drops)
+			Ok( Freeze::new(bs)? )
+		}
 	}
 }
 impl<T: Pod> SyscallArg for Freeze<[T]>
