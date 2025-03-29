@@ -7,8 +7,6 @@
 extern crate wtk;
 extern crate r#async;
 
-type Tabs = ::std::cell::RefCell< ::wtk::elements::controls::TabView>;
-
 fn main()
 {
 	::wtk::initialise();
@@ -41,7 +39,7 @@ fn main()
 		win
 	};
 	
-	let mut sm = server_manager::ServerManager::new(status_window, &input, &tabs);
+	let mut sm = server_manager::ServerManager::new(status_window, &input, Tabs(&tabs));
 
 	win_main.show();
 	::r#async::idle_loop(&mut [
@@ -67,5 +65,18 @@ impl Input {
 		else {
 			Some(v)
 		}
+	}
+}
+
+struct Tabs<'a>(&'a ::std::cell::RefCell< ::wtk::elements::controls::TabView>);
+impl<'a> Tabs<'a> {
+	fn selected_idx(&self) -> usize {
+		self.0.borrow().selected_idx()
+	}
+	fn add_tab(&self, server_name: &str, channel_name: &str) -> window_types::ChannelWindow {
+		let (cw,ele) = window_types::ChannelWindow::new(channel_name.as_bytes());
+		let tab_name = format!("{} [{}]", channel_name, server_name);
+		self.0.borrow_mut().add_tab(tab_name, ele);
+		cw
 	}
 }

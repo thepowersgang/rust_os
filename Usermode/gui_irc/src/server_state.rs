@@ -28,6 +28,12 @@ impl ServerState {
 		}
 		Ok( () )
 	}
+	pub fn join_channel(&mut self, mut conn: &::std::net::TcpStream,  channel_name: &str, window: ChannelWindow) -> ::std::io::Result<()> {
+		let old_w = self.windows.insert(channel_name.as_bytes().to_owned(), window);
+		assert!(old_w.is_none(), "BUG: Re-opened same channel?");
+		::std::io::Write::write_all(&mut conn, format!("JOIN {}\r\n", channel_name).as_bytes())?;
+		Ok( () )
+	}
 	pub fn handle_line(&mut self, mut line: &[u8]) {
 		if line.starts_with(b":") {
 			// A message (either from a user or from a server)

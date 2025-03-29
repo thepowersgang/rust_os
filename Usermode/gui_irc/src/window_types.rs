@@ -21,17 +21,25 @@ pub struct ChannelWindow(::std::rc::Rc<super::rich_text_ele::TextConsole>);
 
 impl ChannelWindow {
 	pub fn new(name: &[u8]) -> (Self, impl ::wtk::Element) {
+		let _ = name;
 		let inner = ::std::rc::Rc::new(super::rich_text_ele::TextConsole::new(1024));
 		(ChannelWindow(inner.clone()), inner,)
 	}
+	fn get_time(&self) -> &'static str {
+		"12:34"
+	}
 	pub fn set_topic(&self, topic: &[u8]) {
+		let timestamp = self.get_time();
+		let topic = String::from_utf8_lossy(topic);
+		self.0.new_line();
+		self.0.append_fmt(0, format_args!("{} [TOPIC] {}", timestamp, topic));
 	}
 	pub fn append_message(&self, nickname: &[u8], message: &[u8]) {
+		let timestamp = self.get_time();
 		let nickname = String::from_utf8_lossy(nickname);
 		let message = String::from_utf8_lossy(message);
 		let user_colour = ::wtk::Colour::theme_text_alt();
 		// Append "{timestamp} <{flag}{username}> {message}" to this window
-		let timestamp = "12:34";
 		self.0.new_line();
 		self.0.append_fmt(0, format_args!("{} <", timestamp));
 		self.0.append_fg_set(0, Some(user_colour));

@@ -3,21 +3,23 @@ use crate::server_state::ServerState;
 pub struct ServerManager<'a> {
 	status_window: crate::window_types::StatusWindow,
 	input: &'a crate::Input,
-	tabs: &'a crate::Tabs,
+	tabs: crate::Tabs<'a>,
 	// Mapping from tab index (minus 1, for the status window) to server channels
 	windows: Vec<(usize, String)>,
 	servers: Vec<ServerConnection>,
+	selected_server: usize,
 }
 struct ServerConnection {
 	stream: AsyncLineStream,
 	protocol: ServerState,
 }
 impl<'a> ServerManager<'a> {
-	pub fn new(status_window: crate::window_types::StatusWindow, input: &'a crate::Input, tabs: &'a crate::Tabs) -> Self {
+	pub fn new(status_window: crate::window_types::StatusWindow, input: &'a crate::Input, tabs: crate::Tabs<'a>) -> Self {
 		ServerManager {
 			status_window,
 			input,
 			tabs,
+			selected_server: 0,
 			windows: Vec::new(),
 			servers: Vec::new(),
 		}
@@ -51,7 +53,7 @@ impl<'a> ::r#async::WaitController for ServerManager<'a> {
 		}
 		if let Some(text) = self.input.take() {
 			// Get the current tab
-			let cur_tab = self.tabs.borrow().selected_idx();
+			let cur_tab = self.tabs.selected_idx();
 			// Map to a server and channel
 			let win = if cur_tab == 0 {
 				None
@@ -63,9 +65,20 @@ impl<'a> ::r#async::WaitController for ServerManager<'a> {
 				match text.split_once(" ").unwrap_or((&text,"")) {
 				("/quit", _message) => {},
 				("/leave", _message) => {},
-				("/join", _channel) => {
-					// Create a window, then tell the client logic to issue a join command
-				},
+				("/join", channel) => match self.command_join(channel)
+					{
+					Ok(()) => {},
+					Err(e) => self.status_window.print_error("<input>", format_args!("/join: {}", e))
+					},
+				("/server", des) => {
+					if des.trim() == "" {
+						// Dump the current server list to the input
+					}
+					else {
+						// If `des` parses to an integer, treat as an index
+						// otherwise, search the sever names
+					}
+				}
 				("/nick", _nickname) => {},
 				("/connect",args) => match self.command_connect(args)
 					{
@@ -133,6 +146,33 @@ impl<'a> ServerManager<'a> {
 		{
 		Ok(()) => {},
 		Err(e) => return Err(format!("Unable to connect to server: {:?}", e)),
+		}
+		Ok( () )
+	}
+
+	fn command_join(&mut self, channel: &str) -> Result<(),String>
+	{
+		// Create a window, then tell the client logic to issue a join command
+		// - But... which server?
+		let cur_tab = self.tabs.selected_idx();
+		let server_idx = if cur_tab != 0 {
+				self.windows[cur_tab-1].0
+			}
+			else {
+				self.selected_server
+			};
+		if self.windows.iter().any(|e| e.0 == server_idx && e.1 == channel) {
+			return Err("Already joined?".to_owned())
+		}
+		let server = &mut self.servers[server_idx];
+		// Add the tab to the tab bar
+		let window = self.tabs.add_tab(server.protocol.name(), channel);
+		// Add to the mapping between tabs and server-channel
+		self.windows.push((server_idx, channel.to_owned()));
+		// And get the protocol to issue a `JOIN` request
+		match server.protocol.join_channel(server.stream.connection.get_ref(), channel.trim(), window) {
+		Ok(()) => {},
+		Err(e) => return Err(format!("Network error: {:?}", e)),
 		}
 		Ok( () )
 	}
