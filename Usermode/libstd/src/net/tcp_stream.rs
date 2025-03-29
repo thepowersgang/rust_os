@@ -38,10 +38,26 @@ impl TcpStream
 impl crate::io::Read for TcpStream
 {
 	fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
-		self.0.recv(buf).map_err(super::cvt_error)
+		(&*self).read(buf)
 	}
 }
 impl crate::io::Write for TcpStream
+{
+	fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+		(&*self).write(buf)
+	}
+
+	fn flush(&mut self) -> io::Result<()> {
+		(&*self).flush()
+	}
+}
+impl<'a> crate::io::Read for &'a TcpStream
+{
+	fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+		self.0.recv(buf).map_err(super::cvt_error)
+	}
+}
+impl<'a> crate::io::Write for &'a TcpStream
 {
 	fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
 		self.0.send(buf).map_err(super::cvt_error)
@@ -51,4 +67,5 @@ impl crate::io::Write for TcpStream
 		Ok(())
 	}
 }
+
 

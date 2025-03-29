@@ -98,12 +98,12 @@ impl ConnectedSocket
 }
 impl ConnectedSocket
 {
-	pub fn send(&mut self, data: &[u8]) -> Result<usize, Error> {
+	pub fn send(&self, data: &[u8]) -> Result<usize, Error> {
 		// SAFE: Syscall
 		to_result(unsafe { self.0.call_2(::values::NET_CONNSOCK_SEND, data.as_ptr() as usize, data.len()) as usize })
 			.map(|v| v as usize)
 	}
-	pub fn recv(&mut self, data: &mut [u8]) -> Result<usize, Error> {
+	pub fn recv(&self, data: &mut [u8]) -> Result<usize, Error> {
 		// SAFE: Syscall
 		to_result(unsafe { self.0.call_2(::values::NET_CONNSOCK_RECV, data.as_ptr() as usize, data.len()) as usize })
 			.map(|v| v as usize)
