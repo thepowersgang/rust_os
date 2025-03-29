@@ -110,6 +110,9 @@ impl ConnectedSocket
 	}
 
 	// TODO: Async IO using registered buffers (which minimises the problems with borrowing)
+	pub fn wait_read(&self) -> crate::WaitItem {
+		self.0.get_wait(::values::EV_NET_CONNSOCK_RECV)
+	}
 }
 // --------------------------------------------------------------------
 impl ::Object for FreeSocket

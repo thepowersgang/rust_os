@@ -153,8 +153,8 @@ impl AsyncLineStream {
 		}
 	}
 	fn wait_item(&self) -> syscalls::WaitItem {
-		//self.connection.get_ref().wait_item()
-		panic!("TODO: get WaitItem from std")
+		use ::std::net::TcpStreamExt;
+		self.connection.get_ref().wait_item()
 	}
 	fn handle(&mut self, _item: &syscalls::WaitItem) -> ::std::io::Result<Option<&[u8]>> {
 		use ::std::io::Read;

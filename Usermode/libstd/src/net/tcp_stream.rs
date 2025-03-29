@@ -68,4 +68,12 @@ impl<'a> crate::io::Write for &'a TcpStream
 	}
 }
 
-
+pub trait TcpStreamExt
+{
+	fn wait_item(&self) -> ::syscalls::WaitItem;
+}
+impl TcpStreamExt for TcpStream {
+	fn wait_item(&self) -> ::syscalls::WaitItem {
+		self.0.wait_read()
+	}
+}

@@ -2,7 +2,7 @@
 //
 //
 
-pub use self::tcp_stream::TcpStream;
+pub use self::tcp_stream::{TcpStream,TcpStreamExt};
 
 pub struct Error;
 

@@ -341,6 +341,8 @@ def_classes! {
 		=2: NET_CONNSOCK_SHUTDOWN,
 	--
 	}|{
+		/// Event raised when there is data ready to read
+		=0: EV_NET_CONNSOCK_RECV,
 	},
 	/// Free-bind socket
 	=13: CLASS_FREESOCKET = {
