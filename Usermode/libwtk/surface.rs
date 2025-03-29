@@ -16,11 +16,17 @@ impl Colour
 	//pub fn white() -> Colour { Colour(0xFF_FF_FF) }
 	pub fn as_argb32(&self) -> u32 { self.0 }
 
+	/// Default text colour for the current theme
 	pub const fn theme_text() -> Colour { Colour(0x00_000000) }
+	/// Alternate text colour (less important)
 	pub const fn theme_text_alt() -> Colour { Colour(0x00_606060) }
+	/// Primary colour for borders
 	pub const fn theme_border_main() -> Colour { Colour(0x00_C0C0C0) }
+	/// Alternate colour for borders
 	pub const fn theme_border_alt() -> Colour { Colour(0x00_E0E0E0) }
+	/// Background colour for text display
 	pub const fn theme_text_bg() -> Colour { Colour(0xF8FFF8) }
+	/// Background colour for the body of elements
 	pub const fn theme_body_bg() -> Colour { Colour(0x002000) }
 
 	/// Alpha value, 0 = opaque, 255 = transparent

@@ -67,26 +67,50 @@ impl TextConsole
 		let line = lh.lines.len() - 1 - line;
 		lh.lines.remove(line);
 	}
+
+	fn with_line(&self, line: usize, fcn: impl FnOnce(&mut Line)) {
+		let mut lh = self.lines.borrow_mut();
+		let line = lh.lines.len() - 1 - line;
+		let line = &mut lh.lines[line];
+		fcn(line)
+	}
 	/// Erase the contents of a line
 	pub fn erase_line(&self, line: usize) {
-		let mut lh = self.lines.borrow_mut();
-		let line = lh.lines.len() - 1 - line;
-		let line = &mut lh.lines[line];
-		*line = Line::default();
+		self.with_line(line, |line| *line = Line::default());
+	}
+	pub fn append_bg_set(&self, line: usize, colour: Option<Colour>) {
+		self.with_line(line, |line| {
+			line.append_bg(colour.unwrap_or(Colour::from_argb32(COLOUR_DEFAULT_BG)));
+		});
+	}
+	pub fn append_fg_set(&self, line: usize, colour: Option<Colour>) {
+		self.with_line(line, |line| {
+			line.append_fg(colour.unwrap_or(Colour::from_argb32(COLOUR_DEFAULT_FG)));
+		});
 	}
 	/// Append text onto the end of a line
-	pub fn append_text(&self, line: usize, bg: Option<Colour>, fg: Option<Colour>, text: &str) {
-		let mut lh = self.lines.borrow_mut();
-		
-		let line = lh.lines.len() - 1 - line;
-		let line = &mut lh.lines[line];
-		if let Some(fg) = fg {
-			line.append_fg(fg);
-		}
-		if let Some(bg) = bg {
-			line.append_bg(bg);
-		}
-		line.append_text(text);
+	pub fn append_text(&self, line: usize, text: &str) {
+		self.with_line(line, |line| {
+			line.append_text(text);
+		});
+	}
+	/// Append text onto the end of a line
+	pub fn append_chars(&self, line: usize, text: impl Iterator<Item=char>) {
+		self.with_line(line, |line| {
+			line.append_iter(text);
+		});
+	}
+	pub fn append_fmt(&self, line: usize, args: ::std::fmt::Arguments) {
+		self.with_line(line, |line| {
+			struct F<'a>(&'a mut Line);
+			impl<'a> ::std::fmt::Write for F<'a> {
+				fn write_str(&mut self, s: &str) -> ::std::fmt::Result {
+					self.0.append_text(s);
+					Ok(())
+				}
+			}
+			let _ = ::std::fmt::Write::write_fmt(&mut F(line), args);
+		});
 	}
 }
 impl ::wtk::Element for TextConsole

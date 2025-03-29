@@ -32,9 +32,14 @@ macro_rules! dispatch_ele {
 		};
 }
 /// Object safe
-impl<'a, T: 'a + Element> Element for &'a T
-{
-	dispatch_ele!{self, *self}
+impl<'a, T: 'a + ?Sized + Element> Element for &'a T {
+	dispatch_ele!{self, **self}
+}
+impl<T: ?Sized + Element> Element for Box<T> {
+	dispatch_ele!{self, **self}
+}
+impl<T: ?Sized + Element> Element for ::std::rc::Rc<T> {
+	dispatch_ele!{self, **self}
 }
 /// RefCell - Interior mutability
 impl<T: Element> Element for crate::std::cell::RefCell<T>

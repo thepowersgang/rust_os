@@ -21,10 +21,13 @@ impl Line {
 		self.is_dirty.replace(false)
 	}
 
-	pub fn append_text(&mut self, text: &str) {
+	pub fn append_iter(&mut self, text: impl Iterator<Item=char>) {
 		// TODO: Ensure that string doesn't contain special characters that we use as escape codes
-		self.data.push_str( text );
+		self.data.extend(text);
 		self.is_dirty.set(true);
+	}
+	pub fn append_text(&mut self, text: &str) {
+		self.append_iter(text.chars());
 	}
 	pub fn append_fg(&mut self, col: Colour) {
 		self.data.push( CodepointClass::PrivateUse15(col24_to_12(col) << 4).to_char() );
@@ -34,7 +37,7 @@ impl Line {
 		self.data.push( CodepointClass::PrivateUse16(col24_to_12(col) << 4).to_char() );
 		self.is_dirty.set(true);
 	}
-	pub fn delete_cell_back(&mut self)
+	pub fn _delete_cell_back(&mut self)
 	{
 		while let Some(v) = self.data.pop()
 		{

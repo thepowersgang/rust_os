@@ -10,8 +10,11 @@ extern crate syscalls;
 /// Trait for types that can be used for 'idle_loop'
 pub trait WaitController
 {
+	/// Return the number of times `populate` will call `cb`
 	fn get_count(&self) -> usize;
+	/// Populate a list of objects
 	fn populate(&self, cb: &mut dyn FnMut(::syscalls::WaitItem));
+	/// Called when the thread wakes up for any reason, `events` points to the `get_count()` objects created by `populate`
 	fn handle(&mut self, events: &[::syscalls::WaitItem]);
 }
 

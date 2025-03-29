@@ -132,7 +132,8 @@ pub mod prelude {
 
 
 pub mod collections {
-	//pub use alloc::BTreeMap;
+	pub use ::alloc::collections::{BTreeMap,btree_map};
+	pub use ::alloc::collections::{BTreeSet,btree_set};
 }
 
 mod start;

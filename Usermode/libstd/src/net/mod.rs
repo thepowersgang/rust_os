@@ -86,6 +86,11 @@ pub struct Ipv4Addr
 {
 	bytes: [u8; 4],
 }
+impl Ipv4Addr {
+	pub fn from_octets(a: u8, b: u8, c: u8, d: u8) -> Self {
+		Ipv4Addr { bytes: [a,b,c,d] }
+	}
+}
 impl ::core::fmt::Display for Ipv4Addr
 {
 	fn fmt(&self, f: &mut ::core::fmt::Formatter) -> ::core::fmt::Result
