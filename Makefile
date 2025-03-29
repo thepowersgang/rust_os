@@ -2,7 +2,7 @@
 -include common.mk
 
 run: all
-	$(MAKE) -C Kernel/rundir run
+	$(MAKE) -C rundir run
 
 all:
 	@echo ">>> $@: Graphics"
