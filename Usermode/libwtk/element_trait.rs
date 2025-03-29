@@ -15,7 +15,7 @@ pub trait Element
 	fn render(&self, surface: crate::surface::SurfaceView, force: bool);
 
 	/// Update size-based information (should be called before a render with a new size, and may be expensive)
-	fn resize(&self, _w: u32, _h: u32);
+	fn resize(&self, w: u32, h: u32);
 
 	/// Fetch child element at the given position.
 	/// Returns the child element and the offset of the child.
@@ -55,3 +55,4 @@ impl Element for ()
 	fn resize(&self, _w: u32, _h: u32) { }
 	fn with_element_at_pos(&self, pos: crate::geom::PxPos, _dims: crate::geom::PxDims, f: crate::WithEleAtPosCb) -> bool { f(self, pos) }
 }
+

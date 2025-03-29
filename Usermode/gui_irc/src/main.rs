@@ -15,9 +15,11 @@ fn main()
 	let ele_win_main = {
 		use ::wtk::elements::static_layout::{Box,BoxEle};
 		Box::new_vert((
-			BoxEle::expand( status_window_ele ),
+			BoxEle::expand(
+				::wtk::elements::controls::TabView::new_below()
+					.with_tab("(status)", status_window_ele)
+				),
 			BoxEle::fixed(32, ::wtk::elements::input::TextInput::new()),
-			//BoxEle::fixed(32, ::wtk::elements::controls::TabBar::new()),
 			))
 		};
 

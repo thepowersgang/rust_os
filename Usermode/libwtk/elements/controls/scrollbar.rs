@@ -151,7 +151,7 @@ where
 			}
 	}
 
-	/// Set (capacity, handke_size)
+	/// Set (capacity, handle_size)
 	/// NOTE: The size must be <= the capacity
 	pub fn set_bar(&self, bar: Option<(usize, usize)>) {
 		let mut s = self.state.borrow_mut();

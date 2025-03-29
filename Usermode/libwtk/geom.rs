@@ -113,6 +113,14 @@ impl<T: CoordType> Rect<T>
 	pub fn dims(&self) -> Dims<T> {
 		Dims::new(self.w, self.h)
 	}
+	pub fn with_dims(&self, d: Dims<T>) -> Self {
+		Self {
+			x: self.x,
+			y: self.y,
+			w: d.w,
+			h: d.h,
+		}
+	}
 
 	pub fn width(&self) -> T { self.w }
 	pub fn height(&self) -> T { self.h }
@@ -122,6 +130,9 @@ impl<T: CoordType> Rect<T>
 	pub fn x2(&self) -> T { self.x + self.w }
 	pub fn y2(&self) -> T { self.y + self.h }
 
+	pub fn top_left(&self) -> Pos<T> {
+		Pos { x: self.x, y: self.y }
+	}
 	pub fn contains(&self, pos: Pos<T>) -> bool {
 		self.x() <= pos.x && pos.x < self.x2()
 			&& self.y() <= pos.y && pos.y < self.y2()
