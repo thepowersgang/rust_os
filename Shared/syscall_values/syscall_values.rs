@@ -563,6 +563,10 @@ enum_to_from!{ SocketError => u32:
 	InvalidValue = 1,
 	/// The specified address was already in use
 	AlreadyInUse = 2,
+	/// No route to host
+	NoRoute = 3,
+	SocketClosed = 4,
+	ConnectionReset = 5,
 }
 enum_to_from!{ SocketShutdownSide => u8:
 	Transmit = 0,

@@ -38,17 +38,22 @@ enum ErrorInner
 }
 impl ::core::fmt::Display for Error {
 	fn fmt(&self, f: &mut ::core::fmt::Formatter) -> ::core::fmt::Result {
+		use ::syscalls::vfs::Error as Vfs;
+		use ::syscalls::net::Error as Net;
 		match self.0 {
 		ErrorInner::Misc => f.write_str("Unknown/misc error"),
-		ErrorInner::VFS(::syscalls::vfs::Error::FileNotFound) => f.write_str("File not found"),
-		ErrorInner::VFS(::syscalls::vfs::Error::TypeError   ) => f.write_str("Incorrect file type for operation"),
-		ErrorInner::VFS(::syscalls::vfs::Error::PermissionDenied) => f.write_str("Permission denied"),
-		ErrorInner::VFS(::syscalls::vfs::Error::FileLocked) => f.write_str("File is locked"),
-		ErrorInner::VFS(::syscalls::vfs::Error::MalformedPath) => f.write_str("Malformed path"),
+		ErrorInner::VFS(Vfs::FileNotFound) => f.write_str("File not found"),
+		ErrorInner::VFS(Vfs::TypeError   ) => f.write_str("Incorrect file type for operation"),
+		ErrorInner::VFS(Vfs::PermissionDenied) => f.write_str("Permission denied"),
+		ErrorInner::VFS(Vfs::FileLocked) => f.write_str("File is locked"),
+		ErrorInner::VFS(Vfs::MalformedPath) => f.write_str("Malformed path"),
 		//ErrorInner::VFS(ref e) => write!(f, "Unknown VFS error {:?}", e),
-		ErrorInner::Net(::syscalls::net::Error::AlreadyInUse) => f.write_str("Address already in use"),
-		ErrorInner::Net(::syscalls::net::Error::InvalidValue) => f.write_str("Invalid parameter value"),
-		ErrorInner::Net(::syscalls::net::Error::NoData) => f.write_str("No data available"),
+		ErrorInner::Net(Net::AlreadyInUse) => f.write_str("Address already in use"),
+		ErrorInner::Net(Net::InvalidValue) => f.write_str("Invalid parameter value"),
+		ErrorInner::Net(Net::NoData) => f.write_str("No data available"),
+		ErrorInner::Net(Net::NoRoute) => f.write_str("No route to host"),
+		ErrorInner::Net(Net::SocketClosed) => f.write_str("Socket closed"),
+		ErrorInner::Net(Net::ConnectionReset) => f.write_str("Connection reset"),
 		}
 	}
 }

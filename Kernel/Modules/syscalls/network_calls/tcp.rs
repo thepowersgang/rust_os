@@ -7,11 +7,24 @@ use crate::args::Args;
 use kernel::memory::freeze::{Freeze,FreezeMut};
 use ::syscall_values::SocketAddress;
 
+fn map_tcp_err(e: ::network::tcp::ConnError) -> crate::values::SocketError {
+	use ::network::tcp::ConnError as S;
+	use ::syscall_values::SocketError as D;
+	match e
+	{
+	S::NoRoute       => D::NoRoute,
+	S::LocalClosed   => D::SocketClosed,
+	S::RemoteRefused => D::ConnectionReset,
+	S::RemoteClosed  => D::SocketClosed,
+	S::RemoteReset   => D::ConnectionReset,
+	S::NoPortAvailable => todo!("TCP error {:?}", e),
+	}
+}
 fn from_tcp_result(r: Result<usize, ::network::tcp::ConnError>) -> u64 {
 	crate::from_result::<_, crate::values::SocketError>(match r
 		{
 		Ok(v) => Ok(v as u32),
-		Err(e) => todo!("Convert error: {:?}", e),
+		Err(e) => Err(map_tcp_err(e)),
 		})
 }
 
@@ -91,7 +104,7 @@ impl TcpSocket
 			inner: match ::network::tcp::ConnectionHandle::connect(addr, port)
 				{
 				Ok(v) => v,
-				Err(e) => todo!("{:?}", e),
+				Err(e) => return Err(map_tcp_err(e)),
 				}
 			})
 	}
