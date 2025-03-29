@@ -11,7 +11,13 @@ extern crate loader;
 
 fn main()
 {
-	let root_app = "/sysroot/bin/login";
+	let mut args = ::std::env::args_os();
+	args.next();
+	let root_app = args.next();
+	let root_app = match root_app {
+		Some(ref ra) => ra.to_str().unwrap(),
+		None => "/sysroot/bin/login",
+	};
 	let root_args = [];
 
 	kernel_log!("Tifflin (rust_os) userland started");
