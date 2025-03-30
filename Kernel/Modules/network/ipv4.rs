@@ -13,12 +13,12 @@ static PROTOCOLS: RwLock<Vec<(u8, ProtoHandler)>> = RwLock::new(Vec::new());
 static INTERFACES: RwLock<Vec<Interface>> = RwLock::new(Vec::new());
 
 // NOTE: uses mac address to identify interface
-pub fn add_interface(local_mac: [u8; 6], addr: Address, mask_bits: u8)
+pub fn add_interface(local_mac: [u8; 6], address: Address, mask_bits: u8)
 {
 	let mut lh = INTERFACES.write();
 	for interface in lh.iter()
 	{
-		if interface.address == addr
+		if interface.address == address
 		{
 			// Whups?
 			return ;
@@ -26,8 +26,8 @@ pub fn add_interface(local_mac: [u8; 6], addr: Address, mask_bits: u8)
 	}
 
 	lh.push(Interface {
-		local_mac: local_mac,
-		address: addr,
+		local_mac,
+		address,
 		mask: mask_bits,
 		});
 }
