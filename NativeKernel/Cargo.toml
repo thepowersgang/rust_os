@@ -13,7 +13,7 @@ network = { path = "../Kernel/Modules/network", features = [] }
 lwip = { path = "../Kernel/tests/network/lwip", optional = true, features = [] }
 
 process-memory = "0.4"
-minifb = "0.19"
+minifb = "0.28"
 
 [features]
 network = ["lwip"]

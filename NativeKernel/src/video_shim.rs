@@ -68,19 +68,22 @@ impl Console
 				let size = state.lock().unwrap().size;
 				let mut window = ::minifb::Window::new("RustOS Native", size.width() as usize, size.height() as usize, Default::default()).expect("Failed to spawn window");
 
-				window.limit_update_rate(Some(::std::time::Duration::from_millis(16)));
+				window.set_target_fps(16);
 				let mut prev_keys = ::std::vec![];
 				let mut prev_pos = (0,0);
 				let mut prev_mouse = [false; 3];
 				loop {
-					// NOTE: This should limit its update rate (if no events are present, waits for 16ms)
-					window.update();
 
 					{
 						let mut lh = state.lock().unwrap();
 						if ::std::mem::replace(&mut lh.dirty, false) {
+							println!("video_shim: blit");
 							window.update_with_buffer(&lh.backbuffer, lh.size.width() as usize, lh.size.height() as usize)
 								.expect("Failed to update window buffer contents");
+						}
+						else {
+							// NOTE: This should limit its update rate (if no events are present, waits for 16ms)
+							window.update();
 						}
 					}
 
@@ -107,7 +110,7 @@ impl Console
 						}
 					}
 
-					if let Some(mut keys) = window.get_keys()
+					let mut keys = window.get_keys();
 					{
 						if keys != prev_keys
 						{
