@@ -12,6 +12,11 @@ pub struct VecDeque<T>
 	len: usize,
 }
 
+impl<T> Default for VecDeque<T> {
+	fn default() -> Self {
+		Self::new_const()
+	}
+}
 impl<T> VecDeque<T>
 {
 	pub const fn new_const() -> VecDeque<T> {

@@ -139,7 +139,7 @@ impl<T: ?Sized+Send> Mutex<T>
 	}
 }
 
-impl<T: Send+Default> Default for Mutex<T> {
+impl<T: Default> Default for Mutex<T> {
 	fn default() -> Mutex<T> {
 		Mutex::new(<T as Default>::default())
 	}

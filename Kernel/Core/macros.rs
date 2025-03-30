@@ -94,6 +94,7 @@ macro_rules! chain
 #[macro_export]
 macro_rules! todo
 {
+	() => ( panic!("TODO") );
 	( $s:expr ) => ( panic!( concat!("TODO: ",$s) ) );
 	( $s:expr, $($v:tt)* ) => ( panic!( concat!("TODO: ",$s), $($v)* ) );
 }

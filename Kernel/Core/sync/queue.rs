@@ -10,6 +10,7 @@ use core::cell::UnsafeCell;
 use crate::sync::Mutex;
 use crate::lib::VecDeque;
 
+#[derive(Default)]
 pub struct Queue<T>
 {
 	lock: Spinlock<bool>,
@@ -75,6 +76,9 @@ impl<T: Send> Queue<T>
 				}
 			}
 		}
+	}
+	pub fn try_pop(&self) -> Option<T> {
+		self.data.lock().pop_front()
 	}
 }
 
