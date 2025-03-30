@@ -8,6 +8,12 @@ kernel = { path = "../Kernel/Core", features = ["test"] }
 syscalls = { path = "../Kernel/Modules/syscalls", features = ["native"] }
 vfs = { path = "../Kernel/Modules/vfs", features = [] }
 gui = { path = "../Kernel/Modules/gui", features = [] }
+network = { path = "../Kernel/Modules/network", features = [] }
+
+lwip = { path = "../Kernel/tests/network/lwip", optional = true, features = [] }
 
 process-memory = "0.4"
 minifb = "0.19"
+
+[features]
+network = ["lwip"]

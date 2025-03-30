@@ -31,8 +31,19 @@ fn main()// -> Result<(), Box<dyn std::error::Error>>
 
 	(::gui::S_MODULE.init)();
 
+	// Native filesystem shim
 	::core::mem::forget( ::vfs::mount::DriverRegistration::new("native", &fs_shim::NativeFsDriver) );
+	// Network card shim
+	#[cfg(feature="network")]
+	{
+		#[path="net_sim.rs"]
+		mod net_shim;
+		let mac_addr = [0xAB,0xCD,0xEF,0x00,0x00,0x01];
+		::core::mem::forget( ::network::nic::register(mac_addr, net_shim::Nic::new(mac_addr)) );
+		::network::ipv4::add_interface(mac_addr, ::network::ipv4::Address([192,168,1,3]), 24);
+	}
 
+	// TODO: Also load actual filesystem drivers?
 	//(::fs_fat::S_MODULE.init)();
 	//(::fs_extN::S_MODULE.init)();
 
