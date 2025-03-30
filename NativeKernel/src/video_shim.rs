@@ -89,7 +89,7 @@ impl Console
 						std::process::exit(0);
 					}
 
-					// TODO: Mouse handling
+					// Mouse handling
 					if let Some( p ) = window.get_mouse_pos(::minifb::MouseMode::Discard)
 					{
 						let x = (p.0 / size.w as f32 * 0xFFFF as f32) as u16;
