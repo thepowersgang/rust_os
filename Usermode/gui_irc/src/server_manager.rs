@@ -103,6 +103,8 @@ impl<'a> ::r#async::WaitController for ServerManager<'a> {
 				}
 			}
 		}
+
+		// TODO: Trigger a window redraw
 	}
 }
 impl<'a> ServerManager<'a> {

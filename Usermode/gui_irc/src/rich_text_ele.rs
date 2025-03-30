@@ -40,11 +40,13 @@ impl TextConsole
 {
 	pub fn new(max_lines: usize) -> Self
 	{
-		TextConsole {
+		let rv = TextConsole {
 			lines: Default::default(),
 			max_lines,
 			render_cache: Default::default(),
-			}
+			};
+		rv.lines.borrow_mut().cursor_line = !0;
+		rv
 	}
 
 	/// Push a new line onto the end of the console, potentially scrolling the display
@@ -126,6 +128,10 @@ impl ::wtk::Element for TextConsole
 		let backing = self.lines.borrow();
 
 		force |= rc_h.line_count != backing.lines.len();
+		::syscalls::kernel_log!("TextConsole::render: force={}", force);
+		if force {
+			surface.fill_rect(Rect::new_full(), Colour::from_argb32(COLOUR_DEFAULT_BG));
+		}
 
 		rc_h.line_count = backing.lines.len();
 	

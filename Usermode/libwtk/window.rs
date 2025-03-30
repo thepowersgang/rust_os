@@ -271,6 +271,7 @@ impl<'a, D: 'a + Decorator> WindowTrait<'a> for Window<'a, D>
 		self.root.render( subsurf, self.needs_force_rerender );
 		self.surface.blit_to_win( &self.win );
 		self.needs_force_rerender = false;
+		self.win.redraw();
 	}
 
 	/// Obtain the states of all "modifier" keys
@@ -421,7 +422,6 @@ impl<'a, D: Decorator> ::r#async::WaitController for Window<'a, D>
 
 		if redraw {
 			self.rerender();
-			self.win.redraw();
 		}
 	}
 }

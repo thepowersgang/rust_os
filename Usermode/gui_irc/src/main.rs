@@ -44,9 +44,34 @@ fn main()
 	let mut sm = server_manager::ServerManager::new(status_window, &input, Tabs(&tabs));
 
 	win_main.show();
+	//win_main.rerender();
+	// TODO: How can this tell the window to redraw when ServerManager updates contents?
+	// - Could make `ServerManager` own the window, so it can request the redraw
+	struct M<'a, 'sm, 'w> {
+		win: &'a mut ::wtk::Window<'w, ()>,
+		sm: &'a mut server_manager::ServerManager<'sm>,
+	}
+	impl<'a, 'sm, 'w> ::r#async::WaitController for M<'a, 'sm, 'w> {
+		fn get_count(&self) -> usize {
+			self.win.get_count() + self.sm.get_count()
+		}
+	
+		fn populate(&self, cb: &mut dyn FnMut(syscalls::WaitItem)) {
+			self.win.populate(cb);
+			self.sm.populate(cb);
+		}
+	
+		fn handle(&mut self, events: &[syscalls::WaitItem]) {
+			let (a,b) = events.split_at(self.win.get_count());
+			self.win.handle(a);
+			self.sm.handle(b);
+			self.win.rerender();
+		}
+	}
 	::r#async::idle_loop(&mut [
-		&mut win_main,
-		&mut sm,
+		//&mut win_main,
+		//&mut sm,
+		&mut M { win: &mut win_main, sm: &mut sm },
 		]);
 }
 

@@ -57,7 +57,9 @@ impl<'a> TextInput<'a>
 	}
 
 	pub fn clear(&self) {
-		self.state.borrow_mut().value.clear();
+		let mut lh = self.state.borrow_mut();
+		lh.is_dirty = true;
+		lh.value.clear();
 	}
 }
 
@@ -86,12 +88,6 @@ impl<'a> ::Element for TextInput<'a>
 		let mut state = self.state.borrow_mut();
 		if force || state.is_dirty {
 			let (w,h) = (surface.width(), surface.height());
-			// A basic raised border (top-left illuminated)
-			// TODO: Shouldn't the border be the job of a wrapping frame? Kinda heavy, but cleaner
-			//surface.fill_rect( Rect::new(0,0,w,1), Colour::theme_border_main() );
-			//surface.fill_rect( Rect::new(0,0,1,h), Colour::theme_border_main() );
-			//surface.fill_rect( Rect::new(0,h-1,w,1), Colour::theme_border_alt() );
-			//surface.fill_rect( Rect::new(w-1,0,1,h), Colour::theme_border_alt() );
 
 			surface.fill_rect( Rect::new(0,0,w,h), Colour::theme_text_bg() );
 			// Text positioned 1px from the corners
