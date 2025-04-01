@@ -284,3 +284,59 @@ impl SyscallArg for bool {
 		Ok( rv )
 	}
 }
+
+/*
+trait SingleArg<'a>: 'a {
+	type RealTy: SyscallArg;
+	fn from_real(src: &'a mut Self::RealTy) -> Self;
+}
+impl<'a, T: Pod> SingleArg<'a> for &'a [T] {
+	type RealTy = Freeze<[T]>;
+	fn from_real(src: &'a mut Self::RealTy) -> Self {
+		&*src
+	}
+}
+impl<'a, T: Pod> SingleArg<'a> for &'a mut [T] {
+	type RealTy = FreezeMut<[T]>;
+	fn from_real(src: &'a mut Self::RealTy) -> Self {
+		src
+	}
+}
+impl<'a, T: Pod> SingleArg<'a> for &'a T {
+	type RealTy = Freeze<T>;
+	fn from_real(src: &'a mut Self::RealTy) -> Self {
+		&*src
+	}
+}
+impl<'a, T: Pod> SingleArg<'a> for &'a mut T {
+	type RealTy = FreezeMut<T>;
+	fn from_real(src: &'a mut Self::RealTy) -> Self {
+		src
+	}
+}
+trait ArgsTuple: Sized {
+	fn call(args: &mut Args, fcn: impl FnOnce(Self)->u64) -> Result<u64,super::Error>;
+}
+impl ArgsTuple for () {
+	fn call(args: &mut Args, fcn: impl FnOnce(Self)->u64) -> Result<u64,super::Error> {
+		let _ = args;
+		Ok( fcn( () ) )
+	}
+}
+impl<A> ArgsTuple for (A,)
+where for<'a> A: SingleArg<'a>,
+{
+	fn call(args: &mut Args, fcn: impl FnOnce(Self)->u64) -> Result<u64,super::Error> {
+		let _ = args;
+		let mut r1: A::RealTy = args.get()?;
+		let a1 = A::from_real(&mut r1);
+		Ok( fcn( (a1,) ) )
+	}
+}
+pub fn with_args<A: ::syscall_values::Args>(args: &mut Args, fcn: impl FnOnce(A)->u64) -> Result<u64,super::Error>
+where
+	A::Tuple: ArgsTuple,
+{
+	A::Tuple::call(args, |t| fcn(A::from_tuple(t)))
+}
+	*/

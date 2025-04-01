@@ -135,7 +135,6 @@ pub mod native_exports {
 	pub use crate::objects::object_has_no_such_method_val;
 }
 
-
 #[inline(never)]
 fn invoke_int(call_id: u32, args: &mut Args) -> Result<u64,Error>
 {
@@ -148,8 +147,15 @@ fn invoke_int(call_id: u32, args: &mut Args) -> Result<u64,Error>
 		// === 0: Threads and core
 		// - 0/0: Userland log
 		CORE_LOGWRITE => {
+			/*
+			args::with_args::<group_args::CORE_LOGWRITE>(args, |args| {
+				syscall_core_log(args.msg);
+				0
+			})?
+			*/
 			let msg: Freeze<[u8]> = args.get()?;
-			syscall_core_log(&msg); 0
+			syscall_core_log(&msg);
+			0
 			},
 		// - Userland debug
 		CORE_DBGVALUE => {
@@ -157,23 +163,24 @@ fn invoke_int(call_id: u32, args: &mut Args) -> Result<u64,Error>
 			let val: usize = args.get()?;
 			syscall_core_dbgvalue(&msg, val); 0
 			},
-		// - 0/2: Exit process
+		// - Exit process
 		CORE_EXITPROCESS => {
 			let status: u32 = args.get()?;
 			threads::exit(status); 0
 			},
+		// - Generic information requests
 		CORE_TEXTINFO => {
 			let group: u32 = args.get()?;
-			let id: usize = args.get()?;
+			let id: u32 = args.get()?;
 			let mut buf: FreezeMut<[u8]> = args.get()?;
 			// TODO: Use a Result here
 			syscall_core_textinfo(group, id, &mut buf) as u64
 			},
-		// - 0/2: Terminate current thread
+		// - Terminate current thread
 		CORE_EXITTHREAD => {
 			threads::terminate(); 0
 			},
-		// - 0/3: Start process
+		// - Start process
 		CORE_STARTPROCESS => {
 			let name: Freeze<str>  = args.get()?;
 			let start: usize = args.get()?;
@@ -184,13 +191,13 @@ fn invoke_int(call_id: u32, args: &mut Args) -> Result<u64,Error>
 			}
 			threads::newprocess(&name, start, end) as u64
 			},
-		// - 0/4: Start thread
+		// - Start thread
 		CORE_STARTTHREAD => {
 			let ip: usize = args.get()?;
 			let sp: usize = args.get()?;
 			threads::newthread(sp, ip) as u64
 			},
-		// - 0/5: Wait for event
+		// - Wait for event
 		CORE_WAIT => {
 			let mut events: FreezeMut<[WaitItem]> = args.get()?;
 			let timeout: u64 = args.get()?;
@@ -352,22 +359,27 @@ fn syscall_core_dbgvalue(msg: &[u8], val: usize) {
 }
 
 #[inline(never)]
-fn syscall_core_textinfo(group: u32, id: usize, buf: &mut [u8]) -> usize
+fn syscall_core_textinfo(group: u32, id: u32, buf: &mut [u8]) -> usize
 {
-	match group
+	match TextInfo::try_from(group)
 	{
-	::syscall_values::TEXTINFO_KERNEL => {
-		let s = match id
+	Ok(TextInfo::Kernel) => {
+		let s = match TextInfoKernel::try_from(id)
 			{
-			0 => ::kernel::build_info::version_string(),
-			1 => ::kernel::build_info::build_string(),
-			_ => "",
+			Ok(TextInfoKernel::Version) => ::kernel::build_info::version_string(),
+			Ok(TextInfoKernel::BuildString) => ::kernel::build_info::build_string(),
+			Err(_) => "",
 			};
 		let len = usize::min( s.len(), buf.len() );
 		buf[..len].clone_from_slice(&s.as_bytes()[..len]);
 		s.len()
 		},
-	_ => 0,
+	Ok(TextInfo::Network) =>
+		match TextInfoNetwork::try_from(id)
+		{
+		Err(_) => 0,
+		},
+	Err(_) => 0,
 	}
 }
 

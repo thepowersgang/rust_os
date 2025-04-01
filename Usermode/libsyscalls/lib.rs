@@ -323,15 +323,15 @@ pub fn debug_value<S: ?Sized+AsRef<[u8]>>(msg: &S, v: usize) {
 }
 
 
-pub use values::TEXTINFO_KERNEL;
+pub use values::TextInfo;
 
 #[inline]
 /// Obtain a string from the kernel
 /// 
 /// Accepts a buffer and returns a string slice from that buffer.
-pub fn get_text_info(unit: u32, id: u32, buf: &mut [u8]) -> &str {
+pub fn get_text_info(unit: values::TextInfo, id: u32, buf: &mut [u8]) -> &str {
 	// SAFE: Syscall
-	let len: usize = unsafe { syscall!(CORE_TEXTINFO, unit as usize, id as usize,  buf.as_ptr() as usize, buf.len()) } as usize;
+	let len: usize = unsafe { syscall!(CORE_TEXTINFO, unit as u32 as usize, id as usize,  buf.as_ptr() as usize, buf.len()) } as usize;
 	::core::str::from_utf8(&buf[..len]).expect("TODO: get_text_info handle error")
 }
 

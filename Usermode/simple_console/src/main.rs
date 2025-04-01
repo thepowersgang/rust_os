@@ -96,9 +96,9 @@ fn main()
 	{
 		let mut buf = [0; 128];
 		term_ele.set_foreground( Colour::from_argb32(0x00FF00) );
-		let _ = write!(term_ele, "{}\n",  ::syscalls::get_text_info(::syscalls::TEXTINFO_KERNEL, 0, &mut buf));	// Kernel 0: Version line
+		let _ = write!(term_ele, "{}\n",  ::syscalls::get_text_info(::syscalls::TextInfo::Kernel, 0, &mut buf));	// Kernel 0: Version line
 		term_ele.set_foreground( Colour::from_argb32(0xFFFF00) );
-		let _ = write!(term_ele, " {}\n", ::syscalls::get_text_info(::syscalls::TEXTINFO_KERNEL, 1, &mut buf));	// Kernel 1: Build line
+		let _ = write!(term_ele, " {}\n", ::syscalls::get_text_info(::syscalls::TextInfo::Kernel, 1, &mut buf));	// Kernel 1: Build line
 		term_ele.set_foreground( Colour::from_argb32(0xFFFFFF) );
 		let _ = write!(term_ele, "Simple console\n");
 	}

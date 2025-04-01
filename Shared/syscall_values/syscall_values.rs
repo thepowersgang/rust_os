@@ -17,6 +17,10 @@ pub use key_codes::KeyCode;
 
 pub const GRP_OFS: usize = 16;
 
+pub trait Args {
+	type Tuple;
+	fn from_tuple(t: Self::Tuple) -> Self;
+}
 
 macro_rules! expand_expr { ($e:expr) => {$e}; }
 
@@ -26,7 +30,7 @@ macro_rules! def_groups {
 		$(
 			$(#[$group_attrs:meta])*
 			=$group_idx:tt: $group_name:ident = {
-					$( $(#[$a:meta])* =$v:tt: $n:ident, )*
+					$( $(#[$a:meta])* =$v:tt: $n:ident$(<$lft:lifetime>)? ( $($aname:ident : $aty:ty),* ), )*
 				}
 		),*
 		$(,)*
@@ -45,72 +49,100 @@ macro_rules! def_groups {
 		)* }
 		$( $(#[$group_attrs])* pub const $group_name: u32 = Groups::$group_name as u32; )*
 		$( $( $(#[$a])* pub const $n: u32 = ($group_name << GRP_OFS) | (self::group_calls::$group_name::$n as u32); )* )*
+		pub mod group_args {
+			use super::*;
+			$( $(
+			def_args_struct!{$n $(< $lft >)? ( $( $aname: $aty,)* ) }
+			)* )*
+		}
 		//pub const GROUP_NAMES: &'static [&'static str] = &[
 		//	$(stringify!($group_name),)*
 		//	]; 
 		};
 }
 
+macro_rules! def_args_struct {
+	($n:ident$(<$lft:lifetime>)? ( $($aname:ident : $aty:ty,)* )) => {
+		#[allow(non_camel_case_types)]
+		pub struct $n< $($lft,)? > {
+			$( pub $aname: $aty ),*
+		}
+		impl< $($lft,)? > crate::Args for $n< $($lft,)? > {
+			type Tuple = ( $($aty,)* );
+			fn from_tuple(t: ( $($aty,)* )) -> Self {
+				def_args_struct!(@from_tuple t $n ($($aname)*))
+			}
+		}
+	};
+	(@from_tuple $t:ident $n:ident ()) => {{ let _ = $t; $n {} }};
+	(@from_tuple $t:ident $n:ident ($a1:ident)) => {{ $n { $a1: $t.0 } }};
+	(@from_tuple $t:ident $n:ident ($a1:ident $a2:ident)) => {{ $n { $a1: $t.0, $a2: $t.1 } }};
+	(@from_tuple $t:ident $n:ident ($a1:ident $a2:ident $a3:ident)) => {{ $n { $a1: $t.0, $a2: $t.1, $a3: $t.2 } }};
+	(@from_tuple $t:ident $n:ident ($a1:ident $a2:ident $a3:ident $a4:ident)) => {{
+		$n { $a1: $t.0, $a2: $t.1, $a3: $t.2, $a4: $t.3 }
+	}};
+	(@from_tuple $t:ident $n:ident ($a1:ident $a2:ident $a3:ident $a4:ident $a5:ident)) => {{
+		$n { $a1: $t.0, $a2: $t.1, $a3: $t.2, $a4: $t.3, $a5: $t.4 }
+	}};
+}
+
 def_groups! {
 	/// Core system calls, mostly thread management
 	=0: GROUP_CORE = {
 		/// Terminate the current process
-		// NOTE: '0' is hard-coded in rustrt0/common.S
-		=0: CORE_EXITPROCESS,
+		// NOTE: The ID '0' is hard-coded in rustrt0/common.S
+		=0: CORE_EXITPROCESS(status: u32),
 		/// Terminate the current thread
-		=1: CORE_EXITTHREAD,
+		=1: CORE_EXITTHREAD(),
 		/// Write a logging message
-		=2: CORE_LOGWRITE,
+		=2: CORE_LOGWRITE<'a>(msg: &'a [u8]),
 		/// Write a hex value and string
-		=3: CORE_DBGVALUE,
+		=3: CORE_DBGVALUE<'a>(msg: &'a [u8], value: usize),
 		/// Request a text string from the kernel
-		=4: CORE_TEXTINFO,
+		=4: CORE_TEXTINFO<'a>(group: u32, value: u32, dst: &'a mut [u8]),
 		/// Start a new process (loader only, use loader API instead)
-		=5: CORE_STARTPROCESS,
+		=5: CORE_STARTPROCESS<'a>(name: &'a str, clone_start: usize, clone_end: usize),
 		/// Start a new thread in the current process
-		=6: CORE_STARTTHREAD,
+		=6: CORE_STARTTHREAD(ip: usize, sp: usize),
 		/// Wait for any of a set of events
-		=7: CORE_WAIT,
+		=7: CORE_WAIT<'a>(items: &'a mut [WaitItem], timeout: u64),
 		/// Wait on a futex
-		=8: CORE_FUTEX_SLEEP,
+		=8: CORE_FUTEX_SLEEP<'a>(addr: &'a u32, value: u32),
 		/// Wake a number of sleepers on a futex
-		=9: CORE_FUTEX_WAKE,
+		=9: CORE_FUTEX_WAKE<'a>(addr: &'a u32),
 	},
 	/// GUI System calls
 	=1: GROUP_GUI = {
 		/// Create a new GUI group/session (requires capability, init only usually)
-		=0: GUI_NEWGROUP,
+		=0: GUI_NEWGROUP<'a>(name: &'a str),
 		/// Set the passed group object to be the controlling group for this process
-		=1: GUI_BINDGROUP,
+		=1: GUI_BINDGROUP(obj: u32),
 		/// Obtain a new handle to this window group
-		=2: GUI_GETGROUP,
+		=2: GUI_GETGROUP(),
 		/// Create a new window in the current group
-		=3: GUI_NEWWINDOW,
+		=3: GUI_NEWWINDOW<'a>(name: &'a str),
 	},
 	/// Process memory management
 	=2: GROUP_MEM = {
-		=0: MEM_ALLOCATE,
-		=1: MEM_REPROTECT,
-		=2: MEM_DEALLOCATE,
+		=0: MEM_ALLOCATE(),
+		=1: MEM_REPROTECT(),
+		=2: MEM_DEALLOCATE(),
 	},
 	/// Process memory management
 	=3: GROUP_IPC = {
 		/// Allocate a handle pair (returns two object handles)
-		=0: IPC_NEWPAIR,
+		=0: IPC_NEWPAIR(),
 	},
 	/// Netwokring
 	=4: GROUP_NETWORK = {
 		/// Connect a socket
-		=0: NET_CONNECT,
+		=0: NET_CONNECT(),
 		/// Start a socket server
-		=1: NET_LISTEN,
+		=1: NET_LISTEN(),
 		/// Open a free-form datagram 'socket'
-		=2: NET_BIND,
+		=2: NET_BIND(),
 	}
 }
-
-/// Value for `get_text_info`'s `unit` argument, indicating kernel core
-pub const TEXTINFO_KERNEL: u32 = 0;
 
 #[repr(C)]
 #[derive(Debug)]
@@ -138,10 +170,10 @@ macro_rules! def_classes {
 			$(#[$class_attrs:meta])*
 			=$class_idx:tt: $class_name:ident = {
 					// By-reference (non-moving) methods
-					$( $(#[$va:meta])* =$vv:tt: $vn:ident, )*
+					$( $(#[$va:meta])* =$vv:tt: $vn:ident$(<$v_lft:lifetime>)? ( $($v_aname:ident : $v_aty:ty),* ) $(-> $v_ret:ty)?, )*
 					--
 					// By-value (moving) methods
-					$( $(#[$ma:meta])* =$mv:tt: $mn:ident, )*
+					$( $(#[$ma:meta])* =$mv:tt: $mn:ident$(<$m_lft:lifetime>)? ( $($m_aname:ident : $m_aty:ty),* ) $(-> $m_ret:ty)?, )*
 				}|{
 					// Events
 					$( $(#[$ea:meta])* =$ev:tt: $en:ident, )*
@@ -162,6 +194,13 @@ macro_rules! def_classes {
 				$($mn = expand_expr!($mv)|0x400),*
 			}
 		)* }
+		pub mod class_args {
+			use super::*;
+			$(
+			$( def_args_struct!{$vn $(< $v_lft >)? ( $( $v_aname: $v_aty,)* ) } )*
+			$( def_args_struct!{$mn $(< $m_lft >)? ( $( $m_aname: $m_aty,)* ) } )*
+			)*
+		}
 		mod masks { $(
 			#[allow(non_camel_case_types,dead_code)]
 			pub enum $class_name { $($en = expand_expr!($ev)),* }
@@ -182,16 +221,16 @@ def_classes! {
 	=0: CLASS_CORE_PROTOPROCESS = {
 		/// Give the process one of this process's objects
 		/// This method blocks if the child process hasn't popped the previous object
-		=0: CORE_PROTOPROCESS_SENDOBJ,
+		=0: CORE_PROTOPROCESS_SENDOBJ(tag: FixedStr8),
 		--
 		/// Start the process executing
-		=0: CORE_PROTOPROCESS_START,
+		=0: CORE_PROTOPROCESS_START(ip: usize, sp: usize) -> CLASS_CORE_PROCESS,
 	}|{
 	},
 	/// Handle to a spawned process, used to communicate with it
 	=1: CLASS_CORE_PROCESS = {
 		/// Request that the process be terminated
-		=0: CORE_PROCESS_KILL,
+		=0: CORE_PROCESS_KILL(),
 		--
 	}|{
 		/// Wakes if the child process terminates
@@ -200,68 +239,68 @@ def_classes! {
 	/// A handle providing process inherent IPC
 	=2: CLASS_CORE_THISPROCESS = {
 		/// Receive a sent object
-		=0: CORE_THISPROCESS_RECVOBJ,
+		=0: CORE_THISPROCESS_RECVOBJ(tag: FixedStr8, class: u16) -> u32,
 		--
 	}|{
 	},
 	/// Opened node
 	=3: CLASS_VFS_NODE = {
-		=0: VFS_NODE_GETTYPE,
+		=0: VFS_NODE_GETTYPE() -> VFSNodeType,
 		--
-		=0: VFS_NODE_TOFILE,
-		=1: VFS_NODE_TODIR,
-		=2: VFS_NODE_TOLINK,
+		=0: VFS_NODE_TOFILE(mode: VFSFileOpenMode) -> CLASS_VFS_FILE,
+		=1: VFS_NODE_TODIR() -> CLASS_VFS_DIR,
+		=2: VFS_NODE_TOLINK() -> CLASS_VFS_LINK,
 	}|{
 	},
 	/// Opened file
 	=4: CLASS_VFS_FILE = {
 		/// Get the size of the file (maximum addressable byte + 1)
-		=0: VFS_FILE_GETSIZE,
+		=0: VFS_FILE_GETSIZE() -> u64,
 		/// Read data from the specified position in the file
-		=1: VFS_FILE_READAT,
+		=1: VFS_FILE_READAT<'a>(ofs: u64, dst: &'a mut [u8]),
 		/// Write to the specified position in the file
-		=2: VFS_FILE_WRITEAT,
+		=2: VFS_FILE_WRITEAT<'a>(ofs: u64, dst: &'a [u8]),
 		/// Map part of the file into the current address space
-		=3: VFS_FILE_MEMMAP,
+		=3: VFS_FILE_MEMMAP(ofs: u64, size: usize, addr: usize),
 		--
 	}|{
 	},
 	/// Opened directory
 	=5: CLASS_VFS_DIR = {
 		/// Create an enumerating handle
-		=0: VFS_DIR_ENUMERATE,
+		=0: VFS_DIR_ENUMERATE() -> CLASS_VFS_DIRITER,
 		/// Open a child node
-		=1: VFS_DIR_OPENCHILD,
+		=1: VFS_DIR_OPENCHILD<'a>(name: &'a [u8]) -> Result<CLASS_VFS_NODE, VFSError>,
 		/// Open a sub-path
-		=2: VFS_DIR_OPENPATH,
+		=2: VFS_DIR_OPENPATH<'a>(path: &'a [u8]) -> Result<CLASS_VFS_NODE, VFSError>,
 		--
 	}|{
 	},
 	/// Enumerating directory
 	=6: CLASS_VFS_DIRITER = {
 		/// Read an entry
-		=0: VFS_DIRITER_READENT,
+		=0: VFS_DIRITER_READENT<'a>(name: &'a mut [u8]),
 		--
 	}|{
 	},
 	/// Opened symbolic link
 	=7: CLASS_VFS_LINK = {
 		/// Read the destination path of the link
-		=0: VFS_LINK_READ,
+		=0: VFS_LINK_READ<'a>(buf: &'a mut [u8]),
 		--
 	}|{
 	},
 	/// GUI Group/Session
 	=8: CLASS_GUI_GROUP = {
 		/// Force this group to be the active one (requires permission)
-		=0: GUI_GRP_FORCEACTIVE,
+		=0: GUI_GRP_FORCEACTIVE(),
 		/// Get the count and extent of display surfaces
 		/// Arguments: None
 		/// Returns: Packed integers
 		/// -  0..24(24): Total width
 		/// - 24..48(24): Total height
 		/// - 48..56( 8): Display count
-		=1: GUI_GRP_TOTALOUTPUTS,
+		=1: GUI_GRP_TOTALOUTPUTS(),
 		/// Obtain the dimensions (and position) of an output
 		/// Arguments:
 		/// - Display index
@@ -270,14 +309,14 @@ def_classes! {
 		/// - 16..32(16): Height
 		/// - 32..48(16): X
 		/// - 48..64(16): Y
-		=2: GUI_GRP_GETDIMS,
+		=2: GUI_GRP_GETDIMS(index: u32),
 		/// Get the intended viewport (i.e. ignoring global toolbars)
 		/// Returns: Packed integers
 		/// -  0..16(16): Width
 		/// - 16..32(16): Height
 		/// - 32..48(16): RelX
 		/// - 48..64(16): RelY
-		=3: GUI_GRP_GETVIEWPORT,
+		=3: GUI_GRP_GETVIEWPORT(),
 		--
 	}|{
 		/// Fires when the group is shown/hidden
@@ -286,24 +325,23 @@ def_classes! {
 	/// Window
 	=9: CLASS_GUI_WIN = {
 		/// Set the show/hide state of the window
-		=0: GUI_WIN_SETFLAG,
+		=0: GUI_WIN_SETFLAG(flag: GuiWinFlag, is_on: bool),
 		/// Trigger a redraw of the window
-		=1: GUI_WIN_REDRAW,
+		=1: GUI_WIN_REDRAW(),
 		/// Copy data from this process into the window
-		=2: GUI_WIN_BLITRECT,
+		=2: GUI_WIN_BLITRECT<'a>(x: u32, y: u32, w: u32, data: &'a [u32], stride: usize),
 		/// Fill a region of the window with the specified colour
-		=3: GUI_WIN_FILLRECT,
+		=3: GUI_WIN_FILLRECT(x: u32, y: u32, w: u32, h: u32, colour: u32),
 		/// Read an event from the queue. 64-bit return value, !0 = none, otherwise 16/48 tag and data
-		// TODO: Pass a &mut GuiEvent instead of deserialsiging a u64
-		=4: GUI_WIN_GETEVENT,
+		=4: GUI_WIN_GETEVENT<'a>(event: &'a mut GuiEvent),
 		/// Obtain the window dimensions
-		=5: GUI_WIN_GETDIMS,
+		=5: GUI_WIN_GETDIMS(),
 		/// Set window dimensions (may be restricted)
-		=6: GUI_WIN_SETDIMS,
+		=6: GUI_WIN_SETDIMS(w: u32, h: u32),
 		/// Obtain window position
-		=7: GUI_WIN_GETPOS,
+		=7: GUI_WIN_GETPOS(),
 		/// Set window position (will be clipped to visible area)
-		=8: GUI_WIN_SETPOS,
+		=8: GUI_WIN_SETPOS(x: u32, y: u32),
 		--
 	}|{
 		/// Fires when the input queue is non-empty
@@ -315,9 +353,9 @@ def_classes! {
 	/// Remote procedure call channel
 	=10: CLASS_IPC_RPC = {
 		/// Send a message over the channel (RpcMessage, limited size)
-		=0: IPC_RPC_SEND,
+		=0: IPC_RPC_SEND<'a>(msg: &'a RpcMessage, obj: u32),
 		/// Receive a message
-		=1: IPC_RPC_RECV,
+		=1: IPC_RPC_RECV<'a>(msg: &'a mut RpcMessage),
 	--
 	}|{
 		/// Fires when the channel has a message waiting
@@ -327,18 +365,18 @@ def_classes! {
 	/// Socket server
 	=11: CLASS_SERVER = {
 		/// Check for a new client
-		=0: NET_SERVER_ACCEPT,
+		=0: NET_SERVER_ACCEPT<'a>(out_addr: &'a mut SocketAddress) -> CLASS_SOCKET,
 	--
 	}|{
 	},
 	/// Socket connection
 	=12: CLASS_SOCKET = {
 		/// Read data
-		=0: NET_CONNSOCK_RECV,
+		=0: NET_CONNSOCK_RECV<'a>(data: &'a mut [u8]),
 		/// Send data
-		=1: NET_CONNSOCK_SEND,
+		=1: NET_CONNSOCK_SEND<'a>(data: &'a [u8]),
 		///
-		=2: NET_CONNSOCK_SHUTDOWN,
+		=2: NET_CONNSOCK_SHUTDOWN(side: SocketShutdownSide),
 	--
 	}|{
 		/// Event raised when there is data ready to read
@@ -347,9 +385,9 @@ def_classes! {
 	/// Free-bind socket
 	=13: CLASS_FREESOCKET = {
 		/// Receive a packet (if available)
-		=0: NET_FREESOCK_RECVFROM,
+		=0: NET_FREESOCK_RECVFROM<'a>(data: &'a mut [u8], addr: &'a mut SocketAddress),
 		/// Send a packet to an address
-		=1: NET_FREESOCK_SENDTO,
+		=1: NET_FREESOCK_SENDTO<'a>(data: &'a [u8], addr: &'a SocketAddress),
 	--
 	}|{
 	},
@@ -368,7 +406,8 @@ def_classes! {
 
 
 macro_rules! enum_to_from {
-	($enm:ident => $ty:ty : $( $(#[$a:meta])* $n:ident = $v:expr,)*) => {
+	($(#[$a_o:meta])* $enm:ident => $ty:ty : $( $(#[$a:meta])* $n:ident = $v:expr,)*) => {
+		$(#[$a_o])*
 		#[derive(Debug)]
 		pub enum $enm
 		{
@@ -515,6 +554,23 @@ impl ::core::convert::From<FixedStr8> for u64 {
 		// SAFE: POD
 		unsafe { ::core::mem::transmute(v.0) }
 	}
+}
+
+enum_to_from!{
+	/// Unit/group names for the [CORE_TEXTINFO] call
+	TextInfo => u32 :
+		/// Kernel core
+		Kernel = 0,
+		/// Network stack
+		Network = 1,
+}
+enum_to_from!{
+	TextInfoKernel => u32 :
+		Version = 0,
+		BuildString = 1,
+}
+enum_to_from!{
+	TextInfoNetwork => u32 :
 }
 
 #[derive(Copy,Clone,Debug)]
