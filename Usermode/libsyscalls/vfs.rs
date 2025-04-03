@@ -50,14 +50,14 @@ impl Node
 	#[inline]
 	pub fn class(&self) -> NodeType {
 		// SAFE: Syscall with no side-effects
-		NodeType::try_from( unsafe { self.0.call_0(::values::VFS_NODE_GETTYPE) } as u32 ).expect("Bad VFS Node Type")
+		NodeType::try_from( unsafe { self.0.call_m(::values::VFS_NODE_GETTYPE {}) } as u32 ).expect("Bad VFS Node Type")
 	}
 
 	/// Convert handle to a directory handle
 	#[inline]
 	pub fn into_dir(self) -> Result<Dir,Error> {
 		// SAFE: Syscall
-		to_obj( unsafe { self.0.call_0_v(::values::VFS_NODE_TODIR) } as usize )
+		to_obj( unsafe { self.0.call_v(::values::VFS_NODE_TODIR {}) } as usize )
 			.map(|h| Dir(h))
 	}
 	/// Convert handle to a file handle (with the provided mode)
@@ -71,7 +71,7 @@ impl Node
 	#[inline]
 	pub fn into_symlink(self) -> Result<Symlink,Error> {
 		// SAFE: Syscall
-		to_obj( unsafe { self.0.call_0_v(::values::VFS_NODE_TOLINK) } as usize )
+		to_obj( unsafe { self.0.call_v(::values::VFS_NODE_TOLINK {}) } as usize )
 			.map(|h| Symlink(h))
 	}
 }
@@ -114,7 +114,7 @@ impl File
 	#[inline]
 	pub fn read_at(&self, ofs: u64, data: &mut [u8]) -> Result<usize,Error> {
 		// SAFE: Passes valid arguments to READAT
-		to_result( unsafe { self.0.call_3l(::values::VFS_FILE_READAT, ofs, data.as_ptr() as usize, data.len()) as usize } )
+		to_result( unsafe { self.0.call_m(::values::VFS_FILE_READAT { ofs, data }) as usize } )
 			.map(|v| v as usize)
 	}
 	
@@ -122,7 +122,7 @@ impl File
 	#[inline]
 	pub fn write_at(&self, ofs: u64, data: &[u8]) -> Result<usize,Error> {
 		// SAFE: All validated
-		to_result( unsafe { self.0.call_3l( ::values::VFS_FILE_WRITEAT, ofs, data.as_ptr() as usize, data.len() ) } as usize )
+		to_result( unsafe { self.0.call_m( ::values::VFS_FILE_WRITEAT { ofs, data }) } as usize )
 			.map(|v| v as usize)
 	}
 	
@@ -153,7 +153,7 @@ impl Dir
 	/// Obtain a handle to enumerate the contents of the directory
 	pub fn enumerate(&self) -> Result<DirIter, Error> {
 		// SAFE: Syscall
-		match super::ObjectHandle::new( unsafe { self.0.call_0(::values::VFS_DIR_ENUMERATE) } as usize )
+		match super::ObjectHandle::new( unsafe { self.0.call_m(::values::VFS_DIR_ENUMERATE {}) } as usize )
 		{
 		Ok(rv) => Ok( DirIter(rv) ),
 		Err(code) => Err( Error::try_from(code).expect("Bad VFS Error") ),
@@ -165,7 +165,7 @@ impl Dir
 	pub fn open_child<P: ?Sized+AsRef<[u8]>>(&self, name: &P) -> Result<Node, Error> {
 		let name = name.as_ref();
 		// SAFE: Syscall
-		match super::ObjectHandle::new( unsafe { self.0.call_2(::values::VFS_DIR_OPENCHILD, name.as_ptr() as usize, name.len()) } as usize )
+		match super::ObjectHandle::new( unsafe { self.0.call_m(::values::VFS_DIR_OPENCHILD { name }) } as usize )
 		{
 		Ok(rv) => Ok( Node(rv) ),
 		Err(code) => Err( Error::try_from(code).expect("Bad VFS Error") ),
@@ -175,9 +175,9 @@ impl Dir
 	/// Open a path relative to this directory
 	#[inline]
 	pub fn open_child_path<P: ?Sized+AsRef<[u8]>>(&self, path: &P) -> Result<Node, Error> {
-		let name = path.as_ref();
+		let path = path.as_ref();
 		// SAFE: Syscall
-		match super::ObjectHandle::new( unsafe { self.0.call_2(::values::VFS_DIR_OPENPATH, name.as_ptr() as usize, name.len()) } as usize )
+		match super::ObjectHandle::new( unsafe { self.0.call_m(::values::VFS_DIR_OPENPATH { path }) } as usize )
 		{
 		Ok(rv) => Ok( Node(rv) ),
 		Err(code) => Err( Error::try_from(code).expect("Bad VFS Error") ),
@@ -207,7 +207,7 @@ impl DirIter
 	#[inline]
 	pub fn read_ent<'a>(&mut self, namebuf: &'a mut [u8]) -> Result<Option<&'a [u8]>, Error> {
 		// SAFE: Syscall
-		let len = to_result(unsafe { self.0.call_2(::values::VFS_DIRITER_READENT, namebuf.as_ptr() as usize, namebuf.len()) } as usize )?;
+		let len = to_result(unsafe { self.0.call_m(::values::VFS_DIRITER_READENT { name: namebuf }) } as usize )?;
 		if len > 0 {
 			Ok( Some( &namebuf[ .. len as usize] ) )
 		}
@@ -234,11 +234,10 @@ impl Symlink
 	/// Read the target path from the link
 	///
 	/// If the buffer is not long enough, the return value is truncated.
-	// TODO: Return an error if the buffer wasn't large enough
 	#[inline]
 	pub fn read_target<'a>(&self, buf: &'a mut [u8]) -> Result<&'a [u8], Error> {
 		// SAFE: Syscall with correct args
-		let len = to_result( unsafe { self.0.call_2(::values::VFS_LINK_READ, buf.as_mut_ptr() as usize, buf.len()) } as usize )?;
+		let len = to_result( unsafe { self.0.call_m(::values::VFS_LINK_READ { buf }) } as usize )?;
 		Ok( &buf[ .. len as usize] )
 	}
 }

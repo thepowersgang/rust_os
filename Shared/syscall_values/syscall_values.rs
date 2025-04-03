@@ -15,75 +15,16 @@
 extern crate key_codes;
 pub use key_codes::KeyCode;
 
+#[macro_use]
+mod macros;
+
 pub const GRP_OFS: usize = 16;
 
 pub trait Args {
+	const CALL: u32;
 	type Tuple;
 	fn from_tuple(t: Self::Tuple) -> Self;
-}
-
-macro_rules! expand_expr { ($e:expr) => {$e}; }
-
-// Define the non-object system calls (broken into groups)
-macro_rules! def_groups {
-	(
-		$(
-			$(#[$group_attrs:meta])*
-			=$group_idx:tt: $group_name:ident = {
-					$( $(#[$a:meta])* =$v:tt: $n:ident$(<$lft:lifetime>)? ( $($aname:ident : $aty:ty),* ), )*
-				}
-		),*
-		$(,)*
-	) => {
-		#[repr(u32)]
-		#[allow(non_camel_case_types,dead_code)]
-		enum Groups {
-			$($group_name = expand_expr!($group_idx)),*
-		}
-		mod group_calls { $(
-			#[repr(u32)]
-			#[allow(non_camel_case_types,dead_code)]
-			pub enum $group_name {
-				$($n = expand_expr!($v),)*
-			}
-		)* }
-		$( $(#[$group_attrs])* pub const $group_name: u32 = Groups::$group_name as u32; )*
-		$( $( $(#[$a])* pub const $n: u32 = ($group_name << GRP_OFS) | (self::group_calls::$group_name::$n as u32); )* )*
-		pub mod group_args {
-			use super::*;
-			$( $(
-			def_args_struct!{$n $(< $lft >)? ( $( $aname: $aty,)* ) }
-			)* )*
-		}
-		//pub const GROUP_NAMES: &'static [&'static str] = &[
-		//	$(stringify!($group_name),)*
-		//	]; 
-		};
-}
-
-macro_rules! def_args_struct {
-	($n:ident$(<$lft:lifetime>)? ( $($aname:ident : $aty:ty,)* )) => {
-		#[allow(non_camel_case_types)]
-		pub struct $n< $($lft,)? > {
-			$( pub $aname: $aty ),*
-		}
-		impl< $($lft,)? > crate::Args for $n< $($lft,)? > {
-			type Tuple = ( $($aty,)* );
-			fn from_tuple(t: ( $($aty,)* )) -> Self {
-				def_args_struct!(@from_tuple t $n ($($aname)*))
-			}
-		}
-	};
-	(@from_tuple $t:ident $n:ident ()) => {{ let _ = $t; $n {} }};
-	(@from_tuple $t:ident $n:ident ($a1:ident)) => {{ $n { $a1: $t.0 } }};
-	(@from_tuple $t:ident $n:ident ($a1:ident $a2:ident)) => {{ $n { $a1: $t.0, $a2: $t.1 } }};
-	(@from_tuple $t:ident $n:ident ($a1:ident $a2:ident $a3:ident)) => {{ $n { $a1: $t.0, $a2: $t.1, $a3: $t.2 } }};
-	(@from_tuple $t:ident $n:ident ($a1:ident $a2:ident $a3:ident $a4:ident)) => {{
-		$n { $a1: $t.0, $a2: $t.1, $a3: $t.2, $a4: $t.3 }
-	}};
-	(@from_tuple $t:ident $n:ident ($a1:ident $a2:ident $a3:ident $a4:ident $a5:ident)) => {{
-		$n { $a1: $t.0, $a2: $t.1, $a3: $t.2, $a4: $t.3, $a5: $t.4 }
-	}};
+	fn into_tuple(self) -> Self::Tuple;
 }
 
 def_groups! {
@@ -105,11 +46,19 @@ def_groups! {
 		/// Start a new thread in the current process
 		=6: CORE_STARTTHREAD(ip: usize, sp: usize),
 		/// Wait for any of a set of events
-		=7: CORE_WAIT<'a>(items: &'a mut [WaitItem], timeout: u64),
+		/// 
+		/// - If `wake_time_monotonic` is zero, the call just polls
+		/// - If `wake_time_monotonic` is `!0` then no timeout is applied
+		/// - Otherwise, the call will wake when the system ticks value passes this value
+		/// 
+		/// Returns the number of items that were ready
+		=7: CORE_WAIT<'a>(items: &'a mut [WaitItem], wake_time_monotonic: u64) -> u32,
 		/// Wait on a futex
-		=8: CORE_FUTEX_SLEEP<'a>(addr: &'a u32, value: u32),
+		=8: CORE_FUTEX_SLEEP<'a>(addr: &'a ::core::sync::atomic::AtomicUsize, value: u32),
 		/// Wake a number of sleepers on a futex
-		=9: CORE_FUTEX_WAKE<'a>(addr: &'a u32),
+		=9: CORE_FUTEX_WAKE<'a>(addr: &'a ::core::sync::atomic::AtomicUsize),
+		/// Get current system time in ticks
+		=10: CORE_SYSTEM_TICKS(),// -> u64,
 	},
 	/// GUI System calls
 	=1: GROUP_GUI = {
@@ -124,9 +73,9 @@ def_groups! {
 	},
 	/// Process memory management
 	=2: GROUP_MEM = {
-		=0: MEM_ALLOCATE(),
-		=1: MEM_REPROTECT(),
-		=2: MEM_DEALLOCATE(),
+		=0: MEM_ALLOCATE(addr: usize, count: usize),
+		=1: MEM_REPROTECT(addr: usize, protection: u8),
+		=2: MEM_DEALLOCATE(addr: usize),
 	},
 	/// Process memory management
 	=3: GROUP_IPC = {
@@ -136,11 +85,11 @@ def_groups! {
 	/// Netwokring
 	=4: GROUP_NETWORK = {
 		/// Connect a socket
-		=0: NET_CONNECT(),
+		=0: NET_CONNECT<'a>(addr: &'a SocketAddress),
 		/// Start a socket server
-		=1: NET_LISTEN(),
+		=1: NET_LISTEN<'a>(addr: &'a SocketAddress),
 		/// Open a free-form datagram 'socket'
-		=2: NET_BIND(),
+		=2: NET_BIND<'a>(local: &'a SocketAddress, remote: &'a MaskedSocketAddress),
 	}
 }
 
@@ -154,7 +103,6 @@ pub struct WaitItem {
 	pub flags: u32,
 }
 
-
 pub fn get_class_name(class_idx: u16) -> &'static str {
 	CLASS_NAMES.get(class_idx as usize).unwrap_or(&"UNK")
 }
@@ -163,65 +111,13 @@ pub const OBJECT_CLONE: u16 = 0x3FE;
 pub const OBJECT_GETCLASS: u16 = 0x3FF;
 pub const OBJECT_DROP: u16 = 0x7FF;
 
-// Define all classes, using c-like enums to ensure that values are not duplicated
-macro_rules! def_classes {
-	(
-		$(
-			$(#[$class_attrs:meta])*
-			=$class_idx:tt: $class_name:ident = {
-					// By-reference (non-moving) methods
-					$( $(#[$va:meta])* =$vv:tt: $vn:ident$(<$v_lft:lifetime>)? ( $($v_aname:ident : $v_aty:ty),* ) $(-> $v_ret:ty)?, )*
-					--
-					// By-value (moving) methods
-					$( $(#[$ma:meta])* =$mv:tt: $mn:ident$(<$m_lft:lifetime>)? ( $($m_aname:ident : $m_aty:ty),* ) $(-> $m_ret:ty)?, )*
-				}|{
-					// Events
-					$( $(#[$ea:meta])* =$ev:tt: $en:ident, )*
-				}
-		),*
-		$(,)*
-	) => {
-		#[repr(u16)]
-		#[allow(non_camel_case_types,dead_code)]
-		enum Classes {
-			$($class_name = expand_expr!($class_idx)),*
-		}
-		mod calls { $(
-			//#[repr(u16)]
-			#[allow(non_camel_case_types,dead_code)]
-			pub enum $class_name {
-				$($vn = expand_expr!($vv),)*
-				$($mn = expand_expr!($mv)|0x400),*
-			}
-		)* }
-		pub mod class_args {
-			use super::*;
-			$(
-			$( def_args_struct!{$vn $(< $v_lft >)? ( $( $v_aname: $v_aty,)* ) } )*
-			$( def_args_struct!{$mn $(< $m_lft >)? ( $( $m_aname: $m_aty,)* ) } )*
-			)*
-		}
-		mod masks { $(
-			#[allow(non_camel_case_types,dead_code)]
-			pub enum $class_name { $($en = expand_expr!($ev)),* }
-		)* }
-		$( $(#[$class_attrs])* pub const $class_name: u16 = Classes::$class_name as u16; )*
-		$( $( $(#[$va])* pub const $vn: u16 = self::calls::$class_name::$vn as u16; )* )*
-		$( $( $(#[$ma])* pub const $mn: u16 = self::calls::$class_name::$mn as u16; )* )*
-		$( $( $(#[$ea])* pub const $en: u32 = 1 << self::masks::$class_name::$en as usize; )* )*
-		pub const CLASS_NAMES: &'static [&'static str] = &[
-			$(stringify!($class_name),)*
-			]; 
-		};
-}
-
 // Object classes define the syscall interface followed by the object
 def_classes! {
 	/// Handle to a spawned process, used to communicate with it
 	=0: CLASS_CORE_PROTOPROCESS = {
 		/// Give the process one of this process's objects
 		/// This method blocks if the child process hasn't popped the previous object
-		=0: CORE_PROTOPROCESS_SENDOBJ(tag: FixedStr8),
+		=0: CORE_PROTOPROCESS_SENDOBJ(tag: FixedStr8, object_handle: u32),
 		--
 		/// Start the process executing
 		=0: CORE_PROTOPROCESS_START(ip: usize, sp: usize) -> CLASS_CORE_PROCESS,
@@ -257,11 +153,11 @@ def_classes! {
 		/// Get the size of the file (maximum addressable byte + 1)
 		=0: VFS_FILE_GETSIZE() -> u64,
 		/// Read data from the specified position in the file
-		=1: VFS_FILE_READAT<'a>(ofs: u64, dst: &'a mut [u8]),
+		=1: VFS_FILE_READAT<'a>(ofs: u64, data: &'a mut [u8]),
 		/// Write to the specified position in the file
-		=2: VFS_FILE_WRITEAT<'a>(ofs: u64, dst: &'a [u8]),
+		=2: VFS_FILE_WRITEAT<'a>(ofs: u64, data: &'a [u8]),
 		/// Map part of the file into the current address space
-		=3: VFS_FILE_MEMMAP(ofs: u64, size: usize, addr: usize),
+		=3: VFS_FILE_MEMMAP(ofs: u64, size: usize, addr: usize, mode: VFSMemoryMapMode),
 		--
 	}|{
 	},
@@ -278,15 +174,15 @@ def_classes! {
 	},
 	/// Enumerating directory
 	=6: CLASS_VFS_DIRITER = {
-		/// Read an entry
-		=0: VFS_DIRITER_READENT<'a>(name: &'a mut [u8]),
+		/// Read an entry, and return the length of the name (zero when the end is reached)
+		=0: VFS_DIRITER_READENT<'a>(name: &'a mut [u8]) -> usize,
 		--
 	}|{
 	},
 	/// Opened symbolic link
 	=7: CLASS_VFS_LINK = {
-		/// Read the destination path of the link
-		=0: VFS_LINK_READ<'a>(buf: &'a mut [u8]),
+		/// Read the destination path of the link, returns the length of the link
+		=0: VFS_LINK_READ<'a>(buf: &'a mut [u8]) -> usize,
 		--
 	}|{
 	},
@@ -300,7 +196,7 @@ def_classes! {
 		/// -  0..24(24): Total width
 		/// - 24..48(24): Total height
 		/// - 48..56( 8): Display count
-		=1: GUI_GRP_TOTALOUTPUTS(),
+		=1: GUI_GRP_TOTALOUTPUTS() -> u64,
 		/// Obtain the dimensions (and position) of an output
 		/// Arguments:
 		/// - Display index
@@ -309,14 +205,14 @@ def_classes! {
 		/// - 16..32(16): Height
 		/// - 32..48(16): X
 		/// - 48..64(16): Y
-		=2: GUI_GRP_GETDIMS(index: u32),
+		=2: GUI_GRP_GETDIMS(index: usize) -> u64,
 		/// Get the intended viewport (i.e. ignoring global toolbars)
 		/// Returns: Packed integers
 		/// -  0..16(16): Width
 		/// - 16..32(16): Height
 		/// - 32..48(16): RelX
 		/// - 48..64(16): RelY
-		=3: GUI_GRP_GETVIEWPORT(),
+		=3: GUI_GRP_GETVIEWPORT(index: usize) -> u64,
 		--
 	}|{
 		/// Fires when the group is shown/hidden
@@ -362,6 +258,8 @@ def_classes! {
 		=0: EV_IPC_RPC_RECV,
 	},
 
+	// --- Networking ---
+
 	/// Socket server
 	=11: CLASS_SERVER = {
 		/// Check for a new client
@@ -391,56 +289,23 @@ def_classes! {
 	--
 	}|{
 	},
-/*
-	/// A registered read/write buffer
-	=12: CLASS_BUFFER = {
+	/// Network management functions
+	=14: CLASS_NET_MANAGEMENT = {
+		/// Get the details of an interface
+		/// 
+		/// Returns 0 on success, 1 when the index references an empty slot, and !0 when the end of the list is reached
+		=0: NET_MGMT_GET_INTERFACE<'a>(index: usize, data: &'a mut NetworkInterface) -> Option<bool>,
+		/// Add a new address to an interface
+		=1: NET_MGMT_ADD_ADDRESS<'a>(index: usize, addr: &'a NetworkAddress) -> Result<(),()>,
+		/// Remove an address from an interface
+		=2: NET_MGMT_DEL_ADDRESS<'a>(index: usize, addr: &'a NetworkAddress) -> Result<(),()>,
+		=3: NET_MGMT_GET_ADDRESS<'a>(iface: usize, index: usize, data: &'a mut NetworkAddress) -> Option<bool>,
+		=4: NET_MGMT_ADD_ROUTE<'a>(data: &'a NetworkRoute),
+		=5: NET_MGMT_DEL_ROUTE<'a>(data: &'a NetworkRoute),
+		=6: NET_MGMT_GET_ROUTE<'a>(index: usize, data: &'a mut NetworkRoute) -> Option<bool>,
 		--
-		/// Release the buffer (and return the memory to userland)
-		=0: BUFFER_RELEASE,
 	}|{
-		/// Fires when the buffer is used (populated/read)
-		=0: EV_BUFFER_CONSUMED,
-	}
-*/
-}
-
-
-macro_rules! enum_to_from {
-	($(#[$a_o:meta])* $enm:ident => $ty:ty : $( $(#[$a:meta])* $n:ident = $v:expr,)*) => {
-		$(#[$a_o])*
-		#[derive(Debug)]
-		pub enum $enm
-		{
-			$( $(#[$a])* $n = $v,)*
-		}
-		//impl ::core::convert::From<$ty> for ::core::option::Option<$enm> {
-		//	fn from(v: $ty) -> Self {
-		//		match v
-		//		{
-		//		$($v => Some($enm::$n),)*
-		//		_ => None,
-		//		}
-		//	}
-		//}
-		impl $enm {
-			#[allow(dead_code)]
-			pub fn try_from(v: $ty) -> Result<Self,$ty> {
-				match v
-				{
-				$($v => Ok($enm::$n),)*
-				// TODO: This should not panic - it should return Result/Option instead
-				_ => Err(v),
-				}
-			}
-		}
-		impl ::core::convert::Into<$ty> for $enm {
-			fn into(self) -> $ty {
-				match self
-				{
-				$($enm::$n => $v,)*
-				}
-			}
-		}
+		=0: EV_NET_MGMT_INTERFACE,
 	}
 }
 
@@ -477,13 +342,10 @@ enum_to_from!{ VFSMemoryMapMode => u8:
 	WriteBack = 3,
 }
 
-
 enum_to_from!{ GuiWinFlag => u8:
 	Visible = 0,
 	Maximised = 1,
 }
-
-//include!("keycodes.inc.rs");
 
 /// Fixed-capacity string buffer (6 bytes)
 #[derive(Copy,Clone)]
@@ -658,9 +520,34 @@ pub struct SocketAddress
 }
 #[derive(Default,Copy,Clone)]
 #[repr(C)]
+/// A socket address with number of valid bits (used for restricting the range of free socket listens)
 pub struct MaskedSocketAddress
 {
 	pub addr: SocketAddress,
 	pub mask: u8,
+}
+#[derive(Default,Copy,Clone)]
+#[derive(PartialEq)]
+#[repr(C)]
+pub struct NetworkInterface
+{
+	pub mac_addr: [u8; 6],
+}
+#[derive(Default,Copy,Clone)]
+#[repr(C)]
+pub struct NetworkAddress
+{
+	pub addr_ty: u8,
+	pub addr: [u8; 16],
+}
+#[derive(Default,Copy,Clone)]
+#[repr(C)]
+pub struct NetworkRoute
+{
+	pub addr_ty: u8,
+	pub mask: u8,
+	pub interface: u16,
+	pub network: [u8; 16],
+	pub gateway: [u8; 16],
 }
 

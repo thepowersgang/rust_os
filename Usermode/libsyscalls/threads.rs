@@ -55,7 +55,7 @@ impl ThisProcess
 		assert!(tag.len() <= 6);
 		self.with_obj(|obj|
 			// SAFE: Syscall
-			match super::ObjectHandle::new( unsafe { obj.call_2l(::values::CORE_THISPROCESS_RECVOBJ, ::values::FixedStr8::from(tag).into(), T::class() as usize) } as usize )
+			match super::ObjectHandle::new( unsafe { obj.call_m(::values::CORE_THISPROCESS_RECVOBJ { tag: ::values::FixedStr8::from(tag), class: T::class() }) } as usize )
 			{
 			Ok(v) => Ok(T::from_handle(v)),
 			Err(e @ 0 ..= 0xFFFF) => Err( RecvObjectError::ClassMismatch(e as u16) ),
@@ -86,7 +86,7 @@ impl ::Object for ThisProcess {
 #[inline]
 pub fn start_process(name: &str,  clone_start: usize, clone_end: usize) -> Result<ProtoProcess,()> {
 	// SAFE: Syscall
-	let rv = unsafe { syscall!(CORE_STARTPROCESS, name.as_ptr() as usize, name.len(),  clone_start, clone_end) };
+	let rv = unsafe { crate::syscall(values::CORE_STARTPROCESS { name, clone_start, clone_end }) };
 	match ::ObjectHandle::new(rv as usize)
 	{
 	Ok(v) => Ok( ProtoProcess(v) ),
@@ -130,13 +130,13 @@ impl ProtoProcess
 		assert!(tag.len() <= 6);
 		let oh = obj.into_handle().into_raw();
 		// SAFE: Syscall
-		unsafe { self.0.call_2l(::values::CORE_PROTOPROCESS_SENDOBJ, ::values::FixedStr8::from(tag).into(), oh as usize); }
+		unsafe { self.0.call_m(::values::CORE_PROTOPROCESS_SENDOBJ { tag: ::values::FixedStr8::from(tag), object_handle: oh }); }
 	}
  
  	#[inline]
 	pub fn start(self, entry: usize, stack: usize) -> Process {
 		// SAFE: Syscall
-		let rv = unsafe { self.0.call_2_v(::values::CORE_PROTOPROCESS_START, entry, stack) };
+		let rv = unsafe { self.0.call_v(::values::CORE_PROTOPROCESS_START { ip: entry, sp: stack }) };
 		Process( ::ObjectHandle::new(rv as usize).expect("Error erturned from CORE_PROTOPROCESS_START - unexpected") )
 	}
 }
@@ -187,15 +187,10 @@ pub use values::WaitItem;
 ///
 /// Returns the number of events that caused the wakeup (zero for timeout)
 #[inline]
-pub fn wait(items: &mut [WaitItem], wake_time_mono: u64) -> u32 {
+pub fn wait(items: &mut [WaitItem], wake_time_monotonic: u64) -> u32 {
 	// SAFE: Syscall
 	unsafe {
-		#[cfg(target_pointer_width="64")]
-		let rv = syscall!(CORE_WAIT, items.as_ptr() as usize, items.len(), wake_time_mono as usize) as u32;
-		#[cfg(target_pointer_width="32")]
-		let rv = syscall!(CORE_WAIT, items.as_ptr() as usize, items.len(), (wake_time_mono & 0xFFFFFFFF) as usize, (wake_time_mono >> 32) as usize) as u32;
-
-		rv
+		crate::syscall(values::CORE_WAIT { items, wake_time_monotonic }) as u32
 	}
 }
 

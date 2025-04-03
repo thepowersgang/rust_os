@@ -17,7 +17,7 @@ pub struct Error;
 
 #[inline]
 pub unsafe fn allocate(addr: usize, count: usize) -> Result<(), Error> {
-	super::to_result( syscall!(MEM_ALLOCATE, addr, count) as usize )
+	super::to_result( crate::syscall(crate::values::MEM_ALLOCATE { addr, count }) as usize )
 		.map(|_| ())
 		.map_err(|_| Error)
 }
@@ -29,7 +29,7 @@ pub unsafe fn reprotect(addr: usize, protection: ProtectionMode) -> Result<(), E
 }
 #[inline]
 pub unsafe fn deallocate(addr: usize) -> Result<(), Error> {
-	super::to_result( syscall!(MEM_DEALLOCATE, addr) as usize )
+	super::to_result( crate::syscall(crate::values::MEM_DEALLOCATE { addr }) as usize )
 		.map(|_| ())
 		.map_err(|_| Error)
 }

@@ -5,7 +5,8 @@
 //#![feature(core_intrinsics)]
 #![feature(thread_local)]
 #![feature(stmt_expr_attributes)]
-#![cfg_attr(arch="native",feature(rustc_private))]
+#![feature(generic_const_exprs)]
+#![allow(incomplete_features)]	// for `generic_const_exprs`
 #![no_std]
 
 pub extern crate syscall_values as values;
@@ -76,12 +77,15 @@ pub mod raw;
 #[cfg_attr(target_arch="riscv64", path="raw-riscv64.rs")]
 mod raw;
 
+mod int_args;
+
 /// Architecture's page size (minimum allocation granularity)
 pub const PAGE_SIZE: usize = self::raw::PAGE_SIZE;
 
 #[macro_use]
 pub mod logging;
 
+pub mod kcore;
 pub mod vfs;
 pub mod gui;
 pub mod memory;
@@ -109,6 +113,13 @@ macro_rules! def_call {
 			::raw::$fcn( cv $(, $arg_name)* )
 		}
 	}
+}
+
+unsafe fn syscall<C: values::Args>(c: C) -> u64
+where
+	C::Tuple: int_args::CallTuple,
+{
+	int_args::CallTuple::call(c.into_tuple(), C::CALL)
 }
 
 #[doc(hidden)]
@@ -192,6 +203,19 @@ impl ObjectHandle
 		#[cfg(target_pointer_width="32")]
 		return ::raw::syscall_5( self.call_value(call), (a1 & 0xFFFFFFFF) as usize, (a1 >> 32) as usize, a2, a3, a4 );
 	}
+
+	unsafe fn call_m<C: values::Args>(&self, c: C) -> u64
+	where
+		C::Tuple: int_args::CallTuple,
+	{
+		int_args::CallTuple::call(c.into_tuple(), self.call_value(C::CALL as u16))
+	}
+	unsafe fn call_v<C: values::Args>(self, c: C) -> u64
+	where
+		C::Tuple: int_args::CallTuple,
+	{
+		int_args::CallTuple::call(c.into_tuple(), self.call_value(C::CALL as u16))
+	}
 }
 impl Drop for ObjectHandle {
 	fn drop(&mut self) {
@@ -201,6 +225,7 @@ impl Drop for ObjectHandle {
 		}
 	}
 }
+
 
 /// Opaque representation of an arbitrary syscall object
 pub struct AnyObject(::ObjectHandle);
@@ -309,31 +334,10 @@ fn to_result(val: usize) -> Result<u32,u32> {
 	}
 }
 
-#[inline]
-/// Write a string to the kernel's log
-pub fn log_write<S: ?Sized+AsRef<[u8]>>(msg: &S) {
-	let msg = msg.as_ref();
-	// SAFE: Syscall
-	unsafe { syscall!(CORE_LOGWRITE, msg.as_ptr() as usize, msg.len()); }
-}
-pub fn debug_value<S: ?Sized+AsRef<[u8]>>(msg: &S, v: usize) {
-	let msg = msg.as_ref();
-	// SAFE: Syscall
-	unsafe { syscall!(CORE_DBGVALUE, msg.as_ptr() as usize, msg.len(), v); }
-}
-
-
 pub use values::TextInfo;
-
-#[inline]
-/// Obtain a string from the kernel
-/// 
-/// Accepts a buffer and returns a string slice from that buffer.
-pub fn get_text_info(unit: values::TextInfo, id: u32, buf: &mut [u8]) -> &str {
-	// SAFE: Syscall
-	let len: usize = unsafe { syscall!(CORE_TEXTINFO, unit as u32 as usize, id as usize,  buf.as_ptr() as usize, buf.len()) } as usize;
-	::core::str::from_utf8(&buf[..len]).expect("TODO: get_text_info handle error")
-}
+pub use self::kcore::get_text_info;
+pub use self::kcore::{log_write,debug_value};
+pub use self::kcore::system_ticks;
 
 
 
