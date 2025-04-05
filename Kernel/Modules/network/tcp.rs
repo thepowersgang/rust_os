@@ -78,7 +78,7 @@ fn get_outbound_ip_for(addr: &Address) -> Option<Address>
 {
 	match addr
 	{
-	Address::Ipv4(addr) => crate::ipv4::route_lookup(crate::ipv4::Address::zero(), *addr).map(|(laddr, _, _)| Address::Ipv4(laddr)),
+	Address::Ipv4(addr) => crate::ipv4::route_lookup(crate::ipv4::Address::zero(), *addr).map(|r| Address::Ipv4(r.source_ip)),
 	}
 }
 /// Allocate a port for the given local address
