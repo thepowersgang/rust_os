@@ -158,12 +158,6 @@ fn invoke_int(call_id: u32, args: &mut Args) -> Result<u64,Error>
 		// === 0: Threads and core
 		// - 0/0: Userland log
 		CORE_LOGWRITE => {
-			/*
-			args::with_args::<group_args::CORE_LOGWRITE>(args, |args| {
-				syscall_core_log(args.msg);
-				0
-			})?
-			*/
 			let msg: Freeze<[u8]> = args.get()?;
 			syscall_core_log(&msg);
 			0

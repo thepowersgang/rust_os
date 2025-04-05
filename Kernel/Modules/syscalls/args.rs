@@ -286,57 +286,113 @@ impl SyscallArg for bool {
 }
 
 /*
-trait SingleArg<'a>: 'a {
-	type RealTy: SyscallArg;
-	fn from_real(src: &'a mut Self::RealTy) -> Self;
+
+// EXPERIMENT: A pile of traits to get argument structs from the `args` interface
+// ISSUES:
+// - For borrows, data needs to go via `Freeze` and `FreezeMut`, which opens a whole can of worms:
+//   - Lifetime trickery (solved by passing `tmp` to the top-level function, see far below)
+//   - Overlapping impls, so `&T` can have custom logic
+
+pub trait SingleArg<'a>: 'a + Sized {
+	type SrcTy: SyscallArg;
+	fn get(src: &'a mut Self::SrcTy) -> Self;
 }
 impl<'a, T: Pod> SingleArg<'a> for &'a [T] {
-	type RealTy = Freeze<[T]>;
-	fn from_real(src: &'a mut Self::RealTy) -> Self {
-		&*src
+	type SrcTy = Freeze<[T]>;
+	fn get(src: &'a mut Self::SrcTy) -> Self {
+		src
 	}
 }
 impl<'a, T: Pod> SingleArg<'a> for &'a mut [T] {
-	type RealTy = FreezeMut<[T]>;
-	fn from_real(src: &'a mut Self::RealTy) -> Self {
+	type SrcTy = FreezeMut<[T]>;
+	fn get(src: &'a mut Self::SrcTy) -> Self {
 		src
 	}
 }
 impl<'a, T: Pod> SingleArg<'a> for &'a T {
-	type RealTy = Freeze<T>;
-	fn from_real(src: &'a mut Self::RealTy) -> Self {
-		&*src
-	}
-}
-impl<'a, T: Pod> SingleArg<'a> for &'a mut T {
-	type RealTy = FreezeMut<T>;
-	fn from_real(src: &'a mut Self::RealTy) -> Self {
+	type SrcTy = Freeze<T>;
+	fn get(src: &'a mut Self::SrcTy) -> Self {
 		src
 	}
 }
-trait ArgsTuple: Sized {
-	fn call(args: &mut Args, fcn: impl FnOnce(Self)->u64) -> Result<u64,super::Error>;
-}
-impl ArgsTuple for () {
-	fn call(args: &mut Args, fcn: impl FnOnce(Self)->u64) -> Result<u64,super::Error> {
-		let _ = args;
-		Ok( fcn( () ) )
+impl<'a, T: Pod> SingleArg<'a> for &'a mut T {
+	type SrcTy = FreezeMut<T>;
+	fn get(src: &'a mut Self::SrcTy) -> Self {
+		src
 	}
 }
-impl<A> ArgsTuple for (A,)
-where for<'a> A: SingleArg<'a>,
-{
-	fn call(args: &mut Args, fcn: impl FnOnce(Self)->u64) -> Result<u64,super::Error> {
-		let _ = args;
-		let mut r1: A::RealTy = args.get()?;
-		let a1 = A::from_real(&mut r1);
-		Ok( fcn( (a1,) ) )
+impl<'a> SingleArg<'a> for usize {
+	type SrcTy = Self;
+	fn get(src: &'a mut Self::SrcTy) -> Self {
+		*src
 	}
 }
-pub fn with_args<A: ::syscall_values::Args>(args: &mut Args, fcn: impl FnOnce(A)->u64) -> Result<u64,super::Error>
+/*
+default impl<'a, T: 'a> SingleArg<'a> for T
 where
-	A::Tuple: ArgsTuple,
+	T: SyscallArg + Copy
 {
-	A::Tuple::call(args, |t| fcn(A::from_tuple(t)))
+	type SrcTy = T;
+	fn get(src: &'a mut T) -> T {
+		*src
+	}
 }
-	*/
+*/
+
+#[doc(hidden)]
+pub trait ArgsTuple<'a>: 'a {
+	type Source;
+	fn get_src(args: &mut Args) -> Result<Self::Source,crate::Error>;
+	fn get(src: &'a mut Self::Source) -> Self;
+}
+impl<'a> ArgsTuple<'a> for ()
+where
+{
+	type Source = ();
+	fn get_src(_: &mut Args) -> Result<Self::Source,crate::Error> {
+		Ok( () )
+	}
+	fn get(_: &'a mut Self::Source) -> Self {
+		()
+	}
+}
+impl<'a, A1> ArgsTuple<'a> for (A1,)
+where
+	A1: 'a + SingleArg<'a>,
+{
+	type Source = (A1::SrcTy,);
+	fn get_src(args: &mut Args) -> Result<Self::Source,crate::Error> {
+		Ok( (args.get()?,) )
+	}
+	fn get(src: &'a mut Self::Source) -> Self {
+		(A1::get(&mut src.0),)
+	}
+}
+impl<'a, A1, A2> ArgsTuple<'a> for (A1,A2,)
+where
+	A1: 'a + SingleArg<'a>,
+	A2: 'a + SingleArg<'a>,
+{
+	type Source = (A1::SrcTy,A2::SrcTy,);
+	fn get_src(args: &mut Args) -> Result<Self::Source,crate::Error> {
+		Ok( (args.get()?, args.get()?, ) )
+	}
+	fn get(src: &'a mut Self::Source) -> Self {
+		( A1::get(&mut src.0), A2::get(&mut src.1), )
+	}
+}
+pub fn with_args<'a, A: 'a + ::syscall_values::Args>(
+	args: &mut Args,
+	tmp: &'a mut Option< < <A as ::syscall_values::Args>::Tuple as ArgsTuple<'a> >::Source>,
+	fcn: impl FnOnce(A)->u64
+) -> Result<u64,super::Error>
+where
+	A::Tuple: ArgsTuple<'a>,
+{
+	//let mut src = A::Tuple::get_src(args)?;
+	let src = tmp.get_or_insert(A::Tuple::get_src(args)?);
+	let args = A::Tuple::get(src);
+	let args = A::from_tuple(args);
+	Ok(fcn(args))
+}
+// */
