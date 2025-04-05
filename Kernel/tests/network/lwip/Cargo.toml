@@ -5,4 +5,4 @@ authors = ["John Hodge <tpg@mutabah.net>"]
 edition = "2018"
 
 [dependencies]
-lwip-sys = { path = "lwip-sys" }
+lwip-sys = { path = "lwip-sys", features = ["from_source"] }
