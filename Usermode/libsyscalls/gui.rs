@@ -191,9 +191,8 @@ impl Window
 		self.set_flag(::values::GuiWinFlag::Maximised, true);
 	}
 	fn set_flag(&self, flag: ::values::GuiWinFlag, value: bool) {
-		let flag: u8 = flag.into();
 		// SAFE: Syscall
-		unsafe { self.0.call_2(::values::GUI_WIN_SETFLAG, flag as usize, if value { 1 } else { 0 }); }
+		unsafe { self.0.call_m(::values::GUI_WIN_SETFLAG { flag, is_on: value }); }
 	}
 	
 	pub fn blit_rect(&self, x: u32, y: u32, w: u32, h: u32, data: &[u32], stride: usize) {

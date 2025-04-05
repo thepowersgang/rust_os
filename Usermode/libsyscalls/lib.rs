@@ -96,25 +96,6 @@ pub mod net;
 
 pub use values::WaitItem;
 
-macro_rules! def_call {
-	($name:ident,$name_v:ident => $fcn:ident( $($arg_name:ident),* )) => {
-		#[allow(dead_code)]
-		#[inline(always)]
-		unsafe fn $name(&self, call: u16 $(, $arg_name: usize)*) -> u64 {
-			assert!(call < 0x400);
-			::raw::$fcn( self.call_value(call) $(, $arg_name)* )
-		}
-		#[allow(dead_code)]
-		#[inline(always)]
-		unsafe fn $name_v(self, call: u16 $(, $arg_name: usize)*) -> u64 {
-			assert!(call >= 0x400);
-			let cv = self.call_value(call);
-			::core::mem::forget(self);
-			::raw::$fcn( cv $(, $arg_name)* )
-		}
-	}
-}
-
 unsafe fn syscall<C: values::Args>(c: C) -> u64
 where
 	C::Tuple: int_args::CallTuple,
@@ -168,40 +149,6 @@ impl ObjectHandle
 		else {
 			Ok( ObjectHandle(v as u32) )
 		}
-	}
-
-	def_call!{ call_0,call_0_v => syscall_0() }
-	def_call!{ call_1,call_1_v => syscall_1(a1) }
-	def_call!{ call_2,call_2_v => syscall_2(a1, a2) }
-	def_call!{ call_3,call_3_v => syscall_3(a1, a2, a3) }
-	def_call!{ call_4,call_4_v => syscall_4(a1, a2, a3, a4) }
-	def_call!{ call_5,call_5_v => syscall_5(a1, a2, a3, a4, a5) }
-	def_call!{ call_6,call_6_v => syscall_6(a1, a2, a3, a4, a5, a6) }
-
-	#[allow(dead_code)]
-	#[inline]
-	unsafe fn call_2l(&self, call: u16, a1: u64, a2: usize) -> u64 {
-		#[cfg(target_pointer_width="64")]
-		{ return ::raw::syscall_2( self.call_value(call), a1 as usize, a2 ) }
-		#[cfg(target_pointer_width="32")]
-		{ return ::raw::syscall_3( self.call_value(call), (a1 & 0xFFFFFFFF) as usize, (a1 >> 32) as usize, a2 ) }
-	}
-	#[allow(dead_code)]
-	#[inline]
-	unsafe fn call_3l(&self, call: u16, a1: u64, a2: usize, a3: usize) -> u64 {
-		#[cfg(target_pointer_width="64")]
-		{ return ::raw::syscall_3( self.call_value(call), a1 as usize, a2, a3 ) }
-		#[cfg(target_pointer_width="32")]
-		{ return ::raw::syscall_4( self.call_value(call), (a1 & 0xFFFFFFFF) as usize, (a1 >> 32) as usize, a2, a3 ) }
-	}
-
-	#[allow(dead_code)]
-	#[inline]
-	unsafe fn call_4l(&self, call: u16, a1: u64, a2: usize, a3: usize, a4: usize) -> u64 {
-		#[cfg(target_pointer_width="64")]
-		return ::raw::syscall_4( self.call_value(call), a1 as usize, a2, a3, a4 );
-		#[cfg(target_pointer_width="32")]
-		return ::raw::syscall_5( self.call_value(call), (a1 & 0xFFFFFFFF) as usize, (a1 >> 32) as usize, a2, a3, a4 );
 	}
 
 	unsafe fn call_m<C: values::Args>(&self, c: C) -> u64

@@ -7,9 +7,16 @@ use ::syscall_values::{SocketAddress, SocketAddressType, SocketPortType};
 
 unsafe impl crate::args::Pod for SocketAddress { }
 unsafe impl crate::args::Pod for crate::values::MaskedSocketAddress { }
+unsafe impl crate::args::Pod for crate::values::NetworkInterface {}
+unsafe impl crate::args::Pod for crate::values::NetworkRoute {}
+unsafe impl crate::args::Pod for crate::values::NetworkAddress {}
 
 mod raw;
 mod tcp;
+
+pub fn init_handles() {
+	crate::objects::push_as_unclaimed("NetMgmt", crate::objects::new_object(InterfaceManagement));
+}
 
 fn make_ipv4(addr: &[u8; 16]) -> ::network::ipv4::Address {
 	::network::ipv4::Address(
@@ -98,4 +105,102 @@ pub fn new_free_socket(local_address: SocketAddress, remote_mask: crate::values:
 	let addr_ty = SocketAddressType::try_from(local_address.addr_ty).map_err(|_| super::Error::BadValue)?;
 	let r = inner(local_address, remote_mask, port_ty, addr_ty);
 	Ok(super::from_result::<_,::syscall_values::SocketError>(r))
+}
+
+pub(crate) struct InterfaceManagement;
+impl super::objects::Object for InterfaceManagement {
+	fn as_any(&self) -> &dyn core::any::Any {
+		self
+	}
+
+	fn class(&self) -> u16 {
+		::syscall_values::CLASS_NET_MANAGEMENT
+	}
+
+	fn try_clone(&self) -> Option<u32> {
+		None
+	}
+
+	fn handle_syscall_ref(&self, call: u16, args: &mut crate::args::Args) -> Result<u64,crate::Error> {
+		Ok(match call {
+		::syscall_values::NET_MGMT_GET_INTERFACE => {
+			let index = args.get()?;
+			let mut out: crate::FreezeMut<::syscall_values::NetworkInterface> = args.get()?;
+			if index >= ::network::nic::count_interfaces() {
+				!0
+			}
+			else if let Some(ii) = ::network::nic::interface_info(index) {
+				out.mac_addr = ii.mac;
+				0
+			}
+			else {
+				1
+			}
+		},
+		// --- Addresses ---
+		::syscall_values::NET_MGMT_ADD_ADDRESS => {
+			let iface_idx: usize = args.get()?;
+			let addr: crate::Freeze<::syscall_values::NetworkAddress> = args.get()?;
+			let mask_bits: u8 = args.get()?;
+
+			let Some(ii) = ::network::nic::interface_info(iface_idx) else {
+				return Err(crate::Error::BadValue);
+			};
+
+			match match ::syscall_values::SocketAddressType::try_from(addr.addr_ty)
+				{
+				Ok(v) => v,
+				Err(_) => return Err(crate::Error::BadValue),
+				}
+			{
+			::syscall_values::SocketAddressType::Mac => todo!(),
+			::syscall_values::SocketAddressType::Ipv4 => {
+				::network::ipv4::add_interface(ii.mac, make_ipv4(&addr.addr), mask_bits);
+				0
+				}
+			::syscall_values::SocketAddressType::Ipv6 => todo!(),
+			}
+		},
+		//::syscall_values::NET_MGMT_DEL_ADDRESS => {},
+		//::syscall_values::NET_MGMT_GET_ADDRESS => {},
+		// --- Routes ---
+		::syscall_values::NET_MGMT_ADD_ROUTE => {
+			let route: crate::Freeze<::syscall_values::NetworkRoute> = args.get()?;
+			match match ::syscall_values::SocketAddressType::try_from(route.addr_ty)
+				{
+				Ok(v) => v,
+				Err(_) => return Err(crate::Error::BadValue),
+				}
+			{
+			::syscall_values::SocketAddressType::Mac => return Err(crate::Error::BadValue),
+			::syscall_values::SocketAddressType::Ipv4 => {
+				let net = make_ipv4(&route.network);
+				let gw = make_ipv4(&route.gateway);
+				todo!("Add route: {}/{} to {}", net, route.mask, gw);
+				//0
+				}
+			::syscall_values::SocketAddressType::Ipv6 => todo!(),
+			}
+		},
+		//::syscall_values::NET_MGMT_DEL_ROUTE => {},
+		//::syscall_values::NET_MGMT_GET_ROUTE => {},
+		_ => return Err(crate::Error::UnknownCall),
+		})
+	}
+
+	fn bind_wait(&self, flags: u32, _obj: &mut kernel::threads::SleepObject) -> u32 {
+		let mut rv = 0;
+		if flags & ::syscall_values::EV_NET_MGMT_INTERFACE != 0 {
+			rv += 1;
+		}
+		rv
+	}
+
+	fn clear_wait(&self, flags: u32, _obj: &mut kernel::threads::SleepObject) -> u32 {
+		let mut rv = 0;
+		if flags & ::syscall_values::EV_NET_MGMT_INTERFACE != 0 {
+			rv += 1;
+		}
+		rv
+	}
 }

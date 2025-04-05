@@ -31,16 +31,26 @@ mod network_calls;
 pub type ObjectHandle = u32;
 
 #[derive(Debug)]
+/// Fatal syscall errors (will terminate the process)
 pub enum Error
 {
+	/// Unknown system call
 	UnknownCall,
+	/// Too many arguments requested by the call (indicates a kernel bug)
 	TooManyArgs,
+	/// An invalid value was passed
 	BadValue,
+	/// Invalid object index
 	NoSuchObject(u32),
+	/// Too many objects allocated
 	TooManyObjects,
+	/// User pssed a buffer that pointed to invalid memory
 	InvalidBuffer(*const (), usize),
+	/// User passed a buffer that was already in use by another call
 	BorrowFailure,
+	/// Attempt to call a moving syscall while another call is inprogress
 	MoveContention,
+	/// Invalid unicode data passed
 	InvalidUnicode(::core::str::Utf8Error),
 }
 impl From<::core::str::Utf8Error> for Error {
@@ -69,6 +79,7 @@ impl ::core::fmt::Display for Error {
 /// Initialise PID0's handles
 pub fn init(init_handle: ::vfs::handle::File) {
 	vfs::init_handles(init_handle);
+	network_calls::init_handles();
 }
 
 #[no_mangle]
@@ -203,6 +214,7 @@ fn invoke_int(call_id: u32, args: &mut Args) -> Result<u64,Error>
 			let timeout: u64 = args.get()?;
 			threads::wait(&mut events, timeout)? as u64
 			},
+		CORE_SYSTEM_TICKS => ::kernel::time::ticks(),
 		CORE_FUTEX_SLEEP => {
 			todo!("FUTEX_SLEEP");
 			},

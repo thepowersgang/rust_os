@@ -64,7 +64,7 @@ impl Node
 	#[inline]
 	pub fn into_file(self, mode: FileOpenMode) -> Result<File,Error> {
 		// SAFE: Syscall
-		to_obj( unsafe { self.0.call_1_v(::values::VFS_NODE_TOFILE, mode as u8 as usize) } as usize )
+		to_obj( unsafe { self.0.call_m(::values::VFS_NODE_TOFILE { mode }) } as usize )
 			.map(|h| File(h, 0))
 	}
 	/// Convert handle to a symbolic link handle
@@ -93,7 +93,7 @@ impl File
 	#[inline]
 	pub fn get_size(&self) -> u64 {
 		// SAFE: Syscall with no sideffects
-		unsafe { self.0.call_0(::values::VFS_FILE_GETSIZE) }
+		unsafe { self.0.call_m(::values::VFS_FILE_GETSIZE {}) }
 	}
 
 	/// Query the current cursor position
@@ -131,7 +131,7 @@ impl File
 	#[inline]
 	pub fn memory_map(&self, ofs: u64, read_size: usize, mem_addr: *const ::Void, mode: MemoryMapMode) -> Result<(),Error> {
 		// SAFE: Passes valid arguments to MEMMAP
-		to_result( unsafe { self.0.call_4l(::values::VFS_FILE_MEMMAP, ofs, read_size, mem_addr as usize, mode as u8 as usize) } as usize )
+		to_result( unsafe { self.0.call_m(::values::VFS_FILE_MEMMAP { ofs, size: read_size, addr: mem_addr as usize, mode }) } as usize )
 			.map( |_| () )
 	}
 }

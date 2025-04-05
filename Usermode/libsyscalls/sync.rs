@@ -70,14 +70,14 @@ pub fn futex_wait(addr: &AtomicUsize, sleep_if_val: usize)
 {
 	// SAFE: Assumed
 	unsafe {
-		syscall!(CORE_FUTEX_SLEEP, addr as *const _ as usize, sleep_if_val);
+		crate::syscall(syscall_values::CORE_FUTEX_SLEEP { addr, sleep_if_val });
 	}
 }
 pub fn futex_wake(addr: &AtomicUsize, num_to_wake: usize)
 {
 	// SAFE: Assumed
 	unsafe {
-		syscall!(CORE_FUTEX_WAKE, addr as *const _ as usize, num_to_wake);
+		crate::syscall(syscall_values::CORE_FUTEX_WAKE { addr, num_to_wake });
 	}
 }
 

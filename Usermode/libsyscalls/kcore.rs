@@ -17,7 +17,7 @@ pub fn debug_value<S: ?Sized+AsRef<[u8]>>(msg: &S, v: usize) {
 #[inline]
 pub fn system_ticks() -> u64 {
 	// SAFE: No arguments to call
-	unsafe { syscall!(CORE_SYSTEM_TICKS) }
+	unsafe { crate::syscall(v::CORE_SYSTEM_TICKS {}) }
 }
 
 #[inline]

@@ -11,6 +11,8 @@
 //! 
 //! Free calls either construct a new object instance, or directly manipulate/query state.
 #![no_std]
+#![feature(generic_const_exprs)]
+#![allow(incomplete_features)]	// for `generic_const_exprs`
 
 extern crate key_codes;
 pub use key_codes::KeyCode;
@@ -18,14 +20,13 @@ pub use key_codes::KeyCode;
 #[macro_use]
 mod macros;
 
-pub const GRP_OFS: usize = 16;
+mod traits;
+pub use self::traits::{Args,ToUsizeArray};
 
-pub trait Args {
-	const CALL: u32;
-	type Tuple;
-	fn from_tuple(t: Self::Tuple) -> Self;
-	fn into_tuple(self) -> Self::Tuple;
-}
+mod fixed_string;
+pub use self::fixed_string::{FixedStr6,FixedStr8};
+
+pub const GRP_OFS: usize = 16;
 
 def_groups! {
 	/// Core system calls, mostly thread management
@@ -41,10 +42,14 @@ def_groups! {
 		=3: CORE_DBGVALUE<'a>(msg: &'a [u8], value: usize),
 		/// Request a text string from the kernel
 		=4: CORE_TEXTINFO<'a>(group: u32, value: u32, dst: &'a mut [u8]),
-		/// Start a new process (loader only, use loader API instead)
+		? not(arch="native")
+		/// Start a new process (for use by the loader only, use loader API instead)
 		=5: CORE_STARTPROCESS<'a>(name: &'a str, clone_start: usize, clone_end: usize),
+		? arch="native"
+		/// Start a new process (loader only, use loader API instead)
+		=5: CORE_STARTPROCESS<'a>(handle: u32, name: &'a str, clone_start: usize, clone_end: usize),
 		/// Start a new thread in the current process
-		=6: CORE_STARTTHREAD(ip: usize, sp: usize),
+		=6: CORE_STARTTHREAD(ip: usize, sp: usize, tls_base: usize),
 		/// Wait for any of a set of events
 		/// 
 		/// - If `wake_time_monotonic` is zero, the call just polls
@@ -54,9 +59,9 @@ def_groups! {
 		/// Returns the number of items that were ready
 		=7: CORE_WAIT<'a>(items: &'a mut [WaitItem], wake_time_monotonic: u64) -> u32,
 		/// Wait on a futex
-		=8: CORE_FUTEX_SLEEP<'a>(addr: &'a ::core::sync::atomic::AtomicUsize, value: u32),
+		=8: CORE_FUTEX_SLEEP<'a>(addr: &'a ::core::sync::atomic::AtomicUsize, sleep_if_val: usize),
 		/// Wake a number of sleepers on a futex
-		=9: CORE_FUTEX_WAKE<'a>(addr: &'a ::core::sync::atomic::AtomicUsize),
+		=9: CORE_FUTEX_WAKE<'a>(addr: &'a ::core::sync::atomic::AtomicUsize, num_to_wake: usize),
 		/// Get current system time in ticks
 		=10: CORE_SYSTEM_TICKS(),// -> u64,
 	},
@@ -345,77 +350,6 @@ enum_to_from!{ VFSMemoryMapMode => u8:
 enum_to_from!{ GuiWinFlag => u8:
 	Visible = 0,
 	Maximised = 1,
-}
-
-/// Fixed-capacity string buffer (6 bytes)
-#[derive(Copy,Clone)]
-pub struct FixedStr6([u8; 6]);
-impl ::core::fmt::Debug for FixedStr6 {
-	fn fmt(&self, f: &mut ::core::fmt::Formatter) -> ::core::fmt::Result {
-		::core::fmt::Debug::fmt(&**self, f)
-	}
-}
-impl ::core::ops::Deref for FixedStr6 {
-	type Target = str;
-	#[inline]
-	fn deref(&self) -> &str { ::core::str::from_utf8(&self.0).expect("Invalid UTF-8 from kernel").split('\0').next().unwrap() }
-}
-impl<'a> ::core::convert::From<&'a str> for FixedStr6 {
-	fn from(v: &str) -> FixedStr6 { From::from(v.as_bytes()) }
-}
-impl<'a> ::core::convert::From<&'a [u8]> for FixedStr6 {
-	fn from(v: &[u8]) -> FixedStr6 {
-		let mut rv = [0; 6];
-		assert!(v.len() <= 6);
-		rv[..v.len()].clone_from_slice(v);
-		FixedStr6(rv)
-	}
-}
-impl ::core::convert::From<[u8; 6]> for FixedStr6 {
-	fn from(v: [u8; 6]) -> FixedStr6 {
-		FixedStr6(v)
-	}
-}
-/// Fixed-capacity string buffer (8 bytes)
-#[derive(Copy,Clone)]
-pub struct FixedStr8([u8; 8]);
-impl ::core::fmt::Debug for FixedStr8 {
-	fn fmt(&self, f: &mut ::core::fmt::Formatter) -> ::core::fmt::Result {
-		::core::fmt::Debug::fmt(&**self, f)
-	}
-}
-impl ::core::ops::Deref for FixedStr8 {
-	type Target = str;
-	#[inline]
-	fn deref(&self) -> &str { ::core::str::from_utf8(&self.0).expect("Invalid UTF-8 from kernel").split('\0').next().unwrap() }
-}
-impl<'a> ::core::convert::From<&'a str> for FixedStr8 {
-	fn from(v: &str) -> FixedStr8 { From::from(v.as_bytes()) }
-}
-impl<'a> ::core::convert::From<&'a [u8]> for FixedStr8 {
-	fn from(v: &[u8]) -> FixedStr8 {
-		let mut rv = [0; 8];
-		assert!(v.len() <= 8);
-		rv[..v.len()].clone_from_slice(v);
-		FixedStr8(rv)
-	}
-}
-impl ::core::convert::From<[u8; 8]> for FixedStr8 {
-	fn from(v: [u8; 8]) -> FixedStr8 {
-		FixedStr8(v)
-	}
-}
-impl ::core::convert::From<u64> for FixedStr8 {
-	fn from(v: u64) -> FixedStr8 {
-		// SAFE: POD
-		FixedStr8( unsafe { ::core::mem::transmute(v) } )
-	}
-}
-impl ::core::convert::From<FixedStr8> for u64 {
-	fn from(v: FixedStr8) -> u64 {
-		// SAFE: POD
-		unsafe { ::core::mem::transmute(v.0) }
-	}
 }
 
 enum_to_from!{

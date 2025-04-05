@@ -8,3 +8,6 @@ path = "syscall_values.rs"
 
 [dependencies]
 key_codes = { path = "../key_codes" }
+
+[lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(arch, values("native"))'] }

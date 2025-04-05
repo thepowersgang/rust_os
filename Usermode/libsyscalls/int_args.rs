@@ -1,36 +1,9 @@
 
+use crate::values::ToUsizeArray;
+
 /// Trait implemented on tuples that allows calling a syscall using that tuple to provide arguments
 pub(crate) trait CallTuple {
 	unsafe fn call(self, id: u32) -> u64;
-}
-
-trait ToUsizeArray {
-	const LEN: usize;
-	fn into_array(self) -> [usize; Self::LEN];
-}
-//pub trait EnumTrait {
-//	fn into_usize(self) -> usize;
-//}
-impl ToUsizeArray for usize { const LEN: usize = 1; fn into_array(self) -> [usize; 1] { [self] } }
-impl ToUsizeArray for u32 { const LEN: usize = 1; fn into_array(self) -> [usize; 1] { [self as _] } }
-impl ToUsizeArray for u16 { const LEN: usize = 1; fn into_array(self) -> [usize; 1] { [self as _] } }
-impl ToUsizeArray for u8  { const LEN: usize = 1; fn into_array(self) -> [usize; 1] { [self as _] } }
-impl<'a, T: 'static> ToUsizeArray for &'a T     { const LEN: usize = 1; fn into_array(self) -> [usize; 1] { [self as *const _ as usize] } }
-impl<'a, T: 'static> ToUsizeArray for &'a mut T { const LEN: usize = 1; fn into_array(self) -> [usize; 1] { [self as *const _ as usize] } }
-impl<'a, T: 'static> ToUsizeArray for &'a [T]     { const LEN: usize = 2; fn into_array(self) -> [usize; 2] { [self.as_ptr() as usize, self.len()] } }
-impl<'a, T: 'static> ToUsizeArray for &'a mut [T] { const LEN: usize = 2; fn into_array(self) -> [usize; 2] { [self.as_ptr() as usize, self.len()] } }
-impl<'a> ToUsizeArray for &'a str { const LEN: usize = 2; fn into_array(self) -> [usize; 2] { [self.as_ptr() as usize, self.len()] } }
-impl ToUsizeArray for ::values::FixedStr8 { const LEN: usize = u64::LEN; fn into_array(self) -> [usize; Self::LEN] { <u64 as ToUsizeArray>::into_array(self.into()) } }
-//impl<T: EnumTrait+'static> ToUsizeArray for T { const LEN: usize = 1; fn into_array(self) -> [usize; 1] { [self.into_usize()] } }
-
-#[cfg(target_pointer_width="64")]
-impl ToUsizeArray for u64 { const LEN: usize = 1; fn into_array(self) -> [usize; 1] { [self as _] } }
-#[cfg(target_pointer_width="32")]
-impl ToUsizeArray for u64 {
-	const LEN: usize = 2;
-	fn into_array(self) -> [usize; 2] {
-		[(self & 0xFFFFFFFF) as usize, (self >> 32) as usize ]
-	}
 }
 
 trait CallArray {
