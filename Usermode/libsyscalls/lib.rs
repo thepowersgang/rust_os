@@ -16,35 +16,6 @@ mod std {
 	pub use core::fmt;
 }
 
-macro_rules! type_name {
-	($t:ty) => {::core::any::type_name::<$t>()};
-}
-
-macro_rules! syscall {
-	($id:ident) => {
-		::raw::syscall_0(::values::$id)
-		};
-	($id:ident, $arg1:expr) => {
-		::raw::syscall_1(::values::$id, $arg1)
-		};
-	($id:ident, $arg1:expr, $arg2:expr) => {
-		::raw::syscall_2(::values::$id, $arg1, $arg2)
-		};
-	($id:ident, $arg1:expr, $arg2:expr, $arg3:expr) => {
-		::raw::syscall_3(::values::$id, $arg1, $arg2, $arg3)
-		};
-	($id:ident, $arg1:expr, $arg2:expr, $arg3:expr, $arg4:expr) => {
-		::raw::syscall_4(::values::$id, $arg1, $arg2, $arg3, $arg4)
-		};
-	($id:ident, $arg1:expr, $arg2:expr, $arg3:expr, $arg4:expr, $arg5:expr) => {
-		::raw::syscall_5(::values::$id, $arg1, $arg2, $arg3, $arg4, $arg5)
-		};
-	($id:ident, $arg1:expr, $arg2:expr, $arg3:expr, $arg4:expr, $arg5:expr, $arg6:expr) => {
-		::raw::syscall_6(::values::$id, $arg1, $arg2, $arg3, $arg4, $arg5, $arg6)
-		};
-}
-//macro_rules! slice_arg { ($slice:ident) => { $slice.as_ptr(), $slice.len() } }
-
 macro_rules! define_waits {
 	($name:ident => ($($n:ident : $n2:ident = $val:expr,)*)) => {
 		#[derive(Default)]
@@ -192,10 +163,10 @@ impl AnyObject
 		{
 		Ok(c) if c == T::CLASS => T::from_handle(self.0),
 		Ok(class) => panic!("AnyObject({})::downcast_panic<{}> - Fail, {} {} != {}",
-			self.0 .0, type_name!(T),
+			self.0 .0, ::core::any::type_name::<T>(),
 			class, values::get_class_name(class), T::CLASS
 			),
-		Err(_) => panic!("AnyObject({})::downcast_panic<{}> - Invalid object num", self.0 .0, type_name!(T)),
+		Err(_) => panic!("AnyObject({})::downcast_panic<{}> - Invalid object num", self.0 .0, ::core::any::type_name::<T>()),
 		}
 	}
 }

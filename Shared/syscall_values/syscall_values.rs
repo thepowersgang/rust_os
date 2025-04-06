@@ -47,7 +47,7 @@ def_groups! {
 		=5: CORE_STARTPROCESS<'a>(name: &'a str, clone_start: usize, clone_end: usize),
 		? arch="native"
 		/// Start a new process (loader only, use loader API instead)
-		=5: CORE_STARTPROCESS<'a>(handle: u32, name: &'a str, clone_start: usize, clone_end: usize),
+		=5: CORE_STARTPROCESS<'a>(handle: u32, name: &'a str, args_nul: &'a [u8]),
 		/// Start a new thread in the current process
 		=6: CORE_STARTTHREAD(ip: usize, sp: usize, tls_base: usize),
 		/// Wait for any of a set of events

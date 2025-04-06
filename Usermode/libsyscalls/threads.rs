@@ -98,9 +98,8 @@ pub fn start_process(name: &str,  clone_start: usize, clone_end: usize) -> Resul
 #[inline]
 pub fn start_process(handle: crate::vfs::File, name: &str, args_nul: &[u8]) -> Result<ProtoProcess,u32> {
 	use crate::Object;
-	// NOTE: This can't use the structures, as native does tricks
 	// SAFE: Syscall
-	let rv = unsafe { syscall!(CORE_STARTPROCESS, handle.into_handle().into_raw() as usize, name.as_ptr() as usize, name.len(), args_nul.as_ptr() as usize, args_nul.len()) };
+	let rv = unsafe { crate::syscall(values::CORE_STARTPROCESS { handle: handle.into_handle().into_raw(), name, args_nul }) };
 	match ::ObjectHandle::new(rv as usize)
 	{
 	Ok(v) => Ok( ProtoProcess(v) ),
