@@ -142,6 +142,8 @@ impl Connection
 
 		// Synchronisation request
 		if hdr.flags & FLAG_SYN != 0 {
+			// TODO: SYN counts as a seqence increment?
+
 			// TODO: Send an ACK of the last received byte (should this be conditional?)
 			if self.last_rx_ack != self.next_rx_seq {
 			}

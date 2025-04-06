@@ -227,7 +227,9 @@ fn rx_handler(src_addr: Address, dest_addr: Address, mut pkt: crate::nic::Packet
 		{
 			// Send a RST
 			log_debug!("SYN to closed port: {:?}", quad);
-			block_on(quad.send_packet(hdr.acknowledgement_number, hdr.sequence_number, FLAG_RST|(!hdr.flags & FLAG_ACK), 0, &[], &[]));
+			// All RSTs ACK the contents of the recieved packet
+			let ack = hdr.sequence_number.wrapping_add( pre_header_reader.remain().max(1) as u32 );
+			block_on(quad.send_packet(hdr.acknowledgement_number, ack, FLAG_RST|FLAG_ACK, 0, &[], &[]));
 		}
 	}
 	// Otherwise, drop
