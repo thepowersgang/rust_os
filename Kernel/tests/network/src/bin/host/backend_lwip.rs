@@ -34,7 +34,7 @@ pub fn init()
     b.wait();
 }
 
-pub fn create_interface(stream: Arc<::std::net::UdpSocket>, number: u32, mac: [u8; 6], addr: IpAddr) -> &'static TestNicHandle {
+pub fn create_interface(stream: ::kernel_test_network::MessageStream, number: u32, mac: [u8; 6], addr: IpAddr) -> &'static TestNicHandle {
     TestNicHandle::new( number, stream, mac, addr, 24 )
 }
 

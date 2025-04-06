@@ -4,8 +4,7 @@
 #[macro_use]
 extern crate kernel;
 
-use ::kernel_test_network::HexDump;
-use std::sync::Arc;
+use ::kernel_test_network::{HexDump,MessageStream};
 
 #[cfg(not(feature="lwip"))]
 mod backend_kernel;
@@ -43,7 +42,7 @@ fn main()
     
 	backend::init();
         
-    let stream = match std::net::UdpSocket::bind("0.0.0.0:0")
+    let server = match std::net::TcpListener::bind(args.master_addr)
         {
         Ok(v) => v,
         Err(e) => {
@@ -51,12 +50,11 @@ fn main()
             return
             },
         };
-	stream.connect( args.master_addr ).expect("Unable to connect");
+	let (stream, server_addr) = server.accept().expect("Unable to connect");
+	let stream = MessageStream::new(stream);
 	// - Set a timeout, in case the parent fails (semi-ensures that the process quits if the test framework dies)
 	stream.set_read_timeout(Some(::std::time::Duration::from_secs(10))).expect("Unable to set read timeout");
-	let stream = Arc::new(stream);
-    stream.send(&[0]).expect("Unable to send marker to server");
-	println!("{:?} Connected? {} from {}", std::time::Instant::now(), args.master_addr, stream.local_addr().unwrap());
+	println!("{:?} Connected? {} from {}", std::time::Instant::now(), args.master_addr, server_addr);
 
 	let mac = *b"RSK\x12\x34\x56";
     let (tx,rx) = ::std::sync::mpsc::channel();
@@ -68,13 +66,11 @@ fn main()
         {
             const MTU: usize = 1560;
             let mut buf = [0; 4 + MTU];
-			println!("RX Waiting...");
             let len = match backend::run_blocking(|| stream.recv(&mut buf))
                 {
                 Ok(len) => len,
                 Err(e) => panic!("Error receiving packet: {:?}", e),
                 };
-			println!("RX {:?}", &buf[..len]);
             if len == 0 {
                 println!("ERROR: Zero-sized packet?");
                 break;

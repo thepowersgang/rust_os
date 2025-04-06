@@ -81,7 +81,7 @@ fn server()
     
     // Send an ACK, expect RST
     conn.raw_send_packet(TCP_ACK, &[], &[]);
-    conn.wait_rx_check(TCP_RST, &[]);
+    conn.wait_rx_check(TCP_ACK|TCP_RST, &[]);
 
     // --- Begin connection handshake --
     // - Send SYN, expect SYN,ACK

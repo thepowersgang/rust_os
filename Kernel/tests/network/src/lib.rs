@@ -27,8 +27,7 @@ fn ser_be<T: ::serde::Serialize>(mut writer: impl ::std::io::Write, v: &T) {
 
 pub struct TestFramework {
     _lh: Option<::std::sync::MutexGuard<'static, ()>>,
-    socket: std::net::UdpSocket,
-    remote_addr: std::net::SocketAddr,
+    socket: MessageStream,
     process: Option<::std::process::Child>,
     logfile: std::path::PathBuf,
     pcap: ::std::cell::RefCell< pcap_writer::PcapWriter<::std::io::BufWriter<::std::fs::File>> >,
@@ -58,14 +57,13 @@ impl TestFramework
 		// NOTE: Ports allocated seqentially to avoid collisions between threaded tests
 		static NEXT_PORT: std::sync::atomic::AtomicU16 = std::sync::atomic::AtomicU16::new(12340);
         let port = NEXT_PORT.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
-        let socket = std::net::UdpSocket::bind( ("127.0.0.1", port) ).expect("Unable to bind socket");
         let socket_str = format!("127.0.0.1:{}", port);
         
         let remote_ip = "192.168.1.1";
         let logfile: std::path::PathBuf = format!("{}.txt", name).into();
         let pcapfile: std::path::PathBuf = format!("{}.pcap", name).into();
 
-        fn spawn_host(logfile: &::std::path::Path, socket_addr: &str, remote_ip: &str, socket: &::std::net::UdpSocket, host_binname: &str) -> (Option<::std::process::Child>, ::std::net::SocketAddr)
+        fn spawn_host(logfile: &::std::path::Path, socket_addr: &str, remote_ip: &str, host_binname: &str) -> (Option<::std::process::Child>, ::std::net::TcpStream)
         {
             let logfile = ::std::fs::File::create(&logfile).unwrap();
             // /*
@@ -84,7 +82,7 @@ impl TestFramework
             }
     
             println!("Spawning child w/ {:?} [{:?}, {:?}]", args, socket_addr, remote_ip);
-            let mut child = std::process::Command::new( env!("CARGO") ).arg("run").args(args).arg("--")
+            let child = std::process::Command::new( env!("CARGO") ).arg("run").args(args).arg("--")
                 .arg(socket_addr)
                 .arg(remote_ip)// /24")
                 //.stdin( std::process::Stdio::piped() )
@@ -94,52 +92,32 @@ impl TestFramework
                 .spawn()
                 .expect("Can't spawn child")
                 ;
-            println!("Waiting for child");
-            socket.set_read_timeout(Some(Duration::from_millis(2000))).unwrap();
-            let addr = match socket.recv_from(&mut [0])
-                {
-                Ok( (_len, v) ) => v,
-                Err(e) => {
-                    match child.try_wait()
-                    {
-                    Ok(_) => {},
-                    Err(_) => child.kill().expect("Unable to terminate child"),
-                    }
-                    panic!("{:?} Child didn't connect: {}", std::time::Instant::now(), e)
-                    },
-                };
+            ::std::thread::sleep(Duration::from_millis(500));
+            let socket = ::std::net::TcpStream::connect(socket_addr).unwrap();
             socket.set_read_timeout(Some(Duration::from_millis(200))).unwrap();
-            (Some(child), addr)
+            (Some(child), socket)
         }
 
 
-        let (child, addr) = match ::std::env::var("KNTEST_HOST").as_deref()
+        let (child, socket) = match ::std::env::var("KNTEST_HOST").as_deref()
             {
             Ok("")
             | Err(_)
-            => spawn_host(&logfile, &socket_str, remote_ip, &socket, "host"),
+            => spawn_host(&logfile, &socket_str, remote_ip, "host"),
             Ok("lwip")
-            => spawn_host(&logfile, &socket_str, remote_ip, &socket, "host_lwip"),
+            => spawn_host(&logfile, &socket_str, remote_ip, "host_lwip"),
             Ok("none") => {
-                println!("{:?}", socket_str);
-                socket.set_read_timeout(None).unwrap();
-                let addr = match socket.recv_from(&mut [0])
-                    {
-                    Ok( (_len, v) ) => v,
-                    Err(e) => panic!("Child didn't connect: {}", e),
-                    };
-                (None, addr)
+                let socket = ::std::net::TcpStream::connect(socket_str).unwrap();
+                (None, socket)
                 }
             Ok(_) => panic!("Unknown host binary name"),
             };
-        println!("Connection from {:?}", addr);
         let pcap = ::std::fs::File::create(pcapfile).expect("Unable to open packet dump");
         let pcap = pcap_writer::PcapWriter::new(::std::io::BufWriter::new( pcap )).expect("Unable to write pcap header");
 
         TestFramework {
             _lh: lh,
-            socket: socket,
-            remote_addr: addr,
+            socket: MessageStream::new(socket),
             process: child,
             logfile: logfile,
             pcap: ::std::cell::RefCell::new(pcap),
@@ -156,7 +134,7 @@ impl TestFramework
 	{
 		let mut msg_buf = [0; 4 + 1500];
 		msg_buf[4..][..s.len()].copy_from_slice( s.as_bytes() );
-		self.socket.send_to(&msg_buf[.. 4 + s.len()], self.remote_addr).expect("Failed to send to child");
+		self.socket.send(0, s.as_bytes()).expect("Failed to send to child");
 	}
 
     fn dump_packet(&self, is_tx: bool, nic: u32, data: &[u8])
@@ -168,14 +146,13 @@ impl TestFramework
 
     fn send_packet(&self, nic: u32, ethernet_hdr: &[u8], buffers: &[ &[u8] ])
     {
-        let buf: Vec<u8> = Iterator::chain([&u32::to_le_bytes(nic as u32)[..], ethernet_hdr].iter(), buffers.iter())
+        let buf: Vec<u8> = Iterator::chain([ethernet_hdr].iter(), buffers.iter())
             .flat_map(|v| v.iter())
             .copied()
             .collect()
             ;
-        self.dump_packet(true, nic, &buf[4..]);
-        println!("> sendto {:?}", self.remote_addr);
-        self.socket.send_to(&buf, self.remote_addr).expect("Failed to send to child");
+        self.dump_packet(true, nic, &buf);
+        self.socket.send(nic, &buf).expect("Failed to send to child");
         println!("> Sent");
     }
 
@@ -196,7 +173,7 @@ impl TestFramework
             let mut buf = vec![0; 1560];
             loop
             {
-                let (len, addr) = match self.socket.recv_from(&mut buf)
+                let len = match self.socket.recv(&mut buf)
                     {
                     Ok(v) => v,
                     Err(e) if e.kind() == std::io::ErrorKind::TimedOut => return None,
@@ -204,10 +181,6 @@ impl TestFramework
                     Err(e) if e.kind() == std::io::ErrorKind::Interrupted => continue,
                     Err(e) => panic!("wait_packet: Error {} (Kind = {:?})", e, e.kind()),
                     };
-                if addr != self.remote_addr {
-                    // Hmm...
-                    panic!("");
-                }
                 if len < 4 {
                     panic!("");
                 }
@@ -259,21 +232,21 @@ impl TestFramework
     {
         match process.try_wait().unwrap()
         {
-        Some(_) => {
-            println!("Child process was already terminated");
+        Some(status) => {
+            println!("Child process was already terminated (status {})", status);
             return
             },
         None => {},
         }
 
         self.send_command("exit");
-        let timeout = std::time::Duration::from_millis(500);
+        let timeout = std::time::Duration::from_millis(1000);
         let stop_time = ::std::time::Instant::now() + timeout;
         while ::std::time::Instant::now() < stop_time {
             match process.try_wait().unwrap()
             {
-            Some(_) => {
-                println!("Child process closed using the `exit` command");
+            Some(status) => {
+                println!("Child process exited with status {}", status);
                 return
                 },
             None => {},
@@ -325,6 +298,32 @@ impl<'a> ::std::fmt::Debug for HexDump<'a>
 		}
 		Ok( () )
 	}
+}
+
+#[derive(Clone)]
+pub struct MessageStream(::std::sync::Arc<::std::net::TcpStream>);
+impl MessageStream {
+    pub fn new(s: ::std::net::TcpStream) -> Self {
+        MessageStream(::std::sync::Arc::new(s))
+    }
+    pub fn send(&self, id: u32, buf: &[u8]) -> ::std::io::Result<()> {
+        use ::std::io::Write;
+        (&*self.0).write_all( &(4 + buf.len() as u32).to_le_bytes() )?;
+        (&*self.0).write_all( &id.to_le_bytes() )?;
+        (&*self.0).write_all(buf)
+    }
+    pub fn recv(&self, dst: &mut [u8]) -> ::std::io::Result<usize> {
+        use ::std::io::Read;
+        let mut len = [0; 4];
+        (&*self.0).read_exact(&mut len)?;
+        let len = u32::from_le_bytes(len) as usize;
+        dbg!(len);
+        (&*self.0).read_exact(&mut dst[..len])?;
+        Ok(len)
+    }
+    pub fn set_read_timeout(&self, dur: Option<Duration>) -> ::std::io::Result<()> {
+        self.0.set_read_timeout(dur)
+    }
 }
 
 

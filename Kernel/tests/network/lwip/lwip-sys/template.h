@@ -1,5 +1,6 @@
 #define _CTYPE_H 1
 
+#include "lwipopts.h"
 #include <lwip/tcpip.h>
 #include <lwip/err.h>
 #include <lwip/netif.h>

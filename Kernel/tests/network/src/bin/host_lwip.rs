@@ -16,7 +16,7 @@ mod inner {
 
 extern crate lwip;
 use ::std::sync::Arc;
-use ::kernel_test_network::HexDump;
+use ::kernel_test_network::{HexDump,MessageStream};
 
 struct Args
 {
@@ -54,7 +54,7 @@ pub fn main()
         b.wait();
     }
         
-    let stream = match ::std::net::UdpSocket::bind("0.0.0.0:0")
+    let sever = match ::std::net::TcpListener::bind(args.master_addr)
         {
         Ok(v) => v,
         Err(e) => {
@@ -62,11 +62,10 @@ pub fn main()
             return
             },
         };
-	stream.connect( args.master_addr ).expect("Unable to connect");
+    let (stream,_parent_addr) = sever.accept().expect("Unable to connect");
 	// - Set a timeout, in case the parent fails
 	stream.set_read_timeout(Some(::std::time::Duration::from_secs(1))).expect("Unable to set read timeout");
-	let stream = Arc::new(stream);
-    stream.send(&[0]).expect("Unable to send marker to server");
+    let stream = MessageStream::new(stream);
 
 
     let (tx,rx) = ::std::sync::mpsc::channel();
@@ -260,13 +259,13 @@ fn parse_addr(s: &str) -> Option<::lwip::sys::ip_addr>
 struct TestNicHandle
 {
     index: u32,
-    stream: Arc<std::net::UdpSocket>,
+    stream: MessageStream,
     mac: [u8; 6],
     netif: ::std::cell::UnsafeCell<::lwip::sys::netif>,
 }
 impl TestNicHandle
 {
-    fn new(stream: Arc<std::net::UdpSocket>, mac: [u8; 6], ip: ::lwip::sys::ip4_addr_t, mask_bits: u8) -> &'static TestNicHandle {
+    fn new(stream: MessageStream, mac: [u8; 6], ip: ::lwip::sys::ip4_addr_t, mask_bits: u8) -> &'static TestNicHandle {
         let rv = Box::new(TestNicHandle {
             index: 1,
             stream,
@@ -331,7 +330,6 @@ impl TestNicHandle
         
         let buf = {
             let mut buf = Vec::new();
-            buf.extend(this.index.to_le_bytes());
             let mut pbuf = pbuf;
             while !pbuf.is_null() {
                 pbuf = {
@@ -344,8 +342,8 @@ impl TestNicHandle
             buf
             };
 
-		println!("TX #{} {:?}", this.index, HexDump(&buf[4..]));
-        this.stream.send(&buf).unwrap();
+		println!("TX #{} {:?}", this.index, HexDump(&buf));
+        this.stream.send(this.index, &buf).unwrap();
 
         ::lwip::sys::err_enum_t_ERR_OK as i8
     }

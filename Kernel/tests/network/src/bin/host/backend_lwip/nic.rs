@@ -1,19 +1,18 @@
 //! 
 //! 
 //! 
-use ::std::sync::Arc;
-use ::kernel_test_network::HexDump;
+use ::kernel_test_network::{HexDump,MessageStream};
 
 pub struct TestNicHandle
 {
     number: u32,
-    stream: Arc<::std::net::UdpSocket>,
+    stream: MessageStream,
     mac: [u8; 6],
     netif: ::std::cell::UnsafeCell<::lwip::sys::netif>,
 }
 impl TestNicHandle
 {
-    pub(super) fn new(number: u32, stream: Arc<std::net::UdpSocket>, mac: [u8; 6], ip: ::lwip::sys::ip4_addr_t, mask_bits: u8) -> &'static TestNicHandle {
+    pub(super) fn new(number: u32, stream: MessageStream, mac: [u8; 6], ip: ::lwip::sys::ip4_addr_t, mask_bits: u8) -> &'static TestNicHandle {
         let rv = Box::new(TestNicHandle {
             number,
             stream,
@@ -26,13 +25,19 @@ impl TestNicHandle
         unsafe {
             let netif_ptr = rv.netif.get();
             let state_ptr = &*rv as *const _ as *mut ::std::ffi::c_void;
+            //(*netif_ptr).state = state_ptr;
+            let b = ::std::sync::Arc::new(::std::sync::Barrier::new(2));
+            let b2 = b.clone();
             ::lwip::os_mode::callback(move || {
                 let rv = ::lwip::sys::netif_add(
                     netif_ptr, &ip, &mask, &gw,
                     state_ptr, Some(Self::init), Some(::lwip::sys::tcpip_input)
                     );
-                let _ = rv;
-            })
+                assert!(!rv.is_null(), "netif_add failed");
+                assert!(rv == netif_ptr, "netif_add failed");
+                b2.wait();
+            });
+            b.wait();
         }
         Box::leak(rv)
     }
@@ -61,26 +66,26 @@ impl TestNicHandle
         ::lwip::sys::err_enum_t_ERR_OK as i8
     }
 
+    /// Called by the test RX thread to pass a packet into the code-under-test
     pub fn packet_received(&self, buf: Vec<u8>) {
 		println!("RX #{} {:?}", self.number, HexDump(&buf));
-        let pbuf = unsafe { ::lwip::sys::pbuf_alloc(::lwip::sys::pbuf_layer_PBUF_RAW, buf.len() as u16, ::lwip::sys::pbuf_type_PBUF_RAM) };
-        unsafe { ::core::ptr::copy_nonoverlapping(buf.as_ptr(), (*pbuf).payload as *mut _, buf.len()); }
-        let input_fcn = unsafe { (&*self.netif.get()).input.unwrap() };
-        unsafe { input_fcn(pbuf, self.netif.get()); }
+        unsafe {
+            let pbuf =  ::lwip::sys::pbuf_alloc(::lwip::sys::pbuf_layer_PBUF_RAW, buf.len() as u16, ::lwip::sys::pbuf_type_PBUF_RAM);
+            ::core::ptr::copy_nonoverlapping(buf.as_ptr(), (*pbuf).payload as *mut _, buf.len());
+            let input_fcn = (&*self.netif.get()).input.expect("netif.input is null?");
+            input_fcn(pbuf, self.netif.get());
+        }
     }
 
     unsafe extern "C" fn etharp_output(netif: *mut ::lwip::sys::netif, pbuf: *mut ::lwip::sys::pbuf, ipaddr: *const ::lwip::sys::ip4_addr_t) -> ::lwip::sys::err_t {
-        println!("etharp_output");
         ::lwip::sys::etharp_output(netif, pbuf, ipaddr)
     }
 
     unsafe extern "C" fn linkoutput(this_r: *mut ::lwip::sys::netif, pbuf: *mut ::lwip::sys::pbuf) -> ::lwip::sys::err_t {
-        println!("linkoutput");
         let this = &*((*this_r).state as *const TestNicHandle);
         
         let buf = {
             let mut buf = Vec::new();
-            buf.extend(this.number.to_le_bytes());
             let mut pbuf = pbuf;
             while !pbuf.is_null() {
                 pbuf = {
@@ -94,7 +99,7 @@ impl TestNicHandle
             };
 
 		println!("TX #{} {:?}", this.number, HexDump(&buf[4..]));
-        this.stream.send(&buf).unwrap();
+        this.stream.send(this.number, &buf).unwrap();
 
         ::lwip::sys::err_enum_t_ERR_OK as i8
     }
