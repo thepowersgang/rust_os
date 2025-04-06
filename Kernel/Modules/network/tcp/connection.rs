@@ -434,7 +434,11 @@ impl Connection
 				flags |= FLAG_ACK;
 			}
 			// TODO: Use a better method of picking when to PSH
-			if false && self.tx_state.force_tx {
+			// - Want to set PSH when sending the last bytes of a usermode `send` call
+			// - However, that may be after several packets have been sent (if it was a big write)
+			// - Could have a variable for `push_at` that is set to the sequence number for the next PSH
+			//   - Should this support a queue? OR, should it be updated on every `send` call?
+			if self.tx_state.buffer.len() - self.tx_state.sent_bytes > 0 && self.tx_state.force_tx {
 				flags |= FLAG_PSH;
 			}
 			flags

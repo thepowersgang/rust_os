@@ -137,7 +137,7 @@ fn client()
     conn.wait_rx_check(TCP_ACK, &[]);
     // Get the client to send data
     fw.send_command("tcp-send 0 \"00 01 02 03\"");
-    conn.wait_rx_check(if cfg!(feature="lwip") { TCP_ACK|TCP_PSH } else { 0 }, &[0,1,2,3]);
+    conn.wait_rx_check(if cfg!(feature="lwip") { TCP_ACK|TCP_PSH } else { TCP_PSH }, &[0,1,2,3]);
 }
 
 /// Helper to create a string of hex-encoded bytes

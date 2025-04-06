@@ -171,7 +171,7 @@ fn rx_handler(src_addr: Address, dest_addr: Address, mut pkt: crate::nic::Packet
 		if let Some(c) = PROTO_CONNECTIONS.take(&quad)
 		{
 			// Check the SEQ/ACK numbers, and create the actual connection
-			if hdr.sequence_number == c.seen_seq + 1 && hdr.acknowledgement_number == c.sent_seq
+			if hdr.sequence_number == c.seen_seq && hdr.acknowledgement_number == c.sent_seq.wrapping_add(1)
 			{
 				// Make the full connection struct
 				match CONNECTIONS.insert(quad, Mutex::new(Connection::new_inbound(&hdr)))
@@ -189,8 +189,8 @@ fn rx_handler(src_addr: Address, dest_addr: Address, mut pkt: crate::nic::Packet
 			else
 			{
 				log_debug!("Bad ACK of a handshake: {:?} - SEQ {} != {} || ACK {} != {}", quad,
-					hdr.sequence_number, c.seen_seq + 1,
-					hdr.acknowledgement_number, c.sent_seq,
+					hdr.sequence_number, c.seen_seq,
+					hdr.acknowledgement_number, c.sent_seq.wrapping_add(1),
 					);
 				// - Bad ACK, put the proto connection back into the list
 				let _ = PROTO_CONNECTIONS.insert(quad, c);
@@ -199,7 +199,7 @@ fn rx_handler(src_addr: Address, dest_addr: Address, mut pkt: crate::nic::Packet
 		else {
 			// No proto connection - RST?
 			log_debug!("Unexpected ACK: {:?}", quad);
-			block_on(quad.send_packet(hdr.acknowledgement_number, hdr.sequence_number, FLAG_RST, 0, &[], &[]));
+			block_on(quad.send_packet(hdr.acknowledgement_number, hdr.sequence_number, FLAG_ACK|FLAG_RST, 0, &[], &[]));
 		}
 	}
 	// If none found, look for servers on the destination (if SYN)
@@ -213,12 +213,12 @@ fn rx_handler(src_addr: Address, dest_addr: Address, mut pkt: crate::nic::Packet
 				// Reject if no space
 				// - Send a RST
 				// TODO: Queue a packet instead of blocking here
-				block_on(quad.send_packet(hdr.acknowledgement_number, hdr.sequence_number, FLAG_RST, 0, &[], &[]));
+				block_on(quad.send_packet(hdr.acknowledgement_number, hdr.sequence_number.wrapping_add(1), FLAG_RST, 0, &[], &[]));
 			}
 			else {
 				log_debug!("Start of incoming handshake: {:?}", quad);
 				// - Add the quad as a proto-connection and send the SYN-ACK
-				let pc = ProtoConnection::new(hdr.sequence_number);
+				let pc = ProtoConnection::new(hdr.sequence_number.wrapping_add(1));
 				block_on(quad.send_packet(pc.sent_seq, pc.seen_seq, FLAG_SYN|FLAG_ACK, hdr.window_size, &[], &[]));
 				let _ = PROTO_CONNECTIONS.replace(quad, pc);	// Insert without replacing
 			}

@@ -179,6 +179,10 @@ impl TestFramework
                     Err(e) if e.kind() == std::io::ErrorKind::TimedOut => return None,
                     Err(e) if e.kind() == std::io::ErrorKind::WouldBlock => return None,
                     Err(e) if e.kind() == std::io::ErrorKind::Interrupted => continue,
+                    Err(e) if e.kind() == std::io::ErrorKind::ConnectionReset => {
+                        eprintln!("Connection to child process dropped");
+                        return None
+                    },
                     Err(e) => panic!("wait_packet: Error {} (Kind = {:?})", e, e.kind()),
                     };
                 if len < 4 {
