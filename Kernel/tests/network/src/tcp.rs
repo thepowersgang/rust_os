@@ -9,7 +9,6 @@ use crate::ipv4::Addr as IpAddr4;
 mod tests;
 
 #[derive(Copy,Clone)]
-#[derive(Debug)]
 #[derive(::serde::Deserialize,::serde::Serialize)]
 pub struct Header
 {
@@ -22,6 +21,39 @@ pub struct Header
     pub window: u16,
     pub checksum: u16,
     pub urg_ptr: u16,
+}
+impl ::std::fmt::Debug for Header {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{{")?;
+        write!(f, " src_port: {}, dst_port: {},", self.src_port, self.dst_port)?;
+        write!(f, " seq: 0x{:08x}, ack: 0x{:08x},", self.seq, self.ack)?;
+        write!(f, " data_ofs: {},", self.data_ofs)?;
+        f.write_str(" flags: ")?;
+        if self.flags == 0 {
+            f.write_str("0")?;
+        }
+        else {
+            let mut v = self.flags;
+            let flags = ["FIN","SYN","RST","PSH","ACK"];
+            for (i,flag) in flags.iter().enumerate() {
+                if v & 1 << i != 0 {
+                    f.write_str(flag)?;
+                    v &= !(1 << i);
+                    if v != 0 {
+                        f.write_str("|")?;
+                    }
+                }
+            }
+            if v != 0 {
+                write!(f, "{:#x}", v)?;
+            }
+        }
+        write!(f, " window: {:#x},", self.window)?;
+        write!(f, " checksum: 0x{:04x},", self.checksum)?;
+        write!(f, " urg_ptr: {:#x},", self.urg_ptr)?;
+        write!(f, "}}")?;
+        Ok( () )
+    }
 }
 impl Header
 {
@@ -161,7 +193,18 @@ impl TcpConn<'_>
     {
         match self.fw.wait_packet(std::time::Duration::from_millis(100))
         {
-        Some(_) => panic!("Unexpected packet"),
+        Some(pkt) => {
+            let tail = &pkt[..];
+            let (ether_hdr, tail) = crate::ethernet::EthernetHeader::parse(tail);
+            let (ip_hdr,ip_options, tail) = crate::ipv4::Header::parse(tail);
+            let (tcp_hdr,tcp_options, tail) = Header::parse(tail);
+            panic!("Unexpected packet - {} bytes
+            - ether_hdr={ether_hdr:x?}
+            - ip_hdr={ip_hdr:x?} ip_options={ip_options:x?}
+            - tcp_hdr={tcp_hdr:x?} tcp_options={tcp_options:x?}
+            - tail={tail:x?}"
+            , pkt.len());
+            },
         None => {},
         }
     }

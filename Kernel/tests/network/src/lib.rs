@@ -317,7 +317,6 @@ impl MessageStream {
         let mut len = [0; 4];
         (&*self.0).read_exact(&mut len)?;
         let len = u32::from_le_bytes(len) as usize;
-        dbg!(len);
         (&*self.0).read_exact(&mut dst[..len])?;
         Ok(len)
     }

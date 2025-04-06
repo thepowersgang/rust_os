@@ -89,13 +89,14 @@ fn server()
     conn.local_seq = conn.local_seq.wrapping_add(1);    // Empty SYN packets have a sequence length of 1
     let hdr = conn.wait_rx_check(TCP_SYN|TCP_ACK, &[]);
     assert_eq!(hdr.ack, conn.local_seq, "ACK number doesn't match expected");
-    conn.remote_seq = hdr.seq;//.wrapping_add(1);
+    conn.remote_seq = hdr.seq.wrapping_add(1);
 
     // >> STATE: SYN-RECEIVED
 
     // - Send ACK
     conn.raw_send_packet(TCP_ACK, &[], &[]);
     conn.wait_rx_none();
+
     fw.send_command("tcp-accept 0 0");
 
     // >>> STATE: ESTABLISHED
@@ -107,7 +108,8 @@ fn server()
     fw.send_command( &format!("tcp-recv-assert 0 {} {}", testblob.len(), HexString(testblob)) );
 
     fw.send_command( &format!("tcp-send 0 {}", HexString(testblob)) );
-    conn.wait_rx_check(TCP_ACK/*|TCP_PSH*/, testblob);
+    // lwip sets PSH
+    conn.wait_rx_check(TCP_ACK|TCP_PSH, testblob);
     conn.remote_seq += testblob.len() as u32;
 }
 

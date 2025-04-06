@@ -1,6 +1,7 @@
 
 
 #[derive(::serde::Deserialize,::serde::Serialize)]
+#[derive(Debug)]
 pub struct EthernetHeader
 {
     pub dst: [u8; 6],

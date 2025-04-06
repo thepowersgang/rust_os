@@ -16,6 +16,7 @@ impl ::core::fmt::Display for Addr {
 }
 
 #[derive(serde::Deserialize,::serde::Serialize)]
+#[derive(Debug)]
 pub struct Header
 {
 	pub version_and_len: u8,
