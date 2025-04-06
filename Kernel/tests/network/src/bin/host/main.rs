@@ -56,20 +56,25 @@ fn main()
 	stream.set_read_timeout(Some(::std::time::Duration::from_secs(10))).expect("Unable to set read timeout");
 	let stream = Arc::new(stream);
     stream.send(&[0]).expect("Unable to send marker to server");
+	println!("{:?} Connected? {} from {}", std::time::Instant::now(), args.master_addr, stream.local_addr().unwrap());
 
+	let mac = *b"RSK\x12\x34\x56";
     let (tx,rx) = ::std::sync::mpsc::channel();
 	backend::spawn_thread(move || {
-		let nic_handle = backend::create_interface(stream.clone(), 1, *b"RSK\x12\x34\x56", args.sim_ip);
+		println!("Worker up");
+		let nic_handle = backend::create_interface(stream.clone(), 1, mac, args.sim_ip);
 		
         loop
         {
             const MTU: usize = 1560;
             let mut buf = [0; 4 + MTU];
+			println!("RX Waiting...");
             let len = match backend::run_blocking(|| stream.recv(&mut buf))
                 {
                 Ok(len) => len,
                 Err(e) => panic!("Error receiving packet: {:?}", e),
                 };
+			println!("RX {:?}", &buf[..len]);
             if len == 0 {
                 println!("ERROR: Zero-sized packet?");
                 break;

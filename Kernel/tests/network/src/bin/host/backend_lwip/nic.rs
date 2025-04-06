@@ -63,17 +63,19 @@ impl TestNicHandle
 
     pub fn packet_received(&self, buf: Vec<u8>) {
 		println!("RX #{} {:?}", self.number, HexDump(&buf));
-        let pbuf = unsafe { ::lwip::sys::pbuf_alloc(buf.len() as u32, buf.len() as u16, ::lwip::sys::pbuf_type_PBUF_RAM) };
+        let pbuf = unsafe { ::lwip::sys::pbuf_alloc(::lwip::sys::pbuf_layer_PBUF_RAW, buf.len() as u16, ::lwip::sys::pbuf_type_PBUF_RAM) };
         unsafe { ::core::ptr::copy_nonoverlapping(buf.as_ptr(), (*pbuf).payload as *mut _, buf.len()); }
         let input_fcn = unsafe { (&*self.netif.get()).input.unwrap() };
         unsafe { input_fcn(pbuf, self.netif.get()); }
     }
 
     unsafe extern "C" fn etharp_output(netif: *mut ::lwip::sys::netif, pbuf: *mut ::lwip::sys::pbuf, ipaddr: *const ::lwip::sys::ip4_addr_t) -> ::lwip::sys::err_t {
+        println!("etharp_output");
         ::lwip::sys::etharp_output(netif, pbuf, ipaddr)
     }
 
     unsafe extern "C" fn linkoutput(this_r: *mut ::lwip::sys::netif, pbuf: *mut ::lwip::sys::pbuf) -> ::lwip::sys::err_t {
+        println!("linkoutput");
         let this = &*((*this_r).state as *const TestNicHandle);
         
         let buf = {

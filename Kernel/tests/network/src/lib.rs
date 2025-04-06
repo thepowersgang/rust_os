@@ -83,11 +83,8 @@ impl TestFramework
             Err(e) => panic!("Building helper failed: {}", e),
             }
     
-            println!("Spawning child w/ {:?}", args);
+            println!("Spawning child w/ {:?} [{:?}, {:?}]", args, socket_addr, remote_ip);
             let mut child = std::process::Command::new( env!("CARGO") ).arg("run").args(args).arg("--")
-            // */
-            //let mut child = std::process::Command::new( env!("CARGO_BIN_EXE_host") )
-            //let mut child = std::process::Command::new( format!("../../target/debug/{host_binname}") )
                 .arg(socket_addr)
                 .arg(remote_ip)// /24")
                 //.stdin( std::process::Stdio::piped() )
@@ -98,7 +95,7 @@ impl TestFramework
                 .expect("Can't spawn child")
                 ;
             println!("Waiting for child");
-            socket.set_read_timeout(Some(Duration::from_millis(200))).unwrap();
+            socket.set_read_timeout(Some(Duration::from_millis(2000))).unwrap();
             let addr = match socket.recv_from(&mut [0])
                 {
                 Ok( (_len, v) ) => v,
@@ -108,9 +105,10 @@ impl TestFramework
                     Ok(_) => {},
                     Err(_) => child.kill().expect("Unable to terminate child"),
                     }
-                    panic!("Child didn't connect: {}", e)
+                    panic!("{:?} Child didn't connect: {}", std::time::Instant::now(), e)
                     },
                 };
+            socket.set_read_timeout(Some(Duration::from_millis(200))).unwrap();
             (Some(child), addr)
         }
 
@@ -134,7 +132,7 @@ impl TestFramework
                 }
             Ok(_) => panic!("Unknown host binary name"),
             };
-
+        println!("Connection from {:?}", addr);
         let pcap = ::std::fs::File::create(pcapfile).expect("Unable to open packet dump");
         let pcap = pcap_writer::PcapWriter::new(::std::io::BufWriter::new( pcap )).expect("Unable to write pcap header");
 
@@ -176,7 +174,9 @@ impl TestFramework
             .collect()
             ;
         self.dump_packet(true, nic, &buf[4..]);
+        println!("> sendto {:?}", self.remote_addr);
         self.socket.send_to(&buf, self.remote_addr).expect("Failed to send to child");
+        println!("> Sent");
     }
 
     /// Encode+send an ethernet frame to the virtualised NIC (addressed correctly)

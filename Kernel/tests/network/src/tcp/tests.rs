@@ -5,6 +5,7 @@ use super::*;
 /// TCP State CLOSED
 /// 
 /// Check that RST is sent when communicating with a closed port
+// REF: RFC9293 s3.5.2. "Reset Generation"
 #[test]
 fn resets()
 {
@@ -80,12 +81,12 @@ fn server()
     
     // Send an ACK, expect RST
     conn.raw_send_packet(TCP_ACK, &[], &[]);
-    conn.wait_rx_check(TCP_ACK|TCP_RST, &[]);
+    conn.wait_rx_check(TCP_RST, &[]);
 
     // --- Begin connection handshake --
     // - Send SYN, expect SYN,ACK
     conn.raw_send_packet(TCP_SYN, &[], &[]);
-    conn.local_seq = conn.local_seq.wrapping_add(1);
+    conn.local_seq = conn.local_seq.wrapping_add(1);    // Empty SYN packets have a sequence length of 1
     let hdr = conn.wait_rx_check(TCP_SYN|TCP_ACK, &[]);
     assert_eq!(hdr.ack, conn.local_seq, "ACK number doesn't match expected");
     conn.remote_seq = hdr.seq;//.wrapping_add(1);
