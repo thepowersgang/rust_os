@@ -79,7 +79,7 @@ fn server()
     conn.raw_send_packet(TCP_RST, &[], &[]);
     conn.wait_rx_none();
     
-    // Send an ACK, expect RST
+    // Send an ACK, expect ACK-RST
     conn.raw_send_packet(TCP_ACK, &[], &[]);
     conn.wait_rx_check(TCP_ACK|TCP_RST, &[]);
 
