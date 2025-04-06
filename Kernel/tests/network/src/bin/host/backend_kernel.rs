@@ -1,8 +1,7 @@
 //
 //
 //
-use ::kernel_test_network::HexDump;
-use ::std::sync::Arc;
+use ::kernel_test_network::{HexDump,MessageStream};
 
 pub type IpAddr = ::network::ipv4::Address;
 
@@ -29,7 +28,7 @@ pub fn init() {
     (::network::S_MODULE.init)();
 }
 
-pub fn create_interface(stream: Arc<::std::net::UdpSocket>, number: u32, mac: [u8; 6], addr: IpAddr) -> &'static mut ::network::nic::Registration<TestNic> {
+pub fn create_interface(stream: MessageStream, number: u32, mac: [u8; 6], addr: IpAddr) -> &'static mut ::network::nic::Registration<TestNic> {
     let nic_handle = network::nic::register(mac, TestNic::new(number, stream));
 	// TODO: Make this a command instead
     network::ipv4::add_interface(mac, addr, 24);
@@ -55,7 +54,7 @@ pub fn tcp_listen(port: u16) -> ::network::tcp::ServerHandle {
 pub struct TestNic
 {
 	number: u32,
-    stream: Arc<std::net::UdpSocket>,
+    stream: MessageStream,
     waiter: std::sync::Mutex< Option<kernel::threads::SleepObjectRef> >,
     // NOTE: Kernel sync queue
     packets: std::sync::Mutex< std::collections::VecDeque< Vec<u8> > >,
@@ -63,7 +62,7 @@ pub struct TestNic
 
 impl TestNic
 {
-    fn new(number: u32, stream: Arc<std::net::UdpSocket>) -> TestNic
+    fn new(number: u32, stream: MessageStream) -> TestNic
     {
         TestNic {
 			number,
@@ -88,11 +87,9 @@ impl network::nic::Interface for TestNic
 {
     fn tx_raw(&self, pkt: network::nic::SparsePacket<'_>) {
 		let it = pkt.into_iter().flat_map(|v| v.iter());
-		let num_enc = self.number.to_le_bytes();
-		let it = Iterator::chain( num_enc.iter(), it );
         let buf: Vec<u8> = it.copied().collect();
 		log_notice!("TX #{} {:?}", self.number, HexDump(&buf));
-        self.stream.send(&buf).unwrap();
+        self.stream.send(self.number, &buf).unwrap();
     }
     //fn tx_async<'a,'s>(&'s self, _: kernel::_async3::ObjectHandle, _: kernel::_async3::StackPush<'a, 's>, _: network::nic::SparsePacket<'_>) -> Result<(), network::nic::Error> {
     //    todo!("TestNic::tx_async")
