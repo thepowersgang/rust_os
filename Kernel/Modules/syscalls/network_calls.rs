@@ -23,6 +23,12 @@ fn make_ipv4(addr: &[u8; 16]) -> ::network::ipv4::Address {
 		[addr[0], addr[1], addr[2], addr[3]]
 		)
 }
+fn from_ipv4(a: ::network::ipv4::Address) -> [u8; 16] {
+	[
+		a.0[0], a.0[1], a.0[2], a.0[3],
+		0,0,0,0, 0,0,0,0, 0,0,0,0,
+	]
+}
 
 /// Open a connection-based listen server
 pub fn new_server(local_address: SocketAddress) -> Result<u64, super::Error>
@@ -162,7 +168,25 @@ impl super::objects::Object for InterfaceManagement {
 			}
 		},
 		//::syscall_values::NET_MGMT_DEL_ADDRESS => {},
-		//::syscall_values::NET_MGMT_GET_ADDRESS => {},
+		/*
+		::syscall_values::NET_MGMT_GET_ADDRESS => {
+			let index: usize = args.get()?;
+			let mut data: ::kernel::memory::freeze::FreezeMut<::syscall_values::NetworkRoute> = args.get()?;
+			let addr_ty = match ::syscall_values::SocketAddressType::try_from(data.addr_ty)
+				{
+				Ok(v) => v,
+				Err(_) => return Err(crate::Error::BadValue),
+				};
+			match addr_ty {
+			SocketAddressType::Mac => todo!(),
+			SocketAddressType::Ipv4 => {
+				//::network::ipv4::
+				todo!();
+			}
+			SocketAddressType::Ipv6 => todo!(),
+			}
+		},
+		*/
 		// --- Routes ---
 		::syscall_values::NET_MGMT_ADD_ROUTE => {
 			let route: crate::Freeze<::syscall_values::NetworkRoute> = args.get()?;
@@ -174,16 +198,68 @@ impl super::objects::Object for InterfaceManagement {
 			{
 			::syscall_values::SocketAddressType::Mac => return Err(crate::Error::BadValue),
 			::syscall_values::SocketAddressType::Ipv4 => {
-				let net = make_ipv4(&route.network);
-				let gw = make_ipv4(&route.gateway);
-				todo!("Add route: {}/{} to {}", net, route.mask, gw);
-				//0
+				let rv = ::network::ipv4::route_add(::network::ipv4::Route {
+					network: make_ipv4(&route.network),
+					mask: route.mask,
+					next_hop: make_ipv4(&route.gateway),
+				});
+				if rv { 0 } else { 1 }
 				}
 			::syscall_values::SocketAddressType::Ipv6 => todo!(),
 			}
 		},
-		//::syscall_values::NET_MGMT_DEL_ROUTE => {},
-		//::syscall_values::NET_MGMT_GET_ROUTE => {},
+		::syscall_values::NET_MGMT_DEL_ROUTE => {
+			let route: crate::Freeze<::syscall_values::NetworkRoute> = args.get()?;
+			match match ::syscall_values::SocketAddressType::try_from(route.addr_ty)
+				{
+				Ok(v) => v,
+				Err(_) => return Err(crate::Error::BadValue),
+				}
+			{
+			::syscall_values::SocketAddressType::Mac => return Err(crate::Error::BadValue),
+			::syscall_values::SocketAddressType::Ipv4 => {
+				let rv =::network::ipv4::route_del(::network::ipv4::Route {
+					network: make_ipv4(&route.network),
+					mask: route.mask,
+					next_hop: make_ipv4(&route.gateway),
+				});
+				if rv { 0 } else { 1 }
+				}
+			::syscall_values::SocketAddressType::Ipv6 => todo!(),
+			}
+		},
+		::syscall_values::NET_MGMT_GET_ROUTE => {
+			let index: usize = args.get()?;
+			let mut data: ::kernel::memory::freeze::FreezeMut<::syscall_values::NetworkRoute> = args.get()?;
+			let addr_ty = match ::syscall_values::SocketAddressType::try_from(data.addr_ty)
+				{
+				Ok(v) => v,
+				Err(_) => return Err(crate::Error::BadValue),
+				};
+			match addr_ty {
+			SocketAddressType::Mac => todo!(),
+			SocketAddressType::Ipv4 => {
+				let (maxlen, rv) = ::network::ipv4::route_enumerate(index);
+				if index >= maxlen {
+					!0
+				}
+				else if let Some(rv) = rv {
+					*data = ::syscall_values::NetworkRoute {
+						network: from_ipv4(rv.network),
+						gateway: from_ipv4(rv.next_hop),
+						addr_ty: addr_ty as u8,
+						mask: rv.mask,
+						//interface: 0,
+					};
+					1
+				}
+				else {
+					0
+				}
+			},
+			SocketAddressType::Ipv6 => todo!(),
+			}
+		},
 		_ => return Err(crate::Error::UnknownCall),
 		})
 	}

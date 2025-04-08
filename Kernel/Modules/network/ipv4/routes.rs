@@ -15,11 +15,11 @@ pub struct Route
 	pub next_hop: Address,
 }
 
-pub fn route_add(route: Route) {
+pub fn route_add(route: Route) -> bool {
 	match route_lookup(Address::zero(), route.next_hop) {
 	Some(sr) if sr.next_hop == route.next_hop => {},
 	_ => {
-		// TODO: Error
+		return false;
 	}
 	}
 
@@ -27,10 +27,11 @@ pub fn route_add(route: Route) {
 	for r in lh.iter_mut() {
 		// TODO: Check for duplicates
 		if *r == route {
-			return ;
+			return false;
 		}
 	}
 	lh.push(route);
+	true
 }
 pub fn route_del(route: Route) -> bool {
 	let mut lh = ROUTES.write();

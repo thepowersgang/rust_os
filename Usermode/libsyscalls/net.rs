@@ -195,5 +195,12 @@ impl Management
 			addr: &addr,
 		}); }
 	}
+
+	pub fn add_route(&self, route: v::NetworkRoute) {
+		// SAFE: Correct arguments
+		unsafe { self.0.call_m(v::NET_MGMT_ADD_ROUTE {
+			data: &route,
+		}); }
+	}
 }
 
