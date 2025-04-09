@@ -116,7 +116,7 @@ impl<T: ?Sized+Send+Sync> RwLock<T>
 		{
 			// Increment reader count and return success
 			if trace_type!(T) {
-				log_trace!("RwLock<{}>::read({:p}) - ACQUIRED", type_name!(T), self);
+				log_trace!("RwLock<{}>::try_read({:p}) - ACQUIRED", type_name!(T), self);
 			}
 			lh.reader_count += 1;
 			Some(Read { _lock: self })
@@ -141,6 +141,7 @@ impl<T: ?Sized+Send+Sync> RwLock<T>
 		}
 		return Write { _lock: self }
 	}
+	/// Attempt to acquire a write lock on this object, returns `None` if currently locked
 	pub fn try_write(&self) -> Option<Write<T>> {
 		let mut lh = self.inner.lock();
 		if lh.reader_count != 0
@@ -150,7 +151,7 @@ impl<T: ?Sized+Send+Sync> RwLock<T>
 		else
 		{
 			if trace_type!(T) {
-				log_trace!("RwLock<{}>::write({:p}) - ACQUIRED", type_name!(T), self);
+				log_trace!("RwLock<{}>::try_write({:p}) - ACQUIRED", type_name!(T), self);
 			}
 			lh.reader_count = -1;
 			Some(Write { _lock: self })
