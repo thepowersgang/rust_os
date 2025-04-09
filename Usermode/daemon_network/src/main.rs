@@ -9,7 +9,7 @@ fn main() {
 	loop {
 		// Monitor network interfaces
 		for i in 0 .. {
-			match net_mgr.get_interface(i)
+			match ::syscalls::net::Management::get_interface(i)
 			{
 			Some(Some(iface)) => {
 				::syscalls::kernel_log!("IFace#{i}: {:x?}", iface.mac_addr);

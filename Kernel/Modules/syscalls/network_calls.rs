@@ -113,6 +113,69 @@ pub fn new_free_socket(local_address: SocketAddress, remote_mask: crate::values:
 	Ok(super::from_result::<_,::syscall_values::SocketError>(r))
 }
 
+use ::syscall_values::NET_ENUM_INTERFACES;
+pub fn get_interface(NET_ENUM_INTERFACES { index, data }: NET_ENUM_INTERFACES) -> u64 {
+	if index >= ::network::nic::count_interfaces() {
+		!0
+	}
+	else if let Some(ii) = ::network::nic::interface_info(index) {
+		*data = ::syscall_values::NetworkInterface {
+			mac_addr: ii.mac,
+		};
+		0
+	}
+	else {
+		1
+	}
+}
+use ::syscall_values::NET_ENUM_ADDRESS;
+pub fn get_address(NET_ENUM_ADDRESS { index, data }: NET_ENUM_ADDRESS) -> Result<u64,super::Error> {
+	let addr_ty = match ::syscall_values::SocketAddressType::try_from(data.addr_ty)
+		{
+		Ok(v) => v,
+		Err(_) => return Err(crate::Error::BadValue),
+		};
+	match addr_ty {
+	SocketAddressType::Mac => todo!(),
+	SocketAddressType::Ipv4 => {
+		//::network::ipv4::
+		todo!("Enumerate network #{}", index);
+	}
+	SocketAddressType::Ipv6 => todo!(),
+	}
+}
+use ::syscall_values::NET_ENUM_ROUTE;
+pub fn get_route(NET_ENUM_ROUTE { index, data }: NET_ENUM_ROUTE) -> Result<u64,super::Error> {
+	let addr_ty = match ::syscall_values::SocketAddressType::try_from(data.addr_ty)
+		{
+		Ok(v) => v,
+		Err(_) => return Err(crate::Error::BadValue),
+		};
+	Ok(match addr_ty {
+	SocketAddressType::Mac => todo!(),
+	SocketAddressType::Ipv4 => {
+		let (maxlen, rv) = ::network::ipv4::route_enumerate(index);
+		if index >= maxlen {
+			!0
+		}
+		else if let Some(rv) = rv {
+			*data = ::syscall_values::NetworkRoute {
+				network: from_ipv4(rv.network),
+				gateway: from_ipv4(rv.next_hop),
+				addr_ty: addr_ty as u8,
+				mask: rv.mask,
+				//interface: 0,
+			};
+			1
+		}
+		else {
+			0
+		}
+	},
+	SocketAddressType::Ipv6 => todo!(),
+	})
+}
+
 pub(crate) struct InterfaceManagement;
 impl super::objects::Object for InterfaceManagement {
 	fn as_any(&self) -> &dyn core::any::Any {
@@ -129,20 +192,6 @@ impl super::objects::Object for InterfaceManagement {
 
 	fn handle_syscall_ref(&self, call: u16, args: &mut crate::args::Args) -> Result<u64,crate::Error> {
 		Ok(match call {
-		::syscall_values::NET_MGMT_GET_INTERFACE => {
-			let index = args.get()?;
-			let mut out: crate::FreezeMut<::syscall_values::NetworkInterface> = args.get()?;
-			if index >= ::network::nic::count_interfaces() {
-				!0
-			}
-			else if let Some(ii) = ::network::nic::interface_info(index) {
-				out.mac_addr = ii.mac;
-				0
-			}
-			else {
-				1
-			}
-		},
 		// --- Addresses ---
 		::syscall_values::NET_MGMT_ADD_ADDRESS => {
 			let iface_idx: usize = args.get()?;
@@ -169,25 +218,6 @@ impl super::objects::Object for InterfaceManagement {
 			}
 		},
 		//::syscall_values::NET_MGMT_DEL_ADDRESS => {},
-		/*
-		::syscall_values::NET_MGMT_GET_ADDRESS => {
-			let index: usize = args.get()?;
-			let mut data: ::kernel::memory::freeze::FreezeMut<::syscall_values::NetworkRoute> = args.get()?;
-			let addr_ty = match ::syscall_values::SocketAddressType::try_from(data.addr_ty)
-				{
-				Ok(v) => v,
-				Err(_) => return Err(crate::Error::BadValue),
-				};
-			match addr_ty {
-			SocketAddressType::Mac => todo!(),
-			SocketAddressType::Ipv4 => {
-				//::network::ipv4::
-				todo!();
-			}
-			SocketAddressType::Ipv6 => todo!(),
-			}
-		},
-		*/
 		// --- Routes ---
 		::syscall_values::NET_MGMT_ADD_ROUTE => {
 			let route: crate::Freeze<::syscall_values::NetworkRoute> = args.get()?;
@@ -227,38 +257,6 @@ impl super::objects::Object for InterfaceManagement {
 				if rv { 0 } else { 1 }
 				}
 			::syscall_values::SocketAddressType::Ipv6 => todo!(),
-			}
-		},
-		::syscall_values::NET_MGMT_GET_ROUTE => {
-			let index: usize = args.get()?;
-			let mut data: ::kernel::memory::freeze::FreezeMut<::syscall_values::NetworkRoute> = args.get()?;
-			let addr_ty = match ::syscall_values::SocketAddressType::try_from(data.addr_ty)
-				{
-				Ok(v) => v,
-				Err(_) => return Err(crate::Error::BadValue),
-				};
-			match addr_ty {
-			SocketAddressType::Mac => todo!(),
-			SocketAddressType::Ipv4 => {
-				let (maxlen, rv) = ::network::ipv4::route_enumerate(index);
-				if index >= maxlen {
-					!0
-				}
-				else if let Some(rv) = rv {
-					*data = ::syscall_values::NetworkRoute {
-						network: from_ipv4(rv.network),
-						gateway: from_ipv4(rv.next_hop),
-						addr_ty: addr_ty as u8,
-						mask: rv.mask,
-						//interface: 0,
-					};
-					1
-				}
-				else {
-					0
-				}
-			},
-			SocketAddressType::Ipv6 => todo!(),
 			}
 		},
 		_ => return Err(crate::Error::UnknownCall),

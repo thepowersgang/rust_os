@@ -178,10 +178,10 @@ impl crate::Object for Management
 }
 impl Management
 {
-	pub fn get_interface(&self, index: usize) -> Option<Option<v::NetworkInterface>> {
+	pub fn get_interface(index: usize) -> Option<Option<v::NetworkInterface>> {
 		let mut out = v::NetworkInterface::default();
 		// SAFE: Correct arguments
-		match unsafe { self.0.call_m(v::NET_MGMT_GET_INTERFACE { index, data: &mut out }) }
+		match unsafe { ::syscall(v::NET_ENUM_INTERFACES { index, data: &mut out }) }
 		{
 		0 => Some(Some(out)),
 		1 => Some(None),

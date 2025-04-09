@@ -95,6 +95,27 @@ def_groups! {
 		=1: NET_LISTEN<'a>(addr: &'a SocketAddress),
 		/// Open a free-form datagram 'socket'
 		=2: NET_BIND<'a>(local: &'a SocketAddress, remote: &'a MaskedSocketAddress),
+
+		/// Get the details of a network interface
+		/// 
+		/// Returns 0 on success, 1 when the index references an empty slot, and !0 when the end of the list is reached
+		=4: NET_ENUM_INTERFACES<'a>(index: usize, data: &'a mut NetworkInterface) -> Option<bool>,
+
+		/// Obtain an interafce address by index, address type is specified in `data.addr_ty`
+		/// 
+		/// Returns:
+		/// - `None` when index is too large
+		/// - `Some(true)` when `data` is populated
+		/// - `Some(false)` when the index points to a non-poulated entry
+		=5: NET_ENUM_ADDRESS<'a>(index: usize, data: &'a mut NetworkAddress) -> Option<bool>,
+
+		/// Obtain a route by index, route type is specified in `data.addr_ty`
+		/// 
+		/// Returns:
+		/// - `None` when index is too large
+		/// - `Some(true)` when `data` is populated
+		/// - `Some(false)` when the index points to a non-poulated entry
+		=6: NET_ENUM_ROUTE<'a>(index: usize, data: &'a mut NetworkRoute) -> Option<bool>,
 	}
 }
 
@@ -296,34 +317,15 @@ def_classes! {
 	},
 	/// Network management functions
 	=14: CLASS_NET_MANAGEMENT = {
-		/// Get the details of an interface
-		/// 
-		/// Returns 0 on success, 1 when the index references an empty slot, and !0 when the end of the list is reached
-		=0: NET_MGMT_GET_INTERFACE<'a>(index: usize, data: &'a mut NetworkInterface) -> Option<bool>,
-		
 		/// Add a new address to an interface
-		=1: NET_MGMT_ADD_ADDRESS<'a>(index: usize, addr: &'a NetworkAddress) -> Result<(),()>,
+		=0: NET_MGMT_ADD_ADDRESS<'a>(index: usize, addr: &'a NetworkAddress) -> Result<(),()>,
 		/// Remove an address from an interface
-		=2: NET_MGMT_DEL_ADDRESS<'a>(index: usize, addr: &'a NetworkAddress) -> Result<(),()>,
-		/// Obtain an interafce address by index, address type is specified in `data.addr_ty`
-		/// 
-		/// Returns:
-		/// - `None` when index is too large
-		/// - `Some(true)` when `data` is populated
-		/// - `Some(false)` when the index points to a non-poulated entry
-		=3: NET_MGMT_GET_ADDRESS<'a>(iface: usize, index: usize, data: &'a mut NetworkAddress) -> Option<bool>,
+		=1: NET_MGMT_DEL_ADDRESS<'a>(index: usize, addr: &'a NetworkAddress) -> Result<(),()>,
 
 		/// Add a new route
-		=4: NET_MGMT_ADD_ROUTE<'a>(data: &'a NetworkRoute),
+		=2: NET_MGMT_ADD_ROUTE<'a>(data: &'a NetworkRoute),
 		/// Delete a route
-		=5: NET_MGMT_DEL_ROUTE<'a>(data: &'a NetworkRoute),
-		/// Obtain a route by index, route type is specified in `data.addr_ty`
-		/// 
-		/// Returns:
-		/// - `None` when index is too large
-		/// - `Some(true)` when `data` is populated
-		/// - `Some(false)` when the index points to a non-poulated entry
-		=6: NET_MGMT_GET_ROUTE<'a>(index: usize, data: &'a mut NetworkRoute) -> Option<bool>,
+		=3: NET_MGMT_DEL_ROUTE<'a>(data: &'a NetworkRoute),
 		--
 	}|{
 		=0: EV_NET_MGMT_INTERFACE,

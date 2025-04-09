@@ -307,6 +307,21 @@ fn invoke_int(call_id: u32, args: &mut Args) -> Result<u64,Error>
 			let remote: ::syscall_values::MaskedSocketAddress = { let p: Freeze<_> = args.get()?; *p };
 			network_calls::new_free_socket(local, remote)?
 			},
+		NET_ENUM_INTERFACES => {
+			let index = args.get()?;
+			let mut data: crate::FreezeMut<::syscall_values::NetworkInterface> = args.get()?;
+			network_calls::get_interface(NET_ENUM_INTERFACES { index, data: &mut data })
+			},
+		NET_ENUM_ADDRESS => {
+			let index: usize = args.get()?;
+			let mut data: ::kernel::memory::freeze::FreezeMut<::syscall_values::NetworkAddress> = args.get()?;
+			network_calls::get_address(NET_ENUM_ADDRESS { index, data: &mut data })?
+			},
+		NET_ENUM_ROUTE => {
+			let index: usize = args.get()?;
+			let mut data: ::kernel::memory::freeze::FreezeMut<::syscall_values::NetworkRoute> = args.get()?;
+			network_calls::get_route(NET_ENUM_ROUTE { index, data: &mut data })?
+			},
 		// === *: Default
 		_ => {
 			log_error!("Unknown syscall {:05x}", call_id);
