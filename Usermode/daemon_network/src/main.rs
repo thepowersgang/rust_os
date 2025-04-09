@@ -12,6 +12,7 @@ fn main() {
 			match net_mgr.get_interface(i)
 			{
 			Some(Some(iface)) => {
+				::syscalls::kernel_log!("IFace#{i}: {:x?}", iface.mac_addr);
 				// Found.
 				if let Some(v) = interfaces.insert(i, iface) {
 					if v != iface {
@@ -26,19 +27,24 @@ fn main() {
 				}
 			},
 			Some(None) => {
+				::syscalls::kernel_log!("IFace#{i}: Empty");
 				if let Some(v) = interfaces.remove(&i) {
 					// Removed interface
 					remove_iface(v);
 				}
 			},
-			None => break,
+			None => {
+				::syscalls::kernel_log!("IFace#{i}: END");
+				break
+			},
 			}
 		}
 		// Check interface against a configuration list
 		// - Set static IPs when requested
 		// - Or emit DHCP requests
 
-		::syscalls::threads::wait(&mut [], ::syscalls::system_ticks() + 10_000);
+		//::syscalls::threads::wait(&mut [], ::syscalls::system_ticks() + 10_000);
+		::syscalls::threads::wait(&mut [], !0);
 	}
 }
 

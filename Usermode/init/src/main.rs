@@ -23,8 +23,17 @@ fn main()
 	kernel_log!("Tifflin (rust_os) userland started");
 
 	let rw_root: ::syscalls::vfs::Dir = get_handle("RW VFS Root", "RwRoot");
+	let net_mgmt = get_handle::<::syscalls::net::Management>("Network Manager", "NetMgmt");
 	
-	//let daemons = Vec::new();
+	let mut daemons = Vec::new();
+	daemons.push({
+		let path = "/sysroot/bin/daemon_network";
+		let pp = loader::new_process(open_exec(path), path.as_bytes(), &[])
+			.expect("Couldn't start network daemon");
+		pp.send_obj("NetMgmt", net_mgmt);
+		pp.start()
+	});
+
 	//let shells = Vec::new();
 
 	let session_root = {
@@ -39,10 +48,16 @@ fn main()
 		pp.send_obj("RwRoot", rw_root.clone() );
 		pp.start()
 		};
-
+	
+	let mut waits: Vec<_> = Iterator::chain(
+		::std::iter::once(&session_root),
+		daemons.iter()
+		).map(|v| v.wait_terminate())
+		.collect();
 	loop {
-		let mut waits = [session_root.wait_terminate()];
+		
 		::syscalls::threads::wait(&mut waits, !0);
+
 		drop(session_root);	// drop before panicking (leads to better reaping)
 		
 		// Empty wait set for ???

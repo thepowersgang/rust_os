@@ -148,6 +148,7 @@ impl super::objects::Object for InterfaceManagement {
 			let iface_idx: usize = args.get()?;
 			let addr: crate::Freeze<::syscall_values::NetworkAddress> = args.get()?;
 			let mask_bits: u8 = args.get()?;
+			log_debug!("NET_MGMT_ADD_ADDRESS({iface_idx}, {:?} / {mask_bits})", addr.addr);
 
 			let Some(ii) = ::network::nic::interface_info(iface_idx) else {
 				return Err(crate::Error::BadValue);

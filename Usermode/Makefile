@@ -13,6 +13,7 @@ endif
 EXESUF ?= 
 
 # List of root-level applications to build
+# - TODO: Get this from `Cargo.toml`
 APPS := loader init login
 APPS += handle_server
 APPS += simple_console shell
@@ -20,6 +21,7 @@ APPS += filebrowser fileviewer
 APPS += vfs_test
 APPS += hello_world
 APPS += gui_irc
+APPS += daemon_network
 
 APPS := $(addsuffix $(EXESUF),$(APPS))
 
