@@ -7,7 +7,7 @@ use kernel::prelude::*;
 
 use kernel::sync::{RwLock,Mutex};
 use crate::args::Args;
-use crate::values::FixedStr6;
+use crate::values::FixedStr8;
 
 use kernel::threads::get_process_local;
 
@@ -99,7 +99,7 @@ struct ProcessObjects
 	// TODO: Use a FAR better collection for this, allowing cheap expansion of the list
 	objs: Vec< ObjectSlot >,
 
-	given: Mutex< Vec<(FixedStr6, u16)> >,
+	given: Mutex< Vec<(FixedStr8, u16)> >,
 }
 
 impl Default for ProcessObjects {
@@ -188,6 +188,7 @@ impl ProcessObjects {
 			}
 			else
 			{
+				log_error!("take_object: Object #{handle} is being accessed");
 				Err( super::Error::MoveContention )
 			}
 		}
@@ -350,7 +351,7 @@ pub fn give_object(target: &::kernel::threads::ProcessHandle, tag: &str, handle:
 	let class_id = obj.class();
 	let id = target_list.find_and_fill_slot(|| UserObject { data: obj })?;
 	
-	log_debug!("- Giving object {} ({} {}) as '{}' to {:?} (handle {})",
+	log_debug!("Giving object {} ({} {}) as '{}' to {:?} (handle {})",
 		handle, class_id, crate::values::get_class_name(class_id),
 		tag, target, id
 		);

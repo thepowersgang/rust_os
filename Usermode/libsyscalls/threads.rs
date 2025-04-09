@@ -53,7 +53,7 @@ impl ThisProcess
 	#[inline]
 	/// Obtain the 'n'th unclaimed object of the specified type
 	pub fn receive_object<T: ::Object>(&self, tag: &str) -> Result<T, RecvObjectError> {
-		assert!(tag.len() <= 6);
+		assert!(tag.len() <= 8);
 		self.with_obj(|obj|
 			// SAFE: Syscall
 			match super::ObjectHandle::new( unsafe { obj.call_m(v::CORE_THISPROCESS_RECVOBJ { tag: v::FixedStr8::from(tag), class: T::class() }) } as usize )
@@ -128,7 +128,6 @@ impl ProtoProcess
 	#[inline]
 	/// Send an object to the child process. `tag` is a up-to 6 byte string naming the object for the child.
 	pub fn send_obj<O: ::Object>(&self, tag: &str, obj: O) {
-		assert!(tag.len() <= 6);
 		let oh = obj.into_handle().into_raw();
 		// SAFE: Syscall
 		unsafe { self.0.call_m(v::CORE_PROTOPROCESS_SENDOBJ { tag: v::FixedStr8::from(tag), object_handle: oh }); }

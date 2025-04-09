@@ -64,7 +64,7 @@ impl Node
 	#[inline]
 	pub fn into_file(self, mode: FileOpenMode) -> Result<File,Error> {
 		// SAFE: Syscall
-		to_obj( unsafe { self.0.call_m(::values::VFS_NODE_TOFILE { mode }) } as usize )
+		to_obj( unsafe { self.0.call_v(::values::VFS_NODE_TOFILE { mode }) } as usize )
 			.map(|h| File(h, 0))
 	}
 	/// Convert handle to a symbolic link handle

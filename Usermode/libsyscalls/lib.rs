@@ -132,7 +132,9 @@ impl ObjectHandle
 	where
 		C::Tuple: int_args::CallTuple,
 	{
-		int_args::CallTuple::call(c.into_tuple(), self.call_value(C::CALL as u16))
+		let id = self.call_value(C::CALL as u16);
+		::core::mem::forget(self);	// The kernel handles dropping the object on by-value calls
+		int_args::CallTuple::call(c.into_tuple(), id)
 	}
 }
 impl Drop for ObjectHandle {
