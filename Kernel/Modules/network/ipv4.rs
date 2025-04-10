@@ -38,23 +38,23 @@ impl Interface
 
 // NOTE: uses mac address to identify interface
 /// Add a new IPv4 interface (address)
-pub fn add_interface(local_mac: [u8; 6], address: Address, mask_bits: u8)
+pub fn add_interface(local_mac: [u8; 6], address: Address, mask_bits: u8) -> Result<(),()>
 {
 	let mut lh = INTERFACES.write();
-	for interface in lh.iter()
-	{
-		if interface.address == address
-		{
+	for interface in lh.iter() {
+		if interface.address == address {
 			// Whups?
-			return ;
+			return Err( () );
 		}
 	}
 
+	log_info!("Address added: {}/{} on {:x?}", address, mask_bits, local_mac);
 	lh.push(Interface {
 		local_mac,
 		address,
 		mask: mask_bits,
 		});
+	Ok( () )
 }
 
 #[cfg(any())]

@@ -211,8 +211,11 @@ impl super::objects::Object for InterfaceManagement {
 			{
 			::syscall_values::SocketAddressType::Mac => todo!(),
 			::syscall_values::SocketAddressType::Ipv4 => {
-				::network::ipv4::add_interface(ii.mac, make_ipv4(&addr.addr), mask_bits);
-				0
+				match ::network::ipv4::add_interface(ii.mac, make_ipv4(&addr.addr), mask_bits)
+				{
+				Ok(()) => 0,
+				Err(()) => 1,
+				}
 				}
 			::syscall_values::SocketAddressType::Ipv6 => todo!(),
 			}
@@ -229,12 +232,14 @@ impl super::objects::Object for InterfaceManagement {
 			{
 			::syscall_values::SocketAddressType::Mac => return Err(crate::Error::BadValue),
 			::syscall_values::SocketAddressType::Ipv4 => {
-				let rv = ::network::ipv4::route_add(::network::ipv4::Route {
+				match ::network::ipv4::route_add(::network::ipv4::Route {
 					network: make_ipv4(&route.network),
 					mask: route.mask,
 					next_hop: make_ipv4(&route.gateway),
-				});
-				if rv { 0 } else { 1 }
+				}) {
+				Ok(()) => 0,
+				Err(()) => 1,
+				}
 				}
 			::syscall_values::SocketAddressType::Ipv6 => todo!(),
 			}

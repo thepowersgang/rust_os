@@ -31,7 +31,7 @@ pub fn init() {
 pub fn create_interface(stream: MessageStream, number: u32, mac: [u8; 6], addr: IpAddr) -> &'static mut ::network::nic::Registration<TestNic> {
     let nic_handle = network::nic::register(mac, TestNic::new(number, stream));
 	// TODO: Make this a command instead
-    network::ipv4::add_interface(mac, addr, 24);
+    network::ipv4::add_interface(mac, addr, 24).expect("Failed to add interface");
     Box::leak( Box::new(nic_handle) )
 }
 

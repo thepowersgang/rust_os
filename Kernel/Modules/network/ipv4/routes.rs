@@ -15,23 +15,25 @@ pub struct Route
 	pub next_hop: Address,
 }
 
-pub fn route_add(route: Route) -> bool {
+pub fn route_add(route: Route) -> Result<(),()> {
 	match route_lookup(Address::zero(), route.next_hop) {
 	Some(sr) if sr.next_hop == route.next_hop => {},
 	_ => {
-		return false;
+		log_error!("Malformed route: No interface can directly reach next-hop {}", route.next_hop);
+		return Err(());
 	}
 	}
 
 	let mut lh = ROUTES.write();
 	for r in lh.iter_mut() {
-		// TODO: Check for duplicates
 		if *r == route {
-			return false;
+			log_warning!("Duplicate route");
+			return Err(());
 		}
 	}
+	log_info!("Route added: {}/{} via {}", route.network, route.network, route.next_hop);
 	lh.push(route);
-	true
+	Ok(())
 }
 pub fn route_del(route: Route) -> bool {
 	let mut lh = ROUTES.write();
