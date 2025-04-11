@@ -144,7 +144,38 @@ impl Dhcp
 			Err(_) => {},
 			}
 			if *resend_time < ::syscalls::system_ticks() {
-				// TODO: Re-send request
+				// Re-send request
+				let mut buf = DhcpPacket::empty_buf();
+				let dhcp_request_pkt = DhcpPacket {
+					op: 1,
+					transaction_id: *transaction_id,
+					seconds_since_start: 0,
+					flags: 0,
+					ciaddr: [0; 4],
+					yiaddr: [0; 4],	//addr.addr[..4].try_into().unwrap(),
+					siaddr: [0; 4],
+					giaddr: [0; 4],
+					mac_addr: &self.mac_addr,
+					server_name: b"",
+					// TODO: Generate options - DHCP uses bootp's packet format, but has a magic cookie at the start of the options
+					// TODO: Find a better format for options
+					options: &[
+						0x63, 0x82, 0x53, 0x63,
+						// TODO: Hostname: option 12
+					],
+				}.to_bytes(&mut buf);
+				match self.socket.send_to(&dhcp_request_pkt, ::syscalls::net::SocketAddress {
+					port_ty: ::syscalls::values::SocketPortType::Udp as _,
+					addr_ty: ::syscalls::values::SocketAddressType::Ipv4 as _,
+					port: 67,	// DHCP
+					addr: [0xFF; 16],	// Wildcard address, only the first 4 bytes actually matter
+				}) {
+				Ok(_) => {},
+				Err(e) => {
+					::syscalls::kernel_log!("Error sending DHCP request: {:?}", e);
+				},
+				}
+				*resend_time += 10_000;
 			}
 		}
 		State::Configured { update_time, addr } => {
