@@ -318,9 +318,9 @@ def_classes! {
 	/// Network management functions
 	=14: CLASS_NET_MANAGEMENT = {
 		/// Add a new address to an interface
-		=0: NET_MGMT_ADD_ADDRESS<'a>(index: usize, addr: &'a NetworkAddress) -> Result<(),()>,
+		=0: NET_MGMT_ADD_ADDRESS<'a>(index: usize, addr: &'a NetworkAddress, subnet_len: u8) -> Result<(),()>,
 		/// Remove an address from an interface
-		=1: NET_MGMT_DEL_ADDRESS<'a>(index: usize, addr: &'a NetworkAddress) -> Result<(),()>,
+		=1: NET_MGMT_DEL_ADDRESS<'a>(index: usize, addr: &'a NetworkAddress, subnet_len: u8) -> Result<(),()>,
 
 		/// Add a new route
 		=2: NET_MGMT_ADD_ROUTE<'a>(data: &'a NetworkRoute),

@@ -188,11 +188,12 @@ impl Management
 		_ => None,
 		}
 	}
-	pub fn add_address(&self, iface_idx: usize, addr: v::NetworkAddress) {
+	pub fn add_address(&self, iface_idx: usize, addr: v::NetworkAddress, subnet_len: u8) {
 		// SAFE: Correct arguments
 		unsafe { self.0.call_m(v::NET_MGMT_ADD_ADDRESS {
 			index: iface_idx,
 			addr: &addr,
+			subnet_len,
 		}); }
 	}
 
