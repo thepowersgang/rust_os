@@ -11,8 +11,10 @@ unsafe impl crate::args::Pod for crate::values::NetworkInterface {}
 unsafe impl crate::args::Pod for crate::values::NetworkRoute {}
 unsafe impl crate::args::Pod for crate::values::NetworkAddress {}
 
+mod traits;
 mod raw;
 mod tcp;
+//mod udp;
 
 pub fn init_handles() {
 	crate::objects::push_as_unclaimed("NetMgmt", crate::objects::new_object(InterfaceManagement));
@@ -30,6 +32,15 @@ fn from_ipv4(a: ::network::ipv4::Address) -> [u8; 16] {
 	]
 }
 
+fn addr_from_socket(sa: &SocketAddress) -> Result<::network::Address,super::Error> {
+	match SocketAddressType::try_from(sa.addr_ty)
+	{
+	Err(_) => return Err(super::Error::BadValue),
+	Ok(SocketAddressType::Ipv4) => Ok(::network::Address::Ipv4(make_ipv4(&sa.addr))),
+	_ => todo!("Other address socket types - #{}", sa.addr_ty),
+	}
+}
+
 /// Open a connection-based listen server
 pub fn new_server(local_address: SocketAddress) -> Result<u64, super::Error>
 {
@@ -40,12 +51,7 @@ pub fn new_server(local_address: SocketAddress) -> Result<u64, super::Error>
 		t => todo!("Socket type: {:?}", t),
 		}
 	}
-	let addr = match SocketAddressType::try_from(local_address.addr_ty)
-		{
-		Err(_) => return Err(super::Error::BadValue),
-		Ok(SocketAddressType::Ipv4) => ::network::Address::Ipv4(make_ipv4(&local_address.addr)),
-		_ => todo!(""),
-		};
+	let addr = addr_from_socket(&local_address)?;
 	let port_ty = crate::values::SocketPortType::try_from(local_address.port_ty).map_err(|_| super::Error::BadValue)?;
 	let o =  inner(addr, port_ty, local_address.port);
 	Ok(super::from_result::<_,::syscall_values::SocketError>(o))
@@ -96,13 +102,19 @@ pub fn new_free_socket(local_address: SocketAddress, remote_mask: crate::values:
 						Err(crate::values::SocketError::InvalidValue)
 					}
 					else {
-						Ok(crate::objects::new_object(raw::RawIpv4::new(source, local_address.port as u8)?))
+						Ok(crate::objects::new_object(traits::FreeSocketWrapper(
+							raw::RawIpv4::new(source, local_address.port as u8)?
+						)))
 					}
 					},
 				_ => todo!("Handle other address types"),
 				},
 			SocketPortType::Tcp => Err(crate::values::SocketError::InvalidValue),
-			SocketPortType::Udp => todo!("Handle other socket types"),
+			//SocketPortType::Udp => Ok(crate::objects::new_object(traits::FreeSocketWrapper({
+			//	let source = addr_from_socket(&remote_mask);
+			//	udp::Udp::new(source, local_address.port)
+			//}))),
+			SocketPortType::Udp => todo!("UDP sockets"),
 			_ => todo!("Handle other socket types"),
 			}
 		}
