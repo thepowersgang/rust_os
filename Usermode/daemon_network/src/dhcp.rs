@@ -5,6 +5,9 @@ use std::convert::TryInto;
 const UDP_PORT_DHCP_CLIENT: u16 = 68;
 const UDP_PORT_DHCP_SERVER: u16 = 67;
 
+mod options;
+use self::options::{Opt,OptionsIter};
+
 pub struct Dhcp {
 	socket: ::syscalls::net::FreeSocket,
 	mac_addr: [u8; 6],
@@ -113,6 +116,7 @@ impl Dhcp
 							let m = u32::from_le_bytes(m);
 							subnet_len = m.leading_ones() as u8;
 						},
+						_ => {},
 						}
 					}
 					let addr = super::make_ipv4(a[0], a[1], a[2], a[3]);
@@ -290,19 +294,11 @@ impl<'a> DhcpPacket<'a> {
 		PacketOptions::Decoded(opts) => {
 			p.push(&[0x63, 0x82, 0x53, 0x63]);
 			for o in opts {
-				fn push_opt(p: &mut P, op: u8, data: &[u8]) {
+				o.encode(|op, data| {
 					p.push(&[op]);
 					p.push(&[data.len() as u8]);
 					p.push(data)
-				}
-				match *o {
-				Opt::Malformed(_op, _data) => {
-					// Ignore malformed data
-				}
-				Opt::Unknown(op, data) => push_opt(&mut p, op, data),
-				Opt::SubnetMask(data) => push_opt(&mut p, 1, &data),
-				}
-				panic!("TODO")
+				})
 			}
 		},
 		PacketOptions::Encoded(options_iter) => {
@@ -322,47 +318,4 @@ fn get<'a, const N: usize>(src: &mut &'a [u8]) -> &'a [u8; N] {
 	let v = src.split_at(N);
 	*src = v.1;
 	v.0.try_into().unwrap()
-}
-
-#[derive(Debug)]
-enum Opt<'a> {
-	Malformed(u8, &'a [u8]),
-	Unknown(u8, &'a [u8]),
-	SubnetMask([u8; 4]),
-}
-//impl<'a> Opt<'a> {
-//	fn encode(self) -> (u8, &'a [u8]) {
-//	}
-//}
-#[derive(Debug)]	// TODO: Implement using clone+run
-struct OptionsIter<'a>(&'a [u8]);
-impl<'a> Iterator for OptionsIter<'a> {
-	type Item = Opt<'a>;
-	fn next(&mut self) -> Option<Self::Item> {
-		match self.0 {
-		[] => None,
-		[0, tail @ ..] => {
-			self.0 = tail;
-			self.next()
-		},
-		[_] => {
-			self.0 = &[];
-			None
-		},
-		&[code, len, ref tail @ ..] => {
-			let Some( (data,tail) ) = tail.split_at_checked(len as usize) else {
-				self.0 = &[];
-				return None;
-			};
-			self.0 = tail;
-			Some(match code {
-				1 => match data {
-					&[a,b,c,d,] => Opt::SubnetMask([a,b,c,d,]),
-					_ => Opt::Malformed(code, data),
-					},
-				_ => Opt::Unknown(code, data)
-				})
-		}
-		}
-	}
 }

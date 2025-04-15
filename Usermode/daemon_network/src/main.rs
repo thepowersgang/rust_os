@@ -87,7 +87,7 @@ fn make_ipv4(a: u8, b: u8, c: u8, d: u8) -> ::syscalls::values::NetworkAddress {
 	}
 }
 fn add_iface(net_mgr: &::syscalls::net::Management, iface_idx: usize, iface_info: ::syscalls::values::NetworkInterface) -> Interface {
-	let v4 = if iface_idx == 0 {
+	let v4 = if iface_idx == 0 && false {
 		net_mgr.add_address(iface_idx, make_ipv4(10,0,0,2), 24);
 		net_mgr.add_route(syscalls::values::NetworkRoute {
 			addr_ty: syscalls::values::SocketAddressType::Ipv4 as u8,
