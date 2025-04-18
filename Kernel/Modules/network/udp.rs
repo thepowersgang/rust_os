@@ -100,7 +100,13 @@ impl SocketHandle {
 		lh.push(rv.clone());
 		Ok(SocketHandle { inner: rv })
 	}
-	pub fn try_recv_from(&mut self, buf: &mut [u8]) -> Option<(usize, Address, u16)> {
+	pub fn register_wait(&self, so: &::kernel::threads::SleepObject) {
+		self.inner.rx_buffer.register_wait(so);
+	}
+	pub fn clear_wait(&self, so: &::kernel::threads::SleepObject) {
+		self.inner.rx_buffer.clear_wait(so);
+	}
+	pub fn try_recv_from(&self, buf: &mut [u8]) -> Option<(usize, Address, u16)> {
 		match self.inner.rx_buffer.pop_packet(buf) {
 		None => None,
 		Some((_dst,src,port,len)) => {
@@ -204,13 +210,20 @@ impl SocketKey {
 /// A pool of messages, stored as u16 length-delimited data in a ring-buf
 struct MessagePool {
 	inner: Mutex<RingBuf<u8>>,
+	waiters: Mutex<::kernel::lib::VecDeque<::kernel::threads::SleepObjectRef>>,
 }
 impl Default for MessagePool {
 	fn default() -> Self {
-		Self { inner: Mutex::new(RingBuf::new(1024*32)) }
+		Self::new(32*1024)
 	}
 }
 impl MessagePool {
+	pub fn new(capacity_bytes: usize) -> Self {
+		Self {
+			inner: Mutex::new(RingBuf::new(capacity_bytes)),
+			waiters: Default::default(),
+		}
+	}
 	fn push_packet(&self, dest_addr: Address, src_addr: Address, src_port: u16, mut pkt: crate::nic::PacketReader) {
 		// Header:
 		// - port: u16
@@ -247,6 +260,17 @@ impl MessagePool {
 			}
 		}
 		//self.inner.push(val)
+		if let Some(v) = self.waiters.lock().pop_front() {
+			v.signal();
+		}
+	}
+	fn register_wait(&self, so: &::kernel::threads::SleepObject) {
+		self.waiters.lock().push_back(so.get_ref());
+	}
+	fn clear_wait(&self, so: &::kernel::threads::SleepObject) {
+		self.waiters.lock().retain(|v| {
+			!v.is_from(so)
+		})
 	}
 	fn pop_packet(&self, buf: &mut [u8]) -> Option<(Address, Address, u16, usize)> {
 		let mut lh = self.inner.lock();

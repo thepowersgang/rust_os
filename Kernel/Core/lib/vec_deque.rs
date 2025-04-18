@@ -116,5 +116,43 @@ impl<T> VecDeque<T>
 			}
 		}
 	}
+	pub fn retain(&mut self, cb: impl Fn(&T)->bool) {
+		// Pop off the front until a retained element if found
+		while self.len > 0 {
+			// SAFE: Un-alised pointer to valid data
+			unsafe {
+				let cur_ptr = self.data.get_ptr_mut(self.ofs);
+				if ! cb( &*self.data.get_ptr_mut(self.ofs) ) {
+					::core::ptr::drop_in_place(cur_ptr);
+					self.ofs = (self.ofs + 1) % self.data.count();
+					self.len -= 1
+				}
+				else {
+					break ;
+				}
+			}
+		}
+		// Then filter the rest, possibly needing to handle back-filling of holes
+		let mut dst = self.ofs;
+		let mut new_len = self.len;
+		for i in 0 .. self.len {
+			let pos = (self.ofs + i) % self.data.count();
+			// SAFE: Reading from initialised memory, write is not aliased (the `dst != pos` check)
+			unsafe {
+				let cur_ptr = self.data.get_ptr_mut(pos);
+				if ! cb( &*cur_ptr ) {
+					new_len -= 1;
+					::core::ptr::drop_in_place(cur_ptr);
+				}
+				else {
+					if dst != pos {
+						::core::ptr::write(self.data.get_ptr_mut(dst), ::core::ptr::read(cur_ptr));
+					}
+					dst += 1;
+				}
+			}
+		}
+		self.len = new_len;
+	}
 }
 

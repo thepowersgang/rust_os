@@ -14,22 +14,33 @@ unsafe impl crate::args::Pod for crate::values::NetworkAddress {}
 mod traits;
 mod raw;
 mod tcp;
-//mod udp;
+mod udp;
 
 pub fn init_handles() {
 	crate::objects::push_as_unclaimed("NetMgmt", crate::objects::new_object(InterfaceManagement));
 }
 
+/// Convert a syscall IPv4 address into a `network` address
 fn make_ipv4(addr: &[u8; 16]) -> ::network::ipv4::Address {
 	::network::ipv4::Address(
 		[addr[0], addr[1], addr[2], addr[3]]
 		)
 }
+/// Convert a `network` IPv4 address into a syscall address
 fn from_ipv4(a: ::network::ipv4::Address) -> [u8; 16] {
 	[
 		a.0[0], a.0[1], a.0[2], a.0[3],
 		0,0,0,0, 0,0,0,0, 0,0,0,0,
 	]
+}
+/// Convert a `network` address into a syscall address
+fn from_addr(dst: &mut [u8; 16], a: ::network::Address) -> u8 {
+	match a {
+	network::Address::Ipv4(address) => {
+		*dst = from_ipv4(address);
+		crate::values::SocketAddressType::Ipv4 as _
+	},
+	}
 }
 
 fn addr_from_socket(sa: &SocketAddress) -> Result<::network::Address,super::Error> {
@@ -109,12 +120,16 @@ pub fn new_free_socket(local_address: SocketAddress, remote_mask: crate::values:
 					},
 				_ => todo!("Handle other address types"),
 				},
+			SocketPortType::Udp => Ok(crate::objects::new_object(traits::FreeSocketWrapper({
+				let source = addr_from_socket(&local_address).map_err(|_| ::syscall_values::SocketError::InvalidValue)?;
+				let dest = addr_from_socket(&remote_mask.addr).map_err(|_| ::syscall_values::SocketError::InvalidValue)?;
+				udp::Udp::new(
+					if local_address.addr == [0; 16] { None } else { Some(source) }, local_address.port,
+					dest, remote_mask.mask, remote_mask.addr.port
+				)?
+			}))),
+			// TCP doesn't support free (connection-less) sockets
 			SocketPortType::Tcp => Err(crate::values::SocketError::InvalidValue),
-			//SocketPortType::Udp => Ok(crate::objects::new_object(traits::FreeSocketWrapper({
-			//	let source = addr_from_socket(&remote_mask);
-			//	udp::Udp::new(source, local_address.port)
-			//}))),
-			SocketPortType::Udp => todo!("UDP sockets"),
 			_ => todo!("Handle other socket types"),
 			}
 		}
