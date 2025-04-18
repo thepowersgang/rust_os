@@ -17,6 +17,8 @@ module_define!{Network, [], init}
 
 pub mod nic;
 pub mod tcp;
+pub mod udp;
+
 pub mod arp;
 pub mod ipv4;
 //pub mod ipv6;
@@ -24,6 +26,7 @@ pub mod ipv4;
 fn init()
 {
 	crate::tcp::init();
+	crate::udp::init();
 }
 
 #[derive(Copy,Clone,PartialOrd,PartialEq,Ord,Eq,Debug)]
@@ -36,6 +39,11 @@ impl Address
 	fn unwrap_ipv4(&self) -> crate::ipv4::Address {
 		match self {
 		&Address::Ipv4(v) => v,
+		}
+	}
+	fn mask_network(&self, bits: u8) -> Self {
+		match self {
+		Address::Ipv4(address) => Address::Ipv4(address.mask(bits)),
 		}
 	}
 }

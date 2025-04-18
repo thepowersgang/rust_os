@@ -53,8 +53,14 @@ impl<T> RingBuf<T>
 	pub fn is_empty(&self) -> bool {
 		self.len == 0
 	}
+	pub fn capacity(&self) -> usize {
+		self.data.count()
+	}
 	pub fn len(&self) -> usize {
 		self.len
+	}
+	pub fn space(&self) -> usize {
+		self.data.count() - self.len
 	}
 
 	/// Obtain a contiguous slice of data from this buffer
