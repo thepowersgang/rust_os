@@ -5,7 +5,7 @@ IMAGE="$1"
 ARGS="$2"
 QEMU_OPTS="$3"
 
-QEMU_OPTS=$QEMU_OPTS" -net user,tftp=.pxe/,bootfile=pxelinux.0"
+QEMU_OPTS=$QEMU_OPTS" -netdev user,id=usrnet1,tftp=.pxe/,bootfile=pxelinux.0"
 QEMU_OPTS=$QEMU_OPTS" -boot n"
 
 PXELINUX_DIR=/usr/lib/syslinux/

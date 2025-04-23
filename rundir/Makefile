@@ -74,8 +74,10 @@ ifeq ($(ARCH),amd64)
 CMDLINE += SYSDISK=ATA-0p0
 QEMU_ARGS += -smp 2
 QEMU_ARGS += -vga virtio
-QEMU_ARGS += -net nic,model=rtl8139
-# -net dump
+#QEMU_ARGS += -net nic,model=rtl8139
+#QEMU_ARGS += -netdev user,id=usrnet1
+QEMU_ARGS += -device rtl8139,netdev=usrnet1
+QEMU_ARGS += -object filter-dump,id=f1,netdev=usrnet1,file=usrnet1.pcap
 QEMU_ARGS += -drive if=ide,index=0,file=$(IMGDIR)hda.img,format=raw
 QEMU_ARGS += -cdrom $(IMGDIR)test.iso
 QEMU_ARGS += -device ahci,id=ahci
