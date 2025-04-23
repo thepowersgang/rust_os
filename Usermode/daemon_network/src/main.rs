@@ -79,10 +79,13 @@ fn main() {
 fn remove_iface(_: Interface) {
 }
 
+fn make_v4a([a,b,c,d]: [u8; 4]) -> [u8; 16] {
+	[a,b,c,d,  0,0,0,0, 0,0,0,0, 0,0,0,0]
+}
 fn make_ipv4(a: u8, b: u8, c: u8, d: u8) -> ::syscalls::values::NetworkAddress {
 	::syscalls::values::NetworkAddress {
 		addr_ty: ::syscalls::values::SocketAddressType::Ipv4 as _,
-		addr: [a,b,c,d,  0,0,0,0, 0,0,0,0, 0,0,0,0],
+		addr: make_v4a([a,b,c,d,]),
 	}
 }
 fn add_iface(net_mgr: &::syscalls::net::Management, iface_idx: usize, iface_info: ::syscalls::values::NetworkInterface) -> Interface {

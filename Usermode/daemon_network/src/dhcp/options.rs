@@ -122,7 +122,7 @@ enc_dec_option!{d;
 	// 255 End (not encoded)
 }
 
-#[derive(Debug)]	// TODO: Implement using clone+run
+#[derive(Debug, Clone)]
 pub struct OptionsIter<'a>(pub &'a [u8]);
 impl<'a> Iterator for OptionsIter<'a> {
 	type Item = Opt<'a>;
