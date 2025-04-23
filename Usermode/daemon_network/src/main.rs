@@ -21,6 +21,7 @@ fn main() {
 	let net_mgr: ::syscalls::net::Management = ::syscalls::threads::S_THIS_PROCESS.receive_object("NetMgmt").unwrap();
 	let mut interfaces = ::std::collections::BTreeMap::<usize,Interface>::new();
 	loop {
+		::syscalls::kernel_log!("daemon_network: POLL");
 		// Monitor network interfaces
 		for iface_idx in 0 .. {
 			match ::syscalls::net::Management::get_interface(iface_idx)
@@ -32,16 +33,14 @@ fn main() {
 				Entry::Occupied(mut exist) => {
 					if exist.get().info.mac_addr != iface.mac_addr {
 						// A change, wait what?
-						remove_iface(exist.insert(Interface { info: iface, state_v4: Ipv4State::Unconfigured }));
-						add_iface(&net_mgr, iface_idx, iface);
+						remove_iface(exist.insert(add_iface(&net_mgr, iface_idx, iface)));
 					}
 					else {
 						// No change
 					}
 				},
 				Entry::Vacant(slot) => {
-					slot.insert(Interface { info: iface, state_v4: Ipv4State::Unconfigured });
-					add_iface(&net_mgr, iface_idx, iface);
+					slot.insert(add_iface(&net_mgr, iface_idx, iface));
 				}
 				}
 			},
@@ -110,6 +109,7 @@ fn add_iface(net_mgr: &::syscalls::net::Management, iface_idx: usize, iface_info
 
 		let [a1,a2] = a_frag.to_le_bytes();
 		let addr = make_ipv4(169,254,a1,a2);
+		//let addr = make_ipv4(0,0,0,0);
 		net_mgr.add_address(iface_idx, addr, 16);
 
 		match dhcp::Dhcp::new(&addr, &iface_info.mac_addr) {
@@ -118,6 +118,7 @@ fn add_iface(net_mgr: &::syscalls::net::Management, iface_idx: usize, iface_info
 		}
 	};
 
+	::syscalls::kernel_log!("Iface up");
 	Interface { info: iface_info, state_v4: v4 }
 }
 
@@ -126,7 +127,7 @@ impl Interface {
 		match &self.state_v4 {
 		Ipv4State::Unconfigured => None,
 		Ipv4State::StaticConfigured => None,
-		Ipv4State::Dhcp(dhcp_state) => dhcp_state.get_wait(), //dhcp_state.socket.wait_rx(),
+		Ipv4State::Dhcp(dhcp_state) => dhcp_state.get_wait(),
 		}
 	}
 }

@@ -23,30 +23,26 @@ impl Address
 	}
 	/// Big endian u32 (so 127.0.0.1 => 0x7F000001)
 	pub fn as_u32(&self) -> u32 {
-		(self.0[0] as u32) << 24
-		| (self.0[1] as u32) << 16
-		| (self.0[2] as u32) << 8
-		| (self.0[3] as u32) << 0
+		u32::from_be_bytes(self.0)
 	}
 	pub fn mask(&self, bits: u8) -> Address {
-		let mask = (1 << (bits % 8)) - 1;
-		if bits < 8 {
-			Address([ self.0[0] & mask, 0, 0, 0 ])
-		}
-		else if bits < 16 {
-			Address([ self.0[0], self.0[1] & mask, 0, 0 ])
-		}
-		else if bits < 24 {
-			Address([ self.0[0], self.0[1], self.0[2] & mask, 0 ])
-		}
-		else if bits < 32 {
-			Address([ self.0[0], self.0[1], self.0[2], self.0[3] & mask ])
-		}
-		else if bits == 32 {
-			Address(self.0)
+		assert!(bits <= 32);
+		if bits == 0 {
+			Address([0; 4])
 		}
 		else {
-			unreachable!()
+			let mask = !0 << (32-bits);
+			Address( (u32::from_be_bytes(self.0) & mask).to_be_bytes() )
+		}
+	}
+	pub fn mask_host(&self, bits: u8) -> Address {
+		assert!(bits <= 32);
+		if bits == 32 {
+			*self
+		}
+		else {
+			let mask = !0 << (32-bits);
+			Address( (u32::from_be_bytes(self.0) & !mask).to_be_bytes() )
 		}
 	}
 	pub fn is_zero(&self) -> bool {

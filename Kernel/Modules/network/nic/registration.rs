@@ -91,22 +91,22 @@ fn rx_thread(int_data: &super::InterfaceData)
 					log_notice!("Short packet ({} < {})", pkt.len(), 6+6+2);
 					continue ;
 				}
-				let mut r = super::PacketReader::new(&pkt);
+				let mut reader = super::PacketReader::new(&pkt);
 				// 2. Hand off to sub-modules depending on the EtherTy field
-				let src_mac = {
+				let _dest_mac = {
 					let mut b = [0; 6];
-					r.read(&mut b).unwrap();
+					reader.read(&mut b).unwrap();
 					b
 					};
-				let _dst_mac = {
+				let source_mac = {
 					let mut b = [0; 6];
-					r.read(&mut b).unwrap();
+					reader.read(&mut b).unwrap();
 					b
 					};
-				let ether_ty = r.read_u16n().unwrap();
+				let ether_ty = reader.read_u16n().unwrap();
 				match ether_ty
 				{
-				0x0800 => match crate::ipv4::handle_rx_ethernet(&*int_data.base_interface, src_mac, r)
+				0x0800 => match crate::ipv4::handle_rx_ethernet(&*int_data.base_interface, int_data.addr, source_mac, reader)
 					{
 					Ok( () ) => {},
 					Err(e) => {
@@ -115,7 +115,7 @@ fn rx_thread(int_data: &super::InterfaceData)
 					}
 				// ARP
 				0x0806 => {
-					crate::arp::handle_packet(&*int_data.base_interface, src_mac, r);
+					crate::arp::handle_packet(&*int_data.base_interface, source_mac, reader);
 					},
 				v @ _ => {
 					log_warning!("TODO: Handle packet with EtherTy={:#x}", v);

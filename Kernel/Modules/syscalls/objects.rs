@@ -37,7 +37,7 @@ pub trait Object: Send + Sync + ::core::any::Any
 
 	/// Return: Number of wakeup events bound
 	fn bind_wait(&self, flags: u32, obj: &mut ::kernel::threads::SleepObject) -> u32;
-	/// Return: Number of wakeup events fired
+	/// Return: Number of wakeup events fired (or are ready)
 	fn clear_wait(&self, flags: u32, obj: &mut ::kernel::threads::SleepObject) -> u32;
 
 	// fn wait(&self, flags: u32) -> WaitHandle<'_> {
@@ -332,11 +332,17 @@ pub fn clone_object(handle: u32) -> Result<u64, super::Error> {
 		})
 }
 
+/// Bind a masked set of waits to the given sleep object
+/// 
+/// Returns how many waits were registered
 pub fn wait_on_object(handle: u32, mask: u32, sleeper: &mut ::kernel::threads::SleepObject) -> Result<u32,super::Error> {
 	get_process_local::<ProcessObjects>().with_object(handle, |obj| {
 		Ok( obj.bind_wait(mask, sleeper) )
 		})
 }
+/// Clear wait bindings
+/// 
+/// Returns how many waits were woken (or are otherwise ready)
 pub fn clear_wait(handle: u32, mask: u32, sleeper: &mut ::kernel::threads::SleepObject) -> Result<u32,super::Error> {
 	get_process_local::<ProcessObjects>().with_object(handle, |obj| {
 		Ok( obj.clear_wait(mask, sleeper) )

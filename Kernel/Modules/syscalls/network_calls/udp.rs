@@ -6,11 +6,14 @@
 use ::syscall_values::SocketAddress;
 
 fn map_err(e: ::network::udp::Error) -> crate::values::SocketError {
+	use ::network::udp::Error as I;
+	use crate::values::SocketError as O;
 	match e {
-	network::udp::Error::AddressInUse => todo!(),
-	network::udp::Error::UnboundSocket => todo!(),
-	network::udp::Error::InvalidRemote => todo!(),
-	network::udp::Error::IncompatibleAddresses => todo!(),
+	I::AddressInUse => todo!(),
+	I::UnboundSocket => todo!(),
+	I::InvalidRemote => todo!(),
+	I::IncompatibleAddresses => todo!(),
+	I::NoRouteToHost => O::NoRoute,
 	}
 }
 
@@ -46,6 +49,7 @@ impl super::traits::FreeSocket for Udp {
 		Ok(crate::from_result(match self.inner.try_recv_from(data)
 		{
 		Some((len,addr,port)) => {
+			log_debug!("recv_from: {} port {} - {} bytes", addr, port, len);
 			out_addr.addr_ty = super::from_addr(&mut out_addr.addr, addr);
 			out_addr.port_ty = crate::values::SocketPortType::Udp as _;
 			out_addr.port = port;
@@ -53,5 +57,11 @@ impl super::traits::FreeSocket for Udp {
 		},
 		None => Err(crate::values::SocketError::NoData),
 		}))
+	}
+	fn bind_wait_recv(&self, obj: &mut ::kernel::threads::SleepObject) -> bool {
+		self.inner.register_wait(obj)
+	}
+	fn unbind_wait_recv(&self, obj: &mut ::kernel::threads::SleepObject) -> bool {
+		self.inner.clear_wait(obj)
 	}
 }

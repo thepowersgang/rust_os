@@ -45,6 +45,7 @@ impl Dhcp
 			},
 			mask: 0,
 		};
+		// TODO: Since the interface will have an address of `0.0.0.0` (maybe?) need to specify the interface number
 		let mut s = match ::syscalls::net::FreeSocket::create(local, remote)
 			{
 			Ok(s) => s,
@@ -66,11 +67,18 @@ impl Dhcp
 			giaddr: [0; 4],
 			mac_addr,
 			server_name: b"",
+			boot_file: b"",
 			options: PacketOptions::Decoded(&[
-				// TODO: Hostname: option 12
+				Opt::DhcpMessageType(1),	// Discover
+				Opt::ClientIdentifier(mac_addr),
+				Opt::ParameterRequestList(&[options::codes::Routers])
+				// TODO: Hostname?
 			]),
 		}.to_bytes(&mut buf);
-		match s.send_to(&dhcp_request_pkt, ::syscalls::net::SocketAddress {
+		// TODO: How to ensure that this sends out the right interface?
+		// - Raw IP?
+		// - Socket option to restrict local?
+		match s.send_to(dhcp_request_pkt, ::syscalls::net::SocketAddress {
 			port_ty: ::syscalls::values::SocketPortType::Udp as _,
 			addr_ty: addr.addr_ty,
 			port: UDP_PORT_DHCP_SERVER,
@@ -83,6 +91,7 @@ impl Dhcp
 		},
 		}
 
+		::syscalls::kernel_log!("DHCP started");
 		Ok(Dhcp {
 			socket: s,
 			mac_addr: *mac_addr,
@@ -91,10 +100,11 @@ impl Dhcp
 	}
 
 	pub fn get_wait(&self) -> Option<::syscalls::WaitItem> {
-		None
+		Some(self.socket.wait_read())
 	}
 
 	pub fn poll(&mut self, mgr: &::syscalls::net::Management, iface_idx: usize) {
+		::syscalls::kernel_log!("dhcp: poll");
 		match &mut self.state {
 		State::RequestSent { start_time, transaction_id, resend_time } => {
 			let mut packet_data = DhcpPacket::empty_buf();
@@ -166,11 +176,12 @@ impl Dhcp
 					giaddr: [0; 4],
 					mac_addr: &self.mac_addr,
 					server_name: b"",
+					boot_file: b"",
 					options: PacketOptions::Decoded(&[
 						// TODO: Hostname: option 12
 					]),
 				}.to_bytes(&mut buf);
-				match self.socket.send_to(&dhcp_request_pkt, ::syscalls::net::SocketAddress {
+				match self.socket.send_to(dhcp_request_pkt, ::syscalls::net::SocketAddress {
 					port_ty: ::syscalls::values::SocketPortType::Udp as _,
 					addr_ty: ::syscalls::values::SocketAddressType::Ipv4 as _,
 					port: UDP_PORT_DHCP_SERVER,
@@ -199,11 +210,12 @@ impl Dhcp
 					giaddr: [0; 4],
 					mac_addr: &self.mac_addr,
 					server_name: b"",
+					boot_file: b"",
 					options: PacketOptions::Decoded(&[
 						// TODO: Hostname: option 12
 					]),
 				}.to_bytes(&mut buf);
-				match self.socket.send_to(&dhcp_request_pkt, ::syscalls::net::SocketAddress {
+				match self.socket.send_to(dhcp_request_pkt, ::syscalls::net::SocketAddress {
 					port_ty: ::syscalls::values::SocketPortType::Udp as _,
 					addr_ty: ::syscalls::values::SocketAddressType::Ipv4 as _,
 					port: UDP_PORT_DHCP_SERVER,
@@ -240,7 +252,8 @@ struct DhcpPacket<'a> {
 	/// Relay address
 	giaddr: [u8; 4],
 	mac_addr: &'a [u8],	// up to 16
-	server_name: &'a [u8],	// up to 128
+	server_name: &'a [u8],	// up to 64
+	boot_file: &'a [u8],	// up to 128
 	options: PacketOptions<'a>,
 }
 type PktBuf = [u8; 576];
@@ -259,7 +272,8 @@ impl<'a> DhcpPacket<'a> {
 			siaddr: *get(&mut pkt),
 			giaddr: *get(&mut pkt),
 			mac_addr: &get::<10>(&mut pkt)[..6],
-			server_name: &get::<128>(&mut pkt)[..],
+			server_name: &get::<64>(&mut pkt)[..],
+			boot_file: &get::<128>(&mut pkt)[..],
 			options: PacketOptions::Encoded(OptionsIter(pkt)),
 		}
 	}
@@ -269,6 +283,11 @@ impl<'a> DhcpPacket<'a> {
 			fn push(&mut self, data: &[u8]) {
 				self.0[self.1..][..data.len()].copy_from_slice(data);
 				self.1 += data.len();
+			}
+			fn push_pad<const N: usize>(&mut self, data: &[u8]) {
+				assert!(data.len() <= N);
+				self.push(data);
+				self.push(&[0; N][data.len()..]);
 			}
 		}
 		let mut p = P(pkt, 0);
@@ -283,31 +302,28 @@ impl<'a> DhcpPacket<'a> {
 		p.push(&self.yiaddr);	// [u8; 4] yiaddru32
 		p.push(&self.siaddr);	// [u8; 4] siaddr
 		p.push(&self.giaddr);	// [u8; 4] giaddr
-		assert!(self.mac_addr.len() <= 16);
-		p.push(self.mac_addr);
-		p.push(&[0; 16][self.mac_addr.len()..]);	// [u8; 16] chaddr
-		assert!(self.server_name.len() <= 128);
-		p.push(self.server_name);
-		p.push(&[0; 128][self.server_name.len()..]);	// [u8; 128] sname
+		p.push_pad::<16>(self.mac_addr);	// [u8; 16] mac addresss
+		p.push_pad::<64>(self.server_name);// [u8; 64] server name
+		p.push_pad::<128>(self.boot_file);	// [u8; 128] file
 		let o = p.1;
+		p.push(&[0x63, 0x82, 0x53, 0x63]);
 		match self.options {
 		PacketOptions::Decoded(opts) => {
-			p.push(&[0x63, 0x82, 0x53, 0x63]);
 			for o in opts {
 				o.encode(|op, data| {
-					p.push(&[op]);
-					p.push(&[data.len() as u8]);
+					p.push(&[op, data.len() as u8]);
 					p.push(data)
 				})
 			}
+			p.push(&[255]);	// End
 		},
 		PacketOptions::Encoded(options_iter) => {
-			let b = options_iter.0;
-			p.push(b);
+			p.push(options_iter.0);
 		},
 		}
-		if p.1 - o < 312 {
-			p.push(&[0; 312][p.1 - o..]);	// [u8; 312...] options
+		let options_len = p.1 - o;
+		if let Some(data) = [0; 312].get(options_len..) {
+			p.push(data);	// [u8; 312...] options
 		}
 		let len = p.1;
 		&pkt[..len]

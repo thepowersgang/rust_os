@@ -1,5 +1,6 @@
 
 use crate::args::Args;
+use crate::values as v;
 use crate::values::SocketAddress;
 use kernel::memory::freeze::{Freeze,FreezeMut};
 
@@ -10,6 +11,10 @@ pub trait FreeSocket: 'static + Sized + Send + Sync
 	}
 	fn send_to(&self, data: &[u8], addr: &SocketAddress) -> Result<u64, crate::Error>;
 	fn recv_from(&self, data: &mut [u8], addr: &mut SocketAddress) -> Result<u64, crate::Error>;
+	/// Returns `true` if there is data waiting
+	fn bind_wait_recv(&self, obj: &mut ::kernel::threads::SleepObject) -> bool;
+	/// Returns `true` if there is data waiting
+	fn unbind_wait_recv(&self, obj: &mut ::kernel::threads::SleepObject) -> bool;
 }
 pub struct FreeSocketWrapper<T>(pub T);
 impl<T> crate::objects::Object for FreeSocketWrapper<T>
@@ -45,10 +50,24 @@ where
 		let _ = unsafe { ::core::ptr::read(self) };
 		crate::objects::object_has_no_such_method_val("network_calls::FreeSocket", call)
 	}
-	fn bind_wait(&self, _flags: u32, _obj: &mut ::kernel::threads::SleepObject) -> u32 {
-		0
+	fn bind_wait(&self, flags: u32, obj: &mut ::kernel::threads::SleepObject) -> u32 {
+		let mut rv = 0;
+		if flags & v::EV_NET_FREESOCK_RECV != 0 {
+			if self.0.bind_wait_recv(obj) {
+				//rv |= v::EV_NET_FREESOCK_RECV;
+			}
+			rv += 1;
+		}
+		rv
 	}
-	fn clear_wait(&self, _flags: u32, _obj: &mut ::kernel::threads::SleepObject) -> u32 {
-		0
+	fn clear_wait(&self, flags: u32, obj: &mut ::kernel::threads::SleepObject) -> u32 {
+		let mut rv = 0;
+		if flags & v::EV_NET_FREESOCK_RECV != 0 {
+			if self.0.unbind_wait_recv(obj) {
+				//rv |= v::EV_NET_FREESOCK_RECV;
+				rv += 1;
+			}
+		}
+		rv
 	}
 }

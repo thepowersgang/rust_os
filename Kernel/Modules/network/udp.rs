@@ -26,31 +26,44 @@ fn rx_handler(src_addr: Address, dst_addr: Address, mut pkt: crate::nic::PacketR
 			return ;
 			},
 		};
+	log_trace!("rx_handler: {}->{}: {:?}", src_addr, dst_addr, hdr);
 	// Check checksum.
-	let cksum = calc_checksum(
-		&hdr.encode(),
-		&src_addr, &dst_addr, pkt.remain(),
-		{ let mut p = pkt.clone(); ::core::iter::from_fn(move || p.read_u8().ok()) }
-	);
-	if cksum != 0 {
+	if hdr.checksum == 0
+	{
+		let cksum = calc_checksum(
+			&hdr.encode(),
+			&src_addr, &dst_addr, pkt.remain(),
+			{ let mut p = pkt.clone(); ::core::iter::from_fn(move || p.read_u8().ok()) }
+		);
+		if cksum != 0 {
+		}
 	}
 	let pkt_data = pkt.clone();
 	for sock in SOCKETS.read().iter() {
 		if sock.key.local_port != hdr.dest_port {
+			log_trace!("Local Port: {} != {}", sock.key.local_port, hdr.dest_port);
 			continue ;
 		}
 		match sock.key.local_address {
-		Some(a) if a != dst_addr => continue,
+		Some(a) if a != dst_addr => {
+			log_trace!("Local Addr: {} != {}", a, dst_addr);
+			continue
+		},
 		_ => {},
 		}
 		if sock.key.remote_mask.0 != src_addr.mask_network(sock.key.remote_mask.1) {
+			log_trace!("Remote Mask: {}/{} != {}", sock.key.remote_mask.0, sock.key.remote_mask.1, src_addr);
 			continue ;
 		}
 		match sock.key.remote_port {
-		Some(a) if a != hdr.source_port => continue,
+		Some(a) if a != hdr.source_port => {
+			log_trace!("Remote Port: {} != {}", a, hdr.source_port);
+			continue
+		},
 		_ => {},
 		}
 		// Matches!
+		log_debug!("Pushed to {:?}", sock.key);
 		sock.rx_buffer.push_packet(dst_addr, src_addr, hdr.source_port, pkt_data.clone());
 	}
 }
@@ -64,6 +77,8 @@ pub enum Error {
 	InvalidRemote,
 	/// Trying to send to an address of a different type to the existing bound address
 	IncompatibleAddresses,
+	/// No available route to the selected host
+	NoRouteToHost,
 }
 
 /// Exposed handle to a registered socket
@@ -100,11 +115,13 @@ impl SocketHandle {
 		lh.push(rv.clone());
 		Ok(SocketHandle { inner: rv })
 	}
-	pub fn register_wait(&self, so: &::kernel::threads::SleepObject) {
+	pub fn register_wait(&self, so: &::kernel::threads::SleepObject) -> bool {
 		self.inner.rx_buffer.register_wait(so);
+		self.inner.rx_buffer.has_packet()
 	}
-	pub fn clear_wait(&self, so: &::kernel::threads::SleepObject) {
+	pub fn clear_wait(&self, so: &::kernel::threads::SleepObject) -> bool {
 		self.inner.rx_buffer.clear_wait(so);
+		self.inner.rx_buffer.has_packet()
 	}
 	pub fn try_recv_from(&self, buf: &mut [u8]) -> Option<(usize, Address, u16)> {
 		match self.inner.rx_buffer.pop_packet(buf) {
@@ -129,24 +146,36 @@ impl SocketHandle {
 		// TODO: Is this actually needed/right?
 		let (d_addr,bits) = self.inner.key.remote_mask;
 		if addr.mask_network(bits) != d_addr.mask_network(bits) {
+			log_info!("Trying to send to {addr} but mask is {d_addr}/{bits}");
 			return Err(Error::InvalidRemote);
 		}
 		match self.inner.key.remote_port {
 		None => {},
 		Some(v) if v == port => {},
-		_ => return Err(Error::InvalidRemote),
+		Some(v) => {
+			log_info!("Trying to send to port {port} but remote mask {v}");
+			return Err(Error::InvalidRemote)
+		},
 		}
 
 		// Create header
 		let mut hdr = PktHeader {
 			source_port: self.inner.key.local_port,
 			dest_port: port,
-			length: buf.total_len() as u16,
+			length: 8 + buf.total_len() as u16,
 			checksum: 0,
 		};
 		let local_addr = match self.inner.key.local_address {
 			Some(a) => a,
-			None => todo!(),
+			None => {
+				match d_addr {
+				Address::Ipv4(d_addr) => match crate::ipv4::route_lookup(Default::default(),d_addr)
+					{
+					Some(v) => Address::Ipv4(v.source_ip),
+					None => return Err(Error::NoRouteToHost),
+					},
+				}
+			},
 		};
 		// - incl. checksum (if no offload)
 		if true {
@@ -179,11 +208,17 @@ struct SocketInfo {
 	key: SocketKey,
 	rx_buffer: MessagePool,
 }
-/// The key part of a socket
+/// Ports and addresses for the socket
+#[derive(Debug)]
 struct SocketKey {
+	/// Optionally lock to a single local address
+	/// TODO: Lock to the interface instead?
 	local_address: Option<crate::Address>,
+	/// Local port number, not optional.
 	local_port: u16,
+	/// Remote recive address mask, encoded a subnet length
 	remote_mask: (crate::Address, u8),
+	/// Remote port number, optional.
 	remote_port: Option<u16>,
 }
 impl SocketKey {
@@ -261,6 +296,7 @@ impl MessagePool {
 		}
 		//self.inner.push(val)
 		if let Some(v) = self.waiters.lock().pop_front() {
+			log_debug!("Waking a waiter");
 			v.signal();
 		}
 	}
@@ -271,6 +307,9 @@ impl MessagePool {
 		self.waiters.lock().retain(|v| {
 			!v.is_from(so)
 		})
+	}
+	fn has_packet(&self) -> bool {
+		!self.inner.lock().is_empty()
 	}
 	fn pop_packet(&self, buf: &mut [u8]) -> Option<(Address, Address, u16, usize)> {
 		let mut lh = self.inner.lock();
@@ -297,7 +336,7 @@ impl MessagePool {
 				_ => panic!("Unknown address type in packet queue"),
 				};
 			// Get data
-			assert!(lh.len() > len);
+			assert!(lh.len() >= len);
 			for dst in buf.iter_mut().take(len) {
 				*dst = lh.pop_front().unwrap();
 			}
@@ -329,10 +368,10 @@ impl PktHeader
 	fn encode(&self) -> [u8; 8] {
 		// SAFE: 
 		unsafe { ::core::mem::transmute([
-			self.source_port.to_le_bytes(),
-			self.dest_port.to_le_bytes(),
-			self.length.to_le_bytes(),
-			self.checksum.to_le_bytes(),
+			self.source_port.to_be_bytes(),
+			self.dest_port.to_be_bytes(),
+			self.length.to_be_bytes(),
+			self.checksum.to_be_bytes(),
 		]) }
 	}
 }

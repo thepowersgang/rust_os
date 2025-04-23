@@ -38,4 +38,10 @@ impl super::traits::FreeSocket for RawIpv4
 		addr.addr_ty = SocketAddressType::Ipv4 as u8;
 		todo!("NET_FREESOCK_RECV({:p}, {:p})", &*data, &*addr);
 	}
+	fn bind_wait_recv(&self, _obj: &mut kernel::threads::SleepObject) -> bool {
+		todo!("bind_wait_recv")
+	}
+	fn unbind_wait_recv(&self, _obj: &mut kernel::threads::SleepObject) -> bool {
+		todo!("unbind_wait_recv")
+	}
 }

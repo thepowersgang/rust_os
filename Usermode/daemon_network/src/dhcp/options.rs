@@ -42,7 +42,8 @@ pub enum Opt<'a> {
 
 	/// #54 IPv4 address of the server that sent this offer/ack
 	ServerIdentifier([u8; 4]),
-
+	/// #55 - Parameters to request, as option indexes
+	ParameterRequestList(&'a [u8]),
 	/// #56 - Human-readable (ASCII) text error message for DHCPNAK
 	Message(&'a [u8]),
 
@@ -55,6 +56,11 @@ macro_rules! enc_dec_option {
 		$idx:literal $name:ident( $valname:ident ) : $dec:expr => $enc:expr ;
 	)*
 	) => {
+		#[allow(dead_code)]
+		#[allow(non_upper_case_globals)]
+		pub mod codes {
+			$(pub const $name: u8 = $idx;)*
+		}
 		impl<'a> Opt<'a> {
 			pub fn decode(code: u8, $in_data: &'a [u8]) -> Self {
 				match code {
@@ -110,6 +116,7 @@ enc_dec_option!{d;
 	52 OptionOverload(v)  : match d { &[v] => Some(v), _ => None } => &[*v];
 	53 DhcpMessageType(v) : match d { &[v] => Some(v), _ => None } => &[*v];
 	54 ServerIdentifier(data) : get_u8_4(d).copied() => data;
+	55 ParameterRequestList(params) : Some(d) => params;
 	56 Message(msg) : Some(d) => msg;
 	61 ClientIdentifier(blob) : Some(d) => blob;
 	// 255 End (not encoded)

@@ -84,8 +84,8 @@ pub fn send_from(local_addr: MacAddr, dest_addr: MacAddr, ether_ty: u16, pkt: Sp
 	{
 		// Create the ethernet header
 		let buf = [
-			local_addr[0], local_addr[1], local_addr[2], local_addr[3], local_addr[4], local_addr[5],
 			dest_addr[0], dest_addr[1], dest_addr[2], dest_addr[3], dest_addr[4], dest_addr[5],
+			local_addr[0], local_addr[1], local_addr[2], local_addr[3], local_addr[4], local_addr[5],
 			(ether_ty >> 8) as u8, ether_ty as u8,
 			];
 		i.base_interface.tx_raw(SparsePacket::new_chained(&buf, &pkt));

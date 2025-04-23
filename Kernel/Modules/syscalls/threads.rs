@@ -68,6 +68,7 @@ pub fn newprocess(name: &str,  clone_start: usize, clone_end: usize) -> ObjectHa
 #[inline(never)]
 pub fn wait(events: &mut [values::WaitItem], wake_time_mono: u64) -> Result<u32,Error>
 {
+	log_trace!("wait({} events, wake_time_mono={:#x}", events.len(), wake_time_mono);
 	::kernel::threads::SleepObject::with_new("wait", |waiter: &mut _| {
 		let mut num_bound = 0;
 		for ev in events.iter() {

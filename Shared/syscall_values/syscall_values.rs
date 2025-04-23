@@ -314,6 +314,8 @@ def_classes! {
 		=1: NET_FREESOCK_SENDTO<'a>(data: &'a [u8], addr: &'a SocketAddress),
 	--
 	}|{
+		/// Event raised when there is data ready to read
+		=0: EV_NET_FREESOCK_RECV,
 	},
 	/// Network management functions
 	=14: CLASS_NET_MANAGEMENT = {

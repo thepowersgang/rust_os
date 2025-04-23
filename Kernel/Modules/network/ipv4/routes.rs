@@ -50,6 +50,7 @@ pub fn route_enumerate(index: usize) -> (usize, Option<Route>) {
 pub struct SelectedRoute {
 	pub source_ip: Address,
 	pub source_mac: MacAddr,
+	pub source_mask: u8,
 	pub next_hop: Address,
 }
 /// Determine the source IP/MAC and NextHop for a given combination of soure IP (could be `0.0.0.0`) and destination address
@@ -69,28 +70,47 @@ pub fn route_lookup(source: Address, dest: Address) -> Option<SelectedRoute>
 		}
 	}
 
-	let mut src_for_best: Option<(Address, MacAddr)> = None;
+	struct SourceInfo {
+		addr: Address,
+		mask: u8,
+		mac: MacAddr,
+	}
+	impl SourceInfo {
+		fn from_iface(interface: &super::Interface) -> Self {
+			SourceInfo { addr: interface.address, mask: interface.mask, mac: interface.local_mac }
+		}
+		fn to_rv(self, next_hop: Address) -> SelectedRoute {
+			SelectedRoute { source_ip: self.addr, source_mac: self.mac, source_mask: self.mask, next_hop }
+		}
+	}
+	let mut src_for_best: Option<SourceInfo> = None;
 	for interface in super::INTERFACES.read().iter()
 	{
+		let si = SourceInfo::from_iface(interface);
 		if source.is_zero() || interface.address == source {
-			if let Some((_, a)) = best {
-				if interface.address.mask(interface.mask) == a.mask(interface.mask) {
-					src_for_best = Some((interface.address, interface.local_mac));
-				}
+			// TODO: Special case `255.255.255.255` to send out the source interface
+			if dest.0 == [0xFF; 4] {
+				return Some(si.to_rv(dest));
 			}
+			
 			// On-link?
 			if interface.address.mask(interface.mask) == dest.mask(interface.mask) {
 				// Immedidately return if this interface is more specific than the best non-interface route
 				if best.map_or(true, |(m, _)| m < interface.mask ) {
-					return Some(SelectedRoute { source_ip: interface.address, source_mac: interface.local_mac, next_hop: dest});
+					return Some(si.to_rv(dest));
+				}
+			}
+			if let Some((_, a)) = best {
+				if interface.address.mask(interface.mask) == a.mask(interface.mask) {
+					src_for_best = Some(si);
 				}
 			}
 		}
 	}
 
 	if let Some((_, gw)) = best {
-		if let Some((local_addr, mac)) = src_for_best {
-			return Some(SelectedRoute { source_ip: local_addr, source_mac: mac, next_hop: gw});
+		if let Some(si) = src_for_best {
+			return Some(si.to_rv(gw));
 		}
 		else {
 		}

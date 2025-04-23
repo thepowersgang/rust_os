@@ -82,7 +82,7 @@ pub async fn send_packet(source: Address, dest: Address, proto: u8, pkt: crate::
 {
 	log_trace!("send_packet({:?} -> {:?} 0x{:02x})", source, dest, proto);
 	// 1. Look up routing table for destination IP and interface
-	let SelectedRoute { source_mac, next_hop, .. } = match route_lookup(source, dest)
+	let SelectedRoute { source_mac, next_hop, source_ip: _, source_mask } = match route_lookup(source, dest)
 		{
 		Some(v) => v,
 		None => {
@@ -91,14 +91,21 @@ pub async fn send_packet(source: Address, dest: Address, proto: u8, pkt: crate::
 			},
 		};
 	// 2. ARP (what if ARP has to wait?)
-	let dest_mac = match crate::arp::lookup_v4(source_mac, next_hop).await
+	// - A wildcard address should resolve to `FF:FF:FF:...`
+	//   - Widcard is detected by being a direct address (next = original) and the destination's host part on this interface is all ones
+	let dest_mac = if next_hop == dest && dest.mask_host(source_mask) == Address([0xFF;4]).mask_host(source_mask) {
+		[0xFF; 6]
+	}
+	else {
+		match crate::arp::lookup_v4(source_mac, next_hop).await
 		{
 		Some(v) => v,
 		None => {
 			log_notice!("Unable to send to {:?}: No ARP", dest);
 			return
 			},	// TODO: Error - No route to host
-		};
+		}
+	};
 	// 3. Send
 	let mut hdr = Ipv4Header {
 		ver_and_len: 0x40 | 20/4,

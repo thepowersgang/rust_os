@@ -155,6 +155,10 @@ impl FreeSocket
 		to_result( unsafe { self.0.call_m(v::NET_FREESOCK_RECVFROM { data, addr: &mut sa }) as usize } )
 			.map(|v| (v as usize, sa))
 	}
+
+	pub fn wait_read(&self) -> v::WaitItem {
+		self.0.get_wait(v::EV_NET_FREESOCK_RECV)
+	}
 }
 
 

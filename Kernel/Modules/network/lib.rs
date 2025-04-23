@@ -34,6 +34,13 @@ pub enum Address
 {
 	Ipv4(crate::ipv4::Address),
 }
+impl ::core::fmt::Display for Address {
+	fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+		match self {
+		Address::Ipv4(a) => a.fmt(f),
+		}
+	}
+}
 impl Address
 {
 	fn unwrap_ipv4(&self) -> crate::ipv4::Address {
