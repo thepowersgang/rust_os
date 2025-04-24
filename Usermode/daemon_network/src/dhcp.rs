@@ -20,10 +20,21 @@ enum State {
 		transaction_id: u32,
 	},
 	Configured {
+		/// Time of the last recieved DHCPACK
 		last_update_time: u64,
+		/// Time for the next DHCPREQUEST to be sent
+		next_update_time: u64,
+		/// Our current IP address
 		my_addr: [u8; 4],
+		/// DHCP server address, used for transmit
 		server_addr: [u8; 4],
 	},
+}
+/// Locates the first item in an iterator that matches a pattern
+macro_rules! find_match {
+	($expr:expr, $pat:pat => $val:expr) => {
+		($expr).filter_map(|v| match v { $pat => Some($val), _ => None }).next()
+	}
 }
 impl Dhcp
 {
@@ -46,7 +57,7 @@ impl Dhcp
 			mask: 0,
 		};
 		// TODO: Since the interface will have an address of `0.0.0.0` (maybe?) need to specify the interface number
-		let s = match ::syscalls::net::FreeSocket::create(local, remote)
+		let socket = match ::syscalls::net::FreeSocket::create(local, remote)
 			{
 			Ok(s) => s,
 			Err(e) => {
@@ -55,33 +66,22 @@ impl Dhcp
 			},
 			};
 		let transaction_id = 1234567;
-		let mut rv = Dhcp {
-			socket: s,
+		let rv = Dhcp {
+			socket,
 			mac_addr: *mac_addr,
 			state: State::DiscoverSent { start_time, transaction_id, resend_time: ::syscalls::system_ticks() + 5*1000 }
 		};
-		match rv.send_packet(addr.addr[..4].try_into().unwrap(), [0; 4], transaction_id, start_time, &[
-				Opt::DhcpMessageType(MessageType::Discover as u8),	// Discover
-				Opt::ClientIdentifier(mac_addr),
-				Opt::ParameterRequestList(&[options::codes::Routers])
-				// TODO: Hostname?
-			]) {
-		Ok(()) => {},
-		Err(e) => {
-			::syscalls::kernel_log!("Failed to send DHCP Discovery request: {:?}", e);
-			return Err(());
-		}
-		}
+		rv.send_discover(transaction_id, start_time)?;
 
 		::syscalls::kernel_log!("DHCP started");
 		Ok(rv)
 	}
 
-	fn send_packet(&mut self, yiaddr: [u8; 4], siaddr: [u8; 4], transaction_id: u32, start_time: u64, options: &[Opt]) -> Result<(),::syscalls::values::SocketError>
+	fn send_packet(&self, yiaddr: [u8; 4], siaddr: [u8; 4], transaction_id: u32, start_time: u64, options: &[Opt]) -> Result<(),::syscalls::values::SocketError>
 	{
 		let mut buf = DhcpPacket::empty_buf();
 		let dhcp_request_pkt = DhcpPacket {
-			op: 1,
+			op: BOOTREQUEST,
 			transaction_id,
 			seconds_since_start: ((::syscalls::system_ticks() - start_time) / 1000).try_into().unwrap_or(!0),
 			flags: 0,
@@ -109,6 +109,20 @@ impl Dhcp
 			},
 		}).map(|_| ())
 	}
+	fn send_discover(&self, transaction_id: u32, start_time: u64) -> Result<(),()> {
+		match self.send_packet([0; 4], [0; 4], transaction_id, start_time, &[
+				Opt::DhcpMessageType(MessageType::Discover as u8),	// Discover
+				Opt::ClientIdentifier(&self.mac_addr),
+				Opt::ParameterRequestList(&[options::codes::Routers])
+				// TODO: Hostname?
+			]) {
+		Ok(()) => Ok(()),
+		Err(e) => {
+			::syscalls::kernel_log!("Failed to send DHCP Discovery request: {:?}", e);
+			return Err(());
+		}
+		}
+	}
 
 	pub fn get_wait(&self) -> Option<::syscalls::WaitItem> {
 		Some(self.socket.wait_read())
@@ -119,30 +133,39 @@ impl Dhcp
 		match &mut self.state {
 		State::DiscoverSent { start_time, transaction_id, resend_time } => {
 			let mut packet_data = DhcpPacket::empty_buf();
-			match self.socket.recv_from(&mut packet_data)
+			while let Some((remote, packet)) = opt_rx_packet(&self.socket, &mut packet_data)
 			{
-			Ok((len, remote)) => {
-				let packet_data = &packet_data[..len];
-				let packet = DhcpPacket::from_bytes(packet_data);
-				macro_rules! find_match {
-					($expr:expr, $pat:pat => $val:expr) => {
-						($expr).filter_map(|v| match v { $pat => Some($val), _ => None }).next()
-					}
-				}
-				if packet.op == 2 && packet.transaction_id == *transaction_id {
-					let a = packet.yiaddr;
+				if packet.op == BOOTREPLY && packet.transaction_id == *transaction_id {
 					let PacketOptions::Encoded(options) = packet.options else { panic!(); };
 					match find_match!(options.clone(), Opt::DhcpMessageType(t) => t) {
 					Some(v) if v == MessageType::Offer as u8 => {
-						// Get the subnet length
+						// We've been offered an address, formally request it from the server
+						let start_time = *start_time;
+						match self.send_packet(packet.yiaddr, packet.siaddr, packet.transaction_id, start_time, &[
+							Opt::DhcpMessageType(MessageType::Request as u8),
+							Opt::ServerIdentifier(packet.siaddr),
+							Opt::RequestedIpAddress(packet.yiaddr),
+						]) {
+						Ok(()) => {},
+						Err(e) => {
+							::syscalls::kernel_log!("Error csending DHCP packet: {:?}", e);
+						}
+						}
+						return ;
+					}
+					Some(v) if v == MessageType::Ack as u8 => {
+						let my_addr = packet.yiaddr;
+
+						// Get the subnet mask and convert to a prefix length (required for `add_address`)
 						let subnet_len = find_match!(options.clone(), Opt::SubnetMask(m) => m)
 							.map(|m| u32::from_be_bytes(m).leading_ones() as u8)
 							.unwrap_or(24)
 							;
 						// TODO: Remove the temporary link-local address
-						let addr = super::make_ipv4(a[0], a[1], a[2], a[3]);
+						let addr = super::make_ipv4(my_addr);
 						mgr.add_address(iface_idx, addr, subnet_len);
-						// Fully enumerate options to get non-IP options
+
+						// Fully enumerate options to get non-IP settings
 						for opt in options.clone() {
 							match opt {
 							Opt::Routers(routers) => {
@@ -171,17 +194,17 @@ impl Dhcp
 						}
 
 						// Update the state
-						let start_time = *start_time;
 						self.state = State::Configured {
 							last_update_time: ::syscalls::system_ticks(),
-							my_addr: packet.yiaddr,
+							next_update_time: ::syscalls::system_ticks() + 60_0000,
+							my_addr,
 							server_addr: remote.addr[..4].try_into().unwrap(),
 						};
 
 						// Re-create the socket using the new local address
 						let local = ::syscalls::net::SocketAddress {
 							port_ty: ::syscalls::values::SocketPortType::Udp as _,
-							addr_ty: addr.addr_ty,
+							addr_ty: ::syscalls::values::SocketAddressType::Ipv4 as _,
 							port: UDP_PORT_DHCP_CLIENT,
 							addr: addr.addr,
 						};
@@ -196,18 +219,6 @@ impl Dhcp
 							::syscalls::kernel_log!("Error creating new DHCP socket: {:?}", e);
 						},
 						}
-
-						// Send a reply accepting the offer (well, requesting the addres we've just set)
-						match self.send_packet(packet.yiaddr, packet.siaddr, packet.transaction_id, start_time, &[
-							Opt::DhcpMessageType(MessageType::Request as u8),
-							Opt::ServerIdentifier(packet.siaddr),
-							Opt::RequestedIpAddress(packet.yiaddr),
-						]) {
-						Ok(()) => {},
-						Err(e) => {
-							::syscalls::kernel_log!("Error csending DHCP packet: {:?}", e);
-						}
-						}
 						return ;
 
 					},
@@ -216,33 +227,42 @@ impl Dhcp
 				}
 				else {
 				}
-			},
-			Err(::syscalls::net::Error::NoData) => {},
-			Err(_) => {},
 			}
 			if *resend_time < ::syscalls::system_ticks() {
 				*resend_time += 10_000;
 				let start_time = *start_time;
 				let transaction_id = *transaction_id;
-				// Re-send request
-				match self.send_packet([0; 4], [0; 4], transaction_id, start_time, &[
-					// TODO: Hostname: option 12
-				]){
-				Ok(_) => {},
-				Err(e) => {
-					::syscalls::kernel_log!("Error sending DHCP request: {:?}", e);
-				},
-				}
+				// NOTE: Error is already handled (logged) in this call
+				let _ = self.send_discover(transaction_id, start_time);
 			}
 		}
-		State::Configured { last_update_time, my_addr, server_addr } => {
-			if *last_update_time + 60_1000 < ::syscalls::system_ticks() {
+		State::Configured { last_update_time, next_update_time, my_addr, server_addr } => {
+			let mut packet_data = DhcpPacket::empty_buf();
+			while let Some((_remote, packet)) = opt_rx_packet(&self.socket, &mut packet_data)
+			{
+				let PacketOptions::Encoded(options) = packet.options else { panic!(); };
+
+				// Look for an ACK to a previous request
+				if packet.op == BOOTREPLY && packet.transaction_id == 0 {
+					match find_match!(options.clone(), Opt::DhcpMessageType(t) => t) {
+					Some(v) if v == MessageType::Ack as u8 => {
+						// Validate that it's an ACK for our current address, and then update the next update time
+						// based on the lease duration.
+					}
+					_ => {},
+					}
+				}
+			}
+			if *next_update_time < ::syscalls::system_ticks() {
 				let yiaddr = *my_addr;
 				let siaddr = *server_addr;
 				let start_time = *last_update_time;
 				*last_update_time = ::syscalls::system_ticks();
-				// TODO: Send a refresh request
-				match self.send_packet(yiaddr, siaddr, 0, start_time, &[]) {
+				*next_update_time = ::syscalls::system_ticks() + 60_000;
+				// Send a refresh request, i.e. just re-request the same IP
+				match self.send_packet(yiaddr, siaddr, 0, start_time, &[
+					Opt::DhcpMessageType(MessageType::Request as _)
+				]) {
 				Ok(_) => {},
 				Err(e) => {
 					::syscalls::kernel_log!("Error sending DHCP request: {:?}", e);
@@ -254,12 +274,45 @@ impl Dhcp
 	}
 }
 
+fn opt_rx_packet<'a>(socket: &::syscalls::net::FreeSocket, packet_data: &'a mut [u8]) -> Option<(::syscalls::values::SocketAddress, DhcpPacket<'a>)>
+{
+	match socket.recv_from(packet_data)
+	{
+	Err(::syscalls::net::Error::NoData) => None,
+	Err(e) => {
+		::syscalls::kernel_log!("dhcp: Error reciving packet {:?}", e);
+		None
+	},
+	Ok((len, remote)) => {
+		let packet_data = &packet_data[..len];
+		let packet = DhcpPacket::from_bytes(packet_data);
+		Some( (remote, packet, ) )
+	},
+	}
+}
+
+const BOOTREQUEST: u8 = 1;
+const BOOTREPLY: u8 = 1;
 
 #[repr(C)]
+#[allow(dead_code)]
 enum MessageType {
+	/// DHCPDISCOVER
 	Discover = 1,
+	/// DHCPOFFER
 	Offer = 2,
+	/// DHCPREQUEST
 	Request = 3,
+	/// DHCPDECLINE
+	Decline = 4,
+	/// DHCPACK
+	Ack = 5,
+	/// DHCPNAK
+	Nak = 6,
+	/// DHCPRELEASE
+	Release = 7,
+	/// DHCPINFORM
+	Inform = 8,
 }
 
 #[derive(Debug)]
