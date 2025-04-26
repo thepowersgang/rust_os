@@ -15,6 +15,9 @@ pub fn init() {
 	crate::ipv4::register_handler(IPV4_PROTO_UDP, |int,src_addr,pkt|{
 		rx_handler(Address::Ipv4(src_addr), Address::Ipv4(int.addr()), pkt)
 	}).unwrap();
+	crate::ipv6::register_handler(IPV4_PROTO_UDP, |int,src_addr,pkt|{
+		rx_handler(Address::Ipv6(src_addr), Address::Ipv6(int.addr()), pkt)
+	}).unwrap();
 }
 fn rx_handler(src_addr: Address, dst_addr: Address, mut pkt: crate::nic::PacketReader)
 {
@@ -174,6 +177,7 @@ impl SocketHandle {
 					Some(v) => Address::Ipv4(v.source_ip),
 					None => return Err(Error::NoRouteToHost),
 					},
+				Address::Ipv6(_) => todo!(),
 				}
 			},
 		};
@@ -192,7 +196,8 @@ impl SocketHandle {
 		Address::Ipv4(dest) => {
 			let Address::Ipv4(source) = local_addr else { return Err(Error::IncompatibleAddresses) };
 			kernel::futures::block_on(crate::ipv4::send_packet(source, dest, IPV4_PROTO_UDP, pkt));
-		}
+		},
+		Address::Ipv6(_) => todo!(),
 		}
 		Ok( () )
 	}
@@ -277,9 +282,14 @@ impl MessagePool {
 		}
 		let mut hdr_buf = [0; 3*2 + 16*2];
 		let len = pkt.remain();
-		let hdr = match (dest_addr,src_addr) {
-			(Address::Ipv4(dest_addr), Address::Ipv4(src_addr)) => {
+		let hdr = match dest_addr {
+			Address::Ipv4(dest_addr) => {
+				let Address::Ipv4(src_addr) = src_addr else { panic!("Mismatched address types") };
 				make_hdr(&mut hdr_buf, len, src_port, 0, &dest_addr.0, &src_addr.0)
+			}
+			Address::Ipv6(dest_addr) => {
+				let Address::Ipv6(src_addr) = src_addr else { panic!("Mismatched address types") };
+				make_hdr(&mut hdr_buf, len, src_port, 0, &dest_addr.to_bytes(), &src_addr.to_bytes())
 			}
 		};
 
@@ -375,7 +385,7 @@ impl PktHeader
 		]) }
 	}
 }
-fn calc_checksum(hdr: &[u8], src_addr: &Address, dst_addr: &Address, data_len: usize, data: impl Iterator<Item=u8>) -> u16 {
+pub fn calc_checksum(hdr: &[u8], src_addr: &Address, dst_addr: &Address, data_len: usize, data: impl Iterator<Item=u8>) -> u16 {
 	let pkt_len = ((hdr.len() + data_len) as u16).to_be_bytes();
 	match src_addr {
 	Address::Ipv4(src_addr) => {
@@ -388,6 +398,7 @@ fn calc_checksum(hdr: &[u8], src_addr: &Address, dst_addr: &Address, data_len: u
 		];
 		calc_checksum_inner(hdr, &ph, data)
 	},
+	Address::Ipv6(_) => todo!(),
 	}
 }
 fn calc_checksum_inner(hdr: &[u8], ph: &[u8], data: impl Iterator<Item=u8>) -> u16 

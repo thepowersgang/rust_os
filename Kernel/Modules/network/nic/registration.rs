@@ -106,16 +106,23 @@ fn rx_thread(int_data: &super::InterfaceData)
 				let ether_ty = reader.read_u16n().unwrap();
 				match ether_ty
 				{
+				// IPv4
 				0x0800 => match crate::ipv4::handle_rx_ethernet(&*int_data.base_interface, int_data.addr, source_mac, reader)
 					{
 					Ok( () ) => {},
 					Err(e) => {
 						log_warning!("TODO: Unable to handle IPv4 packet - {:?}", e);
 						},
-					}
+					},
 				// ARP
 				0x0806 => {
 					crate::arp::handle_packet(&*int_data.base_interface, source_mac, reader);
+					},
+				// IPv6
+				0x86DD => match crate::ipv6::handle_rx_ethernet(&*int_data.base_interface, int_data.addr, source_mac, reader)
+					{
+					Ok(()) => {},
+					Err(e) => log_warning!("TODO: Unable to handle IPv6 packet - {:?}", e),
 					},
 				v @ _ => {
 					log_warning!("TODO: Handle packet with EtherTy={:#x}", v);

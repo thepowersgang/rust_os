@@ -33,12 +33,20 @@ fn from_ipv4(a: ::network::ipv4::Address) -> [u8; 16] {
 		0,0,0,0, 0,0,0,0, 0,0,0,0,
 	]
 }
+/// Convert a `network` IPv6 address into a syscall address
+fn from_ipv6(a: ::network::ipv6::Address) -> [u8; 16] {
+	a.to_bytes()
+}
 /// Convert a `network` address into a syscall address
 fn from_addr(dst: &mut [u8; 16], a: ::network::Address) -> u8 {
 	match a {
 	network::Address::Ipv4(address) => {
 		*dst = from_ipv4(address);
 		crate::values::SocketAddressType::Ipv4 as _
+	},
+	network::Address::Ipv6(address) => {
+		*dst = from_ipv6(address);
+		crate::values::SocketAddressType::Ipv6 as _
 	},
 	}
 }

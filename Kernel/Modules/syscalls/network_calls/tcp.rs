@@ -63,12 +63,7 @@ impl crate::objects::Object for TcpServer
 			{
 			Some(v) => {
 				let (a,p) = v.remote_addr();
-				match a {
-				network::Address::Ipv4(a) => {
-					addr_ptr.addr_ty = ::syscall_values::SocketAddressType::Ipv4 as _;
-					addr_ptr.addr[..4].copy_from_slice(&a.0);
-					},
-				}
+				addr_ptr.addr_ty = super::from_addr(&mut addr_ptr.addr, a);
 				addr_ptr.port_ty = ::syscall_values::SocketPortType::Tcp as _;
 				addr_ptr.port = p;
 				Ok(crate::objects::new_object(TcpSocket { inner: v }) as u64)

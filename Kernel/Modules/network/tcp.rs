@@ -37,7 +37,12 @@ fn earliest_timestamp(dst: &mut Option<::kernel::time::TickCount>, src: Option<:
 
 pub fn init()
 {
-	crate::ipv4::register_handler(IPV4_PROTO_TCP, rx_handler_v4).unwrap();
+	crate::ipv4::register_handler(IPV4_PROTO_TCP, |int,src_addr, pkt| {
+		rx_handler(Address::Ipv4(src_addr), Address::Ipv4(int.addr()), pkt)
+	}).unwrap();
+	crate::ipv6::register_handler(IPV4_PROTO_TCP, |int,src_addr, pkt| {
+		rx_handler(Address::Ipv6(src_addr), Address::Ipv6(int.addr()), pkt)
+	}).unwrap();
 
 	// TODO: Spawn a worker that waits on all the TX timers and handles sending packets
 	::core::mem::forget(::kernel::threads::WorkerThread::new("TCP Worker", || {
@@ -79,6 +84,7 @@ fn get_outbound_ip_for(addr: &Address) -> Option<Address>
 	match addr
 	{
 	Address::Ipv4(addr) => crate::ipv4::route_lookup(crate::ipv4::Address::zero(), *addr).map(|r| Address::Ipv4(r.source_ip)),
+	Address::Ipv6(addr) => crate::ipv6::route_lookup(crate::ipv6::Address::zero(), *addr).map(|r| Address::Ipv6(r.source_ip)),
 	}
 }
 /// Allocate a port for the given local address
@@ -92,10 +98,6 @@ fn release_port(_addr: &Address, idx: u16)
 	S_PORTS.lock().release(idx)
 }
 
-fn rx_handler_v4(int: &crate::ipv4::Interface, src_addr: crate::ipv4::Address, pkt: crate::nic::PacketReader)
-{
-	rx_handler(Address::Ipv4(src_addr), Address::Ipv4(int.addr()), pkt)
-}
 fn rx_handler(src_addr: Address, dest_addr: Address, mut pkt: crate::nic::PacketReader)
 {
 	let pre_header_reader = pkt.clone();
@@ -120,15 +122,28 @@ fn rx_handler(src_addr: Address, dest_addr: Address, mut pkt: crate::nic::Packet
 
 		let packet_len = pre_header_reader.remain();
 		// Pseudo header for checksum
-		let sum_pseudo = match (src_addr,dest_addr)
+		let sum_pseudo = match src_addr
 			{
-			(Address::Ipv4(s), Address::Ipv4(d)) =>
+			Address::Ipv4(s) => {
+				let Address::Ipv4(d) = dest_addr else { unreachable!() };
 				calculate_checksum([
 					// Big endian stores MSB first, so write the high word first
 					(s.as_u32() >> 16) as u16, (s.as_u32() >> 0) as u16,
 					(d.as_u32() >> 16) as u16, (d.as_u32() >> 0) as u16,
 					IPV4_PROTO_TCP as u16, packet_len as u16,
-					].iter().copied()),
+					].iter().copied())
+				},
+			Address::Ipv6(s) => {
+				let Address::Ipv6(d) = dest_addr else { unreachable!() };
+				calculate_checksum([
+					// Big endian stores MSB first, so write the high word first
+					s.words()[0], s.words()[1], s.words()[2], s.words()[3],
+					s.words()[4], s.words()[5], s.words()[6], s.words()[7],
+					d.words()[0], d.words()[1], d.words()[2], d.words()[3],
+					d.words()[4], d.words()[5], d.words()[6], d.words()[7],
+					IPV4_PROTO_TCP as u16, packet_len as u16,
+					].iter().copied())
+				}
 			};
 		let sum_header = hdr.checksum();
 		let sum_options_and_data = {
@@ -313,6 +328,7 @@ impl Quad
 		match self.local_addr
 		{
 		Address::Ipv4(a) => crate::ipv4::send_packet(a, self.remote_addr.unwrap_ipv4(), IPV4_PROTO_TCP, hdr_pkt).await,
+		Address::Ipv6(a) => crate::ipv6::send_packet(a, self.remote_addr.unwrap_ipv6(), IPV4_PROTO_TCP, hdr_pkt).await,
 		}
 	}
 }
