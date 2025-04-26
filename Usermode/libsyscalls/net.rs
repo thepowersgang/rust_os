@@ -144,12 +144,12 @@ impl FreeSocket
 			.map(|v| FreeSocket(v))
 	}
 
-	pub fn send_to(&mut self, data: &[u8], remote: SocketAddress) -> Result<usize, Error> {
+	pub fn send_to(&self, data: &[u8], remote: SocketAddress) -> Result<usize, Error> {
 		// SAFE: Syscall
 		to_result( unsafe { self.0.call_m(v::NET_FREESOCK_SENDTO { data, addr: &remote }) as usize } )
 			.map(|v| v as usize)
 	}
-	pub fn recv_from(&mut self, data: &mut [u8]) -> Result<(usize, SocketAddress), Error> {
+	pub fn recv_from(&self, data: &mut [u8]) -> Result<(usize, SocketAddress), Error> {
 		let mut sa = SocketAddress::default();
 		// SAFE: Syscall
 		to_result( unsafe { self.0.call_m(v::NET_FREESOCK_RECVFROM { data, addr: &mut sa }) as usize } )
