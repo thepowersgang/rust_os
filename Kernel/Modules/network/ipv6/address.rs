@@ -54,6 +54,9 @@ impl Address {
 			(v[7] as u16) | (v[7] as u16) << 8,
 		])
 	}
+	pub fn from_reader(reader: &mut crate::nic::PacketReader) -> Result<Self,()> {
+		Ok( Address::from_bytes(reader.read_bytes([0; 16])?) )
+	}
 }
 impl ::core::fmt::Display for Address {
 	fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {

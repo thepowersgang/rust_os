@@ -38,6 +38,9 @@ pub struct HeldMutex<'lock,T:'lock+?Sized+Send>
 	lock: &'lock Mutex<T>
 }
 
+/// A lazily populated mutex (using `Default`)
+pub struct LazyMutexDefault<T>(LazyMutex<T>);
+
 /// A lazily populated mutex (must be initialised on/before first lock)
 pub struct LazyMutex<T>(Mutex<Option<T>>);
 
@@ -182,6 +185,20 @@ impl<T: Send> LazyMutex<T>
 		let lh = self.0.lock();
 		assert!(lh.is_some(), "Locking an uninitialised LazyMutex<{}>", type_name!(T));
 		HeldLazyMutex( lh )
+	}
+}
+
+impl<T> LazyMutexDefault<T>
+where
+	T: Send + Default,
+{
+	pub const fn new() -> Self {
+		Self( LazyMutex::new() )
+	}
+	/// Lock the lazy mutex
+	#[track_caller]
+	pub fn lock(&self) -> HeldLazyMutex<T> {
+		self.0.lock_init(|| T::default())
 	}
 }
 

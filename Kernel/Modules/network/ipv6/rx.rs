@@ -53,13 +53,14 @@ pub fn handle_rx_ethernet(_physical_interface: &dyn crate::nic::Interface, iface
 		{
 			if hdr.source.mask_net(interface.mask) == interface.address.mask_net(interface.mask) {
 				// Snoop the source MAC into the neighbour-discovery cache
-				super::nd::learn(iface_mac, source_mac, hdr.source);
+				super::nd::learn(iface_mac, source_mac, hdr.source, super::nd::LearnSource::Snoop);
 			}
 
 			// TODO: ICMPv6 handling
 			// - Needs to include pings and status replies
-			if next_header == 58 {
+			if next_header == super::icmpv6::NEXT_HEADER {
 				// ICMPv6 (includes ND, type 133)
+				return super::icmpv6::handle_packet(interface, hdr.source, hdr.destination, reader);
 			}
 
 			// Figure out which sub-protocol to send this packet to

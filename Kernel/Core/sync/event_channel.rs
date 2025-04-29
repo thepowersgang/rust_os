@@ -10,12 +10,15 @@ use crate::threads::WaitQueue;
 use core::cell::UnsafeCell;
 use core::sync::atomic::Ordering;
 
-/// EventChannel controlling object
+/// Sleep a thread until signaled 
 pub struct EventChannel
 {
+	/// Is there a pending event?
 	lock: Spinlock<bool>,
 	// Separate from the lock because WaitQueue::wait() takes a bool lock
 	queue: UnsafeCell< WaitQueue >,
+
+	/// Counter of how many wake requests have been issued with the queue locked
 	pending_wakes: ::core::sync::atomic::AtomicUsize,
 }
 unsafe impl Sync for EventChannel {}

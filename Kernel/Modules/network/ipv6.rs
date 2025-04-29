@@ -8,6 +8,7 @@ pub use self::address::Address;
 mod rx;
 pub(crate) use self::rx::{register_handler,handle_rx_ethernet};
 mod nd;
+mod icmpv6;
 mod headers;
 mod routes;
 use headers::Ipv6Header;
@@ -69,4 +70,42 @@ pub async fn send_packet(source: Address, destination: Address, proto: u8, pkt: 
 		};
 	let hdr_bytes = hdr.encode();
 	crate::nic::send_from(source_mac, dest_mac, 0x0800, crate::nic::SparsePacket::new_chained(&hdr_bytes, &pkt));
+}
+
+pub fn calculate_inner_checksum_rdr(next_header: u8, source: Address, destination: Address, mut reader: crate::nic::PacketReader<'_>) -> u16 {
+	let len = reader.remain();
+	calculate_inner_checksum_it(next_header, source, destination, (0 .. len).map(|_| reader.read_u8().unwrap()))
+}
+/// Calculate a checksum, including an IPv6 pseudo-header
+/// 
+/// NOTE: If the szie hint of `inner` is incorrect, the checksum will be invalid.
+pub fn calculate_inner_checksum_it(next_header: u8, source: Address, destination: Address, inner: impl Iterator<Item=u8>) -> u16 {
+	let len = inner.size_hint().0 as u32;
+	return super::ipv4::calculate_checksum(
+		[].iter().copied()
+		.chain(source.words().iter().copied())
+		.chain(destination.words().iter().copied())
+		.chain([
+			(len >> 16) as u16,
+			(len >> 0) as u16,
+			0,
+			next_header as u16,
+		].iter().copied())
+		.chain(Words( inner ))
+	);
+	struct Words<I>(I);
+	impl<I> Iterator for Words<I>
+	where I: Iterator<Item=u8>
+	{
+		type Item = u16;
+		
+		fn next(&mut self) -> Option<Self::Item> {
+			// NOTE: This only really works on fused iterators
+			match (self.0.next(),self.0.next()) {
+			(Some(a),Some(b)) => Some(u16::from_be_bytes([a,b])),
+			(Some(a),None) => Some(u16::from_be_bytes([a,0])),
+			(None,_) => None,
+			}
+		}
+	}
 }
