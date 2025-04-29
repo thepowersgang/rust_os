@@ -160,7 +160,7 @@ fn add_iface(net_mgr: &::syscalls::net::Management, iface_idx: usize, iface_info
 			addr,
 		};
 		net_mgr.add_address(iface_idx, addr, 64);
-		if true {
+		if false {
 			Ipv6State::StaticConfigured
 		}
 		else {

@@ -128,6 +128,21 @@ pub fn new_free_socket(local_address: SocketAddress, remote_mask: crate::values:
 						)))
 					}
 					},
+				SocketAddressType::Ipv6 => {
+					let source = make_ipv6(&local_address.addr);
+					let remote_addr = make_ipv6(&remote_mask.addr.addr);
+					if remote_mask.addr.port != local_address.port {
+						Err(crate::values::SocketError::InvalidValue)
+					}
+					else if local_address.port > u8::MAX as u16 {
+						Err(crate::values::SocketError::InvalidValue)
+					}
+					else {
+						Ok(crate::objects::new_object(traits::FreeSocketWrapper(
+							raw::RawIpv6::new(source, local_address.port as u8, (remote_addr, remote_mask.mask))?
+						)))
+					}
+					},
 				_ => todo!("Handle other address types"),
 				},
 			SocketPortType::Udp => Ok(crate::objects::new_object(traits::FreeSocketWrapper({

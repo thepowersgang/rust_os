@@ -13,15 +13,17 @@ struct PrefixSpec {
 impl State {
 	pub fn new(addr: &::syscalls::values::NetworkAddress, _mac_addr: &[u8; 6]) -> Result<State,()>
 	{
+		let listen_sock = ::syscalls::net::FreeSocket::create(::syscalls::values::SocketAddress {
+				port_ty: ::syscalls::values::SocketPortType::Raw as _,
+				addr_ty: addr.addr_ty,
+				port: 58,
+				addr: addr.addr,
+			},
+			::syscalls::values::MaskedSocketAddress::default(),
+		).map_err(|_| ())?;
+		// TODO: Send a router solicitation message?
 		Ok(State {
-			listen_sock: ::syscalls::net::FreeSocket::create(::syscalls::values::SocketAddress {
-					port_ty: ::syscalls::values::SocketPortType::Raw as _,
-					addr_ty: addr.addr_ty,
-					port: 58,
-					addr: addr.addr,
-				},
-				::syscalls::values::MaskedSocketAddress::default(),
-			).map_err(|_| ())?,
+			listen_sock,
 			link_local_addr: addr.addr,
 			//mac_addr: *mac_addr,
 			prefix_spec: None,

@@ -13,6 +13,7 @@ mod headers;
 mod routes;
 use headers::Ipv6Header;
 pub use self::routes::{SelectedRoute,route_lookup, route_enumerate,route_add,route_del};
+pub use self::rx::RawListenHandle;
 
 static INTERFACES: RwLock<Vec<Interface>> = RwLock::new(Vec::new());
 

@@ -60,17 +60,15 @@ pub fn handle_rx_ethernet(_physical_interface: &dyn crate::nic::Interface, iface
 			// - Needs to include pings and status replies
 			if next_header == super::icmpv6::NEXT_HEADER {
 				// ICMPv6 (includes ND, type 133)
-				return super::icmpv6::handle_packet(interface, hdr.source, hdr.destination, reader);
+				super::icmpv6::handle_packet(interface, hdr.source, hdr.destination, reader.clone())?;
 			}
 
 			// Figure out which sub-protocol to send this packet to
 			// - Should there be alternate handlers for 
 			for &(id,ref handler) in PROTOCOL_HANDLDERS.read().iter()
 			{
-				if id == next_header
-				{
-					handler.dispatch(interface, hdr.source, hdr.destination, reader);
-					return Ok( () );
+				if id == next_header {
+					handler.dispatch(interface, hdr.source, hdr.destination, reader.clone());
 				}
 			}
 			log_debug!("Unknown protocol {}", next_header);
@@ -93,6 +91,13 @@ pub fn register_handler(proto: u8, handler: fn(&Interface, Address, PacketReader
 	lh.push( (proto, ProtoHandler::DirectKernel(handler),) );
 	Ok( () )
 }
+
+#[derive(PartialEq,Clone)]
+struct HandlerKey {
+	local: Address,
+	remote: Address,
+	mask: u8,
+}
 enum ProtoHandler
 {
 	/// Direct in-kernel handling (e.g. TCP)
@@ -100,16 +105,150 @@ enum ProtoHandler
 	/// Indirect user handling (pushes onto a buffer for the user to read from)
 	// Ooh, another use for stack_dst, a DST queue!
 	#[allow(dead_code)]
-	User(Address, ()),
+	User {
+		key: HandlerKey,
+		queue: ::kernel::lib::mem::Arc<::kernel::sync::Mutex< PacketQueue >>,
+	},
 }
 impl ProtoHandler
 {
-	fn dispatch(&self, i: &Interface, src: Address, _dest: Address, r: PacketReader)
+	fn dispatch(&self, i: &Interface, src: Address, dest: Address, r: PacketReader)
 	{
-		match *self
+		match self
 		{
-		ProtoHandler::DirectKernel(fcn) => fcn(i, src, r),
-		ProtoHandler::User(..) => todo!("User-bound raw IP connections"),
+		&ProtoHandler::DirectKernel(fcn) => fcn(i, src, r),
+		ProtoHandler::User { key, queue} => {
+			if dest == key.local && src.mask_net(key.mask) == key.remote {
+				queue.lock().push(src, r);
+			}
+		},
 		}
+	}
+}
+pub struct PacketQueue {
+	buf: ::kernel::lib::ring_buffer::RingBuf<u8>,
+	waiters: ::kernel::lib::VecDeque<::kernel::threads::SleepObjectRef>,
+}
+impl PacketQueue {
+	fn register_wait(&mut self, so: &::kernel::threads::SleepObject) {
+		self.waiters.push_back(so.get_ref());
+	}
+	fn clear_wait(&mut self, so: &::kernel::threads::SleepObject) {
+		self.waiters.retain(|v| {
+			!v.is_from(so)
+		})
+	}
+	fn has_packet(&self) -> bool {
+		!self.buf.is_empty()
+	}
+
+	fn push(&mut self, src: Address, mut data: PacketReader) {
+		let len = data.remain();
+		let space = 16 + 4 + len;
+
+		let lh = &mut self.buf;
+		if lh.space() > space {
+			for b in src.to_bytes() {
+				let _ = lh.push_back(b);
+			}
+			for b in (len as u32).to_ne_bytes() {
+				let _ = lh.push_back(b);
+			}
+			while let Ok(b) = data.read_u8() {
+				let _ = lh.push_back(b);
+			}
+
+			if let Some(v) = self.waiters.pop_front() {
+				v.signal();
+			}
+		}
+	}
+	fn pop(&mut self, buf: &mut [u8]) -> Option<(Address, usize)> {
+		let lh = &mut self.buf;
+		if lh.is_empty() {
+			None
+		}
+		else {
+			let a = Address::from_bytes({
+				let mut b = [0; 16];
+				for b in &mut b {
+					*b = lh.pop_front().unwrap();
+				}
+				b
+			});
+			let len = u32::from_ne_bytes({
+				let mut b = [0; 4];
+				for b in &mut b {
+					*b = lh.pop_front().unwrap();
+				}
+				b
+			}) as usize;
+			let read_len = usize::min(len, buf.len());
+			for b in buf[..read_len].iter_mut() {
+				*b = lh.pop_front().unwrap();
+			}
+			Some( (a, len) )
+		}
+	}
+}
+
+pub struct RawListenHandle {
+	next_header: u8,
+	key: HandlerKey,
+	queue: ::kernel::lib::mem::Arc<::kernel::sync::Mutex< PacketQueue >>,
+}
+impl RawListenHandle {
+	pub fn new(next_header: u8, source: Address, remote: (Address, u8)) -> Result<Self,()> {
+		let key = HandlerKey { local: source, remote: remote.0, mask: remote.1 };
+		let queue = ::kernel::lib::mem::Arc::new( ::kernel::sync::Mutex::new( PacketQueue {
+			buf: ::kernel::lib::ring_buffer::RingBuf::new(1024*16),
+			waiters: Default::default(),
+		}));
+		{
+			let mut lh = PROTOCOL_HANDLDERS.write();
+			for (p, h) in &*lh {
+				if *p == next_header {
+					if let ProtoHandler::User { key: cur_key, queue: _ } = h {
+						if key == *cur_key {
+							return Err(());
+						}
+					}
+				}
+			}
+			lh.push((next_header, ProtoHandler::User { key: key.clone(), queue: queue.clone() }));
+		}
+		Ok(RawListenHandle {
+			next_header,
+			key,
+			queue,
+		})
+	}
+
+	pub fn register_wait(&self, so: &::kernel::threads::SleepObject) {
+		self.queue.lock().register_wait(so)
+	}
+	pub fn clear_wait(&self, so: &::kernel::threads::SleepObject) {
+		self.queue.lock().clear_wait(so);
+	}
+	pub fn has_packet(&self) -> bool {
+		self.queue.lock().has_packet()
+	}
+	pub fn pop(&self, buf: &mut [u8]) -> Option<(Address, usize)> {
+		self.queue.lock().pop(buf)
+	}
+}
+impl Drop for RawListenHandle {
+	fn drop(&mut self) {
+		let mut lh = PROTOCOL_HANDLDERS.write();
+		lh.retain(|(p,h)| {
+			if *p == self.next_header {
+				if let ProtoHandler::User { key: cur_key, queue: _ } = h {
+					if *cur_key == self.key {
+						return false;
+					}
+				}
+			}
+			true
+		});
 	}
 }
