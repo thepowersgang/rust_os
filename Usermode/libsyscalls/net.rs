@@ -200,10 +200,24 @@ impl Management
 			subnet_len,
 		}); }
 	}
+	pub fn del_address(&self, iface_idx: usize, addr: v::NetworkAddress, subnet_len: u8) {
+		// SAFE: Correct arguments
+		unsafe { self.0.call_m(v::NET_MGMT_DEL_ADDRESS {
+			index: iface_idx,
+			addr: &addr,
+			subnet_len,
+		}); }
+	}
 
 	pub fn add_route(&self, route: v::NetworkRoute) {
 		// SAFE: Correct arguments
 		unsafe { self.0.call_m(v::NET_MGMT_ADD_ROUTE {
+			data: &route,
+		}); }
+	}
+	pub fn del_route(&self, route: v::NetworkRoute) {
+		// SAFE: Correct arguments
+		unsafe { self.0.call_m(v::NET_MGMT_DEL_ROUTE {
 			data: &route,
 		}); }
 	}

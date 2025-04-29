@@ -26,6 +26,9 @@ fn make_ipv4(addr: &[u8; 16]) -> ::network::ipv4::Address {
 		[addr[0], addr[1], addr[2], addr[3]]
 		)
 }
+fn make_ipv6(addr: &[u8; 16]) -> ::network::ipv6::Address {
+	::network::ipv6::Address::from_bytes(*addr)
+}
 /// Convert a `network` IPv4 address into a syscall address
 fn from_ipv4(a: ::network::ipv4::Address) -> [u8; 16] {
 	[
@@ -86,11 +89,10 @@ pub fn new_client(remote_address: SocketAddress) -> Result<u64, super::Error>
 		t => todo!("Socket type: {:?}", t),
 		})
 	}
-	let addr = match SocketAddressType::try_from(remote_address.addr_ty)
+	let addr = match addr_from_socket(&remote_address)
 		{
 		Err(_) => return Err(super::Error::BadValue),
-		Ok(SocketAddressType::Ipv4) => ::network::Address::Ipv4(make_ipv4(&remote_address.addr)),
-		_ => todo!(""),
+		Ok(v) => v,
 		};
 	let port_ty = crate::values::SocketPortType::try_from(remote_address.port_ty).map_err(|_| super::Error::BadValue)?;
 	let o = inner(addr, port_ty, remote_address.port);
@@ -252,7 +254,12 @@ impl super::objects::Object for InterfaceManagement {
 				Err(()) => 1,
 				}
 				}
-			::syscall_values::SocketAddressType::Ipv6 => todo!(),
+			::syscall_values::SocketAddressType::Ipv6 => 
+				match ::network::ipv6::add_interface(ii.mac, make_ipv6(&addr.addr), mask_bits)
+				{
+				Ok(()) => 0,
+				Err(()) => 1,
+				}
 			}
 		},
 		//::syscall_values::NET_MGMT_DEL_ADDRESS => {},

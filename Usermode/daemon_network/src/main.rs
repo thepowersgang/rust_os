@@ -5,10 +5,12 @@
 use std::collections::btree_map::Entry;
 
 mod dhcp;
+mod ipv6_autoconf;
 
 struct Interface {
 	info: ::syscalls::values::NetworkInterface,
 	state_v4: Ipv4State,
+	state_v6: Ipv6State,
 }
 enum Ipv4State {
 	Unconfigured,
@@ -16,10 +18,17 @@ enum Ipv4State {
 
 	Dhcp(dhcp::Dhcp),
 }
+enum Ipv6State {
+	Unconfigured,
+	StaticConfigured,
+
+	Autoconf(ipv6_autoconf::State),
+}
 
 fn main() {
 	let net_mgr: ::syscalls::net::Management = ::syscalls::threads::S_THIS_PROCESS.receive_object("NetMgmt").unwrap();
 	let mut interfaces = ::std::collections::BTreeMap::<usize,Interface>::new();
+	let mut waits = Vec::new();
 	loop {
 		::syscalls::kernel_log!("daemon_network: POLL");
 		// Monitor network interfaces
@@ -67,12 +76,32 @@ fn main() {
 			Ipv4State::StaticConfigured => {},
 			Ipv4State::Dhcp(dhcp_state) => dhcp_state.poll(&net_mgr, idx),
 			}
+			match &mut iface.state_v6 {
+			Ipv6State::Unconfigured => {
+				// Re-attempt config?
+			},
+			Ipv6State::StaticConfigured => {},
+			Ipv6State::Autoconf(state) => state.poll(&net_mgr, idx),
+			}
 		}
 
+		for (_,v) in &interfaces {
+			match &v.state_v4 {
+			Ipv4State::Unconfigured => {},
+			Ipv4State::StaticConfigured => {},
+			Ipv4State::Dhcp(dhcp_state) => if let Some(v) = dhcp_state.get_wait() { waits.push(v) },
+			}
+			match &v.state_v6 {
+			Ipv6State::Unconfigured => {},
+			Ipv6State::StaticConfigured => {},
+			Ipv6State::Autoconf(state) => if let Some(v) = state.get_wait() { waits.push(v) },
+			}
+		}
 		let mut waits: Vec<_> = interfaces.iter().filter_map(|(_,v)| v.get_wait()).collect();
 		//waits.push(net_mgr.wait_nic_update());
 		//::syscalls::threads::wait(&mut waits, ::syscalls::system_ticks() + 10_000);
 		::syscalls::threads::wait(&mut waits, !0);
+		waits.clear();
 	}
 }
 
@@ -120,9 +149,30 @@ fn add_iface(net_mgr: &::syscalls::net::Management, iface_idx: usize, iface_info
 		Err(()) => Ipv4State::Unconfigured,
 		}
 	};
+	let v6 = {
+		let mac = &iface_info.mac_addr;
+		let addr = [
+			0xfe, 0x80, 0,0, 0,0,0,0,
+			0,0, mac[0],mac[1], mac[2],mac[3],mac[4],mac[5],
+			];
+		let addr = syscalls::values::NetworkAddress {
+			addr_ty: ::syscalls::values::SocketAddressType::Ipv6 as _,
+			addr,
+		};
+		net_mgr.add_address(iface_idx, addr, 64);
+		if true {
+			Ipv6State::StaticConfigured
+		}
+		else {
+			match ipv6_autoconf::State::new(&addr, &iface_info.mac_addr) {
+			Ok(s) => Ipv6State::Autoconf(s),
+			Err(()) => Ipv6State::Unconfigured,
+			}
+		}
+	};
 
 	::syscalls::kernel_log!("Iface up");
-	Interface { info: iface_info, state_v4: v4 }
+	Interface { info: iface_info, state_v4: v4, state_v6: v6 }
 }
 
 impl Interface {
