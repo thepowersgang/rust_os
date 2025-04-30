@@ -174,12 +174,18 @@ fn spawn_init(loader_path: &str, init_cmdline: &str) -> Result<::kernel::Void, &
 			return Err("No such file");
 			},
 		};
-	// TODO: Split init_cmdline on space to allow argument passing
-	let init = match handle::File::open(Path::new(init_cmdline), handle::FileOpenMode::Execute)
+	// Split init_cmdline on space to allow argument passing
+	// - Should use a smarter parser, but meh.
+	let init_path = match init_cmdline.split_once(' ')
+		{
+		Some((a,_)) => a,
+		None => init_cmdline,
+		};
+	let init = match handle::File::open(Path::new(init_path), handle::FileOpenMode::Execute)
 		{
 		Ok(v) => v,
 		Err(e) => {
-			log_error!("Unable to open userland init '{}': {:?}", init_cmdline, e);
+			log_error!("Unable to open userland init '{}': {:?}", init_path, e);
 			return Err("No such file");
 			},
 		};

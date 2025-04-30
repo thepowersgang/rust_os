@@ -15,6 +15,7 @@ debug = true
 acpica = [ "kernel/acpica" ]
 
 [dependencies]
+#cmdline_words_parser = { path = "../externals/crates.io/cmdline_words_parser" }
 kernel = { path = "Core" }
 
 vfs = { path = "Modules/vfs" }
