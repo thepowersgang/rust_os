@@ -375,7 +375,7 @@ impl super::objects::Object for InterfaceManagement {
 	fn bind_wait(&self, flags: u32, _obj: &mut kernel::threads::SleepObject) -> u32 {
 		let mut rv = 0;
 		if flags & ::syscall_values::EV_NET_MGMT_INTERFACE != 0 {
-			rv += 1;
+			rv |= ::syscall_values::EV_NET_MGMT_INTERFACE
 		}
 		rv
 	}
@@ -383,7 +383,8 @@ impl super::objects::Object for InterfaceManagement {
 	fn clear_wait(&self, flags: u32, _obj: &mut kernel::threads::SleepObject) -> u32 {
 		let mut rv = 0;
 		if flags & ::syscall_values::EV_NET_MGMT_INTERFACE != 0 {
-			rv += 1;
+			//rv |= ::syscall_values::EV_NET_MGMT_INTERFACE;
+			rv |= 0;
 		}
 		rv
 	}

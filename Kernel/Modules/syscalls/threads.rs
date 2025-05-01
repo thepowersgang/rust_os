@@ -178,7 +178,7 @@ impl crate::objects::Object for Process
 		// Wait for child process to terminate
 		if flags & values::EV_PROCESS_TERMINATED != 0 {
 			self.0.bind_wait_terminate(obj);
-			ret += 1;
+			ret |= values::EV_PROCESS_TERMINATED;
 		}
 		ret
 	}

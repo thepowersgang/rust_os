@@ -686,6 +686,9 @@ impl WindowHandle
 	pub fn pop_event(&self) -> Option<super::input::Event> {
 		self.get_win().input.pop_event()
 	}
+	pub fn is_event_pending(&self) -> bool {
+		self.get_win().input.is_event_pending()
+	}
 	pub fn bind_wait_input(&self, obj: &mut ::kernel::threads::SleepObject) {
 		self.get_win().input.bind_wait(obj);
 	}

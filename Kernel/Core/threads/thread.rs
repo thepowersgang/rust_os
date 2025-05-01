@@ -268,6 +268,7 @@ impl ProcessHandle
 			lh.1 = Some( obj.get_ref() );
 		}
 	}
+	/// Returns true if the process has already terminated
 	pub fn clear_wait_terminate(&self, obj: &mut crate::threads::SleepObject) -> bool {
 		log_trace!("clear_wait_terminate({:p}, obj={:p})", self, obj);
 		let mut lh = self.0.exit_status.lock();

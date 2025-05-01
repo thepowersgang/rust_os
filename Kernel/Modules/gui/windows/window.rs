@@ -253,10 +253,14 @@ impl WindowInput
 				.map( |(x,y, dx,dy)| input::Event::MouseMove(x, y, dx, dy) )
 		}
 	}
+	pub fn is_event_pending(&self) -> bool {
+		! self.queue.lock().is_empty() || self.cursor.lock().is_dirty()
+	}
+	/// Returns `true` if there is a an event waiting
 	pub fn bind_wait(&self, obj: &mut ::kernel::threads::SleepObject) {
 		self.waiters.wait_upon(obj);
-		if ! self.queue.lock().is_empty() || self.cursor.lock().is_dirty() {
-			obj.signal()
+		if self.is_event_pending() {
+			obj.signal();
 		}
 	}
 	pub fn clear_wait(&self, obj: &mut ::kernel::threads::SleepObject) {

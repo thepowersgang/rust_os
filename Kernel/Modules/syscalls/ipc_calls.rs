@@ -66,7 +66,7 @@ impl crate::objects::Object for SyncChannel
 		if flags & crate::values::EV_IPC_RPC_RECV != 0 {
 			self.clear_wait(obj);
 			if self.has_message() {
-				ret += 1;
+				ret |= crate::values::EV_IPC_RPC_RECV;
 			}
 		}
 		ret
@@ -123,6 +123,9 @@ impl SyncChannel
 
 	pub fn wait_upon(&self, waiter: &mut ::kernel::threads::SleepObject) {
 		self.get_side().queue.wait_upon(waiter);
+		if self.has_message() {
+			waiter.signal();
+		}
 	}
 	pub fn clear_wait(&self, waiter: &mut ::kernel::threads::SleepObject) {
 		self.get_side().queue.clear_wait(waiter);

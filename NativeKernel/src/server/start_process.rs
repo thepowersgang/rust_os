@@ -2,6 +2,7 @@
 
 use ::kernel::arch::imp::threads::test_pause_thread;
 use super::{GlobalStateRef, PreStartProcess,PreStartState};
+use ::syscalls::native_exports::values as v;
 
 /// Handle the `CORE_STARTPROCESS` syscall with some special logic
 pub fn handle_syscall(gs: &super::GlobalStateRef, mut args: &[usize]) -> Result<u32, ::syscalls::Error>
@@ -108,7 +109,7 @@ pub fn handle_syscall(gs: &super::GlobalStateRef, mut args: &[usize]) -> Result<
 	{
 		fn as_any(&self) -> &dyn ::core::any::Any { self }
 		fn class(&self) -> u16 { 
-			::syscalls::native_exports::values::CLASS_CORE_PROTOPROCESS
+			v::CLASS_CORE_PROTOPROCESS
 		}
 
 		fn try_clone(&self) -> Option<u32> {
@@ -119,8 +120,8 @@ pub fn handle_syscall(gs: &super::GlobalStateRef, mut args: &[usize]) -> Result<
 		fn handle_syscall_ref(&self, call: u16, args: &mut ::syscalls::native_exports::Args) -> Result<u64,::syscalls::Error> {
 			match call
 			{
-			::syscalls::native_exports::values::CORE_PROTOPROCESS_SENDOBJ => {
-				let tag: ::syscalls::native_exports::values::FixedStr8 = args.get()?;
+			v::CORE_PROTOPROCESS_SENDOBJ => {
+				let tag: v::FixedStr8 = args.get()?;
 				let handle: u32 = args.get()?;
 				log_debug!("CORE_PROTOPROCESS_SENDOBJ: tag={:?} handle={}", tag, handle);
 				// Wait until the process is started (and thus in the handles pool)
@@ -136,7 +137,7 @@ pub fn handle_syscall(gs: &super::GlobalStateRef, mut args: &[usize]) -> Result<
 		fn handle_syscall_val(&mut self, call: u16, _args: &mut ::syscalls::native_exports::Args) -> Result<u64,::syscalls::Error> {
 			match call
 			{
-			::syscalls::native_exports::values::CORE_PROTOPROCESS_START => {
+			v::CORE_PROTOPROCESS_START => {
 				let e = self.wait_until_tracked();
 				let mut lh = e.mutex.lock().unwrap();
 				*lh = PreStartState::Running;
@@ -171,7 +172,7 @@ pub fn handle_syscall(gs: &super::GlobalStateRef, mut args: &[usize]) -> Result<
 	{
 		fn as_any(&self) -> &dyn ::core::any::Any { self }
 		fn class(&self) -> u16 { 
-			::syscalls::native_exports::values::CLASS_CORE_PROCESS
+			v::CLASS_CORE_PROCESS
 		}
 
 		fn try_clone(&self) -> Option<u32> {
@@ -182,7 +183,7 @@ pub fn handle_syscall(gs: &super::GlobalStateRef, mut args: &[usize]) -> Result<
 		fn handle_syscall_ref(&self, call: u16, _args: &mut ::syscalls::native_exports::Args) -> Result<u64,::syscalls::Error> {
 			match call
 			{
-			::syscalls::native_exports::values::CORE_PROCESS_KILL => todo!("CORE_PROCESS_KILL"),
+			v::CORE_PROCESS_KILL => todo!("CORE_PROCESS_KILL"),
 			_ => ::syscalls::native_exports::object_has_no_such_method_ref("Process", call),
 			}
 		}
@@ -191,9 +192,9 @@ pub fn handle_syscall(gs: &super::GlobalStateRef, mut args: &[usize]) -> Result<
 		fn bind_wait(&self, flags: u32, obj: &mut ::kernel::threads::SleepObject) -> u32 {
 			let mut ret = 0;
 			// Wait for child process to terminate
-			if flags & ::syscalls::native_exports::values::EV_PROCESS_TERMINATED != 0 {
+			if flags & v::EV_PROCESS_TERMINATED != 0 {
 				self.handle.bind_wait_terminate(obj);
-				ret += 1;
+				ret |= v::EV_PROCESS_TERMINATED;
 			}
 			ret
 		}
@@ -201,9 +202,9 @@ pub fn handle_syscall(gs: &super::GlobalStateRef, mut args: &[usize]) -> Result<
 		fn clear_wait(&self, flags: u32, obj: &mut ::kernel::threads::SleepObject) -> u32 {
 			let mut ret = 0;
 			// Wait for child process to terminate
-			if flags & ::syscalls::native_exports::values::EV_PROCESS_TERMINATED != 0 {
+			if flags & v::EV_PROCESS_TERMINATED != 0 {
 				if self.handle.clear_wait_terminate(obj) {
-					ret |= ::syscalls::native_exports::values::EV_PROCESS_TERMINATED;
+					ret |= v::EV_PROCESS_TERMINATED;
 				}
 			}
 			ret

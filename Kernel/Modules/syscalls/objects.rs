@@ -35,14 +35,10 @@ pub trait Object: Send + Sync + ::core::any::Any
 		crate::objects::object_has_no_such_method_val(self.type_name(), call)
 	}
 
-	/// Return: Number of wakeup events bound
+	/// Return: Bitmask of flags that were registered, so the caller can warn if flags were skipped
 	fn bind_wait(&self, flags: u32, obj: &mut ::kernel::threads::SleepObject) -> u32;
-	/// Return: Number of wakeup events fired (or are ready)
+	/// Return: Events in `flags` that are ready, to be stored for the user
 	fn clear_wait(&self, flags: u32, obj: &mut ::kernel::threads::SleepObject) -> u32;
-
-	// fn wait(&self, flags: u32) -> WaitHandle<'_> {
-	// 	crate::objects::WaitHandle::new(async move { 0 }).map_err(|_|()).unwrap()
-	// }
 }
 impl<T: Object> Object for Box<T> {
 	fn type_name(&self) -> &str { (**self).type_name() }

@@ -266,16 +266,22 @@ impl objects::Object for Window
 	fn bind_wait(&self, flags: u32, obj: &mut ::kernel::threads::SleepObject) -> u32 {
 		let mut ret = 0;
 		if flags & values::EV_GUI_WIN_INPUT != 0 {
-			self.0.lock().bind_wait_input(obj);
+			let lh = self.0.lock();
+			lh.bind_wait_input(obj);
 			ret |= values::EV_GUI_WIN_INPUT;
 		}
 		ret
 	}
 	fn clear_wait(&self, flags: u32, obj: &mut ::kernel::threads::SleepObject) -> u32 {
+		let mut ret = 0;
 		if flags & values::EV_GUI_WIN_INPUT != 0 {
-			self.0.lock().clear_wait_input(obj);
+			let lh = self.0.lock();
+			lh.clear_wait_input(obj);
+			if lh.is_event_pending() {
+				ret |= values::EV_GUI_WIN_INPUT;
+			}
 		}
-		0
+		ret
 	}
 }
 

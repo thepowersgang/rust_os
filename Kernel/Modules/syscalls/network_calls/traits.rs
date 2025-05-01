@@ -56,9 +56,9 @@ where
 		let mut rv = 0;
 		if flags & v::EV_NET_FREESOCK_RECV != 0 {
 			if self.0.bind_wait_recv(obj) {
-				//rv |= v::EV_NET_FREESOCK_RECV;
+				obj.signal();
 			}
-			rv += 1;
+			rv |= v::EV_NET_FREESOCK_RECV;
 		}
 		rv
 	}
@@ -66,8 +66,7 @@ where
 		let mut rv = 0;
 		if flags & v::EV_NET_FREESOCK_RECV != 0 {
 			if self.0.unbind_wait_recv(obj) {
-				//rv |= v::EV_NET_FREESOCK_RECV;
-				rv += 1;
+				rv |= v::EV_NET_FREESOCK_RECV;
 			}
 		}
 		rv
