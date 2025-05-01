@@ -11,12 +11,15 @@ const DEF_RX_WINDOW_SIZE: u32 = 0x4000;	// 16KiB
 const MAX_WINDOW_SIZE: u32 = 0x100000;	// 4MiB
 /// Base timeout between attempting to send a packet and the first retransmit attempt
 const RETRANSMIT_TIMEOUT_MS: usize = 200;
+/// Maximum number of attempt to re-transmit a packet before closing the connection
+const MAX_CONN_ATTEMPTS: u32 = 5;
 /// Maximum segment size (i.e. the largest amount of data in a single IP frame)
 const MSS: usize = 1400;
 
 pub struct Connection
 {
 	state: ConnectionState,
+	conn_waiters: ::kernel::threads::SleepObjectSet,
 
 	/// Sequence number of the next expected remote byte
 	next_rx_seq: u32,
@@ -24,6 +27,7 @@ pub struct Connection
 	last_rx_ack: u32,
 	/// Received bytes
 	rx_buffer: RxBuffer,
+	rx_waiters: ::kernel::threads::SleepObjectSet,
 	/// Sequence number of the first byte in the RX buffer
 	rx_buffer_seq: u32,
 
@@ -31,6 +35,7 @@ pub struct Connection
 	rx_window_size: u32,
 
 	tx_state: ConnectionTxState,
+	tx_waiters: ::kernel::threads::SleepObjectSet,
 }
 struct ConnectionTxState {
 	/// Buffer of outbound bytes (data pending an incoming ACK)
@@ -49,6 +54,8 @@ struct ConnectionTxState {
 	// TODO: Pending flags?
 
 	// -- Timers and state for transmit
+	/// Number of re-transmit attempts since the last successful receive
+	retransmit_attempts: u32,
 	/// Timer use to ensure that we get ACKs in a suitable time.
 	retransmit_timer: ::kernel::time::Timer,
 	/// Flag that forces a TX on the next opportunity (e.g. the buffer has a packet worth of data, or a flush was requested)
@@ -65,6 +72,7 @@ impl ConnectionTxState {
 			sent_bytes: 0,
 			max_tx_window_size: init_window_size,
 			cur_tx_window_size: init_window_size,
+			retransmit_attempts: 0,
 			retransmit_timer: ::kernel::time::Timer::new(),
 			force_tx: false,
 			pending_ack: false,
@@ -76,7 +84,10 @@ enum ConnectionState
 {
 	//Closed,	// Unused
 
-	SynSent,	// SYN sent by local, waiting for SYN-ACK
+	/// SYN sent by local, waiting for SYN-ACK
+	SynSent,
+	/// (NON-RFC) Indicates that re-transmit attempts have been exhausted, and the connection has failed
+	Timeout,
 	//SynReceived,	// Server only, handled by PROTO_CONNECTIONS
 
 	Established,
@@ -99,15 +110,18 @@ impl Connection
 	{
 		Connection {
 			state: ConnectionState::Established,
+			conn_waiters: Default::default(),
 			next_rx_seq: hdr.sequence_number,
 			last_rx_ack: hdr.sequence_number,
 			rx_buffer_seq: hdr.sequence_number,
 			rx_buffer: RxBuffer::new(2*DEF_RX_WINDOW_SIZE as usize),
+			rx_waiters: Default::default(),
 
 			rx_window_size_max: MAX_WINDOW_SIZE,	// Can be updated by the user
 			rx_window_size: DEF_RX_WINDOW_SIZE,
 
 			tx_state: ConnectionTxState::new(hdr.acknowledgement_number, hdr.window_size as u32),
+			tx_waiters: Default::default(),
 			}
 	}
 
@@ -116,17 +130,21 @@ impl Connection
 		log_trace!("Connection::new_outbound({:?}, {:#x})", quad, sequence_number);
 		let mut rv = Connection {
 			state: ConnectionState::SynSent,
+			conn_waiters: Default::default(),
 			next_rx_seq: 0,
 			last_rx_ack: 0,
 			rx_buffer_seq: 0,
 			rx_buffer: RxBuffer::new(2*DEF_RX_WINDOW_SIZE as usize),
+			rx_waiters: Default::default(),
 
 			rx_window_size_max: MAX_WINDOW_SIZE,	// Can be updated by the user
 			rx_window_size: DEF_RX_WINDOW_SIZE,
 
 			tx_state: ConnectionTxState::new(sequence_number, DEF_TX_WINDOW_SIZE),
+			tx_waiters: Default::default(),
 			};
 		rv.send_empty_packet(quad, FLAG_SYN);
+		rv.tx_state.retransmit_timer.reset(RETRANSMIT_TIMEOUT_MS as u64);
 		rv
 	}
 
@@ -162,6 +180,10 @@ impl Connection
 					self.tx_state.buffer.pop_front();
 					self.tx_state.sent_bytes -= 1;
 				}
+				// If any bytes were acked, then clear retransmit attempt count
+				if n_bytes > 0 {
+					self.tx_state.retransmit_attempts = 0;
+				}
 				// If there are no un-acked bytes, and there's pending bytes. Trigger a re-send
 				if self.tx_state.sent_bytes == 0 && self.tx_state.buffer.len() > 0 {
 					self.tx_state.force_tx = true;
@@ -174,6 +196,7 @@ impl Connection
 					}
 					else {
 						// TODO: Maintain a retransmit timer and double it each time we need to retransmit
+						// TODO: Track estimated latency and set this based on the RTT
 						self.tx_state.retransmit_timer.reset(RETRANSMIT_TIMEOUT_MS as u64);
 					}
 				}
@@ -184,6 +207,10 @@ impl Connection
 		if self.tx_state.max_tx_window_size != hdr.window_size as u32 {
 			log_debug!("{:?} Max TX window changed: {} -> {}", quad, self.tx_state.max_tx_window_size, hdr.window_size);
 			self.tx_state.max_tx_window_size = hdr.window_size as u32;
+		}
+		// If there were acked bytes, then signal that TX is now possible again
+		if self.tx_state.buffer.len() < self.rx_window_size as usize {
+			self.tx_waiters.signal();
 		}
 		
 		let new_state = match self.state
@@ -198,6 +225,7 @@ impl Connection
 					// Now established
 					// TODO: Send ACK back
 					self.send_ack(quad, "SYN-ACK");
+					self.tx_waiters.signal();
 					ConnectionState::Established
 				}
 				else {
@@ -286,6 +314,9 @@ impl Connection
 						}
 					}
 
+					if self.rx_buffer.valid_len() > 0 {
+						self.rx_waiters.signal();
+					}
 					if hdr.flags & FLAG_PSH != 0 {
 						// TODO: Prod the user that there's new data?
 					}
@@ -296,6 +327,10 @@ impl Connection
 
 		ConnectionState::CloseWait => {
 			// Ignore all packets while waiting for the user to complete teardown
+			self.state
+			},
+		ConnectionState::Timeout => {
+			log_trace!("{:?} Packet received after timeout declared", quad);
 			self.state
 			},
 		ConnectionState::LastAck =>	// Waiting for ACK in FIN,FIN/ACK,ACK
@@ -368,6 +403,7 @@ impl Connection
 		ConnectionState::SynSent => {
 			todo!("(quad=?) send/recv before established");
 			},
+		ConnectionState::Timeout => Err( ConnError::TimedOut ),
 		ConnectionState::Established => Ok( () ),
 		ConnectionState::FinWait1
 		| ConnectionState::FinWait2
@@ -380,10 +416,34 @@ impl Connection
 		ConnectionState::Finished => Err( ConnError::LocalClosed ),
 		}
 	}
+
+	/// Indicates that the socket is (or was) connected
+	pub(super) fn connection_complete(&self) -> bool {
+		match self.state
+		{
+		ConnectionState::SynSent => false,
+		_ => true,
+		}
+	}
+	pub(super) fn connected_wait_bind(&mut self, obj: &::kernel::threads::SleepObject) {
+		self.conn_waiters.add(obj);
+		if self.connection_complete() {
+			obj.signal();
+		}
+	}
+	pub(super) fn connected_wait_unbind(&mut self, obj: &::kernel::threads::SleepObject) -> bool {
+		self.conn_waiters.remove(obj);
+		self.connection_complete()
+	}
+
 	/// Enqueue data to be sent
 	pub(super) fn send_data(&mut self, _quad: &Quad, buf: &[u8]) -> Result<usize, ConnError>
 	{
 		// TODO: Is it valid to send before the connection is fully established?
+		// - Should this block until then?
+		if let ConnectionState::SynSent = self.state {
+			return Ok(0);
+		}
 		self.state_to_error()?;
 		// 1. Determine how much data we can send (based on the TX window)
 		let max_len = usize::saturating_sub(self.tx_state.cur_tx_window_size as usize, self.tx_state.buffer.len());
@@ -413,14 +473,51 @@ impl Connection
 		}
 		Ok(rv)
 	}
+	pub(super) fn send_ready(&self) -> bool {
+		match self.state
+		{
+		ConnectionState::Established => {
+			let max_len = usize::saturating_sub(self.tx_state.cur_tx_window_size as usize, self.tx_state.buffer.len());
+			max_len > 0
+		},
+		_ => false,
+		}
+	}
+	pub(super) fn send_wait_bind(&mut self, obj: &::kernel::threads::SleepObject) {
+		self.tx_waiters.add(obj);
+		if self.send_ready() {
+			obj.signal();
+		}
+	}
+	pub(super) fn send_wait_unbind(&mut self, obj: &::kernel::threads::SleepObject) -> bool {
+		self.tx_waiters.remove(obj);
+		self.send_ready()
+	}
+
 	/// Pull data from the received buffer
 	pub(super) fn recv_data(&mut self, _quad: &Quad, buf: &mut [u8]) -> Result<usize, ConnError>
 	{
+		if let ConnectionState::SynSent = self.state {
+			return Ok(0);
+		}
 		self.state_to_error()?;
 		//let valid_len = self.rx_buffer.valid_len();
 		//let acked_len = u32::wrapping_sub(self.next_rx_seq, self.rx_buffer_seq);
 		//let len = usize::min(valid_len, buf.len());
 		Ok( self.rx_buffer.take(buf) )
+	}
+	pub(super) fn recv_ready(&mut self) -> bool {
+		self.rx_buffer.valid_len() > 0
+	}
+	pub(super) fn recv_wait_bind(&mut self, obj: &::kernel::threads::SleepObject) {
+		self.rx_waiters.add(obj);
+		if self.recv_ready() {
+			obj.signal();
+		}
+	}
+	pub(super) fn recv_wait_unbind(&mut self, obj: &::kernel::threads::SleepObject) -> bool {
+		self.rx_waiters.remove(obj);
+		self.recv_ready()
 	}
 
 	/// Run TX tasks (from the TX worker)
@@ -445,18 +542,48 @@ impl Connection
 			};
 
 		if self.tx_state.retransmit_timer.is_expired() {
-			// Re-send any pending data (and reduce our TX window size?)
-			let len = self.tx_state.buffer.len().min(MSS);
-			log_trace!("{:?} Retransmit {:#x} {} bytes", quad, flags, len);
-			let data = self.tx_state.buffer.get_slices(0..len);
-			// `next_tx_seq` is the sequence number of the next new byte to be sent
-			// - I.e. the byte at `buffer[sent_bytes]`
-			// - So, we want to subtract the number of bytes between `data.len()` and `sent_bytes`
-			let seq_ofs = (self.tx_state.sent_bytes as u32).wrapping_sub(len as u32);
-			let seq = self.tx_state.next_tx_seq.wrapping_sub(seq_ofs);
-			block_on(quad.send_packet(seq, self.next_rx_seq, flags, self.rx_window_size as u16, data.0, data.1));
-			// TODO: Double this timer each time we need to resend (and halve it on successful reception)
-			self.tx_state.retransmit_timer.reset(RETRANSMIT_TIMEOUT_MS as u64);
+			self.tx_state.retransmit_attempts += 1;
+			match self.state {
+			ConnectionState::SynSent => {
+				if self.tx_state.retransmit_attempts == MAX_CONN_ATTEMPTS {
+					log_trace!("{:?} Connection timeout: SynSent", quad);
+					self.state = ConnectionState::Timeout;
+					self.tx_waiters.signal();
+					self.rx_waiters.signal();
+					self.conn_waiters.signal();
+				}
+				else {
+					// Re-send the SYN
+					log_trace!("{:?} Retransmit initial SYN", quad);
+					self.send_empty_packet(quad, FLAG_SYN);
+					self.tx_state.retransmit_timer.reset(RETRANSMIT_TIMEOUT_MS as u64 * (self.tx_state.retransmit_attempts + 1) as u64);
+				}
+				},
+			ConnectionState::Established => {
+				if self.tx_state.retransmit_attempts == MAX_CONN_ATTEMPTS {
+					log_trace!("{:?} Connection timeout: Established", quad);
+					self.state = ConnectionState::Timeout;
+					self.tx_waiters.signal();
+					self.rx_waiters.signal();
+					self.conn_waiters.signal();
+				}
+				else {
+					// Re-send any pending data (and reduce our TX window size?)
+					let len = self.tx_state.buffer.len().min(MSS);
+					log_trace!("{:?} Retransmit {:#x} {} bytes", quad, flags, len);
+					let data = self.tx_state.buffer.get_slices(0..len);
+					// `next_tx_seq` is the sequence number of the next new byte to be sent
+					// - I.e. the byte at `buffer[sent_bytes]`
+					// - So, we want to subtract the number of bytes between `data.len()` and `sent_bytes`
+					let seq_ofs = (self.tx_state.sent_bytes as u32).wrapping_sub(len as u32);
+					let seq = self.tx_state.next_tx_seq.wrapping_sub(seq_ofs);
+					block_on(quad.send_packet(seq, self.next_rx_seq, flags, self.rx_window_size as u16, data.0, data.1));
+					// TODO: Double this timer each time we need to resend (and halve it on successful reception)
+					self.tx_state.retransmit_timer.reset(RETRANSMIT_TIMEOUT_MS as u64 * (self.tx_state.retransmit_attempts + 1) as u64);
+				}
+				},
+			_ => {},
+			}
 		}
 		else if ::core::mem::replace(&mut self.tx_state.force_tx, false) {
 			// Send the new data
@@ -499,9 +626,6 @@ impl Connection
 	{
 		let new_state = match self.state
 			{
-			ConnectionState::SynSent => {
-				todo!("{:?} close before established", quad);
-				},
 			ConnectionState::FinWait1
 			| ConnectionState::FinWait2
 			| ConnectionState::Closing
@@ -518,7 +642,9 @@ impl Connection
 			ConnectionState::ForceClose => {
 				ConnectionState::Finished
 				},
-			ConnectionState::Established => {
+			ConnectionState::SynSent
+			| ConnectionState::Timeout
+			| ConnectionState::Established => {
 				self.send_empty_packet(quad, FLAG_FIN);
 				ConnectionState::FinWait1
 				},

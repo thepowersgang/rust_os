@@ -303,8 +303,12 @@ def_classes! {
 		=2: NET_CONNSOCK_SHUTDOWN(side: SocketShutdownSide),
 	--
 	}|{
+		/// Socket is connected, or has failed to connect
+		=0: EV_NET_CONNSOCK_CONN,
 		/// Event raised when there is data ready to read
-		=0: EV_NET_CONNSOCK_RECV,
+		=1: EV_NET_CONNSOCK_RECV,
+		/// Event raised when there is space to transmit at least one byte
+		=2: EV_NET_CONNSOCK_SEND,
 	},
 	/// Free-bind socket
 	=13: CLASS_FREESOCKET = {
@@ -439,6 +443,8 @@ enum_to_from!{ SocketError => u32:
 	NoRoute = 3,
 	SocketClosed = 4,
 	ConnectionReset = 5,
+	/// Connection timed out
+	Timeout = 6,
 }
 enum_to_from!{ SocketShutdownSide => u8:
 	Transmit = 0,

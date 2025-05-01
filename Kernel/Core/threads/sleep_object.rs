@@ -66,6 +66,27 @@ impl ::core::ops::Drop for AtomicSleepObjectRef {
 	}
 }
 
+#[derive(Default)]
+pub struct SleepObjectSet(Vec<SleepObjectRef>);
+impl SleepObjectSet {
+	pub fn signal(&self) {
+		for v in &self.0 {
+			v.signal();
+		}
+	}
+	pub fn add(&mut self, obj: &SleepObject) {
+		for v in &self.0 {
+			if v.is_from(obj) {
+				return ;
+			}
+		}
+		self.0.push(obj.get_ref());
+	}
+	pub fn remove(&mut self, obj: &SleepObject) {
+		self.0.retain(|v| !v.is_from(obj));
+	}
+}
+
 impl<'a> SleepObject<'a>
 {
 	/// Create a new sleep object

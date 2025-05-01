@@ -24,6 +24,7 @@ mod connection;
 use self::connection::Connection;
 
 fn earliest_timestamp(dst: &mut Option<::kernel::time::TickCount>, src: Option<::kernel::time::TickCount>) {
+	::kernel::log_trace!("{:?} < {:?}", dst, src);
 	match src
 	{
 	Some(ts) => match *dst
@@ -55,6 +56,7 @@ pub fn init()
 			{
 				earliest_timestamp(&mut wakeup_time, conn.lock().run_tasks(quad));
 			}
+			::kernel::log_trace!("wakeup_time = {:?}", wakeup_time);
 			// Wait on a condvar with a timeout (based)
 			// - This condvar will be poked when an incoming packet wants to trigger an action
 			if let Some(wakeup_time) = wakeup_time {
@@ -495,6 +497,7 @@ pub enum ConnError
 {
 	NoRoute,
 	LocalClosed,
+	TimedOut,
 	RemoteRefused,
 	RemoteClosed,
 	RemoteReset,
@@ -524,6 +527,7 @@ impl ConnectionHandle
 		// 4. Send the opening SYN (by creating the outbound connection structure)
 		let conn = Connection::new_outbound(&quad, 0x10000u32);
 		CONNECTIONS.insert(quad, Mutex::new(conn)).map_err(|_| ()).expect("Our unique port wasn't unique");
+		WORKER_CV.wake_one();
 		Ok( ConnectionHandle(quad) )
 	}
 
@@ -531,32 +535,52 @@ impl ConnectionHandle
 		(self.0.remote_addr, self.0.remote_port)
 	}
 
-	pub fn send_data(&self, buf: &[u8]) -> Result<usize, ConnError>
-	{
+	fn conn(&self) -> shared_map::Handle<'_, Quad,Mutex<Connection>> {
 		match CONNECTIONS.get(&self.0)
 		{
 		None => panic!("Connection {:?} removed before handle dropped", self.0),
-		Some(v) => v.lock().send_data(&self.0, buf),
+		Some(v) => v,
 		}
 	}
 
-	pub fn recv_data(&self, buf: &mut [u8]) -> Result<usize, ConnError>
-	{
-		match CONNECTIONS.get(&self.0)
-		{
-		None => panic!("Connection {:?} removed before handle dropped", self.0),
-		Some(v) => v.lock().recv_data(&self.0, buf),
-		}
+	pub fn bind_wait_connected(&self, obj: &::kernel::threads::SleepObject) {
+		self.conn().lock().connected_wait_bind(obj)
 	}
-	//pub fn wait_recv()
+	pub fn unbind_wait_connected(&self, obj: &::kernel::threads::SleepObject) -> bool {
+		self.conn().lock().connected_wait_unbind(obj)
+	}
+	pub fn is_connected(&self) -> bool {
+		self.conn().lock().connection_complete()
+	}
 
-	pub fn close(&mut self) -> Result<(), ConnError>
-	{
-		match CONNECTIONS.get(&self.0)
-		{
-		None => panic!("Connection {:?} removed before handle dropped", self.0),
-		Some(v) => v.lock().close(&self.0),
-		}
+	pub fn send_data(&self, buf: &[u8]) -> Result<usize, ConnError> {
+		self.conn().lock().send_data(&self.0, buf)
+	}
+	pub fn bind_wait_send(&self, obj: &::kernel::threads::SleepObject) {
+		self.conn().lock().send_wait_bind(obj)
+	}
+	pub fn unbind_wait_send(&self, obj: &::kernel::threads::SleepObject) -> bool {
+		self.conn().lock().send_wait_unbind(obj)
+	}
+	pub fn send_ready(&self) -> bool {
+		self.conn().lock().send_ready()
+	}
+
+	pub fn recv_data(&self, buf: &mut [u8]) -> Result<usize, ConnError> {
+		self.conn().lock().recv_data(&self.0, buf)
+	}
+	pub fn bind_wait_recv(&self, obj: &::kernel::threads::SleepObject) {
+		self.conn().lock().recv_wait_bind(obj)
+	}
+	pub fn unbind_wait_recv(&self, obj: &::kernel::threads::SleepObject) -> bool {
+		self.conn().lock().recv_wait_unbind(obj)
+	}
+	pub fn recv_ready(&self) -> bool {
+		self.conn().lock().recv_ready()
+	}
+
+	pub fn close(&mut self) -> Result<(), ConnError> {
+		self.conn().lock().close(&self.0)
 	}
 }
 impl ::core::ops::Drop for ConnectionHandle

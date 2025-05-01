@@ -394,7 +394,23 @@ pub fn drop_object(handle: u32)
 }
 
 
-
+pub fn bind_wait(flags: u32, flag: u32, op: impl FnOnce()) -> u32 {
+	if flags & flag != 0 {
+		op();
+		flag
+	}
+	else {
+		0
+	}
+}
+pub fn unbind_wait(flags: u32, flag: u32, op: impl FnOnce()->bool) -> u32 {
+	if flags & flag != 0 && op() {
+		flag
+	}
+	else {
+		0
+	}
+}
 
 pub fn object_has_no_such_method_val(name: &str, call: u16) -> Result<u64,crate::Error> {
 	if call < 0x400 {

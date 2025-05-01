@@ -70,7 +70,7 @@ impl Timer
 	}
 	/// Returns `None` if the timer is expired, and `Some(tickcount)` if it's still to fire
 	pub fn get_expiry(&self) -> Option<TickCount> {
-		(self.expiry_time < ticks()).then(|| self.expiry_time)
+		(self.expiry_time != !0 && self.expiry_time > ticks()).then(|| self.expiry_time)
 	}
 	pub fn is_expired(&self) -> bool {
 		self.expiry_time < ticks()

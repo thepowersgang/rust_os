@@ -6,6 +6,7 @@
 use crate::args::Args;
 use kernel::memory::freeze::{Freeze,FreezeMut};
 use ::syscall_values::SocketAddress;
+use crate::values as v;
 
 fn map_tcp_err(e: ::network::tcp::ConnError) -> crate::values::SocketError {
 	use ::network::tcp::ConnError as S;
@@ -13,6 +14,7 @@ fn map_tcp_err(e: ::network::tcp::ConnError) -> crate::values::SocketError {
 	match e
 	{
 	S::NoRoute       => D::NoRoute,
+	S::TimedOut      => D::Timeout,
 	S::LocalClosed   => D::SocketClosed,
 	S::RemoteRefused => D::ConnectionReset,
 	S::RemoteClosed  => D::SocketClosed,
@@ -57,14 +59,14 @@ impl crate::objects::Object for TcpServer
 	fn handle_syscall_ref(&self, call: u16, args: &mut Args) -> Result<u64,crate::Error> {
 		match call
 		{
-		crate::values::NET_SERVER_ACCEPT => {
+		v::NET_SERVER_ACCEPT => {
 			let mut addr_ptr: FreezeMut<SocketAddress> = args.get()?;
 			match self.inner.accept()
 			{
 			Some(v) => {
 				let (a,p) = v.remote_addr();
 				addr_ptr.addr_ty = super::from_addr(&mut addr_ptr.addr, a);
-				addr_ptr.port_ty = ::syscall_values::SocketPortType::Tcp as _;
+				addr_ptr.port_ty = v::SocketPortType::Tcp as _;
 				addr_ptr.port = p;
 				Ok(crate::objects::new_object(TcpSocket { inner: v }) as u64)
 				},
@@ -135,10 +137,18 @@ impl crate::objects::Object for TcpSocket
 		let _ = unsafe { ::core::ptr::read(self) };
 		crate::objects::object_has_no_such_method_val("network_calls::ConnSocket", call)
 	}
-	fn bind_wait(&self, _flags: u32, _obj: &mut ::kernel::threads::SleepObject) -> u32 {
-		0
+	fn bind_wait(&self, flags: u32, obj: &mut ::kernel::threads::SleepObject) -> u32 {
+		let mut rv = 0;
+		rv |= crate::objects::bind_wait(flags, v::EV_NET_CONNSOCK_CONN, || self.inner.bind_wait_connected(obj));
+		rv |= crate::objects::bind_wait(flags, v::EV_NET_CONNSOCK_RECV, || self.inner.bind_wait_recv(obj));
+		rv |= crate::objects::bind_wait(flags, v::EV_NET_CONNSOCK_SEND, || self.inner.bind_wait_send(obj));
+		rv
 	}
-	fn clear_wait(&self, _flags: u32, _obj: &mut ::kernel::threads::SleepObject) -> u32 {
-		0
+	fn clear_wait(&self, flags: u32, obj: &mut ::kernel::threads::SleepObject) -> u32 {
+		let mut rv = 0;
+		rv |= crate::objects::unbind_wait(flags, v::EV_NET_CONNSOCK_CONN, || self.inner.unbind_wait_connected(obj));
+		rv |= crate::objects::unbind_wait(flags, v::EV_NET_CONNSOCK_RECV, || self.inner.unbind_wait_recv(obj));
+		rv |= crate::objects::unbind_wait(flags, v::EV_NET_CONNSOCK_SEND, || self.inner.unbind_wait_send(obj));
+		rv
 	}
 }

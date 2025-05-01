@@ -54,6 +54,7 @@ impl ::core::fmt::Display for Error {
 		ErrorInner::Net(Net::NoRoute) => f.write_str("No route to host"),
 		ErrorInner::Net(Net::SocketClosed) => f.write_str("Socket closed"),
 		ErrorInner::Net(Net::ConnectionReset) => f.write_str("Connection reset"),
+		ErrorInner::Net(Net::Timeout) => f.write_str("Connection timed out"),
 		}
 	}
 }

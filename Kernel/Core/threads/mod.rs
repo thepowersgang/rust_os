@@ -19,7 +19,7 @@ pub use self::thread::new_idle_thread;
 pub use self::worker_thread::WorkerThread;
 
 pub use self::thread_list::{ThreadList,THREADLIST_INIT};
-pub use self::sleep_object::{SleepObject,SleepObjectRef,AtomicSleepObjectRef};
+pub use self::sleep_object::{SleepObject,SleepObjectRef,SleepObjectSet,AtomicSleepObjectRef};
 pub use self::wait_queue::WaitQueue;
 
 use crate::lib::mem::aref::{Aref,ArefBorrow};
