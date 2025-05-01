@@ -10,6 +10,8 @@ extern crate vfs;
 
 mod fs_shim;
 mod video_shim;
+#[cfg(feature="network")]
+mod net_shim;
 
 mod server;
 
@@ -24,6 +26,7 @@ fn main()// -> Result<(), Box<dyn std::error::Error>>
 	(::kernel::metadevs::storage::S_MODULE.init)();
 	(::kernel::metadevs::video::S_MODULE.init)();
 	(::vfs::S_MODULE.init)();
+	(::network::S_MODULE.init)();
 
 	// Simulated Keyboard/Mouse (started before GUI, but after video metadev)
 	let console = video_shim::Console::new();
@@ -36,11 +39,9 @@ fn main()// -> Result<(), Box<dyn std::error::Error>>
 	// Network card shim
 	#[cfg(feature="network")]
 	{
-		#[path="net_sim.rs"]
-		mod net_shim;
 		let mac_addr = [0xAB,0xCD,0xEF,0x00,0x00,0x01];
 		::core::mem::forget( ::network::nic::register(mac_addr, net_shim::Nic::new(mac_addr)) );
-		::network::ipv4::add_interface(mac_addr, ::network::ipv4::Address([192,168,1,3]), 24);
+		//let _ = ::network::ipv4::add_interface(mac_addr, ::network::ipv4::Address([192,168,1,3]), 24);
 	}
 
 	// TODO: Also load actual filesystem drivers?

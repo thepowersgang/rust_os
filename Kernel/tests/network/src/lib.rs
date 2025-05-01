@@ -9,7 +9,6 @@ pub mod tcp;
 pub mod ipv4;
 pub mod ethernet;
 pub mod arp;
-pub mod pcap_writer;
 
 fn bc_opts() -> impl ::bincode::Options {
 	use ::bincode::Options;

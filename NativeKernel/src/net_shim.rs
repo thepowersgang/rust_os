@@ -1,77 +1,187 @@
-//! Network simulaed using LWIP 
+//! Network simulaed using SLIRP (same library as used by qemu's user networking)
 
 pub struct Nic {
-    netif: *mut ::lwip::sys::netif,
+	tx_sender: ::std::sync::mpsc::Sender<Vec<u8>>,
 	rx_common: ::std::sync::Arc<RxCommon>,
 }
 unsafe impl Send for Nic { }
 unsafe impl Sync for Nic { }
+struct SlirpHandler {
+	rx_common: ::std::sync::Arc<RxCommon>,
+	timers: ::std::sync::Arc<Timers>,
+}
+impl ::libslirp::Handler for SlirpHandler {
+	type Timer = TimerHandle;
 
-#[derive(Default)]
+	fn clock_get_ns(&mut self) -> i64 {
+		self.timers.cur_time_ns()
+	}
+
+	fn send_packet(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+		::kernel::log_debug!("SLIRP Emitted: {:x?}", buf);
+		self.rx_common.out_file.lock().unwrap().push_packet(buf).unwrap();
+		self.rx_common.packets.push(buf.to_owned());
+		if let Some(v) = self.rx_common.waiter.take() {
+			v.signal();
+			self.rx_common.waiter.set(v);
+		}
+		Ok(buf.len())
+	}
+
+	fn register_poll_fd(&mut self, _fd: std::os::unix::prelude::RawFd) {
+		// ?
+	}
+
+	fn unregister_poll_fd(&mut self, _fd: std::os::unix::prelude::RawFd) {
+		// ?
+	}
+
+	fn guest_error(&mut self, msg: &str) {
+		panic!("SLIRP Guest error!: {}", msg);
+	}
+
+	fn notify(&mut self) {
+		todo!("SLIRP notify")
+	}
+
+	fn timer_new(&mut self, func: Box<dyn FnMut()>) -> Box<Self::Timer> {
+		Box::new(self.timers.alloc(func))
+	}
+
+	fn timer_mod(&mut self, timer: &mut Box<Self::Timer>, expire_time_ms: i64) {
+		self.timers.update(&**timer, expire_time_ms)
+	}
+
+	fn timer_free(&mut self, timer: Box<Self::Timer>) {
+		self.timers.remove(*timer)
+	}
+}
+struct Timers {
+	base_time: ::std::time::Instant,
+	timers: ::std::sync::Mutex< Vec<Option<Timer>> >,
+}
+struct Timer {
+	fire_time_ns: Option<i64>,
+	cb: Box<dyn FnMut()>,
+}
+impl Timers {
+	fn cur_time_ns(&self) -> i64 {
+		(::std::time::Instant::now() - self.base_time).as_nanos() as i64
+	}
+	fn alloc(&self, func: Box<dyn FnMut()>) -> TimerHandle {
+		let mut lh = self.timers.lock().unwrap();
+		if let Some((i,s)) = lh.iter_mut().enumerate().find(|(_,s)| s.is_none()) {
+			*s = Some(Timer { fire_time_ns: None, cb: func });
+			TimerHandle { index: i }
+		}
+		else {
+			let i = lh.len();
+			lh.push(Some(Timer { fire_time_ns: None, cb: func }));
+			TimerHandle { index: i }
+		}
+	}
+	fn update(&self, handle: &TimerHandle, expire_time_ms: i64) {
+		self.timers.lock().unwrap()[handle.index].as_mut().unwrap().fire_time_ns = Some(expire_time_ms * 1_000_000);
+	}
+	fn remove(&self, handle: TimerHandle) {
+		self.timers.lock().unwrap()[handle.index] = None;
+	}
+}
+struct TimerHandle {
+	index: usize,
+}
+
 struct RxCommon {
 	waiter: ::kernel::threads::AtomicSleepObjectRef,
 	packets: ::kernel::sync::Queue< Vec<u8> >,
+	out_file: ::std::sync::Mutex<::pcap_writer::PcapWriter< ::std::fs::File >>,
 }
 
 impl Nic {
 	pub fn new(mac: [u8; 6]) -> Self {
-        let ip = ::lwip::sys::ip4_addr_t { addr: u32::from_le_bytes([192,168,1,1]) };
-		let mask_bits = 24;
-        let mask = ::lwip::sys::ip4_addr_t { addr: (!0u32 << (32 - mask_bits)).swap_bytes() };
-        let gw = ::lwip::sys::ip4_addr_t { addr: u32::from_le_bytes([192,168,1,2]) };
-        println!("TestNicHandle: {} {} gw {}", ip, mask, gw);
-		let (rx_send, rx_recv) = ::std::sync::mpsc::channel();
-		let netif_ptr;
-        unsafe {
-			netif_ptr = Box::into_raw(Box::new(::core::mem::zeroed()));
-            let state_ptr = Box::into_raw(Box::new(RxLwip {
-				packets: rx_send,
-				mac,
-			})) as *mut ::std::ffi::c_void;
-            ::lwip::os_mode::callback(move || {
-                let rv = ::lwip::sys::netif_add(
-                    netif_ptr, &ip, &mask, &gw,
-                    state_ptr, Some(RxLwip::init), Some(::lwip::sys::tcpip_input)
-                    );
-				let _ = rv;
-            })
-        }
+		let rx_common = ::std::sync::Arc::new(RxCommon {
+			waiter: Default::default(),
+			packets: Default::default(),
+			out_file: ::std::sync::Mutex::new(pcap_writer::PcapWriter::new(::std::fs::File::create(
+				format!("native_net_{:02x}{:02x}{:02x}{:02x}{:02x}{:02x}.pcap",
+					mac[0],mac[1],mac[2],mac[3],mac[4],mac[5],
+				)
+			).unwrap()).unwrap()),
+		});
+		let (tx_send, tx_recv) = ::std::sync::mpsc::channel();
 
-		let rx_common = ::std::sync::Arc::new(RxCommon::default());
+		fn make_v6(tail: u16) -> ::core::net::Ipv6Addr {
+			::core::net::Ipv6Addr::new(0x2001,0x8003,0x900d,0xd400,0,0,0,tail)
+		}
+		fn make_v4(tail: u8) -> ::core::net::Ipv4Addr {
+			::core::net::Ipv4Addr::new(10, 0, 2,tail)
+		}
 		let rv = Nic {
-			netif: netif_ptr,
+			tx_sender: tx_send,
 			rx_common: rx_common.clone(),
 		};
-
-		// Spawn a worker to handle sending packets into the kernel
-		::kernel::threads::WorkerThread::new("NIC Input", move || {
-			loop {
-				let pkt = ::kernel::arch::imp::threads::test_pause_thread(|| rx_recv.recv().expect("Input sender dropped") );
-				rx_common.packets.push(pkt);
-				if let Some(v) = rx_common.waiter.take() {
-					v.signal();
-					rx_common.waiter.set(v);
-				}
-			}
+		::std::thread::spawn(move || {
+			let timers = ::std::sync::Arc::new(Timers {
+				base_time: ::std::time::Instant::now(),
+				timers: ::std::sync::Mutex::new(Vec::new()),
 			});
+			let slirp = ::libslirp::Context::new(
+				true, true,
+				make_v4(0), ::core::net::Ipv4Addr::new(255, 255, 255, 0),
+				make_v4(1),
+				true,
+				make_v6(0), 64,
+				make_v6(1),
+				None, None, None, None,
+				make_v4(16),
+				make_v4(2),
+				make_v6(2),
+				vec![],
+				None,
+				SlirpHandler {
+					rx_common,
+					timers: timers.clone(),
+				});
+
+			loop {
+				while let Ok(p) = tx_recv.try_recv() {
+					::kernel::log_debug!("SLIRP Input: {:x?}", p);
+					slirp.input(&p);
+				}
+				let empty_fn = Box::new(||{});
+				if let Some((i, mut fcn)) = {
+					let mut timer_list = timers.timers.lock().unwrap();
+					timer_list.iter_mut().enumerate().find_map(|(i,v)| {
+						if let Some(t) = v {
+							if let Some(time) = t.fire_time_ns {
+								if time < timers.cur_time_ns() {
+									t.fire_time_ns = None;
+									return Some((i, ::std::mem::replace(&mut t.cb, empty_fn.clone())));
+								}
+							}
+						}
+						None
+					})
+				} {
+					::kernel::log_debug!("SLIRP Timer #{}", i);
+					fcn();
+					if let Some(ref mut v) = timers.timers.lock().unwrap()[i] {
+						if ::core::ptr::eq(&*v.cb, &*empty_fn) {
+							v.cb = fcn;
+						}
+					}
+				}
+				::std::thread::sleep(::std::time::Duration::from_millis(100));
+			}
+		});
 		rv
 	}
 }
 impl ::network::nic::Interface for Nic {
 	fn tx_raw(&self, pkt: ::network::nic::SparsePacket) {
-		let len = pkt.total_len();
-        let pbuf = unsafe {
-			::lwip::sys::pbuf_alloc(::lwip::sys::pbuf_layer_PBUF_RAW_TX, len as u16, ::lwip::sys::pbuf_type_PBUF_RAM)
-		};
-		unsafe {
-			let mut dst = (*pbuf).payload as *mut _;
-			for buf in pkt.into_iter() {
-				::core::ptr::copy_nonoverlapping(buf.as_ptr(), dst, buf.len());
-				dst = dst.offset(buf.len() as _);
-			}
-		}
-        let input_fcn = unsafe { (&*self.netif).input.unwrap() };
-        unsafe { input_fcn(pbuf, self.netif); }
+		let pkt: Vec<_> = pkt.into_iter().flat_map(|v| v.iter().copied()).collect();
+		self.rx_common.out_file.lock().unwrap().push_packet(&pkt).unwrap();
+		let _ = self.tx_sender.send(pkt);
 	}
 
 	fn rx_wait_register(&self, channel: &::kernel::threads::SleepObject) {
@@ -87,9 +197,10 @@ impl ::network::nic::Interface for Nic {
 	}
 
 	fn rx_packet(&self) -> Result<::network::nic::PacketHandle, ::network::nic::Error> {
-		let Some(p) = self.rx_common.packets.try_pop() else {
-			return Err(::network::nic::Error::NoPacket);
-		};
+		return match self.rx_common.packets.try_pop() {
+			Some(p) => Ok( ::network::nic::PacketHandle::new(P(p)).ok().unwrap() ),
+			None => Err(::network::nic::Error::NoPacket),
+			};
 		struct P(Vec<u8>);
 		impl ::network::nic::RxPacket for P {
 			fn len(&self) -> usize {
@@ -109,62 +220,5 @@ impl ::network::nic::Interface for Nic {
 				self.0.get(range)
 			}
 		}
-		Ok( ::network::nic::PacketHandle::new(P(p)).ok().unwrap() )
 	}
-}
-
-struct RxLwip {
-	mac: [u8; 6],
-	packets: ::std::sync::mpsc::Sender< Vec<u8> >,
-}
-impl RxLwip {
-    unsafe extern "C" fn init(netif_r: *mut ::lwip::sys::netif) -> ::lwip::sys::err_t {
-        let netif = &mut *netif_r;
-        let this = &*(netif.state as *const RxLwip);
-        netif.hwaddr_len = 6;
-        netif.hwaddr = this.mac;
-        netif.mtu = 1520;
-        netif.flags = 0    
-            | ::lwip::sys::NETIF_FLAG_BROADCAST as u8   // Broadcast allowed
-            | ::lwip::sys::NETIF_FLAG_LINK_UP as u8 // The link is always up
-            | ::lwip::sys::NETIF_FLAG_ETHERNET as u8    // Ethernet
-            | ::lwip::sys::NETIF_FLAG_ETHARP as u8  // With ARP/IP (i.e. not PPPoE)
-            ;
-        netif.linkoutput = Some(Self::linkoutput);
-        netif.output = Some(Self::etharp_output);
-        ::lwip::sys::netif_set_link_up(netif_r);
-        ::lwip::sys::netif_set_up(netif_r);
-        ::lwip::sys::netif_set_default(netif_r);
-        // Do anything?
-        //println!("Init done {:p} {:p} {:#x} {:x?}", netif_r, netif.state, netif.flags, netif.hwaddr);
-        //println!("- linkoutput = {:?}, {:p}", netif.linkoutput, Self::linkoutput as unsafe extern "C" fn(_,_)->_);
-        //println!("- output = {:?}, {:p}", netif.output, Self::etharp_output as unsafe extern "C" fn(_,_,_)->_);
-        ::lwip::sys::err_enum_t_ERR_OK as i8
-    }
-
-    unsafe extern "C" fn etharp_output(netif: *mut ::lwip::sys::netif, pbuf: *mut ::lwip::sys::pbuf, ipaddr: *const ::lwip::sys::ip4_addr_t) -> ::lwip::sys::err_t {
-        ::lwip::sys::etharp_output(netif, pbuf, ipaddr)
-    }
-
-    unsafe extern "C" fn linkoutput(this_r: *mut ::lwip::sys::netif, pbuf: *mut ::lwip::sys::pbuf) -> ::lwip::sys::err_t {
-        let this = &*((*this_r).state as *const RxLwip);
-        
-        let buf = {
-            let mut buf = Vec::new();
-            let mut pbuf = pbuf;
-            while !pbuf.is_null() {
-                pbuf = {
-                    let pbuf = &*pbuf;
-                    let d = ::std::slice::from_raw_parts(pbuf.payload as *const u8, pbuf.len as usize);
-                    buf.extend(d.iter().copied());
-                    pbuf.next
-                    };
-            }
-            buf
-            };
-
-		let _ = this.packets.send(buf);
-
-        ::lwip::sys::err_enum_t_ERR_OK as i8
-    }
 }
