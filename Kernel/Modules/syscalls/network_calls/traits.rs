@@ -35,11 +35,13 @@ where
 		crate::values::NET_FREESOCK_SENDTO => {
 			let data: Freeze<[u8]> = args.get()?;
 			let addr: Freeze<SocketAddress> = args.get()?;
+			log_debug!("NET_FREESOCK_SENDTO: {:?} {} bytes", addr.addr, data.len());
 			self.0.send_to(&data, &addr)
 			},
 		crate::values::NET_FREESOCK_RECVFROM => {
 			let mut data: FreezeMut<[u8]> = args.get()?;
 			let mut addr: FreezeMut<SocketAddress> = args.get()?;
+			log_debug!("NET_FREESOCK_RECVFROM: {} bytes", data.len());
 			self.0.recv_from(&mut data, &mut addr)
 			},
 		_ => crate::objects::object_has_no_such_method_ref("network_calls::FreeSocket", call),

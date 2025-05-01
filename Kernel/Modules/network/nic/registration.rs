@@ -70,15 +70,15 @@ impl<T> ::core::ops::Deref for Registration<T> {
 	}
 }
 
-fn rx_thread(int_data: &super::InterfaceData)
+fn rx_thread(interface: &super::InterfaceData)
 {
 	::kernel::threads::SleepObject::with_new("rx_thread", |so| {
-		*int_data.sleep_object_ref.lock() = Some(so.get_ref());
-		int_data.base_interface.rx_wait_register(&so);
-		while !int_data.stop_flag.load(Ordering::SeqCst)
+		*interface.sleep_object_ref.lock() = Some(so.get_ref());
+		interface.base_interface.rx_wait_register(&so);
+		while !interface.stop_flag.load(Ordering::SeqCst)
 		{
 			so.wait();
-			match int_data.base_interface.rx_packet()
+			match interface.base_interface.rx_packet()
 			{
 			Ok(pkt) => {
 				log_notice!("Received packet, len={} (chunks={})", pkt.len(), pkt.num_regions());
@@ -107,7 +107,7 @@ fn rx_thread(int_data: &super::InterfaceData)
 				match ether_ty
 				{
 				// IPv4
-				0x0800 => match crate::ipv4::handle_rx_ethernet(&*int_data.base_interface, int_data.addr, source_mac, reader)
+				0x0800 => match crate::ipv4::handle_rx_ethernet(&interface, source_mac, reader)
 					{
 					Ok( () ) => {},
 					Err(e) => {
@@ -116,10 +116,10 @@ fn rx_thread(int_data: &super::InterfaceData)
 					},
 				// ARP
 				0x0806 => {
-					crate::arp::handle_packet(&*int_data.base_interface, source_mac, reader);
+					crate::arp::handle_packet(&*interface.base_interface, source_mac, reader);
 					},
 				// IPv6
-				0x86DD => match crate::ipv6::handle_rx_ethernet(&*int_data.base_interface, int_data.addr, source_mac, reader)
+				0x86DD => match crate::ipv6::handle_rx_ethernet(&interface, source_mac, reader)
 					{
 					Ok(()) => {},
 					Err(e) => log_warning!("TODO: Unable to handle IPv6 packet - {:?}", e),
@@ -134,9 +134,9 @@ fn rx_thread(int_data: &super::InterfaceData)
 			}
 		}
 		log_debug!("Worker termination requested");
-		int_data.base_interface.rx_wait_unregister(&so);
+		interface.base_interface.rx_wait_unregister(&so);
 		// NOTE: Lock the reference slot, so the reference is deleted before the sleep object quits
-		let lh = int_data.sleep_object_ref.lock();
+		let lh = interface.sleep_object_ref.lock();
 		assert!(lh.is_none());
 		});
 }

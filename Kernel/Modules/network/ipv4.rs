@@ -56,6 +56,27 @@ pub fn add_interface(local_mac: [u8; 6], address: Address, mask_bits: u8) -> Res
 		});
 	Ok( () )
 }
+/// Remove an existing IPv4 interface/address
+pub fn del_interface(local_mac: [u8; 6], address: Address, mask_bits: u8) -> Result<(),()>
+{
+	let mut found = false;
+	let mut lh = INTERFACES.write();
+	lh.retain(|iface| {
+		if iface.local_mac == local_mac && iface.address == address && iface.mask == mask_bits {
+			found = true;
+			false
+		}
+		else {
+			true
+		}
+	});
+	if found {
+		Ok( () )
+	}
+	else {
+		Err( () )
+	}
+}
 
 #[cfg(any())]
 pub fn listen_raw(local_addr: Address, proto: u8, remote_mask: (Address, u8)) -> RawListenHandle

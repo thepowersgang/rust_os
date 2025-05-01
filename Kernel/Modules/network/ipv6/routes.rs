@@ -35,11 +35,15 @@ pub fn route_add(route: Route) -> Result<(),()> {
 	lh.push(route);
 	Ok(())
 }
-pub fn route_del(route: Route) -> bool {
+pub fn route_del(route: Route) -> Result<(),()> {
 	let mut lh = ROUTES.write();
 	let orig_s = lh.len();
 	lh.retain(|r| *r != route);
-	lh.len() < orig_s
+	match lh.len() < orig_s
+	{
+	true => Ok(()),
+	false => Err(()),
+	}
 }
 pub fn route_enumerate(index: usize) -> (usize, Option<Route>) {
 	let lh = ROUTES.read();

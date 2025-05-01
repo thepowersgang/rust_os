@@ -241,8 +241,9 @@ fn process_worker(
 		}
 		log_log!("PID{}: request: {:x?}", pid, req);
 
+		let tsi = ThreadSyscallInfo::new(gs.lock().unwrap().get_process(pid));
 		THREAD_CURRENT_INFO.with(|f| {
-			*f.borrow_mut() = Some(ThreadSyscallInfo::new(gs.lock().unwrap().get_process(pid)));
+			*f.borrow_mut() = Some(tsi);
 			});
 		let args_usize = [
 			req.args[0] as usize,
@@ -296,7 +297,8 @@ fn process_worker(
 	// Drop the socket so the child will definitely quit
 	drop(sock);
 	// Clean up the process (wait for the child to terminate)
-	match gs.lock().unwrap().processes.get_mut(&pid).map(|v| v.wait())
+	let procs = gs.lock().unwrap().processes.remove(&pid);
+	match procs.map(|mut v| v.wait())
 	{
 	None => panic!("PID #{} not in the process list", pid),
 	Some(Ok(status)) => {

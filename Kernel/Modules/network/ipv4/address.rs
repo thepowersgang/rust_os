@@ -40,6 +40,9 @@ impl Address
 		if bits == 32 {
 			*self
 		}
+		else if bits == 0 {
+			Address([0; 4])
+		}
 		else {
 			let mask = !0 << (32-bits);
 			Address( (u32::from_be_bytes(self.0) & !mask).to_be_bytes() )

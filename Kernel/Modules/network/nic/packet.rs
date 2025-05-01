@@ -78,7 +78,7 @@ pub struct PacketReader<'a> {
 impl<'a> PacketReader<'a> {
 	pub(super) fn new(pkt: &'a PacketHandle<'a>) -> PacketReader<'a> {
 		PacketReader {
-			pkt: pkt,
+			pkt,
 			ofs: 0,
 			}
 	}
@@ -86,7 +86,7 @@ impl<'a> PacketReader<'a> {
 		self.pkt.len() - self.ofs
 	}
 	pub fn read(&mut self, dst: &mut [u8]) -> Result<usize, ()> {
-		// TODO: Should this be cached?
+		// TODO: Should the current region index be cached?
 		let mut ofs = self.ofs;
 		let mut r = 0;
 		while ofs >= self.pkt.get_region(r).len() {
@@ -102,8 +102,8 @@ impl<'a> PacketReader<'a> {
 		{
 			let rgn = self.pkt.get_region(r);
 			let alen = rgn.len() - ofs;
-			let rlen = dst.len() - wofs;
-			let len = ::core::cmp::min(alen, rlen);
+			let space = dst.len() - wofs;
+			let len = ::core::cmp::min(alen, space);
 
 			dst[wofs..][..len].copy_from_slice( &rgn[ofs..][..len] );
 			
@@ -128,11 +128,11 @@ impl<'a> PacketReader<'a> {
 	pub fn read_u16n(&mut self) -> Result<u16, ()> {
 		let mut b = [0,0];
 		self.read(&mut b)?;
-		Ok( (b[0] as u16) << 8 | (b[1] as u16) )
+		Ok( u16::from_be_bytes(b) )
 	}
 	pub fn read_u32n(&mut self) -> Result<u32, ()> {
 		let mut b = [0,0,0,0];
 		self.read(&mut b)?;
-		Ok( (b[0] as u32) << 24 + (b[1] as u32) << 16 | (b[2] as u32) << 8 | (b[3] as u32) )
+		Ok( u32::from_be_bytes(b) )
 	}
 }

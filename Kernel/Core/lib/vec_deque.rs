@@ -67,7 +67,8 @@ impl<T> VecDeque<T>
 				let mut new_alloc = ArrayAlloc::new(newcap);
 				if self.len > 0
 				{
-					if self.data.count() - self.ofs < self.len {
+					let seg1_len = self.data.count() - self.ofs;
+					if self.len <= seg1_len {
 						// Data is contiguous
 						// SAFE: Copying valid data
 						unsafe {
@@ -76,7 +77,6 @@ impl<T> VecDeque<T>
 					}
 					else {
 						// Data is _not_ contiguous
-						let seg1_len = self.data.count() - self.ofs;
 						let seg2_len = self.len - seg1_len;
 						// SAFE: Copying valid data
 						unsafe {

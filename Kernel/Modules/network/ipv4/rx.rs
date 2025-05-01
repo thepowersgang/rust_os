@@ -27,7 +27,7 @@ pub fn register_handler(proto: u8, handler: fn(&Interface, Address, PacketReader
 }
 
 /// Handle an incoming packet
-pub fn handle_rx_ethernet(_physical_interface: &dyn crate::nic::Interface, iface_mac: [u8; 6], source_mac: [u8; 6], mut reader: PacketReader) -> Result<(), ()>
+pub fn handle_rx_ethernet(phys_interface: &crate::nic::InterfaceData, source_mac: [u8; 6], mut reader: PacketReader) -> Result<(), ()>
 {
 	let pre_header_reader = reader.clone();
 	let hdr = match Ipv4Header::read(&mut reader)
@@ -95,7 +95,7 @@ pub fn handle_rx_ethernet(_physical_interface: &dyn crate::nic::Interface, iface
 	for interface in INTERFACES.read().iter()
 	{
 		// TODO: Interfaces should be locked to the physical interface too
-		if interface.local_mac == iface_mac && (interface.address == hdr.destination || hdr.destination.0 == [0xFF; 4])
+		if interface.local_mac == phys_interface.mac() && (interface.address == hdr.destination || hdr.destination.0 == [0xFF; 4])
 		{
 			// TODO: Should there be per-interface handlers?
 

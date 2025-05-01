@@ -1,12 +1,15 @@
 // https://www.ietf.org/rfc/rfc2131.txt
 
 use std::convert::TryInto;
+use core::net::Ipv4Addr;
 
 const UDP_PORT_DHCP_CLIENT: u16 = 68;
 const UDP_PORT_DHCP_SERVER: u16 = 67;
 
 mod options;
 use self::options::{Opt,OptionsIter};
+
+const MAGIC_COOKIE: [u8; 4] = [0x63, 0x82, 0x53, 0x63];
 
 pub struct Dhcp {
 	socket: ::syscalls::net::FreeSocket,
@@ -18,6 +21,7 @@ enum State {
 		start_time: u64,
 		resend_time: u64,
 		transaction_id: u32,
+		link_local_addr: syscalls::values::NetworkAddress,
 	},
 	Configured {
 		/// Time of the last recieved DHCPACK
@@ -69,7 +73,10 @@ impl Dhcp
 		let rv = Dhcp {
 			socket,
 			mac_addr: *mac_addr,
-			state: State::DiscoverSent { start_time, transaction_id, resend_time: ::syscalls::system_ticks() + 5*1000 }
+			state: State::DiscoverSent {
+				start_time, transaction_id, resend_time: ::syscalls::system_ticks() + 5*1000,
+				link_local_addr: *addr,
+			}
 		};
 		rv.send_discover(transaction_id, start_time)?;
 
@@ -88,7 +95,7 @@ impl Dhcp
 			ciaddr: [0; 4],
 			yiaddr,
 			siaddr,
-			giaddr: [0; 4],
+			giaddr: Ipv4Addr::new(0,0,0,0),
 			mac_addr: &self.mac_addr,
 			server_name: b"",
 			boot_file: b"",
@@ -131,16 +138,18 @@ impl Dhcp
 	pub fn poll(&mut self, mgr: &::syscalls::net::Management, iface_idx: usize) {
 		::syscalls::kernel_log!("dhcp: poll");
 		match &mut self.state {
-		State::DiscoverSent { start_time, transaction_id, resend_time } => {
+		State::DiscoverSent { start_time, transaction_id, resend_time, link_local_addr } => {
 			let mut packet_data = DhcpPacket::empty_buf();
 			while let Some((remote, packet)) = opt_rx_packet(&self.socket, &mut packet_data)
 			{
 				if packet.op == BOOTREPLY && packet.transaction_id == *transaction_id {
-					let PacketOptions::Encoded(options) = packet.options else { panic!(); };
+					let PacketOptions::Encoded(ref options) = packet.options else { panic!(); };
+					::syscalls::kernel_log!("DHCP Packet: {:?}", options);
 					match find_match!(options.clone(), Opt::DhcpMessageType(t) => t) {
 					Some(v) if v == MessageType::Offer as u8 => {
 						// We've been offered an address, formally request it from the server
 						let start_time = *start_time;
+						::syscalls::kernel_log!("DHCP Offer: {}", Ipv4Addr::from_octets(packet.yiaddr));
 						match self.send_packet(packet.yiaddr, packet.siaddr, packet.transaction_id, start_time, &[
 							Opt::DhcpMessageType(MessageType::Request as u8),
 							Opt::ServerIdentifier(packet.siaddr),
@@ -161,7 +170,9 @@ impl Dhcp
 							.map(|m| u32::from_be_bytes(m).leading_ones() as u8)
 							.unwrap_or(24)
 							;
-						// TODO: Remove the temporary link-local address
+						// Remove the temporary link-local address
+						mgr.del_address(iface_idx, *link_local_addr, 0);
+						
 						let addr = super::make_ipv4(my_addr);
 						mgr.add_address(iface_idx, addr, subnet_len);
 
@@ -222,10 +233,11 @@ impl Dhcp
 						return ;
 
 					},
-					_ => {},	// Invalid message type
+					ty => ::syscalls::kernel_log!("DHCP: DiscoverSent: Unexpected message ty: {:?}", ty),	// Invalid message type
 					}
 				}
 				else {
+					::syscalls::kernel_log!("DHCP: DiscoverSent: Unexpected packet, op={:02x}, transaction_id={}", packet.op, packet.transaction_id);
 				}
 			}
 			if *resend_time < ::syscalls::system_ticks() {
@@ -286,13 +298,14 @@ fn opt_rx_packet<'a>(socket: &::syscalls::net::FreeSocket, packet_data: &'a mut 
 	Ok((len, remote)) => {
 		let packet_data = &packet_data[..len];
 		let packet = DhcpPacket::from_bytes(packet_data);
+		::syscalls::kernel_log!("DHCP Rx: {:?}", packet);
 		Some( (remote, packet, ) )
 	},
 	}
 }
 
 const BOOTREQUEST: u8 = 1;
-const BOOTREPLY: u8 = 1;
+const BOOTREPLY: u8 = 2;
 
 #[repr(C)]
 #[allow(dead_code)]
@@ -319,6 +332,7 @@ enum MessageType {
 enum PacketOptions<'a> {
 	Decoded(&'a [Opt<'a>]),
 	Encoded(OptionsIter<'a>),
+	NotDhcp(&'a [u8]),
 }
 #[derive(Debug)]
 struct DhcpPacket<'a> {
@@ -333,7 +347,7 @@ struct DhcpPacket<'a> {
 	/// Server address
 	siaddr: [u8; 4],
 	/// Relay address
-	giaddr: [u8; 4],
+	giaddr: ::core::net::Ipv4Addr,
 	mac_addr: &'a [u8],	// up to 16
 	server_name: &'a [u8],	// up to 64
 	boot_file: &'a [u8],	// up to 128
@@ -345,6 +359,12 @@ impl<'a> DhcpPacket<'a> {
 		[0; 576]
 	}
 	fn from_bytes(mut pkt: &'a [u8]) -> Self {
+		fn trim_nul(mut v: &[u8])->&[u8] {
+			while v.last() == Some(&0) {
+				v = &v[..v.len()-1];
+			}
+			v
+		}
 		Self {
 			op: get::<4>(&mut pkt)[0],
 			transaction_id: u32::from_be_bytes(*get(&mut pkt)),
@@ -353,11 +373,15 @@ impl<'a> DhcpPacket<'a> {
 			ciaddr: *get(&mut pkt),
 			yiaddr: *get(&mut pkt),
 			siaddr: *get(&mut pkt),
-			giaddr: *get(&mut pkt),
-			mac_addr: &get::<10>(&mut pkt)[..6],
-			server_name: &get::<64>(&mut pkt)[..],
-			boot_file: &get::<128>(&mut pkt)[..],
-			options: PacketOptions::Encoded(OptionsIter(pkt)),
+			giaddr: ::core::net::Ipv4Addr::from_octets(*get(&mut pkt)),
+			mac_addr: &get::<16>(&mut pkt)[..6],	// HACK, assume ethernet, so 6 bytes
+			server_name: trim_nul(&get::<64>(&mut pkt)[..]),
+			boot_file: trim_nul(&get::<128>(&mut pkt)[..]),
+			options: if pkt.starts_with(&MAGIC_COOKIE) {
+				PacketOptions::Encoded(OptionsIter(&pkt[4..]))
+			} else {
+				PacketOptions::NotDhcp(pkt)
+			},
 		}
 	}
 	fn to_bytes(self, pkt: &mut PktBuf) -> &[u8] {
@@ -384,14 +408,14 @@ impl<'a> DhcpPacket<'a> {
 		p.push(&self.ciaddr);	// [u8; 4] ciaddr
 		p.push(&self.yiaddr);	// [u8; 4] yiaddru32
 		p.push(&self.siaddr);	// [u8; 4] siaddr
-		p.push(&self.giaddr);	// [u8; 4] giaddr
+		p.push(&self.giaddr.octets());	// [u8; 4] giaddr
 		p.push_pad::<16>(self.mac_addr);	// [u8; 16] mac addresss
 		p.push_pad::<64>(self.server_name);// [u8; 64] server name
 		p.push_pad::<128>(self.boot_file);	// [u8; 128] file
 		let o = p.1;
-		p.push(&[0x63, 0x82, 0x53, 0x63]);
 		match self.options {
 		PacketOptions::Decoded(opts) => {
+			p.push(&MAGIC_COOKIE);
 			for o in opts {
 				o.encode(|op, data| {
 					p.push(&[op, data.len() as u8]);
@@ -401,8 +425,10 @@ impl<'a> DhcpPacket<'a> {
 			p.push(&[255]);	// End
 		},
 		PacketOptions::Encoded(options_iter) => {
+			p.push(&MAGIC_COOKIE);
 			p.push(options_iter.0);
 		},
+		PacketOptions::NotDhcp(v) => p.push(v),
 		}
 		let options_len = p.1 - o;
 		if let Some(data) = [0; 312].get(options_len..) {

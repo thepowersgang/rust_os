@@ -122,8 +122,47 @@ enc_dec_option!{d;
 	// 255 End (not encoded)
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct OptionsIter<'a>(pub &'a [u8]);
+impl<'a> ::std::fmt::Debug for OptionsIter<'a> {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+		f.write_str("OptionsIter(")?;
+		let mut len = None;
+		for b in self.0 {
+			len = match len {
+				None => {
+					f.write_str(" ")?;
+					// If the option ID isn't 0 (pad), then update the length to be non-negative so the next iteration
+					// gets the length
+					if *b != 0 {
+						Some(0)
+					}
+					else {
+						None
+					}
+					}
+				Some(0) => {
+					if *b == 0 {
+						None
+					}
+					else {
+						Some(*b)
+					}
+				},
+				Some(l) => {
+					if l == 1 {
+						None
+					}
+					else {
+						Some(l - 1)
+					}
+				}
+				};
+			write!(f, "{:02x}", b)?;
+		}
+		f.write_str(" )")
+	}
+}
 impl<'a> Iterator for OptionsIter<'a> {
 	type Item = Opt<'a>;
 	fn next(&mut self) -> Option<Self::Item> {

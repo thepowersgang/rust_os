@@ -50,13 +50,22 @@ pub trait Interface: 'static + Send + Sync
 	fn rx_packet(&self) -> Result<PacketHandle, Error>;
 }
 
-struct InterfaceData
+pub struct InterfaceData
 {
 	addr: MacAddr,
 	stop_flag: AtomicBool,
 	base_interface: ::kernel::lib::mem::aref::ArefBorrow<dyn Interface+'static>,
 
 	sleep_object_ref: Mutex<Option<kernel::threads::SleepObjectRef>>,
+}
+impl InterfaceData
+{
+	pub fn mac(&self) -> MacAddr {
+		self.addr
+	}
+	pub fn raw_interface(&self) -> &dyn Interface {
+		&*self.base_interface
+	}
 }
 struct InterfaceListEnt
 {

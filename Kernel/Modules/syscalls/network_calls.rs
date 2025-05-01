@@ -277,7 +277,38 @@ impl super::objects::Object for InterfaceManagement {
 				}
 			}
 		},
-		//::syscall_values::NET_MGMT_DEL_ADDRESS => {},
+		::syscall_values::NET_MGMT_DEL_ADDRESS => {
+			let iface_idx: usize = args.get()?;
+			let addr: crate::Freeze<::syscall_values::NetworkAddress> = args.get()?;
+			let mask_bits: u8 = args.get()?;
+			log_debug!("NET_MGMT_DEL_ADDRESS({iface_idx}, {:?} / {mask_bits})", addr.addr);
+
+			let Some(ii) = ::network::nic::interface_info(iface_idx) else {
+				return Err(crate::Error::BadValue);
+			};
+
+			match match ::syscall_values::SocketAddressType::try_from(addr.addr_ty)
+				{
+				Ok(v) => v,
+				Err(_) => return Err(crate::Error::BadValue),
+				}
+			{
+			::syscall_values::SocketAddressType::Mac => 1,
+			::syscall_values::SocketAddressType::Ipv4 =>
+				match ::network::ipv4::del_interface(ii.mac, make_ipv4(&addr.addr), mask_bits)
+				{
+				Ok(()) => 0,
+				Err(()) => 1,
+				}
+			::syscall_values::SocketAddressType::Ipv6 => 
+				//match ::network::ipv6::del_interface(ii.mac, make_ipv6(&addr.addr), mask_bits)
+				//{
+				//Ok(()) => 0,
+				//Err(()) => 1,
+				//}
+				0
+			}
+		},
 		// --- Routes ---
 		::syscall_values::NET_MGMT_ADD_ROUTE => {
 			let route: crate::Freeze<::syscall_values::NetworkRoute> = args.get()?;
@@ -297,8 +328,16 @@ impl super::objects::Object for InterfaceManagement {
 				Ok(()) => 0,
 				Err(()) => 1,
 				}
-				}
-			::syscall_values::SocketAddressType::Ipv6 => todo!(),
+				},
+			::syscall_values::SocketAddressType::Ipv6 => match ::network::ipv6::route_add(::network::ipv6::Route {
+					network: make_ipv6(&route.network),
+					mask: route.mask,
+					next_hop: make_ipv6(&route.gateway),
+				})
+				{
+				Ok(()) => 0,
+				Err(()) => 1,
+				},
 			}
 		},
 		::syscall_values::NET_MGMT_DEL_ROUTE => {
@@ -318,7 +357,15 @@ impl super::objects::Object for InterfaceManagement {
 				});
 				if rv { 0 } else { 1 }
 				}
-			::syscall_values::SocketAddressType::Ipv6 => todo!(),
+			::syscall_values::SocketAddressType::Ipv6 => match ::network::ipv6::route_del(::network::ipv6::Route {
+					network: make_ipv6(&route.network),
+					mask: route.mask,
+					next_hop: make_ipv6(&route.gateway),
+				})
+				{
+				Ok(()) => 0,
+				Err(()) => 1,
+				},
 			}
 		},
 		_ => return Err(crate::Error::UnknownCall),

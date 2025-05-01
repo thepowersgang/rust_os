@@ -7,7 +7,7 @@ use super::{Interface,INTERFACES};
 
 static PROTOCOL_HANDLDERS: RwLock<Vec<(u8, ProtoHandler)>> = RwLock::new(Vec::new());
 
-pub fn handle_rx_ethernet(_physical_interface: &dyn crate::nic::Interface, iface_mac: MacAddr, source_mac: MacAddr, mut reader: PacketReader) -> Result<(), ()>
+pub fn handle_rx_ethernet(phys_interface: &crate::nic::InterfaceData, source_mac: MacAddr, mut reader: PacketReader) -> Result<(), ()>
 {
 	let hdr = match Ipv6Header::read(&mut reader)
 		{
@@ -18,7 +18,7 @@ pub fn handle_rx_ethernet(_physical_interface: &dyn crate::nic::Interface, iface
 			},
 		};
 	if hdr.ver_tc_fl >> 28 != 6 {
-		log_warning!("Malformed packet: version isn't 6 - ver_tc_fl={:08x}", hdr.ver_tc_fl);
+		log_warning!("Malformed packet: version isn't 6, got {} - ver_tc_fl={:08x}", hdr.ver_tc_fl >> 28, hdr.ver_tc_fl);
 		return Err( () );
 	}
 
@@ -49,11 +49,11 @@ pub fn handle_rx_ethernet(_physical_interface: &dyn crate::nic::Interface, iface
 	for interface in INTERFACES.read().iter()
 	{
 		// TODO: Interfaces should be locked to the physical interface too
-		if interface.local_mac == iface_mac && (interface.address == hdr.destination || hdr.destination == Address::broadcast())
+		if interface.local_mac == phys_interface.mac() && (interface.address == hdr.destination || hdr.destination == Address::broadcast())
 		{
 			if hdr.source.mask_net(interface.mask) == interface.address.mask_net(interface.mask) {
 				// Snoop the source MAC into the neighbour-discovery cache
-				super::nd::learn(iface_mac, source_mac, hdr.source, super::nd::LearnSource::Snoop);
+				super::nd::learn(phys_interface.mac(), source_mac, hdr.source, super::nd::LearnSource::Snoop);
 			}
 
 			// TODO: ICMPv6 handling

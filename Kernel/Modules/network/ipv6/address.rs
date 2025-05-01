@@ -32,26 +32,26 @@ impl Address {
 	}
 	pub fn to_bytes(&self) -> [u8; 16] {
 		[
-			self.0[0] as u8, (self.0[0] >> 8) as u8,
-			self.0[1] as u8, (self.0[1] >> 8) as u8,
-			self.0[2] as u8, (self.0[2] >> 8) as u8,
-			self.0[3] as u8, (self.0[3] >> 8) as u8,
-			self.0[4] as u8, (self.0[4] >> 8) as u8,
-			self.0[5] as u8, (self.0[5] >> 8) as u8,
-			self.0[6] as u8, (self.0[6] >> 8) as u8,
-			self.0[7] as u8, (self.0[7] >> 8) as u8,
+			(self.0[0] >> 8) as u8, self.0[0] as u8,
+			(self.0[1] >> 8) as u8, self.0[1] as u8,
+			(self.0[2] >> 8) as u8, self.0[2] as u8,
+			(self.0[3] >> 8) as u8, self.0[3] as u8,
+			(self.0[4] >> 8) as u8, self.0[4] as u8,
+			(self.0[5] >> 8) as u8, self.0[5] as u8,
+			(self.0[6] >> 8) as u8, self.0[6] as u8,
+			(self.0[7] >> 8) as u8, self.0[7] as u8,
 		]
 	}
 	pub fn from_bytes(v: [u8; 16]) -> Self {
 		Address([
-			(v[ 0] as u16) | (v[ 1] as u16) << 8,
-			(v[ 2] as u16) | (v[ 3] as u16) << 8,
-			(v[ 4] as u16) | (v[ 5] as u16) << 8,
-			(v[ 6] as u16) | (v[ 7] as u16) << 8,
-			(v[ 8] as u16) | (v[ 9] as u16) << 8,
-			(v[10] as u16) | (v[11] as u16) << 8,
-			(v[12] as u16) | (v[13] as u16) << 8,
-			(v[14] as u16) | (v[15] as u16) << 8,
+			(v[ 0] as u16) << 8 | (v[ 1] as u16),
+			(v[ 2] as u16) << 8 | (v[ 3] as u16),
+			(v[ 4] as u16) << 8 | (v[ 5] as u16),
+			(v[ 6] as u16) << 8 | (v[ 7] as u16),
+			(v[ 8] as u16) << 8 | (v[ 9] as u16),
+			(v[10] as u16) << 8 | (v[11] as u16),
+			(v[12] as u16) << 8 | (v[13] as u16),
+			(v[14] as u16) << 8 | (v[15] as u16),
 		])
 	}
 	pub fn from_reader(reader: &mut crate::nic::PacketReader) -> Result<Self,()> {

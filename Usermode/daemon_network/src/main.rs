@@ -2,6 +2,7 @@
 //!
 //! Tasks:
 //! - Configure interfaces using DHCP or other methods
+#![feature(ip_from)]	// For the libcore IP address types
 use std::collections::btree_map::Entry;
 
 mod dhcp;
@@ -134,7 +135,7 @@ fn add_iface(net_mgr: &::syscalls::net::Management, iface_idx: usize, iface_info
 		let a_frag = {
 			let mut h: u16 = 0;
 			for b in iface_info.mac_addr {
-				h = h.wrapping_mul(12345).wrapping_add(b as u16);
+				h = h.wrapping_mul(12347).wrapping_add(b as u16);
 			}
 			h
 		};
@@ -142,7 +143,7 @@ fn add_iface(net_mgr: &::syscalls::net::Management, iface_idx: usize, iface_info
 		let [a1,a2] = a_frag.to_le_bytes();
 		let addr = make_ipv4([169,254,a1,a2]);
 		//let addr = make_ipv4(0,0,0,0);
-		net_mgr.add_address(iface_idx, addr, 16);
+		net_mgr.add_address(iface_idx, addr, 0);
 
 		match dhcp::Dhcp::new(&addr, &iface_info.mac_addr) {
 		Ok(s) => Ipv4State::Dhcp(s),

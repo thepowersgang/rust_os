@@ -138,12 +138,17 @@ pub mod sync {
 			unsafe { &*p }
 		}
 		pub fn try_inner_lock_cpu(&self) -> bool {
-			let lh = match self.get_std().try_lock()
+			let lh = if true {
+				self.get_std().lock().unwrap()
+			}
+			else {
+				match self.get_std().try_lock()
 				{
 				Ok(v) => v,
 				Err(std::sync::TryLockError::WouldBlock) => return false,
 				Err(std::sync::TryLockError::Poisoned(e)) => panic!("Poisoned spinlock mutex: {:?}", e),
-				};
+				}
+			};
 			self.tid.store(crate::threads::get_thread_id(), Ordering::SeqCst);
 			self.handle.store( Box::into_raw(Box::new(lh)) as usize, Ordering::SeqCst );
 			return true;
@@ -523,7 +528,7 @@ pub mod threads {
 		// Set thread state's join handle to a thread with a pause point
 		let inner_handle = thread.cpu_state.inner.clone();
 		log_trace!("start_thread: {:p}", inner_handle);
-		let name = std::format!("{:p}", inner_handle);
+		let name = std::format!("KThread #{} {:p}", thread.get_tid(), inner_handle);
 		let ptr = thread as *mut _ as usize;
 		let th = std::thread::Builder::new()
 			.name(name)
