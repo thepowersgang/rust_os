@@ -127,34 +127,46 @@ pub struct OptionsIter<'a>(pub &'a [u8]);
 impl<'a> ::std::fmt::Debug for OptionsIter<'a> {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
 		f.write_str("OptionsIter(")?;
-		let mut len = None;
+		enum State {
+			Idle,
+			Len,
+			Run(u8),
+			End,
+		}
+		let mut s = State::Idle;
 		for b in self.0 {
-			len = match len {
-				None => {
+			s = match s {
+				State::End => {
+					if *b == 0 {
+						continue ;
+					}
+					f.write_str("?")?;
+					State::End
+				}
+				State::Idle => {
 					f.write_str(" ")?;
 					// If the option ID isn't 0 (pad), then update the length to be non-negative so the next iteration
 					// gets the length
-					if *b != 0 {
-						Some(0)
-					}
-					else {
-						None
-					}
-					}
-				Some(0) => {
-					if *b == 0 {
-						None
-					}
-					else {
-						Some(*b)
+					match *b {
+					0 => State::Idle,
+					0xFF => State::End,
+					_ => State::Len,
 					}
 				},
-				Some(l) => {
-					if l == 1 {
-						None
+				State::Len => {
+					if *b == 0 {
+						State::Idle
 					}
 					else {
-						Some(l - 1)
+						State::Run(*b)
+					}
+				},
+				State::Run(l) => {
+					if l == 1 {
+						State::Idle
+					}
+					else {
+						State::Run(l - 1)
 					}
 				}
 				};

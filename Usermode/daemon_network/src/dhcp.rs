@@ -10,6 +10,7 @@ mod options;
 use self::options::{Opt,OptionsIter};
 
 const MAGIC_COOKIE: [u8; 4] = [0x63, 0x82, 0x53, 0x63];
+const ZERO_ADDR: Ipv4Addr = Ipv4Addr::new(0,0,0,0);
 
 pub struct Dhcp {
 	socket: ::syscalls::net::FreeSocket,
@@ -29,9 +30,9 @@ enum State {
 		/// Time for the next DHCPREQUEST to be sent
 		next_update_time: u64,
 		/// Our current IP address
-		my_addr: [u8; 4],
+		my_addr: Ipv4Addr,
 		/// DHCP server address, used for transmit
-		server_addr: [u8; 4],
+		server_addr: Ipv4Addr,
 	},
 }
 /// Locates the first item in an iterator that matches a pattern
@@ -84,7 +85,7 @@ impl Dhcp
 		Ok(rv)
 	}
 
-	fn send_packet(&self, yiaddr: [u8; 4], siaddr: [u8; 4], transaction_id: u32, start_time: u64, options: &[Opt]) -> Result<(),::syscalls::values::SocketError>
+	fn send_packet(&self, yiaddr: Ipv4Addr, siaddr: Ipv4Addr, transaction_id: u32, start_time: u64, options: &[Opt]) -> Result<(),::syscalls::values::SocketError>
 	{
 		let mut buf = DhcpPacket::empty_buf();
 		let dhcp_request_pkt = DhcpPacket {
@@ -92,10 +93,10 @@ impl Dhcp
 			transaction_id,
 			seconds_since_start: ((::syscalls::system_ticks() - start_time) / 1000).try_into().unwrap_or(!0),
 			flags: 0,
-			ciaddr: [0; 4],
+			ciaddr: ZERO_ADDR,
 			yiaddr,
 			siaddr,
-			giaddr: Ipv4Addr::new(0,0,0,0),
+			giaddr: ZERO_ADDR,
 			mac_addr: &self.mac_addr,
 			server_name: b"",
 			boot_file: b"",
@@ -108,16 +109,16 @@ impl Dhcp
 			port_ty: ::syscalls::values::SocketPortType::Udp as _,
 			addr_ty: ::syscalls::values::SocketAddressType::Ipv4 as _,
 			port: UDP_PORT_DHCP_SERVER,
-			addr: if siaddr == [0; 4] {
+			addr: if siaddr == ZERO_ADDR {
 				[0xFF; 16]	// Wildcard address, only the first 4 bytes actually matter
 			}
 			else {
-				super::make_v4a(siaddr)
+				super::make_v4a(siaddr.octets())
 			},
 		}).map(|_| ())
 	}
 	fn send_discover(&self, transaction_id: u32, start_time: u64) -> Result<(),()> {
-		match self.send_packet([0; 4], [0; 4], transaction_id, start_time, &[
+		match self.send_packet(ZERO_ADDR, ZERO_ADDR, transaction_id, start_time, &[
 				Opt::DhcpMessageType(MessageType::Discover as u8),	// Discover
 				Opt::ClientIdentifier(&self.mac_addr),
 				Opt::ParameterRequestList(&[options::codes::Routers])
@@ -149,11 +150,11 @@ impl Dhcp
 					Some(v) if v == MessageType::Offer as u8 => {
 						// We've been offered an address, formally request it from the server
 						let start_time = *start_time;
-						::syscalls::kernel_log!("DHCP Offer: {}", Ipv4Addr::from_octets(packet.yiaddr));
+						::syscalls::kernel_log!("DHCP Offer: {}", packet.yiaddr);
 						match self.send_packet(packet.yiaddr, packet.siaddr, packet.transaction_id, start_time, &[
 							Opt::DhcpMessageType(MessageType::Request as u8),
-							Opt::ServerIdentifier(packet.siaddr),
-							Opt::RequestedIpAddress(packet.yiaddr),
+							Opt::ServerIdentifier(packet.siaddr.octets()),
+							Opt::RequestedIpAddress(packet.yiaddr.octets()),
 						]) {
 						Ok(()) => {},
 						Err(e) => {
@@ -173,7 +174,7 @@ impl Dhcp
 						// Remove the temporary link-local address
 						mgr.del_address(iface_idx, *link_local_addr, 0);
 						
-						let addr = super::make_ipv4(my_addr);
+						let addr = super::make_ipv4(my_addr.octets());
 						mgr.add_address(iface_idx, addr, subnet_len);
 
 						// Fully enumerate options to get non-IP settings
@@ -209,7 +210,7 @@ impl Dhcp
 							last_update_time: ::syscalls::system_ticks(),
 							next_update_time: ::syscalls::system_ticks() + 60_0000,
 							my_addr,
-							server_addr: remote.addr[..4].try_into().unwrap(),
+							server_addr: Ipv4Addr::from_octets(remote.addr[..4].try_into().unwrap()),
 						};
 
 						// Re-create the socket using the new local address
@@ -341,13 +342,13 @@ struct DhcpPacket<'a> {
 	seconds_since_start: u16,
 	flags: u16,
 	/// Client address - only populated when renewing
-	ciaddr: [u8; 4],
+	ciaddr: Ipv4Addr,
 	/// New IPv4 address for the client to use
-	yiaddr: [u8; 4],
+	yiaddr: Ipv4Addr,
 	/// Server address
-	siaddr: [u8; 4],
+	siaddr: Ipv4Addr,
 	/// Relay address
-	giaddr: ::core::net::Ipv4Addr,
+	giaddr: Ipv4Addr,
 	mac_addr: &'a [u8],	// up to 16
 	server_name: &'a [u8],	// up to 64
 	boot_file: &'a [u8],	// up to 128
@@ -370,10 +371,10 @@ impl<'a> DhcpPacket<'a> {
 			transaction_id: u32::from_be_bytes(*get(&mut pkt)),
 			seconds_since_start: u16::from_be_bytes(*get(&mut pkt)),
 			flags: u16::from_be_bytes(*get(&mut pkt)),
-			ciaddr: *get(&mut pkt),
-			yiaddr: *get(&mut pkt),
-			siaddr: *get(&mut pkt),
-			giaddr: ::core::net::Ipv4Addr::from_octets(*get(&mut pkt)),
+			ciaddr: Ipv4Addr::from_octets(*get(&mut pkt)),
+			yiaddr: Ipv4Addr::from_octets(*get(&mut pkt)),
+			siaddr: Ipv4Addr::from_octets(*get(&mut pkt)),
+			giaddr: Ipv4Addr::from_octets(*get(&mut pkt)),
 			mac_addr: &get::<16>(&mut pkt)[..6],	// HACK, assume ethernet, so 6 bytes
 			server_name: trim_nul(&get::<64>(&mut pkt)[..]),
 			boot_file: trim_nul(&get::<128>(&mut pkt)[..]),
@@ -405,9 +406,9 @@ impl<'a> DhcpPacket<'a> {
 		p.push(&self.transaction_id.to_be_bytes());	// u32 Transaction ID
 		p.push(&self.seconds_since_start.to_be_bytes());	// u16: Seconds since start of process
 		p.push(&self.flags.to_be_bytes());	// u16: flags
-		p.push(&self.ciaddr);	// [u8; 4] ciaddr
-		p.push(&self.yiaddr);	// [u8; 4] yiaddru32
-		p.push(&self.siaddr);	// [u8; 4] siaddr
+		p.push(&self.ciaddr.octets());	// [u8; 4] ciaddr
+		p.push(&self.yiaddr.octets());	// [u8; 4] yiaddru32
+		p.push(&self.siaddr.octets());	// [u8; 4] siaddr
 		p.push(&self.giaddr.octets());	// [u8; 4] giaddr
 		p.push_pad::<16>(self.mac_addr);	// [u8; 16] mac addresss
 		p.push_pad::<64>(self.server_name);// [u8; 64] server name
