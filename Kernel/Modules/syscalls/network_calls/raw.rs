@@ -28,10 +28,13 @@ impl super::traits::FreeSocket for RawIpv4
 			return Err(crate::Error::BadValue);
 		}
 		let dest = super::make_ipv4(&addr.addr);
-		::kernel::futures::block_on(
-			::network::ipv4::send_packet(self.source, dest, self.proto, ::network::nic::SparsePacket::new_root(&data))
-			);
-		Ok(0)
+		Ok(crate::from_result::<_,::syscall_values::SocketError>(
+			::kernel::futures::block_on(
+				::network::ipv4::send_packet(self.source, dest, self.proto, ::network::nic::SparsePacket::new_root(&data))
+				)
+			.map_err(|()| ::syscall_values::SocketError::NoRoute)
+			.map(|()| 0u32)
+		))
 	}
 
 	fn recv_from(&self, data: &mut [u8], addr: &mut SocketAddress) -> Result<u64, crate::Error> {
@@ -71,10 +74,13 @@ impl super::traits::FreeSocket for RawIpv6
 			return Err(crate::Error::BadValue);
 		}
 		let destination = super::make_ipv6(&addr.addr);
-		::kernel::futures::block_on(
-			::network::ipv6::send_packet(self.source, destination, self.proto, ::network::nic::SparsePacket::new_root(&data))
-			);
-		Ok(0)
+		Ok(crate::from_result::<_,::syscall_values::SocketError>(
+			::kernel::futures::block_on(
+				::network::ipv6::send_packet(self.source, destination, self.proto, ::network::nic::SparsePacket::new_root(&data))
+				)
+			.map_err(|()| ::syscall_values::SocketError::NoRoute)
+			.map(|()| 0u32)
+		))
 	}
 
 	fn recv_from(&self, data: &mut [u8], addr: &mut SocketAddress) -> Result<u64, crate::Error> {

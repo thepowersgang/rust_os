@@ -12,6 +12,7 @@ pub struct ServerManager<'a> {
 struct ServerConnection {
 	stream: AsyncLineStream,
 	protocol: ServerState,
+	endpoint: (::std::net::IpAddr, u16),
 }
 impl<'a> ServerManager<'a> {
 	pub fn new(status_window: crate::window_types::StatusWindow, input: &'a crate::Input, tabs: crate::Tabs<'a>) -> Self {
@@ -28,6 +29,7 @@ impl<'a> ServerManager<'a> {
 		self.servers.push(ServerConnection {
 			stream: AsyncLineStream::new(::std::net::TcpStream::connect(addr, port)?),
 			protocol: ServerState::new(server_name, self.status_window.clone()),
+			endpoint: (addr, port),
 		});
 		Ok( () )
 	}
@@ -44,11 +46,24 @@ impl<'a> ::r#async::WaitController for ServerManager<'a> {
 	}
 
 	fn handle(&mut self, events: &[syscalls::WaitItem]) {
-		for (s,e) in Iterator::zip(self.servers.iter_mut(), events.iter()) {
-			match s.stream.handle(e) {
+		for (s,item) in Iterator::zip(self.servers.iter_mut(), events.iter()) {
+			match s.stream.handle(item) {
 			Ok(None) => {},
 			Ok(Some(line)) => s.protocol.handle_line(line),
-			Err(_) => {},
+			Err(e) => {
+				::syscalls::kernel_log!("Connection error: {:?}", e);
+				self.status_window.print_error(s.protocol.name(), format_args!("Connection error: {:?}", e));
+				// TODO: Drop connection? Trigger a reconnect?
+				// - Reconnect for now... but should have a longer timeout?
+				s.stream = AsyncLineStream::new(match ::std::net::TcpStream::connect(s.endpoint.0, s.endpoint.1)
+					{
+					Ok(v) => v,
+					Err(e) => {
+						::syscalls::kernel_log!("Re-connection error: {:?}", e);
+						continue
+					},
+					});
+			},
 			}
 		}
 		if let Some(text) = self.input.take() {
@@ -190,10 +205,10 @@ struct AsyncLineStream {
 impl AsyncLineStream {
 	fn new(inner: ::std::net::TcpStream) -> Self {
 		AsyncLineStream {
-		connection: ::std::io::BufReader::new(inner),
-		read_ofs: 0,
-		read_buffer: vec![0; 1024],
-		}
+			connection: ::std::io::BufReader::new(inner),
+			read_ofs: 0,
+			read_buffer: vec![0; 1024],
+			}
 	}
 	fn wait_item(&self) -> syscalls::WaitItem {
 		use ::std::net::TcpStreamExt;

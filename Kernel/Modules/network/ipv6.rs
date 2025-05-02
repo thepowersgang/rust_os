@@ -52,7 +52,7 @@ pub fn add_interface(local_mac: [u8; 6], address: Address, mask_bits: u8) -> Res
 	Ok( () )
 }
 
-pub async fn send_packet(source: Address, destination: Address, proto: u8, pkt: crate::nic::SparsePacket<'_>)
+pub async fn send_packet(source: Address, destination: Address, proto: u8, pkt: crate::nic::SparsePacket<'_>) -> Result<(),()>
 {
 	log_trace!("send_packet({} -> {} 0x{:02x})", source, destination, proto);
 	// 1. Look up routing table for destination IP and interface
@@ -61,7 +61,7 @@ pub async fn send_packet(source: Address, destination: Address, proto: u8, pkt: 
 		Some(v) => v,
 		None => {
 			log_notice!("Unable to send to {:?}: No route", destination);
-			return	// TODO: Error - No route to host
+			return Err(());
 			},
 		};
 	// 2. ARP (what if ARP has to wait?)
@@ -76,7 +76,7 @@ pub async fn send_packet(source: Address, destination: Address, proto: u8, pkt: 
 		Some(v) => v,
 		None => {
 			log_notice!("Unable to send to {:?}: No ARP", destination);
-			return
+			return Err(());
 			},	// TODO: Error - No route to host
 		}
 	};
@@ -92,6 +92,7 @@ pub async fn send_packet(source: Address, destination: Address, proto: u8, pkt: 
 		};
 	let hdr_bytes = hdr.encode();
 	crate::nic::send_from(source_mac, dest_mac, 0x0800, crate::nic::SparsePacket::new_chained(&hdr_bytes, &pkt));
+	Ok( () )
 }
 
 pub fn calculate_inner_checksum_rdr(next_header: u8, source: Address, destination: Address, mut reader: crate::nic::PacketReader<'_>) -> u16 {

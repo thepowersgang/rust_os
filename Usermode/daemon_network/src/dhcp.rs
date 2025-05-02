@@ -62,6 +62,7 @@ impl Dhcp
 			mask: 0,
 		};
 		// TODO: Since the interface will have an address of `0.0.0.0` (maybe?) need to specify the interface number
+		// - Could have a variant of the syscall, or a method on FreeSocket to request unrouted and interface-locked traffic
 		let socket = match ::syscalls::net::FreeSocket::create(local, remote)
 			{
 			Ok(s) => s,

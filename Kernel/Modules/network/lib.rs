@@ -61,7 +61,7 @@ impl Address
 	}
 	fn mask_network(&self, bits: u8) -> Self {
 		match self {
-		Address::Ipv4(address) => Address::Ipv4(address.mask(bits)),
+		Address::Ipv4(address) => Address::Ipv4(address.mask_net(bits)),
 		Address::Ipv6(address) => Address::Ipv6(address.mask_net(bits)),
 		}
 	}

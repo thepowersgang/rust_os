@@ -25,7 +25,7 @@ impl Address
 	pub fn as_u32(&self) -> u32 {
 		u32::from_be_bytes(self.0)
 	}
-	pub fn mask(&self, bits: u8) -> Address {
+	pub fn mask_net(&self, bits: u8) -> Address {
 		assert!(bits <= 32);
 		if bits == 0 {
 			Address([0; 4])
@@ -38,10 +38,10 @@ impl Address
 	pub fn mask_host(&self, bits: u8) -> Address {
 		assert!(bits <= 32);
 		if bits == 32 {
-			*self
+			Address([0; 4])
 		}
 		else if bits == 0 {
-			Address([0; 4])
+			*self
 		}
 		else {
 			let mask = !0 << (32-bits);

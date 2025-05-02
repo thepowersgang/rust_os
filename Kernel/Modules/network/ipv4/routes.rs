@@ -60,7 +60,7 @@ pub fn route_lookup(source: Address, dest: Address) -> Option<SelectedRoute>
 	// Check static route list
 	for route in ROUTES.read().iter()
 	{
-		if route.network.mask(route.mask) == dest.mask(route.mask) {
+		if route.network.mask_net(route.mask) == dest.mask_net(route.mask) {
 			match best {
 			Some((m, _)) if m >= route.mask => {},
 			_ => {
@@ -94,14 +94,14 @@ pub fn route_lookup(source: Address, dest: Address) -> Option<SelectedRoute>
 			}
 			
 			// On-link?
-			if interface.address.mask(interface.mask) == dest.mask(interface.mask) {
+			if interface.address.mask_net(interface.mask) == dest.mask_net(interface.mask) {
 				// Immedidately return if this interface is more specific than the best non-interface route
 				if best.map_or(true, |(m, _)| m < interface.mask ) {
 					return Some(si.to_rv(dest));
 				}
 			}
 			if let Some((_, a)) = best {
-				if interface.address.mask(interface.mask) == a.mask(interface.mask) {
+				if interface.address.mask_net(interface.mask) == a.mask_net(interface.mask) {
 					src_for_best = Some(si);
 				}
 			}

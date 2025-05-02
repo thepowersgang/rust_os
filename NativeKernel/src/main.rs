@@ -39,7 +39,7 @@ fn main()// -> Result<(), Box<dyn std::error::Error>>
 	// Network card shim
 	#[cfg(feature="network")]
 	{
-		let mac_addr = [0xAB,0xCD,0xEF,0x00,0x00,0x01];
+		let mac_addr = [0xAA,0xBB,0xCC,0x00,0x00,0x01];
 		::core::mem::forget( ::network::nic::register(mac_addr, net_shim::Nic::new(mac_addr)) );
 		//let _ = ::network::ipv4::add_interface(mac_addr, ::network::ipv4::Address([192,168,1,3]), 24);
 	}

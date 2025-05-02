@@ -195,9 +195,14 @@ impl SocketHandle {
 		match addr {
 		Address::Ipv4(dest) => {
 			let Address::Ipv4(source) = local_addr else { return Err(Error::IncompatibleAddresses) };
-			kernel::futures::block_on(crate::ipv4::send_packet(source, dest, IPV4_PROTO_UDP, pkt));
+			kernel::futures::block_on(crate::ipv4::send_packet(source, dest, IPV4_PROTO_UDP, pkt))
+				.map_err(|()| Error::NoRouteToHost)?;
 		},
-		Address::Ipv6(_) => todo!(),
+		Address::Ipv6(destination) => {
+			let Address::Ipv6(source) = local_addr else { return Err(Error::IncompatibleAddresses) };
+			kernel::futures::block_on(crate::ipv6::send_packet(source, destination, IPV4_PROTO_UDP, pkt))
+				.map_err(|()| Error::NoRouteToHost)?;
+		},
 		}
 		Ok( () )
 	}

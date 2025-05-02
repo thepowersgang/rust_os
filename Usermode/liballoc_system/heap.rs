@@ -10,6 +10,11 @@ use ::syscalls::PAGE_SIZE;
 #[cfg(target_arch="aarch64")] const HEAP_LIMITS: (usize,usize) = (0x1000_0000, 0x7000_0000);
 #[cfg(target_arch="riscv64")] const HEAP_LIMITS: (usize,usize) = (0x10_0000_0000, 0x38_0000_0000);
 
+macro_rules! debug {
+	($($t:tt)*) => {
+		//::syscalls::kernel_log!( $($t)* )
+	};
+}
 
 pub const EMPTY: *mut u8 = 1 as *mut u8;
 
@@ -52,7 +57,7 @@ impl AllocState
 {
 	pub fn allocate(&mut self, size: usize, align: usize) -> Result<*mut (), ()>
 	{
-		kernel_log!("AllocState::allocate({size}, {align})");
+		//kernel_log!("AllocState::allocate({size}, {align})");
 		if size == 0 {
 			kernel_log!("allocate({}, {}) = {:p}", size, align, EMPTY);
 			return Ok( EMPTY as *mut () );
@@ -62,7 +67,7 @@ impl AllocState
 
 			let block = self.last_block();
 			let rv = block.allocate(size, align);
-			kernel_log!("allocate({}, {}) = {:p}", size, align, rv);
+			debug!("allocate({}, {}) = {:p}", size, align, rv);
 			return Ok(rv);
 		}
 		
@@ -72,7 +77,7 @@ impl AllocState
 			if block.capacity(align) >= size
 			{
 				let rv = block.allocate(size, align);
-				kernel_log!("allocate({}, {}) = {:p}", size, align, rv);
+				debug!("allocate({}, {}) = {:p}", size, align, rv);
 				return Ok(rv);
 			}
 		}
@@ -82,7 +87,7 @@ impl AllocState
 
 		let block = self.last_block();
 		let rv = block.allocate(size, align);
-		kernel_log!("allocate({}, {}) = {:p}", size, align, rv);
+		debug!("allocate({}, {}) = {:p}", size, align, rv);
 		return Ok( rv );
 	}
 	/// Returns 'true' if expanding succeeded
@@ -99,7 +104,7 @@ impl AllocState
 			let bp = &mut *bp;
 			if bp.capacity(align) > size {
 				bp.state = BlockState::Used( size );
-				kernel_log!("expand(bp={:p}, {}, {}) = true", bp, size, align);
+				debug!("expand(bp={:p}, {}, {}) = true", bp, size, align);
 				Ok( () )
 			}
 			else {
@@ -116,7 +121,7 @@ impl AllocState
 						bp.initialise( new_size );
 						// - Allocate this block again (potentially splitting it)
 						bp.allocate( size, align );
-						kernel_log!("expand(bp={:p}, {}, {}) = true", bp, size, align);
+						debug!("expand(bp={:p}, {}, {}) = true", bp, size, align);
 
 						Ok( () )
 					}
@@ -139,7 +144,7 @@ impl AllocState
 		else {
 			let bp = Block::ptr_from_ptr(ptr, align);
 			let bp = &mut *bp;
-			kernel_log!("deallocate(bp={:p}, align={})", bp, align);
+			debug!("deallocate(bp={:p}, align={})", bp, align);
 			bp.state = BlockState::Free;
 
 			let np = bp.next();

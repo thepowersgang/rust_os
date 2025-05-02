@@ -42,6 +42,14 @@ fn main()
 	};
 	
 	let mut sm = server_manager::ServerManager::new(status_window, &input, Tabs(&tabs));
+	if true {
+		match sm.open_connection("Test".into(), "192.168.1.39".parse().unwrap(), 6667) {
+		Ok(_) => {},
+		Err(e) => {
+			::syscalls::kernel_log!("Unable to connect to test server: {:?}", e);
+		}
+		}
+	}
 
 	win_main.show();
 	//win_main.rerender();

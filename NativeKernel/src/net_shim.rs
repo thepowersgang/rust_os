@@ -126,13 +126,15 @@ impl Nic {
 				timers: ::std::sync::Mutex::new(Vec::new()),
 			});
 			let slirp = ::libslirp::Context::new(
-				true, true,
+				false,	// `restricted` means that the guest can't access the internet (no router)
+				true,
 				make_v4(0), ::core::net::Ipv4Addr::new(255, 255, 255, 0),
 				make_v4(1),
 				true,
 				make_v6(0), 64,
 				make_v6(1),
-				None, None, None, None,
+				None,
+				None, None, None,
 				make_v4(16),
 				make_v4(2),
 				make_v6(2),

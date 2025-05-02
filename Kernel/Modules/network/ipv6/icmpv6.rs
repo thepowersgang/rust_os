@@ -66,7 +66,7 @@ fn worker() {
 				let cksum = super::calculate_inner_checksum_it( NEXT_HEADER, source, destination, pkt.iter().copied());
 				pkt[2..][..2].copy_from_slice( &u16::to_be_bytes(cksum) );
 				let pkt = crate::nic::SparsePacket::new_root(&pkt);
-				::kernel::futures::block_on(super::send_packet(source, destination, NEXT_HEADER, pkt));
+				let _ = ::kernel::futures::block_on(super::send_packet(source, destination, NEXT_HEADER, pkt));
 			},
 			Packet::Ping { source, destination, data } => {
 				let mut hdr = [
@@ -78,7 +78,7 @@ fn worker() {
 
 				let data = crate::nic::SparsePacket::new_root(&data);
 				let pkt = crate::nic::SparsePacket::new_chained(&hdr, &data);
-				::kernel::futures::block_on(super::send_packet(source, destination, NEXT_HEADER, pkt));
+				let _ = ::kernel::futures::block_on(super::send_packet(source, destination, NEXT_HEADER, pkt));
 			},
 			}
 		}

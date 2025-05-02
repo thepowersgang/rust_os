@@ -11,6 +11,7 @@ pub struct UdpSocket;
 
 mod tcp_stream;
 
+#[derive(Copy,Clone)]
 pub enum IpAddr
 {
 	V4(Ipv4Addr),
@@ -46,6 +47,7 @@ impl ::alloc::str::FromStr for IpAddr {
 	}
 }
 
+#[derive(Copy,Clone)]
 pub struct Ipv6Addr
 {
 	words: [u16; 8],
@@ -142,6 +144,7 @@ impl ::alloc::str::FromStr for Ipv6Addr {
 	}
 }
 
+#[derive(Copy,Clone)]
 pub struct Ipv4Addr {
 	bytes: [u8; 4],
 }

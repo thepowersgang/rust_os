@@ -327,10 +327,16 @@ impl Quad
 		let hdr_pkt = SparsePacket::new_chained(&hdr, &opt_pkt);
 
 		// Pass packet downstream
-		match self.local_addr
+		match match self.local_addr
+			{
+			Address::Ipv4(a) => crate::ipv4::send_packet(a, self.remote_addr.unwrap_ipv4(), IPV4_PROTO_TCP, hdr_pkt).await,
+			Address::Ipv6(a) => crate::ipv6::send_packet(a, self.remote_addr.unwrap_ipv6(), IPV4_PROTO_TCP, hdr_pkt).await,
+			}
 		{
-		Address::Ipv4(a) => crate::ipv4::send_packet(a, self.remote_addr.unwrap_ipv4(), IPV4_PROTO_TCP, hdr_pkt).await,
-		Address::Ipv6(a) => crate::ipv6::send_packet(a, self.remote_addr.unwrap_ipv6(), IPV4_PROTO_TCP, hdr_pkt).await,
+		Ok(()) => {},
+		Err(_) => {
+			// TODO: Propagate error? This is NoRoute
+		},
 		}
 	}
 }

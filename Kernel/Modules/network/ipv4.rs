@@ -99,7 +99,7 @@ pub fn calculate_checksum(words: impl Iterator<Item=u16>) -> u16
 }
 
 /// Send a raw packet
-pub async fn send_packet(source: Address, dest: Address, proto: u8, pkt: crate::nic::SparsePacket<'_>)
+pub async fn send_packet(source: Address, dest: Address, proto: u8, pkt: crate::nic::SparsePacket<'_>) -> Result<(),()>
 {
 	log_trace!("send_packet({:?} -> {:?} 0x{:02x})", source, dest, proto);
 	// 1. Look up routing table for destination IP and interface
@@ -108,7 +108,7 @@ pub async fn send_packet(source: Address, dest: Address, proto: u8, pkt: crate::
 		Some(v) => v,
 		None => {
 			log_notice!("Unable to send to {:?}: No route", dest);
-			return	// TODO: Error - No route to host
+			return Err(());
 			},
 		};
 	// 2. ARP (what if ARP has to wait?)
@@ -123,8 +123,8 @@ pub async fn send_packet(source: Address, dest: Address, proto: u8, pkt: crate::
 		Some(v) => v,
 		None => {
 			log_notice!("Unable to send to {:?}: No ARP", dest);
-			return
-			},	// TODO: Error - No route to host
+			return Err(());
+			},
 		}
 	};
 	// 3. Send
@@ -144,4 +144,5 @@ pub async fn send_packet(source: Address, dest: Address, proto: u8, pkt: crate::
 	hdr.set_checksum();
 	let hdr_bytes = hdr.encode();
 	crate::nic::send_from(source_mac, dest_mac, 0x0800, crate::nic::SparsePacket::new_chained(&hdr_bytes, &pkt));
+	Ok( () )
 }
