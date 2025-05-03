@@ -119,47 +119,18 @@ fn rx_handler(src_addr: Address, dest_addr: Address, mut pkt: crate::nic::Packet
 	}
 
 	// Validate checksum.
+	let checksum = calculate_checksum(src_addr, dest_addr, &hdr, pkt.remain(),
 	{
-		use crate::ipv4::calculate_checksum;
-
-		let packet_len = pre_header_reader.remain();
-		// Pseudo header for checksum
-		let sum_pseudo = match src_addr
-			{
-			Address::Ipv4(s) => {
-				let Address::Ipv4(d) = dest_addr else { unreachable!() };
-				calculate_checksum([
-					// Big endian stores MSB first, so write the high word first
-					(s.as_u32() >> 16) as u16, (s.as_u32() >> 0) as u16,
-					(d.as_u32() >> 16) as u16, (d.as_u32() >> 0) as u16,
-					IPV4_PROTO_TCP as u16, packet_len as u16,
-					].iter().copied())
-				},
-			Address::Ipv6(s) => {
-				let Address::Ipv6(d) = dest_addr else { unreachable!() };
-				calculate_checksum([
-					// Big endian stores MSB first, so write the high word first
-					s.words()[0], s.words()[1], s.words()[2], s.words()[3],
-					s.words()[4], s.words()[5], s.words()[6], s.words()[7],
-					d.words()[0], d.words()[1], d.words()[2], d.words()[3],
-					d.words()[4], d.words()[5], d.words()[6], d.words()[7],
-					IPV4_PROTO_TCP as u16, packet_len as u16,
-					].iter().copied())
-				}
-			};
-		let sum_header = hdr.checksum();
-		let sum_options_and_data = {
-			let mut pkt = pkt.clone();
-			let psum_whole = !calculate_checksum( (0 .. (pre_header_reader.remain() - hdr_len) / 2).map(|_| pkt.read_u16n().unwrap()) );
-			// Final byte is decoded as if there was a zero after it (so as 0x??00)
-			let psum_partial = if pkt.remain() > 0 { (pkt.read_u8().unwrap() as u16) << 8} else { 0 };
-			calculate_checksum([psum_whole, psum_partial].iter().copied())
-			};
-		let sum_total = calculate_checksum([ !sum_pseudo, !sum_header, !sum_options_and_data ].iter().copied());
-		if sum_total != 0 {
-			log_error!("Incorrect checksum: 0x{:04x} != 0", sum_total);
-			// TODO: Discard the packet.
+		let mut pkt = pkt.clone();
+		let psum_whole = !crate::ipv4::calculate_checksum( (0 .. pkt.remain() / 2).map(|_| pkt.read_u16n().unwrap()) );
+		// Final byte is decoded as if there was a zero after it (so as 0x??00)
+		let psum_partial = if pkt.remain() > 0 { (pkt.read_u8().unwrap() as u16) << 8} else { 0 };
+		crate::ipv4::calculate_checksum([psum_whole, psum_partial].iter().copied())
 		}
+		);
+	if checksum != 0 {
+		log_error!("Incorrect checksum: 0x{:04x} != 0", checksum);
+		// TODO: Discard the packet.
 	}
 
 	// Options
@@ -252,6 +223,40 @@ fn rx_handler(src_addr: Address, dest_addr: Address, mut pkt: crate::nic::Packet
 	// Otherwise, drop
 }
 
+fn calculate_checksum(src_addr: Address, dest_addr: Address, hdr: &PktHeader, tail_len: usize, tail_sum: u16) -> u16
+{
+	use crate::ipv4::calculate_checksum as ip_checksum;
+
+	let packet_len = (5*4) + tail_len;
+
+	// Pseudo header for checksum
+	let sum_pseudo = match src_addr
+		{
+		Address::Ipv4(s) => {
+			let Address::Ipv4(d) = dest_addr else { unreachable!() };
+			ip_checksum([
+				// Big endian stores MSB first, so write the high word first
+				(s.as_u32() >> 16) as u16, (s.as_u32() >> 0) as u16,
+				(d.as_u32() >> 16) as u16, (d.as_u32() >> 0) as u16,
+				IPV4_PROTO_TCP as u16, packet_len as u16,
+				].iter().copied())
+			},
+		Address::Ipv6(s) => {
+			let Address::Ipv6(d) = dest_addr else { unreachable!() };
+			ip_checksum([
+				// Big endian stores MSB first, so write the high word first
+				s.words()[0], s.words()[1], s.words()[2], s.words()[3],
+				s.words()[4], s.words()[5], s.words()[6], s.words()[7],
+				d.words()[0], d.words()[1], d.words()[2], d.words()[3],
+				d.words()[4], d.words()[5], d.words()[6], d.words()[7],
+				IPV4_PROTO_TCP as u16, packet_len as u16,
+				].iter().copied())
+			}
+		};
+	let sum_header = hdr.checksum();
+	ip_checksum([ !sum_pseudo, !sum_header, !tail_sum ].iter().copied())
+}
+
 #[derive(Copy,Clone,PartialEq,PartialOrd,Eq,Ord)]
 struct ListenPair(Option<Address>, u16);
 impl ::core::fmt::Debug for ListenPair
@@ -305,17 +310,29 @@ impl Quad
 		// TODO: Any options required?
 		let options_bytes = &[];
 		let opts_len_rounded = ((options_bytes.len() + 3) / 4) * 4;
-		let hdr = PktHeader {
-			source_port: self.local_port,
-			dest_port: self.remote_port,
-			sequence_number: seq,
-			acknowledgement_number: ack,
-			data_offset: ((5 + opts_len_rounded/4) << 4) as u8 | 0,
-			flags: flags,
-			window_size: window_size,
-			checksum: 0,	// To be filled afterwards
-			urgent_pointer: 0,
-			}.as_bytes();
+		let hdr = {
+			let mut hdr = PktHeader {
+				source_port: self.local_port,
+				dest_port: self.remote_port,
+				sequence_number: seq,
+				acknowledgement_number: ack,
+				data_offset: ((5 + opts_len_rounded/4) << 4) as u8 | 0,
+				flags,
+				window_size,
+				checksum: 0,	// To be filled afterwards
+				urgent_pointer: 0,
+				};
+			hdr.checksum = calculate_checksum(
+				self.local_addr, self.remote_addr,
+				&hdr,
+				data1.len()+data2.len(),
+				super::ipv4::checksum::from_bytes(
+					// TODO: options (padded to multiple of 4 bytes)
+					Iterator::chain(data1.iter().copied(), data2.iter().copied() )
+				)
+				);
+			hdr.as_bytes()
+			};
 		// Calculate checksum
 
 		// Create sparse packet chain
@@ -418,22 +435,8 @@ impl PktHeader
 			(self.urgent_pointer >> 0) as u8,
 			]
 	}
-	fn as_u16s(&self) -> [u16; 5*2] {
-		[
-			self.source_port,
-			self.dest_port,
-			(self.sequence_number >> 16) as u16,
-			(self.sequence_number >> 0) as u16,
-			(self.acknowledgement_number >> 16) as u16,
-			(self.acknowledgement_number >> 0) as u16,
-			(self.data_offset as u16) << 8 | (self.flags as u16),
-			self.window_size,
-			self.checksum,
-			self.urgent_pointer,
-			]
-	}
 	fn checksum(&self) -> u16 {
-		crate::ipv4::calculate_checksum(self.as_u16s().iter().cloned())
+		crate::ipv4::checksum::from_bytes(self.as_bytes().iter().copied())
 	}
 }
 

@@ -10,6 +10,9 @@ use crate::nic::MacAddr;
 mod address;
 pub use self::address::Address;
 
+pub mod checksum;
+pub use self::checksum::from_words as calculate_checksum;
+
 mod headers;
 use self::headers::Ipv4Header;
 
@@ -81,21 +84,6 @@ pub fn del_interface(local_mac: [u8; 6], address: Address, mask_bits: u8) -> Res
 #[cfg(any())]
 pub fn listen_raw(local_addr: Address, proto: u8, remote_mask: (Address, u8)) -> RawListenHandle
 {
-}
-
-// Calculate a checksum of a sequence of NATIVE ENDIAN (not network) 16-bit words
-pub fn calculate_checksum(words: impl Iterator<Item=u16>) -> u16
-{
-	let mut sum = 0;
-	for v in words
-	{
-		sum += v as usize;
-	}
-	while sum > 0xFFFF
-	{
-		sum = (sum & 0xFFFF) + (sum >> 16);
-	}
-	!sum as u16
 }
 
 /// Send a raw packet
