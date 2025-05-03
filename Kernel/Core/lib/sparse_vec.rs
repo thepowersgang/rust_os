@@ -9,7 +9,7 @@ use core::ops;
 
 /// Sparse vector type
 ///
-/// A wrapper around Vec<Option<T>> for use as a resource pool
+/// A wrapper around `Vec<Option<T>>` for use as a resource pool
 pub struct SparseVec<T>
 {
 	data: Vec<Option<T>>,

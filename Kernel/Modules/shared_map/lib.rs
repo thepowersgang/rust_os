@@ -4,7 +4,7 @@
 // Modules/shared_map/lib.rs
 //! A key-value map that internally handles synchronisation
 //!
-//! A wrapper around RwLock<VecMap>
+//! A wrapper around `RwLock<VecMap>`
 #![no_std]
 use ::kernel::sync::rwlock::{RwLock, self};
 use ::kernel::lib::collections::VecMap;
