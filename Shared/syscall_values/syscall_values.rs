@@ -377,7 +377,7 @@ enum_to_from!{ GuiWinFlag => u8:
 }
 
 enum_to_from!{
-	/// Unit/group names for the [CORE_TEXTINFO] call
+	/// Unit/group names for the [const@CORE_TEXTINFO] call
 	TextInfo => u32 :
 		/// Kernel core
 		Kernel = 0,
