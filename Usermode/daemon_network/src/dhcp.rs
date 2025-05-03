@@ -165,6 +165,7 @@ impl Dhcp
 						return ;
 					}
 					Some(v) if v == MessageType::Ack as u8 => {
+						::syscalls::kernel_log!("DHCP ACK: {}", packet.yiaddr);
 						let my_addr = packet.yiaddr;
 
 						// Get the subnet mask and convert to a prefix length (required for `add_address`)

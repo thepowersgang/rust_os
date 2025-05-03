@@ -106,7 +106,7 @@ pub async fn send_packet(source: Address, dest: Address, proto: u8, pkt: crate::
 		[0xFF; 6]
 	}
 	else {
-		match crate::arp::lookup_v4(source_mac, next_hop).await
+		match crate::arp::lookup_v4(source_mac, source, next_hop).await
 		{
 		Some(v) => v,
 		None => {

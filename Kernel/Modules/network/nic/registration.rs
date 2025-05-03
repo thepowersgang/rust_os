@@ -110,13 +110,13 @@ fn rx_thread(interface: &super::InterfaceData)
 				0x0800 => match crate::ipv4::handle_rx_ethernet(&interface, source_mac, reader)
 					{
 					Ok( () ) => {},
-					Err(e) => {
-						log_warning!("TODO: Unable to handle IPv4 packet - {:?}", e);
-						},
+					Err(e) => log_warning!("TODO: Unable to handle IPv4 packet - {:?}", e),
 					},
 				// ARP
-				0x0806 => {
-					crate::arp::handle_packet(&*interface.base_interface, source_mac, reader);
+				0x0806 => match crate::arp::handle_packet(&*interface.base_interface, source_mac, reader)
+					{
+					Ok(()) => {},
+					Err(e) => log_warning!("TODO: Unable to handle ARP packet - {:?}", e),
 					},
 				// IPv6
 				0x86DD => match crate::ipv6::handle_rx_ethernet(&interface, source_mac, reader)

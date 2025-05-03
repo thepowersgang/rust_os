@@ -10,27 +10,28 @@ use crate::nic::MacAddr;
 static CACHE: RwLock<VecMap<crate::ipv4::Address, Option<MacAddr>>> = RwLock::new(VecMap::new());
 static SLEEPERS: ::kernel::futures::Condvar = ::kernel::futures::Condvar::new();
 
-pub fn handle_packet(_physical_interface: &dyn crate::nic::Interface, _source_mac: [u8; 6], mut r: crate::nic::PacketReader)
+pub fn handle_packet(_physical_interface: &dyn crate::nic::Interface, _source_mac: [u8; 6], mut r: crate::nic::PacketReader) -> Result<(),()>
 {
 	// TODO: Length test
-	let hw_ty  = r.read_u16n().unwrap();
-	let sw_ty  = r.read_u16n().unwrap();
-	let hwsize = r.read_u8().unwrap();
-	let swsize = r.read_u8().unwrap();
-	let code = r.read_u16n().unwrap();
+	let hw_ty  = r.read_u16n()?;
+	let sw_ty  = r.read_u16n()?;
+	let hwsize = r.read_u8()?;
+	let swsize = r.read_u8()?;
+	let code = r.read_u16n()?;
+
 	log_debug!("ARP HW {:04x} {}B SW {:04x} {}B req={}", hw_ty, hwsize, sw_ty, swsize, code);
 	let hwaddr = match hwsize
 		{
 		6 => {
 			let mac = {
 				let mut b = [0; 6];
-				r.read(&mut b).unwrap();
+				r.read(&mut b)?;
 				b
 				};
 			log_debug!("ARP HW {:?}", ::kernel::logging::HexDump(&mac));
 			mac
 			},
-		_ => return,
+		_ => return Ok(()),
 		};
 	let swaddr = match swsize
 		{
@@ -43,10 +44,11 @@ pub fn handle_packet(_physical_interface: &dyn crate::nic::Interface, _source_ma
 			log_debug!("ARP SW {:?}", ip);
 			crate::ipv4::Address(ip)
 			},
-		_ => return,
+		_ => return Ok(()),
 		};
 	
 	snoop_v4(hwaddr, swaddr);
+	Ok(())
 }
 
 /// Inform the ARP layer of an observed mapping
@@ -65,7 +67,7 @@ pub fn snoop_v4(mac: MacAddr, ip: crate::ipv4::Address)
 }
 
 /// Acquire a MAC address for the given IP
-pub async fn lookup_v4(interface_mac: crate::nic::MacAddr, addr: crate::ipv4::Address) -> Option<MacAddr>
+pub async fn lookup_v4(interface_mac: crate::nic::MacAddr, iface_addr: crate::ipv4::Address, addr: crate::ipv4::Address) -> Option<MacAddr>
 {
 	match CACHE.read().get(&addr)
 	{
@@ -82,14 +84,14 @@ pub async fn lookup_v4(interface_mac: crate::nic::MacAddr, addr: crate::ipv4::Ad
 		6, 4,	// hwsize, swsize
 		0, 1,	// operation
 		interface_mac[0], interface_mac[1], interface_mac[2], interface_mac[3], interface_mac[4], interface_mac[5],
-		0,0,0,0,
+		iface_addr.0[0], iface_addr.0[1], iface_addr.0[2], iface_addr.0[3],
 		0xFF,0xFF,0xFF,0xFF,0xFF,0xFF,
 		addr.0[0], addr.0[1], addr.0[2], addr.0[3],
 		];
 	crate::nic::send_from(interface_mac, dest_mac, 0x0806, crate::nic::SparsePacket::new_root(&request));
 
 	// - Wait until the cache has the requested host in it (with timeout)
-	const TIMEOUT_MS: u64 = 1000;
+	const TIMEOUT_MS: u64 = 200;
 	let timeout_time = ::kernel::time::ticks() + TIMEOUT_MS;
 	loop
 	{
