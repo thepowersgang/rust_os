@@ -38,6 +38,9 @@ impl RxBuffer
 	///
 	/// Returns Err with the amount of free space if not enough available
 	pub fn insert(&mut self, offset: usize, data: &[u8]) -> Result<(), InsertError> {
+		if offset > self.size {
+			return Err(InsertError::NoSpace { avail: 0 });
+		}
 		let space = self.size - offset;
 		if space < data.len() {
 			return Err(InsertError::NoSpace { avail: space });

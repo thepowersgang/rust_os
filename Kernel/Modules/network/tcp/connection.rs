@@ -220,12 +220,14 @@ impl Connection
 		// SYN sent by local, waiting for SYN-ACK
 		ConnectionState::SynSent => {	
 			if hdr.flags & FLAG_SYN != 0 {
-				self.next_rx_seq += 1;
+				self.next_rx_seq = hdr.sequence_number.wrapping_add(1);
+				self.rx_buffer_seq = self.next_rx_seq;
 				if hdr.flags & FLAG_ACK != 0 {
 					// Now established
-					// TODO: Send ACK back
+					// - Send ACK back
 					self.send_ack(quad, "SYN-ACK");
 					self.tx_waiters.signal();
+					self.tx_state.retransmit_timer.clear();
 					ConnectionState::Established
 				}
 				else {
@@ -247,7 +249,7 @@ impl Connection
 			}
 			else if hdr.flags & FLAG_FIN != 0 {
 				// FIN received, start a clean shutdown
-				self.next_rx_seq += 1;
+				self.next_rx_seq = self.next_rx_seq.wrapping_add(1);
 				// TODO: Signal to user that the connection is closing (EOF)
 				ConnectionState::CloseWait
 			}
@@ -278,6 +280,8 @@ impl Connection
 					}
 					let mut ofs = start_ofs as usize;
 					while let Ok(b) = pkt.read_u8() {
+						//let ofs_0 = self.next_rx_seq.wrapping_sub(self.rx_buffer_seq);
+						//let ofs_0 = if ofs_0 > MAX_CONN_ATTEMPTS
 						match self.rx_buffer.insert( (self.next_rx_seq - self.rx_buffer_seq) as usize + ofs, &[b])
 						{
 						Ok(_) => {},
@@ -344,7 +348,7 @@ impl Connection
 		ConnectionState::FinWait1 =>	// FIN sent, waiting for reply (ACK or FIN)
 			if hdr.flags & FLAG_FIN != 0 {
 				// TODO: Check the sequence number vs the sequence for the FIN
-				self.send_ack(quad, "SYN-ACK");
+				self.send_ack(quad, "FIN-ACK");
 				ConnectionState::Closing
 			}
 			else if hdr.flags & FLAG_ACK != 0 {
