@@ -92,9 +92,7 @@ impl Nic {
 							msg.truncate(len);
 							let _ = rx_common.out_file.lock().unwrap().push_packet(&msg);
 							rx_common.packets.push(msg);
-							if let Some(w) = rx_common.waiter.take() {
-								w.signal();
-							}
+							rx_common.waiter.signal();
 						},
 						Err(e) => eprintln!("Internal socket error: {:?}", e),
 						}

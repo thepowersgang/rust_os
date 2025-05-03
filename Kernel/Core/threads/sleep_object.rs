@@ -55,6 +55,17 @@ impl AtomicSleepObjectRef {
 		let p = self.ptr.swap(::core::ptr::null_mut(), ::core::sync::atomic::Ordering::Relaxed);
 		::core::ptr::NonNull::new(p).map(|obj| SleepObjectRef { obj })
 	}
+	pub fn signal(&self) -> bool {
+		let p = self.ptr.load(::core::sync::atomic::Ordering::Relaxed);
+		if ! p.is_null() {
+			// SAFE: Valid pointer
+			unsafe { (*p).signal(); }
+			true
+		}
+		else {
+			false
+		}
+	}
 	pub fn set(&self, r: SleepObjectRef) {
 		self.ptr.store(r.obj.as_ptr(), ::core::sync::atomic::Ordering::Relaxed);
 		::core::mem::forget(r);
