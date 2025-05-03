@@ -8,10 +8,30 @@ impl StatusWindow {
 		inner.append_text(0, "Hello world!");
 		(StatusWindow(inner.clone()), inner,)
 	}
-	pub fn print_error(&self, server: &str, args: ::std::fmt::Arguments) {
+	fn get_time(&self) -> &'static str {
+		"12:34"
+	}
+	pub fn print_error(&self, server_name: &str, args: ::std::fmt::Arguments) {
 		self.0.new_line();
-		self.0.append_fmt(0, format_args!("[{}] ", server));
+		self.0.append_fmt(0, format_args!("[{}] ", server_name));
 		self.0.append_fmt(0, args);
+	}
+	pub fn server_message(&self, server: &str, nickname: &[u8], message: &[u8]) {
+		let timestamp = self.get_time();
+		let nickname = String::from_utf8_lossy(nickname);
+		let message = String::from_utf8_lossy(message);
+		self.0.new_line();
+		self.0.append_fmt(0, format_args!("{timestamp} [{}] <{}>:", server, nickname));
+		self.0.append_text(0, &message);
+	}
+	pub fn orphaned_message(&self, server: &str, channel: &[u8], nickname: &[u8], message: &[u8]) {
+		let timestamp = self.get_time();
+		let channel = String::from_utf8_lossy(channel);
+		let nickname = String::from_utf8_lossy(nickname);
+		let message = String::from_utf8_lossy(message);
+		self.0.new_line();
+		self.0.append_fmt(0, format_args!("{timestamp} [{}] <{}> >{}:", server, nickname, channel));
+		self.0.append_text(0, &message);
 	}
 }
 

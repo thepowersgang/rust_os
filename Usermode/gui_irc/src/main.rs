@@ -70,10 +70,12 @@ fn main()
 		}
 	
 		fn handle(&mut self, events: &[syscalls::WaitItem]) {
+			::syscalls::kernel_log!(">> M::handle");
 			let (a,b) = events.split_at(self.win.get_count());
 			self.win.handle(a);
 			self.sm.handle(b);
 			self.win.rerender();
+			::syscalls::kernel_log!("<< M::handle");
 		}
 	}
 	::r#async::idle_loop(&mut [

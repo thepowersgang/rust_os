@@ -216,6 +216,7 @@ impl AsyncLineStream {
 	}
 	fn handle(&mut self, _item: &syscalls::WaitItem) -> ::std::io::Result<Option<&[u8]>> {
 		use ::std::io::Read;
+		::syscalls::kernel_log!("AsyncLineStream: handle");
 		match self.connection.read(&mut self.read_buffer[self.read_ofs..]) {
 		Ok(len) => {
 			let o = self.read_ofs;

@@ -35,6 +35,7 @@ impl ServerState {
 		Ok( () )
 	}
 	pub fn handle_line(&mut self, mut line: &[u8]) {
+		::syscalls::kernel_log!("handle_line: {:?}", ::std::str::from_utf8(line).unwrap_or("?BADUTF?"));
 		if line.starts_with(b":") {
 			// A message (either from a user or from a server)
 
@@ -71,11 +72,25 @@ impl ServerState {
 						w.append_message(source, message);
 					}
 					else {
-						self.status_window.print_error(&self.server_name, format_args!("No window for message"));
+						// TODO: If this is not to a channel, then create a PM window
+						self.status_window.orphaned_message(&self.server_name, channel, source, message);
+					}
+				},
+				b"NOTICE" => {
+					let channel = fetch_word(&mut line);
+					let message = fetch_word(&mut line);
+					if channel == b"*" {
+						self.status_window.server_message(&self.server_name, source, message);
+					}
+					else if let Some(w) = self.get_window(channel) {
+						w.append_message(source, message);
+					}
+					else {
+						self.status_window.orphaned_message(&self.server_name, channel, source, message);
 					}
 				},
 				_ => {
-
+					self.status_window.print_error(&self.server_name, format_args!("Unknown message type: {:?}", String::from_utf8_lossy(cmd)));
 				},
 				}
 			}
