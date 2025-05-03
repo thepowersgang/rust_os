@@ -1,95 +1,14 @@
 //! Network simulaed using SLIRP (same library as used by qemu's user networking)
+//! 
+//! NOTE: Only works on unix, due SLIRP using raw socket numbers only available on unix
+use ::std::sync::Arc;
 
 pub struct Nic {
-	tx_sender: ::std::sync::mpsc::Sender<Vec<u8>>,
-	rx_common: ::std::sync::Arc<RxCommon>,
+	tx_sender: Arc< ::std::os::unix::net::UnixDatagram >,
+	rx_common: Arc<RxCommon>,
 }
 unsafe impl Send for Nic { }
 unsafe impl Sync for Nic { }
-struct SlirpHandler {
-	rx_common: ::std::sync::Arc<RxCommon>,
-	timers: ::std::sync::Arc<Timers>,
-}
-impl ::libslirp::Handler for SlirpHandler {
-	type Timer = TimerHandle;
-
-	fn clock_get_ns(&mut self) -> i64 {
-		self.timers.cur_time_ns()
-	}
-
-	fn send_packet(&mut self, buf: &[u8]) -> std::io::Result<usize> {
-		::kernel::log_debug!("SLIRP Emitted: {:x?}", buf);
-		self.rx_common.out_file.lock().unwrap().push_packet(buf).unwrap();
-		self.rx_common.packets.push(buf.to_owned());
-		if let Some(v) = self.rx_common.waiter.take() {
-			v.signal();
-			self.rx_common.waiter.set(v);
-		}
-		Ok(buf.len())
-	}
-
-	fn register_poll_fd(&mut self, _fd: std::os::unix::prelude::RawFd) {
-		// ?
-	}
-
-	fn unregister_poll_fd(&mut self, _fd: std::os::unix::prelude::RawFd) {
-		// ?
-	}
-
-	fn guest_error(&mut self, msg: &str) {
-		panic!("SLIRP Guest error!: {}", msg);
-	}
-
-	fn notify(&mut self) {
-		todo!("SLIRP notify")
-	}
-
-	fn timer_new(&mut self, func: Box<dyn FnMut()>) -> Box<Self::Timer> {
-		Box::new(self.timers.alloc(func))
-	}
-
-	fn timer_mod(&mut self, timer: &mut Box<Self::Timer>, expire_time_ms: i64) {
-		self.timers.update(&**timer, expire_time_ms)
-	}
-
-	fn timer_free(&mut self, timer: Box<Self::Timer>) {
-		self.timers.remove(*timer)
-	}
-}
-struct Timers {
-	base_time: ::std::time::Instant,
-	timers: ::std::sync::Mutex< Vec<Option<Timer>> >,
-}
-struct Timer {
-	fire_time_ns: Option<i64>,
-	cb: Box<dyn FnMut()>,
-}
-impl Timers {
-	fn cur_time_ns(&self) -> i64 {
-		(::std::time::Instant::now() - self.base_time).as_nanos() as i64
-	}
-	fn alloc(&self, func: Box<dyn FnMut()>) -> TimerHandle {
-		let mut lh = self.timers.lock().unwrap();
-		if let Some((i,s)) = lh.iter_mut().enumerate().find(|(_,s)| s.is_none()) {
-			*s = Some(Timer { fire_time_ns: None, cb: func });
-			TimerHandle { index: i }
-		}
-		else {
-			let i = lh.len();
-			lh.push(Some(Timer { fire_time_ns: None, cb: func }));
-			TimerHandle { index: i }
-		}
-	}
-	fn update(&self, handle: &TimerHandle, expire_time_ms: i64) {
-		self.timers.lock().unwrap()[handle.index].as_mut().unwrap().fire_time_ns = Some(expire_time_ms * 1_000_000);
-	}
-	fn remove(&self, handle: TimerHandle) {
-		self.timers.lock().unwrap()[handle.index] = None;
-	}
-}
-struct TimerHandle {
-	index: usize,
-}
 
 struct RxCommon {
 	waiter: ::kernel::threads::AtomicSleepObjectRef,
@@ -108,7 +27,7 @@ impl Nic {
 				)
 			).unwrap()).unwrap()),
 		});
-		let (tx_send, tx_recv) = ::std::sync::mpsc::channel();
+		let (sock_slirp, sock_outer) = ::std::os::unix::net::UnixDatagram::pair().unwrap();
 
 		fn make_v6(tail: u16) -> ::core::net::Ipv6Addr {
 			::core::net::Ipv6Addr::new(0x2001,0x8003,0x900d,0xd400,0,0,0,tail)
@@ -116,74 +35,82 @@ impl Nic {
 		fn make_v4(tail: u8) -> ::core::net::Ipv4Addr {
 			::core::net::Ipv4Addr::new(10, 0, 2,tail)
 		}
+		const MTU: usize = 1520;
+		let slirp_options = ::libslirp::Opt {
+			restrict: false,
+			mtu: MTU,
+			disable_host_loopback: false,
+			hostname: None,
+			dns_suffixes: Vec::new(),
+			domainname: None,
+			ipv4: ::libslirp::opt::OptIpv4 {
+				disable: false,
+				net: ::ipnetwork::Ipv4Network::new(make_v4(0), 24).unwrap(),
+				host: make_v4(1),
+				dhcp_start: make_v4(16),
+				dns: make_v4(2),
+			},
+			ipv6: ::libslirp::opt::OptIpv6 {
+				disable: true,
+				net6: ::ipnetwork::Ipv6Network::new(make_v6(0), 64).unwrap(),
+				host: make_v6(1),
+				dns: make_v6(2),
+			},
+			tftp: ::libslirp::opt::OptTftp {
+				name: None,
+				root: None,
+				bootfile: None,
+			},
+		};
+		let sock_outer = Arc::new(sock_outer);
 		let rv = Nic {
-			tx_sender: tx_send,
+			tx_sender: sock_outer.clone(),
 			rx_common: rx_common.clone(),
 		};
 		::std::thread::spawn(move || {
-			let timers = ::std::sync::Arc::new(Timers {
-				base_time: ::std::time::Instant::now(),
-				timers: ::std::sync::Mutex::new(Vec::new()),
-			});
-			let slirp = ::libslirp::Context::new(
-				false,	// `restricted` means that the guest can't access the internet (no router)
-				true,
-				make_v4(0), ::core::net::Ipv4Addr::new(255, 255, 255, 0),
-				make_v4(1),
-				true,
-				make_v6(0), 64,
-				make_v6(1),
-				None,
-				None, None, None,
-				make_v4(16),
-				make_v4(2),
-				make_v6(2),
-				vec![],
-				None,
-				SlirpHandler {
-					rx_common,
-					timers: timers.clone(),
-				});
-
+			use ::std::os::fd::AsRawFd;
+			const MIO_TOKEN_SOCK: ::mio::Token = ::mio::Token(9999);
+			let poll = ::mio::Poll::new().unwrap();
+			let mio_slirp = ::libslirp::MioHandler::new(&slirp_options, &poll, sock_slirp);
+			mio_slirp.register();
+			poll.register(
+				&::mio::unix::EventedFd(&sock_outer.as_raw_fd()),
+				MIO_TOKEN_SOCK,
+				::mio::Ready::readable(),
+				::mio::PollOpt::level()
+			).expect("Poll register `sock_outer`");
+			let mut events = ::mio::Events::with_capacity(1024);
+    		let mut duration = None;
 			loop {
-				while let Ok(p) = tx_recv.try_recv() {
-					::kernel::log_debug!("SLIRP Input: {:x?}", p);
-					slirp.input(&p);
-				}
-				let empty_fn = Box::new(||{});
-				if let Some((i, mut fcn)) = {
-					let mut timer_list = timers.timers.lock().unwrap();
-					timer_list.iter_mut().enumerate().find_map(|(i,v)| {
-						if let Some(t) = v {
-							if let Some(time) = t.fire_time_ns {
-								if time < timers.cur_time_ns() {
-									t.fire_time_ns = None;
-									return Some((i, ::std::mem::replace(&mut t.cb, empty_fn.clone())));
-								}
+				poll.poll(&mut events, duration).expect("MIO Poll");
+				duration = mio_slirp.dispatch(&events).expect("SLIRP MIO Dispatch");
+				for event in &events {
+					if event.token() == MIO_TOKEN_SOCK {
+						let mut msg = vec![0; MTU];
+						match sock_outer.recv(&mut msg) {
+						Ok(len) => {
+							msg.truncate(len);
+							let _ = rx_common.out_file.lock().unwrap().push_packet(&msg);
+							rx_common.packets.push(msg);
+							if let Some(w) = rx_common.waiter.take() {
+								w.signal();
 							}
-						}
-						None
-					})
-				} {
-					::kernel::log_debug!("SLIRP Timer #{}", i);
-					fcn();
-					if let Some(ref mut v) = timers.timers.lock().unwrap()[i] {
-						if ::core::ptr::eq(&*v.cb, &*empty_fn) {
-							v.cb = fcn;
+						},
+						Err(e) => eprintln!("Internal socket error: {:?}", e),
 						}
 					}
 				}
-				::std::thread::sleep(::std::time::Duration::from_millis(100));
 			}
 		});
 		rv
 	}
 }
+
 impl ::network::nic::Interface for Nic {
 	fn tx_raw(&self, pkt: ::network::nic::SparsePacket) {
 		let pkt: Vec<_> = pkt.into_iter().flat_map(|v| v.iter().copied()).collect();
 		self.rx_common.out_file.lock().unwrap().push_packet(&pkt).unwrap();
-		let _ = self.tx_sender.send(pkt);
+		let _ = self.tx_sender.send(&pkt);
 	}
 
 	fn rx_wait_register(&self, channel: &::kernel::threads::SleepObject) {

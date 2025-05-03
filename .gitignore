@@ -81,6 +81,7 @@ Usermode/target/
 
 /NativeKernel/target/
 /NativeKernel/log.txt
+/NativeKernel/native_net_*.pcap
 
 # Folders made by RA
 /Kernel/Core/target
