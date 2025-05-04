@@ -47,9 +47,13 @@ impl<'a> ::r#async::WaitController for ServerManager<'a> {
 
 	fn handle(&mut self, events: &[syscalls::WaitItem]) {
 		for (s,item) in Iterator::zip(self.servers.iter_mut(), events.iter()) {
-			match s.stream.handle(item) {
-			Ok(None) => {},
-			Ok(Some(line)) => s.protocol.handle_line(line),
+			let r = match s.stream.handle(item) {
+				Ok(None) => Ok(()),
+				Ok(Some((conn, line))) => s.protocol.handle_line(conn, line),
+				Err(e) => Err(e),
+				};
+			match r {
+			Ok(()) => {},
 			Err(e) => {
 				::syscalls::kernel_log!("Connection error: {:?}", e);
 				self.status_window.print_error(s.protocol.name(), format_args!("Connection error: {:?}", e));
@@ -214,7 +218,7 @@ impl AsyncLineStream {
 		use ::std::net::TcpStreamExt;
 		self.connection.get_ref().wait_item()
 	}
-	fn handle(&mut self, _item: &syscalls::WaitItem) -> ::std::io::Result<Option<&[u8]>> {
+	fn handle(&mut self, _item: &syscalls::WaitItem) -> ::std::io::Result<Option<(&::std::net::TcpStream, &[u8])>> {
 		use ::std::io::Read;
 		::syscalls::kernel_log!("AsyncLineStream: handle");
 		match self.connection.read(&mut self.read_buffer[self.read_ofs..]) {
@@ -222,7 +226,7 @@ impl AsyncLineStream {
 			let o = self.read_ofs;
 			self.read_ofs += len;
 			if let Some(newline_pos) = self.read_buffer[o..][..len].iter().position(|&v| v == b'\n') {
-				Ok(Some(&self.read_buffer[..o+newline_pos]))
+				Ok(Some( (self.connection.get_ref(), &self.read_buffer[..o+newline_pos],) ))
 			}
 			else {
 				Ok(None)

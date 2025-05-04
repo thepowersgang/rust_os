@@ -5,6 +5,7 @@ pub struct ServerState {
 	server_name: String,
 	status_window: StatusWindow,
 	windows: ::std::collections::BTreeMap<Vec<u8>,ChannelWindow>,
+	is_connected: bool,
 }
 impl ServerState {
 	pub fn new(server_name: String, status_window: StatusWindow) -> Self {
@@ -12,6 +13,7 @@ impl ServerState {
 			server_name,
 			status_window,
 			windows: Default::default(),
+			is_connected: false,
 		}
 	}
 	pub fn name(&self) -> &str {
@@ -34,7 +36,7 @@ impl ServerState {
 		::std::io::Write::write_all(&mut conn, format!("JOIN {}\r\n", channel_name).as_bytes())?;
 		Ok( () )
 	}
-	pub fn handle_line(&mut self, mut line: &[u8]) {
+	pub fn handle_line(&mut self, mut conn: &::std::net::TcpStream, mut line: &[u8]) -> ::std::io::Result<()> {
 		::syscalls::kernel_log!("handle_line: {:?}", ::std::str::from_utf8(line).unwrap_or("?BADUTF?"));
 		if line.starts_with(b":") {
 			// A message (either from a user or from a server)
@@ -104,6 +106,17 @@ impl ServerState {
 			_ => {},
 			}
 		}
+
+		// If this was the first message from the server, then send the initial login messages
+		if ! ::core::mem::replace(&mut self.is_connected, true) {
+			::std::io::Write::write_all(&mut conn, format!("USER {uname} {hname} {addr} :{realname}\r\n",
+				uname="rust_os", hname="rust_os", addr=self.server_name, realname="Unspecified").as_bytes()
+				)?;
+			::std::io::Write::write_all(&mut conn, format!("NICK {nickname}\r\n",
+				nickname="rust_os").as_bytes()
+				)?;
+		}
+		Ok( () )
 	}
 }
 
