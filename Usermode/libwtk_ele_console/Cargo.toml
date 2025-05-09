@@ -1,0 +1,9 @@
+[package]
+name = "wtk_ele_console"
+version = "0.1.0"
+edition = "2018"
+
+[dependencies]
+std = { path = "../libstd" }
+syscalls = { path = "../libsyscalls" }
+wtk = { path = "../libwtk" }

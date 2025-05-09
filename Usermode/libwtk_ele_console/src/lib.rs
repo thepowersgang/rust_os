@@ -1,7 +1,7 @@
-// Tifflin OS - IRC client
+// Tifflin OS - WTK Element: Text Console
 // - By John Hodge (thePowersGang)
 //
-// rich_text_ele.rs
+// src/lib.rs
 //! Text terminal as a WTK element
 // TODO: This could maybe be split up into a rendering component and a backend with the line data?
 use ::wtk::Colour;
@@ -16,6 +16,7 @@ const FONT_WIDTH : u32 = 8;
 mod encoded_line;
 use self::encoded_line::{Line,LineEnt};
 
+/// The text console element
 pub struct TextConsole
 {
 	lines: RefCell<Lines>,

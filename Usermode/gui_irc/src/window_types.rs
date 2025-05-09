@@ -1,9 +1,10 @@
+use ::wtk_ele_console::TextConsole;
 
 #[derive(Clone)]
-pub struct StatusWindow(::std::rc::Rc<super::rich_text_ele::TextConsole>);
+pub struct StatusWindow(::std::rc::Rc<TextConsole>);
 impl StatusWindow {
 	pub fn new() -> (Self, impl ::wtk::Element) {
-		let inner = ::std::rc::Rc::new(super::rich_text_ele::TextConsole::new(1024));
+		let inner = ::std::rc::Rc::new(TextConsole::new(1024));
 		inner.new_line();
 		inner.append_text(0, "Hello world!");
 		(StatusWindow(inner.clone()), inner,)
@@ -37,12 +38,12 @@ impl StatusWindow {
 
 
 #[derive(Clone)]
-pub struct ChannelWindow(::std::rc::Rc<super::rich_text_ele::TextConsole>);
+pub struct ChannelWindow(::std::rc::Rc<TextConsole>);
 
 impl ChannelWindow {
 	pub fn new(name: &[u8]) -> (Self, impl ::wtk::Element) {
 		let _ = name;
-		let inner = ::std::rc::Rc::new(super::rich_text_ele::TextConsole::new(1024));
+		let inner = ::std::rc::Rc::new(TextConsole::new(1024));
 		(ChannelWindow(inner.clone()), inner,)
 	}
 	fn get_time(&self) -> &'static str {

@@ -5,6 +5,7 @@ edition = "2018"
 
 [dependencies]
 wtk = { path = "../libwtk" }
+wtk_ele_console = { path = "../libwtk_ele_console" }
 async = { path = "../libasync" }
 std = { path = "../libstd" }
 syscalls = { path = "../libsyscalls" }

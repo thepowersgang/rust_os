@@ -87,7 +87,6 @@ fn main()
 
 mod window_types;
 
-mod rich_text_ele;
 mod server_manager;
 mod server_state;
 
