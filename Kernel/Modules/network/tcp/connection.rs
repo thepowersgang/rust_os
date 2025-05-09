@@ -56,8 +56,10 @@ struct ConnectionTxState {
 	// -- Timers and state for transmit
 	/// Number of re-transmit attempts since the last successful receive
 	retransmit_attempts: u32,
-	/// Timer use to ensure that we get ACKs in a suitable time.
+	/// Timer used to ensure that we get ACKs in a suitable time.
 	retransmit_timer: ::kernel::time::Timer,
+	/// Timer to collate multiple sends
+	nagle_timer: ::kernel::time::Timer,
 	/// Flag that forces a TX on the next opportunity (e.g. the buffer has a packet worth of data, or a flush was requested)
 	force_tx: bool,
 	/// Send an ACK in the next opportunity
@@ -74,6 +76,7 @@ impl ConnectionTxState {
 			cur_tx_window_size: init_window_size,
 			retransmit_attempts: 0,
 			retransmit_timer: ::kernel::time::Timer::new(),
+			nagle_timer: ::kernel::time::Timer::new(),
 			force_tx: false,
 			pending_ack: false,
 		}
@@ -144,6 +147,8 @@ impl Connection
 			tx_waiters: Default::default(),
 			};
 		rv.send_empty_packet(quad, FLAG_SYN);
+		// TODO: This should be a little more formalised. A SYN should count as data, and be resent the same way
+		rv.tx_state.next_tx_seq = rv.tx_state.next_tx_seq.wrapping_add(1);
 		rv.tx_state.retransmit_timer.reset(RETRANSMIT_TIMEOUT_MS as u64);
 		rv
 	}
@@ -169,6 +174,7 @@ impl Connection
 		}
 		// ACK of sent data
 		if hdr.flags & FLAG_ACK != 0 {
+			// TODO: There are some pseudo-bytes (a SYN flag counts as a transmitted byte)
 			let in_flight = self.tx_state.next_tx_seq.wrapping_sub(1).wrapping_sub(hdr.acknowledgement_number) as usize;
 			if in_flight > self.tx_state.buffer.len() {
 				// TODO: Error, something funky has happened
@@ -187,7 +193,7 @@ impl Connection
 				// If there are no un-acked bytes, and there's pending bytes. Trigger a re-send
 				if self.tx_state.sent_bytes == 0 && self.tx_state.buffer.len() > 0 {
 					self.tx_state.force_tx = true;
-					super::WORKER_CV.wake_one();
+					WORKER_CV.wake_one();
 				}
 				else {
 					// Since we've seen an ACK, reset the retransmit time
@@ -467,14 +473,16 @@ impl Connection
 			log_trace!("{:?} forcing a send", _quad);
 			// Force a TX
 			self.tx_state.force_tx = true;
-			WORKER_CV.wake_one();
-			//self.flush_send(quad);
 		}
 		else
 		{
 			// Just enqueue the data, the RX logic will trigger a re-send on ACK
 			log_trace!("{:?} waiting for nagle", _quad);
+			if self.tx_state.nagle_timer.get_expiry().is_none() {
+				self.tx_state.nagle_timer.reset(100);
+			}
 		}
+		WORKER_CV.wake_one();
 		Ok(rv)
 	}
 	pub(super) fn send_ready(&self) -> bool {
@@ -546,6 +554,7 @@ impl Connection
 			};
 
 		if self.tx_state.retransmit_timer.is_expired() {
+			self.tx_state.retransmit_timer.clear();
 			self.tx_state.retransmit_attempts += 1;
 			match self.state {
 			ConnectionState::SynSent => {
@@ -579,8 +588,8 @@ impl Connection
 					// `next_tx_seq` is the sequence number of the next new byte to be sent
 					// - I.e. the byte at `buffer[sent_bytes]`
 					// - So, we want to subtract the number of bytes between `data.len()` and `sent_bytes`
-					let seq_ofs = (self.tx_state.sent_bytes as u32).wrapping_sub(len as u32);
-					let seq = self.tx_state.next_tx_seq.wrapping_sub(seq_ofs);
+					assert!(self.tx_state.sent_bytes >= len);	// This could fail, if data has been queued but not sent
+					let seq = self.tx_state.next_tx_seq.wrapping_sub(self.tx_state.sent_bytes as u32);
 					block_on(quad.send_packet(seq, self.next_rx_seq, flags, self.rx_window_size as u16, data.0, data.1));
 					// TODO: Double this timer each time we need to resend (and halve it on successful reception)
 					self.tx_state.retransmit_timer.reset(RETRANSMIT_TIMEOUT_MS as u64 * (self.tx_state.retransmit_attempts + 1) as u64);
@@ -589,16 +598,22 @@ impl Connection
 			_ => {},
 			}
 		}
-		else if ::core::mem::replace(&mut self.tx_state.force_tx, false) {
+		else if ::core::mem::replace(&mut self.tx_state.force_tx, false) || self.tx_state.nagle_timer.is_expired() {
 			// Send the new data
 			let nbytes = self.tx_state.buffer.len() - self.tx_state.sent_bytes;
 			let nbytes = nbytes.min(MSS);
 			let data = self.tx_state.buffer.get_slices(self.tx_state.sent_bytes .. self.tx_state.sent_bytes + nbytes);
 			let seq = self.tx_state.next_tx_seq;
-			log_trace!("{:?} TX forced {:#x} {} bytes", quad, flags, nbytes);
+			log_trace!("{:?} TX {} {:#x} {} bytes", quad, if self.tx_state.nagle_timer.is_expired() { "ready" } else {"forced"}, flags, nbytes);
 			block_on(quad.send_packet(seq, self.next_rx_seq, flags, self.rx_window_size as u16, data.0, data.1));
 			// TODO: Some flags act as a pseudo-byte if in an empty packet
 			self.tx_state.next_tx_seq = self.tx_state.next_tx_seq.wrapping_add( nbytes as u32 );
+			self.tx_state.sent_bytes += nbytes;
+			self.tx_state.nagle_timer.clear();
+			// If the retransmit timer is stopped, start it again
+			if self.tx_state.retransmit_timer.get_expiry().is_none() {
+				self.tx_state.retransmit_timer.reset(RETRANSMIT_TIMEOUT_MS as u64);
+			}
 		}
 		else {
 			// Nothing to do.
@@ -606,6 +621,7 @@ impl Connection
 
 		let mut rv = None;
 		super::earliest_timestamp(&mut rv, self.tx_state.retransmit_timer.get_expiry());
+		super::earliest_timestamp(&mut rv, self.tx_state.nagle_timer.get_expiry());
 		rv
 	}
 

@@ -105,7 +105,14 @@ impl Header
         self.checksum = 0;
         self.checksum = self.calculate_checksum_v4(src, dst, options, data);
     }
+
+    #[track_caller]
+    pub fn assert_seq(&self, expected: u32) {
+        assert_eq!(self.seq, expected, "Sequence number mismatch, expected {:#x} got {:#x} - {:+}",
+            expected, self.seq, self.seq.wrapping_sub(expected) as i32);
+    }
 }
+
 pub const TCP_FIN: u8 = 0x01;
 pub const TCP_SYN: u8 = 0x02;
 pub const TCP_RST: u8 = 0x04;

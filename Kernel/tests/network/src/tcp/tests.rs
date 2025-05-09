@@ -137,8 +137,50 @@ fn client()
     conn.wait_rx_check(TCP_ACK, &[]);
     // Get the client to send data
     fw.send_command("tcp-send 0 \"00 01 02 03\"");
-    conn.wait_rx_check(if cfg!(feature="lwip") { TCP_ACK|TCP_PSH } else { TCP_PSH }, &[0,1,2,3]);
+    fw.send_command("tcp-send 0 \"05 06 07 08\"");
+    conn.wait_rx_check(if cfg!(feature="lwip") { TCP_ACK|TCP_PSH } else { TCP_PSH }, &[0,1,2,3])
+        .assert_seq(conn.remote_seq);
+    conn.wait_rx_check(if cfg!(feature="lwip") { TCP_ACK|TCP_PSH } else { 0 }, &[5,6,7,8])
+        .assert_seq(conn.remote_seq+4);
 }
+
+// /*
+#[test]
+fn retransmits()
+{
+    let my_ip = IpAddr4([192,168,1,2]);
+    
+    let fw = {
+        let mut fw = crate::TestFramework::new("tcp_retransmits");
+        fw.add_handler(crate::arp::ArpHandler::new(my_ip));
+        fw
+        };
+    //crate::ipv4::prime_arp(&fw, /*dst=*/IpAddr4([192,168,1,1]), /*src=*/my_ip);
+
+    fw.send_command(&format!("tcp-connect 0 {my_ip} 80"));
+    // TODO: Expect an ARP request?
+
+    // Expects the SYN
+    let mut conn = TcpConn::from_rx_conn(&fw, 80, IpAddr4([192,168,1,2]));
+    // Wait some time, then expect a new SYN
+    conn.wait_rx_check(TCP_SYN, &[]);
+
+    // Send SYN,ACK
+    conn.raw_send_packet(TCP_SYN|TCP_ACK, &[], &[]);
+    conn.local_seq += 1;
+    // Expect ACK
+    conn.wait_rx_check(TCP_ACK, &[]);
+    // Get the client to send data
+    fw.send_command("tcp-send 0 \"00 01 02 03\"");
+    conn.wait_rx_check(if cfg!(feature="lwip") { TCP_ACK|TCP_PSH } else { TCP_PSH }, &[0,1,2,3])
+        .assert_seq(conn.remote_seq);
+    conn.wait_rx_check(if cfg!(feature="lwip") { TCP_ACK } else { 0 }, &[0,1,2,3])
+        .assert_seq(conn.remote_seq);
+    conn.remote_seq += 4;
+    conn.raw_send_packet(TCP_ACK, &[], &[]);
+    conn.wait_rx_none();
+}
+// */
 
 /// Helper to create a string of hex-encoded bytes
 struct HexString<'a>(&'a [u8]);
