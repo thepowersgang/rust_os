@@ -15,6 +15,15 @@ impl WakerQueue
 	pub const fn new() -> Self {
 		WakerQueue { val1: None, others: ::alloc::vec::Vec::new() }
 	}
+	/// Remove any compatible waker (used for cancellation)
+	pub fn remove(&mut self, v: &task::Waker) {
+		if self.val1.as_ref().map(|w| w.will_wake(v)).unwrap_or(true) {
+			self.val1 = None;
+		}
+		else {
+			self.others.retain(|w| !w.will_wake(v));
+		}
+	}
 	pub fn push(&mut self, v: &task::Waker) {
 		// Compact if the `others` list only has one item, and the non-alloc slot has none
 		if self.others.len() == 1 && self.val1.is_none() {
