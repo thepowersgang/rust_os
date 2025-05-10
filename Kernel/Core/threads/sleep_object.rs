@@ -78,7 +78,7 @@ impl ::core::ops::Drop for AtomicSleepObjectRef {
 }
 
 #[derive(Default)]
-pub struct SleepObjectSet(Vec<SleepObjectRef>);
+pub struct SleepObjectSet(::alloc::vec::Vec<SleepObjectRef>);
 impl SleepObjectSet {
 	pub fn signal(&self) {
 		for v in &self.0 {
