@@ -119,6 +119,7 @@ struct Timers {
 }
 struct Timer {
 	fire_time_ns: Option<i64>,
+	#[allow(dead_code)]
 	cb: Box<dyn FnMut()>,
 }
 impl Timers {

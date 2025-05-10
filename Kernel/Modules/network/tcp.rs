@@ -24,7 +24,7 @@ mod connection;
 use self::connection::Connection;
 
 fn earliest_timestamp(dst: &mut Option<::kernel::time::TickCount>, src: Option<::kernel::time::TickCount>) {
-	::kernel::log_trace!("{:?} < {:?}", dst, src);
+	//::kernel::log_trace!("{:?} < {:?}", dst, src);
 	match src
 	{
 	Some(ts) => match *dst
