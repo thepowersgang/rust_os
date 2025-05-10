@@ -79,7 +79,6 @@ endif
 # - (debugging) Remove most default targets
 .SUFFIXES:
 
-#makefile_deps = Makefile
 makefile_deps = 
 
 # DEFAULT: Compile all applications
@@ -135,7 +134,6 @@ endif
 .PHONY: xargo
 xargo: $(OBJDIR)rustrt0.o $(LIBLOADER_BIN)	# Referenced by link-$(TARGET).ld
 	RUSTFLAGS='$(RUSTFLAGS)' $(CARGO) build $(CARGO_FLAGS)
-#	$(foreach app,$(APPS), cp $(CARGO_OUTDIR)$(app) $(BINDIR)$(app);)
 
 # Ensure that all external crates are checked out
 xargo: $(patsubst %,../externals/crates.io/%/src/lib.rs,cmdline_words_parser utf16_literal va_list)
@@ -166,8 +164,4 @@ $(OBJDIR)rustrt0.o: rustrt0/$(ARCH).S $(makefile_deps)
 
 DEPFILES := 
 DEPFILES += $(OBJDIR)loader/bin/start.ao.d $(OBJDIR)rustrt0.o.d
-#DEPFILES += $(CARGO_OUTDIR)libloader_binary.d
 -include $(DEPFILES)
-
-# Cargo emits `build.rs` as a dependency for everything
-#.PHONY: build.rs
