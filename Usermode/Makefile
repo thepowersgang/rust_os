@@ -21,6 +21,7 @@ APPS += filebrowser fileviewer
 APPS += vfs_test
 APPS += hello_world
 APPS += gui_irc
+APPS += gui_http
 APPS += daemon_network
 
 APPS := $(addsuffix $(EXESUF),$(APPS))

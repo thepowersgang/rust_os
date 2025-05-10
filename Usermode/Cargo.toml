@@ -3,14 +3,18 @@ members = [
 	"loader/bin",
 	"init",
 	"login",
-	"handle_server",
 	"simple_console", "shell",
 	"filebrowser", "fileviewer",
 	"vfs_test",
 	"hello_world",
-	
-	"gui_irc",
+
+	# Daemons
+	"handle_server",
 	"daemon_network",
+	
+	# Applications
+	"gui_irc",
+	"gui_http",
 	]
 exclude = ["loader/native"]
 
