@@ -17,8 +17,54 @@ pub enum LineEnt<'a> {
 }
 
 impl Line {
-	pub fn is_dirty(&self) -> bool {
+	pub fn take_is_dirty(&self) -> bool {
 		self.is_dirty.replace(false)
+	}
+
+	pub fn split_off_at_raw(&mut self, ofs: usize) -> Line {
+		self.is_dirty.set(true);
+		Line {
+			data: self.data.split_off(ofs),
+			is_dirty: Default::default(),
+		}
+	}
+	pub fn split_off_at(&mut self, mut cell: usize) -> Line {
+		let mut it = self.segs(0);
+		while let Some(v) = it.next()
+		{
+			match v {
+			LineEnt::Text(t) => {
+				if cell == 0 {
+					return self.split_off_at_raw(it.str_ofs());
+				}
+				let mut is_first = true;
+				for (o, ch) in t.char_indices() {
+					use ::wtk::surface::UnicodeCombining;
+					if !ch.is_combining() {
+						if cell == 0 {
+							return self.split_off_at_raw(it.str_ofs + o);
+						}
+						else {
+							cell -= 1;
+						}
+					}
+					else {
+						// HACK: Combining characters with nothing before them are rendered with an implicit space
+						if is_first {
+							cell -= 1;
+						}
+					}
+					is_first = false;
+				}
+			},
+			_ => {},
+			}
+		}
+		Line::default()
+	}
+	pub fn append(&mut self, line: Line) {
+		self.data.push_str(&line.data);
+		self.is_dirty.set(true);
 	}
 
 	pub fn append_iter(&mut self, text: impl Iterator<Item=char>) {
@@ -37,7 +83,7 @@ impl Line {
 		self.data.push( CodepointClass::PrivateUse16(col24_to_12(col) << 4).to_char() );
 		self.is_dirty.set(true);
 	}
-	pub fn _delete_cell_back(&mut self)
+	pub fn delete_cell_back(&mut self)
 	{
 		while let Some(v) = self.data.pop()
 		{
@@ -62,10 +108,10 @@ impl Line {
 		let mut rv = LineEnts {
 			string: &self.data,
 			iter: self.data.char_indices().peekable(),
-			cur_pos: 0,
+			str_ofs: 0,
 			};
-		while rv.cur_pos < ofs {
-			rv.cur_pos = rv.iter.next().expect("Line::segs - offset out of range").0;
+		while rv.str_ofs < ofs {
+			rv.str_ofs = rv.iter.next().expect("Line::segs - offset out of range").0;
 		}
 		rv
 	}
@@ -101,20 +147,20 @@ pub fn rendered_cell_count(s: &str) -> usize {
 pub struct LineEnts<'a> {
 	string: &'a str,
 	iter: ::std::iter::Peekable<::std::str::CharIndices<'a>>,
-	cur_pos: usize,
+	str_ofs: usize,
 }
 impl<'a> LineEnts<'a> {
-	//fn get_pos(&self) -> usize {
-	//	self.cur_pos
-	//}
+	fn str_ofs(&self) -> usize {
+		self.str_ofs
+	}
 }
 impl<'a> Iterator for LineEnts<'a> {
 	type Item = LineEnt<'a>;
 	fn next(&mut self) -> Option<LineEnt<'a>> {
-		let start = self.cur_pos;
+		let start = self.str_ofs;
 		while let Some( &(pos, ch) ) = self.iter.peek()
 		{
-			self.cur_pos = pos + ch.len_utf8();
+			self.str_ofs = pos + ch.len_utf8();
 			match CodepointClass::from_char(ch)
 			{
 			// Standard character, eat and keep going
@@ -148,8 +194,8 @@ impl<'a> Iterator for LineEnts<'a> {
 			},
 			}
 		}
-		if start != self.cur_pos {
-			Some( LineEnt::Text(&self.string[start .. self.cur_pos]) )
+		if start != self.str_ofs {
+			Some( LineEnt::Text(&self.string[start .. self.str_ofs]) )
 		}
 		else {
 			None

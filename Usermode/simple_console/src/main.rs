@@ -9,6 +9,7 @@ extern crate cmdline_words_parser;
 
 extern crate wtk;
 extern crate r#async;
+extern crate wtk_ele_console;
 
 use wtk::Colour;
 
@@ -18,12 +19,18 @@ mod input;
 
 trait Terminal
 {
+	/// Set the current foreground colour
 	fn set_foreground(&self, col: ::wtk::Colour);
-	fn flush(&self);
+	/// Get the current cursor column
 	fn cur_col(&self) -> usize;
+	/// Delete the character/grapheme to the left of the cursor
 	fn delete_left(&self);
+	/// Delete the character/grapheme at/after the cursor
 	fn delete_right(&self);
+	/// Move the cursor one cell to the left
 	fn cursor_left(&self);
+	/// Move the cursor one cell to the right
+	fn cursor_right(&self);
 
 	fn write_str(&self, s: &str);
 	fn write_fmt(&self, args: ::std::fmt::Arguments) {
@@ -123,6 +130,8 @@ fn render_input<T: Terminal>(term: &T, action: input::Action)
 	Action::Backspace => term.delete_left(),
 	Action::Delete => term.delete_right(),
 	Action::Puts(s) => term.write_str(s),
+	Action::CursorLeft => term.cursor_left(), 
+	Action::CursorRight => term.cursor_right(),
 	}
 }
 

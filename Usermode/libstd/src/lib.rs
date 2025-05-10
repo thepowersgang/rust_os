@@ -134,6 +134,9 @@ pub mod prelude {
 pub mod collections {
 	pub use ::alloc::collections::{BTreeMap,btree_map};
 	pub use ::alloc::collections::{BTreeSet,btree_set};
+	pub use ::alloc::collections::{VecDeque,vec_deque};
+	pub use ::alloc::collections::{BinaryHeap,binary_heap};
+	pub use ::alloc::collections::{LinkedList,linked_list};
 }
 
 mod start;

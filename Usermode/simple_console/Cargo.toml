@@ -10,4 +10,5 @@ cmdline_words_parser = { path = "../../externals/crates.io/cmdline_words_parser"
 
 std = { path = "../libstd" }
 syscalls = { path = "../libsyscalls" }
+wtk_ele_console = { path = "../libwtk_ele_console" }
 

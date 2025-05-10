@@ -50,6 +50,28 @@ impl TextConsole
 		rv
 	}
 
+	/// Get the length of this line in terms of render cells
+	pub fn line_len(&self, line: usize) -> usize {
+		let mut len = 0;
+		self.with_line(line, |l|{
+			len = l.num_cells();
+		});
+		len
+	}
+	pub fn cursor_line(&self) -> usize {
+		self.lines.borrow().cursor_line
+	}
+	pub fn cursor_cell(&self) -> usize {
+		self.lines.borrow().cursor_cell
+	}
+
+	
+	pub fn pop_from_line(&self, line: usize) {
+		self.with_line(line, |l| {
+			l.delete_cell_back();
+		});
+	}
+
 	/// Push a new line onto the end of the console, potentially scrolling the display
 	pub fn new_line(&self) {
 		let mut lh = self.lines.borrow_mut();
@@ -81,39 +103,51 @@ impl TextConsole
 	pub fn erase_line(&self, line: usize) {
 		self.with_line(line, |line| *line = Line::default());
 	}
+	/// Set the background colour for all characters after the current position
 	pub fn append_bg_set(&self, line: usize, colour: Option<Colour>) {
 		self.with_line(line, |line| {
 			line.append_bg(colour.unwrap_or(Colour::from_argb32(COLOUR_DEFAULT_BG)));
 		});
 	}
+	/// Set the foreground colour for all characters after the current position
 	pub fn append_fg_set(&self, line: usize, colour: Option<Colour>) {
 		self.with_line(line, |line| {
 			line.append_fg(colour.unwrap_or(Colour::from_argb32(COLOUR_DEFAULT_FG)));
 		});
 	}
-	/// Append text onto the end of a line
+	/// Append text onto the end of a line (using a `&str`)
 	pub fn append_text(&self, line: usize, text: &str) {
 		self.with_line(line, |line| {
 			line.append_text(text);
 		});
 	}
-	/// Append text onto the end of a line
+	/// Append text onto the end of a line (using an iterator of characters)
 	pub fn append_chars(&self, line: usize, text: impl Iterator<Item=char>) {
 		self.with_line(line, |line| {
 			line.append_iter(text);
 		});
 	}
+	/// Append text onto the end of a line (using `format_args`)
 	pub fn append_fmt(&self, line: usize, args: ::std::fmt::Arguments) {
 		self.with_line(line, |line| {
-			struct F<'a>(&'a mut Line);
-			impl<'a> ::std::fmt::Write for F<'a> {
-				fn write_str(&mut self, s: &str) -> ::std::fmt::Result {
-					self.0.append_text(s);
-					Ok(())
-				}
-			}
-			let _ = ::std::fmt::Write::write_fmt(&mut F(line), args);
+			let _ = ::std::fmt::Write::write_fmt(&mut AppendFmt(line), args);
 		});
+	}
+
+	/// Insert text before a specific cell (with the same formatting as that cell)
+	pub fn insert_text(&self, line: usize, cell: usize, args: ::std::fmt::Arguments) {
+		self.with_line(line, |line| {
+			let tail = line.split_off_at(cell);
+			let _ = ::std::fmt::Write::write_fmt(&mut AppendFmt(line), args);
+			line.append(tail);
+		});
+	}
+}
+struct AppendFmt<'a>(&'a mut Line);
+impl<'a> ::std::fmt::Write for AppendFmt<'a> {
+	fn write_str(&mut self, s: &str) -> ::std::fmt::Result {
+		self.0.append_text(s);
+		Ok(())
 	}
 }
 impl ::wtk::Element for TextConsole
@@ -140,7 +174,7 @@ impl ::wtk::Element for TextConsole
 		let line_width = surface.width() / FONT_WIDTH;
 		for (idx, line) in backing.lines.iter().enumerate().rev()
 		{
-			if line.is_dirty() || force
+			if line.take_is_dirty() || force
 			{
 				let num_lines = (line.num_cells() as u32 + line_width - 1) / line_width;
 				dest_line -= num_lines;
