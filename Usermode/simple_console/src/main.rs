@@ -33,16 +33,7 @@ trait Terminal
 	fn cursor_right(&self);
 
 	fn write_str(&self, s: &str);
-	fn write_fmt(&self, args: ::std::fmt::Arguments) {
-		struct Adapter<'a, T: 'a + ?Sized + Terminal>(&'a T);
-		impl<'a,T: ?Sized + 'a + Terminal> ::std::fmt::Write for Adapter<'a, T> {
-			fn write_str(&mut self, s: &str) -> ::std::fmt::Result {
-				self.0.write_str(s);
-				Ok( () )
-			}
-		}
-		let _ = ::std::fmt::write(&mut Adapter(self), args);
-	}
+	fn write_fmt(&self, args: ::std::fmt::Arguments);
 }
 
 fn main()
@@ -144,11 +135,6 @@ struct ShellState
 	cwd_rel: String,
 }
 
-
-macro_rules! print {
-	($term:expr, $($t:tt)*) => ({let _ = write!($term, $($t)*);});
-}
-
 impl ShellState
 {
 	pub fn new() -> ShellState {
@@ -165,11 +151,11 @@ impl ShellState
 		{
 		None => {},
 		// 'pwd' - Print working directory
-		Some("pwd") => print!(term, "/{}", self.cwd_rel),
+		Some("pwd") => write!(term, "/{}", self.cwd_rel),
 		// 'cd' - Change directory
 		Some("cd") =>
 			if let Some(p) = args.next() {
-				print!(term, "TODO: cd '{}'", p);
+				write!(term, "TODO: cd '{}'", p);
 			}
 			else {
 				self.cwd_rel = String::new();
@@ -185,17 +171,17 @@ impl ShellState
 			},
 		// 'cat' - Dump the contents of a file
 		// TODO: Implement
-		Some("cat") => print!(term, "TODO: cat"),
+		Some("cat") => write!(term, "TODO: cat"),
 		// 'echo' - Prints all arguments space-separated
 		Some("echo") =>
 			while let Some(v) = args.next() {
-				print!(term, "{} ", v);
+				write!(term, "{} ", v);
 			},
 		Some("help") => {
-			print!(term, "Builtins: pwd, cd, ls, cat, help, echo");
+			write!(term, "Builtins: pwd, cd, ls, cat, help, echo");
 			},
 		Some(cmd @ _) => {
-			print!(term, "Unknown command '{}'", cmd);
+			write!(term, "Unknown command '{}'", cmd);
 			},
 		}
 	}
@@ -205,18 +191,19 @@ impl ShellState
 fn command_ls<T: ::Terminal>(term: &T, root: &::syscalls::vfs::Dir, path: &str)
 {
 	use syscalls::vfs::{NodeType, FileOpenMode};
+	write!(term, "Listing {:?}\n", path);
 	let handle = match root.open_child_path(path)
 		{
 		Ok(v) => match v.into_dir()
 			{
 			Ok(v) => v,
 			Err(e) => {
-				print!(term, "Unable to open '{}': {:?}", path, e);
+				write!(term, "Unable to open '{}': {:?}\n", path, e);
 				return ;
 				},
 			},
 		Err(e) => {
-			print!(term, "Unable to open '{}': {:?}", path, e);
+			write!(term, "Unable to open '{}': {:?}\n", path, e);
 			return ;
 			},
 		};
@@ -230,20 +217,20 @@ fn command_ls<T: ::Terminal>(term: &T, root: &::syscalls::vfs::Dir, path: &str)
 			Ok(Some(v)) => v,
 			Ok(None) => break,
 			Err(e) => {
-				print!(term, "Read error: {:?}", e);
+				write!(term, "Read error: {:?}", e);
 				return ;
 				},
 			};
 
 		let name = ::std::str::from_utf8(name_bytes).expect("Filename not utf-8");
 
-		print!(term, "- {}", name);
+		write!(term, "- {}", name);
 
 		let file_node = match handle.open_child(name)
 			{
 			Ok(v) => v,
 			Err(e) => {
-				print!(term, "(Error: {:?})\n", e);
+				write!(term, "(Error: {:?})\n", e);
 				continue ;
 				},
 			};
@@ -251,20 +238,20 @@ fn command_ls<T: ::Terminal>(term: &T, root: &::syscalls::vfs::Dir, path: &str)
 		{
 		NodeType::File => {
 			let size = file_node.into_file(FileOpenMode::ReadOnly).and_then(|h| Ok(h.get_size())).unwrap_or(0);
-			print!(term, " ({})", size);
+			write!(term, " ({})", size);
 			},
-		NodeType::Dir => print!(term, "/"),
+		NodeType::Dir => write!(term, "/"),
 		NodeType::Symlink => {
 			let mut link_path_buf = [0; 256];
 			let dest = match file_node.into_symlink().and_then(|h| h.read_target(&mut link_path_buf))
 				{
 				Ok(v) => v,
-				Err(e) => { print!(term, "(Error: {:?})\n", e); continue ; },
+				Err(e) => { write!(term, "(Error: {:?})\n", e); continue ; },
 				};
-			print!(term, " => {:?}", ::std::str::from_utf8(dest));
+			write!(term, " => {:?}", ::std::str::from_utf8(dest));
 			},
-		NodeType::Special => print!(term, "*"),
+		NodeType::Special => write!(term, "*"),
 		}
-		print!(term, "\n");
+		write!(term, "\n");
 	}
 }

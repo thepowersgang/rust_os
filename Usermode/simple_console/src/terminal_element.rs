@@ -137,7 +137,13 @@ impl super::Terminal for TerminalElementInner
 	
 	fn write_str(&self, s: &str) {
 		// Newlines need special handling, as the underlying element doesn't handle them
-		for line in s.lines() {
+		let mut is_first = true;
+		for line in s.split('\n') {
+			if !is_first {
+				self.surface.new_line();
+				self.insert_col.set(None);
+			}
+			is_first = false;
 			
 			if let Some(v) = self.insert_col.get() {
 				self.surface.insert_text(self.cur_line, v, format_args!("{}", line))
@@ -145,9 +151,6 @@ impl super::Terminal for TerminalElementInner
 			else {
 				self.surface.append_text(self.cur_line, line);
 			}
-
-			self.surface.new_line();
-			self.insert_col.set(None);
 		}
 	}
 	fn write_fmt(&self, args: ::std::fmt::Arguments) {
@@ -161,6 +164,8 @@ impl super::Terminal for TerminalElementInner
 					if !self.ss.push(c) {
 						super::Terminal::write_str(self.parent, &self.ss);
 						self.ss.clear();
+						// Should succeed
+						self.ss.push(c);
 					}
 				}
 				Ok( () )
@@ -192,6 +197,7 @@ impl StackString {
 		}
 		else {
 			self.buffer[self.len..][..ch.len()].copy_from_slice(ch.as_bytes());
+			self.len += ch.len();
 			true
 		}
 	}

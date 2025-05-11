@@ -397,7 +397,7 @@ impl objects::Object for Link
 
 			let res = to_result( self.0.get_target() )
 				.map(|tgt| {
-					buf.clone_from_slice(tgt.as_bytes());
+					buf[..tgt.len()].copy_from_slice(tgt.as_bytes());
 					tgt.len() as u32
 					});
 			Ok( super::from_result(res) )

@@ -47,6 +47,7 @@ impl TextConsole
 			render_cache: Default::default(),
 			};
 		rv.lines.borrow_mut().cursor_line = !0;
+		rv.new_line();
 		rv
 	}
 
