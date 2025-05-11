@@ -59,7 +59,7 @@ impl GlobalState
 	pub fn new(proc_0: ::std::process::Child) -> GlobalState
 	{
 		GlobalState {
-			processes: ::std::iter::once( (0, proc_0) ).collect(),
+			processes: ::std::iter::once( (::kernel::threads::ProcessID::from_raw(0), proc_0) ).collect(),
 			process_handles: Default::default(),
 			pre_start_processes: Default::default(),
 			to_be_claimed: Some(None),
@@ -165,8 +165,8 @@ pub fn main_loop(server: ::std::net::TcpListener, gs_root: GlobalStateRef)
 		}
 		else
 		{
-			let pid = 0;
-			log_debug!("{:?} = PID {}", addr, pid);
+			let pid = ::kernel::threads::ProcessID::from_raw(0);
+			log_debug!("{:?} = {}", addr, pid);
 			::std::mem::forget( ::kernel::threads::WorkerThread::new("PID0 Rx Worker", move || { process_worker(gs, pid, sock, addr); }) );
 		}
 	}
@@ -184,7 +184,7 @@ fn process_worker(
 
 	// Wait until the process is cleared to start running
 	// - Only applies to PIDs other than #0
-	if pid != 0 {
+	if pid.raw() != 0 {
 		let e = gs.lock().unwrap().pre_start_processes[&pid].clone();
 		let mut lh = e.mutex.lock().unwrap();
 		*lh = PreStartState::WaitingAck;
@@ -198,7 +198,7 @@ fn process_worker(
 		gs.lock().unwrap().pre_start_processes.remove(&pid);
 	}
 	// Inform the client of its simulated PID (releasing it to start running)
-	let buf = pid.to_le_bytes();
+	let buf = pid.raw().to_le_bytes();
 	match sock.write_all(&buf)
 	{
 	Ok(_) => {},

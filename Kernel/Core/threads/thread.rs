@@ -15,7 +15,7 @@ use crate::prelude::*;
 use crate::lib::mem::Arc;
 
 /// Thread identifier (unique)
-#[derive(Debug,PartialEq,Copy,Clone)]
+#[derive(Debug,PartialEq,Eq,Hash,Copy,Clone)]
 pub struct ThreadID(u32);
 impl ThreadID {
 	pub fn raw(&self) -> u32 {
@@ -31,7 +31,7 @@ impl ::core::fmt::Display for ThreadID {
 	}
 }
 /// Process identifier
-#[derive(Debug,PartialEq,Copy,Clone)]
+#[derive(Debug,PartialEq,Eq,Hash,Copy,Clone)]
 pub struct ProcessID(u32);
 impl ProcessID {
 	pub fn raw(&self) -> u32 {
