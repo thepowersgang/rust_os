@@ -23,8 +23,7 @@ struct UnitMutex
 #[doc(hidden)]
 struct MutexInner
 {
-	held: bool,
-	holder: crate::threads::ThreadID,
+	holder: Option<crate::threads::ThreadID>,
 	queue: crate::threads::WaitQueue,
 }
 
@@ -52,8 +51,7 @@ impl UnitMutex
 	pub const fn new() -> UnitMutex {
 		UnitMutex {
 			inner: crate::sync::Spinlock::new(MutexInner {
-				held: false,
-				holder: !0,
+				holder: None,
 				queue: crate::threads::WaitQueue::new(),
 				}),
 			}
@@ -66,19 +64,18 @@ impl UnitMutex
 			// Check the held status of the mutex
 			// - Spinlock protected variable
 			let mut lh = self.inner.lock();
-			if lh.held != false
+			if let Some(tid) = lh.holder
 			{
-				assert!(lh.holder != crate::threads::get_thread_id(), "Recursive lock of {}", ty_name);
+				assert!(tid != crate::threads::get_thread_id(), "Recursive lock of {}", ty_name);
 				// If mutex is locked, then wait for it to be unlocked
 				// - ThreadList::wait will release the passed spinlock before sleeping. NOTE: It doesn't re-acquire the lock
 				waitqueue_wait_ext!(lh, .queue);
 				lh = self.inner.lock();
-				assert!(lh.holder == crate::threads::get_thread_id(), "Invalid wakeup in lock of {}", ty_name);
+				assert!(lh.holder.unwrap() == crate::threads::get_thread_id(), "Invalid wakeup in lock of {}", ty_name);
 			}
 			else
 			{
-				lh.held = true;
-				lh.holder = crate::threads::get_thread_id();
+				lh.holder = Some(crate::threads::get_thread_id());
 			}
 		}
 		Self::trace(self, ty_name, "lock - acquired");
@@ -91,14 +88,12 @@ impl UnitMutex
 		Self::trace(self, ty_name, "unlock");
 		::core::sync::atomic::fence(::core::sync::atomic::Ordering::Release);
 		let mut lh = self.inner.lock();
-		if let Some(tid) = lh.queue.wake_one()
-		{
-			lh.holder = tid;
-			// *held is still true, as the newly woken thread now owns the mutex
+		if let Some(tid) = lh.queue.wake_one() {
+			// Pass ownership to the newly woken thread
+			lh.holder = Some(tid);
 		}
-		else
-		{
-			lh.held = false;
+		else {
+			lh.holder = None;
 		}
 	}
 
