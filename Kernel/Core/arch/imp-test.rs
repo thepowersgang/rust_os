@@ -154,19 +154,19 @@ pub mod sync {
 				Err(std::sync::TryLockError::Poisoned(e)) => panic!("Poisoned spinlock mutex: {:?}", e),
 				}
 			};
-			inner.tid.store(crate::threads::get_thread_id(), Ordering::SeqCst);
+			inner.tid.store(crate::threads::get_thread_id().raw(), Ordering::SeqCst);
 			inner.handle.store( Box::into_raw(Box::new(lh)) as usize, Ordering::SeqCst );
 			return true;
 		}
 		pub fn inner_lock(&self) {
 			let inner = self.get_inner();
 			let lh = inner.mutex.lock().expect("Spinlock");
-			inner.tid.store(crate::threads::get_thread_id(), Ordering::SeqCst);
+			inner.tid.store(crate::threads::get_thread_id().raw(), Ordering::SeqCst);
 			inner.handle.store( Box::into_raw(Box::new(lh)) as usize, Ordering::SeqCst );
 		}
 		pub unsafe fn inner_release(&self) {
 			let inner = self.get_inner();
-			assert!(inner.tid.load(Ordering::SeqCst) == crate::threads::get_thread_id());
+			assert!(inner.tid.load(Ordering::SeqCst) == crate::threads::get_thread_id().raw());
 			let p = inner.handle.swap(0, Ordering::SeqCst) as *mut std::sync::MutexGuard<()>;
 			assert!(!p.is_null());
 			let _ = Box::from_raw(p);

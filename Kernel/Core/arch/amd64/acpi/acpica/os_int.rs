@@ -117,7 +117,7 @@ extern "C" fn AcpiOsWritable(Memory: *const (), Length: ACPI_SIZE) -> bool {
 extern "C" fn AcpiOsGetThreadId() -> ACPI_THREAD_ID {
 	// 0 is special to ACPICA, so offset by one
 	// - This is just used by ACPICA, so offsetting by one is safe
-	(crate::threads::get_thread_id() + 1) as ACPI_THREAD_ID
+	(crate::threads::get_thread_id().raw() + 1) as ACPI_THREAD_ID
 }
 #[no_mangle] #[linkage="external"]
 extern "C" fn AcpiOsExecute(Type: ACPI_EXECUTE_TYPE, Function: ACPI_OSD_EXEC_CALLBACK, Context: *const ()) -> ACPI_STATUS {

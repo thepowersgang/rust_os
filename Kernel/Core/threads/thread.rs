@@ -15,8 +15,37 @@ use crate::prelude::*;
 use crate::lib::mem::Arc;
 
 /// Thread identifier (unique)
-pub type ThreadID = u32;
-pub type ProcessID = u32;
+#[derive(Debug,PartialEq,Copy,Clone)]
+pub struct ThreadID(u32);
+impl ThreadID {
+	pub fn raw(&self) -> u32 {
+		self.0
+	}
+	pub fn from_raw(v: u32) -> Self {
+		ThreadID(v)
+	}
+}
+impl ::core::fmt::Display for ThreadID {
+	fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+		write!(f, "TID{}", self.0)
+	}
+}
+/// Process identifier
+#[derive(Debug,PartialEq,Copy,Clone)]
+pub struct ProcessID(u32);
+impl ProcessID {
+	pub fn raw(&self) -> u32 {
+		self.0
+	}
+	pub fn from_raw(v: u32) -> Self {
+		ProcessID(v)
+	}
+}
+impl ::core::fmt::Display for ProcessID {
+	fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+		write!(f, "PID{}", self.0)
+	}
+}
 
 //#[deriving(PartialEq)]
 /// Thread run state
@@ -48,7 +77,7 @@ pub struct Process
 pub struct ProcessHandle(Arc<Process>);
 impl_fmt! {
 	Debug(self, f) for ProcessHandle {
-		write!(f, "P({} {})", self.0.pid, self.0.name)
+		write!(f, "P({} {})", self.0.pid.0, self.0.name)
 	}
 }
 
@@ -86,10 +115,10 @@ pub struct Thread
 assert_trait!{Thread : Send}
 
 /// Last allocated TID (because TID0 is allocated differently)
-static S_LAST_TID: ::core::sync::atomic::AtomicUsize = ::core::sync::atomic::AtomicUsize::new(0);
-const C_MAX_TID: usize = 0x7FFF_FFF0;	// Leave 16 TIDs spare at end of 31 bit number
-static S_LAST_PID: ::core::sync::atomic::AtomicUsize = ::core::sync::atomic::AtomicUsize::new(0);
-const C_MAX_PID: usize = 0x007F_FFF0;	// Leave 16 PIDs spare at end of 23 bit number
+static S_LAST_TID: ::core::sync::atomic::AtomicU32 = ::core::sync::atomic::AtomicU32::new(0);
+const C_MAX_TID: u32 = 0x7FFF_FFF0;	// Leave 16 TIDs spare at end of 31 bit number
+static S_LAST_PID: ::core::sync::atomic::AtomicU32 = ::core::sync::atomic::AtomicU32::new(0);
+const C_MAX_PID: u32 = 0x007F_FFF0;	// Leave 16 PIDs spare at end of 23 bit number
 
 fn allocate_tid() -> ThreadID
 {
@@ -103,7 +132,7 @@ fn allocate_tid() -> ThreadID
 		panic!("TODO: Handle TID exhaustion by searching for free (raced)");
 	}
 	
-	(rv + 1) as ThreadID
+	ThreadID(rv + 1)
 }
 
 fn allocate_pid() -> ProcessID
@@ -118,7 +147,7 @@ fn allocate_pid() -> ProcessID
 		panic!("TODO: Handle PID exhaustion by searching for free (raced)");
 	}
 	
-	(rv + 1) as ProcessID
+	ProcessID(rv + 1)
 }
 
 impl Process
@@ -126,7 +155,7 @@ impl Process
 	pub fn new_pid0() -> Arc<Process> {
 		Arc::new(Process {
 			name: String::from("PID0"),
-			pid: 0,
+			pid: ProcessID(0),
 			exit_status: Default::default(),
 			address_space: crate::memory::virt::AddressSpace::pid0(),
 			proc_local_data: crate::sync::RwLock::new( Vec::new() ),
@@ -459,7 +488,7 @@ impl ::core::fmt::Display for SharedBlock
 {
 	fn fmt(&self, f: &mut ::core::fmt::Formatter) -> ::core::fmt::Result
 	{
-		write!(f, "{} {}", self.tid, self.name)
+		write!(f, "{} {}", self.tid.0, self.name)
 	}
 }
 
@@ -473,7 +502,7 @@ impl ::core::fmt::Debug for Thread
 
 impl_fmt! {
 	Display(self, f) for Process {
-		write!(f, "PID{}:'{}'", self.pid, self.name)
+		write!(f, "PID{}:'{}'", self.pid.0, self.name)
 	}
 }
 

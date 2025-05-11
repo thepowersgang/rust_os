@@ -17,7 +17,7 @@ use crate::args::Args;
 pub fn newgroup(name: &str) -> Result<ObjectHandle,u32> {
 	// Only init can create new sessions
 	// TODO: Use a capability system instead of hardcoding to only PID0
-	if ::kernel::threads::get_process_id() == 0 {
+	if ::kernel::threads::get_process_id().raw() == 0 {
 		Ok(objects::new_object(Group(::gui::WindowGroupHandle::alloc(name))))
 	}
 	else {
@@ -61,7 +61,7 @@ impl objects::Object for Group
 		{
 		values::GUI_GRP_FORCEACTIVE => {
 			log_debug!("GUI_GRP_FORCEACTIVE()");
-			if ::kernel::threads::get_process_id() == 0 {
+			if ::kernel::threads::get_process_id().raw() == 0 {
 				self.0.force_active();
 				Ok(0)
 			}

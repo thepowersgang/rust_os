@@ -44,7 +44,7 @@ pub fn init()
 	assert!(!S_PID0.ls_is_valid());
 	S_PID0.prep( || thread::Process::new_pid0() );
 
-	let mut tid0 = Thread::new_boxed(0, "ThreadZero", S_PID0.clone());
+	let mut tid0 = Thread::new_boxed(ThreadID::from_raw(0), "ThreadZero", S_PID0.clone());
 	tid0.cpu_state = crate::arch::threads::init_tid0_state();
 	crate::arch::threads::set_thread_ptr( tid0 );
 }
@@ -116,7 +116,7 @@ pub(crate) fn terminate_thread_nowait() {
 }
 unsafe fn terminate_thread_inner() {
 	// NOTE: If TID0 (aka init's main thread) terminates, panic the kernel
-	if with_cur_thread(|cur| cur.get_tid() == 0) {
+	if with_cur_thread(|cur| cur.get_tid().raw() == 0) {
 		panic!("TID 0 terminated");
 	}
 
@@ -160,13 +160,13 @@ pub fn exit_process(status: u32) -> ! {
 	terminate_thread();
 }
 
-pub fn get_thread_id() -> thread::ThreadID
+pub fn get_thread_id() -> ThreadID
 {
 	let p = crate::arch::threads::borrow_thread();
 	// SAFE: Checks for NULL, and the thread should be valid while executing
 	unsafe {
 		if p == 0 as *const _ {
-			0
+			ThreadID::from_raw(0)
 		}
 		else {
 			(*p).get_tid()

@@ -77,7 +77,7 @@ impl WaitQueue
 		{
 		Some(mut t) => {
 			let tid = t.get_tid();
-			log_trace!("WaitQueue::wake_one({:p}): Waking TID{}", self, tid);
+			log_trace!("WaitQueue::wake_one({:p}): Waking {}", self, tid);
 			t.set_state( RunState::Runnable );
 			let _irq_lock = crate::arch::sync::hold_interrupts();
 			s_runnable_threads.lock().push(t);

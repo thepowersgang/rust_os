@@ -15,7 +15,7 @@ const BUF_LEN: usize = (4096 - N_DESC*16) / N_DESC;
 #[repr(C)]
 struct Header {
 	ticks: u64,
-	thread: u32,
+	thread: ::kernel::threads::ThreadID,
 	cpu: u16,
 	level: u8,
 	source_len: u8,
