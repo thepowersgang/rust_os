@@ -101,7 +101,13 @@ pub mod sync {
 	#[derive(Default)]
 	pub struct SpinlockInner {
 		// Stores a std mutex using a manually-managed pointer
-		std: ::core::sync::atomic::AtomicPtr<std::sync::Mutex<()>>,
+		std: ::core::sync::atomic::AtomicPtr<RawInner>,
+	}
+	/// Inner state, stored indirectly to save on inline memory usage (mirroring the inline usage of
+	/// a standard architecture [SpinlockInner])
+	#[derive(Default)]
+	struct RawInner {
+		mutex: ::std::sync::Mutex<()>,
 		tid: ::core::sync::atomic::AtomicU32,
 		handle: ::core::sync::atomic::AtomicUsize,
 	}
@@ -110,14 +116,12 @@ pub mod sync {
 		pub const fn new() -> Self {
 			SpinlockInner {
 				std: ::core::sync::atomic::AtomicPtr::new(0 as *mut _),
-				tid: ::core::sync::atomic::AtomicU32::new(0),
-				handle: ::core::sync::atomic::AtomicUsize::new(0),
 			}
 		}
-		fn get_std(&self) -> &::std::sync::Mutex<()> {
+		fn get_inner(&self) -> &RawInner {
 			let p = self.std.load(Ordering::Relaxed);
 			let p = if p.is_null() {
-					let v = Box::new( ::std::sync::Mutex::new( () ) );
+					let v = Box::new( RawInner::default() );
 					let p = Box::leak(v) as *mut _;
 					match self.std.compare_exchange(::core::ptr::null_mut(), p, Ordering::Relaxed, Ordering::Relaxed)
 					{
@@ -138,29 +142,32 @@ pub mod sync {
 			unsafe { &*p }
 		}
 		pub fn try_inner_lock_cpu(&self) -> bool {
+			let inner = self.get_inner();
 			let lh = if true {
-				self.get_std().lock().unwrap()
+				inner.mutex.lock().unwrap()
 			}
 			else {
-				match self.get_std().try_lock()
+				match inner.mutex.try_lock()
 				{
 				Ok(v) => v,
 				Err(std::sync::TryLockError::WouldBlock) => return false,
 				Err(std::sync::TryLockError::Poisoned(e)) => panic!("Poisoned spinlock mutex: {:?}", e),
 				}
 			};
-			self.tid.store(crate::threads::get_thread_id(), Ordering::SeqCst);
-			self.handle.store( Box::into_raw(Box::new(lh)) as usize, Ordering::SeqCst );
+			inner.tid.store(crate::threads::get_thread_id(), Ordering::SeqCst);
+			inner.handle.store( Box::into_raw(Box::new(lh)) as usize, Ordering::SeqCst );
 			return true;
 		}
 		pub fn inner_lock(&self) {
-			let lh = self.get_std().lock().expect("Spinlock");
-			self.tid.store(crate::threads::get_thread_id(), Ordering::SeqCst);
-			self.handle.store( Box::into_raw(Box::new(lh)) as usize, Ordering::SeqCst );
+			let inner = self.get_inner();
+			let lh = inner.mutex.lock().expect("Spinlock");
+			inner.tid.store(crate::threads::get_thread_id(), Ordering::SeqCst);
+			inner.handle.store( Box::into_raw(Box::new(lh)) as usize, Ordering::SeqCst );
 		}
 		pub unsafe fn inner_release(&self) {
-			assert!(self.tid.load(Ordering::SeqCst) == crate::threads::get_thread_id());
-			let p = self.handle.swap(0, Ordering::SeqCst) as *mut std::sync::MutexGuard<()>;
+			let inner = self.get_inner();
+			assert!(inner.tid.load(Ordering::SeqCst) == crate::threads::get_thread_id());
+			let p = inner.handle.swap(0, Ordering::SeqCst) as *mut std::sync::MutexGuard<()>;
 			assert!(!p.is_null());
 			let _ = Box::from_raw(p);
 		}
