@@ -136,23 +136,70 @@ impl super::Terminal for TerminalElementInner
 	//}
 	
 	fn write_str(&self, s: &str) {
-		if s.contains('\n') {
-			// TODO: Handle newlines
-		}
-		if let Some(v) = self.insert_col.get() {
-			self.surface.insert_text(self.cur_line, v, format_args!("{}", s))
-		}
-		else {
-			self.surface.append_text(self.cur_line, s);
+		// Newlines need special handling, as the underlying element doesn't handle them
+		for line in s.lines() {
+			
+			if let Some(v) = self.insert_col.get() {
+				self.surface.insert_text(self.cur_line, v, format_args!("{}", line))
+			}
+			else {
+				self.surface.append_text(self.cur_line, line);
+			}
+
+			self.surface.new_line();
+			self.insert_col.set(None);
 		}
 	}
 	fn write_fmt(&self, args: ::std::fmt::Arguments) {
-		// If there's a `\n` in this, then need to do a slightly less efficient route
-		if let Some(cell) = self.insert_col.get() {
-			self.surface.insert_text(self.cur_line, cell, args)
+		struct Out<'a> {
+			parent: &'a TerminalElementInner,
+			ss: StackString,
+		}
+		impl<'a> ::std::fmt::Write for Out<'a> {
+			fn write_str(&mut self, s: &str) -> std::fmt::Result {
+				for c in s.chars() {
+					if !self.ss.push(c) {
+						super::Terminal::write_str(self.parent, &self.ss);
+						self.ss.clear();
+					}
+				}
+				Ok( () )
+			}
+		}
+		let mut o = Out { parent: self, ss: StackString::new() };
+		let _ = ::std::fmt::write(&mut o, args);
+		self.write_str(&o.ss);
+	}
+}
+
+
+struct StackString {
+	buffer: [u8; 128],
+	len: usize,
+}
+impl StackString {
+	pub const fn new() -> Self {
+		StackString { buffer: [0; 128], len: 0 }
+	}
+	pub fn clear(&mut self) {
+		self.len = 0;
+	}
+	pub fn push(&mut self, ch: char) -> bool {
+		let mut tmp = [0; 4];
+		let ch = ch.encode_utf8(&mut tmp);
+		if self.len + ch.len() > self.buffer.len() {
+			false
 		}
 		else {
-			self.surface.append_fmt(self.cur_line, args);
+			self.buffer[self.len..][..ch.len()].copy_from_slice(ch.as_bytes());
+			true
 		}
+	}
+}
+impl ::std::ops::Deref for StackString {
+	type Target = str;
+	fn deref(&self) -> &Self::Target {
+		// SAFE: This is created with valid UTF-8
+		unsafe { ::std::str::from_utf8_unchecked(&self.buffer[..self.len]) }
 	}
 }

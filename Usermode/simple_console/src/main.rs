@@ -168,23 +168,19 @@ impl ShellState
 		Some("pwd") => print!(term, "/{}", self.cwd_rel),
 		// 'cd' - Change directory
 		Some("cd") =>
-			if let Some(p) = args.next()
-			{
+			if let Some(p) = args.next() {
 				print!(term, "TODO: cd '{}'", p);
 			}
-			else
-			{
+			else {
 				self.cwd_rel = String::new();
 			},
 		// 'ls' - Print the contents of a directory
 		Some("ls") =>
-			if let Some(dir) = args.next()
-			{
+			if let Some(dir) = args.next() {
 				// TODO: Parse 'dir' as relative correctly
 				command_ls(term, &self.root_handle, dir);
 			}
-			else
-			{
+			else {
 				command_ls(term, &self.root_handle, &format!("/{}", self.cwd_rel));
 			},
 		// 'cat' - Dump the contents of a file
@@ -198,8 +194,8 @@ impl ShellState
 		Some("help") => {
 			print!(term, "Builtins: pwd, cd, ls, cat, help, echo");
 			},
-		Some(cmd @_) => {
-			print!(term, "Unkownn command '{}'", cmd);
+		Some(cmd @ _) => {
+			print!(term, "Unknown command '{}'", cmd);
 			},
 		}
 	}
