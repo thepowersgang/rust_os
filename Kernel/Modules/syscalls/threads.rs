@@ -70,31 +70,37 @@ pub fn wait(events: &mut [values::WaitItem], wake_time_mono: u64) -> Result<u32,
 {
 	log_trace!("wait({} events, wake_time_mono={:#x}", events.len(), wake_time_mono);
 	::kernel::threads::SleepObject::with_new("wait", |waiter: &mut _| {
-		let mut num_bound = 0;
-		for ev in events.iter() {
-			num_bound += crate::objects::wait_on_object(ev.object, ev.flags, waiter)?;
-		}
-
-		if num_bound == 0 && wake_time_mono == !0 {
-			// Attempting to sleep on no events with an infinite timeout! Would sleep forever
-			log_error!("TODO: What to do when a thread tries to sleep forever");
-			waiter.wait();
-		}
-
-		// A wake time of 0 means to not sleep at all, just check the status of the events
-		// TODO: There should be a more efficient way of doing this, than binding only to unbind again
-		if wake_time_mono > 0 {
-			// !0 indicates an unbounded wait (no need to set a wakeup time)
-			if wake_time_mono != !0 {
-				todo!("Set a wakeup timer at {}", wake_time_mono);
-				//waiter.wait_until(wake_time_mono);
+		loop {
+			let mut num_bound = 0;
+			for ev in events.iter() {
+				num_bound += crate::objects::wait_on_object(ev.object, ev.flags, waiter)?;
 			}
-			else {
+
+			// A wake time of 0 means to not sleep at all, just check the status of the events
+			// TODO: There should be a more efficient way of doing this, than binding only to unbind again
+			if wake_time_mono > 0 {
+				// !0 indicates an unbounded wait (no need to set a wakeup time)
+				if wake_time_mono != !0 {
+					::kernel::time::register_wakeup(wake_time_mono, waiter);
+				}
+				else if num_bound == 0 {
+					// Attempting to sleep on no events with an infinite timeout! Would sleep forever
+					log_error!("TODO: What to do when a thread tries to sleep forever? Just sleep");
+				}
+				else {
+				}
 				waiter.wait();
 			}
-		}
 
-		Ok( events.iter_mut().fold(0, |total,ev| total + crate::objects::clear_wait(ev.object, ev.flags, waiter).unwrap()) )
+			let rv = events.iter_mut()
+				.map(|ev| crate::objects::clear_wait(ev.object, ev.flags, waiter).unwrap())
+				.sum();
+			::kernel::time::clear_wakeup(waiter);
+			if rv > 0 || ::kernel::time::ticks() >= wake_time_mono {
+				return Ok(rv)
+			}
+			// Nothing ready, must be a spurious wakeup - loop
+		}
 		})
 }
 

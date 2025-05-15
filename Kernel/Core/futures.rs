@@ -54,6 +54,11 @@ pub(super) fn time_tick() {
 
 /// Sleep as a future for a given number of millisecond
 pub fn msleep(ms: usize) -> impl core::future::Future<Output=()> {
+	msleep_until(crate::time::ticks() + ms as u64)
+}
+
+/// Sleep as a future until a given time is passed
+pub fn msleep_until(target_time: u64) -> impl core::future::Future<Output=()> {
 	struct Sleep(u64);
 	impl core::future::Future for Sleep {
 		type Output = ();
@@ -69,7 +74,7 @@ pub fn msleep(ms: usize) -> impl core::future::Future<Output=()> {
 			}
 		}
 	}
-	Sleep(crate::time::ticks() + ms as u64)
+	Sleep(target_time)
 }
 
 /// Create a waker handle that does nothing

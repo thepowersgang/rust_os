@@ -80,6 +80,9 @@ impl ::core::ops::Drop for AtomicSleepObjectRef {
 #[derive(Default)]
 pub struct SleepObjectSet(::alloc::vec::Vec<SleepObjectRef>);
 impl SleepObjectSet {
+	pub const fn new() -> Self {
+		SleepObjectSet(::alloc::vec::Vec::new())
+	}
 	pub fn signal(&self) {
 		for v in &self.0 {
 			v.signal();
@@ -127,8 +130,6 @@ impl<'a> SleepObject<'a>
 	/// Wait the current thread on this object
 	pub fn wait(&self)
 	{
-		//log_trace!("SleepObject::wait {:p} '{}'", self, self.name);
-		
 		let irql = crate::sync::hold_interrupts();
 		let mut lh = self.inner.lock();
 		assert!( lh.thread.is_none(), "A thread is already sleeping on object {:p} '{}'", self, self.name );

@@ -21,6 +21,10 @@ pub(super) fn time_tick()
 	super::futures::time_tick();
 	//super::user_async::time_tick();
 	//super::threads::time_tick();
+
+	for v in WAKEUPS.lock().drain(..) {
+		v.signal();
+	}
 }
 
 /// Requests that an interrupt be raised around this target time (could be earlier or later)
@@ -30,6 +34,21 @@ pub(super) fn time_tick()
 pub fn request_interrupt(ticks: TickCount)
 {
 	crate::arch::time::request_tick(ticks);
+}
+
+static WAKEUPS: crate::sync::Mutex<::alloc::vec::Vec<crate::threads::SleepObjectRef>> = crate::sync::Mutex::new( ::alloc::vec::Vec::new() );
+
+pub fn register_wakeup(ticks: TickCount, waiter: &crate::threads::SleepObject) {
+	WAKEUPS.lock().push(waiter.get_ref());
+	if self::ticks() >= ticks {
+		waiter.signal();
+	}
+	else {
+		request_interrupt(ticks);
+	}
+}
+pub fn clear_wakeup(waiter: &crate::threads::SleepObject) {
+	WAKEUPS.lock().retain(|v| !v.is_from(waiter));
 }
 
 /// Records the current time on construction, and prints the elapsed time with {:?} / {}
