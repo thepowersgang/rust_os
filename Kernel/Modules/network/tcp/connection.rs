@@ -44,6 +44,8 @@ struct ConnectionTxState {
 	next_tx_seq: u32,
 	
 	/// Number of bytes that have been sent, but not ACKed
+	/// 
+	/// Could be less than `buffer.len()` as this is only incremented on send
 	sent_bytes: usize,
 
 	/// Last received TX window size
@@ -175,13 +177,18 @@ impl Connection
 		// ACK of sent data
 		if hdr.flags & FLAG_ACK != 0 {
 			// TODO: There are some pseudo-bytes (a SYN flag counts as a transmitted byte)
-			let in_flight = self.tx_state.next_tx_seq.wrapping_sub(1).wrapping_sub(hdr.acknowledgement_number) as usize;
-			if in_flight > self.tx_state.buffer.len() {
+			log_trace!("{:?} ACK {:#x} vs {:#x}", quad, hdr.acknowledgement_number, self.tx_state.next_tx_seq);
+			// Determine how many bytes are NOT acked by this packet
+			// - Which can be used to determine how many are ACKed
+			let in_flight = self.tx_state.next_tx_seq.wrapping_sub(hdr.acknowledgement_number) as usize;
+			if in_flight > self.tx_state.sent_bytes {
 				// TODO: Error, something funky has happened
+				log_error!("Oops? in_flight={} > sent_bytes={}", in_flight, self.tx_state.sent_bytes);
 			}
 			else {
-				let n_bytes = self.tx_state.buffer.len() - in_flight;
-				log_debug!("{:?} ACQ {} bytes", quad, n_bytes);
+				assert!(self.tx_state.sent_bytes <= self.tx_state.buffer.len());
+				let n_bytes = self.tx_state.sent_bytes - in_flight;
+				log_debug!("{:?} ACK {} bytes", quad, n_bytes);
 				for _ in 0 .. n_bytes {
 					self.tx_state.buffer.pop_front();
 					self.tx_state.sent_bytes -= 1;
@@ -274,12 +281,12 @@ impl Connection
 						self.send_ack(quad, "Empty");
 					}
 				}
-				else if hdr.sequence_number - self.next_rx_seq + pkt.remain() as u32 > MAX_WINDOW_SIZE {
+				else if hdr.sequence_number.wrapping_sub(self.next_rx_seq).wrapping_add(pkt.remain() as u32) > MAX_WINDOW_SIZE {
 					// Completely out of sequence
 				}
 				else {
 					// In sequence.
-					let mut start_ofs = (hdr.sequence_number - self.next_rx_seq) as i32;
+					let mut start_ofs = hdr.sequence_number.wrapping_sub(self.next_rx_seq) as i32;
 					while start_ofs < 0 {
 						pkt.read_u8().unwrap();
 						start_ofs += 1;
@@ -298,10 +305,11 @@ impl Connection
 						}
 						ofs += 1;
 					}
+					log_debug!("{:?} RX: start_ofs={}, ofs={}", quad, start_ofs, ofs);
 					// Better idea: Have an ACQ point, and a window point. Buffer is double the window
 					// Once the window point reaches 25% of the window from the ACK point
 					if start_ofs == 0 {
-						self.next_rx_seq += ofs as u32;
+						self.next_rx_seq = self.next_rx_seq.wrapping_add(ofs as u32);
 
 						// Calculate a maximum window size based on how much space is left in the buffer
 						let buffered_len = self.next_rx_seq - self.rx_buffer_seq;	// How much data the user has buffered
@@ -538,8 +546,9 @@ impl Connection
 		use ::kernel::futures::block_on;
 
 		let flags = {
-			let mut flags = 0u8;
-			if ::core::mem::replace(&mut self.tx_state.pending_ack, false) {
+			let mut flags = 0;
+			// NOTE: slirp ignores any packet that isn't an ACK :(
+			if ::core::mem::replace(&mut self.tx_state.pending_ack, false) || true {
 				flags |= FLAG_ACK;
 			}
 			// TODO: Use a better method of picking when to PSH
@@ -583,16 +592,19 @@ impl Connection
 				else {
 					// Re-send any pending data (and reduce our TX window size?)
 					let len = self.tx_state.buffer.len().min(MSS);
-					log_trace!("{:?} Retransmit {:#x} {} bytes", quad, flags, len);
-					let data = self.tx_state.buffer.get_slices(0..len);
-					// `next_tx_seq` is the sequence number of the next new byte to be sent
-					// - I.e. the byte at `buffer[sent_bytes]`
-					// - So, we want to subtract the number of bytes between `data.len()` and `sent_bytes`
-					assert!(self.tx_state.sent_bytes >= len);	// This could fail, if data has been queued but not sent
-					let seq = self.tx_state.next_tx_seq.wrapping_sub(self.tx_state.sent_bytes as u32);
-					block_on(quad.send_packet(seq, self.next_rx_seq, flags, self.rx_window_size as u16, data.0, data.1));
-					// TODO: Double this timer each time we need to resend (and halve it on successful reception)
-					self.tx_state.retransmit_timer.reset(RETRANSMIT_TIMEOUT_MS as u64 * (self.tx_state.retransmit_attempts + 1) as u64);
+					//assert!(self.tx_state.sent_bytes >= len);	// This could fail, if data has been queued but not sent
+					let len = len.min(self.tx_state.sent_bytes);
+					if len > 0 {
+						log_trace!("{:?} Retransmit {:#x} {} bytes", quad, flags, len);
+						let data = self.tx_state.buffer.get_slices(0..len);
+						// `next_tx_seq` is the sequence number of the next new byte to be sent
+						// - I.e. the byte at `buffer[sent_bytes]`
+						// - So, we want to subtract the number of bytes between `data.len()` and `sent_bytes`
+						let seq = self.tx_state.next_tx_seq.wrapping_sub(self.tx_state.sent_bytes as u32);
+						block_on(quad.send_packet(seq, self.next_rx_seq, flags, self.rx_window_size as u16, data.0, data.1));
+						// TODO: Double this timer each time we need to resend (and halve it on successful reception)
+						self.tx_state.retransmit_timer.reset(RETRANSMIT_TIMEOUT_MS as u64 * (self.tx_state.retransmit_attempts + 1) as u64);
+					}
 				}
 				},
 			_ => {},
@@ -604,7 +616,7 @@ impl Connection
 			let nbytes = nbytes.min(MSS);
 			let data = self.tx_state.buffer.get_slices(self.tx_state.sent_bytes .. self.tx_state.sent_bytes + nbytes);
 			let seq = self.tx_state.next_tx_seq;
-			log_trace!("{:?} TX {} {:#x} {} bytes", quad, if self.tx_state.nagle_timer.is_expired() { "ready" } else {"forced"}, flags, nbytes);
+			log_trace!("{:?} TX {} {:#x} {} bytes", quad, if self.tx_state.nagle_timer.is_expired() { "ready" } else { "forced" }, flags, nbytes);
 			block_on(quad.send_packet(seq, self.next_rx_seq, flags, self.rx_window_size as u16, data.0, data.1));
 			// TODO: Some flags act as a pseudo-byte if in an empty packet
 			self.tx_state.next_tx_seq = self.tx_state.next_tx_seq.wrapping_add( nbytes as u32 );

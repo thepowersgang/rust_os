@@ -84,10 +84,11 @@ pub fn handle_rx_ethernet(phys_interface: &crate::nic::InterfaceData, source_mac
 	}
 	
 	// Sanity check that we have enough bytes for the body.
-	if reader.remain() < hdr.total_length as usize - hdr_len {
+	// If there is, then truncate the reader (to provide an exact packet length)
+	let Ok(reader) = reader.take_sub_reader(hdr.total_length as usize - hdr_len) else {
 		log_warning!("Undersized packet: {} bytes after header, body length is {}", reader.remain(), hdr.total_length as usize - hdr_len);
 		return Err( () );
-	}
+	};
 
 	
 	// Check destination IP against known interfaces.

@@ -73,21 +73,39 @@ pub trait RxPacket
 #[derive(Clone)]
 pub struct PacketReader<'a> {
 	pkt: &'a PacketHandle<'a>,
-	ofs: usize,
+	ofs: u16,
+	len: u16,
 }
 impl<'a> PacketReader<'a> {
 	pub(super) fn new(pkt: &'a PacketHandle<'a>) -> PacketReader<'a> {
 		PacketReader {
 			pkt,
 			ofs: 0,
+			len: pkt.len() as u16,
 			}
 	}
 	pub fn remain(&self) -> usize {
-		self.pkt.len() - self.ofs
+		(self.len - self.ofs) as usize
+	}
+	pub fn take_sub_reader(&mut self, len: usize) -> Result<PacketReader<'a>,()> {
+		let max_len = (self.len - self.ofs) as usize;
+		if len > max_len {
+			return Err( () );
+		}
+		let len = len as u16;
+		let rv = PacketReader {
+			pkt: self.pkt,
+			ofs: self.ofs,
+			len: self.ofs + len,
+		};
+		self.ofs += len;
+		Ok(rv)
 	}
 	pub fn read(&mut self, dst: &mut [u8]) -> Result<usize, ()> {
 		// TODO: Should the current region index be cached?
-		let mut ofs = self.ofs;
+		let mut ofs = self.ofs as usize;
+		let max_len = dst.len().min( self.len as usize - ofs );
+		let dst = &mut dst[..max_len];
 		let mut r = 0;
 		while ofs >= self.pkt.get_region(r).len() {
 			ofs -= self.pkt.get_region(r).len();
@@ -98,7 +116,7 @@ impl<'a> PacketReader<'a> {
 		}
 
 		let mut wofs = 0;
-		while wofs < dst.len() && self.ofs + wofs < self.pkt.len()
+		while wofs < dst.len() && self.ofs as usize + wofs < self.pkt.len()
 		{
 			let rgn = self.pkt.get_region(r);
 			let alen = rgn.len() - ofs;
@@ -112,7 +130,7 @@ impl<'a> PacketReader<'a> {
 			wofs += len;
 		}
 
-		self.ofs += wofs;
+		self.ofs += wofs as u16;
 		Ok(wofs)
 	}
 

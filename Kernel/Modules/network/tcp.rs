@@ -130,7 +130,7 @@ fn rx_handler(src_addr: Address, dest_addr: Address, mut pkt: crate::nic::Packet
 		);
 	if checksum != 0 {
 		log_error!("Incorrect checksum: 0x{:04x} != 0", checksum);
-		// TODO: Discard the packet.
+		// TODO: Discard the packet?
 	}
 
 	// Options
