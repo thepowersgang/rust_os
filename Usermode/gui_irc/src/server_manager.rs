@@ -47,12 +47,8 @@ impl<'a> ::r#async::WaitController for ServerManager<'a> {
 
 	fn handle(&mut self, events: &[syscalls::WaitItem]) {
 		for (s,item) in Iterator::zip(self.servers.iter_mut(), events.iter()) {
-			let r = match s.stream.handle(item) {
-				Ok(None) => Ok(()),
-				Ok(Some((conn, line))) => s.protocol.handle_line(conn, line),
-				Err(e) => Err(e),
-				};
-			match r {
+			let proto = &mut s.protocol;
+			match s.stream.handle(item, |conn,line| proto.handle_line(conn, line)) {
 			Ok(()) => {},
 			Err(e) => {
 				::syscalls::kernel_log!("Connection error: {:?}", e);
@@ -218,21 +214,32 @@ impl AsyncLineStream {
 		use ::std::net::TcpStreamExt;
 		self.connection.get_ref().wait_item()
 	}
-	fn handle(&mut self, _item: &syscalls::WaitItem) -> ::std::io::Result<Option<(&::std::net::TcpStream, &[u8])>> {
+	fn handle<F>(&mut self, _item: &syscalls::WaitItem, mut cb: F) -> ::std::io::Result<()>
+	where
+		F: FnMut(&::std::net::TcpStream, &[u8]) -> ::std::io::Result<()>
+	{
 		use ::std::io::Read;
 		::syscalls::kernel_log!("AsyncLineStream: handle");
-		match self.connection.read(&mut self.read_buffer[self.read_ofs..]) {
-		Ok(len) => {
-			let o = self.read_ofs;
-			self.read_ofs += len;
-			if let Some(newline_pos) = self.read_buffer[o..][..len].iter().position(|&v| v == b'\n') {
-				Ok(Some( (self.connection.get_ref(), &self.read_buffer[..o+newline_pos],) ))
+		let len = self.connection.read(&mut self.read_buffer[self.read_ofs..])?;
+		::syscalls::kernel_log!("AsyncLineStream::handle: len={}", len);
+		let o = self.read_ofs;
+		self.read_ofs += len;
+
+		if let Some(newline_pos) = self.read_buffer[o..][..len].iter().position(|&v| v == b'\n') {
+			cb( self.connection.get_ref(), &self.read_buffer[..o+newline_pos] )?;
+			let mut len = len - (newline_pos+1);
+			let mut o = o + (newline_pos+1);
+			// Handle multiple lines
+			while let Some(newline_pos) = self.read_buffer[o..][..len].iter().position(|&v| v == b'\n') {
+				cb( self.connection.get_ref(), &self.read_buffer[o..o+newline_pos] )?;
+				len = len - (newline_pos+1);
+				o = o + (newline_pos+1);
 			}
-			else {
-				Ok(None)
-			}
-		},
-		Err(e) => Err(e),
+			// Once done, remove the consumed data
+			self.read_buffer.copy_within(o .. o+len, 0);
+			self.read_ofs = len;
 		}
+		
+		Ok(())
 	}
 }

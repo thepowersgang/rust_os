@@ -43,6 +43,10 @@ fn main()
 	
 	let mut sm = server_manager::ServerManager::new(status_window, &input, Tabs(&tabs));
 	if true {
+		::syscalls::kernel_log!("sleep");
+		::syscalls::threads::wait(&mut [], ::syscalls::system_ticks() + 2_000);
+		::syscalls::kernel_log!("awake");
+
 		match sm.open_connection("Test".into(), "192.168.1.39".parse().unwrap(), 6667) {
 		Ok(_) => {},
 		Err(e) => {
