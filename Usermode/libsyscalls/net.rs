@@ -114,6 +114,9 @@ impl ConnectedSocket
 	pub fn wait_read(&self) -> crate::WaitItem {
 		self.0.get_wait(v::EV_NET_CONNSOCK_RECV)
 	}
+	pub fn wait_conn(&self) -> crate::WaitItem {
+		self.0.get_wait(v::EV_NET_CONNSOCK_CONN)
+	}
 }
 // --------------------------------------------------------------------
 impl ::Object for FreeSocket

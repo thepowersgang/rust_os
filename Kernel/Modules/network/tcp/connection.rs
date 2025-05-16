@@ -261,6 +261,7 @@ impl Connection
 					// - Send ACK back
 					self.send_ack(quad, "SYN-ACK");
 					self.tx_waiters.signal();
+					self.conn_waiters.signal();
 					self.tx_state.retransmit_timer.clear();
 					ConnectionState::Established
 				}
