@@ -1,7 +1,7 @@
 //! TCP connection logic
 
 use ::kernel::lib::ring_buffer::RingBuf;
-use super::lib::rx_buffer::RxBuffer;
+use super::rx_buffer::RxBuffer;
 use super::{Quad,WORKER_CV};
 use super::ConnError;
 use super::{FLAG_SYN,FLAG_ACK,FLAG_PSH,FLAG_RST,FLAG_FIN};
@@ -22,14 +22,14 @@ pub struct Connection
 	conn_waiters: ::kernel::threads::SleepObjectSet,
 
 	/// Sequence number of the next expected remote byte
-	next_rx_seq: u32,
+	next_rx_seq: SeqNum,
 	/// Last ACKed sequence number
-	last_rx_ack: u32,
+	last_rx_ack: SeqNum,
 	/// Received bytes
 	rx_buffer: RxBuffer,
 	rx_waiters: ::kernel::threads::SleepObjectSet,
 	/// Sequence number of the first byte in the RX buffer
-	rx_buffer_seq: u32,
+	rx_buffer_seq: SeqNum,
 
 	rx_window_size_max: u32,
 	rx_window_size: u32,
@@ -37,11 +37,32 @@ pub struct Connection
 	tx_state: ConnectionTxState,
 	tx_waiters: ::kernel::threads::SleepObjectSet,
 }
+
+#[derive(Copy,Clone,Debug,PartialEq)]
+struct SeqNum(u32);
+impl ::core::fmt::Display for SeqNum {
+	fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+		write!(f, "{:#x}", self.0)
+	}
+}
+impl ::core::ops::Add for SeqNum {
+	type Output = Self;
+	fn add(self, rhs: Self) -> Self::Output {
+		SeqNum(self.0 + rhs.0)
+	}
+}
+impl ::core::ops::Sub for SeqNum {
+	type Output = Self;
+	fn sub(self, rhs: Self) -> Self::Output {
+		SeqNum(self.0 - rhs.0)
+	}
+}
+
 struct ConnectionTxState {
 	/// Buffer of outbound bytes (data pending an incoming ACK)
 	buffer: RingBuf<u8>,
 	/// Sequence number of the next byte to be sent
-	next_tx_seq: u32,
+	next_tx_seq: SeqNum,
 	
 	/// Number of bytes that have been sent, but not ACKed
 	/// 
@@ -71,7 +92,7 @@ impl ConnectionTxState {
 	fn new(tx_seq: u32, init_window_size: u32) -> Self {
 		ConnectionTxState {
 			buffer: RingBuf::new(DEF_TX_WINDOW_SIZE as usize),
-			next_tx_seq: tx_seq,
+			next_tx_seq: SeqNum(tx_seq),
 
 			sent_bytes: 0,
 			max_tx_window_size: init_window_size,
@@ -116,9 +137,9 @@ impl Connection
 		Connection {
 			state: ConnectionState::Established,
 			conn_waiters: Default::default(),
-			next_rx_seq: hdr.sequence_number,
-			last_rx_ack: hdr.sequence_number,
-			rx_buffer_seq: hdr.sequence_number,
+			next_rx_seq: SeqNum(hdr.sequence_number),
+			last_rx_ack: SeqNum(hdr.sequence_number),
+			rx_buffer_seq: SeqNum(hdr.sequence_number),
 			rx_buffer: RxBuffer::new(2*DEF_RX_WINDOW_SIZE as usize),
 			rx_waiters: Default::default(),
 
@@ -136,9 +157,9 @@ impl Connection
 		let mut rv = Connection {
 			state: ConnectionState::SynSent,
 			conn_waiters: Default::default(),
-			next_rx_seq: 0,
-			last_rx_ack: 0,
-			rx_buffer_seq: 0,
+			next_rx_seq: SeqNum(0),
+			last_rx_ack: SeqNum(0),
+			rx_buffer_seq: SeqNum(0),
 			rx_buffer: RxBuffer::new(2*DEF_RX_WINDOW_SIZE as usize),
 			rx_waiters: Default::default(),
 
@@ -150,7 +171,7 @@ impl Connection
 			};
 		rv.send_empty_packet(quad, FLAG_SYN);
 		// TODO: This should be a little more formalised. A SYN should count as data, and be resent the same way
-		rv.tx_state.next_tx_seq = rv.tx_state.next_tx_seq.wrapping_add(1);
+		rv.tx_state.next_tx_seq = rv.tx_state.next_tx_seq + SeqNum(1);
 		rv.tx_state.retransmit_timer.reset(RETRANSMIT_TIMEOUT_MS as u64);
 		rv
 	}
@@ -177,10 +198,10 @@ impl Connection
 		// ACK of sent data
 		if hdr.flags & FLAG_ACK != 0 {
 			// TODO: There are some pseudo-bytes (a SYN flag counts as a transmitted byte)
-			log_trace!("{:?} ACK {:#x} vs {:#x}", quad, hdr.acknowledgement_number, self.tx_state.next_tx_seq);
+			log_trace!("{:?} ACK {} vs {}", quad, SeqNum(hdr.acknowledgement_number), self.tx_state.next_tx_seq);
 			// Determine how many bytes are NOT acked by this packet
 			// - Which can be used to determine how many are ACKed
-			let in_flight = self.tx_state.next_tx_seq.wrapping_sub(hdr.acknowledgement_number) as usize;
+			let in_flight = (self.tx_state.next_tx_seq - SeqNum(hdr.acknowledgement_number)).0 as usize;
 			if in_flight > self.tx_state.sent_bytes {
 				// TODO: Error, something funky has happened
 				log_error!("Oops? in_flight={} > sent_bytes={}", in_flight, self.tx_state.sent_bytes);
@@ -233,7 +254,7 @@ impl Connection
 		// SYN sent by local, waiting for SYN-ACK
 		ConnectionState::SynSent => {	
 			if hdr.flags & FLAG_SYN != 0 {
-				self.next_rx_seq = hdr.sequence_number.wrapping_add(1);
+				self.next_rx_seq = SeqNum(hdr.sequence_number) + SeqNum(1);
 				self.rx_buffer_seq = self.next_rx_seq;
 				if hdr.flags & FLAG_ACK != 0 {
 					// Now established
@@ -262,7 +283,7 @@ impl Connection
 			}
 			else if hdr.flags & FLAG_FIN != 0 {
 				// FIN received, start a clean shutdown
-				self.next_rx_seq = self.next_rx_seq.wrapping_add(1);
+				self.next_rx_seq = self.next_rx_seq + SeqNum(1);
 				// TODO: Signal to user that the connection is closing (EOF)
 				ConnectionState::CloseWait
 			}
@@ -272,30 +293,31 @@ impl Connection
 					if hdr.flags == FLAG_ACK {
 						log_trace!("{:?} ACK only", quad);
 					}
-					else if self.next_rx_seq != hdr.sequence_number {
-						log_trace!("{:?} Empty packet, unexpected sequence number {:x} != {:x}", quad, hdr.sequence_number, self.next_rx_seq);
+					else if self.next_rx_seq != SeqNum(hdr.sequence_number) {
+						log_trace!("{:?} Empty packet, unexpected sequence number {} != {}", quad, SeqNum(hdr.sequence_number), self.next_rx_seq);
 					}
 					else {
 						// Counts as one byte
-						self.next_rx_seq += 1;
+						self.next_rx_seq = self.next_rx_seq + SeqNum(1);
 						self.send_ack(quad, "Empty");
 					}
 				}
-				else if hdr.sequence_number.wrapping_sub(self.next_rx_seq).wrapping_add(pkt.remain() as u32) > MAX_WINDOW_SIZE {
+				else if (SeqNum(hdr.sequence_number) - self.next_rx_seq + SeqNum(pkt.remain() as u32)).0 > MAX_WINDOW_SIZE {
 					// Completely out of sequence
 				}
 				else {
 					// In sequence.
-					let mut start_ofs = hdr.sequence_number.wrapping_sub(self.next_rx_seq) as i32;
+					let mut start_ofs = (SeqNum(hdr.sequence_number) - self.next_rx_seq).0 as i32;
 					while start_ofs < 0 {
 						pkt.read_u8().unwrap();
 						start_ofs += 1;
 					}
 					let mut ofs = start_ofs as usize;
+					log_debug!("{:?} RX: buf_ofs={}+{}", quad, self.next_rx_seq - self.rx_buffer_seq, ofs);
 					while let Ok(b) = pkt.read_u8() {
 						//let ofs_0 = self.next_rx_seq.wrapping_sub(self.rx_buffer_seq);
 						//let ofs_0 = if ofs_0 > MAX_CONN_ATTEMPTS
-						match self.rx_buffer.insert( (self.next_rx_seq - self.rx_buffer_seq) as usize + ofs, &[b])
+						match self.rx_buffer.insert( (self.next_rx_seq - self.rx_buffer_seq).0 as usize + ofs, &[b])
 						{
 						Ok(_) => {},
 						Err(e) => {
@@ -309,10 +331,10 @@ impl Connection
 					// Better idea: Have an ACQ point, and a window point. Buffer is double the window
 					// Once the window point reaches 25% of the window from the ACK point
 					if start_ofs == 0 {
-						self.next_rx_seq = self.next_rx_seq.wrapping_add(ofs as u32);
+						self.next_rx_seq = self.next_rx_seq + SeqNum(ofs as u32);
 
 						// Calculate a maximum window size based on how much space is left in the buffer
-						let buffered_len = self.next_rx_seq - self.rx_buffer_seq;	// How much data the user has buffered
+						let buffered_len = (self.next_rx_seq - self.rx_buffer_seq).0;	// How much data the user has buffered
 						let cur_max_window = 2*self.rx_window_size_max - buffered_len;	// NOTE: 2* for some flex so the window can stay at max size
 						if cur_max_window < self.rx_window_size {
 							// Reduce the window size and send an ACQ (with the updated size)
@@ -321,7 +343,7 @@ impl Connection
 							}
 							self.send_ack(quad, "Constrain window");
 						}
-						else if self.next_rx_seq - self.last_rx_ack > self.rx_window_size/2 {
+						else if (self.next_rx_seq - self.last_rx_ack).0 > self.rx_window_size/2 {
 							// Send an ACK now, we've received a burst of data
 							self.send_ack(quad, "Data burst");
 						}
@@ -521,10 +543,9 @@ impl Connection
 			return Ok(0);
 		}
 		self.state_to_error()?;
-		//let valid_len = self.rx_buffer.valid_len();
-		//let acked_len = u32::wrapping_sub(self.next_rx_seq, self.rx_buffer_seq);
-		//let len = usize::min(valid_len, buf.len());
-		Ok( self.rx_buffer.take(buf) )
+		let rv = self.rx_buffer.take(buf);
+		self.rx_buffer_seq = self.rx_buffer_seq + SeqNum(rv as u32);
+		Ok( rv )
 	}
 	pub(super) fn recv_ready(&mut self) -> bool {
 		self.rx_buffer.valid_len() > 0
@@ -600,8 +621,8 @@ impl Connection
 						// `next_tx_seq` is the sequence number of the next new byte to be sent
 						// - I.e. the byte at `buffer[sent_bytes]`
 						// - So, we want to subtract the number of bytes between `data.len()` and `sent_bytes`
-						let seq = self.tx_state.next_tx_seq.wrapping_sub(self.tx_state.sent_bytes as u32);
-						block_on(quad.send_packet(seq, self.next_rx_seq, flags, self.rx_window_size as u16, data.0, data.1));
+						let seq = self.tx_state.next_tx_seq - SeqNum(self.tx_state.sent_bytes as u32);
+						block_on(quad.send_packet(seq.0, self.next_rx_seq.0, flags, self.rx_window_size as u16, data.0, data.1));
 						// TODO: Double this timer each time we need to resend (and halve it on successful reception)
 						self.tx_state.retransmit_timer.reset(RETRANSMIT_TIMEOUT_MS as u64 * (self.tx_state.retransmit_attempts + 1) as u64);
 					}
@@ -617,9 +638,9 @@ impl Connection
 			let data = self.tx_state.buffer.get_slices(self.tx_state.sent_bytes .. self.tx_state.sent_bytes + nbytes);
 			let seq = self.tx_state.next_tx_seq;
 			log_trace!("{:?} TX {} {:#x} {} bytes", quad, if self.tx_state.nagle_timer.is_expired() { "ready" } else { "forced" }, flags, nbytes);
-			block_on(quad.send_packet(seq, self.next_rx_seq, flags, self.rx_window_size as u16, data.0, data.1));
+			block_on(quad.send_packet(seq.0, self.next_rx_seq.0, flags, self.rx_window_size as u16, data.0, data.1));
 			// TODO: Some flags act as a pseudo-byte if in an empty packet
-			self.tx_state.next_tx_seq = self.tx_state.next_tx_seq.wrapping_add( nbytes as u32 );
+			self.tx_state.next_tx_seq = self.tx_state.next_tx_seq + SeqNum( nbytes as u32 );
 			self.tx_state.sent_bytes += nbytes;
 			self.tx_state.nagle_timer.clear();
 			// If the retransmit timer is stopped, start it again
@@ -641,7 +662,7 @@ impl Connection
 	{
 		log_debug!("{:?} send_packet({:02x})", quad, flags);
 		// TODO: Enqueue instead of blocking?
-		::kernel::futures::block_on(quad.send_packet(self.tx_state.next_tx_seq, self.next_rx_seq, flags, self.rx_window_size as u16, &[], &[]));
+		::kernel::futures::block_on(quad.send_packet(self.tx_state.next_tx_seq.0, self.next_rx_seq.0, flags, self.rx_window_size as u16, &[], &[]));
 	}
 	fn send_ack(&mut self, quad: &Quad, msg: &str)
 	{

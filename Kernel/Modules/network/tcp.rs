@@ -14,12 +14,7 @@ use kernel::futures::block_on;
 const IPV4_PROTO_TCP: u8 = 6;
 
 
-#[path="tcp-lib/"]
-/// Library types just for TCP
-mod lib {
-	pub mod rx_buffer;
-}
-
+mod rx_buffer;
 mod connection;
 use self::connection::Connection;
 
