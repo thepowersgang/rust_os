@@ -26,19 +26,41 @@ fn main() {
 		win.focus(ele_win_main.inner().1.inner());
 		win
 	};
-	
-	let mut fetch = Fetch {
+	win_main.rerender();
+
+	let fetch = Fetch {
 		socket: None,
 		handler: Handler { console: &console_ele },
 		input: &input,
 	};
 
+	// Trigger an immediate fetch
 	*input.0.borrow_mut() = "192.168.1.39 GET /".to_owned();
 
-	::r#async::idle_loop(&mut [
-		&mut fetch,
-		&mut win_main,
-		]);
+	struct OuterWrap<'eles> {
+		fetch: Fetch<'eles>,
+		win_main: ::wtk::Window<'eles, ()>,
+	}
+	impl<'e> ::r#async::WaitController for OuterWrap<'e> {
+		fn get_count(&self) -> usize {
+			self.fetch.get_count() + self.win_main.get_count()
+		}
+	
+		fn populate(&self, cb: &mut dyn FnMut(syscalls::WaitItem)) {
+			self.fetch.populate(cb);
+			self.win_main.populate(cb);
+		}
+	
+		fn handle(&mut self, events: &[syscalls::WaitItem]) {
+			let c1 = self.fetch.get_count();
+			self.fetch.handle(&events[..c1]);
+			self.win_main.handle(&events[c1..]);
+			self.win_main.rerender();
+		}
+	}
+
+	let mut ow = OuterWrap { fetch, win_main };
+	::r#async::idle_loop(&mut [ &mut ow ]);
 }
 
 struct LineReader {
@@ -55,6 +77,7 @@ impl LineReader {
 		let mut read_buf = vec![0; 1024];
 		let len = self.socket.read(&mut read_buf)?;
 		let mut data = &read_buf[..len];
+		::syscalls::kernel_log!("read_line: len={} data={:x?}", len, data);
 		while let Some(p) = data.iter().position(|v| *v == b'\n') {
 			let line = &data[..p];
 			if self.partial_line.is_empty() {
@@ -103,6 +126,7 @@ impl ::r#async::WaitController for Fetch<'_> {
 
 	fn handle(&mut self, events: &[syscalls::WaitItem]) {
 		if let Some(v) = self.socket.as_mut() {
+			::syscalls::kernel_log!("Fetch::handle: events[0].flags={:#x}", events[0].flags);
 			if events[0].flags != 0 {
 				let h = &mut self.handler;
 				match v.read_line(|line| {
@@ -118,6 +142,7 @@ impl ::r#async::WaitController for Fetch<'_> {
 		}
 		else {
 			if let Some(t) = self.input.take() {
+				::syscalls::kernel_log!("Fetch::handle: Input {:?}", t);
 				let mut v = t.split_whitespace();
 				let host = v.next().unwrap();
 				match (v.next(), v.remainder()) {
@@ -156,8 +181,13 @@ impl Handler<'_> {
 fn http_get_request(host_str: &str, method: &str, path: &str) -> ::std::io::Result< ::std::net::TcpStream > {
 	let host: ::std::net::IpAddr = host_str.parse().unwrap();
 	let mut s = ::std::net::TcpStream::connect(host, 80)?;
+	::syscalls::kernel_log!("http_get_request: connect called");
+	use ::std::net::TcpStreamExt;
+	::syscalls::threads::wait(&mut [s.raw().wait_conn()], !0);
+	::syscalls::kernel_log!("http_get_request: connected");
 	use ::std::io::Write;
 	s.write_all(&format!("{method} {path} HTTP/1.1\r\nHost: {host_str}\r\n\r\n").as_bytes())?;
+	::syscalls::kernel_log!("http_get_request: requested");
 	Ok( s )
 }
 
