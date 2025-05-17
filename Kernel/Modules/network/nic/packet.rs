@@ -102,17 +102,26 @@ impl<'a> PacketReader<'a> {
 		Ok(rv)
 	}
 	pub fn read(&mut self, dst: &mut [u8]) -> Result<usize, ()> {
+		if self.ofs == self.len {
+			return Err( () );
+		}
 		// TODO: Should the current region index be cached?
 		let mut ofs = self.ofs as usize;
 		let max_len = dst.len().min( self.len as usize - ofs );
 		let dst = &mut dst[..max_len];
+
 		let mut r = 0;
-		while ofs >= self.pkt.get_region(r).len() {
-			ofs -= self.pkt.get_region(r).len();
-			r += 1;
+		loop {
 			if r == self.pkt.num_regions() {
 				return Err( () );
 			}
+			let rlen = self.pkt.get_region(r).len();
+			if ofs < rlen {
+				break;
+			}
+
+			ofs -= rlen;
+			r += 1;
 		}
 
 		let mut wofs = 0;
@@ -122,6 +131,7 @@ impl<'a> PacketReader<'a> {
 			let alen = rgn.len() - ofs;
 			let space = dst.len() - wofs;
 			let len = ::core::cmp::min(alen, space);
+			assert!(len > 0);
 
 			dst[wofs..][..len].copy_from_slice( &rgn[ofs..][..len] );
 			
@@ -140,17 +150,23 @@ impl<'a> PacketReader<'a> {
 	}
 	pub fn read_u8(&mut self) -> Result<u8, ()> {
 		let mut b = [0];
-		self.read(&mut b)?;
+		if self.read(&mut b)? != b.len() {
+			return Err( () );
+		}
 		Ok( b[0] )
 	}
 	pub fn read_u16n(&mut self) -> Result<u16, ()> {
 		let mut b = [0,0];
-		self.read(&mut b)?;
+		if self.read(&mut b)? != b.len() {
+			return Err( () );
+		}
 		Ok( u16::from_be_bytes(b) )
 	}
 	pub fn read_u32n(&mut self) -> Result<u32, ()> {
 		let mut b = [0,0,0,0];
-		self.read(&mut b)?;
+		if self.read(&mut b)? != b.len() {
+			return Err( () );
+		}
 		Ok( u32::from_be_bytes(b) )
 	}
 }

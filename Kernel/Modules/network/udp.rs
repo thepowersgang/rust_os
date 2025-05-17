@@ -298,18 +298,19 @@ impl MessagePool {
 			}
 		};
 
-		let mut lh = self.inner.lock();
-		if lh.space() < hdr.len() + pkt.remain() {
-		}
-		else {
-			for &b in hdr {
-				let _ = lh.push_back(b);
+		{
+			let mut lh = self.inner.lock();
+			if lh.space() < hdr.len() + len {
 			}
-			while let Ok(b) = pkt.read_u8() {
-				let _ = lh.push_back(b);
+			else {
+				for &b in hdr {
+					let _ = lh.push_back(b);
+				}
+				while let Ok(b) = pkt.read_u8() {
+					let _ = lh.push_back(b);
+				}
 			}
 		}
-		//self.inner.push(val)
 		if let Some(v) = self.waiters.lock().pop_front() {
 			log_debug!("Waking a waiter");
 			v.signal();
