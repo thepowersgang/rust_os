@@ -30,16 +30,22 @@ def test_assert(reason: str, condition):
         raise TestFail(reason)
     print("STEP:", reason)
 
+RE_threadSwitch = re.compile(r'\d+[td] \d+/TID\d+\[kernel::threads\] - (.*)')
+assert RE_threadSwitch.search('\x1b[0000m  9844t 0/TID10[kernel::threads] - L270: reschedule() - No active threads, idling\x1b[0m'), RE_threadSwitch.pattern
+assert RE_threadSwitch.search('\x1b[0000m  9849d 0/TID1[kernel::threads] - Idle task switch to 0xffff800000000480(2 IRQ Worker)\x1b[0m')
+assert RE_threadSwitch.search("\x1b[0000m 22380d 0/TID2[kernel::threads] - Task switch to 0xffff800000000bc0(4 GUI Timer)\x1b[0m")
+assert RE_threadSwitch.search('\x1b[0000m 18802d 0/TID1[kernel::threads] - Idle task switch to 0xffff800000000480(2 IRQ Worker)\x1b[0m')
+
 class Instance:
     def __init__(self, arch: str, testname: str):
         self._cmd = QemuMonitor.QemuMonitor(["make", "-C", "rundir/", "ARCH={}".format(arch,), "NOTEE=1"])
-        self.lastlog = []
+        self.lastlog: "list[str]" = []
         self._testname = testname
-        self._screenshot_idx = 0
-        self._x = 0
-        self._y = 0
-        self._btns = 0
-        self._screenshot_dir = 'test-%s-%s'.format(arch,testname,)
+        self._screenshot_idx: int = 0
+        self._x: int = 0
+        self._y: int = 0
+        self._btns: int = 0
+        self._screenshot_dir = 'test-{}-{}'.format(arch,testname,)
         self._cmd.cmd("change vnc :99")
         try:
             shutil.rmtree("rundir/"+self._screenshot_dir)
@@ -64,7 +70,15 @@ class Instance:
         self._cmd.send_screendump('{}/z-final.ppm'.format(self._screenshot_dir))
 
     
+    _counter_wait_for_line = 0
+    def _check_for_panic(self, line: str):
+        if re.search(r'\d+k \d+/TID\d+\[kernel::unwind\] - ', line) != None:
+            raise TestFail("Kernel panic")
+        if re.search(r'\d+d \d+/TID\d+\[syscalls\] - USER> PANIC: ', line) != None:
+            raise TestFail("User panic")
     def wait_for_line(self, regex: "re.Pattern[str]|str", timeout: float):
+        self._counter_wait_for_line += 1
+        print("wait_for_line[{}]({!r}, timeout={:.1f})".format(self._counter_wait_for_line, regex, timeout))
         self.lastlog = []
         end_time = time.time() + timeout
         while True:
@@ -72,11 +86,8 @@ class Instance:
             if line == None:
                 return False
             if line != "":
-                print("wait_for_line: line = {!r}".format(line))
-                if re.search(r'\d+k \d+\[kernel::unwind\] - ', line) != None:
-                    raise TestFail("Kernel panic")
-                if re.search(r'\d+d \d+\[syscalls\] - USER> PANIC: ', line) != None:
-                    raise TestFail("User panic")
+                print("wait_for_line[{}]: {!r}".format(self._counter_wait_for_line, line))
+                self._check_for_panic(line)
                 rv = re.search(regex, line)
                 if rv != None:
                     return rv
@@ -84,16 +95,57 @@ class Instance:
             if time.time() > end_time:
                 return False
     
-    def wait_for_idle(self, timeout=1.0, idle_time=0.5):
-        end_time = time.time() + timeout
+    def wait_for_idle(self, timeout: float = 10.0, idle_time: float = 2):
+        self._counter_wait_for_line += 1
+        print("wait_for_idle[{}](timeout={:.1f},idle_time={:.1f})".format(self._counter_wait_for_line, timeout, idle_time))
+        fail_after = time.time() + timeout
+        pass_after = float('inf')   # time.time() + idle_time
+        maybe_idle = False
         # TODO: Ensure that it's idle for at least `n` seconds?
         while True:
-            if time.time() > end_time:
+            line = self._cmd.get_line(timeout=min(pass_after, fail_after) - time.time())
+            if time.time() >= fail_after:
                 return False
-            if not self.wait_for_line(r'\d+t \d+\[kernel::threads\] - L\d+: reschedule\(\) - No active threads, idling', end_time - time.time()):
-                return False
-            if False == self.wait_for_line('', idle_time):
+            if time.time() >= pass_after:
                 return True
+            if line is None:
+                print("wait_for_idle: This shouldn't happen, `get_line` timeout but timeouts not hit")
+                return False
+            if line != "":
+                print("wait_for_idle[{}]: {!r}".format(self._counter_wait_for_line, line))
+                self.lastlog.append( line )
+            self._check_for_panic(line)
+            # Look for a thread switch log line
+            m = RE_threadSwitch.search(line)
+            if m is not None:
+                to_idle = False
+                # Ignore specific matched log lines
+                # - A switch to idling
+                if " - No active threads, idling" in m[1] is not None:
+                    to_idle = True
+                # - A switch to the GUI timer thread or the IRQ worker
+                #   - This does assume that the GUI timer doesn't do too much
+                if "ask switch to 0x" in m[1]:
+                    if " IRQ Worker)" in m[1]:
+                        to_idle = True
+                    if " GUI Timer)" in m[1]:
+                        to_idle = True
+                print("wait_for_idle: {}->{}: pass_after={}".format(maybe_idle, to_idle, pass_after))
+                # If switching to an idle task, then start the idle timer (if not started)
+                if to_idle:
+                    if not maybe_idle:
+                        maybe_idle = True
+                        pass_after = time.time() + idle_time
+                    else:
+                        pass
+                # Reset the idle timer if there was a thread switch to anything else
+                else:
+                    maybe_idle = False
+                    pass_after = float('inf')
+            else:
+                # Ignore any other message
+                pass
+        pass
     
 
     def match_line(self, name: str, pattern: str, matches: "list[str]", timeout=5):
@@ -136,11 +188,11 @@ class Instance:
             else:
                 print( "ERROR: Unknown character '%s' in type_string".format(c) )
                 raise RuntimeError("Test error: Unknown character")
-    def type_key(self, key):
+    def type_key(self, key: str):
         self._cmd.send_key(key)
-    def type_combo(self, keys):
+    def type_combo(self, keys: "list[str]"):
         self._cmd.send_combo(keys)
-    def mouse_to(self, x,y):
+    def mouse_to(self, x: int, y: int):
         dx, dy = x - self._x, y - self._y
         self._cmd.mouse_move(dx,dy)
         self._x = x

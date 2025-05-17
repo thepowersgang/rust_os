@@ -45,7 +45,7 @@ def readline_timeout(stream: "typing.IO[bytes]", timeout=1.0) -> "str|None":
                 #print "--- --"
                 break
         else:
-            print("TIMEOUT")
+            print("readline_timeout: TIMEOUT ({:.1f}s)".format(timeout))
             break
     if rv == b"":
         return None
