@@ -3,5 +3,6 @@
     "rust-analyzer.check.extraEnv": {
         "RUSTFLAGS": "--cfg in_ide"
     },
-    "makefile.configureOnOpen": false
+    "makefile.configureOnOpen": false,
+    "python.analysis.typeCheckingMode": "basic"
 }

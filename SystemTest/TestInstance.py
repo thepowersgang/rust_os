@@ -19,20 +19,20 @@ def run_test(arch, test_name,  test_method):
         print("TEST FAILURE:",e)
         sys.exit(1)
 
-class TestFail:
-    def __init__(self, reason):
+class TestFail(Exception):
+    def __init__(self, reason: str):
         self.reason = reason
     def __repr__(self):
         return "TestFail(%r)" % (self.reason,)
 
-def test_assert(reason: str, condition: bool):
+def test_assert(reason: str, condition):
     if condition == False:
         raise TestFail(reason)
     print("STEP:", reason)
 
 class Instance:
     def __init__(self, arch: str, testname: str):
-        self._cmd = QemuMonitor.QemuMonitor(["make", "-C", "Kernel/rundir/", "ARCH={}".format(arch,), "NOTEE=1"])
+        self._cmd = QemuMonitor.QemuMonitor(["make", "-C", "rundir/", "ARCH={}".format(arch,), "NOTEE=1"])
         self.lastlog = []
         self._testname = testname
         self._screenshot_idx = 0
@@ -42,13 +42,17 @@ class Instance:
         self._screenshot_dir = 'test-%s-%s'.format(arch,testname,)
         self._cmd.cmd("change vnc :99")
         try:
-            shutil.rmtree("Kernel/rundir/"+self._screenshot_dir)
+            shutil.rmtree("rundir/"+self._screenshot_dir)
         except:
             pass
-        os.mkdir("Kernel/rundir/"+self._screenshot_dir)
+        os.mkdir("rundir/"+self._screenshot_dir)
         pass
     def start_capture(self):
-        self._encoder = subprocess.Popen(['/home/tpg/.local/bin/flvrec.py', '-o', 'Kernel/rundir/'+self._screenshot_dir+'/video.flv', 'localhost:99'])
+        self._encoder = subprocess.Popen([
+            '/home/tpg/.local/bin/flvrec.py',
+            '-o', 'rundir/'+self._screenshot_dir+'/video.flv',
+            'localhost:99'
+            ])
     def flush(self):
         try:
             while self.wait_for_idle():
@@ -57,10 +61,10 @@ class Instance:
             print( "{!r}".format(e,) )
         
     def __del__(self):
-        self._cmd.send_screendump('%s/z-final.ppm' % (self._screenshot_dir,))
+        self._cmd.send_screendump('{}/z-final.ppm'.format(self._screenshot_dir))
 
     
-    def wait_for_line(self, regex, timeout):
+    def wait_for_line(self, regex: "re.Pattern[str]|str", timeout: float):
         self.lastlog = []
         end_time = time.time() + timeout
         while True:
@@ -68,10 +72,10 @@ class Instance:
             if line == None:
                 return False
             if line != "":
-                print("wait_for_line -", line)
-                if re.search('\d+k \d+\[kernel::unwind\] - ', line) != None:
+                print("wait_for_line: line = {!r}".format(line))
+                if re.search(r'\d+k \d+\[kernel::unwind\] - ', line) != None:
                     raise TestFail("Kernel panic")
-                if re.search('\d+d \d+\[syscalls\] - USER> PANIC: ', line) != None:
+                if re.search(r'\d+d \d+\[syscalls\] - USER> PANIC: ', line) != None:
                     raise TestFail("User panic")
                 rv = re.search(regex, line)
                 if rv != None:
@@ -86,33 +90,38 @@ class Instance:
         while True:
             if time.time() > end_time:
                 return False
-            if not self.wait_for_line('\d+t \d+\[kernel::threads\] - L\d+: reschedule\(\) - No active threads, idling', end_time - time.time()):
+            if not self.wait_for_line(r'\d+t \d+\[kernel::threads\] - L\d+: reschedule\(\) - No active threads, idling', end_time - time.time()):
                 return False
             if False == self.wait_for_line('', idle_time):
                 return True
     
 
-    def match_line(self, name, pattern, matches, timeout=5):
+    def match_line(self, name: str, pattern: str, matches: "list[str]", timeout=5):
         """
         Wait for a line that matches the provided pattern, and assert that it fits the provided matches
         """
         line = self.wait_for_line(pattern, timeout=timeout)
-        test_assert("%s - Match timeout: %s" % (name, pattern,), line)
+        test_assert("%s - Match timeout: %s" % (name, pattern,), line != False)
+        assert line != False
         for i,m in enumerate(matches):
             if line.group(i+1) != m:
                 raise TestFail("%s - Unexpected match from \"%s\" - %i: %r != %r" % (name, pattern, i, line.group(1+i), m,))
     
     
-    def wait_startapp(self, path, timeout=5):
+    def wait_startapp(self, path: str, timeout=5):
         """
         TIFFLIN - Wait for the userland entrypoint to be invoked, and check the binary name
         """
-        line = self.wait_for_line("\[syscalls\] - USER> Calling entry 0x[0-9a-f]+ for b\"(.*)\"", timeout=timeout)
-        test_assert("Start timeout: %s" % (path,), line)
+        line = self.wait_for_line(r"\[syscalls\] - USER> Calling entry 0x[0-9a-f]+ for b\"(.*)\"", timeout=timeout)
+        test_assert("Start timeout: %s" % (path,), line != False)
+        assert line != False
         if line.group(1) != path:
             raise TestFail("Unexpected binary start: %r != %r" % (line.group(1), path,))
     
-    def type_string(self, string):
+    def type_string(self, string: str):
+        """
+        Type a string using the VM's keyboard
+        """
         for c in string:
             if 'a' <= c <= 'z':
                 self._cmd.send_key(c)
@@ -126,7 +135,7 @@ class Instance:
                 self._cmd.send_key('slash')
             else:
                 print( "ERROR: Unknown character '%s' in type_string".format(c) )
-                raise "Doop"
+                raise RuntimeError("Test error: Unknown character")
     def type_key(self, key):
         self._cmd.send_key(key)
     def type_combo(self, keys):
