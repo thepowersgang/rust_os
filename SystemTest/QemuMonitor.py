@@ -1,7 +1,6 @@
 import select
 import subprocess
 import threading
-import thread
 import time
 
 class KillerThread:
@@ -9,7 +8,7 @@ class KillerThread:
         self._event = threading.Event()
         self._start = threading.Event()
         self._run = True
-        self._th = thread.start_new_thread(KillerThread.run, (self,))
+        self._th = threading.Thread(target=lambda: self.run())
     def reset(self):
         self._event.set()
     def start(self):
@@ -26,11 +25,12 @@ class KillerThread:
             #print "- Timing 2s"
             self._start.clear()
             if self._event.wait(2.0) == None:
+                import thread
                 thread.interrupt_main()
             #print "- Done"
             self._event.clear()
 
-def readline_timeout(stream, timeout=1.0):
+def readline_timeout(stream, timeout=1.0) -> "str|None":
     rv = ""
     end_time = time.time() + timeout
     #print "readline_timeout"
@@ -44,7 +44,7 @@ def readline_timeout(stream, timeout=1.0):
                 #print "--- --"
                 break
         else:
-            print "TIMEOUT"
+            print("TIMEOUT")
             break
     if rv == "":
         return None
@@ -52,7 +52,7 @@ def readline_timeout(stream, timeout=1.0):
         return rv.strip()
 
 class QemuMonitor:
-    def __init__(self, cmd_strings):
+    def __init__(self, cmd_strings: "list[str]"):
         self._instance = subprocess.Popen(cmd_strings, stdin=subprocess.PIPE, stdout=subprocess.PIPE)
         self._mode = ''
         self._timer = KillerThread()
@@ -62,10 +62,10 @@ class QemuMonitor:
             line = self.get_line(timeout=0.5)
             if line == None:
                 break
-            print "QemuMonitor.__del__ - '%s'" % (line,)
+            print("QemuMonitor.__del__ - '{}'".format(line,))
         self._instance.terminate()
         self._timer.kill()
-        print "Killing qemu instance"
+        print("Killing qemu instance")
     def send_key(self, keycode):
         self.cmd('sendkey %s' % keycode)
     def send_combo(self, keycodes):
@@ -85,7 +85,7 @@ class QemuMonitor:
                 s = self._instance.stdout.readline()
                 #s = readline_timeout(self._instance.stdout, timeout)
             except KeyboardInterrupt:
-                print "--- ERROR: Timeout (or SIGINT) during readline()"
+                print("--- ERROR: Timeout (or SIGINT) during readline()")
                 raise
             finally:
                 self._timer.reset()
@@ -106,15 +106,15 @@ class QemuMonitor:
         
         self._instance.stdin.flush()
         self._instance.stdin.write('\n')
-        print ">> CMD:", string
+        print(">> CMD:", string)
         self._instance.stdin.write(string)
         self._instance.stdin.write('\n')
         self._instance.stdin.flush()
     
         line = self.get_line(timeout=1)
-        print ">> rv =",line
+        print(">> rv =",line)
         line = self.get_line(timeout=1)
-        print ">> rv =",line
+        print(">> rv =",line)
         #if line != '(qemu) %s' % (string):
         #    print "Unexpected response: '%s', expected '%s'" % (line, '(qemu) %s' % (string)) 
         #    raise "Doop"

@@ -1,3 +1,6 @@
+# 
+# rust_os SystemTest - Test framework/wrapper
+# 
 import QemuMonitor
 import re
 import time
@@ -11,9 +14,9 @@ def run_test(arch, test_name,  test_method):
     try:
         test_method( instance )
     except TestFail as e:
-        print "--- FAILED"
+        print("--- FAILED")
         instance.flush()
-        print "TEST FAILURE:",e
+        print("TEST FAILURE:",e)
         sys.exit(1)
 
 class TestFail:
@@ -22,21 +25,21 @@ class TestFail:
     def __repr__(self):
         return "TestFail(%r)" % (self.reason,)
 
-def test_assert(reason, condition):
+def test_assert(reason: str, condition: bool):
     if condition == False:
         raise TestFail(reason)
-    print "STEP:",reason
+    print("STEP:", reason)
 
 class Instance:
-    def __init__(self, arch, testname):
-        self._cmd = QemuMonitor.QemuMonitor(["make", "-C", "Kernel/rundir/", "ARCH=%s" % (arch,), "NOTEE=1"])
+    def __init__(self, arch: str, testname: str):
+        self._cmd = QemuMonitor.QemuMonitor(["make", "-C", "Kernel/rundir/", "ARCH={}".format(arch,), "NOTEE=1"])
         self.lastlog = []
         self._testname = testname
         self._screenshot_idx = 0
         self._x = 0
         self._y = 0
         self._btns = 0
-        self._screenshot_dir = 'test-%s-%s' % (arch,testname,)
+        self._screenshot_dir = 'test-%s-%s'.format(arch,testname,)
         self._cmd.cmd("change vnc :99")
         try:
             shutil.rmtree("Kernel/rundir/"+self._screenshot_dir)
@@ -51,7 +54,7 @@ class Instance:
             while self.wait_for_idle():
                 pass
         except TestFail as e:
-            print "%r" % (e,)
+            print( "{!r}".format(e,) )
         
     def __del__(self):
         self._cmd.send_screendump('%s/z-final.ppm' % (self._screenshot_dir,))
@@ -65,7 +68,7 @@ class Instance:
             if line == None:
                 return False
             if line != "":
-                print "wait_for_line - ",line
+                print("wait_for_line -", line)
                 if re.search('\d+k \d+\[kernel::unwind\] - ', line) != None:
                     raise TestFail("Kernel panic")
                 if re.search('\d+d \d+\[syscalls\] - USER> PANIC: ', line) != None:
@@ -122,7 +125,7 @@ class Instance:
             elif c == '/':
                 self._cmd.send_key('slash')
             else:
-                print "ERROR: Unknown character '%s' in type_string" % (c)
+                print( "ERROR: Unknown character '%s' in type_string".format(c) )
                 raise "Doop"
     def type_key(self, key):
         self._cmd.send_key(key)
