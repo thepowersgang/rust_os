@@ -161,8 +161,6 @@ pub use alloc::{vec, string, borrow};
 
 pub mod os;
 
-pub mod heap;
-
 pub mod net;
 
 pub mod time;
