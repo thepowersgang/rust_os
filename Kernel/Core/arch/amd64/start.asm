@@ -88,7 +88,7 @@ start:
 	;; 2. Switch into IA-32e mode
 	; - Enable PAE and others (needed for IA-32e)
 	mov eax, cr4
-        or ax, FLAGS_CR4
+	or ax, FLAGS_CR4
 	mov cr4, eax
 	
 	mov al, '4'
