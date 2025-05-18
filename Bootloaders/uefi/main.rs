@@ -150,7 +150,7 @@ pub extern "win64" fn efi_main(image_handle: ::uefi::Handle, system_table: &::ue
 		
 		
 		// - Execute kernel (passing a magic value and general boot information)
-		entrypoint(0x71FF0EF1, &boot_info);
+		entrypoint(kernel_proto::MAGIC as usize, &boot_info);
 	}
 }
 

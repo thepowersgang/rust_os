@@ -1,5 +1,7 @@
 #![no_std]
 
+pub const MAGIC: u32 = 0x71FF0EF1;
+
 #[repr(C)]
 pub struct Info
 {
