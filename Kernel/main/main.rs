@@ -69,6 +69,79 @@ pub extern "C" fn kmain()
 	// Modules (dependency tree included)
 	// - Requests that the GUI be started as soon as possible
 	::kernel::modules::init(&["GUI"]);
+
+
+	for module in ::kernel::arch::boot::get_modules() {
+		if module.name.ends_with(".initrd") {
+			use ::kernel::lib::mem::Box;
+			use ::kernel::metadevs::storage::IoError;
+			struct InitrdVol {
+				handle: ::kernel::memory::virt::AllocHandle,
+				ofs: u32,
+				len: u32,
+			}
+			impl InitrdVol {
+				pub unsafe fn new(base: u64, length: usize) -> Result<Self,()> {
+					let handle = match ::kernel::memory::virt::map_hw_ro(
+						base, (length + ::kernel::PAGE_SIZE-1) / ::kernel::PAGE_SIZE,
+						"initrd"
+						)
+						{
+						Ok(v) => v,
+						Err(_e) => return Err(()),
+						};
+					let ofs = (base % (::kernel::PAGE_SIZE as u64)) as usize;
+
+					Ok(Self { handle, ofs: ofs as u32, len: length as u32 })
+				}
+			}
+			impl ::kernel::metadevs::storage::PhysicalVolume for InitrdVol {
+				fn name(&self) -> &str {
+					"initrd"
+				}
+			
+				fn blocksize(&self) -> usize {
+					0x1000
+				}
+			
+				fn capacity(&self) -> Option<u64> {
+					Some(self.len as u64 / 0x1000)
+				}
+			
+				fn read<'a>(&'a self, _: u8, blockidx: u64, count: usize, dst: &'a mut [u8]) -> kernel::metadevs::storage::AsyncIoResult<'a, usize> {
+					if blockidx as usize > (self.len as usize) / 0x1000 {
+						return Box::pin(async move { Err(IoError::BadBlock) });
+					}
+					let count = count.min( self.len as usize / 0x1000 - blockidx as usize );
+					assert!(dst.len() >= count * 0x1000);
+					let ofs = self.ofs as usize + blockidx as usize * 0x1000;
+					let src = self.handle.as_slice(ofs, dst.len());
+					dst.copy_from_slice(src);
+					
+					Box::pin(async move { Ok(count) })
+				}
+			
+				fn write<'a>(&'a self, _: u8, _: u64, _: usize, _: &'a [u8]) -> kernel::metadevs::storage::AsyncIoResult<'a, usize> {
+					Box::pin(async move { Err(IoError::ReadOnly) })
+				}
+			
+				fn wipe<'a>(&'a self, _: u64, _: usize) -> kernel::metadevs::storage::AsyncIoResult<'a,()> {
+					Box::pin(async move { Err(IoError::ReadOnly) })
+				}
+			}
+			// SAFE: Trust that the module information is senisble
+			unsafe {
+				match InitrdVol::new(module.base, module.length)
+				{
+				Ok(v) => ::core::mem::forget(::kernel::metadevs::storage::register_pv(Box::new(v))),
+				Err(_) => {},
+				}
+			}
+		}
+		else {
+			log_error!("Unknown module format: {:?}", module.name)
+		}
+	}
 	
 	// Yield to allow init threads to run
 	//::kernel::threads::yield_time();
