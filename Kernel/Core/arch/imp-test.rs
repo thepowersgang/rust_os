@@ -230,6 +230,9 @@ pub mod boot {
 				}
 		]
 	}
+	pub fn get_modules() -> &'static [crate::arch::boot::ModuleInfo] {
+		&[]
+	}
 }
 pub mod threads {
 	use std::sync::Arc;

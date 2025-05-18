@@ -365,6 +365,17 @@ pub mod interrupts {
 pub mod boot {
 	use super::imp::boot as imp;
 
+
+	pub struct ModuleInfo
+	{
+		pub base: u64,
+		pub length: usize,
+		pub name: &'static str,
+	}
+	impl ModuleInfo {
+		pub const EMPTY: Self = ModuleInfo { base: 0, length: 0, name: "" };
+	}
+
 	#[inline]
 	pub fn get_boot_string() -> &'static str {
 		imp::get_boot_string()
@@ -376,6 +387,10 @@ pub mod boot {
 	#[inline]
 	pub fn get_memory_map() -> &'static [crate::memory::MemoryMapEnt] {
 		imp::get_memory_map()
+	}
+	#[inline]
+	pub fn get_modules() -> &'static [ModuleInfo] {
+		imp::get_modules()
 	}
 }
 pub mod threads {

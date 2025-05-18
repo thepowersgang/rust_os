@@ -25,6 +25,7 @@ enum ModuleState
 
 #[cfg(feature="test")]
 mod _test {
+	#![allow(non_upper_case_globals)]
 	#[no_mangle]
 	static modules_base: () = ();
 	#[no_mangle]

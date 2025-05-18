@@ -1,23 +1,25 @@
-
+///! Multiboot (version 1) boot information
 use super::super::memory::addresses::{IDENT_START, IDENT_END};
 use crate::metadevs::video::bootvideo::{VideoMode,VideoFormat};
 use crate::symbols::Elf32_Sym;
 use super::SymbolInfo;
-use crate::arch::imp::v_kernel_end;
+use super::super::v_kernel_end;
 use super::valid_c_str_to_slice;
 
+/// A parsed version of multiboot v1 data
 pub struct MultibootParsed
 {
 	pub cmdline: &'static str,
 	pub vidmode: Option<VideoMode>,
 	pub memmap: &'static [crate::memory::MemoryMapEnt],
 	pub symbol_info: SymbolInfo,
+	pub modules: &'static [super::ModuleInfo],
 }
 
 
 #[repr(C)]
 #[allow(unused)]
-pub struct MultibootInfo
+struct MultibootInfo
 {
 	flags: u32,
 	// flags[0]
@@ -92,9 +94,22 @@ struct VbeModeInfo
 	image_count_lfb: u8,
 }
 
+#[repr(C)]
+struct ModuleInfo
+{
+	mod_start: u32,
+	mod_end: u32,
+	string_addr: u32,
+	_reserved: u32,
+}
+
 impl MultibootParsed
 {
-	pub unsafe fn from_ptr(info_ptr: *const crate::Void, mmap_buf: &'static mut [crate::memory::MemoryMapEnt]) -> Option<MultibootParsed>
+	pub unsafe fn from_ptr(
+		info_ptr: *const crate::Void,
+		mmap_buf: &'static mut [crate::memory::MemoryMapEnt],
+		mod_buf: &'static mut [super::ModuleInfo],
+	) -> Option<MultibootParsed>
 	{
 		let info = &*(info_ptr as *const MultibootInfo);
 		//if info.flags & !0xFFF != 0 {
@@ -114,16 +129,18 @@ impl MultibootParsed
 		
 		log_notice!("Loading multiboot from loader '{}' (flags = {:#x})", loader_name, info.flags);
 		let mut ret = MultibootParsed {
-				cmdline: MultibootParsed::_cmdline(info),
-				vidmode: MultibootParsed::_vidmode(info),
-				symbol_info: MultibootParsed::_syminfo(info),
+				cmdline: MultibootParsed::decode_cmdline(info),
+				vidmode: MultibootParsed::decode_video_mode(info),
+				symbol_info: MultibootParsed::decode_sym_info(info),
 				memmap: &[],
+				modules: &[],
 			};
 		ret.memmap = ret.fill_memmap(info, mmap_buf);
+		ret.modules = Self::fill_modules(info, mod_buf);
 		Some( ret )
 	}
 
-	fn _syminfo(info: &MultibootInfo) -> SymbolInfo
+	fn decode_sym_info(info: &MultibootInfo) -> SymbolInfo
 	{
 		// Symbol information
 		match (info.flags >> 4) & 3
@@ -207,7 +224,7 @@ impl MultibootParsed
 		}
 	}
 	
-	fn _cmdline(info: &MultibootInfo) -> &'static str
+	fn decode_cmdline(info: &MultibootInfo) -> &'static str
 	{
 		if (info.flags & 1 << 2) == 0 {
 			return "";
@@ -223,7 +240,7 @@ impl MultibootParsed
 		unsafe { valid_c_str_to_slice(charptr).unwrap_or("-INVALID-") }
 	}
 	
-	fn _vidmode(info: &MultibootInfo) -> Option<VideoMode>
+	fn decode_video_mode(info: &MultibootInfo) -> Option<VideoMode>
 	{
 		if (info.flags & 1 << 11) == 0 {
 			log_notice!("get_video_mode - Video mode information not present");
@@ -269,6 +286,7 @@ impl MultibootParsed
 			base: info.physbase as crate::arch::memory::PAddr,
 			})
 	}
+
 	fn fill_memmap<'a>(&self, info: &MultibootInfo, buf: &'a mut [crate::memory::MemoryMapEnt]) -> &'a [crate::memory::MemoryMapEnt]
 	{
 		let size = {
@@ -323,5 +341,29 @@ impl MultibootParsed
 		
 		// 3. Return final result
 		&buf[0 .. size]
+	}
+
+
+	/// UNSAFE: Caller is responsible for the contents of `info`
+	unsafe fn fill_modules<'a>(info: &MultibootInfo, mod_buf: &'a mut [super::ModuleInfo]) -> &'a [super::ModuleInfo]
+	{
+		let mod_info = crate::memory::virt::map_static_slice::<ModuleInfo>(
+			info.module_first as u64,
+			info.module_count as usize
+		).unwrap_or(&[]);
+
+		for (d,s) in Iterator::zip(mod_buf.iter_mut(), mod_info.iter()) {
+			*d = super::ModuleInfo {
+				base: s.mod_start as u64,
+				length: (s.mod_end - s.mod_start) as usize,
+				name: valid_c_str_to_slice(
+					crate::memory::virt::map_static(s.string_addr as u64)
+						.unwrap_or(&0)
+					).unwrap_or("")
+				};
+		}
+
+		let rv = usize::min(mod_buf.len(), mod_info.len());
+		&mod_buf[..rv]
 	}
 }
