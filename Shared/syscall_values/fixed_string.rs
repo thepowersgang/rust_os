@@ -59,13 +59,11 @@ impl ::core::convert::From<[u8; 8]> for FixedStr8 {
 }
 impl ::core::convert::From<u64> for FixedStr8 {
 	fn from(v: u64) -> FixedStr8 {
-		// SAFE: POD
-		FixedStr8( unsafe { ::core::mem::transmute(v) } )
+		FixedStr8( v.to_ne_bytes() ) 
 	}
 }
 impl ::core::convert::From<FixedStr8> for u64 {
 	fn from(v: FixedStr8) -> u64 {
-		// SAFE: POD
-		unsafe { ::core::mem::transmute(v.0) }
+		u64::from_ne_bytes(v.0)
 	}
 }

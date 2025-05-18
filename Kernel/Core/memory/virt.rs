@@ -422,7 +422,7 @@ impl MmioHandle
 	/// Interpret the backing memory as a slice
 	pub unsafe fn as_int_mut_slice<T: crate::lib::POD>(&self, ofs: usize, count: usize) -> &mut [T]
 	{
-		&mut (*self.as_raw_ptr_slice(ofs, count))[..]
+		&mut (&mut *self.as_raw_ptr_slice(ofs, count))[..]
 	}
 	/// Return a mutable borrow of the content (interior mutable)
 	pub unsafe fn as_int_mut<T: crate::lib::POD>(&self, ofs: usize) -> &mut T
@@ -732,14 +732,14 @@ impl AllocHandle
 	{
 		// SAFE: & and Plain-old-data
 		unsafe {
-			&(*self.as_raw_ptr_slice(ofs, count))[..]
+			&(&mut *self.as_raw_ptr_slice(ofs, count))[..]
 		}
 	}
 	pub unsafe fn as_int_mut_slice<T: crate::lib::POD>(&self, ofs: usize, count: usize) -> &mut [T]
 	{
 		assert!(self.is_mutable(),
 			"Calling as_int_mut_slice<{}> on non-writable memory", type_name!(T));
-		&mut (*self.as_raw_ptr_slice(ofs, count))[..]
+		&mut (&mut *self.as_raw_ptr_slice(ofs, count))[..]
 	}
 	pub fn as_mut_slice<T: crate::lib::POD>(&mut self, ofs: usize, count: usize) -> &mut [T]
 	{

@@ -105,6 +105,7 @@ pub mod prelude {
 			test,
 			test_case,
 			};
+		#[allow(deprecated)]
 		pub use core::prelude::v1::{
 			assert,
 			cfg,

@@ -63,13 +63,13 @@ impl TxSlot
 {
 	fn fill(&mut self, buf: &[u8], ofs: usize) -> Result<(),usize> {
 		// SAFE: Just gets the length from the slice, no memory access
-		let buflen = unsafe { (*self.buffer).len() };
+		let buflen = unsafe { (&*self.buffer).len() };
 		if ofs > buflen || ofs + buf.len() > buflen {
 			Err( buflen - (ofs + buf.len()) )
 		}
 		else {
 			// SAFE: This object owns this buffer.
-			unsafe { (*self.buffer)[ofs ..][.. buf.len()].copy_from_slice(buf); }
+			unsafe { (&mut *self.buffer)[ofs ..][.. buf.len()].copy_from_slice(buf); }
 			Ok( () )
 		}
 	}

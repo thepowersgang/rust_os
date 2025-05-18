@@ -88,12 +88,12 @@ impl WinBuf
 	
 	fn slice(&self) -> &[u32] {
 		// SAFE: Buffer will not resize, and multiple writers is allowed
-		unsafe { &(*self.data.get())[..] }
+		unsafe { &(&*self.data.get())[..] }
 	}
 	fn slice_mut(&self) -> &mut [u32] {
 		// TODO: Find some way of ENSURING that LLVM doesn't do something dumb here (like store a pointer in the buffer, and expect it not to change)
 		// SAFE: Buffer will not resize, and multiple writers is allowed
-		unsafe { &mut (*self.data.get())[..] }
+		unsafe { &mut (&mut *self.data.get())[..] }
 	}
 	
 	/// Obtain a Range<usize> given a scanline reference
