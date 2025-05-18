@@ -1,9 +1,7 @@
 // UEFI Boot-loader
 //
 //
-#![feature(asm)]
 #![feature(proc_macro_hygiene)]	// utf16_literal
-#![feature(panic_info_message)]
 #![no_std] 
 
 use uefi::boot_services::protocols;
@@ -11,6 +9,7 @@ use core::mem::size_of;
 
 #[macro_use]
 extern crate uefi;
+extern crate uefi_proto as kernel_proto;
 extern crate utf16_literal;
 
 macro_rules! log {
@@ -18,9 +17,6 @@ macro_rules! log {
 }
 #[path="../_common/elf.rs"]
 mod elf;
-
-#[path="../uefi_proto.rs"]
-mod kernel_proto;
 
 static PATH_CONFIG: &'static [u16] = ::utf16_literal::utf16!("Tifflin\\boot.cfg\0");
 static PATH_FALLBACK_KERNEL: &'static [u16] = ::utf16_literal::utf16!("Tifflin\\kernel-amd4.bin\0");
@@ -221,15 +217,7 @@ fn handle_panic(info: &::core::panic::PanicInfo) -> ! {
 			loop {}
 		}
 		NESTED = true;
-		if let Some(m) = info.message() {
-			loge!(&*S_CONOUT, "PANIC: {}", m);
-		}
-		else if let Some(m) = info.payload().downcast_ref::<&str>() {
-			loge!(&*S_CONOUT, "PANIC: {}", m);
-		}
-		else {
-			loge!(&*S_CONOUT, "PANIC: ?");
-		}
+		loge!(&*S_CONOUT, "PANIC: {}", info.message());
 
 		((*S_BOOT_SERVICES).exit)(S_IMAGE_HANDLE, ::uefi::status::NOT_FOUND, 0, ::core::ptr::null());
 	}
@@ -239,20 +227,35 @@ fn handle_panic(info: &::core::panic::PanicInfo) -> ! {
 #[no_mangle]
 pub extern "C" fn memcpy(dst: *mut u8, src: *const u8, count: usize) {
 	unsafe {
-		asm!("rep movsb" : : "{rcx}" (count), "{rdi}" (dst), "{rsi}" (src) : "rcx", "rsi", "rdi" : "volatile");
+		::core::arch::asm!("rep movsb", in("rcx") count, in("rdi") dst, in("rsi") src);
 	}
 }
 #[no_mangle]
 pub extern "C" fn memset(dst: *mut u8, val: u8, count: usize) {
 	unsafe {
-		asm!("rep stosb" : : "{rcx}" (count), "{rdi}" (dst), "{al}" (val) : "rcx", "rdi" : "volatile");
+		::core::arch::asm!("rep stosb", in("rcx") count, in("rdi") dst, in("al") val);
 	}
 }
 #[no_mangle]
 pub extern "C" fn memcmp(dst: *mut u8, src: *const u8, count: usize) -> isize {
 	unsafe {
 		let rv: isize;
-		asm!("repnz cmpsb ; movq $$0, $0 ; ja 1f; jb 2f; jmp 3f; 1: inc $0 ; jmp 3f; 2: dec $0; 3:" : "=r" (rv) : "{rcx}" (count), "{rdi}" (dst), "{rsi}" (src) : "rcx", "rsi", "rdi" : "volatile");
+		::core::arch::asm!("
+			repnz cmpsb
+			mov {0}, 0
+			ja 21f
+			jb 2f
+			jmp 3f
+			21: inc {0}
+			jmp 3f
+			2: dec {0}
+			3:
+			",
+			out(reg) rv,
+			in("rcx") count,
+			in("rdi") dst,
+			in("rsi") src
+			);
 		rv
 	}
 }

@@ -41,7 +41,7 @@ impl Str16
 impl ::core::fmt::Display for Str16 {
 	fn fmt(&self, f: &mut ::core::fmt::Formatter) -> ::core::fmt::Result {
 		for c in self.chars() {
-			try!(write!(f, "{}", c));
+			write!(f, "{}", c)?;
 		}
 		Ok( () )
 	}

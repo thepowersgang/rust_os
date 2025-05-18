@@ -1,0 +1,5 @@
+[package]
+name = "uefi_proto"
+version = "0.1.0"
+[lib]
+path = "uefi_proto.rs"

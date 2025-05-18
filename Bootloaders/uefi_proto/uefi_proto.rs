@@ -1,3 +1,4 @@
+#![no_std]
 
 #[repr(C)]
 pub struct Info

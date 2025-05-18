@@ -11,8 +11,7 @@ use super::memory::addresses::{IDENT_START, IDENT_END};
 use crate::metadevs::video::bootvideo::{VideoMode,VideoFormat};
 use crate::symbols::Elf32_Sym;
 
-#[path="../../../../Bootloaders/uefi_proto.rs"]
-mod uefi_proto;
+extern crate uefi_proto;
 
 //#[path="../../../../Bootloaders/multiboot.rs"]
 //mod multiboot;

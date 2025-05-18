@@ -21,6 +21,7 @@ pub mod raw
 pub type PoolPointer<T> = *mut T;
 
 /// Wrapped `Event` handle
+#[repr(transparent)]
 pub struct Event(raw::Event);
 
 #[repr(C)]
@@ -129,13 +130,13 @@ impl BootServices
 	/// Close (destroy) an event
 	pub fn close_event(&self, ev: Event) -> Status {
 		// SAFE: No memory unsafety because the wrapped handle can only have come from a successful `create_event*`
-		(unsafe { (self.close_event)(ev.0) })
+		unsafe { (self.close_event)(ev.0) }
 	}
 
 	/// Signal an event (signals entire group if the event is part of a group)
 	pub fn signal_event(&self, ev: Event) -> Status {
 		// SAFE: No memory unsafety because the wrapped handle can only have come from a successful `create_event*`
-		(unsafe { (self.signal_event)(ev.0) })
+		unsafe { (self.signal_event)(ev.0) }
 	}
 
 	/// Wait for an event to be signaled, returns the index of the signalled event

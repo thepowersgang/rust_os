@@ -65,22 +65,23 @@ impl Status
 /// Allow `Status` to be used with the `?` operator
 impl ::core::ops::Try for Status
 {
-	type Ok = ();
-	type Error = Status;
-
-	fn into_result(self) -> Result<(), Status> {
-		if self == SUCCESS {
-			Ok( () )
+	type Output = ();
+	type Residual = Status;
+	fn from_output(_: ()) -> Self {
+		Status(0)
+	}
+	fn branch(self) -> ::core::ops::ControlFlow<Status,()> {
+		if self.0 == 0 {
+			::core::ops::ControlFlow::Continue(())
 		}
 		else {
-			Err(self)
+			::core::ops::ControlFlow::Break(self)
 		}
 	}
-	fn from_error(v: Status) -> Status {
+}
+impl ::core::ops::FromResidual<Status> for Status {
+	fn from_residual(v: Status) -> Self {
 		v
-	}
-	fn from_ok(_: ()) -> Status {
-		SUCCESS
 	}
 }
 

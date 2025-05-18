@@ -45,5 +45,5 @@ pub trait Borrow<T: ?Sized>
 pub trait ToOwned<'heap>
 {
 	type Owned: 'heap + Borrow<Self>;
-	fn to_owned(&self, &'heap ::boot_services::BootServices) -> Self::Owned;
+	fn to_owned(&self, _: &'heap ::boot_services::BootServices) -> Self::Owned;
 }

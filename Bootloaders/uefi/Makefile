@@ -4,9 +4,12 @@
 V ?= @
 
 BIN := ../bootloader-efi.pe
-TARGET_NAME := target-uefi
-TARGET_FILE := ./$(TARGET_NAME).json
-RUSTFLAGS := -Z no-landing-pads -L .obj/ -C opt-level=s
+#TARGET_NAME := target-uefi
+#TARGET_FILE := ./$(TARGET_NAME).json
+TARGET_NAME := x86_64-unknown-uefi
+#TARGET_FILE := x86_64-unknown-uefi
+RUSTFLAGS := -L .obj/ -C opt-level=s
+#RUSTFLAGS += -Z no-landing-pads
 TARGET_DIR := $(abspath target/$(TARGET_NAME)/release)/
 
 OBJS := $(TARGET_DIR)libbootloader_uefi.a .obj/libstubs.a
@@ -17,7 +20,7 @@ all: $(BIN)
 
 clean:
 	rm $(OBJS)
-	$(XARGO) clean
+	$(CARGO) clean
 
 .obj/bootloader-efi.o: $(OBJS)
 	@echo [LD] -o $@
@@ -25,7 +28,7 @@ clean:
 
 $(TARGET_DIR)libbootloader_uefi.a: .obj/libstubs.a $(TARGET_FILE) empty
 	@echo [XARGO] build
-	$VRUSTFLAGS="$(RUSTFLAGS)" RUST_TARGET_PATH=$(abspath .) $(XARGO) build --target=$(TARGET_NAME) --release 
+	$VRUSTFLAGS="$(RUSTFLAGS)" RUST_TARGET_PATH=$(abspath .) $(CARGO) build -Z build-std --target=$(TARGET_NAME) --release 
 
 $(BIN): .obj/bootloader-efi.o
 	@echo [LD] -o $@
@@ -40,5 +43,5 @@ $(BIN): .obj/bootloader-efi.o
 .obj/libstubs.a: .obj/stubs.o
 	$Vx86_64-efi-pe-ar ru $@ $<
 
--include $(TARGET_DIR)libbootloader_uefi.d
+#-include $(TARGET_DIR)libbootloader_uefi.d
 

@@ -18,5 +18,8 @@ stack_dst = { version = "0.7.2", default-features = false, features = ["unsize"]
 va_list = { version = "0.1", default-features = false, features = ["no_std"], optional = true }
 embedded-images = { path = "../../Graphics/embedded" }
 
+[target.'cfg(target_arch = "x86_64")'.dependencies]
+uefi_proto = { path = "../../Bootloaders/uefi_proto" }
+
 [lints.rust]
 unexpected_cfgs = { level = "warn", check-cfg = ['cfg(use_acpica)', 'cfg(test_shim)', 'cfg(_false)', 'cfg(false_)', 'cfg(in_ide)'] }

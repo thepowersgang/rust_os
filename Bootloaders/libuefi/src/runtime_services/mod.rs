@@ -53,7 +53,7 @@ impl RuntimeServices
 	/// Create a handle to the runtime services, providing new virtual locations for each 
 	// TODO: Take a ::boot_services::MemoryMap handle that contains the reported size/version
 	pub unsafe fn make_handle_virtual(&mut self, map: &[super::boot_services::MemoryDescriptor]) -> Result<RuntimeServicesHandle,Status> {
-		(self.set_virtual_address_map)(map.len(), mem::size_of_val(&map[0]), 1, map.as_ptr())?;
+		(self.set_virtual_address_map)(map.len(), mem::size_of_val(&map[0]), 1, map.as_ptr()).err_or(())?;
 		Ok(self.make_handle())
 	}
 }
@@ -90,20 +90,20 @@ impl<'a> RuntimeServicesTime<'a>
 		// SAFE: `Time` is repr(C), so is valid to be zero
 		let mut rv = unsafe { mem::zeroed() };
 		// SAFE: Call has no memory unsafety
-		unsafe { (self.0.get_time)(&mut rv, None)?; }
+		unsafe { (self.0.get_time)(&mut rv, None).err_or(())?; }
 		Ok(rv)
 	}
 	pub fn get_time_with_caps(&mut self) -> Result<(Time, TimeCapabilities),Status> {
 		// SAFE: `Time` is repr(C), so is valid to be zero
 		let (mut time, mut time_caps) = unsafe { (mem::zeroed(), mem::zeroed()) };
 		// SAFE: Unique access to time subsystem, Call has no memory unsafety
-		unsafe { (self.0.get_time)(&mut time, Some(&mut time_caps))?; }
+		unsafe { (self.0.get_time)(&mut time, Some(&mut time_caps)).err_or(())?; }
 		Ok( (time, time_caps) )
 	}
 
 	pub fn set_time(&mut self, new_time: Time) -> Result<(),Status> {
 		// SAFE: Unique access to time subsystem, no memory unsafety
-		unsafe { (self.0.set_time)(&new_time) }?;
+		unsafe { (self.0.set_time)(&new_time) }.err_or(())?;
 		Ok( () )
 	}
 
@@ -113,7 +113,7 @@ impl<'a> RuntimeServicesTime<'a>
 		let mut enabled = false;
 		let mut pending = false;
 		// SAFE: Unique access to time subsystem, no memory unsafety
-		unsafe { (self.0.get_wakeup_time)(&mut enabled, &mut pending, &mut time) }?;
+		unsafe { (self.0.get_wakeup_time)(&mut enabled, &mut pending, &mut time) }.err_or(())?;
 		Ok( (pending, if enabled { Some(time) } else { None }) )
 	}
 }
@@ -165,7 +165,7 @@ impl<'a> RuntimeServicesStorage<'a>
 		let mut len = buffer.len();
 		// SAFE: Call is informed that buffer is of a particular length
 		unsafe {
-			(self.0.get_variable)(name.as_ptr(), guid, None, &mut len, buffer.as_mut_ptr() as *mut Void)?;
+			(self.0.get_variable)(name.as_ptr(), guid, None, &mut len, buffer.as_mut_ptr() as *mut Void).err_or(())?;
 		}
 		Ok(&mut buffer[..len])
 	}
@@ -191,7 +191,7 @@ impl<'a> RuntimeServicesStorage<'a>
 			maximum_variable_size: 0,
 			};
 		unsafe {
-			(self.0.query_variable_info)(attr_mask.0, &mut rv.maximum_variable_storage_size, &mut rv.remaining_variable_storage_size, &mut rv.maximum_variable_size)?; 
+			(self.0.query_variable_info)(attr_mask.0, &mut rv.maximum_variable_storage_size, &mut rv.remaining_variable_storage_size, &mut rv.maximum_variable_size).err_or(())?; 
 		}
 		Ok(rv)
 	}
@@ -207,7 +207,7 @@ impl<'a> RuntimeServicesStorage<'a>
 	pub fn get_next_high_monotonic_count(&mut self) -> Result<u32,Status> {
 		let mut v = 0;
 		// SAFE: No memory unsafety
-		unsafe { (self.0.get_next_high_monotonic_count)(&mut v) }?;
+		unsafe { (self.0.get_next_high_monotonic_count)(&mut v).err_or(()) }?;
 		Ok(v)
 	}
 
@@ -219,7 +219,7 @@ impl<'a> RuntimeServicesStorage<'a>
 	pub unsafe fn query_capsure_capabilities(&mut self, capsule_headers: &[&CapsuleHeader]) -> Result<(u64,ResetType), Status> {
 		let mut rt = ResetType::Warm;
 		let mut max_size = 0;
-		(self.0.query_capsure_capabilities)(capsule_headers.as_ptr() as *const _, capsule_headers.len(), &mut max_size, &mut rt)?;
+		(self.0.query_capsure_capabilities)(capsule_headers.as_ptr() as *const _, capsule_headers.len(), &mut max_size, &mut rt).err_or(())?;
 		Ok( (max_size, rt) )
 	}
 }

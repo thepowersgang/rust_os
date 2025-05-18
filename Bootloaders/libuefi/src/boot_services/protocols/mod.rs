@@ -13,7 +13,7 @@ pub use self::file::File;
 pub trait Protocol
 {
 	fn guid() -> ::Guid;
-	unsafe fn from_ptr(*const ::Void) -> *const Self;
+	unsafe fn from_ptr(_: *const ::Void) -> *const Self;
 }
 pub trait OwnedProtocol
 {

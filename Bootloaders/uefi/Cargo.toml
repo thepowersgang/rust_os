@@ -7,6 +7,7 @@ panic = "abort"
 
 [dependencies]
 uefi = {path = "../libuefi"}
+uefi_proto = {path = "../uefi_proto"}
 utf16_literal = { path = "../../externals/crates.io/utf16_literal" }
 
 [lib]
