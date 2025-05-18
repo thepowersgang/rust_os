@@ -4,10 +4,7 @@
 V ?= @
 
 BIN := ../bootloader-efi.pe
-#TARGET_NAME := target-uefi
-#TARGET_FILE := ./$(TARGET_NAME).json
 TARGET_NAME := x86_64-unknown-uefi
-#TARGET_FILE := x86_64-unknown-uefi
 RUSTFLAGS := -L .obj/ -C opt-level=s
 #RUSTFLAGS += -Z no-landing-pads
 TARGET_DIR := $(abspath target/$(TARGET_NAME)/release)/
@@ -26,7 +23,7 @@ clean:
 	@echo [LD] -o $@
 	$Vx86_64-efi-pe-ld -g -r -o $@ -e efi_main $(OBJS) --strip-discarded --gc-sections --allow-multiple-definition
 
-$(TARGET_DIR)libbootloader_uefi.a: .obj/libstubs.a $(TARGET_FILE) empty
+$(TARGET_DIR)libbootloader_uefi.a: .obj/libstubs.a empty
 	@echo [XARGO] build
 	$VRUSTFLAGS="$(RUSTFLAGS)" RUST_TARGET_PATH=$(abspath .) $(CARGO) build -Z build-std --target=$(TARGET_NAME) --release 
 

@@ -62,29 +62,6 @@ impl Status
 	}
 }
 
-/// Allow `Status` to be used with the `?` operator
-impl ::core::ops::Try for Status
-{
-	type Output = ();
-	type Residual = Status;
-	fn from_output(_: ()) -> Self {
-		Status(0)
-	}
-	fn branch(self) -> ::core::ops::ControlFlow<Status,()> {
-		if self.0 == 0 {
-			::core::ops::ControlFlow::Continue(())
-		}
-		else {
-			::core::ops::ControlFlow::Break(self)
-		}
-	}
-}
-impl ::core::ops::FromResidual<Status> for Status {
-	fn from_residual(v: Status) -> Self {
-		v
-	}
-}
-
 impl ::core::fmt::Debug for Status
 {
 	fn fmt(&self, f: &mut ::core::fmt::Formatter) -> ::core::fmt::Result {

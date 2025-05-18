@@ -2,8 +2,8 @@
 use {Status};
 
 const FILE_MODE_READ: u64 = 1;
-const FILE_MODE_WRITE: u64 = 2;
-const FILE_MODE_CREATE: u64 = 1 << 63;
+//const FILE_MODE_WRITE: u64 = 2;
+//const FILE_MODE_CREATE: u64 = 1 << 63;
 
 #[repr(C)]
 pub struct File

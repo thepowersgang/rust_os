@@ -13,7 +13,6 @@
 #![no_std]
 #![crate_name="uefi"]
 #![crate_type="lib"]
-#![feature(try_trait_v2)]	// Makes Status a little easier to use
 #![feature(ptr_internals)]	// rawptr as_ref
 
 pub use self::str16::Str16;
