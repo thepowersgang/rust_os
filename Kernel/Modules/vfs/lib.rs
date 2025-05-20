@@ -79,8 +79,11 @@ pub mod node;
 pub mod node_cache;
 pub mod mount;
 pub mod handle;
+mod fs_initrd;
 mod path;
 mod ramfs;
+
+pub use self::fs_initrd::InitrdVol;
 
 fn init()
 {

@@ -48,7 +48,9 @@ pub trait Dir: NodeBase {
 	/// Acquire a node given the name
 	fn lookup(&self, name: &ByteStr) -> Result<InodeId>;
 	
-	/// Read Entry
+	/// Read a directory entry, and pass it to the provided callback.
+	/// - If the callback returns `false`, the routine should end and return `Ok` with the `start_ofs` for the next call
+	/// - If an offset is passed that is at or past the end of the directory, return immediately with the end of directory value
 	/// 
 	/// Returns:
 	/// - Ok(Next Offset)
