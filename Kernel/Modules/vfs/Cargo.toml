@@ -8,3 +8,4 @@ path = "lib.rs"
 
 [dependencies]
 kernel = { path = "../../Core" }
+initrd_repr = { path = "../../../Shared/initrd_repr" }

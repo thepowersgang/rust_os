@@ -6,41 +6,13 @@ use kernel::lib::mem::Box;
 use kernel::metadevs::storage::{IoError,VolumeHandle};
 use core::mem::size_of;
 
+extern crate initrd_repr as repr;
+
 const BLOCK_SIZE: usize = 0x1000;
-mod repr {
-	pub const MAGIC_NUMBER: u32 = 0x0;
-	
-	#[repr(C)]
-	pub struct Header {
-		pub magic: u32,
-		pub total_length: u32,
-		pub node_count: u32,
-		pub root_length: u32,
-	}
-	#[repr(C)]
-	pub struct Inode {
-		pub length: u32,
-		pub ofs: u32,
-		pub ty: u8,
-		_reserved: [u8; 3]
-		// TODO: Anything else?
-	}
 
-	pub const NODE_TY_REGULAR: u8 = 0;
-	pub const NODE_TY_DIRECTORY: u8 = 1;
-	//pub const NODE_TY_SYMLINK: u8 = 2;
-
-	#[repr(C)]
-	pub struct DirEntry {
-		pub node: u32,
-		pub filename: [u8; 64-4],
-	}
-	impl DirEntry {
-		pub fn name(&self) -> &super::ByteStr {
-			let l = self.filename.iter().position(|v| *v == 0).unwrap_or(self.filename.len());
-			super::ByteStr::new(&self.filename[..l])
-		}
-	}
+fn trim_nuls(name: &[u8]) -> &[u8] {
+	let l = name.iter().position(|v| *v == 0).unwrap_or(name.len());
+	&name[..l]
 }
 
 /// The underlying "storage device" for an initrd
@@ -164,6 +136,7 @@ impl Inner {
 		unsafe { &*(self.data.as_ptr() as *const repr::Header) }
 	}
 	fn inodes(&self) -> &[repr::Inode] {
+		// SAFE: Data alignment cheked by the original mount, and is valid for this type
 		unsafe {
 			::core::slice::from_raw_parts(
 				self.data.as_ptr().offset(size_of::<repr::Header>() as isize) as *const repr::Inode,
@@ -285,7 +258,7 @@ use kernel::lib::byte_str::ByteStr;
 impl crate::node::Dir for NodeDir {
 	fn lookup(&self, name: &ByteStr) -> crate::node::Result<crate::node::InodeId> {
 		for e in self.entries()? {
-			if e.name() == name {
+			if name == trim_nuls(&e.filename) {
 				return Ok(e.node as _);
 			}
 		}
@@ -299,7 +272,7 @@ impl crate::node::Dir for NodeDir {
 		}
 		let ents_to_visit = ents.get(start_ofs..).unwrap_or(&[]);
 		for (i,e) in ents_to_visit.iter().enumerate() {
-			if callback(e.node as u64, &mut e.name().as_bytes().iter().copied()) == false {
+			if callback(e.node as u64, &mut trim_nuls(&e.filename).iter().copied()) == false {
 				return Ok(start_ofs + i + 1);
 			}
 		}
