@@ -91,6 +91,7 @@ fn init()
 	mount::init();
 	node_cache::init();
 	ramfs::init();
+	fs_initrd::init();
 	// 2. Start the root/builtin filesystems
 	mount::mount("/".as_ref(), VolumeHandle::new_ramdisk(0), "ramfs", &[]).expect("Unable to mount /");
 	// 3. Initialise root filesystem layout

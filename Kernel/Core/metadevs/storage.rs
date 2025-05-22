@@ -441,6 +441,12 @@ impl VolumeHandle
 		}
 		else
 		{
+			// HACK! Allow storage drivers to deliver metadata in the -1 block
+			if idx == !0 && count == 1 && self.handle.regions.len() == 1 && self.handle.regions[0].first_block == 0 {
+				let v = &self.handle.regions[0];
+				return Some( (v.volume, !0, 1 ));
+			}
+			
 			let mut idx_rem = idx;
 			for v in self.handle.regions.iter()
 			{

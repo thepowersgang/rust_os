@@ -25,6 +25,7 @@ Graphics/*.rs
 Graphics/*.r8
 Graphics/rle32_rust
 Graphics/target
+Helpers/*/target
 
 Kernel/*.exp_rs
 Kernel/fdd.img
@@ -51,6 +52,7 @@ Kernel/SynExts
 /rundir/DiskImages
 /rundir/trace-*
 /rundir/*.iso
+/rundir/*.initrd
 /rundir/arm_bootloader/Core/
 /rundir/test-*/
 

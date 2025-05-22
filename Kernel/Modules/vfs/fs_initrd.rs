@@ -10,6 +10,10 @@ extern crate initrd_repr as repr;
 
 const BLOCK_SIZE: usize = 0x1000;
 
+pub(crate) fn init() {
+	::core::mem::forget(super::mount::DriverRegistration::new("initrd", &InitrdDriver));
+}
+
 fn trim_nuls(name: &[u8]) -> &[u8] {
 	let l = name.iter().position(|v| *v == 0).unwrap_or(name.len());
 	&name[..l]
@@ -20,6 +24,7 @@ fn trim_nuls(name: &[u8]) -> &[u8] {
 /// Acts like a normal device, except that if you read from block -1 it returns a magic number
 /// and the slice (pointer and len) to the raw data.
 pub struct InitrdVol {
+	name: [u8; 6+1],
 	handle: ::kernel::memory::virt::AllocHandle,
 	ofs: u32,
 	len: u32,
@@ -37,12 +42,25 @@ impl InitrdVol {
 			};
 		let ofs = (base % (::kernel::PAGE_SIZE as u64)) as usize;
 
-		Ok(Self { handle, ofs: ofs as u32, len: length as u32 })
+		static INDEX: ::core::sync::atomic::AtomicU32 = ::core::sync::atomic::AtomicU32::new(0);
+		let index = INDEX.fetch_add(1, ::core::sync::atomic::Ordering::Relaxed);
+		if index > 9 {
+			return Err(());
+		}
+
+		let mut name = *b"initrd0";
+		name[6] = b'0' + index as u8;
+		Ok(Self {
+			name,
+			handle,
+			ofs: ofs as u32,
+			len: length as u32
+		})
 	}
 }
 impl ::kernel::metadevs::storage::PhysicalVolume for InitrdVol {
 	fn name(&self) -> &str {
-		"initrd"
+		::core::str::from_utf8(&self.name).unwrap()
 	}
 
 	fn blocksize(&self) -> usize {
@@ -151,7 +169,9 @@ impl Inner {
 		if ofs as usize + len as usize > self.data.len() {
 			return Err(crate::Error::InconsistentFilesystem);
 		}
-		Ok(&self.data[ofs as usize..][..len as usize])
+		let rv = &self.data[ofs as usize..][..len as usize];
+		::kernel::log_debug!("get_data: {}+{} = {:?}", ofs, len, &rv[..32]);
+		Ok(rv)
 	}
 }
 struct InitrdInstance(::kernel::lib::mem::aref::ArefInner<Inner>);
@@ -164,6 +184,7 @@ impl crate::mount::Filesystem for InitrdInstance {
 		use ::core::convert::TryFrom;
 		let inodes = self.0.inodes();
 		let inode = inodes.get(usize::try_from(i).ok()?)?;
+		assert!(inode.ofs > 0);
 		Some(match inode.ty {
 		repr::NODE_TY_REGULAR => crate::node::Node::File(Box::new(NodeFile {
 			parent: self.0.borrow(),
