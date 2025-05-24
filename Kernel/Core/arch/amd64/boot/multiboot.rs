@@ -132,11 +132,10 @@ impl MultibootParsed
 				cmdline: MultibootParsed::decode_cmdline(info),
 				vidmode: MultibootParsed::decode_video_mode(info),
 				symbol_info: MultibootParsed::decode_sym_info(info),
+				modules: MultibootParsed::decode_modules(info, mod_buf),
 				memmap: &[],
-				modules: &[],
 			};
 		ret.memmap = ret.fill_memmap(info, mmap_buf);
-		ret.modules = Self::fill_modules(info, mod_buf);
 		Some( ret )
 	}
 
@@ -335,6 +334,11 @@ impl MultibootParsed
 					crate::memory::MemoryState::Used, 0).ok().unwrap();
 				},
 			}
+			for m in self.modules
+			{
+				mapbuilder.set_range(m.base, m.length as u64, crate::memory::MemoryState::Used, 0)
+					.ok().unwrap();
+			}
 			
 			mapbuilder.size()
 			};
@@ -345,7 +349,7 @@ impl MultibootParsed
 
 
 	/// UNSAFE: Caller is responsible for the contents of `info`
-	unsafe fn fill_modules<'a>(info: &MultibootInfo, mod_buf: &'a mut [super::ModuleInfo]) -> &'a [super::ModuleInfo]
+	unsafe fn decode_modules<'a>(info: &MultibootInfo, mod_buf: &'a mut [super::ModuleInfo]) -> &'a [super::ModuleInfo]
 	{
 		let mod_info = crate::memory::virt::map_static_slice::<ModuleInfo>(
 			info.module_first as u64,
