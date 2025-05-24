@@ -2,6 +2,7 @@
 name = "make_initrd"
 version = "0.1.0"
 edition = "2018"
+default-run = "make_initrd"
 
 [dependencies]
 initrd_repr = { path = "../../Shared/initrd_repr" }

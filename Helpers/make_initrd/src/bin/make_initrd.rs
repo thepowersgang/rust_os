@@ -42,13 +42,20 @@ fn main() {
 			ty,
 			_reserved: [0; 3],
 		});
+		//println!("#{} @{:#x}+{:#x}", -1, data_ofs, len);
 		data_ofs += len;
 		data_ofs += (128 - data_ofs % 128) % 128;
 	}
 
 	use std::io::Write;
 	ofp.write(&[0; 128][..pre_data_pad]).expect("Failed to write pad");
-	for (node,_exp_ofs) in Iterator::zip(nodes.iter(), offsets.iter()) {
+	for (i,(node,exp_ofs)) in Iterator::zip(nodes.iter(), offsets.iter()).enumerate() {
+		let _ = i;
+		let true_ofs = ::std::io::Seek::seek(&mut ofp, ::std::io::SeekFrom::Current(0)).unwrap() as usize;
+		assert!(true_ofs == *exp_ofs);
+		//println!("#{} @{:#x} ({:#x})",
+		//	i, exp_ofs, true_ofs
+		//	);
 		let len = match &node.data {
 			NodeData::File(src) => {
 				let mut src = ::std::fs::File::open(src).unwrap();
