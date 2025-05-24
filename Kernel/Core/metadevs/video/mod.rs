@@ -143,18 +143,17 @@ static S_GEOM_UPDATE_SIGNAL: Mutex<Option<fn(new_total: Rect)>> = Mutex::new(Non
 
 fn init()
 {
-	if let Some(mode) = S_BOOT_MODE.lock().as_ref()
-	{
+	if let Some(mode) = S_BOOT_MODE.lock().as_ref() {
 		log_notice!("Using boot video mode {:?}", mode);
-		let fb: Box<dyn Framebuffer> = Box::new(bootvideo::Framebuffer::new(*mode));
+		let mut fb: Box<dyn Framebuffer> = Box::new(bootvideo::Framebuffer::new(*mode));
 		let dims = fb.get_size();
+		fb.fill(Rect::new(0,0, dims.w,dims.h), 0x404040);
 		S_DISPLAY_SURFACES.lock().insert( DisplaySurface {
 			region: Rect::new(0,0, dims.w,dims.h),
 			fb: fb
 			} );
 	}
-	else
-	{
+	else {
 		log_warning!("No boot video mode set");
 	}
 }
@@ -246,6 +245,7 @@ pub fn set_panic(file: &str, line: usize, message: &::core::fmt::Arguments)
 	}
 	struct PanicWriterOut<'a> {
 		fb: &'a mut dyn Framebuffer,
+		#[allow(dead_code)]
 		buffer: &'a mut [u32],
 		x: u16, y: u16, w: u16,
 	}
