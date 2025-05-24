@@ -14,9 +14,11 @@ fn main() {
 	
 	// Enumerate required file+directory counts
 	let tree = load_file_tree(&args.sources);
+	//dbg!(&tree);
 	let root_count = tree.len();
 	// Flatten ready for writing to the output
 	let nodes = flatten_nodes(&tree);
+	//dbg!(&nodes);
 
 	// Generate inode table
 	let mut data_ofs = size_of::<repr::Header>() + nodes.len() * size_of::<repr::Inode>();
@@ -34,7 +36,7 @@ fn main() {
 		offsets.push(data_ofs);
 		let (len,ty) = match &node.data {
 			NodeData::File(src) => (::std::fs::metadata(src).unwrap().len() as usize, repr::NODE_TY_REGULAR),
-			NodeData::Dir(v) => (v.len(), repr::NODE_TY_DIRECTORY),
+			NodeData::Dir(v) => (v.buf.len(), repr::NODE_TY_DIRECTORY),
 		};
 		write_struct(&mut ofp, repr::Inode {
 			ofs: data_ofs as u32,
@@ -63,8 +65,8 @@ fn main() {
 				::std::io::Seek::seek(&mut src, ::std::io::SeekFrom::Current(0)).unwrap() as usize
 			},
 			NodeData::Dir(v) => {
-				ofp.write(v).expect("Failed to write data");
-				v.len()
+				ofp.write(&v.buf).expect("Failed to write data");
+				v.buf.len()
 			},
 		};
 		let pad = (128 - len % 128) % 128;
@@ -114,6 +116,7 @@ enum Destination {
 }
 
 type FileTree = ::std::collections::BTreeMap<String,DirEnt>;
+#[derive(Debug)]
 enum DirEnt {
 	Dir(FileTree),
 	File(PathBuf)
@@ -179,12 +182,28 @@ fn load_dir_files(dst_dir: &mut FileTree, dir: &PathBuf) {
 		}
 	}
 }
+#[derive(Debug)]
 struct Node {
 	data: NodeData,
 }
+#[derive(Debug)]
 enum NodeData {
 	File(PathBuf),
-	Dir(Vec<u8>),
+	Dir(DirInner),
+}
+struct DirInner {
+	buf: Vec<u8>,
+}
+impl ::std::fmt::Debug for DirInner {
+	fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
+		for v in self.buf.chunks(size_of::<repr::DirEntry>()) {
+			for b in v {
+				write!(f, "{:02x} ", b)?;
+			}
+			f.write_str( if f.alternate() { "\n" } else { "| " })?;
+		}
+		Ok(())
+	}
 }
 fn flatten_nodes(tree: &FileTree) -> Vec<Node> {
 	let mut rv = Vec::new();
@@ -193,31 +212,33 @@ fn flatten_nodes(tree: &FileTree) -> Vec<Node> {
 }
 fn flatten_into(dst: &mut Vec<Node>, tree: &FileTree) {
 	let mut entries = Vec::with_capacity( tree.len() * size_of::<repr::DirEntry>() );
-	for (i,e) in tree.keys().enumerate() {
+	let i = dst.len();
+	dst.push(Node {
+		data: NodeData::Dir(DirInner { buf: Vec::new() }),
+	});
+	for (k,v) in tree.iter() {
 		write_struct(&mut entries, repr::DirEntry {
-			node: (dst.len() + 1 + i) as u32,
+			node: dst.len() as u32,
 			filename: {
 				let mut n = [0; 64-4];
-				n[..e.len()].copy_from_slice( e.as_bytes() );
+				n[..k.len()].copy_from_slice( k.as_bytes() );
 				n
 			},
-		})
-	}
-	dst.push(Node {
-		data: NodeData::Dir(entries),
-	});
-	for v in tree.values() {
+		});
+
 		match v {
 		DirEnt::File(src) => {
 			dst.push(Node {
 				data: NodeData::File(src.clone()),
-			})
+			});
 		},
 		DirEnt::Dir(inner) => {
 			flatten_into(dst, inner);
 		},
 		}
 	}
+	let Node { data: NodeData::Dir(DirInner { buf }) } = &mut dst[i] else { panic!(); };
+	*buf = entries;
 }
 
 trait ToLe {

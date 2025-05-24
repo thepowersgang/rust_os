@@ -138,6 +138,9 @@ impl super::mount::Driver for InitrdDriver {
 		if data.len() < size_of::<repr::Header>() + instance.header().node_count as usize * size_of::<repr::Inode>() {
 			return Err(crate::Error::InconsistentFilesystem)
 		}
+		if false {
+			dump_file(data, instance.inodes(), "ROOT", 0, 0);
+		}
 
 		// SAFE: The ArefInner is going right in a box, and won't move until the box is dropped
 		Ok(Box::new(InitrdInstance(unsafe { ::kernel::lib::mem::aref::ArefInner::new(instance) })))
@@ -170,7 +173,7 @@ impl Inner {
 			return Err(crate::Error::InconsistentFilesystem);
 		}
 		let rv = &self.data[ofs as usize..][..len as usize];
-		::kernel::log_debug!("get_data: {}+{} = {:?}", ofs, len, &rv[..32]);
+		//::kernel::log_debug!("get_data: {:#x}+{:#x} = {:x?}", ofs, len, &rv[..32]);
 		Ok(rv)
 	}
 }
@@ -310,5 +313,40 @@ impl crate::node::Dir for NodeDir {
 
 	fn unlink(&self, _name: &ByteStr) -> crate::node::Result<()> {
 		Err(super::Error::ReadOnlyFilesystem)
+	}
+}
+
+
+fn dump_file(data: &[u8], inodes: &[initrd_repr::Inode], name: impl ::core::fmt::Debug, inode_idx: u32, indent: usize) {
+	let i = &inodes[inode_idx as usize];
+	let d = &data[i.ofs as usize..][..i.length as usize];
+	struct Indent(usize);
+	impl ::core::fmt::Display for Indent {
+		fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+			for _ in 0..self.0 {
+				f.write_str("  ")?;
+			}
+			Ok(())
+		}
+	}
+	::kernel::log_debug!("{}- {:?}: #{} {} @{:#x}+{:#x}", Indent(indent), name, inode_idx, i.ty, i.ofs, i.length);
+	if i.ty == initrd_repr::NODE_TY_DIRECTORY {
+		use initrd_repr::DirEntry;
+		if d.as_ptr() as usize % align_of::<DirEntry>() != 0 {
+			return;
+		}
+		if d.len() as usize % size_of::<DirEntry>() != 0 {
+			return;
+		}
+		// SAFE: Alignment and size checked above, data is functionally POD
+		let ents = unsafe { ::core::slice::from_raw_parts(d.as_ptr() as *const DirEntry, d.len() / size_of::<DirEntry>()) };
+		for e in ents {
+			dump_file(data, inodes, ::core::str::from_utf8(trim_nuls(&e.filename)), e.node, indent+1);
+		}
+	}
+	else {
+		let l = d.len().min( 32 );
+		let d = &d[..l];
+		::kernel::log_debug!("{}{:x?}", Indent(1+indent), d);
 	}
 }
