@@ -31,17 +31,27 @@ pub struct Error(ErrorInner);
 #[derive(Debug)]
 enum ErrorInner
 {
-	Misc,
+	Misc(::alloc::string::String),
+	IncompleteIo,
 	//Interrupted,
 	VFS(::syscalls::vfs::Error),
 	Net(::syscalls::net::Error),
+}
+impl Error {
+	pub fn new_misc(v: ::alloc::string::String) -> Self {
+		Error(ErrorInner::Misc(v))
+	}
 }
 impl ::core::fmt::Display for Error {
 	fn fmt(&self, f: &mut ::core::fmt::Formatter) -> ::core::fmt::Result {
 		use ::syscalls::vfs::Error as Vfs;
 		use ::syscalls::net::Error as Net;
 		match self.0 {
-		ErrorInner::Misc => f.write_str("Unknown/misc error"),
+		ErrorInner::Misc(ref s) => {
+			f.write_str("Unknown/misc error: ")?;
+			f.write_str(s)
+		},
+		ErrorInner::IncompleteIo => f.write_str("Unexpected end of file"),
 		ErrorInner::VFS(Vfs::FileNotFound) => f.write_str("File not found"),
 		ErrorInner::VFS(Vfs::TypeError   ) => f.write_str("Incorrect file type for operation"),
 		ErrorInner::VFS(Vfs::PermissionDenied) => f.write_str("Permission denied"),
@@ -88,7 +98,7 @@ pub trait Write
 	fn write_all(&mut self, mut buf: &[u8]) -> Result<()> {
 		while !buf.is_empty() {
 			match self.write(buf) {
-			Ok(0) => return Err(Error(ErrorInner::Misc)/*::new(ErrorKind::WriteZero, "failed to write whole buffer")*/),
+			Ok(0) => return Err(Error(ErrorInner::IncompleteIo)/*::new(ErrorKind::WriteZero, "failed to write whole buffer")*/),
 			Ok(n) => buf = &buf[n..],
 			//Err(ref e) if e.kind() == ErrorKind::Interrupted => {}
 			Err(e) => return Err(e),

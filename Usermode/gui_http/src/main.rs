@@ -28,12 +28,13 @@ fn main() {
 		win.focus(ele_win_main.inner().1.inner());
 		win
 	};
-	win_main.rerender();
+	win_main.show();
+	//win_main.rerender();
 
 	let fetch = fetch::Fetch::new(&console_ele, &input);
 
 	// Trigger an immediate fetch
-	//*input.0.borrow_mut() = "192.168.1.39 GET /".to_owned();
+	*input.0.borrow_mut() = "192.168.1.39 GET /".to_owned();
 
 	struct OuterWrap<'eles> {
 		fetch: fetch::Fetch<'eles>,

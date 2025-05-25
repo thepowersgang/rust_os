@@ -170,7 +170,11 @@ impl Handler<'_> {
 }
 
 fn http_get_request(host_str: &str, method: &str, path: &str) -> ::std::io::Result< ::std::net::TcpStream > {
-	let host: ::std::net::IpAddr = host_str.parse().unwrap();
+	let host: ::std::net::IpAddr = match host_str.parse()
+		{
+		Ok(v) => v,
+		Err(e) => return Err(::std::io::Error::new_misc(format!("{:?}", e))),
+		};
 	let mut s = ::std::net::TcpStream::connect(host, 80)?;
 	::syscalls::kernel_log!("http_get_request: connect called");
 	use ::std::net::TcpStreamExt;
