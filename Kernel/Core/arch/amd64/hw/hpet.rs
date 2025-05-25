@@ -95,7 +95,6 @@ pub fn request_tick(target_time: u64)
 
 fn init()
 {
-	log_trace!("init()");
 	let hpet = match crate::arch::amd64::acpi::find::<ACPI_HPET>("HPET", 0)
 		{
 		None => {
@@ -152,7 +151,11 @@ impl HPET
 	}
 	pub fn bind_irq(&mut self)
 	{
-		self.irq_handle = crate::arch::amd64::hw::apic::register_irq(2, HPET::irq, self as *mut _ as *const _).unwrap();
+		match crate::arch::amd64::hw::apic::register_irq(2, HPET::irq, self as *mut _ as *const _)
+		{
+		Ok(v) => self.irq_handle = v,
+		Err(e) => panic!("HPET::bind_irq(#2) failed: {:?}", e),
+		}
 	}
 	pub fn ticks_per_ms(&self) -> u64
 	{

@@ -61,12 +61,12 @@ fn init()
 		}
 
 		// Create instances of the IOAPIC "driver" for all present controllers
-		ioapics = madt.iterate().filter_map(
-				|r| match r {
-					MADTDevRecord::DevIOAPIC(a) => Some(raw::IOAPIC::new(a.address as u64, a.interrupt_base as usize)),
-					_ => None
-					}
-				).collect();
+		ioapics = madt.iterate()
+			.inspect(|v| log_debug!("{:?}", v))
+			.filter_map(|r| match r {
+				MADTDevRecord::DevIOAPIC(a) => Some(raw::IOAPIC::new(a.address as u64, a.interrupt_base as usize)),
+				_ => None
+				}).collect();
 		lapic_addr
 	}
 	else if let Some(mpt) = crate::arch::amd64::mptable::MPTablePointer::locate_floating() {
@@ -96,8 +96,7 @@ fn init()
 		};
 	s_lapic.init();
 	
-	// Enable interrupts
-	// TODO: Does S_IRQS_ENABLED ever get read?
+	// Enable interrupts (telling the threading logic to expect IF to be set)
 	crate::arch::amd64::threads::S_IRQS_ENABLED.store(true, ::core::sync::atomic::Ordering::Relaxed);
 	// SAFE: Just STI, nothing to worry about
 	unsafe { ::core::arch::asm!("sti"); }
