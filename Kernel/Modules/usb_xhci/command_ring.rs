@@ -72,7 +72,7 @@ impl CommandRing
 
 		// Initialise the command ring
 		{
-			let ring = ring_page.as_mut_slice(base_offset as usize * ENT_SIZE, (::kernel::PAGE_SIZE - base_offset as usize) / 32);
+			let ring = ring_page.as_mut_slice(base_offset as usize * ENT_SIZE, (::kernel::PAGE_SIZE - base_offset as usize * ENT_SIZE) / 32);
 			let start_addr = ::kernel::memory::virt::get_phys(ring.as_ptr()) as u64;
 			log_debug!("ring = {:#x}", start_addr);
 			// SAFE: The pointer used is valid, and will stay valid as long as this structure exists
