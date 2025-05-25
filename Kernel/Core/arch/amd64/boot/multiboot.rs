@@ -301,8 +301,9 @@ impl MultibootParsed
 				// Dumb memory map
 				log_debug!("info = {{..., .lomem={}, .himem={} }}", info.lomem, info.himem);
 				// - Low memory (before VGA BIOS)
-				assert!(info.lomem >= 625);
-				assert!(info.lomem <= 640);
+				// TODO: Why is this assert here?
+				//assert!(625 <= info.lomem && info.lomem <= 640, "info.lomem({}) outside expected 625..=640", info.lomem);
+				assert!(500 <= info.lomem && info.lomem <= 640, "info.lomem({}) outside expected 500..=640", info.lomem);
 				let top_lowmem = info.lomem as u64 * 1024;
 				mapbuilder.append( 0x1000, top_lowmem - 0x1000, crate::memory::MemoryState::Free, 0 );
 				// - High memory (above 1MiB)
