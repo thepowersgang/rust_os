@@ -89,7 +89,8 @@ fn putc(c: u8)
 			state.cursor_col += 1;
 			let row = state.cursor_row % n_rows_cell;
 			let buf = &mut buf[row * FONT_H * width + col * FONT_W..];
-			state.kf.putc(0xFF_FF_FF, c as char, |d| {
+			state.kf.putc(0xFF_FF_FF, c as char, |_| {});
+			state.kf.putc(0xFF_FF_FF, ' ', |d| {
 				for (i,r) in d.chunks(8).enumerate() {
 					buf[i * width..][..FONT_W].copy_from_slice(r);
 				}
