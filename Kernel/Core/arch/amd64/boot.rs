@@ -48,7 +48,7 @@ fn get_bootinfo() -> &'static BootInfo
 		let info_ptr = s_multiboot_pointer;
 		match s_multiboot_signature
 		{
-		0x2BADB002 =>
+		multiboot::MAGIC =>
 			if let Some(mbi) = MultibootParsed::from_ptr(info_ptr, &mut S_MEMMAP_DATA, &mut S_MODULES_DATA ) {
 				BootInfo::Multiboot(mbi)
 			}
@@ -136,6 +136,75 @@ pub fn get_memory_map() -> &'static [MemoryMapEnt] {
 /// Obtain the bootloader-provided modules
 pub fn get_modules() -> &'static [ModuleInfo] {
 	get_bootinfo().modules()
+}
+
+pub fn release_preboot_video() {
+}
+const PREBOOT_VIDEO_STATUS_UNINIT: u8 = 0;
+const PREBOOT_VIDEO_STATUS_UNDETERMINED: u8 = 1;
+const PREBOOT_VIDEO_STATUS_ENABLED: u8 = 2;
+const PREBOOT_VIDEO_STATUS_RELEASED: u8 = 3;
+static PREBOOT_VIDEO_STATUS: ::core::sync::atomic::AtomicU8 = ::core::sync::atomic::AtomicU8::new(0);
+static PREBOOT_VIDEO_FMT: ::core::sync::atomic::AtomicU32 = ::core::sync::atomic::AtomicU32::new(0);
+static PREBOOT_VIDEO_PTR: ::core::sync::atomic::AtomicPtr<u32> = ::core::sync::atomic::AtomicPtr::new(0 as *mut _);
+pub(super) fn with_preboot_video(f: impl FnOnce(&mut [u32], usize)) {
+	extern "C" {
+		static BootHwPD0: [::core::sync::atomic::AtomicU64; 512];
+	}
+	use ::core::sync::atomic::Ordering;
+	let sts = match PREBOOT_VIDEO_STATUS.compare_exchange(PREBOOT_VIDEO_STATUS_UNINIT, PREBOOT_VIDEO_STATUS_UNDETERMINED, Ordering::Relaxed, Ordering::Relaxed)
+		{
+		Ok(v) => v,
+		Err(v) => v,
+		};
+	match sts {
+	// SAFE: Checked - passing a valid boot status pointer, and the generated slice is good.. enough
+	PREBOOT_VIDEO_STATUS_UNINIT|PREBOOT_VIDEO_STATUS_ENABLED => unsafe {
+		if sts == PREBOOT_VIDEO_STATUS_UNINIT {
+			let vi = match s_multiboot_signature {
+				multiboot::MAGIC => multiboot::get_video(s_multiboot_pointer),
+				_ => None,
+			};
+			match vi {
+			Some(mode) if 
+				true
+				&& mode.pitch == 4 * mode.width as usize
+				//&& mode.height < 0x1_0000
+				//&& mode.width < 0x1_0000
+				&& matches!(mode.fmt, crate::metadevs::video::bootvideo::VideoFormat::X8R8G8B8)
+			=> {
+				//const MAP_SIZE: u64 = 0x4000_0000;
+				const MAP_SIZE: u64 = 0x20_0000;
+				let phys_ofs = mode.base & (MAP_SIZE-1);
+				let phys_aligned = mode.base & !(MAP_SIZE-1);
+				let size = mode.width as usize * mode.height as usize * 4;
+				let n_maps = (size as u64 + MAP_SIZE-1) / MAP_SIZE;
+				for i in 0 .. n_maps {
+					BootHwPD0[i as usize].store((phys_aligned + i * MAP_SIZE) | 0x83, Ordering::Relaxed);
+				}
+				PREBOOT_VIDEO_PTR.store( (0xFFFF_F000_0000_0000 + phys_ofs) as *mut u32, Ordering::Relaxed );
+				PREBOOT_VIDEO_FMT.store( mode.width as u32 | (mode.height as u32) << 16, Ordering::Relaxed );
+				PREBOOT_VIDEO_STATUS.store(PREBOOT_VIDEO_STATUS_ENABLED, Ordering::Release);
+			}
+			_ => {
+				PREBOOT_VIDEO_STATUS.store(PREBOOT_VIDEO_STATUS_RELEASED, Ordering::Relaxed);
+				return ;
+			}
+			}
+		}
+		let size_enc = PREBOOT_VIDEO_FMT.load(Ordering::Relaxed);
+		let w = size_enc & 0xFFFF;
+		let h = size_enc >> 16;
+		let n_px = w as usize * h as usize;
+		let ptr = PREBOOT_VIDEO_PTR.load(Ordering::Relaxed);
+		// TODO: This isn't strictly speaking unique, but let's assume that it's valid enough
+		// - The caller of this is wrapped in a lock anyway
+		f( ::core::slice::from_raw_parts_mut(ptr, n_px), w as usize );
+		},
+	PREBOOT_VIDEO_STATUS_RELEASED => {},
+	PREBOOT_VIDEO_STATUS_UNDETERMINED => {},
+	_ => {},
+	}
 }
 
 // vim: ft=rust

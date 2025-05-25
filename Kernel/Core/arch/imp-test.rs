@@ -233,6 +233,8 @@ pub mod boot {
 	pub fn get_modules() -> &'static [crate::arch::boot::ModuleInfo] {
 		&[]
 	}
+	pub fn release_preboot_video() {	
+	}
 }
 pub mod threads {
 	use std::sync::Arc;

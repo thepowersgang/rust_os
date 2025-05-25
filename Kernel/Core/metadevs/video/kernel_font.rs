@@ -7,7 +7,7 @@ pub struct KernelFont([u32; 8*16], u32);
 
 impl KernelFont
 {
-	pub fn new(background: u32) -> KernelFont {
+	pub const fn new(background: u32) -> KernelFont {
 		KernelFont([background; 8*16], background)
 	}
 	pub fn get_buf(&self) -> &[u32; 8*16] {

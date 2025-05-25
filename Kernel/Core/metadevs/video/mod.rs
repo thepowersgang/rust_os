@@ -148,6 +148,7 @@ fn init()
 		let mut fb: Box<dyn Framebuffer> = Box::new(bootvideo::Framebuffer::new(*mode));
 		let dims = fb.get_size();
 		fb.fill(Rect::new(0,0, dims.w,dims.h), 0x404040);
+		crate::arch::boot::release_preboot_video();
 		S_DISPLAY_SURFACES.lock().insert( DisplaySurface {
 			region: Rect::new(0,0, dims.w,dims.h),
 			fb: fb

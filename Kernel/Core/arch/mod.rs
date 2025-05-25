@@ -392,6 +392,10 @@ pub mod boot {
 	pub fn get_modules() -> &'static [ModuleInfo] {
 		imp::get_modules()
 	}
+	#[inline]
+	pub fn release_preboot_video() {
+		imp::release_preboot_video();
+	}
 }
 pub mod threads {
 	use super::imp::threads as imp;

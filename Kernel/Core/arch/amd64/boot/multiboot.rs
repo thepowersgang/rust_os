@@ -6,6 +6,8 @@ use super::SymbolInfo;
 use super::super::v_kernel_end;
 use super::valid_c_str_to_slice;
 
+pub const MAGIC: u32 = 0x2BADB002;
+
 /// A parsed version of multiboot v1 data
 pub struct MultibootParsed
 {
@@ -370,4 +372,9 @@ impl MultibootParsed
 		let rv = usize::min(mod_buf.len(), mod_info.len());
 		&mod_buf[..rv]
 	}
+}
+
+pub unsafe fn get_video(info_ptr: *const crate::Void) -> Option<VideoMode> {
+	let info = &*(info_ptr as *const MultibootInfo);
+	MultibootParsed::decode_video_mode(info)
 }

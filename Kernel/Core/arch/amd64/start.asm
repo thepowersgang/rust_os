@@ -47,10 +47,10 @@ mboot:
 	dd 0	; entry_addr
 	; Video mode
 	dd 0	; Mode type (0: LFB)
-	;dd 0,0	; Width, Height (no preference)
+	dd 0,0	; Width, Height (no preference)
 	;dd 1601,900	; Width, Height ('HD+')
 	;dd 1366,768	; Width, Height ('HD+')
-	dd 1024,768	; Width, Height ('HD+')
+	;dd 1024,768	; Width, Height ('HD+')
 	dd 32	; Depth (32-bit preferred)
 
 [section .inittext]
@@ -111,8 +111,8 @@ start:
 	mov dx, 0x3F8
 	mov al, 'e'
 	out dx, al
-
 	
+
 	; 3. Enable paging and enter long mode (enable SSE too)
 	mov eax, cr0
 	or eax, FLAGS_CR0
@@ -216,6 +216,7 @@ strNot64BitCapable:
 start64_higher:
 	mov al, 'H'
 	out dx, al
+
 	; 4. Set true GDT base
 	lgdt [a32 DWORD GDTPtr2 - KERNEL_BASE]
 	; Load segment regs
@@ -620,31 +621,46 @@ EXPORT _Unwind_Resume
 
 [section .padata]
 [global InitialPML4]
+; 0xFFFF_0000_0000_0000  Sign extend
+; 0x0000_FF80_0000_0000  PML4 - Page Map Level 4
+; 0x0000_007F_C000_0000  PDP  - Page Directory Pointer
+; 0x0000_0000_3FE0_0000  PD   - Page Directory
+; 0x0000_0000_001F_C000  PT   - Page Table
+; 0x0000_0000_0000_3FFF  PG   - Page (data)
 InitialPML4:	; Covers 256 TiB (Full 48-bit Virtual Address Space)
 	dd	InitialPDP - KERNEL_BASE + 3, 0	; Identity Map Low 4Mb
 	times 0x80*2-1	dq	0
 	; Kernel
 	times (0xA0-0x80)*2	dq	0
 	; Stacks at 0xFFFFA...
-	dd	StackPDP - KERNEL_BASE + 3, 0
-	times 512-4-($-InitialPML4)/8	dq	0	; < dq until hit 512-4
+	dd	StackPDP - KERNEL_BASE + 3, 0	; 0xFFFF_A
+	times (0xF00/8)-($-InitialPML4)/8	dq	0	; < dq until reaching 0xFFFF_F000
+	dd	BootHwPDP - KERNEL_BASE + 3, 0	; 0xFFFF_F000_...+0x80_...
+	times 512-4-($-InitialPML4)/8	dq	0	; < dq until reaching entry 512-4 (4 from end)
 	dd	InitialPML4 - KERNEL_BASE + 3, 0
 	dq	0
 	dq	0
 	dd	HighPDP - KERNEL_BASE + 3, 0	; Map Low 4Mb to kernel base
 
 [global InitialPDP]
-InitialPDP:	; Covers 512 GiB
+InitialPDP:	; Covers 512 GiB, 0x80_0000_0000
 	dd	InitialPD - KERNEL_BASE + 3, 0
 	times 511	dq	0
-
+; PDP for the stack region
 StackPDP:
 	dd	StackPD - KERNEL_BASE + 3, 0
 	times 511	dq	0
-
+; PDP for early boot hardware mappings, abuses 1GB pages
+BootHwPDP:
+	dd	BootHwPD0 - KERNEL_BASE + 3, 0
+	times 511	dq	0
+[global BootHwPD0]
+BootHwPD0:
+	times 512	dq	0
+; Permanent PDP for the top of memory
 HighPDP:	; Covers 512 GiB
 	times 510	dq	0
-	dd	InitialPD - KERNEL_BASE + 3, 0
+	dd	InitialPD - KERNEL_BASE + 3, 0	; Kernel image (well, "identity" map) at -2GB
 	dq	0
 
 [global InitialPD]

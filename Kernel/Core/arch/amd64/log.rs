@@ -38,16 +38,65 @@ pub fn puth_digits(val: u64, nibbles: usize) {
 	}
 }
 /// Print a single character to the logging output
+#[inline(never)]
 fn putc(c: u8)
 {
-	// SAFE: Racy I guess... but doesn't cause memory unsafety (and worst is lost chars)
+	// SAFE: Racy I guess... but doesn't cause memory unsafety (and worst is lost charafter)
 	unsafe {
+		// Wait for the serial port to report ready to send
 		while (x86_io::inb(0x3F8+5) & 0x20) == 0
 		{
 		}
+		// Send to the serial port AND the bochs port 0xE9 hack
 		x86_io::outb(0x3F8, c as u8);
 		x86_io::outb(0xe9, c as u8);
 	}
+
+	// Early-boot logging
+	// - For use before the video drivers are up
+	super::boot::with_preboot_video(|buf, width| {
+		struct State {
+			cursor_row: usize,
+			cursor_col: usize,
+			kf: crate::metadevs::video::kernel_font::KernelFont,
+		}
+		static STATE: crate::sync::Spinlock<State> = crate::sync::Spinlock::new(State {
+			cursor_row: 0,
+			cursor_col: 0,
+			kf: crate::metadevs::video::kernel_font::KernelFont::new(0),
+		});
+		let Some(mut state) = STATE.try_lock_cpu() else { return ; };
+		const FONT_W: usize = 8;
+		const FONT_H: usize = 16;
+		let n_cols_cell = width / FONT_W;
+		let n_rows_px = buf.len() / width;
+		let n_rows_cell = n_rows_px / FONT_H;
+
+		// TODO: Could add decoding for ANSI escape sequences, but that's more complex than is needed for this code.
+		match c {
+		b'\n' => {
+			state.cursor_row += 1;
+			state.cursor_col = 0;
+			buf[ (state.cursor_row % n_rows_cell * FONT_H) * width ..][..FONT_H * width].fill(0);
+		},
+		_ => {
+			if state.cursor_col >= n_cols_cell {
+				state.cursor_row += 1;
+				state.cursor_col = 0;
+				buf[ (state.cursor_row % n_rows_cell * FONT_H) * width ..][..FONT_H * width].fill(0);
+			}
+			let col = state.cursor_col;
+			state.cursor_col += 1;
+			let row = state.cursor_row % n_rows_cell;
+			let buf = &mut buf[row * FONT_H * width + col * FONT_W..];
+			state.kf.putc(0xFF_FF_FF, c as char, |d| {
+				for (i,r) in d.chunks(8).enumerate() {
+					buf[i * width..][..FONT_W].copy_from_slice(r);
+				}
+			});
+		}
+		}
+	})
 }
 
 // vim: ft=rust
