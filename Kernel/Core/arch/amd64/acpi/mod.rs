@@ -122,8 +122,7 @@ impl<T> SDT<T>
 		crate::arch::amd64::checkmark();
 		self.header.signature
 	}
-	pub fn data_len(&self) -> usize
-	{
+	pub fn data_len(&self) -> usize {
 		self.header.length as usize - ::core::mem::size_of::<SDTHeader>()
 	}
 	pub fn header(&self) -> &SDTHeader {

@@ -66,7 +66,8 @@ fn init()
 			.filter_map(|r| match r {
 				MADTDevRecord::DevIOAPIC(a) => Some(raw::IOAPIC::new(a.address as u64, a.interrupt_base as usize)),
 				_ => None
-				}).collect();
+				})
+			.collect();
 		lapic_addr
 	}
 	else if let Some(mpt) = crate::arch::amd64::mptable::MPTablePointer::locate_floating() {

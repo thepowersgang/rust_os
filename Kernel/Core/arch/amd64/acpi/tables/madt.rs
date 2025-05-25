@@ -139,7 +139,7 @@ impl Madt
 impl super::Table for Madt {
 	type Iter<'a> = MADTRecords<'a>;
 	fn iterate_subitems<'s>(&'s self, data: &'s [u8]) -> Self::Iter<'s> {
-		self.records(::core::mem::size_of::<Self>() + data.len())
+		self.records(::core::mem::size_of::<super::super::SDT<Self>>() + data.len())
 	}
 }
 
