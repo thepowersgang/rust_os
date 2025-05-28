@@ -78,6 +78,7 @@ extern "C" fn AcpiOsMapMemory(PhysicalAddress: ACPI_PHYSICAL_ADDRESS, Length: AC
 }
 #[no_mangle] #[linkage="external"]
 extern "C" fn AcpiOsUnmapMemory(LogicalAddress: *mut (), Length: ACPI_SIZE) {
+	log_trace!("AcpiOsUnmapMemory({:p}, {})", LogicalAddress, Length);
 	let ofs = (LogicalAddress as usize) & 0xFFF;
 	let npages = (ofs + Length + 0xFFF) / 0x1000;
 	// SAFE: Trusting ACPICA not to pass us a bad pointer
@@ -336,28 +337,25 @@ extern "C" fn AcpiOsWritePciConfiguration(PciId: ACPI_PCI_ID, Register: u32, Val
 unsafe fn c_string_to_str<'a>(c_str: *const i8) -> &'a str {
 	::core::str::from_utf8( crate::memory::c_string_as_byte_slice(c_str).unwrap_or(b"INVALID") ).unwrap_or("UTF-8")
 }
-fn get_uint(Args: &mut VaList, size: usize) -> u64 {
+fn get_uint(args: &mut VaList, size: usize) -> u64 {
 	// (uncheckable) SAFE: Could over-read from stack, returning junk
 	unsafe {
 		match size
 		{
-		0 => Args.get::<u32>() as u64,
-		1 => Args.get::<u32>() as u64,
-		2 => Args.get::<u64>(),
+		0 => args.get::<u32>() as u64,
+		1 => args.get::<u32>() as u64,
+		2 => args.get::<u64>(),
 		_ => unreachable!(),
 		}
 	}
 }
-fn get_int(Args: &mut VaList, size: usize) -> i64 {
+fn get_int(args: &mut VaList, size: usize) -> i64 {
+	get_uint(args, size) as i64
+}
+fn get_ptr<T: 'static>(args: &mut VaList) -> *const T {
 	// (uncheckable) SAFE: Could over-read from stack, returning junk
 	unsafe {
-		match size
-		{
-		0 => Args.get::<i32>() as i64,
-		1 => Args.get::<i32>() as i64,
-		2 => Args.get::<i64>(),
-		_ => unreachable!(),
-		}
+		args.get::<*const T>()
 	}
 }
 
@@ -388,118 +386,117 @@ extern "C" fn AcpiOsVprintf(Format: *const i8, mut Args: VaList)
 	
 	// Expand format string
 	let mut it = fmt.chars();
-	while let Some(mut c) = it.next()
+	while let Some(c) = it.next()
 	{
 		if c == '\n' {
 			// Flush
-			log_debug!("{}", *lh);
+			log_debug!("AcpiOsVprintf: {}", *lh);
 			lh.clear();
 		}
 		else if c != '%' {
 			lh.push_char(c);
 		}
 		else {
-			use core::fmt::Write;
-			
-			c = match it.next() { Some(v)=>v,_=>return };
-			
-			let mut align_left = false;
-			if c == '-' {
-				align_left = true;
-				c = match it.next() { Some(v)=>v,_=>return };
-			}
-			
-			let mut width = 0;
-			while let Some(d) = c.to_digit(10) {
-				width = width * 10 + d;
-				c = match it.next() { Some(v)=>v,_=>return };
-			}
-			
-			let mut precision = !0;
-			if c == '.' {
-				precision = 0;
-				c = match it.next() { Some(v)=>v,_=>return };
-				while let Some(d) = c.to_digit(10) {
-					precision = precision * 10 + d;
-					c = match it.next() { Some(v)=>v,_=>return };
-				}
-			}
-			
-			let size = if c == 'l' {
-					c = match it.next() { Some(v)=>v,_=>return };
-					if c == 'l' {
-						c = match it.next() { Some(v)=>v,_=>return };
-						2
-					}
-					else {
-						1
-					}
-				}
-				else {
-					0
-				};
-			
-			// TODO: Use undocumented (but public) APIs in ::core::fmt
-			// to create an Arguments structure from this information
-			//let spec = ::core::fmt::rt::v1::FormatSpec {
-			//	fill: ' ',
-			//	align: ::core::fmt::rt::v1::Alignment::Unknown,
-			//	flags: 0,
-			//	precision: ::core::fmt::rt::v1::Count::Is(precision),
-			//	width: ::core::fmt::rt::v1::Count::Is(width),
-			//	};
-			let _ = align_left;
-			
-			match c
-			{
-			'x' => {
-				let _ = write!(&mut *lh, "{:x}", get_uint(&mut Args, size));
-				},
-			'X' => {
-				let val = get_uint(&mut Args, size);
-				let _ = write!(&mut *lh, "{:X}", val);
-				},
-			'd' => {
-				let val = get_int(&mut Args, size);
-				let _ = write!(&mut *lh, "{}", val);
-				},
-			'u' => {
-				let val = get_uint(&mut Args, size);
-				let _ = write!(&mut *lh, "{}", val);
-				},
-			'p' => {
-				// (uncheckable) SAFE: Could over-read from stack, returning junk
-				let _ = write!(&mut *lh, "{:p}", unsafe { Args.get::<*const u8>() });
-				},
-			'c' => {
-				// (uncheckable) SAFE: Could over-read from stack, returning junk
-				let _ = write!(&mut *lh, "{}", unsafe { Args.get::<u32>() as u8 as char });
-				},
-			's' => {
-				// SAFE: Does as much validation as possible, if ACPICA misbehaves... well, we're in trouble
-				let slice = unsafe {
-					let ptr = Args.get::<*const u8>();
-					if precision == 0 {
-						""
-					}
-					else if ptr.is_null() || (ptr as usize) >> 48 != 0xFFFF {
-						"<badptr>"
-					}
-					else if precision < !0 {
-						::core::str::from_utf8(::core::slice::from_raw_parts(ptr, precision as usize)).unwrap_or("")
-					}
-					else {
-						c_string_to_str(ptr as *const i8)
-					}
-					};
-				let _ = write!(&mut *lh, "{}", slice);
-				},
-			_ => {
-				log_error!("AcpiOsVprintf - Unknown format code {}", c);
-				},
-			}
+			let _ = handle_fmt(&mut *lh, &mut it, &mut Args);
 		}
 	}
+}
+
+fn handle_fmt(out: &mut impl ::core::fmt::Write, it: &mut impl ::core::iter::Iterator<Item=char>, args: &mut VaList) -> Option<()> {
+	let mut c = it.next()?;
+	let mut options = ::core::fmt::FormattingOptions::new();
+
+	if c == '%' {
+		return Some(());
+	}
+
+	if c == '-' {
+		options.align(Some(::core::fmt::Alignment::Left));
+		c = it.next()?;
+	}
+	if c == '+' {
+		options.sign(Some(::core::fmt::Sign::Plus));
+		c = it.next()?;
+	}
+	
+	if c == '0' {
+		options.sign_aware_zero_pad(true);
+		c = it.next()?;
+	}
+
+	if c.is_digit(10) {
+		let mut width = 0;
+		while let Some(d) = c.to_digit(10) {
+			width = width * 10 + d;
+			c = it.next()?;
+		}
+		options.width(Some(width as u16));
+	}
+	
+	if c == '.' {
+		let mut precision = 0;
+		c = it.next()?;
+		while let Some(d) = c.to_digit(10) {
+			precision = precision * 10 + d;
+			c = it.next()?;
+		}
+		options.precision(Some(precision as u16));
+	}
+	let precision = options.get_precision().unwrap_or(!0);
+	
+	let size = if c == 'l' {
+			c = it.next()?;
+			if c == 'l' {
+				c = it.next()?;
+				2
+			}
+			else {
+				1
+			}
+		}
+		else {
+			0
+		};
+	let mut f = options.create_formatter(out);
+	
+	match c
+	{
+	'x' => { let _ = ::core::fmt::LowerHex::fmt(&get_uint(args, size), &mut f); },
+	'X' => { let _ = ::core::fmt::UpperHex::fmt(&get_uint(args, size), &mut f); },
+	'd' => { let _ = ::core::fmt::Display::fmt(&get_int(args, size), &mut f); },
+	'u' => { let _ = ::core::fmt::Display::fmt(&get_uint(args, size), &mut f); },
+	'p' => { let _ = write!(out, "{:p}", get_ptr::<()>(args)); },
+	'c' => { let _ = write!(out, "{}", get_uint(args, 0) as u8 as char); },
+	's' => {
+		let ptr: *const u8 = get_ptr(args);
+		// SAFE: Does as much validation as possible, if ACPICA misbehaves... well, we're in trouble
+		let slice = unsafe {
+			if precision == 0 {
+				Some(&b""[..])
+			}
+			else if ptr.is_null() || (ptr as usize) < 0x1000 {
+				None
+			}
+			else if precision < !0 {
+				crate::memory::buf_to_slice(ptr, precision as usize)
+			}
+			else {
+				crate::memory::c_string_as_byte_slice(ptr as *const i8)
+			}
+			};
+		match slice {
+		None => { let _ = write!(out, "<badptr:{:p}>", ptr); },
+		Some(slice) => {
+			let slice = ::core::str::from_utf8(slice).unwrap_or("BADSTR");
+			let _ = ::core::fmt::Display::fmt(&slice, &mut f);
+			},
+		}
+		},
+	_ => {
+		log_error!("AcpiOsVprintf - Unknown format code {}", c);
+		},
+	}
+	Some(())
 }
 
 #[no_mangle]

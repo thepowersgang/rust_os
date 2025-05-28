@@ -15,7 +15,7 @@ cfg-if = "0.1"
 lazy_static = { version = "1.4", optional = true }
 stack_dst = { version = "0.7.2", default-features = false, features = ["unsize"] }
 #tag_safe = "0.2"
-va_list = { version = "0.1", default-features = false, features = ["no_std"], optional = true }
+va_list = { version = "0.2", optional = true }
 embedded-images = { path = "../../Graphics/embedded" }
 
 [target.'cfg(target_arch = "x86_64")'.dependencies]

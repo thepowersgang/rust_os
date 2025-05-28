@@ -19,6 +19,7 @@
 #![feature(extern_types)]
 #![feature(cfg_target_has_atomic)]	// #[cfg(target_has_atomic="64")]
 #![feature(allocator_api)]	// Needed for the `!POD` impl
+#![cfg_attr(target_arch="x86_64",feature(formatting_options))]	// ACPI
 
 #![allow(special_module_name)]
 
