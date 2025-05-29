@@ -226,13 +226,13 @@ pub fn register_driver(driver: &'static dyn Driver)
 			for dev in bus.devices.iter_mut()
 			{
 				let rank = driver.handles(&*dev.bus_dev);
-				log_debug!("rank = {:?}", rank);
-				if rank == 0
-				{
+				if rank != 0 {
+					log_debug!("register_driver({}): rank = {:?}", driver.name(), rank);
+				}
+				if rank == 0 {
 					// SKIP!
 				}
-				else if dev.driver.is_some()
-				{
+				else if dev.driver.is_some() {
 					let bind = dev.driver.as_ref().unwrap();
 					let cur_rank = bind.1;
 					if cur_rank > rank
