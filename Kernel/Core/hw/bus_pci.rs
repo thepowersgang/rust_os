@@ -32,12 +32,8 @@ enum BAR
 }
 
 struct PCIBusManager;
-struct PCIChildBusDriver;
 
-#[allow(non_upper_case_globals)]
-static s_pci_bus_manager: PCIBusManager = PCIBusManager;
-#[allow(non_upper_case_globals)]
-static s_pci_child_bus_driver: PCIChildBusDriver = PCIChildBusDriver;
+static PCI_BUS_MANAGER: PCIBusManager = PCIBusManager;
 static S_ATTR_NAMES: [&'static str; 3] = ["vendor", "device", "class"];
 
 module_define!{PCI, [DeviceManager], init}
@@ -64,52 +60,38 @@ pub trait PciInterface: Send + Sync
 
 pub fn register_bus(interface: ArefBorrow<dyn PciInterface>)
 {
-	let devs = scan_bus(&interface, 0);
-	crate::device_manager::register_bus(&s_pci_bus_manager, devs);
+	let mut visited_busses = crate::lib::Bitset256::new();
+	let mut to_visit_busses = crate::lib::Bitset256::new();
+	to_visit_busses.set(0);
+	let mut devs = Vec::new();
+	loop {
+		let mut found = false;
+		for bus_id in 0 ..= 255 {
+			if to_visit_busses.unset(bus_id) {
+				if visited_busses.set(bus_id) {
+					continue ;
+				}
+				scan_bus(&interface, bus_id, &mut devs, &mut to_visit_busses);
+				found = true;
+			}
+		}
+		if !found {
+			break;
+		}
+	}
+	crate::device_manager::register_bus(&PCI_BUS_MANAGER, devs);
 }
 
 fn init()
-{
-	crate::device_manager::register_driver(&s_pci_child_bus_driver);
-	
+{	
 	// - All drivers that have PCI bindings should be waiting on this to load
 }
 
 impl crate::device_manager::BusManager for PCIBusManager
 {
 	fn bus_type(&self) -> &str { "pci" }
-	fn get_attr_names(&self) -> &[&str]
-	{
+	fn get_attr_names(&self) -> &[&str] {
 		&S_ATTR_NAMES
-	}
-}
-
-impl crate::device_manager::Driver for PCIChildBusDriver
-{
-	fn name(&self) -> &str {
-		"bus-pci"
-	}
-	fn bus_type(&self) -> &str {
-		"pci"
-	}
-	fn handles(&self, bus_dev: &dyn crate::device_manager::BusDevice) -> u32
-	{
-	let d = bus_dev.downcast_ref::<PCIDev>().expect("Not a PCI dev?");
-		let bridge_type = (d.config[3] >> 16) & 0x7F;
-		// 0x00 == Normal device, 0x01 = PCI-PCI Bridge
-		// -> There should only be one PCI bridge handler, but bind low just in case
-		if bridge_type == 0x01 { 1 } else { 0 }
-	}
-	fn bind(&self, bus_dev: &mut dyn crate::device_manager::BusDevice) -> crate::device_manager::DriverBindResult
-	{
-		let d = bus_dev.downcast_ref::<PCIDev>().expect("Not a PCI dev?");
-		let bridge_type = (d.config[3] >> 16) & 0x7F;
-		assert!(bridge_type == 0x01, "PCIChildBusDriver::bind on a device were `handles` should have failed");
-		// Get sub-bus number
-		let sec_bus_id = (d.config[6] >> 8) & 0xFF;
-		log_debug!("PCI Bridge Bind: sec_bus_id = {:#02x}", sec_bus_id);
-		
-		todo!("PCIChildBusDriver::bind");
 	}
 }
 
@@ -237,10 +219,20 @@ impl crate::device_manager::BusDevice for PCIDev
 	}
 }
 
-fn scan_bus(interface: &ArefBorrow<dyn PciInterface>, bus_id: u8) -> Vec<Box<dyn BusDevice+'static>>
+fn scan_bus(interface: &ArefBorrow<dyn PciInterface>, bus_id: u8, devs: &mut Vec<Box<dyn BusDevice+'static>>, busses: &mut crate::lib::Bitset256)
 {
+	fn push_dev(devs: &mut Vec<Box<dyn BusDevice+'static>>, busses: &mut crate::lib::Bitset256, di: PCIDev) {
+		let bridge_type = (di.config[3] >> 16) & 0x7F;
+		if bridge_type == 1 {
+			let sec_bus_id = ((di.config[6] >> 8) & 0xFF) as u8;
+			log_debug!("PCI Bridge Bind: sec_bus_id = {:#02x}", sec_bus_id);
+			busses.set(sec_bus_id);
+		}
+		else {
+			devs.push(Box::new(di))
+		}
+	}
 	log_trace!("PCI scan_bus({})", bus_id);
-	let mut ret: Vec<Box<dyn BusDevice>> = Vec::new();
 	for devidx in 0 .. MAX_DEV
 	{
 		match get_device(interface, bus_id, devidx, 0)
@@ -248,8 +240,9 @@ fn scan_bus(interface: &ArefBorrow<dyn PciInterface>, bus_id: u8) -> Vec<Box<dyn
 		Some(devinfo) => {
 			let is_multifunc = (devinfo.config[3] & 0x0080_0000) != 0;
 			log_debug!("{:?}", devinfo);
+			
 			// Increase device count
-			ret.push(Box::new(devinfo));
+			push_dev(devs, busses, devinfo);
 			// Handle multi-function devices (iterate from 1 onwards)
 			if is_multifunc
 			{
@@ -258,7 +251,7 @@ fn scan_bus(interface: &ArefBorrow<dyn PciInterface>, bus_id: u8) -> Vec<Box<dyn
 					if let Some(devinfo) = get_device(interface, bus_id, devidx, fcnidx)
 					{
 						log_debug!("{:?}", devinfo);
-						ret.push(Box::new(devinfo));
+						push_dev(devs, busses, devinfo);
 					}
 				}
 			}
@@ -268,7 +261,6 @@ fn scan_bus(interface: &ArefBorrow<dyn PciInterface>, bus_id: u8) -> Vec<Box<dyn
 			},
 		}
 	}
-	ret
 }
 
 fn get_device(int: &ArefBorrow<dyn PciInterface>, bus_id: u8, devidx: u8, function: u8) -> Option<PCIDev>

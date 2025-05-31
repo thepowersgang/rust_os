@@ -192,3 +192,23 @@ where
 
 // vim: ft=rust
 
+
+pub struct Bitset256([u32; 256 / 32]);
+impl Bitset256 {
+	pub const fn new() -> Self {
+		Self([0; 256/32])
+	}
+	pub fn set(&mut self, v: u8) -> bool {
+		let rv = self.is_set(v);
+		self.0[v as usize / 32] |= 1 << (v % 32);
+		rv
+	}
+	pub fn unset(&mut self, v: u8) -> bool {
+		let rv = self.is_set(v);
+		self.0[v as usize / 32] &= !(1 << (v % 32));
+		rv
+	}
+	pub fn is_set(&self, v: u8) -> bool {
+		self.0[v as usize / 32] & 1 << (v % 32) != 0
+	}
+}
