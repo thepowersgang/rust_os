@@ -263,7 +263,7 @@ impl node::File for File
 
 				assert!(ofs < self.fs.lb_size);
 				sector += 1;
-				buf[..len].clone_from_slice(&tmp[ofs..]);
+				buf[..len].clone_from_slice(&tmp[ofs..][..len]);
 				read = len;
 			}
 
@@ -283,7 +283,7 @@ impl node::File for File
 				let mut tmp = vec![0; self.fs.lb_size];
 				::kernel::futures::block_on(self.fs.read_sector(self.first_lba + sector, &mut tmp))?;
 
-				buf[read..].clone_from_slice(&tmp);
+				buf[read..].clone_from_slice(&tmp[..len - read]);
 			}
 
 			Ok( len )
@@ -414,7 +414,8 @@ impl<'a> DirEnt<'a>
 struct DirSector<'a> {
 	fs: &'a InstanceInner,
 	data: Sector<'a>,
-	ofs: usize
+	ofs: usize,
+	name_buf: [u8; 32],
 }
 
 impl<'a> DirSector<'a>
@@ -425,6 +426,7 @@ impl<'a> DirSector<'a>
 			fs: fs,
 			data: data,
 			ofs: start_ofs,
+			name_buf: [0; 32],
 		}
 	}
 	pub fn next(&mut self) -> node::Result<Option<DirEnt>> {
@@ -463,6 +465,14 @@ impl<'a> DirSector<'a>
 				let su = &ent[33 + namelen ..];
 
 				let mut name = &ent[33..][..namelen];
+				// The name is mangled
+				// - Semicolon then version number, just strip it
+				name = name.split(|&v| v == b';').next().unwrap();
+				name = name.strip_suffix(b".").unwrap_or(name);
+				for (d,s) in Iterator::zip(self.name_buf.iter_mut(), name.iter()) {
+					*d = s.to_ascii_lowercase();
+				}
+				name = &self.name_buf[..name.len()];
 
 				if let Some(skip) = self.fs.susp_len_skip {
 					let skip = skip as usize;
@@ -473,13 +483,13 @@ impl<'a> DirSector<'a>
 
 					for ent in SuspIterator(&su[skip..])
 					{
-						//log_trace!("ent={:?}", ent);
 						// TODO: Need to handle this _FAR_ better
 						if let SuspItem::AlternateName(0, new_name) = ent {
 							name = new_name;
 						}
 					}
 				}
+				log_trace!("DirSector::next: name={:?}", ::kernel::lib::RawString(name));
 
 				Ok(Some(DirEnt {
 					this_ofs: cur_ofs,
@@ -550,7 +560,7 @@ impl<'a> Iterator for SuspIterator<'a>
 
 			self.0 = &self.0[len..];
 			
-			log_debug!("tag = {}{} - data={} [{:?}]", tag[0] as char, tag[1] as char, len-4, data);
+			log_debug!("tag = {}{} - data={} [{:x?}]", tag[0] as char, tag[1] as char, len-4, data);
 			Some(match &tag[..]
 				{
 				b"ST" => return None,	// Terminated
