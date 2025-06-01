@@ -500,6 +500,7 @@ struct LogCfgEnt {
 unsafe impl Sync for LogCfgEnt {}
 
 #[doc(hidden)]
+#[inline(never)]	// This is semi-complex, so don't inline it everywhere
 /// Returns true if the passed combination of module and level is enabled
 pub fn enabled(level: Level, modname: &str) -> bool
 {
