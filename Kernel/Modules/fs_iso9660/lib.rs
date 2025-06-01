@@ -457,22 +457,31 @@ impl<'a> DirSector<'a>
 				let ent = &self.data[self.ofs ..][.. len];
 				self.ofs += len;
 				
-				let namelen = ent[32] as usize;
-				if 33 + namelen > len {
+				let name_len = ent[32] as usize;
+				// Total size needs to be even
+				let name_pad = (33 + name_len) % 2;
+				if 33 + name_len + name_pad > len {
 					log_warning!("Name overruns end of entry");
 					return Err(vfs::Error::InconsistentFilesystem);
 				}
-				let su = &ent[33 + namelen ..];
+				let su = &ent[33 + name_len + name_pad ..];
 
-				let mut name = &ent[33..][..namelen];
+				let name_raw = &ent[33..][..name_len];
 				// The name is mangled
 				// - Semicolon then version number, just strip it
-				name = name.split(|&v| v == b';').next().unwrap();
-				name = name.strip_suffix(b".").unwrap_or(name);
-				for (d,s) in Iterator::zip(self.name_buf.iter_mut(), name.iter()) {
-					*d = s.to_ascii_lowercase();
-				}
-				name = &self.name_buf[..name.len()];
+				let mut name = {
+					let tmp = name_raw.split(|&v| v == b';').next().unwrap();
+					let tmp = tmp.strip_suffix(b".").unwrap_or(tmp);
+					//for (d,s) in Iterator::zip(self.name_buf.iter_mut(), tmp.iter()) {
+					//	*d = s.to_ascii_lowercase();
+					//}
+					//&self.name_buf[..tmp.len()]
+					tmp
+					};
+				log_trace!("DirSector::next: (raw) name={:?} -> {:?}, su.len={}",
+					::kernel::lib::RawString(name_raw), ::kernel::lib::RawString(name),
+					su.len()
+					);
 
 				if let Some(skip) = self.fs.susp_len_skip {
 					let skip = skip as usize;
@@ -489,7 +498,6 @@ impl<'a> DirSector<'a>
 						}
 					}
 				}
-				log_trace!("DirSector::next: name={:?}", ::kernel::lib::RawString(name));
 
 				Ok(Some(DirEnt {
 					this_ofs: cur_ofs,
@@ -544,6 +552,7 @@ impl<'a> Iterator for SuspIterator<'a>
 			None
 		}
 		else if self.0.len() < 4 {
+			log_warning!("SuspIterator: Runt - {} < 4", self.0.len());
 			None
 		}
 		else {
@@ -551,16 +560,18 @@ impl<'a> Iterator for SuspIterator<'a>
 			let len = self.0[2] as usize;
 			let ver = self.0[3];
 			if len < 4 {
+				log_warning!("SuspIterator: bad entry length {} < 4", len);
 				return None;
 			}
 			if self.0.len() < len {
+				log_warning!("SuspIterator: bad entry length {} > len {}", len, self.0.len());
 				return None;
 			}
 			let data = &self.0[4..len];
 
 			self.0 = &self.0[len..];
 			
-			log_debug!("tag = {}{} - data={} [{:x?}]", tag[0] as char, tag[1] as char, len-4, data);
+			log_debug!("tag = {}{} - data={} [{:?}]", tag[0] as char, tag[1] as char, len-4, ::kernel::lib::RawString(data));
 			Some(match &tag[..]
 				{
 				b"ST" => return None,	// Terminated
