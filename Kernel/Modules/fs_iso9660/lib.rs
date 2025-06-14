@@ -415,7 +415,7 @@ struct DirSector<'a> {
 	fs: &'a InstanceInner,
 	data: Sector<'a>,
 	ofs: usize,
-	name_buf: [u8; 32],
+	//name_buf: [u8; 32],
 }
 
 impl<'a> DirSector<'a>
@@ -426,7 +426,7 @@ impl<'a> DirSector<'a>
 			fs: fs,
 			data: data,
 			ofs: start_ofs,
-			name_buf: [0; 32],
+			//name_buf: [0; 32],
 		}
 	}
 	pub fn next(&mut self) -> node::Result<Option<DirEnt>> {
