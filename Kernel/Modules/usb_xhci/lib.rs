@@ -73,10 +73,10 @@ impl HostInner
 		// - Trigger a reset and wait for USBSTS.NCR to become zero
 		// SAFE: Correct write
 		unsafe {
-			regs.write_usbcmd(hw::regs::USBCMD_HCRST);
+			regs.usbcmd().write(hw::regs::USBCMD_HCRST);
 		}
-		// TODO: Sleep with timeout
-		while regs.usbsts() & hw::regs::USBSTS_CNR != 0 {
+		// TODO: Sleep with timeout, in case hardware is misbehaving
+		while regs.usbsts().read() & hw::regs::USBSTS_CNR != 0 {
 			::kernel::futures::block_on(::kernel::futures::msleep(5));
 		}
 
@@ -115,13 +115,16 @@ impl HostInner
 			Aref::get_mut(&mut rv).unwrap()._irq_handle = Some(binding);
 		}
 			
-		// - Set USBCMD.RUN = 1
-		log_debug!("pre-start: USBSTS {:#x}", rv.regs.usbsts());
+		// - Set USBCMD.RS (Run/Stop), and INTE (Interrupter Enable)
+		log_debug!("pre-start: USBSTS {:#x}, USBCMD {:#x}", rv.regs.usbsts().read(), rv.regs.usbcmd().read());
 		// SAFE: Correct write
 		unsafe {
-			rv.regs.write_usbcmd(hw::regs::USBCMD_RS|hw::regs::USBCMD_INTE);
+			// TODO: Hard stop here with USBSTS=0x11 on real hardware :(
+			rv.regs.usbcmd().write(hw::regs::USBCMD_RS);
+			log_debug!("Mid-run: USBSTS {:#x}, USBCMD {:#x}", rv.regs.usbsts().read(), rv.regs.usbcmd().read());
+			rv.regs.usbcmd().write(hw::regs::USBCMD_RS|hw::regs::USBCMD_INTE);
 		}
-		log_debug!("Post-run: USBSTS {:#x}", rv.regs.usbsts());
+		log_debug!("Post-run: USBSTS {:#x}", rv.regs.usbsts().read());
 		
 		::usb_core::register_host(Box::new(usb_host::UsbHost { host: rv.borrow() }), nports);
 
@@ -150,7 +153,7 @@ impl HostInner
 
 	fn handle_irq(&self) -> bool
 	{
-		let sts = self.regs.usbsts();
+		let sts = self.regs.usbsts().read();
 		log_trace!("USBSTS = {:#x}", sts);
 		if sts & (hw::regs::USBSTS_EINT|hw::regs::USBSTS_HCE|hw::regs::USBSTS_PCD) != 0 {
 			let mut h = 0;
@@ -167,7 +170,10 @@ impl HostInner
 			if h != sts {
 				todo!("Unhandled interrupt bit {:#x}", sts ^ h);
 			}
-			self.regs.write_usbsts(h);
+			// SAFE: USBSTS has no safety side-effects
+			unsafe {
+				self.regs.usbsts().write(h);
+			}
 			true
 		}
 		else {

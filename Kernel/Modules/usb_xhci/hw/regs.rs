@@ -169,7 +169,9 @@ pub const USBCMD_HCRST: u32 = 1 << 1;
 /// Interrupter Enable
 pub const USBCMD_INTE: u32 = 1 << 2;
 
+/// Host Controller Halted
 pub const USBSTS_HCH : u32 = 1 << 0;
+//
 pub const USBSTS_HSE : u32 = 1 << 2;
 /// Event Interrupt
 pub const USBSTS_EINT: u32 = 1 << 3;
@@ -180,6 +182,45 @@ pub const USBSTS_CNR : u32 = 1 << 11;
 /// Host Controller Error
 pub const USBSTS_HCE : u32 = 1 << 12;
 
+// CRCR: Ring Cycle State
+pub const CRCR_RCS: u64 = 1 << 0;
+
+macro_rules! def_op_regs {
+	(
+		$( $(#[$doc:meta])* reg $name:ident: $ty:ident[$mask:expr] = $ofs:literal; )*
+	) => {
+		$(
+			$(#[$doc])*
+			pub struct $name<'a>(&'a Regs);
+			impl $name<'_> {
+				fn ofs(&self) -> usize {
+					self.0.op_ofs($ofs)
+				}
+				pub fn read(&self) -> $ty {
+					// SAFE: Reading XHCI registers is always safe
+					unsafe { def_op_regs!(@do_read self -> $ty) }
+				}
+				pub unsafe fn write(&self, v: $ty) {
+					assert!(v & !$mask == 0, "Reserved bits set in {}: {:#x} & {:#x} != 0", stringify!($name), v, $mask);
+					def_op_regs!(@do_write v: $ty -> self)
+				}
+			}
+		)*
+	};
+	(@do_read $self:ident -> u32) => { $self.0.io.read_32($self.ofs()) };
+	(@do_write $v:ident : u32 -> $self:ident) => { $self.0.io.write_32($self.ofs(), $v) };
+	(@do_read $self:ident -> u64) => { $self.0.io.read_64($self.ofs()) };
+	(@do_write $v:ident : u64 -> $self:ident) => { $self.0.io.write_64($self.ofs(), $v) };
+}
+def_op_regs!{
+	reg UsbCmd: u32[!0] = 0;
+	reg UsbSts: u32[!0] = 4;
+	reg DNCtrl: u32[0xFFFF] = 0x14;
+	reg Crcr: u64[!0] = 0x18;
+	reg DCBAAP: u64[!0x1F] = 0x30;
+	reg Config: u32[0x3FF] = 0x38;
+}
+
 /// Operational registers
 impl Regs
 {
@@ -187,23 +228,22 @@ impl Regs
 		self.caplength as usize + ofs
 	}
 
-	pub fn usbcmd(&self) -> u32 {
-		// SAFE: Read is safe
-		unsafe { self.io.read_32(self.op_ofs(0)) }
-	}
-	pub unsafe fn write_usbcmd(&self, val: u32) {
-		// TODO: Check fields
-		self.io.write_32(self.op_ofs(0), val)
+	/// USB Command Register
+	/// - 0: Run/Stop [USBCMD_RS]
+	/// - 1: Host Controller Reset [USBCMD_HCRST]
+	pub fn usbcmd(&self) -> UsbCmd<'_> {
+		UsbCmd(self)
 	}
 
-	pub fn usbsts(&self) -> u32 {
-		// SAFE: Read is safe
-		unsafe { self.io.read_32(self.op_ofs(4)) }
-	}
-	pub fn write_usbsts(&self, val: u32) {
-		// TODO: Check fields
-		// SAFE: Writes can't cause unsafety
-		unsafe { self.io.write_32(self.op_ofs(4), val) }
+	/// USB Status Register
+	/// - 0: Host Controller Halted [USBSTS_HCH]
+	/// - 2: ? [USBSTS_HSE]
+	/// - 3: Event Interrupt [USBSTS_EINT]
+	/// - 4: Port Change Detect [USBSTS_PCD]
+	/// - 11: Controller not ready [USBSTS_CNR]
+	/// - 12: Host Controller Error [USBSTS_HCE]
+	pub fn usbsts(&self) -> UsbSts<'_> {
+		UsbSts(self)
 	}
 
 	/// A bit-mask of supported page sizes, with bit 0 being 0x1000, 1 being 0x2000
@@ -215,14 +255,8 @@ impl Regs
 	/// DNCTRL - Device Notification ConTRoL register
 	/// 
 	/// This is a bitmask for the 16 notification events
-	pub fn dnctrl(&self) -> u32 {
-		// SAFE: Read is safe
-		unsafe { self.io.read_32(self.op_ofs(0x14)) }
-	}
-	pub fn write_dnctrl(&mut self, val: u32) {
-		debug_assert!(val & !0xFFFF == 0);
-		// SAFE: Just masks notifications, no impact on memory safety
-		unsafe { self.io.write_32(self.op_ofs(0x14), val) }
+	pub fn dnctrl(&self) -> DNCtrl<'_> {
+		DNCtrl(self)
 	}
 
 	/// CRCR - Command Ring Control Register
@@ -232,22 +266,13 @@ impl Regs
 	/// 2: Command Abort (CA) - Write a 1 to abort processing of the command queue
 	/// 3: Command Ring Running (CCR) - Read-Only state of the command ring processing
 	/// 6:64: Command Ring Pointer, writes are ignored unless `CCR` reads as `0`
-	pub fn crcr(&self) -> u64 {
-		// SAFE: Read is safe
-		unsafe { self.io.read_64(self.op_ofs(0x18)) }
-	}
-	pub unsafe fn set_crcr(&self, val: u64) {
-		self.io.write_64(self.op_ofs(0x18), val)
+	pub fn crcr(&self) -> Crcr<'_> {
+		Crcr(self)
 	}
 
-	/// DCBAAP - Device Context Array
-	pub fn dcbaap(&self) -> u64 {
-		// SAFE: Read is safe
-		unsafe { self.io.read_64(self.op_ofs(0x30)) }
-	}
-	pub unsafe fn set_dcbaap(&self, val: u64) {
-		assert!(val & 0x1F == 0, "Reserved bits set in DCBAAP");
-		self.io.write_64(self.op_ofs(0x30), val)
+	/// DCBAAP - Device Context Array Pointer
+	pub fn dcbaap(&self) -> DCBAAP<'_> {
+		DCBAAP(self)
 	}
 
 	/// CONFIG - Configure register
@@ -255,13 +280,10 @@ impl Regs
 	/// 7:0: Max Device Slots Enabled
 	/// 8  U3 Entry Enable (U3E)
 	/// 9: Configuration Information Enable (CIE)
-	pub fn config(&self) -> u32 {
-		// SAFE: Read is safe
-		unsafe { self.io.read_32(self.op_ofs(0x38)) }
-	}
-	/// UNSAFE: This impacts the size of the structure pointed to by `dcbapp` (TODO)
-	pub unsafe fn write_config(&self, val: u32) {
-		self.io.write_32(self.op_ofs(0x38), val)
+	/// 
+	/// NOTE: Writes to this impact the size of the structure pointed to by [Self::dcbaap]
+	pub fn config(&self) -> Config<'_> {
+		Config(self)
 	}
 
 	/// Accessor for per-port registers
@@ -342,11 +364,52 @@ impl Regs
 	}
 }
 
+
+macro_rules! def_int_regs {
+	(
+		$( $(#[$doc:meta])* reg $name:ident: $ty:ident[$mask:expr] = $ofs:literal; )*
+	) => {
+		$(
+			$(#[$doc])*
+			pub struct $name<'a>(&'a Interrupter<'a>);
+			impl $name<'_> {
+				fn ofs(&self) -> usize {
+					self.0.ofs($ofs)
+				}
+				pub fn read(&self) -> $ty {
+					// SAFE: Reading XHCI registers is always safe
+					unsafe { def_int_regs!(@do_read self -> $ty) }
+				}
+				pub unsafe fn write(&self, v: $ty) {
+					assert!(v & !$mask == 0, "Reserved bits set in {}: {:#x} & {:#x} != 0", stringify!($name), v, $mask);
+					def_int_regs!(@do_write v: $ty -> self)
+				}
+			}
+		)*
+	};
+	(@do_read $self:ident -> u32) => { $self.0.parent.io.read_32($self.ofs()) };
+	(@do_write $v:ident : u32 -> $self:ident) => { $self.0.parent.io.write_32($self.ofs(), $v) };
+	(@do_read $self:ident -> u64) => { $self.0.parent.io.read_64($self.ofs()) };
+	(@do_write $v:ident : u64 -> $self:ident) => {{
+		$self.0.parent.io.write_32($self.ofs(), $v as u32);
+		$self.0.parent.io.write_32($self.ofs()+4, ($v >> 32) as u32);
+	}};
+}
+def_int_regs!{
+	reg IMan: u32[!0] = 0;	// TODO: Safe to write
+	reg ERSTSz: u32[0xFFFF] = 8;
+	reg ERSTBA: u64[!0] = 0x10;
+	reg ERDP: u64[!0] = 0x18;
+}
 pub struct Interrupter<'a>
 {
 	parent: &'a Regs,
 	index: u16,
 }
+
+/// ERDP: Event Handler Busy (EHB) - Indicates that there is an event raised
+pub const ERDP_EHB: u64 = 1 << 3;
+
 impl Interrupter<'_>
 {
 	fn ofs(&self, ofs: usize) -> usize {
@@ -355,62 +418,41 @@ impl Interrupter<'_>
 	}
 	/// IMAN - Interrupter management
 	/// 
-	/// 0: IP - Interrupt pending (RW1C)
-	/// 1: IE - Interrupt enable (RW)
-	pub fn iman(&self) -> u32 {
-		// SAFE: Reading has no effect
-		unsafe { self.parent.io.read_32(self.ofs(0) ) }
-	}
-	pub fn set_iman(&self, v: u32) {
-		// SAFE: No unsafety to write
-		unsafe { self.parent.io.write_32(self.ofs(0), v) }
+	/// - 0: IP - Interrupt pending (RW1C)
+	/// - 1: IE - Interrupt enable (RW)
+	pub fn iman(&self) -> IMan<'_> {
+		IMan(self)
 	}
 	/// IMOD - Interrupter Moderation
 	/// 
-	/// 15:0 : IMODI (Interrupt Moderation Interval)
-	/// 31:16: IMODC (Interrupt Moderation Counter)
+	/// - 15:0 : IMODI (Interrupt Moderation Interval)
+	/// - 31:16: IMODC (Interrupt Moderation Counter)
 	pub fn imod(&self) -> u32 {
 		// SAFE: Reading has no effect
 		unsafe { self.parent.io.read_32(self.ofs(4) ) }
 	}
-
 	/// ERSTSZ - Event Ring Segment Table Size
 	/// 
-	/// 15:0 - Number of entries
-	pub fn erstsz(&self) -> u32 {
-		// SAFE: Reading has no effect
-		unsafe { self.parent.io.read_32(self.ofs(8) ) }
+	/// - 15:0 - Number of entries
+	pub fn erstsz(&self) -> ERSTSz<'_> {
+		ERSTSz(self)
 	}
-	pub unsafe fn set_erstsz(&self, val: u32) {
-		assert!(val <= 0xFFFF);
-		self.parent.io.write_32(self.ofs(8), val)
-	}
-
-
 	/// ERSTBA - Event Ring Segment Table Base Address
 	/// 
-	/// Points to an array of Address,Size pairs that specifies the event ring
-	pub fn erstba(&self) -> u64 {
-		// SAFE: Reading has no effect
-		unsafe { self.parent.io.read_64(self.ofs(0x10) ) }
-	}
-	pub unsafe fn set_erstba(&self, val: u64) {
-		self.parent.io.write_32(self.ofs(0x10), val as u32);
-		self.parent.io.write_32(self.ofs(0x10+4), (val >> 32) as u32);
+	/// Points to an array of Address,Size pairs that specifies the event ring.
+	/// Length is specified in [Self::erstsz]
+	pub fn erstba(&self) -> ERSTBA<'_> {
+		ERSTBA(self)
 	}
 
 	/// ERDP - Event Ring Dequeue Pointer
 	/// 
-	/// 2:0: DESI (RW)
-	/// 3: EHB (RW1C)
-	/// 63:4: Event Ring Dequeue Pointer
-	pub fn erdp(&self) -> u64 {
-		// SAFE: Read operation is safe
-		unsafe { self.parent.io.read_64(self.ofs(0x18) ) }
-	}
-	pub unsafe fn set_erdp(&self, val: u64) {
-		self.parent.io.write_32(self.ofs(0x18), val as u32);
-		self.parent.io.write_32(self.ofs(0x18+4), (val >> 32) as u32);
+	/// - 2:0: Dequeue ERST Segment Index (DESI) - RW
+	///   - Low three bits of the `ERSTBA` entry this pointer is within.
+	/// - 3: Event Handler Busy (EHB) - RW1C [ERDP_EHB]
+	/// - 63:4: Event Ring Dequeue Pointer
+	pub fn erdp(&self) -> ERDP<'_> {
+		ERDP(self)
 	}
 
 }

@@ -34,6 +34,7 @@ impl CommandRing
 		//   - Set DCBAAP to the device context array
 		//     > Entry zero points to an array of scratchpad pages, see the `Max Scratchpad Buffers Hi/Lo` fields in HCSPARAMS2 TODO check s4.20 of the spec
 		let num_scratchpad_buffers = regs.max_scratchpad_buffers();
+		::kernel::log_debug!("CommandRing::new: num_scratchpad_buffers={num_scratchpad_buffers}");
 		let mut scratchpad_entries = ::kernel::lib::vec::Vec::with_capacity(num_scratchpad_buffers as usize);
 		let mut scratchpad_array = None;
 		let base_offset;
@@ -51,7 +52,7 @@ impl CommandRing
 					base_offset = ((256 * 8) / 32) as u8;
 					&mut scratchpad_array.as_mut().unwrap()[..]
 				};
-			for i in 0 .. regs.max_scratchpad_buffers() as usize
+			for i in 0 .. num_scratchpad_buffers as usize
 			{
 				let e = ::kernel::memory::virt::alloc_dma(64, 1, "usb_xhci")?;
 				array[i] = ::kernel::memory::virt::get_phys( e.as_ref::<()>(0) ) as u64;
@@ -63,24 +64,30 @@ impl CommandRing
 		{
 			base_offset = ((256 * 8) / 32) as u8;
 		}
+		::kernel::log_debug!("CommandRing::new: base_offset={base_offset}");
 		// - Store the DCBAA
 		// SAFE: The pointer used is valid, and will stay valid as long as this structure exists
 		unsafe {
-			regs.set_dcbaap(::kernel::memory::virt::get_phys(ring_page.as_ref::<()>(0)) as u64);
-			regs.write_config(n_device_slots as u32);
+			regs.dcbaap().write(::kernel::memory::virt::get_phys(ring_page.as_ref::<()>(0)) as u64);
+			regs.config().write( (0 << 8) | n_device_slots as u32 );
 		}
 
 		// Initialise the command ring
 		{
 			let ring = ring_page.as_mut_slice(base_offset as usize * ENT_SIZE, (::kernel::PAGE_SIZE - base_offset as usize * ENT_SIZE) / 32);
+			// Defensive: Initialise the ring to empty
+			for e in ring.iter_mut() {
+				*e = Trb { word0: 0, word1: 0, word2: 0, word3: 0 };
+			}
 			let start_addr = ::kernel::memory::virt::get_phys(ring.as_ptr()) as u64;
-			log_debug!("ring = {:#x}", start_addr);
+			log_debug!("start_ring = phys {:#x}", start_addr);
 			// SAFE: The pointer used is valid, and will stay valid as long as this structure exists
 			unsafe {
 				// - Add a LINK entry to the end
 				*ring.last_mut().unwrap() = crate::hw::structs::IntoTrb::into_trb( crate::hw::structs::TrbLink::new_loopback(start_addr), true);
-				// - Store the result
-				regs.set_crcr(start_addr | 1);
+				// - Store the start addres
+				//   > Setting RCS (controller-expected cycle bit) so the cycle=0 entries already there don't get run
+				regs.crcr().write(start_addr | crate::hw::regs::CRCR_RCS);
 			}
 		}
 		Ok(CommandRing {
@@ -107,9 +114,9 @@ impl CommandRing
 	fn enqueue_command_inner(&mut self, regs: &crate::hw::Regs, command_desc: Trb) {
 		// 1. Read CRCR to ensure that the ring isn't full
 		{
-			let crcr = regs.crcr();
+			let crcr = regs.crcr().read();
 			let ctrlr_addr = crcr & !(ENT_SIZE as u64 - 1);
-			let ctrlr_cycle_bit = (crcr & 1) == 1;
+			let ctrlr_cycle_bit = (crcr & crate::hw::regs::CRCR_RCS) != 0;
 
 			let read_idx = self.get_cmd_index(ctrlr_addr).expect("CRCR value out of range");
 			let (read_cycle,read_idx) = {

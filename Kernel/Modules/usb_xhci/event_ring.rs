@@ -116,13 +116,16 @@ where
 		// SAFE: Correct pointer manipulation, and addresses handed to hardware are also correct
 		unsafe {
 			// ERST entries are two 64-bit words (with a bunch of required zero fields)
+			// Populate just one, as we only have one table
 			let erst: &mut [u64; 2] = &mut *(&mut ring_page[0] as *mut _ as *mut _);
 			erst[0] = ::kernel::memory::virt::get_phys(&ring_page[1]) as u64;
 			erst[1] = (ring_page.len() - 1) as u64;
-			regs.set_iman(3);   // Clear pending, and set IE
-			regs.set_erstsz(1);
-			regs.set_erstba(::kernel::memory::virt::get_phys(erst) as u64);
-			regs.set_erdp(::kernel::memory::virt::get_phys(&ring_page[1]) as u64);
+			regs.iman().write(3);   // Clear pending, and set IE
+			// Set the EventRingSegmentTable - Size = 1, BaseAddress = `erst``
+			regs.erstsz().write(1);
+			regs.erstba().write(::kernel::memory::virt::get_phys(erst) as u64);
+			// Set the current Event Ring Deque Pointer
+			regs.erdp().write(::kernel::memory::virt::get_phys(&ring_page[1]) as u64);
 		}
 		Ok(EventRing {
 			index,
@@ -156,8 +159,8 @@ where
 	}
 	pub fn check_int(&self, regs: &crate::hw::Regs) {
 		let regs = regs.interrupter(self.index.into());
-		let v = regs.erdp();
-		if v & 1<<3 != 0 {
+		let v = regs.erdp().read();
+		if v & crate::hw::regs::ERDP_EHB != 0 {
 			log_trace!("EventRing<{}>::check_int: updated", self.index.into());
 			self.waiter.wake_all()
 		}
@@ -181,9 +184,12 @@ impl State {
 		// SAFE: Address written to hardware is correct
 		unsafe {
 			// Write `ERDP` with the last read address, ACKing the interrupt if needed
-			regs.set_erdp(::kernel::memory::virt::get_phys(&self.ring_page[self.read_ofs as usize]) as u64 | (1<<3));
+			regs.erdp().write(
+				::kernel::memory::virt::get_phys(&self.ring_page[self.read_ofs as usize]) as u64
+				| crate::hw::regs::ERDP_EHB
+			);
 			// ACK the interrupt in IMAN
-			regs.set_iman(regs.iman());
+			regs.iman().write(regs.iman().read());
 		}
 		let rv = Event::from_trb(d);
 		log_trace!("check: {:?}", rv);
