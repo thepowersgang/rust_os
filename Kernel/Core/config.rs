@@ -22,7 +22,10 @@ pub fn get_string(val: Value) -> &'static str
 		S_CONFIG.get_str(val)
 	}
 }
-
+/// Iterator over the names of modules that should not be started
+pub fn disabled_module_names() -> impl Iterator<Item=&'static str> {
+	get_string(Value::DisabledModules).split(',').map(|v| v.trim())
+}
 
 macro_rules! def_config_set {
 	(
@@ -90,7 +93,10 @@ def_config_set! {
 		Loader @ "LOADER" = "/sysroot/bin/loader",
 		/// Startup - Init executable (first userland process)
 		Init @ "INIT" = "/sysroot/bin/init",
+		/// Startup - Testing operations
 		TestFlags @ "TEST" = "",
+		/// Comma-separated list of disabled module names
+		DisabledModules @ "NOMOD" = "",
 	}
 }
 

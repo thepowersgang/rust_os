@@ -18,9 +18,16 @@ pub struct ModuleInfo
 #[derive(Clone,PartialEq)]
 enum ModuleState
 {
+	/// Module is not yet initialised
 	Uninitialised,
+	/// Module is currently initialising, used to detect loops
 	Resolving,
+	/// Module fully initialised
 	Initialised,
+	/// Disabled in boot configuration
+	Disabled,
+	/// Disabled because a dependency is marked as disabled
+	DisabledTransitive,
 }
 
 #[cfg(feature="test")]
@@ -42,7 +49,8 @@ extern "C" {
 /// This is the core initialisation method for the kernel, called to initialise
 /// the rest of the kernel.
 ///
-/// `requests` is a list of modules that should be loaded as soon as possible (e.g. the GUI)
+/// - `requests` is a list of modules that should be loaded as soon as possible (e.g. the GUI)
+/// - `disabled` lists module names that should not be loaded (e.g. if they break)
 pub fn init(requests: &[&str])
 {
 	let (baseptr, size);
@@ -72,13 +80,21 @@ fn init_modules(mods: &[ModuleInfo], requests: &[&str])
 	}
 
 	let mut modstates = vec![ModuleState::Uninitialised; mods.len()];
-	for req in requests
-	{
-		init_module_by_name(&mut modstates, mods, "", req);
+	// Diasble modules requested at boot
+	for name in crate::config::disabled_module_names() {
+		for (ms, m) in Iterator::zip(modstates.iter_mut(), mods.iter()) {
+			if m.name == name {
+				*ms = ModuleState::Disabled;
+			}
+		}
+	}
+	for req in requests {
+		if !init_module_by_name(&mut modstates, mods, "", req) {
+			log_error!("Requested module {:?} not able to start due to boot-disabled module", req);
+		}
 	}
 	
-	for i in 0 .. mods.len()
-	{
+	for i in 0 .. mods.len() {
 		init_module(&mut modstates, mods, i);
 	}
 }
@@ -86,7 +102,7 @@ fn init_modules(mods: &[ModuleInfo], requests: &[&str])
 /// Initialise a module by name, as required by another module
 ///
 /// `req` = requesting module, `name` = required module
-fn init_module_by_name(modstates: &mut [ModuleState], mods: &[ModuleInfo], req: &str, name: &str)
+fn init_module_by_name(modstates: &mut [ModuleState], mods: &[ModuleInfo], req: &str, name: &str) -> bool
 {
 	// Locate module
 	let depid = match mods.iter().enumerate().find( |&(_,v)| v.name == name ) {
@@ -99,11 +115,11 @@ fn init_module_by_name(modstates: &mut [ModuleState], mods: &[ModuleInfo], req: 
 	}
 	
 	// Initialise
-	init_module(modstates, mods, depid);
+	init_module(modstates, mods, depid)
 }
 
 /// Initialise a module (does nothing if the module is already initialised)
-fn init_module(modstates: &mut [ModuleState], mods: &[ModuleInfo], i: usize)
+fn init_module(modstates: &mut [ModuleState], mods: &[ModuleInfo], i: usize) -> bool
 {
 	let module = &mods[i];
 	if modstates[i] == ModuleState::Uninitialised
@@ -111,13 +127,20 @@ fn init_module(modstates: &mut [ModuleState], mods: &[ModuleInfo], i: usize)
 		modstates[i] = ModuleState::Resolving;
 		log_debug!("#{}: {} Deps", i, module.name);
 		for name in module.deps.iter() {
-			init_module_by_name(modstates, mods, module.name, *name);
+			// If any dependency is disabled, then return `false`
+			if !init_module_by_name(modstates, mods, module.name, *name) {
+				log_error!("#{}: {} Cannot start, a dependency is disabled (trying {})", i, module.name, name);
+				modstates[i] = ModuleState::DisabledTransitive;
+				return false;
+			}
 		}
 		// TODO: Do module initialisation in worker threads, and handle waiting for deps before calling init
 		log_debug!("#{}: {} Init", i, module.name);
 		(module.init)();
 		modstates[i] = ModuleState::Initialised;
 	}
+	
+	!matches!(modstates[i], ModuleState::Disabled | ModuleState::DisabledTransitive)
 }
 
 // vim: ft=rust
