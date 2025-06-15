@@ -142,7 +142,7 @@ impl<T: ?Sized+Send+Sync> RwLock<T>
 		return Write { _lock: self }
 	}
 	/// Attempt to acquire a write lock on this object, returns `None` if currently locked
-	pub fn try_write(&self) -> Option<Write<T>> {
+	pub fn try_write(&self) -> Option<Write<'_, T>> {
 		let mut lh = self.inner.lock();
 		if lh.reader_count != 0
 		{

@@ -127,7 +127,7 @@ impl<'a> FDTRoot<'a>
 		}
 	}
 
-	pub fn items(&self) -> SubNodes {
+	pub fn items(&self) -> SubNodes<'_,'a> {
 		SubNodes {
 			fdt: self,
 			offset: 0,

@@ -123,7 +123,7 @@ impl<T> Mutex<T>
 impl<T: ?Sized+Send> Mutex<T>
 {
 	/// Lock the mutex, blocking the current thread
-	pub fn lock(&self) -> HeldMutex<T> {
+	pub fn lock(&self) -> HeldMutex<'_, T> {
 		self.inner.lock(type_name!(Self));
 		return HeldMutex { lock: self };
 	}
@@ -153,7 +153,7 @@ impl<T> LazyMutex<T>
 impl<T: Send> LazyMutex<T>
 {
 	/// Lock and (if required) initialise using init_fcn
-	pub fn lock_init<Fcn: FnOnce()->T>(&self, init_fcn: Fcn) -> HeldLazyMutex<T>
+	pub fn lock_init<Fcn: FnOnce()->T>(&self, init_fcn: Fcn) -> HeldLazyMutex<'_, T>
 	{
 		let mut lh = self.0.lock();
 		if lh.is_none() {
@@ -175,7 +175,7 @@ impl<T: Send> LazyMutex<T>
 	}
 	/// Lock the lazy mutex
 	#[track_caller]
-	pub fn lock(&self) -> HeldLazyMutex<T>
+	pub fn lock(&self) -> HeldLazyMutex<'_, T>
 	{
 		let lh = self.0.lock();
 		assert!(lh.is_some(), "Locking an uninitialised LazyMutex<{}>", type_name!(T));
@@ -192,7 +192,7 @@ where
 	}
 	/// Lock the lazy mutex
 	#[track_caller]
-	pub fn lock(&self) -> HeldLazyMutex<T> {
+	pub fn lock(&self) -> HeldLazyMutex<'_, T> {
 		self.0.lock_init(|| T::default())
 	}
 }

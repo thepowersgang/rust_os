@@ -55,10 +55,10 @@ impl<'a> DMABuffer<'a>
 		true
 	}
 	
-	pub fn new_mut(src: &mut [u8], bits: u8) -> DMABuffer {
+	pub fn new_mut(src: &'a mut [u8], bits: u8) -> Self {
 		DMABuffer::new(src, bits)
 	}
-	pub fn new(src: &[u8], bits: u8) -> DMABuffer {
+	pub fn new(src: &'a [u8], bits: u8) -> Self {
 		if Self::check_bits(src, bits) == false {
 			todo!("new - Bounce because not within bit range");	
 		}
@@ -73,10 +73,10 @@ impl<'a> DMABuffer<'a>
 	}
 	
 	/// Creates a new DMABuffer contiguous in the specified region
-	pub fn new_contig_mut(src: &mut [u8], bits: u8) -> DMABuffer {
+	pub fn new_contig_mut(src: &'a mut [u8], bits: u8) -> Self {
 		DMABuffer::new_contig(src, bits)
 	}
-	pub fn new_contig(src: &[u8], bits: u8) -> DMABuffer
+	pub fn new_contig(src: &'a [u8], bits: u8) -> Self
 	{
 		let bytes = src.len();
 		let phys = virt::get_phys( &src[0] );
@@ -104,7 +104,7 @@ impl<'a> DMABuffer<'a>
 	}
 	
 	/// Returns an iterator over contiguous physical ranges
-	pub fn phys_ranges(&self) -> Ranges {
+	pub fn phys_ranges(&self) -> Ranges<'_> {
 		if self.phys != virt::get_phys(self.source_ptr) {
 			unimplemented!();
 		}

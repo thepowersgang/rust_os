@@ -377,7 +377,7 @@ impl nic::Interface for Card
 		// TODO: Check that the input matches the current
 		self.waiter_handle.lock().take();
 	}
-	fn rx_packet(&self) -> Result<nic::PacketHandle, nic::Error> {
+	fn rx_packet(&self) -> Result<nic::PacketHandle<'_>, nic::Error> {
 		struct RxPacketHandle<'a> {
 			card: &'a Card,
 			ofs: u16,

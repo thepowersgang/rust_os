@@ -259,7 +259,7 @@ impl HostInner
 
 impl HostInner {    
 	/// Start pushing TRBs to an endpoint
-	pub(crate) fn push_ep_trbs(&self, addr: u8, index: u8) -> PushTrbState {
+	pub(crate) fn push_ep_trbs(&self, addr: u8, index: u8) -> PushTrbState<'_> {
 		let mut lh = self.devices[addr as usize - 1].lock();
 		let dev = match lh.as_mut() { Some(v) => v, _ => panic!(""), };
 		assert!(dev.get_endpoint(index).is_some(), "Endpoint {} of device {} not initialised", addr, index);

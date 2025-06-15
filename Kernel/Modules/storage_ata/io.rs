@@ -69,7 +69,7 @@ impl_fmt!{
 
 impl DmaController
 {
-	fn borrow_regs(&self, is_secondary: bool) -> DmaRegBorrow {
+	fn borrow_regs(&self, is_secondary: bool) -> DmaRegBorrow<'_> {
 		DmaRegBorrow {
 			dma_base: &self.dma_base,
 			is_sec: is_secondary,

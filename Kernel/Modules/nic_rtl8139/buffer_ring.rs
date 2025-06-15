@@ -43,7 +43,7 @@ impl<S: Storage> BufferRing<S>
 	
 	/// Acquire if possible
 	#[allow(dead_code)]
-	pub fn try_acquire(&self) -> Option<Handle<S>> {
+	pub fn try_acquire(&self) -> Option<Handle<'_, S>> {
 		let mut lh = self.inner.lock();
 		if (lh.next_free + 1) % S::len() as u16 == lh.first_used {
 			None
@@ -59,7 +59,7 @@ impl<S: Storage> BufferRing<S>
 		}
 	}
 	/// Acquire with a blocking wait
-	pub fn acquire_wait(&self) -> Handle<S> {
+	pub fn acquire_wait(&self) -> Handle<'_, S> {
 		let mut lh = self.inner.lock();
 		while (lh.next_free + 1) % S::len() as u16 == lh.first_used {
 			waitqueue_wait_ext!(lh, .wait_queue);
@@ -100,7 +100,7 @@ impl<S: Storage> BufferRing<S>
 	}
 
 	/// Get a handle using the id returned by an async operation
-	pub unsafe fn handle_from_async(&self, index: usize) -> Handle<S> {
+	pub unsafe fn handle_from_async(&self, index: usize) -> Handle<'_, S> {
 		Handle {
 			bs: self,
 			idx: index,

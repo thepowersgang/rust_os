@@ -30,7 +30,7 @@ impl<K, V> SharedMap<K,V>
 }
 impl<K: Send+Sync+Ord, V: Send+Sync> SharedMap<K,V>
 {
-	pub fn get(&self, k: &K) -> Option<Handle<K,V>> {
+	pub fn get(&self, k: &K) -> Option<Handle<'_, K,V>> {
 		let lh = self.lock.read();
 		let p = lh.m.get(k).map(|r| r as *const _);
 		// SAFE: Lock handle is carried with the pointer, pointer can't be invalidated until that handle is dropped

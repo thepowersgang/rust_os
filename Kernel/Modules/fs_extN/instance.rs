@@ -265,7 +265,7 @@ impl<'a> ::core::ops::Deref for Block<'a>
 impl InstanceInner
 {
 	/// Obtain a block (using the block cache)
-	pub fn get_block(&self, block: u32) -> ::vfs::node::Result<Block>
+	pub fn get_block(&self, block: u32) -> ::vfs::node::Result<Block<'_>>
 	{
 		if self.fs_block_size > ::kernel::PAGE_SIZE {
 			// TODO: To handle extN blocks larger than the system's page size, we'd need to start packing multiple cache handles into

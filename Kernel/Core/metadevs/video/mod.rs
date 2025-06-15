@@ -65,7 +65,7 @@ pub struct StrideBuf<'a, T: 'a>
 }
 impl<'a, T: 'a> StrideBuf<'a, T>
 {
-	pub fn new(buf: &[T], stride: usize) -> StrideBuf<T> {
+	pub fn new(buf: &'a [T], stride: usize) -> Self {
 		StrideBuf {
 			buf, stride
 			}

@@ -301,7 +301,7 @@ impl CachedBlock
 		Ok( () )
 	}
 	
-	fn borrow(&self) -> MetaBlockHandle {
+	fn borrow(&self) -> MetaBlockHandle<'_> {
 
 		if self.mapping.read().is_none()
 		{

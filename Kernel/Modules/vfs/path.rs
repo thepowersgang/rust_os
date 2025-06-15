@@ -46,7 +46,7 @@ impl Path
 		!self.iter().any(|c| (c == ".." || c == "."))
 	}
 	
-	pub fn iter(&self) -> Components {
+	pub fn iter(&self) -> Components<'_> {
 		Components(self)
 	}
 

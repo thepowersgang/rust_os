@@ -429,7 +429,7 @@ impl<'a> DirSector<'a>
 			//name_buf: [0; 32],
 		}
 	}
-	pub fn next(&mut self) -> node::Result<Option<DirEnt>> {
+	pub fn next(&mut self) -> node::Result<Option<DirEnt<'_>>> {
 		let cur_ofs = self.ofs;
 
 		if self.ofs == self.data.len() {

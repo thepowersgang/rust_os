@@ -47,7 +47,7 @@ pub trait Interface: 'static + Send + Sync
 	
 	/// Obtain a packet from the interface (or `Err(Error::NoPacket)` if there is none)
 	/// - Non-blocking
-	fn rx_packet(&self) -> Result<PacketHandle, Error>;
+	fn rx_packet(&self) -> Result<PacketHandle<'_>, Error>;
 }
 
 pub struct InterfaceData

@@ -155,14 +155,14 @@ common_methods! {
 	pub fn max_blocks(&self) -> u32 {
 		self.lock.max_blocks(&self.parent.fs)
 	}
-	pub fn blocks(&self) -> Blocks {
+	pub fn blocks(&self) -> Blocks<'_> {
 		Blocks {
 			fs: &self.parent.fs,
 			ondisk: &self.lock,
 			inner_idx: 0,
 			}
 	}
-	pub fn blocks_from(&self, start: u32) -> Blocks {
+	pub fn blocks_from(&self, start: u32) -> Blocks<'_> {
 		Blocks {
 			fs: &self.parent.fs,
 			ondisk: &self.lock,

@@ -120,7 +120,7 @@ impl ProcessObjects {
 	fn get(&self, idx: u32) -> Option<&ObjectSlot> {
 		self.objs.get(idx as usize)
 	}
-	fn iter(&self) -> ::core::slice::Iter<ObjectSlot> {
+	fn iter(&self) -> ::core::slice::Iter<'_, ObjectSlot> {
 		self.objs.iter()
 	}
 

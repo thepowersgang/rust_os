@@ -47,7 +47,7 @@ impl MPTablePointer
 	pub fn lapic_paddr(&self) -> u64 {
 		self.table.local_apic_memory_map as u64
 	}
-	pub fn entries(&self) -> impl Iterator<Item=MPTableEntry>+'_ {
+	pub fn entries(&self) -> impl Iterator<Item=MPTableEntry<'_>>+'_ {
 		self.table.entries()
 	}
 }
@@ -208,7 +208,7 @@ impl MPInfo
 
 impl MPTable
 {
-	fn entries(&self) -> impl Iterator<Item=MPTableEntry>+'_ {
+	fn entries(&self) -> impl Iterator<Item=MPTableEntry<'_>>+'_ {
 		struct Iter<'a> {
 			pd: ::core::marker::PhantomData<&'a MPTable>,
 			cur: *const [u8; 4],

@@ -93,7 +93,7 @@ pub struct MADTRecords<'a>
 
 impl Madt
 {
-	pub fn records(&self, len: usize) -> MADTRecords
+	pub fn records(&self, len: usize) -> MADTRecords<'_>
 	{
 		MADTRecords {
 			madt: self,

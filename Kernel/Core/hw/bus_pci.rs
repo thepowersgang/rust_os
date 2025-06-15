@@ -103,7 +103,7 @@ impl crate::device_manager::BusDevice for PCIDev
 	fn addr(&self) -> u32 {
 		self.addr as u32
 	}
-	fn get_attr_idx(&self, name: &str, idx: usize) -> crate::device_manager::AttrValue {
+	fn get_attr_idx(&self, name: &str, idx: usize) -> crate::device_manager::AttrValue<'_> {
 		use crate::device_manager::AttrValue;
 		match name
 		{

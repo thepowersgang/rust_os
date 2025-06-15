@@ -59,7 +59,7 @@ pub struct PortRegs<'a>
 
 impl<'a> PortRegs<'a>
 {
-	pub fn new(io: &device_manager::IOBinding, port_idx: usize) -> PortRegs {
+	pub fn new(io: &'a device_manager::IOBinding, port_idx: usize) -> Self {
 		PortRegs {
 			idx: port_idx,
 			io: io
@@ -290,7 +290,7 @@ impl Port
 		r as *const _ as *mut _
 	}
 
-	fn regs(&self) -> PortRegs {
+	fn regs(&self) -> PortRegs<'_> {
 		PortRegs {
 			idx: self.index,
 			io: &self.ctrlr.io_base,
@@ -511,7 +511,7 @@ impl Port
 		}
 	}
 
-	fn get_command_slot(&self) -> CommandSlot
+	fn get_command_slot(&self) -> CommandSlot<'_>
 	{
 		let max_commands = self.ctrlr.max_commands as usize;
 

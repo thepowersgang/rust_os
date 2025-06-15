@@ -70,10 +70,10 @@ pub trait BusDevice:
 	/// Returns the device's address on the parent bus
 	fn addr(&self) -> u32;
 	/// Returns the specified attribute (or 0, if invalid)
-	fn get_attr(&self, name: &str) -> AttrValue {
+	fn get_attr(&self, name: &str) -> AttrValue<'_> {
 		self.get_attr_idx(name, 0)
 	}
-	fn get_attr_idx(&self, name: &str, idx: usize) -> AttrValue;
+	fn get_attr_idx(&self, name: &str, idx: usize) -> AttrValue<'_>;
 	/// Set the specified attribute
 	fn set_attr(&mut self, name: &str, value: AttrValue) {
 		self.set_attr_idx(name, 0, value)

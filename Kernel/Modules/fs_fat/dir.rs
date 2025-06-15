@@ -69,7 +69,7 @@ impl OpenFileInfo {
 }
 
 impl super::FilesystemInner {
-	fn get_dir_info(&self, cluster: ClusterNum) -> DirInfoHandle {
+	fn get_dir_info(&self, cluster: ClusterNum) -> DirInfoHandle<'_> {
 		DirInfoHandle {
 			fs: self,
 			cluster,
@@ -428,7 +428,7 @@ impl_fmt! {
 }
 impl<'a> DirEnts<'a>
 {
-	fn new(data: &[u8]) -> DirEnts {
+	fn new(data: &[u8]) -> DirEnts<'_> {
 		assert_eq!(data.len() % 32, 0);
 		DirEnts {
 			cluster: data,

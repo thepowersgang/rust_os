@@ -222,7 +222,7 @@ impl Queue
 	}
 
 	/// Return a lock handle to the "available" ring buffer (the list of descriptors handed to the device)
-	fn avail_ring(&self) -> LockedAvailRing {
+	fn avail_ring(&self) -> LockedAvailRing<'_> {
 		LockedAvailRing {
 			_lh: self.avail_ring_lock.lock(),
 			// SAFE: Locked
@@ -247,7 +247,7 @@ impl Queue
 	}
 
 	/// Return a lock handle to the descriptor table
-	fn descriptors(&self) -> LockedDescriptors {
+	fn descriptors(&self) -> LockedDescriptors<'_> {
 		LockedDescriptors {
 			_lh: self.descriptors_lock.lock(),
 			// SAFE: Locked access

@@ -253,7 +253,7 @@ impl GeneralTD
 		}
 	}
 
-	fn take_waker_lock(&self) -> GeneralTdLockedWaker
+	fn take_waker_lock(&self) -> GeneralTdLockedWaker<'_>
 	{
 		let int_lh = ::kernel::arch::sync::hold_interrupts();
 		loop

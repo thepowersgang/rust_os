@@ -246,7 +246,7 @@ pub mod sync {
 		
 		/// Lock this spinning lock
 		//#[not_safe(irq)]
-		pub fn lock(&self) -> HeldSpinlock<T>
+		pub fn lock(&self) -> HeldSpinlock<'_, T>
 		{
 			self.lock.inner_lock();
 			HeldSpinlock { lock: self }
@@ -254,20 +254,18 @@ pub mod sync {
 
 		/// Lock this spinning lock (accepting risk of panick/deadlock from IRQs)
 		//#[is_safe(irq)]
-		pub fn lock_irqsafe(&self) -> HeldSpinlock<T> {
+		pub fn lock_irqsafe(&self) -> HeldSpinlock<'_, T> {
 			self.lock.inner_lock();
 			HeldSpinlock { lock: self }
 		}
 		/// Attempt to acquire the lock, returning None if it is already held by this CPU
 		//#[is_safe(irq)]
-		pub fn try_lock_cpu(&self) -> Option<HeldSpinlock<T>>
+		pub fn try_lock_cpu(&self) -> Option<HeldSpinlock<'_, T>>
 		{
-			if self.lock.try_inner_lock_cpu()
-			{
+			if self.lock.try_inner_lock_cpu() {
 				Some( HeldSpinlock { lock: self } )
 			}
-			else
-			{
+			else {
 				None
 			}
 		}

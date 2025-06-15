@@ -184,7 +184,7 @@ impl File
 
 	
 	/// Map a file into the address space
-	pub fn memory_map(&self, address: usize, ofs: u64, size: usize, mode: MemoryMapMode) -> super::Result<MemoryMapHandle> {
+	pub fn memory_map(&self, address: usize, ofs: u64, size: usize, mode: MemoryMapMode) -> super::Result<MemoryMapHandle<'_>> {
 		log_debug!("memory_map(self={{mode:{:?}}}, address={:#x}, ofs={:#x}, size={:#x}, mode={:?})",
 			self.mode, address, ofs, size, mode);
 		// - Check that this file is opened in a sufficient mode to allow this form of mapping
@@ -317,7 +317,7 @@ impl Dir
 	}
 	
 	/// Iterate names within the directory
-	pub fn iter(&self) -> DirIter {
+	pub fn iter(&self) -> DirIter<'_> {
 		DirIter {
 			handle: self,
 			ents: [

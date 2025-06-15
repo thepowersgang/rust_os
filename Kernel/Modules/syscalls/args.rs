@@ -12,7 +12,7 @@ pub trait SyscallArg: Sized {
 pub struct Args<'a>(&'a [usize]);
 impl<'a> Args<'a>
 {
-	pub fn new(v: &[usize]) -> Args {
+	pub fn new(v: &'a [usize]) -> Self {
 		Args(v)
 	}
 	pub fn get<T: SyscallArg>(&mut self) -> Result<T, crate::Error> {

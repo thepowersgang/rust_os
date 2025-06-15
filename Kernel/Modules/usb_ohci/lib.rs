@@ -481,7 +481,7 @@ impl HostInner
 	}
 
 	/// Obtain a lock handle for a given endpoint descriptor
-	fn get_ed_locked(&self, id: &EndpointId) -> LockedEndpoint {
+	fn get_ed_locked(&self, id: &EndpointId) -> LockedEndpoint<'_> {
 		// SAFE: Pointer is valid
 		unsafe {
 			LockedEndpoint::new(self.get_ed_pointer(id) as *mut hw::Endpoint)

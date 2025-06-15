@@ -79,7 +79,7 @@ impl<K: Ord, V> VecMap<K,V>
 	}
 	
 	/// Return an 'entry' in the map, allowing cheap handling of insertion/lookup
-	pub fn entry(&mut self, key: K) -> Entry<K, V>
+	pub fn entry(&mut self, key: K) -> Entry<'_, K, V>
 	{
 		// Binary search for the specified key
 		match self.ents.binary_search_by(|e| e.0.cmp(&key))
@@ -114,14 +114,14 @@ impl<K: Ord, V> VecMap<K,V>
 	}
 		
 	/// Return a read-only iterator
-	pub fn iter(&self) -> Iter<K,V> {
+	pub fn iter(&self) -> Iter<'_, K,V> {
 		Iter {
 			pos: 0,
 			ents: &*self.ents,
 		}
 	}
 	/// Return a read-only iterator
-	pub fn iter_mut(&mut self) -> IterMut<K,V> {
+	pub fn iter_mut(&mut self) -> IterMut<'_, K,V> {
 		IterMut {
 			pos: 0,
 			ents: &mut *self.ents,

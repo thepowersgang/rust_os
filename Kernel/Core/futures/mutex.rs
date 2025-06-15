@@ -53,7 +53,7 @@ impl<T: Send> Mutex<T>
 	}
 
 	/// Attempt to lock the mutex (returning None on failure)
-	pub fn try_lock(&self) -> Option<HeldMutex<T>>
+	pub fn try_lock(&self) -> Option<HeldMutex<'_, T>>
 	{
 		let mut lh = self.lock_state.lock();
 		if !lh.locked {
@@ -67,7 +67,7 @@ impl<T: Send> Mutex<T>
 	}
 	
 	/// Asynchronously lock the mutex
-	pub fn async_lock(&self) -> Waiter<T>
+	pub fn async_lock(&self) -> Waiter<'_, T>
 	{
 		Waiter {
 			lock: self,

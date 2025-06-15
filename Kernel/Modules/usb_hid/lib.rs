@@ -189,7 +189,7 @@ impl Driver
 struct BitStream<'a>(&'a [u8], usize);
 impl<'a> BitStream<'a>
 {
-	fn new(d: &[u8]) -> BitStream {
+	fn new(d: &'a [u8]) -> Self {
 		BitStream(d, 0)
 	}
 	fn get_bit(&mut self) -> Option<bool> {
