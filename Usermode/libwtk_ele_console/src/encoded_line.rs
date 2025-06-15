@@ -104,7 +104,7 @@ impl Line {
 		self.is_dirty.set(true);
 	}
 
-	pub fn segs(&self, ofs: usize) -> LineEnts {
+	pub fn segs(&self, ofs: usize) -> LineEnts<'_> {
 		let mut rv = LineEnts {
 			string: &self.data,
 			iter: self.data.char_indices().peekable(),

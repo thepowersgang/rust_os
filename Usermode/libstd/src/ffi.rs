@@ -22,7 +22,7 @@ impl OsStr
 	pub fn to_str(&self) -> Option<&str> {
 		::str::from_utf8(self.as_bytes()).ok()
 	}
-	pub fn to_str_lossy(&self) -> ::borrow::Cow<str> {
+	pub fn to_str_lossy(&self) -> ::borrow::Cow<'_, str> {
 		::string::String::from_utf8_lossy(&self.0)
 	}
 }

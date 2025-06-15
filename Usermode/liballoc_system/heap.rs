@@ -190,7 +190,7 @@ impl AllocState
 			}
 		}
 	}
-	fn free_blocks(&mut self) -> FreeBlocks {
+	fn free_blocks(&mut self) -> FreeBlocks<'_> {
 		FreeBlocks { cur: self.start, state: self, }
 	}
 }

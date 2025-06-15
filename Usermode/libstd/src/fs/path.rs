@@ -33,7 +33,7 @@ impl Path
 		// SAFE: Assume all OsStrs are valid Paths
 		unsafe { ::core::mem::transmute(s.as_ref()) }
 	}
-	pub fn display(&self) -> Display {
+	pub fn display(&self) -> Display<'_> {
 		Display(self)
 	}
 

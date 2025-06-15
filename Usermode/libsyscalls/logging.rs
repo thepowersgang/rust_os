@@ -42,7 +42,7 @@ impl ::core::ops::Deref for FixedBuf {
 // A simple writer that uses the kernel-provided per-thread logging channel
 pub struct ThreadLogWriter<'a>(&'a mut FixedBuf);
 impl<'a> ThreadLogWriter<'a> {
-	pub fn new(b: &mut FixedBuf) -> ThreadLogWriter {
+	pub fn new(b: &'a mut FixedBuf) -> Self {
 		ThreadLogWriter(b)
 	}
 }

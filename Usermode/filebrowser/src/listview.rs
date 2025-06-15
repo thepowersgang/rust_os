@@ -18,7 +18,7 @@ struct RowItemIter<'a, T: 'a + Row> {
 	i: usize,
 }
 impl<'a, T: 'a + Row> RowItemIter<'a, T> {
-	fn new(p: &T) -> RowItemIter<T> {
+	fn new(p: &'a T) -> Self {
 		RowItemIter { p: p, i: 0 }
 	}
 }

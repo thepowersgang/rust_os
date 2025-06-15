@@ -52,7 +52,7 @@ impl<'a> TextInput<'a>
 	}
 
 	/// Returns the inner content of this text box
-	pub fn get_content(&self) -> /* impl Deref<Target=str>+Display*/ Content {
+	pub fn get_content(&self) -> /* impl Deref<Target=str>+Display*/ Content<'_> {
 		Content(self.state.borrow())
 	}
 

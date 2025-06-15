@@ -122,7 +122,7 @@ impl Surface
 		Rect::new(0, 0, self.width as u32, self.height())
 	}
 	/// Obtain a view into this surface
-	pub fn slice(&self, rect: Rect<Px>) -> SurfaceView {
+	pub fn slice(&self, rect: Rect<Px>) -> SurfaceView<'_> {
 		let rect = self.rect().intersect(&rect);
 		//kernel_log!("Surface::slice - rect={:?}", rect);
 		SurfaceView { surf: self, rect: rect }
@@ -166,7 +166,7 @@ impl<'a> SurfaceView<'a>
 	pub fn height(&self) -> u32 { self.rect.height().0 }
 
 	/// Create a sub-view of the surface
-	pub fn slice(&self, rect: Rect<Px>) -> SurfaceView {
+	pub fn slice(&self, rect: Rect<Px>) -> SurfaceView<'_> {
 		SurfaceView {
 			surf: self.surf,
 			rect: self.rect.intersect(&rect.offset(self.rect.x(), self.rect.y())),
@@ -236,7 +236,7 @@ impl<'a> SurfaceView<'a>
 		rect.x().0 as usize
 	}
 
-	pub fn draw_text_fmt(&self, rect: Rect<Px>, colour: Colour) -> TextFmtWrite {
+	pub fn draw_text_fmt(&self, rect: Rect<Px>, colour: Colour) -> TextFmtWrite<'_> {
 		TextFmtWrite(self, S_FONT.get_renderer(), colour, rect)
 	}
 }

@@ -33,7 +33,7 @@ impl<I: MenuItems> Menu<I> {
 			items: items,
 		}
 	}
-	pub fn waiter(&self) -> WaitWrapper<I> {
+	pub fn waiter(&self) -> WaitWrapper<'_, I> {
 		WaitWrapper(self)
 	}
 

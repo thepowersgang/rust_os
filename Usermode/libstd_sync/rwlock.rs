@@ -35,7 +35,7 @@ impl<T> RwLock<T>
 
 impl<T: ?Sized> RwLock<T>
 {
-	pub fn write(&self) -> Write<T> {
+	pub fn write(&self) -> Write<'_, T> {
 		loop {
 			let mut lh = self.int.lock();
 			if lh.readers > 0 {
@@ -50,7 +50,7 @@ impl<T: ?Sized> RwLock<T>
 			}
 		}
 	}
-	pub fn read(&self) -> Read<T> {
+	pub fn read(&self) -> Read<'_, T> {
 		loop {
 			let mut lh = self.int.lock();
 			if lh.readers > 0 {

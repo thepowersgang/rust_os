@@ -70,7 +70,7 @@ pub fn load_executable(mut fh: File) -> Result<ElfModuleHandle<File>,Error>
 	
 impl<R: Read+Seek> ElfModuleHandle<R>
 {
-	fn phents(&mut self) -> PhEntIterator<R> {
+	fn phents(&mut self) -> PhEntIterator<'_, R> {
 		self.file.seek(SeekFrom::Start(self.header.e_phoff) ).expect("Unable to seek to phoff");
 		PhEntIterator {
 			file: &mut self.file,
@@ -79,7 +79,7 @@ impl<R: Read+Seek> ElfModuleHandle<R>
 			entry_size: self.header.e_phentsize,
 			}
 	}
-	fn dyntab(&mut self, ofs: u64, len: usize) -> DtEntIterator<R> {
+	fn dyntab(&mut self, ofs: u64, len: usize) -> DtEntIterator<'_, R> {
 		self.file.seek(SeekFrom::Start(ofs)).expect("Unable to seek to dynamic table offset");
 		DtEntIterator {
 			file: &mut self.file,
@@ -98,7 +98,7 @@ impl<R: Read+Seek> ElfModuleHandle<R>
 	pub fn get_entrypoint(&self) -> usize {
 		self.header.e_entry
 	}
-	pub fn load_segments(&mut self) -> LoadSegments<R> {
+	pub fn load_segments(&mut self) -> LoadSegments<'_, R> {
 		LoadSegments( self.phents() )
 	}
 	
@@ -689,7 +689,7 @@ impl<'a> SymbolTable<'a>
 		Ok( SymbolTable(bytes, fmt) )
 	}
 	
-	fn iter(&self) -> SymbolIterator {
+	fn iter(&self) -> SymbolIterator<'_> {
 		SymbolIterator {
 			tab: self,
 			idx: 0,
@@ -907,7 +907,7 @@ impl<'a> RelocTable<'a> {
 		(Size::Elf64, RelocType::RelA) => self.read_rela64(idx),
 		}
 	}
-	fn iter(&self) -> RelocIter {
+	fn iter(&self) -> RelocIter<'_> {
 		RelocIter { ptr: self, idx: 0 }
 	}
 }

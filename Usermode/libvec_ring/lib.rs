@@ -115,7 +115,7 @@ impl<T> VecRing<T> {
 		}
 	}
 
-	pub fn iter(&self) -> Iter<T> {
+	pub fn iter(&self) -> Iter<'_, T> {
 		Iter {
 			inner_it: self.inner.iter(),
 		}

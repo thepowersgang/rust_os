@@ -16,7 +16,7 @@ impl<T> Mutex<T>
 		Mutex( AtomicUsize::new(1), UnsafeCell::new(v) )
 	}
 
-	pub fn lock(&self) -> HeldMutex<T> {
+	pub fn lock(&self) -> HeldMutex<'_, T> {
 		if self.0.fetch_sub(1, Ordering::Acquire) == 1 {
 			HeldMutex { _ptr: self, }
 		}

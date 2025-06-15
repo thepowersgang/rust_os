@@ -32,7 +32,7 @@ impl<T> Mutex<T>
 		}
 	}
 
-	pub fn lock(&self) -> HeldMutex<T> {
+	pub fn lock(&self) -> HeldMutex<'_, T> {
 		// If existing value is UNLOCKED, then set to UNCONTENDED locked
 		match self.locked.compare_exchange(STATE_UNLOCKED, STATE_UNCONTENDED, Ordering::Acquire, Ordering::Relaxed)
 		{
