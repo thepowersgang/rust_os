@@ -68,9 +68,12 @@ pub fn checkmark_val<T>(v: *const T) {
 	unsafe { ::core::arch::asm!("xchg bx, bx; mov {0},{0}", in(reg) v, options(nostack)); }
 }
 
-#[allow(improper_ctypes)]
-extern "C" {
-	pub fn drop_to_user(entry: usize, stack: usize, cmdline_len: usize) -> !;
+pub unsafe fn drop_to_user(entry: usize, stack: usize, cmdline_len: usize) -> ! {
+	#[allow(improper_ctypes)]
+	extern "C" {
+		pub fn drop_to_user(entry: usize, stack: usize, cmdline_len: usize) -> !;
+	}
+	drop_to_user(entry, stack, cmdline_len)
 }
 
 pub mod time {

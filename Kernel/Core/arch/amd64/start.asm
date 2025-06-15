@@ -265,25 +265,7 @@ start64_higher:
 	mov al, 10
 	out dx, al
 	
-	; Bind the 'SYSCALL' handler (and set flags for it)
-	; LSTAR = 0xC000_0082
-	mov rax, syscall_handler
-	mov rdx, rax
-	shr rdx, 32
-	mov ecx, 0xC0000082
-	wrmsr
-	; STAR = 0xC000_0081
-	mov ecx, 0xC0000081
-	rdmsr
-	; Preserve eax, contents marked as reserved
-	mov edx, 0x001B0008	; [63:48] User CS, [47:32] Kernel CS
-	wrmsr
-	; FMASK = 0xC000_0084
-	mov ecx, 0xC0000084
-	rdmsr
-	mov eax, 0x200	; - Clear IF on SYSCALL
-	; Preserve edx, contents marked as reserved
-	wrmsr
+	call cpu_init_common
 
 	; 7. Call rust kmain
 	call kmain
@@ -366,6 +348,30 @@ smp_init_gdt:
 	dq	0
 smp_init_stack:
 
+[section .text.cpu_init_common]
+cpu_init_common:
+	; Bind the 'SYSCALL' handler (and set flags for it)
+	; LSTAR = 0xC000_0082
+	mov rax, syscall_handler
+	mov rdx, rax
+	shr rdx, 32
+	mov ecx, 0xC0000082
+	wrmsr
+	; STAR = 0xC000_0081
+	mov ecx, 0xC0000081
+	rdmsr
+	; Preserve eax, contents marked as reserved
+	mov edx, 0x001B0008	; [63:48] User CS, [47:32] Kernel CS
+	wrmsr
+	; FMASK = 0xC000_0084
+	mov ecx, 0xC0000084
+	rdmsr
+	mov eax, 0x200	; - Clear IF on SYSCALL
+	; Preserve edx, contents marked as reserved
+	wrmsr
+	ret
+
+
 [section .text.ap_start_high]
 ap_start_high:
 	; Enable the IDT
@@ -390,6 +396,7 @@ ap_start_high:
 	mov ecx, 0xC0000101	; GS Base
 	wrmsr
 
+	call cpu_init_common
 	call ap_entry
 
 	sti
