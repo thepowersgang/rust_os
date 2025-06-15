@@ -8,6 +8,7 @@ use crate::PAGE_SIZE;
 use crate::memory::virt::{ProtectionMode,MapError};
 use crate::arch::memory::virt::TempHandle;
 use crate::arch::memory::PAGE_MASK;
+use ::core::sync::atomic::Ordering;
 use super::addresses;
 
 const MASK_VBITS : usize = 0x0000FFFF_FFFFFFFF;
@@ -71,7 +72,7 @@ impl PTEPos {
 struct PTE
 {
 	pos: PTEPos,
-	data: *mut u64
+	data: *const ::core::sync::atomic::AtomicU64,
 }
 
 enum LargeOk { Yes, No }
@@ -320,45 +321,46 @@ impl PTE
 {
 	// UNSAFE: Ensure that this pointer is unique and valid.
 	pub unsafe fn new(pos: PTEPos, ptr: *mut u64) -> PTE {
-		PTE { pos: pos, data: ptr }
+		PTE { pos: pos, data: ptr as *const ::core::sync::atomic::AtomicU64, }
 	}
 	pub fn null() -> PTE {
-		PTE { pos: PTEPos::Absent, data: ::core::ptr::null_mut() }
+		PTE { pos: PTEPos::Absent, data: ::core::ptr::null() }
 	}
 
+	/// Read the PTE, returns zero if [Self::is_null]
+	fn read(&self) -> u64 {
+		if self.is_null() {
+			0
+		}
+		else {
+			// SAFE: Known to not be invalid, the non-Absent constructor requires it
+			unsafe { (*self.data).load(Ordering::Relaxed) }
+		}
+	}
+
+	/// Is this PTE "null" (created with [Self::null] or with [PTEPos::Absent])
 	pub fn is_null(&self) -> bool {
 		self.pos == PTEPos::Absent
 	}
+	/// Is the memory reserved (valid, but may not be present)
 	pub fn is_reserved(&self) -> bool {
-		// SAFE: Construction should ensure this pointer is valid
-		unsafe {
-			!self.is_null() && *self.data != 0
-		}
+		!self.is_null() && self.read() != 0
 	}
+	/// Is the memory present (won't cause a fault if read by the kernel)
 	pub fn is_present(&self) -> bool {
-		// SAFE: Construction should ensure this pointer is valid
-		unsafe {
-			!self.is_null() && *self.data & 1 != 0
-		}
+		!self.is_null() && self.read() & PF_PRESENT != 0
 	}
+	/// Is this a present large page mapping?
 	pub fn is_large(&self) -> bool {
-		// SAFE: Construction should ensure this pointer is valid
-		unsafe {
-			self.is_present() && *self.data & (PF_PRESENT | PF_LARGE) == PF_LARGE|PF_PRESENT
-		}
+		self.is_present() && self.read() & (PF_PRESENT | PF_LARGE) == PF_PRESENT|PF_LARGE
 	}
+	/// Is this a copy-on-write mapping (may not be present)
 	pub fn is_cow(&self) -> bool {
-		// SAFE: Construction should ensure this pointer is valid
-		unsafe {
-			self.is_present() && (*self.data & FLAG_COW != 0)
-		}
+		self.is_present() && (self.read() & FLAG_COW != 0)
 	}
 	
 	pub fn addr(&self) -> PAddr {
-		// SAFE: Construction should ensure this pointer is valid
-		unsafe {
-			*self.data & 0x7FFFFFFF_FFFFF000
-		}
+		self.read() & 0x7FFFFFFF_FFFFF000
 	}
 	//pub unsafe fn set_addr(&self, paddr: PAddr) {
 	//	assert!(!self.is_null());
@@ -384,7 +386,7 @@ impl PTE
 	pub unsafe fn set(&mut self, paddr: PAddr, prot: crate::memory::virt::ProtectionMode) {
 		assert!(!self.is_null(), "PTE::set - PTE null");
 		let flags: u64 = Self::mode_to_flags(prot);
-		*self.data = (paddr & 0x7FFFFFFF_FFFFF000) | flags;
+		(*self.data).store( (paddr & 0x7FFFFFFF_FFFFF000) | flags, Ordering::SeqCst );
 	}
 	
 	/// UNSAFE: No restrictions in the physical address, so could cause aliasing
@@ -392,19 +394,16 @@ impl PTE
 		assert!(!self.is_null(), "PTE::set_if_unset - PTE null");
 		let flags: u64 = Self::mode_to_flags(prot);
 		let v = (paddr & 0x7FFFFFFF_FFFFF000) | flags;
-		// SAFE: Atomic 64-bit and valid pointer
-		if unsafe { ::core::intrinsics::atomic_cxchg_release_seqcst(self.data, 0, v).0 } == 0 {
-			Ok( () )
-		}
-		else {
-			Err( () )
-		}
+		
+		(*self.data).compare_exchange(0, v, Ordering::Release, Ordering::SeqCst)
+			.map(|_| ())
+			.map_err(|_| ())
 	}
 	
 	pub fn get_perms(&self) -> crate::memory::virt::ProtectionMode {
 		assert!(!self.is_null());
 		// SAFE: Pointer should be valid
-		let val = unsafe { *self.data };
+		let val = self.read();
 		if val & FLAG_P == 0 {
 			ProtectionMode::Unmapped
 		}
@@ -431,8 +430,7 @@ impl PTE
 impl ::core::fmt::Debug for PTE
 {
 	fn fmt(&self, f: &mut ::core::fmt::Formatter) -> ::core::fmt::Result {
-		// SAFE: Pointer is either NULL or valid
-		let val = unsafe { if self.is_null() { 0 } else { *self.data } };
+		let val = self.read();
 		
 		let addr = val & !(FLAG_NX|0xFFF);
 		write!(f,
