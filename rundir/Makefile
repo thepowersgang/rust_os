@@ -71,7 +71,8 @@ endif
 # --- AMD64 ---
 #
 ifeq ($(ARCH),amd64)
-CMDLINE += SYSDISK=ATA-0p0
+CMDLINE += SYSDISK=initrd0w
+#CMDLINE += SYSDISK=ATA-0p0
 QEMU_ARGS += -smp 2
 QEMU_ARGS += -vga virtio
 #QEMU_ARGS += -net nic,model=rtl8139
@@ -94,8 +95,8 @@ else
 endif
 
 run: $(QEMU_TRACE_SPEC) images
-	./$(SCRIPT) ../Kernel/bin/kernel-amd64.bin.elf32 "$(CMDLINE)" "$(QEMU_ARGS)" $(TEE)
-images: $(IMGDIR)hda.img $(IMGDIR)hdb.img $(IMGDIR)test.iso
+	./$(SCRIPT) ../Kernel/bin/kernel-amd64.bin.elf32 "$(CMDLINE)" "$(QEMU_ARGS)" "$(IMGDIR)initrd.initrd" $(TEE)
+images: $(IMGDIR)initrd.initrd $(IMGDIR)hda.img $(IMGDIR)hdb.img $(IMGDIR)test.iso
 #
 # --- ARMv7 ---
 #
@@ -157,7 +158,12 @@ endif
 $(IMGDIR)test.iso: $(wildcard ../Usermode/.output/$(ARCH)/bin/*) Makefile
 	@mkdir -p $(dir $@)
 	@echo "[mkisofs] -o $@"
-	$Vmkisofs -input-charset utf-8 -quiet -o $@ -r -graft-points /Tifflin/bin=../Usermode/.output/$(ARCH)/bin /Tifflin/shared/images=../Graphics/.output/shared
+	mkdir -p $(IMGDIR).tmp_test.iso/
+	mkdir -p $(IMGDIR).tmp_test.iso/Tifflin/shared
+	cp -r ../Usermode/.output/$(ARCH)/bin $(IMGDIR).tmp_test.iso/Tifflin/
+	cp -r ../Graphics/.output/shared $(IMGDIR).tmp_test.iso/Tifflin/shared/images
+	$Vgrub-mkrescue -o $@ $(IMGDIR).tmp_test.iso/ --modules="multiboot normal font"
+#	$Vmkisofs -input-charset utf-8 -quiet -o $@ -r -graft-points /Tifflin/bin=../Usermode/.output/$(ARCH)/bin /Tifflin/shared/images=../Graphics/.output/shared
 $(IMGDIR)usb.img:
 	@mkdir -p $(dir $@)
 	@echo "[MkDisk] ZERO 1MB $@"
@@ -167,6 +173,10 @@ $(IMGDIR)hd%_0.img:
 	@echo "[MkDisk] ZERO 1MB $@"
 	@# - 1MB of blank space 
 	$Vdd if=/dev/zero of=$@ bs=1M count=1 status=noxfer
+$(IMGDIR)initrd.initrd: Makefile $(wildcard ../Usermode/.output/$(ARCH)/bin/*) $(wildcard ../Graphics/.output/shared/*)
+	@mkdir -p $(dir $@)
+	cargo run --manifest-path ../Helpers/make_initrd/Cargo.toml -- $@ /Tifflin/bin=../Usermode/.output/$(ARCH)/bin/ /Tifflin/shared/images=../Graphics/.output/shared
+
 $(IMGDIR)hda_1.img: $(wildcard ../Usermode/.output/$(ARCH)/bin/*) Makefile $(wildcard ../Graphics/.output/shared/*)
 	@mkdir -p $(dir $@)
 	@echo "[MkDisk] FAT 32MB $@"

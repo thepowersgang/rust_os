@@ -1,9 +1,14 @@
 #!/bin/bash
-set -e
+set -eu
 
 IMAGE="$1"
 ARGS="$2"
 QEMU_OPTS="$3"
+if [[ $# -gt 3 ]]; then
+	INITRD_PATH="$4"
+else
+	INITRD_PATH=""
+fi
 
 QEMU_OPTS=$QEMU_OPTS" -netdev user,id=usrnet1,tftp=.pxe/,bootfile=pxelinux.0"
 QEMU_OPTS=$QEMU_OPTS" -boot n"
@@ -20,12 +25,17 @@ else
 	cp /usr/lib/syslinux/modules/bios/mboot.c32 .pxe/
 	cp /usr/lib/syslinux/modules/bios/{ldlinux.c32,libcom32.c32} .pxe/
 fi
-cp $IMAGE .pxe
+cp $IMAGE .pxe/
+INITRD_TAIL=""
+if [[ ! -z "$INITRD_PATH" ]]; then
+	cp "$INITRD_PATH" .pxe/
+	INITRD_TAIL="--- ${INITRD_PATH##*/}"
+fi
 cat <<EOF > .pxe/pxelinux.cfg/default
 default testkern
 label testkern
 	kernel mboot.c32
-	append ${IMAGE##*/} ${ARGS}
+	append ${IMAGE##*/} ${ARGS} ${INITRD_TAIL}
 EOF
 
 qemu-system-x86_64 $QEMU_OPTS
