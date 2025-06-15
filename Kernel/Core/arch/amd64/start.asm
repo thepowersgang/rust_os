@@ -273,14 +273,16 @@ start64_higher:
 	mov ecx, 0xC0000082
 	wrmsr
 	; STAR = 0xC000_0081
-	mov eax, 0x00000000
-	mov edx, 0x001B0008	; [63:48] User CS, [47:32] Kernel CS
 	mov ecx, 0xC0000081
+	rdmsr
+	; Preserve eax, contents marked as reserved
+	mov edx, 0x001B0008	; [63:48] User CS, [47:32] Kernel CS
 	wrmsr
 	; FMASK = 0xC000_0084
-	mov eax, 0x200	; - Clear IF on SYSCALL
-	mov edx, 0
 	mov ecx, 0xC0000084
+	rdmsr
+	mov eax, 0x200	; - Clear IF on SYSCALL
+	; Preserve edx, contents marked as reserved
 	wrmsr
 
 	; 7. Call rust kmain
