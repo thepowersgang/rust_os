@@ -460,7 +460,7 @@ pub mod threads {
 				lock: crate::sync::RwLock::new( () ),
 			}
 		}
-		pub fn pause(&self) -> PausedThread {
+		pub fn pause(&self) -> PausedThread<'_> {
 			// - Hold switching lock until function returns
 			// Mark as complete to cause the thread to not sleep on next yield
 			let p = THIS_THREAD_STATE.with(|v| {
