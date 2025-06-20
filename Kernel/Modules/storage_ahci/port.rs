@@ -478,6 +478,7 @@ impl Port
 			let seglen = ::core::cmp::min(len, seglen);
 			let seglen = ::core::cmp::min(MAX_SEG_LEN, seglen);
 			if ! self.ctrlr.supports_64bit {
+				#[cfg(not(target_pointer_width="32"))]
 				if base_phys >> 32 != 0 || (base_phys + (seglen-1) as ::kernel::memory::PAddr) >> 32 != 0 {
 					todo!("AHCI Port::do_fis - Use a bounce buffer due to large pointer");
 				}

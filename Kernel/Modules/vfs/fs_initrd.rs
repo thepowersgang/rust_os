@@ -31,7 +31,7 @@ pub struct InitrdVol {
 }
 impl InitrdVol {
 	/// UNSAFE: Takes raw physical memory locations, and thus can read from any memory
-	pub unsafe fn new(base: u64, length: usize) -> Result<Self,()> {
+	pub unsafe fn new(base: ::kernel::arch::memory::PAddr, length: usize) -> Result<Self,()> {
 		let handle = match ::kernel::memory::virt::map_hw_ro(
 			base, (length + ::kernel::PAGE_SIZE-1) / ::kernel::PAGE_SIZE,
 			"initrd"
@@ -40,7 +40,7 @@ impl InitrdVol {
 			Ok(v) => v,
 			Err(_e) => return Err(()),
 			};
-		let ofs = (base % (::kernel::PAGE_SIZE as u64)) as usize;
+		let ofs = (base % (::kernel::PAGE_SIZE as ::kernel::arch::memory::PAddr)) as usize;
 
 		static INDEX: ::core::sync::atomic::AtomicU32 = ::core::sync::atomic::AtomicU32::new(0);
 		let index = INDEX.fetch_add(1, ::core::sync::atomic::Ordering::Relaxed);

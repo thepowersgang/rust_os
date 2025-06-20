@@ -231,8 +231,8 @@ impl PageEntry
 	fn is_reserved(&self) -> bool {
 		match self
 		{
-		&PageEntry::Section { rgn, idx, .. } => (rgn.get_section_ent(idx).load(Ordering::SeqCst) & 3 != 0),
-		&PageEntry::Page { ref mapping, idx, .. } => (mapping[idx & 0x3FF].load(Ordering::SeqCst) & 3 != 0),
+		&PageEntry::Section { rgn, idx, .. } => rgn.get_section_ent(idx).load(Ordering::SeqCst) & 3 != 0,
+		&PageEntry::Page { ref mapping, idx, .. } => mapping[idx & 0x3FF].load(Ordering::SeqCst) & 3 != 0,
 		}
 	}
 

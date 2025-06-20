@@ -154,4 +154,9 @@ pub fn get_memory_map() -> &'static [crate::memory::MemoryMapEnt] {
 		};
 	&buf[..len]
 }
-
+pub fn get_modules() -> &'static [crate::arch::boot::ModuleInfo] {
+	&[]
+}
+pub fn release_preboot_video() {
+	// No preboot logging
+}

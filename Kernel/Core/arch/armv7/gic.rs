@@ -111,12 +111,12 @@ impl GicInstance
 		(base + ofs) as *const T
 	}
 
-	fn reg_cpu(&self, reg: CpuRegister) -> hwreg::SafeRW<u32>
+	fn reg_cpu(&self, reg: CpuRegister) -> hwreg::SafeRW<'_, u32>
 	{
 		// SAFE: No register can cause memory unsafety
 		unsafe { hwreg::Reg::from_ptr(self.get_ref_cpu(reg as usize)) }
 	}
-	fn reg_dist(&self, reg: DistRegister) -> hwreg::SafeRW<u32>
+	fn reg_dist(&self, reg: DistRegister) -> hwreg::SafeRW<'_, u32>
 	{
 		// SAFE: No register can cause memory unsafety
 		unsafe { hwreg::Reg::from_ptr(self.get_ref_dist(reg.0)) }

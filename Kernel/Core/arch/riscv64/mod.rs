@@ -314,6 +314,7 @@ pub mod time {
 	}
 
 	pub fn request_tick(time: u64) {
+		let _ = time;
 	}
 }
 

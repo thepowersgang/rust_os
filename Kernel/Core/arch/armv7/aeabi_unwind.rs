@@ -72,6 +72,7 @@ pub enum Error
 {
 	Refuse,	// Not an error
 	Malformed,
+	#[allow(dead_code)]
 	BadPointer(*const (),usize),
 	Todo,
 }

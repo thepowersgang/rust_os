@@ -46,7 +46,7 @@ fn init()
 }
 
 #[no_mangle]
-pub unsafe extern fn hexdump(base: *const u8, size: usize) {
+pub unsafe extern "C" fn hexdump(base: *const u8, size: usize) {
 	puts("hexdump("); puth(base as usize as u64); puts(", "); puth(size as u64); puts("): ");
 	for i in 0 .. size {
 		let v = *base.offset(i as isize);
@@ -114,7 +114,7 @@ pub mod time {
 		0
 	}
 	pub fn request_tick(time: u64) {
-		todo!("request_tick");
+		todo!("request_tick({})", time);
 	}
 }
 
@@ -164,7 +164,7 @@ fn print_backtrace_unwindstate(mut rs: aeabi_unwind::UnwindState, mut addr: usiz
 pub use crate::arch::helpers::x86_io_unavailable as x86_io;
 
 #[allow(dead_code)]
-#[cfg(no)]
+#[cfg(any())]
 mod helpers
 {
 	#[repr(C)]

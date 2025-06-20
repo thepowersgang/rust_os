@@ -100,6 +100,7 @@ pub fn get_boot_string() -> &'static str {
 
 pub fn get_memory_map() -> &'static [crate::memory::MemoryMapEnt] {
 	// TODO: Assert that this is only ever called once
+	#[allow(static_mut_refs)]
 	// SAFE: Assuming this function is called only once (which it is)
 	let buf: &mut [_] = unsafe { &mut S_MEMMAP_DATA };
 	let len = {
@@ -148,4 +149,9 @@ pub fn get_memory_map() -> &'static [crate::memory::MemoryMapEnt] {
 		};
 	&buf[..len]
 }
-
+pub fn get_modules() -> &'static [crate::arch::boot::ModuleInfo] {
+	&[]
+}
+pub fn release_preboot_video() {
+	// No preboot logging
+}
