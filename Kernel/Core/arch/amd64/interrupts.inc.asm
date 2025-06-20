@@ -159,7 +159,6 @@ ErrorCommon:
 	; Just dump registers and infinite loop
 	mov rdi, rsp
 	mov esi, 19
-	[extern amd64_bugcheck]
 	call amd64_bugcheck
 	jmp $
 .spurious:

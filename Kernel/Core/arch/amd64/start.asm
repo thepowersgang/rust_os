@@ -4,6 +4,7 @@
 ; arch/amd64/start.asm
 ; - AMD64/IA-32e boot shim
 %include "Core/arch/amd64/common.inc.asm"	; WTF Nasm
+[extern amd64_bugcheck]
 
 [extern low_InitialPML4]
 
@@ -226,6 +227,9 @@ start64_higher:
 	mov es, ax
 	mov fs, ax
 	mov gs, ax
+	; Ensure that TR is somewhat sensible before `get_cpu_num` is called
+	mov ax, 0x38
+	ltr ax
 
 	; Prepare for AP Init
 	; - Warm boot vector (long pointer at 0x467, in the BDA)
@@ -369,6 +373,14 @@ cpu_init_common:
 	mov eax, 0x200	; - Clear IF on SYSCALL
 	; Preserve edx, contents marked as reserved
 	wrmsr
+
+	; HACK: Enable write breakpoint
+	mov rax, 0;0xffffffff80362e08
+	mov dr0, rax
+	; BP0 enabled globally, read-write 8 bytes
+	mov rax, 0x000B0003
+	mov dr7, rax
+
 	ret
 
 
@@ -411,10 +423,19 @@ EXPORT get_cpu_num
 	xor rax,rax
 	str ax
 	sub rax, 0x38
-	jb .ret
+	jb .bugcheck
 	shr rax, 4
+	cmp rax, MAX_CPUS
+	jae .bugcheck
 .ret:
 	ret
+.bugcheck:
+	push rax
+	mov rdi, rsp
+	mov esi, 1
+	call amd64_bugcheck
+	jmp $
+
 ; RDI: Save location for RSP
 ; RSI: New RSP (pointer)
 ; RDX: New FSBASE
