@@ -46,7 +46,7 @@ impl Interrupt
 		for (paddr, len, is_last) in iter_contiguous_phys(buffer) {
 			// SAFE: Trusting ourselves to wait until the hardware is done
 			unsafe {
-				let (data,transfer_length) = (crate::hw::structs::TrbNormalData::Pointer(paddr), len as u32);
+				let (data,transfer_length) = (crate::hw::structs::TrbNormalData::Pointer(paddr.into()), len as u32);
 				state.push(crate::hw::structs::TrbNormal {
 					data,
 					transfer_length,

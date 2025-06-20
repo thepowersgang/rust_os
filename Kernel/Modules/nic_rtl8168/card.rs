@@ -74,7 +74,7 @@ impl Card
 		for (i,d) in card.rx_descs.iter_mut().enumerate() {
 			let ofs = (i % RX_BUF_PER_PAGE) * BYTES_PER_RX_BUF;
 			*d = hw::RxDescOwn::new(
-				get_phys(card.rx_buffers[i / RX_BUF_PER_PAGE].as_ptr().wrapping_add(ofs)),
+				get_phys(card.rx_buffers[i / RX_BUF_PER_PAGE].as_ptr().wrapping_add(ofs)).into(),
 				BYTES_PER_RX_BUF as u16,
 				).into_array().map(|v| v.into());
 		}
@@ -94,8 +94,8 @@ impl Card
 			}
 
 			// Set the descriptor pool addresses
-			card.write_64_pair(Regs::RDSAR, get_phys(card.rx_descs.as_ptr()));
-			card.write_64_pair(Regs::TNPDS, get_phys(card.tx_descs.as_ptr()));
+			card.write_64_pair(Regs::RDSAR, get_phys(card.rx_descs.as_ptr()).into());
+			card.write_64_pair(Regs::TNPDS, get_phys(card.tx_descs.as_ptr()).into());
 			// Set RCR and TCR
 			card.write_32(Regs::RCR, 0x0000_820E);	// RCR: DMA after 256, 64 burst, accept all addressed packets
 			card.write_32(Regs::TCR, 0x3000_0000);	// TCR: DMA 64 burst

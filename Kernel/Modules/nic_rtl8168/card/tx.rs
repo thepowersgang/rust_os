@@ -58,7 +58,7 @@ impl super::Card {
 					for (paddr,len, _is_last) in ::kernel::memory::helpers::iter_contiguous_phys(extent) {
 						assert!(len <= u16::MAX as u32);
 						self.fill_tx_desc(cur_desc, hw::TxDesc {
-								tx_buffer_addr: paddr,
+								tx_buffer_addr: paddr as u64,
 								frame_length: len as u16,
 								flags3: 0,
 								vlan_info: 0,

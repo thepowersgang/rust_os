@@ -124,7 +124,7 @@ impl HostInner
 				0,
 				]);
 			input_context.eps[0] = hw::structs::EndpointContext::zeroed();
-			input_context.eps[0].tr_dequeue_ptr = ::kernel::memory::virt::get_phys(&ep0_queue[0]) | 1;
+			input_context.eps[0].tr_dequeue_ptr = ::kernel::memory::virt::get_phys(&ep0_queue[0]) as u64 | 1;
 			input_context.eps[0].set_word1(hw::structs::EndpointType::Control, 0);  // TODO: What's the default MPS?
 		}
 
@@ -179,7 +179,13 @@ impl HostInner
 	/// Allocate an endpoint queue
 	fn alloc_ep_queue() -> Result< ::kernel::memory::virt::ArrayHandle<crate::hw::structs::Trb>, ::kernel::memory::virt::MapError> {
 		let mut h = ::kernel::memory::virt::alloc_dma(64, 1, "usb_xhci")?.into_array();
-		let trb_link = hw::structs::TrbLink { addr: ::kernel::memory::virt::get_phys(&h[0]), chain: false, interrupter_target: 0, ioc: false, toggle_cycle: true };
+		let trb_link = hw::structs::TrbLink {
+			addr: ::kernel::memory::virt::get_phys(&h[0]).into(),
+			chain: false,
+			interrupter_target: 0,
+			ioc: false,
+			toggle_cycle: true
+		};
 		h[TRBS_PER_PAGE as usize -1] = hw::structs::IntoTrb::into_trb(trb_link, true);
 		Ok(h)
 	}
@@ -233,7 +239,7 @@ impl HostInner
 			if let EndpointType::InterruptIn { period_128us_log2 } = endpoint_type {
 				input_context.eps[endpoint_id as usize - 1].word0 = (period_128us_log2 as u32) << 16;
 			}
-			input_context.eps[endpoint_id as usize - 1].tr_dequeue_ptr = ::kernel::memory::virt::get_phys(&ep_queue[0]) | 1;
+			input_context.eps[endpoint_id as usize - 1].tr_dequeue_ptr = ::kernel::memory::virt::get_phys(&ep_queue[0]) as u64 | 1;
 		}
 		dev.endpoint_ring_allocs[endpoint_id as usize - 1] = Some(ep_queue);
 
@@ -364,7 +370,7 @@ mod dcp {
 			self.0.as_ref(0)
 		}
 		pub fn slot_context_phys(&self) -> u64 {
-			::kernel::memory::virt::get_phys(self.slot_context())
+			::kernel::memory::virt::get_phys(self.slot_context()).into()
 		}
 
 		pub fn input_context(&self) -> &hw::structs::AddrInputContext {
@@ -374,7 +380,7 @@ mod dcp {
 			self.0.as_mut(1024)
 		}
 		pub fn input_context_phys(&self) -> u64 {
-			::kernel::memory::virt::get_phys(self.input_context())
+			::kernel::memory::virt::get_phys(self.input_context()).into()
 		}
 	}
 }

@@ -39,7 +39,7 @@ impl LogHandler {
 	{
 		// SAFE: This is called before shared access, and this code "owns" this buffer
 		let descs: &mut [ [::core::sync::atomic::AtomicU32; 4] ] = unsafe { card.log_page.as_int_mut_slice(0, N_DESC) };
-		let pb = ::kernel::memory::virt::get_phys(descs.as_ptr());
+		let pb = ::kernel::memory::virt::get_phys(descs.as_ptr()).into();
 		for (i,d) in descs.iter_mut().enumerate() {
 			let dv = crate::hw::TxDesc {
 				tx_buffer_addr: pb + (16*N_DESC + i*BUF_LEN) as u64,

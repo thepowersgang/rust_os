@@ -113,7 +113,7 @@ impl host::ControlEndpoint for Control {
 					for (paddr, len, is_last) in iter_contiguous_phys(out_data) {
 						// SAFE: Trusting ourselves to wait until the hardware is done
 						unsafe {
-							state.push(get_data(false, hw_structs::TrbNormalData::Pointer(paddr), len as u32, is_last));
+							state.push(get_data(false, hw_structs::TrbNormalData::Pointer(paddr.into()), len as u32, is_last));
 						}
 					}
 				}
@@ -144,7 +144,7 @@ impl host::ControlEndpoint for Control {
 			for (paddr, len, is_last) in iter_contiguous_phys(in_data) {
 				// SAFE: Trusting ourselves to wait until the hardware is done
 				unsafe {
-					state.push(get_data(true, hw_structs::TrbNormalData::Pointer(paddr), len as u32, is_last));
+					state.push(get_data(true, hw_structs::TrbNormalData::Pointer(paddr.into()), len as u32, is_last));
 				}
 			}
 			// SAFE: No data attached
