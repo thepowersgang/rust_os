@@ -366,7 +366,7 @@ pub mod boot {
 
 	pub struct ModuleInfo
 	{
-		pub base: u64,
+		pub base: crate::arch::memory::PAddr,
 		pub length: usize,
 		pub name: &'static str,
 	}
