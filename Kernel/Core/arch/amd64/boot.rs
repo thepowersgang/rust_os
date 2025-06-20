@@ -139,6 +139,7 @@ pub fn get_modules() -> &'static [ModuleInfo] {
 }
 
 pub fn release_preboot_video() {
+	PREBOOT_VIDEO_STATUS.store(PREBOOT_VIDEO_STATUS_RELEASED, core::sync::atomic::Ordering::SeqCst);
 }
 const PREBOOT_VIDEO_STATUS_UNINIT: u8 = 0;
 const PREBOOT_VIDEO_STATUS_UNDETERMINED: u8 = 1;
