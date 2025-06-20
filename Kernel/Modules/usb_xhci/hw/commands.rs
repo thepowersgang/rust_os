@@ -1,4 +1,5 @@
 //! Commands
+#![allow(dead_code)]
 
 use crate::hw::structs::{Trb, IntoTrb, TrbType};
 
