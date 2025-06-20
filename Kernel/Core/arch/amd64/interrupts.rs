@@ -135,4 +135,19 @@ impl ::core::ops::Drop for ISRHandle
 	}
 }
 
+#[no_mangle]
+unsafe extern "C" fn amd64_bugcheck(mut stack: *const usize, len: usize)
+{
+	use super::log::{puts, puth};
+	puts("amd64_bugcheck\n");
+	for _ in 0 .. len {
+		puts("@");
+		puth(stack as usize as u64);
+		puts("=");
+		puth(*stack as u64);
+		puts("\n");
+		stack = stack.offset(1);
+	}
+}
+
 // vim: ft=rust

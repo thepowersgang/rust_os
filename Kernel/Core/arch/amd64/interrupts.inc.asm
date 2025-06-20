@@ -155,7 +155,12 @@ ErrorCommon:
 	add rsp, 2*8
 	iretq
 .bugcheck:
-	int 3
+	; Here we don't know much about the state
+	; Just dump registers and infinite loop
+	mov rdi, rsp
+	mov esi, 19
+	[extern amd64_bugcheck]
+	call amd64_bugcheck
 	jmp $
 .spurious:
 	mov rdi, rsp
