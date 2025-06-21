@@ -288,7 +288,7 @@ pub unsafe fn reprotect_user(addr: *mut (), prot: ProtectionMode) -> Result<(),(
 }
 
 /// Unmap the frame at the given virtual address
-/// UNSAFE: (Very) invalidates the given pointer
+/// UNSAFE: (Very unsafe) Invalidates the given pointer
 pub unsafe fn unmap(addr: *mut (), count: usize)
 {
 	if crate::arch::memory::virt::is_fixed_alloc(addr, count)
@@ -583,6 +583,8 @@ impl ops::DerefMut for FreePage {
 }
 
 /// Allocate memory allowing for hardware DMA restrictions
+/// 
+/// NOTE: Does _not_ zero the allocated memory
 pub fn alloc_dma(bits: u8, count: usize, module: &'static str) -> Result<AllocHandle,MapError>
 {
 	// 1. Allocate enough pages within the specified range

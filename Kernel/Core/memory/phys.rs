@@ -209,6 +209,8 @@ pub fn allocate(address: *mut ()) -> bool {
 /// Allocate a page at the given (optional) address
 /// 
 /// If no address is provided, a temporary handle is returned
+/// 
+/// NOTE: Zeroes mapped memory
 fn allocate_int( address: Option<*mut ()> ) -> Result<Option<TempHandle<u8>>, Error>
 {
 	log_trace!("allocate(address={:?})", address);
@@ -236,15 +238,15 @@ fn allocate_int( address: Option<*mut ()> ) -> Result<Option<TempHandle<u8>>, Er
 					drop(h);
 					virt::map(address, paddr, super::virt::ProtectionMode::KernelRW);
 				}
-				// Zero page - Why? - Should fill it with dropped :)
 				*(address as *mut [u8; PAGE_SIZE]) = ::core::mem::zeroed();
 				log_trace!("- {:p} (stack) paddr = {:#x}", address, paddr);
 				mark_used(paddr);
 				return Ok(None);
 				},
 			None => {
-				let handle = crate::arch::memory::virt::TempHandle::new(paddr);
+				let mut handle = crate::arch::memory::virt::TempHandle::new(paddr);
 				*h = *(&handle[0] as *const u8 as *const PAddr);
+				handle.fill(0);
 				log_trace!("- None (stack) paddr = {:#x}", paddr);
 				mark_used(paddr);
 				return Ok( Some(handle) );
@@ -270,7 +272,8 @@ fn allocate_int( address: Option<*mut ()> ) -> Result<Option<TempHandle<u8>>, Er
 			log_trace!("- None (range) paddr = {:#x}", paddr);
 			mark_used(paddr);
 			// SAFE: Physical address was just allocated, can't alias
-			let handle = unsafe { crate::arch::memory::virt::TempHandle::new(paddr) };
+			let mut handle = unsafe { crate::arch::memory::virt::TempHandle::new(paddr) };
+			handle.fill(0);
 			return Ok( Some(handle) );
 		}
 	}

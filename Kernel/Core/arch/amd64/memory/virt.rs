@@ -477,7 +477,13 @@ pub fn handle_page_fault(accessed_address: usize, error_code: u32) -> bool
 	}
 	//  > Paged-out pages
 	if error_code & FAULT_LOCKED == 0 && pte.is_reserved() {
-		todo!("Paged - {:#x} pte = {:?}", accessed_address, pte);
+		// SAFE: Since `get_page_ent` worked, this should too
+		let ents = unsafe { (
+			get_entry(3, (accessed_address & ((1<<48)-1)) >> (12+9*3), false ),
+			get_entry(2, (accessed_address & ((1<<48)-1)) >> (12+9*2), false ),
+			get_entry(1, (accessed_address & ((1<<48)-1)) >> (12+9*1), false ),
+		)};
+		todo!("Paged - {:#x} pte = {:?}\n{:?}, {:?}, {:?}", accessed_address, pte, ents.0, ents.1, ents.2);
 	}
 	
 	
