@@ -138,8 +138,14 @@ impl ::core::ops::Drop for ISRHandle
 #[no_mangle]
 unsafe extern "C" fn amd64_bugcheck(mut stack: *const usize, len: usize)
 {
+	extern "C" {
+		#[link_name = "llvm.returnaddress"]
+		fn return_address(level: i32) -> *const u8;
+	}
 	use super::log::{puts, puth};
-	puts("amd64_bugcheck\n");
+	puts("amd64_bugcheck @ ");
+	puth(return_address(0) as usize as u64);
+	puts("\n");
 	for _ in 0 .. len {
 		puts("@");
 		puth(stack as usize as u64);
