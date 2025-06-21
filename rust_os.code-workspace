@@ -10,7 +10,7 @@
 			"RUSTFLAGS": "--cfg arch=\"native\" --cfg in_ide"
 		},
 		"rust-analyzer.cargo.features": [
-
+			"acpica"
 		],
 		"makefile.configureOnOpen": false
 	}

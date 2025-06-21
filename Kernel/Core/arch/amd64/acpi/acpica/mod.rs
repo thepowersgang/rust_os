@@ -6,10 +6,8 @@
 #[allow(unused_imports)]
 use crate::prelude::*;
 use core::ops;
-use self::shim_ext::*;
+use ::acpica_sys::*;
 
-// Shim - Functions called by rust
-mod shim_ext;
 // Shim - Functions called by ACPICA
 mod os_int;
 
@@ -38,6 +36,15 @@ pub fn init()
 		acpi_try!(AcpiLoadTables());
 		log_trace!("AcpiEnableSubsystem");
 		acpi_try!(AcpiEnableSubsystem(ACPI_FULL_INITIALIZATION));
+
+		log_trace!("AcpiInstallFixedEventHandler(ACPI_EVENT_POWER_BUTTON)");
+		acpi_try!(AcpiInstallFixedEventHandler(ACPI_EVENT_POWER_BUTTON, handler_powerbtn, 0 as *mut _));
+	}
+}
+extern "C" fn handler_powerbtn(_: *mut acpica_sys::Void) {
+	// SAFE: Rebooting is safe, I'm just paranoid
+	unsafe {
+		crate::arch::reboot();
 	}
 }
 
@@ -56,7 +63,7 @@ pub fn find_table<T:'static>(req_name: &str, idx: usize) -> Option<SDTHandle<T>>
 		//   that taking a pointer to a non NUL-terminated string is valid.
 		match AcpiGetTable(req_name.as_bytes().as_ptr(), idx as u32 + 1, &mut out_ptr)
 		{
-		shim_ext::AE_OK => {
+		acpica_sys::AE_OK => {
 			log_debug!("AcpiGetTable: out_ptr = {:p}", out_ptr);
 			crate::logging::hex_dump_t("AcpiGetTable", &*out_ptr);
 			let handle = SDTHandle(&*(out_ptr as *const super::SDT<T>));
@@ -72,9 +79,9 @@ pub fn find_table<T:'static>(req_name: &str, idx: usize) -> Option<SDTHandle<T>>
 				Some( handle )
 			}
 			},
-		shim_ext::AE_NOT_FOUND => None,
+		acpica_sys::AE_NOT_FOUND => None,
 
-		shim_ext::AE_BAD_PARAMETER => panic!("BUGCHECK: AcpiGetTable returned AE_BAD_PARAMETER"),
+		acpica_sys::AE_BAD_PARAMETER => panic!("BUGCHECK: AcpiGetTable returned AE_BAD_PARAMETER"),
 		ec @ _ => {
 			log_notice!("AcpiGetTable in find_table({},{}) returned {}", req_name, idx, ec);
 			None

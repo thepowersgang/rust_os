@@ -18,6 +18,7 @@ Cargo.lock
 /acpica/*.a
 /acpica/acpica-*
 /externals/crates.io/*
+/externals/acpica-sys/acpica-src
 /Screenshots
 /rustc-nightly-src
 

@@ -1,0 +1,7 @@
+--- acenv.h
++++ acenv.h
+@@ -172,2 +172,2 @@
+-#if defined(_LINUX) || defined(__linux__)
+-#include "aclinux.h"
++#if defined(RUST)
++#include "acrust.h"

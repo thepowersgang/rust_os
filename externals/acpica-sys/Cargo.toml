@@ -1,0 +1,11 @@
+[package]
+name = "acpica-sys"
+version = "0.1.0"
+edition = "2018"
+
+[build-dependencies]
+#cc = "1"
+#data_downloader = "0.2"
+#hex-literal = "0.4"
+#tar = "0.4"
+#patch-apply = "0.8"

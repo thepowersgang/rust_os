@@ -6,8 +6,15 @@
 #![allow(non_snake_case)]
 #![allow(dead_code,unused_variables)]
 use crate::prelude::*;
-use super::shim_ext::*;
+use ::acpica_sys::*;
 use super::va_list::VaList;
+
+#[allow(non_camel_case_types)]
+pub type ACPI_SPINLOCK = *const crate::sync::Spinlock<()>;
+#[allow(non_camel_case_types)]
+pub type ACPI_MUTEX = *const crate::sync::Mutex<()>;
+#[allow(non_camel_case_types)]
+pub type ACPI_SEMAPHORE = *const crate::sync::Semaphore;
 
 #[no_mangle] #[linkage="external"]
 extern "C" fn AcpiOsInitialize() -> ACPI_STATUS {
@@ -94,12 +101,12 @@ extern "C" fn AcpiOsGetPhysicalAddress(LogicalAddress: *const (), PhysicalAddres
 #[no_mangle] #[linkage="external"]
 extern "C" fn AcpiOsAllocate(Size: ACPI_SIZE) -> *mut () {
 	// SAFE: (called from external, trust it)
-	unsafe { crate::memory::heap::malloc(Size) }
+	unsafe { crate::memory::heap::alloc_raw(Size, 16) }
 }
 #[no_mangle] #[linkage="external"]
 extern "C" fn AcpiOsFree(Memory: *mut ()) {
 	// SAFE: (called from external, trust it)
-	unsafe { crate::memory::heap::free(Memory) }
+	unsafe { crate::memory::heap::dealloc_raw(Memory, 0, 16) }
 }
 
 #[no_mangle] #[linkage="external"]
@@ -242,6 +249,7 @@ extern "C" fn AcpiOsInstallInterruptHandler(InterruptLevel: u32, Handler: ACPI_O
 	log_warning!("TODO: AcpiOsInstallInterruptHandler(InterruptLevel={}, Handler={:p}, Context={:p}",
 		InterruptLevel, Handler as *const (), Context);
 	// Doesn't do anything... yet. I don't have any idea what this interrupt actually is
+	//let _ = crate::arch::interrupts::bind_gsi(InterruptLevel as usize, Handler, Context);
 	AE_OK
 }
 #[no_mangle] #[linkage="external"]

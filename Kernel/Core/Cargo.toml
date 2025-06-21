@@ -7,8 +7,8 @@ edition = "2018"
 path = "main.rs"
 
 [features]
-acpica = [ "va_list" ]
-test = ["lazy_static"]
+acpica = [ "va_list", "dep:acpica-sys" ]
+test = [ "lazy_static" ]
 
 [dependencies]
 cfg-if = "0.1"
@@ -20,6 +20,7 @@ embedded-images = { path = "../../Graphics/embedded" }
 
 [target.'cfg(target_arch = "x86_64")'.dependencies]
 uefi_proto = { path = "../../Bootloaders/uefi_proto" }
+acpica-sys = { path = "../../externals/acpica-sys", optional = true}
 
 [lints.rust]
 unexpected_cfgs = { level = "warn", check-cfg = ['cfg(use_acpica)', 'cfg(test_shim)', 'cfg(_false)', 'cfg(false_)', 'cfg(in_ide)'] }
