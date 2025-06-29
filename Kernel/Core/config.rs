@@ -12,11 +12,16 @@
 pub unsafe fn init(cmdline: &'static str)
 {
 	S_CONFIG.init(cmdline);
+	S_TEST_FLAGS.init(S_CONFIG.get_str(Value::TestFlags));
+}
+
+pub fn test_flags<T>(cb: impl FnOnce(&TestFlags)->T)->T {
+	// SAFE: This is only modified with the above unsafe function
+	unsafe { cb(&S_TEST_FLAGS) }
 }
 
 /// Get a configuration parameter from the kernel config
-pub fn get_string(val: Value) -> &'static str
-{
+pub fn get_string(val: Value) -> &'static str {
 	// SAFE: No mutation should happen when get_string is being called
 	unsafe {
 		S_CONFIG.get_str(val)
@@ -82,6 +87,42 @@ macro_rules! def_config_set {
 		}
 	};
 }
+macro_rules! def_test_flags {
+	(
+		in $struct_name:ident
+		$(
+		$(#[$at:meta])*
+		$name:ident,
+		)*
+	) => {
+		pub struct $struct_name
+		{
+			$(
+				$(#[$at])*
+				pub $name: bool,
+			)*
+		}
+		impl $struct_name
+		{
+			const fn new() -> Self {
+				$struct_name {
+					$($name: false,)*
+				}
+			}
+			fn init(&mut self, value: &str)
+			{
+				for v in value.split(',')
+				{
+					let v = v.trim();
+					match v {
+					$( stringify!($name) => self.$name = true, )*
+					_ => {},
+					}
+				}
+			}
+		}
+	}
+}
 
 def_config_set! {
 	Value in Config: {
@@ -99,6 +140,13 @@ def_config_set! {
 		DisabledModules @ "NOMOD" = "",
 	}
 }
+def_test_flags! {
+	in TestFlags
+	/// Disable running of `init`
+	noinit,
+	/// Do not run multi-cpu initialisation
+	single_processor,
+}
 
 static mut S_CONFIG: Config = Config::new();
-
+static mut S_TEST_FLAGS: TestFlags = TestFlags::new();

@@ -129,6 +129,10 @@ pub fn init_smp() {
 static AP_STARTUP_ACTIVE: crate::sync::Semaphore = crate::sync::Semaphore::new(0, 1);
 static CUR_CPU_COUNT: core::sync::atomic::AtomicUsize = core::sync::atomic::AtomicUsize::new(1);
 fn start_ap(apic_id: u8) {
+	if crate::config::test_flags(|f| f.single_processor) {
+		log_notice!("SMP disabled, not starting API w/ `apic_id={}`", apic_id);
+		return ;
+	}
 	extern "C" {
 		static mut s_ap_stack: u64;
 		static s_max_cpus: u32;

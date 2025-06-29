@@ -101,10 +101,8 @@ fn sysinit() -> !
 	use kernel::metadevs::storage::VolumeHandle;
 	use ::vfs::{mount,handle};
 	use ::vfs::Path;
-	use kernel::config::{get_string, Value};
 
-	let test_flags = get_string(Value::TestFlags);
-	if test_flags.split(',').any(|v| v == "noinit")
+	if ::kernel::config::test_flags(|v| v.noinit)
 	{
 		log_error!("Stopping at sysinit");
 		::kernel::threads::SleepObject::with_new("noinit", |so| so.wait());
