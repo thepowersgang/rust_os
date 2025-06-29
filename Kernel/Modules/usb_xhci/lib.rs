@@ -69,15 +69,45 @@ impl HostInner
 		// SAFE: This function is only called with a valid register binding
 		let regs = unsafe { hw::Regs::new(io) };
 
+		log_debug!("regs.pagesizes() = {:#x}, regs.max_ports() = {}", regs.pagesizes(), regs.max_ports());
+		assert!(regs.pagesizes() & 1 != 0, "{:#x}", regs.pagesizes());
+
+		fn wait_until(max_wait_ms: u32, mut cb: impl FnMut()->bool) -> Result<(),::kernel::device_manager::DriverBindError> {
+			let to = ::kernel::time::ticks() + max_wait_ms as u64;
+			loop {
+				if cb() {
+					return Ok( () )
+				}
+				if cb() {
+					return Ok( () )
+				}
+				if ::kernel::time::ticks() > to {
+					return Err( ::kernel::device_manager::DriverBindError::Bug("Timeout") );
+				}
+				::kernel::futures::block_on(::kernel::futures::msleep(5));
+			}
+		}
+
 		// Controller init
 		// - Trigger a reset and wait for USBSTS.NCR to become zero
 		// SAFE: Correct write
 		unsafe {
+			// Clear RS just in case, and wait for HCH to set
+			regs.usbcmd().write(0);	// Stop the controller
+			wait_until(1000, || {
+				let s = regs.usbsts().read();
+				log_trace!("Waiting for halt, USBSTS={:#x}", s);
+				s & hw::regs::USBSTS_HCH != 0
+			})?;
+
+			// Set "Host Controller Reset" and wait until the controller clears this bit
 			regs.usbcmd().write(hw::regs::USBCMD_HCRST);
-		}
-		// TODO: Sleep with timeout, in case hardware is misbehaving
-		while regs.usbsts().read() & hw::regs::USBSTS_CNR != 0 {
-			::kernel::futures::block_on(::kernel::futures::msleep(5));
+			wait_until(1000, || {
+				let c = regs.usbcmd().read();
+				let s = regs.usbsts().read();
+				log_trace!("Waiting for reset complete, USBSTS={:#x} USBCMD={:#x}", s, c);
+				(c & hw::regs::USBCMD_HCRST == 0) && (s & hw::regs::USBSTS_CNR == 0)
+			})?;
 		}
 
 		// - Device init, any order:
@@ -120,7 +150,7 @@ impl HostInner
 		// SAFE: Correct write
 		unsafe {
 			// TODO: Hard stop here with USBSTS=0x11 on real hardware :(
-			rv.regs.usbcmd().write(hw::regs::USBCMD_RS);
+			rv.regs.usbcmd().write(hw::regs::USBCMD_INTE);	// INTE should be set before RS
 			log_debug!("Mid-run: USBSTS {:#x}, USBCMD {:#x}", rv.regs.usbsts().read(), rv.regs.usbcmd().read());
 			rv.regs.usbcmd().write(hw::regs::USBCMD_RS|hw::regs::USBCMD_INTE);
 		}
