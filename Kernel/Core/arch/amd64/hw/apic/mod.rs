@@ -29,9 +29,9 @@ pub enum IrqError
 //#[link_section="processor_local"]
 //static s_lapic_lock: ::sync::Mutex<()> = mutex_init!( () );
 #[allow(non_upper_case_globals)]
-static s_lapic: crate::lib::LazyStatic<raw::LAPIC> = lazystatic_init!();
+static S_LAPIC: crate::lib::LazyStatic<raw::LAPIC> = lazystatic_init!();
 #[allow(non_upper_case_globals)]
-static s_ioapics: crate::lib::LazyStatic<Vec<raw::IOAPIC>> = lazystatic_init!();
+static S_IOAPICS: crate::lib::LazyStatic<Vec<raw::IOAPIC>> = lazystatic_init!();
 
 fn init()
 {
@@ -90,22 +90,52 @@ fn init()
 	// Create APIC and IOAPIC instances
 	// SAFE: Called in a single-threaded context
 	unsafe {
-		s_lapic.prep(|| raw::LAPIC::new(lapic_addr));
-		s_lapic.ls_unsafe_mut().global_init();
+		S_LAPIC.prep(|| raw::LAPIC::new(lapic_addr));
+		S_LAPIC.ls_unsafe_mut().global_init();
 
-		s_ioapics.prep(|| ioapics);
+		S_IOAPICS.prep(|| ioapics);
 		};
-	s_lapic.init();
+	S_LAPIC.percpu_init();
 	
 	// Enable interrupts (telling the threading logic to expect IF to be set)
 	crate::arch::amd64::threads::S_IRQS_ENABLED.store(true, ::core::sync::atomic::Ordering::Relaxed);
 	// SAFE: Just STI, nothing to worry about
 	unsafe { ::core::arch::asm!("sti"); }
+
+	if true
+	{
+		const PORT_BASE: u16 = 0x3F8;
+		// HACK: Serial port IRQ
+		fn serial_irq_handler(_: *const ()) {
+			crate::arch::puts("RS232 IRQ:");
+			// SAFE: No memory addresses
+			unsafe {
+				use crate::arch::amd64::x86_io::inb;
+				crate::arch::puts(" IIR=");
+				crate::arch::puth(inb(PORT_BASE+2) as _);	// read status
+				crate::arch::puts(" LSR=");
+				crate::arch::puth(inb(PORT_BASE+5) as _);
+				// While LSR bit 0 ("DR") is set
+				while inb(PORT_BASE+5) & 0x01 != 0 {
+					crate::arch::puts(" D=");
+					crate::arch::puth(inb(PORT_BASE+0) as _);	// read the data
+				}
+			}
+			crate::arch::puts("\n");
+		}
+		// SAFE: No memory addresses
+		unsafe {
+			crate::arch::x86_io::outb(PORT_BASE+2, 0x05);
+			// Enable Rx interrupt (only)
+			crate::arch::x86_io::outb(PORT_BASE+1, 0x01);
+		}
+		::core::mem::forget(register_irq(4, serial_irq_handler, 0 as _));
+	}
 }
 
 fn get_ioapic(interrupt: usize) -> Option<(&'static raw::IOAPIC, usize)>
 {
-	match s_ioapics.iter().find( |a| a.contains(interrupt) )
+	match S_IOAPICS.iter().find( |a| a.contains(interrupt) )
 	{
 	None => None,
 	Some(x) => {
@@ -116,13 +146,13 @@ fn get_ioapic(interrupt: usize) -> Option<(&'static raw::IOAPIC, usize)>
 }
 fn get_lapic() -> &'static raw::LAPIC
 {
-	assert!(s_lapic.ls_is_valid(), "get_lapic called before APIC init (or with no APIC)");
-	&*s_lapic
+	assert!(S_LAPIC.ls_is_valid(), "get_lapic called before APIC init (or with no APIC)");
+	&*S_LAPIC
 }
 
 /// Should only (really) be called once per AP
 pub fn init_ap_lapic() {
-	s_lapic.init();
+	S_LAPIC.percpu_init();
 }
 /// UNSAFE: Does a warm reboot of the core
 pub unsafe fn send_ipi_init(apic_id: u8) {
@@ -175,9 +205,11 @@ pub fn register_irq(global_num: usize, callback: IRQHandler, info: *const() ) ->
 		None => return Err( IrqError::BadIndex ),
 		};
 	
-	// Bind ISR
 	// TODO: Pick a suitable processor, and maybe have separate IDTs (and hence separate ISR lists)
+	// - At least, ensure that this lapic_id is valid
 	let lapic_id = 0u32;
+	
+	// Bind ISR
 	let isr_handle = match crate::arch::amd64::interrupts::bind_free_isr(lapic_irq_handler, info, global_num)
 		{
 		Ok(v) => v,
@@ -185,7 +217,7 @@ pub fn register_irq(global_num: usize, callback: IRQHandler, info: *const() ) ->
 		};
 
 	// Enable the relevant IRQ on the LAPIC and IOAPIC
-	// - Uses edge triggering so the handler can signal to the downstream
+	// - Uses edge triggering so the handler can signal to the downstream, without needing to check the IRQ status
 	// - Works (at least with qemu) even if the source is level-triggered
 	let mode = raw::TriggerMode::EdgeHi;
 	//let mode = raw::TriggerMode::LevelHi;

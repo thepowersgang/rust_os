@@ -12,6 +12,7 @@ use crate::prelude::*;
 pub struct Madt
 {
 	pub local_controller_addr: u32,
+	/// `[0]`: Legacy 8259 PIC installed. Needs to be disabled before using IOAPIC
 	pub flags: u32,
 	end: [u8; 0],
 }
