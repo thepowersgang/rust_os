@@ -10,6 +10,9 @@ use crate::prelude::*;
 use crate::lib::byte_str::ByteStr;
 
 module_define!{ACPI, [], init}
+mod late {
+	module_define!{ACPI_Late, [APIC], super::init_late}
+}
 
 #[cfg_attr(any(use_acpica,feature="acpica"), path="acpica/mod.rs")]
 #[cfg_attr(not(any(use_acpica,feature="acpica")), path="mine/mod.rs")]
@@ -83,6 +86,9 @@ unsafe impl<T: crate::lib::POD> crate::lib::POD for SDT<T> {}
 fn init()
 {
 	internal::init();
+}
+fn init_late() {
+	internal::init_late();
 }
 
 

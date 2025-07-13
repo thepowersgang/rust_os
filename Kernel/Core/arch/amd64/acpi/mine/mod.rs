@@ -105,6 +105,8 @@ pub fn init()
 	// Poke sub-enumerators
 	fadt::parse_fadt();
 }
+pub fn init_late() {
+}
 
 /// Find all SDTs with a given signature
 pub fn find_table<T: 'static + crate::lib::POD>(req_name: &str, mut idx: usize) -> Option<SDTHandle<T>>

@@ -36,10 +36,12 @@ pub fn init()
 		acpi_try!(AcpiLoadTables());
 		log_trace!("AcpiEnableSubsystem");
 		acpi_try!(AcpiEnableSubsystem(ACPI_FULL_INITIALIZATION));
-
 		log_trace!("AcpiInstallFixedEventHandler(ACPI_EVENT_POWER_BUTTON)");
 		acpi_try!(AcpiInstallFixedEventHandler(ACPI_EVENT_POWER_BUTTON, handler_powerbtn, 0 as *mut _));
 	}
+}
+pub fn init_late() {
+	os_int::init_late();
 }
 extern "C" fn handler_powerbtn(_: *mut acpica_sys::Void) {
 	// SAFE: Rebooting is safe, I'm just paranoid

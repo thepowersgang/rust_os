@@ -9,6 +9,17 @@ use crate::prelude::*;
 use ::acpica_sys::*;
 use super::va_list::VaList;
 
+pub fn init_late() {
+	match *INT_HANDLER.lock()
+	{
+	ref mut v @ IntHandler::Waiting { InterruptLevel, Handler, Context } => {
+		install_interrupt_inner(InterruptLevel, Handler, Context);
+		*v = IntHandler::PostInit;
+	}
+	ref mut v => { *v = IntHandler::PostInit; },
+	}
+}
+
 #[allow(non_camel_case_types)]
 pub type ACPI_SPINLOCK = *const crate::sync::Spinlock<()>;
 #[allow(non_camel_case_types)]
@@ -244,12 +255,49 @@ extern "C" fn AcpiOsReleaseLock(Handle: ACPI_SPINLOCK, Flags: ACPI_CPU_FLAGS) {
 
 // -- Interrupt handling --
 // ------------------------
+enum IntHandler {
+	Preinit,
+	PostInit,
+	Waiting {
+		InterruptLevel: u32,
+		Handler: ACPI_OSD_HANDLER,
+		Context: *const ::acpica_sys::Void,
+	},
+}
+unsafe impl Sync for IntHandler {}
+unsafe impl Send for IntHandler {}
+static INT_HANDLER: crate::sync::Spinlock<IntHandler> = crate::sync::Spinlock::new(IntHandler::Preinit);
+fn install_interrupt_inner(InterruptLevel: u32, Handler: ACPI_OSD_HANDLER, Context: *const ::acpica_sys::Void) {
+	if true {
+		log_warning!("TODO: install_interrupt_inner(InterruptLevel={}, Handler={:p}, Context={:p})",
+			InterruptLevel, Handler as *const (), Context);
+	}
+	else {
+		let ctxt = Box::new(( Handler, Context ));
+		// SAFE: Evil
+		let _ = crate::arch::interrupts::bind_gsi(InterruptLevel as usize, |ct| unsafe {
+			let (Handler, Context) = *(ct as *const (ACPI_OSD_HANDLER, *const ::acpica_sys::Void));
+			(Handler)(Context);
+		}, Box::into_raw(ctxt) as *const _);
+	}
+}
 #[no_mangle] #[linkage="external"]
-extern "C" fn AcpiOsInstallInterruptHandler(InterruptLevel: u32, Handler: ACPI_OSD_HANDLER, Context: *const ()) -> ACPI_STATUS {
-	log_warning!("TODO: AcpiOsInstallInterruptHandler(InterruptLevel={}, Handler={:p}, Context={:p}",
-		InterruptLevel, Handler as *const (), Context);
-	// Doesn't do anything... yet. I don't have any idea what this interrupt actually is
-	//let _ = crate::arch::interrupts::bind_gsi(InterruptLevel as usize, Handler, Context);
+/// `InterruptLevel` is probably the interrupt line, seen called with `InterruptLevel=9`
+extern "C" fn AcpiOsInstallInterruptHandler(InterruptLevel: u32, Handler: ACPI_OSD_HANDLER, Context: *const ::acpica_sys::Void) -> ACPI_STATUS {
+	// TODO: This tends to be run before the APIC is initialised, so need to remember the interrupt number and register later on
+	// - APIC depends on ACPI, but this is called as part of ACPI bringup.
+
+	match *INT_HANDLER.lock()
+	{
+	ref mut v @ IntHandler::Preinit => {
+		*v = IntHandler::Waiting { InterruptLevel, Handler, Context };
+	}
+	IntHandler::Waiting { .. } => {
+		log_warning!("TODO: AcpiOsInstallInterruptHandler(InterruptLevel={}, Handler={:p}, Context={:p})",
+			InterruptLevel, Handler as *const (), Context);
+	},
+	IntHandler::PostInit => { install_interrupt_inner(InterruptLevel, Handler, Context); },
+	}
 	AE_OK
 }
 #[no_mangle] #[linkage="external"]
