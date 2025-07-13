@@ -123,7 +123,7 @@ impl ::network::nic::Interface for Nic {
 		}
 	}
 
-	fn rx_packet(&self) -> Result<::network::nic::PacketHandle, ::network::nic::Error> {
+	fn rx_packet(&self) -> Result<::network::nic::PacketHandle<'_>, ::network::nic::Error> {
 		return match self.rx_common.packets.try_pop() {
 			Some(p) => Ok( ::network::nic::PacketHandle::new(P(p)).ok().unwrap() ),
 			None => Err(::network::nic::Error::NoPacket),

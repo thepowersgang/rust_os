@@ -16,7 +16,7 @@ enum FieldElement<'a>
 
 impl<'a> AmlStream<'a>
 {
-	pub fn new(s: &[u8]) -> AmlStream {
+	pub fn new(s: &[u8]) -> AmlStream<'_> {
 		AmlStream(s, 0)
 	}
 	
@@ -132,7 +132,7 @@ impl<'a> AmlStream<'a>
 		v @ _ => todo!("read_termarg - {:#02x}", v),
 		}
 	}
-	pub fn read_fieldelement(&mut self) -> Result<FieldElement,Error> {
+	pub fn read_fieldelement(&mut self) -> Result<FieldElement<'_>,Error> {
 		Ok(match self.peek_byte()?
 		{
 		// NamedField
