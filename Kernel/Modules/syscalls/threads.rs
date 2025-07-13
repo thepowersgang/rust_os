@@ -145,6 +145,10 @@ impl crate::objects::Object for ProtoProcess
 		values::CORE_PROTOPROCESS_START => {
 			let _ = this;
 			let _ = args;
+			#[allow(dead_code)]
+			fn unused(ph: kernel::threads::ProcessHandle) -> Process {
+				Process(ph)
+			}
 			panic!("CORE_PROTOPROCESS_START should have already been handled");
 			}
 		_ => crate::objects::object_has_no_such_method_val("threads::ProtoProcess", call)

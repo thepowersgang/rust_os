@@ -216,7 +216,7 @@ impl TcpConn<'_>
         }
     }
 
-    pub fn from_rx_conn(fw: &crate::TestFramework, lport: u16, laddr: crate::ipv4::Addr) -> TcpConn
+    pub fn from_rx_conn(fw: &crate::TestFramework, lport: u16, laddr: crate::ipv4::Addr) -> TcpConn<'_>
     {
         let t = std::time::Instant::now();
         let data_handle = match fw.wait_packet(std::time::Duration::from_millis(1000))

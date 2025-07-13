@@ -101,7 +101,7 @@ impl network::nic::Interface for TestNic
         *self.waiter.lock().unwrap() = None;
     }
 
-    fn rx_packet(&self) -> Result<network::nic::PacketHandle, network::nic::Error> {
+    fn rx_packet(&self) -> Result<network::nic::PacketHandle<'_>, network::nic::Error> {
         let mut lh = self.packets.lock().unwrap();
         if let Some(v) = lh.pop_front()
         {
