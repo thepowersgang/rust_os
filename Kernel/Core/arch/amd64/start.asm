@@ -40,8 +40,8 @@ mboot:
 	dd MULTIBOOT_HEADER_MAGIC
 	dd MULTIBOOT_HEADER_FLAGS
 	dd MULTIBOOT_CHECKSUM
-	dd mboot
 	; a.out kludge (not used)
+	dd mboot	; header_addr
 	dd 0	; load_addr
 	dd 0	; load_end_addr
 	dd 0	; bss_end_addr
