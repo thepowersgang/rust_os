@@ -130,6 +130,7 @@ fn init()
 			crate::arch::x86_io::outb(PORT_BASE+1, 0x01);
 		}
 		::core::mem::forget(register_irq(4, serial_irq_handler, 0 as _));
+		S_IOAPICS[0].set_irq(4, 32, 0, raw::TriggerMode::LevelHi, serial_irq_handler);
 	}
 }
 
