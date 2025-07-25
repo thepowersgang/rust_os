@@ -13,7 +13,7 @@
 #![feature(allocator_api)]
 #![feature(allocator_internals)]
 #![feature(test,custom_test_frameworks)]	// used for macro import
-#![feature(concat_idents,format_args_nl,log_syntax)]
+#![feature(format_args_nl,log_syntax)]
 #![default_lib_allocator]
 #![no_std]
 
@@ -112,7 +112,6 @@ pub mod prelude {
 			column,
 			compile_error,
 			concat,
-			concat_idents,
 			env,
 			file,
 			format_args,

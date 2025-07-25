@@ -123,7 +123,7 @@ impl node::NodeBase for FileRef {
 	fn get_id(&self) -> node::InodeId {
 		unimplemented!()
 	}
-	fn get_any(&self) -> &dyn (::core::any::Any) {
+	fn get_any(&self) -> &dyn ::core::any::Any {
 		self
 	}
 }

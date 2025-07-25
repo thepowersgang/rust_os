@@ -4,7 +4,7 @@
 	"llvm-target": "x86_64-unknown-none",
 	"target-endian": "little",
 	"target-pointer-width": "64",
-	"target-c-int-width": "32",
+	"target-c-int-width": 32,
 	"os": "tifflin",
 	"arch": "x86_64",
 		"linker": "x86_64-none-elf-ld",

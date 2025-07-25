@@ -4,7 +4,7 @@
 	"llvm-target": "x86_64-unknown-none",
 	"target-endian": "little",
 	"target-pointer-width": "64",
-	"target-c-int-width": "32",
+	"target-c-int-width": 32,
 	"features": "-mmx,-sse,+soft-float",
 	"rustc-abi": "x86-softfloat",
 	"os": "tifflin",

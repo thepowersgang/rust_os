@@ -14,7 +14,7 @@
   "max-atomic-width": 64,
   "panic-strategy": "unwind",
   "relocation-model": "static",
-  "target-c-int-width": "32",
+  "target-c-int-width": 32,
   "target-endian": "little",
   "target-pointer-width": "64"
   

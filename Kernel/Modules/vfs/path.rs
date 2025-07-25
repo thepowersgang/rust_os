@@ -43,7 +43,7 @@ impl Path
 	}
 	pub fn is_normalised(&self) -> bool {
 		// If none of the components are .. or ., it's normalised
-		!self.iter().any(|c| (c == ".." || c == "."))
+		!self.iter().any(|c| c == ".." || c == ".")
 	}
 	
 	pub fn iter(&self) -> Components<'_> {

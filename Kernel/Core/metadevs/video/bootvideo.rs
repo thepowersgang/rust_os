@@ -154,7 +154,7 @@ impl Buffer
 
 impl super::Framebuffer for Framebuffer
 {
-	fn as_any(&self) -> &dyn (::core::any::Any) {
+	fn as_any(&self) -> &dyn ::core::any::Any {
 		self
 	}
 	fn activate(&mut self) {
