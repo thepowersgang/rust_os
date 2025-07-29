@@ -162,6 +162,44 @@ impl Regs
 	}
 }
 
+impl Regs
+{
+	/// xHCI Extended Capabilities Pointer
+	/// 
+	/// Multiply by 4 to get the offset to those
+	pub fn xhci_extended_cap_pointer(&self) -> u16 {
+		((self.hcc_params_1() >> 16) & 0xFFFF) as u16
+	}
+
+	pub fn with_extended_caps<'s, T>(&'s self, mut cb: impl FnMut(ExtendedCap<'s>)->Option<T>) -> Option<T> {
+		let mut p = self.xhci_extended_cap_pointer() as usize * 4;
+		while p != 0 {
+			let inner = ExtendedCapInner { regs: self, ofs: p };
+			let (id, length) = inner.get_common();
+			::kernel::log_debug!("with_extended_caps: @{:#x} {} len={}*4", p, id, length);
+			let r = match id {
+				0 => None,	// 0 is reserved
+				1 => cb(ExtendedCap::LegacySupport(ExtCapLegacySupport(inner))),
+				_ => cb(ExtendedCap::Unknown(id, length)),
+				};
+			if let Some(rv) = r {
+				return Some(rv);
+			}
+			if length == 0 {
+				break;
+			}
+			p += length as usize * 4;
+		}
+		None
+	}
+	pub fn extended_cap_legacy_support(&self) -> Option<ExtCapLegacySupport<'_>> {
+		self.with_extended_caps(|v| match v {
+			ExtendedCap::LegacySupport(ext_cap_legacy_support) => Some(ext_cap_legacy_support),
+			_ => None,
+		})
+	}
+}
+
 /// Run/stop
 pub const USBCMD_RS: u32 = 1 << 0;
 /// Host Controller Reset
@@ -455,4 +493,38 @@ impl Interrupter<'_>
 		ERDP(self)
 	}
 
+}
+
+pub enum ExtendedCap<'a> {
+	LegacySupport(ExtCapLegacySupport<'a>),
+	Unknown(u8, u8),
+}
+struct ExtendedCapInner<'a> {
+	regs: &'a Regs, ofs: usize
+}
+impl<'a> ExtendedCapInner<'a> {
+	unsafe fn read_8(&self, ofs: usize) -> u8 {
+		self.regs.io.read_8(self.ofs + ofs)
+	}
+	unsafe fn write_8(&self, ofs: usize, v: u8) {
+		self.regs.io.write_8(self.ofs + ofs, v)
+	}
+	fn get_common(&self) -> (u8, u8) {
+		// SAFE: Always valid to read from this register
+		let v = unsafe { self.regs.io.read_32(self.ofs) };
+		let id = (v & 0xFF) as u8;
+		let next_ptr = ((v >> 8) & 0xFF) as u8;
+		(id, next_ptr,)
+	}
+}
+pub struct ExtCapLegacySupport<'a>(ExtendedCapInner<'a>);
+impl ExtCapLegacySupport<'_> {
+	pub fn bios_sem(&self) -> u8 {
+		// SAFE: Reads are safe
+		unsafe { self.0.read_8(2) }
+	}
+	pub fn set_os_sem(&self, v: u8) {
+		// SAFE: This is writable
+		unsafe { self.0.write_8(3, v) }
+	}
 }

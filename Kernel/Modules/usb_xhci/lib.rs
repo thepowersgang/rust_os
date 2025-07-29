@@ -88,6 +88,18 @@ impl HostInner
 			}
 		}
 
+		// Take ownership of the controller
+		if let Some(leg_supp) = regs.extended_cap_legacy_support() {
+			if leg_supp.bios_sem() != 0 {
+				leg_supp.set_os_sem(1);
+				log_trace!("BIOS transfer requested");
+				wait_until(500, || leg_supp.bios_sem() == 0)?;
+			}
+			else {
+				log_trace!("BIOS did not have control");
+			}
+		}
+
 		// Controller init
 		// - Trigger a reset and wait for USBSTS.NCR to become zero
 		// SAFE: Correct write
