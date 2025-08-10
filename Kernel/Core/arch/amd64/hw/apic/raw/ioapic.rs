@@ -45,12 +45,36 @@ impl IOAPIC
 			base, num_lines,
 			(regs.read(Regs::ArbitrationId as u8) >> 24) & 0xF,
 		);
+		extern "C" fn spurious_vector_cb(num: usize, arg1: *const (), arg2: usize) {
+			let _ = (num, arg1, arg2);
+			super::super::get_lapic().eoi(0);
+			panic!("Unknown iterrupt on IOAPIC")
+		}
+		let spurious_vector = crate::arch::amd64::interrupts::bind_free_isr(spurious_vector_cb, 0 as _ , 9)
+			.unwrap();
 		for i in 0 .. num_lines as u8 {
 			let reg = Regs::RedirTable0 as u8 + i*2;
-			log_debug!("IRQ {:2} = 0x{:8x} {:8x}", base + i as usize, regs.read(reg + 1), regs.read(reg + 0));
-			let v = regs.read(reg + 0) | 1 << 16;
-			regs.write(reg + 0, v);
+			log_debug!("IRQ {:2} = 0x{:8x} {:8x} {:?}",
+				base + i as usize, regs.read(reg + 1), regs.read(reg + 0),
+				DumpRedir(regs.read_pair(reg))
+				);
+			if false {
+				let v = regs.read(reg + 0) | 1 << 16;
+				regs.write(reg + 0, v);
+			}
+			else {
+				if false {
+					regs.write_pair(reg, 1 << 16);
+				}
+				else {
+					let lapic: u8 = 0;
+					let flags = 0;
+					let vector = spurious_vector.idx();
+					regs.write_pair(reg, (lapic as u64) << 56 | flags | vector as u64);
+				}
+			}
 		}
+		core::mem::forget(spurious_vector);
 		IOAPIC {
 			regs: crate::sync::Mutex::new( regs ),
 			num_lines: num_lines,
@@ -64,6 +88,9 @@ impl IOAPIC
 	}
 	pub fn first(&self) -> usize {
 		self.first_irq
+	}
+	pub fn num_lines(&self) -> usize {
+		self.num_lines
 	}
 	//#[is_safe(irq)]	// Holds interrupts before lock
 	pub fn get_callback(&self, idx: usize) -> Option<IRQHandler> {
@@ -122,13 +149,13 @@ impl IOAPIC
 		let mut rh = self.regs.lock();
 
 		let reg = Regs::RedirTable0 as u8 + idx as u8 * 2;
-		log_debug!("set_irq_reg: (pre) Info = 0x {:08x} {:08x}", rh.read(reg+1), rh.read(reg));
+		log_debug!("set_irq_reg: (pre ) Info = 0x {:08x} {:08x}", rh.read(reg+1), rh.read(reg));
 
 		let valid_mask = 0xFF000000_0001FFFF;
 		let v = rh.read_pair(reg);
 		rh.write_pair(reg, v & !valid_mask | new_v);
 
-		log_debug!("set_irq: (post) Info = 0x {:08x} {:08x}", rh.read(reg+1), rh.read(reg));
+		log_debug!("set_irq_reg: (post) Info = 0x {:08x} {:08x}", rh.read(reg+1), rh.read(reg));
 	}
 }
 
@@ -169,5 +196,28 @@ impl IOAPICRegs
 	fn write_pair(&mut self, reg: u8, val: u64) {
 		self.write(reg+1, (val >> 32) as u32);
 		self.write(reg, val as u32);
+	}
+}
+
+pub struct DumpRedir(pub u64);
+impl ::core::fmt::Debug for DumpRedir {
+	fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+		let bs = |e:i32,s:i32| (self.0 >> s) & ((1 << (e-s+1))-1);
+		let b = |s:i32| (self.0 >> s) & 1;
+		write!(f, "DELMOD={} ", bs(10,8))?;
+		write!(f, "DESTMOD={} ", b(11))?;
+		write!(f, "DELIVS={} ", b(12))?;
+		write!(f, "{} ", ["Hi","Lo"][b(13) as usize])?;
+		write!(f, "RIRR={} ", b(15))?;
+		write!(f, "{} ", ["Lvl","Edg"][b(15) as usize])?;
+		write!(f, "Mask={} ", b(16))?;
+		if b(11) == 0 {
+			write!(f, "CPU {}", self.0>>56)?;
+		}
+		else {
+			write!(f, "Set {:#x}", self.0>>56)?;
+		}
+		write!(f, " Isr {} ", bs(7,0))?;
+		Ok(())
 	}
 }

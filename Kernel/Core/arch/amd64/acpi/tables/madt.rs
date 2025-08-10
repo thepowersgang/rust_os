@@ -16,6 +16,9 @@ pub struct Madt
 	pub flags: u32,
 	end: [u8; 0],
 }
+/// Flag for [Madr]'s `flags` field: Indicates the 8259 legacy PIC is installed
+pub const MADT_FLAG_LEGACY_PIC: u32 = 1;
+
 #[repr(C,packed)]
 struct MADT_DevHeader
 {

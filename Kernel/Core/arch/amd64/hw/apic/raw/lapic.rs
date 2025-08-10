@@ -1,4 +1,4 @@
-
+//! Local APIC - See Intel Manuals, 3A Ch 10 ("Advanced Programmable Interrupt Controller")
 use super::ApicReg;
 use super::APICReg;
 
@@ -46,7 +46,7 @@ impl LAPIC
 			};
 	}
 	/// Initialise the LAPIC (for this CPU)
-	pub fn percpu_init(&self)
+	pub fn percpu_init(&self, allow_pic: bool)
 	{
 		// SAFE: Read original LAPIC base
 		let oldaddr = unsafe{
@@ -75,7 +75,12 @@ impl LAPIC
 		self.write_reg(ApicReg::LVTTimer, (0b01 << 17)|(0 << 16)|(ISR_LAPIC_TIMER as u32));	// Periodic, Unmasked, bind to vector 126
 		self.write_reg(ApicReg::LVTThermalSensor, 0x10000);	// "Disable" Thermal Sensor
 		self.write_reg(ApicReg::LVTPermCounters, 0x10000);	// "Disable" ? Counters
-		self.write_reg(ApicReg::LVT_LINT0, 0x10000);	// "Disable" LINT0
+		if !allow_pic {
+			self.write_reg(ApicReg::LVT_LINT0, 0x10000);	// "Disable" LINT0
+		}
+		else {
+			self.write_reg(ApicReg::LVT_LINT0, 0x007FF);	// Enable Local Interrupt 0, delivery mode [8:10]=7 External, vector=255
+		}
 		self.write_reg(ApicReg::LVT_LINT1, 0x10000);	// "Disable" LINT1
 		self.write_reg(ApicReg::LVT_Error, 0x10000);	// "Disable" Error
 		// EOI - Just to make sure
@@ -164,6 +169,50 @@ impl LAPIC
 			s.read_reg(ApicReg::in_service(6)),
 			s.read_reg(ApicReg::in_service(7))
 			);
-		log_debug!("IOAPIC IRQ4 = {:#x}", super::super::S_IOAPICS[0].get_irq_reg(4));
+
+		if crate::arch::cpu_num() == 0 {
+			if super::super::S_IOAPICS.is_empty() {
+				use super::super::super::pic;
+				let status = pic::read_status();
+				// SAFE: Single-threaded code
+				let prev = unsafe {
+					static mut SAVED_REGS: [pic::Status; 2] = [pic::Status { isr: 0, irr: 0}; 2];
+					let prev = SAVED_REGS;
+					SAVED_REGS = status;
+					prev
+				};
+				if prev != status {
+					log_debug!("PIC Was = {:x?},{:x?}", prev[0], prev[1]);
+					log_debug!("PIC Was = {:x?},{:x?}", status[0], status[1]);
+				}
+			}
+			else {
+				static mut SAVED_REGS: [u64; 256] = [0; 256];
+				//log_debug!("IOAPIC IRQ4 = {:#x}", super::super::S_IOAPICS[0].get_irq_reg(4));
+				for i in 0..super::super::S_IOAPICS[0].num_lines() {
+					let v = super::super::S_IOAPICS[0].get_irq_reg(i);
+					let prev = unsafe {
+						if v == SAVED_REGS[i] {
+							continue ;
+						}
+						let prev = SAVED_REGS[i];
+						SAVED_REGS[i] = v;
+						prev
+					};
+					log_debug!("IOAPIC IRQ{:3} = 0x{:16x} {:?}", i, v, super::ioapic::DumpRedir(v) );
+					log_debug!("IOAPIC Was    = 0x{:16x} {:?}", prev, super::ioapic::DumpRedir(prev));
+				}
+			}
+			// SAFE: Correct access to serial port
+			unsafe {
+				const PORT_BASE: u16 = 0x3F8;
+				use crate::arch::amd64::x86_io::inb;
+				log_debug!("RS232 IIR={:02x}, LSR={:02x}",
+					inb(PORT_BASE+2),
+					inb(PORT_BASE+5),
+					);
+			}
+		}
+		
 	}
 }

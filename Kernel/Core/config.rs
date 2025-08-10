@@ -146,6 +146,9 @@ def_test_flags! {
 	noinit,
 	/// Do not run multi-cpu initialisation
 	single_processor,
+
+	/// (AMD65) Disable use of the IOAPIC
+	amd64_no_ioapic,
 }
 
 static mut S_CONFIG: Config = Config::new();

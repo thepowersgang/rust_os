@@ -7,5 +7,6 @@
 pub mod apic;
 pub mod hpet;
 pub mod pit;
+pub mod pic;
 
 // vim: ft=rust

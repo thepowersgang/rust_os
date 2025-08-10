@@ -16,7 +16,7 @@ pub type IRQHandler = fn(info: *const ());
 pub struct IRQHandle
 {
 	num: usize,
-	isr_handle: crate::arch::amd64::interrupts::ISRHandle,
+	isr_handle: Option<crate::arch::amd64::interrupts::ISRHandle>,
 }
 
 #[derive(Debug,Copy,Clone)]
@@ -35,20 +35,26 @@ static S_IOAPICS: crate::lib::LazyStatic<Vec<raw::IOAPIC>> = lazystatic_init!();
 
 fn init()
 {
+	let no_ioapic = crate::config::test_flags(|flags| flags.amd64_no_ioapic);
+	use crate::arch::amd64::acpi;
 	let ioapics: Vec<_>;
-	let lapic_addr = if let Some(madt) = crate::arch::amd64::acpi::find::<crate::arch::amd64::acpi::tables::Madt>("APIC", 0) {
-		use crate::arch::amd64::acpi::tables::madt::MADTDevRecord;
+	let pic_present;
+	let lapic_addr = if let Some(madt) = acpi::find::<acpi::tables::Madt>("APIC", 0) {
+		use acpi::tables::madt::{MADTDevRecord,MADT_FLAG_LEGACY_PIC};
 		madt.data().dump(madt.data_len());
 
 		// Handle legacy (8259) PIC
-		if (madt.data().flags & 1) != 0 {
-			log_notice!("Legacy PIC present, disabling");
-			// Disable legacy PIC by masking all interrupts off
-			// SAFE: Only code to access the PIC
-			unsafe {
-				crate::arch::x86_io::outb(0xA1, 0xFF);	// Disable slave
-				crate::arch::x86_io::outb(0x21, 0xFF);	// Disable master
+		if (madt.data().flags & MADT_FLAG_LEGACY_PIC) != 0 {
+			if no_ioapic {
 			}
+			else {
+				log_notice!("Legacy PIC present, disabling");
+				super::pic::disable();
+			}
+			pic_present = true;
+		}
+		else {
+			pic_present = false;
 		}
 
 		// Find the LAPIC address
@@ -61,13 +67,18 @@ fn init()
 		}
 
 		// Create instances of the IOAPIC "driver" for all present controllers
-		ioapics = madt.iterate()
-			.inspect(|v| log_debug!("{:?}", v))
-			.filter_map(|r| match r {
-				MADTDevRecord::DevIOAPIC(a) => Some(raw::IOAPIC::new(a.address as u64, a.interrupt_base as usize)),
-				_ => None
-				})
-			.collect();
+		if !no_ioapic {
+			ioapics = madt.iterate()
+				.inspect(|v| log_debug!("{:?}", v))
+				.filter_map(|r| match r {
+					MADTDevRecord::DevIOAPIC(a) => Some(raw::IOAPIC::new(a.address as u64, a.interrupt_base as usize)),
+					_ => None
+					})
+				.collect();
+		}
+		else {
+			ioapics = Vec::new();
+		}
 		lapic_addr
 	}
 	else if let Some(mpt) = crate::arch::amd64::mptable::MPTablePointer::locate_floating() {
@@ -75,27 +86,43 @@ fn init()
 		log_debug!("init_smp: Found MPTable:\n{:#x?}", mpt);
 		// CPUs (with APIC IDs)
 		// Interrupt routing rules
-		ioapics = mpt.entries().filter_map(|e| match e {
-			// TODO: Interrupt base?
-			MPTableEntry::IoApic(e) => Some(raw::IOAPIC::new(e.addr as u64, 0)),
+
+		// IOApics
+		let mut it = mpt.entries().filter_map(|e| match e {
+			MPTableEntry::IoApic(e) => Some(e),
 			_ => None,
-			}).collect();
+		});
+		match it.next() {
+		// TODO: Interrupt base?
+		Some(e) => {
+			ioapics = if no_ioapic { Default::default() } else { vec![ raw::IOAPIC::new(e.addr as _, 0) ] };
+			pic_present = false;
+		},
+		None => {
+			ioapics = Default::default();
+			pic_present = true;
+		}
+		}
 		mpt.lapic_paddr()
 	}
 	else {
 		log_warning!("No MADT ('APIC') table in ACPI");
 		return ;
 	};
-	
+
 	// Create APIC and IOAPIC instances
 	// SAFE: Called in a single-threaded context
 	unsafe {
 		S_LAPIC.prep(|| raw::LAPIC::new(lapic_addr));
 		S_LAPIC.ls_unsafe_mut().global_init();
+	
+		if ioapics.is_empty() && pic_present {
+			super::pic::init();
+		}
 
 		S_IOAPICS.prep(|| ioapics);
 		};
-	S_LAPIC.percpu_init();
+	S_LAPIC.percpu_init(S_IOAPICS.is_empty());
 	
 	// Enable interrupts (telling the threading logic to expect IF to be set)
 	crate::arch::amd64::threads::S_IRQS_ENABLED.store(true, ::core::sync::atomic::Ordering::Relaxed);
@@ -130,7 +157,9 @@ fn init()
 			crate::arch::x86_io::outb(PORT_BASE+1, 0x01);
 		}
 		::core::mem::forget(register_irq(4, serial_irq_handler, 0 as _));
-		S_IOAPICS[0].set_irq(4, 32, 0, raw::TriggerMode::LevelHi, serial_irq_handler);
+		if !S_IOAPICS.is_empty() {
+			S_IOAPICS[0].set_irq(4, 32, 0, raw::TriggerMode::LevelHi, serial_irq_handler);
+		}
 	}
 }
 
@@ -153,7 +182,7 @@ fn get_lapic() -> &'static raw::LAPIC
 
 /// Should only (really) be called once per AP
 pub fn init_ap_lapic() {
-	S_LAPIC.percpu_init();
+	S_LAPIC.percpu_init(S_IOAPICS.is_empty());
 }
 /// UNSAFE: Does a warm reboot of the core
 pub unsafe fn send_ipi_init(apic_id: u8) {
@@ -200,6 +229,11 @@ extern "C" fn lapic_irq_handler(isr: usize, info: *const(), gsi: usize)
 /// Registers an interrupt
 pub fn register_irq(global_num: usize, callback: IRQHandler, info: *const() ) -> Result<IRQHandle,IrqError>
 {
+	if S_IOAPICS.is_empty() {
+		return super::pic::register(global_num, callback, info)
+			.map(|_| IRQHandle { num: global_num, isr_handle: None })
+			;
+	}
 	// Locate the relevant apic
 	let (ioapic,ofs) = match get_ioapic(global_num) {
 		Some(x) => x,
@@ -226,7 +260,7 @@ pub fn register_irq(global_num: usize, callback: IRQHandler, info: *const() ) ->
 	
 	Ok( IRQHandle {
 		num: global_num,
-		isr_handle,
+		isr_handle: Some(isr_handle),
 		} )
 }
 
@@ -250,12 +284,19 @@ impl ::core::fmt::Debug for IRQHandle
 {
 	fn fmt(&self, f: &mut ::core::fmt::Formatter) -> Result<(),::core::fmt::Error>
 	{
-		let (ioapic,ofs) = get_ioapic(self.num).unwrap();
-		write!(f, "IRQHandle{{#{}, LAPIC={:?}, Reg={:#x}}}",
-			self.num,
-			get_lapic().get_vec_status(self.isr_handle.idx() as u8),
-			ioapic.get_irq_reg(ofs)
-			)
+		if let Some(ref isr_handle) = self.isr_handle {
+			let (ioapic,ofs) = get_ioapic(self.num).unwrap();
+			write!(f, "IRQHandle{{#{}, LAPIC={:?}, Reg={:#x}}}",
+				self.num,
+				get_lapic().get_vec_status(isr_handle.idx() as u8),
+				ioapic.get_irq_reg(ofs)
+				)
+		}
+		else {
+			write!(f, "IRQHandle{{#{}}}",
+				self.num,
+				)
+		}
 	}
 }
 
@@ -263,8 +304,13 @@ impl ::core::ops::Drop for IRQHandle
 {
 	fn drop(&mut self)
 	{
-		let (ioapic,ofs) = get_ioapic(self.num).unwrap();
-		ioapic.disable_irq(ofs);
+		if let Some(_) = self.isr_handle {
+			let (ioapic,ofs) = get_ioapic(self.num).unwrap();
+			ioapic.disable_irq(ofs);
+		}
+		else {
+			super::pic::unregister(self.num);
+		}
 	}
 }
 
