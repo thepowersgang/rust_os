@@ -30,7 +30,7 @@ pub struct InterruptRegs
 /// Error handler called by assembly
 pub extern "C" fn spurious_handler(regs: &InterruptRegs)
 {
-	panic!("Spurious interrupt: v={} @ ip={:#x}", regs.intnum, regs.errorcode);
+	panic!("Spurious interrupt: v={:#} @ ip={:#x}", regs.intnum, regs.errorcode);
 }
 
 #[no_mangle]
@@ -74,6 +74,7 @@ pub extern "C" fn error_handler(regs: &InterruptRegs)
 		let _lh = crate::logging::acquire_lock_cpu();
 		puts("CS:RIP  = "); puth(regs.cs); puts(":"); puth(regs.rip); puts("\n");
 		puts("SS:RSP  = "); puth(regs.ss); puts(":"); puth(regs.rsp); puts("\n");
+		puts("RFLAGS = "); puth(regs.rflags); puts("\n");
 		puts("CR2 = "); puth(get_cr2()); puts("\n");
 		puts("RAX "); puth64(regs.rax); puts("  RCX "); puth64(regs.rcx); puts("  ");
 		puts("RDX "); puth64(regs.rdx); puts("  RBX "); puth64(regs.rbx); puts("\n");
