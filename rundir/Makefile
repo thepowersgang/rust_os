@@ -62,7 +62,8 @@ IMGDIR := DiskImages/$(ARCH)/
 
 QEMU_TRACE_SPEC := .qemu_trace_spec
 ifneq ($(ENABLE_TRACE),)
-  # qemu-source/scripts/simpletrace.py qemu-build/trace/trace-events trace-XXXXXX
+  # qemu-source/scripts/simpletrace.py qemu-build/trace/trace-events-all trace-XXXXXX
+  # e.g. `~/Source/qemu/qemu-9.2.0/scripts/simpletrace.py /home/tpg/apps/share/qemu/trace-events-all rundir/trace-1595977`
   QEMU_ARGS += -trace events=$(QEMU_TRACE_SPEC)
 #,file=qemu_trace_output	# < Doesn't work :(
 endif
@@ -219,7 +220,7 @@ $(QEMU_TRACE_SPEC): Makefile
 	#echo pci_* >> $@
 	#echo virtio_* >> $@
 	#echo virtqueue_* >> $@
-	#echo apic_* >> $@
+	echo pic_* >> $@
 	echo apic_* >> $@
 	#echo usb_* >> $@
 
