@@ -18,7 +18,7 @@ struct HPET
 }
 
 #[repr(C,packed)]
-struct ACPI_HPET
+struct AcpiTableHpet
 {
 	hw_rev_id: u8,
 	flags: u8,
@@ -95,7 +95,7 @@ pub fn request_tick(target_time: u64)
 
 fn init()
 {
-	let hpet = match crate::arch::amd64::acpi::find::<ACPI_HPET>("HPET", 0)
+	let hpet = match crate::arch::amd64::acpi::find::<AcpiTableHpet>("HPET", 0)
 		{
 		None => {
 			log_error!("No HPET in ACPI, no timing available");
