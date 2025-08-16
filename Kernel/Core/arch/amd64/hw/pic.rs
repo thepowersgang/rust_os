@@ -25,6 +25,8 @@ pub fn unregister(global_num: usize) {
 	}
 }
 
+static HW_LOCK: crate::sync::Spinlock<()> = crate::sync::Spinlock::new(());
+
 #[derive(Copy,Clone,PartialEq)]
 #[derive(Debug)]
 pub struct Status {
@@ -32,7 +34,8 @@ pub struct Status {
 	pub isr: u8,
 }
 pub fn read_status() -> [Status; 2] {
-	// TODO: Check safety, this needs a lock to avoid conflicting reads?
+	let _lh = HW_LOCK.lock();
+	// SAFE: Locked access
 	unsafe {
 		[
 			CTRL_MASTER.read_status(),
@@ -41,25 +44,30 @@ pub fn read_status() -> [Status; 2] {
 	}
 }
 
+/// UNSAFE: Unsynchronised
 pub(super) unsafe fn init()
 {
 	// Bind the fixed interrupt assignments
 	bind();
+	// Mask all interrupts off, while we reconfigure the controllers
+	
 	CTRL_MASTER.ocw1(0xFF);
 	CTRL_SLAVE.ocw1(0xFF);
 	// NOTE: ICW2: ISR numbers (NOTE: These have to be on multiples of 8, as the bottom three bits are unused in 8086 mode)
-	// NOTE: ICW3: On the master, this is the bitmask of lines with slaves
-	// NOTE: ICW3: On a slve, this is the master line number
-	CTRL_MASTER.init(BASE_ISR+0, 0x04, Some(0x01));
-	CTRL_SLAVE.init(BASE_ISR+8, 0x02, Some(0x01));
+	// NOTE: ICW3: On the master, this is the bitmask of lines with slaves. On a slsave, this is the master line number
+	let master_slave_num = 2;
+	CTRL_MASTER.init(BASE_ISR+0, 1 << master_slave_num, Some(0x01));
+	CTRL_SLAVE .init(BASE_ISR+8, master_slave_num, Some(0x01));
 	// Ensure that there are no pending interrupts from before the remapping
 	CTRL_SLAVE .eoi();
 	CTRL_MASTER.eoi();
 	
+	// Unmask all bits
 	CTRL_MASTER.ocw1(0);
-	CTRL_SLAVE.ocw1(0);
+	CTRL_SLAVE .ocw1(0);
 }
 fn eoi(is_slave: bool) {
+	//log_debug!("EOI {}", is_slave);
 	if is_slave {
 		CTRL_SLAVE.eoi();
 	}
@@ -85,16 +93,20 @@ impl Controller {
 		unsafe { outb(self.0 + 1, mask); }
 	}
 	/// OCW2: Interrupt ACKs
-	/// 
 	// Bit 4 clear and bit 3 clear
-	unsafe fn ocw2(&self, cmd: Ocw2Cmd, line: u8) {
-		outb(self.0 + 0,
-			(0b00<<3)
-			| (cmd as u8) << 5
-			| (line & 0x7)
-			);
+	fn ocw2(&self, cmd: Ocw2Cmd, line: u8) {
+		// SAFE: Writing this value has no side-effects
+		unsafe {
+			outb(self.0 + 0,
+				(0b00<<3)
+				| (cmd as u8) << 5
+				| (line & 0x7)
+				);
+		}
 	}
 	/// OCW3: Misc
+	///
+	/// UNSAFE: if `read` is set, it expects a read from address 0 - and thus could interleave
 	// Bit 4 clear and bit 3 set
 	unsafe fn ocw3(&self, smm: Option<bool>, read: Option<Ocw3Read>) {
 		outb(self.0 + 0,
@@ -110,7 +122,8 @@ impl Controller {
 	}
 
 	/// Read the "Interrupt Request" register
-	// UNSAFE: No synchroniation, could interleave writes and reads
+	///
+	/// UNSAFE: No synchroniation, could interleave writes and reads
 	unsafe fn read_irr(&self) -> u8 {
 		self.ocw3(None, Some(Ocw3Read::Irr));
 		inb(self.0+0)
@@ -134,9 +147,12 @@ impl Controller {
 
 	/// Request a non-specific end-of-interrupt
 	fn eoi(&self) {
-		unsafe { self.ocw2(Ocw2Cmd::EoiNonSpec, 0); }
+		self.ocw2(Ocw2Cmd::EoiNonSpec, 0);
 	}
 
+	/// Read both status registers
+	///
+	/// UNSAFE: No synchronisation of the reads
 	unsafe fn read_status(&self) -> Status {
 		Status {
 			irr: self.read_irr(),
@@ -181,7 +197,7 @@ macro_rules! def_handlers {
 		fn bind() {
 			use crate::arch::amd64::interrupts::bind_isr;
 			$(
-			bind_isr(BASE_ISR + $i, $name, 0 as _ , $i).unwrap();
+			::core::mem::forget(bind_isr(BASE_ISR + $i, $name, 0 as _ , $i).unwrap());
 			)*
 		}
 	}
