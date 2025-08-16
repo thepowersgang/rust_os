@@ -38,10 +38,14 @@ static S_IRQ_HANDLERS_LOCK: crate::sync::Spinlock<[IRQHandlersEnt; 256]> = crate
 /// ISR handler called by assembly
 pub extern "C" fn irq_handler(index: usize)
 {
+	//super::puts("irq_handler: index="); super::puth(index as u64); super::puts("\n");
 	let lh = S_IRQ_HANDLERS_LOCK.lock_irqsafe();
 	let ent = (*lh)[index];
 	if let Some(h) = ent.handler {
 		(h)(index, ent.info, ent.idx);
+	}
+	else {
+		super::puts("irq_handler: UNMAPPED "); super::puth(index as u64); super::puts("\n");
 	}
 }
 
@@ -66,7 +70,6 @@ pub fn bind_isr(isr: u8, callback: ISRHandler, info: *const(), idx: usize) -> Re
 	let _irq_hold = crate::arch::sync::hold_interrupts();
 	let mut mh = S_IRQ_HANDLERS_LOCK.lock();
 	let h = &mut mh[isr as usize];
-	log_trace!("&h = {:p}", h);
 	if h.handler.is_some()
 	{
 		Err( BindISRError::Used )
@@ -130,6 +133,7 @@ impl ::core::ops::Drop for ISRHandle
 			let _irq_hold = crate::arch::sync::hold_interrupts();
 			let mut mh = S_IRQ_HANDLERS_LOCK.lock();
 			let h = &mut mh[self.idx];
+			log_trace!("ISRHandle::drop(isr={})", self.idx);
 			h.handler = None;
 		}
 	}
