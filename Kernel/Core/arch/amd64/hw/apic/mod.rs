@@ -109,6 +109,7 @@ fn init()
 		log_warning!("No MADT ('APIC') table in ACPI");
 		return ;
 	};
+	let pic_enabled = ioapics.is_empty() && pic_present;
 
 	// Create APIC and IOAPIC instances
 	// SAFE: Called in a single-threaded context
@@ -116,13 +117,16 @@ fn init()
 		S_LAPIC.prep(|| raw::LAPIC::new(lapic_addr));
 		S_LAPIC.ls_unsafe_mut().global_init();
 	
-		if ioapics.is_empty() && pic_present {
+		if pic_enabled {
 			super::pic::init();
 		}
 
 		S_IOAPICS.prep(|| ioapics);
 		};
 	S_LAPIC.percpu_init(S_IOAPICS.is_empty());
+	if pic_enabled {
+		log_debug!("PIC Status: {:?}", super::pic::read_status());
+	}
 	
 	// Enable interrupts (telling the threading logic to expect IF to be set)
 	crate::arch::amd64::threads::S_IRQS_ENABLED.store(true, ::core::sync::atomic::Ordering::Relaxed);
