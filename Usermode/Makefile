@@ -47,7 +47,7 @@ RUSTFLAGS += -L $(LIBDIR)
 CARGO_PROFILE := release
 CARGO_FLAGS ?=
 ifneq ($(ARCH),native)
-  CARGO_FLAGS += --target $(TARGET_SPEC)
+  CARGO_FLAGS += --target $(TARGET_SPEC) -Zjson-target-spec
   CARGO_FLAGS += -Z build-std=core,alloc
 else
   CARGO_PROFILE := debug
