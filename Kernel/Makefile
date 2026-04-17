@@ -95,7 +95,7 @@ endif
 #
 $(OBJDIR)libmain.a: PHONY targets/kernel-$(ARCH).json
 	@echo "[CARGO] . > $@"
-	$V$(CARGO) build -Z build-std=core,alloc --target=targets/kernel-$(ARCH).json --features "$(CARGO_FEATURES)" -j 1 $(CARGO_FLAGS)
+	$V$(CARGO) build -Z build-std=core,alloc -Zjson-target-spec --target=targets/kernel-$(ARCH).json --features "$(CARGO_FEATURES)" -j 1 $(CARGO_FLAGS)
 	@mkdir -p $(dir $@)
 	@if test ! -e $@ || test target/kernel-$(ARCH)/$(CARGO_PROFILE)/libmain.a -nt $@; then cp target/kernel-$(ARCH)/$(CARGO_PROFILE)/libmain.a $@; fi
 $(patsubst %,$(OBJDIR)lib%.a,$(MODS)): $(OBJDIR)libmain.a

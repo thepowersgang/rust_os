@@ -8,16 +8,12 @@
 #![allow(internal_features)]	// For `lang_items`
 #![feature(unsize,coerce_unsized)]	// For DST smart pointers
 #![feature(core_intrinsics)]	// Intrinsics
-#![feature(box_patterns)]	// Used in boxed::unwrap
-#![feature(thread_local)]	// Allows use of thread_local
 #![feature(lang_items)]	// Allow definition of lang_items
 #![feature(auto_traits)]	// POD trait
 #![feature(negative_impls)]	// Negative impls
 #![feature(linkage)]	// allows using #[linkage="external"]
-//#![feature(integer_atomics)]	// AtomicU8
-#![feature(dropck_eyepatch)]
+#![feature(sized_hierarchy)]	// new Sized traits for POD
 #![feature(extern_types)]
-#![feature(cfg_target_has_atomic)]	// #[cfg(target_has_atomic="64")]
 #![feature(allocator_api)]	// Needed for the `!POD` impl
 #![cfg_attr(target_arch="x86_64",feature(formatting_options))]	// ACPI
 #![cfg_attr(target_arch="x86_64",feature(link_llvm_intrinsics))]
