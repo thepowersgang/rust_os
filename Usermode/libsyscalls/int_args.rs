@@ -51,11 +51,9 @@ impl CallArray for [usize; 6] {
 	}
 }
 
-fn concat_array<const N1: usize, const N2: usize>(a1: [usize; N1], a2: [usize; N2]) -> [usize; N1 + N2] {
-	let mut rv = [0; N1+N2];
-	rv[..N1].copy_from_slice(&a1);
-	rv[N1..].copy_from_slice(&a2);
-	rv
+fn push<A: ToUsizeArray>(dst: &mut [usize], v: A) -> &mut [usize] {
+	v.write_to_array(dst);
+	&mut dst[A::LEN..]
 }
 
 /// Empty tuple - No arguments
@@ -69,8 +67,10 @@ where
 	[usize; A0::LEN]: CallArray
 {
 	unsafe fn call(self, id: u32) -> u64 {
-		let a1 = self.0.into_array();
-		CallArray::call(a1, id)
+		let mut a = [0; A0::LEN];
+		let an = push(&mut a, self.0);
+		assert!(an.len() == 0);
+		CallArray::call(a, id)
 	}
 }
 impl<A0: ToUsizeArray, A1: ToUsizeArray> CallTuple for (A0,A1,)
@@ -78,7 +78,10 @@ where
 	[usize; A0::LEN + A1::LEN]: CallArray
 {
 	unsafe fn call(self, id: u32) -> u64 {
-		let a = concat_array(self.0.into_array(), self.1.into_array());
+		let mut a = [0; A0::LEN + A1::LEN];
+		let an = push(&mut a, self.0);
+		let an = push(an, self.1);
+		assert!(an.len() == 0);
 		CallArray::call(a, id)
 	}
 }
@@ -87,8 +90,11 @@ where
 	[usize; A0::LEN + A1::LEN + A2::LEN]: CallArray
 {
 	unsafe fn call(self, id: u32) -> u64 {
-		let a = concat_array(self.0.into_array(), self.1.into_array());
-		let a = concat_array(a, self.2.into_array());
+		let mut a = [0; A0::LEN + A1::LEN + A2::LEN];
+		let an = push(&mut a, self.0);
+		let an = push(an, self.1);
+		let an = push(an, self.2);
+		assert!(an.len() == 0);
 		CallArray::call(a, id)
 	}
 }
@@ -101,9 +107,12 @@ where
 	[usize; A0::LEN + A1::LEN + A2::LEN + A3::LEN]: CallArray
 {
 	unsafe fn call(self, id: u32) -> u64 {
-		let a = concat_array(self.0.into_array(), self.1.into_array());
-		let a = concat_array(a, self.2.into_array());
-		let a = concat_array(a, self.3.into_array());
+		let mut a = [0; A0::LEN + A1::LEN + A2::LEN + A3::LEN];
+		let an = push(&mut a, self.0);
+		let an = push(an, self.1);
+		let an = push(an, self.2);
+		let an = push(an, self.3);
+		assert!(an.len() == 0);
 		CallArray::call(a, id)
 	}
 }
@@ -117,10 +126,13 @@ where
 	[usize; A0::LEN + A1::LEN + A2::LEN + A3::LEN + A4::LEN]: CallArray
 {
 	unsafe fn call(self, id: u32) -> u64 {
-		let a = concat_array(self.0.into_array(), self.1.into_array());
-		let a = concat_array(a, self.2.into_array());
-		let a = concat_array(a, self.3.into_array());
-		let a = concat_array(a, self.4.into_array());
+		let mut a = [0; A0::LEN + A1::LEN + A2::LEN + A3::LEN + A4::LEN];
+		let an = push(&mut a, self.0);
+		let an = push(an, self.1);
+		let an = push(an, self.2);
+		let an = push(an, self.3);
+		let an = push(an, self.4);
+		assert!(an.len() == 0);
 		CallArray::call(a, id)
 	}
 }

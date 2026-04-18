@@ -6,31 +6,50 @@ pub trait Args {
 	fn into_tuple(self) -> Self::Tuple;
 }
 pub trait ToUsizeArray {
+	//const fn len() -> usize;
 	const LEN: usize;
-	fn into_array(self) -> [usize; Self::LEN];
+	fn write_to_array(self, _: &mut [usize]);
 }
-impl ToUsizeArray for usize { const LEN: usize = 1; fn into_array(self) -> [usize; 1] { [self] } }
-impl ToUsizeArray for u32 { const LEN: usize = 1; fn into_array(self) -> [usize; 1] { [self as _] } }
-impl ToUsizeArray for u16 { const LEN: usize = 1; fn into_array(self) -> [usize; 1] { [self as _] } }
-impl ToUsizeArray for u8  { const LEN: usize = 1; fn into_array(self) -> [usize; 1] { [self as _] } }
-impl ToUsizeArray for bool { const LEN: usize = 1; fn into_array(self) -> [usize; 1] { [self as _] } }
-// NOTE: The `transmute_copy` here is a workaround for breakage to const generics
-// SAFE: Valid copying transmute (sizes should match)
-impl<'a, T: 'static> ToUsizeArray for &'a T     { const LEN: usize = 1; fn into_array(self) -> [usize; Self::LEN] { unsafe { ::core::mem::transmute_copy(&[self as *const _ as usize]) } } }
-// SAFE: Valid copying transmute (sizes should match)
-impl<'a, T: 'static> ToUsizeArray for &'a mut T { const LEN: usize = 1; fn into_array(self) -> [usize; Self::LEN] { unsafe { ::core::mem::transmute_copy(&[self as *const _ as usize]) } } }
-// SAFE: Valid copying transmute (sizes should match)
-impl<'a, T: 'static> ToUsizeArray for &'a [T]     { const LEN: usize = 2; fn into_array(self) -> [usize; Self::LEN] { unsafe { ::core::mem::transmute_copy(&[self.as_ptr() as usize, self.len()]) } } }
-// SAFE: Valid copying transmute (sizes should match)
-impl<'a, T: 'static> ToUsizeArray for &'a mut [T] { const LEN: usize = 2; fn into_array(self) -> [usize; Self::LEN] { unsafe { ::core::mem::transmute_copy(&[self.as_ptr() as usize, self.len()]) } } }
-impl<'a> ToUsizeArray for &'a str { const LEN: usize = 2; fn into_array(self) -> [usize; 2] { [self.as_ptr() as usize, self.len()] } }
-impl ToUsizeArray for super::FixedStr8 { const LEN: usize = u64::LEN; fn into_array(self) -> [usize; Self::LEN] { <u64 as ToUsizeArray>::into_array(self.into()) } }
-#[cfg(target_pointer_width="64")]
-impl ToUsizeArray for u64 { const LEN: usize = 1; fn into_array(self) -> [usize; 1] { [self as _] } }
-#[cfg(target_pointer_width="32")]
-impl ToUsizeArray for u64 {
-	const LEN: usize = 2;
-	fn into_array(self) -> [usize; 2] {
-		[(self & 0xFFFFFFFF) as usize, (self >> 32) as usize ]
+pub macro to_usize_array {
+	([$($g:tt)*] $s:ident: $t:ty => [$v:expr] ) => {
+		impl<$($g)*> ToUsizeArray for $t {
+			//const fn len() -> usize { 1 }
+			const LEN: usize = 1;
+			fn write_to_array($s, dst: &mut [usize]) {
+				dst[0] = $v;
+			}
+		}
+	},
+	([$($g:tt)*] $s:ident: $t:ty => [$v:expr,$v2:expr] ) => {
+		impl<$($g)*> ToUsizeArray for $t {
+			//const fn len() -> usize { 2 }
+			const LEN: usize = 2;
+			fn write_to_array($s, dst: &mut [usize]) {
+				dst[0] = $v;
+				dst[1] = $v2;
+			}
+		}
 	}
 }
+to_usize_array! { [] self: usize => [self] }
+to_usize_array! { [] self: u32   => [self as _] }
+to_usize_array! { [] self: u16   => [self as _] }
+to_usize_array! { [] self: u8    => [self as _] }
+to_usize_array! { [] self: bool  => [self as _] }
+to_usize_array! { ['a, T: 'static] self: &'a     T => [self as *const _ as usize] }
+to_usize_array! { ['a, T: 'static] self: &'a mut T => [self as *const _ as usize] }
+to_usize_array! { ['a, T: 'static] self: &'a     [T] => [self.as_ptr() as usize, self.len()] }
+to_usize_array! { ['a, T: 'static] self: &'a mut [T] => [self.as_ptr() as usize, self.len()] }
+to_usize_array! { ['a] self: &'a str => [self.as_ptr() as usize, self.len()] }
+#[cfg(target_pointer_width="64")]
+to_usize_array! { [] self: u64   => [self as _] }
+#[cfg(target_pointer_width="32")]
+to_usize_array! { [] self: u64   => [(self & 0xFFFFFFFF) as usize, (self >> 32) as usize] }
+impl ToUsizeArray for super::FixedStr8 {
+	//const fn len() -> usize { u64::len() }
+	const LEN: usize = u64::LEN;
+	fn write_to_array(self, dst: &mut [usize]) {
+		<u64 as ToUsizeArray>::write_to_array(self.into(), dst)
+	}
+}
+

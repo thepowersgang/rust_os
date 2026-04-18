@@ -11,8 +11,7 @@
 //! 
 //! Free calls either construct a new object instance, or directly manipulate/query state.
 #![no_std]
-#![feature(generic_const_exprs)]
-#![allow(incomplete_features)]	// for `generic_const_exprs`
+#![feature(decl_macro)]
 
 extern crate key_codes;
 pub use key_codes::KeyCode;

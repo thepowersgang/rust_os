@@ -154,12 +154,7 @@ macro_rules! enum_to_from {
 				}
 			}
 		}
-		impl crate::ToUsizeArray for $enm {
-			const LEN: usize = 1;
-			fn into_array(self) -> [usize; 1] {
-				[self as $ty as usize]
-			}
-		}
+		crate::traits::to_usize_array!([] self: $enm => [self as $ty as usize]);
 		impl ::core::convert::Into<$ty> for $enm {
 			fn into(self) -> $ty {
 				match self

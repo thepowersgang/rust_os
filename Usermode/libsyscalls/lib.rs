@@ -3,8 +3,6 @@
 //
 //! Provides wrappers around most system calls
 //#![feature(core_intrinsics)]
-#![feature(thread_local)]
-#![feature(stmt_expr_attributes)]
 #![feature(generic_const_exprs)]
 #![allow(incomplete_features)]	// for `generic_const_exprs`
 #![no_std]
