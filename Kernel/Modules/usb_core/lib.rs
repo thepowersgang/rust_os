@@ -5,7 +5,6 @@
 //! USB Core library (provides interfaces between device and host drivers)
 #![no_std]
 #![feature(linkage)]	// for module_define!
-#![feature(try_blocks)]
 #![feature(arbitrary_self_types)]
 use kernel::prelude::*;
 use kernel::lib::mem::aref::{Aref,ArefBorrow};

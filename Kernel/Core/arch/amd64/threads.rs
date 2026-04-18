@@ -85,8 +85,7 @@ pub fn init_smp() {
 
 	if let Some(madt) = super::acpi::find::<super::acpi::tables::Madt>("APIC", 0) {
 		log_debug!("init_smp: Found MADT table");
-		// SAFE: No side-effects on this CPUID call
-		let cur_apic_id = unsafe { (::core::arch::x86_64::__cpuid(1).ebx >> 24) as u8 };
+		let cur_apic_id = (::core::arch::x86_64::__cpuid(1).ebx >> 24) as u8;
 		log_trace!("cur_apic_id = {}", cur_apic_id);
 		for ent in madt.iterate() {
 			if let super::acpi::tables::madt::MADTDevRecord::DevLAPIC(e) = ent {
@@ -277,9 +276,9 @@ pub fn start_thread<F: FnOnce()+Send>(thread: &mut crate::threads::Thread, code:
 	// - All that is needed is to push the trampoline address (it handles calling the rust code)
 	// SAFE: Stack is valid for at least this many words (at least a page)
 	unsafe {
-		stack_top -= 8; ::core::ptr::write(stack_top as *mut u64, thread_root::<F> as usize as u64);
+		stack_top -= 8; ::core::ptr::write(stack_top as *mut u64, thread_root::<F> as *const () as usize as u64);
 		// Trampoline that sets RDI to the address of 'code'
-		stack_top -= 8; ::core::ptr::write(stack_top as *mut u64, thread_trampoline as usize as u64);
+		stack_top -= 8; ::core::ptr::write(stack_top as *mut u64, thread_trampoline as *const () as usize as u64);
 		// Six callee-save GPRs saved by task_switch
 		stack_top -= 8; ::core::ptr::write(stack_top as *mut u64, 0xB4);
 		stack_top -= 8; ::core::ptr::write(stack_top as *mut u64, 0xBB);

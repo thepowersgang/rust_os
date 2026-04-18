@@ -2,7 +2,6 @@
 // - By John Hodge (thePowersGang)
 //
 // Modules/storage_scsi/lib.rs
-#![feature(linkage)]
 #![no_std]
 #[macro_use] extern crate kernel;
 #[allow(unused_imports)]

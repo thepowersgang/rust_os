@@ -4,7 +4,6 @@
 // Modules/fs_extN/lib.rs
 //! Ext2/3/4 filesystem driver
 #![feature(linkage)]
-#![feature(stmt_expr_attributes)]	// For local "constant"s
 #![no_std]
 
 use kernel::prelude::*;
