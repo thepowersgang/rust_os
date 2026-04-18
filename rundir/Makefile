@@ -42,6 +42,11 @@ QEMU_ARGS += -icount shift=7,rr=$(QEMU_REPLAY),rrfile=replay.bin
 endif
 CMDLINE := SYSROOT=/system/Tifflin
 
+KERNEL_IMAGE := ../Kernel/bin/kernel-$(ARCH).bin
+ifeq ($(ARCH),amd64)
+  KERNEL_IMAGE := $(KERNEL_IMAGE).elf32
+endif
+
 #QEMU_ARGS += -tcg-plugin $(shell dirname $(shell type -P qemu-system-x86_64))/../libexec/tcg-plugin-oprofile.so -singlestep
 
 ifneq ($(TIFFLIN_INIT),)
@@ -72,8 +77,7 @@ endif
 # --- AMD64 ---
 #
 ifeq ($(ARCH),amd64)
-CMDLINE += SYSDISK=initrd0w
-#CMDLINE += SYSDISK=ATA-0p0
+SYSDISK := initrd0w
 QEMU_ARGS += -smp 2
 QEMU_ARGS += -vga virtio
 #QEMU_ARGS += -net nic,model=rtl8139
@@ -96,7 +100,7 @@ else
 endif
 
 run: $(QEMU_TRACE_SPEC) images
-	./$(SCRIPT) ../Kernel/bin/kernel-amd64.bin.elf32 "$(CMDLINE)" "$(QEMU_ARGS)" "$(IMGDIR)initrd.initrd" $(TEE)
+	./$(SCRIPT) $(KERNEL_IMAGE) "$(CMDLINE) SYSDISK=$(SYSDISK)" "$(QEMU_ARGS)" "$(IMGDIR)initrd.initrd" $(TEE)
 images: $(IMGDIR)initrd.initrd $(IMGDIR)hda.img $(IMGDIR)hdb.img $(IMGDIR)test.iso
 #
 # --- ARMv7 ---
@@ -105,8 +109,8 @@ else ifeq ($(ARCH),armv7)
 MACHINE_TYPE ?= virt
 #MACHINE_TYPE ?= realview-pb-a8
 
-CMDLINE += SYSDISK=virtio0p0
 ifeq ($(MACHINE_TYPE),virt)
+SYSDISK := virtio0p0
 QEMU_ARGS += -device virtio-net-device
 QEMU_ARGS += -device virtio-blk-device,drive=hda
 QEMU_ARGS += -device virtio-keyboard-device
@@ -117,7 +121,7 @@ QEMU_ARGS += -drive if=none,id=hda,index=0,file=$(IMGDIR)hda.img,format=raw
 
 
 run: $(IMGDIR)hda.img
-	make -C ../Bootloaders/arm PLATFORM=$(MACHINE_TYPE) CMDLINE="$(CMDLINE)"
+	make -C ../Bootloaders/arm PLATFORM=$(MACHINE_TYPE) CMDLINE="$(CMDLINE) SYSDISK=$(SYSDISK)"
 	qemu-system-arm -machine $(MACHINE_TYPE) $(QEMU_ARGS) -kernel ../Bootloaders/arm/loader-$(MACHINE_TYPE).bin -append "$(CMDLINE)" $(TEE)
 images: $(IMGDIR)hda.img
 # ---
@@ -156,15 +160,23 @@ endif
 
 .DELETE_ON_ERROR:
 
-$(IMGDIR)test.iso: $(wildcard ../Usermode/.output/$(ARCH)/bin/*) Makefile
+$(IMGDIR)test.iso: $(wildcard ../Usermode/.output/$(ARCH)/bin/*) Makefile $(IMGDIR)grub_iso.conf
 	@mkdir -p $(dir $@)
 	@echo "[mkisofs] -o $@"
 	mkdir -p $(IMGDIR).tmp_test.iso/
 	mkdir -p $(IMGDIR).tmp_test.iso/Tifflin/shared
+	mkdir -p $(IMGDIR).tmp_test.iso/boot/grub
+	cp -r $(IMGDIR)grub_iso.conf $(IMGDIR).tmp_test.iso/boot/grub/grub.conf
 	cp -r ../Usermode/.output/$(ARCH)/bin $(IMGDIR).tmp_test.iso/Tifflin/
+	cp -r $(KERNEL_IMAGE) $(IMGDIR).tmp_test.iso/Tifflin/
 	cp -r ../Graphics/.output/shared $(IMGDIR).tmp_test.iso/Tifflin/shared/images
 	$Vgrub-mkrescue -o $@ $(IMGDIR).tmp_test.iso/ --modules="multiboot normal font"
 #	$Vmkisofs -input-charset utf-8 -quiet -o $@ -r -graft-points /Tifflin/bin=../Usermode/.output/$(ARCH)/bin /Tifflin/shared/images=../Graphics/.output/shared
+$(IMGDIR)grub_iso.conf: Makefile
+	@echo > $@
+	@echo 'menuentry Tifflin {' >> $@
+	@echo '  multiboot /Tifflin/$(notdir $(KERNEL_IMAGE)) $(CMDLINE) SYSDISK=ATA-2w' >> $@
+	@echo '}' >> $@
 $(IMGDIR)usb.img:
 	@mkdir -p $(dir $@)
 	@echo "[MkDisk] ZERO 1MB $@"
@@ -222,6 +234,7 @@ $(QEMU_TRACE_SPEC): Makefile
 	#echo virtqueue_* >> $@
 	echo pic_* >> $@
 	echo apic_* >> $@
+	echo x86_gsi_* >> $@
 	#echo usb_* >> $@
 
 
