@@ -160,19 +160,19 @@ endif
 
 .DELETE_ON_ERROR:
 
-$(IMGDIR)test.iso: $(wildcard ../Usermode/.output/$(ARCH)/bin/*) Makefile $(IMGDIR)grub_iso.conf
+$(IMGDIR)test.iso: $(wildcard ../Usermode/.output/$(ARCH)/bin/*) Makefile $(IMGDIR)grub_iso.cfg
 	@mkdir -p $(dir $@)
 	@echo "[mkisofs] -o $@"
 	mkdir -p $(IMGDIR).tmp_test.iso/
 	mkdir -p $(IMGDIR).tmp_test.iso/Tifflin/shared
 	mkdir -p $(IMGDIR).tmp_test.iso/boot/grub
-	cp -r $(IMGDIR)grub_iso.conf $(IMGDIR).tmp_test.iso/boot/grub/grub.conf
+	cp -r $(IMGDIR)grub_iso.cfg $(IMGDIR).tmp_test.iso/boot/grub/grub.cfg
 	cp -r ../Usermode/.output/$(ARCH)/bin $(IMGDIR).tmp_test.iso/Tifflin/
 	cp -r $(KERNEL_IMAGE) $(IMGDIR).tmp_test.iso/Tifflin/
 	cp -r ../Graphics/.output/shared $(IMGDIR).tmp_test.iso/Tifflin/shared/images
 	$Vgrub-mkrescue -o $@ $(IMGDIR).tmp_test.iso/ --modules="multiboot normal font"
 #	$Vmkisofs -input-charset utf-8 -quiet -o $@ -r -graft-points /Tifflin/bin=../Usermode/.output/$(ARCH)/bin /Tifflin/shared/images=../Graphics/.output/shared
-$(IMGDIR)grub_iso.conf: Makefile
+$(IMGDIR)grub_iso.cfg: Makefile
 	@echo > $@
 	@echo 'menuentry Tifflin {' >> $@
 	@echo '  multiboot /Tifflin/$(notdir $(KERNEL_IMAGE)) $(CMDLINE) SYSDISK=ATA-2w' >> $@
