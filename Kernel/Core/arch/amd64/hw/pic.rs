@@ -13,6 +13,7 @@ pub(super) fn disable()
 }
 pub(super) fn register(global_num: usize, callback: super::apic::IRQHandler, info: *const() ) -> Result<(),super::apic::IrqError>
 {
+	log_trace!("register(global_num={}, callback={:p}, info={:p}", global_num, callback, info);
 	if global_num >= 16 {
 		return Err(super::apic::IrqError::BadIndex);
 	}
@@ -54,7 +55,8 @@ pub(super) unsafe fn init()
 	CTRL_MASTER.ocw1(0xFF);
 	CTRL_SLAVE.ocw1(0xFF);
 	// NOTE: ICW2: ISR numbers (NOTE: These have to be on multiples of 8, as the bottom three bits are unused in 8086 mode)
-	// NOTE: ICW3: On the master, this is the bitmask of lines with slaves. On a slsave, this is the master line number
+	// NOTE: ICW3: On the master, this is the bitmask of lines with slaves. On a slave, this is the master line number
+	// NOTE: ICW4: Bit0 selects 8086 mode (instead of MCS-80 mode)
 	let master_slave_num = 2;
 	CTRL_MASTER.init(BASE_ISR+0, 1 << master_slave_num, Some(0x01));
 	CTRL_SLAVE .init(BASE_ISR+8, master_slave_num, Some(0x01));
@@ -66,8 +68,30 @@ pub(super) unsafe fn init()
 	CTRL_MASTER.ocw1(0);
 	CTRL_SLAVE .ocw1(0);
 }
-fn eoi(is_slave: bool) {
-	//log_debug!("EOI {}", is_slave);
+fn eoi(is_slave: bool, maybe_spurious: bool) {
+	log_debug!("EOI {}{} PIC Status: {:?}",
+		if is_slave { "slave" } else { "master" },
+		if maybe_spurious { " spurious?" } else { "" },
+		super::pic::read_status()
+		);
+	if maybe_spurious {
+		// Is ISR set with pin 7?
+		if is_slave {
+			// SAFE: This is in an interrupt, so cannot be during a lock
+			if unsafe { CTRL_SLAVE.read_isr() } & 1 << 7 == 0 {
+				log_debug!("Spurious on slave");
+				CTRL_MASTER.eoi();
+				return
+			}
+		}
+		else {
+			// SAFE: This is in an interrupt, so cannot be during a lock
+			if unsafe { CTRL_MASTER.read_isr() } & 1 << 7 == 0 {
+				log_debug!("Spurious on master");
+				return
+			}
+		}
+	}
 	if is_slave {
 		CTRL_SLAVE.eoi();
 	}
@@ -78,6 +102,10 @@ struct Controller(u16);
 impl Controller {
 	/// Initialise the controller: Send ICW*
 	/// 
+	/// - ICW2: Vector number
+	/// - ICW3: Master/slave chaining
+	/// - ICW4: Flags
+	///
 	/// UNSAFE: Is a sequence of writes, so could race
 	unsafe fn init(&self, icw2: u8, icw3: u8, icw4: Option<u8>) {
 		outb(self.0 + 0, 0x11 | icw4.is_some() as u8);
@@ -140,6 +168,7 @@ impl Controller {
 	/// If bit 7 (0x80) is set, an interrupt is pending
 	/// 
 	/// UNSAFE: No synchroniation, could interleave writes and reads
+	#[allow(dead_code)]
 	unsafe fn poll(&self) -> u8 {
 		self.ocw3(None, Some(Ocw3Read::Poll));
 		inb(self.0+0)
@@ -183,6 +212,7 @@ macro_rules! def_handlers {
 	( $($i:expr => $name:ident,)* ) => {
 		$(
 			extern "C" fn $name(_num: usize, _arg1: *const (), _arg2: usize) {
+				crate::arch::puts(stringify!($name)); crate::arch::puts("\n");
 				match HANDLERS[$i].try_lock_cpu() {
 				None => {},
 				Some(v) => match *v
@@ -191,7 +221,7 @@ macro_rules! def_handlers {
 					Some(ref v) => (v.callback)(v.info),
 					},
 				}
-				eoi($i >= 8);
+				eoi($i >= 8, $i % 8 == 7);
 			}
 		)*
 		fn bind() {

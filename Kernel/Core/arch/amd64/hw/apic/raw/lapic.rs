@@ -57,7 +57,7 @@ impl LAPIC
 			};
 		log_debug!("oldaddr = {:#x}", oldaddr);
 		let is_bsp = oldaddr & 0x100;
-		log_debug!("IRR[0..8] = [{:#x}, {:#x}, {:#x}, {:#x},  {:#x}, {:#x}, {:#x}, {:#x}]",
+		log_debug!("IRR[0..8] = [{:08x}, {:08x}, {:08x}, {:08x},  {:08x}, {:08x}, {:08x}, {:08x}]",
 			self.read_reg(ApicReg::irr(0)),
 			self.read_reg(ApicReg::irr(1)),
 			self.read_reg(ApicReg::irr(2)),
@@ -147,28 +147,34 @@ impl LAPIC
 		assert!( !sp.is_null() );
 		// SAFE: 'sp' is the bound pointer, and should be valid
 		let s: &LAPIC = unsafe { &*(sp as *const LAPIC) };
-		log_trace!("LAPIC Timer");
 		s.eoi(isr);
-		log_debug!("IRR[0..8] = [{:#x}, {:#x}, {:#x}, {:#x},  {:#x}, {:#x}, {:#x}, {:#x}]",
-			s.read_reg(ApicReg::irr(0)),
-			s.read_reg(ApicReg::irr(1)),
-			s.read_reg(ApicReg::irr(2)),
-			s.read_reg(ApicReg::irr(3)),
-			s.read_reg(ApicReg::irr(4)),
-			s.read_reg(ApicReg::irr(5)),
-			s.read_reg(ApicReg::irr(6)),
-			s.read_reg(ApicReg::irr(7))
-			);
-		log_debug!("ISR[0..8] = [{:#x}, {:#x}, {:#x}, {:#x},  {:#x}, {:#x}, {:#x}, {:#x}]",
-			s.read_reg(ApicReg::in_service(0)),
-			s.read_reg(ApicReg::in_service(1)),
-			s.read_reg(ApicReg::in_service(2)),
-			s.read_reg(ApicReg::in_service(3)),
-			s.read_reg(ApicReg::in_service(4)),
-			s.read_reg(ApicReg::in_service(5)),
-			s.read_reg(ApicReg::in_service(6)),
-			s.read_reg(ApicReg::in_service(7))
-			);
+		if true {
+			return 
+		}
+		if false
+		{
+			log_trace!("LAPIC Timer");
+			log_debug!("IRR[0..8] = [{:#x}, {:#x}, {:#x}, {:#x},  {:#x}, {:#x}, {:#x}, {:#x}]",
+				s.read_reg(ApicReg::irr(0)),
+				s.read_reg(ApicReg::irr(1)),
+				s.read_reg(ApicReg::irr(2)),
+				s.read_reg(ApicReg::irr(3)),
+				s.read_reg(ApicReg::irr(4)),
+				s.read_reg(ApicReg::irr(5)),
+				s.read_reg(ApicReg::irr(6)),
+				s.read_reg(ApicReg::irr(7))
+				);
+			log_debug!("ISR[0..8] = [{:#x}, {:#x}, {:#x}, {:#x},  {:#x}, {:#x}, {:#x}, {:#x}]",
+				s.read_reg(ApicReg::in_service(0)),
+				s.read_reg(ApicReg::in_service(1)),
+				s.read_reg(ApicReg::in_service(2)),
+				s.read_reg(ApicReg::in_service(3)),
+				s.read_reg(ApicReg::in_service(4)),
+				s.read_reg(ApicReg::in_service(5)),
+				s.read_reg(ApicReg::in_service(6)),
+				s.read_reg(ApicReg::in_service(7))
+				);
+		}
 
 		if crate::arch::cpu_num() == 0 {
 			if super::super::S_IOAPICS.is_empty() {
@@ -191,6 +197,7 @@ impl LAPIC
 				//log_debug!("IOAPIC IRQ4 = {:#x}", super::super::S_IOAPICS[0].get_irq_reg(4));
 				for i in 0..super::super::S_IOAPICS[0].num_lines() {
 					let v = super::super::S_IOAPICS[0].get_irq_reg(i);
+					// SAFE: Static mut access just reads/writes - no overlapping mutable access (this is CPU0 only)
 					let prev = unsafe {
 						if v == SAVED_REGS[i] {
 							continue ;

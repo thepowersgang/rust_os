@@ -45,36 +45,40 @@ impl IOAPIC
 			base, num_lines,
 			(regs.read(Regs::ArbitrationId as u8) >> 24) & 0xF,
 		);
-		extern "C" fn spurious_vector_cb(num: usize, arg1: *const (), arg2: usize) {
-			let _ = (num, arg1, arg2);
-			super::super::get_lapic().eoi(0);
-			panic!("Unknown iterrupt on IOAPIC")
-		}
-		let spurious_vector = crate::arch::amd64::interrupts::bind_free_isr(spurious_vector_cb, 0 as _ , 9)
-			.unwrap();
 		for i in 0 .. num_lines as u8 {
 			let reg = Regs::RedirTable0 as u8 + i*2;
 			log_debug!("IRQ {:2} = 0x{:8x} {:8x} {:?}",
 				base + i as usize, regs.read(reg + 1), regs.read(reg + 0),
 				DumpRedir(regs.read_pair(reg))
 				);
-			if false {
-				let v = regs.read(reg + 0) | 1 << 16;
-				regs.write(reg + 0, v);
-			}
-			else {
+			if true {
+				// Mask out
 				if false {
-					regs.write_pair(reg, 1 << 16);
+					// Set bit, retaining all others?
+					let v = regs.read(reg + 0) | 1 << 16;
+					regs.write(reg + 0, v);
 				}
 				else {
-					let lapic: u8 = 0;
-					let flags = 0;
-					let vector = spurious_vector.idx();
-					regs.write_pair(reg, (lapic as u64) << 56 | flags | vector as u64);
+					// Just set everything
+					regs.write_pair(reg, 1 << 16);
 				}
 			}
+			else {
+				// Register a unique handler
+				extern "C" fn spurious_vector_cb(num: usize, arg1: *const (), arg2: usize) {
+					let _ = (num, arg1, arg2);
+					log_debug!("Unknown iterrupt on IOAPIC: {num} arg1={arg1:p} arg2={arg2:#x}", num=num);
+					super::super::get_lapic().eoi(0);
+				}
+				let spurious_vector = crate::arch::amd64::interrupts::bind_free_isr(spurious_vector_cb, 0 as _ , i as _)
+					.unwrap();
+				let lapic: u8 = 0;
+				let flags = 0;
+				let vector = spurious_vector.idx();
+				regs.write_pair(reg, (lapic as u64) << 56 | flags | vector as u64);
+				core::mem::forget(spurious_vector);
+			}
 		}
-		core::mem::forget(spurious_vector);
 		IOAPIC {
 			regs: crate::sync::Mutex::new( regs ),
 			num_lines: num_lines,
