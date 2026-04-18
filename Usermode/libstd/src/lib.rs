@@ -85,6 +85,8 @@ pub mod prelude {
 
 		pub use string::{String,ToString};
 		pub use alloc::vec::Vec;
+		// Aiming to get the macro, but will grab the module too :(
+		pub use alloc::{vec,format};
 
 		// Macro imports?
 		#[allow(deprecated)]
@@ -108,6 +110,7 @@ pub mod prelude {
 		#[allow(deprecated)]
 		pub use core::prelude::v1::{
 			assert,
+			assert_eq,
 			cfg,
 			column,
 			compile_error,
@@ -115,7 +118,6 @@ pub mod prelude {
 			env,
 			file,
 			format_args,
-			format_args_nl,
 			include,
 			include_bytes,
 			include_str,
@@ -126,6 +128,10 @@ pub mod prelude {
 			stringify,
 			//trace_macros,
 			derive,
+
+			write,
+			panic,
+			unreachable,
 			};
 	}
 }
