@@ -263,6 +263,7 @@ impl node::File for File
 
 				assert!(ofs < self.fs.lb_size);
 				sector += 1;
+				let len = len.min(self.fs.lb_size - ofs);
 				buf[..len].clone_from_slice(&tmp[ofs..][..len]);
 				read = len;
 			}
@@ -283,7 +284,8 @@ impl node::File for File
 				let mut tmp = vec![0; self.fs.lb_size];
 				::kernel::futures::block_on(self.fs.read_sector(self.first_lba + sector, &mut tmp))?;
 
-				buf[read..].clone_from_slice(&tmp[..len - read]);
+				// NOTE: `..len` is needed because the buffer may be larger than needed for the remaining file size
+				buf[read..len].clone_from_slice(&tmp[..len - read]);
 			}
 
 			Ok( len )
