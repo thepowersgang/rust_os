@@ -88,7 +88,7 @@ pub extern "C" fn start_process(pp: ::syscalls::threads::ProtoProcess) -> ::sysc
 	// - So, need to adjust the stack sligtly
 	let stack_adj = if cfg!(target_arch="x86_64") { 8 } else { 0 };
 	// SAFE: Just takes the address
-	pp.start( new_process_entry as usize, unsafe { init_stack_end.as_ptr() as usize } - stack_adj )
+	pp.start( new_process_entry as *const ()  as usize, unsafe { init_stack_end.as_ptr() as usize } - stack_adj )
 }
 
 /// Entrypoint for new processes, runs with a clean stack

@@ -9,11 +9,9 @@
 #![feature(lang_items)]	// Allow definition of lang_items
 #![feature(linkage)]	// Used for low-level runtime
 #![feature(core_intrinsics)]
-#![feature(slice_concat_ext)]
-#![feature(allocator_api)]
 #![feature(allocator_internals)]
 #![feature(test,custom_test_frameworks)]	// used for macro import
-#![feature(format_args_nl,log_syntax)]
+#![feature(log_syntax)]
 #![default_lib_allocator]
 #![no_std]
 

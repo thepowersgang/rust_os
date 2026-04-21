@@ -2,7 +2,6 @@
 //!
 //! Tasks:
 //! - Configure interfaces using DHCP or other methods
-#![feature(ip_from)]	// For the libcore IP address types
 use std::collections::btree_map::Entry;
 
 mod dhcp;
