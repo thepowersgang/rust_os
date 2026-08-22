@@ -15,7 +15,7 @@ impl device_manager::Driver for PciDriver {
 	fn handles(&self, bus_dev: &dyn device_manager::BusDevice) -> u32 {
 		let vendor = bus_dev.get_attr("vendor").unwrap_u32();
 		let device = bus_dev.get_attr("device").unwrap_u32();
-		if vendor == 0x10ec && device == 0x8129 {
+		if vendor == 0x10ec && device == 0x8168 {
 			2
 		}
 		else {
