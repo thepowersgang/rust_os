@@ -534,7 +534,12 @@ fn handle_fmt(out: &mut impl ::core::fmt::Write, it: &mut impl ::core::iter::Ite
 				None
 			}
 			else if precision < !0 {
-				crate::memory::buf_to_slice(ptr, precision as usize)
+				let s = crate::memory::buf_to_slice(ptr, precision as usize);
+				// NUL terminate
+				s.map(|s| {
+					let l = s.iter().position(|v| *v == 0).unwrap_or(s.len());
+					&s[..l]
+				})
 			}
 			else {
 				crate::memory::c_string_as_byte_slice(ptr as *const i8)
