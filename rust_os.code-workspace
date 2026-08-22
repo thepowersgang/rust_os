@@ -10,8 +10,23 @@
 			"RUSTFLAGS": "--cfg arch=\"native\" --cfg in_ide"
 		},
 		"rust-analyzer.cargo.features": [
-			"acpica"
+			//"acpica"
 		],
-		"makefile.configureOnOpen": false
+		"makefile.configureOnOpen": false,
+		"cSpell.words": [
+			"ACPI",
+			"apic",
+			"IOAPIC",
+			"lapic",
+			"lateout",
+			"lazystatic",
+			"MADT",
+			"outb",
+			"paddr",
+			"rdmsr",
+			"regs",
+			"Tifflin",
+			"virt"
+		]
 	}
 }

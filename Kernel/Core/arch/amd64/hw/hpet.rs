@@ -3,6 +3,7 @@
 //
 // arch/amd64/hw/hpet.rs
 // - x86 High Precision Event Timer
+// cspell:ignore HPET
 #[allow(unused_imports)]
 use crate::prelude::*;
 use crate::arch::amd64::acpi::AddressSpaceID;
@@ -45,6 +46,7 @@ enum HPETReg
 enum HPETCompReg
 {
 	ConfigCaps  = 0x0,
+	/// Target comparator value
 	Value       = 0x1,
 	#[allow(dead_code)]
 	FsbIntRoute = 0x2,

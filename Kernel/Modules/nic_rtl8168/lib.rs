@@ -48,7 +48,7 @@ impl BusDev
 			unsafe impl<T: Send> Send for RawSend<T> {}
 			let ret_raw = RawSend(&*card_nic_reg);
 			// SAFE: Pointer _should_ be valid as long as this IRQ binding exists
-			// SAFE: The network stack garuntees that the pointer is stable.
+			// SAFE: The network stack guarantees that the pointer is stable.
 			::kernel::irqs::bind_object(irq_num, ::kernel::lib::mem::Box::new(move || unsafe { (*ret_raw.0).handle_irq() } ))
 			};
 		// SAFE: Single register access that doesn't impact memory safety

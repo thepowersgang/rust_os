@@ -48,7 +48,9 @@ pub struct MADT_IntSrcOvr
 	bus: u8,
 	source: u8,
 	gsi: u32,
-	flags: u16,	// Polarity (2), Trigger Mode (2), MBZ(12)
+	/// Polarity (0:1): 0=Default, 1=High, 2=res, 3=Low
+	/// Trigger (2:3): 0=Default, 1=Edge, 3=Level
+	flags: u16,	// Polarity (0:1), Trigger Mode (2:3), MBZ(4:12)
 }
 #[derive(Copy,Clone)]
 #[derive(Debug)]
