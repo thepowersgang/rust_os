@@ -2,9 +2,8 @@
 // - By John Hodge (thePowersGang)
 //
 //! Provides wrappers around most system calls
-//#![feature(core_intrinsics)]
-#![feature(generic_const_exprs)]
-#![allow(incomplete_features)]	// for `generic_const_exprs`
+//#![feature(generic_const_exprs)]
+//#![allow(incomplete_features)]	// for `generic_const_exprs`
 #![no_std]
 
 pub extern crate syscall_values as values;

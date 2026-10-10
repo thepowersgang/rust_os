@@ -6,7 +6,6 @@
 //#![feature(lang_items)]	// Allow definition of lang_items
 //#![feature(optin_builtin_traits)] // For !Send
 #![feature(unboxed_closures)]
-#![feature(allocator_api)]
 #![no_std]
 
 use core::alloc::{self,Layout,AllocError};

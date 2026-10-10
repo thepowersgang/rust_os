@@ -141,16 +141,16 @@ impl<'a> ::wtk::Element for Viewer<'a>
 
 		// Reposition the scroll elements
 		let file = self.file.borrow();
-		let filesize = file.get_size();
-		if filesize > usize::max_value() as u64 {
-			// - Disable vertical scroll if the filesize is > usize
+		let file_size = file.get_size();
+		if file_size > usize::MAX as u64 {
+			// - Disable vertical scroll if the `file_size` is > usize
 			self.vscroll.set_bar( None );
 		}
-		else if filesize <= self.hex.get_capacity() as u64 {
+		else if file_size <= self.hex.get_capacity() as u64 {
 			self.vscroll.set_bar( Some( (0,0) ) );
 		}
 		else {
-			self.vscroll.set_bar( Some( (filesize as usize, self.hex.get_capacity() as usize) ) );
+			self.vscroll.set_bar( Some( (file_size as usize, self.hex.get_capacity() as usize) ) );
 		}
 		self.vscroll.set_pos( 0 );
 		self.hscroll.set_bar( None );

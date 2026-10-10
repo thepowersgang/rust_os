@@ -24,7 +24,7 @@ macro_rules! read_signed {
 			rv as $ty
 		}
 		else if rv == 1<<($bits-1) {
-			<$ty>::min_value()
+			<$ty>::MIN
 		}
 		else {
 			- ((!rv + 1) as $ty)
@@ -51,7 +51,7 @@ pub trait ByteOrder
 	fn read_u16(buf: &[u8]) -> u16;
 	fn read_u32(buf: &[u8]) -> u32;
 	fn read_u64(buf: &[u8]) -> u64;
-	fn read_uint(buf: &[u8], nbytes: usize) -> u64;
+	fn read_uint(buf: &[u8], n_bytes: usize) -> u64;
 	fn write_u16(buf: &mut [u8], n: u16);
 	fn write_u32(buf: &mut [u8], n: u32);
 	fn write_u64(buf: &mut [u8], n: u64);
@@ -65,8 +65,8 @@ pub trait ByteOrder
 	fn read_i64(buf: &[u8]) -> i64 {
 		read_signed!(i64, 64, Self::read_u64(buf))
 	}
-	fn read_int(buf: &[u8], nbytes: usize) -> i64 {
-		read_signed!(i64, 64, Self::read_uint(buf, nbytes))
+	fn read_int(buf: &[u8], n_bytes: usize) -> i64 {
+		read_signed!(i64, 64, Self::read_uint(buf, n_bytes))
 	}
 	//fn read_f32(buf: &[u8]) -> f32 { ... }
 	//fn read_f64(buf: &[u8]) -> f64 { ... }
@@ -89,9 +89,9 @@ impl ByteOrder for LittleEndian
 	fn read_u64(buf: &[u8]) -> u64 {
 		Self::read_u32(&buf[0..4]) as u64 | (Self::read_u32(&buf[4..8]) as u64) << 32
 	}
-	fn read_uint(buf: &[u8], nbytes: usize) -> u64 {
+	fn read_uint(buf: &[u8], n_bytes: usize) -> u64 {
 		let mut rv = 0;
-		for i in 0 .. nbytes {
+		for i in 0 .. n_bytes {
 			rv |= (buf[i] as u64) << (8*i);
 		}
 		rv
@@ -124,10 +124,10 @@ impl ByteOrder for BigEndian
 	fn read_u64(buf: &[u8]) -> u64 {
 		(Self::read_u32(&buf[0..4]) as u64) << 32 | (Self::read_u32(&buf[4..8]) as u64)
 	}
-	fn read_uint(buf: &[u8], nbytes: usize) -> u64 {
+	fn read_uint(buf: &[u8], n_bytes: usize) -> u64 {
 		let mut rv = 0;
-		for i in 0 .. nbytes {
-			rv |= (buf[i] as u64) << (8*(nbytes - 1 - i));
+		for i in 0 .. n_bytes {
+			rv |= (buf[i] as u64) << (8*(n_bytes - 1 - i));
 		}
 		rv
 	}
@@ -198,17 +198,17 @@ pub trait ReadBytesExt:
 		self.read_exact(&mut buf)?;
 		Ok( T::read_i64(&buf) )
 	}
-	fn read_uint<T: ByteOrder>(&mut self, nbytes: usize) -> Result<u64> {
-		assert!(nbytes <= 8);
+	fn read_uint<T: ByteOrder>(&mut self, n_bytes: usize) -> Result<u64> {
+		assert!(n_bytes <= 8);
 		let mut buf = [0; 8];
 		self.read_exact(&mut buf)?;
-		Ok( T::read_uint(&buf, nbytes) )
+		Ok( T::read_uint(&buf, n_bytes) )
 	}
-	fn read_int<T: ByteOrder>(&mut self, nbytes: usize) -> Result<i64> {
-		assert!(nbytes <= 8);
+	fn read_int<T: ByteOrder>(&mut self, n_bytes: usize) -> Result<i64> {
+		assert!(n_bytes <= 8);
 		let mut buf = [0; 8];
 		self.read_exact(&mut buf)?;
-		Ok( T::read_int(&buf, nbytes) )
+		Ok( T::read_int(&buf, n_bytes) )
 	}
 	//fn read_f32<T: ByteOrder>(&mut self) -> Result<f32> {
 	//}

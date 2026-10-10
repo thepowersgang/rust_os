@@ -5,9 +5,7 @@
 #![crate_type="rlib"]
 #![crate_name="std"]
 #![allow(internal_features)]
-//#![feature(staged_api)]	// stability
 #![feature(lang_items)]	// Allow definition of lang_items
-#![feature(linkage)]	// Used for low-level runtime
 #![feature(core_intrinsics)]
 #![feature(allocator_internals)]
 #![feature(test,custom_test_frameworks)]	// used for macro import

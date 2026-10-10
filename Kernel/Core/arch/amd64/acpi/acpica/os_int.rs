@@ -27,15 +27,15 @@ pub type ACPI_MUTEX = *const crate::sync::Mutex<()>;
 #[allow(non_camel_case_types)]
 pub type ACPI_SEMAPHORE = *const crate::sync::Semaphore;
 
-#[no_mangle] #[linkage="external"]
+#[no_mangle]
 extern "C" fn AcpiOsInitialize() -> ACPI_STATUS {
 	AE_OK
 }
-#[no_mangle] #[linkage="external"]
+#[no_mangle]
 extern "C" fn AcpiOsTerminate() -> ACPI_STATUS {
 	AE_OK
 }
-#[no_mangle] #[linkage="external"]
+#[no_mangle]
 extern "C" fn AcpiOsGetRootPointer() -> ACPI_PHYSICAL_ADDRESS {
 	//if( gACPI_RSDPOverride )
 	//	return gACPI_RSDPOverride;	
@@ -53,17 +53,17 @@ extern "C" fn AcpiOsGetRootPointer() -> ACPI_PHYSICAL_ADDRESS {
 	
 	val as ACPI_PHYSICAL_ADDRESS
 }
-#[no_mangle] #[linkage="external"]
+#[no_mangle]
 extern "C" fn AcpiOsPredefinedOverride(_PredefinedObject: *const ACPI_PREDEFINED_NAMES, NewValue: &mut ACPI_STRING) -> ACPI_STATUS {
 	*NewValue = 0 as *mut _;
 	AE_OK
 }
-#[no_mangle] #[linkage="external"]
+#[no_mangle]
 extern "C" fn AcpiOsTableOverride(_ExistingTable: *mut ACPI_TABLE_HEADER, NewTable: &mut *const ACPI_TABLE_HEADER) -> ACPI_STATUS {
 	*NewTable = 0 as *const _;
 	AE_OK
 }
-#[no_mangle] #[linkage="external"]
+#[no_mangle]
 extern "C" fn AcpiOsPhysicalTableOverride(_ExistingTable: *mut ACPI_TABLE_HEADER, NewAddress: &mut ACPI_PHYSICAL_ADDRESS, _NewTableLength: &mut u32) -> ACPI_STATUS {
 	*NewAddress = 0;
 	AE_OK
@@ -71,7 +71,7 @@ extern "C" fn AcpiOsPhysicalTableOverride(_ExistingTable: *mut ACPI_TABLE_HEADER
 
 // -- Memory Management ---
 // ------------------------
-#[no_mangle] #[linkage="external"]
+#[no_mangle]
 extern "C" fn AcpiOsMapMemory(PhysicalAddress: ACPI_PHYSICAL_ADDRESS, Length: ACPI_SIZE) -> *mut () {
 	log_trace!("AcpiOsMapMemory({:#x}, {})", PhysicalAddress, Length);
 	let phys_page = PhysicalAddress & !0xFFF;
@@ -94,7 +94,7 @@ extern "C" fn AcpiOsMapMemory(PhysicalAddress: ACPI_PHYSICAL_ADDRESS, Length: AC
 		rv
 	}
 }
-#[no_mangle] #[linkage="external"]
+#[no_mangle]
 extern "C" fn AcpiOsUnmapMemory(LogicalAddress: *mut (), Length: ACPI_SIZE) {
 	log_trace!("AcpiOsUnmapMemory({:p}, {})", LogicalAddress, Length);
 	let ofs = (LogicalAddress as usize) & 0xFFF;
@@ -104,53 +104,53 @@ extern "C" fn AcpiOsUnmapMemory(LogicalAddress: *mut (), Length: ACPI_SIZE) {
 		crate::memory::virt::unmap( ((LogicalAddress as usize) - ofs) as *mut (), npages );
 	}
 }
-#[no_mangle] #[linkage="external"]
+#[no_mangle]
 extern "C" fn AcpiOsGetPhysicalAddress(LogicalAddress: *const (), PhysicalAddress: &mut ACPI_PHYSICAL_ADDRESS) -> ACPI_STATUS {
 	unimplemented!();
 }
 
-#[no_mangle] #[linkage="external"]
+#[no_mangle]
 extern "C" fn AcpiOsAllocate(Size: ACPI_SIZE) -> *mut () {
 	// SAFE: (called from external, trust it)
 	unsafe { crate::memory::heap::alloc_raw(Size, 16) }
 }
-#[no_mangle] #[linkage="external"]
+#[no_mangle]
 extern "C" fn AcpiOsFree(Memory: *mut ()) {
 	// SAFE: (called from external, trust it)
 	unsafe { crate::memory::heap::dealloc_raw(Memory, 0, 16) }
 }
 
-#[no_mangle] #[linkage="external"]
+#[no_mangle]
 extern "C" fn AcpiOsReadable(Memory: *const (), Length: ACPI_SIZE) -> bool {
 	unimplemented!();
 }
 
-#[no_mangle] #[linkage="external"]
+#[no_mangle]
 extern "C" fn AcpiOsWritable(Memory: *const (), Length: ACPI_SIZE) -> bool {
 	unimplemented!();
 }
 
 // -- Thread Management --
 // -----------------------
-#[no_mangle] #[linkage="external"]
+#[no_mangle]
 extern "C" fn AcpiOsGetThreadId() -> ACPI_THREAD_ID {
 	// 0 is special to ACPICA, so offset by one
 	// - This is just used by ACPICA, so offsetting by one is safe
 	(crate::threads::get_thread_id().raw() + 1) as ACPI_THREAD_ID
 }
-#[no_mangle] #[linkage="external"]
+#[no_mangle]
 extern "C" fn AcpiOsExecute(Type: ACPI_EXECUTE_TYPE, Function: ACPI_OSD_EXEC_CALLBACK, Context: *const ()) -> ACPI_STATUS {
 	unimplemented!();
 }
-#[no_mangle] #[linkage="external"]
+#[no_mangle]
 extern "C" fn AcpiOsSleep(Milliseconds: u64) {
 	unimplemented!();
 }
-#[no_mangle] #[linkage="external"]
+#[no_mangle]
 extern "C" fn AcpiOsStall(Microseconds: u32) {
 	unimplemented!();
 }
-#[no_mangle] #[linkage="external"]
+#[no_mangle]
 extern "C" fn AcpiOsWaitEventsComplete() {
 	unimplemented!();
 }
@@ -158,7 +158,7 @@ extern "C" fn AcpiOsWaitEventsComplete() {
 
 // --- Mutexes etc ---
 // -------------------
-#[no_mangle] #[linkage="external"]
+#[no_mangle]
 extern "C" fn AcpiOsCreateMutex(OutHandle: *mut ACPI_MUTEX) -> ACPI_STATUS {
 	// SAFE: Transmutes Box to *mut to forget the box. Will be recreated to drop
 	unsafe {
@@ -167,20 +167,20 @@ extern "C" fn AcpiOsCreateMutex(OutHandle: *mut ACPI_MUTEX) -> ACPI_STATUS {
 		AE_OK
 	}
 }
-#[no_mangle] #[linkage="external"]
+#[no_mangle]
 extern "C" fn AcpiOsDeleteMutex(Handle: ACPI_MUTEX) {
 	unimplemented!();
 }
-#[no_mangle] #[linkage="external"]
+#[no_mangle]
 extern "C" fn AcpiOsAcquireMutex(Handle: ACPI_MUTEX, Timeout: u16) -> ACPI_STATUS {
 	unimplemented!();
 }
-#[no_mangle] #[linkage="external"]
+#[no_mangle]
 extern "C" fn AcpiOsReleaseMutex(Handle: ACPI_MUTEX) {
 	unimplemented!();
 }
 
-#[no_mangle] #[linkage="external"]
+#[no_mangle]
 extern "C" fn AcpiOsCreateSemaphore(MaxUnits: u32, InitialUnits: u32, OutHandle: *mut ACPI_SEMAPHORE) -> ACPI_STATUS {
 	// SAFE: Transmutes Box to *mut to forget the box. Will be recreated to drop
 	unsafe {
@@ -189,7 +189,7 @@ extern "C" fn AcpiOsCreateSemaphore(MaxUnits: u32, InitialUnits: u32, OutHandle:
 		AE_OK
 	}
 }
-#[no_mangle] #[linkage="external"]
+#[no_mangle]
 extern "C" fn AcpiOsDeleteSemaphore(Handle: ACPI_SEMAPHORE) -> ACPI_STATUS {
 	assert!( !Handle.is_null() );
 	// SAFE: ACPICA should pass us a valid handle
@@ -197,7 +197,7 @@ extern "C" fn AcpiOsDeleteSemaphore(Handle: ACPI_SEMAPHORE) -> ACPI_STATUS {
 	::core::mem::drop(boxed);
 	AE_OK
 }
-#[no_mangle] #[linkage="external"]
+#[no_mangle]
 extern "C" fn AcpiOsWaitSemaphore(Handle: ACPI_SEMAPHORE, Units: u32, Timeout: u16) -> ACPI_STATUS {
 	// SAFE: ACPICA should pass us a valid handle
 	unsafe {
@@ -210,7 +210,7 @@ extern "C" fn AcpiOsWaitSemaphore(Handle: ACPI_SEMAPHORE, Units: u32, Timeout: u
 		AE_OK
 	}
 }
-#[no_mangle] #[linkage="external"]
+#[no_mangle]
 extern "C" fn AcpiOsSignalSemaphore(Handle: ACPI_SEMAPHORE, Units: u32) -> ACPI_STATUS {
 	// SAFE: ACPICA should pass us a valid handle
 	unsafe {
@@ -224,7 +224,7 @@ extern "C" fn AcpiOsSignalSemaphore(Handle: ACPI_SEMAPHORE, Units: u32) -> ACPI_
 	}
 }
 
-#[no_mangle] #[linkage="external"]
+#[no_mangle]
 extern "C" fn AcpiOsCreateLock(OutHandle: *mut ACPI_SPINLOCK) -> ACPI_STATUS {
 	// SAFE: Transmutes Box to *mut to forget the box. Will be recreated to drop
 	unsafe {
@@ -233,11 +233,11 @@ extern "C" fn AcpiOsCreateLock(OutHandle: *mut ACPI_SPINLOCK) -> ACPI_STATUS {
 		AE_OK
 	}
 }
-#[no_mangle] #[linkage="external"]
+#[no_mangle]
 extern "C" fn AcpiOsDeleteLock(Handle: ACPI_SPINLOCK) {
 	unimplemented!();
 }
-#[no_mangle] #[linkage="external"]
+#[no_mangle]
 extern "C" fn AcpiOsAcquireLock(Handle: ACPI_SPINLOCK) -> ACPI_CPU_FLAGS {
 	// SAFE: ACPICA should pass us a valid handle
 	unsafe {
@@ -245,7 +245,7 @@ extern "C" fn AcpiOsAcquireLock(Handle: ACPI_SPINLOCK) -> ACPI_CPU_FLAGS {
 		0
 	}
 }
-#[no_mangle] #[linkage="external"]
+#[no_mangle]
 extern "C" fn AcpiOsReleaseLock(Handle: ACPI_SPINLOCK, Flags: ACPI_CPU_FLAGS) {
 	// SAFE: ACPICA should pass us a valid handle
 	unsafe {
@@ -281,7 +281,7 @@ fn install_interrupt_inner(InterruptLevel: u32, Handler: ACPI_OSD_HANDLER, Conte
 		}, Box::into_raw(ctxt) as *const _);
 	}
 }
-#[no_mangle] #[linkage="external"]
+#[no_mangle]
 /// `InterruptLevel` is probably the interrupt line, seen called with `InterruptLevel=9`
 extern "C" fn AcpiOsInstallInterruptHandler(InterruptLevel: u32, Handler: ACPI_OSD_HANDLER, Context: *const ::acpica_sys::Void) -> ACPI_STATUS {
 	// TODO: This tends to be run before the APIC is initialised, so need to remember the interrupt number and register later on
@@ -300,19 +300,19 @@ extern "C" fn AcpiOsInstallInterruptHandler(InterruptLevel: u32, Handler: ACPI_O
 	}
 	AE_OK
 }
-#[no_mangle] #[linkage="external"]
+#[no_mangle]
 extern "C" fn AcpiOsRemoveInterruptHandler(InterruptLevel: u32, Handler: ACPI_OSD_HANDLER) -> ACPI_STATUS {
 	unimplemented!()
 }
 
 // -- Memory Access --
 // -------------------
-#[no_mangle] #[linkage="external"]
+#[no_mangle]
 extern "C" fn AcpiOsReadMemory(Address: ACPI_PHYSICAL_ADDRESS, Value: *mut u64, Width: u32) -> ACPI_STATUS
 {
 	unimplemented!()
 }
-#[no_mangle] #[linkage="external"]
+#[no_mangle]
 extern "C" fn AcpiOsWriteMemory(Address: ACPI_PHYSICAL_ADDRESS, Value: u64, Width: u32) -> ACPI_STATUS
 {
 	unimplemented!()
@@ -320,7 +320,7 @@ extern "C" fn AcpiOsWriteMemory(Address: ACPI_PHYSICAL_ADDRESS, Value: u64, Widt
 
 // -- Port Input / Output --
 // -------------------------
-#[no_mangle] #[linkage="external"]
+#[no_mangle]
 extern "C" fn AcpiOsReadPort(Address: ACPI_IO_ADDRESS, Value: &mut u32, Width: u32) -> ACPI_STATUS
 {
 	assert!(Value as *mut u32 != 0 as *mut u32);
@@ -348,7 +348,7 @@ extern "C" fn AcpiOsReadPort(Address: ACPI_IO_ADDRESS, Value: &mut u32, Width: u
 	AE_OK
 }
 
-#[no_mangle] #[linkage="external"]
+#[no_mangle]
 extern "C" fn AcpiOsWritePort(Address: ACPI_IO_ADDRESS, Value: u32, Width: u32) -> ACPI_STATUS
 {
 	log_trace!("AcpiOsWritePort({:#x}, Value={:#x}, Width={})", Address, Value, Width);
@@ -377,14 +377,12 @@ extern "C" fn AcpiOsWritePort(Address: ACPI_IO_ADDRESS, Value: u32, Width: u32) 
 // -- PCI Configuration Space Access --
 // ------------------------------------
 #[no_mangle]
-#[linkage="external"]
 extern "C" fn AcpiOsReadPciConfiguration(PciId: ACPI_PCI_ID, Register: u32, Value: *mut u64, Width: u32) -> ACPI_STATUS 
 {
 	unimplemented!();
 }
 
 #[no_mangle]
-#[linkage="external"]
 extern "C" fn AcpiOsWritePciConfiguration(PciId: ACPI_PCI_ID, Register: u32, Value: u64, Width: u32) -> ACPI_STATUS 
 {
 	unimplemented!();
@@ -419,7 +417,6 @@ fn get_ptr<T: 'static>(args: &mut VaList) -> *const T {
 // ----------------------
 // NOTE: AcpiOsPrintf is handled by the acrust.h header
 #[no_mangle]
-#[linkage="external"]
 #[allow(dead_code)]
 extern "C" fn AcpiOsVprintf(Format: *const i8, mut Args: VaList)
 {
@@ -561,19 +558,18 @@ fn handle_fmt(out: &mut impl ::core::fmt::Write, it: &mut impl ::core::iter::Ite
 }
 
 #[no_mangle]
-#[linkage="external"]
 extern "C" fn AcpiOsRedirectOutput(Destination: *const ())
 {
 }
 
 // -- Miscellaneous --
 // -------------------
-#[no_mangle] #[linkage="external"]
+#[no_mangle]
 extern "C" fn AcpiOsGetTimer() -> u64 {
 	crate::time::ticks() * 10 * 1000
 }
 
-#[no_mangle] #[linkage="external"]
+#[no_mangle]
 extern "C" fn AcpiOsSignal(Function: u32, Info: *const ()) -> ACPI_STATUS {
 	unimplemented!();
 }

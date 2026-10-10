@@ -26,7 +26,7 @@ macro_rules! read_signed {
 			rv as $ty
 		}
 		else if rv == 1<<($bits-1) {
-			<$ty>::min_value()
+			<$ty>::MIN
 		}
 		else {
 			- ((!rv + 1) as $ty)

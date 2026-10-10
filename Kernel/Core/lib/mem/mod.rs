@@ -16,7 +16,7 @@ pub mod boxed {
 #[allow(improper_ctypes)]
 extern "C" {
 	/// C's `memset` function, VERY UNSAFE
-	pub fn memset(dst: *mut u8, val: u8, count: usize);
+	pub fn memset(dst: *mut ::core::ffi::c_void, val: i32, count: usize) -> *mut ::core::ffi::c_void;
 }
 
 // TODO: Replace with `core::ptr::Unique`?

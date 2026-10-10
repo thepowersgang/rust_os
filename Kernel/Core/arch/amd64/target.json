@@ -6,7 +6,7 @@
 	"target-pointer-width": 64,
 	"target-c-int-width": 32,
 	"features": "-mmx,-sse,+soft-float",
-	"rustc-abi": "x86-softfloat",
+	"rustc-abi": "softfloat",
 	"os": "tifflin",
 	"arch": "x86_64",
 	
