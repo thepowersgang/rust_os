@@ -4,5 +4,21 @@
         "RUSTFLAGS": "--cfg in_ide"
     },
     "makefile.configureOnOpen": false,
-    "python.analysis.typeCheckingMode": "basic"
+    "python.analysis.typeCheckingMode": "basic",
+    "cSpell.words": [
+			"ACPI",
+			"apic",
+			"IOAPIC",
+			"lapic",
+			"lateout",
+			"lazystatic",
+			"MADT",
+			"outb",
+			"paddr",
+			"rdmsr",
+			"regs",
+			"Tifflin",
+			"MPTable",
+			"virt"
+    ]
 }

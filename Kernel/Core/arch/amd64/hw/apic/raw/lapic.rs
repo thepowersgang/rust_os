@@ -1,8 +1,9 @@
 //! Local APIC - See Intel Manuals, 3A Ch 10 ("Advanced Programmable Interrupt Controller")
+// cspell:ignore S_IOAPICS
 use super::ApicReg;
 use super::APICReg;
 
-const ISR_SPURRIOUS: u8 = 0x7F;
+const ISR_SPURIOUS: u8 = 0x7F;
 const ISR_LAPIC_TIMER: u8 = 0x7E;
 
 pub struct LAPIC
@@ -49,14 +50,14 @@ impl LAPIC
 	pub fn percpu_init(&self, allow_pic: bool)
 	{
 		// SAFE: Read original LAPIC base
-		let oldaddr = unsafe{
+		let old_addr = unsafe{
 			let a: u32;
 			let d: u32;
 			::core::arch::asm!("rdmsr", lateout("eax") a, lateout("edx") d, in("ecx") 0x1Bu32, options(pure, readonly));
 			(d as u64) << 32 | a as u64
 			};
-		log_debug!("oldaddr = {:#x}", oldaddr);
-		let is_bsp = oldaddr & 0x100;
+		log_debug!("old_addr = {:#x}", old_addr);
+		let is_bsp = old_addr & 0x100;
 		log_debug!("IRR[0..8] = [{:08x}, {:08x}, {:08x}, {:08x},  {:08x}, {:08x}, {:08x}, {:08x}]",
 			self.read_reg(ApicReg::irr(0)),
 			self.read_reg(ApicReg::irr(1)),
@@ -68,11 +69,34 @@ impl LAPIC
 			self.read_reg(ApicReg::irr(7))
 			);
 		
+		// Get frequency using CPUID 0x15 and 0x16
+		// - An internal LAPIC (most modern hardware) will use the core frequency, externals the bus freq
+		// - See https://sandpile.org/x86/cpuid.htm#leaf_0000_0015h
+		// Clear MISC_ENABLE.LCMV (Limit CPUID Max Val) first, as the CPU doesn't expose CPUID 0x15 unless that is set (to mitigate a WinNT bug)
+		// SAFE: This MSR has no memory effects.
+		unsafe {
+			::core::arch::asm!( "rdmsr; and eax, ~(1 << 22); wrmsr", in("rcx") 0x1A0, out("rax") _, out("rdx") _ );
+		}
+		let bus_mhz = ::core::arch::x86_64::__cpuid(0x16).ecx & 0xFFFF;
+		let core_hz = ::core::arch::x86_64::__cpuid(0x15).ecx;
+		let freq_mhz = match (bus_mhz, core_hz) {
+			(0,0) => 1_000,	// Qemu
+			(100,0) => 100,	// Dell Mini-PC (guessed) - 1000MHz caused the timer to fire after (72.4s-30s=)42s
+			_ => core_hz / 1_000_000,
+		};
+		log_debug!("Frequencies: {} Hz (core) or {} MHz (bus) (picked {freq_mhz} MHz)",
+			::core::arch::x86_64::__cpuid(0x15).ecx,
+			::core::arch::x86_64::__cpuid(0x16).ecx & 0xFFFF,
+		);
+
 		//self.write_reg(ApicReg::SIR as usize, self.read_reg(ApicReg_SIR as usize) | (1 << 8));
-		self.write_reg(ApicReg::SIR, ISR_SPURRIOUS as u32 | (1 << 8));	// Enable LAPIC (and set Spurious Vector to 127)
-		self.write_reg(ApicReg::InitCount, 0x1000000);	// ~16M
-		self.write_reg(ApicReg::TmrDivide, 3);	// Timer Divide = 16
+		self.write_reg(ApicReg::SIR, ISR_SPURIOUS as u32 | (1 << 8));	// Enable LAPIC (and set Spurious Vector to 127)
+		self.write_reg(ApicReg::InitCount, !0);	// Set the count to max value, just so it doesn't trigger early
+		self.write_reg(ApicReg::TmrDivide, 0b1010);	// Divide by 128 (0b110 in bits 3,1,0 - bit 2 is reserved 0)
 		self.write_reg(ApicReg::LVTTimer, (0b01 << 17)|(0 << 16)|(ISR_LAPIC_TIMER as u32));	// Periodic, Unmasked, bind to vector 126
+		// Set the LAPIC timer to 1Hz, i.e. set to the frequency
+		self.write_reg(ApicReg::InitCount, freq_mhz * (1_000_000 / 128));	// Set count timer after everything
+
 		self.write_reg(ApicReg::LVTThermalSensor, 0x10000);	// "Disable" Thermal Sensor
 		self.write_reg(ApicReg::LVTPermCounters, 0x10000);	// "Disable" ? Counters
 		if !allow_pic {
@@ -98,7 +122,7 @@ impl LAPIC
 	pub fn eoi(&self, _num: usize)
 	{
 		//self.write_reg(ApicReg::EOI, num as u32);
-		self.write_reg(ApicReg::EOI, 0);	// Aparently zero is the only valid value?
+		self.write_reg(ApicReg::EOI, 0);	// Apparently zero is the only valid value?
 	}
 	// UNSAFE: IPIs can request ACE (via StartupIPI)
 	pub unsafe fn send_ipi(&self, apic_id: u8, vector: u8, delivery_mode: super::DeliveryMode) {
@@ -142,6 +166,7 @@ impl LAPIC
 		(in_svc, mode, in_req, err)
 	}
 	
+	/// LAPIC Timer handler
 	fn local_timer(isr: usize, sp: *const (), _idx: usize)
 	{
 		assert!( !sp.is_null() );
@@ -151,7 +176,7 @@ impl LAPIC
 		if true {
 			return 
 		}
-		if false
+		if true
 		{
 			log_trace!("LAPIC Timer");
 			log_debug!("IRR[0..8] = [{:#x}, {:#x}, {:#x}, {:#x},  {:#x}, {:#x}, {:#x}, {:#x}]",
@@ -193,7 +218,7 @@ impl LAPIC
 				}
 			}
 			else {
-				static mut SAVED_REGS: [u64; 256] = [0; 256];
+				static mut SAVED_REGS: [u64; 256] = [1<<16; 256];
 				//log_debug!("IOAPIC IRQ4 = {:#x}", super::super::S_IOAPICS[0].get_irq_reg(4));
 				for i in 0..super::super::S_IOAPICS[0].num_lines() {
 					let v = super::super::S_IOAPICS[0].get_irq_reg(i);
@@ -214,10 +239,18 @@ impl LAPIC
 			unsafe {
 				const PORT_BASE: u16 = 0x3F8;
 				use crate::arch::amd64::x86_io::inb;
-				log_debug!("RS232 IIR={:02x}, LSR={:02x}",
-					inb(PORT_BASE+2),
-					inb(PORT_BASE+5),
+				let iir = inb(PORT_BASE+2);
+				log_debug!("RS232 IIR={:02x} (FS={iir_fs}, ST={iir_st},nP={iir_np}), LSR={lsr:02x}",
+					iir,
+					lsr=inb(PORT_BASE+5),
+					iir_fs = ["None","Unusable","Enabled","UD3"][ ((iir >> 6) & 3) as usize ],	// FIFO state
+					iir_st = ["ModemSts","TxEmpty","RxAvail","RxLineSts",][ ((iir >> 1) & 3) as usize ],// interrupt state
+					iir_np = (iir & 1),	// Not pending
 					);
+				while inb(PORT_BASE+5) & 1 == 1 {
+					let c = inb(PORT_BASE);
+					log_debug!("RS232 Rx = 0x{:02x} ({:?})", c, c as char)
+				}
 			}
 		}
 		

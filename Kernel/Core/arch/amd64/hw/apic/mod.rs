@@ -156,6 +156,7 @@ fn init()
 		}
 		// SAFE: No memory addresses
 		unsafe {
+			// FIFO Control: Enable FIFOs (0x01), clear rx (0x02), trigger interrupt after 1 byte Rx (0xC0 = 0)
 			crate::arch::x86_io::outb(PORT_BASE+2, 0x05);
 			// Enable Rx interrupt (only)
 			crate::arch::x86_io::outb(PORT_BASE+1, 0x01);
@@ -258,8 +259,11 @@ pub fn register_irq(global_num: usize, callback: IRQHandler, info: *const() ) ->
 	// Enable the relevant IRQ on the LAPIC and IOAPIC
 	// - Uses edge triggering so the handler can signal to the downstream, without needing to check the IRQ status
 	// - Works (at least with qemu) even if the source is level-triggered
-	let mode = raw::TriggerMode::EdgeHi;
-	//let mode = raw::TriggerMode::LevelHi;
+	// ISA default is edge-triggered active-high, but PCI may be different
+	let mode = match global_num {
+		0..15 => raw::TriggerMode::EdgeHi,
+		_ => raw::TriggerMode::LevelHi,
+	};
 	ioapic.set_irq(ofs, isr_handle.idx() as u8, lapic_id, mode, callback);
 	
 	Ok( IRQHandle {

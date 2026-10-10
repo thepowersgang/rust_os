@@ -1,4 +1,4 @@
-
+// cspell:ignore Redir
 use crate::prelude::*;
 use super::super::IRQHandler;
 use super::TriggerMode;
@@ -51,6 +51,7 @@ impl IOAPIC
 				base + i as usize, regs.read(reg + 1), regs.read(reg + 0),
 				DumpRedir(regs.read_pair(reg))
 				);
+			// Mask out #2, the PIT (remapped from 0)
 			if true {
 				// Mask out
 				if false {
@@ -67,10 +68,18 @@ impl IOAPIC
 				// Register a unique handler
 				extern "C" fn spurious_vector_cb(num: usize, arg1: *const (), arg2: usize) {
 					let _ = (num, arg1, arg2);
-					log_debug!("Unknown iterrupt on IOAPIC: {num} arg1={arg1:p} arg2={arg2:#x}", num=num);
+					log_debug!("Unknown interrupt on IOAPIC: ISR {num} arg1={arg1:p} arg2={arg2:#x}", num=num);
+					let mut regs = IOAPICRegs::new(arg1 as usize as u64);
+					let reg = Regs::RedirTable0 as u8 + arg2 as u8 * 2;
+					log_debug!("IRQ ? = 0x{:8x} {:8x} {:?}",
+						regs.read(reg + 1), regs.read(reg + 0),
+						DumpRedir(regs.read_pair(reg))
+						);
+					// Mask this interrupt, so it doesn't spam
+					regs.write_pair(reg, 1 << 16);
 					super::super::get_lapic().eoi(0);
 				}
-				let spurious_vector = crate::arch::amd64::interrupts::bind_free_isr(spurious_vector_cb, 0 as _ , i as _)
+				let spurious_vector = crate::arch::amd64::interrupts::bind_free_isr(spurious_vector_cb, paddr as usize as _ , i as _)
 					.unwrap();
 				let lapic: u8 = 0;
 				let flags = 0;
@@ -99,7 +108,7 @@ impl IOAPIC
 	//#[is_safe(irq)]	// Holds interrupts before lock
 	pub fn get_callback(&self, idx: usize) -> Option<IRQHandler> {
 		assert!( idx < self.num_lines );
-		let _irql = crate::sync::hold_interrupts();
+		let _irq_lock = crate::sync::hold_interrupts();
 		self.handlers.lock()[idx]
 	}
 	
@@ -118,6 +127,8 @@ impl IOAPIC
 			let _irql = crate::sync::hold_interrupts();
 			self.handlers.lock()[idx] = Some( cb );
 		}
+		// 13: IntPolarity: 0=High, 1=Low
+		// 15: Trigger Mode: 0=Edge, 1=Level
 		let flags = match mode {
 			TriggerMode::EdgeHi   => (0<<13)|(0<<15),
 			TriggerMode::EdgeLow  => (1<<13)|(0<<15),
@@ -210,10 +221,10 @@ impl ::core::fmt::Debug for DumpRedir {
 		let b = |s:i32| (self.0 >> s) & 1;
 		write!(f, "DELMOD={} ", bs(10,8))?;
 		write!(f, "DESTMOD={} ", b(11))?;
-		write!(f, "DELIVS={} ", b(12))?;
+		write!(f, "DELIVS={} ", b(12))?;	// Read-only
 		write!(f, "{} ", ["Hi","Lo"][b(13) as usize])?;
-		write!(f, "RIRR={} ", b(15))?;
-		write!(f, "{} ", ["Lvl","Edg"][b(15) as usize])?;
+		write!(f, "RIRR={} ", b(14))?;	// Read-only
+		write!(f, "{} ", ["Edg","Lvl"][b(15) as usize])?;
 		write!(f, "Mask={} ", b(16))?;
 		if b(11) == 0 {
 			write!(f, "CPU {}", self.0>>56)?;
