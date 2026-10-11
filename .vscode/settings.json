@@ -17,6 +17,7 @@
 			"paddr",
 			"rdmsr",
 			"regs",
+			"SysCall",
 			"Tifflin",
 			"MPTable",
 			"virt"

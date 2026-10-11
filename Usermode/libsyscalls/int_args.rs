@@ -1,4 +1,3 @@
-// cspell:ignore SysCall
 use crate::values::ToUsizeArray;
 
 /// Trait implemented on tuples that allows calling a syscall using that tuple to provide arguments
@@ -40,9 +39,10 @@ mod fallback {
 	impl<A0: ToUsizeArray> CallTuple for (A0,)
 	{
 		unsafe fn call(self, id: u32) -> u64 {
-			let mut a = [0; 8];
-			let an = push(&mut a, self.0);
-			let _ = an;
+			let mut a = [0; 2];
+			let an = &mut a[..A0::LEN];
+			let an = push(an, self.0);
+			assert!(an.len() == 0);
 			call_array(&a, id)
 		}
 	}
@@ -50,9 +50,10 @@ mod fallback {
 	{
 		unsafe fn call(self, id: u32) -> u64 {
 			let mut a = [0; 4];
-			let an = push(&mut a, self.0);
+			let an = &mut a[..A0::LEN + A1::LEN];
+			let an = push(an, self.0);
 			let an = push(an, self.1);
-			let _ = an;
+			assert!(an.len() == 0);
 			call_array(&a, id)
 		}
 	}
@@ -60,10 +61,11 @@ mod fallback {
 	{
 		unsafe fn call(self, id: u32) -> u64 {
 			let mut a = [0; 6];
-			let an = push(&mut a, self.0);
+			let an = &mut a[..A0::LEN + A1::LEN + A2::LEN];
+			let an = push(an, self.0);
 			let an = push(an, self.1);
 			let an = push(an, self.2);
-			let _ = an;
+			assert!(an.len() == 0);
 			call_array(&a, id)
 		}
 	}
@@ -76,11 +78,12 @@ mod fallback {
 	{
 		unsafe fn call(self, id: u32) -> u64 {
 			let mut a = [0; 8];
-			let an = push(&mut a, self.0);
+			let an = &mut a[..A0::LEN + A1::LEN + A2::LEN + A3::LEN];
+			let an = push(an, self.0);
 			let an = push(an, self.1);
 			let an = push(an, self.2);
 			let an = push(an, self.3);
-			let _ = an;
+			assert!(an.len() == 0);
 			call_array(&a, id)
 		}
 	}
@@ -94,12 +97,13 @@ mod fallback {
 	{
 		unsafe fn call(self, id: u32) -> u64 {
 			let mut a = [0; 8];
-			let an = push(&mut a, self.0);
+			let an = &mut a[..A0::LEN + A1::LEN + A2::LEN + A3::LEN + A4::LEN];
+			let an = push(an, self.0);
 			let an = push(an, self.1);
 			let an = push(an, self.2);
 			let an = push(an, self.3);
 			let an = push(an, self.4);
-			let _ = an;
+			assert!(an.len() == 0);
 			call_array(&a, id)
 		}
 	}
