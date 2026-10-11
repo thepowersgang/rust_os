@@ -77,7 +77,7 @@ bin/kernel-$(ARCH).bin: $(OBJS) Core/arch/$(ARCH)/link.ld
 	$V$(LD) -o $@ --whole-archive $(OBJS) --no-whole-archive $(LINKFLAGS)
 ifeq ($(ARCH),amd64)
 	$(V)objcopy $@ --only-keep-debug $@.debug
-	$(V)objcopy $@ -F elf32-i386 $@.elf32
+	$(V)objcopy $@ -O elf32-i386 $@.elf32
 	$V$(TRIPLE)-strip -g $@.elf32
 else
 	#$V$(TRIPLE)-strip $@
