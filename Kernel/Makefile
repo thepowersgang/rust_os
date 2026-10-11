@@ -1,6 +1,8 @@
 #
 #
 #
+# cspell:ignore ACPICA libacpica libmain
+# cspell:ignore BUILDNUM LINKFLAGS
 V ?= @
 -include ../common.mk
 
@@ -74,8 +76,8 @@ bin/kernel-$(ARCH).bin: $(OBJS) Core/arch/$(ARCH)/link.ld
 	@echo [LD] -o $@
 	$V$(LD) -o $@ --whole-archive $(OBJS) --no-whole-archive $(LINKFLAGS)
 ifeq ($(ARCH),amd64)
-	$Vobjcopy $@ --only-keep-debug $@.debug
-	$Vobjcopy $@ -F elf32-i386 $@.elf32
+	$(V)objcopy $@ --only-keep-debug $@.debug
+	$(V)objcopy $@ -F elf32-i386 $@.elf32
 	$V$(TRIPLE)-strip -g $@.elf32
 else
 	#$V$(TRIPLE)-strip $@
@@ -90,7 +92,7 @@ endif
 	$V$(OBJDUMP) -s -C -S $* > $*.dsm
 
 #
-# Invoke xargo to build the main part of the kernel
+# Invoke cargo to build the main part of the kernel
 # - This includes all modules enabled in ./Cargo.toml
 #
 $(OBJDIR)libmain.a: PHONY targets/kernel-$(ARCH).json
@@ -123,7 +125,7 @@ $(OBJDIR)libacpica.a: ../acpica/Makefile $(wildcard ../acpica/patches/source/inc
 $(OBJDIR)%.ao: Core/arch/$(ARCH)/%.asm
 	@echo [AS] -o $@
 	@mkdir -p $(dir $@)
-	$Vnasm -o $@ $< -f elf64 -MD $@.d -MP -F dwarf -g
+	$(V)nasm -o $@ $< -f elf64 -MD $@.d -MP -F dwarf -g
 $(OBJDIR)%.ao: Core/arch/$(ARCH)/%.S
 	@echo [AS] -o $@
 	@mkdir -p $(dir $@)
