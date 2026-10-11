@@ -213,8 +213,8 @@ impl crate::ondisk::Inode
 
 	fn max_blocks(&self, fs: &InstanceInner) -> u32 {
 		let n_blocks = (self.i_size(fs) + fs.fs_block_size as u64 - 1) / fs.fs_block_size as u64;
-		if n_blocks > ::core::u32::MAX as u64 {
-			::core::u32::MAX
+		if n_blocks > u32::MAX as u64 {
+			u32::MAX
 		}
 		else {
 			n_blocks as u32

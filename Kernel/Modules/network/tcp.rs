@@ -191,7 +191,7 @@ fn rx_handler(src_addr: Address, dest_addr: Address, mut pkt: crate::nic::Packet
 		if let Some(s) = get_server()
 		{
 			// Decrement the server's accept space
-			if s.accept_space.fetch_update(Ordering::SeqCst, Ordering::SeqCst, |v| if v == 0 { None } else { Some(v - 1) }).is_err() { 
+			if s.accept_space.try_update(Ordering::SeqCst, Ordering::SeqCst, |v| if v == 0 { None } else { Some(v - 1) }).is_err() { 
 				log_debug!("Start of incoming handshake: {:?} - Dropped, queue full", quad);
 				// Reject if no space
 				// - Send a RST
