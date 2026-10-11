@@ -47,7 +47,7 @@ macro_rules! module_define
 		#[doc(hidden)]
 		const S_DEPS: &'static [&'static str] = &[$( $(#[$da])* stringify!($deps) ),*];
 		// External linkage symbol, to force the module info to be maintained
-		#[linkage="extern_weak"]
+		//#[linkage="extern_weak"]
 		#[doc(hidden)]
 		#[allow(dead_code)]
 		pub static S_MODULE_P: &$crate::modules::ModuleInfo = &S_MODULE;
