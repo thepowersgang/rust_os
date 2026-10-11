@@ -3,7 +3,6 @@
 //
 // Modules/fs_extN/lib.rs
 //! Ext2/3/4 filesystem driver
-#![feature(linkage)]
 #![no_std]
 
 use kernel::prelude::*;

@@ -4,7 +4,6 @@
 // virtio/lib.rs
 //! Virtual IO devices
 #![no_std]
-#![feature(linkage)]
 #![feature(arbitrary_self_types)]
 
 #[macro_use] extern crate kernel;

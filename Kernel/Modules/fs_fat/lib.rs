@@ -2,8 +2,7 @@
 // - By John Hodge (thePowersGang)
 //
 // Modules/fs_fat/lib.rs
-//! FAT (12/16/32) Filesystemd river
-#![feature(linkage)]
+//! FAT (12/16/32) Filesystem river
 #![no_std]
 
 #[macro_use] extern crate kernel;

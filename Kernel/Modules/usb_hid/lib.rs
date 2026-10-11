@@ -4,7 +4,6 @@
 // Modules/usb_hid/lib.rs
 //! USB HID (Human Interface Device) driver
 #![no_std]
-#![feature(linkage)]	// for module_define!
 use kernel::prelude::*;
 
 #[macro_use]

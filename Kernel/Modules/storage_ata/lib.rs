@@ -3,7 +3,6 @@
 //
 // Modules/storage_ata/lib.rs
 //! x86 ATA driver
-#![feature(linkage)]
 #![no_std]
 
 #[macro_use] extern crate kernel;

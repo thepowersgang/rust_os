@@ -2,7 +2,6 @@
 // - By John Hodge (thePowersGang)
 //
 // Modules/fs_iso9660/lib.rs
-#![feature(linkage)]
 #![no_std]
 use kernel::prelude::*;
 

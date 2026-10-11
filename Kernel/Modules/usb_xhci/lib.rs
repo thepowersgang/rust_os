@@ -4,7 +4,6 @@
 // Modules/usb_xhci/lib.rs
 //! eXtensible Host Controller Interface (xHCI) driver
 #![no_std]
-#![feature(linkage)]	// for module_define!
 #![feature(ptr_metadata)]	// for hacks
 use kernel::prelude::*;
 use kernel::lib::mem::aref::{Aref,ArefBorrow};

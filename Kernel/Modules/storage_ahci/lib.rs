@@ -2,8 +2,8 @@
 // - By John Hodge (thePowersGang)
 //
 // Modules/storage_ahci/lib.rs
+// cspell:ignore AHCI
 //! AHCI Driver
-#![feature(linkage)]
 #![no_std]
 
 #[macro_use]

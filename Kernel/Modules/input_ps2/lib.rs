@@ -3,7 +3,6 @@
 //
 // Modules/input_ps2/lib.rs
 //! PS2 Keyboard/Mouse controller
-#![feature(linkage)]
 #![no_std]
 
 #[macro_use]

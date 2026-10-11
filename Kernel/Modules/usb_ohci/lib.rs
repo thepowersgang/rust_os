@@ -4,7 +4,6 @@
 // Modules/usb_ohci/lib.rs
 //! Open Host Controller Interface (OHCI) driver
 #![no_std]
-#![feature(linkage)]	// for module_define!
 use kernel::prelude::*;
 use kernel::lib::mem::aref::{Aref,ArefBorrow};
 use core::sync::atomic::{AtomicU32,AtomicUsize,Ordering};

@@ -4,7 +4,6 @@
 // Modules/nic_rtl8139/lib.rs
 //! Realtek 8139 driver
 #![no_std]
-#![feature(linkage)]	// for module_define!
 use ::kernel::prelude::*;
 use ::kernel::sync::Mutex;
 use ::kernel::device_manager;

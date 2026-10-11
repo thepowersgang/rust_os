@@ -11,7 +11,6 @@
 #![feature(lang_items)]	// Allow definition of lang_items
 #![feature(auto_traits)]	// POD trait
 #![feature(negative_impls)]	// Negative impls
-#![feature(linkage)]	// allows using #[linkage="external"]
 #![feature(sized_hierarchy)]	// new Sized traits for POD
 #![feature(extern_types)]
 //#![feature(allocator_api)]	// Needed for the `!POD` impl

@@ -4,7 +4,7 @@
 // Core/gui/mod.rs
 //! Kernel-mode side of the GUI
 //!
-//! Provides input routing and window management (i.e. exposing buffers to userland)
+//! Provides input routing and window management (i.e. exposing buffers to user land)
 //!
 //! Design Notes
 //! ===
@@ -13,7 +13,6 @@
 //!  - This allows the leader to switch to a lock screen
 //! - All windows are backed by a framebuffer in this code
 //!  - Kernel log is provided by a builtin text renderer
-#![feature(linkage)]
 #![no_std]
 
 //#![feature(plugin)]

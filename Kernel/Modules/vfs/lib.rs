@@ -4,7 +4,6 @@
 // Core/vfs/mod.rs
 //! Virtual File System
 #![no_std]
-#![feature(linkage)]	// for module_define
 #[allow(unused_imports)]
 use ::kernel::prelude::*;
 use ::kernel::metadevs::storage::VolumeHandle;

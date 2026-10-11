@@ -1,6 +1,5 @@
 // Realtek 8168-compatible gigabit cards
 #![no_std]
-#![feature(linkage)]	// needed for `module_define`
 #![feature(array_try_from_fn)]
 
 #[macro_use]

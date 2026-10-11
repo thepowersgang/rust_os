@@ -4,7 +4,6 @@
 // Modules/network/lib.rs
 //! Networking stack
 #![no_std]
-#![feature(linkage)]
 
 #[cfg(test)] #[macro_use] extern crate /**/ std;
 
