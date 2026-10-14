@@ -3,7 +3,7 @@
 //
 ///
 use std::ffi::{OsString,OsStr};
-use listview::ListView;
+use crate::list_view::ListView;
 use std::cell::RefCell;
 use std::fs::Path;
 use wtk::WindowTrait;
@@ -159,7 +159,7 @@ impl FileEnt
 		}
 	}
 }
-impl ::listview::Row for FileEnt {
+impl ::list_view::Row for FileEnt {
 	fn count(&self) -> usize {
 		2
 	}
