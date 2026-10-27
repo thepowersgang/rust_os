@@ -40,19 +40,19 @@ pub struct RuntimeServices
 
 impl RuntimeServices
 {
-	fn make_handle(&mut self) -> RuntimeServicesHandle {
+	fn make_handle(&mut self) -> RuntimeServicesHandle<'_> {
 		RuntimeServicesHandle {
 			time: RuntimeServicesTime(self),
 			storage: RuntimeServicesStorage(self),
 			}
 	}
 	/// Create a handle to the runtime services that will be called with virtual memory disabled
-	pub unsafe fn make_handle_physical(&mut self) -> Result<RuntimeServicesHandle,Status> {
+	pub unsafe fn make_handle_physical(&mut self) -> Result<RuntimeServicesHandle<'_>,Status> {
 		Ok(self.make_handle())
 	}
 	/// Create a handle to the runtime services, providing new virtual locations for each 
 	// TODO: Take a ::boot_services::MemoryMap handle that contains the reported size/version
-	pub unsafe fn make_handle_virtual(&mut self, map: &[super::boot_services::MemoryDescriptor]) -> Result<RuntimeServicesHandle,Status> {
+	pub unsafe fn make_handle_virtual(&mut self, map: &[super::boot_services::MemoryDescriptor]) -> Result<RuntimeServicesHandle<'_>,Status> {
 		(self.set_virtual_address_map)(map.len(), mem::size_of_val(&map[0]), 1, map.as_ptr()).err_or(())?;
 		Ok(self.make_handle())
 	}

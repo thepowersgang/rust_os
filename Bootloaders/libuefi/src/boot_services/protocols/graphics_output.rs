@@ -40,7 +40,7 @@ impl GraphicsOutput
 		(self.set_mode)(self, index).err_or(())
 	}
 
-	pub fn iter_modes(&self) -> ModeIter {
+	pub fn iter_modes(&self) -> ModeIter<'_> {
 		ModeIter(self, 0)
 	}
 	

@@ -171,7 +171,7 @@ impl BootServices
 impl BootServices
 {
 	/// Allocate a `Vec`-alike from the firmware's general use pool
-	pub fn allocate_pool_vec<T>(&self, mt: MemoryType, capacity: usize) -> Result<PoolVec<T>, Status> {
+	pub fn allocate_pool_vec<T>(&self, mt: MemoryType, capacity: usize) -> Result<PoolVec<'_, T>, Status> {
 		let mut ptr = ::core::ptr::null_mut();
 		// NOTE: AllocatePool returns 8-byte aligned data
 		assert!(::core::mem::align_of::<T>() <= 8);
@@ -203,17 +203,17 @@ impl BootServices
 pub struct PoolVec<'a, T>
 {
 	bs: &'a BootServices,
-	ptr: ::core::ptr::Unique<T>,
+	ptr: ::core::ptr::NonNull<T>,
 	cap: usize,
 	len: usize,
 }
 impl<'a,T> PoolVec<'a, T>
 {
 	/// UNSAFE: Pointer must be to `len` valid items, `cap` capacity, and be non-zero
-	pub unsafe fn from_ptr(bs: &BootServices, p: *mut T, cap: usize, len: usize) -> PoolVec<T> {
+	pub unsafe fn from_ptr(bs: &BootServices, p: *mut T, cap: usize, len: usize) -> PoolVec<'_, T> {
 		PoolVec {
 			bs: bs,
-			ptr: ::core::ptr::Unique::new_unchecked(p),
+			ptr: ::core::ptr::NonNull::new_unchecked(p),
 			cap: cap,
 			len: len,
 			}

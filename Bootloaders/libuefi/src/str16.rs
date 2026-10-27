@@ -34,7 +34,7 @@ impl Str16
 	/// 
 	/// NOTE: Unpaired UTF-16 surrogates are returned as \uFFFD
 	#[inline]
-	pub fn chars(&self) -> Chars {
+	pub fn chars(&self) -> Chars<'_> {
 		Chars(&self.0)
 	}
 }

@@ -75,7 +75,7 @@ impl ElfFile
 	pub fn check_header(&self) {
 		self.0.check_header();
 	}
-	fn phents(&self) -> PhEntIter {
+	fn phents(&self) -> PhEntIter<'_> {
 		assert_eq!( self.0.e_phentsize as usize, ::core::mem::size_of::<PhEnt>() );
 		// SAFE: Assuming the file is correct...
 		let slice: &[PhEnt] = unsafe {

@@ -4,7 +4,7 @@ use super::{Status,status};
 /// ::core::fmt::Write object for logging via the UEFI SimpleTextOutputInterface
 pub struct EfiLogger<'a>(&'a SimpleTextOutputInterface);
 impl<'a> EfiLogger<'a> {
-	pub fn new(i: &SimpleTextOutputInterface) -> EfiLogger {
+	pub fn new(i: &SimpleTextOutputInterface) -> EfiLogger<'_> {
 		EfiLogger(i)
 	}
 	fn write_char(&mut self, c: char) {

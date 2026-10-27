@@ -1,7 +1,6 @@
 // UEFI Boot-loader
 //
 //
-#![feature(proc_macro_hygiene)]	// utf16_literal
 #![no_std] 
 
 use uefi::boot_services::protocols;
@@ -225,19 +224,23 @@ fn handle_panic(info: &::core::panic::PanicInfo) -> ! {
 }
 
 #[no_mangle]
-pub extern "C" fn memcpy(dst: *mut u8, src: *const u8, count: usize) {
+pub unsafe extern "C" fn memcpy(dst: *mut ::core::ffi::c_void, src: *const ::core::ffi::c_void, count: usize) -> *mut ::core::ffi::c_void {
+	let rv;
 	unsafe {
-		::core::arch::asm!("rep movsb", inout("rcx") count => _, inout("rdi") dst => _, inout("rsi") src => _);
+		::core::arch::asm!("rep movsb", inout("rcx") count => _, inout("rdi") dst => rv, inout("rsi") src => _);
 	}
+	rv
 }
 #[no_mangle]
-pub extern "C" fn memset(dst: *mut u8, val: u8, count: usize) {
+pub unsafe extern "C" fn memset(dst: *mut ::core::ffi::c_void, val: i32, count: usize) -> *mut ::core::ffi::c_void {
+	let rv;
 	unsafe {
-		::core::arch::asm!("rep stosb", inout("rcx") count => _, inout("rdi") dst => _, in("al") val);
+		::core::arch::asm!("rep stosb", inout("rcx") count => _, inout("rdi") dst => rv, in("al") val as u8);
 	}
+	rv
 }
 #[no_mangle]
-pub extern "C" fn memcmp(dst: *mut u8, src: *const u8, count: usize) -> isize {
+pub unsafe extern "C" fn memcmp(dst: *const ::core::ffi::c_void, src: *const ::core::ffi::c_void, count: usize) -> i32 {
 	unsafe {
 		let rv: isize;
 		::core::arch::asm!("
@@ -256,7 +259,7 @@ pub extern "C" fn memcmp(dst: *mut u8, src: *const u8, count: usize) -> isize {
 			inout("rdi") dst => _,
 			inout("rsi") src => _
 			);
-		rv
+		rv as i32
 	}
 }
 
