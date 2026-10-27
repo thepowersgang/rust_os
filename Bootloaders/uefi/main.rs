@@ -227,13 +227,13 @@ fn handle_panic(info: &::core::panic::PanicInfo) -> ! {
 #[no_mangle]
 pub extern "C" fn memcpy(dst: *mut u8, src: *const u8, count: usize) {
 	unsafe {
-		::core::arch::asm!("rep movsb", in("rcx") count, in("rdi") dst, in("rsi") src);
+		::core::arch::asm!("rep movsb", inout("rcx") count => _, inout("rdi") dst => _, inout("rsi") src => _);
 	}
 }
 #[no_mangle]
 pub extern "C" fn memset(dst: *mut u8, val: u8, count: usize) {
 	unsafe {
-		::core::arch::asm!("rep stosb", in("rcx") count, in("rdi") dst, in("al") val);
+		::core::arch::asm!("rep stosb", inout("rcx") count => _, inout("rdi") dst => _, in("al") val);
 	}
 }
 #[no_mangle]
@@ -252,9 +252,9 @@ pub extern "C" fn memcmp(dst: *mut u8, src: *const u8, count: usize) -> isize {
 			3:
 			",
 			out(reg) rv,
-			in("rcx") count,
-			in("rdi") dst,
-			in("rsi") src
+			inout("rcx") count => _,
+			inout("rdi") dst => _,
+			inout("rsi") src => _
 			);
 		rv
 	}
