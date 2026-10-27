@@ -262,4 +262,14 @@ pub unsafe extern "C" fn memcmp(dst: *const ::core::ffi::c_void, src: *const ::c
 		rv as i32
 	}
 }
-
+// Wide C String Length
+#[no_mangle]
+pub unsafe extern "C" fn wcslen(s: *const u16) -> usize {
+	let max_len = 0xFFF_FFFF;
+	let out_len: usize;
+	unsafe {
+		// SCASW - SCAn String Word: Search for a given value in a sequence
+		::core::arch::asm!("repnz scasw", inout("rcx") max_len => out_len, inout("rsi") s => _, in("ax") 0);
+	}
+	max_len - out_len
+}
