@@ -244,7 +244,7 @@ pub unsafe extern "C" fn memcmp(dst: *const ::core::ffi::c_void, src: *const ::c
 	unsafe {
 		let rv: isize;
 		::core::arch::asm!("
-			repnz cmpsb
+			repz cmpsb
 			mov {0}, 0
 			ja 21f
 			jb 2f
