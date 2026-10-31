@@ -4,6 +4,7 @@
 // arch/amd64/hw/apic/mod.rs
 //! x86 APIC (Advanced Programmable Interrupt Controller) Driver.
 // mod.rs -- Core API / init
+// cspell:ignore IOAPICs
 use crate::prelude::*;
 
 module_define!{APIC, [ACPI], init}
@@ -87,7 +88,7 @@ fn init()
 		// CPUs (with APIC IDs)
 		// Interrupt routing rules
 
-		// IOApics
+		// IOAPICs
 		let mut it = mpt.entries().filter_map(|e| match e {
 			MPTableEntry::IoApic(e) => Some(e),
 			_ => None,
@@ -138,21 +139,18 @@ fn init()
 		const PORT_BASE: u16 = 0x3F8;
 		// HACK: Serial port IRQ
 		fn serial_irq_handler(_: *const ()) {
-			crate::arch::puts("RS232 IRQ:");
+			crate::arch::raw_debug!("RS232 IRQ:");
 			// SAFE: No memory addresses
 			unsafe {
 				use crate::arch::amd64::x86_io::inb;
-				crate::arch::puts(" IIR=");
-				crate::arch::puth(inb(PORT_BASE+2) as _);	// read status
-				crate::arch::puts(" LSR=");
-				crate::arch::puth(inb(PORT_BASE+5) as _);
+				crate::arch::raw_debug!(" IIR=", inb(PORT_BASE+2));	// read status
+				crate::arch::raw_debug!(" LSR=", inb(PORT_BASE+5));
 				// While LSR bit 0 ("DR") is set
 				while inb(PORT_BASE+5) & 0x01 != 0 {
-					crate::arch::puts(" D=");
-					crate::arch::puth(inb(PORT_BASE+0) as _);	// read the data
+					crate::arch::raw_debug!(" D=", inb(PORT_BASE+0));	// read the data
 				}
 			}
-			crate::arch::puts("\n");
+			crate::arch::raw_debug!("\n");
 		}
 		// SAFE: No memory addresses
 		unsafe {
@@ -203,10 +201,10 @@ pub unsafe fn send_ipi_startup(apic_id: u8, start_page: u8) {
 //{
 //	// 1. Find a spare ISR slot on a processor
 //	let lapic_id = 0;
-//	let isrnum = 33u;
+//	let isr_num = 33u;
 //	// 2. Bind
-//	let h = try!(::arch::interrupts::bind_isr(lapic_id, isrnum as u8, callback, info, cleanup_nop));
-//	Ok( (isrnum, h) )
+//	let h = try!(::arch::interrupts::bind_isr(lapic_id, isr_num as u8, callback, info, cleanup_nop));
+//	Ok( (isr_num, h) )
 //}
 
 /// Local + IO APIC interrupt handler

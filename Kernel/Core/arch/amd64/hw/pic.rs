@@ -151,14 +151,14 @@ impl Controller {
 
 	/// Read the "Interrupt Request" register
 	///
-	/// UNSAFE: No synchroniation, could interleave writes and reads
+	/// UNSAFE: No synchronisation, could interleave writes and reads
 	unsafe fn read_irr(&self) -> u8 {
 		self.ocw3(None, Some(Ocw3Read::Irr));
 		inb(self.0+0)
 	}
 	/// Read the "Interrupt Status" register
 	/// 
-	/// UNSAFE: No synchroniation, could interleave writes and reads
+	/// UNSAFE: No synchronisation, could interleave writes and reads
 	unsafe fn read_isr(&self) -> u8 {
 		self.ocw3(None, Some(Ocw3Read::Isr));
 		inb(self.0+0)
@@ -167,7 +167,7 @@ impl Controller {
 	/// 
 	/// If bit 7 (0x80) is set, an interrupt is pending
 	/// 
-	/// UNSAFE: No synchroniation, could interleave writes and reads
+	/// UNSAFE: No synchronisation, could interleave writes and reads
 	#[allow(dead_code)]
 	unsafe fn poll(&self) -> u8 {
 		self.ocw3(None, Some(Ocw3Read::Poll));

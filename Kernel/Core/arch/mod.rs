@@ -252,7 +252,7 @@ pub mod sync {
 			HeldSpinlock { lock: self }
 		}
 
-		/// Lock this spinning lock (accepting risk of panick/deadlock from IRQs)
+		/// Lock this spinning lock (accepting risk of panic/deadlock from IRQs)
 		//#[is_safe(irq)]
 		pub fn lock_irqsafe(&self) -> HeldSpinlock<'_, T> {
 			self.lock.inner_lock();
@@ -475,12 +475,44 @@ pub mod time {
 }
 
 #[inline]
+/// Write a string to the kernel debug sink (e.g. serial port), with no locking
 pub fn puts(s: &str) {
 	imp::puts(s)
 }
 #[inline]
-pub fn puth(v: u64) {
-	imp::puth(v)
+/// Write an un-prefixed hex value to the kernel debug sink (e.g. serial port), with no locking
+pub fn puth(v: u64) {	// cspell:disable-line
+	imp::puth(v)	// cspell:disable-line
+}
+/// Trait for values that can be raw-printed to the kernel debug sink (strings or values)
+pub trait RawDebug {
+	fn raw_debug(&self);
+}
+impl<'a, T: 'a + RawDebug> RawDebug for &'a T {
+	fn raw_debug(&self) {
+		(**self).raw_debug();
+	}
+}
+impl<'a> RawDebug for &'a str {
+	fn raw_debug(&self) {
+		puts(*self)
+	}
+}
+impl RawDebug for u64 {
+	fn raw_debug(&self) {
+		puth(*self)	// cspell:disable-line
+	}
+}
+impl RawDebug for u8 {
+	fn raw_debug(&self) {
+		(*self as u64).raw_debug()
+	}
+}
+/// Write a sequence of strings/values to the kernel debug sink
+pub macro raw_debug {
+	($($e:expr),+ $(,)?) => {
+		$( crate::arch::RawDebug::raw_debug(&$e); )+
+	}
 }
 
 #[inline]

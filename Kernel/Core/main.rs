@@ -13,6 +13,7 @@
 #![feature(negative_impls)]	// Negative impls
 #![feature(sized_hierarchy)]	// new Sized traits for POD
 #![feature(extern_types)]
+#![feature(decl_macro)]
 //#![feature(allocator_api)]	// Needed for the `!POD` impl
 #![cfg_attr(target_arch="x86_64",feature(formatting_options))]	// ACPI
 #![cfg_attr(target_arch="x86_64",feature(link_llvm_intrinsics))]

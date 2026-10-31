@@ -3,7 +3,7 @@
 //
 // arch/amd64/hw/hpet.rs
 // - x86 High Precision Event Timer
-// cspell:ignore HPET
+// cspell:ignore HPET OneShot
 #[allow(unused_imports)]
 use crate::prelude::*;
 use crate::arch::amd64::acpi::AddressSpaceID;
@@ -26,7 +26,7 @@ struct AcpiTableHpet
 	pci_vendor: u16,
 	addr: crate::arch::amd64::acpi::GAS,
 	hpet_num: u8,
-	mintick: [u8; 2],	// 16-bit word
+	mintick: [u8; 2],	// 16-bit word, but unaligned
 	page_protection: u8,
 }
 
