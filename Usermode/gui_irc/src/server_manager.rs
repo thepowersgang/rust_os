@@ -1,5 +1,6 @@
 use crate::server_state::ServerState;
 
+/// All connected (or connecting) servers
 pub struct ServerManager<'a> {
 	status_window: crate::window_types::StatusWindow,
 	input: &'a crate::Input,

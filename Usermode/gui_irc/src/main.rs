@@ -42,6 +42,7 @@ fn main()
 	};
 	
 	let mut sm = server_manager::ServerManager::new(status_window, &input, Tabs(&tabs));
+	// Auto-connect to a local IRC server
 	if true {
 		::syscalls::kernel_log!("sleep");
 		::syscalls::threads::wait(&mut [], ::syscalls::system_ticks() + 2_000);
