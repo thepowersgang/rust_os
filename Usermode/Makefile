@@ -157,7 +157,7 @@ $(OBJDIR)%.ao: %.S $(makefile_deps)
 	@echo [AS] $@
 	$V$(CC) $(ASFLAGS) -o $@ -c $< -D ARCH_$(ARCH) -MMD -MF $@.d
 # - Base runtime
-$(OBJDIR)rustrt0.o: rustrt0/$(ARCH).S $(makefile_deps)
+$(OBJDIR)rustrt0.o: libs/rustrt0/$(ARCH).S $(makefile_deps)
 	@mkdir -p $(dir $@)
 	@echo [AS] $@
 	$V$(CC) $(ASFLAGS) -o $@ -c $< -D ARCH_$(ARCH) -MMD -MF $@.d
