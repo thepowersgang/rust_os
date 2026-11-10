@@ -1,0 +1,17 @@
+[package]
+name = "std"
+version = "0.0.1"
+edition = "2015"
+
+[dependencies]
+std_io = { path = "../std_io" }
+std_rt = { path = "../std_rt" }
+std_sync = { path = "../std_sync" }
+syscalls = { path = "../syscalls" }
+macros = { path = "../macros" }
+alloc_system = { path = "../alloc_system" }
+
+loader = { path = "../../services/loader/lib" }
+
+[lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(arch, values("native"))'] }

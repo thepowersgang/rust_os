@@ -1,0 +1,11 @@
+[package]
+name = "gui_irc"
+version = "0.0.0"
+edition = "2018"
+
+[dependencies]
+wtk = { path = "../../libs/wtk" }
+wtk_ele_console = { path = "../../libs/wtk_ele_console" }
+async = { path = "../../libs/async" }
+std = { path = "../../libs/std" }
+syscalls = { path = "../../libs/syscalls" }

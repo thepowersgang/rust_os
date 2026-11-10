@@ -1,22 +1,25 @@
 [workspace]
 members = [
-	"loader/bin",
-	"init",
-	"login",
-	"simple_console", "shell",
-	"filebrowser", "fileviewer",
-	"vfs_test",
-	"hello_world",
+	"services/loader/bin",
+	"services/init",
+
+	"apps/login",
+	"apps/simple_console",
+	"apps/shell",
+	"apps/filebrowser",
+	"apps/fileviewer",
+	"apps/vfs_test",
+	"apps/hello_world",
 
 	# Daemons
-	"handle_server",
-	"daemon_network",
+	"services/handle_server",
+	"services/daemon_network",
 	
 	# Applications
-	"gui_irc",
-	"gui_http",
+	"apps/gui_irc",
+	"apps/gui_http",
 	]
-exclude = ["loader/native"]
+exclude = ["services/loader/native"]
 
 [profile.release]
 debug = true

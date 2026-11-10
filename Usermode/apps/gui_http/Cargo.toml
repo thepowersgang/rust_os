@@ -1,0 +1,11 @@
+[package]
+name = "gui_http"
+version = "0.1.0"
+edition = "2018"
+
+[dependencies]
+std = { path = "../../libs/std" }
+syscalls = { path = "../../libs/syscalls" }
+async = { path = "../../libs/async" }
+wtk = { path = "../../libs/wtk" }
+wtk_ele_console = { path = "../../libs/wtk_ele_console" }

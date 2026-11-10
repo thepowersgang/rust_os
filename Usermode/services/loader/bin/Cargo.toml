@@ -1,0 +1,25 @@
+[package]
+name = "loader-binary"
+version = "0.0.0"
+autobins = false
+edition = "2015"
+
+[lib]
+crate-type = ["staticlib"]
+path = "src/main.rs"
+
+#[bin]
+#path = "src/main.rs"
+
+[dependencies]
+byteorder = { path = "../../../libs/byteorder" }#, registry = "rustos-user" }
+macros = { path = "../../../libs/macros" }#, registry = "rustos-user" }
+cmdline_words_parser = { path = "../../../../externals/crates.io/cmdline_words_parser", default-features = false, features = ["alloc"] }
+
+# Part of sysroot
+std = { path = "../../../libs/std" }
+syscalls = { path = "../../../libs/syscalls" }
+loader = { path = "../lib" }
+
+[lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(arch, values("native"))', 'cfg(building_loader_lib)'] }

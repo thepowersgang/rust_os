@@ -1,0 +1,11 @@
+[package]
+name = "alloc_system"
+version = "0.0.1"
+edition = "2015"
+
+[lib]
+path = "lib.rs"
+
+[dependencies]
+syscalls = { path = "../syscalls" }
+std_sync = { path = "../std_sync" }

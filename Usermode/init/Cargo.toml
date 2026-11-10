@@ -1,9 +1,0 @@
-[package]
-name = "init"
-version = "0.0.0"
-edition = "2015"
-
-[dependencies]
-std = { path = "../libstd" }
-syscalls = { path = "../libsyscalls" }
-loader = { path = "../loader/lib" }

@@ -1,0 +1,15 @@
+[package]
+name = "std_rt"
+version = "0.0.1"
+edition = "2015"
+
+[lib]
+path = "lib.rs"
+
+[dependencies]
+syscalls = { path = "../syscalls" }
+macros = { path = "../macros" }
+
+[lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(arch, values("native"))'] }
+

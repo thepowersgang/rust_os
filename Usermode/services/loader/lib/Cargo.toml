@@ -1,0 +1,14 @@
+[package]
+name = "loader"
+version = "0.0.1"
+edition = "2015"
+
+[lib]
+path = "lib.rs"
+
+[dependencies]
+syscalls = { path = "../../../libs/syscalls" }
+
+#byteorder = { path = "../libbyteorder" }
+#macros = { path = "../libmacros" }
+#cmdline_words_parser = { path = "../../externals/crates.io/cmdline_words_parser" }

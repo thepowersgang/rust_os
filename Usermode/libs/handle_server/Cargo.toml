@@ -1,0 +1,11 @@
+[package]
+name = "handle_server"
+version = "0.0.0"
+edition = "2015"
+
+[lib]
+path = "lib.rs"
+
+[dependencies]
+syscalls = { path = "../syscalls" }
+

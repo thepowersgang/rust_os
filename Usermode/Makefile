@@ -109,11 +109,11 @@ endif
 # > The main body of the code is in `libloader_binary.a`, build by xargo
 ifneq ($(ARCH),native)
 LOADER_OBJS := $(OBJDIR)rustrt0.o $(OBJDIR)loader/bin/start.ao $(abspath $(CARGO_OUTDIR)libloader_binary.a)
-$(BINDIR)loader: loader/bin/link.ld $(LOADER_OBJS)
+$(BINDIR)loader: services/loader/bin/link.ld $(LOADER_OBJS)
 	@mkdir -p $(dir $@)
 	@echo [LD] $@
 	$V$(LD) -r --gc-sections --undefined image_header --entry loader_start -o $(OBJDIR)loader.o  $(LOADER_OBJS)
-	$V$(LD) -o $(OBJDIR)loader.elf -T loader/bin/link.ld $(OBJDIR)loader.o -Map $(OBJDIR)loader_map.txt
+	$V$(LD) -o $(OBJDIR)loader.elf -T services/loader/bin/link.ld $(OBJDIR)loader.o -Map $(OBJDIR)loader_map.txt
 	$V$(OBJCOPY) $(OBJDIR)loader.elf -O binary $@
 	$V$(OBJDUMP) -CS $(OBJDIR)loader.elf > $(OBJDIR)loader.dsm
 # xargo portion of loader
@@ -122,11 +122,11 @@ $(abspath $(CARGO_OUTDIR)libloader_binary.a): xargo
 else
 $(BINDIR)loader$(EXESUF): xargo
 	@mkdir -p $(dir $@)
-	RUSTFLAGS='$(RUSTFLAGS)' $(CARGO) build $(CARGO_FLAGS) --manifest-path loader/native/Cargo.toml
+	RUSTFLAGS='$(RUSTFLAGS)' $(CARGO) build $(CARGO_FLAGS) --manifest-path services/loader/native/Cargo.toml
 ifeq ($(OS),Windows_NT)
-	cp loader/native/$(CARGO_OUTDIR)loader_dyn.dll $(dir $@)
+	cp services/loader/native/$(CARGO_OUTDIR)loader_dyn.dll $(dir $@)
 else
-	cp loader/native/$(CARGO_OUTDIR)libloader_dyn.so $(dir $@)
+	cp sections/loader/native/$(CARGO_OUTDIR)libloader_dyn.so $(dir $@)
 endif
 	touch $@
 endif

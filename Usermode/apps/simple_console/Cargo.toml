@@ -1,0 +1,14 @@
+[package]
+name = "simple_console"
+version = "0.0.1"
+edition = "2015"
+
+[dependencies]
+wtk = { path = "../../libs/wtk" }
+async = { path = "../../libs/async" }
+cmdline_words_parser = { path = "../../../externals/crates.io/cmdline_words_parser", default-features = false, features = ["alloc"] }
+
+std = { path = "../../libs/std" }
+syscalls = { path = "../../libs/syscalls" }
+wtk_ele_console = { path = "../../libs/wtk_ele_console" }
+
