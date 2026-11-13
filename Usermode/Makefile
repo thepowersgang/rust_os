@@ -108,7 +108,7 @@ endif
 # > Linking is done in two steps so that --gc-sections works fully
 # > The main body of the code is in `libloader_binary.a`, build by xargo
 ifneq ($(ARCH),native)
-LOADER_OBJS := $(OBJDIR)rustrt0.o $(OBJDIR)loader/bin/start.ao $(abspath $(CARGO_OUTDIR)libloader_binary.a)
+LOADER_OBJS := $(OBJDIR)rustrt0.o $(OBJDIR)services/loader/bin/start.ao $(abspath $(CARGO_OUTDIR)libloader_binary.a)
 $(BINDIR)loader: services/loader/bin/link.ld $(LOADER_OBJS)
 	@mkdir -p $(dir $@)
 	@echo [LD] $@

@@ -14,7 +14,7 @@
 .globl LIMIT
 .globl PAGE_SIZE
 
-#include "../../rustrt0/common.S"
+#include "../../../libs/rustrt0/common.S"
 
 #ifdef ARCH_amd64
 # define DEFPTR 	.quad
